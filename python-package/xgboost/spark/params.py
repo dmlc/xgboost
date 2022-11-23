@@ -85,19 +85,3 @@ class HasQueryIdCol(Params):
         "query id column name",
         typeConverter=TypeConverters.toString,
     )
-
-
-class UseQuantileDMatrix(Params):
-    """
-    Mixin for param use_quantile_dmatrix:
-    """
-    use_quantile_dmatrix = Param(
-        Params._dummy(),
-        "use_quantile_dmatrix",
-        "This stores the boolean config of constructing quantile DMatrix instead of plain "
-        "DMatrix as xgboost training input. By default, if 'tree_method' param is 'hist' or "
-        "'gpu_hist' and 'cuDF' package is installed, the config is ON, otherwise the config "
-        "is OFF. Note that if you do not install 'cuDF' package, turning on this config "
-        "might result in performance degradation.",
-        typeConverter=TypeConverters.toBoolean,
-    )

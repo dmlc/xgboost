@@ -152,7 +152,6 @@ class _SparkXGBParams(
     HasFeaturesCols,
     HasEnableSparseDataOptim,
     HasQueryIdCol,
-    UseQuantileDMatrix,
 ):
     num_workers = Param(
         Params._dummy(),
@@ -759,11 +758,10 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         }
         dmatrix_kwargs = {k: v for k, v in dmatrix_kwargs.items() if v is not None}
 
-        if self.isDefined(self.use_quantile_dmatrix):
-            use_qdm = self.getOrDefault(self.use_quantile_dmatrix)
-        else:
-            use_qdm = CUDF_INSTALLED and \
-                      booster_params.get("tree_method", None) in ("hist", "gpu_hist")
+        # If cuDF is not installed, then using DMatrix instead of QDM,
+        # because without cuDF, DMatrix performs better than QDM.
+        use_qdm = CUDF_INSTALLED and \
+                  booster_params.get("tree_method", None) in ("hist", "gpu_hist")
 
         def _train_booster(pandas_df_iter):
             """Takes in an RDD partition and outputs a booster for that partition after
