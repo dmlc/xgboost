@@ -34,7 +34,8 @@ from .core import (
 )
 
 DispatchedDataBackendReturnType = Tuple[
-    ctypes.c_void_p, Optional[FeatureNames], Optional[FeatureTypes]]
+    ctypes.c_void_p, Optional[FeatureNames], Optional[FeatureTypes]
+]
 
 CAT_T = "c"
 
@@ -217,22 +218,27 @@ def _is_modin_df(data: DataType) -> bool:
 
 
 _pandas_dtype_mapper = {
-    'int8': 'int',
-    'int16': 'int',
-    'int32': 'int',
-    'int64': 'int',
-    'uint8': 'int',
-    'uint16': 'int',
-    'uint32': 'int',
-    'uint64': 'int',
-    'float16': 'float',
-    'float32': 'float',
-    'float64': 'float',
-    'bool': 'i',
+    "int8": "int",
+    "int16": "int",
+    "int32": "int",
+    "int64": "int",
+    "uint8": "int",
+    "uint16": "int",
+    "uint32": "int",
+    "uint64": "int",
+    "float16": "float",
+    "float32": "float",
+    "float64": "float",
+    "bool": "i",
     # nullable types
+    "Int8": "int",
     "Int16": "int",
     "Int32": "int",
     "Int64": "int",
+    "UInt8": "i",
+    "UInt16": "i",
+    "UInt32": "i",
+    "UInt64": "i",
     "Float32": "float",
     "Float64": "float",
     "boolean": "i",
@@ -295,25 +301,8 @@ def _pandas_feature_info(
     return feature_names, feature_types
 
 
-def is_nullable_dtype(dtype: PandasDType) -> bool:
-    """Wether dtype is a pandas nullable type."""
-    from pandas.api.types import (
-        is_bool_dtype,
-        is_categorical_dtype,
-        is_float_dtype,
-        is_integer_dtype,
-    )
-
-    # dtype: pd.core.arrays.numeric.NumericDtype
-    nullable_alias = {"Int16", "Int32", "Int64", "Float32", "Float64", "category"}
-    is_int = is_integer_dtype(dtype) and dtype.name in nullable_alias
-    # np.bool has alias `bool`, while pd.BooleanDtype has `bzoolean`.
-    is_bool = is_bool_dtype(dtype) and dtype.name == "boolean"
-    is_float = is_float_dtype(dtype) and dtype.name in nullable_alias
-    return is_int or is_bool or is_float or is_categorical_dtype(dtype)
-
-
-def _pandas_cat_null(data: DataFrame) -> DataFrame:
+def pandas_cat_null(data: DataFrame) -> DataFrame:
+    """Handle categorical dtype and nullable extension types from pandas."""
     from pandas.api.types import is_categorical_dtype
 
     # handle category codes and nullable.
@@ -322,10 +311,7 @@ def _pandas_cat_null(data: DataFrame) -> DataFrame:
         for col, dtype in zip(data.columns, data.dtypes)
         if is_categorical_dtype(dtype)
     ]
-    nul_columns = [
-        col for col, dtype in zip(data.columns, data.dtypes) if is_nullable_dtype(dtype)
-    ]
-    if cat_columns or nul_columns:
+    if cat_columns:
         # Avoid transformation due to: PerformanceWarning: DataFrame is highly
         # fragmented
         transformed = data.copy()
@@ -333,16 +319,21 @@ def _pandas_cat_null(data: DataFrame) -> DataFrame:
         transformed = data
 
     if cat_columns:
-        # DF doesn't have the cat attribute, so we use apply here
+        # DF doesn't have the cat attribute, as a result, we use apply here
         transformed[cat_columns] = (
             transformed[cat_columns]
             .apply(lambda x: x.cat.codes)
             .astype(np.float32)
             .replace(-1.0, np.NaN)
         )
-    if nul_columns:
-        transformed[nul_columns] = transformed[nul_columns].astype(np.float32)
 
+    # Convert all types including nullable extension types to float32
+
+    # TODO(jiamingy): Investigate the possibility of using dataframe protocol or arrow
+    # IPC format for pandas so that we can apply the data transformation inside XGBoost
+    # for better memory efficiency.
+
+    transformed = transformed.astype(np.float32)
     return transformed
 
 
@@ -357,9 +348,8 @@ def _transform_pandas_df(
     from pandas.api.types import is_categorical_dtype, is_sparse
 
     if not all(
-        dtype.name in _pandas_dtype_mapper
+        (dtype.name in _pandas_dtype_mapper)
         or is_sparse(dtype)
-        or (is_nullable_dtype(dtype) and not is_categorical_dtype(dtype))
         or (is_categorical_dtype(dtype) and enable_categorical)
         for dtype in data.dtypes
     ):
@@ -369,7 +359,7 @@ def _transform_pandas_df(
         data, meta, feature_names, feature_types, enable_categorical
     )
 
-    transformed = _pandas_cat_null(data)
+    transformed = pandas_cat_null(data)
 
     if meta and len(data.columns) > 1 and meta not in _matrix_meta:
         raise ValueError(f"DataFrame for {meta} cannot have multiple columns")
@@ -404,14 +394,12 @@ def _is_pandas_series(data: DataType) -> bool:
 
 
 def _meta_from_pandas_series(
-    data: DataType,
-    name: str,
-    dtype: Optional[NumpyDType],
-    handle: ctypes.c_void_p
+    data: DataType, name: str, dtype: Optional[NumpyDType], handle: ctypes.c_void_p
 ) -> None:
     """Help transform pandas series for meta data like labels"""
-    data = data.values.astype('float')
+    data = data.values.astype("float")
     from pandas.api.types import is_sparse
+
     if is_sparse(data):
         data = data.to_dense()  # type: ignore
     assert len(data.shape) == 1 or data.shape[1] == 0 or data.shape[1] == 1

@@ -297,7 +297,7 @@ class TestPandas:
         assert 'auc' not in cv.columns[0]
         assert 'error' in cv.columns[0]
 
-    def test_nullable_type(self):
+    def test_nullable_type(self) -> None:
         y = np.random.default_rng(0).random(4)
 
         def to_bytes(Xy: xgb.DMatrix) -> bytes:
@@ -308,17 +308,34 @@ class TestPandas:
                     result = fd.read()
             return result
 
-        def test_int(dtype) -> bytes:
+        def test_int(dtype, Null) -> bytes:
             arr = pd.DataFrame(
-                {"f0": [1, 2, None, 3], "f1": [4, 3, None, 1]}, dtype=dtype
+                {"f0": [1, 2, Null, 3], "f1": [4, 3, Null, 1]}, dtype=dtype
             )
             Xy = xgb.DMatrix(arr, y)
             Xy.feature_types = None
+
+            f0 = arr["f0"]
+            with pytest.raises(ValueError, match="Label contains NaN"):
+                xgb.DMatrix(arr, f0)
             return to_bytes(Xy)
 
-        b0 = test_int(np.float32)
-        b1 = test_int(pd.Int16Dtype())
-        assert b0 == b1
+        b0 = test_int(np.float32, np.nan)
+
+        for dtype in (
+            pd.UInt8Dtype(),
+            pd.UInt16Dtype(),
+            pd.UInt32Dtype(),
+            pd.UInt64Dtype(),
+            pd.Int8Dtype(),
+            pd.Int16Dtype(),
+            pd.Int32Dtype(),
+            pd.Int64Dtype(),
+        ):
+            b1 = test_int(dtype, None)
+            assert b0 == b1
+            b1 = test_int(dtype, pd.NA)
+            assert b0 == b1
 
         def test_bool(dtype) -> bytes:
             arr = pd.DataFrame(
@@ -331,7 +348,7 @@ class TestPandas:
 
         b0 = test_bool(pd.BooleanDtype())
         b1 = test_bool(bool)
-        assert b0 != b1         # None is converted to False with np.bool
+        assert b0 != b1  # None is converted to False with np.bool
 
         data = {"f0": [1.0, 2.0, None, 3.0], "f1": [3.0, 2.0, None, 1.0]}
 
@@ -350,7 +367,7 @@ class TestPandas:
 
         b0 = test_float(pd.Float64Dtype())
         b1 = test_float(float)
-        assert b0 == b1         # both are converted to NaN
+        assert b0 == b1  # both are converted to NaN
         assert b0 == from_np
 
         def test_cat(dtype) -> bytes:
