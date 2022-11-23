@@ -165,7 +165,10 @@ def check_rmarkdown() -> None:
     subprocess.check_call([rscript, "-e", "devtools::document()"], env=env)
     output = subprocess.run(["git", "diff", "--name-only"], capture_output=True)
     if len(output.stdout.decode("utf-8").strip()) != 0:
-        raise ValueError("Please run `devtools::document()`.")
+        output = subprocess.run(["git", "diff"], capture_output=True)
+        raise ValueError(
+            "Please run `devtools::document()`. Diff:\n", output.stdout.decode("utf-8")
+        )
 
 
 @cd(r_package)
