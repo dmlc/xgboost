@@ -1,3 +1,4 @@
+"""Utilities for data generation."""
 from typing import Generator, Tuple
 
 import numpy as np
