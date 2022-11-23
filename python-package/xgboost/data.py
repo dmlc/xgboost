@@ -16,7 +16,6 @@ from ._typing import (
     FeatureTypes,
     FloatCompatible,
     NumpyDType,
-    PandasDType,
     c_bst_ulong,
 )
 from .compat import DataFrame, lazy_isinstance
