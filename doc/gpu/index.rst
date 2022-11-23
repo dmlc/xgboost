@@ -70,6 +70,12 @@ Working memory is allocated inside the algorithm proportional to the number of r
 
 If you are getting out-of-memory errors on a big dataset, try the or :py:class:`xgboost.QuantileDMatrix` or :doc:`external memory version </tutorials/external_memory>`. Note that when ``external memory`` is used for GPU hist, it's best to employ gradient based sampling as well. Last but not least, ``inplace_predict`` can be preferred over ``predict`` when data is already on GPU. Both ``QuantileDMatrix`` and ``inplace_predict`` are automatically enabled if you are using the scikit-learn interface.
 
+
+CPU-GPU Interoperability
+========================
+XGBoost models trained on GPUs can be used on CPU-only systems to generate predictions. For information about how to save and load an XGBoost model, see :doc:`/tutorials/saving_model`.
+
+
 Developer notes
 ===============
 The application may be profiled with annotations by specifying USE_NTVX to cmake. Regions covered by the 'Monitor' class in CUDA code will automatically appear in the nsight profiler when `verbosity` is set to 3.
