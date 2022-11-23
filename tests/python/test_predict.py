@@ -5,8 +5,8 @@ import numpy as np
 import pandas as pd
 import pytest
 from scipy import sparse
-from xgboost.testing.shared import validate_leaf_output
 from xgboost.testing.data import np_dtypes
+from xgboost.testing.shared import validate_leaf_output
 
 import xgboost as xgb
 from xgboost import testing as tm
