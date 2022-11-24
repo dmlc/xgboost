@@ -30,6 +30,7 @@ from .core import (
     c_array,
     c_str,
     from_pystr_to_cstr,
+    make_jcargs,
 )
 
 DispatchedDataBackendReturnType = Tuple[
@@ -184,24 +185,15 @@ def _from_numpy_array(
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
 ) -> DispatchedDataBackendReturnType:
-    """Initialize data from a 2-D numpy matrix.
-
-    """
+    """Initialize data from a 2-D numpy matrix."""
     if len(data.shape) != 2:
-        raise ValueError(
-            "Expecting 2 dimensional numpy.ndarray, got: ", data.shape
-        )
+        raise ValueError("Expecting 2 dimensional numpy.ndarray, got: ", data.shape)
     data, _ = _ensure_np_dtype(data, data.dtype)
     handle = ctypes.c_void_p()
-    args = {
-        "missing": float(missing),
-        "nthread": int(nthread),
-    }
-    config = bytes(json.dumps(args), "utf-8")
     _check_call(
         _LIB.XGDMatrixCreateFromDense(
             _array_interface(data),
-            config,
+            make_jcargs(missing=float(missing), nthread=int(nthread)),
             ctypes.byref(handle),
         )
     )
@@ -1205,6 +1197,7 @@ def _proxy_transform(
         arr, feature_names, feature_types = _transform_pandas_df(
             data, enable_categorical, feature_names, feature_types
         )
+        arr, _ = _ensure_np_dtype(arr, arr.dtype)
         return arr, None, feature_names, feature_types
     raise TypeError("Value type is not supported for data iterator:" + str(type(data)))
 
