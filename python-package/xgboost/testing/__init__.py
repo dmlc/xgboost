@@ -768,6 +768,19 @@ def non_increasing(L: Sequence[float], tolerance: float = 1e-4) -> bool:
     return all((y - x) < tolerance for x, y in zip(L, L[1:]))
 
 
+def predictor_equal(lhs: xgb.DMatrix, rhs: xgb.DMatrix) -> bool:
+    """Assert whether two DMatrices contain the same predictors."""
+    lcsr = lhs.get_data()
+    rcsr = rhs.get_data()
+    return all(
+        (
+            np.array_equal(lcsr.data, rcsr.data),
+            np.array_equal(lcsr.indices, rcsr.indices),
+            np.array_equal(lcsr.indptr, rcsr.indptr),
+        )
+    )
+
+
 def eval_error_metric(predt: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[str, np.float64]:
     """Evaluation metric for xgb.train"""
     label = dtrain.get_label()

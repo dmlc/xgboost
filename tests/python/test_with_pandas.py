@@ -7,6 +7,7 @@ from test_dmatrix import set_base_margin_info
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.testing.data import pd_dtypes
 
 try:
     import pandas as pd
@@ -298,86 +299,21 @@ class TestPandas:
         assert 'error' in cv.columns[0]
 
     def test_nullable_type(self) -> None:
-        y = np.random.default_rng(0).random(4)
+        from pandas.api.types import is_categorical
 
-        def to_bytes(Xy: xgb.DMatrix) -> bytes:
-            with tempfile.TemporaryDirectory() as tmpdir:
-                path = os.path.join(tmpdir, "Xy.dmatrix")
-                Xy.save_binary(path)
-                with open(path, "rb") as fd:
-                    result = fd.read()
-            return result
+        for DMatrixT in (xgb.DMatrix, xgb.QuantileDMatrix):
+            for orig, df in pd_dtypes():
+                enable_categorical = any(is_categorical for dtype in df.dtypes)
 
-        def test_int(dtype, Null) -> bytes:
-            arr = pd.DataFrame(
-                {"f0": [1, 2, Null, 3], "f1": [4, 3, Null, 1]}, dtype=dtype
-            )
-            Xy = xgb.DMatrix(arr, y)
-            Xy.feature_types = None
+                m_orig = DMatrixT(orig, enable_categorical=enable_categorical)
+                # extension types
+                m_etype = DMatrixT(df, enable_categorical=enable_categorical)
+                # different from pd.BooleanDtype(), None is converted to False with bool
+                if any(dtype == "bool" for dtype in orig.dtypes):
+                    assert not tm.predictor_equal(m_orig, m_etype)
+                else:
+                    assert tm.predictor_equal(m_orig, m_etype)
 
-            f0 = arr["f0"]
-            with pytest.raises(ValueError, match="Label contains NaN"):
-                xgb.DMatrix(arr, f0)
-            return to_bytes(Xy)
-
-        b0 = test_int(np.float32, np.nan)
-
-        for dtype in (
-            pd.UInt8Dtype(),
-            pd.UInt16Dtype(),
-            pd.UInt32Dtype(),
-            pd.UInt64Dtype(),
-            pd.Int8Dtype(),
-            pd.Int16Dtype(),
-            pd.Int32Dtype(),
-            pd.Int64Dtype(),
-        ):
-            b1 = test_int(dtype, None)
-            assert b0 == b1
-            b1 = test_int(dtype, pd.NA)
-            assert b0 == b1
-
-        def test_bool(dtype) -> bytes:
-            arr = pd.DataFrame(
-                {"f0": [True, False, None, True], "f1": [False, True, None, True]},
-                dtype=dtype,
-            )
-            Xy = xgb.DMatrix(arr, y)
-            Xy.feature_types = None
-            return to_bytes(Xy)
-
-        b0 = test_bool(pd.BooleanDtype())
-        b1 = test_bool(bool)
-        assert b0 != b1  # None is converted to False with np.bool
-
-        data = {"f0": [1.0, 2.0, None, 3.0], "f1": [3.0, 2.0, None, 1.0]}
-
-        arr = np.array([data["f0"], data["f1"]]).T
-        Xy = xgb.DMatrix(arr, y)
-        Xy.feature_types = None
-        Xy.feature_names = None
-        from_np = to_bytes(Xy)
-
-        def test_float(dtype) -> bytes:
-            arr = pd.DataFrame(data, dtype=dtype)
-            Xy = xgb.DMatrix(arr, y)
-            Xy.feature_types = None
-            Xy.feature_names = None
-            return to_bytes(Xy)
-
-        b0 = test_float(pd.Float64Dtype())
-        b1 = test_float(float)
-        assert b0 == b1  # both are converted to NaN
-        assert b0 == from_np
-
-        def test_cat(dtype) -> bytes:
-            arr = pd.DataFrame(data, dtype=dtype)
-            if dtype is None:
-                arr = arr.astype("category")
-            Xy = xgb.DMatrix(arr, y, enable_categorical=True)
-            Xy.feature_types = None
-            return to_bytes(Xy)
-
-        b0 = test_cat(pd.CategoricalDtype())
-        b1 = test_cat(None)
-        assert b0 == b1
+                f0 = df["f0"]
+                with pytest.raises(ValueError, match="Label contains NaN"):
+                    xgb.DMatrix(df, f0, enable_categorical=enable_categorical)
