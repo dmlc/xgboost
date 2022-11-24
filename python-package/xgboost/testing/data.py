@@ -11,7 +11,7 @@ def np_dtypes(
     import pandas as pd
 
     rng = np.random.RandomState(1994)
-    # Integer
+    # Integer and float.
     orig = rng.randint(low=0, high=127, size=n_samples * n_features).reshape(
         n_samples, n_features
     )
@@ -59,4 +59,4 @@ def np_dtypes(
         X = np.array(orig, dtype=dtype)
         df_orig = pd.DataFrame(orig)
         df = pd.DataFrame(X)
-        yield orig, df
+        yield df_orig, df
