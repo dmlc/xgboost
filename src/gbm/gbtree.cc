@@ -191,11 +191,10 @@ void GBTree::ConfigureUpdaters() {
   }
 }
 
-void GPUCopyGradient(HostDeviceVector<GradientPair> const *in_gpair,
-                     bst_group_t n_groups, bst_group_t group_id,
-                     HostDeviceVector<GradientPair> *out_gpair)
+void GPUCopyGradient(HostDeviceVector<GradientPair> const*, bst_group_t, bst_group_t,
+                     HostDeviceVector<GradientPair>*)
 #if defined(XGBOOST_USE_CUDA)
-;  // NOLINT
+    ;  // NOLINT
 #else
 {
   common::AssertGPUSupport();
@@ -627,11 +626,10 @@ GBTree::GetPredictor(HostDeviceVector<float> const *out_pred,
  * \param predts     Prediction for current tree.
  * \param tree_w     Tree weight.
  */
-void GPUDartPredictInc(common::Span<float> out_predts,
-                       common::Span<float> predts, float tree_w, size_t n_rows,
-                       bst_group_t n_groups, bst_group_t group)
+void GPUDartPredictInc(common::Span<float>, common::Span<float>, float, size_t, bst_group_t,
+                       bst_group_t)
 #if defined(XGBOOST_USE_CUDA)
-;  // NOLINT
+    ;  // NOLINT
 #else
 {
   common::AssertGPUSupport();

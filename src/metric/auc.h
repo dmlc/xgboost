@@ -29,34 +29,32 @@ XGBOOST_DEVICE inline double TrapezoidArea(double x0, double x1, double y0, doub
 
 struct DeviceAUCCache;
 
-std::tuple<double, double, double>
-GPUBinaryROCAUC(common::Span<float const> predts, MetaInfo const &info,
-                int32_t device, std::shared_ptr<DeviceAUCCache> *p_cache);
+std::tuple<double, double, double> GPUBinaryROCAUC(common::Span<float const> predts,
+                                                   MetaInfo const &info, std::int32_t device,
+                                                   std::shared_ptr<DeviceAUCCache> *p_cache);
 
-double GPUMultiClassROCAUC(common::Span<float const> predts,
-                           MetaInfo const &info, int32_t device,
-                           std::shared_ptr<DeviceAUCCache> *cache,
-                           size_t n_classes);
+double GPUMultiClassROCAUC(common::Span<float const> predts, MetaInfo const &info,
+                           std::int32_t device, std::shared_ptr<DeviceAUCCache> *cache,
+                           std::size_t n_classes);
 
-std::pair<double, uint32_t>
-GPURankingAUC(common::Span<float const> predts, MetaInfo const &info,
-              int32_t device, std::shared_ptr<DeviceAUCCache> *cache);
+std::pair<double, std::uint32_t> GPURankingAUC(common::Span<float const> predts,
+                                               MetaInfo const &info, std::int32_t device,
+                                               std::shared_ptr<DeviceAUCCache> *cache);
 
 /**********
  * PR AUC *
  **********/
-std::tuple<double, double, double>
-GPUBinaryPRAUC(common::Span<float const> predts, MetaInfo const &info,
-               int32_t device, std::shared_ptr<DeviceAUCCache> *p_cache);
+std::tuple<double, double, double> GPUBinaryPRAUC(common::Span<float const> predts,
+                                                  MetaInfo const &info, std::int32_t device,
+                                                  std::shared_ptr<DeviceAUCCache> *p_cache);
 
-double GPUMultiClassPRAUC(common::Span<float const> predts,
-                          MetaInfo const &info, int32_t device,
-                          std::shared_ptr<DeviceAUCCache> *cache,
-                          size_t n_classes);
+double GPUMultiClassPRAUC(common::Span<float const> predts, MetaInfo const &info,
+                          std::int32_t device, std::shared_ptr<DeviceAUCCache> *cache,
+                          std::size_t n_classes);
 
-std::pair<double, uint32_t>
-GPURankingPRAUC(common::Span<float const> predts, MetaInfo const &info,
-                int32_t device, std::shared_ptr<DeviceAUCCache> *cache);
+std::pair<double, std::uint32_t> GPURankingPRAUC(common::Span<float const> predts,
+                                                 MetaInfo const &info, std::int32_t device,
+                                                 std::shared_ptr<DeviceAUCCache> *cache);
 
 namespace detail {
 XGBOOST_DEVICE inline double CalcH(double fp_a, double fp_b, double tp_a,

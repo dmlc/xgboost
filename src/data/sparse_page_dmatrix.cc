@@ -19,7 +19,7 @@ const MetaInfo &SparsePageDMatrix::Info() const { return info_; }
 
 namespace detail {
 // Use device dispatch
-size_t NSamplesDevice(DMatrixProxy *proxy)
+std::size_t NSamplesDevice(DMatrixProxy *)
 #if defined(XGBOOST_USE_CUDA)
 ;  // NOLINT
 #else
@@ -28,7 +28,7 @@ size_t NSamplesDevice(DMatrixProxy *proxy)
   return 0;
 }
 #endif
-size_t NFeaturesDevice(DMatrixProxy *proxy)
+std::size_t NFeaturesDevice(DMatrixProxy *)
 #if defined(XGBOOST_USE_CUDA)
 ;  // NOLINT
 #else
@@ -189,7 +189,7 @@ BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(const BatchParam 
 }
 
 #if !defined(XGBOOST_USE_CUDA)
-BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(const BatchParam& param) {
+BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(const BatchParam &) {
   common::AssertGPUSupport();
   auto begin_iter = BatchIterator<EllpackPage>(ellpack_page_source_);
   return BatchSet<EllpackPage>(BatchIterator<EllpackPage>(begin_iter));
