@@ -87,7 +87,6 @@ def pd_dtypes() -> Generator:
             df = pd.DataFrame(
                 {"f0": [1, 2, Null, 3], "f1": [4, 3, Null, 1]}, dtype=dtype
             )
-            break
             yield orig, df
 
     # Float
@@ -101,7 +100,6 @@ def pd_dtypes() -> Generator:
             df = pd.DataFrame(
                 {"f0": [1.0, 2.0, Null, 3.0], "f1": [3.0, 2.0, Null, 1.0]}, dtype=dtype
             )
-            break
             yield orig, df
 
     # Categorical
@@ -111,7 +109,6 @@ def pd_dtypes() -> Generator:
             {"f0": [1.0, 2.0, Null, 3.0], "f1": [3.0, 2.0, Null, 1.0]},
             dtype=pd.CategoricalDtype(),
         )
-        break
         yield orig, df
 
     # Boolean
