@@ -112,16 +112,9 @@ def pd_dtypes() -> Generator:
         yield orig, df
 
     # Boolean
-    Null = None
-    data0 = {"f0": [True, False, Null, True], "f1": [False, True, Null, True]}
-
-    orig = pd.DataFrame(data0, dtype=np.bool_)
-    df = pd.DataFrame(data0, dtype=pd.BooleanDtype())
-    yield orig, df
-
-    Null = pd.NA
-    data1 = {"f0": [True, False, Null, True], "f1": [False, True, Null, True]}
-    # pd.NA is not convertible to bool.
-    orig = pd.DataFrame(data1, dtype=pd.BooleanDtype())
-    df = pd.DataFrame(data1, dtype=pd.BooleanDtype())
-    yield orig, df
+    for Null in [None, pd.NA]:
+        data = {"f0": [True, False, Null, True], "f1": [False, True, Null, True]}
+        # pd.NA is not convertible to bool.
+        orig = pd.DataFrame(data, dtype=np.bool_ if Null is None else pd.BooleanDtype())
+        df = pd.DataFrame(data, dtype=pd.BooleanDtype())
+        yield orig, df
