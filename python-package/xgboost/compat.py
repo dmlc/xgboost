@@ -73,7 +73,7 @@ except ImportError:
     XGBStratifiedKFold = None
 
 
-logger = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
 
 
 def is_cudf_installed() -> bool:

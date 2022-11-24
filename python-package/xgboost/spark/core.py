@@ -775,7 +775,10 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             # because without cuDF, DMatrix performs better than QDM.
             # Note: Checking `is_cudf_installed` in spark worker side because
             # spark worker might has different python environment with driver side.
-            use_qdm = use_hist and is_cudf_installed()
+            if use_gpu:
+                use_qdm = use_hist and is_cudf_installed()
+            else:
+                use_qdm = use_hist
 
             if use_qdm and (booster_params.get("max_bin", None) is not None):
                 dmatrix_kwargs["max_bin"] = booster_params["max_bin"]
