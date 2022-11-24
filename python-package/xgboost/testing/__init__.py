@@ -486,7 +486,7 @@ def make_categorical(
     onehot: bool,
     sparsity: float = 0.0,
     cat_ratio: float = 1.0,
-    shuffle: bool = False
+    shuffle: bool = False,
 ) -> Tuple[ArrayLike, np.ndarray]:
     """Generate categorical features for test.
 
