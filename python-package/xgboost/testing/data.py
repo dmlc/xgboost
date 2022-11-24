@@ -1,5 +1,5 @@
 """Utilities for data generation."""
-from typing import Generator, Tuple
+from typing import Any, Generator, Tuple, Union
 
 import numpy as np
 
@@ -78,7 +78,7 @@ def pd_dtypes() -> Generator:
         pd.Int64Dtype(),
     ]
 
-    Null = np.nan
+    Null: Union[float, None, Any] = np.nan
     orig = pd.DataFrame(
         {"f0": [1, 2, Null, 3], "f1": [4, 3, Null, 1]}, dtype=np.float32
     )
@@ -113,15 +113,15 @@ def pd_dtypes() -> Generator:
 
     # Boolean
     Null = None
-    data = {"f0": [True, False, Null, True], "f1": [False, True, Null, True]}
+    data0 = {"f0": [True, False, Null, True], "f1": [False, True, Null, True]}
 
-    orig = pd.DataFrame(data, dtype=np.bool_)
-    df = pd.DataFrame(data, dtype=pd.BooleanDtype())
+    orig = pd.DataFrame(data0, dtype=np.bool_)
+    df = pd.DataFrame(data0, dtype=pd.BooleanDtype())
     yield orig, df
 
     Null = pd.NA
-    data = {"f0": [True, False, Null, True], "f1": [False, True, Null, True]}
+    data1 = {"f0": [True, False, Null, True], "f1": [False, True, Null, True]}
     # pd.NA is not convertible to bool.
-    orig = pd.DataFrame(data, dtype=pd.BooleanDtype())
-    df = pd.DataFrame(data, dtype=pd.BooleanDtype())
+    orig = pd.DataFrame(data1, dtype=pd.BooleanDtype())
+    df = pd.DataFrame(data1, dtype=pd.BooleanDtype())
     yield orig, df
