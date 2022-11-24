@@ -5,7 +5,7 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tupl
 import numpy as np
 import pandas as pd
 from scipy.sparse import csr_matrix
-from xgboost.compat import CUDF_INSTALLED, concat
+from xgboost.compat import concat
 
 from xgboost import DataIter, DMatrix, QuantileDMatrix
 
@@ -81,7 +81,7 @@ class PartIter(DataIter):
         if not data:
             return None
 
-        if self._device_id is not None and CUDF_INSTALLED:
+        if self._device_id is not None:
             import cudf  # pylint: disable=import-error
             import cupy as cp  # pylint: disable=import-error
 

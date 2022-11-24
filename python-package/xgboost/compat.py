@@ -73,7 +73,10 @@ except ImportError:
     XGBStratifiedKFold = None
 
 
-def is_cudf_installed():
+logger = logging.getLogger(__name__)
+
+
+def is_cudf_installed() -> bool:
     """Check cuDF installed or not"""
     # Checking by `importing` instead of check `importlib.util.find_spec("cudf") is not None`
     # because user might install cudf successfully but importing cudf raises issues (e.g. saying
@@ -82,6 +85,7 @@ def is_cudf_installed():
         import cudf
         return True
     except ImportError:
+        _logger.exception("Importing cuDF failed, use DMatrix instead of QDM")
         return False
 
 
