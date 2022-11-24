@@ -37,7 +37,7 @@ from xgboost.training import train as worker_train
 
 import xgboost
 from xgboost import XGBClassifier, XGBRanker, XGBRegressor
-from xgboost.compat import CUDF_INSTALLED
+from xgboost.compat import is_cudf_installed
 
 from .data import (
     _read_csr_matrix_from_unwrapped_spark_vec,
@@ -57,7 +57,6 @@ from .params import (
     HasEnableSparseDataOptim,
     HasFeaturesCols,
     HasQueryIdCol,
-    UseQuantileDMatrix,
 )
 from .utils import (
     CommunicatorContext,
@@ -758,10 +757,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         }
         dmatrix_kwargs = {k: v for k, v in dmatrix_kwargs.items() if v is not None}
 
-        # If cuDF is not installed, then using DMatrix instead of QDM,
-        # because without cuDF, DMatrix performs better than QDM.
-        use_qdm = CUDF_INSTALLED and \
-                  booster_params.get("tree_method", None) in ("hist", "gpu_hist")
+        use_hist = booster_params.get("tree_method", None) in ("hist", "gpu_hist")
 
         def _train_booster(pandas_df_iter):
             """Takes in an RDD partition and outputs a booster for that partition after
@@ -774,6 +770,12 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             context.barrier()
 
             gpu_id = None
+
+            # If cuDF is not installed, then using DMatrix instead of QDM,
+            # because without cuDF, DMatrix performs better than QDM.
+            # Note: Checking `is_cudf_installed` in spark worker side because
+            # spark worker might has different python environment with driver side.
+            use_qdm = use_hist and is_cudf_installed()
 
             if use_qdm and (booster_params.get("max_bin", None) is not None):
                 dmatrix_kwargs["max_bin"] = booster_params["max_bin"]

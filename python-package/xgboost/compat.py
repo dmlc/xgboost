@@ -44,10 +44,6 @@ except ImportError:
     PANDAS_INSTALLED = False
 
 
-# cuDF
-CUDF_INSTALLED = importlib.util.find_spec("cudf") is not None
-
-
 # sklearn
 try:
     from sklearn.base import BaseEstimator as XGBModelBase
@@ -75,6 +71,18 @@ except ImportError:
 
     XGBKFold = None
     XGBStratifiedKFold = None
+
+
+def is_cudf_installed():
+    """Check cuDF installed or not"""
+    # Checking by `importing` instead of check `importlib.util.find_spec("cudf") is not None`
+    # because user might install cudf successfully but importing cudf raises issues (e.g. saying
+    # running on mismatched cuda version)
+    try:
+        import cudf
+        return True
+    except ImportError:
+        return False
 
 
 class XGBoostLabelEncoder(LabelEncoder):
