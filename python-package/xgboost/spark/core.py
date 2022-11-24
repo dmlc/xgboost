@@ -32,12 +32,12 @@ from pyspark.sql.types import (
     ShortType,
 )
 from scipy.special import expit, softmax  # pylint: disable=no-name-in-module
+from xgboost.compat import is_cudf_available
 from xgboost.core import Booster
 from xgboost.training import train as worker_train
 
 import xgboost
 from xgboost import XGBClassifier, XGBRanker, XGBRegressor
-from xgboost.compat import is_cudf_installed
 
 from .data import (
     _read_csr_matrix_from_unwrapped_spark_vec,
@@ -773,10 +773,10 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
             # If cuDF is not installed, then using DMatrix instead of QDM,
             # because without cuDF, DMatrix performs better than QDM.
-            # Note: Checking `is_cudf_installed` in spark worker side because
+            # Note: Checking `is_cudf_available` in spark worker side because
             # spark worker might has different python environment with driver side.
             if use_gpu:
-                use_qdm = use_hist and is_cudf_installed()
+                use_qdm = use_hist and is_cudf_available()
             else:
                 use_qdm = use_hist
 
