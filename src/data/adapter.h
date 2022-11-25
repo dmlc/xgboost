@@ -327,8 +327,8 @@ class CSRArrayAdapterBatch : public detail::NoMetaInfo {
         : indices_{std::move(indices)}, values_{std::move(values)}, ridx_{ridx},
           offset_{offset} {}
 
-    COOTuple GetElement(size_t idx) const {
-      return {ridx_, TypedIndex<size_t, 1>{indices_}(offset_ + idx), values_(offset_ + idx)};
+    COOTuple GetElement(std::size_t idx) const {
+      return {ridx_, TypedIndex<std::size_t, 1>{indices_}(offset_ + idx), values_(offset_ + idx)};
     }
 
     size_t Size() const {
