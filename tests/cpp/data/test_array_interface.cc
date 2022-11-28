@@ -58,11 +58,6 @@ TEST(ArrayInterface, Error) {
   // nullptr is not valid
   EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n),
                dmlc::Error);
-  column["mask"] = Object{};
-  column["mask"]["data"] = Null{};
-  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n),
-               dmlc::Error);
-  column["mask"] = Null{};
 
   HostDeviceVector<float> storage;
   auto array = RandomDataGenerator{kRows, kCols, 0}.GenerateArrayInterface(&storage);
@@ -71,6 +66,11 @@ TEST(ArrayInterface, Error) {
       Json(Boolean(false))};
   column["data"] = j_data;
   EXPECT_NO_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n));
+  // null data in mask
+  column["mask"] = Object{};
+  column["mask"]["data"] = Null{};
+  common::Span<RBitField8::value_type> s_mask;
+  EXPECT_THROW(ArrayInterfaceHandler::ExtractMask(column_obj, &s_mask), dmlc::Error);
 }
 
 TEST(ArrayInterface, GetElement) {
