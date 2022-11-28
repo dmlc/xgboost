@@ -9,11 +9,11 @@ namespace xgboost {
 namespace data {
 
 namespace detail {
-size_t NSamplesDevice(DMatrixProxy *proxy) {
+std::size_t NSamplesDevice(DMatrixProxy *proxy) {
   return Dispatch(proxy, [](auto const &value) { return value.NumRows(); });
 }
 
-size_t NFeaturesDevice(DMatrixProxy *proxy) {
+std::size_t NFeaturesDevice(DMatrixProxy *proxy) {
   return Dispatch(proxy, [](auto const &value) { return value.NumCols(); });
 }
 }  // namespace detail

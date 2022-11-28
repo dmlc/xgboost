@@ -25,7 +25,7 @@ EllpackPage::EllpackPage(EllpackPage&& that) { std::swap(impl_, that.impl_); }
 
 size_t EllpackPage::Size() const { return impl_->Size(); }
 
-void EllpackPage::SetBaseRowId(size_t row_id) { impl_->SetBaseRowId(row_id); }
+void EllpackPage::SetBaseRowId(std::size_t row_id) { impl_->SetBaseRowId(row_id); }
 
 // Bin each input data entry, store the bin indices in compressed form.
 __global__ void CompressBinEllpackKernel(

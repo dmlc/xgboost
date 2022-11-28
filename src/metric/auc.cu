@@ -162,9 +162,9 @@ GPUBinaryAUC(common::Span<float const> predts, MetaInfo const &info,
   return std::make_tuple(last.first, last.second, auc);
 }
 
-std::tuple<double, double, double>
-GPUBinaryROCAUC(common::Span<float const> predts, MetaInfo const &info,
-                int32_t device, std::shared_ptr<DeviceAUCCache> *p_cache) {
+std::tuple<double, double, double> GPUBinaryROCAUC(common::Span<float const> predts,
+                                                   MetaInfo const &info, std::int32_t device,
+                                                   std::shared_ptr<DeviceAUCCache> *p_cache) {
   auto &cache = *p_cache;
   InitCacheOnce<false>(predts, p_cache);
 
@@ -451,10 +451,9 @@ void MultiClassSortedIdx(common::Span<float const> predts,
   dh::SegmentedArgSort<false>(d_predts_t, d_class_ptr, d_sorted_idx);
 }
 
-double GPUMultiClassROCAUC(common::Span<float const> predts,
-                           MetaInfo const &info, int32_t device,
-                           std::shared_ptr<DeviceAUCCache> *p_cache,
-                           size_t n_classes) {
+double GPUMultiClassROCAUC(common::Span<float const> predts, MetaInfo const &info,
+                           std::int32_t device, std::shared_ptr<DeviceAUCCache> *p_cache,
+                           std::size_t n_classes) {
   auto& cache = *p_cache;
   InitCacheOnce<true>(predts, p_cache);
 
@@ -480,9 +479,9 @@ struct RankScanItem {
 };
 }  // anonymous namespace
 
-std::pair<double, uint32_t>
-GPURankingAUC(common::Span<float const> predts, MetaInfo const &info,
-              int32_t device, std::shared_ptr<DeviceAUCCache> *p_cache) {
+std::pair<double, std::uint32_t> GPURankingAUC(common::Span<float const> predts,
+                                               MetaInfo const &info, std::int32_t device,
+                                               std::shared_ptr<DeviceAUCCache> *p_cache) {
   auto& cache = *p_cache;
   InitCacheOnce<false>(predts, p_cache);
 
@@ -600,9 +599,9 @@ GPURankingAUC(common::Span<float const> predts, MetaInfo const &info,
   return std::make_pair(auc, n_valid);
 }
 
-std::tuple<double, double, double>
-GPUBinaryPRAUC(common::Span<float const> predts, MetaInfo const &info,
-               int32_t device, std::shared_ptr<DeviceAUCCache> *p_cache) {
+std::tuple<double, double, double> GPUBinaryPRAUC(common::Span<float const> predts,
+                                                  MetaInfo const &info, std::int32_t device,
+                                                  std::shared_ptr<DeviceAUCCache> *p_cache) {
   auto& cache = *p_cache;
   InitCacheOnce<false>(predts, p_cache);
 
@@ -640,10 +639,9 @@ GPUBinaryPRAUC(common::Span<float const> predts, MetaInfo const &info,
   return std::make_tuple(1.0, 1.0, auc);
 }
 
-double GPUMultiClassPRAUC(common::Span<float const> predts,
-                          MetaInfo const &info, int32_t device,
-                          std::shared_ptr<DeviceAUCCache> *p_cache,
-                          size_t n_classes) {
+double GPUMultiClassPRAUC(common::Span<float const> predts, MetaInfo const &info,
+                          std::int32_t device, std::shared_ptr<DeviceAUCCache> *p_cache,
+                          std::size_t n_classes) {
   auto& cache = *p_cache;
   InitCacheOnce<true>(predts, p_cache);
 
@@ -816,9 +814,9 @@ GPURankingPRAUCImpl(common::Span<float const> predts, MetaInfo const &info,
   return std::make_pair(auc, n_groups - invalid_groups);
 }
 
-std::pair<double, uint32_t>
-GPURankingPRAUC(common::Span<float const> predts, MetaInfo const &info,
-                int32_t device, std::shared_ptr<DeviceAUCCache> *p_cache) {
+std::pair<double, std::uint32_t> GPURankingPRAUC(common::Span<float const> predts,
+                                                 MetaInfo const &info, std::int32_t device,
+                                                 std::shared_ptr<DeviceAUCCache> *p_cache) {
   dh::safe_cuda(cudaSetDevice(device));
   if (predts.empty()) {
     return std::make_pair(0.0, static_cast<uint32_t>(0));
