@@ -170,6 +170,7 @@ def test_json_model() -> None:
         onehot=False,
         sparsity=0.5,
         cat_ratio=0.5,
+        shuffle=True,
     )
     reg = xgboost.XGBRegressor(
         n_estimators=2, tree_method="hist", enable_categorical=True
