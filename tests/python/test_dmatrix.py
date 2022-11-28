@@ -461,8 +461,4 @@ class TestDMatrix:
         for orig, x in np_dtypes(n_samples, n_features):
             m0 = xgb.DMatrix(orig)
             m1 = xgb.DMatrix(x)
-            csr0 = m0.get_data()
-            csr1 = m1.get_data()
-            np.testing.assert_allclose(csr0.data, csr1.data)
-            np.testing.assert_allclose(csr0.indptr, csr1.indptr)
-            np.testing.assert_allclose(csr0.indices, csr1.indices)
+            assert tm.predictor_equal(m0, m1)
