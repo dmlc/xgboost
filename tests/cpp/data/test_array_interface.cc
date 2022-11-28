@@ -33,9 +33,8 @@ TEST(ArrayInterface, Error) {
   Json column { Object() };
   std::vector<Json> j_shape {Json(Integer(static_cast<Integer::Int>(kRows)))};
   column["shape"] = Array(j_shape);
-  std::vector<Json> j_data {
-    Json(Integer(reinterpret_cast<Integer::Int>(nullptr))),
-        Json(Boolean(false))};
+  std::vector<Json> j_data{Json(Integer(reinterpret_cast<Integer::Int>(nullptr))),
+                           Json(Boolean(false))};
 
   auto const& column_obj = get<Object>(column);
   std::string typestr{"<f4"};
@@ -47,6 +46,10 @@ TEST(ArrayInterface, Error) {
   // missing data
   EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n),
                dmlc::Error);
+  // null data
+  column["data"] = Null{};
+  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n),
+               dmlc::Error);
   column["data"] = j_data;
   // missing typestr
   EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n),
@@ -55,6 +58,11 @@ TEST(ArrayInterface, Error) {
   // nullptr is not valid
   EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n),
                dmlc::Error);
+  column["mask"] = Object{};
+  column["mask"]["data"] = Null{};
+  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n),
+               dmlc::Error);
+  column["mask"] = Null{};
 
   HostDeviceVector<float> storage;
   auto array = RandomDataGenerator{kRows, kCols, 0}.GenerateArrayInterface(&storage);
