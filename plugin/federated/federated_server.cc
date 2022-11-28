@@ -15,28 +15,6 @@
 namespace xgboost {
 namespace federated {
 
-class AllgatherFunctor {
- public:
-  std::string const name{"Allgather"};
-
-  explicit AllgatherFunctor(int const world_size) : world_size_{world_size} {}
-
-  void operator()(AllgatherRequest const* request, std::string& buffer) const {
-    auto const rank = request->rank();
-    auto const& send_buffer = request->send_buffer();
-    auto const send_size = send_buffer.size();
-    // Resize the buffer if this is the first request.
-    if (buffer.size() != send_size * world_size_) {
-      buffer.resize(send_size * world_size_);
-    }
-    // Splice the send_buffer into the common buffer.
-    buffer.replace(rank * send_size, send_size, send_buffer);
-  }
-
- private:
-  int const world_size_;
-};
-
 class AllreduceFunctor {
  public:
   std::string const name{"Allreduce"};
@@ -130,11 +108,6 @@ class BroadcastFunctor {
     }
   }
 };
-
-grpc::Status FederatedService::Allgather(grpc::ServerContext* context,
-                                         AllgatherRequest const* request, AllgatherReply* reply) {
-  return Handle(request, reply, AllgatherFunctor{world_size_});
-}
 
 grpc::Status FederatedService::Allreduce(grpc::ServerContext* context,
                                          AllreduceRequest const* request, AllreduceReply* reply) {

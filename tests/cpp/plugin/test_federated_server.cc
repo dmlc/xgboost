@@ -26,11 +26,6 @@ namespace xgboost {
 
 class FederatedServerTest : public ::testing::Test {
  public:
-  static void VerifyAllgather(int rank, const std::string& server_address) {
-    federated::FederatedClient client{server_address, rank};
-    CheckAllgather(client, rank);
-  }
-
   static void VerifyAllreduce(int rank, const std::string& server_address) {
     federated::FederatedClient client{server_address, rank};
     CheckAllreduce(client);
@@ -44,7 +39,6 @@ class FederatedServerTest : public ::testing::Test {
   static void VerifyMixture(int rank, const std::string& server_address) {
     federated::FederatedClient client{server_address, rank};
     for (auto i = 0; i < 10; i++) {
-      CheckAllgather(client, rank);
       CheckAllreduce(client);
       CheckBroadcast(client, rank);
     }
@@ -66,11 +60,6 @@ class FederatedServerTest : public ::testing::Test {
   void TearDown() override {
     server_->Shutdown();
     server_thread_->join();
-  }
-
-  static void CheckAllgather(federated::FederatedClient& client, int rank) {
-    auto reply = client.Allgather("hello " + std::to_string(rank) + " ");
-    EXPECT_EQ(reply, "hello 0 hello 1 hello 2 ");
   }
 
   static void CheckAllreduce(federated::FederatedClient& client) {
@@ -98,16 +87,6 @@ class FederatedServerTest : public ::testing::Test {
   std::unique_ptr<std::thread> server_thread_;
   std::unique_ptr<grpc::Server> server_;
 };
-
-TEST_F(FederatedServerTest, Allgather) {
-  std::vector<std::thread> threads;
-  for (auto rank = 0; rank < kWorldSize; rank++) {
-    threads.emplace_back(std::thread(&FederatedServerTest::VerifyAllgather, rank, server_address_));
-  }
-  for (auto& thread : threads) {
-    thread.join();
-  }
-}
 
 TEST_F(FederatedServerTest, Allreduce) {
   std::vector<std::thread> threads;

@@ -15,9 +15,6 @@ class FederatedService final : public Federated::Service {
  public:
   explicit FederatedService(int const world_size) : world_size_{world_size} {}
 
-  grpc::Status Allgather(grpc::ServerContext* context, AllgatherRequest const* request,
-                         AllgatherReply* reply) override;
-
   grpc::Status Allreduce(grpc::ServerContext* context, AllreduceRequest const* request,
                          AllreduceReply* reply) override;
 

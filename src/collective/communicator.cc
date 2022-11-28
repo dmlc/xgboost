@@ -3,6 +3,7 @@
  */
 #include "communicator.h"
 
+#include "in_memory_communicator.h"
 #include "noop_communicator.h"
 #include "rabit_communicator.h"
 
@@ -38,6 +39,10 @@ void Communicator::Init(Json const& config) {
 #else
       LOG(FATAL) << "XGBoost is not compiled with Federated Learning support.";
 #endif
+      break;
+    }
+    case CommunicatorType::kInMemory: {
+      communicator_.reset(InMemoryCommunicator::Create(config));
       break;
     }
     case CommunicatorType::kUnknown:
