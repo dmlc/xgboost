@@ -43,6 +43,7 @@ except ImportError:
     pandas_concat = None
     PANDAS_INSTALLED = False
 
+
 # sklearn
 try:
     from sklearn.base import BaseEstimator as XGBModelBase
@@ -70,6 +71,22 @@ except ImportError:
 
     XGBKFold = None
     XGBStratifiedKFold = None
+
+
+_logger = logging.getLogger(__name__)
+
+
+def is_cudf_available() -> bool:
+    """Check cuDF package available or not"""
+    if importlib.util.find_spec("cudf") is None:
+        return False
+    try:
+        import cudf
+
+        return True
+    except ImportError:
+        _logger.exception("Importing cuDF failed, use DMatrix instead of QDM")
+        return False
 
 
 class XGBoostLabelEncoder(LabelEncoder):
