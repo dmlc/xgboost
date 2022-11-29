@@ -91,7 +91,7 @@ TEST(InMemoryCommunicatorSimpleTest, GetWorldSizeAndRank) {
 
 TEST(InMemoryCommunicatorSimpleTest, IsDistributed) {
   InMemoryCommunicator comm{1, 0};
-  EXPECT_FALSE(comm.IsDistributed());
+  EXPECT_TRUE(comm.IsDistributed());
 }
 
 TEST_F(InMemoryCommunicatorTest, Allreduce) {

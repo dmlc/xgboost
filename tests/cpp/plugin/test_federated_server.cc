@@ -79,7 +79,7 @@ class FederatedServerTest : public ::testing::Test {
       send_buffer = "hello broadcast";
     }
     auto reply = client.Broadcast(send_buffer, 0);
-    EXPECT_EQ(reply, "hello broadcast");
+    EXPECT_EQ(reply, "hello broadcast") << "rank " << rank;
   }
 
   static int const kWorldSize{3};

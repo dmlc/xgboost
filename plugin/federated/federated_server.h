@@ -5,15 +5,14 @@
 
 #include <federated.grpc.pb.h>
 
-#include <condition_variable>
-#include <mutex>
+#include "../../src/collective/in_memory_handler.h"
 
 namespace xgboost {
 namespace federated {
 
 class FederatedService final : public Federated::Service {
  public:
-  explicit FederatedService(int const world_size) : world_size_{world_size} {}
+  explicit FederatedService(int const world_size) : handler_{world_size} {}
 
   grpc::Status Allreduce(grpc::ServerContext* context, AllreduceRequest const* request,
                          AllreduceReply* reply) override;
@@ -22,16 +21,7 @@ class FederatedService final : public Federated::Service {
                          BroadcastReply* reply) override;
 
  private:
-  template <class Request, class Reply, class RequestFunctor>
-  grpc::Status Handle(Request const* request, Reply* reply, RequestFunctor const& functor);
-
-  int const world_size_;
-  int received_{};
-  int sent_{};
-  std::string buffer_{};
-  uint64_t sequence_number_{};
-  mutable std::mutex mutex_;
-  mutable std::condition_variable cv_;
+  xgboost::collective::InMemoryHandler handler_;
 };
 
 void RunServer(int port, int world_size, char const* server_key_file, char const* server_cert_file,
