@@ -420,7 +420,7 @@ class EllpackPage {
   size_t Size() const;
 
   /*! \brief Set the base row id for this page. */
-  void SetBaseRowId(size_t row_id);
+  void SetBaseRowId(std::size_t row_id);
 
   const EllpackPageImpl* Impl() const { return impl_.get(); }
   EllpackPageImpl* Impl() { return impl_.get(); }

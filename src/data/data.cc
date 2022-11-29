@@ -740,9 +740,7 @@ void MetaInfo::Validate(int32_t device) const {
 }
 
 #if !defined(XGBOOST_USE_CUDA)
-void MetaInfo::SetInfoFromCUDA(Context const& ctx, StringView key, Json arr) {
-  common::AssertGPUSupport();
-}
+void MetaInfo::SetInfoFromCUDA(Context const&, StringView, Json) { common::AssertGPUSupport(); }
 #endif  // !defined(XGBOOST_USE_CUDA)
 
 using DMatrixThreadLocal =

@@ -10,7 +10,9 @@ from xgboost.testing import (
     make_batches_sparse,
     make_categorical,
     make_sparse_regression,
+    predictor_equal,
 )
+from xgboost.testing.data import np_dtypes
 
 import xgboost as xgb
 
@@ -238,3 +240,21 @@ class TestQuantileDMatrix:
         np.testing.assert_allclose(
             booster.predict(qdm), booster.predict(xgb.DMatrix(qdm.get_data()))
         )
+
+    def test_dtypes(self) -> None:
+        n_samples = 128
+        n_features = 16
+        for orig, x in np_dtypes(n_samples, n_features):
+            m0 = xgb.QuantileDMatrix(orig)
+            m1 = xgb.QuantileDMatrix(x)
+            assert predictor_equal(m0, m1)
+
+        # unsupported types
+        for dtype in [
+            np.string_,
+            np.complex64,
+            np.complex128,
+        ]:
+            X: np.ndarray = np.array(orig, dtype=dtype)
+            with pytest.raises(ValueError):
+                xgb.QuantileDMatrix(X)
