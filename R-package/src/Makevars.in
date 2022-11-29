@@ -72,6 +72,8 @@ OBJECTS= \
     $(PKGROOT)/src/logging.o \
     $(PKGROOT)/src/global_config.o \
     $(PKGROOT)/src/collective/communicator.o \
+    $(PKGROOT)/src/collective/in_memory_communicator.o \
+    $(PKGROOT)/src/collective/in_memory_handler.o \
     $(PKGROOT)/src/collective/socket.o \
     $(PKGROOT)/src/common/charconv.o \
     $(PKGROOT)/src/common/column_matrix.o \
