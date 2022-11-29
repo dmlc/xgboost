@@ -544,10 +544,6 @@ class ArrayInterface {
       std::size_t offset = linalg::detail::Offset<0ul>(strides, 0ul, index...);
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 600
       // No operator defined for half -> size_t
-      __half const* test_ptr;
-      static_assert(
-          std::is_same<__half, std::remove_cv_t<std::remove_pointer_t<decltype(test_ptr)>>>::value,
-          "");
       using Type = std::conditional_t<
           std::is_same<__half,
                        std::remove_cv_t<std::remove_pointer_t<decltype(p_values)>>>::value &&
