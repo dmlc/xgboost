@@ -60,7 +60,6 @@ from .params import (
 )
 from .utils import (
     CommunicatorContext,
-    _get_args_from_message_list,
     _get_default_params_from_func,
     _get_gpu_id,
     _get_max_num_concurrent_tasks,
@@ -767,9 +766,11 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             from pyspark import BarrierTaskContext
 
             context = BarrierTaskContext.get()
-            context.barrier()
 
             gpu_id = None
+            if use_gpu:
+                gpu_id = context.partitionId() if is_local else _get_gpu_id(context)
+                booster_params["gpu_id"] = gpu_id
 
             # If cuDF is not installed, then using DMatrix instead of QDM,
             # because without cuDF, DMatrix performs better than QDM.
@@ -780,14 +781,21 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             else:
                 use_qdm = use_hist
 
+            _rabit_args = {}
+            if context.partitionId() == 0:
+                _rabit_args = _get_rabit_args(context, num_workers)
+
+            worker_message = {
+                "rabit_msg": _rabit_args,
+                "use_qdm": use_qdm,
+            }
+
+            messages = context.allGather(message=json.dumps(worker_message))
+
+            use_qdm = all(json.loads(x)["use_qdm"] for x in messages)
             if use_qdm and (booster_params.get("max_bin", None) is not None):
                 dmatrix_kwargs["max_bin"] = booster_params["max_bin"]
 
-            if use_gpu:
-                gpu_id = context.partitionId() if is_local else _get_gpu_id(context)
-                booster_params["gpu_id"] = gpu_id
-
-            _rabit_args = {}
             if context.partitionId() == 0:
                 get_logger("XGBoostPySpark").debug(
                     "booster params: %s\n"
@@ -798,10 +806,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                     dmatrix_kwargs,
                 )
 
-                _rabit_args = _get_rabit_args(context, num_workers)
-
-            messages = context.allGather(message=json.dumps(_rabit_args))
-            _rabit_args = _get_args_from_message_list(messages)
+            _rabit_args = json.loads(messages[0])["rabit_msg"]
             evals_result = {}
             with CommunicatorContext(context, **_rabit_args):
                 dtrain, dvalid = create_dmatrix_from_partitions(
