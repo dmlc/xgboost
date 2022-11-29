@@ -548,7 +548,7 @@ class ArrayInterface {
           std::is_same<__half,
                        std::remove_cv_t<std::remove_pointer_t<decltype(p_values)>>>::value &&
               std::is_same<std::size_t, std::remove_cv_t<T>>::value,
-          unsigned long long, T>;
+          unsigned long long, T>;  // NOLINT
       return static_cast<T>(static_cast<Type>(p_values[offset]));
 #else
       return static_cast<T>(p_values[offset]);
