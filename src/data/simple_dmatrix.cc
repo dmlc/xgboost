@@ -57,7 +57,7 @@ DMatrix* SimpleDMatrix::SliceCol(std::size_t start, std::size_t size) {
       auto inst = batch[i];
       auto prev_size = h_data.size();
       std::copy_if(inst.begin(), inst.end(), std::back_inserter(h_data), [&](Entry e) {
-        return e.index >= start and e.index < start + size;
+        return e.index >= start && e.index < start + size;
       });
       rptr += h_data.size() - prev_size;
       h_offset.emplace_back(rptr);
