@@ -728,6 +728,10 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             else:
                 dataset = dataset.repartition(num_workers)
 
+        if self.isDefined(self.qid_col) and self.getOrDefault(self.qid_col):
+            # XGBoost requires qid to be sorted for each partition
+            dataset = dataset.sortWithinPartitions(alias.qid)
+
         train_params = self._get_distributed_train_params(dataset)
         booster_params, train_call_kwargs_params = self._get_xgb_train_call_args(
             train_params
