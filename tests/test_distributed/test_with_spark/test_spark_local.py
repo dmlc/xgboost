@@ -1134,25 +1134,8 @@ class XgboostRankerLocalTest(SparkTestCase):
                 (Vectors.dense(1.0, 2.0, 3.0), 0, 6),
                 (Vectors.dense(4.0, 5.0, 6.0), 1, 6),
                 (Vectors.dense(9.0, 4.0, 8.0), 2, 6),
-                (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 0, 5),
-                (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 1, 5),
-                (Vectors.sparse(3, {1: 8.0, 2: 9.5}), 2, 5),
-                (Vectors.dense(1.0, 2.0, 3.0), 0, 4),
-                (Vectors.dense(4.0, 5.0, 6.0), 1, 4),
-                (Vectors.dense(9.0, 4.0, 8.0), 2, 4),
-                (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 0, 3),
-                (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 1, 3),
-                (Vectors.sparse(3, {1: 8.0, 2: 9.5}), 2, 3),
-                (Vectors.dense(1.0, 2.0, 3.0), 0, 2),
-                (Vectors.dense(4.0, 5.0, 6.0), 1, 2),
-                (Vectors.dense(9.0, 4.0, 8.0), 2, 2),
-                (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 0, 1),
-                (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 1, 1),
-                (Vectors.sparse(3, {1: 8.0, 2: 9.5}), 2, 1),
-                (Vectors.dense(1.0, 2.0, 3.0), 0, 0),
-                (Vectors.dense(4.0, 5.0, 6.0), 1, 0),
-                (Vectors.dense(9.0, 4.0, 8.0), 2, 0),
-            ],
+            ]
+            * 4,
             ["features", "label", "qid"],
         )
 
@@ -1166,7 +1149,7 @@ class XgboostRankerLocalTest(SparkTestCase):
             assert np.isclose(row.prediction, row.expected_prediction, rtol=1e-3)
 
     def test_ranker_qid_sorted(self):
-        ranker = SparkXGBRanker(qid_col="qid", num_workers=2)
+        ranker = SparkXGBRanker(qid_col="qid", num_workers=4)
         assert ranker.getOrDefault(ranker.objective) == "rank:pairwise"
         model = ranker.fit(self.ranker_df_train_1)
         model.transform(self.ranker_df_test).collect()
