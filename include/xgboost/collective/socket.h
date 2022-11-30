@@ -287,11 +287,22 @@ class TCPSocket {
 #elif defined(__APPLE__)
     return domain_;
 #elif defined(__unix__)
+#ifndef __PASE__
     std::int32_t domain;
     socklen_t len = sizeof(domain);
     xgboost_CHECK_SYS_CALL(
         getsockopt(handle_, SOL_SOCKET, SO_DOMAIN, reinterpret_cast<char *>(&domain), &len), 0);
     return ret_iafamily(domain);
+#else
+    struct sockaddr sa;
+    socklen_t sizeofsa = sizeof(sa);
+    xgboost_CHECK_SYS_CALL(
+      getsockname(handle_, &sa, &sizeofsa), 0);
+    if (sizeofsa < sizeof(uchar_t)*2) {
+      return ret_iafamily(AF_INET);
+    }
+    return ret_iafamily(sa.sa_family);
+#endif   // __PASE__
 #else
     LOG(FATAL) << "Unknown platform.";
     return ret_iafamily(AF_INET);
