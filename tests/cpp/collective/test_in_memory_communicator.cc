@@ -15,16 +15,6 @@ class InMemoryCommunicatorTest : public ::testing::Test {
  public:
   static void VerifyAllreduce(int rank) {
     InMemoryCommunicator comm{kWorldSize, rank};
-    CheckAllreduce(comm);
-  }
-
-  static void VerifyBroadcast(int rank) {
-    InMemoryCommunicator comm{kWorldSize, rank};
-    CheckBroadcast(comm, rank);
-  }
-
- protected:
-  static void CheckAllreduce(InMemoryCommunicator &comm) {
     int buffer[] = {1, 2, 3, 4, 5};
     comm.AllReduce(buffer, sizeof(buffer) / sizeof(buffer[0]), DataType::kInt32, Operation::kSum);
     int expected[] = {3, 6, 9, 12, 15};
@@ -33,7 +23,8 @@ class InMemoryCommunicatorTest : public ::testing::Test {
     }
   }
 
-  static void CheckBroadcast(InMemoryCommunicator &comm, int rank) {
+  static void VerifyBroadcast(int rank) {
+    InMemoryCommunicator comm{kWorldSize, rank};
     if (rank == 0) {
       std::string buffer{"hello"};
       comm.Broadcast(&buffer[0], buffer.size(), 0);
@@ -45,6 +36,7 @@ class InMemoryCommunicatorTest : public ::testing::Test {
     }
   }
 
+ protected:
   static int const kWorldSize{3};
 };
 
@@ -69,6 +61,7 @@ TEST(InMemoryCommunicatorSimpleTest, ThrowOnWorldSizeNotInteger) {
     config["in_memory_world_size"] = std::string("1");
     config["in_memory_rank"] = Integer(0);
     auto *comm = InMemoryCommunicator::Create(config);
+    delete comm;
   };
   EXPECT_THROW(construct(), dmlc::Error);
 }
@@ -79,6 +72,7 @@ TEST(InMemoryCommunicatorSimpleTest, ThrowOnRankNotInteger) {
     config["in_memory_world_size"] = 1;
     config["in_memory_rank"] = std::string("0");
     auto *comm = InMemoryCommunicator::Create(config);
+    delete comm;
   };
   EXPECT_THROW(construct(), dmlc::Error);
 }
