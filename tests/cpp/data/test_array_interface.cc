@@ -33,9 +33,8 @@ TEST(ArrayInterface, Error) {
   Json column { Object() };
   std::vector<Json> j_shape {Json(Integer(static_cast<Integer::Int>(kRows)))};
   column["shape"] = Array(j_shape);
-  std::vector<Json> j_data {
-    Json(Integer(reinterpret_cast<Integer::Int>(nullptr))),
-        Json(Boolean(false))};
+  std::vector<Json> j_data{Json(Integer(reinterpret_cast<Integer::Int>(nullptr))),
+                           Json(Boolean(false))};
 
   auto const& column_obj = get<Object>(column);
   std::string typestr{"<f4"};
@@ -45,6 +44,10 @@ TEST(ArrayInterface, Error) {
   EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n), dmlc::Error);
   column["version"] = 3;
   // missing data
+  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n),
+               dmlc::Error);
+  // null data
+  column["data"] = Null{};
   EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n),
                dmlc::Error);
   column["data"] = j_data;
@@ -63,6 +66,11 @@ TEST(ArrayInterface, Error) {
       Json(Boolean(false))};
   column["data"] = j_data;
   EXPECT_NO_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n));
+  // null data in mask
+  column["mask"] = Object{};
+  column["mask"]["data"] = Null{};
+  common::Span<RBitField8::value_type> s_mask;
+  EXPECT_THROW(ArrayInterfaceHandler::ExtractMask(column_obj, &s_mask), dmlc::Error);
 }
 
 TEST(ArrayInterface, GetElement) {
