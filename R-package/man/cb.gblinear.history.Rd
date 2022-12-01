@@ -72,12 +72,12 @@ matplot(xgb.gblinear.history(bst)[[3]], type = 'l')
 
 #### Multiclass classification:
 #
-dtrain <- xgb.DMatrix(scale(x), label = as.numeric(iris$Species) - 1, nthread = 2)
+dtrain <- xgb.DMatrix(scale(x), label = as.numeric(iris$Species) - 1, nthread = 1)
 param <- list(booster = "gblinear", objective = "multi:softprob", num_class = 3,
-              lambda = 0.0003, alpha = 0.0003, nthread = 2)
+              lambda = 0.0003, alpha = 0.0003, nthread = 1)
 # For the default linear updater 'shotgun' it sometimes is helpful
 # to use smaller eta to reduce instability
-bst <- xgb.train(param, dtrain, list(tr=dtrain), nrounds = 70, eta = 0.5,
+bst <- xgb.train(param, dtrain, list(tr=dtrain), nrounds = 50, eta = 0.5,
                  callbacks = list(cb.gblinear.history()))
 # Will plot the coefficient paths separately for each class:
 matplot(xgb.gblinear.history(bst, class_index = 0), type = 'l')

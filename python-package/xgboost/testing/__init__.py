@@ -486,6 +486,7 @@ def make_categorical(
     onehot: bool,
     sparsity: float = 0.0,
     cat_ratio: float = 1.0,
+    shuffle: bool = False,
 ) -> Tuple[ArrayLike, np.ndarray]:
     """Generate categorical features for test.
 
@@ -499,6 +500,8 @@ def make_categorical(
         The ratio of the amount of missing values over the number of all entries.
     cat_ratio:
         The ratio of features that are categorical.
+    shuffle:
+        Whether we should shuffle the columns.
 
     Returns
     -------
@@ -538,10 +541,12 @@ def make_categorical(
 
     if onehot:
         df = pd.get_dummies(df)
+
+    if shuffle:
         columns = list(df.columns)
         rng.shuffle(columns)
         df = df[columns]
-        return pd.get_dummies(df), label
+
     return df, label
 
 
@@ -766,6 +771,19 @@ dataset_strategy = _dataset_weight_margin()
 
 def non_increasing(L: Sequence[float], tolerance: float = 1e-4) -> bool:
     return all((y - x) < tolerance for x, y in zip(L, L[1:]))
+
+
+def predictor_equal(lhs: xgb.DMatrix, rhs: xgb.DMatrix) -> bool:
+    """Assert whether two DMatrices contain the same predictors."""
+    lcsr = lhs.get_data()
+    rcsr = rhs.get_data()
+    return all(
+        (
+            np.array_equal(lcsr.data, rcsr.data),
+            np.array_equal(lcsr.indices, rcsr.indices),
+            np.array_equal(lcsr.indptr, rcsr.indptr),
+        )
+    )
 
 
 def eval_error_metric(predt: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[str, np.float64]:

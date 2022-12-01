@@ -1068,7 +1068,11 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         return ret.value
 
     def num_nonmissing(self) -> int:
-        """Get the number of non-missing values in the DMatrix."""
+        """Get the number of non-missing values in the DMatrix.
+
+            .. versionadded:: 1.7.0
+
+        """
         ret = c_bst_ulong()
         _check_call(_LIB.XGDMatrixNumNonMissing(self.handle, ctypes.byref(ret)))
         return ret.value

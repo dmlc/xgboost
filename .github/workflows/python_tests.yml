@@ -13,10 +13,10 @@ jobs:
       matrix:
         os: [ubuntu-latest]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
-    - uses: mamba-org/provision-with-micromamba@main
+    - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
       with:
         cache-downloads: true
         cache-env: true
@@ -48,7 +48,7 @@ jobs:
         os: [ubuntu-latest, macos-11, windows-latest]
         python-version: ["3.8"]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
     - name: Install osx system dependencies
@@ -59,7 +59,7 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get install -y --no-install-recommends ninja-build
-    - uses: conda-incubator/setup-miniconda@v2
+    - uses: conda-incubator/setup-miniconda@35d1405e78aa3f784fe3ce9a2eb378d5eeb62169 # v2.1.1
       with:
         auto-update-conda: true
         python-version: ${{ matrix.python-version }}
@@ -89,11 +89,11 @@ jobs:
           - {os: windows-latest, python-version: '3.8'}
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
 
-    - uses: conda-incubator/setup-miniconda@v2
+    - uses: conda-incubator/setup-miniconda@35d1405e78aa3f784fe3ce9a2eb378d5eeb62169 # v2.1.1
       with:
         auto-update-conda: true
         python-version: ${{ matrix.config.python-version }}
@@ -137,11 +137,11 @@ jobs:
           - {os: macos-11}
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
 
-    - uses: mamba-org/provision-with-micromamba@main
+    - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
       with:
         cache-downloads: true
         cache-env: true

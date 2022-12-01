@@ -343,6 +343,7 @@ void GenericParameter::ConfigureGpuId(bool require_gpu) {
 #else
   // Just set it to CPU, don't think about it.
   this->UpdateAllowUnknown(Args{{"gpu_id", std::to_string(kCpuId)}});
+  (void)(require_gpu);
 #endif  // defined(XGBOOST_USE_CUDA)
 
   common::SetDevice(this->gpu_id);

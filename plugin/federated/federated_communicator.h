@@ -12,40 +12,6 @@
 namespace xgboost {
 namespace collective {
 
-/** @brief Get the size of the data type. */
-inline std::size_t GetTypeSize(DataType data_type) {
-  std::size_t size{0};
-  switch (data_type) {
-    case DataType::kInt8:
-      size = sizeof(std::int8_t);
-      break;
-    case DataType::kUInt8:
-      size = sizeof(std::uint8_t);
-      break;
-    case DataType::kInt32:
-      size = sizeof(std::int32_t);
-      break;
-    case DataType::kUInt32:
-      size = sizeof(std::uint32_t);
-      break;
-    case DataType::kInt64:
-      size = sizeof(std::int64_t);
-      break;
-    case DataType::kUInt64:
-      size = sizeof(std::uint64_t);
-      break;
-    case DataType::kFloat:
-      size = sizeof(float);
-      break;
-    case DataType::kDouble:
-      size = sizeof(double);
-      break;
-    default:
-      LOG(FATAL) << "Unknown data type.";
-  }
-  return size;
-}
-
 /**
  * @brief A Federated Learning communicator class that handles collective communication.
  */

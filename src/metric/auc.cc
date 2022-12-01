@@ -390,24 +390,21 @@ XGBOOST_REGISTER_METRIC(EvalAUC, "auc")
 .set_body([](const char*) { return new EvalROCAUC(); });
 
 #if !defined(XGBOOST_USE_CUDA)
-std::tuple<double, double, double>
-GPUBinaryROCAUC(common::Span<float const> predts, MetaInfo const &info,
-                int32_t device, std::shared_ptr<DeviceAUCCache> *p_cache) {
+std::tuple<double, double, double> GPUBinaryROCAUC(common::Span<float const>, MetaInfo const &,
+                                                   std::int32_t,
+                                                   std::shared_ptr<DeviceAUCCache> *) {
   common::AssertGPUSupport();
   return {};
 }
 
-double GPUMultiClassROCAUC(common::Span<float const> predts,
-                           MetaInfo const &info, int32_t device,
-                           std::shared_ptr<DeviceAUCCache> *cache,
-                           size_t n_classes) {
+double GPUMultiClassROCAUC(common::Span<float const>, MetaInfo const &, std::int32_t,
+                           std::shared_ptr<DeviceAUCCache> *, std::size_t) {
   common::AssertGPUSupport();
   return 0.0;
 }
 
-std::pair<double, uint32_t>
-GPURankingAUC(common::Span<float const> predts, MetaInfo const &info,
-              int32_t device, std::shared_ptr<DeviceAUCCache> *p_cache) {
+std::pair<double, std::uint32_t> GPURankingAUC(common::Span<float const>, MetaInfo const &,
+                                               std::int32_t, std::shared_ptr<DeviceAUCCache> *) {
   common::AssertGPUSupport();
   return {};
 }
@@ -432,8 +429,8 @@ class EvalPRAUC : public EvalAUC<EvalPRAUC> {
     return std::make_tuple(pr, re, auc);
   }
 
-  double EvalMultiClass(HostDeviceVector<float> const &predts,
-                       MetaInfo const &info, size_t n_classes) {
+  double EvalMultiClass(HostDeviceVector<float> const &predts, MetaInfo const &info,
+                        size_t n_classes) {
     if (tparam_->gpu_id == GenericParameter::kCpuId) {
       auto n_threads = this->tparam_->Threads();
       return MultiClassOVR(predts.ConstHostSpan(), info, n_classes, n_threads,
@@ -472,24 +469,20 @@ XGBOOST_REGISTER_METRIC(AUCPR, "aucpr")
     .set_body([](char const *) { return new EvalPRAUC{}; });
 
 #if !defined(XGBOOST_USE_CUDA)
-std::tuple<double, double, double>
-GPUBinaryPRAUC(common::Span<float const> predts, MetaInfo const &info,
-               int32_t device, std::shared_ptr<DeviceAUCCache> *p_cache) {
+std::tuple<double, double, double> GPUBinaryPRAUC(common::Span<float const>, MetaInfo const &,
+                                                  std::int32_t, std::shared_ptr<DeviceAUCCache> *) {
   common::AssertGPUSupport();
   return {};
 }
 
-double GPUMultiClassPRAUC(common::Span<float const> predts,
-                          MetaInfo const &info, int32_t device,
-                          std::shared_ptr<DeviceAUCCache> *cache,
-                          size_t n_classes) {
+double GPUMultiClassPRAUC(common::Span<float const>, MetaInfo const &, std::int32_t,
+                          std::shared_ptr<DeviceAUCCache> *, std::size_t) {
   common::AssertGPUSupport();
   return {};
 }
 
-std::pair<double, uint32_t>
-GPURankingPRAUC(common::Span<float const> predts, MetaInfo const &info,
-                int32_t device, std::shared_ptr<DeviceAUCCache> *cache) {
+std::pair<double, std::uint32_t> GPURankingPRAUC(common::Span<float const>, MetaInfo const &,
+                                                 std::int32_t, std::shared_ptr<DeviceAUCCache> *) {
   common::AssertGPUSupport();
   return {};
 }

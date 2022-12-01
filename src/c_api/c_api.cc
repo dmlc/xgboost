@@ -397,17 +397,14 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
   API_END();
 }
 
-XGB_DLL int XGDMatrixCreateFromCSR(char const *indptr,
-                                   char const *indices, char const *data,
-                                   xgboost::bst_ulong ncol,
-                                   char const* c_json_config,
-                                   DMatrixHandle* out) {
+XGB_DLL int XGDMatrixCreateFromCSR(char const *indptr, char const *indices, char const *data,
+                                   xgboost::bst_ulong ncol, char const *c_json_config,
+                                   DMatrixHandle *out) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(indptr);
   xgboost_CHECK_C_ARG_PTR(indices);
   xgboost_CHECK_C_ARG_PTR(data);
-  data::CSRArrayAdapter adapter(StringView{indptr}, StringView{indices},
-                                StringView{data}, ncol);
+  data::CSRArrayAdapter adapter(StringView{indptr}, StringView{indices}, StringView{data}, ncol);
   xgboost_CHECK_C_ARG_PTR(c_json_config);
   auto config = Json::Load(StringView{c_json_config});
   float missing = GetMissing(config);
