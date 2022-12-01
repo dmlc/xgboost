@@ -82,7 +82,7 @@ check.booster.params <- function(params, ...) {
 
   # interaction constraints parser (convert from list of column indices to string)
   if (!is.null(params[['interaction_constraints']]) &&
-      typeof(params[['interaction_constraints']]) != "character"){
+      typeof(params[['interaction_constraints']]) != "character") {
     # check input class
     if (!identical(class(params[['interaction_constraints']]), 'list')) stop('interaction_constraints should be class list')
     if (!all(unique(sapply(params[['interaction_constraints']], class)) %in% c('numeric', 'integer'))) {
@@ -251,8 +251,7 @@ generate.cv.folds <- function(nfold, nrows, stratified, label, params) {
 # Creates CV folds stratified by the values of y.
 # It was borrowed from caret::createFolds and simplified
 # by always returning an unnamed list of fold indices.
-xgb.createFolds <- function(y, k = 10)
-{
+xgb.createFolds <- function(y, k = 10) {
   if (is.numeric(y)) {
     ## Group the numeric data based on their magnitudes
     ## and sample within those groups.

@@ -170,8 +170,9 @@ test_that("SHAPs sum to predictions, with or without DART", {
       label = y,
       nrounds = nrounds)
 
-    pr <- function(...)
+    pr <- function(...) {
       predict(fit, newdata = d, ...)
+    }
     pred <- pr()
     shap <- pr(predcontrib = TRUE)
     shapi <- pr(predinteraction = TRUE)

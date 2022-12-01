@@ -102,7 +102,9 @@ xgb.plot.importance <- function(importance_matrix = NULL, top_n = NULL, measure 
     original_mar <- par()$mar
 
     # reset margins so this function doesn't have side effects
-    on.exit({par(mar = original_mar)})
+    on.exit({
+        par(mar = original_mar)
+    })
 
     mar <- original_mar
     if (!is.null(left_margin))
