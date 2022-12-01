@@ -152,15 +152,15 @@ def check_rmarkdown() -> None:
     assert system() != "Windows", "Document test doesn't support Windows."
     env = os.environ.copy()
     env.update({"MAKEFLAGS": f"-j{os.cpu_count()}"})
-    print("Checking R document with devtools.")
+    print("Checking R documentation.")
     bin_dir = os.path.dirname(R)
     rscript = os.path.join(bin_dir, "Rscript")
-    subprocess.check_call([rscript, "-e", "devtools::document()"], env=env)
+    subprocess.check_call([rscript, "-e", "roxygen2::roxygenize()"], env=env)
     output = subprocess.run(["git", "diff", "--name-only"], capture_output=True)
     if len(output.stdout.decode("utf-8").strip()) != 0:
         output = subprocess.run(["git", "diff"], capture_output=True)
         raise ValueError(
-            "Please run `devtools::document()`. Diff:\n", output.stdout.decode("utf-8")
+            "Please run `roxygen2::roxygenize()`. Diff:\n", output.stdout.decode("utf-8")
         )
 
 

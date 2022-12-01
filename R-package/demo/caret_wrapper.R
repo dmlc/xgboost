@@ -1,5 +1,5 @@
 # install development version of caret library that contains xgboost models
-devtools::install_github("topepo/caret/pkg/caret")
+remotes::install_github("topepo/caret/pkg/caret")
 require(caret)
 require(xgboost)
 require(data.table)
