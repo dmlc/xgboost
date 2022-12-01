@@ -15,10 +15,8 @@ pkgs <- c(
   "Ckmeans.1d.dp",
   "vcd",
   "testthat",
-  "lintr",
   "igraph",
   "float",
-  "crayon",
   "titanic",
   ## imports
   "Matrix",
