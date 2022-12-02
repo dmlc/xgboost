@@ -5,12 +5,89 @@
 
 version: 2
 updates:
-  - package-ecosystem: "maven" # See documentation for possible values
-    directory: "/jvm-packages" # Location of package manifests
+  - package-ecosystem: "maven"
+    directory: "/jvm-packages"
     schedule:
       interval: "daily"
     ignore:
-      - dependency-name: "spark-core_2.12"
-      - dependency-name: "spark-sql_2.12"
-      - dependency-name: "spark-mllib_2.12"
-      - dependency-name: "scala-compiler"
+      # Pin Scala version to 2.12.x
+      - dependency-name: "org.scala-lang:scala-compiler"
+        versions: [">= 2.13.0"]
+      - dependency-name: "org.scala-lang:scala-reflect"
+        versions: [">= 2.13.0"]
+      - dependency-name: "org.scala-lang:scala-library"
+        versions: [">= 2.13.0"]
+  - package-ecosystem: "maven"
+    directory: "/jvm-packages/xgboost4j"
+    schedule:
+      interval: "daily"
+    ignore:
+      # Pin Scala version to 2.12.x
+      - dependency-name: "org.scala-lang:scala-compiler"
+        versions: [">= 2.13.0"]
+      - dependency-name: "org.scala-lang:scala-reflect"
+        versions: [">= 2.13.0"]
+      - dependency-name: "org.scala-lang:scala-library"
+        versions: [">= 2.13.0"]
+  - package-ecosystem: "maven"
+    directory: "/jvm-packages/xgboost4j-gpu"
+    schedule:
+      interval: "daily"
+    ignore:
+      # Pin Scala version to 2.12.x
+      - dependency-name: "org.scala-lang:scala-compiler"
+        versions: [">= 2.13.0"]
+      - dependency-name: "org.scala-lang:scala-reflect"
+        versions: [">= 2.13.0"]
+      - dependency-name: "org.scala-lang:scala-library"
+        versions: [">= 2.13.0"]
+  - package-ecosystem: "maven"
+    directory: "/jvm-packages/xgboost4j-example"
+    schedule:
+      interval: "daily"
+    ignore:
+      # Pin Scala version to 2.12.x
+      - dependency-name: "org.scala-lang:scala-compiler"
+        versions: [">= 2.13.0"]
+      - dependency-name: "org.scala-lang:scala-reflect"
+        versions: [">= 2.13.0"]
+      - dependency-name: "org.scala-lang:scala-library"
+        versions: [">= 2.13.0"]
+  - package-ecosystem: "maven"
+    directory: "/jvm-packages/xgboost4j-spark"
+    schedule:
+      interval: "daily"
+    ignore:
+      # Pin Scala version to 2.12.x
+      - dependency-name: "org.scala-lang:scala-compiler"
+        versions: [">= 2.13.0"]
+      - dependency-name: "org.scala-lang:scala-reflect"
+        versions: [">= 2.13.0"]
+      - dependency-name: "org.scala-lang:scala-library"
+        versions: [">= 2.13.0"]
+      # Pin Spark version to 3.0.x
+      - dependency-name: "org.apache.spark:spark-core_2.12"
+        versions: [">= 3.1.0"]
+      - dependency-name: "org.apache.spark:spark-sql_2.12"
+        versions: [">= 3.1.0"]
+      - dependency-name: "org.apache.spark:spark-mllib_2.12"
+        versions: [">= 3.1.0"]
+  - package-ecosystem: "maven"
+    directory: "/jvm-packages/xgboost4j-spark-gpu"
+    schedule:
+      interval: "daily"
+    ignore:
+      # Pin Scala version to 2.12.x
+      - dependency-name: "org.scala-lang:scala-compiler"
+        versions: [">= 2.13.0"]
+      - dependency-name: "org.scala-lang:scala-reflect"
+        versions: [">= 2.13.0"]
+      - dependency-name: "org.scala-lang:scala-library"
+        versions: [">= 2.13.0"]
+      # Pin Spark version to 3.0.x
+      - dependency-name: "org.apache.spark:spark-core_2.12"
+        versions: [">= 3.1.0"]
+      - dependency-name: "org.apache.spark:spark-sql_2.12"
+        versions: [">= 3.1.0"]
+      - dependency-name: "org.apache.spark:spark-mllib_2.12"
+        versions: [">= 3.1.0"]
