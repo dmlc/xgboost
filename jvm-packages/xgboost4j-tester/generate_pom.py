@@ -75,7 +75,7 @@ pom_template = """
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-lang3</artifactId>
-      <version>3.4</version>
+      <version>3.9</version>
     </dependency>
     <dependency>
       <groupId>org.apache.spark</groupId>
