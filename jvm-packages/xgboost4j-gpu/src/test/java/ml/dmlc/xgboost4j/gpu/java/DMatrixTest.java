@@ -24,7 +24,7 @@ import junit.framework.TestCase;
 
 import com.google.common.primitives.Floats;
 
-import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.junit.Test;
 
 import ai.rapids.cudf.Table;
