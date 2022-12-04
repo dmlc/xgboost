@@ -44,8 +44,7 @@ General Parameters
 * ``validate_parameters`` [default to ``false``, except for Python, R and CLI interface]
 
   - When set to True, XGBoost will perform validation of input parameters to check whether
-    a parameter is used or not.  The feature is still experimental.  It's expected to have
-    some false positives.
+    a parameter is used or not.
 
 * ``nthread`` [default to maximum number of threads available if not set]
 
