@@ -23,7 +23,6 @@ PKG_LIBS = $(SHLIB_OPENMP_CXXFLAGS)  -DDMLC_CMAKE_LITTLE_ENDIAN=1  $(SHLIB_PTHRE
 OBJECTS= \
     ./xgboost_R.o \
     ./xgboost_custom.o \
-    ./xgboost_assert.o \
     ./init.o \
     $(PKGROOT)/src/metric/metric.o \
     $(PKGROOT)/src/metric/elementwise_metric.o \
