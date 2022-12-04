@@ -335,8 +335,6 @@ void QuantileHistMaker::Builder::InitData(DMatrix *fmat, const RegTree &tree,
 
 XGBOOST_REGISTER_TREE_UPDATER(QuantileHistMaker, "grow_quantile_histmaker")
     .describe("Grow tree using quantized histogram.")
-    .set_body([](GenericParameter const *ctx, ObjInfo task) {
-      return new QuantileHistMaker(ctx, task);
-    });
+    .set_body([](Context const *ctx, ObjInfo task) { return new QuantileHistMaker(ctx, task); });
 }  // namespace tree
 }  // namespace xgboost

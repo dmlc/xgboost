@@ -108,10 +108,10 @@ inline std::pair<double, double> GetGradient(int group_idx, int num_group, int f
  *
  * \return  The gradient and diagonal Hessian entry for a given feature.
  */
-inline std::pair<double, double>
-GetGradientParallel(GenericParameter const *ctx, int group_idx, int num_group,
-                    int fidx, const std::vector<GradientPair> &gpair,
-                    DMatrix *p_fmat) {
+inline std::pair<double, double> GetGradientParallel(Context const *ctx, int group_idx,
+                                                     int num_group, int fidx,
+                                                     const std::vector<GradientPair> &gpair,
+                                                     DMatrix *p_fmat) {
   std::vector<double> sum_grad_tloc(ctx->Threads(), 0.0);
   std::vector<double> sum_hess_tloc(ctx->Threads(), 0.0);
 

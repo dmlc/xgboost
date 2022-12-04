@@ -10,17 +10,18 @@
 
 #include <dmlc/registry.h>
 #include <xgboost/base.h>
+
+#include <algorithm>
+#include <limits>
 #include <utility>
 #include <vector>
-#include <limits>
-#include <algorithm>
 
-#include "xgboost/tree_model.h"
-#include "xgboost/host_device_vector.h"
-#include "xgboost/generic_parameters.h"
-#include "../common/transform.h"
 #include "../common/math.h"
+#include "../common/transform.h"
 #include "param.h"
+#include "xgboost/context.h"
+#include "xgboost/host_device_vector.h"
+#include "xgboost/tree_model.h"
 
 namespace xgboost {
 namespace tree {
@@ -38,7 +39,7 @@ class TreeEvaluator {
  public:
   TreeEvaluator(TrainParam const& p, bst_feature_t n_features, int32_t device) {
     device_ = device;
-    if (device != GenericParameter::kCpuId) {
+    if (device != Context::kCpuId) {
       lower_bounds_.SetDevice(device);
       upper_bounds_.SetDevice(device);
       monotone_.SetDevice(device);
@@ -56,7 +57,7 @@ class TreeEvaluator {
       has_constraint_ = true;
     }
 
-    if (device_ != GenericParameter::kCpuId) {
+    if (device_ != Context::kCpuId) {
       // Pull to device early.
       lower_bounds_.ConstDeviceSpan();
       upper_bounds_.ConstDeviceSpan();
@@ -151,7 +152,7 @@ class TreeEvaluator {
  public:
   /* Get a view to the evaluator that can be passed down to device. */
   template <typename ParamT = TrainParam> auto GetEvaluator() const {
-    if (device_ != GenericParameter::kCpuId) {
+    if (device_ != Context::kCpuId) {
       auto constraints = monotone_.ConstDevicePointer();
       return SplitEvaluator<ParamT>{constraints, lower_bounds_.ConstDevicePointer(),
                                     upper_bounds_.ConstDevicePointer(), has_constraint_};

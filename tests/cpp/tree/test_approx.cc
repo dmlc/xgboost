@@ -12,7 +12,7 @@ namespace xgboost {
 namespace tree {
 TEST(Approx, Partitioner) {
   size_t n_samples = 1024, n_features = 1, base_rowid = 0;
-  GenericParameter ctx;
+  Context ctx;
   CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
   ASSERT_EQ(partitioner.base_rowid, base_rowid);
   ASSERT_EQ(partitioner.Size(), 1);
@@ -69,7 +69,7 @@ TEST(Approx, Partitioner) {
 namespace {
 void TestLeafPartition(size_t n_samples) {
   size_t const n_features = 2, base_rowid = 0;
-  GenericParameter ctx;
+  Context ctx;
   common::RowSetCollection row_set;
   CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
 

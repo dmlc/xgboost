@@ -118,7 +118,7 @@ struct EvalAMS : public Metric {
     const double br = 10.0;
     unsigned thresindex = 0;
     double s_tp = 0.0, b_fp = 0.0, tams = 0.0;
-    const auto& labels = info.labels.View(GenericParameter::kCpuId);
+    const auto& labels = info.labels.View(Context::kCpuId);
     for (unsigned i = 0; i < static_cast<unsigned>(ndata-1) && i < ntop; ++i) {
       const unsigned ridx = rec[i].second;
       const bst_float wt = info.GetWeight(ridx);
@@ -191,7 +191,7 @@ struct EvalRank : public Metric, public EvalRankConfig {
     std::vector<double> sum_tloc(tparam_->Threads(), 0.0);
 
     if (!rank_gpu_ || tparam_->gpu_id < 0) {
-      const auto& labels = info.labels.View(GenericParameter::kCpuId);
+      const auto& labels = info.labels.View(Context::kCpuId);
       const auto &h_preds = preds.ConstHostVector();
 
       dmlc::OMPException exc;

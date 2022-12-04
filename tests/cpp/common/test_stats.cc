@@ -2,7 +2,7 @@
  * Copyright 2022 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/generic_parameters.h>
+#include <xgboost/context.h>
 
 #include "../../../src/common/stats.h"
 

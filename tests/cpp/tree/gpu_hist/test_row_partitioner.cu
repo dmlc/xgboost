@@ -2,17 +2,17 @@
  * Copyright 2019-2022 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
-#include <algorithm>
-#include <vector>
-
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
 #include <thrust/sequence.h>
 
+#include <algorithm>
+#include <vector>
+
 #include "../../../../src/tree/gpu_hist/row_partitioner.cuh"
 #include "../../helpers.h"
 #include "xgboost/base.h"
-#include "xgboost/generic_parameters.h"
+#include "xgboost/context.h"
 #include "xgboost/task.h"
 #include "xgboost/tree_model.h"
 

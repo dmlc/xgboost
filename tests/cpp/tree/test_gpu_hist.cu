@@ -18,7 +18,7 @@
 #include "../filesystem.h"  // dmlc::TemporaryDirectory
 #include "../helpers.h"
 #include "../histogram_helpers.h"
-#include "xgboost/generic_parameters.h"
+#include "xgboost/context.h"
 #include "xgboost/json.h"
 
 namespace xgboost {
@@ -170,7 +170,7 @@ void TestHistogramIndexImpl() {
 
   // Build 2 matrices and build a histogram maker with that
 
-  GenericParameter generic_param(CreateEmptyGenericParam(0));
+  Context generic_param(CreateEmptyGenericParam(0));
   tree::GPUHistMaker hist_maker{&generic_param,ObjInfo{ObjInfo::kRegression}},
       hist_maker_ext{&generic_param,ObjInfo{ObjInfo::kRegression}};
   std::unique_ptr<DMatrix> hist_maker_dmat(
@@ -239,7 +239,7 @@ void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
       {"sampling_method", sampling_method},
   };
 
-  GenericParameter generic_param(CreateEmptyGenericParam(0));
+  Context generic_param(CreateEmptyGenericParam(0));
   tree::GPUHistMaker hist_maker{&generic_param,ObjInfo{ObjInfo::kRegression}};
   hist_maker.Configure(args);
 
@@ -384,7 +384,7 @@ TEST(GpuHist, ExternalMemoryWithSampling) {
 }
 
 TEST(GpuHist, ConfigIO) {
-  GenericParameter generic_param(CreateEmptyGenericParam(0));
+  Context generic_param(CreateEmptyGenericParam(0));
   std::unique_ptr<TreeUpdater> updater{
       TreeUpdater::Create("grow_gpu_hist", &generic_param, ObjInfo{ObjInfo::kRegression})};
   updater->Configure(Args{});
@@ -404,7 +404,7 @@ TEST(GpuHist, ConfigIO) {
 }
 
 TEST(GpuHist, MaxDepth) {
-  GenericParameter generic_param(CreateEmptyGenericParam(0));
+  Context generic_param(CreateEmptyGenericParam(0));
   size_t constexpr kRows = 16;
   size_t constexpr kCols = 4;
   auto p_mat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();

@@ -123,7 +123,7 @@ class ElementWiseSurvivalMetricsReduction {
 #endif  // XGBOOST_USE_CUDA
 
   PackedReduceResult Reduce(
-      const GenericParameter &ctx,
+      const Context &ctx,
       const HostDeviceVector<bst_float>& weights,
       const HostDeviceVector<bst_float>& labels_lower_bound,
       const HostDeviceVector<bst_float>& labels_upper_bound,
@@ -195,7 +195,7 @@ struct EvalAFTNLogLik {
 };
 
 template <typename Policy> struct EvalEWiseSurvivalBase : public Metric {
-  explicit EvalEWiseSurvivalBase(GenericParameter const *ctx) {
+  explicit EvalEWiseSurvivalBase(Context const *ctx) {
     tparam_ = ctx;
   }
   EvalEWiseSurvivalBase() = default;

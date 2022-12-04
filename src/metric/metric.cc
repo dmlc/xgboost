@@ -4,8 +4,8 @@
  * \brief Registry of objective functions.
  */
 #include <dmlc/registry.h>
+#include <xgboost/context.h>
 #include <xgboost/metric.h>
-#include <xgboost/generic_parameters.h>
 
 #include "metric_common.h"
 
@@ -43,7 +43,7 @@ Metric* CreateMetricImpl(const std::string& name) {
 }
 
 Metric *
-Metric::Create(const std::string& name, GenericParameter const* tparam) {
+Metric::Create(const std::string& name, Context const* tparam) {
   auto metric = CreateMetricImpl<MetricReg>(name);
   if (metric == nullptr) {
     LOG(FATAL) << "Unknown metric function " << name;
@@ -54,7 +54,7 @@ Metric::Create(const std::string& name, GenericParameter const* tparam) {
 }
 
 Metric *
-GPUMetric::CreateGPUMetric(const std::string& name, GenericParameter const* tparam) {
+GPUMetric::CreateGPUMetric(const std::string& name, Context const* tparam) {
   auto metric = CreateMetricImpl<MetricGPUReg>(name);
   if (metric == nullptr) {
     LOG(WARNING) << "Cannot find a GPU metric builder for metric " << name

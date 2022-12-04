@@ -4,9 +4,9 @@
 #ifndef XGBOOST_COMMON_LINALG_OP_CUH_
 #define XGBOOST_COMMON_LINALG_OP_CUH_
 
-#include "xgboost/generic_parameters.h"
 #include "device_helpers.cuh"
 #include "linalg_op.h"
+#include "xgboost/context.h"
 #include "xgboost/linalg.h"
 
 namespace xgboost {

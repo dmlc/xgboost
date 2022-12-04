@@ -1,14 +1,15 @@
 /*!
  * Copyright 2017-2021 by Contributors
  */
+#include "xgboost/predictor.h"
+
 #include <dmlc/registry.h>
+
 #include <mutex>
 
-#include "xgboost/predictor.h"
-#include "xgboost/data.h"
-#include "xgboost/generic_parameters.h"
-
 #include "../gbm/gbtree.h"
+#include "xgboost/context.h"
+#include "xgboost/data.h"
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::PredictorReg);
@@ -30,7 +31,7 @@ void PredictionContainer::ClearExpiredEntries() {
 PredictionCacheEntry &PredictionContainer::Cache(std::shared_ptr<DMatrix> m, int32_t device) {
   this->ClearExpiredEntries();
   container_[m.get()].ref = m;
-  if (device != GenericParameter::kCpuId) {
+  if (device != Context::kCpuId) {
     container_[m.get()].predictions.SetDevice(device);
   }
   return container_[m.get()];
@@ -51,13 +52,12 @@ decltype(PredictionContainer::container_) const& PredictionContainer::Container(
 void Predictor::Configure(
     const std::vector<std::pair<std::string, std::string>>&) {
 }
-Predictor* Predictor::Create(
-    std::string const& name, GenericParameter const* generic_param) {
+Predictor* Predictor::Create(std::string const& name, Context const* ctx) {
   auto* e = ::dmlc::Registry<PredictorReg>::Get()->Find(name);
   if (e == nullptr) {
     LOG(FATAL) << "Unknown predictor type " << name;
   }
-  auto p_predictor = (e->body)(generic_param);
+  auto p_predictor = (e->body)(ctx);
   return p_predictor;
 }
 

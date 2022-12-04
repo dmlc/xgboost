@@ -11,7 +11,6 @@
 #include <dmlc/data.h>
 #include <dmlc/serializer.h>
 #include <xgboost/base.h>
-#include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/linalg.h>
 #include <xgboost/span.h>
@@ -28,6 +27,7 @@
 namespace xgboost {
 // forward declare dmatrix.
 class DMatrix;
+struct Context;
 
 /*! \brief data type accepted by xgboost interface */
 enum class DataType : uint8_t {

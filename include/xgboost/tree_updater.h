@@ -10,8 +10,8 @@
 
 #include <dmlc/registry.h>
 #include <xgboost/base.h>
+#include <xgboost/context.h>
 #include <xgboost/data.h>
-#include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/linalg.h>
 #include <xgboost/model.h>
@@ -26,16 +26,17 @@
 namespace xgboost {
 
 class Json;
+struct Context;
 
 /*!
  * \brief interface of tree update module, that performs update of a tree.
  */
 class TreeUpdater : public Configurable {
  protected:
-  GenericParameter const* ctx_ = nullptr;
+  Context const* ctx_ = nullptr;
 
  public:
-  explicit TreeUpdater(const GenericParameter* ctx) : ctx_(ctx) {}
+  explicit TreeUpdater(const Context* ctx) : ctx_(ctx) {}
   /*! \brief virtual destructor */
   ~TreeUpdater() override = default;
   /*!
@@ -90,9 +91,9 @@ class TreeUpdater : public Configurable {
   /*!
    * \brief Create a tree updater given name
    * \param name Name of the tree updater.
-   * \param tparam A global runtime parameter
+   * \param ctx A global runtime parameter
    */
-  static TreeUpdater* Create(const std::string& name, GenericParameter const* tparam, ObjInfo task);
+  static TreeUpdater* Create(const std::string& name, Context const* ctx, ObjInfo task);
 };
 
 /*!
@@ -100,8 +101,7 @@ class TreeUpdater : public Configurable {
  */
 struct TreeUpdaterReg
     : public dmlc::FunctionRegEntryBase<
-          TreeUpdaterReg,
-          std::function<TreeUpdater*(GenericParameter const* tparam, ObjInfo task)> > {};
+          TreeUpdaterReg, std::function<TreeUpdater*(Context const* ctx, ObjInfo task)>> {};
 
 /*!
  * \brief Macro to register tree updater.

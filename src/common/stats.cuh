@@ -11,7 +11,7 @@
 
 #include "device_helpers.cuh"
 #include "linalg_op.cuh"
-#include "xgboost/generic_parameters.h"
+#include "xgboost/context.h"
 #include "xgboost/linalg.h"
 #include "xgboost/tree_model.h"
 

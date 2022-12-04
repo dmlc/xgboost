@@ -532,7 +532,7 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
   return dmat;
 }
 
-gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param, GenericParameter const* ctx,
+gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param, Context const* ctx,
                                  size_t n_classes) {
   gbm::GBTreeModel model(param, ctx);
 
@@ -549,10 +549,10 @@ gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param, GenericParamete
   return model;
 }
 
-std::unique_ptr<GradientBooster> CreateTrainedGBM(
-    std::string name, Args kwargs, size_t kRows, size_t kCols,
-    LearnerModelParam const* learner_model_param,
-    GenericParameter const* generic_param) {
+std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs, size_t kRows,
+                                                  size_t kCols,
+                                                  LearnerModelParam const* learner_model_param,
+                                                  Context const* generic_param) {
   auto caches = std::make_shared< PredictionContainer >();;
   std::unique_ptr<GradientBooster> gbm {
     GradientBooster::Create(name, generic_param, learner_model_param)};

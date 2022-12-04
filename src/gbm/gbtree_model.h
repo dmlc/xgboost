@@ -5,16 +5,17 @@
 #ifndef XGBOOST_GBM_GBTREE_MODEL_H_
 #define XGBOOST_GBM_GBTREE_MODEL_H_
 
-#include <dmlc/parameter.h>
 #include <dmlc/io.h>
-#include <xgboost/model.h>
-#include <xgboost/tree_model.h>
-#include <xgboost/parameter.h>
+#include <dmlc/parameter.h>
+#include <xgboost/context.h>
 #include <xgboost/learner.h>
+#include <xgboost/model.h>
+#include <xgboost/parameter.h>
+#include <xgboost/tree_model.h>
 
 #include <memory>
-#include <utility>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "../common/threading_utils.h"
@@ -89,7 +90,7 @@ struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
 
 struct GBTreeModel : public Model {
  public:
-  explicit GBTreeModel(LearnerModelParam const* learner_model, GenericParameter const* ctx)
+  explicit GBTreeModel(LearnerModelParam const* learner_model, Context const* ctx)
       : learner_model_param{learner_model}, ctx_{ctx} {}
   void Configure(const Args& cfg) {
     // initialize model parameters if not yet been initialized.
@@ -143,7 +144,7 @@ struct GBTreeModel : public Model {
   std::vector<int> tree_info;
 
  private:
-  GenericParameter const* ctx_;
+  Context const* ctx_;
 };
 }  // namespace gbm
 }  // namespace xgboost

@@ -24,7 +24,7 @@ DMLC_REGISTRY_FILE_TAG(updater_sync);
  */
 class TreeSyncher : public TreeUpdater {
  public:
-  explicit TreeSyncher(GenericParameter const* tparam) : TreeUpdater(tparam) {}
+  explicit TreeSyncher(Context const* tparam) : TreeUpdater(tparam) {}
   void Configure(const Args&) override {}
 
   void LoadConfig(Json const&) override {}
@@ -56,6 +56,6 @@ class TreeSyncher : public TreeUpdater {
 
 XGBOOST_REGISTER_TREE_UPDATER(TreeSyncher, "sync")
     .describe("Syncher that synchronize the tree in all distributed nodes.")
-    .set_body([](GenericParameter const* tparam, ObjInfo) { return new TreeSyncher(tparam); });
+    .set_body([](Context const* ctx, ObjInfo) { return new TreeSyncher(ctx); });
 }  // namespace tree
 }  // namespace xgboost

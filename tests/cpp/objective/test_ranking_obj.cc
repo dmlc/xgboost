@@ -1,14 +1,15 @@
 // Copyright by Contributors
-#include <xgboost/objective.h>
-#include <xgboost/generic_parameters.h>
-#include "../helpers.h"
+#include <xgboost/context.h>
 #include <xgboost/json.h>
+#include <xgboost/objective.h>
+
+#include "../helpers.h"
 
 namespace xgboost {
 
 TEST(Objective, DeclareUnifiedTest(PairwiseRankingGPair)) {
   std::vector<std::pair<std::string, std::string>> args;
-  xgboost::GenericParameter lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
+  xgboost::Context lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
 
   std::unique_ptr<xgboost::ObjFunction> obj {
     xgboost::ObjFunction::Create("rank:pairwise", &lparam)
@@ -37,7 +38,7 @@ TEST(Objective, DeclareUnifiedTest(PairwiseRankingGPair)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(NDCG_JsonIO)) {
-  xgboost::GenericParameter tparam;
+  xgboost::Context tparam;
   tparam.UpdateAllowUnknown(Args{});
 
   std::unique_ptr<xgboost::ObjFunction> obj {
@@ -58,7 +59,7 @@ TEST(Objective, DeclareUnifiedTest(NDCG_JsonIO)) {
 
 TEST(Objective, DeclareUnifiedTest(PairwiseRankingGPairSameLabels)) {
   std::vector<std::pair<std::string, std::string>> args;
-  xgboost::GenericParameter lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
+  xgboost::Context lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
 
   std::unique_ptr<ObjFunction> obj {
     ObjFunction::Create("rank:pairwise", &lparam)
@@ -78,7 +79,7 @@ TEST(Objective, DeclareUnifiedTest(PairwiseRankingGPairSameLabels)) {
 
 TEST(Objective, DeclareUnifiedTest(NDCGRankingGPair)) {
   std::vector<std::pair<std::string, std::string>> args;
-  xgboost::GenericParameter lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
+  xgboost::Context lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
 
   std::unique_ptr<xgboost::ObjFunction> obj {
     xgboost::ObjFunction::Create("rank:ndcg", &lparam)
@@ -107,11 +108,9 @@ TEST(Objective, DeclareUnifiedTest(NDCGRankingGPair)) {
 
 TEST(Objective, DeclareUnifiedTest(MAPRankingGPair)) {
   std::vector<std::pair<std::string, std::string>> args;
-  xgboost::GenericParameter lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
+  xgboost::Context ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
 
-  std::unique_ptr<xgboost::ObjFunction> obj {
-    xgboost::ObjFunction::Create("rank:map", &lparam)
-  };
+  std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:map", &ctx)};
   obj->Configure(args);
   CheckConfigReload(obj, "rank:map");
 
