@@ -44,8 +44,7 @@ General Parameters
 * ``validate_parameters`` [default to ``false``, except for Python, R and CLI interface]
 
   - When set to True, XGBoost will perform validation of input parameters to check whether
-    a parameter is used or not.  The feature is still experimental.  It's expected to have
-    some false positives.
+    a parameter is used or not.
 
 * ``nthread`` [default to maximum number of threads available if not set]
 
@@ -233,23 +232,20 @@ Parameters for Categorical Feature
 These parameters are only used for training with categorical data. See
 :doc:`/tutorials/categorical` for more information.
 
+.. note:: These parameters are experimental. ``exact`` tree method is not yet supported.
+
+
 * ``max_cat_to_onehot``
 
   .. versionadded:: 1.6.0
 
-  .. note:: This parameter is experimental. ``exact`` tree method is not yet supported.
-
   - A threshold for deciding whether XGBoost should use one-hot encoding based split for
     categorical data.  When number of categories is lesser than the threshold then one-hot
     encoding is chosen, otherwise the categories will be partitioned into children nodes.
-    Only relevant for regression and binary classification. Also, ``exact`` tree method is
-    not supported
 
 * ``max_cat_threshold``
 
   .. versionadded:: 1.7.0
-
-  .. note:: This parameter is experimental. ``exact`` tree method is not yet supported.
 
   - Maximum number of categories considered for each split. Used only by partition-based
     splits for preventing over-fitting.
