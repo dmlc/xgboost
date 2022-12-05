@@ -40,6 +40,7 @@ def np_dtypes(
     for dtype in dtypes:
         X = np.array(orig, dtype=dtype)
         yield orig, X
+        yield orig.tolist(), X.tolist()
 
     for dtype in dtypes:
         X = np.array(orig, dtype=dtype)

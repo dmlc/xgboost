@@ -2260,6 +2260,25 @@ class Booster:
             proxy = None
             p_handle = ctypes.c_void_p()
         assert proxy is None or isinstance(proxy, _ProxyDMatrix)
+
+        from .data import (
+            _array_interface,
+            _is_cudf_df,
+            _is_cupy_array,
+            _is_list,
+            _is_pandas_df,
+            _is_tuple,
+            _transform_pandas_df,
+        )
+
+        enable_categorical = _has_categorical(self, data)
+        if _is_pandas_df(data):
+            data, fns, _ = _transform_pandas_df(data, enable_categorical)
+            if validate_features:
+                self._validate_features(fns)
+        if _is_list(data) or _is_tuple(data):
+            data = np.array(data)
+
         if validate_features:
             if not hasattr(data, "shape"):
                 raise TypeError(
@@ -2270,20 +2289,6 @@ class Booster:
                     f"Feature shape mismatch, expected: {self.num_features()}, "
                     f"got {data.shape[1]}"
                 )
-
-        from .data import (
-            _array_interface,
-            _is_cudf_df,
-            _is_cupy_array,
-            _is_pandas_df,
-            _transform_pandas_df,
-        )
-
-        enable_categorical = _has_categorical(self, data)
-        if _is_pandas_df(data):
-            data, fns, _ = _transform_pandas_df(data, enable_categorical)
-            if validate_features:
-                self._validate_features(fns)
 
         if isinstance(data, np.ndarray):
             from .data import _ensure_np_dtype
