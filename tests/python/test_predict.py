@@ -255,7 +255,6 @@ class TestInplacePredict:
             dtypes = orig.dtypes if isinstance(orig, pd.DataFrame) else [orig.dtypes]
             if isinstance(orig, pd.DataFrame) and is_bool_dtype(dtypes[0]):
                 continue
-            print(orig.dtypes)
             y = np.arange(x.shape[0])
             Xy = xgb.DMatrix(orig, y, enable_categorical=True)
             booster = xgb.train({"tree_method": "hist"}, Xy, num_boost_round=1)
