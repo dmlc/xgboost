@@ -20,7 +20,7 @@ import scala.collection.JavaConverters._
 
 import ml.dmlc.xgboost4j.gpu.java.CudfColumnBatch
 import ml.dmlc.xgboost4j.java.nvidia.spark.GpuColumnBatch
-import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, DeviceQuantileDMatrix}
+import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, QuantileDMatrix}
 import ml.dmlc.xgboost4j.scala.spark.params.XGBoostEstimatorCommon
 import ml.dmlc.xgboost4j.scala.spark.{PreXGBoost, PreXGBoostProvider, Watches, XGBoost, XGBoostClassificationModel, XGBoostClassifier, XGBoostExecutionParams, XGBoostRegressionModel, XGBoostRegressor}
 import org.apache.commons.logging.LogFactory
@@ -532,7 +532,7 @@ object GpuPreXGBoost extends PreXGBoostProvider {
   }
 
   /**
-   * Build DeviceQuantileDMatrix based on GpuColumnBatches
+   * Build QuantileDMatrix based on GpuColumnBatches
    *
    * @param iter a sequence of GpuColumnBatch
    * @param indices indicate the feature, label, weight, base margin column ids.
@@ -546,7 +546,7 @@ object GpuPreXGBoost extends PreXGBoostProvider {
       missing: Float,
       maxBin: Int): DMatrix = {
     val rapidsIterator = new RapidsIterator(iter, indices)
-    new DeviceQuantileDMatrix(rapidsIterator, missing, maxBin, 1)
+    new QuantileDMatrix(rapidsIterator, missing, maxBin, 1)
   }
 
   // zip all the Columnar RDDs into one RDD containing named column data batch.

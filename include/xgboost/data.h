@@ -112,6 +112,9 @@ class MetaInfo {
   void Validate(int32_t device) const;
 
   MetaInfo Slice(common::Span<int32_t const> ridxs) const;
+
+  MetaInfo Copy() const;
+
   /*!
    * \brief Get weight of each instances.
    * \param i Instance index.
@@ -619,6 +622,15 @@ class DMatrix {
                          int32_t nthread, std::string cache);
 
   virtual DMatrix *Slice(common::Span<int32_t const> ridxs) = 0;
+
+  /**
+   * \brief Slice a DMatrix by columns.
+   *
+   * @param start The position of the first column
+   * @param size The number of columns in the slice
+   * @return DMatrix containing the slice of columns
+   */
+  virtual DMatrix *SliceCol(std::size_t start, std::size_t size) = 0;
 
  protected:
   virtual BatchSet<SparsePage> GetRowBatches() = 0;

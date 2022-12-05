@@ -87,6 +87,10 @@ class DMatrixProxy : public DMatrix {
     LOG(FATAL) << "Slicing DMatrix is not supported for Proxy DMatrix.";
     return nullptr;
   }
+  DMatrix* SliceCol(std::size_t start, std::size_t size) override {
+    LOG(FATAL) << "Slicing DMatrix columns is not supported for Proxy DMatrix.";
+    return nullptr;
+  }
   BatchSet<SparsePage> GetRowBatches() override {
     LOG(FATAL) << "Not implemented.";
     return BatchSet<SparsePage>(BatchIterator<SparsePage>(nullptr));

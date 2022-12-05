@@ -15,6 +15,7 @@
 #include "../common/hist_util.h"
 #include "../common/numeric.h"
 #include "../common/threading_utils.h"
+#include "../common/transform_iterator.h"  // MakeIndexTransformIter
 #include "adapter.h"
 #include "proxy_dmatrix.h"
 #include "xgboost/base.h"
