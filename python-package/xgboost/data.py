@@ -958,12 +958,12 @@ def dispatch_data_backend(
         return _from_list(data, missing, threads, feature_names, feature_types)
     if _is_tuple(data):
         return _from_tuple(data, missing, threads, feature_names, feature_types)
-    if _is_pandas_df(data):
-        return _from_pandas_df(data, enable_categorical, missing, threads,
-                               feature_names, feature_types)
     if _is_pandas_series(data):
-        return _from_pandas_series(
-            data, missing, threads, enable_categorical, feature_names, feature_types
+        import pandas as pd
+        data = pd.DataFrame(data)
+    if _is_pandas_df(data):
+        return _from_pandas_df(
+            data, enable_categorical, missing, threads, feature_names, feature_types
         )
     if _is_cudf_df(data) or _is_cudf_ser(data):
         return _from_cudf_df(
@@ -1205,6 +1205,9 @@ def _proxy_transform(
         return data, None, feature_names, feature_types
     if _is_scipy_csr(data):
         return data, None, feature_names, feature_types
+    if _is_pandas_series(data):
+        import pandas as pd
+        data = pd.DataFrame(data)
     if _is_pandas_df(data):
         arr, feature_names, feature_types = _transform_pandas_df(
             data, enable_categorical, feature_names, feature_types

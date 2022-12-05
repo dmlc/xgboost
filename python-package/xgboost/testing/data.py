@@ -101,6 +101,11 @@ def pd_dtypes() -> Generator:
                 {"f0": [1.0, 2.0, Null, 3.0], "f1": [3.0, 2.0, Null, 1.0]}, dtype=dtype
             )
             yield orig, df
+            ser_orig = orig["f0"]
+            ser = df["f0"]
+            assert isinstance(ser, pd.Series)
+            assert isinstance(ser_orig, pd.Series)
+            yield ser_orig, ser
 
     # Categorical
     orig = orig.astype("category")
