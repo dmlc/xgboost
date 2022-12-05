@@ -23,7 +23,6 @@ PKG_LIBS = @OPENMP_CXXFLAGS@ @OPENMP_LIB@ @ENDIAN_FLAG@ @BACKTRACE_LIB@ -pthread
 OBJECTS= \
     ./xgboost_R.o \
     ./xgboost_custom.o \
-    ./xgboost_assert.o \
     ./init.o \
     $(PKGROOT)/src/metric/metric.o \
     $(PKGROOT)/src/metric/elementwise_metric.o \
