@@ -118,7 +118,7 @@
                       "type": "integer"
                     }
                   },
-                  "categorical_sizes": {
+                  "categories_sizes": {
                     "type": "array",
                     "items": {
                       "type": "integer"
