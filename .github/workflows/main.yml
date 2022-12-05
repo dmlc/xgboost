@@ -78,16 +78,7 @@ jobs:
     - name: Install system packages
       run: |
         sudo apt-get install -y --no-install-recommends ninja-build
-    - uses: conda-incubator/setup-miniconda@35d1405e78aa3f784fe3ce9a2eb378d5eeb62169 # v2.1.1
-      with:
-        auto-update-conda: true
-        python-version: ${{ matrix.python-version }}
-        activate-environment: test
-    - name: Display Conda env
-      shell: bash -l {0}
-      run: |
-        conda info
-        conda list
+
     - name: Build and install XGBoost static library
       shell: bash -l {0}
       run: |
@@ -96,6 +87,7 @@ jobs:
         cmake .. -DBUILD_STATIC_LIB=ON -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja
         ninja -v install
         cd -
+        rm -rf build
     - name: Build and run C API demo with static
       shell: bash -l {0}
       run: |
@@ -109,13 +101,16 @@ jobs:
         cd ..
         rm -rf ./build
         popd
+
     - name: Build and install XGBoost shared library
       shell: bash -l {0}
       run: |
+        mkdir build
         cd build
         cmake .. -DBUILD_STATIC_LIB=OFF -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja
         ninja -v install
         cd -
+        rm -rf build
     - name: Build and run C API demo with shared
       shell: bash -l {0}
       run: |
@@ -127,6 +122,7 @@ jobs:
         ninja -v
         ctest
         popd
+
         ./tests/ci_build/verify_link.sh ./demo/c-api/build/basic/api-demo
         ./tests/ci_build/verify_link.sh ./demo/c-api/build/external-memory/external-memory-demo
 
