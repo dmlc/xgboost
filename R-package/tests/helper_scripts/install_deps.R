@@ -14,6 +14,7 @@ pkgs <- c(
   "DiagrammeR",
   "Ckmeans.1d.dp",
   "vcd",
+  "lintr",
   "testthat",
   "igraph",
   "float",
