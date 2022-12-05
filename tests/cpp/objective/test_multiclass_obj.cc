@@ -36,11 +36,11 @@ TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassObjGPair)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassBasic)) {
-  auto lparam = CreateEmptyGenericParam(GPUIDX);
+  auto ctx = CreateEmptyGenericParam(GPUIDX);
   std::vector<std::pair<std::string, std::string>> args{
-    std::pair<std::string, std::string>("num_class", "3")};
+      std::pair<std::string, std::string>("num_class", "3")};
 
-  std::unique_ptr<ObjFunction> obj { ObjFunction::Create("multi:softmax", &lparam) };
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("multi:softmax", &ctx)};
   obj->Configure(args);
   CheckConfigReload(obj, "multi:softmax");
 
