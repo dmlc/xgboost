@@ -9,11 +9,9 @@ namespace xgboost {
 
 TEST(Objective, DeclareUnifiedTest(PairwiseRankingGPair)) {
   std::vector<std::pair<std::string, std::string>> args;
-  xgboost::Context lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
+  xgboost::Context ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
 
-  std::unique_ptr<xgboost::ObjFunction> obj {
-    xgboost::ObjFunction::Create("rank:pairwise", &lparam)
-  };
+  std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:pairwise", &ctx)};
   obj->Configure(args);
   CheckConfigReload(obj, "rank:pairwise");
 
@@ -38,12 +36,10 @@ TEST(Objective, DeclareUnifiedTest(PairwiseRankingGPair)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(NDCG_JsonIO)) {
-  xgboost::Context tparam;
-  tparam.UpdateAllowUnknown(Args{});
+  xgboost::Context ctx;
+  ctx.UpdateAllowUnknown(Args{});
 
-  std::unique_ptr<xgboost::ObjFunction> obj {
-    xgboost::ObjFunction::Create("rank:ndcg", &tparam)
-  };
+  std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", &ctx)};
 
   obj->Configure(Args{});
   Json j_obj {Object()};
@@ -59,11 +55,9 @@ TEST(Objective, DeclareUnifiedTest(NDCG_JsonIO)) {
 
 TEST(Objective, DeclareUnifiedTest(PairwiseRankingGPairSameLabels)) {
   std::vector<std::pair<std::string, std::string>> args;
-  xgboost::Context lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
+  xgboost::Context ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
 
-  std::unique_ptr<ObjFunction> obj {
-    ObjFunction::Create("rank:pairwise", &lparam)
-  };
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("rank:pairwise", &ctx)};
   obj->Configure(args);
   // No computation of gradient/hessian, as there is no diversity in labels
   CheckRankingObjFunction(obj,
@@ -79,11 +73,9 @@ TEST(Objective, DeclareUnifiedTest(PairwiseRankingGPairSameLabels)) {
 
 TEST(Objective, DeclareUnifiedTest(NDCGRankingGPair)) {
   std::vector<std::pair<std::string, std::string>> args;
-  xgboost::Context lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
+  xgboost::Context ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
 
-  std::unique_ptr<xgboost::ObjFunction> obj {
-    xgboost::ObjFunction::Create("rank:ndcg", &lparam)
-  };
+  std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", &ctx)};
   obj->Configure(args);
   CheckConfigReload(obj, "rank:ndcg");
 

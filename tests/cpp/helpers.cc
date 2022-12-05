@@ -552,10 +552,9 @@ gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param, Context const* 
 std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs, size_t kRows,
                                                   size_t kCols,
                                                   LearnerModelParam const* learner_model_param,
-                                                  Context const* generic_param) {
-  auto caches = std::make_shared< PredictionContainer >();;
-  std::unique_ptr<GradientBooster> gbm {
-    GradientBooster::Create(name, generic_param, learner_model_param)};
+                                                  Context const* ctx) {
+  auto caches = std::make_shared<PredictionContainer>();
+  std::unique_ptr<GradientBooster> gbm{GradientBooster::Create(name, ctx, learner_model_param)};
   gbm->Configure(kwargs);
   auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
