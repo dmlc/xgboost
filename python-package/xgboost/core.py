@@ -2267,11 +2267,15 @@ class Booster:
             _is_cupy_array,
             _is_list,
             _is_pandas_df,
+            _is_pandas_series,
             _is_tuple,
             _transform_pandas_df,
         )
 
         enable_categorical = _has_categorical(self, data)
+        if _is_pandas_series(data):
+            import pandas as pd
+            data = pd.DataFrame(data)
         if _is_pandas_df(data):
             data, fns, _ = _transform_pandas_df(data, enable_categorical)
             if validate_features:
