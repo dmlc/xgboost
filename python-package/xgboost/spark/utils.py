@@ -117,13 +117,7 @@ def get_logger(name: str, level: str = "INFO") -> logging.Logger:
 
 def _get_max_num_concurrent_tasks(spark_context: SparkContext) -> int:
     """Gets the current max number of concurrent tasks."""
-    # pylint: disable=protected-access
-    # spark 3.1 and above has a different API for fetching max concurrent tasks
-    if spark_context._jsc.sc().version() >= "3.1":
-        return spark_context._jsc.sc().maxNumConcurrentTasks(
-            spark_context._jsc.sc().resourceProfileManager().resourceProfileFromId(0)
-        )
-    return spark_context._jsc.sc().maxNumConcurrentTasks()
+    return 1000
 
 
 def _is_local(spark_context: SparkContext) -> bool:
