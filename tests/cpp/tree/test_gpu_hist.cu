@@ -170,9 +170,9 @@ void TestHistogramIndexImpl() {
 
   // Build 2 matrices and build a histogram maker with that
 
-  Context generic_param(CreateEmptyGenericParam(0));
-  tree::GPUHistMaker hist_maker{&generic_param,ObjInfo{ObjInfo::kRegression}},
-      hist_maker_ext{&generic_param,ObjInfo{ObjInfo::kRegression}};
+  Context ctx(CreateEmptyGenericParam(0));
+  tree::GPUHistMaker hist_maker{&ctx, ObjInfo{ObjInfo::kRegression}},
+      hist_maker_ext{&ctx, ObjInfo{ObjInfo::kRegression}};
   std::unique_ptr<DMatrix> hist_maker_dmat(
     CreateSparsePageDMatrixWithRC(kNRows, kNCols, 0, true));
 
@@ -239,8 +239,8 @@ void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
       {"sampling_method", sampling_method},
   };
 
-  Context generic_param(CreateEmptyGenericParam(0));
-  tree::GPUHistMaker hist_maker{&generic_param,ObjInfo{ObjInfo::kRegression}};
+  Context ctx(CreateEmptyGenericParam(0));
+  tree::GPUHistMaker hist_maker{&ctx,ObjInfo{ObjInfo::kRegression}};
   hist_maker.Configure(args);
 
   std::vector<HostDeviceVector<bst_node_t>> position(1);
@@ -384,9 +384,9 @@ TEST(GpuHist, ExternalMemoryWithSampling) {
 }
 
 TEST(GpuHist, ConfigIO) {
-  Context generic_param(CreateEmptyGenericParam(0));
+  Context ctx(CreateEmptyGenericParam(0));
   std::unique_ptr<TreeUpdater> updater{
-      TreeUpdater::Create("grow_gpu_hist", &generic_param, ObjInfo{ObjInfo::kRegression})};
+      TreeUpdater::Create("grow_gpu_hist", &ctx, ObjInfo{ObjInfo::kRegression})};
   updater->Configure(Args{});
 
   Json j_updater { Object() };
@@ -404,7 +404,7 @@ TEST(GpuHist, ConfigIO) {
 }
 
 TEST(GpuHist, MaxDepth) {
-  Context generic_param(CreateEmptyGenericParam(0));
+  Context ctx(CreateEmptyGenericParam(0));
   size_t constexpr kRows = 16;
   size_t constexpr kCols = 4;
   auto p_mat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();

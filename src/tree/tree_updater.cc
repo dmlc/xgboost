@@ -14,12 +14,12 @@ DMLC_REGISTRY_ENABLE(::xgboost::TreeUpdaterReg);
 
 namespace xgboost {
 
-TreeUpdater* TreeUpdater::Create(const std::string& name, Context const* tparam, ObjInfo task) {
+TreeUpdater* TreeUpdater::Create(const std::string& name, Context const* ctx, ObjInfo task) {
   auto* e = ::dmlc::Registry< ::xgboost::TreeUpdaterReg>::Get()->Find(name);
   if (e == nullptr) {
     LOG(FATAL) << "Unknown tree updater " << name;
   }
-  auto p_updater = (e->body)(tparam, task);
+  auto p_updater = (e->body)(ctx, task);
   return p_updater;
 }
 
