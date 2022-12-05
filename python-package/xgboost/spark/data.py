@@ -87,7 +87,7 @@ class PartIter(DataIter):
 
             # We must set the device after import cudf, which will change the device id to 0
             # See https://github.com/rapidsai/cudf/issues/11386
-            cp.cuda.runtime.setDevice(self._device_id)
+            cp.cuda.runtime.setDevice(self._device_id)  # pylint: disable=I1101
             return cudf.DataFrame(data[self._iter])
 
         return data[self._iter]
@@ -208,13 +208,26 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
 
     def append_m(part: pd.DataFrame, name: str, is_valid: bool) -> None:
         nonlocal n_features
-        if name in part.columns and part[name].shape[0] > 0:
-            array = part[name]
-            if name == alias.data:
+        if name == alias.data or name in part.columns:
+            if (
+                name == alias.data
+                and feature_cols is not None
+                and part[feature_cols].shape[0] > 0  # guard against empty partition
+            ):
+                array: Optional[np.ndarray] = part[feature_cols]
+            elif part[name].shape[0] > 0:
+                array = part[name]
                 array = stack_series(array)
+            else:
+                array = None
+
+            if name == alias.data and array is not None:
                 if n_features == 0:
                     n_features = array.shape[1]
                 assert n_features == array.shape[1]
+
+            if array is None:
+                return
 
             if is_valid:
                 valid_data[name].append(array)
@@ -232,26 +245,6 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
                 assert n_features == array.shape[1]
             else:
                 array = part[name]
-
-            if is_valid:
-                valid_data[name].append(array)
-            else:
-                train_data[name].append(array)
-
-    def append_qdm(part: pd.DataFrame, name: str, is_valid: bool) -> None:
-        """Preprocessing for QuantileDMatrix."""
-        nonlocal n_features
-        if name == alias.data or name in part.columns:
-            if name == alias.data and feature_cols is not None:
-                array = part[feature_cols]
-            else:
-                array = part[name]
-                array = stack_series(array)
-
-            if name == alias.data:
-                if n_features == 0:
-                    n_features = array.shape[1]
-                assert n_features == array.shape[1]
 
             if is_valid:
                 valid_data[name].append(array)
@@ -305,13 +298,14 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
 
     meta, params = split_params()
 
-    if feature_cols is not None:  # rapidsai plugin
-        assert gpu_id is not None
-        assert use_qdm is True
-        cache_partitions(iterator, append_qdm)
+    if feature_cols is not None and use_qdm:
+        cache_partitions(iterator, append_fn)
         dtrain: DMatrix = make_qdm(train_data, gpu_id, meta, None, params)
-    elif use_qdm:
-        cache_partitions(iterator, append_qdm)
+    elif feature_cols is not None and not use_qdm:
+        cache_partitions(iterator, append_fn)
+        dtrain = make(train_data, kwargs)
+    elif feature_cols is None and use_qdm:
+        cache_partitions(iterator, append_fn)
         dtrain = make_qdm(train_data, gpu_id, meta, None, params)
     else:
         cache_partitions(iterator, append_fn)

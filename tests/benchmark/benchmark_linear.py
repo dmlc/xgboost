@@ -43,7 +43,7 @@ def run_benchmark(args):
         dtrain.save_binary('dtrain.dm')
 
     param = {'objective': 'binary:logistic','booster':'gblinear'}
-    if args.params is not '':
+    if args.params != '':
         param.update(ast.literal_eval(args.params))
 
     param['updater'] = args.updater

@@ -19,7 +19,7 @@ jobs:
       matrix:
         os: [macos-11]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
     - name: Install system packages
@@ -45,7 +45,7 @@ jobs:
       matrix:
         os: [ubuntu-latest]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
     - name: Install system packages
@@ -72,13 +72,13 @@ jobs:
         os: ["ubuntu-latest"]
         python-version: ["3.8"]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
     - name: Install system packages
       run: |
         sudo apt-get install -y --no-install-recommends ninja-build
-    - uses: conda-incubator/setup-miniconda@v2
+    - uses: conda-incubator/setup-miniconda@35d1405e78aa3f784fe3ce9a2eb378d5eeb62169 # v2.1.1
       with:
         auto-update-conda: true
         python-version: ${{ matrix.python-version }}
@@ -130,14 +130,14 @@ jobs:
         ./tests/ci_build/verify_link.sh ./demo/c-api/build/basic/api-demo
         ./tests/ci_build/verify_link.sh ./demo/c-api/build/external-memory/external-memory-demo
 
-  lint:
+  cpp-lint:
     runs-on: ubuntu-latest
     name: Code linting for C++
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
-    - uses: actions/setup-python@v2
+    - uses: actions/setup-python@7f80679172b057fc5e90d70d197929d454754a5a # v4.3.0
       with:
         python-version: "3.8"
         architecture: 'x64'
@@ -146,60 +146,23 @@ jobs:
         python -m pip install wheel setuptools cpplint pylint
     - name: Run lint
       run: |
-        LINT_LANG=cpp make lint
-
-  doxygen:
-    runs-on: ubuntu-latest
-    name: Generate C/C++ API doc using Doxygen
-    steps:
-    - uses: actions/checkout@v2
-      with:
-        submodules: 'true'
-    - uses: actions/setup-python@v2
-      with:
-        python-version: "3.8"
-        architecture: 'x64'
-    - name: Install system packages
-      run: |
-        sudo apt-get install -y --no-install-recommends doxygen graphviz ninja-build
-        python -m pip install wheel setuptools
-        python -m pip install awscli
-    - name: Run Doxygen
-      run: |
-        mkdir build
-        cd build
-        cmake .. -DBUILD_C_DOC=ON -GNinja
-        ninja -v doc_doxygen
-    - name: Extract branch name
-      shell: bash
-      run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
-      id: extract_branch
-      if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
-    - name: Publish
-      run: |
-        cd build/
-        tar cvjf ${{ steps.extract_branch.outputs.branch }}.tar.bz2 doc_doxygen/
-        python -m awscli s3 cp ./${{ steps.extract_branch.outputs.branch }}.tar.bz2 s3://xgboost-docs/doxygen/ --acl public-read
-      if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
+        python dmlc-core/scripts/lint.py xgboost cpp R-package/src
 
   sphinx:
     runs-on: ubuntu-latest
     name: Build docs using Sphinx
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
-    - uses: actions/setup-python@v2
+    - uses: actions/setup-python@7f80679172b057fc5e90d70d197929d454754a5a # v4.3.0
       with:
         python-version: "3.8"
         architecture: 'x64'
     - name: Install system packages
       run: |
-        sudo apt-get install -y --no-install-recommends graphviz
-        python -m pip install wheel setuptools
+        sudo apt-get install -y --no-install-recommends graphviz doxygen ninja-build
+        python -m pip install wheel setuptools awscli
         python -m pip install -r doc/requirements.txt
     - name: Extract branch name
       shell: bash
@@ -211,3 +174,13 @@ jobs:
         make -C doc html
       env:
         SPHINX_GIT_BRANCH: ${{ steps.extract_branch.outputs.branch }}
+        READTHEDOCS: "True"
+
+    - name: Publish
+      run: |
+        tar cvjf ${{ steps.extract_branch.outputs.branch }}.tar.bz2 doxygen/doc_doxygen/
+        python -m awscli s3 cp ./${{ steps.extract_branch.outputs.branch }}.tar.bz2 s3://xgboost-docs/doxygen/ --acl public-read
+      if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}

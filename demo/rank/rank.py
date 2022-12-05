@@ -1,8 +1,8 @@
 #!/usr/bin/python
-import xgboost as xgb
-from xgboost import DMatrix
 from sklearn.datasets import load_svmlight_file
 
+import xgboost as xgb
+from xgboost import DMatrix
 
 #  This script demonstrate how to do ranking with xgboost.train
 x_train, y_train = load_svmlight_file("mq2008.train")

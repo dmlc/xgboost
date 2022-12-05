@@ -24,6 +24,7 @@
 #include "hist/histogram.h"
 #include "hist/expand_entry.h"
 
+#include "common_row_partitioner.h"
 #include "constraints.h"
 #include "./param.h"
 #include "./driver.h"
@@ -77,155 +78,6 @@ struct RandomReplace {
 };
 
 namespace tree {
-class HistRowPartitioner {
-  // heuristically chosen block size of parallel partitioning
-  static constexpr size_t kPartitionBlockSize = 2048;
-  // worker class that partition a block of rows
-  common::PartitionBuilder<kPartitionBlockSize> partition_builder_;
-  // storage for row index
-  common::RowSetCollection row_set_collection_;
-
-  /**
-   * \brief Turn split values into discrete bin indices.
-   */
-  static void FindSplitConditions(const std::vector<CPUExpandEntry>& nodes, const RegTree& tree,
-                                  const GHistIndexMatrix& gmat,
-                                  std::vector<int32_t>* split_conditions);
-  /**
-   * \brief Update the row set for new splits specifed by nodes.
-   */
-  void AddSplitsToRowSet(const std::vector<CPUExpandEntry>& nodes, RegTree const* p_tree);
-
- public:
-  bst_row_t base_rowid = 0;
-
- public:
-  HistRowPartitioner(size_t n_samples, size_t base_rowid, int32_t n_threads) {
-    row_set_collection_.Clear();
-    const size_t block_size = n_samples / n_threads + !!(n_samples % n_threads);
-    dmlc::OMPException exc;
-    std::vector<size_t>& row_indices = *row_set_collection_.Data();
-    row_indices.resize(n_samples);
-    size_t* p_row_indices = row_indices.data();
-    // parallel initialization o f row indices. (std::iota)
-#pragma omp parallel num_threads(n_threads)
-    {
-      exc.Run([&]() {
-        const size_t tid = omp_get_thread_num();
-        const size_t ibegin = tid * block_size;
-        const size_t iend = std::min(static_cast<size_t>(ibegin + block_size), n_samples);
-        for (size_t i = ibegin; i < iend; ++i) {
-          p_row_indices[i] = i + base_rowid;
-        }
-      });
-    }
-    row_set_collection_.Init();
-    this->base_rowid = base_rowid;
-  }
-
-  template <bool any_missing, bool any_cat>
-  void UpdatePosition(GenericParameter const* ctx, GHistIndexMatrix const& gmat,
-                      common::ColumnMatrix const& column_matrix,
-                      std::vector<CPUExpandEntry> const& nodes, RegTree const* p_tree) {
-    // 1. Find split condition for each split
-    const size_t n_nodes = nodes.size();
-    std::vector<int32_t> split_conditions;
-    FindSplitConditions(nodes, *p_tree, gmat, &split_conditions);
-    // 2.1 Create a blocked space of size SUM(samples in each node)
-    common::BlockedSpace2d space(
-        n_nodes,
-        [&](size_t node_in_set) {
-          int32_t nid = nodes[node_in_set].nid;
-          return row_set_collection_[nid].Size();
-        },
-        kPartitionBlockSize);
-    // 2.2 Initialize the partition builder
-    // allocate buffers for storage intermediate results by each thread
-    partition_builder_.Init(space.Size(), n_nodes, [&](size_t node_in_set) {
-      const int32_t nid = nodes[node_in_set].nid;
-      const size_t size = row_set_collection_[nid].Size();
-      const size_t n_tasks = size / kPartitionBlockSize + !!(size % kPartitionBlockSize);
-      return n_tasks;
-    });
-    CHECK_EQ(base_rowid, gmat.base_rowid);
-    // 2.3 Split elements of row_set_collection_ to left and right child-nodes for each node
-    // Store results in intermediate buffers from partition_builder_
-    common::ParallelFor2d(space, ctx->Threads(), [&](size_t node_in_set, common::Range1d r) {
-      size_t begin = r.begin();
-      const int32_t nid = nodes[node_in_set].nid;
-      const size_t task_id = partition_builder_.GetTaskIdx(node_in_set, begin);
-      partition_builder_.AllocateForTask(task_id);
-      switch (column_matrix.GetTypeSize()) {
-        case common::kUint8BinsTypeSize:
-          partition_builder_.template Partition<uint8_t, any_missing, any_cat>(
-              node_in_set, nid, r, split_conditions[node_in_set], gmat, column_matrix, *p_tree,
-              row_set_collection_[nid].begin);
-          break;
-        case common::kUint16BinsTypeSize:
-          partition_builder_.template Partition<uint16_t, any_missing, any_cat>(
-              node_in_set, nid, r, split_conditions[node_in_set], gmat, column_matrix, *p_tree,
-              row_set_collection_[nid].begin);
-          break;
-        case common::kUint32BinsTypeSize:
-          partition_builder_.template Partition<uint32_t, any_missing, any_cat>(
-              node_in_set, nid, r, split_conditions[node_in_set], gmat, column_matrix, *p_tree,
-              row_set_collection_[nid].begin);
-          break;
-        default:
-          // no default behavior
-          CHECK(false) << column_matrix.GetTypeSize();
-      }
-    });
-    // 3. Compute offsets to copy blocks of row-indexes
-    // from partition_builder_ to row_set_collection_
-    partition_builder_.CalculateRowOffsets();
-
-    // 4. Copy elements from partition_builder_ to row_set_collection_ back
-    // with updated row-indexes for each tree-node
-    common::ParallelFor2d(space, ctx->Threads(), [&](size_t node_in_set, common::Range1d r) {
-      const int32_t nid = nodes[node_in_set].nid;
-      partition_builder_.MergeToArray(node_in_set, r.begin(),
-                                      const_cast<size_t*>(row_set_collection_[nid].begin));
-    });
-    // 5. Add info about splits into row_set_collection_
-    AddSplitsToRowSet(nodes, p_tree);
-  }
-
-  void UpdatePosition(GenericParameter const* ctx, GHistIndexMatrix const& page,
-                      std::vector<CPUExpandEntry> const& applied, RegTree const* p_tree) {
-    auto const& column_matrix = page.Transpose();
-    if (page.cut.HasCategorical()) {
-      if (column_matrix.AnyMissing()) {
-        this->template UpdatePosition<true, true>(ctx, page, column_matrix, applied, p_tree);
-      } else {
-        this->template UpdatePosition<false, true>(ctx, page, column_matrix, applied, p_tree);
-      }
-    } else {
-      if (column_matrix.AnyMissing()) {
-        this->template UpdatePosition<true, false>(ctx, page, column_matrix, applied, p_tree);
-      } else {
-        this->template UpdatePosition<false, false>(ctx, page, column_matrix, applied, p_tree);
-      }
-    }
-  }
-
-  auto const& Partitions() const { return row_set_collection_; }
-  size_t Size() const {
-    return std::distance(row_set_collection_.begin(), row_set_collection_.end());
-  }
-
-  void LeafPartition(Context const* ctx, RegTree const& tree,
-                     common::Span<GradientPair const> gpair,
-                     std::vector<bst_node_t>* p_out_position) const {
-    partition_builder_.LeafPartition(
-        ctx, tree, this->Partitions(), p_out_position,
-        [&](size_t idx) -> bool { return gpair[idx].GetHess() - .0f == .0f; });
-  }
-
-  auto& operator[](bst_node_t nidx) { return row_set_collection_[nidx]; }
-  auto const& operator[](bst_node_t nidx) const { return row_set_collection_[nidx]; }
-};
-
 inline BatchParam HistBatch(TrainParam const& param) {
   return {param.max_bin, param.sparse_threshold};
 }
@@ -314,7 +166,7 @@ class QuantileHistMaker: public TreeUpdater {
     std::vector<GradientPair> gpair_local_;
 
     std::unique_ptr<HistEvaluator<CPUExpandEntry>> evaluator_;
-    std::vector<HistRowPartitioner> partitioner_;
+    std::vector<CommonRowPartitioner> partitioner_;
 
     // back pointers to tree and data matrix
     const RegTree* p_last_tree_{nullptr};

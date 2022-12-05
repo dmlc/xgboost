@@ -96,12 +96,12 @@ struct ArrayInterfaceErrors {
  */
 class ArrayInterfaceHandler {
  public:
-  enum Type : std::int8_t { kF4, kF8, kF16, kI1, kI2, kI4, kI8, kU1, kU2, kU4, kU8 };
+  enum Type : std::int8_t { kF2, kF4, kF8, kF16, kI1, kI2, kI4, kI8, kU1, kU2, kU4, kU8 };
 
   template <typename PtrType>
   static PtrType GetPtrFromArrayData(Object::Map const &obj) {
     auto data_it = obj.find("data");
-    if (data_it == obj.cend()) {
+    if (data_it == obj.cend() || IsA<Null>(data_it->second)) {
       LOG(FATAL) << "Empty data passed in.";
     }
     auto p_data = reinterpret_cast<PtrType>(
@@ -111,7 +111,7 @@ class ArrayInterfaceHandler {
 
   static void Validate(Object::Map const &array) {
     auto version_it = array.find("version");
-    if (version_it == array.cend()) {
+    if (version_it == array.cend() || IsA<Null>(version_it->second)) {
       LOG(FATAL) << "Missing `version' field for array interface";
     }
     if (get<Integer const>(version_it->second) > 3) {
@@ -119,17 +119,19 @@ class ArrayInterfaceHandler {
     }
 
     auto typestr_it = array.find("typestr");
-    if (typestr_it == array.cend()) {
+    if (typestr_it == array.cend() || IsA<Null>(typestr_it->second)) {
       LOG(FATAL) << "Missing `typestr' field for array interface";
     }
 
     auto typestr = get<String const>(typestr_it->second);
     CHECK(typestr.size() == 3 || typestr.size() == 4) << ArrayInterfaceErrors::TypestrFormat();
 
-    if (array.find("shape") == array.cend()) {
+    auto shape_it = array.find("shape");
+    if (shape_it == array.cend() || IsA<Null>(shape_it->second)) {
       LOG(FATAL) << "Missing `shape' field for array interface";
     }
-    if (array.find("data") == array.cend()) {
+    auto data_it = array.find("data");
+    if (data_it == array.cend() || IsA<Null>(data_it->second)) {
       LOG(FATAL) << "Missing `data' field for array interface";
     }
   }
@@ -139,8 +141,9 @@ class ArrayInterfaceHandler {
   static size_t ExtractMask(Object::Map const &column,
                             common::Span<RBitField8::value_type> *p_out) {
     auto &s_mask = *p_out;
-    if (column.find("mask") != column.cend()) {
-      auto const &j_mask = get<Object const>(column.at("mask"));
+    auto const &mask_it = column.find("mask");
+    if (mask_it != column.cend() && !IsA<Null>(mask_it->second)) {
+      auto const &j_mask = get<Object const>(mask_it->second);
       Validate(j_mask);
 
       auto p_mask = GetPtrFromArrayData<RBitField8::value_type *>(j_mask);
@@ -173,8 +176,9 @@ class ArrayInterfaceHandler {
       // assume 1 byte alignment.
       size_t const span_size = RBitField8::ComputeStorageSize(n_bits);
 
-      if (j_mask.find("strides") != j_mask.cend()) {
-        auto strides = get<Array const>(column.at("strides"));
+      auto strides_it = j_mask.find("strides");
+      if (strides_it != j_mask.cend() && !IsA<Null>(strides_it->second)) {
+        auto strides = get<Array const>(strides_it->second);
         CHECK_EQ(strides.size(), 1) << ArrayInterfaceErrors::Dimension(1);
         CHECK_EQ(get<Integer>(strides.at(0)), type_length) << ArrayInterfaceErrors::Contiguous();
       }
@@ -296,6 +300,12 @@ class ArrayInterfaceHandler {
 template <typename T, typename E = void>
 struct ToDType;
 // float
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 600
+template <>
+struct ToDType<__half> {
+  static constexpr ArrayInterfaceHandler::Type kType = ArrayInterfaceHandler::kF2;
+};
+#endif  // defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 600
 template <>
 struct ToDType<float> {
   static constexpr ArrayInterfaceHandler::Type kType = ArrayInterfaceHandler::kF4;
@@ -401,7 +411,9 @@ class ArrayInterface {
                             << "XGBoost doesn't support internal broadcasting.";
       }
     } else {
-      CHECK(array.find("mask") == array.cend()) << "Masked array is not yet supported.";
+      auto mask_it = array.find("mask");
+      CHECK(mask_it == array.cend() || IsA<Null>(mask_it->second))
+          << "Masked array is not yet supported.";
     }
 
     auto stream_it = array.find("stream");
@@ -438,6 +450,12 @@ class ArrayInterface {
       type = T::kF16;
       CHECK(sizeof(long double) == 16)
           << "128-bit floating point is not supported on current platform.";
+    } else if (typestr[1] == 'f' && typestr[2] == '2') {
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 600
+      type = T::kF2;
+#else
+      LOG(FATAL) << "Half type is not supported.";
+#endif  // defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 600
     } else if (typestr[1] == 'f' && typestr[2] == '4') {
       type = T::kF4;
     } else if (typestr[1] == 'f' && typestr[2] == '8') {
@@ -471,6 +489,14 @@ class ArrayInterface {
   XGBOOST_HOST_DEV_INLINE decltype(auto) DispatchCall(Fn func) const {
     using T = ArrayInterfaceHandler::Type;
     switch (type) {
+      case T::kF2: {
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 600
+        return func(reinterpret_cast<__half const *>(data));
+#else
+        SPAN_CHECK(false);
+        return func(reinterpret_cast<float const *>(data));
+#endif  // defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 600
+      }
       case T::kF4:
         return func(reinterpret_cast<float const *>(data));
       case T::kF8:
@@ -515,8 +541,18 @@ class ArrayInterface {
   XGBOOST_DEVICE T operator()(Index &&...index) const {
     static_assert(sizeof...(index) <= D, "Invalid index.");
     return this->DispatchCall([=](auto const *p_values) -> T {
-      size_t offset = linalg::detail::Offset<0ul>(strides, 0ul, index...);
+      std::size_t offset = linalg::detail::Offset<0ul>(strides, 0ul, index...);
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 600
+      // No operator defined for half -> size_t
+      using Type = std::conditional_t<
+          std::is_same<__half,
+                       std::remove_cv_t<std::remove_pointer_t<decltype(p_values)>>>::value &&
+              std::is_same<std::size_t, std::remove_cv_t<T>>::value,
+          unsigned long long, T>;  // NOLINT
+      return static_cast<T>(static_cast<Type>(p_values[offset]));
+#else
       return static_cast<T>(p_values[offset]);
+#endif
     });
   }
 

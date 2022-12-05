@@ -65,7 +65,7 @@ def _check_rf_callback(
         )
 
 
-_SklObjective = Optional[
+SklObjective = Optional[
     Union[str, Callable[[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]]]
 ]
 
@@ -144,7 +144,7 @@ __model_doc = f"""
         Boosting learning rate (xgb's "eta")
     verbosity : Optional[int]
         The degree of verbosity. Valid values are 0 (silent) - 3 (debug).
-    objective : {_SklObjective}
+    objective : {SklObjective}
         Specify the learning task and the corresponding learning objective or
         a custom objective function to be used (see note below).
     booster: Optional[str]
@@ -233,7 +233,7 @@ __model_doc = f"""
         should be used to specify categorical data type.  Also, JSON/UBJSON
         serialization format is required.
 
-    feature_types : FeatureTypes
+    feature_types : Optional[FeatureTypes]
 
         .. versionadded:: 1.7.0
 
@@ -546,7 +546,7 @@ class XGBModel(XGBModelBase):
         learning_rate: Optional[float] = None,
         n_estimators: int = 100,
         verbosity: Optional[int] = None,
-        objective: _SklObjective = None,
+        objective: SklObjective = None,
         booster: Optional[str] = None,
         tree_method: Optional[str] = None,
         n_jobs: Optional[int] = None,
@@ -572,7 +572,7 @@ class XGBModel(XGBModelBase):
         validate_parameters: Optional[bool] = None,
         predictor: Optional[str] = None,
         enable_categorical: bool = False,
-        feature_types: FeatureTypes = None,
+        feature_types: Optional[FeatureTypes] = None,
         max_cat_to_onehot: Optional[int] = None,
         max_cat_threshold: Optional[int] = None,
         eval_metric: Optional[Union[str, List[str], Callable]] = None,
@@ -1409,7 +1409,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
     def __init__(
         self,
         *,
-        objective: _SklObjective = "binary:logistic",
+        objective: SklObjective = "binary:logistic",
         use_label_encoder: Optional[bool] = None,
         **kwargs: Any,
     ) -> None:
@@ -1712,7 +1712,7 @@ class XGBRegressor(XGBModel, XGBRegressorBase):
     # pylint: disable=missing-docstring
     @_deprecate_positional_args
     def __init__(
-        self, *, objective: _SklObjective = "reg:squarederror", **kwargs: Any
+        self, *, objective: SklObjective = "reg:squarederror", **kwargs: Any
     ) -> None:
         super().__init__(objective=objective, **kwargs)
 
@@ -1785,7 +1785,7 @@ class XGBRFRegressor(XGBRegressor):
     end_note="""
         .. note::
 
-            The default objectivefor XGBRanker is "rank:pairwise"
+            The default objective for XGBRanker is "rank:pairwise"
 
         .. note::
 
@@ -1795,11 +1795,16 @@ class XGBRFRegressor(XGBRegressor):
         .. note::
 
             Query group information is required for ranking tasks by either using the
-            `group` parameter or `qid` parameter in `fit` method.
+            `group` parameter or `qid` parameter in `fit` method. This information is
+            not required in 'predict' method and multiple groups can be predicted on
+            a single call to `predict`.
 
-        Before fitting the model, your data need to be sorted by query group. When fitting
-        the model, you need to provide an additional array that contains the size of each
+        When fitting the model with the `group` parameter, your data need to be sorted
+        by query group first. `group` must be an array that contains the size of each
         query group.
+        When fitting the model with the `qid` parameter, your data does not need
+        sorting. `qid` must be an array that contains the group of each training
+        sample.
 
         For example, if your original data look like:
 
@@ -1821,8 +1826,8 @@ class XGBRFRegressor(XGBRegressor):
         |   2   |   1       |   x_7         |
         +-------+-----------+---------------+
 
-        then your group array should be ``[3, 4]``.  Sometimes using query id (`qid`)
-        instead of group can be more convenient.
+        then `fit` method can be called with either `group` array as ``[3, 4]``
+        or with `qid` as ``[`1, 1, 1, 2, 2, 2, 2]``, that is the qid column.
 """,
 )
 class XGBRanker(XGBModel, XGBRankerMixIn):

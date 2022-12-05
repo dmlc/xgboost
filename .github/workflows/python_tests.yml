@@ -12,16 +12,15 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        python-version: ["3.8"]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
-    - uses: conda-incubator/setup-miniconda@v2
+    - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
       with:
-        auto-update-conda: true
-        python-version: ${{ matrix.python-version }}
-        activate-environment: python_lint
+        cache-downloads: true
+        cache-env: true
+        environment-name: python_lint
         environment-file: tests/ci_build/conda_env/python_lint.yml
     - name: Display Conda env
       shell: bash -l {0}
@@ -49,7 +48,7 @@ jobs:
         os: [ubuntu-latest, macos-11, windows-latest]
         python-version: ["3.8"]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
     - name: Install osx system dependencies
@@ -60,7 +59,7 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get install -y --no-install-recommends ninja-build
-    - uses: conda-incubator/setup-miniconda@v2
+    - uses: conda-incubator/setup-miniconda@35d1405e78aa3f784fe3ce9a2eb378d5eeb62169 # v2.1.1
       with:
         auto-update-conda: true
         python-version: ${{ matrix.python-version }}
@@ -83,17 +82,18 @@ jobs:
   python-tests-on-win:
     name: Test XGBoost Python package on ${{ matrix.config.os }}
     runs-on: ${{ matrix.config.os }}
+    timeout-minutes: 60
     strategy:
       matrix:
         config:
           - {os: windows-latest, python-version: '3.8'}
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
 
-    - uses: conda-incubator/setup-miniconda@v2
+    - uses: conda-incubator/setup-miniconda@35d1405e78aa3f784fe3ce9a2eb378d5eeb62169 # v2.1.1
       with:
         auto-update-conda: true
         python-version: ${{ matrix.config.python-version }}
@@ -130,22 +130,22 @@ jobs:
   python-tests-on-macos:
     name: Test XGBoost Python package on ${{ matrix.config.os }}
     runs-on: ${{ matrix.config.os }}
-    timeout-minutes: 90
+    timeout-minutes: 60
     strategy:
       matrix:
         config:
           - {os: macos-11, python-version: "3.8" }
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
 
-    - uses: conda-incubator/setup-miniconda@v2
+    - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
       with:
-        auto-update-conda: true
-        python-version: ${{ matrix.config.python-version }}
-        activate-environment: macos_test
+        cache-downloads: true
+        cache-env: true
+        environment-name: macos_test
         environment-file: tests/ci_build/conda_env/macos_cpu_test.yml
 
     - name: Display Conda env
@@ -179,6 +179,11 @@ jobs:
       run: |
         pytest -s -v -rxXs --durations=0 ./tests/python
 
+    - name: Test Dask Interface
+      shell: bash -l {0}
+      run: |
+        pytest -s -v -rxXs --durations=0 ./tests/test_distributed/test_with_dask
+
   python-tests-on-ubuntu:
     name: Test XGBoost Python package on ${{ matrix.config.os }}
     runs-on: ${{ matrix.config.os }}
@@ -193,11 +198,11 @@ jobs:
       with:
         submodules: 'true'
 
-    - uses: conda-incubator/setup-miniconda@v2
+    - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
       with:
-        auto-update-conda: true
-        python-version: ${{ matrix.config.python-version }}
-        activate-environment: cpu_test
+        cache-downloads: true
+        cache-env: true
+        environment-name: cpu_test
         environment-file: tests/ci_build/conda_env/cpu_test.yml
 
     - name: Display Conda env
@@ -227,3 +232,13 @@ jobs:
       shell: bash -l {0}
       run: |
         pytest -s -v -rxXs --durations=0 ./tests/python
+
+    - name: Test Dask Interface
+      shell: bash -l {0}
+      run: |
+        pytest -s -v -rxXs --durations=0 ./tests/test_distributed/test_with_dask
+
+    - name: Test PySpark Interface
+      shell: bash -l {0}
+      run: |
+        pytest -s -v -rxXs --durations=0 ./tests/test_distributed/test_with_spark

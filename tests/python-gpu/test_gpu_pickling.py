@@ -3,20 +3,17 @@ import json
 import os
 import pickle
 import subprocess
-import sys
 
 import numpy as np
 import pytest
 
 import xgboost as xgb
-from xgboost import XGBClassifier, testing
-
-sys.path.append("tests/python")
-import testing as tm
+from xgboost import XGBClassifier
+from xgboost import testing as tm
 
 model_path = './model.pkl'
 
-pytestmark = testing.timeout(30)
+pytestmark = tm.timeout(30)
 
 
 def build_dataset():

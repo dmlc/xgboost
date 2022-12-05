@@ -6,7 +6,6 @@ syntax = "proto3";
 package xgboost.federated;
 
 service Federated {
-  rpc Allgather(AllgatherRequest) returns (AllgatherReply) {}
   rpc Allreduce(AllreduceRequest) returns (AllreduceReply) {}
   rpc Broadcast(BroadcastRequest) returns (BroadcastReply) {}
 }
@@ -26,17 +25,6 @@ enum ReduceOperation {
   MAX = 0;
   MIN = 1;
   SUM = 2;
-}
-
-message AllgatherRequest {
-  // An incrementing counter that is unique to each round to operations.
-  uint64 sequence_number = 1;
-  int32 rank = 2;
-  bytes send_buffer = 3;
-}
-
-message AllgatherReply {
-  bytes receive_buffer = 1;
 }
 
 message AllreduceRequest {

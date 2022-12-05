@@ -6,40 +6,58 @@ from multiprocessing import Pool, cpu_count
 from typing import Dict, Tuple
 
 from pylint import epylint
-from test_utils import DirectoryExcursion
+from test_utils import PY_PACKAGE, ROOT, cd, print_time, record_time
 
 CURDIR = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))
-PROJECT_ROOT = os.path.normpath(os.path.join(CURDIR, os.path.pardir, os.path.pardir))
 
 
-def run_formatter(rel_path: str) -> bool:
-    path = os.path.join(PROJECT_ROOT, rel_path)
-    isort_ret = subprocess.run(["isort", "--check", "--profile=black", path]).returncode
-    black_ret = subprocess.run(["black", "--check", rel_path]).returncode
-    if isort_ret != 0 or black_ret != 0:
-        msg = (
-            "Please run the following command on your machine to address the format"
-            f" errors:\n isort --profile=black {rel_path}\n black {rel_path}\n"
-        )
-        print(msg, file=sys.stdout)
+@record_time
+def run_black(rel_path: str) -> bool:
+    cmd = ["black", "-q", "--check", rel_path]
+    ret = subprocess.run(cmd).returncode
+    if ret != 0:
+        subprocess.run(["black", "--version"])
+        msg = """
+Please run the following command on your machine to address the formatting error:
+
+        """
+        msg += " ".join(cmd)
+        print(msg, file=sys.stderr)
         return False
     return True
 
 
+@record_time
+def run_isort(rel_path: str) -> bool:
+    cmd = ["isort", "--check", "--profile=black", rel_path]
+    ret = subprocess.run(cmd).returncode
+    if ret != 0:
+        subprocess.run(["isort", "--version"])
+        msg = """
+Please run the following command on your machine to address the formatting error:
+
+        """
+        msg += " ".join(cmd)
+        print(msg, file=sys.stderr)
+        return False
+    return True
+
+
+@record_time
+@cd(PY_PACKAGE)
 def run_mypy(rel_path: str) -> bool:
-    with DirectoryExcursion(os.path.join(PROJECT_ROOT, "python-package")):
-        path = os.path.join(PROJECT_ROOT, rel_path)
-        ret = subprocess.run(["mypy", path])
-        if ret.returncode != 0:
-            return False
-        return True
+    path = os.path.join(ROOT, rel_path)
+    ret = subprocess.run(["mypy", path])
+    if ret.returncode != 0:
+        return False
+    return True
 
 
 class PyLint:
     """A helper for running pylint, mostly copied from dmlc-core/scripts."""
 
     def __init__(self) -> None:
-        self.pypackage_root = os.path.join(PROJECT_ROOT, "python-package/")
+        self.pypackage_root = os.path.join(ROOT, "python-package/")
         self.pylint_cats = set(["error", "warning", "convention", "refactor"])
         self.pylint_opts = [
             "--extension-pkg-whitelist=numpy",
@@ -102,15 +120,16 @@ class PyLint:
         return nerr == 0
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--format", type=int, choices=[0, 1], default=1)
-    parser.add_argument("--type-check", type=int, choices=[0, 1], default=1)
-    parser.add_argument("--pylint", type=int, choices=[0, 1], default=1)
-    args = parser.parse_args()
+@record_time
+def run_pylint() -> bool:
+    return PyLint()()
+
+
+@record_time
+def main(args: argparse.Namespace) -> None:
     if args.format == 1:
-        if not all(
-            run_formatter(path)
+        black_results = [
+            run_black(path)
             for path in [
                 # core
                 "python-package/xgboost/__init__.py",
@@ -121,41 +140,98 @@ if __name__ == "__main__":
                 "python-package/xgboost/sklearn.py",
                 "python-package/xgboost/spark",
                 "python-package/xgboost/federated.py",
-                "python-package/xgboost/testing.py",
+                "python-package/xgboost/testing",
                 # tests
                 "tests/python/test_config.py",
-                "tests/python/test_spark/",
+                "tests/python/test_data_iterator.py",
+                "tests/python/test_dt.py",
                 "tests/python/test_quantile_dmatrix.py",
-                "tests/python-gpu/test_gpu_spark/",
                 "tests/python/test_tree_regularization.py",
+                "tests/python-gpu/test_gpu_data_iterator.py",
                 "tests/ci_build/lint_python.py",
+                "tests/test_distributed/test_with_spark/",
+                "tests/test_distributed/test_gpu_with_spark/",
                 # demo
+                "demo/json-model/json_parser.py",
                 "demo/guide-python/cat_in_the_dat.py",
                 "demo/guide-python/categorical.py",
                 "demo/guide-python/feature_weights.py",
                 "demo/guide-python/spark_estimator_examples.py",
+                # CI
+                "tests/ci_build/lint_python.py",
+                "tests/ci_build/test_r_package.py",
+                "tests/ci_build/test_utils.py",
+                "tests/ci_build/change_version.py",
             ]
-        ):
+        ]
+        if not all(black_results):
+            sys.exit(-1)
+
+        isort_results = [
+            run_isort(path)
+            for path in [
+                # core
+                "python-package/",
+                # tests
+                "tests/test_distributed/",
+                "tests/python/",
+                "tests/python-gpu/",
+                "tests/ci_build/",
+                # demo
+                "demo/",
+                # misc
+                "dev/",
+                "doc/",
+            ]
+        ]
+        if not all(isort_results):
             sys.exit(-1)
 
     if args.type_check == 1:
         if not all(
             run_mypy(path)
             for path in [
+                # core
                 "python-package/xgboost/",
+                # demo
+                "demo/json-model/json_parser.py",
                 "demo/guide-python/external_memory.py",
                 "demo/guide-python/cat_in_the_dat.py",
                 "demo/guide-python/feature_weights.py",
+                # tests
+                "tests/python/test_dt.py",
                 "tests/python/test_data_iterator.py",
-                "tests/python/test_spark/test_data.py",
-                "tests/python-gpu/test_gpu_with_dask/test_gpu_with_dask.py",
                 "tests/python-gpu/test_gpu_data_iterator.py",
-                "tests/python-gpu/test_gpu_spark/test_data.py",
+                "tests/test_distributed/test_with_spark/test_data.py",
+                "tests/test_distributed/test_gpu_with_spark/test_data.py",
+                "tests/test_distributed/test_gpu_with_dask/test_gpu_with_dask.py",
+                # CI
                 "tests/ci_build/lint_python.py",
+                "tests/ci_build/test_r_package.py",
+                "tests/ci_build/test_utils.py",
+                "tests/ci_build/change_version.py",
             ]
         ):
+            subprocess.check_call(["mypy", "--version"])
             sys.exit(-1)
 
     if args.pylint == 1:
-        if not PyLint()():
+        if not run_pylint():
             sys.exit(-1)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run static checkers for XGBoost, see `python_lint.yml' "
+            "conda env file for a list of dependencies."
+        )
+    )
+    parser.add_argument("--format", type=int, choices=[0, 1], default=1)
+    parser.add_argument("--type-check", type=int, choices=[0, 1], default=1)
+    parser.add_argument("--pylint", type=int, choices=[0, 1], default=1)
+    args = parser.parse_args()
+    try:
+        main(args)
+    finally:
+        print_time()

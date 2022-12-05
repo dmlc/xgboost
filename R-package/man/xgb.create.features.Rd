@@ -59,8 +59,8 @@ a rule on certain features."
 \examples{
 data(agaricus.train, package='xgboost')
 data(agaricus.test, package='xgboost')
-dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label))
-dtest <- with(agaricus.test, xgb.DMatrix(data, label = label))
+dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
+dtest <- with(agaricus.test, xgb.DMatrix(data, label = label, nthread = 2))
 
 param <- list(max_depth=2, eta=1, silent=1, objective='binary:logistic')
 nrounds = 4
@@ -76,8 +76,12 @@ new.features.train <- xgb.create.features(model = bst, agaricus.train$data)
 new.features.test <- xgb.create.features(model = bst, agaricus.test$data)
 
 # learning with new features
-new.dtrain <- xgb.DMatrix(data = new.features.train, label = agaricus.train$label)
-new.dtest <- xgb.DMatrix(data = new.features.test, label = agaricus.test$label)
+new.dtrain <- xgb.DMatrix(
+  data = new.features.train, label = agaricus.train$label, nthread = 2
+)
+new.dtest <- xgb.DMatrix(
+  data = new.features.test, label = agaricus.test$label, nthread = 2
+)
 watchlist <- list(train = new.dtrain)
 bst <- xgb.train(params = param, data = new.dtrain, nrounds = nrounds, nthread = 2)
 

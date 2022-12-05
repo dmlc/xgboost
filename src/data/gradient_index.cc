@@ -13,6 +13,7 @@
 #include "../common/hist_util.h"
 #include "../common/numeric.h"
 #include "../common/threading_utils.h"
+#include "../common/transform_iterator.h"  // MakeIndexTransformIter
 
 namespace xgboost {
 
@@ -78,7 +79,7 @@ GHistIndexMatrix::~GHistIndexMatrix() = default;
 void GHistIndexMatrix::PushBatch(SparsePage const &batch, common::Span<FeatureType const> ft,
                                  int32_t n_threads) {
   auto page = batch.GetView();
-  auto it = common::MakeIndexTransformIter([&](size_t ridx) { return page[ridx].size(); });
+  auto it = common::MakeIndexTransformIter([&](std::size_t ridx) { return page[ridx].size(); });
   common::PartialSum(n_threads, it, it + page.Size(), static_cast<size_t>(0), row_ptr.begin());
   data::SparsePageAdapterBatch adapter_batch{page};
   auto is_valid = [](auto) { return true; };  // SparsePage always contains valid entries

@@ -2,14 +2,15 @@
 
 tqdm, sh are required to run this script.
 """
-from urllib.request import urlretrieve
 import argparse
-from typing import List, Optional
-from sh.contrib import git
-from packaging import version
-import subprocess
-import tqdm
 import os
+import subprocess
+from typing import List, Optional
+from urllib.request import urlretrieve
+
+import tqdm
+from packaging import version
+from sh.contrib import git
 
 # The package building is managed by Jenkins CI.
 PREFIX = "https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds/release_"

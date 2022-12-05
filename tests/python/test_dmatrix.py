@@ -4,11 +4,12 @@ import tempfile
 import numpy as np
 import pytest
 import scipy.sparse
-import testing as tm
 from hypothesis import given, settings, strategies
 from scipy.sparse import csr_matrix, rand
+from xgboost.testing.data import np_dtypes
 
 import xgboost as xgb
+from xgboost import testing as tm
 
 rng = np.random.RandomState(1)
 
@@ -453,3 +454,11 @@ class TestDMatrix:
         np.testing.assert_equal(csr.indptr, ret.indptr)
         np.testing.assert_equal(csr.data, ret.data)
         np.testing.assert_equal(csr.indices, ret.indices)
+
+    def test_dtypes(self) -> None:
+        n_samples = 128
+        n_features = 16
+        for orig, x in np_dtypes(n_samples, n_features):
+            m0 = xgb.DMatrix(orig)
+            m1 = xgb.DMatrix(x)
+            assert tm.predictor_equal(m0, m1)

@@ -1,4 +1,4 @@
-# Run R tests with noLD R. Only triggered by a pull request review
+# Run expensive R tests with the help of rhub. Only triggered by a pull request review
 # See discussion at https://github.com/dmlc/xgboost/pull/6378
 
 name: XGBoost-R-noLD
@@ -6,9 +6,6 @@ name: XGBoost-R-noLD
 on:
   pull_request_review_comment:
     types: [created]
-
-env:
-  R_PACKAGES: c('XML', 'igraph', 'data.table', 'ggplot2', 'DiagrammeR', 'Ckmeans.1d.dp', 'vcd', 'testthat', 'lintr', 'knitr', 'rmarkdown', 'e1071', 'cplm', 'devtools', 'float', 'titanic')
 
 permissions:
   contents: read # to fetch code (actions/checkout)
@@ -18,26 +15,22 @@ jobs:
     if: github.event.comment.body == '/gha run r-nold-test' && contains('OWNER,MEMBER,COLLABORATOR', github.event.comment.author_association)
     timeout-minutes: 120
     runs-on: ubuntu-latest
-    container: rhub/debian-gcc-devel-nold
+    container:
+      image: rhub/debian-gcc-devel-nold
     steps:
     - name: Install git and system packages
       shell: bash
       run: |
-        apt-get update && apt-get install -y git libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libxml2-dev
+        apt update && apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev git -y
 
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
 
     - name: Install dependencies
-      shell: bash
+      shell: bash -l {0}
       run: |
-        cat > install_libs.R <<EOT
-          install.packages(${{ env.R_PACKAGES }},
-                           repos = 'http://cloud.r-project.org',
-                           dependencies = c('Depends', 'Imports', 'LinkingTo'))
-        EOT
-        /tmp/R-devel/bin/Rscript install_libs.R
+        /tmp/R-devel/bin/Rscript -e "source('./R-package/tests/helper_scripts/install_deps.R')"
 
     - name: Run R tests
       shell: bash

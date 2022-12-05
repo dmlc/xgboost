@@ -12,7 +12,9 @@
 #include <utility>
 #include <vector>
 
+#include "common_row_partitioner.h"
 #include "constraints.h"
+#include "hist/histogram.h"
 #include "hist/evaluate_splits.h"
 #include "param.h"
 #include "xgboost/logging.h"
@@ -309,7 +311,7 @@ void QuantileHistMaker::Builder::InitData(DMatrix *fmat, const RegTree &tree,
       } else {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
-      partitioner_.emplace_back(page.Size(), page.base_rowid, this->ctx_->Threads());
+      partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid);
       ++page_id;
     }
     histogram_builder_->Reset(n_total_bins, HistBatch(param_), ctx_->Threads(), page_id,
@@ -329,44 +331,6 @@ void QuantileHistMaker::Builder::InitData(DMatrix *fmat, const RegTree &tree,
       new HistEvaluator<CPUExpandEntry>{param_, info, this->ctx_->Threads(), column_sampler_});
 
   monitor_->Stop(__func__);
-}
-
-void HistRowPartitioner::FindSplitConditions(const std::vector<CPUExpandEntry> &nodes,
-                                             const RegTree &tree, const GHistIndexMatrix &gmat,
-                                             std::vector<int32_t> *split_conditions) {
-  const size_t n_nodes = nodes.size();
-  split_conditions->resize(n_nodes);
-
-  for (size_t i = 0; i < nodes.size(); ++i) {
-    const int32_t nid = nodes[i].nid;
-    const bst_uint fid = tree[nid].SplitIndex();
-    const bst_float split_pt = tree[nid].SplitCond();
-    const uint32_t lower_bound = gmat.cut.Ptrs()[fid];
-    const uint32_t upper_bound = gmat.cut.Ptrs()[fid + 1];
-    bst_bin_t split_cond = -1;
-    // convert floating-point split_pt into corresponding bin_id
-    // split_cond = -1 indicates that split_pt is less than all known cut points
-    CHECK_LT(upper_bound, static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
-    for (auto bound = lower_bound; bound < upper_bound; ++bound) {
-      if (split_pt == gmat.cut.Values()[bound]) {
-        split_cond = static_cast<int32_t>(bound);
-      }
-    }
-    (*split_conditions)[i] = split_cond;
-  }
-}
-
-void HistRowPartitioner::AddSplitsToRowSet(const std::vector<CPUExpandEntry> &nodes,
-                                           RegTree const *p_tree) {
-  const size_t n_nodes = nodes.size();
-  for (unsigned int i = 0; i < n_nodes; ++i) {
-    const int32_t nid = nodes[i].nid;
-    const size_t n_left = partition_builder_.GetNLeftElems(i);
-    const size_t n_right = partition_builder_.GetNRightElems(i);
-    CHECK_EQ((*p_tree)[nid].LeftChild() + 1, (*p_tree)[nid].RightChild());
-    row_set_collection_.AddSplit(nid, (*p_tree)[nid].LeftChild(), (*p_tree)[nid].RightChild(),
-                                 n_left, n_right);
-  }
 }
 
 XGBOOST_REGISTER_TREE_UPDATER(QuantileHistMaker, "grow_quantile_histmaker")

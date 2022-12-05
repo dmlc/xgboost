@@ -54,15 +54,6 @@ const char* kMaxDeltaStepDefaultValue = "0.7";
 }  // anonymous namespace
 
 namespace xgboost {
-
-enum class DataSplitMode : int {
-  kAuto = 0, kCol = 1, kRow = 2
-};
-}  // namespace xgboost
-
-DECLARE_FIELD_ENUM_CLASS(xgboost::DataSplitMode);
-
-namespace xgboost {
 Learner::~Learner() = default;
 namespace {
 StringView ModelNotFitted() { return "Model is not yet initialized (not fitted)."; }
@@ -325,6 +316,7 @@ struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
         .add_enum("auto", DataSplitMode::kAuto)
         .add_enum("col", DataSplitMode::kCol)
         .add_enum("row", DataSplitMode::kRow)
+        .add_enum("none", DataSplitMode::kNone)
         .describe("Data split mode for distributed training.");
     DMLC_DECLARE_FIELD(disable_default_eval_metric)
         .set_default(false)
@@ -378,6 +370,7 @@ void GenericParameter::ConfigureGpuId(bool require_gpu) {
 #else
   // Just set it to CPU, don't think about it.
   this->UpdateAllowUnknown(Args{{"gpu_id", std::to_string(kCpuId)}});
+  (void)(require_gpu);
 #endif  // defined(XGBOOST_USE_CUDA)
 
   common::SetDevice(this->gpu_id);

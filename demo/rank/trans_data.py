@@ -1,5 +1,6 @@
 import sys
 
+
 def save_data(group_data,output_feature,output_group):
     if len(group_data) == 0:
         return

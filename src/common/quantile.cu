@@ -3,8 +3,8 @@
  */
 #include <thrust/binary_search.h>
 #include <thrust/execution_policy.h>
-#include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/constant_iterator.h>
+#include <thrust/iterator/discard_iterator.h>
 #include <thrust/transform_scan.h>
 #include <thrust/unique.h>
 

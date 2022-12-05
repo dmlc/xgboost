@@ -110,9 +110,9 @@
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
-#' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label))
+#' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
 #' cv <- xgb.cv(data = dtrain, nrounds = 3, nthread = 2, nfold = 5, metrics = list("rmse","auc"),
-#'                   max_depth = 3, eta = 1, objective = "binary:logistic")
+#'              max_depth = 3, eta = 1, objective = "binary:logistic")
 #' print(cv)
 #' print(cv, verbose=TRUE)
 #'
@@ -192,7 +192,7 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
 
   # create the booster-folds
   # train_folds
-  dall <- xgb.get.DMatrix(data, label, missing)
+  dall <- xgb.get.DMatrix(data, label, missing, nthread = params$nthread)
   bst_folds <- lapply(seq_along(folds), function(k) {
     dtest  <- slice(dall, folds[[k]])
     # code originally contributed by @RolandASc on stackoverflow

@@ -3,14 +3,13 @@
 This script is a variant of dmlc-core/dmlc_tracker/tracker.py,
 which is a specialized version for xgboost tasks.
 """
+import argparse
+import logging
 import socket
 import struct
-import logging
-from threading import Thread
-import argparse
 import sys
-
-from typing import Dict, List, Tuple, Union, Optional, Set
+from threading import Thread
+from typing import Dict, List, Optional, Set, Tuple, Union
 
 _RingMap = Dict[int, Tuple[int, int]]
 _TreeMap = Dict[int, List[int]]

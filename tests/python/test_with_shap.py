@@ -1,6 +1,7 @@
 import numpy as np
-import xgboost as xgb
 import pytest
+
+import xgboost as xgb
 
 try:
     import shap

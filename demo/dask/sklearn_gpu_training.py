@@ -3,10 +3,12 @@ Use scikit-learn regressor interface with GPU histogram tree method
 ===================================================================
 """
 
+from dask import array as da
 from dask.distributed import Client
+
 # It's recommended to use dask_cuda for GPU assignment
 from dask_cuda import LocalCUDACluster
-from dask import array as da
+
 import xgboost
 
 

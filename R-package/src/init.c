@@ -50,7 +50,7 @@ extern SEXP XGDMatrixSetInfo_R(SEXP, SEXP, SEXP);
 extern SEXP XGDMatrixSetStrFeatureInfo_R(SEXP, SEXP, SEXP);
 extern SEXP XGDMatrixSliceDMatrix_R(SEXP, SEXP);
 extern SEXP XGBSetGlobalConfig_R(SEXP);
-extern SEXP XGBGetGlobalConfig_R();
+extern SEXP XGBGetGlobalConfig_R(void);
 extern SEXP XGBoosterFeatureScore_R(SEXP, SEXP);
 
 static const R_CallMethodDef CallEntries[] = {

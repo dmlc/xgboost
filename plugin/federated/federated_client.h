@@ -28,8 +28,11 @@ class FederatedClient {
           options.pem_cert_chain = client_cert;
           grpc::ChannelArguments args;
           args.SetMaxReceiveMessageSize(std::numeric_limits<int>::max());
-          return Federated::NewStub(
-              grpc::CreateCustomChannel(server_address, grpc::SslCredentials(options), args));
+          auto channel =
+              grpc::CreateCustomChannel(server_address, grpc::SslCredentials(options), args);
+          channel->WaitForConnected(
+              gpr_time_add(gpr_now(GPR_CLOCK_REALTIME), gpr_time_from_seconds(60, GPR_TIMESPAN)));
+          return Federated::NewStub(channel);
         }()},
         rank_{rank} {}
 
@@ -43,24 +46,6 @@ class FederatedClient {
         }()},
         rank_{rank} {}
 
-  std::string Allgather(std::string const &send_buffer) {
-    AllgatherRequest request;
-    request.set_sequence_number(sequence_number_++);
-    request.set_rank(rank_);
-    request.set_send_buffer(send_buffer);
-
-    AllgatherReply reply;
-    grpc::ClientContext context;
-    grpc::Status status = stub_->Allgather(&context, request, &reply);
-
-    if (status.ok()) {
-      return reply.receive_buffer();
-    } else {
-      std::cout << status.error_code() << ": " << status.error_message() << '\n';
-      throw std::runtime_error("Allgather RPC failed");
-    }
-  }
-
   std::string Allreduce(std::string const &send_buffer, DataType data_type,
                         ReduceOperation reduce_operation) {
     AllreduceRequest request;
@@ -72,6 +57,7 @@ class FederatedClient {
 
     AllreduceReply reply;
     grpc::ClientContext context;
+    context.set_wait_for_ready(true);
     grpc::Status status = stub_->Allreduce(&context, request, &reply);
 
     if (status.ok()) {
@@ -91,6 +77,7 @@ class FederatedClient {
 
     BroadcastReply reply;
     grpc::ClientContext context;
+    context.set_wait_for_ready(true);
     grpc::Status status = stub_->Broadcast(&context, request, &reply);
 
     if (status.ok()) {

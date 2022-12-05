@@ -1,7 +1,7 @@
 # type: ignore
 """Xgboost pyspark integration submodule for core code."""
 # pylint: disable=fixme, too-many-ancestors, protected-access, no-member, invalid-name
-# pylint: disable=too-few-public-methods, too-many-lines
+# pylint: disable=too-few-public-methods, too-many-lines, too-many-branches
 import json
 from typing import Iterator, Optional, Tuple
 
@@ -32,6 +32,7 @@ from pyspark.sql.types import (
     ShortType,
 )
 from scipy.special import expit, softmax  # pylint: disable=no-name-in-module
+from xgboost.compat import is_cudf_available
 from xgboost.core import Booster
 from xgboost.training import train as worker_train
 
@@ -124,6 +125,11 @@ _unsupported_fit_params = {
     "qid",  # Use spark param `qid_col` instead
     "eval_group",  # Use spark param `qid_col` instead
     "eval_qid",  # Use spark param `qid_col` instead
+}
+
+_unsupported_train_params = {
+    "evals",  # Supported by spark param validation_indicator_col
+    "evals_result",  # Won't support yet+
 }
 
 _unsupported_predict_params = {
@@ -515,6 +521,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                     k in _unsupported_xgb_params
                     or k in _unsupported_fit_params
                     or k in _unsupported_predict_params
+                    or k in _unsupported_train_params
                 ):
                     raise ValueError(f"Unsupported param '{k}'.")
                 _extra_params[k] = v
@@ -620,7 +627,9 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
     @classmethod
     def _get_xgb_train_call_args(cls, train_params):
-        xgb_train_default_args = _get_default_params_from_func(xgboost.train, {})
+        xgb_train_default_args = _get_default_params_from_func(
+            xgboost.train, _unsupported_train_params
+        )
         booster_params, kwargs_params = {}, {}
         for key, value in train_params.items():
             if key in xgb_train_default_args:
@@ -720,6 +729,10 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             else:
                 dataset = dataset.repartition(num_workers)
 
+        if self.isDefined(self.qid_col) and self.getOrDefault(self.qid_col):
+            # XGBoost requires qid to be sorted for each partition
+            dataset = dataset.sortWithinPartitions(alias.qid, ascending=True)
+
         train_params = self._get_distributed_train_params(dataset)
         booster_params, train_call_kwargs_params = self._get_xgb_train_call_args(
             train_params
@@ -747,7 +760,8 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             k: v for k, v in train_call_kwargs_params.items() if v is not None
         }
         dmatrix_kwargs = {k: v for k, v in dmatrix_kwargs.items() if v is not None}
-        use_qdm = booster_params.get("tree_method") in ("hist", "gpu_hist")
+
+        use_hist = booster_params.get("tree_method", None) in ("hist", "gpu_hist")
 
         def _train_booster(pandas_df_iter):
             """Takes in an RDD partition and outputs a booster for that partition after
@@ -760,6 +774,15 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             context.barrier()
 
             gpu_id = None
+
+            # If cuDF is not installed, then using DMatrix instead of QDM,
+            # because without cuDF, DMatrix performs better than QDM.
+            # Note: Checking `is_cudf_available` in spark worker side because
+            # spark worker might has different python environment with driver side.
+            if use_gpu:
+                use_qdm = use_hist and is_cudf_available()
+            else:
+                use_qdm = use_hist
 
             if use_qdm and (booster_params.get("max_bin", None) is not None):
                 dmatrix_kwargs["max_bin"] = booster_params["max_bin"]

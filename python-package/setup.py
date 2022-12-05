@@ -1,13 +1,14 @@
 """Setup xgboost package."""
+import logging
 import os
 import shutil
 import subprocess
-import logging
-from typing import Optional, List
 import sys
 from platform import system
-from setuptools import setup, find_packages, Extension
-from setuptools.command import build_ext, sdist, install_lib, install
+from typing import List, Optional
+
+from setuptools import Extension, find_packages, setup
+from setuptools.command import build_ext, install, install_lib, sdist
 
 # You can't use `pip install .` as pip copies setup.py to a temporary
 # directory, parent directory is no longer reachable (isolated build) .

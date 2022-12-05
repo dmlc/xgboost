@@ -1,12 +1,14 @@
-import numpy as np
-from scipy.sparse import csr_matrix
-import testing as tm
-import xgboost
-import os
 import itertools
+import os
 import shutil
 import urllib.request
 import zipfile
+
+import numpy as np
+from scipy.sparse import csr_matrix
+
+import xgboost
+from xgboost import testing as tm
 
 
 def test_ranking_with_unweighted_data():

@@ -23,7 +23,7 @@ SparkXGBRegressor is a PySpark ML estimator. It implements the XGBoost classific
 algorithm based on XGBoost python library, and it can be used in PySpark Pipeline
 and PySpark ML meta algorithms like CrossValidator/TrainValidationSplit/OneVsRest.
 
-We can create a `SparkXGBRegressor` estimator like:
+We can create a ``SparkXGBRegressor`` estimator like:
 
 .. code-block:: python
 
@@ -38,14 +38,14 @@ We can create a `SparkXGBRegressor` estimator like:
 The above snippet creates a spark estimator which can fit on a spark dataset,
 and return a spark model that can transform a spark dataset and generate dataset
 with prediction column. We can set almost all of xgboost sklearn estimator parameters
-as `SparkXGBRegressor` parameters, but some parameter such as `nthread` is forbidden
+as ``SparkXGBRegressor`` parameters, but some parameter such as ``nthread`` is forbidden
 in spark estimator, and some parameters are replaced with pyspark specific parameters
-such as `weight_col`, `validation_indicator_col`, `use_gpu`, for details please see
-`SparkXGBRegressor` doc.
+such as ``weight_col``, ``validation_indicator_col``, ``use_gpu``, for details please see
+``SparkXGBRegressor`` doc.
 
 The following code snippet shows how to train a spark xgboost regressor model,
 first we need to prepare a training dataset as a spark dataframe contains
-"label" column and "features" column(s), the "features" column(s) must be `pyspark.ml.linalg.Vector`
+"label" column and "features" column(s), the "features" column(s) must be ``pyspark.ml.linalg.Vector`
 type or spark array type or a list of feature column names.
 
 
@@ -56,7 +56,7 @@ type or spark array type or a list of feature column names.
 
 The following code snippet shows how to predict test data using a spark xgboost regressor model,
 first we need to prepare a test dataset as a spark dataframe contains
-"features" and "label" column, the "features" column must be `pyspark.ml.linalg.Vector`
+"features" and "label" column, the "features" column must be ``pyspark.ml.linalg.Vector`
 type or spark array type.
 
 .. code-block:: python
@@ -64,16 +64,17 @@ type or spark array type.
   transformed_test_spark_dataframe = xgb_regressor.predict(test_spark_dataframe)
 
 
-The above snippet code returns a `transformed_test_spark_dataframe` that contains the input
+The above snippet code returns a ``transformed_test_spark_dataframe`` that contains the input
 dataset columns and an appended column "prediction" representing the prediction results.
 
 SparkXGBClassifier
 ==================
 
-`SparkXGBClassifier` estimator has similar API with `SparkXGBRegressor`, but it has some
-pyspark classifier specific params, e.g. `raw_prediction_col` and `probability_col` parameters.
-Correspondingly, by default, `SparkXGBClassifierModel` transforming test dataset will
+``SparkXGBClassifier`` estimator has similar API with ``SparkXGBRegressor``, but it has some
+pyspark classifier specific params, e.g. ``raw_prediction_col`` and ``probability_col`` parameters.
+Correspondingly, by default, ``SparkXGBClassifierModel`` transforming test dataset will
 generate result dataset with 3 new columns:
+
 - "prediction": represents the predicted label.
 - "raw_prediction": represents the output margin values.
 - "probability": represents the prediction probability on each label.
@@ -83,15 +84,51 @@ generate result dataset with 3 new columns:
 XGBoost PySpark GPU support
 ***************************
 
-XGBoost PySpark supports GPU training and prediction. To enable GPU support, you first need
-to install the xgboost and cudf packages. Then you can set `use_gpu` parameter to `True`.
+XGBoost PySpark fully supports GPU acceleration. Users are not only able to enable
+efficient training but also utilize their GPUs for the whole PySpark pipeline including
+ETL and inference. In below sections, we will walk through an example of training on a
+PySpark standalone GPU cluster. To get started, first we need to install some additional
+packages, then we can set the ``use_gpu`` parameter to ``True``.
 
-Below tutorial will show you how to train a model with XGBoost PySpark GPU on Spark
-standalone cluster.
+Prepare the necessary packages
+==============================
+
+Aside from the PySpark and XGBoost modules, we also need the `cuDF
+<https://docs.rapids.ai/api/cudf/stable/>`_ package for handling Spark dataframe. We
+recommend using either Conda or Virtualenv to manage python dependencies for PySpark
+jobs. Please refer to `How to Manage Python Dependencies in PySpark
+<https://www.databricks.com/blog/2020/12/22/how-to-manage-python-dependencies-in-pyspark.html>`_ 
+for more details on PySpark dependency management.
+
+In short, to create a Python environment that can be sent to a remote cluster using
+virtualenv and pip:
+
+.. code-block:: bash
+
+  python -m venv xgboost_env
+  source xgboost_env/bin/activate
+  pip install pyarrow pandas venv-pack xgboost
+  # https://rapids.ai/pip.html#install
+  pip install cudf-cu11 --extra-index-url=https://pypi.ngc.nvidia.com
+  venv-pack -o xgboost_env.tar.gz
+
+With Conda:
+
+.. code-block:: bash
+
+  conda create -y -n xgboost_env -c conda-forge conda-pack python=3.9
+  conda activate xgboost_env
+  # use conda when the supported version of xgboost (1.7) is released on conda-forge
+  pip install xgboost
+  conda install cudf pyarrow pandas -c rapids -c nvidia -c conda-forge
+  conda pack -f -o xgboost_env.tar.gz
 
 
 Write your PySpark application
 ==============================
+
+Below snippet is a small example for training xgboost model with PySpark. Notice that we are
+using a list of feature names and the additional parameter ``use_gpu``:
 
 .. code-block:: python
 
@@ -126,26 +163,11 @@ Write your PySpark application
   predict_df = model.transform(test_df)
   predict_df.show()
 
-Prepare the necessary packages
-==============================
-
-We recommend using Conda or Virtualenv to manage python dependencies
-in PySpark. Please refer to
-`How to Manage Python Dependencies in PySpark <https://www.databricks.com/blog/2020/12/22/how-to-manage-python-dependencies-in-pyspark.html>`_.
-
-.. code-block:: bash
-
-  conda create -y -n xgboost-env -c conda-forge conda-pack python=3.9
-  conda activate xgboost-env
-  pip install xgboost
-  pip install cudf
-  conda pack -f -o xgboost-env.tar.gz
-
 
 Submit the PySpark application
 ==============================
 
-Assuming you have configured your Spark cluster with GPU support, if not yet, please
+Assuming you have configured your Spark cluster with GPU support. Otherwise, please
 refer to `spark standalone configuration with GPU support <https://nvidia.github.io/spark-rapids/docs/get-started/getting-started-on-prem.html#spark-standalone-cluster>`_.
 
 .. code-block:: bash
@@ -157,15 +179,18 @@ refer to `spark standalone configuration with GPU support <https://nvidia.github
     --master spark://<master-ip>:7077 \
     --conf spark.executor.resource.gpu.amount=1 \
     --conf spark.task.resource.gpu.amount=1 \
-    --archives xgboost-env.tar.gz#environment \
+    --archives xgboost_env.tar.gz#environment \
     xgboost_app.py
 
+
+The submit command sends the Python environment created by pip or conda along with the
+specification of GPU allocation. We will revisit this command later on.
 
 Model Persistence
 =================
 
-Similar to standard PySpark ml estimators, one can persist and reuse the model with `save`
-and `load` methods:
+Similar to standard PySpark ml estimators, one can persist and reuse the model with ``save`
+and ``load`` methods:
 
 .. code-block:: python
 
@@ -185,26 +210,27 @@ To export the underlying booster model used by XGBoost:
   # the same booster object returned by xgboost.train
   booster: xgb.Booster = model.get_booster()
   booster.predict(...)
-  booster.save_model("model.json")
+  booster.save_model("model.json") # or model.ubj, depending on your choice of format.
 
-This booster is shared by other Python interfaces and can be used by other language
-bindings like the C and R packages. Lastly, one can extract a booster file directly from
-saved spark estimator without going through the getter:
+This booster is not only shared by other Python interfaces but also used by all the
+XGBoost bindings including the C, Java, and the R package. Lastly, one can extract the
+booster file directly from a saved spark estimator without going through the getter:
 
 .. code-block:: python
 
   import xgboost as xgb
   bst = xgb.Booster()
+  # Loading the model saved in previous snippet
   bst.load_model("/tmp/xgboost-pyspark-model/model/part-00000")
 
-Accelerate the whole pipeline of xgboost pyspark
-================================================
 
-With `RAPIDS Accelerator for Apache Spark <https://nvidia.github.io/spark-rapids/>`_,
-you can accelerate the whole pipeline (ETL, Train, Transform) for xgboost pyspark
-without any code change by leveraging GPU.
+Accelerate the whole pipeline for xgboost pyspark
+=================================================
 
-Below is a simple example submit command for enabling GPU acceleration:
+With `RAPIDS Accelerator for Apache Spark <https://nvidia.github.io/spark-rapids/>`_, you
+can leverage GPUs to accelerate the whole pipeline (ETL, Train, Transform) for xgboost
+pyspark without any Python code change. An example submit command is shown below with
+additional spark configurations and dependencies:
 
 .. code-block:: bash
 
@@ -218,5 +244,9 @@ Below is a simple example submit command for enabling GPU acceleration:
     --packages com.nvidia:rapids-4-spark_2.12:22.08.0 \
     --conf spark.plugins=com.nvidia.spark.SQLPlugin \
     --conf spark.sql.execution.arrow.maxRecordsPerBatch=1000000 \
-    --archives xgboost-env.tar.gz#environment \
+    --archives xgboost_env.tar.gz#environment \
     xgboost_app.py
+
+When rapids plugin is enabled, both of the JVM rapids plugin and the cuDF Python package
+are required. More configuration options can be found in the RAPIDS link above along with
+details on the plugin.

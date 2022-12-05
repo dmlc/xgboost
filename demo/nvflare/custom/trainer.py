@@ -1,7 +1,7 @@
 import os
 
 from nvflare.apis.executor import Executor
-from nvflare.apis.fl_constant import ReturnCode, FLContextKey
+from nvflare.apis.fl_constant import FLContextKey, ReturnCode
 from nvflare.apis.fl_context import FLContext
 from nvflare.apis.shareable import Shareable, make_reply
 from nvflare.apis.signal import Signal

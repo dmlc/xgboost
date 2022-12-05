@@ -1,12 +1,15 @@
 '''Tests for running inplace prediction.'''
 from concurrent.futures import ThreadPoolExecutor
-import numpy as np
-from scipy import sparse
-import pytest
-import pandas as pd
 
-import testing as tm
+import numpy as np
+import pandas as pd
+import pytest
+from scipy import sparse
+from xgboost.testing.data import np_dtypes
+from xgboost.testing.shared import validate_leaf_output
+
 import xgboost as xgb
+from xgboost import testing as tm
 
 
 def run_threaded_predict(X, rows, predict_func):
@@ -23,16 +26,6 @@ def run_threaded_predict(X, rows, predict_func):
 
     for f in results:
         assert f.result()
-
-
-def verify_leaf_output(leaf: np.ndarray, num_parallel_tree: int):
-    for i in range(leaf.shape[0]):     # n_samples
-        for j in range(leaf.shape[1]):  # n_rounds
-            for k in range(leaf.shape[2]):    # n_classes
-                tree_group = leaf[i, j, k, :]
-                assert tree_group.shape[0] == num_parallel_tree
-                # No sampling, all trees within forest are the same
-                assert np.all(tree_group == tree_group[0])
 
 
 def run_predict_leaf(predictor):
@@ -66,7 +59,7 @@ def run_predict_leaf(predictor):
     assert leaf.shape[2] == classes
     assert leaf.shape[3] == num_parallel_tree
 
-    verify_leaf_output(leaf, num_parallel_tree)
+    validate_leaf_output(leaf, num_parallel_tree)
 
     ntree_limit = 2
     sliced = booster.predict(
@@ -238,46 +231,10 @@ class TestInplacePredict:
         from_dmatrix = booster.predict(dtrain)
         np.testing.assert_allclose(from_dmatrix, from_inplace)
 
-    def test_dtypes(self):
-        orig = self.rng.randint(low=0, high=127, size=self.rows * self.cols).reshape(
-            self.rows, self.cols
-        )
-        predt_orig = self.booster.inplace_predict(orig)
-        # all primitive types in numpy
-        for dtype in [
-            np.int32,
-            np.int64,
-            np.byte,
-            np.short,
-            np.intc,
-            np.int_,
-            np.longlong,
-            np.uint32,
-            np.uint64,
-            np.ubyte,
-            np.ushort,
-            np.uintc,
-            np.uint,
-            np.ulonglong,
-            np.float16,
-            np.float32,
-            np.float64,
-            np.half,
-            np.single,
-            np.double,
-        ]:
-            X = np.array(orig, dtype=dtype)
-            predt = self.booster.inplace_predict(X)
-            np.testing.assert_allclose(predt, predt_orig)
-
-        # boolean
-        orig = self.rng.binomial(1, 0.5, size=self.rows * self.cols).reshape(
-            self.rows, self.cols
-        )
-        predt_orig = self.booster.inplace_predict(orig)
-        for dtype in [np.bool8, np.bool_]:
-            X = np.array(orig, dtype=dtype)
-            predt = self.booster.inplace_predict(X)
+    def test_dtypes(self) -> None:
+        for orig, x in np_dtypes(self.rows, self.cols):
+            predt_orig = self.booster.inplace_predict(orig)
+            predt = self.booster.inplace_predict(x)
             np.testing.assert_allclose(predt, predt_orig)
 
         # unsupported types
@@ -286,6 +243,6 @@ class TestInplacePredict:
             np.complex64,
             np.complex128,
         ]:
-            X = np.array(orig, dtype=dtype)
+            X: np.ndarray = np.array(orig, dtype=dtype)
             with pytest.raises(ValueError):
                 self.booster.inplace_predict(X)

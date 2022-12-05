@@ -40,6 +40,10 @@ enum class DataType : uint8_t {
 
 enum class FeatureType : uint8_t { kNumerical = 0, kCategorical = 1 };
 
+enum class DataSplitMode : int {
+  kAuto = 0, kCol = 1, kRow = 2, kNone = 3
+};
+
 /*!
  * \brief Meta information about dataset, always sit in memory.
  */
@@ -108,6 +112,9 @@ class MetaInfo {
   void Validate(int32_t device) const;
 
   MetaInfo Slice(common::Span<int32_t const> ridxs) const;
+
+  MetaInfo Copy() const;
+
   /*!
    * \brief Get weight of each instances.
    * \param i Instance index.
@@ -413,7 +420,7 @@ class EllpackPage {
   size_t Size() const;
 
   /*! \brief Set the base row id for this page. */
-  void SetBaseRowId(size_t row_id);
+  void SetBaseRowId(std::size_t row_id);
 
   const EllpackPageImpl* Impl() const { return impl_.get(); }
   EllpackPageImpl* Impl() { return impl_.get(); }
@@ -537,7 +544,7 @@ class DMatrix {
    * \brief Load DMatrix from URI.
    * \param uri The URI of input.
    * \param silent Whether print information during loading.
-   * \param load_row_split Flag to read in part of rows, divided among the workers in distributed mode.
+   * \param data_split_mode Mode to read in part of the data, divided among the workers in distributed mode.
    * \param file_format The format type of the file, used for dmlc::Parser::Create.
    *   By default "auto" will be able to load in both local binary file.
    * \param page_size Page size for external memory.
@@ -545,7 +552,7 @@ class DMatrix {
    */
   static DMatrix* Load(const std::string& uri,
                        bool silent,
-                       bool load_row_split,
+                       DataSplitMode data_split_mode,
                        const std::string& file_format = "auto");
 
   /**
@@ -615,9 +622,15 @@ class DMatrix {
                          int32_t nthread, std::string cache);
 
   virtual DMatrix *Slice(common::Span<int32_t const> ridxs) = 0;
-  /*! \brief Number of rows per page in external memory.  Approximately 100MB per page for
-   *  dataset with 100 features. */
-  static const size_t kPageSize = 32UL << 12UL;
+
+  /**
+   * \brief Slice a DMatrix by columns.
+   *
+   * @param start The position of the first column
+   * @param size The number of columns in the slice
+   * @return DMatrix containing the slice of columns
+   */
+  virtual DMatrix *SliceCol(std::size_t start, std::size_t size) = 0;
 
  protected:
   virtual BatchSet<SparsePage> GetRowBatches() = 0;
@@ -677,6 +690,8 @@ inline BatchSet<ExtSparsePage> DMatrix::GetBatches() {
   return GetExtBatches(BatchParam{});
 }
 }  // namespace xgboost
+
+DECLARE_FIELD_ENUM_CLASS(xgboost::DataSplitMode);
 
 namespace dmlc {
 DMLC_DECLARE_TRAITS(is_pod, xgboost::Entry, true);

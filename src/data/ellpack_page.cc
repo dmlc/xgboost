@@ -12,7 +12,7 @@ class EllpackPageImpl {};
 
 EllpackPage::EllpackPage() = default;
 
-EllpackPage::EllpackPage(DMatrix* dmat, const BatchParam& param) {
+EllpackPage::EllpackPage(DMatrix*, const BatchParam&) {
   LOG(FATAL) << "Internal Error: XGBoost is not compiled with CUDA but "
                 "EllpackPage is required";
 }
@@ -22,7 +22,7 @@ EllpackPage::~EllpackPage() {
                 "EllpackPage is required";
 }
 
-void EllpackPage::SetBaseRowId(size_t row_id) {
+void EllpackPage::SetBaseRowId(std::size_t) {
   LOG(FATAL) << "Internal Error: XGBoost is not compiled with CUDA but "
                 "EllpackPage is required";
 }

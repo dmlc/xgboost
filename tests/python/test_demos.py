@@ -1,16 +1,16 @@
 import os
 import subprocess
 import sys
+import tempfile
 
 import pytest
-import testing as tm
 
-from xgboost import testing
+import xgboost
+from xgboost import testing as tm
 
-pytestmark = testing.timeout(30)
+pytestmark = tm.timeout(30)
 
-ROOT_DIR = tm.PROJECT_ROOT
-DEMO_DIR = os.path.join(ROOT_DIR, 'demo')
+DEMO_DIR = tm.demo_dir(__file__)
 PYTHON_DEMO_DIR = os.path.join(DEMO_DIR, 'guide-python')
 CLI_DEMO_DIR = os.path.join(DEMO_DIR, 'CLI')
 
@@ -140,10 +140,49 @@ def test_multioutput_reg() -> None:
     subprocess.check_call(cmd)
 
 
-# gpu_acceleration is not tested due to covertype dataset is being too huge.
-# gamma regression is not tested as it requires running a R script first.
-# aft viz is not tested due to ploting is not controled
-# aft tunning is not tested due to extra dependency.
+@pytest.mark.skipif(**tm.no_ubjson())
+def test_json_model() -> None:
+    script = os.path.join(DEMO_DIR, "json-model", "json_parser.py")
+
+    def run_test(reg: xgboost.XGBRegressor) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "reg.json")
+            reg.save_model(path)
+            cmd = ["python", script, f"--model={path}"]
+            subprocess.check_call(cmd)
+
+            path = os.path.join(tmpdir, "reg.ubj")
+            reg.save_model(path)
+            cmd = ["python", script, f"--model={path}"]
+            subprocess.check_call(cmd)
+
+    # numerical
+    X, y = tm.make_sparse_regression(100, 10, 0.5, False)
+    reg = xgboost.XGBRegressor(n_estimators=2, tree_method="hist")
+    reg.fit(X, y)
+    run_test(reg)
+
+    # categorical
+    X, y = tm.make_categorical(
+        n_samples=1000,
+        n_features=10,
+        n_categories=6,
+        onehot=False,
+        sparsity=0.5,
+        cat_ratio=0.5,
+        shuffle=True,
+    )
+    reg = xgboost.XGBRegressor(
+        n_estimators=2, tree_method="hist", enable_categorical=True
+    )
+    reg.fit(X, y)
+    run_test(reg)
+
+
+# - gpu_acceleration is not tested due to covertype dataset is being too huge.
+# - gamma regression is not tested as it requires running a R script first.
+# - aft viz is not tested due to ploting is not controlled
+# - aft tunning is not tested due to extra dependency.
 
 
 def test_cli_regression_demo():
@@ -156,7 +195,7 @@ def test_cli_regression_demo():
     cmd = ['python', script, 'machine.txt', '1']
     subprocess.check_call(cmd, cwd=reg_dir)
 
-    exe = os.path.join(tm.PROJECT_ROOT, 'xgboost')
+    exe = os.path.join(DEMO_DIR, os.path.pardir, 'xgboost')
     conf = os.path.join(reg_dir, 'machine.conf')
     subprocess.check_call([exe, conf], cwd=reg_dir)
 

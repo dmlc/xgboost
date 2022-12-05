@@ -1,4 +1,3 @@
-# type: ignore
 """Xgboost pyspark integration submodule for params."""
 # pylint: disable=too-few-public-methods
 from pyspark.ml.param import TypeConverters
@@ -12,7 +11,7 @@ class HasArbitraryParamsDict(Params):
     input.
     """
 
-    arbitrary_params_dict = Param(
+    arbitrary_params_dict: Param[dict] = Param(
         Params._dummy(),
         "arbitrary_params_dict",
         "arbitrary_params_dict This parameter holds all of the additional parameters which are "
@@ -31,6 +30,7 @@ class HasBaseMarginCol(Params):
         Params._dummy(),
         "base_margin_col",
         "This stores the name for the column of the base margin",
+        typeConverter=TypeConverters.toString,
     )
 
 
@@ -47,7 +47,7 @@ class HasFeaturesCols(Params):
         typeConverter=TypeConverters.toListString,
     )
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._setDefault(features_cols=[])
 
@@ -69,7 +69,7 @@ class HasEnableSparseDataOptim(Params):
         typeConverter=TypeConverters.toBoolean,
     )
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._setDefault(enable_sparse_data_optim=False)
 

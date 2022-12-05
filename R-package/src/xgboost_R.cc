@@ -164,33 +164,68 @@ XGB_DLL SEXP XGDMatrixCreateFromCSC_R(SEXP indptr, SEXP indices, SEXP data,
   return ret;
 }
 
-XGB_DLL SEXP XGDMatrixCreateFromCSR_R(SEXP indptr, SEXP indices, SEXP data,
-                                      SEXP num_col, SEXP n_threads) {
+XGB_DLL SEXP XGDMatrixCreateFromCSR_R(SEXP indptr, SEXP indices, SEXP data, SEXP num_col,
+                                      SEXP n_threads) {
   SEXP ret;
   R_API_BEGIN();
   const int *p_indptr = INTEGER(indptr);
   const int *p_indices = INTEGER(indices);
   const double *p_data = REAL(data);
-  size_t nindptr = static_cast<size_t>(length(indptr));
-  size_t ndata = static_cast<size_t>(length(data));
-  size_t ncol = static_cast<size_t>(INTEGER(num_col)[0]);
-  std::vector<size_t> row_ptr_(nindptr);
-  std::vector<unsigned> indices_(ndata);
-  std::vector<float> data_(ndata);
 
-  for (size_t i = 0; i < nindptr; ++i) {
-    row_ptr_[i] = static_cast<size_t>(p_indptr[i]);
+  auto nindptr = static_cast<std::size_t>(length(indptr));
+  auto ndata = static_cast<std::size_t>(length(data));
+  auto ncol = static_cast<std::size_t>(INTEGER(num_col)[0]);
+  std::int32_t threads = asInteger(n_threads);
+
+  using xgboost::Array;
+  using xgboost::Integer;
+  using xgboost::Json;
+  using xgboost::Object;
+  using xgboost::String;
+  // Construct array interfaces
+  Json jindptr{Object{}};
+  Json jindices{Object{}};
+  Json jdata{Object{}};
+  jindptr["data"] =
+      Array{std::vector<Json>{Json{reinterpret_cast<Integer::Int>(p_indptr)}, Json{true}}};
+  jindptr["shape"] = std::vector<Json>{Json{nindptr}};
+  jindptr["version"] = Integer{3};
+
+  jindices["data"] =
+      Array{std::vector<Json>{Json{reinterpret_cast<Integer::Int>(p_indices)}, Json{true}}};
+  jindices["shape"] = std::vector<Json>{Json{ndata}};
+  jindices["version"] = Integer{3};
+
+  jdata["data"] =
+      Array{std::vector<Json>{Json{reinterpret_cast<Integer::Int>(p_data)}, Json{true}}};
+  jdata["shape"] = std::vector<Json>{Json{ndata}};
+  jdata["version"] = Integer{3};
+
+  if (DMLC_LITTLE_ENDIAN) {
+    jindptr["typestr"] = String{"<i4"};
+    jindices["typestr"] = String{"<i4"};
+    jdata["typestr"] = String{"<i8"};
+  } else {
+    jindptr["typestr"] = String{">i4"};
+    jindices["typestr"] = String{">i4"};
+    jdata["typestr"] = String{">i8"};
   }
-  int32_t threads = xgboost::common::OmpGetNumThreads(asInteger(n_threads));
-  xgboost::common::ParallelFor(ndata, threads, [&](xgboost::omp_ulong i) {
-    indices_[i] = static_cast<unsigned>(p_indices[i]);
-    data_[i] = static_cast<float>(p_data[i]);
-  });
+  std::string indptr, indices, data;
+  Json::Dump(jindptr, &indptr);
+  Json::Dump(jindices, &indices);
+  Json::Dump(jdata, &data);
+
   DMatrixHandle handle;
-  CHECK_CALL(XGDMatrixCreateFromCSREx(BeginPtr(row_ptr_), BeginPtr(indices_),
-                                      BeginPtr(data_), nindptr, ndata,
-                                      ncol, &handle));
+  Json jconfig{Object{}};
+  // Construct configuration
+  jconfig["nthread"] = Integer{threads};
+  jconfig["missing"] = xgboost::Number{std::numeric_limits<float>::quiet_NaN()};
+  std::string config;
+  Json::Dump(jconfig, &config);
+  CHECK_CALL(XGDMatrixCreateFromCSR(indptr.c_str(), indices.c_str(), data.c_str(), ncol,
+                                    config.c_str(), &handle));
   ret = PROTECT(R_MakeExternalPtr(handle, R_NilValue, R_NilValue));
+
   R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
   R_API_END();
   UNPROTECT(1);

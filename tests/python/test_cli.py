@@ -1,11 +1,13 @@
-import os
-import tempfile
-import platform
-import xgboost
-import subprocess
-import numpy
 import json
-import testing as tm
+import os
+import platform
+import subprocess
+import tempfile
+
+import numpy
+
+import xgboost
+from xgboost import testing as tm
 
 
 class TestCLI:
@@ -29,7 +31,7 @@ data = {data_path}
 eval[test] = {data_path}
 '''
 
-    PROJECT_ROOT = tm.PROJECT_ROOT
+    PROJECT_ROOT = tm.project_root(__file__)
 
     def get_exe(self):
         if platform.system() == 'Windows':

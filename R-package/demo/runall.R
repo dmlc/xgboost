@@ -1,4 +1,4 @@
-# running all scripts in demo folder
+# running all scripts in demo folder, removed during packaging.
 demo(basic_walkthrough, package = 'xgboost')
 demo(custom_objective, package = 'xgboost')
 demo(boost_from_prediction, package = 'xgboost')

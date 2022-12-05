@@ -2,7 +2,7 @@
 
 AC_PREREQ(2.69)
 
-AC_INIT([xgboost],[1.6-0],[],[xgboost],[])
+AC_INIT([xgboost],[2.0.0],[],[xgboost],[])
 
 # Use this line to set CC variable to a C compiler
 AC_PROG_CC
@@ -28,8 +28,15 @@ fi
 
 if test `uname -s` = "Darwin"
 then
-  OPENMP_CXXFLAGS='-Xclang -fopenmp'
-  OPENMP_LIB='-lomp'
+  if command -v brew &> /dev/null
+  then
+    HOMEBREW_LIBOMP_PREFIX=`brew --prefix libomp`
+  else
+    # Homebrew not found
+    HOMEBREW_LIBOMP_PREFIX=''
+  fi
+  OPENMP_CXXFLAGS="-Xpreprocessor -fopenmp -I${HOMEBREW_LIBOMP_PREFIX}/include"
+  OPENMP_LIB="-lomp -L${HOMEBREW_LIBOMP_PREFIX}/lib"
   ac_pkg_openmp=no
   AC_MSG_CHECKING([whether OpenMP will work in a package])
   AC_LANG_CONFTEST([AC_LANG_PROGRAM([[#include <omp.h>]], [[ return (omp_get_max_threads() <= 1); ]])])

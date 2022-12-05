@@ -1,7 +1,7 @@
 #include <jni.h>
-#include <thrust/system/cuda/experimental/pinned_allocator.h>
 
 #include "../../../../src/common/device_helpers.cuh"
+#include "../../../../src/common/cuda_pinned_allocator.h"
 #include "../../../../src/data/array_interface.h"
 #include "jvm_utils.h"
 #include <xgboost/c_api.h>
@@ -131,7 +131,7 @@ class DataIteratorProxy {
   bool cache_on_host_{true}; // TODO(Bobby): Make this optional.
 
   template <typename T>
-  using Alloc = thrust::system::cuda::experimental::pinned_allocator<T>;
+  using Alloc = xgboost::common::cuda::pinned_allocator<T>;
   template <typename U>
   using HostVector = std::vector<U, Alloc<U>>;
 
@@ -379,7 +379,7 @@ int Next(DataIterHandle self) {
 }
 } // anonymous namespace
 
-XGB_DLL jint XGDeviceQuantileDMatrixCreateFromCallbackImpl(JNIEnv *jenv, jclass jcls,
+XGB_DLL int XGDeviceQuantileDMatrixCreateFromCallbackImpl(JNIEnv *jenv, jclass jcls,
                                                            jobject jiter,
                                                            jfloat jmissing,
                                                            jint jmax_bin, jint jnthread,
@@ -389,6 +389,22 @@ XGB_DLL jint XGDeviceQuantileDMatrixCreateFromCallbackImpl(JNIEnv *jenv, jclass 
   auto ret = XGDeviceQuantileDMatrixCreateFromCallback(
       &proxy, proxy.GetDMatrixHandle(), Reset, Next, jmissing, jnthread,
       jmax_bin, &result);
+  setHandle(jenv, jout, result);
+  return ret;
+}
+
+XGB_DLL int XGQuantileDMatrixCreateFromCallbackImpl(JNIEnv *jenv, jclass jcls,
+                                                     jobject jdata_iter, jobject jref_iter,
+                                                     char const *config, jlongArray jout) {
+  xgboost::jni::DataIteratorProxy proxy(jdata_iter);
+  DMatrixHandle result;
+
+  std::unique_ptr<xgboost::jni::DataIteratorProxy> ref_proxy{nullptr};
+  if (jref_iter) {
+    ref_proxy = std::make_unique<xgboost::jni::DataIteratorProxy>(jref_iter);
+  }
+  auto ret = XGQuantileDMatrixCreateFromCallback(
+      &proxy, proxy.GetDMatrixHandle(), ref_proxy.get(), Reset, Next, config, &result);
   setHandle(jenv, jout, result);
   return ret;
 }

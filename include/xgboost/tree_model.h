@@ -439,7 +439,7 @@ class RegTree : public Model {
    * \param left_sum          The sum hess of left leaf.
    * \param right_sum         The sum hess of right leaf.
    */
-  void ExpandCategorical(bst_node_t nid, unsigned split_index,
+  void ExpandCategorical(bst_node_t nid, bst_feature_t split_index,
                          common::Span<const uint32_t> split_cat, bool default_left,
                          bst_float base_weight, bst_float left_leaf_weight,
                          bst_float right_leaf_weight, bst_float loss_change, float sum_hess,

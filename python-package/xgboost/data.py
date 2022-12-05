@@ -30,10 +30,12 @@ from .core import (
     c_array,
     c_str,
     from_pystr_to_cstr,
+    make_jcargs,
 )
 
 DispatchedDataBackendReturnType = Tuple[
-    ctypes.c_void_p, Optional[FeatureNames], Optional[FeatureTypes]]
+    ctypes.c_void_p, Optional[FeatureNames], Optional[FeatureTypes]
+]
 
 CAT_T = "c"
 
@@ -44,8 +46,9 @@ _matrix_meta = {"base_margin", "label"}
 def _warn_unused_missing(data: DataType, missing: Optional[FloatCompatible]) -> None:
     if (missing is not None) and (not np.isnan(missing)):
         warnings.warn(
-            '`missing` is not used for current input data type:' +
-            str(type(data)), UserWarning)
+            "`missing` is not used for current input data type:" + str(type(data)),
+            UserWarning,
+        )
 
 
 def _check_complex(data: DataType) -> None:
@@ -103,7 +106,7 @@ def _from_scipy_csr(
             _array_interface(data.indptr),
             _array_interface(data.indices),
             _array_interface(data.data),
-            ctypes.c_size_t(data.shape[1]),
+            c_bst_ulong(data.shape[1]),
             config,
             ctypes.byref(handle),
         )
@@ -183,24 +186,15 @@ def _from_numpy_array(
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
 ) -> DispatchedDataBackendReturnType:
-    """Initialize data from a 2-D numpy matrix.
-
-    """
+    """Initialize data from a 2-D numpy matrix."""
     if len(data.shape) != 2:
-        raise ValueError(
-            "Expecting 2 dimensional numpy.ndarray, got: ", data.shape
-        )
+        raise ValueError("Expecting 2 dimensional numpy.ndarray, got: ", data.shape)
     data, _ = _ensure_np_dtype(data, data.dtype)
     handle = ctypes.c_void_p()
-    args = {
-        "missing": float(missing),
-        "nthread": int(nthread),
-    }
-    config = bytes(json.dumps(args), "utf-8")
     _check_call(
         _LIB.XGDMatrixCreateFromDense(
             _array_interface(data),
-            config,
+            make_jcargs(missing=float(missing), nthread=int(nthread)),
             ctypes.byref(handle),
         )
     )
@@ -224,27 +218,36 @@ def _is_modin_df(data: DataType) -> bool:
 
 
 _pandas_dtype_mapper = {
-    'int8': 'int',
-    'int16': 'int',
-    'int32': 'int',
-    'int64': 'int',
-    'uint8': 'int',
-    'uint16': 'int',
-    'uint32': 'int',
-    'uint64': 'int',
-    'float16': 'float',
-    'float32': 'float',
-    'float64': 'float',
-    'bool': 'i',
-    # nullable types
+    "int8": "int",
+    "int16": "int",
+    "int32": "int",
+    "int64": "int",
+    "uint8": "int",
+    "uint16": "int",
+    "uint32": "int",
+    "uint64": "int",
+    "float16": "float",
+    "float32": "float",
+    "float64": "float",
+    "bool": "i",
+}
+
+# nullable types
+pandas_nullable_mapper = {
+    "Int8": "int",
     "Int16": "int",
     "Int32": "int",
     "Int64": "int",
+    "UInt8": "i",
+    "UInt16": "i",
+    "UInt32": "i",
+    "UInt64": "i",
     "Float32": "float",
     "Float64": "float",
     "boolean": "i",
 }
 
+_pandas_dtype_mapper.update(pandas_nullable_mapper)
 
 _ENABLE_CAT_ERR = (
     "When categorical type is supplied, The experimental DMatrix parameter"
@@ -278,10 +281,7 @@ def _pandas_feature_info(
     enable_categorical: bool,
 ) -> Tuple[Optional[FeatureNames], Optional[FeatureTypes]]:
     import pandas as pd
-    from pandas.api.types import (
-        is_sparse,
-        is_categorical_dtype,
-    )
+    from pandas.api.types import is_categorical_dtype, is_sparse
 
     # handle feature names
     if feature_names is None and meta is None:
@@ -308,32 +308,33 @@ def _pandas_feature_info(
 def is_nullable_dtype(dtype: PandasDType) -> bool:
     """Wether dtype is a pandas nullable type."""
     from pandas.api.types import (
-        is_integer_dtype,
         is_bool_dtype,
-        is_float_dtype,
         is_categorical_dtype,
+        is_float_dtype,
+        is_integer_dtype,
     )
 
-    # dtype: pd.core.arrays.numeric.NumericDtype
-    nullable_alias = {"Int16", "Int32", "Int64", "Float32", "Float64", "category"}
-    is_int = is_integer_dtype(dtype) and dtype.name in nullable_alias
+    is_int = is_integer_dtype(dtype) and dtype.name in pandas_nullable_mapper
     # np.bool has alias `bool`, while pd.BooleanDtype has `bzoolean`.
     is_bool = is_bool_dtype(dtype) and dtype.name == "boolean"
-    is_float = is_float_dtype(dtype) and dtype.name in nullable_alias
+    is_float = is_float_dtype(dtype) and dtype.name in pandas_nullable_mapper
     return is_int or is_bool or is_float or is_categorical_dtype(dtype)
 
 
-def _pandas_cat_null(data: DataFrame) -> DataFrame:
+def pandas_cat_null(data: DataFrame) -> DataFrame:
+    """Handle categorical dtype and nullable extension types from pandas."""
     from pandas.api.types import is_categorical_dtype
+
     # handle category codes and nullable.
-    cat_columns = [
-        col
-        for col, dtype in zip(data.columns, data.dtypes)
-        if is_categorical_dtype(dtype)
-    ]
-    nul_columns = [
-        col for col, dtype in zip(data.columns, data.dtypes) if is_nullable_dtype(dtype)
-    ]
+    cat_columns = []
+    nul_columns = []
+    for col, dtype in zip(data.columns, data.dtypes):
+        if is_categorical_dtype(dtype):
+            cat_columns.append(col)
+        # avoid an unnecessary conversion if possible
+        elif is_nullable_dtype(dtype):
+            nul_columns.append(col)
+
     if cat_columns or nul_columns:
         # Avoid transformation due to: PerformanceWarning: DataFrame is highly
         # fragmented
@@ -342,7 +343,7 @@ def _pandas_cat_null(data: DataFrame) -> DataFrame:
         transformed = data
 
     if cat_columns:
-        # DF doesn't have the cat attribute, so we use apply here
+        # DF doesn't have the cat attribute, as a result, we use apply here
         transformed[cat_columns] = (
             transformed[cat_columns]
             .apply(lambda x: x.cat.codes)
@@ -351,6 +352,10 @@ def _pandas_cat_null(data: DataFrame) -> DataFrame:
         )
     if nul_columns:
         transformed[nul_columns] = transformed[nul_columns].astype(np.float32)
+
+    # TODO(jiamingy): Investigate the possibility of using dataframe protocol or arrow
+    # IPC format for pandas so that we can apply the data transformation inside XGBoost
+    # for better memory efficiency.
 
     return transformed
 
@@ -363,15 +368,11 @@ def _transform_pandas_df(
     meta: Optional[str] = None,
     meta_type: Optional[NumpyDType] = None,
 ) -> Tuple[np.ndarray, Optional[FeatureNames], Optional[FeatureTypes]]:
-    from pandas.api.types import (
-        is_sparse,
-        is_categorical_dtype,
-    )
+    from pandas.api.types import is_categorical_dtype, is_sparse
 
     if not all(
-        dtype.name in _pandas_dtype_mapper
+        (dtype.name in _pandas_dtype_mapper)
         or is_sparse(dtype)
-        or (is_nullable_dtype(dtype) and not is_categorical_dtype(dtype))
         or (is_categorical_dtype(dtype) and enable_categorical)
         for dtype in data.dtypes
     ):
@@ -381,7 +382,7 @@ def _transform_pandas_df(
         data, meta, feature_names, feature_types, enable_categorical
     )
 
-    transformed = _pandas_cat_null(data)
+    transformed = pandas_cat_null(data)
 
     if meta and len(data.columns) > 1 and meta not in _matrix_meta:
         raise ValueError(f"DataFrame for {meta} cannot have multiple columns")
@@ -416,14 +417,12 @@ def _is_pandas_series(data: DataType) -> bool:
 
 
 def _meta_from_pandas_series(
-    data: DataType,
-    name: str,
-    dtype: Optional[NumpyDType],
-    handle: ctypes.c_void_p
+    data: DataType, name: str, dtype: Optional[NumpyDType], handle: ctypes.c_void_p
 ) -> None:
     """Help transform pandas series for meta data like labels"""
-    data = data.values.astype('float')
+    data = data.values.astype("float")
     from pandas.api.types import is_sparse
+
     if is_sparse(data):
         data = data.to_dense()  # type: ignore
     assert len(data.shape) == 1 or data.shape[1] == 0 or data.shape[1] == 1
@@ -464,12 +463,9 @@ def _from_pandas_series(
 
 
 def _is_dt_df(data: DataType) -> bool:
-    return lazy_isinstance(data, 'datatable', 'Frame') or \
-        lazy_isinstance(data, 'datatable', 'DataTable')
-
-
-_dt_type_mapper = {'bool': 'bool', 'int': 'int', 'real': 'float'}
-_dt_type_mapper2 = {'bool': 'i', 'int': 'int', 'real': 'float'}
+    return lazy_isinstance(data, "datatable", "Frame") or lazy_isinstance(
+        data, "datatable", "DataTable"
+    )
 
 
 def _transform_dt_df(
@@ -480,8 +476,10 @@ def _transform_dt_df(
     meta_type: Optional[NumpyDType] = None,
 ) -> Tuple[np.ndarray, Optional[FeatureNames], Optional[FeatureTypes]]:
     """Validate feature names and types if data table"""
+    _dt_type_mapper = {"bool": "bool", "int": "int", "real": "float"}
+    _dt_type_mapper2 = {"bool": "i", "int": "int", "real": "float"}
     if meta and data.shape[1] > 1:
-        raise ValueError('DataTable for meta info cannot have multiple columns')
+        raise ValueError("DataTable for meta info cannot have multiple columns")
     if meta:
         meta_type = "float" if meta_type is None else meta_type
         # below requires new dt version
@@ -490,23 +488,23 @@ def _transform_dt_df(
         return data, None, None
 
     data_types_names = tuple(lt.name for lt in data.ltypes)
-    bad_fields = [data.names[i]
-                  for i, type_name in enumerate(data_types_names)
-                  if type_name not in _dt_type_mapper]
+    bad_fields = [
+        data.names[i]
+        for i, type_name in enumerate(data_types_names)
+        if type_name not in _dt_type_mapper
+    ]
     if bad_fields:
         msg = """DataFrame.types for data must be int, float or bool.
                 Did not expect the data types in fields """
-        raise ValueError(msg + ', '.join(bad_fields))
+        raise ValueError(msg + ", ".join(bad_fields))
 
     if feature_names is None and meta is None:
         feature_names = data.names
 
         # always return stypes for dt ingestion
         if feature_types is not None:
-            raise ValueError(
-                'DataTable has own feature types, cannot pass them in.')
-        feature_types = np.vectorize(_dt_type_mapper2.get)(
-            data_types_names).tolist()
+            raise ValueError("DataTable has own feature types, cannot pass them in.")
+        feature_types = np.vectorize(_dt_type_mapper2.get)(data_types_names).tolist()
 
     return data, feature_names, feature_types
 
@@ -522,7 +520,8 @@ def _from_dt_df(
     if enable_categorical:
         raise ValueError("categorical data in datatable is not supported yet.")
     data, feature_names, feature_types = _transform_dt_df(
-        data, feature_names, feature_types, None, None)
+        data, feature_names, feature_types, None, None
+    )
 
     ptrs = (ctypes.c_void_p * data.ncols)()
     if hasattr(data, "internal") and hasattr(data.internal, "column"):
@@ -533,8 +532,10 @@ def _from_dt_df(
             ptrs[icol] = ctypes.c_void_p(ptr)
     else:
         # datatable<=0.8.0
-        from datatable.internal import \
-            frame_column_data_r  # pylint: disable=no-name-in-module
+        from datatable.internal import (
+            frame_column_data_r,  # pylint: disable=no-name-in-module
+        )
+
         for icol in range(data.ncols):
             ptrs[icol] = frame_column_data_r(data, icol)
 
@@ -542,16 +543,21 @@ def _from_dt_df(
     feature_type_strings = (ctypes.c_char_p * data.ncols)()
     for icol in range(data.ncols):
         feature_type_strings[icol] = ctypes.c_char_p(
-            data.stypes[icol].name.encode('utf-8'))
+            data.stypes[icol].name.encode("utf-8")
+        )
 
     _warn_unused_missing(data, missing)
     handle = ctypes.c_void_p()
-    _check_call(_LIB.XGDMatrixCreateFromDT(
-        ptrs, feature_type_strings,
-        c_bst_ulong(data.shape[0]),
-        c_bst_ulong(data.shape[1]),
-        ctypes.byref(handle),
-        ctypes.c_int(nthread)))
+    _check_call(
+        _LIB.XGDMatrixCreateFromDT(
+            ptrs,
+            feature_type_strings,
+            c_bst_ulong(data.shape[0]),
+            c_bst_ulong(data.shape[1]),
+            ctypes.byref(handle),
+            ctypes.c_int(nthread),
+        )
+    )
     return handle, feature_names, feature_types
 
 
@@ -1202,6 +1208,7 @@ def _proxy_transform(
         arr, feature_names, feature_types = _transform_pandas_df(
             data, enable_categorical, feature_names, feature_types
         )
+        arr, _ = _ensure_np_dtype(arr, arr.dtype)
         return arr, None, feature_names, feature_types
     raise TypeError("Value type is not supported for data iterator:" + str(type(data)))
 

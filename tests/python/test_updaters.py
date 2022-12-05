@@ -1,42 +1,18 @@
 import json
 from string import ascii_lowercase
-from typing import Dict, Any
-import testing as tm
-import pytest
-import xgboost as xgb
+from typing import Any, Dict, List
+
 import numpy as np
-from hypothesis import given, strategies, settings, note
-
-exact_parameter_strategy = strategies.fixed_dictionaries({
-    'nthread': strategies.integers(1, 4),
-    'max_depth': strategies.integers(1, 11),
-    'min_child_weight': strategies.floats(0.5, 2.0),
-    'alpha': strategies.floats(1e-5, 2.0),
-    'lambda': strategies.floats(1e-5, 2.0),
-    'eta': strategies.floats(0.01, 0.5),
-    'gamma': strategies.floats(1e-5, 2.0),
-    'seed': strategies.integers(0, 10),
-    # We cannot enable subsampling as the training loss can increase
-    # 'subsample': strategies.floats(0.5, 1.0),
-    'colsample_bytree': strategies.floats(0.5, 1.0),
-    'colsample_bylevel': strategies.floats(0.5, 1.0),
-})
-
-hist_parameter_strategy = strategies.fixed_dictionaries({
-    'max_depth': strategies.integers(1, 11),
-    'max_leaves': strategies.integers(0, 1024),
-    'max_bin': strategies.integers(2, 512),
-    'grow_policy': strategies.sampled_from(['lossguide', 'depthwise']),
-}).filter(lambda x: (x['max_depth'] > 0 or x['max_leaves'] > 0) and (
-    x['max_depth'] > 0 or x['grow_policy'] == 'lossguide'))
-
-
-cat_parameter_strategy = strategies.fixed_dictionaries(
-    {
-        "max_cat_to_onehot": strategies.integers(1, 128),
-        "max_cat_threshold": strategies.integers(1, 128),
-    }
+import pytest
+from hypothesis import given, note, settings, strategies
+from xgboost.testing.params import (
+    cat_parameter_strategy,
+    exact_parameter_strategy,
+    hist_parameter_strategy,
 )
+
+import xgboost as xgb
+from xgboost import testing as tm
 
 
 def train_result(param, dmat, num_rounds):
@@ -262,17 +238,24 @@ class TestTreeMethod:
         # Test with partition-based split
         run(self.USE_PART)
 
-    def run_categorical_ohe(self, rows, cols, rounds, cats, tree_method):
+    def run_categorical_ohe(
+        self, rows: int, cols: int, rounds: int, cats: int, tree_method: str
+    ) -> None:
         onehot, label = tm.make_categorical(rows, cols, cats, True)
+        print(onehot.columns)
         cat, _ = tm.make_categorical(rows, cols, cats, False)
+        print(cat.columns)
 
-        by_etl_results = {}
-        by_builtin_results = {}
+        by_etl_results: Dict[str, Dict[str, List[float]]] = {}
+        by_builtin_results: Dict[str, Dict[str, List[float]]] = {}
 
         predictor = "gpu_predictor" if tree_method == "gpu_hist" else None
-        parameters = {"tree_method": tree_method, "predictor": predictor}
-        # Use one-hot exclusively
-        parameters["max_cat_to_onehot"] = self.USE_ONEHOT
+        parameters: Dict[str, Any] = {
+            "tree_method": tree_method,
+            "predictor": predictor,
+            # Use one-hot exclusively
+            "max_cat_to_onehot": self.USE_ONEHOT
+        }
 
         m = xgb.DMatrix(onehot, label, enable_categorical=False)
         xgb.train(
@@ -292,11 +275,11 @@ class TestTreeMethod:
             evals_result=by_builtin_results,
         )
 
-        # There are guidelines on how to specify tolerance based on considering output as
-        # random variables. But in here the tree construction is extremely sensitive to
-        # floating point errors. An 1e-5 error in a histogram bin can lead to an entirely
-        # different tree.  So even though the test is quite lenient, hypothesis can still
-        # pick up falsifying examples from time to time.
+        # There are guidelines on how to specify tolerance based on considering output
+        # as random variables. But in here the tree construction is extremely sensitive
+        # to floating point errors. An 1e-5 error in a histogram bin can lead to an
+        # entirely different tree. So even though the test is quite lenient, hypothesis
+        # can still pick up falsifying examples from time to time.
         np.testing.assert_allclose(
             np.array(by_etl_results["Train"]["rmse"]),
             np.array(by_builtin_results["Train"]["rmse"]),
@@ -304,7 +287,7 @@ class TestTreeMethod:
         )
         assert tm.non_increasing(by_builtin_results["Train"]["rmse"])
 
-        by_grouping: xgb.callback.TrainingCallback.EvalsLog = {}
+        by_grouping: Dict[str, Dict[str, List[float]]] = {}
         # switch to partition-based splits
         parameters["max_cat_to_onehot"] = self.USE_PART
         parameters["reg_lambda"] = 0
@@ -337,7 +320,9 @@ class TestTreeMethod:
            strategies.integers(1, 2), strategies.integers(4, 7))
     @settings(deadline=None, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
-    def test_categorical_ohe(self, rows, cols, rounds, cats):
+    def test_categorical_ohe(
+        self, rows: int, cols: int, rounds: int, cats: int
+    ) -> None:
         self.run_categorical_ohe(rows, cols, rounds, cats, "approx")
         self.run_categorical_ohe(rows, cols, rounds, cats, "hist")
 

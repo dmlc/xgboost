@@ -2,11 +2,12 @@ import json
 import sys
 
 import numpy as np
-import xgboost as xgb
 import pytest
 
+import xgboost as xgb
+from xgboost import testing as tm
+
 sys.path.append("tests/python")
-import testing as tm
 from test_dmatrix import set_base_margin_info
 
 
@@ -85,8 +86,8 @@ def _test_from_cudf(DMatrixT):
 
 
 def _test_cudf_training(DMatrixT):
-    from cudf import DataFrame as df
     import pandas as pd
+    from cudf import DataFrame as df
     np.random.seed(1)
     X = pd.DataFrame(np.random.randn(50, 10))
     y = pd.DataFrame(np.random.randn(50))
@@ -109,8 +110,8 @@ def _test_cudf_training(DMatrixT):
 
 
 def _test_cudf_metainfo(DMatrixT):
-    from cudf import DataFrame as df
     import pandas as pd
+    from cudf import DataFrame as df
     n = 100
     X = np.random.random((n, 2))
     dmat_cudf = DMatrixT(df.from_pandas(pd.DataFrame(X)))
@@ -247,9 +248,9 @@ Arrow specification.'''
 @pytest.mark.skipif(**tm.no_sklearn())
 @pytest.mark.skipif(**tm.no_pandas())
 def test_cudf_training_with_sklearn():
+    import pandas as pd
     from cudf import DataFrame as df
     from cudf import Series as ss
-    import pandas as pd
     np.random.seed(1)
     X = pd.DataFrame(np.random.randn(50, 10))
     y = pd.DataFrame((np.random.randn(50) > 0).astype(np.int8))

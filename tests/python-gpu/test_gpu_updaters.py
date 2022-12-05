@@ -4,29 +4,15 @@ from typing import Any, Dict
 import numpy as np
 import pytest
 from hypothesis import assume, given, note, settings, strategies
+from xgboost.testing.params import cat_parameter_strategy, hist_parameter_strategy
 
 import xgboost as xgb
-from xgboost import testing
+from xgboost import testing as tm
 
 sys.path.append("tests/python")
 import test_updaters as test_up
-import testing as tm
 
-pytestmark = testing.timeout(30)
-
-parameter_strategy = strategies.fixed_dictionaries({
-    'max_depth': strategies.integers(0, 11),
-    'max_leaves': strategies.integers(0, 256),
-    'max_bin': strategies.integers(2, 1024),
-    'grow_policy': strategies.sampled_from(['lossguide', 'depthwise']),
-    'min_child_weight': strategies.floats(0.5, 2.0),
-    'seed': strategies.integers(0, 10),
-    # We cannot enable subsampling as the training loss can increase
-    # 'subsample': strategies.floats(0.5, 1.0),
-    'colsample_bytree': strategies.floats(0.5, 1.0),
-    'colsample_bylevel': strategies.floats(0.5, 1.0),
-}).filter(lambda x: (x['max_depth'] > 0 or x['max_leaves'] > 0) and (
-    x['max_depth'] > 0 or x['grow_policy'] == 'lossguide'))
+pytestmark = tm.timeout(30)
 
 
 def train_result(param, dmat: xgb.DMatrix, num_rounds: int) -> dict:
@@ -48,7 +34,7 @@ def train_result(param, dmat: xgb.DMatrix, num_rounds: int) -> dict:
 class TestGPUUpdaters:
     cputest = test_up.TestTreeMethod()
 
-    @given(parameter_strategy, strategies.integers(1, 20), tm.dataset_strategy)
+    @given(hist_parameter_strategy, strategies.integers(1, 20), tm.dataset_strategy)
     @settings(deadline=None, max_examples=50, print_blob=True)
     def test_gpu_hist(self, param, num_rounds, dataset):
         param["tree_method"] = "gpu_hist"
@@ -83,9 +69,8 @@ class TestGPUUpdaters:
 
     @given(
         tm.categorical_dataset_strategy,
-        test_up.exact_parameter_strategy,
-        test_up.hist_parameter_strategy,
-        test_up.cat_parameter_strategy,
+        hist_parameter_strategy,
+        cat_parameter_strategy,
         strategies.integers(4, 32),
     )
     @settings(deadline=None, max_examples=20, print_blob=True)
@@ -93,12 +78,10 @@ class TestGPUUpdaters:
     def test_categorical(
         self,
         dataset: tm.TestDataset,
-        exact_parameters: Dict[str, Any],
         hist_parameters: Dict[str, Any],
         cat_parameters: Dict[str, Any],
         n_rounds: int,
     ) -> None:
-        cat_parameters.update(exact_parameters)
         cat_parameters.update(hist_parameters)
         cat_parameters["tree_method"] = "gpu_hist"
 
@@ -106,8 +89,8 @@ class TestGPUUpdaters:
         tm.non_increasing(results["train"]["rmse"])
 
     @given(
-        test_up.hist_parameter_strategy,
-        test_up.cat_parameter_strategy,
+        hist_parameter_strategy,
+        cat_parameter_strategy,
     )
     @settings(deadline=None, max_examples=10, print_blob=True)
     def test_categorical_ames_housing(
@@ -150,8 +133,11 @@ class TestGPUUpdaters:
         self.cputest.run_invalid_category("gpu_hist")
 
     @pytest.mark.skipif(**tm.no_cupy())
-    @given(parameter_strategy, strategies.integers(1, 20),
-           tm.dataset_strategy)
+    @given(
+        hist_parameter_strategy,
+        strategies.integers(1, 20),
+        tm.dataset_strategy
+    )
     @settings(deadline=None, max_examples=20, print_blob=True)
     def test_gpu_hist_device_dmatrix(self, param, num_rounds, dataset):
         # We cannot handle empty dataset yet
@@ -162,8 +148,11 @@ class TestGPUUpdaters:
         note(result)
         assert tm.non_increasing(result['train'][dataset.metric], tolerance=1e-3)
 
-    @given(parameter_strategy, strategies.integers(1, 3),
-           tm.dataset_strategy)
+    @given(
+        hist_parameter_strategy,
+        strategies.integers(1, 3),
+        tm.dataset_strategy
+    )
     @settings(deadline=None, max_examples=10, print_blob=True)
     def test_external_memory(self, param, num_rounds, dataset):
         if dataset.name.endswith("-l1"):

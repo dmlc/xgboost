@@ -1,11 +1,12 @@
 import sys
-import numpy as np
 
+import numpy as np
 import pytest
 
 import xgboost as xgb
+from xgboost import testing as tm
+
 sys.path.append("tests/python")
-import testing as tm
 import test_monotone_constraints as tmc
 
 rng = np.random.RandomState(1994)

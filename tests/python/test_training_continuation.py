@@ -3,9 +3,9 @@ import tempfile
 
 import numpy as np
 import pytest
-import testing as tm
 
 import xgboost as xgb
+from xgboost import testing as tm
 
 rng = np.random.RandomState(1337)
 

@@ -9,7 +9,9 @@
 #include <vector>
 
 #include "common.h"                      // AssertGPUSupport, OptionalWeights
+#include "transform_iterator.h"          // MakeIndexTransformIter
 #include "xgboost/generic_parameters.h"  // Context
+#include "xgboost/generic_parameters.h"
 #include "xgboost/linalg.h"
 #include "xgboost/logging.h"  // CHECK_GE
 

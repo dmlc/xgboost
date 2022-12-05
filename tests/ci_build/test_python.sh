@@ -68,6 +68,8 @@ case "$suite" in
     install_xgboost
     setup_pyspark_envs
     pytest -v -s -rxXs --fulltrace --durations=0 -m "mgpu" ${args} tests/python-gpu
+    pytest -v -s -rxXs --fulltrace --durations=0 -m "mgpu" ${args} tests/test_distributed/test_gpu_with_dask
+    pytest -v -s -rxXs --fulltrace --durations=0 -m "mgpu" ${args} tests/test_distributed/test_gpu_with_spark
     unset_pyspark_envs
     uninstall_xgboost
     set +x
@@ -80,6 +82,8 @@ case "$suite" in
     export RAY_OBJECT_STORE_ALLOW_SLOW_STORAGE=1
     setup_pyspark_envs
     pytest -v -s -rxXs --fulltrace --durations=0 ${args} tests/python
+    pytest -v -s -rxXs --fulltrace --durations=0 ${args} tests/test_distributed/test_with_dask
+    pytest -v -s -rxXs --fulltrace --durations=0 ${args} tests/test_distributed/test_with_spark
     unset_pyspark_envs
     uninstall_xgboost
     set +x

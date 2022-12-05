@@ -21,12 +21,12 @@ namespace common {
  */
 template <typename Fn>
 class IndexTransformIter {
-  size_t iter_{0};
+  std::size_t iter_{0};
   Fn fn_;
 
  public:
   using iterator_category = std::random_access_iterator_tag;  // NOLINT
-  using value_type = std::result_of_t<Fn(size_t)>;            // NOLINT
+  using value_type = std::result_of_t<Fn(std::size_t)>;       // NOLINT
   using difference_type = detail::ptrdiff_t;                  // NOLINT
   using reference = std::add_lvalue_reference_t<value_type>;  // NOLINT
   using pointer = std::add_pointer_t<value_type>;             // NOLINT
@@ -44,7 +44,7 @@ class IndexTransformIter {
   }
 
   value_type operator*() const { return fn_(iter_); }
-  value_type operator[](size_t i) const {
+  value_type operator[](std::size_t i) const {
     auto iter = *this + i;
     return *iter;
   }

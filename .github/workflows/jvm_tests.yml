@@ -15,16 +15,16 @@ jobs:
         os: [windows-latest, ubuntu-latest, macos-11]
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
 
-    - uses: actions/setup-python@v2
+    - uses: actions/setup-python@7f80679172b057fc5e90d70d197929d454754a5a # v4.3.0
       with:
         python-version: '3.8'
         architecture: 'x64'
 
-    - uses: actions/setup-java@v1
+    - uses: actions/setup-java@d202f5dbf7256730fb690ec59f6381650114feb2 # v3.6.0
       with:
         java-version: 1.8
 
@@ -34,7 +34,7 @@ jobs:
         python -m pip install awscli
 
     - name: Cache Maven packages
-      uses: actions/cache@v2
+      uses: actions/cache@937d24475381cd9c75ae6db12cb4e79714b926ed # v3.0.11
       with:
         path: ~/.m2
         key: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
