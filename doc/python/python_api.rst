@@ -25,9 +25,6 @@ Core Data Structure
 .. autoclass:: xgboost.QuantileDMatrix
     :show-inheritance:
 
-.. autoclass:: xgboost.DeviceQuantileDMatrix
-    :show-inheritance:
-
 .. autoclass:: xgboost.Booster
     :members:
     :show-inheritance:
@@ -115,7 +112,7 @@ Dask API
     :inherited-members:
     :show-inheritance:
 
-.. autoclass:: xgboost.dask.DaskDeviceQuantileDMatrix
+.. autoclass:: xgboost.dask.DaskQuantileDMatrix
     :members:
     :inherited-members:
     :show-inheritance:
