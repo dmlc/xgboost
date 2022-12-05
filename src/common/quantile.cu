@@ -3,8 +3,8 @@
  */
 #include <thrust/binary_search.h>
 #include <thrust/execution_policy.h>
-#include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/constant_iterator.h>
+#include <thrust/iterator/discard_iterator.h>
 #include <thrust/transform_scan.h>
 #include <thrust/unique.h>
 
@@ -20,6 +20,7 @@
 #include "hist_util.h"
 #include "quantile.cuh"
 #include "quantile.h"
+#include "transform_iterator.h"  // MakeIndexTransformIter
 #include "xgboost/span.h"
 
 namespace xgboost {
