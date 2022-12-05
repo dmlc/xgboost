@@ -532,8 +532,7 @@
           "properties": {
             "base_score": { "type": "string" },
             "num_class": { "type": "string" },
-            "num_feature": { "type": "string" },
-            "num_target": { "type": "string" }
+            "num_feature": { "type": "string" }
           }
         }
       },
