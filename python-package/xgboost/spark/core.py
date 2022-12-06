@@ -32,6 +32,7 @@ from pyspark.sql.types import (
     ShortType,
 )
 from scipy.special import expit, softmax  # pylint: disable=no-name-in-module
+from xgboost.compat import is_cudf_available
 from xgboost.core import Booster
 from xgboost.training import train as worker_train
 
@@ -759,7 +760,8 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             k: v for k, v in train_call_kwargs_params.items() if v is not None
         }
         dmatrix_kwargs = {k: v for k, v in dmatrix_kwargs.items() if v is not None}
-        use_qdm = booster_params.get("tree_method", None) in ("hist", "gpu_hist")
+
+        use_hist = booster_params.get("tree_method", None) in ("hist", "gpu_hist")
 
         def _train_booster(pandas_df_iter):
             """Takes in an RDD partition and outputs a booster for that partition after
@@ -772,6 +774,15 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             context.barrier()
 
             gpu_id = None
+
+            # If cuDF is not installed, then using DMatrix instead of QDM,
+            # because without cuDF, DMatrix performs better than QDM.
+            # Note: Checking `is_cudf_available` in spark worker side because
+            # spark worker might has different python environment with driver side.
+            if use_gpu:
+                use_qdm = use_hist and is_cudf_available()
+            else:
+                use_qdm = use_hist
 
             if use_qdm and (booster_params.get("max_bin", None) is not None):
                 dmatrix_kwargs["max_bin"] = booster_params["max_bin"]
