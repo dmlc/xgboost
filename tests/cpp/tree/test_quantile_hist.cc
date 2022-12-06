@@ -20,7 +20,7 @@ namespace xgboost {
 namespace tree {
 TEST(QuantileHist, Partitioner) {
   size_t n_samples = 1024, n_features = 1, base_rowid = 0;
-  GenericParameter ctx;
+  Context ctx;
   ctx.InitAllowUnknown(Args{});
 
   CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};

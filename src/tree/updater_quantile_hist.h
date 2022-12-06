@@ -85,8 +85,7 @@ inline BatchParam HistBatch(TrainParam const& param) {
 /*! \brief construct a tree using quantized feature values */
 class QuantileHistMaker: public TreeUpdater {
  public:
-  explicit QuantileHistMaker(GenericParameter const* ctx, ObjInfo task)
-      : TreeUpdater(ctx), task_{task} {}
+  explicit QuantileHistMaker(Context const* ctx, ObjInfo task) : TreeUpdater(ctx), task_{task} {}
   void Configure(const Args& args) override;
 
   void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
@@ -120,7 +119,7 @@ class QuantileHistMaker: public TreeUpdater {
    public:
     // constructor
     explicit Builder(const size_t n_trees, const TrainParam& param, DMatrix const* fmat,
-                     ObjInfo task, GenericParameter const* ctx)
+                     ObjInfo task, Context const* ctx)
         : n_trees_(n_trees),
           param_(param),
           p_last_fmat_(fmat),

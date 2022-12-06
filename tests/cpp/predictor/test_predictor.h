@@ -19,7 +19,7 @@ void TestPredictionFromGradientIndex(std::string name, size_t rows, size_t cols,
       std::unique_ptr<Predictor>(Predictor::Create(name, &lparam));
   predictor->Configure({});
 
-  GenericParameter ctx;
+  Context ctx;
   ctx.UpdateAllowUnknown(Args{});
   gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx, kClasses);
 

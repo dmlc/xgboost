@@ -10,7 +10,7 @@
 
 #include "common.h"              // AssertGPUSupport
 #include "transform_iterator.h"  // MakeIndexTransformIter
-#include "xgboost/generic_parameters.h"
+#include "xgboost/context.h"     // Context
 #include "xgboost/linalg.h"
 
 namespace xgboost {

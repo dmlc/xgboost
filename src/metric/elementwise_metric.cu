@@ -40,7 +40,7 @@ namespace {
  *   applying the weights.  A tuple of {error_i, weight_i} is expected as return.
  */
 template <typename Fn>
-PackedReduceResult Reduce(GenericParameter const* ctx, MetaInfo const& info, Fn&& loss) {
+PackedReduceResult Reduce(Context const* ctx, MetaInfo const& info, Fn&& loss) {
   PackedReduceResult result;
   auto labels = info.labels.View(ctx->gpu_id);
   if (ctx->IsCPU()) {

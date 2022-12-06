@@ -1,5 +1,5 @@
 /*!
- * Copyright by Contributors 2017-2021
+ * Copyright by XGBoost Contributors 2017-2022
  */
 #include <dmlc/any.h>
 #include <dmlc/omp.h>
@@ -351,8 +351,7 @@ class CPUPredictor : public Predictor {
   }
 
  public:
-  explicit CPUPredictor(GenericParameter const* generic_param) :
-      Predictor::Predictor{generic_param} {}
+  explicit CPUPredictor(Context const *ctx) : Predictor::Predictor{ctx} {}
 
   void PredictBatch(DMatrix *dmat, PredictionCacheEntry *predts,
                     const gbm::GBTreeModel &model, uint32_t tree_begin,
@@ -614,9 +613,7 @@ class CPUPredictor : public Predictor {
 };
 
 XGBOOST_REGISTER_PREDICTOR(CPUPredictor, "cpu_predictor")
-.describe("Make predictions using CPU.")
-.set_body([](GenericParameter const* generic_param) {
-            return new CPUPredictor(generic_param);
-          });
+    .describe("Make predictions using CPU.")
+    .set_body([](Context const *ctx) { return new CPUPredictor(ctx); });
 }  // namespace predictor
 }  // namespace xgboost

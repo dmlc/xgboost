@@ -330,7 +330,7 @@ class PredictorOneAPI : public Predictor {
   }
 
  public:
-  explicit PredictorOneAPI(GenericParameter const* generic_param) :
+  explicit PredictorOneAPI(Context const* generic_param) :
       Predictor::Predictor{generic_param}, cpu_predictor(Predictor::Create("cpu_predictor", generic_param)) {
     cl::sycl::default_selector selector;
     qu_ = cl::sycl::queue(selector);
@@ -441,7 +441,7 @@ class PredictorOneAPI : public Predictor {
 
 XGBOOST_REGISTER_PREDICTOR(PredictorOneAPI, "oneapi_predictor")
 .describe("Make predictions using DPC++.")
-.set_body([](GenericParameter const* generic_param) {
+.set_body([](Context const* generic_param) {
             return new PredictorOneAPI(generic_param);
           });
 }  // namespace predictor

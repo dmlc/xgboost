@@ -71,7 +71,7 @@ void LinearCheckLayer(unsigned layer_begin) {
  */
 class GBLinear : public GradientBooster {
  public:
-  explicit GBLinear(LearnerModelParam const* learner_model_param, GenericParameter const* ctx)
+  explicit GBLinear(LearnerModelParam const* learner_model_param, Context const* ctx)
       : GradientBooster{ctx},
         learner_model_param_{learner_model_param},
         model_{learner_model_param},
@@ -179,7 +179,7 @@ class GBLinear : public GradientBooster {
                            unsigned) override {
     model_.LazyInitModel();
     LinearCheckLayer(layer_begin);
-    auto base_margin = p_fmat->Info().base_margin_.View(GenericParameter::kCpuId);
+    auto base_margin = p_fmat->Info().base_margin_.View(Context::kCpuId);
     const int ngroup = model_.learner_model_param->num_output_group;
     const size_t ncolumns = model_.learner_model_param->num_feature + 1;
     // allocate space for (#features + bias) times #groups times #rows
@@ -250,7 +250,7 @@ class GBLinear : public GradientBooster {
     linalg::TensorView<float, 2> scores{
         *out_scores,
         {learner_model_param_->num_feature, n_groups},
-        GenericParameter::kCpuId};
+        Context::kCpuId};
     for (size_t i = 0; i < learner_model_param_->num_feature; ++i) {
       for (bst_group_t g = 0; g < n_groups; ++g) {
         scores(i, g) = model_[i][g];
@@ -355,7 +355,7 @@ DMLC_REGISTER_PARAMETER(GBLinearTrainParam);
 
 XGBOOST_REGISTER_GBM(GBLinear, "gblinear")
     .describe("Linear booster, implement generalized linear model.")
-    .set_body([](LearnerModelParam const* booster_config, GenericParameter const* ctx) {
+    .set_body([](LearnerModelParam const* booster_config, Context const* ctx) {
       return new GBLinear(booster_config, ctx);
     });
 }  // namespace gbm

@@ -10,15 +10,15 @@
 #include <xgboost/data.h>
 
 #include <algorithm>
+#include <limits>
 #include <memory>
 #include <utility>
-#include <limits>
 #include <vector>
 
+#include "../tree/hist/expand_entry.h"
 #include "categorical.h"
 #include "column_matrix.h"
-#include "../tree/hist/expand_entry.h"
-#include "xgboost/generic_parameters.h"
+#include "xgboost/context.h"
 #include "xgboost/tree_model.h"
 
 namespace xgboost {

@@ -114,7 +114,7 @@ class BroadcastFunctor {
   int root_;
 };
 
-void InMemoryHandler::Init(int world_size, int rank) {
+void InMemoryHandler::Init(int world_size, int) {
   CHECK(world_size_ < world_size) << "In memory handler already initialized.";
 
   std::unique_lock<std::mutex> lock(mutex_);
@@ -124,7 +124,7 @@ void InMemoryHandler::Init(int world_size, int rank) {
   cv_.notify_all();
 }
 
-void InMemoryHandler::Shutdown(uint64_t sequence_number, int rank) {
+void InMemoryHandler::Shutdown(uint64_t sequence_number, int) {
   CHECK(world_size_ > 0) << "In memory handler already shutdown.";
 
   std::unique_lock<std::mutex> lock(mutex_);

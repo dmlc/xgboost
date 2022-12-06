@@ -8,7 +8,7 @@
 
 #include <dmlc/endian.h>
 #include <xgboost/base.h>
-#include <xgboost/generic_parameters.h>
+#include <xgboost/context.h>  // fixme(jiamingy): Remove the dependency on this header.
 #include <xgboost/host_device_vector.h>
 #include <xgboost/json.h>
 #include <xgboost/span.h>

@@ -12,12 +12,13 @@
 #include "xgboost/metric.h"
 
 namespace xgboost {
+struct Context;
 
 // This creates a GPU metric instance dynamically and adds it to the GPU metric registry, if not
 // present already. This is created when there is a device ordinal present and if xgboost
 // is compiled with CUDA support
 struct GPUMetric : Metric {
-  static Metric *CreateGPUMetric(const std::string& name, GenericParameter const* tparam);
+  static Metric *CreateGPUMetric(const std::string &name, Context const *tparam);
 };
 
 /*!

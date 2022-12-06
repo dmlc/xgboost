@@ -67,8 +67,8 @@ class UpdaterEtaTest : public ::testing::Test {
   }
 
   void RunTest(std::string updater) {
-    GenericParameter ctx(updater == "grow_gpu_hist" ? CreateEmptyGenericParam(0)
-                                                    : CreateEmptyGenericParam(Context::kCpuId));
+    Context ctx(updater == "grow_gpu_hist" ? CreateEmptyGenericParam(0)
+                                           : CreateEmptyGenericParam(Context::kCpuId));
     float eta = 0.4;
     auto up_0 = std::unique_ptr<TreeUpdater>{
         TreeUpdater::Create(updater, &ctx, ObjInfo{ObjInfo::kClassification})};
@@ -140,9 +140,8 @@ class TestMinSplitLoss : public ::testing::Test {
               // test gamma
               {"gamma", std::to_string(gamma)}};
 
-    std::cout << "updater:" << updater << std::endl;
-    GenericParameter ctx(updater == "grow_gpu_hist" ? CreateEmptyGenericParam(0)
-                                                    : CreateEmptyGenericParam(Context::kCpuId));
+    Context ctx(updater == "grow_gpu_hist" ? CreateEmptyGenericParam(0)
+                                           : CreateEmptyGenericParam(Context::kCpuId));
     std::cout << ctx.gpu_id << std::endl;
     auto up = std::unique_ptr<TreeUpdater>{
         TreeUpdater::Create(updater, &ctx, ObjInfo{ObjInfo::kRegression})};

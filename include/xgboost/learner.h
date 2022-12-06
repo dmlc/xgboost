@@ -9,8 +9,8 @@
 #define XGBOOST_LEARNER_H_
 
 #include <xgboost/base.h>
+#include <xgboost/context.h>  // Context
 #include <xgboost/feature_map.h>
-#include <xgboost/generic_parameters.h>  // Context
 #include <xgboost/host_device_vector.h>
 #include <xgboost/model.h>
 #include <xgboost/predictor.h>

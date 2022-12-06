@@ -8,7 +8,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <xgboost/base.h>
-#include <xgboost/generic_parameters.h>
+#include <xgboost/context.h>
 #include <xgboost/json.h>
 
 #include <cstdio>
@@ -355,18 +355,17 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
     size_t n_rows, size_t n_cols, size_t page_size, bool deterministic,
     const dmlc::TemporaryDirectory& tempdir = dmlc::TemporaryDirectory());
 
-gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param, GenericParameter const* ctx,
+gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param, Context const* ctx,
                                  size_t n_classes = 1);
 
-std::unique_ptr<GradientBooster> CreateTrainedGBM(
-    std::string name, Args kwargs, size_t kRows, size_t kCols,
-    LearnerModelParam const* learner_model_param,
-    GenericParameter const* generic_param);
+std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs, size_t kRows,
+                                                  size_t kCols,
+                                                  LearnerModelParam const* learner_model_param,
+                                                  Context const* generic_param);
 
-inline GenericParameter CreateEmptyGenericParam(int gpu_id) {
-  xgboost::GenericParameter tparam;
-  std::vector<std::pair<std::string, std::string>> args {
-    {"gpu_id", std::to_string(gpu_id)}};
+inline Context CreateEmptyGenericParam(int gpu_id) {
+  xgboost::Context tparam;
+  std::vector<std::pair<std::string, std::string>> args{{"gpu_id", std::to_string(gpu_id)}};
   tparam.Init(args);
   return tparam;
 }
