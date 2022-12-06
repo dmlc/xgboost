@@ -40,13 +40,13 @@ jobs:
       run: |
         python tests/ci_build/lint_python.py --format=0 --type-check=0 --pylint=1
 
-  python-sdist-test:
+  python-sdist-test-on-Linux:
+    # Mismatched glibcxx version between system and conda forge.
     runs-on: ${{ matrix.os }}
     name: Test installing XGBoost Python source package on ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        python-version: ["3.8"]
+        os: [ubuntu-latest]
     steps:
     - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
@@ -57,6 +57,43 @@ jobs:
         cache-env: true
         environment-name: sdist_test
         environment-file: tests/ci_build/conda_env/sdist_test.yml
+    - name: Display Conda env
+      shell: bash -l {0}
+      run: |
+        conda info
+        conda list
+    - name: Build and install XGBoost
+      shell: bash -l {0}
+      run: |
+        cd python-package
+        python --version
+        python setup.py sdist
+        pip install -v ./dist/xgboost-*.tar.gz
+        cd ..
+        python -c 'import xgboost'
+
+  python-sdist-test:
+    # Use system toolchain instead of conda toolchain for macos and windows.
+    # MacOS has linker error if clang++ from conda-forge is used
+    runs-on: ${{ matrix.os }}
+    name: Test installing XGBoost Python source package on ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-11, windows-latest]
+        python-version: ["3.8"]
+    steps:
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
+      with:
+        submodules: 'true'
+    - name: Install osx system dependencies
+      if: matrix.os == 'macos-11'
+      run: |
+        brew install ninja libomp
+    - uses: conda-incubator/setup-miniconda@35d1405e78aa3f784fe3ce9a2eb378d5eeb62169 # v2.1.1
+      with:
+        auto-update-conda: true
+        python-version: ${{ matrix.python-version }}
+        activate-environment: test
     - name: Display Conda env
       shell: bash -l {0}
       run: |
@@ -117,7 +154,8 @@ jobs:
       run: |
         cd python-package
         python --version
-        python setup.py install
+        python setup.py bdist_wheel --universal
+        pip install ./dist/*.whl
 
     - name: Test Python package
       shell: bash -l {0}
@@ -128,38 +166,6 @@ jobs:
       shell: bash -l {0}
       run: |
         pytest -s -v -rxXs --durations=0 ./tests/test_distributed/test_with_dask
-
-  python-sdist-test-on-win:
-    # mamba doesn't work on Windows.
-    runs-on: ${{ matrix.os }}
-    name: Test installing XGBoost Python source package on ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [windows-latest]
-        python-version: ["3.8"]
-    steps:
-    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
-      with:
-        submodules: 'true'
-    - uses: conda-incubator/setup-miniconda@35d1405e78aa3f784fe3ce9a2eb378d5eeb62169 # v2.1.1
-      with:
-        auto-update-conda: true
-        python-version: ${{ matrix.python-version }}
-        activate-environment: test
-    - name: Display Conda env
-      shell: bash -l {0}
-      run: |
-        conda info
-        conda list
-    - name: Build and install XGBoost
-      shell: bash -l {0}
-      run: |
-        cd python-package
-        python --version
-        python setup.py sdist
-        pip install -v ./dist/xgboost-*.tar.gz
-        cd ..
-        python -c 'import xgboost'
 
   python-tests-on-win:
     name: Test XGBoost Python package on ${{ matrix.config.os }}
