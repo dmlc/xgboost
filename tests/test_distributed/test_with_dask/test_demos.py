@@ -20,7 +20,9 @@ def test_dask_cpu_survival_demo():
     subprocess.check_call(cmd)
 
 
+# Not actually run on CI due to missing dask_ml.
 @pytest.mark.skipif(**tm.no_dask())
+@pytest.mark.skipif(**tm.no_dask_ml())
 def test_dask_callbacks_demo():
     script = os.path.join(tm.demo_dir(__file__), "dask", "dask_callbacks.py")
     cmd = ["python", script]
