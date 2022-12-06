@@ -55,7 +55,7 @@ jobs:
     - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
       with:
         cache-downloads: true
-        cache-env: true
+        cache-env: false
         environment-name: sdist_test
         environment-file: tests/ci_build/conda_env/sdist_test.yml
     - name: Display Conda env
@@ -127,7 +127,7 @@ jobs:
     - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
       with:
         cache-downloads: true
-        cache-env: true
+        cache-env: false
         environment-name: macos_test
         environment-file: tests/ci_build/conda_env/macos_cpu_test.yml
 
