@@ -254,7 +254,7 @@ class RabitTracker:
         get a ring structure that tends to share nodes with the tree
         return a list starting from rank
         """
-        nset = {tree_map[rank]}
+        nset = set(tree_map[rank])
         cset = nset - {parent_map[rank]}
         if not cset:
             return [rank]
