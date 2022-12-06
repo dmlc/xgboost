@@ -1,7 +1,7 @@
 # type: ignore
 """Xgboost pyspark integration submodule for core code."""
 # pylint: disable=fixme, too-many-ancestors, protected-access, no-member, invalid-name
-# pylint: disable=too-few-public-methods, too-many-lines
+# pylint: disable=too-few-public-methods, too-many-lines, too-many-branches
 import json
 from typing import Iterator, Optional, Tuple
 
@@ -775,32 +775,19 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             if use_gpu:
                 gpu_id = context.partitionId() if is_local else _get_gpu_id(context)
                 booster_params["gpu_id"] = gpu_id
-
-            # If cuDF is not installed, then using DMatrix instead of QDM,
-            # because without cuDF, DMatrix performs better than QDM.
-            # Note: Checking `is_cudf_available` in spark worker side because
-            # spark worker might has different python environment with driver side.
-            if use_gpu:
+                # If cuDF is not installed, then using DMatrix instead of QDM,
+                # because without cuDF, DMatrix performs better than QDM.
+                # Note: Checking `is_cudf_available` in spark worker side because
+                # spark worker might has different python environment with driver side.
                 use_qdm = use_hist and is_cudf_available()
+                if booster_params.get("max_bin", None) is not None:
+                    dmatrix_kwargs["max_bin"] = booster_params["max_bin"]
             else:
                 use_qdm = use_hist
 
             _rabit_args = {}
             if context.partitionId() == 0:
                 _rabit_args = _get_rabit_args(context, num_workers)
-
-            worker_message = {
-                "rabit_msg": _rabit_args,
-                "use_qdm": use_qdm,
-            }
-
-            messages = context.allGather(message=json.dumps(worker_message))
-
-            use_qdm = all(json.loads(x)["use_qdm"] for x in messages)
-            if use_qdm and (booster_params.get("max_bin", None) is not None):
-                dmatrix_kwargs["max_bin"] = booster_params["max_bin"]
-
-            if context.partitionId() == 0:
                 get_logger("XGBoostPySpark").debug(
                     "booster params: %s\n"
                     "train_call_kwargs_params: %s\n"
@@ -810,7 +797,17 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                     dmatrix_kwargs,
                 )
 
+            worker_message = {
+                "rabit_msg": _rabit_args,
+                "use_qdm": use_qdm,
+            }
+
+            messages = context.allGather(message=json.dumps(worker_message))
+            if len(set(json.loads(x)["use_qdm"] for x in messages)) != 1:
+                raise RuntimeError("The workers' cudf environments are in-consistent ")
+
             _rabit_args = json.loads(messages[0])["rabit_msg"]
+
             evals_result = {}
             with CommunicatorContext(context, **_rabit_args):
                 dtrain, dvalid = create_dmatrix_from_partitions(
