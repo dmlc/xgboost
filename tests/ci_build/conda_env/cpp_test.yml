@@ -1,5 +1,5 @@
 # conda environment for CPP test on Linux distributions
-name: cpu_test
+name: cpp_test
 channels:
 - defaults
 - conda-forge

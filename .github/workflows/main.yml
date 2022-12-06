@@ -79,7 +79,7 @@ jobs:
       with:
         cache-downloads: true
         cache-env: true
-        environment-name: python_lint
+        environment-name: cpp_test
         environment-file: tests/ci_build/conda_env/cpp_test.yml
     - name: Display Conda env
       shell: bash -l {0}
