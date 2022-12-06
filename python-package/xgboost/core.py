@@ -1160,7 +1160,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
                 raise ValueError(msg)
             # prohibit to use symbols may affect to parse. e.g. []<
             if not all(isinstance(f, str) and
-                       not any(x in f for x in set('[', ']', '<'))
+                       not any(x in f for x in {'[', ']', '<'})
                        for f in feature_names):
                 raise ValueError('feature_names must be string, and may not contain [, ] or <')
             feature_names_bytes = [bytes(f, encoding='utf-8') for f in feature_names]
