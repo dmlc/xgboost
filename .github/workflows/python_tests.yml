@@ -154,8 +154,7 @@ jobs:
       run: |
         cd python-package
         python --version
-        python setup.py bdist_wheel --universal
-        pip install ./dist/*.whl
+        python setup.py install
 
     - name: Test Python package
       shell: bash -l {0}
