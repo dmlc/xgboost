@@ -780,14 +780,14 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 # Note: Checking `is_cudf_available` in spark worker side because
                 # spark worker might has different python environment with driver side.
                 use_qdm = use_hist and is_cudf_available()
-                if booster_params.get("max_bin", None) is not None:
-                    dmatrix_kwargs["max_bin"] = booster_params["max_bin"]
             else:
                 use_qdm = use_hist
 
+            if use_qdm and (booster_params.get("max_bin", None) is not None):
+                dmatrix_kwargs["max_bin"] = booster_params["max_bin"]
+
             _rabit_args = {}
             if context.partitionId() == 0:
-                _rabit_args = _get_rabit_args(context, num_workers)
                 get_logger("XGBoostPySpark").debug(
                     "booster params: %s\n"
                     "train_call_kwargs_params: %s\n"
@@ -796,6 +796,8 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                     train_call_kwargs_params,
                     dmatrix_kwargs,
                 )
+
+                _rabit_args = _get_rabit_args(context, num_workers)
 
             worker_message = {
                 "rabit_msg": _rabit_args,
