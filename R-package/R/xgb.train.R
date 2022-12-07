@@ -21,9 +21,10 @@
 #'   \item{ \code{eta} control the learning rate: scale the contribution of each tree by a factor of \code{0 < eta < 1}
 #'          when it is added to the current approximation.
 #'          Used to prevent overfitting by making the boosting process more conservative.
-#'          Lower value for \code{eta} implies larger value for \code{nrounds}: low \code{eta} value means model more robust to overfitting but slower to compute.
-#'          Default: 0.3}
-#'   \item \code{gamma} minimum loss reduction required to make a further partition on a leaf node of the tree. the larger, the more conservative the algorithm will be.
+#'          Lower value for \code{eta} implies larger value for \code{nrounds}: low \code{eta} value means model
+#'          more robust to overfitting but slower to compute. Default: 0.3}
+#'   \item{ \code{gamma} minimum loss reduction required to make a further partition on a leaf node of the tree.
+#'          the larger, the more conservative the algorithm will be.}
 #'   \item \code{max_depth} maximum depth of a tree. Default: 6
 #'   \item{\code{min_child_weight} minimum sum of instance weight (hessian) needed in a child.
 #'         If the tree partition step results in a leaf node with the sum of instance weight less than min_child_weight,
@@ -78,8 +79,8 @@
 #'     \item{ \code{survival:cox}: Cox regression for right censored survival time data (negative values are considered right censored).
 #'            Note that predictions are returned on the hazard ratio scale (i.e., as HR = exp(marginal_prediction) in the proportional
 #'            hazard function \code{h(t) = h0(t) * HR)}.}
-#'     \item{ \code{survival:aft}: Accelerated failure time model for censored survival time data.
-#'            See \href{https://xgboost.readthedocs.io/en/latest/tutorials/aft_survival_analysis.html}{Survival Analysis with Accelerated Failure Time}
+#'     \item{ \code{survival:aft}: Accelerated failure time model for censored survival time data. See
+#'            \href{https://xgboost.readthedocs.io/en/latest/tutorials/aft_survival_analysis.html}{Survival Analysis with Accelerated Failure Time}
 #'            for details.}
 #'     \item \code{aft_loss_distribution}: Probability Density Function used by \code{survival:aft} and \code{aft-nloglik} metric.
 #'     \item{ \code{multi:softmax} set xgboost to do multiclass classification using the softmax objective.
@@ -105,7 +106,8 @@
 #'   \item \code{base_score} the initial prediction score of all instances, global bias. Default: 0.5
 #'   \item{ \code{eval_metric} evaluation metrics for validation data.
 #'          Users can pass a self-defined function to it.
-#'          Default: metric will be assigned according to objective(rmse for regression, and error for classification, mean average precision for ranking).
+#'          Default: metric will be assigned according to objective
+#'          (rmse for regression, and error for classification, mean average precision for ranking).
 #'          List is provided in detail section.}
 #' }
 #'
@@ -183,7 +185,8 @@
 #'      \item \code{merror} Multiclass classification error rate. It is calculated as \code{(# wrong cases) / (# all cases)}.
 #'      \item \code{mae} Mean absolute error
 #'      \item \code{mape} Mean absolute percentage error
-#'      \item \code{auc} Area under the curve. \url{https://en.wikipedia.org/wiki/Receiver_operating_characteristic#'Area_under_curve} for ranking evaluation.
+#'      \item{ \code{auc} Area under the curve.
+#'             \url{https://en.wikipedia.org/wiki/Receiver_operating_characteristic#'Area_under_curve} for ranking evaluation.}
 #'      \item \code{aucpr} Area under the PR curve. \url{https://en.wikipedia.org/wiki/Precision_and_recall} for ranking evaluation.
 #'      \item \code{ndcg} Normalized Discounted Cumulative Gain (for ranking task). \url{https://en.wikipedia.org/wiki/NDCG}
 #'   }

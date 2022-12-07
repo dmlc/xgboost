@@ -354,7 +354,17 @@ If with your own dataset you have not such results, you should think about how y
 For a better understanding of the learning progression, you may want to have some specific metric or even use multiple evaluation metrics.
 
 ```{r watchlist2, message=F, warning=F}
-bst <- xgb.train(data=dtrain, max_depth=2, eta=1, nthread = 2, nrounds=2, watchlist=watchlist, eval_metric = "error", eval_metric = "logloss", objective = "binary:logistic")
+bst <- xgb.train(
+    data = dtrain
+    , max_depth = 2
+    , eta = 1
+    , nthread = 2
+    , nrounds = 2
+    , watchlist = watchlist
+    , eval_metric = "error"
+    , eval_metric = "logloss"
+    , objective = "binary:logistic"
+)
 ```
 
 > `eval_metric` allows us to monitor two new metrics for each round, `logloss` and `error`.
