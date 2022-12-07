@@ -60,6 +60,8 @@ class MetaInfo {
   uint64_t num_nonzero_{0};  // NOLINT
   /*! \brief label of each instance */
   linalg::Tensor<float, 2> labels;
+  /*! \brief data split mode */
+  DataSplitMode data_split_mode{DataSplitMode::kNone};
   /*!
    * \brief the index of begin and end of a group
    *  needed when the learning task is ranking.

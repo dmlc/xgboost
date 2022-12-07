@@ -65,6 +65,7 @@ DMatrix* SimpleDMatrix::SliceCol(std::size_t start, std::size_t size) {
     out->Info() = this->Info().Copy();
     out->Info().num_nonzero_ = h_offset.back();
   }
+  out->Info().data_split_mode = DataSplitMode::kCol;
   return out;
 }
 

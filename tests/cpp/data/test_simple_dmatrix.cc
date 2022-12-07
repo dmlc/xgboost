@@ -22,6 +22,7 @@ TEST(SimpleDMatrix, MetaInfo) {
   EXPECT_EQ(dmat->Info().num_col_, 5);
   EXPECT_EQ(dmat->Info().num_nonzero_, 6);
   EXPECT_EQ(dmat->Info().labels.Size(), dmat->Info().num_row_);
+  EXPECT_EQ(dmat->Info().data_split_mode, DataSplitMode::kNone);
 
   delete dmat;
 }
@@ -360,6 +361,7 @@ TEST(SimpleDMatrix, SliceCol) {
     ASSERT_EQ(out->Info().num_col_, out->Info().num_col_);
     ASSERT_EQ(out->Info().num_row_, kRows);
     ASSERT_EQ(out->Info().num_nonzero_, kRows * kSlicCols);  // dense
+    ASSERT_EQ(out->Info().data_split_mode, DataSplitMode::kCol);
   }
 }
 
