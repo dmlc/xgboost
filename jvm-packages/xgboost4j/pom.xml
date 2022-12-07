@@ -34,13 +34,13 @@
         <dependency>
             <groupId>com.typesafe.akka</groupId>
             <artifactId>akka-actor_${scala.binary.version}</artifactId>
-            <version>2.5.23</version>
+            <version>2.7.0</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>com.typesafe.akka</groupId>
             <artifactId>akka-testkit_${scala.binary.version}</artifactId>
-            <version>2.5.23</version>
+            <version>2.7.0</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -56,7 +56,7 @@
           <plugin>
               <groupId>org.apache.maven.plugins</groupId>
               <artifactId>maven-javadoc-plugin</artifactId>
-              <version>2.10.3</version>
+              <version>3.4.1</version>
               <configuration>
                   <show>protected</show>
                   <nohelp>true</nohelp>
@@ -72,7 +72,7 @@
           <plugin>
               <artifactId>exec-maven-plugin</artifactId>
               <groupId>org.codehaus.mojo</groupId>
-              <version>1.6.0</version>
+              <version>3.1.0</version>
               <executions>
                   <execution>
                       <id>native</id>
@@ -95,7 +95,7 @@
           <plugin>
               <groupId>org.apache.maven.plugins</groupId>
               <artifactId>maven-jar-plugin</artifactId>
-              <version>3.0.2</version>
+              <version>3.3.0</version>
               <executions>
                   <execution>
                       <goals>
@@ -107,7 +107,7 @@
           <plugin>
               <groupId>org.apache.maven.plugins</groupId>
               <artifactId>maven-resources-plugin</artifactId>
-              <version>3.1.0</version>
+              <version>3.3.0</version>
               <configuration>
                   <nonFilteredFileExtensions>
                       <nonFilteredFileExtension>dll</nonFilteredFileExtension>

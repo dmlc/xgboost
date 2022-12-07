@@ -51,13 +51,13 @@ pom_template = """
     <dependency>
       <groupId>com.typesafe.akka</groupId>
       <artifactId>akka-actor_${{scala.binary.version}}</artifactId>
-      <version>2.5.23</version>
+      <version>2.7.0</version>
       <scope>compile</scope>
     </dependency>
     <dependency>
       <groupId>com.typesafe.akka</groupId>
       <artifactId>akka-testkit_${{scala.binary.version}}</artifactId>
-      <version>2.5.23</version>
+      <version>2.7.0</version>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -75,7 +75,7 @@ pom_template = """
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-lang3</artifactId>
-      <version>3.4</version>
+      <version>3.9</version>
     </dependency>
     <dependency>
       <groupId>org.apache.spark</groupId>

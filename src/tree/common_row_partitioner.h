@@ -11,8 +11,8 @@
 
 #include "../common/numeric.h"  // Iota
 #include "../common/partition_builder.h"
-#include "hist/expand_entry.h"           // CPUExpandEntry
-#include "xgboost/generic_parameters.h"  // Context
+#include "hist/expand_entry.h"  // CPUExpandEntry
+#include "xgboost/context.h"    // Context
 
 namespace xgboost {
 namespace tree {

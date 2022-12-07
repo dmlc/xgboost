@@ -18,13 +18,13 @@ package ml.dmlc.xgboost4j.scala
 
 import _root_.scala.collection.JavaConverters._
 
-import ml.dmlc.xgboost4j.java.{Column, ColumnBatch, XGBoostError, DeviceQuantileDMatrix => JDeviceQuantileDMatrix}
+import ml.dmlc.xgboost4j.java.{Column, ColumnBatch, XGBoostError, QuantileDMatrix => JQuantileDMatrix}
 
-class DeviceQuantileDMatrix private[scala](
-  private[scala] override val jDMatrix: JDeviceQuantileDMatrix) extends DMatrix(jDMatrix) {
+class QuantileDMatrix private[scala](
+  private[scala] override val jDMatrix: JQuantileDMatrix) extends DMatrix(jDMatrix) {
 
   /**
-   * Create DeviceQuantileDMatrix from iterator based on the cuda array interface
+   * Create QuantileDMatrix from iterator based on the cuda array interface
    *
    * @param iter    the XGBoost ColumnBatch batch to provide the corresponding cuda array interface
    * @param missing the missing value
@@ -33,7 +33,7 @@ class DeviceQuantileDMatrix private[scala](
    * @throws XGBoostError
    */
   def this(iter: Iterator[ColumnBatch], missing: Float, maxBin: Int, nthread: Int) {
-    this(new JDeviceQuantileDMatrix(iter.asJava, missing, maxBin, nthread))
+    this(new JQuantileDMatrix(iter.asJava, missing, maxBin, nthread))
   }
 
   /**
@@ -43,7 +43,7 @@ class DeviceQuantileDMatrix private[scala](
    */
   @throws(classOf[XGBoostError])
   override def setLabel(labels: Array[Float]): Unit =
-    throw new XGBoostError("DeviceQuantileDMatrix does not support setLabel.")
+    throw new XGBoostError("QuantileDMatrix does not support setLabel.")
 
   /**
    * set weight of each instance
@@ -52,7 +52,7 @@ class DeviceQuantileDMatrix private[scala](
    */
   @throws(classOf[XGBoostError])
   override def setWeight(weights: Array[Float]): Unit =
-    throw new XGBoostError("DeviceQuantileDMatrix does not support setWeight.")
+    throw new XGBoostError("QuantileDMatrix does not support setWeight.")
 
   /**
    * if specified, xgboost will start from this init margin
@@ -62,7 +62,7 @@ class DeviceQuantileDMatrix private[scala](
    */
   @throws(classOf[XGBoostError])
   override def setBaseMargin(baseMargin: Array[Float]): Unit =
-    throw new XGBoostError("DeviceQuantileDMatrix does not support setBaseMargin.")
+    throw new XGBoostError("QuantileDMatrix does not support setBaseMargin.")
 
   /**
    * if specified, xgboost will start from this init margin
@@ -72,7 +72,7 @@ class DeviceQuantileDMatrix private[scala](
    */
   @throws(classOf[XGBoostError])
   override def setBaseMargin(baseMargin: Array[Array[Float]]): Unit =
-    throw new XGBoostError("DeviceQuantileDMatrix does not support setBaseMargin.")
+    throw new XGBoostError("QuantileDMatrix does not support setBaseMargin.")
 
   /**
    * Set group sizes of DMatrix (used for ranking)
@@ -81,27 +81,27 @@ class DeviceQuantileDMatrix private[scala](
    */
   @throws(classOf[XGBoostError])
   override def setGroup(group: Array[Int]): Unit =
-    throw new XGBoostError("DeviceQuantileDMatrix does not support setGroup.")
+    throw new XGBoostError("QuantileDMatrix does not support setGroup.")
 
   /**
    * Set label of DMatrix from cuda array interface
    */
   @throws(classOf[XGBoostError])
   override def setLabel(column: Column): Unit =
-    throw new XGBoostError("DeviceQuantileDMatrix does not support setLabel.")
+    throw new XGBoostError("QuantileDMatrix does not support setLabel.")
 
   /**
    * set weight of dmatrix from column array interface
    */
   @throws(classOf[XGBoostError])
   override def setWeight(column: Column): Unit =
-    throw new XGBoostError("DeviceQuantileDMatrix does not support setWeight.")
+    throw new XGBoostError("QuantileDMatrix does not support setWeight.")
 
   /**
    * set base margin of dmatrix from column array interface
    */
   @throws(classOf[XGBoostError])
   override def setBaseMargin(column: Column): Unit =
-    throw new XGBoostError("DeviceQuantileDMatrix does not support setBaseMargin.")
+    throw new XGBoostError("QuantileDMatrix does not support setBaseMargin.")
 
 }

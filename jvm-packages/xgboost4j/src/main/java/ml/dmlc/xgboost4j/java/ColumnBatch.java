@@ -71,7 +71,7 @@ public abstract class ColumnBatch implements AutoCloseable {
   /**
    * Get the cuda array interface of the label columns.
    * The returned value must not be null or empty if we're creating
-   *  {@link DeviceQuantileDMatrix#DeviceQuantileDMatrix(Iterator, float, int, int)}
+   *  {@link QuantileDMatrix#QuantileDMatrix(Iterator, float, int, int)}
    */
   public abstract String getLabelsArrayInterface();
 

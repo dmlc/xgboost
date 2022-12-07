@@ -2,12 +2,13 @@
  * Copyright 2022 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
+
 #include <utility>
 #include <vector>
 
 #include "../../../src/common/stats.cuh"
 #include "xgboost/base.h"
-#include "xgboost/generic_parameters.h"
+#include "xgboost/context.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/linalg.h"
 

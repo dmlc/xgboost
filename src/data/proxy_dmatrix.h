@@ -10,10 +10,10 @@
 #include <string>
 #include <utility>
 
-#include "xgboost/data.h"
-#include "xgboost/generic_parameters.h"
-#include "xgboost/c_api.h"
 #include "adapter.h"
+#include "xgboost/c_api.h"
+#include "xgboost/context.h"
+#include "xgboost/data.h"
 
 namespace xgboost {
 namespace data {
@@ -85,6 +85,10 @@ class DMatrixProxy : public DMatrix {
 
   DMatrix* Slice(common::Span<int32_t const> /*ridxs*/) override {
     LOG(FATAL) << "Slicing DMatrix is not supported for Proxy DMatrix.";
+    return nullptr;
+  }
+  DMatrix* SliceCol(std::size_t, std::size_t) override {
+    LOG(FATAL) << "Slicing DMatrix columns is not supported for Proxy DMatrix.";
     return nullptr;
   }
   BatchSet<SparsePage> GetRowBatches() override {

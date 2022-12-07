@@ -8,7 +8,8 @@
 
 #include "common.h"
 #include "threading_utils.h"
-#include "xgboost/generic_parameters.h"
+#include "transform_iterator.h"  // MakeIndexTransformIter
+#include "xgboost/context.h"     // Context
 #include "xgboost/linalg.h"
 
 namespace xgboost {
@@ -53,7 +54,7 @@ void ElementWiseTransformDevice(linalg::TensorView<T, D>, Fn&&, void* = nullptr)
 }
 
 template <typename T, int32_t D, typename Fn>
-void ElementWiseKernel(GenericParameter const* ctx, linalg::TensorView<T, D> t, Fn&& fn) {
+void ElementWiseKernel(Context const* ctx, linalg::TensorView<T, D> t, Fn&& fn) {
   if (!ctx->IsCPU()) {
     common::AssertGPUSupport();
   }

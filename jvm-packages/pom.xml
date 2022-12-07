@@ -37,7 +37,7 @@
         <spark.version>3.0.1</spark.version>
         <scala.version>2.12.8</scala.version>
         <scala.binary.version>2.12</scala.binary.version>
-        <hadoop.version>2.7.3</hadoop.version>
+        <hadoop.version>3.3.4</hadoop.version>
         <maven.wagon.http.retryHandler.count>5</maven.wagon.http.retryHandler.count>
         <log.capi.invocation>OFF</log.capi.invocation>
         <use.cuda>OFF</use.cuda>
@@ -100,7 +100,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-jar-plugin</artifactId>
-                        <version>3.0.2</version>
+                        <version>3.3.0</version>
                         <executions>
                             <execution>
                                 <id>empty-javadoc-jar</id>
@@ -143,7 +143,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-source-plugin</artifactId>
-                        <version>2.2.1</version>
+                        <version>3.2.1</version>
                         <executions>
                             <execution>
                                 <id>attach-sources</id>
@@ -181,7 +181,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-assembly-plugin</artifactId>
-                        <version>2.6</version>
+                        <version>3.4.2</version>
                         <configuration>
                             <descriptorRefs>
                                 <descriptorRef>jar-with-dependencies</descriptorRef>
@@ -252,7 +252,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-deploy-plugin</artifactId>
-                        <version>2.8.2</version>
+                        <version>3.0.0</version>
                         <configuration>
                             <altDeploymentRepository>internal.repo::default::file://${project.build.directory}/mvn-repo</altDeploymentRepository>
                         </configuration>
@@ -329,7 +329,7 @@
             <plugin>
               <groupId>org.scalatest</groupId>
               <artifactId>scalatest-maven-plugin</artifactId>
-              <version>1.0</version>
+              <version>2.2.0</version>
               <executions>
                 <execution>
                   <id>test</id>
@@ -369,7 +369,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-site-plugin</artifactId>
-                <version>3.0</version>
+                <version>3.12.1</version>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -392,7 +392,7 @@
             <plugin>
                 <groupId>net.alchim31.maven</groupId>
                 <artifactId>scala-maven-plugin</artifactId>
-                <version>3.2.2</version>
+                <version>4.8.0</version>
                 <executions>
                     <execution>
                         <id>compile</id>
@@ -440,9 +440,9 @@
         </plugins>
         <extensions>
             <extension>
-                <groupId>org.kuali.maven.wagons</groupId>
+                <groupId>com.github.seahen</groupId>
                 <artifactId>maven-s3-wagon</artifactId>
-                <version>1.2.1</version>
+                <version>1.3.3</version>
             </extension>
         </extensions>
     </build>
@@ -455,7 +455,7 @@
             <plugin>
                 <groupId>net.alchim31.maven</groupId>
                 <artifactId>scala-maven-plugin</artifactId>
-                <version>3.2.1</version>
+                <version>4.8.0</version>
                 <configuration>
                     <jvmArgs>
                         <jvmArg>-Xms64m</jvmArg>
@@ -469,7 +469,7 @@
         <dependency>
             <groupId>com.esotericsoftware</groupId>
             <artifactId>kryo</artifactId>
-            <version>4.0.2</version>
+            <version>5.3.0</version>
         </dependency>
         <dependency>
             <groupId>org.scala-lang</groupId>

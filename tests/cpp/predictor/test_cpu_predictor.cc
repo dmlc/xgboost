@@ -23,7 +23,7 @@ TEST(CpuPredictor, Basic) {
 
   LearnerModelParam mparam{MakeMP(kCols, .0, 1)};
 
-  GenericParameter ctx;
+  Context ctx;
   ctx.UpdateAllowUnknown(Args{});
   gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx);
 
@@ -103,7 +103,7 @@ TEST(CpuPredictor, ExternalMemory) {
 
   LearnerModelParam mparam{MakeMP(dmat->Info().num_col_, .0, 1)};
 
-  GenericParameter ctx;
+  Context ctx;
   ctx.UpdateAllowUnknown(Args{});
   gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx);
 

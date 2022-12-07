@@ -15,11 +15,10 @@ pkgs <- c(
   "DiagrammeR",
   "Ckmeans.1d.dp",
   "vcd",
-  "testthat",
   "lintr",
+  "testthat",
   "igraph",
   "float",
-  "crayon",
   "titanic",
   ## imports
   "Matrix",

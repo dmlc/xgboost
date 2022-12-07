@@ -3,13 +3,13 @@
  */
 #include <gtest/gtest.h>
 #include <xgboost/objective.h>
-#include <xgboost/generic_parameters.h>
+#include <xgboost/context.h>
 #include <xgboost/json.h>
 #include "../helpers.h"
 namespace xgboost {
 
 TEST(Plugin, LinearRegressionGPairOneAPI) {
-  GenericParameter tparam = CreateEmptyGenericParam(0);
+  Context tparam = CreateEmptyGenericParam(0);
   std::vector<std::pair<std::string, std::string>> args;
 
   std::unique_ptr<ObjFunction> obj {
@@ -33,7 +33,7 @@ TEST(Plugin, LinearRegressionGPairOneAPI) {
 }
 
 TEST(Plugin, SquaredLogOneAPI) {
-  GenericParameter tparam = CreateEmptyGenericParam(0);
+  Context tparam = CreateEmptyGenericParam(0);
   std::vector<std::pair<std::string, std::string>> args;
 
   std::unique_ptr<ObjFunction> obj { ObjFunction::Create("reg:squaredlogerror_oneapi", &tparam) };
@@ -56,7 +56,7 @@ TEST(Plugin, SquaredLogOneAPI) {
 }
 
 TEST(Plugin, LogisticRegressionGPairOneAPI) {
-  GenericParameter tparam = CreateEmptyGenericParam(0);
+  Context tparam = CreateEmptyGenericParam(0);
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj { ObjFunction::Create("reg:logistic_oneapi", &tparam) };
 
@@ -72,7 +72,7 @@ TEST(Plugin, LogisticRegressionGPairOneAPI) {
 }
 
 TEST(Plugin, LogisticRegressionBasicOneAPI) {
-  GenericParameter lparam = CreateEmptyGenericParam(0);
+  Context lparam = CreateEmptyGenericParam(0);
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj {
     ObjFunction::Create("reg:logistic_oneapi", &lparam)
@@ -103,7 +103,7 @@ TEST(Plugin, LogisticRegressionBasicOneAPI) {
 }
 
 TEST(Plugin, LogisticRawGPairOneAPI) {
-  GenericParameter lparam = CreateEmptyGenericParam(0);
+  Context lparam = CreateEmptyGenericParam(0);
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction>  obj {
     ObjFunction::Create("binary:logitraw_oneapi", &lparam)
@@ -120,12 +120,12 @@ TEST(Plugin, LogisticRawGPairOneAPI) {
 }
 
 TEST(Plugin, CPUvsOneAPI) {
-  GenericParameter lparam = CreateEmptyGenericParam(0);
+  Context ctx = CreateEmptyGenericParam(0);
 
   ObjFunction * obj_cpu =
-      ObjFunction::Create("reg:squarederror", &lparam);
+      ObjFunction::Create("reg:squarederror", &ctx);
   ObjFunction * obj_oneapi =
-      ObjFunction::Create("reg:squarederror_oneapi", &lparam);
+      ObjFunction::Create("reg:squarederror_oneapi", &ctx);
   HostDeviceVector<GradientPair> cpu_out_preds;
   HostDeviceVector<GradientPair> oneapi_out_preds;
 
@@ -148,12 +148,12 @@ TEST(Plugin, CPUvsOneAPI) {
 
   {
     // CPU
-    lparam.gpu_id = -1;
+    ctx.gpu_id = -1;
     obj_cpu->GetGradient(preds, info, 0, &cpu_out_preds);
   }
   {
     // oneapi
-    lparam.gpu_id = 0;
+    ctx.gpu_id = 0;
     obj_oneapi->GetGradient(preds, info, 0, &oneapi_out_preds);
   }
 

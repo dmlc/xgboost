@@ -149,8 +149,12 @@ class XGBoostJNI {
   public final static native int XGDMatrixSetInfoFromInterface(
     long handle, String field, String json);
 
+  @Deprecated
   public final static native int XGDeviceQuantileDMatrixCreateFromCallback(
     java.util.Iterator<ColumnBatch> iter, float missing, int nthread, int maxBin, long[] out);
+
+  public final static native int XGQuantileDMatrixCreateFromCallback(
+    java.util.Iterator<ColumnBatch> iter, java.util.Iterator<ColumnBatch> ref, String config, long[] out);
 
   public final static native int XGDMatrixCreateFromArrayInterfaceColumns(
     String featureJson, float missing, int nthread, long[] out);

@@ -8,8 +8,9 @@
 #include <limits>
 #include <vector>
 
-#include "common.h"  // AssertGPUSupport
-#include "xgboost/generic_parameters.h"
+#include "common.h"              // AssertGPUSupport
+#include "transform_iterator.h"  // MakeIndexTransformIter
+#include "xgboost/context.h"     // Context
 #include "xgboost/linalg.h"
 
 namespace xgboost {

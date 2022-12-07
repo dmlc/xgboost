@@ -45,6 +45,29 @@ DMatrix* SimpleDMatrix::Slice(common::Span<int32_t const> ridxs) {
   return out;
 }
 
+DMatrix* SimpleDMatrix::SliceCol(std::size_t start, std::size_t size) {
+  auto out = new SimpleDMatrix;
+  SparsePage& out_page = *out->sparse_page_;
+  for (auto const &page : this->GetBatches<SparsePage>()) {
+    auto batch = page.GetView();
+    auto& h_data = out_page.data.HostVector();
+    auto& h_offset = out_page.offset.HostVector();
+    size_t rptr{0};
+    for (bst_row_t i = 0; i < this->Info().num_row_; i++) {
+      auto inst = batch[i];
+      auto prev_size = h_data.size();
+      std::copy_if(inst.begin(), inst.end(), std::back_inserter(h_data), [&](Entry e) {
+        return e.index >= start && e.index < start + size;
+      });
+      rptr += h_data.size() - prev_size;
+      h_offset.emplace_back(rptr);
+    }
+    out->Info() = this->Info().Copy();
+    out->Info().num_nonzero_ = h_offset.back();
+  }
+  return out;
+}
+
 BatchSet<SparsePage> SimpleDMatrix::GetRowBatches() {
   // since csr is the default data structure so `source_` is always available.
   auto begin_iter = BatchIterator<SparsePage>(

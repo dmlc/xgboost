@@ -256,7 +256,7 @@ TEST(SimpleDMatrix, Slice) {
   std::iota(upper.begin(), upper.end(), 1.0f);
 
   auto& margin = p_m->Info().base_margin_;
-  margin = decltype(p_m->Info().base_margin_){{kRows, kClasses}, GenericParameter::kCpuId};
+  margin = decltype(p_m->Info().base_margin_){{kRows, kClasses}, Context::kCpuId};
 
   std::array<int32_t, 3> ridxs {1, 3, 5};
   std::unique_ptr<DMatrix> out { p_m->Slice(ridxs) };
@@ -286,8 +286,8 @@ TEST(SimpleDMatrix, Slice) {
         ASSERT_EQ(p_m->Info().weights_.HostVector().at(ridx),
                   out->Info().weights_.HostVector().at(i));
 
-        auto out_margin = out->Info().base_margin_.View(GenericParameter::kCpuId);
-        auto in_margin = margin.View(GenericParameter::kCpuId);
+        auto out_margin = out->Info().base_margin_.View(Context::kCpuId);
+        auto in_margin = margin.View(Context::kCpuId);
         for (size_t j = 0; j < kClasses; ++j) {
           ASSERT_EQ(out_margin(i, j), in_margin(ridx, j));
         }
@@ -298,6 +298,69 @@ TEST(SimpleDMatrix, Slice) {
   ASSERT_EQ(out->Info().num_col_, out->Info().num_col_);
   ASSERT_EQ(out->Info().num_row_, ridxs.size());
   ASSERT_EQ(out->Info().num_nonzero_, ridxs.size() * kCols);  // dense
+}
+
+TEST(SimpleDMatrix, SliceCol) {
+  size_t constexpr kRows {16};
+  size_t constexpr kCols {8};
+  size_t constexpr kClasses {3};
+  auto p_m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
+  auto& weights = p_m->Info().weights_.HostVector();
+  weights.resize(kRows);
+  std::iota(weights.begin(), weights.end(), 0.0f);
+
+  auto& lower = p_m->Info().labels_lower_bound_.HostVector();
+  auto& upper = p_m->Info().labels_upper_bound_.HostVector();
+  lower.resize(kRows);
+  upper.resize(kRows);
+
+  std::iota(lower.begin(), lower.end(), 0.0f);
+  std::iota(upper.begin(), upper.end(), 1.0f);
+
+  auto& margin = p_m->Info().base_margin_;
+  margin = decltype(p_m->Info().base_margin_){{kRows, kClasses}, Context::kCpuId};
+
+  size_t constexpr kSlicCols {4};
+  for (auto slice = 0; slice < 2; slice++) {
+    auto const slice_start = slice * kSlicCols;
+    std::unique_ptr<DMatrix> out { p_m->SliceCol(slice_start, kSlicCols) };
+    ASSERT_EQ(out->Info().labels.Size(), kRows);
+    ASSERT_EQ(out->Info().labels_lower_bound_.Size(), kRows);
+    ASSERT_EQ(out->Info().labels_upper_bound_.Size(), kRows);
+    ASSERT_EQ(out->Info().base_margin_.Size(), kRows * kClasses);
+
+    for (auto const &in_batch : p_m->GetBatches<SparsePage>()) {
+      auto in_page = in_batch.GetView();
+      for (auto const &out_batch : out->GetBatches<SparsePage>()) {
+        auto out_page = out_batch.GetView();
+        for (size_t i = 0; i < kRows; ++i) {
+          auto out_inst = out_page[i];
+          auto in_inst = in_page[i];
+          ASSERT_EQ(out_inst.size() * 2, in_inst.size()) << i;
+          for (size_t j = 0; j < kSlicCols; ++j) {
+            ASSERT_EQ(in_inst[slice_start + j].fvalue, out_inst[j].fvalue);
+            ASSERT_EQ(in_inst[slice_start + j].index, out_inst[j].index);
+          }
+
+          ASSERT_EQ(p_m->Info().labels_lower_bound_.HostVector().at(i),
+                    out->Info().labels_lower_bound_.HostVector().at(i));
+          ASSERT_EQ(p_m->Info().labels_upper_bound_.HostVector().at(i),
+                    out->Info().labels_upper_bound_.HostVector().at(i));
+          ASSERT_EQ(p_m->Info().weights_.HostVector().at(i), out->Info().weights_.HostVector().at(i));
+
+          auto out_margin = out->Info().base_margin_.View(Context::kCpuId);
+          auto in_margin = margin.View(Context::kCpuId);
+          for (size_t j = 0; j < kClasses; ++j) {
+            ASSERT_EQ(out_margin(i, j), in_margin(i, j));
+          }
+        }
+      }
+    }
+
+    ASSERT_EQ(out->Info().num_col_, out->Info().num_col_);
+    ASSERT_EQ(out->Info().num_row_, kRows);
+    ASSERT_EQ(out->Info().num_nonzero_, kRows * kSlicCols);  // dense
+  }
 }
 
 TEST(SimpleDMatrix, SaveLoadBinary) {

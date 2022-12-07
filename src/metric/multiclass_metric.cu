@@ -126,13 +126,10 @@ class MultiClassMetricsReduction {
 
 #endif  // XGBOOST_USE_CUDA
 
-  PackedReduceResult Reduce(
-      const GenericParameter &tparam,
-      int device,
-      size_t n_class,
-      const HostDeviceVector<bst_float>& weights,
-      const HostDeviceVector<bst_float>& labels,
-      const HostDeviceVector<bst_float>& preds) {
+  PackedReduceResult Reduce(const Context& tparam, int device, size_t n_class,
+                            const HostDeviceVector<bst_float>& weights,
+                            const HostDeviceVector<bst_float>& labels,
+                            const HostDeviceVector<bst_float>& preds) {
     PackedReduceResult result;
 
     if (device < 0) {
