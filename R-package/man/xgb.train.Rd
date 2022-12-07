@@ -80,7 +80,9 @@ xgboost(
          Useful to test Random Forest through XGBoost
          (set \code{colsample_bytree < 1}, \code{subsample  < 1}  and \code{round = 1}) accordingly.
          Default: 1}
-  \item \code{monotone_constraints} A numerical vector consists of \code{1}, \code{0} and \code{-1} with its length equals to the number of features in the training data. \code{1} is increasing, \code{-1} is decreasing and \code{0} is no constraint.
+  \item{ \code{monotone_constraints} A numerical vector consists of \code{1}, \code{0} and \code{-1} with its length
+         equals to the number of features in the training data.
+         \code{1} is increasing, \code{-1} is decreasing and \code{0} is no constraint.}
   \item{ \code{interaction_constraints} A list of vectors specifying feature indices of permitted interactions.
        Each item of the list represents one permitted interaction where specified features are allowed to interact with each other.
        Feature index values should start from \code{0} (\code{0} references the first column).
@@ -98,29 +100,52 @@ xgboost(
 3. Task Parameters
 
 \itemize{
-\item \code{objective} specify the learning task and the corresponding learning objective, users can pass a self-defined function to it. The default objective options are below:
+\item{ \code{objective} specify the learning task and the corresponding learning objective, users can pass a self-defined function to it.
+       The default objective options are below:
   \itemize{
     \item \code{reg:squarederror} Regression with squared loss (Default).
-    \item \code{reg:squaredlogerror}: regression with squared log loss \eqn{1/2 * (log(pred + 1) - log(label + 1))^2}. All inputs are required to be greater than -1. Also, see metric rmsle for possible issue with this objective.
+    \item{ \code{reg:squaredlogerror}: regression with squared log loss \eqn{1/2 * (log(pred + 1) - log(label + 1))^2}.
+           All inputs are required to be greater than -1.
+           Also, see metric rmsle for possible issue with this objective.}
     \item \code{reg:logistic} logistic regression.
     \item \code{reg:pseudohubererror}: regression with Pseudo Huber loss, a twice differentiable alternative to absolute loss.
     \item \code{binary:logistic} logistic regression for binary classification. Output probability.
     \item \code{binary:logitraw} logistic regression for binary classification, output score before logistic transformation.
     \item \code{binary:hinge}: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
-    \item \code{count:poisson}: Poisson regression for count data, output mean of Poisson distribution. \code{max_delta_step} is set to 0.7 by default in poisson regression (used to safeguard optimization).
-    \item \code{survival:cox}: Cox regression for right censored survival time data (negative values are considered right censored). Note that predictions are returned on the hazard ratio scale (i.e., as HR = exp(marginal_prediction) in the proportional hazard function \code{h(t) = h0(t) * HR)}.
-    \item \code{survival:aft}: Accelerated failure time model for censored survival time data. See \href{https://xgboost.readthedocs.io/en/latest/tutorials/aft_survival_analysis.html}{Survival Analysis with Accelerated Failure Time} for details.
+    \item{ \code{count:poisson}: Poisson regression for count data, output mean of Poisson distribution.
+           \code{max_delta_step} is set to 0.7 by default in poisson regression (used to safeguard optimization).}
+    \item{ \code{survival:cox}: Cox regression for right censored survival time data (negative values are considered right censored).
+           Note that predictions are returned on the hazard ratio scale (i.e., as HR = exp(marginal_prediction) in the proportional
+           hazard function \code{h(t) = h0(t) * HR)}.}
+    \item{ \code{survival:aft}: Accelerated failure time model for censored survival time data.
+           See \href{https://xgboost.readthedocs.io/en/latest/tutorials/aft_survival_analysis.html}{Survival Analysis with Accelerated Failure Time}
+           for details.}
     \item \code{aft_loss_distribution}: Probability Density Function used by \code{survival:aft} and \code{aft-nloglik} metric.
-    \item \code{multi:softmax} set xgboost to do multiclass classification using the softmax objective. Class is represented by a number and should be from 0 to \code{num_class - 1}.
-    \item \code{multi:softprob} same as softmax, but prediction outputs a vector of ndata * nclass elements, which can be further reshaped to ndata, nclass matrix. The result contains predicted probabilities of each data point belonging to each class.
+    \item{ \code{multi:softmax} set xgboost to do multiclass classification using the softmax objective.
+           Class is represented by a number and should be from 0 to \code{num_class - 1}.}
+    \item{ \code{multi:softprob} same as softmax, but prediction outputs a vector of ndata * nclass elements, which can be
+           further reshaped to ndata, nclass matrix. The result contains predicted probabilities of each data point belonging
+           to each class.}
     \item \code{rank:pairwise} set xgboost to do ranking task by minimizing the pairwise loss.
-    \item \code{rank:ndcg}: Use LambdaMART to perform list-wise ranking where \href{https://en.wikipedia.org/wiki/Discounted_cumulative_gain}{Normalized Discounted Cumulative Gain (NDCG)} is maximized.
-    \item \code{rank:map}: Use LambdaMART to perform list-wise ranking where \href{https://en.wikipedia.org/wiki/Evaluation_measures_(information_retrieval)#Mean_average_precision}{Mean Average Precision (MAP)} is maximized.
-    \item \code{reg:gamma}: gamma regression with log-link. Output is a mean of gamma distribution. It might be useful, e.g., for modeling insurance claims severity, or for any outcome that might be \href{https://en.wikipedia.org/wiki/Gamma_distribution#Applications}{gamma-distributed}.
-    \item \code{reg:tweedie}: Tweedie regression with log-link. It might be useful, e.g., for modeling total loss in insurance, or for any outcome that might be \href{https://en.wikipedia.org/wiki/Tweedie_distribution#Applications}{Tweedie-distributed}.
+    \item{ \code{rank:ndcg}: Use LambdaMART to perform list-wise ranking where
+           \href{https://en.wikipedia.org/wiki/Discounted_cumulative_gain}{Normalized Discounted Cumulative Gain (NDCG)} is maximized.}
+    \item{ \code{rank:map}: Use LambdaMART to perform list-wise ranking where
+           \href{https://en.wikipedia.org/wiki/Evaluation_measures_(information_retrieval)#Mean_average_precision}{Mean Average Precision (MAP)}
+           is maximized.}
+    \item{ \code{reg:gamma}: gamma regression with log-link.
+           Output is a mean of gamma distribution.
+           It might be useful, e.g., for modeling insurance claims severity, or for any outcome that might be
+           \href{https://en.wikipedia.org/wiki/Gamma_distribution#Applications}{gamma-distributed}.}
+    \item{ \code{reg:tweedie}: Tweedie regression with log-link.
+           It might be useful, e.g., for modeling total loss in insurance, or for any outcome that might be
+           \href{https://en.wikipedia.org/wiki/Tweedie_distribution#Applications}{Tweedie-distributed}.}
   }
+ }
   \item \code{base_score} the initial prediction score of all instances, global bias. Default: 0.5
-  \item \code{eval_metric} evaluation metrics for validation data. Users can pass a self-defined function to it. Default: metric will be assigned according to objective(rmse for regression, and error for classification, mean average precision for ranking). List is provided in detail section.
+  \item{ \code{eval_metric} evaluation metrics for validation data.
+         Users can pass a self-defined function to it.
+         Default: metric will be assigned according to objective(rmse for regression, and error for classification, mean average precision for ranking).
+         List is provided in detail section.}
 }}
 
 \item{data}{training dataset. \code{xgb.train} accepts only an \code{xgb.DMatrix} as the input.
