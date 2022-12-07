@@ -3,7 +3,6 @@
 ## inconsistent is found.
 pkgs <- c(
   ## CI
-  "remotes",
   "roxygen2",
   "XML",
   "cplm",

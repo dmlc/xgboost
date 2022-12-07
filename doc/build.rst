@@ -313,7 +313,7 @@ Installing the development version (Linux / Mac OSX)
 Make sure you have installed git and a recent C++ compiler supporting C++11 (See above
 sections for requirements of building C++ core).
 
-Due to the use of git-submodules, ``removes::install_github()`` cannot be used to
+Due to the use of git-submodules, ``remotes::install_github()`` cannot be used to
 install the latest version of R package. Thus, one has to run git to check out the code
 first, see :ref:`get_source` on how to initialize the git repository for XGBoost. The
 simplest way to install the R package after obtaining the source code is:
