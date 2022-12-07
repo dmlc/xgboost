@@ -4,7 +4,7 @@
 #include <gtest/gtest.h>
 
 #include "../../../src/common/linalg_op.cuh"
-#include "xgboost/generic_parameters.h"
+#include "xgboost/context.h"
 #include "xgboost/linalg.h"
 
 namespace xgboost {
@@ -21,7 +21,7 @@ void TestElementWiseKernel() {
     ASSERT_FALSE(t.CContiguous());
     ElementWiseTransformDevice(t, [] __device__(size_t i, float) { return i; });
     // CPU view
-    t = l.View(GenericParameter::kCpuId).Slice(linalg::All(), 1, linalg::All());
+    t = l.View(Context::kCpuId).Slice(linalg::All(), 1, linalg::All());
     size_t k = 0;
     for (size_t i = 0; i < l.Shape(0); ++i) {
       for (size_t j = 0; j < l.Shape(2); ++j) {
@@ -41,7 +41,7 @@ void TestElementWiseKernel() {
     ElementWiseTransformDevice(t, [] XGBOOST_DEVICE(size_t i, float) { return i; });
     ASSERT_TRUE(t.CContiguous());
     // CPU view
-    t = l.View(GenericParameter::kCpuId);
+    t = l.View(Context::kCpuId);
 
     size_t ind = 0;
     for (size_t i = 0; i < l.Shape(0); ++i) {

@@ -9,7 +9,7 @@
 
 #include "../collective/communicator-inl.h"
 #include "../common/common.h"
-#include "xgboost/generic_parameters.h"
+#include "xgboost/context.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/tree_model.h"
 

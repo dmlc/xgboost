@@ -24,7 +24,7 @@ DMLC_REGISTRY_FILE_TAG(updater_refresh);
 /*! \brief pruner that prunes a tree after growing finishs */
 class TreeRefresher : public TreeUpdater {
  public:
-  explicit TreeRefresher(GenericParameter const *ctx) : TreeUpdater(ctx) {}
+  explicit TreeRefresher(Context const *ctx) : TreeUpdater(ctx) {}
   void Configure(const Args &args) override { param_.UpdateAllowUnknown(args); }
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
@@ -160,6 +160,6 @@ class TreeRefresher : public TreeUpdater {
 
 XGBOOST_REGISTER_TREE_UPDATER(TreeRefresher, "refresh")
     .describe("Refresher that refreshes the weight and statistics according to data.")
-    .set_body([](GenericParameter const *ctx, ObjInfo) { return new TreeRefresher(ctx); });
+    .set_body([](Context const *ctx, ObjInfo) { return new TreeRefresher(ctx); });
 }  // namespace tree
 }  // namespace xgboost

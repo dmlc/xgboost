@@ -4,6 +4,7 @@
  * \brief Registry of all objective functions.
  */
 #include <dmlc/registry.h>
+#include <xgboost/context.h>
 #include <xgboost/objective.h>
 
 #include <sstream>
@@ -16,7 +17,7 @@ DMLC_REGISTRY_ENABLE(::xgboost::ObjFunctionReg);
 
 namespace xgboost {
 // implement factory functions
-ObjFunction* ObjFunction::Create(const std::string& name, GenericParameter const* tparam) {
+ObjFunction* ObjFunction::Create(const std::string& name, Context const* ctx) {
   auto *e = ::dmlc::Registry< ::xgboost::ObjFunctionReg>::Get()->Find(name);
   if (e == nullptr) {
     std::stringstream ss;
@@ -27,7 +28,7 @@ ObjFunction* ObjFunction::Create(const std::string& name, GenericParameter const
                << ss.str();
   }
   auto pobj = (e->body)();
-  pobj->ctx_ = tparam;
+  pobj->ctx_ = ctx;
   return pobj;
 }
 

@@ -7,7 +7,7 @@
 #include "common.h"            // common::OptionalWeights
 #include "device_helpers.cuh"  // dh::MakeTransformIterator, tcbegin, tcend
 #include "stats.cuh"           // common::SegmentedQuantile, common::SegmentedWeightedQuantile
-#include "xgboost/generic_parameters.h"  // Context
+#include "xgboost/context.h"   // Context
 #include "xgboost/host_device_vector.h"  // HostDeviceVector
 #include "xgboost/linalg.h"              // linalg::TensorView, UnravelIndex, Apply
 

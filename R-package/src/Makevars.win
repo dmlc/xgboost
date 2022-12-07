@@ -68,6 +68,7 @@ OBJECTS= \
     $(PKGROOT)/src/linear/updater_coordinate.o \
     $(PKGROOT)/src/linear/updater_shotgun.o \
     $(PKGROOT)/src/learner.o \
+    $(PKGROOT)/src/context.o \
     $(PKGROOT)/src/logging.o \
     $(PKGROOT)/src/global_config.o \
     $(PKGROOT)/src/collective/communicator.o \

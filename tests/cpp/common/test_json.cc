@@ -590,7 +590,7 @@ TEST(Json, DISABLED_RoundTripExhaustive) {
     }
   };
   int64_t int32_max = static_cast<int64_t>(std::numeric_limits<uint32_t>::max());
-  GenericParameter ctx;
+  Context ctx;
   common::ParallelFor(int32_max, ctx.Threads(), [&](auto i) { test(static_cast<uint32_t>(i)); });
 }
 

@@ -256,7 +256,7 @@ TEST(SimpleDMatrix, Slice) {
   std::iota(upper.begin(), upper.end(), 1.0f);
 
   auto& margin = p_m->Info().base_margin_;
-  margin = decltype(p_m->Info().base_margin_){{kRows, kClasses}, GenericParameter::kCpuId};
+  margin = decltype(p_m->Info().base_margin_){{kRows, kClasses}, Context::kCpuId};
 
   std::array<int32_t, 3> ridxs {1, 3, 5};
   std::unique_ptr<DMatrix> out { p_m->Slice(ridxs) };
@@ -286,8 +286,8 @@ TEST(SimpleDMatrix, Slice) {
         ASSERT_EQ(p_m->Info().weights_.HostVector().at(ridx),
                   out->Info().weights_.HostVector().at(i));
 
-        auto out_margin = out->Info().base_margin_.View(GenericParameter::kCpuId);
-        auto in_margin = margin.View(GenericParameter::kCpuId);
+        auto out_margin = out->Info().base_margin_.View(Context::kCpuId);
+        auto in_margin = margin.View(Context::kCpuId);
         for (size_t j = 0; j < kClasses; ++j) {
           ASSERT_EQ(out_margin(i, j), in_margin(ridx, j));
         }
@@ -318,7 +318,7 @@ TEST(SimpleDMatrix, SliceCol) {
   std::iota(upper.begin(), upper.end(), 1.0f);
 
   auto& margin = p_m->Info().base_margin_;
-  margin = decltype(p_m->Info().base_margin_){{kRows, kClasses}, GenericParameter::kCpuId};
+  margin = decltype(p_m->Info().base_margin_){{kRows, kClasses}, Context::kCpuId};
 
   size_t constexpr kSlicCols {4};
   for (auto slice = 0; slice < 2; slice++) {
@@ -348,8 +348,8 @@ TEST(SimpleDMatrix, SliceCol) {
                     out->Info().labels_upper_bound_.HostVector().at(i));
           ASSERT_EQ(p_m->Info().weights_.HostVector().at(i), out->Info().weights_.HostVector().at(i));
 
-          auto out_margin = out->Info().base_margin_.View(GenericParameter::kCpuId);
-          auto in_margin = margin.View(GenericParameter::kCpuId);
+          auto out_margin = out->Info().base_margin_.View(Context::kCpuId);
+          auto in_margin = margin.View(Context::kCpuId);
           for (size_t j = 0; j < kClasses; ++j) {
             ASSERT_EQ(out_margin(i, j), in_margin(i, j));
           }
