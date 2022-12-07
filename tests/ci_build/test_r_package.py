@@ -160,7 +160,8 @@ def check_rmarkdown() -> None:
     if len(output.stdout.decode("utf-8").strip()) != 0:
         output = subprocess.run(["git", "diff"], capture_output=True)
         raise ValueError(
-            "Please run `roxygen2::roxygenize()`. Diff:\n", output.stdout.decode("utf-8")
+            "Please run `roxygen2::roxygenize()`. Diff:\n",
+            output.stdout.decode("utf-8"),
         )
 
 
