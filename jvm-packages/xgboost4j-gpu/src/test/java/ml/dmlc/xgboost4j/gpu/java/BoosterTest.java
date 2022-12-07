@@ -34,7 +34,7 @@ import ai.rapids.cudf.CSVOptions;
 import ml.dmlc.xgboost4j.java.Booster;
 import ml.dmlc.xgboost4j.java.ColumnBatch;
 import ml.dmlc.xgboost4j.java.DMatrix;
-import ml.dmlc.xgboost4j.java.DeviceQuantileDMatrix;
+import ml.dmlc.xgboost4j.java.QuantileDMatrix;
 import ml.dmlc.xgboost4j.java.XGBoost;
 import ml.dmlc.xgboost4j.java.XGBoostError;
 
@@ -107,7 +107,7 @@ public class BoosterTest {
 
           List<ColumnBatch> tables = new LinkedList<>();
           tables.add(batch);
-          DMatrix incrementalDMatrix = new DeviceQuantileDMatrix(tables.iterator(), Float.NaN, maxBin, 1);
+          DMatrix incrementalDMatrix = new QuantileDMatrix(tables.iterator(), Float.NaN, maxBin, 1);
           //set watchList
           HashMap<String, DMatrix> watches1 = new HashMap<>();
           watches1.put("train", incrementalDMatrix);

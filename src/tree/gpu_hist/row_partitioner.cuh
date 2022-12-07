@@ -9,7 +9,7 @@
 
 #include "../../common/device_helpers.cuh"
 #include "xgboost/base.h"
-#include "xgboost/generic_parameters.h"
+#include "xgboost/context.h"
 #include "xgboost/task.h"
 #include "xgboost/tree_model.h"
 

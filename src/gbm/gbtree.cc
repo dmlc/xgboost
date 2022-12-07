@@ -67,7 +67,7 @@ void GBTree::Configure(const Args& cfg) {
 #if defined(XGBOOST_USE_ONEAPI)
   if (!oneapi_predictor_) {
     oneapi_predictor_ = std::unique_ptr<Predictor>(
-        Predictor::Create("oneapi_predictor", this->generic_param_));
+        Predictor::Create("oneapi_predictor", this->ctx_));
   }
   oneapi_predictor_->Configure(cfg);
 #endif  // defined(XGBOOST_USE_ONEAPI)
@@ -204,7 +204,7 @@ void GPUCopyGradient(HostDeviceVector<GradientPair> const*, bst_group_t, bst_gro
 void CopyGradient(HostDeviceVector<GradientPair> const* in_gpair, int32_t n_threads,
                   bst_group_t n_groups, bst_group_t group_id,
                   HostDeviceVector<GradientPair>* out_gpair) {
-  if (in_gpair->DeviceIdx() != GenericParameter::kCpuId) {
+  if (in_gpair->DeviceIdx() != Context::kCpuId) {
     GPUCopyGradient(in_gpair, n_groups, group_id, out_gpair);
   } else {
     std::vector<GradientPair> &tmp_h = out_gpair->HostVector();
@@ -651,7 +651,7 @@ void GPUDartInplacePredictInc(common::Span<float> /*out_predts*/, common::Span<f
 
 class Dart : public GBTree {
  public:
-  explicit Dart(LearnerModelParam const* booster_config, GenericParameter const* ctx)
+  explicit Dart(LearnerModelParam const* booster_config, Context const* ctx)
       : GBTree(booster_config, ctx) {}
 
   void Configure(const Args& cfg) override {
@@ -741,7 +741,7 @@ class Dart : public GBTree {
     auto n_groups = model_.learner_model_param->num_output_group;
 
     PredictionCacheEntry predts;  // temporary storage for prediction
-    if (ctx_->gpu_id != GenericParameter::kCpuId) {
+    if (ctx_->gpu_id != Context::kCpuId) {
       predts.predictions.SetDevice(ctx_->gpu_id);
     }
     predts.predictions.Resize(p_fmat->Info().num_row_ * n_groups, 0);
@@ -763,7 +763,7 @@ class Dart : public GBTree {
       CHECK_EQ(p_out_preds->predictions.Size(), predts.predictions.Size());
 
       size_t n_rows = p_fmat->Info().num_row_;
-      if (predts.predictions.DeviceIdx() != GenericParameter::kCpuId) {
+      if (predts.predictions.DeviceIdx() != Context::kCpuId) {
         p_out_preds->predictions.SetDevice(predts.predictions.DeviceIdx());
         GPUDartPredictInc(p_out_preds->predictions.DeviceSpan(),
                           predts.predictions.DeviceSpan(), w, n_rows, n_groups,
@@ -1019,13 +1019,13 @@ DMLC_REGISTER_PARAMETER(DartTrainParam);
 
 XGBOOST_REGISTER_GBM(GBTree, "gbtree")
     .describe("Tree booster, gradient boosted trees.")
-    .set_body([](LearnerModelParam const* booster_config, GenericParameter const* ctx) {
+    .set_body([](LearnerModelParam const* booster_config, Context const* ctx) {
       auto* p = new GBTree(booster_config, ctx);
       return p;
     });
 XGBOOST_REGISTER_GBM(Dart, "dart")
     .describe("Tree booster, dart.")
-    .set_body([](LearnerModelParam const* booster_config, GenericParameter const* ctx) {
+    .set_body([](LearnerModelParam const* booster_config, Context const* ctx) {
       GBTree* p = new Dart(booster_config, ctx);
       return p;
     });

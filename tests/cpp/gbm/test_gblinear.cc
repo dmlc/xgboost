@@ -7,11 +7,11 @@
 #include <sstream>
 
 #include "../helpers.h"
-#include "xgboost/json.h"
-#include "xgboost/logging.h"
+#include "xgboost/context.h"
 #include "xgboost/gbm.h"
-#include "xgboost/generic_parameters.h"
+#include "xgboost/json.h"
 #include "xgboost/learner.h"
+#include "xgboost/logging.h"
 
 namespace xgboost {
 namespace gbm {

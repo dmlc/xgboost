@@ -4,41 +4,40 @@
 #include <thrust/copy.h>
 #include <thrust/reduce.h>
 #include <xgboost/tree_updater.h>
+
 #include <algorithm>
 #include <cmath>
-#include <memory>
 #include <limits>
+#include <memory>
 #include <utility>
 #include <vector>
 
-#include "xgboost/base.h"
-#include "xgboost/data.h"
-#include "xgboost/generic_parameters.h"
-#include "xgboost/host_device_vector.h"
-#include "xgboost/parameter.h"
-#include "xgboost/span.h"
-#include "xgboost/json.h"
-
 #include "../collective/device_communicator.cuh"
-#include "../common/io.h"
+#include "../common/bitfield.h"
+#include "../common/categorical.h"
 #include "../common/device_helpers.cuh"
 #include "../common/hist_util.h"
-#include "../common/bitfield.h"
+#include "../common/io.h"
 #include "../common/timer.h"
-#include "../common/categorical.h"
 #include "../data/ellpack_page.cuh"
-
-#include "param.h"
-#include "driver.h"
-#include "updater_gpu_common.cuh"
-#include "split_evaluator.h"
 #include "constraints.cuh"
-#include "gpu_hist/feature_groups.cuh"
-#include "gpu_hist/gradient_based_sampler.cuh"
-#include "gpu_hist/row_partitioner.cuh"
-#include "gpu_hist/histogram.cuh"
+#include "driver.h"
 #include "gpu_hist/evaluate_splits.cuh"
 #include "gpu_hist/expand_entry.cuh"
+#include "gpu_hist/feature_groups.cuh"
+#include "gpu_hist/gradient_based_sampler.cuh"
+#include "gpu_hist/histogram.cuh"
+#include "gpu_hist/row_partitioner.cuh"
+#include "param.h"
+#include "split_evaluator.h"
+#include "updater_gpu_common.cuh"
+#include "xgboost/base.h"
+#include "xgboost/context.h"
+#include "xgboost/data.h"
+#include "xgboost/host_device_vector.h"
+#include "xgboost/json.h"
+#include "xgboost/parameter.h"
+#include "xgboost/span.h"
 #include "xgboost/task.h"
 #include "xgboost/tree_model.h"
 
@@ -730,7 +729,7 @@ class GPUHistMaker : public TreeUpdater {
   using GradientSumT = GradientPairPrecise;
 
  public:
-  explicit GPUHistMaker(GenericParameter const* ctx, ObjInfo task)
+  explicit GPUHistMaker(Context const* ctx, ObjInfo task)
       : TreeUpdater(ctx), task_{task} {};
   void Configure(const Args& args) override {
     // Used in test to count how many configurations are performed
@@ -879,9 +878,7 @@ class GPUHistMaker : public TreeUpdater {
 #if !defined(GTEST_TEST)
 XGBOOST_REGISTER_TREE_UPDATER(GPUHistMaker, "grow_gpu_hist")
     .describe("Grow tree with GPU.")
-    .set_body([](GenericParameter const* tparam, ObjInfo task) {
-      return new GPUHistMaker(tparam, task);
-    });
+    .set_body([](Context const* ctx, ObjInfo task) { return new GPUHistMaker(ctx, task); });
 #endif  // !defined(GTEST_TEST)
 
 }  // namespace tree

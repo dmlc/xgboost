@@ -55,7 +55,7 @@ DMLC_REGISTER_PARAMETER(ColMakerTrainParam);
 /*! \brief column-wise update to construct a tree */
 class ColMaker: public TreeUpdater {
  public:
-  explicit ColMaker(GenericParameter const *ctx) : TreeUpdater(ctx) {}
+  explicit ColMaker(Context const *ctx) : TreeUpdater(ctx) {}
   void Configure(const Args &args) override {
     param_.UpdateAllowUnknown(args);
     colmaker_param_.UpdateAllowUnknown(args);
@@ -159,11 +159,11 @@ class ColMaker: public TreeUpdater {
     // constructor
     explicit Builder(const TrainParam &param, const ColMakerTrainParam &colmaker_train_param,
                      FeatureInteractionConstraintHost _interaction_constraints,
-                     GenericParameter const *ctx, const std::vector<float> &column_densities)
+                     Context const *ctx, const std::vector<float> &column_densities)
         : param_(param),
           colmaker_train_param_{colmaker_train_param},
           ctx_{ctx},
-          tree_evaluator_(param_, column_densities.size(), GenericParameter::kCpuId),
+          tree_evaluator_(param_, column_densities.size(), Context::kCpuId),
           interaction_constraints_{std::move(_interaction_constraints)},
           column_densities_(column_densities) {}
     // update one tree, growing
@@ -594,7 +594,7 @@ class ColMaker: public TreeUpdater {
     const TrainParam& param_;
     const ColMakerTrainParam& colmaker_train_param_;
     // number of omp thread used during training
-    GenericParameter const* ctx_;
+    Context const* ctx_;
     common::ColumnSampler column_sampler_;
     // Instance Data: current node position in the tree of each instance
     std::vector<int> position_;
@@ -612,9 +612,7 @@ class ColMaker: public TreeUpdater {
 };
 
 XGBOOST_REGISTER_TREE_UPDATER(ColMaker, "grow_colmaker")
-.describe("Grow tree with parallelization over columns.")
-.set_body([](GenericParameter const* ctx, ObjInfo) {
-    return new ColMaker(ctx);
-  });
+    .describe("Grow tree with parallelization over columns.")
+    .set_body([](Context const *ctx, ObjInfo) { return new ColMaker(ctx); });
 }  // namespace tree
 }  // namespace xgboost

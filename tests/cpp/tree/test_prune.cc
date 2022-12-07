@@ -31,7 +31,7 @@ TEST(Updater, Prune) {
   std::shared_ptr<DMatrix> p_dmat {
     RandomDataGenerator{32, 10, 0}.GenerateDMatrix() };
 
-  auto lparam = CreateEmptyGenericParam(GPUIDX);
+  auto ctx = CreateEmptyGenericParam(GPUIDX);
 
   // prepare tree
   RegTree tree = RegTree();
@@ -39,7 +39,7 @@ TEST(Updater, Prune) {
   std::vector<RegTree*> trees {&tree};
   // prepare pruner
   std::unique_ptr<TreeUpdater> pruner(
-      TreeUpdater::Create("prune", &lparam, ObjInfo{ObjInfo::kRegression}));
+      TreeUpdater::Create("prune", &ctx, ObjInfo{ObjInfo::kRegression}));
   pruner->Configure(cfg);
 
   // loss_chg < min_split_loss;

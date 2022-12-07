@@ -256,7 +256,7 @@ class GlobalApproxUpdater : public TreeUpdater {
   ObjInfo task_;
 
  public:
-  explicit GlobalApproxUpdater(GenericParameter const *ctx, ObjInfo task)
+  explicit GlobalApproxUpdater(Context const *ctx, ObjInfo task)
       : TreeUpdater(ctx), task_{task} {
     monitor_.Init(__func__);
   }
@@ -337,8 +337,6 @@ XGBOOST_REGISTER_TREE_UPDATER(GlobalHistMaker, "grow_histmaker")
     .describe(
         "Tree constructor that uses approximate histogram construction "
         "for each node.")
-    .set_body([](GenericParameter const *ctx, ObjInfo task) {
-      return new GlobalApproxUpdater(ctx, task);
-    });
+    .set_body([](Context const *ctx, ObjInfo task) { return new GlobalApproxUpdater(ctx, task); });
 }  // namespace tree
 }  // namespace xgboost

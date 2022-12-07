@@ -723,8 +723,7 @@ class GPUPredictor : public xgboost::Predictor {
   }
 
  public:
-  explicit GPUPredictor(GenericParameter const* generic_param) :
-      Predictor::Predictor{generic_param} {}
+  explicit GPUPredictor(Context const* ctx) : Predictor::Predictor{ctx} {}
 
   ~GPUPredictor() override {
     if (ctx_->gpu_id >= 0 && ctx_->gpu_id < common::AllVisibleGPUs()) {
@@ -1026,10 +1025,8 @@ class GPUPredictor : public xgboost::Predictor {
 };
 
 XGBOOST_REGISTER_PREDICTOR(GPUPredictor, "gpu_predictor")
-.describe("Make predictions using GPU.")
-.set_body([](GenericParameter const* generic_param) {
-            return new GPUPredictor(generic_param);
-          });
+    .describe("Make predictions using GPU.")
+    .set_body([](Context const* ctx) { return new GPUPredictor(ctx); });
 
 }  // namespace predictor
 }  // namespace xgboost

@@ -23,7 +23,6 @@ PKG_LIBS = $(SHLIB_OPENMP_CXXFLAGS)  -DDMLC_CMAKE_LITTLE_ENDIAN=1  $(SHLIB_PTHRE
 OBJECTS= \
     ./xgboost_R.o \
     ./xgboost_custom.o \
-    ./xgboost_assert.o \
     ./init.o \
     $(PKGROOT)/src/metric/metric.o \
     $(PKGROOT)/src/metric/elementwise_metric.o \
@@ -69,9 +68,12 @@ OBJECTS= \
     $(PKGROOT)/src/linear/updater_coordinate.o \
     $(PKGROOT)/src/linear/updater_shotgun.o \
     $(PKGROOT)/src/learner.o \
+    $(PKGROOT)/src/context.o \
     $(PKGROOT)/src/logging.o \
     $(PKGROOT)/src/global_config.o \
     $(PKGROOT)/src/collective/communicator.o \
+    $(PKGROOT)/src/collective/in_memory_communicator.o \
+    $(PKGROOT)/src/collective/in_memory_handler.o \
     $(PKGROOT)/src/collective/socket.o \
     $(PKGROOT)/src/common/charconv.o \
     $(PKGROOT)/src/common/column_matrix.o \

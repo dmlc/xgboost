@@ -5,8 +5,8 @@ namespace xgboost {
 namespace metric {
 
 TEST(Metric, DeclareUnifiedTest(BinaryAUC)) {
-  auto tparam = xgboost::CreateEmptyGenericParam(GPUIDX);
-  std::unique_ptr<Metric> uni_ptr {Metric::Create("auc", &tparam)};
+  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+  std::unique_ptr<Metric> uni_ptr {Metric::Create("auc", &ctx)};
   Metric * metric = uni_ptr.get();
   ASSERT_STREQ(metric->Name(), "auc");
 
@@ -49,9 +49,9 @@ TEST(Metric, DeclareUnifiedTest(BinaryAUC)) {
 }
 
 TEST(Metric, DeclareUnifiedTest(MultiClassAUC)) {
-  auto tparam = CreateEmptyGenericParam(GPUIDX);
+  auto ctx = CreateEmptyGenericParam(GPUIDX);
   std::unique_ptr<Metric> uni_ptr{
-      Metric::Create("auc", &tparam)};
+      Metric::Create("auc", &ctx)};
   auto metric = uni_ptr.get();
 
   // MultiClass
@@ -115,8 +115,8 @@ TEST(Metric, DeclareUnifiedTest(MultiClassAUC)) {
 }
 
 TEST(Metric, DeclareUnifiedTest(RankingAUC)) {
-  auto tparam = CreateEmptyGenericParam(GPUIDX);
-  std::unique_ptr<Metric> metric{Metric::Create("auc", &tparam)};
+  auto ctx = CreateEmptyGenericParam(GPUIDX);
+  std::unique_ptr<Metric> metric{Metric::Create("auc", &ctx)};
 
   // single group
   EXPECT_NEAR(GetMetricEval(metric.get(), {0.7f, 0.2f, 0.3f, 0.6f},
@@ -153,9 +153,9 @@ TEST(Metric, DeclareUnifiedTest(RankingAUC)) {
 }
 
 TEST(Metric, DeclareUnifiedTest(PRAUC)) {
-  auto tparam = xgboost::CreateEmptyGenericParam(GPUIDX);
+  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
 
-  xgboost::Metric *metric = xgboost::Metric::Create("aucpr", &tparam);
+  xgboost::Metric *metric = xgboost::Metric::Create("aucpr", &ctx);
   ASSERT_STREQ(metric->Name(), "aucpr");
   EXPECT_NEAR(GetMetricEval(metric, {0, 0, 1, 1}, {0, 0, 1, 1}), 1, 1e-10);
   EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}),
@@ -194,9 +194,9 @@ TEST(Metric, DeclareUnifiedTest(PRAUC)) {
 }
 
 TEST(Metric, DeclareUnifiedTest(MultiClassPRAUC)) {
-  auto tparam = xgboost::CreateEmptyGenericParam(GPUIDX);
+  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
 
-  std::unique_ptr<Metric> metric{Metric::Create("aucpr", &tparam)};
+  std::unique_ptr<Metric> metric{Metric::Create("aucpr", &ctx)};
 
   float auc = 0;
   std::vector<float> labels {1.0f, 0.0f, 2.0f};
@@ -223,9 +223,9 @@ TEST(Metric, DeclareUnifiedTest(MultiClassPRAUC)) {
 }
 
 TEST(Metric, DeclareUnifiedTest(RankingPRAUC)) {
-  auto tparam = xgboost::CreateEmptyGenericParam(GPUIDX);
+  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
 
-  std::unique_ptr<Metric> metric{Metric::Create("aucpr", &tparam)};
+  std::unique_ptr<Metric> metric{Metric::Create("aucpr", &ctx)};
 
   std::vector<float> labels {1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f};
   std::vector<uint32_t> groups {0, 2, 6};

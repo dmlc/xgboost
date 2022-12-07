@@ -11,7 +11,6 @@
 #include <dmlc/data.h>
 #include <dmlc/serializer.h>
 #include <xgboost/base.h>
-#include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/linalg.h>
 #include <xgboost/span.h>
@@ -28,6 +27,7 @@
 namespace xgboost {
 // forward declare dmatrix.
 class DMatrix;
+struct Context;
 
 /*! \brief data type accepted by xgboost interface */
 enum class DataType : uint8_t {
@@ -112,6 +112,9 @@ class MetaInfo {
   void Validate(int32_t device) const;
 
   MetaInfo Slice(common::Span<int32_t const> ridxs) const;
+
+  MetaInfo Copy() const;
+
   /*!
    * \brief Get weight of each instances.
    * \param i Instance index.
@@ -619,6 +622,15 @@ class DMatrix {
                          int32_t nthread, std::string cache);
 
   virtual DMatrix *Slice(common::Span<int32_t const> ridxs) = 0;
+
+  /**
+   * \brief Slice a DMatrix by columns.
+   *
+   * @param start The position of the first column
+   * @param size The number of columns in the slice
+   * @return DMatrix containing the slice of columns
+   */
+  virtual DMatrix *SliceCol(std::size_t start, std::size_t size) = 0;
 
  protected:
   virtual BatchSet<SparsePage> GetRowBatches() = 0;

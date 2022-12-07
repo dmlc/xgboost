@@ -962,6 +962,9 @@ namespace jni {
                                                             jfloat jmissing,
                                                             jint jmax_bin, jint jnthread,
                                                             jlongArray jout);
+  XGB_DLL int XGQuantileDMatrixCreateFromCallbackImpl(JNIEnv *jenv, jclass jcls,
+                                                      jobject jdata_iter, jobject jref_iter,
+                                                      char const *config, jlongArray jout);
 } // namespace jni
 } // namespace xgboost
 
@@ -975,6 +978,18 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDeviceQuantileDM
      jint jnthread, jlongArray jout) {
   return xgboost::jni::XGDeviceQuantileDMatrixCreateFromCallbackImpl(
       jenv, jcls, jiter, jmissing, jmax_bin, jnthread, jout);
+}
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGQuantileDMatrixCreateFromCallback
+ * Signature: (Ljava/util/Iterator;Ljava/util/Iterator;Ljava/lang/String;[J)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGQuantileDMatrixCreateFromCallback
+    (JNIEnv *jenv, jclass jcls, jobject jdata_iter, jobject jref_iter, jstring jconf, jlongArray jout) {
+  char const *conf = jenv->GetStringUTFChars(jconf, 0);
+  return xgboost::jni::XGQuantileDMatrixCreateFromCallbackImpl(jenv, jcls, jdata_iter, jref_iter,
+                                                               conf, jout);
 }
 
 /*

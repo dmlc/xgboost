@@ -5,8 +5,8 @@
 #include "test_predictor.h"
 
 #include <gtest/gtest.h>
+#include <xgboost/context.h>
 #include <xgboost/data.h>
-#include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/predictor.h>
 
@@ -26,7 +26,7 @@ TEST(Predictor, PredictionCache) {
   // Add a cache that is immediately expired.
   auto add_cache = [&]() {
     auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
-    container.Cache(p_dmat, GenericParameter::kCpuId);
+    container.Cache(p_dmat, Context::kCpuId);
     m = p_dmat.get();
   };
 
@@ -216,7 +216,7 @@ void TestCategoricalPrediction(std::string name) {
   float left_weight = 1.3f;
   float right_weight = 1.7f;
 
-  GenericParameter ctx;
+  Context ctx;
   ctx.UpdateAllowUnknown(Args{});
   gbm::GBTreeModel model(&mparam, &ctx);
   GBTreeModelForTest(&model, split_ind, split_cat, left_weight, right_weight);
@@ -257,7 +257,7 @@ void TestCategoricalPredictLeaf(StringView name) {
   float left_weight = 1.3f;
   float right_weight = 1.7f;
 
-  GenericParameter ctx;
+  Context ctx;
   ctx.UpdateAllowUnknown(Args{});
 
   gbm::GBTreeModel model(&mparam, &ctx);

@@ -22,9 +22,9 @@ import ai.rapids.cudf.Table
 import org.scalatest.FunSuite
 import ml.dmlc.xgboost4j.gpu.java.CudfColumnBatch
 
-class DeviceQuantileDMatrixSuite extends FunSuite {
+class QuantileDMatrixSuite extends FunSuite {
 
-  test("DeviceQuantileDMatrix test") {
+  test("QuantileDMatrix test") {
 
     val label1 = Array[java.lang.Float](25f, 21f, 22f, 20f, 24f)
     val weight1 = Array[java.lang.Float](1.3f, 2.31f, 0.32f, 3.3f, 1.34f)
@@ -51,8 +51,7 @@ class DeviceQuantileDMatrixSuite extends FunSuite {
                     val batches = new ArrayBuffer[CudfColumnBatch]()
                     batches += new CudfColumnBatch(X_0, y_0, w_0, m_0)
                     batches += new CudfColumnBatch(X_1, y_1, w_1, m_1)
-                    val dmatrix = new DeviceQuantileDMatrix(batches.toIterator, 0.0f, 8, 1)
-
+                    val dmatrix = new QuantileDMatrix(batches.toIterator, 0.0f, 8, 1)
                     assert(dmatrix.getLabel.sameElements(label1 ++ label2))
                     assert(dmatrix.getWeight.sameElements(weight1 ++ weight2))
                     assert(dmatrix.getBaseMargin.sameElements(baseMargin1 ++ baseMargin2))
