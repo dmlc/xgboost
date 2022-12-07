@@ -16,24 +16,24 @@ FILES_TO_LINT <- list.files(
 )
 
 my_linters <- list(
-  # absolute_path_linter = lintr::absolute_path_linter(),
-  # assignment_linter = lintr::assignment_linter(),
-  # brace_linter = lintr::brace_linter(),
-  # commas_linter = lintr::commas_linter(),
-  # equals_na = lintr::equals_na_linter(),
-  # infix_spaces_linter = lintr::infix_spaces_linter(),
-  line_length_linter = lintr::line_length_linter(length = 150L)
-  # no_tab_linter = lintr::no_tab_linter(),
-  # object_usage_linter = lintr::object_usage_linter(),
-  # object_length_linter = lintr::object_length_linter(),
-  # semicolon = lintr::semicolon_linter(),
-  # seq = lintr::seq_linter(),
-  # spaces_inside_linter = lintr::spaces_inside_linter(),
-  # spaces_left_parentheses_linter = lintr::spaces_left_parentheses_linter(),
-  # trailing_blank_lines_linter = lintr::trailing_blank_lines_linter(),
-  # trailing_whitespace_linter = lintr::trailing_whitespace_linter(),
-  # true_false = lintr::T_and_F_symbol_linter(),
-  # unneeded_concatenation = lintr::unneeded_concatenation_linter()
+  absolute_path_linter = lintr::absolute_path_linter(),
+  assignment_linter = lintr::assignment_linter(),
+  brace_linter = lintr::brace_linter(),
+  commas_linter = lintr::commas_linter(),
+  equals_na = lintr::equals_na_linter(),
+  infix_spaces_linter = lintr::infix_spaces_linter(),
+  line_length_linter = lintr::line_length_linter(length = 150L),
+  no_tab_linter = lintr::no_tab_linter(),
+  object_usage_linter = lintr::object_usage_linter(),
+  object_length_linter = lintr::object_length_linter(),
+  semicolon = lintr::semicolon_linter(),
+  seq = lintr::seq_linter(),
+  spaces_inside_linter = lintr::spaces_inside_linter(),
+  spaces_left_parentheses_linter = lintr::spaces_left_parentheses_linter(),
+  trailing_blank_lines_linter = lintr::trailing_blank_lines_linter(),
+  trailing_whitespace_linter = lintr::trailing_whitespace_linter(),
+  true_false = lintr::T_and_F_symbol_linter(),
+  unneeded_concatenation = lintr::unneeded_concatenation_linter()
 )
 
 noquote(paste0(length(FILES_TO_LINT), " R files need linting"))
