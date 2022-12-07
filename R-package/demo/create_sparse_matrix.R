@@ -1,3 +1,5 @@
+# nolint start
+
 require(xgboost)
 require(Matrix)
 require(data.table)
@@ -87,3 +89,5 @@ print(chisq.test(df$AgeCat, df$Y))
 # As you can see, in general destroying information by simplifying it won't improve your model. Chi2 just demonstrates that. But in more complex cases, creating a new feature based on existing one which makes link with the outcome more obvious may help the algorithm and improve the model. The case studied here is not enough complex to show that. Check Kaggle forum for some challenging datasets.
 # However it's almost always worse when you add some arbitrary rules.
 # Moreover, you can notice that even if we have added some not useful new features highly correlated with other features, the boosting tree algorithm have been able to choose the best one, which in this case is the Age. Linear model may not be that strong in these scenario.
+
+# nolint end

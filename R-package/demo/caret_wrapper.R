@@ -1,3 +1,4 @@
+# nolint start
 # install development version of caret library that contains xgboost models
 devtools::install_github("topepo/caret/pkg/caret")
 require(caret)
@@ -33,3 +34,5 @@ model <- train(factor(Improved)~., data = df, method = "xgbTree", trControl = fi
 
 # See model results
 print(model)
+
+# nolint end
