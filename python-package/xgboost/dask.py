@@ -853,7 +853,7 @@ async def _get_rabit_args(
         sched_addr = None
 
     # make sure all workers are online so that we can obtain reliable scheduler_info
-    client.wait_for_workers(n_workers)
+    await client.wait_for_workers(n_workers)  # type: ignore
     env = await client.run_on_scheduler(
         _start_tracker, n_workers, sched_addr, user_addr
     )
