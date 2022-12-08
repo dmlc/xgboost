@@ -12,7 +12,7 @@ cat('running cross validation\n')
 # do cross validation, this will print result out as
 # [iteration]  metric_name:mean_value+std_value
 # std_value is standard deviation of the metric
-xgb.cv(param, dtrain, nrounds, nfold = 5, metrics = {'error'})
+xgb.cv(param, dtrain, nrounds, nfold = 5, metrics = 'error')
 
 cat('running cross validation, disable standard deviation display\n')
 # do cross validation, this will print result out as
