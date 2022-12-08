@@ -898,6 +898,7 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
     delete dmat;
     return sliced;
   } else {
+    dmat->Info().data_split_mode = data_split_mode;
     return dmat;
   }
 }

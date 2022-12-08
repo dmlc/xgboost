@@ -205,14 +205,21 @@ XGB_DLL int XGBGetGlobalConfig(const char** json_str) {
   API_END();
 }
 
-XGB_DLL int XGDMatrixCreateFromFile(const char *fname, int silent, DMatrixHandle *out) {
+XGB_DLL int XGDMatrixCreateFromFile(const char *fname, int silent, int dsplit, DMatrixHandle *out) {
   API_BEGIN();
-  auto data_split_mode = DataSplitMode::kNone;
+  auto data_split_mode = static_cast<DataSplitMode>(dsplit);
   if (collective::IsFederated()) {
+    CHECK(data_split_mode == DataSplitMode::kAuto || data_split_mode == DataSplitMode::kNone)
+        << "Precondition violated; dsplit can only be 'auto' or 'none' in federated mode";
     LOG(CONSOLE) << "XGBoost federated mode detected, not splitting data among workers";
+    data_split_mode = DataSplitMode::kNone;
   } else if (collective::IsDistributed()) {
-    LOG(CONSOLE) << "XGBoost distributed mode detected, will split data among workers";
-    data_split_mode = DataSplitMode::kRow;
+    CHECK(data_split_mode != DataSplitMode::kCol)
+        << "Column-wise data split is currently not supported in distributed mode";
+    if (data_split_mode == DataSplitMode::kAuto) {
+      LOG(CONSOLE) << "XGBoost distributed mode detected, will split data among workers";
+      data_split_mode = DataSplitMode::kRow;
+    }
   }
   xgboost_CHECK_C_ARG_PTR(fname);
   xgboost_CHECK_C_ARG_PTR(out);

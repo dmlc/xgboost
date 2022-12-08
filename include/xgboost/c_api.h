@@ -128,10 +128,11 @@ XGB_DLL int XGBGetGlobalConfig(char const **out_config);
  * \brief load a data matrix
  * \param fname the name of the file
  * \param silent whether print messages during loading
+ * \param dsplit data split mode
  * \param out a loaded data matrix
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGDMatrixCreateFromFile(const char *fname, int silent, DMatrixHandle *out);
+XGB_DLL int XGDMatrixCreateFromFile(const char *fname, int silent, int dsplit, DMatrixHandle *out);
 /**
  * @example c-api-demo.c
  */

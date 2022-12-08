@@ -181,7 +181,7 @@ TEST(CAPI, JsonModelIO) {
 
 TEST(CAPI, CatchDMLCError) {
   DMatrixHandle out;
-  ASSERT_EQ(XGDMatrixCreateFromFile("foo", 0, &out), -1);
+  ASSERT_EQ(XGDMatrixCreateFromFile("foo", 0, 0, &out), -1);
   EXPECT_THROW({ dmlc::Stream::Create("foo", "r"); },  dmlc::Error);
 }
 

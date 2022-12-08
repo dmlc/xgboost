@@ -23,6 +23,7 @@ from .compat import DataFrame, lazy_isinstance
 from .core import (
     _LIB,
     DataIter,
+    DataSplitMode,
     DMatrix,
     _check_call,
     _cuda_array_interface,
@@ -866,12 +867,14 @@ def _from_uri(
     missing: Optional[FloatCompatible],
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
+    data_split_mode: DataSplitMode = DataSplitMode.AUTO,
 ) -> DispatchedDataBackendReturnType:
     _warn_unused_missing(data, missing)
     handle = ctypes.c_void_p()
     data = os.fspath(os.path.expanduser(data))
     _check_call(_LIB.XGDMatrixCreateFromFile(c_str(data),
                                              ctypes.c_int(1),
+                                             ctypes.c_int(data_split_mode),
                                              ctypes.byref(handle)))
     return handle, feature_names, feature_types
 
@@ -939,6 +942,7 @@ def dispatch_data_backend(
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
     enable_categorical: bool = False,
+    data_split_mode: DataSplitMode = DataSplitMode.AUTO,
 ) -> DispatchedDataBackendReturnType:
     '''Dispatch data for DMatrix.'''
     if not _is_cudf_ser(data) and not _is_pandas_series(data):
@@ -954,7 +958,7 @@ def dispatch_data_backend(
     if _is_numpy_array(data):
         return _from_numpy_array(data, missing, threads, feature_names, feature_types)
     if _is_uri(data):
-        return _from_uri(data, missing, feature_names, feature_types)
+        return _from_uri(data, missing, feature_names, feature_types, data_split_mode)
     if _is_list(data):
         return _from_list(data, missing, threads, feature_names, feature_types)
     if _is_tuple(data):
