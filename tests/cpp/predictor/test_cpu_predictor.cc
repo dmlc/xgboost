@@ -103,7 +103,7 @@ TEST(CpuPredictor, ColumnSplit) {
 
       LearnerModelParam mparam{MakeMP(kCols, .0, 1)};
 
-      GenericParameter ctx;
+      Context ctx;
       ctx.UpdateAllowUnknown(Args{});
       gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx);
 
