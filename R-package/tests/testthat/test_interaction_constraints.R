@@ -17,7 +17,7 @@ test_that("interaction constraints for regression", {
 
   # Set all observations to have the same x3 values then increment
   #  by the same amount
-  preds <- lapply(c(1, 2, 3), function(x){
+  preds <- lapply(c(1, 2, 3), function(x) {
     tmat <- matrix(c(x1, x2, rep(x, 1000)), ncol = 3)
     return(predict(bst, tmat))
   })

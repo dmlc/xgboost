@@ -8,10 +8,9 @@ This directory contains a demo of Federated Learning using
 To run the demo, first build XGBoost with the federated learning plugin enabled (see the
 [README](../../plugin/federated/README.md)).
 
-Install NVFlare (note that currently NVFlare only supports Python 3.8; for NVFlare 2.1.2 we also
-need to pin the protobuf package to 3.20.x to avoid protoc errors):
+Install NVFlare (note that currently NVFlare only supports Python 3.8):
 ```shell
-pip install nvflare protobuf==3.20.1
+pip install nvflare
 ```
 
 Prepare the data:
@@ -21,22 +20,22 @@ Prepare the data:
 
 Start the NVFlare federated server:
 ```shell
-./poc/server/startup/start.sh
+/tmp/nvflare/poc/server/startup/start.sh
 ```
 
 In another terminal, start the first worker:
 ```shell
-./poc/site-1/startup/start.sh
+/tmp/nvflare/poc/site-1/startup/start.sh
 ```
 
 And the second worker:
 ```shell
-./poc/site-2/startup/start.sh
+/tmp/nvflare/poc/site-2/startup/start.sh
 ```
 
-Then start the admin CLI, using `admin/admin` as username/password:
+Then start the admin CLI:
 ```shell
-./poc/admin/startup/fl_admin.sh
+/tmp/nvflare/poc/admin/startup/fl_admin.sh
 ```
 
 In the admin CLI, run the following command:
@@ -45,10 +44,10 @@ submit_job hello-xgboost
 ```
 
 Once the training finishes, the model file should be written into
-`./poc/site-1/run_1/test.model.json` and `./poc/site-2/run_1/test.model.json`
+`/tmp/nvlfare/poc/site-1/run_1/test.model.json` and `/tmp/nvflare/poc/site-2/run_1/test.model.json`
 respectively.
 
-Finally, shutdown everything from the admin CLI:
+Finally, shutdown everything from the admin CLI, using `admin` as password:
 ```shell
 shutdown client
 shutdown server

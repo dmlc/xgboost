@@ -62,7 +62,7 @@
 #'
 #' @export
 xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
-                              trees = NULL, use_int_id = FALSE, ...){
+                              trees = NULL, use_int_id = FALSE, ...) {
   check.deprecation(...)
 
   if (!inherits(model, "xgb.Booster") && !is.character(text)) {
@@ -82,7 +82,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
     stop("trees: must be a vector of integers.")
   }
 
-  if (is.null(text)){
+  if (is.null(text)) {
     text <- xgb.dump(model = model, with_stats = TRUE)
   }
 
