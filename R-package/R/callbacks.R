@@ -615,9 +615,11 @@ cb.gblinear.history <- function(sparse=FALSE) {
   coefs <- NULL
 
   init <- function(env) {
-    if (!is.null(env$bst)) { # xgb.train:
-    } else if (!is.null(env$bst_folds)) { # xgb.cv:
-    } else stop("Parent frame has neither 'bst' nor 'bst_folds'")
+    # xgb.train(): bst will be present
+    # xgb.cv(): bst_folds will be present
+    if (is.null(env$bst) && is.null(env$bst_folds)) {
+        stop("Parent frame has neither 'bst' nor 'bst_folds'")
+    }
   }
 
   # convert from list to (sparse) matrix
