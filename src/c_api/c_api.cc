@@ -216,7 +216,7 @@ XGB_DLL int XGDMatrixCreateFromFile(const char *fname, int silent, int dsplit, D
   } else if (collective::IsDistributed()) {
     CHECK(data_split_mode != DataSplitMode::kCol)
         << "Column-wise data split is currently not supported in distributed mode";
-    if (data_split_mode == DataSplitMode::kAuto) {
+    if (data_split_mode != DataSplitMode::kNone) {
       LOG(CONSOLE) << "XGBoost distributed mode detected, will split data among workers";
       data_split_mode = DataSplitMode::kRow;
     }

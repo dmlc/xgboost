@@ -755,7 +755,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             feature_names=feature_names,
             feature_types=feature_types,
             enable_categorical=enable_categorical,
-            data_split_mode=self.dsplit,
+            data_split_mode=data_split_mode,
         )
         assert handle is not None
         self.handle = handle
@@ -775,8 +775,6 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             self.feature_names = feature_names
         if feature_types is not None:
             self.feature_types = feature_types
-
-        self.dsplit = data_split_mode
 
     def _init_from_iter(self, iterator: DataIter, enable_categorical: bool) -> None:
         it = iterator
