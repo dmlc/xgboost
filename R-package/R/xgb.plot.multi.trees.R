@@ -61,7 +61,7 @@
 #'
 #' @export
 xgb.plot.multi.trees <- function(model, feature_names = NULL, features_keep = 5, plot_width = NULL, plot_height = NULL,
-                                 render = TRUE, ...){
+                                 render = TRUE, ...) {
   if (!requireNamespace("DiagrammeR", quietly = TRUE)) {
     stop("DiagrammeR is required for xgb.plot.multi.trees")
   }

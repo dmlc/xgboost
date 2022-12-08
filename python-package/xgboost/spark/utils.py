@@ -1,10 +1,9 @@
 """Xgboost pyspark integration submodule for helper functions."""
 import inspect
-import json
 import logging
 import sys
 from threading import Thread
-from typing import Any, Callable, Dict, List, Set, Type
+from typing import Any, Callable, Dict, Set, Type
 
 import pyspark
 from pyspark import BarrierTaskContext, SparkContext
@@ -79,16 +78,6 @@ def _get_host_ip(context: BarrierTaskContext) -> str:
     """Gets the hostIP for Spark. This essentially gets the IP of the first worker."""
     task_ip_list = [info.address.split(":")[0] for info in context.getTaskInfos()]
     return task_ip_list[0]
-
-
-def _get_args_from_message_list(messages: List[str]) -> Dict[str, Any]:
-    """A function to send/recieve messages in barrier context mode"""
-    output = ""
-    for message in messages:
-        if message != "":
-            output = message
-            break
-    return json.loads(output)
 
 
 def _get_spark_session() -> SparkSession:

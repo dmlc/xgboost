@@ -82,7 +82,7 @@
 #'
 #' @export
 xgb.importance <- function(feature_names = NULL, model = NULL, trees = NULL,
-                           data = NULL, label = NULL, target = NULL){
+                           data = NULL, label = NULL, target = NULL) {
 
   if (!(is.null(data) && is.null(label) && is.null(target)))
     warning("xgb.importance: parameters 'data', 'label' and 'target' are deprecated")
@@ -104,7 +104,11 @@ xgb.importance <- function(feature_names = NULL, model = NULL, trees = NULL,
       XGBoosterFeatureScore_R, model$handle, jsonlite::toJSON(args, auto_unbox = TRUE, null = "null")
     )
     names(results) <- c("features", "shape", "weight")
-    n_classes <-  if (length(results$shape) == 2) { results$shape[2] } else { 0 }
+    if (length(results$shape) == 2) {
+        n_classes <- results$shape[2]
+    } else {
+        n_classes <- 0
+    }
     importance <- if (n_classes == 0) {
       data.table(Feature = results$features, Weight = results$weight)[order(-abs(Weight))]
     } else {

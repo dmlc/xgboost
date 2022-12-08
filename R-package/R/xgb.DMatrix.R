@@ -76,7 +76,7 @@ xgb.get.DMatrix <- function(data, label = NULL, missing = NA, weight = NULL, nth
       stop("label must be provided when data is a matrix")
     }
     dtrain <- xgb.DMatrix(data, label = label, missing = missing, nthread = nthread)
-    if (!is.null(weight)){
+    if (!is.null(weight)) {
       setinfo(dtrain, "weight", weight)
     }
   } else {
@@ -218,7 +218,7 @@ getinfo.xgb.DMatrix <- function(object, name, ...) {
   }
   if (name == "feature_name" || name == "feature_type") {
     ret <- .Call(XGDMatrixGetStrFeatureInfo_R, object, name)
-  } else if (name != "nrow"){
+  } else if (name != "nrow") {
     ret <- .Call(XGDMatrixGetInfo_R, object, name)
   } else {
     ret <- nrow(object)
