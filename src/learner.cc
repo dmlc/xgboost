@@ -1412,16 +1412,14 @@ class LearnerImpl : public LearnerIO {
     MetaInfo const& info = p_fmat->Info();
     info.Validate(ctx_.gpu_id);
 
-    if (p_fmat->Info().data_split_mode == DataSplitMode::kRow) {
-      if (is_training) {
-        CHECK_EQ(learner_model_param_.num_feature, p_fmat->Info().num_col_)
-            << "Number of columns does not match number of features in "
-               "booster.";
-      } else {
-        CHECK_GE(learner_model_param_.num_feature, p_fmat->Info().num_col_)
-            << "Number of columns does not match number of features in "
-               "booster.";
-      }
+    if (is_training) {
+      CHECK_EQ(learner_model_param_.num_feature, p_fmat->Info().num_col_)
+          << "Number of columns does not match number of features in "
+             "booster.";
+    } else {
+      CHECK_GE(learner_model_param_.num_feature, p_fmat->Info().num_col_)
+          << "Number of columns does not match number of features in "
+             "booster.";
     }
 
     if (p_fmat->Info().num_row_ == 0) {
