@@ -1025,7 +1025,7 @@ def test_pandas_input():
     clf_isotonic = CalibratedClassifierCV(model, cv="prefit", method="isotonic")
     clf_isotonic.fit(train, target)
     assert isinstance(
-        clf_isotonic.calibrated_classifiers_[0].base_estimator, xgb.XGBClassifier
+        clf_isotonic.calibrated_classifiers_[0].estimator, xgb.XGBClassifier
     )
     np.testing.assert_allclose(np.array(clf_isotonic.classes_), np.array([0, 1]))
 
