@@ -18,6 +18,7 @@ def test_dask_training():
 
 @pytest.mark.skipif(**tm.no_dask_cuda())
 @pytest.mark.skipif(**tm.no_dask())
+@pytest.mark.mgpu
 def test_dask_sklearn_demo():
     script = os.path.join(tm.demo_dir(__file__), "dask", "sklearn_gpu_training.py")
     cmd = ["python", script]
