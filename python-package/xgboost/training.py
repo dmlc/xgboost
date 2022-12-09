@@ -509,6 +509,7 @@ def cv(
     if isinstance(metrics, str):
         metrics = [metrics]
 
+    params = params.copy()
     if isinstance(params, list):
         _metrics = [x[1] for x in params if x[0] == 'eval_metric']
         params = dict(params)
