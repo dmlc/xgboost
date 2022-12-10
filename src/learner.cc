@@ -635,20 +635,42 @@ class LearnerConfiguration : public Learner {
     auto& ft = *p_ft;
     ft = this->feature_types_;
   }
+
   void ValidateFeatureInfo(MetaInfo const& info) const {
     std::vector<std::string> fn{this->feature_names_};
     std::sort(fn.begin(), fn.end());
     std::vector<std::string> info_fn{info.feature_names};
     std::sort(info_fn.begin(), info_fn.end());
-    std::vector<std::string> diff;
-    std::set_difference(fn.cbegin(), fn.cend(), info_fn.cbegin(), info_fn.cend(),
-                        std::back_inserter(diff));
-    // fixme
-    if (!diff.empty()) {
-      LOG(FATAL) << "feature_names mismatch.";
+    auto get_diff = [&](auto const& lhs, auto const& rhs) {
+      std::vector<std::string> diff;
+      std::set_difference(lhs.cbegin(), lhs.cend(), rhs.cbegin(), rhs.cend(),
+                          std::back_inserter(diff));
+      return diff;
+    };
+    auto dat_missing = get_diff(fn, info_fn);
+    auto mod_missing = get_diff(info_fn, fn);
+
+    if (!dat_missing.empty()) {
+      std::stringstream ss;
+      ss << "feature_names mismatch. Expected ";
+      for (std::size_t i = 0; i < dat_missing.size() - 1; ++i) {
+        ss << dat_missing[i] << ", ";
+      }
+      ss << dat_missing.back() << " in input data.";
+      LOG(FATAL) << ss.str();
+    }
+    if (!mod_missing.empty()) {
+      std::stringstream ss;
+      ss << "feature_names mismatch. Training data did not have the following field: ";
+      for (std::size_t i = 0; i < mod_missing.size() - 1; ++i) {
+        ss << dat_missing[i] << ", ";
+      }
+      ss << dat_missing.back();
+      LOG(FATAL) << ss.str();
     }
   }
-  void InitFeatureInfo(MetaInfo const& info) {
+
+  void InitFeatureInfo(std::int32_t iter, MetaInfo const& info) {
     if (this->feature_names_.empty() && !info.feature_names.empty()) {
       this->feature_names_ = info.feature_names;
     }
@@ -659,7 +681,9 @@ class LearnerConfiguration : public Learner {
       this->num_category_.Copy(info.num_categories);
       this->need_configuration_ = true;
     }
-    this->ValidateFeatureInfo(info);
+    if (iter == 0) {
+      this->ValidateFeatureInfo(info);
+    }
   }
 
   std::vector<std::string> GetAttrNames() const override {
@@ -1312,7 +1336,7 @@ class LearnerImpl : public LearnerIO {
   void UpdateOneIter(int iter, std::shared_ptr<DMatrix> train) override {
     monitor_.Start("UpdateOneIter");
     TrainingObserver::Instance().Update(iter);
-    this->InitFeatureInfo(train->Info());
+    this->InitFeatureInfo(iter, train->Info());
 
     this->Configure();
     this->InitBaseScore(train.get());
@@ -1345,7 +1369,7 @@ class LearnerImpl : public LearnerIO {
                     HostDeviceVector<GradientPair>* in_gpair) override {
     monitor_.Start("BoostOneIter");
     TrainingObserver::Instance().Update(iter);
-    this->InitFeatureInfo(train->Info());
+    this->InitFeatureInfo(iter, train->Info());
 
     this->Configure();
 
@@ -1355,7 +1379,6 @@ class LearnerImpl : public LearnerIO {
 
     this->CheckDataSplitMode();
     this->ValidateDMatrix(train.get(), true);
-    this->InitFeatureInfo(train->Info());
 
     auto local_cache = this->GetPredictionCache();
     local_cache->Cache(train, ctx_.gpu_id);
