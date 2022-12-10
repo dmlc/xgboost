@@ -922,7 +922,6 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
   auto type = PredictionType(RequiredArg<Integer>(config, "type", __func__));
   auto iteration_begin = RequiredArg<Integer>(config, "iteration_begin", __func__);
   auto iteration_end = RequiredArg<Integer>(config, "iteration_end", __func__);
-  auto validate_feat = OptionalArg<Boolean>(config, "validate_feature", false);
 
   auto const& j_config = get<Object const>(config);
   auto ntree_limit_it = j_config.find("ntree_limit");
@@ -941,9 +940,10 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
   bool interactions = type == PredictionType::kInteraction ||
                       type == PredictionType::kApproxInteraction;
   bool training = RequiredArg<Boolean>(config, "training", __func__);
-  learner->Predict(p_m, type == PredictionType::kMargin, &entry.predictions, iteration_begin,
-                   iteration_end, training, type == PredictionType::kLeaf, contribs, approximate,
-                   interactions, validate_feat);
+  learner->Predict(p_m, type == PredictionType::kMargin, &entry.predictions,
+                   iteration_begin, iteration_end, training,
+                   type == PredictionType::kLeaf, contribs, approximate,
+                   interactions);
 
   xgboost_CHECK_C_ARG_PTR(out_result);
   *out_result = dmlc::BeginPtr(entry.predictions.ConstHostVector());
@@ -975,7 +975,6 @@ void InplacePredictImpl(std::shared_ptr<DMatrix> p_m, char const *c_json_config,
   HostDeviceVector<float> *p_predt{nullptr};
   auto type = PredictionType(RequiredArg<Integer>(config, "type", __func__));
   float missing = GetMissing(config);
-  bool validate_feat = OptionalArg<Boolean>(config, "validate_feature", false);
   learner->InplacePredict(p_m, type, missing, &p_predt,
                           RequiredArg<Integer>(config, "iteration_begin", __func__),
                           RequiredArg<Integer>(config, "iteration_end", __func__));

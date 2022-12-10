@@ -1936,7 +1936,7 @@ class Booster:
         """
         if not isinstance(dtrain, DMatrix):
             raise TypeError(f"invalid training matrix: {type(dtrain).__name__}")
-        # self._validate_dmatrix_features(dtrain)  # fixme: remove
+        self._validate_dmatrix_features(dtrain)
 
         if fobj is None:
             _check_call(
@@ -1968,7 +1968,7 @@ class Booster:
             raise ValueError(f"grad / hess length mismatch: {len(grad)} / {len(hess)}")
         if not isinstance(dtrain, DMatrix):
             raise TypeError(f"invalid training matrix: {type(dtrain).__name__}")
-        # self._validate_dmatrix_features(dtrain)  # fixme: remove
+        self._validate_dmatrix_features(dtrain)
 
         _check_call(
             _LIB.XGBoosterBoostOneIter(
@@ -2009,7 +2009,7 @@ class Booster:
                 raise TypeError(f"expected DMatrix, got {type(d[0]).__name__}")
             if not isinstance(d[1], str):
                 raise TypeError(f"expected string, got {type(d[1]).__name__}")
-            # self._validate_dmatrix_features(d[0])
+            self._validate_dmatrix_features(d[0])
 
         dmats = c_array(ctypes.c_void_p, [d[0].handle for d in evals])
         evnames = c_array(ctypes.c_char_p, [c_str(d[1]) for d in evals])
@@ -2060,7 +2060,7 @@ class Booster:
         result: str
             Evaluation result string.
         """
-        # self._validate_dmatrix_features(data)
+        self._validate_dmatrix_features(data)
         return self.eval_set([(data, name)], iteration)
 
     # pylint: disable=too-many-function-args
@@ -2162,8 +2162,8 @@ class Booster:
         """
         if not isinstance(data, DMatrix):
             raise TypeError('Expecting data to be a DMatrix object, got: ', type(data))
-        # if validate_features:
-        #     self._validate_dmatrix_features(data)
+        if validate_features:
+            self._validate_dmatrix_features(data)
         iteration_range = _convert_ntree_limit(self, ntree_limit, iteration_range)
         args = {
             "type": 0,
@@ -2171,7 +2171,6 @@ class Booster:
             "iteration_begin": iteration_range[0],
             "iteration_end": iteration_range[1],
             "strict_shape": strict_shape,
-            "validate_features": validate_features,
         }
 
         def assign_type(t: int) -> None:
@@ -2274,14 +2273,12 @@ class Booster:
             "missing": missing,
             "strict_shape": strict_shape,
             "cache_id": 0,
-            "validate_feature": validate_features,
         }
         if predict_type == "margin":
             args["type"] = 1
         shape = ctypes.POINTER(c_bst_ulong)()
         dims = c_bst_ulong()
 
-        # fixme: use this for feature name.
         if base_margin is not None:
             proxy: Optional[_ProxyDMatrix] = _ProxyDMatrix()
             assert proxy is not None
@@ -2314,6 +2311,8 @@ class Booster:
         enable_categorical = _has_categorical(self, data)
         if _is_pandas_df(data):
             data, fns, _ = _transform_pandas_df(data, enable_categorical)
+            if validate_features:
+                self._validate_features(fns)
 
         if isinstance(data, np.ndarray):
             from .data import _ensure_np_dtype
@@ -2372,6 +2371,8 @@ class Booster:
                 data, None, None, enable_categorical
             )
             interfaces_str = _cudf_array_interfaces(data, cat_codes)
+            if validate_features:
+                self._validate_features(fns)
             _check_call(
                 _LIB.XGBoosterPredictFromCudaColumnar(
                     self.handle,

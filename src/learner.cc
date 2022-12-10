@@ -636,60 +636,10 @@ class LearnerConfiguration : public Learner {
     ft = this->feature_types_;
   }
 
-  void ValidateFeatureInfo(MetaInfo const& info) const {
-    if (learner_model_param_.Initialized()) {
-      CHECK_EQ(info.num_col_, learner_model_param_.num_feature)
-          << "Feature shape mismatch, expected:" << this->GetNumFeature()
-          << ", got:" << info.num_col_;
-    }
-
-    std::vector<std::string> fn{this->feature_names_};
-    std::sort(fn.begin(), fn.end());
-    std::vector<std::string> info_fn{info.feature_names};
-    std::sort(info_fn.begin(), info_fn.end());
-    auto get_diff = [&](auto const& lhs, auto const& rhs) {
-      std::vector<std::string> diff;
-      std::set_difference(lhs.cbegin(), lhs.cend(), rhs.cbegin(), rhs.cend(),
-                          std::back_inserter(diff));
-      return diff;
-    };
-    auto dat_missing = get_diff(fn, info_fn);
-    auto mod_missing = get_diff(info_fn, fn);
-
-    if (!dat_missing.empty()) {
-      std::stringstream ss;
-      ss << "feature_names mismatch. Expected ";
-      for (std::size_t i = 0; i < dat_missing.size() - 1; ++i) {
-        ss << dat_missing[i] << ", ";
-      }
-      ss << dat_missing.back() << " in input data.";
-      LOG(FATAL) << ss.str();
-    }
-    if (!mod_missing.empty()) {
-      std::stringstream ss;
-      ss << "feature_names mismatch. Training data did not have the following field: ";
-      for (std::size_t i = 0; i < mod_missing.size() - 1; ++i) {
-        ss << dat_missing[i] << ", ";
-      }
-      ss << dat_missing.back();
-      LOG(FATAL) << ss.str();
-    }
-  }
-
-  void InitFeatureInfo(std::int32_t iter, MetaInfo const& info) {
-    // fixme: maybe we init only categories?
-    if (this->feature_names_.empty() && !info.feature_names.empty()) {
-      this->feature_names_ = info.feature_names;
-    }
-    if (this->feature_types_.empty() && !info.feature_type_names.empty()) {
-      this->feature_types_ = info.feature_type_names;
-    }
+  void InitFeatureInfo(MetaInfo const& info) {
     if (this->num_category_.Empty() && !info.num_categories.Empty()) {
       this->num_category_.Copy(info.num_categories);
       this->need_configuration_ = true;
-    }
-    if (iter == 0) {
-      this->ValidateFeatureInfo(info);
     }
   }
 
@@ -1343,7 +1293,7 @@ class LearnerImpl : public LearnerIO {
   void UpdateOneIter(int iter, std::shared_ptr<DMatrix> train) override {
     monitor_.Start("UpdateOneIter");
     TrainingObserver::Instance().Update(iter);
-    this->InitFeatureInfo(iter, train->Info());
+    this->InitFeatureInfo(train->Info());
 
     this->Configure();
     this->InitBaseScore(train.get());
@@ -1376,7 +1326,7 @@ class LearnerImpl : public LearnerIO {
                     HostDeviceVector<GradientPair>* in_gpair) override {
     monitor_.Start("BoostOneIter");
     TrainingObserver::Instance().Update(iter);
-    this->InitFeatureInfo(iter, train->Info());
+    this->InitFeatureInfo(train->Info());
 
     this->Configure();
 
@@ -1435,7 +1385,7 @@ class LearnerImpl : public LearnerIO {
                HostDeviceVector<bst_float> *out_preds, unsigned layer_begin,
                unsigned layer_end, bool training,
                bool pred_leaf, bool pred_contribs, bool approx_contribs,
-               bool pred_interactions, bool validate_feature) override {
+               bool pred_interactions) override {
     int multiple_predictions = static_cast<int>(pred_leaf) +
                                static_cast<int>(pred_interactions) +
                                static_cast<int>(pred_contribs);
@@ -1444,9 +1394,6 @@ class LearnerImpl : public LearnerIO {
       this->InitBaseScore(nullptr);
     }
     this->CheckModelInitialized();
-    if (validate_feature) {
-      this->ValidateFeatureInfo(data->Info());
-    }
 
     CHECK_LE(multiple_predictions, 1) << "Perform one kind of prediction at a time.";
     if (pred_contribs) {
