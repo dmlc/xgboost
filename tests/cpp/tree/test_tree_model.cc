@@ -208,14 +208,22 @@ TEST(Tree, ExpandCategoricalFeature) {
   }
 }
 
-void GrowTree(RegTree* p_tree) {
+std::shared_ptr<RegTree> GrowTree(LearnerModelParam* out_param) {
   SimpleLCG lcg;
   size_t n_expands = 10;
   constexpr size_t kCols = 256;
   SimpleRealUniformDistribution<double> coin(0.0, 1.0);
   SimpleRealUniformDistribution<double> feat(0.0, kCols);
-  SimpleRealUniformDistribution<double> split_cat(0.0, 128.0);
+  auto cat = 128;
+  SimpleRealUniformDistribution<double> split_cat(0.0, cat);
   SimpleRealUniformDistribution<double> split_value(0.0, kCols);
+
+  auto mparam = MakeMP(kCols, 0.5, 1);
+  mparam.num_category.ModifyInplace([&](HostDeviceVector<bst_cat_t>* data, auto shape) {
+    shape[0] = 1;
+    data->HostVector().push_back(cat);
+  });
+  std::shared_ptr<RegTree> p_tree{new RegTree{&mparam}};
 
   std::stack<bst_node_t> stack;
   stack.push(RegTree::kRoot);
@@ -229,8 +237,7 @@ void GrowTree(RegTree* p_tree) {
     bst_feature_t f = feat(&lcg);
     if (is_cat) {
       bst_cat_t cat = common::AsCat(split_cat(&lcg));
-      std::vector<uint32_t> split_cats(
-          LBitField32::ComputeStorageSize(cat + 1));
+      std::vector<uint32_t> split_cats(LBitField32::ComputeStorageSize(cat + 1));
       LBitField32 bitset{split_cats};
       bitset.Set(cat);
       tree.ExpandCategorical(node, f, split_cats, true, 1.0, 2.0, 3.0, 11.0, 2.0,
@@ -244,13 +251,16 @@ void GrowTree(RegTree* p_tree) {
     stack.push(tree[node].LeftChild());
     stack.push(tree[node].RightChild());
   }
+
+  out_param->Copy(mparam);
+  return p_tree;
 }
 
-void CheckReload(RegTree const &tree) {
+void CheckReload(RegTree const &tree, LearnerModelParam const* mparam) {
   Json out{Object()};
   tree.SaveModel(&out);
 
-  RegTree loaded_tree;
+  RegTree loaded_tree{mparam};
   loaded_tree.LoadModel(out);
   Json saved{Object()};
   loaded_tree.SaveModel(&saved);
@@ -260,21 +270,27 @@ void CheckReload(RegTree const &tree) {
 
 TEST(Tree, CategoricalIO) {
   {
-    RegTree tree;
     bst_cat_t cat = 32;
+    auto mparam = MakeMP(1, 0.5, 1);
+    mparam.num_category.ModifyInplace([&](HostDeviceVector<bst_cat_t>* data, auto shape) {
+      shape[0] = 1;
+      data->HostVector().push_back(cat);
+    });
+    RegTree tree{&mparam};
+
     std::vector<uint32_t> split_cats(LBitField32::ComputeStorageSize(cat + 1));
     LBitField32 bitset{split_cats};
     bitset.Set(cat);
     tree.ExpandCategorical(0, 0, split_cats, true, 1.0, 2.0, 3.0, 11.0, 2.0,
                            /*left_sum=*/3.0, /*right_sum=*/4.0);
 
-    CheckReload(tree);
+    CheckReload(tree, &mparam);
   }
 
   {
-    RegTree tree;
-    GrowTree(&tree);
-    CheckReload(tree);
+    LearnerModelParam mparam;
+    auto tree = GrowTree(&mparam);
+    CheckReload(*tree, &mparam);
   }
 }
 
@@ -299,9 +315,15 @@ RegTree ConstructTree(LearnerModelParam* mparam) {
   return tree;
 }
 
-RegTree ConstructTreeCat(std::vector<bst_cat_t>* cond) {
-  RegTree tree;
-  std::vector<uint32_t> cats_storage(common::CatBitField::ComputeStorageSize(33), 0);
+RegTree ConstructTreeCat(std::vector<bst_cat_t>* cond, LearnerModelParam* mparam) {
+  auto cat = 33;
+  *mparam = MakeMP(1, 0.5, 1);
+  mparam->num_category.ModifyInplace([&](HostDeviceVector<bst_cat_t>* data, auto shape) {
+    shape[0] = 1;
+    data->HostVector().push_back(cat);
+  });
+  RegTree tree{mparam};
+  std::vector<uint32_t> cats_storage(common::CatBitField::ComputeStorageSize(cat), 0);
   common::CatBitField split_cats(cats_storage);
   split_cats.Set(0);
   split_cats.Set(14);
@@ -326,7 +348,8 @@ RegTree ConstructTreeCat(std::vector<bst_cat_t>* cond) {
 
 void TestCategoricalTreeDump(std::string format, std::string sep) {
   std::vector<bst_cat_t> cond;
-  auto tree = ConstructTreeCat(&cond);
+  LearnerModelParam mparam;
+  auto tree = ConstructTreeCat(&cond, &mparam);
 
   FeatureMap fmap;
   auto str = tree.DumpModel(fmap, true, format);

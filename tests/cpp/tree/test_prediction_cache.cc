@@ -73,7 +73,8 @@ class TestPredictionCache : public ::testing::Test {
 
       std::unique_ptr<TreeUpdater> updater{
           TreeUpdater::Create(updater_name, &ctx, ObjInfo{ObjInfo::kRegression})};
-      RegTree tree;
+      auto mparam = MakeMP(Xy_->Info().num_col_, 0.5, 1);
+      RegTree tree{&mparam};
       std::vector<RegTree *> trees{&tree};
       auto gpair = GenerateRandomGradients(n_samples_);
       updater->Configure(Args{{"max_bin", "64"}});

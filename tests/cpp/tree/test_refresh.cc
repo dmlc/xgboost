@@ -28,7 +28,8 @@ TEST(Updater, Refresh) {
       {"num_feature", std::to_string(kCols)},
       {"reg_lambda", "1"}};
 
-  RegTree tree = RegTree();
+  auto mparam = MakeMP(kCols, 0.5, 1);
+  RegTree tree = RegTree{&mparam};
   auto ctx = CreateEmptyGenericParam(GPUIDX);
   tree.param.UpdateAllowUnknown(cfg);
   std::vector<RegTree*> trees{&tree};

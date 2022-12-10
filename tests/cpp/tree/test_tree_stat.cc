@@ -26,7 +26,8 @@ class UpdaterTreeStatTest : public ::testing::Test {
     auto up = std::unique_ptr<TreeUpdater>{
         TreeUpdater::Create(updater, &ctx, ObjInfo{ObjInfo::kRegression})};
     up->Configure(Args{});
-    RegTree tree;
+    auto mparam = MakeMP(kCols, 0.5, 1);
+    RegTree tree{&mparam};
     tree.param.num_feature = kCols;
     std::vector<HostDeviceVector<bst_node_t>> position(1);
     up->Update(&gpairs_, p_dmat_.get(), position, {&tree});
@@ -77,16 +78,17 @@ class UpdaterEtaTest : public ::testing::Test {
     auto up_1 = std::unique_ptr<TreeUpdater>{
         TreeUpdater::Create(updater, &ctx, ObjInfo{ObjInfo::kClassification})};
     up_1->Configure(Args{{"eta", "1.0"}});
+    auto mparam = MakeMP(kCols, 0.5, 1);
 
     for (size_t iter = 0; iter < 4; ++iter) {
-      RegTree tree_0;
+      RegTree tree_0{&mparam};
       {
         tree_0.param.num_feature = kCols;
         std::vector<HostDeviceVector<bst_node_t>> position(1);
         up_0->Update(&gpairs_, p_dmat_.get(), position, {&tree_0});
       }
 
-      RegTree tree_1;
+      RegTree tree_1{&mparam};
       {
         tree_1.param.num_feature = kCols;
         std::vector<HostDeviceVector<bst_node_t>> position(1);
@@ -147,7 +149,8 @@ class TestMinSplitLoss : public ::testing::Test {
         TreeUpdater::Create(updater, &ctx, ObjInfo{ObjInfo::kRegression})};
     up->Configure(args);
 
-    RegTree tree;
+    auto mparam = MakeMP(dmat_->Info().num_col_, 0.5, 1);
+    RegTree tree{&mparam};
     std::vector<HostDeviceVector<bst_node_t>> position(1);
     up->Update(&gpair_, dmat_.get(), position, {&tree});
 
