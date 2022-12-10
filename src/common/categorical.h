@@ -18,6 +18,8 @@ namespace common {
 
 using CatBitField = LBitField32;
 using KCatBitField = CLBitField32;
+using CatBitsT = LBitField32::value_type;
+static_assert(std::is_same<CatBitsT, std::uint32_t>::value, "Invalid storage type.");
 
 // Cast the categorical type.
 template <typename T>
@@ -53,7 +55,7 @@ inline XGBOOST_DEVICE bool InvalidCat(float cat) {
  *  For one hot split, go to left if it's NOT the matching category.
  */
 template <bool validate = true>
-inline XGBOOST_DEVICE bool Decision(common::Span<uint32_t const> cats, float cat, bool dft_left) {
+inline XGBOOST_DEVICE bool Decision(common::Span<CatBitsT const> cats, float cat, bool dft_left) {
   KCatBitField const s_cats(cats);
   // FIXME: Size() is not accurate since it represents the size of bit set instead of
   // actual number of categories.

@@ -21,7 +21,7 @@ from typing import (
 import numpy as np
 from scipy.special import softmax
 
-from ._typing import ArrayLike, FeatureNames, FeatureTypes
+from ._typing import ArrayLike, FeatureNames
 from .callback import TrainingCallback
 
 # Do not use class names on scikit-learn directly.  Re-define the classes on
@@ -37,6 +37,7 @@ from .config import config_context
 from .core import (
     Booster,
     DMatrix,
+    FeatureTypes,
     Metric,
     QuantileDMatrix,
     XGBoostError,

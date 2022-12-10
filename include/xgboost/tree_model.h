@@ -9,20 +9,20 @@
 
 #include <dmlc/io.h>
 #include <dmlc/parameter.h>
-
 #include <xgboost/base.h>
 #include <xgboost/data.h>
-#include <xgboost/logging.h>
 #include <xgboost/feature_map.h>
+#include <xgboost/learner.h>
+#include <xgboost/logging.h>
 #include <xgboost/model.h>
 
-#include <limits>
-#include <vector>
-#include <string>
-#include <cstring>
 #include <algorithm>
-#include <tuple>
+#include <cstring>
+#include <limits>
 #include <stack>
+#include <string>
+#include <tuple>
+#include <vector>
 
 namespace xgboost {
 
@@ -313,7 +313,7 @@ class RegTree : public Model {
   /*! \brief model parameter */
   TreeParam param;
   /*! \brief constructor */
-  RegTree() {
+  explicit RegTree(LearnerModelParam const* model) : model_{model} {
     param.num_nodes = 1;
     param.num_deleted = 0;
     nodes_.resize(param.num_nodes);
@@ -654,6 +654,7 @@ class RegTree : public Model {
   std::vector<uint32_t> split_categories_;
   // Ptr to split categories of each node.
   std::vector<Segment> split_categories_segments_;
+  LearnerModelParam const* model_;
 
   // allocate a new node,
   // !!!!!! NOTE: may cause BUG here, nodes.resize

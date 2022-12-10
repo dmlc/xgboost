@@ -207,12 +207,11 @@ void CopyGradient(HostDeviceVector<GradientPair> const* in_gpair, int32_t n_thre
   if (in_gpair->DeviceIdx() != Context::kCpuId) {
     GPUCopyGradient(in_gpair, n_groups, group_id, out_gpair);
   } else {
-    std::vector<GradientPair> &tmp_h = out_gpair->HostVector();
+    std::vector<GradientPair>& tmp_h = out_gpair->HostVector();
     auto nsize = static_cast<bst_omp_uint>(out_gpair->Size());
-    const auto &gpair_h = in_gpair->ConstHostVector();
-    common::ParallelFor(nsize, n_threads, [&](bst_omp_uint i) {
-      tmp_h[i] = gpair_h[i * n_groups + group_id];
-    });
+    const auto& gpair_h = in_gpair->ConstHostVector();
+    common::ParallelFor(nsize, n_threads,
+                        [&](bst_omp_uint i) { tmp_h[i] = gpair_h[i * n_groups + group_id]; });
   }
 }
 
@@ -257,7 +256,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
     std::vector<std::unique_ptr<RegTree>> ret;
     BoostNewTrees(in_gpair, p_fmat, 0, &ret);
     UpdateTreeLeaf(p_fmat, predt->predictions, obj, &ret);
-    const size_t num_new_trees = ret.size();
+    std::size_t const num_new_trees = ret.size();
     new_trees.push_back(std::move(ret));
     auto v_predt = out.Slice(linalg::All(), 0);
     if (updaters_.size() > 0 && num_new_trees == 1 && predt->predictions.Size() > 0 &&
@@ -345,7 +344,7 @@ void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fma
           << "Set `process_type` to `update` if you want to update existing "
              "trees.";
       // create new tree
-      std::unique_ptr<RegTree> ptr(new RegTree());
+      std::unique_ptr<RegTree> ptr(new RegTree(model_.learner_model_param));
       ptr->param.UpdateAllowUnknown(this->cfg_);
       new_trees.push_back(ptr.get());
       ret->push_back(std::move(ptr));

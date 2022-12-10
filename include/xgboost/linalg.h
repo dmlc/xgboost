@@ -359,6 +359,10 @@ class TensorView {
 
  public:
   /**
+   * \brief Default constructor, suitable for lazy initialization.
+   */
+  LINALG_HD TensorView() = default;
+  /**
    * \brief Create a tensor with data and shape.
    *
    * \tparam I     Type of the shape array element.
@@ -830,8 +834,34 @@ class Tensor {
    * \brief Set device ordinal for this tensor.
    */
   void SetDevice(int32_t device) const { data_.SetDevice(device); }
-  int32_t DeviceIdx() const { return data_.DeviceIdx(); }
+  std::int32_t DeviceIdx() const { return data_.DeviceIdx(); }
+
+  Tensor &Copy(Tensor<T, kDim> const &that) {
+    this->SetDevice(that.DeviceIdx());
+    auto shape = that.Shape();
+    std::copy(shape.cbegin(), shape.cend(), std::begin(this->shape_));
+    this->Data()->Resize(that.Size());
+    this->Data()->Copy(*that.Data());
+    return *this;
+  }
+
+  bool Empty() const { return Size() == 0; }
 };
+
+template <typename T>
+using Vector = Tensor<T, 1>;
+
+/**
+ * \brief Like `np.zeros`, return a new array of given shape and type, filled with zeros.
+ */
+template <typename T, typename... Index>
+auto Zeros(Context const *ctx, Index &&...index) {
+  Tensor<T, sizeof...(Index)> t;
+  t.SetDevice(ctx->gpu_id);
+  t.Reshape(index...);
+  t.Data()->Fill(static_cast<T>(0));
+  return t;
+}
 
 // Only first axis is supported for now.
 template <typename T, int32_t D>

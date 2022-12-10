@@ -45,7 +45,6 @@ from ._typing import (
     DataType,
     FeatureInfo,
     FeatureNames,
-    FeatureTypes,
     NumpyOrCupy,
     c_bst_ulong,
 )
@@ -108,6 +107,17 @@ def from_cstr_to_pystr(data: CStrPptr, length: c_bst_ulong) -> List[str]:
 def make_jcargs(**kwargs: Any) -> bytes:
     "Make JSON-based arguments for C functions."
     return from_pystr_to_cstr(json.dumps(kwargs))
+
+
+def validate_feat_info(name: str, n_features: int, info: Optional[Sequence]) -> None:
+    """Validate input feature info."""
+    if not info or n_features == 0:
+        return
+    if len(info) != n_features:
+        raise ValueError(
+            f"{name} must have the same length as the number of features in the data."
+            f"Expected length {n_features}, got {len(info)}."
+        )
 
 
 IterRange = TypeVar("IterRange", Optional[Tuple[int, int]], Tuple[int, int])
@@ -415,6 +425,23 @@ def _prediction_output(
         arr_predict = ctypes2numpy(predts, length, np.float32)
     arr_predict = arr_predict.reshape(arr_shape)
     return arr_predict
+
+
+class CatDType:
+    """Helper class for passing information about categorical feature."""
+    def __init__(self, n_category: int) -> None:
+        self.n_category: int = n_category
+
+    @staticmethod
+    def from_str(s: str) -> "CatDType":
+        return CatDType(int(s[2:-1]))
+
+    def __str__(self) -> str:
+        """Return an internal string representation."""
+        return f"c({str(self.n_category)})"
+
+
+FeatureTypes = Sequence[Union[str, CatDType]]
 
 
 class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
@@ -1183,23 +1210,25 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
     def feature_types(self) -> Optional[FeatureTypes]:
         """Get feature types (column types).
 
-        Returns
-        -------
-        feature_types : list or None
         """
         length = c_bst_ulong()
         sarr = ctypes.POINTER(ctypes.c_char_p)()
-        _check_call(_LIB.XGDMatrixGetStrFeatureInfo(self.handle,
-                                                    c_str('feature_type'),
-                                                    ctypes.byref(length),
-                                                    ctypes.byref(sarr)))
-        res = from_cstr_to_pystr(sarr, length)
-        if not res:
+        _check_call(
+            _LIB.XGDMatrixGetStrFeatureInfo(
+                self.handle,
+                c_str("feature_type"),
+                ctypes.byref(length),
+                ctypes.byref(sarr),
+            )
+        )
+        type_str = from_cstr_to_pystr(sarr, length)
+        if not type_str:
             return None
+        res = [CatDType.from_str(f) if f.startswith("c") else f for f in type_str]
         return res
 
     @feature_types.setter
-    def feature_types(self, feature_types: Optional[Union[List[str], str]]) -> None:
+    def feature_types(self, feature_types: Optional[FeatureTypes]) -> None:
         """Set feature types (column types).
 
         This is for displaying the results and categorical data support. See
@@ -1211,42 +1240,35 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             Labels for features. None will reset existing feature names
 
         """
-        # For compatibility reason this function wraps single str input into a list.  But
-        # we should not promote such usage since other than visualization, the field is
-        # also used for specifying categorical data type.
         if feature_types is not None:
-            if not isinstance(feature_types, (list, str)):
-                raise TypeError(
-                    'feature_types must be string or list of strings')
-            if isinstance(feature_types, str):
-                # single string will be applied to all columns
-                feature_types = [feature_types] * self.num_col()
-            try:
-                if not isinstance(feature_types, str):
-                    feature_types = list(feature_types)
-                else:
-                    feature_types = [feature_types]
-            except TypeError:
-                feature_types = [cast(str, feature_types)]
-            feature_types_bytes = [bytes(f, encoding='utf-8')
-                               for f in feature_types]
-            c_feature_types = (ctypes.c_char_p *
-                               len(feature_types_bytes))(*feature_types_bytes)
-            _check_call(_LIB.XGDMatrixSetStrFeatureInfo(
-                self.handle, c_str('feature_type'),
-                c_feature_types,
-                c_bst_ulong(len(feature_types))))
-
+            if not isinstance(feature_types, list):
+                raise TypeError("feature_types must be string or list of strings")
+            feature_types_bytes = [
+                bytes(str(f), encoding="utf-8") for f in feature_types
+            ]
+            validate_feat_info("feature_types", self.num_col(), feature_types_bytes)
+            c_feature_types = (ctypes.c_char_p * len(feature_types_bytes))(
+                *feature_types_bytes
+            )
+            _check_call(
+                _LIB.XGDMatrixSetStrFeatureInfo(
+                    self.handle,
+                    c_str("feature_type"),
+                    c_feature_types,
+                    c_bst_ulong(len(feature_types)),
+                )
+            )
+            # fixme(jiamingy): unify the message between type and name.
             if len(feature_types) != self.num_col() and self.num_col() != 0:
-                msg = 'feature_types must have the same length as data'
+                msg = "feature_types must have the same length as the number of features in the data"
                 raise ValueError(msg)
         else:
-            # Reset.
-            _check_call(_LIB.XGDMatrixSetStrFeatureInfo(
-                self.handle,
-                c_str('feature_type'),
-                None,
-                c_bst_ulong(0)))
+            # Reset feature types.
+            _check_call(
+                _LIB.XGDMatrixSetStrFeatureInfo(
+                    self.handle, c_str("feature_type"), None, c_bst_ulong(0)
+                )
+            )
 
 
 class _ProxyDMatrix(DMatrix):
@@ -1858,7 +1880,8 @@ class Booster:
 
     @feature_types.setter
     def feature_types(self, features: Optional[FeatureTypes]) -> None:
-        self._set_feature_info(features, "feature_type")
+        type_str = [str(f) for f in features] if features is not None else None
+        self._set_feature_info(type_str, "feature_type")
 
     @property
     def feature_names(self) -> Optional[FeatureNames]:
@@ -1898,36 +1921,38 @@ class Booster:
     def update(
         self, dtrain: DMatrix, iteration: int, fobj: Optional[Objective] = None
     ) -> None:
-        """Update for one iteration, with objective function calculated
-        internally.  This function should not be called directly by users.
+        """Update for one iteration, with objective function calculated internally.
+        This function should not be called directly by users.
 
         Parameters
         ----------
-        dtrain : DMatrix
+        dtrain :
             Training data.
-        iteration : int
+        iteration :
             Current iteration number.
-        fobj : function
+        fobj :
             Customized objective function.
 
         """
         if not isinstance(dtrain, DMatrix):
             raise TypeError(f"invalid training matrix: {type(dtrain).__name__}")
-        self._validate_dmatrix_features(dtrain)
+        # self._validate_dmatrix_features(dtrain)  # fixme: remove
 
         if fobj is None:
-            _check_call(_LIB.XGBoosterUpdateOneIter(self.handle,
-                                                    ctypes.c_int(iteration),
-                                                    dtrain.handle))
+            _check_call(
+                _LIB.XGBoosterUpdateOneIter(
+                    self.handle, ctypes.c_int(iteration), dtrain.handle
+                )
+            )
         else:
             pred = self.predict(dtrain, output_margin=True, training=True)
             grad, hess = fobj(pred, dtrain)
             self.boost(dtrain, grad, hess)
 
     def boost(self, dtrain: DMatrix, grad: np.ndarray, hess: np.ndarray) -> None:
-        """Boost the booster for one iteration, with customized gradient
-        statistics.  Like :py:func:`xgboost.Booster.update`, this
-        function should not be called directly by users.
+        """Boost the booster for one iteration, with customized gradient statistics.
+        Like :py:func:`xgboost.Booster.update`, this function should not be called
+        directly by users.
 
         Parameters
         ----------
@@ -1940,24 +1965,27 @@ class Booster:
 
         """
         if len(grad) != len(hess):
-            raise ValueError(
-                f"grad / hess length mismatch: {len(grad)} / {len(hess)}"
-            )
+            raise ValueError(f"grad / hess length mismatch: {len(grad)} / {len(hess)}")
         if not isinstance(dtrain, DMatrix):
             raise TypeError(f"invalid training matrix: {type(dtrain).__name__}")
-        self._validate_dmatrix_features(dtrain)
+        # self._validate_dmatrix_features(dtrain)  # fixme: remove
 
-        _check_call(_LIB.XGBoosterBoostOneIter(self.handle, dtrain.handle,
-                                               c_array(ctypes.c_float, grad),
-                                               c_array(ctypes.c_float, hess),
-                                               c_bst_ulong(len(grad))))
+        _check_call(
+            _LIB.XGBoosterBoostOneIter(
+                self.handle,
+                dtrain.handle,
+                c_array(ctypes.c_float, grad),
+                c_array(ctypes.c_float, hess),
+                c_bst_ulong(len(grad)),
+            )
+        )
 
     def eval_set(
         self,
         evals: Sequence[Tuple[DMatrix, str]],
         iteration: int = 0,
         feval: Optional[Metric] = None,
-        output_margin: bool = True
+        output_margin: bool = True,
     ) -> str:
         # pylint: disable=invalid-name
         """Evaluate a set of data.
@@ -1981,7 +2009,7 @@ class Booster:
                 raise TypeError(f"expected DMatrix, got {type(d[0]).__name__}")
             if not isinstance(d[1], str):
                 raise TypeError(f"expected string, got {type(d[1]).__name__}")
-            self._validate_dmatrix_features(d[0])
+            # self._validate_dmatrix_features(d[0])
 
         dmats = c_array(ctypes.c_void_p, [d[0].handle for d in evals])
         evnames = c_array(ctypes.c_char_p, [c_str(d[1]) for d in evals])
@@ -2032,7 +2060,7 @@ class Booster:
         result: str
             Evaluation result string.
         """
-        self._validate_dmatrix_features(data)
+        # self._validate_dmatrix_features(data)
         return self.eval_set([(data, name)], iteration)
 
     # pylint: disable=too-many-function-args
@@ -2134,8 +2162,8 @@ class Booster:
         """
         if not isinstance(data, DMatrix):
             raise TypeError('Expecting data to be a DMatrix object, got: ', type(data))
-        if validate_features:
-            self._validate_dmatrix_features(data)
+        # if validate_features:
+        #     self._validate_dmatrix_features(data)
         iteration_range = _convert_ntree_limit(self, ntree_limit, iteration_range)
         args = {
             "type": 0,

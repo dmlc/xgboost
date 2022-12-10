@@ -118,7 +118,7 @@ using bst_ulong = uint64_t;  // NOLINT
 /*! \brief float type, used for storing statistics */
 using bst_float = float;  // NOLINT
 /*! \brief Categorical value type. */
-using bst_cat_t = int32_t;  // NOLINT
+using bst_cat_t = std::int32_t;  // NOLINT
 /*! \brief Type for data column (feature) index. */
 using bst_feature_t = uint32_t;  // NOLINT
 /*! \brief Type for histogram bin index. */

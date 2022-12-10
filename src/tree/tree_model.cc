@@ -3,23 +3,23 @@
  * \file tree_model.cc
  * \brief model structure for tree
  */
-#include <dmlc/registry.h>
 #include <dmlc/json.h>
-
-#include <xgboost/tree_model.h>
-#include <xgboost/logging.h>
+#include <dmlc/registry.h>
 #include <xgboost/json.h>
+#include <xgboost/logging.h>
+#include <xgboost/tree_model.h>
 
-#include <sstream>
-#include <limits>
+#include <cinttypes>  // std::uint32_t
 #include <cmath>
 #include <iomanip>
+#include <limits>
+#include <sstream>
 #include <stack>
 
-#include "param.h"
-#include "../common/common.h"
 #include "../common/categorical.h"
+#include "../common/common.h"
 #include "../predictor/predict_fn.h"
+#include "param.h"
 
 namespace xgboost {
 // register tree parameter
@@ -938,24 +938,32 @@ void RegTree::LoadCategoricalSplit(Json const& in) {
   // `categories_segments' is only available for categorical nodes to prevent overhead for
   // numerical node. As a result, we need to track the categorical nodes we have processed
   // so far.
+  auto const n_categories = this->model_->num_category.HostView();
   for (bst_node_t nidx = 0; nidx < param.num_nodes; ++nidx) {
     if (nidx == last_cat_node) {
       auto j_begin = GetElem<Integer>(categories_segments, cnt);
       auto j_end = GetElem<Integer>(categories_sizes, cnt) + j_begin;
-      bst_cat_t max_cat{std::numeric_limits<bst_cat_t>::min()};
       CHECK_GT(j_end - j_begin, 0) << nidx;
 
-      for (auto j = j_begin; j < j_end; ++j) {
-        auto const& category = GetElem<Integer>(categories, j);
-        auto cat = common::AsCat(category);
-        max_cat = std::max(max_cat, cat);
+      auto fidx = (*this)[nidx].SplitIndex();
+      auto n_cats = n_categories(fidx);
+
+      if (n_cats == 0) {
+        bst_cat_t max_cat{std::numeric_limits<bst_cat_t>::min()};
+        for (auto j = j_begin; j < j_end; ++j) {
+          auto const& category = GetElem<Integer>(categories, j);
+          auto cat = common::AsCat(category);
+          max_cat = std::max(max_cat, cat);
+        }
+        // Have at least 1 category in split.
+        CHECK_NE(std::numeric_limits<bst_cat_t>::min(), max_cat);
+        n_cats = max_cat + 1;  // cat 0
       }
-      // Have at least 1 category in split.
-      CHECK_NE(std::numeric_limits<bst_cat_t>::min(), max_cat);
-      size_t n_cats = max_cat + 1;  // cat 0
-      size_t size = common::KCatBitField::ComputeStorageSize(n_cats);
-      std::vector<uint32_t> cat_bits_storage(size, 0);
-      common::CatBitField cat_bits{common::Span<uint32_t>(cat_bits_storage)};
+      CHECK_GT(n_cats, 0) << "Node:" << nidx << " Split:" << fidx;
+
+      std::size_t size = common::KCatBitField::ComputeStorageSize(n_cats);
+      std::vector<common::CatBitsT> cat_bits_storage(size, 0);
+      common::CatBitField cat_bits{common::Span<common::CatBitsT>(cat_bits_storage)};
       for (auto j = j_begin; j < j_end; ++j) {
         cat_bits.Set(common::AsCat(GetElem<Integer>(categories, j)));
       }
@@ -1074,7 +1082,7 @@ bool LoadModelImpl(Json const& in, TreeParam* param, std::vector<RTreeNodeStat>*
   CHECK_EQ(n_nodes, split_categories_segments.size());
 
   // Set node
-  for (int32_t i = 0; i < n_nodes; ++i) {
+  for (std::int32_t i = 0; i < n_nodes; ++i) {
     auto& s = stats[i];
     s.loss_chg = GetElem<Number>(loss_changes, i);
     s.sum_hess = GetElem<Number>(sum_hessian, i);
@@ -1132,7 +1140,7 @@ void RegTree::LoadModel(Json const& in) {
       deleted_nodes_.push_back(i);
     }
   }
-  // easier access to [] operator
+  // easier access to the [] operator
   auto& self = *this;
   for (auto nid = 1; nid < param.num_nodes; ++nid) {
     auto parent = self[nid].Parent();

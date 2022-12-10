@@ -293,8 +293,11 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
 
 struct LearnerModelParamLegacy;
 
-/*
+/**
  * \brief Basic Model Parameters, used to describe the booster.
+ *
+ *   As the old `LearnerModelParamLegacy` is still used by binary IO, we keep this one as
+ *   an immutable copy.
  */
 struct LearnerModelParam {
  private:
@@ -304,23 +307,31 @@ struct LearnerModelParam {
    */
   linalg::Tensor<float, 1> base_score_;
 
+  LearnerModelParam(LearnerModelParamLegacy const& user_param, ObjInfo t);
+
  public:
   /* \brief number of features  */
-  uint32_t num_feature { 0 };
+  std::uint32_t num_feature{0};
   /* \brief number of classes, if it is multi-class classification  */
-  uint32_t num_output_group { 0 };
+  std::uint32_t num_output_group{0};
   /* \brief Current task, determined by objective. */
   ObjInfo task{ObjInfo::kRegression};
 
+  linalg::Tensor<bst_cat_t, 1> num_category;
+
   LearnerModelParam() = default;
-  // As the old `LearnerModelParamLegacy` is still used by binary IO, we keep
-  // this one as an immutable copy.
+  /**
+   * \brief Constructor
+   *
+   * \param ctx          Context object for initializing the model parameter.
+   * \param user_param   Parameters specified by user
+   * \param base_margin  Global bias
+   * \param t            Task defined by the objective.
+   * \param n_categories Number of categories for each feature.
+   */
   LearnerModelParam(Context const* ctx, LearnerModelParamLegacy const& user_param,
-                    linalg::Tensor<float, 1> base_margin, ObjInfo t);
-  LearnerModelParam(LearnerModelParamLegacy const& user_param, ObjInfo t);
-  LearnerModelParam(bst_feature_t n_features, linalg::Tensor<float, 1> base_margin,
-                    uint32_t n_groups)
-      : base_score_{std::move(base_margin)}, num_feature{n_features}, num_output_group{n_groups} {}
+                    linalg::Tensor<float, 1> base_margin, ObjInfo t,
+                    linalg::Vector<bst_cat_t> const& n_categories);
 
   linalg::TensorView<float const, 1> BaseScore(Context const* ctx) const;
   linalg::TensorView<float const, 1> BaseScore(int32_t device) const;

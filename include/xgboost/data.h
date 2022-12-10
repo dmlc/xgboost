@@ -35,7 +35,8 @@ enum class DataType : uint8_t {
   kDouble = 2,
   kUInt32 = 3,
   kUInt64 = 4,
-  kStr = 5
+  kStr = 5,
+  kInt32 = 6
 };
 
 enum class FeatureType : uint8_t { kNumerical = 0, kCategorical = 1 };
@@ -94,6 +95,10 @@ class MetaInfo {
    * \brief Type of each feature.  Automatically set when feature_type_names is specifed.
    */
   HostDeviceVector<FeatureType> feature_types;
+  /**
+   * \brief Number of categories for each feature. If it's a numeric featuren then it's 0.
+   */
+  linalg::Vector<bst_cat_t> num_categories;
   /*
    * \brief Weight of each feature, used to define the probability of each feature being
    *        selected when using column sampling.

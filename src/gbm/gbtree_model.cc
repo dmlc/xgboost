@@ -44,7 +44,7 @@ void GBTreeModel::Load(dmlc::Stream* fi) {
   trees.clear();
   trees_to_update.clear();
   for (int32_t i = 0; i < param.num_trees; ++i) {
-    std::unique_ptr<RegTree> ptr(new RegTree());
+    std::unique_ptr<RegTree> ptr(new RegTree(this->learner_model_param));
     ptr->Load(fi);
     trees.push_back(std::move(ptr));
   }
@@ -99,7 +99,7 @@ void GBTreeModel::LoadModel(Json const& in) {
   CHECK(ctx_);
   common::ParallelFor(trees_json.size(), ctx_->Threads(), [&](auto t) {
     auto tree_id = get<Integer>(trees_json[t]["id"]);
-    trees.at(tree_id).reset(new RegTree());
+    trees.at(tree_id).reset(new RegTree(this->learner_model_param));
     trees.at(tree_id)->LoadModel(trees_json[t]);
   });
 

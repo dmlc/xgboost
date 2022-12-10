@@ -60,13 +60,14 @@ from typing import (
 import numpy
 
 from . import collective, config
-from ._typing import _T, FeatureNames, FeatureTypes
+from ._typing import _T, FeatureNames
 from .callback import TrainingCallback
 from .compat import DataFrame, LazyLoader, concat, lazy_isinstance
 from .core import (
     Booster,
     DataIter,
     DMatrix,
+    FeatureTypes,
     Metric,
     Objective,
     QuantileDMatrix,

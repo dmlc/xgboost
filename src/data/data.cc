@@ -207,29 +207,44 @@ void MetaInfo::Clear() {
  * the former uses the plural form.
  */
 
-void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
+void MetaInfo::SaveBinary(dmlc::Stream* fo) const {
   Version::Save(fo);
   fo->Write(kNumField);
-  int field_cnt = 0;  // make sure we are actually writing kNumField fields
-
-  SaveScalarField(fo, u8"num_row", DataType::kUInt64, num_row_); ++field_cnt;
-  SaveScalarField(fo, u8"num_col", DataType::kUInt64, num_col_); ++field_cnt;
-  SaveScalarField(fo, u8"num_nonzero", DataType::kUInt64, num_nonzero_); ++field_cnt;
-  SaveTensorField(fo, u8"labels", DataType::kFloat32, labels); ++field_cnt;
-  SaveVectorField(fo, u8"group_ptr", DataType::kUInt32,
-                  {group_ptr_.size(), 1}, group_ptr_); ++field_cnt;
-  SaveVectorField(fo, u8"weights", DataType::kFloat32,
-                  {weights_.Size(), 1}, weights_); ++field_cnt;
-  SaveTensorField(fo, u8"base_margin", DataType::kFloat32, base_margin_); ++field_cnt;
-  SaveVectorField(fo, u8"labels_lower_bound", DataType::kFloat32,
-                  {labels_lower_bound_.Size(), 1}, labels_lower_bound_); ++field_cnt;
-  SaveVectorField(fo, u8"labels_upper_bound", DataType::kFloat32,
-                  {labels_upper_bound_.Size(), 1}, labels_upper_bound_); ++field_cnt;
-
-  SaveVectorField(fo, u8"feature_names", DataType::kStr,
-                  {feature_names.size(), 1}, feature_names); ++field_cnt;
-  SaveVectorField(fo, u8"feature_types", DataType::kStr,
-                  {feature_type_names.size(), 1}, feature_type_names); ++field_cnt;
+  std::int32_t field_cnt = 0;  // make sure we are actually writing kNumField fields
+  /**
+   * Shape
+   */
+  SaveScalarField(fo, u8"num_row", DataType::kUInt64, num_row_);
+  ++field_cnt;
+  SaveScalarField(fo, u8"num_col", DataType::kUInt64, num_col_);
+  ++field_cnt;
+  SaveScalarField(fo, u8"num_nonzero", DataType::kUInt64, num_nonzero_);
+  ++field_cnt;
+  /**
+   * Samples
+   */
+  SaveTensorField(fo, u8"labels", DataType::kFloat32, labels);
+  ++field_cnt;
+  SaveVectorField(fo, u8"group_ptr", DataType::kUInt32, {group_ptr_.size(), 1}, group_ptr_);
+  ++field_cnt;
+  SaveVectorField(fo, u8"weights", DataType::kFloat32, {weights_.Size(), 1}, weights_);
+  ++field_cnt;
+  SaveTensorField(fo, u8"base_margin", DataType::kFloat32, base_margin_);
+  ++field_cnt;
+  SaveVectorField(fo, u8"labels_lower_bound", DataType::kFloat32, {labels_lower_bound_.Size(), 1},
+                  labels_lower_bound_);
+  ++field_cnt;
+  SaveVectorField(fo, u8"labels_upper_bound", DataType::kFloat32, {labels_upper_bound_.Size(), 1},
+                  labels_upper_bound_);
+  ++field_cnt;
+  /**
+   * Features
+   */
+  SaveVectorField(fo, u8"feature_names", DataType::kStr, {feature_names.size(), 1}, feature_names);
+  ++field_cnt;
+  SaveVectorField(fo, u8"feature_types", DataType::kStr, {feature_type_names.size(), 1},
+                  feature_type_names);
+  ++field_cnt;
   SaveVectorField(fo, u8"feature_weights", DataType::kFloat32, {feature_weights.Size(), 1},
                   feature_weights);
   ++field_cnt;
@@ -237,9 +252,11 @@ void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
   CHECK_EQ(field_cnt, kNumField) << "Wrong number of fields";
 }
 
-void LoadFeatureType(std::vector<std::string>const& type_names, std::vector<FeatureType>* types) {
+void LoadFeatureType(std::vector<std::string> const& type_names, std::vector<FeatureType>* types,
+                     std::vector<bst_cat_t>* n_categories) {
   types->clear();
-  for (auto const &elem : type_names) {
+  n_categories->clear();
+  for (auto const& elem : type_names) {
     if (elem == "int") {
       types->emplace_back(FeatureType::kNumerical);
     } else if (elem == "float") {
@@ -248,8 +265,12 @@ void LoadFeatureType(std::vector<std::string>const& type_names, std::vector<Feat
       types->emplace_back(FeatureType::kNumerical);
     } else if (elem == "q") {
       types->emplace_back(FeatureType::kNumerical);
-    } else if (elem == "c") {
+    } else if (elem.front() == 'c') {
       types->emplace_back(FeatureType::kCategorical);
+      CHECK_GE(elem.size(), 4) << "Invalid format for categorical feature type.";
+      auto nstr = elem.substr(2, elem.size() - 3);
+      bst_cat_t n = std::stoi(nstr);  // fixme: check error.
+      n_categories->emplace_back(n);
     } else {
       LOG(FATAL) << "All feature_types must be one of {int, float, i, q, c}.";
     }
@@ -304,7 +325,12 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
   LoadVectorField(fi, u8"feature_names", DataType::kStr, &feature_names);
   LoadVectorField(fi, u8"feature_types", DataType::kStr, &feature_type_names);
   LoadVectorField(fi, u8"feature_weights", DataType::kFloat32, &feature_weights);
-  LoadFeatureType(feature_type_names, &feature_types.HostVector());
+
+  // fixme
+  auto& h_n_categories = num_categories.Data()->HostVector();
+  LoadFeatureType(feature_type_names, &feature_types.HostVector(), &h_n_categories);
+  std::size_t shape[] {h_n_categories.size()};
+  num_categories.Reshape(shape);
 }
 
 template <typename T>
@@ -605,7 +631,11 @@ void MetaInfo::SetFeatureInfo(const char* key, const char **info, const bst_ulon
       auto elem = info[i];
       feature_type_names.emplace_back(elem);
     }
-    LoadFeatureType(feature_type_names, &h_feature_types);
+    // fixme
+    auto& h_n_categories = num_categories.Data()->HostVector();
+    LoadFeatureType(feature_type_names, &h_feature_types, &h_n_categories);
+    std::size_t shape[]{h_n_categories.size()};
+    num_categories.Reshape(shape);
   } else if (!std::strcmp(key, "feature_name")) {
     feature_names.clear();
     for (size_t i = 0; i < size; ++i) {
@@ -616,9 +646,8 @@ void MetaInfo::SetFeatureInfo(const char* key, const char **info, const bst_ulon
   }
 }
 
-void MetaInfo::GetFeatureInfo(const char *field,
-                              std::vector<std::string> *out_str_vecs) const {
-  auto &str_vecs = *out_str_vecs;
+void MetaInfo::GetFeatureInfo(const char* field, std::vector<std::string>* out_str_vecs) const {
+  auto& str_vecs = *out_str_vecs;
   if (!std::strcmp(field, "feature_type")) {
     str_vecs.resize(feature_type_names.size());
     std::copy(feature_type_names.cbegin(), feature_type_names.cend(), str_vecs.begin());
@@ -675,7 +704,11 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_col
   if (!that.feature_type_names.empty()) {
     this->feature_type_names = that.feature_type_names;
     auto &h_feature_types = feature_types.HostVector();
-    LoadFeatureType(this->feature_type_names, &h_feature_types);
+    auto &h_num_categories = num_categories.Data()->HostVector();
+    // fixme
+    LoadFeatureType(this->feature_type_names, &h_feature_types, &h_num_categories);
+    std::size_t shape[] {h_num_categories.size()};
+    num_categories.Reshape(shape);
   }
   if (!that.feature_weights.Empty()) {
     this->feature_weights.Resize(that.feature_weights.Size());

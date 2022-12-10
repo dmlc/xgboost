@@ -13,7 +13,6 @@ from ._typing import (
     CupyT,
     DataType,
     FeatureNames,
-    FeatureTypes,
     FloatCompatible,
     NumpyDType,
     PandasDType,
@@ -22,8 +21,10 @@ from ._typing import (
 from .compat import DataFrame, lazy_isinstance
 from .core import (
     _LIB,
+    CatDType,
     DataIter,
     DMatrix,
+    FeatureTypes,
     _check_call,
     _cuda_array_interface,
     _ProxyDMatrix,
@@ -273,13 +274,14 @@ def _invalid_dataframe_dtype(data: DataType) -> None:
     raise ValueError(msg)
 
 
-def _pandas_feature_info(
+def pandas_feature_info(
     data: DataFrame,
     meta: Optional[str],
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
     enable_categorical: bool,
 ) -> Tuple[Optional[FeatureNames], Optional[FeatureTypes]]:
+    """Generate feature information based on pandas DataFrame."""
     import pandas as pd
     from pandas.api.types import is_categorical_dtype, is_sparse
 
@@ -299,7 +301,7 @@ def _pandas_feature_info(
             if is_sparse(dtype):
                 feature_types.append(_pandas_dtype_mapper[dtype.subtype.name])
             elif is_categorical_dtype(dtype) and enable_categorical:
-                feature_types.append(CAT_T)
+                feature_types.append(CatDType(len(dtype.categories)))
             else:
                 feature_types.append(_pandas_dtype_mapper[dtype.name])
     return feature_names, feature_types
@@ -378,7 +380,7 @@ def _transform_pandas_df(
     ):
         _invalid_dataframe_dtype(data)
 
-    feature_names, feature_types = _pandas_feature_info(
+    feature_names, feature_types = pandas_feature_info(
         data, meta, feature_names, feature_types, enable_categorical
     )
 
