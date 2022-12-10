@@ -428,9 +428,21 @@ def _prediction_output(
 
 
 class CatDType:
-    """Helper class for passing information about categorical feature."""
-    def __init__(self, n_category: int) -> None:
-        self.n_category: int = n_category
+    """Helper class for passing information about categorical feature. This is useful
+    when input data is not a dataframe.
+
+    ..note:: Categorical feature support is experimental.
+
+    Parameters
+    ----------
+
+    n_categories :
+        Total number of categories for a specific feature.
+
+    """
+
+    def __init__(self, n_categories: int) -> None:
+        self.n_categories: int = n_categories
 
     @staticmethod
     def from_str(s: str) -> "CatDType":
@@ -438,7 +450,7 @@ class CatDType:
 
     def __str__(self) -> str:
         """Return an internal string representation."""
-        return f"c({str(self.n_category)})"
+        return f"c({str(self.n_categories)})"
 
 
 FeatureTypes = Sequence[Union[str, CatDType]]
@@ -713,13 +725,13 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             Set names for features.
         feature_types : FeatureTypes
 
-            Set types for features.  When `enable_categorical` is set to `True`, string
-            "c" represents categorical data type while "q" represents numerical feature
-            type. For categorical features, the input is assumed to be preprocessed and
-            encoded by the users. The encoding can be done via
-            :py:class:`sklearn.preprocessing.OrdinalEncoder` or pandas dataframe
-            `.cat.codes` method. This is useful when users want to specify categorical
-            features without having to construct a dataframe as input.
+            Set types for features.  When `enable_categorical` is set to `True`,
+            :py:class:`CatDType` represents categorical data type while string "q"
+            represents numerical feature type. For categorical features, the input is
+            assumed to be preprocessed and encoded by the users. The encoding can be
+            done via :py:class:`sklearn.preprocessing.OrdinalEncoder` or pandas
+            dataframe `.cat.codes` method. This is useful when users want to specify
+            categorical features without having to construct a dataframe as input.
 
         nthread : integer, optional
             Number of threads to use for loading data when parallelization is

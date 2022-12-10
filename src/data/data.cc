@@ -268,7 +268,8 @@ void LoadFeatureType(std::vector<std::string> const& type_names, std::vector<Fea
     auto const& elem = type_names[i];
     if (elem.front() == 'c') {
       types[i] = FeatureType::kCategorical;
-      CHECK_GE(elem.size(), 4) << msg;
+      CHECK_GE(elem.size(), 4)
+          << msg << " String representation `c` is removed and replaced by dedicated data type.";
       auto nstr = elem.substr(2, elem.size() - 3);
       bst_cat_t n;
       try {

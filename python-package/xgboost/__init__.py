@@ -7,6 +7,7 @@ from . import tracker  # noqa
 from . import collective, dask, rabit
 from .core import (
     Booster,
+    CatDType,
     DataIter,
     DeviceQuantileDMatrix,
     DMatrix,
@@ -45,6 +46,7 @@ __all__ = [
     "train",
     "cv",
     # utilities
+    "CatDType",
     "RabitTracker",
     "build_info",
     "plot_importance",
@@ -64,4 +66,5 @@ __all__ = [
     "dask",
     # collective
     "collective",
+    "rabit",
 ]
