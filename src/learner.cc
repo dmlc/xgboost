@@ -637,6 +637,12 @@ class LearnerConfiguration : public Learner {
   }
 
   void ValidateFeatureInfo(MetaInfo const& info) const {
+    if (learner_model_param_.Initialized()) {
+      CHECK_EQ(info.num_col_, learner_model_param_.num_feature)
+          << "Feature shape mismatch, expected:" << this->GetNumFeature()
+          << ", got:" << info.num_col_;
+    }
+
     std::vector<std::string> fn{this->feature_names_};
     std::sort(fn.begin(), fn.end());
     std::vector<std::string> info_fn{info.feature_names};
@@ -1428,7 +1434,7 @@ class LearnerImpl : public LearnerIO {
                HostDeviceVector<bst_float> *out_preds, unsigned layer_begin,
                unsigned layer_end, bool training,
                bool pred_leaf, bool pred_contribs, bool approx_contribs,
-               bool pred_interactions) override {
+               bool pred_interactions, bool validate_feature) override {
     int multiple_predictions = static_cast<int>(pred_leaf) +
                                static_cast<int>(pred_interactions) +
                                static_cast<int>(pred_contribs);
@@ -1437,6 +1443,9 @@ class LearnerImpl : public LearnerIO {
       this->InitBaseScore(nullptr);
     }
     this->CheckModelInitialized();
+    if (validate_feature) {
+      this->ValidateFeatureInfo(data->Info());
+    }
 
     CHECK_LE(multiple_predictions, 1) << "Perform one kind of prediction at a time.";
     if (pred_contribs) {

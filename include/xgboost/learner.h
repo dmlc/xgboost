@@ -123,6 +123,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \param pred_contribs whether to only predict the feature contributions
    * \param approx_contribs whether to approximate the feature contributions for speed
    * \param pred_interactions whether to compute the feature pair contributions
+   * \param validate_feature whether to validate input feature name
    */
   virtual void Predict(std::shared_ptr<DMatrix> data,
                        bool output_margin,
@@ -133,7 +134,8 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
                        bool pred_leaf = false,
                        bool pred_contribs = false,
                        bool approx_contribs = false,
-                       bool pred_interactions = false) = 0;
+                       bool pred_interactions = false,
+                       bool validate_feature = false) = 0;
 
   /*!
    * \brief Inplace prediction.

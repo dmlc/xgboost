@@ -2171,6 +2171,7 @@ class Booster:
             "iteration_begin": iteration_range[0],
             "iteration_end": iteration_range[1],
             "strict_shape": strict_shape,
+            "validate_features": validate_features,
         }
 
         def assign_type(t: int) -> None:
@@ -2273,12 +2274,14 @@ class Booster:
             "missing": missing,
             "strict_shape": strict_shape,
             "cache_id": 0,
+            "validate_feature": validate_features,
         }
         if predict_type == "margin":
             args["type"] = 1
         shape = ctypes.POINTER(c_bst_ulong)()
         dims = c_bst_ulong()
 
+        # fixme: use this for feature name.
         if base_margin is not None:
             proxy: Optional[_ProxyDMatrix] = _ProxyDMatrix()
             assert proxy is not None
@@ -2287,6 +2290,7 @@ class Booster:
         else:
             proxy = None
             p_handle = ctypes.c_void_p()
+
         assert proxy is None or isinstance(proxy, _ProxyDMatrix)
         if validate_features:
             if not hasattr(data, "shape"):
@@ -2310,8 +2314,6 @@ class Booster:
         enable_categorical = _has_categorical(self, data)
         if _is_pandas_df(data):
             data, fns, _ = _transform_pandas_df(data, enable_categorical)
-            if validate_features:
-                self._validate_features(fns)
 
         if isinstance(data, np.ndarray):
             from .data import _ensure_np_dtype
@@ -2370,8 +2372,6 @@ class Booster:
                 data, None, None, enable_categorical
             )
             interfaces_str = _cudf_array_interfaces(data, cat_codes)
-            if validate_features:
-                self._validate_features(fns)
             _check_call(
                 _LIB.XGBoosterPredictFromCudaColumnar(
                     self.handle,
