@@ -35,8 +35,7 @@ enum class DataType : uint8_t {
   kDouble = 2,
   kUInt32 = 3,
   kUInt64 = 4,
-  kStr = 5,
-  kInt32 = 6
+  kStr = 5
 };
 
 enum class FeatureType : uint8_t { kNumerical = 0, kCategorical = 1 };
