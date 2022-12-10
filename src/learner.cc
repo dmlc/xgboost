@@ -677,6 +677,7 @@ class LearnerConfiguration : public Learner {
   }
 
   void InitFeatureInfo(std::int32_t iter, MetaInfo const& info) {
+    // fixme: maybe we init only categories?
     if (this->feature_names_.empty() && !info.feature_names.empty()) {
       this->feature_names_ = info.feature_names;
     }
