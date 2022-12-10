@@ -20,6 +20,8 @@ namespace xgboost {
 namespace tree {
 TEST(QuantileHist, Partitioner) {
   size_t n_samples = 1024, n_features = 1, base_rowid = 0;
+  auto mparam = MakeMP(n_features, 0.5, 1);
+
   Context ctx;
   ctx.InitAllowUnknown(Args{});
 
@@ -40,7 +42,7 @@ TEST(QuantileHist, Partitioner) {
     column_indices.InitFromSparse(page, gmat, 0.5, ctx.Threads());
     {
       auto min_value = gmat.cut.MinValues()[split_ind];
-      RegTree tree;
+      RegTree tree{&mparam};
       CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
       GetSplit(&tree, min_value, &candidates);
       partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates, &tree);
@@ -52,7 +54,7 @@ TEST(QuantileHist, Partitioner) {
       CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
       auto ptr = gmat.cut.Ptrs()[split_ind + 1];
       float split_value = gmat.cut.Values().at(ptr / 2);
-      RegTree tree;
+      RegTree tree{&mparam};
       GetSplit(&tree, split_value, &candidates);
       auto left_nidx = tree[RegTree::kRoot].LeftChild();
       partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates, &tree);

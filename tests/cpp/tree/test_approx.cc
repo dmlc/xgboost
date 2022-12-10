@@ -12,6 +12,7 @@ namespace xgboost {
 namespace tree {
 TEST(Approx, Partitioner) {
   size_t n_samples = 1024, n_features = 1, base_rowid = 0;
+  auto mparam = MakeMP(n_features, 0.5, 1);
   Context ctx;
   CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
   ASSERT_EQ(partitioner.base_rowid, base_rowid);
@@ -31,7 +32,7 @@ TEST(Approx, Partitioner) {
     bst_feature_t const split_ind = 0;
     {
       auto min_value = page.cut.MinValues()[split_ind];
-      RegTree tree;
+      RegTree tree{&mparam};
       CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
       GetSplit(&tree, min_value, &candidates);
       partitioner.UpdatePosition(&ctx, page, candidates, &tree);
@@ -43,7 +44,7 @@ TEST(Approx, Partitioner) {
       CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
       auto ptr = page.cut.Ptrs()[split_ind + 1];
       float split_value = page.cut.Values().at(ptr / 2);
-      RegTree tree;
+      RegTree tree{&mparam};
       GetSplit(&tree, split_value, &candidates);
       partitioner.UpdatePosition(&ctx, page, candidates, &tree);
 
@@ -69,13 +70,14 @@ TEST(Approx, Partitioner) {
 namespace {
 void TestLeafPartition(size_t n_samples) {
   size_t const n_features = 2, base_rowid = 0;
+  auto mparam = MakeMP(n_features, 0.5, 1);
   Context ctx;
   common::RowSetCollection row_set;
   CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
 
   auto Xy = RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true);
   std::vector<CPUExpandEntry> candidates{{0, 0, 0.4}};
-  RegTree tree;
+  RegTree tree{&mparam};
   std::vector<float> hess(n_samples, 0);
   // emulate sampling
   auto not_sampled = [](size_t i) {

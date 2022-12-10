@@ -538,7 +538,7 @@ gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param, Context const* 
 
   for (size_t i = 0; i < n_classes; ++i) {
     std::vector<std::unique_ptr<RegTree>> trees;
-    trees.push_back(std::unique_ptr<RegTree>(new RegTree));
+    trees.push_back(std::unique_ptr<RegTree>(new RegTree{param}));
     if (i == 0) {
       (*trees.back())[0].SetLeaf(1.5f);
       (*trees.back()).Stat(0).sum_hess = 1.0f;

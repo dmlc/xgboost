@@ -11,7 +11,8 @@
 namespace xgboost {
 TEST(Tree, ModelShape) {
   bst_feature_t n_features = std::numeric_limits<uint32_t>::max();
-  RegTree tree;
+  auto mparam = MakeMP(n_features, 0.5, 1);
+  RegTree tree{&mparam};
   tree.param.UpdateAllowUnknown(Args{{"num_feature", std::to_string(n_features)}});
   ASSERT_EQ(tree.param.num_feature, n_features);
 
@@ -24,7 +25,7 @@ TEST(Tree, ModelShape) {
   }
   {
     // binary load
-    RegTree new_tree;
+    RegTree new_tree{&mparam};
     std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(tmp_file.c_str(), "r"));
     new_tree.Load(fi.get());
     ASSERT_EQ(new_tree.param.num_feature, n_features);
@@ -35,7 +36,7 @@ TEST(Tree, ModelShape) {
     tree.SaveModel(&j_tree);
     std::vector<char> dumped;
     Json::Dump(j_tree, &dumped);
-    RegTree new_tree;
+    RegTree new_tree{&mparam};
 
     auto j_loaded = Json::Load(StringView{dumped.data(), dumped.size()});
     new_tree.LoadModel(j_loaded);
@@ -47,7 +48,7 @@ TEST(Tree, ModelShape) {
     tree.SaveModel(&j_tree);
     std::vector<char> dumped;
     Json::Dump(j_tree, &dumped, std::ios::binary);
-    RegTree new_tree;
+    RegTree new_tree{&mparam};
 
     auto j_loaded = Json::Load(StringView{dumped.data(), dumped.size()}, std::ios::binary);
     new_tree.LoadModel(j_loaded);
@@ -127,7 +128,8 @@ TEST(Tree, Load) {
   fo.reset();
   std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(tmp_file.c_str(), "r"));
 
-  xgboost::RegTree tree;
+  auto mparam = MakeMP(num_feature, 0.5, 1);
+  xgboost::RegTree tree{&mparam};
   tree.Load(fi.get());
   EXPECT_EQ(tree.GetDepth(1), 1);
   EXPECT_EQ(tree[0].SplitCond(), 0.5f);
@@ -138,7 +140,8 @@ TEST(Tree, Load) {
 #endif  // DMLC_IO_NO_ENDIAN_SWAP
 
 TEST(Tree, AllocateNode) {
-  RegTree tree;
+  auto mparam = MakeMP(3, 0.5, 1);
+  RegTree tree{&mparam};
   tree.ExpandNode(0, 0, 0.0f, false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                   /*left_sum=*/0.0f, /*right_sum=*/0.0f);
   tree.CollapseToLeaf(0, 0);
@@ -269,8 +272,9 @@ TEST(Tree, CategoricalIO) {
 }
 
 namespace {
-RegTree ConstructTree() {
-  RegTree tree;
+RegTree ConstructTree(LearnerModelParam* mparam) {
+  mparam->num_feature = 3;
+  RegTree tree{mparam};
   tree.ExpandNode(
       /*nid=*/0, /*split_index=*/0, /*split_value=*/0.0f,
       /*default_left=*/true, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, /*left_sum=*/0.0f,
@@ -349,7 +353,8 @@ void TestCategoricalTreeDump(std::string format, std::string sep) {
 }  // anonymous namespace
 
 TEST(Tree, DumpJson) {
-  auto tree = ConstructTree();
+  auto mparam = MakeMP(3, 0.5, 1);
+  auto tree = ConstructTree(&mparam);
   FeatureMap fmap;
   auto str = tree.DumpModel(fmap, true, "json");
   size_t n_leaves = 0;
@@ -388,7 +393,8 @@ TEST(Tree, DumpJsonCategorical) {
 }
 
 TEST(Tree, DumpText) {
-  auto tree = ConstructTree();
+  auto mparam = MakeMP(3, 0.5, 1);
+  auto tree = ConstructTree(&mparam);
   FeatureMap fmap;
   auto str = tree.DumpModel(fmap, true, "text");
   size_t n_leaves = 0;
@@ -427,7 +433,8 @@ TEST(Tree, DumpTextCategorical) {
 }
 
 TEST(Tree, DumpDot) {
-  auto tree = ConstructTree();
+  auto mparam = MakeMP(3, 0.5, 1);
+  auto tree = ConstructTree(&mparam);
   FeatureMap fmap;
   auto str = tree.DumpModel(fmap, true, "dot");
 
@@ -468,7 +475,8 @@ TEST(Tree, DumpDotCategorical) {
 }
 
 TEST(Tree, JsonIO) {
-  RegTree tree;
+  auto mparam = MakeMP(3, 0.5, 1);
+  RegTree tree{&mparam};
   tree.ExpandNode(0, 0, 0.0f, false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                   /*left_sum=*/0.0f, /*right_sum=*/0.0f);
   Json j_tree{Object()};
@@ -486,7 +494,7 @@ TEST(Tree, JsonIO) {
   ASSERT_EQ(get<F32Array const>(j_tree["split_conditions"]).size(), 3ul);
   ASSERT_EQ(get<U8Array const>(j_tree["default_left"]).size(), 3ul);
 
-  RegTree loaded_tree;
+  RegTree loaded_tree{&mparam};
   loaded_tree.LoadModel(j_tree);
   ASSERT_EQ(loaded_tree.param.num_nodes, 3);
 

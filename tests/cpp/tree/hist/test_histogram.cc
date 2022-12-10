@@ -35,7 +35,8 @@ void TestAddHistRows(bool is_distributed) {
       RandomDataGenerator(kNRows, kNCols, 0.8).Seed(3).GenerateDMatrix();
   auto const &gmat = *(p_fmat->GetBatches<GHistIndexMatrix>(BatchParam{kMaxBins, 0.5}).begin());
 
-  RegTree tree;
+  auto mparam = MakeMP(kNCols, 0.5, 1);
+  RegTree tree{&mparam};
 
   tree.ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
   tree.ExpandNode(tree[0].LeftChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
@@ -77,7 +78,8 @@ void TestSyncHist(bool is_distributed) {
   std::vector<CPUExpandEntry> nodes_for_subtraction_trick_;
   int starting_index = std::numeric_limits<int>::max();
   int sync_count = 0;
-  RegTree tree;
+  auto mparam = MakeMP(kNCols, 0.5, 1);
+  RegTree tree{&mparam};
 
   auto p_fmat =
       RandomDataGenerator(kNRows, kNCols, 0.8).Seed(3).GenerateDMatrix();
@@ -242,7 +244,8 @@ void TestBuildHistogram(bool is_distributed, bool force_read_by_column) {
   HistogramBuilder<CPUExpandEntry> histogram;
   histogram.Reset(total_bins, {kMaxBins, 0.5}, omp_get_max_threads(), 1, is_distributed);
 
-  RegTree tree;
+  auto mparam = MakeMP(kNCols, 0.5, 1);
+  RegTree tree{&mparam};
 
   common::RowSetCollection row_set_collection;
   row_set_collection.Clear();
@@ -318,8 +321,8 @@ void TestHistogramCategorical(size_t n_categories, bool force_read_by_column) {
   auto cat_m = GetDMatrixFromData(x, kRows, 1);
   cat_m->Info().feature_types.HostVector().push_back(FeatureType::kCategorical);
   BatchParam batch_param{0, static_cast<int32_t>(kBins)};
-
-  RegTree tree;
+  auto mparam = MakeMP(1, 0.5, 1);
+  RegTree tree{&mparam};
   CPUExpandEntry node(RegTree::kRoot, tree.GetDepth(0), 0.0f);
   std::vector<CPUExpandEntry> nodes_for_explicit_hist_build;
   nodes_for_explicit_hist_build.push_back(node);
@@ -390,7 +393,8 @@ void TestHistogramExternalMemory(BatchParam batch_param, bool is_approx, bool fo
   auto gpair = GenerateRandomGradients(m->Info().num_row_, 0.0, 1.0);
   auto const &h_gpair = gpair.HostVector();
 
-  RegTree tree;
+  auto mparam = MakeMP(m->Info().num_col_, 0.5, 1);
+  RegTree tree{&mparam};
   std::vector<CPUExpandEntry> nodes;
   nodes.emplace_back(0, tree.GetDepth(0), 0.0f);
 

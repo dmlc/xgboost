@@ -52,7 +52,8 @@ void TestEvaluateSplits(bool force_read_by_column) {
     total_gpair += GradientPairPrecise(e);
   }
 
-  RegTree tree;
+  auto mparam = MakeMP(kCols, 0.5, 1);
+  RegTree tree{&mparam};
   std::vector<CPUExpandEntry> entries(1);
   entries.front().nid = 0;
   entries.front().depth = 0;
@@ -90,11 +91,12 @@ TEST(HistEvaluator, Evaluate) {
 }
 
 TEST(HistEvaluator, Apply) {
-  RegTree tree;
-  int static constexpr kNRows = 8, kNCols = 16;
+  int static constexpr kNRows = 8, kCols = 16;
+  auto mparam = MakeMP(kCols, 0.5, 1);
+  RegTree tree{&mparam};
   TrainParam param;
   param.UpdateAllowUnknown(Args{{"min_child_weight", "0"}, {"reg_lambda", "0.0"}});
-  auto dmat = RandomDataGenerator(kNRows, kNCols, 0).Seed(3).GenerateDMatrix();
+  auto dmat = RandomDataGenerator(kNRows, kCols, 0).Seed(3).GenerateDMatrix();
   auto sampler = std::make_shared<common::ColumnSampler>();
   auto evaluator_ = HistEvaluator<CPUExpandEntry>{param, dmat->Info(), 4, sampler};
 
@@ -108,7 +110,7 @@ TEST(HistEvaluator, Apply) {
   ASSERT_EQ(tree.Stat(tree[0].RightChild()).sum_hess, 0.5f);
 
   {
-    RegTree tree;
+    RegTree tree{&mparam};
     entry.split.is_cat = true;
     entry.split.split_value = 1.0;
     evaluator_.ApplyTreeSplit(entry, &tree);
@@ -124,7 +126,8 @@ TEST_F(TestPartitionBasedSplit, CPUHist) {
   auto sampler = std::make_shared<common::ColumnSampler>();
   HistEvaluator<CPUExpandEntry> evaluator{param_, info_, common::OmpGetNumThreads(0), sampler};
   evaluator.InitRoot(GradStats{total_gpair_});
-  RegTree tree;
+  auto mparam = MakeMP(info_.num_col_, 0.5, 1);
+  RegTree tree{&mparam};
   std::vector<CPUExpandEntry> entries(1);
   evaluator.EvaluateSplits(hist_, cuts_, {ft}, tree, &entries);
   ASSERT_NEAR(entries[0].split.loss_chg, best_score_, 1e-16);
@@ -174,7 +177,8 @@ auto CompareOneHotAndPartition(bool onehot) {
       node_hist[i] = {static_cast<double>(node_hist.size() - i), 1.0};
       total_gpair += node_hist[i];
     }
-    RegTree tree;
+    auto mparam = MakeMP(kCols, 0.5, 1);
+    RegTree tree{&mparam};
     evaluator.InitRoot(GradStats{total_gpair});
     evaluator.EvaluateSplits(hist, gmat.cut, ft, tree, &entries);
   }
@@ -207,7 +211,8 @@ TEST_F(TestCategoricalSplitWithMissing, HistEvaluator) {
   evaluator.InitRoot(GradStats{parent_sum_});
 
   std::vector<CPUExpandEntry> entries(1);
-  RegTree tree;
+  auto mparam = MakeMP(info.num_col_, 0.5, 1);
+  RegTree tree{&mparam};
   evaluator.EvaluateSplits(hist, cuts_, info.feature_types.ConstHostSpan(), tree, &entries);
   auto const& split = entries.front().split;
 
