@@ -323,7 +323,7 @@ class TestTreeMethod:
     def test_categorical_ohe(
         self, rows: int, cols: int, rounds: int, cats: int
     ) -> None:
-        # self.run_categorical_ohe(rows, cols, rounds, cats, "approx")
+        self.run_categorical_ohe(rows, cols, rounds, cats, "approx")
         self.run_categorical_ohe(rows, cols, rounds, cats, "hist")
 
     @given(
