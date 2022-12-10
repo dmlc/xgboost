@@ -1919,7 +1919,9 @@ class Booster:
         """
         if not isinstance(dtrain, DMatrix):
             raise TypeError(f"invalid training matrix: {type(dtrain).__name__}")
-        self._validate_dmatrix_features(dtrain)
+
+        if iteration == 0:
+            self._validate_dmatrix_features(dtrain)
 
         if fobj is None:
             _check_call(
