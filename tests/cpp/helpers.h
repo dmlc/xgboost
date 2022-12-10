@@ -455,8 +455,9 @@ RMMAllocatorPtr SetUpRMMResourceForCppTests(int argc, char** argv);
  */
 inline LearnerModelParam MakeMP(bst_feature_t n_features, float base_score, uint32_t n_groups,
                                 int32_t device = Context::kCpuId) {
+  Context ctx;
   size_t shape[1]{1};
-  LearnerModelParam mparam(n_features, linalg::Tensor<float, 1>{{base_score}, shape, device},
+  LearnerModelParam mparam(&ctx, n_features, linalg::Tensor<float, 1>{{base_score}, shape, device},
                            n_groups);
   return mparam;
 }

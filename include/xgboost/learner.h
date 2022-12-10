@@ -332,6 +332,12 @@ struct LearnerModelParam {
   LearnerModelParam(Context const* ctx, LearnerModelParamLegacy const& user_param,
                     linalg::Tensor<float, 1> base_margin, ObjInfo t,
                     linalg::Vector<bst_cat_t> const& n_categories);
+  // Only used for tests where we don't have access to `LearnerModelParamLegacy`.
+  LearnerModelParam(Context const* ctx, bst_feature_t n_features,
+                    linalg::Tensor<float, 1> base_margin, uint32_t n_groups)
+      : base_score_{std::move(base_margin)}, num_feature{n_features}, num_output_group{n_groups} {
+    this->num_category = linalg::Zeros<bst_cat_t>(ctx, num_feature);
+  }
 
   linalg::TensorView<float const, 1> BaseScore(Context const* ctx) const;
   linalg::TensorView<float const, 1> BaseScore(int32_t device) const;
