@@ -27,10 +27,10 @@ TEST(GrowHistMaker, InteractionConstraint) {
     bst_float hess = dist(&gen);
     h_gradients[i] = GradientPair(grad, hess);
   }
-
+  auto mparam = MakeMP(kCols, 0.5, 1);
   {
     // With constraints
-    RegTree tree;
+    RegTree tree{&mparam};
     tree.param.num_feature = kCols;
 
     std::unique_ptr<TreeUpdater> updater{
@@ -49,7 +49,7 @@ TEST(GrowHistMaker, InteractionConstraint) {
   }
   {
     // Without constraints
-    RegTree tree;
+    RegTree tree{&mparam};
     tree.param.num_feature = kCols;
 
     std::unique_ptr<TreeUpdater> updater{

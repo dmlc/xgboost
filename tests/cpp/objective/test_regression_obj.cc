@@ -386,7 +386,8 @@ TEST(Objective, DeclareUnifiedTest(AbsoluteError)) {
   CheckObjFunction(obj, predt.HostVector(), labels, info.weights_.HostVector(),
                    {1.f, -1.f, 1.f, -1.f, 1.f, -1.f}, info.weights_.HostVector());
 
-  RegTree tree;
+  auto mparam = MakeMP(1, 0.5, 1);
+  RegTree tree{&mparam};
   tree.ExpandNode(0, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
 
   HostDeviceVector<bst_node_t> position(labels.size(), 0);
@@ -442,7 +443,8 @@ TEST(Objective, DeclareUnifiedTest(AbsoluteErrorLeaf)) {
     h_position[i] = 6;
   }
 
-  RegTree tree;
+  auto mparam = MakeMP(1, 0.5, 1);
+  RegTree tree{&mparam};
   tree.ExpandNode(0, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
   tree.ExpandNode(1, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
   tree.ExpandNode(2, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);

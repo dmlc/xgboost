@@ -193,7 +193,7 @@ void GBTreeModelForTest(gbm::GBTreeModel *model, uint32_t split_ind,
   PredictionCacheEntry out_predictions;
 
   std::vector<std::unique_ptr<RegTree>> trees;
-  trees.push_back(std::unique_ptr<RegTree>(new RegTree));
+  trees.push_back(std::unique_ptr<RegTree>(new RegTree{model->learner_model_param}));
   auto& p_tree = trees.front();
 
   std::vector<uint32_t> split_cats(LBitField32::ComputeStorageSize(split_cat));

@@ -159,7 +159,8 @@ TEST(Tree, AllocateNode) {
 
 TEST(Tree, ExpandCategoricalFeature) {
   {
-    RegTree tree;
+    auto mparam = MakeMP(1, 0.5, 1);
+    RegTree tree{&mparam};
     tree.ExpandCategorical(0, 0, {}, true, 1.0, 2.0, 3.0, 11.0, 2.0,
                            /*left_sum=*/3.0, /*right_sum=*/4.0);
     ASSERT_EQ(tree.GetNodes().size(), 3ul);
@@ -172,8 +173,14 @@ TEST(Tree, ExpandCategoricalFeature) {
     ASSERT_TRUE(std::isnan(tree[0].SplitCond()));
   }
   {
-    RegTree tree;
+    auto mparam = MakeMP(1, 0.5, 1);
     bst_cat_t cat = 33;
+    mparam.num_category.ModifyInplace([&](HostDeviceVector<bst_cat_t>* data, auto shape) {
+      shape[0] = 1;
+      data->HostVector().push_back(cat);
+    });
+    RegTree tree{&mparam};
+
     std::vector<uint32_t> split_cats(LBitField32::ComputeStorageSize(cat+1));
     LBitField32 bitset {split_cats};
     bitset.Set(cat);
@@ -187,7 +194,7 @@ TEST(Tree, ExpandCategoricalFeature) {
     Json out{Object()};
     tree.SaveModel(&out);
 
-    RegTree loaded_tree;
+    RegTree loaded_tree{&mparam};
     loaded_tree.LoadModel(out);
 
     auto const& cat_ptr = loaded_tree.GetSplitCategoriesPtr();

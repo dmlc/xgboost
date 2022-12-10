@@ -31,12 +31,13 @@ class TestGrowPolicy : public ::testing::Test {
       learner->SetParam("max_depth", std::to_string(max_depth));
     }
     learner->SetParam("grow_policy", policy);
+    auto mparam = MakeMP(n_features_, 0.5, 1);
 
     auto check_max_leave = [&]() {
       Json model{Object{}};
       learner->SaveModel(&model);
       auto j_tree = model["learner"]["gradient_booster"]["model"]["trees"][0];
-      RegTree tree;
+      RegTree tree{&mparam};
       tree.LoadModel(j_tree);
       CHECK_LE(tree.GetNumLeaves(), max_leaves);
     };
@@ -46,7 +47,7 @@ class TestGrowPolicy : public ::testing::Test {
       learner->SaveModel(&model);
 
       auto j_tree = model["learner"]["gradient_booster"]["model"]["trees"][0];
-      RegTree tree;
+      RegTree tree{&mparam};
       tree.LoadModel(j_tree);
       bst_node_t depth = 0;
       tree.WalkTree([&](bst_node_t nidx) {
@@ -98,6 +99,7 @@ class TestGrowPolicy : public ::testing::Test {
   }
 
   void TestTreeGrowPolicy(std::string tree_method, std::string policy) {
+    auto mparam = MakeMP(n_features_, 0.5, 1);
     {
       /**
        *  max_leaves
@@ -107,7 +109,7 @@ class TestGrowPolicy : public ::testing::Test {
       learner->SaveModel(&model);
 
       auto j_tree = model["learner"]["gradient_booster"]["model"]["trees"][0];
-      RegTree tree;
+      RegTree tree{&mparam};
       tree.LoadModel(j_tree);
       ASSERT_EQ(tree.GetNumLeaves(), 16);
     }
@@ -120,7 +122,7 @@ class TestGrowPolicy : public ::testing::Test {
       learner->SaveModel(&model);
 
       auto j_tree = model["learner"]["gradient_booster"]["model"]["trees"][0];
-      RegTree tree;
+      RegTree tree{&mparam};
       tree.LoadModel(j_tree);
       bst_node_t depth = 0;
       tree.WalkTree([&](bst_node_t nidx) {
