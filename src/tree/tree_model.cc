@@ -949,6 +949,7 @@ void RegTree::LoadCategoricalSplit(Json const& in) {
       auto n_cats = n_categories(fidx);
 
       if (n_cats == 0) {
+        // legacy model where max_cat is not stored in learner.
         bst_cat_t max_cat{std::numeric_limits<bst_cat_t>::min()};
         for (auto j = j_begin; j < j_end; ++j) {
           auto const& category = GetElem<Integer>(categories, j);
