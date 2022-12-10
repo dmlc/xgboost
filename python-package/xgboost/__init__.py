@@ -5,9 +5,9 @@ Contributors: https://github.com/dmlc/xgboost/blob/master/CONTRIBUTORS.md
 
 from . import tracker  # noqa
 from . import collective, dask, rabit
+from ._typing import CatDType
 from .core import (
     Booster,
-    CatDType,
     DataIter,
     DeviceQuantileDMatrix,
     DMatrix,
@@ -15,7 +15,7 @@ from .core import (
     _py_version,
     build_info,
 )
-from .tracker import RabitTracker  # noqa
+from .tracker import RabitTracker
 from .training import cv, train
 
 try:

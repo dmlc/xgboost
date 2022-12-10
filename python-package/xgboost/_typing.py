@@ -8,10 +8,12 @@ from typing import (
     Callable,
     Dict,
     List,
+    Optional,
     Sequence,
     Type,
     TypeVar,
     Union,
+    overload,
 )
 
 # os.PathLike/string/numpy.array/scipy.sparse/pd.DataFrame/dt.Frame/
@@ -97,3 +99,51 @@ else:
 # template parameter
 _T = TypeVar("_T")
 _F = TypeVar("_F", bound=Callable[..., Any])
+
+
+class CatDType:
+    """Helper class for passing information about categorical feature. This is useful
+    when input data is not a dataframe.
+
+    ..note:: Categorical feature support is experimental.
+
+    Parameters
+    ----------
+
+    n_categories :
+        Total number of categories for a specific feature.
+
+    """
+
+    def __init__(self, n_categories: int) -> None:
+        self.n_categories: int = n_categories
+
+    @staticmethod
+    def from_str(s: str) -> "CatDType":
+        return CatDType(int(s[2:-1]))
+
+    def __str__(self) -> str:
+        """Return an internal string representation."""
+        return f"c({str(self.n_categories)})"
+
+
+FeatureTypes = Sequence[Union[str, CatDType]]
+
+
+@overload
+def get_feature_types(ft_str: None) -> None:
+    ...
+
+
+@overload
+def get_feature_types(ft_str: Sequence[str]) -> FeatureTypes:
+    ...
+
+
+def get_feature_types(ft_str: Optional[Sequence[str]]) -> Optional[FeatureTypes]:
+    if ft_str is None:
+        return None
+    res: FeatureTypes = [
+        CatDType.from_str(f) if f.startswith("c") else f for f in ft_str
+    ]
+    return res

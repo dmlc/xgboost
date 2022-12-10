@@ -10,9 +10,11 @@ from typing import Any, Callable, Iterator, List, Optional, Sequence, Tuple, Uni
 import numpy as np
 
 from ._typing import (
+    CatDType,
     CupyT,
     DataType,
     FeatureNames,
+    FeatureTypes,
     FloatCompatible,
     NumpyDType,
     PandasDType,
@@ -21,10 +23,8 @@ from ._typing import (
 from .compat import DataFrame, lazy_isinstance
 from .core import (
     _LIB,
-    CatDType,
     DataIter,
     DMatrix,
-    FeatureTypes,
     _check_call,
     _cuda_array_interface,
     _ProxyDMatrix,

@@ -45,8 +45,10 @@ from ._typing import (
     DataType,
     FeatureInfo,
     FeatureNames,
+    FeatureTypes,
     NumpyOrCupy,
     c_bst_ulong,
+    get_feature_types,
 )
 from .compat import PANDAS_INSTALLED, DataFrame, py_str
 from .libpath import find_lib_path
@@ -425,35 +427,6 @@ def _prediction_output(
         arr_predict = ctypes2numpy(predts, length, np.float32)
     arr_predict = arr_predict.reshape(arr_shape)
     return arr_predict
-
-
-class CatDType:
-    """Helper class for passing information about categorical feature. This is useful
-    when input data is not a dataframe.
-
-    ..note:: Categorical feature support is experimental.
-
-    Parameters
-    ----------
-
-    n_categories :
-        Total number of categories for a specific feature.
-
-    """
-
-    def __init__(self, n_categories: int) -> None:
-        self.n_categories: int = n_categories
-
-    @staticmethod
-    def from_str(s: str) -> "CatDType":
-        return CatDType(int(s[2:-1]))
-
-    def __str__(self) -> str:
-        """Return an internal string representation."""
-        return f"c({str(self.n_categories)})"
-
-
-FeatureTypes = Sequence[Union[str, CatDType]]
 
 
 class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
@@ -1233,11 +1206,8 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
                 ctypes.byref(sarr),
             )
         )
-        type_str = from_cstr_to_pystr(sarr, length)
-        if not type_str:
-            return None
-        res = [CatDType.from_str(f) if f.startswith("c") else f for f in type_str]
-        return res
+        ft_str = from_cstr_to_pystr(sarr, length)
+        return get_feature_types(ft_str)
 
     @feature_types.setter
     def feature_types(self, feature_types: Optional[FeatureTypes]) -> None:
@@ -1888,7 +1858,8 @@ class Booster:
         assignment.  See :py:class:`DMatrix` for details.
 
         """
-        return self._get_feature_info("feature_type")
+        ft_str = self._get_feature_info("feature_type")
+        return get_feature_types(ft_str)
 
     @feature_types.setter
     def feature_types(self, features: Optional[FeatureTypes]) -> None:
