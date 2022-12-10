@@ -185,7 +185,7 @@ Arrow specification.'''
         X, y = tm.make_categorical(10, n_features, n_categories=4, onehot=False)
         X = cp.asarray(X.values.astype(cp.float32))
         y = cp.array(y)
-        feature_types = ['c'] * n_features
+        feature_types = [xgb.CatDType(4)] * n_features
 
         assert isinstance(X, cp.ndarray)
         Xy = xgb.DMatrix(X, y, feature_types=feature_types)

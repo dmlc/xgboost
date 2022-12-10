@@ -397,7 +397,7 @@ class TestDMatrix:
         n_features = 10
         X, y = tm.make_categorical(10, n_features, n_categories=4, onehot=False)
         X = X.values.astype(np.float32)
-        feature_types = ['c'] * n_features
+        feature_types = [xgb.CatDType(4)] * n_features
 
         assert isinstance(X, np.ndarray)
         Xy = xgb.DMatrix(X, y, feature_types=feature_types)
@@ -408,7 +408,7 @@ class TestDMatrix:
         n_features = 10
         X, y = tm.make_categorical(10, n_features, n_categories=4, onehot=False)
         X = X.values.astype(np.float32)
-        feature_types = ['c'] * n_features
+        feature_types = [xgb.CatDType(4)] * n_features
 
         X[1, 3] = np.NAN
         X[2, 4] = np.NAN
