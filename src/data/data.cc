@@ -207,44 +207,29 @@ void MetaInfo::Clear() {
  * the former uses the plural form.
  */
 
-void MetaInfo::SaveBinary(dmlc::Stream* fo) const {
+void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
   Version::Save(fo);
   fo->Write(kNumField);
-  std::int32_t field_cnt = 0;  // make sure we are actually writing kNumField fields
-  /**
-   * Shape
-   */
-  SaveScalarField(fo, u8"num_row", DataType::kUInt64, num_row_);
-  ++field_cnt;
-  SaveScalarField(fo, u8"num_col", DataType::kUInt64, num_col_);
-  ++field_cnt;
-  SaveScalarField(fo, u8"num_nonzero", DataType::kUInt64, num_nonzero_);
-  ++field_cnt;
-  /**
-   * Samples
-   */
-  SaveTensorField(fo, u8"labels", DataType::kFloat32, labels);
-  ++field_cnt;
-  SaveVectorField(fo, u8"group_ptr", DataType::kUInt32, {group_ptr_.size(), 1}, group_ptr_);
-  ++field_cnt;
-  SaveVectorField(fo, u8"weights", DataType::kFloat32, {weights_.Size(), 1}, weights_);
-  ++field_cnt;
-  SaveTensorField(fo, u8"base_margin", DataType::kFloat32, base_margin_);
-  ++field_cnt;
-  SaveVectorField(fo, u8"labels_lower_bound", DataType::kFloat32, {labels_lower_bound_.Size(), 1},
-                  labels_lower_bound_);
-  ++field_cnt;
-  SaveVectorField(fo, u8"labels_upper_bound", DataType::kFloat32, {labels_upper_bound_.Size(), 1},
-                  labels_upper_bound_);
-  ++field_cnt;
-  /**
-   * Features
-   */
-  SaveVectorField(fo, u8"feature_names", DataType::kStr, {feature_names.size(), 1}, feature_names);
-  ++field_cnt;
-  SaveVectorField(fo, u8"feature_types", DataType::kStr, {feature_type_names.size(), 1},
-                  feature_type_names);
-  ++field_cnt;
+  int field_cnt = 0;  // make sure we are actually writing kNumField fields
+
+  SaveScalarField(fo, u8"num_row", DataType::kUInt64, num_row_); ++field_cnt;
+  SaveScalarField(fo, u8"num_col", DataType::kUInt64, num_col_); ++field_cnt;
+  SaveScalarField(fo, u8"num_nonzero", DataType::kUInt64, num_nonzero_); ++field_cnt;
+  SaveTensorField(fo, u8"labels", DataType::kFloat32, labels); ++field_cnt;
+  SaveVectorField(fo, u8"group_ptr", DataType::kUInt32,
+                  {group_ptr_.size(), 1}, group_ptr_); ++field_cnt;
+  SaveVectorField(fo, u8"weights", DataType::kFloat32,
+                  {weights_.Size(), 1}, weights_); ++field_cnt;
+  SaveTensorField(fo, u8"base_margin", DataType::kFloat32, base_margin_); ++field_cnt;
+  SaveVectorField(fo, u8"labels_lower_bound", DataType::kFloat32,
+                  {labels_lower_bound_.Size(), 1}, labels_lower_bound_); ++field_cnt;
+  SaveVectorField(fo, u8"labels_upper_bound", DataType::kFloat32,
+                  {labels_upper_bound_.Size(), 1}, labels_upper_bound_); ++field_cnt;
+
+  SaveVectorField(fo, u8"feature_names", DataType::kStr,
+                  {feature_names.size(), 1}, feature_names); ++field_cnt;
+  SaveVectorField(fo, u8"feature_types", DataType::kStr,
+                  {feature_type_names.size(), 1}, feature_type_names); ++field_cnt;
   SaveVectorField(fo, u8"feature_weights", DataType::kFloat32, {feature_weights.Size(), 1},
                   feature_weights);
   ++field_cnt;

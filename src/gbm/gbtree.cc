@@ -207,11 +207,12 @@ void CopyGradient(HostDeviceVector<GradientPair> const* in_gpair, int32_t n_thre
   if (in_gpair->DeviceIdx() != Context::kCpuId) {
     GPUCopyGradient(in_gpair, n_groups, group_id, out_gpair);
   } else {
-    std::vector<GradientPair>& tmp_h = out_gpair->HostVector();
+    std::vector<GradientPair> &tmp_h = out_gpair->HostVector();
     auto nsize = static_cast<bst_omp_uint>(out_gpair->Size());
-    const auto& gpair_h = in_gpair->ConstHostVector();
-    common::ParallelFor(nsize, n_threads,
-                        [&](bst_omp_uint i) { tmp_h[i] = gpair_h[i * n_groups + group_id]; });
+    const auto &gpair_h = in_gpair->ConstHostVector();
+    common::ParallelFor(nsize, n_threads, [&](bst_omp_uint i) {
+      tmp_h[i] = gpair_h[i * n_groups + group_id];
+    });
   }
 }
 

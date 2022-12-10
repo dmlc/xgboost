@@ -618,18 +618,22 @@ class LearnerConfiguration : public Learner {
 
   bool DelAttr(const std::string& key) override {
     auto it = attributes_.find(key);
-    if (it == attributes_.end()) {
-      return false;
-    }
+    if (it == attributes_.end()) { return false; }
     attributes_.erase(it);
     return true;
   }
 
-  void SetFeatureNames(std::vector<std::string> const& fn) override { feature_names_ = fn; }
+  void SetFeatureNames(std::vector<std::string> const& fn) override {
+    feature_names_ = fn;
+  }
 
-  void GetFeatureNames(std::vector<std::string>* fn) const override { *fn = feature_names_; }
+  void GetFeatureNames(std::vector<std::string>* fn) const override {
+    *fn = feature_names_;
+  }
 
-  void SetFeatureTypes(std::vector<std::string> const& ft) override { this->feature_types_ = ft; }
+  void SetFeatureTypes(std::vector<std::string> const& ft) override {
+    this->feature_types_ = ft;
+  }
 
   void GetFeatureTypes(std::vector<std::string>* p_ft) const override {
     auto& ft = *p_ft;

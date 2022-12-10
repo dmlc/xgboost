@@ -429,7 +429,7 @@ class TestDMatrix:
 
     def test_uri_categorical(self):
         path = os.path.join(dpath, 'agaricus.txt.train')
-        feature_types = ["q"] * 5 + ["c"] + ["q"] * 120
+        feature_types = ["q"] * 5 + [xgb.CatDType(5)] + ["q"] * 120
         Xy = xgb.DMatrix(path + "?indexing_mode=1", feature_types=feature_types)
         np.testing.assert_equal(np.array(Xy.feature_types), np.array(feature_types))
 
