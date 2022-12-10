@@ -252,26 +252,34 @@ void MetaInfo::SaveBinary(dmlc::Stream* fo) const {
   CHECK_EQ(field_cnt, kNumField) << "Wrong number of fields";
 }
 
-void LoadFeatureType(std::vector<std::string> const& type_names, std::vector<FeatureType>* types,
-                     std::vector<bst_cat_t>* n_categories) {
-  types->clear();
-  n_categories->clear();
-  for (auto const& elem : type_names) {
-    if (elem == "int") {
-      types->emplace_back(FeatureType::kNumerical);
-    } else if (elem == "float") {
-      types->emplace_back(FeatureType::kNumerical);
-    } else if (elem == "i") {
-      types->emplace_back(FeatureType::kNumerical);
-    } else if (elem == "q") {
-      types->emplace_back(FeatureType::kNumerical);
-    } else if (elem.front() == 'c') {
-      types->emplace_back(FeatureType::kCategorical);
-      CHECK_GE(elem.size(), 4) << "Invalid format for categorical feature type.";
+void LoadFeatureType(std::vector<std::string> const& type_names, std::vector<FeatureType>* p_types,
+                     std::vector<bst_cat_t>* p_n_categories) {
+  auto& types = *p_types;
+  types.clear();
+  types.resize(type_names.size(), FeatureType::kNumerical);
+
+  auto& n_categories = *p_n_categories;
+  n_categories.clear();
+  n_categories.resize(type_names.size(), 0);
+
+  std::array<StringView, 4> codes{"int", "float", "i", "q"};
+  StringView msg{"Invalid format for categorical feature type."};
+  for (std::size_t i = 0; i < type_names.size(); ++i) {
+    auto const& elem = type_names[i];
+    if (elem.front() == 'c') {
+      types[i] = FeatureType::kCategorical;
+      CHECK_GE(elem.size(), 4) << msg;
       auto nstr = elem.substr(2, elem.size() - 3);
-      bst_cat_t n = std::stoi(nstr);  // fixme: check error.
-      n_categories->emplace_back(n);
-    } else {
+      bst_cat_t n;
+      try {
+        n = std::stoi(nstr);
+        n_categories[i] = n;
+      } catch (std::exception const& e) {
+        LOG(FATAL) << msg;
+      }
+    } else if (std::none_of(codes.cbegin(), codes.cend(),
+                            [&elem](auto const& c) { return c == StringView{elem}; })) {
+      // All features are initialized as numerical, only thing left to do is to validate.
       LOG(FATAL) << "All feature_types must be one of {int, float, i, q, c}.";
     }
   }
