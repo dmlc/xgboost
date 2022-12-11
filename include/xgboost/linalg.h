@@ -361,7 +361,7 @@ class TensorView {
   /**
    * \brief Default constructor, suitable for lazy initialization.
    */
-  LINALG_HD TensorView() = default;
+  TensorView() = default;
   /**
    * \brief Create a tensor with data and shape.
    *

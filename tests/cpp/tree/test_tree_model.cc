@@ -11,7 +11,7 @@
 namespace xgboost {
 TEST(Tree, ModelShape) {
   bst_feature_t n_features = std::numeric_limits<uint32_t>::max();
-  auto mparam = MakeMP(n_features, 0.5, 1);
+  auto mparam = MakeMP(1, 0.5, 1);
   RegTree tree{&mparam};
   tree.param.UpdateAllowUnknown(Args{{"num_feature", std::to_string(n_features)}});
   ASSERT_EQ(tree.param.num_feature, n_features);
@@ -177,7 +177,9 @@ TEST(Tree, ExpandCategoricalFeature) {
     bst_cat_t cat = 33;
     mparam.num_category.ModifyInplace([&](HostDeviceVector<bst_cat_t>* data, auto shape) {
       shape[0] = 1;
-      data->HostVector().push_back(cat);
+      auto& h_data = data->HostVector();
+      CHECK_EQ(h_data.size(), 1);
+      h_data[0] = cat;
     });
     RegTree tree{&mparam};
 
@@ -221,7 +223,9 @@ std::shared_ptr<RegTree> GrowTree(LearnerModelParam* out_param) {
   auto mparam = MakeMP(kCols, 0.5, 1);
   mparam.num_category.ModifyInplace([&](HostDeviceVector<bst_cat_t>* data, auto shape) {
     shape[0] = 1;
-    data->HostVector().push_back(cat);
+    auto& h_data = data->HostVector();
+    CHECK_EQ(h_data.size(), 1);
+    h_data[0] = cat;
   });
   std::shared_ptr<RegTree> p_tree{new RegTree{&mparam}};
 
@@ -274,7 +278,9 @@ TEST(Tree, CategoricalIO) {
     auto mparam = MakeMP(1, 0.5, 1);
     mparam.num_category.ModifyInplace([&](HostDeviceVector<bst_cat_t>* data, auto shape) {
       shape[0] = 1;
-      data->HostVector().push_back(cat);
+      auto& h_data = data->HostVector();
+      CHECK_EQ(h_data.size(), 1);
+      h_data[0] = cat;
     });
     RegTree tree{&mparam};
 
@@ -320,7 +326,9 @@ RegTree ConstructTreeCat(std::vector<bst_cat_t>* cond, LearnerModelParam* mparam
   *mparam = MakeMP(1, 0.5, 1);
   mparam->num_category.ModifyInplace([&](HostDeviceVector<bst_cat_t>* data, auto shape) {
     shape[0] = 1;
-    data->HostVector().push_back(cat);
+    auto& h_data = data->HostVector();
+    CHECK_EQ(h_data.size(), 1);
+    h_data[0] = cat;
   });
   RegTree tree{mparam};
   std::vector<uint32_t> cats_storage(common::CatBitField::ComputeStorageSize(cat), 0);

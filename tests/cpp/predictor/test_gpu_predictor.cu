@@ -154,7 +154,7 @@ TEST(GPUPredictor, ShapStump) {
   gbm::GBTreeModel model(&mparam, &ctx);
 
   std::vector<std::unique_ptr<RegTree>> trees;
-  trees.push_back(std::unique_ptr<RegTree>(new RegTree));
+  trees.push_back(std::unique_ptr<RegTree>(new RegTree{&mparam}));
   model.CommitModel(std::move(trees), 0);
 
   auto gpu_lparam = CreateEmptyGenericParam(0);
@@ -181,7 +181,7 @@ TEST(GPUPredictor, Shap) {
   gbm::GBTreeModel model(&mparam, &ctx);
 
   std::vector<std::unique_ptr<RegTree>> trees;
-  trees.push_back(std::unique_ptr<RegTree>(new RegTree));
+  trees.push_back(std::unique_ptr<RegTree>(new RegTree{&mparam}));
   trees[0]->ExpandNode(0, 0, 0.5, true, 1.0, -1.0, 1.0, 0.0, 5.0, 2.0, 3.0);
   model.CommitModel(std::move(trees), 0);
 
