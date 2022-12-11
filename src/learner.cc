@@ -361,9 +361,6 @@ class LearnerConfiguration : public Learner {
   std::vector<std::string> metric_names_;
 
   void ConfigureModelParamWithoutBaseScore() {
-    if (this->num_category_.Empty()) {
-      this->num_category_ = linalg::Zeros<bst_cat_t>(&ctx_, this->GetNumFeature());
-    }
     // Convert mparam to learner_model_param
     this->ConfigureTargets();
 
@@ -641,6 +638,9 @@ class LearnerConfiguration : public Learner {
   }
 
   void InitFeatureInfo(MetaInfo const& info) {
+    // fixme:
+    // - load model needs num_categories
+    // - load model doesn't need Configure
     if (this->num_category_.Empty() && !info.num_categories.Empty()) {
       this->num_category_.Copy(info.num_categories);
       this->need_configuration_ = true;
@@ -868,8 +868,8 @@ class LearnerIO : public LearnerConfiguration {
     auto it = learner.find("num_category");
     if (it != learner.cend() && !IsA<Null>(it->second)) {
       auto const& jnum_category = get<Array const>(it->second);
-      CHECK_EQ(jnum_category.size(), mparam_.num_feature);
-      this->num_category_.Reshape(mparam_.num_feature);
+      // This can be empty if the model has never been fitted.
+      this->num_category_.Reshape(jnum_category.size());
       auto h_num_category = this->num_category_.HostView();
       for (std::size_t i = 0; i < jnum_category.size(); ++i) {
         h_num_category(i) = get<Integer const>(jnum_category[i]);
