@@ -220,6 +220,10 @@ XGB_DLL int XGDMatrixCreateFromFile(const char *fname, int silent, int dsplit, D
       LOG(CONSOLE) << "XGBoost distributed mode detected, will split data among workers";
       data_split_mode = DataSplitMode::kRow;
     }
+  } else {
+    CHECK(data_split_mode == DataSplitMode::kAuto || data_split_mode == DataSplitMode::kNone)
+        << "Precondition violated; dsplit can only be 'auto' or 'none' in local mode";
+    data_split_mode = DataSplitMode::kNone;
   }
   xgboost_CHECK_C_ARG_PTR(fname);
   xgboost_CHECK_C_ARG_PTR(out);
