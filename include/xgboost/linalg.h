@@ -862,6 +862,16 @@ auto Zeros(Context const *ctx, Index &&...index) {
   t.Data()->Fill(static_cast<T>(0));
   return t;
 }
+/**
+ * \brief Host-only version.
+ */
+template <typename T, typename... Index>
+auto Zeros(Index &&...index) {
+  Tensor<T, sizeof...(Index)> t;
+  t.Reshape(index...);
+  t.Data()->Fill(static_cast<T>(0));
+  return t;
+}
 
 // Only first axis is supported for now.
 template <typename T, int32_t D>

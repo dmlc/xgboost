@@ -6,7 +6,7 @@
 
 #include <dmlc/registry.h>
 
-#include <array>
+#include <array>  // std::array
 #include <cstring>
 
 #include "../collective/communicator-inl.h"
@@ -238,19 +238,20 @@ void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
 }
 
 void LoadFeatureType(std::vector<std::string> const& type_names, std::vector<FeatureType>* p_types,
-                     std::vector<bst_cat_t>* p_n_categories) {
+                     linalg::Vector<bst_cat_t>* p_n_categories) {
   auto& types = *p_types;
   types.clear();
   types.resize(type_names.size(), FeatureType::kNumerical);
 
   auto& n_categories = *p_n_categories;
-  n_categories.clear();
-  n_categories.resize(type_names.size(), 0);
+  n_categories = linalg::Zeros<bst_cat_t>(type_names.size());
+  auto& h_n_categories = n_categories.Data()->HostVector();
 
   std::array<StringView, 4> codes{"int", "float", "i", "q"};
-  StringView invalid_cat{"Invalid format for categorical feature type."};
   StringView invalid_ft{
       "All feature_types must be one of the {int, float, i, q, c(${n_categories})}."};
+  StringView invalid_cat{"Invalid format for categorical feature type."};
+
   for (std::size_t i = 0; i < type_names.size(); ++i) {
     auto const& elem = type_names[i];
     CHECK_GE(elem.length(), 1) << invalid_ft;
@@ -263,10 +264,12 @@ void LoadFeatureType(std::vector<std::string> const& type_names, std::vector<Fea
       bst_cat_t n;
       try {
         n = std::stoi(nstr);
-        n_categories[i] = n;
-      } catch (std::exception const& e) {
+      } catch (std::out_of_range const& e) {
         LOG(FATAL) << invalid_cat << " Value cannot be represented by int32:" << nstr;
+      } catch (std::invalid_argument const& e) {
+        LOG(FATAL) << invalid_cat << " value:" << nstr << "; what:" << e.what();
       }
+      h_n_categories[i] = n;
     } else if (std::none_of(codes.cbegin(), codes.cend(),
                             [&elem](auto const& c) { return c == StringView{elem}; })) {
       // All features are initialized as numerical, only thing left to do is to validate.
@@ -324,11 +327,7 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
   LoadVectorField(fi, u8"feature_types", DataType::kStr, &feature_type_names);
   LoadVectorField(fi, u8"feature_weights", DataType::kFloat32, &feature_weights);
 
-  // fixme
-  auto& h_n_categories = num_categories.Data()->HostVector();
-  LoadFeatureType(feature_type_names, &feature_types.HostVector(), &h_n_categories);
-  std::size_t shape[] {h_n_categories.size()};
-  num_categories.Reshape(shape);
+  LoadFeatureType(feature_type_names, &feature_types.HostVector(), &num_categories);
 }
 
 template <typename T>
@@ -629,11 +628,7 @@ void MetaInfo::SetFeatureInfo(const char* key, const char **info, const bst_ulon
       auto elem = info[i];
       feature_type_names.emplace_back(elem);
     }
-    // fixme
-    auto& h_n_categories = num_categories.Data()->HostVector();
-    LoadFeatureType(feature_type_names, &h_feature_types, &h_n_categories);
-    std::size_t shape[]{h_n_categories.size()};
-    num_categories.Reshape(shape);
+    LoadFeatureType(feature_type_names, &h_feature_types, &num_categories);
   } else if (!std::strcmp(key, "feature_name")) {
     feature_names.clear();
     for (size_t i = 0; i < size; ++i) {
@@ -702,11 +697,7 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_col
   if (!that.feature_type_names.empty()) {
     this->feature_type_names = that.feature_type_names;
     auto &h_feature_types = feature_types.HostVector();
-    auto &h_num_categories = num_categories.Data()->HostVector();
-    // fixme
-    LoadFeatureType(this->feature_type_names, &h_feature_types, &h_num_categories);
-    std::size_t shape[] {h_num_categories.size()};
-    num_categories.Reshape(shape);
+    LoadFeatureType(this->feature_type_names, &h_feature_types, &num_categories);
   }
   if (!that.feature_weights.Empty()) {
     this->feature_weights.Resize(that.feature_weights.Size());
