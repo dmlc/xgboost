@@ -129,6 +129,11 @@ class CatDType:
         """Return an internal string representation."""
         return f"c({str(self.n_categories)})"
 
+    def __eq__(self, that: Any) -> bool:
+        if not isinstance(that, CatDType):
+            return False
+        return self.n_categories == that.n_categories
+
 
 FeatureTypes = Sequence[Union[str, CatDType]]
 

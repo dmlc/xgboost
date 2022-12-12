@@ -1222,7 +1222,7 @@ def test_estimator_reg(estimator, check):
 
 def test_categorical():
     X, y = tm.make_categorical(n_samples=32, n_features=2, n_categories=3, onehot=False)
-    ft = ["c"] * X.shape[1]
+    ft = [xgb.CatDType(3)] * X.shape[1]
     reg = xgb.XGBRegressor(
         tree_method="hist",
         feature_types=ft,
