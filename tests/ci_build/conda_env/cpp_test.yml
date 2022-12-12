@@ -1,7 +1,6 @@
 # conda environment for CPP test on Linux distributions
 name: cpp_test
 channels:
-- defaults
 - conda-forge
 dependencies:
 - cmake
