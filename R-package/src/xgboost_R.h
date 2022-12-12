@@ -38,9 +38,10 @@ XGB_DLL SEXP XGBGetGlobalConfig_R();
  * \brief load a data matrix
  * \param fname name of the content
  * \param silent whether print messages
+ * \param dsplit data split mode
  * \return a loaded data matrix
  */
-XGB_DLL SEXP XGDMatrixCreateFromFile_R(SEXP fname, SEXP silent);
+XGB_DLL SEXP XGDMatrixCreateFromFile_R(SEXP fname, SEXP silent, SEXP dsplit);
 
 /*!
  * \brief create matrix content from dense matrix

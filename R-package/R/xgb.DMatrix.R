@@ -13,6 +13,7 @@
 #' @param missing a float value to represents missing values in data (used only when input is a dense matrix).
 #'        It is useful when a 0 or some other extreme value represents missing values in data.
 #' @param silent whether to suppress printing an informational message after loading from a file.
+#' @param dsplit data split mode.
 #' @param nthread Number of threads used for creating DMatrix.
 #' @param ... the \code{info} data could be passed directly as parameters, without creating an \code{info} list.
 #'
@@ -23,14 +24,14 @@
 #' dtrain <- xgb.DMatrix('xgb.DMatrix.data')
 #' if (file.exists('xgb.DMatrix.data')) file.remove('xgb.DMatrix.data')
 #' @export
-xgb.DMatrix <- function(data, info = list(), missing = NA, silent = FALSE, nthread = NULL, ...) {
+xgb.DMatrix <- function(data, info = list(), missing = NA, silent = FALSE, dsplit = 0, nthread = NULL, ...) {
   cnames <- NULL
   if (typeof(data) == "character") {
     if (length(data) > 1)
       stop("'data' has class 'character' and length ", length(data),
            ".\n  'data' accepts either a numeric matrix or a single filename.")
     data <- path.expand(data)
-    handle <- .Call(XGDMatrixCreateFromFile_R, data, as.integer(silent))
+    handle <- .Call(XGDMatrixCreateFromFile_R, data, as.integer(silent), as.integer(dsplit))
   } else if (is.matrix(data)) {
     handle <- .Call(XGDMatrixCreateFromMat_R, data, missing, as.integer(NVL(nthread, -1)))
     cnames <- colnames(data)

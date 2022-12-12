@@ -39,7 +39,7 @@ extern SEXP XGBoosterUpdateOneIter_R(SEXP, SEXP, SEXP);
 extern SEXP XGCheckNullPtr_R(SEXP);
 extern SEXP XGDMatrixCreateFromCSC_R(SEXP, SEXP, SEXP, SEXP, SEXP);
 extern SEXP XGDMatrixCreateFromCSR_R(SEXP, SEXP, SEXP, SEXP, SEXP);
-extern SEXP XGDMatrixCreateFromFile_R(SEXP, SEXP);
+extern SEXP XGDMatrixCreateFromFile_R(SEXP, SEXP, SEXP);
 extern SEXP XGDMatrixCreateFromMat_R(SEXP, SEXP, SEXP);
 extern SEXP XGDMatrixGetInfo_R(SEXP, SEXP);
 extern SEXP XGDMatrixGetStrFeatureInfo_R(SEXP, SEXP);
