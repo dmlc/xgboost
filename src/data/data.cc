@@ -228,8 +228,10 @@ void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
 
   SaveVectorField(fo, u8"feature_names", DataType::kStr,
                   {feature_names.size(), 1}, feature_names); ++field_cnt;
-  SaveVectorField(fo, u8"feature_types", DataType::kStr,
-                  {feature_type_names.size(), 1}, feature_type_names); ++field_cnt;
+  std::vector<std::string> out_ft;
+  this->GetFeatureInfo("feature_type", &out_ft);
+  SaveVectorField(fo, u8"feature_types", DataType::kStr, {out_ft.size(), 1}, out_ft);
+  ++field_cnt;
   SaveVectorField(fo, u8"feature_weights", DataType::kFloat32, {feature_weights.Size(), 1},
                   feature_weights);
   ++field_cnt;
@@ -237,8 +239,9 @@ void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
   CHECK_EQ(field_cnt, kNumField) << "Wrong number of fields";
 }
 
-void LoadFeatureType(std::vector<std::string> const& type_names, std::vector<FeatureType>* p_types,
-                     linalg::Vector<bst_cat_t>* p_n_categories) {
+template <typename Str>
+void LoadFeatureType(common::Span<Str const> type_names, std::vector<std::string>* out_names,
+                     std::vector<FeatureType>* p_types, linalg::Vector<bst_cat_t>* p_n_categories) {
   auto& types = *p_types;
   types.clear();
   types.resize(type_names.size(), FeatureType::kNumerical);
@@ -255,10 +258,12 @@ void LoadFeatureType(std::vector<std::string> const& type_names, std::vector<Fea
   // Is the num_categories supplied by the user?
   bool need_infer_n_cat{false};
   for (std::size_t i = 0; i < type_names.size(); ++i) {
-    auto const& elem = type_names[i];
+    // std::stoi doesn't work with StringView.
+    auto elem = std::string{type_names[i]};
     CHECK_GE(elem.length(), 1) << invalid_ft;
     if (elem.front() == 'c' && elem.length() == 1) {
       need_infer_n_cat = true;
+      out_names->emplace_back("c");
       types[i] = FeatureType::kCategorical;
     } else if (elem.front() == 'c') {
       CHECK_GE(elem.size(), 4) << invalid_cat << " Expected to be `c(${n_categories})` or `c`";
@@ -275,9 +280,13 @@ void LoadFeatureType(std::vector<std::string> const& type_names, std::vector<Fea
         LOG(FATAL) << invalid_cat << " value:" << nstr << "; what:" << e.what();
       }
       h_n_categories(i) = n;
-    } else if (std::none_of(codes.cbegin(), codes.cend(),
-                            [&elem](auto const& c) { return c == StringView{elem}; })) {
-      LOG(FATAL) << invalid_ft;
+      out_names->emplace_back("c");
+    } else {
+      if (std::none_of(codes.cbegin(), codes.cend(),
+                       [&elem](auto const& c) { return c == StringView{elem}; })) {
+        LOG(FATAL) << invalid_ft;
+      }
+      out_names->emplace_back(elem);
     }
   }
 
@@ -333,10 +342,11 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
   LoadVectorField(fi, u8"labels_upper_bound", DataType::kFloat32, &labels_upper_bound_);
 
   LoadVectorField(fi, u8"feature_names", DataType::kStr, &feature_names);
-  LoadVectorField(fi, u8"feature_types", DataType::kStr, &feature_type_names);
+  std::vector<std::string> in_ft;
+  LoadVectorField(fi, u8"feature_types", DataType::kStr, &in_ft);
   LoadVectorField(fi, u8"feature_weights", DataType::kFloat32, &feature_weights);
-
-  LoadFeatureType(feature_type_names, &feature_types.HostVector(), &num_categories);
+  LoadFeatureType(common::Span<std::string const>{in_ft}, &feature_type_names,
+                  &feature_types.HostVector(), &num_categories);
 }
 
 template <typename T>
@@ -635,11 +645,8 @@ void MetaInfo::SetFeatureInfo(const char* key, const char **info, const bst_ulon
   if (!std::strcmp(key, "feature_type")) {
     feature_type_names.clear();
     auto& h_feature_types = feature_types.HostVector();
-    for (size_t i = 0; i < size; ++i) {
-      auto elem = info[i];
-      feature_type_names.emplace_back(elem);
-    }
-    LoadFeatureType(feature_type_names, &h_feature_types, &num_categories);
+    LoadFeatureType(common::Span<char const* const>(info, size), &feature_type_names,
+                    &h_feature_types, &num_categories);
   } else if (!std::strcmp(key, "feature_name")) {
     feature_names.clear();
     for (size_t i = 0; i < size; ++i) {
@@ -654,7 +661,19 @@ void MetaInfo::GetFeatureInfo(const char* field, std::vector<std::string>* out_s
   auto& str_vecs = *out_str_vecs;
   if (!std::strcmp(field, "feature_type")) {
     str_vecs.resize(feature_type_names.size());
-    std::copy(feature_type_names.cbegin(), feature_type_names.cend(), str_vecs.begin());
+    std::vector<std::string> out_names;
+    auto const& h_ft = feature_types.ConstHostSpan();
+    CHECK_EQ(feature_type_names.size(), h_ft.size());
+    for (std::size_t i = 0; i < feature_type_names.size(); ++i) {
+      auto const& elem = feature_type_names[i];
+      if (common::IsCat(h_ft, i)) {
+        CHECK_EQ(elem.front(), 'c');
+        out_names.emplace_back("c(" + std::to_string(i) + ')');
+      } else {
+        out_names.emplace_back(elem);
+      }
+    }
+    std::copy(out_names.cbegin(), out_names.cend(), str_vecs.begin());
   } else if (!strcmp(field, "feature_name")) {
     str_vecs.resize(feature_names.size());
     std::copy(feature_names.begin(), feature_names.end(), str_vecs.begin());
@@ -707,12 +726,15 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_col
   }
   if (!that.feature_type_names.empty()) {
     this->feature_type_names = that.feature_type_names;
-    auto &h_feature_types = feature_types.HostVector();
-    LoadFeatureType(this->feature_type_names, &h_feature_types, &num_categories);
+  }
+  if (!that.feature_types.Empty()) {
+    this->feature_types.SetDevice(that.feature_types.DeviceIdx());
+    this->feature_types.Resize(that.feature_types.Size());
+    this->feature_types.Copy(that.feature_types);
   }
   if (!that.feature_weights.Empty()) {
-    this->feature_weights.Resize(that.feature_weights.Size());
     this->feature_weights.SetDevice(that.feature_weights.DeviceIdx());
+    this->feature_weights.Resize(that.feature_weights.Size());
     this->feature_weights.Copy(that.feature_weights);
   }
 }

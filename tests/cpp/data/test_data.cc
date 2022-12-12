@@ -172,8 +172,12 @@ TEST(DMatrix, FeatureInfo) {
     ASSERT_EQ(h_num_categories(0), 1);
     ASSERT_EQ(h_num_categories(1), 3);
     ASSERT_EQ(h_num_categories(2), 0);
+    ASSERT_EQ(Xy->Info().feature_type_names.size(), 3);
+    ASSERT_EQ(Xy->Info().feature_type_names[0], "c");
+    ASSERT_EQ(Xy->Info().feature_type_names[1], "c");
+    ASSERT_EQ(Xy->Info().feature_type_names[2], "q");
   }
-  // again, make sure the feature type is cleared.
+  // run again, make sure the feature type is cleared.
   need_infer();
 }
 }  // namespace xgboost
