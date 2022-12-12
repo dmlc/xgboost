@@ -252,14 +252,18 @@ void LoadFeatureType(std::vector<std::string> const& type_names, std::vector<Fea
       "All feature_types must be one of the {int, float, i, q, c(${n_categories})}."};
   StringView invalid_cat{"Invalid format for categorical feature type."};
 
+  bool need_infer_n_cat{false};
   for (std::size_t i = 0; i < type_names.size(); ++i) {
     auto const& elem = type_names[i];
     CHECK_GE(elem.length(), 1) << invalid_ft;
-    if (elem.front() == 'c') {
+    if (elem.front() == 'c' && elem.length() == 1) {
+      need_infer_n_cat = true;
       types[i] = FeatureType::kCategorical;
-      CHECK_GE(elem.size(), 4)
-          << invalid_cat
-          << " String representation `c` is removed and replaced by a dedicated data type.";
+    } else if (elem.front() == 'c') {
+      CHECK_GE(elem.size(), 4) << invalid_cat << " Expected to be `c(${n_categories})` or `c`";
+      CHECK(!need_infer_n_cat)
+          << "Inconsist feature type for categorical data. Please specify number of categories for "
+             "all the categorical features.";
       auto nstr = elem.substr(2, elem.size() - 3);
       bst_cat_t n;
       try {
@@ -275,6 +279,11 @@ void LoadFeatureType(std::vector<std::string> const& type_names, std::vector<Fea
       // All features are initialized as numerical, only thing left to do is to validate.
       LOG(FATAL) << invalid_ft;
     }
+  }
+
+  if (need_infer_n_cat) {
+    // empty it to indicate nothing is specified by the user.
+    n_categories = linalg::Vector<bst_cat_t>();
   }
 }
 
