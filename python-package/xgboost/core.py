@@ -1242,7 +1242,10 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             )
             # fixme(jiamingy): unify the message between type and name.
             if len(feature_types) != self.num_col() and self.num_col() != 0:
-                msg = "feature_types must have the same length as the number of features in the data"
+                msg = (
+                    "feature_types must have the same length as the number of features"
+                    " in the data"
+                )
                 raise ValueError(msg)
         else:
             # Reset feature types.

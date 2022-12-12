@@ -119,8 +119,9 @@ class CatDType:
         self.n_categories: int = n_categories
 
     @staticmethod
-    def from_str(s: str) -> "CatDType":
-        return CatDType(int(s[2:-1]))
+    def from_str(type_str: str) -> "CatDType":
+        """Create from internal string representation."""
+        return CatDType(int(type_str[2:-1]))
 
     def __str__(self) -> str:
         """Return an internal string representation."""
@@ -141,6 +142,7 @@ def get_feature_types(ft_str: Sequence[str]) -> FeatureTypes:
 
 
 def get_feature_types(ft_str: Optional[Sequence[str]]) -> Optional[FeatureTypes]:
+    """Convert feature types from string to :py:class:`CatDType`."""
     if ft_str is None:
         return None
     res: FeatureTypes = [
