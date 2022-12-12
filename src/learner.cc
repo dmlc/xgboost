@@ -1323,6 +1323,10 @@ class LearnerImpl : public LearnerIO {
     TrainingObserver::Instance().Observe(gpair_, "Gradients");
 
     gbm_->DoBoost(train.get(), &gpair_, &predt, obj_.get());
+
+    // We need to get num_category after training if it's inferred instead of specified by
+    // the user.
+    this->InitFeatureInfo(train->Info());
     monitor_.Stop("UpdateOneIter");
   }
 
@@ -1346,6 +1350,10 @@ class LearnerImpl : public LearnerIO {
     TrainingObserver::Instance().Observe(gpair_, "Gradients");
 
     gbm_->DoBoost(train.get(), in_gpair, &local_cache->Entry(train.get()), obj_.get());
+
+    // We need to get num_category after training if it's inferred instead of specified by
+    // the user.
+    this->InitFeatureInfo(train->Info());
     monitor_.Stop("BoostOneIter");
   }
 
