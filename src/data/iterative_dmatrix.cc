@@ -239,7 +239,8 @@ void IterativeDMatrix::InitFromCPU(DataIterHandle iter_handle, float missing,
 
   if (this->Info().num_categories.Empty()) {
     CHECK(ctx_.IsCPU());
-    common::GetNumCategories(&ctx_, cuts, this->Info().feature_types, &this->Info().num_categories);
+    common::GetNumCategories(&ctx_, ghist_->cut, this->Info().feature_types,
+                             &this->Info().num_categories);
   }
 }
 

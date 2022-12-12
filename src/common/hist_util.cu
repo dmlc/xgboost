@@ -34,6 +34,7 @@ namespace common {
 namespace cuda_impl {
 void GetNumCategories(Context const* ctx, HistogramCuts const& cuts, Span<FeatureType const> ft,
                       linalg::Vector<bst_cat_t>* p_num_categories) {
+  CHECK(ctx->IsCUDA());
   dh::safe_cuda(cudaSetDevice(ctx->gpu_id));
   *p_num_categories = linalg::Zeros<bst_cat_t>(ctx, cuts.NumFeatures());
   linalg::VectorView<bst_cat_t> d_num_categories = p_num_categories->View(ctx->gpu_id);

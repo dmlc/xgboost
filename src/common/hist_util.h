@@ -165,6 +165,7 @@ class HistogramCuts {
 
   bst_feature_t NumFeatures() const {
     // equivalently `min_values.size()`
+    CHECK_GT(cut_ptrs_.Size(), 0);
     return static_cast<bst_feature_t>(cut_ptrs_.Size()) - 1;
   }
 };
