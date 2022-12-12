@@ -618,4 +618,51 @@ TEST_F(InitBaseScore, InitAfterLoad) { this->TestInitAfterLoad(); }
 TEST_F(InitBaseScore, InitWithPredict) { this->TestInitWithPredt(); }
 
 TEST_F(InitBaseScore, UpdateProcess) { this->TestUpdateProcess(); }
+
+namespace {
+class TestCategoricalIO : public testing::Test {
+  std::size_t static constexpr kRows = 256, kCols = 4;
+  std::vector<FeatureType> types_{FeatureType::kNumerical, FeatureType::kCategorical,
+                                  FeatureType::kCategorical, FeatureType::kCategorical};
+  std::shared_ptr<DMatrix> Xy_;
+
+  void SetUp() override {
+    Xy_ = RandomDataGenerator{kRows, kCols, 0.0f}.Type(types_).MaxCategory(4).GenerateDMatrix(true);
+  }
+
+ public:
+  void Run(std::string tree_method) {
+    ASSERT_TRUE(Xy_->Info().num_categories.Empty());
+    std::unique_ptr<Learner> learner{Learner::Create({Xy_})};
+    Json model{Object{}};
+    learner->SetParam("tree_method", tree_method);
+    learner->Configure();
+    learner->SaveModel(&model);
+    ASSERT_TRUE(get<Array const>(model["learner"]["num_category"]).empty());
+
+    learner->UpdateOneIter(0, Xy_);
+    ASSERT_THROW({ learner->SaveModel(&model); }, dmlc::Error);  // require configuration
+    learner->Configure();
+    learner->SaveModel(&model);
+
+    auto const &jnum_category = get<Array const>(model["learner"]["num_category"]);
+    ASSERT_EQ(jnum_category.size(), types_.size());
+
+    for (std::size_t i = 0; i < types_.size(); ++i) {
+      if (types_[i] == FeatureType::kCategorical) {
+        auto const &v = jnum_category[i];
+        ASSERT_EQ(get<Integer const>(v), 4);
+      }
+    }
+  }
+};
+}  // anonymous namespace
+
+TEST_F(TestCategoricalIO, Hist) { this->Run("hist"); }
+
+TEST_F(TestCategoricalIO, Approx) { this->Run("approx"); }
+
+#if defined(XGBOOST_USE_CUDA)
+TEST_F(TestCategoricalIO, GpuHist) { this->Run("gpu_hist"); }
+#endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost

@@ -148,4 +148,32 @@ TEST(DMatrix, Uri) {
   ASSERT_EQ(dmat->Info().num_col_, kCols);
   ASSERT_EQ(dmat->Info().num_row_, kRows);
 }
+
+TEST(DMatrix, FeatureInfo) {
+  std::size_t static constexpr kRows = 256, kCols = 3;
+  std::vector<FeatureType> types{FeatureType::kCategorical, FeatureType::kCategorical,
+                                 FeatureType::kNumerical};
+  std::shared_ptr<DMatrix> Xy{
+      RandomDataGenerator{kRows, kCols, 0.0f}.Type(types).MaxCategory(4).GenerateDMatrix(true)};
+  ASSERT_TRUE(Xy->Info().num_categories.Empty());
+  auto need_infer = [&]() {
+    std::vector<char const*> types_str{"c", "c", "q"};
+    Xy->Info().SetFeatureInfo("feature_type", types_str.data(), types_str.size());
+    ASSERT_TRUE(Xy->Info().num_categories.Empty());  // not specified by the input
+    ASSERT_EQ(Xy->Info().feature_types.Size(), types.size());
+  };
+  need_infer();
+  {
+    std::vector<char const*> types_str{"c(1)", "c(3)", "q"};
+    Xy->Info().SetFeatureInfo("feature_type", types_str.data(), types_str.size());
+    ASSERT_EQ(Xy->Info().num_categories.Size(), types.size());
+    ASSERT_EQ(Xy->Info().feature_types.Size(), types.size());
+    auto h_num_categories = Xy->Info().num_categories.HostView();
+    ASSERT_EQ(h_num_categories(0), 1);
+    ASSERT_EQ(h_num_categories(1), 3);
+    ASSERT_EQ(h_num_categories(2), 0);
+  }
+  // again, make sure the feature type is cleared.
+  need_infer();
+}
 }  // namespace xgboost

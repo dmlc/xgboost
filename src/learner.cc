@@ -1279,6 +1279,7 @@ class LearnerImpl : public LearnerIO {
     out_impl->attributes_ = this->attributes_;
     out_impl->SetFeatureNames(this->feature_names_);
     out_impl->SetFeatureTypes(this->feature_types_);
+    out_impl->num_category_.Copy(this->num_category_);
     out_impl->LoadConfig(config);
     out_impl->Configure();
     CHECK_EQ(out_impl->learner_model_param_.num_feature, this->learner_model_param_.num_feature);

@@ -256,7 +256,7 @@ class RandomDataGenerator {
     bins_ = b;
     return *this;
   }
-  RandomDataGenerator& Type(common::Span<FeatureType> ft) {
+  RandomDataGenerator& Type(common::Span<FeatureType const> ft) {
     CHECK_EQ(ft.size(), cols_);
     ft_.resize(ft.size());
     std::copy(ft.cbegin(), ft.cend(), ft_.begin());

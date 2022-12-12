@@ -410,6 +410,8 @@ MetaInfo MetaInfo::Slice(common::Span<int32_t const> ridxs) const {
   out.feature_types.Copy(this->feature_types);
   out.feature_type_names = this->feature_type_names;
 
+  out.num_categories.Copy(this->num_categories);
+
   return out;
 }
 
