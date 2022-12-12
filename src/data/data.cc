@@ -658,25 +658,15 @@ void MetaInfo::SetFeatureInfo(const char* key, const char **info, const bst_ulon
 }
 
 void MetaInfo::GetFeatureInfo(const char* field, std::vector<std::string>* out_str_vecs) const {
-  auto& str_vecs = *out_str_vecs;
   if (!std::strcmp(field, "feature_type")) {
-    str_vecs.resize(feature_type_names.size());
-    std::vector<std::string> out_names;
+    out_str_vecs->resize(feature_type_names.size());
     auto const& h_ft = feature_types.ConstHostSpan();
     CHECK_EQ(feature_type_names.size(), h_ft.size());
-    for (std::size_t i = 0; i < feature_type_names.size(); ++i) {
-      auto const& elem = feature_type_names[i];
-      if (common::IsCat(h_ft, i)) {
-        CHECK_EQ(elem.front(), 'c');
-        out_names.emplace_back("c(" + std::to_string(i) + ')');
-      } else {
-        out_names.emplace_back(elem);
-      }
-    }
-    std::copy(out_names.cbegin(), out_names.cend(), str_vecs.begin());
+    auto h_num_categories = this->num_categories.HostView();
+    common::MakeFeatureTypeStr(feature_type_names, h_num_categories, out_str_vecs);
   } else if (!strcmp(field, "feature_name")) {
-    str_vecs.resize(feature_names.size());
-    std::copy(feature_names.begin(), feature_names.end(), str_vecs.begin());
+    out_str_vecs->resize(feature_names.size());
+    std::copy(feature_names.begin(), feature_names.end(), out_str_vecs->begin());
   } else {
     LOG(FATAL) << "Unknown feature info: " << field;
   }

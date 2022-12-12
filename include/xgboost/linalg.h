@@ -487,7 +487,11 @@ class TensorView {
   /**
    * \brief Number of items in the tensor.
    */
-  LINALG_HD size_t Size() const { return size_; }
+  LINALG_HD std::size_t Size() const { return size_; }
+  /**
+   * \breif Zero-size array.
+   */
+  LINALG_HD bool Empty() const { return Size() == 0; }
   /**
    * \brief Whether this is a contiguous array, both C and F contiguous returns true.
    */

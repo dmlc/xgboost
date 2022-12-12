@@ -96,6 +96,26 @@ XGBOOST_DEVICE inline bool UseOneHot(uint32_t n_cats, uint32_t max_cat_to_onehot
 struct IsCatOp {
   XGBOOST_DEVICE bool operator()(FeatureType ft) { return ft == FeatureType::kCategorical; }
 };
+
+inline std::string FormatCat(bst_cat_t c) { return "c(" + std::to_string(c) + ")"; }
+
+inline void MakeFeatureTypeStr(std::vector<std::string> const& in_ft,
+                               linalg::VectorView<bst_cat_t const> h_num_categories,
+                               std::vector<std::string>* p_out_ft) {
+  auto& out_ft = *p_out_ft;
+  out_ft.resize(in_ft.size());
+  for (std::size_t i = 0; i < out_ft.size(); ++i) {
+    auto const& v = in_ft[i];
+    if (v.front() == 'c' && !h_num_categories.Empty()) {
+      CHECK_GT(h_num_categories.Size(), i) << "Inconsistent category info.";
+      out_ft[i] = FormatCat(h_num_categories(i));
+    } else if (v.front() == 'c') {
+      out_ft[i] = "c";
+    } else {
+      out_ft[i] = v;
+    }
+  }
+}
 }  // namespace common
 }  // namespace xgboost
 

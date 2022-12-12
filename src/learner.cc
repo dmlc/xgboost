@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "collective/communicator-inl.h"
+#include "common/categorical.h"
 #include "common/charconv.h"
 #include "common/common.h"
 #include "common/io.h"
@@ -632,12 +633,28 @@ class LearnerConfiguration : public Learner {
   }
 
   void SetFeatureTypes(std::vector<std::string> const& ft) override {
-    this->feature_types_ = ft;
+    // We don't use this to load the num_categories as Booster.predict/eval might set the
+    // feature type, which is fine if all the data is consistently provided by user, but
+    // that might be a strong assumption.
+    this->feature_types_.resize(ft.size());
+    for (std::size_t i = 0; i < ft.size(); ++i) {
+      auto const& type = ft[i];
+      CHECK_GE(type.size(), 1);
+      if (type.front() == 'c') {
+        feature_types_[i] = 'c';
+      } else {
+        feature_types_[i] = type;
+      }
+    }
   }
 
   void GetFeatureTypes(std::vector<std::string>* p_ft) const override {
-    auto& ft = *p_ft;
-    ft = this->feature_types_;
+    auto h_num_category = num_category_.HostView();
+    if (!num_category_.Empty()) {
+      CHECK_EQ(num_category_.Size(), mparam_.num_feature) << "Inconsistent category info.";
+      CHECK_EQ(mparam_.num_feature, feature_types_.size()) << "Inconsistent feature type info.";
+    }
+    common::MakeFeatureTypeStr(feature_types_, h_num_category, p_ft);
   }
 
   void InitFeatureInfo(MetaInfo const& info) {
