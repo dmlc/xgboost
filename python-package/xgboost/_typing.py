@@ -119,8 +119,10 @@ class CatDType:
         self.n_categories: int = n_categories
 
     @staticmethod
-    def from_str(type_str: str) -> "CatDType":
+    def from_str(type_str: str) -> Union["CatDType", str]:
         """Create from internal string representation."""
+        if len(type_str) == 1:
+            return type_str
         return CatDType(int(type_str[2:-1]))
 
     def __str__(self) -> str:

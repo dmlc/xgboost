@@ -641,6 +641,8 @@ class LearnerConfiguration : public Learner {
   }
 
   void InitFeatureInfo(MetaInfo const& info) {
+    // fixme(jiamingy): Remove setter for feature info in Python prediction and handle all
+    // the assignment and validation inside Learner.
     if (this->num_category_.Empty() && !info.num_categories.Empty()) {
       this->num_category_.Copy(info.num_categories);
       this->need_configuration_ = true;
