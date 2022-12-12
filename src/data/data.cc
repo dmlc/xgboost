@@ -261,7 +261,7 @@ void LoadFeatureType(std::vector<std::string> const& type_names, std::vector<Fea
         n = std::stoi(nstr);
         n_categories[i] = n;
       } catch (std::exception const& e) {
-        LOG(FATAL) << msg;
+        LOG(FATAL) << msg << " Value cannot be represented by int32:" << nstr;
       }
     } else if (std::none_of(codes.cbegin(), codes.cend(),
                             [&elem](auto const& c) { return c == StringView{elem}; })) {

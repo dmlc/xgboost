@@ -149,13 +149,15 @@ class TestTreeMethod:
         y = rng.normal(loc=0, scale=1, size=100)
         X[13, 7] = np.iinfo(np.int32).max + 1
 
-        # Check is performed during sketching.
-        Xy = xgb.DMatrix(X, y, feature_types=["c"] * 10)
-        with pytest.raises(ValueError):
-            xgb.train({"tree_method": tree_method}, Xy)
+        # Check is performed during assignment of feature type.
+        with pytest.raises(ValueError, match=r"cannot be represented by int32"):
+            Xy = xgb.DMatrix(
+                X, y, feature_types=[xgb.CatDType(np.iinfo(np.int32).max + 1)] * 10
+            )
 
         X[13, 7] = 16777216
-        Xy = xgb.DMatrix(X, y, feature_types=["c"] * 10)
+        Xy = xgb.DMatrix(X, y, feature_types=[xgb.CatDType(16777216)] * 10)
+        # Check is performed during sketching.
         with pytest.raises(ValueError):
             xgb.train({"tree_method": tree_method}, Xy)
 
@@ -163,7 +165,7 @@ class TestTreeMethod:
         X = rng.normal(loc=0, scale=1, size=1000).reshape(100, 10)
         y = rng.normal(loc=0, scale=1, size=100)
 
-        Xy = xgb.DMatrix(X, y, feature_types=["c"] * 10)
+        Xy = xgb.DMatrix(X, y, feature_types=[xgb.CatDType(2)] * 10)
         with pytest.raises(ValueError):
             xgb.train({"tree_method": tree_method}, Xy)
 
