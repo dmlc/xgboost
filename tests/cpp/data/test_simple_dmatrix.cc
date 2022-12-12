@@ -304,7 +304,14 @@ TEST(SimpleDMatrix, SliceCol) {
   size_t constexpr kRows {16};
   size_t constexpr kCols {8};
   size_t constexpr kClasses {3};
-  auto p_m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
+  std::vector<FeatureType> feature_types(kCols, FeatureType::kCategorical);
+  auto p_m =
+      RandomDataGenerator{kRows, kCols, 0}.Type(feature_types).MaxCategory(3).GenerateDMatrix(true);
+  p_m->Info().num_categories.Reshape(kCols);
+  for (std::size_t i = 0; i < kCols; ++i) {
+    p_m->Info().num_categories(i) = i;
+  }
+
   auto& weights = p_m->Info().weights_.HostVector();
   weights.resize(kRows);
   std::iota(weights.begin(), weights.end(), 0.0f);
@@ -320,10 +327,10 @@ TEST(SimpleDMatrix, SliceCol) {
   auto& margin = p_m->Info().base_margin_;
   margin = decltype(p_m->Info().base_margin_){{kRows, kClasses}, Context::kCpuId};
 
-  size_t constexpr kSlicCols {4};
+  size_t constexpr kSliceCols {4};
   for (auto slice = 0; slice < 2; slice++) {
-    auto const slice_start = slice * kSlicCols;
-    std::unique_ptr<DMatrix> out { p_m->SliceCol(slice_start, kSlicCols) };
+    auto const slice_start = slice * kSliceCols;
+    std::unique_ptr<DMatrix> out { p_m->SliceCol(slice_start, kSliceCols) };
     ASSERT_EQ(out->Info().labels.Size(), kRows);
     ASSERT_EQ(out->Info().labels_lower_bound_.Size(), kRows);
     ASSERT_EQ(out->Info().labels_upper_bound_.Size(), kRows);
@@ -337,7 +344,7 @@ TEST(SimpleDMatrix, SliceCol) {
           auto out_inst = out_page[i];
           auto in_inst = in_page[i];
           ASSERT_EQ(out_inst.size() * 2, in_inst.size()) << i;
-          for (size_t j = 0; j < kSlicCols; ++j) {
+          for (size_t j = 0; j < kSliceCols; ++j) {
             ASSERT_EQ(in_inst[slice_start + j].fvalue, out_inst[j].fvalue);
             ASSERT_EQ(in_inst[slice_start + j].index, out_inst[j].index);
           }
@@ -359,7 +366,12 @@ TEST(SimpleDMatrix, SliceCol) {
 
     ASSERT_EQ(out->Info().num_col_, out->Info().num_col_);
     ASSERT_EQ(out->Info().num_row_, kRows);
-    ASSERT_EQ(out->Info().num_nonzero_, kRows * kSlicCols);  // dense
+    ASSERT_EQ(out->Info().num_nonzero_, kRows * kSliceCols);  // dense
+    bst_cat_t start = slice * kSliceCols;
+    for (std::size_t i = 0; i < kSliceCols; ++i) {
+      ASSERT_EQ(out->Info().num_categories.Size(), kSliceCols);
+      ASSERT_EQ(out->Info().num_categories(i), i + start);
+    }
   }
 }
 
