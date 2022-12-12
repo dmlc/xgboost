@@ -248,25 +248,29 @@ void LoadFeatureType(std::vector<std::string> const& type_names, std::vector<Fea
   n_categories.resize(type_names.size(), 0);
 
   std::array<StringView, 4> codes{"int", "float", "i", "q"};
-  StringView msg{"Invalid format for categorical feature type."};
+  StringView invalid_cat{"Invalid format for categorical feature type."};
+  StringView invalid_ft{
+      "All feature_types must be one of the {int, float, i, q, c(${n_categories})}."};
   for (std::size_t i = 0; i < type_names.size(); ++i) {
     auto const& elem = type_names[i];
+    CHECK_GE(elem.length(), 1) << invalid_ft;
     if (elem.front() == 'c') {
       types[i] = FeatureType::kCategorical;
       CHECK_GE(elem.size(), 4)
-          << msg << " String representation `c` is removed and replaced by dedicated data type.";
+          << invalid_cat
+          << " String representation `c` is removed and replaced by a dedicated data type.";
       auto nstr = elem.substr(2, elem.size() - 3);
       bst_cat_t n;
       try {
         n = std::stoi(nstr);
         n_categories[i] = n;
       } catch (std::exception const& e) {
-        LOG(FATAL) << msg << " Value cannot be represented by int32:" << nstr;
+        LOG(FATAL) << invalid_cat << " Value cannot be represented by int32:" << nstr;
       }
     } else if (std::none_of(codes.cbegin(), codes.cend(),
                             [&elem](auto const& c) { return c == StringView{elem}; })) {
       // All features are initialized as numerical, only thing left to do is to validate.
-      LOG(FATAL) << "All feature_types must be one of {int, float, i, q, c}.";
+      LOG(FATAL) << invalid_ft;
     }
   }
 }
