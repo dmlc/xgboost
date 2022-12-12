@@ -240,11 +240,9 @@ LearnerModelParam::LearnerModelParam(Context const* ctx, LearnerModelParamLegacy
 
 LearnerModelParam::LearnerModelParam(Context const* ctx, LearnerModelParamLegacy const& user_param,
                                      float base_margin, ObjInfo t,
-                                     linalg::Vector<bst_cat_t> const& num_categories) {
-  std::size_t shape[] = {1};
-  LearnerModelParam(ctx, user_param, linalg::Vector<float>{{base_margin}, shape}, t,
-                    num_categories);
-}
+                                     linalg::Vector<bst_cat_t> const& num_categories)
+    : LearnerModelParam(ctx, user_param, linalg::Vector<float>{{base_margin}, {1}, ctx->gpu_id}, t,
+                        num_categories) {}
 
 linalg::TensorView<float const, 1> LearnerModelParam::BaseScore(int32_t device) const {
   // multi-class is not yet supported.
@@ -643,9 +641,6 @@ class LearnerConfiguration : public Learner {
   }
 
   void InitFeatureInfo(MetaInfo const& info) {
-    // fixme:
-    // - load model needs num_categories
-    // - load model doesn't need Configure
     if (this->num_category_.Empty() && !info.num_categories.Empty()) {
       this->num_category_.Copy(info.num_categories);
       this->need_configuration_ = true;
@@ -1304,6 +1299,7 @@ class LearnerImpl : public LearnerIO {
   void UpdateOneIter(int iter, std::shared_ptr<DMatrix> train) override {
     monitor_.Start("UpdateOneIter");
     TrainingObserver::Instance().Update(iter);
+    // Init if this info is supplied by user.
     this->InitFeatureInfo(train->Info());
 
     this->Configure();
@@ -1331,8 +1327,7 @@ class LearnerImpl : public LearnerIO {
 
     gbm_->DoBoost(train.get(), &gpair_, &predt, obj_.get());
 
-    // We need to get num_category after training if it's inferred instead of specified by
-    // the user.
+    // Get num_category after training if it's inferred instead of specified by the user.
     this->InitFeatureInfo(train->Info());
     monitor_.Stop("UpdateOneIter");
   }

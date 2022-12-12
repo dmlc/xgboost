@@ -106,6 +106,7 @@ class TestGrowPolicy : public ::testing::Test {
        */
       auto learner = this->TrainOneIter(tree_method, policy, 16, -1);
       Json model{Object{}};
+      learner->Configure();
       learner->SaveModel(&model);
 
       auto j_tree = model["learner"]["gradient_booster"]["model"]["trees"][0];

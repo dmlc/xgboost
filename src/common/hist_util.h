@@ -184,6 +184,10 @@ void GetNumCategories(Context const* ctx, HistogramCuts const& cuts, Span<Featur
 inline void GetNumCategories(Context const* ctx, HistogramCuts const& cuts,
                              HostDeviceVector<FeatureType> const& ft,
                              linalg::Vector<bst_cat_t>* p_num_categories) {
+  if (!cuts.HasCategorical()) {
+    *p_num_categories = linalg::Vector<bst_cat_t>();
+    return;
+  }
   if (ctx->IsCPU()) {
     cpu_impl::GetNumCategories(ctx, cuts, ft.ConstHostSpan(), p_num_categories);
   } else {

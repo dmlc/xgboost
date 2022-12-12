@@ -245,13 +245,14 @@ void LoadFeatureType(std::vector<std::string> const& type_names, std::vector<Fea
 
   auto& n_categories = *p_n_categories;
   n_categories = linalg::Zeros<bst_cat_t>(type_names.size());
-  auto& h_n_categories = n_categories.Data()->HostVector();
+  auto h_n_categories = n_categories.HostView();
 
   std::array<StringView, 4> codes{"int", "float", "i", "q"};
   StringView invalid_ft{
       "All feature_types must be one of the {int, float, i, q, c(${n_categories})}."};
   StringView invalid_cat{"Invalid format for categorical feature type."};
 
+  // Is the num_categories supplied by the user?
   bool need_infer_n_cat{false};
   for (std::size_t i = 0; i < type_names.size(); ++i) {
     auto const& elem = type_names[i];
@@ -273,10 +274,9 @@ void LoadFeatureType(std::vector<std::string> const& type_names, std::vector<Fea
       } catch (std::invalid_argument const& e) {
         LOG(FATAL) << invalid_cat << " value:" << nstr << "; what:" << e.what();
       }
-      h_n_categories[i] = n;
+      h_n_categories(i) = n;
     } else if (std::none_of(codes.cbegin(), codes.cend(),
                             [&elem](auto const& c) { return c == StringView{elem}; })) {
-      // All features are initialized as numerical, only thing left to do is to validate.
       LOG(FATAL) << invalid_ft;
     }
   }
