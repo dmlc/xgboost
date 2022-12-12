@@ -92,7 +92,7 @@ In your application, wrap all C API function calls with the macro as follows:
 .. code-block:: c
 
   DMatrixHandle train;
-  safe_xgboost(XGDMatrixCreateFromFile("/path/to/training/dataset/", silent, &train));
+  safe_xgboost(XGDMatrixCreateFromFile("/path/to/training/dataset/", silent, dsplit, &train));
 
 b. In a C++ application: modify the macro ``safe_xgboost`` to throw an exception upon an error.
 
@@ -114,7 +114,7 @@ c. Assertion technique: It works both in C/ C++. If expression evaluates to 0 (f
 .. code-block:: c
 
   DMatrixHandle dmat;
-  assert( XGDMatrixCreateFromFile("training_data.libsvm", 0, &dmat) == 0);
+  assert( XGDMatrixCreateFromFile("training_data.libsvm", 0, 0, &dmat) == 0);
 
 
 2. Always remember to free the allocated space by BoosterHandle & DMatrixHandle appropriately:
@@ -169,7 +169,7 @@ Sample examples along with Code snippet to use C API functions
 
   DMatrixHandle data; // handle to DMatrix
   // Load the dat from file & store it in data variable of DMatrixHandle datatype
-  safe_xgboost(XGDMatrixCreateFromFile("/path/to/file/filename", silent, &data));
+  safe_xgboost(XGDMatrixCreateFromFile("/path/to/file/filename", silent, dsplit, &data));
 
 
 2. You can also create a ``DMatrix`` object from a 2D Matrix using the :cpp:func:`XGDMatrixCreateFromMat`

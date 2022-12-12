@@ -77,7 +77,7 @@ static const R_CallMethodDef CallEntries[] = {
   {"XGCheckNullPtr_R",            (DL_FUNC) &XGCheckNullPtr_R,            1},
   {"XGDMatrixCreateFromCSC_R",    (DL_FUNC) &XGDMatrixCreateFromCSC_R,    5},
   {"XGDMatrixCreateFromCSR_R",    (DL_FUNC) &XGDMatrixCreateFromCSR_R,    5},
-  {"XGDMatrixCreateFromFile_R",   (DL_FUNC) &XGDMatrixCreateFromFile_R,   2},
+  {"XGDMatrixCreateFromFile_R",   (DL_FUNC) &XGDMatrixCreateFromFile_R,   3},
   {"XGDMatrixCreateFromMat_R",    (DL_FUNC) &XGDMatrixCreateFromMat_R,    3},
   {"XGDMatrixGetInfo_R",          (DL_FUNC) &XGDMatrixGetInfo_R,          2},
   {"XGDMatrixGetStrFeatureInfo_R", (DL_FUNC) &XGDMatrixGetStrFeatureInfo_R, 2},
