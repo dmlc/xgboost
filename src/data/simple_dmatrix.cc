@@ -64,6 +64,15 @@ DMatrix* SimpleDMatrix::SliceCol(std::size_t start, std::size_t size) {
     }
     out->Info() = this->Info().Copy();
     out->Info().num_nonzero_ = h_offset.back();
+
+    if (!this->Info().num_categories.Empty()) {
+      out->Info().num_categories.Reshape(size);
+      auto h_out_n_categories = out->Info().num_categories.HostView();
+      auto h_in_n_categories = this->Info().num_categories.HostView();
+      for (bst_row_t i = start; i < start + size; ++i) {
+        h_out_n_categories(i - start) = h_in_n_categories(i);
+      }
+    }
   }
   return out;
 }
