@@ -323,15 +323,19 @@ struct LearnerModelParam {
   /**
    * \brief Constructor
    *
-   * \param ctx          Context object for initializing the model parameter.
-   * \param user_param   Parameters specified by user
-   * \param base_margin  Global bias
-   * \param t            Task defined by the objective.
-   * \param n_categories Number of categories for each feature.
+   * \param ctx            Context object for initializing the model parameter.
+   * \param user_param     Parameters specified by user
+   * \param base_margin    Global bias
+   * \param t              Task defined by the objective.
+   * \param num_categories Number of categories for each feature.
    */
   LearnerModelParam(Context const* ctx, LearnerModelParamLegacy const& user_param,
-                    linalg::Tensor<float, 1> base_margin, ObjInfo t,
-                    linalg::Vector<bst_cat_t> const& n_categories);
+                    linalg::Vector<float> base_margin, ObjInfo t,
+                    linalg::Vector<bst_cat_t> const& num_categories);
+  // Used as a temporary solution for accepting scalar base_margin, should be removed once
+  // we extend base_margin to vector as default.
+  LearnerModelParam(Context const* ctx, LearnerModelParamLegacy const& user_param,
+                    float base_margin, ObjInfo t, linalg::Vector<bst_cat_t> const& num_categories);
   // Only used for tests where we don't have access to `LearnerModelParamLegacy`.
   LearnerModelParam(Context const* ctx, bst_feature_t n_features,
                     linalg::Tensor<float, 1> base_margin, uint32_t n_groups)

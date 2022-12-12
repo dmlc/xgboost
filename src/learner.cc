@@ -27,6 +27,7 @@
 #include "common/charconv.h"
 #include "common/common.h"
 #include "common/io.h"
+#include "common/linalg_op.h"  // linalg::begin
 #include "common/observer.h"
 #include "common/random.h"
 #include "common/threading_utils.h"
@@ -224,10 +225,10 @@ LearnerModelParam::LearnerModelParam(LearnerModelParamLegacy const& user_param, 
 }
 
 LearnerModelParam::LearnerModelParam(Context const* ctx, LearnerModelParamLegacy const& user_param,
-                                     linalg::Tensor<float, 1> base_margin, ObjInfo t,
-                                     linalg::Tensor<bst_cat_t, 1> const& n_categories)
+                                     linalg::Vector<float> base_margin, ObjInfo t,
+                                     linalg::Tensor<bst_cat_t, 1> const& num_categories)
     : LearnerModelParam{user_param, t} {
-  this->num_category.Copy(n_categories);
+  this->num_category.Copy(num_categories);
   std::swap(base_score_, base_margin);
   // Make sure read access everywhere for thread-safe prediction.
   common::AsConst(base_score_).HostView();
@@ -235,6 +236,14 @@ LearnerModelParam::LearnerModelParam(Context const* ctx, LearnerModelParamLegacy
     common::AsConst(base_score_).View(ctx->gpu_id);
   }
   CHECK(common::AsConst(base_score_).Data()->HostCanRead());
+}
+
+LearnerModelParam::LearnerModelParam(Context const* ctx, LearnerModelParamLegacy const& user_param,
+                                     float base_margin, ObjInfo t,
+                                     linalg::Vector<bst_cat_t> const& num_categories) {
+  std::size_t shape[] = {1};
+  LearnerModelParam(ctx, user_param, linalg::Vector<float>{{base_margin}, shape}, t,
+                    num_categories);
 }
 
 linalg::TensorView<float const, 1> LearnerModelParam::BaseScore(int32_t device) const {
@@ -365,14 +374,10 @@ class LearnerConfiguration : public Learner {
     this->ConfigureTargets();
 
     auto task = SafeDeRef(obj_)->Task();
-    linalg::Tensor<float, 1> base_score({1}, Ctx()->gpu_id);
-    auto h_base_score = base_score.HostView();
 
-    // transform to margin
-    h_base_score(0) = obj_->ProbToMargin(mparam_.base_score);
     // move it to model param, which is shared with all other components.
-    learner_model_param_ =
-        LearnerModelParam(Ctx(), mparam_, std::move(base_score), task, this->num_category_);
+    learner_model_param_ = LearnerModelParam(Ctx(), mparam_, obj_->ProbToMargin(mparam_.base_score),
+                                             task, this->num_category_);
     CHECK(learner_model_param_.Initialized());
     CHECK_NE(learner_model_param_.BaseScore(Ctx()).Size(), 0);
   }
@@ -870,12 +875,13 @@ class LearnerIO : public LearnerConfiguration {
       auto const& jnum_category = get<Array const>(it->second);
       // This can be empty if the model has never been fitted.
       this->num_category_.Reshape(jnum_category.size());
-      auto h_num_category = this->num_category_.HostView();
-      for (std::size_t i = 0; i < jnum_category.size(); ++i) {
-        h_num_category(i) = get<Integer const>(jnum_category[i]);
-      }
+      std::transform(jnum_category.cbegin(), jnum_category.cend(),
+                     linalg::begin(this->num_category_.HostView()),
+                     [](Json const& v) { return get<Integer const>(v); });
     }
     // Let RegTree know the number of categories for each feature.
+    learner_model_param_ = LearnerModelParam(Ctx(), mparam_, obj_->ProbToMargin(mparam_.base_score),
+                                             obj_->Task(), this->num_category_);
     this->learner_model_param_.num_category.Copy(this->num_category_);
     /**
      * Load GBM
@@ -891,8 +897,9 @@ class LearnerIO : public LearnerConfiguration {
     for (auto const& kv : j_attributes) {
       attributes_[kv.first] = get<String const>(kv.second);
     }
-
-    // feature names and types are saved in xgboost 1.4
+    /**
+     * Load feature info, feature names and types are saved in xgboost 1.4
+     */
     it = learner.find("feature_names");
     if (it != learner.cend() && !IsA<Null>(it->second)) {
       auto const& feature_names = get<Array const>(it->second);
