@@ -240,19 +240,24 @@ void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
 }
 
 template <typename Str>
-void LoadFeatureType(common::Span<Str const> type_names, std::vector<std::string>* out_names,
-                     std::vector<FeatureType>* p_types, linalg::Vector<bst_cat_t>* p_n_categories) {
-  auto& types = *p_types;
+void LoadFeatureType(common::Span<Str const> type_names,
+                     std::vector<std::string> *p_out_names,
+                     std::vector<FeatureType> *p_types,
+                     linalg::Vector<bst_cat_t> *p_n_categories) {
+  auto &types = *p_types;
   types.clear();
   types.resize(type_names.size(), FeatureType::kNumerical);
 
-  auto& n_categories = *p_n_categories;
+  auto &out_names = *p_out_names;
+  out_names.resize(type_names.size());
+
+  auto &n_categories = *p_n_categories;
   n_categories = linalg::Zeros<bst_cat_t>(type_names.size());
   auto h_n_categories = n_categories.HostView();
 
   std::array<StringView, 4> codes{"int", "float", "i", "q"};
-  StringView invalid_ft{
-      "All feature_types must be one of the {int, float, i, q, c(${n_categories})}."};
+  StringView invalid_ft{"All feature_types must be one of the {int, float, i, "
+                        "q, c(${n_categories})}."};
   StringView invalid_cat{"Invalid format for categorical feature type."};
 
   // Is the num_categories supplied by the user?
@@ -263,30 +268,35 @@ void LoadFeatureType(common::Span<Str const> type_names, std::vector<std::string
     CHECK_GE(elem.length(), 1) << invalid_ft;
     if (elem.front() == 'c' && elem.length() == 1) {
       need_infer_n_cat = true;
-      out_names->emplace_back("c");
+      out_names[i] = "c";
       types[i] = FeatureType::kCategorical;
     } else if (elem.front() == 'c') {
-      CHECK_GE(elem.size(), 4) << invalid_cat << " Expected to be `c(${n_categories})` or `c`";
+      CHECK_GE(elem.size(), 4)
+          << invalid_cat << " Expected to be `c(${n_categories})` or `c`";
       CHECK(!need_infer_n_cat)
-          << "Inconsist feature type for categorical data. Please specify number of categories for "
+          << "Inconsist feature type for categorical data. Please specify "
+             "number of categories for "
              "all the categorical features.";
       auto nstr = elem.substr(2, elem.size() - 3);
       bst_cat_t n;
       try {
         n = std::stoi(nstr);
-      } catch (std::out_of_range const& e) {
-        LOG(FATAL) << invalid_cat << " Value cannot be represented by int32:" << nstr;
-      } catch (std::invalid_argument const& e) {
+      } catch (std::out_of_range const &e) {
+        LOG(FATAL) << invalid_cat
+                   << " Value cannot be represented by int32:" << nstr;
+      } catch (std::invalid_argument const &e) {
         LOG(FATAL) << invalid_cat << " value:" << nstr << "; what:" << e.what();
       }
       h_n_categories(i) = n;
-      out_names->emplace_back("c");
+      out_names[i] = "c";
+      types[i] = FeatureType::kCategorical;
     } else {
-      if (std::none_of(codes.cbegin(), codes.cend(),
-                       [&elem](auto const& c) { return c == StringView{elem}; })) {
+      if (std::none_of(codes.cbegin(), codes.cend(), [&elem](auto const &c) {
+            return c == StringView{elem};
+          })) {
         LOG(FATAL) << invalid_ft;
       }
-      out_names->emplace_back(elem);
+      out_names[i] = elem;
     }
   }
 
@@ -645,8 +655,8 @@ void MetaInfo::SetFeatureInfo(const char* key, const char **info, const bst_ulon
   if (!std::strcmp(key, "feature_type")) {
     feature_type_names.clear();
     auto& h_feature_types = feature_types.HostVector();
-    LoadFeatureType(common::Span<char const* const>(info, size), &feature_type_names,
-                    &h_feature_types, &num_categories);
+    LoadFeatureType(common::Span<char const *const>(info, size),
+                    &feature_type_names, &h_feature_types, &num_categories);
   } else if (!std::strcmp(key, "feature_name")) {
     feature_names.clear();
     for (size_t i = 0; i < size; ++i) {
