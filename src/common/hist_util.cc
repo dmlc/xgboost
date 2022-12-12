@@ -2,15 +2,17 @@
  * Copyright 2017-2020 by Contributors
  * \file hist_util.cc
  */
+#include "hist_util.h"
+
 #include <dmlc/timer.h>
 
 #include <vector>
 
-#include "xgboost/base.h"
 #include "../common/common.h"
-#include "hist_util.h"
 #include "column_matrix.h"
+#include "linalg_op.h"
 #include "quantile.h"
+#include "xgboost/base.h"
 
 #if defined(XGBOOST_MM_PREFETCH_PRESENT)
   #include <xmmintrin.h>
@@ -28,12 +30,26 @@ HistogramCuts::HistogramCuts() {
   cut_ptrs_.HostVector().emplace_back(0);
 }
 
-HistogramCuts SketchOnDMatrix(DMatrix *m, int32_t max_bins, int32_t n_threads, bool use_sorted,
+namespace cpu_impl {
+void GetNumCategories(Context const *ctx, HistogramCuts const &cuts, Span<FeatureType const> ft,
+                      linalg::Vector<bst_cat_t> *p_num_categories) {
+  auto const &h_ptrs = cuts.Ptrs();
+  *p_num_categories = linalg::Zeros<bst_cat_t>(ctx, cuts.NumFeatures());
+  auto h_num_categories = p_num_categories->HostView();
+  ParallelFor(cuts.NumFeatures(), ctx->Threads(), [&](auto fidx) {
+    if (IsCat(ft, fidx)) {
+      h_num_categories(fidx) = h_ptrs[fidx + 1] - h_ptrs[fidx];
+    }
+  });
+}
+}  // namespace cpu_impl
+
+HistogramCuts SketchOnDMatrix(DMatrix *p_fmat, int32_t max_bins, int32_t n_threads, bool use_sorted,
                               Span<float> const hessian) {
-  HistogramCuts out;
-  auto const& info = m->Info();
+  HistogramCuts cuts;
+  auto const &info = p_fmat->Info();
   std::vector<bst_row_t> reduced(info.num_col_, 0);
-  for (auto const &page : m->GetBatches<SparsePage>()) {
+  for (auto const &page : p_fmat->GetBatches<SparsePage>()) {
     auto const &entries_per_column =
         CalcColumnSize(data::SparsePageAdapterBatch{page.GetView()}, info.num_col_, n_threads,
                        [](auto) { return true; });
@@ -44,22 +60,26 @@ HistogramCuts SketchOnDMatrix(DMatrix *m, int32_t max_bins, int32_t n_threads, b
   }
 
   if (!use_sorted) {
-    HostSketchContainer container(max_bins, m->Info().feature_types.ConstHostSpan(), reduced,
+    HostSketchContainer container(max_bins, p_fmat->Info().feature_types.ConstHostSpan(), reduced,
                                   HostSketchContainer::UseGroup(info), n_threads);
-    for (auto const& page : m->GetBatches<SparsePage>()) {
+    for (auto const &page : p_fmat->GetBatches<SparsePage>()) {
       container.PushRowPage(page, info, hessian);
     }
-    container.MakeCuts(&out);
+    container.MakeCuts(&cuts);
   } else {
-    SortedSketchContainer container{max_bins, m->Info().feature_types.ConstHostSpan(), reduced,
+    SortedSketchContainer container{max_bins, p_fmat->Info().feature_types.ConstHostSpan(), reduced,
                                     HostSketchContainer::UseGroup(info), n_threads};
-    for (auto const& page : m->GetBatches<SortedCSCPage>()) {
+    for (auto const &page : p_fmat->GetBatches<SortedCSCPage>()) {
       container.PushColPage(page, info, hessian);
     }
-    container.MakeCuts(&out);
+    container.MakeCuts(&cuts);
   }
 
-  return out;
+  if (p_fmat->Info().num_categories.Empty()) {
+    common::GetNumCategories(p_fmat->Ctx(), cuts, p_fmat->Info().feature_types,
+                             &p_fmat->Info().num_categories);
+  }
+  return cuts;
 }
 
 /*!

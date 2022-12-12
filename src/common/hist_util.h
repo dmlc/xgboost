@@ -162,7 +162,38 @@ class HistogramCuts {
     }
     return vals[bin_idx - 1];
   }
+
+  bst_feature_t NumFeatures() const {
+    // equivalently `min_values.size()`
+    return static_cast<bst_feature_t>(cut_ptrs_.Size()) - 1;
+  }
 };
+
+namespace cpu_impl {
+void GetNumCategories(Context const* ctx, HistogramCuts const& cuts, Span<FeatureType const> ft,
+                      linalg::Vector<bst_cat_t>* p_num_categories);
+}  // namespace cpu_impl
+#if defined(XGBOOST_USE_CUDA)
+namespace cuda_impl {
+void GetNumCategories(Context const* ctx, HistogramCuts const& cuts, Span<FeatureType const> ft,
+                      linalg::Vector<bst_cat_t>* p_num_categories);
+}  // namespace cuda_impl
+#endif  // defined(XGBOOST_USE_CUDA)
+
+inline void GetNumCategories(Context const* ctx, HistogramCuts const& cuts,
+                             HostDeviceVector<FeatureType> const& ft,
+                             linalg::Vector<bst_cat_t>* p_num_categories) {
+  if (ctx->IsCPU()) {
+    cpu_impl::GetNumCategories(ctx, cuts, ft.ConstHostSpan(), p_num_categories);
+  } else {
+#if defined(XGBOOST_USE_CUDA)
+    ft.SetDevice(ctx->gpu_id);
+    cuda_impl::GetNumCategories(ctx, cuts, ft.ConstDeviceSpan(), p_num_categories);
+#else
+    AssertGPUSupport();
+#endif  // defined(XGBOOST_USE_CUDA)
+  }
+}
 
 /**
  * \brief Run CPU sketching on DMatrix.

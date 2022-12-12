@@ -236,6 +236,11 @@ void IterativeDMatrix::InitFromCPU(DataIterHandle iter_handle, float missing,
     this->info_.num_col_ = n_features;  // proxy might be empty.
     CHECK_EQ(proxy->Info().labels.Size(), 0);
   }
+
+  if (this->Info().num_categories.Empty()) {
+    CHECK(ctx_.IsCPU());
+    common::GetNumCategories(&ctx_, cuts, this->Info().feature_types, &this->Info().num_categories);
+  }
 }
 
 BatchSet<GHistIndexMatrix> IterativeDMatrix::GetGradientIndex(BatchParam const& param) {

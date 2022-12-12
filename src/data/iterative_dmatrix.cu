@@ -125,7 +125,7 @@ void IterativeDMatrix::InitFromCUDA(DataIterHandle iter_handle, float missing,
   /**
    * Generate gradient index.
    */
-  size_t offset = 0;
+  std::size_t offset = 0;
   iter.Reset();
   size_t n_batches_for_verification = 0;
   while (iter.Next()) {
@@ -165,8 +165,14 @@ void IterativeDMatrix::InitFromCUDA(DataIterHandle iter_handle, float missing,
   }
 
   iter.Reset();
+
   // Synchronise worker columns
   collective::Allreduce<collective::Operation::kMax>(&info_.num_col_, 1);
+
+  if (this->Info().num_categories.Empty()) {
+    CHECK(ctx_.IsCUDA());
+    common::GetNumCategories(&ctx_, cuts, this->Info().feature_types, &this->Info().num_categories);
+  }
 }
 
 BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(BatchParam const& param) {

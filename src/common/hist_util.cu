@@ -31,6 +31,22 @@
 namespace xgboost {
 namespace common {
 
+namespace cuda_impl {
+void GetNumCategories(Context const* ctx, HistogramCuts const& cuts, Span<FeatureType const> ft,
+                      linalg::Vector<bst_cat_t>* p_num_categories) {
+  dh::safe_cuda(cudaSetDevice(ctx->gpu_id));
+  *p_num_categories = linalg::Zeros<bst_cat_t>(ctx, cuts.NumFeatures());
+  linalg::VectorView<bst_cat_t> d_num_categories = p_num_categories->View(ctx->gpu_id);
+  cuts.cut_ptrs_.SetDevice(ctx->gpu_id);
+  auto d_ptrs = cuts.cut_ptrs_.ConstDeviceSpan();
+  dh::LaunchN(cuts.NumFeatures(), [=] XGBOOST_DEVICE(std::size_t fidx) mutable {
+    if (IsCat(ft, fidx)) {
+      d_num_categories(fidx) = d_ptrs[fidx + 1] - d_ptrs[fidx];
+    }
+  });
+}
+}  // namespace cuda_impl
+
 constexpr float SketchContainer::kFactor;
 
 namespace detail {
@@ -336,6 +352,12 @@ HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
     }
   }
   sketch_container.MakeCuts(&cuts);
+
+  if (dmat->Info().num_categories.Empty()) {
+    common::GetNumCategories(dmat->Ctx(), cuts, dmat->Info().feature_types,
+                             &dmat->Info().num_categories);
+  }
+
   return cuts;
 }
 }  // namespace common
