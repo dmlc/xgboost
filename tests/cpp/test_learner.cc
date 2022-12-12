@@ -24,7 +24,9 @@ TEST(Learner, Basic) {
   auto mat_ptr = RandomDataGenerator{10, 10, 0.0f}.GenerateDMatrix();
   auto learner = std::unique_ptr<Learner>(Learner::Create({mat_ptr}));
   learner->SetParams(args);
-
+  learner->Configure();
+  Json model{Object{}};
+  learner->SaveModel(&model);
 
   auto major = XGBOOST_VER_MAJOR;
   auto minor = XGBOOST_VER_MINOR;
@@ -33,6 +35,11 @@ TEST(Learner, Basic) {
   static_assert(std::is_integral<decltype(major)>::value, "Wrong major version type");
   static_assert(std::is_integral<decltype(minor)>::value, "Wrong minor version type");
   static_assert(std::is_integral<decltype(patch)>::value, "Wrong patch version type");
+
+  auto jversion = get<Array const>(model["version"]);
+  ASSERT_EQ(get<Integer const>(jversion[0]), major);
+  ASSERT_EQ(get<Integer const>(jversion[1]), minor);
+  ASSERT_EQ(get<Integer const>(jversion[2]), patch);
 }
 
 TEST(Learner, ParameterValidation) {
