@@ -8,18 +8,16 @@ from typing import (
     Callable,
     Dict,
     List,
-    Optional,
     Sequence,
     Type,
     TypeVar,
     Union,
-    overload,
 )
+
+import numpy as np
 
 # os.PathLike/string/numpy.array/scipy.sparse/pd.DataFrame/dt.Frame/
 # cudf.DataFrame/cupy.array/dlpack
-import numpy as np
-
 DataType = Any
 
 # xgboost accepts some other possible types in practice due to historical reason, which
