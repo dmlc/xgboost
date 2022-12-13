@@ -35,6 +35,7 @@ from ._typing import (
     _T,
     ArrayLike,
     BoosterParam,
+    CatDType,
     CFloatPtr,
     CNumeric,
     CNumericPtr,
@@ -2802,9 +2803,9 @@ class Booster:
     def get_split_value_histogram(
         self,
         feature: str,
-        fmap: Union[os.PathLike, str] = '',
+        fmap: Union[os.PathLike, str] = "",
         bins: Optional[int] = None,
-        as_pandas: bool = True
+        as_pandas: bool = True,
     ) -> Union[np.ndarray, DataFrame]:
         """Get split value histogram of a feature
 
@@ -2854,17 +2855,19 @@ class Booster:
             except (ValueError, AttributeError, TypeError):
                 # None.index: attr err, None[0]: type err, fn.index(-1): value err
                 feature_t = None
-            if feature_t == "c":  # categorical
+            if feature_t and (
+                isinstance(feature_t, CatDType) or feature_t.startswith("c")
+            ):  # categorical
                 raise ValueError(
                     "Split value historgam doesn't support categorical split."
                 )
 
         if as_pandas and PANDAS_INSTALLED:
-            return DataFrame(nph_stacked, columns=['SplitValue', 'Count'])
+            return DataFrame(nph_stacked, columns=["SplitValue", "Count"])
         if as_pandas and not PANDAS_INSTALLED:
             warnings.warn(
                 "Returning histogram as ndarray"
                 " (as_pandas == True, but pandas is not installed).",
-                UserWarning
+                UserWarning,
             )
         return nph_stacked
