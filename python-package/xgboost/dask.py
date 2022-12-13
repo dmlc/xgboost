@@ -72,7 +72,6 @@ from .core import (
     QuantileDMatrix,
     _deprecate_positional_args,
     _expect,
-    _has_categorical,
 )
 from .sklearn import (
     XGBClassifier,
@@ -1247,7 +1246,7 @@ async def _predict_async(
             m = DMatrix(
                 data=partition,
                 missing=missing,
-                enable_categorical=_has_categorical(booster, partition),
+                enable_categorical=True,
             )
             predt = booster.predict(
                 data=m,
