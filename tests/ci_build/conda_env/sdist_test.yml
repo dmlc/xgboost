@@ -1,7 +1,6 @@
 # conda environment for source distribution test.
 name: sdist_test
 channels:
-- defaults
 - conda-forge
 dependencies:
 - python=3.8
