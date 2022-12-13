@@ -946,9 +946,9 @@ void RegTree::LoadCategoricalSplit(Json const& in) {
       CHECK_GT(j_end - j_begin, 0) << nidx;
 
       auto fidx = (*this)[nidx].SplitIndex();
-      auto n_cats = n_categories(fidx);
+      bst_cat_t n_cats{0};
 
-      if (n_cats == 0) {
+      if (n_categories.Empty()) {
         // legacy model where max_cat is not stored in learner.
         bst_cat_t max_cat{std::numeric_limits<bst_cat_t>::min()};
         for (auto j = j_begin; j < j_end; ++j) {
@@ -959,6 +959,8 @@ void RegTree::LoadCategoricalSplit(Json const& in) {
         // Have at least 1 category in split.
         CHECK_NE(std::numeric_limits<bst_cat_t>::min(), max_cat);
         n_cats = max_cat + 1;  // cat 0
+      } else {
+        n_cats = n_categories(fidx);
       }
       CHECK_GT(n_cats, 0) << "Node:" << nidx << " Split:" << fidx;
 
