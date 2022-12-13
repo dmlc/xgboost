@@ -360,12 +360,13 @@ def run_categorical(client: "Client", tree_method: str, X, X_onehot, y) -> None:
 
 
 def test_categorical(client: "Client") -> None:
-    X, y = make_categorical(client, 10000, 30, 13)
-    X_onehot, _ = make_categorical(client, 10000, 30, 13, True)
+    n_categories = 13
+    X, y = make_categorical(client, 10000, 30, n_categories)
+    X_onehot, _ = make_categorical(client, 10000, 30, n_categories, True)
     run_categorical(client, "approx", X, X_onehot, y)
     run_categorical(client, "hist", X, X_onehot, y)
 
-    ft = ["c"] * X.shape[1]
+    ft = [xgb.CatDType(n_categories)] * X.shape[1]
     reg = xgb.dask.DaskXGBRegressor(
         tree_method="hist", feature_types=ft, enable_categorical=True
     )
