@@ -1223,6 +1223,9 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
 
         """
         if feature_types is not None:
+            if isinstance(feature_types, str):
+                # single string will be applied to all columns
+                feature_types = [feature_types] * self.num_col()
             if not isinstance(feature_types, list):
                 raise TypeError("feature_types must be string or list of strings")
             feature_types_bytes = [
