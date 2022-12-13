@@ -124,13 +124,17 @@ types by using the ``feature_types`` parameter in :class:`DMatrix <xgboost.DMatr
 
   # "q" is numerical feature, while "c" is categorical feature
   ft = ["q", "c", "c"]
+  # Or better, with number of categories specifed
+  n_categories = 17
+  ft = ["q", xgb.CatDtype(n_categories), xgb.CatDtype(n_categories)]
   X: np.ndarray = load_my_data()
   assert X.shape[1] == 3
   Xy = xgb.DMatrix(X, y, feature_types=ft, enable_categorical=True)
 
 For numerical data, the feature type can be ``"q"`` or ``"float"``, while for categorical
-feature it's specified as ``"c"``.  The Dask module in XGBoost has the same interface so
-:class:`dask.Array <dask.Array>` can also be used for categorical data.
+feature it's specified as ``"c"`` or :py:class:`CatDType <xgboost.CatDtype>`.  The Dask
+module in XGBoost has the same interface so :class:`dask.Array <dask.Array>` can also be
+used for categorical data.
 
 *************
 Miscellaneous

@@ -18,6 +18,8 @@ Core Data Structure
 -------------------
 .. automodule:: xgboost.core
 
+.. autoclass:: xgboost.CatDType
+
 .. autoclass:: xgboost.DMatrix
     :members:
     :show-inheritance:
