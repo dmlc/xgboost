@@ -8,6 +8,7 @@ needed, run CMake .
     <major>.<minor>.<patch>-RC1
 """
 import argparse
+import datetime
 import os
 import re
 import subprocess
@@ -61,6 +62,13 @@ def rpkg(major: int, minor: int, patch: int) -> None:
         assert matched, "Couldn't find version string in DESCRIPTION."
         description = (
             description[: matched.start(1)] + version + description[matched.end(1) :]
+        )
+        pattern = r"Date:\ ([0-9]+\-[0-9]+\-[0-9]+)"
+        today = datetime.date.today()
+        matched = re.search(pattern, description)
+        assert matched, "Couldn't find date string in DESCRIPTION."
+        description = (
+            description[: matched.start(1)] + str(today) + description[matched.end(1) :]
         )
     with open(desc_path, "w") as fd:
         fd.write(description)
