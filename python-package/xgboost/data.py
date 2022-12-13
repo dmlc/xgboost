@@ -672,12 +672,14 @@ def _cudf_array_interfaces(data: DataType, cat_codes: list) -> bytes:
             interface = data.__cuda_array_interface__
         append(interface)
     else:
+        non_categorical = 0
         for i, col in enumerate(data):
             if is_categorical_dtype(data[col].dtype):
-                codes = cat_codes[i]
+                codes = cat_codes[i-non_categorical]
                 interface = codes.__cuda_array_interface__
             else:
                 interface = data[col].__cuda_array_interface__
+                non_categorical += 1
             append(interface)
     interfaces_str = from_pystr_to_cstr(json.dumps(interfaces))
     return interfaces_str
