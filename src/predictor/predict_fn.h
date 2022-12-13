@@ -18,9 +18,7 @@ inline XGBOOST_DEVICE bst_node_t GetNextNode(const RegTree::Node &node, const bs
     if (has_categorical && common::IsCat(cats.split_type, nid)) {
       auto node_categories =
           cats.categories.subspan(cats.node_ptr[nid].beg, cats.node_ptr[nid].size);
-      return common::Decision<true>(node_categories, fvalue, node.DefaultLeft())
-                 ? node.LeftChild()
-                 : node.RightChild();
+      return common::Decision(node_categories, fvalue) ? node.LeftChild() : node.RightChild();
     } else {
       return node.LeftChild() + !(fvalue < node.SplitCond());
     }
