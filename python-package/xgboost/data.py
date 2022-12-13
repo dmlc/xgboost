@@ -730,7 +730,7 @@ def _transform_cudf_df(
         feature_types = []
         for dtype in dtypes:
             if is_categorical_dtype(dtype) and enable_categorical:
-                feature_types.append(CAT_T)
+                feature_types.append(CatDType(len(dtype.categories)))
             else:
                 feature_types.append(_pandas_dtype_mapper[dtype.name])
 

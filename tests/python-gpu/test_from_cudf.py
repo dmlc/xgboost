@@ -189,12 +189,12 @@ Arrow specification.'''
         Xy = xgb.DMatrix(X, y, enable_categorical=True)
         assert Xy.feature_types is not None
         assert len(Xy.feature_types) == X.shape[1]
-        assert all(t == "c" for t in Xy.feature_types)
+        assert all(t == xgb.CatDType(17) for t in Xy.feature_types)
 
         Xy = xgb.DeviceQuantileDMatrix(X, y, enable_categorical=True)
         assert Xy.feature_types is not None
         assert len(Xy.feature_types) == X.shape[1]
-        assert all(t == "c" for t in Xy.feature_types)
+        assert all(t == xgb.CatDType(17) for t in Xy.feature_types)
 
         # mixed dtypes
         X["1"] = X["1"].astype(np.int64)
