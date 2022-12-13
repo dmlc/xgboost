@@ -278,22 +278,6 @@ def _check_call(ret: int) -> None:
         raise XGBoostError(py_str(_LIB.XGBGetLastError()))
 
 
-def _has_categorical(booster: "Booster", data: DataType) -> bool:
-    """Check whether the booster and input data for prediction contain categorical data.
-
-    """
-    from .data import _is_cudf_df, _is_pandas_df
-    if _is_pandas_df(data) or _is_cudf_df(data):
-        ft = booster.feature_types
-        if ft is None:
-            enable_categorical = False
-        else:
-            enable_categorical = any(f == "c" for f in ft)
-    else:
-        enable_categorical = False
-    return enable_categorical
-
-
 def build_info() -> dict:
     """Build information of XGBoost.  The returned value format is not stable. Also, please
     note that build time dependency is not the same as runtime dependency. For instance,
@@ -2279,7 +2263,7 @@ class Booster:
             _transform_pandas_df,
         )
 
-        enable_categorical = _has_categorical(self, data)
+        enable_categorical = True
         if _is_pandas_df(data):
             data, fns, _ = _transform_pandas_df(data, enable_categorical)
             if validate_features:

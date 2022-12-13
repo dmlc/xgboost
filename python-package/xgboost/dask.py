@@ -72,7 +72,6 @@ from .core import (
     QuantileDMatrix,
     _deprecate_positional_args,
     _expect,
-    _has_categorical,
 )
 from .sklearn import (
     XGBClassifier,
@@ -1190,7 +1189,7 @@ def _infer_predict_output(
         kwargs = kwargs.copy()
         if kwargs.pop("predict_type") == "margin":
             kwargs["output_margin"] = True
-    m = DMatrix(test_sample)
+    m = DMatrix(test_sample, enable_categorical=True)
     # generated DMatrix doesn't have feature name, so no validation.
     test_predt = booster.predict(m, validate_features=False, **kwargs)
     n_columns = test_predt.shape[1] if len(test_predt.shape) > 1 else 1
@@ -1247,7 +1246,7 @@ async def _predict_async(
             m = DMatrix(
                 data=partition,
                 missing=missing,
-                enable_categorical=_has_categorical(booster, partition),
+                enable_categorical=True,
             )
             predt = booster.predict(
                 data=m,
@@ -1315,6 +1314,7 @@ async def _predict_async(
                 base_margin=base_margin,
                 feature_names=feature_names,
                 feature_types=feature_types,
+                enable_categorical=True,
             )
             predt = booster.predict(
                 m,
