@@ -69,11 +69,13 @@ def test_num_parallel_tree():
 @pytest.mark.skipif(**tm.no_pandas())
 @pytest.mark.skipif(**tm.no_cudf())
 @pytest.mark.skipif(**tm.no_sklearn())
+@pytest.mark.skipif(**tm.no_cupy())
 def test_categorical():
     import cudf
     import cupy as cp
     import pandas as pd
     from sklearn.datasets import load_svmlight_file
+    from xgboost.core import is_categorical_ftype
 
     data_dir = tm.data_dir(__file__)
     X, y = load_svmlight_file(os.path.join(data_dir, "agaricus.txt.train"))
@@ -106,7 +108,7 @@ def test_categorical():
         reg.fit(X, y)
         predts = reg.predict(X)
         booster = reg.get_booster()
-        assert "c" in booster.feature_types
+        assert any(is_categorical_ftype(ftype) for ftype in booster.feature_types)
         assert len(booster.feature_types) == 1
         inp_predts = booster.inplace_predict(X)
         if isinstance(inp_predts, cp.ndarray):
