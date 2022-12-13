@@ -49,7 +49,6 @@ from ._typing import (
     FeatureTypes,
     NumpyOrCupy,
     c_bst_ulong,
-    get_feature_types,
 )
 from .compat import PANDAS_INSTALLED, DataFrame, py_str
 from .libpath import find_lib_path
@@ -291,6 +290,23 @@ def _check_call(ret: int) -> None:
         raise XGBoostError(py_str(_LIB.XGBGetLastError()))
 
 
+def is_categorical_ftype(ftype: Any) -> bool:
+    """Whether feature type ftype is categorical."""
+    if isinstance(ftype, str):
+        return ftype.startswith("c")
+    return isinstance(ftype, CatDType)
+
+
+def get_feature_types(ft_str: Optional[Sequence[str]]) -> Optional[FeatureTypes]:
+    """Convert feature types from string to :py:class:`CatDType`."""
+    if not ft_str:
+        return None
+    res: FeatureTypes = [
+        CatDType.from_str(f) if is_categorical_ftype(f) else f for f in ft_str
+    ]
+    return res
+
+
 def _has_categorical(booster: "Booster", data: DataType) -> bool:
     """Check whether the booster and input data for prediction contain categorical data.
 
@@ -301,7 +317,7 @@ def _has_categorical(booster: "Booster", data: DataType) -> bool:
         if ft is None:
             enable_categorical = False
         else:
-            enable_categorical = any(f == "c" for f in ft)
+            enable_categorical = any(is_categorical_ftype(f) for f in ft)
     else:
         enable_categorical = False
     return enable_categorical
@@ -2855,9 +2871,7 @@ class Booster:
             except (ValueError, AttributeError, TypeError):
                 # None.index: attr err, None[0]: type err, fn.index(-1): value err
                 feature_t = None
-            if feature_t and (
-                isinstance(feature_t, CatDType) or feature_t.startswith("c")
-            ):  # categorical
+            if feature_t and is_categorical_ftype(feature_t):  # categorical
                 raise ValueError(
                     "Split value historgam doesn't support categorical split."
                 )

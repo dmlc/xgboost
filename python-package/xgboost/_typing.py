@@ -136,23 +136,3 @@ class CatDType:
 
 
 FeatureTypes = Sequence[Union[str, CatDType]]
-
-
-@overload
-def get_feature_types(ft_str: None) -> None:
-    ...
-
-
-@overload
-def get_feature_types(ft_str: Sequence[str]) -> FeatureTypes:
-    ...
-
-
-def get_feature_types(ft_str: Optional[Sequence[str]]) -> Optional[FeatureTypes]:
-    """Convert feature types from string to :py:class:`CatDType`."""
-    if not ft_str:
-        return None
-    res: FeatureTypes = [
-        CatDType.from_str(f) if f.startswith("c") else f for f in ft_str
-    ]
-    return res
