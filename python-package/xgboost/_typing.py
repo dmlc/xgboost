@@ -150,7 +150,7 @@ def get_feature_types(ft_str: Sequence[str]) -> FeatureTypes:
 
 def get_feature_types(ft_str: Optional[Sequence[str]]) -> Optional[FeatureTypes]:
     """Convert feature types from string to :py:class:`CatDType`."""
-    if ft_str is None:
+    if not ft_str:
         return None
     res: FeatureTypes = [
         CatDType.from_str(f) if f.startswith("c") else f for f in ft_str
