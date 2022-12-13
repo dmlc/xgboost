@@ -2237,17 +2237,15 @@ class Booster:
         preds = ctypes.POINTER(ctypes.c_float)()
 
         # once caching is supported, we can pass id(data) as cache id.
-        args = {
-            "type": 0,
-            "training": False,
-            "iteration_begin": iteration_range[0],
-            "iteration_end": iteration_range[1],
-            "missing": missing,
-            "strict_shape": strict_shape,
-            "cache_id": 0,
-        }
-        if predict_type == "margin":
-            args["type"] = 1
+        args = make_jcargs(
+            type=1 if predict_type == "margin" else 0,
+            training=False,
+            iteration_begin=iteration_range[0],
+            iteration_end=iteration_range[1],
+            missing=missing,
+            strict_shape=strict_shape,
+            cache_id=0,
+        )
         shape = ctypes.POINTER(c_bst_ulong)()
         dims = c_bst_ulong()
 
@@ -2302,7 +2300,7 @@ class Booster:
                 _LIB.XGBoosterPredictFromDense(
                     self.handle,
                     _array_interface(data),
-                    from_pystr_to_cstr(json.dumps(args)),
+                    args,
                     p_handle,
                     ctypes.byref(shape),
                     ctypes.byref(dims),
@@ -2319,7 +2317,7 @@ class Booster:
                     _array_interface(csr.indices),
                     _array_interface(csr.data),
                     c_bst_ulong(csr.shape[1]),
-                    from_pystr_to_cstr(json.dumps(args)),
+                    args,
                     p_handle,
                     ctypes.byref(shape),
                     ctypes.byref(dims),
@@ -2336,7 +2334,7 @@ class Booster:
                 _LIB.XGBoosterPredictFromCudaArray(
                     self.handle,
                     interface_str,
-                    from_pystr_to_cstr(json.dumps(args)),
+                    args,
                     p_handle,
                     ctypes.byref(shape),
                     ctypes.byref(dims),
@@ -2357,7 +2355,7 @@ class Booster:
                 _LIB.XGBoosterPredictFromCudaColumnar(
                     self.handle,
                     interfaces_str,
-                    from_pystr_to_cstr(json.dumps(args)),
+                    args,
                     p_handle,
                     ctypes.byref(shape),
                     ctypes.byref(dims),
