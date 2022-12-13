@@ -1,5 +1,5 @@
 /*!
- * Copyright 2021 by XGBoost Contributors
+ * Copyright 2021-2022 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/json.h>
