@@ -132,7 +132,7 @@ types by using the ``feature_types`` parameter in :class:`DMatrix <xgboost.DMatr
   Xy = xgb.DMatrix(X, y, feature_types=ft, enable_categorical=True)
 
 For numerical data, the feature type can be ``"q"`` or ``"float"``, while for categorical
-feature it's specified as ``"c"`` or :py:class:`CatDType <xgboost.CatDType>`.  The Dask
+feature it's specified as ``"c"`` or :class:`CatDType <xgboost.CatDType>`.  The Dask
 module in XGBoost has the same interface so :class:`dask.Array <dask.Array>` can also be
 used for categorical data.
 

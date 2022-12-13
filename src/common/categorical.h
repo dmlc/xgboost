@@ -50,7 +50,8 @@ inline XGBOOST_DEVICE bool InvalidCat(float cat) {
   return cat < 0 || cat >= kMaxCat;
 }
 
-/* \brief Whether should it traverse to left branch of a tree.
+/**
+ * \brief Whether should it traverse to left branch of a tree.
  *
  *  For one hot split, go to left if it's NOT the matching category.
  */

@@ -118,7 +118,7 @@ class CatDType:
 
     @staticmethod
     def from_str(type_str: str) -> Union["CatDType", str]:
-        """Create from internal string representation."""
+        """Create from internal string representation returned by __str__."""
         if len(type_str) == 1:
             return type_str
         return CatDType(int(type_str[2:-1]))
@@ -126,6 +126,9 @@ class CatDType:
     def __str__(self) -> str:
         """Return an internal string representation."""
         return f"c({str(self.n_categories)})"
+
+    def __repr__(self) -> str:
+        return f"c(n_categories={str(self.n_categories)})"
 
     def __eq__(self, that: Any) -> bool:
         if not isinstance(that, CatDType):
