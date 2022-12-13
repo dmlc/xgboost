@@ -8,6 +8,7 @@
 #define XGBOOST_FEATURE_MAP_H_
 
 #include <xgboost/logging.h>
+#include <xgboost/string_view.h>
 
 #include <vector>
 #include <string>
@@ -77,13 +78,16 @@ class FeatureMap {
    * \param tname The type name.
    * \return The translated type.
    */
-  inline static Type GetType(const char* tname) {
+  inline static Type GetType(StringView tname) {
     using std::strcmp;
-    if (!strcmp("i", tname)) return kIndicator;
-    if (!strcmp("q", tname)) return kQuantitive;
-    if (!strcmp("int", tname)) return kInteger;
-    if (!strcmp("float", tname)) return kFloat;
-    if (!strcmp("c", tname)) return kCategorical;
+    if (tname == StringView{"i"}) return kIndicator;
+    if (tname == StringView{"q"}) return kQuantitive;
+    if (tname == StringView{"int"}) return kInteger;
+    if (tname == StringView{"float"}) return kFloat;
+    // c(n_categories)
+    if (tname.substr(0, 1) == StringView{"c"}) {
+      return kCategorical;
+    }
     LOG(FATAL) << "unknown feature type, use i for indicator and q for quantity";
     return kIndicator;
   }
