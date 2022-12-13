@@ -218,26 +218,24 @@ application jar is iris-1.0.0.jar
 
 .. code-block:: bash
 
-  cudf_version=22.02.0
-  rapids_version=22.02.0
+  rapids_version=22.10.0
   xgboost_version=1.6.1
   main_class=Iris
   app_jar=iris-1.0.0.jar
 
   spark-submit \
     --master $master \
-    --packages ai.rapids:cudf:${cudf_version},com.nvidia:rapids-4-spark_2.12:${rapids_version},ml.dmlc:xgboost4j-gpu_2.12:${xgboost_version},ml.dmlc:xgboost4j-spark-gpu_2.12:${xgboost_version} \
+    --packages com.nvidia:rapids-4-spark_2.12:${rapids_version},ml.dmlc:xgboost4j-gpu_2.12:${xgboost_version},ml.dmlc:xgboost4j-spark-gpu_2.12:${xgboost_version} \
     --conf spark.executor.cores=12 \
     --conf spark.task.cpus=1 \
     --conf spark.executor.resource.gpu.amount=1 \
     --conf spark.task.resource.gpu.amount=0.08 \
-    --conf spark.rapids.sql.csv.read.double.enabled=true \
-    --conf spark.rapids.sql.hasNans=false \
+    --conf spark.rapids.sql.rowBasedUDF.enabled=true \
     --conf spark.plugins=com.nvidia.spark.SQLPlugin \
     --class ${main_class} \
      ${app_jar}
 
-* First, we need to specify the ``RAPIDS Accelerator, cudf, xgboost4j-gpu, xgboost4j-spark-gpu`` packages by ``--packages``
+* First, we need to specify the ``RAPIDS Accelerator, xgboost4j-gpu, xgboost4j-spark-gpu`` packages by ``--packages``
 * Second, ``RAPIDS Accelerator`` is a Spark plugin, so we need to configure it by specifying ``spark.plugins=com.nvidia.spark.SQLPlugin``
 
 For details about other ``RAPIDS Accelerator`` other configurations, please refer to the `configuration <https://nvidia.github.io/spark-rapids/docs/configs.html>`_.
