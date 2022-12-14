@@ -103,9 +103,8 @@ inline float Median(Context const*, linalg::TensorView<float const, 2>, Optional
   common::AssertGPUSupport();
   return 0;
 }
-inline void Mean(Context const*, linalg::VectorView<float>, linalg::VectorView<float>) {
+inline void Mean(Context const*, linalg::VectorView<float const>, linalg::VectorView<float>) {
   common::AssertGPUSupport();
-  return 0;
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
 }  // namespace cuda_impl
