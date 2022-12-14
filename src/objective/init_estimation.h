@@ -9,7 +9,7 @@
 
 #include "../common/common.h"            // AssertGPUSupport
 #include "xgboost/base.h"                // GradientPair
-#include "xgboost/generic_parameters.h"  // Context
+#include "xgboost/context.h"             // Context
 #include "xgboost/host_device_vector.h"  // HostDeviceVector
 #include "xgboost/linalg.h"              // TensorView
 

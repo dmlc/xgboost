@@ -8,7 +8,7 @@
 #include "common.h"                      // OptionalWeights
 #include "threading_utils.h"             // ParallelFor, MemStackAllocator
 #include "transform_iterator.h"          // MakeIndexTransformIter
-#include "xgboost/generic_parameters.h"  // Context
+#include "xgboost/context.h"             // Context
 #include "xgboost/host_device_vector.h"  // HostDeviceVector
 #include "xgboost/linalg.h"              // Tensor, UnravelIndex, Apply
 #include "xgboost/logging.h"             // CHECK_EQ

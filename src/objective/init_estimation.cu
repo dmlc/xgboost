@@ -9,15 +9,15 @@
 #include <thrust/execution_policy.h>            // cuda::par
 #include <thrust/iterator/counting_iterator.h>  // thrust::make_counting_iterator
 
-#include <algorithm>  // std::max
-#include <cstddef>    // std::size_t
+#include <algorithm>                            // std::max
+#include <cstddef>                              // std::size_t
 
-#include "../collective/communicator-inl.h"  // Allreduce
-#include "../common/device_helpers.cuh"      // dh::MakeTransformIterator, dh::Reduce
+#include "../collective/communicator-inl.h"     // Allreduce
+#include "../common/device_helpers.cuh"         // dh::MakeTransformIterator, dh::Reduce
 #include "init_estimation.h"
-#include "xgboost/base.h"                // GradientPairPrecise, GradientPair, XGBOOST_DEVICE
-#include "xgboost/generic_parameters.h"  // Context
-#include "xgboost/host_device_vector.h"  // HostDeviceVector
+#include "xgboost/base.h"                       // GradientPairPrecise, GradientPair, XGBOOST_DEVICE
+#include "xgboost/context.h"                    // Context
+#include "xgboost/host_device_vector.h"         // HostDeviceVector
 
 namespace xgboost {
 namespace obj {
