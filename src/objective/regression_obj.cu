@@ -186,7 +186,7 @@ class RegLossObj : public ObjFunction {
     // base margin.
     float v = 0;
     for (bst_target_t t = 0; t < n_targets; ++t) {
-      v += h_base_margin(t) / static_cast<float>(n_targets);
+      v += Loss::PredTransform(h_base_margin(t)) / static_cast<float>(n_targets);
     }
     base_margin->Reshape(1);
     base_margin->HostView()(0) = v;
