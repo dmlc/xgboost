@@ -7,7 +7,7 @@
 #if !defined(NOMINMAX) && defined(_WIN32)
 #define NOMINMAX
 #endif  // !defined(NOMINMAX)
-#include "init_estimation.h"
+#include "fit_stump.h"
 
 #include <algorithm>  // std::max
 #include <cstddef>    // std::size_t

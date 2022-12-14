@@ -20,9 +20,9 @@
 #include "../common/stats.h"
 #include "../common/threading_utils.h"
 #include "../common/transform.h"
+#include "../tree/fit_stump.h"
 #include "./regression_loss.h"
 #include "adaptive.h"
-#include "init_estimation.h"  // FitStump
 #include "xgboost/base.h"
 #include "xgboost/context.h"
 #include "xgboost/data.h"

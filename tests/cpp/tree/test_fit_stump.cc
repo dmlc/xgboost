@@ -1,12 +1,12 @@
 /**
  * Copyright 2022 by XGBoost Contributors
  */
+#include "../../src/tree/fit_stump.h"
 
 #include <gtest/gtest.h>
 #include <xgboost/linalg.h>
 
 #include "../../src/common/linalg_op.h"
-#include "../../src/objective/init_estimation.h"
 
 namespace xgboost {
 namespace obj {

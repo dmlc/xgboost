@@ -16,7 +16,7 @@
 
 #include "../collective/device_communicator.cuh"  // DeviceCommunicator
 #include "../common/device_helpers.cuh"           // dh::MakeTransformIterator::Reduce,TypedDiscard
-#include "init_estimation.h"
+#include "fit_stump.h"
 #include "xgboost/base.h"     // GradientPairPrecise, GradientPair, XGBOOST_DEVICE
 #include "xgboost/context.h"  // Context
 #include "xgboost/span.h"     // span
