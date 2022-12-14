@@ -3,7 +3,9 @@
 ## inconsistent is found.
 pkgs <- c(
   ## CI
-  "devtools",
+  "caret",
+  "pkgbuild",
+  "roxygen2",
   "XML",
   "cplm",
   "e1071",
@@ -14,11 +16,10 @@ pkgs <- c(
   "DiagrammeR",
   "Ckmeans.1d.dp",
   "vcd",
-  "testthat",
   "lintr",
+  "testthat",
   "igraph",
   "float",
-  "crayon",
   "titanic",
   ## imports
   "Matrix",

@@ -5,19 +5,20 @@
 #define XGBOOST_TREE_HIST_EVALUATE_SPLITS_H_
 
 #include <algorithm>
+#include <limits>
 #include <memory>
 #include <numeric>
-#include <limits>
 #include <utility>
 #include <vector>
 
-#include "../param.h"
-#include "../constraints.h"
-#include "../split_evaluator.h"
 #include "../../common/categorical.h"
-#include "../../common/random.h"
 #include "../../common/hist_util.h"
+#include "../../common/random.h"
 #include "../../data/gradient_index.h"
+#include "../constraints.h"
+#include "../param.h"
+#include "../split_evaluator.h"
+#include "xgboost/context.h"
 
 namespace xgboost {
 namespace tree {
@@ -427,7 +428,7 @@ class HistEvaluator {
                          std::shared_ptr<common::ColumnSampler> sampler)
       : param_{param},
         column_sampler_{std::move(sampler)},
-        tree_evaluator_{param, static_cast<bst_feature_t>(info.num_col_), GenericParameter::kCpuId},
+        tree_evaluator_{param, static_cast<bst_feature_t>(info.num_col_), Context::kCpuId},
         n_threads_{n_threads} {
     interaction_constraints_.Configure(param, info.num_col_);
     column_sampler_->Init(info.num_col_, info.feature_weights.HostVector(), param_.colsample_bynode,
@@ -442,14 +443,14 @@ class HistEvaluator {
  * \param p_last_tree The last tree being updated by tree updater
  */
 template <typename Partitioner>
-void UpdatePredictionCacheImpl(GenericParameter const *ctx, RegTree const *p_last_tree,
+void UpdatePredictionCacheImpl(Context const *ctx, RegTree const *p_last_tree,
                                std::vector<Partitioner> const &partitioner,
                                linalg::VectorView<float> out_preds) {
   CHECK_GT(out_preds.Size(), 0U);
 
   CHECK(p_last_tree);
   auto const &tree = *p_last_tree;
-  CHECK_EQ(out_preds.DeviceIdx(), GenericParameter::kCpuId);
+  CHECK_EQ(out_preds.DeviceIdx(), Context::kCpuId);
   size_t n_nodes = p_last_tree->GetNodes().size();
   for (auto &part : partitioner) {
     CHECK_EQ(part.Size(), n_nodes);

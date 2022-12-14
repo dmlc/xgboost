@@ -1,13 +1,13 @@
 // Copyright by Contributors
 #include <gtest/gtest.h>
+#include <xgboost/context.h>
 #include <xgboost/objective.h>
-#include <xgboost/generic_parameters.h>
 
 #include "../helpers.h"
 
 TEST(Objective, UnknownFunction) {
   xgboost::ObjFunction* obj = nullptr;
-  xgboost::GenericParameter tparam;
+  xgboost::Context tparam;
   std::vector<std::pair<std::string, std::string>> args;
   tparam.UpdateAllowUnknown(args);
 
@@ -21,7 +21,7 @@ TEST(Objective, UnknownFunction) {
 namespace xgboost {
 TEST(Objective, PredTransform) {
   // Test that show PredTransform uses the same device with predictor.
-  xgboost::GenericParameter tparam;
+  xgboost::Context tparam;
   tparam.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
   size_t n = 100;
 

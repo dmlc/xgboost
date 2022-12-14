@@ -86,7 +86,7 @@ class IterativeDMatrix : public DMatrix {
     LOG(FATAL) << "Slicing DMatrix is not supported for Quantile DMatrix.";
     return nullptr;
   }
-  DMatrix *SliceCol(std::size_t start, std::size_t size) override {
+  DMatrix *SliceCol(std::size_t, std::size_t) override {
     LOG(FATAL) << "Slicing DMatrix columns is not supported for Quantile DMatrix.";
     return nullptr;
   }

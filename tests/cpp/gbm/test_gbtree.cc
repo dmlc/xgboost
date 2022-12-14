@@ -2,7 +2,7 @@
  * Copyright 2019-2022 XGBoost contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/generic_parameters.h>
+#include <xgboost/context.h>
 
 #include "../../../src/data/adapter.h"
 #include "../../../src/data/proxy_dmatrix.h"

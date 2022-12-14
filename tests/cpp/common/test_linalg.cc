@@ -2,7 +2,7 @@
  * Copyright 2021 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/generic_parameters.h>
+#include <xgboost/context.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/linalg.h>
 
@@ -13,7 +13,7 @@
 namespace xgboost {
 namespace linalg {
 namespace {
-auto kCpuId = GenericParameter::kCpuId;
+auto kCpuId = Context::kCpuId;
 }
 
 auto MakeMatrixFromTest(HostDeviceVector<float> *storage, size_t n_rows, size_t n_cols) {

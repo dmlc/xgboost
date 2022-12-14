@@ -68,7 +68,7 @@
 #'
 #' @export
 xgb.plot.tree <- function(feature_names = NULL, model = NULL, trees = NULL, plot_width = NULL, plot_height = NULL,
-                          render = TRUE, show_node_id = FALSE, ...){
+                          render = TRUE, show_node_id = FALSE, ...) {
   check.deprecation(...)
   if (!inherits(model, "xgb.Booster")) {
     stop("model: Has to be an object of class xgb.Booster")

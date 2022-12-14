@@ -24,8 +24,8 @@
 #include "adaptive.h"
 #include "init_estimation.h"  // FitStump
 #include "xgboost/base.h"
+#include "xgboost/context.h"
 #include "xgboost/data.h"
-#include "xgboost/generic_parameters.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/json.h"
 #include "xgboost/linalg.h"

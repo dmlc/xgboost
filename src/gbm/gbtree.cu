@@ -1,10 +1,10 @@
 /*!
  * Copyright 2021 by Contributors
  */
-#include "xgboost/span.h"
-#include "xgboost/generic_parameters.h"
-#include "xgboost/linalg.h"
 #include "../common/device_helpers.cuh"
+#include "xgboost/context.h"
+#include "xgboost/linalg.h"
+#include "xgboost/span.h"
 
 namespace xgboost {
 namespace gbm {

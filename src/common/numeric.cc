@@ -5,7 +5,7 @@
 
 #include <type_traits>  // std::is_same
 
-#include "xgboost/generic_parameters.h"  // Context
+#include "xgboost/context.h"             // Context
 #include "xgboost/host_device_vector.h"  // HostDeviceVector
 
 namespace xgboost {

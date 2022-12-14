@@ -63,12 +63,12 @@ class TestPredictionCache : public ::testing::Test {
   void RunTest(std::string updater_name) {
     {
       omp_set_num_threads(1);
-      GenericParameter ctx;
+      Context ctx;
       ctx.InitAllowUnknown(Args{{"nthread", "8"}});
       if (updater_name == "grow_gpu_hist") {
         ctx.gpu_id = 0;
       } else {
-        ctx.gpu_id = GenericParameter::kCpuId;
+        ctx.gpu_id = Context::kCpuId;
       }
 
       std::unique_ptr<TreeUpdater> updater{
@@ -82,7 +82,7 @@ class TestPredictionCache : public ::testing::Test {
       HostDeviceVector<float> out_prediction_cached;
       out_prediction_cached.SetDevice(ctx.gpu_id);
       out_prediction_cached.Resize(n_samples_);
-      auto cache = linalg::VectorView<float>{ctx.gpu_id == GenericParameter::kCpuId
+      auto cache = linalg::VectorView<float>{ctx.gpu_id == Context::kCpuId
                                                  ? out_prediction_cached.HostSpan()
                                                  : out_prediction_cached.DeviceSpan(),
                                              {out_prediction_cached.Size()},

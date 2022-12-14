@@ -1,22 +1,22 @@
 /*!
- * Copyright 2017-2021 by Contributors
+ * Copyright 2017-2022 by Contributors
  * \file predictor.h
  * \brief Interface of predictor,
  *  performs predictions for a gradient booster.
  */
 #pragma once
 #include <xgboost/base.h>
+#include <xgboost/context.h>
 #include <xgboost/data.h>
-#include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
 
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#include <mutex>
 
 // Forward declarations
 namespace xgboost {
@@ -73,7 +73,7 @@ class PredictionContainer {
    *
    * \param m shared pointer to the DMatrix that needs to be cached.
    * \param device Which device should the cache be allocated on.  Pass
-   *               GenericParameter::kCpuId for CPU or positive integer for GPU id.
+   *               Context::kCpuId for CPU or positive integer for GPU id.
    *
    * \return the cache entry for passed in DMatrix, either an existing cache or newly
    *         created.
@@ -218,19 +218,17 @@ class Predictor {
   /**
    * \brief Creates a new Predictor*.
    *
-   * \param name           Name of the predictor.
-   * \param generic_param  Pointer to runtime parameters.
+   * \param name  Name of the predictor.
+   * \param ctx   Pointer to runtime parameters.
    */
-  static Predictor* Create(
-      std::string const& name, GenericParameter const* generic_param);
+  static Predictor* Create(std::string const& name, Context const* ctx);
 };
 
 /*!
  * \brief Registry entry for predictor.
  */
 struct PredictorReg
-    : public dmlc::FunctionRegEntryBase<
-  PredictorReg, std::function<Predictor*(GenericParameter const*)>> {};
+    : public dmlc::FunctionRegEntryBase<PredictorReg, std::function<Predictor*(Context const*)>> {};
 
 #define XGBOOST_REGISTER_PREDICTOR(UniqueId, Name)      \
   static DMLC_ATTRIBUTE_UNUSED ::xgboost::PredictorReg& \

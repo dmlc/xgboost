@@ -363,7 +363,7 @@ TEST(Learner, ConstantSeed) {
   CHECK_NE(v_0, v_1);
 
   {
-    rng.seed(GenericParameter::kDefaultSeed);
+    rng.seed(Context::kDefaultSeed);
     std::uniform_real_distribution<float> dist;
     float v_2 = dist(rng);
     CHECK_EQ(v_0, v_2);

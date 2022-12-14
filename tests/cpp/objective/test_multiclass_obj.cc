@@ -2,17 +2,17 @@
  * Copyright 2018-2019 XGBoost contributors
  */
 #include <xgboost/objective.h>
-#include <xgboost/generic_parameters.h>
+#include <xgboost/context.h>
 #include "../../src/common/common.h"
 #include "../helpers.h"
 
 namespace xgboost {
 
 TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassObjGPair)) {
-  GenericParameter lparam = CreateEmptyGenericParam(GPUIDX);
+  Context ctx = CreateEmptyGenericParam(GPUIDX);
   std::vector<std::pair<std::string, std::string>> args {{"num_class", "3"}};
   std::unique_ptr<ObjFunction> obj {
-    ObjFunction::Create("multi:softmax", &lparam)
+    ObjFunction::Create("multi:softmax", &ctx)
   };
 
   obj->Configure(args);
@@ -36,11 +36,11 @@ TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassObjGPair)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassBasic)) {
-  auto lparam = CreateEmptyGenericParam(GPUIDX);
+  auto ctx = CreateEmptyGenericParam(GPUIDX);
   std::vector<std::pair<std::string, std::string>> args{
-    std::pair<std::string, std::string>("num_class", "3")};
+      std::pair<std::string, std::string>("num_class", "3")};
 
-  std::unique_ptr<ObjFunction> obj { ObjFunction::Create("multi:softmax", &lparam) };
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("multi:softmax", &ctx)};
   obj->Configure(args);
   CheckConfigReload(obj, "multi:softmax");
 
@@ -57,12 +57,12 @@ TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassBasic)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(SoftprobMultiClassBasic)) {
-  GenericParameter lparam = CreateEmptyGenericParam(GPUIDX);
+  Context ctx = CreateEmptyGenericParam(GPUIDX);
   std::vector<std::pair<std::string, std::string>> args {
     std::pair<std::string, std::string>("num_class", "3")};
 
   std::unique_ptr<ObjFunction> obj {
-    ObjFunction::Create("multi:softprob", &lparam)
+    ObjFunction::Create("multi:softprob", &ctx)
   };
   obj->Configure(args);
   CheckConfigReload(obj, "multi:softprob");

@@ -24,7 +24,7 @@ accuracy.before <- (sum((predict(bst, agaricus.test$data) >= 0.5) == agaricus.te
 pred_with_leaf <- predict(bst, dtest, predleaf = TRUE)
 head(pred_with_leaf)
 
-create.new.tree.features <- function(model, original.features){
+create.new.tree.features <- function(model, original.features) {
   pred_with_leaf <- predict(model, original.features, predleaf = TRUE)
   cols <- list()
   for (i in 1:model$niter) {

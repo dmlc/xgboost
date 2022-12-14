@@ -86,7 +86,10 @@ For that purpose, we will:
 
 ```{r classToIntegers}
 # Convert from classes to numbers
-y <- train[, nameLastCol, with = FALSE][[1]] %>% gsub('Class_','',.) %>% {as.integer(.) -1}
+y <- train[, nameLastCol, with = FALSE][[1]] %>%
+    gsub('Class_','',.) %>%
+    as.integer %>%
+    subtract(., 1)
 
 # Display the first 5 levels
 y[1:5]

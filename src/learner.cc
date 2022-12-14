@@ -35,10 +35,10 @@
 #include "common/version.h"
 #include "xgboost/base.h"
 #include "xgboost/c_api.h"
+#include "xgboost/context.h"
 #include "xgboost/data.h"
 #include "xgboost/feature_map.h"
 #include "xgboost/gbm.h"
-#include "xgboost/generic_parameters.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/json.h"
 #include "xgboost/logging.h"
@@ -333,56 +333,6 @@ struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
 
 DMLC_REGISTER_PARAMETER(LearnerModelParamLegacy);
 DMLC_REGISTER_PARAMETER(LearnerTrainParam);
-DMLC_REGISTER_PARAMETER(GenericParameter);
-
-int constexpr GenericParameter::kCpuId;
-int64_t constexpr GenericParameter::kDefaultSeed;
-
-GenericParameter::GenericParameter() : cfs_cpu_count_{common::GetCfsCPUCount()} {}
-
-void GenericParameter::ConfigureGpuId(bool require_gpu) {
-#if defined(XGBOOST_USE_CUDA)
-  if (gpu_id == kCpuId) {  // 0. User didn't specify the `gpu_id'
-    if (require_gpu) {     // 1. `tree_method' or `predictor' or both are using
-                           // GPU.
-      // 2. Use device 0 as default.
-      this->UpdateAllowUnknown(Args{{"gpu_id", "0"}});
-    }
-  }
-
-  // 3. When booster is loaded from a memory image (Python pickle or R
-  // raw model), number of available GPUs could be different.  Wrap around it.
-  int32_t n_gpus = common::AllVisibleGPUs();
-  if (n_gpus == 0) {
-    if (gpu_id != kCpuId) {
-      LOG(WARNING) << "No visible GPU is found, setting `gpu_id` to -1";
-    }
-    this->UpdateAllowUnknown(Args{{"gpu_id", std::to_string(kCpuId)}});
-  } else if (fail_on_invalid_gpu_id) {
-    CHECK(gpu_id == kCpuId || gpu_id < n_gpus)
-      << "Only " << n_gpus << " GPUs are visible, gpu_id "
-      << gpu_id << " is invalid.";
-  } else if (gpu_id != kCpuId && gpu_id >= n_gpus) {
-    LOG(WARNING) << "Only " << n_gpus
-                 << " GPUs are visible, setting `gpu_id` to " << gpu_id % n_gpus;
-    this->UpdateAllowUnknown(Args{{"gpu_id", std::to_string(gpu_id % n_gpus)}});
-  }
-#else
-  // Just set it to CPU, don't think about it.
-  this->UpdateAllowUnknown(Args{{"gpu_id", std::to_string(kCpuId)}});
-  (void)(require_gpu);
-#endif  // defined(XGBOOST_USE_CUDA)
-
-  common::SetDevice(this->gpu_id);
-}
-
-int32_t GenericParameter::Threads() const {
-  auto n_threads = common::OmpGetNumThreads(nthread);
-  if (cfs_cpu_count_ > 0) {
-    n_threads = std::min(n_threads, cfs_cpu_count_);
-  }
-  return n_threads;
-}
 
 using LearnerAPIThreadLocalStore =
     dmlc::ThreadLocalStore<std::map<Learner const *, XGBAPIThreadLocalEntry>>;
@@ -489,7 +439,7 @@ class LearnerConfiguration : public Learner {
     monitor_.Init("Learner");
     auto& local_cache = (*ThreadLocalPredictionCache::Get())[this];
     for (std::shared_ptr<DMatrix> const& d : cache) {
-      local_cache.Cache(d, GenericParameter::kCpuId);
+      local_cache.Cache(d, Context::kCpuId);
     }
   }
   ~LearnerConfiguration() override {
@@ -569,6 +519,9 @@ class LearnerConfiguration : public Learner {
     // If configuration is loaded, ensure that the model came from the same version
     CHECK(IsA<Object>(in));
     auto origin_version = Version::Load(in);
+    if (std::get<0>(Version::kInvalid) == std::get<0>(origin_version)) {
+      LOG(WARNING) << "Invalid version string in config";
+    }
 
     if (!Version::Same(origin_version)) {
       LOG(WARNING) << ModelMsg();

@@ -9,7 +9,6 @@
 
 #include <dmlc/registry.h>
 #include <xgboost/model.h>
-#include <xgboost/generic_parameters.h>
 #include <xgboost/data.h>
 #include <xgboost/base.h>
 #include <xgboost/host_device_vector.h>
@@ -20,13 +19,15 @@
 #include <utility>
 
 namespace xgboost {
+struct Context;
+
 /*!
  * \brief interface of evaluation metric used to evaluate model performance.
  *  This has nothing to do with training, but merely act as evaluation purpose.
  */
 class Metric : public Configurable {
  protected:
-  GenericParameter const* tparam_;
+  Context const* tparam_;
 
  public:
   /*!
@@ -68,10 +69,10 @@ class Metric : public Configurable {
    * \param name name of the metric.
    *        name can be in form metric[@]param and the name will be matched in the
    *        registry.
-   * \param tparam A global generic parameter
+   * \param ctx A global context
    * \return the created metric.
    */
-  static Metric* Create(const std::string& name, GenericParameter const* tparam);
+  static Metric* Create(const std::string& name, Context const* ctx);
 };
 
 /*!

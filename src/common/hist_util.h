@@ -8,21 +8,21 @@
 #define XGBOOST_COMMON_HIST_UTIL_H_
 
 #include <xgboost/data.h>
-#include <xgboost/generic_parameters.h>
-#include <limits>
-#include <vector>
+
 #include <algorithm>
+#include <limits>
+#include <map>
 #include <memory>
 #include <utility>
-#include <map>
+#include <vector>
 
+#include "algorithm.h"  // SegmentId
 #include "categorical.h"
 #include "common.h"
 #include "quantile.h"
 #include "row_set.h"
 #include "threading_utils.h"
 #include "timer.h"
-#include "algorithm.h"  // SegmentId
 
 namespace xgboost {
 class GHistIndexMatrix;

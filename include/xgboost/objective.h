@@ -10,19 +10,19 @@
 #include <dmlc/registry.h>
 #include <xgboost/base.h>
 #include <xgboost/data.h>
-#include <xgboost/model.h>
-#include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
+#include <xgboost/model.h>
 #include <xgboost/task.h>
 
-#include <vector>
-#include <utility>
-#include <string>
 #include <functional>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace xgboost {
 
 class RegTree;
+struct Context;
 
 /*! \brief interface of objective function */
 class ObjFunction : public Configurable {
@@ -120,10 +120,10 @@ class ObjFunction : public Configurable {
 
   /*!
    * \brief Create an objective function according to name.
-   * \param tparam Generic parameters.
+   * \param ctx  Pointer to runtime parameters.
    * \param name Name of the objective.
    */
-  static ObjFunction* Create(const std::string& name, GenericParameter const* tparam);
+  static ObjFunction* Create(const std::string& name, Context const* ctx);
 };
 
 /*!

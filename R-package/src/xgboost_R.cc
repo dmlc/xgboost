@@ -4,8 +4,8 @@
 #include <dmlc/common.h>
 #include <dmlc/omp.h>
 #include <xgboost/c_api.h>
+#include <xgboost/context.h>
 #include <xgboost/data.h>
-#include <xgboost/generic_parameters.h>
 #include <xgboost/logging.h>
 
 #include <cstdio>
@@ -18,7 +18,8 @@
 #include "../../src/c_api/c_api_error.h"
 #include "../../src/common/threading_utils.h"
 
-#include "./xgboost_R.h"
+
+#include "./xgboost_R.h"  // Must follow other include.
 
 /*!
  * \brief macro to annotate begin of api
@@ -46,14 +47,14 @@
 
 using dmlc::BeginPtr;
 
-xgboost::GenericParameter const *BoosterCtx(BoosterHandle handle) {
+xgboost::Context const *BoosterCtx(BoosterHandle handle) {
   CHECK_HANDLE();
   auto *learner = static_cast<xgboost::Learner *>(handle);
   CHECK(learner);
   return learner->Ctx();
 }
 
-xgboost::GenericParameter const *DMatrixCtx(DMatrixHandle handle) {
+xgboost::Context const *DMatrixCtx(DMatrixHandle handle) {
   CHECK_HANDLE();
   auto p_m = static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
   CHECK(p_m);

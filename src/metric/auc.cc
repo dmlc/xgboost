@@ -79,14 +79,14 @@ double MultiClassOVR(common::Span<float const> predts, MetaInfo const &info,
                      size_t n_classes, int32_t n_threads,
                      BinaryAUC &&binary_auc) {
   CHECK_NE(n_classes, 0);
-  auto const labels = info.labels.View(GenericParameter::kCpuId);
+  auto const labels = info.labels.View(Context::kCpuId);
   if (labels.Shape(0) != 0) {
     CHECK_EQ(labels.Shape(1), 1) << "AUC doesn't support multi-target model.";
   }
 
   std::vector<double> results_storage(n_classes * 3, 0);
   linalg::TensorView<double, 2> results(results_storage, {n_classes, static_cast<size_t>(3)},
-                                        GenericParameter::kCpuId);
+                                        Context::kCpuId);
   auto local_area = results.Slice(linalg::All(), 0);
   auto tp = results.Slice(linalg::All(), 1);
   auto auc = results.Slice(linalg::All(), 2);
@@ -94,7 +94,7 @@ double MultiClassOVR(common::Span<float const> predts, MetaInfo const &info,
   auto weights = common::OptionalWeights{info.weights_.ConstHostSpan()};
   auto predts_t = linalg::TensorView<float const, 2>(
       predts, {static_cast<size_t>(info.num_row_), n_classes},
-      GenericParameter::kCpuId);
+      Context::kCpuId);
 
   if (info.labels.Size() != 0) {
     common::ParallelFor(n_classes, n_threads, [&](auto c) {
@@ -215,7 +215,7 @@ std::pair<double, uint32_t> RankingAUC(std::vector<float> const &predts,
   CHECK_GE(info.group_ptr_.size(), 2);
   uint32_t n_groups = info.group_ptr_.size() - 1;
   auto s_predts = common::Span<float const>{predts};
-  auto labels = info.labels.View(GenericParameter::kCpuId);
+  auto labels = info.labels.View(Context::kCpuId);
   auto s_weights = info.weights_.ConstHostSpan();
 
   std::atomic<uint32_t> invalid_groups{0};
@@ -255,7 +255,7 @@ template <typename Curve>
 class EvalAUC : public Metric {
   double Eval(const HostDeviceVector<bst_float> &preds, const MetaInfo &info) override {
     double auc {0};
-    if (tparam_->gpu_id != GenericParameter::kCpuId) {
+    if (tparam_->gpu_id != Context::kCpuId) {
       preds.SetDevice(tparam_->gpu_id);
       info.labels.SetDevice(tparam_->gpu_id);
       info.weights_.SetDevice(tparam_->gpu_id);
@@ -340,7 +340,7 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
     double auc{0};
     uint32_t valid_groups = 0;
     auto n_threads = tparam_->Threads();
-    if (tparam_->gpu_id == GenericParameter::kCpuId) {
+    if (tparam_->gpu_id == Context::kCpuId) {
       std::tie(auc, valid_groups) =
           RankingAUC<true>(predts.ConstHostVector(), info, n_threads);
     } else {
@@ -355,7 +355,7 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
     double auc{0};
     auto n_threads = tparam_->Threads();
     CHECK_NE(n_classes, 0);
-    if (tparam_->gpu_id == GenericParameter::kCpuId) {
+    if (tparam_->gpu_id == Context::kCpuId) {
       auc = MultiClassOVR(predts.ConstHostVector(), info, n_classes, n_threads,
                           BinaryROCAUC);
     } else {
@@ -368,7 +368,7 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
   std::tuple<double, double, double>
   EvalBinary(HostDeviceVector<float> const &predts, MetaInfo const &info) {
     double fp, tp, auc;
-    if (tparam_->gpu_id == GenericParameter::kCpuId) {
+    if (tparam_->gpu_id == Context::kCpuId) {
       std::tie(fp, tp, auc) =
           BinaryROCAUC(predts.ConstHostVector(), info.labels.HostView().Slice(linalg::All(), 0),
                        common::OptionalWeights{info.weights_.ConstHostSpan()});
@@ -418,7 +418,7 @@ class EvalPRAUC : public EvalAUC<EvalPRAUC> {
   std::tuple<double, double, double>
   EvalBinary(HostDeviceVector<float> const &predts, MetaInfo const &info) {
     double pr, re, auc;
-    if (tparam_->gpu_id == GenericParameter::kCpuId) {
+    if (tparam_->gpu_id == Context::kCpuId) {
       std::tie(pr, re, auc) =
           BinaryPRAUC(predts.ConstHostSpan(), info.labels.HostView().Slice(linalg::All(), 0),
                       common::OptionalWeights{info.weights_.ConstHostSpan()});
@@ -431,7 +431,7 @@ class EvalPRAUC : public EvalAUC<EvalPRAUC> {
 
   double EvalMultiClass(HostDeviceVector<float> const &predts, MetaInfo const &info,
                         size_t n_classes) {
-    if (tparam_->gpu_id == GenericParameter::kCpuId) {
+    if (tparam_->gpu_id == Context::kCpuId) {
       auto n_threads = this->tparam_->Threads();
       return MultiClassOVR(predts.ConstHostSpan(), info, n_classes, n_threads,
                            BinaryPRAUC);
@@ -446,7 +446,7 @@ class EvalPRAUC : public EvalAUC<EvalPRAUC> {
     double auc{0};
     uint32_t valid_groups = 0;
     auto n_threads = tparam_->Threads();
-    if (tparam_->gpu_id == GenericParameter::kCpuId) {
+    if (tparam_->gpu_id == Context::kCpuId) {
       auto labels = info.labels.Data()->ConstHostSpan();
       if (std::any_of(labels.cbegin(), labels.cend(), PRAUCLabelInvalid{})) {
         InvalidLabels();
