@@ -28,10 +28,8 @@ void TestFitStump(Context const *ctx) {
     // sum_hess == kRows
     auto n = static_cast<float>(kRows);
     auto sum_grad = n * (n - 1) / 2;
-    // ASSERT_EQ(static_cast<float>(-sum_grad / n), *it);
-    std::cout << *it << std::endl;
+    ASSERT_EQ(static_cast<float>(-sum_grad / n), *it);
   }
-  std::cout << std::endl;
 }
 
 TEST(InitEstimation, FitStump) {
