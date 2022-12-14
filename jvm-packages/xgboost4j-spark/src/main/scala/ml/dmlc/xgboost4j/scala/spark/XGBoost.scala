@@ -55,7 +55,7 @@ import org.apache.spark.sql.SparkSession
  *                   which is only used for python implementation.
  */
 case class TrackerConf(workerConnectionTimeout: Long, trackerImpl: String,
-  hostIp: String = "", pythonExec: String = "")
+  hostIp: String = "", pythonExec: String = "", port: Option[Int] = None)
 
 object TrackerConf {
   def apply(): TrackerConf = TrackerConf(0L, "python")
@@ -350,8 +350,9 @@ object XGBoost extends Serializable {
   /** visiable for testing */
   private[scala] def getTracker(nWorkers: Int, trackerConf: TrackerConf): IRabitTracker = {
     val tracker: IRabitTracker = trackerConf.trackerImpl match {
-      case "scala" => new RabitTracker(nWorkers)
-      case "python" => new PyRabitTracker(nWorkers, trackerConf.hostIp, trackerConf.pythonExec)
+      case "scala" => new RabitTracker(nWorkers, trackerConf.port)
+      case "python" => new PyRabitTracker(nWorkers, trackerConf.hostIp,
+       trackerConf.port.getOrElse(0), trackerConf.pythonExec)
       case _ => new PyRabitTracker(nWorkers)
     }
     tracker
