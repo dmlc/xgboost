@@ -59,7 +59,7 @@ void FitStump(Context const* ctx, HostDeviceVector<GradientPair> const& gpair,
               bst_target_t n_targets, linalg::Vector<float>* out) {
   out->SetDevice(ctx->gpu_id);
   out->Reshape(n_targets);
-
+  // column-major
   auto n_samples = gpair.Size() / n_targets;
   std::size_t shape[2]{n_samples, n_targets};
   std::size_t strides[2];
