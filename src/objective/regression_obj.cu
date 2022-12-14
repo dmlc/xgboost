@@ -180,7 +180,7 @@ class RegLossObj : public ObjFunction {
     new_obj->LoadConfig(config);
     new_obj->GetGradient(dummy_predt, info, 0, &gpair);
     bst_target_t n_targets = this->Targets(info);
-    FitStump(ctx_, gpair, n_targets, base_margin);
+    tree::FitStump(ctx_, gpair, n_targets, base_margin);
     auto h_base_margin = base_margin->HostView();
     // workaround, we don't support multi-target due to binary model serialization for
     // base margin.

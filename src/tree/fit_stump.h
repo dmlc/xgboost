@@ -4,8 +4,8 @@
  * \brief Utilities for estimating initial score.
  */
 
-#ifndef XGBOOST_OBJECTIVE_INIT_ESTIMATION_H_
-#define XGBOOST_OBJECTIVE_INIT_ESTIMATION_H_
+#ifndef XGBOOST_TREE_FIT_STUMP_H_
+#define XGBOOST_TREE_FIT_STUMP_H_
 
 #include "../common/common.h"            // AssertGPUSupport
 #include "xgboost/base.h"                // GradientPair
@@ -14,7 +14,7 @@
 #include "xgboost/linalg.h"              // TensorView
 
 namespace xgboost {
-namespace obj {
+namespace tree {
 
 template <typename T>
 XGBOOST_DEVICE inline double CalcUnregulatedWeight(T sum_grad, T sum_hess) {
@@ -26,6 +26,6 @@ XGBOOST_DEVICE inline double CalcUnregulatedWeight(T sum_grad, T sum_hess) {
  */
 void FitStump(Context const* ctx, HostDeviceVector<GradientPair> const& gpair,
               bst_target_t n_targets, linalg::Vector<float>* out);
-}  // namespace obj
+}  // namespace tree
 }  // namespace xgboost
-#endif  // XGBOOST_OBJECTIVE_INIT_ESTIMATION_H_
+#endif  // XGBOOST_TREE_FIT_STUMP_H_

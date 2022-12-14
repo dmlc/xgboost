@@ -18,7 +18,7 @@
 #include "xgboost/linalg.h"                // TensorView
 
 namespace xgboost {
-namespace obj {
+namespace tree {
 namespace cpu_impl {
 void FitStump(Context const* ctx, linalg::TensorView<GradientPair const, 2> gpair,
               linalg::VectorView<float> out) {
@@ -50,7 +50,6 @@ void FitStump(Context const* ctx, linalg::TensorView<GradientPair const, 2> gpai
 inline void FitStump(Context const*, linalg::TensorView<GradientPair const, 2>,
                      linalg::VectorView<float>) {
   common::AssertGPUSupport();
-  return 0.0;
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
 }  // namespace cuda_impl
@@ -71,5 +70,5 @@ void FitStump(Context const* ctx, HostDeviceVector<GradientPair> const& gpair,
   ctx->IsCPU() ? cpu_impl::FitStump(ctx, gpair_t, out->HostView())
                : cuda_impl::FitStump(ctx, gpair_t, out->View(ctx->gpu_id));
 }
-}  // namespace obj
+}  // namespace tree
 }  // namespace xgboost

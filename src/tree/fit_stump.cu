@@ -22,7 +22,7 @@
 #include "xgboost/span.h"     // span
 
 namespace xgboost {
-namespace obj {
+namespace tree {
 namespace cuda_impl {
 void FitStump(Context const* ctx, linalg::TensorView<GradientPair const, 2> gpair,
               linalg::VectorView<float> out) {
@@ -35,7 +35,6 @@ void FitStump(Context const* ctx, linalg::TensorView<GradientPair const, 2> gpai
   auto key_it = dh::MakeTransformIterator<bst_target_t>(
       thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) -> bst_target_t {
         return i / gpair.Shape(0);
-        return std::get<1>(linalg::UnravelIndex(i, gpair.Shape()));
       });
   auto grad_it = dh::MakeTransformIterator<GradientPairPrecise>(
       thrust::make_counting_iterator(0ul),
@@ -61,5 +60,5 @@ void FitStump(Context const* ctx, linalg::TensorView<GradientPair const, 2> gpai
       });
 }
 }  // namespace cuda_impl
-}  // namespace obj
+}  // namespace tree
 }  // namespace xgboost

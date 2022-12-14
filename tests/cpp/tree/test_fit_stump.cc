@@ -9,7 +9,7 @@
 #include "../../src/common/linalg_op.h"
 
 namespace xgboost {
-namespace obj {
+namespace tree {
 
 void TestFitStump(Context const *ctx) {
   std::size_t constexpr kRows = 16, kTargets = 2;
@@ -44,5 +44,5 @@ TEST(InitEstimation, GPUFitStump) {
   TestFitStump(&ctx);
 }
 #endif  // defined(XGBOOST_USE_CUDA)
-}  // namespace obj
+}  // namespace tree
 }  // namespace xgboost
