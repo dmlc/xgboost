@@ -28,7 +28,7 @@ void FitStump(Context const* ctx, linalg::TensorView<GradientPair const, 2> gpai
   auto h_sum = sum.HostView();
   // first dim for gpair is samples, second dim is target.
   // Reduce by column
-  common::ParallelFor(gpair.Shape(1), 1, [&](auto j) {
+  common::ParallelFor(gpair.Shape(1), ctx->Threads(), [&](auto j) {
     for (std::size_t i = 0; i < gpair.Shape(0); ++i) {
       h_sum(j) += GradientPairPrecise{gpair(i, j)};
     }
