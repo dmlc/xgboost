@@ -156,7 +156,7 @@ head(sparse_matrix)
 Create the output `numeric` vector (not as a sparse `Matrix`):
 
 ```{r}
-output_vector = df[,Improved] == "Marked"
+output_vector <- df[,Improved] == "Marked"
 ```
 
 1. set `Y` vector to `0`;

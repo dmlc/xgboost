@@ -8,11 +8,11 @@ library(dummies)
 library(insuranceData)
 
 data(AutoClaims)
-data = AutoClaims
+data <- AutoClaims
 
-data$STATE = as.factor(data$STATE)
-data$CLASS = as.factor(data$CLASS)
-data$GENDER = as.factor(data$GENDER)
+data$STATE <- as.factor(data$STATE)
+data$CLASS <- as.factor(data$CLASS)
+data$GENDER <- as.factor(data$GENDER)
 
 data.dummy <- dummy.data.frame(data, dummy.class='factor', omit.constants=TRUE);
 write.table(data.dummy, 'autoclaims.csv', sep=',', row.names=F, col.names=F, quote=F)
