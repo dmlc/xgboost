@@ -55,14 +55,12 @@ inline XGBOOST_DEVICE bool InvalidCat(float cat) {
  */
 inline XGBOOST_DEVICE bool Decision(common::Span<uint32_t const> cats, float cat) {
   KCatBitField const s_cats(cats);
-  // FIXME: Size() is not accurate since it represents the size of bit set instead of
-  // actual number of categories.
   if (XGBOOST_EXPECT(InvalidCat(cat), false)) {
     return true;
   }
 
   auto pos = KCatBitField::ToBitPos(cat);
-  // If input categorical is larger than the size of bit field, it implies that the
+  // If the input category is larger than the size of the bit field, it implies that the
   // category is not chosen. Otherwise the bit field would have the category instead of
   // being smaller than the category value.
   if (pos.int_pos >= cats.size()) {
