@@ -3,7 +3,7 @@
  */
 #include "stats.h"
 
-#include <numeric>  // std::accumulate
+#include <numeric>                       // std::accumulate
 
 #include "common.h"                      // OptionalWeights
 #include "threading_utils.h"             // ParallelFor, MemStackAllocator
@@ -41,6 +41,24 @@ float Median(Context const* ctx, linalg::Tensor<float, 2> const& t,
     q = common::WeightedQuantile(0.5, iter, iter + t_v.Size(), w_it);
   }
   return q;
+}
+
+void Mean(Context const* ctx, linalg::Vector<float> const& v, linalg::Vector<float>* out) {
+  v.SetDevice(ctx->gpu_id);
+  out->SetDevice(ctx->gpu_id);
+  out->Reshape(1);
+
+  if (ctx->IsCPU()) {
+    auto h_v = v.HostView();
+    float n = v.Size();
+    MemStackAllocator<float, DefaultMaxThreads()> tloc(ctx->Threads(), 0.0f);
+    ParallelFor(v.Size(), ctx->Threads(),
+                [&](auto i) { tloc[omp_get_thread_num()] += h_v(i) / n; });
+    auto ret = std::accumulate(tloc.cbegin(), tloc.cend(), .0f);
+    out->HostView()(0) = ret;
+  } else {
+    cuda_impl::Mean(ctx, v.View(ctx->gpu_id), out->View(ctx->gpu_id));
+  }
 }
 }  // namespace common
 }  // namespace xgboost

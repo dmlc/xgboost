@@ -1,16 +1,15 @@
 /**
  * Copyright 2022 by XGBoost Contributors
  */
-#include "../../src/tree/fit_stump.h"
-
 #include <gtest/gtest.h>
 #include <xgboost/linalg.h>
 
 #include "../../src/common/linalg_op.h"
+#include "../../src/tree/fit_stump.h"
 
 namespace xgboost {
 namespace tree {
-
+namespace {
 void TestFitStump(Context const *ctx) {
   std::size_t constexpr kRows = 16, kTargets = 2;
   HostDeviceVector<GradientPair> gpair;
@@ -31,6 +30,7 @@ void TestFitStump(Context const *ctx) {
     ASSERT_EQ(static_cast<float>(-sum_grad / n), *it);
   }
 }
+}  // anonymous namespace
 
 TEST(InitEstimation, FitStump) {
   Context ctx;

@@ -20,9 +20,9 @@
 #include "../common/stats.h"
 #include "../common/threading_utils.h"
 #include "../common/transform.h"
-#include "../tree/fit_stump.h"
 #include "./regression_loss.h"
 #include "adaptive.h"
+#include "validation.h"  // CheckInitInputs
 #include "xgboost/base.h"
 #include "xgboost/context.h"
 #include "xgboost/data.h"
@@ -40,14 +40,6 @@
 namespace xgboost {
 namespace obj {
 namespace {
-void CheckInitInputs(MetaInfo const& info) {
-  CHECK_EQ(info.labels.Shape(0), info.num_row_) << "Invalid shape of labels.";
-  if (!info.weights_.Empty()) {
-    CHECK_EQ(info.weights_.Size(), info.num_row_)
-        << "Number of weights should be equal to number of data points.";
-  }
-}
-
 void CheckRegInputs(MetaInfo const& info, HostDeviceVector<bst_float> const& preds) {
   CheckInitInputs(info);
   CHECK_EQ(info.labels.Size(), preds.Size()) << "Invalid shape of labels.";
@@ -167,29 +159,6 @@ class RegLossObj : public ObjFunction {
 
   float ProbToMargin(float base_score) const override {
     return Loss::ProbToMargin(base_score);
-  }
-
-  void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_margin) const override {
-    CheckInitInputs(info);
-    HostDeviceVector<float> dummy_predt(info.labels.Size(), 0.0f);
-    HostDeviceVector<GradientPair> gpair(info.labels.Size());
-
-    std::unique_ptr<ObjFunction> new_obj{ObjFunction::Create(Loss::Name(), ctx_)};
-    Json config{Object{}};
-    this->SaveConfig(&config);
-    new_obj->LoadConfig(config);
-    new_obj->GetGradient(dummy_predt, info, 0, &gpair);
-    bst_target_t n_targets = this->Targets(info);
-    tree::FitStump(ctx_, gpair, n_targets, base_margin);
-    auto h_base_margin = base_margin->HostView();
-    // workaround, we don't support multi-target due to binary model serialization for
-    // base margin.
-    float v = 0;
-    for (bst_target_t t = 0; t < n_targets; ++t) {
-      v += Loss::PredTransform(h_base_margin(t)) / static_cast<float>(n_targets);
-    }
-    base_margin->Reshape(1);
-    base_margin->HostView()(0) = v;
   }
 
   void SaveConfig(Json* p_out) const override {

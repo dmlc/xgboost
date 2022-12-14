@@ -96,8 +96,14 @@ float WeightedQuantile(double alpha, Iter begin, Iter end, WeightIter weights) {
 
 namespace cuda_impl {
 float Median(Context const* ctx, linalg::TensorView<float const, 2> t, OptionalWeights weights);
+void Mean(Context const* ctx, linalg::VectorView<float const> v, linalg::VectorView<float> out);
+
 #if !defined(XGBOOST_USE_CUDA)
 inline float Median(Context const*, linalg::TensorView<float const, 2>, OptionalWeights) {
+  common::AssertGPUSupport();
+  return 0;
+}
+inline void Mean(Context const*, linalg::VectorView<float>, linalg::VectorView<float>) {
   common::AssertGPUSupport();
   return 0;
 }
@@ -106,6 +112,8 @@ inline float Median(Context const*, linalg::TensorView<float const, 2>, Optional
 
 float Median(Context const* ctx, linalg::Tensor<float, 2> const& t,
              HostDeviceVector<float> const& weights);
+
+void Mean(Context const* ctx, linalg::Vector<float> const& v, linalg::Vector<float>* out);
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_STATS_H_
