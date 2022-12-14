@@ -279,8 +279,7 @@ class Install(install.install):  # pylint: disable=too-many-instance-attributes
     arguments.
 
     '''
-    user_options = install.install.user_options + list(
-        (k, v[0], v[1]) for k, v in USER_OPTIONS.items())
+    user_options = install.install.user_options + [(k, v[0], v[1]) for k, v in USER_OPTIONS.items()]
 
     def initialize_options(self) -> None:
         super().initialize_options()
