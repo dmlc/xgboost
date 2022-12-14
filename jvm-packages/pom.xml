@@ -34,7 +34,7 @@
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
         <flink.version>1.8.3</flink.version>
-        <spark.version>3.0.1</spark.version>
+        <spark.version>3.0.3</spark.version>
         <scala.version>2.12.8</scala.version>
         <scala.binary.version>2.12</scala.binary.version>
         <hadoop.version>3.3.4</hadoop.version>
@@ -374,7 +374,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-checkstyle-plugin</artifactId>
-                <version>3.1.2</version>
+                <version>3.2.0</version>
                 <configuration>
                     <configLocation>checkstyle.xml</configLocation>
                     <failOnViolation>true</failOnViolation>

@@ -278,22 +278,6 @@ def _check_call(ret: int) -> None:
         raise XGBoostError(py_str(_LIB.XGBGetLastError()))
 
 
-def _has_categorical(booster: "Booster", data: DataType) -> bool:
-    """Check whether the booster and input data for prediction contain categorical data.
-
-    """
-    from .data import _is_cudf_df, _is_pandas_df
-    if _is_pandas_df(data) or _is_cudf_df(data):
-        ft = booster.feature_types
-        if ft is None:
-            enable_categorical = False
-        else:
-            enable_categorical = any(f == "c" for f in ft)
-    else:
-        enable_categorical = False
-    return enable_categorical
-
-
 def build_info() -> dict:
     """Build information of XGBoost.  The returned value format is not stable. Also, please
     note that build time dependency is not the same as runtime dependency. For instance,
@@ -1160,7 +1144,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
                 raise ValueError(msg)
             # prohibit to use symbols may affect to parse. e.g. []<
             if not all(isinstance(f, str) and
-                       not any(x in f for x in set(('[', ']', '<')))
+                       not any(x in f for x in ['[', ']', '<'])
                        for f in feature_names):
                 raise ValueError('feature_names must be string, and may not contain [, ] or <')
             feature_names_bytes = [bytes(f, encoding='utf-8') for f in feature_names]
@@ -1508,7 +1492,6 @@ def _configure_metrics(params: BoosterParam) -> BoosterParam:
         and "eval_metric" in params
         and isinstance(params["eval_metric"], list)
     ):
-        params = dict((k, v) for k, v in params.items())
         eval_metrics = params["eval_metric"]
         params.pop("eval_metric", None)
         params_list = list(params.items())
@@ -2270,17 +2253,6 @@ class Booster:
             _transform_pandas_df,
         )
 
-        enable_categorical = _has_categorical(self, data)
-        if _is_pandas_series(data):
-            import pandas as pd
-            data = pd.DataFrame(data)
-        if _is_pandas_df(data):
-            data, fns, _ = _transform_pandas_df(data, enable_categorical)
-            if validate_features:
-                self._validate_features(fns)
-        if _is_list(data) or _is_tuple(data):
-            data = np.array(data)
-
         if validate_features:
             if not hasattr(data, "shape"):
                 raise TypeError(
@@ -2291,6 +2263,17 @@ class Booster:
                     f"Feature shape mismatch, expected: {self.num_features()}, "
                     f"got {data.shape[1]}"
                 )
+
+        enable_categorical = True
+        if _is_pandas_series(data):
+            import pandas as pd
+            data = pd.DataFrame(data)
+        if _is_pandas_df(data):
+            data, fns, _ = _transform_pandas_df(data, enable_categorical)
+            if validate_features:
+                self._validate_features(fns)
+        if _is_list(data) or _is_tuple(data):
+            data = np.array(data)
 
         if isinstance(data, np.ndarray):
             from .data import _ensure_np_dtype
