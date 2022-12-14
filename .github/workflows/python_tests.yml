@@ -232,8 +232,8 @@ jobs:
       with:
         cache-downloads: true
         cache-env: true
-        environment-name: cpu_test
-        environment-file: tests/ci_build/conda_env/cpu_test.yml
+        environment-name: linux_cpu_test
+        environment-file: tests/ci_build/conda_env/linux_cpu_test.yml
 
     - name: Display Conda env
       shell: bash -l {0}
