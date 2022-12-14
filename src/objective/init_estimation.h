@@ -15,19 +15,17 @@
 
 namespace xgboost {
 namespace obj {
-namespace cuda_impl {
-double FitStump(Context const* ctx, HostDeviceVector<GradientPair> const& gpair);
-#if !defined(XGBOOST_USE_CUDA)
-inline double FitStump(Context const*, HostDeviceVector<GradientPair> const&) {
-  common::AssertGPUSupport();
-  return 0.0;
+
+template <typename T>
+XGBOOST_DEVICE inline double CalcUnregulatedWeight(T sum_grad, T sum_hess) {
+  return -sum_grad / std::max(sum_hess, static_cast<double>(kRtEps));
 }
-#endif  // !defined(XGBOOST_USE_CUDA)
-}  // namespace cuda_impl
+
 /**
  * @brief Fit a tree stump as an estimation of base_score.
  */
-double FitStump(Context const* ctx, HostDeviceVector<GradientPair> const& gpair);
+void FitStump(Context const* ctx, HostDeviceVector<GradientPair> const& gpair,
+              bst_target_t n_targets, linalg::Vector<float>* out);
 }  // namespace obj
 }  // namespace xgboost
 #endif  // XGBOOST_OBJECTIVE_INIT_ESTIMATION_H_

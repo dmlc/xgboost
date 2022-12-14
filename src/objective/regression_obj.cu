@@ -82,7 +82,7 @@ class RegLossObj : public ObjFunction {
 
   ObjInfo Task() const override { return Loss::Info(); }
 
-  uint32_t Targets(MetaInfo const& info) const override {
+  bst_target_t Targets(MetaInfo const& info) const override {
     // Multi-target regression.
     return std::max(static_cast<size_t>(1), info.labels.Shape(1));
   }
@@ -171,16 +171,6 @@ class RegLossObj : public ObjFunction {
 
   void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_margin) const override {
     CheckInitInputs(info);
-    base_margin->Reshape(1);
-    auto out = base_margin->HostView();
-
-    if (this->Targets(info) > 1) {
-      // multi-output not yet supported due to constraint in binary model format. (no
-      // vector in parameter)
-      out(0) = DefaultBaseScore();
-      return;
-    }
-
     HostDeviceVector<float> dummy_predt(info.labels.Size(), 0.0f);
     HostDeviceVector<GradientPair> gpair(info.labels.Size());
 
@@ -189,8 +179,12 @@ class RegLossObj : public ObjFunction {
     this->SaveConfig(&config);
     new_obj->LoadConfig(config);
     new_obj->GetGradient(dummy_predt, info, 0, &gpair);
-
-    out(0) = Loss::PredTransform(FitStump(ctx_, gpair));
+    bst_target_t n_targets = this->Targets(info);
+    FitStump(ctx_, gpair, n_targets, base_margin);
+    auto h_base_margin = base_margin->HostView();
+    for (bst_target_t t = 0; t < n_targets; ++t) {
+      h_base_margin(t) = Loss::PredTransform(h_base_margin(t));
+    }
   }
 
   void SaveConfig(Json* p_out) const override {
@@ -245,7 +239,7 @@ class PseudoHuberRegression : public ObjFunction {
  public:
   void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
   ObjInfo Task() const override { return ObjInfo::kRegression; }
-  uint32_t Targets(MetaInfo const& info) const override {
+  bst_target_t Targets(MetaInfo const& info) const override {
     return std::max(static_cast<size_t>(1), info.labels.Shape(1));
   }
 

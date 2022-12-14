@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cinttypes>  // std::int32_t
 #include <limits>
 #include <string>
 #include <tuple>
@@ -388,9 +389,9 @@ class TensorView {
    * \brief Create a tensor with data, shape and strides.  Don't use this constructor if
    *        stride can be calculated from shape.
    */
-  template <typename I, int32_t D>
+  template <typename I, std::int32_t D>
   LINALG_HD TensorView(common::Span<T> data, I const (&shape)[D], I const (&stride)[D],
-                       int32_t device)
+                       std::int32_t device)
       : data_{data}, ptr_{data_.data()}, device_{device} {
     static_assert(D == kDim, "Invalid shape & stride.");
     detail::UnrollLoop<D>([&](auto i) {
@@ -832,6 +833,27 @@ class Tensor {
   void SetDevice(int32_t device) const { data_.SetDevice(device); }
   int32_t DeviceIdx() const { return data_.DeviceIdx(); }
 };
+
+template <typename T>
+using Vector = Tensor<T, 1>;
+
+template <typename T, typename... Index>
+auto Constant(Context const *ctx, T v, Index &&...index) {
+  Tensor<T, sizeof...(Index)> t;
+  t.SetDevice(ctx->gpu_id);
+  t.Reshape(index...);
+  t.Data()->Fill(std::move(v));
+  return t;
+}
+
+
+/**
+ * \brief Like `np.zeros`, return a new array of given shape and type, filled with zeros.
+ */
+template <typename T, typename... Index>
+auto Zeros(Context const *ctx, Index &&...index) {
+  return Constant(ctx, static_cast<T>(0), index...);
+}
 
 // Only first axis is supported for now.
 template <typename T, int32_t D>
