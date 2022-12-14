@@ -182,9 +182,14 @@ class RegLossObj : public ObjFunction {
     bst_target_t n_targets = this->Targets(info);
     FitStump(ctx_, gpair, n_targets, base_margin);
     auto h_base_margin = base_margin->HostView();
+    // workaround, we don't support multi-target due to binary model serialization for
+    // base margin.
+    float v = 0;
     for (bst_target_t t = 0; t < n_targets; ++t) {
-      h_base_margin(t) = Loss::PredTransform(h_base_margin(t));
+      v += Loss::PredTransform(h_base_margin(t)) / static_cast<float>(n_targets);
     }
+    base_margin->Reshape(1);
+    base_margin->HostView()(0) = v;
   }
 
   void SaveConfig(Json* p_out) const override {
