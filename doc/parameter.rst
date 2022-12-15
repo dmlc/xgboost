@@ -121,10 +121,12 @@ Parameters for Tree Booster
 * ``lambda`` [default=1, alias: ``reg_lambda``]
 
   - L2 regularization term on weights. Increasing this value will make model more conservative.
+  - range: [0, :math:`\infty`]
 
 * ``alpha`` [default=0, alias: ``reg_alpha``]
 
   - L1 regularization term on weights. Increasing this value will make model more conservative.
+  - range: [0, :math:`\infty`]
 
 * ``tree_method`` string [default= ``auto``]
 
