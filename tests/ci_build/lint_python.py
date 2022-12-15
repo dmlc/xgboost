@@ -156,6 +156,7 @@ def main(args: argparse.Namespace) -> None:
                 "demo/guide-python/cat_in_the_dat.py",
                 "demo/guide-python/categorical.py",
                 "demo/guide-python/feature_weights.py",
+                "demo/guide-python/sklearn_parallel.py",
                 "demo/guide-python/spark_estimator_examples.py",
                 # CI
                 "tests/ci_build/lint_python.py",
