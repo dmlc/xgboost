@@ -247,7 +247,26 @@ pandas_nullable_mapper = {
     "boolean": "i",
 }
 
+# np_array = pd.arrays.ArrowExtensionArray.__arrow_array__().combine_chunks().__array__()
+# buffers = pd.arrays.ArrowExtensionArray.__arrow_array__().combine_chunks().buffers()
+pandas_pyarrow_mapper = {
+    "int8[pyarrow]": "i",
+    "int16[pyarrow]": "i",
+    "int32[pyarrow]": "i",
+    "int64[pyarrow]": "i",
+    "uint8[pyarrow]": "i",
+    "uint16[pyarrow]": "i",
+    "uint32[pyarrow]": "i",
+    "uint64[pyarrow]": "i",
+    "float16[pyarrow]": "float",
+    "float32[pyarrow]": "float",
+    "float64[pyarrow]": "float",
+    "bool[pyarrow]": "i",
+}
+
 _pandas_dtype_mapper.update(pandas_nullable_mapper)
+_pandas_dtype_mapper.update(pandas_pyarrow_mapper)
+
 
 _ENABLE_CAT_ERR = (
     "When categorical type is supplied, The experimental DMatrix parameter"

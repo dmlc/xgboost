@@ -124,3 +124,24 @@ def pd_dtypes() -> Generator:
         orig = pd.DataFrame(data, dtype=np.bool_ if Null is None else pd.BooleanDtype())
         df = pd.DataFrame(data, dtype=pd.BooleanDtype())
         yield orig, df
+
+
+def pd_arrow_dtypes() -> Generator:
+    """Pandas DataFrame with pyarrow backed type."""
+    import pandas as pd
+    import pyarrow as pa
+    import xgboost
+
+    # Integer
+    dtypes = xgboost.data.pandas_pyarrow_mapper
+    Null: Union[float, None, Any] = np.nan
+    orig = pd.DataFrame(
+        {"f0": [1, 2, Null, 3], "f1": [4, 3, Null, 1]}, dtype=np.float32
+    )
+    pd.arrays.ArrowExtensionArray()
+    for Null in (None, pd.NA):
+        for dtype in dtypes:
+            df = pd.DataFrame(
+                {"f0": [1, 2, Null, 3], "f1": [4, 3, Null, 1]}, dtype=dtype
+            )
+            yield orig, df

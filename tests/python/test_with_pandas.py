@@ -4,7 +4,7 @@ import tempfile
 import numpy as np
 import pytest
 from test_dmatrix import set_base_margin_info
-from xgboost.testing.data import pd_dtypes
+from xgboost.testing.data import pd_arrow_dtypes, pd_dtypes
 
 import xgboost as xgb
 from xgboost import testing as tm
@@ -323,3 +323,9 @@ class TestPandas:
                 f0 = df["f0"]
                 with pytest.raises(ValueError, match="Label contains NaN"):
                     xgb.DMatrix(df, f0, enable_categorical=enable_categorical)
+
+    def test_pyarrow_type(self) -> None:
+        for DMatrixT in (xgb.DMatrix, xgb.QuantileDMatrix):
+            for orig, df in pd_arrow_dtypes():
+                m_orig = DMatrixT(orig, enable_categorical=True)
+                m_etype = DMatrixT(df, enable_categorical=True)
