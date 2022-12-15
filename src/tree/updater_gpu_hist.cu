@@ -20,6 +20,7 @@
 #include "../common/io.h"
 #include "../common/timer.h"
 #include "../data/ellpack_page.cuh"
+#include "../common/cuda_context.cuh"  // CUDAContext
 #include "constraints.cuh"
 #include "driver.h"
 #include "gpu_hist/evaluate_splits.cuh"
@@ -344,9 +345,9 @@ struct GPUHistMakerDevice {
   void BuildHist(int nidx) {
     auto d_node_hist = hist.GetNodeHistogram(nidx);
     auto d_ridx = row_partitioner->GetRows(nidx);
-    BuildGradientHistogram(page->GetDeviceAccessor(ctx_->gpu_id),
-                           feature_groups->DeviceAccessor(ctx_->gpu_id), gpair,
-                           d_ridx, d_node_hist, *quantiser);
+    BuildGradientHistogram(ctx_->CUDACtx(), page->GetDeviceAccessor(ctx_->gpu_id),
+                           feature_groups->DeviceAccessor(ctx_->gpu_id), gpair, d_ridx, d_node_hist,
+                           *quantiser);
   }
 
   // Attempt to do subtraction trick
@@ -646,7 +647,7 @@ struct GPUHistMakerDevice {
           return quantiser.ToFixedPoint(gpair);
         });
     GradientPairInt64 root_sum_quantised =
-        dh::Reduce(thrust::cuda::par(alloc), gpair_it, gpair_it + gpair.size(),
+        dh::Reduce(ctx_->CUDACtx()->CTP(), gpair_it, gpair_it + gpair.size(),
                    GradientPairInt64{}, thrust::plus<GradientPairInt64>{});
     using ReduceT = typename decltype(root_sum_quantised)::ValueT;
     collective::Allreduce<collective::Operation::kSum>(
