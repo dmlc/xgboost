@@ -55,7 +55,7 @@ void CheckRegInputs(MetaInfo const& info, HostDeviceVector<bst_float> const& pre
 
 class RegInitEstimation : public ObjFunction {
   void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_score) const override {
-    obj::CheckInitInputs(info);
+    CheckInitInputs(info);
     // Avoid altering any state in child objective.
     HostDeviceVector<float> dummy_predt(info.labels.Size(), 0.0f);
     HostDeviceVector<GradientPair> gpair(info.labels.Size());
