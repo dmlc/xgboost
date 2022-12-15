@@ -52,6 +52,7 @@ void CheckRegInputs(MetaInfo const& info, HostDeviceVector<bst_float> const& pre
   CheckInitInputs(info);
   CHECK_EQ(info.labels.Size(), preds.Size()) << "Invalid shape of labels.";
 }
+}  // anonymous namespace
 
 class RegInitEstimation : public ObjFunction {
   void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_score) const override {
@@ -77,7 +78,6 @@ class RegInitEstimation : public ObjFunction {
     this->PredTransform(base_score->Data());
   }
 };
-}  // anonymous namespace
 
 #if defined(XGBOOST_USE_CUDA)
 DMLC_REGISTRY_FILE_TAG(regression_obj_gpu);
