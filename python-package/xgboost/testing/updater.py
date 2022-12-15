@@ -7,9 +7,9 @@ import xgboost as xgb
 def check_init_estimation(tree_method: str) -> None:
     """Test for init estimation."""
     from sklearn.datasets import (
-        make_regression,
         make_classification,
         make_multilabel_classification,
+        make_regression,
     )
 
     def run_reg(X: np.ndarray, y: np.ndarray) -> None:
