@@ -9,7 +9,6 @@ xgb.DMatrix(
   info = list(),
   missing = NA,
   silent = FALSE,
-  dsplit = 0,
   nthread = NULL,
   ...
 )
@@ -27,8 +26,6 @@ See \code{\link{setinfo}} for the specific allowed kinds of}
 It is useful when a 0 or some other extreme value represents missing values in data.}
 
 \item{silent}{whether to suppress printing an informational message after loading from a file.}
-
-\item{dsplit}{data split mode.}
 
 \item{nthread}{Number of threads used for creating DMatrix.}
 

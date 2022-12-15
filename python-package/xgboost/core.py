@@ -612,10 +612,8 @@ _deprecate_positional_args = require_keyword_args(False)
 @unique
 class DataSplitMode(IntEnum):
     """Supported data split mode for DMatrix."""
-    AUTO = 0
+    ROW = 0
     COL = 1
-    ROW = 2
-    NONE = 3
 
 
 class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-methods
@@ -645,7 +643,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         label_upper_bound: Optional[ArrayLike] = None,
         feature_weights: Optional[ArrayLike] = None,
         enable_categorical: bool = False,
-        data_split_mode: DataSplitMode = DataSplitMode.AUTO,
+        data_split_mode: DataSplitMode = DataSplitMode.ROW,
     ) -> None:
         """Parameters
         ----------

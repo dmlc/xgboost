@@ -21,7 +21,7 @@ JNIEXPORT jstring JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBGetLastError
  * Signature: (Ljava/lang/String;I[J)I
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFromFile
-  (JNIEnv *, jclass, jstring, jint, jint, jlongArray);
+  (JNIEnv *, jclass, jstring, jint, jlongArray);
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI

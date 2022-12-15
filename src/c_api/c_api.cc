@@ -205,29 +205,32 @@ XGB_DLL int XGBGetGlobalConfig(const char** json_str) {
   API_END();
 }
 
-XGB_DLL int XGDMatrixCreateFromFile(const char *fname, int silent, int dsplit, DMatrixHandle *out) {
-  API_BEGIN();
-  auto data_split_mode = static_cast<DataSplitMode>(dsplit);
-  if (collective::IsFederated()) {
-    CHECK(data_split_mode == DataSplitMode::kAuto || data_split_mode == DataSplitMode::kNone)
-        << "Precondition violated; dsplit can only be 'auto' or 'none' in federated mode";
-    LOG(CONSOLE) << "XGBoost federated mode detected, not splitting data among workers";
-    data_split_mode = DataSplitMode::kNone;
-  } else if (collective::IsDistributed()) {
-    CHECK(data_split_mode != DataSplitMode::kCol)
-        << "Column-wise data split is currently not supported in distributed mode";
-    if (data_split_mode != DataSplitMode::kNone) {
-      LOG(CONSOLE) << "XGBoost distributed mode detected, will split data among workers";
-      data_split_mode = DataSplitMode::kRow;
-    }
-  } else {
-    CHECK(data_split_mode == DataSplitMode::kAuto || data_split_mode == DataSplitMode::kNone)
-        << "Precondition violated; dsplit can only be 'auto' or 'none' in local mode";
-    data_split_mode = DataSplitMode::kNone;
-  }
+XGB_DLL int XGDMatrixCreateFromFile(const char *fname, int silent, DMatrixHandle *out) {
   xgboost_CHECK_C_ARG_PTR(fname);
   xgboost_CHECK_C_ARG_PTR(out);
-  *out = new std::shared_ptr<DMatrix>(DMatrix::Load(fname, silent != 0, data_split_mode));
+
+  Json config{Object()};
+  config["filename"] = std::string{fname};
+  config["silent"] = silent;
+  std::string config_str;
+  Json::Dump(config, &config_str);
+  return XGDMatrixCreateFromFileV2(config_str.c_str(), out);
+}
+
+XGB_DLL int XGDMatrixCreateFromFileV2(const char *config, DMatrixHandle *out) {
+  API_BEGIN();
+  xgboost_CHECK_C_ARG_PTR(config);
+  xgboost_CHECK_C_ARG_PTR(out);
+
+  auto jconfig = Json::Load(StringView{config});
+  std::string filename = RequiredArg<String>(jconfig, "filename", __func__);
+  auto silent = static_cast<bool>(OptionalArg<Integer, int64_t>(jconfig, "silent", 1));
+  auto data_split_mode =
+      static_cast<DataSplitMode>(OptionalArg<Integer, int64_t>(jconfig, "data_split_mode", 0));
+  CHECK(data_split_mode != DataSplitMode::kCol)
+      << "Column-wise data split is currently not supported";
+
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Load(filename, silent, data_split_mode));
   API_END();
 }
 

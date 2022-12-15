@@ -20,13 +20,12 @@ if (err != 0) {                                                         \
 
 int main() {
   int silent = 0;
-  int dsplit = 0;
   int use_gpu = 0;  // set to 1 to use the GPU for training
 
   // load the data
   DMatrixHandle dtrain, dtest;
-  safe_xgboost(XGDMatrixCreateFromFile("../../data/agaricus.txt.train", silent, dsplit, &dtrain));
-  safe_xgboost(XGDMatrixCreateFromFile("../../data/agaricus.txt.test", silent, dsplit, &dtest));
+  safe_xgboost(XGDMatrixCreateFromFile("../../data/agaricus.txt.train", silent, &dtrain));
+  safe_xgboost(XGDMatrixCreateFromFile("../../data/agaricus.txt.test", silent, &dtest));
 
   // create the booster
   BoosterHandle booster;

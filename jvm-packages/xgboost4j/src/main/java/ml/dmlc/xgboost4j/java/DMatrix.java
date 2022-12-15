@@ -56,50 +56,18 @@ public class DMatrix {
   }
 
   /**
-   * data split mode
-   */
-  public enum DataSplitMode {
-    AUTO(0),
-    COL(1),
-    ROW(2),
-    NONE(3);
-
-    private final int value;
-
-    DataSplitMode(int value) {
-      this.value = value;
-    }
-
-    public int getValue() {
-      return value;
-    }
-  }
-
-  /**
-   * Create DMatrix by loading libsvm file from dataPath
-   *
-   * @param dataPath The path to the data.
-   * @param dataSplitMode Data split mode.
-   * @throws XGBoostError
-   */
-  public DMatrix(String dataPath, DataSplitMode dataSplitMode) throws XGBoostError {
-    if (dataPath == null) {
-      throw new NullPointerException("dataPath: null");
-    }
-    long[] out = new long[1];
-    XGBoostJNI.checkCall(
-        XGBoostJNI.XGDMatrixCreateFromFile(dataPath, 1, dataSplitMode.getValue(), out));
-    handle = out[0];
-  }
-
-  /**
    * Create DMatrix by loading libsvm file from dataPath
    *
    * @param dataPath The path to the data.
    * @throws XGBoostError
    */
   public DMatrix(String dataPath) throws XGBoostError {
-    this(dataPath, DataSplitMode.AUTO);
+    if (dataPath == null) {
+      throw new NullPointerException("dataPath: null");
+    }
+    long[] out = new long[1];
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromFile(dataPath, 1, out));
+    handle = out[0];
   }
 
   /**

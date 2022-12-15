@@ -866,15 +866,18 @@ def _from_uri(
     missing: Optional[FloatCompatible],
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
-    data_split_mode: DataSplitMode = DataSplitMode.AUTO,
+    data_split_mode: DataSplitMode = DataSplitMode.ROW,
 ) -> DispatchedDataBackendReturnType:
     _warn_unused_missing(data, missing)
     handle = ctypes.c_void_p()
     data = os.fspath(os.path.expanduser(data))
-    _check_call(_LIB.XGDMatrixCreateFromFile(c_str(data),
-                                             ctypes.c_int(1),
-                                             ctypes.c_int(data_split_mode),
-                                             ctypes.byref(handle)))
+    args = {
+        "filename": str(data),
+        "data_split_mode": int(data_split_mode),
+    }
+    config = bytes(json.dumps(args), "utf-8")
+    _check_call(_LIB.XGDMatrixCreateFromFileV2(config,
+                                               ctypes.byref(handle)))
     return handle, feature_names, feature_types
 
 
@@ -941,7 +944,7 @@ def dispatch_data_backend(
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
     enable_categorical: bool = False,
-    data_split_mode: DataSplitMode = DataSplitMode.AUTO,
+    data_split_mode: DataSplitMode = DataSplitMode.ROW,
 ) -> DispatchedDataBackendReturnType:
     '''Dispatch data for DMatrix.'''
     if not _is_cudf_ser(data) and not _is_pandas_series(data):

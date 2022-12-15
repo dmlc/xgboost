@@ -143,7 +143,7 @@ TEST(DMatrix, Uri) {
   // EXPECT_THROW(dmat.reset(DMatrix::Load(path, false, true)), dmlc::Error);
 
   std::string uri = path + "?format=csv";
-  dmat.reset(DMatrix::Load(uri, false, DataSplitMode::kRow));
+  dmat.reset(DMatrix::Load(uri, false));
 
   ASSERT_EQ(dmat->Info().num_col_, kCols);
   ASSERT_EQ(dmat->Info().num_row_, kRows);

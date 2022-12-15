@@ -88,12 +88,11 @@ XGB_DLL SEXP XGBGetGlobalConfig_R() {
   return mkString(json_str);
 }
 
-XGB_DLL SEXP XGDMatrixCreateFromFile_R(SEXP fname, SEXP silent, SEXP dsplit) {
+XGB_DLL SEXP XGDMatrixCreateFromFile_R(SEXP fname, SEXP silent) {
   SEXP ret;
   R_API_BEGIN();
   DMatrixHandle handle;
-  CHECK_CALL(
-      XGDMatrixCreateFromFile(CHAR(asChar(fname)), asInteger(silent), asInteger(dsplit), &handle));
+  CHECK_CALL(XGDMatrixCreateFromFile(CHAR(asChar(fname)), asInteger(silent), &handle));
   ret = PROTECT(R_MakeExternalPtr(handle, R_NilValue, R_NilValue));
   R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
   R_API_END();

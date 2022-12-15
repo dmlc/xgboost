@@ -207,10 +207,10 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFro
  * Signature: (Ljava/lang/String;I[J)I
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFromFile
-  (JNIEnv *jenv, jclass jcls, jstring jfname, jint jsilent, jint jdsplit, jlongArray jout) {
+  (JNIEnv *jenv, jclass jcls, jstring jfname, jint jsilent, jlongArray jout) {
   DMatrixHandle result;
   const char* fname = jenv->GetStringUTFChars(jfname, 0);
-  int ret = XGDMatrixCreateFromFile(fname, jsilent, jdsplit, &result);
+  int ret = XGDMatrixCreateFromFile(fname, jsilent, &result);
   JVM_CHECK_CALL(ret);
   if (fname) {
     jenv->ReleaseStringUTFChars(jfname, fname);
