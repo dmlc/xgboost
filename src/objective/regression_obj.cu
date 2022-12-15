@@ -57,8 +57,8 @@ class RegInitEstimation : public ObjFunction {
   void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_score) const override {
     CheckInitInputs(info);
     // Avoid altering any state in child objective.
-    HostDeviceVector<float> dummy_predt(info.labels.Size(), 0.0f);
-    HostDeviceVector<GradientPair> gpair(info.labels.Size());
+    HostDeviceVector<float> dummy_predt(info.labels.Size(), 0.0f, this->ctx_->gpu_id);
+    HostDeviceVector<GradientPair> gpair(info.labels.Size(), GradientPair{}, this->ctx_->gpu_id);
 
     Json config{Object{}};
     this->SaveConfig(&config);
@@ -74,7 +74,6 @@ class RegInitEstimation : public ObjFunction {
     // workaround, we don't support multi-target due to binary model serialization for
     // base margin.
     common::Mean(this->ctx_, leaf_weight, base_score);
-    auto h_base_margin = base_score->HostView();
     this->PredTransform(base_score->Data());
   }
 };
