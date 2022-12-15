@@ -6,19 +6,20 @@
  */
 #include <dmlc/omp.h>
 
+#include <vector>
 #include <algorithm>
 #include <limits>
 #include <utility>
-#include <vector>
+
+#include "xgboost/parameter.h"
+#include "xgboost/data.h"
+#include "xgboost/logging.h"
+#include "xgboost/objective.h"
+#include "xgboost/json.h"
 
 #include "../common/common.h"
 #include "../common/math.h"
 #include "../common/transform.h"
-#include "xgboost/data.h"
-#include "xgboost/json.h"
-#include "xgboost/logging.h"
-#include "xgboost/objective.h"
-#include "xgboost/parameter.h"
 
 namespace xgboost {
 namespace obj {
@@ -180,13 +181,6 @@ class SoftmaxMultiClassObj : public ObjFunction {
 
   void LoadConfig(Json const& in) override {
     FromJson(in["softmax_multiclass_param"], &param_);
-  }
-
-  void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_score) const override {
-    // Not yet supported.
-    base_score->SetDevice(Context::kCpuId);
-    base_score->Reshape(1);
-    base_score->HostView()(0) = DefaultBaseScore();
   }
 
  private:
