@@ -2253,17 +2253,6 @@ class Booster:
             _transform_pandas_df,
         )
 
-        if validate_features:
-            if not hasattr(data, "shape"):
-                raise TypeError(
-                    "`shape` attribute is required when `validate_features` is True."
-                )
-            if len(data.shape) != 1 and self.num_features() != data.shape[1]:
-                raise ValueError(
-                    f"Feature shape mismatch, expected: {self.num_features()}, "
-                    f"got {data.shape[1]}"
-                )
-
         enable_categorical = True
         if _is_pandas_series(data):
             import pandas as pd
@@ -2274,6 +2263,17 @@ class Booster:
                 self._validate_features(fns)
         if _is_list(data) or _is_tuple(data):
             data = np.array(data)
+
+        if validate_features:
+            if not hasattr(data, "shape"):
+                raise TypeError(
+                    "`shape` attribute is required when `validate_features` is True."
+                )
+            if len(data.shape) != 1 and self.num_features() != data.shape[1]:
+                raise ValueError(
+                    f"Feature shape mismatch, expected: {self.num_features()}, "
+                    f"got {data.shape[1]}"
+                )
 
         if isinstance(data, np.ndarray):
             from .data import _ensure_np_dtype
