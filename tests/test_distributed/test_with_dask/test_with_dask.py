@@ -40,6 +40,7 @@ import dask.dataframe as dd
 from distributed import Client, LocalCluster
 from toolz import sliding_window  # dependency of dask
 from xgboost.dask import DaskDMatrix
+from xgboost.testing.dask import check_init_estimation
 
 dask.config.set({"distributed.scheduler.allowed-failures": False})
 
@@ -2016,6 +2017,10 @@ def test_parallel_submit_multi_clients() -> None:
 
         for i, f in enumerate(t_futures):
             assert f.result().get_booster().num_boosted_rounds() == i + 1
+
+
+def test_init_estimation(client: Client) -> None:
+    check_init_estimation("hist", client)
 
 
 class TestDaskCallbacks:
