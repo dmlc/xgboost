@@ -144,7 +144,7 @@ class PartitionBuilder {
         auto gidx = gidx_calc(ridx);
         bool go_left = default_left;
         if (gidx > -1) {
-          go_left = Decision(node_cats, cut_values[gidx], default_left);
+          go_left = Decision(node_cats, cut_values[gidx]);
         }
         return go_left;
       } else {
@@ -157,7 +157,7 @@ class PartitionBuilder {
       bool go_left = default_left;
       if (gidx > -1) {
         if (is_cat) {
-          go_left = Decision(node_cats, cut_values[gidx], default_left);
+          go_left = Decision(node_cats, cut_values[gidx]);
         } else {
           go_left = cut_values[gidx] <= nodes[node_in_set].split.split_value;
         }
