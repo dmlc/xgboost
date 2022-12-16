@@ -423,7 +423,7 @@ file.remove("dtrain.buffer")
 Information can be extracted from `xgb.DMatrix` using `getinfo` function. Hereafter we will extract `label` data.
 
 ```{r getinfo, message=F, warning=F}
-label = getinfo(dtest, "label")
+label <- getinfo(dtest, "label")
 pred <- predict(bst, dtest)
 err <- as.numeric(sum(as.integer(pred > 0.5) != label))/length(label)
 print(paste("test-error=", err))

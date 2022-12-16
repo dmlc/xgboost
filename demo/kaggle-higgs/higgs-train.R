@@ -23,9 +23,9 @@ param <- list("objective" = "binary:logitraw",
               "eval_metric" = "ams@0.15",
               "nthread" = 16)
 watchlist <- list("train" = xgmat)
-nrounds = 120
+nrounds <- 120
 print ("loading data end, start to boost trees")
-bst = xgb.train(param, xgmat, nrounds, watchlist );
+bst <- xgb.train(param, xgmat, nrounds, watchlist );
 # save out model
 xgb.save(bst, "higgs.model")
 print ('finish training')
