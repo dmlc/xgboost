@@ -141,7 +141,7 @@ class WorkerEntry:
     ) -> List[int]:
         while True:
             ngood = self.sock.recvint()
-            goodset = set([])
+            goodset = set()
             for _ in range(ngood):
                 goodset.add(self.sock.recvint())
             assert goodset.issubset(nnset)
@@ -255,7 +255,7 @@ class RabitTracker:
         return a list starting from rank
         """
         nset = set(tree_map[rank])
-        cset = nset - set([parent_map[rank]])
+        cset = nset - {parent_map[rank]}
         if not cset:
             return [rank]
         rlst = [rank]
