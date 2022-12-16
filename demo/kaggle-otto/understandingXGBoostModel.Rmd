@@ -127,7 +127,7 @@ param <- list("objective" = "multi:softprob",
 cv.nrounds <- 5
 cv.nfold <- 3
 
-bst.cv = xgb.cv(param=param, data = trainMatrix, label = y,
+bst.cv <- xgb.cv(param=param, data = trainMatrix, label = y,
                 nfold = cv.nfold, nrounds = cv.nrounds)
 ```
 > As we can see the error rate is low on the test dataset (for a 5mn trained model).
@@ -135,8 +135,8 @@ bst.cv = xgb.cv(param=param, data = trainMatrix, label = y,
 Finally, we are ready to train the real model!!!
 
 ```{r modelTraining}
-nrounds = 50
-bst = xgboost(param=param, data = trainMatrix, label = y, nrounds=nrounds)
+nrounds <- 50
+bst <- xgboost(param=param, data = trainMatrix, label = y, nrounds=nrounds)
 ```
 
 Model understanding
