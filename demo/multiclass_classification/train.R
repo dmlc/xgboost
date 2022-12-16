@@ -16,8 +16,8 @@ df[, `:=`(V34 = as.integer(ifelse(V34 == "?", 0L, V34)),
 
 idx <- sample(nrow(df), size = round(0.7 * nrow(df)), replace = FALSE)
 
-train <- df[idx,]
-test <- df[-idx,]
+train <- df[idx, ]
+test <- df[-idx, ]
 
 train_x <- train[, 1:34]
 train_y <- train[, V35]

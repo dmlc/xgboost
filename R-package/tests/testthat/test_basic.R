@@ -404,7 +404,7 @@ test_that("Configuration works", {
   config <- xgb.config(bst)
   xgb.config(bst) <- config
   reloaded_config <- xgb.config(bst)
-  expect_equal(config, reloaded_config);
+  expect_equal(config, reloaded_config)
 })
 
 test_that("strict_shape works", {
