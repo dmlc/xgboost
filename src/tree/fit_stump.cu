@@ -7,18 +7,17 @@
 #define NOMINMAX
 #endif                                            // !defined(NOMINMAX)
 #include <thrust/execution_policy.h>              // cuda::par
-#include <thrust/functional.h>                    // thrust::equal_to
 #include <thrust/iterator/counting_iterator.h>    // thrust::make_counting_iterator
-#include <thrust/iterator/zip_iterator.h>         // thrust::make_zip_iterator
 
-#include <algorithm>                              // std::max
 #include <cstddef>                                // std::size_t
 
 #include "../collective/device_communicator.cuh"  // DeviceCommunicator
-#include "../common/device_helpers.cuh"           // dh::MakeTransformIterator::Reduce,TypedDiscard
+#include "../common/device_helpers.cuh"           // dh::MakeTransformIterator,Reduce,TypedDiscard
 #include "fit_stump.h"
 #include "xgboost/base.h"     // GradientPairPrecise, GradientPair, XGBOOST_DEVICE
 #include "xgboost/context.h"  // Context
+#include "xgboost/linalg.h"   // TensorView, Tensor, Constant
+#include "xgboost/logging.h"  // CHECK_EQ
 #include "xgboost/span.h"     // span
 
 namespace xgboost {

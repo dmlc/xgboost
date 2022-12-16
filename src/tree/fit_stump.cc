@@ -3,19 +3,20 @@
  *
  * \brief Utilities for estimating initial score.
  */
-
-#if !defined(NOMINMAX) && defined(_WIN32)
-#define NOMINMAX
-#endif  // !defined(NOMINMAX)
 #include "fit_stump.h"
 
-#include <algorithm>  // std::max
+#include <cinttypes>  // std::int32_t
 #include <cstddef>    // std::size_t
 
 #include "../collective/communicator-inl.h"
+#include "../common/common.h"              // AssertGPUSupport
 #include "../common/numeric.h"             // cpu_impl::Reduce
+#include "../common/threading_utils.h"     // ParallelFor
 #include "../common/transform_iterator.h"  // MakeIndexTransformIter
-#include "xgboost/linalg.h"                // TensorView
+#include "xgboost/base.h"                  // bst_target_t, GradientPairPrecise
+#include "xgboost/context.h"               // Context
+#include "xgboost/linalg.h"                // TensorView, Tensor, Constant
+#include "xgboost/logging.h"               // CHECK_EQ
 
 namespace xgboost {
 namespace tree {
