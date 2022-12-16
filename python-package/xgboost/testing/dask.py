@@ -31,6 +31,7 @@ def check_init_estimation_reg(tree_method: str, client: Client) -> None:
     """Test init estimation for regressor."""
     from sklearn.datasets import make_regression
 
+    # pylint: disable=unbalanced-tuple-unpacking
     X, y = make_regression(n_samples=4096 * 2, n_features=32, random_state=1994)
     reg = xgb.XGBRegressor(n_estimators=1, max_depth=1, tree_method=tree_method)
     reg.fit(X, y)
