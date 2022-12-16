@@ -227,8 +227,6 @@ XGB_DLL int XGDMatrixCreateFromFileV2(const char *config, DMatrixHandle *out) {
   auto silent = static_cast<bool>(OptionalArg<Integer, int64_t>(jconfig, "silent", 1));
   auto data_split_mode =
       static_cast<DataSplitMode>(OptionalArg<Integer, int64_t>(jconfig, "data_split_mode", 0));
-  CHECK(data_split_mode != DataSplitMode::kCol)
-      << "Column-wise data split is currently not supported";
 
   *out = new std::shared_ptr<DMatrix>(DMatrix::Load(filename, silent, data_split_mode));
   API_END();

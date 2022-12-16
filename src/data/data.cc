@@ -783,6 +783,9 @@ DMatrix *TryLoadBinary(std::string fname, bool silent) {
 
 DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_split_mode,
                        const std::string& file_format) {
+  CHECK(data_split_mode != DataSplitMode::kCol)
+      << "Column-wise data split is currently not supported";
+
   auto need_split = false;
   if (collective::IsFederated()) {
     LOG(CONSOLE) << "XGBoost federated mode detected, not splitting data among workers";

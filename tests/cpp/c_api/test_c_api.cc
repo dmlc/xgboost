@@ -185,6 +185,17 @@ TEST(CAPI, CatchDMLCError) {
   EXPECT_THROW({ dmlc::Stream::Create("foo", "r"); },  dmlc::Error);
 }
 
+TEST(CAPI, CatchDMLCErrorV2) {
+  Json config{Object()};
+  config["filename"] = String{"foo"};
+  config["silent"] = Integer{0};
+  std::string config_str;
+  Json::Dump(config, &config_str);
+  DMatrixHandle out;
+  ASSERT_EQ(XGDMatrixCreateFromFileV2(config_str.c_str(), &out), -1);
+  EXPECT_THROW({ dmlc::Stream::Create("foo", "r"); },  dmlc::Error);
+}
+
 TEST(CAPI, DMatrixSetFeatureName) {
   size_t constexpr kRows = 10;
   bst_feature_t constexpr kCols = 2;
