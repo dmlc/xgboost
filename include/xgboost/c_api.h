@@ -139,9 +139,11 @@ XGB_DLL int XGDMatrixCreateFromFile(const char *fname, int silent, DMatrixHandle
  * \param config JSON encoded parameters for DMatrix construction.  Accepted fields are:
  *   - filename: The name of the file.
  *   - silent (optional): Whether to print message during loading. Default to true.
- *   - data_split_mode (optional): Whether to split by row or column. In distributed mode, the
- *     file is split accordingly; in local or federated mode, this is only an indicator on how the
- *     file was split beforehand. Default to row.
+ *   - need_split (optional): Whether to split the file. Default to true in distributed mode, false
+ *     otherwise.
+ *   - data_split_mode (optional): Whether to split by row or column. If need_split is true, the
+ *     file is split accordingly; if false, this is only an indicator on how the file was split
+ *     beforehand. Default to row.
  * \param out a loaded data matrix
  * \return 0 when success, -1 when failure happens
  */
