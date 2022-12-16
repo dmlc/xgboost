@@ -404,6 +404,7 @@ void HostDeviceVector<T>::Resize(size_t new_size, T v) {
 template class HostDeviceVector<bst_float>;
 template class HostDeviceVector<double>;
 template class HostDeviceVector<GradientPair>;
+template class HostDeviceVector<GradientPairPrecise>;
 template class HostDeviceVector<int32_t>;   // bst_node_t
 template class HostDeviceVector<uint8_t>;
 template class HostDeviceVector<FeatureType>;

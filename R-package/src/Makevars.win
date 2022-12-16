@@ -55,6 +55,7 @@ OBJECTS= \
     $(PKGROOT)/src/predictor/cpu_predictor.o \
     $(PKGROOT)/src/tree/constraints.o \
     $(PKGROOT)/src/tree/param.o \
+    $(PKGROOT)/src/tree/fit_stump.o \
     $(PKGROOT)/src/tree/tree_model.o \
     $(PKGROOT)/src/tree/tree_updater.o \
     $(PKGROOT)/src/tree/updater_approx.o \
@@ -85,6 +86,7 @@ OBJECTS= \
     $(PKGROOT)/src/common/pseudo_huber.o \
     $(PKGROOT)/src/common/quantile.o \
     $(PKGROOT)/src/common/random.o \
+    $(PKGROOT)/src/common/stats.o \
     $(PKGROOT)/src/common/survival_util.o \
     $(PKGROOT)/src/common/threading_utils.o \
     $(PKGROOT)/src/common/timer.o \
