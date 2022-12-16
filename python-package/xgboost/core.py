@@ -2220,17 +2220,15 @@ class Booster:
         preds = ctypes.POINTER(ctypes.c_float)()
 
         # once caching is supported, we can pass id(data) as cache id.
-        args = {
-            "type": 0,
-            "training": False,
-            "iteration_begin": iteration_range[0],
-            "iteration_end": iteration_range[1],
-            "missing": missing,
-            "strict_shape": strict_shape,
-            "cache_id": 0,
-        }
-        if predict_type == "margin":
-            args["type"] = 1
+        args = make_jcargs(
+            type=1 if predict_type == "margin" else 0,
+            training=False,
+            iteration_begin=iteration_range[0],
+            iteration_end=iteration_range[1],
+            missing=missing,
+            strict_shape=strict_shape,
+            cache_id=0,
+        )
         shape = ctypes.POINTER(c_bst_ulong)()
         dims = c_bst_ulong()
 
@@ -2243,6 +2241,29 @@ class Booster:
             proxy = None
             p_handle = ctypes.c_void_p()
         assert proxy is None or isinstance(proxy, _ProxyDMatrix)
+
+        from .data import (
+            _array_interface,
+            _is_cudf_df,
+            _is_cupy_array,
+            _is_list,
+            _is_pandas_df,
+            _is_pandas_series,
+            _is_tuple,
+            _transform_pandas_df,
+        )
+
+        enable_categorical = True
+        if _is_pandas_series(data):
+            import pandas as pd
+            data = pd.DataFrame(data)
+        if _is_pandas_df(data):
+            data, fns, _ = _transform_pandas_df(data, enable_categorical)
+            if validate_features:
+                self._validate_features(fns)
+        if _is_list(data) or _is_tuple(data):
+            data = np.array(data)
+
         if validate_features:
             if not hasattr(data, "shape"):
                 raise TypeError(
@@ -2254,20 +2275,6 @@ class Booster:
                     f"got {data.shape[1]}"
                 )
 
-        from .data import (
-            _array_interface,
-            _is_cudf_df,
-            _is_cupy_array,
-            _is_pandas_df,
-            _transform_pandas_df,
-        )
-
-        enable_categorical = True
-        if _is_pandas_df(data):
-            data, fns, _ = _transform_pandas_df(data, enable_categorical)
-            if validate_features:
-                self._validate_features(fns)
-
         if isinstance(data, np.ndarray):
             from .data import _ensure_np_dtype
 
@@ -2276,7 +2283,7 @@ class Booster:
                 _LIB.XGBoosterPredictFromDense(
                     self.handle,
                     _array_interface(data),
-                    from_pystr_to_cstr(json.dumps(args)),
+                    args,
                     p_handle,
                     ctypes.byref(shape),
                     ctypes.byref(dims),
@@ -2293,7 +2300,7 @@ class Booster:
                     _array_interface(csr.indices),
                     _array_interface(csr.data),
                     c_bst_ulong(csr.shape[1]),
-                    from_pystr_to_cstr(json.dumps(args)),
+                    args,
                     p_handle,
                     ctypes.byref(shape),
                     ctypes.byref(dims),
@@ -2310,7 +2317,7 @@ class Booster:
                 _LIB.XGBoosterPredictFromCudaArray(
                     self.handle,
                     interface_str,
-                    from_pystr_to_cstr(json.dumps(args)),
+                    args,
                     p_handle,
                     ctypes.byref(shape),
                     ctypes.byref(dims),
@@ -2331,7 +2338,7 @@ class Booster:
                 _LIB.XGBoosterPredictFromCudaColumnar(
                     self.handle,
                     interfaces_str,
-                    from_pystr_to_cstr(json.dumps(args)),
+                    args,
                     p_handle,
                     ctypes.byref(shape),
                     ctypes.byref(dims),
