@@ -24,15 +24,24 @@ void FitStump(Context const* ctx, linalg::TensorView<GradientPair const, 2> gpai
               linalg::VectorView<float> out) {
   auto n_targets = out.Size();
   CHECK_EQ(n_targets, gpair.Shape(1));
-  linalg::Vector<GradientPairPrecise> sum = linalg::Constant(ctx, GradientPairPrecise{}, n_targets);
-  auto h_sum = sum.HostView();
+  linalg::Tensor<GradientPairPrecise, 2> sum_tloc =
+      linalg::Constant(ctx, GradientPairPrecise{}, ctx->Threads(), n_targets);
+  auto h_sum_tloc = sum_tloc.HostView();
   // first dim for gpair is samples, second dim is target.
-  // Reduce by column
-  common::ParallelFor(gpair.Shape(1), ctx->Threads(), [&](auto j) {
-    for (std::size_t i = 0; i < gpair.Shape(0); ++i) {
-      h_sum(j) += GradientPairPrecise{gpair(i, j)};
+  // Reduce by column, parallel by samples
+  common::ParallelFor(gpair.Shape(0), ctx->Threads(), [&](auto i) {
+    for (bst_target_t t = 0; t < n_targets; ++t) {
+      h_sum_tloc(omp_get_thread_num(), t) += GradientPairPrecise{gpair(i, t)};
     }
   });
+  // Aggregate to the first row.
+  auto h_sum = h_sum_tloc.Slice(0, linalg::All());
+  for (std::int32_t i = 1; i < ctx->Threads(); ++i) {
+    for (bst_target_t j = 0; j < n_targets; ++j) {
+      h_sum(j) += h_sum_tloc(i, j);
+    }
+  }
+  CHECK(h_sum.CContiguous());
   collective::Allreduce<collective::Operation::kSum>(
       reinterpret_cast<double*>(h_sum.Values().data()), h_sum.Size() * 2);
 
