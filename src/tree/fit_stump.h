@@ -17,7 +17,7 @@ namespace xgboost {
 namespace tree {
 
 template <typename T>
-XGBOOST_DEVICE inline double CalcUnregulatedWeight(T sum_grad, T sum_hess) {
+XGBOOST_DEVICE inline double CalcUnregularizedWeight(T sum_grad, T sum_hess) {
   return -sum_grad / std::max(sum_hess, static_cast<double>(kRtEps));
 }
 

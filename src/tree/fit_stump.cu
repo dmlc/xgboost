@@ -56,7 +56,7 @@ void FitStump(Context const* ctx, linalg::TensorView<GradientPair const, 2> gpai
   thrust::for_each_n(
       policy, thrust::make_counting_iterator(0ul), n_targets,
       [=] XGBOOST_DEVICE(std::size_t i) mutable {
-        out(i) = static_cast<float>(CalcUnregulatedWeight(d_sum(i).GetGrad(), d_sum(i).GetHess()));
+        out(i) = static_cast<float>(CalcUnregularizedWeight(d_sum(i).GetGrad(), d_sum(i).GetHess()));
       });
 }
 }  // namespace cuda_impl

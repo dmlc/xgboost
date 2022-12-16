@@ -37,7 +37,7 @@ void FitStump(Context const* ctx, linalg::TensorView<GradientPair const, 2> gpai
       reinterpret_cast<double*>(h_sum.Values().data()), h_sum.Size() * 2);
 
   for (std::size_t i = 0; i < h_sum.Size(); ++i) {
-    out(i) = static_cast<float>(CalcUnregulatedWeight(h_sum(i).GetGrad(), h_sum(i).GetHess()));
+    out(i) = static_cast<float>(CalcUnregularizedWeight(h_sum(i).GetGrad(), h_sum(i).GetHess()));
   }
 }
 }  // namespace cpu_impl
