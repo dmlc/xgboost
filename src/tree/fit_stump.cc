@@ -3,19 +3,20 @@
  *
  * \brief Utilities for estimating initial score.
  */
-
-#if !defined(NOMINMAX) && defined(_WIN32)
-#define NOMINMAX
-#endif  // !defined(NOMINMAX)
 #include "fit_stump.h"
 
-#include <algorithm>  // std::max
+#include <cinttypes>  // std::int32_t
 #include <cstddef>    // std::size_t
 
 #include "../collective/communicator-inl.h"
+#include "../common/common.h"              // AssertGPUSupport
 #include "../common/numeric.h"             // cpu_impl::Reduce
+#include "../common/threading_utils.h"     // ParallelFor
 #include "../common/transform_iterator.h"  // MakeIndexTransformIter
-#include "xgboost/linalg.h"                // TensorView
+#include "xgboost/base.h"                  // bst_target_t, GradientPairPrecise
+#include "xgboost/context.h"               // Context
+#include "xgboost/linalg.h"                // TensorView, Tensor, Constant
+#include "xgboost/logging.h"               // CHECK_EQ
 
 namespace xgboost {
 namespace tree {
@@ -24,20 +25,29 @@ void FitStump(Context const* ctx, linalg::TensorView<GradientPair const, 2> gpai
               linalg::VectorView<float> out) {
   auto n_targets = out.Size();
   CHECK_EQ(n_targets, gpair.Shape(1));
-  linalg::Vector<GradientPairPrecise> sum = linalg::Constant(ctx, GradientPairPrecise{}, n_targets);
-  auto h_sum = sum.HostView();
+  linalg::Tensor<GradientPairPrecise, 2> sum_tloc =
+      linalg::Constant(ctx, GradientPairPrecise{}, ctx->Threads(), n_targets);
+  auto h_sum_tloc = sum_tloc.HostView();
   // first dim for gpair is samples, second dim is target.
-  // Reduce by column
-  common::ParallelFor(gpair.Shape(1), ctx->Threads(), [&](auto j) {
-    for (std::size_t i = 0; i < gpair.Shape(0); ++i) {
-      h_sum(j) += GradientPairPrecise{gpair(i, j)};
+  // Reduce by column, parallel by samples
+  common::ParallelFor(gpair.Shape(0), ctx->Threads(), [&](auto i) {
+    for (bst_target_t t = 0; t < n_targets; ++t) {
+      h_sum_tloc(omp_get_thread_num(), t) += GradientPairPrecise{gpair(i, t)};
     }
   });
+  // Aggregate to the first row.
+  auto h_sum = h_sum_tloc.Slice(0, linalg::All());
+  for (std::int32_t i = 1; i < ctx->Threads(); ++i) {
+    for (bst_target_t j = 0; j < n_targets; ++j) {
+      h_sum(j) += h_sum_tloc(i, j);
+    }
+  }
+  CHECK(h_sum.CContiguous());
   collective::Allreduce<collective::Operation::kSum>(
       reinterpret_cast<double*>(h_sum.Values().data()), h_sum.Size() * 2);
 
   for (std::size_t i = 0; i < h_sum.Size(); ++i) {
-    out(i) = static_cast<float>(CalcUnregulatedWeight(h_sum(i).GetGrad(), h_sum(i).GetHess()));
+    out(i) = static_cast<float>(CalcUnregularizedWeight(h_sum(i).GetGrad(), h_sum(i).GetHess()));
   }
 }
 }  // namespace cpu_impl
