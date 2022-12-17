@@ -209,7 +209,6 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     std::memcpy(data.data() + pos, &major_version, sizeof(major_version));
     pos += 1;
     std::memcpy(data.data() + pos, &minor_version, sizeof(minor_version));
-    pos += 1;
 
     std::array<std::int32_t, 6> sync;
     std::copy(data.cbegin(), data.cend(), sync.begin());
