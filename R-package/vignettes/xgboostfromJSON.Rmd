@@ -165,7 +165,7 @@ bst_preds <- predict(bst, as.matrix(data$dates))
 # calculate the predictions casting doubles to floats
 bst_from_json_preds <- ifelse(
   fl(data$dates) < fl(node$split_condition)
-  , as.numeric(1 / (1 + exp(-1 * fl(node$children[[1]]$leaf)))),
+  , as.numeric(1 / (1 + exp(-1 * fl(node$children[[1]]$leaf))))
   , as.numeric(1 / (1 + exp(-1 * fl(node$children[[2]]$leaf))))
 )
 
