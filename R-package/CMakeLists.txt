@@ -16,7 +16,6 @@ target_compile_definitions(xgboost-r
   -DDMLC_LOG_BEFORE_THROW=0
   -DDMLC_DISABLE_STDIN=1
   -DDMLC_LOG_CUSTOMIZE=1
-  -DRABIT_CUSTOMIZE_MSG_
   -DRABIT_STRICT_CXX98_)
 target_include_directories(xgboost-r
   PRIVATE
