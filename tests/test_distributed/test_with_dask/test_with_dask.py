@@ -53,8 +53,10 @@ else:
 
 @pytest.fixture(scope="module")
 def cluster() -> Generator:
+    n_threads = os.cpu_count()
+    assert n_threads is not None
     with LocalCluster(
-        n_workers=2, threads_per_worker=2, dashboard_address=":0"
+        n_workers=2, threads_per_worker=n_threads // 2, dashboard_address=":0"
     ) as dask_cluster:
         yield dask_cluster
 

@@ -402,8 +402,7 @@ struct GPUHistMakerDevice {
             go_left = data.split_node.DefaultLeft();
           } else {
             if (data.split_type == FeatureType::kCategorical) {
-              go_left = common::Decision<false>(data.node_cats.Bits(), cut_value,
-                                                data.split_node.DefaultLeft());
+              go_left = common::Decision(data.node_cats.Bits(), cut_value);
             } else {
               go_left = cut_value <= data.split_node.SplitCond();
             }
@@ -480,7 +479,7 @@ struct GPUHistMakerDevice {
           if (common::IsCat(d_feature_types, position)) {
             auto node_cats = categories.subspan(categories_segments[position].beg,
                                                 categories_segments[position].size);
-            go_left = common::Decision<false>(node_cats, element, node.DefaultLeft());
+            go_left = common::Decision(node_cats, element);
           } else {
             go_left = element <= node.SplitCond();
           }

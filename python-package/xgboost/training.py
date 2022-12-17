@@ -509,13 +509,12 @@ def cv(
     if isinstance(metrics, str):
         metrics = [metrics]
 
+    params = params.copy()
     if isinstance(params, list):
         _metrics = [x[1] for x in params if x[0] == 'eval_metric']
         params = dict(params)
         if 'eval_metric' in params:
             params['eval_metric'] = _metrics
-    else:
-        params = dict((k, v) for k, v in params.items())
 
     if (not metrics) and 'eval_metric' in params:
         if isinstance(params['eval_metric'], list):

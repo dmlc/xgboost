@@ -76,7 +76,7 @@ case "$suite" in
     ;;
 
   cpu)
-    source activate cpu_test
+    source activate linux_cpu_test
     set -x
     install_xgboost
     export RAY_OBJECT_STORE_ALLOW_SLOW_STORAGE=1

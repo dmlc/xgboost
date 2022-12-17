@@ -22,7 +22,7 @@ my_linters <- list(
   commas_linter = lintr::commas_linter(),
   equals_na = lintr::equals_na_linter(),
   infix_spaces_linter = lintr::infix_spaces_linter(),
-  line_length_linter = lintr::line_length_linter(),
+  line_length_linter = lintr::line_length_linter(length = 150L),
   no_tab_linter = lintr::no_tab_linter(),
   object_usage_linter = lintr::object_usage_linter(),
   object_length_linter = lintr::object_length_linter(),

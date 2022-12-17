@@ -48,20 +48,21 @@ inline XGBOOST_DEVICE bool InvalidCat(float cat) {
   return cat < 0 || cat >= kMaxCat;
 }
 
-/* \brief Whether should it traverse to left branch of a tree.
+/**
+ * \brief Whether should it traverse to left branch of a tree.
  *
- *  For one hot split, go to left if it's NOT the matching category.
+ *   Go to left if it's NOT the matching category, which matches one-hot encoding.
  */
-template <bool validate = true>
-inline XGBOOST_DEVICE bool Decision(common::Span<uint32_t const> cats, float cat, bool dft_left) {
+inline XGBOOST_DEVICE bool Decision(common::Span<uint32_t const> cats, float cat) {
   KCatBitField const s_cats(cats);
-  // FIXME: Size() is not accurate since it represents the size of bit set instead of
-  // actual number of categories.
-  if (XGBOOST_EXPECT(validate && (InvalidCat(cat) || cat >= s_cats.Size()), false)) {
-    return dft_left;
+  if (XGBOOST_EXPECT(InvalidCat(cat), false)) {
+    return true;
   }
 
   auto pos = KCatBitField::ToBitPos(cat);
+  // If the input category is larger than the size of the bit field, it implies that the
+  // category is not chosen. Otherwise the bit field would have the category instead of
+  // being smaller than the category value.
   if (pos.int_pos >= cats.size()) {
     return true;
   }

@@ -64,6 +64,6 @@ Imports:
     methods,
     data.table (>= 1.9.6),
     jsonlite (>= 1.0),
-RoxygenNote: 7.2.2
+RoxygenNote: 7.2.3
 Encoding: UTF-8
 SystemRequirements: GNU make, C++14
