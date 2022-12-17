@@ -58,15 +58,13 @@ void FitStump(Context const* ctx, HostDeviceVector<GradientPair> const& gpair,
               bst_target_t n_targets, linalg::Vector<float>* out) {
   out->SetDevice(ctx->gpu_id);
   out->Reshape(n_targets);
-  // column-major
   auto n_samples = gpair.Size() / n_targets;
-  std::size_t shape[2]{n_samples, n_targets};
-  std::size_t strides[2];
-  linalg::detail::CalcStride<2, true>(shape, strides);
 
   gpair.SetDevice(ctx->gpu_id);
   linalg::TensorView<GradientPair const, 2> gpair_t{
-      ctx->IsCPU() ? gpair.ConstHostSpan() : gpair.ConstDeviceSpan(), shape, strides, ctx->gpu_id};
+      ctx->IsCPU() ? gpair.ConstHostSpan() : gpair.ConstDeviceSpan(),
+      {n_samples, n_targets},
+      ctx->gpu_id};
   ctx->IsCPU() ? cpu_impl::FitStump(ctx, gpair_t, out->HostView())
                : cuda_impl::FitStump(ctx, gpair_t, out->View(ctx->gpu_id));
 }
