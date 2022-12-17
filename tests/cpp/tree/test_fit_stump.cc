@@ -15,9 +15,9 @@ void TestFitStump(Context const *ctx) {
   HostDeviceVector<GradientPair> gpair;
   auto &h_gpair = gpair.HostVector();
   h_gpair.resize(kRows * kTargets);
-  for (std::size_t t = 0; t < kTargets; ++t) {
-    for (std::size_t i = 0; i < kRows; ++i) {
-      h_gpair.at(t * kRows + i) = GradientPair{static_cast<float>(i), 1};
+  for (std::size_t i = 0; i < kRows; ++i) {
+    for (std::size_t t = 0; t < kTargets; ++t) {
+      h_gpair.at(i * kTargets + t) = GradientPair{static_cast<float>(i), 1};
     }
   }
   linalg::Vector<float> out;
