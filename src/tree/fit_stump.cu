@@ -12,7 +12,7 @@
 #include <cstddef>                                // std::size_t
 
 #include "../collective/device_communicator.cuh"  // DeviceCommunicator
-#include "../common/device_helpers.cuh"           // dh::MakeTransformIterator,Reduce,TypedDiscard
+#include "../common/device_helpers.cuh"           // dh::MakeTransformIterator,Reduce
 #include "fit_stump.h"
 #include "xgboost/base.h"     // GradientPairPrecise, GradientPair, XGBOOST_DEVICE
 #include "xgboost/context.h"  // Context
@@ -47,7 +47,7 @@ void FitStump(Context const* ctx, linalg::TensorView<GradientPair const, 2> gpai
   dh::XGBCachingDeviceAllocator<char> alloc;
   auto policy = thrust::cuda::par(alloc);
   thrust::reduce_by_key(policy, key_it, key_it + gpair.Size(), grad_it,
-                        dh::TypedDiscard<bst_target_t>{}, dh::tbegin(d_sum.Values()));
+                        thrust::make_discard_iterator(), dh::tbegin(d_sum.Values()));
 
   collective::DeviceCommunicator* communicator = collective::Communicator::GetDevice(ctx->gpu_id);
   communicator->AllReduceSum(reinterpret_cast<double*>(d_sum.Values().data()), d_sum.Size() * 2);
