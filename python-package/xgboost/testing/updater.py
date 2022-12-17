@@ -25,12 +25,13 @@ def check_init_estimation(tree_method: str) -> None:
         base_score_1 = reg.get_params()["base_score"]
         score_1 = reg.evals_result()["validation_0"]["rmse"][0]
         assert not np.isclose(base_score_0, base_score_1)
-        assert score_0 < score_1  # must be better
+        assert score_0 < score_1  # should be better
 
-    X, y = make_regression(n_samples=4096)  # pylint: disable=unbalanced-tuple-unpacking
+    # pylint: disable=unbalanced-tuple-unpacking
+    X, y = make_regression(n_samples=4096, random_state=17)
     run_reg(X, y)
     # pylint: disable=unbalanced-tuple-unpacking
-    X, y = make_regression(n_samples=4096, n_targets=3)
+    X, y = make_regression(n_samples=4096, n_targets=3, random_state=17)
     run_reg(X, y)
 
     def run_clf(X: np.ndarray, y: np.ndarray) -> None:  # pylint: disable=invalid-name
@@ -46,10 +47,12 @@ def check_init_estimation(tree_method: str) -> None:
         base_score_1 = clf.get_params()["base_score"]
         score_1 = clf.evals_result()["validation_0"]["logloss"][0]
         assert not np.isclose(base_score_0, base_score_1)
-        assert score_0 < score_1  # must be better
+        assert score_0 < score_1  # should be better
 
     # pylint: disable=unbalanced-tuple-unpacking
-    X, y = make_classification(n_samples=4096)
+    X, y = make_classification(n_samples=4096, random_state=17)
     run_clf(X, y)
-    X, y = make_multilabel_classification(n_samples=4096, n_labels=3, n_classes=5)
+    X, y = make_multilabel_classification(
+        n_samples=4096, n_labels=3, n_classes=5, random_state=17
+    )
     run_clf(X, y)
