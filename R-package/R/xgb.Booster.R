@@ -629,7 +629,7 @@ xgb.attributes <- function(object) {
 #' @export
 xgb.config <- function(object) {
   handle <- xgb.get.handle(object)
-  .Call(XGBoosterSaveJsonConfig_R, handle);
+  .Call(XGBoosterSaveJsonConfig_R, handle)
 }
 
 #' @rdname xgb.config
