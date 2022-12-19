@@ -53,7 +53,7 @@ test_that("xgb.DMatrix: saving, loading", {
   dtrain <- xgb.DMatrix(tmp_file)
   expect_equal(colnames(dtrain), cnames)
 
-  ft <- rep(c("c", "q"), each=length(cnames)/2)
+  ft <- rep(c("c", "q"), each = length(cnames) / 2)
   setinfo(dtrain, "feature_type", ft)
   expect_equal(ft, getinfo(dtrain, "feature_type"))
 })

@@ -30,7 +30,7 @@ For the purpose of this tutorial we will load the xgboost, jsonlite, and float p
 require(xgboost)
 require(jsonlite)
 require(float)
-options(digits=22)
+options(digits = 22)
 ```
 
 We will create a toy binary logistic model based on the example first provided [here](https://github.com/dmlc/xgboost/issues/3960), so that we can easily understand the structure of the dumped JSON model object.  This will allow us to understand where discrepancies can occur and how they should be handled.
@@ -50,10 +50,10 @@ labels <- c(1, 1, 1,
             0, 0, 0,
             0, 0, 0)
 
-data <- data.frame(dates = dates, labels=labels)
+data <- data.frame(dates = dates, labels = labels)
 
 bst <- xgboost(
-  data = as.matrix(data$dates), 
+  data = as.matrix(data$dates),
   label = labels,
   nthread = 2,
   nrounds = 1,
@@ -69,7 +69,7 @@ We will now dump the model to JSON and attempt to illustrate a variety of issues
 First let's dump the model to JSON:
 
 ```{r}
-bst_json <- xgb.dump(bst, with_stats = FALSE, dump_format='json')
+bst_json <- xgb.dump(bst, with_stats = FALSE, dump_format = 'json')
 bst_from_json <- fromJSON(bst_json, simplifyDataFrame = FALSE)
 node <- bst_from_json[[1]]
 cat(bst_json)
@@ -78,10 +78,10 @@ cat(bst_json)
 The tree JSON shown by the above code-chunk tells us that if the data is less than 20180132, the tree will output the value in the first leaf.  Otherwise it will output the value in the second leaf.  Let's try to reproduce this manually with the data we have and confirm that it matches the model predictions we've already calculated.
 
 ```{r}
-bst_preds_logodds <- predict(bst,as.matrix(data$dates), outputmargin = TRUE)
+bst_preds_logodds <- predict(bst, as.matrix(data$dates), outputmargin = TRUE)
 
 # calculate the logodds values using the JSON representation
-bst_from_json_logodds <- ifelse(data$dates<node$split_condition,
+bst_from_json_logodds <- ifelse(data$dates < node$split_condition,
                                 node$children[[1]]$leaf,
                                 node$children[[2]]$leaf)
 
@@ -106,19 +106,19 @@ At this stage two things happened:
 To explain this, let's repeat the comparison and round to two decimals:
 
 ```{r}
-round(bst_preds_logodds,2) == round(bst_from_json_logodds,2)
+round(bst_preds_logodds, 2) == round(bst_from_json_logodds, 2)
 ```
 
 If we round to two decimals, we see that only the elements related to data values of `20180131` don't agree.  If we convert the data to floats, they agree:
 
 ```{r}
 # now convert the dates to floats first
-bst_from_json_logodds <- ifelse(fl(data$dates)<node$split_condition,
+bst_from_json_logodds <- ifelse(fl(data$dates) < node$split_condition,
                                 node$children[[1]]$leaf,
                                 node$children[[2]]$leaf)
 
 # test that values are equal
-round(bst_preds_logodds,2) == round(bst_from_json_logodds,2)
+round(bst_preds_logodds, 2) == round(bst_from_json_logodds, 2)
 ```
 
 What's the lesson?  If we are going to work with an imported JSON model, any data must be converted to floats first.  In this case, since '20180131' cannot be represented as a 32-bit float, it is rounded up to 20180132, as shown here:
@@ -143,7 +143,7 @@ None are exactly equal.  What happened?  Although we've converted the data to 32
 
 ```{r}
 # now convert the dates to floats first
-bst_from_json_logodds <- ifelse(fl(data$dates)<fl(node$split_condition),
+bst_from_json_logodds <- ifelse(fl(data$dates) < fl(node$split_condition),
                                 as.numeric(fl(node$children[[1]]$leaf)),
                                 as.numeric(fl(node$children[[2]]$leaf)))
 
@@ -160,12 +160,13 @@ We were able to get the log-odds to agree, so now let's manually calculate the s
 
 
 ```{r}
-bst_preds <- predict(bst,as.matrix(data$dates))
+bst_preds <- predict(bst, as.matrix(data$dates))
 
 # calculate the predictions casting doubles to floats
-bst_from_json_preds <- ifelse(fl(data$dates)<fl(node$split_condition),
-                              as.numeric(1/(1+exp(-1*fl(node$children[[1]]$leaf)))),
-                              as.numeric(1/(1+exp(-1*fl(node$children[[2]]$leaf))))
+bst_from_json_preds <- ifelse(
+  fl(data$dates) < fl(node$split_condition)
+  , as.numeric(1 / (1 + exp(-1 * fl(node$children[[1]]$leaf))))
+  , as.numeric(1 / (1 + exp(-1 * fl(node$children[[2]]$leaf))))
 )
 
 # test that values are equal
@@ -177,9 +178,10 @@ None are exactly equal again.  What is going on here?  Well, since we are using 
 How do we fix this?  We have to ensure we use the correct data types everywhere and the correct operators.  If we use only floats, the float library that we have loaded will ensure the 32-bit float exponentiation operator is applied. 
 ```{r}
 # calculate the predictions casting doubles to floats
-bst_from_json_preds <- ifelse(fl(data$dates)<fl(node$split_condition),
-                              as.numeric(fl(1)/(fl(1)+exp(fl(-1)*fl(node$children[[1]]$leaf)))),
-                              as.numeric(fl(1)/(fl(1)+exp(fl(-1)*fl(node$children[[2]]$leaf))))
+bst_from_json_preds <- ifelse(
+  fl(data$dates) < fl(node$split_condition)
+  , as.numeric(fl(1) / (fl(1) + exp(fl(-1) * fl(node$children[[1]]$leaf))))
+  , as.numeric(fl(1) / (fl(1) + exp(fl(-1) * fl(node$children[[2]]$leaf))))
 )
 
 # test that values are equal

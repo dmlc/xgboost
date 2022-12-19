@@ -440,7 +440,7 @@ test_that("xgb.plot.shap.summary works", {
 })
 
 test_that("check.deprecation works", {
-  ttt <- function(a = NNULL, DUMMY=NULL, ...) {
+  ttt <- function(a = NNULL, DUMMY = NULL, ...) {
     check.deprecation(...)
     as.list((environment()))
   }
