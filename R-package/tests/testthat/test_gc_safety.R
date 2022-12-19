@@ -1,5 +1,3 @@
-require(xgboost)
-
 context("Garbage Collection Safety Check")
 
 test_that("train and prediction when gctorture is on", {

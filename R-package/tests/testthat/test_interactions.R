@@ -1,7 +1,5 @@
 context('Test prediction of feature interactions')
 
-require(xgboost)
-
 set.seed(123)
 
 test_that("predict feature interactions works", {

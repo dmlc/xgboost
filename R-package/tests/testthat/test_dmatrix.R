@@ -1,6 +1,3 @@
-require(xgboost)
-require(Matrix)
-
 context("testing xgb.DMatrix functionality")
 
 data(agaricus.test, package = 'xgboost')
@@ -123,7 +120,7 @@ test_that("xgb.DMatrix: colnames", {
 test_that("xgb.DMatrix: nrow is correct for a very sparse matrix", {
   set.seed(123)
   nr <- 1000
-  x <- rsparsematrix(nr, 100, density = 0.0005)
+  x <- Matrix::rsparsematrix(nr, 100, density = 0.0005)
   # we want it very sparse, so that last rows are empty
   expect_lt(max(x@i), nr)
   dtest <- xgb.DMatrix(x)

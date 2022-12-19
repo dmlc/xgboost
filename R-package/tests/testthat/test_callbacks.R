@@ -1,9 +1,4 @@
 # More specific testing of callbacks
-
-require(xgboost)
-require(data.table)
-require(titanic)
-
 context("callbacks")
 
 data(agaricus.train, package = 'xgboost')
@@ -84,7 +79,7 @@ test_that("cb.evaluation.log works as expected", {
                list(c(iter = 1, bst_evaluation), c(iter = 2, bst_evaluation)))
   expect_silent(f(finalize = TRUE))
   expect_equal(evaluation_log,
-               data.table(iter = 1:2, train_auc = c(0.9, 0.9), test_auc = c(0.8, 0.8)))
+               data.table::data.table(iter = 1:2, train_auc = c(0.9, 0.9), test_auc = c(0.8, 0.8)))
 
   bst_evaluation_err  <- c('train-auc' = 0.1, 'test-auc' = 0.2)
   evaluation_log <- list()
@@ -101,7 +96,7 @@ test_that("cb.evaluation.log works as expected", {
                     c(iter = 2, c(bst_evaluation, bst_evaluation_err))))
   expect_silent(f(finalize = TRUE))
   expect_equal(evaluation_log,
-               data.table(iter = 1:2,
+               data.table::data.table(iter = 1:2,
                           train_auc_mean = c(0.9, 0.9), train_auc_std = c(0.1, 0.1),
                           test_auc_mean = c(0.8, 0.8), test_auc_std = c(0.2, 0.2)))
 })
@@ -256,6 +251,9 @@ test_that("early stopping using a specific metric works", {
 })
 
 test_that("early stopping works with titanic", {
+  if (!requireNamespace("titanic")) {
+    testthat::skip("Optional testing dependency 'titanic' not found.")
+  }
   # This test was inspired by https://github.com/dmlc/xgboost/issues/5935
   # It catches possible issues on noLD R
   titanic <- titanic::titanic_train

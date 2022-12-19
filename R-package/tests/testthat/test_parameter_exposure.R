@@ -1,7 +1,5 @@
 context('Test model params and call are exposed to R')
 
-require(xgboost)
-
 data(agaricus.train, package = 'xgboost')
 data(agaricus.test, package = 'xgboost')
 
