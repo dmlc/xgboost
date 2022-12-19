@@ -4,7 +4,7 @@
 #' @rdname xgb.plot.importance
 #' @export
 xgb.ggplot.importance <- function(importance_matrix = NULL, top_n = NULL, measure = NULL,
-                                  rel_to_first = FALSE, n_clusters = c(1:10), ...) {
+                                  rel_to_first = FALSE, n_clusters = seq_len(10), ...) {
 
   importance_matrix <- xgb.plot.importance(importance_matrix, top_n = top_n, measure = measure,
                                            rel_to_first = rel_to_first, plot = FALSE, ...)

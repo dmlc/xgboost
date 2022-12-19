@@ -389,7 +389,7 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
     xgb.iter.update(bst$handle, dtrain, iteration - 1, obj)
 
     if (length(watchlist) > 0)
-      bst_evaluation <- xgb.iter.eval(bst$handle, watchlist, iteration - 1, feval)
+      bst_evaluation <- xgb.iter.eval(bst$handle, watchlist, iteration - 1, feval)  # nolint: object_usage_linter
 
     xgb.attr(bst$handle, 'niter') <- iteration - 1
 

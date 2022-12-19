@@ -44,8 +44,7 @@ jobs:
     - name: Run lintr
       run: |
         MAKEFLAGS="-j$(nproc)" R CMD INSTALL R-package/
-        # Disable lintr errors for now: https://github.com/dmlc/xgboost/issues/8012
-        Rscript tests/ci_build/lint_r.R $(pwd) || true
+        Rscript tests/ci_build/lint_r.R $(pwd)
 
   test-R-on-Windows:
     runs-on: ${{ matrix.config.os }}

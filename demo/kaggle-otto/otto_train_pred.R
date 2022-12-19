@@ -13,7 +13,7 @@ y <- as.integer(y) - 1  # xgboost take features in [0,numOfClass)
 x <- rbind(train[, -ncol(train)], test)
 x <- as.matrix(x)
 x <- matrix(as.numeric(x), nrow(x), ncol(x))
-trind <- 1:length(y)
+trind <- seq_along(y)
 teind <- (nrow(train) + 1):nrow(x)
 
 # Set necessary parameter
@@ -43,6 +43,6 @@ pred <- t(pred)
 
 # Output submission
 pred <- format(pred, digits = 2, scientific = FALSE) # shrink the size of submission
-pred <- data.frame(1:nrow(pred), pred)
+pred <- data.frame(seq_len(nrow(pred)), pred)
 names(pred) <- c('id', paste0('Class_', 1:9))
 write.csv(pred, file = 'submission.csv', quote = FALSE, row.names = FALSE)

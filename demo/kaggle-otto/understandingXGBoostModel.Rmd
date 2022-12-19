@@ -30,7 +30,7 @@ require(xgboost)
 require(methods)
 require(data.table)
 require(magrittr)
-train <- fread('data/train.csv', header = T, stringsAsFactors = FALSE)
+train <- fread('data/train.csv', header = TRUE, stringsAsFactors = FALSE)
 test <- fread('data/test.csv', header = TRUE, stringsAsFactors = FALSE)
 ```
 > `magrittr` and `data.table` are here to make the code cleaner and much more rapid.

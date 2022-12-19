@@ -33,7 +33,7 @@ treeInteractions <- function(input_tree, input_max_depth) {
   }
 
   # Extract nodes with interactions
-  interaction_trees <- trees[!is.na(Split) & !is.na(parent_1),
+  interaction_trees <- trees[!is.na(Split) & !is.na(parent_1),  # nolint: object_usage_linter
                              c('Feature', paste0('parent_feat_', 1:(input_max_depth - 1))),
                              with = FALSE]
   interaction_trees_split <- split(interaction_trees, seq_len(nrow(interaction_trees)))

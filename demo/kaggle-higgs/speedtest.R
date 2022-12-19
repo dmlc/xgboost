@@ -26,7 +26,7 @@ print(paste("weight statistics: wpos=", sumwpos, "wneg=", sumwneg, "ratio=", sum
 
 xgboost.time <- list()
 threads <- c(1, 2, 4, 8, 16)
-for (i in 1:length(threads)){
+for (i in seq_along(threads)){
   thread <- threads[i]
   xgboost.time[[i]] <- system.time({
     xgmat <- xgb.DMatrix(data, label = label, weight = weight, missing = -999.0)
