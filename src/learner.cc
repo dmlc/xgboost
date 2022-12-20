@@ -35,7 +35,7 @@
 #include "common/version.h"
 #include "xgboost/base.h"
 #include "xgboost/c_api.h"
-#include "xgboost/context.h"
+#include "xgboost/context.h"  // Context
 #include "xgboost/data.h"
 #include "xgboost/feature_map.h"
 #include "xgboost/gbm.h"

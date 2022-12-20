@@ -5,7 +5,7 @@
  */
 #include <xgboost/context.h>
 
-#include "common/common.h"
+#include "common/common.h"  // AssertGPUSupport
 #include "common/threading_utils.h"
 
 namespace xgboost {
@@ -59,4 +59,11 @@ std::int32_t Context::Threads() const {
   }
   return n_threads;
 }
+
+#if !defined(XGBOOST_USE_CUDA)
+CUDAContext const* Context::CUDACtx() const {
+  common::AssertGPUSupport();
+  return nullptr;
+}
+#endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost
