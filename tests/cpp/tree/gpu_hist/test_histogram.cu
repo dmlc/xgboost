@@ -11,6 +11,7 @@ namespace xgboost {
 namespace tree {
 
 void TestDeterministicHistogram(bool is_dense, int shm_size) {
+  Context ctx = CreateEmptyGenericParam(0);
   size_t constexpr kBins = 256, kCols = 120, kRows = 16384, kRounds = 16;
   float constexpr kLower = -1e-2, kUpper = 1e2;
 
@@ -34,9 +35,9 @@ void TestDeterministicHistogram(bool is_dense, int shm_size) {
                                  sizeof(GradientPairInt64));
 
     auto quantiser = GradientQuantiser(gpair.DeviceSpan());
-    BuildGradientHistogram(page->GetDeviceAccessor(0),
-                           feature_groups.DeviceAccessor(0), gpair.DeviceSpan(),
-                           ridx, d_histogram, quantiser);
+    BuildGradientHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(0),
+                           feature_groups.DeviceAccessor(0), gpair.DeviceSpan(), ridx, d_histogram,
+                           quantiser);
 
     std::vector<GradientPairInt64> histogram_h(num_bins);
     dh::safe_cuda(cudaMemcpy(histogram_h.data(), d_histogram.data(),
@@ -48,10 +49,9 @@ void TestDeterministicHistogram(bool is_dense, int shm_size) {
       auto d_new_histogram = dh::ToSpan(new_histogram);
 
       auto quantiser = GradientQuantiser(gpair.DeviceSpan());
-      BuildGradientHistogram(page->GetDeviceAccessor(0),
-                             feature_groups.DeviceAccessor(0),
-                             gpair.DeviceSpan(), ridx, d_new_histogram,
-                             quantiser);
+      BuildGradientHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(0),
+                             feature_groups.DeviceAccessor(0), gpair.DeviceSpan(), ridx,
+                             d_new_histogram, quantiser);
 
       std::vector<GradientPairInt64> new_histogram_h(num_bins);
       dh::safe_cuda(cudaMemcpy(new_histogram_h.data(), d_new_histogram.data(),
@@ -71,10 +71,9 @@ void TestDeterministicHistogram(bool is_dense, int shm_size) {
       FeatureGroups single_group(page->Cuts());
 
       dh::device_vector<GradientPairInt64> baseline(num_bins);
-      BuildGradientHistogram(page->GetDeviceAccessor(0),
-                             single_group.DeviceAccessor(0),
-                             gpair.DeviceSpan(), ridx, dh::ToSpan(baseline),
-                             quantiser);
+      BuildGradientHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(0),
+                             single_group.DeviceAccessor(0), gpair.DeviceSpan(), ridx,
+                             dh::ToSpan(baseline), quantiser);
 
       std::vector<GradientPairInt64> baseline_h(num_bins);
       dh::safe_cuda(cudaMemcpy(baseline_h.data(), baseline.data().get(),
@@ -115,6 +114,7 @@ void ValidateCategoricalHistogram(size_t n_categories, common::Span<GradientPair
 
 // Test 1 vs rest categorical histogram is equivalent to one hot encoded data.
 void TestGPUHistogramCategorical(size_t num_categories) {
+  auto ctx = CreateEmptyGenericParam(0);
   size_t constexpr kRows = 340;
   size_t constexpr kBins = 256;
   auto x = GenerateRandomCategoricalSingleColumn(kRows, num_categories);
@@ -133,10 +133,9 @@ void TestGPUHistogramCategorical(size_t num_categories) {
   for (auto const &batch : cat_m->GetBatches<EllpackPage>(batch_param)) {
     auto* page = batch.Impl();
     FeatureGroups single_group(page->Cuts());
-    BuildGradientHistogram(page->GetDeviceAccessor(0),
-                           single_group.DeviceAccessor(0),
-                           gpair.DeviceSpan(), ridx, dh::ToSpan(cat_hist),
-                           quantiser);
+    BuildGradientHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(0),
+                           single_group.DeviceAccessor(0), gpair.DeviceSpan(), ridx,
+                           dh::ToSpan(cat_hist), quantiser);
   }
 
   /**
@@ -148,10 +147,9 @@ void TestGPUHistogramCategorical(size_t num_categories) {
   for (auto const &batch : encode_m->GetBatches<EllpackPage>(batch_param)) {
     auto* page = batch.Impl();
     FeatureGroups single_group(page->Cuts());
-    BuildGradientHistogram(page->GetDeviceAccessor(0),
-                           single_group.DeviceAccessor(0),
-                           gpair.DeviceSpan(), ridx, dh::ToSpan(encode_hist),
-                           quantiser);
+    BuildGradientHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(0),
+                           single_group.DeviceAccessor(0), gpair.DeviceSpan(), ridx,
+                           dh::ToSpan(encode_hist), quantiser);
   }
 
   std::vector<GradientPairInt64> h_cat_hist(cat_hist.size());
