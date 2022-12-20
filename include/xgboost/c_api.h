@@ -126,7 +126,8 @@ XGB_DLL int XGBGetGlobalConfig(char const **out_config);
 
 /*!
  * \brief load a data matrix
- * \deprecated since 1.7.3
+ * \deprecated since 2.0.0
+ * \see XGDMatrixCreateFromURI()
  * \param fname the name of the file
  * \param silent whether print messages during loading
  * \param out a loaded data matrix
@@ -137,7 +138,7 @@ XGB_DLL int XGDMatrixCreateFromFile(const char *fname, int silent, DMatrixHandle
 /*!
  * \brief load a data matrix
  * \param config JSON encoded parameters for DMatrix construction.  Accepted fields are:
- *   - filename: The name of the file.
+ *   - uri: The URI of the input file.
  *   - silent (optional): Whether to print message during loading. Default to true.
  *   - need_split (optional): Whether to split the file. Default to true in distributed mode, false
  *     otherwise.
@@ -147,7 +148,7 @@ XGB_DLL int XGDMatrixCreateFromFile(const char *fname, int silent, DMatrixHandle
  * \param out a loaded data matrix
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGDMatrixCreateFromFileV2(char const *config, DMatrixHandle *out);
+XGB_DLL int XGDMatrixCreateFromURI(char const *config, DMatrixHandle *out);
 
 /**
  * @example c-api-demo.c

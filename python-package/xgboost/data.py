@@ -872,12 +872,11 @@ def _from_uri(
     handle = ctypes.c_void_p()
     data = os.fspath(os.path.expanduser(data))
     args = {
-        "filename": str(data),
+        "uri": str(data),
         "data_split_mode": int(data_split_mode),
     }
     config = bytes(json.dumps(args), "utf-8")
-    _check_call(_LIB.XGDMatrixCreateFromFileV2(config,
-                                               ctypes.byref(handle)))
+    _check_call(_LIB.XGDMatrixCreateFromFileURI(config, ctypes.byref(handle)))
     return handle, feature_names, feature_types
 
 

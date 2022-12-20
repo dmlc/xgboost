@@ -185,14 +185,14 @@ TEST(CAPI, CatchDMLCError) {
   EXPECT_THROW({ dmlc::Stream::Create("foo", "r"); },  dmlc::Error);
 }
 
-TEST(CAPI, CatchDMLCErrorV2) {
+TEST(CAPI, CatchDMLCErrorURI) {
   Json config{Object()};
-  config["filename"] = String{"foo"};
+  config["uri"] = String{"foo"};
   config["silent"] = Integer{0};
   std::string config_str;
   Json::Dump(config, &config_str);
   DMatrixHandle out;
-  ASSERT_EQ(XGDMatrixCreateFromFileV2(config_str.c_str(), &out), -1);
+  ASSERT_EQ(XGDMatrixCreateFromURI(config_str.c_str(), &out), -1);
   EXPECT_THROW({ dmlc::Stream::Create("foo", "r"); },  dmlc::Error);
 }
 

@@ -210,20 +210,20 @@ XGB_DLL int XGDMatrixCreateFromFile(const char *fname, int silent, DMatrixHandle
   xgboost_CHECK_C_ARG_PTR(out);
 
   Json config{Object()};
-  config["filename"] = std::string{fname};
+  config["uri"] = std::string{fname};
   config["silent"] = silent;
   std::string config_str;
   Json::Dump(config, &config_str);
-  return XGDMatrixCreateFromFileV2(config_str.c_str(), out);
+  return XGDMatrixCreateFromURI(config_str.c_str(), out);
 }
 
-XGB_DLL int XGDMatrixCreateFromFileV2(const char *config, DMatrixHandle *out) {
+XGB_DLL int XGDMatrixCreateFromURI(const char *config, DMatrixHandle *out) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(config);
   xgboost_CHECK_C_ARG_PTR(out);
 
   auto jconfig = Json::Load(StringView{config});
-  std::string filename = RequiredArg<String>(jconfig, "filename", __func__);
+  std::string uri = RequiredArg<String>(jconfig, "uri", __func__);
   auto silent = static_cast<bool>(OptionalArg<Integer, int64_t>(jconfig, "silent", 1));
   auto need_split = static_cast<bool>(OptionalArg<Integer, int64_t>(
       jconfig, "need_split", (collective::IsDistributed() && !collective::IsFederated()) ? 1 : 0));
@@ -231,7 +231,7 @@ XGB_DLL int XGDMatrixCreateFromFileV2(const char *config, DMatrixHandle *out) {
       static_cast<DataSplitMode>(OptionalArg<Integer, int64_t>(jconfig, "data_split_mode", 0));
 
   *out = new std::shared_ptr<DMatrix>(
-      DMatrix::Load(filename, silent, data_split_mode, "auto", need_split));
+      DMatrix::Load(uri, silent, data_split_mode, "auto", need_split));
   API_END();
 }
 
