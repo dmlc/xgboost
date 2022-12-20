@@ -876,7 +876,7 @@ def _from_uri(
         "data_split_mode": int(data_split_mode),
     }
     config = bytes(json.dumps(args), "utf-8")
-    _check_call(_LIB.XGDMatrixCreateFromFileURI(config, ctypes.byref(handle)))
+    _check_call(_LIB.XGDMatrixCreateFromURI(config, ctypes.byref(handle)))
     return handle, feature_names, feature_types
 
 
