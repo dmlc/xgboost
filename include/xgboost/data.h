@@ -554,8 +554,7 @@ class DMatrix {
   static DMatrix* Load(const std::string& uri,
                        bool silent = true,
                        DataSplitMode data_split_mode = DataSplitMode::kRow,
-                       const std::string& file_format = "auto",
-                       bool need_split = false);
+                       const std::string& file_format = "auto");
 
   /**
    * \brief Creates a new DMatrix from an external data adapter.

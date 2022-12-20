@@ -225,13 +225,10 @@ XGB_DLL int XGDMatrixCreateFromURI(const char *config, DMatrixHandle *out) {
   auto jconfig = Json::Load(StringView{config});
   std::string uri = RequiredArg<String>(jconfig, "uri", __func__);
   auto silent = static_cast<bool>(OptionalArg<Integer, int64_t>(jconfig, "silent", 1));
-  auto need_split = static_cast<bool>(OptionalArg<Integer, int64_t>(
-      jconfig, "need_split", (collective::IsDistributed() && !collective::IsFederated()) ? 1 : 0));
   auto data_split_mode =
       static_cast<DataSplitMode>(OptionalArg<Integer, int64_t>(jconfig, "data_split_mode", 0));
 
-  *out = new std::shared_ptr<DMatrix>(
-      DMatrix::Load(uri, silent, data_split_mode, "auto", need_split));
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Load(uri, silent, data_split_mode));
   API_END();
 }
 

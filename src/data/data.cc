@@ -782,11 +782,13 @@ DMatrix *TryLoadBinary(std::string fname, bool silent) {
 }
 
 DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_split_mode,
-                       const std::string& file_format, bool need_split) {
-  if (need_split) {
-    LOG(CONSOLE) << "Splitting data among workers";
-  } else {
-    LOG(CONSOLE) << "Not splitting data among workers";
+                       const std::string& file_format) {
+  auto need_split = false;
+  if (collective::IsFederated()) {
+    LOG(CONSOLE) << "XGBoost federated mode detected, not splitting data among workers";
+  } else if (collective::IsDistributed()) {
+    LOG(CONSOLE) << "XGBoost distributed mode detected, will split data among workers";
+    need_split = true;
   }
 
   std::string fname, cache_file;
