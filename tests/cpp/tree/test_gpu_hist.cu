@@ -109,11 +109,10 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   maker.gpair = gpair.DeviceSpan();
   maker.quantiser.reset(new GradientQuantiser(maker.gpair));
 
-  BuildGradientHistogram(
-      page->GetDeviceAccessor(0), maker.feature_groups->DeviceAccessor(0),
-      gpair.DeviceSpan(), maker.row_partitioner->GetRows(0),
-      maker.hist.GetNodeHistogram(0), *maker.quantiser,
-      !use_shared_memory_histograms);
+  BuildGradientHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(0),
+                         maker.feature_groups->DeviceAccessor(0), gpair.DeviceSpan(),
+                         maker.row_partitioner->GetRows(0), maker.hist.GetNodeHistogram(0),
+                         *maker.quantiser, !use_shared_memory_histograms);
 
   DeviceHistogramStorage<>& d_hist = maker.hist;
 
