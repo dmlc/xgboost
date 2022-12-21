@@ -52,11 +52,11 @@ def np_dtypes(
     orig = rng.binomial(1, 0.5, size=n_samples * n_features).reshape(
         n_samples, n_features
     )
-    for dtype in [np.bool_, np.bool8, bool]:
+    for dtype in [np.bool_, bool]:
         X = np.array(orig, dtype=dtype)
         yield orig, X
 
-    for dtype in [np.bool_, np.bool8, bool]:
+    for dtype in [np.bool_, bool]:
         X = np.array(orig, dtype=dtype)
         df_orig = pd.DataFrame(orig)
         df = pd.DataFrame(X)
