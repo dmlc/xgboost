@@ -58,7 +58,7 @@ class InMemoryCommunicatorTest : public ::testing::Test {
     InMemoryCommunicator comm{kWorldSize, rank};
     std::bitset<2> original(rank);
     auto buffer = original.to_ulong();
-    comm.AllReduce(&buffer, sizeof(buffer), DataType::kUInt32, Operation::kBitwiseAND);
+    comm.AllReduce(&buffer, 1, DataType::kUInt32, Operation::kBitwiseAND);
     EXPECT_EQ(buffer, 0UL);
   }
 
@@ -66,7 +66,7 @@ class InMemoryCommunicatorTest : public ::testing::Test {
     InMemoryCommunicator comm{kWorldSize, rank};
     std::bitset<2> original(rank);
     auto buffer = original.to_ulong();
-    comm.AllReduce(&buffer, sizeof(buffer), DataType::kUInt32, Operation::kBitwiseOR);
+    comm.AllReduce(&buffer, 1, DataType::kUInt32, Operation::kBitwiseOR);
     std::bitset<2> actual(buffer);
     std::bitset<2> expected{0b11};
     EXPECT_EQ(actual, expected);
@@ -76,7 +76,7 @@ class InMemoryCommunicatorTest : public ::testing::Test {
     InMemoryCommunicator comm{kWorldSize, rank};
     std::bitset<3> original(rank * 2);
     auto buffer = original.to_ulong();
-    comm.AllReduce(&buffer, sizeof(buffer), DataType::kUInt32, Operation::kBitwiseXOR);
+    comm.AllReduce(&buffer, 1, DataType::kUInt32, Operation::kBitwiseXOR);
     std::bitset<3> actual(buffer);
     std::bitset<3> expected{0b110};
     EXPECT_EQ(actual, expected);
