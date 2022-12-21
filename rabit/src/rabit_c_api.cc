@@ -24,13 +24,35 @@ struct FHelper {
 };
 
 template<typename DType>
+struct FHelper<op::BitAND, DType> {
+  static void
+  Allreduce(DType *,
+            size_t ,
+            void (*)(void *arg),
+            void *) {
+    utils::Error("DataType does not support bitwise AND operation");
+  }
+};
+
+template<typename DType>
 struct FHelper<op::BitOR, DType> {
   static void
   Allreduce(DType *,
             size_t ,
             void (*)(void *arg),
             void *) {
-    utils::Error("DataType does not support bitwise or operation");
+    utils::Error("DataType does not support bitwise OR operation");
+  }
+};
+
+template<typename DType>
+struct FHelper<op::BitXOR, DType> {
+  static void
+  Allreduce(DType *,
+            size_t ,
+            void (*)(void *arg),
+            void *) {
+    utils::Error("DataType does not support bitwise XOR operation");
   }
 };
 
@@ -111,8 +133,20 @@ void Allreduce(void *sendrecvbuf,
            count, enum_dtype,
            prepare_fun, prepare_arg);
       return;
+    case kBitwiseAND:
+      Allreduce<op::BitAND>
+          (sendrecvbuf,
+           count, enum_dtype,
+           prepare_fun, prepare_arg);
+      return;
     case kBitwiseOR:
       Allreduce<op::BitOR>
+          (sendrecvbuf,
+           count, enum_dtype,
+           prepare_fun, prepare_arg);
+      return;
+    case kBitwiseXOR:
+      Allreduce<op::BitXOR>
           (sendrecvbuf,
            count, enum_dtype,
            prepare_fun, prepare_arg);

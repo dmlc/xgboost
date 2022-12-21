@@ -30,6 +30,29 @@ class AllreduceFunctor {
   }
 
  private:
+  template <class T, std::enable_if_t<std::is_integral<T>::value>* = nullptr>
+  void AccumulateBitwise(T* buffer, T const* input, std::size_t size,
+                         Operation reduce_operation) const {
+    switch (reduce_operation) {
+      case Operation::kBitwiseAND:
+        std::transform(buffer, buffer + size, input, buffer, std::bit_and<T>());
+        break;
+      case Operation::kBitwiseOR:
+        std::transform(buffer, buffer + size, input, buffer, std::bit_or<T>());
+        break;
+      case Operation::kBitwiseXOR:
+        std::transform(buffer, buffer + size, input, buffer, std::bit_xor<T>());
+        break;
+      default:
+        throw std::invalid_argument("Invalid reduce operation");
+    }
+  }
+
+  template <class T, std::enable_if_t<std::is_floating_point<T>::value>* = nullptr>
+  void AccumulateBitwise(T*, T const*, std::size_t, Operation) const {
+    LOG(FATAL) << "Floating point types do not support bitwise operations.";
+  }
+
   template <class T>
   void Accumulate(T* buffer, T const* input, std::size_t size, Operation reduce_operation) const {
     switch (reduce_operation) {
@@ -43,6 +66,11 @@ class AllreduceFunctor {
         break;
       case Operation::kSum:
         std::transform(buffer, buffer + size, input, buffer, std::plus<T>());
+        break;
+      case Operation::kBitwiseAND:
+      case Operation::kBitwiseOR:
+      case Operation::kBitwiseXOR:
+        AccumulateBitwise(buffer, input, size, reduce_operation);
         break;
       default:
         throw std::invalid_argument("Invalid reduce operation");
