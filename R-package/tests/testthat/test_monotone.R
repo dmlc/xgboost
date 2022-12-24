@@ -1,5 +1,3 @@
-require(xgboost)
-
 context("monotone constraints")
 
 set.seed(1024)

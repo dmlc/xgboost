@@ -1,6 +1,5 @@
 context('Test Poisson regression model')
 
-require(xgboost)
 set.seed(1994)
 
 test_that("Poisson regression works", {

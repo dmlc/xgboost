@@ -1,5 +1,3 @@
-library(xgboost)
-
 context("feature weights")
 
 test_that("training with feature weights works", {

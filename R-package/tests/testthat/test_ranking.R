@@ -1,12 +1,12 @@
-require(xgboost)
-require(Matrix)
-
 context('Learning to rank')
 
 test_that('Test ranking with unweighted data', {
-  X <- sparseMatrix(i = c(2, 3, 7, 9, 12, 15, 17, 18),
-                    j = c(1, 1, 2, 2,  3,  3,  4,  4),
-                    x = rep(1.0, 8), dims = c(20, 4))
+  X <- Matrix::sparseMatrix(
+    i = c(2, 3, 7, 9, 12, 15, 17, 18)
+    , j = c(1, 1, 2, 2,  3,  3,  4,  4)
+    , x = rep(1.0, 8)
+    , dims = c(20, 4)
+  )
   y <- c(0, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0)
   group <- c(5, 5, 5, 5)
   dtrain <- xgb.DMatrix(X, label = y, group = group)
@@ -20,9 +20,12 @@ test_that('Test ranking with unweighted data', {
 })
 
 test_that('Test ranking with weighted data', {
-  X <- sparseMatrix(i = c(2, 3, 7, 9, 12, 15, 17, 18),
-                    j = c(1, 1, 2, 2,  3,  3,  4,  4),
-                    x = rep(1.0, 8), dims = c(20, 4))
+  X <- Matrix::sparseMatrix(
+    i = c(2, 3, 7, 9, 12, 15, 17, 18)
+    , j = c(1, 1, 2, 2,  3,  3,  4,  4)
+    , x = rep(1.0, 8)
+    , dims = c(20, 4)
+  )
   y <- c(0, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0)
   group <- c(5, 5, 5, 5)
   weight <- c(1.0, 2.0, 3.0, 4.0)

@@ -1,10 +1,11 @@
-library(testthat)
 context('Test helper functions')
 
-require(xgboost)
-require(data.table)
-require(Matrix)
-require(vcd, quietly = TRUE)
+VCD_AVAILABLE <- requireNamespace("vcd", quietly = TRUE)
+.skip_if_vcd_not_available <- function() {
+    if (!VCD_AVAILABLE) {
+        testthat::skip("Optional testing dependency 'vcd' not found.")
+    }
+}
 
 float_tolerance <- 5e-6
 
@@ -12,25 +13,28 @@ float_tolerance <- 5e-6
 flag_32bit <- .Machine$sizeof.pointer != 8
 
 set.seed(1982)
-data(Arthritis)
-df <- data.table(Arthritis, keep.rownames = FALSE)
-df[, AgeDiscret := as.factor(round(Age / 10, 0))]
-df[, AgeCat := as.factor(ifelse(Age > 30, "Old", "Young"))]
-df[, ID := NULL]
-sparse_matrix <- sparse.model.matrix(Improved~.-1, data = df) # nolint
-label <- df[, ifelse(Improved == "Marked", 1, 0)]
 
-# binary
 nrounds <- 12
-bst.Tree <- xgboost(data = sparse_matrix, label = label, max_depth = 9,
-                    eta = 1, nthread = 2, nrounds = nrounds, verbose = 0,
-                    objective = "binary:logistic", booster = "gbtree")
+if (isTRUE(VCD_AVAILABLE)) {
+    data(Arthritis, package = "vcd")
+    df <- data.table::data.table(Arthritis, keep.rownames = FALSE)
+    df[, AgeDiscret := as.factor(round(Age / 10, 0))]
+    df[, AgeCat := as.factor(ifelse(Age > 30, "Old", "Young"))]
+    df[, ID := NULL]
+    sparse_matrix <- Matrix::sparse.model.matrix(Improved~.-1, data = df) # nolint
+    label <- df[, ifelse(Improved == "Marked", 1, 0)]
 
-bst.GLM <- xgboost(data = sparse_matrix, label = label,
-                   eta = 1, nthread = 1, nrounds = nrounds, verbose = 0,
-                   objective = "binary:logistic", booster = "gblinear")
+    # binary
+    bst.Tree <- xgboost(data = sparse_matrix, label = label, max_depth = 9,
+                        eta = 1, nthread = 2, nrounds = nrounds, verbose = 0,
+                        objective = "binary:logistic", booster = "gbtree")
 
-feature.names <- colnames(sparse_matrix)
+    bst.GLM <- xgboost(data = sparse_matrix, label = label,
+                       eta = 1, nthread = 1, nrounds = nrounds, verbose = 0,
+                       objective = "binary:logistic", booster = "gblinear")
+
+    feature.names <- colnames(sparse_matrix)
+}
 
 # multiclass
 mlabel <- as.numeric(iris$Species) - 1
@@ -45,6 +49,7 @@ mbst.GLM <- xgboost(data = as.matrix(iris[, -5]), label = mlabel, verbose = 0,
 
 
 test_that("xgb.dump works", {
+  .skip_if_vcd_not_available()
   if (!flag_32bit)
     expect_length(xgb.dump(bst.Tree), 200)
   dump_file <- file.path(tempdir(), 'xgb.model.dump')
@@ -60,6 +65,7 @@ test_that("xgb.dump works", {
 })
 
 test_that("xgb.dump works for gblinear", {
+  .skip_if_vcd_not_available()
   expect_length(xgb.dump(bst.GLM), 14)
   # also make sure that it works properly for a sparse model where some coefficients
   # are 0 from setting large L1 regularization:
@@ -76,6 +82,7 @@ test_that("xgb.dump works for gblinear", {
 })
 
 test_that("predict leafs works", {
+  .skip_if_vcd_not_available()
   # no error for gbtree
   expect_error(pred_leaf <- predict(bst.Tree, sparse_matrix, predleaf = TRUE), regexp = NA)
   expect_equal(dim(pred_leaf), c(nrow(sparse_matrix), nrounds))
@@ -84,6 +91,7 @@ test_that("predict leafs works", {
 })
 
 test_that("predict feature contributions works", {
+  .skip_if_vcd_not_available()
   # gbtree binary classifier
   expect_error(pred_contr <- predict(bst.Tree, sparse_matrix, predcontrib = TRUE), regexp = NA)
   expect_equal(dim(pred_contr), c(nrow(sparse_matrix), ncol(sparse_matrix) + 1))
@@ -187,6 +195,7 @@ test_that("SHAPs sum to predictions, with or without DART", {
 })
 
 test_that("xgb-attribute functionality", {
+  .skip_if_vcd_not_available()
   val <- "my attribute value"
   list.val <- list(my_attr = val, a = 123, b = 'ok')
   list.ch <- list.val[order(names(list.val))]
@@ -224,6 +233,7 @@ if (grepl('Windows', Sys.info()[['sysname']]) ||
     grepl('Linux', Sys.info()[['sysname']]) ||
     grepl('Darwin', Sys.info()[['sysname']])) {
     test_that("xgb-attribute numeric precision", {
+      .skip_if_vcd_not_available()
       # check that lossless conversion works with 17 digits
       # numeric -> character -> numeric
       X <- 10^runif(100, -20, 20)
@@ -242,6 +252,7 @@ if (grepl('Windows', Sys.info()[['sysname']]) ||
 }
 
 test_that("xgb.Booster serializing as R object works", {
+  .skip_if_vcd_not_available()
   saveRDS(bst.Tree, 'xgb.model.rds')
   bst <- readRDS('xgb.model.rds')
   dtrain <- xgb.DMatrix(sparse_matrix, label = label)
@@ -260,6 +271,7 @@ test_that("xgb.Booster serializing as R object works", {
 })
 
 test_that("xgb.model.dt.tree works with and without feature names", {
+  .skip_if_vcd_not_available()
   names.dt.trees <- c("Tree", "Node", "ID", "Feature", "Split", "Yes", "No", "Missing", "Quality", "Cover")
   dt.tree <- xgb.model.dt.tree(feature_names = feature.names, model = bst.Tree)
   expect_equal(names.dt.trees, names(dt.tree))
@@ -279,16 +291,18 @@ test_that("xgb.model.dt.tree works with and without feature names", {
 
   # using integer node ID instead of character
   dt.tree.int <- xgb.model.dt.tree(model = bst.Tree, use_int_id = TRUE)
-  expect_equal(as.integer(tstrsplit(dt.tree$Yes, '-')[[2]]), dt.tree.int$Yes)
-  expect_equal(as.integer(tstrsplit(dt.tree$No, '-')[[2]]), dt.tree.int$No)
-  expect_equal(as.integer(tstrsplit(dt.tree$Missing, '-')[[2]]), dt.tree.int$Missing)
+  expect_equal(as.integer(data.table::tstrsplit(dt.tree$Yes, '-')[[2]]), dt.tree.int$Yes)
+  expect_equal(as.integer(data.table::tstrsplit(dt.tree$No, '-')[[2]]), dt.tree.int$No)
+  expect_equal(as.integer(data.table::tstrsplit(dt.tree$Missing, '-')[[2]]), dt.tree.int$Missing)
 })
 
 test_that("xgb.model.dt.tree throws error for gblinear", {
+  .skip_if_vcd_not_available()
   expect_error(xgb.model.dt.tree(model = bst.GLM))
 })
 
 test_that("xgb.importance works with and without feature names", {
+  .skip_if_vcd_not_available()
   importance.Tree <- xgb.importance(feature_names = feature.names, model = bst.Tree)
   if (!flag_32bit)
     expect_equal(dim(importance.Tree), c(7, 4))
@@ -354,6 +368,7 @@ test_that("xgb.importance works with and without feature names", {
 })
 
 test_that("xgb.importance works with GLM model", {
+  .skip_if_vcd_not_available()
   importance.GLM <- xgb.importance(feature_names = feature.names, model = bst.GLM)
   expect_equal(dim(importance.GLM), c(10, 2))
   expect_equal(colnames(importance.GLM), c("Feature", "Weight"))
@@ -369,6 +384,7 @@ test_that("xgb.importance works with GLM model", {
 })
 
 test_that("xgb.model.dt.tree and xgb.importance work with a single split model", {
+  .skip_if_vcd_not_available()
   bst1 <- xgboost(data = sparse_matrix, label = label, max_depth = 1,
                   eta = 1, nthread = 2, nrounds = 1, verbose = 0,
                   objective = "binary:logistic")
@@ -380,16 +396,19 @@ test_that("xgb.model.dt.tree and xgb.importance work with a single split model",
 })
 
 test_that("xgb.plot.tree works with and without feature names", {
+  .skip_if_vcd_not_available()
   expect_silent(xgb.plot.tree(feature_names = feature.names, model = bst.Tree))
   expect_silent(xgb.plot.tree(model = bst.Tree))
 })
 
 test_that("xgb.plot.multi.trees works with and without feature names", {
+  .skip_if_vcd_not_available()
   xgb.plot.multi.trees(model = bst.Tree, feature_names = feature.names, features_keep = 3)
   xgb.plot.multi.trees(model = bst.Tree, features_keep = 3)
 })
 
 test_that("xgb.plot.deepness works", {
+  .skip_if_vcd_not_available()
   d2p <- xgb.plot.deepness(model = bst.Tree)
   expect_equal(colnames(d2p), c("ID", "Tree", "Depth", "Cover", "Weight"))
   xgb.plot.deepness(model = bst.Tree, which = "med.depth")
@@ -397,6 +416,7 @@ test_that("xgb.plot.deepness works", {
 })
 
 test_that("xgb.shap.data works when top_n is provided", {
+  .skip_if_vcd_not_available()
   data_list <- xgb.shap.data(data = sparse_matrix, model = bst.Tree, top_n = 2)
   expect_equal(names(data_list), c("data", "shap_contrib"))
   expect_equal(NCOL(data_list$data), 2)
@@ -414,12 +434,14 @@ test_that("xgb.shap.data works when top_n is provided", {
 })
 
 test_that("xgb.shap.data works with subsampling", {
+  .skip_if_vcd_not_available()
   data_list <- xgb.shap.data(data = sparse_matrix, model = bst.Tree, top_n = 2, subsample = 0.8)
   expect_equal(NROW(data_list$data), as.integer(0.8 * nrow(sparse_matrix)))
   expect_equal(NROW(data_list$data), NROW(data_list$shap_contrib))
 })
 
 test_that("prepare.ggplot.shap.data works", {
+  .skip_if_vcd_not_available()
   data_list <- xgb.shap.data(data = sparse_matrix, model = bst.Tree, top_n = 2)
   plot_data <- prepare.ggplot.shap.data(data_list, normalize = TRUE)
   expect_s3_class(plot_data, "data.frame")
@@ -430,11 +452,13 @@ test_that("prepare.ggplot.shap.data works", {
 })
 
 test_that("xgb.plot.shap works", {
+  .skip_if_vcd_not_available()
   sh <- xgb.plot.shap(data = sparse_matrix, model = bst.Tree, top_n = 2, col = 4)
   expect_equal(names(sh), c("data", "shap_contrib"))
 })
 
 test_that("xgb.plot.shap.summary works", {
+  .skip_if_vcd_not_available()
   expect_silent(xgb.plot.shap.summary(data = sparse_matrix, model = bst.Tree, top_n = 2))
   expect_silent(xgb.ggplot.shap.summary(data = sparse_matrix, model = bst.Tree, top_n = 2))
 })

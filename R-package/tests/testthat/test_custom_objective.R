@@ -1,7 +1,5 @@
 context('Test models with custom objective')
 
-require(xgboost)
-
 set.seed(1994)
 
 data(agaricus.train, package = 'xgboost')

@@ -1,7 +1,5 @@
 context('Test generalized linear models')
 
-require(xgboost)
-
 test_that("gblinear works", {
   data(agaricus.train, package = 'xgboost')
   data(agaricus.test, package = 'xgboost')

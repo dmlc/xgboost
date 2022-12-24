@@ -1,6 +1,3 @@
-require(xgboost)
-library(Matrix)
-
 context("basic functions")
 
 data(agaricus.train, package = 'xgboost')
