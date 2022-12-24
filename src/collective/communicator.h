@@ -58,7 +58,14 @@ inline std::size_t GetTypeSize(DataType data_type) {
 }
 
 /** @brief Defines the reduction operation. */
-enum class Operation { kMax = 0, kMin = 1, kSum = 2 };
+enum class Operation {
+  kMax = 0,
+  kMin = 1,
+  kSum = 2,
+  kBitwiseAND = 3,
+  kBitwiseOR = 4,
+  kBitwiseXOR = 5
+};
 
 class DeviceCommunicator;
 

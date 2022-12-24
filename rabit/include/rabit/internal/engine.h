@@ -133,7 +133,9 @@ enum OpType {
   kMax = 0,
   kMin = 1,
   kSum = 2,
-  kBitwiseOR = 3
+  kBitwiseAND = 3,
+  kBitwiseOR = 4,
+  kBitwiseXOR = 5,
 };
 /*!\brief enum of supported data types */
 enum DataType {

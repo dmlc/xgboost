@@ -85,11 +85,25 @@ struct Sum {
     dst += src;
   }
 };
+struct BitAND {
+  static const engine::mpi::OpType kType = engine::mpi::kBitwiseAND;
+  template<typename DType>
+  inline static void Reduce(DType &dst, const DType &src) { // NOLINT(*)
+    dst &= src;
+  }
+};
 struct BitOR {
   static const engine::mpi::OpType kType = engine::mpi::kBitwiseOR;
   template<typename DType>
   inline static void Reduce(DType &dst, const DType &src) { // NOLINT(*)
     dst |= src;
+  }
+};
+struct BitXOR {
+  static const engine::mpi::OpType kType = engine::mpi::kBitwiseXOR;
+  template<typename DType>
+  inline static void Reduce(DType &dst, const DType &src) { // NOLINT(*)
+    dst ^= src;
   }
 };
 template <typename OP, typename DType>

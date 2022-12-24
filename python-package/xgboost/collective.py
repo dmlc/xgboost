@@ -191,6 +191,9 @@ class Op(IntEnum):
     MAX = 0
     MIN = 1
     SUM = 2
+    BITWISE_AND = 3
+    BITWISE_OR = 4
+    BITWISE_XOR = 5
 
 
 def allreduce(  # pylint:disable=invalid-name

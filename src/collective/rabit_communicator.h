@@ -96,11 +96,33 @@ class RabitCommunicator : public Communicator {
   void Print(const std::string &message) override { rabit::TrackerPrint(message); }
 
  protected:
-  void Shutdown() override {
-    rabit::Finalize();
-  }
+  void Shutdown() override { rabit::Finalize(); }
 
  private:
+  template <typename DType, std::enable_if_t<std::is_integral<DType>::value> * = nullptr>
+  void DoBitwiseAllReduce(void *send_receive_buffer, std::size_t count, Operation op) {
+    switch (op) {
+      case Operation::kBitwiseAND:
+        rabit::Allreduce<rabit::op::BitAND, DType>(static_cast<DType *>(send_receive_buffer),
+                                                   count);
+        break;
+      case Operation::kBitwiseOR:
+        rabit::Allreduce<rabit::op::BitOR, DType>(static_cast<DType *>(send_receive_buffer), count);
+        break;
+      case Operation::kBitwiseXOR:
+        rabit::Allreduce<rabit::op::BitXOR, DType>(static_cast<DType *>(send_receive_buffer),
+                                                   count);
+        break;
+      default:
+        LOG(FATAL) << "Unknown allreduce operation";
+    }
+  }
+
+  template <typename DType, std::enable_if_t<std::is_floating_point<DType>::value> * = nullptr>
+  void DoBitwiseAllReduce(void *send_receive_buffer, std::size_t count, Operation op) {
+    LOG(FATAL) << "Floating point types do not support bitwise operations.";
+  }
+
   template <typename DType>
   void DoAllReduce(void *send_receive_buffer, std::size_t count, Operation op) {
     switch (op) {
@@ -112,6 +134,11 @@ class RabitCommunicator : public Communicator {
         break;
       case Operation::kSum:
         rabit::Allreduce<rabit::op::Sum, DType>(static_cast<DType *>(send_receive_buffer), count);
+        break;
+      case Operation::kBitwiseAND:
+      case Operation::kBitwiseOR:
+      case Operation::kBitwiseXOR:
+        DoBitwiseAllReduce<DType>(send_receive_buffer, count, op);
         break;
       default:
         LOG(FATAL) << "Unknown allreduce operation";
