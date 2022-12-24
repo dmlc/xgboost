@@ -273,7 +273,7 @@ xgb.shap.data <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
     }
     top_n <- top_n[1]
     if (top_n < 1 | top_n > 100) stop("top_n: must be an integer within [1, 100]")
-    features <- imp$Feature[1:min(top_n, NROW(imp))]
+    features <- imp$Feature[seq_len(min(top_n, NROW(imp)))]
   }
   if (is.character(features)) {
     features <- match(features, colnames(data))

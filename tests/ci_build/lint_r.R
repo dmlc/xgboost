@@ -67,6 +67,5 @@ noquote(paste0("Total linting issues found: ", issues_found))
 
 if (issues_found > 0L) {
     print(results)
+    quit(save = "no", status = 1L)
 }
-
-quit(save = "no", status = 1L)

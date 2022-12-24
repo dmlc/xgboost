@@ -10,7 +10,7 @@ xgb.ggplot.importance(
   top_n = NULL,
   measure = NULL,
   rel_to_first = FALSE,
-  n_clusters = c(1:10),
+  n_clusters = seq_len(10),
   ...
 )
 
