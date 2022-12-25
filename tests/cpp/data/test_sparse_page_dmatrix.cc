@@ -108,8 +108,7 @@ TEST(SparsePageDMatrix, MetaInfo) {
   size_t constexpr kEntries = 24;
   CreateBigTestData(tmp_file, kEntries);
 
-  xgboost::DMatrix *dmat = xgboost::DMatrix::Load(
-      tmp_file + "#" + tmp_file + ".cache", false, xgboost::DataSplitMode::kNone);
+  xgboost::DMatrix *dmat = xgboost::DMatrix::Load(tmp_file + "#" + tmp_file + ".cache", false);
 
   // Test the metadata that was parsed
   EXPECT_EQ(dmat->Info().num_row_, 8ul);
@@ -136,8 +135,7 @@ TEST(SparsePageDMatrix, ColAccess) {
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/simple.libsvm";
   CreateSimpleTestData(tmp_file);
-  xgboost::DMatrix *dmat =
-      xgboost::DMatrix::Load(tmp_file + "#" + tmp_file + ".cache", true, xgboost::DataSplitMode::kNone);
+  xgboost::DMatrix *dmat = xgboost::DMatrix::Load(tmp_file + "#" + tmp_file + ".cache");
 
   // Loop over the batches and assert the data is as expected
   size_t iter = 0;

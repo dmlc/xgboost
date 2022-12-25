@@ -175,7 +175,7 @@ TEST(MetaInfo, LoadQid) {
     os.set_stream(nullptr);
   }
   std::unique_ptr<xgboost::DMatrix> dmat(
-    xgboost::DMatrix::Load(tmp_file, true, xgboost::DataSplitMode::kNone, "libsvm"));
+    xgboost::DMatrix::Load(tmp_file, true, xgboost::DataSplitMode::kRow, "libsvm"));
 
   const xgboost::MetaInfo& info = dmat->Info();
   const std::vector<xgboost::bst_uint> expected_group_ptr{0, 4, 8, 12};

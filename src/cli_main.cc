@@ -112,10 +112,8 @@ struct CLIParam : public XGBoostParameter<CLIParam> {
     DMLC_DECLARE_FIELD(name_pred).set_default("pred.txt")
         .describe("Name of the prediction file.");
     DMLC_DECLARE_FIELD(dsplit).set_default(0)
-        .add_enum("auto", 0)
+        .add_enum("row", 0)
         .add_enum("col", 1)
-        .add_enum("row", 2)
-        .add_enum("none", 3)
         .describe("Data split mode.");
     DMLC_DECLARE_FIELD(ntree_limit).set_default(0).set_lower_bound(0)
         .describe("(Deprecated) Use iteration_begin/iteration_end instead.");
@@ -157,15 +155,6 @@ struct CLIParam : public XGBoostParameter<CLIParam> {
     // constraint.
     if (name_pred == "stdout") {
       save_period = 0;
-    }
-    if (dsplit == static_cast<int>(DataSplitMode::kAuto)) {
-      if (collective::IsFederated()) {
-        dsplit = static_cast<int>(DataSplitMode::kNone);
-      } else if (collective::IsDistributed()) {
-        dsplit = static_cast<int>(DataSplitMode::kRow);
-      } else {
-        dsplit = static_cast<int>(DataSplitMode::kNone);
-      }
     }
   }
 };

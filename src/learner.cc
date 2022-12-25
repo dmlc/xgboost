@@ -273,8 +273,6 @@ void LearnerModelParam::Copy(LearnerModelParam const& that) {
 }
 
 struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
-  // data split mode, can be row, col, or none.
-  DataSplitMode dsplit {DataSplitMode::kAuto};
   // flag to disable default metric
   bool disable_default_eval_metric {false};
   // FIXME(trivialfis): The following parameters belong to model itself, but can be
@@ -284,13 +282,6 @@ struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
 
   // declare parameters
   DMLC_DECLARE_PARAMETER(LearnerTrainParam) {
-    DMLC_DECLARE_FIELD(dsplit)
-        .set_default(DataSplitMode::kAuto)
-        .add_enum("auto", DataSplitMode::kAuto)
-        .add_enum("col", DataSplitMode::kCol)
-        .add_enum("row", DataSplitMode::kRow)
-        .add_enum("none", DataSplitMode::kNone)
-        .describe("Data split mode for distributed training.");
     DMLC_DECLARE_FIELD(disable_default_eval_metric)
         .set_default(false)
         .describe("Flag to disable default metric. Set to >0 to disable");
@@ -444,12 +435,6 @@ class LearnerConfiguration : public Learner {
     ctx_.UpdateAllowUnknown(args);
 
     ConsoleLogger::Configure(args);
-
-    // add additional parameters
-    // These are cosntraints that need to be satisfied.
-    if (tparam_.dsplit == DataSplitMode::kAuto && collective::IsDistributed()) {
-      tparam_.dsplit = DataSplitMode::kRow;
-    }
 
     // set seed only before the model is initialized
     if (!initialized || ctx_.seed != old_seed) {
@@ -1055,11 +1040,6 @@ class LearnerIO : public LearnerConfiguration {
     auto n = tparam_.__DICT__();
     cfg_.insert(n.cbegin(), n.cend());
 
-    // copy dsplit from config since it will not run again during restore
-    if (tparam_.dsplit == DataSplitMode::kAuto && collective::IsDistributed()) {
-      tparam_.dsplit = DataSplitMode::kRow;
-    }
-
     this->need_configuration_ = true;
   }
 
@@ -1199,16 +1179,6 @@ class LearnerImpl : public LearnerIO {
       local_map->erase(this);
     }
   }
-  // Configuration before data is known.
-  void CheckDataSplitMode() {
-    if (collective::IsDistributed()) {
-      CHECK(tparam_.dsplit != DataSplitMode::kAuto)
-        << "Precondition violated; dsplit cannot be 'auto' in distributed mode";
-      if (tparam_.dsplit == DataSplitMode::kCol) {
-        LOG(FATAL) << "Column-wise data split is currently not supported.";
-      }
-    }
-  }
 
   std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,
                                      std::string format) override {
@@ -1266,7 +1236,6 @@ class LearnerImpl : public LearnerIO {
       common::GlobalRandom().seed(ctx_.seed * kRandSeedMagic + iter);
     }
 
-    this->CheckDataSplitMode();
     this->ValidateDMatrix(train.get(), true);
 
     auto local_cache = this->GetPredictionCache();
@@ -1295,7 +1264,6 @@ class LearnerImpl : public LearnerIO {
       common::GlobalRandom().seed(ctx_.seed * kRandSeedMagic + iter);
     }
 
-    this->CheckDataSplitMode();
     this->ValidateDMatrix(train.get(), true);
 
     auto local_cache = this->GetPredictionCache();
@@ -1444,19 +1412,14 @@ class LearnerImpl : public LearnerIO {
     MetaInfo const& info = p_fmat->Info();
     info.Validate(ctx_.gpu_id);
 
-    auto const row_based_split = [this]() {
-      return tparam_.dsplit == DataSplitMode::kRow || tparam_.dsplit == DataSplitMode::kAuto;
-    };
-    if (row_based_split()) {
-      if (is_training) {
-        CHECK_EQ(learner_model_param_.num_feature, p_fmat->Info().num_col_)
-            << "Number of columns does not match number of features in "
-               "booster.";
-      } else {
-        CHECK_GE(learner_model_param_.num_feature, p_fmat->Info().num_col_)
-            << "Number of columns does not match number of features in "
-               "booster.";
-      }
+    if (is_training) {
+      CHECK_EQ(learner_model_param_.num_feature, p_fmat->Info().num_col_)
+          << "Number of columns does not match number of features in "
+             "booster.";
+    } else {
+      CHECK_GE(learner_model_param_.num_feature, p_fmat->Info().num_col_)
+          << "Number of columns does not match number of features in "
+             "booster.";
     }
 
     if (p_fmat->Info().num_row_ == 0) {

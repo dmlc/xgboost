@@ -203,7 +203,6 @@ Will print out something similar to (not actual output as it's too long for demo
         "learner_train_param": {
           "booster": "gbtree",
           "disable_default_eval_metric": "0",
-          "dsplit": "auto",
           "objective": "reg:squarederror"
         },
         "metrics": [],

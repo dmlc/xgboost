@@ -98,8 +98,7 @@ TEST(Learner, SLOW_CheckMultiBatch) {  // NOLINT
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/big.libsvm";
   CreateBigTestData(tmp_file, 50000);
-  std::shared_ptr<DMatrix> dmat(xgboost::DMatrix::Load(
-      tmp_file + "#" + tmp_file + ".cache", true, DataSplitMode::kNone, "auto"));
+  std::shared_ptr<DMatrix> dmat(xgboost::DMatrix::Load(tmp_file + "#" + tmp_file + ".cache"));
   EXPECT_FALSE(dmat->SingleColBlock());
   size_t num_row = dmat->Info().num_row_;
   std::vector<bst_float> labels(num_row);

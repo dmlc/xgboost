@@ -27,7 +27,6 @@ std::string GetModelStr() {
   "train_parameter": {
     "debug_verbose": "0",
     "disable_default_eval_metric": "0",
-    "dsplit": "auto",
     "nthread": "0",
     "seed": "0",
     "seed_per_iteration": "0",
