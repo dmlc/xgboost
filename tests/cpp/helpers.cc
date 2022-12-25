@@ -38,12 +38,6 @@ bool FileExists(const std::string& filename) {
   return stat(filename.c_str(), &st) == 0;
 }
 
-int64_t GetFileSize(const std::string& filename) {
-  struct stat st;
-  stat(filename.c_str(), &st);
-  return st.st_size;
-}
-
 void CreateSimpleTestData(const std::string& filename) {
   CreateBigTestData(filename, 6);
 }
