@@ -50,8 +50,6 @@ Float RelError(Float l, Float r) {
 
 bool FileExists(const std::string& filename);
 
-int64_t GetFileSize(const std::string& filename);
-
 void CreateSimpleTestData(const std::string& filename);
 
 // Create a libsvm format file with 3 entries per-row. `zero_based` specifies whether it's
