@@ -3,13 +3,7 @@ import pytest
 
 import xgboost as xgb
 
-try:
-    import shap
-except ImportError:
-    shap = None
-    pass
-
-pytestmark = pytest.mark.skipif(shap is None, reason="Requires shap package")
+shap = pytest.importorskip("shap")
 
 
 # Check integration is not broken from xgboost side
