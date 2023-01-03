@@ -8,10 +8,11 @@
 #include <limits>
 #include <vector>
 
-#include "common.h"              // AssertGPUSupport
+#include "common.h"              // AssertGPUSupport, OptionalWeights
 #include "transform_iterator.h"  // MakeIndexTransformIter
 #include "xgboost/context.h"     // Context
 #include "xgboost/linalg.h"
+#include "xgboost/logging.h"  // CHECK_GE
 
 namespace xgboost {
 namespace common {
@@ -93,43 +94,25 @@ float WeightedQuantile(double alpha, Iter begin, Iter end, WeightIter weights) {
   return val(idx);
 }
 
-namespace cuda {
-float Median(Context const* ctx, linalg::TensorView<float const, 2> t,
-             common::OptionalWeights weights);
+namespace cuda_impl {
+float Median(Context const* ctx, linalg::TensorView<float const, 2> t, OptionalWeights weights);
+void Mean(Context const* ctx, linalg::VectorView<float const> v, linalg::VectorView<float> out);
+
 #if !defined(XGBOOST_USE_CUDA)
-inline float Median(Context const*, linalg::TensorView<float const, 2>, common::OptionalWeights) {
-  AssertGPUSupport();
+inline float Median(Context const*, linalg::TensorView<float const, 2>, OptionalWeights) {
+  common::AssertGPUSupport();
   return 0;
 }
-#endif  // !defined(XGBOOST_USE_CUDA)
-}  // namespace cuda
-
-inline float Median(Context const* ctx, linalg::Tensor<float, 2> const& t,
-                    HostDeviceVector<float> const& weights) {
-  if (!ctx->IsCPU()) {
-    weights.SetDevice(ctx->gpu_id);
-    auto opt_weights = OptionalWeights(weights.ConstDeviceSpan());
-    auto t_v = t.View(ctx->gpu_id);
-    return cuda::Median(ctx, t_v, opt_weights);
-  }
-
-  auto opt_weights = OptionalWeights(weights.ConstHostSpan());
-  auto t_v = t.HostView();
-  auto iter = common::MakeIndexTransformIter(
-      [&](size_t i) { return linalg::detail::Apply(t_v, linalg::UnravelIndex(i, t_v.Shape())); });
-  float q{0};
-  if (opt_weights.Empty()) {
-    q = common::Quantile(0.5, iter, iter + t_v.Size());
-  } else {
-    CHECK_NE(t_v.Shape(1), 0);
-    auto w_it = common::MakeIndexTransformIter([&](size_t i) {
-      auto sample_idx = i / t_v.Shape(1);
-      return opt_weights[sample_idx];
-    });
-    q = common::WeightedQuantile(0.5, iter, iter + t_v.Size(), w_it);
-  }
-  return q;
+inline void Mean(Context const*, linalg::VectorView<float const>, linalg::VectorView<float>) {
+  common::AssertGPUSupport();
 }
+#endif  // !defined(XGBOOST_USE_CUDA)
+}  // namespace cuda_impl
+
+float Median(Context const* ctx, linalg::Tensor<float, 2> const& t,
+             HostDeviceVector<float> const& weights);
+
+void Mean(Context const* ctx, linalg::Vector<float> const& v, linalg::Vector<float>* out);
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_STATS_H_
