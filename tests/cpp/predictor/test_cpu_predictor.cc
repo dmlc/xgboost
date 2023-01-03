@@ -6,6 +6,7 @@
 
 #include <thread>
 
+#include "../../../src/collective/communicator-inl.h"
 #include "../../../src/data/adapter.h"
 #include "../../../src/data/proxy_dmatrix.h"
 #include "../../../src/gbm/gbtree.h"
@@ -97,6 +98,12 @@ TEST(CpuPredictor, ColumnSplit) {
   auto constexpr kWorldSize = 2;
    for (auto rank = 0; rank < kWorldSize; rank++) {
     threads.emplace_back([=, &dmat]() {
+      Json config{JsonObject()};
+      config["xgboost_communicator"] = String("in-memory");
+      config["in_memory_world_size"] = kWorldSize;
+      config["in_memory_rank"] = rank;
+      xgboost::collective::Init(config);
+
       auto lparam = CreateEmptyGenericParam(GPUIDX);
       std::unique_ptr<Predictor> cpu_predictor =
           std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &lparam));
@@ -118,6 +125,7 @@ TEST(CpuPredictor, ColumnSplit) {
       for (size_t i = 0; i < out_predictions.predictions.Size(); i++) {
         ASSERT_EQ(out_predictions_h[i], 1.5);
       }
+      xgboost::collective::Finalize();
     });
    }
   for (auto& thread : threads) {

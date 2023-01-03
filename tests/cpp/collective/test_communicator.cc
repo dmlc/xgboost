@@ -18,6 +18,9 @@ TEST(CommunicatorFactory, TypeFromEnv) {
   dmlc::SetEnv<std::string>("XGBOOST_COMMUNICATOR", "Federated");
   EXPECT_EQ(CommunicatorType::kFederated, Communicator::GetTypeFromEnv());
 
+  dmlc::SetEnv<std::string>("XGBOOST_COMMUNICATOR", "In-Memory");
+  EXPECT_EQ(CommunicatorType::kInMemory, Communicator::GetTypeFromEnv());
+
   dmlc::SetEnv<std::string>("XGBOOST_COMMUNICATOR", "foo");
   EXPECT_THROW(Communicator::GetTypeFromEnv(), dmlc::Error);
 }
@@ -32,6 +35,9 @@ TEST(CommunicatorFactory, TypeFromArgs) {
   config["xgboost_communicator"] = String("federated");
   EXPECT_EQ(CommunicatorType::kFederated, Communicator::GetTypeFromConfig(config));
 
+  config["xgboost_communicator"] = String("in-memory");
+  EXPECT_EQ(CommunicatorType::kInMemory, Communicator::GetTypeFromConfig(config));
+
   config["xgboost_communicator"] = String("foo");
   EXPECT_THROW(Communicator::GetTypeFromConfig(config), dmlc::Error);
 }
@@ -45,6 +51,9 @@ TEST(CommunicatorFactory, TypeFromArgsUpperCase) {
 
   config["XGBOOST_COMMUNICATOR"] = String("federated");
   EXPECT_EQ(CommunicatorType::kFederated, Communicator::GetTypeFromConfig(config));
+
+  config["XGBOOST_COMMUNICATOR"] = String("in-memory");
+  EXPECT_EQ(CommunicatorType::kInMemory, Communicator::GetTypeFromConfig(config));
 
   config["XGBOOST_COMMUNICATOR"] = String("foo");
   EXPECT_THROW(Communicator::GetTypeFromConfig(config), dmlc::Error);

@@ -207,6 +207,8 @@ class Communicator {
       result = CommunicatorType::kRabit;
     } else if (!CompareStringsCaseInsensitive("federated", str)) {
       result = CommunicatorType::kFederated;
+    } else if (!CompareStringsCaseInsensitive("in-memory", str)) {
+      result = CommunicatorType::kInMemory;
     } else {
       LOG(FATAL) << "Unknown communicator type " << str;
     }
