@@ -725,7 +725,7 @@ class XGBModel(XGBModelBase):
                         stack.append(v)
 
             for k, v in internal.items():
-                if k in params and params[k] is None:
+                if k not in params:
                     params[k] = parse_parameter(v)
         except ValueError:
             pass
