@@ -1,5 +1,3 @@
-require(xgboost)
-
 context("update trees in an existing model")
 
 data(agaricus.train, package = 'xgboost')

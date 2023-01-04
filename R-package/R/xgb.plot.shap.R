@@ -143,7 +143,7 @@ xgb.plot.shap <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
       y <- shap_contrib[, f][ord]
       x_lim <- range(x, na.rm = TRUE)
       y_lim <- range(y, na.rm = TRUE)
-      do_na <- plot_NA && any(is.na(x))
+      do_na <- plot_NA && anyNA(x)
       if (do_na) {
         x_range <- diff(x_lim)
         loc_na <- min(x, na.rm = TRUE) + x_range * pos_NA
@@ -272,8 +272,8 @@ xgb.shap.data <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
       imp <- xgb.importance(model = model, trees = trees, feature_names = colnames(data))
     }
     top_n <- top_n[1]
-    if (top_n < 1 | top_n > 100) stop("top_n: must be an integer within [1, 100]")
-    features <- imp$Feature[1:min(top_n, NROW(imp))]
+    if (top_n < 1 || top_n > 100) stop("top_n: must be an integer within [1, 100]")
+    features <- imp$Feature[seq_len(min(top_n, NROW(imp)))]
   }
   if (is.character(features)) {
     features <- match(features, colnames(data))

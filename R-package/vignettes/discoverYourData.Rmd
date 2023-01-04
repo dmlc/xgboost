@@ -28,7 +28,9 @@ Package loading:
 require(xgboost)
 require(Matrix)
 require(data.table)
-if (!require('vcd')) install.packages('vcd')
+if (!require('vcd')) {
+  install.packages('vcd')
+}
 ```
 
 > **VCD** package is used for one of its embedded dataset only.
@@ -100,7 +102,7 @@ Note that we transform it to `factor` so the algorithm treat these age groups as
 Therefore, 20 is not closer to 30 than 60. To make it short, the distance between ages is lost in this transformation.
 
 ```{r}
-head(df[,AgeDiscret := as.factor(round(Age/10,0))])
+head(df[, AgeDiscret := as.factor(round(Age / 10, 0))])
 ```
 
 ##### Random split into two groups
@@ -108,7 +110,7 @@ head(df[,AgeDiscret := as.factor(round(Age/10,0))])
 Following is an even stronger simplification of the real age with an arbitrary split at 30 years old. We choose this value **based on nothing**. We will see later if simplifying the information based on arbitrary values is a good strategy (you may already have an idea of how well it will work...).
 
 ```{r}
-head(df[,AgeCat:= as.factor(ifelse(Age > 30, "Old", "Young"))])
+head(df[, AgeCat := as.factor(ifelse(Age > 30, "Old", "Young"))])
 ```
 
 ##### Risks in adding correlated features
@@ -124,13 +126,13 @@ Fortunately, decision tree algorithms (including boosted trees) are very robust 
 We remove ID as there is nothing to learn from this feature (it would just add some noise).
 
 ```{r, results='hide'}
-df[,ID:=NULL]
+df[, ID := NULL]
 ```
 
 We will list the different values for the column `Treatment`:
 
 ```{r}
-levels(df[,Treatment])
+levels(df[, Treatment])
 ```
 
 
@@ -147,7 +149,7 @@ For example, the column `Treatment` will be replaced by two columns, `TreatmentP
 Column `Improved` is excluded because it will be our `label` column, the one we want to predict.
 
 ```{r, warning=FALSE,message=FALSE}
-sparse_matrix <- sparse.model.matrix(Improved ~ ., data = df)[,-1]
+sparse_matrix <- sparse.model.matrix(Improved ~ ., data = df)[, -1]
 head(sparse_matrix)
 ```
 
@@ -156,7 +158,7 @@ head(sparse_matrix)
 Create the output `numeric` vector (not as a sparse `Matrix`):
 
 ```{r}
-output_vector = df[,Improved] == "Marked"
+output_vector <- df[, Improved] == "Marked"
 ```
 
 1. set `Y` vector to `0`;
@@ -170,7 +172,7 @@ The code below is very usual. For more information, you can look at the document
 
 ```{r}
 bst <- xgboost(data = sparse_matrix, label = output_vector, max_depth = 4,
-               eta = 1, nthread = 2, nrounds = 10,objective = "binary:logistic")
+               eta = 1, nthread = 2, nrounds = 10, objective = "binary:logistic")
 
 ```
 
@@ -219,7 +221,7 @@ For that purpose we will execute the same function as above but using two more p
 importanceRaw <- xgb.importance(feature_names = colnames(sparse_matrix), model = bst, data = sparse_matrix, label = output_vector)
 
 # Cleaning for better display
-importanceClean <- importanceRaw[,`:=`(Cover=NULL, Frequency=NULL)]
+importanceClean <- importanceRaw[, `:=`(Cover = NULL, Frequency = NULL)]
 
 head(importanceClean)
 ```
@@ -321,8 +323,8 @@ If you want to try Random Forests algorithm, you can tweak XGBoost parameters!
 For instance, to compute a model with 1000 trees, with a 0.5 factor on sampling rows and columns:
 
 ```{r, warning=FALSE, message=FALSE}
-data(agaricus.train, package='xgboost')
-data(agaricus.test, package='xgboost')
+data(agaricus.train, package = 'xgboost')
+data(agaricus.test, package = 'xgboost')
 train <- agaricus.train
 test <- agaricus.test
 

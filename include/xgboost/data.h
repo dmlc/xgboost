@@ -40,9 +40,7 @@ enum class DataType : uint8_t {
 
 enum class FeatureType : uint8_t { kNumerical = 0, kCategorical = 1 };
 
-enum class DataSplitMode : int {
-  kAuto = 0, kCol = 1, kRow = 2, kNone = 3
-};
+enum class DataSplitMode : int { kRow = 0, kCol = 1 };
 
 /*!
  * \brief Meta information about dataset, always sit in memory.
@@ -60,6 +58,8 @@ class MetaInfo {
   uint64_t num_nonzero_{0};  // NOLINT
   /*! \brief label of each instance */
   linalg::Tensor<float, 2> labels;
+  /*! \brief data split mode */
+  DataSplitMode data_split_mode{DataSplitMode::kRow};
   /*!
    * \brief the index of begin and end of a group
    *  needed when the learning task is ranking.
@@ -544,15 +544,16 @@ class DMatrix {
    * \brief Load DMatrix from URI.
    * \param uri The URI of input.
    * \param silent Whether print information during loading.
-   * \param data_split_mode Mode to read in part of the data, divided among the workers in distributed mode.
+   * \param data_split_mode In distributed mode, split the input according this mode; otherwise,
+   *                        it's just an indicator on how the input was split beforehand.
    * \param file_format The format type of the file, used for dmlc::Parser::Create.
    *   By default "auto" will be able to load in both local binary file.
    * \param page_size Page size for external memory.
    * \return The created DMatrix.
    */
   static DMatrix* Load(const std::string& uri,
-                       bool silent,
-                       DataSplitMode data_split_mode,
+                       bool silent = true,
+                       DataSplitMode data_split_mode = DataSplitMode::kRow,
                        const std::string& file_format = "auto");
 
   /**

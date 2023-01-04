@@ -52,9 +52,9 @@ It has several features:
 For weekly updated version (highly recommended), install from *GitHub*:
 
 ```{r installGithub, eval=FALSE}
-install.packages("drat", repos="https://cran.rstudio.com")
+install.packages("drat", repos = "https://cran.rstudio.com")
 drat:::addRepo("dmlc")
-install.packages("xgboost", repos="http://dmlc.ml/drat/", type = "source")
+install.packages("xgboost", repos = "http://dmlc.ml/drat/", type = "source")
 ```
 
 > *Windows* user will need to install [Rtools](https://cran.r-project.org/bin/windows/Rtools/) first.
@@ -101,8 +101,8 @@ Why *split* the dataset in two parts?
 In the first part we will build our model. In the second part we will want to test it and assess its quality. Without dividing the dataset we would test the model on the data which the algorithm have already seen.
 
 ```{r datasetLoading, results='hold', message=F, warning=F}
-data(agaricus.train, package='xgboost')
-data(agaricus.test, package='xgboost')
+data(agaricus.train, package = 'xgboost')
+data(agaricus.test, package = 'xgboost')
 train <- agaricus.train
 test <- agaricus.test
 ```
@@ -314,8 +314,8 @@ Most of the features below have been implemented to help you to improve your mod
 For the following advanced features, we need to put data in `xgb.DMatrix` as explained above.
 
 ```{r DMatrix, message=F, warning=F}
-dtrain <- xgb.DMatrix(data = train$data, label=train$label)
-dtest <- xgb.DMatrix(data = test$data, label=test$label)
+dtrain <- xgb.DMatrix(data = train$data, label = train$label)
+dtest <- xgb.DMatrix(data = test$data, label = test$label)
 ```
 
 ### Measure learning progress with xgb.train
@@ -332,7 +332,7 @@ One way to measure progress in learning of a model is to provide to **XGBoost** 
 For the purpose of this example, we use `watchlist` parameter. It is a list of `xgb.DMatrix`, each of them tagged with a name.
 
 ```{r watchlist, message=F, warning=F}
-watchlist <- list(train=dtrain, test=dtest)
+watchlist <- list(train = dtrain, test = dtest)
 
 bst <- xgb.train(
     data = dtrain
@@ -423,9 +423,9 @@ file.remove("dtrain.buffer")
 Information can be extracted from `xgb.DMatrix` using `getinfo` function. Hereafter we will extract `label` data.
 
 ```{r getinfo, message=F, warning=F}
-label = getinfo(dtest, "label")
+label <- getinfo(dtest, "label")
 pred <- predict(bst, dtest)
-err <- as.numeric(sum(as.integer(pred > 0.5) != label))/length(label)
+err <- as.numeric(sum(as.integer(pred > 0.5) != label)) / length(label)
 print(paste("test-error=", err))
 ```
 
@@ -479,7 +479,7 @@ bst2 <- xgb.load("xgboost.model")
 pred2 <- predict(bst2, test$data)
 
 # And now the test
-print(paste("sum(abs(pred2-pred))=", sum(abs(pred2-pred))))
+print(paste("sum(abs(pred2-pred))=", sum(abs(pred2 - pred))))
 ```
 
 ```{r clean, include=FALSE}
@@ -503,7 +503,7 @@ bst3 <- xgb.load(rawVec)
 pred3 <- predict(bst3, test$data)
 
 # pred2 should be identical to pred
-print(paste("sum(abs(pred3-pred))=", sum(abs(pred2-pred))))
+print(paste("sum(abs(pred3-pred))=", sum(abs(pred2 - pred))))
 ```
 
 > Again `0`? It seems that `XGBoost` works pretty well!

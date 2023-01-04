@@ -1,6 +1,3 @@
-require(xgboost)
-require(jsonlite)
-
 context("Models from previous versions of XGBoost can be loaded")
 
 metadata <- list(

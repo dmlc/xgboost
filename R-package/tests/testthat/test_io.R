@@ -1,7 +1,4 @@
 context("Test model IO.")
-## some other tests are in test_basic.R
-require(xgboost)
-require(testthat)
 
 data(agaricus.train, package = "xgboost")
 data(agaricus.test, package = "xgboost")

@@ -34,7 +34,7 @@ df[, ID := NULL]
 # Here we use 10-fold cross-validation, repeating twice, and using random search for tuning hyper-parameters.
 fitControl <- trainControl(method = "repeatedcv", number = 10, repeats = 2, search = "random")
 # train a xgbTree model using caret::train
-model <- train(factor(Improved)~., data = df, method = "xgbTree", trControl = fitControl)
+model <- train(factor(Improved) ~ ., data = df, method = "xgbTree", trControl = fitControl)
 
 # Instead of tree for our boosters, you can also fit a linear regression or logistic regression model
 # using xgbLinear

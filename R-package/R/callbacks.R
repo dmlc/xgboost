@@ -611,7 +611,7 @@ cb.cv.predict <- function(save_models = FALSE) {
 #' matplot(xgb.gblinear.history(bst, class_index = 0)[[1]], type = 'l')
 #'
 #' @export
-cb.gblinear.history <- function(sparse=FALSE) {
+cb.gblinear.history <- function(sparse = FALSE) {
   coefs <- NULL
 
   init <- function(env) {

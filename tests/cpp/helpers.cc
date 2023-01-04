@@ -38,12 +38,6 @@ bool FileExists(const std::string& filename) {
   return stat(filename.c_str(), &st) == 0;
 }
 
-int64_t GetFileSize(const std::string& filename) {
-  struct stat st;
-  stat(filename.c_str(), &st);
-  return st.st_size;
-}
-
 void CreateSimpleTestData(const std::string& filename) {
   CreateBigTestData(filename, 6);
 }
@@ -527,8 +521,7 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
   if (page_size > 0) {
     uri += "#" + tmp_file + ".cache";
   }
-  std::unique_ptr<DMatrix> dmat(
-      DMatrix::Load(uri, true, DataSplitMode::kNone, "auto"));
+  std::unique_ptr<DMatrix> dmat(DMatrix::Load(uri));
   return dmat;
 }
 

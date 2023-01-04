@@ -119,10 +119,10 @@
 #' print(cv, verbose=TRUE)
 #'
 #' @export
-xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = NA,
-                   prediction = FALSE, showsd = TRUE, metrics=list(),
+xgb.cv <- function(params = list(), data, nrounds, nfold, label = NULL, missing = NA,
+                   prediction = FALSE, showsd = TRUE, metrics = list(),
                    obj = NULL, feval = NULL, stratified = TRUE, folds = NULL, train_folds = NULL,
-                   verbose = TRUE, print_every_n=1L,
+                   verbose = TRUE, print_every_n = 1L,
                    early_stopping_rounds = NULL, maximize = NULL, callbacks = list(), ...) {
 
   check.deprecation(...)

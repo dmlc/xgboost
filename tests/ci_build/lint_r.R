@@ -17,6 +17,8 @@ FILES_TO_LINT <- list.files(
 
 my_linters <- list(
   absolute_path_linter = lintr::absolute_path_linter(),
+  any_duplicated = lintr::any_duplicated_linter(),
+  any_is_na = lintr::any_is_na_linter(),
   assignment_linter = lintr::assignment_linter(),
   brace_linter = lintr::brace_linter(),
   commas_linter = lintr::commas_linter(),
@@ -30,10 +32,13 @@ my_linters <- list(
   seq = lintr::seq_linter(),
   spaces_inside_linter = lintr::spaces_inside_linter(),
   spaces_left_parentheses_linter = lintr::spaces_left_parentheses_linter(),
+  sprintf = lintr::sprintf_linter(),
   trailing_blank_lines_linter = lintr::trailing_blank_lines_linter(),
   trailing_whitespace_linter = lintr::trailing_whitespace_linter(),
   true_false = lintr::T_and_F_symbol_linter(),
-  unneeded_concatenation = lintr::unneeded_concatenation_linter()
+  unneeded_concatenation = lintr::unneeded_concatenation_linter(),
+  unreachable_code = lintr::unreachable_code_linter(),
+  vector_logic = lintr::vector_logic_linter()
 )
 
 noquote(paste0(length(FILES_TO_LINT), " R files need linting"))
@@ -67,6 +72,5 @@ noquote(paste0("Total linting issues found: ", issues_found))
 
 if (issues_found > 0L) {
     print(results)
+    quit(save = "no", status = 1L)
 }
-
-quit(save = "no", status = 1L)

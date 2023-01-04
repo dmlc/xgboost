@@ -5,7 +5,7 @@ import xgboost as xgb
 
 try:
     import shap
-except ImportError:
+except Exception:
     shap = None
     pass
 

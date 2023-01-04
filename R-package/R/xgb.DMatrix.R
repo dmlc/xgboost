@@ -328,7 +328,6 @@ setinfo.xgb.DMatrix <- function(object, name, info, ...) {
     return(TRUE)
   }
   stop("setinfo: unknown info name ", name)
-  return(FALSE)
 }
 
 
@@ -418,7 +417,7 @@ print.xgb.DMatrix <- function(x, verbose = FALSE, ...) {
   cat(infos)
   cnames <- colnames(x)
   cat('  colnames:')
-  if (verbose & !is.null(cnames)) {
+  if (verbose && !is.null(cnames)) {
     cat("\n'")
     cat(cnames, sep = "','")
     cat("'")

@@ -16,8 +16,8 @@ df[, `:=`(V34 = as.integer(ifelse(V34 == "?", 0L, V34)),
 
 idx <- sample(nrow(df), size = round(0.7 * nrow(df)), replace = FALSE)
 
-train <- df[idx,]
-test <- df[-idx,]
+train <- df[idx, ]
+test <- df[-idx, ]
 
 train_x <- train[, 1:34]
 train_y <- train[, V35]
@@ -26,7 +26,7 @@ test_x <- test[, 1:34]
 test_y <- test[, V35]
 
 xg_train <- xgb.DMatrix(data = as.matrix(train_x), label = train_y)
-xg_test = xgb.DMatrix(as.matrix(test_x), label = test_y)
+xg_test <- xgb.DMatrix(as.matrix(test_x), label = test_y)
 
 params <- list(
   objective = 'multi:softmax',
@@ -36,7 +36,7 @@ params <- list(
   eta = 0.1
 )
 
-watchlist = list(train = xg_train, test = xg_test)
+watchlist <- list(train = xg_train, test = xg_test)
 
 bst <- xgb.train(
   params = params,
@@ -60,5 +60,5 @@ pred_mat <- matrix(pred_prob, ncol = 6, byrow = TRUE)
 # rowSums(pred_mat)
 
 pred_label <- apply(pred_mat, 1, which.max) - 1L
-error_rate = sum(pred_label != test_y) / length(test_y)
+error_rate <- sum(pred_label != test_y) / length(test_y)
 print(paste("Test error using softprob =", error_rate))

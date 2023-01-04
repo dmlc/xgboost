@@ -44,8 +44,7 @@ jobs:
     - name: Run lintr
       run: |
         MAKEFLAGS="-j$(nproc)" R CMD INSTALL R-package/
-        # Disable lintr errors for now: https://github.com/dmlc/xgboost/issues/8012
-        Rscript tests/ci_build/lint_r.R $(pwd) || true
+        Rscript tests/ci_build/lint_r.R $(pwd)
 
   test-R-on-Windows:
     runs-on: ${{ matrix.config.os }}
@@ -104,6 +103,10 @@ jobs:
         # Must run before checkout to have the latest git installed.
         # No need to add pandoc, the container has it figured out.
         apt update && apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev git -y
+
+    - name: Trust git cloning project sources
+      run: |
+        git config --global --add safe.directory "${GITHUB_WORKSPACE}"
 
     - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:

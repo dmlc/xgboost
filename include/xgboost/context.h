@@ -8,15 +8,14 @@
 #include <xgboost/logging.h>
 #include <xgboost/parameter.h>
 
+#include <memory>  // std::shared_ptr
 #include <string>
 
 namespace xgboost {
 
-struct Context : public XGBoostParameter<Context> {
- private:
-  // cached value for CFS CPU limit. (used in containerized env)
-  std::int32_t cfs_cpu_count_;  // NOLINT
+struct CUDAContext;
 
+struct Context : public XGBoostParameter<Context> {
  public:
   // Constant representing the device ID of CPU.
   static std::int32_t constexpr kCpuId = -1;
@@ -51,6 +50,7 @@ struct Context : public XGBoostParameter<Context> {
 
   bool IsCPU() const { return gpu_id == kCpuId; }
   bool IsCUDA() const { return !IsCPU(); }
+  CUDAContext const* CUDACtx() const;
 
   // declare parameters
   DMLC_DECLARE_PARAMETER(Context) {
@@ -73,6 +73,14 @@ struct Context : public XGBoostParameter<Context> {
         .set_default(false)
         .describe("Enable checking whether parameters are used or not.");
   }
+
+ private:
+  // mutable for lazy initialization for cuda context to avoid initializing CUDA at load.
+  // shared_ptr is used instead of unique_ptr as with unique_ptr it's difficult to define p_impl
+  // while trying to hide CUDA code from host compiler.
+  mutable std::shared_ptr<CUDAContext> cuctx_;
+  // cached value for CFS CPU limit. (used in containerized env)
+  std::int32_t cfs_cpu_count_;  // NOLINT
 };
 }  // namespace xgboost
 

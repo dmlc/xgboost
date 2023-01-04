@@ -51,10 +51,20 @@ struct Min;
  */
 struct Sum;
 /*!
+ * \class rabit::op::BitAND
+ * \brief bitwise AND reduction operator
+ */
+struct BitAND;
+/*!
  * \class rabit::op::BitOR
  * \brief bitwise OR reduction operator
  */
 struct BitOR;
+/*!
+ * \class rabit::op::BitXOR
+ * \brief bitwise XOR reduction operator
+ */
+struct BitXOR;
 }  // namespace op
 /*!
  * \brief initializes rabit, call this once at the beginning of your program

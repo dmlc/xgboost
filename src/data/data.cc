@@ -783,10 +783,14 @@ DMatrix *TryLoadBinary(std::string fname, bool silent) {
 
 DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_split_mode,
                        const std::string& file_format) {
-  CHECK(data_split_mode == DataSplitMode::kRow ||
-        data_split_mode == DataSplitMode::kCol ||
-        data_split_mode == DataSplitMode::kNone)
-      << "Precondition violated; data split mode can only be 'row', 'col', or 'none'";
+  auto need_split = false;
+  if (collective::IsFederated()) {
+    LOG(CONSOLE) << "XGBoost federated mode detected, not splitting data among workers";
+  } else if (collective::IsDistributed()) {
+    LOG(CONSOLE) << "XGBoost distributed mode detected, will split data among workers";
+    need_split = true;
+  }
+
   std::string fname, cache_file;
   size_t dlm_pos = uri.find('#');
   if (dlm_pos != std::string::npos) {
@@ -794,7 +798,7 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
     fname = uri.substr(0, dlm_pos);
     CHECK_EQ(cache_file.find('#'), std::string::npos)
         << "Only one `#` is allowed in file path for cache file specification.";
-    if (data_split_mode == DataSplitMode::kRow) {
+    if (need_split && data_split_mode == DataSplitMode::kRow) {
       std::ostringstream os;
       std::vector<std::string> cache_shards = common::Split(cache_file, ':');
       for (size_t i = 0; i < cache_shards.size(); ++i) {
@@ -828,7 +832,7 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
   }
 
   int partid = 0, npart = 1;
-  if (data_split_mode == DataSplitMode::kRow) {
+  if (need_split && data_split_mode == DataSplitMode::kRow) {
     partid = collective::GetRank();
     npart = collective::GetWorldSize();
   } else {
@@ -887,7 +891,7 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
    * since partitioned data not knowing the real number of features. */
   collective::Allreduce<collective::Operation::kMax>(&dmat->Info().num_col_, 1);
 
-  if (data_split_mode == DataSplitMode::kCol) {
+  if (need_split && data_split_mode == DataSplitMode::kCol) {
     if (!cache_file.empty()) {
       LOG(FATAL) << "Column-wise data split is not support for external memory.";
     }
@@ -898,6 +902,7 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
     delete dmat;
     return sliced;
   } else {
+    dmat->Info().data_split_mode = data_split_mode;
     return dmat;
   }
 }

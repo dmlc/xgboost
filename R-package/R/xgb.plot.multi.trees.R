@@ -97,9 +97,9 @@ xgb.plot.multi.trees <- function(model, feature_names = NULL, features_keep = 5,
         , by = .(abs.node.position, Feature)
       ][, .(Text = paste0(
               paste0(
-                Feature[1:min(length(Feature), features_keep)],
+                Feature[seq_len(min(length(Feature), features_keep))],
                 " (",
-                format(Quality[1:min(length(Quality), features_keep)], digits = 5),
+                format(Quality[seq_len(min(length(Quality), features_keep))], digits = 5),
                 ")"
               ),
               collapse = "\n"

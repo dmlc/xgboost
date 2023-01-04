@@ -5,9 +5,9 @@
 #define HISTOGRAM_CUH_
 #include <thrust/transform.h>
 
-#include "feature_groups.cuh"
-
+#include "../../common/cuda_context.cuh"
 #include "../../data/ellpack_page.cuh"
+#include "feature_groups.cuh"
 
 namespace xgboost {
 namespace tree {
@@ -56,12 +56,11 @@ public:
   }
 };
 
-void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
+void BuildGradientHistogram(CUDAContext const* ctx, EllpackDeviceAccessor const& matrix,
                             FeatureGroupsAccessor const& feature_groups,
                             common::Span<GradientPair const> gpair,
                             common::Span<const uint32_t> ridx,
-                            common::Span<GradientPairInt64> histogram,
-                            GradientQuantiser rounding,
+                            common::Span<GradientPairInt64> histogram, GradientQuantiser rounding,
                             bool force_global_memory = false);
 }  // namespace tree
 }  // namespace xgboost

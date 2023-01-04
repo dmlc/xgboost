@@ -38,7 +38,7 @@
 #' cat(xgb.dump(bst, with_stats = TRUE, dump_format='json'))
 #'
 #' @export
-xgb.dump <- function(model, fname = NULL, fmap = "", with_stats=FALSE,
+xgb.dump <- function(model, fname = NULL, fmap = "", with_stats = FALSE,
                      dump_format = c("text", "json"), ...) {
   check.deprecation(...)
   dump_format <- match.arg(dump_format)
