@@ -93,7 +93,7 @@ class ObjFunction : public Configurable {
    * \brief Return number of targets for input matrix.  Right now XGBoost supports only
    *        multi-target regression.
    */
-  virtual uint32_t Targets(MetaInfo const& info) const {
+  virtual bst_target_t Targets(MetaInfo const& info) const {
     if (info.labels.Shape(1) > 1) {
       LOG(FATAL) << "multioutput is not supported by current objective function";
     }

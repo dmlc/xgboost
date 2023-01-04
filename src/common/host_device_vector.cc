@@ -172,6 +172,7 @@ void HostDeviceVector<T>::SetDevice(int) const {}
 template class HostDeviceVector<bst_float>;
 template class HostDeviceVector<double>;
 template class HostDeviceVector<GradientPair>;
+template class HostDeviceVector<GradientPairPrecise>;
 template class HostDeviceVector<int32_t>;   // bst_node_t
 template class HostDeviceVector<uint8_t>;
 template class HostDeviceVector<FeatureType>;

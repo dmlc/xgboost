@@ -81,7 +81,7 @@ class RegLossObj : public ObjFunction {
 
   ObjInfo Task() const override { return Loss::Info(); }
 
-  uint32_t Targets(MetaInfo const& info) const override {
+  bst_target_t Targets(MetaInfo const& info) const override {
     // Multi-target regression.
     return std::max(static_cast<size_t>(1), info.labels.Shape(1));
   }
@@ -220,7 +220,7 @@ class PseudoHuberRegression : public ObjFunction {
  public:
   void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
   ObjInfo Task() const override { return ObjInfo::kRegression; }
-  uint32_t Targets(MetaInfo const& info) const override {
+  bst_target_t Targets(MetaInfo const& info) const override {
     return std::max(static_cast<size_t>(1), info.labels.Shape(1));
   }
 

@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "../../../src/common/stats.cuh"
+#include "../../../src/common/stats.h"
 #include "xgboost/base.h"
 #include "xgboost/context.h"
 #include "xgboost/host_device_vector.h"

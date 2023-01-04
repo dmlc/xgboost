@@ -10,6 +10,7 @@
 #include "../common/numeric.h"
 #include "../common/stats.h"
 #include "../common/threading_utils.h"
+#include "../common/transform_iterator.h"  // MakeIndexTransformIter
 #include "xgboost/tree_model.h"
 
 namespace xgboost {
