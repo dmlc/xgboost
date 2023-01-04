@@ -242,9 +242,7 @@ class TestTreeMethod:
         self, rows: int, cols: int, rounds: int, cats: int, tree_method: str
     ) -> None:
         onehot, label = tm.make_categorical(rows, cols, cats, True)
-        print(onehot.columns)
         cat, _ = tm.make_categorical(rows, cols, cats, False)
-        print(cat.columns)
 
         by_etl_results: Dict[str, Dict[str, List[float]]] = {}
         by_builtin_results: Dict[str, Dict[str, List[float]]] = {}
