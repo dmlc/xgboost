@@ -28,6 +28,7 @@
 #include "xgboost/logging.h"
 #include "xgboost/objective.h"
 #include "xgboost/predictor.h"
+#include "xgboost/string_view.h"
 #include "xgboost/tree_updater.h"
 
 namespace xgboost {
@@ -394,23 +395,36 @@ void GBTree::LoadConfig(Json const& in) {
   tparam_.process_type = TreeProcessType::kDefault;
   int32_t const n_gpus = xgboost::common::AllVisibleGPUs();
   if (n_gpus == 0 && tparam_.predictor == PredictorType::kGPUPredictor) {
-    LOG(WARNING)
-        << "Loading from a raw memory buffer on CPU only machine.  "
-           "Changing predictor to auto.";
+    LOG(WARNING) << "Loading from a raw memory buffer on CPU only machine.  "
+                    "Changing predictor to auto.";
     tparam_.UpdateAllowUnknown(Args{{"predictor", "auto"}});
   }
+
+  auto msg = StringView{
+      R"(
+  Loading from a raw memory buffer (like pickle in Python, RDS in R) on a CPU-only
+  machine. Consider using `save_model/load_model` instead. See:
+
+    https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html
+
+  for more details about differences between saving model and serializing.)"};
+
   if (n_gpus == 0 && tparam_.tree_method == TreeMethod::kGPUHist) {
     tparam_.UpdateAllowUnknown(Args{{"tree_method", "hist"}});
-    LOG(WARNING)
-        << "Loading from a raw memory buffer on CPU only machine.  "
-           "Changing tree_method to hist.";
+    LOG(WARNING) << msg << "  Changing `tree_method` to `hist`.";
   }
 
   auto const& j_updaters = get<Object const>(in["updater"]);
   updaters_.clear();
+
   for (auto const& kv : j_updaters) {
-    std::unique_ptr<TreeUpdater> up(
-        TreeUpdater::Create(kv.first, ctx_, model_.learner_model_param->task));
+    auto name = kv.first;
+    if (n_gpus == 0 && name == "grow_gpu_hist") {
+      name = "grow_quantile_histmaker";
+      LOG(WARNING) << "Changing updater from `grow_gpu_hist` to `grow_quantile_histmaker`.";
+    }
+    std::unique_ptr<TreeUpdater> up{
+        TreeUpdater::Create(name, ctx_, model_.learner_model_param->task)};
     up->LoadConfig(kv.second);
     updaters_.push_back(std::move(up));
   }
