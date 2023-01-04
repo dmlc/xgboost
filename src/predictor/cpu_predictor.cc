@@ -15,6 +15,7 @@
 #include "../data/gradient_index.h"
 #include "../data/proxy_dmatrix.h"
 #include "../gbm/gbtree_model.h"
+#include "cpu_treeshap.h"  // CalculateContributions
 #include "predict_fn.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
@@ -530,9 +531,8 @@ class CPUPredictor : public Predictor {
               continue;
             }
             if (!approximate) {
-              model.trees[j]->CalculateContributions(
-                  feats, tree_mean_values, &this_tree_contribs[0], condition,
-                  condition_feature);
+              CalculateContributions(*model.trees[j], feats, tree_mean_values,
+                                     &this_tree_contribs[0], condition, condition_feature);
             } else {
               model.trees[j]->CalculateContributionsApprox(
                   feats, tree_mean_values, &this_tree_contribs[0]);
