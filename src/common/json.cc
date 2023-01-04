@@ -437,7 +437,6 @@ void ParseStr(std::string const& str) {
 
 Json JsonReader::ParseString() {
   char ch { GetConsecutiveChar('\"') };  // NOLINT
-  std::ostringstream output;
   std::string str;
   while (true) {
     ch = GetNextChar();
@@ -656,7 +655,6 @@ Json JsonReader::ParseBoolean() {
   char ch = GetNextNonSpaceChar();
   std::string const t_value = u8"true";
   std::string const f_value = u8"false";
-  std::string buffer;
 
   if (ch == 't') {
     GetConsecutiveChar('r');
