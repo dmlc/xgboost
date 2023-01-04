@@ -733,13 +733,19 @@ def test_sklearn_clone():
 
 def test_sklearn_get_default_params():
     from sklearn.datasets import load_digits
+
     digits_2class = load_digits(n_class=2)
-    X = digits_2class['data']
-    y = digits_2class['target']
+    X = digits_2class["data"]
+    y = digits_2class["target"]
     cls = xgb.XGBClassifier()
-    assert cls.get_params()['base_score'] is None
+    assert cls.get_params()["base_score"] is None
     cls.fit(X[:4, ...], y[:4, ...])
-    assert cls.get_params()['base_score'] is not None
+    base_score = float(
+        json.loads(cls.get_booster().save_config())["learner"]["learner_model_param"][
+            "base_score"
+        ]
+    )
+    np.testing.assert_equal(base_score, 0.5)
 
 
 def run_validation_weights(model):
