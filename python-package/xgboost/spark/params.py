@@ -85,3 +85,16 @@ class HasQueryIdCol(Params):
         "query id column name",
         typeConverter=TypeConverters.toString,
     )
+
+
+class HasContribPredictionCol(Params):
+    """
+    Mixin for param pred_contrib_col: contribution prediction column name.
+    """
+
+    pred_contrib_col: "Param[str]" = Param(
+        Params._dummy(),
+        "pred_contrib_col",
+        "contribution prediction column name.",
+        typeConverter=TypeConverters.toString,
+    )
