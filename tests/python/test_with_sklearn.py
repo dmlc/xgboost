@@ -662,6 +662,14 @@ def test_parameters_access():
     clf.fit(X, y)
     assert clf.get_params()["tree_method"] is None
 
+    def save_load(clf: xgb.XGBClassifier) -> xgb.XGBClassifier:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "model.json")
+            clf.save_model(path)
+            clf = xgb.XGBClassifier()
+            clf.load_model(path)
+        return clf
+
     def get_tm(clf: xgb.XGBClassifier) -> str:
         tm = json.loads(clf.get_booster().save_config())["learner"]["gradient_booster"][
             "gbtree_train_param"
@@ -670,30 +678,30 @@ def test_parameters_access():
 
     assert get_tm(clf) == "exact"
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        path = os.path.join(tmpdir, "model.pkl")
-        with open(path, "wb") as fd:
-            pickle.dump(clf, fd)
-        with open(path, "rb") as fd:
-            clf = pickle.load(fd)
+    clf = pickle.loads(pickle.dumps(clf))
 
     assert clf.tree_method is None
     assert clf.n_estimators == 2
     assert clf.get_params()["tree_method"] is None
     assert clf.get_params()["n_estimators"] == 2
-    assert get_tm(clf) == "exact"
+    assert get_tm(clf) == "exact"  # preserved for pickle
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        path = os.path.join(tmpdir, "model.json")
-        clf.save_model(path)
-        clf = xgb.XGBClassifier()
-        clf.load_model(path)
+    clf = save_load(clf)
 
     assert clf.tree_method is None
     assert clf.n_estimators == 2
     assert clf.get_params()["tree_method"] is None
     assert clf.get_params()["n_estimators"] == 2
-    assert get_tm(clf) == "auto"
+    assert get_tm(clf) == "auto"  # discarded for save/load_model
+
+    clf.set_params(tree_method="hist")
+    assert clf.get_params()["tree_method"] == "hist"
+    clf = pickle.loads(pickle.dumps(clf))
+    assert clf.get_params()["tree_method"] == "hist"
+    clf = save_load(clf)
+    # FIXME(jiamingy): We should remove this behavior once we remove parameters
+    # serialization for skl save/load_model.
+    assert clf.get_params()["tree_method"] == "hist"
 
 
 def test_kwargs_error():
