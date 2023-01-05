@@ -173,24 +173,25 @@ class TestGPUUpdaters:
         kCols = 100
 
         X = np.empty((kRows, kCols))
-        y = np.empty((kRows))
+        y = np.empty((kRows,))
 
         dtrain = xgb.DMatrix(X, y)
 
-        bst = xgb.train({'verbosity': 2,
-                         'tree_method': 'gpu_hist',
-                         'gpu_id': 0},
-                        dtrain,
-                        verbose_eval=True,
-                        num_boost_round=6,
-                        evals=[(dtrain, 'Train')])
+        bst = xgb.train(
+            {"verbosity": 2, "tree_method": "gpu_hist", "gpu_id": 0},
+            dtrain,
+            verbose_eval=True,
+            num_boost_round=6,
+            evals=[(dtrain, 'Train')]
+        )
 
         kRows = 100
         X = np.random.randn(kRows, kCols)
 
         dtest = xgb.DMatrix(X)
         predictions = bst.predict(dtest)
-        np.testing.assert_allclose(predictions, 0.5, 1e-6)
+        # non-distributed, 0.0 is returned due to base_score estimation with 0 gradient.
+        np.testing.assert_allclose(predictions, 0.0, 1e-6)
 
     @pytest.mark.mgpu
     @given(tm.dataset_strategy, strategies.integers(0, 10))
