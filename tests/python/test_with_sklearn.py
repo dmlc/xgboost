@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 from sklearn.utils.estimator_checks import parametrize_with_checks
 from xgboost.testing.shared import get_feature_weights, validate_data_initialization
+from xgboost.testing.updater import get_basescore
 
 import xgboost as xgb
 from xgboost import testing as tm
@@ -763,11 +764,7 @@ def test_sklearn_get_default_params():
     cls = xgb.XGBClassifier()
     assert cls.get_params()["base_score"] is None
     cls.fit(X[:4, ...], y[:4, ...])
-    base_score = float(
-        json.loads(cls.get_booster().save_config())["learner"]["learner_model_param"][
-            "base_score"
-        ]
-    )
+    base_score = get_basescore(cls)
     np.testing.assert_equal(base_score, 0.5)
 
 

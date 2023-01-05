@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from xgboost.testing.updater import get_basescore
 
 import xgboost as xgb
 from xgboost import testing as tm
@@ -33,7 +34,8 @@ class TestEarlyStopping:
             early_stopping_rounds=10
         )
         clf3.fit(X_train, y_train, eval_set=[(X_test, y_test)])
-        assert 0.53 > clf3.get_params()["base_score"] > 0.5
+        base_score = get_basescore(clf3)
+        assert 0.53 > base_score > 0.5
 
         clf3 = xgb.XGBClassifier(
             learning_rate=0.1,
