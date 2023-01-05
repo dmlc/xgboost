@@ -3,6 +3,36 @@ XGBoost Change Log
 
 This file records the changes in xgboost library in reverse chronological order.
 
+## 1.7.3 (2023 Jan 6)
+This is a patch release for bug fixes.
+
+* [Breaking] XGBoost Sklearn estimator method `get_params` no longer returns internally configured values. (#8634)
+* Fix linalg iterator, which may crash the L1 error. (#8603)
+* Fix loading pickled GPU model with a CPU-only XGBoost build. (#8632)
+* Fix inference with unseen categories with categorical features. (#8591, #8602)
+* CI fixes. (#8620, #8631, #8579)
+
+## v1.7.2 (2022 Dec 8)
+This is a patch release for bug fixes.
+
+* Work with newer thrust and libcudacxx (#8432)
+* Support null value in CUDA array interface namespace. (#8486)
+* Use `getsockname` instead of `SO_DOMAIN` on AIX. (#8437)
+* [pyspark] Make QDM optional based on a cuDF check (#8471)
+* [pyspark] sort qid for SparkRanker. (#8497)
+* [dask] Properly await async method client.wait_for_workers. (#8558)
+
+* [R] Fix CRAN test notes. (#8428)
+
+* [doc] Fix outdated document [skip ci]. (#8527)
+* [CI] Fix github action mismatched glibcxx. (#8551)
+
+## v1.7.1 (2022 Nov 3)
+This is a patch release to incorporate the following hotfix:
+
+* Add back xgboost.rabit for backwards compatibility (#8411)
+
+
 ## v1.7.0 (2022 Oct 20)
 
 We are excited to announce the feature packed XGBoost 1.7 release. The release note will walk through some of the major new features first, then make a summary for other improvements and language-binding-specific changes.
