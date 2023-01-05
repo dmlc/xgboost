@@ -11,7 +11,6 @@ except Exception:
 
 
 pytestmark = pytest.mark.skipif(shap is None, reason="Requires shap package")
-print("\nSHAP:", shap.__version__, "NUMPY:", np.__version__)
 
 
 # Check integration is not broken from xgboost side
