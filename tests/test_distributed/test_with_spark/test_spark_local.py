@@ -8,10 +8,10 @@ from typing import Generator, Sequence, Type
 
 import numpy as np
 import pytest
+from xgboost.spark.data import pred_contribs
 
 import xgboost as xgb
 from xgboost import testing as tm
-from xgboost.spark.data import pred_contribs
 
 pytestmark = [tm.timeout(60), pytest.mark.skipif(**tm.no_spark())]
 
