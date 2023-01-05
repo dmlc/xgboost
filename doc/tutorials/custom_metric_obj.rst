@@ -292,6 +292,7 @@ access ``DMatrix``:
 
     def softprob_obj(labels: np.ndarray, predt: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         rows = labels.shape[0]
+        classes = predt.shape[1]
         grad = np.zeros((rows, classes), dtype=float)
         hess = np.zeros((rows, classes), dtype=float)
         eps = 1e-6
