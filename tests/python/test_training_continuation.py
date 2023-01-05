@@ -16,7 +16,6 @@ class TestTrainingContinuation:
     def generate_parameters(self):
         xgb_params_01_binary = {
             'nthread': 1,
-            "objective": "binary:logistic",
         }
 
         xgb_params_02_binary = {
