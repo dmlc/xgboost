@@ -37,7 +37,7 @@ dependencies:
 - pyarrow
 - protobuf
 - cloudpickle
-- shap
+- shap>=0.41
 - modin
 - pip:
   - datatable
