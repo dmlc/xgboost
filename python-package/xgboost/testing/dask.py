@@ -2,6 +2,7 @@
 import numpy as np
 from dask import array as da
 from distributed import Client
+from xgboost.testing.updater import get_basescore
 
 import xgboost as xgb
 
@@ -13,7 +14,7 @@ def check_init_estimation_clf(tree_method: str, client: Client) -> None:
     X, y = make_classification(n_samples=4096 * 2, n_features=32, random_state=1994)
     clf = xgb.XGBClassifier(n_estimators=1, max_depth=1, tree_method=tree_method)
     clf.fit(X, y)
-    base_score = clf.get_params()["base_score"]
+    base_score = get_basescore(clf)
 
     dx = da.from_array(X).rechunk(chunks=(32, None))
     dy = da.from_array(y).rechunk(chunks=(32,))
@@ -22,9 +23,8 @@ def check_init_estimation_clf(tree_method: str, client: Client) -> None:
     )
     dclf.client = client
     dclf.fit(dx, dy)
-    dbase_score = dclf.get_params()["base_score"]
+    dbase_score = get_basescore(dclf)
     np.testing.assert_allclose(base_score, dbase_score)
-    print(base_score, dbase_score)
 
 
 def check_init_estimation_reg(tree_method: str, client: Client) -> None:
@@ -35,7 +35,7 @@ def check_init_estimation_reg(tree_method: str, client: Client) -> None:
     X, y = make_regression(n_samples=4096 * 2, n_features=32, random_state=1994)
     reg = xgb.XGBRegressor(n_estimators=1, max_depth=1, tree_method=tree_method)
     reg.fit(X, y)
-    base_score = reg.get_params()["base_score"]
+    base_score = get_basescore(reg)
 
     dx = da.from_array(X).rechunk(chunks=(32, None))
     dy = da.from_array(y).rechunk(chunks=(32,))
@@ -44,9 +44,8 @@ def check_init_estimation_reg(tree_method: str, client: Client) -> None:
     )
     dreg.client = client
     dreg.fit(dx, dy)
-    dbase_score = dreg.get_params()["base_score"]
+    dbase_score = get_basescore(dreg)
     np.testing.assert_allclose(base_score, dbase_score)
-    print(base_score, dbase_score)
 
 
 def check_init_estimation(tree_method: str, client: Client) -> None:
