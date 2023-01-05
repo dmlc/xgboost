@@ -1084,6 +1084,12 @@ def test_pandas_input():
     )
     np.testing.assert_allclose(np.array(clf_isotonic.classes_), np.array([0, 1]))
 
+    train_ser = train["k1"]
+    assert isinstance(train_ser, pd.Series)
+    model = xgb.XGBClassifier(n_estimators=8)
+    model.fit(train_ser, target, eval_set=[(train_ser, target)])
+    assert tm.non_increasing(model.evals_result()["validation_0"]["logloss"])
+
 
 @pytest.mark.parametrize("tree_method", ["approx", "hist"])
 def test_feature_weights(tree_method):
@@ -1238,6 +1244,10 @@ def test_multilabel_classification() -> None:
     predt = (clf.predict_proba(X) > 0.5).astype(np.int64)
     np.testing.assert_allclose(clf.predict(X), predt)
     assert predt.dtype == np.int64
+
+    y = y.tolist()
+    clf.fit(X, y)
+    np.testing.assert_allclose(clf.predict(X), predt)
 
 
 def test_data_initialization():
