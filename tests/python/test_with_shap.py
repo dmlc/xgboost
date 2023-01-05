@@ -4,7 +4,7 @@ import pytest
 
 try:
     import shap
-except ImportError:
+except Exception:
     shap = None
     pass
 
