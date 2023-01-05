@@ -617,6 +617,13 @@ class DataSplitMode(IntEnum):
 
 
 class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-methods
+    """Data Matrix used in XGBoost.
+
+    DMatrix is an internal data structure that is used by XGBoost, which is optimized
+    for both memory efficiency and training speed.  You can construct DMatrix from
+    multiple different sources of data.
+
+    """
     @_deprecate_positional_args
     def __init__(
         self,
@@ -638,14 +645,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         enable_categorical: bool = False,
         data_split_mode: DataSplitMode = DataSplitMode.ROW,
     ) -> None:
-        """Data Matrix used in XGBoost.
-
-        DMatrix is an internal data structure that is used by XGBoost, which is
-        optimized for both memory efficiency and training speed.  You can construct
-        DMatrix from multiple different sources of data.
-
-
-        Parameters
+        """Parameters
         ----------
         data :
             Data source of DMatrix. See :ref:`py-data` for a list of supported input
