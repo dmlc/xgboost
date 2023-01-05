@@ -674,7 +674,7 @@ class XGBModel(XGBModelBase):
                     self.kwargs = {}
                 self.kwargs[key] = value
 
-        if hasattr(self, "_Booster"):
+        if self.__sklearn_is_fitted__():
             parameters = self.get_xgb_params()
             self.get_booster().set_param(parameters)
 
@@ -701,39 +701,12 @@ class XGBModel(XGBModelBase):
                 np.iinfo(np.int32).max
             )
 
-        def parse_parameter(value: Any) -> Optional[Union[int, float, str]]:
-            for t in (int, float, str):
-                try:
-                    ret = t(value)
-                    return ret
-                except ValueError:
-                    continue
-            return None
-
-        # Get internal parameter values
-        try:
-            config = json.loads(self.get_booster().save_config())
-            stack = [config]
-            internal = {}
-            while stack:
-                obj = stack.pop()
-                for k, v in obj.items():
-                    if k.endswith("_param"):
-                        for p_k, p_v in v.items():
-                            internal[p_k] = p_v
-                    elif isinstance(v, dict):
-                        stack.append(v)
-
-            for k, v in internal.items():
-                if k in params and params[k] is None:
-                    params[k] = parse_parameter(v)
-        except ValueError:
-            pass
         return params
 
     def get_xgb_params(self) -> Dict[str, Any]:
         """Get xgboost specific parameters."""
-        params = self.get_params()
+        params: Dict[str, Any] = self.get_params()
+
         # Parameters that should not go into native learner.
         wrapper_specific = {
             "importance_type",
@@ -750,6 +723,7 @@ class XGBModel(XGBModelBase):
         for k, v in params.items():
             if k not in wrapper_specific and not callable(v):
                 filtered[k] = v
+
         return filtered
 
     def get_num_boosting_rounds(self) -> int:
@@ -1070,7 +1044,7 @@ class XGBModel(XGBModelBase):
         # error with incompatible data type.
         # Inplace predict doesn't handle as many data types as DMatrix, but it's
         # sufficient for dask interface where input is simpiler.
-        predictor = self.get_params().get("predictor", None)
+        predictor = self.get_xgb_params().get("predictor", None)
         if predictor in ("auto", None) and self.booster != "gblinear":
             return True
         return False
@@ -1336,7 +1310,7 @@ class XGBModel(XGBModelBase):
         -------
         coef_ : array of shape ``[n_features]`` or ``[n_classes, n_features]``
         """
-        if self.get_params()["booster"] != "gblinear":
+        if self.get_xgb_params()["booster"] != "gblinear":
             raise AttributeError(
                 f"Coefficients are not defined for Booster type {self.booster}"
             )
@@ -1366,7 +1340,7 @@ class XGBModel(XGBModelBase):
         -------
         intercept_ : array of shape ``(1,)`` or ``[n_classes]``
         """
-        if self.get_params()["booster"] != "gblinear":
+        if self.get_xgb_params()["booster"] != "gblinear":
             raise AttributeError(
                 f"Intercept (bias) is not defined for Booster type {self.booster}"
             )
