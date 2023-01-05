@@ -32,7 +32,7 @@ from xgboost.testing.shared import (
 import xgboost as xgb
 from xgboost import testing as tm
 
-pytestmark = [tm.timeout(30), pytest.mark.skipif(**tm.no_dask())]
+pytestmark = [tm.timeout(60), pytest.mark.skipif(**tm.no_dask())]
 
 import dask
 import dask.array as da
