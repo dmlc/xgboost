@@ -32,13 +32,6 @@
 #endif  // XGBOOST_LOG_WITH_TIME
 
 /*!
- * \brief Whether customize the logger outputs.
- */
-#ifndef XGBOOST_CUSTOMIZE_LOGGER
-#define XGBOOST_CUSTOMIZE_LOGGER XGBOOST_STRICT_R_MODE
-#endif  // XGBOOST_CUSTOMIZE_LOGGER
-
-/*!
  * \brief Whether to customize global PRNG.
  */
 #ifndef XGBOOST_CUSTOMIZE_GLOBAL_PRNG
