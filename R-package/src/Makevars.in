@@ -37,6 +37,7 @@ OBJECTS= \
     $(PKGROOT)/src/objective/aft_obj.o \
     $(PKGROOT)/src/objective/adaptive.o \
     $(PKGROOT)/src/objective/init_estimation.o \
+    $(PKGROOT)/src/objective/quantile_obj.o \
     $(PKGROOT)/src/gbm/gbm.o \
     $(PKGROOT)/src/gbm/gbtree.o \
     $(PKGROOT)/src/gbm/gbtree_model.o \

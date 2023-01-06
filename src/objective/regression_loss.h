@@ -1,15 +1,16 @@
-/*!
- * Copyright 2017-2022 XGBoost contributors
+/**
+ * Copyright 2017-2023 by XGBoost contributors
  */
 #ifndef XGBOOST_OBJECTIVE_REGRESSION_LOSS_H_
 #define XGBOOST_OBJECTIVE_REGRESSION_LOSS_H_
 
 #include <dmlc/omp.h>
-#include <xgboost/logging.h>
 
 #include <cmath>
 
 #include "../common/math.h"
+#include "xgboost/data.h"  // MetaInfo
+#include "xgboost/logging.h"
 #include "xgboost/task.h"  // ObjInfo
 
 namespace xgboost {
@@ -105,7 +106,6 @@ struct LogisticRaw : public LogisticRegression {
 
   static ObjInfo Info() { return ObjInfo::kRegression; }
 };
-
 }  // namespace obj
 }  // namespace xgboost
 

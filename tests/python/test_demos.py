@@ -146,6 +146,13 @@ def test_multioutput_reg() -> None:
     subprocess.check_call(cmd)
 
 
+@pytest.mark.skipif(**tm.no_sklearn())
+def test_quantile_reg() -> None:
+    script = os.path.join(PYTHON_DEMO_DIR, "quantile_regression.py")
+    cmd = ['python', script]
+    subprocess.check_call(cmd)
+
+
 @pytest.mark.skipif(**tm.no_ubjson())
 def test_json_model() -> None:
     script = os.path.join(DEMO_DIR, "json-model", "json_parser.py")

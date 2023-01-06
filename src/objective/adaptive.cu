@@ -20,20 +20,19 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
                           HostDeviceVector<bst_node_t>* p_nidx, RegTree const& tree) {
   // copy position to buffer
   dh::safe_cuda(cudaSetDevice(ctx->gpu_id));
+  auto cuctx = ctx->CUDACtx();
   size_t n_samples = position.size();
-  dh::XGBDeviceAllocator<char> alloc;
   dh::device_vector<bst_node_t> sorted_position(position.size());
   dh::safe_cuda(cudaMemcpyAsync(sorted_position.data().get(), position.data(),
-                                position.size_bytes(), cudaMemcpyDeviceToDevice));
+                                position.size_bytes(), cudaMemcpyDeviceToDevice, cuctx->Stream()));
 
   p_ridx->resize(position.size());
   dh::Iota(dh::ToSpan(*p_ridx));
   // sort row index according to node index
-  thrust::stable_sort_by_key(thrust::cuda::par(alloc), sorted_position.begin(),
+  thrust::stable_sort_by_key(cuctx->TP(), sorted_position.begin(),
                              sorted_position.begin() + n_samples, p_ridx->begin());
-  dh::XGBCachingDeviceAllocator<char> caching;
   size_t beg_pos =
-      thrust::find_if(thrust::cuda::par(caching), sorted_position.cbegin(), sorted_position.cend(),
+      thrust::find_if(cuctx->CTP(), sorted_position.cbegin(), sorted_position.cend(),
                       [] XGBOOST_DEVICE(bst_node_t nidx) { return nidx >= 0; }) -
       sorted_position.cbegin();
   if (beg_pos == sorted_position.size()) {
@@ -72,7 +71,7 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
   size_t* h_num_runs = reinterpret_cast<size_t*>(pinned.subspan(0, sizeof(size_t)).data());
 
   dh::CUDAEvent e;
-  e.Record(dh::DefaultStream());
+  e.Record(cuctx->Stream());
   copy_stream.View().Wait(e);
   // flag for whether there's ignored position
   bst_node_t* h_first_unique =
@@ -108,7 +107,7 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
       d_node_ptr[0] = beg_pos;
     }
   });
-  thrust::inclusive_scan(thrust::cuda::par(caching), dh::tbegin(d_node_ptr), dh::tend(d_node_ptr),
+  thrust::inclusive_scan(cuctx->CTP(), dh::tbegin(d_node_ptr), dh::tend(d_node_ptr),
                          dh::tbegin(d_node_ptr));
   copy_stream.View().Sync();
   CHECK_GT(*h_num_runs, 0);
@@ -162,7 +161,7 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
                                         {info.num_row_, predt.Size() / info.num_row_}, ctx->gpu_id);
   CHECK_LT(group_idx, d_predt.Shape(1));
   auto t_predt = d_predt.Slice(linalg::All(), group_idx);
-  auto d_labels = info.labels.View(ctx->gpu_id).Slice(linalg::All(), group_idx);
+  auto d_labels = info.labels.View(ctx->gpu_id).Slice(linalg::All(), IdxY(info, group_idx));
 
   auto d_row_index = dh::ToSpan(ridx);
   auto seg_beg = nptr.DevicePointer();
