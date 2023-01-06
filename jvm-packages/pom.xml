@@ -34,15 +34,15 @@
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
         <flink.version>1.8.3</flink.version>
-        <spark.version>3.0.3</spark.version>
+        <spark.version>3.1.1</spark.version>
         <scala.version>2.12.8</scala.version>
         <scala.binary.version>2.12</scala.binary.version>
         <hadoop.version>3.3.4</hadoop.version>
         <maven.wagon.http.retryHandler.count>5</maven.wagon.http.retryHandler.count>
         <log.capi.invocation>OFF</log.capi.invocation>
         <use.cuda>OFF</use.cuda>
-        <cudf.version>21.08.2</cudf.version>
-        <spark.rapids.version>21.08.0</spark.rapids.version>
+        <cudf.version>22.12.0</cudf.version>
+        <spark.rapids.version>22.12.0</spark.rapids.version>
         <cudf.classifier>cuda11</cudf.classifier>
     </properties>
     <repositories>
