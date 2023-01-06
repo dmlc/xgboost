@@ -1,5 +1,6 @@
 import json
 import os
+import pickle
 import random
 import tempfile
 from typing import Callable, Optional
@@ -633,26 +634,74 @@ def test_sklearn_n_jobs():
 
 def test_parameters_access():
     from sklearn import datasets
-    params = {'updater': 'grow_gpu_hist', 'subsample': .5, 'n_jobs': -1}
+
+    params = {"updater": "grow_gpu_hist", "subsample": 0.5, "n_jobs": -1}
     clf = xgb.XGBClassifier(n_estimators=1000, **params)
-    assert clf.get_params()['updater'] == 'grow_gpu_hist'
-    assert clf.get_params()['subsample'] == .5
-    assert clf.get_params()['n_estimators'] == 1000
+    assert clf.get_params()["updater"] == "grow_gpu_hist"
+    assert clf.get_params()["subsample"] == 0.5
+    assert clf.get_params()["n_estimators"] == 1000
 
     clf = xgb.XGBClassifier(n_estimators=1, nthread=4)
     X, y = datasets.load_iris(return_X_y=True)
     clf.fit(X, y)
 
     config = json.loads(clf.get_booster().save_config())
-    assert int(config['learner']['generic_param']['nthread']) == 4
+    assert int(config["learner"]["generic_param"]["nthread"]) == 4
 
     clf.set_params(nthread=16)
     config = json.loads(clf.get_booster().save_config())
-    assert int(config['learner']['generic_param']['nthread']) == 16
+    assert int(config["learner"]["generic_param"]["nthread"]) == 16
 
     clf.predict(X)
     config = json.loads(clf.get_booster().save_config())
-    assert int(config['learner']['generic_param']['nthread']) == 16
+    assert int(config["learner"]["generic_param"]["nthread"]) == 16
+
+    clf = xgb.XGBClassifier(n_estimators=2)
+    assert clf.tree_method is None
+    assert clf.get_params()["tree_method"] is None
+    clf.fit(X, y)
+    assert clf.get_params()["tree_method"] is None
+
+    def save_load(clf: xgb.XGBClassifier) -> xgb.XGBClassifier:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "model.json")
+            clf.save_model(path)
+            clf = xgb.XGBClassifier()
+            clf.load_model(path)
+        return clf
+
+    def get_tm(clf: xgb.XGBClassifier) -> str:
+        tm = json.loads(clf.get_booster().save_config())["learner"]["gradient_booster"][
+            "gbtree_train_param"
+        ]["tree_method"]
+        return tm
+
+    assert get_tm(clf) == "exact"
+
+    clf = pickle.loads(pickle.dumps(clf))
+
+    assert clf.tree_method is None
+    assert clf.n_estimators == 2
+    assert clf.get_params()["tree_method"] is None
+    assert clf.get_params()["n_estimators"] == 2
+    assert get_tm(clf) == "exact"  # preserved for pickle
+
+    clf = save_load(clf)
+
+    assert clf.tree_method is None
+    assert clf.n_estimators == 2
+    assert clf.get_params()["tree_method"] is None
+    assert clf.get_params()["n_estimators"] == 2
+    assert get_tm(clf) == "auto"  # discarded for save/load_model
+
+    clf.set_params(tree_method="hist")
+    assert clf.get_params()["tree_method"] == "hist"
+    clf = pickle.loads(pickle.dumps(clf))
+    assert clf.get_params()["tree_method"] == "hist"
+    clf = save_load(clf)
+    # FIXME(jiamingy): We should remove this behavior once we remove parameters
+    # serialization for skl save/load_model.
+    assert clf.get_params()["tree_method"] == "hist"
 
 
 def test_kwargs_error():
@@ -692,13 +741,19 @@ def test_sklearn_clone():
 
 def test_sklearn_get_default_params():
     from sklearn.datasets import load_digits
+
     digits_2class = load_digits(n_class=2)
-    X = digits_2class['data']
-    y = digits_2class['target']
+    X = digits_2class["data"]
+    y = digits_2class["target"]
     cls = xgb.XGBClassifier()
-    assert cls.get_params()['base_score'] is None
+    assert cls.get_params()["base_score"] is None
     cls.fit(X[:4, ...], y[:4, ...])
-    assert cls.get_params()['base_score'] is not None
+    base_score = float(
+        json.loads(cls.get_booster().save_config())["learner"]["learner_model_param"][
+            "base_score"
+        ]
+    )
+    np.testing.assert_equal(base_score, 0.5)
 
 
 def run_validation_weights(model):
