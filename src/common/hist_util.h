@@ -636,7 +636,7 @@ class GHistBuilder {
   // construct a histogram via histogram aggregation
   template <bool any_missing>
   void BuildHist(const std::vector<GradientPair>& gpair, const RowSetCollection::Elem row_indices,
-                 const GHistIndexMatrix& gmat, GHistRow hist,
+                 const GHistIndexMatrix& gmat, GHistRow hist, const std::vector<int>& fids,
                  bool force_read_by_column = false) const;
   uint32_t GetNumBins() const {
       return nbins_;

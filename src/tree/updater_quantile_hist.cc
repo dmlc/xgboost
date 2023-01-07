@@ -66,13 +66,14 @@ CPUExpandEntry QuantileHistMaker::Builder::InitRoot(
   CPUExpandEntry node(RegTree::kRoot, p_tree->GetDepth(0), 0.0f);
 
   size_t page_id = 0;
+  const int depth = 0;
   auto space = ConstructHistSpace(partitioner_, {node});
   for (auto const &gidx : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
     std::vector<CPUExpandEntry> nodes_to_build{node};
     std::vector<CPUExpandEntry> nodes_to_sub;
     this->histogram_builder_->BuildHist(page_id, space, gidx, p_tree,
                                         partitioner_.at(page_id).Partitions(), nodes_to_build,
-                                        nodes_to_sub, gpair_h);
+                                        nodes_to_sub, gpair_h, depth);
     ++page_id;
   }
 
@@ -122,7 +123,7 @@ CPUExpandEntry QuantileHistMaker::Builder::InitRoot(
 
 void QuantileHistMaker::Builder::BuildHistogram(DMatrix *p_fmat, RegTree *p_tree,
                                                 std::vector<CPUExpandEntry> const &valid_candidates,
-                                                std::vector<GradientPair> const &gpair) {
+                                                std::vector<GradientPair> const &gpair, int depth) {
   std::vector<CPUExpandEntry> nodes_to_build(valid_candidates.size());
   std::vector<CPUExpandEntry> nodes_to_sub(valid_candidates.size());
 
@@ -147,7 +148,7 @@ void QuantileHistMaker::Builder::BuildHistogram(DMatrix *p_fmat, RegTree *p_tree
   for (auto const &gidx : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
     histogram_builder_->BuildHist(page_id, space, gidx, p_tree,
                                   partitioner_.at(page_id).Partitions(), nodes_to_build,
-                                  nodes_to_sub, gpair);
+                                  nodes_to_sub, gpair, depth);
     ++page_id;
   }
 }
@@ -199,7 +200,7 @@ void QuantileHistMaker::Builder::ExpandTree(DMatrix *p_fmat, RegTree *p_tree,
 
     std::vector<CPUExpandEntry> best_splits;
     if (!valid_candidates.empty()) {
-      this->BuildHistogram(p_fmat, p_tree, valid_candidates, gpair_h);
+      this->BuildHistogram(p_fmat, p_tree, valid_candidates, gpair_h, depth);
       for (auto const &candidate : valid_candidates) {
         int left_child_nidx = tree[candidate.nid].LeftChild();
         int right_child_nidx = tree[candidate.nid].RightChild();
@@ -314,8 +315,8 @@ void QuantileHistMaker::Builder::InitData(DMatrix *fmat, const RegTree &tree,
       partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid);
       ++page_id;
     }
-    histogram_builder_->Reset(n_total_bins, HistBatch(param_), ctx_->Threads(), page_id,
-                              collective::IsDistributed());
+    histogram_builder_->Reset(n_total_bins, HistBatch(param_), param_, column_sampler_,
+                              ctx_->Threads(), page_id, collective::IsDistributed());
 
     if (param_.subsample < 1.0f) {
       CHECK_EQ(param_.sampling_method, TrainParam::kUniform)
