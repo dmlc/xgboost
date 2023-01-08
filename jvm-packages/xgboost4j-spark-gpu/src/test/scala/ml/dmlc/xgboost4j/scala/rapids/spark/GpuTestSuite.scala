@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2021 by Contributors
+ Copyright (c) 2021-2023 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -22,11 +22,10 @@ import java.util.{Locale, TimeZone}
 
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
-import org.apache.spark.SparkConf
+import org.apache.spark.{GpuTestUtils, SparkConf}
 import org.apache.spark.internal.Logging
 import org.apache.spark.network.util.JavaUtils
 import org.apache.spark.sql.{Row, SparkSession}
-import org.apache.spark.sql.rapids.execution.TrampolineUtil
 
 trait GpuTestSuite extends FunSuite with TmpFolderSuite {
   import SparkSessionHolder.withSparkSession
@@ -232,7 +231,7 @@ object SparkSessionHolder extends Logging {
   }
 
   private def createSparkSession(): SparkSession = {
-    TrampolineUtil.cleanupAnyExistingSession()
+    GpuTestUtils.cleanupAnyExistingSession()
 
     // Timezone is fixed to UTC to allow timestamps to work by default
     TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
