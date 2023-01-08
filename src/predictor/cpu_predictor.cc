@@ -8,6 +8,7 @@
 #include <limits>
 #include <mutex>
 
+#include "../collective/communicator-inl.h"
 #include "../common/categorical.h"
 #include "../common/math.h"
 #include "../common/threading_utils.h"
@@ -30,6 +31,66 @@ namespace predictor {
 
 DMLC_REGISTRY_FILE_TAG(cpu_predictor);
 
+using BitVector = RBitField8;
+
+class BitVectorStorage {
+ public:
+  BitVectorStorage(std::size_t num_threads, std::vector<std::size_t> tree_sizes,
+                   std::size_t num_rows) {
+    tree_sizes_ = std::move(tree_sizes);
+    tree_offsets_.resize(tree_sizes_.size());
+    tree_offsets_[0] = 0;
+    for (auto i = 0; i < tree_sizes_.size() - 1; i++) {
+      tree_offsets_[i + 1] = tree_offsets_[i] + tree_sizes_[i] * num_rows;
+    }
+    bits_per_thread_ = tree_offsets_.back() + tree_sizes_.back() * num_rows;
+    decision_storage_.resize(BitVector::ComputeStorageSize(num_threads * bits_per_thread_));
+    decision_bits_ = BitVector(common::Span<BitVector::value_type>(decision_storage_));
+    missing_storage_.resize(BitVector::ComputeStorageSize(num_threads * bits_per_thread_));
+    missing_bits_ = BitVector(common::Span<BitVector::value_type>(missing_storage_));
+  }
+
+  // Disable copy (and move) semantics.
+  BitVectorStorage(BitVectorStorage const &) = delete;
+  BitVectorStorage &operator=(BitVectorStorage const &) = delete;
+  BitVectorStorage(BitVectorStorage &&) noexcept = delete;
+  BitVectorStorage &operator=(BitVectorStorage &&) noexcept = delete;
+
+  std::size_t ThreadOffset(std::size_t thread_id) const { return thread_id * bits_per_thread_; }
+
+  std::size_t RowOffset(std::size_t tree_id, std::size_t row_id, std::size_t thread_offset) const {
+    return thread_offset + tree_offsets_[tree_id] + row_id * tree_sizes_[tree_id];
+  }
+
+  BitVector *DecisionBits() { return &decision_bits_; }
+
+  BitVector const &DecisionBits() const { return decision_bits_; }
+
+  BitVector::value_type *DecisionData() { return decision_storage_.data(); }
+
+  BitVector *MissingBits() { return &missing_bits_; }
+
+  BitVector const &MissingBits() const { return missing_bits_; }
+
+  BitVector::value_type *MissingData() { return missing_storage_.data(); }
+
+  std::size_t Size() const { return decision_storage_.size(); }
+
+  void Clear() {
+    std::fill(decision_storage_.begin(), decision_storage_.end(), 0);
+    std::fill(missing_storage_.begin(), missing_storage_.end(), 0);
+  }
+
+ private:
+  std::vector<std::size_t> tree_sizes_;
+  std::vector<std::size_t> tree_offsets_;
+  std::size_t bits_per_thread_;
+  std::vector<BitVector::value_type> decision_storage_{};
+  BitVector decision_bits_;
+  std::vector<BitVector::value_type> missing_storage_{};
+  BitVector missing_bits_;
+};
+
 template <bool has_missing, bool has_categorical>
 bst_node_t GetLeafIndex(RegTree const &tree, const RegTree::FVec &feat,
                         RegTree::CategoricalSplitMatrix const& cats) {
@@ -39,6 +100,24 @@ bst_node_t GetLeafIndex(RegTree const &tree, const RegTree::FVec &feat,
     auto fvalue = feat.GetFvalue(split_index);
     nid = GetNextNode<has_missing, has_categorical>(
         tree[nid], nid, fvalue, has_missing && feat.IsMissing(split_index), cats);
+  }
+  return nid;
+}
+
+bst_node_t GetNextNodeWithBitVector(RegTree::Node const &node, bst_node_t const nid,
+                                    BitVectorStorage const &bits, std::size_t row_offset) {
+  if (bits.MissingBits().Check(row_offset + nid)) {
+    return node.DefaultChild();
+  } else {
+    return node.LeftChild() + bits.DecisionBits().Check(row_offset + nid);
+  }
+}
+
+bst_node_t GetLeafIndexWithBitVector(RegTree const &tree, BitVectorStorage const &bits,
+                                     std::size_t row_offset) {
+  bst_node_t nid = 0;
+  while (!tree[nid].IsLeaf()) {
+    nid = GetNextNodeWithBitVector(tree[nid], nid, bits, row_offset);
   }
   return nid;
 }
@@ -78,6 +157,44 @@ PredValueByOneTree(const RegTree::FVec &p_feats, RegTree const &tree,
   return tree[leaf].LeafValue();
 }
 
+template <bool has_categorical>
+void MaskByOneTree(RegTree::FVec const &feat, RegTree const &tree,
+                   RegTree::CategoricalSplitMatrix const &cats, BitVectorStorage *bits,
+                   std::size_t row_offset) {
+  for (auto nid = 0; nid < tree.GetNodes().size(); nid++) {
+    auto const &node = tree[nid];
+    if (node.IsDeleted() || node.IsLeaf()) {
+      continue;
+    }
+
+    unsigned split_index = node.SplitIndex();
+    if (feat.IsMissing(split_index)) {
+      bits->MissingBits()->Set(row_offset + nid);
+      continue;
+    }
+
+    auto fvalue = feat.GetFvalue(split_index);
+    if (has_categorical && common::IsCat(cats.split_type, nid)) {
+      auto node_categories =
+          cats.categories.subspan(cats.node_ptr[nid].beg, cats.node_ptr[nid].size);
+      if (!common::Decision(node_categories, fvalue)) {
+        bits->DecisionBits()->Set(row_offset + nid);
+      }
+      continue;
+    }
+
+    if (fvalue >= node.SplitCond()) {
+      bits->DecisionBits()->Set(row_offset + nid);
+    }
+  }
+}
+
+bst_float PredOneTreeWithBitVector(RegTree const &tree, BitVectorStorage const &bits,
+                                   std::size_t row_offset) {
+  const bst_node_t leaf = GetLeafIndexWithBitVector(tree, bits, row_offset);
+  return tree[leaf].LeafValue();
+}
+
 void PredictByAllTrees(gbm::GBTreeModel const &model, const size_t tree_begin,
                        const size_t tree_end, std::vector<bst_float> *out_preds,
                        const size_t predict_offset, const size_t num_group,
@@ -99,6 +216,47 @@ void PredictByAllTrees(gbm::GBTreeModel const &model, const size_t tree_begin,
       for (size_t i = 0; i < block_size; ++i) {
         preds[(predict_offset + i) * num_group + gid] +=
             PredValueByOneTree<false>(thread_temp[offset + i], tree, cats);
+      }
+    }
+  }
+}
+
+void PredictAllTreesWithBitVector(gbm::GBTreeModel const &model, const size_t tree_begin,
+                                  const size_t tree_end, std::vector<bst_float> *out_preds,
+                                  BitVectorStorage const &bits, std::size_t thread_offset,
+                                  const size_t predict_offset, const size_t num_group,
+                                  const size_t block_size) {
+  std::vector<bst_float> &preds = *out_preds;
+  for (size_t tree_id = tree_begin; tree_id < tree_end; ++tree_id) {
+    const size_t gid = model.tree_info[tree_id];
+    auto const &tree = *model.trees[tree_id];
+
+    for (size_t i = 0; i < block_size; ++i) {
+      auto row_offset = bits.RowOffset(tree_id - tree_begin, i, thread_offset);
+      preds[(predict_offset + i) * num_group + gid] +=
+          PredOneTreeWithBitVector(tree, bits, row_offset);
+    }
+  }
+}
+
+void MaskByAllTrees(gbm::GBTreeModel const &model, const size_t tree_begin, const size_t tree_end,
+                    BitVectorStorage *p_bits, const size_t thread_offset,
+                    const std::vector<RegTree::FVec> &thread_temp, const size_t offset,
+                    const size_t block_size) {
+  for (size_t tree_id = tree_begin; tree_id < tree_end; ++tree_id) {
+    auto const &tree = *model.trees[tree_id];
+    auto const &cats = tree.GetCategoriesMatrix();
+    auto has_categorical = tree.HasCategoricalSplit();
+
+    if (has_categorical) {
+      for (size_t i = 0; i < block_size; ++i) {
+        auto row_offset = p_bits->RowOffset(tree_id - tree_begin, i, thread_offset);
+        MaskByOneTree<true>(thread_temp[offset + i], tree, cats, p_bits, row_offset);
+      }
+    } else {
+      for (size_t i = 0; i < block_size; ++i) {
+        auto row_offset = p_bits->RowOffset(tree_id - tree_begin, i, thread_offset);
+        MaskByOneTree<false>(thread_temp[offset + i], tree, cats, p_bits, row_offset);
       }
     }
   }
@@ -258,6 +416,47 @@ void PredictBatchByBlockOfRowsKernel(
   });
 }
 
+template <typename DataView, size_t block_of_rows_size>
+void PredictBatchSplitColumnsKernel(DataView batch, std::vector<bst_float> *out_preds,
+                                    gbm::GBTreeModel const &model, int32_t tree_begin,
+                                    int32_t tree_end, std::vector<RegTree::FVec> *p_thread_temp,
+                                    BitVectorStorage *p_bits, int32_t n_threads) {
+  auto &thread_temp = *p_thread_temp;
+  auto const &bits = *p_bits;
+  int32_t const num_group = model.learner_model_param->num_output_group;
+
+  CHECK_EQ(model.param.size_leaf_vector, 0) << "size_leaf_vector is enforced to 0 so far";
+  // parallel over local batch
+  const auto nsize = static_cast<bst_omp_uint>(batch.Size());
+  const int num_feature = model.learner_model_param->num_feature;
+  omp_ulong n_blocks = common::DivRoundUp(nsize, block_of_rows_size);
+
+  common::ParallelFor(n_blocks, n_threads, [&](bst_omp_uint block_id) {
+    const size_t batch_offset = block_id * block_of_rows_size;
+    const size_t block_size = std::min(nsize - batch_offset, block_of_rows_size);
+    const size_t fvec_offset = omp_get_thread_num() * block_of_rows_size;
+    const size_t thread_bit_offset = bits.ThreadOffset(omp_get_thread_num());
+
+    FVecFill(block_size, batch_offset, num_feature, &batch, fvec_offset, p_thread_temp);
+    // process block of rows through all trees to keep cache locality
+    MaskByAllTrees(model, tree_begin, tree_end, p_bits, thread_bit_offset, thread_temp, fvec_offset,
+                   block_size);
+    FVecDrop(block_size, batch_offset, &batch, fvec_offset, p_thread_temp);
+  });
+
+  collective::Allreduce<collective::Operation::kBitwiseOR>(p_bits->DecisionData(), p_bits->Size());
+  collective::Allreduce<collective::Operation::kBitwiseAND>(p_bits->MissingData(), p_bits->Size());
+
+  common::ParallelFor(n_blocks, n_threads, [&](bst_omp_uint block_id) {
+    const size_t batch_offset = block_id * block_of_rows_size;
+    const size_t block_size = std::min(nsize - batch_offset, block_of_rows_size);
+    const size_t thread_bit_offset = bits.ThreadOffset(omp_get_thread_num());
+
+    PredictAllTreesWithBitVector(model, tree_begin, tree_end, out_preds, bits, thread_bit_offset,
+                                 batch_offset + batch.base_rowid, num_group, block_size);
+  });
+}
+
 float FillNodeMeanValues(RegTree const *tree, bst_node_t nidx, std::vector<float> *mean_values) {
   bst_float result;
   auto &node = (*tree)[nidx];
@@ -321,8 +520,37 @@ class CPUPredictor : public Predictor {
     }
   }
 
+  void PredictWithColumnSplit(DMatrix *p_fmat, const gbm::GBTreeModel &model, int32_t tree_begin,
+                              int32_t tree_end, std::vector<bst_float> *out_preds) const {
+    auto const n_threads = this->ctx_->Threads();
+    std::vector<RegTree::FVec> feat_vecs;
+    InitThreadTemp(n_threads * kBlockOfRowsSize, &feat_vecs);
+
+    std::vector<std::size_t> tree_sizes(tree_end - tree_begin);
+    for (size_t tree_id = tree_begin; tree_id < tree_end; ++tree_id) {
+      auto const &tree = *model.trees[tree_id];
+      tree_sizes.push_back(tree.GetNodes().size());
+    }
+    BitVectorStorage bits(n_threads, tree_sizes, kBlockOfRowsSize);
+
+    for (auto const &batch : p_fmat->GetBatches<SparsePage>()) {
+      CHECK_EQ(out_preds->size(),
+               p_fmat->Info().num_row_ * model.learner_model_param->num_output_group);
+      PredictBatchSplitColumnsKernel<SparsePageView, kBlockOfRowsSize>(
+          SparsePageView{&batch}, out_preds, model, tree_begin, tree_end, &feat_vecs, &bits,
+          n_threads);
+    }
+  }
+
   void PredictDMatrix(DMatrix *p_fmat, std::vector<bst_float> *out_preds,
                       gbm::GBTreeModel const &model, int32_t tree_begin, int32_t tree_end) const {
+    if (p_fmat->Info().data_split_mode == DataSplitMode::kCol) {
+      CHECK(xgboost::collective::IsDistributed())
+          << "column split is only supported for distributed training";
+      PredictWithColumnSplit(p_fmat, model, tree_begin, tree_end, out_preds);
+      return;
+    }
+
     if (!p_fmat->PageExists<SparsePage>()) {
       this->PredictGHistIndex(p_fmat, model, tree_begin, tree_end, out_preds);
       return;
