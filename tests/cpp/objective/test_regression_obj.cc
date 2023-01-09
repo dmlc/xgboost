@@ -1,14 +1,17 @@
-/*!
- * Copyright 2017-2022 XGBoost contributors
+/**
+ * Copyright 2017-2023 by XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>
 #include <xgboost/json.h>
 #include <xgboost/objective.h>
 
+#include "../../../src/common/linalg_op.h"  // begin,end
 #include "../../../src/objective/adaptive.h"
 #include "../helpers.h"
+#include "xgboost/base.h"
 #include "xgboost/data.h"
+#include "xgboost/linalg.h"
 
 namespace xgboost {
 
@@ -412,49 +415,53 @@ TEST(Objective, DeclareUnifiedTest(AbsoluteError)) {
 
 TEST(Objective, DeclareUnifiedTest(AbsoluteErrorLeaf)) {
   Context ctx = CreateEmptyGenericParam(GPUIDX);
+  bst_target_t constexpr kTargets = 3, kRows = 16;
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:absoluteerror", &ctx)};
   obj->Configure({});
 
   MetaInfo info;
-  info.labels.Reshape(16, 1);
-  info.num_row_ = info.labels.Size();
-  CHECK_EQ(info.num_row_, 16);
-  auto h_labels = info.labels.HostView().Values();
-  std::iota(h_labels.begin(), h_labels.end(), 0);
-  HostDeviceVector<float> predt(h_labels.size());
-  auto& h_predt = predt.HostVector();
-  for (size_t i = 0; i < h_predt.size(); ++i) {
-    h_predt[i] = h_labels[i] + i;
-  }
+  info.labels.Reshape(16, kTargets);
+  HostDeviceVector<float> predt(info.labels.Size());
+  auto predt_v = linalg::MakeTensorView(predt.HostSpan(), {kRows, kTargets}, ctx.gpu_id);
 
-  HostDeviceVector<bst_node_t> position(info.labels.Size(), 0);
-  auto& h_position = position.HostVector();
-  for (int32_t i = 0; i < 3; ++i) {
-    h_position[i] = ~i;  // negation for sampled nodes.
-  }
-  for (size_t i = 3; i < 8; ++i) {
-    h_position[i] = 3;
-  }
-  // empty leaf for node 4
-  for (size_t i = 8; i < 13; ++i) {
-    h_position[i] = 5;
-  }
-  for (size_t i = 13; i < h_labels.size(); ++i) {
-    h_position[i] = 6;
-  }
+  for (bst_target_t t{0}; t < kTargets; ++t) {
+    info.num_row_ = kRows;
+    auto h_labels = info.labels.HostView().Slice(linalg::All(), t);
+    std::iota(linalg::begin(h_labels), linalg::end(h_labels), 0);
+    auto h_predt = predt_v.Slice(linalg::All(), t);
+    for (size_t i = 0; i < h_predt.Size(); ++i) {
+      h_predt(i) = h_labels(i) + i;
+    }
 
-  RegTree tree;
-  tree.ExpandNode(0, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
-  tree.ExpandNode(1, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
-  tree.ExpandNode(2, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
-  ASSERT_EQ(tree.GetNumLeaves(), 4);
+    HostDeviceVector<bst_node_t> position(h_labels.Size(), 0);
+    auto& h_position = position.HostVector();
+    for (int32_t i = 0; i < 3; ++i) {
+      h_position[i] = ~i;  // negation for sampled nodes.
+    }
+    for (size_t i = 3; i < 8; ++i) {
+      h_position[i] = 3;
+    }
+    // empty leaf for node 4
+    for (size_t i = 8; i < 13; ++i) {
+      h_position[i] = 5;
+    }
+    for (size_t i = 13; i < h_labels.Size(); ++i) {
+      h_position[i] = 6;
+    }
 
-  auto empty_leaf = tree[4].LeafValue();
-  obj->UpdateTreeLeaf(position, info, predt, 0, &tree);
-  ASSERT_EQ(tree[3].LeafValue(), -5);
-  ASSERT_EQ(tree[4].LeafValue(), empty_leaf);
-  ASSERT_EQ(tree[5].LeafValue(), -10);
-  ASSERT_EQ(tree[6].LeafValue(), -14);
+    RegTree tree;
+    tree.ExpandNode(0, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
+    tree.ExpandNode(1, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
+    tree.ExpandNode(2, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
+    ASSERT_EQ(tree.GetNumLeaves(), 4);
+
+    auto empty_leaf = tree[4].LeafValue();
+    obj->UpdateTreeLeaf(position, info, predt, t, &tree);
+    ASSERT_EQ(tree[3].LeafValue(), -5);
+    ASSERT_EQ(tree[4].LeafValue(), empty_leaf);
+    ASSERT_EQ(tree[5].LeafValue(), -10);
+    ASSERT_EQ(tree[6].LeafValue(), -14);
+  }
 }
 
 TEST(Adaptive, MissingLeaf) {
