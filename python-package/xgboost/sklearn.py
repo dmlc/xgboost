@@ -119,6 +119,7 @@ def _metric_decorator(func: Callable) -> Metric:
 
     def inner(y_score: np.ndarray, dmatrix: DMatrix) -> Tuple[str, float]:
         y_true = dmatrix.get_label()
+        y_true = y_true.reshape(128, 3)
         return func.__name__, func(y_true, y_score)
 
     return inner

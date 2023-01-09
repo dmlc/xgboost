@@ -8,6 +8,7 @@
 
 #include "../../../src/objective/adaptive.h"
 #include "../helpers.h"
+#include "xgboost/data.h"
 
 namespace xgboost {
 
@@ -404,7 +405,7 @@ TEST(Objective, DeclareUnifiedTest(AbsoluteError)) {
     h_predt[i] = labels[i] + i;
   }
 
-  obj->UpdateTreeLeaf(position, info, predt, &tree);
+  obj->UpdateTreeLeaf(position, info, predt, 0, &tree);
   ASSERT_EQ(tree[1].LeafValue(), -1);
   ASSERT_EQ(tree[2].LeafValue(), -4);
 }
@@ -449,14 +450,14 @@ TEST(Objective, DeclareUnifiedTest(AbsoluteErrorLeaf)) {
   ASSERT_EQ(tree.GetNumLeaves(), 4);
 
   auto empty_leaf = tree[4].LeafValue();
-  obj->UpdateTreeLeaf(position, info, predt, &tree);
+  obj->UpdateTreeLeaf(position, info, predt, 0, &tree);
   ASSERT_EQ(tree[3].LeafValue(), -5);
   ASSERT_EQ(tree[4].LeafValue(), empty_leaf);
   ASSERT_EQ(tree[5].LeafValue(), -10);
   ASSERT_EQ(tree[6].LeafValue(), -14);
 }
 
-TEST(Adaptive, DeclareUnifiedTest(MissingLeaf)) {
+TEST(Adaptive, MissingLeaf) {
   std::vector<bst_node_t> missing{1, 3};
 
   std::vector<bst_node_t> h_nidx = {2, 4, 5};
@@ -476,5 +477,10 @@ TEST(Adaptive, DeclareUnifiedTest(MissingLeaf)) {
   ASSERT_EQ(h_nptr[3], 4);  // empty
   ASSERT_EQ(h_nptr[4], 8);
   ASSERT_EQ(h_nptr[5], 16);
+}
+
+TEST(Adaptive, MultiTarget) {
+  MetaInfo info;
+  info.labels.Reshape(8, 3);
 }
 }  // namespace xgboost
