@@ -420,11 +420,11 @@ TEST(Objective, DeclareUnifiedTest(AbsoluteErrorLeaf)) {
   obj->Configure({});
 
   MetaInfo info;
+  info.num_row_ = kRows;
   info.labels.Reshape(16, kTargets);
   HostDeviceVector<float> predt(info.labels.Size());
 
   for (bst_target_t t{0}; t < kTargets; ++t) {
-    info.num_row_ = kRows;
     auto h_labels = info.labels.HostView().Slice(linalg::All(), t);
     std::iota(linalg::begin(h_labels), linalg::end(h_labels), 0);
 
