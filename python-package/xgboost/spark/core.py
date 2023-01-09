@@ -94,6 +94,7 @@ _pyspark_specific_params = [
     "enable_sparse_data_optim",
     "qid_col",
     "repartition_random_shuffle",
+    "pred_contrib_col",
 ]
 
 _non_booster_params = ["missing", "n_estimators", "feature_types", "feature_weights"]
@@ -146,7 +147,7 @@ _unsupported_predict_params = {
 Pred = namedtuple(
     "Pred", ("prediction", "raw_prediction", "probability", "pred_contrib")
 )
-pred = Pred("prediction", "rawPrediction", "probability", "pred_contrib")
+pred = Pred("prediction", "rawPrediction", "probability", "predContrib")
 
 
 class _SparkXGBParams(

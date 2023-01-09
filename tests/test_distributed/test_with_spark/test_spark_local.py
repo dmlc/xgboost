@@ -176,9 +176,9 @@ def reg_data(spark: SparkSession) -> Generator[RegData, None, None]:
         (Vectors.dense(X[0, :]), int(y[0])),
         (Vectors.sparse(3, {1: float(X[1, 1]), 2: float(X[1, 2])}), int(y[1])),
     ]
-    cls_df_train = spark.createDataFrame(reg_df_train_data, ["features", "label"])
+    reg_df_train = spark.createDataFrame(reg_df_train_data, ["features", "label"])
 
-    cls_df_test = spark.createDataFrame(
+    reg_df_test = spark.createDataFrame(
         [
             (
                 Vectors.dense(X[0, :]),
@@ -197,7 +197,63 @@ def reg_data(spark: SparkSession) -> Generator[RegData, None, None]:
             "expected_pred_contribs",
         ],
     )
-    yield RegData(cls_df_train, cls_df_test)
+    yield RegData(reg_df_train, reg_df_test)
+
+
+MultiClfData = namedtuple("MultiClfData", ("multi_clf_df_train", "multi_clf_df_test"))
+
+
+@pytest.fixture
+def multi_clf_data(spark: SparkSession) -> Generator[MultiClfData, None, None]:
+
+    X = np.array([[1.0, 2.0, 3.0], [1.0, 2.0, 4.0], [0.0, 1.0, 5.5], [-1.0, -2.0, 1.0]])
+    y = np.array([0, 0, 1, 2])
+    cls1 = xgb.XGBClassifier()
+    cls1.fit(X, y)
+    predt0 = cls1.predict(X)
+    proba0: np.ndarray = cls1.predict_proba(X)
+    pred_contrib0: np.ndarray = pred_contribs(cls1, X, None, False)
+
+    # convert np array to pyspark dataframe
+    multi_cls_df_train_data = [
+        (Vectors.dense(X[0, :]), int(y[0])),
+        (Vectors.dense(X[1, :]), int(y[1])),
+        (Vectors.sparse(3, {1: float(X[2, 1]), 2: float(X[2, 2])}), int(y[2])),
+        (Vectors.dense(X[3, :]), int(y[3])),
+    ]
+    multi_clf_df_train = spark.createDataFrame(
+        multi_cls_df_train_data, ["features", "label"]
+    )
+
+    multi_clf_df_test = spark.createDataFrame(
+        [
+            (
+                Vectors.dense(X[0, :]),
+                float(predt0[0]),
+                proba0[0, :].tolist(),
+                pred_contrib0[0, :].tolist(),
+            ),
+            (
+                Vectors.dense(X[1, :]),
+                float(predt0[1]),
+                proba0[1, :].tolist(),
+                pred_contrib0[1, :].tolist(),
+            ),
+            (
+                Vectors.sparse(3, {1: 1.0, 2: 5.5}),
+                float(predt0[2]),
+                proba0[2, :].tolist(),
+                pred_contrib0[2, :].tolist(),
+            ),
+        ],
+        [
+            "features",
+            "expected_prediction",
+            "expected_probability",
+            "expected_pred_contribs",
+        ],
+    )
+    yield MultiClfData(multi_clf_df_train, multi_clf_df_test)
 
 
 ClfWithWeight = namedtuple(
@@ -443,6 +499,19 @@ class TestPySparkLocal:
                 row.prediction,
                 row.expected_prediction_with_weight_and_eval,
                 atol=1e-3,
+            )
+
+    def test_multi_classifier_basic(self, multi_clf_data: MultiClfData) -> None:
+        cls = SparkXGBClassifier(pred_contrib_col="pred_contribs")
+        model = cls.fit(multi_clf_data.multi_clf_df_train)
+        pred_result = model.transform(multi_clf_data.multi_clf_df_test).collect()
+        for row in pred_result:
+            np.testing.assert_equal(row.prediction, row.expected_prediction)
+            np.testing.assert_allclose(
+                row.probability, row.expected_probability, rtol=1e-3
+            )
+            np.testing.assert_allclose(
+                row.pred_contribs, row.expected_pred_contribs, atol=1e-3
             )
 
     def test_classifier_with_weight_eval(self, clf_with_weight: ClfWithWeight) -> None:
@@ -713,24 +782,6 @@ class XgboostLocalTest(SparkTestCase):
         # >>> cl.fit(X, y)
         # >>> cl.predict_proba(np.array([[1.0, 2.0, 3.0]]))
         # array([[0.5374299 , 0.23128504, 0.23128504]], dtype=float32)
-        multi_cls_df_train_data = [
-            (Vectors.dense(1.0, 2.0, 3.0), 0),
-            (Vectors.dense(1.0, 2.0, 4.0), 0),
-            (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 1),
-            (Vectors.dense(-1.0, -2.0, 1.0), 2),
-        ]
-        self.multi_cls_df_train = self.session.createDataFrame(
-            multi_cls_df_train_data, ["features", "label"]
-        )
-        self.multi_cls_df_train_large = self.session.createDataFrame(
-            multi_cls_df_train_data * 100, ["features", "label"]
-        )
-        self.multi_cls_df_test = self.session.createDataFrame(
-            [
-                (Vectors.dense(1.0, 2.0, 3.0), [0.5374, 0.2312, 0.2312]),
-            ],
-            ["features", "expected_probability"],
-        )
 
         # Test classifier with both base margin and without
         # >>> import numpy as np
@@ -936,15 +987,6 @@ class XgboostLocalTest(SparkTestCase):
             ].__class__.__name__
             == "float64"
         )
-
-    def test_multi_classifier(self):
-        classifier = SparkXGBClassifier()
-        model = classifier.fit(self.multi_cls_df_train)
-        pred_result = model.transform(self.multi_cls_df_test).collect()
-        for row in pred_result:
-            self.assertTrue(
-                np.allclose(row.probability, row.expected_probability, rtol=1e-3)
-            )
 
     def test_regressor_with_params(self):
         regressor = SparkXGBRegressor(**self.reg_params)
