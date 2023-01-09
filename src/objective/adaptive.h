@@ -1,5 +1,5 @@
-/*!
- * Copyright 2022 by XGBoost Contributors
+/**
+ * Copyright 2022-2023 by XGBoost Contributors
  */
 #pragma once
 
@@ -33,7 +33,7 @@ inline void FillMissingLeaf(std::vector<bst_node_t> const& maybe_missing,
   }
 }
 
-inline void UpdateLeafValues(std::vector<float>* p_quantiles, std::vector<bst_node_t> const nidx,
+inline void UpdateLeafValues(std::vector<float>* p_quantiles, std::vector<bst_node_t> const& nidx,
                              RegTree* p_tree) {
   auto& tree = *p_tree;
   auto& quantiles = *p_quantiles;

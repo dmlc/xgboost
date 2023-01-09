@@ -1,4 +1,4 @@
-/*
+/**
  * Copyright 2015-2023 by XGBoost Contributors
  * \file regression_obj.cu
  * \brief Definition of single-value regression and classification objectives.
@@ -757,7 +757,7 @@ class MeanAbsoluteError : public ObjFunction {
 #if defined(XGBOOST_USE_CUDA)
       position.SetDevice(ctx_->gpu_id);
       auto d_position = position.ConstDeviceSpan();
-      detail::UpdateTreeLeafDevice(ctx_, d_position, info, prediction, 0.5, p_tree);
+      detail::UpdateTreeLeafDevice(ctx_, d_position, group_idx, info, prediction, 0.5, p_tree);
 #else
       common::AssertGPUSupport();
 #endif  //  defined(XGBOOST_USE_CUDA)

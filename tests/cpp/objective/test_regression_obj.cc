@@ -422,13 +422,14 @@ TEST(Objective, DeclareUnifiedTest(AbsoluteErrorLeaf)) {
   MetaInfo info;
   info.labels.Reshape(16, kTargets);
   HostDeviceVector<float> predt(info.labels.Size());
-  auto predt_v = linalg::MakeTensorView(predt.HostSpan(), {kRows, kTargets}, ctx.gpu_id);
 
   for (bst_target_t t{0}; t < kTargets; ++t) {
     info.num_row_ = kRows;
     auto h_labels = info.labels.HostView().Slice(linalg::All(), t);
     std::iota(linalg::begin(h_labels), linalg::end(h_labels), 0);
-    auto h_predt = predt_v.Slice(linalg::All(), t);
+
+    auto h_predt = linalg::MakeTensorView(predt.HostSpan(), {kRows, kTargets}, Context::kCpuId)
+                       .Slice(linalg::All(), t);
     for (size_t i = 0; i < h_predt.Size(); ++i) {
       h_predt(i) = h_labels(i) + i;
     }
@@ -464,7 +465,7 @@ TEST(Objective, DeclareUnifiedTest(AbsoluteErrorLeaf)) {
   }
 }
 
-TEST(Adaptive, MissingLeaf) {
+TEST(Adaptive, DeclareUnifiedTest(MissingLeaf)) {
   std::vector<bst_node_t> missing{1, 3};
 
   std::vector<bst_node_t> h_nidx = {2, 4, 5};
@@ -484,10 +485,5 @@ TEST(Adaptive, MissingLeaf) {
   ASSERT_EQ(h_nptr[3], 4);  // empty
   ASSERT_EQ(h_nptr[4], 8);
   ASSERT_EQ(h_nptr[5], 16);
-}
-
-TEST(Adaptive, MultiTarget) {
-  MetaInfo info;
-  info.labels.Reshape(8, 3);
 }
 }  // namespace xgboost
