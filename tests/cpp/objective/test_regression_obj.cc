@@ -1,13 +1,17 @@
-/*!
- * Copyright 2017-2022 XGBoost contributors
+/**
+ * Copyright 2017-2023 by XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>
 #include <xgboost/json.h>
 #include <xgboost/objective.h>
 
+#include "../../../src/common/linalg_op.h"  // begin,end
 #include "../../../src/objective/adaptive.h"
 #include "../helpers.h"
+#include "xgboost/base.h"
+#include "xgboost/data.h"
+#include "xgboost/linalg.h"
 
 namespace xgboost {
 
@@ -404,56 +408,61 @@ TEST(Objective, DeclareUnifiedTest(AbsoluteError)) {
     h_predt[i] = labels[i] + i;
   }
 
-  obj->UpdateTreeLeaf(position, info, predt, &tree);
+  obj->UpdateTreeLeaf(position, info, predt, 0, &tree);
   ASSERT_EQ(tree[1].LeafValue(), -1);
   ASSERT_EQ(tree[2].LeafValue(), -4);
 }
 
 TEST(Objective, DeclareUnifiedTest(AbsoluteErrorLeaf)) {
   Context ctx = CreateEmptyGenericParam(GPUIDX);
+  bst_target_t constexpr kTargets = 3, kRows = 16;
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:absoluteerror", &ctx)};
   obj->Configure({});
 
   MetaInfo info;
-  info.labels.Reshape(16, 1);
-  info.num_row_ = info.labels.Size();
-  CHECK_EQ(info.num_row_, 16);
-  auto h_labels = info.labels.HostView().Values();
-  std::iota(h_labels.begin(), h_labels.end(), 0);
-  HostDeviceVector<float> predt(h_labels.size());
-  auto& h_predt = predt.HostVector();
-  for (size_t i = 0; i < h_predt.size(); ++i) {
-    h_predt[i] = h_labels[i] + i;
-  }
+  info.num_row_ = kRows;
+  info.labels.Reshape(16, kTargets);
+  HostDeviceVector<float> predt(info.labels.Size());
 
-  HostDeviceVector<bst_node_t> position(info.labels.Size(), 0);
-  auto& h_position = position.HostVector();
-  for (int32_t i = 0; i < 3; ++i) {
-    h_position[i] = ~i;  // negation for sampled nodes.
-  }
-  for (size_t i = 3; i < 8; ++i) {
-    h_position[i] = 3;
-  }
-  // empty leaf for node 4
-  for (size_t i = 8; i < 13; ++i) {
-    h_position[i] = 5;
-  }
-  for (size_t i = 13; i < h_labels.size(); ++i) {
-    h_position[i] = 6;
-  }
+  for (bst_target_t t{0}; t < kTargets; ++t) {
+    auto h_labels = info.labels.HostView().Slice(linalg::All(), t);
+    std::iota(linalg::begin(h_labels), linalg::end(h_labels), 0);
 
-  RegTree tree;
-  tree.ExpandNode(0, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
-  tree.ExpandNode(1, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
-  tree.ExpandNode(2, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
-  ASSERT_EQ(tree.GetNumLeaves(), 4);
+    auto h_predt = linalg::MakeTensorView(predt.HostSpan(), {kRows, kTargets}, Context::kCpuId)
+                       .Slice(linalg::All(), t);
+    for (size_t i = 0; i < h_predt.Size(); ++i) {
+      h_predt(i) = h_labels(i) + i;
+    }
 
-  auto empty_leaf = tree[4].LeafValue();
-  obj->UpdateTreeLeaf(position, info, predt, &tree);
-  ASSERT_EQ(tree[3].LeafValue(), -5);
-  ASSERT_EQ(tree[4].LeafValue(), empty_leaf);
-  ASSERT_EQ(tree[5].LeafValue(), -10);
-  ASSERT_EQ(tree[6].LeafValue(), -14);
+    HostDeviceVector<bst_node_t> position(h_labels.Size(), 0);
+    auto& h_position = position.HostVector();
+    for (int32_t i = 0; i < 3; ++i) {
+      h_position[i] = ~i;  // negation for sampled nodes.
+    }
+    for (size_t i = 3; i < 8; ++i) {
+      h_position[i] = 3;
+    }
+    // empty leaf for node 4
+    for (size_t i = 8; i < 13; ++i) {
+      h_position[i] = 5;
+    }
+    for (size_t i = 13; i < h_labels.Size(); ++i) {
+      h_position[i] = 6;
+    }
+
+    RegTree tree;
+    tree.ExpandNode(0, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
+    tree.ExpandNode(1, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
+    tree.ExpandNode(2, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
+    ASSERT_EQ(tree.GetNumLeaves(), 4);
+
+    auto empty_leaf = tree[4].LeafValue();
+    obj->UpdateTreeLeaf(position, info, predt, t, &tree);
+    ASSERT_EQ(tree[3].LeafValue(), -5);
+    ASSERT_EQ(tree[4].LeafValue(), empty_leaf);
+    ASSERT_EQ(tree[5].LeafValue(), -10);
+    ASSERT_EQ(tree[6].LeafValue(), -14);
+  }
 }
 
 TEST(Adaptive, DeclareUnifiedTest(MissingLeaf)) {

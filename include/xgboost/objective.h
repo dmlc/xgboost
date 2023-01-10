@@ -1,5 +1,5 @@
-/*!
- * Copyright 2014-2022 by Contributors
+/**
+ * Copyright 2014-2023 by XGBoost Contributors
  * \file objective.h
  * \brief interface of objective function used by xgboost.
  * \author Tianqi Chen, Kailong Chen
@@ -14,6 +14,7 @@
 #include <xgboost/model.h>
 #include <xgboost/task.h>
 
+#include <cstdint>  // std::int32_t
 #include <functional>
 #include <string>
 #include <utility>
@@ -111,12 +112,13 @@ class ObjFunction : public Configurable {
    * \param position The leaf index for each rows.
    * \param info MetaInfo providing labels and weights.
    * \param prediction Model prediction after transformation.
+   * \param group_idx The group index for this tree, 0 when it's not multi-target or multi-class.
    * \param p_tree Tree that needs to be updated.
    */
   virtual void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& /*position*/,
                               MetaInfo const& /*info*/,
                               HostDeviceVector<float> const& /*prediction*/,
-                              RegTree* /*p_tree*/) const {}
+                              std::int32_t /*group_idx*/, RegTree* /*p_tree*/) const {}
 
   /*!
    * \brief Create an objective function according to name.

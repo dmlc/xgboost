@@ -1,5 +1,5 @@
-/*!
- * Copyright 2014-2022 by Contributors
+/**
+ * Copyright 2014-2023 by XGBoost Contributors
  * \file learner.cc
  * \brief Implementation of learning algorithm.
  * \author Tianqi Chen
@@ -412,6 +412,7 @@ class LearnerConfiguration : public Learner {
         // We estimate it from input data.
         linalg::Tensor<float, 1> base_score;
         UsePtr(obj_)->InitEstimation(info, &base_score);
+        CHECK_EQ(base_score.Size(), 1);
         mparam_.base_score = base_score(0);
         CHECK(!std::isnan(mparam_.base_score));
       }

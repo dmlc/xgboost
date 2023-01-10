@@ -1,5 +1,5 @@
-/*!
- * Copyright 2014-2022 by Contributors
+/**
+ * Copyright 2014-2023 by Contributors
  * \file gbtree.cc
  * \brief gradient boosted tree implementation.
  * \author Tianqi Chen
@@ -10,26 +10,26 @@
 #include <dmlc/omp.h>
 
 #include <algorithm>
-#include <vector>
+#include <cstdint>  // std::int32_t
 #include <map>
 #include <memory>
-#include <utility>
 #include <string>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
-#include "xgboost/base.h"
-#include "xgboost/data.h"
-#include "xgboost/logging.h"
-#include "xgboost/gbm.h"
-#include "xgboost/predictor.h"
-#include "xgboost/tree_updater.h"
-#include "xgboost/parameter.h"
-#include "xgboost/json.h"
-#include "xgboost/host_device_vector.h"
-
-#include "gbtree_model.h"
 #include "../common/common.h"
 #include "../common/timer.h"
+#include "gbtree_model.h"
+#include "xgboost/base.h"
+#include "xgboost/data.h"
+#include "xgboost/gbm.h"
+#include "xgboost/host_device_vector.h"
+#include "xgboost/json.h"
+#include "xgboost/logging.h"
+#include "xgboost/parameter.h"
+#include "xgboost/predictor.h"
+#include "xgboost/tree_updater.h"
 
 namespace xgboost {
 enum class TreeMethod : int {
@@ -205,7 +205,10 @@ class GBTree : public GradientBooster {
    * \brief Optionally update the leaf value.
    */
   void UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const& predictions,
-                      ObjFunction const* obj, std::vector<std::unique_ptr<RegTree>>* p_trees);
+                      ObjFunction const* obj,
+                      std::int32_t group_idx,
+                      std::vector<HostDeviceVector<bst_node_t>> const& node_position,
+                      std::vector<std::unique_ptr<RegTree>>* p_trees);
 
   /*! \brief Carry out one iteration of boosting */
   void DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
@@ -411,11 +414,9 @@ class GBTree : public GradientBooster {
   // initialize updater before using them
   void InitUpdater(Args const& cfg);
 
-  // do group specific group
-  void BoostNewTrees(HostDeviceVector<GradientPair>* gpair,
-                     DMatrix *p_fmat,
-                     int bst_group,
-                     std::vector<std::unique_ptr<RegTree> >* ret);
+  void BoostNewTrees(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat, int bst_group,
+                     std::vector<HostDeviceVector<bst_node_t>>* out_position,
+                     std::vector<std::unique_ptr<RegTree>>* ret);
 
   std::unique_ptr<Predictor> const& GetPredictor(HostDeviceVector<float> const* out_pred = nullptr,
                                                  DMatrix* f_dmat = nullptr) const;
@@ -435,9 +436,6 @@ class GBTree : public GradientBooster {
   Args cfg_;
   // the updaters that can be applied to each of tree
   std::vector<std::unique_ptr<TreeUpdater>> updaters_;
-  // The node position for each row, 1 HDV for each tree in the forest.  Note that the
-  // position is negated if the row is sampled out.
-  std::vector<HostDeviceVector<bst_node_t>> node_position_;
   // Predictors
   std::unique_ptr<Predictor> cpu_predictor_;
 #if defined(XGBOOST_USE_CUDA)

@@ -1,9 +1,10 @@
-/*!
- * Copyright 2022 by XGBoost Contributors
+/**
+ * Copyright 2022-2023 by XGBoost Contributors
  */
 #pragma once
 
 #include <algorithm>
+#include <cstdint>  // std::int32_t
 #include <limits>
 #include <vector>
 
@@ -32,7 +33,7 @@ inline void FillMissingLeaf(std::vector<bst_node_t> const& maybe_missing,
   }
 }
 
-inline void UpdateLeafValues(std::vector<float>* p_quantiles, std::vector<bst_node_t> const nidx,
+inline void UpdateLeafValues(std::vector<float>* p_quantiles, std::vector<bst_node_t> const& nidx,
                              RegTree* p_tree) {
   auto& tree = *p_tree;
   auto& quantiles = *p_quantiles;
@@ -73,12 +74,12 @@ inline void UpdateLeafValues(std::vector<float>* p_quantiles, std::vector<bst_no
 }
 
 void UpdateTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> position,
-                          MetaInfo const& info, HostDeviceVector<float> const& predt, float alpha,
-                          RegTree* p_tree);
+                          std::int32_t group_idx, MetaInfo const& info,
+                          HostDeviceVector<float> const& predt, float alpha, RegTree* p_tree);
 
 void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& position,
-                        MetaInfo const& info, HostDeviceVector<float> const& predt, float alpha,
-                        RegTree* p_tree);
+                        std::int32_t group_idx, MetaInfo const& info,
+                        HostDeviceVector<float> const& predt, float alpha, RegTree* p_tree);
 }  // namespace detail
 }  // namespace obj
 }  // namespace xgboost

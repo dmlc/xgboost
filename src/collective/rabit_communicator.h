@@ -1,5 +1,5 @@
-/*!
- * Copyright 2022 XGBoost contributors
+/**
+ * Copyright 2022-2023 by XGBoost contributors
  */
 #pragma once
 #include <rabit/rabit.h>

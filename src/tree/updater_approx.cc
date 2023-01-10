@@ -58,7 +58,7 @@ class GloablApproxBuilder {
     monitor_->Start(__func__);
 
     n_batches_ = 0;
-    int32_t n_total_bins = 0;
+    bst_bin_t n_total_bins = 0;
     partitioner_.clear();
     // Generating the GHistIndexMatrix is quite slow, is there a way to speed it up?
     for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(BatchSpec(param_, hess, task_))) {

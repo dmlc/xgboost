@@ -1,15 +1,14 @@
-/*!
- * Copyright 2015-2022 by XGBoost Contributors
+/**
+ * Copyright 2015-2023 by XGBoost Contributors
  * \file regression_obj.cu
  * \brief Definition of single-value regression and classification objectives.
  * \author Tianqi Chen, Kailong Chen
  */
 #include <dmlc/omp.h>
-#include <xgboost/logging.h>
-#include <xgboost/objective.h>
-#include <xgboost/tree_model.h>
 
+#include <algorithm>
 #include <cmath>
+#include <cstdint>  // std::int32_t
 #include <memory>
 #include <vector>
 
@@ -25,12 +24,15 @@
 #include "adaptive.h"
 #include "xgboost/base.h"
 #include "xgboost/context.h"
-#include "xgboost/data.h"
+#include "xgboost/data.h"  // MetaInfo
 #include "xgboost/host_device_vector.h"
 #include "xgboost/json.h"
 #include "xgboost/linalg.h"
+#include "xgboost/logging.h"
+#include "xgboost/objective.h"  // ObjFunction
 #include "xgboost/parameter.h"
 #include "xgboost/span.h"
+#include "xgboost/tree_model.h"  // RegTree
 
 #if defined(XGBOOST_USE_CUDA)
 #include "../common/device_helpers.cuh"
@@ -703,6 +705,9 @@ class MeanAbsoluteError : public ObjFunction {
  public:
   void Configure(Args const&) override {}
   ObjInfo Task() const override { return {ObjInfo::kRegression, true, true}; }
+  bst_target_t Targets(MetaInfo const& info) const override {
+    return std::max(static_cast<size_t>(1), info.labels.Shape(1));
+  }
 
   void GetGradient(HostDeviceVector<bst_float> const& preds, const MetaInfo& info, int /*iter*/,
                    HostDeviceVector<GradientPair>* out_gpair) override {
@@ -724,7 +729,7 @@ class MeanAbsoluteError : public ObjFunction {
         return (x > static_cast<decltype(x)>(0)) - (x < static_cast<decltype(x)>(0));
       };
       auto sample_id = std::get<0>(linalg::UnravelIndex(i, labels.Shape()));
-      auto grad = sign(predt(i) - y) * weight[i];
+      auto grad = sign(predt(i) - y) * weight[sample_id];
       auto hess = weight[sample_id];
       gpair(i) = GradientPair{grad, hess};
     });
@@ -732,8 +737,7 @@ class MeanAbsoluteError : public ObjFunction {
 
   void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_margin) const override {
     CheckInitInputs(info);
-    base_margin->Reshape(1);
-    auto out = base_margin->HostView();
+    base_margin->Reshape(this->Targets(info));
 
     double w{0.0};
     if (info.weights_.Empty()) {
@@ -743,11 +747,18 @@ class MeanAbsoluteError : public ObjFunction {
     }
 
     if (info.num_row_ == 0) {
+      auto out = base_margin->HostView();
       out(0) = 0;
     } else {
-      // weighted avg
-      out(0) = common::Median(ctx_, info.labels, info.weights_) * w;
+      linalg::Vector<float> temp;
+      common::Median(ctx_, info.labels, info.weights_, &temp);
+      common::Mean(ctx_, temp, base_margin);
     }
+    CHECK_EQ(base_margin->Size(), 1);
+    auto out = base_margin->HostView();
+    // weighted avg
+    std::transform(linalg::cbegin(out), linalg::cend(out), linalg::begin(out),
+                   [w](float v) { return v * w; });
 
     collective::Allreduce<collective::Operation::kSum>(out.Values().data(), out.Values().size());
     collective::Allreduce<collective::Operation::kSum>(&w, 1);
@@ -763,15 +774,16 @@ class MeanAbsoluteError : public ObjFunction {
   }
 
   void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& position, MetaInfo const& info,
-                      HostDeviceVector<float> const& prediction, RegTree* p_tree) const override {
+                      HostDeviceVector<float> const& prediction, std::int32_t group_idx,
+                      RegTree* p_tree) const override {
     if (ctx_->IsCPU()) {
       auto const& h_position = position.ConstHostVector();
-      detail::UpdateTreeLeafHost(ctx_, h_position, info, prediction, 0.5, p_tree);
+      detail::UpdateTreeLeafHost(ctx_, h_position, group_idx, info, prediction, 0.5, p_tree);
     } else {
 #if defined(XGBOOST_USE_CUDA)
       position.SetDevice(ctx_->gpu_id);
       auto d_position = position.ConstDeviceSpan();
-      detail::UpdateTreeLeafDevice(ctx_, d_position, info, prediction, 0.5, p_tree);
+      detail::UpdateTreeLeafDevice(ctx_, d_position, group_idx, info, prediction, 0.5, p_tree);
 #else
       common::AssertGPUSupport();
 #endif  //  defined(XGBOOST_USE_CUDA)
