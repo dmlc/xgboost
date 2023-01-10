@@ -138,9 +138,18 @@ def pd_arrow_dtypes() -> Generator:
     orig = pd.DataFrame(
         {"f0": [1, 2, Null, 3], "f1": [4, 3, Null, 1]}, dtype=np.float32
     )
-    pd.arrays.ArrowExtensionArray()
+    # pd.arrays.ArrowExtensionArray()
+    print("after orig")
+
+    df = pd.DataFrame(
+        {"f0": [1, 2, Null, 3], "f1": [4, 3, Null, 1]},
+        dtype=pd.ArrowDtype(pa.dictionary(pa.int32(), pa.int32())),
+    )
+    yield orig, df
+
     for Null in (None, pd.NA):
         for dtype in dtypes:
+            print("dtype:", dtype, flush=True)
             df = pd.DataFrame(
                 {"f0": [1, 2, Null, 3], "f1": [4, 3, Null, 1]}, dtype=dtype
             )

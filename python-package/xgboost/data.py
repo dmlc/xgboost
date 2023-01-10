@@ -265,7 +265,7 @@ pandas_pyarrow_mapper = {
 }
 
 _pandas_dtype_mapper.update(pandas_nullable_mapper)
-_pandas_dtype_mapper.update(pandas_pyarrow_mapper)
+# _pandas_dtype_mapper.update(pandas_pyarrow_mapper)
 
 
 _ENABLE_CAT_ERR = (
@@ -357,7 +357,7 @@ def pandas_cat_null(data: DataFrame) -> DataFrame:
     if cat_columns or nul_columns:
         # Avoid transformation due to: PerformanceWarning: DataFrame is highly
         # fragmented
-        transformed = data.copy()
+        transformed = data.copy(deep=False)
     else:
         transformed = data
 
@@ -387,7 +387,58 @@ def _transform_pandas_df(
     meta: Optional[str] = None,
     meta_type: Optional[NumpyDType] = None,
 ) -> Tuple[np.ndarray, Optional[FeatureNames], Optional[FeatureTypes]]:
-    from pandas.api.types import is_categorical_dtype, is_sparse
+    from pandas.api.types import is_categorical_dtype, is_sparse, is_extension_type
+    import pyarrow as pa
+    import pandas as pd
+
+    # Create dictionary types
+    # >>> df = pd.DataFrame({"a": [1, 2, 3]}, dtype=pd.ArrowDtype(pa.dictionary(pa.int32(), pa.int8())))
+
+    # is_extension_type,is_integer_dtype are False for pyarrow
+    for col, dtype in zip(data.columns, data.dtypes):
+        print("dtype:", type(dtype), dtype, is_extension_type(dtype))
+        if hasattr(dtype, "pyarrow_dtype"):
+            pass
+
+        if dtype.type is pa.DictionaryType:
+            assert hasattr(dtype, "pyarrow_dtype")
+            # categorical
+            cat_codes = data[
+                col
+            ].array.__arrow_array__().combine_chunks().dictionary_encode().indices
+            print("cat_codes:", cat_codes, type(cat_codes))
+            pass
+        # if isinstance(dtype.pyarrow_dtype, pa.DictionaryType):
+        #     pass
+
+        if dtype.name in pandas_pyarrow_mapper:
+            # pandas.core.internals.managers.SingleBlockManager.array_values()
+            # pandas.core.internals.blocks.EABackedBlock.values
+            # no copy
+            d_array: pd.ArrowExtensionArray = data[col].array
+            print("in pyarrow:", dtype, type(d_array), d_array)
+            values = data[col].values.to_numpy()
+            # na_vallue=pa.NA, dtype=object
+            print("values:", values, values.dtype)
+            # no copy in __arrow_array__
+            # ArrowExtensionArray._data is a chunked array
+            aa: pa.ChunkedArray = d_array.__arrow_array__()
+            print("arrow array:", type(aa), aa, aa.chunks)
+            chunk: pa.Array = aa.combine_chunks()  # pa.Int8Array
+            print("chunk:", type(chunk), chunk)
+            buf = chunk.buffers()
+            print("buf:", buf)
+            # internally calls chunk.to_numpy(zero_copy_only=False)
+            # arrow_to_pandas.cc::ConvertChunkedArrayToPandas
+            chunk.to_numpy(zero_copy_only=True)
+            arr = chunk.__array__()
+            # data = buf.address
+            # size = buf.size
+            # {"data": (data, True)}
+            print("arr:", type(arr), arr.__array_interface__)
+            # print(type(buf), buf, buf.address)
+            print(arr)
+        print(col, type(dtype), dtype)
 
     if not all(
         (dtype.name in _pandas_dtype_mapper)

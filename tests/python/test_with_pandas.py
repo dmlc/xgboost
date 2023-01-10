@@ -327,5 +327,7 @@ class TestPandas:
     def test_pyarrow_type(self) -> None:
         for DMatrixT in (xgb.DMatrix, xgb.QuantileDMatrix):
             for orig, df in pd_arrow_dtypes():
+                print("Create orig")
                 m_orig = DMatrixT(orig, enable_categorical=True)
+                print("Create etype")
                 m_etype = DMatrixT(df, enable_categorical=True)
