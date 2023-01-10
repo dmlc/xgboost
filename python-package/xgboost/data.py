@@ -300,6 +300,7 @@ def pandas_feature_info(
     feature_types: Optional[FeatureTypes],
     enable_categorical: bool,
 ) -> Tuple[Optional[FeatureNames], Optional[FeatureTypes]]:
+    """Handle feature info for pandas dataframe."""
     import pandas as pd
     from pandas.api.types import is_categorical_dtype, is_sparse
 
@@ -349,6 +350,7 @@ def is_pa_ext_dtype(dtype: Any) -> bool:
 
 
 def is_pa_categorical_dtype(dtype: Any) -> bool:
+    """Check whether dtype is the dictionary type."""
     if importlib.util.find_spec("pyarrow") is not None:
         import pyarrow as pa
         return isinstance(getattr(dtype, "pyarrow_dtype", None), pa.DictionaryType)
@@ -363,10 +365,14 @@ def pandas_cat_null(data: DataFrame) -> DataFrame:
     # handle category codes and nullable.
     cat_columns = []
     nul_columns = []
+    # avoid an unnecessary conversion if possible
     for col, dtype in zip(data.columns, data.dtypes):
-        if is_categorical_dtype(dtype) or is_pa_categorical_dtype(dtype):
+        if is_categorical_dtype(dtype):
             cat_columns.append(col)
-        # avoid an unnecessary conversion if possible
+        elif is_pa_categorical_dtype(dtype):
+            raise ValueError(
+                "pyarrow dictionary type is not supported. Use pandas category instead."
+            )
         elif is_nullable_dtype(dtype):
             nul_columns.append(col)
 
@@ -377,13 +383,13 @@ def pandas_cat_null(data: DataFrame) -> DataFrame:
     else:
         transformed = data
 
-    def cat_codes(x: pd.Series) -> pd.Series:
-        if is_pa_categorical_dtype(x.dtype):
-            return (
-                x.array.__arrow_array__().combine_chunks().dictionary_encode().indices
-            )
-        else:
-            return x.cat.codes
+    def cat_codes(ser: pd.Series) -> pd.Series:
+        if is_categorical_dtype(ser.dtype):
+            return ser.cat.codes
+        assert is_pa_categorical_dtype(ser.dtype)
+        # Not yet supported, the index is not ordered for some reason. Alternately:
+        # `combine_chunks().to_pandas().cat.codes`. The result is the same.
+        return ser.array.__arrow_array__().combine_chunks().dictionary_encode().indices
 
     if cat_columns:
         # DF doesn't have the cat attribute, as a result, we use apply here
@@ -404,7 +410,7 @@ def pandas_cat_null(data: DataFrame) -> DataFrame:
 
 
 def pandas_extension_num_types(data: DataFrame) -> DataFrame:
-    """Handle pyarrow extension numeric types."""
+    """Experimental suppport for handling pyarrow extension numeric types."""
     import pandas as pd
     import pyarrow as pa
     for col, dtype in zip(data.columns, data.dtypes):

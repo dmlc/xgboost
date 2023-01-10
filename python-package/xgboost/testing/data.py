@@ -129,7 +129,7 @@ def pd_dtypes() -> Generator:
 def pd_arrow_dtypes() -> Generator:
     """Pandas DataFrame with pyarrow backed type."""
     import pandas as pd
-    import pyarrow as pa
+
     import xgboost
 
     # Integer
@@ -138,12 +138,12 @@ def pd_arrow_dtypes() -> Generator:
     orig = pd.DataFrame(
         {"f0": [1, 2, Null, 3], "f1": [4, 3, Null, 1]}, dtype=np.float32
     )
-
-    df = pd.DataFrame(
-        {"f0": [1, 2, Null, 3], "f1": [4, 3, Null, 1]},
-        dtype=pd.ArrowDtype(pa.dictionary(pa.int32(), pa.int32())),
-    )
-    yield orig, df
+    # Create a dictionary-backed dataframe, enable this when the roundtrip is
+    # implemented in pandas/pyarrow
+    # df = pd.DataFrame(
+    #     {"f0": [0, 2, Null, 3], "f1": [4, 3, Null, 1]},
+    #     dtype=pd.ArrowDtype(pa.dictionary(pa.int32(), pa.int32(), ordered=True)),
+    # )
 
     for Null in (None, pd.NA):
         for dtype in dtypes:
@@ -153,3 +153,12 @@ def pd_arrow_dtypes() -> Generator:
                 {"f0": [1, 2, Null, 3], "f1": [4, 3, Null, 1]}, dtype=dtype
             )
             yield orig, df
+
+    # Create a boolean array, error:
+    # Could not convert <pyarrow.NullScalar: None> with type pyarrow.lib.NullScalar:
+    # tried to convert to boolean
+    #
+    # df = pd.DataFrame(
+    #     {"f0": [True, False, pa.NA, True], "f1": [False, True, pa.NA, True]},
+    #     dtype=pd.ArrowDtype(pa.bool_()),
+    # )
