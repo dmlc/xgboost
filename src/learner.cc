@@ -190,6 +190,32 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     }
     return dmlc::Parameter<LearnerModelParamLegacy>::UpdateAllowUnknown(kwargs);
   }
+  // sanity check
+  void Validate() {
+    if (!collective::IsDistributed()) {
+      return;
+    }
+
+    std::array<std::int32_t, 6> data;
+    std::size_t pos{0};
+    std::memcpy(data.data() + pos, &base_score, sizeof(base_score));
+    pos += 1;
+    std::memcpy(data.data() + pos, &num_feature, sizeof(num_feature));
+    pos += 1;
+    std::memcpy(data.data() + pos, &num_class, sizeof(num_class));
+    pos += 1;
+    std::memcpy(data.data() + pos, &num_target, sizeof(num_target));
+    pos += 1;
+    std::memcpy(data.data() + pos, &major_version, sizeof(major_version));
+    pos += 1;
+    std::memcpy(data.data() + pos, &minor_version, sizeof(minor_version));
+
+    std::array<std::int32_t, 6> sync;
+    std::copy(data.cbegin(), data.cend(), sync.begin());
+    collective::Broadcast(sync.data(), sync.size(), 0);
+    CHECK(std::equal(data.cbegin(), data.cend(), sync.cbegin()))
+        << "Different model parameter across workers.";
+  }
 
   // declare parameters
   DMLC_DECLARE_PARAMETER(LearnerModelParamLegacy) {
@@ -391,6 +417,7 @@ class LearnerConfiguration : public Learner {
       }
       // Update the shared model parameter
       this->ConfigureModelParamWithoutBaseScore();
+      mparam_.Validate();
     }
     CHECK(!std::isnan(mparam_.base_score));
     CHECK(!std::isinf(mparam_.base_score));

@@ -42,6 +42,7 @@ try:
     from dask import array as da
     from dask.distributed import Client
     from dask_cuda import LocalCUDACluster
+    from xgboost.testing.dask import check_init_estimation
 
     from xgboost import dask as dxgb
 except ImportError:
@@ -219,6 +220,9 @@ class TestDistributedGPU:
         X = dd.from_array(X_, chunksize=50).map_partitions(cudf.from_pandas)
         y = dd.from_array(y_, chunksize=50).map_partitions(cudf.from_pandas)
         run_boost_from_prediction_multi_class(X, y, "gpu_hist", local_cuda_client)
+
+    def test_init_estimation(self, local_cuda_client: Client) -> None:
+        check_init_estimation("gpu_hist", local_cuda_client)
 
     @pytest.mark.skipif(**tm.no_dask_cudf())
     def test_dask_dataframe(self, local_cuda_client: Client) -> None:

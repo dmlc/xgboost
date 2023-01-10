@@ -261,10 +261,10 @@ class XGBoostClassifierSuite extends FunSuite with PerTest with TmpFolderPerSuit
       "eta" -> "1",
       "max_depth" -> "6",
       "silent" -> "1",
+      "base_score" -> 0.5,
       "objective" -> "binary:logistic",
       "tree_method" -> treeMethod,
       "max_bin" -> 16)
-
     val model1 = ScalaXGBoost.train(trainingDM, paramMap, round)
     val prediction1 = model1.predict(testDM)
 
@@ -453,5 +453,4 @@ class XGBoostClassifierSuite extends FunSuite with PerTest with TmpFolderPerSuit
     assert(!compareTwoFiles(new File(modelJsonPath, "data/XGBoostClassificationModel").getPath,
       nativeUbjModelPath))
   }
-
 }

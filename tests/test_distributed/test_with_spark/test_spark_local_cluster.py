@@ -1,7 +1,6 @@
 import json
 import os
 import random
-import sys
 import uuid
 
 import numpy as np
@@ -216,7 +215,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
             ],
         )
         self.reg_best_score_eval = 5.239e-05
-        self.reg_best_score_weight_and_eval = 4.810e-05
+        self.reg_best_score_weight_and_eval = 4.850e-05
 
     def test_regressor_basic_with_params(self):
         regressor = SparkXGBRegressor(**self.reg_params)

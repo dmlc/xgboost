@@ -1078,7 +1078,7 @@ class XGBModel(XGBModelBase):
         validate_features: bool = True,
         base_margin: Optional[ArrayLike] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
-    ) -> np.ndarray:
+    ) -> ArrayLike:
         """Predict with `X`.  If the model is trained with early stopping, then `best_iteration`
         is used automatically.  For tree models, when data is on GPU, like cupy array or
         cuDF dataframe and `predictor` is not specified, the prediction is run on GPU
@@ -1528,7 +1528,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         validate_features: bool = True,
         base_margin: Optional[ArrayLike] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
-    ) -> np.ndarray:
+    ) -> ArrayLike:
         with config_context(verbosity=self.verbosity):
             class_probs = super().predict(
                 X=X,

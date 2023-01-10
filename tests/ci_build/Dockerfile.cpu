@@ -36,10 +36,10 @@ RUN git clone -b v1.49.1 https://github.com/grpc/grpc.git \
     rm -rf grpc
 
 # Create new Conda environment
-COPY conda_env/cpu_test.yml /scripts/
-RUN mamba env create -n cpu_test --file=/scripts/cpu_test.yml && \
+COPY conda_env/linux_cpu_test.yml /scripts/
+RUN mamba env create -n linux_cpu_test --file=/scripts/linux_cpu_test.yml && \
     mamba clean --all && \
-    conda run --no-capture-output -n cpu_test pip install buildkite-test-collector
+    conda run --no-capture-output -n linux_cpu_test pip install buildkite-test-collector
 
 # Install lightweight sudo (not bound to TTY)
 RUN set -ex; \

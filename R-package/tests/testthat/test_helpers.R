@@ -27,11 +27,13 @@ if (isTRUE(VCD_AVAILABLE)) {
     # binary
     bst.Tree <- xgboost(data = sparse_matrix, label = label, max_depth = 9,
                         eta = 1, nthread = 2, nrounds = nrounds, verbose = 0,
-                        objective = "binary:logistic", booster = "gbtree")
+                        objective = "binary:logistic", booster = "gbtree",
+                        base_score = 0.5)
 
     bst.GLM <- xgboost(data = sparse_matrix, label = label,
                        eta = 1, nthread = 1, nrounds = nrounds, verbose = 0,
-                       objective = "binary:logistic", booster = "gblinear")
+                       objective = "binary:logistic", booster = "gblinear",
+                       base_score = 0.5)
 
     feature.names <- colnames(sparse_matrix)
 }
@@ -360,7 +362,8 @@ test_that("xgb.importance works with and without feature names", {
   m <- xgboost::xgboost(
     data = as.matrix(data.frame(x = c(0, 1))),
     label = c(1, 2),
-    nrounds = 1
+    nrounds = 1,
+    base_score = 0.5
   )
   df <- xgb.model.dt.tree(model = m)
   expect_equal(df$Feature, "Leaf")
