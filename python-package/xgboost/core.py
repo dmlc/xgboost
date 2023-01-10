@@ -619,11 +619,11 @@ class DataSplitMode(IntEnum):
 class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-methods
     """Data Matrix used in XGBoost.
 
-    DMatrix is an internal data structure that is used by XGBoost,
-    which is optimized for both memory efficiency and training speed.
-    You can construct DMatrix from multiple different sources of data.
-    """
+    DMatrix is an internal data structure that is used by XGBoost, which is optimized
+    for both memory efficiency and training speed.  You can construct DMatrix from
+    multiple different sources of data.
 
+    """
     @_deprecate_positional_args
     def __init__(
         self,
@@ -647,15 +647,9 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
     ) -> None:
         """Parameters
         ----------
-        data : os.PathLike/string/numpy.array/scipy.sparse/pd.DataFrame/
-               dt.Frame/cudf.DataFrame/cupy.array/dlpack/arrow.Table
-
-            Data source of DMatrix.
-
-            When data is string or os.PathLike type, it represents the path libsvm
-            format txt file, csv file (by specifying uri parameter
-            'path_to_csv?format=csv'), or binary file that xgboost can read from.
-
+        data :
+            Data source of DMatrix. See :ref:`py-data` for a list of supported input
+            types.
         label : array_like
             Label of the training data.
         weight : array_like

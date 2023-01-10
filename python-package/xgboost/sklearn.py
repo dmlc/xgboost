@@ -939,7 +939,14 @@ class XGBModel(XGBModelBase):
         Parameters
         ----------
         X :
-            Feature matrix
+            Feature matrix. See :ref:`py-data` for a list of supported types.
+
+            When the ``tree_method`` is set to ``hist`` or ``gpu_hist``, internally, the
+            :py:class:`QuantileDMatrix` will be used instead of the :py:class:`DMatrix`
+            for conserving memory. However, this has performance implications when the
+            device of input data is not matched with algorithm. For instance, if the
+            input is a numpy array on CPU but ``gpu_hist`` is used for training, then
+            the data is first processed on CPU then transferred to GPU.
         y :
             Labels
         sample_weight :
@@ -982,6 +989,7 @@ class XGBModel(XGBModelBase):
         callbacks :
             .. deprecated:: 1.6.0
                 Use `callbacks` in :py:meth:`__init__` or :py:meth:`set_params` instead.
+
         """
         with config_context(verbosity=self.verbosity):
             evals_result: TrainingCallback.EvalsLog = {}
@@ -1567,7 +1575,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         Parameters
         ----------
         X : array_like
-            Feature matrix.
+            Feature matrix. See :ref:`py-data` for a list of supported types.
         ntree_limit : int
             Deprecated, use `iteration_range` instead.
         validate_features : bool
@@ -1846,7 +1854,14 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
         Parameters
         ----------
         X :
-            Feature matrix
+            Feature matrix. See :ref:`py-data` for a list of supported types.
+
+            When the ``tree_method`` is set to ``hist`` or ``gpu_hist``, internally, the
+            :py:class:`QuantileDMatrix` will be used instead of the :py:class:`DMatrix`
+            for conserving memory. However, this has performance implications when the
+            device of input data is not matched with algorithm. For instance, if the
+            input is a numpy array on CPU but ``gpu_hist`` is used for training, then
+            the data is first processed on CPU then transferred to GPU.
         y :
             Labels
         group :
@@ -1917,6 +1932,7 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
         callbacks :
             .. deprecated:: 1.6.0
                 Use `callbacks` in :py:meth:`__init__` or :py:meth:`set_params` instead.
+
         """
         # check if group information is provided
         with config_context(verbosity=self.verbosity):

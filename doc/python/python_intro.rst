@@ -32,24 +32,9 @@ To verify your installation, run the following in Python:
 
 Data Interface
 --------------
-The XGBoost python module is able to load data from many different types of data format,
-including:
+The XGBoost Python module is able to load data from many different types of data format including both CPU and GPU data structures. For a complete list of supported data types, please reference the :ref:`py-data`. For a detailed description of text input formats, please visit :doc:`/tutorials/input_format`.
 
-- NumPy 2D array
-- SciPy 2D sparse array
-- Pandas data frame
-- cuDF DataFrame
-- cupy 2D array
-- dlpack
-- datatable
-- XGBoost binary buffer file.
-- LIBSVM text format file
-- Comma-separated values (CSV) file
-- Arrow table.
-
-(See :doc:`/tutorials/input_format` for detailed description of text input format.)
-
-The data is stored in a :py:class:`DMatrix <xgboost.DMatrix>` object.
+The input data is stored in a :py:class:`DMatrix <xgboost.DMatrix>` object. For the sklearn estimator interface, a :py:class:`DMatrix` or a :py:class:`QuantileDMatrix` is created depending on the chosen algorithm and the input, see the sklearn API reference for details. We will illustrate some of the basic input types with the ``DMatrix`` here.
 
 * To load a NumPy array into :py:class:`DMatrix <xgboost.DMatrix>`:
 
@@ -120,6 +105,81 @@ to number of groups.
   recommended to use pandas ``read_csv`` or other similar utilites than XGBoost's builtin
   parser.
 
+.. _py-data:
+
+Supported data structures for various XGBoost functions
+=======================================================
+
+*******
+Markers
+*******
+
+- T: Supported.
+- F: Not supported.
+- NE: Invalid type for the use case. For instance, `pd.Series` can not be multi-target label.
+- NPA: Support with the help of numpy array.
+- CPA: Support with the help of cupy array.
+- SciCSR: Support with the help of scripy sparse CSR. The conversion to scipy CSR may or may not be possible. Raise a type error if conversion fails.
+- FF: We can look forward to having its support in recent future if requested.
+- empty: To be filled in.
+
+************
+Table Header
+************
+- `X` means predictor matrix.
+- Meta info: label, weight, etc.
+- Multi Label: 2-dim label for multi-target.
+- Others: Anything else that we don't list here explicitly including formats like `lil`, `dia`, `bsr`. XGBoost will try to convert it into scipy csr.
+
+**************
+Support Matrix
+**************
+
++-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
+| Name                    | DMatrix X | QuantileDMatrix X | Sklearn X | Meta Info | Inplace prediction | Multi Label |
++=========================+===========+===================+===========+===========+====================+=============+
+| numpy.ndarray           | T         | T                 | T         | T         | T                  | T           |
++-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
+| scipy.sparse.csr        | T         | T                 | T         | NE        | T                  | F           |
++-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
+| scipy.sparse.csc        | T         | F                 | T         | NE        | F                  | F           |
++-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
+| scipy.sparse.coo        | SciCSR    | F                 | SciCSR    | NE        | F                  | F           |
++-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
+| uri                     | T         | F                 | F         | F         | NE                 | F           |
++-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
+| list                    | NPA       | NPA               | NPA       | NPA       | NPA                | T           |
++-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
+| tuple                   | NPA       | NPA               | NPA       | NPA       | NPA                | T           |
++-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
+| pandas.DataFrame        | NPA       | NPA               | NPA       | NPA       | NPA                | NPA         |
++-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
+| pandas.Series           | NPA       | NPA               | NPA       | NPA       | NPA                | NE          |
++-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
+| cudf.DataFrame          | T         | T                 | T         | T         | T                  | T           |
++-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
+| cudf.Series             | T         | T                 | T         | T         | FF                 | NE          |
++-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
+| cupy.ndarray            | T         | T                 | T         | T         | T                  | T           |
++-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
+| dlpack                  | CPA       | CPA               |           | CPA       | FF                 | FF          |
++-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
+| datatable.Frame         | T         | FF                |           | NPA       | FF                 |             |
++-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
+| datatable.Table         | T         | FF                |           | NPA       | FF                 |             |
++-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
+| modin.DataFrame         | NPA       | FF                | NPA       | NPA       | FF                 |             |
++-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
+| modin.Series            | NPA       | FF                | NPA       | NPA       | FF                 |             |
++-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
+| pyarrow.Table           | T         | F                 |           | NPA       | FF                 |             |
++-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
+| pyarrow.dataset.Dataset | T         | F                 |           |           | F                  |             |
++-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
+| _\_array\_\_            | NPA       | F                 | NPA       | NPA       | H                  |             |
++-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
+| Others                  | SciCSR    | F                 |           | F         | F                  |             |
++-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
 
 Setting Parameters
 ------------------
