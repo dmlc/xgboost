@@ -1,5 +1,5 @@
-/*!
- * Copyright 2016-2022 by XGBoost contributors
+/**
+ * Copyright 2016-2023 by XGBoost contributors
  */
 #include "helpers.h"
 

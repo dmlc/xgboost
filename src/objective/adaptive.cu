@@ -1,13 +1,16 @@
-/*!
- * Copyright 2022 by XGBoost Contributors
+/**
+ * Copyright 2022-2023 by XGBoost Contributors
  */
 #include <thrust/sort.h>
 
+#include <cstdint>  // std::int32_t
 #include <cub/cub.cuh>
 
+#include "../common/cuda_context.cuh"  // CUDAContext
 #include "../common/device_helpers.cuh"
 #include "../common/stats.cuh"
 #include "adaptive.h"
+#include "xgboost/context.h"
 
 namespace xgboost {
 namespace obj {
@@ -55,13 +58,13 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
 
   size_t nbytes{0};
   auto begin_it = sorted_position.begin() + beg_pos;
-  dh::safe_cuda(cub::DeviceRunLengthEncode::Encode(nullptr, nbytes, begin_it,
-                                                   unique_out.data().get(), counts_out.data().get(),
-                                                   d_num_runs_out.data(), n_samples - beg_pos));
+  dh::safe_cuda(cub::DeviceRunLengthEncode::Encode(
+      nullptr, nbytes, begin_it, unique_out.data().get(), counts_out.data().get(),
+      d_num_runs_out.data(), n_samples - beg_pos, ctx->CUDACtx()->Stream()));
   dh::TemporaryArray<char> temp(nbytes);
-  dh::safe_cuda(cub::DeviceRunLengthEncode::Encode(temp.data().get(), nbytes, begin_it,
-                                                   unique_out.data().get(), counts_out.data().get(),
-                                                   d_num_runs_out.data(), n_samples - beg_pos));
+  dh::safe_cuda(cub::DeviceRunLengthEncode::Encode(
+      temp.data().get(), nbytes, begin_it, unique_out.data().get(), counts_out.data().get(),
+      d_num_runs_out.data(), n_samples - beg_pos, ctx->CUDACtx()->Stream()));
 
   dh::PinnedMemory pinned_pool;
   auto pinned = pinned_pool.GetSpan<char>(sizeof(size_t) + sizeof(bst_node_t));
@@ -138,8 +141,8 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
 }
 
 void UpdateTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> position,
-                          MetaInfo const& info, HostDeviceVector<float> const& predt, float alpha,
-                          RegTree* p_tree) {
+                          std::int32_t group_idx, MetaInfo const& info,
+                          HostDeviceVector<float> const& predt, float alpha, RegTree* p_tree) {
   dh::safe_cuda(cudaSetDevice(ctx->gpu_id));
   dh::device_vector<size_t> ridx;
   HostDeviceVector<size_t> nptr;
@@ -154,19 +157,24 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
 
   HostDeviceVector<float> quantiles;
   predt.SetDevice(ctx->gpu_id);
-  auto d_predt = predt.ConstDeviceSpan();
-  auto d_labels = info.labels.View(ctx->gpu_id);
+
+  auto d_predt = linalg::MakeTensorView(predt.ConstDeviceSpan(),
+                                        {info.num_row_, predt.Size() / info.num_row_}, ctx->gpu_id);
+  CHECK_LT(group_idx, d_predt.Shape(1));
+  auto t_predt = d_predt.Slice(linalg::All(), group_idx);
+  auto d_labels = info.labels.View(ctx->gpu_id).Slice(linalg::All(), group_idx);
 
   auto d_row_index = dh::ToSpan(ridx);
   auto seg_beg = nptr.DevicePointer();
   auto seg_end = seg_beg + nptr.Size();
   auto val_beg = dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),
                                                   [=] XGBOOST_DEVICE(size_t i) {
-                                                    auto predt = d_predt[d_row_index[i]];
+                                                    float p = t_predt(d_row_index[i]);
                                                     auto y = d_labels(d_row_index[i]);
-                                                    return y - predt;
+                                                    return y - p;
                                                   });
-  auto val_end = val_beg + d_labels.Size();
+  CHECK_EQ(d_labels.Shape(0), position.size());
+  auto val_end = val_beg + d_labels.Shape(0);
   CHECK_EQ(nidx.Size() + 1, nptr.Size());
   if (info.weights_.Empty()) {
     common::SegmentedQuantile(ctx, alpha, seg_beg, seg_end, val_beg, val_end, &quantiles);
