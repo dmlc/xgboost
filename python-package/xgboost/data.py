@@ -2,6 +2,7 @@
 # pylint: disable=too-many-return-statements, import-error
 '''Data dispatching for DMatrix.'''
 import ctypes
+import importlib
 import json
 import os
 import warnings
@@ -247,8 +248,6 @@ pandas_nullable_mapper = {
     "boolean": "i",
 }
 
-# np_array = pd.arrays.ArrowExtensionArray.__arrow_array__().combine_chunks().__array__()
-# buffers = pd.arrays.ArrowExtensionArray.__arrow_array__().combine_chunks().buffers()
 pandas_pyarrow_mapper = {
     "int8[pyarrow]": "i",
     "int16[pyarrow]": "i",
@@ -259,13 +258,15 @@ pandas_pyarrow_mapper = {
     "uint32[pyarrow]": "i",
     "uint64[pyarrow]": "i",
     "float16[pyarrow]": "float",
+    "float[pyarrow]": "float",
     "float32[pyarrow]": "float",
+    "double[pyarrow]": "float",
     "float64[pyarrow]": "float",
     "bool[pyarrow]": "i",
 }
 
 _pandas_dtype_mapper.update(pandas_nullable_mapper)
-# _pandas_dtype_mapper.update(pandas_pyarrow_mapper)
+_pandas_dtype_mapper.update(pandas_pyarrow_mapper)
 
 
 _ENABLE_CAT_ERR = (
@@ -292,7 +293,7 @@ def _invalid_dataframe_dtype(data: DataType) -> None:
     raise ValueError(msg)
 
 
-def _pandas_feature_info(
+def pandas_feature_info(
     data: DataFrame,
     meta: Optional[str],
     feature_names: Optional[FeatureNames],
@@ -317,7 +318,9 @@ def _pandas_feature_info(
         for dtype in data.dtypes:
             if is_sparse(dtype):
                 feature_types.append(_pandas_dtype_mapper[dtype.subtype.name])
-            elif is_categorical_dtype(dtype) and enable_categorical:
+            elif (
+                is_categorical_dtype(dtype) or is_pa_categorical_dtype(dtype)
+            ) and enable_categorical:
                 feature_types.append(CAT_T)
             else:
                 feature_types.append(_pandas_dtype_mapper[dtype.name])
@@ -334,21 +337,29 @@ def is_nullable_dtype(dtype: PandasDType) -> bool:
     )
 
     is_int = is_integer_dtype(dtype) and dtype.name in pandas_nullable_mapper
-    # np.bool has alias `bool`, while pd.BooleanDtype has `bzoolean`.
+    # np.bool has alias `bool`, while pd.BooleanDtype has `boolean`.
     is_bool = is_bool_dtype(dtype) and dtype.name == "boolean"
     is_float = is_float_dtype(dtype) and dtype.name in pandas_nullable_mapper
     return is_int or is_bool or is_float or is_categorical_dtype(dtype)
 
 
+def is_pa_categorical_dtype(dtype: Any) -> bool:
+    if importlib.util.find_spec("pyarrow") is not None:
+        import pyarrow as pa
+        return isinstance(getattr(dtype, "pyarrow_dtype", None), pa.DictionaryType)
+    return False
+
+
 def pandas_cat_null(data: DataFrame) -> DataFrame:
     """Handle categorical dtype and nullable extension types from pandas."""
+    import pandas as pd
     from pandas.api.types import is_categorical_dtype
 
     # handle category codes and nullable.
     cat_columns = []
     nul_columns = []
     for col, dtype in zip(data.columns, data.dtypes):
-        if is_categorical_dtype(dtype):
+        if is_categorical_dtype(dtype) or is_pa_categorical_dtype(dtype):
             cat_columns.append(col)
         # avoid an unnecessary conversion if possible
         elif is_nullable_dtype(dtype):
@@ -361,11 +372,19 @@ def pandas_cat_null(data: DataFrame) -> DataFrame:
     else:
         transformed = data
 
+    def cat_codes(x: pd.Series) -> pd.Series:
+        if is_pa_categorical_dtype(x.dtype):
+            return (
+                x.array.__arrow_array__().combine_chunks().dictionary_encode().indices
+            )
+        else:
+            return x.cat.codes
+
     if cat_columns:
         # DF doesn't have the cat attribute, as a result, we use apply here
         transformed[cat_columns] = (
             transformed[cat_columns]
-            .apply(lambda x: x.cat.codes)
+            .apply(cat_codes)
             .astype(np.float32)
             .replace(-1.0, np.NaN)
         )
@@ -379,6 +398,28 @@ def pandas_cat_null(data: DataFrame) -> DataFrame:
     return transformed
 
 
+def pandas_extension_num_types(data: DataFrame) -> DataFrame:
+    """Handle pyarrow extension numeric types."""
+    import pandas as pd
+    import pyarrow as pa
+    for col, dtype in zip(data.columns, data.dtypes):
+        if not hasattr(dtype, "pyarrow_dtype"):
+            continue
+        # pandas.core.internals.managers.SingleBlockManager.array_values()
+        # pandas.core.internals.blocks.EABackedBlock.values
+        # no copy
+        d_array: pd.ArrowExtensionArray = data[col].array
+        # no copy in __arrow_array__
+        # ArrowExtensionArray._data is a chunked array
+        aa: pa.ChunkedArray = d_array.__arrow_array__()
+        chunk: pa.Array = aa.combine_chunks()
+        # Alternately, we can use chunk.buffers(), which returns a list of buffers and
+        # we need to concatenate them ourselves.
+        arr = chunk.__array__()
+        data[col] = arr
+    return data
+
+
 def _transform_pandas_df(
     data: DataFrame,
     enable_categorical: bool,
@@ -387,72 +428,27 @@ def _transform_pandas_df(
     meta: Optional[str] = None,
     meta_type: Optional[NumpyDType] = None,
 ) -> Tuple[np.ndarray, Optional[FeatureNames], Optional[FeatureTypes]]:
-    from pandas.api.types import is_categorical_dtype, is_sparse, is_extension_type
-    import pyarrow as pa
-    import pandas as pd
+    from pandas.api.types import is_categorical_dtype, is_sparse
 
-    # Create dictionary types
-    # >>> df = pd.DataFrame({"a": [1, 2, 3]}, dtype=pd.ArrowDtype(pa.dictionary(pa.int32(), pa.int8())))
-
-    # is_extension_type,is_integer_dtype are False for pyarrow
-    for col, dtype in zip(data.columns, data.dtypes):
-        print("dtype:", type(dtype), dtype, is_extension_type(dtype))
+    pyarrow_extension = False
+    for dtype in data.dtypes:
+        if not (
+            (dtype.name in _pandas_dtype_mapper)
+            or is_sparse(dtype)
+            or (is_categorical_dtype(dtype) and enable_categorical)
+            or hasattr(dtype, "pyarrow_dtype")
+        ):
+            _invalid_dataframe_dtype(data)
         if hasattr(dtype, "pyarrow_dtype"):
-            pass
+            pyarrow_extension = True
 
-        if dtype.type is pa.DictionaryType:
-            assert hasattr(dtype, "pyarrow_dtype")
-            # categorical
-            cat_codes = data[
-                col
-            ].array.__arrow_array__().combine_chunks().dictionary_encode().indices
-            print("cat_codes:", cat_codes, type(cat_codes))
-            pass
-        # if isinstance(dtype.pyarrow_dtype, pa.DictionaryType):
-        #     pass
-
-        if dtype.name in pandas_pyarrow_mapper:
-            # pandas.core.internals.managers.SingleBlockManager.array_values()
-            # pandas.core.internals.blocks.EABackedBlock.values
-            # no copy
-            d_array: pd.ArrowExtensionArray = data[col].array
-            print("in pyarrow:", dtype, type(d_array), d_array)
-            values = data[col].values.to_numpy()
-            # na_vallue=pa.NA, dtype=object
-            print("values:", values, values.dtype)
-            # no copy in __arrow_array__
-            # ArrowExtensionArray._data is a chunked array
-            aa: pa.ChunkedArray = d_array.__arrow_array__()
-            print("arrow array:", type(aa), aa, aa.chunks)
-            chunk: pa.Array = aa.combine_chunks()  # pa.Int8Array
-            print("chunk:", type(chunk), chunk)
-            buf = chunk.buffers()
-            print("buf:", buf)
-            # internally calls chunk.to_numpy(zero_copy_only=False)
-            # arrow_to_pandas.cc::ConvertChunkedArrayToPandas
-            chunk.to_numpy(zero_copy_only=True)
-            arr = chunk.__array__()
-            # data = buf.address
-            # size = buf.size
-            # {"data": (data, True)}
-            print("arr:", type(arr), arr.__array_interface__)
-            # print(type(buf), buf, buf.address)
-            print(arr)
-        print(col, type(dtype), dtype)
-
-    if not all(
-        (dtype.name in _pandas_dtype_mapper)
-        or is_sparse(dtype)
-        or (is_categorical_dtype(dtype) and enable_categorical)
-        for dtype in data.dtypes
-    ):
-        _invalid_dataframe_dtype(data)
-
-    feature_names, feature_types = _pandas_feature_info(
+    feature_names, feature_types = pandas_feature_info(
         data, meta, feature_names, feature_types, enable_categorical
     )
 
     transformed = pandas_cat_null(data)
+    if pyarrow_extension:
+        transformed = pandas_extension_num_types(transformed)
 
     if meta and len(data.columns) > 1 and meta not in _matrix_meta:
         raise ValueError(f"DataFrame for {meta} cannot have multiple columns")
