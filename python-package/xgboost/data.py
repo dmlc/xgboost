@@ -343,6 +343,11 @@ def is_nullable_dtype(dtype: PandasDType) -> bool:
     return is_int or is_bool or is_float or is_categorical_dtype(dtype)
 
 
+def is_pa_ext_dtype(dtype: Any) -> bool:
+    """Return whether dtype is a pyarrow extension type for pandas"""
+    return hasattr(dtype, "pyarrow_dtype")
+
+
 def is_pa_categorical_dtype(dtype: Any) -> bool:
     if importlib.util.find_spec("pyarrow") is not None:
         import pyarrow as pa
@@ -403,7 +408,7 @@ def pandas_extension_num_types(data: DataFrame) -> DataFrame:
     import pandas as pd
     import pyarrow as pa
     for col, dtype in zip(data.columns, data.dtypes):
-        if not hasattr(dtype, "pyarrow_dtype"):
+        if not is_pa_ext_dtype(dtype):
             continue
         # No copy, callstack:
         # pandas.core.internals.managers.SingleBlockManager.array_values()
@@ -436,10 +441,10 @@ def _transform_pandas_df(
             (dtype.name in _pandas_dtype_mapper)
             or is_sparse(dtype)
             or (is_categorical_dtype(dtype) and enable_categorical)
-            or hasattr(dtype, "pyarrow_dtype")
+            or is_pa_ext_dtype(dtype)
         ):
             _invalid_dataframe_dtype(data)
-        if hasattr(dtype, "pyarrow_dtype"):
+        if is_pa_ext_dtype(dtype):
             pyarrow_extension = True
 
     feature_names, feature_types = pandas_feature_info(
