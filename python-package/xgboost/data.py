@@ -405,9 +405,9 @@ def pandas_extension_num_types(data: DataFrame) -> DataFrame:
     for col, dtype in zip(data.columns, data.dtypes):
         if not hasattr(dtype, "pyarrow_dtype"):
             continue
+        # No copy, callstack:
         # pandas.core.internals.managers.SingleBlockManager.array_values()
         # pandas.core.internals.blocks.EABackedBlock.values
-        # no copy
         d_array: pd.ArrowExtensionArray = data[col].array
         # no copy in __arrow_array__
         # ArrowExtensionArray._data is a chunked array
