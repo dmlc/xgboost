@@ -12,6 +12,9 @@ namespace collective {
 TEST(CommunicatorFactory, TypeFromEnv) {
   EXPECT_EQ(CommunicatorType::kUnknown, Communicator::GetTypeFromEnv());
 
+  dmlc::SetEnv<std::string>("XGBOOST_COMMUNICATOR", "foo");
+  EXPECT_THROW(Communicator::GetTypeFromEnv(), dmlc::Error);
+
   dmlc::SetEnv<std::string>("XGBOOST_COMMUNICATOR", "rabit");
   EXPECT_EQ(CommunicatorType::kRabit, Communicator::GetTypeFromEnv());
 
@@ -20,11 +23,6 @@ TEST(CommunicatorFactory, TypeFromEnv) {
 
   dmlc::SetEnv<std::string>("XGBOOST_COMMUNICATOR", "In-Memory");
   EXPECT_EQ(CommunicatorType::kInMemory, Communicator::GetTypeFromEnv());
-
-  dmlc::SetEnv<std::string>("XGBOOST_COMMUNICATOR", "foo");
-  EXPECT_THROW(Communicator::GetTypeFromEnv(), dmlc::Error);
-
-  dmlc::UnsetEnv("XGBOOST_COMMUNICATOR");
 }
 
 TEST(CommunicatorFactory, TypeFromArgs) {
