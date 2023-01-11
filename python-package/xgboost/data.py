@@ -320,7 +320,7 @@ def pandas_feature_info(
             if is_sparse(dtype):
                 feature_types.append(_pandas_dtype_mapper[dtype.subtype.name])
             elif (
-                is_categorical_dtype(dtype) or is_pa_categorical_dtype(dtype)
+                is_categorical_dtype(dtype) or is_pa_ext_categorical_dtype(dtype)
             ) and enable_categorical:
                 feature_types.append(CAT_T)
             else:
@@ -329,7 +329,7 @@ def pandas_feature_info(
 
 
 def is_nullable_dtype(dtype: PandasDType) -> bool:
-    """Wether dtype is a pandas nullable type."""
+    """Whether dtype is a pandas nullable type."""
     from pandas.api.types import (
         is_bool_dtype,
         is_categorical_dtype,
@@ -349,12 +349,11 @@ def is_pa_ext_dtype(dtype: Any) -> bool:
     return hasattr(dtype, "pyarrow_dtype")
 
 
-def is_pa_categorical_dtype(dtype: Any) -> bool:
-    """Check whether dtype is the dictionary type."""
-    if importlib.util.find_spec("pyarrow") is not None:
-        import pyarrow as pa
-        return isinstance(getattr(dtype, "pyarrow_dtype", None), pa.DictionaryType)
-    return False
+def is_pa_ext_categorical_dtype(dtype: Any) -> bool:
+    """Check whether dtype is a dictionary type."""
+    return lazy_isinstance(
+        getattr(dtype, "pyarrow_dtype", None), "pyarrow.lib", "DictionaryType"
+    )
 
 
 def pandas_cat_null(data: DataFrame) -> DataFrame:
@@ -369,7 +368,7 @@ def pandas_cat_null(data: DataFrame) -> DataFrame:
     for col, dtype in zip(data.columns, data.dtypes):
         if is_categorical_dtype(dtype):
             cat_columns.append(col)
-        elif is_pa_categorical_dtype(dtype):
+        elif is_pa_ext_categorical_dtype(dtype):
             raise ValueError(
                 "pyarrow dictionary type is not supported. Use pandas category instead."
             )
@@ -386,7 +385,7 @@ def pandas_cat_null(data: DataFrame) -> DataFrame:
     def cat_codes(ser: pd.Series) -> pd.Series:
         if is_categorical_dtype(ser.dtype):
             return ser.cat.codes
-        assert is_pa_categorical_dtype(ser.dtype)
+        assert is_pa_ext_categorical_dtype(ser.dtype)
         # Not yet supported, the index is not ordered for some reason. Alternately:
         # `combine_chunks().to_pandas().cat.codes`. The result is the same.
         return ser.array.__arrow_array__().combine_chunks().dictionary_encode().indices
@@ -409,10 +408,11 @@ def pandas_cat_null(data: DataFrame) -> DataFrame:
     return transformed
 
 
-def pandas_extension_num_types(data: DataFrame) -> DataFrame:
+def pandas_ext_num_types(data: DataFrame) -> DataFrame:
     """Experimental suppport for handling pyarrow extension numeric types."""
     import pandas as pd
     import pyarrow as pa
+
     for col, dtype in zip(data.columns, data.dtypes):
         if not is_pa_ext_dtype(dtype):
             continue
@@ -459,7 +459,7 @@ def _transform_pandas_df(
 
     transformed = pandas_cat_null(data)
     if pyarrow_extension:
-        transformed = pandas_extension_num_types(transformed)
+        transformed = pandas_ext_num_types(transformed)
 
     if meta and len(data.columns) > 1 and meta not in _matrix_meta:
         raise ValueError(f"DataFrame for {meta} cannot have multiple columns")
