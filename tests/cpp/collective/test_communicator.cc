@@ -23,6 +23,8 @@ TEST(CommunicatorFactory, TypeFromEnv) {
 
   dmlc::SetEnv<std::string>("XGBOOST_COMMUNICATOR", "foo");
   EXPECT_THROW(Communicator::GetTypeFromEnv(), dmlc::Error);
+
+  dmlc::UnsetEnv("XGBOOST_COMMUNICATOR");
 }
 
 TEST(CommunicatorFactory, TypeFromArgs) {
