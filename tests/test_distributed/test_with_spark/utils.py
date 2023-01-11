@@ -4,16 +4,15 @@ import shutil
 import sys
 import tempfile
 import unittest
+from io import StringIO
 
 import pytest
-from six import StringIO
 
 from xgboost import testing as tm
 
 pytestmark = [pytest.mark.skipif(**tm.no_spark())]
 
-
-from pyspark.sql import SparkSession, SQLContext
+from pyspark.sql import SparkSession
 from xgboost.spark.utils import _get_default_params_from_func
 
 

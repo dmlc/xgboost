@@ -1,5 +1,5 @@
-/*!
- * Copyright 2022 by XGBoost Contributors
+/**
+ * Copyright 2022-2023 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>
@@ -58,19 +58,44 @@ TEST(Stats, WeightedQuantile) {
 }
 
 TEST(Stats, Median) {
-  linalg::Tensor<float, 2> values{{.0f, .0f, 1.f, 2.f}, {4}, Context::kCpuId};
   Context ctx;
-  HostDeviceVector<float> weights;
-  auto m = Median(&ctx, values, weights);
-  ASSERT_EQ(m, .5f);
+
+  {
+    linalg::Tensor<float, 2> values{{.0f, .0f, 1.f, 2.f}, {4}, Context::kCpuId};
+    HostDeviceVector<float> weights;
+    linalg::Tensor<float, 1> out;
+    Median(&ctx, values, weights, &out);
+    auto m = out(0);
+    ASSERT_EQ(m, .5f);
 
 #if defined(XGBOOST_USE_CUDA)
-  ctx.gpu_id = 0;
-  ASSERT_FALSE(ctx.IsCPU());
-  m = Median(&ctx, values, weights);
-  ASSERT_EQ(m, .5f);
+    ctx.gpu_id = 0;
+    ASSERT_FALSE(ctx.IsCPU());
+    Median(&ctx, values, weights, &out);
+    m = out(0);
+    ASSERT_EQ(m, .5f);
 #endif  // defined(XGBOOST_USE_CUDA)
+  }
+
+  {
+    ctx.gpu_id = Context::kCpuId;
+    // 4x2 matrix
+    linalg::Tensor<float, 2> values{{0.f, 0.f, 0.f, 0.f, 1.f, 1.f, 2.f, 2.f}, {4, 2}, ctx.gpu_id};
+    HostDeviceVector<float> weights;
+    linalg::Tensor<float, 1> out;
+    Median(&ctx, values, weights, &out);
+    ASSERT_EQ(out(0), .5f);
+    ASSERT_EQ(out(1), .5f);
+
+#if defined(XGBOOST_USE_CUDA)
+    ctx.gpu_id = 0;
+    Median(&ctx, values, weights, &out);
+    ASSERT_EQ(out(0), .5f);
+    ASSERT_EQ(out(1), .5f);
+#endif  // defined(XGBOOST_USE_CUDA)
+  }
 }
+
 namespace {
 void TestMean(Context const* ctx) {
   std::size_t n{128};

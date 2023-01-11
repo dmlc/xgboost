@@ -10,6 +10,7 @@ from xgboost.testing.params import (
     exact_parameter_strategy,
     hist_parameter_strategy,
 )
+from xgboost.testing.updater import check_init_estimation
 
 import xgboost as xgb
 from xgboost import testing as tm
@@ -449,3 +450,6 @@ class TestTreeMethod:
     )
     def test_adaptive(self, tree_method, weighted) -> None:
         self.run_adaptive(tree_method, weighted)
+
+    def test_init_estimation(self) -> None:
+        check_init_estimation("hist")

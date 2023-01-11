@@ -1,5 +1,5 @@
-/*!
- * Copyright 2016-2019 XGBoost contributors
+/**
+ * Copyright 2016-2023 by XGBoost contributors
  */
 #ifndef XGBOOST_TESTS_CPP_HELPERS_H_
 #define XGBOOST_TESTS_CPP_HELPERS_H_
@@ -214,26 +214,26 @@ class RandomDataGenerator {
   size_t cols_;
   float sparsity_;
 
-  float lower_;
-  float upper_;
+  float lower_{0.0f};
+  float upper_{1.0f};
 
-  int32_t device_;
-  uint64_t seed_;
+  bst_target_t n_targets_{1};
+
+  std::int32_t device_{Context::kCpuId};
+  std::uint64_t seed_{0};
   SimpleLCG lcg_;
 
-  size_t bins_;
+  std::size_t bins_{0};
   std::vector<FeatureType> ft_;
   bst_cat_t max_cat_;
 
-  Json ArrayInterfaceImpl(HostDeviceVector<float> *storage, size_t rows,
-                          size_t cols) const;
+  Json ArrayInterfaceImpl(HostDeviceVector<float>* storage, size_t rows, size_t cols) const;
 
  public:
   RandomDataGenerator(bst_row_t rows, size_t cols, float sparsity)
-      : rows_{rows}, cols_{cols}, sparsity_{sparsity}, lower_{0.0f}, upper_{1.0f},
-        device_{-1}, seed_{0}, lcg_{seed_}, bins_{0} {}
+      : rows_{rows}, cols_{cols}, sparsity_{sparsity}, lcg_{seed_} {}
 
-  RandomDataGenerator &Lower(float v) {
+  RandomDataGenerator& Lower(float v) {
     lower_ = v;
     return *this;
   }
@@ -264,6 +264,10 @@ class RandomDataGenerator {
     max_cat_ = cat;
     return *this;
   }
+  RandomDataGenerator& Targets(bst_target_t n_targets) {
+    n_targets_ = n_targets;
+    return *this;
+  }
 
   void GenerateDense(HostDeviceVector<float>* out) const;
 
@@ -279,18 +283,15 @@ class RandomDataGenerator {
    *         a single JSON string representing the consecutive memory as a whole
    *         (combining all the batches).
    */
-  std::pair<std::vector<std::string>, std::string>
-  GenerateArrayInterfaceBatch(HostDeviceVector<float> *storage,
-                              size_t batches) const;
+  std::pair<std::vector<std::string>, std::string> GenerateArrayInterfaceBatch(
+      HostDeviceVector<float>* storage, size_t batches) const;
 
-  std::string GenerateColumnarArrayInterface(
-      std::vector<HostDeviceVector<float>> *data) const;
+  std::string GenerateColumnarArrayInterface(std::vector<HostDeviceVector<float>>* data) const;
 
   void GenerateCSR(HostDeviceVector<float>* value, HostDeviceVector<bst_row_t>* row_ptr,
                    HostDeviceVector<bst_feature_t>* columns) const;
 
-  std::shared_ptr<DMatrix> GenerateDMatrix(bool with_label = false,
-                                           bool float_label = true,
+  std::shared_ptr<DMatrix> GenerateDMatrix(bool with_label = false, bool float_label = true,
                                            size_t classes = 1) const;
 #if defined(XGBOOST_USE_CUDA)
   std::shared_ptr<DMatrix> GenerateDeviceDMatrix();

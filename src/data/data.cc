@@ -684,7 +684,7 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_col
   }
 }
 
-void MetaInfo::Validate(int32_t device) const {
+void MetaInfo::Validate(std::int32_t device) const {
   if (group_ptr_.size() != 0 && weights_.Size() != 0) {
     CHECK_EQ(group_ptr_.size(), weights_.Size() + 1)
         << "Size of weights must equal to number of groups when ranking "

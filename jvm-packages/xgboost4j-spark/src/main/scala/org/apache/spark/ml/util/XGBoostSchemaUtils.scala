@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2022 by Contributors
+ Copyright (c) 2022-2023 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ package org.apache.spark.ml.util
 
 import org.apache.spark.sql.types.{BooleanType, DataType, NumericType, StructType}
 import org.apache.spark.ml.linalg.VectorUDT
-import org.apache.spark.ml.util.SchemaUtils
 
 object XGBoostSchemaUtils {
 

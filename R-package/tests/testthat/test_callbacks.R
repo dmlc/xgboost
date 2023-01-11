@@ -320,7 +320,7 @@ test_that("prediction in early-stopping xgb.cv works", {
   expect_output(
     cv <- xgb.cv(param, dtrain, nfold = 5, eta = 0.1, nrounds = 20,
                  early_stopping_rounds = 5, maximize = FALSE, stratified = FALSE,
-                 prediction = TRUE)
+                 prediction = TRUE, base_score = 0.5)
   , "Stopping. Best iteration")
 
   expect_false(is.null(cv$best_iteration))

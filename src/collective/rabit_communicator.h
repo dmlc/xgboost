@@ -1,5 +1,5 @@
-/*!
- * Copyright 2022 XGBoost contributors
+/**
+ * Copyright 2022-2023 by XGBoost contributors
  */
 #pragma once
 #include <rabit/rabit.h>
@@ -119,7 +119,7 @@ class RabitCommunicator : public Communicator {
   }
 
   template <typename DType, std::enable_if_t<std::is_floating_point<DType>::value> * = nullptr>
-  void DoBitwiseAllReduce(void *send_receive_buffer, std::size_t count, Operation op) {
+  void DoBitwiseAllReduce(void *, std::size_t, Operation) {
     LOG(FATAL) << "Floating point types do not support bitwise operations.";
   }
 

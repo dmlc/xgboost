@@ -1,5 +1,5 @@
-/*!
- * Copyright 2014-2022 by Contributors
+/**
+ * Copyright 2014-2023 by Contributors
  * \file gbtree.cc
  * \brief gradient boosted tree implementation.
  * \author Tianqi Chen
@@ -21,6 +21,7 @@
 #include "../common/threading_utils.h"
 #include "../common/timer.h"
 #include "gbtree_model.h"
+#include "xgboost/base.h"
 #include "xgboost/data.h"
 #include "xgboost/gbm.h"
 #include "xgboost/host_device_vector.h"
@@ -219,6 +220,8 @@ void CopyGradient(HostDeviceVector<GradientPair> const* in_gpair, int32_t n_thre
 
 void GBTree::UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const& predictions,
                             ObjFunction const* obj,
+                            std::int32_t group_idx,
+                            std::vector<HostDeviceVector<bst_node_t>> const& node_position,
                             std::vector<std::unique_ptr<RegTree>>* p_trees) {
   CHECK(!updaters_.empty());
   if (!updaters_.back()->HasNodePosition()) {
@@ -227,10 +230,14 @@ void GBTree::UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const
   if (!obj || !obj->Task().UpdateTreeLeaf()) {
     return;
   }
+
   auto& trees = *p_trees;
-  for (size_t tree_idx = 0; tree_idx < trees.size(); ++tree_idx) {
-    auto const& position = this->node_position_.at(tree_idx);
-    obj->UpdateTreeLeaf(position, p_fmat->Info(), predictions, trees[tree_idx].get());
+  CHECK_EQ(model_.param.num_parallel_tree, trees.size());
+  CHECK_EQ(model_.param.num_parallel_tree, 1)
+      << "Boosting random forest is not supported for current objective.";
+  for (std::size_t tree_idx = 0; tree_idx < trees.size(); ++tree_idx) {
+    auto const& position = node_position.at(tree_idx);
+    obj->UpdateTreeLeaf(position, p_fmat->Info(), predictions, group_idx, trees[tree_idx].get());
   }
 }
 
@@ -254,10 +261,14 @@ void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
     LOG(FATAL) << "Current objective doesn't support external memory.";
   }
 
+  // The node position for each row, 1 HDV for each tree in the forest.  Note that the
+  // position is negated if the row is sampled out.
+  std::vector<HostDeviceVector<bst_node_t>> node_position;
+
   if (ngroup == 1) {
     std::vector<std::unique_ptr<RegTree>> ret;
-    BoostNewTrees(in_gpair, p_fmat, 0, &ret);
-    UpdateTreeLeaf(p_fmat, predt->predictions, obj, &ret);
+    BoostNewTrees(in_gpair, p_fmat, 0, &node_position, &ret);
+    UpdateTreeLeaf(p_fmat, predt->predictions, obj, 0, node_position, &ret);
     const size_t num_new_trees = ret.size();
     new_trees.push_back(std::move(ret));
     auto v_predt = out.Slice(linalg::All(), 0);
@@ -271,10 +282,11 @@ void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
                                        in_gpair->DeviceIdx());
     bool update_predict = true;
     for (int gid = 0; gid < ngroup; ++gid) {
+      node_position.clear();
       CopyGradient(in_gpair, ctx_->Threads(), ngroup, gid, &tmp);
       std::vector<std::unique_ptr<RegTree>> ret;
-      BoostNewTrees(&tmp, p_fmat, gid, &ret);
-      UpdateTreeLeaf(p_fmat, predt->predictions, obj, &ret);
+      BoostNewTrees(&tmp, p_fmat, gid, &node_position, &ret);
+      UpdateTreeLeaf(p_fmat, predt->predictions, obj, gid, node_position, &ret);
       const size_t num_new_trees = ret.size();
       new_trees.push_back(std::move(ret));
       auto v_predt = out.Slice(linalg::All(), gid);
@@ -334,6 +346,7 @@ void GBTree::InitUpdater(Args const& cfg) {
 }
 
 void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat, int bst_group,
+                           std::vector<HostDeviceVector<bst_node_t>>* out_position,
                            std::vector<std::unique_ptr<RegTree>>* ret) {
   std::vector<RegTree*> new_trees;
   ret->clear();
@@ -367,14 +380,16 @@ void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fma
       ret->push_back(std::move(t));
     }
   }
+
   // update the trees
   CHECK_EQ(gpair->Size(), p_fmat->Info().num_row_)
       << "Mismatching size between number of rows from input data and size of "
          "gradient vector.";
-  node_position_.resize(new_trees.size());
+
+  CHECK(out_position);
+  out_position->resize(new_trees.size());
   for (auto& up : updaters_) {
-    up->Update(gpair, p_fmat, common::Span<HostDeviceVector<bst_node_t>>{node_position_},
-               new_trees);
+    up->Update(gpair, p_fmat, common::Span<HostDeviceVector<bst_node_t>>{*out_position}, new_trees);
   }
 }
 

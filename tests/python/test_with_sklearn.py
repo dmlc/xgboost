@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 from sklearn.utils.estimator_checks import parametrize_with_checks
 from xgboost.testing.shared import get_feature_weights, validate_data_initialization
+from xgboost.testing.updater import get_basescore
 
 import xgboost as xgb
 from xgboost import testing as tm
@@ -196,19 +197,22 @@ def test_stacking_classification():
     X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=42)
     clf.fit(X_train, y_train).score(X_test, y_test)
 
-
 @pytest.mark.skipif(**tm.no_pandas())
 def test_feature_importances_weight():
     from sklearn.datasets import load_digits
 
     digits = load_digits(n_class=2)
-    y = digits['target']
-    X = digits['data']
+    y = digits["target"]
+    X = digits["data"]
 
-    xgb_model = xgb.XGBClassifier(random_state=0,
-                                  tree_method="exact",
-                                  learning_rate=0.1,
-                                  importance_type="weight").fit(X, y)
+    xgb_model = xgb.XGBClassifier(
+        random_state=0,
+        tree_method="exact",
+        learning_rate=0.1,
+        importance_type="weight",
+        base_score=0.5,
+    ).fit(X, y)
+
     exp = np.array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.00833333, 0.,
                     0., 0., 0., 0., 0., 0., 0., 0.025, 0.14166667, 0., 0., 0.,
                     0., 0., 0., 0.00833333, 0.25833333, 0., 0., 0., 0.,
@@ -223,16 +227,22 @@ def test_feature_importances_weight():
     import pandas as pd
     y = pd.Series(digits['target'])
     X = pd.DataFrame(digits['data'])
-    xgb_model = xgb.XGBClassifier(random_state=0,
-                                  tree_method="exact",
-                                  learning_rate=0.1,
-                                  importance_type="weight").fit(X, y)
+    xgb_model = xgb.XGBClassifier(
+        random_state=0,
+        tree_method="exact",
+        learning_rate=0.1,
+        base_score=.5,
+        importance_type="weight"
+    ).fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
-    xgb_model = xgb.XGBClassifier(random_state=0,
-                                  tree_method="exact",
-                                  learning_rate=0.1,
-                                  importance_type="weight").fit(X, y)
+    xgb_model = xgb.XGBClassifier(
+        random_state=0,
+        tree_method="exact",
+        learning_rate=0.1,
+        importance_type="weight",
+        base_score=.5,
+    ).fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
     with pytest.raises(ValueError):
@@ -274,6 +284,7 @@ def test_feature_importances_gain():
         random_state=0, tree_method="exact",
         learning_rate=0.1,
         importance_type="gain",
+        base_score=0.5,
     ).fit(X, y)
 
     exp = np.array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
@@ -296,6 +307,7 @@ def test_feature_importances_gain():
         tree_method="exact",
         learning_rate=0.1,
         importance_type="gain",
+        base_score=0.5,
     ).fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
@@ -304,6 +316,7 @@ def test_feature_importances_gain():
         tree_method="exact",
         learning_rate=0.1,
         importance_type="gain",
+        base_score=0.5,
     ).fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
@@ -593,18 +606,21 @@ def test_split_value_histograms():
 
     digits_2class = load_digits(n_class=2)
 
-    X = digits_2class['data']
-    y = digits_2class['target']
+    X = digits_2class["data"]
+    y = digits_2class["target"]
 
     dm = xgb.DMatrix(X, label=y)
-    params = {'max_depth': 6, 'eta': 0.01, 'verbosity': 0,
-              'objective': 'binary:logistic'}
+    params = {
+        "max_depth": 6,
+        "eta": 0.01,
+        "verbosity": 0,
+        "objective": "binary:logistic",
+        "base_score": 0.5,
+    }
 
     gbdt = xgb.train(params, dm, num_boost_round=10)
-    assert gbdt.get_split_value_histogram("not_there",
-                                          as_pandas=True).shape[0] == 0
-    assert gbdt.get_split_value_histogram("not_there",
-                                          as_pandas=False).shape[0] == 0
+    assert gbdt.get_split_value_histogram("not_there", as_pandas=True).shape[0] == 0
+    assert gbdt.get_split_value_histogram("not_there", as_pandas=False).shape[0] == 0
     assert gbdt.get_split_value_histogram("f28", bins=0).shape[0] == 1
     assert gbdt.get_split_value_histogram("f28", bins=1).shape[0] == 1
     assert gbdt.get_split_value_histogram("f28", bins=2).shape[0] == 2
@@ -748,11 +764,7 @@ def test_sklearn_get_default_params():
     cls = xgb.XGBClassifier()
     assert cls.get_params()["base_score"] is None
     cls.fit(X[:4, ...], y[:4, ...])
-    base_score = float(
-        json.loads(cls.get_booster().save_config())["learner"]["learner_model_param"][
-            "base_score"
-        ]
-    )
+    base_score = get_basescore(cls)
     np.testing.assert_equal(base_score, 0.5)
 
 
@@ -1084,6 +1096,12 @@ def test_pandas_input():
     )
     np.testing.assert_allclose(np.array(clf_isotonic.classes_), np.array([0, 1]))
 
+    train_ser = train["k1"]
+    assert isinstance(train_ser, pd.Series)
+    model = xgb.XGBClassifier(n_estimators=8)
+    model.fit(train_ser, target, eval_set=[(train_ser, target)])
+    assert tm.non_increasing(model.evals_result()["validation_0"]["logloss"])
+
 
 @pytest.mark.parametrize("tree_method", ["approx", "hist"])
 def test_feature_weights(tree_method):
@@ -1238,6 +1256,10 @@ def test_multilabel_classification() -> None:
     predt = (clf.predict_proba(X) > 0.5).astype(np.int64)
     np.testing.assert_allclose(clf.predict(X), predt)
     assert predt.dtype == np.int64
+
+    y = y.tolist()
+    clf.fit(X, y)
+    np.testing.assert_allclose(clf.predict(X), predt)
 
 
 def test_data_initialization():

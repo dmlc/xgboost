@@ -146,13 +146,17 @@ def main(args: argparse.Namespace) -> None:
                 "tests/python/test_data_iterator.py",
                 "tests/python/test_dt.py",
                 "tests/python/test_quantile_dmatrix.py",
+                "tests/python/test_tree_regularization.py",
                 "tests/python-gpu/test_gpu_data_iterator.py",
+                "tests/ci_build/lint_python.py",
                 "tests/test_distributed/test_with_spark/",
                 "tests/test_distributed/test_gpu_with_spark/",
                 # demo
                 "demo/json-model/json_parser.py",
                 "demo/guide-python/cat_in_the_dat.py",
                 "demo/guide-python/categorical.py",
+                "demo/guide-python/feature_weights.py",
+                "demo/guide-python/sklearn_parallel.py",
                 "demo/guide-python/spark_estimator_examples.py",
                 # CI
                 "tests/ci_build/lint_python.py",
@@ -194,6 +198,7 @@ def main(args: argparse.Namespace) -> None:
                 "demo/json-model/json_parser.py",
                 "demo/guide-python/external_memory.py",
                 "demo/guide-python/cat_in_the_dat.py",
+                "demo/guide-python/feature_weights.py",
                 # tests
                 "tests/python/test_dt.py",
                 "tests/python/test_data_iterator.py",

@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from xgboost.testing.updater import get_basescore
 
 import xgboost as xgb
 from xgboost import testing as tm
@@ -11,16 +12,12 @@ class TestEarlyStopping:
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_early_stopping_nonparallel(self):
         from sklearn.datasets import load_digits
-        try:
-            from sklearn.model_selection import train_test_split
-        except ImportError:
-            from sklearn.cross_validation import train_test_split
+        from sklearn.model_selection import train_test_split
 
         digits = load_digits(n_class=2)
         X = digits['data']
         y = digits['target']
-        X_train, X_test, y_train, y_test = train_test_split(X, y,
-                                                            random_state=0)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=0)
         clf1 = xgb.XGBClassifier(learning_rate=0.1)
         clf1.fit(X_train, y_train, early_stopping_rounds=5, eval_metric="auc",
                  eval_set=[(X_test, y_test)])
@@ -31,9 +28,23 @@ class TestEarlyStopping:
         assert clf1.best_score == clf2.best_score
         assert clf1.best_score != 1
         # check overfit
-        clf3 = xgb.XGBClassifier(learning_rate=0.1)
-        clf3.fit(X_train, y_train, early_stopping_rounds=10, eval_metric="auc",
-                 eval_set=[(X_test, y_test)])
+        clf3 = xgb.XGBClassifier(
+            learning_rate=0.1,
+            eval_metric="auc",
+            early_stopping_rounds=10
+        )
+        clf3.fit(X_train, y_train, eval_set=[(X_test, y_test)])
+        base_score = get_basescore(clf3)
+        assert 0.53 > base_score > 0.5
+
+        clf3 = xgb.XGBClassifier(
+            learning_rate=0.1,
+            base_score=.5,
+            eval_metric="auc",
+            early_stopping_rounds=10
+        )
+        clf3.fit(X_train, y_train, eval_set=[(X_test, y_test)])
+
         assert clf3.best_score == 1
 
     def evalerror(self, preds, dtrain):
