@@ -14,7 +14,6 @@
 #include "../common/threading_utils.h"
 #include "../data/adapter.h"
 #include "../data/gradient_index.h"
-#include "../data/proxy_dmatrix.h"
 #include "../gbm/gbtree_model.h"
 #include "cpu_treeshap.h"  // CalculateContributions
 #include "predict_fn.h"
@@ -24,7 +23,6 @@
 #include "xgboost/logging.h"
 #include "xgboost/predictor.h"
 #include "xgboost/tree_model.h"
-#include "xgboost/tree_updater.h"
 
 namespace xgboost {
 namespace predictor {
@@ -75,6 +73,13 @@ class BitVectorStorage {
   BitVector::value_type *MissingData() { return missing_storage_.data(); }
 
   std::size_t Size() const { return decision_storage_.size(); }
+
+  void Allreduce() {
+    collective::Allreduce<collective::Operation::kBitwiseOR>(decision_storage_.data(),
+                                                             decision_storage_.size());
+    collective::Allreduce<collective::Operation::kBitwiseAND>(missing_storage_.data(),
+                                                              missing_storage_.size());
+  }
 
   void Clear() {
     std::fill(decision_storage_.begin(), decision_storage_.end(), 0);
@@ -444,8 +449,7 @@ void PredictBatchSplitColumnsKernel(DataView batch, std::vector<bst_float> *out_
     FVecDrop(block_size, batch_offset, &batch, fvec_offset, p_thread_temp);
   });
 
-  collective::Allreduce<collective::Operation::kBitwiseOR>(p_bits->DecisionData(), p_bits->Size());
-  collective::Allreduce<collective::Operation::kBitwiseAND>(p_bits->MissingData(), p_bits->Size());
+  p_bits->Allreduce();
 
   common::ParallelFor(n_blocks, n_threads, [&](bst_omp_uint block_id) {
     const size_t batch_offset = block_id * block_of_rows_size;
