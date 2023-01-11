@@ -334,6 +334,7 @@ class TestPandas:
                 with pytest.raises(ValueError, match="Label contains NaN"):
                     xgb.DMatrix(df, f0, enable_categorical=enable_categorical)
 
+    @pytest.mark.skipif(**tm.no_arrow())
     @pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
     def test_pyarrow_type(self, DMatrixT: Type[xgb.DMatrix]) -> None:
         for orig, df in pd_arrow_dtypes():
