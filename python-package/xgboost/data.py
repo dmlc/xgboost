@@ -257,7 +257,6 @@ pandas_pyarrow_mapper = {
     "uint16[pyarrow]": "i",
     "uint32[pyarrow]": "i",
     "uint64[pyarrow]": "i",
-    "float16[pyarrow]": "float",
     "float[pyarrow]": "float",
     "float32[pyarrow]": "float",
     "double[pyarrow]": "float",
@@ -419,7 +418,7 @@ def pandas_ext_num_types(data: DataFrame) -> DataFrame:
         # No copy, callstack:
         # pandas.core.internals.managers.SingleBlockManager.array_values()
         # pandas.core.internals.blocks.EABackedBlock.values
-        d_array: pd.ArrowExtensionArray = data[col].array
+        d_array: pd.arrays.ArrowExtensionArray = data[col].array
         # no copy in __arrow_array__
         # ArrowExtensionArray._data is a chunked array
         aa: pa.ChunkedArray = d_array.__arrow_array__()
