@@ -1,5 +1,5 @@
 /*!
- * Copyright 2019-2021 XGBoost contributors
+ * Copyright 2019-2023 XGBoost contributors
  */
 #include "rank_obj.h"
 
@@ -102,7 +102,7 @@ class LambdaMARTNDCG : public ObjFunction {
       h_cache_.inv_idcg.clear();
       h_cache_.inv_idcg.resize(n_groups, std::numeric_limits<float>::quiet_NaN());
       CheckNDCGLabelsCPUKernel(ndcg_param_, h_label.Values());
-      common::ParallelFor(n_groups, tparam_->Threads(), common::Sched::Guided(), [&](auto g) {
+      common::ParallelFor(n_groups, ctx_->Threads(), common::Sched::Guided(), [&](auto g) {
         size_t cnt = info.group_ptr_.at(g + 1) - info.group_ptr_[g];
         auto label = h_label.Slice(
             linalg::Range(static_cast<size_t>(info.group_ptr_[g]), info.group_ptr_[g] + cnt));
@@ -117,7 +117,7 @@ class LambdaMARTNDCG : public ObjFunction {
       h_cache_.truncation = ndcg_param_.lambdamart_truncation;
     }
 
-    common::ParallelFor(n_groups, tparam_->Threads(), [&](auto g) {
+    common::ParallelFor(n_groups, ctx_->Threads(), [&](auto g) {
       size_t cnt = info.group_ptr_.at(g + 1) - info.group_ptr_[g];
       auto predts = h_predt.subspan(info.group_ptr_[g], cnt);
       auto gpairs = h_gpair.subspan(info.group_ptr_[g], cnt);
@@ -140,13 +140,9 @@ class LambdaMARTNDCG : public ObjFunction {
   ObjInfo Task() const override { return ObjInfo{ObjInfo::kRanking}; }
 };
 
-class LambdaMARTPairwise : public ObjFunction {
+class LambdaMARTPairwise : public ObjFunction {};
 
-};
-
-class LambdaMARTMaps : public ObjFunction {
-
-};
+class LambdaMARTMaps : public ObjFunction {};
 
 void CheckNDCGLabelsCPUKernel(LambdaMARTParam const& p, common::Span<float const> labels) {
   auto label_is_integer =
