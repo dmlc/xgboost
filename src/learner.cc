@@ -520,6 +520,7 @@ class LearnerConfiguration : public Learner {
 
     auto const& objective_fn = learner_parameters.at("objective");
     if (!obj_) {
+      CHECK_EQ(get<String const>(objective_fn["name"]), tparam_.objective);
       obj_.reset(ObjFunction::Create(tparam_.objective, &ctx_));
     }
     obj_->LoadConfig(objective_fn);
@@ -807,6 +808,7 @@ class LearnerConfiguration : public Learner {
    * Get number of targets from objective function.
    */
   void ConfigureTargets() {
+    // fixme: We can delay the n_targets configuration until first update.
     CHECK(this->obj_);
     auto const& cache = this->GetPredictionCache()->Container();
     size_t n_targets = 1;
@@ -1311,8 +1313,12 @@ class LearnerImpl : public LearnerIO {
     std::ostringstream os;
     os.precision(std::numeric_limits<double>::max_digits10);
     os << '[' << iter << ']' << std::setiosflags(std::ios::fixed);
-    if (metrics_.size() == 0 && tparam_.disable_default_eval_metric <= 0) {
-      metrics_.emplace_back(Metric::Create(obj_->DefaultEvalMetric(), &ctx_));
+    if (metrics_.empty() && tparam_.disable_default_eval_metric <= 0) {
+      Json config{Object{}};
+      metrics_.emplace_back(Metric::Create(obj_->DefaultEvalMetric(&config), &ctx_));
+      if (!get<Object const>(config).empty()) {
+        metrics_.back()->LoadConfig(config);
+      }
       metrics_.back()->Configure({cfg_.begin(), cfg_.end()});
     }
 

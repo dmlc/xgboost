@@ -279,11 +279,25 @@ def _check_call(ret: int) -> None:
         raise XGBoostError(py_str(_LIB.XGBGetLastError()))
 
 
+def get_objective_info() -> Dict[str, Any]:
+    """Get information for objective function"""
+    assert _LIB
+    j_info = ctypes.c_char_p()
+    _check_call(
+        _LIB.XGListAllObjectiveFunctions(
+            make_jcargs(include_info=True), ctypes.byref(j_info)
+        )
+    )
+    assert j_info.value is not None
+    res = json.loads(j_info.value.decode())  # pylint: disable=no-member
+    return res
+
+
 def build_info() -> dict:
-    """Build information of XGBoost.  The returned value format is not stable. Also, please
-    note that build time dependency is not the same as runtime dependency. For instance,
-    it's possible to build XGBoost with older CUDA version but run it with the lastest
-    one.
+    """Build information of XGBoost.  The returned value format is not stable. Also,
+    please note that build time dependency is not the same as runtime dependency. For
+    instance, it's possible to build XGBoost with older CUDA version but run it with the
+    lastest one.
 
       .. versionadded:: 1.6.0
 
@@ -488,6 +502,7 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
         pointer.
 
         """
+
         @require_keyword_args(True)
         def input_data(
             data: Any,
@@ -512,6 +527,7 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
                 feature_types=feature_types,
                 **kwargs,
             )
+
         # pylint: disable=not-callable
         return self._handle_exception(lambda: self.next(input_data), 0)
 
@@ -612,6 +628,7 @@ _deprecate_positional_args = require_keyword_args(False)
 @unique
 class DataSplitMode(IntEnum):
     """Supported data split mode for DMatrix."""
+
     ROW = 0
     COL = 1
 
@@ -795,7 +812,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         label_upper_bound: Optional[ArrayLike] = None,
         feature_names: Optional[FeatureNames] = None,
         feature_types: Optional[FeatureTypes] = None,
-        feature_weights: Optional[ArrayLike] = None
+        feature_weights: Optional[ArrayLike] = None,
     ) -> None:
         """Set meta info for DMatrix.  See doc string for :py:obj:`xgboost.DMatrix`."""
         from .data import dispatch_meta_backend
@@ -1549,29 +1566,39 @@ class Booster:
             # We use the pickle interface for getting memory snapshot from
             # another model, and load the snapshot with this booster.
             state = model_file.__getstate__()
-            handle = state['handle']
-            del state['handle']
+            handle = state["handle"]
+            del state["handle"]
             ptr = (ctypes.c_char * len(handle)).from_buffer(handle)
             length = c_bst_ulong(len(handle))
-            _check_call(
-                _LIB.XGBoosterUnserializeFromBuffer(self.handle, ptr, length))
+            _check_call(_LIB.XGBoosterUnserializeFromBuffer(self.handle, ptr, length))
             self.__dict__.update(state)
         elif isinstance(model_file, (str, os.PathLike, bytearray)):
             self.load_model(model_file)
         elif model_file is None:
             pass
         else:
-            raise TypeError('Unknown type:', model_file)
+            raise TypeError("Unknown type:", model_file)
 
         params = params or {}
         params_processed = _configure_metrics(params.copy())
         params_processed = self._configure_constraints(params_processed)
-        if isinstance(params_processed, list):
-            params_processed.append(("validate_parameters", True))
-        else:
-            params_processed["validate_parameters"] = True
+        params_processed["validate_parameters"] = True
+        # objective imports from core.
+        from .objective import _BuiltinObjFunction
+
+        obj: Optional[_BuiltinObjFunction] = params_processed.get("objective", None)
+        if isinstance(obj, _BuiltinObjFunction):
+            params_processed["objective"] = obj.name()
 
         self.set_param(params_processed or {})
+
+        if isinstance(obj, _BuiltinObjFunction):
+            config = self.save_config(False)
+            assert isinstance(config, Mapping)
+            obj_config = obj.save_config()
+            config["learner"]["objective"] = obj_config
+            config["learner"]["learner_train_param"]["objective"] = obj_config["name"]
+            self.load_config(config)
 
     def _transform_monotone_constrains(
         self, value: Union[Dict[str, int], str, Tuple[int, ...]]
@@ -1611,7 +1638,9 @@ class Booster:
                 "Constrained features are not a subset of training data feature names"
             ) from e
 
-    def _configure_constraints(self, params: BoosterParam) -> BoosterParam:
+    def _configure_constraints(self, params: BoosterParam) -> Dict[str, Any]:
+        if isinstance(params, list):
+            params = {k: v for k, v in params}
         if isinstance(params, dict):
             value = params.get("monotone_constraints")
             if value is not None:
@@ -1624,59 +1653,51 @@ class Booster:
                 params[
                     "interaction_constraints"
                 ] = self._transform_interaction_constraints(value)
-        elif isinstance(params, list):
-            for idx, param in enumerate(params):
-                name, value = param
-                if not value:
-                    continue
-
-                if name == "monotone_constraints":
-                    params[idx] = (name, self._transform_monotone_constrains(value))
-                elif name == "interaction_constraints":
-                    params[idx] = (name, self._transform_interaction_constraints(value))
 
         return params
 
     def __del__(self) -> None:
-        if hasattr(self, 'handle') and self.handle is not None:
+        if hasattr(self, "handle") and self.handle is not None:
             _check_call(_LIB.XGBoosterFree(self.handle))
             self.handle = None
 
     def __getstate__(self) -> Dict:
         # can't pickle ctypes pointers, put model content in bytearray
         this = self.__dict__.copy()
-        handle = this['handle']
+        handle = this["handle"]
         if handle is not None:
             length = c_bst_ulong()
             cptr = ctypes.POINTER(ctypes.c_char)()
-            _check_call(_LIB.XGBoosterSerializeToBuffer(self.handle,
-                                                        ctypes.byref(length),
-                                                        ctypes.byref(cptr)))
+            _check_call(
+                _LIB.XGBoosterSerializeToBuffer(
+                    self.handle, ctypes.byref(length), ctypes.byref(cptr)
+                )
+            )
             buf = ctypes2buffer(cptr, length.value)
             this["handle"] = buf
         return this
 
     def __setstate__(self, state: Dict) -> None:
         # reconstruct handle from raw data
-        handle = state['handle']
+        handle = state["handle"]
         if handle is not None:
             buf = handle
             dmats = c_array(ctypes.c_void_p, [])
             handle = ctypes.c_void_p()
-            _check_call(_LIB.XGBoosterCreate(
-                dmats, c_bst_ulong(0), ctypes.byref(handle)))
+            _check_call(
+                _LIB.XGBoosterCreate(dmats, c_bst_ulong(0), ctypes.byref(handle))
+            )
             length = c_bst_ulong(len(buf))
             ptr = (ctypes.c_char * len(buf)).from_buffer(buf)
-            _check_call(
-                _LIB.XGBoosterUnserializeFromBuffer(handle, ptr, length))
-            state['handle'] = handle
+            _check_call(_LIB.XGBoosterUnserializeFromBuffer(handle, ptr, length))
+            state["handle"] = handle
         self.__dict__.update(state)
 
     def __getitem__(self, val: Union[int, tuple, slice]) -> "Booster":
         if isinstance(val, int):
-            val = slice(val, val+1)
+            val = slice(val, val + 1)
         if isinstance(val, tuple):
-            raise ValueError('Only supports slicing through 1 dimension.')
+            raise ValueError("Only supports slicing through 1 dimension.")
         if not isinstance(val, slice):
             msg = _expect((int, slice), type(val))
             raise TypeError(msg)
@@ -1710,37 +1731,45 @@ class Booster:
         sliced.handle = sliced_handle
         return sliced
 
-    def save_config(self) -> str:
-        '''Output internal parameter configuration of Booster as a JSON
+    def save_config(self, as_string: bool = True) -> Union[str, Dict[str, Any]]:
+        """Output internal parameter configuration of Booster as a JSON
         string.
 
         .. versionadded:: 1.0.0
-        '''
+
+        Parameters
+        ----------
+        as_string : Return JSON configuration as string.
+
+        """
         json_string = ctypes.c_char_p()
         length = c_bst_ulong()
-        _check_call(_LIB.XGBoosterSaveJsonConfig(
-            self.handle,
-            ctypes.byref(length),
-            ctypes.byref(json_string)))
+        _check_call(
+            _LIB.XGBoosterSaveJsonConfig(
+                self.handle, ctypes.byref(length), ctypes.byref(json_string)
+            )
+        )
         assert json_string.value is not None
         result = json_string.value.decode()  # pylint: disable=no-member
+        if not as_string:
+            return json.loads(result)
         return result
 
-    def load_config(self, config: str) -> None:
-        '''Load configuration returned by `save_config`.
+    def load_config(self, config: Union[str, Dict[str, Any]]) -> None:
+        """Load configuration returned by `save_config`.
 
         .. versionadded:: 1.0.0
-        '''
-        assert isinstance(config, str)
-        _check_call(_LIB.XGBoosterLoadJsonConfig(
-            self.handle,
-            c_str(config)))
+        """
+        assert isinstance(config, (str, Mapping))
+        if isinstance(config, Mapping):
+            config = json.dumps(config)
+        _check_call(_LIB.XGBoosterLoadJsonConfig(self.handle, c_str(config)))
 
     def __copy__(self) -> "Booster":
         return self.__deepcopy__(None)
 
     def __deepcopy__(self, _: Any) -> "Booster":
-        '''Return a copy of booster.'''
+        """Return a copy of booster."""
         return Booster(model_file=self)
 
     def copy(self) -> "Booster":
@@ -1863,7 +1892,7 @@ class Booster:
     def set_param(
         self,
         params: Union[Dict, Iterable[Tuple[str, Any]], str],
-        value: Optional[str] = None
+        value: Optional[str] = None,
     ) -> None:
         """Set parameters into the Booster.
 
@@ -1880,8 +1909,9 @@ class Booster:
             params = [(params, value)]
         for key, val in cast(Iterable[Tuple[str, str]], params):
             if val is not None:
-                _check_call(_LIB.XGBoosterSetParam(self.handle, c_str(key),
-                                                   c_str(str(val))))
+                _check_call(
+                    _LIB.XGBoosterSetParam(self.handle, c_str(key), c_str(str(val)))
+                )
 
     def update(
         self, dtrain: DMatrix, iteration: int, fobj: Optional[Objective] = None
@@ -1904,9 +1934,11 @@ class Booster:
         self._validate_dmatrix_features(dtrain)
 
         if fobj is None:
-            _check_call(_LIB.XGBoosterUpdateOneIter(self.handle,
-                                                    ctypes.c_int(iteration),
-                                                    dtrain.handle))
+            _check_call(
+                _LIB.XGBoosterUpdateOneIter(
+                    self.handle, ctypes.c_int(iteration), dtrain.handle
+                )
+            )
         else:
             pred = self.predict(dtrain, output_margin=True, training=True)
             grad, hess = fobj(pred, dtrain)
@@ -1928,24 +1960,27 @@ class Booster:
 
         """
         if len(grad) != len(hess):
-            raise ValueError(
-                f"grad / hess length mismatch: {len(grad)} / {len(hess)}"
-            )
+            raise ValueError(f"grad / hess length mismatch: {len(grad)} / {len(hess)}")
         if not isinstance(dtrain, DMatrix):
             raise TypeError(f"invalid training matrix: {type(dtrain).__name__}")
         self._validate_dmatrix_features(dtrain)
 
-        _check_call(_LIB.XGBoosterBoostOneIter(self.handle, dtrain.handle,
-                                               c_array(ctypes.c_float, grad),
-                                               c_array(ctypes.c_float, hess),
-                                               c_bst_ulong(len(grad))))
+        _check_call(
+            _LIB.XGBoosterBoostOneIter(
+                self.handle,
+                dtrain.handle,
+                c_array(ctypes.c_float, grad),
+                c_array(ctypes.c_float, hess),
+                c_bst_ulong(len(grad)),
+            )
+        )
 
     def eval_set(
         self,
         evals: Sequence[Tuple[DMatrix, str]],
         iteration: int = 0,
         feval: Optional[Metric] = None,
-        output_margin: bool = True
+        output_margin: bool = True,
     ) -> str:
         # pylint: disable=invalid-name
         """Evaluate a set of data.

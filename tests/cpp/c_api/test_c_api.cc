@@ -11,6 +11,8 @@
 #include "../../../src/common/io.h"
 
 #include "../../../src/c_api/c_api_error.h"
+#include "xgboost/json.h"
+#include "xgboost/string_view.h"
 
 TEST(CAPI, XGDMatrixCreateFromMatDT) {
   std::vector<int> col0 = {0, -1, 3};
@@ -74,6 +76,8 @@ TEST(CAPI, XGDMatrixCreateFromMatOmp) {
     delete dmat;
   }
 }
+
+XGB_DLL int XGListAllObjectiveFunctions(char const* config, char const **out);
 
 namespace xgboost {
 
@@ -366,5 +370,18 @@ TEST(CAPI, JArgs) {
     ASSERT_THROW({ RequiredArg<String const>(args, "foo", __func__); }, dmlc::Error);
     ASSERT_THROW({ RequiredArg<String>(args, "null", __func__); }, dmlc::Error);
   }
+}
+
+TEST(CAPI, AllObjs) {
+  Json config{Object{}};
+  config["include_info"] = true;
+  std::string config_str;
+  Json::Dump(config, &config_str);
+  char const *out;
+  XGListAllObjectiveFunctions(config_str.c_str(), &out);
+  CHECK(out);
+  auto allobjs = Json::Load(StringView{out});
+  ASSERT_TRUE(IsA<Object>(allobjs["reg:quantile"]));
+  ASSERT_TRUE(IsA<Array>(allobjs["reg:quantile"]["arguments"]));
 }
 }  // namespace xgboost

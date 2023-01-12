@@ -24,6 +24,7 @@ from .core import (
     XGBoostError,
     _deprecate_positional_args,
 )
+from .objective.base import _BuiltinObjFunction
 
 _CVFolds = Sequence["CVPack"]
 
@@ -123,14 +124,19 @@ def train(
              'eval': {'logloss': ['0.480385', '0.357756']}}
 
     verbose_eval :
+
         Requires at least one item in **evals**.
+
         If **verbose_eval** is True then the evaluation metric on the validation set is
         printed at each boosting stage.
-        If **verbose_eval** is an integer then the evaluation metric on the validation set
-        is printed at every given **verbose_eval** boosting stage. The last boosting stage
-        / the boosting stage found by using **early_stopping_rounds** is also printed.
-        Example: with ``verbose_eval=4`` and at least one item in **evals**, an evaluation metric
-        is printed every 4 boosting stages, instead of every boosting stage.
+
+        If **verbose_eval** is an integer then the evaluation metric on the validation
+        set is printed at every given **verbose_eval** boosting stage. The last boosting
+        stage / the boosting stage found by using **early_stopping_rounds** is also
+        printed.  Example: with ``verbose_eval=4`` and at least one item in **evals**,
+        an evaluation metric is printed every 4 boosting stages, instead of every
+        boosting stage.
+
     xgb_model :
         Xgb model to be loaded before training (allows training continuation).
     callbacks :
@@ -161,11 +167,20 @@ def train(
     Returns
     -------
     Booster : a trained booster model
+
     """
 
     callbacks = [] if callbacks is None else copy.copy(list(callbacks))
     metric_fn = _configure_custom_metric(feval, custom_metric)
     evals = list(evals) if evals else []
+
+    if (
+        isinstance(obj, _BuiltinObjFunction)
+        and params.get("objective", None) is not None
+    ):
+        raise ValueError("Redefined objective")
+    if isinstance(obj, _BuiltinObjFunction):
+        params["objective"] = obj
 
     bst = Booster(params, [dtrain] + [d[0] for d in evals], model_file=xgb_model)
     start_iteration = 0
@@ -175,15 +190,13 @@ def train(
         verbose_eval = 1 if verbose_eval is True else verbose_eval
         callbacks.append(EvaluationMonitor(period=verbose_eval))
     if early_stopping_rounds:
-        callbacks.append(
-            EarlyStopping(rounds=early_stopping_rounds, maximize=maximize)
-        )
+        callbacks.append(EarlyStopping(rounds=early_stopping_rounds, maximize=maximize))
     cb_container = CallbackContainer(
         callbacks,
         metric=metric_fn,
         # For old `feval` parameter, the behavior is unchanged.  For the new
-        # `custom_metric`, it will receive proper prediction result when custom objective
-        # is not used.
+        # `custom_metric`, it will receive proper prediction result when custom
+        # objective is not used.
         output_margin=callable(obj) or metric_fn is feval,
     )
 

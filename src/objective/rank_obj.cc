@@ -116,7 +116,7 @@ class LambdaMARTNDCG : public ObjFunction {
       h_cache_.p_info = &info;
       h_cache_.truncation = ndcg_param_.lambdamart_truncation;
     }
-
+    // fixme: calculate n_threads for each group.
     common::ParallelFor(n_groups, ctx_->Threads(), [&](auto g) {
       size_t cnt = info.group_ptr_.at(g + 1) - info.group_ptr_[g];
       auto predts = h_predt.subspan(info.group_ptr_[g], cnt);

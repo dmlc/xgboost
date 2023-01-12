@@ -22,6 +22,7 @@
 
 namespace xgboost {
 
+class Json;
 class RegTree;
 struct Context;
 
@@ -55,6 +56,12 @@ class ObjFunction : public Configurable {
 
   /*! \return the default evaluation metric for the objective */
   virtual const char* DefaultEvalMetric() const = 0;
+  /**
+   * \brief Return the default evaluation metric along with its default configuration for the
+   *        objective.
+   */
+  virtual const char* DefaultEvalMetric(Json* /*config*/) const { return DefaultEvalMetric(); }
+
   // the following functions are optional, most of time default implementation is good enough
   /*!
    * \brief transform prediction values, this is only called when Prediction is called

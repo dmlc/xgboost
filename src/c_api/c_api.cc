@@ -1,29 +1,32 @@
 // Copyright (c) 2014-2022 by Contributors
+#include "xgboost/c_api.h"
+
 #include <rabit/c_api.h>
 
 #include <cstring>
 #include <fstream>
-#include <vector>
-#include <string>
 #include <memory>
+#include <string>
+#include <vector>
 
-#include "xgboost/base.h"
-#include "xgboost/data.h"
-#include "xgboost/host_device_vector.h"
-#include "xgboost/learner.h"
-#include "xgboost/c_api.h"
-#include "xgboost/logging.h"
-#include "xgboost/version_config.h"
-#include "xgboost/json.h"
-#include "xgboost/global_config.h"
-
-#include "c_api_error.h"
-#include "c_api_utils.h"
 #include "../collective/communicator-inl.h"
-#include "../common/io.h"
 #include "../common/charconv.h"
+#include "../common/io.h"
 #include "../data/adapter.h"
 #include "../data/simple_dmatrix.h"
+#include "c_api_error.h"
+#include "c_api_utils.h"
+#include "dmlc/thread_local.h"
+#include "xgboost/base.h"
+#include "xgboost/data.h"
+#include "xgboost/global_config.h"
+#include "xgboost/host_device_vector.h"
+#include "xgboost/json.h"
+#include "xgboost/learner.h"
+#include "xgboost/logging.h"
+#include "xgboost/objective.h"  // ObjFunctionReg
+#include "xgboost/string_view.h"
+#include "xgboost/version_config.h"
 
 #if defined(XGBOOST_USE_FEDERATED)
 #include "../../plugin/federated/federated_server.h"
@@ -1558,6 +1561,37 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, char const *config,
   *out_shape = dmlc::BeginPtr(shape);
   *out_scores = scores.data();
   *out_features = dmlc::BeginPtr(feature_names_c);
+  API_END();
+}
+
+XGB_DLL int XGListAllObjectiveFunctions(char const *config, char const **out) {
+  API_BEGIN();
+  auto jconfig = Json::Load(StringView{config});
+  auto names = dmlc::Registry<::xgboost::ObjFunctionReg>::Get()->ListAllNames();
+  Json out_names{Object{}};
+  auto include_info = OptionalArg<Boolean, bool>(jconfig, "include_info", false);
+  for (auto const &name : names) {
+    out_names[name] = Object{};
+    if (include_info) {
+      auto e = dmlc::Registry<::xgboost::ObjFunctionReg>::Get()->Find(name);
+      CHECK(e);
+      out_names[name]["desc"] = String{e->description};
+      if (e->arguments.empty()) {
+        continue;
+      }
+      out_names[name]["arguments"] = Array{};
+      auto &arguments = get<Array>(out_names[name]["arguments"]);
+      for (auto const &arg : e->arguments) {
+        arguments.emplace_back(Object{});
+        arguments.back()["name"] = arg.name;
+        arguments.back()["type"] = arg.type;
+        arguments.back()["desc"] = arg.description;
+      }
+    }
+  }
+  auto &str = GlobalConfigAPIThreadLocalStore::Get()->ret_str;
+  Json::Dump(out_names, &str);
+  *out = str.c_str();
   API_END();
 }
 

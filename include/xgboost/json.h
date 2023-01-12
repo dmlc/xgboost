@@ -1,5 +1,5 @@
-/*!
- * Copyright (c) by XGBoost Contributors 2019-2022
+/**
+ * Copyright by XGBoost Contributors 2019-2023
  */
 #ifndef XGBOOST_JSON_H_
 #define XGBOOST_JSON_H_
@@ -13,6 +13,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <type_traits>  // std::enable_if,std::enable_if_t
 #include <utility>
 #include <vector>
 
@@ -612,6 +613,37 @@ Args FromJson(Json const& obj, Parameter* param) {
     m[kv.first] = get<String const>(kv.second);
   }
   return param->UpdateAllowUnknown(m);
+}
+
+namespace detail {
+template <typename Head>
+bool TypeCheckImpl(Json const& value) {
+  return IsA<Head>(value);
+}
+
+template <typename Head, typename... JT>
+std::enable_if_t<sizeof...(JT) != 0, bool> TypeCheckImpl(Json const& value) {
+  return IsA<Head>(value) || TypeCheckImpl<JT...>(value);
+}
+
+template <typename Head>
+std::string TypeCheckError() {
+  return "`" + Head{}.TypeStr() + "`";
+}
+
+template <typename Head, typename... JT>
+std::enable_if_t<sizeof...(JT) != 0, std::string> TypeCheckError() {
+  return "`" + Head{}.TypeStr() + "`, " + TypeCheckError<JT...>();
+}
+}  // namespace detail
+
+template <typename... JT>
+void TypeCheck(Json const& value, StringView name) {
+  if (!detail::TypeCheckImpl<JT...>(value)) {
+    LOG(FATAL) << "Invalid type for: `" << name << "`, expecting one of the: {`"
+               << detail::TypeCheckError<JT...>() << "}, got: `" << value.GetValue().TypeStr()
+               << "`";
+  }
 }
 }  // namespace xgboost
 #endif  // XGBOOST_JSON_H_
