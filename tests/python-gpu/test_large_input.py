@@ -17,7 +17,7 @@ def test_large_input():
     assert (np.log2(m * n) > 31)
     X = cp.ones((m, n), dtype=np.float32)
     y = cp.ones(m)
-    dmat = xgb.DeviceQuantileDMatrix(X, y)
+    dmat = xgb.QuantileDMatrix(X, y)
     booster = xgb.train({"tree_method": "gpu_hist", "max_depth": 1}, dmat, 1)
     del y
     booster.inplace_predict(X)

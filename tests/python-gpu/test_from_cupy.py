@@ -27,8 +27,8 @@ def dmatrix_from_cupy(input_type, DMatrixT, missing=np.NAN):
     assert dtrain.num_col() == kCols
     assert dtrain.num_row() == kRows
 
-    if DMatrixT is xgb.DeviceQuantileDMatrix:
-        # Slice is not supported by DeviceQuantileDMatrix
+    if DMatrixT is xgb.QuantileDMatrix:
+        # Slice is not supported by QuantileDMatrix
         with pytest.raises(xgb.core.XGBoostError):
             dtrain.slice(rindex=[0, 1, 2])
             dtrain.slice(rindex=[0, 1, 2])
@@ -153,11 +153,11 @@ Arrow specification.'''
 
     @pytest.mark.skipif(**tm.no_cupy())
     def test_device_dmat_from_cupy(self):
-        _test_from_cupy(xgb.DeviceQuantileDMatrix)
+        _test_from_cupy(xgb.QuantileDMatrix)
 
     @pytest.mark.skipif(**tm.no_cupy())
     def test_cupy_training_device_dmat(self):
-        _test_cupy_training(xgb.DeviceQuantileDMatrix)
+        _test_cupy_training(xgb.QuantileDMatrix)
 
     @pytest.mark.skipif(**tm.no_cupy())
     def test_cupy_training_simple_dmat(self):
@@ -169,7 +169,7 @@ Arrow specification.'''
 
     @pytest.mark.skipif(**tm.no_cupy())
     def test_cupy_metainfo_device_dmat(self):
-        _test_cupy_metainfo(xgb.DeviceQuantileDMatrix)
+        _test_cupy_metainfo(xgb.QuantileDMatrix)
 
     @pytest.mark.skipif(**tm.no_cupy())
     def test_dlpack_simple_dmat(self):
@@ -196,7 +196,7 @@ Arrow specification.'''
         import cupy as cp
         n = 100
         X = cp.random.random((n, 2))
-        m = xgb.DeviceQuantileDMatrix(X.toDlpack())
+        m = xgb.QuantileDMatrix(X.toDlpack())
         with pytest.raises(xgb.core.XGBoostError):
             m.slice(rindex=[0, 1, 2])
 
@@ -222,7 +222,7 @@ Arrow specification.'''
         import cupy as cp
         cp.cuda.runtime.setDevice(0)
         dtrain = dmatrix_from_cupy(
-            np.float32, xgb.DeviceQuantileDMatrix, np.nan)
+            np.float32, xgb.QuantileDMatrix, np.nan)
         with pytest.raises(xgb.core.XGBoostError):
             xgb.train(
                 {'tree_method': 'gpu_hist', 'gpu_id': 1}, dtrain, num_boost_round=10
