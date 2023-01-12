@@ -129,6 +129,7 @@ def pd_dtypes() -> Generator:
 def pd_arrow_dtypes() -> Generator:
     """Pandas DataFrame with pyarrow backed type."""
     import pandas as pd
+    import pyarrow as pa
 
     import xgboost
 
@@ -140,10 +141,25 @@ def pd_arrow_dtypes() -> Generator:
     )
     # Create a dictionary-backed dataframe, enable this when the roundtrip is
     # implemented in pandas/pyarrow
-    # df = pd.DataFrame(
+    #
+    # category = pd.ArrowDtype(pa.dictionary(pa.int32(), pa.int32(), ordered=True))
+    # df = pd.DataFrame({"f0": [0, 2, Null, 3], "f1": [4, 3, Null, 1]}, dtype=category)
+
+    # Error:
+    # >>> df.astype("category")
+    #   Function 'dictionary_encode' has no kernel matching input types
+    #   (array[dictionary<values=int32, indices=int32, ordered=0>])
+
+    # Error:
+    # pd_cat_df = pd.DataFrame(
     #     {"f0": [0, 2, Null, 3], "f1": [4, 3, Null, 1]},
-    #     dtype=pd.ArrowDtype(pa.dictionary(pa.int32(), pa.int32(), ordered=True)),
+    #     dtype="category"
     # )
+    # pa_catcodes = (
+    #     df["f1"].array.__arrow_array__().combine_chunks().to_pandas().cat.codes
+    # )
+    # pd_catcodes = pd_cat_df["f1"].cat.codes
+    # assert pd_catcodes.equals(pa_catcodes)
 
     for Null in (None, pd.NA):
         for dtype in dtypes:
@@ -154,11 +170,12 @@ def pd_arrow_dtypes() -> Generator:
             )
             yield orig, df
 
-    # Create a boolean array, error:
-    # Could not convert <pyarrow.NullScalar: None> with type pyarrow.lib.NullScalar:
-    # tried to convert to boolean
-    #
-    # df = pd.DataFrame(
-    #     {"f0": [True, False, pa.NA, True], "f1": [False, True, pa.NA, True]},
-    #     dtype=pd.ArrowDtype(pa.bool_()),
-    # )
+    orig = pd.DataFrame(
+        {"f0": [True, False, pd.NA, True], "f1": [False, True, pd.NA, True]},
+        dtype=pd.BooleanDtype(),
+    )
+    df = pd.DataFrame(
+        {"f0": [True, False, pd.NA, True], "f1": [False, True, pd.NA, True]},
+        dtype=pd.ArrowDtype(pa.bool_()),
+    )
+    yield orig, df

@@ -457,6 +457,8 @@ def _transform_pandas_df(
 
     transformed = pandas_cat_null(data)
     if pyarrow_extension:
+        if transformed is data:
+            transformed = data.copy(deep=False)
         transformed = pandas_ext_num_types(transformed)
 
     if meta and len(data.columns) > 1 and meta not in _matrix_meta:
@@ -1269,7 +1271,10 @@ def _proxy_transform(
     enable_categorical: bool,
 ) -> Tuple[
     Union[bool, ctypes.c_void_p, np.ndarray],
-        Optional[list], Optional[FeatureNames], Optional[FeatureTypes]]:
+    Optional[list],
+    Optional[FeatureNames],
+    Optional[FeatureTypes],
+]:
     if _is_cudf_df(data) or _is_cudf_ser(data):
         return _transform_cudf_df(
             data, feature_names, feature_types, enable_categorical
@@ -1288,6 +1293,7 @@ def _proxy_transform(
         return data, None, feature_names, feature_types
     if _is_pandas_series(data):
         import pandas as pd
+
         data = pd.DataFrame(data)
     if _is_pandas_df(data):
         arr, feature_names, feature_types = _transform_pandas_df(

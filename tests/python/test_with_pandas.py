@@ -338,13 +338,20 @@ class TestPandas:
     @pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
     def test_pyarrow_type(self, DMatrixT: Type[xgb.DMatrix]) -> None:
         for orig, df in pd_arrow_dtypes():
-            f0_orig = orig["f0"]
+            f0_orig: pd.Series = orig["f0"]
             f0 = df["f0"]
-            y_orig = f0_orig.fillna(0)
-            y = f0.fillna(0)
+
+            if f0.dtype.name.startswith("bool"):
+                y = None
+                y_orig = None
+            else:
+                y_orig = f0_orig.fillna(0, inplace=False)
+                y = f0.fillna(0, inplace=False)
+
             m_orig = DMatrixT(orig, enable_categorical=True, label=y_orig)
             m_etype = DMatrixT(df, enable_categorical=True, label=y)
 
             assert tm.predictor_equal(m_orig, m_etype)
-            np.testing.assert_allclose(m_orig.get_label(), m_etype.get_label())
-            np.testing.assert_allclose(m_etype.get_label(), y.values)
+            if y is not None:
+                np.testing.assert_allclose(m_orig.get_label(), m_etype.get_label())
+                np.testing.assert_allclose(m_etype.get_label(), y.values)
