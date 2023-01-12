@@ -9,10 +9,16 @@ if test -z "${R_HOME}"; then
   echo "could not determine R_HOME"
   exit 1
 fi
+
 CXX14=`"${R_HOME}/bin/R" CMD config CXX14`
 CXX14STD=`"${R_HOME}/bin/R" CMD config CXX14STD`
 CXX="${CXX14} ${CXX14STD}"
+CXXFLAGS=`"${R_HOME}/bin/R" CMD config CXXFLAGS`
+
+CC=`"${R_HOME}/bin/R" CMD config CC`
+CFLAGS=`"${R_HOME}/bin/R" CMD config CFLAGS`
 CPPFLAGS=`"${R_HOME}/bin/R" CMD config CPPFLAGS`
+
 LDFLAGS=`"${R_HOME}/bin/R" CMD config LDFLAGS`
 AC_LANG(C++)
 
