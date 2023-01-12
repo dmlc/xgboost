@@ -2,6 +2,7 @@
 from typing import Any, Generator, Tuple, Union
 
 import numpy as np
+from xgboost.data import pandas_pyarrow_mapper
 
 
 def np_dtypes(
@@ -129,12 +130,10 @@ def pd_dtypes() -> Generator:
 def pd_arrow_dtypes() -> Generator:
     """Pandas DataFrame with pyarrow backed type."""
     import pandas as pd
-    import pyarrow as pa
-
-    import xgboost
+    import pyarrow as pa  # pylint: disable=import-error
 
     # Integer
-    dtypes = xgboost.data.pandas_pyarrow_mapper
+    dtypes = pandas_pyarrow_mapper
     Null: Union[float, None, Any] = np.nan
     orig = pd.DataFrame(
         {"f0": [1, 2, Null, 3], "f1": [4, 3, Null, 1]}, dtype=np.float32
