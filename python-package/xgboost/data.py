@@ -1174,7 +1174,7 @@ class SingleBatchInternalIter(DataIter):  # pylint: disable=R0902
     def __init__(self, **kwargs: Any) -> None:
         self.kwargs = kwargs
         self.it = 0             # pylint: disable=invalid-name
-        super().__init__()
+        super().__init__(release_data=False)
 
     def next(self, input_data: Callable) -> int:
         if self.it == 1:
