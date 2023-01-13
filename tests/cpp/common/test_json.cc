@@ -10,6 +10,7 @@
 #include "../../../src/common/io.h"
 #include "../filesystem.h"  // dmlc::TemporaryDirectory
 #include "../helpers.h"
+#include "dmlc/logging.h"
 #include "xgboost/json.h"
 #include "xgboost/json_io.h"
 #include "xgboost/logging.h"
@@ -673,6 +674,21 @@ TEST(UBJson, Basic) {
     ASSERT_TRUE(std::isinf(get<Number>(get<Array>(ret["test"])[2])));
     ASSERT_FLOAT_EQ(3.14, get<Number>(get<Array>(ret["test"])[1]));
     ASSERT_FLOAT_EQ(2.71, get<Number>(get<Array>(ret["test"])[0]));
+  }
+}
+
+TEST(Json, TypeCheck) {
+  Json config{Object{}};
+  config["foo"] = String{"bar"};
+  auto test = [&]() { TypeCheck<Number, Integer, Array, I32Array>(config["foo"], "foo"); };
+  ASSERT_THROW({ test(); }, dmlc::Error);
+  try {
+    test();
+  } catch (dmlc::Error const& e) {
+    auto err = std::string{e.what()};
+    ASSERT_NE(err.find("Number"), std::string::npos);
+    ASSERT_NE(err.find("I32Array"), std::string::npos);
+    ASSERT_NE(err.find("foo"), std::string::npos);
   }
 }
 }  // namespace xgboost
