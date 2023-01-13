@@ -95,7 +95,8 @@ TEST(CpuPredictor, ColumnSplit) {
   auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
   std::vector<std::thread> threads;
-  auto constexpr kWorldSize = 2;
+  size_t constexpr kWorldSize = 2;
+  size_t constexpr kSliceSize = (kCols + 1) / kWorldSize;
    for (auto rank = 0; rank < kWorldSize; rank++) {
     threads.emplace_back([=, &dmat]() {
       Json config{JsonObject()};
@@ -117,7 +118,6 @@ TEST(CpuPredictor, ColumnSplit) {
       // Test predict batch
       PredictionCacheEntry out_predictions;
       cpu_predictor->InitOutPredictions(dmat->Info(), &out_predictions.predictions, model);
-      auto constexpr kSliceSize = (kCols + 1) / kWorldSize;
       auto sliced = std::unique_ptr<DMatrix>{dmat->SliceCol(rank * kSliceSize, kSliceSize)};
       cpu_predictor->PredictBatch(sliced.get(), &out_predictions, model, 0);
 
