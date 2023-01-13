@@ -205,11 +205,11 @@ XGB_DLL SEXP XGDMatrixCreateFromCSR_R(SEXP indptr, SEXP indices, SEXP data, SEXP
   if (DMLC_LITTLE_ENDIAN) {
     jindptr["typestr"] = String{"<i4"};
     jindices["typestr"] = String{"<i4"};
-    jdata["typestr"] = String{"<i8"};
+    jdata["typestr"] = String{"<f8"};
   } else {
     jindptr["typestr"] = String{">i4"};
     jindices["typestr"] = String{">i4"};
-    jdata["typestr"] = String{">i8"};
+    jdata["typestr"] = String{">f8"};
   }
   std::string indptr, indices, data;
   Json::Dump(jindptr, &indptr);
