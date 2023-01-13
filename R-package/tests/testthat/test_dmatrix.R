@@ -22,20 +22,20 @@ test_that("xgb.DMatrix: basic construction", {
 
   n_samples <- 100
   X <- cbind(
-    x1 = rnorm(n_samples),
-    x2 = rnorm(n_samples),
-    x3 = rnorm(n_samples)
+    x1 = sample(x = 4, size = n_samples, replace = TRUE),
+    x2 = sample(x = 4, size = n_samples, replace = TRUE),
+    x3 = sample(x = 4, size = n_samples, replace = TRUE)
   )
   X <- matrix(X, nrow = n_samples)
   y <- rbinom(n = n_samples, size = 1, prob = 1 / 2)
 
-  fd <- xgb.DMatrix(X, label = y)
+  fd <- xgb.DMatrix(X, label = y, missing = 1)
 
   dgc <- as(X, "dgCMatrix")
-  fdgc <- xgb.DMatrix(dgc, label = y)
+  fdgc <- xgb.DMatrix(dgc, label = y, missing = 1.0)
 
   dgr <- as(X, "dgRMatrix")
-  fdgr <- xgb.DMatrix(dgr, label = y)
+  fdgr <- xgb.DMatrix(dgr, label = y, missing = 1)
 
   params <- list(tree_method = "hist")
   bst_fd <- xgb.train(

@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014,2021 by Contributors
+ Copyright (c) 2014-2023 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
   @throws(classOf[XGBoostError])
   @deprecated
   def this(headers: Array[Long], indices: Array[Int], data: Array[Float], st: JDMatrix.SparseType) {
-    this(new JDMatrix(headers, indices, data, st))
+    this(new JDMatrix(headers, indices, data, st, 0, Float.NaN, -1))
   }
 
   /**
@@ -70,7 +70,25 @@ class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
   @throws(classOf[XGBoostError])
   def this(headers: Array[Long], indices: Array[Int], data: Array[Float], st: JDMatrix.SparseType,
            shapeParam: Int) {
-    this(new JDMatrix(headers, indices, data, st, shapeParam))
+    this(new JDMatrix(headers, indices, data, st, shapeParam, Float.NaN, -1))
+  }
+
+  /**
+   * create DMatrix from sparse matrix
+   *
+   * @param headers index to headers (rowHeaders for CSR or colHeaders for CSC)
+   * @param indices Indices (colIndexs for CSR or rowIndexs for CSC)
+   * @param data    non zero values (sequence by row for CSR or by col for CSC)
+   * @param st      sparse matrix type (CSR or CSC)
+   * @param shapeParam when st is CSR, it specifies the column number, otherwise it is taken as
+   *                     row number
+   * @param missing missing value
+   * @param nthread The number of threads used for constructing DMatrix
+   */
+  @throws(classOf[XGBoostError])
+  def this(headers: Array[Long], indices: Array[Int], data: Array[Float], st: JDMatrix.SparseType,
+           shapeParam: Int, missing: Float, nthread: Int) {
+    this(new JDMatrix(headers, indices, data, st, shapeParam, missing, nthread))
   }
 
   /**
@@ -78,7 +96,7 @@ class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
    * @param columnBatch the XGBoost ColumnBatch to provide the cuda array interface
    *                    of feature columns
    * @param missing missing value
-   * @param nthread threads number
+   * @param nthread The number of threads used for constructing DMatrix
    */
   @throws(classOf[XGBoostError])
   def this(columnBatch: ColumnBatch, missing: Float, nthread: Int) {
@@ -244,6 +262,16 @@ class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
   @throws(classOf[XGBoostError])
   def rowNum: Long = {
     jDMatrix.rowNum
+  }
+
+  /**
+   * Get the number of non-missing values of DMatrix.
+   *
+   * @return The number of non-missing values
+   */
+  @throws(classOf[XGBoostError])
+  def nonMissingNum: Long = {
+    jDMatrix.nonMissingNum
   }
 
   /**
