@@ -290,7 +290,31 @@ static void InitThreadTemp(int nthread, std::vector<RegTree::FVec> *out) {
     out->resize(nthread, RegTree::FVec());
   }
 }
-
+/**
+ * @brief A helper class for prediction when the DMatrix is split by column.
+ *
+ * When data is split by column, a local DMatrix only contains a subset of features. All the workers
+ * in a distributed/federated environment need to cooperate to produce a prediction. This is done in
+ * two passes with the help of bit vectors.
+ *
+ * First pass:
+ * for each tree:
+ *   for each row:
+ *     for each node:
+ *       if the feature is available and passes the filter, mark the corresponding decision bit
+ *       if the feature is missing, mark the missing bit
+ *
+ * Once the two bit vectors are populated, run allreduce on both, using bitwise OR for the decision
+ * bits, and bitwise AND for the missing bits.
+ *
+ * Second pass:
+ * for each tree:
+ *   for each row:
+ *     find the leaf node using the decision and missing bits, return the leaf value
+ *
+ * The size of the decision/missing bit vector is:
+ *   number of rows in a batch * sum(number of nodes in each tree)
+ */
 class ColumnSplitHelper {
  public:
   ColumnSplitHelper(std::int32_t n_threads, gbm::GBTreeModel const &model, uint32_t tree_begin,
@@ -348,7 +372,8 @@ class ColumnSplitHelper {
   }
 
   std::size_t BitIndex(std::size_t tree_id, std::size_t row_id, std::size_t node_id) const {
-    return tree_offsets_[tree_id - tree_begin_] * n_rows_ + row_id * bits_per_row_ + node_id;
+    size_t tree_index = tree_id - tree_begin_;
+    return tree_offsets_[tree_index] * n_rows_ + row_id * tree_sizes_[tree_index] + node_id;
   }
 
   void AllreduceBitVectors() {
@@ -417,7 +442,7 @@ class ColumnSplitHelper {
     return nid;
   }
 
-  bst_float PredOneTree(std::size_t tree_id, std::size_t row_id) {
+  bst_float PredictOneTree(std::size_t tree_id, std::size_t row_id) {
     auto const &tree = *model_.trees[tree_id];
     const bst_node_t leaf = GetLeafIndex(tree, tree_id, row_id);
     return tree[leaf].LeafValue();
@@ -429,7 +454,7 @@ class ColumnSplitHelper {
     for (size_t tree_id = tree_begin_; tree_id < tree_end_; ++tree_id) {
       auto const gid = model_.tree_info[tree_id];
       for (size_t i = 0; i < block_size; ++i) {
-        preds[(predict_offset + i) * num_group + gid] += PredOneTree(tree_id, batch_offset + i);
+        preds[(predict_offset + i) * num_group + gid] += PredictOneTree(tree_id, batch_offset + i);
       }
     }
   }
