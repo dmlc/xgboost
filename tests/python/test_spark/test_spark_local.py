@@ -41,6 +41,16 @@ logging.getLogger("py4j").setLevel(logging.INFO)
 pytestmark = testing.timeout(60)
 
 
+def no_sparse_unwrap():
+    try:
+        from pyspark.sql.functions import unwrap_udt
+
+    except ImportError:
+        return {"reason": "PySpark<3.4", "condition": True}
+
+    return {"reason": "PySpark<3.4", "condition": False}
+
+
 class XgboostLocalTest(SparkTestCase):
     def setUp(self):
         logging.getLogger().setLevel("INFO")
@@ -985,6 +995,7 @@ class XgboostLocalTest(SparkTestCase):
         model = classifier.fit(self.cls_df_train)
         model.transform(self.cls_df_test).collect()
 
+    @pytest.mark.skipif(**no_sparse_unwrap())
     def test_regressor_with_sparse_optim(self):
         regressor = SparkXGBRegressor(missing=0.0)
         model = regressor.fit(self.reg_df_sparse_train)
@@ -1001,6 +1012,7 @@ class XgboostLocalTest(SparkTestCase):
         for row1, row2 in zip(pred_result, pred_result2):
             self.assertTrue(np.isclose(row1.prediction, row2.prediction, atol=1e-3))
 
+    @pytest.mark.skipif(**no_sparse_unwrap())
     def test_classifier_with_sparse_optim(self):
         cls = SparkXGBClassifier(missing=0.0)
         model = cls.fit(self.cls_df_sparse_train)
