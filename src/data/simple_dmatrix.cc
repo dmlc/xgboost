@@ -42,6 +42,7 @@ DMatrix* SimpleDMatrix::Slice(common::Span<int32_t const> ridxs) {
     out->Info() = this->Info().Slice(ridxs);
     out->Info().num_nonzero_ = h_offset.back();
   }
+  out->ctx_ = this->ctx_;
   return out;
 }
 
