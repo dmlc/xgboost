@@ -16,4 +16,4 @@ class LambdaMartNDCG(_BuiltinObjFunction):
         return "lambdamart:ndcg"
 
     def _save_config(self) -> Dict[str, Any]:
-        return {"truncation": self.truncation}
+        return {"lambdamart_param": {"ndcg_truncation": self.truncation}}
