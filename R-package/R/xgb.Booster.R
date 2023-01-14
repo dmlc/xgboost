@@ -328,8 +328,9 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
                                 predleaf = FALSE, predcontrib = FALSE, approxcontrib = FALSE, predinteraction = FALSE,
                                 reshape = FALSE, training = FALSE, iterationrange = NULL, strict_shape = FALSE, ...) {
   object <- xgb.Booster.complete(object, saveraw = FALSE)
+
   if (!inherits(newdata, "xgb.DMatrix"))
-    newdata <- xgb.DMatrix(newdata, missing = missing)
+    newdata <- xgb.DMatrix(newdata, missing = missing, nthread = NVL(object$params[["nthread"]], -1))
   if (!is.null(object[["feature_names"]]) &&
       !is.null(colnames(newdata)) &&
       !identical(object[["feature_names"]], colnames(newdata)))
