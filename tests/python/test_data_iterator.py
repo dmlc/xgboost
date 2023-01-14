@@ -156,7 +156,7 @@ def test_data_iterator(
 
 
 class IterForCacheTest(xgb.DataIter):
-    def __init__(self, x, y, w) -> None:
+    def __init__(self, x: np.ndarray, y: np.ndarray, w: np.ndarray) -> None:
         self.kwargs = {"data": x, "label": y, "weight": w}
         super().__init__(release_data=False)
 

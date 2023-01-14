@@ -411,8 +411,8 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
         Prefix to the cache files, only used in external memory.  It can be either an
         URI or a file path.
     release_data :
-        Whether the iterator should release the data during resset. Set it to True if
-        the data transformation (converting data to np.float32 type) is expensive.
+        Whether the iterator should release the data during reset. Set it to True if the
+        data transformation (converting data to np.float32 type) is expensive.
 
     """
 
@@ -505,6 +505,7 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
             **kwargs: Any,
         ) -> None:
             from .data import _proxy_transform, dispatch_proxy_set_data
+
             # Reduce the amount of transformation that's needed for QuantileDMatrix.
             if self._temporary_data is not None and id(data) == self._input_id:
                 new, cat_codes, feature_names, feature_types = self._temporary_data
