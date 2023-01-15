@@ -2101,8 +2101,6 @@ CXX14STD=`"${R_HOME}/bin/R" CMD config CXX14STD`
 CXX="${CXX14} ${CXX14STD}"
 CXXFLAGS=`"${R_HOME}/bin/R" CMD config CXXFLAGS`
 
-CC=`"${R_HOME}/bin/R" CMD config CC`
-CFLAGS=`"${R_HOME}/bin/R" CMD config CFLAGS`
 CPPFLAGS=`"${R_HOME}/bin/R" CMD config CPPFLAGS`
 
 LDFLAGS=`"${R_HOME}/bin/R" CMD config LDFLAGS`
@@ -2857,7 +2855,7 @@ main (void)
   return 0;
 }
 _ACEOF
-  ${CC} -o conftest conftest.c ${CPPFLAGS} ${LDFLAGS} ${OPENMP_LIB} ${OPENMP_CXXFLAGS} 2>/dev/null && ./conftest && ac_pkg_openmp=yes
+  ${CXX} -o conftest conftest.cpp ${CPPFLAGS} ${LDFLAGS} ${OPENMP_LIB} ${OPENMP_CXXFLAGS} 2>/dev/null && ./conftest && ac_pkg_openmp=yes
   { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: ${ac_pkg_openmp}" >&5
 printf "%s\n" "${ac_pkg_openmp}" >&6; }
   if test "${ac_pkg_openmp}" = no; then

@@ -15,8 +15,6 @@ CXX14STD=`"${R_HOME}/bin/R" CMD config CXX14STD`
 CXX="${CXX14} ${CXX14STD}"
 CXXFLAGS=`"${R_HOME}/bin/R" CMD config CXXFLAGS`
 
-CC=`"${R_HOME}/bin/R" CMD config CC`
-CFLAGS=`"${R_HOME}/bin/R" CMD config CFLAGS`
 CPPFLAGS=`"${R_HOME}/bin/R" CMD config CPPFLAGS`
 
 LDFLAGS=`"${R_HOME}/bin/R" CMD config LDFLAGS`
@@ -55,7 +53,7 @@ then
   ac_pkg_openmp=no
   AC_MSG_CHECKING([whether OpenMP will work in a package])
   AC_LANG_CONFTEST([AC_LANG_PROGRAM([[#include <omp.h>]], [[ return (omp_get_max_threads() <= 1); ]])])
-  ${CC} -o conftest conftest.c ${CPPFLAGS} ${LDFLAGS} ${OPENMP_LIB} ${OPENMP_CXXFLAGS} 2>/dev/null && ./conftest && ac_pkg_openmp=yes
+  ${CXX} -o conftest conftest.cpp ${CPPFLAGS} ${LDFLAGS} ${OPENMP_LIB} ${OPENMP_CXXFLAGS} 2>/dev/null && ./conftest && ac_pkg_openmp=yes
   AC_MSG_RESULT([${ac_pkg_openmp}])
   if test "${ac_pkg_openmp}" = no; then
     OPENMP_CXXFLAGS=''
