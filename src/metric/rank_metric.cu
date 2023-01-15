@@ -1,6 +1,6 @@
-/*!
- * Copyright 2020 by Contributors
- * \file rank_metric.cc
+/**
+ * Copyright 2020-2023 by XGBoost Contributors
+ * \file rank_metric.cu
  * \brief prediction rank based metrics.
  * \author Kailong Chen, Tianqi Chen
  */
@@ -34,7 +34,7 @@ struct EvalRankGpu : public GPUMetric, public EvalRankConfig {
 
     const auto ngroups = static_cast<bst_omp_uint>(gptr.size() - 1);
 
-    auto device = tparam_->gpu_id;
+    auto device = ctx_->gpu_id;
     dh::safe_cuda(cudaSetDevice(device));
 
     info.labels.SetDevice(device);
