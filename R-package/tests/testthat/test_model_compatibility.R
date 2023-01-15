@@ -59,11 +59,12 @@ test_that("Models from previous versions of XGBoost can be loaded", {
   bucket <- 'xgboost-ci-jenkins-artifacts'
   region <- 'us-west-2'
   file_name <- 'xgboost_r_model_compatibility_test.zip'
-  zipfile <- file.path(getwd(), file_name)
-  model_dir <- file.path(getwd(), 'models')
+  zipfile <- tempfile(fileext = ".zip")
+  extract_dir <- tempdir()
   download.file(paste('https://', bucket, '.s3-', region, '.amazonaws.com/', file_name, sep = ''),
                 destfile = zipfile, mode = 'wb', quiet = TRUE)
-  unzip(zipfile, overwrite = TRUE)
+  unzip(zipfile, exdir = extract_dir, overwrite = TRUE)
+  model_dir <- file.path(extract_dir, 'models')
 
   pred_data <- xgb.DMatrix(matrix(c(0, 0, 0, 0), nrow = 1, ncol = 4))
 
