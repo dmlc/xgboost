@@ -1,18 +1,19 @@
-/*!
- * Copyright (c) 2015 by Contributors
+/**
+ * Copyright 2015-2023 by XGBoost Contributors
  * \file base.h
- * \brief defines configuration macros of xgboost.
+ * \brief Defines configuration macros and basic types for xgboost.
  */
 #ifndef XGBOOST_BASE_H_
 #define XGBOOST_BASE_H_
 
 #include <dmlc/base.h>
 #include <dmlc/omp.h>
+
 #include <cmath>
 #include <iostream>
-#include <vector>
 #include <string>
 #include <utility>
+#include <vector>
 
 /*!
  * \brief string flag for R library, to leave hooks when needed.
@@ -164,7 +165,10 @@ class GradientPairInternal {
   }
 
   // Copy constructor if of same value type, marked as default to be trivially_copyable
-  GradientPairInternal(const GradientPairInternal<T> &g) = default;
+  GradientPairInternal(GradientPairInternal const &g) = default;
+  GradientPairInternal(GradientPairInternal &&g) = default;
+  GradientPairInternal &operator=(GradientPairInternal const &that) = default;
+  GradientPairInternal &operator=(GradientPairInternal &&that) = default;
 
   // Copy constructor if different value type - use getters and setters to
   // perform conversion
