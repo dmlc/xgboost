@@ -1,5 +1,5 @@
-/*!
- * Copyright 2015-2020 by Contributors
+/**
+ * Copyright 2015-2023 by XGBoost Contributors
  * \file metric_registry.cc
  * \brief Registry of objective functions.
  */
@@ -43,18 +43,18 @@ Metric* CreateMetricImpl(const std::string& name) {
 }
 
 Metric *
-Metric::Create(const std::string& name, Context const* tparam) {
+Metric::Create(const std::string& name, Context const* ctx) {
   auto metric = CreateMetricImpl<MetricReg>(name);
   if (metric == nullptr) {
     LOG(FATAL) << "Unknown metric function " << name;
   }
 
-  metric->tparam_ = tparam;
+  metric->ctx_ = ctx;
   return metric;
 }
 
 Metric *
-GPUMetric::CreateGPUMetric(const std::string& name, Context const* tparam) {
+GPUMetric::CreateGPUMetric(const std::string& name, Context const* ctx) {
   auto metric = CreateMetricImpl<MetricGPUReg>(name);
   if (metric == nullptr) {
     LOG(WARNING) << "Cannot find a GPU metric builder for metric " << name
@@ -65,7 +65,7 @@ GPUMetric::CreateGPUMetric(const std::string& name, Context const* tparam) {
   // Narrowing reference only for the compiler to allow assignment to a base class member.
   // As such, using this narrowed reference to refer to derived members will be an illegal op.
   // This is moot, as this type is stateless.
-  static_cast<GPUMetric *>(metric)->tparam_ = tparam;
+  static_cast<GPUMetric *>(metric)->ctx_ = ctx;
   return metric;
 }
 }  // namespace xgboost

@@ -1,6 +1,6 @@
-/*!
- * Copyright 2015-2022 by XGBoost Contributors
- * \file elementwise_metric.cc
+/**
+ * Copyright 2015-2023 by XGBoost Contributors
+ * \file elementwise_metric.cu
  * \brief evaluation metrics for elementwise binary or regression.
  * \author Kailong Chen, Tianqi Chen
  *
@@ -180,16 +180,16 @@ class PseudoErrorLoss : public Metric {
 
   double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info) override {
     CHECK_EQ(info.labels.Shape(0), info.num_row_);
-    auto labels = info.labels.View(tparam_->gpu_id);
-    preds.SetDevice(tparam_->gpu_id);
-    auto predts = tparam_->IsCPU() ? preds.ConstHostSpan() : preds.ConstDeviceSpan();
-    info.weights_.SetDevice(tparam_->gpu_id);
-    common::OptionalWeights weights(tparam_->IsCPU() ? info.weights_.ConstHostSpan()
+    auto labels = info.labels.View(ctx_->gpu_id);
+    preds.SetDevice(ctx_->gpu_id);
+    auto predts = ctx_->IsCPU() ? preds.ConstHostSpan() : preds.ConstDeviceSpan();
+    info.weights_.SetDevice(ctx_->gpu_id);
+    common::OptionalWeights weights(ctx_->IsCPU() ? info.weights_.ConstHostSpan()
                                                      : info.weights_.ConstDeviceSpan());
     float slope = this->param_.huber_slope;
     CHECK_NE(slope, 0.0) << "slope for pseudo huber cannot be 0.";
     PackedReduceResult result =
-        Reduce(tparam_, info, [=] XGBOOST_DEVICE(size_t i, size_t sample_id, size_t target_id) {
+        Reduce(ctx_, info, [=] XGBOOST_DEVICE(size_t i, size_t sample_id, size_t target_id) {
           float wt = weights[sample_id];
           auto a = labels(sample_id, target_id) - predts[i];
           auto v = common::Sqr(slope) * (std::sqrt((1 + common::Sqr(a / slope))) - 1) * wt;
@@ -348,16 +348,16 @@ struct EvalEWiseBase : public Metric {
     if (info.labels.Size() != 0) {
       CHECK_NE(info.labels.Shape(1), 0);
     }
-    auto labels = info.labels.View(tparam_->gpu_id);
-    info.weights_.SetDevice(tparam_->gpu_id);
-    common::OptionalWeights weights(tparam_->IsCPU() ? info.weights_.ConstHostSpan()
+    auto labels = info.labels.View(ctx_->gpu_id);
+    info.weights_.SetDevice(ctx_->gpu_id);
+    common::OptionalWeights weights(ctx_->IsCPU() ? info.weights_.ConstHostSpan()
                                                      : info.weights_.ConstDeviceSpan());
-    preds.SetDevice(tparam_->gpu_id);
-    auto predts = tparam_->IsCPU() ? preds.ConstHostSpan() : preds.ConstDeviceSpan();
+    preds.SetDevice(ctx_->gpu_id);
+    auto predts = ctx_->IsCPU() ? preds.ConstHostSpan() : preds.ConstDeviceSpan();
 
     auto d_policy = policy_;
     auto result =
-        Reduce(tparam_, info, [=] XGBOOST_DEVICE(size_t i, size_t sample_id, size_t target_id) {
+        Reduce(ctx_, info, [=] XGBOOST_DEVICE(size_t i, size_t sample_id, size_t target_id) {
           float wt = weights[sample_id];
           float residue = d_policy.EvalRow(labels(sample_id, target_id), predts[i]);
           residue *= wt;

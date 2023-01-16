@@ -1,5 +1,5 @@
-/*!
- * Copyright 2014 by Contributors
+/**
+ * Copyright 2014-2023 by XGBoost Contributors
  * \file metric.h
  * \brief interface of evaluation metric function supported in xgboost.
  * \author Tianqi Chen, Kailong Chen
@@ -27,7 +27,7 @@ struct Context;
  */
 class Metric : public Configurable {
  protected:
-  Context const* tparam_;
+  Context const* ctx_;
 
  public:
   /*!

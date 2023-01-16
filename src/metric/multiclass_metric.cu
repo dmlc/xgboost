@@ -1,5 +1,5 @@
-/*!
- * Copyright 2015-2019 by Contributors
+/**
+ * Copyright 2015-2023 by XGBoost Contributors
  * \file multiclass_metric.cc
  * \brief evaluation metrics for multiclass classification.
  * \author Kailong Chen, Tianqi Chen
@@ -175,9 +175,9 @@ struct EvalMClassBase : public Metric {
       CHECK_GE(nclass, 1U)
           << "mlogloss and merror are only used for multi-class classification,"
           << " use logloss for binary classification";
-      int device = tparam_->gpu_id;
+      int device = ctx_->gpu_id;
       auto result =
-          reducer_.Reduce(*tparam_, device, nclass, info.weights_, *info.labels.Data(), preds);
+          reducer_.Reduce(*ctx_, device, nclass, info.weights_, *info.labels.Data(), preds);
       dat[0] = result.Residue();
       dat[1] = result.Weights();
     }
