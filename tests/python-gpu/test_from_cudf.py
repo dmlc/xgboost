@@ -160,7 +160,7 @@ Arrow specification.'''
 
     @pytest.mark.skipif(**tm.no_cudf())
     def test_device_dmatrix_from_cudf(self):
-        _test_from_cudf(xgb.DeviceQuantileDMatrix)
+        _test_from_cudf(xgb.QuantileDMatrix)
 
     @pytest.mark.skipif(**tm.no_cudf())
     def test_cudf_training_simple_dmatrix(self):
@@ -168,7 +168,7 @@ Arrow specification.'''
 
     @pytest.mark.skipif(**tm.no_cudf())
     def test_cudf_training_device_dmatrix(self):
-        _test_cudf_training(xgb.DeviceQuantileDMatrix)
+        _test_cudf_training(xgb.QuantileDMatrix)
 
     @pytest.mark.skipif(**tm.no_cudf())
     def test_cudf_metainfo_simple_dmatrix(self):
@@ -176,7 +176,7 @@ Arrow specification.'''
 
     @pytest.mark.skipif(**tm.no_cudf())
     def test_cudf_metainfo_device_dmatrix(self):
-        _test_cudf_metainfo(xgb.DeviceQuantileDMatrix)
+        _test_cudf_metainfo(xgb.QuantileDMatrix)
 
     @pytest.mark.skipif(**tm.no_cudf())
     def test_cudf_categorical(self) -> None:
@@ -191,7 +191,7 @@ Arrow specification.'''
         assert len(Xy.feature_types) == X.shape[1]
         assert all(t == "c" for t in Xy.feature_types)
 
-        Xy = xgb.DeviceQuantileDMatrix(X, y, enable_categorical=True)
+        Xy = xgb.QuantileDMatrix(X, y, enable_categorical=True)
         assert Xy.feature_types is not None
         assert len(Xy.feature_types) == X.shape[1]
         assert all(t == "c" for t in Xy.feature_types)
@@ -228,9 +228,9 @@ Arrow specification.'''
         assert Xy.num_col() == 1
 
         with pytest.raises(ValueError, match="enable_categorical"):
-            xgb.DeviceQuantileDMatrix(X, y)
+            xgb.QuantileDMatrix(X, y)
 
-        Xy = xgb.DeviceQuantileDMatrix(X, y, enable_categorical=True)
+        Xy = xgb.QuantileDMatrix(X, y, enable_categorical=True)
         assert Xy.num_row() == 3
         assert Xy.num_col() == 1
 
@@ -344,7 +344,7 @@ def test_from_cudf_iter(enable_categorical):
     params = {"tree_method": "gpu_hist"}
 
     # Use iterator
-    m_it = xgb.DeviceQuantileDMatrix(it, enable_categorical=enable_categorical)
+    m_it = xgb.QuantileDMatrix(it, enable_categorical=enable_categorical)
     reg_with_it = xgb.train(params, m_it, num_boost_round=rounds)
 
     X = it.as_array()

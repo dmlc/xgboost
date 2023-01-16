@@ -113,7 +113,7 @@ TrainReturnT = TypedDict(
 __all__ = [
     "CommunicatorContext",
     "DaskDMatrix",
-    "DaskDeviceQuantileDMatrix",
+    "DaskQuantileDMatrix",
     "DaskXGBRegressor",
     "DaskXGBClassifier",
     "DaskXGBRanker",
@@ -559,7 +559,7 @@ def _get_worker_parts(list_of_parts: _DataParts) -> Dict[str, List[Any]]:
 
 
 class DaskPartitionIter(DataIter):  # pylint: disable=R0902
-    """A data iterator for `DaskDeviceQuantileDMatrix`."""
+    """A data iterator for `DaskQuantileDMatrix`."""
 
     def __init__(
         self,
