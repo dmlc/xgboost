@@ -1,11 +1,11 @@
-'''
+"""
 Demo for using data iterator with Quantile DMatrix
 ==================================================
 
     .. versionadded:: 1.2.0
 
 The demo that defines a customized iterator for passing batches of data into
-`xgboost.DeviceQuantileDMatrix` and use this `DeviceQuantileDMatrix` for
+:py:class:`xgboost.QuantileDMatrix` and use this ``QuantileDMatrix`` for
 training.  The feature is used primarily designed to reduce the required GPU
 memory for training on distributed environment.
 
@@ -15,7 +15,7 @@ using `itertools.tee` might incur significant memory usage according to:
 
   https://docs.python.org/3/library/itertools.html#itertools.tee.
 
-'''
+"""
 
 import cupy
 import numpy
@@ -88,26 +88,32 @@ def main():
     rounds = 100
     it = IterForDMatrixDemo()
 
-    # Use iterator, must be `DeviceQuantileDMatrix` for quantile DMatrix.
-    m_with_it = xgboost.DeviceQuantileDMatrix(it)
+    # Use iterator, must be `QuantileDMatrix`.
+
+    # In this demo, the input batches are created using cupy, and the data processing
+    # (quantile sketching) will be performed on GPU. If data is loaded with CPU based
+    # data structures like numpy or pandas, then the processing step will be performed
+    # on CPU instead.
+    m_with_it = xgboost.QuantileDMatrix(it)
 
     # Use regular DMatrix.
-    m = xgboost.DMatrix(it.as_array(), it.as_array_labels(),
-                        weight=it.as_array_weights())
+    m = xgboost.DMatrix(
+        it.as_array(), it.as_array_labels(), weight=it.as_array_weights()
+    )
 
     assert m_with_it.num_col() == m.num_col()
     assert m_with_it.num_row() == m.num_row()
-
-    reg_with_it = xgboost.train({'tree_method': 'gpu_hist'}, m_with_it,
-                                num_boost_round=rounds)
+    # Tree meethod must be one of the `hist` or `gpu_hist`. We use `gpu_hist` for GPU
+    # input here.
+    reg_with_it = xgboost.train(
+        {"tree_method": "gpu_hist"}, m_with_it, num_boost_round=rounds
+    )
     predict_with_it = reg_with_it.predict(m_with_it)
 
-    reg = xgboost.train({'tree_method': 'gpu_hist'}, m,
-                        num_boost_round=rounds)
+    reg = xgboost.train({"tree_method": "gpu_hist"}, m, num_boost_round=rounds)
     predict = reg.predict(m)
 
-    numpy.testing.assert_allclose(predict_with_it, predict,
-                                  rtol=1e6)
+    numpy.testing.assert_allclose(predict_with_it, predict, rtol=1e6)
 
 
 if __name__ == '__main__':

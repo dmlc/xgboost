@@ -1229,7 +1229,7 @@ def dispatch_proxy_set_data(
     cat_codes: Optional[list],
     allow_host: bool,
 ) -> None:
-    """Dispatch for DeviceQuantileDMatrix."""
+    """Dispatch for QuantileDMatrix."""
     if not _is_cudf_ser(data) and not _is_pandas_series(data):
         _check_data_shape(data)
 
