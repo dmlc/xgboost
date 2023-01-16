@@ -1,5 +1,5 @@
-/*!
- * Copyright (c) by XGBoost Contributors 2019-2022
+/**
+ * Copyright by XGBoost Contributors 2019-2023
  */
 #ifndef XGBOOST_JSON_H_
 #define XGBOOST_JSON_H_
@@ -13,6 +13,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <type_traits>  // std::enable_if,std::enable_if_t
 #include <utility>
 #include <vector>
 
@@ -595,6 +596,52 @@ using String  = JsonString;
 using Null    = JsonNull;
 
 // Utils tailored for XGBoost.
+namespace detail {
+template <typename Head>
+bool TypeCheckImpl(Json const& value) {
+  return IsA<Head>(value);
+}
+
+template <typename Head, typename... JT>
+std::enable_if_t<sizeof...(JT) != 0, bool> TypeCheckImpl(Json const& value) {
+  return IsA<Head>(value) || TypeCheckImpl<JT...>(value);
+}
+
+template <typename Head>
+std::string TypeCheckError() {
+  return "`" + Head{}.TypeStr() + "`";
+}
+
+template <typename Head, typename... JT>
+std::enable_if_t<sizeof...(JT) != 0, std::string> TypeCheckError() {
+  return "`" + Head{}.TypeStr() + "`, " + TypeCheckError<JT...>();
+}
+}  // namespace detail
+
+/**
+ * \brief Type check for JSON-based parameters
+ *
+ * \tparam JT    Expected JSON types.
+ * \param  value Value to be checked.
+ */
+template <typename... JT>
+void TypeCheck(Json const& value, StringView name) {
+  if (!detail::TypeCheckImpl<JT...>(value)) {
+    LOG(FATAL) << "Invalid type for: `" << name << "`, expecting one of the: {`"
+               << detail::TypeCheckError<JT...>() << "}, got: `" << value.GetValue().TypeStr()
+               << "`";
+  }
+}
+
+/**
+ * \brief Convert XGBoost parameter to JSON object.
+ *
+ * \tparam Parameter An instantiation of XGBoostParameter
+ *
+ * \param param Input parameter
+ *
+ * \return JSON object representing the input parameter
+ */
 template <typename Parameter>
 Object ToJson(Parameter const& param) {
   Object obj;
@@ -604,6 +651,16 @@ Object ToJson(Parameter const& param) {
   return obj;
 }
 
+/**
+ * \brief Load a XGBoost parameter from a JSON object.
+ *
+ * \tparam Parameter An instantiation of XGBoostParameter
+ *
+ * \param obj JSON object representing the parameter.
+ * \param param Output parameter.
+ *
+ * \return Unknown arguments in the JSON object.
+ */
 template <typename Parameter>
 Args FromJson(Json const& obj, Parameter* param) {
   auto const& j_param = get<Object const>(obj);
