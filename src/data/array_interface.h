@@ -8,8 +8,10 @@
 
 #include <algorithm>
 #include <cinttypes>
+#include <cstdint>
 #include <map>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -400,6 +402,13 @@ class ArrayInterface {
 
     data = ArrayInterfaceHandler::ExtractData(array, n);
     static_assert(allow_mask ? D == 1 : D >= 1, "Masked ndarray is not supported.");
+
+    this->DispatchCall([&](auto const *values) {
+      auto ptr = reinterpret_cast<uintptr_t>(data);
+      CHECK_EQ(ptr % sizeof(std::remove_pointer_t<decltype(values)>), 0)
+          << "input pointer misalignment.";
+    });
+
     if (allow_mask) {
       common::Span<RBitField8::value_type> s_mask;
       size_t n_bits = ArrayInterfaceHandler::ExtractMask(array, &s_mask);
