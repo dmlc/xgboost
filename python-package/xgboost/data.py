@@ -84,11 +84,19 @@ def _array_interface(data: np.ndarray) -> bytes:
     return interface_str
 
 
-def _transform_scipy_csr(data: DataType) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def _transform_scipy_csr(data: DataType) -> DataType:
+    from scipy.sparse import csr_matrix
+
     indptr, _ = _ensure_np_dtype(data.indptr, data.indptr.dtype)
     indices, _ = _ensure_np_dtype(data.indices, data.indices.dtype)
-    data, _ = _ensure_np_dtype(data.data, data.data.dtype)
-    return indptr, indices, data
+    values, _ = _ensure_np_dtype(data.data, data.data.dtype)
+    if (
+        indptr is not data.indptr
+        or indices is not data.indices
+        or values is not data.data
+    ):
+        data = csr_matrix((values, indices, indptr), shape=data.shape)
+    return data
 
 
 def _from_scipy_csr(
@@ -104,12 +112,12 @@ def _from_scipy_csr(
             f"length mismatch: {len(data.indices)} vs {len(data.data)}"
         )
     handle = ctypes.c_void_p()
-    indptr, indices, data = _transform_scipy_csr(data)
+    data = _transform_scipy_csr(data)
     _check_call(
         _LIB.XGDMatrixCreateFromCSR(
-            _array_interface(indptr),
-            _array_interface(indices),
-            _array_interface(data),
+            _array_interface(data.indptr),
+            _array_interface(data.indices),
+            _array_interface(data.data),
             c_bst_ulong(data.shape[1]),
             make_jcargs(missing=float(missing), nthread=int(nthread)),
             ctypes.byref(handle),

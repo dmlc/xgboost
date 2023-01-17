@@ -2299,13 +2299,13 @@ class Booster:
         if isinstance(data, scipy.sparse.csr_matrix):
             from .data import _transform_scipy_csr
 
-            indptr, indices, values = _transform_scipy_csr(data)
+            data = _transform_scipy_csr(data)
             _check_call(
                 _LIB.XGBoosterPredictFromCSR(
                     self.handle,
-                    _array_interface(indptr),
-                    _array_interface(indices),
-                    _array_interface(values),
+                    _array_interface(data.indptr),
+                    _array_interface(data.indices),
+                    _array_interface(data.values),
                     c_bst_ulong(data.shape[1]),
                     args,
                     p_handle,
