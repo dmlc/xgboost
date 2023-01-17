@@ -173,7 +173,7 @@ class TestTreeMethod:
 
             X, y = cp.array(X), cp.array(y)
             with pytest.raises(ValueError):
-                Xy = xgb.DeviceQuantileDMatrix(X, y, feature_types=["c"] * 10)
+                Xy = xgb.QuantileDMatrix(X, y, feature_types=["c"] * 10)
 
     def test_invalid_category(self) -> None:
         self.run_invalid_category("approx")

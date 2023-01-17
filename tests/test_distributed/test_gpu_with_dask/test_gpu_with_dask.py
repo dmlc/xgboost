@@ -135,7 +135,7 @@ def run_with_dask_array(DMatrixT: Type, client: Client) -> None:
 def to_cp(x: Any, DMatrixT: Type) -> Any:
     import cupy
 
-    if isinstance(x, np.ndarray) and DMatrixT is dxgb.DaskDeviceQuantileDMatrix:
+    if isinstance(x, np.ndarray) and DMatrixT is dxgb.DaskQuantileDMatrix:
         X = cupy.array(x)
     else:
         X = x
@@ -169,7 +169,7 @@ def run_gpu_hist(
     else:
         w = None
 
-    if DMatrixT is dxgb.DaskDeviceQuantileDMatrix:
+    if DMatrixT is dxgb.DaskQuantileDMatrix:
         m = DMatrixT(
             client, data=X, label=y, weight=w, max_bin=params.get("max_bin", 256)
         )
@@ -227,7 +227,7 @@ class TestDistributedGPU:
     @pytest.mark.skipif(**tm.no_dask_cudf())
     def test_dask_dataframe(self, local_cuda_client: Client) -> None:
         run_with_dask_dataframe(dxgb.DaskDMatrix, local_cuda_client)
-        run_with_dask_dataframe(dxgb.DaskDeviceQuantileDMatrix, local_cuda_client)
+        run_with_dask_dataframe(dxgb.DaskQuantileDMatrix, local_cuda_client)
 
     @pytest.mark.skipif(**tm.no_dask_cudf())
     def test_categorical(self, local_cuda_client: Client) -> None:
@@ -245,7 +245,7 @@ class TestDistributedGPU:
         num_rounds=strategies.integers(1, 20),
         dataset=tm.dataset_strategy,
         dmatrix_type=strategies.sampled_from(
-            [dxgb.DaskDMatrix, dxgb.DaskDeviceQuantileDMatrix]
+            [dxgb.DaskDMatrix, dxgb.DaskQuantileDMatrix]
         ),
     )
     @settings(
@@ -268,7 +268,7 @@ class TestDistributedGPU:
     @pytest.mark.skipif(**tm.no_cupy())
     def test_dask_array(self, local_cuda_client: Client) -> None:
         run_with_dask_array(dxgb.DaskDMatrix, local_cuda_client)
-        run_with_dask_array(dxgb.DaskDeviceQuantileDMatrix, local_cuda_client)
+        run_with_dask_array(dxgb.DaskQuantileDMatrix, local_cuda_client)
 
     @pytest.mark.skipif(**tm.no_cupy())
     def test_early_stopping(self, local_cuda_client: Client) -> None:
@@ -357,7 +357,7 @@ class TestDistributedGPU:
         )
         X = ddf[ddf.columns.difference(["y"])]
         y = ddf[["y"]]
-        dtrain = dxgb.DaskDeviceQuantileDMatrix(local_cuda_client, X, y)
+        dtrain = dxgb.DaskQuantileDMatrix(local_cuda_client, X, y)
         bst_empty = xgb.dask.train(
             local_cuda_client, parameters, dtrain, evals=[(dtrain, "train")]
         )
@@ -369,7 +369,7 @@ class TestDistributedGPU:
         )
         X = ddf[ddf.columns.difference(["y"])]
         y = ddf[["y"]]
-        dtrain = dxgb.DaskDeviceQuantileDMatrix(local_cuda_client, X, y)
+        dtrain = dxgb.DaskQuantileDMatrix(local_cuda_client, X, y)
         bst = xgb.dask.train(
             local_cuda_client, parameters, dtrain, evals=[(dtrain, "train")]
         )
@@ -546,7 +546,7 @@ async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainRetur
         X = X.map_blocks(cp.array)
         y = y.map_blocks(cp.array)
 
-        m = await xgb.dask.DaskDeviceQuantileDMatrix(client, X, y)
+        m = await xgb.dask.DaskQuantileDMatrix(client, X, y)
         output = await xgb.dask.train(client, {"tree_method": "gpu_hist"}, dtrain=m)
 
         with_m = await xgb.dask.predict(client, output, m)

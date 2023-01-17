@@ -164,7 +164,7 @@ inline float GetMissing(Json const &config) {
     missing = get<Integer const>(j_missing);
   } else {
     missing = nan("");
-    LOG(FATAL) << "Invalid missing value: " << j_missing;
+    TypeCheck<Number, Integer>(j_missing, "missing");
   }
   return missing;
 }
@@ -247,15 +247,6 @@ inline void GenerateFeatureMap(Learner const *learner,
 }
 
 void XGBBuildInfoDevice(Json* p_info);
-
-template <typename JT>
-void TypeCheck(Json const &value, StringView name) {
-  using T = std::remove_const_t<JT> const;
-  if (!IsA<T>(value)) {
-    LOG(FATAL) << "Incorrect type for: `" << name << "`, expecting: `" << T{}.TypeStr()
-               << "`, got: `" << value.GetValue().TypeStr() << "`.";
-  }
-}
 
 template <typename JT>
 auto const &RequiredArg(Json const &in, StringView key, StringView func) {

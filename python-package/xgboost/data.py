@@ -1174,7 +1174,10 @@ class SingleBatchInternalIter(DataIter):  # pylint: disable=R0902
     def __init__(self, **kwargs: Any) -> None:
         self.kwargs = kwargs
         self.it = 0             # pylint: disable=invalid-name
-        super().__init__()
+
+        # This does not necessarily increase memory usage as the data transformation
+        # might use memory.
+        super().__init__(release_data=False)
 
     def next(self, input_data: Callable) -> int:
         if self.it == 1:
@@ -1229,7 +1232,7 @@ def dispatch_proxy_set_data(
     cat_codes: Optional[list],
     allow_host: bool,
 ) -> None:
-    """Dispatch for DeviceQuantileDMatrix."""
+    """Dispatch for QuantileDMatrix."""
     if not _is_cudf_ser(data) and not _is_pandas_series(data):
         _check_data_shape(data)
 
