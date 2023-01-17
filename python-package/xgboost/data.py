@@ -168,12 +168,11 @@ def _is_numpy_array(data: DataType) -> bool:
 
 
 def _ensure_np_dtype(
-    data: DataType,
-    dtype: Optional[NumpyDType]
+    data: DataType, dtype: Optional[NumpyDType]
 ) -> Tuple[np.ndarray, Optional[NumpyDType]]:
     if data.dtype.hasobject or data.dtype in [np.float16, np.bool_]:
-        data = data.astype(np.float32, copy=False)
         dtype = np.float32
+        data = data.astype(dtype, copy=False)
     if not data.flags.aligned:
         data = np.require(data, requirements="A")
     return data, dtype

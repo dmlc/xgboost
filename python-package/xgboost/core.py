@@ -2305,7 +2305,7 @@ class Booster:
                     self.handle,
                     _array_interface(data.indptr),
                     _array_interface(data.indices),
-                    _array_interface(data.values),
+                    _array_interface(data.data),
                     c_bst_ulong(data.shape[1]),
                     args,
                     p_handle,
