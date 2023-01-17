@@ -40,8 +40,10 @@ TEST(ParallelFor2d, Test) {
   std::vector<int> matrix(kDim1 * kDim2, 0);
   BlockedSpace2d space(
       kDim1, [&](size_t) { return kDim2; }, kGrainSize);
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"nthread", "4"}});
 
-  ParallelFor2d(space, 4, [&](size_t i, Range1d r) {
+  ParallelFor2d(space, ctx.Threads(), [&](size_t i, Range1d r) {
     for (auto j = r.begin(); j < r.end(); ++j) {
       matrix[i * kDim2 + j] += 1;
     }
@@ -69,7 +71,9 @@ TEST(ParallelFor2d, NonUniform) {
     working_space[i].resize(dim2[i], 0);
   }
 
-  ParallelFor2d(space, 4, [&](size_t i, Range1d r) {
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"nthread", "4"}});
+  ParallelFor2d(space, ctx.Threads(), [&](size_t i, Range1d r) {
     for (auto j = r.begin(); j < r.end(); ++j) {
       working_space[i][j] += 1;
     }
