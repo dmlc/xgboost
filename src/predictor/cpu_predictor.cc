@@ -283,6 +283,7 @@ void FillNodeMeanValues(RegTree const* tree, std::vector<float>* mean_values) {
   FillNodeMeanValues(tree, 0, mean_values);
 }
 
+namespace {
 // init thread buffers
 static void InitThreadTemp(int nthread, std::vector<RegTree::FVec> *out) {
   int prev_thread_temp_size = out->size();
@@ -290,6 +291,8 @@ static void InitThreadTemp(int nthread, std::vector<RegTree::FVec> *out) {
     out->resize(nthread, RegTree::FVec());
   }
 }
+}  // anonymous namespace
+
 /**
  * @brief A helper class for prediction when the DMatrix is split by column.
  *
@@ -386,7 +389,7 @@ class ColumnSplitHelper {
   void MaskOneTree(RegTree::FVec const &feat, std::size_t tree_id, std::size_t row_id) {
     auto const &tree = *model_.trees[tree_id];
     auto const &cats = tree.GetCategoriesMatrix();
-    auto has_categorical = tree.HasCategoricalSplit();
+    auto const has_categorical = tree.HasCategoricalSplit();
 
     for (auto nid = 0; nid < tree.GetNodes().size(); nid++) {
       auto const &node = tree[nid];
@@ -401,9 +404,9 @@ class ColumnSplitHelper {
         continue;
       }
 
-      auto fvalue = feat.GetFvalue(split_index);
+      auto const fvalue = feat.GetFvalue(split_index);
       if (has_categorical && common::IsCat(cats.split_type, nid)) {
-        auto node_categories =
+        auto const node_categories =
             cats.categories.subspan(cats.node_ptr[nid].beg, cats.node_ptr[nid].size);
         if (!common::Decision(node_categories, fvalue)) {
           decision_bits_.Set(bit_index);
@@ -444,7 +447,7 @@ class ColumnSplitHelper {
 
   bst_float PredictOneTree(std::size_t tree_id, std::size_t row_id) {
     auto const &tree = *model_.trees[tree_id];
-    const bst_node_t leaf = GetLeafIndex(tree, tree_id, row_id);
+    auto const leaf = GetLeafIndex(tree, tree_id, row_id);
     return tree[leaf].LeafValue();
   }
 
@@ -461,19 +464,20 @@ class ColumnSplitHelper {
 
   template <typename DataView, size_t block_of_rows_size>
   void PredictBatchKernel(DataView batch, std::vector<bst_float> *out_preds) {
-    int32_t const num_group = model_.learner_model_param->num_output_group;
+    auto const num_group = model_.learner_model_param->num_output_group;
 
     CHECK_EQ(model_.param.size_leaf_vector, 0) << "size_leaf_vector is enforced to 0 so far";
     // parallel over local batch
-    const auto nsize = static_cast<bst_omp_uint>(batch.Size());
-    const int num_feature = model_.learner_model_param->num_feature;
-    omp_ulong n_blocks = common::DivRoundUp(nsize, block_of_rows_size);
+    auto const nsize = batch.Size();
+    auto const num_feature = model_.learner_model_param->num_feature;
+    auto const n_blocks = common::DivRoundUp(nsize, block_of_rows_size);
     InitBitVectors(nsize);
 
-    common::ParallelFor(n_blocks, n_threads_, [&](bst_omp_uint block_id) {
-      const size_t batch_offset = block_id * block_of_rows_size;
-      const size_t block_size = std::min(nsize - batch_offset, block_of_rows_size);
-      const size_t fvec_offset = omp_get_thread_num() * block_of_rows_size;
+    // auto block_id has the same type as `n_blocks`.
+    common::ParallelFor(n_blocks, n_threads_, [&](auto block_id) {
+      auto const batch_offset = block_id * block_of_rows_size;
+      auto const block_size = std::min(nsize - batch_offset, block_of_rows_size);
+      auto const fvec_offset = omp_get_thread_num() * block_of_rows_size;
 
       FVecFill(block_size, batch_offset, num_feature, &batch, fvec_offset, &feat_vecs_);
       MaskAllTrees(batch_offset, fvec_offset, block_size);
@@ -482,9 +486,10 @@ class ColumnSplitHelper {
 
     AllreduceBitVectors();
 
-    common::ParallelFor(n_blocks, n_threads_, [&](bst_omp_uint block_id) {
-      const size_t batch_offset = block_id * block_of_rows_size;
-      const size_t block_size = std::min(nsize - batch_offset, block_of_rows_size);
+    // auto block_id has the same type as `n_blocks`.
+    common::ParallelFor(n_blocks, n_threads_, [&](auto block_id) {
+      auto const batch_offset = block_id * block_of_rows_size;
+      auto const block_size = std::min(nsize - batch_offset, block_of_rows_size);
       PredictAllTrees(out_preds, batch_offset, batch_offset + batch.base_rowid, num_group,
                       block_size);
     });
@@ -505,8 +510,44 @@ class ColumnSplitHelper {
   std::vector<RegTree::FVec> feat_vecs_{};
 
   std::size_t n_rows_;
+  /**
+   * @brief Stores decision bit for each split node.
+   *
+   * Conceptually it's a 3-dimensional bit matrix:
+   *   - 1st dimension is the tree index, from `tree_begin_` to `tree_end_`.
+   *   - 2nd dimension is the row index, for each row in the batch.
+   *   - 3rd dimension is the node id, for each node in the tree.
+   *
+   * Since we have to ship the whole thing over the wire to do an allreduce, the matrix is flattened
+   * into a 1-dimensional array.
+   *
+   * First, it's divided by the tree index:
+   *
+   * [ tree 0 ] [ tree 1 ] ...
+   *
+   * Then each tree is divided by row:
+   *
+   * [             tree 0              ] [           tree 1     ] ...
+   * [ row 0 ] [ row 1 ] ... [ row n-1 ] [ row 0 ] ...
+   *
+   * Finally, each row is divided by the node id:
+   *
+   * [                             tree 0                                         ]
+   * [              row 0                 ] [        row 1           ] ...
+   * [ node 0 ] [ node 1 ] ... [ node n-1 ] [ node 0 ] ...
+   *
+   * The first two dimensions are fixed length, while the last dimension is variable length since
+   * each tree may have a different number of nodes. We precompute the tree offsets, which are the
+   * cumulative sums of tree sizes. The index of tree t, row r, node n is:
+   *   index(t, r, n) = tree_offsets[t] * n_rows + r * tree_sizes[t] + n 
+   */
   std::vector<BitVector::value_type> decision_storage_{};
   BitVector decision_bits_{};
+  /**
+   * @brief Stores whether the feature is missing for each split node.
+   *
+   * See above for the storage layout.
+   */
   std::vector<BitVector::value_type> missing_storage_{};
   BitVector missing_bits_{};
 };
