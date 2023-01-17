@@ -402,10 +402,10 @@ class ArrayInterface {
     data = ArrayInterfaceHandler::ExtractData(array, n);
     static_assert(allow_mask ? D == 1 : D >= 1, "Masked ndarray is not supported.");
 
-    this->DispatchCall([&](auto const *values) {
+    this->DispatchCall([&](auto const *data_typed_ptr) {
       auto ptr = reinterpret_cast<uintptr_t>(data);
-      CHECK_EQ(ptr % std::alignment_of<std::remove_pointer_t<decltype(values)>>::value, 0)
-          << "Input pointer misalignment.";
+      auto alignment = std::alignment_of<std::remove_pointer_t<decltype(data_typed_ptr)>>::value;
+      CHECK_EQ(ptr % alignment, 0) << "Input pointer misalignment.";
     });
 
     if (allow_mask) {
