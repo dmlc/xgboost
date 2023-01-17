@@ -45,7 +45,7 @@ such as ``weight_col``, ``validation_indicator_col``, ``use_gpu``, for details p
 
 The following code snippet shows how to train a spark xgboost regressor model,
 first we need to prepare a training dataset as a spark dataframe contains
-"label" column and "features" column(s), the "features" column(s) must be ``pyspark.ml.linalg.Vector`
+"label" column and "features" column(s), the "features" column(s) must be ``pyspark.ml.linalg.Vector``
 type or spark array type or a list of feature column names.
 
 
@@ -56,7 +56,7 @@ type or spark array type or a list of feature column names.
 
 The following code snippet shows how to predict test data using a spark xgboost regressor model,
 first we need to prepare a test dataset as a spark dataframe contains
-"features" and "label" column, the "features" column must be ``pyspark.ml.linalg.Vector`
+"features" and "label" column, the "features" column must be ``pyspark.ml.linalg.Vector``
 type or spark array type.
 
 .. code-block:: python
@@ -97,7 +97,7 @@ Aside from the PySpark and XGBoost modules, we also need the `cuDF
 <https://docs.rapids.ai/api/cudf/stable/>`_ package for handling Spark dataframe. We
 recommend using either Conda or Virtualenv to manage python dependencies for PySpark
 jobs. Please refer to `How to Manage Python Dependencies in PySpark
-<https://www.databricks.com/blog/2020/12/22/how-to-manage-python-dependencies-in-pyspark.html>`_ 
+<https://www.databricks.com/blog/2020/12/22/how-to-manage-python-dependencies-in-pyspark.html>`_
 for more details on PySpark dependency management.
 
 In short, to create a Python environment that can be sent to a remote cluster using

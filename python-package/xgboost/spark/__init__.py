@@ -1,5 +1,4 @@
-"""PySpark XGBoost integration interface
-"""
+"""PySpark XGBoost integration interface"""
 
 try:
     import pyspark
@@ -10,6 +9,7 @@ from .estimator import (
     SparkXGBClassifier,
     SparkXGBClassifierModel,
     SparkXGBRanker,
+    SparkXGBRankerModel,
     SparkXGBRegressor,
     SparkXGBRegressorModel,
 )
@@ -20,4 +20,5 @@ __all__ = [
     "SparkXGBRegressor",
     "SparkXGBRegressorModel",
     "SparkXGBRanker",
+    "SparkXGBRankerModel",
 ]
