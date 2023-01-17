@@ -2161,6 +2161,7 @@ class Booster:
         )
         return _prediction_output(shape, dims, preds, False)
 
+    # pylint: disable=too-many-statements
     def inplace_predict(
         self,
         data: DataType,
@@ -2181,10 +2182,10 @@ class Booster:
 
         .. code-block:: python
 
-            booster.set_param({'predictor': 'gpu_predictor'})
+            booster.set_param({"predictor": "gpu_predictor"})
             booster.inplace_predict(cupy_array)
 
-            booster.set_param({'predictor': 'cpu_predictor})
+            booster.set_param({"predictor": "cpu_predictor"})
             booster.inplace_predict(numpy_array)
 
         .. versionadded:: 1.1.0
