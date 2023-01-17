@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2022 by XGBoost Contributors
+ * Copyright 2014-2023 by XGBoost Contributors
  *
  * \brief Context object used for controlling runtime parameters.
  */
@@ -53,6 +53,9 @@ void Context::ConfigureGpuId(bool require_gpu) {
 }
 
 std::int32_t Context::Threads() const {
+  if (omp_in_parallel()) {
+    return 1;
+  }
   auto n_threads = common::OmpGetNumThreads(nthread);
   if (cfs_cpu_count_ > 0) {
     n_threads = std::min(n_threads, cfs_cpu_count_);
