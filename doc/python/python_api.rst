@@ -173,3 +173,13 @@ PySpark API
     :members:
     :inherited-members:
     :show-inheritance:
+
+.. autoclass:: xgboost.spark.SparkXGBRanker
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: xgboost.spark.SparkXGBRankerModel
+    :members:
+    :inherited-members:
+    :show-inheritance:
