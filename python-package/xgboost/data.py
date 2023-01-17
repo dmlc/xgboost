@@ -84,6 +84,13 @@ def _array_interface(data: np.ndarray) -> bytes:
     return interface_str
 
 
+def _transform_scipy_csr(data: DataType) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    indptr, _ = _ensure_np_dtype(data.indptr, data.indptr.dtype)
+    indices, _ = _ensure_np_dtype(data.indices, data.indices.dtype)
+    data, _ = _ensure_np_dtype(data.data, data.data.dtype)
+    return indptr, indices, data
+
+
 def _from_scipy_csr(
     data: DataType,
     missing: FloatCompatible,
@@ -97,18 +104,14 @@ def _from_scipy_csr(
             f"length mismatch: {len(data.indices)} vs {len(data.data)}"
         )
     handle = ctypes.c_void_p()
-    args = {
-        "missing": float(missing),
-        "nthread": int(nthread),
-    }
-    config = bytes(json.dumps(args), "utf-8")
+    indptr, indices, data = _transform_scipy_csr(data)
     _check_call(
         _LIB.XGDMatrixCreateFromCSR(
-            _array_interface(data.indptr),
-            _array_interface(data.indices),
-            _array_interface(data.data),
+            _array_interface(indptr),
+            _array_interface(indices),
+            _array_interface(data),
             c_bst_ulong(data.shape[1]),
-            config,
+            make_jcargs(missing=float(missing), nthread=int(nthread)),
             ctypes.byref(handle),
         )
     )
@@ -163,6 +166,8 @@ def _ensure_np_dtype(
     if data.dtype.hasobject or data.dtype in [np.float16, np.bool_]:
         data = data.astype(np.float32, copy=False)
         dtype = np.float32
+    if not data.flags.aligned:
+        data = np.require(data, requirements="A")
     return data, dtype
 
 
@@ -1210,6 +1215,7 @@ def _proxy_transform(
         data, _ = _ensure_np_dtype(data, data.dtype)
         return data, None, feature_names, feature_types
     if _is_scipy_csr(data):
+        data = _transform_scipy_csr(data)
         return data, None, feature_names, feature_types
     if _is_pandas_series(data):
         import pandas as pd
