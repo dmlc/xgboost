@@ -1,5 +1,5 @@
-/*!
- * Copyright 2019-2021 by Contributors
+/**
+ * Copyright 2019-2023 by XGBoost Contributors
  * \file array_interface.h
  * \brief View of __array_interface__
  */
@@ -7,11 +7,10 @@
 #define XGBOOST_DATA_ARRAY_INTERFACE_H_
 
 #include <algorithm>
-#include <cinttypes>
 #include <cstdint>
 #include <map>
 #include <string>
-#include <type_traits>
+#include <type_traits>  // std::alignment_of
 #include <utility>
 #include <vector>
 
@@ -405,8 +404,8 @@ class ArrayInterface {
 
     this->DispatchCall([&](auto const *values) {
       auto ptr = reinterpret_cast<uintptr_t>(data);
-      CHECK_EQ(ptr % sizeof(std::remove_pointer_t<decltype(values)>), 0)
-          << "input pointer misalignment.";
+      CHECK_EQ(ptr % std::alignment_of<std::remove_pointer_t<decltype(values)>>::value, 0)
+          << "Input pointer misalignment.";
     });
 
     if (allow_mask) {

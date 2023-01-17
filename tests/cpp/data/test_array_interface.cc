@@ -1,10 +1,12 @@
-/*!
- * Copyright 2020-2021 by XGBoost Contributors
+/**
+ * Copyright 2020-2023 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/host_device_vector.h>
 #include "../helpers.h"
 #include "../../../src/data/array_interface.h"
+#include "dmlc/logging.h"
+#include "xgboost/json.h"
 
 namespace xgboost {
 TEST(ArrayInterface, Initialize) {
@@ -71,6 +73,14 @@ TEST(ArrayInterface, Error) {
   column["mask"]["data"] = Null{};
   common::Span<RBitField8::value_type> s_mask;
   EXPECT_THROW(ArrayInterfaceHandler::ExtractMask(column_obj, &s_mask), dmlc::Error);
+
+  get<Object>(column).erase("mask");
+  // misaligned.
+  j_data = {Json(Integer(reinterpret_cast<Integer::Int>(
+                reinterpret_cast<char const*>(storage.ConstHostPointer()) + 1))),
+            Json(Boolean(false))};
+  column["data"] = j_data;
+  EXPECT_THROW({ ArrayInterface<1> arr{column}; }, dmlc::Error);
 }
 
 TEST(ArrayInterface, GetElement) {
