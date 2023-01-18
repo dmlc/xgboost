@@ -2174,6 +2174,7 @@ class Booster:
         )
         return _prediction_output(shape, dims, preds, False)
 
+    # pylint: disable=too-many-statements
     def inplace_predict(
         self,
         data: DataType,
@@ -2194,10 +2195,10 @@ class Booster:
 
         .. code-block:: python
 
-            booster.set_param({'predictor': 'gpu_predictor'})
+            booster.set_param({"predictor": "gpu_predictor"})
             booster.inplace_predict(cupy_array)
 
-            booster.set_param({'predictor': 'cpu_predictor})
+            booster.set_param({"predictor": "cpu_predictor"})
             booster.inplace_predict(numpy_array)
 
         .. versionadded:: 1.1.0
@@ -2310,14 +2311,16 @@ class Booster:
             )
             return _prediction_output(shape, dims, preds, False)
         if isinstance(data, scipy.sparse.csr_matrix):
-            csr = data
+            from .data import _transform_scipy_csr
+
+            data = _transform_scipy_csr(data)
             _check_call(
                 _LIB.XGBoosterPredictFromCSR(
                     self.handle,
-                    _array_interface(csr.indptr),
-                    _array_interface(csr.indices),
-                    _array_interface(csr.data),
-                    c_bst_ulong(csr.shape[1]),
+                    _array_interface(data.indptr),
+                    _array_interface(data.indices),
+                    _array_interface(data.data),
+                    c_bst_ulong(data.shape[1]),
                     args,
                     p_handle,
                     ctypes.byref(shape),

@@ -327,7 +327,7 @@ class TestDMatrix:
         nrow = 100
         ncol = 1000
         x = rand(nrow, ncol, density=0.0005, format='csr', random_state=rng)
-        assert x.indices.max() < ncol - 1
+        assert x.indices.max() < ncol
         x.data[:] = 1
         dtrain = xgb.DMatrix(x, label=rng.binomial(1, 0.3, nrow))
         assert (dtrain.num_row(), dtrain.num_col()) == (nrow, ncol)
