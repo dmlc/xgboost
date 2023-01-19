@@ -1,5 +1,5 @@
-/*!
- * Copyright 2021-2022 by XGBoost Contributors
+/**
+ * Copyright 2021-2023 by XGBoost Contributors
  */
 #ifndef XGBOOST_TREE_HIST_HISTOGRAM_H_
 #define XGBOOST_TREE_HIST_HISTOGRAM_H_
@@ -59,15 +59,14 @@ class HistogramBuilder {
                             GHistIndexMatrix const &gidx,
                             std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
                             common::RowSetCollection const &row_set_collection,
-                            const std::vector<GradientPair> &gpair_h,
-                            bool force_read_by_column) {
+                            common::Span<GradientPair const> gpair_h, bool force_read_by_column) {
     const size_t n_nodes = nodes_for_explicit_hist_build.size();
     CHECK_GT(n_nodes, 0);
 
     std::vector<common::GHistRow> target_hists(n_nodes);
     for (size_t i = 0; i < n_nodes; ++i) {
-      const int32_t nid = nodes_for_explicit_hist_build[i].nid;
-      target_hists[i] = hist_[nid];
+      auto const nidx = nodes_for_explicit_hist_build[i].nid;
+      target_hists[i] = hist_[nidx];
     }
     if (page_idx == 0) {
       // FIXME(jiamingy): Handle different size of space.  Right now we use the maximum
@@ -93,46 +92,37 @@ class HistogramBuilder {
     });
   }
 
-  void
-  AddHistRows(int *starting_index, int *sync_count,
-              std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
-              std::vector<ExpandEntry> const &nodes_for_subtraction_trick,
-              RegTree *p_tree) {
+  void AddHistRows(int *starting_index, int *sync_count,
+                   std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
+                   std::vector<ExpandEntry> const &nodes_for_subtraction_trick,
+                   RegTree const *p_tree) {
     if (is_distributed_) {
-      this->AddHistRowsDistributed(starting_index, sync_count,
-                                   nodes_for_explicit_hist_build,
+      this->AddHistRowsDistributed(starting_index, sync_count, nodes_for_explicit_hist_build,
                                    nodes_for_subtraction_trick, p_tree);
     } else {
-      this->AddHistRowsLocal(starting_index, sync_count,
-                             nodes_for_explicit_hist_build,
+      this->AddHistRowsLocal(starting_index, sync_count, nodes_for_explicit_hist_build,
                              nodes_for_subtraction_trick);
     }
   }
 
   /** Main entry point of this class, build histogram for tree nodes. */
   void BuildHist(size_t page_id, common::BlockedSpace2d space, GHistIndexMatrix const &gidx,
-                 RegTree *p_tree, common::RowSetCollection const &row_set_collection,
+                 RegTree const *p_tree, common::RowSetCollection const &row_set_collection,
                  std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
                  std::vector<ExpandEntry> const &nodes_for_subtraction_trick,
-                 std::vector<GradientPair> const &gpair,
-                 bool force_read_by_column = false) {
+                 common::Span<GradientPair const> gpair, bool force_read_by_column = false) {
     int starting_index = std::numeric_limits<int>::max();
     int sync_count = 0;
     if (page_id == 0) {
-      this->AddHistRows(&starting_index, &sync_count,
-                        nodes_for_explicit_hist_build,
+      this->AddHistRows(&starting_index, &sync_count, nodes_for_explicit_hist_build,
                         nodes_for_subtraction_trick, p_tree);
     }
     if (gidx.IsDense()) {
-      this->BuildLocalHistograms<false>(page_id, space, gidx,
-                                        nodes_for_explicit_hist_build,
-                                        row_set_collection, gpair,
-                                        force_read_by_column);
+      this->BuildLocalHistograms<false>(page_id, space, gidx, nodes_for_explicit_hist_build,
+                                        row_set_collection, gpair, force_read_by_column);
     } else {
-      this->BuildLocalHistograms<true>(page_id, space, gidx,
-                                       nodes_for_explicit_hist_build,
-                                       row_set_collection, gpair,
-                                       force_read_by_column);
+      this->BuildLocalHistograms<true>(page_id, space, gidx, nodes_for_explicit_hist_build,
+                                       row_set_collection, gpair, force_read_by_column);
     }
 
     CHECK_GE(n_batches_, 1);
@@ -153,8 +143,7 @@ class HistogramBuilder {
                  common::RowSetCollection const &row_set_collection,
                  std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
                  std::vector<ExpandEntry> const &nodes_for_subtraction_trick,
-                 std::vector<GradientPair> const &gpair,
-                 bool force_read_by_column = false) {
+                 common::Span<GradientPair const> gpair, bool force_read_by_column = false) {
     const size_t n_nodes = nodes_for_explicit_hist_build.size();
     // create space of size (# rows in each node)
     common::BlockedSpace2d space(
@@ -164,83 +153,72 @@ class HistogramBuilder {
           return row_set_collection[nidx].Size();
         },
         256);
-    this->BuildHist(page_id, space, gidx, p_tree, row_set_collection,
-                    nodes_for_explicit_hist_build, nodes_for_subtraction_trick,
-                    gpair, force_read_by_column);
+    this->BuildHist(page_id, space, gidx, p_tree, row_set_collection, nodes_for_explicit_hist_build,
+                    nodes_for_subtraction_trick, gpair, force_read_by_column);
   }
 
-  void SyncHistogramDistributed(
-      RegTree *p_tree,
-      std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
-      std::vector<ExpandEntry> const &nodes_for_subtraction_trick,
-      int starting_index, int sync_count) {
+  void SyncHistogramDistributed(RegTree const *p_tree,
+                                std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
+                                std::vector<ExpandEntry> const &nodes_for_subtraction_trick,
+                                int starting_index, int sync_count) {
     const size_t nbins = builder_.GetNumBins();
     common::BlockedSpace2d space(
-        nodes_for_explicit_hist_build.size(), [&](size_t) { return nbins; },
-        1024);
-    common::ParallelFor2d(
-        space, n_threads_, [&](size_t node, common::Range1d r) {
-          const auto &entry = nodes_for_explicit_hist_build[node];
-          auto this_hist = this->hist_[entry.nid];
-          // Merging histograms from each thread into once
-          buffer_.ReduceHist(node, r.begin(), r.end());
-          // Store posible parent node
-          auto this_local = hist_local_worker_[entry.nid];
-          common::CopyHist(this_local, this_hist, r.begin(), r.end());
+        nodes_for_explicit_hist_build.size(), [&](size_t) { return nbins; }, 1024);
+    common::ParallelFor2d(space, n_threads_, [&](size_t node, common::Range1d r) {
+      const auto &entry = nodes_for_explicit_hist_build[node];
+      auto this_hist = this->hist_[entry.nid];
+      // Merging histograms from each thread into once
+      buffer_.ReduceHist(node, r.begin(), r.end());
+      // Store posible parent node
+      auto this_local = hist_local_worker_[entry.nid];
+      common::CopyHist(this_local, this_hist, r.begin(), r.end());
 
-          if (!(*p_tree)[entry.nid].IsRoot()) {
-            const size_t parent_id = (*p_tree)[entry.nid].Parent();
-            const int subtraction_node_id =
-                nodes_for_subtraction_trick[node].nid;
-            auto parent_hist = this->hist_local_worker_[parent_id];
-            auto sibling_hist = this->hist_[subtraction_node_id];
-            common::SubtractionHist(sibling_hist, parent_hist, this_hist,
-                                    r.begin(), r.end());
-            // Store posible parent node
-            auto sibling_local = hist_local_worker_[subtraction_node_id];
-            common::CopyHist(sibling_local, sibling_hist, r.begin(), r.end());
-          }
-        });
+      if (!(*p_tree)[entry.nid].IsRoot()) {
+        const size_t parent_id = (*p_tree)[entry.nid].Parent();
+        const int subtraction_node_id = nodes_for_subtraction_trick[node].nid;
+        auto parent_hist = this->hist_local_worker_[parent_id];
+        auto sibling_hist = this->hist_[subtraction_node_id];
+        common::SubtractionHist(sibling_hist, parent_hist, this_hist, r.begin(), r.end());
+        // Store posible parent node
+        auto sibling_local = hist_local_worker_[subtraction_node_id];
+        common::CopyHist(sibling_local, sibling_hist, r.begin(), r.end());
+      }
+    });
 
     collective::Allreduce<collective::Operation::kSum>(
         reinterpret_cast<double *>(this->hist_[starting_index].data()),
         builder_.GetNumBins() * sync_count * 2);
 
-    ParallelSubtractionHist(space, nodes_for_explicit_hist_build,
-                            nodes_for_subtraction_trick, p_tree);
+    ParallelSubtractionHist(space, nodes_for_explicit_hist_build, nodes_for_subtraction_trick,
+                            p_tree);
 
     common::BlockedSpace2d space2(
-        nodes_for_subtraction_trick.size(), [&](size_t) { return nbins; },
-        1024);
-    ParallelSubtractionHist(space2, nodes_for_subtraction_trick,
-                            nodes_for_explicit_hist_build, p_tree);
+        nodes_for_subtraction_trick.size(), [&](size_t) { return nbins; }, 1024);
+    ParallelSubtractionHist(space2, nodes_for_subtraction_trick, nodes_for_explicit_hist_build,
+                            p_tree);
   }
 
-  void SyncHistogramLocal(RegTree *p_tree,
+  void SyncHistogramLocal(RegTree const *p_tree,
                           std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
                           std::vector<ExpandEntry> const &nodes_for_subtraction_trick) {
     const size_t nbins = this->builder_.GetNumBins();
     common::BlockedSpace2d space(
-        nodes_for_explicit_hist_build.size(), [&](size_t) { return nbins; },
-        1024);
+        nodes_for_explicit_hist_build.size(), [&](size_t) { return nbins; }, 1024);
 
-    common::ParallelFor2d(
-        space, this->n_threads_, [&](size_t node, common::Range1d r) {
-          const auto &entry = nodes_for_explicit_hist_build[node];
-          auto this_hist = this->hist_[entry.nid];
-          // Merging histograms from each thread into once
-          this->buffer_.ReduceHist(node, r.begin(), r.end());
+    common::ParallelFor2d(space, this->n_threads_, [&](size_t node, common::Range1d r) {
+      const auto &entry = nodes_for_explicit_hist_build[node];
+      auto this_hist = this->hist_[entry.nid];
+      // Merging histograms from each thread into once
+      this->buffer_.ReduceHist(node, r.begin(), r.end());
 
-          if (!(*p_tree)[entry.nid].IsRoot()) {
-            const size_t parent_id = (*p_tree)[entry.nid].Parent();
-            const int subtraction_node_id =
-                nodes_for_subtraction_trick[node].nid;
-            auto parent_hist = this->hist_[parent_id];
-            auto sibling_hist = this->hist_[subtraction_node_id];
-            common::SubtractionHist(sibling_hist, parent_hist, this_hist,
-                                    r.begin(), r.end());
-          }
-        });
+      if (!(*p_tree)[entry.nid].IsRoot()) {
+        auto const parent_id = (*p_tree)[entry.nid].Parent();
+        auto const subtraction_node_id = nodes_for_subtraction_trick[node].nid;
+        auto parent_hist = this->hist_[parent_id];
+        auto sibling_hist = this->hist_[subtraction_node_id];
+        common::SubtractionHist(sibling_hist, parent_hist, this_hist, r.begin(), r.end());
+      }
+    });
   }
 
  public:
@@ -289,11 +267,10 @@ class HistogramBuilder {
     this->hist_.AllocateAllData();
   }
 
-  void AddHistRowsDistributed(
-      int *starting_index, int *sync_count,
-      std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
-      std::vector<ExpandEntry> const &nodes_for_subtraction_trick,
-      RegTree *p_tree) {
+  void AddHistRowsDistributed(int *starting_index, int *sync_count,
+                              std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
+                              std::vector<ExpandEntry> const &nodes_for_subtraction_trick,
+                              RegTree const *p_tree) {
     const size_t explicit_size = nodes_for_explicit_hist_build.size();
     const size_t subtaction_size = nodes_for_subtraction_trick.size();
     std::vector<int> merged_node_ids(explicit_size + subtaction_size);

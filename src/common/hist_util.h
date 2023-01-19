@@ -1,5 +1,5 @@
-/*!
- * Copyright 2017-2022 by XGBoost Contributors
+/**
+ * Copyright 2017-2023 by XGBoost Contributors
  * \file hist_util.h
  * \brief Utility for fast histogram aggregation
  * \author Philip Cho, Tianqi Chen
@@ -23,6 +23,7 @@
 #include "row_set.h"
 #include "threading_utils.h"
 #include "timer.h"
+#include "xgboost/base.h"  // bst_feature_t, bst_bin_t
 
 namespace xgboost {
 class GHistIndexMatrix;
@@ -320,10 +321,10 @@ struct Index {
 };
 
 template <typename GradientIndex>
-bst_bin_t XGBOOST_HOST_DEV_INLINE BinarySearchBin(size_t begin, size_t end,
+bst_bin_t XGBOOST_HOST_DEV_INLINE BinarySearchBin(std::size_t begin, std::size_t end,
                                                   GradientIndex const& data,
-                                                  uint32_t const fidx_begin,
-                                                  uint32_t const fidx_end) {
+                                                  bst_feature_t const fidx_begin,
+                                                  bst_feature_t const fidx_end) {
   size_t previous_middle = std::numeric_limits<size_t>::max();
   while (end != begin) {
     size_t middle = begin + (end - begin) / 2;
@@ -635,7 +636,7 @@ class GHistBuilder {
 
   // construct a histogram via histogram aggregation
   template <bool any_missing>
-  void BuildHist(const std::vector<GradientPair>& gpair, const RowSetCollection::Elem row_indices,
+  void BuildHist(Span<GradientPair const> gpair, const RowSetCollection::Elem row_indices,
                  const GHistIndexMatrix& gmat, GHistRow hist,
                  bool force_read_by_column = false) const;
   uint32_t GetNumBins() const {
