@@ -1,5 +1,5 @@
-/*!
- * Copyright 2021-2022 XGBoost contributors
+/**
+ * Copyright 2021-2023 by XGBoost contributors
  *
  * \brief Implementation for the approx tree method.
  */
@@ -14,9 +14,12 @@
 #include "driver.h"
 #include "hist/evaluate_splits.h"
 #include "hist/histogram.h"
+#include "hist/sampler.h"  // SampleGradient
 #include "param.h"
 #include "xgboost/base.h"
+#include "xgboost/data.h"
 #include "xgboost/json.h"
+#include "xgboost/linalg.h"
 #include "xgboost/tree_model.h"
 #include "xgboost/tree_updater.h"
 
@@ -256,8 +259,7 @@ class GlobalApproxUpdater : public TreeUpdater {
   ObjInfo task_;
 
  public:
-  explicit GlobalApproxUpdater(Context const *ctx, ObjInfo task)
-      : TreeUpdater(ctx), task_{task} {
+  explicit GlobalApproxUpdater(Context const *ctx, ObjInfo task) : TreeUpdater(ctx), task_{task} {
     monitor_.Init(__func__);
   }
 
@@ -272,24 +274,11 @@ class GlobalApproxUpdater : public TreeUpdater {
   }
 
   void InitData(TrainParam const &param, HostDeviceVector<GradientPair> const *gpair,
-                std::vector<GradientPair> *sampled) {
-    auto const &h_gpair = gpair->ConstHostVector();
-    sampled->resize(h_gpair.size());
-    std::copy(h_gpair.cbegin(), h_gpair.cend(), sampled->begin());
-    auto &rnd = common::GlobalRandom();
+                linalg::Matrix<GradientPair> *sampled) {
+    *sampled = linalg::Empty<GradientPair>(ctx_, gpair->Size(), 1);
+    sampled->Data()->Copy(*gpair);
 
-    if (param.subsample != 1.0) {
-      CHECK(param.sampling_method != TrainParam::kGradientBased)
-          << "Gradient based sampling is not supported for approx tree method.";
-      std::bernoulli_distribution coin_flip(param.subsample);
-      std::transform(sampled->begin(), sampled->end(), sampled->begin(), [&](GradientPair &g) {
-        if (coin_flip(rnd)) {
-          return g;
-        } else {
-          return GradientPair{};
-        }
-      });
-    }
+    SampleGradient(ctx_, param, sampled->HostView());
   }
 
   char const *Name() const override { return "grow_histmaker"; }
@@ -303,18 +292,19 @@ class GlobalApproxUpdater : public TreeUpdater {
     pimpl_ = std::make_unique<GloablApproxBuilder>(param_, m->Info(), ctx_, column_sampler_, task_,
                                                    &monitor_);
 
-    std::vector<GradientPair> h_gpair;
-    InitData(param_, gpair, &h_gpair);
+    linalg::Matrix<GradientPair> h_gpair;
     // Obtain the hessian values for weighted sketching
-    std::vector<float> hess(h_gpair.size());
-    std::transform(h_gpair.begin(), h_gpair.end(), hess.begin(),
+    InitData(param_, gpair, &h_gpair);
+    std::vector<float> hess(h_gpair.Size());
+    auto const &s_gpair = h_gpair.Data()->ConstHostVector();
+    std::transform(s_gpair.begin(), s_gpair.end(), hess.begin(),
                    [](auto g) { return g.GetHess(); });
 
     cached_ = m;
 
     size_t t_idx = 0;
     for (auto p_tree : trees) {
-      this->pimpl_->UpdateTree(m, h_gpair, hess, p_tree, &out_position[t_idx]);
+      this->pimpl_->UpdateTree(m, s_gpair, hess, p_tree, &out_position[t_idx]);
       ++t_idx;
     }
     param_.learning_rate = lr;
