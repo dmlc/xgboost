@@ -52,14 +52,6 @@ def _warn_unused_missing(data: DataType, missing: Optional[FloatCompatible]) -> 
         )
 
 
-def _check_complex(data: DataType) -> None:
-    '''Test whether data is complex using `dtype` attribute.'''
-    complex_dtypes = (np.complex128, np.complex64,
-                      np.cfloat, np.cdouble, np.clongdouble)
-    if hasattr(data, 'dtype') and data.dtype in complex_dtypes:
-        raise ValueError('Complex data not supported')
-
-
 def _check_data_shape(data: DataType) -> None:
     if hasattr(data, "shape") and len(data.shape) != 2:
         raise ValueError("Please reshape the input data into 2-dimensional matrix.")
@@ -1021,15 +1013,6 @@ def dispatch_data_backend(
         return _from_scipy_csr(converted, missing, threads, feature_names, feature_types)
 
     raise TypeError('Not supported type for data.' + str(type(data)))
-
-
-def _to_data_type(dtype: str, name: str) -> int:
-    dtype_map = {'float32': 1, 'float64': 2, 'uint32': 3, 'uint64': 4}
-    if dtype not in dtype_map:
-        raise TypeError(
-            f'Expecting float32, float64, uint32, uint64, got {dtype} ' +
-            f'for {name}.')
-    return dtype_map[dtype]
 
 
 def _validate_meta_shape(data: DataType, name: str) -> None:
