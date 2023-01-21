@@ -1,9 +1,10 @@
-/*!
- * Copyright 2017-2022 XGBoost contributors
+/**
+ * Copyright 2017-2023 by XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/predictor.h>
 
+#include <cstdint>
 #include <thread>
 
 #include "../../../src/collective/communicator-inl.h"
@@ -95,7 +96,7 @@ TEST(CpuPredictor, ColumnSplit) {
   auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
   std::vector<std::thread> threads;
-  size_t constexpr kWorldSize = 2;
+  std::int32_t constexpr kWorldSize = 2;
   size_t constexpr kSliceSize = (kCols + 1) / kWorldSize;
    for (auto rank = 0; rank < kWorldSize; rank++) {
     threads.emplace_back([=, &dmat]() {

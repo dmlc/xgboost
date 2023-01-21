@@ -1,5 +1,5 @@
-/*!
- * Copyright by XGBoost Contributors 2017-2022
+/**
+ * Copyright 2017-2023 by XGBoost Contributors
  */
 #include <dmlc/any.h>
 #include <dmlc/omp.h>
@@ -326,13 +326,13 @@ class ColumnSplitHelper {
     auto const n_trees = tree_end_ - tree_begin_;
     tree_sizes_.resize(n_trees);
     tree_offsets_.resize(n_trees);
-    for (auto i = 0; i < n_trees; i++) {
+    for (decltype(tree_begin) i = 0; i < n_trees; i++) {
       auto const &tree = *model_.trees[tree_begin_ + i];
       tree_sizes_[i] = tree.GetNodes().size();
     }
     // std::exclusive_scan (only available in c++17) equivalent to get tree offsets.
     tree_offsets_[0] = 0;
-    for (auto i = 1; i < n_trees; i++) {
+    for (decltype(tree_begin) i = 1; i < n_trees; i++) {
       tree_offsets_[i] = tree_offsets_[i - 1] + tree_sizes_[i - 1];
     }
     bits_per_row_ = tree_offsets_.back() + tree_sizes_.back();
@@ -390,8 +390,9 @@ class ColumnSplitHelper {
     auto const &tree = *model_.trees[tree_id];
     auto const &cats = tree.GetCategoriesMatrix();
     auto const has_categorical = tree.HasCategoricalSplit();
+    bst_node_t n_nodes = tree.GetNodes().size();
 
-    for (auto nid = 0; nid < tree.GetNodes().size(); nid++) {
+    for (bst_node_t nid = 0; nid < n_nodes; nid++) {
       auto const &node = tree[nid];
       if (node.IsDeleted() || node.IsLeaf()) {
         continue;
@@ -539,7 +540,7 @@ class ColumnSplitHelper {
    * The first two dimensions are fixed length, while the last dimension is variable length since
    * each tree may have a different number of nodes. We precompute the tree offsets, which are the
    * cumulative sums of tree sizes. The index of tree t, row r, node n is:
-   *   index(t, r, n) = tree_offsets[t] * n_rows + r * tree_sizes[t] + n 
+   *   index(t, r, n) = tree_offsets[t] * n_rows + r * tree_sizes[t] + n
    */
   std::vector<BitVector::value_type> decision_storage_{};
   BitVector decision_bits_{};
