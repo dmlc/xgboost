@@ -171,11 +171,15 @@ test_that("xgb.DMatrix: print", {
         data = agaricus.train$data
         , label = agaricus.train$label
     )
-    txt <- capture.output({print(dtrain)})
+    txt <- capture.output({
+        print(dtrain)
+    })
     expect_equal(txt, "xgb.DMatrix  dim: 6513 x 126  info: label  colnames: yes")
 
     # verbose=TRUE prints feature names
-    txt <- capture.output({print(dtrain, verbose = TRUE)})
+    txt <- capture.output({
+        print(dtrain, verbose = TRUE)
+    })
     expect_equal(txt[[1L]], "xgb.DMatrix  dim: 6513 x 126  info: label  colnames:")
     expect_equal(txt[[2L]], sprintf("'%s'", paste(colnames(dtrain), collapse = "','")))
 
@@ -186,14 +190,18 @@ test_that("xgb.DMatrix: print", {
         , weight = seq_along(agaricus.train$label)
         , base_margin = agaricus.train$label
     )
-    txt <- capture.output({print(dtrain)})
+    txt <- capture.output({
+        print(dtrain)
+    })
     expect_equal(txt, "xgb.DMatrix  dim: 6513 x 126  info: label weight base_margin  colnames: yes")
 
     # DMatrix with just features
     dtrain <- xgb.DMatrix(
         data = agaricus.train$data
     )
-    txt <- capture.output({print(dtrain)})
+    txt <- capture.output({
+        print(dtrain)
+    })
     expect_equal(txt, "xgb.DMatrix  dim: 6513 x 126  info: NA  colnames: yes")
 
     # DMatrix with no column names
@@ -202,6 +210,8 @@ test_that("xgb.DMatrix: print", {
     dtrain <- xgb.DMatrix(
         data = data_no_colnames
     )
-    txt <- capture.output({print(dtrain)})
+    txt <- capture.output({
+        print(dtrain)
+    })
     expect_equal(txt, "xgb.DMatrix  dim: 6513 x 126  info: NA  colnames: no")
 })
