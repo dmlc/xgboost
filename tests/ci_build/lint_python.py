@@ -134,6 +134,7 @@ def main(args: argparse.Namespace) -> None:
                 # core
                 "python-package/xgboost/__init__.py",
                 "python-package/xgboost/_typing.py",
+                "python-package/xgboost/callback.py",
                 "python-package/xgboost/compat.py",
                 "python-package/xgboost/config.py",
                 "python-package/xgboost/dask.py",
