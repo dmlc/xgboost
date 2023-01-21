@@ -288,9 +288,9 @@ __model_doc = f"""
 
         .. note::
 
-             This parameter replaces `eval_metric` in :py:meth:`fit` method.  The old one
-             receives un-transformed prediction regardless of whether custom objective is
-             being used.
+             This parameter replaces `eval_metric` in :py:meth:`fit` method.  The old
+             one receives un-transformed prediction regardless of whether custom
+             objective is being used.
 
         .. code-block:: python
 
@@ -340,7 +340,8 @@ __model_doc = f"""
             for params in parameters_grid:
                 # be sure to (re)initialize the callbacks before each run
                 callbacks = [xgb.callback.LearningRateScheduler(custom_rates)]
-                xgboost.train(params, Xy, callbacks=callbacks)
+                reg = xgboost.XGBRegressor(**params, callbacks=callbacks)
+                reg.fit(X, y)
 
     kwargs : dict, optional
         Keyword arguments for XGBoost Booster object.  Full documentation of parameters
