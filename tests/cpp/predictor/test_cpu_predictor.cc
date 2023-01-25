@@ -100,11 +100,7 @@ TEST(CpuPredictor, ColumnSplit) {
   size_t constexpr kSliceSize = (kCols + 1) / kWorldSize;
    for (auto rank = 0; rank < kWorldSize; rank++) {
     threads.emplace_back([=, &dmat]() {
-      Json config{JsonObject()};
-      config["xgboost_communicator"] = String("in-memory");
-      config["in_memory_world_size"] = kWorldSize;
-      config["in_memory_rank"] = rank;
-      xgboost::collective::Init(config);
+      InitInMemoryCommunicator(kWorldSize, rank);
 
       auto lparam = CreateEmptyGenericParam(GPUIDX);
       std::unique_ptr<Predictor> cpu_predictor =

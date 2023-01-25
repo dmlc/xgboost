@@ -1,8 +1,7 @@
 /**
  * Copyright 2016-2023 by XGBoost contributors
  */
-#ifndef XGBOOST_TESTS_CPP_HELPERS_H_
-#define XGBOOST_TESTS_CPP_HELPERS_H_
+#pragma once
 
 #include <gtest/gtest.h>
 #include <sys/stat.h>
@@ -460,5 +459,6 @@ inline LearnerModelParam MakeMP(bst_feature_t n_features, float base_score, uint
   return mparam;
 }
 
+void InitInMemoryCommunicator(int32_t word_size, int32_t rank);
+
 }  // namespace xgboost
-#endif

@@ -1,9 +1,12 @@
 #include <gtest/gtest.h>
-#include "test_quantile.h"
-#include "../helpers.h"
+
+#include <thread>
+
 #include "../../../src/collective/device_communicator.cuh"
 #include "../../../src/common/hist_util.cuh"
 #include "../../../src/common/quantile.cuh"
+#include "../helpers.h"
+#include "test_quantile.h"
 
 namespace xgboost {
 namespace {
@@ -339,156 +342,161 @@ TEST(GPUQuantile, MultiMerge) {
 }
 
 TEST(GPUQuantile, AllReduceBasic) {
-  // This test is supposed to run by a python test that setups the environment.
-  std::string msg {"Skipping AllReduce test"};
-  auto n_gpus = AllVisibleGPUs();
-  InitCommunicatorContext(msg, n_gpus);
-  auto world = collective::GetWorldSize();
-  if (world != 1) {
-    ASSERT_EQ(world, n_gpus);
-  } else {
-    return;
+  auto const n_gpus = AllVisibleGPUs();
+  std::vector<std::thread> threads;
+  for (auto rank = 0; rank < n_gpus; rank++) {
+    threads.emplace_back([=]() {
+      InitInMemoryCommunicator(n_gpus, rank);
+
+      auto const world = collective::GetWorldSize();
+      if (world != 1) {
+        ASSERT_EQ(world, n_gpus);
+      } else {
+        return;
+      }
+
+      constexpr size_t kRows = 1000, kCols = 100;
+      RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins, MetaInfo const& info) {
+        // Set up single node version;
+        HostDeviceVector<FeatureType> ft;
+        SketchContainer sketch_on_single_node(ft, n_bins, kCols, kRows, 0);
+
+        size_t intermediate_num_cuts =
+            std::min(kRows * world, static_cast<size_t>(n_bins * WQSketch::kFactor));
+        std::vector<SketchContainer> containers;
+        for (auto rank = 0; rank < world; ++rank) {
+          HostDeviceVector<float> storage;
+          std::string interface_str = RandomDataGenerator{kRows, kCols, 0}
+                                          .Device(0)
+                                          .Seed(rank + seed)
+                                          .GenerateArrayInterface(&storage);
+          data::CupyAdapter adapter(interface_str);
+          HostDeviceVector<FeatureType> ft;
+          containers.emplace_back(ft, n_bins, kCols, kRows, 0);
+          AdapterDeviceSketch(adapter.Value(), n_bins, info,
+                              std::numeric_limits<float>::quiet_NaN(), &containers.back());
+        }
+        for (auto& sketch : containers) {
+          sketch.Prune(intermediate_num_cuts);
+          sketch_on_single_node.Merge(sketch.ColumnsPtr(), sketch.Data());
+          sketch_on_single_node.FixError();
+        }
+        sketch_on_single_node.Unique();
+        TestQuantileElemRank(0, sketch_on_single_node.Data(), sketch_on_single_node.ColumnsPtr(),
+                             true);
+
+        // Set up distributed version.  We rely on using rank as seed to generate
+        // the exact same copy of data.
+        auto rank = collective::GetRank();
+        SketchContainer sketch_distributed(ft, n_bins, kCols, kRows, 0);
+        HostDeviceVector<float> storage;
+        std::string interface_str = RandomDataGenerator{kRows, kCols, 0}
+                                        .Device(0)
+                                        .Seed(rank + seed)
+                                        .GenerateArrayInterface(&storage);
+        data::CupyAdapter adapter(interface_str);
+        AdapterDeviceSketch(adapter.Value(), n_bins, info, std::numeric_limits<float>::quiet_NaN(),
+                            &sketch_distributed);
+        sketch_distributed.AllReduce();
+        sketch_distributed.Unique();
+
+        ASSERT_EQ(sketch_distributed.ColumnsPtr().size(),
+                  sketch_on_single_node.ColumnsPtr().size());
+        ASSERT_EQ(sketch_distributed.Data().size(), sketch_on_single_node.Data().size());
+
+        TestQuantileElemRank(0, sketch_distributed.Data(), sketch_distributed.ColumnsPtr(), true);
+
+        std::vector<SketchEntry> single_node_data(sketch_on_single_node.Data().size());
+        dh::CopyDeviceSpanToVector(&single_node_data, sketch_on_single_node.Data());
+
+        std::vector<SketchEntry> distributed_data(sketch_distributed.Data().size());
+        dh::CopyDeviceSpanToVector(&distributed_data, sketch_distributed.Data());
+        float Eps = 2e-4 * world;
+
+        for (size_t i = 0; i < single_node_data.size(); ++i) {
+          ASSERT_NEAR(single_node_data[i].value, distributed_data[i].value, Eps);
+          ASSERT_NEAR(single_node_data[i].rmax, distributed_data[i].rmax, Eps);
+          ASSERT_NEAR(single_node_data[i].rmin, distributed_data[i].rmin, Eps);
+          ASSERT_NEAR(single_node_data[i].wmin, distributed_data[i].wmin, Eps);
+        }
+      });
+      collective::Finalize();
+    });
   }
-
-  constexpr size_t kRows = 1000, kCols = 100;
-  RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins, MetaInfo const& info) {
-    // Set up single node version;
-    HostDeviceVector<FeatureType> ft;
-    SketchContainer sketch_on_single_node(ft, n_bins, kCols, kRows, 0);
-
-    size_t intermediate_num_cuts = std::min(
-        kRows * world, static_cast<size_t>(n_bins * WQSketch::kFactor));
-    std::vector<SketchContainer> containers;
-    for (auto rank = 0; rank < world; ++rank) {
-      HostDeviceVector<float> storage;
-      std::string interface_str = RandomDataGenerator{kRows, kCols, 0}
-                                      .Device(0)
-                                      .Seed(rank + seed)
-                                      .GenerateArrayInterface(&storage);
-      data::CupyAdapter adapter(interface_str);
-      HostDeviceVector<FeatureType> ft;
-      containers.emplace_back(ft, n_bins, kCols, kRows, 0);
-      AdapterDeviceSketch(adapter.Value(), n_bins, info,
-                          std::numeric_limits<float>::quiet_NaN(),
-                          &containers.back());
-    }
-    for (auto &sketch : containers) {
-      sketch.Prune(intermediate_num_cuts);
-      sketch_on_single_node.Merge(sketch.ColumnsPtr(), sketch.Data());
-      sketch_on_single_node.FixError();
-    }
-    sketch_on_single_node.Unique();
-    TestQuantileElemRank(0, sketch_on_single_node.Data(),
-                         sketch_on_single_node.ColumnsPtr(), true);
-
-    // Set up distributed version.  We rely on using rank as seed to generate
-    // the exact same copy of data.
-    auto rank = collective::GetRank();
-    SketchContainer sketch_distributed(ft, n_bins, kCols, kRows, 0);
-    HostDeviceVector<float> storage;
-    std::string interface_str = RandomDataGenerator{kRows, kCols, 0}
-                                    .Device(0)
-                                    .Seed(rank + seed)
-                                    .GenerateArrayInterface(&storage);
-    data::CupyAdapter adapter(interface_str);
-    AdapterDeviceSketch(adapter.Value(), n_bins, info,
-                        std::numeric_limits<float>::quiet_NaN(),
-                        &sketch_distributed);
-    sketch_distributed.AllReduce();
-    sketch_distributed.Unique();
-
-    ASSERT_EQ(sketch_distributed.ColumnsPtr().size(),
-              sketch_on_single_node.ColumnsPtr().size());
-    ASSERT_EQ(sketch_distributed.Data().size(),
-              sketch_on_single_node.Data().size());
-
-    TestQuantileElemRank(0, sketch_distributed.Data(),
-                         sketch_distributed.ColumnsPtr(), true);
-
-    std::vector<SketchEntry> single_node_data(
-        sketch_on_single_node.Data().size());
-    dh::CopyDeviceSpanToVector(&single_node_data, sketch_on_single_node.Data());
-
-    std::vector<SketchEntry> distributed_data(sketch_distributed.Data().size());
-    dh::CopyDeviceSpanToVector(&distributed_data, sketch_distributed.Data());
-    float Eps = 2e-4 * world;
-
-    for (size_t i = 0; i < single_node_data.size(); ++i) {
-      ASSERT_NEAR(single_node_data[i].value, distributed_data[i].value, Eps);
-      ASSERT_NEAR(single_node_data[i].rmax, distributed_data[i].rmax, Eps);
-      ASSERT_NEAR(single_node_data[i].rmin, distributed_data[i].rmin, Eps);
-      ASSERT_NEAR(single_node_data[i].wmin, distributed_data[i].wmin, Eps);
-    }
-  });
-  collective::Finalize();
+  for (auto& thread : threads) {
+    thread.join();
+  }
 }
 
 TEST(GPUQuantile, SameOnAllWorkers) {
-  std::string msg {"Skipping SameOnAllWorkers test"};
-  auto n_gpus = AllVisibleGPUs();
-  InitCommunicatorContext(msg, n_gpus);
-  auto world = collective::GetWorldSize();
-  if (world != 1) {
-    ASSERT_EQ(world, n_gpus);
-  } else {
-    return;
-  }
+  auto const n_gpus = AllVisibleGPUs();
+  std::vector<std::thread> threads;
+  for (auto rank = 0; rank < n_gpus; rank++) {
+    threads.emplace_back([=]() {
+      InitInMemoryCommunicator(n_gpus, rank);
 
-  constexpr size_t kRows = 1000, kCols = 100;
-  RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins,
-                                 MetaInfo const &info) {
-    auto rank = collective::GetRank();
-    HostDeviceVector<FeatureType> ft;
-    SketchContainer sketch_distributed(ft, n_bins, kCols, kRows, 0);
-    HostDeviceVector<float> storage;
-    std::string interface_str = RandomDataGenerator{kRows, kCols, 0}
-                                    .Device(0)
-                                    .Seed(rank + seed)
-                                    .GenerateArrayInterface(&storage);
-    data::CupyAdapter adapter(interface_str);
-    AdapterDeviceSketch(adapter.Value(), n_bins, info,
-                        std::numeric_limits<float>::quiet_NaN(),
-                        &sketch_distributed);
-    sketch_distributed.AllReduce();
-    sketch_distributed.Unique();
-    TestQuantileElemRank(0, sketch_distributed.Data(), sketch_distributed.ColumnsPtr(), true);
-
-    // Test for all workers having the same sketch.
-    size_t n_data = sketch_distributed.Data().size();
-    collective::Allreduce<collective::Operation::kMax>(&n_data, 1);
-    ASSERT_EQ(n_data, sketch_distributed.Data().size());
-    size_t size_as_float =
-        sketch_distributed.Data().size_bytes() / sizeof(float);
-    auto local_data = Span<float const>{
-        reinterpret_cast<float const *>(sketch_distributed.Data().data()),
-        size_as_float};
-
-    dh::caching_device_vector<float> all_workers(size_as_float * world);
-    thrust::fill(all_workers.begin(), all_workers.end(), 0);
-    thrust::copy(thrust::device, local_data.data(),
-                 local_data.data() + local_data.size(),
-                 all_workers.begin() + local_data.size() * rank);
-    collective::DeviceCommunicator* communicator = collective::Communicator::GetDevice(0);
-
-    communicator->AllReduceSum(all_workers.data().get(), all_workers.size());
-    communicator->Synchronize();
-
-    auto base_line = dh::ToSpan(all_workers).subspan(0, size_as_float);
-    std::vector<float> h_base_line(base_line.size());
-    dh::CopyDeviceSpanToVector(&h_base_line, base_line);
-
-    size_t offset = 0;
-    for (decltype(world) i = 0; i < world; ++i) {
-      auto comp = dh::ToSpan(all_workers).subspan(offset, size_as_float);
-      std::vector<float> h_comp(comp.size());
-      dh::CopyDeviceSpanToVector(&h_comp, comp);
-      ASSERT_EQ(comp.size(), base_line.size());
-      for (size_t j = 0; j < h_comp.size(); ++j) {
-        ASSERT_NEAR(h_base_line[j], h_comp[j], kRtEps);
+      auto world = collective::GetWorldSize();
+      if (world != 1) {
+        ASSERT_EQ(world, n_gpus);
+      } else {
+        return;
       }
-      offset += size_as_float;
-    }
-  });
+
+      constexpr size_t kRows = 1000, kCols = 100;
+      RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins, MetaInfo const& info) {
+        auto rank = collective::GetRank();
+        HostDeviceVector<FeatureType> ft;
+        SketchContainer sketch_distributed(ft, n_bins, kCols, kRows, 0);
+        HostDeviceVector<float> storage;
+        std::string interface_str = RandomDataGenerator{kRows, kCols, 0}
+                                        .Device(0)
+                                        .Seed(rank + seed)
+                                        .GenerateArrayInterface(&storage);
+        data::CupyAdapter adapter(interface_str);
+        AdapterDeviceSketch(adapter.Value(), n_bins, info, std::numeric_limits<float>::quiet_NaN(),
+                            &sketch_distributed);
+        sketch_distributed.AllReduce();
+        sketch_distributed.Unique();
+        TestQuantileElemRank(0, sketch_distributed.Data(), sketch_distributed.ColumnsPtr(), true);
+
+        // Test for all workers having the same sketch.
+        size_t n_data = sketch_distributed.Data().size();
+        collective::Allreduce<collective::Operation::kMax>(&n_data, 1);
+        ASSERT_EQ(n_data, sketch_distributed.Data().size());
+        size_t size_as_float = sketch_distributed.Data().size_bytes() / sizeof(float);
+        auto local_data = Span<float const>{
+            reinterpret_cast<float const*>(sketch_distributed.Data().data()), size_as_float};
+
+        dh::caching_device_vector<float> all_workers(size_as_float * world);
+        thrust::fill(all_workers.begin(), all_workers.end(), 0);
+        thrust::copy(thrust::device, local_data.data(), local_data.data() + local_data.size(),
+                     all_workers.begin() + local_data.size() * rank);
+        collective::DeviceCommunicator* communicator = collective::Communicator::GetDevice(0);
+
+        communicator->AllReduceSum(all_workers.data().get(), all_workers.size());
+        communicator->Synchronize();
+
+        auto base_line = dh::ToSpan(all_workers).subspan(0, size_as_float);
+        std::vector<float> h_base_line(base_line.size());
+        dh::CopyDeviceSpanToVector(&h_base_line, base_line);
+
+        size_t offset = 0;
+        for (decltype(world) i = 0; i < world; ++i) {
+          auto comp = dh::ToSpan(all_workers).subspan(offset, size_as_float);
+          std::vector<float> h_comp(comp.size());
+          dh::CopyDeviceSpanToVector(&h_comp, comp);
+          ASSERT_EQ(comp.size(), base_line.size());
+          for (size_t j = 0; j < h_comp.size(); ++j) {
+            ASSERT_NEAR(h_base_line[j], h_comp[j], kRtEps);
+          }
+          offset += size_as_float;
+        }
+      });
+    });
+  }
+  for (auto& thread : threads) {
+    thread.join();
+  }
 }
 
 TEST(GPUQuantile, Push) {
