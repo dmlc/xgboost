@@ -232,12 +232,20 @@ test_that("train and predict RF with softprob", {
 test_that("use of multiple eval metrics works", {
   expect_output(
     bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
-                  eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic",
-                  eval_metric = 'error', eval_metric = 'auc', eval_metric = "logloss")
+                   eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic",
+                   eval_metric = 'error', eval_metric = 'auc', eval_metric = "logloss")
   , "train-error.*train-auc.*train-logloss")
   expect_false(is.null(bst$evaluation_log))
   expect_equal(dim(bst$evaluation_log), c(2, 4))
   expect_equal(colnames(bst$evaluation_log), c("iter", "train_error", "train_auc", "train_logloss"))
+  expect_output(
+    bst2 <- xgboost(data = train$data, label = train$label, max_depth = 2,
+                    eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic",
+                    eval_metric = list("error", "auc", "logloss"))
+  , "train-error.*train-auc.*train-logloss")
+  expect_false(is.null(bst2$evaluation_log))
+  expect_equal(dim(bst2$evaluation_log), c(2, 4))
+  expect_equal(colnames(bst2$evaluation_log), c("iter", "train_error", "train_auc", "train_logloss"))
 })
 
 
