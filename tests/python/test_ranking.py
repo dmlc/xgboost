@@ -1,8 +1,6 @@
 import itertools
 import os
 import shutil
-import urllib.request
-import zipfile
 
 import numpy as np
 from scipy.sparse import csr_matrix

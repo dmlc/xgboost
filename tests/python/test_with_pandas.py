@@ -1,6 +1,3 @@
-import os
-import tempfile
-
 import numpy as np
 import pytest
 from test_dmatrix import set_base_margin_info
