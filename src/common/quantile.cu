@@ -667,7 +667,7 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
       return;
     }
     assert(idx+1 < in_column.size());
-    out_column[idx] = in_column[idx+1].value;
+    out_column[idx] = in_column[idx+1].value + (in_column[idx].value - in_column[idx].value)/2.;
   });
   timer_.Stop(__func__);
 }

@@ -331,7 +331,7 @@ void AddCutPoint(WQuantileSketch<float, float>::SummaryContainer const &summary,
   size_t required_cuts = std::min(summary.size, static_cast<size_t>(max_bin));
   auto& cut_values = cuts->cut_values_.HostVector();
   for (size_t i = 1; i < required_cuts; ++i) {
-    bst_float cpt = summary.data[i].value;
+    bst_float cpt = summary.data[i].value + (summary.data[i-1].value - summary.data[i].value)/2.;
     if (i == 1 || cpt > cut_values.back()) {
       cut_values.push_back(cpt);
     }
