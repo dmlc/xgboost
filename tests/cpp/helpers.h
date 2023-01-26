@@ -465,7 +465,7 @@ template <typename Function, typename... Args>
 void RunWithInMemoryCommunicator(int32_t world_size, Function&& function, Args&&... args) {
   std::vector<std::thread> threads;
   for (auto rank = 0; rank < world_size; rank++) {
-    threads.emplace_back([=]() {
+    threads.emplace_back([&, rank]() {
       Json config{JsonObject()};
       config["xgboost_communicator"] = String("in-memory");
       config["in_memory_world_size"] = world_size;
