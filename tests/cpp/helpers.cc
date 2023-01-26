@@ -15,11 +15,11 @@
 #include <cinttypes>
 #include <random>
 
-#include "../../src/collective/communicator-inl.h"
 #include "../../src/data/adapter.h"
 #include "../../src/data/iterative_dmatrix.h"
 #include "../../src/data/simple_dmatrix.h"
 #include "../../src/data/sparse_page_dmatrix.h"
+#include "../../src/gbm/gbtree_model.h"
 #include "filesystem.h"  // dmlc::TemporaryDirectory
 #include "xgboost/c_api.h"
 #include "xgboost/predictor.h"
@@ -661,13 +661,4 @@ void DeleteRMMResource(RMMAllocator*) {}
 
 RMMAllocatorPtr SetUpRMMResourceForCppTests(int, char**) { return {nullptr, DeleteRMMResource}; }
 #endif  // !defined(XGBOOST_USE_RMM) || XGBOOST_USE_RMM != 1
-
-void InitInMemoryCommunicator(int32_t word_size, int32_t rank) {
-  Json config{JsonObject()};
-  config["xgboost_communicator"] = String("in-memory");
-  config["in_memory_world_size"] = word_size;
-  config["in_memory_rank"] = rank;
-  xgboost::collective::Init(config);
-}
-
 }  // namespace xgboost
