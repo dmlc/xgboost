@@ -42,14 +42,8 @@ void PushPage(HostSketchContainer* container, SparsePage const& page, MetaInfo c
 }
 
 template <bool use_column>
-void DoTestDistributedQuantile(int32_t  workers, size_t rows, size_t cols) {
+void DoTestDistributedQuantile(size_t rows, size_t cols) {
   auto const world = collective::GetWorldSize();
-  if (world != 1) {
-    ASSERT_EQ(world, workers);
-  } else {
-    return;
-  }
-
   std::vector<MetaInfo> infos(2);
   auto& h_weights = infos.front().weights_.HostVector();
   h_weights.resize(rows);
@@ -151,7 +145,7 @@ void DoTestDistributedQuantile(int32_t  workers, size_t rows, size_t cols) {
 template <bool use_column>
 void TestDistributedQuantile(size_t const rows, size_t const cols) {
   auto constexpr kWorkers = 4;
-  RunWithInMemoryCommunicator(kWorkers, DoTestDistributedQuantile<use_column>, kWorkers, rows, cols);
+  RunWithInMemoryCommunicator(kWorkers, DoTestDistributedQuantile<use_column>, rows, cols);
 }
 }  // anonymous namespace
 
@@ -176,15 +170,8 @@ TEST(Quantile, SortedDistributed) {
 }
 
 namespace {
-void TestSameOnAllWorkers(int32_t workers) {
+void TestSameOnAllWorkers() {
   auto const world = collective::GetWorldSize();
-  if (world != 1) {
-    CHECK_EQ(world, workers);
-  } else {
-    LOG(WARNING) << "Skipping Quantile SameOnAllWorkers test";
-    return;
-  }
-
   constexpr size_t kRows = 1000, kCols = 100;
   RunWithSeedsAndBins(
       kRows, [=](int32_t seed, size_t n_bins, MetaInfo const&) {
@@ -253,7 +240,7 @@ void TestSameOnAllWorkers(int32_t workers) {
 
 TEST(Quantile, SameOnAllWorkers) {
   auto constexpr kWorkers = 4;
-  RunWithInMemoryCommunicator(kWorkers, TestSameOnAllWorkers, kWorkers);
+  RunWithInMemoryCommunicator(kWorkers, TestSameOnAllWorkers);
 }
 
 }  // namespace common
