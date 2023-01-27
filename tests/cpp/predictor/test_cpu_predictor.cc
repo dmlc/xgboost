@@ -97,7 +97,6 @@ void TestColumnSplitPredictBatch() {
   auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
   auto const world_size = collective::GetWorldSize();
   auto const rank = collective::GetRank();
-  auto const kSliceSize = (kCols + 1) / world_size;
 
   auto lparam = CreateEmptyGenericParam(GPUIDX);
   std::unique_ptr<Predictor> cpu_predictor =
@@ -112,7 +111,7 @@ void TestColumnSplitPredictBatch() {
   // Test predict batch
   PredictionCacheEntry out_predictions;
   cpu_predictor->InitOutPredictions(dmat->Info(), &out_predictions.predictions, model);
-  auto sliced = std::unique_ptr<DMatrix>{dmat->SliceCol(rank * kSliceSize, kSliceSize)};
+  auto sliced = std::unique_ptr<DMatrix>{dmat->SliceCol(world_size, rank)};
   cpu_predictor->PredictBatch(sliced.get(), &out_predictions, model, 0);
 
   std::vector<float>& out_predictions_h = out_predictions.predictions.HostVector();

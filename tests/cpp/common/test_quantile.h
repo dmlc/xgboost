@@ -6,7 +6,6 @@
 #include <vector>
 
 #include "../helpers.h"
-#include "../../src/collective/communicator-inl.h"
 
 namespace xgboost {
 namespace common {

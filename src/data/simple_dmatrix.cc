@@ -46,9 +46,12 @@ DMatrix* SimpleDMatrix::Slice(common::Span<int32_t const> ridxs) {
   return out;
 }
 
-DMatrix* SimpleDMatrix::SliceCol(std::size_t start, std::size_t size) {
+DMatrix* SimpleDMatrix::SliceCol(int num_slices, int slice_id) {
   auto out = new SimpleDMatrix;
   SparsePage& out_page = *out->sparse_page_;
+  auto const slice_size = info_.num_col_ / num_slices;
+  auto const slice_start = slice_size * slice_id;
+  auto const slice_end = (slice_id == num_slices - 1) ? info_.num_col_ : slice_start + slice_size;
   for (auto const &page : this->GetBatches<SparsePage>()) {
     auto batch = page.GetView();
     auto& h_data = out_page.data.HostVector();
@@ -58,7 +61,7 @@ DMatrix* SimpleDMatrix::SliceCol(std::size_t start, std::size_t size) {
       auto inst = batch[i];
       auto prev_size = h_data.size();
       std::copy_if(inst.begin(), inst.end(), std::back_inserter(h_data), [&](Entry e) {
-        return e.index >= start && e.index < start + size;
+        return e.index >= slice_start && e.index < slice_end;
       });
       rptr += h_data.size() - prev_size;
       h_offset.emplace_back(rptr);
