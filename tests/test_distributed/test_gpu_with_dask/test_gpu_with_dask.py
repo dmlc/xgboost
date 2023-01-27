@@ -486,49 +486,6 @@ class TestDistributedGPU:
         for rn, drn in zip(ranker_names, dranker_names):
             assert rn == drn
 
-    def run_quantile(self, name: str, local_cuda_client: Client) -> None:
-        exe = None
-        for possible_path in {
-            "./testxgboost",
-            "./build/testxgboost",
-            "../build/testxgboost",
-            "../gpu-build/testxgboost",
-        }:
-            if os.path.exists(possible_path):
-                exe = possible_path
-        assert exe, "No testxgboost executable found."
-        test = "--gtest_filter=GPUQuantile." + name
-
-        def runit(
-            worker_addr: str, rabit_args: Dict[str, Union[int, str]]
-        ) -> subprocess.CompletedProcess:
-            # setup environment for running the c++ part.
-            env = os.environ.copy()
-            env['DMLC_TRACKER_PORT'] = str(rabit_args['DMLC_TRACKER_PORT'])
-            env["DMLC_TRACKER_URI"] = str(rabit_args["DMLC_TRACKER_URI"])
-            return subprocess.run([str(exe), test], env=env, stdout=subprocess.PIPE)
-
-        workers = tm.get_client_workers(local_cuda_client)
-        rabit_args = local_cuda_client.sync(
-            dxgb._get_rabit_args, len(workers), None, local_cuda_client
-        )
-        futures = local_cuda_client.map(
-            runit, workers, pure=False, workers=workers, rabit_args=rabit_args
-        )
-        results = local_cuda_client.gather(futures)
-        for ret in results:
-            msg = ret.stdout.decode("utf-8")
-            assert msg.find("1 test from GPUQuantile") != -1, msg
-            assert ret.returncode == 0, msg
-
-    @pytest.mark.gtest
-    def test_quantile_basic(self, local_cuda_client: Client) -> None:
-        self.run_quantile("AllReduceBasic", local_cuda_client)
-
-    @pytest.mark.gtest
-    def test_quantile_same_on_all_workers(self, local_cuda_client: Client) -> None:
-        self.run_quantile("SameOnAllWorkers", local_cuda_client)
-
 
 @pytest.mark.skipif(**tm.no_cupy())
 def test_with_asyncio(local_cuda_client: Client) -> None:

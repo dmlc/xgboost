@@ -10,31 +10,6 @@
 
 namespace xgboost {
 namespace common {
-inline void InitCommunicatorContext(std::string msg, int32_t n_workers) {
-  auto port = std::getenv("DMLC_TRACKER_PORT");
-  std::string port_str;
-  if (port) {
-    port_str = port;
-  } else {
-    LOG(WARNING) << msg << " as `DMLC_TRACKER_PORT` is not set up.";
-    return;
-  }
-  auto uri = std::getenv("DMLC_TRACKER_URI");
-  std::string uri_str;
-  if (uri) {
-    uri_str = uri;
-  } else {
-    LOG(WARNING) << msg << " as `DMLC_TRACKER_URI` is not set up.";
-    return;
-  }
-
-  Json config{JsonObject()};
-  config["DMLC_TRACKER_PORT"] = port_str;
-  config["DMLC_TRACKER_URI"] = uri_str;
-  config["DMLC_NUM_WORKER"] = n_workers;
-  collective::Init(config);
-}
-
 template <typename Fn> void RunWithSeedsAndBins(size_t rows, Fn fn) {
   std::vector<int32_t> seeds(2);
   SimpleLCG lcg;

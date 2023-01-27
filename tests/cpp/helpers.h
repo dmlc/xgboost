@@ -1,8 +1,7 @@
 /**
  * Copyright 2016-2023 by XGBoost contributors
  */
-#ifndef XGBOOST_TESTS_CPP_HELPERS_H_
-#define XGBOOST_TESTS_CPP_HELPERS_H_
+#pragma once
 
 #include <gtest/gtest.h>
 #include <sys/stat.h>
@@ -16,8 +15,10 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <thread>
 #include <vector>
 
+#include "../../src/collective/communicator-inl.h"
 #include "../../src/common/common.h"
 #include "../../src/data/array_interface.h"
 #include "../../src/gbm/gbtree_model.h"
@@ -460,5 +461,25 @@ inline LearnerModelParam MakeMP(bst_feature_t n_features, float base_score, uint
   return mparam;
 }
 
+template <typename Function, typename... Args>
+void RunWithInMemoryCommunicator(int32_t world_size, Function&& function, Args&&... args) {
+  std::vector<std::thread> threads;
+  for (auto rank = 0; rank < world_size; rank++) {
+    threads.emplace_back([&, rank]() {
+      Json config{JsonObject()};
+      config["xgboost_communicator"] = String("in-memory");
+      config["in_memory_world_size"] = world_size;
+      config["in_memory_rank"] = rank;
+      xgboost::collective::Init(config);
+
+      std::forward<Function>(function)(std::forward<Args>(args)...);
+
+      xgboost::collective::Finalize();
+    });
+  }
+  for (auto& thread : threads) {
+    thread.join();
+  }
+}
+
 }  // namespace xgboost
-#endif
