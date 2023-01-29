@@ -119,28 +119,14 @@ def _metric_decorator(func: Callable) -> Metric:
 
     def inner(y_score: np.ndarray, dmatrix: DMatrix) -> Tuple[str, float]:
         y_true = dmatrix.get_label()
-        return func.__name__, func(y_true, y_score)
-
-    return inner
-
-def _sample_weight_metric_decorator(func: Callable) -> Metric:
-    """Decorate a metric function from sklearn.
-
-    Converts an metric function that uses the typical sklearn metric signature so that it
-    is compatible with :py:func:`train`
-
-    """
-
-    def inner(y_score: np.ndarray, dmatrix: DMatrix) -> Tuple[str, float]:
-        y_true = dmatrix.get_label()
-        sample_weight = dmatrix.get_weight()
-        try:
-            return func.__name__, func(y_true, y_score, sample_weight=sample_weight)
-        except TypeError:
-            #func has no sample_weight
+        weight = dmatrix.get_weight()
+        if weight.size == 0:
             return func.__name__, func(y_true, y_score)
+        else:
+            return func.__name__, func(y_true, y_score, sample_weight=weight)
 
     return inner
+
 
 __estimator_doc = """
     n_estimators : int
@@ -837,7 +823,6 @@ class XGBModel(XGBModelBase):
         params: Dict[str, Any],
         early_stopping_rounds: Optional[int],
         callbacks: Optional[Sequence[TrainingCallback]],
-        sample_weight_metric: Optional[bool],
     ) -> Tuple[
         Optional[Union[Booster, str, "XGBModel"]],
         Optional[Metric],
@@ -884,10 +869,7 @@ class XGBModel(XGBModelBase):
                 metric = eval_metric
             elif callable(eval_metric):
                 # Parameter from constructor or set_params
-                if sample_weight_metric:
-                    metric = _sample_weight_metric_decorator(eval_metric)
-                else:
-                    metric = _metric_decorator(eval_metric)
+                metric = _metric_decorator(eval_metric)
             else:
                 params.update({"eval_metric": eval_metric})
 
@@ -1051,7 +1033,7 @@ class XGBModel(XGBModelBase):
                 early_stopping_rounds,
                 callbacks,
             ) = self._configure_fit(
-                xgb_model, eval_metric, params, early_stopping_rounds, callbacks, sample_weight != None
+                xgb_model, eval_metric, params, early_stopping_rounds, callbacks
             )
             self._Booster = train(
                 params,
@@ -1497,7 +1479,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                 early_stopping_rounds,
                 callbacks,
             ) = self._configure_fit(
-                xgb_model, eval_metric, params, early_stopping_rounds, callbacks, sample_weight != None
+                xgb_model, eval_metric, params, early_stopping_rounds, callbacks
             )
             train_dmatrix, evals = _wrap_evaluation_matrices(
                 missing=self.missing,
@@ -1996,7 +1978,7 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
                 early_stopping_rounds,
                 callbacks,
             ) = self._configure_fit(
-                xgb_model, eval_metric, params, early_stopping_rounds, callbacks, sample_weight != None
+                xgb_model, eval_metric, params, early_stopping_rounds, callbacks
             )
             if callable(metric):
                 raise ValueError(
