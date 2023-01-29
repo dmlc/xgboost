@@ -10,14 +10,6 @@
 
 namespace xgboost {
 namespace common {
-/**
- * \brief Get thread limit from CFS
- *
- * Modified from
- * github.com/psiha/sweater/blob/master/include/boost/sweater/hardware_concurrency.hpp
- *
- * MIT License: Copyright (c) 2016 Domagoj Šarić
- */
 int32_t GetCfsCPUCount() noexcept {
 #if defined(__linux__)
   // https://bugs.openjdk.java.net/browse/JDK-8146115
@@ -46,6 +38,32 @@ int32_t GetCfsCPUCount() noexcept {
   }
 #endif  //  defined(__linux__)
   return -1;
+}
+
+/**
+ * \brief Get number of available threads based on n_threads specified by users.
+ */
+std::int32_t OmpGetNumThreads(std::int32_t n_threads) {
+  // Don't use parallel if we are in a parallel region.
+  if (omp_in_parallel()) {
+    return 1;
+  }
+  // If -1 or 0 is specified by the user, we default to maximum number of threads.
+  if (n_threads <= 0) {
+    n_threads = std::min(omp_get_num_procs(), omp_get_max_threads());
+  }
+  // Honor the openmp thread limit, which can be set via environment variable.
+  n_threads = std::min(n_threads, OmpGetThreadLimit());
+  n_threads = std::max(n_threads, 1);
+  return n_threads;
+}
+
+std::int32_t OmpGetNumThreads(std::int32_t n_threads, std::int32_t cfs_cpu_count) {
+  n_threads = common::OmpGetNumThreads(n_threads);
+  if (cfs_cpu_count > 0) {
+    n_threads = std::min(n_threads, cfs_cpu_count);
+  }
+  return n_threads;
 }
 }  // namespace common
 }  // namespace xgboost

@@ -1,11 +1,12 @@
-/*!
- * Copyright 2022 XGBoost contributors
+/**
+ * Copyright 2022-2023 XGBoost contributors
  */
 #include <gtest/gtest.h>
 
 #include "../../../src/data/adapter.h"
 #include "../../../src/data/simple_dmatrix.h"
 #include "../helpers.h"
+#include "xgboost/context.h"
 
 namespace xgboost {
 namespace {
@@ -50,7 +51,7 @@ class RegenTest : public ::testing::Test {
     auto dense = RandomDataGenerator{kRows, kCols, 0.5}.GenerateArrayInterface(&storage);
     auto adapter = data::ArrayAdapter(StringView{dense});
     p_fmat_ = std::shared_ptr<DMatrix>(new DMatrixForTest{
-        &adapter, std::numeric_limits<float>::quiet_NaN(), common::OmpGetNumThreads(0)});
+        &adapter, std::numeric_limits<float>::quiet_NaN(), AllThreadsForTest()});
 
     p_fmat_->Info().labels.Reshape(256, 1);
     auto labels = p_fmat_->Info().labels.Data();

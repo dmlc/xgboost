@@ -10,6 +10,7 @@
 #include <xgboost/context.h>
 #include <xgboost/json.h>
 
+#include <cstdint>
 #include <cstdio>
 #include <fstream>
 #include <iostream>
@@ -461,6 +462,8 @@ inline LearnerModelParam MakeMP(bst_feature_t n_features, float base_score, uint
   return mparam;
 }
 
+inline std::int32_t AllThreadsForTest() { return Context{}.Threads(); }
+
 template <typename Function, typename... Args>
 void RunWithInMemoryCommunicator(int32_t world_size, Function&& function, Args&&... args) {
   std::vector<std::thread> threads;
@@ -481,5 +484,4 @@ void RunWithInMemoryCommunicator(int32_t world_size, Function&& function, Args&&
     thread.join();
   }
 }
-
 }  // namespace xgboost

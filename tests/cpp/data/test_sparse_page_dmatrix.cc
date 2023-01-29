@@ -1,4 +1,6 @@
-// Copyright by Contributors
+/**
+ * Copyright 2016-2023 by XGBoost Contributors
+ */
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
 
@@ -22,13 +24,15 @@ void TestSparseDMatrixLoadFile() {
   CreateBigTestData(opath, 3 * 64, false);
   opath += "?indexing_mode=1";
   data::FileIterator iter{opath, 0, 1, "libsvm"};
+  auto n_threads = 0;
   data::SparsePageDMatrix m{&iter,
                             iter.Proxy(),
                             data::fileiter::Reset,
                             data::fileiter::Next,
                             std::numeric_limits<float>::quiet_NaN(),
-                            1,
+                            n_threads,
                             tmpdir.path + "cache"};
+  ASSERT_EQ(AllThreadsForTest(), m.Ctx()->Threads());
   ASSERT_EQ(m.Info().num_col_, 5);
   ASSERT_EQ(m.Info().num_row_, 64);
 
@@ -213,16 +217,13 @@ TEST(SparsePageDMatrix, ColAccessBatches) {
   size_t constexpr kEntries = kPageSize * kEntriesPerCol * 2;
   // Create multiple sparse pages
   std::unique_ptr<xgboost::DMatrix> dmat{xgboost::CreateSparsePageDMatrix(kEntries)};
-  auto n_threads = omp_get_max_threads();
-  omp_set_num_threads(16);
+  ASSERT_EQ(dmat->Ctx()->Threads(), AllThreadsForTest());
   for (auto const &page : dmat->GetBatches<xgboost::CSCPage>()) {
     ASSERT_EQ(dmat->Info().num_col_, page.Size());
   }
-  omp_set_num_threads(n_threads);
 }
 
 auto TestSparsePageDMatrixDeterminism(int32_t threads) {
-  omp_set_num_threads(threads);
   std::vector<float> sparse_data;
   std::vector<size_t> sparse_rptr;
   std::vector<bst_feature_t> sparse_cids;
@@ -231,16 +232,15 @@ auto TestSparsePageDMatrixDeterminism(int32_t threads) {
   CreateBigTestData(filename, 1 << 16);
 
   data::FileIterator iter(filename, 0, 1, "auto");
-  std::unique_ptr<DMatrix> sparse{new data::SparsePageDMatrix{
-      &iter, iter.Proxy(), data::fileiter::Reset, data::fileiter::Next,
-      std::numeric_limits<float>::quiet_NaN(), 1, filename}};
+  std::unique_ptr<DMatrix> sparse{
+      new data::SparsePageDMatrix{&iter, iter.Proxy(), data::fileiter::Reset, data::fileiter::Next,
+                                  std::numeric_limits<float>::quiet_NaN(), threads, filename}};
+  CHECK(sparse->Ctx()->Threads() == threads || sparse->Ctx()->Threads() == AllThreadsForTest());
 
   DMatrixToCSR(sparse.get(), &sparse_data, &sparse_rptr, &sparse_cids);
 
   auto cache_name =
-      data::MakeId(filename,
-                   dynamic_cast<data::SparsePageDMatrix *>(sparse.get())) +
-      ".row.page";
+      data::MakeId(filename, dynamic_cast<data::SparsePageDMatrix *>(sparse.get())) + ".row.page";
   std::string cache = common::LoadSequentialFile(cache_name);
   return cache;
 }

@@ -438,9 +438,9 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrix(size_t n_entries,
   size_t n_rows = n_entries / n_columns;
   NumpyArrayIterForTest iter(0, n_rows, n_columns, 2);
 
-  std::unique_ptr<DMatrix> dmat{DMatrix::Create(
-      static_cast<DataIterHandle>(&iter), iter.Proxy(), Reset, Next,
-      std::numeric_limits<float>::quiet_NaN(), omp_get_max_threads(), prefix)};
+  std::unique_ptr<DMatrix> dmat{
+      DMatrix::Create(static_cast<DataIterHandle>(&iter), iter.Proxy(), Reset, Next,
+                      std::numeric_limits<float>::quiet_NaN(), 0, prefix)};
   auto row_page_path =
       data::MakeId(prefix,
                    dynamic_cast<data::SparsePageDMatrix *>(dmat.get())) +

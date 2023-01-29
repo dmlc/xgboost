@@ -1,5 +1,5 @@
-/*!
- * Copyright 2021-2022 by XGBoost contributors
+/**
+ * Copyright 2021-2023 by XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/host_device_vector.h>
@@ -62,7 +62,6 @@ class TestPredictionCache : public ::testing::Test {
 
   void RunTest(std::string updater_name) {
     {
-      omp_set_num_threads(1);
       Context ctx;
       ctx.InitAllowUnknown(Args{{"nthread", "8"}});
       if (updater_name == "grow_gpu_hist") {

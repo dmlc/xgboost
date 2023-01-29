@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2022 by XGBoost Contributors
+ * Copyright 2014-2023 by XGBoost Contributors
  */
 #include <dmlc/common.h>
 #include <dmlc/omp.h>
@@ -115,7 +115,9 @@ XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat, SEXP missing, SEXP n_threads) {
     din = REAL(mat);
   }
   std::vector<float> data(nrow * ncol);
-  int32_t threads = xgboost::common::OmpGetNumThreads(asInteger(n_threads));
+  xgboost::Context ctx;
+  ctx.UpdateAllowUnknown(xgboost::Args{{"nthread", std::to_string(n_threads)}});
+  std::int32_t threads = ctx.Threads();
 
   xgboost::common::ParallelFor(nrow, threads, [&](xgboost::omp_ulong i) {
     for (size_t j = 0; j < ncol; ++j) {

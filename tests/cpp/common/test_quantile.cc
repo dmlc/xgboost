@@ -1,5 +1,5 @@
-/*!
- * Copyright 2020-2022 by XGBoost Contributors
+/**
+ * Copyright 2020-2023 by XGBoost Contributors
  */
 #include "test_quantile.h"
 
@@ -73,7 +73,7 @@ void DoTestDistributedQuantile(size_t rows, size_t cols) {
   auto hess = Span<float const>{hessian};
 
   ContainerType<use_column> sketch_distributed(n_bins, m->Info().feature_types.ConstHostSpan(),
-                                               column_size, false, OmpGetNumThreads(0));
+                                               column_size, false, AllThreadsForTest());
 
   if (use_column) {
     for (auto const& page : m->GetBatches<SortedCSCPage>()) {
@@ -94,7 +94,7 @@ void DoTestDistributedQuantile(size_t rows, size_t cols) {
   std::for_each(column_size.begin(), column_size.end(), [=](auto& size) { size *= world; });
   m->Info().num_row_ = world * rows;
   ContainerType<use_column> sketch_on_single_node(n_bins, m->Info().feature_types.ConstHostSpan(),
-                                                  column_size, false, OmpGetNumThreads(0));
+                                                  column_size, false, AllThreadsForTest());
   m->Info().num_row_ = rows;
 
   for (auto rank = 0; rank < world; ++rank) {
@@ -188,7 +188,7 @@ void TestSameOnAllWorkers() {
                      .MaxCategory(17)
                      .Seed(rank + seed)
                      .GenerateDMatrix();
-        auto cuts = SketchOnDMatrix(m.get(), n_bins, common::OmpGetNumThreads(0));
+        auto cuts = SketchOnDMatrix(m.get(), n_bins, AllThreadsForTest());
         std::vector<float> cut_values(cuts.Values().size() * world, 0);
         std::vector<
             typename std::remove_reference_t<decltype(cuts.Ptrs())>::value_type>
