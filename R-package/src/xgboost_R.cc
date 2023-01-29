@@ -116,7 +116,7 @@ XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat, SEXP missing, SEXP n_threads) {
   }
   std::vector<float> data(nrow * ncol);
   xgboost::Context ctx;
-  ctx.UpdateAllowUnknown(xgboost::Args{{"nthread", std::to_string(n_threads)}});
+  ctx.nthread = asInteger(n_threads);
   std::int32_t threads = ctx.Threads();
 
   xgboost::common::ParallelFor(nrow, threads, [&](xgboost::omp_ulong i) {
@@ -151,8 +151,9 @@ XGB_DLL SEXP XGDMatrixCreateFromCSC_R(SEXP indptr, SEXP indices, SEXP data,
   for (size_t i = 0; i < nindptr; ++i) {
     col_ptr_[i] = static_cast<size_t>(p_indptr[i]);
   }
-  int32_t threads = xgboost::common::OmpGetNumThreads(asInteger(n_threads));
-  xgboost::common::ParallelFor(ndata, threads, [&](xgboost::omp_ulong i) {
+  xgboost::Context ctx;
+  ctx.nthread = asInteger(n_threads);
+  xgboost::common::ParallelFor(ndata, ctx.Threads(), [&](xgboost::omp_ulong i) {
     indices_[i] = static_cast<unsigned>(p_indices[i]);
     data_[i] = static_cast<float>(p_data[i]);
   });

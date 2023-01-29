@@ -10,7 +10,6 @@
 #include <memory>
 
 #include "xgboost/base.h"
-#include "xgboost/context.h"
 #include "xgboost/data.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/learner.h"

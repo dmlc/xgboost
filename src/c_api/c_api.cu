@@ -7,7 +7,6 @@
 #include "c_api_error.h"
 #include "c_api_utils.h"
 #include "xgboost/c_api.h"
-#include "xgboost/context.h"
 #include "xgboost/data.h"
 #include "xgboost/json.h"
 #include "xgboost/learner.h"

@@ -52,7 +52,13 @@ void Context::ConfigureGpuId(bool require_gpu) {
   common::SetDevice(this->gpu_id);
 }
 
-std::int32_t Context::Threads() const { return common::OmpGetNumThreads(nthread, cfs_cpu_count_); }
+std::int32_t Context::Threads() const {
+  auto n_threads = common::OmpGetNumThreads(nthread);
+  if (cfs_cpu_count_ > 0) {
+    n_threads = std::min(n_threads, cfs_cpu_count_);
+  }
+  return n_threads;
+}
 
 #if !defined(XGBOOST_USE_CUDA)
 CUDAContext const* Context::CUDACtx() const {

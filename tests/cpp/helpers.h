@@ -10,7 +10,7 @@
 #include <xgboost/context.h>
 #include <xgboost/json.h>
 
-#include <cstdint>
+#include <cstdint>  // std::int32_t
 #include <cstdio>
 #include <fstream>
 #include <iostream>

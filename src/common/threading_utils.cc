@@ -1,5 +1,5 @@
-/*!
- * Copyright 2022 by XGBoost Contributors
+/**
+ * Copyright 2022-2023 by XGBoost Contributors
  */
 #include "threading_utils.h"
 
@@ -40,9 +40,6 @@ int32_t GetCfsCPUCount() noexcept {
   return -1;
 }
 
-/**
- * \brief Get number of available threads based on n_threads specified by users.
- */
 std::int32_t OmpGetNumThreads(std::int32_t n_threads) {
   // Don't use parallel if we are in a parallel region.
   if (omp_in_parallel()) {
@@ -55,14 +52,6 @@ std::int32_t OmpGetNumThreads(std::int32_t n_threads) {
   // Honor the openmp thread limit, which can be set via environment variable.
   n_threads = std::min(n_threads, OmpGetThreadLimit());
   n_threads = std::max(n_threads, 1);
-  return n_threads;
-}
-
-std::int32_t OmpGetNumThreads(std::int32_t n_threads, std::int32_t cfs_cpu_count) {
-  n_threads = common::OmpGetNumThreads(n_threads);
-  if (cfs_cpu_count > 0) {
-    n_threads = std::min(n_threads, cfs_cpu_count);
-  }
   return n_threads;
 }
 }  // namespace common

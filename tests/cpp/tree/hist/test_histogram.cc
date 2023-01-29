@@ -2,6 +2,7 @@
  * Copyright 2018-2023 by Contributors
  */
 #include <gtest/gtest.h>
+#include <xgboost/context.h>  // Context
 
 #include <limits>
 
@@ -11,7 +12,6 @@
 #include "../../../../src/tree/hist/histogram.h"
 #include "../../categorical_helpers.h"
 #include "../../helpers.h"
-#include "xgboost/context.h"  // Context
 
 namespace xgboost {
 namespace tree {

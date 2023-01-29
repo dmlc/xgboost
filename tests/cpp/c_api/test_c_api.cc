@@ -2,19 +2,20 @@
  * Copyright 2019-2023 XGBoost contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/version_config.h>
 #include <xgboost/c_api.h>
 #include <xgboost/data.h>
+#include <xgboost/json.h>  // Json
 #include <xgboost/learner.h>
-#include <cstddef>
-#include <limits>  // std::numeric_limits
+#include <xgboost/version_config.h>
+
+#include <cstddef>  // std::size_t
+#include <limits>   // std::numeric_limits
+#include <string>   // std::string
 #include <vector>
 
-#include "../helpers.h"
-#include "../../../src/common/io.h"
-
 #include "../../../src/c_api/c_api_error.h"
-#include "xgboost/json.h"
+#include "../../../src/common/io.h"
+#include "../helpers.h"
 
 TEST(CAPI, XGDMatrixCreateFromMatDT) {
   std::vector<int> col0 = {0, -1, 3};
