@@ -9,12 +9,14 @@
 #include "../../../../src/tree/hist/evaluate_splits.h"
 #include "../test_evaluate_splits.h"
 #include "../../helpers.h"
+#include "xgboost/context.h"  // Context
 
 namespace xgboost {
 namespace tree {
 void TestEvaluateSplits(bool force_read_by_column) {
+  Context ctx;
+  ctx.nthread = 4;
   int static constexpr kRows = 8, kCols = 16;
-  int32_t n_threads = std::min(omp_get_max_threads(), 4);
   auto sampler = std::make_shared<common::ColumnSampler>();
 
   TrainParam param;
@@ -22,7 +24,7 @@ void TestEvaluateSplits(bool force_read_by_column) {
 
   auto dmat = RandomDataGenerator(kRows, kCols, 0).Seed(3).GenerateDMatrix();
 
-  auto evaluator = HistEvaluator<CPUExpandEntry>{param, dmat->Info(), n_threads, sampler};
+  auto evaluator = HistEvaluator<CPUExpandEntry>{&ctx, param, dmat->Info(), sampler};
   common::HistCollection hist;
   std::vector<GradientPair> row_gpairs = {
       {1.23f, 0.24f}, {0.24f, 0.25f}, {0.26f, 0.27f},  {2.27f, 0.28f},
@@ -86,13 +88,15 @@ TEST(HistEvaluator, Evaluate) {
 }
 
 TEST(HistEvaluator, Apply) {
+  Context ctx;
+  ctx.nthread = 4;
   RegTree tree;
   int static constexpr kNRows = 8, kNCols = 16;
   TrainParam param;
   param.UpdateAllowUnknown(Args{{"min_child_weight", "0"}, {"reg_lambda", "0.0"}});
   auto dmat = RandomDataGenerator(kNRows, kNCols, 0).Seed(3).GenerateDMatrix();
   auto sampler = std::make_shared<common::ColumnSampler>();
-  auto evaluator_ = HistEvaluator<CPUExpandEntry>{param, dmat->Info(), 4, sampler};
+  auto evaluator_ = HistEvaluator<CPUExpandEntry>{&ctx, param, dmat->Info(), sampler};
 
   CPUExpandEntry entry{0, 0, 10.0f};
   entry.split.left_sum = GradStats{0.4, 0.6f};
@@ -115,10 +119,11 @@ TEST(HistEvaluator, Apply) {
 }
 
 TEST_F(TestPartitionBasedSplit, CPUHist) {
+  Context ctx;
   // check the evaluator is returning the optimal split
   std::vector<FeatureType> ft{FeatureType::kCategorical};
   auto sampler = std::make_shared<common::ColumnSampler>();
-  HistEvaluator<CPUExpandEntry> evaluator{param_, info_, AllThreadsForTest(), sampler};
+  HistEvaluator<CPUExpandEntry> evaluator{&ctx, param_, info_, sampler};
   evaluator.InitRoot(GradStats{total_gpair_});
   RegTree tree;
   std::vector<CPUExpandEntry> entries(1);
@@ -128,6 +133,7 @@ TEST_F(TestPartitionBasedSplit, CPUHist) {
 
 namespace {
 auto CompareOneHotAndPartition(bool onehot) {
+  Context ctx;
   int static constexpr kRows = 128, kCols = 1;
   std::vector<FeatureType> ft(kCols, FeatureType::kCategorical);
 
@@ -147,8 +153,7 @@ auto CompareOneHotAndPartition(bool onehot) {
       RandomDataGenerator(kRows, kCols, 0).Seed(3).Type(ft).MaxCategory(n_cats).GenerateDMatrix();
 
   auto sampler = std::make_shared<common::ColumnSampler>();
-  auto evaluator =
-      HistEvaluator<CPUExpandEntry>{param, dmat->Info(), AllThreadsForTest(), sampler};
+  auto evaluator = HistEvaluator<CPUExpandEntry>{&ctx, param, dmat->Info(), sampler};
   std::vector<CPUExpandEntry> entries(1);
 
   for (auto const &gmat : dmat->GetBatches<GHistIndexMatrix>({32, param.sparse_threshold})) {
@@ -198,8 +203,8 @@ TEST_F(TestCategoricalSplitWithMissing, HistEvaluator) {
   MetaInfo info;
   info.num_col_ = 1;
   info.feature_types = {FeatureType::kCategorical};
-  auto evaluator =
-      HistEvaluator<CPUExpandEntry>{param_, info, AllThreadsForTest(), sampler};
+  Context ctx;
+  auto evaluator = HistEvaluator<CPUExpandEntry>{&ctx, param_, info, sampler};
   evaluator.InitRoot(GradStats{parent_sum_});
 
   std::vector<CPUExpandEntry> entries(1);

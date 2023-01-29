@@ -2,16 +2,18 @@
 #include "../../../src/common/random.h"
 #include "../helpers.h"
 #include "gtest/gtest.h"
+#include "xgboost/context.h"  // Context
 
 namespace xgboost {
 namespace common {
 TEST(ColumnSampler, Test) {
+  Context ctx;
   int n = 128;
   ColumnSampler cs;
   std::vector<float> feature_weights;
 
   // No node sampling
-  cs.Init(n, feature_weights, 1.0f, 0.5f, 0.5f);
+  cs.Init(&ctx, n, feature_weights, 1.0f, 0.5f, 0.5f);
   auto set0 = cs.GetFeatureSet(0);
   ASSERT_EQ(set0->Size(), 32);
 
@@ -24,7 +26,7 @@ TEST(ColumnSampler, Test) {
   ASSERT_EQ(set2->Size(), 32);
 
   // Node sampling
-  cs.Init(n, feature_weights, 0.5f, 1.0f, 0.5f);
+  cs.Init(&ctx, n, feature_weights, 0.5f, 1.0f, 0.5f);
   auto set3 = cs.GetFeatureSet(0);
   ASSERT_EQ(set3->Size(), 32);
 
@@ -34,24 +36,25 @@ TEST(ColumnSampler, Test) {
   ASSERT_EQ(set4->Size(), 32);
 
   // No level or node sampling, should be the same at different depth
-  cs.Init(n, feature_weights, 1.0f, 1.0f, 0.5f);
+  cs.Init(&ctx, n, feature_weights, 1.0f, 1.0f, 0.5f);
   ASSERT_EQ(cs.GetFeatureSet(0)->HostVector(),
             cs.GetFeatureSet(1)->HostVector());
 
-  cs.Init(n, feature_weights, 1.0f, 1.0f, 1.0f);
+  cs.Init(&ctx, n, feature_weights, 1.0f, 1.0f, 1.0f);
   auto set5 = cs.GetFeatureSet(0);
   ASSERT_EQ(set5->Size(), n);
-  cs.Init(n, feature_weights, 1.0f, 1.0f, 1.0f);
+  cs.Init(&ctx, n, feature_weights, 1.0f, 1.0f, 1.0f);
   auto set6 = cs.GetFeatureSet(0);
   ASSERT_EQ(set5->HostVector(), set6->HostVector());
 
   // Should always be a minimum of one feature
-  cs.Init(n, feature_weights, 1e-16f, 1e-16f, 1e-16f);
+  cs.Init(&ctx, n, feature_weights, 1e-16f, 1e-16f, 1e-16f);
   ASSERT_EQ(cs.GetFeatureSet(0)->Size(), 1);
 }
 
 // Test if different threads using the same seed produce the same result
 TEST(ColumnSampler, ThreadSynchronisation) {
+  Context ctx;
   const int64_t num_threads = 100;
   int n = 128;
   size_t iterations = 10;
@@ -63,7 +66,7 @@ TEST(ColumnSampler, ThreadSynchronisation) {
   {
     for (auto j = 0ull; j < iterations; j++) {
       ColumnSampler cs(j);
-      cs.Init(n, feature_weights, 0.5f, 0.5f, 0.5f);
+      cs.Init(&ctx, n, feature_weights, 0.5f, 0.5f, 0.5f);
       for (auto level = 0ull; level < levels; level++) {
         auto result = cs.GetFeatureSet(level)->ConstHostVector();
 #pragma omp single
@@ -80,11 +83,12 @@ TEST(ColumnSampler, ThreadSynchronisation) {
 
 TEST(ColumnSampler, WeightedSampling) {
   auto test_basic = [](int first) {
+    Context ctx;
     std::vector<float> feature_weights(2);
     feature_weights[0] = std::abs(first - 1.0f);
     feature_weights[1] = first - 0.0f;
     ColumnSampler cs{0};
-    cs.Init(2, feature_weights, 1.0, 1.0, 0.5);
+    cs.Init(&ctx, 2, feature_weights, 1.0, 1.0, 0.5);
     auto feature_sets = cs.GetFeatureSet(0);
     auto const &h_feat_set = feature_sets->HostVector();
     ASSERT_EQ(h_feat_set.size(), 1);
@@ -100,7 +104,8 @@ TEST(ColumnSampler, WeightedSampling) {
   SimpleRealUniformDistribution<float> dist(.0f, 12.0f);
   std::generate(feature_weights.begin(), feature_weights.end(), [&]() { return dist(&rng); });
   ColumnSampler cs{0};
-  cs.Init(kCols, feature_weights, 0.5f, 1.0f, 1.0f);
+  Context ctx;
+  cs.Init(&ctx, kCols, feature_weights, 0.5f, 1.0f, 1.0f);
   std::vector<bst_feature_t> features(kCols);
   std::iota(features.begin(), features.end(), 0);
   std::vector<float> freq(kCols, 0);
@@ -135,7 +140,8 @@ TEST(ColumnSampler, WeightedMultiSampling) {
   }
   ColumnSampler cs{0};
   float bytree{0.5}, bylevel{0.5}, bynode{0.5};
-  cs.Init(feature_weights.size(), feature_weights, bytree, bylevel, bynode);
+  Context ctx;
+  cs.Init(&ctx, feature_weights.size(), feature_weights, bytree, bylevel, bynode);
   auto feature_set = cs.GetFeatureSet(0);
   size_t n_sampled = kCols * bytree * bylevel * bynode;
   ASSERT_EQ(feature_set->Size(), n_sampled);

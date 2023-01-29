@@ -243,7 +243,7 @@ struct GPUHistMakerDevice {
   // thread safe
   void Reset(HostDeviceVector<GradientPair>* dh_gpair, DMatrix* dmat, int64_t num_columns) {
     auto const& info = dmat->Info();
-    this->column_sampler.Init(num_columns, info.feature_weights.HostVector(),
+    this->column_sampler.Init(ctx_, num_columns, info.feature_weights.HostVector(),
                               param.colsample_bynode, param.colsample_bylevel,
                               param.colsample_bytree);
     dh::safe_cuda(cudaSetDevice(ctx_->gpu_id));

@@ -290,8 +290,7 @@ void QuantileHistMaker::Builder::InitData(DMatrix *fmat, const RegTree &tree,
 
   // store a pointer to the tree
   p_last_tree_ = &tree;
-  evaluator_.reset(
-      new HistEvaluator<CPUExpandEntry>{param_, info, this->ctx_->Threads(), column_sampler_});
+  evaluator_.reset(new HistEvaluator<CPUExpandEntry>{ctx_, param_, info, column_sampler_});
 
   monitor_->Stop(__func__);
 }

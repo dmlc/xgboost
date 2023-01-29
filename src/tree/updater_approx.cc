@@ -171,7 +171,7 @@ class GloablApproxBuilder {
                                common::Monitor *monitor)
       : param_{std::move(param)},
         col_sampler_{std::move(column_sampler)},
-        evaluator_{param_, info, ctx->Threads(), col_sampler_},
+        evaluator_{ctx, param_, info, col_sampler_},
         ctx_{ctx},
         task_{task},
         monitor_{monitor} {}

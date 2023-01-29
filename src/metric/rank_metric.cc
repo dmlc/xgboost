@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "../collective/communicator-inl.h"
+#include "../common/algorithm.h"  // Sort
 #include "../common/math.h"
 #include "../common/ranking_utils.h"  // MakeMetricName
 #include "../common/threading_utils.h"
@@ -113,7 +114,7 @@ struct EvalAMS : public MetricNoCache {
     const auto &h_preds = preds.ConstHostVector();
     common::ParallelFor(ndata, ctx_->Threads(),
                         [&](bst_omp_uint i) { rec[i] = std::make_pair(h_preds[i], i); });
-    XGBOOST_PARALLEL_SORT(rec.begin(), rec.end(), common::CmpFirst);
+    common::Sort(ctx_, rec.begin(), rec.end(), common::CmpFirst);
     auto ntop = static_cast<unsigned>(ratio_ * ndata);
     if (ntop == 0) ntop = ndata;
     const double br = 10.0;
@@ -330,7 +331,7 @@ struct EvalCox : public MetricNoCache {
     using namespace std;  // NOLINT(*)
 
     const auto ndata = static_cast<bst_omp_uint>(info.labels.Size());
-    const auto &label_order = info.LabelAbsSort();
+    const auto &label_order = info.LabelAbsSort(ctx_);
 
     // pre-compute a sum for the denominator
     double exp_p_sum = 0;  // we use double because we might need the precision with large datasets
