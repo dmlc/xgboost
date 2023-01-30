@@ -672,7 +672,7 @@ xgb.config <- function(object) {
   if (is.null(names(p)) || any(nchar(names(p)) == 0)) {
     stop("parameter names cannot be empty strings")
   }
-  names(p) <- gsub("\\.", "_", names(p))
+  names(p) <- gsub(".", "_", names(p), fixed = TRUE)
   p <- lapply(p, function(x) as.character(x)[1])
   handle <- xgb.get.handle(object)
   for (i in seq_along(p)) {

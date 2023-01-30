@@ -87,7 +87,7 @@ For that purpose, we will:
 ```{r classToIntegers}
 # Convert from classes to numbers
 y <- train[, nameLastCol, with = FALSE][[1]] %>%
-    gsub('Class_', '', .) %>%
+    gsub('Class_', '', ., fixed = TRUE) %>%
     as.integer %>%
     subtract(., 1)
 

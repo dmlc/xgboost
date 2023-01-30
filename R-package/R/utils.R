@@ -38,11 +38,11 @@ check.booster.params <- function(params, ...) {
     stop("params must be a list")
 
   # in R interface, allow for '.' instead of '_' in parameter names
-  names(params) <- gsub("\\.", "_", names(params))
+  names(params) <- gsub(".", "_", names(params), fixed = TRUE)
 
   # merge parameters from the params and the dots-expansion
   dot_params <- list(...)
-  names(dot_params) <- gsub("\\.", "_", names(dot_params))
+  names(dot_params) <- gsub(".", "_", names(dot_params), fixed = TRUE)
   if (length(intersect(names(params),
                        names(dot_params))) > 0)
     stop("Same parameters in 'params' and in the call are not allowed. Please check your 'params' list.")
