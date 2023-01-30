@@ -11,7 +11,7 @@ defaults:
 
 jobs:
   python-mypy-lint:
-    runs-on: ubuntu-
+    runs-on: ubuntu-latest
     name: Type and format checks for the Python package
     strategy:
       matrix:
