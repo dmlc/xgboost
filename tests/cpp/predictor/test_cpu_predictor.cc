@@ -1,9 +1,13 @@
-/*!
- * Copyright 2017-2022 XGBoost contributors
+/**
+ * Copyright 2017-2023 by XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/predictor.h>
 
+#include <cstdint>
+#include <thread>
+
+#include "../../../src/collective/communicator-inl.h"
 #include "../../../src/data/adapter.h"
 #include "../../../src/data/proxy_dmatrix.h"
 #include "../../../src/gbm/gbtree.h"
@@ -86,6 +90,42 @@ TEST(CpuPredictor, Basic) {
   }
 }
 
+namespace {
+void TestColumnSplitPredictBatch() {
+  size_t constexpr kRows = 5;
+  size_t constexpr kCols = 5;
+  auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
+  auto const world_size = collective::GetWorldSize();
+  auto const rank = collective::GetRank();
+  auto const kSliceSize = (kCols + 1) / world_size;
+
+  auto lparam = CreateEmptyGenericParam(GPUIDX);
+  std::unique_ptr<Predictor> cpu_predictor =
+      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &lparam));
+
+  LearnerModelParam mparam{MakeMP(kCols, .0, 1)};
+
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{});
+  gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx);
+
+  // Test predict batch
+  PredictionCacheEntry out_predictions;
+  cpu_predictor->InitOutPredictions(dmat->Info(), &out_predictions.predictions, model);
+  auto sliced = std::unique_ptr<DMatrix>{dmat->SliceCol(rank * kSliceSize, kSliceSize)};
+  cpu_predictor->PredictBatch(sliced.get(), &out_predictions, model, 0);
+
+  std::vector<float>& out_predictions_h = out_predictions.predictions.HostVector();
+  for (size_t i = 0; i < out_predictions.predictions.Size(); i++) {
+    ASSERT_EQ(out_predictions_h[i], 1.5);
+  }
+}
+}  // anonymous namespace
+
+TEST(CpuPredictor, ColumnSplit) {
+  auto constexpr kWorldSize = 2;
+  RunWithInMemoryCommunicator(kWorldSize, TestColumnSplitPredictBatch);
+}
 
 TEST(CpuPredictor, IterationRange) {
   TestIterationRange("cpu_predictor");

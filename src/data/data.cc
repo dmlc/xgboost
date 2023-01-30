@@ -1,5 +1,5 @@
-/*!
- * Copyright 2015-2022 by XGBoost Contributors
+/**
+ * Copyright 2015-2023 by XGBoost Contributors
  * \file data.cc
  */
 #include "xgboost/data.h"
@@ -27,6 +27,7 @@
 #include "sparse_page_writer.h"
 #include "validation.h"
 #include "xgboost/c_api.h"
+#include "xgboost/context.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/learner.h"
 #include "xgboost/logging.h"
@@ -850,7 +851,8 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
       std::unique_ptr<dmlc::Parser<uint32_t>> parser(
           dmlc::Parser<uint32_t>::Create(fname.c_str(), partid, npart, file_format.c_str()));
       data::FileAdapter adapter(parser.get());
-      dmat = DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1, cache_file);
+      dmat = DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), Context{}.Threads(),
+                             cache_file);
     } else {
       data::FileIterator iter{fname, static_cast<uint32_t>(partid), static_cast<uint32_t>(npart),
                               file_format};

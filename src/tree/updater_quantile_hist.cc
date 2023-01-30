@@ -1,5 +1,5 @@
-/*!
- * Copyright 2017-2022 by XGBoost Contributors
+/**
+ * Copyright 2017-2023 by XGBoost Contributors
  * \file updater_quantile_hist.cc
  * \brief use quantized feature values to construct a tree
  * \author Philip Cho, Tianqi Checn, Egor Smirnov
@@ -7,6 +7,7 @@
 #include "./updater_quantile_hist.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <utility>
@@ -14,9 +15,11 @@
 
 #include "common_row_partitioner.h"
 #include "constraints.h"
-#include "hist/histogram.h"
 #include "hist/evaluate_splits.h"
+#include "hist/histogram.h"
+#include "hist/sampler.h"
 #include "param.h"
+#include "xgboost/linalg.h"
 #include "xgboost/logging.h"
 #include "xgboost/tree_updater.h"
 
@@ -257,43 +260,6 @@ bool QuantileHistMaker::Builder::UpdatePredictionCache(DMatrix const *data,
   return true;
 }
 
-void QuantileHistMaker::Builder::InitSampling(const DMatrix &fmat,
-                                              std::vector<GradientPair> *gpair) {
-  monitor_->Start(__func__);
-  const auto &info = fmat.Info();
-  auto& rnd = common::GlobalRandom();
-  std::vector<GradientPair>& gpair_ref = *gpair;
-
-#if XGBOOST_CUSTOMIZE_GLOBAL_PRNG
-  std::bernoulli_distribution coin_flip(param_.subsample);
-  for (size_t i = 0; i < info.num_row_; ++i) {
-    if (!(gpair_ref[i].GetHess() >= 0.0f && coin_flip(rnd)) || gpair_ref[i].GetGrad() == 0.0f) {
-      gpair_ref[i] = GradientPair(0);
-    }
-  }
-#else
-  uint64_t initial_seed = rnd();
-
-  auto n_threads = static_cast<size_t>(ctx_->Threads());
-  const size_t discard_size = info.num_row_ / n_threads;
-  std::bernoulli_distribution coin_flip(param_.subsample);
-
-  dmlc::OMPException exc;
-  #pragma omp parallel num_threads(n_threads)
-  {
-    exc.Run([&]() {
-      const size_t tid = omp_get_thread_num();
-      const size_t ibegin = tid * discard_size;
-      const size_t iend = (tid == (n_threads - 1)) ? info.num_row_ : ibegin + discard_size;
-      RandomReplace::MakeIf([&](size_t i, RandomReplace::EngineT& eng) {
-        return !(gpair_ref[i].GetHess() >= 0.0f && coin_flip(eng));
-      }, GradientPair(0), initial_seed, ibegin, iend, &gpair_ref);
-    });
-  }
-  exc.Rethrow();
-#endif  // XGBOOST_CUSTOMIZE_GLOBAL_PRNG
-  monitor_->Stop(__func__);
-}
 size_t QuantileHistMaker::Builder::GetNumberOfTrees() { return n_trees_; }
 
 void QuantileHistMaker::Builder::InitData(DMatrix *fmat, const RegTree &tree,
@@ -317,12 +283,9 @@ void QuantileHistMaker::Builder::InitData(DMatrix *fmat, const RegTree &tree,
     histogram_builder_->Reset(n_total_bins, HistBatch(param_), ctx_->Threads(), page_id,
                               collective::IsDistributed());
 
-    if (param_.subsample < 1.0f) {
-      CHECK_EQ(param_.sampling_method, TrainParam::kUniform)
-          << "Only uniform sampling is supported, "
-          << "gradient-based sampling is only support by GPU Hist.";
-      InitSampling(*fmat, gpair);
-    }
+    auto m_gpair =
+        linalg::MakeTensorView(*gpair, {gpair->size(), static_cast<std::size_t>(1)}, ctx_->gpu_id);
+    SampleGradient(ctx_, param_, m_gpair);
   }
 
   // store a pointer to the tree

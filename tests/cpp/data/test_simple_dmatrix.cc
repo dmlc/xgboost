@@ -411,3 +411,14 @@ TEST(SimpleDMatrix, SaveLoadBinary) {
   delete dmat;
   delete dmat_read;
 }
+
+TEST(SimpleDMatrix, Threads) {
+  size_t constexpr kRows{16};
+  size_t constexpr kCols{8};
+  HostDeviceVector<float> data;
+  auto arr_str = RandomDataGenerator{kRows, kCols, 0.0}.GenerateArrayInterface(&data);
+  auto adapter = data::ArrayAdapter{StringView{arr_str}};
+  std::unique_ptr<DMatrix> p_fmat{
+      DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 0, "")};
+  ASSERT_EQ(p_fmat->Ctx()->Threads(), AllThreadsForTest());
+}

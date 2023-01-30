@@ -1,4 +1,6 @@
-// Copyright (c) 2014-2022 by Contributors
+/**
+ * Copyright 2014-2023 by XGBoost Contributors
+ */
 #include <rabit/c_api.h>
 
 #include <cstring>
@@ -279,7 +281,7 @@ XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy
   auto jconfig = Json::Load(StringView{config});
   auto missing = GetMissing(jconfig);
   std::string cache = RequiredArg<String>(jconfig, "cache_prefix", __func__);
-  auto n_threads = OptionalArg<Integer, int64_t>(jconfig, "nthread", common::OmpGetNumThreads(0));
+  auto n_threads = OptionalArg<Integer, int64_t>(jconfig, "nthread", 0);
 
   xgboost_CHECK_C_ARG_PTR(next);
   xgboost_CHECK_C_ARG_PTR(reset);
@@ -319,7 +321,7 @@ XGB_DLL int XGQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHand
   xgboost_CHECK_C_ARG_PTR(config);
   auto jconfig = Json::Load(StringView{config});
   auto missing = GetMissing(jconfig);
-  auto n_threads = OptionalArg<Integer, int64_t>(jconfig, "nthread", common::OmpGetNumThreads(0));
+  auto n_threads = OptionalArg<Integer, int64_t>(jconfig, "nthread", 0);
   auto max_bin = OptionalArg<Integer, int64_t>(jconfig, "max_bin", 256);
 
   xgboost_CHECK_C_ARG_PTR(next);
@@ -420,7 +422,7 @@ XGB_DLL int XGDMatrixCreateFromCSR(char const *indptr, char const *indices, char
   xgboost_CHECK_C_ARG_PTR(c_json_config);
   auto config = Json::Load(StringView{c_json_config});
   float missing = GetMissing(config);
-  auto n_threads = OptionalArg<Integer, int64_t>(config, "nthread", common::OmpGetNumThreads(0));
+  auto n_threads = OptionalArg<Integer, int64_t>(config, "nthread", 0);
   xgboost_CHECK_C_ARG_PTR(out);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
   API_END();
@@ -435,10 +437,9 @@ XGB_DLL int XGDMatrixCreateFromDense(char const *data,
   xgboost_CHECK_C_ARG_PTR(c_json_config);
   auto config = Json::Load(StringView{c_json_config});
   float missing = GetMissing(config);
-  auto n_threads = OptionalArg<Integer, int64_t>(config, "nthread", common::OmpGetNumThreads(0));
+  auto n_threads = OptionalArg<Integer, int64_t>(config, "nthread", 0);
   xgboost_CHECK_C_ARG_PTR(out);
-  *out =
-      new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
   API_END();
 }
 
@@ -506,8 +507,7 @@ XGB_DLL int XGDMatrixCreateFromArrowCallback(XGDMatrixCallbackNext *next, char c
   auto jconfig = Json::Load(StringView{config});
   auto missing = GetMissing(jconfig);
   auto n_batches = RequiredArg<Integer>(jconfig, "nbatch", __func__);
-  auto n_threads =
-      OptionalArg<Integer, std::int64_t>(jconfig, "nthread", common::OmpGetNumThreads(0));
+  auto n_threads = OptionalArg<Integer, std::int64_t>(jconfig, "nthread", 0);
   data::RecordBatchesIterAdapter adapter(next, n_batches);
   xgboost_CHECK_C_ARG_PTR(out);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));

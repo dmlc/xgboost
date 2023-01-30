@@ -11,7 +11,7 @@ sys.path.append("tests/python")
 import test_quantile_dmatrix as tqd
 
 
-class TestDeviceQuantileDMatrix:
+class TestQuantileDMatrix:
     cputest = tqd.TestQuantileDMatrix()
 
     @pytest.mark.skipif(**tm.no_cupy())
@@ -32,7 +32,7 @@ class TestDeviceQuantileDMatrix:
     def test_dmatrix_cupy_init(self) -> None:
         import cupy as cp
         data = cp.random.randn(5, 5)
-        xgb.DeviceQuantileDMatrix(data, cp.ones(5, dtype=np.float64))
+        xgb.QuantileDMatrix(data, cp.ones(5, dtype=np.float64))
 
     @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.parametrize(
@@ -85,7 +85,7 @@ class TestDeviceQuantileDMatrix:
         fw = rng.randn(rows)
         fw -= fw.min()
 
-        m = xgb.DeviceQuantileDMatrix(data=data, label=labels, feature_weights=fw)
+        m = xgb.QuantileDMatrix(data=data, label=labels, feature_weights=fw)
 
         got_fw = m.get_float_info("feature_weights")
         got_labels = m.get_label()

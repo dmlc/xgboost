@@ -321,6 +321,10 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
     if (is.null(evnames) || any(evnames == ""))
       stop("each element of the watchlist must have a name tag")
   }
+  # Handle multiple evaluation metrics given as a list
+  for (m in params$eval_metric) {
+    params <- c(params, list(eval_metric = m))
+  }
 
   # evaluation printing callback
   params <- c(params)

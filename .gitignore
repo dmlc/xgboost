@@ -143,3 +143,9 @@ demo/**/*.txt
 .hypothesis
 __MACOSX/
 model*.json
+
+# R tests
+*.libsvm
+*.rds
+Rplots.pdf
+*.zip

@@ -1,5 +1,5 @@
-/*!
- * Copyright 2018-2019 by Contributors
+/**
+ * Copyright 2018-2023 by XGBoost Contributors
  * \author Rory Mitchell
  */
 
@@ -202,8 +202,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     auto f = [=] __device__(size_t idx) {
       auto entry = d_col[idx];
       auto g = d_gpair[entry.index * num_group + group_idx];
-      return GradientPair(g.GetGrad() * entry.fvalue,
-                          g.GetHess() * entry.fvalue * entry.fvalue);
+      return GradientPair{g.GetGrad() * entry.fvalue, g.GetHess() * entry.fvalue * entry.fvalue};
     };  // NOLINT
     thrust::transform_iterator<decltype(f), decltype(counting), GradientPair>
         multiply_iterator(counting, f);

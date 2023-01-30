@@ -1,5 +1,5 @@
-/*!
- * Copyright 2020 XGBoost contributors
+/**
+ * Copyright 2020-2023 by XGBoost contributors
  */
 // When device ordinal is present, we would want to build the metrics on the GPU. It is *not*
 // possible for a valid device ordinal to be present for non GPU builds. However, it is possible
@@ -110,7 +110,7 @@ struct EvalAMS : public Metric {
     PredIndPairContainer rec(ndata);
 
     const auto &h_preds = preds.ConstHostVector();
-    common::ParallelFor(ndata, tparam_->Threads(),
+    common::ParallelFor(ndata, ctx_->Threads(),
                         [&](bst_omp_uint i) { rec[i] = std::make_pair(h_preds[i], i); });
     XGBOOST_PARALLEL_SORT(rec.begin(), rec.end(), common::CmpFirst);
     auto ntop = static_cast<unsigned>(ratio_ * ndata);
@@ -178,24 +178,24 @@ struct EvalRank : public Metric, public EvalRankConfig {
     double sum_metric = 0.0f;
 
     // Check and see if we have the GPU metric registered in the internal registry
-    if (tparam_->gpu_id >= 0) {
+    if (ctx_->gpu_id >= 0) {
       if (!rank_gpu_) {
-        rank_gpu_.reset(GPUMetric::CreateGPUMetric(this->Name(), tparam_));
+        rank_gpu_.reset(GPUMetric::CreateGPUMetric(this->Name(), ctx_));
       }
       if (rank_gpu_) {
         sum_metric = rank_gpu_->Eval(preds, info);
       }
     }
 
-    CHECK(tparam_);
-    std::vector<double> sum_tloc(tparam_->Threads(), 0.0);
+    CHECK(ctx_);
+    std::vector<double> sum_tloc(ctx_->Threads(), 0.0);
 
-    if (!rank_gpu_ || tparam_->gpu_id < 0) {
+    if (!rank_gpu_ || ctx_->gpu_id < 0) {
       const auto& labels = info.labels.View(Context::kCpuId);
       const auto &h_preds = preds.ConstHostVector();
 
       dmlc::OMPException exc;
-#pragma omp parallel num_threads(tparam_->Threads())
+#pragma omp parallel num_threads(ctx_->Threads())
       {
         exc.Run([&]() {
           // each thread takes a local rec

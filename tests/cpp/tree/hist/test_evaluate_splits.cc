@@ -1,5 +1,5 @@
-/*!
- * Copyright 2021-2022 by XGBoost Contributors
+/**
+ * Copyright 2021-2023 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/base.h>
@@ -14,9 +14,7 @@ namespace xgboost {
 namespace tree {
 void TestEvaluateSplits(bool force_read_by_column) {
   int static constexpr kRows = 8, kCols = 16;
-  auto orig = omp_get_max_threads();
   int32_t n_threads = std::min(omp_get_max_threads(), 4);
-  omp_set_num_threads(n_threads);
   auto sampler = std::make_shared<common::ColumnSampler>();
 
   TrainParam param;
@@ -32,7 +30,7 @@ void TestEvaluateSplits(bool force_read_by_column) {
 
   size_t constexpr kMaxBins = 4;
   // dense, no missing values
-  GHistIndexMatrix gmat(dmat.get(), kMaxBins, 0.5, false, common::OmpGetNumThreads(0));
+  GHistIndexMatrix gmat(dmat.get(), kMaxBins, 0.5, false, AllThreadsForTest());
   common::RowSetCollection row_set_collection;
   std::vector<size_t> &row_indices = *row_set_collection.Data();
   row_indices.resize(kRows);
@@ -80,8 +78,6 @@ void TestEvaluateSplits(bool force_read_by_column) {
       right.SetSubstract(GradStats{total_gpair}, left);
     }
   }
-
-  omp_set_num_threads(orig);
 }
 
 TEST(HistEvaluator, Evaluate) {
@@ -122,7 +118,7 @@ TEST_F(TestPartitionBasedSplit, CPUHist) {
   // check the evaluator is returning the optimal split
   std::vector<FeatureType> ft{FeatureType::kCategorical};
   auto sampler = std::make_shared<common::ColumnSampler>();
-  HistEvaluator<CPUExpandEntry> evaluator{param_, info_, common::OmpGetNumThreads(0), sampler};
+  HistEvaluator<CPUExpandEntry> evaluator{param_, info_, AllThreadsForTest(), sampler};
   evaluator.InitRoot(GradStats{total_gpair_});
   RegTree tree;
   std::vector<CPUExpandEntry> entries(1);
@@ -152,7 +148,7 @@ auto CompareOneHotAndPartition(bool onehot) {
 
   auto sampler = std::make_shared<common::ColumnSampler>();
   auto evaluator =
-      HistEvaluator<CPUExpandEntry>{param, dmat->Info(), common::OmpGetNumThreads(0), sampler};
+      HistEvaluator<CPUExpandEntry>{param, dmat->Info(), AllThreadsForTest(), sampler};
   std::vector<CPUExpandEntry> entries(1);
 
   for (auto const &gmat : dmat->GetBatches<GHistIndexMatrix>({32, param.sparse_threshold})) {
@@ -203,7 +199,7 @@ TEST_F(TestCategoricalSplitWithMissing, HistEvaluator) {
   info.num_col_ = 1;
   info.feature_types = {FeatureType::kCategorical};
   auto evaluator =
-      HistEvaluator<CPUExpandEntry>{param_, info, common::OmpGetNumThreads(0), sampler};
+      HistEvaluator<CPUExpandEntry>{param_, info, AllThreadsForTest(), sampler};
   evaluator.InitRoot(GradStats{parent_sum_});
 
   std::vector<CPUExpandEntry> entries(1);

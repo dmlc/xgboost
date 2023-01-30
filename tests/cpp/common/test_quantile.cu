@@ -338,12 +338,9 @@ TEST(GPUQuantile, MultiMerge) {
   });
 }
 
-TEST(GPUQuantile, AllReduceBasic) {
-  // This test is supposed to run by a python test that setups the environment.
-  std::string msg {"Skipping AllReduce test"};
-  auto n_gpus = AllVisibleGPUs();
-  InitCommunicatorContext(msg, n_gpus);
-  auto world = collective::GetWorldSize();
+namespace {
+void TestAllReduceBasic(int32_t n_gpus) {
+  auto const world = collective::GetWorldSize();
   if (world != 1) {
     ASSERT_EQ(world, n_gpus);
   } else {
@@ -420,13 +417,16 @@ TEST(GPUQuantile, AllReduceBasic) {
       ASSERT_NEAR(single_node_data[i].wmin, distributed_data[i].wmin, Eps);
     }
   });
-  collective::Finalize();
+}
+}  // anonymous namespace
+
+TEST(GPUQuantile, AllReduceBasic) {
+  auto const n_gpus = AllVisibleGPUs();
+  RunWithInMemoryCommunicator(n_gpus, TestAllReduceBasic, n_gpus);
 }
 
-TEST(GPUQuantile, SameOnAllWorkers) {
-  std::string msg {"Skipping SameOnAllWorkers test"};
-  auto n_gpus = AllVisibleGPUs();
-  InitCommunicatorContext(msg, n_gpus);
+namespace {
+void TestSameOnAllWorkers(int32_t n_gpus) {
   auto world = collective::GetWorldSize();
   if (world != 1) {
     ASSERT_EQ(world, n_gpus);
@@ -489,6 +489,12 @@ TEST(GPUQuantile, SameOnAllWorkers) {
       offset += size_as_float;
     }
   });
+}
+}  // anonymous namespace
+
+TEST(GPUQuantile, SameOnAllWorkers) {
+  auto const n_gpus = AllVisibleGPUs();
+  RunWithInMemoryCommunicator(n_gpus, TestSameOnAllWorkers, n_gpus);
 }
 
 TEST(GPUQuantile, Push) {

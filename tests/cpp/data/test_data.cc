@@ -1,5 +1,5 @@
-/*!
- * Copyright 2019-2022 by XGBoost Contributors
+/**
+ * Copyright 2019-2023 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
 
@@ -70,14 +70,14 @@ TEST(SparsePage, PushCSCAfterTranspose) {
   SparsePage page; // Consolidated sparse page
   for (const auto &batch : dmat->GetBatches<xgboost::SparsePage>()) {
     // Transpose each batch and push
-    SparsePage tmp = batch.GetTranspose(ncols, common::OmpGetNumThreads(0));
+    SparsePage tmp = batch.GetTranspose(ncols, AllThreadsForTest());
     page.PushCSC(tmp);
   }
 
   // Make sure that the final sparse page has the right number of entries
   ASSERT_EQ(kEntries, page.data.Size());
 
-  page.SortRows(common::OmpGetNumThreads(0));
+  page.SortRows(AllThreadsForTest());
   auto v = page.GetView();
   for (size_t i = 0; i < v.Size(); ++i) {
     auto column = v[i];
@@ -89,7 +89,7 @@ TEST(SparsePage, PushCSCAfterTranspose) {
 
 TEST(SparsePage, SortIndices) {
   auto p_fmat = RandomDataGenerator{100, 10, 0.6}.GenerateDMatrix();
-  auto n_threads = common::OmpGetNumThreads(0);
+  auto n_threads = AllThreadsForTest();
   SparsePage copy;
   for (auto const& page : p_fmat->GetBatches<SparsePage>()) {
     ASSERT_TRUE(page.IsIndicesSorted(n_threads));

@@ -70,7 +70,7 @@ test_that("xgb.DMatrix: saving, loading", {
 
   # from a libsvm text file
   tmp <- c("0 1:1 2:1", "1 3:1", "0 1:1")
-  tmp_file <- 'tmp.libsvm'
+  tmp_file <- tempfile(fileext = ".libsvm")
   writeLines(tmp, tmp_file)
   dtest4 <- xgb.DMatrix(tmp_file, silent = TRUE)
   expect_equal(dim(dtest4), c(3, 4))
@@ -161,4 +161,57 @@ test_that("xgb.DMatrix: nrow is correct for a very sparse matrix", {
   expect_lt(max(x@i), nr)
   dtest <- xgb.DMatrix(x)
   expect_equal(dim(dtest), dim(x))
+})
+
+test_that("xgb.DMatrix: print", {
+    data(agaricus.train, package = 'xgboost')
+
+    # core DMatrix with just data and labels
+    dtrain <- xgb.DMatrix(
+        data = agaricus.train$data
+        , label = agaricus.train$label
+    )
+    txt <- capture.output({
+        print(dtrain)
+    })
+    expect_equal(txt, "xgb.DMatrix  dim: 6513 x 126  info: label  colnames: yes")
+
+    # verbose=TRUE prints feature names
+    txt <- capture.output({
+        print(dtrain, verbose = TRUE)
+    })
+    expect_equal(txt[[1L]], "xgb.DMatrix  dim: 6513 x 126  info: label  colnames:")
+    expect_equal(txt[[2L]], sprintf("'%s'", paste(colnames(dtrain), collapse = "','")))
+
+    # DMatrix with weights and base_margin
+    dtrain <- xgb.DMatrix(
+        data = agaricus.train$data
+        , label = agaricus.train$label
+        , weight = seq_along(agaricus.train$label)
+        , base_margin = agaricus.train$label
+    )
+    txt <- capture.output({
+        print(dtrain)
+    })
+    expect_equal(txt, "xgb.DMatrix  dim: 6513 x 126  info: label weight base_margin  colnames: yes")
+
+    # DMatrix with just features
+    dtrain <- xgb.DMatrix(
+        data = agaricus.train$data
+    )
+    txt <- capture.output({
+        print(dtrain)
+    })
+    expect_equal(txt, "xgb.DMatrix  dim: 6513 x 126  info: NA  colnames: yes")
+
+    # DMatrix with no column names
+    data_no_colnames <- agaricus.train$data
+    colnames(data_no_colnames) <- NULL
+    dtrain <- xgb.DMatrix(
+        data = data_no_colnames
+    )
+    txt <- capture.output({
+        print(dtrain)
+    })
+    expect_equal(txt, "xgb.DMatrix  dim: 6513 x 126  info: NA  colnames: no")
 })

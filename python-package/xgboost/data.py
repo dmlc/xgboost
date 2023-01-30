@@ -52,14 +52,6 @@ def _warn_unused_missing(data: DataType, missing: Optional[FloatCompatible]) -> 
         )
 
 
-def _check_complex(data: DataType) -> None:
-    '''Test whether data is complex using `dtype` attribute.'''
-    complex_dtypes = (np.complex128, np.complex64,
-                      np.cfloat, np.cdouble, np.clongdouble)
-    if hasattr(data, 'dtype') and data.dtype in complex_dtypes:
-        raise ValueError('Complex data not supported')
-
-
 def _check_data_shape(data: DataType) -> None:
     if hasattr(data, "shape") and len(data.shape) != 2:
         raise ValueError("Please reshape the input data into 2-dimensional matrix.")
@@ -84,6 +76,21 @@ def _array_interface(data: np.ndarray) -> bytes:
     return interface_str
 
 
+def _transform_scipy_csr(data: DataType) -> DataType:
+    from scipy.sparse import csr_matrix
+
+    indptr, _ = _ensure_np_dtype(data.indptr, data.indptr.dtype)
+    indices, _ = _ensure_np_dtype(data.indices, data.indices.dtype)
+    values, _ = _ensure_np_dtype(data.data, data.data.dtype)
+    if (
+        indptr is not data.indptr
+        or indices is not data.indices
+        or values is not data.data
+    ):
+        data = csr_matrix((values, indices, indptr), shape=data.shape)
+    return data
+
+
 def _from_scipy_csr(
     data: DataType,
     missing: FloatCompatible,
@@ -97,18 +104,14 @@ def _from_scipy_csr(
             f"length mismatch: {len(data.indices)} vs {len(data.data)}"
         )
     handle = ctypes.c_void_p()
-    args = {
-        "missing": float(missing),
-        "nthread": int(nthread),
-    }
-    config = bytes(json.dumps(args), "utf-8")
+    data = _transform_scipy_csr(data)
     _check_call(
         _LIB.XGDMatrixCreateFromCSR(
             _array_interface(data.indptr),
             _array_interface(data.indices),
             _array_interface(data.data),
             c_bst_ulong(data.shape[1]),
-            config,
+            make_jcargs(missing=float(missing), nthread=int(nthread)),
             ctypes.byref(handle),
         )
     )
@@ -157,12 +160,13 @@ def _is_numpy_array(data: DataType) -> bool:
 
 
 def _ensure_np_dtype(
-    data: DataType,
-    dtype: Optional[NumpyDType]
+    data: DataType, dtype: Optional[NumpyDType]
 ) -> Tuple[np.ndarray, Optional[NumpyDType]]:
     if data.dtype.hasobject or data.dtype in [np.float16, np.bool_]:
-        data = data.astype(np.float32, copy=False)
         dtype = np.float32
+        data = data.astype(dtype, copy=False)
+    if not data.flags.aligned:
+        data = np.require(data, requirements="A")
     return data, dtype
 
 
@@ -1088,15 +1092,6 @@ def dispatch_data_backend(
     raise TypeError('Not supported type for data.' + str(type(data)))
 
 
-def _to_data_type(dtype: str, name: str) -> int:
-    dtype_map = {'float32': 1, 'float64': 2, 'uint32': 3, 'uint64': 4}
-    if dtype not in dtype_map:
-        raise TypeError(
-            f'Expecting float32, float64, uint32, uint64, got {dtype} ' +
-            f'for {name}.')
-    return dtype_map[dtype]
-
-
 def _validate_meta_shape(data: DataType, name: str) -> None:
     if hasattr(data, "shape"):
         msg = f"Invalid shape: {data.shape} for {name}"
@@ -1251,7 +1246,10 @@ class SingleBatchInternalIter(DataIter):  # pylint: disable=R0902
     def __init__(self, **kwargs: Any) -> None:
         self.kwargs = kwargs
         self.it = 0             # pylint: disable=invalid-name
-        super().__init__()
+
+        # This does not necessarily increase memory usage as the data transformation
+        # might use memory.
+        super().__init__(release_data=False)
 
     def next(self, input_data: Callable) -> int:
         if self.it == 1:
@@ -1290,6 +1288,7 @@ def _proxy_transform(
         data, _ = _ensure_np_dtype(data, data.dtype)
         return data, None, feature_names, feature_types
     if _is_scipy_csr(data):
+        data = _transform_scipy_csr(data)
         return data, None, feature_names, feature_types
     if _is_pandas_series(data):
         import pandas as pd
@@ -1310,7 +1309,7 @@ def dispatch_proxy_set_data(
     cat_codes: Optional[list],
     allow_host: bool,
 ) -> None:
-    """Dispatch for DeviceQuantileDMatrix."""
+    """Dispatch for QuantileDMatrix."""
     if not _is_cudf_ser(data) and not _is_pandas_series(data):
         _check_data_shape(data)
 

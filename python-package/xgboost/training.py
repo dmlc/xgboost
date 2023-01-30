@@ -28,9 +28,7 @@ from .core import (
 _CVFolds = Sequence["CVPack"]
 
 
-def _assert_new_callback(
-    callbacks: Optional[Sequence[TrainingCallback]]
-) -> None:
+def _assert_new_callback(callbacks: Optional[Sequence[TrainingCallback]]) -> None:
     is_new_callback: bool = not callbacks or all(
         isinstance(c, TrainingCallback) for c in callbacks
     )
@@ -45,7 +43,9 @@ def _configure_custom_metric(
     feval: Optional[Metric], custom_metric: Optional[Metric]
 ) -> Optional[Metric]:
     if feval is not None:
-        link = "https://xgboost.readthedocs.io/en/latest/tutorials/custom_metric_obj.html"
+        link = (
+            "https://xgboost.readthedocs.io/en/latest/tutorials/custom_metric_obj.html"
+        )
         warnings.warn(
             "`feval` is deprecated, use `custom_metric` instead.  They have "
             "different behavior when custom objective is also used."
@@ -175,9 +175,7 @@ def train(
         verbose_eval = 1 if verbose_eval is True else verbose_eval
         callbacks.append(EvaluationMonitor(period=verbose_eval))
     if early_stopping_rounds:
-        callbacks.append(
-            EarlyStopping(rounds=early_stopping_rounds, maximize=maximize)
-        )
+        callbacks.append(EarlyStopping(rounds=early_stopping_rounds, maximize=maximize))
     cb_container = CallbackContainer(
         callbacks,
         metric=metric_fn,
@@ -536,13 +534,9 @@ def cv(
 
     if verbose_eval:
         verbose_eval = 1 if verbose_eval is True else verbose_eval
-        callbacks.append(
-            EvaluationMonitor(period=verbose_eval, show_stdv=show_stdv)
-        )
+        callbacks.append(EvaluationMonitor(period=verbose_eval, show_stdv=show_stdv))
     if early_stopping_rounds:
-        callbacks.append(
-            EarlyStopping(rounds=early_stopping_rounds, maximize=maximize)
-        )
+        callbacks.append(EarlyStopping(rounds=early_stopping_rounds, maximize=maximize))
     callbacks_container = CallbackContainer(
         callbacks,
         metric=metric_fn,

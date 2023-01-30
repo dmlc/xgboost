@@ -1,5 +1,5 @@
-/*!
- * Copyright 2021-2022 XGBoost contributors
+/**
+ * Copyright 2021-2023 by XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
@@ -46,7 +46,7 @@ TEST(GradientIndex, FromCategoricalBasic) {
   h_ft.resize(kCols, FeatureType::kCategorical);
 
   BatchParam p(max_bins, 0.8);
-  GHistIndexMatrix gidx(m.get(), max_bins, p.sparse_thresh, false, common::OmpGetNumThreads(0), {});
+  GHistIndexMatrix gidx(m.get(), max_bins, p.sparse_thresh, false, AllThreadsForTest(), {});
 
   auto x_copy = x;
   std::sort(x_copy.begin(), x_copy.end());
@@ -75,7 +75,7 @@ TEST(GradientIndex, PushBatch) {
 
   auto test = [&](float sparisty) {
     auto m = RandomDataGenerator{kRows, kCols, sparisty}.GenerateDMatrix(true);
-    auto cuts = common::SketchOnDMatrix(m.get(), max_bins, common::OmpGetNumThreads(0), false, {});
+    auto cuts = common::SketchOnDMatrix(m.get(), max_bins, AllThreadsForTest(), false, {});
     common::HistogramCuts copy_cuts = cuts;
 
     ASSERT_EQ(m->Info().num_row_, kRows);

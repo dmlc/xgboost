@@ -1,5 +1,5 @@
-/*!
- * Copyright 2019-2021 by Contributors
+/**
+ * Copyright 2019-2023 by XGBoost Contributors
  * \file array_interface.h
  * \brief View of __array_interface__
  */
@@ -7,9 +7,11 @@
 #define XGBOOST_DATA_ARRAY_INTERFACE_H_
 
 #include <algorithm>
-#include <cinttypes>
+#include <cstddef>  // std::size_t
+#include <cstdint>
 #include <map>
 #include <string>
+#include <type_traits>  // std::alignment_of,std::remove_pointer_t
 #include <utility>
 #include <vector>
 
@@ -400,6 +402,11 @@ class ArrayInterface {
 
     data = ArrayInterfaceHandler::ExtractData(array, n);
     static_assert(allow_mask ? D == 1 : D >= 1, "Masked ndarray is not supported.");
+
+    auto alignment = this->ElementAlignment();
+    auto ptr = reinterpret_cast<uintptr_t>(this->data);
+    CHECK_EQ(ptr % alignment, 0) << "Input pointer misalignment.";
+
     if (allow_mask) {
       common::Span<RBitField8::value_type> s_mask;
       size_t n_bits = ArrayInterfaceHandler::ExtractMask(array, &s_mask);
@@ -532,9 +539,15 @@ class ArrayInterface {
     return func(reinterpret_cast<uint64_t const *>(data));
   }
 
-  XGBOOST_DEVICE size_t ElementSize() {
-    return this->DispatchCall(
-        [](auto *p_values) { return sizeof(std::remove_pointer_t<decltype(p_values)>); });
+  XGBOOST_DEVICE std::size_t ElementSize() const {
+    return this->DispatchCall([](auto *typed_data_ptr) {
+      return sizeof(std::remove_pointer_t<decltype(typed_data_ptr)>);
+    });
+  }
+  XGBOOST_DEVICE std::size_t ElementAlignment() const {
+    return this->DispatchCall([](auto *typed_data_ptr) {
+      return std::alignment_of<std::remove_pointer_t<decltype(typed_data_ptr)>>::value;
+    });
   }
 
   template <typename T = float, typename... Index>
