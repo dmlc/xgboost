@@ -642,6 +642,7 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
 
 class DaskQuantileDMatrix(DaskDMatrix):
     """A dask version of :py:class:`QuantileDMatrix`."""
+
     @_deprecate_positional_args
     def __init__(
         self,
