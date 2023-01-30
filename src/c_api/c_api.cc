@@ -56,12 +56,15 @@ void XGBBuildInfoDevice(Json *p_info) {
   info["USE_NCCL"] = Boolean{false};
   info["USE_RMM"] = Boolean{false};
 }
+}  // namespace xgboost
+#endif
+
+namespace {
 void DeprecatedFunc(StringView old, StringView since, StringView replacement) {
   LOG(WARNING) << "`" << old << "` is deprecated since" << since << ", use `" << replacement
                << "` instead.";
 }
-}  // namespace xgboost
-#endif
+}  // anonymous namespace
 
 XGB_DLL int XGBuildInfo(char const **out) {
   API_BEGIN();
