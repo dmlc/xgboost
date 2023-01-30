@@ -1480,6 +1480,25 @@ class TestWithDask:
             quantile_hist["Valid"]["rmse"], dmatrix_hist["Valid"]["rmse"]
         )
 
+    def test_empty_quantile_dmatrix(self, client: Client) -> None:
+        X, y = make_categorical(client, 2, 30, 13)
+        X_valid, y_valid = make_categorical(client, 100000, 30, 13)
+        X_valid, y_valid, _ = deterministic_repartition(client, X_valid, y_valid, None)
+
+        Xy = xgb.dask.DaskQuantileDMatrix(client, X, y, enable_categorical=True)
+        Xy_valid = xgb.dask.DaskQuantileDMatrix(
+            client, X_valid, y_valid, ref=Xy, enable_categorical=True
+        )
+        booster = xgb.dask.train(
+            client,
+            {"tree_method": "hist"},
+            Xy,
+            num_boost_round=10,
+            evals=[(Xy_valid, "Valid")],
+        )
+        predt = xgb.dask.inplace_predict(client, booster, X).compute()
+        np.testing.assert_allclose(y.compute(), predt)
+
     @given(params=hist_parameter_strategy, dataset=tm.dataset_strategy)
     @settings(
         deadline=None, max_examples=10, suppress_health_check=suppress, print_blob=True
