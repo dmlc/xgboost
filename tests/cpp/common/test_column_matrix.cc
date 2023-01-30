@@ -1,5 +1,5 @@
-/*!
- * Copyright 2018-2022 by XGBoost Contributors
+/**
+ * Copyright 2018-2023 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
 
@@ -18,11 +18,10 @@ TEST(DenseColumn, Test) {
   for (int32_t max_num_bin : max_num_bins) {
     auto dmat = RandomDataGenerator(100, 10, 0.0).GenerateDMatrix();
     auto sparse_thresh = 0.2;
-    GHistIndexMatrix gmat{dmat.get(), max_num_bin, sparse_thresh, false,
-                          common::OmpGetNumThreads(0)};
+    GHistIndexMatrix gmat{dmat.get(), max_num_bin, sparse_thresh, false, AllThreadsForTest()};
     ColumnMatrix column_matrix;
     for (auto const& page : dmat->GetBatches<SparsePage>()) {
-      column_matrix.InitFromSparse(page, gmat, sparse_thresh, common::OmpGetNumThreads(0));
+      column_matrix.InitFromSparse(page, gmat, sparse_thresh, AllThreadsForTest());
     }
     ASSERT_GE(column_matrix.GetTypeSize(), last);
     ASSERT_LE(column_matrix.GetTypeSize(), kUint32BinsTypeSize);
@@ -65,10 +64,10 @@ TEST(SparseColumn, Test) {
                             static_cast<int32_t>(std::numeric_limits<uint16_t>::max()) + 2};
   for (int32_t max_num_bin : max_num_bins) {
     auto dmat = RandomDataGenerator(100, 1, 0.85).GenerateDMatrix();
-    GHistIndexMatrix gmat{dmat.get(), max_num_bin, 0.5f, false, common::OmpGetNumThreads(0)};
+    GHistIndexMatrix gmat{dmat.get(), max_num_bin, 0.5f, false, AllThreadsForTest()};
     ColumnMatrix column_matrix;
     for (auto const& page : dmat->GetBatches<SparsePage>()) {
-      column_matrix.InitFromSparse(page, gmat, 1.0, common::OmpGetNumThreads(0));
+      column_matrix.InitFromSparse(page, gmat, 1.0, AllThreadsForTest());
     }
     common::DispatchBinType(column_matrix.GetTypeSize(), [&](auto dtype) {
       using T = decltype(dtype);
@@ -93,10 +92,10 @@ TEST(DenseColumnWithMissing, Test) {
                             static_cast<int32_t>(std::numeric_limits<uint16_t>::max()) + 2};
   for (int32_t max_num_bin : max_num_bins) {
     auto dmat = RandomDataGenerator(100, 1, 0.5).GenerateDMatrix();
-    GHistIndexMatrix gmat(dmat.get(), max_num_bin, 0.2, false, common::OmpGetNumThreads(0));
+    GHistIndexMatrix gmat(dmat.get(), max_num_bin, 0.2, false, AllThreadsForTest());
     ColumnMatrix column_matrix;
     for (auto const& page : dmat->GetBatches<SparsePage>()) {
-      column_matrix.InitFromSparse(page, gmat, 0.2, common::OmpGetNumThreads(0));
+      column_matrix.InitFromSparse(page, gmat, 0.2, AllThreadsForTest());
     }
     ASSERT_TRUE(column_matrix.AnyMissing());
     DispatchBinType(column_matrix.GetTypeSize(), [&](auto dtype) {

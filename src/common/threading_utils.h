@@ -1,5 +1,5 @@
-/*!
- * Copyright 2019-2022 by XGBoost Contributors
+/**
+ * Copyright 2019-2023 by XGBoost Contributors
  */
 #ifndef XGBOOST_COMMON_THREADING_UTILS_H_
 #define XGBOOST_COMMON_THREADING_UTILS_H_
@@ -231,23 +231,28 @@ void ParallelFor(Index size, int32_t n_threads, Func fn) {
   ParallelFor(size, n_threads, Sched::Static(), fn);
 }
 
-inline int32_t OmpGetThreadLimit() {
-  int32_t limit = omp_get_thread_limit();
+inline std::int32_t OmpGetThreadLimit() {
+  std::int32_t limit = omp_get_thread_limit();
   CHECK_GE(limit, 1) << "Invalid thread limit for OpenMP.";
   return limit;
 }
 
-int32_t GetCfsCPUCount() noexcept;
+/**
+ * \brief Get thread limit from CFS.
+ *
+ *   This function has non-trivial overhead and should not be called repeatly.
+ *
+ * Modified from
+ * github.com/psiha/sweater/blob/master/include/boost/sweater/hardware_concurrency.hpp
+ *
+ * MIT License: Copyright (c) 2016 Domagoj Šarić
+ */
+std::int32_t GetCfsCPUCount() noexcept;
 
-inline int32_t OmpGetNumThreads(int32_t n_threads) {
-  if (n_threads <= 0) {
-    n_threads = std::min(omp_get_num_procs(), omp_get_max_threads());
-  }
-  n_threads = std::min(n_threads, OmpGetThreadLimit());
-  n_threads = std::max(n_threads, 1);
-  return n_threads;
-}
-
+/**
+ * \brief Get the number of available threads based on n_threads specified by users.
+ */
+std::int32_t OmpGetNumThreads(std::int32_t n_threads);
 
 /*!
  * \brief A C-style array with in-stack allocation. As long as the array is smaller than

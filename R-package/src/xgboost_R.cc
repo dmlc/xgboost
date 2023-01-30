@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2022 by XGBoost Contributors
+ * Copyright 2014-2023 by XGBoost Contributors
  */
 #include <dmlc/common.h>
 #include <dmlc/omp.h>
@@ -115,7 +115,9 @@ XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat, SEXP missing, SEXP n_threads) {
     din = REAL(mat);
   }
   std::vector<float> data(nrow * ncol);
-  int32_t threads = xgboost::common::OmpGetNumThreads(asInteger(n_threads));
+  xgboost::Context ctx;
+  ctx.nthread = asInteger(n_threads);
+  std::int32_t threads = ctx.Threads();
 
   xgboost::common::ParallelFor(nrow, threads, [&](xgboost::omp_ulong i) {
     for (size_t j = 0; j < ncol; ++j) {
@@ -149,8 +151,9 @@ XGB_DLL SEXP XGDMatrixCreateFromCSC_R(SEXP indptr, SEXP indices, SEXP data,
   for (size_t i = 0; i < nindptr; ++i) {
     col_ptr_[i] = static_cast<size_t>(p_indptr[i]);
   }
-  int32_t threads = xgboost::common::OmpGetNumThreads(asInteger(n_threads));
-  xgboost::common::ParallelFor(ndata, threads, [&](xgboost::omp_ulong i) {
+  xgboost::Context ctx;
+  ctx.nthread = asInteger(n_threads);
+  xgboost::common::ParallelFor(ndata, ctx.Threads(), [&](xgboost::omp_ulong i) {
     indices_[i] = static_cast<unsigned>(p_indices[i]);
     data_[i] = static_cast<float>(p_data[i]);
   });

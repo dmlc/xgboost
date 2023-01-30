@@ -1,16 +1,21 @@
-/*!
- * Copyright 2019-2022 XGBoost contributors
+/**
+ * Copyright 2019-2023 XGBoost contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/version_config.h>
 #include <xgboost/c_api.h>
 #include <xgboost/data.h>
+#include <xgboost/json.h>  // Json
 #include <xgboost/learner.h>
+#include <xgboost/version_config.h>
 
-#include "../helpers.h"
-#include "../../../src/common/io.h"
+#include <cstddef>  // std::size_t
+#include <limits>   // std::numeric_limits
+#include <string>   // std::string
+#include <vector>
 
 #include "../../../src/c_api/c_api_error.h"
+#include "../../../src/common/io.h"
+#include "../helpers.h"
 
 TEST(CAPI, XGDMatrixCreateFromMatDT) {
   std::vector<int> col0 = {0, -1, 3};
@@ -81,6 +86,39 @@ TEST(CAPI, Version) {
   int patch {0};
   XGBoostVersion(NULL, NULL, &patch);  // NOLINT
   ASSERT_EQ(patch, XGBOOST_VER_PATCH);
+}
+
+TEST(CAPI, XGDMatrixCreateFromCSR) {
+  HostDeviceVector<std::size_t> indptr{0, 3};
+  HostDeviceVector<double> data{0.0, 1.0, 2.0};
+  HostDeviceVector<std::size_t> indices{0, 1, 2};
+  auto indptr_arr = GetArrayInterface(&indptr, 2, 1);
+  auto indices_arr = GetArrayInterface(&indices, 3, 1);
+  auto data_arr = GetArrayInterface(&data, 3, 1);
+  std::string sindptr, sindices, sdata, sconfig;
+  Json::Dump(indptr_arr, &sindptr);
+  Json::Dump(indices_arr, &sindices);
+  Json::Dump(data_arr, &sdata);
+  Json config{Object{}};
+  config["missing"] = Number{std::numeric_limits<float>::quiet_NaN()};
+  Json::Dump(config, &sconfig);
+
+  DMatrixHandle handle;
+  XGDMatrixCreateFromCSR(sindptr.c_str(), sindices.c_str(), sdata.c_str(), 3, sconfig.c_str(),
+                         &handle);
+  bst_ulong n;
+  ASSERT_EQ(XGDMatrixNumRow(handle, &n), 0);
+  ASSERT_EQ(n, 1);
+  ASSERT_EQ(XGDMatrixNumCol(handle, &n), 0);
+  ASSERT_EQ(n, 3);
+  ASSERT_EQ(XGDMatrixNumNonMissing(handle, &n), 0);
+  ASSERT_EQ(n, 3);
+
+  std::shared_ptr<xgboost::DMatrix> *pp_fmat =
+      static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
+  ASSERT_EQ((*pp_fmat)->Ctx()->Threads(), AllThreadsForTest());
+
+  XGDMatrixFree(handle);
 }
 
 TEST(CAPI, ConfigIO) {
