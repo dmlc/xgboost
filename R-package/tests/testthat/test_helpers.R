@@ -63,7 +63,7 @@ test_that("xgb.dump works", {
   dmp <- xgb.dump(bst.Tree, dump_format = "json")
   expect_length(dmp, 1)
   if (!flag_32bit)
-    expect_length(grep('nodeid', strsplit(dmp, '\n')[[1]]), 188)
+    expect_length(grep('nodeid', strsplit(dmp, '\n', fixed = TRUE)[[1]], fixed = TRUE), 188)
 })
 
 test_that("xgb.dump works for gblinear", {
@@ -80,7 +80,7 @@ test_that("xgb.dump works for gblinear", {
   # JSON format
   dmp <- xgb.dump(bst.GLM.sp, dump_format = "json")
   expect_length(dmp, 1)
-  expect_length(grep('\\d', strsplit(dmp, '\n')[[1]]), 11)
+  expect_length(grep('\\d', strsplit(dmp, '\n', fixed = TRUE)[[1]]), 11)
 })
 
 test_that("predict leafs works", {
@@ -231,9 +231,9 @@ test_that("xgb-attribute functionality", {
   expect_null(xgb.attributes(bst))
 })
 
-if (grepl('Windows', Sys.info()[['sysname']]) ||
-    grepl('Linux', Sys.info()[['sysname']]) ||
-    grepl('Darwin', Sys.info()[['sysname']])) {
+if (grepl('Windows', Sys.info()[['sysname']], fixed = TRUE) ||
+    grepl('Linux', Sys.info()[['sysname']], fixed = TRUE) ||
+    grepl('Darwin', Sys.info()[['sysname']], fixed = TRUE)) {
     test_that("xgb-attribute numeric precision", {
       .skip_if_vcd_not_available()
       # check that lossless conversion works with 17 digits
@@ -293,9 +293,9 @@ test_that("xgb.model.dt.tree works with and without feature names", {
 
   # using integer node ID instead of character
   dt.tree.int <- xgb.model.dt.tree(model = bst.Tree, use_int_id = TRUE)
-  expect_equal(as.integer(data.table::tstrsplit(dt.tree$Yes, '-')[[2]]), dt.tree.int$Yes)
-  expect_equal(as.integer(data.table::tstrsplit(dt.tree$No, '-')[[2]]), dt.tree.int$No)
-  expect_equal(as.integer(data.table::tstrsplit(dt.tree$Missing, '-')[[2]]), dt.tree.int$Missing)
+  expect_equal(as.integer(data.table::tstrsplit(dt.tree$Yes, '-', fixed = TRUE)[[2]]), dt.tree.int$Yes)
+  expect_equal(as.integer(data.table::tstrsplit(dt.tree$No, '-', fixed = TRUE)[[2]]), dt.tree.int$No)
+  expect_equal(as.integer(data.table::tstrsplit(dt.tree$Missing, '-', fixed = TRUE)[[2]]), dt.tree.int$Missing)
 })
 
 test_that("xgb.model.dt.tree throws error for gblinear", {

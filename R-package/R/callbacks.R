@@ -114,7 +114,7 @@ cb.evaluation.log <- function() {
     if (is.null(mnames) || any(mnames == ""))
       stop("bst_evaluation must have non-empty names")
 
-    mnames <<- gsub('-', '_', names(env$bst_evaluation))
+    mnames <<- gsub('-', '_', names(env$bst_evaluation), fixed = TRUE)
     if (!is.null(env$bst_evaluation_err))
       mnames <<- c(paste0(mnames, '_mean'), paste0(mnames, '_std'))
   }
@@ -185,7 +185,7 @@ cb.reset.parameters <- function(new_params) {
 
   if (typeof(new_params) != "list")
     stop("'new_params' must be a list")
-  pnames <- gsub("\\.", "_", names(new_params))
+  pnames <- gsub(".", "_", names(new_params), fixed = TRUE)
   nrounds <- NULL
 
   # run some checks in the beginning
@@ -300,9 +300,9 @@ cb.early.stop <- function(stopping_rounds, maximize = FALSE,
     if (length(env$bst_evaluation) == 0)
       stop("For early stopping, watchlist must have at least one element")
 
-    eval_names <- gsub('-', '_', names(env$bst_evaluation))
+    eval_names <- gsub('-', '_', names(env$bst_evaluation), fixed = TRUE)
     if (!is.null(metric_name)) {
-      metric_idx <<- which(gsub('-', '_', metric_name) == eval_names)
+      metric_idx <<- which(gsub('-', '_', metric_name, fixed = TRUE) == eval_names)
       if (length(metric_idx) == 0)
         stop("'metric_name' for early stopping is not one of the following:\n",
              paste(eval_names, collapse = ' '), '\n')

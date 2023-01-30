@@ -7,7 +7,7 @@ train <- train[, -1]
 test <- test[, -1]
 
 y <- train[, ncol(train)]
-y <- gsub('Class_', '', y)
+y <- gsub('Class_', '', y, fixed = TRUE)
 y <- as.integer(y) - 1  # xgboost take features in [0,numOfClass)
 
 x <- rbind(train[, -ncol(train)], test)

@@ -79,9 +79,9 @@ end_of_table <- empty_lines[empty_lines > start_index][1L]
 
 # Read the contents of the table
 exported_symbols <- objdump_results[(start_index + 1L):end_of_table]
-exported_symbols <- gsub("\t", "", exported_symbols)
+exported_symbols <- gsub("\t", "", exported_symbols, fixed = TRUE)
 exported_symbols <- gsub(".*\\] ", "", exported_symbols)
-exported_symbols <- gsub(" ", "", exported_symbols)
+exported_symbols <- gsub(" ", "", exported_symbols, fixed = TRUE)
 
 # Write R.def file
 writeLines(
