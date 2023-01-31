@@ -5,6 +5,10 @@ on: [push, pull_request]
 permissions:
   contents: read # to fetch code (actions/checkout)
 
+defaults:
+  run:
+    shell: bash -l {0}
+
 jobs:
   python-mypy-lint:
     runs-on: ubuntu-latest
@@ -23,20 +27,16 @@ jobs:
         environment-name: python_lint
         environment-file: tests/ci_build/conda_env/python_lint.yml
     - name: Display Conda env
-      shell: bash -l {0}
       run: |
         conda info
         conda list
     - name: Run mypy
-      shell: bash -l {0}
       run: |
         python tests/ci_build/lint_python.py --format=0 --type-check=1 --pylint=0
     - name: Run formatter
-      shell: bash -l {0}
       run: |
         python tests/ci_build/lint_python.py --format=1 --type-check=0 --pylint=0
     - name: Run pylint
-      shell: bash -l {0}
       run: |
         python tests/ci_build/lint_python.py --format=0 --type-check=0 --pylint=1
 
@@ -58,12 +58,10 @@ jobs:
         environment-name: sdist_test
         environment-file: tests/ci_build/conda_env/sdist_test.yml
     - name: Display Conda env
-      shell: bash -l {0}
       run: |
         conda info
         conda list
     - name: Build and install XGBoost
-      shell: bash -l {0}
       run: |
         cd python-package
         python --version
@@ -95,12 +93,10 @@ jobs:
         python-version: ${{ matrix.python-version }}
         activate-environment: test
     - name: Display Conda env
-      shell: bash -l {0}
       run: |
         conda info
         conda list
     - name: Build and install XGBoost
-      shell: bash -l {0}
       run: |
         cd python-package
         python --version
@@ -131,13 +127,11 @@ jobs:
         environment-file: tests/ci_build/conda_env/macos_cpu_test.yml
 
     - name: Display Conda env
-      shell: bash -l {0}
       run: |
         conda info
         conda list
 
     - name: Build XGBoost on macos
-      shell: bash -l {0}
       run: |
         brew install ninja
 
@@ -150,19 +144,16 @@ jobs:
         ninja
 
     - name: Install Python package
-      shell: bash -l {0}
       run: |
         cd python-package
         python --version
         python setup.py install
 
     - name: Test Python package
-      shell: bash -l {0}
       run: |
         pytest -s -v -rxXs --durations=0 ./tests/python
 
     - name: Test Dask Interface
-      shell: bash -l {0}
       run: |
         pytest -s -v -rxXs --durations=0 ./tests/test_distributed/test_with_dask
 
@@ -188,13 +179,11 @@ jobs:
         environment-file: tests/ci_build/conda_env/win64_cpu_test.yml
 
     - name: Display Conda env
-      shell: bash -l {0}
       run: |
         conda info
         conda list
 
     - name: Build XGBoost on Windows
-      shell: bash -l {0}
       run: |
         mkdir build_msvc
         cd build_msvc
@@ -202,7 +191,6 @@ jobs:
         cmake --build . --config Release --parallel $(nproc)
 
     - name: Install Python package
-      shell: bash -l {0}
       run: |
         cd python-package
         python --version
@@ -210,7 +198,6 @@ jobs:
         pip install ./dist/*.whl
 
     - name: Test Python package
-      shell: bash -l {0}
       run: |
         pytest -s -v -rxXs --durations=0 ./tests/python
 
@@ -236,13 +223,11 @@ jobs:
         environment-file: tests/ci_build/conda_env/linux_cpu_test.yml
 
     - name: Display Conda env
-      shell: bash -l {0}
       run: |
         conda info
         conda list
 
     - name: Build XGBoost on Ubuntu
-      shell: bash -l {0}
       run: |
         mkdir build
         cd build
@@ -250,19 +235,16 @@ jobs:
         ninja
 
     - name: Install Python package
-      shell: bash -l {0}
       run: |
         cd python-package
         python --version
         python setup.py install
 
     - name: Test Python package
-      shell: bash -l {0}
       run: |
         pytest -s -v -rxXs --durations=0 ./tests/python
 
     - name: Test Dask Interface
-      shell: bash -l {0}
       run: |
         pytest -s -v -rxXs --durations=0 ./tests/test_distributed/test_with_dask
 
