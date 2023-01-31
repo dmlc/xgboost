@@ -60,24 +60,15 @@ void DoTestDistributedQuantile(size_t rows, size_t cols) {
     ft[i] = (i % 2 == 0) ? FeatureType::kNumerical : FeatureType::kCategorical;
   }
 
-  std::shared_ptr<DMatrix> m;
+  auto m = RandomDataGenerator{rows, cols, sparsity}
+               .Seed(rank)
+               .Lower(.0f)
+               .Upper(1.0f)
+               .Type(ft)
+               .MaxCategory(13)
+               .GenerateDMatrix();
   if (col_split) {
-    auto dmat = RandomDataGenerator{rows, cols, sparsity}
-                    .Seed(0)
-                    .Lower(.0f)
-                    .Upper(1.0f)
-                    .Type(ft)
-                    .MaxCategory(13)
-                    .GenerateDMatrix();
-    m = std::shared_ptr<DMatrix>{dmat->SliceCol(world, rank)};
-  } else {
-    m = RandomDataGenerator{rows, cols, sparsity}
-            .Seed(rank)
-            .Lower(.0f)
-            .Upper(1.0f)
-            .Type(ft)
-            .MaxCategory(13)
-            .GenerateDMatrix();
+    m = std::shared_ptr<DMatrix>{m->SliceCol(world, rank)};
   }
 
   std::vector<float> hessian(rows, 1.0);
@@ -107,14 +98,14 @@ void DoTestDistributedQuantile(size_t rows, size_t cols) {
                                                   column_size, false, false, AllThreadsForTest());
 
   if (col_split) {
-    auto dmat = RandomDataGenerator{rows, cols, sparsity}
-                    .Seed(0)
-                    .Lower(.0f)
-                    .Upper(1.0f)
-                    .Type(ft)
-                    .MaxCategory(13)
-                    .GenerateDMatrix();
-    auto m = std::shared_ptr<DMatrix>{dmat->SliceCol(world, rank)};
+    auto m = RandomDataGenerator{rows, cols, sparsity}
+                 .Seed(rank)
+                 .Type(ft)
+                 .MaxCategory(13)
+                 .Lower(.0f)
+                 .Upper(1.0f)
+                 .GenerateDMatrix();
+    m = std::shared_ptr<DMatrix>{m->SliceCol(world, rank)};
     if (use_column) {
       for (auto const& page : m->GetBatches<SortedCSCPage>()) {
         PushPage(&sketch_on_single_node, page, m->Info(), hess);
