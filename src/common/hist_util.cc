@@ -45,14 +45,16 @@ HistogramCuts SketchOnDMatrix(DMatrix *m, int32_t max_bins, int32_t n_threads, b
 
   if (!use_sorted) {
     HostSketchContainer container(max_bins, m->Info().feature_types.ConstHostSpan(), reduced,
-                                  HostSketchContainer::UseGroup(info), n_threads);
+                                  HostSketchContainer::UseGroup(info),
+                                  m->Info().data_split_mode == DataSplitMode::kCol, n_threads);
     for (auto const& page : m->GetBatches<SparsePage>()) {
       container.PushRowPage(page, info, hessian);
     }
     container.MakeCuts(&out);
   } else {
     SortedSketchContainer container{max_bins, m->Info().feature_types.ConstHostSpan(), reduced,
-                                    HostSketchContainer::UseGroup(info), n_threads};
+                                    HostSketchContainer::UseGroup(info),
+                                    m->Info().data_split_mode == DataSplitMode::kCol, n_threads};
     for (auto const& page : m->GetBatches<SortedCSCPage>()) {
       container.PushColPage(page, info, hessian);
     }

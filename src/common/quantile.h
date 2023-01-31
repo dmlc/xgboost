@@ -804,6 +804,7 @@ class SketchContainerImpl {
   bool use_group_ind_{false};
   int32_t n_threads_;
   bool has_categorical_{false};
+  bool col_split_{false};
   Monitor monitor_;
 
  public:
@@ -814,7 +815,7 @@ class SketchContainerImpl {
    * \param use_group whether is assigned to group to data instance.
    */
   SketchContainerImpl(std::vector<bst_row_t> columns_size, int32_t max_bins,
-                      common::Span<FeatureType const> feature_types, bool use_group,
+                      common::Span<FeatureType const> feature_types, bool use_group, bool col_split,
                       int32_t n_threads);
 
   static bool UseGroup(MetaInfo const &info) {
@@ -904,7 +905,8 @@ class HostSketchContainer : public SketchContainerImpl<WQuantileSketch<float, fl
 
  public:
   HostSketchContainer(int32_t max_bins, common::Span<FeatureType const> ft,
-                      std::vector<size_t> columns_size, bool use_group, int32_t n_threads);
+                      std::vector<size_t> columns_size, bool use_group, bool col_split,
+                      int32_t n_threads);
 
   template <typename Batch>
   void PushAdapterBatch(Batch const &batch, size_t base_rowid, MetaInfo const &info, float missing);
@@ -1000,9 +1002,9 @@ class SortedSketchContainer : public SketchContainerImpl<WXQuantileSketch<float,
 
  public:
   explicit SortedSketchContainer(int32_t max_bins, common::Span<FeatureType const> ft,
-                                 std::vector<size_t> columns_size, bool use_group,
+                                 std::vector<size_t> columns_size, bool use_group, bool col_split,
                                  int32_t n_threads)
-      : SketchContainerImpl{columns_size, max_bins, ft, use_group, n_threads} {
+      : SketchContainerImpl{columns_size, max_bins, ft, use_group, col_split, n_threads} {
     monitor_.Init(__func__);
     sketches_.resize(columns_size.size());
     size_t i = 0;

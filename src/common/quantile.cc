@@ -18,11 +18,13 @@ template <typename WQSketch>
 SketchContainerImpl<WQSketch>::SketchContainerImpl(std::vector<bst_row_t> columns_size,
                                                    int32_t max_bins,
                                                    Span<FeatureType const> feature_types,
-                                                   bool use_group, int32_t n_threads)
+                                                   bool use_group, bool col_split,
+                                                   int32_t n_threads)
     : feature_types_(feature_types.cbegin(), feature_types.cend()),
       columns_size_{std::move(columns_size)},
       max_bins_{max_bins},
       use_group_ind_{use_group},
+      col_split_{col_split},
       n_threads_{n_threads} {
   monitor_.Init(__func__);
   CHECK_NE(columns_size_.size(), 0);
@@ -283,7 +285,9 @@ void SketchContainerImpl<WQSketch>::AllReduce(
   collective::Allreduce<collective::Operation::kMax>(&n_columns, 1);
   CHECK_EQ(n_columns, sketches_.size()) << "Number of columns differs across workers";
 
-  AllreduceCategories(feature_types_, n_threads_, &categories_);
+  if (!col_split_) {
+    AllreduceCategories(feature_types_, n_threads_, &categories_);
+  }
 
   auto& num_cuts = *p_num_cuts;
   CHECK_EQ(num_cuts.size(), 0);
@@ -316,7 +320,7 @@ void SketchContainerImpl<WQSketch>::AllReduce(
   });
 
   auto world = collective::GetWorldSize();
-  if (world == 1) {
+  if (world == 1 || col_split_) {
     monitor_.Stop(__func__);
     return;
   }
@@ -442,8 +446,8 @@ template class SketchContainerImpl<WXQuantileSketch<float, float>>;
 
 HostSketchContainer::HostSketchContainer(int32_t max_bins, common::Span<FeatureType const> ft,
                                          std::vector<size_t> columns_size, bool use_group,
-                                         int32_t n_threads)
-    : SketchContainerImpl{columns_size, max_bins, ft, use_group, n_threads} {
+                                         bool col_split, int32_t n_threads)
+    : SketchContainerImpl{columns_size, max_bins, ft, use_group, col_split, n_threads} {
   monitor_.Init(__func__);
   ParallelFor(sketches_.size(), n_threads_, Sched::Auto(), [&](auto i) {
     auto n_bins = std::min(static_cast<size_t>(max_bins_), columns_size_[i]);

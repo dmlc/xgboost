@@ -6,7 +6,6 @@
 #include <gtest/gtest.h>
 
 #include "../../../src/common/hist_util.h"
-#include "../../../src/common/quantile.h"
 #include "../../../src/data/adapter.h"
 
 namespace xgboost {
@@ -41,7 +40,7 @@ void PushPage(HostSketchContainer* container, SparsePage const& page, MetaInfo c
   container->PushRowPage(page, info, hessian);
 }
 
-template <bool use_column>
+template <bool use_column, bool col_split>
 void DoTestDistributedQuantile(size_t rows, size_t cols) {
   auto const world = collective::GetWorldSize();
   std::vector<MetaInfo> infos(2);
@@ -61,19 +60,31 @@ void DoTestDistributedQuantile(size_t rows, size_t cols) {
     ft[i] = (i % 2 == 0) ? FeatureType::kNumerical : FeatureType::kCategorical;
   }
 
-  auto m = RandomDataGenerator{rows, cols, sparsity}
-               .Seed(rank)
-               .Lower(.0f)
-               .Upper(1.0f)
-               .Type(ft)
-               .MaxCategory(13)
-               .GenerateDMatrix();
+  std::shared_ptr<DMatrix> m;
+  if (col_split) {
+    auto dmat = RandomDataGenerator{rows, cols, sparsity}
+                    .Seed(0)
+                    .Lower(.0f)
+                    .Upper(1.0f)
+                    .Type(ft)
+                    .MaxCategory(13)
+                    .GenerateDMatrix();
+    m = std::shared_ptr<DMatrix>{dmat->SliceCol(world, rank)};
+  } else {
+    m = RandomDataGenerator{rows, cols, sparsity}
+            .Seed(rank)
+            .Lower(.0f)
+            .Upper(1.0f)
+            .Type(ft)
+            .MaxCategory(13)
+            .GenerateDMatrix();
+  }
 
   std::vector<float> hessian(rows, 1.0);
   auto hess = Span<float const>{hessian};
 
   ContainerType<use_column> sketch_distributed(n_bins, m->Info().feature_types.ConstHostSpan(),
-                                               column_size, false, AllThreadsForTest());
+                                               column_size, false, col_split, AllThreadsForTest());
 
   if (use_column) {
     for (auto const& page : m->GetBatches<SortedCSCPage>()) {
@@ -92,19 +103,18 @@ void DoTestDistributedQuantile(size_t rows, size_t cols) {
   collective::Finalize();
   CHECK_EQ(collective::GetWorldSize(), 1);
   std::for_each(column_size.begin(), column_size.end(), [=](auto& size) { size *= world; });
-  m->Info().num_row_ = world * rows;
   ContainerType<use_column> sketch_on_single_node(n_bins, m->Info().feature_types.ConstHostSpan(),
-                                                  column_size, false, AllThreadsForTest());
-  m->Info().num_row_ = rows;
+                                                  column_size, false, false, AllThreadsForTest());
 
-  for (auto rank = 0; rank < world; ++rank) {
-    auto m = RandomDataGenerator{rows, cols, sparsity}
-                 .Seed(rank)
-                 .Type(ft)
-                 .MaxCategory(13)
-                 .Lower(.0f)
-                 .Upper(1.0f)
-                 .GenerateDMatrix();
+  if (col_split) {
+    auto dmat = RandomDataGenerator{rows, cols, sparsity}
+                    .Seed(0)
+                    .Lower(.0f)
+                    .Upper(1.0f)
+                    .Type(ft)
+                    .MaxCategory(13)
+                    .GenerateDMatrix();
+    auto m = std::shared_ptr<DMatrix>{dmat->SliceCol(world, rank)};
     if (use_column) {
       for (auto const& page : m->GetBatches<SortedCSCPage>()) {
         PushPage(&sketch_on_single_node, page, m->Info(), hess);
@@ -112,6 +122,25 @@ void DoTestDistributedQuantile(size_t rows, size_t cols) {
     } else {
       for (auto const& page : m->GetBatches<SparsePage>()) {
         PushPage(&sketch_on_single_node, page, m->Info(), hess);
+      }
+    }
+  } else {
+    for (auto rank = 0; rank < world; ++rank) {
+      auto m = RandomDataGenerator{rows, cols, sparsity}
+          .Seed(rank)
+          .Type(ft)
+          .MaxCategory(13)
+          .Lower(.0f)
+          .Upper(1.0f)
+          .GenerateDMatrix();
+      if (use_column) {
+        for (auto const& page : m->GetBatches<SortedCSCPage>()) {
+          PushPage(&sketch_on_single_node, page, m->Info(), hess);
+        }
+      } else {
+        for (auto const& page : m->GetBatches<SparsePage>()) {
+          PushPage(&sketch_on_single_node, page, m->Info(), hess);
+        }
       }
     }
   }
@@ -142,10 +171,11 @@ void DoTestDistributedQuantile(size_t rows, size_t cols) {
   }
 }
 
-template <bool use_column>
-void TestDistributedQuantile(size_t const rows, size_t const cols) {
+template <bool use_column, bool col_split = false>
+void TestDistributedQuantile(size_t rows, size_t cols) {
   auto constexpr kWorkers = 4;
-  RunWithInMemoryCommunicator(kWorkers, DoTestDistributedQuantile<use_column>, rows, cols);
+  RunWithInMemoryCommunicator(kWorkers, DoTestDistributedQuantile<use_column, col_split>, rows,
+                              cols);
 }
 }  // anonymous namespace
 
@@ -167,6 +197,26 @@ TEST(Quantile, SortedDistributedBasic) {
 TEST(Quantile, SortedDistributed) {
   constexpr size_t kRows = 4000, kCols = 200;
   TestDistributedQuantile<true>(kRows, kCols);
+}
+
+TEST(Quantile, ColSplitBasic) {
+  constexpr size_t kRows = 10, kCols = 10;
+  TestDistributedQuantile<false, true>(kRows, kCols);
+}
+
+TEST(Quantile, ColSplit) {
+  constexpr size_t kRows = 4000, kCols = 200;
+  TestDistributedQuantile<false, true>(kRows, kCols);
+}
+
+TEST(Quantile, ColSplitSortedBasic) {
+  constexpr size_t kRows = 10, kCols = 10;
+  TestDistributedQuantile<true, true>(kRows, kCols);
+}
+
+TEST(Quantile, ColSplitSorted) {
+  constexpr size_t kRows = 4000, kCols = 200;
+  TestDistributedQuantile<true, true>(kRows, kCols);
 }
 
 namespace {
