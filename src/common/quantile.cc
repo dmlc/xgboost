@@ -298,8 +298,10 @@ void SketchContainerImpl<WQSketch>::AllReduce(
 
   // Prune the intermediate num cuts for synchronization.
   std::vector<bst_row_t> global_column_size(columns_size_);
-  collective::Allreduce<collective::Operation::kSum>(global_column_size.data(),
-                                                     global_column_size.size());
+  if (!col_split_) {
+    collective::Allreduce<collective::Operation::kSum>(global_column_size.data(),
+                                                       global_column_size.size());
+  }
 
   ParallelFor(sketches_.size(), n_threads_, [&](size_t i) {
     int32_t intermediate_num_cuts = static_cast<int32_t>(
