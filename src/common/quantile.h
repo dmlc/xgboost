@@ -802,9 +802,9 @@ class SketchContainerImpl {
   std::vector<bst_row_t> columns_size_;
   int32_t max_bins_;
   bool use_group_ind_{false};
+  bool col_split_;
   int32_t n_threads_;
   bool has_categorical_{false};
-  bool col_split_{false};
   Monitor monitor_;
 
  public:
