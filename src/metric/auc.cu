@@ -1,21 +1,22 @@
-/*!
- * Copyright 2021-2022 by XGBoost Contributors
+/**
+ * Copyright 2021-2023 by XGBoost Contributors
  */
 #include <thrust/scan.h>
-#include <cub/cub.cuh>
 
 #include <algorithm>
 #include <cassert>
+#include <cub/cub.cuh>
 #include <limits>
 #include <memory>
-#include <utility>
 #include <tuple>
+#include <utility>
 
-#include "xgboost/span.h"
-#include "xgboost/data.h"
-#include "auc.h"
 #include "../collective/device_communicator.cuh"
+#include "../common/optional_weight.h"  // OptionalWeights
 #include "../common/ranking_utils.cuh"
+#include "auc.h"
+#include "xgboost/data.h"
+#include "xgboost/span.h"
 
 namespace xgboost {
 namespace metric {

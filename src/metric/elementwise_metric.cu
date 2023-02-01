@@ -14,6 +14,7 @@
 #include "../collective/communicator-inl.h"
 #include "../common/common.h"
 #include "../common/math.h"
+#include "../common/optional_weight.h"  // OptionalWeights
 #include "../common/pseudo_huber.h"
 #include "../common/threading_utils.h"
 #include "metric_common.h"

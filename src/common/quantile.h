@@ -1,5 +1,5 @@
-/*!
- * Copyright 2014-2022 by XGBoost Contributors
+/**
+ * Copyright 2014-2023 by XGBoost Contributors
  * \file quantile.h
  * \brief util to compute quantiles
  * \author Tianqi Chen
@@ -20,6 +20,7 @@
 
 #include "categorical.h"
 #include "common.h"
+#include "optional_weight.h"  // OptionalWeights
 #include "threading_utils.h"
 #include "timer.h"
 

@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "common.h"              // AssertGPUSupport, OptionalWeights
+#include "optional_weight.h"     // OptionalWeights
 #include "transform_iterator.h"  // MakeIndexTransformIter
 #include "xgboost/context.h"     // Context
 #include "xgboost/linalg.h"
