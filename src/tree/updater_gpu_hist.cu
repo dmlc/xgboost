@@ -862,6 +862,7 @@ class GPUHistMaker : public TreeUpdater {
   std::unique_ptr<GPUHistMakerDevice<GradientSumT>> maker;  // NOLINT
 
   char const* Name() const override { return "grow_gpu_hist"; }
+  bool HasNodePosition() const override { return true; }
 
  private:
   bool initialised_{false};
