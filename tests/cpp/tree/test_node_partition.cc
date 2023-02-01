@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 #include <xgboost/task.h>
 #include <xgboost/tree_updater.h>
+
 namespace xgboost {
 TEST(Updater, HasNodePosition) {
   Context ctx;
