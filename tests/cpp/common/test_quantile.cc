@@ -148,17 +148,17 @@ void DoTestDistributedQuantile(size_t rows, size_t cols) {
 
   EXPECT_EQ(sptrs.size(), dptrs.size());
   for (size_t i = 0; i < sptrs.size(); ++i) {
-    EXPECT_EQ(sptrs[i], dptrs[i]) << i;
+    EXPECT_EQ(sptrs[i], dptrs[i]) << "rank: " << rank << ", i: " << i;
   }
 
   EXPECT_EQ(svals.size(), dvals.size());
   for (size_t i = 0; i < svals.size(); ++i) {
-    EXPECT_NEAR(svals[i], dvals[i], 2e-2f) << i;
+    EXPECT_NEAR(svals[i], dvals[i], 2e-2f) << "rank: " << rank << ", i: " << i;
   }
 
   EXPECT_EQ(smins.size(), dmins.size());
   for (size_t i = 0; i < smins.size(); ++i) {
-    EXPECT_FLOAT_EQ(smins[i], dmins[i]) << i;
+    EXPECT_FLOAT_EQ(smins[i], dmins[i]) << "rank: " << rank << ", i: " << i;
   }
 }
 
