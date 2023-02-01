@@ -81,22 +81,24 @@ def plot_importance(
     try:
         import matplotlib.pyplot as plt
     except ImportError as e:
-        raise ImportError('You must install matplotlib to plot importance') from e
+        raise ImportError("You must install matplotlib to plot importance") from e
 
     if isinstance(booster, XGBModel):
         importance = booster.get_booster().get_score(
-            importance_type=importance_type, fmap=fmap)
+            importance_type=importance_type, fmap=fmap
+        )
     elif isinstance(booster, Booster):
         importance = booster.get_score(importance_type=importance_type, fmap=fmap)
     elif isinstance(booster, dict):
         importance = booster
     else:
-        raise ValueError('tree must be Booster, XGBModel or dict instance')
+        raise ValueError("tree must be Booster, XGBModel or dict instance")
 
     if not importance:
         raise ValueError(
-            'Booster.get_score() results in empty.  ' +
-            'This maybe caused by having all trees as decision dumps.')
+            "Booster.get_score() results in empty.  "
+            + "This maybe caused by having all trees as decision dumps."
+        )
 
     tuples = [(k, importance[k]) for k in importance]
     if max_num_features is not None:
@@ -110,25 +112,25 @@ def plot_importance(
         _, ax = plt.subplots(1, 1)
 
     ylocs = np.arange(len(values))
-    ax.barh(ylocs, values, align='center', height=height, **kwargs)
+    ax.barh(ylocs, values, align="center", height=height, **kwargs)
 
     if show_values is True:
         for x, y in zip(values, ylocs):
-            ax.text(x + 1, y, values_format.format(v=x), va='center')
+            ax.text(x + 1, y, values_format.format(v=x), va="center")
 
     ax.set_yticks(ylocs)
     ax.set_yticklabels(labels)
 
     if xlim is not None:
         if not isinstance(xlim, tuple) or len(xlim) != 2:
-            raise ValueError('xlim must be a tuple of 2 elements')
+            raise ValueError("xlim must be a tuple of 2 elements")
     else:
         xlim = (0, max(values) * 1.1)
     ax.set_xlim(xlim)
 
     if ylim is not None:
         if not isinstance(ylim, tuple) or len(ylim) != 2:
-            raise ValueError('ylim must be a tuple of 2 elements')
+            raise ValueError("ylim must be a tuple of 2 elements")
     else:
         ylim = (-1, len(values))
     ax.set_ylim(ylim)
@@ -201,44 +203,42 @@ def to_graphviz(
     try:
         from graphviz import Source
     except ImportError as e:
-        raise ImportError('You must install graphviz to plot tree') from e
+        raise ImportError("You must install graphviz to plot tree") from e
     if isinstance(booster, XGBModel):
         booster = booster.get_booster()
 
     # squash everything back into kwargs again for compatibility
-    parameters = 'dot'
+    parameters = "dot"
     extra = {}
     for key, value in kwargs.items():
         extra[key] = value
 
     if rankdir is not None:
-        kwargs['graph_attrs'] = {}
-        kwargs['graph_attrs']['rankdir'] = rankdir
+        kwargs["graph_attrs"] = {}
+        kwargs["graph_attrs"]["rankdir"] = rankdir
     for key, value in extra.items():
         if kwargs.get("graph_attrs", None) is not None:
-            kwargs['graph_attrs'][key] = value
+            kwargs["graph_attrs"][key] = value
         else:
-            kwargs['graph_attrs'] = {}
+            kwargs["graph_attrs"] = {}
         del kwargs[key]
 
     if yes_color is not None or no_color is not None:
-        kwargs['edge'] = {}
+        kwargs["edge"] = {}
     if yes_color is not None:
-        kwargs['edge']['yes_color'] = yes_color
+        kwargs["edge"]["yes_color"] = yes_color
     if no_color is not None:
-        kwargs['edge']['no_color'] = no_color
+        kwargs["edge"]["no_color"] = no_color
 
     if condition_node_params is not None:
-        kwargs['condition_node_params'] = condition_node_params
+        kwargs["condition_node_params"] = condition_node_params
     if leaf_node_params is not None:
-        kwargs['leaf_node_params'] = leaf_node_params
+        kwargs["leaf_node_params"] = leaf_node_params
 
     if kwargs:
-        parameters += ':'
+        parameters += ":"
         parameters += json.dumps(kwargs)
-    tree = booster.get_dump(
-        fmap=fmap,
-        dump_format=parameters)[num_trees]
+    tree = booster.get_dump(fmap=fmap, dump_format=parameters)[num_trees]
     g = Source(tree)
     return g
 
@@ -277,19 +277,18 @@ def plot_tree(
         from matplotlib import image
         from matplotlib import pyplot as plt
     except ImportError as e:
-        raise ImportError('You must install matplotlib to plot tree') from e
+        raise ImportError("You must install matplotlib to plot tree") from e
 
     if ax is None:
         _, ax = plt.subplots(1, 1)
 
-    g = to_graphviz(booster, fmap=fmap, num_trees=num_trees, rankdir=rankdir,
-                    **kwargs)
+    g = to_graphviz(booster, fmap=fmap, num_trees=num_trees, rankdir=rankdir, **kwargs)
 
     s = BytesIO()
-    s.write(g.pipe(format='png'))
+    s.write(g.pipe(format="png"))
     s.seek(0)
     img = image.imread(s)
 
     ax.imshow(img)
-    ax.axis('off')
+    ax.axis("off")
     return ax
