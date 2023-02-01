@@ -396,7 +396,7 @@ void SketchContainerImpl<WQSketch>::MakeCuts(HistogramCuts* cuts) {
   cuts->min_vals_.HostVector().resize(sketches_.size(), 0.0f);
   std::vector<typename WQSketch::SummaryContainer> final_summaries(reduced.size());
 
-  ParallelFor(reduced.size(), n_threads_, [&](size_t fidx) {
+  ParallelFor(reduced.size(), n_threads_, Sched::Guided(), [&](size_t fidx) {
     if (IsCat(feature_types_, fidx)) {
       return;
     }
