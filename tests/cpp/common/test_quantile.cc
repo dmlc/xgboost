@@ -146,19 +146,19 @@ void DoTestDistributedQuantile(size_t rows, size_t cols) {
   auto const& smins = single_node_cuts.MinValues();
   auto const& dmins = distributed_cuts.MinValues();
 
-  ASSERT_EQ(sptrs.size(), dptrs.size());
+  EXPECT_EQ(sptrs.size(), dptrs.size());
   for (size_t i = 0; i < sptrs.size(); ++i) {
-    ASSERT_EQ(sptrs[i], dptrs[i]) << i;
+    EXPECT_EQ(sptrs[i], dptrs[i]) << i;
   }
 
-  ASSERT_EQ(svals.size(), dvals.size());
+  EXPECT_EQ(svals.size(), dvals.size());
   for (size_t i = 0; i < svals.size(); ++i) {
-    ASSERT_NEAR(svals[i], dvals[i], 2e-2f);
+    EXPECT_NEAR(svals[i], dvals[i], 2e-2f) << i;
   }
 
-  ASSERT_EQ(smins.size(), dmins.size());
+  EXPECT_EQ(smins.size(), dmins.size());
   for (size_t i = 0; i < smins.size(); ++i) {
-    ASSERT_FLOAT_EQ(smins[i], dmins[i]);
+    EXPECT_FLOAT_EQ(smins[i], dmins[i]) << i;
   }
 }
 
@@ -262,17 +262,17 @@ void TestSameOnAllWorkers() {
         for (int32_t i = 0; i < world; i++) {
           for (size_t j = 0; j < value_size; ++j) {
             size_t idx = i * value_size + j;
-            ASSERT_NEAR(cuts.Values().at(j), cut_values.at(idx), kRtEps);
+            EXPECT_NEAR(cuts.Values().at(j), cut_values.at(idx), kRtEps);
           }
 
           for (size_t j = 0; j < ptr_size; ++j) {
             size_t idx = i * ptr_size + j;
-            ASSERT_EQ(cuts.Ptrs().at(j), cut_ptrs.at(idx));
+            EXPECT_EQ(cuts.Ptrs().at(j), cut_ptrs.at(idx));
           }
 
           for (size_t j = 0; j < min_value_size; ++j) {
             size_t idx = i * min_value_size + j;
-            ASSERT_EQ(cuts.MinValues().at(j), cut_min_values.at(idx));
+            EXPECT_EQ(cuts.MinValues().at(j), cut_min_values.at(idx));
           }
         }
       });
