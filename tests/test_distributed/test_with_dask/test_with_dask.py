@@ -1489,15 +1489,17 @@ class TestWithDask:
         Xy_valid = xgb.dask.DaskQuantileDMatrix(
             client, X_valid, y_valid, ref=Xy, enable_categorical=True
         )
-        booster = xgb.dask.train(
+        result = xgb.dask.train(
             client,
             {"tree_method": "hist"},
             Xy,
             num_boost_round=10,
             evals=[(Xy_valid, "Valid")],
         )
-        predt = xgb.dask.inplace_predict(client, booster, X).compute()
+        predt = xgb.dask.inplace_predict(client, result["booster"], X).compute()
         np.testing.assert_allclose(y.compute(), predt)
+        rmse = result["history"]["Valid"]["rmse"][-1]
+        assert rmse < 32.0
 
     @given(params=hist_parameter_strategy, dataset=tm.dataset_strategy)
     @settings(
