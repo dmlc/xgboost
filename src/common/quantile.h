@@ -897,6 +897,10 @@ class SketchContainerImpl {
   void PushRowPage(SparsePage const &page, MetaInfo const &info, Span<float const> hessian = {});
 
   void MakeCuts(HistogramCuts* cuts);
+
+ private:
+  // Merge all categories from other workers.
+  void AllreduceCategories();
 };
 
 class HostSketchContainer : public SketchContainerImpl<WQuantileSketch<float, float>> {

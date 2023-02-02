@@ -139,80 +139,6 @@ struct QuantileAllreduce {
     return worker_values.subspan(feat_beg, feat_size);
   }
 };
-
-/**
- * \brief Merge all categories from other workers.
- */
-void AllreduceCategories(Span<FeatureType const> feature_types, int32_t n_threads,
-                         std::vector<std::set<float>> *p_categories) {
-  auto &categories = *p_categories;
-  auto world_size = collective::GetWorldSize();
-  auto rank = collective::GetRank();
-  if (world_size == 1) {
-    return;
-  }
-
-  // CSC indptr to each feature
-  std::vector<size_t> feature_ptr(categories.size() + 1, 0);
-  for (size_t i = 0; i < categories.size(); ++i) {
-    auto const &feat = categories[i];
-    feature_ptr[i + 1] = feat.size();
-  }
-  std::partial_sum(feature_ptr.begin(), feature_ptr.end(), feature_ptr.begin());
-  CHECK_EQ(feature_ptr.front(), 0);
-
-  // gather all feature ptrs from workers
-  std::vector<size_t> global_feat_ptrs(feature_ptr.size() * world_size, 0);
-  size_t feat_begin = rank * feature_ptr.size();  // pointer to current worker
-  std::copy(feature_ptr.begin(), feature_ptr.end(), global_feat_ptrs.begin() + feat_begin);
-  collective::Allreduce<collective::Operation::kSum>(global_feat_ptrs.data(),
-                                                     global_feat_ptrs.size());
-
-  // move all categories into a flatten vector to prepare for allreduce
-  size_t total = feature_ptr.back();
-  std::vector<float> flatten(total, 0);
-  auto cursor{flatten.begin()};
-  for (auto const &feat : categories) {
-    cursor = std::copy(feat.cbegin(), feat.cend(), cursor);
-  }
-
-  // indptr for indexing workers
-  std::vector<size_t> global_worker_ptr(world_size + 1, 0);
-  global_worker_ptr[rank + 1] = total;  // shift 1 to right for constructing the indptr
-  collective::Allreduce<collective::Operation::kSum>(global_worker_ptr.data(),
-                                                     global_worker_ptr.size());
-  std::partial_sum(global_worker_ptr.cbegin(), global_worker_ptr.cend(), global_worker_ptr.begin());
-  // total number of categories in all workers with all features
-  auto gtotal = global_worker_ptr.back();
-
-  // categories in all workers with all features.
-  std::vector<float> global_categories(gtotal, 0);
-  auto rank_begin = global_worker_ptr[rank];
-  auto rank_size = global_worker_ptr[rank + 1] - rank_begin;
-  CHECK_EQ(rank_size, total);
-  std::copy(flatten.cbegin(), flatten.cend(), global_categories.begin() + rank_begin);
-  // gather values from all workers.
-  collective::Allreduce<collective::Operation::kSum>(global_categories.data(),
-                                                     global_categories.size());
-  QuantileAllreduce<float> allreduce_result{global_categories, global_worker_ptr, global_feat_ptrs,
-                                            categories.size()};
-  ParallelFor(categories.size(), n_threads, [&](auto fidx) {
-    if (!IsCat(feature_types, fidx)) {
-      return;
-    }
-    for (int32_t r = 0; r < world_size; ++r) {
-      if (r == rank) {
-        // continue if it's current worker.
-        continue;
-      }
-      // 1 feature of 1 worker
-      auto worker_feature = allreduce_result.Values(r, fidx);
-      for (auto c : worker_feature) {
-        categories[fidx].emplace(c);
-      }
-    }
-  });
-}
 }  // anonymous namespace
 
 template <typename WQSketch>
@@ -276,6 +202,76 @@ void SketchContainerImpl<WQSketch>::GatherSketchInfo(
 }
 
 template <typename WQSketch>
+void SketchContainerImpl<WQSketch>::AllreduceCategories() {
+  auto world_size = collective::GetWorldSize();
+  auto rank = collective::GetRank();
+  if (world_size == 1 || col_split_) {
+    return;
+  }
+
+  // CSC indptr to each feature
+  std::vector<size_t> feature_ptr(categories_.size() + 1, 0);
+  for (size_t i = 0; i < categories_.size(); ++i) {
+    auto const &feat = categories_[i];
+    feature_ptr[i + 1] = feat.size();
+  }
+  std::partial_sum(feature_ptr.begin(), feature_ptr.end(), feature_ptr.begin());
+  CHECK_EQ(feature_ptr.front(), 0);
+
+  // gather all feature ptrs from workers
+  std::vector<size_t> global_feat_ptrs(feature_ptr.size() * world_size, 0);
+  size_t feat_begin = rank * feature_ptr.size();  // pointer to current worker
+  std::copy(feature_ptr.begin(), feature_ptr.end(), global_feat_ptrs.begin() + feat_begin);
+  collective::Allreduce<collective::Operation::kSum>(global_feat_ptrs.data(),
+                                                     global_feat_ptrs.size());
+
+  // move all categories into a flatten vector to prepare for allreduce
+  size_t total = feature_ptr.back();
+  std::vector<float> flatten(total, 0);
+  auto cursor{flatten.begin()};
+  for (auto const &feat : categories_) {
+    cursor = std::copy(feat.cbegin(), feat.cend(), cursor);
+  }
+
+  // indptr for indexing workers
+  std::vector<size_t> global_worker_ptr(world_size + 1, 0);
+  global_worker_ptr[rank + 1] = total;  // shift 1 to right for constructing the indptr
+  collective::Allreduce<collective::Operation::kSum>(global_worker_ptr.data(),
+                                                     global_worker_ptr.size());
+  std::partial_sum(global_worker_ptr.cbegin(), global_worker_ptr.cend(), global_worker_ptr.begin());
+  // total number of categories in all workers with all features
+  auto gtotal = global_worker_ptr.back();
+
+  // categories in all workers with all features.
+  std::vector<float> global_categories(gtotal, 0);
+  auto rank_begin = global_worker_ptr[rank];
+  auto rank_size = global_worker_ptr[rank + 1] - rank_begin;
+  CHECK_EQ(rank_size, total);
+  std::copy(flatten.cbegin(), flatten.cend(), global_categories.begin() + rank_begin);
+  // gather values from all workers.
+  collective::Allreduce<collective::Operation::kSum>(global_categories.data(),
+                                                     global_categories.size());
+  QuantileAllreduce<float> allreduce_result{global_categories, global_worker_ptr, global_feat_ptrs,
+                                            categories_.size()};
+  ParallelFor(categories_.size(), n_threads_, [&](auto fidx) {
+    if (!IsCat(feature_types_, fidx)) {
+      return;
+    }
+    for (int32_t r = 0; r < world_size; ++r) {
+      if (r == rank) {
+        // continue if it's current worker.
+        continue;
+      }
+      // 1 feature of 1 worker
+      auto worker_feature = allreduce_result.Values(r, fidx);
+      for (auto c : worker_feature) {
+        categories_[fidx].emplace(c);
+      }
+    }
+  });
+}
+
+template <typename WQSketch>
 void SketchContainerImpl<WQSketch>::AllReduce(
     std::vector<typename WQSketch::SummaryContainer> *p_reduced,
     std::vector<int32_t>* p_num_cuts) {
@@ -285,9 +281,7 @@ void SketchContainerImpl<WQSketch>::AllReduce(
   collective::Allreduce<collective::Operation::kMax>(&n_columns, 1);
   CHECK_EQ(n_columns, sketches_.size()) << "Number of columns differs across workers";
 
-  if (!col_split_) {
-    AllreduceCategories(feature_types_, n_threads_, &categories_);
-  }
+  AllreduceCategories();
 
   auto& num_cuts = *p_num_cuts;
   CHECK_EQ(num_cuts.size(), 0);
