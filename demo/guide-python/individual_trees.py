@@ -85,14 +85,10 @@ def model_slices() -> None:
 
         if i == n_rounds - 1:
             # last round, get the transformed prediction
-            scores = booster.predict(
-                Xy_test, iteration_range=(i, i + 1), output_margin=False
-            )
+            scores = t.predict(Xy_test, output_margin=False)
         else:
             # get raw leaf value for accumulation
-            scores = booster.predict(
-                Xy_test, iteration_range=(i, i + 1), output_margin=True
-            )
+            scores = t.predict(Xy_test, output_margin=True)
 
     full = booster.predict(xgb.DMatrix(X_test), output_margin=False)
     np.testing.assert_allclose(scores, full)
