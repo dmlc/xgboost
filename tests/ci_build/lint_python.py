@@ -159,6 +159,7 @@ def main(args: argparse.Namespace) -> None:
                 "demo/guide-python/feature_weights.py",
                 "demo/guide-python/sklearn_parallel.py",
                 "demo/guide-python/spark_estimator_examples.py",
+                "demo/guide-python/individual_trees.py",
                 # CI
                 "tests/ci_build/lint_python.py",
                 "tests/ci_build/test_r_package.py",
@@ -200,6 +201,7 @@ def main(args: argparse.Namespace) -> None:
                 "demo/guide-python/external_memory.py",
                 "demo/guide-python/cat_in_the_dat.py",
                 "demo/guide-python/feature_weights.py",
+                "demo/guide-python/individual_trees.py",
                 # tests
                 "tests/python/test_dt.py",
                 "tests/python/test_data_iterator.py",
