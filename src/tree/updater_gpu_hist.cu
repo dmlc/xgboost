@@ -188,7 +188,8 @@ struct GPUHistMakerDevice {
   common::Span<GradientPair> gpair;
 
   dh::device_vector<int> monotone_constraints;
-  dh::device_vector<float> update_predictions;
+  // node idx for each sample
+  dh::device_vector<bst_node_t> positions;
 
   TrainParam param;
 
@@ -423,7 +424,7 @@ struct GPUHistMakerDevice {
         LOG(FATAL) << "Current objective function can not be used with external memory.";
       }
       p_out_position->Resize(0);
-      update_predictions.clear();
+      positions.clear();
       return;
     }
 
@@ -458,8 +459,6 @@ struct GPUHistMakerDevice {
                               HostDeviceVector<bst_node_t>* p_out_position) {
     auto d_matrix = page->GetDeviceAccessor(ctx_->gpu_id);
     auto d_gpair = this->gpair;
-    update_predictions.resize(row_partitioner->GetRows().size());
-    auto d_update_predictions = dh::ToSpan(update_predictions);
     p_out_position->SetDevice(ctx_->gpu_id);
     p_out_position->Resize(row_partitioner->GetRows().size());
 
@@ -494,33 +493,49 @@ struct GPUHistMakerDevice {
         node = d_nodes[position];
       }
 
-      d_update_predictions[row_id] = node.LeafValue();
       return position;
     };  // NOLINT
 
     auto d_out_position = p_out_position->DeviceSpan();
     row_partitioner->FinalisePosition(d_out_position, new_position_op);
 
+    auto s_position = p_out_position->ConstDeviceSpan();
+    positions.resize(s_position.size());
+    dh::safe_cuda(cudaMemcpyAsync(positions.data().get(), s_position.data(),
+                                  s_position.size_bytes(), cudaMemcpyDeviceToDevice,
+                                  ctx_->CUDACtx()->Stream()));
+
     dh::LaunchN(row_partitioner->GetRows().size(), [=] __device__(size_t idx) {
       bst_node_t position = d_out_position[idx];
-      d_update_predictions[idx] = d_nodes[position].LeafValue();
       bool is_row_sampled = d_gpair[idx].GetHess() - .0f == 0.f;
       d_out_position[idx] = is_row_sampled ? ~position : position;
     });
   }
 
   bool UpdatePredictionCache(linalg::VectorView<float> out_preds_d, RegTree const* p_tree) {
-    if (update_predictions.empty()) {
+    if (positions.empty()) {
       return false;
     }
+
     CHECK(p_tree);
     dh::safe_cuda(cudaSetDevice(ctx_->gpu_id));
     CHECK_EQ(out_preds_d.DeviceIdx(), ctx_->gpu_id);
-    auto d_update_predictions = dh::ToSpan(update_predictions);
-    CHECK_EQ(out_preds_d.Size(), d_update_predictions.size());
-    dh::LaunchN(out_preds_d.Size(), [=] XGBOOST_DEVICE(size_t idx) mutable {
-      out_preds_d(idx) += d_update_predictions[idx];
-    });
+
+    auto d_position = dh::ToSpan(positions);
+    CHECK_EQ(out_preds_d.Size(), d_position.size());
+
+    auto const& h_nodes = p_tree->GetNodes();
+    dh::caching_device_vector<RegTree::Node> nodes(h_nodes.size());
+    dh::safe_cuda(cudaMemcpyAsync(nodes.data().get(), h_nodes.data(),
+                                  h_nodes.size() * sizeof(RegTree::Node), cudaMemcpyHostToDevice,
+                                  ctx_->CUDACtx()->Stream()));
+    auto d_nodes = dh::ToSpan(nodes);
+    dh::LaunchN(d_position.size(), ctx_->CUDACtx()->Stream(),
+                [=] XGBOOST_DEVICE(std::size_t idx) mutable {
+                  bst_node_t nidx = d_position[idx];
+                  auto weight = d_nodes[nidx].LeafValue();
+                  out_preds_d(idx) += weight;
+                });
     return true;
   }
 
@@ -862,6 +877,7 @@ class GPUHistMaker : public TreeUpdater {
   std::unique_ptr<GPUHistMakerDevice<GradientSumT>> maker;  // NOLINT
 
   char const* Name() const override { return "grow_gpu_hist"; }
+  bool HasNodePosition() const override { return true; }
 
  private:
   bool initialised_{false};

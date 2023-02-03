@@ -442,6 +442,22 @@ class TestTreeMethod:
         config_0 = json.loads(booster_0.save_config())
         np.testing.assert_allclose(get_score(config_0), get_score(config_1) + 1)
 
+        evals_result: Dict[str, Dict[str, list]] = {}
+        xgb.train(
+            {
+                "tree_method": tree_method,
+                "objective": "reg:absoluteerror",
+                "subsample": 0.8
+            },
+            Xy,
+            num_boost_round=10,
+            evals=[(Xy, "Train")],
+            evals_result=evals_result,
+        )
+        mae = evals_result["Train"]["mae"]
+        assert mae[-1] < 20.0
+        assert tm.non_increasing(mae)
+
     @pytest.mark.skipif(**tm.no_sklearn())
     @pytest.mark.parametrize(
         "tree_method,weighted", [
