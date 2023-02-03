@@ -11,8 +11,8 @@ RUN \
     yum -y update && \
     yum install -y tar unzip wget xz git which ninja-build devtoolset-8-gcc devtoolset-8-binutils devtoolset-8-gcc-c++ && \
     # Python
-    wget -nv -nc -O Miniconda3.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
-    bash Miniconda3.sh -b -p /opt/python && \
+    wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/22.11.1-2/Mambaforge-22.11.1-2-Linux-x86_64.sh && \
+    bash conda.sh -b -p /opt/python && \
     /opt/python/bin/python -m pip install awscli && \
     # CMake
     wget -nv -nc https://cmake.org/files/v3.18/cmake-3.18.0-Linux-x86_64.sh --no-check-certificate && \
