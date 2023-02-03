@@ -16,9 +16,9 @@ RUN \
     bash cmake-3.14.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
     # Python
     wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/22.11.1-2/Mambaforge-22.11.1-2-Linux-x86_64.sh && \
-    bash conda.sh -b -p /opt/python
+    bash conda.sh -b -p /opt/mambaforge
 
-ENV PATH=/opt/python/bin:$PATH
+ENV PATH=/opt/mambaforge/bin:$PATH
 ENV CC=gcc-8
 ENV CXX=g++-8
 ENV CPP=cpp-8
