@@ -13,9 +13,9 @@ RUN \
     apt-get update && \
     apt-get install -y tar unzip wget openjdk-$JDK_VERSION-jdk libgomp1 && \
     # Python
-    wget -nv -O Miniconda3.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
-    bash Miniconda3.sh -b -p /opt/python && \
-    /opt/python/bin/pip install awscli && \
+    wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/22.11.1-2/Mambaforge-22.11.1-2-Linux-x86_64.sh && \
+    bash conda.sh -b -p /opt/mambaforge && \
+    /opt/mambaforge/bin/pip install awscli && \
     # Maven
     wget -nv https://archive.apache.org/dist/maven/maven-3/3.6.1/binaries/apache-maven-3.6.1-bin.tar.gz && \
     tar xvf apache-maven-3.6.1-bin.tar.gz -C /opt && \
@@ -25,7 +25,7 @@ RUN \
     tar xvf spark-$SPARK_VERSION-bin-hadoop2.7.tgz -C /opt && \
     ln -s /opt/spark-$SPARK_VERSION-bin-hadoop2.7 /opt/spark
 
-ENV PATH=/opt/python/bin:/opt/spark/bin:/opt/maven/bin:$PATH
+ENV PATH=/opt/mambaforge/bin:/opt/spark/bin:/opt/maven/bin:$PATH
 
 # Install Python packages
 RUN \

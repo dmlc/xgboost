@@ -16,7 +16,7 @@ RUN \
                    devtoolset-8-gcc-gfortran devtoolset-8-libquadmath-devel \
                    devtoolset-8-runtime devtoolset-8-libstdc++-devel
 
-ENV PATH=/opt/python/bin:/usr/local/ninja:/opt/software/packages/bin:/opt/R/3.3.0/bin:$PATH
+ENV PATH=/opt/mambaforge/bin:/usr/local/ninja:/opt/software/packages/bin:/opt/R/3.3.0/bin:$PATH
 ENV LD_LIBRARY_PATH=/opt/software/packages/lib:/opt/R/3.3.0/lib64:$LD_LIBRARY_PATH
 ENV CC=/opt/rh/devtoolset-8/root/usr/bin/gcc
 ENV CXX=/opt/rh/devtoolset-8/root/usr/bin/c++
@@ -32,9 +32,9 @@ RUN \
     make -j$(nproc)  && \
     make install  && \
     # Python
-    wget -nv -nc -O Miniconda3.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
-    bash Miniconda3.sh -b -p /opt/python && \
-    /opt/python/bin/python -m pip install auditwheel awscli && \
+    wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/22.11.1-2/Mambaforge-22.11.1-2-Linux-x86_64.sh && \
+    bash conda.sh -b -p /opt/mambaforge && \
+    /opt/mambaforge/bin/python -m pip install auditwheel awscli && \
     # CMake
     wget -nv -nc https://cmake.org/files/v3.14/cmake-3.14.0-Linux-x86_64.sh --no-check-certificate && \
     bash cmake-3.14.0-Linux-x86_64.sh --skip-license --prefix=/usr

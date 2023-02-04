@@ -28,7 +28,6 @@ from .core import (
     _check_call,
     _cuda_array_interface,
     _ProxyDMatrix,
-    c_array,
     c_str,
     from_pystr_to_cstr,
     make_jcargs,
@@ -76,8 +75,15 @@ def _array_interface(data: np.ndarray) -> bytes:
     return interface_str
 
 
-def _transform_scipy_csr(data: DataType) -> DataType:
-    from scipy.sparse import csr_matrix
+def transform_scipy_sparse(data: DataType, is_csr: bool) -> DataType:
+    """Ensure correct data alignment and data type for scipy sparse inputs. Input should
+    be either csr or csc matrix.
+
+    """
+    from scipy.sparse import csc_matrix, csr_matrix
+
+    if len(data.indices) != len(data.data):
+        raise ValueError(f"length mismatch: {len(data.indices)} vs {len(data.data)}")
 
     indptr, _ = _ensure_np_dtype(data.indptr, data.indptr.dtype)
     indices, _ = _ensure_np_dtype(data.indices, data.indices.dtype)
@@ -87,7 +93,10 @@ def _transform_scipy_csr(data: DataType) -> DataType:
         or indices is not data.indices
         or values is not data.data
     ):
-        data = csr_matrix((values, indices, indptr), shape=data.shape)
+        if is_csr:
+            data = csr_matrix((values, indices, indptr), shape=data.shape)
+        else:
+            data = csc_matrix((values, indices, indptr), shape=data.shape)
     return data
 
 
@@ -99,10 +108,9 @@ def _from_scipy_csr(
     feature_types: Optional[FeatureTypes],
 ) -> DispatchedDataBackendReturnType:
     """Initialize data from a CSR matrix."""
-    if len(data.indices) != len(data.data):
-        raise ValueError(f"length mismatch: {len(data.indices)} vs {len(data.data)}")
+
     handle = ctypes.c_void_p()
-    data = _transform_scipy_csr(data)
+    data = transform_scipy_sparse(data, True)
     _check_call(
         _LIB.XGDMatrixCreateFromCSR(
             _array_interface(data.indptr),
@@ -126,22 +134,21 @@ def _is_scipy_csc(data: DataType) -> bool:
 
 def _from_scipy_csc(
     data: DataType,
-    missing: Optional[FloatCompatible],
+    missing: FloatCompatible,
+    nthread: int,
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
 ) -> DispatchedDataBackendReturnType:
-    if len(data.indices) != len(data.data):
-        raise ValueError(f"length mismatch: {len(data.indices)} vs {len(data.data)}")
-    _warn_unused_missing(data, missing)
+    """Initialize data from a CSC matrix."""
     handle = ctypes.c_void_p()
+    transform_scipy_sparse(data, False)
     _check_call(
-        _LIB.XGDMatrixCreateFromCSCEx(
-            c_array(ctypes.c_size_t, data.indptr),
-            c_array(ctypes.c_uint, data.indices),
-            c_array(ctypes.c_float, data.data),
-            ctypes.c_size_t(len(data.indptr)),
-            ctypes.c_size_t(len(data.data)),
-            ctypes.c_size_t(data.shape[0]),
+        _LIB.XGDMatrixCreateFromCSC(
+            _array_interface(data.indptr),
+            _array_interface(data.indices),
+            _array_interface(data.data),
+            c_bst_ulong(data.shape[0]),
+            make_jcargs(missing=float(missing), nthread=int(nthread)),
             ctypes.byref(handle),
         )
     )
@@ -1033,7 +1040,7 @@ def dispatch_data_backend(
     if _is_scipy_csr(data):
         return _from_scipy_csr(data, missing, threads, feature_names, feature_types)
     if _is_scipy_csc(data):
-        return _from_scipy_csc(data, missing, feature_names, feature_types)
+        return _from_scipy_csc(data, missing, threads, feature_names, feature_types)
     if _is_scipy_coo(data):
         return _from_scipy_csr(
             data.tocsr(), missing, threads, feature_names, feature_types
@@ -1275,7 +1282,7 @@ def _proxy_transform(
         data, _ = _ensure_np_dtype(data, data.dtype)
         return data, None, feature_names, feature_types
     if _is_scipy_csr(data):
-        data = _transform_scipy_csr(data)
+        data = transform_scipy_sparse(data, True)
         return data, None, feature_names, feature_types
     if _is_pandas_series(data):
         import pandas as pd

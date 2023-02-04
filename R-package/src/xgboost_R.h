@@ -59,11 +59,12 @@ XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat,
  * \param indices row indices
  * \param data content of the data
  * \param num_row numer of rows (when it's set to 0, then guess from data)
+ * \param missing which value to represent missing value
  * \param n_threads Number of threads used to construct DMatrix from csc matrix.
  * \return created dmatrix
  */
 XGB_DLL SEXP XGDMatrixCreateFromCSC_R(SEXP indptr, SEXP indices, SEXP data, SEXP num_row,
-                                      SEXP n_threads);
+                                      SEXP missing, SEXP n_threads);
 
 /*!
  * \brief create a matrix content from CSR format
@@ -71,11 +72,12 @@ XGB_DLL SEXP XGDMatrixCreateFromCSC_R(SEXP indptr, SEXP indices, SEXP data, SEXP
  * \param indices column indices
  * \param data content of the data
  * \param num_col numer of columns (when it's set to 0, then guess from data)
+ * \param missing which value to represent missing value
  * \param n_threads Number of threads used to construct DMatrix from csr matrix.
  * \return created dmatrix
  */
 XGB_DLL SEXP XGDMatrixCreateFromCSR_R(SEXP indptr, SEXP indices, SEXP data, SEXP num_col,
-                                      SEXP n_threads);
+                                      SEXP missing, SEXP n_threads);
 
 /*!
  * \brief create a new dmatrix from sliced content of existing matrix
