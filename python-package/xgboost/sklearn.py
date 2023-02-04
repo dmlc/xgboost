@@ -112,14 +112,17 @@ def _objective_decorator(
 def _metric_decorator(func: Callable) -> Metric:
     """Decorate a metric function from sklearn.
 
-    Converts an metric function that uses the typical sklearn metric signature so that it
-    is compatible with :py:func:`train`
+    Converts an metric function that uses the typical sklearn metric signature so that
+    it is compatible with :py:func:`train`
 
     """
 
     def inner(y_score: np.ndarray, dmatrix: DMatrix) -> Tuple[str, float]:
         y_true = dmatrix.get_label()
-        return func.__name__, func(y_true, y_score)
+        weight = dmatrix.get_weight()
+        if weight.size == 0:
+            return func.__name__, func(y_true, y_score)
+        return func.__name__, func(y_true, y_score, sample_weight=weight)
 
     return inner
 
