@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2022 by Contributors
+ Copyright (c) 2014-2023 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -79,17 +79,9 @@ public class DMatrix {
    * @throws XGBoostError
    */
   @Deprecated
-  public DMatrix(long[] headers, int[] indices, float[] data, DMatrix.SparseType st)
-      throws XGBoostError {
-    long[] out = new long[1];
-    if (st == SparseType.CSR) {
-      XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromCSREx(headers, indices, data, 0, out));
-    } else if (st == SparseType.CSC) {
-      XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromCSCEx(headers, indices, data, 0, out));
-    } else {
-      throw new UnknownError("unknow sparsetype");
-    }
-    handle = out[0];
+  public DMatrix(long[] headers, int[] indices, float[] data,
+                 DMatrix.SparseType st) throws XGBoostError {
+    this(headers, indices, data, st, 0, Float.NaN, -1);
   }
 
   /**
@@ -102,15 +94,20 @@ public class DMatrix {
    *                     row number
    * @throws XGBoostError
    */
-  public DMatrix(long[] headers, int[] indices, float[] data, DMatrix.SparseType st, int shapeParam)
-          throws XGBoostError {
+  public DMatrix(long[] headers, int[] indices, float[] data, DMatrix.SparseType st,
+                 int shapeParam) throws XGBoostError {
+    this(headers, indices, data, st, shapeParam, Float.NaN, -1);
+  }
+
+  public DMatrix(long[] headers, int[] indices, float[] data, DMatrix.SparseType st, int shapeParam,
+                 float missing, int nthread) throws XGBoostError {
     long[] out = new long[1];
     if (st == SparseType.CSR) {
-      XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromCSREx(headers, indices, data,
-              shapeParam, out));
+      XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromCSR(headers, indices, data,
+                                                             shapeParam, missing, nthread, out));
     } else if (st == SparseType.CSC) {
-      XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromCSCEx(headers, indices, data,
-              shapeParam, out));
+      XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromCSC(headers, indices, data,
+                                                             shapeParam, missing, nthread, out));
     } else {
       throw new UnknownError("unknow sparsetype");
     }
@@ -423,6 +420,18 @@ public class DMatrix {
     long[] rowNum = new long[1];
     XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixNumRow(handle, rowNum));
     return rowNum[0];
+  }
+
+  /**
+   * Get the number of non-missing values of DMatrix.
+   *
+   * @return The number of non-missing values
+   * @throws XGBoostError native error
+   */
+  public long nonMissingNum() throws XGBoostError {
+    long[] n = new long[1];
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixNumNonMissing(handle, n));
+    return n[0];
   }
 
   /**
