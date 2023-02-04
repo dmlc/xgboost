@@ -2,6 +2,7 @@
 from typing import Any, Generator, Tuple, Union
 
 import numpy as np
+from xgboost.data import pandas_pyarrow_mapper
 
 
 def np_dtypes(
@@ -124,3 +125,56 @@ def pd_dtypes() -> Generator:
         orig = pd.DataFrame(data, dtype=np.bool_ if Null is None else pd.BooleanDtype())
         df = pd.DataFrame(data, dtype=pd.BooleanDtype())
         yield orig, df
+
+
+def pd_arrow_dtypes() -> Generator:
+    """Pandas DataFrame with pyarrow backed type."""
+    import pandas as pd
+    import pyarrow as pa  # pylint: disable=import-error
+
+    # Integer
+    dtypes = pandas_pyarrow_mapper
+    Null: Union[float, None, Any] = np.nan
+    orig = pd.DataFrame(
+        {"f0": [1, 2, Null, 3], "f1": [4, 3, Null, 1]}, dtype=np.float32
+    )
+    # Create a dictionary-backed dataframe, enable this when the roundtrip is
+    # implemented in pandas/pyarrow
+    #
+    # category = pd.ArrowDtype(pa.dictionary(pa.int32(), pa.int32(), ordered=True))
+    # df = pd.DataFrame({"f0": [0, 2, Null, 3], "f1": [4, 3, Null, 1]}, dtype=category)
+
+    # Error:
+    # >>> df.astype("category")
+    #   Function 'dictionary_encode' has no kernel matching input types
+    #   (array[dictionary<values=int32, indices=int32, ordered=0>])
+
+    # Error:
+    # pd_cat_df = pd.DataFrame(
+    #     {"f0": [0, 2, Null, 3], "f1": [4, 3, Null, 1]},
+    #     dtype="category"
+    # )
+    # pa_catcodes = (
+    #     df["f1"].array.__arrow_array__().combine_chunks().to_pandas().cat.codes
+    # )
+    # pd_catcodes = pd_cat_df["f1"].cat.codes
+    # assert pd_catcodes.equals(pa_catcodes)
+
+    for Null in (None, pd.NA):
+        for dtype in dtypes:
+            if dtype.startswith("float16") or dtype.startswith("bool"):
+                continue
+            df = pd.DataFrame(
+                {"f0": [1, 2, Null, 3], "f1": [4, 3, Null, 1]}, dtype=dtype
+            )
+            yield orig, df
+
+    orig = pd.DataFrame(
+        {"f0": [True, False, pd.NA, True], "f1": [False, True, pd.NA, True]},
+        dtype=pd.BooleanDtype(),
+    )
+    df = pd.DataFrame(
+        {"f0": [True, False, pd.NA, True], "f1": [False, True, pd.NA, True]},
+        dtype=pd.ArrowDtype(pa.bool_()),
+    )
+    yield orig, df

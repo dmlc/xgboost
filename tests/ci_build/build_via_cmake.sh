@@ -7,6 +7,13 @@ then
   echo "Activating Conda environment ${conda_env}"
   shift 1
   cmake_args="$@"
+
+  # Workaround for file permission error
+  if [[ -n $CI_BUILD_UID ]]
+  then
+    gosu root chown -R "${CI_BUILD_UID}:${CI_BUILD_GID}" /opt/mambaforge/envs
+  fi
+
   source activate ${conda_env}
   cmake_prefix_flag="-DCMAKE_PREFIX_PATH=$CONDA_PREFIX"
 else

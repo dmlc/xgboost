@@ -66,6 +66,9 @@ jobs:
   c-api-demo:
     name: Test installing XGBoost lib + building the C API demo
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash -l {0}
     strategy:
       fail-fast: false
       matrix:
@@ -82,13 +85,11 @@ jobs:
         environment-name: cpp_test
         environment-file: tests/ci_build/conda_env/cpp_test.yml
     - name: Display Conda env
-      shell: bash -l {0}
       run: |
         conda info
         conda list
 
     - name: Build and install XGBoost static library
-      shell: bash -l {0}
       run: |
         mkdir build
         cd build
@@ -96,7 +97,6 @@ jobs:
         ninja -v install
         cd -
     - name: Build and run C API demo with static
-      shell: bash -l {0}
       run: |
         pushd .
         cd demo/c-api/
@@ -110,14 +110,12 @@ jobs:
         popd
 
     - name: Build and install XGBoost shared library
-      shell: bash -l {0}
       run: |
         cd build
         cmake .. -DBUILD_STATIC_LIB=OFF -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja
         ninja -v install
         cd -
     - name: Build and run C API demo with shared
-      shell: bash -l {0}
       run: |
         pushd .
         cd demo/c-api/

@@ -23,6 +23,7 @@ my_linters <- list(
   brace_linter = lintr::brace_linter(),
   commas_linter = lintr::commas_linter(),
   equals_na = lintr::equals_na_linter(),
+  fixed_regex = lintr::fixed_regex_linter(),
   infix_spaces_linter = lintr::infix_spaces_linter(),
   line_length_linter = lintr::line_length_linter(length = 150L),
   no_tab_linter = lintr::no_tab_linter(),
