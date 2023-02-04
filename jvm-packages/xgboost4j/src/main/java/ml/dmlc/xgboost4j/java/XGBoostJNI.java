@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2022 by Contributors
+ Copyright (c) 2014-2023 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -56,11 +56,15 @@ class XGBoostJNI {
   final static native int XGDMatrixCreateFromDataIter(java.util.Iterator<DataBatch> iter,
                                                              String cache_info, long[] out);
 
-  public final static native int XGDMatrixCreateFromCSREx(long[] indptr, int[] indices, float[] data,
-                                                        int shapeParam, long[] out);
+  public final static native int XGDMatrixCreateFromCSR(long[] indptr, int[] indices,
+                                                        float[] data, int shapeParam,
+                                                        float missing, int nthread,
+                                                        long[] out);
 
-  public final static native int XGDMatrixCreateFromCSCEx(long[] colptr, int[] indices, float[] data,
-                                                          int shapeParam, long[] out);
+  public final static native int XGDMatrixCreateFromCSC(long[] colptr, int[] indices,
+                                                        float[] data, int shapeParam,
+                                                        float missing, int nthread,
+                                                        long[] out);
 
   public final static native int XGDMatrixCreateFromMat(float[] data, int nrow, int ncol,
                                                         float missing, long[] out);
@@ -96,6 +100,7 @@ class XGBoostJNI {
                                                             long[] outLength, String[][] outValues);
 
   public final static native int XGDMatrixNumRow(long handle, long[] row);
+  public final static native int XGDMatrixNumNonMissing(long handle, long[] nonMissings);
 
   public final static native int XGBoosterCreate(long[] handles, long[] out);
 

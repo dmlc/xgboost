@@ -36,19 +36,37 @@ xgb.DMatrix <- function(data, info = list(), missing = NA, silent = FALSE, nthre
     cnames <- colnames(data)
   } else if (inherits(data, "dgCMatrix")) {
     handle <- .Call(
-      XGDMatrixCreateFromCSC_R, data@p, data@i, data@x, nrow(data), as.integer(NVL(nthread, -1))
+      XGDMatrixCreateFromCSC_R,
+      data@p,
+      data@i,
+      data@x,
+      nrow(data),
+      missing,
+      as.integer(NVL(nthread, -1))
     )
     cnames <- colnames(data)
   } else if (inherits(data, "dgRMatrix")) {
     handle <- .Call(
-      XGDMatrixCreateFromCSR_R, data@p, data@j, data@x, ncol(data), as.integer(NVL(nthread, -1))
+      XGDMatrixCreateFromCSR_R,
+      data@p,
+      data@j,
+      data@x,
+      ncol(data),
+      missing,
+      as.integer(NVL(nthread, -1))
     )
     cnames <- colnames(data)
   } else if (inherits(data, "dsparseVector")) {
     indptr <- c(0L, as.integer(length(data@i)))
     ind <- as.integer(data@i) - 1L
     handle <- .Call(
-      XGDMatrixCreateFromCSR_R, indptr, ind, data@x, length(data), as.integer(NVL(nthread, -1))
+      XGDMatrixCreateFromCSR_R,
+      indptr,
+      ind,
+      data@x,
+      length(data),
+      missing,
+      as.integer(NVL(nthread, -1))
     )
   } else {
     stop("xgb.DMatrix does not support construction from ", typeof(data))

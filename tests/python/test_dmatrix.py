@@ -82,10 +82,6 @@ class TestDMatrix:
 
             assert len(record) == 0
 
-        with pytest.warns(UserWarning):
-            csr = csr_matrix(x)
-            xgb.DMatrix(csr.tocsc(), y, missing=4)
-
     def test_dmatrix_numpy_init(self):
         data = np.random.randn(5, 5)
         dm = xgb.DMatrix(data)
@@ -129,6 +125,12 @@ class TestDMatrix:
         dtrain = xgb.DMatrix(X)
         assert dtrain.num_row() == 3
         assert dtrain.num_col() == 3
+
+        indptr = np.array([0, 3, 5])
+        data = np.array([0, 1, 2, 3, 4])
+        row_idx = np.array([0, 1, 2, 0, 2])
+        X = scipy.sparse.csc_matrix((data, row_idx, indptr), shape=(3, 2))
+        assert tm.predictor_equal(xgb.DMatrix(X.tocsr()), xgb.DMatrix(X))
 
     def test_coo(self):
         row = np.array([0, 2, 2, 0, 1, 2])

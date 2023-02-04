@@ -8,6 +8,7 @@
 #include "../../../src/common/hist_util.h"
 #include "../../../src/common/quantile.h"
 #include "../../../src/data/adapter.h"
+#include "xgboost/context.h"
 
 namespace xgboost {
 namespace common {
@@ -183,7 +184,7 @@ void TestSameOnAllWorkers() {
         }
 
         auto m = RandomDataGenerator{kRows, kCols, 0}
-                     .Device(0)
+                     .Device(Context::kCpuId)
                      .Type(ft)
                      .MaxCategory(17)
                      .Seed(rank + seed)
