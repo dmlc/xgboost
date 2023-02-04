@@ -119,7 +119,11 @@ def _metric_decorator(func: Callable) -> Metric:
 
     def inner(y_score: np.ndarray, dmatrix: DMatrix) -> Tuple[str, float]:
         y_true = dmatrix.get_label()
-        return func.__name__, func(y_true, y_score)
+        weight = dmatrix.get_weight()
+        if weight.size == 0:
+            return func.__name__, func(y_true, y_score)
+        else:
+            return func.__name__, func(y_true, y_score, sample_weight=weight)
 
     return inner
 
