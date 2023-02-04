@@ -13,10 +13,10 @@ RUN \
     apt-get update && \
     apt-get install -y wget unzip bzip2 libgomp1 build-essential openjdk-8-jdk-headless && \
     # Python
-    wget -nv -O Miniconda3.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
-    bash Miniconda3.sh -b -p /opt/python
+    wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/22.11.1-2/Mambaforge-22.11.1-2-Linux-x86_64.sh && \
+    bash conda.sh -b -p /opt/mambaforge
 
-ENV PATH=/opt/python/bin:$PATH
+ENV PATH=/opt/mambaforge/bin:$PATH
 
 # Create new Conda environment with cuDF, Dask, and cuPy
 RUN \

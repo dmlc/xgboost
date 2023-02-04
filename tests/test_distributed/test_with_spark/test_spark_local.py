@@ -215,7 +215,6 @@ MultiClfData = namedtuple("MultiClfData", ("multi_clf_df_train", "multi_clf_df_t
 
 @pytest.fixture
 def multi_clf_data(spark: SparkSession) -> Generator[MultiClfData, None, None]:
-
     X = np.array([[1.0, 2.0, 3.0], [1.0, 2.0, 4.0], [0.0, 1.0, 5.5], [-1.0, -2.0, 1.0]])
     y = np.array([0, 0, 1, 2])
     cls1 = xgb.XGBClassifier()

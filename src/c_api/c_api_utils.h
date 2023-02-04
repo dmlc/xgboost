@@ -1,10 +1,11 @@
-/*!
- * Copyright (c) 2021-2022 by XGBoost Contributors
+/**
+ * Copyright 2021-2023 by XGBoost Contributors
  */
 #ifndef XGBOOST_C_API_C_API_UTILS_H_
 #define XGBOOST_C_API_C_API_UTILS_H_
 
 #include <algorithm>
+#include <cstddef>
 #include <functional>
 #include <memory>  // std::shared_ptr
 #include <string>
@@ -14,6 +15,7 @@
 #include "xgboost/data.h"  // DMatrix
 #include "xgboost/json.h"
 #include "xgboost/learner.h"
+#include "xgboost/linalg.h"  // ArrayInterfaceHandler
 #include "xgboost/logging.h"
 #include "xgboost/string_view.h"  // StringView
 
@@ -281,5 +283,55 @@ inline std::shared_ptr<DMatrix> CastDMatrixHandle(DMatrixHandle const handle) {
   CHECK(p_m) << msg;
   return p_m;
 }
+
+namespace detail {
+template <typename PtrT, typename I, typename T>
+void MakeSparseFromPtr(PtrT const *p_indptr, I const *p_indices, T const *p_data,
+                       std::size_t nindptr, std::string *indptr_str, std::string *indices_str,
+                       std::string *data_str) {
+  auto ndata = static_cast<Integer::Int>(p_indptr[nindptr - 1]);
+  // Construct array interfaces
+  Json jindptr{Object{}};
+  Json jindices{Object{}};
+  Json jdata{Object{}};
+  CHECK(p_indptr);
+  jindptr["data"] =
+      Array{std::vector<Json>{Json{reinterpret_cast<Integer::Int>(p_indptr)}, Json{true}}};
+  jindptr["shape"] = std::vector<Json>{Json{nindptr}};
+  jindptr["version"] = Integer{3};
+
+  CHECK(p_indices);
+  jindices["data"] =
+      Array{std::vector<Json>{Json{reinterpret_cast<Integer::Int>(p_indices)}, Json{true}}};
+  jindices["shape"] = std::vector<Json>{Json{ndata}};
+  jindices["version"] = Integer{3};
+
+  CHECK(p_data);
+  jdata["data"] =
+      Array{std::vector<Json>{Json{reinterpret_cast<Integer::Int>(p_data)}, Json{true}}};
+  jdata["shape"] = std::vector<Json>{Json{ndata}};
+  jdata["version"] = Integer{3};
+
+  std::string pindptr_typestr =
+      linalg::detail::ArrayInterfaceHandler::TypeChar<PtrT>() + std::to_string(sizeof(PtrT));
+  std::string ind_typestr =
+      linalg::detail::ArrayInterfaceHandler::TypeChar<I>() + std::to_string(sizeof(I));
+  std::string data_typestr =
+      linalg::detail::ArrayInterfaceHandler::TypeChar<T>() + std::to_string(sizeof(T));
+  if (DMLC_LITTLE_ENDIAN) {
+    jindptr["typestr"] = String{"<" + pindptr_typestr};
+    jindices["typestr"] = String{"<" + ind_typestr};
+    jdata["typestr"] = String{"<" + data_typestr};
+  } else {
+    jindptr["typestr"] = String{">" + pindptr_typestr};
+    jindices["typestr"] = String{">" + ind_typestr};
+    jdata["typestr"] = String{">" + data_typestr};
+  }
+
+  Json::Dump(jindptr, indptr_str);
+  Json::Dump(jindices, indices_str);
+  Json::Dump(jdata, data_str);
+}
+}  // namespace detail
 }  // namespace xgboost
 #endif  // XGBOOST_C_API_C_API_UTILS_H_
