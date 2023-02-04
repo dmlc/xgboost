@@ -1,23 +1,23 @@
-/*!
- * Copyright 2014~2022 by XGBoost Contributors
+/**
+ * Copyright 2014~2023 by XGBoost Contributors
  * \file simple_dmatrix.cc
  * \brief the input data structure for gradient boosting
  * \author Tianqi Chen
  */
-#include <vector>
+#include "simple_dmatrix.h"
+
+#include <algorithm>
 #include <limits>
 #include <type_traits>
-#include <algorithm>
+#include <vector>
 
-#include "xgboost/data.h"
-#include "xgboost/c_api.h"
-
-#include "simple_dmatrix.h"
-#include "./simple_batch_iterator.h"
 #include "../common/random.h"
 #include "../common/threading_utils.h"
+#include "./simple_batch_iterator.h"
 #include "adapter.h"
 #include "gradient_index.h"
+#include "xgboost/c_api.h"
+#include "xgboost/data.h"
 
 namespace xgboost {
 namespace data {
@@ -229,7 +229,9 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
         offset_vec.emplace_back(offset_vec.back());
       }
     } else {
-      CHECK((std::is_same<AdapterT, CSCAdapter>::value)) << "Expecting CSCAdapter";
+      CHECK((std::is_same<AdapterT, CSCAdapter>::value ||
+             std::is_same<AdapterT, CSCArrayAdapter>::value))
+          << "Expecting CSCAdapter";
       info_.num_row_ = offset_vec.size() - 1;
     }
   } else {
@@ -267,20 +269,14 @@ void SimpleDMatrix::SaveToLocalFile(const std::string& fname) {
     fo->Write(sparse_page_->data.HostVector());
 }
 
-template SimpleDMatrix::SimpleDMatrix(DenseAdapter* adapter, float missing,
-                                     int nthread);
-template SimpleDMatrix::SimpleDMatrix(ArrayAdapter* adapter, float missing,
-                                     int nthread);
-template SimpleDMatrix::SimpleDMatrix(CSRAdapter* adapter, float missing,
-                                     int nthread);
-template SimpleDMatrix::SimpleDMatrix(CSRArrayAdapter* adapter, float missing,
-                                     int nthread);
-template SimpleDMatrix::SimpleDMatrix(CSCAdapter* adapter, float missing,
-                                     int nthread);
-template SimpleDMatrix::SimpleDMatrix(DataTableAdapter* adapter, float missing,
-                                     int nthread);
-template SimpleDMatrix::SimpleDMatrix(FileAdapter* adapter, float missing,
-                                     int nthread);
+template SimpleDMatrix::SimpleDMatrix(DenseAdapter* adapter, float missing, int nthread);
+template SimpleDMatrix::SimpleDMatrix(ArrayAdapter* adapter, float missing, int nthread);
+template SimpleDMatrix::SimpleDMatrix(CSRAdapter* adapter, float missing, int nthread);
+template SimpleDMatrix::SimpleDMatrix(CSRArrayAdapter* adapter, float missing, int nthread);
+template SimpleDMatrix::SimpleDMatrix(CSCArrayAdapter* adapter, float missing, int nthread);
+template SimpleDMatrix::SimpleDMatrix(CSCAdapter* adapter, float missing, int nthread);
+template SimpleDMatrix::SimpleDMatrix(DataTableAdapter* adapter, float missing, int nthread);
+template SimpleDMatrix::SimpleDMatrix(FileAdapter* adapter, float missing, int nthread);
 template SimpleDMatrix::SimpleDMatrix(
     IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>
         *adapter,

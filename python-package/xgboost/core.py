@@ -2311,9 +2311,9 @@ class Booster:
             )
             return _prediction_output(shape, dims, preds, False)
         if isinstance(data, scipy.sparse.csr_matrix):
-            from .data import _transform_scipy_csr
+            from .data import transform_scipy_sparse
 
-            data = _transform_scipy_csr(data)
+            data = transform_scipy_sparse(data, True)
             _check_call(
                 _LIB.XGBoosterPredictFromCSR(
                     self.handle,

@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014-2023 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -54,6 +54,9 @@ class DMatrixSuite extends FunSuite {
     dmat1.setLabel(label1)
     val label2 = dmat1.getLabel
     assert(label2 === label1)
+
+    val dmat2 = new DMatrix(rowHeaders, colIndex, data, JDMatrix.SparseType.CSR, 5, 1.0f, -1)
+    assert(dmat2.nonMissingNum === 9);
   }
 
   test("create DMatrix from CSREx") {
@@ -94,6 +97,9 @@ class DMatrixSuite extends FunSuite {
     dmat1.setLabel(label1)
     val label2 = dmat1.getLabel
     assert(label2 === label1)
+
+    val dmat2 = new DMatrix(colHeaders, rowIndex, data, JDMatrix.SparseType.CSC, 5, 1.0f, -1)
+    assert(dmat2.nonMissingNum === 9);
   }
 
   test("create DMatrix from CSCEx") {
