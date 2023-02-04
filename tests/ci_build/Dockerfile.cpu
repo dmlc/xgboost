@@ -15,10 +15,10 @@ RUN \
     wget -nv -nc https://cmake.org/files/v3.14/cmake-3.14.0-Linux-x86_64.sh --no-check-certificate && \
     bash cmake-3.14.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
     # Python
-    wget -nv https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh && \
-    bash Mambaforge-Linux-x86_64.sh -b -p /opt/python
+    wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/22.11.1-2/Mambaforge-22.11.1-2-Linux-x86_64.sh && \
+    bash conda.sh -b -p /opt/mambaforge
 
-ENV PATH=/opt/python/bin:$PATH
+ENV PATH=/opt/mambaforge/bin:$PATH
 ENV CC=gcc-8
 ENV CXX=g++-8
 ENV CPP=cpp-8
@@ -37,7 +37,8 @@ RUN git clone -b v1.49.1 https://github.com/grpc/grpc.git \
 
 # Create new Conda environment
 COPY conda_env/linux_cpu_test.yml /scripts/
-RUN mamba env create -n linux_cpu_test --file=/scripts/linux_cpu_test.yml && \
+RUN mamba create -n linux_cpu_test && \
+    mamba env update -n linux_cpu_test --file=/scripts/linux_cpu_test.yml && \
     mamba clean --all && \
     conda run --no-capture-output -n linux_cpu_test pip install buildkite-test-collector
 
