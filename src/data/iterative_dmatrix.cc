@@ -204,8 +204,9 @@ void IterativeDMatrix::InitFromCPU(DataIterHandle iter_handle, float missing,
       if (!p_sketch) {
         h_ft = proxy->Info().feature_types.ConstHostVector();
         SyncFeatureType(&h_ft);
-        p_sketch.reset(new common::HostSketchContainer{batch_param_.max_bin, h_ft, column_sizes,
-                                                       false, ctx_.Threads()});
+        p_sketch.reset(new common::HostSketchContainer{
+            batch_param_.max_bin, h_ft, column_sizes, false,
+            proxy->Info().data_split_mode == DataSplitMode::kCol, ctx_.Threads()});
       }
       HostAdapterDispatch(proxy, [&](auto const& batch) {
         proxy->Info().num_nonzero_ = batch_nnz[i];

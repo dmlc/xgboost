@@ -627,11 +627,11 @@ class DMatrix {
   /**
    * \brief Slice a DMatrix by columns.
    *
-   * @param start The position of the first column
-   * @param size The number of columns in the slice
+   * @param num_slices Total number of slices
+   * @param slice_id Index of the current slice
    * @return DMatrix containing the slice of columns
    */
-  virtual DMatrix *SliceCol(std::size_t start, std::size_t size) = 0;
+  virtual DMatrix *SliceCol(int num_slices, int slice_id) = 0;
 
  protected:
   virtual BatchSet<SparsePage> GetRowBatches() = 0;
