@@ -96,6 +96,9 @@ def make_categorical(
         l_n_samples = min(
             n_samples // n_workers, n_samples - i * (n_samples // n_workers)
         )
+        # make sure there's at least one sample for testing empty DMatrix
+        if n_samples == 1 and i == 0:
+            l_n_samples = 1
         future = client.submit(
             pack,
             n_samples=l_n_samples,

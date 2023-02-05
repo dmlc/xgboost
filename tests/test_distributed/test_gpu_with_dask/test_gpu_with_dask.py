@@ -267,7 +267,7 @@ class TestDistributedGPU:
 
     def test_empty_quantile_dmatrix(self, local_cuda_client: Client) -> None:
         client = local_cuda_client
-        X, y = make_categorical(client, 2, 30, 13)
+        X, y = make_categorical(client, 1, 30, 13)
         X_valid, y_valid = make_categorical(client, 10000, 30, 13)
 
         Xy = xgb.dask.DaskQuantileDMatrix(client, X, y, enable_categorical=True)
