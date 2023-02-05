@@ -30,6 +30,7 @@ from .core import (
     c_array,
     c_str,
     from_pystr_to_cstr,
+    make_jcargs,
 )
 
 DispatchedDataBackendReturnType = Tuple[
