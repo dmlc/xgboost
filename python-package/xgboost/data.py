@@ -1215,6 +1215,7 @@ def _proxy_transform(
         arr, feature_names, feature_types = _transform_pandas_df(
             data, enable_categorical, feature_names, feature_types
         )
+        arr, _ = _ensure_np_dtype(arr, arr.dtype)
         return arr, None, feature_names, feature_types
     raise TypeError("Value type is not supported for data iterator:" + str(type(data)))
 
