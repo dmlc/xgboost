@@ -338,10 +338,10 @@ TEST(SimpleDMatrix, SliceCol) {
   auto& margin = p_m->Info().base_margin_;
   margin = decltype(p_m->Info().base_margin_){{kRows, kClasses}, Context::kCpuId};
 
-  size_t constexpr kSlicCols {4};
-  for (auto slice = 0; slice < 2; slice++) {
-    auto const slice_start = slice * kSlicCols;
-    std::unique_ptr<DMatrix> out { p_m->SliceCol(slice_start, kSlicCols) };
+  auto constexpr kSlices {2};
+  auto constexpr kSliceSize {4};
+  for (auto slice = 0; slice < kSlices; slice++) {
+    std::unique_ptr<DMatrix> out { p_m->SliceCol(kSlices, slice) };
     ASSERT_EQ(out->Info().labels.Size(), kRows);
     ASSERT_EQ(out->Info().labels_lower_bound_.Size(), kRows);
     ASSERT_EQ(out->Info().labels_upper_bound_.Size(), kRows);
@@ -355,7 +355,8 @@ TEST(SimpleDMatrix, SliceCol) {
           auto out_inst = out_page[i];
           auto in_inst = in_page[i];
           ASSERT_EQ(out_inst.size() * 2, in_inst.size()) << i;
-          for (size_t j = 0; j < kSlicCols; ++j) {
+          for (size_t j = 0; j < kSliceSize; ++j) {
+            auto const slice_start = kSliceSize * slice;
             ASSERT_EQ(in_inst[slice_start + j].fvalue, out_inst[j].fvalue);
             ASSERT_EQ(in_inst[slice_start + j].index, out_inst[j].index);
           }
@@ -377,7 +378,7 @@ TEST(SimpleDMatrix, SliceCol) {
 
     ASSERT_EQ(out->Info().num_col_, out->Info().num_col_);
     ASSERT_EQ(out->Info().num_row_, kRows);
-    ASSERT_EQ(out->Info().num_nonzero_, kRows * kSlicCols);  // dense
+    ASSERT_EQ(out->Info().num_nonzero_, kRows * kSliceSize);  // dense
     ASSERT_EQ(out->Info().data_split_mode, DataSplitMode::kCol);
   }
 }

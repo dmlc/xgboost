@@ -172,9 +172,9 @@ void IterativeDMatrix::InitFromCPU(DataIterHandle iter_handle, float missing,
     size_t i = 0;
     while (iter.Next()) {
       if (!p_sketch) {
-        p_sketch.reset(new common::HostSketchContainer{batch_param_.max_bin,
-                                                       proxy->Info().feature_types.ConstHostSpan(),
-                                                       column_sizes, false, ctx_.Threads()});
+        p_sketch.reset(new common::HostSketchContainer{
+            batch_param_.max_bin, proxy->Info().feature_types.ConstHostSpan(), column_sizes, false,
+            proxy->Info().data_split_mode == DataSplitMode::kCol, ctx_.Threads()});
       }
       HostAdapterDispatch(proxy, [&](auto const& batch) {
         proxy->Info().num_nonzero_ = batch_nnz[i];

@@ -87,7 +87,7 @@ class DMatrixProxy : public DMatrix {
     LOG(FATAL) << "Slicing DMatrix is not supported for Proxy DMatrix.";
     return nullptr;
   }
-  DMatrix* SliceCol(std::size_t, std::size_t) override {
+  DMatrix* SliceCol(int num_slices, int slice_id) override {
     LOG(FATAL) << "Slicing DMatrix columns is not supported for Proxy DMatrix.";
     return nullptr;
   }
