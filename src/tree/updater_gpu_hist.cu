@@ -319,7 +319,7 @@ struct GPUHistMakerDevice {
       right_sampled_features->SetDevice(ctx_->gpu_id);
       common::Span<bst_feature_t> right_feature_set =
           interaction_constraints.Query(right_sampled_features->DeviceSpan(),
-                                        left_nidx);
+                                        right_nidx);
       h_node_inputs[i * 2] = {left_nidx, candidate.depth + 1,
                               candidate.split.left_sum, left_feature_set,
                               hist.GetNodeHistogram(left_nidx)};
