@@ -1,7 +1,9 @@
 import sys
-import xgboost as xgb
-import pandas as pd
+
 import numpy as np
+import pandas as pd
+
+import xgboost as xgb
 
 sys.path.append("tests/python")
 # Don't import the test class, otherwise they will run twice.
@@ -14,14 +16,17 @@ class TestGPUInteractionConstraints:
     cputest = test_ic.TestInteractionConstraints()
 
     def test_interaction_constraints(self):
-        self.cputest.run_interaction_constraints(tree_method='gpu_hist')
+        self.cputest.run_interaction_constraints(tree_method="gpu_hist")
 
     def test_training_accuracy(self):
-        self.cputest.training_accuracy(tree_method='gpu_hist')
-    
+        self.cputest.training_accuracy(tree_method="gpu_hist")
+
     # case where different number of features can occur in the evaluator
     def test_issue_8730(self):
-        X = pd.DataFrame(zip(range(0, 100), range(200, 300), range(300, 400), range(400, 500)), columns=["A", "B", "C", "D"])
+        X = pd.DataFrame(
+            zip(range(0, 100), range(200, 300), range(300, 400), range(400, 500)),
+            columns=["A", "B", "C", "D"],
+        )
         y = np.array([*([0] * 50), *([1] * 50)])
         dm = xgb.DMatrix(X, label=y)
 
