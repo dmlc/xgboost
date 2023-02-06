@@ -24,7 +24,7 @@ def init(args: Optional[List[bytes]] = None) -> None:
     parsed = {}
     if args:
         for arg in args:
-            kv = arg.decode().split('=')
+            kv = arg.decode().split("=")
             if len(kv) == 2:
                 parsed[kv[0]] = kv[1]
     collective.init(**parsed)
@@ -104,6 +104,7 @@ def broadcast(data: T, root: int) -> T:
 @unique
 class Op(IntEnum):
     """Supported operations for rabit."""
+
     MAX = 0
     MIN = 1
     SUM = 2
@@ -111,7 +112,7 @@ class Op(IntEnum):
 
 
 def allreduce(  # pylint:disable=invalid-name
-        data: np.ndarray, op: Op, prepare_fun: Optional[Callable[[np.ndarray], None]] = None
+    data: np.ndarray, op: Op, prepare_fun: Optional[Callable[[np.ndarray], None]] = None
 ) -> np.ndarray:
     """Perform allreduce, return the result.
     Parameters

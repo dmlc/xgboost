@@ -205,25 +205,29 @@ def train(
 
 
 class CVPack:
-    """"Auxiliary datastruct to hold one fold of CV."""
-    def __init__(self, dtrain: DMatrix, dtest: DMatrix, param: Optional[Union[Dict, List]]) -> None:
-        """"Initialize the CVPack"""
+    """ "Auxiliary datastruct to hold one fold of CV."""
+
+    def __init__(
+        self, dtrain: DMatrix, dtest: DMatrix, param: Optional[Union[Dict, List]]
+    ) -> None:
+        """ "Initialize the CVPack"""
         self.dtrain = dtrain
         self.dtest = dtest
-        self.watchlist = [(dtrain, 'train'), (dtest, 'test')]
+        self.watchlist = [(dtrain, "train"), (dtest, "test")]
         self.bst = Booster(param, [dtrain, dtest])
 
     def __getattr__(self, name: str) -> Callable:
         def _inner(*args: Any, **kwargs: Any) -> Any:
             return getattr(self.bst, name)(*args, **kwargs)
+
         return _inner
 
     def update(self, iteration: int, fobj: Optional[Objective]) -> None:
-        """"Update the boosters for one iteration"""
+        """ "Update the boosters for one iteration"""
         self.bst.update(self.dtrain, iteration, fobj)
 
     def eval(self, iteration: int, feval: Optional[Metric], output_margin: bool) -> str:
-        """"Evaluate the CVPack for one iteration."""
+        """ "Evaluate the CVPack for one iteration."""
         return self.bst.eval_set(self.watchlist, iteration, feval, output_margin)
 
 
@@ -232,38 +236,42 @@ class _PackedBooster:
         self.cvfolds = cvfolds
 
     def update(self, iteration: int, obj: Optional[Objective]) -> None:
-        '''Iterate through folds for update'''
+        """Iterate through folds for update"""
         for fold in self.cvfolds:
             fold.update(iteration, obj)
 
-    def eval(self, iteration: int, feval: Optional[Metric], output_margin: bool) -> List[str]:
-        '''Iterate through folds for eval'''
+    def eval(
+        self, iteration: int, feval: Optional[Metric], output_margin: bool
+    ) -> List[str]:
+        """Iterate through folds for eval"""
         result = [f.eval(iteration, feval, output_margin) for f in self.cvfolds]
         return result
 
     def set_attr(self, **kwargs: Optional[str]) -> Any:
-        '''Iterate through folds for setting attributes'''
+        """Iterate through folds for setting attributes"""
         for f in self.cvfolds:
             f.bst.set_attr(**kwargs)
 
     def attr(self, key: str) -> Optional[str]:
-        '''Redirect to booster attr.'''
+        """Redirect to booster attr."""
         return self.cvfolds[0].bst.attr(key)
 
-    def set_param(self,
-                  params: Union[Dict, Iterable[Tuple[str, Any]], str],
-                  value: Optional[str] = None) -> None:
+    def set_param(
+        self,
+        params: Union[Dict, Iterable[Tuple[str, Any]], str],
+        value: Optional[str] = None,
+    ) -> None:
         """Iterate through folds for set_param"""
         for f in self.cvfolds:
             f.bst.set_param(params, value)
 
     def num_boosted_rounds(self) -> int:
-        '''Number of boosted rounds.'''
+        """Number of boosted rounds."""
         return self.cvfolds[0].num_boosted_rounds()
 
     @property
     def best_iteration(self) -> int:
-        '''Get best_iteration'''
+        """Get best_iteration"""
         return int(cast(int, self.cvfolds[0].bst.attr("best_iteration")))
 
     @property
@@ -279,7 +287,7 @@ def groups_to_rows(groups: List[np.ndarray], boundaries: np.ndarray) -> np.ndarr
     :param boundaries: rows index limits of each group
     :return: row in group
     """
-    return np.concatenate([np.arange(boundaries[g], boundaries[g+1]) for g in groups])
+    return np.concatenate([np.arange(boundaries[g], boundaries[g + 1]) for g in groups])
 
 
 def mkgroupfold(
@@ -305,11 +313,17 @@ def mkgroupfold(
     # list by fold of test group indexes
     out_group_idset = np.array_split(idx, nfold)
     # list by fold of train group indexes
-    in_group_idset = [np.concatenate([out_group_idset[i] for i in range(nfold) if k != i])
-                      for k in range(nfold)]
+    in_group_idset = [
+        np.concatenate([out_group_idset[i] for i in range(nfold) if k != i])
+        for k in range(nfold)
+    ]
     # from the group indexes, convert them to row indexes
-    in_idset = [groups_to_rows(in_groups, group_boundaries) for in_groups in in_group_idset]
-    out_idset = [groups_to_rows(out_groups, group_boundaries) for out_groups in out_group_idset]
+    in_idset = [
+        groups_to_rows(in_groups, group_boundaries) for in_groups in in_group_idset
+    ]
+    out_idset = [
+        groups_to_rows(out_groups, group_boundaries) for out_groups in out_group_idset
+    ]
 
     # build the folds by taking the appropriate slices
     ret = []
@@ -324,7 +338,7 @@ def mkgroupfold(
             dtrain, dtest, tparam = fpreproc(dtrain, dtest, param.copy())
         else:
             tparam = param
-        plst = list(tparam.items()) + [('eval_metric', itm) for itm in evals]
+        plst = list(tparam.items()) + [("eval_metric", itm) for itm in evals]
         ret.append(CVPack(dtrain, dtest, plst))
     return ret
 
@@ -348,16 +362,20 @@ def mknfold(
 
     if stratified is False and folds is None:
         # Do standard k-fold cross validation. Automatically determine the folds.
-        if len(dall.get_uint_info('group_ptr')) > 1:
-            return mkgroupfold(dall, nfold, param, evals=evals, fpreproc=fpreproc, shuffle=shuffle)
+        if len(dall.get_uint_info("group_ptr")) > 1:
+            return mkgroupfold(
+                dall, nfold, param, evals=evals, fpreproc=fpreproc, shuffle=shuffle
+            )
 
         if shuffle is True:
             idx = np.random.permutation(dall.num_row())
         else:
             idx = np.arange(dall.num_row())
         out_idset = np.array_split(idx, nfold)
-        in_idset = [np.concatenate([out_idset[i] for i in range(nfold) if k != i])
-                    for k in range(nfold)]
+        in_idset = [
+            np.concatenate([out_idset[i] for i in range(nfold) if k != i])
+            for k in range(nfold)
+        ]
     elif folds is not None:
         # Use user specified custom split using indices
         try:
@@ -387,7 +405,7 @@ def mknfold(
             dtrain, dtest, tparam = fpreproc(dtrain, dtest, param.copy())
         else:
             tparam = param
-        plst = list(tparam.items()) + [('eval_metric', itm) for itm in evals]
+        plst = list(tparam.items()) + [("eval_metric", itm) for itm in evals]
         ret.append(CVPack(dtrain, dtest, plst))
     return ret
 
@@ -502,29 +520,32 @@ def cv(
     evaluation history : list(string)
     """
     if stratified is True and not SKLEARN_INSTALLED:
-        raise XGBoostError('sklearn needs to be installed in order to use stratified cv')
+        raise XGBoostError(
+            "sklearn needs to be installed in order to use stratified cv"
+        )
 
     if isinstance(metrics, str):
         metrics = [metrics]
 
     params = params.copy()
     if isinstance(params, list):
-        _metrics = [x[1] for x in params if x[0] == 'eval_metric']
+        _metrics = [x[1] for x in params if x[0] == "eval_metric"]
         params = dict(params)
-        if 'eval_metric' in params:
-            params['eval_metric'] = _metrics
+        if "eval_metric" in params:
+            params["eval_metric"] = _metrics
 
-    if (not metrics) and 'eval_metric' in params:
-        if isinstance(params['eval_metric'], list):
-            metrics = params['eval_metric']
+    if (not metrics) and "eval_metric" in params:
+        if isinstance(params["eval_metric"], list):
+            metrics = params["eval_metric"]
         else:
-            metrics = [params['eval_metric']]
+            metrics = [params["eval_metric"]]
 
     params.pop("eval_metric", None)
 
     results: Dict[str, List[float]] = {}
-    cvfolds = mknfold(dtrain, nfold, params, seed, metrics, fpreproc,
-                      stratified, folds, shuffle)
+    cvfolds = mknfold(
+        dtrain, nfold, params, seed, metrics, fpreproc, stratified, folds, shuffle
+    )
 
     metric_fn = _configure_custom_metric(feval, custom_metric)
 
@@ -555,20 +576,21 @@ def cv(
         should_break = callbacks_container.after_iteration(booster, i, dtrain, None)
         res = callbacks_container.aggregated_cv
         for key, mean, std in cast(List[Tuple[str, float, float]], res):
-            if key + '-mean' not in results:
-                results[key + '-mean'] = []
-            if key + '-std' not in results:
-                results[key + '-std'] = []
-            results[key + '-mean'].append(mean)
-            results[key + '-std'].append(std)
+            if key + "-mean" not in results:
+                results[key + "-mean"] = []
+            if key + "-std" not in results:
+                results[key + "-std"] = []
+            results[key + "-mean"].append(mean)
+            results[key + "-std"].append(std)
 
         if should_break:
             for k in results.keys():  # pylint: disable=consider-iterating-dictionary
-                results[k] = results[k][:(booster.best_iteration + 1)]
+                results[k] = results[k][: (booster.best_iteration + 1)]
             break
     if as_pandas:
         try:
             import pandas as pd
+
             results = pd.DataFrame.from_dict(results)
         except ImportError:
             pass

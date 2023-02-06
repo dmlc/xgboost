@@ -132,16 +132,7 @@ def main(args: argparse.Namespace) -> None:
             run_black(path)
             for path in [
                 # core
-                "python-package/xgboost/__init__.py",
-                "python-package/xgboost/_typing.py",
-                "python-package/xgboost/callback.py",
-                "python-package/xgboost/compat.py",
-                "python-package/xgboost/config.py",
-                "python-package/xgboost/dask.py",
-                "python-package/xgboost/sklearn.py",
-                "python-package/xgboost/spark",
-                "python-package/xgboost/federated.py",
-                "python-package/xgboost/testing",
+                "python-package/",
                 # tests
                 "tests/python/test_config.py",
                 "tests/python/test_data_iterator.py",

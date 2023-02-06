@@ -1,6 +1,6 @@
 # pylint: disable=too-many-arguments, too-many-branches, too-many-lines
 # pylint: disable=too-many-return-statements, import-error
-'''Data dispatching for DMatrix.'''
+"""Data dispatching for DMatrix."""
 import ctypes
 import json
 import os
@@ -108,6 +108,7 @@ def _from_scipy_csr(
     feature_types: Optional[FeatureTypes],
 ) -> DispatchedDataBackendReturnType:
     """Initialize data from a CSR matrix."""
+
     handle = ctypes.c_void_p()
     data = transform_scipy_sparse(data, True)
     _check_call(
@@ -178,8 +179,7 @@ def _ensure_np_dtype(
 
 
 def _maybe_np_slice(data: DataType, dtype: Optional[NumpyDType]) -> np.ndarray:
-    '''Handle numpy slice.  This can be removed if we use __array_interface__.
-    '''
+    """Handle numpy slice.  This can be removed if we use __array_interface__."""
     try:
         if not data.flags.c_contiguous:
             data = np.array(data, copy=True, dtype=dtype)
@@ -653,6 +653,7 @@ def _is_arrow(data: DataType) -> bool:
     try:
         import pyarrow as pa
         from pyarrow import dataset as arrow_dataset
+
         return isinstance(data, (pa.Table, arrow_dataset.Dataset))
     except ImportError:
         return False
@@ -878,8 +879,8 @@ def _is_cupy_array(data: DataType) -> bool:
 
 def _transform_cupy_array(data: DataType) -> CupyT:
     import cupy  # pylint: disable=import-error
-    if not hasattr(data, '__cuda_array_interface__') and hasattr(
-            data, '__array__'):
+
+    if not hasattr(data, "__cuda_array_interface__") and hasattr(data, "__array__"):
         data = cupy.array(data, copy=False)
     if data.dtype.hasobject or data.dtype in [cupy.float16, cupy.bool_]:
         data = data.astype(cupy.float32, copy=False)
@@ -900,9 +901,9 @@ def _from_cupy_array(
     config = bytes(json.dumps({"missing": missing, "nthread": nthread}), "utf-8")
     _check_call(
         _LIB.XGDMatrixCreateFromCudaArrayInterface(
-            interface_str,
-            config,
-            ctypes.byref(handle)))
+            interface_str, config, ctypes.byref(handle)
+        )
+    )
     return handle, feature_names, feature_types
 
 
@@ -923,12 +924,13 @@ def _is_cupy_csc(data: DataType) -> bool:
 
 
 def _is_dlpack(data: DataType) -> bool:
-    return 'PyCapsule' in str(type(data)) and "dltensor" in str(data)
+    return "PyCapsule" in str(type(data)) and "dltensor" in str(data)
 
 
 def _transform_dlpack(data: DataType) -> bool:
     from cupy import fromDlpack  # pylint: disable=E0401
-    assert 'used_dltensor' not in str(data)
+
+    assert "used_dltensor" not in str(data)
     data = fromDlpack(data)
     return data
 
@@ -941,8 +943,7 @@ def _from_dlpack(
     feature_types: Optional[FeatureTypes],
 ) -> DispatchedDataBackendReturnType:
     data = _transform_dlpack(data)
-    return _from_cupy_array(data, missing, nthread, feature_names,
-                            feature_types)
+    return _from_cupy_array(data, missing, nthread, feature_names, feature_types)
 
 
 def _is_uri(data: DataType) -> bool:
@@ -1003,13 +1004,13 @@ def _is_iter(data: DataType) -> bool:
 
 
 def _has_array_protocol(data: DataType) -> bool:
-    return hasattr(data, '__array__')
+    return hasattr(data, "__array__")
 
 
 def _convert_unknown_data(data: DataType) -> DataType:
     warnings.warn(
-        f'Unknown data type: {type(data)}, trying to convert it to csr_matrix',
-        UserWarning
+        f"Unknown data type: {type(data)}, trying to convert it to csr_matrix",
+        UserWarning,
     )
     try:
         import scipy.sparse
@@ -1018,7 +1019,7 @@ def _convert_unknown_data(data: DataType) -> DataType:
 
     try:
         data = scipy.sparse.csr_matrix(data)
-    except Exception:           # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         return None
 
     return data
@@ -1033,7 +1034,7 @@ def dispatch_data_backend(
     enable_categorical: bool = False,
     data_split_mode: DataSplitMode = DataSplitMode.ROW,
 ) -> DispatchedDataBackendReturnType:
-    '''Dispatch data for DMatrix.'''
+    """Dispatch data for DMatrix."""
     if not _is_cudf_ser(data) and not _is_pandas_series(data):
         _check_data_shape(data)
     if _is_scipy_csr(data):
@@ -1054,6 +1055,7 @@ def dispatch_data_backend(
         return _from_tuple(data, missing, threads, feature_names, feature_types)
     if _is_pandas_series(data):
         import pandas as pd
+
         data = pd.DataFrame(data)
     if _is_pandas_df(data):
         return _from_pandas_df(
@@ -1064,39 +1066,41 @@ def dispatch_data_backend(
             data, missing, threads, feature_names, feature_types, enable_categorical
         )
     if _is_cupy_array(data):
-        return _from_cupy_array(data, missing, threads, feature_names,
-                                feature_types)
+        return _from_cupy_array(data, missing, threads, feature_names, feature_types)
     if _is_cupy_csr(data):
-        raise TypeError('cupyx CSR is not supported yet.')
+        raise TypeError("cupyx CSR is not supported yet.")
     if _is_cupy_csc(data):
-        raise TypeError('cupyx CSC is not supported yet.')
+        raise TypeError("cupyx CSC is not supported yet.")
     if _is_dlpack(data):
-        return _from_dlpack(data, missing, threads, feature_names,
-                            feature_types)
+        return _from_dlpack(data, missing, threads, feature_names, feature_types)
     if _is_dt_df(data):
         _warn_unused_missing(data, missing)
         return _from_dt_df(
             data, missing, threads, feature_names, feature_types, enable_categorical
         )
     if _is_modin_df(data):
-        return _from_pandas_df(data, enable_categorical, missing, threads,
-                               feature_names, feature_types)
+        return _from_pandas_df(
+            data, enable_categorical, missing, threads, feature_names, feature_types
+        )
     if _is_modin_series(data):
         return _from_pandas_series(
             data, missing, threads, enable_categorical, feature_names, feature_types
         )
     if _is_arrow(data):
         return _from_arrow(
-            data, missing, threads, feature_names, feature_types, enable_categorical)
+            data, missing, threads, feature_names, feature_types, enable_categorical
+        )
     if _has_array_protocol(data):
         array = np.asarray(data)
         return _from_numpy_array(array, missing, threads, feature_names, feature_types)
 
     converted = _convert_unknown_data(data)
     if converted is not None:
-        return _from_scipy_csr(converted, missing, threads, feature_names, feature_types)
+        return _from_scipy_csr(
+            converted, missing, threads, feature_names, feature_types
+        )
 
-    raise TypeError('Not supported type for data.' + str(type(data)))
+    raise TypeError("Not supported type for data." + str(type(data)))
 
 
 def _validate_meta_shape(data: DataType, name: str) -> None:
@@ -1128,20 +1132,14 @@ def _meta_from_numpy(
 
 
 def _meta_from_list(
-    data: Sequence,
-    field: str,
-    dtype: Optional[NumpyDType],
-    handle: ctypes.c_void_p
+    data: Sequence, field: str, dtype: Optional[NumpyDType], handle: ctypes.c_void_p
 ) -> None:
     data_np = np.array(data)
     _meta_from_numpy(data_np, field, dtype, handle)
 
 
 def _meta_from_tuple(
-    data: Sequence,
-    field: str,
-    dtype: Optional[NumpyDType],
-    handle: ctypes.c_void_p
+    data: Sequence, field: str, dtype: Optional[NumpyDType], handle: ctypes.c_void_p
 ) -> None:
     return _meta_from_list(data, field, dtype, handle)
 
@@ -1156,39 +1154,27 @@ def _meta_from_cudf_df(data: DataType, field: str, handle: ctypes.c_void_p) -> N
 
 
 def _meta_from_cudf_series(data: DataType, field: str, handle: ctypes.c_void_p) -> None:
-    interface = bytes(json.dumps([data.__cuda_array_interface__],
-                                 indent=2), 'utf-8')
-    _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle,
-                                                   c_str(field),
-                                                   interface))
+    interface = bytes(json.dumps([data.__cuda_array_interface__], indent=2), "utf-8")
+    _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle, c_str(field), interface))
 
 
 def _meta_from_cupy_array(data: DataType, field: str, handle: ctypes.c_void_p) -> None:
     data = _transform_cupy_array(data)
-    interface = bytes(json.dumps([data.__cuda_array_interface__],
-                                 indent=2), 'utf-8')
-    _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle,
-                                                   c_str(field),
-                                                   interface))
+    interface = bytes(json.dumps([data.__cuda_array_interface__], indent=2), "utf-8")
+    _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle, c_str(field), interface))
 
 
 def _meta_from_dt(
-    data: DataType,
-    field: str,
-    dtype: Optional[NumpyDType],
-    handle: ctypes.c_void_p
+    data: DataType, field: str, dtype: Optional[NumpyDType], handle: ctypes.c_void_p
 ) -> None:
     data, _, _ = _transform_dt_df(data, None, None, field, dtype)
     _meta_from_numpy(data, field, dtype, handle)
 
 
 def dispatch_meta_backend(
-    matrix: DMatrix,
-    data: DataType,
-    name: str,
-    dtype: Optional[NumpyDType] = None
+    matrix: DMatrix, data: DataType, name: str, dtype: Optional[NumpyDType] = None
 ) -> None:
-    '''Dispatch for meta info.'''
+    """Dispatch for meta info."""
     handle = matrix.handle
     assert handle is not None
     _validate_meta_shape(data, name)
@@ -1231,7 +1217,7 @@ def dispatch_meta_backend(
         _meta_from_numpy(data, name, dtype, handle)
         return
     if _is_modin_series(data):
-        data = data.values.astype('float')
+        data = data.values.astype("float")
         assert len(data.shape) == 1 or data.shape[1] == 0 or data.shape[1] == 1
         _meta_from_numpy(data, name, dtype, handle)
         return
@@ -1240,19 +1226,20 @@ def dispatch_meta_backend(
         array = np.asarray(data)
         _meta_from_numpy(array, name, dtype, handle)
         return
-    raise TypeError('Unsupported type for ' + name, str(type(data)))
+    raise TypeError("Unsupported type for " + name, str(type(data)))
 
 
 class SingleBatchInternalIter(DataIter):  # pylint: disable=R0902
-    '''An iterator for single batch data to help creating device DMatrix.
+    """An iterator for single batch data to help creating device DMatrix.
     Transforming input directly to histogram with normal single batch data API
     can not access weight for sketching.  So this iterator acts as a staging
     area for meta info.
 
-    '''
+    """
+
     def __init__(self, **kwargs: Any) -> None:
         self.kwargs = kwargs
-        self.it = 0             # pylint: disable=invalid-name
+        self.it = 0  # pylint: disable=invalid-name
 
         # This does not necessarily increase memory usage as the data transformation
         # might use memory.

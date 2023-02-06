@@ -53,7 +53,7 @@ class ExSocket:
 
 
 # magic number used to verify existence of data
-MAGIC_NUM = 0xff99
+MAGIC_NUM = 0xFF99
 
 
 def get_some_ip(host: str) -> str:
@@ -334,19 +334,19 @@ class RabitTracker:
         while len(shutdown) != n_workers:
             fd, s_addr = self.sock.accept()
             s = WorkerEntry(fd, s_addr)
-            if s.cmd == 'print':
+            if s.cmd == "print":
                 s.print(self._use_logger)
                 continue
-            if s.cmd == 'shutdown':
+            if s.cmd == "shutdown":
                 assert s.rank >= 0 and s.rank not in shutdown
                 assert s.rank not in wait_conn
                 shutdown[s.rank] = s
-                logging.debug('Received %s signal from %d', s.cmd, s.rank)
+                logging.debug("Received %s signal from %d", s.cmd, s.rank)
                 continue
             assert s.cmd in ("start", "recover")
             # lazily initialize the workers
             if tree_map is None:
-                assert s.cmd == 'start'
+                assert s.cmd == "start"
                 if s.world_size > 0:
                     n_workers = s.world_size
                 tree_map, parent_map, ring_map = self.get_link_map(n_workers)
@@ -354,7 +354,7 @@ class RabitTracker:
                 todo_nodes = list(range(n_workers))
             else:
                 assert s.world_size in (-1, n_workers)
-            if s.cmd == 'recover':
+            if s.cmd == "recover":
                 assert s.rank >= 0
 
             rank = s.decide_rank(job_map)
@@ -410,24 +410,25 @@ def get_host_ip(host_ip: Optional[str] = None) -> str:
     returned as it's
 
     """
-    if host_ip is None or host_ip == 'auto':
-        host_ip = 'ip'
+    if host_ip is None or host_ip == "auto":
+        host_ip = "ip"
 
-    if host_ip == 'dns':
+    if host_ip == "dns":
         host_ip = socket.getfqdn()
-    elif host_ip == 'ip':
+    elif host_ip == "ip":
         from socket import gaierror
+
         try:
             host_ip = socket.gethostbyname(socket.getfqdn())
         except gaierror:
             logging.debug(
-                'gethostbyname(socket.getfqdn()) failed... trying on hostname()'
+                "gethostbyname(socket.getfqdn()) failed... trying on hostname()"
             )
             host_ip = socket.gethostbyname(socket.gethostname())
         if host_ip.startswith("127."):
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             # doesn't have to be reachable
-            s.connect(('10.255.255.255', 1))
+            s.connect(("10.255.255.255", 1))
             host_ip = s.getsockname()[0]
 
     assert host_ip is not None
@@ -458,25 +459,41 @@ def start_rabit_tracker(args: argparse.Namespace) -> None:
 
 def main() -> None:
     """Main function if tracker is executed in standalone mode."""
-    parser = argparse.ArgumentParser(description='Rabit Tracker start.')
-    parser.add_argument('--num-workers', required=True, type=int,
-                        help='Number of worker process to be launched.')
+    parser = argparse.ArgumentParser(description="Rabit Tracker start.")
     parser.add_argument(
-        '--num-servers', default=0, type=int,
-        help='Number of server process to be launched. Only used in PS jobs.'
+        "--num-workers",
+        required=True,
+        type=int,
+        help="Number of worker process to be launched.",
     )
-    parser.add_argument('--host-ip', default=None, type=str,
-                        help=('Host IP addressed, this is only needed ' +
-                              'if the host IP cannot be automatically guessed.'))
-    parser.add_argument('--log-level', default='INFO', type=str,
-                        choices=['INFO', 'DEBUG'],
-                        help='Logging level of the logger.')
+    parser.add_argument(
+        "--num-servers",
+        default=0,
+        type=int,
+        help="Number of server process to be launched. Only used in PS jobs.",
+    )
+    parser.add_argument(
+        "--host-ip",
+        default=None,
+        type=str,
+        help=(
+            "Host IP addressed, this is only needed "
+            + "if the host IP cannot be automatically guessed."
+        ),
+    )
+    parser.add_argument(
+        "--log-level",
+        default="INFO",
+        type=str,
+        choices=["INFO", "DEBUG"],
+        help="Logging level of the logger.",
+    )
     args = parser.parse_args()
 
-    fmt = '%(asctime)s %(levelname)s %(message)s'
-    if args.log_level == 'INFO':
+    fmt = "%(asctime)s %(levelname)s %(message)s"
+    if args.log_level == "INFO":
         level = logging.INFO
-    elif args.log_level == 'DEBUG':
+    elif args.log_level == "DEBUG":
         level = logging.DEBUG
     else:
         raise RuntimeError(f"Unknown logging level {args.log_level}")

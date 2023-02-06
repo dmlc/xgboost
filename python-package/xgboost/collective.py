@@ -152,42 +152,52 @@ def broadcast(data: _T, root: int) -> _T:
     rank = get_rank()
     length = ctypes.c_ulong()
     if root == rank:
-        assert data is not None, 'need to pass in data when broadcasting'
+        assert data is not None, "need to pass in data when broadcasting"
         s = pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL)
         length.value = len(s)
     # run first broadcast
-    _check_call(_LIB.XGCommunicatorBroadcast(ctypes.byref(length),
-                                             ctypes.sizeof(ctypes.c_ulong), root))
+    _check_call(
+        _LIB.XGCommunicatorBroadcast(
+            ctypes.byref(length), ctypes.sizeof(ctypes.c_ulong), root
+        )
+    )
     if root != rank:
         dptr = (ctypes.c_char * length.value)()
         # run second
-        _check_call(_LIB.XGCommunicatorBroadcast(ctypes.cast(dptr, ctypes.c_void_p),
-                                                 length.value, root))
+        _check_call(
+            _LIB.XGCommunicatorBroadcast(
+                ctypes.cast(dptr, ctypes.c_void_p), length.value, root
+            )
+        )
         data = pickle.loads(dptr.raw)
         del dptr
     else:
-        _check_call(_LIB.XGCommunicatorBroadcast(ctypes.cast(ctypes.c_char_p(s), ctypes.c_void_p),
-                                                 length.value, root))
+        _check_call(
+            _LIB.XGCommunicatorBroadcast(
+                ctypes.cast(ctypes.c_char_p(s), ctypes.c_void_p), length.value, root
+            )
+        )
         del s
     return data
 
 
 # enumeration of dtypes
 DTYPE_ENUM__ = {
-    np.dtype('int8'): 0,
-    np.dtype('uint8'): 1,
-    np.dtype('int32'): 2,
-    np.dtype('uint32'): 3,
-    np.dtype('int64'): 4,
-    np.dtype('uint64'): 5,
-    np.dtype('float32'): 6,
-    np.dtype('float64'): 7
+    np.dtype("int8"): 0,
+    np.dtype("uint8"): 1,
+    np.dtype("int32"): 2,
+    np.dtype("uint32"): 3,
+    np.dtype("int64"): 4,
+    np.dtype("uint64"): 5,
+    np.dtype("float32"): 6,
+    np.dtype("float64"): 7,
 }
 
 
 @unique
 class Op(IntEnum):
     """Supported operations for allreduce."""
+
     MAX = 0
     MIN = 1
     SUM = 2
@@ -196,9 +206,7 @@ class Op(IntEnum):
     BITWISE_XOR = 5
 
 
-def allreduce(  # pylint:disable=invalid-name
-        data: np.ndarray, op: Op
-) -> np.ndarray:
+def allreduce(data: np.ndarray, op: Op) -> np.ndarray:  # pylint:disable=invalid-name
     """Perform allreduce, return the result.
 
     Parameters
@@ -218,15 +226,22 @@ def allreduce(  # pylint:disable=invalid-name
     This function is not thread-safe.
     """
     if not isinstance(data, np.ndarray):
-        raise TypeError('allreduce only takes in numpy.ndarray')
+        raise TypeError("allreduce only takes in numpy.ndarray")
     buf = data.ravel()
     if buf.base is data.base:
         buf = buf.copy()
     if buf.dtype not in DTYPE_ENUM__:
         raise Exception(f"data type {buf.dtype} not supported")
-    _check_call(_LIB.XGCommunicatorAllreduce(buf.ctypes.data_as(ctypes.c_void_p),
-                                             buf.size, DTYPE_ENUM__[buf.dtype],
-                                             int(op), None, None))
+    _check_call(
+        _LIB.XGCommunicatorAllreduce(
+            buf.ctypes.data_as(ctypes.c_void_p),
+            buf.size,
+            DTYPE_ENUM__[buf.dtype],
+            int(op),
+            None,
+            None,
+        )
+    )
     return buf
 
 
