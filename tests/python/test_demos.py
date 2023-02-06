@@ -79,6 +79,12 @@ def test_predict_first_ntree_demo():
     subprocess.check_call(cmd)
 
 
+def test_individual_trees():
+    script = os.path.join(PYTHON_DEMO_DIR, 'individual_trees.py')
+    cmd = ['python', script]
+    subprocess.check_call(cmd)
+
+
 def test_predict_leaf_indices_demo():
     script = os.path.join(PYTHON_DEMO_DIR, 'predict_leaf_indices.py')
     cmd = ['python', script]
