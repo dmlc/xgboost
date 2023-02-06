@@ -1,5 +1,5 @@
-/*!
- * Copyright 2014-2022 by XGBoost Contributors
+/**
+ * Copyright 2014-2023 by XGBoost Contributors
  * \file quantile.h
  * \brief util to compute quantiles
  * \author Tianqi Chen
@@ -7,7 +7,6 @@
 #ifndef XGBOOST_COMMON_QUANTILE_H_
 #define XGBOOST_COMMON_QUANTILE_H_
 
-#include <dmlc/base.h>
 #include <xgboost/data.h>
 #include <xgboost/logging.h>
 

@@ -96,6 +96,9 @@ def make_categorical(
         l_n_samples = min(
             n_samples // n_workers, n_samples - i * (n_samples // n_workers)
         )
+        # make sure there's at least one sample for testing empty DMatrix
+        if n_samples == 1 and i == 0:
+            l_n_samples = 1
         future = client.submit(
             pack,
             n_samples=l_n_samples,
@@ -1479,6 +1482,27 @@ class TestWithDask:
         np.testing.assert_allclose(
             quantile_hist["Valid"]["rmse"], dmatrix_hist["Valid"]["rmse"]
         )
+
+    def test_empty_quantile_dmatrix(self, client: Client) -> None:
+        X, y = make_categorical(client, 2, 30, 13)
+        X_valid, y_valid = make_categorical(client, 10000, 30, 13)
+        X_valid, y_valid, _ = deterministic_repartition(client, X_valid, y_valid, None)
+
+        Xy = xgb.dask.DaskQuantileDMatrix(client, X, y, enable_categorical=True)
+        Xy_valid = xgb.dask.DaskQuantileDMatrix(
+            client, X_valid, y_valid, ref=Xy, enable_categorical=True
+        )
+        result = xgb.dask.train(
+            client,
+            {"tree_method": "hist"},
+            Xy,
+            num_boost_round=10,
+            evals=[(Xy_valid, "Valid")],
+        )
+        predt = xgb.dask.inplace_predict(client, result["booster"], X).compute()
+        np.testing.assert_allclose(y.compute(), predt)
+        rmse = result["history"]["Valid"]["rmse"][-1]
+        assert rmse < 32.0
 
     @given(params=hist_parameter_strategy, dataset=tm.dataset_strategy)
     @settings(

@@ -265,6 +265,27 @@ class TestDistributedGPU:
     ) -> None:
         run_gpu_hist(params, num_rounds, dataset, dmatrix_type, local_cuda_client)
 
+    def test_empty_quantile_dmatrix(self, local_cuda_client: Client) -> None:
+        client = local_cuda_client
+        X, y = make_categorical(client, 1, 30, 13)
+        X_valid, y_valid = make_categorical(client, 10000, 30, 13)
+
+        Xy = xgb.dask.DaskQuantileDMatrix(client, X, y, enable_categorical=True)
+        Xy_valid = xgb.dask.DaskQuantileDMatrix(
+            client, X_valid, y_valid, ref=Xy, enable_categorical=True
+        )
+        result = xgb.dask.train(
+            client,
+            {"tree_method": "gpu_hist"},
+            Xy,
+            num_boost_round=10,
+            evals=[(Xy_valid, "Valid")],
+        )
+        predt = xgb.dask.inplace_predict(client, result["booster"], X).compute()
+        np.testing.assert_allclose(y.compute(), predt)
+        rmse = result["history"]["Valid"]["rmse"][-1]
+        assert rmse < 32.0
+
     @pytest.mark.skipif(**tm.no_cupy())
     def test_dask_array(self, local_cuda_client: Client) -> None:
         run_with_dask_array(dxgb.DaskDMatrix, local_cuda_client)
