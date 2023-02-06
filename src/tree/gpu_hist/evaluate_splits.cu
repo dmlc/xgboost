@@ -248,8 +248,10 @@ class EvaluateSplitAgent {
 
 template <int kBlockSize>
 __global__ __launch_bounds__(kBlockSize) void EvaluateSplitsKernel(
-    bst_feature_t number_active_features, common::Span<const EvaluateSplitInputs> d_inputs,
-    const EvaluateSplitSharedInputs shared_inputs, common::Span<bst_feature_t> sorted_idx,
+    bst_feature_t max_active_features,
+    common::Span<const EvaluateSplitInputs> d_inputs,
+    const EvaluateSplitSharedInputs shared_inputs,
+    common::Span<bst_feature_t> sorted_idx,
     const TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
     common::Span<DeviceSplitCandidate> out_candidates) {
   // Aligned && shared storage for best_split
@@ -263,11 +265,15 @@ __global__ __launch_bounds__(kBlockSize) void EvaluateSplitsKernel(
   __syncthreads();
 
   // Allocate blocks to one feature of one node
-  const auto input_idx = blockIdx.x / number_active_features;
+  const auto input_idx = blockIdx.x / max_active_features;
   const EvaluateSplitInputs &inputs = d_inputs[input_idx];
   // One block for each feature. Features are sampled, so fidx != blockIdx.x
-
-  int fidx = inputs.feature_set[blockIdx.x % number_active_features];
+  // Some blocks may not have any feature to work on, simply return
+  int feature_offset = blockIdx.x % max_active_features;
+  if (feature_offset >= inputs.feature_set.size()) {
+    return;
+  }
+  int fidx = inputs.feature_set[feature_offset];
 
   using AgentT = EvaluateSplitAgent<kBlockSize>;
   __shared__ typename AgentT::TempStorage temp_storage;
@@ -338,7 +344,8 @@ __device__ void SetCategoricalSplit(const EvaluateSplitSharedInputs &shared_inpu
 }
 
 void GPUHistEvaluator::LaunchEvaluateSplits(
-    bst_feature_t number_active_features, common::Span<const EvaluateSplitInputs> d_inputs,
+    bst_feature_t max_active_features,
+    common::Span<const EvaluateSplitInputs> d_inputs,
     EvaluateSplitSharedInputs shared_inputs,
     TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
     common::Span<DeviceSplitCandidate> out_splits) {
@@ -346,20 +353,25 @@ void GPUHistEvaluator::LaunchEvaluateSplits(
     this->SortHistogram(d_inputs, shared_inputs, evaluator);
   }
 
-  size_t combined_num_features = number_active_features * d_inputs.size();
-  dh::TemporaryArray<DeviceSplitCandidate> feature_best_splits(combined_num_features);
+  size_t combined_num_features = max_active_features * d_inputs.size();
+  dh::TemporaryArray<DeviceSplitCandidate> feature_best_splits(
+      combined_num_features, DeviceSplitCandidate());
 
   // One block for each feature
   uint32_t constexpr kBlockThreads = 32;
-  dh::LaunchKernel {static_cast<uint32_t>(combined_num_features), kBlockThreads, 0}(
-      EvaluateSplitsKernel<kBlockThreads>, number_active_features, d_inputs,
-      shared_inputs, this->SortedIdx(d_inputs.size(), shared_inputs.feature_values.size()),
+  dh::LaunchKernel{static_cast<uint32_t>(combined_num_features), kBlockThreads,
+                   0}(
+      EvaluateSplitsKernel<kBlockThreads>, max_active_features, d_inputs,
+      shared_inputs,
+      this->SortedIdx(d_inputs.size(), shared_inputs.feature_values.size()),
       evaluator, dh::ToSpan(feature_best_splits));
 
   // Reduce to get best candidate for left and right child over all features
-  auto reduce_offset = dh::MakeTransformIterator<size_t>(
-      thrust::make_counting_iterator(0llu),
-      [=] __device__(size_t idx) -> size_t { return idx * number_active_features; });
+  auto reduce_offset =
+      dh::MakeTransformIterator<size_t>(thrust::make_counting_iterator(0llu),
+                                        [=] __device__(size_t idx) -> size_t {
+                                          return idx * max_active_features;
+                                        });
   size_t temp_storage_bytes = 0;
   auto num_segments = out_splits.size();
   cub::DeviceSegmentedReduce::Sum(nullptr, temp_storage_bytes, feature_best_splits.data(),
@@ -386,15 +398,16 @@ void GPUHistEvaluator::CopyToHost(const std::vector<bst_node_t> &nidx) {
 }
 
 void GPUHistEvaluator::EvaluateSplits(
-    const std::vector<bst_node_t> &nidx, bst_feature_t number_active_features,
-    common::Span<const EvaluateSplitInputs> d_inputs, EvaluateSplitSharedInputs shared_inputs,
+    const std::vector<bst_node_t> &nidx, bst_feature_t max_active_features,
+    common::Span<const EvaluateSplitInputs> d_inputs,
+    EvaluateSplitSharedInputs shared_inputs,
     common::Span<GPUExpandEntry> out_entries) {
   auto evaluator = this->tree_evaluator_.template GetEvaluator<GPUTrainingParam>();
 
   dh::TemporaryArray<DeviceSplitCandidate> splits_out_storage(d_inputs.size());
   auto out_splits = dh::ToSpan(splits_out_storage);
-  this->LaunchEvaluateSplits(number_active_features, d_inputs, shared_inputs, evaluator,
-                             out_splits);
+  this->LaunchEvaluateSplits(max_active_features, d_inputs, shared_inputs,
+                             evaluator, out_splits);
 
   auto d_sorted_idx = this->SortedIdx(d_inputs.size(), shared_inputs.feature_values.size());
   auto d_entries = out_entries;
