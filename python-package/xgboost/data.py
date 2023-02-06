@@ -30,6 +30,7 @@ from .core import (
     c_array,
     c_str,
     from_pystr_to_cstr,
+    make_jcargs,
 )
 
 DispatchedDataBackendReturnType = Tuple[
@@ -80,6 +81,21 @@ def _array_interface(data: np.ndarray) -> bytes:
     return interface_str
 
 
+def _transform_scipy_csr(data: DataType) -> DataType:
+    from scipy.sparse import csr_matrix
+
+    indptr, _ = _ensure_np_dtype(data.indptr, data.indptr.dtype)
+    indices, _ = _ensure_np_dtype(data.indices, data.indices.dtype)
+    values, _ = _ensure_np_dtype(data.data, data.data.dtype)
+    if (
+        indptr is not data.indptr
+        or indices is not data.indices
+        or values is not data.data
+    ):
+        data = csr_matrix((values, indices, indptr), shape=data.shape)
+    return data
+
+
 def _from_scipy_csr(
     data: DataType,
     missing: FloatCompatible,
@@ -93,18 +109,14 @@ def _from_scipy_csr(
             f"length mismatch: {len(data.indices)} vs {len(data.data)}"
         )
     handle = ctypes.c_void_p()
-    args = {
-        "missing": float(missing),
-        "nthread": int(nthread),
-    }
-    config = bytes(json.dumps(args), "utf-8")
+    data = _transform_scipy_csr(data)
     _check_call(
         _LIB.XGDMatrixCreateFromCSR(
             _array_interface(data.indptr),
             _array_interface(data.indices),
             _array_interface(data.data),
             c_bst_ulong(data.shape[1]),
-            config,
+            make_jcargs(missing=float(missing), nthread=int(nthread)),
             ctypes.byref(handle),
         )
     )
@@ -153,12 +165,13 @@ def _is_numpy_array(data: DataType) -> bool:
 
 
 def _ensure_np_dtype(
-    data: DataType,
-    dtype: Optional[NumpyDType]
+    data: DataType, dtype: Optional[NumpyDType]
 ) -> Tuple[np.ndarray, Optional[NumpyDType]]:
     if data.dtype.hasobject or data.dtype in [np.float16, np.bool_]:
-        data = data.astype(np.float32, copy=False)
         dtype = np.float32
+        data = data.astype(dtype, copy=False)
+    if not data.flags.aligned:
+        data = np.require(data, requirements="A")
     return data, dtype
 
 
@@ -1197,11 +1210,13 @@ def _proxy_transform(
         data, _ = _ensure_np_dtype(data, data.dtype)
         return data, None, feature_names, feature_types
     if _is_scipy_csr(data):
+        data = _transform_scipy_csr(data)
         return data, None, feature_names, feature_types
     if _is_pandas_df(data):
         arr, feature_names, feature_types = _transform_pandas_df(
             data, enable_categorical, feature_names, feature_types
         )
+        arr, _ = _ensure_np_dtype(arr, arr.dtype)
         return arr, None, feature_names, feature_types
     raise TypeError("Value type is not supported for data iterator:" + str(type(data)))
 
