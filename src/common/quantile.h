@@ -19,6 +19,7 @@
 
 #include "categorical.h"
 #include "common.h"
+#include "optional_weight.h"  // OptionalWeights
 #include "threading_utils.h"
 #include "timer.h"
 

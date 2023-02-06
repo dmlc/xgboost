@@ -14,7 +14,8 @@
 
 #include "../common/common.h"
 #include "../common/linalg_op.h"
-#include "../common/numeric.h"  // Reduce
+#include "../common/numeric.h"          // Reduce
+#include "../common/optional_weight.h"  // OptionalWeights
 #include "../common/pseudo_huber.h"
 #include "../common/stats.h"
 #include "../common/threading_utils.h"

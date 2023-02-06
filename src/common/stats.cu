@@ -6,9 +6,9 @@
 
 #include <cstddef>                              // size_t
 
-#include "common.h"                             // common::OptionalWeights
 #include "cuda_context.cuh"                     // CUDAContext
 #include "device_helpers.cuh"                   // dh::MakeTransformIterator, tcbegin, tcend
+#include "optional_weight.h"                    // common::OptionalWeights
 #include "stats.cuh"          // common::SegmentedQuantile, common::SegmentedWeightedQuantile
 #include "xgboost/base.h"     // XGBOOST_DEVICE
 #include "xgboost/context.h"  // Context

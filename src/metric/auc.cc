@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "../common/math.h"
+#include "../common/optional_weight.h"  // OptionalWeights
 #include "xgboost/host_device_vector.h"
 #include "xgboost/linalg.h"
 #include "xgboost/metric.h"
