@@ -1,5 +1,5 @@
-/*!
- * Copyright 2018-2022 by XGBoost contributors
+/**
+ * Copyright 2018-2023 by XGBoost contributors
  */
 #include <xgboost/json.h>
 #include <xgboost/metric.h>
@@ -310,6 +310,37 @@ TEST(Metric, DeclareUnifiedTest(MultiRMSE)) {
   auto ret = std::sqrt(std::accumulate(h_y.cbegin(), h_y.cend(), 1.0, std::plus<>{}) / h_y.size());
   ASSERT_FLOAT_EQ(ret, loss);
   ASSERT_FLOAT_EQ(ret, loss_w);
+}
+
+TEST(Metric, DeclareUnifiedTest(Quantile)) {
+  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+  std::unique_ptr<Metric> metric{Metric::Create("quantile", &ctx)};
+
+  HostDeviceVector<float> predts{0.1f, 0.9f, 0.1f, 0.9f};
+  std::vector<float> labels{0.5f, 0.5f, 0.9f, 0.1f};
+  std::vector<float> weights{0.2f,  0.4f,0.6f, 0.8f};
+
+  metric->Configure(Args{{"quantile_alpha", "[0.0]"}});
+  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels, weights), 0.400f, 0.001f);
+  metric->Configure(Args{{"quantile_alpha", "[0.2]"}});
+  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels, weights), 0.376f, 0.001f);
+  metric->Configure(Args{{"quantile_alpha", "[0.4]"}});
+  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels, weights), 0.352f, 0.001f);
+  metric->Configure(Args{{"quantile_alpha", "[0.8]"}});
+  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels, weights), 0.304f, 0.001f);
+  metric->Configure(Args{{"quantile_alpha", "[1.0]"}});
+  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels, weights), 0.28f, 0.001f);
+
+  metric->Configure(Args{{"quantile_alpha", "[0.0]"}});
+  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels), 0.3f, 0.001f);
+  metric->Configure(Args{{"quantile_alpha", "[0.2]"}});
+  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels), 0.3f, 0.001f);
+  metric->Configure(Args{{"quantile_alpha", "[0.4]"}});
+  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels), 0.3f, 0.001f);
+  metric->Configure(Args{{"quantile_alpha", "[0.8]"}});
+  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels), 0.3f, 0.001f);
+  metric->Configure(Args{{"quantile_alpha", "[1.0]"}});
+  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels), 0.3f, 0.001f);
 }
 }  // namespace metric
 }  // namespace xgboost
