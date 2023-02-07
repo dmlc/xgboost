@@ -556,6 +556,21 @@ def make_categorical(
     return df, label
 
 
+def make_ltr(
+    n_samples: int, n_features: int, n_query_groups: int, max_rel: int
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Make a dataset for testing LTR."""
+    rng = np.random.default_rng(1994)
+    X = rng.normal(0, 1.0, size=n_samples * n_features).reshape(n_samples, n_features)
+    y = rng.integers(0, max_rel, size=n_samples)
+    qid = rng.integers(0, n_query_groups, size=n_samples)
+    w = rng.normal(0, 1.0, size=n_query_groups)
+    w -= np.min(w)
+    w /= np.max(w)
+    qid = np.sort(qid)
+    return X, y, qid, w
+
+
 def _cat_sampled_from() -> strategies.SearchStrategy:
     @strategies.composite
     def _make_cat(draw: Callable) -> Tuple[int, int, int, float]:

@@ -9,6 +9,7 @@ from xgboost.testing import (
     make_batches,
     make_batches_sparse,
     make_categorical,
+    make_ltr,
     make_sparse_regression,
     predictor_equal,
 )
@@ -232,6 +233,16 @@ class TestQuantileDMatrix:
         qXy = xgb.QuantileDMatrix(X, y, enable_categorical=True)
         b = booster.predict(qXy)
         np.testing.assert_allclose(a, b)
+
+    def test_ltr(self) -> None:
+        X, y, qid, w = make_ltr(100, 3, 3, 5)
+        Xy_qdm = xgb.QuantileDMatrix(X, y, qid=qid, weight=w)
+        Xy = xgb.DMatrix(X, y, qid=qid, weight=w)
+        xgb.train({"tree_method": "hist", "objective": "rank:ndcg"}, Xy)
+
+        from_qdm = xgb.QuantileDMatrix(X, weight=w, ref=Xy_qdm)
+        from_dm = xgb.QuantileDMatrix(X, weight=w, ref=Xy)
+        assert predictor_equal(from_qdm, from_dm)
 
     # we don't test empty Quantile DMatrix in single node construction.
     @given(
