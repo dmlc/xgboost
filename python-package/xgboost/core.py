@@ -1655,27 +1655,18 @@ class Booster:
 
     def _configure_constraints(self, params: BoosterParam) -> BoosterParam:
         if isinstance(params, dict):
-            value = params.get("monotone_constraints")
-            if value is not None:
-                params["monotone_constraints"] = self._transform_monotone_constrains(
-                    value
-                )
+            # we must use list in the internal code as there can be multiple metrics
+            # with the same parameter name `eval_metric` (same key for dictionary).
+            params = list(params.items())
+        for idx, param in enumerate(params):
+            name, value = param
+            if value is None:
+                continue
 
-            value = params.get("interaction_constraints")
-            if value is not None:
-                params[
-                    "interaction_constraints"
-                ] = self._transform_interaction_constraints(value)
-        elif isinstance(params, list):
-            for idx, param in enumerate(params):
-                name, value = param
-                if not value:
-                    continue
-
-                if name == "monotone_constraints":
-                    params[idx] = (name, self._transform_monotone_constrains(value))
-                elif name == "interaction_constraints":
-                    params[idx] = (name, self._transform_interaction_constraints(value))
+            if name == "monotone_constraints":
+                params[idx] = (name, self._transform_monotone_constrains(value))
+            elif name == "interaction_constraints":
+                params[idx] = (name, self._transform_interaction_constraints(value))
 
         return params
 
