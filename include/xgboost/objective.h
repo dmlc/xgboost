@@ -55,6 +55,11 @@ class ObjFunction : public Configurable {
 
   /*! \return the default evaluation metric for the objective */
   virtual const char* DefaultEvalMetric() const = 0;
+  /**
+   * \brief Return the configuration for the default metric.
+   */
+  virtual Json DefaultMetricConfig() const { return Json{Null{}}; }
+
   // the following functions are optional, most of time default implementation is good enough
   /*!
    * \brief transform prediction values, this is only called when Prediction is called
