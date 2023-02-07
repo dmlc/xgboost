@@ -17,6 +17,8 @@
 #include <xgboost/string_view.h>
 
 #include <algorithm>
+#include <cstddef>  // std::size_t
+#include <cstdint>  // std::uint64_t
 #include <limits>
 #include <memory>
 #include <numeric>
@@ -60,9 +62,8 @@ class MetaInfo {
   linalg::Tensor<float, 2> labels;
   /*! \brief data split mode */
   DataSplitMode data_split_mode{DataSplitMode::kRow};
-  /*!
-   * \brief the index of begin and end of a group
-   *  needed when the learning task is ranking.
+  /**
+   * \brief the index of begin and end of a group, needed when the learning task is ranking.
    */
   std::vector<bst_group_t> group_ptr_;  // NOLINT
   /*! \brief weights of each instance, optional */

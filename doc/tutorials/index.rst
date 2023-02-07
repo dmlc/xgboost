@@ -21,6 +21,7 @@ See `Awesome XGBoost <https://github.com/dmlc/xgboost/tree/master/demo>`_ for mo
   monotonic
   rf
   feature_interaction_constraint
+  learning_to_rank
   aft_survival_analysis
   c_api_tutorial
   input_format

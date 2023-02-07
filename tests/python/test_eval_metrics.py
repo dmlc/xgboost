@@ -299,7 +299,9 @@ class TestEvalMetrics:
     def run_pr_auc_ltr(self, tree_method):
         from sklearn.datasets import make_classification
         X, y = make_classification(128, 4, n_classes=2, random_state=1994)
-        ltr = xgb.XGBRanker(tree_method=tree_method, n_estimators=16)
+        ltr = xgb.XGBRanker(
+            tree_method=tree_method, n_estimators=16, objective="rank:pairwise"
+        )
         groups = np.array([32, 32, 64])
         ltr.fit(
             X,

@@ -25,7 +25,7 @@ private[spark] trait LearningTaskParams extends Params {
   /**
    * Specify the learning task and the corresponding learning objective.
    * options: reg:squarederror, reg:squaredlogerror, reg:logistic, binary:logistic, binary:logitraw,
-   * count:poisson, multi:softmax, multi:softprob, rank:pairwise, reg:gamma.
+   * count:poisson, multi:softmax, multi:softprob, rank:ndcg, reg:gamma.
    * default: reg:squarederror
    */
   final val objective = new Param[String](this, "objective",

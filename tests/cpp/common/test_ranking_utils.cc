@@ -99,7 +99,6 @@ void TestRankingCache(Context const* ctx) {
 
   auto rank_idx =
       cache.SortedIdx(ctx, ctx->IsCPU() ? predt.ConstHostSpan() : predt.ConstDeviceSpan());
-
   for (std::size_t i = 0; i < rank_idx.size(); ++i) {
     ASSERT_EQ(rank_idx[i], rank_idx.size() - i - 1);
   }

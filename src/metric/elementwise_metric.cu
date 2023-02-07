@@ -483,9 +483,13 @@ class QuantileError : public MetricNoCache {
 
   const char* Name() const override { return "quantile"; }
   void LoadConfig(Json const& in) override {
-    auto const& name = get<String const>(in["name"]);
-    CHECK_EQ(name, "quantile");
-    FromJson(in["quantile_loss_param"], &param_);
+    auto const& obj = get<Object const>(in);
+    auto it = obj.find("quantile_loss_param");
+    if (it != obj.cend()) {
+      FromJson(it->second, &param_);
+      auto const& name = get<String const>(in["name"]);
+      CHECK_EQ(name, "quantile");
+    }
   }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
