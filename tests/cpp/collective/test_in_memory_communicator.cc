@@ -24,6 +24,16 @@ class InMemoryCommunicatorTest : public ::testing::Test {
     }
   }
 
+  static void Allgather(int rank) {
+    InMemoryCommunicator comm{kWorldSize, rank};
+    char buffer[kWorldSize] = {'a', 'b', 'c'};
+    buffer[rank] = '0' + rank;
+    comm.AllGather(buffer, kWorldSize);
+    for (auto i = 0; i < kWorldSize; i++) {
+      EXPECT_EQ(buffer[i], '0' + i);
+    }
+  }
+
   static void AllreduceMax(int rank) {
     InMemoryCommunicator comm{kWorldSize, rank};
     int buffer[] = {1 + rank, 2 + rank, 3 + rank, 4 + rank, 5 + rank};
@@ -146,6 +156,8 @@ TEST(InMemoryCommunicatorSimpleTest, IsDistributed) {
   InMemoryCommunicator comm{1, 0};
   EXPECT_TRUE(comm.IsDistributed());
 }
+
+TEST_F(InMemoryCommunicatorTest, Allgather) { Verify(&Allgather); }
 
 TEST_F(InMemoryCommunicatorTest, AllreduceMax) { Verify(&AllreduceMax); }
 

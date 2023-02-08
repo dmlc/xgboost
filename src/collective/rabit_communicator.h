@@ -55,6 +55,12 @@ class RabitCommunicator : public Communicator {
 
   bool IsFederated() const override { return false; }
 
+  void AllGather(void *send_receive_buffer, std::size_t size) override {
+    auto const per_rank = size / GetWorldSize();
+    auto const index = per_rank * GetRank();
+    rabit::Allgather(static_cast<char *>(send_receive_buffer), size, index, per_rank, per_rank);
+  }
+
   void AllReduce(void *send_receive_buffer, std::size_t count, DataType data_type,
                  Operation op) override {
     switch (data_type) {
