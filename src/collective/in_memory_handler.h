@@ -54,6 +54,17 @@ class InMemoryHandler {
   void Shutdown(uint64_t sequence_number, int rank);
 
   /**
+   * @brief Perform allgather.
+   * @param input The input buffer.
+   * @param bytes Number of bytes in the input buffer.
+   * @param output The output buffer.
+   * @param sequence_number Call sequence number.
+   * @param rank Index of the worker.
+   */
+  void Allgather(char const* input, std::size_t bytes, std::string* output,
+                 std::size_t sequence_number, int rank);
+
+  /**
    * @brief Perform allreduce.
    * @param input The input buffer.
    * @param bytes Number of bytes in the input buffer.

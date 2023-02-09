@@ -127,6 +127,17 @@ class FederatedCommunicator : public Communicator {
   bool IsFederated() const override { return true; }
 
   /**
+   * \brief Perform in-place allgather.
+   * \param send_receive_buffer Buffer for both sending and receiving data.
+   * \param size Number of bytes to be gathered.
+   */
+  void AllGather(void *send_receive_buffer, std::size_t size) override {
+    std::string const send_buffer(reinterpret_cast<char const *>(send_receive_buffer), size);
+    auto const received = client_->Allgather(send_buffer);
+    received.copy(reinterpret_cast<char *>(send_receive_buffer), size);
+  }
+
+  /**
    * \brief Perform in-place allreduce.
    * \param send_receive_buffer Buffer for both sending and receiving data.
    * \param count Number of elements to be reduced.

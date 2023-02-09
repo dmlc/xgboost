@@ -14,6 +14,13 @@
 namespace xgboost {
 namespace federated {
 
+grpc::Status FederatedService::Allgather(grpc::ServerContext* context,
+                                         AllgatherRequest const* request, AllgatherReply* reply) {
+  handler_.Allgather(request->send_buffer().data(), request->send_buffer().size(),
+                     reply->mutable_receive_buffer(), request->sequence_number(), request->rank());
+  return grpc::Status::OK;
+}
+
 grpc::Status FederatedService::Allreduce(grpc::ServerContext* context,
                                          AllreduceRequest const* request, AllreduceReply* reply) {
   handler_.Allreduce(request->send_buffer().data(), request->send_buffer().size(),

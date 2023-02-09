@@ -10,6 +10,32 @@ namespace xgboost {
 namespace collective {
 
 /**
+ * @brief Functor for allgather.
+ */
+class AllgatherFunctor {
+ public:
+  std::string const name{"Allgather"};
+
+  AllgatherFunctor(int world_size, int rank) : world_size_{world_size}, rank_{rank} {}
+
+  void operator()(char const* input, std::size_t bytes, std::string* buffer) const {
+    if (buffer->empty()) {
+      // Copy the input if this is the first request.
+      buffer->assign(input, bytes);
+    } else {
+      // Splice the input into the common buffer.
+      auto const per_rank = bytes / world_size_;
+      auto const index = rank_ * per_rank;
+      buffer->replace(index, per_rank, input + index, per_rank);
+    }
+  }
+
+ private:
+  int world_size_;
+  int rank_;
+};
+
+/**
  * @brief Functor for allreduce.
  */
 class AllreduceFunctor {
@@ -17,7 +43,7 @@ class AllreduceFunctor {
   std::string const name{"Allreduce"};
 
   AllreduceFunctor(DataType dataType, Operation operation)
-      : data_type_(dataType), operation_(operation) {}
+      : data_type_{dataType}, operation_{operation} {}
 
   void operator()(char const* input, std::size_t bytes, std::string* buffer) const {
     if (buffer->empty()) {
@@ -128,7 +154,7 @@ class BroadcastFunctor {
  public:
   std::string const name{"Broadcast"};
 
-  BroadcastFunctor(int rank, int root) : rank_(rank), root_(root) {}
+  BroadcastFunctor(int rank, int root) : rank_{rank}, root_{root} {}
 
   void operator()(char const* input, std::size_t bytes, std::string* buffer) const {
     if (rank_ == root_) {
@@ -165,6 +191,11 @@ void InMemoryHandler::Shutdown(uint64_t sequence_number, int) {
   sequence_number_ = 0;
   lock.unlock();
   cv_.notify_all();
+}
+
+void InMemoryHandler::Allgather(char const* input, std::size_t bytes, std::string* output,
+                                std::size_t sequence_number, int rank) {
+  Handle(input, bytes, output, sequence_number, rank, AllgatherFunctor{world_size_, rank});
 }
 
 void InMemoryHandler::Allreduce(char const* input, std::size_t bytes, std::string* output,

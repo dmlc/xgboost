@@ -17,6 +17,7 @@ class NoOpCommunicator : public Communicator {
   NoOpCommunicator() : Communicator(1, 0) {}
   bool IsDistributed() const override { return false; }
   bool IsFederated() const override { return false; }
+  void AllGather(void *, std::size_t) override {}
   void AllReduce(void *, std::size_t, DataType, Operation) override {}
   void Broadcast(void *, std::size_t, int) override {}
   std::string GetProcessorName() override { return ""; }

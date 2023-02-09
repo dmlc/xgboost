@@ -28,6 +28,11 @@ namespace collective {
 
 class FederatedCommunicatorTest : public ::testing::Test {
  public:
+  static void VerifyAllgather(int rank, const std::string& server_address) {
+    FederatedCommunicator comm{kWorldSize, rank, server_address};
+    CheckAllgather(comm, rank);
+  }
+
   static void VerifyAllreduce(int rank, const std::string& server_address) {
     FederatedCommunicator comm{kWorldSize, rank, server_address};
     CheckAllreduce(comm);
@@ -54,6 +59,15 @@ class FederatedCommunicatorTest : public ::testing::Test {
   void TearDown() override {
     server_->Shutdown();
     server_thread_->join();
+  }
+
+  static void CheckAllgather(FederatedCommunicator &comm, int rank) {
+    int buffer[kWorldSize] = {0, 0, 0};
+    buffer[rank] = rank;
+    comm.AllGather(buffer, sizeof(buffer));
+    for (auto i = 0; i < kWorldSize; i++) {
+      EXPECT_EQ(buffer[i], i);
+    }
   }
 
   static void CheckAllreduce(FederatedCommunicator &comm) {
@@ -142,6 +156,17 @@ TEST(FederatedCommunicatorSimpleTest, IsDistributed) {
   std::string server_address{GetServerAddress()};
   FederatedCommunicator comm{2, 1, server_address};
   EXPECT_TRUE(comm.IsDistributed());
+}
+
+TEST_F(FederatedCommunicatorTest, Allgather) {
+  std::vector<std::thread> threads;
+  for (auto rank = 0; rank < kWorldSize; rank++) {
+    threads.emplace_back(
+        std::thread(&FederatedCommunicatorTest::VerifyAllgather, rank, server_address_));
+  }
+  for (auto &thread : threads) {
+    thread.join();
+  }
 }
 
 TEST_F(FederatedCommunicatorTest, Allreduce) {

@@ -60,6 +60,13 @@ class InMemoryCommunicator : public Communicator {
   bool IsDistributed() const override { return true; }
   bool IsFederated() const override { return false; }
 
+  void AllGather(void* in_out, std::size_t size) override {
+    std::string output;
+    handler_.Allgather(static_cast<const char*>(in_out), size, &output, sequence_number_++,
+                       GetRank());
+    output.copy(static_cast<char*>(in_out), size);
+  }
+
   void AllReduce(void* in_out, std::size_t size, DataType data_type, Operation operation) override {
     auto const bytes = size * GetTypeSize(data_type);
     std::string output;
