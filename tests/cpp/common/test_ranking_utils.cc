@@ -21,6 +21,7 @@ TEST(RankingUtils, MakeMetricName) {
   ASSERT_EQ(topn, 6);
   ASSERT_TRUE(minus);  // unchanged
 
+  minus = false;
   name = MakeMetricName("ndcg", "-", &topn, &minus);
   ASSERT_EQ(topn, 6);  // unchanged
   ASSERT_TRUE(minus);
