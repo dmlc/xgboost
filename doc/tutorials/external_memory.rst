@@ -46,7 +46,7 @@ constructor.
       # input_data is a function passed in by XGBoost who has the exact same signature of
       # ``DMatrix``
       X, y = load_svmlight_file(self._file_paths[self._it])
-      input_data(X, y)
+      input_data(data=X, label=y)
       self._it += 1
       # Return 1 to let XGBoost know we haven't seen all the files yet.
       return 1
@@ -63,7 +63,7 @@ constructor.
   booster = xgboost.train({"tree_method": "approx"}, Xy)
 
 
-The above snippet is a simplifed version of ``demo/guide-python/external_memory.py``.  For
+The above snippet is a simplified version of ``demo/guide-python/external_memory.py``.  For
 an example in C, please see ``demo/c-api/external-memory/``.
 
 ****************
