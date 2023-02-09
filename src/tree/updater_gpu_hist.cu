@@ -505,8 +505,7 @@ struct GPUHistMakerDevice {
     auto s_position = p_out_position->ConstDeviceSpan();
     positions.resize(s_position.size());
     dh::safe_cuda(cudaMemcpyAsync(positions.data().get(), s_position.data(),
-                                  s_position.size_bytes(), cudaMemcpyDeviceToDevice,
-                                  ctx_->CUDACtx()->Stream()));
+                                  s_position.size_bytes(), cudaMemcpyDeviceToDevice));
 
     dh::LaunchN(row_partitioner->GetRows().size(), [=] __device__(size_t idx) {
       bst_node_t position = d_out_position[idx];
@@ -530,15 +529,13 @@ struct GPUHistMakerDevice {
     auto const& h_nodes = p_tree->GetNodes();
     dh::caching_device_vector<RegTree::Node> nodes(h_nodes.size());
     dh::safe_cuda(cudaMemcpyAsync(nodes.data().get(), h_nodes.data(),
-                                  h_nodes.size() * sizeof(RegTree::Node), cudaMemcpyHostToDevice,
-                                  ctx_->CUDACtx()->Stream()));
+                                  h_nodes.size() * sizeof(RegTree::Node), cudaMemcpyHostToDevice));
     auto d_nodes = dh::ToSpan(nodes);
-    dh::LaunchN(d_position.size(), ctx_->CUDACtx()->Stream(),
-                [=] XGBOOST_DEVICE(std::size_t idx) mutable {
-                  bst_node_t nidx = d_position[idx];
-                  auto weight = d_nodes[nidx].LeafValue();
-                  out_preds_d(idx) += weight;
-                });
+    dh::LaunchN(d_position.size(), [=] XGBOOST_DEVICE(std::size_t idx) mutable {
+      bst_node_t nidx = d_position[idx];
+      auto weight = d_nodes[nidx].LeafValue();
+      out_preds_d(idx) += weight;
+    });
     return true;
   }
 
