@@ -1,9 +1,13 @@
-/*!
- * Copyright (c) by XGBoost Contributors 2021
+/**
+ * Copyright 2021-2023 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/string_view.h>
-#include <string_view>
+
+#include <algorithm>  // std::equal
+#include <sstream>    // std::stringstream
+#include <string>     // std::string
+
 namespace xgboost {
 TEST(StringView, Basic) {
   StringView str{"This is a string."};
@@ -24,5 +28,16 @@ TEST(StringView, Basic) {
   ASSERT_FALSE(substr == "i");
 
   ASSERT_TRUE(std::equal(substr.crbegin(), substr.crend(), StringView{"si"}.cbegin()));
+
+  {
+    StringView empty{nullptr};
+    ASSERT_TRUE(empty.empty());
+  }
+  {
+    StringView empty{""};
+    ASSERT_TRUE(empty.empty());
+    StringView empty2{nullptr};
+    ASSERT_EQ(empty, empty2);
+  }
 }
 }  // namespace xgboost

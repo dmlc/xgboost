@@ -1,3 +1,6 @@
+/**
+ * Copyright 2021 by XGBoost Contributors
+ */
 #include <gtest/gtest.h>
 #include "../../../src/common/ranking_utils.cuh"
 #include "../../../src/common/device_helpers.cuh"

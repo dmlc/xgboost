@@ -90,6 +90,7 @@ OBJECTS= \
     $(PKGROOT)/src/common/stats.o \
     $(PKGROOT)/src/common/survival_util.o \
     $(PKGROOT)/src/common/threading_utils.o \
+    $(PKGROOT)/src/common/ranking_utils.o \
     $(PKGROOT)/src/common/timer.o \
     $(PKGROOT)/src/common/version.o \
     $(PKGROOT)/src/c_api/c_api.o \
