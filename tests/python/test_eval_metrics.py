@@ -1,3 +1,5 @@
+from typing import Dict
+
 import numpy as np
 import pytest
 
@@ -306,10 +308,29 @@ class TestEvalMetrics:
             group=groups,
             eval_set=[(X, y)],
             eval_group=[groups],
-            eval_metric="aucpr"
+            eval_metric="aucpr",
         )
         results = ltr.evals_result()["validation_0"]["aucpr"]
         assert results[-1] >= 0.99
 
     def test_pr_auc_ltr(self):
         self.run_pr_auc_ltr("hist")
+
+    @pytest.mark.skipif(**tm.no_sklearn())
+    def test_quantile_error(self) -> None:
+        from sklearn.datasets import make_regression
+        from sklearn.metrics import mean_pinball_loss
+
+        rng = np.random.RandomState(19)
+        X, y = make_regression(128, 3, random_state=rng)
+        Xy = xgb.QuantileDMatrix(X, y)
+        evals_result: Dict[str, Dict] = {}
+        booster = xgb.train(
+            {"tree_method": "hist", "eval_metric": "quantile", "quantile_alpha": 0.3},
+            Xy,
+            evals=[(Xy, "Train")],
+            evals_result=evals_result,
+        )
+        predt = booster.inplace_predict(X)
+        loss = mean_pinball_loss(y, predt, alpha=0.3)
+        np.testing.assert_allclose(evals_result["Train"]["quantile"][-1], loss)
