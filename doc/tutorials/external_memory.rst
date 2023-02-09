@@ -63,7 +63,7 @@ constructor.
   booster = xgboost.train({"tree_method": "approx"}, Xy)
 
 
-The above snippet is a simplifed version of ``demo/guide-python/external_memory.py``.  For
+The above snippet is a simplified version of ``demo/guide-python/external_memory.py``.  For
 an example in C, please see ``demo/c-api/external-memory/``.
 
 ****************
