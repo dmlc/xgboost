@@ -780,6 +780,8 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             "feature_weights": self.getOrDefault(self.feature_weights),
             "missing": float(self.getOrDefault(self.missing)),
         }
+        if dmatrix_kwargs["feature_types"] is not None:
+            dmatrix_kwargs["enable_categorical"] = True
         booster_params["nthread"] = cpu_per_task
 
         # Remove the parameters whose value is None
