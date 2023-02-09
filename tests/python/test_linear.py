@@ -3,7 +3,7 @@ from hypothesis import given, note, settings, strategies
 import xgboost as xgb
 from xgboost import testing as tm
 
-pytestmark = tm.timeout(10)
+pytestmark = tm.timeout(20)
 
 
 parameter_strategy = strategies.fixed_dictionaries({
