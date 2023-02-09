@@ -134,6 +134,12 @@ class AFTObj : public ObjFunction {
   void LoadConfig(Json const& in) override {
     FromJson(in["aft_loss_param"], &param_);
   }
+  Json DefaultMetricConfig() const override {
+    Json config{Object{}};
+    config["name"] = String{this->DefaultEvalMetric()};
+    config["aft_loss_param"] = ToJson(param_);
+    return config;
+  }
 
  private:
   AFTParam param_;
