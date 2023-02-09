@@ -349,22 +349,24 @@ void TestAllReduceBasic(int32_t n_gpus) {
 
   constexpr size_t kRows = 1000, kCols = 100;
   RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins, MetaInfo const& info) {
+    auto const device = collective::GetRank();
+
     // Set up single node version;
-    HostDeviceVector<FeatureType> ft;
-    SketchContainer sketch_on_single_node(ft, n_bins, kCols, kRows, 0);
+    HostDeviceVector<FeatureType> ft({}, device);
+    SketchContainer sketch_on_single_node(ft, n_bins, kCols, kRows, device);
 
     size_t intermediate_num_cuts = std::min(
         kRows * world, static_cast<size_t>(n_bins * WQSketch::kFactor));
     std::vector<SketchContainer> containers;
     for (auto rank = 0; rank < world; ++rank) {
-      HostDeviceVector<float> storage;
+      HostDeviceVector<float> storage({}, device);
       std::string interface_str = RandomDataGenerator{kRows, kCols, 0}
-                                      .Device(0)
+                                      .Device(device)
                                       .Seed(rank + seed)
                                       .GenerateArrayInterface(&storage);
       data::CupyAdapter adapter(interface_str);
-      HostDeviceVector<FeatureType> ft;
-      containers.emplace_back(ft, n_bins, kCols, kRows, 0);
+      HostDeviceVector<FeatureType> ft({}, device);
+      containers.emplace_back(ft, n_bins, kCols, kRows, device);
       AdapterDeviceSketch(adapter.Value(), n_bins, info,
                           std::numeric_limits<float>::quiet_NaN(),
                           &containers.back());
@@ -375,16 +377,16 @@ void TestAllReduceBasic(int32_t n_gpus) {
       sketch_on_single_node.FixError();
     }
     sketch_on_single_node.Unique();
-    TestQuantileElemRank(0, sketch_on_single_node.Data(),
+    TestQuantileElemRank(device, sketch_on_single_node.Data(),
                          sketch_on_single_node.ColumnsPtr(), true);
 
     // Set up distributed version.  We rely on using rank as seed to generate
     // the exact same copy of data.
     auto rank = collective::GetRank();
-    SketchContainer sketch_distributed(ft, n_bins, kCols, kRows, 0);
-    HostDeviceVector<float> storage;
+    SketchContainer sketch_distributed(ft, n_bins, kCols, kRows, device);
+    HostDeviceVector<float> storage({}, device);
     std::string interface_str = RandomDataGenerator{kRows, kCols, 0}
-                                    .Device(0)
+                                    .Device(device)
                                     .Seed(rank + seed)
                                     .GenerateArrayInterface(&storage);
     data::CupyAdapter adapter(interface_str);
@@ -399,7 +401,7 @@ void TestAllReduceBasic(int32_t n_gpus) {
     ASSERT_EQ(sketch_distributed.Data().size(),
               sketch_on_single_node.Data().size());
 
-    TestQuantileElemRank(0, sketch_distributed.Data(),
+    TestQuantileElemRank(device, sketch_distributed.Data(),
                          sketch_distributed.ColumnsPtr(), true);
 
     std::vector<SketchEntry> single_node_data(
@@ -437,12 +439,13 @@ void TestSameOnAllWorkers(int32_t n_gpus) {
   constexpr size_t kRows = 1000, kCols = 100;
   RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins,
                                  MetaInfo const &info) {
-    auto rank = collective::GetRank();
-    HostDeviceVector<FeatureType> ft;
-    SketchContainer sketch_distributed(ft, n_bins, kCols, kRows, 0);
-    HostDeviceVector<float> storage;
+    auto const rank = collective::GetRank();
+    auto const device = rank;
+    HostDeviceVector<FeatureType> ft({}, device);
+    SketchContainer sketch_distributed(ft, n_bins, kCols, kRows, device);
+    HostDeviceVector<float> storage({}, device);
     std::string interface_str = RandomDataGenerator{kRows, kCols, 0}
-                                    .Device(0)
+                                    .Device(device)
                                     .Seed(rank + seed)
                                     .GenerateArrayInterface(&storage);
     data::CupyAdapter adapter(interface_str);
@@ -451,7 +454,7 @@ void TestSameOnAllWorkers(int32_t n_gpus) {
                         &sketch_distributed);
     sketch_distributed.AllReduce();
     sketch_distributed.Unique();
-    TestQuantileElemRank(0, sketch_distributed.Data(), sketch_distributed.ColumnsPtr(), true);
+    TestQuantileElemRank(device, sketch_distributed.Data(), sketch_distributed.ColumnsPtr(), true);
 
     // Test for all workers having the same sketch.
     size_t n_data = sketch_distributed.Data().size();
@@ -468,7 +471,7 @@ void TestSameOnAllWorkers(int32_t n_gpus) {
     thrust::copy(thrust::device, local_data.data(),
                  local_data.data() + local_data.size(),
                  all_workers.begin() + local_data.size() * rank);
-    collective::DeviceCommunicator* communicator = collective::Communicator::GetDevice(0);
+    collective::DeviceCommunicator* communicator = collective::Communicator::GetDevice(device);
 
     communicator->AllReduceSum(all_workers.data().get(), all_workers.size());
     communicator->Synchronize();
