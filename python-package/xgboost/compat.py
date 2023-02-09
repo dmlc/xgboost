@@ -36,7 +36,6 @@ try:
 
     PANDAS_INSTALLED = True
 except ImportError:
-
     MultiIndex = object
     DataFrame = object
     Series = object
@@ -160,6 +159,7 @@ def concat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statem
 # Modified from tensorflow with added caching.  There's a `LazyLoader` in
 # `importlib.utils`, except it's unclear from its document on how to use it.  This one
 # seems to be easy to understand and works out of box.
+
 
 # Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 #
