@@ -37,7 +37,8 @@ private:
   GradientPairPrecise to_fixed_point_;
   /* Convert fixed point representation back to floating point. */
   GradientPairPrecise to_floating_point_;
-public:
+
+ public:
   explicit GradientQuantiser(common::Span<GradientPair const> gpair);
   XGBOOST_DEVICE GradientPairInt64 ToFixedPoint(GradientPair const& gpair) const {
     auto adjusted = GradientPairInt64(gpair.GetGrad() * to_fixed_point_.GetGrad(),
