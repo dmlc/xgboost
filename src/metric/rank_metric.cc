@@ -28,6 +28,7 @@
 
 #include "../collective/communicator-inl.h"
 #include "../common/math.h"
+#include "../common/ranking_utils.h"  // MakeMetricName
 #include "../common/threading_utils.h"
 #include "metric_common.h"
 #include "xgboost/host_device_vector.h"
@@ -232,23 +233,7 @@ struct EvalRank : public Metric, public EvalRankConfig {
 
  protected:
   explicit EvalRank(const char* name, const char* param) {
-    using namespace std;  // NOLINT(*)
-
-    if (param != nullptr) {
-      std::ostringstream os;
-      if (sscanf(param, "%u[-]?", &topn) == 1) {
-        os << name << '@' << param;
-        this->name = os.str();
-      } else {
-        os << name << param;
-        this->name = os.str();
-      }
-      if (param[strlen(param) - 1] == '-') {
-        minus = true;
-      }
-    } else {
-      this->name = name;
-    }
+    this->name = ltr::MakeMetricName(name, param, &topn, &minus);
   }
 
   virtual double EvalGroup(PredIndPairContainer *recptr) const = 0;
