@@ -2,9 +2,7 @@
 Getting started with categorical data
 =====================================
 
-Experimental support for categorical data.  After 1.5 XGBoost `gpu_hist` tree method has
-experimental support for one-hot encoding based tree split, and in 1.6 `approx` support
-was added.
+Experimental support for categorical data.
 
 In before, users need to run an encoder themselves before passing the data into XGBoost,
 which creates a sparse matrix and potentially increase memory usage.  This demo

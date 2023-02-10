@@ -211,8 +211,8 @@ latex_documents = [
 
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3.8", None),
-    "numpy": ("https://docs.scipy.org/doc/numpy/", None),
-    "scipy": ("https://docs.scipy.org/doc/scipy/reference/", None),
+    "numpy": ("https://numpy.org/doc/stable/", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy/", None),
     "pandas": ("https://pandas.pydata.org/pandas-docs/stable/", None),
     "sklearn": ("https://scikit-learn.org/stable", None),
     "dask": ("https://docs.dask.org/en/stable/", None),
