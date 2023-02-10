@@ -146,10 +146,8 @@ def ltr_metric_decorator(func: Callable, n_jobs: Optional[int]) -> Metric:
         def task(i: int) -> float:
             begin = group_ptr[i - 1]
             end = group_ptr[i]
-            # reshape to workaround the ndcg implementation in sklearn, which doesn't
-            # seem to be handling vector well.
-            gy = y_true[begin:end].reshape(end - begin)
-            gp = y_score[begin:end].reshape(end - begin)
+            gy = y_true[begin:end]
+            gp = y_score[begin:end]
             if gy.size == 1:
                 # Maybe there's a better default? 1.0 because many ranking score
                 # functions have output in range [0, 1].
