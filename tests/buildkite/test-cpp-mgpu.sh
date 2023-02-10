@@ -4,6 +4,8 @@ set -euo pipefail
 
 source tests/buildkite/conftest.sh
 
+export CI_DOCKER_EXTRA_PARAMS_INIT='-e NCCL_DEBUG=INFO'
+
 echo "--- Run Google Tests with CUDA, using multiple GPUs"
 buildkite-agent artifact download "build/testxgboost" . --step build-cuda
 chmod +x build/testxgboost
