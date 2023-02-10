@@ -139,3 +139,17 @@ class TestQuantileDMatrix:
             booster.predict(xgb.DMatrix(d_m.get_data())),
             atol=1e-6,
         )
+
+    def test_ltr(self) -> None:
+        import cupy as cp
+        X, y, qid, w = tm.make_ltr(100, 3, 3, 5)
+        # make sure GPU is used to run sketching.
+        cpX = cp.array(X)
+        Xy_qdm = xgb.QuantileDMatrix(cpX, y, qid=qid, weight=w)
+        Xy = xgb.DMatrix(X, y, qid=qid, weight=w)
+        xgb.train({"tree_method": "gpu_hist", "objective": "rank:ndcg"}, Xy)
+
+        from_dm = xgb.QuantileDMatrix(X, weight=w, ref=Xy)
+        from_qdm = xgb.QuantileDMatrix(X, weight=w, ref=Xy_qdm)
+
+        assert tm.predictor_equal(from_qdm, from_dm)

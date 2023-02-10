@@ -63,6 +63,13 @@ void GetCutsFromRef(std::shared_ptr<DMatrix> ref_, bst_feature_t n_features, Bat
     }
   };
   auto ellpack = [&]() {
+    // workaround ellpack being initialized from CPU.
+    if (p.gpu_id == Context::kCpuId) {
+      p.gpu_id = ref_->Ctx()->gpu_id;
+    }
+    if (p.gpu_id == Context::kCpuId) {
+      p.gpu_id = 0;
+    }
     for (auto const& page : ref_->GetBatches<EllpackPage>(p)) {
       GetCutsFromEllpack(page, p_cuts);
       break;
@@ -205,7 +212,7 @@ void IterativeDMatrix::InitFromCPU(DataIterHandle iter_handle, float missing,
         h_ft = proxy->Info().feature_types.ConstHostVector();
         SyncFeatureType(&h_ft);
         p_sketch.reset(new common::HostSketchContainer{
-            batch_param_.max_bin, h_ft, column_sizes, false,
+            batch_param_.max_bin, h_ft, column_sizes, !proxy->Info().group_ptr_.empty(),
             proxy->Info().data_split_mode == DataSplitMode::kCol, ctx_.Threads()});
       }
       HostAdapterDispatch(proxy, [&](auto const& batch) {
