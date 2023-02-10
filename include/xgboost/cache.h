@@ -17,12 +17,12 @@ class DMatrix;
 /**
  * \brief FIFO cache for DMatrix related data.
  *
- * \tparam CacheT The type that needs to be cached, must implements an `Init` method.
+ * \tparam CacheT The type that needs to be cached.
  */
 template <typename CacheT>
 class DMatrixCache {
  public:
-  struct Entry {
+  struct Item {
     // A weak pointer for checking whether the DMatrix object has expired.
     std::weak_ptr<DMatrix> ref;
     // The cached item
@@ -33,7 +33,7 @@ class DMatrixCache {
   };
 
  protected:
-  std::unordered_map<DMatrix const*, Entry> container_;
+  std::unordered_map<DMatrix const*, Item> container_;
   std::queue<DMatrix const*> queue_;
   std::size_t max_size_;
 
