@@ -422,7 +422,7 @@ void TestAllReduceBasic(int32_t n_gpus) {
 }
 }  // anonymous namespace
 
-TEST(GPUQuantile, MGPU_AllReduceBasic) {
+TEST(GPUQuantile, MGPUAllReduceBasic) {
   auto const n_gpus = AllVisibleGPUs();
   RunWithInMemoryCommunicator(n_gpus, TestAllReduceBasic, n_gpus);
 }
@@ -495,7 +495,7 @@ void TestSameOnAllWorkers(int32_t n_gpus) {
 }
 }  // anonymous namespace
 
-TEST(GPUQuantile, MGPU_SameOnAllWorkers) {
+TEST(GPUQuantile, MGPUSameOnAllWorkers) {
   auto const n_gpus = AllVisibleGPUs();
   RunWithInMemoryCommunicator(n_gpus, TestSameOnAllWorkers, n_gpus);
 }
