@@ -22,13 +22,13 @@ TEST(DMatrixCache, Basic) {
   std::size_t constexpr kRows = 2, kCols = 1, kCacheSize = 4;
   DMatrixCache<CacheForTest> cache(kCacheSize);
 
-  DMatrix* m;
-  auto add_cache = [&](std::size_t i) {
+  auto add_cache = [&]() {
     auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
-    cache.CacheItem(p_fmat, i);
-    m = p_fmat.get();
+    cache.CacheItem(p_fmat, 3);
+    DMatrix* m = p_fmat.get();
+    return m;
   };
-
+  auto m = add_cache();
   ASSERT_EQ(cache.Container().size(), 0);
   ASSERT_THROW(cache.Entry(m), dmlc::Error);
 
