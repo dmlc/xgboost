@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "collective/communicator-inl.h"
+#include "common/api_entry.h"  // XGBAPIThreadLocalEntry
 #include "common/charconv.h"
 #include "common/common.h"
 #include "common/io.h"
@@ -1296,9 +1297,8 @@ class LearnerImpl : public LearnerIO {
     this->ValidateDMatrix(train.get(), true);
 
     auto local_cache = this->GetPredictionCache();
-    local_cache->Cache(train, ctx_.gpu_id);
-
-    gbm_->DoBoost(train.get(), in_gpair, &local_cache->Entry(train.get()), obj_.get());
+    auto& predt = local_cache->Cache(train, ctx_.gpu_id);
+    gbm_->DoBoost(train.get(), in_gpair, &predt, obj_.get());
     monitor_.Stop("BoostOneIter");
   }
 

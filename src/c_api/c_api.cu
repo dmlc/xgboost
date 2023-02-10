@@ -1,6 +1,7 @@
 /**
  * Copyright 2019-2023 by XGBoost Contributors
  */
+#include "../common/api_entry.h"  // XGBAPIThreadLocalEntry
 #include "../common/threading_utils.h"
 #include "../data/device_adapter.cuh"
 #include "../data/proxy_dmatrix.h"

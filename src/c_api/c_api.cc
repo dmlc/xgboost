@@ -12,11 +12,11 @@
 #include <vector>
 
 #include "../collective/communicator-inl.h"
+#include "../common/api_entry.h"  // XGBAPIThreadLocalEntry
 #include "../common/charconv.h"
 #include "../common/io.h"
 #include "../data/adapter.h"
 #include "../data/simple_dmatrix.h"
-#include "c_api_error.h"
 #include "c_api_utils.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"

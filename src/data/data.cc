@@ -10,6 +10,7 @@
 #include <cstring>
 
 #include "../collective/communicator-inl.h"
+#include "../common/api_entry.h"  // XGBAPIThreadLocalEntry
 #include "../common/group_data.h"
 #include "../common/io.h"
 #include "../common/linalg_op.h"
