@@ -1,13 +1,17 @@
-/*!
- * Copyright 2021 by XGBoost Contributors
+/**
+ * Copyright 2021-2023 by XGBoost Contributors
  */
-#ifndef XGBOOST_COMMON_RANKING_UTILS_H_
-#define XGBOOST_COMMON_RANKING_UTILS_H_
+#ifndef XGBOOST_COMMON_THREADING_UTILS_CUH_
+#define XGBOOST_COMMON_THREADING_UTILS_CUH_
 
-#include <cub/cub.cuh>
-#include "xgboost/base.h"
-#include "device_helpers.cuh"
-#include "./math.h"
+#include <algorithm>           // std::min
+#include <cstddef>             // std::size_t
+
+#include "./math.h"            // Sqr
+#include "common.h"
+#include "device_helpers.cuh"  // LaunchN
+#include "xgboost/base.h"      // XGBOOST_DEVICE
+#include "xgboost/span.h"      // Span
 
 namespace xgboost {
 namespace common {
@@ -15,10 +19,10 @@ namespace common {
  * \param n Number of items (length of the base)
  * \param h hight
  */
-XGBOOST_DEVICE inline size_t DiscreteTrapezoidArea(size_t n, size_t h) {
-  n -= 1;             // without diagonal entries
-  h = std::min(n, h);  // Specific for ranking.
-  size_t total = ((n - (h - 1)) + n) * h / 2;
+XGBOOST_DEVICE inline std::size_t DiscreteTrapezoidArea(std::size_t n, std::size_t h) {
+  n -= 1;              // without diagonal entries
+  h = std::min(n, h);  // Used for ranking, h <= n
+  std::size_t total = ((n - (h - 1)) + n) * h / 2;
   return total;
 }
 
@@ -29,12 +33,14 @@ XGBOOST_DEVICE inline size_t DiscreteTrapezoidArea(size_t n, size_t h) {
  * Equivalent to loops like:
  *
  * \code
- *   for (size i = 0; i < h; ++i) {
- *     for (size_t j = i + 1; j < n; ++j) {
+ *   for (std::size_t i = 0; i < h; ++i) {
+ *     for (std::size_t j = i + 1; j < n; ++j) {
  *        do_something();
  *     }
  *   }
  * \endcode
+ *
+ * with h <= n
  */
 template <typename U>
 inline size_t
@@ -79,6 +85,6 @@ XGBOOST_DEVICE inline void UnravelTrapeziodIdx(size_t i_idx, size_t n,
 
   j = idx - n_elems + i + 1;
 }
-}      // namespace common
-}      // namespace xgboost
-#endif  // XGBOOST_COMMON_RANKING_UTILS_H_
+}  // namespace common
+}  // namespace xgboost
+#endif  // XGBOOST_COMMON_THREADING_UTILS_CUH_

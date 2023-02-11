@@ -1,13 +1,14 @@
 /**
- * Copyright 2021 by XGBoost Contributors
+ * Copyright 2021-2023 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
-#include "../../../src/common/ranking_utils.cuh"
+#include <thrust/copy.h>  // thrust::copy
+
 #include "../../../src/common/device_helpers.cuh"
+#include "../../../src/common/threading_utils.cuh"
 
 namespace xgboost {
 namespace common {
-
 TEST(SegmentedTrapezoidThreads, Basic) {
   size_t constexpr kElements = 24, kGroups = 3;
   dh::device_vector<size_t> offset_ptr(kGroups + 1, 0);
