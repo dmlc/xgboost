@@ -4,13 +4,13 @@
 #ifndef XGBOOST_CACHE_H_
 #define XGBOOST_CACHE_H_
 
-#include <xgboost/logging.h>
+#include <xgboost/logging.h>  // CHECK_EQ
 
-#include <cstddef>        // std::size_t
-#include <memory>         // std::weak_ptr,std::shared_ptr,std::make_shared
-#include <queue>          // std:queue
-#include <unordered_map>  // std::unordered_map
-#include <vector>         // std::vector
+#include <cstddef>            // std::size_t
+#include <memory>             // std::weak_ptr,std::shared_ptr,std::make_shared
+#include <queue>              // std:queue
+#include <unordered_map>      // std::unordered_map
+#include <vector>             // std::vector
 
 namespace xgboost {
 class DMatrix;
@@ -70,16 +70,20 @@ class DMatrixCache {
     this->CheckConsistent();
   }
 
-  void Clear() {
+  void ClearExcess() {
     this->CheckConsistent();
     while (queue_.size() >= max_size_) {
       auto p_fmat = queue_.front();
       queue_.pop();
       container_.erase(p_fmat);
     }
+    this->CheckConsistent();
   }
 
  public:
+  /**
+   * \param cache_size Maximum size of the cache.
+   */
   explicit DMatrixCache(std::size_t cache_size) : max_size_{cache_size} {}
   /**
    * \brief Cache a new DMatrix if it's no in the cache already.
@@ -99,7 +103,7 @@ class DMatrixCache {
     CHECK(m);
     this->ClearExpired();
     if (container_.size() >= max_size_) {
-      this->Clear();
+      this->ClearExcess();
     }
     // after clear, cache size < max_size
     CHECK_LT(container_.size(), max_size_);
