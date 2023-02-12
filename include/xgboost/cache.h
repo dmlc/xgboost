@@ -122,7 +122,7 @@ class DMatrixCache {
 
   std::shared_ptr<CacheT> Entry(DMatrix const* m) const {
     CHECK(container_.find(m) != container_.cend());
-    CHECK(container_.at(m).ref.lock());
+    CHECK(!container_.at(m).ref.expired());
     return container_.at(m).value;
   }
 };

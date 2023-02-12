@@ -56,7 +56,9 @@ class PredictionContainer : public DMatrixCache<PredictionCacheEntry> {
   PredictionCacheEntry& Cache(std::shared_ptr<DMatrix> m, int32_t device) {
     this->CacheItem(m);
     auto p_cache = this->container_.find(m.get());
-    p_cache->second.Value().predictions.SetDevice(device);
+    if (device != Context::kCpuId) {
+      p_cache->second.Value().predictions.SetDevice(device);
+    }
     return p_cache->second.Value();
   }
 };

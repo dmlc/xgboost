@@ -23,6 +23,9 @@ TEST(DMatrixCache, Basic) {
   DMatrixCache<CacheForTest> cache(kCacheSize);
 
   auto add_cache = [&]() {
+    // Create a lambda function here, so that p_fmat gets deleted upon the
+    // end of the lambda. This is to test how the cache handle expired
+    // cache entries.
     auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
     cache.CacheItem(p_fmat, 3);
     DMatrix* m = p_fmat.get();
