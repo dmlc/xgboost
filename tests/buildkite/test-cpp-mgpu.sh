@@ -4,7 +4,8 @@ set -euo pipefail
 
 source tests/buildkite/conftest.sh
 
-export CI_DOCKER_EXTRA_PARAMS_INIT='-e NCCL_DEBUG=INFO'
+# Allocate extra space in /dev/shm to enable NCCL
+export CI_DOCKER_EXTRA_PARAMS_INIT='--shm-size=4g'
 
 echo "--- Run Google Tests with CUDA, using multiple GPUs"
 buildkite-agent artifact download "build/testxgboost" . --step build-cuda
