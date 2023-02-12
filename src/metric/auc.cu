@@ -12,8 +12,8 @@
 #include <utility>
 
 #include "../collective/device_communicator.cuh"
-#include "../common/optional_weight.h"  // OptionalWeights
-#include "../common/ranking_utils.cuh"
+#include "../common/optional_weight.h"    // OptionalWeights
+#include "../common/threading_utils.cuh"  // UnravelTrapeziodIdx,SegmentedTrapezoidThreads
 #include "auc.h"
 #include "xgboost/data.h"
 #include "xgboost/span.h"

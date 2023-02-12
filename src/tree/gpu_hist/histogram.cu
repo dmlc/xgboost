@@ -9,6 +9,7 @@
 #include <limits>
 
 #include "../../common/device_helpers.cuh"
+#include "../../common/deterministic.cuh"
 #include "../../data/ellpack_page.cuh"
 #include "histogram.cuh"
 #include "row_partitioner.cuh"
@@ -16,37 +17,6 @@
 
 namespace xgboost {
 namespace tree {
-// Following 2 functions are slightly modified version of fbcuda.
-
-/* \brief Constructs a rounding factor used to truncate elements in a sum such that the
-   sum of the truncated elements is the same no matter what the order of the sum is.
-
- * Algorithm 5: Reproducible Sequential Sum in 'Fast Reproducible Floating-Point
- * Summation' by Demmel and Nguyen
-
- * In algorithm 5 the bound is calculated as $max(|v_i|) * n$.  Here we use the bound
- *
- * \begin{equation}
- *   max( fl(\sum^{V}_{v_i>0}{v_i}), fl(\sum^{V}_{v_i<0}|v_i|) )
- * \end{equation}
- *
- * to avoid outliers, as the full reduction is reproducible on GPU with reduction tree.
- */
-template <typename T>
-T CreateRoundingFactor(T max_abs, int n) {
-  T delta = max_abs / (static_cast<T>(1.0) - 2 * n * std::numeric_limits<T>::epsilon());
-
-  // Calculate ceil(log_2(delta)).
-  // frexpf() calculates exp and returns `x` such that
-  // delta = x * 2^exp, where `x` in (-1.0, -0.5] U [0.5, 1).
-  // Because |x| < 1, exp is exactly ceil(log_2(delta)).
-  int exp;
-  std::frexp(delta, &exp);
-
-  // return M = 2 ^ ceil(log_2(delta))
-  return std::ldexp(static_cast<T>(1.0), exp);
-}
-
 namespace {
 struct Pair {
   GradientPair first;
@@ -72,6 +42,16 @@ struct Clip : public thrust::unary_function<GradientPair, Pair> {
   }
 };
 
+/**
+ * In algorithm 5 (see common::CreateRoundingFactor) the bound is calculated as
+ * $max(|v_i|) * n$.  Here we use the bound:
+ *
+ * \begin{equation}
+ *   max( fl(\sum^{V}_{v_i>0}{v_i}), fl(\sum^{V}_{v_i<0}|v_i|) )
+ * \end{equation}
+ *
+ * to avoid outliers, as the full reduction is reproducible on GPU with reduction tree.
+ */
 GradientQuantiser::GradientQuantiser(common::Span<GradientPair const> gpair) {
   using GradientSumT = GradientPairPrecise;
   using T = typename GradientSumT::ValueT;
@@ -90,10 +70,11 @@ GradientQuantiser::GradientQuantiser(common::Span<GradientPair const> gpair) {
   std::size_t total_rows = gpair.size();
   collective::Allreduce<collective::Operation::kSum>(&total_rows, 1);
 
-  auto histogram_rounding = GradientSumT{
-      CreateRoundingFactor<T>(std::max(positive_sum.GetGrad(), negative_sum.GetGrad()), total_rows),
-      CreateRoundingFactor<T>(std::max(positive_sum.GetHess(), negative_sum.GetHess()),
-                              total_rows)};
+  auto histogram_rounding =
+      GradientSumT{common::CreateRoundingFactor<T>(
+                       std::max(positive_sum.GetGrad(), negative_sum.GetGrad()), total_rows),
+                   common::CreateRoundingFactor<T>(
+                       std::max(positive_sum.GetHess(), negative_sum.GetHess()), total_rows)};
 
   using IntT = typename GradientPairInt64::ValueT;
 

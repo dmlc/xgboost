@@ -35,4 +35,5 @@ list of trees and can be sliced into multiple sub-models.
 
 The sliced model is a copy of selected trees, that means the model itself is immutable
 during slicing.  This feature is the basis of `save_best` option in early stopping
-callback.
+callback. See :ref:`sphx_glr_python_examples_individual_trees.py` for a worked example on
+how to combine prediction with sliced trees.

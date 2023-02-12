@@ -19,15 +19,14 @@ I have a big dataset
 ********************
 XGBoost is designed to be memory efficient. Usually it can handle problems as long as the data fit into your memory.
 This usually means millions of instances.
-If you are running out of memory, checkout :doc:`external memory version </tutorials/external_memory>` or
-:doc:`distributed version </tutorials/aws_yarn>` of XGBoost.
 
-**************************************************
-Running XGBoost on platform X (Hadoop/Yarn, Mesos)
-**************************************************
-The distributed version of XGBoost is designed to be portable to various environment.
-Distributed XGBoost can be ported to any platform that supports `rabit <https://github.com/dmlc/rabit>`_.
-You can directly run XGBoost on Yarn. In theory Mesos and other resource allocation engines can be easily supported as well.
+If you are running out of memory, checkout the tutorial page for using :doc:`distributed training </tutorials/index>` with one of the many frameworks, or the :doc:`external memory version </tutorials/external_memory>` for using external memory.
+
+
+**********************************
+How to handle categorical feature?
+**********************************
+Visit :doc:`this tutorial </tutorials/categorical>` for a walk through of categorical data handling and some worked examples.
 
 ******************************************************************
 Why not implement distributed XGBoost on top of X (Spark, Hadoop)?
@@ -50,7 +49,7 @@ which means the model trained by one language can be loaded in another.
 This means you can train the model using R, while running prediction using
 Java or C++, which are more common in production systems.
 You can also train the model using distributed versions,
-and load them in from Python to do some interactive analysis.
+and load them in from Python to do some interactive analysis. See :doc:`Model IO </tutorials/saving_model>` for more information.
 
 **************************
 Do you support LambdaMART?
@@ -70,11 +69,10 @@ When the ``missing`` parameter is specifed, values in the input predictor that i
 **************************************
 Slightly different result between runs
 **************************************
-This could happen, due to non-determinism in floating point summation order and multi-threading.
-Though the general accuracy will usually remain the same.
+This could happen, due to non-determinism in floating point summation order and multi-threading. Also, data partitioning changes by distributed framework can be an issue as well. Though the general accuracy will usually remain the same.
 
 **********************************************************
 Why do I see different results with sparse and dense data?
 **********************************************************
-"Sparse" elements are treated as if they were "missing" by the tree booster, and as zeros by the linear booster.
-For tree models, it is important to use consistent data formats during training and scoring.
+
+"Sparse" elements are treated as if they were "missing" by the tree booster, and as zeros by the linear booster. However, if we convert the sparse matrix back to dense matrix, the sparse matrix might fill the missing entries with 0, which is a valid value for xgboost.

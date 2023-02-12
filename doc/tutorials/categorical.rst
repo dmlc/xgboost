@@ -149,7 +149,7 @@ performance reasons.
 References
 **********
 
-[1] Walter D. Fisher. "`On Grouping for Maximum Homogeneity`_." Journal of the American Statistical Association. Vol. 53, No. 284 (Dec., 1958), pp. 789-798.
+[1] Walter D. Fisher. "`On Grouping for Maximum Homogeneity`_". Journal of the American Statistical Association. Vol. 53, No. 284 (Dec., 1958), pp. 789-798.
 
 [2] Trevor Hastie, Robert Tibshirani, Jerome Friedman. "`The Elements of Statistical Learning`_". Springer Series in Statistics Springer New York Inc. (2001).
 
