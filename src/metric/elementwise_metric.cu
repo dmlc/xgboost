@@ -423,7 +423,7 @@ XGBOOST_REGISTER_METRIC(TweedieNLogLik, "tweedie-nloglik")
   return new EvalEWiseBase<EvalTweedieNLogLik>(param);
 });
 
-class QuantileError : public Metric {
+class QuantileError : public MetricNoCache {
   HostDeviceVector<float> alpha_;
   common::QuantileLossParam param_;
 
