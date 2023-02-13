@@ -33,12 +33,12 @@ std::tuple<double, double, double> GPUBinaryROCAUC(common::Span<float const> pre
                                                    MetaInfo const &info, std::int32_t device,
                                                    std::shared_ptr<DeviceAUCCache> *p_cache);
 
-double GPUMultiClassROCAUC(common::Span<float const> predts, MetaInfo const &info,
-                           std::int32_t device, std::shared_ptr<DeviceAUCCache> *cache,
+double GPUMultiClassROCAUC(Context const *ctx, common::Span<float const> predts,
+                           MetaInfo const &info, std::shared_ptr<DeviceAUCCache> *p_cache,
                            std::size_t n_classes);
 
-std::pair<double, std::uint32_t> GPURankingAUC(common::Span<float const> predts,
-                                               MetaInfo const &info, std::int32_t device,
+std::pair<double, std::uint32_t> GPURankingAUC(Context const *ctx, common::Span<float const> predts,
+                                               MetaInfo const &info,
                                                std::shared_ptr<DeviceAUCCache> *cache);
 
 /**********
@@ -48,12 +48,13 @@ std::tuple<double, double, double> GPUBinaryPRAUC(common::Span<float const> pred
                                                   MetaInfo const &info, std::int32_t device,
                                                   std::shared_ptr<DeviceAUCCache> *p_cache);
 
-double GPUMultiClassPRAUC(common::Span<float const> predts, MetaInfo const &info,
-                          std::int32_t device, std::shared_ptr<DeviceAUCCache> *cache,
+double GPUMultiClassPRAUC(Context const *ctx, common::Span<float const> predts,
+                          MetaInfo const &info, std::shared_ptr<DeviceAUCCache> *p_cache,
                           std::size_t n_classes);
 
-std::pair<double, std::uint32_t> GPURankingPRAUC(common::Span<float const> predts,
-                                                 MetaInfo const &info, std::int32_t device,
+std::pair<double, std::uint32_t> GPURankingPRAUC(Context const *ctx,
+                                                 common::Span<float const> predts,
+                                                 MetaInfo const &info,
                                                  std::shared_ptr<DeviceAUCCache> *cache);
 
 namespace detail {

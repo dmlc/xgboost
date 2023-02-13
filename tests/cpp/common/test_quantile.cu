@@ -341,6 +341,7 @@ TEST(GPUQuantile, MultiMerge) {
 namespace {
 void TestAllReduceBasic(int32_t n_gpus) {
   auto const world = collective::GetWorldSize();
+  CHECK_EQ(world, n_gpus);
   constexpr size_t kRows = 1000, kCols = 100;
   RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins, MetaInfo const& info) {
     auto const device = collective::GetRank();
@@ -425,8 +426,9 @@ TEST(GPUQuantile, MGPUAllReduceBasic) {
 }
 
 namespace {
-void TestSameOnAllWorkers(int32_t n_gpus) {
+void TestSameOnAllWorkers(std::int32_t n_gpus) {
   auto world = collective::GetWorldSize();
+  CHECK_EQ(world, n_gpus);
   constexpr size_t kRows = 1000, kCols = 100;
   RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins,
                                  MetaInfo const &info) {
