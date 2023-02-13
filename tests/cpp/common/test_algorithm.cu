@@ -52,9 +52,9 @@ void TestSegmentedArgSort() {
   }
 }
 
-TEST(Algorithms, SegmentedArgSort) { TestSegmentedArgSort(); }
+TEST(Algorithm, SegmentedArgSort) { TestSegmentedArgSort(); }
 
-TEST(Algorithms, ArgSort) {
+TEST(Algorithm, GpuArgSort) {
   Context ctx;
   ctx.gpu_id = 0;
 
@@ -80,7 +80,7 @@ TEST(Algorithms, ArgSort) {
       thrust::is_sorted(sorted_idx.begin() + 10, sorted_idx.end(), thrust::greater<size_t>{}));
 }
 
-TEST(Algorithms, SegmentedSequence) {
+TEST(Algorithm, SegmentedSequence) {
   dh::device_vector<std::size_t> idx(16);
   dh::device_vector<std::size_t> ptr(3);
   Context ctx = CreateEmptyGenericParam(0);

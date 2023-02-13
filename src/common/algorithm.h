@@ -3,10 +3,10 @@
  */
 #ifndef XGBOOST_COMMON_ALGORITHM_H_
 #define XGBOOST_COMMON_ALGORITHM_H_
-#include <algorithm>  // std::upper_bound,std::stable_sort,std::sort
-#include <cinttypes>  // std::size_t
-#include <iterator>   // std::iterator_traits,std::distance
-#include <vector>     // std::vector
+#include <algorithm>          // std::upper_bound,std::stable_sort,std::sort
+#include <cinttypes>          // std::size_t
+#include <iterator>           // std::iterator_traits,std::distance
+#include <vector>             // std::vector
 
 #include "numeric.h"          // Iota
 #include "xgboost/base.h"     // GCC_HAS_PARALLEL,MSVC_HAS_PARALLEL
@@ -43,7 +43,7 @@ void StableSort(Context const *ctx, Iter begin, Iter end, Comp &&comp) {
 }
 
 template <typename Iter, typename Comp>
-void Sort(Context const *ctx, Iter begin, Iter end, Comp &&comp) {
+void Sort(Context const *ctx, Iter begin, Iter end, Comp comp) {
   if (ctx->Threads() > 1) {
 #if GCC_HAS_PARALLEL()
     __gnu_parallel::sort(begin, end, comp, __gnu_parallel::default_parallel_tag(ctx->Threads()));
