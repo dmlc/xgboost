@@ -55,11 +55,9 @@ void Sort(Context const *ctx, Iter begin, Iter end, Comp comp) {
     chunk_size = std::max(chunk_size, static_cast<std::size_t>(2048));
     concurrency::parallel_sort(begin, end, comp, chunk_size);
 #else
-    std::cout << "msvc no concurrency" << std::endl;
     std::sort(begin, end, comp);
 #endif  // GLIBC VERSION
   } else {
-    std::cout << "1 thread" << std::endl;
     std::sort(begin, end, comp);
   }
 }
