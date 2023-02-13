@@ -10,7 +10,8 @@ inline void CheckDeterministicMetricMultiClass(StringView name, int32_t device) 
   std::unique_ptr<Metric> metric{Metric::Create(name.c_str(), &ctx)};
 
   HostDeviceVector<float> predts;
-  MetaInfo info;
+  auto p_fmat = EmptyDMatrix();
+  MetaInfo& info = p_fmat->Info();
   auto &h_predts = predts.HostVector();
 
   SimpleLCG lcg;
@@ -35,9 +36,9 @@ inline void CheckDeterministicMetricMultiClass(StringView name, int32_t device) 
     }
   }
 
-  auto result = metric->Eval(predts, info);
+  auto result = metric->Evaluate(predts, p_fmat);
   for (size_t i = 0; i < 8; ++i) {
-    ASSERT_EQ(metric->Eval(predts, info), result);
+    ASSERT_EQ(metric->Evaluate(predts, p_fmat), result);
   }
 }
 }  // namespace xgboost

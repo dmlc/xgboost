@@ -19,7 +19,8 @@ inline void CheckDeterministicMetricElementWise(StringView name, int32_t device)
   HostDeviceVector<float> predts;
   size_t n_samples = 2048;
 
-  MetaInfo info;
+  auto p_fmat = EmptyDMatrix();
+  MetaInfo& info = p_fmat->Info();
   info.labels.Reshape(n_samples, 1);
   info.num_row_ = n_samples;
   auto &h_labels = info.labels.Data()->HostVector();
@@ -36,9 +37,9 @@ inline void CheckDeterministicMetricElementWise(StringView name, int32_t device)
     h_labels[i] = dist(&lcg);
   }
 
-  auto result = metric->Eval(predts, info);
+  auto result = metric->Evaluate(predts, p_fmat);
   for (size_t i = 0; i < 8; ++i) {
-    ASSERT_EQ(metric->Eval(predts, info), result);
+    ASSERT_EQ(metric->Evaluate(predts, p_fmat), result);
   }
 }
 }  // anonymous namespace

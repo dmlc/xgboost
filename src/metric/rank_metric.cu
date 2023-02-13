@@ -1,21 +1,20 @@
 /**
  * Copyright 2020-2023 by XGBoost Contributors
- * \file rank_metric.cu
- * \brief prediction rank based metrics.
- * \author Kailong Chen, Tianqi Chen
  */
 #include <dmlc/registry.h>
-
+#include <thrust/iterator/counting_iterator.h>  // make_counting_iterator
+#include <thrust/reduce.h>                      // reduce
 #include <xgboost/metric.h>
-#include <xgboost/host_device_vector.h>
-#include <thrust/iterator/discard_iterator.h>
 
-#include <vector>
+#include <cstddef>                       // std::size_t
+#include <memory>                        // std::shared_ptr
 
+#include "../common/cuda_context.cuh"    // CUDAContext
 #include "metric_common.h"
-
-#include "../common/math.h"
-#include "../common/device_helpers.cuh"
+#include "xgboost/base.h"                // XGBOOST_DEVICE
+#include "xgboost/context.h"             // Context
+#include "xgboost/data.h"                // MetaInfo
+#include "xgboost/host_device_vector.h"  // HostDeviceVector
 
 namespace xgboost {
 namespace metric {

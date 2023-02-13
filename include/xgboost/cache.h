@@ -32,6 +32,8 @@ class DMatrixCache {
     CacheT& Value() { return *value; }
   };
 
+  static constexpr std::size_t DefaultSize() { return 32; }
+
  protected:
   std::unordered_map<DMatrix const*, Item> container_;
   std::queue<DMatrix const*> queue_;
