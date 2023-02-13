@@ -92,7 +92,7 @@ namespace metric {
 DMLC_REGISTRY_FILE_TAG(rank_metric);
 
 /*! \brief AMS: also records best threshold */
-struct EvalAMS : public Metric {
+struct EvalAMS : public MetricNoCache {
  public:
   explicit EvalAMS(const char* param) {
     CHECK(param != nullptr)  // NOLINT
@@ -155,10 +155,10 @@ struct EvalAMS : public Metric {
 };
 
 /*! \brief Evaluate rank list */
-struct EvalRank : public Metric, public EvalRankConfig {
+struct EvalRank : public MetricNoCache, public EvalRankConfig {
  private:
   // This is used to compute the ranking metrics on the GPU - for training jobs that run on the GPU.
-  std::unique_ptr<xgboost::Metric> rank_gpu_;
+  std::unique_ptr<MetricNoCache> rank_gpu_;
 
  public:
   double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info) override {
@@ -322,7 +322,7 @@ struct EvalMAP : public EvalRank {
 };
 
 /*! \brief Cox: Partial likelihood of the Cox proportional hazards model */
-struct EvalCox : public Metric {
+struct EvalCox : public MetricNoCache {
  public:
   EvalCox() = default;
   double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info) override {

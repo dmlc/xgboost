@@ -12,7 +12,7 @@
 #include <cmath>
 
 #include "../collective/communicator-inl.h"
-#include "../common/common.h"
+#include "../common/common.h"           // MetricNoCache
 #include "../common/math.h"
 #include "../common/optional_weight.h"  // OptionalWeights
 #include "../common/pseudo_huber.h"
@@ -22,8 +22,8 @@
 #if defined(XGBOOST_USE_CUDA)
 #include <thrust/execution_policy.h>  // thrust::cuda::par
 #include <thrust/functional.h>        // thrust::plus<>
-#include <thrust/transform_reduce.h>
 #include <thrust/iterator/counting_iterator.h>
+#include <thrust/transform_reduce.h>
 
 #include "../common/device_helpers.cuh"
 #endif  // XGBOOST_USE_CUDA
@@ -166,7 +166,7 @@ struct EvalRowLogLoss {
   }
 };
 
-class PseudoErrorLoss : public Metric {
+class PseudoErrorLoss : public MetricNoCache {
   PesudoHuberParam param_;
 
  public:
@@ -338,7 +338,7 @@ struct EvalTweedieNLogLik {
  * \tparam Derived the name of subclass
  */
 template <typename Policy>
-struct EvalEWiseBase : public Metric {
+struct EvalEWiseBase : public MetricNoCache {
   EvalEWiseBase() = default;
   explicit EvalEWiseBase(char const* policy_param) : policy_{policy_param} {}
 

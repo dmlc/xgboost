@@ -20,12 +20,13 @@ TEST(Metric, DeclareUnifiedTest(BinaryAUC)) {
   EXPECT_NEAR(GetMetricEval(metric, {1, 0, 0}, {0, 0, 1}), 0.25f, 1e-10);
 
   // Invalid dataset
-  MetaInfo info;
+  auto p_fmat = EmptyDMatrix();
+  MetaInfo& info = p_fmat->Info();
   info.labels = linalg::Tensor<float, 2>{{0.0f, 0.0f}, {2}, -1};
-  float auc = metric->Eval({1, 1}, info);
+  float auc = metric->Evaluate({1, 1}, p_fmat);
   ASSERT_TRUE(std::isnan(auc));
   *info.labels.Data() = HostDeviceVector<float>{};
-  auc = metric->Eval(HostDeviceVector<float>{}, info);
+  auc = metric->Evaluate(HostDeviceVector<float>{}, p_fmat);
   ASSERT_TRUE(std::isnan(auc));
 
   EXPECT_NEAR(GetMetricEval(metric, {0, 1, 0, 1}, {0, 1, 0, 1}), 1.0f, 1e-10);

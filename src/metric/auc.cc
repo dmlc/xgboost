@@ -16,6 +16,7 @@
 
 #include "../common/math.h"
 #include "../common/optional_weight.h"  // OptionalWeights
+#include "metric_common.h"              // MetricNoCache
 #include "xgboost/host_device_vector.h"
 #include "xgboost/linalg.h"
 #include "xgboost/metric.h"
@@ -253,7 +254,7 @@ std::pair<double, uint32_t> RankingAUC(std::vector<float> const &predts,
 }
 
 template <typename Curve>
-class EvalAUC : public Metric {
+class EvalAUC : public MetricNoCache {
   double Eval(const HostDeviceVector<bst_float> &preds, const MetaInfo &info) override {
     double auc {0};
     if (ctx_->gpu_id != Context::kCpuId) {

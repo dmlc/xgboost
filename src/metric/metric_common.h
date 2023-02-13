@@ -13,12 +13,21 @@
 
 namespace xgboost {
 struct Context;
+// Metric that doesn't need to cache anything based on input data.
+class MetricNoCache : public Metric {
+ public:
+  virtual double Eval(HostDeviceVector<float> const &predts, MetaInfo const &info) = 0;
+
+  double Evaluate(HostDeviceVector<float> const &predts, std::shared_ptr<DMatrix> p_fmat) final {
+    return this->Eval(predts, p_fmat->Info());
+  }
+};
 
 // This creates a GPU metric instance dynamically and adds it to the GPU metric registry, if not
 // present already. This is created when there is a device ordinal present and if xgboost
 // is compiled with CUDA support
-struct GPUMetric : Metric {
-  static Metric *CreateGPUMetric(const std::string &name, Context const *tparam);
+struct GPUMetric : public MetricNoCache {
+  static GPUMetric *CreateGPUMetric(const std::string &name, Context const *tparam);
 };
 
 /*!

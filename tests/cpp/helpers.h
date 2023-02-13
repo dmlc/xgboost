@@ -301,6 +301,11 @@ class RandomDataGenerator {
   std::shared_ptr<DMatrix> GenerateQuantileDMatrix();
 };
 
+// Generate an empty DMatrix, mostly for its meta info.
+inline std::shared_ptr<DMatrix> EmptyDMatrix() {
+  return RandomDataGenerator{0, 0, 0.0}.GenerateDMatrix();
+}
+
 inline std::vector<float>
 GenerateRandomCategoricalSingleColumn(int n, size_t num_categories) {
   std::vector<float> x(n);

@@ -9,16 +9,16 @@
 #include <atomic>
 #include <cmath>
 
-#include "metric_common.h"
 #include "../collective/communicator-inl.h"
 #include "../common/math.h"
 #include "../common/threading_utils.h"
+#include "metric_common.h"  // MetricNoCache
 
 #if defined(XGBOOST_USE_CUDA)
 #include <thrust/execution_policy.h>  // thrust::cuda::par
 #include <thrust/functional.h>        // thrust::plus<>
-#include <thrust/transform_reduce.h>
 #include <thrust/iterator/counting_iterator.h>
+#include <thrust/transform_reduce.h>
 
 #include "../common/device_helpers.cuh"
 #endif  // XGBOOST_USE_CUDA
@@ -162,7 +162,7 @@ class MultiClassMetricsReduction {
  * \tparam Derived the name of subclass
  */
 template<typename Derived>
-struct EvalMClassBase : public Metric {
+struct EvalMClassBase : public MetricNoCache {
   double Eval(const HostDeviceVector<float> &preds, const MetaInfo &info) override {
     if (info.labels.Size() == 0) {
       CHECK_EQ(preds.Size(), 0);
