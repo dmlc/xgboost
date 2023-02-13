@@ -317,13 +317,15 @@ class TestDataset:
             enable_categorical=True,
         )
 
-    def get_device_dmat(self) -> xgb.QuantileDMatrix:
+    def get_device_dmat(self, max_bin: Optional[int]) -> xgb.QuantileDMatrix:
         import cupy as cp
 
         w = None if self.w is None else cp.array(self.w)
         X = cp.array(self.X, dtype=np.float32)
         y = cp.array(self.y, dtype=np.float32)
-        return xgb.QuantileDMatrix(X, y, weight=w, base_margin=self.margin)
+        return xgb.QuantileDMatrix(
+            X, y, weight=w, base_margin=self.margin, max_bin=max_bin
+        )
 
     def get_external_dmat(self) -> xgb.DMatrix:
         n_samples = self.X.shape[0]

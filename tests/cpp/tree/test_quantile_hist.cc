@@ -36,7 +36,7 @@ void TestPartitioner(bst_target_t n_targets) {
   std::vector<ExpandEntry> candidates{{0, 0}};
   candidates.front().split.loss_chg = 0.4;
 
-  auto cuts = common::SketchOnDMatrix(Xy.get(), 64, ctx.Threads());
+  auto cuts = common::SketchOnDMatrix(&ctx, Xy.get(), 64);
 
   for (auto const& page : Xy->GetBatches<SparsePage>()) {
     GHistIndexMatrix gmat(page, {}, cuts, 64, true, 0.5, ctx.Threads());

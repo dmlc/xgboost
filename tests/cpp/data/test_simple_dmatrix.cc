@@ -61,6 +61,7 @@ TEST(SimpleDMatrix, RowAccess) {
 }
 
 TEST(SimpleDMatrix, ColAccessWithoutBatches) {
+  Context ctx;
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/simple.libsvm";
   CreateSimpleTestData(tmp_file);
@@ -70,7 +71,7 @@ TEST(SimpleDMatrix, ColAccessWithoutBatches) {
 
   // Loop over the batches and assert the data is as expected
   int64_t num_col_batch = 0;
-  for (const auto &batch : dmat->GetBatches<xgboost::SortedCSCPage>()) {
+  for (const auto &batch : dmat->GetBatches<xgboost::SortedCSCPage>(&ctx)) {
     num_col_batch += 1;
     EXPECT_EQ(batch.Size(), dmat->Info().num_col_)
         << "Expected batch size = number of cells as #batches is 1.";

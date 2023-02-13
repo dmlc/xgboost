@@ -25,9 +25,9 @@ namespace xgboost {
 namespace common {
 
 template <typename AdapterT>
-HistogramCuts GetHostCuts(AdapterT *adapter, int num_bins, float missing) {
+HistogramCuts GetHostCuts(Context const* ctx, AdapterT* adapter, int num_bins, float missing) {
   data::SimpleDMatrix dmat(adapter, missing, 1);
-  HistogramCuts cuts = SketchOnDMatrix(&dmat, num_bins, AllThreadsForTest());
+  HistogramCuts cuts = SketchOnDMatrix(ctx, &dmat, num_bins);
   return cuts;
 }
 
@@ -39,7 +39,9 @@ TEST(HistUtil, DeviceSketch) {
   auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
 
   auto device_cuts = DeviceSketch(0, dmat.get(), num_bins);
-  HistogramCuts host_cuts = SketchOnDMatrix(dmat.get(), num_bins, AllThreadsForTest());
+
+  Context ctx;
+  HistogramCuts host_cuts = SketchOnDMatrix(&ctx, dmat.get(), num_bins);
 
   EXPECT_EQ(device_cuts.Values(), host_cuts.Values());
   EXPECT_EQ(device_cuts.Ptrs(), host_cuts.Ptrs());
@@ -308,7 +310,8 @@ TEST(HistUtil, AdapterDeviceSketch) {
   data::CupyAdapter adapter(str);
 
   auto device_cuts = MakeUnweightedCutsForTest(adapter, num_bins, missing);
-  auto host_cuts = GetHostCuts(&adapter, num_bins, missing);
+  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
+  auto host_cuts = GetHostCuts(&ctx, &adapter, num_bins, missing);
 
   EXPECT_EQ(device_cuts.Values(), host_cuts.Values());
   EXPECT_EQ(device_cuts.Ptrs(), host_cuts.Ptrs());

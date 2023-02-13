@@ -134,7 +134,7 @@ class MultiTargetHistBuilder {
                       std::vector<MultiExpandEntry> const &applied) {
     monitor_->Start(__func__);
     std::size_t page_id{0};
-    for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(this->param_))) {
+    for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(this->param_))) {
       this->partitioner_.at(page_id).UpdatePosition(this->ctx_, page, applied, p_tree);
       page_id++;
     }
@@ -152,7 +152,7 @@ class MultiTargetHistBuilder {
     std::size_t page_id = 0;
     bst_bin_t n_total_bins = 0;
     partitioner_.clear();
-    for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
+    for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
       if (n_total_bins == 0) {
         n_total_bins = page.cut.TotalBins();
       } else {
@@ -206,7 +206,7 @@ class MultiTargetHistBuilder {
     std::vector<MultiExpandEntry> nodes{best};
     std::size_t i = 0;
     auto space = ConstructHistSpace(partitioner_, nodes);
-    for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
+    for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
       for (bst_target_t t{0}; t < n_targets; ++t) {
         auto t_gpair = gpair.Slice(linalg::All(), t);
         histogram_builder_[t].BuildHist(i, space, page, p_tree, partitioner_.at(i).Partitions(),
@@ -225,7 +225,7 @@ class MultiTargetHistBuilder {
     for (bst_target_t t{0}; t < p_tree->NumTargets(); ++t) {
       hists.push_back(&histogram_builder_[t].Histogram());
     }
-    for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
+    for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
       evaluator_->EvaluateSplits(*p_tree, hists, gmat.cut, &nodes);
       break;
     }
@@ -263,7 +263,7 @@ class MultiTargetHistBuilder {
 
     std::size_t i = 0;
     auto space = ConstructHistSpace(partitioner_, nodes_to_build);
-    for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
+    for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
       for (std::size_t t = 0; t < p_tree->NumTargets(); ++t) {
         auto t_gpair = gpair.Slice(linalg::All(), t);
         // Make sure the gradient matrix is f-order.
@@ -283,7 +283,7 @@ class MultiTargetHistBuilder {
     for (bst_target_t t{0}; t < p_tree->NumTargets(); ++t) {
       hists.push_back(&histogram_builder_[t].Histogram());
     }
-    for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
+    for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
       evaluator_->EvaluateSplits(*p_tree, hists, gmat.cut, best_splits);
       break;
     }
@@ -383,7 +383,7 @@ class HistBuilder {
     std::size_t page_id{0};
     bst_bin_t n_total_bins{0};
     partitioner_.clear();
-    for (auto const &page : fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
+    for (auto const &page : fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
       if (n_total_bins == 0) {
         n_total_bins = page.cut.TotalBins();
       } else {
@@ -406,7 +406,7 @@ class HistBuilder {
     monitor_->Start(__func__);
     auto const &histograms = histogram_builder_->Histogram();
     auto ft = p_fmat->Info().feature_types.ConstHostSpan();
-    for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
+    for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
       evaluator_->EvaluateSplits(histograms, gmat.cut, ft, *p_tree, best_splits);
       break;
     }
@@ -423,7 +423,7 @@ class HistBuilder {
 
     std::size_t page_id = 0;
     auto space = ConstructHistSpace(partitioner_, {node});
-    for (auto const &gidx : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
+    for (auto const &gidx : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
       std::vector<CPUExpandEntry> nodes_to_build{node};
       std::vector<CPUExpandEntry> nodes_to_sub;
       this->histogram_builder_->BuildHist(page_id, space, gidx, p_tree,
@@ -439,7 +439,7 @@ class HistBuilder {
          * Specialized code for dense data: For dense data (with no missing value), the sum
          * of gradient histogram is equal to snode[nid]
          */
-        auto const &gmat = *(p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_)).begin());
+        auto const &gmat = *(p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_)).begin());
         std::vector<std::uint32_t> const &row_ptr = gmat.cut.Ptrs();
         CHECK_GE(row_ptr.size(), 2);
         std::uint32_t const ibegin = row_ptr[0];
@@ -467,7 +467,7 @@ class HistBuilder {
       std::vector<CPUExpandEntry> entries{node};
       monitor_->Start("EvaluateSplits");
       auto ft = p_fmat->Info().feature_types.ConstHostSpan();
-      for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
+      for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
         evaluator_->EvaluateSplits(histogram_builder_->Histogram(), gmat.cut, ft, *p_tree,
                                    &entries);
         break;
@@ -503,7 +503,7 @@ class HistBuilder {
 
     std::size_t page_id{0};
     auto space = ConstructHistSpace(partitioner_, nodes_to_build);
-    for (auto const &gidx : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
+    for (auto const &gidx : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
       histogram_builder_->BuildHist(page_id, space, gidx, p_tree,
                                     partitioner_.at(page_id).Partitions(), nodes_to_build,
                                     nodes_to_sub, gpair.Values());
@@ -515,7 +515,7 @@ class HistBuilder {
                       std::vector<CPUExpandEntry> const &applied) {
     monitor_->Start(__func__);
     std::size_t page_id{0};
-    for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(this->param_))) {
+    for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
       this->partitioner_.at(page_id).UpdatePosition(this->ctx_, page, applied, p_tree);
       page_id++;
     }

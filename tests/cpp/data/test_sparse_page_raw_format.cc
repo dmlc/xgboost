@@ -1,17 +1,24 @@
-/*!
- * Copyright 2021 XGBoost contributors
+/**
+ * Copyright 2021-2023, XGBoost contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/data.h>
+#include <xgboost/data.h>                          // for CSCPage, SortedCSCPage, SparsePage
 
-#include "../../../src/data/sparse_page_source.h"
-#include "../filesystem.h"  // dmlc::TemporaryDirectory
-#include "../helpers.h"
+#include <memory>                                  // for allocator, unique_ptr, __shared_ptr_ac...
+#include <string>                                  // for char_traits, operator+, basic_string
+
+#include "../../../src/data/sparse_page_writer.h"  // for CreatePageFormat
+#include "../helpers.h"                            // for RandomDataGenerator
+#include "dmlc/filesystem.h"                       // for TemporaryDirectory
+#include "dmlc/io.h"                               // for SeekStream, Stream
+#include "gtest/gtest_pred_impl.h"                 // for Test, AssertionResult, ASSERT_EQ, TEST
+#include "xgboost/context.h"                       // for Context
 
 namespace xgboost {
 namespace data {
 template <typename S> void TestSparsePageRawFormat() {
   std::unique_ptr<SparsePageFormat<S>> format{CreatePageFormat<S>("raw")};
+  Context ctx;
 
   auto m = RandomDataGenerator{100, 14, 0.5}.GenerateDMatrix();
   ASSERT_TRUE(m->SingleColBlock());
@@ -21,7 +28,7 @@ template <typename S> void TestSparsePageRawFormat() {
   {
     // block code to flush the stream
     std::unique_ptr<dmlc::Stream> fo{dmlc::Stream::Create(path.c_str(), "w")};
-    for (auto const &page : m->GetBatches<S>()) {
+    for (auto const &page : m->GetBatches<S>(&ctx)) {
       orig.Push(page);
       format->Write(page, fo.get());
     }

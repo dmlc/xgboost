@@ -76,7 +76,7 @@ class ColMaker: public TreeUpdater {
     // Finds densities if we don't already have them
     if (column_densities_.empty()) {
       std::vector<size_t> column_size(dmat->Info().num_col_);
-      for (const auto &batch : dmat->GetBatches<SortedCSCPage>()) {
+      for (const auto &batch : dmat->GetBatches<SortedCSCPage>(ctx_)) {
         auto page = batch.GetView();
         for (auto i = 0u; i < batch.Size(); i++) {
           column_size[i] += page[i].size();
@@ -467,7 +467,7 @@ class ColMaker: public TreeUpdater {
       auto evaluator = tree_evaluator_.GetEvaluator();
 
       auto feat_set = column_sampler_.GetFeatureSet(depth);
-      for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>()) {
+      for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>(ctx_)) {
         this->UpdateSolution(batch, feat_set->HostVector(), gpair, p_fmat);
       }
       // after this each thread's stemp will get the best candidates, aggregate results
@@ -546,7 +546,7 @@ class ColMaker: public TreeUpdater {
       }
       std::sort(fsplits.begin(), fsplits.end());
       fsplits.resize(std::unique(fsplits.begin(), fsplits.end()) - fsplits.begin());
-      for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>()) {
+      for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>(ctx_)) {
         auto page = batch.GetView();
         for (auto fid : fsplits) {
           auto col = page[fid];

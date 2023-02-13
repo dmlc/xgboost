@@ -32,7 +32,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
   void Configure(Args const& args) override {
     tparam_.UpdateAllowUnknown(args);
     coord_param_.UpdateAllowUnknown(args);
-    selector_.reset(FeatureSelector::Create(tparam_.feature_selector, ctx_->Threads()));
+    selector_.reset(FeatureSelector::Create(tparam_.feature_selector));
     monitor_.Init("GPUCoordinateUpdater");
   }
 
@@ -53,7 +53,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     num_row_ = static_cast<size_t>(p_fmat->Info().num_row_);
 
     CHECK(p_fmat->SingleColBlock());
-    SparsePage const& batch = *(p_fmat->GetBatches<CSCPage>().begin());
+    SparsePage const &batch = *(p_fmat->GetBatches<CSCPage>(ctx_).begin());
     auto page = batch.GetView();
 
     if (IsEmpty()) {
@@ -112,16 +112,15 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     this->UpdateBias(model);
     monitor_.Stop("UpdateBias");
     // prepare for updating the weights
-    selector_->Setup(*model, in_gpair->ConstHostVector(), p_fmat,
-                     tparam_.reg_alpha_denorm, tparam_.reg_lambda_denorm,
-                     coord_param_.top_k);
+    selector_->Setup(ctx_, *model, in_gpair->ConstHostVector(), p_fmat, tparam_.reg_alpha_denorm,
+                     tparam_.reg_lambda_denorm, coord_param_.top_k);
     monitor_.Start("UpdateFeature");
     for (uint32_t group_idx = 0; group_idx < model->learner_model_param->num_output_group;
          ++group_idx) {
       for (auto i = 0U; i < model->learner_model_param->num_feature; i++) {
-        auto fidx = selector_->NextFeature(
-            i, *model, group_idx, in_gpair->ConstHostVector(), p_fmat,
-            tparam_.reg_alpha_denorm, tparam_.reg_lambda_denorm);
+        auto fidx =
+            selector_->NextFeature(ctx_, i, *model, group_idx, in_gpair->ConstHostVector(), p_fmat,
+                                   tparam_.reg_alpha_denorm, tparam_.reg_lambda_denorm);
         if (fidx < 0) break;
         this->UpdateFeature(fidx, group_idx, model);
       }

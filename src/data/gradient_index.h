@@ -19,7 +19,6 @@
 #include "../common/threading_utils.h"
 #include "../common/transform_iterator.h"  // for MakeIndexTransformIter
 #include "adapter.h"
-#include "proxy_dmatrix.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 
@@ -155,8 +154,8 @@ class GHistIndexMatrix {
   /**
    * \brief Constrcutor for SimpleDMatrix.
    */
-  GHistIndexMatrix(DMatrix* x, bst_bin_t max_bins_per_feat, double sparse_thresh,
-                   bool sorted_sketch, int32_t n_threads, common::Span<float> hess = {});
+  GHistIndexMatrix(Context const* ctx, DMatrix* x, bst_bin_t max_bins_per_feat,
+                   double sparse_thresh, bool sorted_sketch, common::Span<float> hess = {});
   /**
    * \brief Constructor for Iterative DMatrix. Initialize basic information and prepare
    *        for push batch.
@@ -294,29 +293,6 @@ void AssignColumnBinIndex(GHistIndexMatrix const& page, Fn&& assign) {
       }
     }
   });
-}
-
-/**
- * \brief Should we regenerate the gradient index?
- *
- * \param old Parameter stored in DMatrix.
- * \param p   New parameter passed in by caller.
- */
-inline bool RegenGHist(BatchParam old, BatchParam p) {
-  // parameter is renewed or caller requests a regen
-  if (p == BatchParam{}) {
-    // empty parameter is passed in, don't regenerate so that we can use gindex in
-    // predictor, which doesn't have any training parameter.
-    return false;
-  }
-
-  // Avoid comparing nan values.
-  bool l_nan = std::isnan(old.sparse_thresh);
-  bool r_nan = std::isnan(p.sparse_thresh);
-  // regenerate if parameter is changed.
-  bool st_chg = (l_nan != r_nan) || (!l_nan && !r_nan && (old.sparse_thresh != p.sparse_thresh));
-  bool param_chg = old.gpu_id != p.gpu_id || old.max_bin != p.max_bin;
-  return p.regen || param_chg || st_chg;
 }
 }      // namespace xgboost
 #endif  // XGBOOST_DATA_GRADIENT_INDEX_H_

@@ -218,7 +218,7 @@ struct GPUHistMakerDevice {
         column_sampler(column_sampler_seed),
         interaction_constraints(param, n_features),
         batch_param(std::move(_batch_param)) {
-    sampler.reset(new GradientBasedSampler(page, _n_rows, batch_param, param.subsample,
+    sampler.reset(new GradientBasedSampler(ctx, page, _n_rows, batch_param, param.subsample,
                                            param.sampling_method));
     if (!param.monotone_constraints.empty()) {
       // Copy assigning an empty vector causes an exception in MSVC debug builds
@@ -258,7 +258,7 @@ struct GPUHistMakerDevice {
     dh::safe_cuda(cudaMemcpyAsync(
         d_gpair.data().get(), dh_gpair->ConstDevicePointer(),
         dh_gpair->Size() * sizeof(GradientPair), cudaMemcpyDeviceToDevice));
-    auto sample = sampler->Sample(dh::ToSpan(d_gpair), dmat);
+    auto sample = sampler->Sample(ctx_, dh::ToSpan(d_gpair), dmat);
     page = sample.page;
     gpair = sample.gpair;
 
@@ -808,11 +808,8 @@ class GPUHistMaker : public TreeUpdater {
     uint32_t column_sampling_seed = common::GlobalRandom()();
     collective::Broadcast(&column_sampling_seed, sizeof(column_sampling_seed), 0);
 
-    BatchParam batch_param{
-        ctx_->gpu_id,
-        param->max_bin,
-    };
-    auto page = (*dmat->GetBatches<EllpackPage>(batch_param).begin()).Impl();
+    auto batch_param = BatchParam{param->max_bin, TrainParam::DftSparseThreshold()};
+    auto page = (*dmat->GetBatches<EllpackPage>(ctx_, batch_param).begin()).Impl();
     dh::safe_cuda(cudaSetDevice(ctx_->gpu_id));
     info_->feature_types.SetDevice(ctx_->gpu_id);
     maker.reset(new GPUHistMakerDevice<GradientSumT>(

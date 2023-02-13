@@ -28,5 +28,10 @@ constexpr StringView InfInData() {
 constexpr StringView NoF128() {
   return "128-bit floating point is not supported on current platform.";
 }
+
+constexpr StringView InconsistentMaxBin() {
+  return "Inconsistent `max_bin`. `max_bin` should be the same across different QuantileDMatrix, "
+         "and consistent with the Booster being trained.";
+}
 }  // namespace xgboost::error
 #endif  // XGBOOST_COMMON_ERROR_MSG_H_

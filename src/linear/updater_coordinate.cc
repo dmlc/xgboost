@@ -1,5 +1,5 @@
-/*!
- * Copyright 2018 by Contributors
+/**
+ * Copyright 2018-2023 by XGBoost Contributors
  * \author Rory Mitchell
  */
 
@@ -30,7 +30,7 @@ class CoordinateUpdater : public LinearUpdater {
       tparam_.UpdateAllowUnknown(args)
     };
     cparam_.UpdateAllowUnknown(rest);
-    selector_.reset(FeatureSelector::Create(tparam_.feature_selector, ctx_->Threads()));
+    selector_.reset(FeatureSelector::Create(tparam_.feature_selector));
     monitor_.Init("CoordinateUpdater");
   }
 
@@ -56,19 +56,17 @@ class CoordinateUpdater : public LinearUpdater {
       auto dbias = static_cast<float>(tparam_.learning_rate *
                                       CoordinateDeltaBias(grad.first, grad.second));
       model->Bias()[group_idx] += dbias;
-      UpdateBiasResidualParallel(group_idx, ngroup, dbias, &in_gpair->HostVector(), p_fmat,
-                                 ctx_->Threads());
+      UpdateBiasResidualParallel(ctx_, group_idx, ngroup, dbias, &in_gpair->HostVector(), p_fmat);
     }
     // prepare for updating the weights
-    selector_->Setup(*model, in_gpair->ConstHostVector(), p_fmat,
-                    tparam_.reg_alpha_denorm,
-                    tparam_.reg_lambda_denorm, cparam_.top_k);
+    selector_->Setup(ctx_, *model, in_gpair->ConstHostVector(), p_fmat, tparam_.reg_alpha_denorm,
+                     tparam_.reg_lambda_denorm, cparam_.top_k);
     // update weights
     for (int group_idx = 0; group_idx < ngroup; ++group_idx) {
       for (unsigned i = 0U; i < model->learner_model_param->num_feature; i++) {
-        int fidx = selector_->NextFeature
-          (i, *model, group_idx, in_gpair->ConstHostVector(), p_fmat,
-           tparam_.reg_alpha_denorm, tparam_.reg_lambda_denorm);
+        int fidx =
+            selector_->NextFeature(ctx_, i, *model, group_idx, in_gpair->ConstHostVector(), p_fmat,
+                                   tparam_.reg_alpha_denorm, tparam_.reg_lambda_denorm);
         if (fidx < 0) break;
         this->UpdateFeature(fidx, group_idx, &in_gpair->HostVector(), p_fmat, model);
       }
@@ -76,8 +74,8 @@ class CoordinateUpdater : public LinearUpdater {
     monitor_.Stop("UpdateFeature");
   }
 
-  inline void UpdateFeature(int fidx, int group_idx, std::vector<GradientPair> *in_gpair,
-                            DMatrix *p_fmat, gbm::GBLinearModel *model) {
+  void UpdateFeature(int fidx, int group_idx, std::vector<GradientPair> *in_gpair, DMatrix *p_fmat,
+                     gbm::GBLinearModel *model) {
     const int ngroup = model->learner_model_param->num_output_group;
     bst_float &w = (*model)[fidx][group_idx];
     auto gradient = GetGradientParallel(ctx_, group_idx, ngroup, fidx,
@@ -87,8 +85,7 @@ class CoordinateUpdater : public LinearUpdater {
         CoordinateDelta(gradient.first, gradient.second, w, tparam_.reg_alpha_denorm,
                         tparam_.reg_lambda_denorm));
     w += dw;
-    UpdateResidualParallel(fidx, group_idx, ngroup, dw, in_gpair, p_fmat,
-                           ctx_->Threads());
+    UpdateResidualParallel(ctx_, fidx, group_idx, ngroup, dw, in_gpair, p_fmat);
   }
 
  private:

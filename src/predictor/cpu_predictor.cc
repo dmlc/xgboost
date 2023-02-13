@@ -634,7 +634,7 @@ class CPUPredictor : public Predictor {
     if (!p_fmat->PageExists<SparsePage>()) {
       std::vector<Entry> workspace(p_fmat->Info().num_col_ * kUnroll * n_threads);
       auto ft = p_fmat->Info().feature_types.ConstHostVector();
-      for (auto const &batch : p_fmat->GetBatches<GHistIndexMatrix>({})) {
+      for (auto const &batch : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, {})) {
         if (blocked) {
           PredictBatchByBlockOfRowsKernel<GHistIndexMatrixView, kBlockOfRowsSize>(
               GHistIndexMatrixView{batch, p_fmat->Info().num_col_, ft, workspace, n_threads}, model,

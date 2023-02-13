@@ -18,6 +18,7 @@ class TestQuantileDMatrix:
     @pytest.mark.skipif(**tm.no_cupy())
     def test_dmatrix_feature_weights(self) -> None:
         import cupy as cp
+
         rng = cp.random.RandomState(1994)
         data = rng.randn(5, 5)
         m = xgb.DMatrix(data)
@@ -26,23 +27,91 @@ class TestQuantileDMatrix:
         m.set_info(feature_weights=feature_weights)
 
         cp.testing.assert_array_equal(
-            cp.array(m.get_float_info('feature_weights')),
-            feature_weights.astype(np.float32))
+            cp.array(m.get_float_info("feature_weights")),
+            feature_weights.astype(np.float32),
+        )
 
     @pytest.mark.skipif(**tm.no_cupy())
     def test_dmatrix_cupy_init(self) -> None:
         import cupy as cp
+
         data = cp.random.randn(5, 5)
         xgb.QuantileDMatrix(data, cp.ones(5, dtype=np.float64))
 
+    @pytest.mark.parametrize(
+        "on_device,tree_method",
+        [(True, "hist"), (False, "gpu_hist"), (False, "hist"), (True, "gpu_hist")],
+    )
+    def test_initialization(self, on_device: bool, tree_method: str) -> None:
+        n_samples, n_features, max_bin = 64, 3, 16
+        X, y, w = tm.make_batches(
+            n_samples,
+            n_features=n_features,
+            n_batches=1,
+            use_cupy=on_device,
+        )
+
+        # Init SparsePage
+        Xy = xgb.DMatrix(X[0], y[0], weight=w[0])
+        # Init GIDX/Ellpack
+        xgb.train(
+            {"tree_method": tree_method, "max_bin": max_bin},
+            Xy,
+            num_boost_round=1,
+        )
+        # query cuts from GIDX/Ellpack
+        qXy = xgb.QuantileDMatrix(X[0], y[0], weight=w[0], max_bin=max_bin, ref=Xy)
+        tm.predictor_equal(Xy, qXy)
+        with pytest.raises(ValueError, match="Inconsistent"):
+            # max_bin changed.
+            xgb.QuantileDMatrix(X[0], y[0], weight=w[0], max_bin=max_bin - 1, ref=Xy)
+
+        # No error, DMatrix can be modified for different training session.
+        xgb.train(
+            {"tree_method": tree_method, "max_bin": max_bin - 1},
+            Xy,
+            num_boost_round=1,
+        )
+
+        # Init Ellpack/GIDX
+        Xy = xgb.QuantileDMatrix(X[0], y[0], weight=w[0], max_bin=max_bin)
+        # Init GIDX/Ellpack
+        xgb.train(
+            {"tree_method": tree_method, "max_bin": max_bin},
+            Xy,
+            num_boost_round=1,
+        )
+        # query cuts from GIDX/Ellpack
+        qXy = xgb.QuantileDMatrix(X[0], y[0], weight=w[0], max_bin=max_bin, ref=Xy)
+        tm.predictor_equal(Xy, qXy)
+        with pytest.raises(ValueError, match="Inconsistent"):
+            # max_bin changed.
+            xgb.QuantileDMatrix(X[0], y[0], weight=w[0], max_bin=max_bin - 1, ref=Xy)
+
+        Xy = xgb.DMatrix(X[0], y[0], weight=w[0])
+        booster0 = xgb.train(
+            {"tree_method": "hist", "max_bin": max_bin, "max_depth": 4},
+            Xy,
+            num_boost_round=1,
+        )
+        booster1 = xgb.train(
+            {"tree_method": "gpu_hist", "max_bin": max_bin, "max_depth": 4},
+            Xy,
+            num_boost_round=1,
+        )
+        qXy = xgb.QuantileDMatrix(X[0], y[0], weight=w[0], max_bin=max_bin, ref=Xy)
+        predt0 = booster0.predict(qXy)
+        predt1 = booster1.predict(qXy)
+        np.testing.assert_allclose(predt0, predt1)
+
     @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.parametrize(
-        "tree_method,max_bin", [
-            ("hist", 16), ("gpu_hist", 16), ("hist", 64), ("gpu_hist", 64)
-        ]
+        "tree_method,max_bin",
+        [("hist", 16), ("gpu_hist", 16), ("hist", 64), ("gpu_hist", 64)],
     )
     def test_interoperability(self, tree_method: str, max_bin: int) -> None:
         import cupy as cp
+
         n_samples = 64
         n_features = 3
         X, y, w = tm.make_batches(
@@ -75,6 +144,7 @@ class TestQuantileDMatrix:
     @pytest.mark.skipif(**tm.no_cupy())
     def test_metainfo(self) -> None:
         import cupy as cp
+
         rng = cp.random.RandomState(1994)
 
         rows = 10
@@ -98,6 +168,7 @@ class TestQuantileDMatrix:
     @pytest.mark.skipif(**tm.no_cudf())
     def test_ref_dmatrix(self) -> None:
         import cupy as cp
+
         rng = cp.random.RandomState(1994)
         self.cputest.run_ref_dmatrix(rng, "gpu_hist", False)
 
@@ -158,5 +229,6 @@ class TestQuantileDMatrix:
     @pytest.mark.skipif(**tm.no_cupy())
     def test_check_inf(self) -> None:
         import cupy as cp
+
         rng = cp.random.default_rng(1994)
         check_inf(rng)

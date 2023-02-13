@@ -66,7 +66,7 @@ class GloablApproxBuilder {
     partitioner_.clear();
     // Generating the GHistIndexMatrix is quite slow, is there a way to speed it up?
     for (auto const &page :
-         p_fmat->GetBatches<GHistIndexMatrix>(BatchSpec(*param_, hess, *task_))) {
+         p_fmat->GetBatches<GHistIndexMatrix>(ctx_, BatchSpec(*param_, hess, *task_))) {
       if (n_total_bins == 0) {
         n_total_bins = page.cut.TotalBins();
         feature_values_ = page.cut;
@@ -97,7 +97,7 @@ class GloablApproxBuilder {
     std::vector<CPUExpandEntry> nodes{best};
     size_t i = 0;
     auto space = ConstructHistSpace(partitioner_, nodes);
-    for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(BatchSpec(*param_, hess))) {
+    for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, BatchSpec(*param_, hess))) {
       histogram_builder_.BuildHist(i, space, page, p_tree, partitioner_.at(i).Partitions(), nodes,
                                    {}, gpair);
       i++;
@@ -148,7 +148,7 @@ class GloablApproxBuilder {
 
     size_t i = 0;
     auto space = ConstructHistSpace(partitioner_, nodes_to_build);
-    for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(BatchSpec(*param_, hess))) {
+    for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, BatchSpec(*param_, hess))) {
       histogram_builder_.BuildHist(i, space, page, p_tree, partitioner_.at(i).Partitions(),
                                    nodes_to_build, nodes_to_sub, gpair);
       i++;
@@ -214,7 +214,8 @@ class GloablApproxBuilder {
 
       monitor_->Start("UpdatePosition");
       size_t page_id = 0;
-      for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(BatchSpec(*param_, hess))) {
+      for (auto const &page :
+           p_fmat->GetBatches<GHistIndexMatrix>(ctx_, BatchSpec(*param_, hess))) {
         partitioner_.at(page_id).UpdatePosition(ctx_, page, applied, p_tree);
         page_id++;
       }

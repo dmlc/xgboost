@@ -15,8 +15,9 @@
 namespace xgboost {
 namespace data {
 TEST(IterativeDMatrix, Ref) {
+  Context ctx;
   TestRefDMatrix<GHistIndexMatrix, NumpyArrayIterForTest>(
-      [&](GHistIndexMatrix const& page) { return page.cut; });
+      &ctx, [&](GHistIndexMatrix const& page) { return page.cut; });
 }
 
 TEST(IterativeDMatrix, IsDense) {

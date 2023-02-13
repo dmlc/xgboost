@@ -1,5 +1,5 @@
-/*!
- * Copyright 2017-2022 by XGBoost Contributors
+/**
+ * Copyright 2017-2023, XGBoost Contributors
  * \brief Data type for fast histogram aggregation.
  */
 #include "gradient_index.h"
@@ -19,18 +19,18 @@ namespace xgboost {
 
 GHistIndexMatrix::GHistIndexMatrix() : columns_{std::make_unique<common::ColumnMatrix>()} {}
 
-GHistIndexMatrix::GHistIndexMatrix(DMatrix *p_fmat, bst_bin_t max_bins_per_feat,
-                                   double sparse_thresh, bool sorted_sketch, int32_t n_threads,
+GHistIndexMatrix::GHistIndexMatrix(Context const *ctx, DMatrix *p_fmat, bst_bin_t max_bins_per_feat,
+                                   double sparse_thresh, bool sorted_sketch,
                                    common::Span<float> hess)
     : max_numeric_bins_per_feat{max_bins_per_feat} {
   CHECK(p_fmat->SingleColBlock());
   // We use sorted sketching for approx tree method since it's more efficient in
   // computation time (but higher memory usage).
-  cut = common::SketchOnDMatrix(p_fmat, max_bins_per_feat, n_threads, sorted_sketch, hess);
+  cut = common::SketchOnDMatrix(ctx, p_fmat, max_bins_per_feat, sorted_sketch, hess);
 
   const uint32_t nbins = cut.Ptrs().back();
   hit_count.resize(nbins, 0);
-  hit_count_tloc_.resize(n_threads * nbins, 0);
+  hit_count_tloc_.resize(ctx->Threads() * nbins, 0);
 
   size_t new_size = 1;
   for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
@@ -45,7 +45,7 @@ GHistIndexMatrix::GHistIndexMatrix(DMatrix *p_fmat, bst_bin_t max_bins_per_feat,
   auto ft = p_fmat->Info().feature_types.ConstHostSpan();
 
   for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
-    this->PushBatch(batch, ft, n_threads);
+    this->PushBatch(batch, ft, ctx->Threads());
   }
   this->columns_ = std::make_unique<common::ColumnMatrix>();
 
@@ -54,7 +54,7 @@ GHistIndexMatrix::GHistIndexMatrix(DMatrix *p_fmat, bst_bin_t max_bins_per_feat,
     // hist
     CHECK(!sorted_sketch);
     for (auto const &page : p_fmat->GetBatches<SparsePage>()) {
-      this->columns_->InitFromSparse(page, *this, sparse_thresh, n_threads);
+      this->columns_->InitFromSparse(page, *this, sparse_thresh, ctx->Threads());
     }
   }
 }

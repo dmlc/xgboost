@@ -1,17 +1,17 @@
-/*!
- * Copyright 2019-2020 XGBoost contributors
+/**
+ * Copyright 2019-2023, XGBoost contributors
  */
 #include <xgboost/base.h>
 
 #include <utility>
 
-#include "../helpers.h"
-#include "../histogram_helpers.h"
-#include "gtest/gtest.h"
-
 #include "../../../src/common/categorical.h"
 #include "../../../src/common/hist_util.h"
 #include "../../../src/data/ellpack_page.cuh"
+#include "../../../src/tree/param.h"  // TrainParam
+#include "../helpers.h"
+#include "../histogram_helpers.h"
+#include "gtest/gtest.h"
 
 namespace xgboost {
 
@@ -19,7 +19,10 @@ TEST(EllpackPage, EmptyDMatrix) {
   constexpr int kNRows = 0, kNCols = 0, kMaxBin = 256;
   constexpr float kSparsity = 0;
   auto dmat = RandomDataGenerator(kNRows, kNCols, kSparsity).GenerateDMatrix();
-  auto& page = *dmat->GetBatches<EllpackPage>({0, kMaxBin}).begin();
+  Context ctx{MakeCUDACtx(0)};
+  auto& page = *dmat->GetBatches<EllpackPage>(
+                        &ctx, BatchParam{kMaxBin, tree::TrainParam::DftSparseThreshold()})
+                    .begin();
   auto impl = page.Impl();
   ASSERT_EQ(impl->row_stride, 0);
   ASSERT_EQ(impl->Cuts().TotalBins(), 0);
@@ -87,8 +90,9 @@ TEST(EllpackPage, FromCategoricalBasic) {
   auto& h_ft = m->Info().feature_types.HostVector();
   h_ft.resize(kCols, FeatureType::kCategorical);
 
-  BatchParam p{0, max_bins};
-  auto ellpack = EllpackPage(m.get(), p);
+  Context ctx{MakeCUDACtx(0)};
+  auto p = BatchParam{max_bins, tree::TrainParam::DftSparseThreshold()};
+  auto ellpack = EllpackPage(&ctx, m.get(), p);
   auto accessor = ellpack.Impl()->GetDeviceAccessor(0);
   ASSERT_EQ(kCats, accessor.NumBins());
 
@@ -142,8 +146,9 @@ TEST(EllpackPage, Copy) {
   dmlc::TemporaryDirectory tmpdir;
   std::unique_ptr<DMatrix>
       dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
-  BatchParam param{0, 256};
-  auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
+  Context ctx{MakeCUDACtx(0)};
+  auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
+  auto page = (*dmat->GetBatches<EllpackPage>(&ctx, param).begin()).Impl();
 
   // Create an empty result page.
   EllpackPageImpl result(0, page->Cuts(), page->is_dense, page->row_stride,
@@ -151,7 +156,7 @@ TEST(EllpackPage, Copy) {
 
   // Copy batch pages into the result page.
   size_t offset = 0;
-  for (auto& batch : dmat->GetBatches<EllpackPage>(param)) {
+  for (auto& batch : dmat->GetBatches<EllpackPage>(&ctx, param)) {
     size_t num_elements = result.Copy(0, batch.Impl(), offset);
     offset += num_elements;
   }
@@ -161,7 +166,7 @@ TEST(EllpackPage, Copy) {
   thrust::device_vector<bst_float> row_result_d(kCols);
   std::vector<bst_float> row(kCols);
   std::vector<bst_float> row_result(kCols);
-  for (auto& page : dmat->GetBatches<EllpackPage>(param)) {
+  for (auto& page : dmat->GetBatches<EllpackPage>(&ctx, param)) {
     auto impl = page.Impl();
     EXPECT_EQ(impl->base_rowid, current_row);
 
@@ -186,10 +191,11 @@ TEST(EllpackPage, Compact) {
 
   // Create a DMatrix with multiple batches.
   dmlc::TemporaryDirectory tmpdir;
-  std::unique_ptr<DMatrix>
-      dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
-  BatchParam param{0, 256};
-  auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
+  std::unique_ptr<DMatrix> dmat(
+      CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
+  Context ctx{MakeCUDACtx(0)};
+  auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
+  auto page = (*dmat->GetBatches<EllpackPage>(&ctx, param).begin()).Impl();
 
   // Create an empty result page.
   EllpackPageImpl result(0, page->Cuts(), page->is_dense, page->row_stride,
@@ -201,7 +207,7 @@ TEST(EllpackPage, Compact) {
     SIZE_MAX};
   thrust::device_vector<size_t> row_indexes_d = row_indexes_h;
   common::Span<size_t> row_indexes_span(row_indexes_d.data().get(), kRows);
-  for (auto& batch : dmat->GetBatches<EllpackPage>(param)) {
+  for (auto& batch : dmat->GetBatches<EllpackPage>(&ctx, param)) {
     result.Compact(0, batch.Impl(), row_indexes_span);
   }
 
@@ -210,7 +216,7 @@ TEST(EllpackPage, Compact) {
   thrust::device_vector<bst_float> row_result_d(kCols);
   std::vector<bst_float> row(kCols);
   std::vector<bst_float> row_result(kCols);
-  for (auto& page : dmat->GetBatches<EllpackPage>(param)) {
+  for (auto& page : dmat->GetBatches<EllpackPage>(&ctx, param)) {
     auto impl = page.Impl();
     ASSERT_EQ(impl->base_rowid, current_row);
 
@@ -245,15 +251,17 @@ class EllpackPageTest : public testing::TestWithParam<float> {
     // device.
     size_t n_samples{128}, n_features{13};
     Context ctx;
-    ctx.gpu_id = 0;
+    Context gpu_ctx{MakeCUDACtx(0)};
     auto Xy = RandomDataGenerator{n_samples, n_features, sparsity}.GenerateDMatrix(true);
     std::unique_ptr<EllpackPageImpl> from_ghist;
     ASSERT_TRUE(Xy->SingleColBlock());
-    for (auto const& page : Xy->GetBatches<GHistIndexMatrix>(BatchParam{17, 0.6})) {
-      from_ghist.reset(new EllpackPageImpl{&ctx, page, {}});
+
+    for (auto const& page : Xy->GetBatches<GHistIndexMatrix>(&ctx, BatchParam{17, 0.6})) {
+      from_ghist.reset(new EllpackPageImpl{&gpu_ctx, page, {}});
     }
 
-    for (auto const& page : Xy->GetBatches<EllpackPage>(BatchParam{0, 17})) {
+    for (auto const& page : Xy->GetBatches<EllpackPage>(
+             &gpu_ctx, BatchParam{17, tree::TrainParam::DftSparseThreshold()})) {
       auto from_sparse_page = page.Impl();
       ASSERT_EQ(from_sparse_page->is_dense, from_ghist->is_dense);
       ASSERT_EQ(from_sparse_page->base_rowid, 0);
