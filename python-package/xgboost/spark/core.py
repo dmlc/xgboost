@@ -145,9 +145,8 @@ _unsupported_predict_params = {
 
 # TODO: supply hint message for all other unsupported params.
 _unsupported_params_hint_message = {
-    "enable_categorical":
-        "`xgboost.spark` estimators do not have 'enable_categorical' param, but you can "
-        "set `feature_types` param and mark categorical features with 'c' string. "
+    "enable_categorical": "`xgboost.spark` estimators do not have 'enable_categorical' param, "
+    "but you can set `feature_types` param and mark categorical features with 'c' string."
 }
 
 # Global prediction names
