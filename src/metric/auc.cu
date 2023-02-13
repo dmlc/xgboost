@@ -21,6 +21,9 @@
 
 namespace xgboost {
 namespace metric {
+// tag the this file, used by force static link later.
+DMLC_REGISTRY_FILE_TAG(auc_gpu);
+
 namespace {
 // Pair of FP/TP
 using Pair = thrust::pair<double, double>;

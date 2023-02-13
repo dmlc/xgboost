@@ -36,18 +36,18 @@ void TestSegmentedArgSort() {
 
   dh::device_vector<float> values(kElements, 0.0f);
   thrust::sequence(values.begin(), values.end(), 0.0f);
-  SegmentedArgSort<true, false>(&ctx, dh::ToSpan(values), d_offset_ptr, d_sorted_idx);
+  SegmentedArgSort<false, true>(&ctx, dh::ToSpan(values), d_offset_ptr, d_sorted_idx);
 
   std::vector<size_t> h_sorted_index(sorted_idx.size());
   thrust::copy(sorted_idx.begin(), sorted_idx.end(), h_sorted_index.begin());
 
   for (size_t i = 1; i < kGroups + 1; ++i) {
-    auto group_idx = common::Span<size_t>(h_sorted_index)
-                         .subspan(offset_ptr[i - 1], offset_ptr[i] - offset_ptr[i - 1]);
-    ASSERT_TRUE(std::is_sorted(group_idx.begin(), group_idx.end(), std::greater<>{}));
-    ASSERT_EQ(group_idx.back(), 0);
-    for (auto j : group_idx) {
-      ASSERT_LT(j, group_idx.size());
+    auto group_sorted_idx = common::Span<size_t>(h_sorted_index)
+                                .subspan(offset_ptr[i - 1], offset_ptr[i] - offset_ptr[i - 1]);
+    ASSERT_TRUE(std::is_sorted(group_sorted_idx.begin(), group_sorted_idx.end(), std::greater<>{}));
+    ASSERT_EQ(group_sorted_idx.back(), 0);
+    for (auto j : group_sorted_idx) {
+      ASSERT_LT(j, group_sorted_idx.size());
     }
   }
 }

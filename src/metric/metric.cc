@@ -84,6 +84,7 @@ DMLC_REGISTRY_LINK_TAG(multiclass_metric);
 DMLC_REGISTRY_LINK_TAG(survival_metric);
 DMLC_REGISTRY_LINK_TAG(rank_metric);
 #ifdef XGBOOST_USE_CUDA
+DMLC_REGISTRY_LINK_TAG(auc_gpu);
 DMLC_REGISTRY_LINK_TAG(rank_metric_gpu);
 #endif
 }  // namespace metric
