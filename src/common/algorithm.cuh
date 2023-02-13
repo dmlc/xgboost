@@ -167,14 +167,14 @@ void SegmentedArgMergeSort(Context const *ctx, SegIt seg_begin, SegIt seg_end, V
   dh::device_vector<Tup> keys(sorted_idx.size());
   auto key_it = dh::MakeTransformIterator<Tup>(thrust::make_counting_iterator(0ul),
                                                [=] XGBOOST_DEVICE(std::size_t i) -> Tup {
-                                                 int32_t leaf_idx;
+                                                 std::int32_t seg_idx;
                                                  if (i < *seg_begin) {
-                                                   leaf_idx = -1;
+                                                   seg_idx = -1;
                                                  } else {
-                                                   leaf_idx = dh::SegmentId(seg_begin, seg_end, i);
+                                                   seg_idx = dh::SegmentId(seg_begin, seg_end, i);
                                                  }
                                                  auto residue = val_begin[i];
-                                                 return thrust::make_tuple(leaf_idx, residue);
+                                                 return thrust::make_tuple(seg_idx, residue);
                                                });
   thrust::copy(ctx->CUDACtx()->CTP(), key_it, key_it + keys.size(), keys.begin());
   thrust::stable_sort_by_key(ctx->CUDACtx()->TP(), keys.begin(), keys.end(), sorted_idx.begin(),
