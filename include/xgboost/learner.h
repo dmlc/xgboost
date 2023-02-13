@@ -1,5 +1,5 @@
-/*!
- * Copyright 2015-2022 by XGBoost Contributors
+/**
+ * Copyright 2015-2023 by XGBoost Contributors
  * \file learner.h
  * \brief Learner interface that integrates objective, gbm and evaluation together.
  *  This is the user facing XGBoost training module.
@@ -8,12 +8,13 @@
 #ifndef XGBOOST_LEARNER_H_
 #define XGBOOST_LEARNER_H_
 
+#include <dmlc/io.h>          // Serializable
 #include <xgboost/base.h>
 #include <xgboost/context.h>  // Context
 #include <xgboost/feature_map.h>
 #include <xgboost/host_device_vector.h>
+#include <xgboost/linalg.h>  // Tensor
 #include <xgboost/model.h>
-#include <xgboost/predictor.h>
 #include <xgboost/task.h>
 
 #include <map>
@@ -29,6 +30,7 @@ class GradientBooster;
 class ObjFunction;
 class DMatrix;
 class Json;
+struct XGBAPIThreadLocalEntry;
 
 enum class PredictionType : std::uint8_t {  // NOLINT
   kValue = 0,
@@ -38,26 +40,6 @@ enum class PredictionType : std::uint8_t {  // NOLINT
   kInteraction = 4,
   kApproxInteraction = 5,
   kLeaf = 6
-};
-
-/*! \brief entry to to easily hold returning information */
-struct XGBAPIThreadLocalEntry {
-  /*! \brief result holder for returning string */
-  std::string ret_str;
-  /*! \brief result holder for returning raw buffer */
-  std::vector<char> ret_char_vec;
-  /*! \brief result holder for returning strings */
-  std::vector<std::string> ret_vec_str;
-  /*! \brief result holder for returning string pointers */
-  std::vector<const char *> ret_vec_charp;
-  /*! \brief returning float vector. */
-  std::vector<bst_float> ret_vec_float;
-  /*! \brief temp variable of gradient pairs. */
-  std::vector<GradientPair> tmp_gpair;
-  /*! \brief Temp variable for returning prediction result. */
-  PredictionCacheEntry prediction_entry;
-  /*! \brief Temp variable for returning prediction shape. */
-  std::vector<bst_ulong> prediction_shape;
 };
 
 /*!

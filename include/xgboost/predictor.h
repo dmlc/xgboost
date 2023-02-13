@@ -1,95 +1,66 @@
-/*!
- * Copyright 2017-2022 by Contributors
+/**
+ * Copyright 2017-2023 by Contributors
  * \file predictor.h
  * \brief Interface of predictor,
  *  performs predictions for a gradient booster.
  */
 #pragma once
 #include <xgboost/base.h>
+#include <xgboost/cache.h>  // DMatrixCache
 #include <xgboost/context.h>
 #include <xgboost/data.h>
 #include <xgboost/host_device_vector.h>
 
-#include <functional>
+#include <functional>  // std::function
 #include <memory>
-#include <mutex>
 #include <string>
-#include <unordered_map>
-#include <utility>
 #include <vector>
 
 // Forward declarations
 namespace xgboost {
-class TreeUpdater;
 namespace gbm {
 struct GBTreeModel;
 }  // namespace gbm
-}
+}  // namespace xgboost
 
 namespace xgboost {
 /**
- * \struct  PredictionCacheEntry
- *
  * \brief Contains pointer to input matrix and associated cached predictions.
  */
 struct PredictionCacheEntry {
   // A storage for caching prediction values
   HostDeviceVector<bst_float> predictions;
   // The version of current cache, corresponding number of layers of trees
-  uint32_t version { 0 };
-  // A weak pointer for checking whether the DMatrix object has expired.
-  std::weak_ptr< DMatrix > ref;
+  std::uint32_t version{0};
 
   PredictionCacheEntry() = default;
-  /* \brief Update the cache entry by number of versions.
+  /**
+   * \brief Update the cache entry by number of versions.
    *
    * \param v Added versions.
    */
-  void Update(uint32_t v) {
+  void Update(std::uint32_t v) {
     version += v;
   }
 };
 
-/* \brief A container for managed prediction caches.
+/**
+ * \brief A container for managed prediction caches.
  */
-class PredictionContainer {
-  std::unordered_map<DMatrix *, PredictionCacheEntry> container_;
-  void ClearExpiredEntries();
+class PredictionContainer : public DMatrixCache<PredictionCacheEntry> {
+  // we cache up to 32 DMatrix
+  std::size_t static constexpr DefaultSize() { return 32; }
 
  public:
-  PredictionContainer() = default;
-  /* \brief Add a new DMatrix to the cache, at the same time this function will clear out
-   *        all expired caches by checking the `std::weak_ptr`.  Caching an existing
-   *        DMatrix won't renew it.
-   *
-   *  Passing in a `shared_ptr` is critical here.  First to create a `weak_ptr` inside the
-   *  entry this shared pointer is necessary.  More importantly, the life time of this
-   *  cache is tied to the shared pointer.
-   *
-   *  Another way to make a safe cache is create a proxy to this entry, with anther shared
-   *  pointer defined inside, and pass this proxy around instead of the real entry.  But
-   *  seems to be too messy.  In XGBoost, functions like `UpdateOneIter` will have
-   *  (memory) safe access to the DMatrix as long as it's passed in as a `shared_ptr`.
-   *
-   * \param m shared pointer to the DMatrix that needs to be cached.
-   * \param device Which device should the cache be allocated on.  Pass
-   *               Context::kCpuId for CPU or positive integer for GPU id.
-   *
-   * \return the cache entry for passed in DMatrix, either an existing cache or newly
-   *         created.
-   */
-  PredictionCacheEntry& Cache(std::shared_ptr<DMatrix> m, int32_t device);
-  /* \brief Get a prediction cache entry.  This entry must be already allocated by `Cache`
-   *        method.  Otherwise a dmlc::Error is thrown.
-   *
-   * \param m pointer to the DMatrix.
-   * \return The prediction cache for passed in DMatrix.
-   */
-  PredictionCacheEntry& Entry(DMatrix* m);
-  /* \brief Get a const reference to the underlying hash map.  Clear expired caches before
-   *        returning.
-   */
-  decltype(container_) const& Container();
+  PredictionContainer() : DMatrixCache<PredictionCacheEntry>{DefaultSize()} {}
+  PredictionCacheEntry& Cache(std::shared_ptr<DMatrix> m, int32_t device) {
+    this->CacheItem(m);
+    auto p_cache = this->container_.find(m.get());
+    if (device != Context::kCpuId) {
+      p_cache->second.Value().predictions.SetDevice(device);
+    }
+    return p_cache->second.Value();
+  }
 };
 
 /**
@@ -114,7 +85,7 @@ class Predictor {
    *
    * \param cfg   The configuration.
    */
-  virtual void Configure(const std::vector<std::pair<std::string, std::string>>&);
+  virtual void Configure(Args const&);
 
   /**
    * \brief Initialize output prediction

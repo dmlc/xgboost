@@ -1,5 +1,5 @@
-/*!
- * Copyright 2014-2022 by XGBoost Contributors
+/**
+ * Copyright 2014-2023 by XGBoost Contributors
  * \file gbm.h
  * \brief Interface of gradient booster,
  *  that learns through gradient statistics.
@@ -31,7 +31,6 @@ class ObjFunction;
 struct Context;
 struct LearnerModelParam;
 struct PredictionCacheEntry;
-class PredictionContainer;
 
 /*!
  * \brief interface of gradient boosting model.

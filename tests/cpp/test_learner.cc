@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2022 by XGBoost contributors
+ * Copyright 2017-2023 by XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/learner.h>
@@ -10,6 +10,7 @@
 #include <thread>
 #include <vector>
 
+#include "../../src/common/api_entry.h"  // XGBAPIThreadLocalEntry
 #include "../../src/common/io.h"
 #include "../../src/common/linalg_op.h"
 #include "../../src/common/random.h"
