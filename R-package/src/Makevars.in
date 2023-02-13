@@ -36,6 +36,7 @@ OBJECTS= \
     $(PKGROOT)/src/objective/hinge.o \
     $(PKGROOT)/src/objective/aft_obj.o \
     $(PKGROOT)/src/objective/adaptive.o \
+    $(PKGROOT)/src/objective/init_estimation.o \
     $(PKGROOT)/src/gbm/gbm.o \
     $(PKGROOT)/src/gbm/gbtree.o \
     $(PKGROOT)/src/gbm/gbtree_model.o \
