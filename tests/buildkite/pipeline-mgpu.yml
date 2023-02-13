@@ -36,6 +36,11 @@ steps:
       queue: linux-amd64-mgpu
   - wait
   #### -------- TEST --------
+  - label: ":console: Run Google Tests"
+    command: "tests/buildkite/test-cpp-mgpu.sh"
+    key: test-cpp-mgpu
+    agents:
+      queue: linux-amd64-mgpu
   - label: ":console: Test Python package, 4 GPUs"
     command: "tests/buildkite/test-python-gpu.sh mgpu"
     key: test-python-mgpu
