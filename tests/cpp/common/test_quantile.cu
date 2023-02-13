@@ -341,12 +341,6 @@ TEST(GPUQuantile, MultiMerge) {
 namespace {
 void TestAllReduceBasic(int32_t n_gpus) {
   auto const world = collective::GetWorldSize();
-  if (world != 1) {
-    ASSERT_EQ(world, n_gpus);
-  } else {
-    return;
-  }
-
   constexpr size_t kRows = 1000, kCols = 100;
   RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins, MetaInfo const& info) {
     auto const device = collective::GetRank();
@@ -424,18 +418,15 @@ void TestAllReduceBasic(int32_t n_gpus) {
 
 TEST(GPUQuantile, MGPUAllReduceBasic) {
   auto const n_gpus = AllVisibleGPUs();
+  if (n_gpus <= 1) {
+    GTEST_SKIP() << "Skipping MGPUAllReduceBasic test with # GPUs = " << n_gpus;
+  }
   RunWithInMemoryCommunicator(n_gpus, TestAllReduceBasic, n_gpus);
 }
 
 namespace {
 void TestSameOnAllWorkers(int32_t n_gpus) {
   auto world = collective::GetWorldSize();
-  if (world != 1) {
-    ASSERT_EQ(world, n_gpus);
-  } else {
-    return;
-  }
-
   constexpr size_t kRows = 1000, kCols = 100;
   RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins,
                                  MetaInfo const &info) {
@@ -497,6 +488,9 @@ void TestSameOnAllWorkers(int32_t n_gpus) {
 
 TEST(GPUQuantile, MGPUSameOnAllWorkers) {
   auto const n_gpus = AllVisibleGPUs();
+  if (n_gpus <= 1) {
+    GTEST_SKIP() << "Skipping MGPUSameOnAllWorkers test with # GPUs = " << n_gpus;
+  }
   RunWithInMemoryCommunicator(n_gpus, TestSameOnAllWorkers, n_gpus);
 }
 
