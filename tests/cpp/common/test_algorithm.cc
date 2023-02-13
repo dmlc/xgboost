@@ -21,8 +21,9 @@ TEST(Algorithm, ArgSort) {
 
 TEST(Algorithm, Sort) {
   Context ctx;
-  ctx.Init(Args{{"nthread", " 3"}});
+  ctx.Init(Args{{"nthread", "8"}});
   std::vector<float> inputs{3.0, 1.0, 2.0};
+
   Sort(&ctx, inputs.begin(), inputs.end(), std::less<>{});
   ASSERT_TRUE(std::is_sorted(inputs.cbegin(), inputs.cend()));
 }

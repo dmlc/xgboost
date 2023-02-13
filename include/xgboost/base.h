@@ -52,8 +52,6 @@
   defined(__GNUC__) && ((__GNUC__ == 4 && __GNUC_MINOR__ >= 8) || __GNUC__ > 4) && \
       !defined(__CUDACC__) && !defined(__sun) && !defined(sun)
 
-#define MSVC_HAS_PARALLEL() defined(_MSC_VER) && (!__INTEL_COMPILER)
-
 #if defined(__GNUC__)
 #define XGBOOST_EXPECT(cond, ret)  __builtin_expect((cond), (ret))
 #else
