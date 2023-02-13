@@ -7,7 +7,6 @@
  *  The expressions like wsum == 0 ? esum : esum / wsum is used to handle empty dataset.
  */
 #include <dmlc/registry.h>
-#include <xgboost/metric.h>
 
 #include <cmath>
 
@@ -16,8 +15,10 @@
 #include "../common/math.h"
 #include "../common/optional_weight.h"  // OptionalWeights
 #include "../common/pseudo_huber.h"
+#include "../common/quantile_loss_utils.h"  // QuantileLossParam
 #include "../common/threading_utils.h"
 #include "metric_common.h"
+#include "xgboost/metric.h"
 
 #if defined(XGBOOST_USE_CUDA)
 #include <thrust/execution_policy.h>  // thrust::cuda::par
@@ -421,5 +422,82 @@ XGBOOST_REGISTER_METRIC(TweedieNLogLik, "tweedie-nloglik")
 .set_body([](const char* param) {
   return new EvalEWiseBase<EvalTweedieNLogLik>(param);
 });
+
+class QuantileError : public Metric {
+  HostDeviceVector<float> alpha_;
+  common::QuantileLossParam param_;
+
+ public:
+  void Configure(Args const& args) override {
+    param_.UpdateAllowUnknown(args);
+    param_.Validate();
+    alpha_.HostVector() = param_.quantile_alpha.Get();
+  }
+
+  double Eval(HostDeviceVector<bst_float> const& preds, const MetaInfo& info) override {
+    CHECK(!alpha_.Empty());
+    if (info.num_row_ == 0) {
+      // empty DMatrix on distributed env
+      double dat[2]{0.0, 0.0};
+      collective::Allreduce<collective::Operation::kSum>(dat, 2);
+      CHECK_GT(dat[1], 0);
+      return dat[0] / dat[1];
+    }
+
+    auto const* ctx = ctx_;
+    auto y_true = info.labels.View(ctx->gpu_id);
+    preds.SetDevice(ctx->gpu_id);
+    alpha_.SetDevice(ctx->gpu_id);
+    auto alpha = ctx->IsCPU() ? alpha_.ConstHostSpan() : alpha_.ConstDeviceSpan();
+    std::size_t n_targets = preds.Size() / info.num_row_ / alpha_.Size();
+    CHECK_NE(n_targets, 0);
+    auto y_predt = linalg::MakeTensorView(
+        ctx->IsCPU() ? preds.ConstHostSpan() : preds.ConstDeviceSpan(),
+        {static_cast<std::size_t>(info.num_row_), alpha_.Size(), n_targets}, ctx->gpu_id);
+
+    info.weights_.SetDevice(ctx->gpu_id);
+    common::OptionalWeights weight{ctx->IsCPU() ? info.weights_.ConstHostSpan()
+                                                : info.weights_.ConstDeviceSpan()};
+
+    auto result = Reduce(
+        ctx, info, [=] XGBOOST_DEVICE(std::size_t i, std::size_t sample_id, std::size_t target_id) {
+          auto idx = linalg::UnravelIndex(i, y_predt.Shape());
+          sample_id = std::get<0>(idx);
+          std::size_t quantile_id = std::get<1>(idx);
+          target_id = std::get<2>(idx);
+
+          auto loss = [a = alpha[quantile_id]](float p, float y) {
+            auto d = y - p;
+            float sign = d >= 0.0f;
+            auto res = (a * sign * d) - (1.0f - a) * (1.0f - sign) * d;
+            return res;
+          };
+          auto w = weight[sample_id];
+          auto l =
+              loss(y_predt(sample_id, quantile_id, target_id), y_true(sample_id, target_id)) * w;
+          return std::make_tuple(l, w);
+        });
+    double dat[2]{result.Residue(), result.Weights()};
+    collective::Allreduce<collective::Operation::kSum>(dat, 2);
+    CHECK_GT(dat[1], 0);
+    return dat[0] / dat[1];
+  }
+
+  const char* Name() const override { return "quantile"; }
+  void LoadConfig(Json const& in) override {
+    auto const& name = get<String const>(in["name"]);
+    CHECK_EQ(name, "quantile");
+    FromJson(in["quantile_loss_param"], &param_);
+  }
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String(this->Name());
+    out["quantile_loss_param"] = ToJson(param_);
+  }
+};
+
+XGBOOST_REGISTER_METRIC(QuantileError, "quantile")
+    .describe("Quantile regression error.")
+    .set_body([](const char*) { return new QuantileError{}; });
 }  // namespace metric
 }  // namespace xgboost

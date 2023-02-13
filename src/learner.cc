@@ -695,6 +695,11 @@ class LearnerConfiguration : public Learner {
                          });
         } else if (IsA<Object>(kv.second)) {
           stack.push(kv.second);
+        } else if (kv.first == "metrics") {
+          auto const& array = get<Array const>(kv.second);
+          for (auto const& v : array) {
+            stack.push(v);
+          }
         }
       }
     }

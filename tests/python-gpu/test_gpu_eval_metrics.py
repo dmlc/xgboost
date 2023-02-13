@@ -1,8 +1,10 @@
 import sys
 
 import pytest
+from xgboost.testing.metrics import check_quantile_error
 
 import xgboost
+from xgboost import testing as tm
 
 sys.path.append("tests/python")
 import test_eval_metrics as test_em  # noqa
@@ -58,3 +60,7 @@ class TestGPUEvalMetrics:
 
     def test_pr_auc_ltr(self):
         self.cpu_test.run_pr_auc_ltr("gpu_hist")
+
+    @pytest.mark.skipif(**tm.no_sklearn())
+    def test_quantile_error(self) -> None:
+        check_quantile_error("gpu_hist")

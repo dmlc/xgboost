@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from xgboost.testing.metrics import check_quantile_error
 
 import xgboost as xgb
 from xgboost import testing as tm
@@ -306,10 +307,14 @@ class TestEvalMetrics:
             group=groups,
             eval_set=[(X, y)],
             eval_group=[groups],
-            eval_metric="aucpr"
+            eval_metric="aucpr",
         )
         results = ltr.evals_result()["validation_0"]["aucpr"]
         assert results[-1] >= 0.99
 
     def test_pr_auc_ltr(self):
         self.run_pr_auc_ltr("hist")
+
+    @pytest.mark.skipif(**tm.no_sklearn())
+    def test_quantile_error(self) -> None:
+        check_quantile_error("hist")
