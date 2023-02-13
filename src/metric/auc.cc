@@ -345,8 +345,8 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
       std::tie(auc, valid_groups) =
           RankingAUC<true>(predts.ConstHostVector(), info, n_threads);
     } else {
-      std::tie(auc, valid_groups) = GPURankingAUC(
-          predts.ConstDeviceSpan(), info, ctx_->gpu_id, &this->d_cache_);
+      std::tie(auc, valid_groups) =
+          GPURankingAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_);
     }
     return std::make_pair(auc, valid_groups);
   }
@@ -360,8 +360,7 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
       auc = MultiClassOVR(predts.ConstHostVector(), info, n_classes, n_threads,
                           BinaryROCAUC);
     } else {
-      auc = GPUMultiClassROCAUC(predts.ConstDeviceSpan(), info, ctx_->gpu_id,
-                                &this->d_cache_, n_classes);
+      auc = GPUMultiClassROCAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_, n_classes);
     }
     return auc;
   }
@@ -398,14 +397,15 @@ std::tuple<double, double, double> GPUBinaryROCAUC(common::Span<float const>, Me
   return {};
 }
 
-double GPUMultiClassROCAUC(common::Span<float const>, MetaInfo const &, std::int32_t,
+double GPUMultiClassROCAUC(Context const *, common::Span<float const>, MetaInfo const &,
                            std::shared_ptr<DeviceAUCCache> *, std::size_t) {
   common::AssertGPUSupport();
   return 0.0;
 }
 
-std::pair<double, std::uint32_t> GPURankingAUC(common::Span<float const>, MetaInfo const &,
-                                               std::int32_t, std::shared_ptr<DeviceAUCCache> *) {
+std::pair<double, std::uint32_t> GPURankingAUC(Context const *, common::Span<float const>,
+                                               MetaInfo const &,
+                                               std::shared_ptr<DeviceAUCCache> *) {
   common::AssertGPUSupport();
   return {};
 }
@@ -437,8 +437,7 @@ class EvalPRAUC : public EvalAUC<EvalPRAUC> {
       return MultiClassOVR(predts.ConstHostSpan(), info, n_classes, n_threads,
                            BinaryPRAUC);
     } else {
-      return GPUMultiClassPRAUC(predts.ConstDeviceSpan(), info, ctx_->gpu_id,
-                                &d_cache_, n_classes);
+      return GPUMultiClassPRAUC(ctx_, predts.ConstDeviceSpan(), info, &d_cache_, n_classes);
     }
   }
 
@@ -455,8 +454,8 @@ class EvalPRAUC : public EvalAUC<EvalPRAUC> {
       std::tie(auc, valid_groups) =
           RankingAUC<false>(predts.ConstHostVector(), info, n_threads);
     } else {
-      std::tie(auc, valid_groups) = GPURankingPRAUC(
-          predts.ConstDeviceSpan(), info, ctx_->gpu_id, &d_cache_);
+      std::tie(auc, valid_groups) =
+          GPURankingPRAUC(ctx_, predts.ConstDeviceSpan(), info, &d_cache_);
     }
     return std::make_pair(auc, valid_groups);
   }
@@ -476,14 +475,15 @@ std::tuple<double, double, double> GPUBinaryPRAUC(common::Span<float const>, Met
   return {};
 }
 
-double GPUMultiClassPRAUC(common::Span<float const>, MetaInfo const &, std::int32_t,
+double GPUMultiClassPRAUC(Context const *, common::Span<float const>, MetaInfo const &,
                           std::shared_ptr<DeviceAUCCache> *, std::size_t) {
   common::AssertGPUSupport();
   return {};
 }
 
-std::pair<double, std::uint32_t> GPURankingPRAUC(common::Span<float const>, MetaInfo const &,
-                                                 std::int32_t, std::shared_ptr<DeviceAUCCache> *) {
+std::pair<double, std::uint32_t> GPURankingPRAUC(Context const *, common::Span<float const>,
+                                                 MetaInfo const &,
+                                                 std::shared_ptr<DeviceAUCCache> *) {
   common::AssertGPUSupport();
   return {};
 }

@@ -1,43 +1,39 @@
-/*!
- * Copyright 2017-2022 XGBoost contributors
+/**
+ * Copyright 2017-2023 XGBoost contributors
  */
 #pragma once
+#include <thrust/binary_search.h>  // thrust::upper_bound
+#include <thrust/device_malloc_allocator.h>
 #include <thrust/device_ptr.h>
 #include <thrust/device_vector.h>
-#include <thrust/device_malloc_allocator.h>
+#include <thrust/execution_policy.h>                    // thrust::seq
+#include <thrust/gather.h>                              // gather
 #include <thrust/iterator/discard_iterator.h>
-#include <thrust/iterator/transform_output_iterator.h>
+#include <thrust/iterator/transform_output_iterator.h>  // make_transform_output_iterator
+#include <thrust/logical.h>
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
 #include <thrust/system/cuda/error.h>
 #include <thrust/system_error.h>
-#include <thrust/execution_policy.h>
-
 #include <thrust/transform_scan.h>
-#include <thrust/logical.h>
-#include <thrust/gather.h>
 #include <thrust/unique.h>
-#include <thrust/binary_search.h>
-
-#include <cub/cub.cuh>
-#include <cub/util_allocator.cuh>
 
 #include <algorithm>
 #include <chrono>
+#include <cub/cub.cuh>
+#include <cub/util_allocator.cuh>
 #include <numeric>
 #include <sstream>
 #include <string>
-#include <vector>
 #include <tuple>
-
-#include "xgboost/logging.h"
-#include "xgboost/host_device_vector.h"
-#include "xgboost/span.h"
-#include "xgboost/global_config.h"
+#include <vector>
 
 #include "../collective/communicator-inl.h"
 #include "common.h"
-#include "algorithm.cuh"
+#include "xgboost/global_config.h"
+#include "xgboost/host_device_vector.h"
+#include "xgboost/logging.h"
+#include "xgboost/span.h"
 
 #ifdef XGBOOST_USE_NCCL
 #include "nccl.h"
@@ -1015,7 +1011,16 @@ XGBOOST_DEVICE thrust::transform_iterator<FuncT, IterT, ReturnT> MakeTransformIt
   return thrust::transform_iterator<FuncT, IterT, ReturnT>(iter, func);
 }
 
-using xgboost::common::cuda::SegmentId;  // import it for compatibility
+template <typename It>
+size_t XGBOOST_DEVICE SegmentId(It first, It last, size_t idx) {
+  size_t segment_id = thrust::upper_bound(thrust::seq, first, last, idx) - 1 - first;
+  return segment_id;
+}
+
+template <typename T>
+size_t XGBOOST_DEVICE SegmentId(xgboost::common::Span<T> segments_ptr, size_t idx) {
+  return SegmentId(segments_ptr.cbegin(), segments_ptr.cend(), idx);
+}
 
 namespace detail {
 template <typename Key, typename KeyOutIt>
@@ -1288,114 +1293,6 @@ void ArgSort(xgboost::common::Span<U> keys, xgboost::common::Span<IdxT> sorted_i
                             sorted_idx.size_bytes(), cudaMemcpyDeviceToDevice));
 }
 
-namespace detail {
-// Wrapper around cub sort for easier `descending` sort.
-template <bool descending, typename KeyT, typename ValueT,
-          typename BeginOffsetIteratorT, typename EndOffsetIteratorT>
-void DeviceSegmentedRadixSortPair(
-    void *d_temp_storage, size_t &temp_storage_bytes, const KeyT *d_keys_in, // NOLINT
-    KeyT *d_keys_out, const ValueT *d_values_in, ValueT *d_values_out,
-    size_t num_items, size_t num_segments, BeginOffsetIteratorT d_begin_offsets,
-    EndOffsetIteratorT d_end_offsets, int begin_bit = 0,
-    int end_bit = sizeof(KeyT) * 8) {
-  cub::DoubleBuffer<KeyT> d_keys(const_cast<KeyT *>(d_keys_in), d_keys_out);
-  cub::DoubleBuffer<ValueT> d_values(const_cast<ValueT *>(d_values_in),
-                                     d_values_out);
-  // In old version of cub, num_items in dispatch is also int32_t, no way to change.
-  using OffsetT =
-      std::conditional_t<BuildWithCUDACub() && HasThrustMinorVer<13>(), size_t,
-                         int32_t>;
-  CHECK_LE(num_items, std::numeric_limits<OffsetT>::max());
-  // For Thrust >= 1.12 or CUDA >= 11.4, we require system cub installation
-
-#if THRUST_MAJOR_VERSION >= 2
-  safe_cuda((cub::DispatchSegmentedRadixSort<
-             descending, KeyT, ValueT, BeginOffsetIteratorT, EndOffsetIteratorT,
-             OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes, d_keys,
-                                d_values, num_items, num_segments,
-                                d_begin_offsets, d_end_offsets, begin_bit,
-                                end_bit, false, nullptr)));
-#elif (THRUST_MAJOR_VERSION == 1 && THRUST_MINOR_VERSION >= 13)
-  safe_cuda((cub::DispatchSegmentedRadixSort<
-             descending, KeyT, ValueT, BeginOffsetIteratorT, EndOffsetIteratorT,
-             OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes, d_keys,
-                                d_values, num_items, num_segments,
-                                d_begin_offsets, d_end_offsets, begin_bit,
-                                end_bit, false, nullptr, false)));
-#else
-  safe_cuda((cub::DispatchSegmentedRadixSort<
-             descending, KeyT, ValueT, BeginOffsetIteratorT,
-             OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes, d_keys,
-                                d_values, num_items, num_segments,
-                                d_begin_offsets, d_end_offsets, begin_bit,
-                                end_bit, false, nullptr, false)));
-#endif
-
-}
-}  // namespace detail
-
-template <bool accending, typename U, typename V, typename IdxT>
-void SegmentedArgSort(xgboost::common::Span<U> values,
-                      xgboost::common::Span<V> group_ptr,
-                      xgboost::common::Span<IdxT> sorted_idx) {
-  CHECK_GE(group_ptr.size(), 1ul);
-  size_t n_groups = group_ptr.size() - 1;
-  size_t bytes = 0;
-  Iota(sorted_idx);
-  TemporaryArray<std::remove_const_t<U>> values_out(values.size());
-  TemporaryArray<std::remove_const_t<IdxT>> sorted_idx_out(sorted_idx.size());
-
-  detail::DeviceSegmentedRadixSortPair<!accending>(
-      nullptr, bytes, values.data(), values_out.data().get(), sorted_idx.data(),
-      sorted_idx_out.data().get(), sorted_idx.size(), n_groups, group_ptr.data(),
-      group_ptr.data() + 1);
-  TemporaryArray<xgboost::common::byte> temp_storage(bytes);
-  detail::DeviceSegmentedRadixSortPair<!accending>(
-      temp_storage.data().get(), bytes, values.data(), values_out.data().get(),
-      sorted_idx.data(), sorted_idx_out.data().get(), sorted_idx.size(),
-      n_groups, group_ptr.data(), group_ptr.data() + 1);
-
-  safe_cuda(cudaMemcpyAsync(sorted_idx.data(), sorted_idx_out.data().get(),
-                            sorted_idx.size_bytes(), cudaMemcpyDeviceToDevice));
-}
-
-/**
- * \brief Different from the above one, this one can handle cases where segment doesn't
- *        start from 0, but as a result it uses comparison sort.
- */
-template <typename SegIt, typename ValIt>
-void SegmentedArgSort(SegIt seg_begin, SegIt seg_end, ValIt val_begin, ValIt val_end,
-                      dh::device_vector<size_t> *p_sorted_idx) {
-  using Tup = thrust::tuple<int32_t, float>;
-  auto &sorted_idx = *p_sorted_idx;
-  size_t n = std::distance(val_begin, val_end);
-  sorted_idx.resize(n);
-  dh::Iota(dh::ToSpan(sorted_idx));
-  dh::device_vector<Tup> keys(sorted_idx.size());
-  auto key_it = dh::MakeTransformIterator<Tup>(thrust::make_counting_iterator(0ul),
-                                               [=] XGBOOST_DEVICE(size_t i) -> Tup {
-                                                 int32_t leaf_idx;
-                                                 if (i < *seg_begin) {
-                                                   leaf_idx = -1;
-                                                 } else {
-                                                   leaf_idx = dh::SegmentId(seg_begin, seg_end, i);
-                                                 }
-                                                 auto residue = val_begin[i];
-                                                 return thrust::make_tuple(leaf_idx, residue);
-                                               });
-  dh::XGBCachingDeviceAllocator<char> caching;
-  thrust::copy(thrust::cuda::par(caching), key_it, key_it + keys.size(), keys.begin());
-
-  dh::XGBDeviceAllocator<char> alloc;
-  thrust::stable_sort_by_key(thrust::cuda::par(alloc), keys.begin(), keys.end(), sorted_idx.begin(),
-                             [=] XGBOOST_DEVICE(Tup const &l, Tup const &r) {
-                               if (thrust::get<0>(l) != thrust::get<0>(r)) {
-                                 return thrust::get<0>(l) < thrust::get<0>(r);  // segment index
-                               }
-                               return thrust::get<1>(l) < thrust::get<1>(r);  // residue
-                             });
-}
-
 class CUDAStreamView;
 
 class CUDAEvent {
@@ -1412,7 +1309,7 @@ class CUDAEvent {
   CUDAEvent(CUDAEvent const &that) = delete;
   CUDAEvent &operator=(CUDAEvent const &that) = delete;
 
-  inline void Record(CUDAStreamView stream);  // NOLINT
+  inline void Record(CUDAStreamView stream);       // NOLINT
 
   operator cudaEvent_t() const { return event_; }  // NOLINT
 };
