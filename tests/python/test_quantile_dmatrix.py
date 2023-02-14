@@ -11,6 +11,7 @@ from testing import (
     make_categorical,
     make_ltr,
     make_sparse_regression,
+    predictor_equal,
 )
 
 import xgboost as xgb

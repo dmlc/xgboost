@@ -790,6 +790,19 @@ class DirectoryExcursion:
                 os.remove(f)
 
 
+def predictor_equal(lhs: xgb.DMatrix, rhs: xgb.DMatrix) -> bool:
+    """Assert whether two DMatrices contain the same predictors."""
+    lcsr = lhs.get_data()
+    rcsr = rhs.get_data()
+    return all(
+        (
+            np.array_equal(lcsr.data, rcsr.data),
+            np.array_equal(lcsr.indices, rcsr.indices),
+            np.array_equal(lcsr.indptr, rcsr.indptr),
+        )
+    )
+
+
 @contextmanager
 def captured_output():
     """Reassign stdout temporarily in order to test printed statements
