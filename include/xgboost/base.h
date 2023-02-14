@@ -48,10 +48,6 @@
 #define XGBOOST_ALIGNAS(X)
 #endif  // defined(__GNUC__) && ((__GNUC__ == 4 && __GNUC_MINOR__ >= 8) || __GNUC__ > 4)
 
-#define GCC_HAS_PARALLEL()                                                         \
-  defined(__GNUC__) && ((__GNUC__ == 4 && __GNUC_MINOR__ >= 8) || __GNUC__ > 4) && \
-      !defined(__CUDACC__) && !defined(__sun) && !defined(sun)
-
 #if defined(__GNUC__)
 #define XGBOOST_EXPECT(cond, ret)  __builtin_expect((cond), (ret))
 #else

@@ -26,6 +26,10 @@ TEST(Algorithm, Sort) {
 
   Sort(&ctx, inputs.begin(), inputs.end(), std::less<>{});
   ASSERT_TRUE(std::is_sorted(inputs.cbegin(), inputs.cend()));
+
+  inputs = {3.0, 1.0, 2.0};
+  StableSort(&ctx, inputs.begin(), inputs.end(), std::less<>{});
+  ASSERT_TRUE(std::is_sorted(inputs.cbegin(), inputs.cend()));
 }
 }  // namespace common
 }  // namespace xgboost
