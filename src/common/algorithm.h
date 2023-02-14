@@ -70,7 +70,7 @@ std::vector<Idx> ArgSort(Context const *ctx, Iter begin, Iter end, Comp comp = s
   std::vector<Idx> result(n);
   Iota(ctx, result.begin(), result.end(), 0);
   auto op = [&](Idx const &l, Idx const &r) { return comp(begin[l], begin[r]); };
-  Sort(ctx, result.begin(), result.end(), op);
+  StableSort(ctx, result.begin(), result.end(), op);
   return result;
 }
 }  // namespace common
