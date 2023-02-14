@@ -140,6 +140,19 @@ inline void Broadcast(std::string *sendrecv_data, int root) {
   }
 }
 
+/**
+ * @brief Gathers data from all processes and distributes it to all processes.
+ *
+ * This assumes all ranks have the same size, and input data has been sliced into the
+ * corresponding position.
+ *
+ * @param send_receive_buffer Buffer storing the data.
+ * @param size                Size of the data in bytes.
+ */
+inline void Allgather(void *send_receive_buffer, std::size_t size) {
+  Communicator::Get()->AllGather(send_receive_buffer, size);
+}
+
 /*!
  * \brief Perform in-place allreduce. This function is NOT thread-safe.
  *
