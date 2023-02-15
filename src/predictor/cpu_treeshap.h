@@ -1,6 +1,10 @@
+#ifndef XGBOOST_PREDICTOR_CPU_TREESHAP_H_
+#define XGBOOST_PREDICTOR_CPU_TREESHAP_H_
 /**
  * Copyright by XGBoost Contributors 2017-2022
  */
+#include <vector>                // vector
+
 #include "xgboost/tree_model.h"  // RegTree
 
 namespace xgboost {
@@ -15,3 +19,4 @@ void CalculateContributions(RegTree const &tree, const RegTree::FVec &feat,
                             std::vector<float> *mean_values, bst_float *out_contribs, int condition,
                             unsigned condition_feature);
 }  // namespace xgboost
+#endif  // XGBOOST_PREDICTOR_CPU_TREESHAP_H_

@@ -3,8 +3,8 @@
  */
 #include <thrust/sort.h>
 
-#include <cstdint>  // std::int32_t
-#include <cub/cub.cuh>
+#include <cstdint>                     // std::int32_t
+#include <cub/cub.cuh>                 // NOLINT
 
 #include "../common/cuda_context.cuh"  // CUDAContext
 #include "../common/device_helpers.cuh"

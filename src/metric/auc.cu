@@ -5,7 +5,7 @@
 
 #include <algorithm>
 #include <cassert>
-#include <cub/cub.cuh>
+#include <cub/cub.cuh>  // NOLINT
 #include <limits>
 #include <memory>
 #include <tuple>

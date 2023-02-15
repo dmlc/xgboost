@@ -144,7 +144,18 @@ jobs:
         python -m pip install wheel setuptools cpplint pylint
     - name: Run lint
       run: |
-        python dmlc-core/scripts/lint.py xgboost cpp R-package/src
+        python3 dmlc-core/scripts/lint.py xgboost cpp R-package/src
+
+        python3 dmlc-core/scripts/lint.py --exclude_path \
+            python-package/xgboost/dmlc-core \
+            python-package/xgboost/include \
+            python-package/xgboost/lib \
+            python-package/xgboost/rabit \
+            python-package/xgboost/src \
+            --pylint-rc python-package/.pylintrc \
+            xgboost \
+            cpp \
+            include src python-package
 
   sphinx:
     runs-on: ubuntu-latest

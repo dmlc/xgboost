@@ -19,7 +19,7 @@ const MetaInfo &SparsePageDMatrix::Info() const { return info_; }
 
 namespace detail {
 // Use device dispatch
-std::size_t NSamplesDevice(DMatrixProxy *)
+std::size_t NSamplesDevice(DMatrixProxy *)  // NOLINT
 #if defined(XGBOOST_USE_CUDA)
 ;  // NOLINT
 #else
@@ -28,7 +28,7 @@ std::size_t NSamplesDevice(DMatrixProxy *)
   return 0;
 }
 #endif
-std::size_t NFeaturesDevice(DMatrixProxy *)
+std::size_t NFeaturesDevice(DMatrixProxy *)  // NOLINT
 #if defined(XGBOOST_USE_CUDA)
 ;  // NOLINT
 #else
