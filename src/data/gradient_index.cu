@@ -65,7 +65,7 @@ void GetRowPtrFromEllpack(Context const* ctx, EllpackPageImpl const* page,
 
 GHistIndexMatrix::GHistIndexMatrix(Context const* ctx, MetaInfo const& info,
                                    EllpackPage const& in_page, BatchParam const& p)
-    : max_num_bins{p.max_bin} {
+    : max_numeric_bins_per_feat{p.max_bin} {
   auto page = in_page.Impl();
   isDense_ = page->is_dense;
 
