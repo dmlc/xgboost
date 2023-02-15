@@ -68,6 +68,30 @@ TEST(GradientIndex, FromCategoricalBasic) {
   }
 }
 
+TEST(GradientIndex, FromCategoricalLarge) {
+  size_t constexpr kRows = 1000, kCats = 512, kCols = 1;
+  bst_bin_t max_bins = 8;
+  auto x = GenerateRandomCategoricalSingleColumn(kRows, kCats);
+  auto m = GetDMatrixFromData(x, kRows, 1);
+  Context ctx;
+
+  auto &h_ft = m->Info().feature_types.HostVector();
+  h_ft.resize(kCols, FeatureType::kCategorical);
+
+  BatchParam p{max_bins, 0.8};
+  {
+    GHistIndexMatrix gidx(m.get(), max_bins, p.sparse_thresh, false, AllThreadsForTest(), {});
+    ASSERT_TRUE(gidx.index.GetBinTypeSize() == common::kUint16BinsTypeSize);
+  }
+  {
+    for (auto const &page : m->GetBatches<GHistIndexMatrix>(p)) {
+      common::HistogramCuts cut = page.cut;
+      GHistIndexMatrix gidx{m->Info(), std::move(cut), max_bins};
+      ASSERT_EQ(gidx.MaxNumBinPerFeat(), kCats);
+    }
+  }
+}
+
 TEST(GradientIndex, PushBatch) {
   size_t constexpr kRows = 64, kCols = 4;
   bst_bin_t max_bins = 64;
