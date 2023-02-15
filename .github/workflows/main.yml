@@ -152,6 +152,7 @@ jobs:
             python-package/xgboost/lib \
             python-package/xgboost/rabit \
             python-package/xgboost/src \
+            --pylint-rc python-package/.pylintrc \
             xgboost \
             cpp \
             include src python-package
