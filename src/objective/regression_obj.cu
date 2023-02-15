@@ -20,12 +20,12 @@
 #include "../common/stats.h"
 #include "../common/threading_utils.h"
 #include "../common/transform.h"
-#include "../tree/fit_stump.h"  // FitStump
 #include "./regression_loss.h"
 #include "adaptive.h"
+#include "init_estimation.h"  // FitIntercept
 #include "xgboost/base.h"
-#include "xgboost/context.h"
-#include "xgboost/data.h"  // MetaInfo
+#include "xgboost/context.h"  // Context
+#include "xgboost/data.h"     // MetaInfo
 #include "xgboost/host_device_vector.h"
 #include "xgboost/json.h"
 #include "xgboost/linalg.h"
@@ -43,44 +43,11 @@
 namespace xgboost {
 namespace obj {
 namespace {
-void CheckInitInputs(MetaInfo const& info) {
-  CHECK_EQ(info.labels.Shape(0), info.num_row_) << "Invalid shape of labels.";
-  if (!info.weights_.Empty()) {
-    CHECK_EQ(info.weights_.Size(), info.num_row_)
-        << "Number of weights should be equal to number of data points.";
-  }
-}
-
 void CheckRegInputs(MetaInfo const& info, HostDeviceVector<bst_float> const& preds) {
   CheckInitInputs(info);
   CHECK_EQ(info.labels.Size(), preds.Size()) << "Invalid shape of labels.";
 }
 }  // anonymous namespace
-
-class RegInitEstimation : public ObjFunction {
-  void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_score) const override {
-    CheckInitInputs(info);
-    // Avoid altering any state in child objective.
-    HostDeviceVector<float> dummy_predt(info.labels.Size(), 0.0f, this->ctx_->gpu_id);
-    HostDeviceVector<GradientPair> gpair(info.labels.Size(), GradientPair{}, this->ctx_->gpu_id);
-
-    Json config{Object{}};
-    this->SaveConfig(&config);
-
-    std::unique_ptr<ObjFunction> new_obj{
-        ObjFunction::Create(get<String const>(config["name"]), this->ctx_)};
-    new_obj->LoadConfig(config);
-    new_obj->GetGradient(dummy_predt, info, 0, &gpair);
-    bst_target_t n_targets = this->Targets(info);
-    linalg::Vector<float> leaf_weight;
-    tree::FitStump(this->ctx_, gpair, n_targets, &leaf_weight);
-
-    // workaround, we don't support multi-target due to binary model serialization for
-    // base margin.
-    common::Mean(this->ctx_, leaf_weight, base_score);
-    this->PredTransform(base_score->Data());
-  }
-};
 
 #if defined(XGBOOST_USE_CUDA)
 DMLC_REGISTRY_FILE_TAG(regression_obj_gpu);
@@ -96,7 +63,7 @@ struct RegLossParam : public XGBoostParameter<RegLossParam> {
 };
 
 template<typename Loss>
-class RegLossObj : public RegInitEstimation {
+class RegLossObj : public FitIntercept {
  protected:
   HostDeviceVector<float> additional_input_;
 
@@ -243,7 +210,7 @@ XGBOOST_REGISTER_OBJECTIVE(LinearRegression, "reg:linear")
     return new RegLossObj<LinearSquareLoss>(); });
 // End deprecated
 
-class PseudoHuberRegression : public RegInitEstimation {
+class PseudoHuberRegression : public FitIntercept {
   PesudoHuberParam param_;
 
  public:
@@ -318,7 +285,7 @@ struct PoissonRegressionParam : public XGBoostParameter<PoissonRegressionParam> 
 };
 
 // poisson regression for count
-class PoissonRegression : public RegInitEstimation {
+class PoissonRegression : public FitIntercept {
  public:
   // declare functions
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
@@ -413,7 +380,7 @@ XGBOOST_REGISTER_OBJECTIVE(PoissonRegression, "count:poisson")
 
 
 // cox regression for survival data (negative values mean they are censored)
-class CoxRegression : public RegInitEstimation {
+class CoxRegression : public FitIntercept {
  public:
   void Configure(Args const&) override {}
   ObjInfo Task() const override { return ObjInfo::kRegression; }
@@ -510,7 +477,7 @@ XGBOOST_REGISTER_OBJECTIVE(CoxRegression, "survival:cox")
 .set_body([]() { return new CoxRegression(); });
 
 // gamma regression
-class GammaRegression : public RegInitEstimation {
+class GammaRegression : public FitIntercept {
  public:
   void Configure(Args const&) override {}
   ObjInfo Task() const override { return ObjInfo::kRegression; }
@@ -601,7 +568,7 @@ struct TweedieRegressionParam : public XGBoostParameter<TweedieRegressionParam> 
 };
 
 // tweedie regression
-class TweedieRegression : public RegInitEstimation {
+class TweedieRegression : public FitIntercept {
  public:
   // declare functions
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
