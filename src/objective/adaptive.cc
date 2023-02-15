@@ -123,9 +123,9 @@ void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& posit
 
     float q{0};
     if (info.weights_.Empty()) {
-      q = common::Quantile(alpha, iter, iter + h_row_set.size());
+      q = common::Quantile(ctx, alpha, iter, iter + h_row_set.size());
     } else {
-      q = common::WeightedQuantile(alpha, iter, iter + h_row_set.size(), w_it);
+      q = common::WeightedQuantile(ctx, alpha, iter, iter + h_row_set.size(), w_it);
     }
     if (std::isnan(q)) {
       CHECK(h_row_set.empty());

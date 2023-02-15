@@ -4,10 +4,11 @@
 #ifndef XGBOOST_COMMON_STATS_H_
 #define XGBOOST_COMMON_STATS_H_
 #include <algorithm>
-#include <iterator>
+#include <iterator>  // for distance
 #include <limits>
 #include <vector>
 
+#include "algorithm.h"           // for StableSort
 #include "common.h"              // AssertGPUSupport, OptionalWeights
 #include "optional_weight.h"     // OptionalWeights
 #include "transform_iterator.h"  // MakeIndexTransformIter
@@ -30,7 +31,7 @@ namespace common {
  * \return The result of interpolation.
  */
 template <typename Iter>
-float Quantile(double alpha, Iter const& begin, Iter const& end) {
+float Quantile(Context const* ctx, double alpha, Iter const& begin, Iter const& end) {
   CHECK(alpha >= 0 && alpha <= 1);
   auto n = static_cast<double>(std::distance(begin, end));
   if (n == 0) {
@@ -43,9 +44,8 @@ float Quantile(double alpha, Iter const& begin, Iter const& end) {
     std::stable_sort(sorted_idx.begin(), sorted_idx.end(),
                      [&](std::size_t l, std::size_t r) { return *(begin + l) < *(begin + r); });
   } else {
-    XGBOOST_PARALLEL_STABLE_SORT(
-        sorted_idx.begin(), sorted_idx.end(),
-        [&](std::size_t l, std::size_t r) { return *(begin + l) < *(begin + r); });
+    StableSort(ctx, sorted_idx.begin(), sorted_idx.end(),
+               [&](std::size_t l, std::size_t r) { return *(begin + l) < *(begin + r); });
   }
 
   auto val = [&](size_t i) { return *(begin + sorted_idx[i]); };
@@ -76,7 +76,7 @@ float Quantile(double alpha, Iter const& begin, Iter const& end) {
  *   weighted quantile with interpolation.
  */
 template <typename Iter, typename WeightIter>
-float WeightedQuantile(double alpha, Iter begin, Iter end, WeightIter w_begin) {
+float WeightedQuantile(Context const* ctx, double alpha, Iter begin, Iter end, WeightIter w_begin) {
   auto n = static_cast<double>(std::distance(begin, end));
   if (n == 0) {
     return std::numeric_limits<float>::quiet_NaN();
@@ -87,9 +87,8 @@ float WeightedQuantile(double alpha, Iter begin, Iter end, WeightIter w_begin) {
     std::stable_sort(sorted_idx.begin(), sorted_idx.end(),
                      [&](std::size_t l, std::size_t r) { return *(begin + l) < *(begin + r); });
   } else {
-    XGBOOST_PARALLEL_STABLE_SORT(
-        sorted_idx.begin(), sorted_idx.end(),
-        [&](std::size_t l, std::size_t r) { return *(begin + l) < *(begin + r); });
+    StableSort(ctx, sorted_idx.begin(), sorted_idx.end(),
+               [&](std::size_t l, std::size_t r) { return *(begin + l) < *(begin + r); });
   }
 
   auto val = [&](size_t i) { return *(begin + sorted_idx[i]); };
