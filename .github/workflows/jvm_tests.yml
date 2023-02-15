@@ -34,11 +34,11 @@ jobs:
         python -m pip install awscli
 
     - name: Cache Maven packages
-      uses: actions/cache@937d24475381cd9c75ae6db12cb4e79714b926ed # v3.0.11
+      uses: actions/cache@6998d139ddd3e68c71e9e398d8e40b71a2f39812 # v3.2.5
       with:
         path: ~/.m2
         key: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
-        restore-keys: ${{ runner.os }}-m2
+        restore-keys: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
 
     - name: Test XGBoost4J
       run: |
