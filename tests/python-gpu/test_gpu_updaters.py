@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 from hypothesis import assume, given, note, settings, strategies
 from xgboost.testing.params import cat_parameter_strategy, hist_parameter_strategy
-from xgboost.testing.updater import check_init_estimation
+from xgboost.testing.updater import check_init_estimation, check_quantile_loss
 
 import xgboost as xgb
 from xgboost import testing as tm
@@ -209,3 +209,7 @@ class TestGPUUpdaters:
 
     def test_init_estimation(self) -> None:
         check_init_estimation("gpu_hist")
+
+    @pytest.mark.parametrize("weighted", [True, False])
+    def test_quantile_loss(self, weighted: bool) -> None:
+        check_quantile_loss("gpu_hist", weighted)

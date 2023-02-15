@@ -744,18 +744,7 @@ class MeanAbsoluteError : public ObjFunction {
   void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& position, MetaInfo const& info,
                       HostDeviceVector<float> const& prediction, std::int32_t group_idx,
                       RegTree* p_tree) const override {
-    if (ctx_->IsCPU()) {
-      auto const& h_position = position.ConstHostVector();
-      detail::UpdateTreeLeafHost(ctx_, h_position, group_idx, info, prediction, 0.5, p_tree);
-    } else {
-#if defined(XGBOOST_USE_CUDA)
-      position.SetDevice(ctx_->gpu_id);
-      auto d_position = position.ConstDeviceSpan();
-      detail::UpdateTreeLeafDevice(ctx_, d_position, group_idx, info, prediction, 0.5, p_tree);
-#else
-      common::AssertGPUSupport();
-#endif  //  defined(XGBOOST_USE_CUDA)
-    }
+    ::xgboost::obj::UpdateTreeLeaf(ctx_, position, group_idx, info, prediction, 0.5, p_tree);
   }
 
   const char* DefaultEvalMetric() const override { return "mae"; }

@@ -10,7 +10,7 @@ from xgboost.testing.params import (
     exact_parameter_strategy,
     hist_parameter_strategy,
 )
-from xgboost.testing.updater import check_init_estimation
+from xgboost.testing.updater import check_init_estimation, check_quantile_loss
 
 import xgboost as xgb
 from xgboost import testing as tm
@@ -469,3 +469,7 @@ class TestTreeMethod:
 
     def test_init_estimation(self) -> None:
         check_init_estimation("hist")
+
+    @pytest.mark.parametrize("weighted", [True, False])
+    def test_quantile_loss(self, weighted: bool) -> None:
+        check_quantile_loss("hist", weighted)

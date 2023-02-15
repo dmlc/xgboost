@@ -441,6 +441,20 @@
               "type": "object"
             },
             {
+              "properties": {
+                "name": {
+                  "const": "reg:quantileerror"
+                },
+                "quantile_loss_param": {
+                  "type": "object",
+                  "properties": {
+                    "quantle_alpha": {"type": "array"}
+                  }
+                }
+              },
+              "type": "object"
+            },
+            {
               "type": "object",
               "properties": {
                 "name": { "const": "survival:cox" }

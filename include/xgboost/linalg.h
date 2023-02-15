@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cinttypes>  // std::int32_t
+#include <cstddef>    // std::size_t
 #include <limits>
 #include <string>
 #include <tuple>
@@ -550,6 +551,11 @@ LINALG_HD auto UnravelIndex(size_t idx, common::Span<size_t const, D> shape) {
   } else {
     return detail::UnravelImpl<uint32_t, D>(static_cast<uint32_t>(idx), shape);
   }
+}
+
+template <size_t D>
+LINALG_HD auto UnravelIndex(size_t idx, std::size_t const (&shape)[D]) {
+  return UnravelIndex(idx, common::Span<std::size_t const, D>(shape));
 }
 
 /**

@@ -1926,6 +1926,8 @@ class Booster:
         elif isinstance(params, str) and value is not None:
             params = [(params, value)]
         for key, val in cast(Iterable[Tuple[str, str]], params):
+            if isinstance(val, np.ndarray):
+                val = val.tolist()
             if val is not None:
                 _check_call(
                     _LIB.XGBoosterSetParam(self.handle, c_str(key), c_str(str(val)))

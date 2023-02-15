@@ -4,43 +4,49 @@
 #ifndef XGBOOST_COMMON_STATS_H_
 #define XGBOOST_COMMON_STATS_H_
 #include <algorithm>
-#include <iterator>
+#include <iterator>  // for distance
 #include <limits>
 #include <vector>
 
+#include "algorithm.h"           // for StableSort
 #include "common.h"              // AssertGPUSupport, OptionalWeights
 #include "optional_weight.h"     // OptionalWeights
 #include "transform_iterator.h"  // MakeIndexTransformIter
 #include "xgboost/context.h"     // Context
-#include "xgboost/linalg.h"
-#include "xgboost/logging.h"  // CHECK_GE
+#include "xgboost/linalg.h"      // TensorView,VectorView
+#include "xgboost/logging.h"     // CHECK_GE
 
 namespace xgboost {
 namespace common {
 
 /**
- * \brief Percentile with masked array using linear interpolation.
+ * @brief Quantile using linear interpolation.
  *
  *   https://www.itl.nist.gov/div898/handbook/prc/section2/prc262.htm
  *
- * \param alpha Percentile, must be in range [0, 1].
+ * \param alpha Quantile, must be in range [0, 1].
  * \param begin Iterator begin for input array.
  * \param end   Iterator end for input array.
  *
  * \return The result of interpolation.
  */
 template <typename Iter>
-float Quantile(double alpha, Iter const& begin, Iter const& end) {
+float Quantile(Context const* ctx, double alpha, Iter const& begin, Iter const& end) {
   CHECK(alpha >= 0 && alpha <= 1);
   auto n = static_cast<double>(std::distance(begin, end));
   if (n == 0) {
     return std::numeric_limits<float>::quiet_NaN();
   }
 
-  std::vector<size_t> sorted_idx(n);
+  std::vector<std::size_t> sorted_idx(n);
   std::iota(sorted_idx.begin(), sorted_idx.end(), 0);
-  std::stable_sort(sorted_idx.begin(), sorted_idx.end(),
-                   [&](size_t l, size_t r) { return *(begin + l) < *(begin + r); });
+  if (omp_in_parallel()) {
+    std::stable_sort(sorted_idx.begin(), sorted_idx.end(),
+                     [&](std::size_t l, std::size_t r) { return *(begin + l) < *(begin + r); });
+  } else {
+    StableSort(ctx, sorted_idx.begin(), sorted_idx.end(),
+               [&](std::size_t l, std::size_t r) { return *(begin + l) < *(begin + r); });
+  }
 
   auto val = [&](size_t i) { return *(begin + sorted_idx[i]); };
   static_assert(std::is_same<decltype(val(0)), float>::value, "");
@@ -51,7 +57,7 @@ float Quantile(double alpha, Iter const& begin, Iter const& end) {
   if (alpha >= (n / (n + 1))) {
     return val(sorted_idx.size() - 1);
   }
-  assert(n != 0 && "The number of rows in a leaf can not be zero.");
+
   double x = alpha * static_cast<double>((n + 1));
   double k = std::floor(x) - 1;
   CHECK_GE(k, 0);
@@ -66,30 +72,35 @@ float Quantile(double alpha, Iter const& begin, Iter const& end) {
  * \brief Calculate the weighted quantile with step function. Unlike the unweighted
  *        version, no interpolation is used.
  *
- *   See https://aakinshin.net/posts/weighted-quantiles/ for some discussion on computing
+ *   See https://aakinshin.net/posts/weighted-quantiles/ for some discussions on computing
  *   weighted quantile with interpolation.
  */
 template <typename Iter, typename WeightIter>
-float WeightedQuantile(double alpha, Iter begin, Iter end, WeightIter weights) {
+float WeightedQuantile(Context const* ctx, double alpha, Iter begin, Iter end, WeightIter w_begin) {
   auto n = static_cast<double>(std::distance(begin, end));
   if (n == 0) {
     return std::numeric_limits<float>::quiet_NaN();
   }
   std::vector<size_t> sorted_idx(n);
   std::iota(sorted_idx.begin(), sorted_idx.end(), 0);
-  std::stable_sort(sorted_idx.begin(), sorted_idx.end(),
-                   [&](size_t l, size_t r) { return *(begin + l) < *(begin + r); });
+  if (omp_in_parallel()) {
+    std::stable_sort(sorted_idx.begin(), sorted_idx.end(),
+                     [&](std::size_t l, std::size_t r) { return *(begin + l) < *(begin + r); });
+  } else {
+    StableSort(ctx, sorted_idx.begin(), sorted_idx.end(),
+               [&](std::size_t l, std::size_t r) { return *(begin + l) < *(begin + r); });
+  }
 
   auto val = [&](size_t i) { return *(begin + sorted_idx[i]); };
 
   std::vector<float> weight_cdf(n);  // S_n
   // weighted cdf is sorted during construction
-  weight_cdf[0] = *(weights + sorted_idx[0]);
+  weight_cdf[0] = *(w_begin + sorted_idx[0]);
   for (size_t i = 1; i < n; ++i) {
-    weight_cdf[i] = weight_cdf[i - 1] + *(weights + sorted_idx[i]);
+    weight_cdf[i] = weight_cdf[i - 1] + w_begin[sorted_idx[i]];
   }
   float thresh = weight_cdf.back() * alpha;
-  size_t idx =
+  std::size_t idx =
       std::lower_bound(weight_cdf.cbegin(), weight_cdf.cend(), thresh) - weight_cdf.cbegin();
   idx = std::min(idx, static_cast<size_t>(n - 1));
   return val(idx);
