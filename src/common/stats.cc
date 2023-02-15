@@ -35,11 +35,11 @@ void Median(Context const* ctx, linalg::Tensor<float, 2> const& t,
     auto iter = linalg::cbegin(ti_v);
     float q{0};
     if (opt_weights.Empty()) {
-      q = common::Quantile(0.5, iter, iter + ti_v.Size());
+      q = common::Quantile(ctx, 0.5, iter, iter + ti_v.Size());
     } else {
       CHECK_NE(t_v.Shape(1), 0);
       auto w_it = common::MakeIndexTransformIter([&](std::size_t i) { return opt_weights[i]; });
-      q = common::WeightedQuantile(0.5, iter, iter + ti_v.Size(), w_it);
+      q = common::WeightedQuantile(ctx, 0.5, iter, iter + ti_v.Size(), w_it);
     }
     h_out(i) = q;
   }

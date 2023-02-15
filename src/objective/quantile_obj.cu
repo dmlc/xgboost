@@ -10,7 +10,7 @@
 #include "../common/stats.h"                // Quantile,WeightedQuantile
 #include "adaptive.h"                       // UpdateTreeLeaf
 #include "dmlc/parameter.h"                 // DMLC_DECLARE_PARAMETER
-#include "regression_loss.h"                // CheckInitInputs
+#include "init_estimation.h"                // CheckInitInputs
 #include "xgboost/base.h"                   // GradientPair,XGBOOST_DEVICE,bst_target_t
 #include "xgboost/data.h"                   // MetaInfo
 #include "xgboost/host_device_vector.h"     // HostDeviceVector
@@ -119,10 +119,11 @@ class QuantileRegression : public ObjFunction {
         auto alpha = param_.quantile_alpha[t];
         auto h_labels = info.labels.HostView();
         if (h_weights.empty()) {
-          quantiles(t) = common::Quantile(alpha, linalg::cbegin(h_labels), linalg::cend(h_labels));
+          quantiles(t) =
+              common::Quantile(ctx_, alpha, linalg::cbegin(h_labels), linalg::cend(h_labels));
         } else {
           CHECK_EQ(h_weights.size(), h_labels.Size());
-          quantiles(t) = common::WeightedQuantile(alpha, linalg::cbegin(h_labels),
+          quantiles(t) = common::WeightedQuantile(ctx_, alpha, linalg::cbegin(h_labels),
                                                   linalg::cend(h_labels), std::cbegin(h_weights));
         }
       }
