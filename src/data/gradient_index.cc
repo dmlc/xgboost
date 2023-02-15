@@ -128,7 +128,8 @@ INSTANTIATION_PUSH(data::SparsePageAdapterBatch)
 #undef INSTANTIATION_PUSH
 
 void GHistIndexMatrix::ResizeIndex(const size_t n_index, const bool isDense) {
-  if ((MaxNumBinPerFeat() - 1 <= static_cast<int>(std::numeric_limits<uint8_t>::max())) && isDense) {
+  if ((MaxNumBinPerFeat() - 1 <= static_cast<int>(std::numeric_limits<uint8_t>::max())) &&
+      isDense) {
     // compress dense index to uint8
     index.SetBinTypeSize(common::kUint8BinsTypeSize);
     index.Resize((sizeof(uint8_t)) * n_index);
