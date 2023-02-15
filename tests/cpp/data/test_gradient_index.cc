@@ -80,7 +80,7 @@ TEST(GradientIndex, FromCategoricalLarge) {
 
   BatchParam p{max_bins, 0.8};
   {
-    GHistIndexMatrix gidx(m.get(), max_bins, p.sparse_thresh, false, AllThreadsForTest(), {});
+    GHistIndexMatrix gidx(m.get(), max_bins, p.sparse_thresh, false, Context{}.Threads(), {});
     ASSERT_TRUE(gidx.index.GetBinTypeSize() == common::kUint16BinsTypeSize);
   }
   {
