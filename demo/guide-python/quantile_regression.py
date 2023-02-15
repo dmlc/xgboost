@@ -38,24 +38,29 @@ def quantile_loss(args: argparse.Namespace) -> None:
     evals_result: Dict[str, Dict] = {}
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=rng)
-    # we will be using the `hist` tree method, quantile DMatrix can be used to preserve
+    # We will be using the `hist` tree method, quantile DMatrix can be used to preserve
     # memory.
+    # Do not use the `exact` tree method for quantile regression, otherwise the
+    # performance might drop.
     Xy = xgb.QuantileDMatrix(X, y)
     # use Xy as a reference
     Xy_test = xgb.QuantileDMatrix(X_test, y_test, ref=Xy)
 
     booster = xgb.train(
         {
+            # Use the quantile objective function.
             "objective": "reg:quantileerror",
             "tree_method": "hist",
             "quantile_alpha": alpha,
-            # let's try not to overfit.
+            # Let's try not to overfit.
             "learning_rate": 0.01,
-            "max_depth": 4,
+            "max_depth": 3,
+            "min_child_weight": 16.0,
         },
         Xy,
         num_boost_round=32,
         early_stopping_rounds=2,
+        # The evaluation result is a weighted average across multiple quantiles.
         evals=[(Xy, "Train"), (Xy_test, "Test")],
         evals_result=evals_result,
     )
@@ -65,18 +70,19 @@ def quantile_loss(args: argparse.Namespace) -> None:
     assert scores.shape[0] == xx.shape[0]
     assert scores.shape[1] == alpha.shape[0]
 
-    y_lower = scores[:, 0]
-    y_med = scores[:, 1]
-    y_upper = scores[:, 2]
+    y_lower = scores[:, 0]  # alpha=0.05
+    y_med = scores[:, 1]  # alpha=0.5, median
+    y_upper = scores[:, 2]  # alpha=0.95
 
     # Train a mse model for comparison
     booster = xgb.train(
         {
             "objective": "reg:squarederror",
             "tree_method": "hist",
-            # let's try not to overfit.
+            # Let's try not to overfit.
             "learning_rate": 0.01,
-            "max_depth": 4,
+            "max_depth": 3,
+            "min_child_weight": 16.0,
         },
         Xy,
         num_boost_round=32,
