@@ -134,10 +134,14 @@ class GHistIndexMatrix {
   std::vector<size_t> hit_count;
   /*! \brief The corresponding cuts */
   common::HistogramCuts cut;
-  /*! \brief max_bin for each feature. */
-  bst_bin_t max_num_bins;
+  /** \brief max_bin for each feature. */
+  bst_bin_t max_numeric_bins_per_feat;
   /*! \brief base row index for current page (used by external memory) */
   size_t base_rowid{0};
+
+  bst_bin_t MaxNumBinPerFeat() const {
+    return std::max(static_cast<bst_bin_t>(cut.MaxCategory() + 1), max_numeric_bins_per_feat);
+  }
 
   ~GHistIndexMatrix();
   /**
@@ -161,7 +165,7 @@ class GHistIndexMatrix {
    * \brief Constructor for external memory.
    */
   GHistIndexMatrix(SparsePage const& page, common::Span<FeatureType const> ft,
-                   common::HistogramCuts const& cuts, int32_t max_bins_per_feat, bool is_dense,
+                   common::HistogramCuts cuts, int32_t max_bins_per_feat, bool is_dense,
                    double sparse_thresh, int32_t n_threads);
   GHistIndexMatrix();  // also for ext mem, empty ctor so that we can read the cache back.
 

@@ -35,7 +35,7 @@ class GHistIndexRawFormat : public SparsePageFormat<GHistIndexMatrix> {
     if (!fi->Read(&page->hit_count)) {
       return false;
     }
-    if (!fi->Read(&page->max_num_bins)) {
+    if (!fi->Read(&page->max_numeric_bins_per_feat)) {
       return false;
     }
     if (!fi->Read(&page->base_rowid)) {
@@ -76,8 +76,8 @@ class GHistIndexRawFormat : public SparsePageFormat<GHistIndexMatrix> {
         page.hit_count.size() * sizeof(decltype(page.hit_count)::value_type) +
         sizeof(uint64_t);
     // max_bins, base row, is_dense
-    fo->Write(page.max_num_bins);
-    bytes += sizeof(page.max_num_bins);
+    fo->Write(page.max_numeric_bins_per_feat);
+    bytes += sizeof(page.max_numeric_bins_per_feat);
     fo->Write(page.base_rowid);
     bytes += sizeof(page.base_rowid);
     fo->Write(page.IsDense());
