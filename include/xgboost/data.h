@@ -529,6 +529,11 @@ class DMatrix {
     return Info().num_nonzero_ == Info().num_row_ * Info().num_col_;
   }
 
+  /*! \brief Whether the data is split column-wise. */
+  bool IsColumnSplit() const {
+    return Info().data_split_mode == DataSplitMode::kCol;
+  }
+
   /*!
    * \brief Load DMatrix from URI.
    * \param uri The URI of input.
