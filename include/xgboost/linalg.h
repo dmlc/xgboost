@@ -23,6 +23,10 @@
 #include <utility>
 #include <vector>
 
+#if defined(_MSC_VER)
+#include <intrin.h>
+#endif  // defined(_MSC_VER)
+
 // decouple it from xgboost.
 #ifndef LINALG_HD
 #if defined(__CUDA__) || defined(__NVCC__)

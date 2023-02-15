@@ -393,7 +393,7 @@ class CoxRegression : public FitIntercept {
     const auto& preds_h = preds.HostVector();
     out_gpair->Resize(preds_h.size());
     auto& gpair = out_gpair->HostVector();
-    const std::vector<size_t> &label_order = info.LabelAbsSort();
+    const std::vector<size_t> &label_order = info.LabelAbsSort(ctx_);
 
     const omp_ulong ndata = static_cast<omp_ulong>(preds_h.size()); // NOLINT(*)
     const bool is_null_weight = info.weights_.Size() == 0;

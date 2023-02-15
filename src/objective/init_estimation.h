@@ -1,3 +1,8 @@
+/**
+ * Copyright 2022-2023 by XGBoost contributors
+ */
+#ifndef XGBOOST_OBJECTIVE_INIT_ESTIMATION_H_
+#define XGBOOST_OBJECTIVE_INIT_ESTIMATION_H_
 #include "xgboost/data.h"       // MetaInfo
 #include "xgboost/linalg.h"     // Tensor
 #include "xgboost/objective.h"  // ObjFunction
@@ -17,3 +22,4 @@ inline void CheckInitInputs(MetaInfo const& info) {
 }
 }  // namespace obj
 }  // namespace xgboost
+#endif  // XGBOOST_OBJECTIVE_INIT_ESTIMATION_H_

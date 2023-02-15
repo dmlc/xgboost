@@ -48,21 +48,6 @@
 #define XGBOOST_ALIGNAS(X)
 #endif  // defined(__GNUC__) && ((__GNUC__ == 4 && __GNUC_MINOR__ >= 8) || __GNUC__ > 4)
 
-#if defined(__GNUC__) && ((__GNUC__ == 4 && __GNUC_MINOR__ >= 8) || __GNUC__ > 4) && \
-    !defined(__CUDACC__) && !defined(__sun) && !defined(sun)
-#include <parallel/algorithm>
-#define XGBOOST_PARALLEL_SORT(X, Y, Z) __gnu_parallel::sort((X), (Y), (Z))
-#define XGBOOST_PARALLEL_STABLE_SORT(X, Y, Z) \
-  __gnu_parallel::stable_sort((X), (Y), (Z))
-#elif defined(_MSC_VER) && (!__INTEL_COMPILER)
-#include <ppl.h>
-#define XGBOOST_PARALLEL_SORT(X, Y, Z) concurrency::parallel_sort((X), (Y), (Z))
-#define XGBOOST_PARALLEL_STABLE_SORT(X, Y, Z) std::stable_sort((X), (Y), (Z))
-#else
-#define XGBOOST_PARALLEL_SORT(X, Y, Z) std::sort((X), (Y), (Z))
-#define XGBOOST_PARALLEL_STABLE_SORT(X, Y, Z) std::stable_sort((X), (Y), (Z))
-#endif  // GLIBC VERSION
-
 #if defined(__GNUC__)
 #define XGBOOST_EXPECT(cond, ret)  __builtin_expect((cond), (ret))
 #else

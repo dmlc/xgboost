@@ -20,7 +20,9 @@
 #include <vector>
 
 #include "../collective/communicator-inl.h"
+#include "algorithm.h"  // ArgSort
 #include "common.h"
+#include "xgboost/context.h"  // Context
 #include "xgboost/host_device_vector.h"
 
 namespace xgboost {
@@ -87,8 +89,8 @@ GlobalRandomEngine& GlobalRandom(); // NOLINT(*)
  * https://timvieira.github.io/blog/post/2019/09/16/algorithms-for-sampling-without-replacement/
 */
 template <typename T>
-std::vector<T> WeightedSamplingWithoutReplacement(
-    std::vector<T> const &array, std::vector<float> const &weights, size_t n) {
+std::vector<T> WeightedSamplingWithoutReplacement(Context const* ctx, std::vector<T> const& array,
+                                                  std::vector<float> const& weights, size_t n) {
   // ES sampling.
   CHECK_EQ(array.size(), weights.size());
   std::vector<float> keys(weights.size());
@@ -100,7 +102,7 @@ std::vector<T> WeightedSamplingWithoutReplacement(
     auto k = std::log(u) / w;
     keys[i] = k;
   }
-  auto ind = ArgSort<size_t>(Span<float>{keys}, std::greater<>{});
+  auto ind = ArgSort<std::size_t>(ctx, keys.data(), keys.data() + keys.size(), std::greater<>{});
   ind.resize(n);
 
   std::vector<T> results(ind.size());
@@ -126,6 +128,7 @@ class ColumnSampler {
   float colsample_bytree_{1.0f};
   float colsample_bynode_{1.0f};
   GlobalRandomEngine rng_;
+  Context const* ctx_;
 
  public:
   std::shared_ptr<HostDeviceVector<bst_feature_t>> ColSample(
@@ -157,12 +160,13 @@ class ColumnSampler {
    * \param colsample_bytree
    * \param skip_index_0      (Optional) True to skip index 0.
    */
-  void Init(int64_t num_col, std::vector<float> feature_weights, float colsample_bynode,
-            float colsample_bylevel, float colsample_bytree) {
+  void Init(Context const* ctx, int64_t num_col, std::vector<float> feature_weights,
+            float colsample_bynode, float colsample_bylevel, float colsample_bytree) {
     feature_weights_ = std::move(feature_weights);
     colsample_bylevel_ = colsample_bylevel;
     colsample_bytree_ = colsample_bytree;
     colsample_bynode_ = colsample_bynode;
+    ctx_ = ctx;
 
     if (feature_set_tree_ == nullptr) {
       feature_set_tree_ = std::make_shared<HostDeviceVector<bst_feature_t>>();

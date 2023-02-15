@@ -34,10 +34,10 @@ class HistEvaluator {
   };
 
  private:
+  Context const* ctx_;
   TrainParam param_;
   std::shared_ptr<common::ColumnSampler> column_sampler_;
   TreeEvaluator tree_evaluator_;
-  int32_t n_threads_ {0};
   FeatureInteractionConstraintHost interaction_constraints_;
   std::vector<NodeEntry> snode_;
 
@@ -283,6 +283,7 @@ class HistEvaluator {
   void EvaluateSplits(const common::HistCollection &hist, common::HistogramCuts const &cut,
                       common::Span<FeatureType const> feature_types, const RegTree &tree,
                       std::vector<ExpandEntry> *p_entries) {
+    auto n_threads = ctx_->Threads();
     auto& entries = *p_entries;
     // All nodes are on the same level, so we can store the shared ptr.
     std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> features(
@@ -294,23 +295,23 @@ class HistEvaluator {
     }
     CHECK(!features.empty());
     const size_t grain_size =
-        std::max<size_t>(1, features.front()->Size() / n_threads_);
+        std::max<size_t>(1, features.front()->Size() / n_threads);
     common::BlockedSpace2d space(entries.size(), [&](size_t nidx_in_set) {
       return features[nidx_in_set]->Size();
     }, grain_size);
 
-    std::vector<ExpandEntry> tloc_candidates(n_threads_ * entries.size());
+    std::vector<ExpandEntry> tloc_candidates(n_threads * entries.size());
     for (size_t i = 0; i < entries.size(); ++i) {
-      for (decltype(n_threads_) j = 0; j < n_threads_; ++j) {
-        tloc_candidates[i * n_threads_ + j] = entries[i];
+      for (decltype(n_threads) j = 0; j < n_threads; ++j) {
+        tloc_candidates[i * n_threads + j] = entries[i];
       }
     }
     auto evaluator = tree_evaluator_.GetEvaluator();
     auto const& cut_ptrs = cut.Ptrs();
 
-    common::ParallelFor2d(space, n_threads_, [&](size_t nidx_in_set, common::Range1d r) {
+    common::ParallelFor2d(space, n_threads, [&](size_t nidx_in_set, common::Range1d r) {
       auto tidx = omp_get_thread_num();
-      auto entry = &tloc_candidates[n_threads_ * nidx_in_set + tidx];
+      auto entry = &tloc_candidates[n_threads * nidx_in_set + tidx];
       auto best = &entry->split;
       auto nidx = entry->nid;
       auto histogram = hist[nidx];
@@ -349,9 +350,9 @@ class HistEvaluator {
 
     for (unsigned nidx_in_set = 0; nidx_in_set < entries.size();
          ++nidx_in_set) {
-      for (auto tidx = 0; tidx < n_threads_; ++tidx) {
+      for (auto tidx = 0; tidx < n_threads; ++tidx) {
         entries[nidx_in_set].split.Update(
-            tloc_candidates[n_threads_ * nidx_in_set + tidx].split);
+            tloc_candidates[n_threads * nidx_in_set + tidx].split);
       }
     }
   }
@@ -424,15 +425,15 @@ class HistEvaluator {
  public:
   // The column sampler must be constructed by caller since we need to preserve the rng
   // for the entire training session.
-  explicit HistEvaluator(TrainParam const &param, MetaInfo const &info, int32_t n_threads,
+  explicit HistEvaluator(Context const* ctx, TrainParam const &param, MetaInfo const &info,
                          std::shared_ptr<common::ColumnSampler> sampler)
-      : param_{param},
+      : ctx_{ctx}, param_{param},
         column_sampler_{std::move(sampler)},
-        tree_evaluator_{param, static_cast<bst_feature_t>(info.num_col_), Context::kCpuId},
-        n_threads_{n_threads} {
+        tree_evaluator_{param, static_cast<bst_feature_t>(info.num_col_), Context::kCpuId} {
     interaction_constraints_.Configure(param, info.num_col_);
-    column_sampler_->Init(info.num_col_, info.feature_weights.HostVector(), param_.colsample_bynode,
-                          param_.colsample_bylevel, param_.colsample_bytree);
+    column_sampler_->Init(ctx, info.num_col_, info.feature_weights.HostVector(),
+                          param_.colsample_bynode, param_.colsample_bylevel,
+                          param_.colsample_bytree);
   }
 };
 
