@@ -6,6 +6,7 @@
 #define XGBOOST_METRIC_METRIC_COMMON_H_
 
 #include <limits>
+#include <memory>  // shared_ptr
 #include <string>
 
 #include "../common/common.h"

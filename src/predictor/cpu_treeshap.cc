@@ -3,10 +3,11 @@
  */
 #include "cpu_treeshap.h"
 
-#include <cinttypes>  // std::uint32_t
+#include <algorithm>             // copy
+#include <cinttypes>             // std::uint32_t
 
-#include "predict_fn.h"    // GetNextNode
-#include "xgboost/base.h"  // bst_node_t
+#include "predict_fn.h"          // GetNextNode
+#include "xgboost/base.h"        // bst_node_t
 #include "xgboost/logging.h"
 #include "xgboost/tree_model.h"  // RegTree
 

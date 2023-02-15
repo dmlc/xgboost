@@ -359,8 +359,8 @@ void GPUHistEvaluator::LaunchEvaluateSplits(
 
   // One block for each feature
   uint32_t constexpr kBlockThreads = 32;
-  dh::LaunchKernel{static_cast<uint32_t>(combined_num_features), kBlockThreads,
-                   0}(
+  dh::LaunchKernel {static_cast<uint32_t>(combined_num_features), kBlockThreads,
+                    0}(
       EvaluateSplitsKernel<kBlockThreads>, max_active_features, d_inputs,
       shared_inputs,
       this->SortedIdx(d_inputs.size(), shared_inputs.feature_values.size()),
