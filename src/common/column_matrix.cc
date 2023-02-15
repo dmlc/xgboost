@@ -46,7 +46,7 @@ void ColumnMatrix::InitStorage(GHistIndexMatrix const& gmat, double sparse_thres
     feature_offsets_[fid] = accum_index;
   }
 
-  SetTypeSize(gmat.max_num_bins);
+  SetTypeSize(gmat.MaxNumBinPerFeat());
   auto storage_size =
       feature_offsets_.back() * static_cast<std::underlying_type_t<BinTypeSize>>(bins_type_size_);
   index_.resize(storage_size, 0);
