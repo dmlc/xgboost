@@ -5,6 +5,7 @@
 #define XGBOOST_COMMON_ALGORITHM_H_
 #include <algorithm>          // upper_bound, stable_sort, sort, max
 #include <cinttypes>          // size_t
+#include <functional>         // less
 #include <iterator>           // iterator_traits, distance
 #include <vector>             // vector
 

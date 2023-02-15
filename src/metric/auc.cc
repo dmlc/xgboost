@@ -158,7 +158,8 @@ double GroupRankingROC(Context const* ctx, common::Span<float const> predts,
   double auc{0};
   // argsort doesn't support tensor input yet.
   auto raw_labels = labels.Values().subspan(0, labels.Size());
-  auto const sorted_idx = common::ArgSort<size_t>(ctx, raw_labels.data(), raw_labels.data() + raw_labels.size(), std::greater<>{});
+  auto const sorted_idx = common::ArgSort<size_t>(
+      ctx, raw_labels.data(), raw_labels.data() + raw_labels.size(), std::greater<>{});
   w = common::Sqr(w);
 
   double sum_w = 0.0f;

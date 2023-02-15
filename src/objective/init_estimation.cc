@@ -1,4 +1,9 @@
+/**
+ * Copyright 2022-2023 by XGBoost contributors
+ */
 #include "init_estimation.h"
+
+#include <memory>                        // unique_ptr
 
 #include "../common/stats.h"             // Mean
 #include "../tree/fit_stump.h"           // FitStump
