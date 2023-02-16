@@ -67,6 +67,120 @@ TEST(Approx, Partitioner) {
 }
 
 namespace {
+void TestColumnSplitPartitioner(size_t n_samples, size_t n_features, size_t base_rowid,
+                                float min_value, float mid_value,
+                                CommonRowPartitioner const& expected_mid_partitioner) {
+  auto Xy = RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true);
+  Xy = std::shared_ptr<DMatrix>{Xy->SliceCol(collective::GetWorldSize(), collective::GetRank())};
+  std::vector<CPUExpandEntry> candidates{{0, 0, 0.4}};
+
+  auto grad = GenerateRandomGradients(n_samples);
+  std::vector<float> hess(grad.Size());
+  std::transform(grad.HostVector().cbegin(), grad.HostVector().cend(), hess.begin(),
+                 [](auto gpair) { return gpair.GetHess(); });
+
+  Context ctx;
+  ctx.InitAllowUnknown(Args{});
+  for (auto const& page : Xy->GetBatches<GHistIndexMatrix>({64, hess, true})) {
+    {
+      RegTree tree;
+      CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
+      GetSplit(&tree, min_value, &candidates);
+      partitioner.UpdatePosition(&ctx, page, candidates, &tree);
+      ASSERT_EQ(partitioner.Size(), 3);
+      ASSERT_EQ(partitioner[1].Size(), 0);
+      ASSERT_EQ(partitioner[2].Size(), n_samples);
+    }
+    {
+      CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
+      RegTree tree;
+      GetSplit(&tree, mid_value, &candidates);
+      partitioner.UpdatePosition(&ctx, page, candidates, &tree);
+
+      auto left_nidx = tree[RegTree::kRoot].LeftChild();
+      auto elem = partitioner[left_nidx];
+      ASSERT_LT(elem.Size(), n_samples);
+      ASSERT_GT(elem.Size(), 1);
+      auto expected_elem = expected_mid_partitioner[left_nidx];
+      ASSERT_EQ(elem.Size(), expected_elem.Size());
+      for (auto it = elem.begin, eit = expected_elem.begin; it != elem.end; ++it, ++eit) {
+        ASSERT_EQ(*it, *eit);
+      }
+
+      auto right_nidx = tree[RegTree::kRoot].RightChild();
+      elem = partitioner[right_nidx];
+      expected_elem = expected_mid_partitioner[right_nidx];
+      ASSERT_EQ(elem.Size(), expected_elem.Size());
+      for (auto it = elem.begin, eit = expected_elem.begin; it != elem.end; ++it, ++eit) {
+        ASSERT_EQ(*it, *eit);
+      }
+    }
+  }
+}
+}  // anonymous namespace
+
+TEST(Approx, PartitionerColSplit) {
+  size_t n_samples = 1024, n_features = 16, base_rowid = 0;
+  Context ctx;
+  CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
+  ASSERT_EQ(partitioner.base_rowid, base_rowid);
+  ASSERT_EQ(partitioner.Size(), 1);
+  ASSERT_EQ(partitioner.Partitions()[0].Size(), n_samples);
+
+  auto Xy = RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true);
+  ctx.InitAllowUnknown(Args{});
+  std::vector<CPUExpandEntry> candidates{{0, 0, 0.4}};
+
+  auto grad = GenerateRandomGradients(n_samples);
+  std::vector<float> hess(grad.Size());
+  std::transform(grad.HostVector().cbegin(), grad.HostVector().cend(), hess.begin(),
+                 [](auto gpair) { return gpair.GetHess(); });
+
+  float min_value, mid_value;
+  CommonRowPartitioner mid_partitioner{&ctx, n_samples, base_rowid};
+  for (auto const& page : Xy->GetBatches<GHistIndexMatrix>({64, hess, true})) {
+    bst_feature_t const split_ind = 0;
+    {
+      min_value = page.cut.MinValues()[split_ind];
+      RegTree tree;
+      CommonRowPartitioner min_partitioner{&ctx, n_samples, base_rowid};
+      GetSplit(&tree, min_value, &candidates);
+      min_partitioner.UpdatePosition(&ctx, page, candidates, &tree);
+      ASSERT_EQ(min_partitioner.Size(), 3);
+      ASSERT_EQ(min_partitioner[1].Size(), 0);
+      ASSERT_EQ(min_partitioner[2].Size(), n_samples);
+    }
+    {
+      auto ptr = page.cut.Ptrs()[split_ind + 1];
+      mid_value = page.cut.Values().at(ptr / 2);
+      RegTree tree;
+      GetSplit(&tree, mid_value, &candidates);
+      mid_partitioner.UpdatePosition(&ctx, page, candidates, &tree);
+
+      auto left_nidx = tree[RegTree::kRoot].LeftChild();
+      auto elem = mid_partitioner[left_nidx];
+      ASSERT_LT(elem.Size(), n_samples);
+      ASSERT_GT(elem.Size(), 1);
+      for (auto it = elem.begin; it != elem.end; ++it) {
+        auto value = page.cut.Values().at(page.index[*it * n_features]);
+        ASSERT_LE(value, mid_value);
+      }
+
+      auto right_nidx = tree[RegTree::kRoot].RightChild();
+      elem = mid_partitioner[right_nidx];
+      for (auto it = elem.begin; it != elem.end; ++it) {
+        auto value = page.cut.Values().at(page.index[*it * n_features]);
+        ASSERT_GT(value, mid_value) << *it;
+      }
+    }
+  }
+
+  auto constexpr kWorkers = 4;
+  RunWithInMemoryCommunicator(kWorkers, TestColumnSplitPartitioner, n_samples, n_features,
+                              base_rowid, min_value, mid_value, mid_partitioner);
+}
+
+namespace {
 void TestLeafPartition(size_t n_samples) {
   size_t const n_features = 2, base_rowid = 0;
   Context ctx;
