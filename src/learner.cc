@@ -749,18 +749,18 @@ class LearnerConfiguration : public Learner {
         CHECK_LE(num_col, static_cast<uint64_t>(std::numeric_limits<unsigned>::max()))
             << "Unfortunately, XGBoost does not support data matrices with "
             << std::numeric_limits<unsigned>::max() << " features or greater";
-        std::cout << __LINE__ << " nf:" << num_feature << " nc:" << num_col << std::endl;
+        std::cout << __LINE__ << " nf:" << num_feature << " nc:" << num_col << "\n";
         num_feature = std::max(num_feature, static_cast<uint32_t>(num_col));
-        std::cout << __LINE__ << " nf:" << num_feature << std::endl;
+        std::cout << __LINE__ << " nf:" << num_feature << "\n";
       }
 
-      std::cout << __LINE__ << " nf:" << num_feature << std::endl;
+      std::cout << __LINE__ << " nf:" << num_feature << "\n";
       collective::Allreduce<collective::Operation::kMax>(&num_feature, 1);
-      std::cout << __LINE__ << " nf:" << num_feature << std::endl;
+      std::cout << __LINE__ << " nf:" << num_feature << "\n";
       if (num_feature > mparam_.num_feature) {
         mparam_.num_feature = num_feature;
       }
-      std::cout << __LINE__ << " mnf:" << mparam_.num_feature << std::endl;
+      std::cout << __LINE__ << " mnf:" << mparam_.num_feature << "\n";
     }
     CHECK_NE(mparam_.num_feature, 0)
         << "0 feature is supplied.  Are you using raw Booster interface?";
