@@ -584,7 +584,7 @@ class CPUPredictor : public Predictor {
 
   void PredictDMatrix(DMatrix *p_fmat, std::vector<bst_float> *out_preds,
                       gbm::GBTreeModel const &model, int32_t tree_begin, int32_t tree_end) const {
-    if (p_fmat->Info().data_split_mode == DataSplitMode::kCol) {
+    if (p_fmat->IsColumnSplit()) {
       ColumnSplitHelper helper(this->ctx_->Threads(), model, tree_begin, tree_end);
       helper.PredictDMatrix(p_fmat, out_preds);
       return;
