@@ -20,13 +20,15 @@ class CommonRowPartitioner {
   static constexpr size_t kPartitionBlockSize = 2048;
   common::PartitionBuilder<kPartitionBlockSize> partition_builder_;
   common::RowSetCollection row_set_collection_;
+  bool is_col_split_;
 
  public:
   bst_row_t base_rowid = 0;
 
   CommonRowPartitioner() = default;
-  CommonRowPartitioner(Context const* ctx, bst_row_t num_row, bst_row_t _base_rowid)
-      : base_rowid{_base_rowid} {
+  CommonRowPartitioner(Context const* ctx, bst_row_t num_row, bst_row_t _base_rowid,
+                       bool is_col_split)
+      : base_rowid{_base_rowid}, is_col_split_{is_col_split} {
     row_set_collection_.Clear();
     std::vector<size_t>& row_indices = *row_set_collection_.Data();
     row_indices.resize(num_row);

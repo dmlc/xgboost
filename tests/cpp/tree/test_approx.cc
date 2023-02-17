@@ -13,7 +13,7 @@ namespace tree {
 TEST(Approx, Partitioner) {
   size_t n_samples = 1024, n_features = 1, base_rowid = 0;
   Context ctx;
-  CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
+  CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid, false};
   ASSERT_EQ(partitioner.base_rowid, base_rowid);
   ASSERT_EQ(partitioner.Size(), 1);
   ASSERT_EQ(partitioner.Partitions()[0].Size(), n_samples);
@@ -32,7 +32,7 @@ TEST(Approx, Partitioner) {
     {
       auto min_value = page.cut.MinValues()[split_ind];
       RegTree tree;
-      CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
+      CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid, false};
       GetSplit(&tree, min_value, &candidates);
       partitioner.UpdatePosition(&ctx, page, candidates, &tree);
       ASSERT_EQ(partitioner.Size(), 3);
@@ -40,7 +40,7 @@ TEST(Approx, Partitioner) {
       ASSERT_EQ(partitioner[2].Size(), n_samples);
     }
     {
-      CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
+      CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid, false};
       auto ptr = page.cut.Ptrs()[split_ind + 1];
       float split_value = page.cut.Values().at(ptr / 2);
       RegTree tree;
@@ -84,7 +84,7 @@ void TestColumnSplitPartitioner(size_t n_samples, size_t n_features, size_t base
   for (auto const& page : Xy->GetBatches<GHistIndexMatrix>({64, hess, true})) {
     {
       RegTree tree;
-      CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
+      CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid, true};
       GetSplit(&tree, min_value, &candidates);
       partitioner.UpdatePosition(&ctx, page, candidates, &tree);
       ASSERT_EQ(partitioner.Size(), 3);
@@ -92,7 +92,7 @@ void TestColumnSplitPartitioner(size_t n_samples, size_t n_features, size_t base
       ASSERT_EQ(partitioner[2].Size(), n_samples);
     }
     {
-      CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
+      CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid, true};
       RegTree tree;
       GetSplit(&tree, mid_value, &candidates);
       partitioner.UpdatePosition(&ctx, page, candidates, &tree);
@@ -122,7 +122,7 @@ void TestColumnSplitPartitioner(size_t n_samples, size_t n_features, size_t base
 TEST(Approx, PartitionerColSplit) {
   size_t n_samples = 1024, n_features = 16, base_rowid = 0;
   Context ctx;
-  CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
+  CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid, false};
   ASSERT_EQ(partitioner.base_rowid, base_rowid);
   ASSERT_EQ(partitioner.Size(), 1);
   ASSERT_EQ(partitioner.Partitions()[0].Size(), n_samples);
@@ -137,13 +137,13 @@ TEST(Approx, PartitionerColSplit) {
                  [](auto gpair) { return gpair.GetHess(); });
 
   float min_value, mid_value;
-  CommonRowPartitioner mid_partitioner{&ctx, n_samples, base_rowid};
+  CommonRowPartitioner mid_partitioner{&ctx, n_samples, base_rowid, false};
   for (auto const& page : Xy->GetBatches<GHistIndexMatrix>({64, hess, true})) {
     bst_feature_t const split_ind = 0;
     {
       min_value = page.cut.MinValues()[split_ind];
       RegTree tree;
-      CommonRowPartitioner min_partitioner{&ctx, n_samples, base_rowid};
+      CommonRowPartitioner min_partitioner{&ctx, n_samples, base_rowid, false};
       GetSplit(&tree, min_value, &candidates);
       min_partitioner.UpdatePosition(&ctx, page, candidates, &tree);
       ASSERT_EQ(min_partitioner.Size(), 3);
@@ -185,7 +185,7 @@ void TestLeafPartition(size_t n_samples) {
   size_t const n_features = 2, base_rowid = 0;
   Context ctx;
   common::RowSetCollection row_set;
-  CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
+  CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid, false};
 
   auto Xy = RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true);
   std::vector<CPUExpandEntry> candidates{{0, 0, 0.4}};
