@@ -164,7 +164,7 @@ struct GHistIndexMatrixView {
   SparsePage::Inst operator[](size_t r) {
     auto t = omp_get_thread_num();
     auto const beg = (n_features_ * kUnroll * t) + (current_unroll_[t] * n_features_);
-    size_t non_missing{beg};
+    size_t non_missing{(std::size_t)beg};
 
     for (bst_feature_t c = 0; c < n_features_; ++c) {
       float f = page_.GetFvalue(r, c, common::IsCat(ft_, c));
@@ -477,7 +477,7 @@ class ColumnSplitHelper {
     // auto block_id has the same type as `n_blocks`.
     common::ParallelFor(n_blocks, n_threads_, [&](auto block_id) {
       auto const batch_offset = block_id * block_of_rows_size;
-      auto const block_size = std::min(nsize - batch_offset, block_of_rows_size);
+      auto const block_size = std::min((std::size_t)(nsize - batch_offset), (std::size_t)block_of_rows_size);
       auto const fvec_offset = omp_get_thread_num() * block_of_rows_size;
 
       FVecFill(block_size, batch_offset, num_feature, &batch, fvec_offset, &feat_vecs_);
@@ -490,7 +490,7 @@ class ColumnSplitHelper {
     // auto block_id has the same type as `n_blocks`.
     common::ParallelFor(n_blocks, n_threads_, [&](auto block_id) {
       auto const batch_offset = block_id * block_of_rows_size;
-      auto const block_size = std::min(nsize - batch_offset, block_of_rows_size);
+      auto const block_size = std::min((std::size_t)(nsize - batch_offset), (std::size_t)block_of_rows_size);
       PredictAllTrees(out_preds, batch_offset, batch_offset + batch.base_rowid, num_group,
                       block_size);
     });
