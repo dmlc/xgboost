@@ -9,6 +9,7 @@
 #include <limits>  // std::numeric_limits
 #include <vector>
 
+#include "../collective/communicator-inl.h"
 #include "../common/numeric.h"  // Iota
 #include "../common/partition_builder.h"
 #include "hist/expand_entry.h"  // CPUExpandEntry
@@ -20,7 +21,13 @@ class CommonRowPartitioner {
   static constexpr size_t kPartitionBlockSize = 2048;
   common::PartitionBuilder<kPartitionBlockSize> partition_builder_;
   common::RowSetCollection row_set_collection_;
+
   bool is_col_split_;
+  using BitVector = RBitField8;
+  std::vector<BitVector::value_type> decision_storage_{};
+  BitVector decision_bits_{};
+  std::vector<BitVector::value_type> missing_storage_{};
+  BitVector missing_bits_{};
 
  public:
   bst_row_t base_rowid = 0;
@@ -36,6 +43,13 @@ class CommonRowPartitioner {
     std::size_t* p_row_indices = row_indices.data();
     common::Iota(ctx, p_row_indices, p_row_indices + row_indices.size(), base_rowid);
     row_set_collection_.Init();
+
+    if (is_col_split_) {
+      decision_storage_.resize(num_row);
+      decision_bits_ = BitVector(common::Span<BitVector::value_type>(decision_storage_));
+      missing_storage_.resize(num_row);
+      missing_bits_ = BitVector(common::Span<BitVector::value_type>(missing_storage_));
+    }
   }
 
   void FindSplitConditions(const std::vector<CPUExpandEntry>& nodes, const RegTree& tree,
@@ -158,16 +172,43 @@ class CommonRowPartitioner {
 
     // 2.3 Split elements of row_set_collection_ to left and right child-nodes for each node
     // Store results in intermediate buffers from partition_builder_
-    common::ParallelFor2d(space, ctx->Threads(), [&](size_t node_in_set, common::Range1d r) {
-      size_t begin = r.begin();
-      const int32_t nid = nodes[node_in_set].nid;
-      const size_t task_id = partition_builder_.GetTaskIdx(node_in_set, begin);
-      partition_builder_.AllocateForTask(task_id);
-      bst_bin_t split_cond = column_matrix.IsInitialized() ? split_conditions[node_in_set] : 0;
-      partition_builder_.template Partition<BinIdxType, any_missing, any_cat>(
-          node_in_set, nodes, r, split_cond, gmat, column_matrix, *p_tree,
-          row_set_collection_[nid].begin);
-    });
+    if (is_col_split_) {
+      std::fill(decision_storage_.begin(), decision_storage_.end(), 0);
+      std::fill(missing_storage_.begin(), missing_storage_.end(), 0);
+
+      common::ParallelFor2d(space, ctx->Threads(), [&](size_t node_in_set, common::Range1d r) {
+        const int32_t nid = nodes[node_in_set].nid;
+        partition_builder_.MaskRows(node_in_set, nodes, r, gmat, column_matrix, *p_tree,
+                                    row_set_collection_[nid].begin, &decision_bits_,
+                                    &missing_bits_);
+      });
+
+      collective::Allreduce<collective::Operation::kBitwiseOR>(decision_storage_.data(),
+                                                               decision_storage_.size());
+      collective::Allreduce<collective::Operation::kBitwiseAND>(missing_storage_.data(),
+                                                                missing_storage_.size());
+
+      common::ParallelFor2d(space, ctx->Threads(), [&](size_t node_in_set, common::Range1d r) {
+        size_t begin = r.begin();
+        const int32_t nid = nodes[node_in_set].nid;
+        const size_t task_id = partition_builder_.GetTaskIdx(node_in_set, begin);
+        partition_builder_.AllocateForTask(task_id);
+        partition_builder_.PartitionByMask(node_in_set, nodes, r, gmat, column_matrix, *p_tree,
+                                           row_set_collection_[nid].begin, decision_bits_,
+                                           missing_bits_);
+      });
+    } else {
+      common::ParallelFor2d(space, ctx->Threads(), [&](size_t node_in_set, common::Range1d r) {
+        size_t begin = r.begin();
+        const int32_t nid = nodes[node_in_set].nid;
+        const size_t task_id = partition_builder_.GetTaskIdx(node_in_set, begin);
+        partition_builder_.AllocateForTask(task_id);
+        bst_bin_t split_cond = column_matrix.IsInitialized() ? split_conditions[node_in_set] : 0;
+        partition_builder_.template Partition<BinIdxType, any_missing, any_cat>(
+            node_in_set, nodes, r, split_cond, gmat, column_matrix, *p_tree,
+            row_set_collection_[nid].begin);
+      });
+    }
 
     // 3. Compute offsets to copy blocks of row-indexes
     // from partition_builder_ to row_set_collection_
