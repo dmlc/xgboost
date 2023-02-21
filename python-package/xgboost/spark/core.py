@@ -313,10 +313,6 @@ class _SparkXGBParams(
             if not isinstance(self.getOrDefault(self.objective), str):
                 raise ValueError("Only string type 'objective' param is allowed.")
 
-        if self.getOrDefault(self.eval_metric) is not None:
-            if not isinstance(self.getOrDefault(self.eval_metric), str):
-                raise ValueError("Only string type 'eval_metric' param is allowed.")
-
         if self.getOrDefault(self.early_stopping_rounds) is not None:
             if not (
                 self.isDefined(self.validationIndicatorCol)
