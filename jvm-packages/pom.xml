@@ -34,7 +34,7 @@
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
         <flink.version>1.7.2</flink.version>
-        <spark.version>3.0.1</spark.version>
+        <spark.version>3.4.0</spark.version>
         <scala.version>2.12.8</scala.version>
         <scala.binary.version>2.12</scala.binary.version>
         <hadoop.version>2.7.3</hadoop.version>
@@ -46,11 +46,16 @@
         <cudf.classifier>cuda11</cudf.classifier>
     </properties>
     <repositories>
-        <repository>
-            <id>central_maven</id>
-            <name>central maven</name>
-            <url>https://repo1.maven.org/maven2</url>
-        </repository>
+      <repository>
+          <id>central_maven</id>
+          <name>central maven</name>
+          <url>https://repo1.maven.org/maven2</url>
+      </repository>
+      <repository>
+        <id>apache_maven</id>
+        <name>apache maven</name>
+        <url>https://repository.apache.org/content/repositories/orgapachespark-1435</url>
+      </repository>
     </repositories>
     <modules>
     </modules>
