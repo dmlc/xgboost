@@ -28,7 +28,9 @@ import org.apache.spark.sql.functions._
 import scala.collection.{Iterator, mutable}
 
 import org.apache.spark.ml.param.ParamMap
-import org.apache.spark.ml.util.{DefaultXGBoostParamsReader, DefaultXGBoostParamsWriter, XGBoostWriter}
+import org.apache.spark.ml.util.{
+  DefaultXGBoostParamsReader, DefaultXGBoostParamsWriter, XGBoostDatasetUtils, XGBoostWriter
+}
 import org.apache.spark.sql.types.StructType
 
 class XGBoostClassifier (
@@ -166,7 +168,7 @@ class XGBoostClassifier (
   }
 
   override protected def train(dataset: Dataset[_]): XGBoostClassificationModel = {
-    val _numClasses = getNumClasses(dataset)
+    val _numClasses = XGBoostDatasetUtils.getNumClasses(dataset, this.getLabelCol)
     if (isDefined(numClass) && $(numClass) != _numClasses) {
       throw new Exception("The number of classes in dataset doesn't match " +
         "\'num_class\' in xgboost params.")
