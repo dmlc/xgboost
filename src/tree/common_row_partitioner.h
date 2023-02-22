@@ -22,13 +22,6 @@ class CommonRowPartitioner {
   common::PartitionBuilder<kPartitionBlockSize> partition_builder_;
   common::RowSetCollection row_set_collection_;
 
-  bool is_col_split_;
-  using BitVector = RBitField8;
-  std::vector<BitVector::value_type> decision_storage_{};
-  BitVector decision_bits_{};
-  std::vector<BitVector::value_type> missing_storage_{};
-  BitVector missing_bits_{};
-
  public:
   bst_row_t base_rowid = 0;
 
@@ -251,6 +244,14 @@ class CommonRowPartitioner {
         ctx, tree, this->Partitions(), p_out_position,
         [&](size_t idx) -> bool { return gpair[idx].GetHess() - .0f == .0f; });
   }
+
+ private:
+  bool is_col_split_;
+  using BitVector = RBitField8;
+  std::vector<BitVector::value_type> decision_storage_{};
+  BitVector decision_bits_{};
+  std::vector<BitVector::value_type> missing_storage_{};
+  BitVector missing_bits_{};
 };
 
 }  // namespace tree
