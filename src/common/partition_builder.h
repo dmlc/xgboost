@@ -201,6 +201,11 @@ class PartitionBuilder {
     SetNRightElems(node_in_set, range.begin(), n_right);
   }
 
+  /**
+   * @brief When data is split by column, we don't have all the features locally on the current
+   * worker, so we go through all the rows and mark the bit vectors on whether the decision is made
+   * to go right, or if the feature value used for the split is missing.
+   */
   void MaskRows(const size_t node_in_set, std::vector<xgboost::tree::CPUExpandEntry> const &nodes,
                 const common::Range1d range, GHistIndexMatrix const& gmat,
                 const common::ColumnMatrix& column_matrix,
@@ -251,6 +256,10 @@ class PartitionBuilder {
     }
   }
 
+  /**
+   * @brief Once we've aggregated the decision and missing bits from all the workers, we can then
+   * use them to partition the rows accordingly.
+   */
   void PartitionByMask(const size_t node_in_set,
                        std::vector<xgboost::tree::CPUExpandEntry> const& nodes,
                        const common::Range1d range, GHistIndexMatrix const& gmat,

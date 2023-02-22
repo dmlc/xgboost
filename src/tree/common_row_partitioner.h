@@ -173,9 +173,10 @@ class CommonRowPartitioner {
     // 2.3 Split elements of row_set_collection_ to left and right child-nodes for each node
     // Store results in intermediate buffers from partition_builder_
     if (is_col_split_) {
+      // When data is split by column, we don't have all the feature values in the local worker, so
+      // we first collect all the decisions and whether the feature is missing into bit vectors.
       std::fill(decision_storage_.begin(), decision_storage_.end(), 0);
       std::fill(missing_storage_.begin(), missing_storage_.end(), 0);
-
       common::ParallelFor2d(space, ctx->Threads(), [&](size_t node_in_set, common::Range1d r) {
         const int32_t nid = nodes[node_in_set].nid;
         partition_builder_.MaskRows(node_in_set, nodes, r, gmat, column_matrix, *p_tree,
@@ -183,11 +184,13 @@ class CommonRowPartitioner {
                                     &missing_bits_);
       });
 
+      // Then aggregate the bit vectors across all the workers.
       collective::Allreduce<collective::Operation::kBitwiseOR>(decision_storage_.data(),
                                                                decision_storage_.size());
       collective::Allreduce<collective::Operation::kBitwiseAND>(missing_storage_.data(),
                                                                 missing_storage_.size());
 
+      // Finally use the bit vectors to partition the rows.
       common::ParallelFor2d(space, ctx->Threads(), [&](size_t node_in_set, common::Range1d r) {
         size_t begin = r.begin();
         const int32_t nid = nodes[node_in_set].nid;
