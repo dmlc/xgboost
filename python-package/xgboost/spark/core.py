@@ -316,10 +316,17 @@ class _SparkXGBParams(
         if self.getOrDefault(self.eval_metric) is not None:
             if not (
                 isinstance(self.getOrDefault(self.eval_metric), str)
-                or (isinstance(self.getOrDefault(self.eval_metric), List)
-                    and all(isinstance(metric, str) for metric in self.getOrDefault(self.eval_metric)))
+                or (
+                    isinstance(self.getOrDefault(self.eval_metric), List)
+                    and all(
+                        isinstance(metric, str)
+                        for metric in self.getOrDefault(self.eval_metric)
+                    )
+                )
             ):
-                raise ValueError("Only string type or list of string type 'eval_metric' param is allowed.")
+                raise ValueError(
+                    "Only string type or list of string type 'eval_metric' param is allowed."
+                )
 
         if self.getOrDefault(self.early_stopping_rounds) is not None:
             if not (
@@ -601,7 +608,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         start += len("== Optimized Logical Plan ==") + 1
         num_workers = self.getOrDefault(self.num_workers)
         if (
-            query_plan[start: start + len("Repartition")] == "Repartition"
+            query_plan[start : start + len("Repartition")] == "Repartition"
             and num_workers == num_partitions
         ):
             return True
