@@ -54,7 +54,7 @@
       <repository>
         <id>apache_maven</id>
         <name>apache maven</name>
-        <url>https://repository.apache.org/content/groups/public</url>
+        <url>https://repository.apache.org/content/repositories/orgapachespark-1435</url>
       </repository>
     </repositories>
     <modules>
