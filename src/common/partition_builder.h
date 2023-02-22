@@ -238,13 +238,13 @@ class PartitionBuilder {
       for (auto row_id : rid_span) {
         auto gidx = gidx_calc(row_id);
         if (gidx > -1) {
-          bool go_right = false;
+          bool go_left = false;
           if (is_cat) {
-            go_right = !Decision(node_cats, cut_values[gidx]);
+            go_left = Decision(node_cats, cut_values[gidx]);
           } else {
-            go_right = cut_values[gidx] > nodes[node_in_set].split.split_value;
+            go_left = cut_values[gidx] <= nodes[node_in_set].split.split_value;
           }
-          if (go_right) {
+          if (go_left) {
             decision_bits->Set(row_id - gmat.base_rowid);
           }
         } else {
@@ -276,8 +276,7 @@ class PartitionBuilder {
       bool go_left = default_left;
       bool is_missing = missing_bits.Check(ridx - gmat.base_rowid);
       if (!is_missing) {
-        bool go_right = decision_bits.Check(ridx - gmat.base_rowid);
-        go_left = !go_right;
+        go_left = decision_bits.Check(ridx - gmat.base_rowid);
       }
       return go_left;
     };
