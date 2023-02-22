@@ -314,6 +314,7 @@ class _SparkXGBParams(
                 raise ValueError("Only string type 'objective' param is allowed.")
 
         if self.getOrDefault(self.eval_metric) is not None:
+            if not (
                 isinstance(self.getOrDefault(self.eval_metric), str)
                 or (isinstance(self.getOrDefault(self.eval_metric), List)
                     and all(isinstance(metric, str) for metric in self.getOrDefault(self.eval_metric)))
