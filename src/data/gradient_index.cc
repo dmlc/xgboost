@@ -150,16 +150,24 @@ common::ColumnMatrix const &GHistIndexMatrix::Transpose() const {
   return *columns_;
 }
 
+bst_bin_t GHistIndexMatrix::GetGindex(size_t ridx, size_t fidx) const {
+  auto begin = RowIdx(ridx);
+  if (IsDense()) {
+    return static_cast<bst_bin_t>(index[begin + fidx]);
+  }
+  auto end = RowIdx(ridx + 1);
+  auto const& cut_ptrs = cut.Ptrs();
+  auto f_begin = cut_ptrs[fidx];
+  auto f_end = cut_ptrs[fidx + 1];
+  return BinarySearchBin(begin, end, index, f_begin, f_end);
+}
+
 float GHistIndexMatrix::GetFvalue(size_t ridx, size_t fidx, bool is_cat) const {
   auto const &values = cut.Values();
   auto const &mins = cut.MinValues();
   auto const &ptrs = cut.Ptrs();
   if (is_cat) {
-    auto f_begin = ptrs[fidx];
-    auto f_end = ptrs[fidx + 1];
-    auto begin = RowIdx(ridx);
-    auto end = RowIdx(ridx + 1);
-    auto gidx = BinarySearchBin(begin, end, index, f_begin, f_end);
+    auto gidx = GetGindex(ridx, fidx);
     if (gidx == -1) {
       return std::numeric_limits<float>::quiet_NaN();
     }

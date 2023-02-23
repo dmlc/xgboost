@@ -17,11 +17,66 @@
 
 namespace xgboost {
 namespace tree {
-class CommonRowPartitioner {
-  static constexpr size_t kPartitionBlockSize = 2048;
-  common::PartitionBuilder<kPartitionBlockSize> partition_builder_;
-  common::RowSetCollection row_set_collection_;
 
+static constexpr size_t kPartitionBlockSize = 2048;
+
+class ColumnSplitHelper {
+ public:
+  ColumnSplitHelper() = default;
+
+  ColumnSplitHelper(bst_row_t num_row,
+                    common::PartitionBuilder<kPartitionBlockSize>* partition_builder,
+                    common::RowSetCollection* row_set_collection)
+      : partition_builder_{partition_builder}, row_set_collection_{row_set_collection} {
+    decision_storage_.resize(num_row);
+    decision_bits_ = BitVector(common::Span<BitVector::value_type>(decision_storage_));
+    missing_storage_.resize(num_row);
+    missing_bits_ = BitVector(common::Span<BitVector::value_type>(missing_storage_));
+  }
+
+  void Partition(common::BlockedSpace2d const& space, std::int32_t n_threads,
+                 GHistIndexMatrix const& gmat, common::ColumnMatrix const& column_matrix,
+                 std::vector<CPUExpandEntry> const& nodes, RegTree const* p_tree) {
+    // When data is split by column, we don't have all the feature values in the local worker, so
+    // we first collect all the decisions and whether the feature is missing into bit vectors.
+    std::fill(decision_storage_.begin(), decision_storage_.end(), 0);
+    std::fill(missing_storage_.begin(), missing_storage_.end(), 0);
+    common::ParallelFor2d(space, n_threads, [&](size_t node_in_set, common::Range1d r) {
+      const int32_t nid = nodes[node_in_set].nid;
+      partition_builder_->MaskRows(node_in_set, nodes, r, gmat, column_matrix, *p_tree,
+                                   (*row_set_collection_)[nid].begin, &decision_bits_,
+                                   &missing_bits_);
+    });
+
+    // Then aggregate the bit vectors across all the workers.
+    collective::Allreduce<collective::Operation::kBitwiseOR>(decision_storage_.data(),
+                                                             decision_storage_.size());
+    collective::Allreduce<collective::Operation::kBitwiseAND>(missing_storage_.data(),
+                                                              missing_storage_.size());
+
+    // Finally use the bit vectors to partition the rows.
+    common::ParallelFor2d(space, n_threads, [&](size_t node_in_set, common::Range1d r) {
+      size_t begin = r.begin();
+      const int32_t nid = nodes[node_in_set].nid;
+      const size_t task_id = partition_builder_->GetTaskIdx(node_in_set, begin);
+      partition_builder_->AllocateForTask(task_id);
+      partition_builder_->PartitionByMask(node_in_set, nodes, r, gmat, column_matrix, *p_tree,
+                                          (*row_set_collection_)[nid].begin, decision_bits_,
+                                          missing_bits_);
+    });
+  }
+
+ private:
+  using BitVector = RBitField8;
+  std::vector<BitVector::value_type> decision_storage_{};
+  BitVector decision_bits_{};
+  std::vector<BitVector::value_type> missing_storage_{};
+  BitVector missing_bits_{};
+  common::PartitionBuilder<kPartitionBlockSize>* partition_builder_;
+  common::RowSetCollection* row_set_collection_;
+};
+
+class CommonRowPartitioner {
  public:
   bst_row_t base_rowid = 0;
 
@@ -38,10 +93,7 @@ class CommonRowPartitioner {
     row_set_collection_.Init();
 
     if (is_col_split_) {
-      decision_storage_.resize(num_row);
-      decision_bits_ = BitVector(common::Span<BitVector::value_type>(decision_storage_));
-      missing_storage_.resize(num_row);
-      missing_bits_ = BitVector(common::Span<BitVector::value_type>(missing_storage_));
+      column_split_helper_ = ColumnSplitHelper{num_row, &partition_builder_, &row_set_collection_};
     }
   }
 
@@ -166,33 +218,7 @@ class CommonRowPartitioner {
     // 2.3 Split elements of row_set_collection_ to left and right child-nodes for each node
     // Store results in intermediate buffers from partition_builder_
     if (is_col_split_) {
-      // When data is split by column, we don't have all the feature values in the local worker, so
-      // we first collect all the decisions and whether the feature is missing into bit vectors.
-      std::fill(decision_storage_.begin(), decision_storage_.end(), 0);
-      std::fill(missing_storage_.begin(), missing_storage_.end(), 0);
-      common::ParallelFor2d(space, ctx->Threads(), [&](size_t node_in_set, common::Range1d r) {
-        const int32_t nid = nodes[node_in_set].nid;
-        partition_builder_.MaskRows(node_in_set, nodes, r, gmat, column_matrix, *p_tree,
-                                    row_set_collection_[nid].begin, &decision_bits_,
-                                    &missing_bits_);
-      });
-
-      // Then aggregate the bit vectors across all the workers.
-      collective::Allreduce<collective::Operation::kBitwiseOR>(decision_storage_.data(),
-                                                               decision_storage_.size());
-      collective::Allreduce<collective::Operation::kBitwiseAND>(missing_storage_.data(),
-                                                                missing_storage_.size());
-
-      // Finally use the bit vectors to partition the rows.
-      common::ParallelFor2d(space, ctx->Threads(), [&](size_t node_in_set, common::Range1d r) {
-        size_t begin = r.begin();
-        const int32_t nid = nodes[node_in_set].nid;
-        const size_t task_id = partition_builder_.GetTaskIdx(node_in_set, begin);
-        partition_builder_.AllocateForTask(task_id);
-        partition_builder_.PartitionByMask(node_in_set, nodes, r, gmat, column_matrix, *p_tree,
-                                           row_set_collection_[nid].begin, decision_bits_,
-                                           missing_bits_);
-      });
+      column_split_helper_.Partition(space, ctx->Threads(), gmat, column_matrix, nodes, p_tree);
     } else {
       common::ParallelFor2d(space, ctx->Threads(), [&](size_t node_in_set, common::Range1d r) {
         size_t begin = r.begin();
@@ -246,12 +272,10 @@ class CommonRowPartitioner {
   }
 
  private:
+  common::PartitionBuilder<kPartitionBlockSize> partition_builder_;
+  common::RowSetCollection row_set_collection_;
   bool is_col_split_;
-  using BitVector = RBitField8;
-  std::vector<BitVector::value_type> decision_storage_{};
-  BitVector decision_bits_{};
-  std::vector<BitVector::value_type> missing_storage_{};
-  BitVector missing_bits_{};
+  ColumnSplitHelper column_split_helper_;
 };
 
 }  // namespace tree

@@ -123,27 +123,11 @@ class PartitionBuilder {
     bool default_left = tree[nid].DefaultLeft();
     bool is_cat = tree.GetSplitTypes()[nid] == FeatureType::kCategorical;
     auto node_cats = tree.NodeCats(nid);
-
-    auto const& index = gmat.index;
     auto const& cut_values = gmat.cut.Values();
-    auto const& cut_ptrs = gmat.cut.Ptrs();
-
-    auto gidx_calc = [&](auto ridx) {
-      auto begin = gmat.RowIdx(ridx);
-      if (gmat.IsDense()) {
-        return static_cast<bst_bin_t>(index[begin + fid]);
-      }
-      auto end = gmat.RowIdx(ridx + 1);
-      auto f_begin = cut_ptrs[fid];
-      auto f_end = cut_ptrs[fid + 1];
-      // bypassing the column matrix as we need the cut value instead of bin idx for categorical
-      // features.
-      return BinarySearchBin(begin, end, index, f_begin, f_end);
-    };
 
     auto pred_hist = [&](auto ridx, auto bin_id) {
       if (any_cat && is_cat) {
-        auto gidx = gidx_calc(ridx);
+        auto gidx = gmat.GetGindex(ridx, fid);
         bool go_left = default_left;
         if (gidx > -1) {
           go_left = Decision(node_cats, cut_values[gidx]);
@@ -155,7 +139,7 @@ class PartitionBuilder {
     };
 
     auto pred_approx = [&](auto ridx) {
-      auto gidx = gidx_calc(ridx);
+      auto gidx = gmat.GetGindex(ridx, fid);
       bool go_left = default_left;
       if (gidx > -1) {
         if (is_cat) {
@@ -216,27 +200,11 @@ class PartitionBuilder {
     bst_feature_t fid = tree[nid].SplitIndex();
     bool is_cat = tree.GetSplitTypes()[nid] == FeatureType::kCategorical;
     auto node_cats = tree.NodeCats(nid);
-
-    auto const& index = gmat.index;
     auto const& cut_values = gmat.cut.Values();
-    auto const& cut_ptrs = gmat.cut.Ptrs();
-
-    auto gidx_calc = [&](auto ridx) {
-      auto begin = gmat.RowIdx(ridx);
-      if (gmat.IsDense()) {
-        return static_cast<bst_bin_t>(index[begin + fid]);
-      }
-      auto end = gmat.RowIdx(ridx + 1);
-      auto f_begin = cut_ptrs[fid];
-      auto f_end = cut_ptrs[fid + 1];
-      // bypassing the column matrix as we need the cut value instead of bin idx for categorical
-      // features.
-      return BinarySearchBin(begin, end, index, f_begin, f_end);
-    };
 
     if (!column_matrix.IsInitialized()) {
       for (auto row_id : rid_span) {
-        auto gidx = gidx_calc(row_id);
+        auto gidx = gmat.GetGindex(row_id, fid);
         if (gidx > -1) {
           bool go_left = false;
           if (is_cat) {
