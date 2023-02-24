@@ -81,7 +81,8 @@ class QuantileRegression : public ObjFunction {
     linalg::ElementWiseKernel(
         ctx_, gpair, [=] XGBOOST_DEVICE(std::size_t i, GradientPair const&) mutable {
           auto idx = linalg::UnravelIndex(static_cast<std::size_t>(i),
-                                          {static_cast<std::size_t>(n_samples), static_cast<std::size_t>(alpha.size()),
+                                          {static_cast<std::size_t>(n_samples),
+                                           static_cast<std::size_t>(alpha.size()),
                                            static_cast<std::size_t>(n_targets / alpha.size())});
 
           // std::tie is not available for cuda kernel.
