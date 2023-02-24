@@ -2,12 +2,16 @@ import argparse
 import copy
 import os
 import re
+import sys
 
 import boto3
 import botocore
 from metadata import AMI_ID, COMMON_STACK_PARAMS, STACK_PARAMS
 
 current_dir = os.path.dirname(__file__)
+sys.path.append(os.path.join(current_dir, ".."))
+
+from common_blocks.utils import create_or_update_stack, wait
 
 TEMPLATE_URL = "https://s3.amazonaws.com/buildkite-aws-stack/latest/aws-stack.yml"
 
@@ -68,71 +72,6 @@ def get_full_stack_id(stack_id):
     return f"buildkite-{stack_id}-autoscaling-group"
 
 
-def stack_exists(args, *, stack_name):
-    client = boto3.client("cloudformation", region_name=args.aws_region)
-    waiter = client.get_waiter("stack_exists")
-    try:
-        waiter.wait(StackName=stack_name, WaiterConfig={"MaxAttempts": 1})
-        return True
-    except botocore.exceptions.WaiterError as e:
-        return False
-
-
-def create_or_update_stack(
-    args, *, stack_name, template_url=None, template_body=None, params=None
-):
-    kwargs = {
-        "StackName": stack_name,
-        "Capabilities": [
-            "CAPABILITY_IAM",
-            "CAPABILITY_NAMED_IAM",
-            "CAPABILITY_AUTO_EXPAND",
-        ],
-    }
-    if template_url:
-        kwargs["TemplateURL"] = template_url
-    if template_body:
-        kwargs["TemplateBody"] = template_body
-    if params:
-        kwargs["Parameters"] = params
-
-    client = boto3.client("cloudformation", region_name=args.aws_region)
-
-    if stack_exists(args, stack_name=stack_name):
-        print(f"Stack {stack_name} already exists. Updating...")
-        try:
-            response = client.update_stack(**kwargs)
-            return {"StackName": stack_name, "Action": "update"}
-        except botocore.exceptions.ClientError as e:
-            if e.response["Error"]["Code"] == "ValidationError" and re.search(
-                "No updates are to be performed", e.response["Error"]["Message"]
-            ):
-                print(f"No update was made to {stack_name}")
-                return {"StackName": stack_name, "Action": "noop"}
-            else:
-                raise e
-    else:
-        kwargs.update({"OnFailure": "ROLLBACK", "EnableTerminationProtection": False})
-        response = client.create_stack(**kwargs)
-        return {"StackName": stack_name, "Action": "create"}
-
-
-def wait(promise):
-    client = boto3.client("cloudformation", region_name=args.aws_region)
-    stack_name = promise["StackName"]
-    print(f"Waiting for {stack_name}...")
-    if promise["Action"] == "create":
-        waiter = client.get_waiter("stack_create_complete")
-        waiter.wait(StackName=stack_name)
-        print(f"Finished creating stack {stack_name}")
-    elif promise["Action"] == "update":
-        waiter = client.get_waiter("stack_update_complete")
-        waiter.wait(StackName=stack_name)
-        print(f"Finished updating stack {stack_name}")
-    elif promise["Action"] != "noop":
-        raise ValueError(f"Invalid promise {promise}")
-
-
 def create_agent_iam_policy(args):
     policy_stack_name = "buildkite-agent-iam-policy"
     print(f"Creating stack {policy_stack_name} for agent IAM policy...")
@@ -153,8 +92,6 @@ def create_agent_iam_policy(args):
 
 def main(args):
     agent_iam_policy = create_agent_iam_policy(args)
-
-    client = boto3.client("cloudformation", region_name=args.aws_region)
 
     promises = []
 
