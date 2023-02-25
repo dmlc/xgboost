@@ -3,11 +3,11 @@
  */
 #ifndef XGBOOST_COMMON_ALGORITHM_H_
 #define XGBOOST_COMMON_ALGORITHM_H_
-#include <algorithm>          // for upper_bound, stable_sort, sort, max, all_of, none_of, min
-#include <cinttypes>          // for size_t
-#include <functional>         // for less
-#include <iterator>           // for iterator_traits, distance
-#include <vector>             // for vector
+#include <algorithm>   // for upper_bound, stable_sort, sort, max, all_of, none_of, min
+#include <cinttypes>   // for size_t
+#include <functional>  // for less
+#include <iterator>    // for iterator_traits, distance
+#include <vector>      // for vector
 
 #include "common.h"           // for DivRoundUp
 #include "numeric.h"          // for Iota
@@ -15,7 +15,8 @@
 #include "xgboost/context.h"  // for Context
 
 // clang with libstdc++ works as well
-#if defined(__GNUC__) && (__GNUC__ >= 4) && !defined(__sun) && !defined(sun) && !defined(__APPLE__) && defined(_OPENMP)
+#if defined(__GNUC__) && (__GNUC__ >= 4) && !defined(__sun) && !defined(sun) && \
+    !defined(__APPLE__) && defined(_OPENMP)
 #define GCC_HAS_PARALLEL 1
 #endif  // GLIC_VERSION
 
@@ -72,7 +73,6 @@ void Sort(Context const *ctx, Iter begin, Iter end, Comp comp) {
     std::sort(begin, end, comp);
   }
 }
-
 
 template <typename Idx, typename Iter, typename V = typename std::iterator_traits<Iter>::value_type,
           typename Comp = std::less<V>>
