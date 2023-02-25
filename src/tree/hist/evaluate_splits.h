@@ -366,9 +366,9 @@ class HistEvaluator {
       std::vector<ExpandEntry> buffer{num_entries * world};
       std::copy_n(entries.cbegin(), num_entries, buffer.begin() + num_entries * rank);
       collective::Allgather(buffer.data(), buffer.size() * sizeof(ExpandEntry));
-      for (auto nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
-        for (auto widx = 0; widx < world; ++widx) {
-          entries[nidx_in_set].split.Update(buffer[widx * num_entries + nidx_in_set].split);
+      for (auto worker = 0; worker < world; ++worker) {
+        for (auto nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
+          entries[nidx_in_set].split.Update(buffer[worker * num_entries + nidx_in_set].split);
         }
       }
     }
