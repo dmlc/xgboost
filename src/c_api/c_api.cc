@@ -455,7 +455,8 @@ XGB_DLL int XGDMatrixCreateFromCSC(char const *indptr, char const *indices, char
   xgboost_CHECK_C_ARG_PTR(indptr);
   xgboost_CHECK_C_ARG_PTR(indices);
   xgboost_CHECK_C_ARG_PTR(data);
-  data::CSCArrayAdapter adapter{StringView{indptr}, StringView{indices}, StringView{data}, nrow};
+  data::CSCArrayAdapter adapter{StringView{indptr}, StringView{indices}, StringView{data},
+                                static_cast<std::size_t>(nrow)};
   xgboost_CHECK_C_ARG_PTR(c_json_config);
   auto config = Json::Load(StringView{c_json_config});
   float missing = GetMissing(config);
