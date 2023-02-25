@@ -98,7 +98,7 @@ class HistogramBuilder {
                    std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
                    std::vector<ExpandEntry> const &nodes_for_subtraction_trick,
                    RegTree const *p_tree) {
-    if (is_distributed_) {
+    if (is_distributed_ && !is_col_split_) {
       this->AddHistRowsDistributed(starting_index, sync_count, nodes_for_explicit_hist_build,
                                    nodes_for_subtraction_trick, p_tree);
     } else {
