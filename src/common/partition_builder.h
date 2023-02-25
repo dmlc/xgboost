@@ -31,6 +31,8 @@ namespace common {
 // BlockSize is template to enable memory alignment easily with C++11 'alignas()' feature
 template<size_t BlockSize>
 class PartitionBuilder {
+  using BitVector = RBitField8;
+
  public:
   template<typename Func>
   void Init(const size_t n_tasks, size_t n_nodes, Func funcNTask) {
@@ -121,27 +123,11 @@ class PartitionBuilder {
     bool default_left = tree[nid].DefaultLeft();
     bool is_cat = tree.GetSplitTypes()[nid] == FeatureType::kCategorical;
     auto node_cats = tree.NodeCats(nid);
-
-    auto const& index = gmat.index;
     auto const& cut_values = gmat.cut.Values();
-    auto const& cut_ptrs = gmat.cut.Ptrs();
-
-    auto gidx_calc = [&](auto ridx) {
-      auto begin = gmat.RowIdx(ridx);
-      if (gmat.IsDense()) {
-        return static_cast<bst_bin_t>(index[begin + fid]);
-      }
-      auto end = gmat.RowIdx(ridx + 1);
-      auto f_begin = cut_ptrs[fid];
-      auto f_end = cut_ptrs[fid + 1];
-      // bypassing the column matrix as we need the cut value instead of bin idx for categorical
-      // features.
-      return BinarySearchBin(begin, end, index, f_begin, f_end);
-    };
 
     auto pred_hist = [&](auto ridx, auto bin_id) {
       if (any_cat && is_cat) {
-        auto gidx = gidx_calc(ridx);
+        auto gidx = gmat.GetGindex(ridx, fid);
         bool go_left = default_left;
         if (gidx > -1) {
           go_left = Decision(node_cats, cut_values[gidx]);
@@ -153,7 +139,7 @@ class PartitionBuilder {
     };
 
     auto pred_approx = [&](auto ridx) {
-      auto gidx = gidx_calc(ridx);
+      auto gidx = gmat.GetGindex(ridx, fid);
       bool go_left = default_left;
       if (gidx > -1) {
         if (is_cat) {
@@ -190,6 +176,84 @@ class PartitionBuilder {
                                                                   gmat.base_rowid, pred_hist);
         }
       }
+    }
+
+    const size_t n_left  = child_nodes_sizes.first;
+    const size_t n_right = child_nodes_sizes.second;
+
+    SetNLeftElems(node_in_set, range.begin(), n_left);
+    SetNRightElems(node_in_set, range.begin(), n_right);
+  }
+
+  /**
+   * @brief When data is split by column, we don't have all the features locally on the current
+   * worker, so we go through all the rows and mark the bit vectors on whether the decision is made
+   * to go right, or if the feature value used for the split is missing.
+   */
+  void MaskRows(const size_t node_in_set, std::vector<xgboost::tree::CPUExpandEntry> const &nodes,
+                const common::Range1d range, GHistIndexMatrix const& gmat,
+                const common::ColumnMatrix& column_matrix,
+                const RegTree& tree, const size_t* rid,
+                BitVector* decision_bits, BitVector* missing_bits) {
+    common::Span<const size_t> rid_span(rid + range.begin(), rid + range.end());
+    std::size_t nid = nodes[node_in_set].nid;
+    bst_feature_t fid = tree[nid].SplitIndex();
+    bool is_cat = tree.GetSplitTypes()[nid] == FeatureType::kCategorical;
+    auto node_cats = tree.NodeCats(nid);
+    auto const& cut_values = gmat.cut.Values();
+
+    if (!column_matrix.IsInitialized()) {
+      for (auto row_id : rid_span) {
+        auto gidx = gmat.GetGindex(row_id, fid);
+        if (gidx > -1) {
+          bool go_left = false;
+          if (is_cat) {
+            go_left = Decision(node_cats, cut_values[gidx]);
+          } else {
+            go_left = cut_values[gidx] <= nodes[node_in_set].split.split_value;
+          }
+          if (go_left) {
+            decision_bits->Set(row_id - gmat.base_rowid);
+          }
+        } else {
+          missing_bits->Set(row_id - gmat.base_rowid);
+        }
+      }
+    } else {
+      LOG(FATAL) << "Column data split is only supported for the `approx` tree method";
+    }
+  }
+
+  /**
+   * @brief Once we've aggregated the decision and missing bits from all the workers, we can then
+   * use them to partition the rows accordingly.
+   */
+  void PartitionByMask(const size_t node_in_set,
+                       std::vector<xgboost::tree::CPUExpandEntry> const& nodes,
+                       const common::Range1d range, GHistIndexMatrix const& gmat,
+                       const common::ColumnMatrix& column_matrix, const RegTree& tree,
+                       const size_t* rid, BitVector const& decision_bits,
+                       BitVector const& missing_bits) {
+    common::Span<const size_t> rid_span(rid + range.begin(), rid + range.end());
+    common::Span<size_t> left = GetLeftBuffer(node_in_set, range.begin(), range.end());
+    common::Span<size_t> right = GetRightBuffer(node_in_set, range.begin(), range.end());
+    std::size_t nid = nodes[node_in_set].nid;
+    bool default_left = tree[nid].DefaultLeft();
+
+    auto pred_approx = [&](auto ridx) {
+      bool go_left = default_left;
+      bool is_missing = missing_bits.Check(ridx - gmat.base_rowid);
+      if (!is_missing) {
+        go_left = decision_bits.Check(ridx - gmat.base_rowid);
+      }
+      return go_left;
+    };
+
+    std::pair<size_t, size_t> child_nodes_sizes;
+    if (!column_matrix.IsInitialized()) {
+      child_nodes_sizes = PartitionRangeKernel(rid_span, left, right, pred_approx);
+    } else {
+      LOG(FATAL) << "Column data split is only supported for the `approx` tree method";
     }
 
     const size_t n_left  = child_nodes_sizes.first;

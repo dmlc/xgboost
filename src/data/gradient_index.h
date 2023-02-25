@@ -228,6 +228,8 @@ class GHistIndexMatrix {
 
   common::ColumnMatrix const& Transpose() const;
 
+  bst_bin_t GetGindex(size_t ridx, size_t fidx) const;
+
   float GetFvalue(size_t ridx, size_t fidx, bool is_cat) const;
 
  private:

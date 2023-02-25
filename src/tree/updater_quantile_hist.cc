@@ -277,7 +277,7 @@ void QuantileHistMaker::Builder::InitData(DMatrix *fmat, const RegTree &tree,
       } else {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
-      partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid);
+      partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid, fmat->IsColumnSplit());
       ++page_id;
     }
     histogram_builder_->Reset(n_total_bins, HistBatch(param_), ctx_->Threads(), page_id,
