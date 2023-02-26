@@ -45,12 +45,12 @@ phases:
               choco install graphviz
               if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
-              # Install Visual Studio Community 2017 (15.9)
-              Write-Host '>>> Installing Visual Studio 2017 Community (15.9)...'
-              choco install visualstudio2017community --version 15.9.23.0 `
+              # Install Visual Studio Community 2019 (16.11)
+              Write-Host '>>> Installing Visual Studio 2019 Community (16.11)...'
+              choco install visualstudio2019community --version 16.11.24.0 `
                   --params "--wait --passive --norestart"
               if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
-              choco install visualstudio2017-workload-nativedesktop --params `
+              choco install visualstudio2019-workload-nativedesktop --params `
                   "--wait --passive --norestart --includeOptional"
               if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
