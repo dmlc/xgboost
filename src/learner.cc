@@ -737,6 +737,8 @@ class LearnerConfiguration : public Learner {
   }
 
   void ConfigureNumFeatures() {
+    std::stringstream ss;
+    ss << "worker:" << collective::GetRank() << std::endl;
     // Compute number of global features if parameter not already set
     if (mparam_.num_feature == 0) {
       // TODO(hcho3): Change num_feature to 64-bit integer
@@ -749,24 +751,25 @@ class LearnerConfiguration : public Learner {
         CHECK_LE(num_col, static_cast<uint64_t>(std::numeric_limits<unsigned>::max()))
             << "Unfortunately, XGBoost does not support data matrices with "
             << std::numeric_limits<unsigned>::max() << " features or greater";
-        std::cout << __LINE__ << " nf:" << num_feature << " nc:" << num_col << "\n";
+        ss << __LINE__ << " nf:" << num_feature << " nc:" << num_col << "\n";
         num_feature = std::max(num_feature, static_cast<uint32_t>(num_col));
-        std::cout << __LINE__ << " nf:" << num_feature << "\n";
+        ss << __LINE__ << " nf:" << num_feature << "\n";
       }
 
-      std::cout << __LINE__ << " nf:" << num_feature << "\n";
+      ss << __LINE__ << " nf:" << num_feature << "\n";
       collective::Allreduce<collective::Operation::kMax>(&num_feature, 1);
-      std::cout << __LINE__ << " nf:" << num_feature << "\n";
+      ss << __LINE__ << " nf:" << num_feature << "\n";
       if (num_feature > mparam_.num_feature) {
         mparam_.num_feature = num_feature;
       }
-      std::cout << __LINE__ << " mnf:" << mparam_.num_feature << "\n";
+      ss << __LINE__ << " mnf:" << mparam_.num_feature << "\n";
     }
     CHECK_NE(mparam_.num_feature, 0)
         << "0 feature is supplied.  Are you using raw Booster interface?";
     // Remove these once binary IO is gone.
     cfg_["num_feature"] = common::ToString(mparam_.num_feature);
     cfg_["num_class"] = common::ToString(mparam_.num_class);
+    std::cout << ss.str() << std::endl;
   }
 
   void ConfigureGBM(LearnerTrainParam const& old, Args const& args) {
