@@ -21,6 +21,7 @@
 #include <sstream>
 #include <stack>
 #include <string>
+#include <thread>  // for get_id
 #include <utility>
 #include <vector>
 
@@ -426,21 +427,32 @@ class LearnerConfiguration : public Learner {
   }
 
  public:
-  explicit LearnerConfiguration(std::vector<std::shared_ptr<DMatrix> > cache)
+  explicit LearnerConfiguration(std::vector<std::shared_ptr<DMatrix>> cache)
       : need_configuration_{true} {
     monitor_.Init("Learner");
+    std::stringstream ss;
+    ss << "w:" << collective::GetRank() << ", t:" << std::this_thread::get_id() << ", ";
     auto& local_cache = (*ThreadLocalPredictionCache::Get())[this];
     for (std::shared_ptr<DMatrix> const& d : cache) {
+      ss << "DM:" << d << ", ";
       if (d) {
         local_cache.Cache(d, Context::kCpuId);
       }
     }
+    ss << "learner:" << this << ": "
+       << "ctor:" << local_cache.Container().size()
+       << " predt:" << this->GetPredictionCache()->Container().size() << std::endl;
+    std::cout << ss.str() << std::endl;
   }
   ~LearnerConfiguration() override {
+    std::stringstream ss;
+    ss << "w:" << collective::GetRank() << ", t:" << std::this_thread::get_id() << ", ";
     auto local_cache = ThreadLocalPredictionCache::Get();
     if (local_cache->find(this) != local_cache->cend()) {
+      ss << "erase:" << this << std::endl;
       local_cache->erase(this);
     }
+    std::cout << ss.str() << std::endl;
   }
 
   // Configuration before data is known.
@@ -738,16 +750,18 @@ class LearnerConfiguration : public Learner {
 
   void ConfigureNumFeatures() {
     std::stringstream ss;
-    ss << "worker:" << collective::GetRank() << std::endl;
+    ss << "w:" << collective::GetRank() << ", t:" << std::this_thread::get_id() << ", this:" << this << ", ";
     // Compute number of global features if parameter not already set
     if (mparam_.num_feature == 0) {
       // TODO(hcho3): Change num_feature to 64-bit integer
       unsigned num_feature = 0;
       auto local_cache = this->GetPredictionCache();
+      std::cout << this << ":" << local_cache->Container().size() << std::endl;
       for (auto& matrix : local_cache->Container()) {
         CHECK(matrix.first);
         CHECK(!matrix.second.ref.expired());
         const uint64_t num_col = matrix.first->Info().num_col_;
+        ss << "DM:" << matrix.first << ", ";
         CHECK_LE(num_col, static_cast<uint64_t>(std::numeric_limits<unsigned>::max()))
             << "Unfortunately, XGBoost does not support data matrices with "
             << std::numeric_limits<unsigned>::max() << " features or greater";
