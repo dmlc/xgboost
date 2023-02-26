@@ -15,9 +15,7 @@ if sys.platform.startswith("linux"):
 
 
 CONFIG = {
-    "USE_OPENMP": "OFF",
-    "USE_SANITIZER": "ON",
-    "ENABLED_SANITIZERS": "thread",
+    "USE_OPENMP": "ON",
     "USE_HDFS": "OFF",
     "USE_AZURE": "OFF",
     "USE_S3": "OFF",
