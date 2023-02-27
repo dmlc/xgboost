@@ -208,13 +208,10 @@ class HistEvaluator {
   // Enumerate/Scan the split values of specific feature
   // Returns the sum of gradients corresponding to the data points that contains
   // a non-missing value for the particular feature fid.
-  template <int d_step>
   GradStats EnumerateSplit(common::HistogramCuts const &cut, const common::GHistRow &hist,
                            bst_feature_t fidx, bst_node_t nidx,
                            TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator,
                            SplitEntry *p_best) const {
-    static_assert(d_step == +1 || d_step == -1, "Invalid step.");
-
     // aliases
     const std::vector<uint32_t> &cut_ptr = cut.Ptrs();
     const std::vector<bst_float> &cut_val = cut.Values();
@@ -234,16 +231,11 @@ class HistEvaluator {
     const auto imin = static_cast<bst_bin_t>(cut_ptr[fidx]);
     // ibegin, iend: smallest/largest cut points for feature fid use int to allow for
     // value -1
-    bst_bin_t ibegin, iend;
-    if (d_step > 0) {
-      ibegin = static_cast<bst_bin_t>(cut_ptr[fidx]);
-      iend = static_cast<bst_bin_t>(cut_ptr.at(fidx + 1));
-    } else {
-      ibegin = static_cast<bst_bin_t>(cut_ptr[fidx + 1]) - 1;
-      iend = static_cast<bst_bin_t>(cut_ptr[fidx]) - 1;
-    }
+    bst_bin_t ibegin, iend, i;
+    ibegin = static_cast<bst_bin_t>(cut_ptr[fidx]);
+    iend = static_cast<bst_bin_t>(cut_ptr.at(fidx + 1));
 
-    for (bst_bin_t i = ibegin; i != iend; i += d_step) {
+    for (bst_bin_t i = ibegin; i != iend; i += 1) {
       // start working
       // try to find a split
       left_sum.Add(hist[i].GetGrad(), hist[i].GetHess());
@@ -251,30 +243,52 @@ class HistEvaluator {
       if (IsValid(left_sum, right_sum)) {
         bst_float loss_chg;
         bst_float split_pt;
-        if (d_step > 0) {
-          // forward enumeration: split at right bound of each bin
-          loss_chg =
-              static_cast<float>(evaluator.CalcSplitGain(param_, nidx, fidx, GradStats{left_sum},
-                                                         GradStats{right_sum}) -
-                                 parent.root_gain);
-          split_pt = cut_val[i];  // not used for partition based
-          best.Update(loss_chg, fidx, split_pt, d_step == -1, false, left_sum, right_sum);
-        } else {
-          // backward enumeration: split at left bound of each bin
-          loss_chg =
-              static_cast<float>(evaluator.CalcSplitGain(param_, nidx, fidx, GradStats{right_sum},
-                                                         GradStats{left_sum}) -
-                                 parent.root_gain);
-          if (i == imin) {
-            split_pt = cut.MinValues()[fidx];
-          } else {
-            split_pt = cut_val[i - 1];
-          }
-          best.Update(loss_chg, fidx, split_pt, d_step == -1, false, right_sum, left_sum);
-        }
+        // forward enumeration: split at right bound of each bin
+        loss_chg =
+            static_cast<float>(evaluator.CalcSplitGain(param_, nidx, fidx, GradStats{left_sum},
+                                                       GradStats{right_sum}) -
+                               parent.root_gain);
+        split_pt = cut_val[i];  // not used for partition based
+        best.Update(loss_chg, fidx, split_pt, false, false, left_sum, right_sum);
       }
     }
 
+    if (left_sum.GetGrad() == parent.stats.GetGrad() && left_sum.GetHess() == parent.stats.GetHess()) {
+      p_best->Update(best);
+      return left_sum;
+    }
+
+    const float inc = (float) (iend - ibegin);
+    const GradStats::GradType dnull_grad = param_.new_null_handler ? right_sum.GetGrad() / inc : 0;
+    const GradStats::GradType dnull_hess = param_.new_null_handler ? right_sum.GetHess() / inc : 0;
+    if (param_.new_null_handler) {
+      p_best->Update(best);
+    }
+
+    // reset to 0
+    right_sum.SetSubstract(left_sum, left_sum);
+    left_sum.SetSubstract(left_sum, left_sum);
+    for (i = iend - 1; i >= ibegin; i -= 1) {
+      // start working
+      // try to find a split
+      left_sum.Add(hist[i].GetGrad() + dnull_grad, hist[i].GetHess() + dnull_hess);
+      right_sum.SetSubstract(parent.stats, left_sum);
+      if (IsValid(left_sum, right_sum)) {
+        bst_float loss_chg;
+        bst_float split_pt;
+        // backward enumeration: split at left bound of each bin
+        loss_chg =
+            static_cast<float>(evaluator.CalcSplitGain(param_, nidx, fidx, GradStats{right_sum},
+                                                       GradStats{left_sum}) -
+                               parent.root_gain);
+        if (i == imin) {
+          split_pt = cut.MinValues()[fidx];
+        } else {
+          split_pt = cut_val[i - 1];
+        }
+        best.Update(loss_chg, fidx, split_pt, true, false, right_sum, left_sum);
+      }
+    }
     p_best->Update(best);
     return left_sum;
   }
@@ -340,10 +354,7 @@ class HistEvaluator {
             EnumeratePart<-1>(cut, sorted_idx, histogram, fidx, nidx, evaluator, best);
           }
         } else {
-          auto grad_stats = EnumerateSplit<+1>(cut, histogram, fidx, nidx, evaluator, best);
-          if (SplitContainsMissingValues(grad_stats, snode_[nidx])) {
-            EnumerateSplit<-1>(cut, histogram, fidx, nidx, evaluator, best);
-          }
+          auto grad_stats = EnumerateSplit(cut, histogram, fidx, nidx, evaluator, best);
         }
       }
     });

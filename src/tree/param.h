@@ -81,6 +81,8 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   static constexpr double DftSparseThreshold() { return 0.2; }
 
   double sparse_threshold{DftSparseThreshold()};
+  // Whether null values should be sent down both branches
+  bool new_null_handler;
 
   // declare the parameters
   DMLC_DECLARE_PARAMETER(TrainParam) {
@@ -188,6 +190,10 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
         .set_range(0, 1.0)
         .set_default(DftSparseThreshold())
         .describe("percentage threshold for treating a feature as sparse");
+
+    DMLC_DECLARE_FIELD(new_null_handler)
+        .set_default(false)
+        .describe("Whether to send null values down both branches.");
 
     // add alias of parameters
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);
