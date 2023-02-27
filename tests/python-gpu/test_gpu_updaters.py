@@ -214,8 +214,11 @@ class TestGPUUpdaters:
     def test_quantile_loss(self, weighted: bool) -> None:
         check_quantile_loss("gpu_hist", weighted)
 
-    def test_issue8824():
+    @pytest.mark.skipif(**tm.no_pandas())
+    def test_issue8824(self):
         # column sampling by node crashes because shared pointers go out of scope
+        import pandas as pd
+
         data = pd.DataFrame(np.random.rand(1024, 8))
         data.columns = "x" + data.columns.astype(str)
         features = data.columns
