@@ -151,6 +151,8 @@ class DMatrixCache {
    *        returning.
    */
   decltype(container_) const& Container() {
+    std::lock_guard<std::mutex> guard{lock_};
+
     this->ClearExpired();
     return container_;
   }
