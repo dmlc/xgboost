@@ -1268,14 +1268,13 @@ class LearnerImpl : public LearnerIO {
     monitor_.Start("UpdateOneIter");
     TrainingObserver::Instance().Update(iter);
     this->Configure();
-    this->ValidateDMatrix(train.get(), true, __LINE__);
     this->InitBaseScore(train.get());
 
     if (ctx_.seed_per_iteration) {
       common::GlobalRandom().seed(ctx_.seed * kRandSeedMagic + iter);
     }
 
-    this->ValidateDMatrix(train.get(), true, __LINE__);
+    this->ValidateDMatrix(train.get(), true);
 
     auto local_cache = this->GetPredictionCache();
     auto& predt = local_cache->Cache(train, ctx_.gpu_id);
@@ -1303,7 +1302,7 @@ class LearnerImpl : public LearnerIO {
       common::GlobalRandom().seed(ctx_.seed * kRandSeedMagic + iter);
     }
 
-    this->ValidateDMatrix(train.get(), true, __LINE__);
+    this->ValidateDMatrix(train.get(), true);
 
     auto local_cache = this->GetPredictionCache();
     auto& predt = local_cache->Cache(train, ctx_.gpu_id);
@@ -1332,7 +1331,7 @@ class LearnerImpl : public LearnerIO {
     for (size_t i = 0; i < data_sets.size(); ++i) {
       std::shared_ptr<DMatrix> m = data_sets[i];
       auto &predt = local_cache->Cache(m, ctx_.gpu_id);
-      this->ValidateDMatrix(m.get(), false, __LINE__);
+      this->ValidateDMatrix(m.get(), false);
       this->PredictRaw(m.get(), &predt, false, 0, 0);
 
       auto &out = output_predictions_.Cache(m, ctx_.gpu_id).predictions;
@@ -1444,22 +1443,22 @@ class LearnerImpl : public LearnerIO {
                   unsigned layer_begin, unsigned layer_end) const {
     CHECK(gbm_ != nullptr) << "Predict must happen after Load or configuration";
     this->CheckModelInitialized();
-    this->ValidateDMatrix(data, false, __LINE__);
+    this->ValidateDMatrix(data, false);
     gbm_->PredictBatch(data, out_preds, training, layer_begin, layer_end);
   }
 
-  void ValidateDMatrix(DMatrix* p_fmat, bool is_training, int line) const {
+  void ValidateDMatrix(DMatrix* p_fmat, bool is_training) const {
     MetaInfo const& info = p_fmat->Info();
     info.Validate(ctx_.gpu_id);
 
     if (is_training) {
       CHECK_EQ(learner_model_param_.num_feature, p_fmat->Info().num_col_)
           << "Number of columns does not match number of features in "
-          "booster. From" << line;
+             "booster.";
     } else {
       CHECK_GE(learner_model_param_.num_feature, p_fmat->Info().num_col_)
           << "Number of columns does not match number of features in "
-          "booster. From" << line;
+             "booster.";
     }
 
     if (p_fmat->Info().num_row_ == 0) {

@@ -31,23 +31,19 @@ class XGBoostRegressorSuite extends FunSuite with PerTest with TmpFolderPerSuite
   protected val treeMethod: String = "auto"
 
   test("XGBoost-Spark XGBoostRegressor output should match XGBoost4j") {
-    println("Start XGBoost-Spark XGBoostRegressor output should match XGBoost4j")
     val trainingDM = new DMatrix(Regression.train.iterator)
     val testDM = new DMatrix(Regression.test.iterator)
     val trainingDF = buildDataFrame(Regression.train)
     val testDF = buildDataFrame(Regression.test)
     checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF)
-    println("End XGBoost-Spark XGBoostRegressor output should match XGBoost4j")
   }
 
   test("XGBoostRegressor should make correct predictions after upstream random sort") {
-    println("Start XGBoost-Spark XGBoostRegressor output should match XGBoost4j")
     val trainingDM = new DMatrix(Regression.train.iterator)
     val testDM = new DMatrix(Regression.test.iterator)
     val trainingDF = buildDataFrameWithRandSort(Regression.train)
     val testDF = buildDataFrameWithRandSort(Regression.test)
     checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF)
-    println("End XGBoost-Spark XGBoostRegressor output should match XGBoost4j")
   }
 
   private def checkResultsWithXGBoost4j(

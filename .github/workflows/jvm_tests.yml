@@ -71,10 +71,7 @@ jobs:
       run: |
         rm -rfv build/
         cd jvm-packages
-
-        for i in {1..10}; do
-          mvn -B test
-        done
+        mvn -B test
       if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
       env:
         RABIT_MOCK: ON
