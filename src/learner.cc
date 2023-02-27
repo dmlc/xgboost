@@ -430,29 +430,18 @@ class LearnerConfiguration : public Learner {
   explicit LearnerConfiguration(std::vector<std::shared_ptr<DMatrix>> cache)
       : need_configuration_{true} {
     monitor_.Init("Learner");
-    std::stringstream ss;
-    ss << "w:" << collective::GetRank() << ", t:" << std::this_thread::get_id() << ", ";
     auto& local_cache = (*ThreadLocalPredictionCache::Get())[this];
     for (std::shared_ptr<DMatrix> const& d : cache) {
-      ss << "DM:" << d << ", ";
       if (d) {
         local_cache.Cache(d, Context::kCpuId);
       }
     }
-    ss << "learner:" << this << ": "
-       << "ctor:" << local_cache.Container().size()
-       << " predt:" << this->GetPredictionCache()->Container().size() << std::endl;
-    std::cout << ss.str() << std::endl;
   }
   ~LearnerConfiguration() override {
-    std::stringstream ss;
-    ss << "w:" << collective::GetRank() << ", t:" << std::this_thread::get_id() << ", ";
     auto local_cache = ThreadLocalPredictionCache::Get();
     if (local_cache->find(this) != local_cache->cend()) {
-      ss << "erase:" << this << std::endl;
       local_cache->erase(this);
     }
-    std::cout << ss.str() << std::endl;
   }
 
   // Configuration before data is known.
@@ -749,41 +738,31 @@ class LearnerConfiguration : public Learner {
   }
 
   void ConfigureNumFeatures() {
-    std::stringstream ss;
-    ss << "w:" << collective::GetRank() << ", t:" << std::this_thread::get_id() << ", this:" << this << ", ";
     // Compute number of global features if parameter not already set
     if (mparam_.num_feature == 0) {
       // TODO(hcho3): Change num_feature to 64-bit integer
       unsigned num_feature = 0;
       auto local_cache = this->GetPredictionCache();
-      std::cout << this << ":" << local_cache->Container().size() << std::endl;
       for (auto& matrix : local_cache->Container()) {
-        CHECK(matrix.first);
+        CHECK(matrix.first.ptr);
         CHECK(!matrix.second.ref.expired());
-        const uint64_t num_col = matrix.first->Info().num_col_;
-        ss << "DM:" << matrix.first << ", ";
+        const uint64_t num_col = matrix.first.ptr->Info().num_col_;
         CHECK_LE(num_col, static_cast<uint64_t>(std::numeric_limits<unsigned>::max()))
             << "Unfortunately, XGBoost does not support data matrices with "
             << std::numeric_limits<unsigned>::max() << " features or greater";
-        ss << __LINE__ << " nf:" << num_feature << " nc:" << num_col << "\n";
         num_feature = std::max(num_feature, static_cast<uint32_t>(num_col));
-        ss << __LINE__ << " nf:" << num_feature << "\n";
       }
 
-      ss << __LINE__ << " nf:" << num_feature << "\n";
       collective::Allreduce<collective::Operation::kMax>(&num_feature, 1);
-      ss << __LINE__ << " nf:" << num_feature << "\n";
       if (num_feature > mparam_.num_feature) {
         mparam_.num_feature = num_feature;
       }
-      ss << __LINE__ << " mnf:" << mparam_.num_feature << "\n";
     }
     CHECK_NE(mparam_.num_feature, 0)
         << "0 feature is supplied.  Are you using raw Booster interface?";
     // Remove these once binary IO is gone.
     cfg_["num_feature"] = common::ToString(mparam_.num_feature);
     cfg_["num_class"] = common::ToString(mparam_.num_class);
-    std::cout << ss.str() << std::endl;
   }
 
   void ConfigureGBM(LearnerTrainParam const& old, Args const& args) {
