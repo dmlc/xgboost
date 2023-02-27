@@ -6,6 +6,7 @@
 #include <xgboost/data.h>  // for DMatrix
 
 #include <cstddef>         // for size_t
+#include <cstdint>         // for uint32_t
 #include <thread>          // for thread
 
 #include "helpers.h"       // for RandomDataGenerator
@@ -13,7 +14,7 @@
 namespace xgboost {
 namespace {
 struct CacheForTest {
-  std::size_t i;
+  std::size_t const i;
 
   explicit CacheForTest(std::size_t k) : i{k} {}
 };
@@ -59,24 +60,42 @@ TEST(DMatrixCache, MultiThread) {
   auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
   auto n = std::thread::hardware_concurrency() * 128u;
+  CHECK_NE(n, 0);
   std::vector<std::shared_ptr<CacheForTest>> results(n);
 
   {
     DMatrixCache<CacheForTest> cache{kCacheSize};
     std::vector<std::thread> tasks;
     for (std::uint32_t tidx = 0; tidx < n; ++tidx) {
-      tasks.emplace_back([&, tidx]() {
-        cache.CacheItem(p_fmat, tidx);
+      tasks.emplace_back([&, i = tidx]() {
+        cache.CacheItem(p_fmat, i);
 
         auto p_fmat_local = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
-        results[tidx] = cache.CacheItem(p_fmat_local, tidx);
+        results[i] = cache.CacheItem(p_fmat_local, i);
       });
     }
     for (auto& t : tasks) {
       t.join();
     }
     for (std::uint32_t tidx = 0; tidx < n; ++tidx) {
-      ASSERT_EQ(results[tidx]->i, tidx);
+      ASSERT_EQ(results[tidx]->i, tidx) << " n:" << n;
+    }
+
+    tasks.clear();
+
+    for (std::int32_t tidx = static_cast<std::int32_t>(n - 1); tidx >= 0; --tidx) {
+      tasks.emplace_back([&, i = tidx]() {
+        cache.CacheItem(p_fmat, i);
+
+        auto p_fmat_local = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
+        results[i] = cache.CacheItem(p_fmat_local, i);
+      });
+    }
+    for (auto& t : tasks) {
+      t.join();
+    }
+    for (std::uint32_t tidx = 0; tidx < n; ++tidx) {
+      ASSERT_EQ(results[tidx]->i, tidx) << " n:" << n;
     }
   }
 
@@ -86,12 +105,11 @@ TEST(DMatrixCache, MultiThread) {
     for (std::uint32_t tidx = 0; tidx < n; ++tidx) {
       tasks.emplace_back([&, tidx]() { results[tidx] = cache.CacheItem(p_fmat, tidx); });
     }
-
-    for (std::uint32_t tidx = 0; tidx < n; ++tidx) {
-      ASSERT_EQ(results[tidx]->i, tidx);
-    }
     for (auto& t : tasks) {
       t.join();
+    }
+    for (std::uint32_t tidx = 0; tidx < n; ++tidx) {
+      ASSERT_EQ(results[tidx]->i, tidx);
     }
   }
 }
