@@ -127,7 +127,7 @@ class DMatrixCache {
    *         created.
    */
   template <typename... Args>
-  std::shared_ptr<CacheT>& CacheItem(std::shared_ptr<DMatrix> m, Args const&... args) {
+  std::shared_ptr<CacheT> CacheItem(std::shared_ptr<DMatrix> m, Args const&... args) {
     CHECK(m);
     std::lock_guard<std::mutex> guard{lock_};
 

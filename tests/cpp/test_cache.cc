@@ -59,28 +59,26 @@ TEST(DMatrixCache, MultiThread) {
   std::size_t constexpr kRows = 2, kCols = 1, kCacheSize = 3;
   auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
-  auto n = std::thread::hardware_concurrency() * 32u;
+  auto n = std::thread::hardware_concurrency() * 128u;
   CHECK_NE(n, 0);
   std::vector<std::shared_ptr<CacheForTest>> results(n);
 
   {
     DMatrixCache<CacheForTest> cache{kCacheSize};
     std::vector<std::thread> tasks;
-    std::vector<std::int32_t> tmp(n, 0);
     for (std::uint32_t tidx = 0; tidx < n; ++tidx) {
       tasks.emplace_back([&, i = tidx]() {
         cache.CacheItem(p_fmat, i);
 
         auto p_fmat_local = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
         results[i] = cache.CacheItem(p_fmat_local, i);
-        // tmp[i] = i;
       });
     }
     for (auto& t : tasks) {
       t.join();
     }
     for (std::uint32_t tidx = 0; tidx < n; ++tidx) {
-      ASSERT_EQ(results[tidx]->i, tidx) << " n:" << n << ": tmp_i:" << tmp[tidx];
+      ASSERT_EQ(results[tidx]->i, tidx);
     }
 
     tasks.clear();
@@ -97,7 +95,7 @@ TEST(DMatrixCache, MultiThread) {
       t.join();
     }
     for (std::uint32_t tidx = 0; tidx < n; ++tidx) {
-      ASSERT_EQ(results[tidx]->i, tidx) << " n:" << n;
+      ASSERT_EQ(results[tidx]->i, tidx);
     }
   }
 
