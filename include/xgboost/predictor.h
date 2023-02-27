@@ -50,19 +50,17 @@ struct PredictionCacheEntry {
  * \brief A container for managed prediction caches.
  */
 class PredictionContainer : public DMatrixCache<PredictionCacheEntry> {
-  // we cache up to 32 DMatrix
-  std::size_t static constexpr DefaultSize() { return 32; }
+  // We cache up to 64 DMatrix for all threads
+  std::size_t static constexpr DefaultSize() { return 64; }
 
  public:
   PredictionContainer() : DMatrixCache<PredictionCacheEntry>{DefaultSize()} {}
-  PredictionCacheEntry& Cache(std::shared_ptr<DMatrix> m, int32_t device) {
-    this->CacheItem(m);
-    auto key = Key{m.get(), std::this_thread::get_id()};
-    auto p_cache = this->container_.find(key);
+  PredictionCacheEntry& Cache(std::shared_ptr<DMatrix> m, std::int32_t device) {
+    auto p_cache = this->CacheItem(m);
     if (device != Context::kCpuId) {
-      p_cache->second.Value().predictions.SetDevice(device);
+      p_cache->predictions.SetDevice(device);
     }
-    return p_cache->second.Value();
+    return *p_cache;
   }
 };
 
