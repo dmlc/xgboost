@@ -37,16 +37,22 @@ TEST(Algorithm, AllOf) {
   Context ctx;
   auto is_zero = [](auto v) { return v == 0; };
 
-  for (std::size_t n : {3, 16}) {
+  for (std::size_t n : {0, 3, 16, 128}) {
     std::vector<std::size_t> data(n, 0);
-    for (std::int32_t n_threads : {1, 3, 7}) {
+    for (std::int32_t n_threads : {0, 1, 3, 7}) {
       ctx.nthread = n_threads;
       auto ret = AllOf(&ctx, data.cbegin(), data.cend(), is_zero);
       ASSERT_TRUE(ret);
+      // same result as std for empty case.
+      ASSERT_TRUE(std::all_of(data.cbegin(), data.cend(), is_zero));
+    }
+
+    if (n == 0) {
+      continue;
     }
 
     data[n / 2] = 1;
-    for (std::int32_t n_threads : {1, 3, 7}) {
+    for (std::int32_t n_threads : {0, 1, 3, 7}) {
       ctx.nthread = n_threads;
       auto ret = AllOf(&ctx, data.cbegin(), data.cend(), is_zero);
       ASSERT_FALSE(ret);
@@ -58,12 +64,18 @@ TEST(Algorithm, NoneOf) {
   Context ctx;
   auto is_one = [](auto v) { return v == 1; };
 
-  for (std::size_t n : {3, 16}) {
+  for (std::size_t n : {0, 3, 16, 128}) {
     std::vector<std::size_t> data(n, 0);
-    for (std::int32_t n_threads : {1, 3, 7}) {
+    for (std::int32_t n_threads : {0, 1, 3, 7}) {
       ctx.nthread = n_threads;
       auto ret = NoneOf(&ctx, data.cbegin(), data.cend(), is_one);
       ASSERT_TRUE(ret);
+      // same result as std for empty case.
+      ASSERT_TRUE(std::none_of(data.cbegin(), data.cend(), is_one));
+    }
+
+    if (n == 0) {
+      continue;
     }
 
     data[n / 2] = 1;
