@@ -3,11 +3,12 @@
  */
 #include <gtest/gtest.h>
 #include <xgboost/cache.h>
-#include <xgboost/data.h>  // DMatrix
+#include <xgboost/data.h>  // for DMatrix
 
-#include <cstddef>         // std::size_t
+#include <cstddef>         // for size_t
+#include <thread>          // for thread
 
-#include "helpers.h"       // RandomDataGenerator
+#include "helpers.h"       // for RandomDataGenerator
 
 namespace xgboost {
 namespace {
@@ -20,7 +21,7 @@ struct CacheForTest {
 
 TEST(DMatrixCache, Basic) {
   std::size_t constexpr kRows = 2, kCols = 1, kCacheSize = 4;
-  DMatrixCache<CacheForTest> cache(kCacheSize);
+  DMatrixCache<CacheForTest> cache{kCacheSize};
 
   auto add_cache = [&]() {
     // Create a lambda function here, so that p_fmat gets deleted upon the
@@ -49,6 +50,48 @@ TEST(DMatrixCache, Basic) {
     if (i > kCacheSize) {
       auto k = i - kCacheSize - 1;
       ASSERT_THROW(cache.Entry(items[k].get()), dmlc::Error);
+    }
+  }
+}
+
+TEST(DMatrixCache, MultiThread) {
+  std::size_t constexpr kRows = 2, kCols = 1, kCacheSize = 4;
+  auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
+
+  auto n = std::thread::hardware_concurrency() * 128u;
+  std::vector<std::shared_ptr<CacheForTest>> results(n);
+
+  {
+    DMatrixCache<CacheForTest> cache{kCacheSize};
+    std::vector<std::thread> tasks;
+    for (std::uint32_t tidx = 0; tidx < n; ++tidx) {
+      tasks.emplace_back([&, tidx]() {
+        cache.CacheItem(p_fmat, tidx);
+
+        auto p_fmat_local = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
+        results[tidx] = cache.CacheItem(p_fmat_local, tidx);
+      });
+    }
+    for (auto& t : tasks) {
+      t.join();
+    }
+    for (std::uint32_t tidx = 0; tidx < n; ++tidx) {
+      ASSERT_EQ(results[tidx]->i, tidx);
+    }
+  }
+
+  {
+    DMatrixCache<CacheForTest> cache{n};
+    std::vector<std::thread> tasks;
+    for (std::uint32_t tidx = 0; tidx < n; ++tidx) {
+      tasks.emplace_back([&, tidx]() { results[tidx] = cache.CacheItem(p_fmat, tidx); });
+    }
+
+    for (std::uint32_t tidx = 0; tidx < n; ++tidx) {
+      ASSERT_EQ(results[tidx]->i, tidx);
+    }
+    for (auto& t : tasks) {
+      t.join();
     }
   }
 }

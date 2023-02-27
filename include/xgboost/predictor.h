@@ -14,6 +14,8 @@
 #include <functional>  // std::function
 #include <memory>
 #include <string>
+#include <thread>   // for get_id
+#include <utility>  // for make_pair
 #include <vector>
 
 // Forward declarations
@@ -55,7 +57,8 @@ class PredictionContainer : public DMatrixCache<PredictionCacheEntry> {
   PredictionContainer() : DMatrixCache<PredictionCacheEntry>{DefaultSize()} {}
   PredictionCacheEntry& Cache(std::shared_ptr<DMatrix> m, int32_t device) {
     this->CacheItem(m);
-    auto p_cache = this->container_.find(m.get());
+    auto key = Key{m.get(), std::this_thread::get_id()};
+    auto p_cache = this->container_.find(key);
     if (device != Context::kCpuId) {
       p_cache->second.Value().predictions.SetDevice(device);
     }
