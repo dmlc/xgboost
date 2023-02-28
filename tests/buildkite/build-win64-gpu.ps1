@@ -15,7 +15,7 @@ cd build
 cmake .. -G"Visual Studio 16 2019" -A x64 -DUSE_CUDA=ON -DCMAKE_VERBOSE_MAKEFILE=ON `
   -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DCMAKE_UNITY_BUILD=ON ${arch_flag}
 $msbuild = -join @(
-  "C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\MSBuild\\15.0"
+  "C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\MSBuild\\Current"
   "\\Bin\\MSBuild.exe"
 )
 & $msbuild xgboost.sln /m /p:Configuration=Release /nodeReuse:false
