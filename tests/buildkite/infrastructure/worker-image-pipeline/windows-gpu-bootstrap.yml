@@ -15,9 +15,9 @@ phases:
               choco --version
               choco feature enable -n=allowGlobalConfirmation
 
-              # CMake 3.18
-              Write-Host '>>> Installing CMake 3.18...'
-              choco install cmake --version 3.18.0 --installargs "ADD_CMAKE_TO_PATH=System"
+              # CMake 3.25
+              Write-Host '>>> Installing CMake 3.25...'
+              choco install cmake --version 3.25.2 --installargs "ADD_CMAKE_TO_PATH=System"
               if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
               # Notepad++
