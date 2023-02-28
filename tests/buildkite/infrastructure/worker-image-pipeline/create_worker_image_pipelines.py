@@ -12,7 +12,7 @@ from metadata import IMAGE_PARAMS
 current_dir = os.path.dirname(__file__)
 sys.path.append(os.path.join(current_dir, ".."))
 
-from common_blocks.utils import create_or_update_stack, wait
+from common_blocks.utils import replace_stack, wait
 
 BUILDKITE_CF_TEMPLATE_URL = (
     "https://s3.amazonaws.com/buildkite-aws-stack/latest/aws-stack.yml"
@@ -62,7 +62,7 @@ def main(args):
             stack_id=stack_id, aws_region=args.aws_region, ami_mapping=ami_mapping
         )
 
-        promise = create_or_update_stack(
+        promise = replace_stack(
             args,
             client=client,
             stack_name=stack_id_full,

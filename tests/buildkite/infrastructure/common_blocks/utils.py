@@ -51,6 +51,37 @@ def create_or_update_stack(
         return {"StackName": stack_name, "Action": "create"}
 
 
+def replace_stack(
+    args, *, client, stack_name, template_url=None, template_body=None, params=None
+):
+    """Delete an existing stack and create a new stack with identical name"""
+
+    if not stack_exists(args, stack_name=stack_name):
+        raise ValueError(f"Stack {stack_name} does not exist")
+    r = client.delete_stack(StackName=stack_name)
+    delete_waiter = client.get_waiter("stack_delete_complete")
+    delete_waiter.wait(StackName=stack_name)
+
+    kwargs = {
+        "StackName": stack_name,
+        "Capabilities": [
+            "CAPABILITY_IAM",
+            "CAPABILITY_NAMED_IAM",
+            "CAPABILITY_AUTO_EXPAND",
+        ],
+        "OnFailure": "ROLLBACK",
+        "EnableTerminationProtection": False,
+    }
+    if template_url:
+        kwargs["TemplateURL"] = template_url
+    if template_body:
+        kwargs["TemplateBody"] = template_body
+    if params:
+        kwargs["Parameters"] = params
+    response = client.create_stack(**kwargs)
+    return {"StackName": stack_name, "Action": "create"}
+
+
 def wait(promise, *, client):
     stack_name = promise["StackName"]
     print(f"Waiting for {stack_name}...")
