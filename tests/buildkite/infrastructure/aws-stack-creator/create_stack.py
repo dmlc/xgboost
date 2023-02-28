@@ -72,7 +72,7 @@ def get_full_stack_id(stack_id):
     return f"buildkite-{stack_id}-autoscaling-group"
 
 
-def create_agent_iam_policy(args):
+def create_agent_iam_policy(args, *, client):
     policy_stack_name = "buildkite-agent-iam-policy"
     print(f"Creating stack {policy_stack_name} for agent IAM policy...")
     with open(
@@ -81,9 +81,9 @@ def create_agent_iam_policy(args):
     ) as f:
         policy_template = f.read()
     promise = create_or_update_stack(
-        args, stack_name=policy_stack_name, template_body=policy_template
+        args, client=client, stack_name=policy_stack_name, template_body=policy_template
     )
-    wait(promise)
+    wait(promise, client=client)
 
     cf = boto3.resource("cloudformation", region_name=args.aws_region)
     policy = cf.StackResource(policy_stack_name, "BuildkiteAgentManagedPolicy")
@@ -91,7 +91,9 @@ def create_agent_iam_policy(args):
 
 
 def main(args):
-    agent_iam_policy = create_agent_iam_policy(args)
+    client = boto3.client("cloudformation", region_name=args.aws_region)
+
+    agent_iam_policy = create_agent_iam_policy(args, client=client)
 
     promises = []
 
@@ -104,13 +106,17 @@ def main(args):
         )
 
         promise = create_or_update_stack(
-            args, stack_name=stack_id_full, template_url=TEMPLATE_URL, params=params
+            args,
+            client=client,
+            stack_name=stack_id_full,
+            template_url=TEMPLATE_URL,
+            params=params,
         )
         promises.append(promise)
         print(f"CI stack {stack_id_full} is in progress in the background")
 
     for promise in promises:
-        wait(promise)
+        wait(promise, client=client)
 
 
 if __name__ == "__main__":
