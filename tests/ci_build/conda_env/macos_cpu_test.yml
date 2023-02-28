@@ -35,8 +35,9 @@ dependencies:
 - py-ubjson
 - cffi
 - pyarrow
-- https://dist.apache.org/repos/dist/dev/spark/v3.4.0-rc1-bin/pyspark-3.4.0.tar.gz
 - cloudpickle
 - pip:
   - sphinx_rtd_theme
   - datatable
+  - https://dist.apache.org/repos/dist/dev/spark/v3.4.0-rc1-bin/pyspark-3.4.0.tar.gz
+
