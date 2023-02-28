@@ -28,7 +28,7 @@ dependencies:
 - llvmlite
 - cffi
 - pyarrow
-- pyspark
+- https://dist.apache.org/repos/dist/dev/spark/v3.4.0-rc1-bin/pyspark-3.4.0.tar.gz
 - cloudpickle
 - pip:
   - shap
