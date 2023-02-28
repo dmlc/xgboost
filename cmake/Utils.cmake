@@ -178,17 +178,10 @@ function(xgboost_set_cuda_flags target)
       $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/utf-8>)
   endif (MSVC)
 
-  if (PLUGIN_RMM)
-    set_target_properties(${target} PROPERTIES
-      CUDA_STANDARD 17
-      CUDA_STANDARD_REQUIRED ON
-      CUDA_SEPARABLE_COMPILATION OFF)
-  else ()
-    set_target_properties(${target} PROPERTIES
-      CUDA_STANDARD 14
-      CUDA_STANDARD_REQUIRED ON
-      CUDA_SEPARABLE_COMPILATION OFF)
-  endif (PLUGIN_RMM)
+  set_target_properties(${target} PROPERTIES
+    CUDA_STANDARD 17
+    CUDA_STANDARD_REQUIRED ON
+    CUDA_SEPARABLE_COMPILATION OFF)
 endfunction(xgboost_set_cuda_flags)
 
 macro(xgboost_link_nccl target)
@@ -205,17 +198,10 @@ endmacro(xgboost_link_nccl)
 
 # compile options
 macro(xgboost_target_properties target)
-  if (PLUGIN_RMM)
-    set_target_properties(${target} PROPERTIES
-      CXX_STANDARD 17
-      CXX_STANDARD_REQUIRED ON
-      POSITION_INDEPENDENT_CODE ON)
-  else ()
-    set_target_properties(${target} PROPERTIES
-      CXX_STANDARD 14
-      CXX_STANDARD_REQUIRED ON
-      POSITION_INDEPENDENT_CODE ON)
-  endif (PLUGIN_RMM)
+  set_target_properties(${target} PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    POSITION_INDEPENDENT_CODE ON)
 
   if (HIDE_CXX_SYMBOLS)
     #-- Hide all C++ symbols

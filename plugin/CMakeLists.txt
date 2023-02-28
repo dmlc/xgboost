@@ -15,7 +15,7 @@ if (PLUGIN_UPDATER_ONEAPI)
   target_link_libraries(oneapi_plugin PUBLIC -fsycl)
   set_target_properties(oneapi_plugin PROPERTIES
     COMPILE_FLAGS -fsycl
-    CXX_STANDARD 14
+    CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
     POSITION_INDEPENDENT_CODE ON)
   if (USE_OPENMP)
