@@ -529,6 +529,11 @@ class DMatrix {
     return Info().num_nonzero_ == Info().num_row_ * Info().num_col_;
   }
 
+  /*! \brief Whether the data is split row-wise. */
+  bool IsRowSplit() const {
+    return Info().data_split_mode == DataSplitMode::kRow;
+  }
+
   /*! \brief Whether the data is split column-wise. */
   bool IsColumnSplit() const {
     return Info().data_split_mode == DataSplitMode::kCol;

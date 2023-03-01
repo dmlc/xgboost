@@ -38,6 +38,7 @@ class HistEvaluator {
   TrainParam param_;
   std::shared_ptr<common::ColumnSampler> column_sampler_;
   TreeEvaluator tree_evaluator_;
+  bool is_col_split_{false};
   FeatureInteractionConstraintHost interaction_constraints_;
   std::vector<NodeEntry> snode_;
 
@@ -355,7 +356,24 @@ class HistEvaluator {
             tloc_candidates[n_threads * nidx_in_set + tidx].split);
       }
     }
+
+    if (is_col_split_) {
+      // With column-wise data split, we gather the best splits from all the workers and update the
+      // expand entries accordingly.
+      auto const world = collective::GetWorldSize();
+      auto const rank = collective::GetRank();
+      auto const num_entries = entries.size();
+      std::vector<ExpandEntry> buffer{num_entries * world};
+      std::copy_n(entries.cbegin(), num_entries, buffer.begin() + num_entries * rank);
+      collective::Allgather(buffer.data(), buffer.size() * sizeof(ExpandEntry));
+      for (auto worker = 0; worker < world; ++worker) {
+        for (auto nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
+          entries[nidx_in_set].split.Update(buffer[worker * num_entries + nidx_in_set].split);
+        }
+      }
+    }
   }
+
   // Add splits to tree, handles all statistic
   void ApplyTreeSplit(ExpandEntry const& candidate, RegTree *p_tree) {
     auto evaluator = tree_evaluator_.GetEvaluator();
@@ -429,7 +447,8 @@ class HistEvaluator {
                          std::shared_ptr<common::ColumnSampler> sampler)
       : ctx_{ctx}, param_{param},
         column_sampler_{std::move(sampler)},
-        tree_evaluator_{param, static_cast<bst_feature_t>(info.num_col_), Context::kCpuId} {
+        tree_evaluator_{param, static_cast<bst_feature_t>(info.num_col_), Context::kCpuId},
+        is_col_split_{info.data_split_mode == DataSplitMode::kCol} {
     interaction_constraints_.Configure(param, info.num_col_);
     column_sampler_->Init(ctx, info.num_col_, info.feature_weights.HostVector(),
                           param_.colsample_bynode, param_.colsample_bylevel,
