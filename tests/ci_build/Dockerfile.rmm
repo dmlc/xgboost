@@ -1,7 +1,8 @@
 ARG CUDA_VERSION_ARG
-FROM nvidia/cuda:$CUDA_VERSION_ARG-devel-ubuntu18.04
+FROM nvidia/cuda:$CUDA_VERSION_ARG-devel-ubuntu20.04
 ARG CUDA_VERSION_ARG
 ARG RAPIDS_VERSION_ARG
+ARG NCCL_VERSION_ARG
 
 # Environment
 ENV DEBIAN_FRONTEND noninteractive
@@ -19,7 +20,7 @@ RUN \
 # NCCL2 (License: https://docs.nvidia.com/deeplearning/sdk/nccl-sla/index.html)
 RUN \
     export CUDA_SHORT=`echo $CUDA_VERSION_ARG | grep -o -E '[0-9]+\.[0-9]'` && \
-    export NCCL_VERSION=2.13.4-1 && \
+    export NCCL_VERSION=$NCCL_VERSION_ARG && \
     apt-get update && \
     apt-get install -y --allow-downgrades --allow-change-held-packages libnccl2=${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-dev=${NCCL_VERSION}+cuda${CUDA_SHORT}
 
@@ -29,7 +30,7 @@ ENV PATH=/opt/mambaforge/bin:$PATH
 RUN \
     conda install -c conda-forge mamba && \
     mamba create -n gpu_test -c rapidsai-nightly -c rapidsai -c nvidia -c conda-forge -c defaults \
-        python=3.9 rmm=$RAPIDS_VERSION_ARG* cudatoolkit=$CUDA_VERSION_ARG cmake && \
+        python=3.10 rmm=$RAPIDS_VERSION_ARG* cudatoolkit=$CUDA_VERSION_ARG cmake && \
     mamba clean --all
 
 ENV GOSU_VERSION 1.10

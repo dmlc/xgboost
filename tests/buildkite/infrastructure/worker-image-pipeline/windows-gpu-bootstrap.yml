@@ -15,9 +15,9 @@ phases:
               choco --version
               choco feature enable -n=allowGlobalConfirmation
 
-              # CMake 3.18
-              Write-Host '>>> Installing CMake 3.18...'
-              choco install cmake --version 3.18.0 --installargs "ADD_CMAKE_TO_PATH=System"
+              # CMake 3.25
+              Write-Host '>>> Installing CMake 3.25...'
+              choco install cmake --version 3.25.2 --installargs "ADD_CMAKE_TO_PATH=System"
               if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
               # Notepad++
@@ -45,18 +45,18 @@ phases:
               choco install graphviz
               if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
-              # Install Visual Studio Community 2017 (15.9)
-              Write-Host '>>> Installing Visual Studio 2017 Community (15.9)...'
-              choco install visualstudio2017community --version 15.9.23.0 `
+              # Install Visual Studio 2022 Community
+              Write-Host '>>> Installing Visual Studio 2022 Community...'
+              choco install visualstudio2022community `
                   --params "--wait --passive --norestart"
               if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
-              choco install visualstudio2017-workload-nativedesktop --params `
+              choco install visualstudio2022-workload-nativedesktop --params `
                   "--wait --passive --norestart --includeOptional"
               if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
-              # Install CUDA 11.0
-              Write-Host '>>> Installing CUDA 11.0...'
-              choco install cuda --version 11.0.3
+              # Install CUDA 11.8
+              Write-Host '>>> Installing CUDA 11.8...'
+              choco install cuda --version=11.8.0.52206
               if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
               # Install Python packages

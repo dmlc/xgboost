@@ -18,7 +18,7 @@ mv xgboost/ xgboost_rpack/
 
 mkdir build
 cd build
-cmake .. -G"Visual Studio 15 2017 Win64" -DUSE_CUDA=ON -DR_LIB=ON -DLIBR_HOME="c:\\Program Files\\R\\R-3.6.3"
+cmake .. -G"Visual Studio 17 2022" -A x64 -DUSE_CUDA=ON -DR_LIB=ON -DLIBR_HOME="c:\\Program Files\\R\\R-3.6.3"
 cmake --build . --config Release --parallel
 cd ..
 
