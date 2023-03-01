@@ -180,6 +180,52 @@ def test_ranking_metric() -> None:
     assert results["validation_0"]["roc_auc_score"][-1] > 0.6
 
 
+@pytest.mark.skipif(**tm.no_pandas())
+def test_ranking_qid_df():
+    import pandas as pd
+    import scipy.sparse
+    from sklearn.model_selection import cross_val_score
+
+    X, y, q, w = tm.make_ltr(n_samples=128, n_features=2, n_query_groups=3, max_rel=3)
+
+    # pack qid into x using dataframe
+    df = pd.DataFrame(X)
+    df["qid"] = q
+    ranker = xgb.XGBRanker(n_estimators=3, eval_metric="ndcg")
+    ranker.fit(df, y)
+    s = ranker.score(df, y)
+    assert s > 0.7
+
+    # works with validation datasets as well
+    valid_df = df.copy()
+    valid_df.iloc[0, 0] = 3.0
+    ranker.fit(df, y, eval_set=[(valid_df, y)])
+
+    # same as passing qid directly
+    ranker = xgb.XGBRanker(n_estimators=3, eval_metric="ndcg")
+    ranker.fit(X, y, qid=q)
+    s1 = ranker.score(df, y)
+    assert np.isclose(s, s1)
+
+    # Works with sparse data
+    X_csr = scipy.sparse.csr_matrix(X)
+    df = pd.DataFrame.sparse.from_spmatrix(
+        X_csr, columns=[str(i) for i in range(X.shape[1])]
+    )
+    df["qid"] = q
+    ranker = xgb.XGBRanker(n_estimators=3)
+    ranker.fit(df, y)
+    s2 = ranker.score(df, y)
+    assert np.isclose(s2, s)
+
+    # Works with standard sklearn cv
+    results = cross_val_score(ranker, df, y)
+    assert len(results) == 5
+
+    with pytest.raises(ValueError, match="Either `group` or `qid`."):
+        ranker.fit(df, y, eval_set=[(X, y)])
+
+
 def test_stacking_regression():
     from sklearn.datasets import load_diabetes
     from sklearn.ensemble import RandomForestRegressor, StackingRegressor
