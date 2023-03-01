@@ -184,9 +184,9 @@ def test_ranking_metric() -> None:
 def test_ranking_qid_df():
     import pandas as pd
     import scipy.sparse
-    from sklearn.model_selection import cross_val_score
+    from sklearn.model_selection import StratifiedGroupKFold, cross_val_score
 
-    X, y, q, w = tm.make_ltr(n_samples=128, n_features=2, n_query_groups=3, max_rel=3)
+    X, y, q, w = tm.make_ltr(n_samples=128, n_features=2, n_query_groups=8, max_rel=3)
 
     # pack qid into x using dataframe
     df = pd.DataFrame(X)
@@ -207,6 +207,11 @@ def test_ranking_qid_df():
     s1 = ranker.score(df, y)
     assert np.isclose(s, s1)
 
+    # Works with standard sklearn cv
+    kfold = StratifiedGroupKFold(shuffle=False)
+    results = cross_val_score(ranker, df, y, cv=kfold, groups=df.qid)
+    assert len(results) == 5
+
     # Works with sparse data
     X_csr = scipy.sparse.csr_matrix(X)
     df = pd.DataFrame.sparse.from_spmatrix(
@@ -217,10 +222,6 @@ def test_ranking_qid_df():
     ranker.fit(df, y)
     s2 = ranker.score(df, y)
     assert np.isclose(s2, s)
-
-    # Works with standard sklearn cv
-    results = cross_val_score(ranker, df, y)
-    assert len(results) == 5
 
     with pytest.raises(ValueError, match="Either `group` or `qid`."):
         ranker.fit(df, y, eval_set=[(X, y)])
