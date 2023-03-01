@@ -31,10 +31,7 @@ case "${container}" in
 
   gpu_build_centos7|jvm_gpu_build)
     BUILD_ARGS="$BUILD_ARGS --build-arg CUDA_VERSION_ARG=$CUDA_VERSION"
-    if [[ $container == "gpu_build_centos7" ]]
-    then
-      BUILD_ARGS="$BUILD_ARGS --build-arg NCCL_VERSION_ARG=$NCCL_VERSION"
-    fi
+    BUILD_ARGS="$BUILD_ARGS --build-arg NCCL_VERSION_ARG=$NCCL_VERSION"
     ;;
 
   *)
