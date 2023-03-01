@@ -257,11 +257,11 @@ LearnerModelParam::LearnerModelParam(Context const* ctx, LearnerModelParamLegacy
     : LearnerModelParam{user_param, t} {
   std::swap(base_score_, base_margin);
   // Make sure read access everywhere for thread-safe prediction.
-  common::AsConst(base_score_).HostView();
+  std::as_const(base_score_).HostView();
   if (!ctx->IsCPU()) {
-    common::AsConst(base_score_).View(ctx->gpu_id);
+    std::as_const(base_score_).View(ctx->gpu_id);
   }
-  CHECK(common::AsConst(base_score_).Data()->HostCanRead());
+  CHECK(std::as_const(base_score_).Data()->HostCanRead());
 }
 
 linalg::TensorView<float const, 1> LearnerModelParam::BaseScore(int32_t device) const {
@@ -287,9 +287,9 @@ void LearnerModelParam::Copy(LearnerModelParam const& that) {
   base_score_.Reshape(that.base_score_.Shape());
   base_score_.Data()->SetDevice(that.base_score_.DeviceIdx());
   base_score_.Data()->Copy(*that.base_score_.Data());
-  common::AsConst(base_score_).HostView();
+  std::as_const(base_score_).HostView();
   if (that.base_score_.DeviceIdx() != Context::kCpuId) {
-    common::AsConst(base_score_).View(that.base_score_.DeviceIdx());
+    std::as_const(base_score_).View(that.base_score_.DeviceIdx());
   }
   CHECK_EQ(base_score_.Data()->DeviceCanRead(), that.base_score_.Data()->DeviceCanRead());
   CHECK(base_score_.Data()->HostCanRead());
