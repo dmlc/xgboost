@@ -15,7 +15,8 @@ fi
 
 command_wrapper="tests/ci_build/ci_build.sh rmm docker --build-arg "`
                 `"CUDA_VERSION_ARG=$CUDA_VERSION --build-arg "`
-                `"RAPIDS_VERSION_ARG=$RAPIDS_VERSION"
+                `"RAPIDS_VERSION_ARG=$RAPIDS_VERSION --build-arg "`
+                `"NCCL_VERSION_ARG=$NCCL_VERSION"
 
 echo "--- Build libxgboost from the source"
 $command_wrapper tests/ci_build/build_via_cmake.sh --conda-env=gpu_test -DUSE_CUDA=ON \
