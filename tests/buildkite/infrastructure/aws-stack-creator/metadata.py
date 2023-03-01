@@ -1,16 +1,16 @@
 AMI_ID = {
     # Managed by XGBoost team
     "linux-amd64-gpu": {
-        "us-west-2": "ami-013e0c5cb4c374de7",
+        "us-west-2": "ami-094271bed4788ddb5",
     },
     "linux-amd64-mgpu": {
-        "us-west-2": "ami-013e0c5cb4c374de7",
+        "us-west-2": "ami-094271bed4788ddb5",
     },
     "windows-gpu": {
-        "us-west-2": "ami-070aa01ab8fbf9ecb",
+        "us-west-2": "ami-0839681594a1d7627",
     },
     "windows-cpu": {
-        "us-west-2": "ami-070aa01ab8fbf9ecb",
+        "us-west-2": "ami-0839681594a1d7627",
     },
     # Managed by BuildKite
     # from https://s3.amazonaws.com/buildkite-aws-stack/latest/aws-stack.yml
