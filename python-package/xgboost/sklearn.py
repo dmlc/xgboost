@@ -2113,10 +2113,10 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
         Parameters
         ----------
         X : pd.DataFrame|cudf.DataFrame
-          A DataFrame with a special `qid` column.
+          Feature matrix. A DataFrame with a special `qid` column.
 
-        y : ArrayLike
-          Dependent variable.
+        y :
+          Labels
 
         Returns
         -------
