@@ -90,7 +90,9 @@ class GloablApproxBuilder {
     for (auto const &g : gpair) {
       root_sum.Add(g);
     }
-    collective::Allreduce<collective::Operation::kSum>(reinterpret_cast<double *>(&root_sum), 2);
+    if (p_fmat->IsRowSplit()) {
+      collective::Allreduce<collective::Operation::kSum>(reinterpret_cast<double *>(&root_sum), 2);
+    }
     std::vector<CPUExpandEntry> nodes{best};
     size_t i = 0;
     auto space = ConstructHistSpace(partitioner_, nodes);

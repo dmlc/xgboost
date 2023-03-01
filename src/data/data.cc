@@ -912,6 +912,7 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
     if (!cache_file.empty()) {
       LOG(FATAL) << "Column-wise data split is not support for external memory.";
     }
+    LOG(CONSOLE) << "Splitting data by column";
     auto* sliced = dmat->SliceCol(npart, partid);
     delete dmat;
     return sliced;
