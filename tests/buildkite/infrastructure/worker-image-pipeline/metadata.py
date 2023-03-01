@@ -13,6 +13,6 @@ IMAGE_PARAMS = {
         "BootstrapScript": "windows-gpu-bootstrap.yml",
         "InstanceType": "g4dn.2xlarge",
         "InstanceOperatingSystem": "Windows",
-        "VolumeSize": "80",  # in GiBs
+        "VolumeSize": "120",  # in GiBs
     },
 }
