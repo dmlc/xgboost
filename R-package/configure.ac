@@ -10,9 +10,9 @@ if test -z "${R_HOME}"; then
   exit 1
 fi
 
-CXX14=`"${R_HOME}/bin/R" CMD config CXX14`
-CXX14STD=`"${R_HOME}/bin/R" CMD config CXX14STD`
-CXX="${CXX14} ${CXX14STD}"
+CXX17=`"${R_HOME}/bin/R" CMD config CXX17`
+CXX17STD=`"${R_HOME}/bin/R" CMD config CXX17STD`
+CXX="${CXX17} ${CXX17STD}"
 CXXFLAGS=`"${R_HOME}/bin/R" CMD config CXXFLAGS`
 
 CC=`"${R_HOME}/bin/R" CMD config CC`
