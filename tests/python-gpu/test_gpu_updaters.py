@@ -213,3 +213,34 @@ class TestGPUUpdaters:
     @pytest.mark.parametrize("weighted", [True, False])
     def test_quantile_loss(self, weighted: bool) -> None:
         check_quantile_loss("gpu_hist", weighted)
+
+    @pytest.mark.skipif(**tm.no_pandas())
+    def test_issue8824(self):
+        # column sampling by node crashes because shared pointers go out of scope
+        import pandas as pd
+
+        data = pd.DataFrame(np.random.rand(1024, 8))
+        data.columns = "x" + data.columns.astype(str)
+        features = data.columns
+        data["y"] = data.sum(axis=1) < 4
+        dtrain = xgb.DMatrix(data[features], label=data["y"])
+        model = xgb.train(
+            dtrain=dtrain,
+            params={
+                "max_depth": 5,
+                "learning_rate": 0.05,
+                "objective": "binary:logistic",
+                "tree_method": "gpu_hist",
+                "colsample_bytree": 0.5,
+                "colsample_bylevel": 0.5,
+                "colsample_bynode": 0.5,  # Causes issues
+                "reg_alpha": 0.05,
+                "reg_lambda": 0.005,
+                "seed": 66,
+                "subsample": 0.5,
+                "gamma": 0.2,
+                "predictor": "auto",
+                "eval_metric": "auc",
+            },
+            num_boost_round=150,
+        )
