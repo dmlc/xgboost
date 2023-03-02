@@ -3,7 +3,7 @@ import os
 import pickle
 import random
 import tempfile
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 import numpy as np
 import pytest
@@ -11,6 +11,7 @@ from sklearn.utils.estimator_checks import parametrize_with_checks
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.testing.ranking import run_ranking_qid_df
 from xgboost.testing.shared import get_feature_weights, validate_data_initialization
 from xgboost.testing.updater import get_basescore
 
@@ -183,58 +184,8 @@ def test_ranking_metric() -> None:
 @pytest.mark.skipif(**tm.no_pandas())
 def test_ranking_qid_df():
     import pandas as pd
-    import scipy.sparse
-    from sklearn.metrics import mean_squared_error
-    from sklearn.model_selection import StratifiedGroupKFold, cross_val_score
 
-    X, y, q, w = tm.make_ltr(n_samples=128, n_features=2, n_query_groups=8, max_rel=3)
-
-    # pack qid into x using dataframe
-    df = pd.DataFrame(X)
-    df["qid"] = q
-    ranker = xgb.XGBRanker(n_estimators=3, eval_metric="ndcg")
-    ranker.fit(df, y)
-    s = ranker.score(df, y)
-    assert s > 0.7
-
-    # works with validation datasets as well
-    valid_df = df.copy()
-    valid_df.iloc[0, 0] = 3.0
-    ranker.fit(df, y, eval_set=[(valid_df, y)])
-
-    # same as passing qid directly
-    ranker = xgb.XGBRanker(n_estimators=3, eval_metric="ndcg")
-    ranker.fit(X, y, qid=q)
-    s1 = ranker.score(df, y)
-    assert np.isclose(s, s1)
-
-    # Works with standard sklearn cv
-    kfold = StratifiedGroupKFold(shuffle=False)
-    results = cross_val_score(ranker, df, y, cv=kfold, groups=df.qid)
-    assert len(results) == 5
-
-    # Works with custom metric
-    def neg_mse(*args: Any, **kwargs: Any) -> float:
-        return -mean_squared_error(*args, **kwargs)
-
-    ranker = xgb.XGBRanker(n_estimators=3, eval_metric=neg_mse)
-    ranker.fit(df, y, eval_set=[(valid_df, y)])
-    score = ranker.score(valid_df, y)
-    assert np.isclose(score, ranker.evals_result()["validation_0"]["neg_mse"][-1])
-
-    # Works with sparse data
-    X_csr = scipy.sparse.csr_matrix(X)
-    df = pd.DataFrame.sparse.from_spmatrix(
-        X_csr, columns=[str(i) for i in range(X.shape[1])]
-    )
-    df["qid"] = q
-    ranker = xgb.XGBRanker(n_estimators=3, eval_metric="ndcg")
-    ranker.fit(df, y)
-    s2 = ranker.score(df, y)
-    assert np.isclose(s2, s)
-
-    with pytest.raises(ValueError, match="Either `group` or `qid`."):
-        ranker.fit(df, y, eval_set=[(X, y)])
+    run_ranking_qid_df(pd, "hist")
 
 
 def test_stacking_regression():

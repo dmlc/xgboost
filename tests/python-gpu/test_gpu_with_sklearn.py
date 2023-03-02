@@ -5,6 +5,7 @@ import tempfile
 
 import numpy as np
 import pytest
+from xgboost.testing.ranking import run_ranking_qid_df
 
 import xgboost as xgb
 from xgboost import testing as tm
@@ -153,3 +154,10 @@ def test_classififer():
     y *= 10
     with pytest.raises(ValueError, match=r"Invalid classes.*"):
         clf.fit(X, y)
+
+
+@pytest.mark.skipif(**tm.no_pandas())
+def test_ranking_qid_df():
+    import cudf
+
+    run_ranking_qid_df(cudf, "gpu_hist")
