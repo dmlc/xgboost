@@ -1,7 +1,11 @@
+/**
+ * Copyright 2020-2023 by XGBoost Contributors
+ */
 #include <gtest/gtest.h>
 #include <xgboost/tree_model.h>
 #include <xgboost/tree_updater.h>
 
+#include "../../../src/tree/param.h"  // for TrainParam
 #include "../helpers.h"
 
 namespace xgboost {
@@ -21,6 +25,9 @@ class UpdaterTreeStatTest : public ::testing::Test {
   }
 
   void RunTest(std::string updater) {
+    tree::TrainParam param;
+    param.Init(Args{});
+
     Context ctx(updater == "grow_gpu_hist" ? CreateEmptyGenericParam(0)
                                            : CreateEmptyGenericParam(Context::kCpuId));
     auto up = std::unique_ptr<TreeUpdater>{
@@ -29,7 +36,7 @@ class UpdaterTreeStatTest : public ::testing::Test {
     RegTree tree;
     tree.param.num_feature = kCols;
     std::vector<HostDeviceVector<bst_node_t>> position(1);
-    up->Update(&gpairs_, p_dmat_.get(), position, {&tree});
+    up->Update(&param, &gpairs_, p_dmat_.get(), position, {&tree});
 
     tree.WalkTree([&tree](bst_node_t nidx) {
       if (tree[nidx].IsLeaf()) {
@@ -69,28 +76,33 @@ class UpdaterEtaTest : public ::testing::Test {
   void RunTest(std::string updater) {
     Context ctx(updater == "grow_gpu_hist" ? CreateEmptyGenericParam(0)
                                            : CreateEmptyGenericParam(Context::kCpuId));
+
     float eta = 0.4;
     auto up_0 = std::unique_ptr<TreeUpdater>{
         TreeUpdater::Create(updater, &ctx, ObjInfo{ObjInfo::kClassification})};
-    up_0->Configure(Args{{"eta", std::to_string(eta)}});
+    up_0->Configure(Args{});
+    tree::TrainParam param0;
+    param0.Init(Args{{"eta", std::to_string(eta)}});
 
     auto up_1 = std::unique_ptr<TreeUpdater>{
         TreeUpdater::Create(updater, &ctx, ObjInfo{ObjInfo::kClassification})};
     up_1->Configure(Args{{"eta", "1.0"}});
+    tree::TrainParam param1;
+    param1.Init(Args{{"eta", "1.0"}});
 
     for (size_t iter = 0; iter < 4; ++iter) {
       RegTree tree_0;
       {
         tree_0.param.num_feature = kCols;
         std::vector<HostDeviceVector<bst_node_t>> position(1);
-        up_0->Update(&gpairs_, p_dmat_.get(), position, {&tree_0});
+        up_0->Update(&param0, &gpairs_, p_dmat_.get(), position, {&tree_0});
       }
 
       RegTree tree_1;
       {
         tree_1.param.num_feature = kCols;
         std::vector<HostDeviceVector<bst_node_t>> position(1);
-        up_1->Update(&gpairs_, p_dmat_.get(), position, {&tree_1});
+        up_1->Update(&param1, &gpairs_, p_dmat_.get(), position, {&tree_1});
       }
       tree_0.WalkTree([&](bst_node_t nidx) {
         if (tree_0[nidx].IsLeaf()) {
@@ -139,17 +151,18 @@ class TestMinSplitLoss : public ::testing::Test {
 
               // test gamma
               {"gamma", std::to_string(gamma)}};
+    tree::TrainParam param;
+    param.UpdateAllowUnknown(args);
 
     Context ctx(updater == "grow_gpu_hist" ? CreateEmptyGenericParam(0)
                                            : CreateEmptyGenericParam(Context::kCpuId));
-    std::cout << ctx.gpu_id << std::endl;
     auto up = std::unique_ptr<TreeUpdater>{
         TreeUpdater::Create(updater, &ctx, ObjInfo{ObjInfo::kRegression})};
-    up->Configure(args);
+    up->Configure({});
 
     RegTree tree;
     std::vector<HostDeviceVector<bst_node_t>> position(1);
-    up->Update(&gpair_, dmat_.get(), position, {&tree});
+    up->Update(&param, &gpair_, dmat_.get(), position, {&tree});
 
     auto n_nodes = tree.NumExtraNodes();
     return n_nodes;

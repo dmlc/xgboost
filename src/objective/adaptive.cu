@@ -140,7 +140,7 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
 }
 
 void UpdateTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> position,
-                          std::int32_t group_idx, MetaInfo const& info,
+                          std::int32_t group_idx, MetaInfo const& info, float learning_rate,
                           HostDeviceVector<float> const& predt, float alpha, RegTree* p_tree) {
   dh::safe_cuda(cudaSetDevice(ctx->gpu_id));
   dh::device_vector<size_t> ridx;
@@ -151,7 +151,7 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
 
   if (nptr.Empty()) {
     std::vector<float> quantiles;
-    UpdateLeafValues(&quantiles, nidx.ConstHostVector(), p_tree);
+    UpdateLeafValues(&quantiles, nidx.ConstHostVector(), learning_rate, p_tree);
   }
 
   HostDeviceVector<float> quantiles;
@@ -186,7 +186,7 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
                                       w_it + d_weights.size(), &quantiles);
   }
 
-  UpdateLeafValues(&quantiles.HostVector(), nidx.ConstHostVector(), p_tree);
+  UpdateLeafValues(&quantiles.HostVector(), nidx.ConstHostVector(), learning_rate, p_tree);
 }
 }  // namespace detail
 }  // namespace obj

@@ -24,6 +24,9 @@
 #include <vector>
 
 namespace xgboost {
+namespace tree {
+struct TrainParam;
+}
 
 class Json;
 struct Context;
@@ -56,8 +59,10 @@ class TreeUpdater : public Configurable {
    *        tree can be used.
    */
   virtual bool HasNodePosition() const { return false; }
-  /*!
+  /**
    * \brief perform update to the tree models
+   *
+   * \param param Hyper-parameter for constructing trees.
    * \param gpair the gradient pair statistics of the data
    * \param data The data matrix passed to the updater.
    * \param out_position The leaf index for each row.  The index is negated if that row is
@@ -67,8 +72,8 @@ class TreeUpdater : public Configurable {
    *         but maybe different random seeds, usually one tree is passed in at a time,
    *         there can be multiple trees when we train random forest style model
    */
-  virtual void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* data,
-                      common::Span<HostDeviceVector<bst_node_t>> out_position,
+  virtual void Update(tree::TrainParam const* param, HostDeviceVector<GradientPair>* gpair,
+                      DMatrix* data, common::Span<HostDeviceVector<bst_node_t>> out_position,
                       const std::vector<RegTree*>& out_trees) = 0;
 
   /*!

@@ -53,9 +53,8 @@ def quantile_loss(args: argparse.Namespace) -> None:
             "tree_method": "hist",
             "quantile_alpha": alpha,
             # Let's try not to overfit.
-            "learning_rate": 0.01,
-            "max_depth": 3,
-            "min_child_weight": 16.0,
+            "learning_rate": 0.04,
+            "max_depth": 5,
         },
         Xy,
         num_boost_round=32,
@@ -80,9 +79,8 @@ def quantile_loss(args: argparse.Namespace) -> None:
             "objective": "reg:squarederror",
             "tree_method": "hist",
             # Let's try not to overfit.
-            "learning_rate": 0.01,
-            "max_depth": 3,
-            "min_child_weight": 16.0,
+            "learning_rate": 0.04,
+            "max_depth": 5,
         },
         Xy,
         num_boost_round=32,

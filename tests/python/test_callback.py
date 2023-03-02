@@ -1,3 +1,4 @@
+import json
 import os
 import tempfile
 from contextlib import nullcontext
@@ -355,47 +356,125 @@ class TestCallbacks:
         with warning_check:
             xgb.cv(param, dtrain, num_round, callbacks=[scheduler(eta_decay)])
 
-    @pytest.mark.parametrize("tree_method", ["hist", "approx", "exact"])
+    def run_eta_decay_leaf_output(self, tree_method: str, objective: str) -> None:
+        # check decay has effect on leaf output.
+        num_round = 4
+        scheduler = xgb.callback.LearningRateScheduler
+
+        dpath = tm.data_dir(__file__)
+        dtrain = xgb.DMatrix(os.path.join(dpath, "agaricus.txt.train"))
+        dtest = xgb.DMatrix(os.path.join(dpath, "agaricus.txt.test"))
+        watchlist = [(dtest, 'eval'), (dtrain, 'train')]
+
+        param = {
+            "max_depth": 2,
+            "objective": objective,
+            "eval_metric": "error",
+            "tree_method": tree_method,
+        }
+        if objective == "reg:quantileerror":
+            param["quantile_alpha"] = 0.3
+
+        def eta_decay_0(i):
+            return num_round / (i + 1)
+
+        bst0 = xgb.train(
+            param,
+            dtrain,
+            num_round,
+            watchlist,
+            callbacks=[scheduler(eta_decay_0)],
+        )
+
+        def eta_decay_1(i: int) -> float:
+            if i > 1:
+                return 5.0
+            return num_round / (i + 1)
+
+        bst1 = xgb.train(
+            param,
+            dtrain,
+            num_round,
+            watchlist,
+            callbacks=[scheduler(eta_decay_1)],
+        )
+        bst_json0 = bst0.save_raw(raw_format="json")
+        bst_json1 = bst1.save_raw(raw_format="json")
+
+        j0 = json.loads(bst_json0)
+        j1 = json.loads(bst_json1)
+
+        tree_2th_0 = j0["learner"]["gradient_booster"]["model"]["trees"][2]
+        tree_2th_1 = j1["learner"]["gradient_booster"]["model"]["trees"][2]
+        assert tree_2th_0["base_weights"] == tree_2th_1["base_weights"]
+        assert tree_2th_0["split_conditions"] == tree_2th_1["split_conditions"]
+
+        tree_3th_0 = j0["learner"]["gradient_booster"]["model"]["trees"][3]
+        tree_3th_1 = j1["learner"]["gradient_booster"]["model"]["trees"][3]
+        assert tree_3th_0["base_weights"] != tree_3th_1["base_weights"]
+        assert tree_3th_0["split_conditions"] != tree_3th_1["split_conditions"]
+
+    @pytest.mark.parametrize("tree_method", ["hist", "approx", "approx"])
     def test_eta_decay(self, tree_method):
         self.run_eta_decay(tree_method)
 
+    @pytest.mark.parametrize(
+        "tree_method,objective",
+        [
+            ("hist", "binary:logistic"),
+            ("hist", "reg:absoluteerror"),
+            ("hist", "reg:quantileerror"),
+            ("approx", "binary:logistic"),
+            ("approx", "reg:absoluteerror"),
+            ("approx", "reg:quantileerror"),
+        ],
+    )
+    def test_eta_decay_leaf_output(self, tree_method: str, objective: str) -> None:
+        self.run_eta_decay_leaf_output(tree_method, objective)
+
     def test_check_point(self):
         from sklearn.datasets import load_breast_cancer
+
         X, y = load_breast_cancer(return_X_y=True)
         m = xgb.DMatrix(X, y)
         with tempfile.TemporaryDirectory() as tmpdir:
-            check_point = xgb.callback.TrainingCheckPoint(directory=tmpdir,
-                                                          iterations=1,
-                                                          name='model')
-            xgb.train({'objective': 'binary:logistic'}, m,
-                      num_boost_round=10,
-                      verbose_eval=False,
-                      callbacks=[check_point])
+            check_point = xgb.callback.TrainingCheckPoint(
+                directory=tmpdir, iterations=1, name="model"
+            )
+            xgb.train(
+                {"objective": "binary:logistic"},
+                m,
+                num_boost_round=10,
+                verbose_eval=False,
+                callbacks=[check_point],
+            )
             for i in range(1, 10):
-                assert os.path.exists(
-                    os.path.join(tmpdir, 'model_' + str(i) + '.json'))
+                assert os.path.exists(os.path.join(tmpdir, "model_" + str(i) + ".json"))
 
-            check_point = xgb.callback.TrainingCheckPoint(directory=tmpdir,
-                                                          iterations=1,
-                                                          as_pickle=True,
-                                                          name='model')
-            xgb.train({'objective': 'binary:logistic'}, m,
-                      num_boost_round=10,
-                      verbose_eval=False,
-                      callbacks=[check_point])
+            check_point = xgb.callback.TrainingCheckPoint(
+                directory=tmpdir, iterations=1, as_pickle=True, name="model"
+            )
+            xgb.train(
+                {"objective": "binary:logistic"},
+                m,
+                num_boost_round=10,
+                verbose_eval=False,
+                callbacks=[check_point],
+            )
             for i in range(1, 10):
-                assert os.path.exists(
-                    os.path.join(tmpdir, 'model_' + str(i) + '.pkl'))
+                assert os.path.exists(os.path.join(tmpdir, "model_" + str(i) + ".pkl"))
 
     def test_callback_list(self):
         X, y = tm.get_california_housing()
         m = xgb.DMatrix(X, y)
         callbacks = [xgb.callback.EarlyStopping(rounds=10)]
         for i in range(4):
-            xgb.train({'objective': 'reg:squarederror',
-                       'eval_metric': 'rmse'}, m,
-                      evals=[(m, 'Train')],
-                      num_boost_round=1,
-                      verbose_eval=True,
-                      callbacks=callbacks)
+            xgb.train(
+                {"objective": "reg:squarederror", "eval_metric": "rmse"},
+                m,
+                evals=[(m, "Train")],
+                num_boost_round=1,
+                verbose_eval=True,
+                callbacks=callbacks,
+            )
         assert len(callbacks) == 1

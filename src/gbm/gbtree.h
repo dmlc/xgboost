@@ -20,6 +20,7 @@
 
 #include "../common/common.h"
 #include "../common/timer.h"
+#include "../tree/param.h"  // TrainParam
 #include "gbtree_model.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
@@ -405,8 +406,8 @@ class GBTree : public GradientBooster {
         p_fmat, out_contribs, model_, tree_end, nullptr, approximate);
   }
 
-  std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,
-                                     std::string format) const override {
+  [[nodiscard]] std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,
+                                                   std::string format) const override {
     return model_.DumpModel(fmap, with_stats, this->ctx_->Threads(), format);
   }
 
@@ -428,6 +429,8 @@ class GBTree : public GradientBooster {
   GBTreeModel model_;
   // training parameter
   GBTreeTrainParam tparam_;
+  // Tree training parameter
+  tree::TrainParam tree_param_;
   // ----training fields----
   bool showed_updater_warning_ {false};
   bool specified_updater_   {false};

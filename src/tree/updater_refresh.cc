@@ -1,5 +1,5 @@
-/*!
- * Copyright 2014-2022 by XGBoost Contributors
+/**
+ * Copyright 2014-2023 by XGBoost Contributors
  * \file updater_refresh.cc
  * \brief refresh the statistics and leaf value on the tree on the dataset
  * \author Tianqi Chen
@@ -16,8 +16,7 @@
 #include "./param.h"
 #include "xgboost/json.h"
 
-namespace xgboost {
-namespace tree {
+namespace xgboost::tree {
 
 DMLC_REGISTRY_FILE_TAG(updater_refresh);
 
@@ -25,23 +24,14 @@ DMLC_REGISTRY_FILE_TAG(updater_refresh);
 class TreeRefresher : public TreeUpdater {
  public:
   explicit TreeRefresher(Context const *ctx) : TreeUpdater(ctx) {}
-  void Configure(const Args &args) override { param_.UpdateAllowUnknown(args); }
-  void LoadConfig(Json const& in) override {
-    auto const& config = get<Object const>(in);
-    FromJson(config.at("train_param"), &this->param_);
-  }
-  void SaveConfig(Json* p_out) const override {
-    auto& out = *p_out;
-    out["train_param"] = ToJson(param_);
-  }
-  char const* Name() const override {
-    return "refresh";
-  }
-  bool CanModifyTree() const override {
-    return true;
-  }
+  void Configure(const Args &) override {}
+  void LoadConfig(Json const &) override {}
+  void SaveConfig(Json *) const override {}
+
+  [[nodiscard]] char const *Name() const override { return "refresh"; }
+  [[nodiscard]] bool CanModifyTree() const override { return true; }
   // update the tree, do pruning
-  void Update(HostDeviceVector<GradientPair> *gpair, DMatrix *p_fmat,
+  void Update(TrainParam const *param, HostDeviceVector<GradientPair> *gpair, DMatrix *p_fmat,
               common::Span<HostDeviceVector<bst_node_t>> /*out_position*/,
               const std::vector<RegTree *> &trees) override {
     if (trees.size() == 0) return;
@@ -103,16 +93,11 @@ class TreeRefresher : public TreeUpdater {
     lazy_get_stats();
     collective::Allreduce<collective::Operation::kSum>(&dmlc::BeginPtr(stemp[0])->sum_grad,
                                                        stemp[0].size() * 2);
-    // rescale learning rate according to size of trees
-    float lr = param_.learning_rate;
-    param_.learning_rate = lr / trees.size();
     int offset = 0;
     for (auto tree : trees) {
-      this->Refresh(dmlc::BeginPtr(stemp[0]) + offset, 0, tree);
+      this->Refresh(param, dmlc::BeginPtr(stemp[0]) + offset, 0, tree);
       offset += tree->param.num_nodes;
     }
-    // set learning rate back
-    param_.learning_rate = lr;
   }
 
  private:
@@ -135,31 +120,27 @@ class TreeRefresher : public TreeUpdater {
       gstats[pid].Add(gpair[ridx]);
     }
   }
-  inline void Refresh(const GradStats *gstats,
-                      int nid, RegTree *p_tree) {
+  inline void Refresh(TrainParam const *param, const GradStats *gstats, int nid, RegTree *p_tree) {
     RegTree &tree = *p_tree;
     tree.Stat(nid).base_weight =
-        static_cast<bst_float>(CalcWeight(param_, gstats[nid]));
+        static_cast<bst_float>(CalcWeight(*param, gstats[nid]));
     tree.Stat(nid).sum_hess = static_cast<bst_float>(gstats[nid].sum_hess);
     if (tree[nid].IsLeaf()) {
-      if (param_.refresh_leaf) {
-        tree[nid].SetLeaf(tree.Stat(nid).base_weight * param_.learning_rate);
+      if (param->refresh_leaf) {
+        tree[nid].SetLeaf(tree.Stat(nid).base_weight * param->learning_rate);
       }
     } else {
-      tree.Stat(nid).loss_chg = static_cast<bst_float>(
-          xgboost::tree::CalcGain(param_, gstats[tree[nid].LeftChild()]) +
-          xgboost::tree::CalcGain(param_, gstats[tree[nid].RightChild()]) -
-          xgboost::tree::CalcGain(param_, gstats[nid]));
-      this->Refresh(gstats, tree[nid].LeftChild(), p_tree);
-      this->Refresh(gstats, tree[nid].RightChild(), p_tree);
+      tree.Stat(nid).loss_chg =
+          static_cast<bst_float>(xgboost::tree::CalcGain(*param, gstats[tree[nid].LeftChild()]) +
+                                 xgboost::tree::CalcGain(*param, gstats[tree[nid].RightChild()]) -
+                                 xgboost::tree::CalcGain(*param, gstats[nid]));
+      this->Refresh(param, gstats, tree[nid].LeftChild(), p_tree);
+      this->Refresh(param, gstats, tree[nid].RightChild(), p_tree);
     }
   }
-  // training parameter
-  TrainParam param_;
 };
 
 XGBOOST_REGISTER_TREE_UPDATER(TreeRefresher, "refresh")
     .describe("Refresher that refreshes the weight and statistics according to data.")
     .set_body([](Context const *ctx, ObjInfo) { return new TreeRefresher(ctx); });
-}  // namespace tree
-}  // namespace xgboost
+}  // namespace xgboost::tree

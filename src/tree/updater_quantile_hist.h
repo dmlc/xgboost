@@ -35,49 +35,36 @@
 #include "../common/partition_builder.h"
 #include "../common/column_matrix.h"
 
-namespace xgboost {
-namespace tree {
-inline BatchParam HistBatch(TrainParam const& param) {
-  return {param.max_bin, param.sparse_threshold};
+namespace xgboost::tree {
+inline BatchParam HistBatch(TrainParam const* param) {
+  return {param->max_bin, param->sparse_threshold};
 }
 
 /*! \brief construct a tree using quantized feature values */
 class QuantileHistMaker: public TreeUpdater {
  public:
   explicit QuantileHistMaker(Context const* ctx, ObjInfo task) : TreeUpdater(ctx), task_{task} {}
-  void Configure(const Args& args) override;
+  void Configure(const Args&) override {}
 
-  void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
+  void Update(TrainParam const* param, HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
               common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree*>& trees) override;
 
   bool UpdatePredictionCache(const DMatrix *data,
                              linalg::VectorView<float> out_preds) override;
 
-  void LoadConfig(Json const& in) override {
-    auto const& config = get<Object const>(in);
-    FromJson(config.at("train_param"), &this->param_);
-  }
-  void SaveConfig(Json* p_out) const override {
-    auto& out = *p_out;
-    out["train_param"] = ToJson(param_);
-  }
+  void LoadConfig(Json const&) override {}
+  void SaveConfig(Json*) const override {}
 
-  char const* Name() const override {
-    return "grow_quantile_histmaker";
-  }
-
-  bool HasNodePosition() const override { return true; }
+  [[nodiscard]] char const* Name() const override { return "grow_quantile_histmaker"; }
+  [[nodiscard]] bool HasNodePosition() const override { return true; }
 
  protected:
-  // training parameter
-  TrainParam param_;
-
   // actual builder that runs the algorithm
   struct Builder {
    public:
     // constructor
-    explicit Builder(const size_t n_trees, const TrainParam& param, DMatrix const* fmat,
+    explicit Builder(const size_t n_trees, TrainParam const* param, DMatrix const* fmat,
                      ObjInfo task, Context const* ctx)
         : n_trees_(n_trees),
           param_(param),
@@ -115,7 +102,7 @@ class QuantileHistMaker: public TreeUpdater {
 
    private:
     const size_t n_trees_;
-    const TrainParam& param_;
+    TrainParam const* param_;
     std::shared_ptr<common::ColumnSampler> column_sampler_{
         std::make_shared<common::ColumnSampler>()};
 
@@ -140,7 +127,6 @@ class QuantileHistMaker: public TreeUpdater {
   std::unique_ptr<Builder> pimpl_;
   ObjInfo task_;
 };
-}  // namespace tree
-}  // namespace xgboost
+}  // namespace xgboost::tree
 
 #endif  // XGBOOST_TREE_UPDATER_QUANTILE_HIST_H_

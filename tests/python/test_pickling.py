@@ -51,11 +51,8 @@ class TestPickling:
 
     def test_model_pickling_json(self):
         def check(config):
-            updater = config["learner"]["gradient_booster"]["updater"]
-            if params["tree_method"] == "exact":
-                subsample = updater["grow_colmaker"]["train_param"]["subsample"]
-            else:
-                subsample = updater["grow_quantile_histmaker"]["train_param"]["subsample"]
+            tree_param = config["learner"]["gradient_booster"]["tree_train_param"]
+            subsample = tree_param["subsample"]
             assert float(subsample) == 0.5
 
         params = {"nthread": 8, "tree_method": "hist", "subsample": 0.5}

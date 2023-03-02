@@ -1,14 +1,15 @@
-/*!
- * Copyright 2018-2019 by Contributors
+/**
+ * Copyright 2018-2013 by XGBoost Contributors
  */
+#include <gtest/gtest.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/tree_updater.h>
-#include <gtest/gtest.h>
 
-#include <vector>
-#include <string>
 #include <memory>
+#include <string>
+#include <vector>
 
+#include "../../../src/tree/param.h"  // for TrainParam
 #include "../helpers.h"
 
 namespace xgboost {
@@ -43,9 +44,11 @@ TEST(Updater, Refresh) {
   tree.Stat(cleft).base_weight = 1.2;
   tree.Stat(cright).base_weight = 1.3;
 
-  refresher->Configure(cfg);
   std::vector<HostDeviceVector<bst_node_t>> position;
-  refresher->Update(&gpair, p_dmat.get(), position, trees);
+  tree::TrainParam param;
+  param.UpdateAllowUnknown(cfg);
+
+  refresher->Update(&param, &gpair, p_dmat.get(), position, trees);
 
   bst_float constexpr kEps = 1e-6;
   ASSERT_NEAR(-0.183392, tree[cright].LeafValue(), kEps);
