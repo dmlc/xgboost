@@ -184,8 +184,8 @@ def test_ranking_metric() -> None:
 def test_ranking_qid_df():
     import pandas as pd
     import scipy.sparse
-    from sklearn.model_selection import StratifiedGroupKFold, cross_val_score
     from sklearn.metrics import mean_squared_error
+    from sklearn.model_selection import StratifiedGroupKFold, cross_val_score
 
     X, y, q, w = tm.make_ltr(n_samples=128, n_features=2, n_query_groups=8, max_rel=3)
 
