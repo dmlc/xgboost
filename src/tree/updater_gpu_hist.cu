@@ -160,11 +160,11 @@ class DeviceHistogramStorage {
     if (nidx_map_.find(nidx) != nidx_map_.cend()) {
       // Fetch from normal cache
       auto ptr = data_.data().get() + nidx_map_.at(nidx);
-      return common::Span<GradientSumT>(reinterpret_cast<GradientSumT*>(ptr), n_bins_);
+      return {reinterpret_cast<GradientSumT*>(ptr), static_cast<std::size_t>(n_bins_)};
     } else {
       // Fetch from overflow
       auto ptr = overflow_.data().get() + overflow_nidx_map_.at(nidx);
-      return common::Span<GradientSumT>(reinterpret_cast<GradientSumT*>(ptr), n_bins_);
+      return {reinterpret_cast<GradientSumT*>(ptr), static_cast<std::size_t>(n_bins_)};
     }
   }
 };
@@ -330,8 +330,8 @@ struct GPUHistMakerDevice {
     }
     bst_feature_t max_active_features = 0;
     for (auto input : h_node_inputs) {
-      max_active_features = std::max(max_active_features,
-                                     bst_feature_t(input.feature_set.size()));
+      max_active_features =
+          std::max(max_active_features, static_cast<bst_feature_t>(input.feature_set.size()));
     }
     dh::safe_cuda(cudaMemcpyAsync(
         d_node_inputs.data().get(), h_node_inputs.data(),

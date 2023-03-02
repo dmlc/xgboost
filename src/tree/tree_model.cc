@@ -1069,8 +1069,8 @@ bool LoadModelImpl(Json const& in, TreeParam* param, std::vector<RTreeNodeStat>*
   split_types = std::remove_reference_t<decltype(split_types)>(n_nodes);
   split_categories_segments = std::remove_reference_t<decltype(split_categories_segments)>(n_nodes);
 
-  static_assert(std::is_integral<decltype(GetElem<Integer>(lefts, 0))>::value, "");
-  static_assert(std::is_floating_point<decltype(GetElem<Number>(loss_changes, 0))>::value, "");
+  static_assert(std::is_integral<decltype(GetElem<Integer>(lefts, 0))>::value);
+  static_assert(std::is_floating_point<decltype(GetElem<Number>(loss_changes, 0))>::value);
   CHECK_EQ(n_nodes, split_categories_segments.size());
 
   // Set node

@@ -1,5 +1,5 @@
-/*!
- * Copyright 2014-2021 by Contributors
+/**
+ * Copyright 2014-2023 by XGBoost Contributors
  * \file param.h
  * \brief training parameters, statistics used to support tree construction.
  * \author Tianqi Chen
@@ -238,9 +238,8 @@ XGBOOST_DEVICE inline static T1 ThresholdL1(T1 w, T2 alpha) {
 
 // calculate the cost of loss function
 template <typename TrainingParams, typename T>
-XGBOOST_DEVICE inline T CalcGainGivenWeight(const TrainingParams &p,
-                                            T sum_grad, T sum_hess, T w) {
-  return -(T(2.0) * sum_grad * w + (sum_hess + p.reg_lambda) * common::Sqr(w));
+XGBOOST_DEVICE inline T CalcGainGivenWeight(const TrainingParams &p, T sum_grad, T sum_hess, T w) {
+  return -(static_cast<T>(2.0) * sum_grad * w + (sum_hess + p.reg_lambda) * common::Sqr(w));
 }
 
 // calculate weight given the statistics

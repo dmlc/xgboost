@@ -52,14 +52,14 @@ struct ArrayInterfaceHandler {
 
 template <size_t dim, typename S, typename Head, size_t D>
 constexpr size_t Offset(S (&strides)[D], size_t n, Head head) {
-  static_assert(dim < D, "");
+  static_assert(dim < D);
   return n + head * strides[dim];
 }
 
 template <size_t dim, typename S, size_t D, typename Head, typename... Tail>
 constexpr std::enable_if_t<sizeof...(Tail) != 0, size_t> Offset(S (&strides)[D], size_t n,
                                                                 Head head, Tail &&...rest) {
-  static_assert(dim < D, "");
+  static_assert(dim < D);
   return Offset<dim + 1>(strides, n + (head * strides[dim]), std::forward<Tail>(rest)...);
 }
 
@@ -193,14 +193,14 @@ LINALG_HD auto UnravelImpl(I idx, common::Span<size_t const, D> shape) {
 
 template <size_t dim, typename I, int32_t D>
 void ReshapeImpl(size_t (&out_shape)[D], I s) {
-  static_assert(dim < D, "");
+  static_assert(dim < D);
   out_shape[dim] = s;
 }
 
 template <size_t dim, int32_t D, typename... S, typename I,
           std::enable_if_t<sizeof...(S) != 0> * = nullptr>
 void ReshapeImpl(size_t (&out_shape)[D], I &&s, S &&...rest) {
-  static_assert(dim < D, "");
+  static_assert(dim < D);
   out_shape[dim] = s;
   ReshapeImpl<dim + 1>(out_shape, std::forward<S>(rest)...);
 }
@@ -230,7 +230,8 @@ struct Conjunction : std::true_type {};
 template <class B1>
 struct Conjunction<B1> : B1 {};
 template <class B1, class... Bn>
-struct Conjunction<B1, Bn...> : std::conditional_t<bool(B1::value), Conjunction<Bn...>, B1> {};
+struct Conjunction<B1, Bn...>
+    : std::conditional_t<static_cast<bool>(B1::value), Conjunction<Bn...>, B1> {};
 
 template <typename... Index>
 using IsAllIntegral = Conjunction<std::is_integral<std::remove_reference_t<Index>>...>;
@@ -291,8 +292,8 @@ class TensorView {
   template <size_t old_dim, size_t new_dim, int32_t D, typename I>
   LINALG_HD size_t MakeSliceDim(size_t new_shape[D], size_t new_stride[D],
                                 detail::RangeTag<I> &&range) const {
-    static_assert(new_dim < D, "");
-    static_assert(old_dim < kDim, "");
+    static_assert(new_dim < D);
+    static_assert(old_dim < kDim);
     new_stride[new_dim] = stride_[old_dim];
     new_shape[new_dim] = range.Size();
     assert(static_cast<decltype(shape_[old_dim])>(range.end) <= shape_[old_dim]);
@@ -306,8 +307,8 @@ class TensorView {
   template <size_t old_dim, size_t new_dim, int32_t D, typename I, typename... S>
   LINALG_HD size_t MakeSliceDim(size_t new_shape[D], size_t new_stride[D],
                                 detail::RangeTag<I> &&range, S &&...slices) const {
-    static_assert(new_dim < D, "");
-    static_assert(old_dim < kDim, "");
+    static_assert(new_dim < D);
+    static_assert(old_dim < kDim);
     new_stride[new_dim] = stride_[old_dim];
     new_shape[new_dim] = range.Size();
     assert(static_cast<decltype(shape_[old_dim])>(range.end) <= shape_[old_dim]);
@@ -320,8 +321,8 @@ class TensorView {
 
   template <size_t old_dim, size_t new_dim, int32_t D>
   LINALG_HD size_t MakeSliceDim(size_t new_shape[D], size_t new_stride[D], detail::AllTag) const {
-    static_assert(new_dim < D, "");
-    static_assert(old_dim < kDim, "");
+    static_assert(new_dim < D);
+    static_assert(old_dim < kDim);
     new_stride[new_dim] = stride_[old_dim];
     new_shape[new_dim] = shape_[old_dim];
     return 0;
@@ -332,8 +333,8 @@ class TensorView {
   template <size_t old_dim, size_t new_dim, int32_t D, typename... S>
   LINALG_HD size_t MakeSliceDim(size_t new_shape[D], size_t new_stride[D], detail::AllTag,
                                 S &&...slices) const {
-    static_assert(new_dim < D, "");
-    static_assert(old_dim < kDim, "");
+    static_assert(new_dim < D);
+    static_assert(old_dim < kDim);
     new_stride[new_dim] = stride_[old_dim];
     new_shape[new_dim] = shape_[old_dim];
     return MakeSliceDim<old_dim + 1, new_dim + 1, D>(new_shape, new_stride,
@@ -343,7 +344,7 @@ class TensorView {
   template <size_t old_dim, size_t new_dim, int32_t D, typename Index>
   LINALG_HD size_t MakeSliceDim(DMLC_ATTRIBUTE_UNUSED size_t new_shape[D],
                                 DMLC_ATTRIBUTE_UNUSED size_t new_stride[D], Index i) const {
-    static_assert(old_dim < kDim, "");
+    static_assert(old_dim < kDim);
     return stride_[old_dim] * i;
   }
   /**
@@ -352,7 +353,7 @@ class TensorView {
   template <size_t old_dim, size_t new_dim, int32_t D, typename Index, typename... S>
   LINALG_HD std::enable_if_t<std::is_integral<Index>::value, size_t> MakeSliceDim(
       size_t new_shape[D], size_t new_stride[D], Index i, S &&...slices) const {
-    static_assert(old_dim < kDim, "");
+    static_assert(old_dim < kDim);
     auto offset = stride_[old_dim] * i;
     auto res =
         MakeSliceDim<old_dim + 1, new_dim, D>(new_shape, new_stride, std::forward<S>(slices)...);
@@ -501,7 +502,7 @@ class TensorView {
    */
   LINALG_HD bool CContiguous() const {
     StrideT stride;
-    static_assert(std::is_same<decltype(stride), decltype(stride_)>::value, "");
+    static_assert(std::is_same<decltype(stride), decltype(stride_)>::value);
     // It's contiguous if the stride can be calculated from shape.
     detail::CalcStride(shape_, stride);
     return common::Span<size_t const, kDim>{stride_} == common::Span<size_t const, kDim>{stride};
@@ -511,7 +512,7 @@ class TensorView {
    */
   LINALG_HD bool FContiguous() const {
     StrideT stride;
-    static_assert(std::is_same<decltype(stride), decltype(stride_)>::value, "");
+    static_assert(std::is_same<decltype(stride), decltype(stride_)>::value);
     // It's contiguous if the stride can be calculated from shape.
     detail::CalcStride<kDim, true>(shape_, stride);
     return common::Span<size_t const, kDim>{stride_} == common::Span<size_t const, kDim>{stride};
@@ -625,7 +626,7 @@ Json ArrayInterface(TensorView<T const, D> const &t) {
   array_interface["version"] = 3;
 
   char constexpr kT = detail::ArrayInterfaceHandler::TypeChar<T>();
-  static_assert(kT != '\0', "");
+  static_assert(kT != '\0');
   if (DMLC_LITTLE_ENDIAN) {
     array_interface["typestr"] = String{"<" + (kT + std::to_string(sizeof(T)))};
   } else {

@@ -77,14 +77,14 @@ class RowSetCollection {
     if (row_indices_.empty()) {  // edge case: empty instance set
       constexpr size_t* kBegin = nullptr;
       constexpr size_t* kEnd = nullptr;
-      static_assert(kEnd - kBegin == 0, "");
-      elem_of_each_node_.emplace_back(Elem(kBegin, kEnd, 0));
+      static_assert(kEnd - kBegin == 0);
+      elem_of_each_node_.emplace_back(kBegin, kEnd, 0);
       return;
     }
 
     const size_t* begin = dmlc::BeginPtr(row_indices_);
     const size_t* end = dmlc::BeginPtr(row_indices_) + row_indices_.size();
-    elem_of_each_node_.emplace_back(Elem(begin, end, 0));
+    elem_of_each_node_.emplace_back(begin, end, 0);
   }
 
   std::vector<size_t>* Data() { return &row_indices_; }

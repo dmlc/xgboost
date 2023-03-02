@@ -49,7 +49,7 @@ float Quantile(Context const* ctx, double alpha, Iter const& begin, Iter const& 
   }
 
   auto val = [&](size_t i) { return *(begin + sorted_idx[i]); };
-  static_assert(std::is_same<decltype(val(0)), float>::value, "");
+  static_assert(std::is_same<decltype(val(0)), float>::value);
 
   if (alpha <= (1 / (n + 1))) {
     return val(0);

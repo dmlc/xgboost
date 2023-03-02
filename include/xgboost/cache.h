@@ -141,7 +141,7 @@ class DMatrixCache {
     auto it = container_.find(key);
     if (it == container_.cend()) {
       // after the new DMatrix, cache size is at most max_size
-      container_[key] = {m, std::make_shared<CacheT>(args...)};
+      container_.emplace(m, std::make_shared<CacheT>(args...));
       queue_.emplace(key);
     }
     return container_.at(key).value;

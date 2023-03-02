@@ -42,9 +42,9 @@ constexpr inline bst_cat_t OutOfRangeCat() {
 
 inline XGBOOST_DEVICE bool InvalidCat(float cat) {
   constexpr auto kMaxCat = OutOfRangeCat();
-  static_assert(static_cast<bst_cat_t>(static_cast<float>(kMaxCat)) == kMaxCat, "");
-  static_assert(static_cast<bst_cat_t>(static_cast<float>(kMaxCat + 1)) != kMaxCat + 1, "");
-  static_assert(static_cast<float>(kMaxCat + 1) == kMaxCat, "");
+  static_assert(static_cast<bst_cat_t>(static_cast<float>(kMaxCat)) == kMaxCat);
+  static_assert(static_cast<bst_cat_t>(static_cast<float>(kMaxCat + 1)) != kMaxCat + 1);
+  static_assert(static_cast<float>(kMaxCat + 1) == kMaxCat);
   return cat < 0 || cat >= kMaxCat;
 }
 

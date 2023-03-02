@@ -128,7 +128,7 @@ TEST(Ryu, Regression) {
   TestRyu("2E2", 200.0f);
   TestRyu("3.3554432E7", 3.3554432E7f);
 
-  static_assert(1.1920929E-7f == std::numeric_limits<float>::epsilon(), "");
+  static_assert(1.1920929E-7f == std::numeric_limits<float>::epsilon());
   TestRyu("1.1920929E-7", std::numeric_limits<float>::epsilon());
 }
 

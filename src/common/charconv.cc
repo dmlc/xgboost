@@ -544,7 +544,7 @@ class RyuPrinter {
     // Function precondition: v is not a 10-digit number.
     // (f2s: 9 digits are sufficient for round-tripping.)
     // (d2fixed: We print 9-digit blocks.)
-    static_assert(100000000 == Tens(8), "");
+    static_assert(100000000 == Tens(8));
     assert(v < Tens(9));
     if (v >= Tens(8)) {
       return 9;

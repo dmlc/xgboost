@@ -27,8 +27,7 @@ using MemoryBufferStream = rabit::utils::MemoryBufferStream;
  */
 class PeekableInStream : public dmlc::Stream {
  public:
-  explicit PeekableInStream(dmlc::Stream* strm)
-      : strm_(strm), buffer_ptr_(0) {}
+  explicit PeekableInStream(dmlc::Stream* strm) : strm_(strm) {}
 
   size_t Read(void* dptr, size_t size) override;
   virtual size_t PeekRead(void* dptr, size_t size);
@@ -41,7 +40,7 @@ class PeekableInStream : public dmlc::Stream {
   /*! \brief input stream */
   dmlc::Stream *strm_;
   /*! \brief current buffer pointer */
-  size_t buffer_ptr_;
+  size_t buffer_ptr_{0};
   /*! \brief internal buffer */
   std::string buffer_;
 };
@@ -72,7 +71,7 @@ class FixedSizeStream : public PeekableInStream {
   void Take(std::string* out);
 
  private:
-  size_t pointer_;
+  size_t pointer_{0};
   std::string buffer_;
 };
 

@@ -1,5 +1,5 @@
-/*!
- * Copyright 2021-2022 by XGBoost Contributors
+/**
+ * Copyright 2021-2023 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
 
@@ -60,7 +60,7 @@ void TestSlice() {
   dh::LaunchN(1, [=] __device__(size_t) {
     auto s = t.Slice(linalg::All(), linalg::Range(0, 3), linalg::Range(0, 4));
     auto all = t.Slice(linalg::All(), linalg::All(), linalg::All());
-    static_assert(decltype(s)::kDimension == 3, "");
+    static_assert(decltype(s)::kDimension == 3);
     for (size_t i = 0; i < s.Shape(0); ++i) {
       for (size_t j = 0; j < s.Shape(1); ++j) {
         for (size_t k = 0; k < s.Shape(2); ++k) {

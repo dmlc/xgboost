@@ -46,7 +46,7 @@ class GradientBooster;
 
 template <typename Float>
 Float RelError(Float l, Float r) {
-  static_assert(std::is_floating_point<Float>::value, "");
+  static_assert(std::is_floating_point<Float>::value);
   return std::abs(1.0f - l / r);
 }
 
@@ -164,7 +164,7 @@ class SimpleRealUniformDistribution {
     ResultT sum_value = 0, r_k = 1;
 
     for (size_t k = m; k != 0; --k) {
-      sum_value += ResultT((*rng)() - rng->Min()) * r_k;
+      sum_value += static_cast<ResultT>((*rng)() - rng->Min()) * r_k;
       r_k *= r;
     }
 
@@ -191,12 +191,10 @@ Json GetArrayInterface(HostDeviceVector<T> *storage, size_t rows, size_t cols) {
   Json array_interface{Object()};
   array_interface["data"] = std::vector<Json>(2);
   if (storage->DeviceCanRead()) {
-    array_interface["data"][0] =
-        Integer(reinterpret_cast<int64_t>(storage->ConstDevicePointer()));
+    array_interface["data"][0] = Integer{reinterpret_cast<int64_t>(storage->ConstDevicePointer())};
     array_interface["stream"] = nullptr;
   } else {
-    array_interface["data"][0] =
-        Integer(reinterpret_cast<int64_t>(storage->ConstHostPointer()));
+    array_interface["data"][0] = Integer{reinterpret_cast<int64_t>(storage->ConstHostPointer())};
   }
   array_interface["data"][1] = Boolean(false);
 

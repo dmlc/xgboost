@@ -143,7 +143,7 @@ void TestMixedSketch() {
   size_t n_samples = 1000, n_features = 2, n_categories = 3;
   std::vector<float> data(n_samples * n_features);
   SimpleLCG gen;
-  SimpleRealUniformDistribution<float> cat_d{0.0f, float(n_categories)};
+  SimpleRealUniformDistribution<float> cat_d{0.0f, static_cast<float>(n_categories)};
   SimpleRealUniformDistribution<float> num_d{0.0f, 3.0f};
   for (size_t i = 0; i < n_samples * n_features; ++i) {
     if (i % 2 == 0) {

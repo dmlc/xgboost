@@ -75,10 +75,7 @@ class GBLinear : public GradientBooster {
       : GradientBooster{ctx},
         learner_model_param_{learner_model_param},
         model_{learner_model_param},
-        previous_model_{learner_model_param},
-        sum_instance_weight_(0),
-        sum_weight_complete_(false),
-        is_converged_(false) {}
+        previous_model_{learner_model_param} {}
 
   void Configure(const Args& cfg) override {
     if (model_.weight.size() == 0) {
@@ -344,10 +341,10 @@ class GBLinear : public GradientBooster {
   GBLinearModel previous_model_;
   GBLinearTrainParam param_;
   std::unique_ptr<LinearUpdater> updater_;
-  double sum_instance_weight_;
-  bool sum_weight_complete_;
+  double sum_instance_weight_{};
+  bool sum_weight_complete_{false};
   common::Monitor monitor_;
-  bool is_converged_;
+  bool is_converged_{false};
 };
 
 // register the objective functions

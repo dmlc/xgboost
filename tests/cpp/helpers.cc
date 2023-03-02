@@ -186,7 +186,7 @@ SimpleLCG::StateType SimpleLCG::operator()() {
 SimpleLCG::StateType SimpleLCG::Min() const { return min(); }
 SimpleLCG::StateType SimpleLCG::Max() const { return max(); }
 // Make sure it's compile time constant.
-static_assert(SimpleLCG::max() - SimpleLCG::min(), "");
+static_assert(SimpleLCG::max() - SimpleLCG::min());
 
 void RandomDataGenerator::GenerateDense(HostDeviceVector<float> *out) const {
   xgboost::SimpleRealUniformDistribution<bst_float> dist(lower_, upper_);

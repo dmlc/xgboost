@@ -96,7 +96,7 @@ void TestRetainPage() {
 
   // make sure it's const and the caller can not modify the content of page.
   for (auto& page : m->GetBatches<Page>()) {
-    static_assert(std::is_const<std::remove_reference_t<decltype(page)>>::value, "");
+    static_assert(std::is_const<std::remove_reference_t<decltype(page)>>::value);
   }
 }
 
