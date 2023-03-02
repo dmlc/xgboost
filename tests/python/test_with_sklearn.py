@@ -3,7 +3,7 @@ import os
 import pickle
 import random
 import tempfile
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 import numpy as np
 import pytest
@@ -185,6 +185,7 @@ def test_ranking_qid_df():
     import pandas as pd
     import scipy.sparse
     from sklearn.model_selection import StratifiedGroupKFold, cross_val_score
+    from sklearn.metrics import mean_squared_error
 
     X, y, q, w = tm.make_ltr(n_samples=128, n_features=2, n_query_groups=8, max_rel=3)
 
@@ -212,13 +213,22 @@ def test_ranking_qid_df():
     results = cross_val_score(ranker, df, y, cv=kfold, groups=df.qid)
     assert len(results) == 5
 
+    # Works with custom metric
+    def neg_mse(*args: Any, **kwargs: Any) -> float:
+        return -mean_squared_error(*args, **kwargs)
+
+    ranker = xgb.XGBRanker(n_estimators=3, eval_metric=neg_mse)
+    ranker.fit(df, y, eval_set=[(valid_df, y)])
+    score = ranker.score(valid_df, y)
+    assert np.isclose(score, ranker.evals_result()["validation_0"]["neg_mse"][-1])
+
     # Works with sparse data
     X_csr = scipy.sparse.csr_matrix(X)
     df = pd.DataFrame.sparse.from_spmatrix(
         X_csr, columns=[str(i) for i in range(X.shape[1])]
     )
     df["qid"] = q
-    ranker = xgb.XGBRanker(n_estimators=3)
+    ranker = xgb.XGBRanker(n_estimators=3, eval_metric="ndcg")
     ranker.fit(df, y)
     s2 = ranker.score(df, y)
     assert np.isclose(s2, s)

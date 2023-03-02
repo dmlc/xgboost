@@ -2108,7 +2108,7 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
         return super().apply(X, ntree_limit, iteration_range)
 
     def score(self, X: ArrayLike, y: ArrayLike) -> float:
-        """Evaluate score for data using the first evaluation metric.
+        """Evaluate score for data using the last evaluation metric.
 
         Parameters
         ----------
@@ -2126,6 +2126,11 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
         """
         X, qid = _get_qid(X, None)
         Xyq = DMatrix(X, y, qid=qid)
-        result_str = self.get_booster().eval(Xyq)
+        if callable(self.eval_metric):
+            metric = ltr_metric_decorator(self.eval_metric, self.n_jobs)
+            result_str = self.get_booster().eval_set([(Xyq, "eval")], feval=metric)
+        else:
+            result_str = self.get_booster().eval(Xyq)
+
         metric_score = _parse_eval_str(result_str)
-        return metric_score[0][1]
+        return metric_score[-1][1]
