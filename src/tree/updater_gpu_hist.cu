@@ -306,6 +306,8 @@ struct GPUHistMakerDevice {
         matrix.is_dense
     };
     dh::TemporaryArray<GPUExpandEntry> entries(2 * candidates.size());
+    // Store the feature set ptrs so they dont go out of scope before the kernel is called
+    std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> feature_sets;
     for (size_t i = 0; i < candidates.size(); i++) {
       auto candidate = candidates.at(i);
       int left_nidx = tree[candidate.nid].LeftChild();
@@ -314,10 +316,12 @@ struct GPUHistMakerDevice {
       nidx[i * 2 + 1] = right_nidx;
       auto left_sampled_features = column_sampler.GetFeatureSet(tree.GetDepth(left_nidx));
       left_sampled_features->SetDevice(ctx_->gpu_id);
+      feature_sets.emplace_back(left_sampled_features);
       common::Span<bst_feature_t> left_feature_set =
           interaction_constraints.Query(left_sampled_features->DeviceSpan(), left_nidx);
       auto right_sampled_features = column_sampler.GetFeatureSet(tree.GetDepth(right_nidx));
       right_sampled_features->SetDevice(ctx_->gpu_id);
+      feature_sets.emplace_back(right_sampled_features);
       common::Span<bst_feature_t> right_feature_set =
           interaction_constraints.Query(right_sampled_features->DeviceSpan(),
                                         right_nidx);
