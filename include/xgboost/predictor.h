@@ -14,6 +14,8 @@
 #include <functional>  // std::function
 #include <memory>
 #include <string>
+#include <thread>   // for get_id
+#include <utility>  // for make_pair
 #include <vector>
 
 // Forward declarations
@@ -48,18 +50,17 @@ struct PredictionCacheEntry {
  * \brief A container for managed prediction caches.
  */
 class PredictionContainer : public DMatrixCache<PredictionCacheEntry> {
-  // we cache up to 32 DMatrix
-  std::size_t static constexpr DefaultSize() { return 32; }
+  // We cache up to 64 DMatrix for all threads
+  std::size_t static constexpr DefaultSize() { return 64; }
 
  public:
   PredictionContainer() : DMatrixCache<PredictionCacheEntry>{DefaultSize()} {}
-  PredictionCacheEntry& Cache(std::shared_ptr<DMatrix> m, int32_t device) {
-    this->CacheItem(m);
-    auto p_cache = this->container_.find(m.get());
+  PredictionCacheEntry& Cache(std::shared_ptr<DMatrix> m, std::int32_t device) {
+    auto p_cache = this->CacheItem(m);
     if (device != Context::kCpuId) {
-      p_cache->second.Value().predictions.SetDevice(device);
+      p_cache->predictions.SetDevice(device);
     }
-    return p_cache->second.Value();
+    return *p_cache;
   }
 };
 

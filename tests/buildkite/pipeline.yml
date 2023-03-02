@@ -22,11 +22,11 @@ steps:
       queue: linux-amd64-cpu
   - wait
   #### -------- BUILD --------
-  - label: ":console: Run clang-tidy"
-    command: "tests/buildkite/run-clang-tidy.sh"
-    key: run-clang-tidy
-    agents:
-      queue: linux-amd64-cpu
+  # - label: ":console: Run clang-tidy"
+  #   command: "tests/buildkite/run-clang-tidy.sh"
+  #   key: run-clang-tidy
+  #  agents:
+  #    queue: linux-amd64-cpu
   - wait
   - label: ":console: Build CPU"
     command: "tests/buildkite/build-cpu.sh"

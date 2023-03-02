@@ -12,8 +12,8 @@ RUN \
     apt-get update && \
     apt-get install -y tar unzip wget git build-essential doxygen graphviz llvm libasan2 libidn11 ninja-build gcc-8 g++-8 openjdk-8-jdk-headless && \
     # CMake
-    wget -nv -nc https://cmake.org/files/v3.14/cmake-3.14.0-Linux-x86_64.sh --no-check-certificate && \
-    bash cmake-3.14.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
+    wget -nv -nc https://cmake.org/files/v3.18/cmake-3.18.0-Linux-x86_64.sh --no-check-certificate && \
+    bash cmake-3.18.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
     # Python
     wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/22.11.1-2/Mambaforge-22.11.1-2-Linux-x86_64.sh && \
     bash conda.sh -b -p /opt/mambaforge
