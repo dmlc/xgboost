@@ -1,5 +1,5 @@
 /**
- * Copyright by XGBoost Contributors 2019-2023
+ * Copyright 2019-2023 by XGBoost Contributors
  */
 #ifndef XGBOOST_JSON_H_
 #define XGBOOST_JSON_H_
@@ -372,7 +372,7 @@ class Json {
   /*! \brief Use your own JsonWriter. */
   static void Dump(Json json, JsonWriter* writer);
 
-  Json() : ptr_{new JsonNull} {}
+  Json() = default;
 
   // number
   explicit Json(JsonNumber number) : ptr_{new JsonNumber(std::move(number))} {}
@@ -462,7 +462,7 @@ class Json {
   IntrusivePtr<Value> const& Ptr() const { return ptr_; }
 
  private:
-  IntrusivePtr<Value> ptr_;
+  IntrusivePtr<Value> ptr_{new JsonNull};
 };
 
 /**

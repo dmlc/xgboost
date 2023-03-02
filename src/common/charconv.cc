@@ -495,12 +495,10 @@ class PowerBaseComputer {
                              static_cast<int32_t>(IEEE754::kFloatBias) -
                              static_cast<int32_t>(IEEE754::kFloatMantissaBits) -
                              static_cast<int32_t>(2);
-      static_assert(static_cast<int32_t>(1) -
-                            static_cast<int32_t>(IEEE754::kFloatBias) -
-                            static_cast<int32_t>(IEEE754::kFloatMantissaBits) -
-                            static_cast<int32_t>(2) ==
-                        -151,
-                    "");
+      static_assert(static_cast<int32_t>(1) - static_cast<int32_t>(IEEE754::kFloatBias) -
+                        static_cast<int32_t>(IEEE754::kFloatMantissaBits) -
+                        static_cast<int32_t>(2) ==
+                    -151);
       mantissa_base2 = f.mantissa;
     } else {
       base2_range.exponent = static_cast<int32_t>(f.exponent) - IEEE754::kFloatBias -

@@ -32,6 +32,8 @@ class DMatrixCache {
 
     CacheT const& Value() const { return *value; }
     CacheT& Value() { return *value; }
+
+    Item(std::shared_ptr<DMatrix> m, std::shared_ptr<CacheT> v) : ref{m}, value{std::move(v)} {}
   };
 
   static constexpr std::size_t DefaultSize() { return 32; }

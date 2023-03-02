@@ -28,7 +28,7 @@ struct Context;
  */
 class Metric : public Configurable {
  protected:
-  Context const* ctx_;
+  Context const* ctx_{nullptr};
 
  public:
   /*!
