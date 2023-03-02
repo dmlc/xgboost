@@ -1,3 +1,4 @@
+# pylint: disable=too-many-locals
 """Tests for learning to rank."""
 from types import ModuleType
 from typing import Any
@@ -15,7 +16,7 @@ def run_ranking_qid_df(impl: ModuleType, tree_method: str) -> None:
     from sklearn.metrics import mean_squared_error
     from sklearn.model_selection import StratifiedGroupKFold, cross_val_score
 
-    X, y, q, w = tm.make_ltr(n_samples=128, n_features=2, n_query_groups=8, max_rel=3)
+    X, y, q, _ = tm.make_ltr(n_samples=128, n_features=2, n_query_groups=8, max_rel=3)
 
     # pack qid into x using dataframe
     df = impl.DataFrame(X)
@@ -45,7 +46,7 @@ def run_ranking_qid_df(impl: ModuleType, tree_method: str) -> None:
 
     # Works with custom metric
     def neg_mse(*args: Any, **kwargs: Any) -> float:
-        return -mean_squared_error(*args, **kwargs)
+        return -float(mean_squared_error(*args, **kwargs))
 
     ranker = xgb.XGBRanker(n_estimators=3, eval_metric=neg_mse, tree_method=tree_method)
     ranker.fit(df, y, eval_set=[(valid_df, y)])
