@@ -1,5 +1,5 @@
-/*!
- * Copyright 2020 XGBoost contributors
+/**
+ * Copyright 2020-2023 by XGBoost contributors
  *
  * \brief Front end and utilities for GPU based sketching.  Works on sliding window
  *        instead of stream.
@@ -9,11 +9,13 @@
 
 #include <thrust/host_vector.h>
 
+#include <cstddef>  // for size_t
+
+#include "../data/device_adapter.cuh"
+#include "device_helpers.cuh"
 #include "hist_util.h"
 #include "quantile.cuh"
-#include "device_helpers.cuh"
 #include "timer.h"
-#include "../data/device_adapter.cuh"
 
 namespace xgboost {
 namespace common {
@@ -304,7 +306,8 @@ void AdapterDeviceSketch(Batch batch, int num_bins,
         num_rows, num_cols, std::numeric_limits<size_t>::max(),
         device, num_cuts_per_feature, true);
     for (auto begin = 0ull; begin < batch.Size(); begin += sketch_batch_num_elements) {
-      size_t end = std::min(batch.Size(), size_t(begin + sketch_batch_num_elements));
+      size_t end =
+          std::min(batch.Size(), static_cast<std::size_t>(begin + sketch_batch_num_elements));
       ProcessWeightedSlidingWindow(batch, info,
                                    num_cuts_per_feature,
                                    HostSketchContainer::UseGroup(info), missing, device, num_cols, begin, end,
@@ -316,7 +319,8 @@ void AdapterDeviceSketch(Batch batch, int num_bins,
         num_rows, num_cols, std::numeric_limits<size_t>::max(),
         device, num_cuts_per_feature, false);
     for (auto begin = 0ull; begin < batch.Size(); begin += sketch_batch_num_elements) {
-      size_t end = std::min(batch.Size(), size_t(begin + sketch_batch_num_elements));
+      size_t end =
+          std::min(batch.Size(), static_cast<std::size_t>(begin + sketch_batch_num_elements));
       ProcessSlidingWindow(batch, info, device, num_cols, begin, end, missing,
                            sketch_container, num_cuts_per_feature);
     }

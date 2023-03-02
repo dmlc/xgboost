@@ -1,32 +1,30 @@
-/*!
- * Copyright 2018~2020 XGBoost contributors
+/**
+ * Copyright 2018~2023 by XGBoost contributors
  */
-
-#include <xgboost/logging.h>
-
+#include <thrust/binary_search.h>
 #include <thrust/copy.h>
+#include <thrust/execution_policy.h>
 #include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
 #include <thrust/iterator/discard_iterator.h>
+#include <thrust/iterator/transform_iterator.h>
 #include <thrust/reduce.h>
 #include <thrust/sort.h>
-#include <thrust/binary_search.h>
-#include <thrust/execution_policy.h>
+#include <xgboost/logging.h>
 
+#include <cstddef>  // for size_t
 #include <memory>
 #include <mutex>
 #include <utility>
 #include <vector>
 
+#include "categorical.h"
 #include "device_helpers.cuh"
-#include "hist_util.h"
 #include "hist_util.cuh"
+#include "hist_util.h"
 #include "math.h"  // NOLINT
 #include "quantile.h"
-#include "categorical.h"
 #include "xgboost/host_device_vector.h"
-
 
 namespace xgboost {
 namespace common {
@@ -318,7 +316,7 @@ HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
     size_t batch_nnz = batch.data.Size();
     auto const& info = dmat->Info();
     for (auto begin = 0ull; begin < batch_nnz; begin += sketch_batch_num_elements) {
-      size_t end = std::min(batch_nnz, size_t(begin + sketch_batch_num_elements));
+      size_t end = std::min(batch_nnz, static_cast<std::size_t>(begin + sketch_batch_num_elements));
       if (has_weights) {
         bool is_ranking = HostSketchContainer::UseGroup(dmat->Info());
         dh::caching_device_vector<uint32_t> groups(info.group_ptr_.cbegin(),

@@ -1,5 +1,6 @@
-// Copyright by Contributors
-
+/**
+ * Copyright 2019-2023 by XGBoost Contributors
+ */
 #include "../../../src/common/compressed_iterator.h"
 #include "../../../src/data/ellpack_page.cuh"
 #include "../../../src/data/sparse_page_dmatrix.h"
@@ -69,7 +70,7 @@ TEST(SparsePageDMatrix, RetainEllpackPage) {
   std::vector<std::shared_ptr<EllpackPage const>> iterators;
   for (auto it = begin; it != end; ++it) {
     iterators.push_back(it.Page());
-    gidx_buffers.emplace_back(HostDeviceVector<common::CompressedByteT>{});
+    gidx_buffers.emplace_back();
     gidx_buffers.back().Resize((*it).Impl()->gidx_buffer.Size());
     gidx_buffers.back().Copy((*it).Impl()->gidx_buffer);
   }
@@ -87,7 +88,7 @@ TEST(SparsePageDMatrix, RetainEllpackPage) {
 
   // make sure it's const and the caller can not modify the content of page.
   for (auto& page : m->GetBatches<EllpackPage>({0, 32})) {
-    static_assert(std::is_const<std::remove_reference_t<decltype(page)>>::value, "");
+    static_assert(std::is_const<std::remove_reference_t<decltype(page)>>::value);
   }
 
   // The above iteration clears out all references inside DMatrix.
