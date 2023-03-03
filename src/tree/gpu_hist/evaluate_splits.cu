@@ -97,7 +97,7 @@ class EvaluateSplitAgent {
          idx += kBlockSize) {
       local_sum += LoadGpair(node_histogram + idx);
     }
-    local_sum = SumReduceT(temp_storage->sum_reduce).Sum(local_sum);
+    local_sum = SumReduceT(temp_storage->sum_reduce).Sum(local_sum);  // NOLINT
     // Broadcast result from thread 0
     return {__shfl_sync(0xffffffff, local_sum.GetQuantisedGrad(), 0),
             __shfl_sync(0xffffffff, local_sum.GetQuantisedHess(), 0)};

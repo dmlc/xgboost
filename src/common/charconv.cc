@@ -911,7 +911,7 @@ from_chars_result FromCharFloatImpl(const char *buffer, const int len,
   // the bias and also special-case the value 0.
   int32_t shift = (f_e2 == 0 ? 1 : f_e2) - exp_b2 - IEEE754::kFloatBias -
                   IEEE754::kFloatMantissaBits;
-  assert(shift >= 0);
+  assert(shift >= 1);
 
   // We need to round up if the exact value is more than 0.5 above the value we
   // computed. That's equivalent to checking if the last removed bit was 1 and
