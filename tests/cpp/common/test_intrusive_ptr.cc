@@ -13,9 +13,9 @@ class NotCopyConstructible {
   NotCopyConstructible(NotCopyConstructible&& that) = default;
 };
 static_assert(
-    !std::is_trivially_copy_constructible<NotCopyConstructible>::value, "");
+    !std::is_trivially_copy_constructible<NotCopyConstructible>::value);
 static_assert(
-    !std::is_trivially_copy_assignable<NotCopyConstructible>::value, "");
+    !std::is_trivially_copy_assignable<NotCopyConstructible>::value);
 
 class ForIntrusivePtrTest {
  public:

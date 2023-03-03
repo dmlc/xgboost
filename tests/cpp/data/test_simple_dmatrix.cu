@@ -189,8 +189,8 @@ TEST(SimpleCSRSource, FromColumnarSparse) {
     auto& mask = column_bitfields[0];
     mask.resize(8);
 
-    for (size_t j = 0; j < mask.size(); ++j) {
-      mask[j] = ~0;
+    for (auto && j : mask) {
+      j = ~0;
     }
     // the 2^th entry of first column is invalid
     // [0 0 0 0 0 1 0 0]
@@ -201,8 +201,8 @@ TEST(SimpleCSRSource, FromColumnarSparse) {
     auto& mask = column_bitfields[1];
     mask.resize(8);
 
-    for (size_t j = 0; j < mask.size(); ++j) {
-      mask[j] = ~0;
+    for (auto && j : mask) {
+      j = ~0;
     }
     // the 19^th entry of second column is invalid
     // [~0~], [~0~], [0 0 0 0 1 0 0 0]

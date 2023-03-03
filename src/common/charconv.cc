@@ -270,7 +270,9 @@ struct RyuPowLogUtils {
    */
   static uint32_t MulPow5InvDivPow2(const uint32_t m, const uint32_t q,
                                     const int32_t j) noexcept(true) {
-    return MulShift(m, kFloatPow5InvSplit[q], j);
+    static_assert(sizeof(kFloatPow5InvSplit) == 55 * sizeof(std::uint64_t));
+    assert(q < 55);
+    return MulShift(m, kFloatPow5InvSplit[q], j);  // NOLINT
   }
 
   /*
@@ -495,12 +497,10 @@ class PowerBaseComputer {
                              static_cast<int32_t>(IEEE754::kFloatBias) -
                              static_cast<int32_t>(IEEE754::kFloatMantissaBits) -
                              static_cast<int32_t>(2);
-      static_assert(static_cast<int32_t>(1) -
-                            static_cast<int32_t>(IEEE754::kFloatBias) -
-                            static_cast<int32_t>(IEEE754::kFloatMantissaBits) -
-                            static_cast<int32_t>(2) ==
-                        -151,
-                    "");
+      static_assert(static_cast<int32_t>(1) - static_cast<int32_t>(IEEE754::kFloatBias) -
+                        static_cast<int32_t>(IEEE754::kFloatMantissaBits) -
+                        static_cast<int32_t>(2) ==
+                    -151);
       mantissa_base2 = f.mantissa;
     } else {
       base2_range.exponent = static_cast<int32_t>(f.exponent) - IEEE754::kFloatBias -
@@ -544,7 +544,7 @@ class RyuPrinter {
     // Function precondition: v is not a 10-digit number.
     // (f2s: 9 digits are sufficient for round-tripping.)
     // (d2fixed: We print 9-digit blocks.)
-    static_assert(100000000 == Tens(8), "");
+    static_assert(100000000 == Tens(8));
     assert(v < Tens(9));
     if (v >= Tens(8)) {
       return 9;
@@ -911,7 +911,7 @@ from_chars_result FromCharFloatImpl(const char *buffer, const int len,
   // the bias and also special-case the value 0.
   int32_t shift = (f_e2 == 0 ? 1 : f_e2) - exp_b2 - IEEE754::kFloatBias -
                   IEEE754::kFloatMantissaBits;
-  assert(shift >= 0);
+  assert(shift >= 1);
 
   // We need to round up if the exact value is more than 0.5 above the value we
   // computed. That's equivalent to checking if the last removed bit was 1 and
@@ -920,7 +920,7 @@ from_chars_result FromCharFloatImpl(const char *buffer, const int len,
   //
   // We need to update trailingZeros given that we have the exact output
   // exponent ieee_e2 now.
-  trailing_zeros &= (mantissa_b2 & ((1u << (shift - 1)) - 1)) == 0;
+  trailing_zeros &= (mantissa_b2 & ((1u << (shift - 1)) - 1)) == 0;  // NOLINT
   uint32_t lastRemovedBit = (mantissa_b2 >> (shift - 1)) & 1;
   bool roundup = (lastRemovedBit != 0) &&
                  (!trailing_zeros || (((mantissa_b2 >> shift) & 1) != 0));

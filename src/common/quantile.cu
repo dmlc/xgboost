@@ -1,5 +1,5 @@
-/*!
- * Copyright 2020-2022 by XGBoost Contributors
+/**
+ * Copyright 2020-2023 by XGBoost Contributors
  */
 #include <thrust/binary_search.h>
 #include <thrust/execution_policy.h>
@@ -109,7 +109,7 @@ void PruneImpl(common::Span<SketchContainer::OffsetT const> cuts_ptr,
 template <typename T, typename U>
 void CopyTo(Span<T> out, Span<U> src) {
   CHECK_EQ(out.size(), src.size());
-  static_assert(std::is_same<std::remove_cv_t<T>, std::remove_cv_t<T>>::value, "");
+  static_assert(std::is_same<std::remove_cv_t<T>, std::remove_cv_t<T>>::value);
   dh::safe_cuda(cudaMemcpyAsync(out.data(), src.data(),
                                 out.size_bytes(),
                                 cudaMemcpyDefault));
@@ -143,7 +143,7 @@ common::Span<thrust::tuple<uint64_t, uint64_t>> MergePath(
       thrust::make_zip_iterator(thrust::make_tuple(b_ind_iter, place_holder));
 
   dh::XGBCachingDeviceAllocator<Tuple> alloc;
-  static_assert(sizeof(Tuple) == sizeof(SketchEntry), "");
+  static_assert(sizeof(Tuple) == sizeof(SketchEntry));
   // We reuse the memory for storing merge path.
   common::Span<Tuple> merge_path{reinterpret_cast<Tuple *>(out.data()), out.size()};
   // Determine the merge path, 0 if element is from x, 1 if it's from y.

@@ -22,13 +22,13 @@ namespace detail {
 // static_cast and std::to_string.
 template <typename Char, std::enable_if_t<std::is_signed<Char>::value>* = nullptr>
 std::string CharToStr(Char c) {
-  static_assert(std::is_same<Char, char>::value, "");
+  static_assert(std::is_same<Char, char>::value);
   return std::string{c};
 }
 
 template <typename Char, std::enable_if_t<!std::is_signed<Char>::value>* = nullptr>
 std::string CharToStr(Char c) {
-  static_assert(std::is_same<Char, char>::value, "");
+  static_assert(std::is_same<Char, char>::value);
   return (c <= static_cast<char>(127) ? std::string{c} : std::to_string(c));
 }
 }  // namespace detail

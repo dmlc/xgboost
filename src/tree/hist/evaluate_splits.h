@@ -1,10 +1,11 @@
-/*!
- * Copyright 2021-2022 by XGBoost Contributors
+/**
+ * Copyright 2021-2023 by XGBoost Contributors
  */
 #ifndef XGBOOST_TREE_HIST_EVALUATE_SPLITS_H_
 #define XGBOOST_TREE_HIST_EVALUATE_SPLITS_H_
 
 #include <algorithm>
+#include <cstddef>  // for size_t
 #include <limits>
 #include <memory>
 #include <numeric>
@@ -367,7 +368,7 @@ class HistEvaluator {
       std::copy_n(entries.cbegin(), num_entries, buffer.begin() + num_entries * rank);
       collective::Allgather(buffer.data(), buffer.size() * sizeof(ExpandEntry));
       for (auto worker = 0; worker < world; ++worker) {
-        for (auto nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
+        for (std::size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
           entries[nidx_in_set].split.Update(buffer[worker * num_entries + nidx_in_set].split);
         }
       }

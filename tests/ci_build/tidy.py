@@ -109,6 +109,10 @@ class ClangTidy(object):
                 continue
             elif components[i] == '-rdynamic':
                 continue
+            elif components[i] == "-Xfatbin=-compress-all":
+                continue
+            elif components[i] == "-forward-unknown-to-host-compiler":
+                continue
             elif (components[i] == '-x' and
                   components[i+1] == 'cu'):
                 # -x cu -> -x cuda

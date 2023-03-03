@@ -157,7 +157,7 @@ TEST(Objective, DeclareUnifiedTest(PoissonRegressionGPair)) {
     ObjFunction::Create("count:poisson", &ctx)
   };
 
-  args.emplace_back(std::make_pair("max_delta_step", "0.1f"));
+  args.emplace_back("max_delta_step", "0.1f");
   obj->Configure(args);
 
   CheckObjFunction(obj,
@@ -259,7 +259,7 @@ TEST(Objective, DeclareUnifiedTest(TweedieRegressionGPair)) {
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:tweedie", &ctx)};
 
-  args.emplace_back(std::make_pair("tweedie_variance_power", "1.1f"));
+  args.emplace_back("tweedie_variance_power", "1.1f");
   obj->Configure(args);
 
   CheckObjFunction(obj,

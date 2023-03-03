@@ -1,12 +1,14 @@
-/*!
- *  Copyright (c) 2019 by Contributors
+/**
+ *  Copyright 2019-2023 by XGBoost Contributors
  * \file device_adapter.cuh
  */
 #ifndef XGBOOST_DATA_DEVICE_ADAPTER_H_
 #define XGBOOST_DATA_DEVICE_ADAPTER_H_
+#include <cstddef>  // for size_t
 #include <limits>
 #include <memory>
 #include <string>
+
 #include "../common/device_helpers.cuh"
 #include "../common/math.h"
 #include "adapter.h"
@@ -205,10 +207,10 @@ size_t GetRowCounts(const AdapterBatchT batch, common::Span<size_t> offset,
     }
   });
   dh::XGBCachingDeviceAllocator<char> alloc;
-  size_t row_stride = dh::Reduce(
-      thrust::cuda::par(alloc), thrust::device_pointer_cast(offset.data()),
-      thrust::device_pointer_cast(offset.data()) + offset.size(), size_t(0),
-      thrust::maximum<size_t>());
+  size_t row_stride =
+      dh::Reduce(thrust::cuda::par(alloc), thrust::device_pointer_cast(offset.data()),
+                 thrust::device_pointer_cast(offset.data()) + offset.size(),
+                 static_cast<std::size_t>(0), thrust::maximum<size_t>());
   return row_stride;
 }
 };  // namespace data

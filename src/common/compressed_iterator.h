@@ -1,12 +1,13 @@
-/*!
- * Copyright 2017 by Contributors
+/**
+ * Copyright 2017-2023 by XGBoost Contributors
  * \file compressed_iterator.h
  */
 #pragma once
 #include <xgboost/base.h>
-#include <cmath>
-#include <cstddef>
+
 #include <algorithm>
+#include <cmath>
+#include <cstddef>  // for size_t
 
 #include "common.h"
 
@@ -36,7 +37,7 @@ static const int kPadding = 4;  // Assign padding so we can read slightly off
 // The number of bits required to represent a given unsigned range
 inline XGBOOST_DEVICE size_t SymbolBits(size_t num_symbols) {
   auto bits = std::ceil(log2(static_cast<double>(num_symbols)));
-  return common::Max(static_cast<size_t>(bits), size_t(1));
+  return common::Max(static_cast<size_t>(bits), static_cast<std::size_t>(1));
 }
 }  // namespace detail
 

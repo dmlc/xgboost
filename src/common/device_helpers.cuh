@@ -20,6 +20,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstddef>  // for size_t
 #include <cub/cub.cuh>
 #include <cub/util_allocator.cuh>
 #include <numeric>
@@ -178,7 +179,7 @@ inline size_t MaxSharedMemory(int device_idx) {
   dh::safe_cuda(cudaDeviceGetAttribute
                 (&max_shared_memory, cudaDevAttrMaxSharedMemoryPerBlock,
                  device_idx));
-  return size_t(max_shared_memory);
+  return static_cast<std::size_t>(max_shared_memory);
 }
 
 /**
@@ -195,7 +196,7 @@ inline size_t MaxSharedMemoryOptin(int device_idx) {
   dh::safe_cuda(cudaDeviceGetAttribute
                 (&max_shared_memory, cudaDevAttrMaxSharedMemoryPerBlockOptin,
                  device_idx));
-  return size_t(max_shared_memory);
+  return static_cast<std::size_t>(max_shared_memory);
 }
 
 inline void CheckComputeCapability() {

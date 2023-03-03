@@ -1,5 +1,5 @@
-/*!
- * Copyright 2021 by XGBoost Contributors
+/**
+ * Copyright 2021-2023 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>
@@ -108,7 +108,7 @@ TEST(Linalg, TensorView) {
     // for Slice.
     auto t = MakeTensorView(data, {2, 3, 4}, 0);
     auto s = t.Slice(1, 2, All());
-    static_assert(decltype(s)::kDimension == 1, "");
+    static_assert(decltype(s)::kDimension == 1);
   }
   {
     auto t = MakeTensorView(data, {2, 3, 4}, 0);
@@ -121,7 +121,7 @@ TEST(Linalg, TensorView) {
     // range slice
     auto t = MakeTensorView(data, {2, 3, 4}, 0);
     auto s = t.Slice(linalg::All(), linalg::Range(1, 3), 2);
-    static_assert(decltype(s)::kDimension == 2, "");
+    static_assert(decltype(s)::kDimension == 2);
     std::vector<double> sol{6, 10, 18, 22};
     auto k = 0;
     for (size_t i = 0; i < s.Shape(0); ++i) {
@@ -136,7 +136,7 @@ TEST(Linalg, TensorView) {
     // range slice
     auto t = MakeTensorView(data, {2, 3, 4}, 0);
     auto s = t.Slice(1, linalg::Range(1, 3), linalg::Range(1, 3));
-    static_assert(decltype(s)::kDimension == 2, "");
+    static_assert(decltype(s)::kDimension == 2);
     std::vector<double> sol{17, 18, 21, 22};
     auto k = 0;
     for (size_t i = 0; i < s.Shape(0); ++i) {
@@ -151,7 +151,7 @@ TEST(Linalg, TensorView) {
     // same as no slice.
     auto t = MakeTensorView(data, {2, 3, 4}, 0);
     auto s = t.Slice(linalg::All(), linalg::Range(0, 3), linalg::Range(0, 4));
-    static_assert(decltype(s)::kDimension == 3, "");
+    static_assert(decltype(s)::kDimension == 3);
     auto all = t.Slice(linalg::All(), linalg::All(), linalg::All());
     for (size_t i = 0; i < s.Shape(0); ++i) {
       for (size_t j = 0; j < s.Shape(1); ++j) {

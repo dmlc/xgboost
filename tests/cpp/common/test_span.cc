@@ -522,9 +522,9 @@ TEST(Span, Empty) {
 TEST(SpanDeathTest, Empty) {
   std::vector<float> data(1, 0);
   ASSERT_TRUE(data.data());
-  Span<float> s{data.data(), Span<float>::index_type(0)};  // ok to define 0 size span.
+  // ok to define 0 size span.
+  Span<float> s{data.data(), static_cast<Span<float>::index_type>(0)};
   EXPECT_DEATH(s[0], "");  // not ok to use it.
 }
-
 }  // namespace common
 }  // namespace xgboost

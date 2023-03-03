@@ -1,15 +1,15 @@
-/*!
- * Copyright 2020-2021 by XGBoost Contributors
+/**
+ * Copyright 2020-2023 by XGBoost Contributors
  */
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/reduce.h>
 
 #include <algorithm>
-#include <ctgmath>
+#include <cstdint>  // uint32_t
 #include <limits>
 
-#include "../../common/device_helpers.cuh"
 #include "../../common/deterministic.cuh"
+#include "../../common/device_helpers.cuh"
 #include "../../data/ellpack_page.cuh"
 #include "histogram.cuh"
 #include "row_partitioner.cuh"
@@ -83,7 +83,8 @@ GradientQuantiser::GradientQuantiser(common::Span<GradientPair const> gpair) {
    */
   to_floating_point_ =
       histogram_rounding /
-      T(IntT(1) << (sizeof(typename GradientSumT::ValueT) * 8 - 2));  // keep 1 for sign bit
+      static_cast<T>(static_cast<IntT>(1)
+                     << (sizeof(typename GradientSumT::ValueT) * 8 - 2));  // keep 1 for sign bit
   /**
    * Factor for converting gradients from floating-point to fixed-point. For
    * f64:
@@ -93,8 +94,8 @@ GradientQuantiser::GradientQuantiser(common::Span<GradientPair const> gpair) {
    * rounding is calcuated as exp(m), see the rounding factor calcuation for
    * details.
    */
-  to_fixed_point_ =
-      GradientSumT(T(1) / to_floating_point_.GetGrad(), T(1) / to_floating_point_.GetHess());
+  to_fixed_point_ = GradientSumT(static_cast<T>(1) / to_floating_point_.GetGrad(),
+                                 static_cast<T>(1) / to_floating_point_.GetHess());
 }
 
 
@@ -153,7 +154,8 @@ class HistogramAgent {
         d_gpair_(d_gpair) {}
   __device__ void ProcessPartialTileShared(std::size_t offset) {
     for (std::size_t idx = offset + threadIdx.x;
-         idx < min(offset + kBlockThreads * kItemsPerTile, n_elements_); idx += kBlockThreads) {
+         idx < std::min(offset + kBlockThreads * kItemsPerTile, n_elements_);
+         idx += kBlockThreads) {
       int ridx = d_ridx_[idx / feature_stride_];
       int gidx =
           matrix_
@@ -295,9 +297,8 @@ void BuildGradientHistogram(CUDAContext const* ctx, EllpackDeviceAccessor const&
 
     // Allocate number of blocks such that each block has about kMinItemsPerBlock work
     // Up to a maximum where the device is saturated
-    grid_size =
-        min(grid_size,
-            unsigned(common::DivRoundUp(items_per_group, kMinItemsPerBlock)));
+    grid_size = std::min(grid_size, static_cast<std::uint32_t>(
+                                        common::DivRoundUp(items_per_group, kMinItemsPerBlock)));
 
     dh::LaunchKernel {dim3(grid_size, num_groups), static_cast<uint32_t>(kBlockThreads), smem_size,
                      ctx->Stream()} (kernel, matrix, feature_groups, d_ridx, histogram.data(),

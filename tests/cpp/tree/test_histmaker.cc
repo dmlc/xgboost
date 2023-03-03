@@ -1,3 +1,6 @@
+/**
+ * Copyright 2019-2023 by XGBoost Contributors
+ */
 #include <gtest/gtest.h>
 #include <xgboost/tree_model.h>
 #include <xgboost/tree_updater.h>
@@ -18,7 +21,7 @@ std::unique_ptr<HostDeviceVector<GradientPair>> GenerateGradients(std::size_t ro
   xgboost::SimpleLCG gen;
   xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
 
-  for (auto i = 0; i < rows; ++i) {
+  for (std::size_t i = 0; i < rows; ++i) {
     auto grad = dist(&gen);
     auto hess = dist(&gen);
     h_gradients[i] = GradientPair{grad, hess};

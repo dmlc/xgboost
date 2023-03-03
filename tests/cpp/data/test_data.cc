@@ -21,7 +21,7 @@ TEST(SparsePage, PushCSC) {
 
   offset = {0, 1, 4};
   for (size_t i = 0; i < offset.back(); ++i) {
-    data.emplace_back(Entry(i, 0.1f));
+    data.emplace_back(i, 0.1f);
   }
 
   SparsePage other;

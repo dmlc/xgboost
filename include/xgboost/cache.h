@@ -4,7 +4,7 @@
 #ifndef XGBOOST_CACHE_H_
 #define XGBOOST_CACHE_H_
 
-#include <xgboost/logging.h>  // CHECK_EQ
+#include <xgboost/logging.h>  // for CHECK_EQ, CHECK
 
 #include <cstddef>            // for size_t
 #include <memory>             // for weak_ptr, shared_ptr, make_shared
@@ -12,6 +12,7 @@
 #include <queue>              // for queue
 #include <thread>             // for thread
 #include <unordered_map>      // for unordered_map
+#include <utility>            // for move
 #include <vector>             // for vector
 
 namespace xgboost {
@@ -32,6 +33,8 @@ class DMatrixCache {
 
     CacheT const& Value() const { return *value; }
     CacheT& Value() { return *value; }
+
+    Item(std::shared_ptr<DMatrix> m, std::shared_ptr<CacheT> v) : ref{m}, value{std::move(v)} {}
   };
 
   static constexpr std::size_t DefaultSize() { return 32; }
@@ -141,7 +144,7 @@ class DMatrixCache {
     auto it = container_.find(key);
     if (it == container_.cend()) {
       // after the new DMatrix, cache size is at most max_size
-      container_[key] = {m, std::make_shared<CacheT>(args...)};
+      container_.emplace(key, Item{m, std::make_shared<CacheT>(args...)});
       queue_.emplace(key);
     }
     return container_.at(key).value;

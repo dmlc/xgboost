@@ -47,12 +47,12 @@ class GBLinearModel : public Model {
   DeprecatedGBLinearModelParam param_;
 
  public:
-  int32_t num_boosted_rounds;
+  int32_t num_boosted_rounds{0};
   LearnerModelParam const* learner_model_param;
 
  public:
-  explicit GBLinearModel(LearnerModelParam const* learner_model_param) :
-      num_boosted_rounds{0}, learner_model_param {learner_model_param} {}
+  explicit GBLinearModel(LearnerModelParam const *learner_model_param)
+      : learner_model_param{learner_model_param} {}
   void Configure(Args const &) { }
 
   // weight for each of feature, bias is the last one

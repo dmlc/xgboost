@@ -19,10 +19,8 @@ TEST(Updater, Prune) {
   int constexpr kCols = 16;
 
   std::vector<std::pair<std::string, std::string>> cfg;
-  cfg.emplace_back(std::pair<std::string, std::string>("num_feature",
-                                                       std::to_string(kCols)));
-  cfg.emplace_back(std::pair<std::string, std::string>(
-      "min_split_loss", "10"));
+  cfg.emplace_back("num_feature", std::to_string(kCols));
+  cfg.emplace_back("min_split_loss", "10");
 
   // These data are just place holders.
   HostDeviceVector<GradientPair> gpair =
@@ -73,7 +71,7 @@ TEST(Updater, Prune) {
                   0, 0.5f, true, 0.3, 0.4, 0.5,
                   /*loss_chg=*/19.0f, 0.0f,
                   /*left_sum=*/0.0f, /*right_sum=*/0.0f);
-  cfg.emplace_back(std::make_pair("max_depth", "1"));
+  cfg.emplace_back("max_depth", "1");
   pruner->Configure(cfg);
   pruner->Update(&gpair, p_dmat.get(), position, trees);
 
@@ -83,7 +81,7 @@ TEST(Updater, Prune) {
                   0, 0.5f, true, 0.3, 0.4, 0.5,
                   /*loss_chg=*/18.0f, 0.0f,
                   /*left_sum=*/0.0f, /*right_sum=*/0.0f);
-  cfg.emplace_back(std::make_pair("min_split_loss", "0"));
+  cfg.emplace_back("min_split_loss", "0");
   pruner->Configure(cfg);
   pruner->Update(&gpair, p_dmat.get(), position, trees);
   ASSERT_EQ(tree.NumExtraNodes(), 2);

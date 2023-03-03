@@ -50,7 +50,7 @@ size_t PeekableInStream::PeekRead(void* dptr, size_t size) {
   }
 }
 
-FixedSizeStream::FixedSizeStream(PeekableInStream* stream) : PeekableInStream(stream), pointer_{0} {
+FixedSizeStream::FixedSizeStream(PeekableInStream* stream) : PeekableInStream(stream) {
   size_t constexpr kInitialSize = 4096;
   size_t size{kInitialSize}, total{0};
   buffer_.clear();

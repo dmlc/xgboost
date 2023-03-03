@@ -119,13 +119,13 @@ TEST(ArrayInterface, TrivialDim) {
 }
 
 TEST(ArrayInterface, ToDType) {
-  static_assert(ToDType<float>::kType == ArrayInterfaceHandler::kF4, "");
-  static_assert(ToDType<double>::kType == ArrayInterfaceHandler::kF8, "");
+  static_assert(ToDType<float>::kType == ArrayInterfaceHandler::kF4);
+  static_assert(ToDType<double>::kType == ArrayInterfaceHandler::kF8);
 
-  static_assert(ToDType<uint32_t>::kType == ArrayInterfaceHandler::kU4, "");
-  static_assert(ToDType<uint64_t>::kType == ArrayInterfaceHandler::kU8, "");
+  static_assert(ToDType<uint32_t>::kType == ArrayInterfaceHandler::kU4);
+  static_assert(ToDType<uint64_t>::kType == ArrayInterfaceHandler::kU8);
 
-  static_assert(ToDType<int32_t>::kType == ArrayInterfaceHandler::kI4, "");
-  static_assert(ToDType<int64_t>::kType == ArrayInterfaceHandler::kI8, "");
+  static_assert(ToDType<int32_t>::kType == ArrayInterfaceHandler::kI4);
+  static_assert(ToDType<int64_t>::kType == ArrayInterfaceHandler::kI8);
 }
 }  // namespace xgboost

@@ -42,8 +42,8 @@ void RunLengthEncode(Iter begin, Iter end, std::vector<Idx>* p_out) {
  */
 template <typename InIt, typename OutIt, typename T>
 void PartialSum(int32_t n_threads, InIt begin, InIt end, T init, OutIt out_it) {
-  static_assert(std::is_same<T, typename std::iterator_traits<InIt>::value_type>::value, "");
-  static_assert(std::is_same<T, typename std::iterator_traits<OutIt>::value_type>::value, "");
+  static_assert(std::is_same<T, typename std::iterator_traits<InIt>::value_type>::value);
+  static_assert(std::is_same<T, typename std::iterator_traits<OutIt>::value_type>::value);
   // The number of threads is pegged to the batch size. If the OMP block is parallelized
   // on anything other than the batch/block size, it should be reassigned
   auto n = static_cast<size_t>(std::distance(begin, end));
