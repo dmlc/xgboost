@@ -270,6 +270,8 @@ struct RyuPowLogUtils {
    */
   static uint32_t MulPow5InvDivPow2(const uint32_t m, const uint32_t q,
                                     const int32_t j) noexcept(true) {
+    static_assert(sizeof(kFloatPow5InvSplit) == 55 * sizeof(std::uint64_t));
+    assert(q < 55);
     return MulShift(m, kFloatPow5InvSplit[q], j);
   }
 

@@ -25,8 +25,8 @@ steps:
   - label: ":console: Run clang-tidy"
     command: "tests/buildkite/run-clang-tidy.sh"
     key: run-clang-tidy
-   agents:
-     queue: linux-amd64-cpu
+    agents:
+      queue: linux-amd64-cpu
   - wait
   - label: ":console: Build CPU"
     command: "tests/buildkite/build-cpu.sh"
