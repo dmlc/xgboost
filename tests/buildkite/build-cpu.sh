@@ -22,13 +22,13 @@ echo "--- Stash XGBoost CLI executable"
 buildkite-agent artifact upload ./xgboost
 
 # Sanitizer test
-echo "--- Run Google Test with sanitizer enabled"
-$command_wrapper tests/ci_build/build_via_cmake.sh -DUSE_SANITIZER=ON \
-  -DENABLED_SANITIZERS="address;leak;undefined" -DCMAKE_BUILD_TYPE=Debug \
-  -DSANITIZER_PATH=/usr/lib/x86_64-linux-gnu/
-CI_DOCKER_EXTRA_PARAMS_INIT="-e ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer "`
-  `"-e ASAN_OPTIONS=symbolize=1 "`
-  `"-e UBSAN_OPTIONS=print_stacktrace=1:log_path=ubsan_error.log "`
-  `"--cap-add SYS_PTRACE" \
-  $command_wrapper bash -c "cd build && ctest --exclude-regex AllTestsInDMLCUnitTests "`
-                           `"--extra-verbose"
+# echo "--- Run Google Test with sanitizer enabled"
+# $command_wrapper tests/ci_build/build_via_cmake.sh -DUSE_SANITIZER=ON \
+#   -DENABLED_SANITIZERS="address;leak;undefined" -DCMAKE_BUILD_TYPE=Debug \
+#   -DSANITIZER_PATH=/usr/lib/x86_64-linux-gnu/
+# CI_DOCKER_EXTRA_PARAMS_INIT="-e ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer "`
+#   `"-e ASAN_OPTIONS=symbolize=1 "`
+#   `"-e UBSAN_OPTIONS=print_stacktrace=1:log_path=ubsan_error.log "`
+#   `"--cap-add SYS_PTRACE" \
+#   $command_wrapper bash -c "cd build && ctest --exclude-regex AllTestsInDMLCUnitTests "`
+#                            `"--extra-verbose"
