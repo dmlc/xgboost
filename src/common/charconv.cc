@@ -272,7 +272,7 @@ struct RyuPowLogUtils {
                                     const int32_t j) noexcept(true) {
     static_assert(sizeof(kFloatPow5InvSplit) == 55 * sizeof(std::uint64_t));
     assert(q < 55);
-    return MulShift(m, kFloatPow5InvSplit[q], j);
+    return MulShift(m, kFloatPow5InvSplit[q], j);  // NOLINT
   }
 
   /*
@@ -920,7 +920,7 @@ from_chars_result FromCharFloatImpl(const char *buffer, const int len,
   //
   // We need to update trailingZeros given that we have the exact output
   // exponent ieee_e2 now.
-  trailing_zeros &= (mantissa_b2 & ((1u << (shift - 1)) - 1)) == 0;
+  trailing_zeros &= (mantissa_b2 & ((1u << (shift - 1)) - 1)) == 0;  // NOLINT
   uint32_t lastRemovedBit = (mantissa_b2 >> (shift - 1)) & 1;
   bool roundup = (lastRemovedBit != 0) &&
                  (!trailing_zeros || (((mantissa_b2 >> shift) & 1) != 0));
