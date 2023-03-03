@@ -21,7 +21,7 @@
 #include <sstream>
 #include <stack>
 #include <string>
-#include <utility>
+#include <utility>  // for as_const
 #include <vector>
 
 #include "collective/communicator-inl.h"

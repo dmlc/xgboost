@@ -7,7 +7,6 @@
 #include <cstddef>
 #include <limits>
 #include <mutex>
-#include <numeric>
 
 #include "../collective/communicator-inl.h"
 #include "../common/categorical.h"
