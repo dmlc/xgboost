@@ -331,7 +331,11 @@ class ColumnSplitHelper {
       auto const &tree = *model_.trees[tree_begin_ + i];
       tree_sizes_[i] = tree.GetNodes().size();
     }
-    std::exclusive_scan(tree_sizes_.cbegin(), tree_sizes_.cend(), tree_offsets_.begin(), 0);
+    // std::exclusive_scan (only available in c++17) equivalent to get tree offsets.
+    tree_offsets_[0] = 0;
+    for (decltype(tree_begin) i = 1; i < n_trees; i++) {
+      tree_offsets_[i] = tree_offsets_[i - 1] + tree_sizes_[i - 1];
+    }
     bits_per_row_ = tree_offsets_.back() + tree_sizes_.back();
 
     InitThreadTemp(n_threads_ * kBlockOfRowsSize, &feat_vecs_);
