@@ -8,9 +8,9 @@ import tempfile
 from typing import Any, Callable, Dict, Type
 
 import numpy as np
-from xgboost._typing import ArrayLike
 
 import xgboost as xgb
+from xgboost._typing import ArrayLike
 
 
 def validate_leaf_output(leaf: np.ndarray, num_parallel_tree: int) -> None:

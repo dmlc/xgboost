@@ -4,9 +4,9 @@ from functools import partial, update_wrapper
 from typing import Dict
 
 import numpy as np
-import xgboost.testing as tm
 
 import xgboost as xgb
+import xgboost.testing as tm
 
 
 def get_basescore(model: xgb.XGBModel) -> float:
@@ -78,6 +78,7 @@ def check_quantile_loss(tree_method: str, weighted: bool) -> None:
     """Test for quantile loss."""
     from sklearn.datasets import make_regression
     from sklearn.metrics import mean_pinball_loss
+
     from xgboost.sklearn import _metric_decorator
 
     n_samples = 4096

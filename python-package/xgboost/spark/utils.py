@@ -8,9 +8,9 @@ from typing import Any, Callable, Dict, Set, Type
 import pyspark
 from pyspark import BarrierTaskContext, SparkContext
 from pyspark.sql.session import SparkSession
-from xgboost.tracker import RabitTracker
 
 from xgboost import collective
+from xgboost.tracker import RabitTracker
 
 
 def get_class_name(cls: Type) -> str:

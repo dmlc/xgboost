@@ -12,6 +12,7 @@ pytestmark = pytest.mark.skipif(**tm.no_spark())
 from pyspark.ml.linalg import Vectors
 from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 from pyspark.sql import SparkSession
+
 from xgboost.spark import SparkXGBClassifier, SparkXGBRegressor
 
 gpu_discovery_script_path = "tests/test_distributed/test_gpu_with_spark/discover_gpu.sh"

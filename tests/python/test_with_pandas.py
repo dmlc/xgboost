@@ -3,10 +3,10 @@ from typing import Type
 import numpy as np
 import pytest
 from test_dmatrix import set_base_margin_info
-from xgboost.testing.data import pd_arrow_dtypes, pd_dtypes
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.testing.data import pd_arrow_dtypes, pd_dtypes
 
 try:
     import pandas as pd

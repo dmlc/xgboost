@@ -6,10 +6,10 @@ import pytest
 import scipy.sparse
 from hypothesis import given, settings, strategies
 from scipy.sparse import csr_matrix, rand
-from xgboost.testing.data import np_dtypes
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.testing.data import np_dtypes
 
 rng = np.random.RandomState(1)
 

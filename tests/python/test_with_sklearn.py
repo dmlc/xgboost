@@ -8,11 +8,11 @@ from typing import Callable, Optional
 import numpy as np
 import pytest
 from sklearn.utils.estimator_checks import parametrize_with_checks
-from xgboost.testing.shared import get_feature_weights, validate_data_initialization
-from xgboost.testing.updater import get_basescore
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.testing.shared import get_feature_weights, validate_data_initialization
+from xgboost.testing.updater import get_basescore
 
 rng = np.random.RandomState(1994)
 pytestmark = [pytest.mark.skipif(**tm.no_sklearn()), tm.timeout(30)]

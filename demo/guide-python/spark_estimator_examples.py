@@ -10,6 +10,7 @@ from pyspark.ml.linalg import Vectors
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import rand
 from sklearn.model_selection import train_test_split
+
 from xgboost.spark import SparkXGBClassifier, SparkXGBRegressor
 
 spark = SparkSession.builder.master("local[*]").getOrCreate()

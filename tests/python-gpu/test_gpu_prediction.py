@@ -3,10 +3,10 @@ import sys
 import numpy as np
 import pytest
 from hypothesis import assume, given, settings, strategies
-from xgboost.compat import PANDAS_INSTALLED
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.compat import PANDAS_INSTALLED
 
 if PANDAS_INSTALLED:
     from hypothesis.extra.pandas import column, data_frames, range_indexes

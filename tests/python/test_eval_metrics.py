@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
-from xgboost.testing.metrics import check_quantile_error
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.testing.metrics import check_quantile_error
 
 rng = np.random.RandomState(1337)
 

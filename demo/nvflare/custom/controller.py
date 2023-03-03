@@ -4,13 +4,14 @@ Example of training controller with NVFlare
 """
 import multiprocessing
 
-import xgboost.federated
 from nvflare.apis.client import Client
 from nvflare.apis.fl_context import FLContext
 from nvflare.apis.impl.controller import Controller, Task
 from nvflare.apis.shareable import Shareable
 from nvflare.apis.signal import Signal
 from trainer import SupportedTasks
+
+import xgboost.federated
 
 
 class XGBoostController(Controller):

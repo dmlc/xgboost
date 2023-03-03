@@ -6,9 +6,9 @@ import numpy as np
 from dask.distributed import Client, LocalCluster
 from dask_ml.datasets import make_regression
 from dask_ml.model_selection import train_test_split
-from xgboost.dask import DaskDMatrix
 
 import xgboost as xgb
+from xgboost.dask import DaskDMatrix
 
 
 def probability_for_going_backward(epoch):

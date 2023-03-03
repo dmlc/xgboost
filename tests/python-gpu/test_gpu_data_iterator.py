@@ -2,6 +2,7 @@ import sys
 
 import pytest
 from hypothesis import given, settings, strategies
+
 from xgboost.testing import no_cupy
 
 sys.path.append("tests/python")
