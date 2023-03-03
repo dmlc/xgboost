@@ -1,5 +1,5 @@
 ARG CUDA_VERSION_ARG
-FROM nvidia/cuda:$CUDA_VERSION_ARG-devel-ubuntu18.04
+FROM nvidia/cuda:$CUDA_VERSION_ARG-devel-ubuntu20.04
 ARG CUDA_VERSION_ARG
 
 # Environment
@@ -12,16 +12,16 @@ RUN \
     apt-get install -y tar unzip wget git build-essential python3 python3-pip software-properties-common \
                        apt-transport-https ca-certificates gnupg-agent && \
     wget -nv -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
-    add-apt-repository -u 'deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-15 main' && \
+    add-apt-repository -u 'deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-11 main' && \
     apt-get update && \
-    apt-get install -y llvm-15 clang-tidy-15 clang-15 && \
+    apt-get install -y llvm-11 clang-tidy-11 clang-11 && \
     wget -nv -nc https://cmake.org/files/v3.18/cmake-3.18.0-Linux-x86_64.sh --no-check-certificate && \
     bash cmake-3.18.0-Linux-x86_64.sh --skip-license --prefix=/usr
 
 # Set default clang-tidy version
 RUN \
-    update-alternatives --install /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-15 100 && \
-    update-alternatives --install /usr/bin/clang clang /usr/bin/clang-15 100
+    update-alternatives --install /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-11 100 && \
+    update-alternatives --install /usr/bin/clang clang /usr/bin/clang-11 100
 
 # Install Python packages
 RUN \
