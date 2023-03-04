@@ -74,7 +74,7 @@ TEST(Updater, Prune) {
                   /*loss_chg=*/19.0f, 0.0f,
                   /*left_sum=*/0.0f, /*right_sum=*/0.0f);
 
-  cfg.emplace_back(std::make_pair("max_depth", "1"));
+  cfg.emplace_back("max_depth", "1");
   param.UpdateAllowUnknown(cfg);
   pruner->Update(&param, &gpair, p_dmat.get(), position, trees);
   ASSERT_EQ(tree.NumExtraNodes(), 2);
@@ -83,7 +83,7 @@ TEST(Updater, Prune) {
                   0, 0.5f, true, 0.3, 0.4, 0.5,
                   /*loss_chg=*/18.0f, 0.0f,
                   /*left_sum=*/0.0f, /*right_sum=*/0.0f);
-  cfg.emplace_back(std::make_pair("min_split_loss", "0"));
+  cfg.emplace_back("min_split_loss", "0");
   param.UpdateAllowUnknown(cfg);
 
   pruner->Update(&param, &gpair, p_dmat.get(), position, trees);
