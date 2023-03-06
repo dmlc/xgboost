@@ -451,9 +451,8 @@ class QuantileError : public MetricNoCache {
     auto alpha = ctx->IsCPU() ? alpha_.ConstHostSpan() : alpha_.ConstDeviceSpan();
     std::size_t n_targets = preds.Size() / info.num_row_ / alpha_.Size();
     CHECK_NE(n_targets, 0);
-    auto y_predt = linalg::MakeTensorView(
-        ctx->IsCPU() ? preds.ConstHostSpan() : preds.ConstDeviceSpan(),
-        {static_cast<std::size_t>(info.num_row_), alpha_.Size(), n_targets}, ctx->gpu_id);
+    auto y_predt = linalg::MakeTensorView(ctx, &preds, static_cast<std::size_t>(info.num_row_),
+                                          alpha_.Size(), n_targets);
 
     info.weights_.SetDevice(ctx->gpu_id);
     common::OptionalWeights weight{ctx->IsCPU() ? info.weights_.ConstHostSpan()

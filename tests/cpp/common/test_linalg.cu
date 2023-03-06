@@ -7,8 +7,7 @@
 #include "xgboost/context.h"
 #include "xgboost/linalg.h"
 
-namespace xgboost {
-namespace linalg {
+namespace xgboost::linalg {
 namespace {
 void TestElementWiseKernel() {
   Tensor<float, 3> l{{2, 3, 4}, 0};
@@ -55,8 +54,10 @@ void TestElementWiseKernel() {
 }
 
 void TestSlice() {
+  Context ctx;
+  ctx.gpu_id = 1;
   thrust::device_vector<double> data(2 * 3 * 4);
-  auto t = MakeTensorView(dh::ToSpan(data), {2, 3, 4}, 0);
+  auto t = MakeTensorView(&ctx, dh::ToSpan(data), 2, 3, 4);
   dh::LaunchN(1, [=] __device__(size_t) {
     auto s = t.Slice(linalg::All(), linalg::Range(0, 3), linalg::Range(0, 4));
     auto all = t.Slice(linalg::All(), linalg::All(), linalg::All());
@@ -75,5 +76,4 @@ void TestSlice() {
 TEST(Linalg, GPUElementWise) { TestElementWiseKernel(); }
 
 TEST(Linalg, GPUTensorView) { TestSlice(); }
-}  // namespace linalg
-}  // namespace xgboost
+}  // namespace xgboost::linalg
