@@ -1823,7 +1823,6 @@ def _get_qid(
                 "Found both the special column `qid` in `X` and the `qid` from the"
                 "`fit` method. Please remove one of them."
             )
-        assert qid is None
         q_x = X.qid
         X = X.drop("qid", axis=1)
         return X, q_x
