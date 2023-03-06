@@ -23,7 +23,13 @@ from typing import (
 import numpy
 
 from . import collective
-from .core import Booster, DMatrix, XGBoostError, _get_booster_layer_trees
+from .core import (
+    Booster,
+    DMatrix,
+    XGBoostError,
+    _get_booster_layer_trees,
+    _parse_eval_str,
+)
 
 __all__ = [
     "TrainingCallback",
@@ -250,11 +256,7 @@ class CallbackContainer:
             for _, name in evals:
                 assert name.find("-") == -1, "Dataset name should not contain `-`"
             score: str = model.eval_set(evals, epoch, self.metric, self._output_margin)
-            splited = score.split()[1:]  # into datasets
-            # split up `test-error:0.1234`
-            metric_score_str = [tuple(s.split(":")) for s in splited]
-            # convert to float
-            metric_score = [(n, float(s)) for n, s in metric_score_str]
+            metric_score = _parse_eval_str(score)
             self._update_history(metric_score, epoch)
         ret = any(c.after_iteration(model, epoch, self.history) for c in self.callbacks)
         return ret

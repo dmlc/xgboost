@@ -43,8 +43,9 @@ from .core import (
     XGBoostError,
     _convert_ntree_limit,
     _deprecate_positional_args,
+    _parse_eval_str,
 )
-from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_array
+from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_array, _is_pandas_df
 from .training import train
 
 
@@ -1812,32 +1813,43 @@ class XGBRFRegressor(XGBRegressor):
         return self
 
 
+def _get_qid(
+    X: ArrayLike, qid: Optional[ArrayLike]
+) -> Tuple[ArrayLike, Optional[ArrayLike]]:
+    """Get the special qid column from X if exists."""
+    if (_is_pandas_df(X) or _is_cudf_df(X)) and hasattr(X, "qid"):
+        if qid is not None:
+            raise ValueError(
+                "Found both the special column `qid` in `X` and the `qid` from the"
+                "`fit` method. Please remove one of them."
+            )
+        q_x = X.qid
+        X = X.drop("qid", axis=1)
+        return X, q_x
+    return X, qid
+
+
 @xgboost_model_doc(
-    "Implementation of the Scikit-Learn API for XGBoost Ranking.",
+    """Implementation of the Scikit-Learn API for XGBoost Ranking.""",
     ["estimators", "model"],
     end_note="""
         .. note::
 
-            The default objective for XGBRanker is "rank:pairwise"
-
-        .. note::
-
             A custom objective function is currently not supported by XGBRanker.
-            Likewise, a custom metric function is not supported either.
 
         .. note::
 
-            Query group information is required for ranking tasks by either using the
-            `group` parameter or `qid` parameter in `fit` method. This information is
-            not required in 'predict' method and multiple groups can be predicted on
-            a single call to `predict`.
+            Query group information is only required for ranking training but not
+            prediction. Multiple groups can be predicted on a single call to
+            :py:meth:`predict`.
 
         When fitting the model with the `group` parameter, your data need to be sorted
-        by query group first. `group` must be an array that contains the size of each
+        by the query group first. `group` is an array that contains the size of each
         query group.
-        When fitting the model with the `qid` parameter, your data does not need
-        sorting. `qid` must be an array that contains the group of each training
-        sample.
+
+        Similarly, when fitting the model with the `qid` parameter, the data should be
+        sorted according to query index and `qid` is an array that contains the query
+        index for each training sample.
 
         For example, if your original data look like:
 
@@ -1859,9 +1871,10 @@ class XGBRFRegressor(XGBRegressor):
         |   2   |   1       |   x_7         |
         +-------+-----------+---------------+
 
-        then `fit` method can be called with either `group` array as ``[3, 4]``
-        or with `qid` as ``[`1, 1, 1, 2, 2, 2, 2]``, that is the qid column.
-""",
+        then :py:meth:`fit` method can be called with either `group` array as ``[3, 4]``
+        or with `qid` as ``[1, 1, 1, 2, 2, 2, 2]``, that is the qid column.  Also, the
+        `qid` can be a special column of input `X` instead of a separated parameter, see
+        :py:meth:`fit` for more info.""",
 )
 class XGBRanker(XGBModel, XGBRankerMixIn):
     # pylint: disable=missing-docstring,too-many-arguments,invalid-name
@@ -1872,6 +1885,16 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
             raise ValueError("custom objective function not supported by XGBRanker")
         if "rank:" not in objective:
             raise ValueError("please use XGBRanker for ranking task")
+
+    def _create_ltr_dmatrix(
+        self, ref: Optional[DMatrix], data: ArrayLike, qid: ArrayLike, **kwargs: Any
+    ) -> DMatrix:
+        data, qid = _get_qid(data, qid)
+
+        if kwargs.get("group", None) is None and qid is None:
+            raise ValueError("Either `group` or `qid` is required for ranking task")
+
+        return super()._create_dmatrix(ref=ref, data=data, qid=qid, **kwargs)
 
     @_deprecate_positional_args
     def fit(
@@ -1907,6 +1930,23 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
         X :
             Feature matrix. See :ref:`py-data` for a list of supported types.
 
+            When this is a :py:class:`pandas.DataFrame` or a :py:class:`cudf.DataFrame`,
+            it may contain a special column called ``qid`` for specifying the query
+            index. Using a special column is the same as using the `qid` parameter,
+            except for being compatible with sklearn utility functions like
+            :py:func:`sklearn.model_selection.cross_validation`. The same convention
+            applies to the :py:meth:`XGBRanker.score` and :py:meth:`XGBRanker.predict`.
+
+            +-----+----------------+----------------+
+            | qid | feat_0         | feat_1         |
+            +-----+----------------+----------------+
+            | 0   | :math:`x_{00}` | :math:`x_{01}` |
+            +-----+----------------+----------------+
+            | 1   | :math:`x_{10}` | :math:`x_{11}` |
+            +-----+----------------+----------------+
+            | 1   | :math:`x_{20}` | :math:`x_{21}` |
+            +-----+----------------+----------------+
+
             When the ``tree_method`` is set to ``hist`` or ``gpu_hist``, internally, the
             :py:class:`QuantileDMatrix` will be used instead of the :py:class:`DMatrix`
             for conserving memory. However, this has performance implications when the
@@ -1916,12 +1956,12 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
         y :
             Labels
         group :
-            Size of each query group of training data. Should have as many elements as the
-            query groups in the training data.  If this is set to None, then user must
-            provide qid.
+            Size of each query group of training data. Should have as many elements as
+            the query groups in the training data.  If this is set to None, then user
+            must provide qid.
         qid :
             Query ID for each training sample.  Should have the size of n_samples.  If
-            this is set to None, then user must provide group.
+            this is set to None, then user must provide group or a special column in X.
         sample_weight :
             Query group weights
 
@@ -1929,8 +1969,9 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
 
                 In ranking task, one weight is assigned to each query group/id (not each
                 data point). This is because we only care about the relative ordering of
-                data points within each group, so it doesn't make sense to assign weights
-                to individual data points.
+                data points within each group, so it doesn't make sense to assign
+                weights to individual data points.
+
         base_margin :
             Global bias for each instance.
         eval_set :
@@ -1942,7 +1983,8 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
             query groups in the ``i``-th pair in **eval_set**.
         eval_qid :
             A list in which ``eval_qid[i]`` is the array containing query ID of ``i``-th
-            pair in **eval_set**.
+            pair in **eval_set**. The special column convention in `X` applies to
+            validation datasets as well.
 
         eval_metric : str, list of str, optional
             .. deprecated:: 1.6.0
@@ -1985,16 +2027,7 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
                 Use `callbacks` in :py:meth:`__init__` or :py:meth:`set_params` instead.
 
         """
-        # check if group information is provided
         with config_context(verbosity=self.verbosity):
-            if group is None and qid is None:
-                raise ValueError("group or qid is required for ranking task")
-
-            if eval_set is not None:
-                if eval_group is None and eval_qid is None:
-                    raise ValueError(
-                        "eval_group or eval_qid is required if eval_set is not None"
-                    )
             train_dmatrix, evals = _wrap_evaluation_matrices(
                 missing=self.missing,
                 X=X,
@@ -2009,7 +2042,7 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
                 base_margin_eval_set=base_margin_eval_set,
                 eval_group=eval_group,
                 eval_qid=eval_qid,
-                create_dmatrix=self._create_dmatrix,
+                create_dmatrix=self._create_ltr_dmatrix,
                 enable_categorical=self.enable_categorical,
                 feature_types=self.feature_types,
             )
@@ -2044,3 +2077,59 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
 
             self._set_evaluation_result(evals_result)
             return self
+
+    def predict(
+        self,
+        X: ArrayLike,
+        output_margin: bool = False,
+        ntree_limit: Optional[int] = None,
+        validate_features: bool = True,
+        base_margin: Optional[ArrayLike] = None,
+        iteration_range: Optional[Tuple[int, int]] = None,
+    ) -> ArrayLike:
+        X, _ = _get_qid(X, None)
+        return super().predict(
+            X,
+            output_margin,
+            ntree_limit,
+            validate_features,
+            base_margin,
+            iteration_range,
+        )
+
+    def apply(
+        self,
+        X: ArrayLike,
+        ntree_limit: int = 0,
+        iteration_range: Optional[Tuple[int, int]] = None,
+    ) -> ArrayLike:
+        X, _ = _get_qid(X, None)
+        return super().apply(X, ntree_limit, iteration_range)
+
+    def score(self, X: ArrayLike, y: ArrayLike) -> float:
+        """Evaluate score for data using the last evaluation metric.
+
+        Parameters
+        ----------
+        X : pd.DataFrame|cudf.DataFrame
+          Feature matrix. A DataFrame with a special `qid` column.
+
+        y :
+          Labels
+
+        Returns
+        -------
+        score :
+          The result of the first evaluation metric for the ranker.
+
+        """
+        X, qid = _get_qid(X, None)
+        Xyq = DMatrix(X, y, qid=qid)
+        if callable(self.eval_metric):
+            metric = ltr_metric_decorator(self.eval_metric, self.n_jobs)
+            result_str = self.get_booster().eval_set([(Xyq, "eval")], feval=metric)
+        else:
+            result_str = self.get_booster().eval(Xyq)
+
+        metric_score = _parse_eval_str(result_str)
+        return metric_score[-1][1]

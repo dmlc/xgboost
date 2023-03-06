@@ -231,7 +231,7 @@ def allreduce(data: np.ndarray, op: Op) -> np.ndarray:  # pylint:disable=invalid
     if buf.base is data.base:
         buf = buf.copy()
     if buf.dtype not in DTYPE_ENUM__:
-        raise Exception(f"data type {buf.dtype} not supported")
+        raise TypeError(f"data type {buf.dtype} not supported")
     _check_call(
         _LIB.XGCommunicatorAllreduce(
             buf.ctypes.data_as(ctypes.c_void_p),
