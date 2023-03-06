@@ -24,7 +24,7 @@ void TestEvaluateSplits(bool force_read_by_column) {
 
   auto dmat = RandomDataGenerator(kRows, kCols, 0).Seed(3).GenerateDMatrix();
 
-  auto evaluator = HistEvaluator<CPUExpandEntry>{&ctx, param, dmat->Info(), sampler};
+  auto evaluator = HistEvaluator<CPUExpandEntry>{&ctx, &param, dmat->Info(), sampler};
   common::HistCollection hist;
   std::vector<GradientPair> row_gpairs = {
       {1.23f, 0.24f}, {0.24f, 0.25f}, {0.26f, 0.27f},  {2.27f, 0.28f},
@@ -96,7 +96,7 @@ TEST(HistEvaluator, Apply) {
   param.UpdateAllowUnknown(Args{{"min_child_weight", "0"}, {"reg_lambda", "0.0"}});
   auto dmat = RandomDataGenerator(kNRows, kNCols, 0).Seed(3).GenerateDMatrix();
   auto sampler = std::make_shared<common::ColumnSampler>();
-  auto evaluator_ = HistEvaluator<CPUExpandEntry>{&ctx, param, dmat->Info(), sampler};
+  auto evaluator_ = HistEvaluator<CPUExpandEntry>{&ctx, &param, dmat->Info(), sampler};
 
   CPUExpandEntry entry{0, 0, 10.0f};
   entry.split.left_sum = GradStats{0.4, 0.6f};
@@ -123,7 +123,7 @@ TEST_F(TestPartitionBasedSplit, CPUHist) {
   // check the evaluator is returning the optimal split
   std::vector<FeatureType> ft{FeatureType::kCategorical};
   auto sampler = std::make_shared<common::ColumnSampler>();
-  HistEvaluator<CPUExpandEntry> evaluator{&ctx, param_, info_, sampler};
+  HistEvaluator<CPUExpandEntry> evaluator{&ctx, &param_, info_, sampler};
   evaluator.InitRoot(GradStats{total_gpair_});
   RegTree tree;
   std::vector<CPUExpandEntry> entries(1);
@@ -153,7 +153,7 @@ auto CompareOneHotAndPartition(bool onehot) {
       RandomDataGenerator(kRows, kCols, 0).Seed(3).Type(ft).MaxCategory(n_cats).GenerateDMatrix();
 
   auto sampler = std::make_shared<common::ColumnSampler>();
-  auto evaluator = HistEvaluator<CPUExpandEntry>{&ctx, param, dmat->Info(), sampler};
+  auto evaluator = HistEvaluator<CPUExpandEntry>{&ctx, &param, dmat->Info(), sampler};
   std::vector<CPUExpandEntry> entries(1);
 
   for (auto const &gmat : dmat->GetBatches<GHistIndexMatrix>({32, param.sparse_threshold})) {
@@ -204,7 +204,7 @@ TEST_F(TestCategoricalSplitWithMissing, HistEvaluator) {
   info.num_col_ = 1;
   info.feature_types = {FeatureType::kCategorical};
   Context ctx;
-  auto evaluator = HistEvaluator<CPUExpandEntry>{&ctx, param_, info, sampler};
+  auto evaluator = HistEvaluator<CPUExpandEntry>{&ctx, &param_, info, sampler};
   evaluator.InitRoot(GradStats{parent_sum_});
 
   std::vector<CPUExpandEntry> entries(1);

@@ -422,10 +422,10 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
         self.assertTrue(hasattr(classifier, "max_depth"))
         self.assertEqual(classifier.getOrDefault(classifier.max_depth), 7)
         booster_config = json.loads(model.get_booster().save_config())
-        max_depth = booster_config["learner"]["gradient_booster"]["updater"][
-            "grow_histmaker"
-        ]["train_param"]["max_depth"]
-        self.assertEqual(int(max_depth), 7)
+        max_depth = booster_config["learner"]["gradient_booster"]["tree_train_param"][
+            "max_depth"
+        ]
+        assert int(max_depth) == 7
 
     def test_repartition(self):
         # The following test case has a few partitioned datasets that are either

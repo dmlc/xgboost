@@ -1,5 +1,5 @@
-/*!
- * Copyright 2022 by XGBoost Contributors
+/**
+ * Copyright 2022-2023 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
@@ -12,8 +12,7 @@
 #include "../../../src/tree/split_evaluator.h"
 #include "../helpers.h"
 
-namespace xgboost {
-namespace tree {
+namespace xgboost::tree {
 /**
  * \brief Enumerate all possible partitions for categorical split.
  */
@@ -151,5 +150,4 @@ class TestCategoricalSplitWithMissing : public testing::Test {
     ASSERT_EQ(right_sum.GetHess(), parent_sum_.GetHess() - left_sum.GetHess());
   }
 };
-}  // namespace tree
-}  // namespace xgboost
+}  // namespace xgboost::tree

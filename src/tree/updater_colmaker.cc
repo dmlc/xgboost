@@ -1,5 +1,5 @@
-/*!
- * Copyright 2014-2022 by XGBoost Contributors
+/**
+ * Copyright 2014-2023 by XGBoost Contributors
  * \file updater_colmaker.cc
  * \brief use columnwise update to construct a tree
  * \author Tianqi Chen
@@ -17,8 +17,7 @@
 #include "../common/random.h"
 #include "split_evaluator.h"
 
-namespace xgboost {
-namespace tree {
+namespace xgboost::tree {
 
 DMLC_REGISTRY_FILE_TAG(updater_colmaker);
 
@@ -57,18 +56,15 @@ class ColMaker: public TreeUpdater {
  public:
   explicit ColMaker(Context const *ctx) : TreeUpdater(ctx) {}
   void Configure(const Args &args) override {
-    param_.UpdateAllowUnknown(args);
     colmaker_param_.UpdateAllowUnknown(args);
   }
 
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
-    FromJson(config.at("train_param"), &this->param_);
     FromJson(config.at("colmaker_train_param"), &this->colmaker_param_);
   }
-  void SaveConfig(Json* p_out) const override {
-    auto& out = *p_out;
-    out["train_param"] = ToJson(param_);
+  void SaveConfig(Json *p_out) const override {
+    auto &out = *p_out;
     out["colmaker_train_param"] = ToJson(colmaker_param_);
   }
 
@@ -95,7 +91,7 @@ class ColMaker: public TreeUpdater {
     }
   }
 
-  void Update(HostDeviceVector<GradientPair> *gpair, DMatrix *dmat,
+  void Update(TrainParam const *param, HostDeviceVector<GradientPair> *gpair, DMatrix *dmat,
               common::Span<HostDeviceVector<bst_node_t>> /*out_position*/,
               const std::vector<RegTree *> &trees) override {
     if (collective::IsDistributed()) {
@@ -108,22 +104,16 @@ class ColMaker: public TreeUpdater {
     }
     this->LazyGetColumnDensity(dmat);
     // rescale learning rate according to size of trees
-    float lr = param_.learning_rate;
-    param_.learning_rate = lr / trees.size();
-    interaction_constraints_.Configure(param_, dmat->Info().num_row_);
+    interaction_constraints_.Configure(*param, dmat->Info().num_row_);
     // build tree
     for (auto tree : trees) {
       CHECK(ctx_);
-      Builder builder(param_, colmaker_param_, interaction_constraints_, ctx_,
-                      column_densities_);
+      Builder builder(*param, colmaker_param_, interaction_constraints_, ctx_, column_densities_);
       builder.Update(gpair->ConstHostVector(), dmat, tree);
     }
-    param_.learning_rate = lr;
   }
 
  protected:
-  // training parameter
-  TrainParam param_;
   ColMakerTrainParam colmaker_param_;
   // SplitEvaluator that will be cloned for each Builder
   std::vector<float> column_densities_;
@@ -614,5 +604,4 @@ class ColMaker: public TreeUpdater {
 XGBOOST_REGISTER_TREE_UPDATER(ColMaker, "grow_colmaker")
     .describe("Grow tree with parallelization over columns.")
     .set_body([](Context const *ctx, ObjInfo) { return new ColMaker(ctx); });
-}  // namespace tree
-}  // namespace xgboost
+}  // namespace xgboost::tree

@@ -1,20 +1,20 @@
-/*!
- * Copyright 2018-2019 by Contributors
+/**
+ * Copyright 2018-2023 by XGBoost Contributors
  */
+#include <gtest/gtest.h>
 #include <xgboost/data.h>
 #include <xgboost/host_device_vector.h>
-#include <xgboost/tree_updater.h>
 #include <xgboost/learner.h>
-#include <gtest/gtest.h>
-#include <vector>
-#include <string>
-#include <memory>
+#include <xgboost/tree_updater.h>
 
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "../../../src/tree/param.h"  // for TrainParam
 #include "../helpers.h"
 
-namespace xgboost {
-namespace tree {
-
+namespace xgboost::tree {
 TEST(Updater, Prune) {
   int constexpr kCols = 16;
 
@@ -36,28 +36,30 @@ TEST(Updater, Prune) {
   tree.param.UpdateAllowUnknown(cfg);
   std::vector<RegTree*> trees {&tree};
   // prepare pruner
+  TrainParam param;
+  param.UpdateAllowUnknown(cfg);
+
   std::unique_ptr<TreeUpdater> pruner(
       TreeUpdater::Create("prune", &ctx, ObjInfo{ObjInfo::kRegression}));
-  pruner->Configure(cfg);
 
   // loss_chg < min_split_loss;
   std::vector<HostDeviceVector<bst_node_t>> position(trees.size());
   tree.ExpandNode(0, 0, 0, true, 0.0f, 0.3f, 0.4f, 0.0f, 0.0f,
                   /*left_sum=*/0.0f, /*right_sum=*/0.0f);
-  pruner->Update(&gpair, p_dmat.get(), position, trees);
+  pruner->Update(&param, &gpair, p_dmat.get(), position, trees);
 
   ASSERT_EQ(tree.NumExtraNodes(), 0);
 
   // loss_chg > min_split_loss;
   tree.ExpandNode(0, 0, 0, true, 0.0f, 0.3f, 0.4f, 11.0f, 0.0f,
                   /*left_sum=*/0.0f, /*right_sum=*/0.0f);
-  pruner->Update(&gpair, p_dmat.get(), position, trees);
+  pruner->Update(&param, &gpair, p_dmat.get(), position, trees);
 
   ASSERT_EQ(tree.NumExtraNodes(), 2);
 
   // loss_chg == min_split_loss;
   tree.Stat(0).loss_chg = 10;
-  pruner->Update(&gpair, p_dmat.get(), position, trees);
+  pruner->Update(&param, &gpair, p_dmat.get(), position, trees);
 
   ASSERT_EQ(tree.NumExtraNodes(), 2);
 
@@ -71,10 +73,10 @@ TEST(Updater, Prune) {
                   0, 0.5f, true, 0.3, 0.4, 0.5,
                   /*loss_chg=*/19.0f, 0.0f,
                   /*left_sum=*/0.0f, /*right_sum=*/0.0f);
-  cfg.emplace_back("max_depth", "1");
-  pruner->Configure(cfg);
-  pruner->Update(&gpair, p_dmat.get(), position, trees);
 
+  cfg.emplace_back("max_depth", "1");
+  param.UpdateAllowUnknown(cfg);
+  pruner->Update(&param, &gpair, p_dmat.get(), position, trees);
   ASSERT_EQ(tree.NumExtraNodes(), 2);
 
   tree.ExpandNode(tree[0].LeftChild(),
@@ -82,9 +84,9 @@ TEST(Updater, Prune) {
                   /*loss_chg=*/18.0f, 0.0f,
                   /*left_sum=*/0.0f, /*right_sum=*/0.0f);
   cfg.emplace_back("min_split_loss", "0");
-  pruner->Configure(cfg);
-  pruner->Update(&gpair, p_dmat.get(), position, trees);
+  param.UpdateAllowUnknown(cfg);
+
+  pruner->Update(&param, &gpair, p_dmat.get(), position, trees);
   ASSERT_EQ(tree.NumExtraNodes(), 2);
 }
-}  // namespace tree
-}  // namespace xgboost
+}  // namespace xgboost::tree

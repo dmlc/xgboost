@@ -36,7 +36,7 @@ inline void FillMissingLeaf(std::vector<bst_node_t> const& maybe_missing,
 }
 
 inline void UpdateLeafValues(std::vector<float>* p_quantiles, std::vector<bst_node_t> const& nidx,
-                             RegTree* p_tree) {
+                             float learning_rate, RegTree* p_tree) {
   auto& tree = *p_tree;
   auto& quantiles = *p_quantiles;
   auto const& h_node_idx = nidx;
@@ -71,7 +71,7 @@ inline void UpdateLeafValues(std::vector<float>* p_quantiles, std::vector<bst_no
     auto nidx = h_node_idx[i];
     auto q = quantiles[i];
     CHECK(tree[nidx].IsLeaf());
-    tree[nidx].SetLeaf(q);
+    tree[nidx].SetLeaf(q * learning_rate);
   }
 }
 
@@ -85,24 +85,24 @@ inline std::size_t IdxY(MetaInfo const& info, bst_group_t group_idx) {
 }
 
 void UpdateTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> position,
-                          std::int32_t group_idx, MetaInfo const& info,
+                          std::int32_t group_idx, MetaInfo const& info, float learning_rate,
                           HostDeviceVector<float> const& predt, float alpha, RegTree* p_tree);
 
 void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& position,
-                        std::int32_t group_idx, MetaInfo const& info,
+                        std::int32_t group_idx, MetaInfo const& info, float learning_rate,
                         HostDeviceVector<float> const& predt, float alpha, RegTree* p_tree);
 }  // namespace detail
 
 inline void UpdateTreeLeaf(Context const* ctx, HostDeviceVector<bst_node_t> const& position,
-                           std::int32_t group_idx, MetaInfo const& info,
+                           std::int32_t group_idx, MetaInfo const& info, float learning_rate,
                            HostDeviceVector<float> const& predt, float alpha, RegTree* p_tree) {
   if (ctx->IsCPU()) {
-    detail::UpdateTreeLeafHost(ctx, position.ConstHostVector(), group_idx, info, predt, alpha,
-                               p_tree);
+    detail::UpdateTreeLeafHost(ctx, position.ConstHostVector(), group_idx, info, learning_rate,
+                               predt, alpha, p_tree);
   } else {
     position.SetDevice(ctx->gpu_id);
-    detail::UpdateTreeLeafDevice(ctx, position.ConstDeviceSpan(), group_idx, info, predt, alpha,
-                                 p_tree);
+    detail::UpdateTreeLeafDevice(ctx, position.ConstDeviceSpan(), group_idx, info, learning_rate,
+                                 predt, alpha, p_tree);
   }
 }
 }  // namespace obj

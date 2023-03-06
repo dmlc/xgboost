@@ -447,7 +447,8 @@ class TestTreeMethod:
             {
                 "tree_method": tree_method,
                 "objective": "reg:absoluteerror",
-                "subsample": 0.8
+                "subsample": 0.8,
+                "eta": 1.0,
             },
             Xy,
             num_boost_round=10,

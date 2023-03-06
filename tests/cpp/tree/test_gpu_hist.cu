@@ -1,5 +1,5 @@
-/*!
- * Copyright 2017-2022 XGBoost contributors
+/**
+ * Copyright 2017-2023 by XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <thrust/device_vector.h>
@@ -13,6 +13,7 @@
 #include "../../../src/common/common.h"
 #include "../../../src/data/sparse_page_source.h"
 #include "../../../src/tree/constraints.cuh"
+#include "../../../src/tree/param.h"  // for TrainParam
 #include "../../../src/tree/updater_gpu_common.cuh"
 #include "../../../src/tree/updater_gpu_hist.cu"
 #include "../filesystem.h"  // dmlc::TemporaryDirectory
@@ -21,8 +22,7 @@
 #include "xgboost/context.h"
 #include "xgboost/json.h"
 
-namespace xgboost {
-namespace tree {
+namespace xgboost::tree {
 TEST(GpuHist, DeviceHistogram) {
   // Ensures that node allocates correctly after reaching `kStopGrowingSize`.
   dh::safe_cuda(cudaSetDevice(0));
@@ -83,11 +83,12 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   int const kNRows = 16, kNCols = 8;
 
   TrainParam param;
-  std::vector<std::pair<std::string, std::string>> args {
-    {"max_depth", "6"},
-    {"max_leaves", "0"},
+  Args args{
+      {"max_depth", "6"},
+      {"max_leaves", "0"},
   };
   param.Init(args);
+
   auto page = BuildEllpackPage(kNRows, kNCols);
   BatchParam batch_param{};
   Context ctx{CreateEmptyGenericParam(0)};
@@ -168,7 +169,6 @@ void TestHistogramIndexImpl() {
   int constexpr kNRows = 1000, kNCols = 10;
 
   // Build 2 matrices and build a histogram maker with that
-
   Context ctx(CreateEmptyGenericParam(0));
   tree::GPUHistMaker hist_maker{&ctx, ObjInfo{ObjInfo::kRegression}},
       hist_maker_ext{&ctx, ObjInfo{ObjInfo::kRegression}};
@@ -179,15 +179,14 @@ void TestHistogramIndexImpl() {
   std::unique_ptr<DMatrix> hist_maker_ext_dmat(
     CreateSparsePageDMatrixWithRC(kNRows, kNCols, 128UL, true, tempdir));
 
-  std::vector<std::pair<std::string, std::string>> training_params = {
-    {"max_depth", "10"},
-    {"max_leaves", "0"}
-  };
+  Args training_params = {{"max_depth", "10"}, {"max_leaves", "0"}};
+  TrainParam param;
+  param.UpdateAllowUnknown(training_params);
 
   hist_maker.Configure(training_params);
-  hist_maker.InitDataOnce(hist_maker_dmat.get());
+  hist_maker.InitDataOnce(&param, hist_maker_dmat.get());
   hist_maker_ext.Configure(training_params);
-  hist_maker_ext.InitDataOnce(hist_maker_ext_dmat.get());
+  hist_maker_ext.InitDataOnce(&param, hist_maker_ext_dmat.get());
 
   // Extract the device maker from the histogram makers and from that its compressed
   // histogram index
@@ -237,13 +236,15 @@ void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
       {"subsample", std::to_string(subsample)},
       {"sampling_method", sampling_method},
   };
+  TrainParam param;
+  param.UpdateAllowUnknown(args);
 
   Context ctx(CreateEmptyGenericParam(0));
   tree::GPUHistMaker hist_maker{&ctx,ObjInfo{ObjInfo::kRegression}};
-  hist_maker.Configure(args);
 
   std::vector<HostDeviceVector<bst_node_t>> position(1);
-  hist_maker.Update(gpair, dmat, common::Span<HostDeviceVector<bst_node_t>>{position}, {tree});
+  hist_maker.Update(&param, gpair, dmat, common::Span<HostDeviceVector<bst_node_t>>{position},
+                    {tree});
   auto cache = linalg::VectorView<float>{preds->DeviceSpan(), {preds->Size()}, 0};
   hist_maker.UpdatePredictionCache(dmat, cache);
 }
@@ -391,13 +392,11 @@ TEST(GpuHist, ConfigIO) {
   Json j_updater { Object() };
   updater->SaveConfig(&j_updater);
   ASSERT_TRUE(IsA<Object>(j_updater["gpu_hist_train_param"]));
-  ASSERT_TRUE(IsA<Object>(j_updater["train_param"]));
   updater->LoadConfig(j_updater);
 
   Json j_updater_roundtrip { Object() };
   updater->SaveConfig(&j_updater_roundtrip);
   ASSERT_TRUE(IsA<Object>(j_updater_roundtrip["gpu_hist_train_param"]));
-  ASSERT_TRUE(IsA<Object>(j_updater_roundtrip["train_param"]));
 
   ASSERT_EQ(j_updater, j_updater_roundtrip);
 }
@@ -414,5 +413,4 @@ TEST(GpuHist, MaxDepth) {
 
   ASSERT_THROW({learner->UpdateOneIter(0, p_mat);}, dmlc::Error);
 }
-}  // namespace tree
-}  // namespace xgboost
+}  // namespace xgboost::tree

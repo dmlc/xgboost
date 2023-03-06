@@ -42,8 +42,14 @@ class TestGPUBasicModels:
     def test_custom_objective(self):
         self.cpu_test_bm.run_custom_objective("gpu_hist")
 
-    def test_eta_decay_gpu_hist(self):
+    def test_eta_decay(self):
         self.cpu_test_cb.run_eta_decay('gpu_hist')
+
+    @pytest.mark.parametrize(
+        "objective", ["binary:logistic", "reg:absoluteerror", "reg:quantileerror"]
+    )
+    def test_eta_decay_leaf_output(self, objective) -> None:
+        self.cpu_test_cb.run_eta_decay_leaf_output("gpu_hist", objective)
 
     def test_deterministic_gpu_hist(self):
         kRows = 1000

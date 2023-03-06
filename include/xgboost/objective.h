@@ -116,12 +116,13 @@ class ObjFunction : public Configurable {
    *
    * \param position The leaf index for each rows.
    * \param info MetaInfo providing labels and weights.
+   * \param learning_rate The learning rate for current iteration.
    * \param prediction Model prediction after transformation.
    * \param group_idx The group index for this tree, 0 when it's not multi-target or multi-class.
    * \param p_tree Tree that needs to be updated.
    */
   virtual void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& /*position*/,
-                              MetaInfo const& /*info*/,
+                              MetaInfo const& /*info*/, float /*learning_rate*/,
                               HostDeviceVector<float> const& /*prediction*/,
                               std::int32_t /*group_idx*/, RegTree* /*p_tree*/) const {}
 

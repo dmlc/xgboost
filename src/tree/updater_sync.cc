@@ -1,5 +1,5 @@
-/*!
- * Copyright 2014-2019 by Contributors
+/**
+ * Copyright 2014-2013 by XBGoost Contributors
  * \file updater_sync.cc
  * \brief synchronize the tree in all distributed nodes
  */
@@ -13,8 +13,7 @@
 #include "../common/io.h"
 #include "xgboost/json.h"
 
-namespace xgboost {
-namespace tree {
+namespace xgboost::tree {
 
 DMLC_REGISTRY_FILE_TAG(updater_sync);
 
@@ -30,11 +29,9 @@ class TreeSyncher : public TreeUpdater {
   void LoadConfig(Json const&) override {}
   void SaveConfig(Json*) const override {}
 
-  char const* Name() const override {
-    return "prune";
-  }
+  [[nodiscard]] char const* Name() const override { return "prune"; }
 
-  void Update(HostDeviceVector<GradientPair>*, DMatrix*,
+  void Update(TrainParam const*, HostDeviceVector<GradientPair>*, DMatrix*,
               common::Span<HostDeviceVector<bst_node_t>> /*out_position*/,
               const std::vector<RegTree*>& trees) override {
     if (collective::GetWorldSize() == 1) return;
@@ -57,5 +54,4 @@ class TreeSyncher : public TreeUpdater {
 XGBOOST_REGISTER_TREE_UPDATER(TreeSyncher, "sync")
     .describe("Syncher that synchronize the tree in all distributed nodes.")
     .set_body([](Context const* ctx, ObjInfo) { return new TreeSyncher(ctx); });
-}  // namespace tree
-}  // namespace xgboost
+}  // namespace xgboost::tree
