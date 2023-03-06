@@ -571,7 +571,8 @@ class TensorView {
  * \brief Constructor for automatic type deduction.
  */
 template <typename Container, typename... S,
-          std::enable_if_t<!common::detail::IsSpan<Container>::value> * = nullptr>
+          std::enable_if_t<!common::detail::IsSpan<Container>::value &&
+                           !std::is_pointer_v<Container>> * = nullptr>
 auto MakeTensorView(Context const *ctx, Container &data, S &&...shape) {  // NOLINT
   using T = typename Container::value_type;
   std::size_t in_shape[sizeof...(S)];

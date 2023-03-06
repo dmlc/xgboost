@@ -136,8 +136,7 @@ void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& posit
 
 #if !defined(XGBOOST_USE_CUDA)
 void UpdateTreeLeafDevice(Context const*, common::Span<bst_node_t const>, std::int32_t,
-                          MetaInfo const&, float learning_rate, HostDeviceVector<float> const&,
-                          float, RegTree*) {
+                          MetaInfo const&, float, HostDeviceVector<float> const&, float, RegTree*) {
   common::AssertGPUSupport();
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
