@@ -6,9 +6,9 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tupl
 import numpy as np
 import pandas as pd
 from scipy.sparse import csr_matrix
-from xgboost.compat import concat
 
 from xgboost import DataIter, DMatrix, QuantileDMatrix, XGBModel
+from xgboost.compat import concat
 
 from .._typing import ArrayLike
 from ..core import _convert_ntree_limit

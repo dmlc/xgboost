@@ -11,6 +11,7 @@ from xgboost import testing as tm
 pytestmark = pytest.mark.skipif(**tm.no_spark())
 
 from pyspark.ml.linalg import Vectors
+
 from xgboost.spark import SparkXGBClassifier, SparkXGBRegressor
 from xgboost.spark.utils import _get_max_num_concurrent_tasks
 

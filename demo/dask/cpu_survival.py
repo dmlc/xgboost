@@ -8,9 +8,9 @@ import os
 
 import dask.dataframe as dd
 from dask.distributed import Client, LocalCluster
-from xgboost.dask import DaskDMatrix
 
 import xgboost as xgb
+from xgboost.dask import DaskDMatrix
 
 
 def main(client):

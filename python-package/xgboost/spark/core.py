@@ -34,12 +34,12 @@ from pyspark.sql.types import (
     ShortType,
 )
 from scipy.special import expit, softmax  # pylint: disable=no-name-in-module
-from xgboost.compat import is_cudf_available
-from xgboost.core import Booster
-from xgboost.training import train as worker_train
 
 import xgboost
 from xgboost import XGBClassifier, XGBRanker, XGBRegressor
+from xgboost.compat import is_cudf_available
+from xgboost.core import Booster
+from xgboost.training import train as worker_train
 
 from .data import (
     _read_csr_matrix_from_unwrapped_spark_vec,

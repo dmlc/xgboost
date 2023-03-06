@@ -3,9 +3,8 @@ import multiprocessing
 import sys
 import time
 
-import xgboost.federated
-
 import xgboost as xgb
+import xgboost.federated
 
 SERVER_KEY = 'server-key.pem'
 SERVER_CERT = 'server-cert.pem'

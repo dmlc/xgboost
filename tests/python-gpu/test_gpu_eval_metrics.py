@@ -1,10 +1,10 @@
 import sys
 
 import pytest
-from xgboost.testing.metrics import check_quantile_error
 
 import xgboost
 from xgboost import testing as tm
+from xgboost.testing.metrics import check_quantile_error
 
 sys.path.append("tests/python")
 import test_eval_metrics as test_em  # noqa

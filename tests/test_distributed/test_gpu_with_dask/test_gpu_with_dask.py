@@ -10,10 +10,10 @@ import numpy as np
 import pytest
 from hypothesis import given, note, settings, strategies
 from hypothesis._settings import duration
-from xgboost.testing.params import hist_parameter_strategy
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.testing.params import hist_parameter_strategy
 
 pytestmark = [
     pytest.mark.skipif(**tm.no_dask()),
@@ -42,9 +42,9 @@ try:
     from dask import array as da
     from dask.distributed import Client
     from dask_cuda import LocalCUDACluster
-    from xgboost.testing.dask import check_init_estimation
 
     from xgboost import dask as dxgb
+    from xgboost.testing.dask import check_init_estimation
 except ImportError:
     pass
 

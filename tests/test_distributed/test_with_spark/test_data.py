@@ -8,14 +8,13 @@ from xgboost import testing as tm
 
 pytestmark = [pytest.mark.skipif(**tm.no_spark())]
 
+from xgboost import DMatrix, QuantileDMatrix
 from xgboost.spark.data import (
     _read_csr_matrix_from_unwrapped_spark_vec,
     alias,
     create_dmatrix_from_partitions,
     stack_series,
 )
-
-from xgboost import DMatrix, QuantileDMatrix
 
 
 def test_stack() -> None:

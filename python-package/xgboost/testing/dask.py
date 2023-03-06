@@ -2,9 +2,9 @@
 import numpy as np
 from dask import array as da
 from distributed import Client
-from xgboost.testing.updater import get_basescore
 
 import xgboost as xgb
+from xgboost.testing.updater import get_basescore
 
 
 def check_init_estimation_clf(tree_method: str, client: Client) -> None:

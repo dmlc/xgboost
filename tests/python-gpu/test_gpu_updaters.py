@@ -4,11 +4,11 @@ from typing import Any, Dict
 import numpy as np
 import pytest
 from hypothesis import assume, given, note, settings, strategies
-from xgboost.testing.params import cat_parameter_strategy, hist_parameter_strategy
-from xgboost.testing.updater import check_init_estimation, check_quantile_loss
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.testing.params import cat_parameter_strategy, hist_parameter_strategy
+from xgboost.testing.updater import check_init_estimation, check_quantile_loss
 
 sys.path.append("tests/python")
 import test_updaters as test_up

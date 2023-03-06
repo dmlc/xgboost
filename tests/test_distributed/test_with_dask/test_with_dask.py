@@ -21,6 +21,9 @@ import scipy
 import sklearn
 from hypothesis import HealthCheck, given, note, settings
 from sklearn.datasets import make_classification, make_regression
+
+import xgboost as xgb
+from xgboost import testing as tm
 from xgboost.data import _is_cudf_df
 from xgboost.testing.params import hist_parameter_strategy
 from xgboost.testing.shared import (
@@ -29,9 +32,6 @@ from xgboost.testing.shared import (
     validate_leaf_output,
 )
 
-import xgboost as xgb
-from xgboost import testing as tm
-
 pytestmark = [tm.timeout(60), pytest.mark.skipif(**tm.no_dask())]
 
 import dask
@@ -39,6 +39,7 @@ import dask.array as da
 import dask.dataframe as dd
 from distributed import Client, LocalCluster
 from toolz import sliding_window  # dependency of dask
+
 from xgboost.dask import DaskDMatrix
 from xgboost.testing.dask import check_init_estimation
 

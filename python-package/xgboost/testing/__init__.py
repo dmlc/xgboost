@@ -33,10 +33,10 @@ from urllib import request
 import numpy as np
 import pytest
 from scipy import sparse
-from xgboost.core import ArrayLike
-from xgboost.sklearn import SklObjective
 
 import xgboost as xgb
+from xgboost.core import ArrayLike
+from xgboost.sklearn import SklObjective
 
 hypothesis = pytest.importorskip("hypothesis")
 

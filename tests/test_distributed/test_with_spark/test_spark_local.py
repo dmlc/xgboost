@@ -8,10 +8,10 @@ from typing import Generator, Sequence, Type
 
 import numpy as np
 import pytest
-from xgboost.spark.data import pred_contribs
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.spark.data import pred_contribs
 
 pytestmark = [tm.timeout(60), pytest.mark.skipif(**tm.no_spark())]
 
@@ -23,6 +23,8 @@ from pyspark.ml.linalg import Vectors
 from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as spark_sql_func
+
+from xgboost import XGBClassifier, XGBModel, XGBRegressor
 from xgboost.spark import (
     SparkXGBClassifier,
     SparkXGBClassifierModel,
@@ -31,8 +33,6 @@ from xgboost.spark import (
     SparkXGBRegressorModel,
 )
 from xgboost.spark.core import _non_booster_params
-
-from xgboost import XGBClassifier, XGBModel, XGBRegressor
 
 from .utils import SparkTestCase
 

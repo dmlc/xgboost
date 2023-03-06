@@ -2,6 +2,7 @@
 from typing import Any, Generator, Tuple, Union
 
 import numpy as np
+
 from xgboost.data import pandas_pyarrow_mapper
 
 

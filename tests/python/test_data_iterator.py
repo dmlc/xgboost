@@ -4,11 +4,11 @@ import numpy as np
 import pytest
 from hypothesis import given, settings, strategies
 from scipy.sparse import csr_matrix
-from xgboost.data import SingleBatchInternalIter as SingleBatch
-from xgboost.testing import IteratorForTest, make_batches, non_increasing
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.data import SingleBatchInternalIter as SingleBatch
+from xgboost.testing import IteratorForTest, make_batches, non_increasing
 
 pytestmark = tm.timeout(30)
 
