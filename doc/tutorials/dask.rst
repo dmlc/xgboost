@@ -498,11 +498,15 @@ dask config is used:
     with Client(scheduler_file="sched.json") as client:
         reg = dxgb.DaskXGBRegressor()
 
-    # or we can specify the port too
+    # We can specify the port for XGBoost as well
     with dask.config.set({"xgboost.scheduler_address": "192.0.0.100:12345"}):
         reg = dxgb.DaskXGBRegressor()
 
 
+Please note that XGBoost requires a different port than dask. By default, on a unix-like
+system XGBoost uses the port 0 to find available ports, which may fail if a user is
+running in a restricted docker environment. In this case, please open additional ports in
+the container and specify it as in the above snippet.
 
 ************
 IPv6 Support
