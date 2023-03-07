@@ -1,4 +1,4 @@
-FROM ubuntu:18.04
+FROM ubuntu:22.04
 
 # Environment
 ENV DEBIAN_FRONTEND noninteractive
@@ -10,18 +10,15 @@ RUN \
     apt-get install -y software-properties-common && \
     add-apt-repository ppa:ubuntu-toolchain-r/test && \
     apt-get update && \
-    apt-get install -y tar unzip wget git build-essential doxygen graphviz llvm libasan2 libidn11 ninja-build gcc-8 g++-8 openjdk-8-jdk-headless && \
-    # CMake
-    wget -nv -nc https://cmake.org/files/v3.18/cmake-3.18.0-Linux-x86_64.sh --no-check-certificate && \
-    bash cmake-3.18.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
+    apt-get install -y tar unzip wget git build-essential doxygen graphviz llvm libidn12 cmake ninja-build gcc-9 g++-9 openjdk-8-jdk-headless && \
     # Python
     wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/22.11.1-2/Mambaforge-22.11.1-2-Linux-x86_64.sh && \
     bash conda.sh -b -p /opt/mambaforge
 
 ENV PATH=/opt/mambaforge/bin:$PATH
-ENV CC=gcc-8
-ENV CXX=g++-8
-ENV CPP=cpp-8
+ENV CC=gcc-9
+ENV CXX=g++-9
+ENV CPP=cpp-9
 
 ENV GOSU_VERSION 1.10
 ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64/

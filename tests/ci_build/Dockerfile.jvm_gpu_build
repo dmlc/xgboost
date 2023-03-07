@@ -10,7 +10,7 @@ RUN \
     yum install -y epel-release centos-release-scl && \
     yum-config-manager --enable centos-sclo-rh-testing && \
     yum -y update && \
-    yum install -y tar unzip wget xz git which ninja-build java-1.8.0-openjdk-devel devtoolset-8-gcc devtoolset-8-binutils devtoolset-8-gcc-c++ && \
+    yum install -y tar unzip wget xz git which ninja-build java-1.8.0-openjdk-devel devtoolset-9-gcc devtoolset-9-binutils devtoolset-9-gcc-c++ && \
     # Python
     wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/22.11.1-2/Mambaforge-22.11.1-2-Linux-x86_64.sh && \
     bash conda.sh -b -p /opt/mambaforge && \
@@ -31,9 +31,9 @@ RUN \
     yum install -y libnccl-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-devel-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-static-${NCCL_VERSION}+cuda${CUDA_SHORT}
 
 ENV PATH=/opt/mambaforge/bin:/opt/maven/bin:$PATH
-ENV CC=/opt/rh/devtoolset-8/root/usr/bin/gcc
-ENV CXX=/opt/rh/devtoolset-8/root/usr/bin/c++
-ENV CPP=/opt/rh/devtoolset-8/root/usr/bin/cpp
+ENV CC=/opt/rh/devtoolset-9/root/usr/bin/gcc
+ENV CXX=/opt/rh/devtoolset-9/root/usr/bin/c++
+ENV CPP=/opt/rh/devtoolset-9/root/usr/bin/cpp
 
 # Install Python packages
 RUN \

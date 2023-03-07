@@ -12,16 +12,16 @@ RUN \
     yum install -y tar unzip wget xz git which ninja-build readline-devel libX11-devel libXt-devel \
                    xorg-x11-server-devel openssl-devel zlib-devel bzip2-devel xz-devel \
                    pcre-devel libcurl-devel texlive-* \
-                   devtoolset-8-gcc devtoolset-8-binutils devtoolset-8-gcc-c++ \
-                   devtoolset-8-gcc-gfortran devtoolset-8-libquadmath-devel \
-                   devtoolset-8-runtime devtoolset-8-libstdc++-devel
+                   devtoolset-9-gcc devtoolset-9-binutils devtoolset-9-gcc-c++ \
+                   devtoolset-9-gcc-gfortran devtoolset-9-libquadmath-devel \
+                   devtoolset-9-runtime devtoolset-9-libstdc++-devel
 
 ENV PATH=/opt/mambaforge/bin:/usr/local/ninja:/opt/software/packages/bin:/opt/R/3.3.0/bin:$PATH
 ENV LD_LIBRARY_PATH=/opt/software/packages/lib:/opt/R/3.3.0/lib64:$LD_LIBRARY_PATH
-ENV CC=/opt/rh/devtoolset-8/root/usr/bin/gcc
-ENV CXX=/opt/rh/devtoolset-8/root/usr/bin/c++
-ENV CPP=/opt/rh/devtoolset-8/root/usr/bin/cpp
-ENV F77=/opt/rh/devtoolset-8/root/usr/bin/gfortran
+ENV CC=/opt/rh/devtoolset-9/root/usr/bin/gcc
+ENV CXX=/opt/rh/devtoolset-9/root/usr/bin/c++
+ENV CPP=/opt/rh/devtoolset-9/root/usr/bin/cpp
+ENV F77=/opt/rh/devtoolset-9/root/usr/bin/gfortran
 
 # R 3.3.0
 RUN \
