@@ -157,8 +157,8 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
   HostDeviceVector<float> quantiles;
   predt.SetDevice(ctx->gpu_id);
 
-  auto d_predt = linalg::MakeTensorView(predt.ConstDeviceSpan(),
-                                        {info.num_row_, predt.Size() / info.num_row_}, ctx->gpu_id);
+  auto d_predt = linalg::MakeTensorView(ctx, predt.ConstDeviceSpan(), info.num_row_,
+                                        predt.Size() / info.num_row_);
   CHECK_LT(group_idx, d_predt.Shape(1));
   auto t_predt = d_predt.Slice(linalg::All(), group_idx);
   auto d_labels = info.labels.View(ctx->gpu_id).Slice(linalg::All(), IdxY(info, group_idx));

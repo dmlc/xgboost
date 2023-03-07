@@ -23,9 +23,7 @@
 #include "xgboost/span.h"                  // Span
 #include "xgboost/tree_model.h"            // RegTree
 
-namespace xgboost {
-namespace obj {
-namespace detail {
+namespace xgboost::obj::detail {
 void EncodeTreeLeafHost(Context const* ctx, RegTree const& tree,
                         std::vector<bst_node_t> const& position, std::vector<size_t>* p_nptr,
                         std::vector<bst_node_t>* p_nidx, std::vector<size_t>* p_ridx) {
@@ -98,8 +96,8 @@ void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& posit
   auto const& h_node_idx = nidx;
   auto const& h_node_ptr = nptr;
   CHECK_LE(h_node_ptr.back(), info.num_row_);
-  auto h_predt = linalg::MakeTensorView(predt.ConstHostSpan(),
-                                        {info.num_row_, predt.Size() / info.num_row_}, ctx->gpu_id);
+  auto h_predt = linalg::MakeTensorView(ctx, predt.ConstHostSpan(), info.num_row_,
+                                        predt.Size() / info.num_row_);
 
   // loop over each leaf
   common::ParallelFor(quantiles.size(), ctx->Threads(), [&](size_t k) {
@@ -138,11 +136,8 @@ void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& posit
 
 #if !defined(XGBOOST_USE_CUDA)
 void UpdateTreeLeafDevice(Context const*, common::Span<bst_node_t const>, std::int32_t,
-                          MetaInfo const&, float learning_rate, HostDeviceVector<float> const&,
-                          float, RegTree*) {
+                          MetaInfo const&, float, HostDeviceVector<float> const&, float, RegTree*) {
   common::AssertGPUSupport();
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
-}  // namespace detail
-}  // namespace obj
-}  // namespace xgboost
+}  // namespace xgboost::obj::detail
