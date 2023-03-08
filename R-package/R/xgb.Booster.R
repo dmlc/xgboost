@@ -214,6 +214,10 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' Since it quadratically depends on the number of features, it is recommended to perform selection
 #' of the most important features first. See below about the format of the returned results.
 #'
+#' The \code{predict()} method uses as many threads as defined in \code{xgb.Booster} object (all by default).
+#' If you want to change their number, then assign a new number to \code{nthread} using \code{\link{xgb.parameters<-}}.
+#' Note also that converting a matrix to \code{\link{xgb.DMatrix}} uses multiple threads too.
+#'
 #' @return
 #' The return type is different depending whether \code{strict_shape} is set to \code{TRUE}.  By default,
 #' for regression or binary classification, it returns a vector of length \code{nrows(newdata)}.
