@@ -1,7 +1,6 @@
-/*!
- * Copyright 2017 XGBoost contributors
+/**
+ * Copyright 2017-2023 by XGBoost contributors
  */
-
 #include <thrust/fill.h>
 #include <thrust/device_ptr.h>
 
@@ -412,7 +411,7 @@ template class HostDeviceVector<Entry>;
 template class HostDeviceVector<uint64_t>;  // bst_row_t
 template class HostDeviceVector<uint32_t>;  // bst_feature_t
 template class HostDeviceVector<RegTree::Node>;
-template class HostDeviceVector<RegTree::Segment>;
+template class HostDeviceVector<RegTree::CategoricalSplitMatrix::Segment>;
 template class HostDeviceVector<RTreeNodeStat>;
 
 #if defined(__APPLE__)

@@ -1,5 +1,5 @@
-/*!
- * Copyright 2017 XGBoost contributors
+/**
+ * Copyright 2017-2023 by XGBoost contributors
  */
 #ifndef XGBOOST_USE_CUDA
 
@@ -179,7 +179,6 @@ template class HostDeviceVector<FeatureType>;
 template class HostDeviceVector<Entry>;
 template class HostDeviceVector<uint64_t>;  // bst_row_t
 template class HostDeviceVector<uint32_t>;  // bst_feature_t
-template class HostDeviceVector<RegTree::Segment>;
 
 #if defined(__APPLE__) || defined(__EMSCRIPTEN__)
 /*

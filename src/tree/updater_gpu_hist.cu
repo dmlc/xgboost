@@ -445,7 +445,7 @@ struct GPUHistMakerDevice {
 
     dh::caching_device_vector<FeatureType> d_split_types;
     dh::caching_device_vector<uint32_t> d_categories;
-    dh::caching_device_vector<RegTree::Segment> d_categories_segments;
+    dh::caching_device_vector<RegTree::CategoricalSplitMatrix::Segment> d_categories_segments;
 
     if (!categories.empty()) {
       dh::CopyToD(h_split_types, &d_split_types);
@@ -458,12 +458,11 @@ struct GPUHistMakerDevice {
                            p_out_position);
   }
 
-  void FinalisePositionInPage(EllpackPageImpl const *page,
-                              const common::Span<RegTree::Node> d_nodes,
-                              common::Span<FeatureType const> d_feature_types,
-                              common::Span<uint32_t const> categories,
-                              common::Span<RegTree::Segment> categories_segments,
-                              HostDeviceVector<bst_node_t>* p_out_position) {
+  void FinalisePositionInPage(
+      EllpackPageImpl const* page, const common::Span<RegTree::Node> d_nodes,
+      common::Span<FeatureType const> d_feature_types, common::Span<uint32_t const> categories,
+      common::Span<RegTree::CategoricalSplitMatrix::Segment> categories_segments,
+      HostDeviceVector<bst_node_t>* p_out_position) {
     auto d_matrix = page->GetDeviceAccessor(ctx_->gpu_id);
     auto d_gpair = this->gpair;
     p_out_position->SetDevice(ctx_->gpu_id);

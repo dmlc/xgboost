@@ -1,25 +1,27 @@
-/*!
- * Copyright 2015-2022 by Contributors
+/**
+ * Copyright 2015-2023 by Contributors
  * \file tree_model.cc
  * \brief model structure for tree
  */
-#include <dmlc/registry.h>
 #include <dmlc/json.h>
-
-#include <xgboost/tree_model.h>
-#include <xgboost/logging.h>
+#include <dmlc/registry.h>
 #include <xgboost/json.h>
+#include <xgboost/tree_model.h>
 
-#include <sstream>
-#include <limits>
 #include <cmath>
 #include <iomanip>
-#include <stack>
+#include <limits>
+#include <sstream>
+#include <type_traits>
 
-#include "param.h"
-#include "../common/common.h"
 #include "../common/categorical.h"
+#include "../common/common.h"
 #include "../predictor/predict_fn.h"
+#include "io_utils.h"  // GetElem
+#include "param.h"
+#include "xgboost/base.h"
+#include "xgboost/data.h"
+#include "xgboost/logging.h"
 
 namespace xgboost {
 // register tree parameter
@@ -729,12 +731,9 @@ XGBOOST_REGISTER_TREE_IO(GraphvizGenerator, "dot")
 
 constexpr bst_node_t RegTree::kRoot;
 
-std::string RegTree::DumpModel(const FeatureMap& fmap,
-                               bool with_stats,
-                               std::string format) const {
-  std::unique_ptr<TreeGenerator> builder {
-    TreeGenerator::Create(format, fmap, with_stats)
-  };
+std::string RegTree::DumpModel(const FeatureMap& fmap, bool with_stats, std::string format) const {
+  CHECK(!IsMultiTarget());
+  std::unique_ptr<TreeGenerator> builder{TreeGenerator::Create(format, fmap, with_stats)};
   builder->BuildTree(*this);
 
   std::string result = builder->Str();
@@ -742,6 +741,7 @@ std::string RegTree::DumpModel(const FeatureMap& fmap,
 }
 
 bool RegTree::Equal(const RegTree& b) const {
+  CHECK(!IsMultiTarget());
   if (NumExtraNodes() != b.NumExtraNodes()) {
     return false;
   }
@@ -758,6 +758,7 @@ bool RegTree::Equal(const RegTree& b) const {
 }
 
 bst_node_t RegTree::GetNumLeaves() const {
+  CHECK(!IsMultiTarget());
   bst_node_t leaves { 0 };
   auto const& self = *this;
   this->WalkTree([&leaves, &self](bst_node_t nidx) {
@@ -770,6 +771,7 @@ bst_node_t RegTree::GetNumLeaves() const {
 }
 
 bst_node_t RegTree::GetNumSplitNodes() const {
+  CHECK(!IsMultiTarget());
   bst_node_t splits { 0 };
   auto const& self = *this;
   this->WalkTree([&splits, &self](bst_node_t nidx) {
@@ -787,6 +789,7 @@ void RegTree::ExpandNode(bst_node_t nid, unsigned split_index, bst_float split_v
                          bst_float right_leaf_weight, bst_float loss_change,
                          float sum_hess, float left_sum, float right_sum,
                          bst_node_t leaf_right_child) {
+  CHECK(!IsMultiTarget());
   int pleft = this->AllocNode();
   int pright = this->AllocNode();
   auto &node = nodes_[nid];
@@ -807,11 +810,31 @@ void RegTree::ExpandNode(bst_node_t nid, unsigned split_index, bst_float split_v
   this->split_types_.at(nid) = FeatureType::kNumerical;
 }
 
+void RegTree::ExpandNode(bst_node_t nidx, bst_feature_t split_index, float split_cond,
+                         bool default_left, linalg::VectorView<float const> base_weight,
+                         linalg::VectorView<float const> left_weight,
+                         linalg::VectorView<float const> right_weight) {
+  CHECK(IsMultiTarget());
+  CHECK_LT(split_index, this->param.num_feature);
+  CHECK(this->p_mt_tree_);
+  CHECK_GT(param.size_leaf_vector, 1);
+
+  this->p_mt_tree_->Expand(nidx, split_index, split_cond, default_left, base_weight, left_weight,
+                           right_weight);
+
+  split_types_.resize(this->Size(), FeatureType::kNumerical);
+  split_categories_segments_.resize(this->Size());
+  this->split_types_.at(nidx) = FeatureType::kNumerical;
+
+  this->param.num_nodes = this->p_mt_tree_->Size();
+}
+
 void RegTree::ExpandCategorical(bst_node_t nid, bst_feature_t split_index,
                                 common::Span<const uint32_t> split_cat, bool default_left,
                                 bst_float base_weight, bst_float left_leaf_weight,
                                 bst_float right_leaf_weight, bst_float loss_change, float sum_hess,
                                 float left_sum, float right_sum) {
+  CHECK(!IsMultiTarget());
   this->ExpandNode(nid, split_index, std::numeric_limits<float>::quiet_NaN(),
                    default_left, base_weight,
                    left_leaf_weight, right_leaf_weight, loss_change, sum_hess,
@@ -893,44 +916,17 @@ void RegTree::Save(dmlc::Stream* fo) const {
     }
   }
 }
-// typed array, not boolean
-template <typename JT, typename T>
-std::enable_if_t<!std::is_same<T, Json>::value && !std::is_same<JT, Boolean>::value, T> GetElem(
-    std::vector<T> const& arr, size_t i) {
-  return arr[i];
-}
-// typed array boolean
-template <typename JT, typename T>
-std::enable_if_t<!std::is_same<T, Json>::value && std::is_same<T, uint8_t>::value &&
-                     std::is_same<JT, Boolean>::value,
-                 bool>
-GetElem(std::vector<T> const& arr, size_t i) {
-  return arr[i] == 1;
-}
-// json array
-template <typename JT, typename T>
-std::enable_if_t<
-    std::is_same<T, Json>::value,
-    std::conditional_t<std::is_same<JT, Integer>::value, int64_t,
-                       std::conditional_t<std::is_same<Boolean, JT>::value, bool, float>>>
-GetElem(std::vector<T> const& arr, size_t i) {
-  if (std::is_same<JT, Boolean>::value && !IsA<Boolean>(arr[i])) {
-    return get<Integer const>(arr[i]) == 1;
-  }
-  return get<JT const>(arr[i]);
-}
 
 template <bool typed>
 void RegTree::LoadCategoricalSplit(Json const& in) {
-  using I64ArrayT = std::conditional_t<typed, I64Array const, Array const>;
-  using I32ArrayT = std::conditional_t<typed, I32Array const, Array const>;
+  auto const& categories_segments = get<I64ArrayT<typed>>(in["categories_segments"]);
+  auto const& categories_sizes = get<I64ArrayT<typed>>(in["categories_sizes"]);
+  auto const& categories_nodes = get<I32ArrayT<typed>>(in["categories_nodes"]);
+  auto const& categories = get<I32ArrayT<typed>>(in["categories"]);
 
-  auto const& categories_segments = get<I64ArrayT>(in["categories_segments"]);
-  auto const& categories_sizes = get<I64ArrayT>(in["categories_sizes"]);
-  auto const& categories_nodes = get<I32ArrayT>(in["categories_nodes"]);
-  auto const& categories = get<I32ArrayT>(in["categories"]);
-
-  size_t cnt = 0;
+  auto split_type = get<U8ArrayT<typed>>(in["split_type"]);
+  bst_node_t n_nodes = split_type.size();
+  std::size_t cnt = 0;
   bst_node_t last_cat_node = -1;
   if (!categories_nodes.empty()) {
     last_cat_node = GetElem<Integer>(categories_nodes, cnt);
@@ -938,7 +934,10 @@ void RegTree::LoadCategoricalSplit(Json const& in) {
   // `categories_segments' is only available for categorical nodes to prevent overhead for
   // numerical node. As a result, we need to track the categorical nodes we have processed
   // so far.
-  for (bst_node_t nidx = 0; nidx < param.num_nodes; ++nidx) {
+  split_types_.resize(n_nodes, FeatureType::kNumerical);
+  split_categories_segments_.resize(n_nodes);
+  for (bst_node_t nidx = 0; nidx < n_nodes; ++nidx) {
+    split_types_[nidx] = static_cast<FeatureType>(GetElem<Integer>(split_type, nidx));
     if (nidx == last_cat_node) {
       auto j_begin = GetElem<Integer>(categories_segments, cnt);
       auto j_end = GetElem<Integer>(categories_sizes, cnt) + j_begin;
@@ -985,15 +984,17 @@ template void RegTree::LoadCategoricalSplit<false>(Json const& in);
 
 void RegTree::SaveCategoricalSplit(Json* p_out) const {
   auto& out = *p_out;
-  CHECK_EQ(this->split_types_.size(), param.num_nodes);
-  CHECK_EQ(this->GetSplitCategoriesPtr().size(), param.num_nodes);
+  CHECK_EQ(this->split_types_.size(), this->Size());
+  CHECK_EQ(this->GetSplitCategoriesPtr().size(), this->Size());
 
   I64Array categories_segments;
   I64Array categories_sizes;
   I32Array categories;        // bst_cat_t = int32_t
   I32Array categories_nodes;  // bst_note_t = int32_t
+  U8Array split_type(split_types_.size());
 
   for (size_t i = 0; i < nodes_.size(); ++i) {
+    split_type.Set(i, static_cast<std::underlying_type_t<FeatureType>>(this->NodeSplitType(i)));
     if (this->split_types_[i] == FeatureType::kCategorical) {
       categories_nodes.GetArray().emplace_back(i);
       auto begin = categories.Size();
@@ -1012,66 +1013,49 @@ void RegTree::SaveCategoricalSplit(Json* p_out) const {
     }
   }
 
+  out["split_type"] = std::move(split_type);
   out["categories_segments"] = std::move(categories_segments);
   out["categories_sizes"] = std::move(categories_sizes);
   out["categories_nodes"] = std::move(categories_nodes);
   out["categories"] = std::move(categories);
 }
 
-template <bool typed, bool feature_is_64,
-          typename FloatArrayT = std::conditional_t<typed, F32Array const, Array const>,
-          typename U8ArrayT = std::conditional_t<typed, U8Array const, Array const>,
-          typename I32ArrayT = std::conditional_t<typed, I32Array const, Array const>,
-          typename I64ArrayT = std::conditional_t<typed, I64Array const, Array const>,
-          typename IndexArrayT = std::conditional_t<feature_is_64, I64ArrayT, I32ArrayT>>
-bool LoadModelImpl(Json const& in, TreeParam* param, std::vector<RTreeNodeStat>* p_stats,
-                   std::vector<FeatureType>* p_split_types, std::vector<RegTree::Node>* p_nodes,
-                   std::vector<RegTree::Segment>* p_split_categories_segments) {
+template <bool typed, bool feature_is_64>
+void LoadModelImpl(Json const& in, TreeParam const& param, std::vector<RTreeNodeStat>* p_stats,
+                   std::vector<RegTree::Node>* p_nodes) {
+  namespace tf = tree_field;
   auto& stats = *p_stats;
-  auto& split_types = *p_split_types;
   auto& nodes = *p_nodes;
-  auto& split_categories_segments = *p_split_categories_segments;
 
-  FromJson(in["tree_param"], param);
-  auto n_nodes = param->num_nodes;
+  auto n_nodes = param.num_nodes;
   CHECK_NE(n_nodes, 0);
   // stats
-  auto const& loss_changes = get<FloatArrayT>(in["loss_changes"]);
+  auto const& loss_changes = get<FloatArrayT<typed>>(in[tf::kLossChg]);
   CHECK_EQ(loss_changes.size(), n_nodes);
-  auto const& sum_hessian = get<FloatArrayT>(in["sum_hessian"]);
+  auto const& sum_hessian = get<FloatArrayT<typed>>(in[tf::kSumHess]);
   CHECK_EQ(sum_hessian.size(), n_nodes);
-  auto const& base_weights = get<FloatArrayT>(in["base_weights"]);
+  auto const& base_weights = get<FloatArrayT<typed>>(in[tf::kBaseWeight]);
   CHECK_EQ(base_weights.size(), n_nodes);
   // nodes
-  auto const& lefts = get<I32ArrayT>(in["left_children"]);
+  auto const& lefts = get<I32ArrayT<typed>>(in[tf::kLeft]);
   CHECK_EQ(lefts.size(), n_nodes);
-  auto const& rights = get<I32ArrayT>(in["right_children"]);
+  auto const& rights = get<I32ArrayT<typed>>(in[tf::kRight]);
   CHECK_EQ(rights.size(), n_nodes);
-  auto const& parents = get<I32ArrayT>(in["parents"]);
+  auto const& parents = get<I32ArrayT<typed>>(in[tf::kParent]);
   CHECK_EQ(parents.size(), n_nodes);
-  auto const& indices = get<IndexArrayT>(in["split_indices"]);
+  auto const& indices = get<IndexArrayT<typed, feature_is_64>>(in[tf::kSplitIdx]);
   CHECK_EQ(indices.size(), n_nodes);
-  auto const& conds = get<FloatArrayT>(in["split_conditions"]);
+  auto const& conds = get<FloatArrayT<typed>>(in[tf::kSplitCond]);
   CHECK_EQ(conds.size(), n_nodes);
-  auto const& default_left = get<U8ArrayT>(in["default_left"]);
+  auto const& default_left = get<U8ArrayT<typed>>(in[tf::kDftLeft]);
   CHECK_EQ(default_left.size(), n_nodes);
-
-  bool has_cat = get<Object const>(in).find("split_type") != get<Object const>(in).cend();
-  std::remove_const_t<std::remove_reference_t<decltype(get<U8ArrayT const>(in["split_type"]))>>
-      split_type;
-  if (has_cat) {
-    split_type = get<U8ArrayT const>(in["split_type"]);
-  }
 
   // Initialization
   stats = std::remove_reference_t<decltype(stats)>(n_nodes);
   nodes = std::remove_reference_t<decltype(nodes)>(n_nodes);
-  split_types = std::remove_reference_t<decltype(split_types)>(n_nodes);
-  split_categories_segments = std::remove_reference_t<decltype(split_categories_segments)>(n_nodes);
 
   static_assert(std::is_integral<decltype(GetElem<Integer>(lefts, 0))>::value);
   static_assert(std::is_floating_point<decltype(GetElem<Number>(loss_changes, 0))>::value);
-  CHECK_EQ(n_nodes, split_categories_segments.size());
 
   // Set node
   for (int32_t i = 0; i < n_nodes; ++i) {
@@ -1088,41 +1072,46 @@ bool LoadModelImpl(Json const& in, TreeParam* param, std::vector<RTreeNodeStat>*
     float cond{GetElem<Number>(conds, i)};
     bool dft_left{GetElem<Boolean>(default_left, i)};
     n = RegTree::Node{left, right, parent, ind, cond, dft_left};
-
-    if (has_cat) {
-      split_types[i] = static_cast<FeatureType>(GetElem<Integer>(split_type, i));
-    }
   }
-
-  return has_cat;
 }
 
 void RegTree::LoadModel(Json const& in) {
-  bool has_cat{false};
-  bool typed = IsA<F32Array>(in["loss_changes"]);
-  bool feature_is_64 = IsA<I64Array>(in["split_indices"]);
-  if (typed && feature_is_64) {
-    has_cat = LoadModelImpl<true, true>(in, &param, &stats_, &split_types_, &nodes_,
-                                        &split_categories_segments_);
-  } else if (typed && !feature_is_64) {
-    has_cat = LoadModelImpl<true, false>(in, &param, &stats_, &split_types_, &nodes_,
-                                         &split_categories_segments_);
-  } else if (!typed && feature_is_64) {
-    has_cat = LoadModelImpl<false, true>(in, &param, &stats_, &split_types_, &nodes_,
-                                         &split_categories_segments_);
-  } else {
-    has_cat = LoadModelImpl<false, false>(in, &param, &stats_, &split_types_, &nodes_,
-                                          &split_categories_segments_);
-  }
+  namespace tf = tree_field;
 
+  bool typed = IsA<I32Array>(in[tf::kParent]);
+  auto const& in_obj = get<Object const>(in);
+  // basic properties
+  FromJson(in["tree_param"], &param);
+  // categorical splits
+  bool has_cat = in_obj.find("split_type") != in_obj.cend();
   if (has_cat) {
     if (typed) {
       this->LoadCategoricalSplit<true>(in);
     } else {
       this->LoadCategoricalSplit<false>(in);
     }
+  }
+  // multi-target
+  if (param.size_leaf_vector > 1) {
+    this->p_mt_tree_.reset(new MultiTargetTree{&param});
+    this->GetMultiTargetTree()->LoadModel(in);
+    return;
+  }
+
+  bool feature_is_64 = IsA<I64Array>(in["split_indices"]);
+  if (typed && feature_is_64) {
+    LoadModelImpl<true, true>(in, param, &stats_, &nodes_);
+  } else if (typed && !feature_is_64) {
+    LoadModelImpl<true, false>(in, param, &stats_, &nodes_);
+  } else if (!typed && feature_is_64) {
+    LoadModelImpl<false, true>(in, param, &stats_, &nodes_);
   } else {
+    LoadModelImpl<false, false>(in, param, &stats_, &nodes_);
+  }
+
+  if (!has_cat) {
     this->split_categories_segments_.resize(this->param.num_nodes);
+    this->split_types_.resize(this->param.num_nodes);
     std::fill(split_types_.begin(), split_types_.end(), FeatureType::kNumerical);
   }
 
@@ -1144,16 +1133,26 @@ void RegTree::LoadModel(Json const& in) {
 }
 
 void RegTree::SaveModel(Json* p_out) const {
+  auto& out = *p_out;
+  // basic properties
+  out["tree_param"] = ToJson(param);
+  // categorical splits
+  this->SaveCategoricalSplit(p_out);
+  // multi-target
+  if (this->IsMultiTarget()) {
+    CHECK_GT(param.size_leaf_vector, 1);
+    this->GetMultiTargetTree()->SaveModel(p_out);
+    return;
+  }
   /*  Here we are treating leaf node and internal node equally.  Some information like
    *  child node id doesn't make sense for leaf node but we will have to save them to
    *  avoid creating a huge map.  One difficulty is XGBoost has deleted node created by
    *  pruner, and this pruner can be used inside another updater so leaf are not necessary
    *  at the end of node array.
    */
-  auto& out = *p_out;
   CHECK_EQ(param.num_nodes, static_cast<int>(nodes_.size()));
   CHECK_EQ(param.num_nodes, static_cast<int>(stats_.size()));
-  out["tree_param"] = ToJson(param);
+
   CHECK_EQ(get<String>(out["tree_param"]["num_nodes"]), std::to_string(param.num_nodes));
   auto n_nodes = param.num_nodes;
 
@@ -1167,11 +1166,11 @@ void RegTree::SaveModel(Json* p_out) const {
   I32Array rights(n_nodes);
   I32Array parents(n_nodes);
 
-
   F32Array conds(n_nodes);
   U8Array default_left(n_nodes);
-  U8Array split_type(n_nodes);
   CHECK_EQ(this->split_types_.size(), param.num_nodes);
+
+  namespace tf = tree_field;
 
   auto save_tree = [&](auto* p_indices_array) {
     auto& indices_array = *p_indices_array;
@@ -1188,33 +1187,28 @@ void RegTree::SaveModel(Json* p_out) const {
       indices_array.Set(i, n.SplitIndex());
       conds.Set(i, n.SplitCond());
       default_left.Set(i, static_cast<uint8_t>(!!n.DefaultLeft()));
-
-      split_type.Set(i, static_cast<uint8_t>(this->NodeSplitType(i)));
     }
   };
   if (this->param.num_feature > static_cast<bst_feature_t>(std::numeric_limits<int32_t>::max())) {
     I64Array indices_64(n_nodes);
     save_tree(&indices_64);
-    out["split_indices"] = std::move(indices_64);
+    out[tf::kSplitIdx] = std::move(indices_64);
   } else {
     I32Array indices_32(n_nodes);
     save_tree(&indices_32);
-    out["split_indices"] = std::move(indices_32);
+    out[tf::kSplitIdx] = std::move(indices_32);
   }
 
-  this->SaveCategoricalSplit(&out);
+  out[tf::kLossChg] = std::move(loss_changes);
+  out[tf::kSumHess] = std::move(sum_hessian);
+  out[tf::kBaseWeight] = std::move(base_weights);
 
-  out["split_type"] = std::move(split_type);
-  out["loss_changes"] = std::move(loss_changes);
-  out["sum_hessian"] = std::move(sum_hessian);
-  out["base_weights"] = std::move(base_weights);
+  out[tf::kLeft] = std::move(lefts);
+  out[tf::kRight] = std::move(rights);
+  out[tf::kParent] = std::move(parents);
 
-  out["left_children"] = std::move(lefts);
-  out["right_children"] = std::move(rights);
-  out["parents"] = std::move(parents);
-
-  out["split_conditions"] = std::move(conds);
-  out["default_left"] = std::move(default_left);
+  out[tf::kSplitCond] = std::move(conds);
+  out[tf::kDftLeft] = std::move(default_left);
 }
 
 void RegTree::CalculateContributionsApprox(const RegTree::FVec &feat,
