@@ -122,6 +122,10 @@ With \code{predinteraction = TRUE}, SHAP values of contributions of interaction 
 are computed. Note that this operation might be rather expensive in terms of compute and memory.
 Since it quadratically depends on the number of features, it is recommended to perform selection
 of the most important features first. See below about the format of the returned results.
+
+The \code{predict()} method uses as many threads as defined in \code{xgb.Booster} object (all by default).
+If you want to change their number, then assign a new number to \code{nthread} using \code{\link{xgb.parameters<-}}.
+Note also that converting a matrix to \code{\link{xgb.DMatrix}} uses multiple threads too.
 }
 \examples{
 ## binary classification:
