@@ -5,18 +5,15 @@
  */
 #ifndef XGBOOST_MULTI_TARGET_TREE_MODEL_H_
 #define XGBOOST_MULTI_TARGET_TREE_MODEL_H_
-#include <xgboost/base.h>         // for bst_node_t, bst_target_t, bst_feature_t
-#include <xgboost/context.h>      // for Context
-#include <xgboost/data.h>         // for FeatureType
-#include <xgboost/linalg.h>       // for VectorView
-#include <xgboost/model.h>        // for Model
-#include <xgboost/span.h>         // for Span
-#include <xgboost/string_view.h>  // for StringView
+#include <xgboost/base.h>     // for bst_node_t, bst_target_t, bst_feature_t
+#include <xgboost/context.h>  // for Context
+#include <xgboost/linalg.h>   // for VectorView
+#include <xgboost/model.h>    // for Model
+#include <xgboost/span.h>     // for Span
 
-#include <cinttypes>              // for uint8_t
-#include <cstddef>                // for size_t
-#include <limits>                 // for numeric_limits
-#include <vector>                 // for vector
+#include <cinttypes>          // for uint8_t
+#include <cstddef>            // for size_t
+#include <vector>             // for vector
 
 #include "xgboost/string_view.h"
 

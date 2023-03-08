@@ -8,11 +8,12 @@
 #include <cstdint>               // for int32_t, uint8_t
 #include <limits>                // for numeric_limits
 #include <string_view>           // for string_view
+#include <utility>               // for move
 #include <vector>                // for vector
 
 #include "io_utils.h"            // for I32ArrayT, FloatArrayT, GetElem, ...
-#include "xgboost/base.h"        // for bst_node_t, bst_feature_t
-#include "xgboost/json.h"        // for Json, get, Object
+#include "xgboost/base.h"        // for bst_node_t, bst_feature_t, bst_target_t
+#include "xgboost/json.h"        // for Json, get, Object, Number, Integer, ...
 #include "xgboost/logging.h"
 #include "xgboost/tree_model.h"  // for TreeParam
 
