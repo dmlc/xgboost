@@ -43,36 +43,33 @@ XGBOOST_DEVICE inline std::size_t DiscreteTrapezoidArea(std::size_t n, std::size
  * with h <= n
  */
 template <typename U>
-inline size_t
-SegmentedTrapezoidThreads(xgboost::common::Span<U> group_ptr,
-                          xgboost::common::Span<size_t> out_group_threads_ptr,
-                          size_t h) {
+std::size_t SegmentedTrapezoidThreads(xgboost::common::Span<U> group_ptr,
+                                      xgboost::common::Span<std::size_t> out_group_threads_ptr,
+                                      std::size_t h) {
   CHECK_GE(group_ptr.size(), 1);
   CHECK_EQ(group_ptr.size(), out_group_threads_ptr.size());
-  dh::LaunchN(
-      group_ptr.size(), [=] XGBOOST_DEVICE(size_t idx) {
-        if (idx == 0) {
-          out_group_threads_ptr[0] = 0;
-          return;
-        }
+  dh::LaunchN(group_ptr.size(), [=] XGBOOST_DEVICE(std::size_t idx) {
+    if (idx == 0) {
+      out_group_threads_ptr[0] = 0;
+      return;
+    }
 
-        size_t cnt = static_cast<size_t>(group_ptr[idx] - group_ptr[idx - 1]);
-        out_group_threads_ptr[idx] = DiscreteTrapezoidArea(cnt, h);
-      });
+    std::size_t cnt = static_cast<std::size_t>(group_ptr[idx] - group_ptr[idx - 1]);
+    out_group_threads_ptr[idx] = DiscreteTrapezoidArea(cnt, h);
+  });
   dh::InclusiveSum(out_group_threads_ptr.data(), out_group_threads_ptr.data(),
                    out_group_threads_ptr.size());
-  size_t total = 0;
-  dh::safe_cuda(cudaMemcpy(
-      &total, out_group_threads_ptr.data() + out_group_threads_ptr.size() - 1,
-      sizeof(total), cudaMemcpyDeviceToHost));
+  std::size_t total = 0;
+  dh::safe_cuda(cudaMemcpy(&total, out_group_threads_ptr.data() + out_group_threads_ptr.size() - 1,
+                           sizeof(total), cudaMemcpyDeviceToHost));
   return total;
 }
 
 /**
  * Called inside kernel to obtain coordinate from trapezoid grid.
  */
-XGBOOST_DEVICE inline void UnravelTrapeziodIdx(size_t i_idx, size_t n,
-                                               size_t *out_i, size_t *out_j) {
+XGBOOST_DEVICE inline void UnravelTrapeziodIdx(std::size_t i_idx, std::size_t n, std::size_t *out_i,
+                                               std::size_t *out_j) {
   auto &i = *out_i;
   auto &j = *out_j;
   double idx = static_cast<double>(i_idx);
