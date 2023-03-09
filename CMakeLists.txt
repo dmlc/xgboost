@@ -51,7 +51,6 @@ option(HIDE_CXX_SYMBOLS "Build shared library and hide all C++ symbols" OFF)
 option(USE_CUDA  "Build with GPU acceleration" OFF)
 option(USE_NCCL  "Build with NCCL to enable distributed GPU support." OFF)
 option(BUILD_WITH_SHARED_NCCL "Build with shared NCCL library." OFF)
-option(BUILD_WITH_CUDA_CUB "Build with cub in CUDA installation" OFF)
 set(GPU_COMPUTE_VER "" CACHE STRING
   "Semicolon separated list of compute versions to be built against, e.g. '35;61'")
 ## Copied From dmlc
@@ -115,9 +114,6 @@ endif (ENABLE_ALL_WARNINGS)
 if (BUILD_STATIC_LIB AND (R_LIB OR JVM_BINDINGS))
   message(SEND_ERROR "Cannot build a static library libxgboost.a when R or JVM packages are enabled.")
 endif (BUILD_STATIC_LIB AND (R_LIB OR JVM_BINDINGS))
-if (PLUGIN_RMM AND (NOT BUILD_WITH_CUDA_CUB))
-  message(SEND_ERROR "Cannot build with RMM using cub submodule.")
-endif (PLUGIN_RMM AND (NOT BUILD_WITH_CUDA_CUB))
 if (PLUGIN_FEDERATED)
   if (CMAKE_CROSSCOMPILING)
     message(SEND_ERROR "Cannot cross compile with federated learning support")
@@ -152,10 +148,6 @@ if (USE_CUDA)
   set(GEN_CODE "")
   format_gencode_flags("${GPU_COMPUTE_VER}" GEN_CODE)
   add_subdirectory(${PROJECT_SOURCE_DIR}/gputreeshap)
-
-  if ((${CMAKE_CUDA_COMPILER_VERSION} VERSION_GREATER_EQUAL 11.4) AND (NOT BUILD_WITH_CUDA_CUB))
-    set(BUILD_WITH_CUDA_CUB ON)
-  endif ()
 endif (USE_CUDA)
 
 if (FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND

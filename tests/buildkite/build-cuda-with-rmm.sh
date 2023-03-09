@@ -20,7 +20,7 @@ command_wrapper="tests/ci_build/ci_build.sh rmm docker --build-arg "`
 
 echo "--- Build libxgboost from the source"
 $command_wrapper tests/ci_build/build_via_cmake.sh --conda-env=gpu_test -DUSE_CUDA=ON \
-  -DUSE_NCCL=ON -DPLUGIN_RMM=ON -DBUILD_WITH_CUDA_CUB=ON ${arch_flag}
+  -DUSE_NCCL=ON -DPLUGIN_RMM=ON ${arch_flag}
 
 echo "-- Stash C++ test executable (testxgboost)"
 buildkite-agent artifact upload build/testxgboost
