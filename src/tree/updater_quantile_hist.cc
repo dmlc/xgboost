@@ -35,7 +35,7 @@ void QuantileHistMaker::Update(TrainParam const *param, HostDeviceVector<Gradien
   // build tree
   const size_t n_trees = trees.size();
   if (!pimpl_) {
-    pimpl_.reset(new Builder(n_trees, param, dmat, task_, ctx_));
+    pimpl_.reset(new Builder(n_trees, param, dmat, *task_, ctx_));
   }
 
   size_t t_idx{0};
@@ -287,6 +287,8 @@ void QuantileHistMaker::Builder::InitData(DMatrix *fmat, const RegTree &tree,
 
 XGBOOST_REGISTER_TREE_UPDATER(QuantileHistMaker, "grow_quantile_histmaker")
     .describe("Grow tree using quantized histogram.")
-    .set_body([](Context const *ctx, ObjInfo task) { return new QuantileHistMaker(ctx, task); });
+    .set_body([](Context const *ctx, ObjInfo const *task) {
+      return new QuantileHistMaker(ctx, task);
+    });
 }  // namespace tree
 }  // namespace xgboost

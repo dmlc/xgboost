@@ -18,7 +18,7 @@ DMLC_REGISTRY_FILE_TAG(updater_prune);
 /*! \brief pruner that prunes a tree after growing finishes */
 class TreePruner : public TreeUpdater {
  public:
-  explicit TreePruner(Context const* ctx, ObjInfo task) : TreeUpdater(ctx) {
+  explicit TreePruner(Context const* ctx, ObjInfo const* task) : TreeUpdater(ctx) {
     syncher_.reset(TreeUpdater::Create("sync", ctx_, task));
     pruner_monitor_.Init("TreePruner");
   }
@@ -90,5 +90,7 @@ class TreePruner : public TreeUpdater {
 
 XGBOOST_REGISTER_TREE_UPDATER(TreePruner, "prune")
     .describe("Pruner that prune the tree according to statistics.")
-    .set_body([](Context const* ctx, ObjInfo task) { return new TreePruner(ctx, task); });
+    .set_body([](Context const* ctx, ObjInfo const* task) {
+      return new TreePruner{ctx, task};
+    });
 }  // namespace xgboost::tree

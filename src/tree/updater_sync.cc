@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2013 by XBGoost Contributors
+ * Copyright 2014-2023 by XBGoost Contributors
  * \file updater_sync.cc
  * \brief synchronize the tree in all distributed nodes
  */
@@ -53,5 +53,5 @@ class TreeSyncher : public TreeUpdater {
 
 XGBOOST_REGISTER_TREE_UPDATER(TreeSyncher, "sync")
     .describe("Syncher that synchronize the tree in all distributed nodes.")
-    .set_body([](Context const* ctx, ObjInfo) { return new TreeSyncher(ctx); });
+    .set_body([](Context const* ctx, auto) { return new TreeSyncher(ctx); });
 }  // namespace xgboost::tree

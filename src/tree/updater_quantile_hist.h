@@ -43,7 +43,8 @@ inline BatchParam HistBatch(TrainParam const* param) {
 /*! \brief construct a tree using quantized feature values */
 class QuantileHistMaker: public TreeUpdater {
  public:
-  explicit QuantileHistMaker(Context const* ctx, ObjInfo task) : TreeUpdater(ctx), task_{task} {}
+  explicit QuantileHistMaker(Context const* ctx, ObjInfo const* task)
+      : TreeUpdater(ctx), task_{task} {}
   void Configure(const Args&) override {}
 
   void Update(TrainParam const* param, HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
@@ -125,7 +126,7 @@ class QuantileHistMaker: public TreeUpdater {
 
  protected:
   std::unique_ptr<Builder> pimpl_;
-  ObjInfo task_;
+  ObjInfo const* task_;
 };
 }  // namespace xgboost::tree
 
