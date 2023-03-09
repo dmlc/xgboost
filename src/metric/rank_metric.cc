@@ -234,7 +234,7 @@ struct EvalRank : public MetricNoCache, public EvalRankConfig {
 
  protected:
   explicit EvalRank(const char* name, const char* param) {
-    this->name = ltr::MakeMetricName(name, param, &topn, &minus);
+    this->name = ltr::ParseMetricName(name, param, &topn, &minus);
   }
 
   virtual double EvalGroup(PredIndPairContainer *recptr) const = 0;
