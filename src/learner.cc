@@ -858,8 +858,9 @@ class LearnerConfiguration : public Learner {
       CHECK(n_targets == 1 || n_targets == mparam_.num_target)
           << "Inconsistent configuration of num_target.  Configuration result from input data:"
           << n_targets << ", configuration from parameter:" << mparam_.num_target;
+    } else {
+      mparam_.num_target = n_targets;
     }
-    mparam_.num_target = n_targets;
   }
 };
 
