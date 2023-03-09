@@ -474,6 +474,14 @@ interface, including callback functions, custom evaluation metric and objective:
         callbacks=[early_stop],
     )
 
+**********************
+Hyper-parameter tuning
+**********************
+
+See https://github.com/coiled/dask-xgboost-nyctaxi for a set of examples of using XGBoost
+with dask and optuna.
+
+
 .. _tracker-ip:
 
 ***************
