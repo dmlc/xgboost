@@ -46,23 +46,23 @@ namespace xgboost::ltr {
 struct LambdaRankParam : public XGBoostParameter<LambdaRankParam> {
  private:
   static constexpr position_t DefaultK() { return 32; }
-  static constexpr position_t DefaultSamplePairs() { return 1; }  // fixme: better dft
+  static constexpr position_t DefaultSamplePairs() { return 1; }
 
  protected:
   // pairs
   // should be accessed by getter for auto configuration.
   // nolint so that we can keep the string name.
-  PairMethod lambdarank_pair_method;           // NOLINT
-  std::size_t lambdarank_num_pair_per_sample;  // NOLINT
+  PairMethod lambdarank_pair_method{PairMethod::kMean};  // NOLINT
+  std::size_t lambdarank_num_pair_per_sample{NotSet()};  // NOLINT
 
  public:
   static constexpr position_t NotSet() { return std::numeric_limits<position_t>::max(); }
 
   // unbiased
-  bool lambdarank_unbiased;
-  double lambdarank_bias_norm;
+  bool lambdarank_unbiased{false};
+  double lambdarank_bias_norm{2.0};
   // ndcg
-  bool ndcg_exp_gain;
+  bool ndcg_exp_gain{true};
 
   bool operator==(LambdaRankParam const& that) const {
     return lambdarank_pair_method == that.lambdarank_pair_method &&
@@ -84,8 +84,6 @@ struct LambdaRankParam : public XGBoostParameter<LambdaRankParam> {
           return DefaultSamplePairs();
         case PairMethod::kTopK:
           return DefaultK();
-        default:
-          LOG(FATAL) << "Unreachable.";
       }
     } else {
       return lambdarank_num_pair_per_sample;
