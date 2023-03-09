@@ -123,13 +123,11 @@ void MultiTargetTree::SaveModel(Json* p_out) const {
       conds.Set(nidx, split_conds_[nidx]);
       default_left.Set(nidx, default_left_[nidx]);
 
-      // fixme: unify the code with expand
-      auto weight_view = common::Span<float const>{weights_};
-      auto p_weight = weight_view.subspan(nidx * this->NumTarget(), this->NumTarget());
+      auto in_weight = this->LeafValue(nidx);
       auto weight_out = common::Span<float>(weights.GetArray())
                             .subspan(nidx * this->NumTarget(), this->NumTarget());
-      CHECK_EQ(p_weight.size(), weight_out.size());
-      std::copy_n(p_weight.data(), p_weight.size(), weight_out.data());
+      CHECK_EQ(in_weight.Size(), weight_out.size());
+      std::copy_n(in_weight.Values().data(), in_weight.Size(), weight_out.data());
     }
   };
 
@@ -170,9 +168,11 @@ void MultiTargetTree::Expand(bst_node_t nidx, bst_feature_t split_idx, float spl
                              bool default_left, linalg::VectorView<float const> base_weight,
                              linalg::VectorView<float const> left_weight,
                              linalg::VectorView<float const> right_weight) {
+  CHECK(this->IsLeaf(nidx));
   CHECK_GE(parent_.size(), 1);
   CHECK_EQ(parent_.size(), left_.size());
   CHECK_EQ(left_.size(), right_.size());
+
   auto n_targets = this->NumTarget();
 
   size_t n = param_->num_nodes + 2;

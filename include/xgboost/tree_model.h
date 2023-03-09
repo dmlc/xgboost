@@ -150,16 +150,17 @@ class CopyUniquePtr {
   void reset(T* ptr) { ptr_.reset(ptr); }  // NOLINT
 };
 
-/*!
+/**
  * \brief define regression tree to be the most common tree model.
+ *
  *  This is the data structure used in xgboost's major tree models.
  */
 class RegTree : public Model {
  public:
   using SplitCondT = bst_float;
-  static constexpr bst_node_t kInvalidNodeId {-1};
+  static constexpr bst_node_t kInvalidNodeId{MultiTargetTree::InvalidNodeId()};
   static constexpr uint32_t kDeletedNodeMarker = std::numeric_limits<uint32_t>::max();
-  static constexpr bst_node_t kRoot { 0 };
+  static constexpr bst_node_t kRoot{0};
 
   /*! \brief tree node */
   class Node {

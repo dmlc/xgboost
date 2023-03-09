@@ -15,15 +15,13 @@
 #include <cstddef>            // for size_t
 #include <vector>             // for vector
 
-#include "xgboost/string_view.h"
-
 namespace xgboost {
 struct TreeParam;
 /**
  * \brief Tree structure for multi-target model.
  */
 class MultiTargetTree : public Model {
- private:
+ public:
   static bst_node_t constexpr InvalidNodeId() { return -1; }
 
  private:
@@ -38,7 +36,13 @@ class MultiTargetTree : public Model {
 
  public:
   explicit MultiTargetTree(TreeParam const* param);
+  /**
+   * \brief Set the weight for a leaf.
+   */
   void SetLeaf(bst_node_t nidx, linalg::VectorView<float const> weight);
+  /**
+   * \brief Expand a leaf into split node.
+   */
   void Expand(bst_node_t nidx, bst_feature_t split_idx, float split_cond, bool default_left,
               linalg::VectorView<float const> base_weight,
               linalg::VectorView<float const> left_weight,
