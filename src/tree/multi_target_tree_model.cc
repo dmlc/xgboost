@@ -123,7 +123,7 @@ void MultiTargetTree::SaveModel(Json* p_out) const {
       conds.Set(nidx, split_conds_[nidx]);
       default_left.Set(nidx, default_left_[nidx]);
 
-      auto in_weight = this->LeafValue(nidx);
+      auto in_weight = this->NodeWeight(nidx);
       auto weight_out = common::Span<float>(weights.GetArray())
                             .subspan(nidx * this->NumTarget(), this->NumTarget());
       CHECK_EQ(in_weight.Size(), weight_out.size());
@@ -159,7 +159,7 @@ void MultiTargetTree::SetLeaf(bst_node_t nidx, linalg::VectorView<float const> w
   CHECK_EQ(weight.Size(), this->NumTarget());
   CHECK_GE(weights_.size(), next_nidx * weight.Size());
   auto out_weight = common::Span<float>(weights_).subspan(nidx * weight.Size(), weight.Size());
-  for (size_t i = 0; i < weight.Size(); ++i) {
+  for (std::size_t i = 0; i < weight.Size(); ++i) {
     out_weight[i] = weight(i);
   }
 }
@@ -173,9 +173,7 @@ void MultiTargetTree::Expand(bst_node_t nidx, bst_feature_t split_idx, float spl
   CHECK_EQ(parent_.size(), left_.size());
   CHECK_EQ(left_.size(), right_.size());
 
-  auto n_targets = this->NumTarget();
-
-  size_t n = param_->num_nodes + 2;
+  std::size_t n = param_->num_nodes + 2;
   CHECK_LT(split_idx, this->param_->num_feature);
   left_.resize(n, InvalidNodeId());
   right_.resize(n, InvalidNodeId());
@@ -202,19 +200,18 @@ void MultiTargetTree::Expand(bst_node_t nidx, bst_feature_t split_idx, float spl
   default_left_.resize(n);
   default_left_[nidx] = static_cast<std::uint8_t>(default_left);
 
-  weights_.resize(n * n_targets);
-  auto weight_view = common::Span<float>{weights_};
-  auto p_weight = weight_view.subspan(nidx * n_targets, n_targets);
-  CHECK_EQ(p_weight.size(), base_weight.Size());
-  auto l_weight = weight_view.subspan(left_child * n_targets, n_targets);
-  CHECK_EQ(l_weight.size(), left_weight.Size());
-  auto r_weight = weight_view.subspan(right_child * n_targets, n_targets);
-  CHECK_EQ(r_weight.size(), right_weight.Size());
+  weights_.resize(n * this->NumTarget());
+  auto p_weight = this->NodeWeight(nidx);
+  CHECK_EQ(p_weight.Size(), base_weight.Size());
+  auto l_weight = this->NodeWeight(left_child);
+  CHECK_EQ(l_weight.Size(), left_weight.Size());
+  auto r_weight = this->NodeWeight(right_child);
+  CHECK_EQ(r_weight.Size(), right_weight.Size());
 
-  for (size_t i = 0; i < base_weight.Size(); ++i) {
-    p_weight[i] = base_weight(i);
-    l_weight[i] = left_weight(i);
-    r_weight[i] = right_weight(i);
+  for (std::size_t i = 0; i < base_weight.Size(); ++i) {
+    p_weight(i) = base_weight(i);
+    l_weight(i) = left_weight(i);
+    r_weight(i) = right_weight(i);
   }
 }
 
