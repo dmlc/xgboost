@@ -477,7 +477,7 @@ TEST(Tree, JsonIO) {
   auto tparam = j_tree["tree_param"];
   ASSERT_EQ(get<String>(tparam["num_feature"]), "0");
   ASSERT_EQ(get<String>(tparam["num_nodes"]), "3");
-  ASSERT_EQ(get<String>(tparam["size_leaf_vector"]), "0");
+  ASSERT_EQ(get<String>(tparam["size_leaf_vector"]), "1");
 
   ASSERT_EQ(get<I32Array const>(j_tree["left_children"]).size(), 3ul);
   ASSERT_EQ(get<I32Array const>(j_tree["right_children"]).size(), 3ul);

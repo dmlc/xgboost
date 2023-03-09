@@ -61,6 +61,7 @@ OBJECTS= \
     $(PKGROOT)/src/tree/fit_stump.o \
     $(PKGROOT)/src/tree/tree_model.o \
     $(PKGROOT)/src/tree/tree_updater.o \
+    $(PKGROOT)/src/tree/multi_target_tree_model.o \
     $(PKGROOT)/src/tree/updater_approx.o \
     $(PKGROOT)/src/tree/updater_colmaker.o \
     $(PKGROOT)/src/tree/updater_prune.o \
