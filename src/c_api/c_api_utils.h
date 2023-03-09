@@ -12,10 +12,11 @@
 #include <vector>
 
 #include "xgboost/c_api.h"
-#include "xgboost/data.h"  // DMatrix
+#include "xgboost/data.h"         // DMatrix
+#include "xgboost/feature_map.h"  // for FeatureMap
 #include "xgboost/json.h"
 #include "xgboost/learner.h"
-#include "xgboost/linalg.h"  // ArrayInterfaceHandler
+#include "xgboost/linalg.h"       // ArrayInterfaceHandler
 #include "xgboost/logging.h"
 #include "xgboost/string_view.h"  // StringView
 
