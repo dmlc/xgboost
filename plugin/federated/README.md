@@ -15,7 +15,6 @@ mkdir build
 cd build
 cmake .. -GNinja \
  -DPLUGIN_FEDERATED=ON \
- -DBUILD_WITH_CUDA_CUB=ON \
  -DUSE_CUDA=ON\
  -DUSE_NCCL=ON
 ninja
