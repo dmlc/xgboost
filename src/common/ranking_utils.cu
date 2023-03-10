@@ -1,8 +1,9 @@
 /**
  * Copyright 2023 by XGBoost Contributors
  */
+#include <thrust/functional.h>                  // for maximum
 #include <thrust/iterator/counting_iterator.h>  // for make_counting_iterator
-#include <thrust/logical.h>                     // for none_of, all_off
+#include <thrust/logical.h>                     // for none_of, all_of
 #include <thrust/pair.h>                        // for pair, make_pair
 #include <thrust/reduce.h>                      // for reduce
 #include <thrust/scan.h>                        // for inclusive_scan
@@ -16,9 +17,10 @@
 #include "ranking_utils.cuh"                    // for ThreadsForMean
 #include "ranking_utils.h"
 #include "threading_utils.cuh"                  // for SegmentedTrapezoidThreads
-#include "xgboost/base.h"                       // for XGBOOST_DEVICE
+#include "xgboost/base.h"                       // for XGBOOST_DEVICE, bst_group_t
 #include "xgboost/context.h"                    // for Context
-#include "xgboost/linalg.h"                     // for VectorView
+#include "xgboost/linalg.h"                     // for VectorView, All, Range
+#include "xgboost/logging.h"                    // for CHECK
 #include "xgboost/span.h"                       // for Span
 
 namespace xgboost::ltr {

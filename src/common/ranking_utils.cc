@@ -6,9 +6,7 @@
 #include <algorithm>          // for copy_n, max, min, none_of, all_of
 #include <cstddef>            // for size_t
 #include <cstdio>             // for sscanf
-#include <exception>          // for exception
 #include <functional>         // for greater
-#include <iterator>           // for reverse_iterator
 #include <string>             // for char_traits, string
 
 #include "algorithm.h"        // for ArgSort
@@ -18,8 +16,8 @@
 #include "xgboost/base.h"     // for bst_group_t
 #include "xgboost/context.h"  // for Context
 #include "xgboost/data.h"     // for MetaInfo
-#include "xgboost/linalg.h"   // for All, TensorView, Range, Tensor, Vector
-#include "xgboost/logging.h"  // for Error, LogCheck_EQ, CHECK_EQ
+#include "xgboost/linalg.h"   // for All, TensorView, Range
+#include "xgboost/logging.h"  // for CHECK_EQ
 
 namespace xgboost::ltr {
 void RankingCache::InitOnCPU(Context const* ctx, MetaInfo const& info) {

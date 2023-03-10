@@ -2,18 +2,24 @@
  * Copyright 2023 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/base.h>                          // for Args
+#include <xgboost/base.h>                          // for Args, XGBOOST_DEVICE, bst_group_t, kRtEps
 #include <xgboost/context.h>                       // for Context
 #include <xgboost/linalg.h>                        // for MakeTensorView, Vector
 
 #include <cstddef>                                 // for size_t
+#include <memory>                                  // for shared_ptr
+#include <numeric>                                 // for iota
+#include <vector>                                  // for vector
 
 #include "../../../src/common/algorithm.cuh"       // for SegmentedSequence
 #include "../../../src/common/cuda_context.cuh"    // for CUDAContext
-#include "../../../src/common/device_helpers.cuh"  // for device_vector, LaunchN, ToSpan
-#include "../../../src/common/ranking_utils.cuh"
-#include "../../../src/common/ranking_utils.h"     // for LambdaRankParam
-#include "test_ranking_utils.h"
+#include "../../../src/common/device_helpers.cuh"  // for device_vector, ToSpan
+#include "../../../src/common/ranking_utils.cuh"   // for CalcQueriesInvIDCG
+#include "../../../src/common/ranking_utils.h"     // for LambdaRankParam, RankingCache
+#include "../helpers.h"                            // for EmptyDMatrix
+#include "test_ranking_utils.h"                    // for TestNDCGCache
+#include "xgboost/data.h"                          // for MetaInfo
+#include "xgboost/host_device_vector.h"            // for HostDeviceVector
 
 namespace xgboost::ltr {
 void TestCalcQueriesInvIDCG() {
@@ -44,6 +50,39 @@ void TestCalcQueriesInvIDCG() {
 }
 
 TEST(RankingUtils, CalcQueriesInvIDCG) { TestCalcQueriesInvIDCG(); }
+
+namespace {
+void TestRankingCache(Context const* ctx) {
+  auto p_fmat = EmptyDMatrix();
+  MetaInfo& info = p_fmat->Info();
+
+  info.num_row_ = 16;
+  info.labels.Reshape(info.num_row_);
+  auto& h_label = info.labels.Data()->HostVector();
+  for (std::size_t i = 0; i < h_label.size(); ++i) {
+    h_label[i] = i % 2;
+  }
+
+  LambdaRankParam param;
+  param.UpdateAllowUnknown(Args{});
+
+  RankingCache cache{ctx, info, param};
+
+  HostDeviceVector<float> predt(info.num_row_, 0);
+  auto& h_predt = predt.HostVector();
+  std::iota(h_predt.begin(), h_predt.end(), 0.0f);
+  predt.SetDevice(ctx->gpu_id);
+
+  auto rank_idx =
+      cache.SortedIdx(ctx, ctx->IsCPU() ? predt.ConstHostSpan() : predt.ConstDeviceSpan());
+
+  std::vector<std::size_t> h_rank_idx(rank_idx.size());
+  dh::CopyDeviceSpanToVector(&h_rank_idx, rank_idx);
+  for (std::size_t i = 0; i < rank_idx.size(); ++i) {
+    ASSERT_EQ(h_rank_idx[i], h_rank_idx.size() - i - 1);
+  }
+}
+}  // namespace
 
 TEST(RankingCache, InitFromGPU) {
   Context ctx;

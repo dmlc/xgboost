@@ -4,14 +4,18 @@
 #include "test_ranking_utils.h"
 
 #include <gtest/gtest.h>
-#include <xgboost/base.h>                       // for Args
+#include <xgboost/base.h>                       // for Args, bst_group_t, kRtEps
 #include <xgboost/context.h>                    // for Context
-#include <xgboost/data.h>                       // for MetaInfo
+#include <xgboost/data.h>                       // for MetaInfo, DMatrix
 #include <xgboost/host_device_vector.h>         // for HostDeviceVector
+#include <xgboost/logging.h>                    // for Error
 #include <xgboost/string_view.h>                // for StringView
 
+#include <cstddef>                              // for size_t
 #include <cstdint>                              // for uint32_t
-#include <utility>                              // for pair
+#include <numeric>                              // for iota
+#include <utility>                              // for move
+#include <vector>                               // for vector
 
 #include "../../../src/common/numeric.h"        // for Iota
 #include "../../../src/common/ranking_utils.h"  // for LambdaRankParam, ParseMetricName, MakeMet...
@@ -95,6 +99,7 @@ void TestRankingCache(Context const* ctx) {
 
   auto rank_idx =
       cache.SortedIdx(ctx, ctx->IsCPU() ? predt.ConstHostSpan() : predt.ConstDeviceSpan());
+
   for (std::size_t i = 0; i < rank_idx.size(); ++i) {
     ASSERT_EQ(rank_idx[i], rank_idx.size() - i - 1);
   }
