@@ -281,12 +281,13 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
 };
 
 struct LearnerModelParamLegacy;
+
 /**
  * \brief Strategy for building multi-target models.
  */
-enum class Strategy : std::int32_t {
+enum class MultiStrategy : std::int32_t {
   kComposite = 0,
-  kMono = 1,
+  kMonolithic = 1,
 };
 
 /**
@@ -316,16 +317,16 @@ struct LearnerModelParam {
   /**
    * \brief Strategy for building multi-target models.
    */
-  Strategy multi_strategy{Strategy::kComposite};
+  MultiStrategy multi_strategy{MultiStrategy::kComposite};
 
   LearnerModelParam() = default;
   // As the old `LearnerModelParamLegacy` is still used by binary IO, we keep
   // this one as an immutable copy.
   LearnerModelParam(Context const* ctx, LearnerModelParamLegacy const& user_param,
-                    linalg::Tensor<float, 1> base_margin, ObjInfo t, Strategy multi_strategy);
-  LearnerModelParam(LearnerModelParamLegacy const& user_param, ObjInfo t, Strategy multi_strategy);
+                    linalg::Tensor<float, 1> base_margin, ObjInfo t, MultiStrategy multi_strategy);
+  LearnerModelParam(LearnerModelParamLegacy const& user_param, ObjInfo t, MultiStrategy multi_strategy);
   LearnerModelParam(bst_feature_t n_features, linalg::Tensor<float, 1> base_score,
-                    std::uint32_t n_groups, bst_target_t n_targets, Strategy multi_strategy)
+                    std::uint32_t n_groups, bst_target_t n_targets, MultiStrategy multi_strategy)
       : base_score_{std::move(base_score)},
         num_feature{n_features},
         num_output_group{std::max(n_groups, n_targets)},
@@ -335,7 +336,7 @@ struct LearnerModelParam {
   [[nodiscard]] linalg::TensorView<float const, 1> BaseScore(std::int32_t device) const;
 
   void Copy(LearnerModelParam const& that);
-  [[nodiscard]] bool IsVectorLeaf() const noexcept { return multi_strategy == Strategy::kMono; }
+  [[nodiscard]] bool IsVectorLeaf() const noexcept { return multi_strategy == MultiStrategy::kMonolithic; }
   [[nodiscard]] bst_target_t OutputLength() const noexcept { return this->num_output_group; }
   [[nodiscard]] bst_target_t LeafLength() const noexcept {
     return this->IsVectorLeaf() ? this->OutputLength() : 1;

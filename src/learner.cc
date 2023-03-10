@@ -66,9 +66,9 @@ const char* kMaxDeltaStepDefaultValue = "0.7";
 }  // anonymous namespace
 
 namespace xgboost {
-std::string StrategyStr(Strategy s) { return s == Strategy::kComposite ? "compo" : "mono"; }
+std::string StrategyStr(MultiStrategy s) { return s == MultiStrategy::kComposite ? "compo" : "mono"; }
 }  // namespace xgboost
-DECLARE_FIELD_ENUM_CLASS(xgboost::Strategy);
+DECLARE_FIELD_ENUM_CLASS(xgboost::MultiStrategy);
 
 namespace xgboost {
 Learner::~Learner() = default;
@@ -252,7 +252,7 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     DMLC_DECLARE_FIELD(num_target)
         .set_default(1)
         .set_lower_bound(1)
-        .describe("Number of output targets.");
+        .describe("Number of output targets. Can be set automatically if not specified.");
     DMLC_DECLARE_FIELD(boost_from_average)
         .set_default(true)
         .describe("Whether we should calculate the base score from training data.");
@@ -260,7 +260,7 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
 };
 
 LearnerModelParam::LearnerModelParam(LearnerModelParamLegacy const& user_param, ObjInfo t,
-                                     Strategy multi_strategy)
+                                     MultiStrategy multi_strategy)
     : num_feature{user_param.num_feature},
       num_output_group{
           std::max(static_cast<std::uint32_t>(user_param.num_class), user_param.num_target)},
@@ -274,7 +274,7 @@ LearnerModelParam::LearnerModelParam(LearnerModelParamLegacy const& user_param, 
 
 LearnerModelParam::LearnerModelParam(Context const* ctx, LearnerModelParamLegacy const& user_param,
                                      linalg::Tensor<float, 1> base_margin, ObjInfo t,
-                                     Strategy multi_strategy)
+                                     MultiStrategy multi_strategy)
     : LearnerModelParam{user_param, t, multi_strategy} {
   std::swap(base_score_, base_margin);
   // Make sure read access everywhere for thread-safe prediction.
@@ -329,7 +329,7 @@ struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
   std::string booster;
   std::string objective;
   // This is a training parameter and is not saved (nor loaded) in the model.
-  Strategy multi_strategy{Strategy::kComposite};
+  MultiStrategy multi_strategy{MultiStrategy::kComposite};
 
   // declare parameters
   DMLC_DECLARE_PARAMETER(LearnerTrainParam) {
@@ -342,9 +342,9 @@ struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
         .set_default("reg:squarederror")
         .describe("Objective function used for obtaining gradient.");
     DMLC_DECLARE_FIELD(multi_strategy)
-        .add_enum("compo", Strategy::kComposite)
-        .add_enum("mono", Strategy::kMono)
-        .set_default(Strategy::kComposite)
+        .add_enum("composite", MultiStrategy::kComposite)
+        .add_enum("monolithic", MultiStrategy::kMonolithic)
+        .set_default(MultiStrategy::kComposite)
         .describe(
             "Strategy used for training multi-target models. `mono` means building one single tree "
             "for all targets.");

@@ -462,7 +462,7 @@ inline LearnerModelParam MakeMP(bst_feature_t n_features, float base_score, uint
                                 int32_t device = Context::kCpuId) {
   size_t shape[1]{1};
   LearnerModelParam mparam(n_features, linalg::Tensor<float, 1>{{base_score}, shape, device},
-                           n_groups, 1, Strategy::kComposite);
+                           n_groups, 1, MultiStrategy::kComposite);
   return mparam;
 }
 
