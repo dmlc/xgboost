@@ -324,7 +324,8 @@ struct LearnerModelParam {
   // this one as an immutable copy.
   LearnerModelParam(Context const* ctx, LearnerModelParamLegacy const& user_param,
                     linalg::Tensor<float, 1> base_margin, ObjInfo t, MultiStrategy multi_strategy);
-  LearnerModelParam(LearnerModelParamLegacy const& user_param, ObjInfo t, MultiStrategy multi_strategy);
+  LearnerModelParam(LearnerModelParamLegacy const& user_param, ObjInfo t,
+                    MultiStrategy multi_strategy);
   LearnerModelParam(bst_feature_t n_features, linalg::Tensor<float, 1> base_score,
                     std::uint32_t n_groups, bst_target_t n_targets, MultiStrategy multi_strategy)
       : base_score_{std::move(base_score)},
@@ -336,7 +337,9 @@ struct LearnerModelParam {
   [[nodiscard]] linalg::TensorView<float const, 1> BaseScore(std::int32_t device) const;
 
   void Copy(LearnerModelParam const& that);
-  [[nodiscard]] bool IsVectorLeaf() const noexcept { return multi_strategy == MultiStrategy::kMonolithic; }
+  [[nodiscard]] bool IsVectorLeaf() const noexcept {
+    return multi_strategy == MultiStrategy::kMonolithic;
+  }
   [[nodiscard]] bst_target_t OutputLength() const noexcept { return this->num_output_group; }
   [[nodiscard]] bst_target_t LeafLength() const noexcept {
     return this->IsVectorLeaf() ? this->OutputLength() : 1;
