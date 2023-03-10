@@ -65,11 +65,6 @@ namespace {
 const char* kMaxDeltaStepDefaultValue = "0.7";
 }  // anonymous namespace
 
-namespace xgboost {
-std::string StrategyStr(MultiStrategy s) {
-  return s == MultiStrategy::kComposite ? "composite" : "monolithic";
-}
-}  // namespace xgboost
 DECLARE_FIELD_ENUM_CLASS(xgboost::MultiStrategy);
 
 namespace xgboost {
