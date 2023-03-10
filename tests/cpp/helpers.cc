@@ -224,19 +224,18 @@ std::string RandomDataGenerator::GenerateArrayInterface(
   return out;
 }
 
-std::pair<std::vector<std::string>, std::string>
-RandomDataGenerator::GenerateArrayInterfaceBatch(
-    HostDeviceVector<float> *storage, size_t batches) const {
-  this->GenerateDense(storage);
+std::pair<std::vector<std::string>, std::string> MakeArrayInterfaceBatch(
+    HostDeviceVector<float> const* storage, std::size_t n_samples, bst_feature_t n_features,
+    std::size_t batches, std::int32_t device) {
   std::vector<std::string> result(batches);
   std::vector<Json> objects;
 
-  size_t const rows_per_batch = rows_ / batches;
+  size_t const rows_per_batch = n_samples / batches;
 
-  auto make_interface = [storage, this](size_t offset, size_t rows) {
+  auto make_interface = [storage, device, n_features](std::size_t offset, std::size_t rows) {
     Json array_interface{Object()};
     array_interface["data"] = std::vector<Json>(2);
-    if (device_ >= 0) {
+    if (device >= 0) {
       array_interface["data"][0] =
           Integer(reinterpret_cast<int64_t>(storage->DevicePointer() + offset));
       array_interface["stream"] = Null{};
@@ -249,22 +248,22 @@ RandomDataGenerator::GenerateArrayInterfaceBatch(
 
     array_interface["shape"] = std::vector<Json>(2);
     array_interface["shape"][0] = rows;
-    array_interface["shape"][1] = cols_;
+    array_interface["shape"][1] = n_features;
 
     array_interface["typestr"] = String("<f4");
     array_interface["version"] = 3;
     return array_interface;
   };
 
-  auto j_interface = make_interface(0, rows_);
+  auto j_interface = make_interface(0, n_samples);
   size_t offset = 0;
   for (size_t i = 0; i < batches - 1; ++i) {
     objects.emplace_back(make_interface(offset, rows_per_batch));
-    offset += rows_per_batch * cols_;
+    offset += rows_per_batch * n_features;
   }
 
-  size_t const remaining = rows_ - offset / cols_;
-  CHECK_LE(offset, rows_ * cols_);
+  size_t const remaining = n_samples - offset / n_features;
+  CHECK_LE(offset, n_samples * n_features);
   objects.emplace_back(make_interface(offset, remaining));
 
   for (size_t i = 0; i < batches; ++i) {
@@ -274,6 +273,12 @@ RandomDataGenerator::GenerateArrayInterfaceBatch(
   std::string interface_str;
   Json::Dump(j_interface, &interface_str);
   return {result, interface_str};
+}
+
+std::pair<std::vector<std::string>, std::string> RandomDataGenerator::GenerateArrayInterfaceBatch(
+    HostDeviceVector<float>* storage, size_t batches) const {
+  this->GenerateDense(storage);
+  return MakeArrayInterfaceBatch(storage, rows_, cols_, batches, device_);
 }
 
 std::string RandomDataGenerator::GenerateColumnarArrayInterface(
@@ -400,11 +405,14 @@ int NumpyArrayIterForTest::Next() {
   return 1;
 }
 
-std::shared_ptr<DMatrix>
-GetDMatrixFromData(const std::vector<float> &x, int num_rows, int num_columns){
+std::shared_ptr<DMatrix> GetDMatrixFromData(const std::vector<float>& x, std::size_t num_rows,
+                                            bst_feature_t num_columns) {
   data::DenseAdapter adapter(x.data(), num_rows, num_columns);
-  return std::shared_ptr<DMatrix>(new data::SimpleDMatrix(
-      &adapter, std::numeric_limits<float>::quiet_NaN(), 1));
+  auto p_fmat = std::shared_ptr<DMatrix>(
+      new data::SimpleDMatrix(&adapter, std::numeric_limits<float>::quiet_NaN(), 1));
+  CHECK_EQ(p_fmat->Info().num_row_, num_rows);
+  CHECK_EQ(p_fmat->Info().num_col_, num_columns);
+  return p_fmat;
 }
 
 std::unique_ptr<DMatrix> CreateSparsePageDMatrix(bst_row_t n_samples, bst_feature_t n_features,
@@ -572,12 +580,23 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs,
   return gbm;
 }
 
-ArrayIterForTest::ArrayIterForTest(float sparsity, size_t rows, size_t cols,
-                                   size_t batches) : rows_{rows}, cols_{cols}, n_batches_{batches} {
+ArrayIterForTest::ArrayIterForTest(float sparsity, size_t rows, size_t cols, size_t batches)
+    : rows_{rows}, cols_{cols}, n_batches_{batches} {
   XGProxyDMatrixCreate(&proxy_);
   rng_.reset(new RandomDataGenerator{rows_, cols_, sparsity});
+  std::tie(batches_, interface_) = rng_->GenerateArrayInterfaceBatch(&data_, n_batches_);
+}
+
+ArrayIterForTest::ArrayIterForTest(Context const* ctx, HostDeviceVector<float> const& data,
+                                   std::size_t n_samples, bst_feature_t n_features,
+                                   std::size_t n_batches)
+    : rows_{n_samples}, cols_{n_features}, n_batches_{n_batches} {
+  XGProxyDMatrixCreate(&proxy_);
+  this->data_.Resize(data.Size());
+  CHECK_EQ(this->data_.Size(), rows_ * cols_ * n_batches);
+  this->data_.Copy(data);
   std::tie(batches_, interface_) =
-      rng_->GenerateArrayInterfaceBatch(&data_, n_batches_);
+      MakeArrayInterfaceBatch(&data_, rows_, cols_, n_batches_, ctx->gpu_id);
 }
 
 ArrayIterForTest::~ArrayIterForTest() { XGDMatrixFree(proxy_); }
