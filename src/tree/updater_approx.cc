@@ -14,14 +14,15 @@
 #include "driver.h"
 #include "hist/evaluate_splits.h"
 #include "hist/histogram.h"
-#include "hist/sampler.h"  // SampleGradient
+#include "hist/sampler.h"  // for SampleGradient
 #include "param.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 #include "xgboost/json.h"
 #include "xgboost/linalg.h"
+#include "xgboost/task.h"          // for ObjInfo
 #include "xgboost/tree_model.h"
-#include "xgboost/tree_updater.h"
+#include "xgboost/tree_updater.h"  // for TreeUpdater
 
 namespace xgboost::tree {
 
@@ -40,12 +41,12 @@ auto BatchSpec(TrainParam const &p, common::Span<float> hess) {
 
 class GloablApproxBuilder {
  protected:
-  TrainParam const* param_;
+  TrainParam const *param_;
   std::shared_ptr<common::ColumnSampler> col_sampler_;
   HistEvaluator<CPUExpandEntry> evaluator_;
   HistogramBuilder<CPUExpandEntry> histogram_builder_;
   Context const *ctx_;
-  ObjInfo const task_;
+  ObjInfo const *const task_;
 
   std::vector<CommonRowPartitioner> partitioner_;
   // Pointer to last updated tree, used for update prediction cache.
@@ -63,7 +64,8 @@ class GloablApproxBuilder {
     bst_bin_t n_total_bins = 0;
     partitioner_.clear();
     // Generating the GHistIndexMatrix is quite slow, is there a way to speed it up?
-    for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(BatchSpec(*param_, hess, task_))) {
+    for (auto const &page :
+         p_fmat->GetBatches<GHistIndexMatrix>(BatchSpec(*param_, hess, *task_))) {
       if (n_total_bins == 0) {
         n_total_bins = page.cut.TotalBins();
         feature_values_ = page.cut;
@@ -157,7 +159,7 @@ class GloablApproxBuilder {
   void LeafPartition(RegTree const &tree, common::Span<float const> hess,
                      std::vector<bst_node_t> *p_out_position) {
     monitor_->Start(__func__);
-    if (!task_.UpdateTreeLeaf()) {
+    if (!task_->UpdateTreeLeaf()) {
       return;
     }
     for (auto const &part : partitioner_) {
@@ -168,8 +170,8 @@ class GloablApproxBuilder {
 
  public:
   explicit GloablApproxBuilder(TrainParam const *param, MetaInfo const &info, Context const *ctx,
-                               std::shared_ptr<common::ColumnSampler> column_sampler, ObjInfo task,
-                               common::Monitor *monitor)
+                               std::shared_ptr<common::ColumnSampler> column_sampler,
+                               ObjInfo const *task, common::Monitor *monitor)
       : param_{param},
         col_sampler_{std::move(column_sampler)},
         evaluator_{ctx, param_, info, col_sampler_},
@@ -256,10 +258,11 @@ class GlobalApproxUpdater : public TreeUpdater {
   DMatrix *cached_{nullptr};
   std::shared_ptr<common::ColumnSampler> column_sampler_ =
       std::make_shared<common::ColumnSampler>();
-  ObjInfo task_;
+  ObjInfo const *task_;
 
  public:
-  explicit GlobalApproxUpdater(Context const *ctx, ObjInfo task) : TreeUpdater(ctx), task_{task} {
+  explicit GlobalApproxUpdater(Context const *ctx, ObjInfo const *task)
+      : TreeUpdater(ctx), task_{task} {
     monitor_.Init(__func__);
   }
 
@@ -317,5 +320,7 @@ XGBOOST_REGISTER_TREE_UPDATER(GlobalHistMaker, "grow_histmaker")
     .describe(
         "Tree constructor that uses approximate histogram construction "
         "for each node.")
-    .set_body([](Context const *ctx, ObjInfo task) { return new GlobalApproxUpdater(ctx, task); });
+    .set_body([](Context const *ctx, ObjInfo const *task) {
+      return new GlobalApproxUpdater(ctx, task);
+    });
 }  // namespace xgboost::tree

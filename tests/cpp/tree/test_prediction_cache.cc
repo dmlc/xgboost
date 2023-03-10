@@ -9,6 +9,7 @@
 
 #include "../../../src/tree/param.h"  // for TrainParam
 #include "../helpers.h"
+#include "xgboost/task.h"             // for ObjInfo
 
 namespace xgboost {
 
@@ -71,8 +72,8 @@ class TestPredictionCache : public ::testing::Test {
         ctx.gpu_id = Context::kCpuId;
       }
 
-      std::unique_ptr<TreeUpdater> updater{
-          TreeUpdater::Create(updater_name, &ctx, ObjInfo{ObjInfo::kRegression})};
+      ObjInfo task{ObjInfo::kRegression};
+      std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create(updater_name, &ctx, &task)};
       RegTree tree;
       std::vector<RegTree *> trees{&tree};
       auto gpair = GenerateRandomGradients(n_samples_);

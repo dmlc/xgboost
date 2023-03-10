@@ -1,8 +1,9 @@
 /**
- * Copyright 2018-2013 by XGBoost Contributors
+ * Copyright 2018-2023 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/host_device_vector.h>
+#include <xgboost/task.h>  // for ObjInfo
 #include <xgboost/tree_updater.h>
 
 #include <memory>
@@ -12,9 +13,7 @@
 #include "../../../src/tree/param.h"  // for TrainParam
 #include "../helpers.h"
 
-namespace xgboost {
-namespace tree {
-
+namespace xgboost::tree {
 TEST(Updater, Refresh) {
   bst_row_t constexpr kRows = 8;
   bst_feature_t constexpr kCols = 16;
@@ -33,8 +32,9 @@ TEST(Updater, Refresh) {
   auto ctx = CreateEmptyGenericParam(GPUIDX);
   tree.param.UpdateAllowUnknown(cfg);
   std::vector<RegTree*> trees{&tree};
-  std::unique_ptr<TreeUpdater> refresher(
-      TreeUpdater::Create("refresh", &ctx, ObjInfo{ObjInfo::kRegression}));
+
+  ObjInfo task{ObjInfo::kRegression};
+  std::unique_ptr<TreeUpdater> refresher(TreeUpdater::Create("refresh", &ctx, &task));
 
   tree.ExpandNode(0, 2, 0.2f, false, 0.0, 0.2f, 0.8f, 0.0f, 0.0f,
                   /*left_sum=*/0.0f, /*right_sum=*/0.0f);
@@ -57,6 +57,4 @@ TEST(Updater, Refresh) {
   ASSERT_NEAR(0, tree.Stat(1).loss_chg, kEps);
   ASSERT_NEAR(0, tree.Stat(2).loss_chg, kEps);
 }
-
-}  // namespace tree
-}  // namespace xgboost
+}  // namespace xgboost::tree

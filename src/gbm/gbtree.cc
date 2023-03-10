@@ -340,7 +340,7 @@ void GBTree::InitUpdater(Args const& cfg) {
   // create new updaters
   for (const std::string& pstr : ups) {
     std::unique_ptr<TreeUpdater> up(
-        TreeUpdater::Create(pstr.c_str(), ctx_, model_.learner_model_param->task));
+        TreeUpdater::Create(pstr.c_str(), ctx_, &model_.learner_model_param->task));
     up->Configure(cfg);
     updaters_.push_back(std::move(up));
   }
@@ -448,7 +448,7 @@ void GBTree::LoadConfig(Json const& in) {
       LOG(WARNING) << "Changing updater from `grow_gpu_hist` to `grow_quantile_histmaker`.";
     }
     std::unique_ptr<TreeUpdater> up{
-        TreeUpdater::Create(name, ctx_, model_.learner_model_param->task)};
+        TreeUpdater::Create(name, ctx_, &model_.learner_model_param->task)};
     up->LoadConfig(kv.second);
     updaters_.push_back(std::move(up));
   }

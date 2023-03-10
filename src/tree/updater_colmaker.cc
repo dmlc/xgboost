@@ -603,5 +603,5 @@ class ColMaker: public TreeUpdater {
 
 XGBOOST_REGISTER_TREE_UPDATER(ColMaker, "grow_colmaker")
     .describe("Grow tree with parallelization over columns.")
-    .set_body([](Context const *ctx, ObjInfo) { return new ColMaker(ctx); });
+    .set_body([](Context const *ctx, auto) { return new ColMaker(ctx); });
 }  // namespace xgboost::tree
