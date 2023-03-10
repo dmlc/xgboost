@@ -91,6 +91,7 @@ void TestRankingCache(Context const* ctx) {
   HostDeviceVector<float> predt(info.num_row_, 0);
   auto& h_predt = predt.HostVector();
   std::iota(h_predt.begin(), h_predt.end(), 0.0f);
+  predt.SetDevice(ctx->gpu_id);
 
   auto rank_idx =
       cache.SortedIdx(ctx, ctx->IsCPU() ? predt.ConstHostSpan() : predt.ConstDeviceSpan());
