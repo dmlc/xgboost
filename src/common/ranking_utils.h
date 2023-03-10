@@ -11,7 +11,6 @@
 #include <string>                        // for char_traits, string
 #include <vector>                        // for vector
 
-#include "./math.h"                      // for CloseTo
 #include "dmlc/parameter.h"              // for FieldEntry, DMLC_DECLARE_FIELD
 #include "error_msg.h"                   // for GroupWeight, GroupSize
 #include "xgboost/base.h"                // for XGBOOST_DEVICE, bst_group_t
@@ -19,7 +18,7 @@
 #include "xgboost/data.h"                // for MetaInfo
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
 #include "xgboost/linalg.h"              // for Vector, VectorView, Tensor
-#include "xgboost/logging.h"             // for LogCheck_EQ, CHECK_EQ, CHECK
+#include "xgboost/logging.h"             // for CHECK_EQ, CHECK
 #include "xgboost/parameter.h"           // for XGBoostParameter
 #include "xgboost/span.h"                // for Span
 #include "xgboost/string_view.h"         // for StringView

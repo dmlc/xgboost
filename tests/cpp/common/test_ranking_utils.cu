@@ -15,8 +15,7 @@
 #include "../../../src/common/ranking_utils.h"     // for LambdaRankParam
 #include "test_ranking_utils.h"
 
-namespace xgboost {
-namespace ltr {
+namespace xgboost::ltr {
 void TestCalcQueriesInvIDCG() {
   Context ctx;
   ctx.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
@@ -57,5 +56,4 @@ TEST(NDCGCache, InitFromGPU) {
   ctx.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
   TestNDCGCache(&ctx);
 }
-}  // namespace ltr
-}  // namespace xgboost
+}  // namespace xgboost::ltr
