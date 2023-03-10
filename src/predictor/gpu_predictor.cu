@@ -8,6 +8,7 @@
 #include <thrust/fill.h>
 #include <thrust/host_vector.h>
 
+#include <any>  // for any
 #include <memory>
 
 #include "../common/bitfield.h"
@@ -741,10 +742,10 @@ class GPUPredictor : public xgboost::Predictor {
   }
 
   template <typename Adapter, typename Loader>
-  void DispatchedInplacePredict(dmlc::any const &x, std::shared_ptr<DMatrix> p_m,
-                                const gbm::GBTreeModel &model, float missing,
-                                PredictionCacheEntry *out_preds,
-                                uint32_t tree_begin, uint32_t tree_end) const {
+  void DispatchedInplacePredict(std::any const& x, std::shared_ptr<DMatrix> p_m,
+                                const gbm::GBTreeModel& model, float missing,
+                                PredictionCacheEntry* out_preds, uint32_t tree_begin,
+                                uint32_t tree_end) const {
     uint32_t const output_groups =  model.learner_model_param->num_output_group;
 
     auto m = dmlc::get<std::shared_ptr<Adapter>>(x);

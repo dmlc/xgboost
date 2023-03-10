@@ -9,7 +9,6 @@
 #define XGBOOST_GBM_H_
 
 #include <dmlc/registry.h>
-#include <dmlc/any.h>
 #include <xgboost/base.h>
 #include <xgboost/data.h>
 #include <xgboost/host_device_vector.h>

@@ -1,9 +1,9 @@
 /**
  * Copyright 2017-2023 by XGBoost Contributors
  */
-#include <dmlc/any.h>
 #include <dmlc/omp.h>
 
+#include <any>  // for any
 #include <cstddef>
 #include <limits>
 #include <mutex>
@@ -637,10 +637,10 @@ class CPUPredictor : public Predictor {
   }
 
   template <typename Adapter, size_t kBlockSize>
-  void DispatchedInplacePredict(dmlc::any const &x, std::shared_ptr<DMatrix> p_m,
+  void DispatchedInplacePredict(std::any const &x, std::shared_ptr<DMatrix> p_m,
                                 const gbm::GBTreeModel &model, float missing,
-                                PredictionCacheEntry *out_preds,
-                                uint32_t tree_begin, uint32_t tree_end) const {
+                                PredictionCacheEntry *out_preds, uint32_t tree_begin,
+                                uint32_t tree_end) const {
     auto const n_threads = this->ctx_->Threads();
     auto m = dmlc::get<std::shared_ptr<Adapter>>(x);
     CHECK_EQ(m->NumColumns(), model.learner_model_param->num_feature)
