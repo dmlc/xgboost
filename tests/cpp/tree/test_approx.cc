@@ -1,5 +1,5 @@
-/*!
- * Copyright 2021-2022, XGBoost contributors.
+/**
+ * Copyright 2021-2023 by XGBoost contributors.
  */
 #include <gtest/gtest.h>
 
@@ -10,7 +10,6 @@
 
 namespace xgboost {
 namespace tree {
-
 namespace {
 std::vector<float> GenerateHess(size_t n_samples) {
   auto grad = GenerateRandomGradients(n_samples);
@@ -32,7 +31,8 @@ TEST(Approx, Partitioner) {
 
   auto const Xy = RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true);
   auto hess = GenerateHess(n_samples);
-  std::vector<CPUExpandEntry> candidates{{0, 0, 0.4}};
+  std::vector<CPUExpandEntry> candidates{{0, 0}};
+  candidates.front().split.loss_chg = 0.4;
 
   for (auto const& page : Xy->GetBatches<GHistIndexMatrix>({64, hess, true})) {
     bst_feature_t const split_ind = 0;
@@ -79,7 +79,9 @@ void TestColumnSplitPartitioner(size_t n_samples, size_t base_rowid, std::shared
                                 CommonRowPartitioner const& expected_mid_partitioner) {
   auto dmat =
       std::unique_ptr<DMatrix>{Xy->SliceCol(collective::GetWorldSize(), collective::GetRank())};
-  std::vector<CPUExpandEntry> candidates{{0, 0, 0.4}};
+  std::vector<CPUExpandEntry> candidates{{0, 0}};
+  candidates.front().split.loss_chg = 0.4;
+
   Context ctx;
   ctx.InitAllowUnknown(Args{});
   for (auto const& page : dmat->GetBatches<GHistIndexMatrix>({64, *hess, true})) {
@@ -124,7 +126,8 @@ TEST(Approx, PartitionerColSplit) {
   size_t n_samples = 1024, n_features = 16, base_rowid = 0;
   auto const Xy = RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true);
   auto hess = GenerateHess(n_samples);
-  std::vector<CPUExpandEntry> candidates{{0, 0, 0.4}};
+  std::vector<CPUExpandEntry> candidates{{0, 0}};
+  candidates.front().split.loss_chg = 0.4;
 
   float min_value, mid_value;
   Context ctx;
@@ -154,7 +157,8 @@ void TestLeafPartition(size_t n_samples) {
   CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid, false};
 
   auto Xy = RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true);
-  std::vector<CPUExpandEntry> candidates{{0, 0, 0.4}};
+  std::vector<CPUExpandEntry> candidates{{0, 0}};
+  candidates.front().split.loss_chg = 0.4;
   RegTree tree;
   std::vector<float> hess(n_samples, 0);
   // emulate sampling
