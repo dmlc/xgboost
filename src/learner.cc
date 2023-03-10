@@ -6,53 +6,66 @@
  */
 #include "xgboost/learner.h"
 
-#include <dmlc/any.h>
-#include <dmlc/io.h>
-#include <dmlc/parameter.h>
-#include <dmlc/thread_local.h>
+#include <dmlc/io.h>                      // for Stream
+#include <dmlc/parameter.h>               // for FieldEntry, DMLC_DECLARE_FIELD, Parameter, DMLC...
+#include <dmlc/thread_local.h>            // for ThreadLocalStore
 
-#include <algorithm>
-#include <array>
-#include <atomic>
-#include <iomanip>
-#include <limits>  // std::numeric_limits
-#include <memory>
-#include <mutex>
-#include <sstream>
-#include <stack>
-#include <string>
-#include <utility>  // for as_const
-#include <vector>
+#include <algorithm>                      // for equal, max, transform, sort, find_if, all_of
+#include <array>                          // for array
+#include <atomic>                         // for atomic
+#include <cctype>                         // for isalpha, isspace
+#include <cmath>                          // for isnan, isinf
+#include <cstdint>                        // for int32_t, uint32_t, int64_t, uint64_t
+#include <cstdlib>                        // for atoi
+#include <cstring>                        // for memcpy, size_t, memset
+#include <functional>                     // for less
+#include <iomanip>                        // for operator<<, setiosflags
+#include <iterator>                       // for back_insert_iterator, distance, back_inserter
+#include <limits>                         // for numeric_limits
+#include <memory>                         // for allocator, unique_ptr, shared_ptr, operator==
+#include <mutex>                          // for mutex, lock_guard
+#include <set>                            // for set
+#include <sstream>                        // for operator<<, basic_ostream, basic_ostream::opera...
+#include <stack>                          // for stack
+#include <string>                         // for basic_string, char_traits, operator<, string
+#include <system_error>                   // for errc
+#include <tuple>                          // for get
+#include <unordered_map>                  // for operator!=, unordered_map
+#include <utility>                        // for pair, as_const, move, swap
+#include <vector>                         // for vector
 
-#include "collective/communicator-inl.h"
-#include "common/api_entry.h"  // XGBAPIThreadLocalEntry
-#include "common/charconv.h"
-#include "common/common.h"
-#include "common/io.h"
-#include "common/observer.h"
-#include "common/random.h"
-#include "common/threading_utils.h"
-#include "common/timer.h"
-#include "common/version.h"
-#include "xgboost/base.h"
-#include "xgboost/c_api.h"
-#include "xgboost/context.h"  // Context
-#include "xgboost/data.h"
-#include "xgboost/feature_map.h"
-#include "xgboost/gbm.h"
-#include "xgboost/host_device_vector.h"
-#include "xgboost/json.h"
-#include "xgboost/logging.h"
-#include "xgboost/metric.h"
-#include "xgboost/model.h"
-#include "xgboost/objective.h"
-#include "xgboost/parameter.h"
-#include "xgboost/predictor.h"
+#include "collective/communicator-inl.h"  // for Allreduce, Broadcast, GetRank, IsDistributed
+#include "collective/communicator.h"      // for Operation
+#include "common/api_entry.h"             // for XGBAPIThreadLocalEntry
+#include "common/charconv.h"              // for to_chars, to_chars_result, NumericLimits, from_...
+#include "common/common.h"                // for ToString, Split
+#include "common/io.h"                    // for PeekableInStream, ReadAll, FixedSizeStream, Mem...
+#include "common/observer.h"              // for TrainingObserver
+#include "common/random.h"                // for GlobalRandom
+#include "common/timer.h"                 // for Monitor
+#include "common/version.h"               // for Version
+#include "dmlc/endian.h"                  // for ByteSwap, DMLC_IO_NO_ENDIAN_SWAP
+#include "xgboost/base.h"                 // for Args, bst_float, GradientPair, bst_feature_t
+#include "xgboost/context.h"              // for Context
+#include "xgboost/data.h"                 // for DMatrix, MetaInfo
+#include "xgboost/gbm.h"                  // for GradientBooster
+#include "xgboost/global_config.h"        // for GlobalConfiguration, GlobalConfigThreadLocalStore
+#include "xgboost/host_device_vector.h"   // for HostDeviceVector
+#include "xgboost/json.h"                 // for Json, get, Object, String, IsA, Array, ToJson
+#include "xgboost/linalg.h"               // for Tensor, TensorView
+#include "xgboost/logging.h"              // for CHECK, LOG, CHECK_EQ
+#include "xgboost/metric.h"               // for Metric
+#include "xgboost/objective.h"            // for ObjFunction
+#include "xgboost/parameter.h"            // for DECLARE_FIELD_ENUM_CLASS, XGBoostParameter
+#include "xgboost/predictor.h"            // for PredictionContainer, PredictionCacheEntry
+#include "xgboost/string_view.h"          // for operator<<, StringView
+#include "xgboost/task.h"                 // for ObjInfo
 
 namespace {
-
 const char* kMaxDeltaStepDefaultValue = "0.7";
 }  // anonymous namespace
+
+DECLARE_FIELD_ENUM_CLASS(xgboost::MultiStrategy);
 
 namespace xgboost {
 Learner::~Learner() = default;
@@ -86,8 +99,10 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
   /*! \brief the version of XGBoost. */
   std::uint32_t major_version;
   std::uint32_t minor_version;
-
-  uint32_t num_target{1};
+  /**
+   * \brief Number of target variables.
+   */
+  bst_target_t num_target;
   /**
    * \brief Whether we should calculate the base score from training data.
    *
@@ -113,7 +128,7 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
   }
 
   // Skip other legacy fields.
-  Json ToJson() const {
+  [[nodiscard]] Json ToJson() const {
     Json obj{Object{}};
     char floats[NumericLimits<float>::kToCharsSize];
     auto ret = to_chars(floats, floats + NumericLimits<float>::kToCharsSize, base_score);
@@ -163,7 +178,7 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     from_chars(str.c_str(), str.c_str() + str.size(), base_score);
   }
 
-  LearnerModelParamLegacy ByteSwap() const {
+  [[nodiscard]] LearnerModelParamLegacy ByteSwap() const {
     LearnerModelParamLegacy x = *this;
     dmlc::ByteSwap(&x.base_score, sizeof(x.base_score), 1);
     dmlc::ByteSwap(&x.num_feature, sizeof(x.num_feature), 1);
@@ -226,35 +241,38 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     DMLC_DECLARE_FIELD(num_feature)
         .set_default(0)
         .describe(
-            "Number of features in training data,"
-            " this parameter will be automatically detected by learner.");
+            "Number of features in training data, this parameter will be automatically detected by "
+            "learner.");
     DMLC_DECLARE_FIELD(num_class).set_default(0).set_lower_bound(0).describe(
         "Number of class option for multi-class classifier. "
         " By default equals 0 and corresponds to binary classifier.");
     DMLC_DECLARE_FIELD(num_target)
         .set_default(1)
         .set_lower_bound(1)
-        .describe("Number of target for multi-target regression.");
+        .describe("Number of output targets. Can be set automatically if not specified.");
     DMLC_DECLARE_FIELD(boost_from_average)
         .set_default(true)
         .describe("Whether we should calculate the base score from training data.");
   }
 };
 
-LearnerModelParam::LearnerModelParam(LearnerModelParamLegacy const& user_param, ObjInfo t)
-    : num_feature{user_param.num_feature}, task{t} {
-  auto n_classes = std::max(static_cast<uint32_t>(user_param.num_class), 1u);
-  auto n_targets = user_param.num_target;
-  num_output_group = std::max(n_classes, n_targets);
-  // For version < 1.6, n_targets == 0
-  CHECK(n_classes <= 1 || n_targets <= 1)
-      << "Multi-class multi-output is not yet supported. n_classes:" << n_classes
-      << ", n_targets:" << n_targets;
+LearnerModelParam::LearnerModelParam(LearnerModelParamLegacy const& user_param, ObjInfo t,
+                                     MultiStrategy multi_strategy)
+    : num_feature{user_param.num_feature},
+      num_output_group{
+          std::max(static_cast<std::uint32_t>(user_param.num_class), user_param.num_target)},
+      task{t},
+      multi_strategy{multi_strategy} {
+  if (user_param.num_class > 1 && user_param.num_target > 1) {
+    LOG(FATAL) << "multi-target-multi-class is not yet supported. Output classes:"
+               << user_param.num_class << ", output targets:" << user_param.num_target;
+  }
 }
 
 LearnerModelParam::LearnerModelParam(Context const* ctx, LearnerModelParamLegacy const& user_param,
-                                     linalg::Tensor<float, 1> base_margin, ObjInfo t)
-    : LearnerModelParam{user_param, t} {
+                                     linalg::Tensor<float, 1> base_margin, ObjInfo t,
+                                     MultiStrategy multi_strategy)
+    : LearnerModelParam{user_param, t, multi_strategy} {
   std::swap(base_score_, base_margin);
   // Make sure read access everywhere for thread-safe prediction.
   std::as_const(base_score_).HostView();
@@ -297,6 +315,7 @@ void LearnerModelParam::Copy(LearnerModelParam const& that) {
   num_feature = that.num_feature;
   num_output_group = that.num_output_group;
   task = that.task;
+  multi_strategy = that.multi_strategy;
 }
 
 struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
@@ -306,18 +325,26 @@ struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
   // specified by users.  Move them to model parameter once we can get rid of binary IO.
   std::string booster;
   std::string objective;
+  // This is a training parameter and is not saved (nor loaded) in the model.
+  MultiStrategy multi_strategy{MultiStrategy::kComposite};
 
   // declare parameters
   DMLC_DECLARE_PARAMETER(LearnerTrainParam) {
     DMLC_DECLARE_FIELD(disable_default_eval_metric)
         .set_default(false)
         .describe("Flag to disable default metric. Set to >0 to disable");
-    DMLC_DECLARE_FIELD(booster)
-        .set_default("gbtree")
-        .describe("Gradient booster used for training.");
+    DMLC_DECLARE_FIELD(booster).set_default("gbtree").describe(
+        "Gradient booster used for training.");
     DMLC_DECLARE_FIELD(objective)
         .set_default("reg:squarederror")
         .describe("Objective function used for obtaining gradient.");
+    DMLC_DECLARE_FIELD(multi_strategy)
+        .add_enum("composite", MultiStrategy::kComposite)
+        .add_enum("monolithic", MultiStrategy::kMonolithic)
+        .set_default(MultiStrategy::kComposite)
+        .describe(
+            "Strategy used for training multi-target models. `mono` means building one single tree "
+            "for all targets.");
   }
 };
 
@@ -379,8 +406,10 @@ class LearnerConfiguration : public Learner {
 
     // transform to margin
     h_base_score(0) = obj_->ProbToMargin(mparam_.base_score);
+    CHECK(tparam_.GetInitialised());
     // move it to model param, which is shared with all other components.
-    learner_model_param_ = LearnerModelParam(Ctx(), mparam_, std::move(base_score), task);
+    learner_model_param_ =
+        LearnerModelParam(Ctx(), mparam_, std::move(base_score), task, tparam_.multi_strategy);
     CHECK(learner_model_param_.Initialized());
     CHECK_NE(learner_model_param_.BaseScore(Ctx()).Size(), 0);
   }
@@ -748,7 +777,6 @@ class LearnerConfiguration : public Learner {
         << "0 feature is supplied.  Are you using raw Booster interface?";
     // Remove these once binary IO is gone.
     cfg_["num_feature"] = common::ToString(mparam_.num_feature);
-    cfg_["num_class"] = common::ToString(mparam_.num_class);
   }
 
   void ConfigureGBM(LearnerTrainParam const& old, Args const& args) {
@@ -779,9 +807,17 @@ class LearnerConfiguration : public Learner {
     if (obj_ == nullptr || tparam_.objective != old.objective) {
       obj_.reset(ObjFunction::Create(tparam_.objective, &ctx_));
     }
+
+    bool has_nc {cfg_.find("num_class") != cfg_.cend()};
+    // Inject num_class into configuration.
+    // FIXME(jiamingy): Remove the duplicated parameter in softmax
+    cfg_["num_class"] = common::ToString(mparam_.num_class);
     auto& args = *p_args;
     args = {cfg_.cbegin(), cfg_.cend()};  // renew
     obj_->Configure(args);
+    if (!has_nc) {
+      cfg_.erase("num_class");
+    }
   }
 
   void ConfigureMetrics(Args const& args) {
@@ -805,7 +841,7 @@ class LearnerConfiguration : public Learner {
   void ConfigureTargets() {
     CHECK(this->obj_);
     auto const& cache = prediction_container_.Container();
-    size_t n_targets = 1;
+    bst_target_t n_targets = 1;
     for (auto const& d : cache) {
       if (n_targets == 1) {
         n_targets = this->obj_->Targets(d.first.ptr->Info());
@@ -814,7 +850,8 @@ class LearnerConfiguration : public Learner {
         CHECK(n_targets == t || 1 == t) << "Inconsistent labels.";
       }
     }
-    if (mparam_.num_target != 1) {
+
+    if (mparam_.num_target > 1) {
       CHECK(n_targets == 1 || n_targets == mparam_.num_target)
           << "Inconsistent configuration of num_target.  Configuration result from input data:"
           << n_targets << ", configuration from parameter:" << mparam_.num_target;
@@ -974,9 +1011,6 @@ class LearnerIO : public LearnerConfiguration {
     if (!DMLC_IO_NO_ENDIAN_SWAP) {
       mparam_ = mparam_.ByteSwap();
     }
-    if (mparam_.num_target == 0) {
-      mparam_.num_target = 1;
-    }
     CHECK(fi->Read(&tparam_.objective)) << "BoostLearner: wrong model format";
     CHECK(fi->Read(&tparam_.booster)) << "BoostLearner: wrong model format";
 
@@ -1030,7 +1064,7 @@ class LearnerIO : public LearnerConfiguration {
                                                         : obj_->ProbToMargin(mparam_.base_score)},
                                                    {1},
                                                    Context::kCpuId},
-                          obj_->Task());
+                          obj_->Task(), tparam_.multi_strategy);
 
     if (attributes_.find("objective") != attributes_.cend()) {
       auto obj_str = attributes_.at("objective");
@@ -1058,7 +1092,6 @@ class LearnerIO : public LearnerConfiguration {
     mparam_.major_version = std::get<0>(Version::Self());
     mparam_.minor_version = std::get<1>(Version::Self());
 
-    cfg_["num_class"] = common::ToString(mparam_.num_class);
     cfg_["num_feature"] = common::ToString(mparam_.num_feature);
 
     auto n = tparam_.__DICT__();
@@ -1071,6 +1104,8 @@ class LearnerIO : public LearnerConfiguration {
   // JSON serialization format.
   void SaveModel(dmlc::Stream* fo) const override {
     this->CheckModelInitialized();
+    CHECK(!this->learner_model_param_.IsVectorLeaf())
+        << "Please use JSON/UBJ format for model serialization with multi-output models.";
 
     LearnerModelParamLegacy mparam = mparam_;  // make a copy to potentially modify
     std::vector<std::pair<std::string, std::string> > extra_attr;

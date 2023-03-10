@@ -2,24 +2,26 @@
  * Copyright 2023 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/base.h>     // bst_target_t
-#include <xgboost/data.h>     // DMatrix
-#include <xgboost/json.h>     // Json,Object,Number,get
-#include <xgboost/learner.h>  // Learner
+#include <xgboost/base.h>                         // for Args, bst_target_t
+#include <xgboost/data.h>                         // for DMatrix, MetaInfo
+#include <xgboost/json.h>                         // for Json, get, Object, String
+#include <xgboost/learner.h>                      // for Learner
 
-#include <cstddef>            // size_t
-#include <memory>             // shared_ptr,unique_ptr
-#include <numeric>
-#include <string>             // stod
-#include <vector>
+#include <algorithm>                              // for copy
+#include <cstddef>                                // for size_t
+#include <memory>                                 // for shared_ptr, allocator, __shared_ptr_access
+#include <numeric>                                // for accumulate
+#include <string>                                 // for stod, string
+#include <vector>                                 // for vector
 
-#include "../../src/common/linalg_op.h"  // cbegin,cend
-#include "../../src/common/stats.h"      // Median
-#include "helpers.h"                     // RandomDataGenerator
-#include "xgboost/linalg.h"
+#include "../../src/common/linalg_op.h"           // for begin, cbegin, cend
+#include "../../src/common/stats.h"               // for Median
+#include "../../src/common/transform_iterator.h"  // for IndexTransformIter
+#include "helpers.h"                              // for RandomDataGenerator
+#include "xgboost/host_device_vector.h"           // for HostDeviceVector
+#include "xgboost/linalg.h"                       // for Tensor, All, TensorView, Vector
 
 namespace xgboost {
-
 class TestL1MultiTarget : public ::testing::Test {
   std::shared_ptr<DMatrix> Xy_;
   std::shared_ptr<DMatrix> Xyw_;
@@ -117,4 +119,16 @@ TEST_F(TestL1MultiTarget, Approx) { this->RunTest("approx"); }
 #if defined(XGBOOST_USE_CUDA)
 TEST_F(TestL1MultiTarget, GpuHist) { this->RunTest("gpu_hist"); }
 #endif  // defined(XGBOOST_USE_CUDA)
+
+TEST(MultiStrategy, Configure) {
+  auto p_fmat = RandomDataGenerator{12ul, 3ul, 0.0}.GenerateDMatrix();
+  p_fmat->Info().labels.Reshape(p_fmat->Info().num_row_, 2);
+  std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
+  learner->SetParams(Args{{"multi_strategy", "monolithic"}, {"num_target", "2"}});
+  learner->Configure();
+  ASSERT_EQ(learner->Groups(), 2);
+
+  learner->SetParams(Args{{"multi_strategy", "monolithic"}, {"num_target", "0"}});
+  ASSERT_THROW({ learner->Configure(); }, dmlc::Error);
+}
 }  // namespace xgboost
