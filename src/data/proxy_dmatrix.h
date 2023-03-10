@@ -4,7 +4,7 @@
 #ifndef XGBOOST_DATA_PROXY_DMATRIX_H_
 #define XGBOOST_DATA_PROXY_DMATRIX_H_
 
-#include <any>  // for any
+#include <any>  // for any, any_cast
 #include <memory>
 #include <string>
 #include <utility>
@@ -127,15 +127,13 @@ inline DMatrixProxy* MakeProxy(DMatrixHandle proxy) {
 template <typename Fn>
 decltype(auto) HostAdapterDispatch(DMatrixProxy const* proxy, Fn fn, bool* type_error = nullptr) {
   if (proxy->Adapter().type() == typeid(std::shared_ptr<CSRArrayAdapter>)) {
-    auto value =
-        dmlc::get<std::shared_ptr<CSRArrayAdapter>>(proxy->Adapter())->Value();
+    auto value = std::any_cast<std::shared_ptr<CSRArrayAdapter>>(proxy->Adapter())->Value();
     if (type_error) {
       *type_error = false;
     }
     return fn(value);
   } else if (proxy->Adapter().type() == typeid(std::shared_ptr<ArrayAdapter>)) {
-    auto value = dmlc::get<std::shared_ptr<ArrayAdapter>>(
-        proxy->Adapter())->Value();
+    auto value = std::any_cast<std::shared_ptr<ArrayAdapter>>(proxy->Adapter())->Value();
     if (type_error) {
       *type_error = false;
     }

@@ -3,7 +3,7 @@
  */
 #include <dmlc/omp.h>
 
-#include <any>  // for any
+#include <any>  // for any, any_cast
 #include <cstddef>
 #include <limits>
 #include <mutex>
@@ -642,7 +642,7 @@ class CPUPredictor : public Predictor {
                                 PredictionCacheEntry *out_preds, uint32_t tree_begin,
                                 uint32_t tree_end) const {
     auto const n_threads = this->ctx_->Threads();
-    auto m = dmlc::get<std::shared_ptr<Adapter>>(x);
+    auto m = std::any_cast<std::shared_ptr<Adapter>>(x);
     CHECK_EQ(m->NumColumns(), model.learner_model_param->num_feature)
         << "Number of columns in data must equal to trained model.";
     if (p_m) {

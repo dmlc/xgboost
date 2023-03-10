@@ -8,7 +8,7 @@
 #include <thrust/fill.h>
 #include <thrust/host_vector.h>
 
-#include <any>  // for any
+#include <any>  // for any, any_cast
 #include <memory>
 
 #include "../common/bitfield.h"
@@ -748,7 +748,7 @@ class GPUPredictor : public xgboost::Predictor {
                                 uint32_t tree_end) const {
     uint32_t const output_groups =  model.learner_model_param->num_output_group;
 
-    auto m = dmlc::get<std::shared_ptr<Adapter>>(x);
+    auto m = std::any_cast<std::shared_ptr<Adapter>>(x);
     CHECK_EQ(m->NumColumns(), model.learner_model_param->num_feature)
         << "Number of columns in data must equal to trained model.";
     CHECK_EQ(dh::CurrentDevice(), m->DeviceIdx())
