@@ -1,8 +1,9 @@
-/*!
- * Copyright 2021 XGBoost contributors
+/**
+ * Copyright 2021-2023 XGBoost contributors
  */
 #include <gtest/gtest.h>
 
+#include <any>  // for any_cast
 #include <memory>
 
 #include "../../../src/data/adapter.h"
@@ -11,15 +12,14 @@
 #include "../filesystem.h"  // dmlc::TemporaryDirectory
 #include "../helpers.h"
 
-namespace xgboost {
-namespace data {
+namespace xgboost::data {
 TEST(FileIterator, Basic) {
   auto check_n_features = [](FileIterator *iter) {
     size_t n_features = 0;
     iter->Reset();
     while (iter->Next()) {
       auto proxy = MakeProxy(iter->Proxy());
-      auto csr = dmlc::get<std::shared_ptr<CSRArrayAdapter>>(proxy->Adapter());
+      auto csr = std::any_cast<std::shared_ptr<CSRArrayAdapter>>(proxy->Adapter());
       n_features = std::max(n_features, csr->NumColumns());
     }
     ASSERT_EQ(n_features, 5);
@@ -42,5 +42,4 @@ TEST(FileIterator, Basic) {
     check_n_features(&iter);
   }
 }
-}  // namespace data
-}  // namespace xgboost
+}  // namespace xgboost::data

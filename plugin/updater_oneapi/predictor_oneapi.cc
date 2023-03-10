@@ -1,23 +1,22 @@
 /*!
  * Copyright by Contributors 2017-2020
  */
+#include <any>  // for any
 #include <cstddef>
 #include <limits>
 #include <mutex>
 
+#include "../../src/common/math.h"
+#include "../../src/data/adapter.h"
+#include "../../src/gbm/gbtree_model.h"
+#include "CL/sycl.hpp"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
+#include "xgboost/host_device_vector.h"
+#include "xgboost/logging.h"
 #include "xgboost/predictor.h"
 #include "xgboost/tree_model.h"
 #include "xgboost/tree_updater.h"
-#include "xgboost/logging.h"
-#include "xgboost/host_device_vector.h"
-
-#include "../../src/data/adapter.h"
-#include "../../src/common/math.h"
-#include "../../src/gbm/gbtree_model.h"
-
-#include "CL/sycl.hpp"
 
 namespace xgboost {
 namespace predictor {
@@ -200,7 +199,7 @@ class DeviceModelOneAPI {
 
     tree_beg_ = tree_begin;
     tree_end_ = tree_end;
-    num_group = model.learner_model_param->num_output_group; 
+    num_group = model.learner_model_param->num_output_group;
   }
 };
 
@@ -396,9 +395,9 @@ class PredictorOneAPI : public Predictor {
           out_preds->Size() == dmat->Info().num_row_);
   }
 
-  void InplacePredict(dmlc::any const &x, const gbm::GBTreeModel &model,
-                      float missing, PredictionCacheEntry *out_preds,
-                      uint32_t tree_begin, unsigned tree_end) const override {
+  void InplacePredict(std::any const& x, const gbm::GBTreeModel& model, float missing,
+                      PredictionCacheEntry* out_preds, uint32_t tree_begin,
+                      unsigned tree_end) const override {
     cpu_predictor->InplacePredict(x, model, missing, out_preds, tree_begin, tree_end);
   }
 
