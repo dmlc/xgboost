@@ -360,8 +360,8 @@ void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fma
           << "Set `process_type` to `update` if you want to update existing "
              "trees.";
       // create new tree
-      std::unique_ptr<RegTree> ptr(new RegTree());
-      ptr->param.UpdateAllowUnknown(this->cfg_);
+      std::unique_ptr<RegTree> ptr(new RegTree{this->model_.learner_model_param->LeafLength(),
+                                               this->model_.learner_model_param->num_feature});
       new_trees.push_back(ptr.get());
       ret->push_back(std::move(ptr));
     } else if (tparam_.process_type == TreeProcessType::kUpdate) {

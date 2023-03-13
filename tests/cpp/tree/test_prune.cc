@@ -32,8 +32,7 @@ TEST(Updater, Prune) {
   auto ctx = CreateEmptyGenericParam(GPUIDX);
 
   // prepare tree
-  RegTree tree = RegTree();
-  tree.param.UpdateAllowUnknown(cfg);
+  RegTree tree = RegTree{1u, kCols};
   std::vector<RegTree*> trees {&tree};
   // prepare pruner
   TrainParam param;

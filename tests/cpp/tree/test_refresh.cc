@@ -28,9 +28,8 @@ TEST(Updater, Refresh) {
       {"num_feature", std::to_string(kCols)},
       {"reg_lambda", "1"}};
 
-  RegTree tree = RegTree();
+  RegTree tree = RegTree{1u, kCols};
   auto ctx = CreateEmptyGenericParam(GPUIDX);
-  tree.param.UpdateAllowUnknown(cfg);
   std::vector<RegTree*> trees{&tree};
 
   ObjInfo task{ObjInfo::kRegression};

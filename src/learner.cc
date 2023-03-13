@@ -775,8 +775,6 @@ class LearnerConfiguration : public Learner {
     }
     CHECK_NE(mparam_.num_feature, 0)
         << "0 feature is supplied.  Are you using raw Booster interface?";
-    // Remove these once binary IO is gone.
-    cfg_["num_feature"] = common::ToString(mparam_.num_feature);
   }
 
   void ConfigureGBM(LearnerTrainParam const& old, Args const& args) {

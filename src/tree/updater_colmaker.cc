@@ -190,7 +190,7 @@ class ColMaker: public TreeUpdater {
         (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.learning_rate);
       }
       // remember auxiliary statistics in the tree node
-      for (int nid = 0; nid < p_tree->param.num_nodes; ++nid) {
+      for (int nid = 0; nid < p_tree->NumNodes(); ++nid) {
         p_tree->Stat(nid).loss_chg = snode_[nid].best.loss_chg;
         p_tree->Stat(nid).base_weight = snode_[nid].weight;
         p_tree->Stat(nid).sum_hess = static_cast<float>(snode_[nid].stats.sum_hess);
@@ -255,9 +255,9 @@ class ColMaker: public TreeUpdater {
       {
         // setup statistics space for each tree node
         for (auto& i : stemp_) {
-          i.resize(tree.param.num_nodes, ThreadEntry());
+          i.resize(tree.NumNodes(), ThreadEntry());
         }
-        snode_.resize(tree.param.num_nodes, NodeEntry());
+        snode_.resize(tree.NumNodes(), NodeEntry());
       }
       const MetaInfo& info = fmat.Info();
       // setup position

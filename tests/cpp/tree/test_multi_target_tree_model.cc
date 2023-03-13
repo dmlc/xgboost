@@ -17,8 +17,8 @@ TEST(MultiTargetTree, JsonIO) {
   linalg::Vector<float> right_weight{{3.0f, 4.0f, 5.0f}, {3ul}, Context::kCpuId};
   tree.ExpandNode(RegTree::kRoot, /*split_idx=*/1, 0.5f, true, base_weight.HostView(),
                   left_weight.HostView(), right_weight.HostView());
-  ASSERT_EQ(tree.param.num_nodes, 3);
-  ASSERT_EQ(tree.param.size_leaf_vector, 3);
+  ASSERT_EQ(tree.NumNodes(), 3);
+  ASSERT_EQ(tree.NumTargets(), 3);
   ASSERT_EQ(tree.GetMultiTargetTree()->Size(), 3);
   ASSERT_EQ(tree.Size(), 3);
 
@@ -26,20 +26,19 @@ TEST(MultiTargetTree, JsonIO) {
   tree.SaveModel(&jtree);
 
   auto check_jtree = [](Json jtree, RegTree const& tree) {
-    ASSERT_EQ(get<String const>(jtree["tree_param"]["num_nodes"]),
-              std::to_string(tree.param.num_nodes));
+    ASSERT_EQ(get<String const>(jtree["tree_param"]["num_nodes"]), std::to_string(tree.NumNodes()));
     ASSERT_EQ(get<F32Array const>(jtree["base_weights"]).size(),
-              tree.param.num_nodes * tree.param.size_leaf_vector);
-    ASSERT_EQ(get<I32Array const>(jtree["parents"]).size(), tree.param.num_nodes);
-    ASSERT_EQ(get<I32Array const>(jtree["left_children"]).size(), tree.param.num_nodes);
-    ASSERT_EQ(get<I32Array const>(jtree["right_children"]).size(), tree.param.num_nodes);
+              tree.NumNodes() * tree.NumTargets());
+    ASSERT_EQ(get<I32Array const>(jtree["parents"]).size(), tree.NumNodes());
+    ASSERT_EQ(get<I32Array const>(jtree["left_children"]).size(), tree.NumNodes());
+    ASSERT_EQ(get<I32Array const>(jtree["right_children"]).size(), tree.NumNodes());
   };
   check_jtree(jtree, tree);
 
   RegTree loaded;
   loaded.LoadModel(jtree);
   ASSERT_TRUE(loaded.IsMultiTarget());
-  ASSERT_EQ(loaded.param.num_nodes, 3);
+  ASSERT_EQ(loaded.NumNodes(), 3);
 
   Json jtree1{Object{}};
   loaded.SaveModel(&jtree1);

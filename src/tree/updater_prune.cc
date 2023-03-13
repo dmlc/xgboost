@@ -72,7 +72,7 @@ class TreePruner : public TreeUpdater {
   void DoPrune(TrainParam const* param, RegTree* p_tree) {
     auto& tree = *p_tree;
     bst_node_t npruned = 0;
-    for (int nid = 0; nid < tree.param.num_nodes; ++nid) {
+    for (int nid = 0; nid < tree.NumNodes(); ++nid) {
       if (tree[nid].IsLeaf() && !tree[nid].IsDeleted()) {
         npruned = this->TryPruneLeaf(param, p_tree, nid, tree.GetDepth(nid), npruned);
       }

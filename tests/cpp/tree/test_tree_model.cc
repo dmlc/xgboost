@@ -11,9 +11,8 @@
 namespace xgboost {
 TEST(Tree, ModelShape) {
   bst_feature_t n_features = std::numeric_limits<uint32_t>::max();
-  RegTree tree;
-  tree.param.UpdateAllowUnknown(Args{{"num_feature", std::to_string(n_features)}});
-  ASSERT_EQ(tree.param.num_feature, n_features);
+  RegTree tree{1u, n_features};
+  ASSERT_EQ(tree.NumFeatures(), n_features);
 
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/tree.model";
@@ -27,7 +26,7 @@ TEST(Tree, ModelShape) {
     RegTree new_tree;
     std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(tmp_file.c_str(), "r"));
     new_tree.Load(fi.get());
-    ASSERT_EQ(new_tree.param.num_feature, n_features);
+    ASSERT_EQ(new_tree.NumFeatures(), n_features);
   }
   {
     // json
@@ -39,7 +38,7 @@ TEST(Tree, ModelShape) {
 
     auto j_loaded = Json::Load(StringView{dumped.data(), dumped.size()});
     new_tree.LoadModel(j_loaded);
-    ASSERT_EQ(new_tree.param.num_feature, n_features);
+    ASSERT_EQ(new_tree.NumFeatures(), n_features);
   }
   {
     // ubjson
@@ -51,7 +50,7 @@ TEST(Tree, ModelShape) {
 
     auto j_loaded = Json::Load(StringView{dumped.data(), dumped.size()}, std::ios::binary);
     new_tree.LoadModel(j_loaded);
-    ASSERT_EQ(new_tree.param.num_feature, n_features);
+    ASSERT_EQ(new_tree.NumFeatures(), n_features);
   }
 }
 
@@ -488,8 +487,7 @@ TEST(Tree, JsonIO) {
 
   RegTree loaded_tree;
   loaded_tree.LoadModel(j_tree);
-  ASSERT_EQ(loaded_tree.param.num_nodes, 3);
-
+  ASSERT_EQ(loaded_tree.NumNodes(), 3);
   ASSERT_TRUE(loaded_tree == tree);
 
   auto left = tree[0].LeftChild();
