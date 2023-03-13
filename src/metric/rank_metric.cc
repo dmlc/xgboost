@@ -370,6 +370,10 @@ XGBOOST_REGISTER_METRIC(Precision, "pre")
 .describe("precision@k for rank.")
 .set_body([](const char* param) { return new EvalPrecision("pre", param); });
 
+XGBOOST_REGISTER_METRIC(MAP, "map")
+.describe("map@k for rank.")
+.set_body([](const char* param) { return new EvalMAP("map", param); });
+
 XGBOOST_REGISTER_METRIC(Cox, "cox-nloglik")
 .describe("Negative log partial likelihood of Cox proportional hazards model.")
 .set_body([](const char*) { return new EvalCox(); });
