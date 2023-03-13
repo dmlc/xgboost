@@ -57,7 +57,7 @@ bool QuantileHistMaker::UpdatePredictionCache(const DMatrix *data,
 
 CPUExpandEntry QuantileHistMaker::Builder::InitRoot(
     DMatrix *p_fmat, RegTree *p_tree, const std::vector<GradientPair> &gpair_h) {
-  CPUExpandEntry node(RegTree::kRoot, p_tree->GetDepth(0), 0.0f);
+  CPUExpandEntry node(RegTree::kRoot, p_tree->GetDepth(0));
 
   size_t page_id = 0;
   auto space = ConstructHistSpace(partitioner_, {node});
@@ -197,8 +197,8 @@ void QuantileHistMaker::Builder::ExpandTree(DMatrix *p_fmat, RegTree *p_tree,
       for (auto const &candidate : valid_candidates) {
         int left_child_nidx = tree[candidate.nid].LeftChild();
         int right_child_nidx = tree[candidate.nid].RightChild();
-        CPUExpandEntry l_best{left_child_nidx, depth, 0.0};
-        CPUExpandEntry r_best{right_child_nidx, depth, 0.0};
+        CPUExpandEntry l_best{left_child_nidx, depth};
+        CPUExpandEntry r_best{right_child_nidx, depth};
         best_splits.push_back(l_best);
         best_splits.push_back(r_best);
       }

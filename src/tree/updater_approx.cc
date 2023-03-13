@@ -226,8 +226,8 @@ class GloablApproxBuilder {
         for (auto const &candidate : valid_candidates) {
           int left_child_nidx = tree[candidate.nid].LeftChild();
           int right_child_nidx = tree[candidate.nid].RightChild();
-          CPUExpandEntry l_best{left_child_nidx, tree.GetDepth(left_child_nidx), {}};
-          CPUExpandEntry r_best{right_child_nidx, tree.GetDepth(right_child_nidx), {}};
+          CPUExpandEntry l_best{left_child_nidx, tree.GetDepth(left_child_nidx)};
+          CPUExpandEntry r_best{right_child_nidx, tree.GetDepth(right_child_nidx)};
           best_splits.push_back(l_best);
           best_splits.push_back(r_best);
         }

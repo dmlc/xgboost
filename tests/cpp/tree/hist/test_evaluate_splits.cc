@@ -98,7 +98,8 @@ TEST(HistEvaluator, Apply) {
   auto sampler = std::make_shared<common::ColumnSampler>();
   auto evaluator_ = HistEvaluator<CPUExpandEntry>{&ctx, &param, dmat->Info(), sampler};
 
-  CPUExpandEntry entry{0, 0, 10.0f};
+  CPUExpandEntry entry{0, 0};
+  entry.split.loss_chg = 10.0f;
   entry.split.left_sum = GradStats{0.4, 0.6f};
   entry.split.right_sum = GradStats{0.5, 0.5f};
 

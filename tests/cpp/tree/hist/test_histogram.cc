@@ -41,10 +41,10 @@ void TestAddHistRows(bool is_distributed) {
   tree.ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
   tree.ExpandNode(tree[0].LeftChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
   tree.ExpandNode(tree[0].RightChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
-  nodes_for_explicit_hist_build_.emplace_back(3, tree.GetDepth(3), 0.0f);
-  nodes_for_explicit_hist_build_.emplace_back(4, tree.GetDepth(4), 0.0f);
-  nodes_for_subtraction_trick_.emplace_back(5, tree.GetDepth(5), 0.0f);
-  nodes_for_subtraction_trick_.emplace_back(6, tree.GetDepth(6), 0.0f);
+  nodes_for_explicit_hist_build_.emplace_back(3, tree.GetDepth(3));
+  nodes_for_explicit_hist_build_.emplace_back(4, tree.GetDepth(4));
+  nodes_for_subtraction_trick_.emplace_back(5, tree.GetDepth(5));
+  nodes_for_subtraction_trick_.emplace_back(6, tree.GetDepth(6));
 
   HistogramBuilder<CPUExpandEntry> histogram_builder;
   histogram_builder.Reset(gmat.cut.TotalBins(), {kMaxBins, 0.5}, omp_get_max_threads(), 1,
@@ -98,7 +98,7 @@ void TestSyncHist(bool is_distributed) {
   }
 
   // level 0
-  nodes_for_explicit_hist_build_.emplace_back(0, tree.GetDepth(0), 0.0f);
+  nodes_for_explicit_hist_build_.emplace_back(0, tree.GetDepth(0));
   histogram.AddHistRows(&starting_index, &sync_count,
                         nodes_for_explicit_hist_build_,
                         nodes_for_subtraction_trick_, &tree);
@@ -108,10 +108,8 @@ void TestSyncHist(bool is_distributed) {
   nodes_for_subtraction_trick_.clear();
 
   // level 1
-  nodes_for_explicit_hist_build_.emplace_back(tree[0].LeftChild(),
-                                              tree.GetDepth(1), 0.0f);
-  nodes_for_subtraction_trick_.emplace_back(tree[0].RightChild(),
-                                            tree.GetDepth(2), 0.0f);
+  nodes_for_explicit_hist_build_.emplace_back(tree[0].LeftChild(), tree.GetDepth(1));
+  nodes_for_subtraction_trick_.emplace_back(tree[0].RightChild(), tree.GetDepth(2));
 
   histogram.AddHistRows(&starting_index, &sync_count,
                         nodes_for_explicit_hist_build_,
@@ -123,10 +121,10 @@ void TestSyncHist(bool is_distributed) {
   nodes_for_explicit_hist_build_.clear();
   nodes_for_subtraction_trick_.clear();
   // level 2
-  nodes_for_explicit_hist_build_.emplace_back(3, tree.GetDepth(3), 0.0f);
-  nodes_for_subtraction_trick_.emplace_back(4, tree.GetDepth(4), 0.0f);
-  nodes_for_explicit_hist_build_.emplace_back(5, tree.GetDepth(5), 0.0f);
-  nodes_for_subtraction_trick_.emplace_back(6, tree.GetDepth(6), 0.0f);
+  nodes_for_explicit_hist_build_.emplace_back(3, tree.GetDepth(3));
+  nodes_for_subtraction_trick_.emplace_back(4, tree.GetDepth(4));
+  nodes_for_explicit_hist_build_.emplace_back(5, tree.GetDepth(5));
+  nodes_for_subtraction_trick_.emplace_back(6, tree.GetDepth(6));
 
   histogram.AddHistRows(&starting_index, &sync_count,
                         nodes_for_explicit_hist_build_,
@@ -256,7 +254,7 @@ void TestBuildHistogram(bool is_distributed, bool force_read_by_column, bool is_
   std::iota(row_indices.begin(), row_indices.end(), 0);
   row_set_collection.Init();
 
-  CPUExpandEntry node(RegTree::kRoot, tree.GetDepth(0), 0.0f);
+  CPUExpandEntry node{RegTree::kRoot, tree.GetDepth(0)};
   std::vector<CPUExpandEntry> nodes_for_explicit_hist_build;
   nodes_for_explicit_hist_build.push_back(node);
   for (auto const &gidx : p_fmat->GetBatches<GHistIndexMatrix>({kMaxBins, 0.5})) {
@@ -330,7 +328,7 @@ void TestHistogramCategorical(size_t n_categories, bool force_read_by_column) {
   BatchParam batch_param{0, static_cast<int32_t>(kBins)};
 
   RegTree tree;
-  CPUExpandEntry node(RegTree::kRoot, tree.GetDepth(0), 0.0f);
+  CPUExpandEntry node{RegTree::kRoot, tree.GetDepth(0)};
   std::vector<CPUExpandEntry> nodes_for_explicit_hist_build;
   nodes_for_explicit_hist_build.push_back(node);
 
@@ -403,7 +401,7 @@ void TestHistogramExternalMemory(BatchParam batch_param, bool is_approx, bool fo
 
   RegTree tree;
   std::vector<CPUExpandEntry> nodes;
-  nodes.emplace_back(0, tree.GetDepth(0), 0.0f);
+  nodes.emplace_back(0, tree.GetDepth(0));
 
   common::GHistRow multi_page;
   HistogramBuilder<CPUExpandEntry> multi_build;

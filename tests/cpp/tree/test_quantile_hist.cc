@@ -29,7 +29,8 @@ TEST(QuantileHist, Partitioner) {
   ASSERT_EQ(partitioner.Partitions()[0].Size(), n_samples);
 
   auto Xy = RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true);
-  std::vector<CPUExpandEntry> candidates{{0, 0, 0.4}};
+  std::vector<CPUExpandEntry> candidates{{0, 0}};
+  candidates.front().split.loss_chg = 0.4;
 
   auto cuts = common::SketchOnDMatrix(Xy.get(), 64, ctx.Threads());
 
