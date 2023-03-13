@@ -564,6 +564,70 @@ computations, one can explicitly wait for results of input data before construct
 Also dask's `diagnostics dashboard <https://distributed.dask.org/en/latest/web.html>`_ can be used to
 monitor what operations are currently being performed.
 
+*******************
+Reproducible Result
+*******************
+
+In a single node mode, we can always expect the same training result between runs as along
+as the underlying platforms are the same. However, it's difficult to obtain reproducible
+result in a distributed environment, since the tasks might get different machine
+allocation or have different amount of available resources during different
+sessions. There are heuristics and guidelines on how to achieve it but no proven method
+for guaranteeing such deterministic behavior. The Dask interface in XGBoost tries to
+provide reproducible result with best effort. This section highlights some known criteria
+and try share some insight into the issue.
+
+There are primarily two different tasks for XGBoost the carry out, training and
+inference. Inference is reproducible given the same software and hardware along with the
+same run-time configurations like number of threads. The remaining of this section will
+focus on training.
+
+Many of the challenges come from the fact that we are using approximation algorithms, The
+sketching algorithm used to find histogram bins is an approximation to the exact quantile
+algorithm, the `AUC` metric in a distributed environment is an approximation to the exact
+`AUC` score, and floating-point number if an approximation to real numbers. Floating point
+is an issue as its summation is not associative, meaning :math:`(a + b) + c` does not
+necessarily equal to :math:`a + (b + c)`, even though this property holds true for real
+number. As a result, whenever we change the order of summation, the result can
+differ. This imposes the requirement that, in order to have reproducible output from
+XGBoost, the entire pipeline needs to be reproducible.
+
+- The software stack is the same for each runs. This goes without saying. XGBoost might
+  generate different outputs between different versions. This is expected as we might
+  change the default value of hyper-parameter, or the parallel strategy that generates
+  different floating point result. We guarantee the correctness the algorithms, but there
+  are lots of wiggle room for the final output. The situation is similar for many
+  dependencies, for instance, the random number generator might differ from platform to
+  platform.
+
+- The hardware stack is the same for each runs. This includes the number of workers, and
+  the amount of available resources on each worker. XGBoost can generate different results
+  using different number of workers. This is caused by the approximation issue mentioned
+  previously.
+
+- Similar to the hardware constraint, the network topology is also a factor in final
+  output. If we change topology the workers might be ordered differently, leading to
+  different ordering of floating-point operations.
+
+- The random seed used in various place of the pipeline.
+
+- The partitioning of data needs to be reproducible. This is related to the available
+  resources on each worker. Dask might partition the data differently for each run
+  according to its own scheduling policy. For instance, if there are some additional tasks
+  in the cluster while you are running the second training session for XGBoost, some of
+  the workers might have constrained memory and Dask may not push the training data for
+  XGBoost to that worker. This change in data partitioning can lead to different output
+  models. If you are using a shared Dask cluster, then the result is likely to vary
+  between runs.
+
+- The operations performed on dataframes need to be reproducible. There are some
+  operations like `DataFrame.merge` not being deterministic on parallel hardwares like GPU
+  where the order of the index of merge result might differ from run to run.
+
+It's expected to have different results when training the model on distributed environment
+than training the model using a single node due to aforementioned criteria.
+
+
 ************
 Memory Usage
 ************
