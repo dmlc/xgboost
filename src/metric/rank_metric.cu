@@ -2,22 +2,29 @@
  * Copyright 2020-2023 by XGBoost Contributors
  */
 #include <dmlc/registry.h>
-#include <thrust/iterator/counting_iterator.h>  // make_counting_iterator
-#include <thrust/reduce.h>                      // reduce
-#include <xgboost/metric.h>
+#include <thrust/iterator/counting_iterator.h>  // for make_counting_iterator
+#include <thrust/reduce.h>                      // for reduce
 
-#include <cstddef>                       // std::size_t
-#include <memory>                        // std::shared_ptr
+#include <algorithm>                            // for transform
+#include <cstddef>                              // for size_t
+#include <memory>                               // for shared_ptr
+#include <vector>                               // for vector
 
-#include "../common/cuda_context.cuh"    // CUDAContext
+#include "../common/cuda_context.cuh"           // for CUDAContext
+#include "../common/device_helpers.cuh"         // for MakeTransformIterator
+#include "../common/optional_weight.h"          // for MakeOptionalWeights
+#include "../common/ranking_utils.cuh"          // for CalcQueriesDCG, NDCGCache
 #include "metric_common.h"
-#include "xgboost/base.h"                // XGBOOST_DEVICE
-#include "xgboost/context.h"             // Context
-#include "xgboost/data.h"                // MetaInfo
-#include "xgboost/host_device_vector.h"  // HostDeviceVector
+#include "rank_metric.h"
+#include "xgboost/base.h"                // for XGBOOST_DEVICE
+#include "xgboost/context.h"             // for Context
+#include "xgboost/data.h"                // for MetaInfo
+#include "xgboost/host_device_vector.h"  // for HostDeviceVector
+#include "xgboost/linalg.h"              // for MakeTensorView
+#include "xgboost/logging.h"             // for CHECK
+#include "xgboost/metric.h"
 
-namespace xgboost {
-namespace metric {
+namespace xgboost::metric {
 // tag the this file, used by force static link later.
 DMLC_REGISTRY_FILE_TAG(rank_metric_gpu);
 
@@ -117,81 +124,6 @@ struct EvalPrecisionGpu {
   }
 };
 
-/*! \brief NDCG: Normalized Discounted Cumulative Gain at N */
-struct EvalNDCGGpu {
- public:
-  static void ComputeDCG(const dh::SegmentSorter<float> &pred_sorter,
-                         const float *dlabels,
-                         const EvalRankConfig &ecfg,
-                         // The order in which labels have to be accessed. The order is determined
-                         // by sorting the predictions or the labels for the entire dataset
-                         const xgboost::common::Span<const uint32_t> &dlabels_sort_order,
-                         dh::caching_device_vector<double> *dcgptr) {
-    dh::caching_device_vector<double> &dcgs(*dcgptr);
-    // Group info on device
-    const auto &dgroups = pred_sorter.GetGroupsSpan();
-    const auto &dgroup_idx = pred_sorter.GetGroupSegmentsSpan();
-
-    // First, determine non zero labels in the dataset individually
-    auto DetermineNonTrivialLabelLambda = [=] __device__(uint32_t idx) {
-      return (static_cast<unsigned>(dlabels[dlabels_sort_order[idx]]));
-    };  // NOLINT
-
-    // Find each group's DCG value
-    const auto nitems = pred_sorter.GetNumItems();
-    auto *ddcgs = dcgs.data().get();
-
-    int device_id = -1;
-    dh::safe_cuda(cudaGetDevice(&device_id));
-
-    // For each group item compute the aggregated precision
-    dh::LaunchN(nitems, nullptr, [=] __device__(uint32_t idx) {
-      const auto group_idx = dgroup_idx[idx];
-      const auto group_begin = dgroups[group_idx];
-      const auto ridx = idx - group_begin;
-      auto label = DetermineNonTrivialLabelLambda(idx);
-      if (ridx < ecfg.topn && label) {
-        atomicAdd(&ddcgs[group_idx], ((1 << label) - 1) / std::log2(ridx + 2.0));
-      }
-    });
-  }
-
-  static double EvalMetric(const dh::SegmentSorter<float> &pred_sorter,
-                           const float *dlabels,
-                           const EvalRankConfig &ecfg) {
-    // Sort the labels and compute IDCG
-    dh::SegmentSorter<float> segment_label_sorter;
-    segment_label_sorter.SortItems(dlabels, pred_sorter.GetNumItems(),
-                                   pred_sorter.GetGroupSegmentsSpan());
-
-    uint32_t ngroups = pred_sorter.GetNumGroups();
-
-    dh::caching_device_vector<double> idcg(ngroups, 0);
-    ComputeDCG(pred_sorter, dlabels, ecfg, segment_label_sorter.GetOriginalPositionsSpan(), &idcg);
-
-    // Compute the DCG values next
-    dh::caching_device_vector<double> dcg(ngroups, 0);
-    ComputeDCG(pred_sorter, dlabels, ecfg, pred_sorter.GetOriginalPositionsSpan(), &dcg);
-
-    double *ddcg = dcg.data().get();
-    double *didcg = idcg.data().get();
-
-    int device_id = -1;
-    dh::safe_cuda(cudaGetDevice(&device_id));
-    // Compute the group's DCG and reduce it across all groups
-    dh::LaunchN(ngroups, nullptr, [=] __device__(uint32_t gidx) {
-      if (didcg[gidx] == 0.0f) {
-        ddcg[gidx] = (ecfg.minus) ? 0.0f : 1.0f;
-      } else {
-        ddcg[gidx] /= didcg[gidx];
-      }
-    });
-
-    // Allocator to be used for managing space overhead while performing reductions
-    dh::XGBCachingDeviceAllocator<char> alloc;
-    return thrust::reduce(thrust::cuda::par(alloc), dcg.begin(), dcg.end());
-  }
-};
 
 /*! \brief Mean Average Precision at N, for both classification and rank */
 struct EvalMAPGpu {
@@ -272,12 +204,46 @@ XGBOOST_REGISTER_GPU_METRIC(PrecisionGpu, "pre")
 .describe("precision@k for rank computed on GPU.")
 .set_body([](const char* param) { return new EvalRankGpu<EvalPrecisionGpu>("pre", param); });
 
-XGBOOST_REGISTER_GPU_METRIC(NDCGGpu, "ndcg")
-.describe("ndcg@k for rank computed on GPU.")
-.set_body([](const char* param) { return new EvalRankGpu<EvalNDCGGpu>("ndcg", param); });
-
 XGBOOST_REGISTER_GPU_METRIC(MAPGpu, "map")
 .describe("map@k for rank computed on GPU.")
 .set_body([](const char* param) { return new EvalRankGpu<EvalMAPGpu>("map", param); });
-}  // namespace metric
-}  // namespace xgboost
+
+namespace cuda_impl {
+PackedReduceResult NDCGScore(Context const *ctx, MetaInfo const &info,
+                             HostDeviceVector<float> const &predt, bool minus,
+                             std::shared_ptr<ltr::NDCGCache> p_cache) {
+  CHECK(p_cache);
+
+  auto const &p = p_cache->Param();
+  auto d_weight = common::MakeOptionalWeights(ctx, info.weights_);
+  if (!d_weight.Empty()) {
+    CHECK_EQ(d_weight.weights.size(), p_cache->Groups());
+  }
+  auto d_label = info.labels.View(ctx->gpu_id).Slice(linalg::All(), 0);
+  predt.SetDevice(ctx->gpu_id);
+  auto d_predt = linalg::MakeTensorView(ctx, predt.ConstDeviceSpan(), predt.Size());
+
+  auto d_group_ptr = p_cache->DataGroupPtr(ctx);
+  auto n_groups = info.group_ptr_.size() - 1;
+
+  auto d_inv_idcg = p_cache->InvIDCG(ctx);
+  auto d_sorted_idx = p_cache->SortedIdx(ctx, d_predt.Values());
+  auto d_out_dcg = p_cache->Dcg(ctx);
+
+  ltr::cuda_impl::CalcQueriesDCG(ctx, d_label, d_sorted_idx, p.ndcg_exp_gain, d_group_ptr, p.TopK(),
+                                 d_out_dcg);
+
+  auto it = dh::MakeTransformIterator<PackedReduceResult>(
+      thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) {
+        if (d_inv_idcg(i) <= 0.0) {
+          return PackedReduceResult{minus ? 0.0 : 1.0, static_cast<double>(d_weight[i])};
+        }
+        return PackedReduceResult{d_out_dcg(i) * d_inv_idcg(i) * d_weight[i],
+                                  static_cast<double>(d_weight[i])};
+      });
+  auto pair = thrust::reduce(ctx->CUDACtx()->CTP(), it, it + d_out_dcg.Size(),
+                             PackedReduceResult{0.0, 0.0});
+  return pair;
+}
+}  // namespace cuda_impl
+}  // namespace xgboost::metric
