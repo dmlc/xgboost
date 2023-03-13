@@ -99,22 +99,25 @@ class CommonRowPartitioner {
 
   void FindSplitConditions(const std::vector<CPUExpandEntry>& nodes, const RegTree& tree,
                            const GHistIndexMatrix& gmat, std::vector<int32_t>* split_conditions) {
-    for (size_t i = 0; i < nodes.size(); ++i) {
-      const int32_t nid = nodes[i].nid;
-      const bst_uint fid = tree[nid].SplitIndex();
-      const bst_float split_pt = tree[nid].SplitCond();
-      const uint32_t lower_bound = gmat.cut.Ptrs()[fid];
-      const uint32_t upper_bound = gmat.cut.Ptrs()[fid + 1];
+    auto const& ptrs = gmat.cut.Ptrs();
+    auto const& vals = gmat.cut.Values();
+
+    for (std::size_t i = 0; i < nodes.size(); ++i) {
+      bst_node_t const nid = nodes[i].nid;
+      bst_feature_t const fid = tree[nid].SplitIndex();
+      const float split_pt = tree[nid].SplitCond();
+      const uint32_t lower_bound = ptrs[fid];
+      const uint32_t upper_bound = ptrs[fid + 1];
       bst_bin_t split_cond = -1;
       // convert floating-point split_pt into corresponding bin_id
       // split_cond = -1 indicates that split_pt is less than all known cut points
       CHECK_LT(upper_bound, static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
       for (auto bound = lower_bound; bound < upper_bound; ++bound) {
-        if (split_pt == gmat.cut.Values()[bound]) {
-          split_cond = static_cast<int32_t>(bound);
+        if (split_pt == vals[bound]) {
+          split_cond = static_cast<bst_bin_t>(bound);
         }
       }
-      (*split_conditions).at(i) = split_cond;
+      (*split_conditions)[i] = split_cond;
     }
   }
 
