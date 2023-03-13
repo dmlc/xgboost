@@ -275,7 +275,7 @@ float FillNodeMeanValues(RegTree const *tree, bst_node_t nidx, std::vector<float
 }
 
 void FillNodeMeanValues(RegTree const* tree, std::vector<float>* mean_values) {
-  size_t num_nodes = tree->param.num_nodes;
+  size_t num_nodes = tree->NumNodes();
   if (mean_values->size() == num_nodes) {
     return;
   }

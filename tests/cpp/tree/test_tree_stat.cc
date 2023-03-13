@@ -37,8 +37,7 @@ class UpdaterTreeStatTest : public ::testing::Test {
                                            : CreateEmptyGenericParam(Context::kCpuId));
     auto up = std::unique_ptr<TreeUpdater>{TreeUpdater::Create(updater, &ctx, &task)};
     up->Configure(Args{});
-    RegTree tree;
-    tree.param.num_feature = kCols;
+    RegTree tree{1u, kCols};
     std::vector<HostDeviceVector<bst_node_t>> position(1);
     up->Update(&param, &gpairs_, p_dmat_.get(), position, {&tree});
 
@@ -95,16 +94,14 @@ class UpdaterEtaTest : public ::testing::Test {
     param1.Init(Args{{"eta", "1.0"}});
 
     for (size_t iter = 0; iter < 4; ++iter) {
-      RegTree tree_0;
+      RegTree tree_0{1u, kCols};
       {
-        tree_0.param.num_feature = kCols;
         std::vector<HostDeviceVector<bst_node_t>> position(1);
         up_0->Update(&param0, &gpairs_, p_dmat_.get(), position, {&tree_0});
       }
 
-      RegTree tree_1;
+      RegTree tree_1{1u, kCols};
       {
-        tree_1.param.num_feature = kCols;
         std::vector<HostDeviceVector<bst_node_t>> position(1);
         up_1->Update(&param1, &gpairs_, p_dmat_.get(), position, {&tree_1});
       }

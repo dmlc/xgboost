@@ -40,8 +40,7 @@ TEST(GrowHistMaker, InteractionConstraint)
   ObjInfo task{ObjInfo::kRegression};
   {
     // With constraints
-    RegTree tree;
-    tree.param.num_feature = kCols;
+    RegTree tree{1, kCols};
 
     std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create("grow_histmaker", &ctx, &task)};
     TrainParam param;
@@ -58,8 +57,7 @@ TEST(GrowHistMaker, InteractionConstraint)
   }
   {
     // Without constraints
-    RegTree tree;
-    tree.param.num_feature = kCols;
+    RegTree tree{1u, kCols};
 
     std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create("grow_histmaker", &ctx, &task)};
     std::vector<HostDeviceVector<bst_node_t>> position(1);
@@ -76,7 +74,7 @@ TEST(GrowHistMaker, InteractionConstraint)
 }
 
 namespace {
-void TestColumnSplit(int32_t rows, int32_t cols, RegTree const& expected_tree) {
+void TestColumnSplit(int32_t rows, bst_feature_t cols, RegTree const& expected_tree) {
   auto p_dmat = GenerateDMatrix(rows, cols);
   auto p_gradients = GenerateGradients(rows);
   Context ctx;
@@ -87,8 +85,7 @@ void TestColumnSplit(int32_t rows, int32_t cols, RegTree const& expected_tree) {
   std::unique_ptr<DMatrix> sliced{
       p_dmat->SliceCol(collective::GetWorldSize(), collective::GetRank())};
 
-  RegTree tree;
-  tree.param.num_feature = cols;
+  RegTree tree{1u, cols};
   TrainParam param;
   param.Init(Args{});
   updater->Update(&param, p_gradients.get(), sliced.get(), position, {&tree});
@@ -107,8 +104,7 @@ TEST(GrowHistMaker, ColumnSplit) {
   auto constexpr kRows = 32;
   auto constexpr kCols = 16;
 
-  RegTree expected_tree;
-  expected_tree.param.num_feature = kCols;
+  RegTree expected_tree{1u, kCols};
   ObjInfo task{ObjInfo::kRegression};
   {
     auto p_dmat = GenerateDMatrix(kRows, kCols);
