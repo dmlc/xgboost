@@ -116,6 +116,18 @@ class DMatrixCache {
    * \param cache_size Maximum size of the cache.
    */
   explicit DMatrixCache(std::size_t cache_size) : max_size_{cache_size} {}
+
+  DMatrixCache& operator=(DMatrixCache&& that) {
+    CHECK(lock_.try_lock());
+    lock_.unlock();
+    CHECK(that.lock_.try_lock());
+    that.lock_.unlock();
+    std::swap(this->container_, that.container_);
+    std::swap(this->queue_, that.queue_);
+    std::swap(this->max_size_, that.max_size_);
+    return *this;
+  }
+
   /**
    * \brief Cache a new DMatrix if it's not in the cache already.
    *

@@ -868,6 +868,14 @@ class LearnerIO : public LearnerConfiguration {
   // Will be removed once JSON takes over.  Right now we still loads some RDS files from R.
   std::string const serialisation_header_ { u8"CONFIG-offset:" };
 
+  void ClearCaches() {
+    this->prediction_container_ = PredictionContainer{};
+    auto local_map = LearnerAPIThreadLocalStore::Get();
+    if (local_map->find(this) != local_map->cend()) {
+      local_map->erase(this);
+    }
+  }
+
  public:
   explicit LearnerIO(std::vector<std::shared_ptr<DMatrix>> cache) : LearnerConfiguration{cache} {}
 
@@ -920,6 +928,7 @@ class LearnerIO : public LearnerConfiguration {
     }
 
     this->need_configuration_ = true;
+    this->ClearCaches();
   }
 
   void SaveModel(Json* p_out) const override {
@@ -1096,6 +1105,7 @@ class LearnerIO : public LearnerConfiguration {
     cfg_.insert(n.cbegin(), n.cend());
 
     this->need_configuration_ = true;
+    this->ClearCaches();
   }
 
   // Save model into binary format.  The code is about to be deprecated by more robust
