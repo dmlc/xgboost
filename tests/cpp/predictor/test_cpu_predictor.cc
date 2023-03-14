@@ -305,4 +305,10 @@ TEST(CpuPredictor, Sparse) {
   TestSparsePrediction(0.2, "cpu_predictor");
   TestSparsePrediction(0.8, "cpu_predictor");
 }
+
+TEST(CpuPredictor, Multi) {
+  Context ctx;
+  ctx.nthread = 1;
+  TestVectorLeafPrediction(&ctx);
+}
 }  // namespace xgboost
