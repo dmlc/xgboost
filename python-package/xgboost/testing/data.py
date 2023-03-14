@@ -185,6 +185,7 @@ def pd_arrow_dtypes() -> Generator:
 
 
 def check_inf(rng: RNG) -> None:
+    """Validate there's no inf in X."""
     X = rng.random(size=32).reshape(8, 4)
     y = rng.random(size=8)
     X[5, 2] = np.inf
