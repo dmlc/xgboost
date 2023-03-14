@@ -234,6 +234,27 @@ class TestModels:
         xgb.cv(param, dtrain, num_round, nfold=5,
                metrics={'error'}, seed=0, show_stdv=False)
 
+    def test_prediction_cache(self) -> None:
+        X, y = tm.make_sparse_regression(512, 4, 0.5, as_dense=False)
+        Xy = xgb.DMatrix(X, y)
+        param = {"max_depth": 8}
+        booster = xgb.train(param, Xy, num_boost_round=1)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "model.json")
+            booster.save_model(path)
+
+            predt_0 = booster.predict(Xy)
+
+            param["max_depth"] = 2
+
+            booster = xgb.train(param, Xy, num_boost_round=1)
+            predt_1 = booster.predict(Xy)
+            assert not np.isclose(predt_0, predt_1).all()
+
+            booster.load_model(path)
+            predt_2 = booster.predict(Xy)
+            np.testing.assert_allclose(predt_0, predt_2)
+
     def test_feature_names_validation(self):
         X = np.random.random((10, 3))
         y = np.random.randint(2, size=(10,))
