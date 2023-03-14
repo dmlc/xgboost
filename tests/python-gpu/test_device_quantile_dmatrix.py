@@ -6,6 +6,7 @@ from hypothesis import given, settings, strategies
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.testing.data import check_inf
 
 sys.path.append("tests/python")
 import test_quantile_dmatrix as tqd
@@ -153,3 +154,9 @@ class TestQuantileDMatrix:
         from_qdm = xgb.QuantileDMatrix(X, weight=w, ref=Xy_qdm)
 
         assert tm.predictor_equal(from_qdm, from_dm)
+
+    @pytest.mark.skipif(**tm.no_cupy())
+    def test_check_inf(self) -> None:
+        import cupy as cp
+        rng = cp.random.default_rng(1994)
+        check_inf(rng)

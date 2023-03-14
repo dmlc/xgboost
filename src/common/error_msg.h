@@ -20,5 +20,9 @@ constexpr StringView GroupSize() {
 constexpr StringView LabelScoreSize() {
   return "The size of label doesn't match the size of prediction.";
 }
+
+constexpr StringView InfInData() {
+  return "Input data contains `inf` while `missing` is not set to `inf`";
+}
 }  // namespace xgboost::error
 #endif  // XGBOOST_COMMON_ERROR_MSG_H_
