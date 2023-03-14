@@ -162,6 +162,26 @@ class DMatrixCache {
     return container_.at(key).value;
   }
   /**
+   * \brief Re-initialize the item in cache.
+   *
+   *   Since the shared_ptr is used to hold the item, any reference that lives outside of
+   *   the cache can no-longer be reached from the cache.
+   *
+   *   We use reset instead of erase to avoid walking through the whole cache for renewing
+   *   a single item. (the cache is FIFO, needs to maintain the order).
+   */
+  template <typename... Args>
+  std::shared_ptr<CacheT> ResetItem(std::shared_ptr<DMatrix> m, Args const&... args) {
+    std::lock_guard<std::mutex> guard{lock_};
+    CheckConsistent();
+    auto key = Key{m.get(), std::this_thread::get_id()};
+    auto it = container_.find(key);
+    CHECK(it != container_.cend());
+    it->second = {m, std::make_shared<CacheT>(args...)};
+    CheckConsistent();
+    return it->second.value;
+  }
+  /**
    * \brief Get a const reference to the underlying hash map.  Clear expired caches before
    *        returning.
    */
