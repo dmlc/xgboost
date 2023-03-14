@@ -14,10 +14,12 @@
 #include <string>
 #include <vector>
 
-#include "xgboost/parameter.h"
-#include "xgboost/data.h"
 #include "../common/categorical.h"
+#include "../common/linalg_op.h"
 #include "../common/math.h"
+#include "xgboost/data.h"
+#include "xgboost/linalg.h"
+#include "xgboost/parameter.h"
 
 namespace xgboost {
 namespace tree {
@@ -197,12 +199,11 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   }
 
   /*! \brief given the loss change, whether we need to invoke pruning */
-  bool NeedPrune(double loss_chg, int depth) const {
-    return loss_chg < this->min_split_loss ||
-           (this->max_depth != 0 && depth > this->max_depth);
+  [[nodiscard]] bool NeedPrune(double loss_chg, int depth) const {
+    return loss_chg < this->min_split_loss || (this->max_depth != 0 && depth > this->max_depth);
   }
 
-  bst_node_t MaxNodes() const {
+  [[nodiscard]] bst_node_t MaxNodes() const {
     if (this->max_depth == 0 && this->max_leaves == 0) {
       LOG(FATAL) << "Max leaves and max depth cannot both be unconstrained.";
     }
@@ -292,6 +293,34 @@ XGBOOST_DEVICE inline float CalcWeight(const TrainingParams &p, GpairT sum_grad)
   return CalcWeight(p, sum_grad.GetGrad(), sum_grad.GetHess());
 }
 
+/**
+ * \brief multi-target weight, calculated with learning rate.
+ */
+inline void CalcWeight(TrainParam const &p, linalg::VectorView<GradientPairPrecise const> grad_sum,
+                       float eta, linalg::VectorView<float> out_w) {
+  for (bst_target_t i = 0; i < out_w.Size(); ++i) {
+    out_w(i) = CalcWeight(p, grad_sum(i).GetGrad(), grad_sum(i).GetHess()) * eta;
+  }
+}
+
+/**
+ * \brief multi-target weight
+ */
+inline void CalcWeight(TrainParam const &p, linalg::VectorView<GradientPairPrecise const> grad_sum,
+                       linalg::VectorView<float> out_w) {
+  return CalcWeight(p, grad_sum, 1.0f, out_w);
+}
+
+inline double CalcGainGivenWeight(TrainParam const &p,
+                                  linalg::VectorView<GradientPairPrecise const> sum_grad,
+                                  linalg::VectorView<float const> weight) {
+  double gain{0};
+  for (bst_target_t i = 0; i < weight.Size(); ++i) {
+    gain += -weight(i) * ThresholdL1(sum_grad(i).GetGrad(), p.reg_alpha);
+  }
+  return gain;
+}
+
 /*! \brief core statistics used for tree construction */
 struct XGBOOST_ALIGNAS(16) GradStats {
   using GradType = double;
@@ -301,8 +330,8 @@ struct XGBOOST_ALIGNAS(16) GradStats {
   GradType sum_hess { 0 };
 
  public:
-  XGBOOST_DEVICE GradType GetGrad() const { return sum_grad; }
-  XGBOOST_DEVICE GradType GetHess() const { return sum_hess; }
+  [[nodiscard]] XGBOOST_DEVICE GradType GetGrad() const { return sum_grad; }
+  [[nodiscard]] XGBOOST_DEVICE GradType GetHess() const { return sum_hess; }
 
   friend std::ostream& operator<<(std::ostream& os, GradStats s) {
     os << s.GetGrad() << "/" << s.GetHess();
@@ -340,13 +369,26 @@ struct XGBOOST_ALIGNAS(16) GradStats {
     sum_hess = a.sum_hess - b.sum_hess;
   }
   /*! \return whether the statistics is not used yet */
-  inline bool Empty() const { return sum_hess == 0.0; }
+  [[nodiscard]] bool Empty() const { return sum_hess == 0.0; }
   /*! \brief add statistics to the data */
   inline void Add(GradType grad, GradType hess) {
     sum_grad += grad;
     sum_hess += hess;
   }
 };
+
+// Helper functions for copying gradient statistic, one for vector leaf, another for normal scalar.
+template <typename T, typename U>
+std::vector<T> &CopyStats(linalg::VectorView<U> const &src, std::vector<T> *dst) {  // NOLINT
+  dst->resize(src.Size());
+  std::copy(linalg::cbegin(src), linalg::cend(src), dst->begin());
+  return *dst;
+}
+
+inline GradStats &CopyStats(GradStats const &src, GradStats *dst) {  // NOLINT
+  *dst = src;
+  return *dst;
+}
 
 /*!
  * \brief statistics that is helpful to store
@@ -378,9 +420,9 @@ struct SplitEntryContainer {
     return os;
   }
   /*!\return feature index to split on */
-  bst_feature_t SplitIndex() const { return sindex & ((1U << 31) - 1U); }
+  [[nodiscard]] bst_feature_t SplitIndex() const { return sindex & ((1U << 31) - 1U); }
   /*!\return whether missing value goes to left branch */
-  bool DefaultLeft() const { return (sindex >> 31) != 0; }
+  [[nodiscard]] bool DefaultLeft() const { return (sindex >> 31) != 0; }
   /*!
    * \brief decides whether we can replace current entry with the given statistics
    *
@@ -391,10 +433,10 @@ struct SplitEntryContainer {
    * \param new_loss_chg the loss reduction get through the split
    * \param split_index the feature index where the split is on
    */
-  bool NeedReplace(bst_float new_loss_chg, unsigned split_index) const {
+  [[nodiscard]] bool NeedReplace(bst_float new_loss_chg, unsigned split_index) const {
     if (std::isinf(new_loss_chg)) {  // in some cases new_loss_chg can be NaN or Inf,
-                                         // for example when lambda = 0 & min_child_weight = 0
-                                         // skip value in this case
+                                     // for example when lambda = 0 & min_child_weight = 0
+                                     // skip value in this case
       return false;
     } else if (this->SplitIndex() <= split_index) {
       return new_loss_chg > this->loss_chg;
@@ -429,9 +471,10 @@ struct SplitEntryContainer {
    * \param default_left whether the missing value goes to left
    * \return whether the proposed split is better and can replace current split
    */
-  bool Update(bst_float new_loss_chg, unsigned split_index,
-              bst_float new_split_value, bool default_left, bool is_cat,
-              const GradientT &left_sum, const GradientT &right_sum) {
+  template <typename GradientSumT>
+  bool Update(bst_float new_loss_chg, unsigned split_index, bst_float new_split_value,
+              bool default_left, bool is_cat, GradientSumT const &left_sum,
+              GradientSumT const &right_sum) {
     if (this->NeedReplace(new_loss_chg, split_index)) {
       this->loss_chg = new_loss_chg;
       if (default_left) {
@@ -440,8 +483,8 @@ struct SplitEntryContainer {
       this->sindex = split_index;
       this->split_value = new_split_value;
       this->is_cat = is_cat;
-      this->left_sum = left_sum;
-      this->right_sum = right_sum;
+      CopyStats(left_sum, &this->left_sum);
+      CopyStats(right_sum, &this->right_sum);
       return true;
     } else {
       return false;

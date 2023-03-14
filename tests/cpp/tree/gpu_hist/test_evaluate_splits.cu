@@ -304,7 +304,7 @@ void TestEvaluateSingleSplit(bool is_categorical) {
   thrust::device_vector<bst_feature_t> feature_set = std::vector<bst_feature_t>{0, 1};
 
   // Setup gradients so that second feature gets higher gain
-  auto feature_histogram = ConvertToInteger({          {-0.5, 0.5}, {0.5, 0.5}, {-1.0, 0.5}, {1.0, 0.5}});
+  auto feature_histogram = ConvertToInteger({{-0.5, 0.5}, {0.5, 0.5}, {-1.0, 0.5}, {1.0, 0.5}});
 
   dh::device_vector<FeatureType> feature_types(feature_set.size(),
                                                FeatureType::kCategorical);
