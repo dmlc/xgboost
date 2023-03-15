@@ -107,6 +107,7 @@ _pyspark_param_alias_map = {
     "prediction_col": "predictionCol",
     "probability_col": "probabilityCol",
     "validation_indicator_col": "validationIndicatorCol",
+    "base_margin_col": "baseMarginCol",
 }
 
 _inverse_pyspark_param_alias_map = {v: k for k, v in _pyspark_param_alias_map.items()}
