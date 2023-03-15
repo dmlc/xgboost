@@ -1,5 +1,5 @@
-/*!
- * Copyright 2021-2022 by Contributors
+/**
+ * Copyright 2021-2023 by Contributors
  * \file row_set.h
  * \brief Quick Utility to compute subset of rows
  * \author Philip Cho, Tianqi Chen
@@ -10,6 +10,7 @@
 #include <xgboost/data.h>
 
 #include <algorithm>
+#include <cstddef>  // for size_t
 #include <limits>
 #include <memory>
 #include <utility>
@@ -21,9 +22,7 @@
 #include "xgboost/context.h"
 #include "xgboost/tree_model.h"
 
-namespace xgboost {
-namespace common {
-
+namespace xgboost::common {
 // The builder is required for samples partition to left and rights children for set of nodes
 // Responsible for:
 // 1) Effective memory allocation for intermediate results for multi-thread work
@@ -109,18 +108,17 @@ class PartitionBuilder {
     return {nleft_elems, nright_elems};
   }
 
-  template <typename BinIdxType, bool any_missing, bool any_cat>
-  void Partition(const size_t node_in_set, std::vector<xgboost::tree::CPUExpandEntry> const &nodes,
-                 const common::Range1d range,
-                 const bst_bin_t split_cond, GHistIndexMatrix const& gmat,
-                 const common::ColumnMatrix& column_matrix,
+  template <typename BinIdxType, bool any_missing, bool any_cat, typename ExpandEntry>
+  void Partition(const size_t node_in_set, std::vector<ExpandEntry> const& nodes,
+                 const common::Range1d range, const bst_bin_t split_cond,
+                 GHistIndexMatrix const& gmat, const common::ColumnMatrix& column_matrix,
                  const RegTree& tree, const size_t* rid) {
     common::Span<const size_t> rid_span(rid + range.begin(), rid + range.end());
     common::Span<size_t> left = GetLeftBuffer(node_in_set, range.begin(), range.end());
     common::Span<size_t> right = GetRightBuffer(node_in_set, range.begin(), range.end());
     std::size_t nid = nodes[node_in_set].nid;
-    bst_feature_t fid = tree[nid].SplitIndex();
-    bool default_left = tree[nid].DefaultLeft();
+    bst_feature_t fid = tree.SplitIndex(nid);
+    bool default_left = tree.DefaultLeft(nid);
     bool is_cat = tree.GetSplitTypes()[nid] == FeatureType::kCategorical;
     auto node_cats = tree.NodeCats(nid);
     auto const& cut_values = gmat.cut.Values();
@@ -190,10 +188,10 @@ class PartitionBuilder {
    * worker, so we go through all the rows and mark the bit vectors on whether the decision is made
    * to go right, or if the feature value used for the split is missing.
    */
-  void MaskRows(const size_t node_in_set, std::vector<xgboost::tree::CPUExpandEntry> const &nodes,
+  template <typename ExpandEntry>
+  void MaskRows(const size_t node_in_set, std::vector<ExpandEntry> const& nodes,
                 const common::Range1d range, GHistIndexMatrix const& gmat,
-                const common::ColumnMatrix& column_matrix,
-                const RegTree& tree, const size_t* rid,
+                const common::ColumnMatrix& column_matrix, const RegTree& tree, const size_t* rid,
                 BitVector* decision_bits, BitVector* missing_bits) {
     common::Span<const size_t> rid_span(rid + range.begin(), rid + range.end());
     std::size_t nid = nodes[node_in_set].nid;
@@ -228,8 +226,8 @@ class PartitionBuilder {
    * @brief Once we've aggregated the decision and missing bits from all the workers, we can then
    * use them to partition the rows accordingly.
    */
-  void PartitionByMask(const size_t node_in_set,
-                       std::vector<xgboost::tree::CPUExpandEntry> const& nodes,
+  template <typename ExpandEntry>
+  void PartitionByMask(const size_t node_in_set, std::vector<ExpandEntry> const& nodes,
                        const common::Range1d range, GHistIndexMatrix const& gmat,
                        const common::ColumnMatrix& column_matrix, const RegTree& tree,
                        const size_t* rid, BitVector const& decision_bits,
@@ -293,11 +291,11 @@ class PartitionBuilder {
   }
 
 
-  size_t GetNLeftElems(int nid) const {
+  [[nodiscard]] std::size_t GetNLeftElems(int nid) const {
     return left_right_nodes_sizes_[nid].first;
   }
 
-  size_t GetNRightElems(int nid) const {
+  [[nodiscard]] std::size_t GetNRightElems(int nid) const {
     return left_right_nodes_sizes_[nid].second;
   }
 
@@ -349,7 +347,7 @@ class PartitionBuilder {
       if (node.node_id < 0) {
         return;
       }
-      CHECK(tree[node.node_id].IsLeaf());
+      CHECK(tree.IsLeaf(node.node_id));
       if (node.begin) {  // guard for empty node.
         size_t ptr_offset = node.end - p_begin;
         CHECK_LE(ptr_offset, row_set.Data()->size()) << node.node_id;
@@ -384,8 +382,5 @@ class PartitionBuilder {
   std::vector<std::shared_ptr<BlockInfo>> mem_blocks_;
   size_t max_n_tasks_ = 0;
 };
-
-}  // namespace common
-}  // namespace xgboost
-
+}  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_PARTITION_BUILDER_H_
