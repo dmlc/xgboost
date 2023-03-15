@@ -22,13 +22,14 @@ import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 
 import org.apache.spark.SparkContext
 import org.apache.spark.sql._
-import org.scalatest.{BeforeAndAfterEach, FunSuite}
+import org.scalatest.BeforeAndAfterEach
+import org.scalatest.funsuite.AnyFunSuite
 import scala.math.min
 import scala.util.Random
 
 import org.apache.commons.io.IOUtils
 
-trait PerTest extends BeforeAndAfterEach { self: FunSuite =>
+trait PerTest extends BeforeAndAfterEach { self: AnyFunSuite =>
 
   protected val numWorkers: Int = min(Runtime.getRuntime.availableProcessors(), 4)
 

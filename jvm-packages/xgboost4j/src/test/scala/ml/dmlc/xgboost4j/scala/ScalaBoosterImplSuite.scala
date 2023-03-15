@@ -20,11 +20,11 @@ import java.io.{FileOutputStream, FileInputStream, File}
 
 import junit.framework.TestCase
 import org.apache.commons.logging.LogFactory
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
 import ml.dmlc.xgboost4j.java.XGBoostError
 
-class ScalaBoosterImplSuite extends FunSuite {
+class ScalaBoosterImplSuite extends AnyFunSuite {
 
   private class EvalError extends EvalTrait {
 

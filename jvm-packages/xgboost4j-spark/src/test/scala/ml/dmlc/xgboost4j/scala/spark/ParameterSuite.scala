@@ -16,12 +16,13 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import org.scalatest.{BeforeAndAfterAll, FunSuite}
+import org.scalatest.BeforeAndAfterAll
+import org.scalatest.funsuite.AnyFunSuite
 
 import org.apache.spark.SparkException
 import org.apache.spark.ml.param.ParamMap
 
-class ParameterSuite extends FunSuite with PerTest with BeforeAndAfterAll {
+class ParameterSuite extends AnyFunSuite with PerTest with BeforeAndAfterAll {
 
   test("XGBoost and Spark parameters synchronize correctly") {
     val xgbParamMap = Map("eta" -> "1", "objective" -> "binary:logistic",

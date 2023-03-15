@@ -22,12 +22,12 @@ import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import ml.dmlc.xgboost4j.scala.DMatrix
 
 import org.apache.spark.{SparkException, TaskContext}
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
 import org.apache.spark.ml.feature.VectorAssembler
 import org.apache.spark.sql.functions.lit
 
-class XGBoostGeneralSuite extends FunSuite with TmpFolderPerSuite with PerTest {
+class XGBoostGeneralSuite extends AnyFunSuite with TmpFolderPerSuite with PerTest {
 
   test("distributed training with the specified worker number") {
     val trainingRDD = sc.parallelize(Classification.train)

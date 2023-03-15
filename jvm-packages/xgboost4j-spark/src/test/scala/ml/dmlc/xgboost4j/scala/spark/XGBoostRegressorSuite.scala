@@ -23,11 +23,11 @@ import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
 import org.apache.spark.ml.linalg.{Vector, Vectors}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{DataFrame, Row}
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
 import org.apache.spark.ml.feature.VectorAssembler
 
-class XGBoostRegressorSuite extends FunSuite with PerTest with TmpFolderPerSuite {
+class XGBoostRegressorSuite extends AnyFunSuite with PerTest with TmpFolderPerSuite {
   protected val treeMethod: String = "auto"
 
   test("XGBoost-Spark XGBoostRegressor output should match XGBoost4j") {

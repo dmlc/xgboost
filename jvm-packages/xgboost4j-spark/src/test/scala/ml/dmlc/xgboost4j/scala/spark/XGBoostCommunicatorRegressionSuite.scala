@@ -21,11 +21,11 @@ import ml.dmlc.xgboost4j.scala.Booster
 import scala.collection.JavaConverters._
 
 import org.apache.spark.sql._
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
 import org.apache.spark.SparkException
 
-class XGBoostCommunicatorRegressionSuite extends FunSuite with PerTest {
+class XGBoostCommunicatorRegressionSuite extends AnyFunSuite with PerTest {
   val predictionErrorMin = 0.00001f
   val maxFailure = 2;
 

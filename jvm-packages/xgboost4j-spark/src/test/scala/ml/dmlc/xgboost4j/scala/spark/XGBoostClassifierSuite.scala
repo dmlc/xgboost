@@ -22,13 +22,13 @@ import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
 
 import org.apache.spark.ml.linalg._
 import org.apache.spark.sql._
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 import org.apache.commons.io.IOUtils
 
 import org.apache.spark.Partitioner
 import org.apache.spark.ml.feature.VectorAssembler
 
-class XGBoostClassifierSuite extends FunSuite with PerTest with TmpFolderPerSuite {
+class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerSuite {
 
   protected val treeMethod: String = "auto"
 
