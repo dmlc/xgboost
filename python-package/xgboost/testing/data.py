@@ -2,7 +2,10 @@
 from typing import Any, Generator, Tuple, Union
 
 import numpy as np
+import pytest
+from numpy.random import Generator as RNG
 
+import xgboost
 from xgboost.data import pandas_pyarrow_mapper
 
 
@@ -179,3 +182,16 @@ def pd_arrow_dtypes() -> Generator:
         dtype=pd.ArrowDtype(pa.bool_()),
     )
     yield orig, df
+
+
+def check_inf(rng: RNG) -> None:
+    """Validate there's no inf in X."""
+    X = rng.random(size=32).reshape(8, 4)
+    y = rng.random(size=8)
+    X[5, 2] = np.inf
+
+    with pytest.raises(ValueError, match="Input data contains `inf`"):
+        xgboost.QuantileDMatrix(X, y)
+
+    with pytest.raises(ValueError, match="Input data contains `inf`"):
+        xgboost.DMatrix(X, y)

@@ -21,7 +21,7 @@ import java.io.File
 import ml.dmlc.xgboost4j.scala.spark.{XGBoostClassificationModel, XGBoostClassifier}
 
 import org.apache.spark.ml.feature.VectorAssembler
-import org.apache.spark.sql.functions.{col, udf}
+import org.apache.spark.sql.functions.{col, udf, when}
 import org.apache.spark.sql.types.{FloatType, StructField, StructType}
 
 class GpuXGBoostClassifierSuite extends GpuTestSuite {
@@ -47,7 +47,8 @@ class GpuXGBoostClassifierSuite extends GpuTestSuite {
         "num_round" -> 10, "num_workers" -> 1, "tree_method" -> "gpu_hist",
         "features_cols" -> featureNames, "label_col" -> labelName)
       val Array(originalDf, testDf) = spark.read.option("header", "true").schema(schema)
-        .csv(dataPath).randomSplit(Array(0.7, 0.3), seed = 1)
+        .csv(dataPath).withColumn("f2", when(col("f2").isin(Float.PositiveInfinity), 0))
+        .randomSplit(Array(0.7, 0.3), seed = 1)
       // Get a model
       val model = new XGBoostClassifier(xgbParam)
         .fit(originalDf)
@@ -64,7 +65,8 @@ class GpuXGBoostClassifierSuite extends GpuTestSuite {
         "num_round" -> 10, "num_workers" -> 1, "tree_method" -> "gpu_hist",
         "features_cols" -> featureNames, "label_col" -> labelName)
       val Array(originalDf, testDf) = spark.read.option("header", "true").schema(schema)
-        .csv(dataPath).randomSplit(Array(0.7, 0.3), seed = 1)
+        .csv(dataPath).withColumn("f2", when(col("f2").isin(Float.PositiveInfinity), 0))
+        .randomSplit(Array(0.7, 0.3), seed = 1)
       val getWeightFromF1 = udf({ f1: Float => if (f1.toInt % 2 == 0) 1.0f else 0.001f })
       val dfWithWeight = originalDf.withColumn("weight", getWeightFromF1(col("f1")))
 
@@ -87,7 +89,8 @@ class GpuXGBoostClassifierSuite extends GpuTestSuite {
       val xgbParam = Map("eta" -> 0.1f, "max_depth" -> 2, "objective" -> "binary:logistic",
         "num_round" -> 10, "num_workers" -> 1)
       val Array(rawInput, testDf) = spark.read.option("header", "true").schema(schema)
-        .csv(dataPath).randomSplit(Array(0.7, 0.3), seed = 1)
+        .csv(dataPath).withColumn("f2", when(col("f2").isin(Float.PositiveInfinity), 0))
+        .randomSplit(Array(0.7, 0.3), seed = 1)
 
       val classifier = new XGBoostClassifier(xgbParam)
         .setFeaturesCol(featureNames)
@@ -122,7 +125,8 @@ class GpuXGBoostClassifierSuite extends GpuTestSuite {
       val xgbParam = Map("eta" -> 0.1f, "max_depth" -> 2, "objective" -> "binary:logistic",
         "num_round" -> 10, "num_workers" -> 1)
       val Array(rawInput, _) = spark.read.option("header", "true").schema(schema)
-        .csv(dataPath).randomSplit(Array(0.7, 0.3), seed = 1)
+        .csv(dataPath).withColumn("f2", when(col("f2").isin(Float.PositiveInfinity), 0))
+        .randomSplit(Array(0.7, 0.3), seed = 1)
 
       val vectorAssembler = new VectorAssembler()
         .setHandleInvalid("keep")
@@ -144,7 +148,8 @@ class GpuXGBoostClassifierSuite extends GpuTestSuite {
     // transform on GPU
     withGpuSparkSession() { spark =>
       val Array(_, testDf) = spark.read.option("header", "true").schema(schema)
-        .csv(dataPath).randomSplit(Array(0.7, 0.3), seed = 1)
+        .csv(dataPath).withColumn("f2", when(col("f2").isin(Float.PositiveInfinity), 0))
+        .randomSplit(Array(0.7, 0.3), seed = 1)
 
       // Since CPU model does not know the information about the features cols that GPU transform
       // pipeline requires. End user needs to setFeaturesCol(features: Array[String]) in the model
@@ -174,7 +179,8 @@ class GpuXGBoostClassifierSuite extends GpuTestSuite {
       val xgbParam = Map("eta" -> 0.1f, "max_depth" -> 2, "objective" -> "binary:logistic",
         "num_round" -> 10, "num_workers" -> 1)
       val Array(rawInput, _) = spark.read.option("header", "true").schema(schema)
-        .csv(dataPath).randomSplit(Array(0.7, 0.3), seed = 1)
+        .csv(dataPath).withColumn("f2", when(col("f2").isin(Float.PositiveInfinity), 0))
+        .randomSplit(Array(0.7, 0.3), seed = 1)
 
       val classifier = new XGBoostClassifier(xgbParam)
         .setFeaturesCol(featureNames)
@@ -190,7 +196,8 @@ class GpuXGBoostClassifierSuite extends GpuTestSuite {
     // transform on CPU
     withCpuSparkSession() { spark =>
       val Array(_, rawInput) = spark.read.option("header", "true").schema(schema)
-        .csv(dataPath).randomSplit(Array(0.7, 0.3), seed = 1)
+        .csv(dataPath).withColumn("f2", when(col("f2").isin(Float.PositiveInfinity), 0))
+        .randomSplit(Array(0.7, 0.3), seed = 1)
 
       val featureColName = "feature_col"
       val vectorAssembler = new VectorAssembler()

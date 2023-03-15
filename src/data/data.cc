@@ -10,13 +10,16 @@
 #include <cstring>
 
 #include "../collective/communicator-inl.h"
-#include "../common/algorithm.h"  // StableSort
-#include "../common/api_entry.h"  // XGBAPIThreadLocalEntry
+#include "../collective/communicator.h"
+#include "../common/common.h"
+#include "../common/algorithm.h"  // for StableSort
+#include "../common/api_entry.h"  // for XGBAPIThreadLocalEntry
+#include "../common/error_msg.h"  // for InfInData
 #include "../common/group_data.h"
 #include "../common/io.h"
 #include "../common/linalg_op.h"
 #include "../common/math.h"
-#include "../common/numeric.h"  // Iota
+#include "../common/numeric.h"  // for Iota
 #include "../common/threading_utils.h"
 #include "../common/version.h"
 #include "../data/adapter.h"
@@ -1144,7 +1147,7 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
     });
   }
   exec.Rethrow();
-  CHECK(valid) << "Input data contains `inf` or `nan`";
+  CHECK(valid) << error::InfInData();
   for (const auto & max : max_columns_vector) {
     max_columns = std::max(max_columns, max[0]);
   }
