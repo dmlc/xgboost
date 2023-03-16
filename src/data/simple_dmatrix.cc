@@ -215,10 +215,6 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
     info_.num_col_ = adapter->NumColumns();
   }
 
-
-  // Synchronise worker columns
-  collective::Allreduce<collective::Operation::kMax>(&info_.num_col_, 1);
-
   if (adapter->NumRows() == kAdapterUnknownSize) {
     using IteratorAdapterT
       = IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>;
@@ -346,7 +342,7 @@ SimpleDMatrix::SimpleDMatrix(RecordBatchesIterAdapter* adapter, float missing, i
   }
   // Synchronise worker columns
   info_.num_col_ = adapter->NumColumns();
-  collective::Allreduce<collective::Operation::kMax>(&info_.num_col_, 1);
+  info_.SynchronizeNumberOfColumns();
   info_.num_row_ = total_batch_size;
   info_.num_nonzero_ = data_vec.size();
   CHECK_EQ(offset_vec.back(), info_.num_nonzero_);

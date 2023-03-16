@@ -700,6 +700,14 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_col
   }
 }
 
+void MetaInfo::SynchronizeNumberOfColumns() {
+  if (collective::IsFederated() && data_split_mode == DataSplitMode::kCol) {
+    collective::Allreduce<collective::Operation::kSum>(&num_col_, 1);
+  } else {
+    collective::Allreduce<collective::Operation::kMax>(&num_col_, 1);
+  }
+}
+
 void MetaInfo::Validate(std::int32_t device) const {
   if (group_ptr_.size() != 0 && weights_.Size() != 0) {
     CHECK_EQ(group_ptr_.size(), weights_.Size() + 1)
@@ -903,10 +911,8 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
     LOG(FATAL) << "Encountered parser error:\n" << e.what();
   }
 
-  /* sync up number of features after matrix loaded.
-   * partitioned data will fail the train/val validation check
-   * since partitioned data not knowing the real number of features. */
-  collective::Allreduce<collective::Operation::kMax>(&dmat->Info().num_col_, 1);
+  dmat->Info().data_split_mode = data_split_mode;
+  dmat->Info().SynchronizeNumberOfColumns();
 
   if (need_split && data_split_mode == DataSplitMode::kCol) {
     if (!cache_file.empty()) {
@@ -917,7 +923,6 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
     delete dmat;
     return sliced;
   } else {
-    dmat->Info().data_split_mode = data_split_mode;
     return dmat;
   }
 }

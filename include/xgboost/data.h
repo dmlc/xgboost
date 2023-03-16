@@ -171,6 +171,15 @@ class MetaInfo {
    */
   void Extend(MetaInfo const& that, bool accumulate_rows, bool check_column);
 
+  /**
+   * @brief Synchronize the number of columns across all workers.
+   *
+   * Normally we just need to find the maximum number of columns across all workers, but
+   * in vertical federated learning, since each worker loads its own list of columns,
+   * we need to sum them.
+   */
+  void SynchronizeNumberOfColumns();
+
  private:
   void SetInfoFromHost(Context const& ctx, StringView key, Json arr);
   void SetInfoFromCUDA(Context const& ctx, StringView key, Json arr);

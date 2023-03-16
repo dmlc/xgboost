@@ -2,65 +2,34 @@
  * Copyright 2022 XGBoost contributors
  */
 #include <dmlc/parameter.h>
-#include <grpcpp/server_builder.h>
 #include <gtest/gtest.h>
 
 #include <iostream>
 #include <thread>
-#include <ctime>
 
-#include "helpers.h"
 #include "../../../plugin/federated/federated_communicator.h"
-#include "../../../plugin/federated/federated_server.h"
+#include "helpers.h"
 
-namespace {
+namespace xgboost::collective {
 
-std::string GetServerAddress() {
-  int port = GenerateRandomPort(50000, 60000);
-  std::string address = std::string("localhost:") + std::to_string(port);
-  return address;
-}
-
-}  // anonymous namespace
-
-namespace xgboost {
-namespace collective {
-
-class FederatedCommunicatorTest : public ::testing::Test {
+class FederatedCommunicatorTest : public BaseFederatedTest {
  public:
-  static void VerifyAllgather(int rank, const std::string& server_address) {
+  static void VerifyAllgather(int rank, const std::string &server_address) {
     FederatedCommunicator comm{kWorldSize, rank, server_address};
     CheckAllgather(comm, rank);
   }
 
-  static void VerifyAllreduce(int rank, const std::string& server_address) {
+  static void VerifyAllreduce(int rank, const std::string &server_address) {
     FederatedCommunicator comm{kWorldSize, rank, server_address};
     CheckAllreduce(comm);
   }
 
-  static void VerifyBroadcast(int rank, const std::string& server_address) {
+  static void VerifyBroadcast(int rank, const std::string &server_address) {
     FederatedCommunicator comm{kWorldSize, rank, server_address};
     CheckBroadcast(comm, rank);
   }
 
  protected:
-  void SetUp() override {
-    server_address_ = GetServerAddress();
-    server_thread_.reset(new std::thread([this] {
-      grpc::ServerBuilder builder;
-      federated::FederatedService service{kWorldSize};
-      builder.AddListeningPort(server_address_, grpc::InsecureServerCredentials());
-      builder.RegisterService(&service);
-      server_ = builder.BuildAndStart();
-      server_->Wait();
-    }));
-  }
-
-  void TearDown() override {
-    server_->Shutdown();
-    server_thread_->join();
-  }
-
   static void CheckAllgather(FederatedCommunicator &comm, int rank) {
     int buffer[kWorldSize] = {0, 0, 0};
     buffer[rank] = rank;
@@ -90,11 +59,6 @@ class FederatedCommunicatorTest : public ::testing::Test {
       EXPECT_EQ(buffer, "hello");
     }
   }
-
-  static int const kWorldSize{3};
-  std::string server_address_;
-  std::unique_ptr<std::thread> server_thread_;
-  std::unique_ptr<grpc::Server> server_;
 };
 
 TEST(FederatedCommunicatorSimpleTest, ThrowOnWorldSizeTooSmall) {
@@ -161,8 +125,7 @@ TEST(FederatedCommunicatorSimpleTest, IsDistributed) {
 TEST_F(FederatedCommunicatorTest, Allgather) {
   std::vector<std::thread> threads;
   for (auto rank = 0; rank < kWorldSize; rank++) {
-    threads.emplace_back(
-        std::thread(&FederatedCommunicatorTest::VerifyAllgather, rank, server_address_));
+    threads.emplace_back(&FederatedCommunicatorTest::VerifyAllgather, rank, server_address_);
   }
   for (auto &thread : threads) {
     thread.join();
@@ -172,8 +135,7 @@ TEST_F(FederatedCommunicatorTest, Allgather) {
 TEST_F(FederatedCommunicatorTest, Allreduce) {
   std::vector<std::thread> threads;
   for (auto rank = 0; rank < kWorldSize; rank++) {
-    threads.emplace_back(
-        std::thread(&FederatedCommunicatorTest::VerifyAllreduce, rank, server_address_));
+    threads.emplace_back(&FederatedCommunicatorTest::VerifyAllreduce, rank, server_address_);
   }
   for (auto &thread : threads) {
     thread.join();
@@ -183,12 +145,10 @@ TEST_F(FederatedCommunicatorTest, Allreduce) {
 TEST_F(FederatedCommunicatorTest, Broadcast) {
   std::vector<std::thread> threads;
   for (auto rank = 0; rank < kWorldSize; rank++) {
-    threads.emplace_back(
-        std::thread(&FederatedCommunicatorTest::VerifyBroadcast, rank, server_address_));
+    threads.emplace_back(&FederatedCommunicatorTest::VerifyBroadcast, rank, server_address_);
   }
   for (auto &thread : threads) {
     thread.join();
   }
 }
-}  // namespace collective
-}  // namespace xgboost
+}  // namespace xgboost::collective

@@ -17,3 +17,9 @@ int GenerateRandomPort(int low, int high) {
   int port = dist(rng);
   return port;
 }
+
+std::string GetServerAddress() {
+  int port = GenerateRandomPort(50000, 60000);
+  std::string address = std::string("localhost:") + std::to_string(port);
+  return address;
+}

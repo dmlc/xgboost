@@ -96,7 +96,7 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
   this->info_.num_col_ = n_features;
   this->info_.num_nonzero_ = nnz;
 
-  collective::Allreduce<collective::Operation::kMax>(&info_.num_col_, 1);
+  info_.SynchronizeNumberOfColumns();
   CHECK_NE(info_.num_col_, 0);
 }
 
