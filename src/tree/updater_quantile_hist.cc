@@ -363,8 +363,8 @@ class QuantileHistMaker : public TreeUpdater {
       if ((*tree_it)->IsMultiTarget()) {
         LOG(FATAL) << "Not implemented.";
       } else {
-        UpdateTree<CPUExpandEntry>(&monitor_, h_gpair, p_impl_.get(), p_fmat, param, h_out_position,
-                                   *tree_it);
+        UpdateTree<CPUExpandEntry>(&monitor_, h_sample_out, p_impl_.get(), p_fmat, param,
+                                   h_out_position, *tree_it);
       }
     }
   }
