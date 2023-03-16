@@ -356,10 +356,7 @@ class QuantileHistMaker : public TreeUpdater {
     for (auto tree_it = trees.begin(); tree_it != trees.end(); ++tree_it) {
       if (need_copy()) {
         // Copy gradient into buffer for sampling.
-        common::ParallelFor(h_gpair.Size(), ctx_->Threads(), [&](auto i) {
-          std::apply(h_sample_out, linalg::UnravelIndex(i, h_gpair.Shape())) =
-              std::apply(h_gpair, linalg::UnravelIndex(i, h_gpair.Shape()));
-        });
+        std::copy(linalg::cbegin(h_gpair), linalg::cend(h_gpair), linalg::begin(h_sample_out));
       }
       SampleGradient(ctx_, *param, h_sample_out);
       auto *h_out_position = &out_position[tree_it - trees.begin()];
