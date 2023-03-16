@@ -358,6 +358,71 @@ void CheckNDCGLabels(ltr::LambdaRankParam const& p, linalg::VectorView<float con
   }
 }
 
+template <typename AllOf>
+bool IsBinaryRel(linalg::VectorView<float const> label, AllOf all_of) {
+  auto s_label = label.Values();
+  return all_of(s_label.data(), s_label.data() + s_label.size(), [] XGBOOST_DEVICE(float y) {
+    return std::abs(y - 1.0f) < kRtEps || std::abs(y - 0.0f) < kRtEps;
+  });
+}
+/**
+ * \brief Validate label for MAP
+ *
+ * \tparam Implementation of std::all_of. Specified as a parameter to reuse the check for
+ *         both CPU and GPU.
+ */
+template <typename AllOf>
+void CheckMapLabels(linalg::VectorView<float const> label, AllOf all_of) {
+  auto s_label = label.Values();
+  auto is_binary = IsBinaryRel(label, all_of);
+  CHECK(is_binary) << "MAP can only be used with binary labels.";
+}
+
+class MAPCache : public RankingCache {
+  // Total number of relevant documents for each group
+  HostDeviceVector<double> n_rel_;
+  // \sum l_k/k
+  HostDeviceVector<double> acc_;
+  HostDeviceVector<double> map_;
+  // Number of samples in this dataset.
+  std::size_t n_samples_{0};
+
+  void InitOnCPU(Context const* ctx, MetaInfo const& info);
+  void InitOnCUDA(Context const* ctx, MetaInfo const& info);
+
+ public:
+  MAPCache(Context const* ctx, MetaInfo const& info, LambdaRankParam const& p)
+      : RankingCache{ctx, info, p}, n_samples_{static_cast<std::size_t>(info.num_row_)} {
+    if (ctx->IsCPU()) {
+      this->InitOnCPU(ctx, info);
+    } else {
+      this->InitOnCUDA(ctx, info);
+    }
+  }
+
+  common::Span<double> NumRelevant(Context const* ctx) {
+    if (n_rel_.Empty()) {
+      n_rel_.SetDevice(ctx->gpu_id);
+      n_rel_.Resize(n_samples_);
+    }
+    return ctx->IsCPU() ? n_rel_.HostSpan() : n_rel_.DeviceSpan();
+  }
+  common::Span<double> Acc(Context const* ctx) {
+    if (acc_.Empty()) {
+      acc_.SetDevice(ctx->gpu_id);
+      acc_.Resize(n_samples_);
+    }
+    return ctx->IsCPU() ? acc_.HostSpan() : acc_.DeviceSpan();
+  }
+  common::Span<double> Map(Context const* ctx) {
+    if (map_.Empty()) {
+      map_.SetDevice(ctx->gpu_id);
+      map_.Resize(this->Groups());
+    }
+    return ctx->IsCPU() ? map_.HostSpan() : map_.DeviceSpan();
+  }
+};
+
 /**
  * \brief Parse name for ranking metric given parameters.
  *

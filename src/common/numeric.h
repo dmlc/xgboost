@@ -1,13 +1,15 @@
-/*!
- * Copyright 2022, XGBoost contributors.
+/**
+ * Copyright 2022-2023 by XGBoost contributors.
  */
 #ifndef XGBOOST_COMMON_NUMERIC_H_
 #define XGBOOST_COMMON_NUMERIC_H_
 
 #include <dmlc/common.h>  // OMPException
 
-#include <algorithm>  // std::max
-#include <iterator>   // std::iterator_traits
+#include <algorithm>  // for std::max
+#include <cstddef>    // for size_t
+#include <cstdint>    // for int32_t
+#include <iterator>   // for iterator_traits
 #include <vector>
 
 #include "common.h"                      // AssertGPUSupport
@@ -15,8 +17,7 @@
 #include "xgboost/context.h"             // Context
 #include "xgboost/host_device_vector.h"  // HostDeviceVector
 
-namespace xgboost {
-namespace common {
+namespace xgboost::common {
 
 /**
  * \brief Run length encode on CPU, input must be sorted.
@@ -111,11 +112,11 @@ inline double Reduce(Context const*, HostDeviceVector<float> const&) {
 namespace cpu_impl {
 template <typename It, typename V = typename It::value_type>
 V Reduce(Context const* ctx, It first, It second, V const& init) {
-  size_t n = std::distance(first, second);
-  common::MemStackAllocator<V, common::DefaultMaxThreads()> result_tloc(ctx->Threads(), init);
-  common::ParallelFor(n, ctx->Threads(),
-                      [&](auto i) { result_tloc[omp_get_thread_num()] += first[i]; });
-  auto result = std::accumulate(result_tloc.cbegin(), result_tloc.cbegin() + ctx->Threads(), init);
+  std::size_t n = std::distance(first, second);
+  auto n_threads = static_cast<std::size_t>(std::min(n, static_cast<std::size_t>(ctx->Threads())));
+  common::MemStackAllocator<V, common::DefaultMaxThreads()> result_tloc(n_threads, init);
+  common::ParallelFor(n, n_threads, [&](auto i) { result_tloc[omp_get_thread_num()] += first[i]; });
+  auto result = std::accumulate(result_tloc.cbegin(), result_tloc.cbegin() + n_threads, init);
   return result;
 }
 }  // namespace cpu_impl
@@ -144,7 +145,6 @@ void Iota(Context const* ctx, It first, It last,
     });
   }
 }
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common
 
 #endif  // XGBOOST_COMMON_NUMERIC_H_

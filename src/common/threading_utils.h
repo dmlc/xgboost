@@ -8,9 +8,11 @@
 #include <dmlc/omp.h>
 
 #include <algorithm>
-#include <cstdint>  // std::int32_t
+#include <cstdint>  // for int32_t
+#include <cstdlib>  // for malloc, free
 #include <limits>
-#include <type_traits>  // std::is_signed
+#include <new>          // for bad_alloc
+#include <type_traits>  // for is_signed
 #include <vector>
 
 #include "xgboost/logging.h"
@@ -266,7 +268,7 @@ class MemStackAllocator {
     if (MaxStackSize >= required_size_) {
       ptr_ = stack_mem_;
     } else {
-      ptr_ = reinterpret_cast<T*>(malloc(required_size_ * sizeof(T)));
+      ptr_ = reinterpret_cast<T*>(std::malloc(required_size_ * sizeof(T)));
     }
     if (!ptr_) {
       throw std::bad_alloc{};
@@ -278,7 +280,7 @@ class MemStackAllocator {
 
   ~MemStackAllocator() {
     if (required_size_ > MaxStackSize) {
-      free(ptr_);
+      std::free(ptr_);
     }
   }
   T& operator[](size_t i) { return ptr_[i]; }

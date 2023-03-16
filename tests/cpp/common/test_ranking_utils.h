@@ -6,4 +6,6 @@
 
 namespace xgboost::ltr {
 void TestNDCGCache(Context const* ctx);
+
+void TestMAPCache(Context const* ctx);
 }  // namespace xgboost::ltr
