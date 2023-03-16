@@ -343,8 +343,8 @@ struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
         .add_enum("monolithic", MultiStrategy::kMonolithic)
         .set_default(MultiStrategy::kComposite)
         .describe(
-            "Strategy used for training multi-target models. `mono` means building one single tree "
-            "for all targets.");
+            "Strategy used for training multi-target models. `monolithic` means building one "
+            "single tree for all targets.");
   }
 };
 
