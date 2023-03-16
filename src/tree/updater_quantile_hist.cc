@@ -346,13 +346,16 @@ class QuantileHistMaker : public TreeUpdater {
 
     linalg::Matrix<GradientPair> sample_out;
     auto h_sample_out = h_gpair;
-    if (trees.size() > 1 || n_targets > 1) {
+    auto need_copy = [&] { return trees.size() > 1 || n_targets > 1; };
+    if (need_copy()) {
+      // allocate buffer
       sample_out = decltype(sample_out){h_gpair.Shape(), ctx_->gpu_id, linalg::Order::kF};
       h_sample_out = sample_out.HostView();
     }
 
     for (auto tree_it = trees.begin(); tree_it != trees.end(); ++tree_it) {
-      if (trees.size() > 1 || n_targets > 1) {
+      if (need_copy()) {
+        // Copy gradient into buffer for sampling.
         common::ParallelFor(h_gpair.Size(), ctx_->Threads(), [&](auto i) {
           std::apply(h_sample_out, linalg::UnravelIndex(i, h_gpair.Shape())) =
               std::apply(h_gpair, linalg::UnravelIndex(i, h_gpair.Shape()));
