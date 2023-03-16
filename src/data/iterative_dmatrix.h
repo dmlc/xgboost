@@ -90,6 +90,9 @@ class IterativeDMatrix : public DMatrix {
     LOG(FATAL) << "Slicing DMatrix columns is not supported for Quantile DMatrix.";
     return nullptr;
   }
+  void ReindexFeatures(uint64_t offset) override {
+    LOG(FATAL) << "Reindexing features is not supported for Quantile DMatrix.";
+  }
   BatchSet<SparsePage> GetRowBatches() override {
     LOG(FATAL) << "Not implemented.";
     return BatchSet<SparsePage>(BatchIterator<SparsePage>(nullptr));

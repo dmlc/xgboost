@@ -334,6 +334,10 @@ class SparsePage {
    * \brief Check wether the column index is sorted.
    */
   bool IsIndicesSorted(int32_t n_threads) const;
+  /**
+   * \brief Reindex the column index with an offset.
+   */
+  void Reindex(uint64_t feature_offset, int32_t n_threads);
 
   void SortRows(int32_t n_threads);
 
@@ -640,6 +644,17 @@ class DMatrix {
    * @return DMatrix containing the slice of columns
    */
   virtual DMatrix *SliceCol(int num_slices, int slice_id) = 0;
+
+  /**
+   * \brief Reindex the features based on a global view.
+   *
+   * In some cases (e.g. vertical federated learning), features are loaded locally with indices
+   * starting from 0. However, all the algorithms assume the features are globally indexed, so we
+   * reindex the features based on the offset needed to obtain the global view.
+   *
+   * \param offset The offset to be added to the feature index
+   */
+  virtual void ReindexFeatures(uint64_t offset) = 0;
 
  protected:
   virtual BatchSet<SparsePage> GetRowBatches() = 0;

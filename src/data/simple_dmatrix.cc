@@ -73,6 +73,13 @@ DMatrix* SimpleDMatrix::SliceCol(int num_slices, int slice_id) {
   return out;
 }
 
+void SimpleDMatrix::ReindexFeatures(uint64_t offset) {
+  if (offset == 0) {
+    return;
+  }
+  sparse_page_->Reindex(offset, Ctx()->Threads());
+}
+
 BatchSet<SparsePage> SimpleDMatrix::GetRowBatches() {
   // since csr is the default data structure so `source_` is always available.
   auto begin_iter = BatchIterator<SparsePage>(

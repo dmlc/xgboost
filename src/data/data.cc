@@ -911,6 +911,15 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
     LOG(FATAL) << "Encountered parser error:\n" << e.what();
   }
 
+
+  if (collective::IsFederated() && data_split_mode == DataSplitMode::kCol) {
+    std::vector<uint64_t> buffer(collective::GetWorldSize());
+    buffer[collective::GetRank()] = dmat->Info().num_col_;
+    collective::Allgather(buffer.data(), buffer.size() * sizeof(uint64_t));
+    auto offset = std::accumulate(buffer.cbegin(), buffer.cbegin() + collective::GetRank(), 0);
+    dmat->ReindexFeatures(offset);
+  }
+
   dmat->Info().data_split_mode = data_split_mode;
   dmat->Info().SynchronizeNumberOfColumns();
 
@@ -1050,6 +1059,13 @@ void SparsePage::SortIndices(int32_t n_threads) {
     auto beg = h_offset[i];
     auto end = h_offset[i + 1];
     std::sort(h_data.begin() + beg, h_data.begin() + end, Entry::CmpIndex);
+  });
+}
+
+void SparsePage::Reindex(uint64_t feature_offset, int32_t n_threads) {
+  auto& h_data = this->data.HostVector();
+  common::ParallelFor(this->Size(), n_threads, [&](auto i) {
+    h_data[i].index += feature_offset;
   });
 }
 

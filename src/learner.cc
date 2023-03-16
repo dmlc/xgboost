@@ -440,7 +440,7 @@ class LearnerConfiguration : public Learner {
         info.Validate(Ctx()->gpu_id);
         // We estimate it from input data.
         linalg::Tensor<float, 1> base_score;
-        UsePtr(obj_)->InitEstimation(info, &base_score);
+        InitEstimation(info, &base_score);
         CHECK_EQ(base_score.Size(), 1);
         mparam_.base_score = base_score(0);
         CHECK(!std::isnan(mparam_.base_score));
@@ -855,6 +855,25 @@ class LearnerConfiguration : public Learner {
           << n_targets << ", configuration from parameter:" << mparam_.num_target;
     } else {
       mparam_.num_target = n_targets;
+    }
+  }
+
+  void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_score) {
+    // Special handling for vertical federated learning.
+    if (collective::IsFederated() && info.data_split_mode == DataSplitMode::kCol) {
+      // We assume labels are only available on worker 0, so the estimation is calculated there
+      // and added to other workers.
+      if (collective::GetRank() == 0) {
+        UsePtr(obj_)->InitEstimation(info, base_score);
+        collective::Broadcast(base_score->Data()->HostPointer(),
+                              sizeof(bst_float) * base_score->Size(), 0);
+      } else {
+        base_score->Reshape(1);
+        collective::Broadcast(base_score->Data()->HostPointer(),
+                              sizeof(bst_float) * base_score->Size(), 0);
+      }
+    } else {
+      UsePtr(obj_)->InitEstimation(info, base_score);
     }
   }
 };
