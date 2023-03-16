@@ -134,7 +134,7 @@ c. Assertion technique: It works both in C/ C++. If expression evaluates to 0 (f
       // do something with booster
 
       //free the memory
-      XGBoosterFree(booster)
+      XGBoosterFree(booster);
 
       DMatrixHandle DMatrixHandle_param;
 
@@ -156,7 +156,7 @@ c. Assertion technique: It works both in C/ C++. If expression evaluates to 0 (f
 .. code-block:: c
 
     BoosterHandle booster;
-    XGBoosterSetParam(booster, "paramter_name", "0.1");
+    XGBoosterSetParam(booster, "parameter_name", "0.1");
 
 
 **************************************************************
