@@ -4,13 +4,11 @@
  * \brief use quantized feature values to construct a tree
  * \author Philip Cho, Tianqi Checn, Egor Smirnov
  */
-#include <algorithm>                         // for max, transform
+#include <algorithm>                         // for max
 #include <cstddef>                           // for size_t
-#include <cstdint>                           // for uint32_t, int32_t
-#include <memory>                            // for unique_ptr, allocator, make_unique, shared_ptr
-#include <numeric>                           // for accumulate
-#include <ostream>                           // for basic_ostream, operator<<
-#include <string>                            // for char_traits
+#include <cstdint>                           // for uint32_t
+#include <memory>                            // for unique_ptr, allocator, make_unique, make_shared
+#include <ostream>                           // for operator<<, char_traits, basic_ostream
 #include <tuple>                             // for apply
 #include <utility>                           // for move, swap
 #include <vector>                            // for vector
@@ -18,26 +16,24 @@
 #include "../collective/communicator-inl.h"  // for Allreduce, IsDistributed
 #include "../collective/communicator.h"      // for Operation
 #include "../common/hist_util.h"             // for HistogramCuts, HistCollection
-#include "../common/linalg_op.h"             // for begin, cbegin, cend
 #include "../common/random.h"                // for ColumnSampler
 #include "../common/threading_utils.h"       // for ParallelFor
 #include "../common/timer.h"                 // for Monitor
-#include "../common/transform_iterator.h"    // for IndexTransformIter, MakeIndexTransformIter
 #include "../data/gradient_index.h"          // for GHistIndexMatrix
 #include "common_row_partitioner.h"          // for CommonRowPartitioner
 #include "dmlc/registry.h"                   // for DMLC_REGISTRY_FILE_TAG
 #include "driver.h"                          // for Driver
-#include "hist/evaluate_splits.h"            // for HistEvaluator, HistMultiEvaluator, UpdatePre...
-#include "hist/expand_entry.h"               // for MultiExpandEntry, CPUExpandEntry
+#include "hist/evaluate_splits.h"            // for HistEvaluator, UpdatePredictionCacheImpl
+#include "hist/expand_entry.h"               // for CPUExpandEntry
 #include "hist/histogram.h"                  // for HistogramBuilder, ConstructHistSpace
 #include "hist/sampler.h"                    // for SampleGradient
-#include "param.h"                           // for SplitEntryContainer, GradStats, TrainParam
-#include "xgboost/base.h"                    // for GradientPair, GradientPairInternal, bst_targ...
+#include "param.h"                           // for TrainParam, GradStats
+#include "xgboost/base.h"                    // for GradientPair, GradientPairInternal, bst_node_t
 #include "xgboost/context.h"                 // for Context
 #include "xgboost/data.h"                    // for BatchIterator, BatchSet, DMatrix, MetaInfo
 #include "xgboost/host_device_vector.h"      // for HostDeviceVector
-#include "xgboost/linalg.h"                  // for TensorView, All, MatrixView, UnravelIndex
-#include "xgboost/logging.h"                 // for LogCheck_EQ, CHECK_EQ, CHECK, LogCheck_GE
+#include "xgboost/linalg.h"                  // for TensorView, MatrixView, UnravelIndex, All
+#include "xgboost/logging.h"                 // for LogCheck_EQ, LogCheck_GE, CHECK_EQ, LOG, LOG...
 #include "xgboost/span.h"                    // for Span, operator!=, SpanIterator
 #include "xgboost/string_view.h"             // for operator<<
 #include "xgboost/task.h"                    // for ObjInfo
@@ -48,9 +44,7 @@ namespace xgboost::tree {
 
 DMLC_REGISTRY_FILE_TAG(updater_quantile_hist);
 
-BatchParam HistBatch(TrainParam const *param) {
-  return {param->max_bin, param->sparse_threshold};
-}
+BatchParam HistBatch(TrainParam const *param) { return {param->max_bin, param->sparse_threshold}; }
 
 template <typename ExpandEntry, typename Updater>
 void UpdateTree(common::Monitor *monitor_, linalg::MatrixView<GradientPair const> gpair,
@@ -384,76 +378,6 @@ class QuantileHistMaker : public TreeUpdater {
   }
 
   [[nodiscard]] bool HasNodePosition() const override { return true; }
-};
-
-template <typename Up, typename ExpandEntry>
-class UpdateTreeMixIn {
- protected:
-  TrainParam const *param_;
-  common::Monitor *monitor_;
-
- private:
-  auto *Self() { return static_cast<Up *>(this); }
-
- public:
-  explicit UpdateTreeMixIn(TrainParam const *param, common::Monitor *monitor)
-      : param_{std::move(param)}, monitor_{monitor} {}
-  void UpdateTree(linalg::MatrixView<GradientPair const> gpair, DMatrix *p_fmat, RegTree *p_tree,
-                  HostDeviceVector<bst_node_t> *p_out_position) {
-    monitor_->Start(__func__);
-    Self()->InitData(p_fmat, p_tree);
-
-    Driver<ExpandEntry> driver{*this->param_};
-    auto const &tree = *p_tree;
-    driver.Push(Self()->InitRoot(p_fmat, gpair, p_tree));
-    auto expand_set = driver.Pop();
-
-    /**
-     * Note for update position
-     * Root:
-     *   Not applied: No need to update position as initialization has got all the rows ordered.
-     *   Applied: Update position is run on applied nodes so the rows are partitioned.
-     * Non-root:
-     *   Not applied: That node is root of the subtree, same rule as root.
-     *   Applied: Ditto
-     */
-    while (!expand_set.empty()) {
-      // candidates that can be further splited.
-      std::vector<ExpandEntry> valid_candidates;
-      // candidaates that can be applied.
-      std::vector<ExpandEntry> applied;
-      for (auto const &candidate : expand_set) {
-        Self()->ApplyTreeSplit(candidate, p_tree);
-        CHECK_GT(p_tree->LeftChild(candidate.nid), candidate.nid);
-        applied.push_back(candidate);
-        if (driver.IsChildValid(candidate)) {
-          valid_candidates.emplace_back(candidate);
-        }
-      }
-
-      Self()->UpdatePosition(p_fmat, p_tree, applied);
-
-      std::vector<ExpandEntry> best_splits;
-      if (!valid_candidates.empty()) {
-        Self()->BuildHistogram(p_fmat, p_tree, valid_candidates, gpair);
-        for (auto const &candidate : valid_candidates) {
-          auto left_child_nidx = tree.LeftChild(candidate.nid);
-          auto right_child_nidx = tree.RightChild(candidate.nid);
-          ExpandEntry l_best{left_child_nidx, tree.GetDepth(left_child_nidx)};
-          ExpandEntry r_best{right_child_nidx, tree.GetDepth(right_child_nidx)};
-          best_splits.push_back(l_best);
-          best_splits.push_back(r_best);
-        }
-        Self()->EvaluateSplits(p_fmat, p_tree, &best_splits);
-      }
-      driver.Push(best_splits.begin(), best_splits.end());
-      expand_set = driver.Pop();
-    }
-
-    auto &h_out_position = p_out_position->HostVector();
-    Self()->LeafPartition(tree, gpair, &h_out_position);
-    monitor_->Stop(__func__);
-  }
 };
 
 XGBOOST_REGISTER_TREE_UPDATER(QuantileHistMaker, "grow_quantile_histmaker")
