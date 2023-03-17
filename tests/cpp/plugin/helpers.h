@@ -1,17 +1,35 @@
 /*!
- * Copyright 2022 XGBoost contributors
+ * Copyright 2022-2023 XGBoost contributors
  */
-#ifndef XGBOOST_TESTS_CPP_PLUGIN_HELPERS_H_
-#define XGBOOST_TESTS_CPP_PLUGIN_HELPERS_H_
+#pragma once
 
 #include <grpcpp/server_builder.h>
 #include <gtest/gtest.h>
 #include <xgboost/json.h>
 
+#include <random>
+
 #include "../../../plugin/federated/federated_server.h"
 #include "../../../src/collective/communicator-inl.h"
 
-std::string GetServerAddress();
+inline int GenerateRandomPort(int low, int high) {
+  using namespace std::chrono_literals;
+  // Ensure unique timestamp by introducing a small artificial delay
+  std::this_thread::sleep_for(100ms);
+  auto timestamp = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                             std::chrono::system_clock::now().time_since_epoch())
+                                             .count());
+  std::mt19937_64 rng(timestamp);
+  std::uniform_int_distribution<int> dist(low, high);
+  int port = dist(rng);
+  return port;
+}
+
+inline std::string GetServerAddress() {
+  int port = GenerateRandomPort(50000, 60000);
+  std::string address = std::string("localhost:") + std::to_string(port);
+  return address;
+}
 
 namespace xgboost {
 
@@ -49,5 +67,3 @@ class BaseFederatedTest : public ::testing::Test {
   std::unique_ptr<grpc::Server> server_;
 };
 }  // namespace xgboost
-
-#endif  // XGBOOST_TESTS_CPP_PLUGIN_HELPERS_H_
