@@ -54,6 +54,19 @@ class FederatedDataTest : public BaseFederatedTest {
     ASSERT_EQ(dmat->Info().num_col_, 8 * kWorldSize + 3);
     ASSERT_EQ(dmat->Info().num_row_, kRows);
 
+    for (auto const& page : dmat->GetBatches<SparsePage>()) {
+      auto entries = page.GetView().data;
+      auto index = 0;
+      int offsets[] = {0, 8, 17};
+      int offset = offsets[rank];
+      for (auto row = 0; row < kRows; row++) {
+        for (auto col = 0; col < kCols; col++) {
+          EXPECT_EQ(entries[index].index, col + offset);
+          index++;
+        }
+      }
+    }
+
     xgboost::collective::Finalize();
   }
 };

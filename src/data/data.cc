@@ -1064,7 +1064,7 @@ void SparsePage::SortIndices(int32_t n_threads) {
 
 void SparsePage::Reindex(uint64_t feature_offset, int32_t n_threads) {
   auto& h_data = this->data.HostVector();
-  common::ParallelFor(this->Size(), n_threads, [&](auto i) {
+  common::ParallelFor(h_data.size(), n_threads, [&](auto i) {
     h_data[i].index += feature_offset;
   });
 }
