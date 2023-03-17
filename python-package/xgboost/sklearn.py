@@ -355,18 +355,21 @@ __model_doc = f"""
 
         .. versionadded:: 1.6.0
 
-        Activates early stopping. Validation metric needs to improve at least once in
-        every **early_stopping_rounds** round(s) to continue training.  Requires at least
-        one item in **eval_set** in :py:meth:`fit`.
+        - Activates early stopping. Validation metric needs to improve at least once in
+          every **early_stopping_rounds** round(s) to continue training.  Requires at
+          least one item in **eval_set** in :py:meth:`fit`.
 
-        The method returns the model from the last iteration (not the best one).  If
-        there's more than one item in **eval_set**, the last entry will be used for early
-        stopping.  If there's more than one metric in **eval_metric**, the last metric
-        will be used for early stopping.
+        - The method returns the model from the last iteration, not the best one, use a
+          callback :py:class:`xgboost.callback.EarlyStopping` if returning the best
+          model is preferred.
 
-        If early stopping occurs, the model will have three additional fields:
-        :py:attr:`best_score`, :py:attr:`best_iteration` and
-        :py:attr:`best_ntree_limit`.
+        - If there's more than one item in **eval_set**, the last entry will be used for
+          early stopping.  If there's more than one metric in **eval_metric**, the last
+          metric will be used for early stopping.
+
+        - If early stopping occurs, the model will have three additional fields:
+          :py:attr:`best_score`, :py:attr:`best_iteration` and
+          :py:attr:`best_ntree_limit`.
 
         .. note::
 
