@@ -996,8 +996,9 @@ class Dart : public GBTree {
   }
 
   // set normalization factors
-  inline size_t NormalizeTrees(size_t size_new_trees) {
-    float lr = 1.0 * dparam_.learning_rate / size_new_trees;
+  std::size_t NormalizeTrees(size_t size_new_trees) {
+    CHECK(tree_param_.GetInitialised());
+    float lr = 1.0 * tree_param_.learning_rate / size_new_trees;
     size_t num_drop = idx_drop_.size();
     if (num_drop == 0) {
       for (size_t i = 0; i < size_new_trees; ++i) {
