@@ -52,7 +52,7 @@ def run_ranking_qid_df(impl: ModuleType, tree_method: str) -> None:
         n_estimators=3,
         eval_metric=neg_mse,
         tree_method=tree_method,
-        disable_default_eval_metric=True
+        disable_default_eval_metric=True,
     )
     ranker.fit(df, y, eval_set=[(valid_df, y)])
     score = ranker.score(valid_df, y)
