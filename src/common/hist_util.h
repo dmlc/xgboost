@@ -7,23 +7,22 @@
 #ifndef XGBOOST_COMMON_HIST_UTIL_H_
 #define XGBOOST_COMMON_HIST_UTIL_H_
 
-#include <xgboost/data.h>
-
 #include <algorithm>
+#include <cstdint>  // for uint32_t
 #include <limits>
 #include <map>
 #include <memory>
 #include <utility>
 #include <vector>
 
-#include "algorithm.h"  // SegmentId
 #include "categorical.h"
 #include "common.h"
 #include "quantile.h"
 #include "row_set.h"
 #include "threading_utils.h"
 #include "timer.h"
-#include "xgboost/base.h"  // bst_feature_t, bst_bin_t
+#include "xgboost/base.h"  // for bst_feature_t, bst_bin_t
+#include "xgboost/data.h"
 
 namespace xgboost {
 class GHistIndexMatrix;
@@ -392,15 +391,18 @@ class HistCollection {
   }
 
   // have we computed a histogram for i-th node?
-  bool RowExists(bst_uint nid) const {
+  [[nodiscard]] bool RowExists(bst_uint nid) const {
     const uint32_t k_max = std::numeric_limits<uint32_t>::max();
     return (nid < row_ptr_.size() && row_ptr_[nid] != k_max);
   }
-
-  // initialize histogram collection
-  void Init(uint32_t nbins) {
-    if (nbins_ != nbins) {
-      nbins_ = nbins;
+  /**
+   * \brief Initialize histogram collection.
+   *
+   * \param n_total_bins Number of bins across all features.
+   */
+  void Init(std::uint32_t n_total_bins) {
+    if (nbins_ != n_total_bins) {
+      nbins_ = n_total_bins;
       // quite expensive operation, so let's do this only once
       data_.clear();
     }

@@ -2,15 +2,26 @@
  * Copyright 2022-2023 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/data.h>
+#include <xgboost/base.h>                       // for GradientPairInternal, GradientPairPrecise
+#include <xgboost/data.h>                       // for MetaInfo
+#include <xgboost/host_device_vector.h>         // for HostDeviceVector
+#include <xgboost/span.h>                       // for operator!=, Span, SpanIterator
 
-#include <algorithm>  // next_permutation
-#include <numeric>    // iota
+#include <algorithm>                            // for max, max_element, next_permutation, copy
+#include <cmath>                                // for isnan
+#include <cstddef>                              // for size_t
+#include <cstdint>                              // for int32_t, uint64_t, uint32_t
+#include <limits>                               // for numeric_limits
+#include <numeric>                              // for iota
+#include <tuple>                                // for make_tuple, tie, tuple
+#include <utility>                              // for pair
+#include <vector>                               // for vector
 
-#include "../../../src/common/hist_util.h"  // HistogramCuts,HistCollection
-#include "../../../src/tree/param.h"        // TrainParam
-#include "../../../src/tree/split_evaluator.h"
-#include "../helpers.h"
+#include "../../../src/common/hist_util.h"      // for HistogramCuts, HistCollection, GHistRow
+#include "../../../src/tree/param.h"            // for TrainParam, GradStats
+#include "../../../src/tree/split_evaluator.h"  // for TreeEvaluator
+#include "../helpers.h"                         // for SimpleLCG, SimpleRealUniformDistribution
+#include "gtest/gtest_pred_impl.h"              // for AssertionResult, ASSERT_EQ, ASSERT_TRUE
 
 namespace xgboost::tree {
 /**

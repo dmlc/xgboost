@@ -116,6 +116,18 @@ class DMatrixCache {
    * \param cache_size Maximum size of the cache.
    */
   explicit DMatrixCache(std::size_t cache_size) : max_size_{cache_size} {}
+
+  DMatrixCache& operator=(DMatrixCache&& that) {
+    CHECK(lock_.try_lock());
+    lock_.unlock();
+    CHECK(that.lock_.try_lock());
+    that.lock_.unlock();
+    std::swap(this->container_, that.container_);
+    std::swap(this->queue_, that.queue_);
+    std::swap(this->max_size_, that.max_size_);
+    return *this;
+  }
+
   /**
    * \brief Cache a new DMatrix if it's not in the cache already.
    *
@@ -148,6 +160,26 @@ class DMatrixCache {
       queue_.emplace(key);
     }
     return container_.at(key).value;
+  }
+  /**
+   * \brief Re-initialize the item in cache.
+   *
+   *   Since the shared_ptr is used to hold the item, any reference that lives outside of
+   *   the cache can no-longer be reached from the cache.
+   *
+   *   We use reset instead of erase to avoid walking through the whole cache for renewing
+   *   a single item. (the cache is FIFO, needs to maintain the order).
+   */
+  template <typename... Args>
+  std::shared_ptr<CacheT> ResetItem(std::shared_ptr<DMatrix> m, Args const&... args) {
+    std::lock_guard<std::mutex> guard{lock_};
+    CheckConsistent();
+    auto key = Key{m.get(), std::this_thread::get_id()};
+    auto it = container_.find(key);
+    CHECK(it != container_.cend());
+    it->second = {m, std::make_shared<CacheT>(args...)};
+    CheckConsistent();
+    return it->second.value;
   }
   /**
    * \brief Get a const reference to the underlying hash map.  Clear expired caches before

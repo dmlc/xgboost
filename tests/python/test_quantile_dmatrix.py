@@ -15,7 +15,7 @@ from xgboost.testing import (
     make_sparse_regression,
     predictor_equal,
 )
-from xgboost.testing.data import np_dtypes
+from xgboost.testing.data import check_inf, np_dtypes
 
 
 class TestQuantileDMatrix:
@@ -243,6 +243,10 @@ class TestQuantileDMatrix:
         from_qdm = xgb.QuantileDMatrix(X, weight=w, ref=Xy_qdm)
         from_dm = xgb.QuantileDMatrix(X, weight=w, ref=Xy)
         assert predictor_equal(from_qdm, from_dm)
+
+    def test_check_inf(self) -> None:
+        rng = np.random.default_rng(1994)
+        check_inf(rng)
 
     # we don't test empty Quantile DMatrix in single node construction.
     @given(

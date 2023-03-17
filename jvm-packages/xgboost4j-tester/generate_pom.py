@@ -51,13 +51,13 @@ pom_template = """
     <dependency>
       <groupId>com.typesafe.akka</groupId>
       <artifactId>akka-actor_${{scala.binary.version}}</artifactId>
-      <version>2.7.0</version>
+      <version>2.6.20</version>
       <scope>compile</scope>
     </dependency>
     <dependency>
       <groupId>com.typesafe.akka</groupId>
       <artifactId>akka-testkit_${{scala.binary.version}}</artifactId>
-      <version>2.7.0</version>
+      <version>2.6.20</version>
       <scope>test</scope>
     </dependency>
     <dependency>

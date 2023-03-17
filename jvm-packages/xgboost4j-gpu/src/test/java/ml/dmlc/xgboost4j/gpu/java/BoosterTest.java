@@ -84,9 +84,10 @@ public class BoosterTest {
     };
 
     try (Table tmpTable = Table.readCSV(schema, opts, new File(trainingDataPath))) {
-      ColumnVector[] df = new ColumnVector[12];
-      for (int i = 0; i < 12; ++i) {
-        df[i] = tmpTable.getColumn(i);
+      ColumnVector[] df = new ColumnVector[10];
+      // exclude the first two columns, they are label bounds and contain inf.
+      for (int i = 2; i < 12; ++i) {
+        df[i - 2] = tmpTable.getColumn(i);
       }
       try (Table X = new Table(df);) {
         ColumnVector[] labels = new ColumnVector[1];

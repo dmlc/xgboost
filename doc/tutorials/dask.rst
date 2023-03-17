@@ -575,27 +575,26 @@ allocation or have different amount of available resources during different
 sessions. There are heuristics and guidelines on how to achieve it but no proven method
 for guaranteeing such deterministic behavior. The Dask interface in XGBoost tries to
 provide reproducible result with best effort. This section highlights some known criteria
-and try share some insight into the issue.
+and try to share some insights into the issue.
 
 There are primarily two different tasks for XGBoost the carry out, training and
 inference. Inference is reproducible given the same software and hardware along with the
-same run-time configurations like number of threads. The remaining of this section will
-focus on training.
+same run-time configurations. The remaining of this section will focus on training.
 
 Many of the challenges come from the fact that we are using approximation algorithms, The
 sketching algorithm used to find histogram bins is an approximation to the exact quantile
 algorithm, the `AUC` metric in a distributed environment is an approximation to the exact
-`AUC` score, and floating-point number if an approximation to real numbers. Floating point
+`AUC` score, and floating-point number is an approximation to real number. Floating-point
 is an issue as its summation is not associative, meaning :math:`(a + b) + c` does not
 necessarily equal to :math:`a + (b + c)`, even though this property holds true for real
-number. As a result, whenever we change the order of summation, the result can
+number. As a result, whenever we change the order of a summation, the result can
 differ. This imposes the requirement that, in order to have reproducible output from
 XGBoost, the entire pipeline needs to be reproducible.
 
 - The software stack is the same for each runs. This goes without saying. XGBoost might
   generate different outputs between different versions. This is expected as we might
   change the default value of hyper-parameter, or the parallel strategy that generates
-  different floating point result. We guarantee the correctness the algorithms, but there
+  different floating-point result. We guarantee the correctness the algorithms, but there
   are lots of wiggle room for the final output. The situation is similar for many
   dependencies, for instance, the random number generator might differ from platform to
   platform.
@@ -622,10 +621,10 @@ XGBoost, the entire pipeline needs to be reproducible.
 
 - The operations performed on dataframes need to be reproducible. There are some
   operations like `DataFrame.merge` not being deterministic on parallel hardwares like GPU
-  where the order of the index of merge result might differ from run to run.
+  where the order of the index might differ from run to run.
 
-It's expected to have different results when training the model on distributed environment
-than training the model using a single node due to aforementioned criteria.
+It's expected to have different results when training the model in a distributed
+environment than training the model using a single node due to aforementioned criteria.
 
 
 ************

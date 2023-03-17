@@ -1,28 +1,34 @@
-/*!
- * Copyright 2020-2021 by Contributors
+/**
+ * Copyright 2020-2023 by XGBoost Contributors
  */
-
 #include "test_predictor.h"
 
 #include <gtest/gtest.h>
-#include <xgboost/context.h>
-#include <xgboost/data.h>
-#include <xgboost/host_device_vector.h>
-#include <xgboost/predictor.h>
+#include <xgboost/context.h>                      // for Context
+#include <xgboost/data.h>                         // for DMatrix, BatchIterator, BatchSet, MetaInfo
+#include <xgboost/host_device_vector.h>           // for HostDeviceVector
+#include <xgboost/predictor.h>                    // for PredictionCacheEntry, Predictor, Predic...
 
-#include "../../../src/common/bitfield.h"
-#include "../../../src/common/categorical.h"
-#include "../../../src/common/io.h"
-#include "../../../src/data/adapter.h"
-#include "../../../src/data/proxy_dmatrix.h"
-#include "../helpers.h"
+#include <algorithm>                              // for max
+#include <limits>                                 // for numeric_limits
+#include <unordered_map>                          // for unordered_map
+
+#include "../../../src/common/bitfield.h"         // for LBitField32
+#include "../../../src/data/iterative_dmatrix.h"  // for IterativeDMatrix
+#include "../../../src/data/proxy_dmatrix.h"      // for DMatrixProxy
+#include "../helpers.h"                           // for GetDMatrixFromData, RandomDataGenerator
+#include "xgboost/json.h"                         // for Json, Object, get, String
+#include "xgboost/linalg.h"                       // for MakeVec, Tensor, TensorView, Vector
+#include "xgboost/logging.h"                      // for CHECK
+#include "xgboost/span.h"                         // for operator!=, SpanIterator, Span
+#include "xgboost/tree_model.h"                   // for RegTree
 
 namespace xgboost {
 TEST(Predictor, PredictionCache) {
   size_t constexpr kRows = 16, kCols = 4;
 
   PredictionContainer container;
-  DMatrix* m;
+  DMatrix *m;
   // Add a cache that is immediately expired.
   auto add_cache = [&]() {
     auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
@@ -411,5 +417,102 @@ void TestSparsePrediction(float sparsity, std::string predictor) {
       ASSERT_FLOAT_EQ(h_dense[i], h_sparse[i]);
     }
   }
+}
+
+void TestVectorLeafPrediction(Context const *ctx) {
+  std::unique_ptr<Predictor> cpu_predictor =
+      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", ctx));
+
+  size_t constexpr kRows = 5;
+  size_t constexpr kCols = 5;
+
+  LearnerModelParam mparam{static_cast<bst_feature_t>(kCols),
+                           linalg::Vector<float>{{0.5}, {1}, Context::kCpuId}, 1, 3,
+                           MultiStrategy::kMonolithic};
+
+  std::vector<std::unique_ptr<RegTree>> trees;
+  trees.emplace_back(new RegTree{mparam.LeafLength(), mparam.num_feature});
+
+  std::vector<float> p_w(mparam.LeafLength(), 0.0f);
+  std::vector<float> l_w(mparam.LeafLength(), 1.0f);
+  std::vector<float> r_w(mparam.LeafLength(), 2.0f);
+
+  auto &tree = trees.front();
+  tree->ExpandNode(0, static_cast<bst_feature_t>(1), 2.0, true,
+                   linalg::MakeVec(p_w.data(), p_w.size()), linalg::MakeVec(l_w.data(), l_w.size()),
+                   linalg::MakeVec(r_w.data(), r_w.size()));
+  ASSERT_TRUE(tree->IsMultiTarget());
+  ASSERT_TRUE(mparam.IsVectorLeaf());
+
+  gbm::GBTreeModel model{&mparam, ctx};
+  model.CommitModel(std::move(trees), 0);
+
+  auto run_test = [&](float expected, HostDeviceVector<float> *p_data) {
+    {
+      auto p_fmat = GetDMatrixFromData(p_data->ConstHostVector(), kRows, kCols);
+      PredictionCacheEntry predt_cache;
+      cpu_predictor->InitOutPredictions(p_fmat->Info(), &predt_cache.predictions, model);
+      ASSERT_EQ(predt_cache.predictions.Size(), kRows * mparam.LeafLength());
+      cpu_predictor->PredictBatch(p_fmat.get(), &predt_cache, model, 0, 1);
+      auto const &h_predt = predt_cache.predictions.HostVector();
+      for (auto v : h_predt) {
+        ASSERT_EQ(v, expected);
+      }
+    }
+
+    {
+      // inplace
+      PredictionCacheEntry predt_cache;
+      auto p_fmat = GetDMatrixFromData(p_data->ConstHostVector(), kRows, kCols);
+      cpu_predictor->InitOutPredictions(p_fmat->Info(), &predt_cache.predictions, model);
+      auto arr = GetArrayInterface(p_data, kRows, kCols);
+      std::string str;
+      Json::Dump(arr, &str);
+      auto proxy = std::shared_ptr<DMatrix>(new data::DMatrixProxy{});
+      dynamic_cast<data::DMatrixProxy *>(proxy.get())->SetArrayData(str.data());
+      cpu_predictor->InplacePredict(proxy, model, std::numeric_limits<float>::quiet_NaN(),
+                                    &predt_cache, 0, 1);
+      auto const &h_predt = predt_cache.predictions.HostVector();
+      for (auto v : h_predt) {
+        ASSERT_EQ(v, expected);
+      }
+    }
+
+    {
+      // ghist
+      PredictionCacheEntry predt_cache;
+      auto &h_data = p_data->HostVector();
+      // give it at least two bins, otherwise the histogram cuts only have min and max values.
+      for (std::size_t i = 0; i < 5; ++i) {
+        h_data[i] = 1.0;
+      }
+      auto p_fmat = GetDMatrixFromData(p_data->ConstHostVector(), kRows, kCols);
+
+      cpu_predictor->InitOutPredictions(p_fmat->Info(), &predt_cache.predictions, model);
+
+      auto iter = NumpyArrayIterForTest{ctx, *p_data, kRows, static_cast<bst_feature_t>(kCols),
+                                        static_cast<std::size_t>(1)};
+      p_fmat =
+          std::make_shared<data::IterativeDMatrix>(&iter, iter.Proxy(), nullptr, Reset, Next,
+                                                   std::numeric_limits<float>::quiet_NaN(), 0, 256);
+
+      cpu_predictor->InitOutPredictions(p_fmat->Info(), &predt_cache.predictions, model);
+      cpu_predictor->PredictBatch(p_fmat.get(), &predt_cache, model, 0, 1);
+      auto const &h_predt = predt_cache.predictions.HostVector();
+      // the smallest v uses the min_value from histogram cuts, which leads to a left leaf
+      // during prediction.
+      for (std::size_t i = 5; i < h_predt.size(); ++i) {
+        ASSERT_EQ(h_predt[i], expected) << i;
+      }
+    }
+  };
+
+  // go to right
+  HostDeviceVector<float> data(kRows * kCols, model.trees.front()->SplitCond(RegTree::kRoot) + 1.0);
+  run_test(2.5, &data);
+
+  // go to left
+  data.HostVector().assign(data.Size(), model.trees.front()->SplitCond(RegTree::kRoot) - 1.0);
+  run_test(1.5, &data);
 }
 }  // namespace xgboost
