@@ -190,9 +190,9 @@ Scikit-Learn wrapper object:
     booster = cls.get_booster()
 
 
-**********************
-Scikit-Learn interface
-**********************
+********************************
+Scikit-Learn Estimator Interface
+********************************
 
 As mentioned previously, there's another interface that mimics the scikit-learn estimators
 with higher level of of abstraction.  The interface is easier to use compared to the
@@ -488,12 +488,13 @@ with dask and optuna.
 Troubleshooting
 ***************
 
-.. versionadded:: 1.6.0
 
-In some environments XGBoost might fail to resolve the IP address of the scheduler, a
-symptom is user receiving ``OSError: [Errno 99] Cannot assign requested address`` error
-during training.  A quick workaround is to specify the address explicitly.  To do that
-dask config is used:
+- In some environments XGBoost might fail to resolve the IP address of the scheduler, a
+  symptom is user receiving ``OSError: [Errno 99] Cannot assign requested address`` error
+  during training.  A quick workaround is to specify the address explicitly.  To do that
+  dask config is used:
+
+  .. versionadded:: 1.6.0
 
 .. code-block:: python
 
@@ -511,10 +512,15 @@ dask config is used:
         reg = dxgb.DaskXGBRegressor()
 
 
-Please note that XGBoost requires a different port than dask. By default, on a unix-like
-system XGBoost uses the port 0 to find available ports, which may fail if a user is
-running in a restricted docker environment. In this case, please open additional ports in
-the container and specify it as in the above snippet.
+- Please note that XGBoost requires a different port than dask. By default, on a unix-like
+  system XGBoost uses the port 0 to find available ports, which may fail if a user is
+  running in a restricted docker environment. In this case, please open additional ports
+  in the container and specify it as in the above snippet.
+
+- If you are training with GPU enabled and encountered a NCCL error, consider specifying
+  its network configuration with one of the environment variables listed in the `NCCL
+  document <https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html>`__ like
+  the ``NCCL_SOCKET_IFNAME``. Also, ``NCCL_DEBUG`` is useful for obtaining debug logs.
 
 ************
 IPv6 Support
