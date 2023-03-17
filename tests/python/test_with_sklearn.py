@@ -128,12 +128,23 @@ def test_ranking():
 
     x_test = np.random.rand(100, 10)
 
-    params = {'tree_method': 'exact', 'objective': 'rank:pairwise',
-              'learning_rate': 0.1, 'gamma': 1.0, 'min_child_weight': 0.1,
-              'max_depth': 6, 'n_estimators': 4}
+    params = {
+        "tree_method": "exact",
+        "learning_rate": 0.1,
+        "gamma": 1.0,
+        "min_child_weight": 0.1,
+        "max_depth": 6,
+        "eval_metric": "ndcg",
+        "n_estimators": 4,
+    }
     model = xgb.sklearn.XGBRanker(**params)
-    model.fit(x_train, y_train, group=train_group,
-              eval_set=[(x_valid, y_valid)], eval_group=[valid_group])
+    model.fit(
+        x_train,
+        y_train,
+        group=train_group,
+        eval_set=[(x_valid, y_valid)],
+        eval_group=[valid_group],
+    )
     assert model.evals_result()
 
     pred = model.predict(x_test)
@@ -145,11 +156,18 @@ def test_ranking():
     assert train_data.get_label().shape[0] == x_train.shape[0]
     valid_data.set_group(valid_group)
 
-    params_orig = {'tree_method': 'exact', 'objective': 'rank:pairwise',
-                   'eta': 0.1, 'gamma': 1.0,
-                   'min_child_weight': 0.1, 'max_depth': 6}
-    xgb_model_orig = xgb.train(params_orig, train_data, num_boost_round=4,
-                               evals=[(valid_data, 'validation')])
+    params_orig = {
+        "tree_method": "exact",
+        "objective": "rank:pairwise",
+        "eta": 0.1,
+        "gamma": 1.0,
+        "min_child_weight": 0.1,
+        "max_depth": 6,
+        "eval_metric": "ndcg",
+    }
+    xgb_model_orig = xgb.train(
+        params_orig, train_data, num_boost_round=4, evals=[(valid_data, "validation")]
+    )
     pred_orig = xgb_model_orig.predict(test_data)
 
     np.testing.assert_almost_equal(pred, pred_orig)
@@ -165,7 +183,11 @@ def test_ranking_metric() -> None:
     # sklearn compares the number of mis-classified docs, while the one in xgboost
     # compares the number of mis-classified pairs.
     ltr = xgb.XGBRanker(
-        eval_metric=roc_auc_score, n_estimators=10, tree_method="hist", max_depth=2
+        eval_metric=roc_auc_score,
+        n_estimators=10,
+        tree_method="hist",
+        max_depth=2,
+        objective="rank:pairwise",
     )
     ltr.fit(
         X,
