@@ -59,6 +59,8 @@ void CreateSimpleTestData(const std::string& filename);
 // 0-based indexing.
 void CreateBigTestData(const std::string& filename, size_t n_entries, bool zero_based = true);
 
+void CreateTestCSV(std::string const& path, size_t rows, size_t cols);
+
 void CheckObjFunction(std::unique_ptr<xgboost::ObjFunction> const& obj,
                       std::vector<xgboost::bst_float> preds,
                       std::vector<xgboost::bst_float> labels,

@@ -12,6 +12,7 @@
 #include "../../../plugin/federated/federated_server.h"
 #include "../../../src/collective/communicator-inl.h"
 #include "../filesystem.h"
+#include "../helpers.h"
 #include "helpers.h"
 
 namespace xgboost {
@@ -23,29 +24,10 @@ class FederatedDataTest : public BaseFederatedTest {
 
     size_t constexpr kRows{16};
     size_t const kCols = 8 + rank;
-    std::vector<float> data(kRows * kCols);
-
-    for (size_t i = 0; i < kRows * kCols; ++i) {
-      data[i] = i;
-    }
 
     dmlc::TemporaryDirectory tmpdir;
     std::string path = tmpdir.path + "/small" + std::to_string(rank) + ".csv";
-
-    std::ofstream fout(path);
-    size_t i = 0;
-    for (size_t r = 0; r < kRows; ++r) {
-      for (size_t c = 0; c < kCols; ++c) {
-        fout << data[i];
-        i++;
-        if (c != kCols - 1) {
-          fout << ",";
-        }
-      }
-      fout << "\n";
-    }
-    fout.flush();
-    fout.close();
+    CreateTestCSV(path, kRows, kCols);
 
     std::unique_ptr<DMatrix> dmat;
     std::string uri = path + "?format=csv";
