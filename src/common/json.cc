@@ -467,7 +467,7 @@ Json JsonReader::ParseString() {
 
 Json JsonReader::ParseNull() {
   Char ch = GetNextNonSpaceChar();
-  std::string buffer{ch};
+  std::string buffer{static_cast<char>(ch)};
   for (size_t i = 0; i < 3; ++i) {
     buffer.push_back(GetNextChar());
   }
@@ -737,7 +737,8 @@ Json UBJReader::ParseArray() {
       case 'L':
         return ParseTypedArray<I64Array>(n);
       default:
-        LOG(FATAL) << "`" + std::string{type} + "` is not supported for typed array.";  // NOLINT
+        LOG(FATAL) << "`" + std::string{static_cast<char>(type)} +
+                          "` is not supported for typed array.";  // NOLINT
     }
   }
   std::vector<Json> results;
