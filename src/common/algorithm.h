@@ -14,7 +14,7 @@
 
 // clang with libstdc++ works as well
 #if defined(__GNUC__) && (__GNUC__ >= 4) && !defined(__sun) && !defined(sun) && \
-    !defined(__APPLE__) && __has_include(<omp.h>)
+    !defined(__APPLE__) && __has_include(<omp.h>) && __has_include(<parallel/algorithm>)
 #define GCC_HAS_PARALLEL 1
 #endif  // GLIC_VERSION
 
