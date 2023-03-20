@@ -62,7 +62,7 @@ stack of trees:
 .. code-block:: python
 
     early_stop = xgb.callback.EarlyStopping(
-	rounds=2, metric_name='logloss', data_name='Validation_0', save_best=True
+        rounds=2, metric_name='logloss', data_name='Validation_0', save_best=True
     )
     clf = xgb.XGBClassifier(tree_method="hist", callbacks=[early_stop])
     clf.fit(X_train, y_train, eval_set=[(X_test, y_test)])
@@ -91,13 +91,13 @@ using cross validation with early stopping, here is a snippet to begin with:
 
 
     def fit_and_score(estimator, X_train, X_test, y_train, y_test):
-	"""Fit the estimator on the train set and score it on both sets"""
-	estimator.fit(X_train, y_train, eval_set=[(X_test, y_test)])
+        """Fit the estimator on the train set and score it on both sets"""
+        estimator.fit(X_train, y_train, eval_set=[(X_test, y_test)])
 
-	train_score = estimator.score(X_train, y_train)
-	test_score = estimator.score(X_test, y_test)
+        train_score = estimator.score(X_train, y_train)
+        test_score = estimator.score(X_test, y_test)
 
-	return estimator, train_score, test_score
+        return estimator, train_score, test_score
 
 
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=94)
@@ -107,14 +107,14 @@ using cross validation with early stopping, here is a snippet to begin with:
     resutls = {}
 
     for train, test in cv.split(X, y):
-	X_train = X[train]
-	X_test = X[test]
-	y_train = y[train]
-	y_test = y[test]
-	est, train_score, test_score = fit_and_score(
-	    clone(clf), X_train, X_test, y_train, y_test
-	)
-	resutls[est] = (train_score, test_score)
+        X_train = X[train]
+        X_test = X[test]
+        y_train = y[train]
+        y_test = y[test]
+        est, train_score, test_score = fit_and_score(
+            clone(clf), X_train, X_test, y_train, y_test
+        )
+        resutls[est] = (train_score, test_score)
 
 
 ***********************************
