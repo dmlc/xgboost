@@ -1,5 +1,5 @@
-/*!
- * Copyright (c) by Contributors 2019-2022
+/**
+ * Copyright 2019-2023, XGBoost Contributors
  */
 #ifndef XGBOOST_JSON_IO_H_
 #define XGBOOST_JSON_IO_H_
@@ -17,44 +17,26 @@
 #include <vector>
 
 namespace xgboost {
-namespace detail {
-// Whether char is signed is undefined, as a result we might or might not need
-// static_cast and std::to_string.
-template <typename Char, std::enable_if_t<std::is_signed<Char>::value>* = nullptr>
-std::string CharToStr(Char c) {
-  static_assert(std::is_same<Char, char>::value);
-  return std::string{c};
-}
-
-template <typename Char, std::enable_if_t<!std::is_signed<Char>::value>* = nullptr>
-std::string CharToStr(Char c) {
-  static_assert(std::is_same<Char, char>::value);
-  return (c <= static_cast<char>(127) ? std::string{c} : std::to_string(c));
-}
-}  // namespace detail
-
-/*
+/**
  * \brief A json reader, currently error checking and utf-8 is not fully supported.
  */
 class JsonReader {
+ public:
+  using Char = std::int8_t;
+
  protected:
-  size_t constexpr static kMaxNumLength =
-      std::numeric_limits<double>::max_digits10 + 1;
+  size_t constexpr static kMaxNumLength = std::numeric_limits<double>::max_digits10 + 1;
 
   struct SourceLocation {
    private:
-    size_t pos_ { 0 };  // current position in raw_str_
+    std::size_t pos_{0};  // current position in raw_str_
 
    public:
     SourceLocation() = default;
-    size_t  Pos()  const { return pos_; }
+    size_t Pos() const { return pos_; }
 
-    void Forward() {
-      pos_++;
-    }
-    void Forward(uint32_t n) {
-      pos_ += n;
-    }
+    void Forward() { pos_++; }
+    void Forward(uint32_t n) { pos_ += n; }
   } cursor_;
 
   StringView raw_str_;
@@ -62,7 +44,7 @@ class JsonReader {
  protected:
   void SkipSpaces();
 
-  char GetNextChar() {
+  Char GetNextChar() {
     if (XGBOOST_EXPECT((cursor_.Pos() == raw_str_.size()), false)) {
       return -1;
     }
@@ -71,24 +53,24 @@ class JsonReader {
     return ch;
   }
 
-  char PeekNextChar() {
+  Char PeekNextChar() {
     if (cursor_.Pos() == raw_str_.size()) {
       return -1;
     }
-    char ch = raw_str_[cursor_.Pos()];
+    Char ch = raw_str_[cursor_.Pos()];
     return ch;
   }
 
   /* \brief Skip spaces and consume next character. */
-  char GetNextNonSpaceChar() {
+  Char GetNextNonSpaceChar() {
     SkipSpaces();
     return GetNextChar();
   }
   /* \brief Consume next character without first skipping empty space, throw when the next
    *        character is not the expected one.
    */
-  char GetConsecutiveChar(char expected_char) {
-    char result = GetNextChar();
+  Char GetConsecutiveChar(char expected_char) {
+    Char result = GetNextChar();
     if (XGBOOST_EXPECT(result != expected_char, false)) { Expect(expected_char, result); }
     return result;
   }
@@ -96,7 +78,7 @@ class JsonReader {
   void Error(std::string msg) const;
 
   // Report expected character
-  void Expect(char c, char got) {
+  void Expect(Char c, Char got) {
     std::string msg = "Expecting: \"";
     msg += c;
     msg += "\", got: \"";
@@ -105,7 +87,7 @@ class JsonReader {
     } else if (got == 0) {
       msg += "\\0\"";
     } else {
-      msg += detail::CharToStr(got) + " \"";
+      msg += std::to_string(got) + " \"";
     }
     Error(msg);
   }
