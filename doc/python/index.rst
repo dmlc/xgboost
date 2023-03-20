@@ -10,6 +10,7 @@ Contents
 
 .. toctree::
   python_intro
+  sklearn_estimator
   python_api
   callbacks
   model

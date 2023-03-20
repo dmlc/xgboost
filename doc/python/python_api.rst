@@ -41,6 +41,7 @@ Learning API
 
 Scikit-Learn API
 ----------------
+
 .. automodule:: xgboost.sklearn
 .. autoclass:: xgboost.XGBRegressor
     :members:

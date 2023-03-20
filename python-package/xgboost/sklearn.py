@@ -469,7 +469,9 @@ Parameters
         doc.extend([get_doc(i) for i in items])
         if end_note:
             doc.append(end_note)
-        full_doc = [header + "\n\n"]
+        full_doc = [
+            header + "\nSee :doc:`/python/sklearn_estimator` for more information.\n"
+        ]
         full_doc.extend(doc)
         cls.__doc__ = "".join(full_doc)
         return cls
