@@ -1,4 +1,5 @@
-# pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme, too-many-lines
+# pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme
+# pylint: disable=too-many-lines, import-error
 """Scikit-Learn Wrapper interface for XGBoost."""
 import copy
 import json
@@ -20,9 +21,9 @@ from typing import (
 )
 
 import numpy as np
-from scipy.special import softmax
 
 from ._typing import ArrayLike, FeatureNames, FeatureTypes, ModelIn
+from .array import argmax, repeat, softmax, vstack, zeros
 from .callback import TrainingCallback
 
 # Do not use class names on scikit-learn directly.  Re-define the classes on
@@ -39,7 +40,13 @@ from .core import (
     _deprecate_positional_args,
     _parse_eval_str,
 )
-from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_array, _is_pandas_df
+from .data import (
+    _is_cuda_input,
+    _is_cudf_df,
+    _is_cudf_ser,
+    _is_cupy_array,
+    _is_pandas_df,
+)
 from .training import train
 
 
@@ -1154,7 +1161,8 @@ class XGBModel(XGBModelBase):
 
         Returns
         -------
-        prediction
+
+        prediction : Union[numpy.ndarray, cupy.ndarray]
 
         """
         with config_context(verbosity=self.verbosity):
@@ -1169,10 +1177,6 @@ class XGBModel(XGBModelBase):
                         base_margin=base_margin,
                         validate_features=validate_features,
                     )
-                    if _is_cupy_array(predts):
-                        import cupy  # pylint: disable=import-error
-
-                        predts = cupy.asnumpy(predts)  # ensure numpy array is used.
                     return predts
                 except TypeError:
                     # coo, csc, dt
@@ -1186,12 +1190,18 @@ class XGBModel(XGBModelBase):
                 feature_types=self.feature_types,
                 enable_categorical=self.enable_categorical,
             )
-            return self.get_booster().predict(
+            # Not used at present, inplace_predict supports all CUDA types.
+            predt = self.get_booster().predict(
                 data=test,
                 iteration_range=iteration_range,
                 output_margin=output_margin,
                 validate_features=validate_features,
             )
+            if _is_cuda_input(X):
+                import cupy as cp
+
+                predt = cp.array(predt)
+            return predt
 
     def apply(
         self,
@@ -1225,9 +1235,14 @@ class XGBModel(XGBModelBase):
                 feature_types=self.feature_types,
                 nthread=self.n_jobs,
             )
-            return self.get_booster().predict(
+            leaf = self.get_booster().predict(
                 test_dmatrix, pred_leaf=True, iteration_range=iteration_range
             )
+            if _is_cuda_input(X):
+                import cupy as cp
+
+                leaf = cp.array(leaf)
+            return leaf
 
     def evals_result(self) -> Dict[str, Dict[str, List[float]]]:
         """Return the evaluation results.
@@ -1383,7 +1398,7 @@ class XGBModel(XGBModelBase):
 PredtT = TypeVar("PredtT", bound=np.ndarray)
 
 
-def _cls_predict_proba(n_classes: int, prediction: PredtT, vstack: Callable) -> PredtT:
+def _cls_predict_proba(n_classes: int, prediction: PredtT, vs: Callable) -> PredtT:
     assert len(prediction.shape) <= 2
     if len(prediction.shape) == 2 and prediction.shape[1] == n_classes:
         # multi-class
@@ -1398,7 +1413,7 @@ def _cls_predict_proba(n_classes: int, prediction: PredtT, vstack: Callable) -> 
     # binary logistic function
     classone_probs = prediction
     classzero_probs = 1.0 - classone_probs
-    return vstack((classzero_probs, classone_probs)).transpose()
+    return vs((classzero_probs, classone_probs)).transpose()
 
 
 @xgboost_model_doc(
@@ -1559,16 +1574,18 @@ class XGBClassifier(XGBModel, XGBClassifierMixIn, XGBClassifierBase):
 
             if len(class_probs.shape) > 1 and self.n_classes_ != 2:
                 # multi-class, turns softprob into softmax
-                column_indexes: np.ndarray = np.argmax(class_probs, axis=1)
+                column_indexes: ArrayLike = argmax(class_probs, axis=1)
             elif len(class_probs.shape) > 1 and class_probs.shape[1] != 1:
                 # multi-label
-                column_indexes = np.zeros(class_probs.shape)
+                column_indexes = zeros(class_probs.shape, _is_cupy_array(class_probs))
                 column_indexes[class_probs > 0.5] = 1
             elif self.objective == "multi:softmax":
                 return class_probs.astype(np.int32)
             else:
                 # turns soft logit into class label
-                column_indexes = np.repeat(0, class_probs.shape[0])
+                column_indexes = repeat(
+                    0, class_probs.shape[0], _is_cupy_array(class_probs)
+                )
                 column_indexes[class_probs > 0.5] = 1
 
             return column_indexes
@@ -1631,7 +1648,7 @@ class XGBClassifier(XGBModel, XGBClassifierMixIn, XGBClassifierBase):
             base_margin=base_margin,
             iteration_range=iteration_range,
         )
-        return _cls_predict_proba(self.n_classes_, class_probs, np.vstack)
+        return _cls_predict_proba(self.n_classes_, class_probs, vstack)
 
     @property
     def classes_(self) -> np.ndarray:

@@ -128,7 +128,7 @@ def test_categorical():
 
 @pytest.mark.skipif(**tm.no_cupy())
 @pytest.mark.skipif(**tm.no_cudf())
-def test_classififer():
+def test_classififer() -> None:
     import cudf
     import cupy as cp
     from sklearn.datasets import load_digits
@@ -153,10 +153,19 @@ def test_classififer():
         clf.fit(X, y)
 
     # pandas
-    X, y = load_digits(return_X_y=True, as_frame=True)
-    y *= 10
+    X, _y = load_digits(return_X_y=True, as_frame=True)
+    y = _y * 10
     with pytest.raises(ValueError, match=r"Invalid classes.*"):
         clf.fit(X, y)
+
+    X = cp.array(X)
+    clf.fit(X, _y)
+    predt = clf.predict(X)
+    assert isinstance(predt, cp.ndarray)
+    predt = clf.apply(X)
+    assert isinstance(predt, cp.ndarray)
+    predt = clf.predict_proba(X)
+    assert isinstance(predt, cp.ndarray)
 
 
 @pytest.mark.parametrize(
