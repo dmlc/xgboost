@@ -737,8 +737,8 @@ Json UBJReader::ParseArray() {
       case 'L':
         return ParseTypedArray<I64Array>(n);
       default:
-        LOG(FATAL) << "`" + std::string{static_cast<char>(type)} +
-                          "` is not supported for typed array.";  // NOLINT
+        LOG(FATAL) << "`" + std::string{static_cast<char>(type)} +  // NOLINT
+                          "` is not supported for typed array.";
     }
   }
   std::vector<Json> results;
