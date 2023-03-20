@@ -878,7 +878,7 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
           dmlc::Parser<uint32_t>::Create(fname.c_str(), partid, npart, file_format.c_str()));
       data::FileAdapter adapter(parser.get());
       dmat = DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), Context{}.Threads(),
-                             cache_file);
+                             cache_file, data_split_mode);
     } else {
       data::FileIterator iter{fname, static_cast<uint32_t>(partid), static_cast<uint32_t>(npart),
                               file_format};
@@ -913,18 +913,6 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
     }
     LOG(FATAL) << "Encountered parser error:\n" << e.what();
   }
-
-
-  if (collective::IsFederated() && data_split_mode == DataSplitMode::kCol) {
-    std::vector<uint64_t> buffer(collective::GetWorldSize());
-    buffer[collective::GetRank()] = dmat->Info().num_col_;
-    collective::Allgather(buffer.data(), buffer.size() * sizeof(uint64_t));
-    auto offset = std::accumulate(buffer.cbegin(), buffer.cbegin() + collective::GetRank(), 0);
-    dmat->ReindexFeatures(offset);
-  }
-
-  dmat->Info().data_split_mode = data_split_mode;
-  dmat->Info().SynchronizeNumberOfColumns();
 
   if (need_split && data_split_mode == DataSplitMode::kCol) {
     if (!cache_file.empty()) {
@@ -971,39 +959,49 @@ template DMatrix *DMatrix::Create<DataIterHandle, DMatrixHandle,
     XGDMatrixCallbackNext *next, float missing, int32_t n_threads, std::string);
 
 template <typename AdapterT>
-DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread, const std::string&) {
-  return new data::SimpleDMatrix(adapter, missing, nthread);
+DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread, const std::string&,
+                         DataSplitMode data_split_mode) {
+  return new data::SimpleDMatrix(adapter, missing, nthread, data_split_mode);
 }
 
 template DMatrix* DMatrix::Create<data::DenseAdapter>(data::DenseAdapter* adapter, float missing,
                                                       std::int32_t nthread,
-                                                      const std::string& cache_prefix);
+                                                      const std::string& cache_prefix,
+                                                      DataSplitMode data_split_mode);
 template DMatrix* DMatrix::Create<data::ArrayAdapter>(data::ArrayAdapter* adapter, float missing,
                                                       std::int32_t nthread,
-                                                      const std::string& cache_prefix);
+                                                      const std::string& cache_prefix,
+                                                      DataSplitMode data_split_mode);
 template DMatrix* DMatrix::Create<data::CSRAdapter>(data::CSRAdapter* adapter, float missing,
                                                     std::int32_t nthread,
-                                                    const std::string& cache_prefix);
+                                                    const std::string& cache_prefix,
+                                                    DataSplitMode data_split_mode);
 template DMatrix* DMatrix::Create<data::CSCAdapter>(data::CSCAdapter* adapter, float missing,
                                                     std::int32_t nthread,
-                                                    const std::string& cache_prefix);
+                                                    const std::string& cache_prefix,
+                                                    DataSplitMode data_split_mode);
 template DMatrix* DMatrix::Create<data::DataTableAdapter>(data::DataTableAdapter* adapter,
                                                           float missing, std::int32_t nthread,
-                                                          const std::string& cache_prefix);
+                                                          const std::string& cache_prefix,
+                                                          DataSplitMode data_split_mode);
 template DMatrix* DMatrix::Create<data::FileAdapter>(data::FileAdapter* adapter, float missing,
                                                      std::int32_t nthread,
-                                                     const std::string& cache_prefix);
+                                                     const std::string& cache_prefix,
+                                                     DataSplitMode data_split_mode);
 template DMatrix* DMatrix::Create<data::CSRArrayAdapter>(data::CSRArrayAdapter* adapter,
                                                          float missing, std::int32_t nthread,
-                                                         const std::string& cache_prefix);
+                                                         const std::string& cache_prefix,
+                                                         DataSplitMode data_split_mode);
 template DMatrix* DMatrix::Create<data::CSCArrayAdapter>(data::CSCArrayAdapter* adapter,
                                                          float missing, std::int32_t nthread,
-                                                         const std::string& cache_prefix);
+                                                         const std::string& cache_prefix,
+                                                         DataSplitMode data_split_mode);
 template DMatrix* DMatrix::Create(
     data::IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>* adapter,
-    float missing, int nthread, const std::string& cache_prefix);
+    float missing, int nthread, const std::string& cache_prefix, DataSplitMode data_split_mode);
 template DMatrix* DMatrix::Create<data::RecordBatchesIterAdapter>(
-    data::RecordBatchesIterAdapter* adapter, float missing, int nthread, const std::string&);
+    data::RecordBatchesIterAdapter* adapter, float missing, int nthread, const std::string&,
+    DataSplitMode data_split_mode);
 
 SparsePage SparsePage::GetTranspose(int num_columns, int32_t n_threads) const {
   SparsePage transpose;

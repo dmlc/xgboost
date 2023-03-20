@@ -111,9 +111,6 @@ class SparsePageDMatrix : public DMatrix {
     LOG(FATAL) << "Slicing DMatrix columns is not supported for external memory.";
     return nullptr;
   }
-  void ReindexFeatures(uint64_t offset) override {
-    LOG(FATAL) << "Reindexing features is not supported for external memory.";
-  }
 
  private:
   BatchSet<SparsePage> GetRowBatches() override;

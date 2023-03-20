@@ -73,11 +73,17 @@ DMatrix* SimpleDMatrix::SliceCol(int num_slices, int slice_id) {
   return out;
 }
 
-void SimpleDMatrix::ReindexFeatures(uint64_t offset) {
-  if (offset == 0) {
-    return;
+void SimpleDMatrix::ReindexFeatures() {
+  if (collective::IsFederated() && info_.data_split_mode == DataSplitMode::kCol) {
+    std::vector<uint64_t> buffer(collective::GetWorldSize());
+    buffer[collective::GetRank()] = info_.num_col_;
+    collective::Allgather(buffer.data(), buffer.size() * sizeof(uint64_t));
+    auto offset = std::accumulate(buffer.cbegin(), buffer.cbegin() + collective::GetRank(), 0);
+    if (offset == 0) {
+      return;
+    }
+    sparse_page_->Reindex(offset, ctx_.Threads());
   }
-  sparse_page_->Reindex(offset, Ctx()->Threads());
 }
 
 BatchSet<SparsePage> SimpleDMatrix::GetRowBatches() {
@@ -158,7 +164,8 @@ BatchSet<ExtSparsePage> SimpleDMatrix::GetExtBatches(BatchParam const&) {
 }
 
 template <typename AdapterT>
-SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
+SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
+                             DataSplitMode data_split_mode) {
   this->ctx_.nthread = nthread;
 
   std::vector<uint64_t> qids;
@@ -222,6 +229,12 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
     info_.num_col_ = adapter->NumColumns();
   }
 
+
+  // Synchronise worker columns
+  info_.data_split_mode = data_split_mode;
+  ReindexFeatures();
+  info_.SynchronizeNumberOfColumns();
+
   if (adapter->NumRows() == kAdapterUnknownSize) {
     using IteratorAdapterT
       = IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>;
@@ -275,22 +288,31 @@ void SimpleDMatrix::SaveToLocalFile(const std::string& fname) {
     fo->Write(sparse_page_->data.HostVector());
 }
 
-template SimpleDMatrix::SimpleDMatrix(DenseAdapter* adapter, float missing, int nthread);
-template SimpleDMatrix::SimpleDMatrix(ArrayAdapter* adapter, float missing, int nthread);
-template SimpleDMatrix::SimpleDMatrix(CSRAdapter* adapter, float missing, int nthread);
-template SimpleDMatrix::SimpleDMatrix(CSRArrayAdapter* adapter, float missing, int nthread);
-template SimpleDMatrix::SimpleDMatrix(CSCArrayAdapter* adapter, float missing, int nthread);
-template SimpleDMatrix::SimpleDMatrix(CSCAdapter* adapter, float missing, int nthread);
-template SimpleDMatrix::SimpleDMatrix(DataTableAdapter* adapter, float missing, int nthread);
-template SimpleDMatrix::SimpleDMatrix(FileAdapter* adapter, float missing, int nthread);
+template SimpleDMatrix::SimpleDMatrix(DenseAdapter* adapter, float missing, int nthread,
+                                      DataSplitMode data_split_mode);
+template SimpleDMatrix::SimpleDMatrix(ArrayAdapter* adapter, float missing, int nthread,
+                                      DataSplitMode data_split_mode);
+template SimpleDMatrix::SimpleDMatrix(CSRAdapter* adapter, float missing, int nthread,
+                                      DataSplitMode data_split_mode);
+template SimpleDMatrix::SimpleDMatrix(CSRArrayAdapter* adapter, float missing, int nthread,
+                                      DataSplitMode data_split_mode);
+template SimpleDMatrix::SimpleDMatrix(CSCArrayAdapter* adapter, float missing, int nthread,
+                                      DataSplitMode data_split_mode);
+template SimpleDMatrix::SimpleDMatrix(CSCAdapter* adapter, float missing, int nthread,
+                                      DataSplitMode data_split_mode);
+template SimpleDMatrix::SimpleDMatrix(DataTableAdapter* adapter, float missing, int nthread,
+                                      DataSplitMode data_split_mode);
+template SimpleDMatrix::SimpleDMatrix(FileAdapter* adapter, float missing, int nthread,
+                                      DataSplitMode data_split_mode);
 template SimpleDMatrix::SimpleDMatrix(
     IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>
         *adapter,
-    float missing, int nthread);
+    float missing, int nthread, DataSplitMode data_split_mode);
 
 template <>
-SimpleDMatrix::SimpleDMatrix(RecordBatchesIterAdapter* adapter, float missing, int nthread) {
-  ctx_.nthread = nthread;
+SimpleDMatrix::SimpleDMatrix(RecordBatchesIterAdapter* adapter, float missing, int nthread,
+                             DataSplitMode data_split_mode) {
+    ctx_.nthread = nthread;
 
   auto& offset_vec = sparse_page_->offset.HostVector();
   auto& data_vec = sparse_page_->data.HostVector();
@@ -349,7 +371,10 @@ SimpleDMatrix::SimpleDMatrix(RecordBatchesIterAdapter* adapter, float missing, i
   }
   // Synchronise worker columns
   info_.num_col_ = adapter->NumColumns();
+  info_.data_split_mode = data_split_mode;
+  ReindexFeatures();
   info_.SynchronizeNumberOfColumns();
+
   info_.num_row_ = total_batch_size;
   info_.num_nonzero_ = data_vec.size();
   CHECK_EQ(offset_vec.back(), info_.num_nonzero_);

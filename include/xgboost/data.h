@@ -572,17 +572,18 @@ class DMatrix {
    * \brief Creates a new DMatrix from an external data adapter.
    *
    * \tparam  AdapterT  Type of the adapter.
-   * \param [in,out]  adapter       View onto an external data.
-   * \param           missing       Values to count as missing.
-   * \param           nthread       Number of threads for construction.
-   * \param           cache_prefix  (Optional) The cache prefix for external memory.
-   * \param           page_size     (Optional) Size of the page.
+   * \param [in,out]  adapter         View onto an external data.
+   * \param           missing         Values to count as missing.
+   * \param           nthread         Number of threads for construction.
+   * \param           cache_prefix    (Optional) The cache prefix for external memory.
+   * \param           data_split_mode (Optional) Data split mode.
    *
    * \return  a Created DMatrix.
    */
   template <typename AdapterT>
   static DMatrix* Create(AdapterT* adapter, float missing, int nthread,
-                         const std::string& cache_prefix = "");
+                         const std::string& cache_prefix = "",
+                         DataSplitMode data_split_mode = DataSplitMode::kRow);
 
   /**
    * \brief Create a new Quantile based DMatrix used for histogram based algorithm.
@@ -644,17 +645,6 @@ class DMatrix {
    * @return DMatrix containing the slice of columns
    */
   virtual DMatrix *SliceCol(int num_slices, int slice_id) = 0;
-
-  /**
-   * \brief Reindex the features based on a global view.
-   *
-   * In some cases (e.g. vertical federated learning), features are loaded locally with indices
-   * starting from 0. However, all the algorithms assume the features are globally indexed, so we
-   * reindex the features based on the offset needed to obtain the global view.
-   *
-   * \param offset The offset to be added to the feature index
-   */
-  virtual void ReindexFeatures(uint64_t offset) = 0;
 
  protected:
   virtual BatchSet<SparsePage> GetRowBatches() = 0;
