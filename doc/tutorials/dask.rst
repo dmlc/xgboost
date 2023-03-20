@@ -517,11 +517,12 @@ Troubleshooting
   running in a restricted docker environment. In this case, please open additional ports
   in the container and specify it as in the above snippet.
 
-- If you are training with GPU enabled and encountered a NCCL system error, typically
-  contains the error message `NCCL failure: unhandled system error`, consider specifying
-  its network configuration with one of the environment variables listed in the `NCCL
-  document <https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html>`__ like
-  the ``NCCL_SOCKET_IFNAME``. Also, ``NCCL_DEBUG`` is useful for obtaining debug logs.
+- If you encounter a NCCL system error while training with GPU enabled, which usually
+  includes the error message `NCCL failure: unhandled system error`, you can specify its
+  network configuration using one of the environment variables listed in the `NCCL
+  document <https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html>`__ such as
+  the ``NCCL_SOCKET_IFNAME``. In addition, you can use ``NCCL_DEBUG`` to obtain debug
+  logs.
 
 ************
 IPv6 Support
