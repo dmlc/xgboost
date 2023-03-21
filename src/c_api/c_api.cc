@@ -968,7 +968,6 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
   API_END();
 }
 
-template <typename T>
 void InplacePredictImplCore(std::shared_ptr<DMatrix> p_m,
                             Learner *learner,
                             xgboost::PredictionType type,
