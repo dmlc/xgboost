@@ -148,66 +148,13 @@ jobs:
       run: |
         LINT_LANG=cpp make lint
 
-  doxygen:
-    runs-on: ubuntu-latest
-    name: Generate C/C++ API doc using Doxygen
-    steps:
-    - uses: actions/checkout@v2
-      with:
-        submodules: 'true'
-    - uses: actions/setup-python@v2
-      with:
-        python-version: "3.8"
-        architecture: 'x64'
-    - name: Install system packages
-      run: |
-        sudo apt-get install -y --no-install-recommends doxygen graphviz ninja-build
-        python -m pip install wheel setuptools
-        python -m pip install awscli
-    - name: Run Doxygen
-      run: |
-        mkdir build
-        cd build
-        cmake .. -DBUILD_C_DOC=ON -GNinja
-        ninja -v doc_doxygen
-    - name: Extract branch name
-      shell: bash
-      run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
-      id: extract_branch
-      if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
-    - name: Publish
-      run: |
-        cd build/
-        tar cvjf ${{ steps.extract_branch.outputs.branch }}.tar.bz2 doc_doxygen/
-        python -m awscli s3 cp ./${{ steps.extract_branch.outputs.branch }}.tar.bz2 s3://xgboost-docs/doxygen/ --acl public-read
-      if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
-
-  sphinx:
-    runs-on: ubuntu-latest
-    name: Build docs using Sphinx
-    steps:
-    - uses: actions/checkout@v2
-      with:
-        submodules: 'true'
-    - uses: actions/setup-python@v2
-      with:
-        python-version: "3.8"
-        architecture: 'x64'
-    - name: Install system packages
-      run: |
-        sudo apt-get install -y --no-install-recommends graphviz
-        python -m pip install wheel setuptools
-        python -m pip install -r doc/requirements.txt
-    - name: Extract branch name
-      shell: bash
-      run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
-      id: extract_branch
-      if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
-    - name: Run Sphinx
-      run: |
-        make -C doc html
-      env:
-        SPHINX_GIT_BRANCH: ${{ steps.extract_branch.outputs.branch }}
+        python3 dmlc-core/scripts/lint.py --exclude_path \
+            python-package/xgboost/dmlc-core \
+            python-package/xgboost/include \
+            python-package/xgboost/lib \
+            python-package/xgboost/rabit \
+            python-package/xgboost/src \
+            --pylint-rc python-package/.pylintrc \
+            xgboost \
+            cpp \
+            include src python-package
