@@ -524,6 +524,9 @@ Troubleshooting
   the ``NCCL_SOCKET_IFNAME``. In addition, you can use ``NCCL_DEBUG`` to obtain debug
   logs.
 
+- MIG (Multi-Instance GPU) is not yet supported by NCCL. You will receive a error message
+  that includes `Multiple processes within a communication group ...` upon initialization.
+
 ************
 IPv6 Support
 ************
