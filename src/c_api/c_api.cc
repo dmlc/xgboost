@@ -969,7 +969,7 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
 }
 
 template <typename T>
-void InplacePredictImplCore(std::shared_ptr<T> x, std::shared_ptr<DMatrix> p_m,
+void InplacePredictImplCore(std::shared_ptr<DMatrix> p_m,
                             Learner *learner,
                             xgboost::PredictionType type,
                             float missing,
@@ -979,7 +979,7 @@ void InplacePredictImplCore(std::shared_ptr<T> x, std::shared_ptr<DMatrix> p_m,
                             xgboost::bst_ulong const **out_shape,
                             xgboost::bst_ulong *out_dim, const float **out_result) {
   HostDeviceVector<float>* p_predt { nullptr };
-  learner->InplacePredict(x, p_m, type, missing, &p_predt, iteration_begin, iteration_end);
+  learner->InplacePredict(p_m, type, missing, &p_predt, iteration_begin, iteration_end);
   CHECK(p_predt);
   auto &shape = learner->GetThreadLocal().prediction_shape;
   auto chunksize = n_rows == 0 ? 0 : p_predt->Size() / n_rows;
@@ -1011,7 +1011,7 @@ void InplacePredictImpl(std::shared_ptr<DMatrix> p_m, char const *c_json_config,
   xgboost_CHECK_C_ARG_PTR(out_result);
   xgboost_CHECK_C_ARG_PTR(out_shape);
 
-  InplacePredictImplCore(x, p_m, learner, type, missing, n_rows, n_cols,
+  InplacePredictImplCore(p_m, learner, type, missing, n_rows, n_cols,
                          iteration_begin, iteration_end, strict_shape, out_shape, out_dim, out_result);
 }
 
@@ -1030,7 +1030,7 @@ XGB_DLL int XGBoosterInplacePredict(BoosterHandle handle,
   std::shared_ptr<xgboost::data::DenseAdapter> x{new xgboost::data::DenseAdapter(data, num_rows, num_features)};
   auto *learner = static_cast<xgboost::Learner *>(handle);
   auto iteration_end = GetIterationFromTreeLimit(ntree_limit, learner);
-  InplacePredictImplCore(x, nullptr, learner, (xgboost::PredictionType)0, missing, num_rows, num_features,
+  InplacePredictImplCore(nullptr, learner, (xgboost::PredictionType)0, missing, num_rows, num_features,
                          0, iteration_end, true, len, &out_dim, out_result);
 //  printf("XGBoosterInplacePredict len = %u, dim = %u\n", **len, out_dim);
   API_END();
