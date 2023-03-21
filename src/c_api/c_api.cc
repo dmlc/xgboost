@@ -990,6 +990,7 @@ void InplacePredictImplCore(std::shared_ptr<T> x, std::shared_ptr<DMatrix> p_m,
 //  printf("InplacePredictImplCore shape = %u, dim = %u\n", **out_shape, *out_dim);
 }
 
+template <typename T>
 void InplacePredictImpl(std::shared_ptr<T> x, std::shared_ptr<DMatrix> p_m,
                         char const *c_json_config, Learner *learner,
                         size_t n_rows, size_t n_cols,
