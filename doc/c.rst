@@ -10,7 +10,7 @@ simply look at function comments in ``include/xgboost/c_api.h``. The reference i
 to sphinx with the help of breathe, which doesn't contain links to examples but might be
 easier to read. For the original doxygen pages please visit:
 
-* `C API documentation (latest master branch) <https://xgboost.readthedocs.io/en/latest/dev/c__api_8h.html>`_
+* `C API documentation (latest master branch) <./dev/c__api_8h.html>`_
 * `C API documentation (last stable release) <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html>`_
 
 ***************
