@@ -993,27 +993,20 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
  *          1:output margin instead of transformed value
  *          2:output leaf index of trees instead of leaf value, note leaf index is unique per tree
  *          4:output feature contributions to individual predictions
- * \param ntree_limit limit number of trees used for prediction, this is only valid for boosted trees
- *    when the parameter is set to 0, we will use all the trees
- * \param training Whether the prediction function is used as part of a training loop.
- *    Prediction can be run in 2 scenarios:
- *    1. Given data matrix X, obtain prediction y_pred from the model.
- *    2. Obtain the prediction for computing gradients. For example, DART booster performs dropout
- *       during training, and the prediction result will be different from the one obtained by normal
- *       inference step due to dropped trees.
- *    Set training=false for the first scenario. Set training=true for the second scenario.
- *    The second scenario applies when you are defining a custom objective function.
  * \param out_len used to store length of returning result
  * \param out_result used to set a pointer to array
  * \return 0 when success, -1 when failure happens
- */
-XGB_DLL int XGBoosterPredict(BoosterHandle handle,
-                             DMatrixHandle dmat,
-                             int option_mask,
-                             unsigned ntree_limit,
-                             int training,
-                             bst_ulong *out_len,
-                             const float **out_result);
+*/
+//TODO: Fix documentation above
+XGB_DLL int XGBoosterInplacePredict(BoosterHandle handle,
+                                    const float *data,
+                                    size_t num_rows,
+                                    size_t num_features,
+                                    float missing,
+                                    int option_mask,
+                                    int ntree_limit,
+                                    const bst_ulong **len,
+                                    const float **out_result);
 
 /*!
  * \brief Make prediction from DMatrix, replacing \ref XGBoosterPredict.
