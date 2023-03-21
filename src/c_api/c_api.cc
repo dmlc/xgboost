@@ -1011,7 +1011,7 @@ void InplacePredictImpl(std::shared_ptr<DMatrix> p_m, char const *c_json_config,
   xgboost_CHECK_C_ARG_PTR(out_result);
   xgboost_CHECK_C_ARG_PTR(out_shape);
 
-  InplacePredictImplCore(p_m, learner, type, missing, n_rows, n_cols,
+  InplacePredictImplCore(p_m, learner, type, missing, n_samples, n_features,
                          iteration_begin, iteration_end, strict_shape, out_shape, out_dim, out_result);
 }
 
