@@ -610,6 +610,32 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredict
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGBoosterInplacePredict
+ * Signature: (J[FIII[[F)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterInplacePredict
+  (JNIEnv *jenv, jclass jcls, jlong jhandle, jfloatArray jdata, jint num_rows, jint num_features,
+                                             jfloat missing, jint option_mask, jint treeLimit, jobjectArray jout) {
+  BoosterHandle handle = (BoosterHandle) jhandle;
+  jfloat* data = jenv->GetFloatArrayElements(jdata, 0);
+  const bst_ulong *len;
+  float *result;
+  int ret = XGBoosterInplacePredict(handle, data, num_rows, num_features, missing, option_mask, treeLimit,
+            &len, (const float **) &result);
+  JVM_CHECK_CALL(ret);
+  jenv->ReleaseFloatArrayElements(jdata, data, 0);
+  if (*len) {
+//    printf("JNI XGBoosterInplacePredict len = %u\n", *len);
+    jsize jlen = (jsize) *len;
+    jfloatArray jarray = jenv->NewFloatArray(jlen);
+    jenv->SetFloatArrayRegion(jarray, 0, jlen, (jfloat *) result);
+    jenv->SetObjectArrayElement(jout, 0, jarray);
+  }
+  return ret;
+}
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGBoosterLoadModel
  * Signature: (JLjava/lang/String;)V
  */

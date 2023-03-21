@@ -24,6 +24,166 @@ import java.util.Map;
 import junit.framework.TestCase;
 import org.junit.Test;
 
+import java.util.Random;
+import java.io.PrintStream;
+import java.util.*;
+import java.util.concurrent.*;
+
+//
+// Utility class for comparing array contents
+//
+class ArrayComparator {
+  public static boolean compare(float[][] one, float[][] two) {
+
+    // Test that both arrays are the same size in the first dimension
+    if (one.length != two.length) {
+      System.err.println("Array first dimensions are not identical in size");
+      return false;
+    }
+
+    // Test that both arrays are the same size in the second dimension
+    if (one[0].length != two[0].length) {
+      System.err.println("Array second dimensions are not identical in size");
+      return false;
+    }
+
+    // Test that all the array elements are identical
+    for (int i=0; i<one.length; i++) {
+      for (int j=0; j<one[i].length; j++) {
+        if (one[i][j] != two[i][j]) {
+          System.err.println("Array elements [" + i + "][" + j + "] are not identical");
+          System.err.println(one[i][j] + " != " + two[i][j]);
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+}
+
+//
+// Utility class for printing out array contents
+//
+class ArrayPrinter {
+  PrintStream stream;
+
+  public ArrayPrinter() {
+    stream = System.out;
+  }
+  public ArrayPrinter(PrintStream stream) {
+    this.stream = stream;
+  }
+
+  public void print(String name, float[][] a) {
+    stream.print(name + " = [");
+
+    for (int i=0; i < a.length-1; i++) {
+      stream.print(a[i][0] + ", ");
+    }
+    stream.println(a[a.length-1][0] + "]");
+  }
+}
+
+//
+// Performs a series of single-vector in-place predictions in a dedicated thread
+//
+class InplacePredictThread extends Thread {
+
+  int thread_num;
+  boolean success = true;
+  float[][] testX;
+  int test_rows;
+  int features;
+  float[][] true_predicts;
+  Booster booster;
+  Random rng = new Random();
+  int n_preds = 100;
+
+  public InplacePredictThread(int n, Booster booster, float[][] testX, int test_rows, int features, float[][] true_predicts) {
+    this.thread_num = n;
+    this.booster = booster;
+    this.testX = testX;
+    this.test_rows = test_rows;
+    this.features = features;
+    this.true_predicts = true_predicts;
+  }
+
+  @Override
+  public void run() {
+//    System.err.println("Thread #" + thread_num + " started.");
+
+    try {
+      // Perform n_preds number of single-vector predictions
+      for (int i=0; i<n_preds; i++) {
+        // Randomly generate int in range 0 <= r < test_rows
+        int r = this.rng.nextInt(this.test_rows);
+
+        // In-place predict a single random row
+        float[][] predictions = booster.inplace_predict(this.testX[r], 1, this.features);
+
+        // Confirm results as expected
+        if (predictions[0][0] != this.true_predicts[r][0]) {
+//          System.err.println("Error in thread #" + this.thread_num);
+          success = false;
+          return;  // bail at the first error.
+        }
+      }
+    } catch (XGBoostError e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  public boolean isSuccess() {
+    return success;
+  }
+}
+
+class InplacePredictionTask implements Callable<Boolean> {
+  int task_num;
+  float[][] testX;
+  int test_rows;
+  int features;
+  float[][] true_predicts;
+  Booster booster;
+  Random rng = new Random();
+  int n_preds = 100;
+
+  public InplacePredictionTask(int n, Booster booster, float[][] testX, int test_rows, int features, float[][] true_predicts) {
+    this.task_num = n;
+    this.booster = booster;
+    this.testX = testX;
+    this.test_rows = test_rows;
+    this.features = features;
+    this.true_predicts = true_predicts;
+  }
+
+  @Override
+  public Boolean call() throws Exception {
+//    System.err.println("Task #" + task_num + " started.");
+
+    // Perform n_preds number of single-vector predictions
+    for (int i=0; i<n_preds; i++) {
+      // Randomly generate int in range 0 <= r < test_rows
+      int r = this.rng.nextInt(this.test_rows);
+
+      // In-place predict a single random row
+      float[][] predictions = booster.inplace_predict(this.testX[r], 1, this.features);
+
+      // Confirm results as expected
+      if (predictions[0][0] != this.true_predicts[r][0]) {
+          System.err.println("Error in task #" + this.task_num);
+        return false;  // bail at the first error.
+      }
+    }
+
+//    System.err.println("Task #" + task_num + " finished.");
+
+    // No errors found
+    return true;
+  }
+}
+
 /**
  * test cases for Booster
  *
@@ -100,6 +260,120 @@ public class BoosterImplTest {
     IEvaluation eval = new EvalError();
     //error must be less than 0.1
     TestCase.assertTrue(eval.eval(predicts, testMat) < 0.1f);
+  }
+  @Test
+  public void testBoosterInplacePredict() throws  XGBoostError, IOException {
+
+//    System.out.println("=-=-=-=-=- testBoosterInplacePredict 2 =-=-=-=-=");
+
+    Random rng = new Random();
+
+    // Data generation
+
+    // Randomly generate raining set
+    int train_rows = 1000;
+    int features = 10;
+    int train_size = train_rows * features;
+    float[] trainX = new float[train_size];
+    float[] trainy = new float[train_rows];
+
+    for (int i=0; i<train_size; i++) {
+      trainX[i] = rng.nextFloat();
+    }
+    for (int i=0; i<train_rows; i++) {
+      trainy[i] = rng.nextFloat();
+    }
+
+    DMatrix trainMat = new DMatrix(trainX, train_rows, features, Float.NaN);
+    trainMat.setLabel(trainy);
+
+    // Randomly generate testing set
+    int test_rows = 10;
+    int test_size = test_rows * features;
+    float[] testX = new float[test_size];
+    float[] testy = new float[test_rows];
+
+    for (int i=0; i<test_size; i++) {
+      testX[i] = rng.nextFloat();
+    }
+    for (int i=0; i<test_rows; i++) {
+      testy[i] = rng.nextFloat();
+    }
+
+    DMatrix testMat = new DMatrix(testX, test_rows, features, Float.NaN);
+    testMat.setLabel(testy);
+
+    // Training
+
+    // Set parameters
+    Map<String, Object> params = new HashMap<String, Object>() {
+      {
+        put("eta", 1.0);
+        put("max_depth", 2);
+        put("silent", 1);
+        put("tree_method", "hist");
+      }
+    };
+
+    Map<String, DMatrix> watches = new HashMap<String, DMatrix>() {
+      {
+        put("train", trainMat);
+        put("test", testMat);
+      }
+    };
+
+    Booster booster = XGBoost.train(trainMat, params, 10, watches, null, null);
+
+
+    // Prediction
+
+    // standard prediction
+    float[][] predicts = booster.predict(testMat);
+
+    // inplace prediction
+    float[][] inplace_predicts = booster.inplace_predict(testX, test_rows, features);
+
+    // Confirm that the two prediction results are identical
+    TestCase.assertTrue(ArrayComparator.compare(predicts, inplace_predicts));
+
+
+    // Multi-thread prediction
+
+    // Reformat the test matrix as 2D array
+    float[][] testX2 = new float[test_rows][features];
+
+    int k=0;
+    for (int i=0; i<test_rows; i++) {
+      for(int j=0; j<features; j++, k++) {
+        testX2[i][j] = testX[k];
+      }
+    }
+
+    // Create thread pool
+    int n_tasks = 20;
+    List<Future<Boolean>> result = new ArrayList(n_tasks);
+    ExecutorService executorService = Executors.newFixedThreadPool(5);  // Create pool of 5 threads
+
+    // Submit all the tasks
+    for (int i=0; i<n_tasks; i++) {
+      result.add(executorService.submit(new InplacePredictionTask(i, booster, testX2, test_rows, features, predicts)));
+    }
+
+    // Tell the executor service we are done
+    executorService.shutdown();
+
+    try {
+      executorService.awaitTermination(10, TimeUnit.SECONDS);
+
+      // Get the result from each Future returned and confirm success
+      for (int i=0; i<n_tasks; i++) {
+        TestCase.assertTrue(result.get(i).get());
+      }
+    } catch (InterruptedException | ExecutionException e) {
+        throw new RuntimeException(e);
+    }
+
+//    System.out.println("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-");
   }
 
   @Test
