@@ -315,7 +315,7 @@ public class Booster implements Serializable, KryoSerializable {
     }
     return predicts;
   }
-/**
+  /**
    * Perform thread-safe prediction. Calls
    * <code>inplace_predict(data, num_rows, num_features, Float.NaN, false, 0, false, false)</code>.
    *
