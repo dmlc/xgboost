@@ -7,6 +7,12 @@ The demo is adopted from scikit-learn:
 https://scikit-learn.org/stable/auto_examples/ensemble/plot_random_forest_regression_multioutput.html#sphx-glr-auto-examples-ensemble-plot-random-forest-regression-multioutput-py
 
 See :doc:`/tutorials/multioutput` for more information.
+
+.. note::
+
+    The feature is experimental. For the `multi_output_tree` strategy, many features are
+    missing.
+
 """
 
 import argparse
@@ -40,11 +46,18 @@ def gen_circle() -> Tuple[np.ndarray, np.ndarray]:
     return X, y
 
 
-def rmse_model(plot_result: bool):
+def rmse_model(plot_result: bool, strategy: str):
     """Draw a circle with 2-dim coordinate as target variables."""
     X, y = gen_circle()
     # Train a regressor on it
-    reg = xgb.XGBRegressor(tree_method="hist", n_estimators=64)
+    reg = xgb.XGBRegressor(
+        tree_method="hist",
+        n_estimators=128,
+        n_jobs=16,
+        max_depth=8,
+        multi_strategy=strategy,
+        subsample=0.6,
+    )
     reg.fit(X, y, eval_set=[(X, y)])
 
     y_predt = reg.predict(X)
@@ -52,7 +65,7 @@ def rmse_model(plot_result: bool):
         plot_predt(y, y_predt, "multi")
 
 
-def custom_rmse_model(plot_result: bool) -> None:
+def custom_rmse_model(plot_result: bool, strategy: str) -> None:
     """Train using Python implementation of Squared Error."""
 
     # As the experimental support status, custom objective doesn't support matrix as
@@ -88,9 +101,10 @@ def custom_rmse_model(plot_result: bool) -> None:
         {
             "tree_method": "hist",
             "num_target": y.shape[1],
+            "multi_strategy": strategy,
         },
         dtrain=Xy,
-        num_boost_round=100,
+        num_boost_round=128,
         obj=squared_log,
         evals=[(Xy, "Train")],
         evals_result=results,
@@ -107,6 +121,16 @@ if __name__ == "__main__":
     parser.add_argument("--plot", choices=[0, 1], type=int, default=1)
     args = parser.parse_args()
     # Train with builtin RMSE objective
-    rmse_model(args.plot == 1)
+    # - One model per output.
+    rmse_model(args.plot == 1, "one_output_per_tree")
+
+    # - One model for all outputs, this is still working in progress, many features are
+    # missing.
+    rmse_model(args.plot == 1, "multi_output_tree")
+
     # Train with custom objective.
-    custom_rmse_model(args.plot == 1)
+    # - One model per output.
+    custom_rmse_model(args.plot == 1, "one_output_per_tree")
+    # - One model for all outputs, this is still working in progress, many features are
+    # missing.
+    custom_rmse_model(args.plot == 1, "multi_output_tree")

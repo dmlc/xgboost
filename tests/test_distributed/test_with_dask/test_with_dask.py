@@ -1168,7 +1168,7 @@ def test_dask_aft_survival() -> None:
 
 def test_dask_ranking(client: "Client") -> None:
     dpath = "demo/rank/"
-    mq2008 = tm.get_mq2008(dpath)
+    mq2008 = tm.data.get_mq2008(dpath)
     data = []
     for d in mq2008:
         if isinstance(d, scipy.sparse.csr_matrix):

@@ -412,7 +412,7 @@ std::pair<Json, Json> TestModelSlice(std::string booster) {
     j++;
   }
 
-  // CHECK sliced model doesn't have dependency on old one
+  // CHECK sliced model doesn't have dependency on the old one
   learner.reset();
   CHECK_EQ(sliced->GetNumFeature(), kCols);
 

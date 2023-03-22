@@ -312,6 +312,19 @@ __model_doc = f"""
         needs to be set to have categorical feature support. See :doc:`Categorical Data
         </tutorials/categorical>` and :ref:`cat-param` for details.
 
+    multi_strategy : Optional[str]
+
+        .. versionadded:: 2.0.0
+
+        .. note:: This parameter is working-in-progress.
+
+        The strategy used for training multi-target models, including multi-target
+        regression and multi-class classification. See :doc:`/tutorials/multioutput` for
+        more information.
+
+        - ``one_output_per_tree``: One model for each target.
+        - ``multi_output_tree``:  Use multi-target trees.
+
     eval_metric : Optional[Union[str, List[str], Callable]]
 
         .. versionadded:: 1.6.0
@@ -624,6 +637,7 @@ class XGBModel(XGBModelBase):
         feature_types: Optional[FeatureTypes] = None,
         max_cat_to_onehot: Optional[int] = None,
         max_cat_threshold: Optional[int] = None,
+        multi_strategy: Optional[str] = None,
         eval_metric: Optional[Union[str, List[str], Callable]] = None,
         early_stopping_rounds: Optional[int] = None,
         callbacks: Optional[List[TrainingCallback]] = None,
@@ -670,6 +684,7 @@ class XGBModel(XGBModelBase):
         self.feature_types = feature_types
         self.max_cat_to_onehot = max_cat_to_onehot
         self.max_cat_threshold = max_cat_threshold
+        self.multi_strategy = multi_strategy
         self.eval_metric = eval_metric
         self.early_stopping_rounds = early_stopping_rounds
         self.callbacks = callbacks

@@ -15,13 +15,17 @@ rng = np.random.RandomState(1994)
 
 
 def json_model(model_path: str, parameters: dict) -> dict:
-    X = np.random.random((10, 3))
-    y = np.random.randint(2, size=(10,))
+    datasets = pytest.importorskip("sklearn.datasets")
+
+    X, y = datasets.make_classification(64, n_features=8, n_classes=3, n_informative=6)
+    if parameters.get("objective", None) == "multi:softmax":
+        parameters["num_class"] = 3
 
     dm1 = xgb.DMatrix(X, y)
 
     bst = xgb.train(parameters, dm1)
     bst.save_model(model_path)
+
     if model_path.endswith("ubj"):
         import ubjson
         with open(model_path, "rb") as ubjfd:
@@ -326,23 +330,42 @@ class TestModels:
         from_ubjraw = xgb.Booster()
         from_ubjraw.load_model(ubj_raw)
 
-        old_from_json = from_jraw.save_raw(raw_format="deprecated")
-        old_from_ubj = from_ubjraw.save_raw(raw_format="deprecated")
+        if parameters.get("multi_strategy", None) != "multi_output_tree":
+            # old binary model is not supported.
+            old_from_json = from_jraw.save_raw(raw_format="deprecated")
+            old_from_ubj = from_ubjraw.save_raw(raw_format="deprecated")
 
-        assert old_from_json == old_from_ubj
+            assert old_from_json == old_from_ubj
 
         raw_json = bst.save_raw(raw_format="json")
         pretty = json.dumps(json.loads(raw_json), indent=2) + "\n\n"
         bst.load_model(bytearray(pretty, encoding="ascii"))
 
-        old_from_json = from_jraw.save_raw(raw_format="deprecated")
-        old_from_ubj = from_ubjraw.save_raw(raw_format="deprecated")
+        if parameters.get("multi_strategy", None) != "multi_output_tree":
+            # old binary model is not supported.
+            old_from_json = from_jraw.save_raw(raw_format="deprecated")
+            old_from_ubj = from_ubjraw.save_raw(raw_format="deprecated")
 
-        assert old_from_json == old_from_ubj
+            assert old_from_json == old_from_ubj
+
+        rng = np.random.default_rng()
+        X = rng.random(size=from_jraw.num_features() * 10).reshape(
+            (10, from_jraw.num_features())
+        )
+        predt_from_jraw = from_jraw.predict(xgb.DMatrix(X))
+        predt_from_bst = bst.predict(xgb.DMatrix(X))
+        np.testing.assert_allclose(predt_from_jraw, predt_from_bst)
 
     @pytest.mark.parametrize("ext", ["json", "ubj"])
     def test_model_json_io(self, ext: str) -> None:
         parameters = {"booster": "gbtree", "tree_method": "hist"}
+        self.run_model_json_io(parameters, ext)
+        parameters = {
+            "booster": "gbtree",
+            "tree_method": "hist",
+            "multi_strategy": "multi_output_tree",
+            "objective": "multi:softmax",
+        }
         self.run_model_json_io(parameters, ext)
         parameters = {"booster": "gblinear"}
         self.run_model_json_io(parameters, ext)

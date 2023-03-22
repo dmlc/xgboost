@@ -82,7 +82,7 @@ class TestRanking:
         """
         cls.dpath = 'demo/rank/'
         (x_train, y_train, qid_train, x_test, y_test, qid_test,
-         x_valid, y_valid, qid_valid) = tm.get_mq2008(cls.dpath)
+         x_valid, y_valid, qid_valid) = tm.data.get_mq2008(cls.dpath)
 
         # instantiate the matrices
         cls.dtrain = xgboost.DMatrix(x_train, y_train)

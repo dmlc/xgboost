@@ -11,7 +11,11 @@ can be simultaneously classified as both sci-fi and comedy.  For detailed explan
 terminologies related to different multi-output models please refer to the
 :doc:`scikit-learn user guide <sklearn:modules/multiclass>`.
 
-Internally, XGBoost builds one model for each target similar to sklearn meta estimators,
+**********************************
+Training with One-Model-Per-Target
+**********************************
+
+By default, XGBoost builds one model for each target similar to sklearn meta estimators,
 with the added benefit of reusing data and other integrated features like SHAP.  For a
 worked example of regression, see
 :ref:`sphx_glr_python_examples_multioutput_regression.py`. For multi-label classification,
@@ -36,3 +40,26 @@ dense matrix for labels.
 
 
 The feature is still under development with limited support from objectives and metrics.
+
+*************************
+Training with Vector Leaf
+*************************
+
+.. versionadded:: 2.0
+
+.. note::
+
+   This is still working-in-progress, and many features are missing.
+
+XGBoost can optionally build multi-output trees with the size of leaf equals to the number
+of targets when the tree method `hist` is used. The behavior can be controlled by the
+``multi_strategy`` training parameter, which can take the value `one_output_per_tree` (the
+default) for building one model per-target or `multi_output_tree` for building
+multi-output trees.
+
+.. code-block:: python
+
+  clf = xgb.XGBClassifier(tree_method="hist", multi_strategy="multi_output_tree")
+
+See :ref:`sphx_glr_python_examples_multioutput_regression.py` for a worked example with
+regression.

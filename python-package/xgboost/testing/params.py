@@ -4,8 +4,8 @@ from typing import cast
 
 import pytest
 
-hypothesis = pytest.importorskip("hypothesis")
-from hypothesis import strategies  # pylint:disable=wrong-import-position
+strategies = pytest.importorskip("hypothesis.strategies")
+
 
 exact_parameter_strategy = strategies.fixed_dictionaries(
     {
@@ -29,6 +29,26 @@ hist_parameter_strategy = strategies.fixed_dictionaries(
         "max_depth": strategies.integers(1, 11),
         "max_leaves": strategies.integers(0, 1024),
         "max_bin": strategies.integers(2, 512),
+        "grow_policy": strategies.sampled_from(["lossguide", "depthwise"]),
+        "min_child_weight": strategies.floats(0.5, 2.0),
+        # We cannot enable subsampling as the training loss can increase
+        # 'subsample': strategies.floats(0.5, 1.0),
+        "colsample_bytree": strategies.floats(0.5, 1.0),
+        "colsample_bylevel": strategies.floats(0.5, 1.0),
+    }
+).filter(
+    lambda x: (cast(int, x["max_depth"]) > 0 or cast(int, x["max_leaves"]) > 0)
+    and (cast(int, x["max_depth"]) > 0 or x["grow_policy"] == "lossguide")
+)
+
+hist_multi_parameter_strategy = strategies.fixed_dictionaries(
+    {
+        "max_depth": strategies.integers(1, 11),
+        "max_leaves": strategies.integers(0, 1024),
+        "max_bin": strategies.integers(2, 512),
+        "multi_strategy": strategies.sampled_from(
+            ["multi_output_tree", "one_output_per_tree"]
+        ),
         "grow_policy": strategies.sampled_from(["lossguide", "depthwise"]),
         "min_child_weight": strategies.floats(0.5, 2.0),
         # We cannot enable subsampling as the training loss can increase

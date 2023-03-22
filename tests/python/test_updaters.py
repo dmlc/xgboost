@@ -11,6 +11,7 @@ from xgboost import testing as tm
 from xgboost.testing.params import (
     cat_parameter_strategy,
     exact_parameter_strategy,
+    hist_multi_parameter_strategy,
     hist_parameter_strategy,
 )
 from xgboost.testing.updater import check_init_estimation, check_quantile_loss
@@ -18,9 +19,68 @@ from xgboost.testing.updater import check_init_estimation, check_quantile_loss
 
 def train_result(param, dmat, num_rounds):
     result = {}
-    xgb.train(param, dmat, num_rounds, [(dmat, 'train')], verbose_eval=False,
-              evals_result=result)
+    booster = xgb.train(
+        param,
+        dmat,
+        num_rounds,
+        [(dmat, "train")],
+        verbose_eval=False,
+        evals_result=result,
+    )
+    assert booster.num_features() == dmat.num_col()
+    assert booster.num_boosted_rounds() == num_rounds
+    assert booster.feature_names == dmat.feature_names
+    assert booster.feature_types == dmat.feature_types
+
     return result
+
+
+class TestTreeMethodMulti:
+    @given(
+        exact_parameter_strategy, strategies.integers(1, 20), tm.multi_dataset_strategy
+    )
+    @settings(deadline=None, print_blob=True)
+    def test_exact(self, param: dict, num_rounds: int, dataset: tm.TestDataset) -> None:
+        if dataset.name.endswith("-l1"):
+            return
+        param["tree_method"] = "exact"
+        param = dataset.set_params(param)
+        result = train_result(param, dataset.get_dmat(), num_rounds)
+        assert tm.non_increasing(result["train"][dataset.metric])
+
+    @given(
+        exact_parameter_strategy,
+        hist_parameter_strategy,
+        strategies.integers(1, 20),
+        tm.multi_dataset_strategy,
+    )
+    @settings(deadline=None, print_blob=True)
+    def test_approx(self, param, hist_param, num_rounds, dataset):
+        param["tree_method"] = "approx"
+        param = dataset.set_params(param)
+        param.update(hist_param)
+        result = train_result(param, dataset.get_dmat(), num_rounds)
+        note(result)
+        assert tm.non_increasing(result["train"][dataset.metric])
+
+    @given(
+        exact_parameter_strategy,
+        hist_multi_parameter_strategy,
+        strategies.integers(1, 20),
+        tm.multi_dataset_strategy,
+    )
+    @settings(deadline=None, print_blob=True)
+    def test_hist(
+        self, param: dict, hist_param: dict, num_rounds: int, dataset: tm.TestDataset
+    ) -> None:
+        if dataset.name.endswith("-l1"):
+            return
+        param["tree_method"] = "hist"
+        param = dataset.set_params(param)
+        param.update(hist_param)
+        result = train_result(param, dataset.get_dmat(), num_rounds)
+        note(result)
+        assert tm.non_increasing(result["train"][dataset.metric])
 
 
 class TestTreeMethod:
@@ -77,33 +137,20 @@ class TestTreeMethod:
         # Second prune should not change the tree
         assert after_prune == second_prune
 
-    @given(exact_parameter_strategy, hist_parameter_strategy, strategies.integers(1, 20),
-           tm.dataset_strategy)
+    @given(
+        exact_parameter_strategy,
+        hist_parameter_strategy,
+        strategies.integers(1, 20),
+        tm.dataset_strategy
+    )
     @settings(deadline=None, print_blob=True)
-    def test_hist(self, param, hist_param, num_rounds, dataset):
+    def test_hist(self, param: dict, hist_param: dict, num_rounds: int, dataset: tm.TestDataset) -> None:
         param['tree_method'] = 'hist'
         param = dataset.set_params(param)
         param.update(hist_param)
         result = train_result(param, dataset.get_dmat(), num_rounds)
         note(result)
         assert tm.non_increasing(result['train'][dataset.metric])
-
-    @given(tm.sparse_datasets_strategy)
-    @settings(deadline=None, print_blob=True)
-    def test_sparse(self, dataset):
-        param = {"tree_method": "hist", "max_bin": 64}
-        hist_result = train_result(param, dataset.get_dmat(), 16)
-        note(hist_result)
-        assert tm.non_increasing(hist_result['train'][dataset.metric])
-
-        param = {"tree_method": "approx", "max_bin": 64}
-        approx_result = train_result(param, dataset.get_dmat(), 16)
-        note(approx_result)
-        assert tm.non_increasing(approx_result['train'][dataset.metric])
-
-        np.testing.assert_allclose(
-            hist_result["train"]["rmse"], approx_result["train"]["rmse"]
-        )
 
     def test_hist_categorical(self):
         # hist must be same as exact on all-categorial data
@@ -142,6 +189,23 @@ class TestTreeMethod:
         y = [1000000., 0., 0., 500000.]
         w = [0, 0, 1, 0]
         model.fit(X, y, sample_weight=w)
+
+    @given(tm.sparse_datasets_strategy)
+    @settings(deadline=None, print_blob=True)
+    def test_sparse(self, dataset):
+        param = {"tree_method": "hist", "max_bin": 64}
+        hist_result = train_result(param, dataset.get_dmat(), 16)
+        note(hist_result)
+        assert tm.non_increasing(hist_result['train'][dataset.metric])
+
+        param = {"tree_method": "approx", "max_bin": 64}
+        approx_result = train_result(param, dataset.get_dmat(), 16)
+        note(approx_result)
+        assert tm.non_increasing(approx_result['train'][dataset.metric])
+
+        np.testing.assert_allclose(
+            hist_result["train"]["rmse"], approx_result["train"]["rmse"]
+        )
 
     def run_invalid_category(self, tree_method: str) -> None:
         rng = np.random.default_rng()
@@ -365,7 +429,7 @@ class TestTreeMethod:
     ) -> None:
         cat_parameters.update(hist_parameters)
         dataset = tm.TestDataset(
-            "ames_housing", tm.get_ames_housing, "reg:squarederror", "rmse"
+            "ames_housing", tm.data.get_ames_housing, "reg:squarederror", "rmse"
         )
         cat_parameters["tree_method"] = tree_method
         results = train_result(cat_parameters, dataset.get_dmat(), 16)

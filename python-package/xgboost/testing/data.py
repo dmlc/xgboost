@@ -1,12 +1,19 @@
 """Utilities for data generation."""
-from typing import Any, Generator, Tuple, Union
+import os
+import zipfile
+from typing import Any, Generator, List, Tuple, Union
+from urllib import request
 
 import numpy as np
 import pytest
 from numpy.random import Generator as RNG
+from scipy import sparse
 
 import xgboost
 from xgboost.data import pandas_pyarrow_mapper
+
+joblib = pytest.importorskip("joblib")
+memory = joblib.Memory("./cachedir", verbose=0)
 
 
 def np_dtypes(
@@ -195,3 +202,141 @@ def check_inf(rng: RNG) -> None:
 
     with pytest.raises(ValueError, match="Input data contains `inf`"):
         xgboost.DMatrix(X, y)
+
+
+@memory.cache
+def get_california_housing() -> Tuple[np.ndarray, np.ndarray]:
+    """Fetch the California housing dataset from sklearn."""
+    datasets = pytest.importorskip("sklearn.datasets")
+    data = datasets.fetch_california_housing()
+    return data.data, data.target
+
+
+@memory.cache
+def get_digits() -> Tuple[np.ndarray, np.ndarray]:
+    """Fetch the digits dataset from sklearn."""
+    datasets = pytest.importorskip("sklearn.datasets")
+    data = datasets.load_digits()
+    return data.data, data.target
+
+
+@memory.cache
+def get_cancer() -> Tuple[np.ndarray, np.ndarray]:
+    """Fetch the breast cancer dataset from sklearn."""
+    datasets = pytest.importorskip("sklearn.datasets")
+    return datasets.load_breast_cancer(return_X_y=True)
+
+
+@memory.cache
+def get_sparse() -> Tuple[np.ndarray, np.ndarray]:
+    """Generate a sparse dataset."""
+    datasets = pytest.importorskip("sklearn.datasets")
+    rng = np.random.RandomState(199)
+    n = 2000
+    sparsity = 0.75
+    X, y = datasets.make_regression(n, random_state=rng)
+    flag = rng.binomial(1, sparsity, X.shape)
+    for i in range(X.shape[0]):
+        for j in range(X.shape[1]):
+            if flag[i, j]:
+                X[i, j] = np.nan
+    return X, y
+
+
+@memory.cache
+def get_ames_housing() -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Number of samples: 1460
+    Number of features: 20
+    Number of categorical features: 10
+    Number of numerical features: 10
+    """
+    datasets = pytest.importorskip("sklearn.datasets")
+    X, y = datasets.fetch_openml(data_id=42165, as_frame=True, return_X_y=True)
+
+    categorical_columns_subset: List[str] = [
+        "BldgType",  # 5 cats, no nan
+        "GarageFinish",  # 3 cats, nan
+        "LotConfig",  # 5 cats, no nan
+        "Functional",  # 7 cats, no nan
+        "MasVnrType",  # 4 cats, nan
+        "HouseStyle",  # 8 cats, no nan
+        "FireplaceQu",  # 5 cats, nan
+        "ExterCond",  # 5 cats, no nan
+        "ExterQual",  # 4 cats, no nan
+        "PoolQC",  # 3 cats, nan
+    ]
+
+    numerical_columns_subset: List[str] = [
+        "3SsnPorch",
+        "Fireplaces",
+        "BsmtHalfBath",
+        "HalfBath",
+        "GarageCars",
+        "TotRmsAbvGrd",
+        "BsmtFinSF1",
+        "BsmtFinSF2",
+        "GrLivArea",
+        "ScreenPorch",
+    ]
+
+    X = X[categorical_columns_subset + numerical_columns_subset]
+    X[categorical_columns_subset] = X[categorical_columns_subset].astype("category")
+    return X, y
+
+
+@memory.cache
+def get_mq2008(
+    dpath: str,
+) -> Tuple[
+    sparse.csr_matrix,
+    np.ndarray,
+    np.ndarray,
+    sparse.csr_matrix,
+    np.ndarray,
+    np.ndarray,
+    sparse.csr_matrix,
+    np.ndarray,
+    np.ndarray,
+]:
+    """Fetch the mq2008 dataset."""
+    datasets = pytest.importorskip("sklearn.datasets")
+    src = "https://s3-us-west-2.amazonaws.com/xgboost-examples/MQ2008.zip"
+    target = os.path.join(dpath, "MQ2008.zip")
+    if not os.path.exists(target):
+        request.urlretrieve(url=src, filename=target)
+
+    with zipfile.ZipFile(target, "r") as f:
+        f.extractall(path=dpath)
+
+    (
+        x_train,
+        y_train,
+        qid_train,
+        x_test,
+        y_test,
+        qid_test,
+        x_valid,
+        y_valid,
+        qid_valid,
+    ) = datasets.load_svmlight_files(
+        (
+            os.path.join(dpath, "MQ2008/Fold1/train.txt"),
+            os.path.join(dpath, "MQ2008/Fold1/test.txt"),
+            os.path.join(dpath, "MQ2008/Fold1/vali.txt"),
+        ),
+        query_id=True,
+        zero_based=False,
+    )
+
+    return (
+        x_train,
+        y_train,
+        qid_train,
+        x_test,
+        y_test,
+        qid_test,
+        x_valid,
+        y_valid,
+        qid_valid,
+    )

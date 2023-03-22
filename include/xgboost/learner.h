@@ -286,8 +286,8 @@ struct LearnerModelParamLegacy;
  * \brief Strategy for building multi-target models.
  */
 enum class MultiStrategy : std::int32_t {
-  kComposite = 0,
-  kMonolithic = 1,
+  kOneOutputPerTree = 0,
+  kMultiOutputTree = 1,
 };
 
 /**
@@ -317,7 +317,7 @@ struct LearnerModelParam {
   /**
    * \brief Strategy for building multi-target models.
    */
-  MultiStrategy multi_strategy{MultiStrategy::kComposite};
+  MultiStrategy multi_strategy{MultiStrategy::kOneOutputPerTree};
 
   LearnerModelParam() = default;
   // As the old `LearnerModelParamLegacy` is still used by binary IO, we keep
@@ -338,7 +338,7 @@ struct LearnerModelParam {
 
   void Copy(LearnerModelParam const& that);
   [[nodiscard]] bool IsVectorLeaf() const noexcept {
-    return multi_strategy == MultiStrategy::kMonolithic;
+    return multi_strategy == MultiStrategy::kMultiOutputTree;
   }
   [[nodiscard]] bst_target_t OutputLength() const noexcept { return this->num_output_group; }
   [[nodiscard]] bst_target_t LeafLength() const noexcept {

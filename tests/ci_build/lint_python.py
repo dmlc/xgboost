@@ -3,7 +3,7 @@ import os
 import subprocess
 import sys
 from multiprocessing import Pool, cpu_count
-from typing import Dict, Optional, Tuple
+from typing import Dict, Tuple
 
 from pylint import epylint
 from test_utils import PY_PACKAGE, ROOT, cd, print_time, record_time
@@ -15,8 +15,11 @@ SRCPATH = os.path.normpath(
 
 
 @record_time
-def run_black(rel_path: str) -> bool:
-    cmd = ["black", "-q", "--check", rel_path]
+def run_black(rel_path: str, fix: bool) -> bool:
+    if fix:
+        cmd = ["black", "-q", rel_path]
+    else:
+        cmd = ["black", "-q", "--check", rel_path]
     ret = subprocess.run(cmd).returncode
     if ret != 0:
         subprocess.run(["black", "--version"])
@@ -31,8 +34,11 @@ Please run the following command on your machine to address the formatting error
 
 
 @record_time
-def run_isort(rel_path: str) -> bool:
-    cmd = ["isort", f"--src={SRCPATH}", "--check", "--profile=black", rel_path]
+def run_isort(rel_path: str, fix: bool) -> bool:
+    if fix:
+        cmd = ["isort", f"--src={SRCPATH}", "--profile=black", rel_path]
+    else:
+        cmd = ["isort", f"--src={SRCPATH}", "--check", "--profile=black", rel_path]
     ret = subprocess.run(cmd).returncode
     if ret != 0:
         subprocess.run(["isort", "--version"])
@@ -132,7 +138,7 @@ def run_pylint() -> bool:
 def main(args: argparse.Namespace) -> None:
     if args.format == 1:
         black_results = [
-            run_black(path)
+            run_black(path, args.fix)
             for path in [
                 # core
                 "python-package/",
@@ -166,7 +172,7 @@ def main(args: argparse.Namespace) -> None:
             sys.exit(-1)
 
         isort_results = [
-            run_isort(path)
+            run_isort(path, args.fix)
             for path in [
                 # core
                 "python-package/",
@@ -230,6 +236,11 @@ if __name__ == "__main__":
     parser.add_argument("--format", type=int, choices=[0, 1], default=1)
     parser.add_argument("--type-check", type=int, choices=[0, 1], default=1)
     parser.add_argument("--pylint", type=int, choices=[0, 1], default=1)
+    parser.add_argument(
+        "--fix",
+        action="store_true",
+        help="Fix the formatting issues instead of emitting an error.",
+    )
     args = parser.parse_args()
     try:
         main(args)

@@ -465,7 +465,7 @@ class TestCallbacks:
                 assert os.path.exists(os.path.join(tmpdir, "model_" + str(i) + ".pkl"))
 
     def test_callback_list(self):
-        X, y = tm.get_california_housing()
+        X, y = tm.data.get_california_housing()
         m = xgb.DMatrix(X, y)
         callbacks = [xgb.callback.EarlyStopping(rounds=10)]
         for i in range(4):

@@ -226,6 +226,18 @@ Parameters for Tree Booster
     list is a group of indices of features that are allowed to interact with each other.
     See :doc:`/tutorials/feature_interaction_constraint` for more information.
 
+* ``multi_strategy``, [default = ``one_output_per_tree``]
+
+  .. versionadded:: 2.0.0
+
+  .. note:: This parameter is working-in-progress.
+
+  - The strategy used for training multi-target models, including multi-target regression
+  and multi-class classification. See :doc:`/tutorials/multioutput` for more information.
+
+    - ``one_output_per_tree``: One model for each target.
+    - ``multi_output_tree``:  Use multi-target trees.
+
 .. _cat-param:
 
 Parameters for Categorical Feature
