@@ -882,7 +882,6 @@ std::string const LearnerConfiguration::kEvalMetric {"eval_metric"};  // NOLINT
 
 class LearnerIO : public LearnerConfiguration {
  private:
-  std::set<std::string> saved_configs_ = {"num_round"};
   // Used to identify the offset of JSON string when
   // Will be removed once JSON takes over.  Right now we still loads some RDS files from R.
   std::string const serialisation_header_ { u8"CONFIG-offset:" };
@@ -1035,21 +1034,11 @@ class LearnerIO : public LearnerConfiguration {
     CHECK(fi->Read(&tparam_.booster)) << "BoostLearner: wrong model format";
 
     obj_.reset(ObjFunction::Create(tparam_.objective, &ctx_));
-    gbm_.reset(GradientBooster::Create(tparam_.booster, &ctx_,
-                                       &learner_model_param_));
+    gbm_.reset(GradientBooster::Create(tparam_.booster, &ctx_, &learner_model_param_));
     gbm_->Load(fi);
     if (mparam_.contain_extra_attrs != 0) {
       std::vector<std::pair<std::string, std::string> > attr;
       fi->Read(&attr);
-      for (auto& kv : attr) {
-        const std::string prefix = "SAVED_PARAM_";
-        if (kv.first.find(prefix) == 0) {
-          const std::string saved_param = kv.first.substr(prefix.length());
-          if (saved_configs_.find(saved_param) != saved_configs_.end()) {
-            cfg_[saved_param] = kv.second;
-          }
-        }
-      }
       attributes_ = std::map<std::string, std::string>(attr.begin(), attr.end());
     }
     bool warn_old_model { false };
@@ -1132,16 +1121,6 @@ class LearnerIO : public LearnerConfiguration {
     std::vector<std::pair<std::string, std::string> > extra_attr;
     mparam.contain_extra_attrs = 1;
 
-    {
-      std::vector<std::string> saved_params;
-      for (const auto& key : saved_params) {
-        auto it = cfg_.find(key);
-        if (it != cfg_.end()) {
-          mparam.contain_extra_attrs = 1;
-          extra_attr.emplace_back("SAVED_PARAM_" + key, it->second);
-        }
-      }
-    }
     {
       // Similar to JSON model IO, we save the objective.
       Json j_obj { Object() };
