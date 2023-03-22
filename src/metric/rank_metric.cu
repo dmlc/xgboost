@@ -170,7 +170,6 @@ PackedReduceResult MAPScore(Context const *ctx, MetaInfo const &info,
                             HostDeviceVector<float> const &predt, bool minus,
                             std::shared_ptr<ltr::MAPCache> p_cache) {
   auto d_group_ptr = p_cache->DataGroupPtr(ctx);
-  auto n_groups = info.group_ptr_.size() - 1;
   auto d_label = info.labels.View(ctx->gpu_id).Slice(linalg::All(), 0);
 
   predt.SetDevice(ctx->gpu_id);
