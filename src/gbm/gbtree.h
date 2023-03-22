@@ -111,8 +111,6 @@ struct DartTrainParam : public XGBoostParameter<DartTrainParam> {
   bool one_drop;
   /*! \brief probability of skipping the dropout during an iteration */
   float skip_drop;
-  /*! \brief learning step size for a time */
-  float learning_rate;
   // declare parameters
   DMLC_DECLARE_PARAMETER(DartTrainParam) {
     DMLC_DECLARE_FIELD(sample_type)
@@ -136,11 +134,6 @@ struct DartTrainParam : public XGBoostParameter<DartTrainParam> {
         .set_range(0.0f, 1.0f)
         .set_default(0.0f)
         .describe("Probability of skipping the dropout during a boosting iteration.");
-    DMLC_DECLARE_FIELD(learning_rate)
-        .set_lower_bound(0.0f)
-        .set_default(0.3f)
-        .describe("Learning rate(step size) of update.");
-    DMLC_DECLARE_ALIAS(learning_rate, eta);
   }
 };
 
