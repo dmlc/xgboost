@@ -302,7 +302,7 @@ def get_mq2008(
     """Fetch the mq2008 dataset."""
     datasets = pytest.importorskip("sklearn.datasets")
     src = "https://s3-us-west-2.amazonaws.com/xgboost-examples/MQ2008.zip"
-    target = dpath + "/MQ2008.zip"
+    target = os.path.join(dpath, "MQ2008.zip")
     if not os.path.exists(target):
         request.urlretrieve(url=src, filename=target)
 
@@ -321,9 +321,9 @@ def get_mq2008(
         qid_valid,
     ) = datasets.load_svmlight_files(
         (
-            dpath + "MQ2008/Fold1/train.txt",
-            dpath + "MQ2008/Fold1/test.txt",
-            dpath + "MQ2008/Fold1/vali.txt",
+            os.path.join(dpath, "MQ2008/Fold1/train.txt"),
+            os.path.join(dpath, "MQ2008/Fold1/test.txt"),
+            os.path.join(dpath, "MQ2008/Fold1/vali.txt"),
         ),
         query_id=True,
         zero_based=False,
