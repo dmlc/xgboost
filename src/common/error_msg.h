@@ -22,7 +22,7 @@ constexpr StringView LabelScoreSize() {
 }
 
 constexpr StringView InfInData() {
-  return "Input data contains `inf` while `missing` is not set to `inf`";
+  return "Input data contains `inf` or a value too large, while `missing` is not set to `inf`";
 }
 }  // namespace xgboost::error
 #endif  // XGBOOST_COMMON_ERROR_MSG_H_

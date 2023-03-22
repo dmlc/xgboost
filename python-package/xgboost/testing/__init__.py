@@ -14,6 +14,7 @@ import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from io import StringIO
+from pathlib import Path
 from platform import system
 from typing import (
     Any,
@@ -443,7 +444,7 @@ def get_mq2008(
     from sklearn.datasets import load_svmlight_files
 
     src = "https://s3-us-west-2.amazonaws.com/xgboost-examples/MQ2008.zip"
-    target = dpath + "/MQ2008.zip"
+    target = os.path.join(os.path.expanduser(dpath), "MQ2008.zip")
     if not os.path.exists(target):
         request.urlretrieve(url=src, filename=target)
 
@@ -462,9 +463,9 @@ def get_mq2008(
         qid_valid,
     ) = load_svmlight_files(
         (
-            dpath + "MQ2008/Fold1/train.txt",
-            dpath + "MQ2008/Fold1/test.txt",
-            dpath + "MQ2008/Fold1/vali.txt",
+            Path(dpath) / "MQ2008" / "Fold1" / "train.txt",
+            Path(dpath) / "MQ2008" / "Fold1" / "test.txt",
+            Path(dpath) / "MQ2008" / "Fold1" / "vali.txt",
         ),
         query_id=True,
         zero_based=False,

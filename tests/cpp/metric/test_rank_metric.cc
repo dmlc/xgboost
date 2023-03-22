@@ -141,7 +141,7 @@ TEST(Metric, DeclareUnifiedTest(MAP)) {
   // Rank metric with group info
   EXPECT_NEAR(GetMetricEval(metric,
                             {0.1f, 0.9f, 0.2f, 0.8f, 0.4f, 1.7f},
-                            {2, 7, 1, 0, 5, 0},  // Labels
+                            {1, 1, 1, 0, 1, 0},  // Labels
                             {},  // Weights
                             {0, 2, 5, 6}),  // Group info
               0.8611f, 0.001f);

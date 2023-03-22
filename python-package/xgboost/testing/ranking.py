@@ -48,7 +48,12 @@ def run_ranking_qid_df(impl: ModuleType, tree_method: str) -> None:
     def neg_mse(*args: Any, **kwargs: Any) -> float:
         return -float(mean_squared_error(*args, **kwargs))
 
-    ranker = xgb.XGBRanker(n_estimators=3, eval_metric=neg_mse, tree_method=tree_method)
+    ranker = xgb.XGBRanker(
+        n_estimators=3,
+        eval_metric=neg_mse,
+        tree_method=tree_method,
+        disable_default_eval_metric=True,
+    )
     ranker.fit(df, y, eval_set=[(valid_df, y)])
     score = ranker.score(valid_df, y)
     assert np.isclose(score, ranker.evals_result()["validation_0"]["neg_mse"][-1])

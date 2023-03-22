@@ -204,4 +204,9 @@ void NDCGCache::InitOnCUDA(Context const* ctx, MetaInfo const& info) {
   dh::LaunchN(MaxGroupSize(), cuctx->Stream(),
               [=] XGBOOST_DEVICE(std::size_t i) { d_discount[i] = CalcDCGDiscount(i); });
 }
+
+void MAPCache::InitOnCUDA(Context const* ctx, MetaInfo const& info) {
+  auto const d_label = info.labels.View(ctx->gpu_id).Slice(linalg::All(), 0);
+  CheckMapLabels(d_label, CheckMAPOp{ctx->CUDACtx()});
+}
 }  // namespace xgboost::ltr

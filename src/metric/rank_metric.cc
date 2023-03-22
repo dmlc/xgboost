@@ -284,37 +284,6 @@ struct EvalPrecision : public EvalRank {
   }
 };
 
-/*! \brief Mean Average Precision at N, for both classification and rank */
-struct EvalMAP : public EvalRank {
- public:
-  explicit EvalMAP(const char* name, const char* param) : EvalRank(name, param) {}
-
-  double EvalGroup(PredIndPairContainer *recptr) const override {
-    PredIndPairContainer &rec(*recptr);
-    std::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
-    unsigned nhits = 0;
-    double sumap = 0.0;
-    for (size_t i = 0; i < rec.size(); ++i) {
-      if (rec[i].second != 0) {
-        nhits += 1;
-        if (i < this->topn) {
-          sumap += static_cast<double>(nhits) / (i + 1);
-        }
-      }
-    }
-    if (nhits != 0) {
-      sumap /= nhits;
-      return sumap;
-    } else {
-      if (this->minus) {
-        return 0.0;
-      } else {
-        return 1.0;
-      }
-    }
-  }
-};
-
 /*! \brief Cox: Partial likelihood of the Cox proportional hazards model */
 struct EvalCox : public MetricNoCache {
  public:
@@ -369,10 +338,6 @@ XGBOOST_REGISTER_METRIC(AMS, "ams")
 XGBOOST_REGISTER_METRIC(Precision, "pre")
 .describe("precision@k for rank.")
 .set_body([](const char* param) { return new EvalPrecision("pre", param); });
-
-XGBOOST_REGISTER_METRIC(MAP, "map")
-.describe("map@k for rank.")
-.set_body([](const char* param) { return new EvalMAP("map", param); });
 
 XGBOOST_REGISTER_METRIC(Cox, "cox-nloglik")
 .describe("Negative log partial likelihood of Cox proportional hazards model.")
@@ -515,6 +480,68 @@ class EvalNDCG : public EvalRankWithCache<ltr::NDCGCache> {
     return Finalize(ndcg, sum_w);
   }
 };
+
+class EvalMAPScore : public EvalRankWithCache<ltr::MAPCache> {
+ public:
+  using EvalRankWithCache::EvalRankWithCache;
+  const char* Name() const override { return name_.c_str(); }
+
+  double Eval(HostDeviceVector<float> const& predt, MetaInfo const& info,
+              std::shared_ptr<ltr::MAPCache> p_cache) override {
+    if (ctx_->IsCUDA()) {
+      auto map = cuda_impl::MAPScore(ctx_, info, predt, minus_, p_cache);
+      return Finalize(map.Residue(), map.Weights());
+    }
+
+    auto gptr = p_cache->DataGroupPtr(ctx_);
+    auto h_label = info.labels.HostView().Slice(linalg::All(), 0);
+    auto h_predt = linalg::MakeTensorView(ctx_, &predt, predt.Size());
+
+    auto map_gloc = p_cache->Map(ctx_);
+    std::fill_n(map_gloc.data(), map_gloc.size(), 0.0);
+    auto rank_idx = p_cache->SortedIdx(ctx_, predt.ConstHostSpan());
+
+    common::ParallelFor(p_cache->Groups(), ctx_->Threads(), [&](auto g) {
+      auto g_predt = h_predt.Slice(linalg::Range(gptr[g], gptr[g + 1]));
+      auto g_label = h_label.Slice(linalg::Range(gptr[g], gptr[g + 1]));
+      auto g_rank = rank_idx.subspan(gptr[g]);
+
+      auto n = std::min(static_cast<std::size_t>(param_.TopK()), g_label.Size());
+      double n_hits{0.0};
+      for (std::size_t i = 0; i < n; ++i) {
+        auto p = g_label(g_rank[i]);
+        n_hits += p;
+        map_gloc[g] += n_hits / static_cast<double>((i + 1)) * p;
+      }
+      for (std::size_t i = n; i < g_label.Size(); ++i) {
+        n_hits += g_label(g_rank[i]);
+      }
+      if (n_hits > 0.0) {
+        map_gloc[g] /= std::min(n_hits, static_cast<double>(param_.TopK()));
+      } else {
+        map_gloc[g] = minus_ ? 0.0 : 1.0;
+      }
+    });
+
+    auto sw = 0.0;
+    auto weight = common::MakeOptionalWeights(ctx_, info.weights_);
+    if (!weight.Empty()) {
+      CHECK_EQ(weight.weights.size(), p_cache->Groups());
+    }
+    for (std::size_t i = 0; i < map_gloc.size(); ++i) {
+      map_gloc[i] = map_gloc[i] * weight[i];
+      sw += weight[i];
+    }
+    auto sum = std::accumulate(map_gloc.cbegin(), map_gloc.cend(), 0.0);
+    return Finalize(sum, sw);
+  }
+};
+
+XGBOOST_REGISTER_METRIC(EvalMAP, "map")
+    .describe("map@k for ranking.")
+    .set_body([](char const* param) {
+      return new EvalMAPScore{"map", param};
+    });
 
 XGBOOST_REGISTER_METRIC(EvalNDCG, "ndcg")
     .describe("ndcg@k for ranking.")

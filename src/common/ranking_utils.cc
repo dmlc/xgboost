@@ -114,6 +114,15 @@ void NDCGCache::InitOnCUDA(Context const*, MetaInfo const&) { common::AssertGPUS
 
 DMLC_REGISTER_PARAMETER(LambdaRankParam);
 
+void MAPCache::InitOnCPU(Context const*, MetaInfo const& info) {
+  auto const& h_label = info.labels.HostView().Slice(linalg::All(), 0);
+  CheckMapLabels(h_label, [](auto beg, auto end, auto op) { return std::all_of(beg, end, op); });
+}
+
+#if !defined(XGBOOST_USE_CUDA)
+void MAPCache::InitOnCUDA(Context const*, MetaInfo const&) { common::AssertGPUSupport(); }
+#endif  // !defined(XGBOOST_USE_CUDA)
+
 std::string ParseMetricName(StringView name, StringView param, position_t* topn, bool* minus) {
   std::string out_name;
   if (!param.empty()) {

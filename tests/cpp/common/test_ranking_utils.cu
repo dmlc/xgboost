@@ -95,4 +95,10 @@ TEST(NDCGCache, InitFromGPU) {
   ctx.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
   TestNDCGCache(&ctx);
 }
+
+TEST(MAPCache, InitFromGPU) {
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
+  TestMAPCache(&ctx);
+}
 }  // namespace xgboost::ltr

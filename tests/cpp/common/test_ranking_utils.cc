@@ -177,4 +177,36 @@ TEST(NDCGCache, InitFromCPU) {
   Context ctx;
   TestNDCGCache(&ctx);
 }
+
+void TestMAPCache(Context const* ctx) {
+  auto p_fmat = EmptyDMatrix();
+  MetaInfo& info = p_fmat->Info();
+  LambdaRankParam param;
+  param.UpdateAllowUnknown(Args{});
+
+  std::vector<float> h_data(32);
+
+  common::Iota(ctx, h_data.begin(), h_data.end(), 0.0f);
+  info.labels.Reshape(h_data.size());
+  info.num_row_ = h_data.size();
+  info.labels.Data()->HostVector() = std::move(h_data);
+
+  auto fail = [&]() { std::make_shared<MAPCache>(ctx, info, param); };
+  // binary label
+  ASSERT_THROW(fail(), dmlc::Error);
+
+  h_data = std::vector<float>(32, 0.0f);
+  h_data[1] = 1.0f;
+  info.labels.Data()->HostVector() = h_data;
+  auto p_cache = std::make_shared<MAPCache>(ctx, info, param);
+
+  ASSERT_EQ(p_cache->Acc(ctx).size(), info.num_row_);
+  ASSERT_EQ(p_cache->NumRelevant(ctx).size(), info.num_row_);
+}
+
+TEST(MAPCache, InitFromCPU) {
+  Context ctx;
+  ctx.Init(Args{});
+  TestMAPCache(&ctx);
+}
 }  // namespace xgboost::ltr
