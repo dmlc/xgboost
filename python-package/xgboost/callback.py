@@ -324,7 +324,7 @@ class EarlyStopping(TrainingCallback):
 
             es = xgboost.callback.EarlyStopping(
                 rounds=2,
-                abs_tol=1e-3,
+                min_delta=1e-3,
                 save_best=True,
                 maximize=False,
                 data_name="validation_0",
