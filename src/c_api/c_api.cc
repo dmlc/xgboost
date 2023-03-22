@@ -1027,6 +1027,10 @@ XGB_DLL int XGBoosterInplacePredict(BoosterHandle handle,
   CHECK_HANDLE();
   xgboost::bst_ulong out_dim;
   std::shared_ptr<xgboost::data::DenseAdapter> x{new xgboost::data::DenseAdapter(data, num_rows, num_features)};
+  std::shared_ptr<DMatrix> p_m{nullptr};
+  p_m.reset(new data::DMatrixProxy);
+  auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
+  CHECK(proxy) << "Invalid input type for inplace predict.";
   auto *learner = static_cast<xgboost::Learner *>(handle);
   auto iteration_end = GetIterationFromTreeLimit(ntree_limit, learner);
   InplacePredictImplCore(nullptr, learner, (xgboost::PredictionType)0, missing, num_rows, num_features,
