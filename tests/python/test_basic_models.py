@@ -330,7 +330,7 @@ class TestModels:
         from_ubjraw = xgb.Booster()
         from_ubjraw.load_model(ubj_raw)
 
-        if parameters.get("multi_strategy", None) != "monolithic":
+        if parameters.get("multi_strategy", None) != "multi_output_tree":
             # old binary model is not supported.
             old_from_json = from_jraw.save_raw(raw_format="deprecated")
             old_from_ubj = from_ubjraw.save_raw(raw_format="deprecated")
@@ -341,7 +341,7 @@ class TestModels:
         pretty = json.dumps(json.loads(raw_json), indent=2) + "\n\n"
         bst.load_model(bytearray(pretty, encoding="ascii"))
 
-        if parameters.get("multi_strategy", None) != "monolithic":
+        if parameters.get("multi_strategy", None) != "multi_output_tree":
             # old binary model is not supported.
             old_from_json = from_jraw.save_raw(raw_format="deprecated")
             old_from_ubj = from_ubjraw.save_raw(raw_format="deprecated")
@@ -363,7 +363,7 @@ class TestModels:
         parameters = {
             "booster": "gbtree",
             "tree_method": "hist",
-            "multi_strategy": "monolithic",
+            "multi_strategy": "multi_output_tree",
             "objective": "multi:softmax",
         }
         self.run_model_json_io(parameters, ext)

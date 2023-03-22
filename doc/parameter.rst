@@ -226,7 +226,7 @@ Parameters for Tree Booster
     list is a group of indices of features that are allowed to interact with each other.
     See :doc:`/tutorials/feature_interaction_constraint` for more information.
 
-* ``multi_strategy``, [default = ``composite``]
+* ``multi_strategy``, [default = ``one_output_per_tree``]
 
   .. versionadded:: 2.0.0
 
@@ -235,8 +235,8 @@ Parameters for Tree Booster
   - The strategy used for training multi-target models, including multi-target regression
   and multi-class classification. See :doc:`/tutorials/multioutput` for more information.
 
-    - ``composite``: One model for each target.
-    - ``monolithic``:  Use multi-target trees.
+    - ``one_output_per_tree``: One model for each target.
+    - ``multi_output_tree``:  Use multi-target trees.
 
 .. _cat-param:
 

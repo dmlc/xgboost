@@ -322,8 +322,8 @@ __model_doc = f"""
         regression and multi-class classification. See :doc:`/tutorials/multioutput` for
         more information.
 
-        - ``composite``: One model for each target.
-        - ``monolithic``:  Use multi-target trees.
+        - ``one_output_per_tree``: One model for each target.
+        - ``multi_output_tree``:  Use multi-target trees.
 
     eval_metric : Optional[Union[str, List[str], Callable]]
 

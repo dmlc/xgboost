@@ -428,7 +428,7 @@ void TestVectorLeafPrediction(Context const *ctx) {
 
   LearnerModelParam mparam{static_cast<bst_feature_t>(kCols),
                            linalg::Vector<float>{{0.5}, {1}, Context::kCpuId}, 1, 3,
-                           MultiStrategy::kMonolithic};
+                           MultiStrategy::kMultiOutputTree};
 
   std::vector<std::unique_ptr<RegTree>> trees;
   trees.emplace_back(new RegTree{mparam.LeafLength(), mparam.num_feature});

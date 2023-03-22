@@ -53,12 +53,13 @@ Training with Vector Leaf
 
 XGBoost can optionally build multi-output trees with the size of leaf equals to the number
 of targets when the tree method `hist` is used. The behavior can be controlled by the
-``multi_strategy`` training parameter, which can take the value `composite` (the default)
-for building one model per-target or `monolithic` for building multi-output trees.
+``multi_strategy`` training parameter, which can take the value `one_output_per_tree` (the
+default) for building one model per-target or `multi_output_tree` for building
+multi-output trees.
 
 .. code-block:: python
 
-  clf = xgb.XGBClassifier(tree_method="hist", multi_strategy="monolithic")
+  clf = xgb.XGBClassifier(tree_method="hist", multi_strategy="multi_output_tree")
 
 See :ref:`sphx_glr_python_examples_multioutput_regression.py` for a worked example with
 regression.

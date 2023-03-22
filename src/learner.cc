@@ -326,7 +326,7 @@ struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
   std::string booster;
   std::string objective;
   // This is a training parameter and is not saved (nor loaded) in the model.
-  MultiStrategy multi_strategy{MultiStrategy::kComposite};
+  MultiStrategy multi_strategy{MultiStrategy::kOneOutputPerTree};
 
   // declare parameters
   DMLC_DECLARE_PARAMETER(LearnerTrainParam) {
@@ -339,12 +339,12 @@ struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
         .set_default("reg:squarederror")
         .describe("Objective function used for obtaining gradient.");
     DMLC_DECLARE_FIELD(multi_strategy)
-        .add_enum("composite", MultiStrategy::kComposite)
-        .add_enum("monolithic", MultiStrategy::kMonolithic)
-        .set_default(MultiStrategy::kComposite)
+        .add_enum("one_output_per_tree", MultiStrategy::kOneOutputPerTree)
+        .add_enum("multi_output_tree", MultiStrategy::kMultiOutputTree)
+        .set_default(MultiStrategy::kOneOutputPerTree)
         .describe(
-            "Strategy used for training multi-target models. `monolithic` means building one "
-            "single tree for all targets.");
+            "Strategy used for training multi-target models. `multi_output_tree` means building "
+            "one single tree for all targets.");
   }
 };
 

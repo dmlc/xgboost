@@ -10,7 +10,8 @@ See :doc:`/tutorials/multioutput` for more information.
 
 .. note::
 
-    The feature is experimental. For the monolithic strategy, many features are missing.
+    The feature is experimental. For the `multi_output_tree` strategy, many features are
+    missing.
 
 """
 
@@ -121,15 +122,15 @@ if __name__ == "__main__":
     args = parser.parse_args()
     # Train with builtin RMSE objective
     # - One model per output.
-    rmse_model(args.plot == 1, "composite")
+    rmse_model(args.plot == 1, "one_output_per_tree")
 
     # - One model for all outputs, this is still working in progress, many features are
     # missing.
-    rmse_model(args.plot == 1, "monolithic")
+    rmse_model(args.plot == 1, "multi_output_tree")
 
     # Train with custom objective.
     # - One model per output.
-    custom_rmse_model(args.plot == 1, "composite")
+    custom_rmse_model(args.plot == 1, "one_output_per_tree")
     # - One model for all outputs, this is still working in progress, many features are
     # missing.
-    custom_rmse_model(args.plot == 1, "monolithic")
+    custom_rmse_model(args.plot == 1, "multi_output_tree")
