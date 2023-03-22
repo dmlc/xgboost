@@ -17,6 +17,8 @@ namespace data {
 template <typename AdapterT>
 SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int32_t /*nthread*/,
                              DataSplitMode data_split_mode) {
+  CHECK(data_split_mode != DataSplitMode::kCol)
+      << "Column-wise data split is currently not supported on the GPU.";
   auto device = (adapter->DeviceIdx() < 0 || adapter->NumRows() == 0) ? dh::CurrentDevice()
                                                                       : adapter->DeviceIdx();
   CHECK_GE(device, 0);
@@ -37,7 +39,6 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int32_t /*nthread
   info_.num_row_ = adapter->NumRows();
   // Synchronise worker columns
   info_.data_split_mode = data_split_mode;
-  ReindexFeatures();
   info_.SynchronizeNumberOfColumns();
 }
 
