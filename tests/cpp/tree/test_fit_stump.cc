@@ -21,7 +21,8 @@ void TestFitStump(Context const *ctx) {
     }
   }
   linalg::Vector<float> out;
-  FitStump(ctx, gpair, kTargets, &out);
+  MetaInfo info;
+  FitStump(ctx, info, gpair, kTargets, &out);
   auto h_out = out.HostView();
   for (auto it = linalg::cbegin(h_out); it != linalg::cend(h_out); ++it) {
     // sum_hess == kRows

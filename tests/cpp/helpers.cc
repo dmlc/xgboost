@@ -65,6 +65,29 @@ void CreateBigTestData(const std::string& filename, size_t n_entries, bool zero_
   }
 }
 
+void CreateTestCSV(std::string const& path, size_t rows, size_t cols) {
+  std::vector<float> data(rows * cols);
+
+  for (size_t i = 0; i < rows * cols; ++i) {
+    data[i] = i;
+  }
+
+  std::ofstream fout(path);
+  size_t i = 0;
+  for (size_t r = 0; r < rows; ++r) {
+    for (size_t c = 0; c < cols; ++c) {
+      fout << data[i];
+      i++;
+      if (c != cols - 1) {
+        fout << ",";
+      }
+    }
+    fout << "\n";
+  }
+  fout.flush();
+  fout.close();
+}
+
 void CheckObjFunctionImpl(std::unique_ptr<xgboost::ObjFunction> const& obj,
                           std::vector<xgboost::bst_float> preds,
                           std::vector<xgboost::bst_float> labels,

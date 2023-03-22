@@ -33,7 +33,7 @@ void FitIntercept::InitEstimation(MetaInfo const& info, linalg::Vector<float>* b
   new_obj->GetGradient(dummy_predt, info, 0, &gpair);
   bst_target_t n_targets = this->Targets(info);
   linalg::Vector<float> leaf_weight;
-  tree::FitStump(this->ctx_, gpair, n_targets, &leaf_weight);
+  tree::FitStump(this->ctx_, info, gpair, n_targets, &leaf_weight);
 
   // workaround, we don't support multi-target due to binary model serialization for
   // base margin.

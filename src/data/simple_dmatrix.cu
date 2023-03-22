@@ -15,7 +15,10 @@ namespace data {
 // Current implementation assumes a single batch. More batches can
 // be supported in future. Does not currently support inferring row/column size
 template <typename AdapterT>
-SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int32_t /*nthread*/) {
+SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int32_t /*nthread*/,
+                             DataSplitMode data_split_mode) {
+  CHECK(data_split_mode != DataSplitMode::kCol)
+      << "Column-wise data split is currently not supported on the GPU.";
   auto device = (adapter->DeviceIdx() < 0 || adapter->NumRows() == 0) ? dh::CurrentDevice()
                                                                       : adapter->DeviceIdx();
   CHECK_GE(device, 0);
@@ -35,12 +38,13 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int32_t /*nthread
   info_.num_col_ = adapter->NumColumns();
   info_.num_row_ = adapter->NumRows();
   // Synchronise worker columns
-  collective::Allreduce<collective::Operation::kMax>(&info_.num_col_, 1);
+  info_.data_split_mode = data_split_mode;
+  info_.SynchronizeNumberOfColumns();
 }
 
 template SimpleDMatrix::SimpleDMatrix(CudfAdapter* adapter, float missing,
-                                      int nthread);
+                                      int nthread, DataSplitMode data_split_mode);
 template SimpleDMatrix::SimpleDMatrix(CupyAdapter* adapter, float missing,
-                                      int nthread);
+                                      int nthread, DataSplitMode data_split_mode);
 }  // namespace data
 }  // namespace xgboost

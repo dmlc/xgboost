@@ -112,31 +112,12 @@ TEST(SparsePage, SortIndices) {
 }
 
 TEST(DMatrix, Uri) {
-  size_t constexpr kRows {16};
-  size_t constexpr kCols {8};
-  std::vector<float> data (kRows * kCols);
-
-  for (size_t i = 0; i < kRows * kCols; ++i) {
-    data[i] = i;
-  }
+  auto constexpr kRows {16};
+  auto constexpr kCols {8};
 
   dmlc::TemporaryDirectory tmpdir;
-  std::string path = tmpdir.path + "/small.csv";
-
-  std::ofstream fout(path);
-  size_t i = 0;
-  for (size_t r = 0; r < kRows; ++r) {
-    for (size_t c = 0; c < kCols; ++c) {
-      fout << data[i];
-      i++;
-      if (c != kCols - 1) {
-        fout << ",";
-      }
-    }
-    fout << "\n";
-  }
-  fout.flush();
-  fout.close();
+  auto const path = tmpdir.path + "/small.csv";
+  CreateTestCSV(path, kRows, kCols);
 
   std::unique_ptr<DMatrix> dmat;
   // FIXME(trivialfis): Enable the following test by restricting csv parser in dmlc-core.

@@ -16,6 +16,7 @@
 #include "../common/common.h"            // AssertGPUSupport
 #include "xgboost/base.h"                // GradientPair
 #include "xgboost/context.h"             // Context
+#include "xgboost/data.h"                // MetaInfo
 #include "xgboost/host_device_vector.h"  // HostDeviceVector
 #include "xgboost/linalg.h"              // TensorView
 
@@ -30,7 +31,7 @@ XGBOOST_DEVICE inline double CalcUnregularizedWeight(T sum_grad, T sum_hess) {
 /**
  * @brief Fit a tree stump as an estimation of base_score.
  */
-void FitStump(Context const* ctx, HostDeviceVector<GradientPair> const& gpair,
+void FitStump(Context const* ctx, MetaInfo const& info, HostDeviceVector<GradientPair> const& gpair,
               bst_target_t n_targets, linalg::Vector<float>* out);
 }  // namespace tree
 }  // namespace xgboost

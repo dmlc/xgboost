@@ -166,7 +166,7 @@ void IterativeDMatrix::InitFromCUDA(DataIterHandle iter_handle, float missing,
 
   iter.Reset();
   // Synchronise worker columns
-  collective::Allreduce<collective::Operation::kMax>(&info_.num_col_, 1);
+  info_.SynchronizeNumberOfColumns();
 }
 
 BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(BatchParam const& param) {
