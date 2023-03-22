@@ -13,7 +13,6 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from io import StringIO
-from pathlib import Path
 from platform import system
 from typing import (
     Any,
