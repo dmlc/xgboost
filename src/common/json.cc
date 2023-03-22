@@ -333,7 +333,7 @@ size_t constexpr JsonReader::kMaxNumLength;
 Json JsonReader::Parse() {
   while (true) {
     SkipSpaces();
-    char c = PeekNextChar();
+    auto c = PeekNextChar();
     if (c == -1) { break; }
 
     if (c == '{') {
@@ -408,13 +408,13 @@ void JsonReader::Error(std::string msg) const {
 }
 
 namespace {
-bool IsSpace(char c) { return c == ' ' || c == '\n' || c == '\r' || c == '\t'; }
+bool IsSpace(JsonReader::Char c) { return c == ' ' || c == '\n' || c == '\r' || c == '\t'; }
 }  // anonymous namespace
 
 // Json class
 void JsonReader::SkipSpaces() {
   while (cursor_.Pos() < raw_str_.size()) {
-    char c = raw_str_[cursor_.Pos()];
+    Char c = raw_str_[cursor_.Pos()];
     if (IsSpace(c)) {
       cursor_.Forward();
     } else {
@@ -436,12 +436,12 @@ void ParseStr(std::string const& str) {
 }
 
 Json JsonReader::ParseString() {
-  char ch { GetConsecutiveChar('\"') };  // NOLINT
+  Char ch { GetConsecutiveChar('\"') };  // NOLINT
   std::string str;
   while (true) {
     ch = GetNextChar();
     if (ch == '\\') {
-      char next = static_cast<char>(GetNextChar());
+      Char next{GetNextChar()};
       switch (next) {
         case 'r':  str += u8"\r"; break;
         case 'n':  str += u8"\n"; break;
@@ -466,8 +466,8 @@ Json JsonReader::ParseString() {
 }
 
 Json JsonReader::ParseNull() {
-  char ch = GetNextNonSpaceChar();
-  std::string buffer{ch};
+  Char ch = GetNextNonSpaceChar();
+  std::string buffer{static_cast<char>(ch)};
   for (size_t i = 0; i < 3; ++i) {
     buffer.push_back(GetNextChar());
   }
@@ -480,7 +480,7 @@ Json JsonReader::ParseNull() {
 Json JsonReader::ParseArray() {
   std::vector<Json> data;
 
-  char ch { GetConsecutiveChar('[') };  // NOLINT
+  Char ch { GetConsecutiveChar('[') };  // NOLINT
   while (true) {
     if (PeekNextChar() == ']') {
       GetConsecutiveChar(']');
@@ -503,7 +503,7 @@ Json JsonReader::ParseObject() {
 
   Object::Map data;
   SkipSpaces();
-  char ch = PeekNextChar();
+  auto ch = PeekNextChar();
 
   if (ch == '}') {
     GetConsecutiveChar('}');
@@ -652,7 +652,7 @@ Json JsonReader::ParseNumber() {
 
 Json JsonReader::ParseBoolean() {
   bool result = false;
-  char ch = GetNextNonSpaceChar();
+  Char ch = GetNextNonSpaceChar();
   std::string const t_value = u8"true";
   std::string const f_value = u8"false";
 
@@ -737,7 +737,8 @@ Json UBJReader::ParseArray() {
       case 'L':
         return ParseTypedArray<I64Array>(n);
       default:
-        LOG(FATAL) << "`" + std::string{type} + "` is not supported for typed array.";  // NOLINT
+        LOG(FATAL) << "`" + std::string{static_cast<char>(type)} +  // NOLINT
+                          "` is not supported for typed array.";
     }
   }
   std::vector<Json> results;
@@ -794,7 +795,7 @@ Json UBJReader::Load() {
 
 Json UBJReader::Parse() {
   while (true) {
-    char c = PeekNextChar();
+    auto c = PeekNextChar();
     if (c == -1) {
       break;
     }
