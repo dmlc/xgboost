@@ -1033,7 +1033,7 @@ XGB_DLL int XGBoosterInplacePredict(BoosterHandle handle,
   CHECK(proxy) << "Invalid input type for inplace predict.";
   auto *learner = static_cast<xgboost::Learner *>(handle);
   auto iteration_end = GetIterationFromTreeLimit(ntree_limit, learner);
-  InplacePredictImplCore(nullptr, learner, (xgboost::PredictionType)0, missing, num_rows, num_features,
+  InplacePredictImplCore(p_m, learner, (xgboost::PredictionType)0, missing, num_rows, num_features,
                          0, iteration_end, true, len, &out_dim, out_result);
 //  printf("XGBoosterInplacePredict len = %u, dim = %u\n", **len, out_dim);
   API_END();
