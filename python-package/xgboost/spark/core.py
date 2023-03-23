@@ -39,8 +39,8 @@ import xgboost
 from xgboost import XGBClassifier, XGBRanker, XGBRegressor
 from xgboost.compat import is_cudf_available
 from xgboost.core import Booster
-from xgboost.training import train as worker_train
 from xgboost.sklearn import DEFAULT_N_ESTIMATORS
+from xgboost.training import train as worker_train
 
 from .data import (
     _read_csr_matrix_from_unwrapped_spark_vec,
