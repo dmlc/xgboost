@@ -170,7 +170,7 @@ def ltr_metric_decorator(func: Callable, n_jobs: Optional[int]) -> Metric:
 
 
 __estimator_doc = """
-    n_estimators : int
+    n_estimators : Optional[int]
         Number of gradient boosted trees.  Equivalent to number of boosting
         rounds.
 """
@@ -611,7 +611,7 @@ class XGBModel(XGBModelBase):
         max_bin: Optional[int] = None,
         grow_policy: Optional[str] = None,
         learning_rate: Optional[float] = None,
-        n_estimators: int = None,
+        n_estimators: Optional[int] = None,
         verbosity: Optional[int] = None,
         objective: SklObjective = None,
         booster: Optional[str] = None,
@@ -1413,7 +1413,7 @@ def _cls_predict_proba(n_classes: int, prediction: PredtT, vstack: Callable) -> 
     "Implementation of the scikit-learn API for XGBoost classification.",
     ["model", "objective"],
     extra_parameters="""
-    n_estimators : int
+    n_estimators : Optional[int]
         Number of boosting rounds.
 """,
 )
@@ -1663,7 +1663,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
     "scikit-learn API for XGBoost random forest classification.",
     ["model", "objective"],
     extra_parameters="""
-    n_estimators : int
+    n_estimators : Optional[int]
         Number of trees in random forest to fit.
 """,
 )
@@ -1690,7 +1690,7 @@ class XGBRFClassifier(XGBClassifier):
 
     def get_xgb_params(self) -> Dict[str, Any]:
         params = super().get_xgb_params()
-        params["num_parallel_tree"] = self.n_estimators
+        params["num_parallel_tree"] = super().get_num_boosting_rounds()
         return params
 
     def get_num_boosting_rounds(self) -> int:
@@ -1738,7 +1738,7 @@ class XGBRegressor(XGBModel, XGBRegressorBase):
     "scikit-learn API for XGBoost random forest regression.",
     ["model", "objective"],
     extra_parameters="""
-    n_estimators : int
+    n_estimators : Optional[int]
         Number of trees in random forest to fit.
 """,
 )
@@ -1765,7 +1765,7 @@ class XGBRFRegressor(XGBRegressor):
 
     def get_xgb_params(self) -> Dict[str, Any]:
         params = super().get_xgb_params()
-        params["num_parallel_tree"] = self.n_estimators
+        params["num_parallel_tree"] = super().get_num_boosting_rounds()
         return params
 
     def get_num_boosting_rounds(self) -> int:
