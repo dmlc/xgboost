@@ -46,6 +46,7 @@ from .training import train
 
 class XGBClassifierMixIn(XGBClassifierBase):
     """MixIn for classification."""
+
     def _load_model_attributes(self, booster: Booster) -> None:
         config = json.loads(booster.save_config())
         self.n_classes_ = int(config["learner"]["learner_model_param"]["num_class"])
