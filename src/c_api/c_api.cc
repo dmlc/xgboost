@@ -1027,12 +1027,14 @@ XGB_DLL int XGBoosterInplacePredict(BoosterHandle handle,
   API_BEGIN();
   CHECK_HANDLE();
   xgboost::bst_ulong out_dim;
+  //std::shared_ptr<DMatrix> p_m(dMatrixHandle);
   std::shared_ptr<DMatrix> p_m{nullptr};
   if (!dMatrixHandle) {
     p_m.reset(new data::DMatrixProxy);
   } else {
     p_m = *static_cast<std::shared_ptr<DMatrix> *>(dMatrixHandle);
   }
+  std::cout << p_m;
   auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
   CHECK(proxy) << "Invalid input type for inplace predict.";
   auto *learner = static_cast<xgboost::Learner *>(handle);
