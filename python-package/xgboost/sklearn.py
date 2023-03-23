@@ -44,6 +44,15 @@ from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_array, _is_pandas_df
 from .training import train
 
 
+class XGBClassifierMixIn(XGBClassifierBase):
+    """MixIn for classification."""
+    def _load_model_attributes(self, booster: Booster) -> None:
+        config = json.loads(booster.save_config())
+        self.n_classes_ = int(config["learner"]["learner_model_param"]["num_class"])
+        # binary classification is treated as regression in XGBoost.
+        self.n_classes_ = 2 if self.n_classes_ < 2 else self.n_classes_
+
+
 class XGBRankerMixIn:  # pylint: disable=too-few-public-methods
     """MixIn for ranking, defines the _estimator_type usually defined in scikit-learn
     base classes.
@@ -1417,7 +1426,7 @@ def _cls_predict_proba(n_classes: int, prediction: PredtT, vstack: Callable) -> 
         Number of boosting rounds.
 """,
 )
-class XGBClassifier(XGBModel, XGBClassifierBase):
+class XGBClassifier(XGBModel, XGBClassifierMixIn):
     # pylint: disable=missing-docstring,invalid-name,too-many-instance-attributes
     @_deprecate_positional_args
     def __init__(
@@ -1652,11 +1661,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
     def load_model(self, fname: ModelIn) -> None:
         super().load_model(fname)
-        booster = self.get_booster()
-        config = json.loads(booster.save_config())
-        self.n_classes_ = int(config["learner"]["learner_model_param"]["num_class"])
-        # binary classification is treated as regression in XGBoost.
-        self.n_classes_ = 2 if self.n_classes_ < 2 else self.n_classes_
+        self._load_model_attributes(self.get_booster())
 
 
 @xgboost_model_doc(
