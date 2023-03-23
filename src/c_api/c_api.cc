@@ -1034,9 +1034,8 @@ XGB_DLL int XGBoosterInplacePredict(BoosterHandle handle,
   } else {
     p_m = *static_cast<std::shared_ptr<DMatrix> *>(dMatrixHandle);
   }
-  std::cout << p_m;
   auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
-  CHECK(proxy) << "Invalid input type for inplace predict.";
+  CHECK(proxy) << "Invalid input type for inplace predict. :" << typeid(proxy).name();
   auto *learner = static_cast<xgboost::Learner *>(handle);
   auto iteration_end = GetIterationFromTreeLimit(ntree_limit, learner);
   InplacePredictImplCore(p_m, learner, (xgboost::PredictionType)0, missing, num_rows, num_features,
