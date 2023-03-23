@@ -2,6 +2,9 @@
 Collection of examples for using sklearn interface
 ==================================================
 
+For an introduction to XGBoost's scikit-learn estimator interface, see
+:doc:`/python/sklearn_estimator`.
+
 Created on 1 Apr 2015
 
 @author: Jamie Hall

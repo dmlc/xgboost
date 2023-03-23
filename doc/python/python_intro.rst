@@ -305,7 +305,8 @@ Scikit-Learn interface
 ----------------------
 
 XGBoost provides an easy to use scikit-learn interface for some pre-defined models
-including regression, classification and ranking.
+including regression, classification and ranking. See :doc:`/python/sklearn_estimator`
+for more info.
 
 .. code-block:: python
 

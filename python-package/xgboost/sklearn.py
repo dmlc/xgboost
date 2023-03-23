@@ -368,18 +368,21 @@ __model_doc = f"""
 
         .. versionadded:: 1.6.0
 
-        Activates early stopping. Validation metric needs to improve at least once in
-        every **early_stopping_rounds** round(s) to continue training.  Requires at least
-        one item in **eval_set** in :py:meth:`fit`.
+        - Activates early stopping. Validation metric needs to improve at least once in
+          every **early_stopping_rounds** round(s) to continue training.  Requires at
+          least one item in **eval_set** in :py:meth:`fit`.
 
-        The method returns the model from the last iteration (not the best one).  If
-        there's more than one item in **eval_set**, the last entry will be used for early
-        stopping.  If there's more than one metric in **eval_metric**, the last metric
-        will be used for early stopping.
+        - The method returns the model from the last iteration, not the best one, use a
+          callback :py:class:`xgboost.callback.EarlyStopping` if returning the best
+          model is preferred.
 
-        If early stopping occurs, the model will have three additional fields:
-        :py:attr:`best_score`, :py:attr:`best_iteration` and
-        :py:attr:`best_ntree_limit`.
+        - If there's more than one item in **eval_set**, the last entry will be used for
+          early stopping.  If there's more than one metric in **eval_metric**, the last
+          metric will be used for early stopping.
+
+        - If early stopping occurs, the model will have three additional fields:
+          :py:attr:`best_score`, :py:attr:`best_iteration` and
+          :py:attr:`best_ntree_limit`.
 
         .. note::
 
@@ -479,7 +482,9 @@ Parameters
         doc.extend([get_doc(i) for i in items])
         if end_note:
             doc.append(end_note)
-        full_doc = [header + "\n\n"]
+        full_doc = [
+            header + "\nSee :doc:`/python/sklearn_estimator` for more information.\n"
+        ]
         full_doc.extend(doc)
         cls.__doc__ = "".join(full_doc)
         return cls
@@ -1146,10 +1151,10 @@ class XGBModel(XGBModelBase):
         base_margin: Optional[ArrayLike] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
     ) -> ArrayLike:
-        """Predict with `X`.  If the model is trained with early stopping, then `best_iteration`
-        is used automatically.  For tree models, when data is on GPU, like cupy array or
-        cuDF dataframe and `predictor` is not specified, the prediction is run on GPU
-        automatically, otherwise it will run on CPU.
+        """Predict with `X`.  If the model is trained with early stopping, then
+        :py:attr:`best_iteration` is used automatically.  For tree models, when data is
+        on GPU, like cupy array or cuDF dataframe and `predictor` is not specified, the
+        prediction is run on GPU automatically, otherwise it will run on CPU.
 
         .. note:: This function is only thread safe for `gbtree` and `dart`.
 
@@ -1224,8 +1229,8 @@ class XGBModel(XGBModelBase):
         ntree_limit: int = 0,
         iteration_range: Optional[Tuple[int, int]] = None,
     ) -> np.ndarray:
-        """Return the predicted leaf every tree for each sample. If the model is trained with
-        early stopping, then `best_iteration` is used automatically.
+        """Return the predicted leaf every tree for each sample. If the model is trained
+        with early stopping, then :py:attr:`best_iteration` is used automatically.
 
         Parameters
         ----------
@@ -1635,7 +1640,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         base_margin: Optional[ArrayLike] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
     ) -> np.ndarray:
-        """Predict the probability of each `X` example being of a given class.
+        """Predict the probability of each `X` example being of a given class. If the
+        model is trained with early stopping, then :py:attr:`best_iteration` is used
+        automatically.
 
         .. note:: This function is only thread safe for `gbtree` and `dart`.
 
@@ -1661,6 +1668,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         prediction :
             a numpy array of shape array-like of shape (n_samples, n_classes) with the
             probability of each data example being of a given class.
+
         """
         # custom obj:      Do nothing as we don't know what to do.
         # softprob:        Do nothing, output is proba.
@@ -2122,11 +2130,13 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
         return super().apply(X, ntree_limit, iteration_range)
 
     def score(self, X: ArrayLike, y: ArrayLike) -> float:
-        """Evaluate score for data using the last evaluation metric.
+        """Evaluate score for data using the last evaluation metric. If the model is
+        trained with early stopping, then :py:attr:`best_iteration` is used
+        automatically.
 
         Parameters
         ----------
-        X : pd.DataFrame|cudf.DataFrame
+        X : Union[pd.DataFrame, cudf.DataFrame]
           Feature matrix. A DataFrame with a special `qid` column.
 
         y :
