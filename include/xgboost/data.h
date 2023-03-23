@@ -180,6 +180,22 @@ class MetaInfo {
    */
   void SynchronizeNumberOfColumns();
 
+  /*! \brief Whether the data is split row-wise. */
+  bool IsRowSplit() const {
+    return data_split_mode == DataSplitMode::kRow;
+  }
+
+  /*! \brief Whether the data is split column-wise. */
+  bool IsColumnSplit() const {
+    return data_split_mode == DataSplitMode::kCol;
+  }
+
+  /*!
+   * \brief A convenient method to check if we are doing vertical federated learning, which requires
+   * some special processing.
+   */
+  bool IsVerticalFederated() const;
+
  private:
   void SetInfoFromHost(Context const& ctx, StringView key, Json arr);
   void SetInfoFromCUDA(Context const& ctx, StringView key, Json arr);
@@ -540,16 +556,6 @@ class DMatrix {
   /*! \brief Whether the matrix is dense. */
   bool IsDense() const {
     return Info().num_nonzero_ == Info().num_row_ * Info().num_col_;
-  }
-
-  /*! \brief Whether the data is split row-wise. */
-  bool IsRowSplit() const {
-    return Info().data_split_mode == DataSplitMode::kRow;
-  }
-
-  /*! \brief Whether the data is split column-wise. */
-  bool IsColumnSplit() const {
-    return Info().data_split_mode == DataSplitMode::kCol;
   }
 
   /*!

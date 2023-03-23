@@ -72,12 +72,13 @@ class GloablApproxBuilder {
       } else {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
-      partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid, p_fmat->IsColumnSplit());
+      partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid,
+                                p_fmat->Info().IsColumnSplit());
       n_batches_++;
     }
 
     histogram_builder_.Reset(n_total_bins, BatchSpec(*param_, hess), ctx_->Threads(), n_batches_,
-                             collective::IsDistributed(), p_fmat->IsColumnSplit());
+                             collective::IsDistributed(), p_fmat->Info().IsColumnSplit());
     monitor_->Stop(__func__);
   }
 
@@ -91,7 +92,7 @@ class GloablApproxBuilder {
     for (auto const &g : gpair) {
       root_sum.Add(g);
     }
-    if (p_fmat->IsRowSplit()) {
+    if (p_fmat->Info().IsRowSplit()) {
       collective::Allreduce<collective::Operation::kSum>(reinterpret_cast<double *>(&root_sum), 2);
     }
     std::vector<CPUExpandEntry> nodes{best};

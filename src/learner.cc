@@ -860,7 +860,7 @@ class LearnerConfiguration : public Learner {
 
   void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_score) {
     // Special handling for vertical federated learning.
-    if (collective::IsFederated() && info.data_split_mode == DataSplitMode::kCol) {
+    if (info.IsVerticalFederated()) {
       // We assume labels are only available on worker 0, so the estimation is calculated there
       // and broadcast to other workers.
       if (collective::GetRank() == 0) {
@@ -1487,7 +1487,7 @@ class LearnerImpl : public LearnerIO {
   void GetGradient(HostDeviceVector<bst_float> const& preds, MetaInfo const& info, int iteration,
                    HostDeviceVector<GradientPair>* out_gpair) {
     // Special handling for vertical federated learning.
-    if (collective::IsFederated() && info.data_split_mode == DataSplitMode::kCol) {
+    if (info.IsVerticalFederated()) {
       // We assume labels are only available on worker 0, so the gradients are calculated there
       // and broadcast to other workers.
       if (collective::GetRank() == 0) {
