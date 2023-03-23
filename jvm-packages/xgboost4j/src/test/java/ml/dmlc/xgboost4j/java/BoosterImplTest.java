@@ -331,7 +331,7 @@ public class BoosterImplTest {
     float[][] predicts = booster.predict(testMat);
 
     // inplace prediction
-    float[][] inplace_predicts = booster.inplace_predict(testX, test_rows, features);
+    float[][] inplace_predicts = booster.inplace_predict(testX, test_rows, features, testMat);
 
     // Confirm that the two prediction results are identical
     TestCase.assertTrue(ArrayComparator.compare(predicts, inplace_predicts));

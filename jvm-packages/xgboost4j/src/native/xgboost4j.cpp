@@ -608,19 +608,20 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredict
   return ret;
 }
 
+// TODO - ANYTHING
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGBoosterInplacePredict
  * Signature: (J[FIII[[F)I
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterInplacePredict
-  (JNIEnv *jenv, jclass jcls, jlong jhandle, jfloatArray jdata, jint num_rows, jint num_features,
+  (JNIEnv *jenv, jclass jcls, jlong jhandle, jfloatArray jdata, jint num_rows, jint num_features, jlong d_matrix_handle,
                                              jfloat missing, jint option_mask, jint treeLimit, jobjectArray jout) {
   BoosterHandle handle = (BoosterHandle) jhandle;
   jfloat* data = jenv->GetFloatArrayElements(jdata, 0);
   const bst_ulong *len;
   float *result;
-  int ret = XGBoosterInplacePredict(handle, data, num_rows, num_features, missing, option_mask, treeLimit,
+  int ret = XGBoosterInplacePredict(handle, data, num_rows, num_features, d_matrix_handle, missing, option_mask, treeLimit,
             &len, (const float **) &result);
   JVM_CHECK_CALL(ret);
   jenv->ReleaseFloatArrayElements(jdata, data, 0);
