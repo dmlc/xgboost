@@ -151,12 +151,13 @@ class InplacePredictionTask implements Callable<Boolean> {
   Random rng = new Random();
   int n_preds = 100;
 
-  public InplacePredictionTask(int n, Booster booster, float[][] testX, int test_rows, int features, float[][] true_predicts) {
+  public InplacePredictionTask(int n, Booster booster, float[][] testX, int test_rows, int features, DMatrix dMatrix, float[][] true_predicts) {
     this.task_num = n;
     this.booster = booster;
     this.testX = testX;
     this.test_rows = test_rows;
     this.features = features;
+    this.dMatrix = dMatrix;
     this.true_predicts = true_predicts;
   }
 
@@ -170,7 +171,7 @@ class InplacePredictionTask implements Callable<Boolean> {
       int r = this.rng.nextInt(this.test_rows);
 
       // In-place predict a single random row
-      float[][] predictions = booster.inplace_predict(this.testX[r], 1, this.features);
+      float[][] predictions = booster.inplace_predict(this.testX[r], 1, this.features, this.dMatrix);
 
       // Confirm results as expected
       if (predictions[0][0] != this.true_predicts[r][0]) {
