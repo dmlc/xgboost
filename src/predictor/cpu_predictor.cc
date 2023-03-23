@@ -218,7 +218,7 @@ struct GHistIndexMatrixView {
   SparsePage::Inst operator[](size_t r) {
     auto t = omp_get_thread_num();
     auto const beg = (n_features_ * kUnroll * t) + (current_unroll_[t] * n_features_);
-    size_t non_missing{static_cast<std::size_t>(beg)};
+    auto non_missing{beg};
 
     for (bst_feature_t c = 0; c < n_features_; ++c) {
       float f = page_.GetFvalue(r, c, common::IsCat(ft_, c));
@@ -258,7 +258,7 @@ class AdapterView {
     auto row = batch.GetLine(i);
     auto t = omp_get_thread_num();
     auto const beg = (columns * kUnroll * t) + (current_unroll_[t] * columns);
-    size_t non_missing {beg};
+    auto non_missing{beg};
     for (size_t c = 0; c < row.Size(); ++c) {
       auto e = row.GetElement(c);
       if (missing_ != e.value && !common::CheckNAN(e.value)) {
