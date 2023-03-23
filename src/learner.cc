@@ -862,7 +862,7 @@ class LearnerConfiguration : public Learner {
     // Special handling for vertical federated learning.
     if (collective::IsFederated() && info.data_split_mode == DataSplitMode::kCol) {
       // We assume labels are only available on worker 0, so the estimation is calculated there
-      // and added to other workers.
+      // and broadcast to other workers.
       if (collective::GetRank() == 0) {
         UsePtr(obj_)->InitEstimation(info, base_score);
         collective::Broadcast(base_score->Data()->HostPointer(),

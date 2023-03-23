@@ -5,8 +5,6 @@
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
 
-#include <fstream>
-#include <iostream>
 #include <thread>
 
 #include "../../../plugin/federated/federated_server.h"

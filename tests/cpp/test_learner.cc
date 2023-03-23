@@ -460,10 +460,6 @@ class InitBaseScore : public ::testing::Test {
 
   void SetUp() override { Xy_ = RandomDataGenerator{10, Cols(), 0}.GenerateDMatrix(true); }
 
-  static float GetBaseScore(Json const &config) {
-    return std::stof(get<String const>(config["learner"]["learner_model_param"]["base_score"]));
-  }
-
  public:
   void TestUpdateConfig() {
     std::unique_ptr<Learner> learner{Learner::Create({Xy_})};
