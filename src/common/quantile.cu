@@ -512,7 +512,7 @@ void SketchContainer::AllReduce() {
   timer_.Start(__func__);
   auto* communicator = collective::Communicator::GetDevice(device_);
   // Reduce the overhead on syncing.
-  size_t global_sum_rows = num_rows_;
+  bst_row_t global_sum_rows = num_rows_;
   collective::Allreduce<collective::Operation::kSum>(&global_sum_rows, 1);
   size_t intermediate_num_cuts =
       std::min(global_sum_rows, static_cast<size_t>(num_bins_ * kFactor));
@@ -520,7 +520,7 @@ void SketchContainer::AllReduce() {
 
   auto d_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
   CHECK_EQ(d_columns_ptr.size(), num_columns_ + 1);
-  size_t n = d_columns_ptr.size();
+  std::uint64_t n = d_columns_ptr.size();
   collective::Allreduce<collective::Operation::kMax>(&n, 1);
   CHECK_EQ(n, d_columns_ptr.size()) << "Number of columns differs across workers";
 

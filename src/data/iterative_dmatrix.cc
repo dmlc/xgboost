@@ -98,7 +98,7 @@ void SyncFeatureType(std::vector<FeatureType>* p_h_ft) {
     return;
   }
   auto& h_ft = *p_h_ft;
-  auto n_ft = h_ft.size();
+  std::uint64_t n_ft = h_ft.size();
   collective::Allreduce<collective::Operation::kMax>(&n_ft, 1);
   if (!h_ft.empty()) {
     // Check correct size if this is not an empty DMatrix.
@@ -158,7 +158,7 @@ void IterativeDMatrix::InitFromCPU(DataIterHandle iter_handle, float missing,
     });
   };
 
-  size_t n_features = 0;
+  std::uint64_t n_features = 0;
   size_t n_batches = 0;
   size_t accumulated_rows{0};
   size_t nnz{0};

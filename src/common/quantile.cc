@@ -219,7 +219,7 @@ void SketchContainerImpl<WQSketch>::AllreduceCategories() {
   CHECK_EQ(feature_ptr.front(), 0);
 
   // gather all feature ptrs from workers
-  std::vector<size_t> global_feat_ptrs(feature_ptr.size() * world_size, 0);
+  std::vector<std::uint64_t> global_feat_ptrs(feature_ptr.size() * world_size, 0);
   size_t feat_begin = rank * feature_ptr.size();  // pointer to current worker
   std::copy(feature_ptr.begin(), feature_ptr.end(), global_feat_ptrs.begin() + feat_begin);
   collective::Allreduce<collective::Operation::kSum>(global_feat_ptrs.data(),
@@ -234,7 +234,7 @@ void SketchContainerImpl<WQSketch>::AllreduceCategories() {
   }
 
   // indptr for indexing workers
-  std::vector<size_t> global_worker_ptr(world_size + 1, 0);
+  std::vector<std::uint64_t> global_worker_ptr(world_size + 1, 0);
   global_worker_ptr[rank + 1] = total;  // shift 1 to right for constructing the indptr
   collective::Allreduce<collective::Operation::kSum>(global_worker_ptr.data(),
                                                      global_worker_ptr.size());
@@ -277,7 +277,7 @@ void SketchContainerImpl<WQSketch>::AllReduce(
     std::vector<int32_t>* p_num_cuts) {
   monitor_.Start(__func__);
 
-  size_t n_columns = sketches_.size();
+  std::uint64_t n_columns = sketches_.size();
   collective::Allreduce<collective::Operation::kMax>(&n_columns, 1);
   CHECK_EQ(n_columns, sketches_.size()) << "Number of columns differs across workers";
 

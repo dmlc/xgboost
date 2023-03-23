@@ -267,7 +267,7 @@ class EvalAUC : public MetricNoCache {
       info.weights_.SetDevice(ctx_->gpu_id);
     }
     //  We use the global size to handle empty dataset.
-    std::array<std::uint64_t, 2> meta{info.labels.Size(), preds.Size()};
+    std::array<bst_row_t, 2> meta{info.labels.Size(), preds.Size()};
     collective::Allreduce<collective::Operation::kMax>(meta.data(), meta.size());
     if (meta[0] == 0) {
       // Empty across all workers, which is not supported.

@@ -9,6 +9,7 @@
 #include <dmlc/base.h>
 #include <dmlc/omp.h>
 
+#include <cinttypes>  // uint64_t
 #include <cmath>
 #include <iostream>
 #include <string>
@@ -102,13 +103,8 @@ using bst_cat_t = int32_t;  // NOLINT
 using bst_feature_t = uint32_t;  // NOLINT
 /*! \brief Type for histogram bin index. */
 using bst_bin_t = int32_t;  // NOLINT
-/*! \brief Type for data row index.
- *
- * Be careful `std::size_t' is implementation-defined.  Meaning that the binary
- * representation of DMatrix might not be portable across platform.  Booster model should
- * be portable as parameters are floating points.
- */
-using bst_row_t = std::size_t;   // NOLINT
+/*! \brief Type for row index. */
+using bst_row_t = std::uint64_t;  // NOLINT
 /*! \brief Type for tree node index. */
 using bst_node_t = std::int32_t;      // NOLINT
 /*! \brief Type for ranking group index. */
