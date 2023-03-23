@@ -44,7 +44,7 @@ from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_array, _is_pandas_df
 from .training import train
 
 
-class XGBClassifierMixIn(XGBClassifierBase):
+class XGBClassifierMixIn(XGBClassifierBase):  # pylint: disable=too-few-public-methods
     """MixIn for classification."""
 
     def _load_model_attributes(self, booster: Booster) -> None:
