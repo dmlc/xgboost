@@ -38,36 +38,34 @@ def test_binary_classification():
             assert err < 0.1
 
 
-@pytest.mark.parametrize('objective', ['multi:softmax', 'multi:softprob'])
+@pytest.mark.parametrize("objective", ["multi:softmax", "multi:softprob"])
 def test_multiclass_classification(objective):
     from sklearn.datasets import load_iris
     from sklearn.model_selection import KFold
 
     def check_pred(preds, labels, output_margin):
         if output_margin:
-            err = sum(1 for i in range(len(preds))
-                      if preds[i].argmax() != labels[i]) / float(len(preds))
+            err = sum(
+                1 for i in range(len(preds)) if preds[i].argmax() != labels[i]
+            ) / float(len(preds))
         else:
-            err = sum(1 for i in range(len(preds))
-                      if preds[i] != labels[i]) / float(len(preds))
+            err = sum(1 for i in range(len(preds)) if preds[i] != labels[i]) / float(
+                len(preds)
+            )
         assert err < 0.4
 
-    iris = load_iris()
-    y = iris['target']
-    X = iris['data']
+    X, y = load_iris(return_X_y=True)
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf.split(X, y):
-        xgb_model = xgb.XGBClassifier(objective=objective).fit(X[train_index], y[train_index])
-        assert (xgb_model.get_booster().num_boosted_rounds() ==
-                xgb_model.n_estimators)
+        xgb_model = xgb.XGBClassifier(objective=objective).fit(
+            X[train_index], y[train_index]
+        )
+        assert xgb_model.get_booster().num_boosted_rounds() == 100
         preds = xgb_model.predict(X[test_index])
         # test other params in XGBClassifier().fit
-        preds2 = xgb_model.predict(X[test_index], output_margin=True,
-                                   ntree_limit=3)
-        preds3 = xgb_model.predict(X[test_index], output_margin=True,
-                                   ntree_limit=0)
-        preds4 = xgb_model.predict(X[test_index], output_margin=False,
-                                   ntree_limit=3)
+        preds2 = xgb_model.predict(X[test_index], output_margin=True, ntree_limit=3)
+        preds3 = xgb_model.predict(X[test_index], output_margin=True, ntree_limit=0)
+        preds4 = xgb_model.predict(X[test_index], output_margin=False, ntree_limit=3)
         labels = y[test_index]
 
         check_pred(preds, labels, output_margin=False)
