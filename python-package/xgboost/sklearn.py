@@ -830,7 +830,7 @@ class XGBModel(XGBModelBase):
 
         meta = json.loads(meta_str)
         t = meta.get("_estimator_type", None)
-        if t != self._get_type():
+        if t is not None and t != self._get_type():
             raise TypeError(
                 "Loading an estimator with different type. Expecting: "
                 f"{self._get_type()}, got: {t}"
