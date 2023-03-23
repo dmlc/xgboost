@@ -1068,6 +1068,7 @@ XGB_DLL int XGBoosterInplacePredict(BoosterHandle handle,
                                     const float *data,
                                     size_t num_rows,
                                     size_t num_features,
+                                    DMatrixHandle dMatrixHandle,
                                     float missing,
                                     int option_mask,
                                     int ntree_limit,
@@ -1076,16 +1077,13 @@ XGB_DLL int XGBoosterInplacePredict(BoosterHandle handle,
   API_BEGIN();
   CHECK_HANDLE();
   xgboost::bst_ulong out_dim;
-  std::shared_ptr<xgboost::data::DenseAdapter> x{new xgboost::data::DenseAdapter(data, num_rows, num_features)};
-  std::shared_ptr<DMatrix> p_m{nullptr};
-  p_m.reset(new data::DMatrixProxy);
-  auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
-  CHECK(proxy) << "Invalid input type for inplace predict.";
+
   auto *learner = static_cast<xgboost::Learner *>(handle);
   auto iteration_end = GetIterationFromTreeLimit(ntree_limit, learner);
-  InplacePredictImplCore(p_m, learner, (xgboost::PredictionType)0, missing, num_rows, num_features,
+  auto proxy = std::make_shared<data::DMatrixProxy>();
+  proxy->SetDenseData(data, num_rows, num_features);
+  InplacePredictImplCore(proxy, learner, (xgboost::PredictionType)0, missing, num_rows, num_features,
                          0, iteration_end, true, len, &out_dim, out_result);
-//  printf("XGBoosterInplacePredict len = %u, dim = %u\n", **len, out_dim);
   API_END();
 }
 
