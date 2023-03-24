@@ -895,7 +895,7 @@ class HostSketchContainer : public SketchContainerImpl<WQuantileSketch<float, fl
 
  public:
   HostSketchContainer(int32_t max_bins, common::Span<FeatureType const> ft,
-                      std::vector<size_t> columns_size, bool use_group, bool col_split,
+                      std::vector<bst_row_t> columns_size, bool use_group, bool col_split,
                       int32_t n_threads);
 
   template <typename Batch>

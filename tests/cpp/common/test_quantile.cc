@@ -9,8 +9,7 @@
 #include "../../../src/data/adapter.h"
 #include "xgboost/context.h"
 
-namespace xgboost {
-namespace common {
+namespace xgboost::common {
 
 TEST(Quantile, LoadBalance) {
   size_t constexpr kRows = 1000, kCols = 100;
@@ -369,5 +368,4 @@ TEST(Quantile, SameOnAllWorkers) {
   RunWithInMemoryCommunicator(kWorkers, TestSameOnAllWorkers);
 }
 
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common

@@ -30,7 +30,7 @@ jobs:
         mkdir build
         cd build
         cmake .. -DGOOGLE_TEST=ON -DUSE_OPENMP=ON -DUSE_DMLC_GTEST=ON -DPLUGIN_DENSE_PARSER=ON -GNinja
-        ninja -v
+        ninja -v -k 0
     - name: Run gtest binary
       run: |
         cd build
