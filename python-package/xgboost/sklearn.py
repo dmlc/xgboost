@@ -1467,24 +1467,24 @@ class XGBClassifier(XGBModel, XGBClassifierMixIn):
 
                 classes = cp.unique(y.values)
                 self.n_classes_ = len(classes)
-                expected_classes = np.arange(self.n_classes_)
+                expected_classes = cp.array(self.classes_)
             elif _is_cupy_array(y):
                 import cupy as cp  # pylint: disable=E0401
 
                 classes = cp.unique(y)
                 self.n_classes_ = len(classes)
-                expected_classes = np.arange(self.n_classes_)
+                expected_classes = cp.array(self.classes_)
             else:
                 classes = np.unique(np.asarray(y))
                 self.n_classes_ = len(classes)
-                expected_classes = np.arange(self.n_classes_)
+                expected_classes = self.classes_
             if (
-                self.classes_.shape != expected_classes.shape
-                or not (self.classes_ == expected_classes).all()
+                classes.shape != expected_classes.shape
+                or not (classes == expected_classes).all()
             ):
                 raise ValueError(
                     f"Invalid classes inferred from unique values of `y`.  "
-                    f"Expected: {expected_classes}, got {self.classes_}"
+                    f"Expected: {expected_classes}, got {classes}"
                 )
 
             params = self.get_xgb_params()
