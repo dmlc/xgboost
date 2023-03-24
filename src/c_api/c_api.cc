@@ -1033,16 +1033,19 @@ XGB_DLL int XGBoosterInplacePredict(BoosterHandle handle,
     p_m.reset(new data::DMatrixProxy);
     if (!p_m) {
       fprintf (stderr, "p_m 1 is null");
+      exit(1);
     }
   } else {
     p_m = *static_cast<std::shared_ptr<DMatrix> *>(dMatrixHandle);
     if (!p_m) {
       fprintf (stderr, "p_m 2 is null");
+      exit(1);
     }
   }
   auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
   if (!proxy) {
     fprintf (stderr, "proxy is null");
+    exit(1);
   }
   auto *learner = static_cast<xgboost::Learner *>(handle);
   auto iteration_end = GetIterationFromTreeLimit(ntree_limit, learner);
