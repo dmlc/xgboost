@@ -1467,13 +1467,13 @@ class XGBClassifier(XGBModel, XGBClassifierMixIn):
 
                 classes = cp.unique(y.values)
                 self.n_classes_ = len(classes)
-                expected_classes = cp.arange(self.n_classes_)
+                expected_classes = np.arange(self.n_classes_)
             elif _is_cupy_array(y):
                 import cupy as cp  # pylint: disable=E0401
 
                 classes = cp.unique(y)
                 self.n_classes_ = len(classes)
-                expected_classes = cp.arange(self.n_classes_)
+                expected_classes = np.arange(self.n_classes_)
             else:
                 classes = np.unique(np.asarray(y))
                 self.n_classes_ = len(classes)
