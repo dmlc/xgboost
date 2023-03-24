@@ -116,21 +116,22 @@ struct GBTreeModel : public Model {
   void SaveModel(Json* p_out) const override;
   void LoadModel(Json const& p_out) override;
 
-  std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats, int32_t n_threads,
-                                     std::string format) const {
+  [[nodiscard]] std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,
+                                                   int32_t n_threads, std::string format) const {
     std::vector<std::string> dump(trees.size());
     common::ParallelFor(trees.size(), n_threads,
                         [&](size_t i) { dump[i] = trees[i]->DumpModel(fmap, with_stats, format); });
     return dump;
   }
-  void CommitModel(std::vector<std::unique_ptr<RegTree> >&& new_trees,
-                   int bst_group) {
-    for (auto & new_tree : new_trees) {
+  void CommitModel(std::vector<std::unique_ptr<RegTree> >&& new_trees, int bst_group) {
+    for (auto& new_tree : new_trees) {
+      has_multi_tree_ |= new_tree->IsMultiTarget();
       trees.push_back(std::move(new_tree));
       tree_info.push_back(bst_group);
     }
     param.num_trees += static_cast<int>(new_trees.size());
   }
+  [[nodiscard]] bool HasMultiTargetTree() const { return has_multi_tree_; }
 
   // base margin
   LearnerModelParam const* learner_model_param;
@@ -144,6 +145,10 @@ struct GBTreeModel : public Model {
   std::vector<int> tree_info;
 
  private:
+  /**
+   * \brief Whether the stack contains multi-target tree.
+   */
+  bool has_multi_tree_{false};
   Context const* ctx_;
 };
 }  // namespace gbm

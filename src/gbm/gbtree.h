@@ -144,7 +144,7 @@ inline std::pair<uint32_t, uint32_t> LayerToTree(gbm::GBTreeModel const& model,
                                                  std::uint32_t layer_end) {
   std::uint32_t tree_begin;
   std::uint32_t tree_end;
-  if (model.learner_model_param->IsVectorLeaf()) {
+  if (model.HasMultiTargetTree()) {
     tree_begin = layer_begin * model.param.num_parallel_tree;
     tree_end = layer_end * model.param.num_parallel_tree;
   } else {
@@ -243,7 +243,7 @@ class GBTree : public GradientBooster {
 
   // Number of trees per layer.
   [[nodiscard]] std::uint32_t LayerTrees() const {
-    if (model_.learner_model_param->IsVectorLeaf()) {
+    if (model_.HasMultiTargetTree()) {
       return model_.param.num_parallel_tree;
     }
     return model_.param.num_parallel_tree * model_.learner_model_param->OutputLength();
@@ -264,8 +264,8 @@ class GBTree : public GradientBooster {
     return !model_.trees.empty() || !model_.trees_to_update.empty();
   }
 
-  void PredictBatch(DMatrix *p_fmat, PredictionCacheEntry *out_preds,
-                    bool training, unsigned layer_begin, unsigned layer_end) override;
+  void PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool training,
+                    std::uint32_t layer_begin, std::uint32_t layer_end) override;
 
   void InplacePredict(std::shared_ptr<DMatrix> p_m, float missing, PredictionCacheEntry* out_preds,
                       uint32_t layer_begin, unsigned layer_end) const override {

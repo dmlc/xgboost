@@ -125,7 +125,7 @@ class MultiTargetHistBuilder {
   std::vector<CommonRowPartitioner> partitioner_;
   // Pointer to last updated tree, used for update prediction cache.
   RegTree const *p_last_tree_{nullptr};
-  DMatrix const *const p_last_fmat_{nullptr};
+  DMatrix const * p_last_fmat_{nullptr};
 
   ObjInfo const *task_{nullptr};
 
@@ -148,6 +148,7 @@ class MultiTargetHistBuilder {
   void InitData(DMatrix *p_fmat, RegTree const *p_tree) {
     monitor_->Start(__func__);
 
+    p_last_fmat_= p_fmat;
     std::size_t page_id = 0;
     bst_bin_t n_total_bins = 0;
     partitioner_.clear();

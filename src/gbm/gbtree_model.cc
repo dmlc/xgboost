@@ -1,5 +1,5 @@
-/*!
- * Copyright 2019-2022 by Contributors
+/**
+ * Copyright 2019-2023, XGBoost Contributors
  */
 #include <utility>
 
@@ -8,8 +8,7 @@
 #include "gbtree_model.h"
 #include "gbtree.h"
 
-namespace xgboost {
-namespace gbm {
+namespace xgboost::gbm {
 void GBTreeModel::Save(dmlc::Stream* fo) const {
   CHECK_EQ(param.num_trees, static_cast<int32_t>(trees.size()));
 
@@ -97,11 +96,14 @@ void GBTreeModel::LoadModel(Json const& in) {
   trees.resize(trees_json.size());
 
   CHECK(ctx_);
+  std::atomic<std::int32_t> has_multi_target_tree{0};
   common::ParallelFor(trees_json.size(), ctx_->Threads(), [&](auto t) {
     auto tree_id = get<Integer>(trees_json[t]["id"]);
     trees.at(tree_id).reset(new RegTree());
     trees.at(tree_id)->LoadModel(trees_json[t]);
+    has_multi_target_tree += !!trees.at(tree_id)->IsMultiTarget();
   });
+  has_multi_tree_ = has_multi_target_tree > 0;
 
   tree_info.resize(param.num_trees);
   auto const& tree_info_json = get<Array const>(in["tree_info"]);
@@ -109,6 +111,4 @@ void GBTreeModel::LoadModel(Json const& in) {
     tree_info[i] = get<Integer const>(tree_info_json[i]);
   }
 }
-
-}  // namespace gbm
-}  // namespace xgboost
+}  // namespace xgboost::gbm

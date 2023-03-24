@@ -279,9 +279,8 @@ void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
     std::vector<std::unique_ptr<RegTree>> ret;
     BoostNewTrees(in_gpair, p_fmat, 0, &node_position, &ret);
     UpdateTreeLeaf(p_fmat, predt->predictions, obj, 0, node_position, &ret);
-    // No update prediction cache yet.
-    new_trees.push_back(std::move(ret));
     std::size_t num_new_trees = ret.size();
+    new_trees.push_back(std::move(ret));
     if (updaters_.size() > 0 && num_new_trees == 1 && predt->predictions.Size() > 0 &&
         updaters_.back()->UpdatePredictionCache(p_fmat, out)) {
       predt->Update(1);
@@ -563,11 +562,8 @@ void GBTree::Slice(int32_t layer_begin, int32_t layer_end, int32_t step,
                                      });
 }
 
-void GBTree::PredictBatch(DMatrix* p_fmat,
-                          PredictionCacheEntry* out_preds,
-                          bool,
-                          unsigned layer_begin,
-                          unsigned layer_end) {
+void GBTree::PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool,
+                          std::uint32_t layer_begin, std::uint32_t layer_end) {
   CHECK(configured_);
   if (layer_end == 0) {
     layer_end = this->BoostedRounds();

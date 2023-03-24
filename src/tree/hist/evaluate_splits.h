@@ -708,11 +708,11 @@ void UpdatePredictionCacheImpl(Context const *ctx, RegTree const *p_last_tree,
     UpdatePredictionCacheImpl(ctx, p_last_tree, partitioner, out_preds.Slice(linalg::All(), 0));
     return;
   }
-  CHECK_EQ(out_preds.Shape(1), 1);
 
   auto const *mttree = tree.GetMultiTargetTree();
   auto n_nodes = mttree->Size();
   auto n_targets = tree.NumTargets();
+  CHECK_EQ(out_preds.Shape(1), n_targets);
   CHECK_EQ(out_preds.DeviceIdx(), Context::kCpuId);
 
   for (auto &part : partitioner) {
