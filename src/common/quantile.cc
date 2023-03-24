@@ -1,5 +1,5 @@
-/*!
- * Copyright 2020-2022 by XGBoost Contributors
+/**
+ * Copyright 2020-2023, XGBoost Contributors
  */
 #include "quantile.h"
 
@@ -116,8 +116,8 @@ namespace {
 template <typename T>
 struct QuantileAllreduce {
   common::Span<T> global_values;
-  common::Span<size_t> worker_indptr;
-  common::Span<size_t> feature_indptr;
+  common::Span<bst_row_t> worker_indptr;
+  common::Span<bst_row_t> feature_indptr;
   size_t n_features{0};
   /**
    * \brief Get sketch values of the a feature from a worker.
@@ -125,7 +125,7 @@ struct QuantileAllreduce {
    * \param rank rank of target worker
    * \param fidx feature idx
    */
-  auto Values(int32_t rank, bst_feature_t fidx) const {
+  [[nodiscard]] auto Values(std::int32_t rank, bst_feature_t fidx) const {
     // get span for worker
     auto wsize = worker_indptr[rank + 1] - worker_indptr[rank];
     auto worker_values = global_values.subspan(worker_indptr[rank], wsize);
@@ -142,7 +142,7 @@ struct QuantileAllreduce {
 template <typename WQSketch>
 void SketchContainerImpl<WQSketch>::GatherSketchInfo(
     std::vector<typename WQSketch::SummaryContainer> const &reduced,
-    std::vector<size_t> *p_worker_segments, std::vector<bst_row_t> *p_sketches_scan,
+    std::vector<bst_row_t> *p_worker_segments, std::vector<bst_row_t> *p_sketches_scan,
     std::vector<typename WQSketch::Entry> *p_global_sketches) {
   auto &worker_segments = *p_worker_segments;
   worker_segments.resize(1, 0);
@@ -297,7 +297,7 @@ void SketchContainerImpl<WQSketch>::AllReduce(
 
   ParallelFor(sketches_.size(), n_threads_, [&](size_t i) {
     int32_t intermediate_num_cuts = static_cast<int32_t>(
-        std::min(global_column_size[i], static_cast<size_t>(max_bins_ * WQSketch::kFactor)));
+        std::min(global_column_size[i], static_cast<bst_row_t>(max_bins_ * WQSketch::kFactor)));
     if (global_column_size[i] == 0) {
       return;
     }
@@ -319,7 +319,7 @@ void SketchContainerImpl<WQSketch>::AllReduce(
     return;
   }
 
-  std::vector<size_t> worker_segments(1, 0);  // CSC pointer to sketches.
+  std::vector<bst_row_t> worker_segments(1, 0);  // CSC pointer to sketches.
   std::vector<bst_row_t> sketches_scan((n_columns + 1) * world, 0);
 
   std::vector<typename WQSketch::Entry> global_sketches;
@@ -445,7 +445,7 @@ HostSketchContainer::HostSketchContainer(int32_t max_bins, common::Span<FeatureT
     : SketchContainerImpl{columns_size, max_bins, ft, use_group, col_split, n_threads} {
   monitor_.Init(__func__);
   ParallelFor(sketches_.size(), n_threads_, Sched::Auto(), [&](auto i) {
-    auto n_bins = std::min(static_cast<size_t>(max_bins_), columns_size_[i]);
+    auto n_bins = std::min(static_cast<bst_row_t>(max_bins_), columns_size_[i]);
     n_bins = std::max(n_bins, static_cast<decltype(n_bins)>(1));
     auto eps = 1.0 / (static_cast<float>(n_bins) * WQSketch::kFactor);
     if (!IsCat(this->feature_types_, i)) {

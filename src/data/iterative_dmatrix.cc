@@ -18,8 +18,7 @@
 #include "xgboost/data.h"  // FeatureType
 #include "xgboost/logging.h"
 
-namespace xgboost {
-namespace data {
+namespace xgboost::data {
 IterativeDMatrix::IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle proxy,
                                    std::shared_ptr<DMatrix> ref, DataIterResetCallback* reset,
                                    XGDMatrixCallbackNext* next, float missing, int nthread,
@@ -129,7 +128,7 @@ void IterativeDMatrix::InitFromCPU(DataIterHandle iter_handle, float missing,
     return HostAdapterDispatch(proxy, [](auto const& value) { return value.NumCols(); });
   };
 
-  std::vector<std::size_t> column_sizes;
+  std::vector<bst_row_t> column_sizes;
   auto const is_valid = data::IsValidFunctor{missing};
   auto nnz_cnt = [&]() {
     return HostAdapterDispatch(proxy, [&](auto const& value) {
@@ -336,5 +335,4 @@ BatchSet<ExtSparsePage> IterativeDMatrix::GetExtBatches(BatchParam const& param)
       BatchIterator<ExtSparsePage>(new SimpleBatchIteratorImpl<ExtSparsePage>(nullptr));
   return BatchSet<ExtSparsePage>(begin_iter);
 }
-}  // namespace data
-}  // namespace xgboost
+}  // namespace xgboost::data
