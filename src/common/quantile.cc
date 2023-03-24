@@ -11,9 +11,7 @@
 #include "categorical.h"
 #include "hist_util.h"
 
-namespace xgboost {
-namespace common {
-
+namespace xgboost::common {
 template <typename WQSketch>
 SketchContainerImpl<WQSketch>::SketchContainerImpl(std::vector<bst_row_t> columns_size,
                                                    int32_t max_bins,
@@ -495,5 +493,4 @@ void SortedSketchContainer::PushColPage(SparsePage const &page, MetaInfo const &
   });
   monitor_.Stop(__func__);
 }
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common

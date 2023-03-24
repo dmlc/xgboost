@@ -23,8 +23,7 @@
 #include "threading_utils.h"
 #include "timer.h"
 
-namespace xgboost {
-namespace common {
+namespace xgboost::common {
 /*!
  * \brief experimental wsummary
  * \tparam DType type of data content
@@ -993,8 +992,8 @@ class SortedSketchContainer : public SketchContainerImpl<WXQuantileSketch<float,
 
  public:
   explicit SortedSketchContainer(int32_t max_bins, common::Span<FeatureType const> ft,
-                                 std::vector<size_t> columns_size, bool use_group, bool col_split,
-                                 int32_t n_threads)
+                                 std::vector<bst_row_t> columns_size, bool use_group,
+                                 bool col_split, int32_t n_threads)
       : SketchContainerImpl{columns_size, max_bins, ft, use_group, col_split, n_threads} {
     monitor_.Init(__func__);
     sketches_.resize(columns_size.size());
@@ -1012,6 +1011,5 @@ class SortedSketchContainer : public SketchContainerImpl<WXQuantileSketch<float,
    */
   void PushColPage(SparsePage const &page, MetaInfo const &info, Span<float const> hessian);
 };
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_QUANTILE_H_
