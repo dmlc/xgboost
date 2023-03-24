@@ -372,10 +372,10 @@ std::shared_ptr<DMatrix> RandomDataGenerator::GenerateDMatrix(bool with_label, b
   this->GenerateCSR(&data, &rptrs, &columns);
   auto srptr = linalg::ArrayInterfaceStr(
       linalg::MakeTensorView(Context::kCpuId, rptrs.ConstHostSpan(), rptrs.Size()));
-  auto sdata =
-      linalg::ArrayInterfaceStr(linalg::MakeTensorView(device_, data.ConstHostSpan(), data.Size()));
+  auto sdata = linalg::ArrayInterfaceStr(
+      linalg::MakeTensorView(Context::kCpuId, data.ConstHostSpan(), data.Size()));
   auto sind = linalg::ArrayInterfaceStr(
-      linalg::MakeTensorView(device_, columns.ConstHostSpan(), columns.Size()));
+      linalg::MakeTensorView(Context::kCpuId, columns.ConstHostSpan(), columns.Size()));
   data::CSRArrayAdapter adapter{StringView{srptr}, StringView{sind}, StringView{sdata}, cols_};
   std::shared_ptr<DMatrix> out{
       DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)};
