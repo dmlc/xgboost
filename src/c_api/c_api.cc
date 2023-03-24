@@ -1030,13 +1030,19 @@ XGB_DLL int XGBoosterInplacePredict(BoosterHandle handle,
   //std::shared_ptr<DMatrix> p_m(dMatrixHandle);
   std::shared_ptr<DMatrix> p_m{nullptr};
   if (!dMatrixHandle) {
+    fprintf (stderr, "dMatrixHandle is null");
+    exit(1);
+  }
+  if (!dMatrixHandle) {
     p_m.reset(new data::DMatrixProxy);
+    fprintf (stdout, "dmatrix handle is null");
     if (!p_m) {
       fprintf (stderr, "p_m 1 is null");
       exit(1);
     }
   } else {
     p_m = *static_cast<std::shared_ptr<DMatrix> *>(dMatrixHandle);
+    fprintf (stdout, "dmatrix handle is not null");
     if (!p_m) {
       fprintf (stderr, "p_m 2 is null");
       exit(1);
