@@ -44,8 +44,11 @@ from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_array, _is_pandas_df
 from .training import train
 
 
-class XGBClassifierMixIn(XGBClassifierBase):  # pylint: disable=too-few-public-methods
+class XGBClassifierMixIn:  # pylint: disable=too-few-public-methods
     """MixIn for classification."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
 
     def _load_model_attributes(self, booster: Booster) -> None:
         config = json.loads(booster.save_config())
@@ -1427,7 +1430,7 @@ def _cls_predict_proba(n_classes: int, prediction: PredtT, vstack: Callable) -> 
         Number of boosting rounds.
 """,
 )
-class XGBClassifier(XGBModel, XGBClassifierMixIn):
+class XGBClassifier(XGBModel, XGBClassifierMixIn, XGBClassifierBase):
     # pylint: disable=missing-docstring,invalid-name,too-many-instance-attributes
     @_deprecate_positional_args
     def __init__(
