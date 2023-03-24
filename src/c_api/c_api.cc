@@ -322,7 +322,7 @@ XGB_DLL int XGQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHand
 XGB_DLL int XGProxyDMatrixCreate(DMatrixHandle* out) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(out);
-  *out = new std::shared_ptr<xgboost::DMatrix>(new xgboost::data::DMatrixProxy);;
+  *out = new std::shared_ptr<xgboost::DMatrix>(new xgboost::data::DMatrixProxy);
   API_END();
 }
 
@@ -1041,15 +1041,15 @@ XGB_DLL int XGBoosterInplacePredict(BoosterHandle handle,
       exit(1);
     }
   } else {
-    //p_m = *static_cast<std::shared_ptr<DMatrix> *>(dMatrixHandle);
-    p_m.reset(new data::DMatrixProxy);
+    p_m = *static_cast<std::shared_ptr<DMatrix> *>(dMatrixHandle);
+
     fprintf (stdout, "dmatrix handle is not null");
     if (!p_m) {
       fprintf (stderr, "p_m 2 is null");
       exit(1);
     }
   }
-  auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
+  auto proxy = new std::shared_ptr<xgboost::DMatrix>(new xgboost::data::DMatrixProxy);
   if (!proxy) {
     fprintf (stderr, "proxy is null");
     exit(1);
