@@ -397,7 +397,7 @@ class CPUPredictor : public Predictor {
                       PredictionCacheEntry *out_preds, uint32_t tree_begin,
                       unsigned tree_end) const override {
     auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
-    // CHECK(proxy)<< "Inplace predict accepts only DMatrixProxy as input.";
+    CHECK(proxy)<< "Inplace predict accepts only DMatrixProxy as input.";
     auto x = proxy->Adapter();
     if (x.type() == typeid(std::shared_ptr<data::DenseAdapter>)) {
       this->DispatchedInplacePredict<data::DenseAdapter, kBlockOfRowsSize>(
