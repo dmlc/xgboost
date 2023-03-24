@@ -116,7 +116,7 @@ class GloablApproxBuilder {
     return nodes.front();
   }
 
-  void UpdatePredictionCache(DMatrix const *data, linalg::VectorView<float> out_preds) const {
+  void UpdatePredictionCache(DMatrix const *data, linalg::MatrixView<float> out_preds) const {
     monitor_->Start(__func__);
     // Caching prediction seems redundant for approx tree method, as sketching takes up
     // majority of training time.
@@ -303,7 +303,7 @@ class GlobalApproxUpdater : public TreeUpdater {
     }
   }
 
-  bool UpdatePredictionCache(const DMatrix *data, linalg::VectorView<float> out_preds) override {
+  bool UpdatePredictionCache(const DMatrix *data, linalg::MatrixView<float> out_preds) override {
     if (data != cached_ || !pimpl_) {
       return false;
     }

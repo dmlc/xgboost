@@ -281,15 +281,19 @@ void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
     UpdateTreeLeaf(p_fmat, predt->predictions, obj, 0, node_position, &ret);
     // No update prediction cache yet.
     new_trees.push_back(std::move(ret));
+    std::size_t num_new_trees = ret.size();
+    if (updaters_.size() > 0 && num_new_trees == 1 && predt->predictions.Size() > 0 &&
+        updaters_.back()->UpdatePredictionCache(p_fmat, out)) {
+      predt->Update(1);
+    }
   } else if (model_.learner_model_param->OutputLength() == 1) {
     std::vector<std::unique_ptr<RegTree>> ret;
     BoostNewTrees(in_gpair, p_fmat, 0, &node_position, &ret);
     UpdateTreeLeaf(p_fmat, predt->predictions, obj, 0, node_position, &ret);
     const size_t num_new_trees = ret.size();
     new_trees.push_back(std::move(ret));
-    auto v_predt = out.Slice(linalg::All(), 0);
     if (updaters_.size() > 0 && num_new_trees == 1 && predt->predictions.Size() > 0 &&
-        updaters_.back()->UpdatePredictionCache(p_fmat, v_predt)) {
+        updaters_.back()->UpdatePredictionCache(p_fmat, out)) {
       predt->Update(1);
     }
   } else {
@@ -305,7 +309,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
       UpdateTreeLeaf(p_fmat, predt->predictions, obj, gid, node_position, &ret);
       const size_t num_new_trees = ret.size();
       new_trees.push_back(std::move(ret));
-      auto v_predt = out.Slice(linalg::All(), gid);
+      auto v_predt = out.Slice(linalg::All(), linalg::Range(gid, gid + 1));
       if (!(updaters_.size() > 0 && predt->predictions.Size() > 0 && num_new_trees == 1 &&
             updaters_.back()->UpdatePredictionCache(p_fmat, v_predt))) {
         update_predict = false;
