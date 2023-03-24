@@ -75,6 +75,7 @@ from .core import (
 )
 from .sklearn import (
     XGBClassifier,
+    XGBClassifierBase,
     XGBClassifierMixIn,
     XGBModel,
     XGBRanker,
@@ -1839,7 +1840,7 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
     "Implementation of the scikit-learn API for XGBoost classification.",
     ["estimators", "model"],
 )
-class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierMixIn):
+class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierMixIn, XGBClassifierBase):
     # pylint: disable=missing-class-docstring
     async def _fit_async(
         self,
