@@ -392,7 +392,7 @@ void TestHistogramExternalMemory(BatchParam batch_param, bool is_approx, bool fo
     batch_param.hess = hess;
   }
 
-  std::vector<size_t> partition_size(1, 0);
+  std::vector<bst_row_t> partition_size(1, 0);
   size_t total_bins{0};
   size_t n_samples{0};
 
