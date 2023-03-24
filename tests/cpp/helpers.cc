@@ -370,15 +370,12 @@ std::shared_ptr<DMatrix> RandomDataGenerator::GenerateDMatrix(bool with_label, b
   HostDeviceVector<bst_row_t> rptrs;
   HostDeviceVector<bst_feature_t> columns;
   this->GenerateCSR(&data, &rptrs, &columns);
-  auto srptr = linalg::ArrayInterfaceStr(linalg::MakeTensorView(
-      device_, device_ == Context::kCpuId ? rptrs.ConstHostSpan() : rptrs.ConstDeviceSpan(),
-      rptrs.Size()));
-  auto sdata = linalg::ArrayInterfaceStr(linalg::MakeTensorView(
-      device_, device_ == Context::kCpuId ? data.ConstHostSpan() : data.ConstDeviceSpan(),
-      data.Size()));
-  auto sind = linalg::ArrayInterfaceStr(linalg::MakeTensorView(
-      device_, device_ == Context::kCpuId ? columns.ConstHostSpan() : columns.ConstDeviceSpan(),
-      columns.Size()));
+  auto srptr = linalg::ArrayInterfaceStr(
+      linalg::MakeTensorView(Context::kCpuId, rptrs.ConstHostSpan(), rptrs.Size()));
+  auto sdata =
+      linalg::ArrayInterfaceStr(linalg::MakeTensorView(device_, data.ConstHostSpan(), data.Size()));
+  auto sind = linalg::ArrayInterfaceStr(
+      linalg::MakeTensorView(device_, columns.ConstHostSpan(), columns.Size()));
   data::CSRArrayAdapter adapter{StringView{srptr}, StringView{sind}, StringView{sdata}, cols_};
   std::shared_ptr<DMatrix> out{
       DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)};
