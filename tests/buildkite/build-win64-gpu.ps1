@@ -12,10 +12,10 @@ if ( $is_release_branch -eq 0 ) {
 }
 mkdir build
 cd build
-cmake .. -G"Visual Studio 15 2017 Win64" -DUSE_CUDA=ON -DCMAKE_VERBOSE_MAKEFILE=ON `
-  -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DCMAKE_UNITY_BUILD=ON ${arch_flag}
+cmake .. -G"Visual Studio 17 2022" -A x64 -DUSE_CUDA=ON -DCMAKE_VERBOSE_MAKEFILE=ON `
+  -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON ${arch_flag}
 $msbuild = -join @(
-  "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\MSBuild\\15.0"
+  "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current"
   "\\Bin\\MSBuild.exe"
 )
 & $msbuild xgboost.sln /m /p:Configuration=Release /nodeReuse:false

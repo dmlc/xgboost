@@ -58,7 +58,7 @@ Resources:
   BootstrapComponent:
     Type: AWS::ImageBuilder::Component
     Properties:
-      Name: !Sub "${AWS::StackName}-bootstrap-component"
+      Name: !Join ["-", [!Ref AWS::StackName, "bootstrap-component", !Select [2, !Split ['/', !Ref AWS::StackId]]]]
       Platform: !Ref InstanceOperatingSystem
       Version: "1.0.0"
       Description: Execute a bootstrap script.
@@ -67,7 +67,7 @@ Resources:
   Recipe:
     Type: AWS::ImageBuilder::ImageRecipe
     Properties:
-      Name: !Sub "${AWS::StackName}-image"
+      Name: !Join ["-", [!Ref AWS::StackName, "image", !Select [2, !Split ['/', !Ref AWS::StackId]]]]
       Components:
         - ComponentArn: !Ref BootstrapComponent
       ParentImage: !Ref BaseImageId
@@ -83,7 +83,7 @@ Resources:
   Infrastructure:
     Type: AWS::ImageBuilder::InfrastructureConfiguration
     Properties:
-      Name: !Sub "${AWS::StackName}-image-pipeline-infrastructure"
+      Name: !Join ["-", [!Ref AWS::StackName, "image-pipeline-infrastructure", !Select [2, !Split ['/', !Ref AWS::StackId]]]]
       InstanceProfileName: !Ref InstanceProfile
       InstanceTypes:
         - !Ref InstanceType
@@ -93,7 +93,7 @@ Resources:
   Distribution:
     Type: AWS::ImageBuilder::DistributionConfiguration
     Properties:
-      Name: !Sub "${AWS::StackName}-image-pipeline-distribution-config"
+      Name: !Join ["-", [!Ref AWS::StackName, "image-pipeline-distribution-config", !Select [2, !Split ['/', !Ref AWS::StackId]]]]
       Distributions:
         - Region: !Ref AWS::Region
           AmiDistributionConfiguration: {}
@@ -102,7 +102,7 @@ Resources:
   Pipeline:
     Type: AWS::ImageBuilder::ImagePipeline
     Properties:
-      Name: !Sub "${AWS::StackName}-image-pipeline"
+      Name: !Join ["-", [!Ref AWS::StackName, "image-pipeline", !Select [2, !Split ['/', !Ref AWS::StackId]]]]
       DistributionConfigurationArn: !Ref Distribution
       ImageRecipeArn: !Ref Recipe
       InfrastructureConfigurationArn: !Ref Infrastructure

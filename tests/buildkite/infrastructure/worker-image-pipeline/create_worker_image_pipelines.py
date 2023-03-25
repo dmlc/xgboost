@@ -2,6 +2,7 @@ import argparse
 import copy
 import json
 import os
+import sys
 from urllib.request import urlopen
 
 import boto3
@@ -9,6 +10,9 @@ import cfn_flip
 from metadata import IMAGE_PARAMS
 
 current_dir = os.path.dirname(__file__)
+sys.path.append(os.path.join(current_dir, ".."))
+
+from common_blocks.utils import replace_stack, wait
 
 BUILDKITE_CF_TEMPLATE_URL = (
     "https://s3.amazonaws.com/buildkite-aws-stack/latest/aws-stack.yml"
@@ -47,6 +51,9 @@ def main(args):
 
     ami_mapping = get_ami_mapping()
 
+    client = boto3.client("cloudformation", region_name=args.aws_region)
+    promises = []
+
     for stack_id in IMAGE_PARAMS:
         stack_id_full = get_full_stack_id(stack_id)
         print(f"Creating EC2 image builder stack {stack_id_full}...")
@@ -55,28 +62,20 @@ def main(args):
             stack_id=stack_id, aws_region=args.aws_region, ami_mapping=ami_mapping
         )
 
-        client = boto3.client("cloudformation", region_name=args.aws_region)
-        response = client.create_stack(
-            StackName=stack_id_full,
-            TemplateBody=ec2_image_pipeline_template,
-            Capabilities=[
-                "CAPABILITY_IAM",
-                "CAPABILITY_NAMED_IAM",
-                "CAPABILITY_AUTO_EXPAND",
-            ],
-            OnFailure="ROLLBACK",
-            EnableTerminationProtection=False,
-            Parameters=params,
+        promise = replace_stack(
+            args,
+            client=client,
+            stack_name=stack_id_full,
+            template_body=ec2_image_pipeline_template,
+            params=params,
         )
+        promises.append(promise)
         print(
             f"EC2 image builder stack {stack_id_full} is in progress in the background"
         )
 
-    for stack_id in IMAGE_PARAMS:
-        stack_id_full = get_full_stack_id(stack_id)
-        waiter = client.get_waiter("stack_create_complete")
-        waiter.wait(StackName=stack_id_full)
-        print(f"EC2 image builder stack {stack_id_full} is now finished.")
+    for promise in promises:
+        wait(promise, client=client)
 
 
 if __name__ == "__main__":

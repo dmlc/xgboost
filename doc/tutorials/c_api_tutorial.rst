@@ -45,7 +45,7 @@ Use ``find_package()`` and ``target_link_libraries()`` in your application's CMa
 
 .. code-block:: cmake
 
-    cmake_minimum_required(VERSION 3.13)
+    cmake_minimum_required(VERSION 3.18)
     project(your_project_name LANGUAGES C CXX VERSION your_project_version)
     find_package(xgboost REQUIRED)
     add_executable(your_project_name /path/to/project_file.c)
