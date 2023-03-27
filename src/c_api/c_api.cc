@@ -1050,6 +1050,7 @@ XGB_DLL int XGBoosterInplacePredict(BoosterHandle handle,
     }
   }
   fprintf (stdout, reinterpret_cast<const char *>(p_m.get()));
+  p_m.reset(new data::DMatrixProxy);
   auto stuff = dynamic_cast<data::DMatrixProxy *>(p_m.get());
   auto proxy = new std::shared_ptr<xgboost::data::DMatrixProxy>(new xgboost::data::DMatrixProxy);
   printf ("stuff is %s", typeid(stuff).name());
