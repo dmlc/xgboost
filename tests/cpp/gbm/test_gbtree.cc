@@ -505,7 +505,7 @@ TEST(GBTree, PredictRange) {
     auto h_out_predt_full = out_predt->HostVector();
 
     ASSERT_TRUE(std::equal(h_out_predt.begin(), h_out_predt.end(), h_out_predt_full.begin()));
-
+    // Out of range.
     ASSERT_THROW(learner->InplacePredict(x, PredictionType::kValue,
                                          std::numeric_limits<float>::quiet_NaN(), &out_predt, 0, 3),
                  dmlc::Error);

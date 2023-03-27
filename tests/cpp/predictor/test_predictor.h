@@ -14,6 +14,23 @@
 #include "../helpers.h"
 
 namespace xgboost {
+inline gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param, Context const* ctx,
+                                        size_t n_classes = 1) {
+  gbm::GBTreeModel model(param, ctx);
+
+  for (size_t i = 0; i < n_classes; ++i) {
+    std::vector<std::unique_ptr<RegTree>> trees;
+    trees.push_back(std::unique_ptr<RegTree>(new RegTree));
+    if (i == 0) {
+      (*trees.back())[0].SetLeaf(1.5f);
+      (*trees.back()).Stat(0).sum_hess = 1.0f;
+    }
+    model.CommitModelGroup(std::move(trees), i);
+  }
+
+  return model;
+}
+
 template <typename Page>
 void TestPredictionFromGradientIndex(std::string name, size_t rows, size_t cols,
                                      std::shared_ptr<DMatrix> p_hist) {

@@ -148,7 +148,7 @@ class GBLinear : public GradientBooster {
   }
 
   void PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* predts, bool /*training*/,
-                    uint32_t layer_begin, uint32_t) override {
+                    bst_layer_t layer_begin, bst_layer_t) override {
     monitor_.Start("PredictBatch");
     LinearCheckLayer(layer_begin);
     auto* out_preds = &predts->predictions;

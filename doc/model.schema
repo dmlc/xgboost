@@ -19,23 +19,7 @@
                 "type": "object",
                 "properties": {
                   "tree_param": {
-                    "type": "object",
-                    "properties": {
-                      "num_nodes": {
-                        "type": "string"
-                      },
-                      "size_leaf_vector": {
-                        "type": "string"
-                      },
-                      "num_feature": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "num_nodes",
-                      "num_feature",
-                      "size_leaf_vector"
-                    ]
+                    "$ref": "#/definitions/tree_param"
                   },
                   "id": {
                     "type": "integer"
@@ -170,14 +154,11 @@
         },
         "num_parallel_tree": {
           "type": "string"
-        },
-        "size_leaf_vector": {
-          "type": "string"
         }
       },
       "required": [
         "num_trees",
-        "size_leaf_vector"
+        "num_parallel_tree"
       ]
     },
     "tree_param": {

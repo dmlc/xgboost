@@ -85,8 +85,8 @@ class TreeUpdater : public Configurable {
    *         the prediction cache. If true, the prediction cache will have been
    *         updated by the time this function returns.
    */
-  virtual bool UpdatePredictionCache(const DMatrix * /*data*/,
-                                     linalg::VectorView<float> /*out_preds*/) {
+  virtual bool UpdatePredictionCache(const DMatrix* /*data*/,
+                                     linalg::MatrixView<float> /*out_preds*/) {
     return false;
   }
 

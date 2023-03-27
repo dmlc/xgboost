@@ -15,15 +15,17 @@ namespace xgboost {
 
 class TestPredictionCache : public ::testing::Test {
   std::shared_ptr<DMatrix> Xy_;
-  size_t n_samples_{2048};
+  std::size_t n_samples_{2048};
 
  protected:
   void SetUp() override {
-    size_t n_features = 13;
-    Xy_ = RandomDataGenerator{n_samples_, n_features, 0}.GenerateDMatrix(true);
+    std::size_t n_features = 13;
+    bst_target_t n_targets = 3;
+    Xy_ = RandomDataGenerator{n_samples_, n_features, 0}.Targets(n_targets).GenerateDMatrix(true);
   }
 
-  void RunLearnerTest(std::string updater_name, float subsample, std::string grow_policy) {
+  void RunLearnerTest(std::string updater_name, float subsample, std::string const& grow_policy,
+                      std::string const& strategy) {
     std::unique_ptr<Learner> learner{Learner::Create({Xy_})};
     if (updater_name == "grow_gpu_hist") {
       // gpu_id setup
@@ -31,6 +33,7 @@ class TestPredictionCache : public ::testing::Test {
     } else {
       learner->SetParam("updater", updater_name);
     }
+    learner->SetParam("multi_strategy", strategy);
     learner->SetParam("grow_policy", grow_policy);
     learner->SetParam("subsample", std::to_string(subsample));
     learner->SetParam("nthread", "0");
@@ -62,7 +65,7 @@ class TestPredictionCache : public ::testing::Test {
     }
   }
 
-  void RunTest(std::string updater_name) {
+  void RunTest(std::string const& updater_name, std::string const& strategy) {
     {
       Context ctx;
       ctx.InitAllowUnknown(Args{{"nthread", "8"}});
@@ -85,28 +88,31 @@ class TestPredictionCache : public ::testing::Test {
       HostDeviceVector<float> out_prediction_cached;
       out_prediction_cached.SetDevice(ctx.gpu_id);
       out_prediction_cached.Resize(n_samples_);
-      auto cache = linalg::VectorView<float>{ctx.gpu_id == Context::kCpuId
-                                                 ? out_prediction_cached.HostSpan()
-                                                 : out_prediction_cached.DeviceSpan(),
-                                             {out_prediction_cached.Size()},
-                                             ctx.gpu_id};
+      auto cache =
+          linalg::MakeTensorView(&ctx, &out_prediction_cached, out_prediction_cached.Size(), 1);
       ASSERT_TRUE(updater->UpdatePredictionCache(Xy_.get(), cache));
     }
 
     for (auto policy : {"depthwise", "lossguide"}) {
       for (auto subsample : {1.0f, 0.4f}) {
-        this->RunLearnerTest(updater_name, subsample, policy);
-        this->RunLearnerTest(updater_name, subsample, policy);
+        this->RunLearnerTest(updater_name, subsample, policy, strategy);
+        this->RunLearnerTest(updater_name, subsample, policy, strategy);
       }
     }
   }
 };
 
-TEST_F(TestPredictionCache, Approx) { this->RunTest("grow_histmaker"); }
+TEST_F(TestPredictionCache, Approx) { this->RunTest("grow_histmaker", "one_output_per_tree"); }
 
-TEST_F(TestPredictionCache, Hist) { this->RunTest("grow_quantile_histmaker"); }
+TEST_F(TestPredictionCache, Hist) {
+  this->RunTest("grow_quantile_histmaker", "one_output_per_tree");
+}
+
+TEST_F(TestPredictionCache, HistMulti) {
+  this->RunTest("grow_quantile_histmaker", "multi_output_tree");
+}
 
 #if defined(XGBOOST_USE_CUDA)
-TEST_F(TestPredictionCache, GpuHist) { this->RunTest("grow_gpu_hist"); }
+TEST_F(TestPredictionCache, GpuHist) { this->RunTest("grow_gpu_hist", "one_output_per_tree"); }
 #endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost

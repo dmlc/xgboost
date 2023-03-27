@@ -342,7 +342,6 @@ class DeviceModel {
   void Init(const gbm::GBTreeModel& model, size_t tree_begin, size_t tree_end, int32_t gpu_id) {
     dh::safe_cuda(cudaSetDevice(gpu_id));
 
-    CHECK_EQ(model.param.size_leaf_vector, 0);
     // Copy decision trees to device
     tree_segments = std::move(HostDeviceVector<size_t>({}, gpu_id));
     auto& h_tree_segments = tree_segments.HostVector();

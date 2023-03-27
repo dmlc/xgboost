@@ -125,6 +125,7 @@ class MultiTargetHistBuilder {
   std::vector<CommonRowPartitioner> partitioner_;
   // Pointer to last updated tree, used for update prediction cache.
   RegTree const *p_last_tree_{nullptr};
+  DMatrix const * p_last_fmat_{nullptr};
 
   ObjInfo const *task_{nullptr};
 
@@ -147,6 +148,7 @@ class MultiTargetHistBuilder {
   void InitData(DMatrix *p_fmat, RegTree const *p_tree) {
     monitor_->Start(__func__);
 
+    p_last_fmat_ = p_fmat;
     std::size_t page_id = 0;
     bst_bin_t n_total_bins = 0;
     partitioner_.clear();
@@ -312,6 +314,19 @@ class MultiTargetHistBuilder {
         task_{task} {
     monitor_->Init(__func__);
   }
+
+  bool UpdatePredictionCache(DMatrix const *data, linalg::MatrixView<float> out_preds) const {
+    // p_last_fmat_ is a valid pointer as long as UpdatePredictionCache() is called in
+    // conjunction with Update().
+    if (!p_last_fmat_ || !p_last_tree_ || data != p_last_fmat_) {
+      return false;
+    }
+    monitor_->Start(__func__);
+    CHECK_EQ(out_preds.Size(), data->Info().num_row_ * p_last_tree_->NumTargets());
+    UpdatePredictionCacheImpl(ctx_, p_last_tree_, partitioner_, out_preds);
+    monitor_->Stop(__func__);
+    return true;
+  }
 };
 
 class HistBuilder {
@@ -347,7 +362,7 @@ class HistBuilder {
     monitor_->Init(__func__);
   }
 
-  bool UpdatePredictionCache(DMatrix const *data, linalg::VectorView<float> out_preds) const {
+  bool UpdatePredictionCache(DMatrix const *data, linalg::MatrixView<float> out_preds) const {
     // p_last_fmat_ is a valid pointer as long as UpdatePredictionCache() is called in
     // conjunction with Update().
     if (!p_last_fmat_ || !p_last_tree_ || data != p_last_fmat_) {
@@ -582,12 +597,11 @@ class QuantileHistMaker : public TreeUpdater {
     }
   }
 
-  bool UpdatePredictionCache(const DMatrix *data, linalg::VectorView<float> out_preds) override {
+  bool UpdatePredictionCache(const DMatrix *data, linalg::MatrixView<float> out_preds) override {
     if (p_impl_) {
       return p_impl_->UpdatePredictionCache(data, out_preds);
     } else if (p_mtimpl_) {
-      // Not yet supported.
-      return false;
+      return p_mtimpl_->UpdatePredictionCache(data, out_preds);
     } else {
       return false;
     }

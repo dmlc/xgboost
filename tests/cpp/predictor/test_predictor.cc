@@ -209,7 +209,7 @@ void GBTreeModelForTest(gbm::GBTreeModel *model, uint32_t split_ind,
   p_tree->ExpandCategorical(0, split_ind, split_cats, true, 1.5f,
                             left_weight, right_weight,
                             3.0f, 2.2f, 7.0f, 9.0f);
-  model->CommitModel(std::move(trees), 0);
+  model->CommitModelGroup(std::move(trees), 0);
 }
 
 void TestCategoricalPrediction(std::string name) {
@@ -445,7 +445,7 @@ void TestVectorLeafPrediction(Context const *ctx) {
   ASSERT_TRUE(mparam.IsVectorLeaf());
 
   gbm::GBTreeModel model{&mparam, ctx};
-  model.CommitModel(std::move(trees), 0);
+  model.CommitModelGroup(std::move(trees), 0);
 
   auto run_test = [&](float expected, HostDeviceVector<float> *p_data) {
     {
