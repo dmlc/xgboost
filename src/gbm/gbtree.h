@@ -249,10 +249,10 @@ class GBTree : public GradientBooster {
   }
 
   void PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool training,
-                    std::uint32_t layer_begin, std::uint32_t layer_end) override;
+                    bst_layer_t layer_begin, bst_layer_t layer_end) override;
 
   void InplacePredict(std::shared_ptr<DMatrix> p_m, float missing, PredictionCacheEntry* out_preds,
-                      uint32_t layer_begin, unsigned layer_end) const override {
+                      bst_layer_t layer_begin, bst_layer_t layer_end) const override {
     CHECK(configured_);
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_LE(tree_end, model_.trees.size()) << "Invalid number of trees.";

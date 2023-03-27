@@ -566,12 +566,12 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
 }
 
 void GBTree::PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool,
-                          std::uint32_t layer_begin, std::uint32_t layer_end) {
+                          bst_layer_t layer_begin, bst_layer_t layer_end) {
   CHECK(configured_);
   if (layer_end == 0) {
     layer_end = this->BoostedRounds();
   }
-  if (layer_begin != 0 || layer_end < out_preds->version) {
+  if (layer_begin != 0 || layer_end < static_cast<bst_layer_t>(out_preds->version)) {
     // cache is dropped.
     out_preds->version = 0;
   }
@@ -845,18 +845,15 @@ class Dart : public GBTree {
     }
   }
 
-  void PredictBatch(DMatrix* p_fmat,
-                    PredictionCacheEntry* p_out_preds,
-                    bool training,
-                    unsigned layer_begin,
-                    unsigned layer_end) override {
+  void PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* p_out_preds, bool training,
+                    bst_layer_t layer_begin, bst_layer_t layer_end) override {
     DropTrees(training);
     this->PredictBatchImpl(p_fmat, p_out_preds, training, layer_begin, layer_end);
   }
 
   void InplacePredict(std::shared_ptr<DMatrix> p_fmat, float missing,
-                      PredictionCacheEntry* p_out_preds, uint32_t layer_begin,
-                      unsigned layer_end) const override {
+                      PredictionCacheEntry* p_out_preds, bst_layer_t layer_begin,
+                      bst_layer_t layer_end) const override {
     CHECK(!this->model_.learner_model_param->IsVectorLeaf()) << "dart" << MTNotImplemented();
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     auto n_groups = model_.learner_model_param->num_output_group;
