@@ -1061,10 +1061,10 @@ XGB_DLL int XGBoosterInplacePredict(BoosterHandle handle,
   if (!stuff) {
       fprintf (stderr, "stuff is null");
       exit(1);
-    }
+  }
   auto *learner = static_cast<xgboost::Learner *>(handle);
   auto iteration_end = GetIterationFromTreeLimit(ntree_limit, learner);
-  proxy->SetDenseData(data)
+  stuff->SetDenseData(data, num_rows, num_features);
   InplacePredictImplCore(p_m, learner, (xgboost::PredictionType)0, missing, num_rows, num_features,
                          0, iteration_end, true, len, &out_dim, out_result);
 //  printf("XGBoosterInplacePredict len = %u, dim = %u\n", **len, out_dim);
