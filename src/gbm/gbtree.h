@@ -143,6 +143,7 @@ inline std::pair<bst_tree_t, bst_tree_t> LayerToTree(gbm::GBTreeModel const& mod
                                                      bst_layer_t begin, bst_layer_t end) {
   CHECK(!model.iteration_indptr.empty());
   end = end == 0 ? model.BoostedRounds() : end;
+  CHECK_LE(end, model.BoostedRounds()) << "Out of range for tree layers.";
   bst_tree_t tree_begin = model.iteration_indptr[begin];
   bst_tree_t tree_end = model.iteration_indptr[end];
   if (model.trees.size() != 0) {
