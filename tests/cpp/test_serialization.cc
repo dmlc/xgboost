@@ -1,7 +1,10 @@
-// Copyright (c) 2019-2022 by Contributors
+/**
+ * Copyright (c) 2019-2023, XGBoost Contributors
+ */
 #include <gtest/gtest.h>
 #include <xgboost/base.h>
 #include <xgboost/data.h>
+#include <xgboost/feature_map.h>  // for FeatureMap
 #include <xgboost/json.h>
 #include <xgboost/learner.h>
 

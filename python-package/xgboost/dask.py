@@ -60,7 +60,7 @@ from typing import (
 import numpy
 
 from . import collective, config
-from ._typing import _T, FeatureNames, FeatureTypes
+from ._typing import _T, FeatureNames, FeatureTypes, ModelIn
 from .callback import TrainingCallback
 from .compat import DataFrame, LazyLoader, concat, lazy_isinstance
 from .core import (
@@ -76,6 +76,7 @@ from .core import (
 from .sklearn import (
     XGBClassifier,
     XGBClassifierBase,
+    XGBClassifierMixIn,
     XGBModel,
     XGBRanker,
     XGBRankerMixIn,
@@ -1839,7 +1840,7 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
     "Implementation of the scikit-learn API for XGBoost classification.",
     ["estimators", "model"],
 )
-class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
+class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierMixIn, XGBClassifierBase):
     # pylint: disable=missing-class-docstring
     async def _fit_async(
         self,
@@ -2018,6 +2019,10 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
 
             preds = da.map_blocks(_argmax, pred_probs, drop_axis=1)
         return preds
+
+    def load_model(self, fname: ModelIn) -> None:
+        super().load_model(fname)
+        self._load_model_attributes(self.get_booster())
 
 
 @xgboost_model_doc(

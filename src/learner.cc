@@ -45,7 +45,7 @@
 #include "common/timer.h"                 // for Monitor
 #include "common/version.h"               // for Version
 #include "dmlc/endian.h"                  // for ByteSwap, DMLC_IO_NO_ENDIAN_SWAP
-#include "xgboost/base.h"                 // for Args, bst_float, GradientPair, bst_feature_t
+#include "xgboost/base.h"                 // for Args, bst_float, GradientPair, bst_feature_t, ...
 #include "xgboost/context.h"              // for Context
 #include "xgboost/data.h"                 // for DMatrix, MetaInfo
 #include "xgboost/gbm.h"                  // for GradientBooster
@@ -1247,19 +1247,19 @@ class LearnerImpl : public LearnerIO {
     return gbm_->DumpModel(fmap, with_stats, format);
   }
 
-  Learner* Slice(int32_t begin_layer, int32_t end_layer, int32_t step,
+  Learner* Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step,
                  bool* out_of_bound) override {
     this->Configure();
     this->CheckModelInitialized();
 
     CHECK_NE(this->learner_model_param_.num_feature, 0);
-    CHECK_GE(begin_layer, 0);
+    CHECK_GE(begin, 0);
     auto* out_impl = new LearnerImpl({});
     out_impl->learner_model_param_.Copy(this->learner_model_param_);
     out_impl->ctx_ = this->ctx_;
     auto gbm = std::unique_ptr<GradientBooster>(GradientBooster::Create(
         this->tparam_.booster, &out_impl->ctx_, &out_impl->learner_model_param_));
-    this->gbm_->Slice(begin_layer, end_layer, step, gbm.get(), out_of_bound);
+    this->gbm_->Slice(begin, end, step, gbm.get(), out_of_bound);
     out_impl->gbm_ = std::move(gbm);
 
     Json config{Object()};

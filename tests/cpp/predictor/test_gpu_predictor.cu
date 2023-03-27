@@ -1,5 +1,5 @@
-/*!
- * Copyright 2017-2022 XGBoost contributors
+/**
+ * Copyright 2017-2023, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/c_api.h>
@@ -155,7 +155,7 @@ TEST(GPUPredictor, ShapStump) {
 
   std::vector<std::unique_ptr<RegTree>> trees;
   trees.push_back(std::unique_ptr<RegTree>(new RegTree));
-  model.CommitModel(std::move(trees), 0);
+  model.CommitModelGroup(std::move(trees), 0);
 
   auto gpu_lparam = CreateEmptyGenericParam(0);
   std::unique_ptr<Predictor> gpu_predictor = std::unique_ptr<Predictor>(
@@ -183,7 +183,7 @@ TEST(GPUPredictor, Shap) {
   std::vector<std::unique_ptr<RegTree>> trees;
   trees.push_back(std::unique_ptr<RegTree>(new RegTree));
   trees[0]->ExpandNode(0, 0, 0.5, true, 1.0, -1.0, 1.0, 0.0, 5.0, 2.0, 3.0);
-  model.CommitModel(std::move(trees), 0);
+  model.CommitModelGroup(std::move(trees), 0);
 
   auto gpu_lparam = CreateEmptyGenericParam(0);
   auto cpu_lparam = CreateEmptyGenericParam(-1);

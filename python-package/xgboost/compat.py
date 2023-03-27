@@ -88,31 +88,6 @@ def is_cudf_available() -> bool:
         return False
 
 
-class XGBoostLabelEncoder(LabelEncoder):
-    """Label encoder with JSON serialization methods."""
-
-    def to_json(self) -> Dict:
-        """Returns a JSON compatible dictionary"""
-        meta = {}
-        for k, v in self.__dict__.items():
-            if isinstance(v, np.ndarray):
-                meta[k] = v.tolist()
-            else:
-                meta[k] = v
-        return meta
-
-    def from_json(self, doc: Dict) -> None:
-        # pylint: disable=attribute-defined-outside-init
-        """Load the encoder back from a JSON compatible dict."""
-        meta = {}
-        for k, v in doc.items():
-            if k == "classes_":
-                self.classes_ = np.array(v)
-                continue
-            meta[k] = v
-        self.__dict__.update(meta)
-
-
 try:
     import scipy.sparse as scipy_sparse
     from scipy.sparse import csr_matrix as scipy_csr

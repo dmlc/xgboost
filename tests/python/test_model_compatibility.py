@@ -66,7 +66,6 @@ def run_scikit_model_check(name, path):
         cls.load_model(path)
         if name.find('0.90') == -1:
             assert len(cls.classes_) == gm.kClasses
-            assert len(cls._le.classes_) == gm.kClasses
             assert cls.n_classes_ == gm.kClasses
         assert (len(cls.get_booster().get_dump()) ==
                 gm.kRounds * gm.kForests * gm.kClasses), path

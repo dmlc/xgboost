@@ -677,9 +677,6 @@ template <typename Partitioner>
 void UpdatePredictionCacheImpl(Context const *ctx, RegTree const *p_last_tree,
                                std::vector<Partitioner> const &partitioner,
                                linalg::VectorView<float> out_preds) {
-  CHECK_GT(out_preds.Size(), 0U);
-
-  CHECK(p_last_tree);
   auto const &tree = *p_last_tree;
   CHECK_EQ(out_preds.DeviceIdx(), Context::kCpuId);
   size_t n_nodes = p_last_tree->GetNodes().size();
@@ -687,12 +684,49 @@ void UpdatePredictionCacheImpl(Context const *ctx, RegTree const *p_last_tree,
     CHECK_EQ(part.Size(), n_nodes);
     common::BlockedSpace2d space(
         part.Size(), [&](size_t node) { return part[node].Size(); }, 1024);
-    common::ParallelFor2d(space, ctx->Threads(), [&](size_t nidx, common::Range1d r) {
+    common::ParallelFor2d(space, ctx->Threads(), [&](bst_node_t nidx, common::Range1d r) {
       if (!tree[nidx].IsDeleted() && tree[nidx].IsLeaf()) {
         auto const &rowset = part[nidx];
         auto leaf_value = tree[nidx].LeafValue();
         for (const size_t *it = rowset.begin + r.begin(); it < rowset.begin + r.end(); ++it) {
           out_preds(*it) += leaf_value;
+        }
+      }
+    });
+  }
+}
+
+template <typename Partitioner>
+void UpdatePredictionCacheImpl(Context const *ctx, RegTree const *p_last_tree,
+                               std::vector<Partitioner> const &partitioner,
+                               linalg::MatrixView<float> out_preds) {
+  CHECK_GT(out_preds.Size(), 0U);
+  CHECK(p_last_tree);
+
+  auto const &tree = *p_last_tree;
+  if (!tree.IsMultiTarget()) {
+    UpdatePredictionCacheImpl(ctx, p_last_tree, partitioner, out_preds.Slice(linalg::All(), 0));
+    return;
+  }
+
+  auto const *mttree = tree.GetMultiTargetTree();
+  auto n_nodes = mttree->Size();
+  auto n_targets = tree.NumTargets();
+  CHECK_EQ(out_preds.Shape(1), n_targets);
+  CHECK_EQ(out_preds.DeviceIdx(), Context::kCpuId);
+
+  for (auto &part : partitioner) {
+    CHECK_EQ(part.Size(), n_nodes);
+    common::BlockedSpace2d space(
+        part.Size(), [&](size_t node) { return part[node].Size(); }, 1024);
+    common::ParallelFor2d(space, ctx->Threads(), [&](bst_node_t nidx, common::Range1d r) {
+      if (tree.IsLeaf(nidx)) {
+        auto const &rowset = part[nidx];
+        auto leaf_value = mttree->LeafValue(nidx);
+        for (std::size_t const *it = rowset.begin + r.begin(); it < rowset.begin + r.end(); ++it) {
+          for (std::size_t i = 0; i < n_targets; ++i) {
+            out_preds(*it, i) += leaf_value(i);
+          }
         }
       }
     });

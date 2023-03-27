@@ -517,7 +517,7 @@ struct GPUHistMakerDevice {
     });
   }
 
-  bool UpdatePredictionCache(linalg::VectorView<float> out_preds_d, RegTree const* p_tree) {
+  bool UpdatePredictionCache(linalg::MatrixView<float> out_preds_d, RegTree const* p_tree) {
     if (positions.empty()) {
       return false;
     }
@@ -535,11 +535,12 @@ struct GPUHistMakerDevice {
                                   h_nodes.size() * sizeof(RegTree::Node), cudaMemcpyHostToDevice,
                                   ctx_->CUDACtx()->Stream()));
     auto d_nodes = dh::ToSpan(nodes);
+    CHECK_EQ(out_preds_d.Shape(1), 1);
     dh::LaunchN(d_position.size(), ctx_->CUDACtx()->Stream(),
                 [=] XGBOOST_DEVICE(std::size_t idx) mutable {
                   bst_node_t nidx = d_position[idx];
                   auto weight = d_nodes[nidx].LeafValue();
-                  out_preds_d(idx) += weight;
+                  out_preds_d(idx, 0) += weight;
                 });
     return true;
   }
@@ -858,7 +859,7 @@ class GPUHistMaker : public TreeUpdater {
   }
 
   bool UpdatePredictionCache(const DMatrix* data,
-                             linalg::VectorView<bst_float> p_out_preds) override {
+                             linalg::MatrixView<bst_float> p_out_preds) override {
     if (maker == nullptr || p_last_fmat_ == nullptr || p_last_fmat_ != data) {
       return false;
     }

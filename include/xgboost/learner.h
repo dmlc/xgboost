@@ -9,7 +9,7 @@
 #define XGBOOST_LEARNER_H_
 
 #include <dmlc/io.h>          // for Serializable
-#include <xgboost/base.h>     // for bst_feature_t, bst_target_t, bst_float, Args, GradientPair
+#include <xgboost/base.h>     // for bst_feature_t, bst_target_t, bst_float, Args, GradientPair, ..
 #include <xgboost/context.h>  // for Context
 #include <xgboost/linalg.h>   // for Tensor, TensorView
 #include <xgboost/metric.h>   // for Metric
@@ -229,7 +229,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    */
   virtual void GetFeatureTypes(std::vector<std::string>* ft) const = 0;
 
-  /*!
+  /**
    * \brief Slice the model.
    *
    * See InplacePredict for layer parameters.
@@ -239,8 +239,8 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    *
    * \return a sliced model.
    */
-  virtual Learner *Slice(int32_t begin_layer, int32_t end_layer, int32_t step,
-                         bool *out_of_bound) = 0;
+  virtual Learner* Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step,
+                         bool* out_of_bound) = 0;
   /*!
    * \brief dump the model in the requested format
    * \param fmap feature map that may help give interpretations of feature

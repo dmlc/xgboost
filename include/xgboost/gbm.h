@@ -59,16 +59,16 @@ class GradientBooster : public Model, public Configurable {
    * \param fo output stream
    */
   virtual void Save(dmlc::Stream* fo) const = 0;
-  /*!
+  /**
    * \brief Slice a model using boosting index. The slice m:n indicates taking all trees
    *        that were fit during the boosting rounds m, (m+1), (m+2), ..., (n-1).
-   * \param layer_begin Beginning of boosted tree layer used for prediction.
-   * \param layer_end   End of booster layer. 0 means do not limit trees.
-   * \param out         Output gradient booster
+   * \param begin Beginning of boosted tree layer used for prediction.
+   * \param end   End of booster layer. 0 means do not limit trees.
+   * \param out   Output gradient booster
    */
-  virtual void Slice(int32_t /*layer_begin*/, int32_t /*layer_end*/, int32_t /*step*/,
+  virtual void Slice(bst_layer_t /*begin*/, bst_layer_t /*end*/, bst_layer_t /*step*/,
                      GradientBooster* /*out*/, bool* /*out_of_bound*/) const {
-    LOG(FATAL) << "Slice is not supported by current booster.";
+    LOG(FATAL) << "Slice is not supported by the current booster.";
   }
   /*! \brief Return number of boosted rounds.
    */
@@ -88,34 +88,31 @@ class GradientBooster : public Model, public Configurable {
   virtual void DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
                        PredictionCacheEntry*, ObjFunction const* obj) = 0;
 
-  /*!
-   * \brief generate predictions for given feature matrix
-   * \param dmat feature matrix
+  /**
+   * \brief Generate predictions for given feature matrix
+   *
+   * \param dmat     The feature matrix.
    * \param out_preds output vector to hold the predictions
    * \param training Whether the prediction value is used for training.  For dart booster
    *                 drop out is performed during training.
-   * \param layer_begin Beginning of boosted tree layer used for prediction.
-   * \param layer_end   End of booster layer. 0 means do not limit trees.
+   * \param begin    Beginning of boosted tree layer used for prediction.
+   * \param end      End of booster layer. 0 means do not limit trees.
    */
-  virtual void PredictBatch(DMatrix* dmat,
-                            PredictionCacheEntry* out_preds,
-                            bool training,
-                            unsigned layer_begin,
-                            unsigned layer_end) = 0;
+  virtual void PredictBatch(DMatrix* dmat, PredictionCacheEntry* out_preds, bool training,
+                            bst_layer_t begin, bst_layer_t end) = 0;
 
-  /*!
+  /**
    * \brief Inplace prediction.
    *
-   * \param           p_fmat                 A proxy DMatrix that contains the data and related
-   *                                         meta info.
-   * \param           missing                Missing value in the data.
-   * \param [in,out]  out_preds              The output preds.
-   * \param           layer_begin (Optional) Beginning of boosted tree layer used for prediction.
-   * \param           layer_end   (Optional) End of booster layer. 0 means do not limit trees.
+   * \param           p_fmat    A proxy DMatrix that contains the data and related.
+   * \param           missing   Missing value in the data.
+   * \param [in,out]  out_preds The output preds.
+   * \param           begin     (Optional) Beginning of boosted tree layer used for prediction.
+   * \param           end       (Optional) End of booster layer. 0 means do not limit trees.
    */
-  virtual void InplacePredict(std::shared_ptr<DMatrix>, float, PredictionCacheEntry*, uint32_t,
-                              uint32_t) const {
-    LOG(FATAL) << "Inplace predict is not supported by current booster.";
+  virtual void InplacePredict(std::shared_ptr<DMatrix>, float, PredictionCacheEntry*, bst_layer_t,
+                              bst_layer_t) const {
+    LOG(FATAL) << "Inplace predict is not supported by the current booster.";
   }
   /*!
    * \brief online prediction function, predict score for one instance at a time

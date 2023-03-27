@@ -17,6 +17,7 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Generator,
     Iterable,
     List,
     Optional,
@@ -47,6 +48,7 @@ from ._typing import (
     FeatureInfo,
     FeatureNames,
     FeatureTypes,
+    ModelIn,
     NumpyOrCupy,
     c_bst_ulong,
 )
@@ -1755,6 +1757,10 @@ class Booster:
         sliced.handle = sliced_handle
         return sliced
 
+    def __iter__(self) -> Generator["Booster", None, None]:
+        for i in range(0, self.num_boosted_rounds()):
+            yield self[i]
+
     def save_config(self) -> str:
         """Output internal parameter configuration of Booster as a JSON
         string.
@@ -2477,7 +2483,7 @@ class Booster:
         )
         return ctypes2buffer(cptr, length.value)
 
-    def load_model(self, fname: Union[str, bytearray, os.PathLike]) -> None:
+    def load_model(self, fname: ModelIn) -> None:
         """Load the model from a file or bytearray. Path to file can be local
         or as an URI.
 

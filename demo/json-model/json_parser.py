@@ -162,9 +162,6 @@ class Model:
 
         # Load the trees
         self.num_trees = int(model_shape["num_trees"])
-        self.leaf_size = int(model_shape["size_leaf_vector"])
-        # Right now XGBoost doesn't support vector leaf yet
-        assert self.leaf_size == 0, str(self.leaf_size)
 
         trees: List[Tree] = []
         for i in range(self.num_trees):
