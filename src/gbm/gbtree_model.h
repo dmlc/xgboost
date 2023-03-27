@@ -121,7 +121,7 @@ struct GBTreeModel : public Model {
    *
    * \return The number of new trees.
    */
-  std::uint32_t CommitModel(TreesOneIter&& new_trees);
+  bst_tree_t CommitModel(TreesOneIter&& new_trees);
 
   void CommitModelGroup(std::vector<std::unique_ptr<RegTree>>&& new_trees, bst_target_t group_idx) {
     for (auto& new_tree : new_trees) {

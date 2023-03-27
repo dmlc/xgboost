@@ -3,15 +3,18 @@
  */
 #include "gbtree_model.h"
 
+#include <algorithm>                    // for transform, max_element
 #include <cstddef>                      // for size_t
+#include <numeric>                      // for partial_sum
 #include <ostream>                      // for operator<<, basic_ostream
-#include <utility>                      // for move
+#include <utility>                      // for move, pair
 
 #include "../common/threading_utils.h"  // for ParallelFor
 #include "dmlc/base.h"                  // for BeginPtr
 #include "dmlc/io.h"                    // for Stream
 #include "xgboost/context.h"            // for Context
-#include "xgboost/json.h"               // for Json, get, Integer, Array, FromJson, ToJson, Object
+#include "xgboost/json.h"               // for Json, get, Integer, Array, FromJson, ToJson, Json...
+#include "xgboost/learner.h"            // for LearnerModelParam
 #include "xgboost/logging.h"            // for LogCheck_EQ, CHECK_EQ, CHECK
 #include "xgboost/tree_model.h"         // for RegTree
 
@@ -155,10 +158,10 @@ void GBTreeModel::LoadModel(Json const& in) {
   }
 }
 
-std::uint32_t GBTreeModel::CommitModel(TreesOneIter&& new_trees) {
+bst_tree_t GBTreeModel::CommitModel(TreesOneIter&& new_trees) {
   CHECK(!iteration_indptr.empty());
   CHECK_EQ(iteration_indptr.back(), param.num_trees);
-  std::uint32_t n_new_trees{0};
+  bst_tree_t n_new_trees{0};
 
   if (learner_model_param->IsVectorLeaf()) {
     n_new_trees += new_trees.front().size();
