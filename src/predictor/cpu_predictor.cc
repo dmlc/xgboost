@@ -396,7 +396,8 @@ class CPUPredictor : public Predictor {
   bool InplacePredict(std::shared_ptr<DMatrix> p_m, const gbm::GBTreeModel &model, float missing,
                       PredictionCacheEntry *out_preds, uint32_t tree_begin,
                       unsigned tree_end) const override {
-    auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
+    //auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
+    auto proxy = new std::shared_ptr<xgboost::DMatrix>(new xgboost::data::DMatrixProxy);
     if (!proxy) {
       fprintf (stderr, "InplacePredict: proxy is null cpu variant");
       exit(1);

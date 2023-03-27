@@ -1050,11 +1050,16 @@ XGB_DLL int XGBoosterInplacePredict(BoosterHandle handle,
     }
   }
   fprintf (stdout, reinterpret_cast<const char *>(p_m.get()));
+  DMatrixProxy* stuff = dynamic_cast<data::DMatrixProxy *>(p_m.get());
   auto proxy = new std::shared_ptr<xgboost::DMatrix>(new xgboost::data::DMatrixProxy);
   if (!proxy) {
     fprintf (stderr, "proxy is null");
     exit(1);
   }
+  if (!stuff) {
+      fprintf (stderr, "stuff is null");
+      exit(1);
+    }
   auto *learner = static_cast<xgboost::Learner *>(handle);
   auto iteration_end = GetIterationFromTreeLimit(ntree_limit, learner);
   InplacePredictImplCore(p_m, learner, (xgboost::PredictionType)0, missing, num_rows, num_features,
