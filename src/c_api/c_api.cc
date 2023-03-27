@@ -1030,20 +1030,20 @@ XGB_DLL int XGBoosterInplacePredict(BoosterHandle handle,
   std::shared_ptr<xgboost::data::DenseAdapter> x{new xgboost::data::DenseAdapter(data, num_rows, num_features)};
   //std::shared_ptr<DMatrix> p_m(dMatrixHandle);
   std::shared_ptr<DMatrix> p_m{nullptr};
-  if (!dMatrixHandle) {
+  /*if (!dMatrixHandle) {
     fprintf (stderr, "dMatrixHandle is null");
     exit(1);
-  }
+  }*/
   if (!dMatrixHandle) {
     p_m.reset(new data::DMatrixProxy);
-    fprintf (stdout, "dmatrix handle is null");
+    //fprintf (stdout, "dmatrix handle is null");
     if (!p_m) {
       fprintf (stderr, "p_m 1 is null");
       exit(1);
     }
   } else {
     p_m = *static_cast<std::shared_ptr<DMatrix> *>(dMatrixHandle);
-    fprintf (stdout, "dmatrix handle is not null");
+    //fprintf (stdout, "dmatrix handle is not null");
     if (!p_m) {
       fprintf (stderr, "p_m 2 is null");
       exit(1);
@@ -1053,8 +1053,8 @@ XGB_DLL int XGBoosterInplacePredict(BoosterHandle handle,
   p_m.reset(new data::DMatrixProxy);
   auto stuff = dynamic_cast<data::DMatrixProxy *>(p_m.get());
   auto proxy = new std::shared_ptr<xgboost::data::DMatrixProxy>(new xgboost::data::DMatrixProxy);
-  printf ("stuff is %s", typeid(stuff).name());
-  printf ("proxy is %s", typeid(proxy).name());
+  //printf ("stuff is %s", typeid(stuff).name());
+  //printf ("proxy is %s", typeid(proxy).name());
   if (!proxy) {
     fprintf (stderr, "proxy is null line 1058");
     exit(1);
