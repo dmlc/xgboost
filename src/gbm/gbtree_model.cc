@@ -1,12 +1,19 @@
 /**
  * Copyright 2019-2023, XGBoost Contributors
  */
-#include <utility>
-
-#include "xgboost/json.h"
-#include "xgboost/logging.h"
 #include "gbtree_model.h"
-#include "gbtree.h"
+
+#include <cstddef>                      // for size_t
+#include <ostream>                      // for operator<<, basic_ostream
+#include <utility>                      // for move
+
+#include "../common/threading_utils.h"  // for ParallelFor
+#include "dmlc/base.h"                  // for BeginPtr
+#include "dmlc/io.h"                    // for Stream
+#include "xgboost/context.h"            // for Context
+#include "xgboost/json.h"               // for Json, get, Integer, Array, FromJson, ToJson, Object
+#include "xgboost/logging.h"            // for LogCheck_EQ, CHECK_EQ, CHECK
+#include "xgboost/tree_model.h"         // for RegTree
 
 namespace xgboost::gbm {
 void GBTreeModel::Save(dmlc::Stream* fo) const {
@@ -102,17 +109,33 @@ void GBTreeModel::LoadModel(Json const& in) {
 
   CHECK(ctx_);
 
-  std::atomic<std::int32_t> has_multi_target_tree{0};
   common::ParallelFor(param.num_trees, ctx_->Threads(), [&](auto t) {
     auto tree_id = get<Integer const>(trees_json[t]["id"]);
     trees.at(tree_id).reset(new RegTree{});
     trees[tree_id]->LoadModel(trees_json[t]);
-    has_multi_target_tree += !!trees[tree_id]->IsMultiTarget();
   });
-  has_multi_tree_ = has_multi_target_tree > 0;
 
-  for (int32_t i = 0; i < param.num_trees; ++i) {
+  for (bst_tree_t i = 0; i < param.num_trees; ++i) {
     tree_info[i] = get<Integer const>(tree_info_json[i]);
   }
+}
+
+std::uint32_t GBTreeModel::CommitModel(TreesOneIter&& new_trees) {
+  CHECK(!iteration_indptr.empty());
+  CHECK_EQ(iteration_indptr.back(), param.num_trees);
+  std::uint32_t n_new_trees{0};
+
+  if (learner_model_param->IsVectorLeaf()) {
+    n_new_trees += new_trees.front().size();
+    this->CommitModelGroup(std::move(new_trees.front()), 0);
+  } else {
+    for (bst_target_t gidx{0}; gidx < learner_model_param->OutputLength(); ++gidx) {
+      n_new_trees += new_trees[gidx].size();
+      this->CommitModelGroup(std::move(new_trees[gidx]), gidx);
+    }
+  }
+
+  iteration_indptr.push_back(n_new_trees + iteration_indptr.back());
+  return n_new_trees;
 }
 }  // namespace xgboost::gbm

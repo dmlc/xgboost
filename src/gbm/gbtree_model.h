@@ -25,6 +25,14 @@ namespace xgboost {
 class Json;
 
 namespace gbm {
+/**
+ * \brief Container for all trees built (not update) for one group.
+ */
+using TreesOneGroup = std::vector<std::unique_ptr<RegTree>>;
+/**
+ * \brief Container for all trees built (not update) for one iteration.
+ */
+using TreesOneIter = std::vector<TreesOneGroup>;
 
 /*! \brief model parameters */
 struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
@@ -108,15 +116,20 @@ struct GBTreeModel : public Model {
                         [&](size_t i) { dump[i] = trees[i]->DumpModel(fmap, with_stats, format); });
     return dump;
   }
-  void CommitModel(std::vector<std::unique_ptr<RegTree> >&& new_trees, int bst_group) {
+  /**
+   * \brief Add trees to the model.
+   *
+   * \return The number of new trees.
+   */
+  std::uint32_t CommitModel(TreesOneIter&& new_trees);
+
+  void CommitModelGroup(std::vector<std::unique_ptr<RegTree>>&& new_trees, bst_target_t group_idx) {
     for (auto& new_tree : new_trees) {
-      has_multi_tree_ |= new_tree->IsMultiTarget();
       trees.push_back(std::move(new_tree));
-      tree_info.push_back(bst_group);
+      tree_info.push_back(group_idx);
     }
     param.num_trees += static_cast<int>(new_trees.size());
   }
-  [[nodiscard]] bool HasMultiTargetTree() const { return has_multi_tree_; }
 
   // base margin
   LearnerModelParam const* learner_model_param;
@@ -133,13 +146,12 @@ struct GBTreeModel : public Model {
   /**
    * \brief Number of trees accumulated for each iteration.
    */
-  std::vector<std::uint32_t> iteration_trees;
+  std::vector<std::uint32_t> iteration_indptr{0};
 
  private:
   /**
    * \brief Whether the stack contains multi-target tree.
    */
-  bool has_multi_tree_{false};
   Context const* ctx_;
 };
 }  // namespace gbm

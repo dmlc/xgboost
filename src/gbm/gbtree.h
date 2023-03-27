@@ -139,23 +139,12 @@ struct DartTrainParam : public XGBoostParameter<DartTrainParam> {
 
 namespace detail {
 // From here on, layer becomes concrete trees.
-inline std::pair<uint32_t, uint32_t> LayerToTree(gbm::GBTreeModel const& model,
-                                                 std::uint32_t layer_begin,
-                                                 std::uint32_t layer_end) {
-  std::uint32_t tree_begin;
-  std::uint32_t tree_end;
-  if (model.HasMultiTargetTree()) {
-    tree_begin = layer_begin * model.param.num_parallel_tree;
-    tree_end = layer_end * model.param.num_parallel_tree;
-  } else {
-    bst_group_t groups = model.learner_model_param->OutputLength();
-    tree_begin = layer_begin * groups * model.param.num_parallel_tree;
-    tree_end = layer_end * groups * model.param.num_parallel_tree;
-  }
-
-  if (tree_end == 0) {
-    tree_end = model.trees.size();
-  }
+inline std::pair<bst_tree_t, bst_tree_t> LayerToTree(gbm::GBTreeModel const& model,
+                                                     bst_layer_t layer_begin,
+                                                     bst_layer_t layer_end) {
+  CHECK(!model.iteration_indptr.empty());
+  bst_tree_t tree_begin = model.iteration_indptr[layer_begin];
+  bst_tree_t tree_end = model.iteration_indptr[layer_end];
   if (model.trees.size() != 0) {
     CHECK_LE(tree_begin, tree_end);
   }
@@ -164,27 +153,30 @@ inline std::pair<uint32_t, uint32_t> LayerToTree(gbm::GBTreeModel const& model,
 
 // Call fn for each pair of input output tree.  Return true if index is out of bound.
 template <typename Func>
-bool SliceTrees(int32_t layer_begin, int32_t layer_end, int32_t step, GBTreeModel const& model,
-                uint32_t layer_trees, Func fn) {
-  uint32_t tree_begin, tree_end;
-  std::tie(tree_begin, tree_end) = detail::LayerToTree(model, layer_begin, layer_end);
-  if (tree_end > model.trees.size()) {
+bool SliceTrees(bst_layer_t begin, bst_layer_t end, bst_layer_t step, GBTreeModel const& model,
+                Func&& fn) {
+  end = end == 0 ? model.iteration_indptr.size() : end;
+  CHECK_GE(step, 1);
+  if (step > end - begin) {
     return true;
   }
 
-  layer_end = layer_end == 0 ? model.trees.size() / layer_trees : layer_end;
-  uint32_t n_layers = (layer_end - layer_begin) / step;
-  int32_t in_it = tree_begin;
-  int32_t out_it = 0;
-  for (uint32_t l = 0; l < n_layers; ++l) {
-    for (uint32_t i = 0; i < layer_trees; ++i) {
-      CHECK_LT(in_it, tree_end);
-      fn(in_it, out_it);
-      out_it++;
-      in_it++;
+  bst_layer_t n_layers = (end - begin) / step;
+  bst_layer_t out_l = 0;
+
+  for (bst_layer_t l = begin; l < end; l += step) {
+    auto [tree_begin, tree_end] = detail::LayerToTree(model, l, l + 1);
+    if (tree_end >= static_cast<bst_tree_t>(model.trees.size())) {
+      return true;
     }
-    in_it += (step - 1) * layer_trees;
+
+    for (bst_tree_t tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
+      fn(tree_idx, out_l);
+    }
+    ++out_l;
   }
+
+  CHECK_EQ(out_l, n_layers);
   return false;
 }
 }  // namespace detail
@@ -241,23 +233,15 @@ class GBTree : public GradientBooster {
   void SaveModel(Json* p_out) const override;
   void LoadModel(Json const& in) override;
 
-  // Number of trees per layer.
-  [[nodiscard]] std::uint32_t LayerTrees() const {
-    if (model_.HasMultiTargetTree()) {
-      return model_.param.num_parallel_tree;
-    }
-    return model_.param.num_parallel_tree * model_.learner_model_param->OutputLength();
-  }
-
   // slice the trees, out must be already allocated
-  void Slice(int32_t layer_begin, int32_t layer_end, int32_t step,
-             GradientBooster *out, bool* out_of_bound) const override;
+  void Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, GradientBooster* out,
+             bool* out_of_bound) const override;
 
   [[nodiscard]] std::int32_t BoostedRounds() const override {
-    CHECK_NE(model_.param.num_parallel_tree, 0);
-    CHECK_NE(model_.learner_model_param->num_output_group, 0);
-
-    return model_.trees.size() / this->LayerTrees();
+    if (model_.trees.empty()) {
+      return 0;
+    }
+    return model_.iteration_indptr.size() - 1;
   }
 
   [[nodiscard]] bool ModelFitted() const override {
@@ -270,8 +254,7 @@ class GBTree : public GradientBooster {
   void InplacePredict(std::shared_ptr<DMatrix> p_m, float missing, PredictionCacheEntry* out_preds,
                       uint32_t layer_begin, unsigned layer_end) const override {
     CHECK(configured_);
-    uint32_t tree_begin, tree_end;
-    std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, layer_begin, layer_end);
+    auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_LE(tree_end, model_.trees.size()) << "Invalid number of trees.";
     std::vector<Predictor const *> predictors{
       cpu_predictor_.get(),
@@ -364,20 +347,18 @@ class GBTree : public GradientBooster {
     }
   }
 
-  void PredictInstance(const SparsePage::Inst& inst,
-                       std::vector<bst_float>* out_preds,
+  void PredictInstance(const SparsePage::Inst& inst, std::vector<bst_float>* out_preds,
                        uint32_t layer_begin, uint32_t layer_end) override {
     CHECK(configured_);
-    uint32_t tree_begin, tree_end;
-    std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, layer_begin, layer_end);
+    std::uint32_t _, tree_end;
+    std::tie(_, tree_end) = detail::LayerToTree(model_, layer_begin, layer_end);
     cpu_predictor_->PredictInstance(inst, out_preds, model_, tree_end);
   }
 
   void PredictLeaf(DMatrix* p_fmat,
                    HostDeviceVector<bst_float>* out_preds,
                    uint32_t layer_begin, uint32_t layer_end) override {
-    uint32_t tree_begin, tree_end;
-    std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, layer_begin, layer_end);
+    auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict leaf supports only iteration end: (0, "
                                "n_iteration), use model slicing instead.";
     this->GetPredictor()->PredictLeaf(p_fmat, out_preds, model_, tree_end);
@@ -388,8 +369,7 @@ class GBTree : public GradientBooster {
                            uint32_t layer_begin, uint32_t layer_end, bool approximate,
                            int, unsigned) override {
     CHECK(configured_);
-    uint32_t tree_begin, tree_end;
-    std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, layer_begin, layer_end);
+    auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0)
         << "Predict contribution supports only iteration end: (0, "
            "n_iteration), using model slicing instead.";
@@ -401,8 +381,7 @@ class GBTree : public GradientBooster {
       DMatrix *p_fmat, HostDeviceVector<bst_float> *out_contribs,
       uint32_t layer_begin, uint32_t layer_end, bool approximate) override {
     CHECK(configured_);
-    uint32_t tree_begin, tree_end;
-    std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, layer_begin, layer_end);
+    auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0)
         << "Predict interaction contribution supports only iteration end: (0, "
            "n_iteration), using model slicing instead.";
@@ -427,7 +406,7 @@ class GBTree : public GradientBooster {
                                                  DMatrix* f_dmat = nullptr) const;
 
   // commit new trees all at once
-  virtual void CommitModel(std::vector<std::vector<std::unique_ptr<RegTree>>>&& new_trees);
+  virtual void CommitModel(TreesOneIter&& new_trees);
 
   // --- data structure ---
   GBTreeModel model_;

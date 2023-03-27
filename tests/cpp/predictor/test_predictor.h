@@ -25,7 +25,7 @@ inline gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param, Context 
       (*trees.back())[0].SetLeaf(1.5f);
       (*trees.back()).Stat(0).sum_hess = 1.0f;
     }
-    model.CommitModel(std::move(trees), i);
+    model.CommitModelGroup(std::move(trees), i);
   }
 
   return model;

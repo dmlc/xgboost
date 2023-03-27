@@ -113,8 +113,18 @@ using bst_row_t = std::size_t;   // NOLINT
 using bst_node_t = std::int32_t;      // NOLINT
 /*! \brief Type for ranking group index. */
 using bst_group_t = std::uint32_t;      // NOLINT
-/*! \brief Type for indexing into output targets. */
+/**
+ * \brief Type for indexing into output targets.
+ */
 using bst_target_t = std::uint32_t;  // NOLINT
+/**
+ * brief Type for indexing boosted layers.
+ */
+using bst_layer_t = std::int32_t;  // NOLINT
+/**
+ * \brief Type for indexing trees.
+ */
+using bst_tree_t = std::int32_t;  // NOLINT
 
 namespace detail {
 /*! \brief Implementation of gradient statistics pair. Template specialisation
