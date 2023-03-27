@@ -46,7 +46,7 @@ def gen_circle() -> Tuple[np.ndarray, np.ndarray]:
     return X, y
 
 
-def rmse_model(plot_result: bool, strategy: str):
+def rmse_model(plot_result: bool, strategy: str) -> None:
     """Draw a circle with 2-dim coordinate as target variables."""
     X, y = gen_circle()
     # Train a regressor on it
@@ -120,10 +120,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--plot", choices=[0, 1], type=int, default=1)
     args = parser.parse_args()
+
     # Train with builtin RMSE objective
     # - One model per output.
     rmse_model(args.plot == 1, "one_output_per_tree")
-
     # - One model for all outputs, this is still working in progress, many features are
     # missing.
     rmse_model(args.plot == 1, "multi_output_tree")
