@@ -1027,6 +1027,7 @@ XGB_DLL int XGBoosterInplacePredict(BoosterHandle handle,
   API_BEGIN();
   CHECK_HANDLE();
   xgboost::bst_ulong out_dim;
+  std::shared_ptr<xgboost::data::DenseAdapter> x{new xgboost::data::DenseAdapter(data, num_rows, num_features)};
   //std::shared_ptr<DMatrix> p_m(dMatrixHandle);
   std::shared_ptr<DMatrix> p_m{nullptr};
   if (!dMatrixHandle) {
@@ -1042,7 +1043,6 @@ XGB_DLL int XGBoosterInplacePredict(BoosterHandle handle,
     }
   } else {
     p_m = *static_cast<std::shared_ptr<DMatrix> *>(dMatrixHandle);
-
     fprintf (stdout, "dmatrix handle is not null");
     if (!p_m) {
       fprintf (stderr, "p_m 2 is null");
@@ -1050,7 +1050,7 @@ XGB_DLL int XGBoosterInplacePredict(BoosterHandle handle,
     }
   }
   fprintf (stdout, reinterpret_cast<const char *>(p_m.get()));
-  DMatrixProxy* stuff = dynamic_cast<data::DMatrixProxy *>(p_m.get());
+  // DMatrixProxy* stuff = dynamic_cast<data::DMatrixProxy *>(p_m.get());
   auto proxy = new std::shared_ptr<xgboost::DMatrix>(new xgboost::data::DMatrixProxy);
   if (!proxy) {
     fprintf (stderr, "proxy is null");
@@ -1062,6 +1062,7 @@ XGB_DLL int XGBoosterInplacePredict(BoosterHandle handle,
     }
   auto *learner = static_cast<xgboost::Learner *>(handle);
   auto iteration_end = GetIterationFromTreeLimit(ntree_limit, learner);
+  proxy->SetDenseData(data)
   InplacePredictImplCore(p_m, learner, (xgboost::PredictionType)0, missing, num_rows, num_features,
                          0, iteration_end, true, len, &out_dim, out_result);
 //  printf("XGBoosterInplacePredict len = %u, dim = %u\n", **len, out_dim);

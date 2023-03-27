@@ -70,6 +70,7 @@ class DMatrixProxy : public DMatrix {
   }
 
   void SetArrayData(char const* c_interface);
+  void SetDenseData(const float *data);
   void SetCSRData(char const *c_indptr, char const *c_indices,
                   char const *c_values, bst_feature_t n_features,
                   bool on_host);
