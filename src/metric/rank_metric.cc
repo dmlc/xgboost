@@ -112,7 +112,6 @@ class PerGroupWeightPolicy {
     return info.GetWeight(group_id);
   }
 };
-
 }  // anonymous namespace
 
 namespace xgboost::metric {
