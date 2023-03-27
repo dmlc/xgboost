@@ -1055,11 +1055,11 @@ XGB_DLL int XGBoosterInplacePredict(BoosterHandle handle,
   printf ("stuff is %s", typeid(stuff).name());
   printf ("proxy is %s", typeid(proxy).name());
   if (!proxy) {
-    fprintf (stderr, "proxy is null");
+    fprintf (stderr, "proxy is null line 1058");
     exit(1);
   }
   if (!stuff) {
-      fprintf (stderr, "stuff is null");
+      fprintf (stderr, "stuff is null line 1062");
       exit(1);
   }
   auto *learner = static_cast<xgboost::Learner *>(handle);
