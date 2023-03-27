@@ -136,7 +136,7 @@ struct GBTreeModel : public Model {
 
   [[nodiscard]] std::int32_t BoostedRounds() const {
     if (trees.empty()) {
-      return 0;
+      CHECK_EQ(iteration_indptr.size(), 1);
     }
     return static_cast<std::int32_t>(iteration_indptr.size() - 1);
   }

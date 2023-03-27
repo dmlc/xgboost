@@ -524,7 +524,7 @@ class TestModels:
             booster[-1:0]
 
         # we do not accept empty slice.
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Empty slice"):
             booster[1:1]
         # stop can not be smaller than begin
         with pytest.raises(ValueError, match=r"Invalid.*"):

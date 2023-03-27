@@ -161,13 +161,16 @@ bool SliceTrees(bst_layer_t begin, bst_layer_t end, bst_layer_t step, GBTreeMode
   if (step > end - begin) {
     return true;
   }
+  if (end > model.BoostedRounds()) {
+    return true;
+  }
 
   bst_layer_t n_layers = (end - begin) / step;
   bst_layer_t out_l = 0;
 
   for (bst_layer_t l = begin; l < end; l += step) {
     auto [tree_begin, tree_end] = detail::LayerToTree(model, l, l + 1);
-    if (tree_end >= static_cast<bst_tree_t>(model.trees.size())) {
+    if (tree_end > static_cast<bst_tree_t>(model.trees.size())) {
       return true;
     }
 

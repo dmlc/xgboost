@@ -525,8 +525,10 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
   GBTreeModel& out_model = p_gbtree->model_;
   CHECK(this->model_.learner_model_param->Initialized());
 
-  end = end == 0 ? model_.iteration_indptr.size() : end;
+  end = end == 0 ? model_.BoostedRounds() : end;
   CHECK_GE(step, 1);
+  CHECK_NE(end, begin) << "Empty slice is not allowed.";
+
   if (step > (end - begin)) {
     *out_of_bound = true;
     return;

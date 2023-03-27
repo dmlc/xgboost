@@ -27,11 +27,14 @@ void MakeIndptr(GBTreeModel* out_model) {
     return;
   }
 
+  auto n_groups = *std::max_element(tree_info.cbegin(), tree_info.cend()) + 1;
+
   auto& indptr = out_model->iteration_indptr;
-  indptr.resize(tree_info.size() + 1, 0);
+  auto layer_trees = out_model->param.num_parallel_tree * n_groups;
+  CHECK_NE(layer_trees, 0);
+  indptr.resize(out_model->param.num_trees / layer_trees + 1, 0);
   indptr[0] = 0;
 
-  auto n_groups = *std::max_element(tree_info.cbegin(), tree_info.cend()) + 1;
   for (std::size_t i = 1; i < indptr.size(); ++i) {
     indptr[i] = n_groups * out_model->param.num_parallel_tree;
   }
