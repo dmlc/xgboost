@@ -146,7 +146,7 @@ struct GBTreeModel : public Model {
   /**
    * \brief Number of trees accumulated for each iteration.
    */
-  std::vector<std::uint32_t> iteration_indptr{0};
+  std::vector<bst_tree_t> iteration_indptr{0};
 
  private:
   /**

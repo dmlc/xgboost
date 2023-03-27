@@ -16,6 +16,20 @@
 #include "xgboost/tree_model.h"         // for RegTree
 
 namespace xgboost::gbm {
+namespace {
+// For creating the tree indptr from old models.
+void MakeIndptr(GBTreeModel* out_model) {
+  auto const& tree_info = out_model->tree_info;
+  auto& indptr = out_model->iteration_indptr;
+
+  auto n_groups = *std::max_element(tree_info.cbegin(), tree_info.cend()) + 1;
+  for (std::size_t i = 1; i < indptr.size(); ++i) {
+    indptr[i] = n_groups * out_model->param.num_parallel_tree;
+  }
+  std::partial_sum(indptr.cbegin(), indptr.cend(), indptr.begin());
+}
+}  // namespace
+
 void GBTreeModel::Save(dmlc::Stream* fo) const {
   CHECK_EQ(param.num_trees, static_cast<int32_t>(trees.size()));
 
@@ -67,6 +81,8 @@ void GBTreeModel::Load(dmlc::Stream* fi) {
       }
     }
   }
+
+  MakeIndptr(this);
 }
 
 void GBTreeModel::SaveModel(Json* p_out) const {
@@ -91,6 +107,11 @@ void GBTreeModel::SaveModel(Json* p_out) const {
 
   out["trees"] = Array(std::move(trees_json));
   out["tree_info"] = Array(std::move(tree_info_json));
+
+  std::vector<Json> jiteration_indptr(iteration_indptr.size());
+  std::transform(iteration_indptr.cbegin(), iteration_indptr.cend(), jiteration_indptr.begin(),
+                 [](bst_tree_t i) { return Integer{i}; });
+  out["iteration_indptr"] = Array{std::move(jiteration_indptr)};
 }
 
 void GBTreeModel::LoadModel(Json const& in) {
@@ -98,6 +119,8 @@ void GBTreeModel::LoadModel(Json const& in) {
 
   trees.clear();
   trees_to_update.clear();
+
+  auto const& jmodel = get<Object const>(in);
 
   auto const& trees_json = get<Array const>(in["trees"]);
   CHECK_EQ(trees_json.size(), param.num_trees);
@@ -117,6 +140,18 @@ void GBTreeModel::LoadModel(Json const& in) {
 
   for (bst_tree_t i = 0; i < param.num_trees; ++i) {
     tree_info[i] = get<Integer const>(tree_info_json[i]);
+  }
+
+  auto indptr_it = jmodel.find("iteration_indptr");
+  iteration_indptr.clear();
+  if (indptr_it != jmodel.cend()) {
+    auto const& vec = get<Array const>(indptr_it->second);
+    iteration_indptr.resize(vec.size());
+    std::transform(vec.cbegin(), vec.cend(), iteration_indptr.begin(),
+                   [](Json const& v) { return get<Integer const>(v); });
+    CHECK_EQ(iteration_indptr.back(), trees.size());
+  } else {
+    MakeIndptr(this);
   }
 }
 

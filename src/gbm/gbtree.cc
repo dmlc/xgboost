@@ -252,7 +252,7 @@ void GBTree::UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const
 void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
                      PredictionCacheEntry* predt, ObjFunction const* obj) {
   TreesOneIter new_trees;
-  const int ngroup = model_.learner_model_param->OutputLength();
+  bst_target_t const n_groups = model_.learner_model_param->OutputLength();
   ConfigureWithKnownData(this->cfg_, p_fmat);
   monitor_.Start("BoostNewTrees");
 
@@ -264,7 +264,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
       device,
       device == Context::kCpuId ? predt->predictions.HostSpan() : predt->predictions.DeviceSpan(),
       p_fmat->Info().num_row_, model_.learner_model_param->OutputLength());
-  CHECK_NE(ngroup, 0);
+  CHECK_NE(n_groups, 0);
 
   if (!p_fmat->SingleColBlock() && obj->Task().UpdateTreeLeaf()) {
     LOG(FATAL) << "Current objective doesn't support external memory.";
@@ -295,13 +295,13 @@ void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
       predt->Update(1);
     }
   } else {
-    CHECK_EQ(in_gpair->Size() % ngroup, 0U) << "must have exactly ngroup * nrow gpairs";
-    HostDeviceVector<GradientPair> tmp(in_gpair->Size() / ngroup, GradientPair(),
+    CHECK_EQ(in_gpair->Size() % n_groups, 0U) << "must have exactly ngroup * nrow gpairs";
+    HostDeviceVector<GradientPair> tmp(in_gpair->Size() / n_groups, GradientPair(),
                                        in_gpair->DeviceIdx());
     bool update_predict = true;
-    for (int gid = 0; gid < ngroup; ++gid) {
+    for (bst_target_t gid = 0; gid < n_groups; ++gid) {
       node_position.clear();
-      CopyGradient(in_gpair, ctx_->Threads(), ngroup, gid, &tmp);
+      CopyGradient(in_gpair, ctx_->Threads(), n_groups, gid, &tmp);
       TreesOneGroup ret;
       BoostNewTrees(&tmp, p_fmat, gid, &node_position, &ret);
       UpdateTreeLeaf(p_fmat, predt->predictions, obj, gid, node_position, &ret);
@@ -520,7 +520,7 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
   CHECK(configured_);
   CHECK(out);
 
-  auto p_gbtree = dynamic_cast<GBTree *>(out);
+  auto p_gbtree = dynamic_cast<GBTree*>(out);
   CHECK(p_gbtree);
   GBTreeModel& out_model = p_gbtree->model_;
   CHECK(this->model_.learner_model_param->Initialized());
@@ -532,12 +532,12 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
     return;
   }
 
-  auto& out_iteration_indptr = out_model.iteration_indptr;
+  auto& out_indptr = out_model.iteration_indptr;
   TreesOneGroup& out_trees = out_model.trees;
   std::vector<int32_t>& out_trees_info = out_model.tree_info;
 
   bst_layer_t n_layers = (end - begin) / step;
-  out_iteration_indptr.resize(n_layers + 1, 0);
+  out_indptr.resize(n_layers + 1, 0);
 
   if (!this->model_.trees_to_update.empty()) {
     CHECK_EQ(this->model_.trees_to_update.size(), this->model_.trees.size())
@@ -547,10 +547,10 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
            "want to update a portion of trees.";
   }
 
-  *out_of_bound = detail::SliceTrees(
-      begin, end, step, this->model_, [&](auto in_tree_idx, auto out_l) {
+  *out_of_bound =
+      detail::SliceTrees(begin, end, step, this->model_, [&](auto in_tree_idx, auto out_l) {
         auto new_tree = std::make_unique<RegTree>(*this->model_.trees.at(in_tree_idx));
-        out_trees.push_back(std::move(new_tree));
+        out_trees.emplace_back(std::move(new_tree));
 
         bst_group_t group = this->model_.tree_info[in_tree_idx];
         out_trees_info.push_back(group);
@@ -558,8 +558,7 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
         out_model.iteration_indptr[out_l + 1]++;
       });
 
-  std::partial_sum(out_iteration_indptr.cbegin(), out_iteration_indptr.cend(),
-                   out_iteration_indptr.begin());
+  std::partial_sum(out_indptr.cbegin(), out_indptr.cend(), out_indptr.begin());
   CHECK_EQ(out_model.iteration_indptr.front(), 0);
 
   out_model.param.num_trees = out_model.trees.size();
