@@ -1049,6 +1049,7 @@ XGB_DLL int XGBoosterInplacePredict(BoosterHandle handle,
       exit(1);
     }
   }
+  fprintf (stdout, reinterpret_cast<const char *>(p_m.get()));
   auto proxy = new std::shared_ptr<xgboost::DMatrix>(new xgboost::data::DMatrixProxy);
   if (!proxy) {
     fprintf (stderr, "proxy is null");
