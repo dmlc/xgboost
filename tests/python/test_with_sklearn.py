@@ -38,36 +38,34 @@ def test_binary_classification():
             assert err < 0.1
 
 
-@pytest.mark.parametrize('objective', ['multi:softmax', 'multi:softprob'])
+@pytest.mark.parametrize("objective", ["multi:softmax", "multi:softprob"])
 def test_multiclass_classification(objective):
     from sklearn.datasets import load_iris
     from sklearn.model_selection import KFold
 
     def check_pred(preds, labels, output_margin):
         if output_margin:
-            err = sum(1 for i in range(len(preds))
-                      if preds[i].argmax() != labels[i]) / float(len(preds))
+            err = sum(
+                1 for i in range(len(preds)) if preds[i].argmax() != labels[i]
+            ) / float(len(preds))
         else:
-            err = sum(1 for i in range(len(preds))
-                      if preds[i] != labels[i]) / float(len(preds))
+            err = sum(1 for i in range(len(preds)) if preds[i] != labels[i]) / float(
+                len(preds)
+            )
         assert err < 0.4
 
-    iris = load_iris()
-    y = iris['target']
-    X = iris['data']
+    X, y = load_iris(return_X_y=True)
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf.split(X, y):
-        xgb_model = xgb.XGBClassifier(objective=objective).fit(X[train_index], y[train_index])
-        assert (xgb_model.get_booster().num_boosted_rounds() ==
-                xgb_model.n_estimators)
+        xgb_model = xgb.XGBClassifier(objective=objective).fit(
+            X[train_index], y[train_index]
+        )
+        assert xgb_model.get_booster().num_boosted_rounds() == 100
         preds = xgb_model.predict(X[test_index])
         # test other params in XGBClassifier().fit
-        preds2 = xgb_model.predict(X[test_index], output_margin=True,
-                                   ntree_limit=3)
-        preds3 = xgb_model.predict(X[test_index], output_margin=True,
-                                   ntree_limit=0)
-        preds4 = xgb_model.predict(X[test_index], output_margin=False,
-                                   ntree_limit=3)
+        preds2 = xgb_model.predict(X[test_index], output_margin=True, ntree_limit=3)
+        preds3 = xgb_model.predict(X[test_index], output_margin=True, ntree_limit=0)
+        preds4 = xgb_model.predict(X[test_index], output_margin=False, ntree_limit=3)
         labels = y[test_index]
 
         check_pred(preds, labels, output_margin=False)
@@ -761,9 +759,9 @@ def test_parameters_access():
     clf = save_load(clf)
 
     assert clf.tree_method is None
-    assert clf.n_estimators == 2
+    assert clf.n_estimators is None
     assert clf.get_params()["tree_method"] is None
-    assert clf.get_params()["n_estimators"] == 2
+    assert clf.get_params()["n_estimators"] is None
     assert get_tm(clf) == "auto"  # discarded for save/load_model
 
     clf.set_params(tree_method="hist")
@@ -771,9 +769,7 @@ def test_parameters_access():
     clf = pickle.loads(pickle.dumps(clf))
     assert clf.get_params()["tree_method"] == "hist"
     clf = save_load(clf)
-    # FIXME(jiamingy): We should remove this behavior once we remove parameters
-    # serialization for skl save/load_model.
-    assert clf.get_params()["tree_method"] == "hist"
+    assert clf.get_params()["tree_method"] is None
 
 
 def test_kwargs_error():
@@ -902,6 +898,7 @@ def save_load_model(model_path):
         xgb_model.load_model(model_path)
 
         assert isinstance(xgb_model.classes_, np.ndarray)
+        np.testing.assert_equal(xgb_model.classes_, np.array([0, 1]))
         assert isinstance(xgb_model._Booster, xgb.Booster)
 
         preds = xgb_model.predict(X[test_index])
@@ -933,8 +930,10 @@ def test_save_load_model():
         save_load_model(model_path)
 
     from sklearn.datasets import load_digits
+    from sklearn.model_selection import train_test_split
+
     with tempfile.TemporaryDirectory() as tempdir:
-        model_path = os.path.join(tempdir, 'digits.model.json')
+        model_path = os.path.join(tempdir, 'digits.model.ubj')
         digits = load_digits(n_class=2)
         y = digits['target']
         X = digits['data']
@@ -958,6 +957,28 @@ def test_save_load_model():
         cls.load_model(model_path)
         predt_1 = cls.predict(X)
         assert np.allclose(predt_0, predt_1)
+
+        # mclass
+        X, y = load_digits(n_class=10, return_X_y=True)
+        # small test_size to force early stop
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.01, random_state=1
+        )
+        clf = xgb.XGBClassifier(
+            n_estimators=64, tree_method="hist", early_stopping_rounds=2
+        )
+        clf.fit(X_train, y_train, eval_set=[(X_test, y_test)])
+        score = clf.best_score
+        clf.save_model(model_path)
+
+        clf = xgb.XGBClassifier()
+        clf.load_model(model_path)
+        assert clf.classes_.size == 10
+        np.testing.assert_equal(clf.classes_, np.arange(10))
+        assert clf.n_classes_ == 10
+
+        assert clf.best_iteration == 27
+        assert clf.best_score == score
 
 
 def test_RFECV():

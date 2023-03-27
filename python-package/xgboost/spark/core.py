@@ -39,6 +39,7 @@ import xgboost
 from xgboost import XGBClassifier, XGBRanker, XGBRegressor
 from xgboost.compat import is_cudf_available
 from xgboost.core import Booster
+from xgboost.sklearn import DEFAULT_N_ESTIMATORS
 from xgboost.training import train as worker_train
 
 from .data import (
@@ -215,6 +216,7 @@ class _SparkXGBParams(
         filtered_params_dict = {
             k: params_dict[k] for k in params_dict if k not in _unsupported_xgb_params
         }
+        filtered_params_dict["n_estimators"] = DEFAULT_N_ESTIMATORS
         return filtered_params_dict
 
     def _set_xgb_params_default(self):

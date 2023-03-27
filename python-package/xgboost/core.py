@@ -47,6 +47,7 @@ from ._typing import (
     FeatureInfo,
     FeatureNames,
     FeatureTypes,
+    ModelIn,
     NumpyOrCupy,
     c_bst_ulong,
 )
@@ -2477,7 +2478,7 @@ class Booster:
         )
         return ctypes2buffer(cptr, length.value)
 
-    def load_model(self, fname: Union[str, bytearray, os.PathLike]) -> None:
+    def load_model(self, fname: ModelIn) -> None:
         """Load the model from a file or bytearray. Path to file can be local
         or as an URI.
 

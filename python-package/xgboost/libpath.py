@@ -55,7 +55,7 @@ def find_lib_path() -> List[str]:
 
     # XGBOOST_BUILD_DOC is defined by sphinx conf.
     if not lib_path and not os.environ.get("XGBOOST_BUILD_DOC", False):
-        link = "https://xgboost.readthedocs.io/en/latest/build.html"
+        link = "https://xgboost.readthedocs.io/en/stable/install.html"
         msg = (
             "Cannot find XGBoost Library in the candidate path.  "
             + "List of candidates:\n- "
