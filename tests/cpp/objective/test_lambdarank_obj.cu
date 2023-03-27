@@ -75,6 +75,7 @@ void TestGPUMakePair() {
     auto args = make_args(p_cache, rank_idx, y_sorted_idx);
     auto make_pair = cuda_impl::MakePairsOp<false>{args};
     auto n_pairs = p_cache->Param().NumPair();
+    ASSERT_EQ(n_pairs, 1);
 
     dh::LaunchN(
         p_cache->CUDAThreads(), ctx.CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t idx) {
