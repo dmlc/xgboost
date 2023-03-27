@@ -134,6 +134,13 @@ struct GBTreeModel : public Model {
     param.num_trees += static_cast<int>(new_trees.size());
   }
 
+  [[nodiscard]] std::int32_t BoostedRounds() const {
+    if (trees.empty()) {
+      return 0;
+    }
+    return static_cast<std::int32_t>(iteration_indptr.size() - 1);
+  }
+
   // base margin
   LearnerModelParam const* learner_model_param;
   // model parameter

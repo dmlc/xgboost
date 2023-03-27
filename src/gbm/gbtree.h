@@ -140,11 +140,11 @@ struct DartTrainParam : public XGBoostParameter<DartTrainParam> {
 namespace detail {
 // From here on, layer becomes concrete trees.
 inline std::pair<bst_tree_t, bst_tree_t> LayerToTree(gbm::GBTreeModel const& model,
-                                                     bst_layer_t layer_begin,
-                                                     bst_layer_t layer_end) {
+                                                     bst_layer_t begin, bst_layer_t end) {
   CHECK(!model.iteration_indptr.empty());
-  bst_tree_t tree_begin = model.iteration_indptr[layer_begin];
-  bst_tree_t tree_end = model.iteration_indptr[layer_end];
+  end = end == 0 ? model.BoostedRounds() : end;
+  bst_tree_t tree_begin = model.iteration_indptr[begin];
+  bst_tree_t tree_end = model.iteration_indptr[end];
   if (model.trees.size() != 0) {
     CHECK_LE(tree_begin, tree_end);
   }
@@ -237,13 +237,7 @@ class GBTree : public GradientBooster {
   void Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, GradientBooster* out,
              bool* out_of_bound) const override;
 
-  [[nodiscard]] std::int32_t BoostedRounds() const override {
-    if (model_.trees.empty()) {
-      return 0;
-    }
-    return model_.iteration_indptr.size() - 1;
-  }
-
+  [[nodiscard]] std::int32_t BoostedRounds() const override { return this->model_.BoostedRounds(); }
   [[nodiscard]] bool ModelFitted() const override {
     return !model_.trees.empty() || !model_.trees_to_update.empty();
   }
