@@ -17,6 +17,7 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Generator,
     Iterable,
     List,
     Optional,
@@ -1754,6 +1755,10 @@ class Booster:
         _check_call(_LIB.XGBoosterFree(sliced.handle))
         sliced.handle = sliced_handle
         return sliced
+
+    def __iter__(self) -> Generator["Booster", None, None]:
+        for i in range(0, self.num_boosted_rounds()):
+            yield self[i]
 
     def save_config(self) -> str:
         """Output internal parameter configuration of Booster as a JSON
