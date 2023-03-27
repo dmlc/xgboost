@@ -23,13 +23,27 @@ namespace {
 // For creating the tree indptr from old models.
 void MakeIndptr(GBTreeModel* out_model) {
   auto const& tree_info = out_model->tree_info;
+  if (tree_info.empty()) {
+    return;
+  }
+
   auto& indptr = out_model->iteration_indptr;
+  indptr.resize(tree_info.size() + 1, 0);
+  indptr[0] = 0;
 
   auto n_groups = *std::max_element(tree_info.cbegin(), tree_info.cend()) + 1;
   for (std::size_t i = 1; i < indptr.size(); ++i) {
     indptr[i] = n_groups * out_model->param.num_parallel_tree;
   }
   std::partial_sum(indptr.cbegin(), indptr.cend(), indptr.begin());
+}
+
+// Validate the consistency of the model.
+void Validate(GBTreeModel const& model) {
+  CHECK_EQ(model.trees.size(), model.param.num_trees);
+  CHECK_EQ(model.tree_info.size(), model.param.num_trees);
+  // True even if the model is empty since we should always have 0 as the first element.
+  CHECK_EQ(model.iteration_indptr.back(), model.param.num_trees);
 }
 }  // namespace
 
@@ -86,6 +100,7 @@ void GBTreeModel::Load(dmlc::Stream* fi) {
   }
 
   MakeIndptr(this);
+  Validate(*this);
 }
 
 void GBTreeModel::SaveModel(Json* p_out) const {
@@ -152,10 +167,11 @@ void GBTreeModel::LoadModel(Json const& in) {
     iteration_indptr.resize(vec.size());
     std::transform(vec.cbegin(), vec.cend(), iteration_indptr.begin(),
                    [](Json const& v) { return get<Integer const>(v); });
-    CHECK_EQ(iteration_indptr.back(), trees.size());
   } else {
     MakeIndptr(this);
   }
+
+  Validate(*this);
 }
 
 bst_tree_t GBTreeModel::CommitModel(TreesOneIter&& new_trees) {
@@ -174,6 +190,7 @@ bst_tree_t GBTreeModel::CommitModel(TreesOneIter&& new_trees) {
   }
 
   iteration_indptr.push_back(n_new_trees + iteration_indptr.back());
+  Validate(*this);
   return n_new_trees;
 }
 }  // namespace xgboost::gbm

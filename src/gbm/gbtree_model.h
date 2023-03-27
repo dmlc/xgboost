@@ -100,6 +100,9 @@ struct GBTreeModel : public Model {
       trees.clear();
       param.num_trees = 0;
       tree_info.clear();
+
+      iteration_indptr.clear();
+      iteration_indptr.push_back(0);
     }
   }
 

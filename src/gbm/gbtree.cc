@@ -319,7 +319,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
   }
 
   monitor_.Stop("BoostNewTrees");
-  this->model_.CommitModel(std::move(new_trees));
+  this->CommitModel(std::move(new_trees));
 }
 
 void GBTree::InitUpdater(Args const& cfg) {
