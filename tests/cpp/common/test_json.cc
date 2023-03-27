@@ -1,5 +1,5 @@
-/*!
- * Copyright (c) by Contributors 2019-2022
+/**
+ * Copyright (c) 2019-2023, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 
@@ -8,7 +8,8 @@
 
 #include "../../../src/common/charconv.h"
 #include "../../../src/common/io.h"
-#include "../filesystem.h"  // dmlc::TemporaryDirectory
+#include "../../../src/common/threading_utils.h"  // for ParallelFor
+#include "../filesystem.h"                        // dmlc::TemporaryDirectory
 #include "../helpers.h"
 #include "dmlc/logging.h"
 #include "xgboost/json.h"

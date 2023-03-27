@@ -287,7 +287,6 @@ void PredictBatchByBlockOfRowsKernel(DataView batch, gbm::GBTreeModel const &mod
                                      linalg::TensorView<float, 2> out_predt) {
   auto &thread_temp = *p_thread_temp;
 
-  CHECK_EQ(model.param.size_leaf_vector, 0) << "size_leaf_vector is enforced to 0 so far";
   // parallel over local batch
   const auto nsize = static_cast<bst_omp_uint>(batch.Size());
   const int num_feature = model.learner_model_param->num_feature;
@@ -515,7 +514,6 @@ class ColumnSplitHelper {
   void PredictBatchKernel(DataView batch, std::vector<bst_float> *out_preds) {
     auto const num_group = model_.learner_model_param->num_output_group;
 
-    CHECK_EQ(model_.param.size_leaf_vector, 0) << "size_leaf_vector is enforced to 0 so far";
     // parallel over local batch
     auto const nsize = batch.Size();
     auto const num_feature = model_.learner_model_param->num_feature;
@@ -736,8 +734,7 @@ class CPUPredictor : public Predictor {
     if (ntree_limit == 0 || ntree_limit > model.trees.size()) {
       ntree_limit = static_cast<unsigned>(model.trees.size());
     }
-    out_preds->resize(model.learner_model_param->num_output_group *
-                      (model.param.size_leaf_vector + 1));
+    out_preds->resize(model.learner_model_param->num_output_group);
     auto base_score = model.learner_model_param->BaseScore(ctx_)(0);
     // loop over output groups
     for (uint32_t gid = 0; gid < model.learner_model_param->num_output_group; ++gid) {

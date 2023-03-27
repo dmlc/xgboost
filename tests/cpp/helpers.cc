@@ -557,23 +557,6 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
   return dmat;
 }
 
-gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param, Context const* ctx,
-                                 size_t n_classes) {
-  gbm::GBTreeModel model(param, ctx);
-
-  for (size_t i = 0; i < n_classes; ++i) {
-    std::vector<std::unique_ptr<RegTree>> trees;
-    trees.push_back(std::unique_ptr<RegTree>(new RegTree));
-    if (i == 0) {
-      (*trees.back())[0].SetLeaf(1.5f);
-      (*trees.back()).Stat(0).sum_hess = 1.0f;
-    }
-    model.CommitModel(std::move(trees), i);
-  }
-
-  return model;
-}
-
 std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs, size_t kRows,
                                                   size_t kCols,
                                                   LearnerModelParam const* learner_model_param,

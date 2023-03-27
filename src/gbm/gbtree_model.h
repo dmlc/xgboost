@@ -1,5 +1,5 @@
-/*!
- * Copyright 2017-2020 by Contributors
+/**
+ * Copyright 2017-2023, XGBoost Contributors
  * \file gbtree_model.h
  */
 #ifndef XGBOOST_GBM_GBTREE_MODEL_H_
@@ -29,22 +29,16 @@ namespace gbm {
 /*! \brief model parameters */
 struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
  public:
-  /*! \brief number of trees */
-  int32_t num_trees;
-  /*! \brief (Deprecated) number of roots */
-  int32_t num_parallel_tree;
-  /*! \brief number of features to be used by trees */
-  int32_t deprecated_num_feature;
-  /*! \brief pad this space, for backward compatibility reason.*/
-  int32_t pad_32bit;
-  /*! \brief deprecated padding space. */
-  int64_t deprecated_num_pbuffer;
-  // deprecated. use learner_model_param_->num_output_group.
-  int32_t deprecated_num_output_group;
-  /*! \brief size of leaf vector needed in tree */
-  int32_t size_leaf_vector;
+  /**
+   * \brief number of trees
+   */
+  std::int32_t num_trees;
+  /**
+   * \brief Number of trees for a forest.
+   */
+  std::int32_t num_parallel_tree;
   /*! \brief reserved parameters */
-  int32_t reserved[32];
+  int32_t reserved[38];
 
   /*! \brief constructor */
   GBTreeModelParam() {
@@ -66,23 +60,14 @@ struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
         .describe(
             "Number of parallel trees constructed during each iteration."
             " This option is used to support boosted random forest.");
-    DMLC_DECLARE_FIELD(size_leaf_vector)
-        .set_lower_bound(0)
-        .set_default(0)
-        .describe("Reserved option for vector tree.");
   }
 
   // Swap byte order for all fields. Useful for transporting models between machines with different
   // endianness (big endian vs little endian)
-  inline GBTreeModelParam ByteSwap() const {
+  GBTreeModelParam ByteSwap() const {
     GBTreeModelParam x = *this;
     dmlc::ByteSwap(&x.num_trees, sizeof(x.num_trees), 1);
     dmlc::ByteSwap(&x.num_parallel_tree, sizeof(x.num_parallel_tree), 1);
-    dmlc::ByteSwap(&x.deprecated_num_feature, sizeof(x.deprecated_num_feature), 1);
-    dmlc::ByteSwap(&x.pad_32bit, sizeof(x.pad_32bit), 1);
-    dmlc::ByteSwap(&x.deprecated_num_pbuffer, sizeof(x.deprecated_num_pbuffer), 1);
-    dmlc::ByteSwap(&x.deprecated_num_output_group, sizeof(x.deprecated_num_output_group), 1);
-    dmlc::ByteSwap(&x.size_leaf_vector, sizeof(x.size_leaf_vector), 1);
     dmlc::ByteSwap(x.reserved, sizeof(x.reserved[0]), sizeof(x.reserved) / sizeof(x.reserved[0]));
     return x;
   }
@@ -141,8 +126,14 @@ struct GBTreeModel : public Model {
   std::vector<std::unique_ptr<RegTree> > trees;
   /*! \brief for the update process, a place to keep the initial trees */
   std::vector<std::unique_ptr<RegTree> > trees_to_update;
-  /*! \brief some information indicator of the tree, reserved */
+  /**
+   * \brief Group index for trees.
+   */
   std::vector<int> tree_info;
+  /**
+   * \brief Number of trees accumulated for each iteration.
+   */
+  std::vector<std::uint32_t> iteration_trees;
 
  private:
   /**

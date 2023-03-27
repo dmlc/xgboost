@@ -71,10 +71,10 @@ void GBTreeModel::SaveModel(Json* p_out) const {
   CHECK(ctx_);
   common::ParallelFor(trees.size(), ctx_->Threads(), [&](auto t) {
     auto const& tree = trees[t];
-    Json tree_json{Object()};
-    tree->SaveModel(&tree_json);
-    tree_json["id"] = Integer{static_cast<Integer::Int>(t)};
-    trees_json[t] = std::move(tree_json);
+    Json jtree{Object{}};
+    tree->SaveModel(&jtree);
+    jtree["id"] = Integer{static_cast<Integer::Int>(t)};
+    trees_json[t] = std::move(jtree);
   });
 
   std::vector<Json> tree_info_json(tree_info.size());
@@ -93,20 +93,24 @@ void GBTreeModel::LoadModel(Json const& in) {
   trees_to_update.clear();
 
   auto const& trees_json = get<Array const>(in["trees"]);
-  trees.resize(trees_json.size());
+  CHECK_EQ(trees_json.size(), param.num_trees);
+  trees.resize(param.num_trees);
+
+  auto const& tree_info_json = get<Array const>(in["tree_info"]);
+  CHECK_EQ(tree_info_json.size(), param.num_trees);
+  tree_info.resize(param.num_trees);
 
   CHECK(ctx_);
+
   std::atomic<std::int32_t> has_multi_target_tree{0};
-  common::ParallelFor(trees_json.size(), ctx_->Threads(), [&](auto t) {
-    auto tree_id = get<Integer>(trees_json[t]["id"]);
-    trees.at(tree_id).reset(new RegTree());
-    trees.at(tree_id)->LoadModel(trees_json[t]);
-    has_multi_target_tree += !!trees.at(tree_id)->IsMultiTarget();
+  common::ParallelFor(param.num_trees, ctx_->Threads(), [&](auto t) {
+    auto tree_id = get<Integer const>(trees_json[t]["id"]);
+    trees.at(tree_id).reset(new RegTree{});
+    trees[tree_id]->LoadModel(trees_json[t]);
+    has_multi_target_tree += !!trees[tree_id]->IsMultiTarget();
   });
   has_multi_tree_ = has_multi_target_tree > 0;
 
-  tree_info.resize(param.num_trees);
-  auto const& tree_info_json = get<Array const>(in["tree_info"]);
   for (int32_t i = 0; i < param.num_trees; ++i) {
     tree_info[i] = get<Integer const>(tree_info_json[i]);
   }
