@@ -36,7 +36,6 @@ from .core import (
     Objective,
     QuantileDMatrix,
     XGBoostError,
-    _convert_ntree_limit,
     _deprecate_positional_args,
     _parse_eval_str,
 )
@@ -1156,9 +1155,6 @@ class XGBModel(XGBModelBase):
 
         """
         with config_context(verbosity=self.verbosity):
-            iteration_range = _convert_ntree_limit(
-                self.get_booster(), ntree_limit, iteration_range
-            )
             iteration_range = self._get_iteration_range(iteration_range)
             if self._can_use_inplace_predict():
                 try:
@@ -1223,9 +1219,6 @@ class XGBModel(XGBModelBase):
 
         """
         with config_context(verbosity=self.verbosity):
-            iteration_range = _convert_ntree_limit(
-                self.get_booster(), ntree_limit, iteration_range
-            )
             iteration_range = self._get_iteration_range(iteration_range)
             test_dmatrix = DMatrix(
                 X,
