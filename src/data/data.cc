@@ -704,7 +704,7 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_col
 }
 
 void MetaInfo::SynchronizeNumberOfColumns() {
-  if (collective::IsFederated() && data_split_mode == DataSplitMode::kCol) {
+  if (IsVerticalFederated()) {
     collective::Allreduce<collective::Operation::kSum>(&num_col_, 1);
   } else {
     collective::Allreduce<collective::Operation::kMax>(&num_col_, 1);
@@ -769,6 +769,10 @@ void MetaInfo::Validate(std::int32_t device) const {
 #if !defined(XGBOOST_USE_CUDA)
 void MetaInfo::SetInfoFromCUDA(Context const&, StringView, Json) { common::AssertGPUSupport(); }
 #endif  // !defined(XGBOOST_USE_CUDA)
+
+bool MetaInfo::IsVerticalFederated() const {
+  return collective::IsFederated() && IsColumnSplit();
+}
 
 using DMatrixThreadLocal =
     dmlc::ThreadLocalStore<std::map<DMatrix const *, XGBAPIThreadLocalEntry>>;

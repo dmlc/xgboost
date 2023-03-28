@@ -101,9 +101,8 @@ double GetMultiMetricEval(xgboost::Metric* metric,
                           std::vector<xgboost::bst_uint> groups = {});
 
 namespace xgboost {
-bool IsNear(std::vector<xgboost::bst_float>::const_iterator _beg1,
-            std::vector<xgboost::bst_float>::const_iterator _end1,
-            std::vector<xgboost::bst_float>::const_iterator _beg2);
+
+float GetBaseScore(Json const &config);
 
 /*!
  * \brief Linear congruential generator.

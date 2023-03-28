@@ -158,7 +158,7 @@ class MultiTargetHistBuilder {
       } else {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
-      partitioner_.emplace_back(ctx_, page.Size(), page.base_rowid, p_fmat->IsColumnSplit());
+      partitioner_.emplace_back(ctx_, page.Size(), page.base_rowid, p_fmat->Info().IsColumnSplit());
       page_id++;
     }
 
@@ -167,7 +167,7 @@ class MultiTargetHistBuilder {
     for (std::size_t i = 0; i < n_targets; ++i) {
       histogram_builder_.emplace_back();
       histogram_builder_.back().Reset(n_total_bins, HistBatch(param_), ctx_->Threads(), page_id,
-                                      collective::IsDistributed(), p_fmat->IsColumnSplit());
+                                      collective::IsDistributed(), p_fmat->Info().IsColumnSplit());
     }
 
     evaluator_ = std::make_unique<HistMultiEvaluator>(ctx_, p_fmat->Info(), param_, col_sampler_);
@@ -388,11 +388,12 @@ class HistBuilder {
       } else {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
-      partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid, fmat->IsColumnSplit());
+      partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid,
+                                fmat->Info().IsColumnSplit());
       ++page_id;
     }
     histogram_builder_->Reset(n_total_bins, HistBatch(param_), ctx_->Threads(), page_id,
-                              collective::IsDistributed(), fmat->IsColumnSplit());
+                              collective::IsDistributed(), fmat->Info().IsColumnSplit());
     evaluator_ = std::make_unique<HistEvaluator<CPUExpandEntry>>(ctx_, this->param_, fmat->Info(),
                                                                  col_sampler_);
     p_last_tree_ = p_tree;

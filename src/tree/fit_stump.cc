@@ -45,8 +45,7 @@ void FitStump(Context const* ctx, MetaInfo const& info,
   }
   CHECK(h_sum.CContiguous());
 
-  // In vertical federated learning, only worker 0 needs to call this, no need to do an allreduce.
-  if (!collective::IsFederated() || info.data_split_mode != DataSplitMode::kCol) {
+  if (info.IsRowSplit()) {
     collective::Allreduce<collective::Operation::kSum>(
         reinterpret_cast<double*>(h_sum.Values().data()), h_sum.Size() * 2);
   }

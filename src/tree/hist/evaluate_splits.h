@@ -449,7 +449,7 @@ class HistEvaluator {
         param_{param},
         column_sampler_{std::move(sampler)},
         tree_evaluator_{*param, static_cast<bst_feature_t>(info.num_col_), Context::kCpuId},
-        is_col_split_{info.data_split_mode == DataSplitMode::kCol} {
+        is_col_split_{info.IsColumnSplit()} {
     interaction_constraints_.Configure(*param, info.num_col_);
     column_sampler_->Init(ctx, info.num_col_, info.feature_weights.HostVector(),
                           param_->colsample_bynode, param_->colsample_bylevel,

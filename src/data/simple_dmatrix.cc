@@ -74,7 +74,7 @@ DMatrix* SimpleDMatrix::SliceCol(int num_slices, int slice_id) {
 }
 
 void SimpleDMatrix::ReindexFeatures() {
-  if (collective::IsFederated() && info_.data_split_mode == DataSplitMode::kCol) {
+  if (info_.IsVerticalFederated()) {
     std::vector<uint64_t> buffer(collective::GetWorldSize());
     buffer[collective::GetRank()] = info_.num_col_;
     collective::Allgather(buffer.data(), buffer.size() * sizeof(uint64_t));
