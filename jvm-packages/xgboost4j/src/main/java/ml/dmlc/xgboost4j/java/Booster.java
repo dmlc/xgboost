@@ -335,7 +335,6 @@ public class Booster implements Serializable, KryoSerializable {
                                    int num_features) throws XGBoostError {
     return this.inplace_predict(data, num_rows, num_features,
                 Float.NaN, false, 0, false, false);
-                Float.NaN, false, 0, false, false);
   }
 
   /**
