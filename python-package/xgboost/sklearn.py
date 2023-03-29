@@ -390,8 +390,7 @@ __model_doc = f"""
           metric will be used for early stopping.
 
         - If early stopping occurs, the model will have three additional fields:
-          :py:attr:`best_score`, :py:attr:`best_iteration` and
-          :py:attr:`best_ntree_limit`.
+          :py:attr:`best_score`, :py:attr:`best_iteration`.
 
         .. note::
 
@@ -1116,7 +1115,6 @@ class XGBModel(XGBModelBase):
         self,
         X: ArrayLike,
         output_margin: bool = False,
-        ntree_limit: Optional[int] = None,
         validate_features: bool = True,
         base_margin: Optional[ArrayLike] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
@@ -1134,8 +1132,6 @@ class XGBModel(XGBModelBase):
             Data to predict with.
         output_margin :
             Whether to output the raw untransformed margin value.
-        ntree_limit :
-            Deprecated, use `iteration_range` instead.
         validate_features :
             When this is True, validate that the Booster's and data's feature_names are
             identical.  Otherwise, it is assumed that the feature_names are the same.
@@ -1193,7 +1189,6 @@ class XGBModel(XGBModelBase):
     def apply(
         self,
         X: ArrayLike,
-        ntree_limit: int = 0,
         iteration_range: Optional[Tuple[int, int]] = None,
     ) -> np.ndarray:
         """Return the predicted leaf every tree for each sample. If the model is trained
@@ -1206,9 +1201,6 @@ class XGBModel(XGBModelBase):
 
         iteration_range :
             See :py:meth:`predict`.
-
-        ntree_limit :
-            Deprecated, use ``iteration_range`` instead.
 
         Returns
         -------
@@ -1301,10 +1293,6 @@ class XGBModel(XGBModelBase):
 
         """
         return int(self._early_stopping_attr("best_iteration"))
-
-    @property
-    def best_ntree_limit(self) -> int:
-        return int(self._early_stopping_attr("best_ntree_limit"))
 
     @property
     def feature_importances_(self) -> np.ndarray:
@@ -1555,7 +1543,6 @@ class XGBClassifier(XGBModel, XGBClassifierMixIn, XGBClassifierBase):
         self,
         X: ArrayLike,
         output_margin: bool = False,
-        ntree_limit: Optional[int] = None,
         validate_features: bool = True,
         base_margin: Optional[ArrayLike] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
@@ -1564,7 +1551,6 @@ class XGBClassifier(XGBModel, XGBClassifierMixIn, XGBClassifierBase):
             class_probs = super().predict(
                 X=X,
                 output_margin=output_margin,
-                ntree_limit=ntree_limit,
                 validate_features=validate_features,
                 base_margin=base_margin,
                 iteration_range=iteration_range,
@@ -1592,7 +1578,6 @@ class XGBClassifier(XGBModel, XGBClassifierMixIn, XGBClassifierBase):
     def predict_proba(
         self,
         X: ArrayLike,
-        ntree_limit: Optional[int] = None,
         validate_features: bool = True,
         base_margin: Optional[ArrayLike] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
@@ -1607,8 +1592,6 @@ class XGBClassifier(XGBModel, XGBClassifierMixIn, XGBClassifierBase):
         ----------
         X : array_like
             Feature matrix. See :ref:`py-data` for a list of supported types.
-        ntree_limit : int
-            Deprecated, use `iteration_range` instead.
         validate_features : bool
             When this is True, validate that the Booster's and data's feature_names are
             identical.  Otherwise, it is assumed that the feature_names are the same.
@@ -1635,7 +1618,6 @@ class XGBClassifier(XGBModel, XGBClassifierMixIn, XGBClassifierBase):
         if self.objective == "multi:softmax":
             raw_predt = super().predict(
                 X=X,
-                ntree_limit=ntree_limit,
                 validate_features=validate_features,
                 base_margin=base_margin,
                 iteration_range=iteration_range,
@@ -1645,7 +1627,6 @@ class XGBClassifier(XGBModel, XGBClassifierMixIn, XGBClassifierBase):
             return class_prob
         class_probs = super().predict(
             X=X,
-            ntree_limit=ntree_limit,
             validate_features=validate_features,
             base_margin=base_margin,
             iteration_range=iteration_range,
@@ -2067,7 +2048,6 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
         self,
         X: ArrayLike,
         output_margin: bool = False,
-        ntree_limit: Optional[int] = None,
         validate_features: bool = True,
         base_margin: Optional[ArrayLike] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
@@ -2076,7 +2056,6 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
         return super().predict(
             X,
             output_margin,
-            ntree_limit,
             validate_features,
             base_margin,
             iteration_range,
@@ -2085,11 +2064,10 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
     def apply(
         self,
         X: ArrayLike,
-        ntree_limit: int = 0,
         iteration_range: Optional[Tuple[int, int]] = None,
     ) -> ArrayLike:
         X, _ = _get_qid(X, None)
-        return super().apply(X, ntree_limit, iteration_range)
+        return super().apply(X, iteration_range)
 
     def score(self, X: ArrayLike, y: ArrayLike) -> float:
         """Evaluate score for data using the last evaluation metric. If the model is
