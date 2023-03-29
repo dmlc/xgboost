@@ -23,12 +23,7 @@ from typing import (
 import numpy
 
 from . import collective
-from .core import (
-    Booster,
-    DMatrix,
-    XGBoostError,
-    _parse_eval_str,
-)
+from .core import Booster, DMatrix, XGBoostError, _parse_eval_str
 
 __all__ = [
     "TrainingCallback",
