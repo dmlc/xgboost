@@ -95,18 +95,16 @@ class InplacePredictThread extends Thread {
   float[][] testX;
   int test_rows;
   int features;
-  DMatrix dMatrix;
   float[][] true_predicts;
   Booster booster;
   Random rng = new Random();
   int n_preds = 100;
 
-  public InplacePredictThread(int n, Booster booster, float[][] testX, int test_rows, int features, DMatrix dMatrix, float[][] true_predicts) {
+  public InplacePredictThread(int n, Booster booster, float[][] testX, int test_rows, int features, float[][] true_predicts) {
     this.thread_num = n;
     this.booster = booster;
     this.testX = testX;
     this.test_rows = test_rows;
-    this.dMatrix = dMatrix;
     this.features = features;
     this.true_predicts = true_predicts;
   }
@@ -122,7 +120,7 @@ class InplacePredictThread extends Thread {
         int r = this.rng.nextInt(this.test_rows);
 
         // In-place predict a single random row
-        float[][] predictions = booster.inplace_predict(this.testX[r], 1, this.features, this.dMatrix);
+        float[][] predictions = booster.inplace_predict(this.testX[r], 1, this.features);
 
         // Confirm results as expected
         if (predictions[0][0] != this.true_predicts[r][0]) {
@@ -146,19 +144,17 @@ class InplacePredictionTask implements Callable<Boolean> {
   float[][] testX;
   int test_rows;
   int features;
-  DMatrix dMatrix;
   float[][] true_predicts;
   Booster booster;
   Random rng = new Random();
   int n_preds = 100;
 
-  public InplacePredictionTask(int n, Booster booster, float[][] testX, int test_rows, int features, DMatrix dMatrix, float[][] true_predicts) {
+  public InplacePredictionTask(int n, Booster booster, float[][] testX, int test_rows, int features, float[][] true_predicts) {
     this.task_num = n;
     this.booster = booster;
     this.testX = testX;
     this.test_rows = test_rows;
     this.features = features;
-    this.dMatrix = dMatrix;
     this.true_predicts = true_predicts;
   }
 
@@ -172,7 +168,7 @@ class InplacePredictionTask implements Callable<Boolean> {
       int r = this.rng.nextInt(this.test_rows);
 
       // In-place predict a single random row
-      float[][] predictions = booster.inplace_predict(this.testX[r], 1, this.features, this.dMatrix);
+      float[][] predictions = booster.inplace_predict(this.testX[r], 1, this.features);
 
       // Confirm results as expected
       if (predictions[0][0] != this.true_predicts[r][0]) {
@@ -335,7 +331,7 @@ public class BoosterImplTest {
     float[][] predicts = booster.predict(testMat);
 
     // inplace prediction
-    float[][] inplace_predicts = booster.inplace_predict(testX, test_rows, features, testMat);
+    float[][] inplace_predicts = booster.inplace_predict(testX, test_rows, features);
 
     // Confirm that the two prediction results are identical
     TestCase.assertTrue(ArrayComparator.compare(predicts, inplace_predicts));

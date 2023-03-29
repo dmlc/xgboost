@@ -332,9 +332,9 @@ public class Booster implements Serializable, KryoSerializable {
    */
   public float[][] inplace_predict(float[] data,
                                    int num_rows,
-                                   int num_features,
-                                   DMatrix d_matrix) throws XGBoostError {
-    return this.inplace_predict(data, num_rows, num_features, d_matrix,
+                                   int num_features) throws XGBoostError {
+    return this.inplace_predict(data, num_rows, num_features,
+                Float.NaN, false, 0, false, false);
                 Float.NaN, false, 0, false, false);
   }
 
@@ -356,9 +356,8 @@ public class Booster implements Serializable, KryoSerializable {
   public float[][] inplace_predict(float[] data,
                                    int num_rows,
                                    int num_features,
-                                   DMatrix d_matrix,
                                    float missing) throws XGBoostError {
-    return this.inplace_predict(data, num_rows, num_features, d_matrix,
+    return this.inplace_predict(data, num_rows, num_features,
                 missing, false, 0, false, false);
   }
 
@@ -383,10 +382,9 @@ public class Booster implements Serializable, KryoSerializable {
   public float[][] inplace_predict(float[] data,
                                    int num_rows,
                                    int num_features,
-                                   DMatrix d_matrix,
                                    float missing,
                                    boolean outputMargin) throws XGBoostError {
-    return this.inplace_predict(data, num_rows, num_features, d_matrix, missing,
+    return this.inplace_predict(data, num_rows, num_features, missing,
                        outputMargin, 0, false, false);
   }
 
@@ -411,11 +409,10 @@ public class Booster implements Serializable, KryoSerializable {
   public float[][] inplace_predict(float[] data,
                                    int num_rows,
                                    int num_features,
-                                   DMatrix d_matrix,
                                    float missing,
                                    boolean outputMargin,
                                    int treeLimit) throws XGBoostError {
-    return this.inplace_predict(data, num_rows, num_features, d_matrix, missing,
+    return this.inplace_predict(data, num_rows, num_features, missing,
                                 outputMargin, treeLimit, false, false);
   }
 
@@ -437,7 +434,6 @@ public class Booster implements Serializable, KryoSerializable {
   public float[][] inplace_predict(float[] data,
                                    int num_rows,
                                    int num_features,
-                                   DMatrix d_matrix,
                                    float missing,
                                    boolean outputMargin,
                                    int treeLimit,
@@ -453,10 +449,10 @@ public class Booster implements Serializable, KryoSerializable {
     if (predContribs) {
       optionMask = 4;
     }
-
+    DMatrix d_mat = new DMatrix(data, num_rows, num_features, missing);
     float[][] rawPredicts = new float[1][];
     XGBoostJNI.checkCall(XGBoostJNI.XGBoosterInplacePredict(handle, data, num_rows, num_features,
-        d_matrix.getHandle(), missing,
+        d_mat.getHandle(), missing,
         optionMask, treeLimit, rawPredicts));  // pass missing and treelimit here?
 
     // System.out.println("Booster.inplace_predict rawPredicts[0].length = " +
