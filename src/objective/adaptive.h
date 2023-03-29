@@ -41,7 +41,7 @@ inline void UpdateLeafValues(std::vector<float>* p_quantiles, std::vector<bst_no
   auto& quantiles = *p_quantiles;
   auto const& h_node_idx = nidx;
 
-  size_t n_leaf{h_node_idx.size()};
+  std::uint64_t n_leaf{h_node_idx.size()};
   collective::Allreduce<collective::Operation::kMax>(&n_leaf, 1);
   CHECK(quantiles.empty() || quantiles.size() == n_leaf);
   if (quantiles.empty()) {
