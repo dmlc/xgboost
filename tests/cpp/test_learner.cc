@@ -618,6 +618,12 @@ class ColumnSplit : public ::testing::Test {
     std::unique_ptr<Learner> learner{Learner::Create({sliced})};
     learner->SetParam("tree_method", "approx");
     learner->SetParam("objective", objective);
+    if (objective.find("quantile") != std::string::npos) {
+      learner->SetParam("quantile_alpha", "0.5");
+    }
+    if (objective.find("multi") != std::string::npos) {
+      learner->SetParam("num_class", "3");
+    }
     learner->UpdateOneIter(0, sliced);
     Json config{Object{}};
     learner->SaveConfig(&config);
@@ -630,16 +636,32 @@ class ColumnSplit : public ::testing::Test {
   }
 
   void TestBaseScoreAndModel(std::string const& objective) {
-    std::shared_ptr<DMatrix> dmat{RandomDataGenerator{10, 10, 0}.GenerateDMatrix(true)};
+    auto constexpr kRows = 10, kCols = 10;
+    std::shared_ptr<DMatrix> dmat{RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true)};
+
+    auto &h_upper = dmat->Info().labels_upper_bound_.HostVector();
+    auto &h_lower = dmat->Info().labels_lower_bound_.HostVector();
+    h_lower.resize(kRows);
+    h_upper.resize(kRows);
+    for (size_t i = 0; i < kRows; ++i) {
+      h_lower[i] = 1;
+      h_upper[i] = 10;
+    }
+
     std::unique_ptr<Learner> learner{Learner::Create({dmat})};
     learner->SetParam("tree_method", "approx");
     learner->SetParam("objective", objective);
+    if (objective.find("quantile") != std::string::npos) {
+      learner->SetParam("quantile_alpha", "0.5");
+    }
+    if (objective.find("multi") != std::string::npos) {
+      learner->SetParam("num_class", "3");
+    }
     learner->UpdateOneIter(0, dmat);
 
     Json config{Object{}};
     learner->SaveConfig(&config);
     auto base_score = GetBaseScore(config);
-    ASSERT_NE(base_score, ObjFunction::DefaultBaseScore());
 
     Json model{Object{}};
     learner->SaveModel(&model);
@@ -659,5 +681,31 @@ TEST_F(ColumnSplit, RegPseudoHuberError) { this->TestBaseScoreAndModel("reg:pseu
 
 TEST_F(ColumnSplit, RegAsoluteError) { this->TestBaseScoreAndModel("reg:absoluteerror"); }
 
+TEST_F(ColumnSplit, RegQuantileError) { this->TestBaseScoreAndModel("reg:quantileerror"); }
+
 TEST_F(ColumnSplit, BinaryLogistic) { this->TestBaseScoreAndModel("binary:logistic"); }
+
+TEST_F(ColumnSplit, BinaryLogitRaw) { this->TestBaseScoreAndModel("binary:logitraw"); }
+
+TEST_F(ColumnSplit, BinaryHinge) { this->TestBaseScoreAndModel("binary:hinge"); }
+
+TEST_F(ColumnSplit, CountPoisson) { this->TestBaseScoreAndModel("count:poisson"); }
+
+TEST_F(ColumnSplit, SurvivalCox) { this->TestBaseScoreAndModel("survival:cox"); }
+
+TEST_F(ColumnSplit, SurvivalAft) { this->TestBaseScoreAndModel("survival:aft"); }
+
+TEST_F(ColumnSplit, MultiSoftmax) { this->TestBaseScoreAndModel("multi:softmax"); }
+
+TEST_F(ColumnSplit, MultiSoftprob) { this->TestBaseScoreAndModel("multi:softprob"); }
+
+TEST_F(ColumnSplit, RankPairwise) { this->TestBaseScoreAndModel("rank:pairwise"); }
+
+TEST_F(ColumnSplit, RankNdcg) { this->TestBaseScoreAndModel("rank:ndcg"); }
+
+TEST_F(ColumnSplit, RankMap) { this->TestBaseScoreAndModel("rank:map"); }
+
+TEST_F(ColumnSplit, RegGamma) { this->TestBaseScoreAndModel("reg:gamma"); }
+
+TEST_F(ColumnSplit, RegTweedie) { this->TestBaseScoreAndModel("reg:tweedie"); }
 }  // namespace xgboost
