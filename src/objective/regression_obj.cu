@@ -728,8 +728,10 @@ class MeanAbsoluteError : public ObjFunction {
     std::transform(linalg::cbegin(out), linalg::cend(out), linalg::begin(out),
                    [w](float v) { return v * w; });
 
-    collective::Allreduce<collective::Operation::kSum>(out.Values().data(), out.Values().size());
-    collective::Allreduce<collective::Operation::kSum>(&w, 1);
+    if (info.IsRowSplit()) {
+      collective::Allreduce<collective::Operation::kSum>(out.Values().data(), out.Values().size());
+      collective::Allreduce<collective::Operation::kSum>(&w, 1);
+    }
 
     if (common::CloseTo(w, 0.0)) {
       // Mostly for handling empty dataset test.

@@ -608,31 +608,56 @@ TEST_F(InitBaseScore, InitWithPredict) { this->TestInitWithPredt(); }
 
 TEST_F(InitBaseScore, UpdateProcess) { this->TestUpdateProcess(); }
 
-void TestColumnSplitBaseScore(std::shared_ptr<DMatrix> Xy_, float expected_base_score) {
-  auto const world_size = collective::GetWorldSize();
-  auto const rank = collective::GetRank();
-  std::shared_ptr<DMatrix> sliced{Xy_->SliceCol(world_size, rank)};
-  std::unique_ptr<Learner> learner{Learner::Create({sliced})};
-  learner->SetParam("tree_method", "approx");
-  learner->SetParam("objective", "binary:logistic");
-  learner->UpdateOneIter(0, sliced);
-  Json config{Object{}};
-  learner->SaveConfig(&config);
-  auto base_score = GetBaseScore(config);
-  ASSERT_EQ(base_score, expected_base_score);
-}
+class ColumnSplit : public ::testing::Test {
+ protected:
+  static void TestColumnSplit(std::shared_ptr<DMatrix> dmat, std::string const& objective,
+                              float expected_base_score, Json const& expected_model) {
+    auto const world_size = collective::GetWorldSize();
+    auto const rank = collective::GetRank();
+    std::shared_ptr<DMatrix> sliced{dmat->SliceCol(world_size, rank)};
+    std::unique_ptr<Learner> learner{Learner::Create({sliced})};
+    learner->SetParam("tree_method", "approx");
+    learner->SetParam("objective", objective);
+    learner->UpdateOneIter(0, sliced);
+    Json config{Object{}};
+    learner->SaveConfig(&config);
+    auto base_score = GetBaseScore(config);
+    ASSERT_EQ(base_score, expected_base_score);
 
-TEST_F(InitBaseScore, ColumnSplit) {
-  std::unique_ptr<Learner> learner{Learner::Create({Xy_})};
-  learner->SetParam("tree_method", "approx");
-  learner->SetParam("objective", "binary:logistic");
-  learner->UpdateOneIter(0, Xy_);
-  Json config{Object{}};
-  learner->SaveConfig(&config);
-  auto base_score = GetBaseScore(config);
-  ASSERT_NE(base_score, ObjFunction::DefaultBaseScore());
+    Json model{Object{}};
+    learner->SaveModel(&model);
+    ASSERT_EQ(model, expected_model);
+  }
 
-  auto constexpr kWorldSize{3};
-  RunWithInMemoryCommunicator(kWorldSize, &TestColumnSplitBaseScore, Xy_, base_score);
-}
+  void TestBaseScoreAndModel(std::string const& objective) {
+    std::shared_ptr<DMatrix> dmat{RandomDataGenerator{10, 10, 0}.GenerateDMatrix(true)};
+    std::unique_ptr<Learner> learner{Learner::Create({dmat})};
+    learner->SetParam("tree_method", "approx");
+    learner->SetParam("objective", objective);
+    learner->UpdateOneIter(0, dmat);
+
+    Json config{Object{}};
+    learner->SaveConfig(&config);
+    auto base_score = GetBaseScore(config);
+    ASSERT_NE(base_score, ObjFunction::DefaultBaseScore());
+
+    Json model{Object{}};
+    learner->SaveModel(&model);
+
+    auto constexpr kWorldSize{3};
+    RunWithInMemoryCommunicator(kWorldSize, &TestColumnSplit, dmat, objective, base_score, model);
+  }
+};
+
+TEST_F(ColumnSplit, RegSquaredError) { this->TestBaseScoreAndModel("reg:squarederror"); }
+
+TEST_F(ColumnSplit, RegSquaredLogError) { this->TestBaseScoreAndModel("reg:squaredlogerror"); }
+
+TEST_F(ColumnSplit, RegLogistic) { this->TestBaseScoreAndModel("reg:logistic"); }
+
+TEST_F(ColumnSplit, RegPseudoHuberError) { this->TestBaseScoreAndModel("reg:pseudohubererror"); }
+
+TEST_F(ColumnSplit, RegAsoluteError) { this->TestBaseScoreAndModel("reg:absoluteerror"); }
+
+TEST_F(ColumnSplit, BinaryLogistic) { this->TestBaseScoreAndModel("binary:logistic"); }
 }  // namespace xgboost

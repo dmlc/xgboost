@@ -85,7 +85,7 @@ void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& posit
   size_t n_leaf = nidx.size();
   if (nptr.empty()) {
     std::vector<float> quantiles;
-    UpdateLeafValues(&quantiles, nidx, learning_rate, p_tree);
+    UpdateLeafValues(&quantiles, nidx, info, learning_rate, p_tree);
     return;
   }
 
@@ -131,7 +131,7 @@ void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& posit
     quantiles.at(k) = q;
   });
 
-  UpdateLeafValues(&quantiles, nidx, learning_rate, p_tree);
+  UpdateLeafValues(&quantiles, nidx, info, learning_rate, p_tree);
 }
 
 #if !defined(XGBOOST_USE_CUDA)
