@@ -43,10 +43,10 @@ in spark estimator, and some parameters are replaced with pyspark specific param
 such as `weight_col`, `validation_indicator_col`, `use_gpu`, for details please see
 `SparkXGBRegressor` doc.
 
-The following code snippet shows how to train a spark xgboost regressor model,
-first we need to prepare a training dataset as a spark dataframe contains
-"label" column and "features" column(s), the "features" column(s) must be `pyspark.ml.linalg.Vector`
-type or spark array type or a list of feature column names.
+The following code snippet shows how to train a spark xgboost regressor model, first we
+need to prepare a training dataset as a spark dataframe contains "label" column and
+"features" column(s), the "features" column(s) must be ``pyspark.ml.linalg.Vector`` type
+or spark array type or a list of feature column names.
 
 
 .. code-block:: python
@@ -54,10 +54,10 @@ type or spark array type or a list of feature column names.
   xgb_regressor_model = xgb_regressor.fit(train_spark_dataframe)
 
 
-The following code snippet shows how to predict test data using a spark xgboost regressor model,
-first we need to prepare a test dataset as a spark dataframe contains
-"features" and "label" column, the "features" column must be `pyspark.ml.linalg.Vector`
-type or spark array type.
+The following code snippet shows how to predict test data using a spark xgboost regressor
+model, first we need to prepare a test dataset as a spark dataframe contains "features"
+and "label" column, the "features" column must be ``pyspark.ml.linalg.Vector`` type or
+spark array type.
 
 .. code-block:: python
 
