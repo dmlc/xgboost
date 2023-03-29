@@ -1001,8 +1001,6 @@ async def _train_async(
             # especially with complex objectives like quantile.
             return _filter_empty(booster, local_history, Xy.num_row() != 0)
 
-        raise ValueError("None of the workers can provide a valid result.")
-
     async with distributed.MultiLock(workers, client):
         if evals is not None:
             evals_data = [d for d, n in evals]
