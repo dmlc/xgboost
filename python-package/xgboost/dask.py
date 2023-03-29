@@ -980,7 +980,7 @@ async def _train_async(
             non_empty = numpy.zeros(shape=(n_workers, ), dtype=numpy.int32)
             non_empty[collective.get_rank()] = int(Xy.num_row() != 0)
             non_empty = collective.allreduce(non_empty, collective.Op.SUM)
-            non_empty = non_empty.astype(numpy.bool8)
+            non_empty = non_empty.astype(bool)
             ret: Optional[TrainReturnT] = {
                 "booster": booster,
                 "history": local_history,
