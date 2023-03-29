@@ -973,14 +973,27 @@ async def _train_async(
                 xgb_model=xgb_model,
                 callbacks=callbacks,
             )
-        if Xy.num_row() != 0:
+            # Don't return the boosters from empty workers. It's quite difficult to
+            # guarantee everything is in sync in the present of empty workers,
+            # especially with complex objectives like quantile.
+            n_workers = collective.get_world_size()
+            non_empty = numpy.zeros(shape=(n_workers, ), dtype=numpy.int32)
+            non_empty[collective.get_rank()] = int(Xy.num_row() != 0)
+            non_empty = collective.allreduce(non_empty, collective.Op.SUM)
+            non_empty = non_empty.astype(numpy.bool8)
             ret: Optional[TrainReturnT] = {
                 "booster": booster,
                 "history": local_history,
             }
-        else:
-            ret = None
-        return ret
+            rank = collective.get_rank()
+            for i in range(non_empty.size):
+                # This is the first valid worker
+                if non_empty[i] and i == rank:
+                    return ret
+                if non_empty[i]:
+                    return None
+
+        raise ValueError("None of the workers can provide a valid result.")
 
     async with distributed.MultiLock(workers, client):
         if evals is not None:
