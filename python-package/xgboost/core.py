@@ -2046,7 +2046,6 @@ class Booster:
         self,
         data: DMatrix,
         output_margin: bool = False,
-        ntree_limit: int = 0,
         pred_leaf: bool = False,
         pred_contribs: bool = False,
         approx_contribs: bool = False,
