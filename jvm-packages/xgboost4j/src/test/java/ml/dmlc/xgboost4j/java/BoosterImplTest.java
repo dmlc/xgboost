@@ -356,7 +356,7 @@ public class BoosterImplTest {
 
     // Submit all the tasks
     for (int i=0; i<n_tasks; i++) {
-      result.add(executorService.submit(new InplacePredictionTask(i, booster, testX2, test_rows, features, testMat, predicts)));
+      result.add(executorService.submit(new InplacePredictionTask(i, booster, testX2, test_rows, features, predicts)));
     }
 
     // Tell the executor service we are done
