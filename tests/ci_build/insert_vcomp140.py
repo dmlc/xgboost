@@ -35,7 +35,8 @@ def update_record(*, wheel_content_dir, xgboost_version):
 
 
 def main(args):
-    for wheel_path in sorted(glob.glob(args.wheel_path)):
+    candidates = list(sorted(glob.glob(args.wheel_path)))
+    for wheel_path in candidates:
         print(f"Processing wheel {wheel_path}")
         m = re.search(r"xgboost-(.*)\+.*-py3", wheel_path)
         if not m:
