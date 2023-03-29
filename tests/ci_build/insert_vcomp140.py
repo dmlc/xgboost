@@ -79,7 +79,7 @@ def main(args):
             )
             print(f"    Created new wheel {new_wheel_tmp_path}")
 
-            # Rename the old wheel with suffix .back
+            # Rename the old wheel with suffix .bak
             # The new wheel takes the name of the old wheel
             wheel_path_obj = pathlib.Path(wheel_path).resolve()
             backup_path = wheel_path_obj.with_suffix(".whl.bak")
