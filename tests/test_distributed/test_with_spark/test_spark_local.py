@@ -184,7 +184,7 @@ def reg_data(spark: SparkSession) -> Generator[RegData, None, None]:
     reg_params = {
         "max_depth": 5,
         "n_estimators": 10,
-        "iteration_range": (0, 5),
+        "iteration_range": [0, 5],
         "max_bin": 9,
     }
 
@@ -195,23 +195,31 @@ def reg_data(spark: SparkSession) -> Generator[RegData, None, None]:
     ]
     reg_df_train = spark.createDataFrame(reg_df_train_data, ["features", "label"])
 
+    reg2 = xgb.XGBRegressor(max_depth=5, n_estimators=10)
+    reg2.fit(X, y)
+    predt2 = reg2.predict(X, iteration_range=[0, 5])
+    # array([0.22185266, 0.77814734], dtype=float32)
+
     reg_df_test = spark.createDataFrame(
         [
             (
                 Vectors.dense(X[0, :]),
                 float(predt0[0]),
                 pred_contrib0[0, :].tolist(),
+                float(predt2[0]),
             ),
             (
                 Vectors.sparse(3, {1: 1.0, 2: 5.5}),
                 float(predt0[1]),
                 pred_contrib0[1, :].tolist(),
+                float(predt2[1])
             ),
         ],
         [
             "features",
             "expected_prediction",
             "expected_pred_contribs",
+            "expected_prediction_with_params",
         ],
     )
     yield RegData(reg_df_train, reg_df_test, reg_params)

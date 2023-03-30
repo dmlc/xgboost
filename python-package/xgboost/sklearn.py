@@ -2058,7 +2058,7 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
             output_margin,
             validate_features,
             base_margin,
-            iteration_range,
+            iteration_range=iteration_range,
         )
 
     def apply(
