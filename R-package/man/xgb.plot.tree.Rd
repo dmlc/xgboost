@@ -67,7 +67,7 @@ The "Yes" branches are marked by the "< split_value" label.
 The branches that also used for missing values are marked as bold
 (as in "carrying extra capacity").
 
-This function uses \href{http://www.graphviz.org/}{GraphViz} as a backend of DiagrammeR.
+This function uses \href{https://www.graphviz.org/}{GraphViz} as a backend of DiagrammeR.
 }
 \examples{
 data(agaricus.train, package='xgboost')

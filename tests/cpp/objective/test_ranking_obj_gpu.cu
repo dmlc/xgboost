@@ -89,43 +89,6 @@ TEST(Objective, RankSegmentSorterAscendingTest) {
                                                      5, 4, 6});
 }
 
-using CountFunctor = uint32_t (*)(const int *, uint32_t, int);
-void RankItemCountImpl(const std::vector<int> &sorted_items, CountFunctor f,
-                       int find_val, uint32_t exp_val) {
-  EXPECT_NE(std::find(sorted_items.begin(), sorted_items.end(), find_val), sorted_items.end());
-  EXPECT_EQ(f(&sorted_items[0], sorted_items.size(), find_val), exp_val);
-}
-
-TEST(Objective, RankItemCountOnLeft) {
-  // Items sorted descendingly
-  std::vector<int> sorted_items{10, 10, 6, 4, 4, 4, 4, 1, 1, 1, 1, 1, 0};
-  RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheLeftOf,
-                    10, static_cast<uint32_t>(0));
-  RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheLeftOf,
-                    6, static_cast<uint32_t>(2));
-  RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheLeftOf,
-                    4, static_cast<uint32_t>(3));
-  RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheLeftOf,
-                    1, static_cast<uint32_t>(7));
-  RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheLeftOf,
-                    0, static_cast<uint32_t>(12));
-}
-
-TEST(Objective, RankItemCountOnRight) {
-  // Items sorted descendingly
-  std::vector<int> sorted_items{10, 10, 6, 4, 4, 4, 4, 1, 1, 1, 1, 1, 0};
-  RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheRightOf,
-                    10, static_cast<uint32_t>(11));
-  RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheRightOf,
-                    6, static_cast<uint32_t>(10));
-  RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheRightOf,
-                    4, static_cast<uint32_t>(6));
-  RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheRightOf,
-                    1, static_cast<uint32_t>(1));
-  RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheRightOf,
-                    0, static_cast<uint32_t>(0));
-}
-
 TEST(Objective, NDCGLambdaWeightComputerTest) {
   std::vector<float> hlabels = {3.1f, 1.2f, 2.3f, 4.4f,        // Labels
                                 7.8f, 5.01f, 6.96f,

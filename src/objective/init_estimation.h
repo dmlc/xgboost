@@ -7,8 +7,7 @@
 #include "xgboost/linalg.h"     // Tensor
 #include "xgboost/objective.h"  // ObjFunction
 
-namespace xgboost {
-namespace obj {
+namespace xgboost::obj {
 class FitIntercept : public ObjFunction {
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override;
 };
@@ -20,6 +19,5 @@ inline void CheckInitInputs(MetaInfo const& info) {
         << "Number of weights should be equal to number of data points.";
   }
 }
-}  // namespace obj
-}  // namespace xgboost
+}  // namespace xgboost::obj
 #endif  // XGBOOST_OBJECTIVE_INIT_ESTIMATION_H_

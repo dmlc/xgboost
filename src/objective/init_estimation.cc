@@ -14,8 +14,7 @@
 #include "xgboost/linalg.h"              // Tensor,Vector
 #include "xgboost/task.h"                // ObjInfo
 
-namespace xgboost {
-namespace obj {
+namespace xgboost::obj {
 void FitIntercept::InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const {
   if (this->Task().task == ObjInfo::kRegression) {
     CheckInitInputs(info);
@@ -31,14 +30,13 @@ void FitIntercept::InitEstimation(MetaInfo const& info, linalg::Vector<float>* b
       ObjFunction::Create(get<String const>(config["name"]), this->ctx_)};
   new_obj->LoadConfig(config);
   new_obj->GetGradient(dummy_predt, info, 0, &gpair);
+
   bst_target_t n_targets = this->Targets(info);
   linalg::Vector<float> leaf_weight;
   tree::FitStump(this->ctx_, info, gpair, n_targets, &leaf_weight);
-
   // workaround, we don't support multi-target due to binary model serialization for
   // base margin.
   common::Mean(this->ctx_, leaf_weight, base_score);
   this->PredTransform(base_score->Data());
 }
-}  // namespace obj
-}  // namespace xgboost
+}  // namespace xgboost::obj
