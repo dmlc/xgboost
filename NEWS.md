@@ -3,6 +3,26 @@ XGBoost Change Log
 
 This file records the changes in xgboost library in reverse chronological order.
 
+## 1.7.5 (2023 Mar 30)
+This is a patch release for bug fixes.
+
+* C++ requirement is updated to C++-17, along with which, CUDA 11.8 is used as the default CTK. (#8860, #8855, #8853)
+* Fix import for pyspark ranker. (#8692)
+* Fix Windows binary wheel to be compatible with Poetry (#8991)
+* Fix GPU hist with column sampling. (#8850)
+* Make sure iterative DMatrix is properly initialized. (#8997)
+* [R] Update link in document. (#8998)
+
+## 1.7.4 (2023 Feb 16)
+This is a patch release for bug fixes.
+
+* [R] Fix OpenMP detection on macOS. (#8684)
+* [Python] Make sure input numpy array is aligned. (#8690)
+* Fix feature interaction with column sampling in gpu_hist evaluator. (#8754)
+* Fix GPU L1 error. (#8749)
+* [PySpark] Fix feature types param (#8772)
+* Fix ranking with quantile dmatrix and group weight. (#8762)
+
 ## 1.7.3 (2023 Jan 6)
 This is a patch release for bug fixes.
 
