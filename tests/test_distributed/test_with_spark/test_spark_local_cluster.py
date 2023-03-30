@@ -449,7 +449,6 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
         pred_result = model.transform(
             self.cls_df_test_distributed_lower_estimators
         ).collect()
-        print(pred_result)
         for row in pred_result:
             self.assertTrue(np.isclose(row.expected_label, row.prediction, atol=1e-3))
             self.assertTrue(
