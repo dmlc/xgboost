@@ -103,8 +103,39 @@ inline void UpdateTreeLeaf(Context const* ctx, HostDeviceVector<bst_node_t> cons
                            std::int32_t group_idx, MetaInfo const& info, float learning_rate,
                            HostDeviceVector<float> const& predt, float alpha, RegTree* p_tree) {
   if (ctx->IsCPU()) {
-    detail::UpdateTreeLeafHost(ctx, position.ConstHostVector(), group_idx, info, learning_rate,
-                               predt, alpha, p_tree);
+    // When doing vertical federated learning, we assume only worker 0 has access to the labels,
+    // so update the leaf values there and broadcast them to other workers.
+    if (info.IsVerticalFederated()) {
+      if (collective::GetRank() == 0) {
+        detail::UpdateTreeLeafHost(ctx, position.ConstHostVector(), group_idx, info, learning_rate,
+                                   predt, alpha, p_tree);
+        std::vector<bst_float> leaf_values(p_tree->GetNumLeaves());
+        auto i = 0;
+        for (auto const& node : p_tree->GetNodes()) {
+          if (node.IsLeaf()) {
+            leaf_values[i] = node.LeafValue();
+            i++;
+          }
+        }
+        collective::Broadcast(static_cast<void*>(leaf_values.data()),
+                              leaf_values.size() * sizeof(bst_float), 0);
+      } else {
+        std::vector<bst_float> leaf_values(p_tree->GetNumLeaves());
+        collective::Broadcast(static_cast<void*>(leaf_values.data()),
+                              leaf_values.size() * sizeof(bst_float), 0);
+        auto i = 0;
+        auto& tree = *p_tree;
+        for (auto nid = 0; nid < tree.NumNodes(); nid++) {
+          if (tree[nid].IsLeaf()) {
+            tree[nid].SetLeaf(leaf_values[i]);
+            i++;
+          }
+        }
+      }
+    } else {
+      detail::UpdateTreeLeafHost(ctx, position.ConstHostVector(), group_idx, info, learning_rate,
+                                 predt, alpha, p_tree);
+    }
   } else {
     position.SetDevice(ctx->gpu_id);
     detail::UpdateTreeLeafDevice(ctx, position.ConstDeviceSpan(), group_idx, info, learning_rate,
