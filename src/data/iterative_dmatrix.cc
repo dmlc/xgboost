@@ -110,6 +110,7 @@ void IterativeDMatrix::InitFromCPU(DataIterHandle iter_handle, float missing,
       size_t n_threads = ctx_.Threads();
       size_t n_features = column_sizes.size();
       linalg::Tensor<size_t, 2> column_sizes_tloc({n_threads, n_features}, Context::kCpuId);
+      column_sizes_tloc.Data()->Fill(0);
       auto view = column_sizes_tloc.HostView();
       common::ParallelFor(value.Size(), n_threads, common::Sched::Static(256), [&](auto i) {
         auto const& line = value.GetLine(i);
