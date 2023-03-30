@@ -123,7 +123,7 @@ struct LambdaRankParam : public XGBoostParameter<LambdaRankParam> {
 
   DMLC_DECLARE_PARAMETER(LambdaRankParam) {
     DMLC_DECLARE_FIELD(lambdarank_pair_method)
-        .set_default(PairMethod::kMean)
+        .set_default(PairMethod::kTopK)
         .add_enum("mean", PairMethod::kMean)
         .add_enum("topk", PairMethod::kTopK)
         .describe("Method for constructing pairs.");
