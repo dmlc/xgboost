@@ -212,7 +212,7 @@ def reg_data(spark: SparkSession) -> Generator[RegData, None, None]:
                 Vectors.sparse(3, {1: 1.0, 2: 5.5}),
                 float(predt0[1]),
                 pred_contrib0[1, :].tolist(),
-                float(predt2[1])
+                float(predt2[1]),
             ),
         ],
         [
