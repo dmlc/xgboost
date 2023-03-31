@@ -2,6 +2,8 @@
 Quantile Regression
 ===================
 
+    .. versionadded:: 2.0.0
+
 The script is inspired by this awesome example in sklearn:
 https://scikit-learn.org/stable/auto_examples/ensemble/plot_gradient_boosting_quantile.html
 

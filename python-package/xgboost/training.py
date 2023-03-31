@@ -95,7 +95,7 @@ def train(
     feval :
         .. deprecated:: 1.6.0
             Use `custom_metric` instead.
-    maximize : bool
+    maximize :
         Whether to maximize feval.
     early_stopping_rounds :
         Activates early stopping. Validation metric needs to improve at least once in
