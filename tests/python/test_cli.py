@@ -102,7 +102,6 @@ eval[test] = {data_path}
             booster.feature_names = None
             booster.feature_types = None
             booster.set_attr(best_iteration=None)
-            booster.set_attr(best_ntree_limit=None)
 
             booster.save_model(model_out_py)
             py_predt = booster.predict(data)

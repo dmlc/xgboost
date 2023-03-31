@@ -13,9 +13,9 @@ except Exception:
 pytestmark = pytest.mark.skipif(shap is None, reason="Requires shap package")
 
 
-# Check integration is not broken from xgboost side
-# Changes in binary format may cause problems
-def test_with_shap():
+# xgboost removed ntree_limit in 2.0, which breaks the SHAP package.
+@pytest.mark.xfail
+def test_with_shap() -> None:
     from sklearn.datasets import fetch_california_housing
 
     X, y = fetch_california_housing(return_X_y=True)

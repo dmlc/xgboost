@@ -126,25 +126,6 @@ def _parse_eval_str(result: str) -> List[Tuple[str, float]]:
 IterRange = TypeVar("IterRange", Optional[Tuple[int, int]], Tuple[int, int])
 
 
-def _convert_ntree_limit(
-    booster: "Booster", ntree_limit: Optional[int], iteration_range: IterRange
-) -> IterRange:
-    if ntree_limit is not None and ntree_limit != 0:
-        warnings.warn(
-            "ntree_limit is deprecated, use `iteration_range` or model "
-            "slicing instead.",
-            UserWarning,
-        )
-        if iteration_range is not None and iteration_range[1] != 0:
-            raise ValueError(
-                "Only one of `iteration_range` and `ntree_limit` can be non zero."
-            )
-        num_parallel_tree, _ = _get_booster_layer_trees(booster)
-        num_parallel_tree = max([num_parallel_tree, 1])
-        iteration_range = (0, ntree_limit // num_parallel_tree)
-    return iteration_range
-
-
 def _expect(expectations: Sequence[Type], got: Type) -> str:
     """Translate input error into string.
 
@@ -1508,41 +1489,6 @@ Objective = Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
 Metric = Callable[[np.ndarray, DMatrix], Tuple[str, float]]
 
 
-def _get_booster_layer_trees(model: "Booster") -> Tuple[int, int]:
-    """Get number of trees added to booster per-iteration.  This function will be removed
-    once `best_ntree_limit` is dropped in favor of `best_iteration`.  Returns
-    `num_parallel_tree` and `num_groups`.
-
-    """
-    config = json.loads(model.save_config())
-    booster = config["learner"]["gradient_booster"]["name"]
-    if booster == "gblinear":
-        num_parallel_tree = 0
-    elif booster == "dart":
-        num_parallel_tree = int(
-            config["learner"]["gradient_booster"]["gbtree"]["gbtree_model_param"][
-                "num_parallel_tree"
-            ]
-        )
-    elif booster == "gbtree":
-        try:
-            num_parallel_tree = int(
-                config["learner"]["gradient_booster"]["gbtree_model_param"][
-                    "num_parallel_tree"
-                ]
-            )
-        except KeyError:
-            num_parallel_tree = int(
-                config["learner"]["gradient_booster"]["gbtree_train_param"][
-                    "num_parallel_tree"
-                ]
-            )
-    else:
-        raise ValueError(f"Unknown booster: {booster}")
-    num_groups = int(config["learner"]["learner_model_param"]["num_class"])
-    return num_parallel_tree, num_groups
-
-
 def _configure_metrics(params: BoosterParam) -> BoosterParam:
     if (
         isinstance(params, dict)
@@ -1576,11 +1522,11 @@ class Booster:
         """
         Parameters
         ----------
-        params : dict
+        params :
             Parameters for boosters.
-        cache : list
+        cache :
             List of cache items.
-        model_file : string/os.PathLike/Booster/bytearray
+        model_file :
             Path to the model file if it's string or PathLike.
         """
         cache = cache if cache is not None else []
@@ -2100,7 +2046,6 @@ class Booster:
         self,
         data: DMatrix,
         output_margin: bool = False,
-        ntree_limit: int = 0,
         pred_leaf: bool = False,
         pred_contribs: bool = False,
         approx_contribs: bool = False,
@@ -2126,9 +2071,6 @@ class Booster:
 
         output_margin :
             Whether to output the raw untransformed margin value.
-
-        ntree_limit :
-            Deprecated, use `iteration_range` instead.
 
         pred_leaf :
             When this option is on, the output will be a matrix of (nsample,
@@ -2196,7 +2138,6 @@ class Booster:
             raise TypeError("Expecting data to be a DMatrix object, got: ", type(data))
         if validate_features:
             self._validate_dmatrix_features(data)
-        iteration_range = _convert_ntree_limit(self, ntree_limit, iteration_range)
         args = {
             "type": 0,
             "training": training,
@@ -2522,8 +2463,6 @@ class Booster:
             self.best_iteration = int(self.attr("best_iteration"))  # type: ignore
         if self.attr("best_score") is not None:
             self.best_score = float(self.attr("best_score"))  # type: ignore
-        if self.attr("best_ntree_limit") is not None:
-            self.best_ntree_limit = int(self.attr("best_ntree_limit"))  # type: ignore
 
     def num_boosted_rounds(self) -> int:
         """Get number of boosted rounds.  For gblinear this is reset to 0 after

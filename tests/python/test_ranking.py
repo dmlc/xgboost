@@ -60,7 +60,7 @@ def test_ranking_with_weighted_data():
     assert all(p <= q for p, q in zip(auc_rec, auc_rec[1:]))
 
     for i in range(1, 11):
-        pred = bst.predict(dtrain, ntree_limit=i)
+        pred = bst.predict(dtrain, iteration_range=(0, i))
         # is_sorted[i]: is i-th group correctly sorted by the ranking predictor?
         is_sorted = []
         for k in range(0, 20, 5):

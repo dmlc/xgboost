@@ -37,7 +37,6 @@ dependencies:
 - pyarrow
 - protobuf
 - cloudpickle
-- shap>=0.41
 - modin
 # TODO: Replace it with pyspark>=3.4 once 3.4 released.
 # - https://ml-team-public-read.s3.us-west-2.amazonaws.com/pyspark-3.4.0.dev0.tar.gz

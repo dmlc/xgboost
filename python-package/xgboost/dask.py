@@ -1653,14 +1653,11 @@ class DaskScikitLearnBase(XGBModel):
         self,
         X: _DataT,
         output_margin: bool = False,
-        ntree_limit: Optional[int] = None,
         validate_features: bool = True,
         base_margin: Optional[_DaskCollection] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
     ) -> Any:
         _assert_dask_support()
-        msg = "`ntree_limit` is not supported on dask, use `iteration_range` instead."
-        assert ntree_limit is None, msg
         return self.client.sync(
             self._predict_async,
             X,
@@ -1694,12 +1691,9 @@ class DaskScikitLearnBase(XGBModel):
     def apply(
         self,
         X: _DataT,
-        ntree_limit: Optional[int] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
     ) -> Any:
         _assert_dask_support()
-        msg = "`ntree_limit` is not supported on dask, use `iteration_range` instead."
-        assert ntree_limit is None, msg
         return self.client.sync(self._apply_async, X, iteration_range=iteration_range)
 
     def __await__(self) -> Awaitable[Any]:
@@ -1993,14 +1987,11 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierMixIn, XGBClassifierBa
     def predict_proba(
         self,
         X: _DaskCollection,
-        ntree_limit: Optional[int] = None,
         validate_features: bool = True,
         base_margin: Optional[_DaskCollection] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
     ) -> Any:
         _assert_dask_support()
-        msg = "`ntree_limit` is not supported on dask, use `iteration_range` instead."
-        assert ntree_limit is None, msg
         return self._client_sync(
             self._predict_proba_async,
             X=X,
