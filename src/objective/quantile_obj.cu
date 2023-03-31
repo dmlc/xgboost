@@ -35,7 +35,9 @@ class QuantileRegression : public ObjFunction {
   bst_target_t Targets(MetaInfo const& info) const override {
     auto const& alpha = param_.quantile_alpha.Get();
     CHECK_EQ(alpha.size(), alpha_.Size()) << "The objective is not yet configured.";
-    CHECK_LE(info.labels.Shape(1), 1) << "Multi-target is not yet supported by the quantile loss.";
+    if (!info.IsVerticalFederated() || collective::GetRank() == 0) {
+      CHECK_EQ(info.labels.Shape(1), 1) << "Multi-target is not yet supported by the quantile loss.";
+    }
     CHECK(!alpha.empty());
     // We have some placeholders for multi-target in the quantile loss. But it's not
     // supported as the gbtree doesn't know how to slice the gradient and there's no 3-dim
