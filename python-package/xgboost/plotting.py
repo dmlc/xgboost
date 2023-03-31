@@ -1,10 +1,9 @@
 # pylint: disable=too-many-locals, too-many-arguments, invalid-name,
 # pylint: disable=too-many-branches
-# coding: utf-8
 """Plotting Library."""
 import json
 from io import BytesIO
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import numpy as np
 
@@ -17,7 +16,7 @@ GraphvizSource = Any  # real type is graphviz.Source
 
 
 def plot_importance(
-    booster: Booster,
+    booster: Union[XGBModel, Booster, dict],
     ax: Optional[Axes] = None,
     height: float = 0.2,
     xlim: Optional[tuple] = None,
@@ -37,40 +36,42 @@ def plot_importance(
 
     Parameters
     ----------
-    booster : Booster, XGBModel or dict
+    booster :
         Booster or XGBModel instance, or dict taken by Booster.get_fscore()
-    ax : matplotlib Axes, default None
+    ax : matplotlib Axes
         Target axes instance. If None, new figure and axes will be created.
-    grid : bool, Turn the axes grids on or off.  Default is True (On).
-    importance_type : str, default "weight"
+    grid :
+        Turn the axes grids on or off.  Default is True (On).
+    importance_type :
         How the importance is calculated: either "weight", "gain", or "cover"
 
         * "weight" is the number of times a feature appears in a tree
         * "gain" is the average gain of splits which use the feature
         * "cover" is the average coverage of splits which use the feature
           where coverage is defined as the number of samples affected by the split
-    max_num_features : int, default None
-        Maximum number of top features displayed on plot. If None, all features will be displayed.
-    height : float, default 0.2
+    max_num_features :
+        Maximum number of top features displayed on plot. If None, all features will be
+        displayed.
+    height :
         Bar height, passed to ax.barh()
-    xlim : tuple, default None
+    xlim :
         Tuple passed to axes.xlim()
-    ylim : tuple, default None
+    ylim :
         Tuple passed to axes.ylim()
-    title : str, default "Feature importance"
+    title :
         Axes title. To disable, pass None.
-    xlabel : str, default "F score"
+    xlabel :
         X axis title label. To disable, pass None.
-    ylabel : str, default "Features"
+    ylabel :
         Y axis title label. To disable, pass None.
-    fmap: str or os.PathLike (optional)
+    fmap :
         The name of feature map file.
-    show_values : bool, default True
+    show_values :
         Show values on plot. To disable, pass False.
-    values_format : str, default "{v}"
-        Format string for values. "v" will be replaced by the value of the feature importance.
-        e.g. Pass "{v:.2f}" in order to limit the number of digits after the decimal point
-        to two, for each value printed on the graph.
+    values_format :
+        Format string for values. "v" will be replaced by the value of the feature
+        importance.  e.g. Pass "{v:.2f}" in order to limit the number of digits after
+        the decimal point to two, for each value printed on the graph.
     kwargs :
         Other keywords passed to ax.barh()
 
@@ -146,7 +147,7 @@ def plot_importance(
 
 
 def to_graphviz(
-    booster: Booster,
+    booster: Union[Booster, XGBModel],
     fmap: PathLike = "",
     num_trees: int = 0,
     rankdir: Optional[str] = None,
@@ -162,19 +163,19 @@ def to_graphviz(
 
     Parameters
     ----------
-    booster : Booster, XGBModel
+    booster :
         Booster or XGBModel instance
-    fmap: str (optional)
+    fmap :
        The name of feature map file
-    num_trees : int, default 0
+    num_trees :
         Specify the ordinal number of target tree
-    rankdir : str, default "UT"
+    rankdir :
         Passed to graphviz via graph_attr
-    yes_color : str, default '#0000FF'
+    yes_color :
         Edge color when meets the node condition.
-    no_color : str, default '#FF0000'
+    no_color :
         Edge color when doesn't meet the node condition.
-    condition_node_params : dict, optional
+    condition_node_params :
         Condition node configuration for for graphviz.  Example:
 
         .. code-block:: python
@@ -183,7 +184,7 @@ def to_graphviz(
              'style': 'filled,rounded',
              'fillcolor': '#78bceb'}
 
-    leaf_node_params : dict, optional
+    leaf_node_params :
         Leaf node configuration for graphviz. Example:
 
         .. code-block:: python
@@ -192,7 +193,7 @@ def to_graphviz(
              'style': 'filled',
              'fillcolor': '#e48038'}
 
-    \\*\\*kwargs: dict, optional
+    kwargs :
         Other keywords passed to graphviz graph_attr, e.g. ``graph [ {key} = {value} ]``
 
     Returns
