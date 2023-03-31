@@ -64,7 +64,7 @@ class TestModels:
         num_round = 2
         bst = xgb.train(param, dtrain, num_round, watchlist)
         # this is prediction
-        preds = bst.predict(dtest, ntree_limit=num_round)
+        preds = bst.predict(dtest, iteration_range=(0, num_round))
         labels = dtest.get_label()
         err = sum(1 for i in range(len(preds))
                   if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
@@ -83,7 +83,7 @@ class TestModels:
             bst2 = xgb.Booster(params=param, model_file=model_path)
             dtest2 = xgb.DMatrix(dtest_path)
 
-        preds2 = bst2.predict(dtest2, ntree_limit=num_round)
+        preds2 = bst2.predict(dtest2, iteration_range=(0, num_round))
 
         # assert they are the same
         assert np.sum(np.abs(preds2 - preds)) == 0
@@ -96,7 +96,7 @@ class TestModels:
         # check whether custom evaluation metrics work
         bst = xgb.train(param, dtrain, num_round, watchlist,
                         feval=my_logloss)
-        preds3 = bst.predict(dtest, ntree_limit=num_round)
+        preds3 = bst.predict(dtest, iteration_range=(0, num_round))
         assert all(preds3 == preds)
 
         # check whether sample_type and normalize_type work
@@ -110,7 +110,7 @@ class TestModels:
             param['sample_type'] = p[0]
             param['normalize_type'] = p[1]
             bst = xgb.train(param, dtrain, num_round, watchlist)
-            preds = bst.predict(dtest, ntree_limit=num_round)
+            preds = bst.predict(dtest, iteration_range=(0, num_round))
             err = sum(1 for i in range(len(preds))
                       if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
             assert err < 0.1
@@ -472,8 +472,8 @@ class TestModels:
         X, y = load_iris(return_X_y=True)
         cls = xgb.XGBClassifier(n_estimators=2)
         cls.fit(X, y, early_stopping_rounds=1, eval_set=[(X, y)])
-        assert cls.get_booster().best_ntree_limit == 2
-        assert cls.best_ntree_limit == cls.get_booster().best_ntree_limit
+        assert cls.get_booster().best_iteration == cls.n_estimators - 1
+        assert cls.best_iteration == cls.get_booster().best_iteration
 
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "cls.json")
@@ -481,8 +481,8 @@ class TestModels:
 
             cls = xgb.XGBClassifier(n_estimators=2)
             cls.load_model(path)
-            assert cls.get_booster().best_ntree_limit == 2
-            assert cls.best_ntree_limit == cls.get_booster().best_ntree_limit
+            assert cls.get_booster().best_iteration == cls.n_estimators - 1
+            assert cls.best_iteration == cls.get_booster().best_iteration
 
     def run_slice(
         self,

@@ -1,4 +1,4 @@
-'''Tests for running inplace prediction.'''
+"""Tests for running inplace prediction."""
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
@@ -17,10 +17,10 @@ def run_threaded_predict(X, rows, predict_func):
     per_thread = 20
     with ThreadPoolExecutor(max_workers=10) as e:
         for i in range(0, rows, int(rows / per_thread)):
-            if hasattr(X, 'iloc'):
-                predictor = X.iloc[i:i+per_thread, :]
+            if hasattr(X, "iloc"):
+                predictor = X.iloc[i : i + per_thread, :]
             else:
-                predictor = X[i:i+per_thread, ...]
+                predictor = X[i : i + per_thread, ...]
             f = e.submit(predict_func, predictor)
             results.append(f)
 
@@ -61,27 +61,31 @@ def run_predict_leaf(predictor):
 
     validate_leaf_output(leaf, num_parallel_tree)
 
-    ntree_limit = 2
+    n_iters = 2
     sliced = booster.predict(
-        m, pred_leaf=True, ntree_limit=num_parallel_tree * ntree_limit, strict_shape=True
+        m,
+        pred_leaf=True,
+        iteration_range=(0, n_iters),
+        strict_shape=True,
     )
     first = sliced[0, ...]
 
-    assert np.prod(first.shape) == classes * num_parallel_tree * ntree_limit
+    assert np.prod(first.shape) == classes * num_parallel_tree * n_iters
 
     # When there's only 1 tree, the output is a 1 dim vector
     booster = xgb.train({"tree_method": "hist"}, num_boost_round=1, dtrain=m)
-    assert booster.predict(m, pred_leaf=True).shape == (rows, )
+    assert booster.predict(m, pred_leaf=True).shape == (rows,)
 
     return leaf
 
 
 def test_predict_leaf():
-    run_predict_leaf('cpu_predictor')
+    run_predict_leaf("cpu_predictor")
 
 
 def test_predict_shape():
     from sklearn.datasets import fetch_california_housing
+
     X, y = fetch_california_housing(return_X_y=True)
     reg = xgb.XGBRegressor(n_estimators=1)
     reg.fit(X, y)
@@ -119,13 +123,14 @@ def test_predict_shape():
 
 
 class TestInplacePredict:
-    '''Tests for running inplace prediction'''
+    """Tests for running inplace prediction"""
+
     @classmethod
     def setup_class(cls):
         cls.rows = 1000
         cls.cols = 10
 
-        cls.missing = 11            # set to integer for testing
+        cls.missing = 11  # set to integer for testing
 
         cls.rng = np.random.RandomState(1994)
 
@@ -139,7 +144,7 @@ class TestInplacePredict:
         cls.test = xgb.DMatrix(cls.X[:10, ...], missing=cls.missing)
 
         cls.num_boost_round = 10
-        cls.booster = xgb.train({'tree_method': 'hist'}, dtrain, num_boost_round=10)
+        cls.booster = xgb.train({"tree_method": "hist"}, dtrain, num_boost_round=10)
 
     def test_predict(self):
         booster = self.booster
@@ -162,28 +167,22 @@ class TestInplacePredict:
         predt_from_array = booster.inplace_predict(
             X[:10, ...], iteration_range=(0, 4), missing=self.missing
         )
-        predt_from_dmatrix = booster.predict(test, ntree_limit=4)
+        predt_from_dmatrix = booster.predict(test, iteration_range=(0, 4))
 
         np.testing.assert_allclose(predt_from_dmatrix, predt_from_array)
 
-        with pytest.raises(ValueError):
-            booster.predict(test, ntree_limit=booster.best_ntree_limit + 1)
         with pytest.raises(ValueError):
             booster.predict(test, iteration_range=(0, booster.best_iteration + 2))
 
         default = booster.predict(test)
 
         range_full = booster.predict(test, iteration_range=(0, self.num_boost_round))
-        ntree_full = booster.predict(test, ntree_limit=self.num_boost_round)
         np.testing.assert_allclose(range_full, default)
-        np.testing.assert_allclose(ntree_full, default)
 
         range_full = booster.predict(
             test, iteration_range=(0, booster.best_iteration + 1)
         )
-        ntree_full = booster.predict(test, ntree_limit=booster.best_ntree_limit)
         np.testing.assert_allclose(range_full, default)
-        np.testing.assert_allclose(ntree_full, default)
 
         def predict_dense(x):
             inplace_predt = booster.inplace_predict(x)
@@ -251,6 +250,7 @@ class TestInplacePredict:
     @pytest.mark.skipif(**tm.no_pandas())
     def test_pd_dtypes(self) -> None:
         from pandas.api.types import is_bool_dtype
+
         for orig, x in pd_dtypes():
             dtypes = orig.dtypes if isinstance(orig, pd.DataFrame) else [orig.dtypes]
             if isinstance(orig, pd.DataFrame) and is_bool_dtype(dtypes[0]):

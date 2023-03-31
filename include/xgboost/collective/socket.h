@@ -1,11 +1,11 @@
-/*!
- * Copyright (c) 2022 by XGBoost Contributors
+/**
+ * Copyright (c) 2022-2023, XGBoost Contributors
  */
 #pragma once
 
 #if !defined(NOMINMAX) && defined(_WIN32)
 #define NOMINMAX
-#endif  // !defined(NOMINMAX)
+#endif                   // !defined(NOMINMAX)
 
 #include <cerrno>        // errno, EINTR, EBADF
 #include <climits>       // HOST_NAME_MAX
@@ -18,7 +18,11 @@
 #include <utility>       // std::swap
 
 #if !defined(xgboost_IS_MINGW)
-#define xgboost_IS_MINGW() defined(__MINGW32__)
+
+#if defined(__MINGW32__)
+#define xgboost_IS_MINGW 1
+#endif  // defined(__MINGW32__)
+
 #endif  // xgboost_IS_MINGW
 
 #if defined(_WIN32)
@@ -32,11 +36,11 @@ using in_port_t = std::uint16_t;
 #pragma comment(lib, "Ws2_32.lib")
 #endif  // _MSC_VER
 
-#if !xgboost_IS_MINGW()
+#if !defined(xgboost_IS_MINGW)
 using ssize_t = int;
-#endif  // !xgboost_IS_MINGW()
+#endif                    // !xgboost_IS_MINGW()
 
-#else  // UNIX
+#else                     // UNIX
 
 #include <arpa/inet.h>    // inet_ntop
 #include <fcntl.h>        // fcntl, F_GETFL, O_NONBLOCK
@@ -48,9 +52,9 @@ using ssize_t = int;
 
 #if defined(__sun) || defined(sun)
 #include <sys/sockio.h>
-#endif  // defined(__sun) || defined(sun)
+#endif                            // defined(__sun) || defined(sun)
 
-#endif  // defined(_WIN32)
+#endif                            // defined(_WIN32)
 
 #include "xgboost/base.h"         // XGBOOST_EXPECT
 #include "xgboost/logging.h"      // LOG
@@ -62,10 +66,10 @@ using ssize_t = int;
 
 namespace xgboost {
 
-#if xgboost_IS_MINGW()
+#if defined(xgboost_IS_MINGW)
 // see the dummy implementation of `poll` in rabit for more info.
 inline void MingWError() { LOG(FATAL) << "Distributed training on mingw is not supported."; }
-#endif  // xgboost_IS_MINGW()
+#endif  // defined(xgboost_IS_MINGW)
 
 namespace system {
 inline std::int32_t LastError() {
@@ -144,7 +148,7 @@ inline void SocketFinalize() {
 #endif  // defined(_WIN32)
 }
 
-#if defined(_WIN32) && xgboost_IS_MINGW()
+#if defined(_WIN32) && defined(xgboost_IS_MINGW)
 // dummy definition for old mysys32.
 inline const char *inet_ntop(int, const void *, char *, socklen_t) {  // NOLINT
   MingWError();
@@ -152,7 +156,7 @@ inline const char *inet_ntop(int, const void *, char *, socklen_t) {  // NOLINT
 }
 #else
 using ::inet_ntop;
-#endif
+#endif  // defined(_WIN32) && defined(xgboost_IS_MINGW)
 
 }  // namespace system
 
@@ -296,13 +300,12 @@ class TCPSocket {
 #else
     struct sockaddr sa;
     socklen_t sizeofsa = sizeof(sa);
-    xgboost_CHECK_SYS_CALL(
-      getsockname(handle_, &sa, &sizeofsa), 0);
-    if (sizeofsa < sizeof(uchar_t)*2) {
+    xgboost_CHECK_SYS_CALL(getsockname(handle_, &sa, &sizeofsa), 0);
+    if (sizeofsa < sizeof(uchar_t) * 2) {
       return ret_iafamily(AF_INET);
     }
     return ret_iafamily(sa.sa_family);
-#endif   // __PASE__
+#endif  // __PASE__
 #else
     LOG(FATAL) << "Unknown platform.";
     return ret_iafamily(AF_INET);
@@ -508,7 +511,7 @@ class TCPSocket {
    * \brief Create a TCP socket on specified domain.
    */
   static TCPSocket Create(SockDomain domain) {
-#if xgboost_IS_MINGW()
+#if defined(xgboost_IS_MINGW)
     MingWError();
     return {};
 #else
@@ -522,7 +525,7 @@ class TCPSocket {
     socket.domain_ = domain;
 #endif  // defined(__APPLE__)
     return socket;
-#endif  // xgboost_IS_MINGW()
+#endif  // defined(xgboost_IS_MINGW)
   }
 };
 
@@ -544,4 +547,7 @@ inline std::string GetHostName() {
 }  // namespace xgboost
 
 #undef xgboost_CHECK_SYS_CALL
+
+#if defined(xgboost_IS_MINGW)
 #undef xgboost_IS_MINGW
+#endif

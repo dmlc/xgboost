@@ -11,7 +11,6 @@ from xgboost import DataIter, DMatrix, QuantileDMatrix, XGBModel
 from xgboost.compat import concat
 
 from .._typing import ArrayLike
-from ..core import _convert_ntree_limit
 from .utils import get_logger  # type: ignore
 
 
@@ -343,8 +342,7 @@ def pred_contribs(
     strict_shape: bool = False,
 ) -> np.ndarray:
     """Predict contributions with data with the full model."""
-    iteration_range = _convert_ntree_limit(model.get_booster(), None, None)
-    iteration_range = model._get_iteration_range(iteration_range)
+    iteration_range = model._get_iteration_range(None)
     data_dmatrix = DMatrix(
         data,
         base_margin=base_margin,
