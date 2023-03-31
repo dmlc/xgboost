@@ -23,7 +23,9 @@ Making a Release
 5. Make a release on GitHub tag page, which might be done with previous step if the tag is created on GitHub.
 6. Submit pip, CRAN, and Maven packages.
 
-   + The pip package is maintained by `Hyunsu Cho <https://github.com/hcho3>`__ and `Jiaming Yuan <https://github.com/trivialfis>`__.  There's a helper script for downloading pre-built wheels and R packages ``xgboost/dev/release-pypi-r.py`` along with simple instructions for using ``twine``.
+   There are helper scripts for automating the process in ``xgboost/dev/``.
+
+   + The pip package is maintained by `Hyunsu Cho <https://github.com/hcho3>`__ and `Jiaming Yuan <https://github.com/trivialfis>`__.
 
    + The CRAN package is maintained by `Tong He <https://github.com/hetong007>`_ and `Jiaming Yuan <https://github.com/trivialfis>`__.
 
