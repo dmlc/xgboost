@@ -1012,9 +1012,9 @@ class XGBModel(XGBModelBase):
         verbose :
             If `verbose` is True and an evaluation set is used, the evaluation metric
             measured on the validation set is printed to stdout at each boosting stage.
-            If `verbose` is an integer, the evaluation metric is printed at each `verbose`
-            boosting stage. The last boosting stage / the boosting stage found by using
-            `early_stopping_rounds` is also printed.
+            If `verbose` is an integer, the evaluation metric is printed at each
+            `verbose` boosting stage. The last boosting stage / the boosting stage found
+            by using `early_stopping_rounds` is also printed.
         xgb_model :
             file name of stored XGBoost model or 'Booster' instance XGBoost model to be
             loaded before training (allows training continuation).
@@ -1590,12 +1590,12 @@ class XGBClassifier(XGBModel, XGBClassifierMixIn, XGBClassifierBase):
 
         Parameters
         ----------
-        X : array_like
+        X :
             Feature matrix. See :ref:`py-data` for a list of supported types.
-        validate_features : bool
+        validate_features :
             When this is True, validate that the Booster's and data's feature_names are
             identical.  Otherwise, it is assumed that the feature_names are the same.
-        base_margin : array_like
+        base_margin :
             Margin added to prediction.
         iteration_range :
             Specifies which layer of trees are used in prediction.  For example, if a
@@ -1964,9 +1964,9 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
         verbose :
             If `verbose` is True and an evaluation set is used, the evaluation metric
             measured on the validation set is printed to stdout at each boosting stage.
-            If `verbose` is an integer, the evaluation metric is printed at each `verbose`
-            boosting stage. The last boosting stage / the boosting stage found by using
-            `early_stopping_rounds` is also printed.
+            If `verbose` is an integer, the evaluation metric is printed at each
+            `verbose` boosting stage. The last boosting stage / the boosting stage found
+            by using `early_stopping_rounds` is also printed.
         xgb_model :
             file name of stored XGBoost model or 'Booster' instance XGBoost model to be
             loaded before training (allows training continuation).
