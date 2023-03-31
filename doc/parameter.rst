@@ -360,7 +360,13 @@ Specify the learning task and the corresponding learning objective. The objectiv
   - ``reg:logistic``: logistic regression.
   - ``reg:pseudohubererror``: regression with Pseudo Huber loss, a twice differentiable alternative to absolute loss.
   - ``reg:absoluteerror``: Regression with L1 error. When tree model is used, leaf value is refreshed after tree construction. If used in distributed training, the leaf value is calculated as the mean value from all workers, which is not guaranteed to be optimal.
+
+    .. versionadded:: 1.7.0
+
   - ``reg:quantileerror``: Quantile loss, also known as ``pinball loss``. See later sections for its parameter and :ref:`sphx_glr_python_examples_quantile_regression.py` for a worked example.
+
+    .. versionadded:: 2.0.0
+
   - ``binary:logistic``: logistic regression for binary classification, output probability
   - ``binary:logitraw``: logistic regression for binary classification, output score before logistic transformation
   - ``binary:hinge``: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
@@ -466,6 +472,8 @@ Parameter for using Quantile Loss (``reg:quantileerror``)
 =========================================================
 
 * ``quantile_alpha``: A scala or a list of targeted quantiles.
+
+    .. versionadded:: 2.0.0
 
 Parameter for using AFT Survival Loss (``survival:aft``) and Negative Log Likelihood of AFT metric (``aft-nloglik``)
 ====================================================================================================================
