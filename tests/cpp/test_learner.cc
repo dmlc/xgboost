@@ -608,104 +608,74 @@ TEST_F(InitBaseScore, InitWithPredict) { this->TestInitWithPredt(); }
 
 TEST_F(InitBaseScore, UpdateProcess) { this->TestUpdateProcess(); }
 
-class ColumnSplit : public ::testing::Test {
- protected:
-  static void TestColumnSplit(std::shared_ptr<DMatrix> dmat, std::string const& objective,
-                              float expected_base_score, Json const& expected_model) {
-    auto const world_size = collective::GetWorldSize();
-    auto const rank = collective::GetRank();
-    std::shared_ptr<DMatrix> sliced{dmat->SliceCol(world_size, rank)};
+void TestColumnSplit(std::shared_ptr<DMatrix> dmat, std::vector<float> const& expected_base_scores,
+                     std::vector<Json> const& expected_models) {
+  auto const world_size = collective::GetWorldSize();
+  auto const rank = collective::GetRank();
+  std::shared_ptr<DMatrix> sliced{dmat->SliceCol(world_size, rank)};
+
+  auto i = 0;
+  for (auto const* entry : ::dmlc::Registry<::xgboost::ObjFunctionReg>::List()) {
     std::unique_ptr<Learner> learner{Learner::Create({sliced})};
     learner->SetParam("tree_method", "approx");
-    learner->SetParam("objective", objective);
-    if (objective.find("quantile") != std::string::npos) {
+    learner->SetParam("objective", entry->name);
+    if (entry->name.find("quantile") != std::string::npos) {
       learner->SetParam("quantile_alpha", "0.5");
     }
-    if (objective.find("multi") != std::string::npos) {
+    if (entry->name.find("multi") != std::string::npos) {
       learner->SetParam("num_class", "3");
     }
     learner->UpdateOneIter(0, sliced);
     Json config{Object{}};
     learner->SaveConfig(&config);
     auto base_score = GetBaseScore(config);
-    ASSERT_EQ(base_score, expected_base_score);
+    ASSERT_EQ(base_score, expected_base_scores[i]);
 
     Json model{Object{}};
     learner->SaveModel(&model);
-    ASSERT_EQ(model, expected_model);
+    ASSERT_EQ(model, expected_models[i]);
+
+    i++;
+  }
+}
+
+TEST(ColumnSplit, Objectives) {
+  auto constexpr kRows = 10, kCols = 10;
+  std::shared_ptr<DMatrix> dmat{RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true)};
+
+  auto& h_upper = dmat->Info().labels_upper_bound_.HostVector();
+  auto& h_lower = dmat->Info().labels_lower_bound_.HostVector();
+  h_lower.resize(kRows);
+  h_upper.resize(kRows);
+  for (size_t i = 0; i < kRows; ++i) {
+    h_lower[i] = 1;
+    h_upper[i] = 10;
   }
 
-  void TestBaseScoreAndModel(std::string const& objective) {
-    auto constexpr kRows = 10, kCols = 10;
-    std::shared_ptr<DMatrix> dmat{RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true)};
-
-    auto &h_upper = dmat->Info().labels_upper_bound_.HostVector();
-    auto &h_lower = dmat->Info().labels_lower_bound_.HostVector();
-    h_lower.resize(kRows);
-    h_upper.resize(kRows);
-    for (size_t i = 0; i < kRows; ++i) {
-      h_lower[i] = 1;
-      h_upper[i] = 10;
-    }
-
+  std::vector<float> base_scores;
+  std::vector<Json> models;
+  for (auto const* entry : ::dmlc::Registry<::xgboost::ObjFunctionReg>::List()) {
     std::unique_ptr<Learner> learner{Learner::Create({dmat})};
     learner->SetParam("tree_method", "approx");
-    learner->SetParam("objective", objective);
-    if (objective.find("quantile") != std::string::npos) {
+    learner->SetParam("objective", entry->name);
+    if (entry->name.find("quantile") != std::string::npos) {
       learner->SetParam("quantile_alpha", "0.5");
     }
-    if (objective.find("multi") != std::string::npos) {
+    if (entry->name.find("multi") != std::string::npos) {
       learner->SetParam("num_class", "3");
     }
     learner->UpdateOneIter(0, dmat);
 
     Json config{Object{}};
     learner->SaveConfig(&config);
-    auto base_score = GetBaseScore(config);
+    base_scores.emplace_back(GetBaseScore(config));
 
     Json model{Object{}};
     learner->SaveModel(&model);
-
-    auto constexpr kWorldSize{3};
-    RunWithInMemoryCommunicator(kWorldSize, &TestColumnSplit, dmat, objective, base_score, model);
+    models.emplace_back(model);
   }
-};
 
-TEST_F(ColumnSplit, RegSquaredError) { this->TestBaseScoreAndModel("reg:squarederror"); }
-
-TEST_F(ColumnSplit, RegSquaredLogError) { this->TestBaseScoreAndModel("reg:squaredlogerror"); }
-
-TEST_F(ColumnSplit, RegLogistic) { this->TestBaseScoreAndModel("reg:logistic"); }
-
-TEST_F(ColumnSplit, RegPseudoHuberError) { this->TestBaseScoreAndModel("reg:pseudohubererror"); }
-
-TEST_F(ColumnSplit, RegAsoluteError) { this->TestBaseScoreAndModel("reg:absoluteerror"); }
-
-TEST_F(ColumnSplit, RegQuantileError) { this->TestBaseScoreAndModel("reg:quantileerror"); }
-
-TEST_F(ColumnSplit, BinaryLogistic) { this->TestBaseScoreAndModel("binary:logistic"); }
-
-TEST_F(ColumnSplit, BinaryLogitRaw) { this->TestBaseScoreAndModel("binary:logitraw"); }
-
-TEST_F(ColumnSplit, BinaryHinge) { this->TestBaseScoreAndModel("binary:hinge"); }
-
-TEST_F(ColumnSplit, CountPoisson) { this->TestBaseScoreAndModel("count:poisson"); }
-
-TEST_F(ColumnSplit, SurvivalCox) { this->TestBaseScoreAndModel("survival:cox"); }
-
-TEST_F(ColumnSplit, SurvivalAft) { this->TestBaseScoreAndModel("survival:aft"); }
-
-TEST_F(ColumnSplit, MultiSoftmax) { this->TestBaseScoreAndModel("multi:softmax"); }
-
-TEST_F(ColumnSplit, MultiSoftprob) { this->TestBaseScoreAndModel("multi:softprob"); }
-
-TEST_F(ColumnSplit, RankPairwise) { this->TestBaseScoreAndModel("rank:pairwise"); }
-
-TEST_F(ColumnSplit, RankNdcg) { this->TestBaseScoreAndModel("rank:ndcg"); }
-
-TEST_F(ColumnSplit, RankMap) { this->TestBaseScoreAndModel("rank:map"); }
-
-TEST_F(ColumnSplit, RegGamma) { this->TestBaseScoreAndModel("reg:gamma"); }
-
-TEST_F(ColumnSplit, RegTweedie) { this->TestBaseScoreAndModel("reg:tweedie"); }
+  auto constexpr kWorldSize{3};
+  RunWithInMemoryCommunicator(kWorldSize, &TestColumnSplit, dmat, base_scores, models);
+}
 }  // namespace xgboost
