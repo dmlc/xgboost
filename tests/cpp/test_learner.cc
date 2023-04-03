@@ -1,22 +1,48 @@
-/*!
- * Copyright 2017-2023 by XGBoost contributors
+/**
+ * Copyright (c) 2017-2023, XGBoost contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/learner.h>
-#include <xgboost/objective.h>  // ObjFunction
-#include <xgboost/version_config.h>
+#include <xgboost/learner.h>                        // for Learner
+#include <xgboost/logging.h>                        // for LogCheck_NE, CHECK_NE, LogCheck_EQ
+#include <xgboost/objective.h>                      // for ObjFunction
+#include <xgboost/version_config.h>                 // for XGBOOST_VER_MAJOR, XGBOOST_VER_MINOR
 
-#include <string>  // std::stof, std::string
-#include <thread>
-#include <vector>
+#include <algorithm>                                // for equal, transform
+#include <cinttypes>                                // for int32_t, int64_t, uint32_t
+#include <cstddef>                                  // for size_t
+#include <iosfwd>                                   // for ofstream
+#include <iterator>                                 // for back_insert_iterator, back_inserter
+#include <limits>                                   // for numeric_limits
+#include <map>                                      // for map
+#include <memory>                                   // for unique_ptr, shared_ptr, __shared_ptr_...
+#include <random>                                   // for uniform_real_distribution
+#include <string>                                   // for allocator, basic_string, string, oper...
+#include <thread>                                   // for thread
+#include <type_traits>                              // for is_integral
+#include <utility>                                  // for pair
+#include <vector>                                   // for vector
 
-#include "../../src/common/api_entry.h"  // XGBAPIThreadLocalEntry
-#include "../../src/common/io.h"
-#include "../../src/common/linalg_op.h"
-#include "../../src/common/random.h"
-#include "filesystem.h"  // dmlc::TemporaryDirectory
-#include "helpers.h"
-#include "xgboost/json.h"
+#include "../../src/collective/communicator-inl.h"  // for GetRank, GetWorldSize
+#include "../../src/common/api_entry.h"             // for XGBAPIThreadLocalEntry
+#include "../../src/common/io.h"                    // for LoadSequentialFile
+#include "../../src/common/linalg_op.h"             // for ElementWiseTransformHost, begin, end
+#include "../../src/common/random.h"                // for GlobalRandom
+#include "../../src/common/transform_iterator.h"    // for IndexTransformIter
+#include "dmlc/io.h"                                // for Stream
+#include "dmlc/omp.h"                               // for omp_get_max_threads
+#include "dmlc/registry.h"                          // for Registry
+#include "filesystem.h"                             // for TemporaryDirectory
+#include "helpers.h"                                // for GetBaseScore, RandomDataGenerator
+#include "xgboost/base.h"                           // for bst_float, Args, bst_feature_t, bst_int
+#include "xgboost/context.h"                        // for Context
+#include "xgboost/data.h"                           // for DMatrix, MetaInfo, DataType
+#include "xgboost/host_device_vector.h"             // for HostDeviceVector
+#include "xgboost/json.h"                           // for Json, Object, get, String, IsA, opera...
+#include "xgboost/linalg.h"                         // for Tensor, TensorView
+#include "xgboost/logging.h"                        // for ConsoleLogger
+#include "xgboost/predictor.h"                      // for PredictionCacheEntry
+#include "xgboost/span.h"                           // for Span, operator!=, SpanIterator
+#include "xgboost/string_view.h"                    // for StringView
 
 namespace xgboost {
 TEST(Learner, Basic) {
@@ -608,74 +634,103 @@ TEST_F(InitBaseScore, InitWithPredict) { this->TestInitWithPredt(); }
 
 TEST_F(InitBaseScore, UpdateProcess) { this->TestUpdateProcess(); }
 
-void TestColumnSplit(std::shared_ptr<DMatrix> dmat, std::vector<float> const& expected_base_scores,
-                     std::vector<Json> const& expected_models) {
-  auto const world_size = collective::GetWorldSize();
-  auto const rank = collective::GetRank();
-  std::shared_ptr<DMatrix> sliced{dmat->SliceCol(world_size, rank)};
+class TestColumnSplit : public ::testing::TestWithParam<std::string> {
+  static auto MakeFmat(std::string const& obj) {
+    auto constexpr kRows = 10, kCols = 10;
+    auto p_fmat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
+    auto& h_upper = p_fmat->Info().labels_upper_bound_.HostVector();
+    auto& h_lower = p_fmat->Info().labels_lower_bound_.HostVector();
+    h_lower.resize(kRows);
+    h_upper.resize(kRows);
+    for (size_t i = 0; i < kRows; ++i) {
+      h_lower[i] = 1;
+      h_upper[i] = 10;
+    }
+    if (obj.find("rank:") != std::string::npos) {
+      auto h_label = p_fmat->Info().labels.HostView();
+      std::size_t k = 0;
+      for (auto& v : h_label) {
+        v = k % 2 == 0;
+        ++k;
+      }
+    }
+    return p_fmat;
+  };
 
-  auto i = 0;
-  for (auto const* entry : ::dmlc::Registry<::xgboost::ObjFunctionReg>::List()) {
+  void TestBaseScore(std::string objective, float expected_base_score, Json expected_model) {
+    auto const world_size = collective::GetWorldSize();
+    auto const rank = collective::GetRank();
+
+    auto p_fmat = MakeFmat(objective);
+    std::shared_ptr<DMatrix> sliced{p_fmat->SliceCol(world_size, rank)};
     std::unique_ptr<Learner> learner{Learner::Create({sliced})};
     learner->SetParam("tree_method", "approx");
-    learner->SetParam("objective", entry->name);
-    if (entry->name.find("quantile") != std::string::npos) {
+    learner->SetParam("objective", objective);
+    if (objective.find("quantile") != std::string::npos) {
       learner->SetParam("quantile_alpha", "0.5");
     }
-    if (entry->name.find("multi") != std::string::npos) {
+    if (objective.find("multi") != std::string::npos) {
       learner->SetParam("num_class", "3");
     }
     learner->UpdateOneIter(0, sliced);
     Json config{Object{}};
     learner->SaveConfig(&config);
     auto base_score = GetBaseScore(config);
-    ASSERT_EQ(base_score, expected_base_scores[i]);
+    ASSERT_EQ(base_score, expected_base_score);
 
     Json model{Object{}};
     learner->SaveModel(&model);
-    ASSERT_EQ(model, expected_models[i]);
-
-    i++;
-  }
-}
-
-TEST(ColumnSplit, Objectives) {
-  auto constexpr kRows = 10, kCols = 10;
-  std::shared_ptr<DMatrix> dmat{RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true)};
-
-  auto& h_upper = dmat->Info().labels_upper_bound_.HostVector();
-  auto& h_lower = dmat->Info().labels_lower_bound_.HostVector();
-  h_lower.resize(kRows);
-  h_upper.resize(kRows);
-  for (size_t i = 0; i < kRows; ++i) {
-    h_lower[i] = 1;
-    h_upper[i] = 10;
+    ASSERT_EQ(model, expected_model);
   }
 
-  std::vector<float> base_scores;
-  std::vector<Json> models;
-  for (auto const* entry : ::dmlc::Registry<::xgboost::ObjFunctionReg>::List()) {
-    std::unique_ptr<Learner> learner{Learner::Create({dmat})};
+ public:
+  void Run(std::string objective) {
+    auto p_fmat = MakeFmat(objective);
+    std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
     learner->SetParam("tree_method", "approx");
-    learner->SetParam("objective", entry->name);
-    if (entry->name.find("quantile") != std::string::npos) {
+    learner->SetParam("objective", objective);
+    if (objective.find("quantile") != std::string::npos) {
       learner->SetParam("quantile_alpha", "0.5");
     }
-    if (entry->name.find("multi") != std::string::npos) {
+    if (objective.find("multi") != std::string::npos) {
       learner->SetParam("num_class", "3");
     }
-    learner->UpdateOneIter(0, dmat);
+    learner->UpdateOneIter(0, p_fmat);
 
     Json config{Object{}};
     learner->SaveConfig(&config);
-    base_scores.emplace_back(GetBaseScore(config));
 
     Json model{Object{}};
     learner->SaveModel(&model);
-    models.emplace_back(model);
-  }
 
-  auto constexpr kWorldSize{3};
-  RunWithInMemoryCommunicator(kWorldSize, &TestColumnSplit, dmat, base_scores, models);
+    auto constexpr kWorldSize{3};
+    auto call = [this, &objective](auto&... args) { TestBaseScore(objective, args...); };
+    auto score = GetBaseScore(config);
+    RunWithInMemoryCommunicator(kWorldSize, call, score, model);
+  }
+};
+
+TEST_P(TestColumnSplit, Objective) {
+  std::string objective = GetParam();
+  this->Run(objective);
 }
+
+auto MakeValues() {
+  auto list = ::dmlc::Registry<::xgboost::ObjFunctionReg>::List();
+  std::vector<std::string> names;
+  std::transform(list.cbegin(), list.cend(), std::back_inserter(names),
+                 [](auto const* entry) { return entry->name; });
+  return names;
+}
+
+INSTANTIATE_TEST_SUITE_P(ColumnSplitObjective, TestColumnSplit, ::testing::ValuesIn(MakeValues()),
+                         [](const ::testing::TestParamInfo<TestColumnSplit::ParamType>& info) {
+                           auto name = std::string{info.param};
+                           // Name must be a valid c++ symbol
+                           auto it = std::find(name.cbegin(), name.cend(), ':');
+                           if (it != name.cend()) {
+                             name[std::distance(name.cbegin(), it)] = '_';
+                           }
+                           return name;
+                         });
 }  // namespace xgboost
