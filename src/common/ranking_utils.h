@@ -362,7 +362,7 @@ template <typename AllOf>
 bool IsBinaryRel(linalg::VectorView<float const> label, AllOf all_of) {
   auto s_label = label.Values();
   return all_of(s_label.data(), s_label.data() + s_label.size(), [] XGBOOST_DEVICE(float y) {
-    return std::abs(y - 1.0f) < kRtEps || std::abs(y - 0.0f) < kRtEps;
+    return ((y - 1.0f) < kRtEps) && ((y - 0.0f) > -kRtEps);
   });
 }
 /**
@@ -373,7 +373,6 @@ bool IsBinaryRel(linalg::VectorView<float const> label, AllOf all_of) {
  */
 template <typename AllOf>
 void CheckMapLabels(linalg::VectorView<float const> label, AllOf all_of) {
-  auto s_label = label.Values();
   auto is_binary = IsBinaryRel(label, all_of);
   CHECK(is_binary) << "MAP can only be used with binary labels.";
 }
