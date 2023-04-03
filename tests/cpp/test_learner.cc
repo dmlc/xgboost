@@ -608,31 +608,74 @@ TEST_F(InitBaseScore, InitWithPredict) { this->TestInitWithPredt(); }
 
 TEST_F(InitBaseScore, UpdateProcess) { this->TestUpdateProcess(); }
 
-void TestColumnSplitBaseScore(std::shared_ptr<DMatrix> Xy_, float expected_base_score) {
+void TestColumnSplit(std::shared_ptr<DMatrix> dmat, std::vector<float> const& expected_base_scores,
+                     std::vector<Json> const& expected_models) {
   auto const world_size = collective::GetWorldSize();
   auto const rank = collective::GetRank();
-  std::shared_ptr<DMatrix> sliced{Xy_->SliceCol(world_size, rank)};
-  std::unique_ptr<Learner> learner{Learner::Create({sliced})};
-  learner->SetParam("tree_method", "approx");
-  learner->SetParam("objective", "binary:logistic");
-  learner->UpdateOneIter(0, sliced);
-  Json config{Object{}};
-  learner->SaveConfig(&config);
-  auto base_score = GetBaseScore(config);
-  ASSERT_EQ(base_score, expected_base_score);
+  std::shared_ptr<DMatrix> sliced{dmat->SliceCol(world_size, rank)};
+
+  auto i = 0;
+  for (auto const* entry : ::dmlc::Registry<::xgboost::ObjFunctionReg>::List()) {
+    std::unique_ptr<Learner> learner{Learner::Create({sliced})};
+    learner->SetParam("tree_method", "approx");
+    learner->SetParam("objective", entry->name);
+    if (entry->name.find("quantile") != std::string::npos) {
+      learner->SetParam("quantile_alpha", "0.5");
+    }
+    if (entry->name.find("multi") != std::string::npos) {
+      learner->SetParam("num_class", "3");
+    }
+    learner->UpdateOneIter(0, sliced);
+    Json config{Object{}};
+    learner->SaveConfig(&config);
+    auto base_score = GetBaseScore(config);
+    ASSERT_EQ(base_score, expected_base_scores[i]);
+
+    Json model{Object{}};
+    learner->SaveModel(&model);
+    ASSERT_EQ(model, expected_models[i]);
+
+    i++;
+  }
 }
 
-TEST_F(InitBaseScore, ColumnSplit) {
-  std::unique_ptr<Learner> learner{Learner::Create({Xy_})};
-  learner->SetParam("tree_method", "approx");
-  learner->SetParam("objective", "binary:logistic");
-  learner->UpdateOneIter(0, Xy_);
-  Json config{Object{}};
-  learner->SaveConfig(&config);
-  auto base_score = GetBaseScore(config);
-  ASSERT_NE(base_score, ObjFunction::DefaultBaseScore());
+TEST(ColumnSplit, Objectives) {
+  auto constexpr kRows = 10, kCols = 10;
+  std::shared_ptr<DMatrix> dmat{RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true)};
+
+  auto& h_upper = dmat->Info().labels_upper_bound_.HostVector();
+  auto& h_lower = dmat->Info().labels_lower_bound_.HostVector();
+  h_lower.resize(kRows);
+  h_upper.resize(kRows);
+  for (size_t i = 0; i < kRows; ++i) {
+    h_lower[i] = 1;
+    h_upper[i] = 10;
+  }
+
+  std::vector<float> base_scores;
+  std::vector<Json> models;
+  for (auto const* entry : ::dmlc::Registry<::xgboost::ObjFunctionReg>::List()) {
+    std::unique_ptr<Learner> learner{Learner::Create({dmat})};
+    learner->SetParam("tree_method", "approx");
+    learner->SetParam("objective", entry->name);
+    if (entry->name.find("quantile") != std::string::npos) {
+      learner->SetParam("quantile_alpha", "0.5");
+    }
+    if (entry->name.find("multi") != std::string::npos) {
+      learner->SetParam("num_class", "3");
+    }
+    learner->UpdateOneIter(0, dmat);
+
+    Json config{Object{}};
+    learner->SaveConfig(&config);
+    base_scores.emplace_back(GetBaseScore(config));
+
+    Json model{Object{}};
+    learner->SaveModel(&model);
+    models.emplace_back(model);
+  }
 
   auto constexpr kWorldSize{3};
-  RunWithInMemoryCommunicator(kWorldSize, &TestColumnSplitBaseScore, Xy_, base_score);
+  RunWithInMemoryCommunicator(kWorldSize, &TestColumnSplit, dmat, base_scores, models);
 }
 }  // namespace xgboost

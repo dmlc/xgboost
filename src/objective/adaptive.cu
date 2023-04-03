@@ -151,7 +151,7 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
 
   if (nptr.Empty()) {
     std::vector<float> quantiles;
-    UpdateLeafValues(&quantiles, nidx.ConstHostVector(), learning_rate, p_tree);
+    UpdateLeafValues(&quantiles, nidx.ConstHostVector(), info, learning_rate, p_tree);
   }
 
   HostDeviceVector<float> quantiles;
@@ -186,7 +186,7 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
                                       w_it + d_weights.size(), &quantiles);
   }
 
-  UpdateLeafValues(&quantiles.HostVector(), nidx.ConstHostVector(), learning_rate, p_tree);
+  UpdateLeafValues(&quantiles.HostVector(), nidx.ConstHostVector(), info, learning_rate, p_tree);
 }
 }  // namespace detail
 }  // namespace obj

@@ -85,7 +85,7 @@ void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& posit
   size_t n_leaf = nidx.size();
   if (nptr.empty()) {
     std::vector<float> quantiles;
-    UpdateLeafValues(&quantiles, nidx, learning_rate, p_tree);
+    UpdateLeafValues(&quantiles, nidx, info, learning_rate, p_tree);
     return;
   }
 
@@ -99,39 +99,46 @@ void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& posit
   auto h_predt = linalg::MakeTensorView(ctx, predt.ConstHostSpan(), info.num_row_,
                                         predt.Size() / info.num_row_);
 
-  // loop over each leaf
-  common::ParallelFor(quantiles.size(), ctx->Threads(), [&](size_t k) {
-    auto nidx = h_node_idx[k];
-    CHECK(tree[nidx].IsLeaf());
-    CHECK_LT(k + 1, h_node_ptr.size());
-    size_t n = h_node_ptr[k + 1] - h_node_ptr[k];
-    auto h_row_set = common::Span<size_t const>{ridx}.subspan(h_node_ptr[k], n);
+  if (!info.IsVerticalFederated() || collective::GetRank() == 0) {
+    // loop over each leaf
+    common::ParallelFor(quantiles.size(), ctx->Threads(), [&](size_t k) {
+      auto nidx = h_node_idx[k];
+      CHECK(tree[nidx].IsLeaf());
+      CHECK_LT(k + 1, h_node_ptr.size());
+      size_t n = h_node_ptr[k + 1] - h_node_ptr[k];
+      auto h_row_set = common::Span<size_t const>{ridx}.subspan(h_node_ptr[k], n);
 
-    auto h_labels = info.labels.HostView().Slice(linalg::All(), IdxY(info, group_idx));
-    auto h_weights = linalg::MakeVec(&info.weights_);
+      auto h_labels = info.labels.HostView().Slice(linalg::All(), IdxY(info, group_idx));
+      auto h_weights = linalg::MakeVec(&info.weights_);
 
-    auto iter = common::MakeIndexTransformIter([&](size_t i) -> float {
-      auto row_idx = h_row_set[i];
-      return h_labels(row_idx) - h_predt(row_idx, group_idx);
+      auto iter = common::MakeIndexTransformIter([&](size_t i) -> float {
+        auto row_idx = h_row_set[i];
+        return h_labels(row_idx) - h_predt(row_idx, group_idx);
+      });
+      auto w_it = common::MakeIndexTransformIter([&](size_t i) -> float {
+        auto row_idx = h_row_set[i];
+        return h_weights(row_idx);
+      });
+
+      float q{0};
+      if (info.weights_.Empty()) {
+        q = common::Quantile(ctx, alpha, iter, iter + h_row_set.size());
+      } else {
+        q = common::WeightedQuantile(ctx, alpha, iter, iter + h_row_set.size(), w_it);
+      }
+      if (std::isnan(q)) {
+        CHECK(h_row_set.empty());
+      }
+      quantiles.at(k) = q;
     });
-    auto w_it = common::MakeIndexTransformIter([&](size_t i) -> float {
-      auto row_idx = h_row_set[i];
-      return h_weights(row_idx);
-    });
+  }
 
-    float q{0};
-    if (info.weights_.Empty()) {
-      q = common::Quantile(ctx, alpha, iter, iter + h_row_set.size());
-    } else {
-      q = common::WeightedQuantile(ctx, alpha, iter, iter + h_row_set.size(), w_it);
-    }
-    if (std::isnan(q)) {
-      CHECK(h_row_set.empty());
-    }
-    quantiles.at(k) = q;
-  });
+  if (info.IsVerticalFederated()) {
+    collective::Broadcast(static_cast<void*>(quantiles.data()), quantiles.size() * sizeof(float),
+                          0);
+  }
 
-  UpdateLeafValues(&quantiles, nidx, learning_rate, p_tree);
+  UpdateLeafValues(&quantiles, nidx, info, learning_rate, p_tree);
 }
 
 #if !defined(XGBOOST_USE_CUDA)
