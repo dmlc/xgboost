@@ -66,7 +66,7 @@ on a dask cluster:
 Here we first create a cluster in single-node mode with
 :py:class:`distributed.LocalCluster`, then connect a :py:class:`distributed.Client` to
 this cluster, setting up an environment for later computation.  Notice that the cluster
-construction is guared by ``__name__ == "__main__"``, which is necessary otherwise there
+construction is guarded by ``__name__ == "__main__"``, which is necessary otherwise there
 might be obscure errors.
 
 We then create a :py:class:`xgboost.dask.DaskDMatrix` object and pass it to
@@ -226,13 +226,9 @@ collection.
 Working with other clusters
 ***************************
 
-``LocalCluster`` is mostly used for testing.  In real world applications some other
-clusters might be preferred.  Examples are like ``LocalCUDACluster`` for single node
-multi-GPU instance, manually launched cluster by using command line utilities like
-``dask-worker`` from ``distributed`` for not yet automated environments.  Some special
-clusters like ``KubeCluster`` from ``dask-kubernetes`` package are also possible.  The
-dask API in xgboost is orthogonal to the cluster type and can be used with any of them.  A
-typical testing workflow with ``KubeCluster`` looks like this:
+Using Dask's ``LocalCluster`` is convenient for getting started quickly on a single-machine. Once you're ready to scale your work, though, there are a number of ways to deploy Dask on a distributed cluster. You can use `Dask-CUDA <https://docs.rapids.ai/api/dask-cuda/stable/quickstart.html>`_, for example, for GPUs and you can use Dask Cloud Provider to `deploy Dask clusters in the cloud <https://docs.dask.org/en/stable/deploying.html#cloud>`_. See the `Dask documentation for a more comprehensive list <https://docs.dask.org/en/stable/deploying.html#distributed-computing>`_.
+
+In the example below, a ``KubeCluster`` is used for `deploying Dask on Kubernetes <https://docs.dask.org/en/stable/deploying-kubernetes.html>`_:
 
 .. code-block:: python
 
@@ -272,8 +268,7 @@ typical testing workflow with ``KubeCluster`` looks like this:
       # main function will connect to that cluster and start training xgboost model.
       main()
 
-
-However, these clusters might have their subtle differences like network configuration, or
+Different cluster classes might have subtle differences like network configuration, or
 specific cluster implementation might contains bugs that we are not aware of.  Open an
 issue if such case is found and there's no documentation on how to resolve it in that
 cluster implementation.
