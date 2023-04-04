@@ -92,13 +92,15 @@ xgboost::bst_float GetMetricEval(
   xgboost::HostDeviceVector<xgboost::bst_float> const& preds,
   std::vector<xgboost::bst_float> labels,
   std::vector<xgboost::bst_float> weights = std::vector<xgboost::bst_float>(),
-  std::vector<xgboost::bst_uint> groups = std::vector<xgboost::bst_uint>());
+  std::vector<xgboost::bst_uint> groups = std::vector<xgboost::bst_uint>(),
+  xgboost::DataSplitMode data_split_Mode = xgboost::DataSplitMode::kRow);
 
 double GetMultiMetricEval(xgboost::Metric* metric,
                           xgboost::HostDeviceVector<xgboost::bst_float> const& preds,
                           xgboost::linalg::Tensor<float, 2> const& labels,
                           std::vector<xgboost::bst_float> weights = {},
-                          std::vector<xgboost::bst_uint> groups = {});
+                          std::vector<xgboost::bst_uint> groups = {},
+                          xgboost::DataSplitMode data_split_Mode = xgboost::DataSplitMode::kRow);
 
 namespace xgboost {
 

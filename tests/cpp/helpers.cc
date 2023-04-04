@@ -167,18 +167,20 @@ xgboost::bst_float GetMetricEval(xgboost::Metric* metric,
                                  xgboost::HostDeviceVector<xgboost::bst_float> const& preds,
                                  std::vector<xgboost::bst_float> labels,
                                  std::vector<xgboost::bst_float> weights,
-                                 std::vector<xgboost::bst_uint> groups) {
+                                 std::vector<xgboost::bst_uint> groups,
+                                 xgboost::DataSplitMode data_split_mode) {
   return GetMultiMetricEval(
       metric, preds,
       xgboost::linalg::Tensor<float, 2>{labels.begin(), labels.end(), {labels.size()}, -1}, weights,
-      groups);
+      groups, data_split_mode);
 }
 
 double GetMultiMetricEval(xgboost::Metric* metric,
                           xgboost::HostDeviceVector<xgboost::bst_float> const& preds,
                           xgboost::linalg::Tensor<float, 2> const& labels,
                           std::vector<xgboost::bst_float> weights,
-                          std::vector<xgboost::bst_uint> groups) {
+                          std::vector<xgboost::bst_uint> groups,
+                          xgboost::DataSplitMode data_split_mode) {
   std::shared_ptr<xgboost::DMatrix> p_fmat{xgboost::RandomDataGenerator{0, 0, 0}.GenerateDMatrix()};
   auto& info = p_fmat->Info();
   info.num_row_ = labels.Shape(0);
@@ -186,6 +188,7 @@ double GetMultiMetricEval(xgboost::Metric* metric,
   info.labels.Data()->Copy(*labels.Data());
   info.weights_.HostVector() = weights;
   info.group_ptr_ = groups;
+  info.data_split_mode = data_split_mode;
 
   return metric->Evaluate(preds, p_fmat);
 }
