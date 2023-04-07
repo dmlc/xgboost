@@ -25,6 +25,8 @@
 #include "xgboost/span.h"                  // for Span
 
 namespace xgboost::obj {
+double constexpr Eps64() { return 1e-16; }
+
 template <bool exp>
 XGBOOST_DEVICE double DeltaNDCG(float y_high, float y_low, std::size_t r_high, std::size_t r_low,
                                 double inv_IDCG, common::Span<double const> discount) {
@@ -95,30 +97,31 @@ LambdaGrad(linalg::VectorView<float const> labels, common::Span<float const> pre
 
   // Use double whenever possible as we are working on the exp space.
   double delta_score = std::abs(s_high - s_low);
-  double sigmoid = common::Sigmoid(s_high - s_low);
+  double const sigmoid = common::Sigmoid(s_high - s_low);
   // Change in metric score like \delta NDCG or \delta MAP
   double delta_metric = std::abs(delta(y_high, y_low, rank_high, rank_low));
 
   if (best_score != worst_score) {
-    delta_metric /= (delta_score + kRtEps);
+    delta_metric /= (delta_score + 0.01);
   }
 
   if (unbiased) {
     *p_cost = std::log(1.0 / (1.0 - sigmoid)) * delta_metric;
   }
 
-  constexpr double kEps = 1e-16;
   auto lambda_ij = (sigmoid - 1.0) * delta_metric;
-  auto hessian_ij = std::max(sigmoid * (1.0 - sigmoid), kEps) * delta_metric * 2.0;
+  auto hessian_ij = std::max(sigmoid * (1.0 - sigmoid), Eps64()) * delta_metric * 2.0;
 
   auto k = t_plus.Size();
   assert(t_minus.Size() == k && "Invalid size of position bias");
 
-  if (unbiased && idx_high < k && idx_low < k) {
-    lambda_ij /= (t_minus(idx_low) * t_plus(idx_high) + kRtEps);
-    hessian_ij /= (t_minus(idx_low) * t_plus(idx_high) + kRtEps);
+  if (unbiased && idx_high < k && idx_low < k && t_minus(idx_low) >= Eps64() &&
+      t_plus(idx_high) >= Eps64()) {
+    // The index should be ranks[idx_low], since we assume label is sorted, this reduces
+    // to `rank_low`.
+    lambda_ij /= (t_plus(idx_high) * t_minus(idx_low));
+    hessian_ij /= (t_plus(idx_high) * t_minus(idx_low));
   }
-
   auto pg = GradientPair{static_cast<float>(lambda_ij), static_cast<float>(hessian_ij)};
   return pg;
 }
@@ -137,27 +140,6 @@ void LambdaRankGetGradientNDCG(Context const* ctx, std::int32_t iter,
                                linalg::VectorView<double> li, linalg::VectorView<double> lj,
                                HostDeviceVector<GradientPair>* out_gpair);
 
-/**
- * \brief Generate statistic for MAP used for calculating \Delta Z in lambda mart.
- */
-void MAPStat(Context const* ctx, MetaInfo const& info, common::Span<std::size_t const> d_rank_idx,
-             std::shared_ptr<ltr::MAPCache> p_cache);
-
-void LambdaRankGetGradientMAP(Context const* ctx, std::int32_t iter,
-                              HostDeviceVector<float> const& predt, MetaInfo const& info,
-                              std::shared_ptr<ltr::MAPCache> p_cache,
-                              linalg::VectorView<double const> t_plus,   // input bias ratio
-                              linalg::VectorView<double const> t_minus,  // input bias ratio
-                              linalg::VectorView<double> li, linalg::VectorView<double> lj,
-                              HostDeviceVector<GradientPair>* out_gpair);
-
-void LambdaRankGetGradientPairwise(Context const* ctx, std::int32_t iter,
-                                   HostDeviceVector<float> const& predt, const MetaInfo& info,
-                                   std::shared_ptr<ltr::RankingCache> p_cache,
-                                   linalg::VectorView<double const> ti_plus,   // input bias ratio
-                                   linalg::VectorView<double const> tj_minus,  // input bias ratio
-                                   linalg::VectorView<double> li, linalg::VectorView<double> lj,
-                                   HostDeviceVector<GradientPair>* out_gpair);
 
 void LambdaRankUpdatePositionBias(Context const* ctx, linalg::VectorView<double const> li_full,
                                   linalg::VectorView<double const> lj_full,
@@ -166,18 +148,6 @@ void LambdaRankUpdatePositionBias(Context const* ctx, linalg::VectorView<double 
                                   linalg::Vector<double>* p_lj,
                                   std::shared_ptr<ltr::RankingCache> p_cache);
 }  // namespace cuda_impl
-
-namespace cpu_impl {
-/**
- * \brief Generate statistic for MAP used for calculating \Delta Z in lambda mart.
- *
- * \param label    Ground truth relevance label.
- * \param rank_idx Sorted index of prediction.
- * \param p_cache  An initialized MAPCache.
- */
-void MAPStat(Context const* ctx, linalg::VectorView<float const> label,
-             common::Span<std::size_t const> rank_idx, std::shared_ptr<ltr::MAPCache> p_cache);
-}  // namespace cpu_impl
 
 /**
  * \param Construct pairs on CPU

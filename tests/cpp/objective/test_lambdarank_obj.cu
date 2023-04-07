@@ -12,6 +12,18 @@
 #include "test_lambdarank_obj.h"
 
 namespace xgboost::obj {
+TEST(LambdaRank, GPUNDCGJsonIO) {
+  Context ctx;
+  ctx.gpu_id = 0;
+  TestNDCGJsonIO(&ctx);
+}
+
+TEST(LambdaRank, GPUNDCGGPair) {
+  Context ctx;
+  ctx.gpu_id = 0;
+  TestNDCGGPair(&ctx);
+}
+
 void TestGPUMakePair() {
   Context ctx;
   ctx.gpu_id = 0;

@@ -25,6 +25,65 @@
 #include "xgboost/span.h"                       // for Span
 
 namespace xgboost::obj {
+TEST(LambdaRank, NDCGJsonIO) {
+  Context ctx;
+  TestNDCGJsonIO(&ctx);
+}
+
+void TestNDCGGPair(Context const* ctx) {
+  std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", ctx)};
+  obj->Configure(Args{{"lambdarank_pair_method", "topk"}});
+  CheckConfigReload(obj, "rank:ndcg");
+
+  // No gain in swapping 2 documents.
+  CheckRankingObjFunction(obj, {1, 1, 1, 1}, {1, 1, 1, 1}, {1.0f, 1.0f}, {0, 2, 4},
+                          {0.0f, -0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f});
+
+  HostDeviceVector<float> predts{0, 1, 0, 1};
+  MetaInfo info;
+  info.labels = linalg::Tensor<float, 2>{{0, 1, 0, 1}, {4, 1}, GPUIDX};
+  info.group_ptr_ = {0, 2, 4};
+  info.num_row_ = 4;
+  HostDeviceVector<GradientPair> gpairs;
+  obj->GetGradient(predts, info, 0, &gpairs);
+  ASSERT_EQ(gpairs.Size(), predts.Size());
+
+  {
+    predts = {1, 0, 1, 0};
+    HostDeviceVector<GradientPair> gpairs;
+    obj->GetGradient(predts, info, 0, &gpairs);
+    for (size_t i = 0; i < gpairs.Size(); ++i) {
+      ASSERT_GT(gpairs.HostSpan()[i].GetHess(), 0);
+    }
+    ASSERT_LT(gpairs.HostSpan()[1].GetGrad(), 0);
+    ASSERT_LT(gpairs.HostSpan()[3].GetGrad(), 0);
+
+    ASSERT_GT(gpairs.HostSpan()[0].GetGrad(), 0);
+    ASSERT_GT(gpairs.HostSpan()[2].GetGrad(), 0);
+
+    info.weights_ = {2, 3};
+    HostDeviceVector<GradientPair> weighted_gpairs;
+    obj->GetGradient(predts, info, 0, &weighted_gpairs);
+    auto const& h_gpairs = gpairs.ConstHostSpan();
+    auto const& h_weighted_gpairs = weighted_gpairs.ConstHostSpan();
+    for (size_t i : {0ul, 1ul}) {
+      ASSERT_FLOAT_EQ(h_weighted_gpairs[i].GetGrad(), h_gpairs[i].GetGrad() * 2.0f);
+      ASSERT_FLOAT_EQ(h_weighted_gpairs[i].GetHess(), h_gpairs[i].GetHess() * 2.0f);
+    }
+    for (size_t i : {2ul, 3ul}) {
+      ASSERT_FLOAT_EQ(h_weighted_gpairs[i].GetGrad(), h_gpairs[i].GetGrad() * 3.0f);
+      ASSERT_FLOAT_EQ(h_weighted_gpairs[i].GetHess(), h_gpairs[i].GetHess() * 3.0f);
+    }
+  }
+
+  ASSERT_NO_THROW(obj->DefaultEvalMetric());
+}
+
+TEST(LambdaRank, NDCGGPair) {
+  Context ctx;
+  TestNDCGGPair(&ctx);
+}
+
 void InitMakePairTest(Context const* ctx, MetaInfo* out_info, HostDeviceVector<float>* out_predt) {
   out_predt->SetDevice(ctx->gpu_id);
   MetaInfo& info = *out_info;
