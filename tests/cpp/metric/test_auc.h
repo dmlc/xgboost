@@ -1,3 +1,8 @@
+/*!
+ * Copyright (c) 2023 by XGBoost Contributors
+ */
+#pragma once
+
 #include <xgboost/metric.h>
 
 #include "../helpers.h"

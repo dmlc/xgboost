@@ -39,6 +39,18 @@
 #define GPUIDX -1
 #endif
 
+#if defined(__CUDACC__)
+#define DeclareUnifiedDistributedTest(name) MGPU ## name
+#else
+#define DeclareUnifiedDistributedTest(name) name
+#endif
+
+#if defined(__CUDACC__)
+#define ALL_GPUS (xgboost::common::AllVisibleGPUs())
+#else
+#define ALL_GPUS (3)
+#endif
+
 namespace xgboost {
 class ObjFunction;
 class Metric;
@@ -498,4 +510,17 @@ void RunWithInMemoryCommunicator(int32_t world_size, Function&& function, Args&&
     thread.join();
   }
 }
+
+class DeclareUnifiedDistributedTest(MetricTest) : public ::testing::Test {
+ protected:
+  int n_gpus_;
+
+  void SetUp() override {
+    n_gpus_ = ALL_GPUS;
+    if (n_gpus_ <= 1) {
+      GTEST_SKIP() << "Skipping MGPU test with # GPUs = " << n_gpus_;
+    }
+  }
+};
+
 }  // namespace xgboost
