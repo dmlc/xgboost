@@ -5,17 +5,17 @@
 namespace xgboost {
 namespace metric {
 
-TEST(Metric, DeclareUnifiedTest(BinaryAUC)) { VerifyBinaryAUC(DataSplitMode::kRow); }
+TEST(Metric, DeclareUnifiedTest(BinaryAUC)) { VerifyBinaryAUC(); }
 
-TEST(Metric, DeclareUnifiedTest(MultiClassAUC)) { VerifyMultiClassAUC(DataSplitMode::kRow); }
+TEST(Metric, DeclareUnifiedTest(MultiClassAUC)) { VerifyMultiClassAUC(); }
 
-TEST(Metric, DeclareUnifiedTest(RankingAUC)) { VerifyRankingAUC(DataSplitMode::kRow); }
+TEST(Metric, DeclareUnifiedTest(RankingAUC)) { VerifyRankingAUC(); }
 
-TEST(Metric, DeclareUnifiedTest(PRAUC)) { VerifyPRAUC(DataSplitMode::kRow); }
+TEST(Metric, DeclareUnifiedTest(PRAUC)) { VerifyPRAUC(); }
 
-TEST(Metric, DeclareUnifiedTest(MultiClassPRAUC)) { VerifyMultiClassPRAUC(DataSplitMode::kRow); }
+TEST(Metric, DeclareUnifiedTest(MultiClassPRAUC)) { VerifyMultiClassPRAUC(); }
 
-TEST(Metric, DeclareUnifiedTest(RankingPRAUC)) { VerifyRankingPRAUC(DataSplitMode::kRow); }
+TEST(Metric, DeclareUnifiedTest(RankingPRAUC)) { VerifyRankingPRAUC(); }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), BinaryAUCRowSplit) {
   RunWithInMemoryCommunicator(n_gpus_, &VerifyBinaryAUC, DataSplitMode::kRow);

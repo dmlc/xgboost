@@ -10,7 +10,7 @@
 namespace xgboost {
 namespace metric {
 
-inline void VerifyBinaryAUC(DataSplitMode data_split_mode) {
+inline void VerifyBinaryAUC(DataSplitMode data_split_mode = DataSplitMode::kRow) {
   auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
   std::unique_ptr<Metric> uni_ptr{Metric::Create("auc", &ctx)};
   Metric* metric = uni_ptr.get();
@@ -53,7 +53,7 @@ inline void VerifyBinaryAUC(DataSplitMode data_split_mode) {
               0.5, 1e-10);
 }
 
-inline void VerifyMultiClassAUC(DataSplitMode data_split_mode) {
+inline void VerifyMultiClassAUC(DataSplitMode data_split_mode = DataSplitMode::kRow) {
   auto ctx = CreateEmptyGenericParam(GPUIDX);
   std::unique_ptr<Metric> uni_ptr{Metric::Create("auc", &ctx)};
   auto metric = uni_ptr.get();
@@ -114,7 +114,7 @@ inline void VerifyMultiClassAUC(DataSplitMode data_split_mode) {
   ASSERT_GT(auc, 0.714);
 }
 
-inline void VerifyRankingAUC(DataSplitMode data_split_mode) {
+inline void VerifyRankingAUC(DataSplitMode data_split_mode = DataSplitMode::kRow) {
   auto ctx = CreateEmptyGenericParam(GPUIDX);
   std::unique_ptr<Metric> metric{Metric::Create("auc", &ctx)};
 
@@ -148,7 +148,7 @@ inline void VerifyRankingAUC(DataSplitMode data_split_mode) {
               0.769841f, 1e-6);
 }
 
-inline void VerifyPRAUC(DataSplitMode data_split_mode) {
+inline void VerifyPRAUC(DataSplitMode data_split_mode = DataSplitMode::kRow) {
   auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
 
   xgboost::Metric* metric = xgboost::Metric::Create("aucpr", &ctx);
@@ -185,7 +185,7 @@ inline void VerifyPRAUC(DataSplitMode data_split_mode) {
   delete metric;
 }
 
-inline void VerifyMultiClassPRAUC(DataSplitMode data_split_mode) {
+inline void VerifyMultiClassPRAUC(DataSplitMode data_split_mode = DataSplitMode::kRow) {
   auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
 
   std::unique_ptr<Metric> metric{Metric::Create("aucpr", &ctx)};
@@ -209,7 +209,7 @@ inline void VerifyMultiClassPRAUC(DataSplitMode data_split_mode) {
   ASSERT_GT(auc, 0.699);
 }
 
-inline void VerifyRankingPRAUC(DataSplitMode data_split_mode) {
+inline void VerifyRankingPRAUC(DataSplitMode data_split_mode = DataSplitMode::kRow) {
   auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
 
   std::unique_ptr<Metric> metric{Metric::Create("aucpr", &ctx)};
