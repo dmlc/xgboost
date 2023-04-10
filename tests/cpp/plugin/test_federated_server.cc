@@ -73,7 +73,7 @@ class FederatedServerTest : public BaseFederatedTest {
 TEST_F(FederatedServerTest, Allgather) {
   std::vector<std::thread> threads;
   for (auto rank = 0; rank < kWorldSize; rank++) {
-    threads.emplace_back(&FederatedServerTest::VerifyAllgather, rank, server_address_);
+    threads.emplace_back(&FederatedServerTest::VerifyAllgather, rank, server_->Address());
   }
   for (auto& thread : threads) {
     thread.join();
@@ -83,7 +83,7 @@ TEST_F(FederatedServerTest, Allgather) {
 TEST_F(FederatedServerTest, Allreduce) {
   std::vector<std::thread> threads;
   for (auto rank = 0; rank < kWorldSize; rank++) {
-    threads.emplace_back(&FederatedServerTest::VerifyAllreduce, rank, server_address_);
+    threads.emplace_back(&FederatedServerTest::VerifyAllreduce, rank, server_->Address());
   }
   for (auto& thread : threads) {
     thread.join();
@@ -93,7 +93,7 @@ TEST_F(FederatedServerTest, Allreduce) {
 TEST_F(FederatedServerTest, Broadcast) {
   std::vector<std::thread> threads;
   for (auto rank = 0; rank < kWorldSize; rank++) {
-    threads.emplace_back(&FederatedServerTest::VerifyBroadcast, rank, server_address_);
+    threads.emplace_back(&FederatedServerTest::VerifyBroadcast, rank, server_->Address());
   }
   for (auto& thread : threads) {
     thread.join();
@@ -103,7 +103,7 @@ TEST_F(FederatedServerTest, Broadcast) {
 TEST_F(FederatedServerTest, Mixture) {
   std::vector<std::thread> threads;
   for (auto rank = 0; rank < kWorldSize; rank++) {
-    threads.emplace_back(&FederatedServerTest::VerifyMixture, rank, server_address_);
+    threads.emplace_back(&FederatedServerTest::VerifyMixture, rank, server_->Address());
   }
   for (auto& thread : threads) {
     thread.join();

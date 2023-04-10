@@ -38,8 +38,8 @@ void VerifyLoadUri() {
     auto index = 0;
     int offsets[] = {0, 8, 17};
     int offset = offsets[rank];
-    for (auto row = 0; row < kRows; row++) {
-      for (auto col = 0; col < kCols; col++) {
+    for (std::size_t row = 0; row < kRows; row++) {
+      for (std::size_t col = 0; col < kCols; col++) {
         EXPECT_EQ(entries[index].index, col + offset);
         index++;
       }
@@ -48,6 +48,6 @@ void VerifyLoadUri() {
 }
 
 TEST_F(FederatedDataTest, LoadUri) {
-  RunWithFederatedCommunicator(kWorldSize, server_address_, &VerifyLoadUri);
+  RunWithFederatedCommunicator(kWorldSize, server_->Address(), &VerifyLoadUri);
 }
 }  // namespace xgboost
