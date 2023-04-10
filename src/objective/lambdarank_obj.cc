@@ -189,9 +189,12 @@ class LambdaRankObj : public FitIntercept {
 
       if (unbiased) {
         auto k = ti_plus.Size();
-        // fixme: We should probably use all the positions. If we skip the update due to having
-        // high/low > k, we might be lossing out too many pairs, if we cap the position, then we
-        // might be accumulating too many tail bias into the last tracked position.
+        // We can probably use all the positions. If we skip the update due to having
+        // high/low > k, we might be losing out too many pairs. On the other hand, if we
+        // cap the position, then we might be accumulating too many tail bias into the
+        // last tracked position.
+        // We use `idx_high` since it represents the original position from the label
+        // list, and label list is assumed to be sorted.
         if (idx_high < k && idx_low < k) {
           if (tj_minus(idx_low) >= Eps64()) {
             li(idx_high) += cost / tj_minus(idx_low);  // eq.30
@@ -292,7 +295,7 @@ class LambdaRankObj : public FitIntercept {
       p_cache_ = std::make_shared<Cache>(ctx_, info, param_);
       p_info_ = &info;
     }
-    std::size_t n_groups = p_cache_->Groups();
+    auto n_groups = p_cache_->Groups();
     if (!info.weights_.Empty()) {
       CHECK_EQ(info.weights_.Size(), n_groups) << error::GroupWeight();
     }
