@@ -34,8 +34,7 @@ XGBOOST_DEVICE inline float Sigmoid(float x) {
 }
 
 XGBOOST_DEVICE inline double Sigmoid(double x) {
-  double constexpr kEps = 1e-16;  // avoid 0 div
-  auto denom = std::exp(-x) + 1.0 + kEps;
+  auto denom = std::exp(-x) + 1.0;
   auto y = 1.0 / denom;
   return y;
 }
