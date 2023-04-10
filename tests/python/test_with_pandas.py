@@ -77,7 +77,10 @@ class TestPandas:
         np.testing.assert_array_equal(result, exp)
         dm = xgb.DMatrix(dummies)
         assert dm.feature_names == ['B', 'A_X', 'A_Y', 'A_Z']
-        assert dm.feature_types == ['int', 'int', 'int', 'int']
+        if int(pd.__version__[0]) >= 2:
+            assert dm.feature_types == ['int', 'i', 'i', 'i']
+        else:
+            assert dm.feature_types == ['int', 'int', 'int', 'int']
         assert dm.num_row() == 3
         assert dm.num_col() == 4
 
@@ -298,14 +301,14 @@ class TestPandas:
 
     @pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
     def test_nullable_type(self, DMatrixT) -> None:
-        from pandas.api.types import is_categorical
+        from pandas.api.types import is_categorical_dtype
 
         for orig, df in pd_dtypes():
             if hasattr(df.dtypes, "__iter__"):
-                enable_categorical = any(is_categorical for dtype in df.dtypes)
+                enable_categorical = any(is_categorical_dtype for dtype in df.dtypes)
             else:
                 # series
-                enable_categorical = is_categorical(df.dtype)
+                enable_categorical = is_categorical_dtype(df.dtype)
 
             f0_orig = orig[orig.columns[0]] if isinstance(orig, pd.DataFrame) else orig
             f0 = df[df.columns[0]] if isinstance(df, pd.DataFrame) else df
