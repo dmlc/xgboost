@@ -38,8 +38,9 @@ namespace xgboost::obj {
 double constexpr Eps64() { return 1e-16; }
 
 template <bool exp>
-XGBOOST_DEVICE double DeltaNDCG(float y_high, float y_low, std::size_t rank_high, std::size_t rank_low,
-                                double inv_IDCG, common::Span<double const> discount) {
+XGBOOST_DEVICE double DeltaNDCG(float y_high, float y_low, std::size_t rank_high,
+                                std::size_t rank_low, double inv_IDCG,
+                                common::Span<double const> discount) {
   // Use rank_high instead of idx_high as we are calculating discount based on ranks
   // provided by the model.
   double gain_high = exp ? ltr::CalcDCGGain(y_high) : y_high;
