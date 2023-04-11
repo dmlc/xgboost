@@ -464,6 +464,7 @@ class TestPySparkLocal:
     def test_regressor_basic(self, reg_data: RegData) -> None:
         regressor = SparkXGBRegressor(pred_contrib_col="pred_contribs")
         model = regressor.fit(reg_data.reg_df_train)
+        assert regressor.uid == model.uid
         pred_result = model.transform(reg_data.reg_df_test).collect()
         for row in pred_result:
             np.testing.assert_equal(row.prediction, row.expected_prediction)
