@@ -5,6 +5,7 @@
 
 #include <gtest/gtest.h>                        // for Test, Message, TestPartResult, CmpHel...
 
+#include <algorithm>                            // for sort
 #include <cstddef>                              // for size_t
 #include <initializer_list>                     // for initializer_list
 #include <map>                                  // for map
@@ -13,7 +14,6 @@
 #include <string>                               // for char_traits, basic_string, string
 #include <vector>                               // for vector
 
-#include "../../../src/common/ranking_utils.h"  // for LambdaRankParam
 #include "../../../src/common/ranking_utils.h"  // for NDCGCache, LambdaRankParam
 #include "../helpers.h"                         // for CheckRankingObjFunction, CheckConfigReload
 #include "xgboost/base.h"                       // for GradientPair, bst_group_t, Args
@@ -112,6 +112,37 @@ void TestNDCGGPair(Context const* ctx) {
 TEST(LambdaRank, NDCGGPair) {
   Context ctx;
   TestNDCGGPair(&ctx);
+}
+
+void TestUnbiasedNDCG(Context const* ctx) {
+  std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", ctx)};
+  obj->Configure(Args{{"lambdarank_pair_method", "topk"},
+                      {"lambdarank_unbiased", "true"},
+                      {"lambdarank_bias_norm", "0"}});
+  std::shared_ptr<DMatrix> p_fmat{RandomDataGenerator{10, 1, 0.0f}.GenerateDMatrix(true, false, 2)};
+  auto h_label = p_fmat->Info().labels.HostView().Values();
+  // Move clicked samples to the beginning.
+  std::sort(h_label.begin(), h_label.end(), std::greater<>{});
+  HostDeviceVector<float> predt(p_fmat->Info().num_row_, 1.0f);
+
+  HostDeviceVector<GradientPair> out_gpair;
+  obj->GetGradient(predt, p_fmat->Info(), 0, &out_gpair);
+
+  Json config{Object{}};
+  obj->SaveConfig(&config);
+  auto ti_plus = get<F32Array const>(config["ti+"]);
+  ASSERT_FLOAT_EQ(ti_plus[0], 1.0);
+  // bias is non-increasing when prediction is constant. (constant cost on swapping documents)
+  for (std::size_t i = 1; i < ti_plus.size(); ++i) {
+    ASSERT_LE(ti_plus[i], ti_plus[i - 1]);
+  }
+  auto tj_minus = get<F32Array const>(config["tj-"]);
+  ASSERT_FLOAT_EQ(tj_minus[0], 1.0);
+}
+
+TEST(LambdaRank, UnbiasedNDCG) {
+  Context ctx;
+  TestUnbiasedNDCG(&ctx);
 }
 
 void InitMakePairTest(Context const* ctx, MetaInfo* out_info, HostDeviceVector<float>* out_predt) {

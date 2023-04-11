@@ -35,6 +35,8 @@ inline void TestNDCGJsonIO(Context const* ctx) {
 
 void TestNDCGGPair(Context const* ctx);
 
+void TestUnbiasedNDCG(Context const* ctx);
+
 /**
  * \brief Initialize test data for make pair tests.
  */

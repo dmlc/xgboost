@@ -69,7 +69,11 @@ void LambdaRankUpdatePositionBias(Context const* ctx, linalg::VectorView<double 
       lj(i) += g_lj(i);
     }
   }
-
+  // The ti+ is not guaranteed to decrease since it depends on the |\delta Z|
+  //
+  // The update normalizes the ti+ to make ti+(0) equal to 1, which breaks the probability
+  // meaning. The reasoning behind the normalization is not clear, here we are just
+  // following the authors.
   for (std::size_t i = 0; i < ti_plus.Size(); ++i) {
     if (li(0) >= Eps64()) {
       ti_plus(i) = std::pow(li(i) / li(0), regularizer);  // eq.30

@@ -119,6 +119,12 @@ void TestGPUMakePair() {
 
 TEST(LambdaRank, GPUMakePair) { TestGPUMakePair(); }
 
+TEST(LambdaRank, GPUUnbiasedNDCG) {
+  Context ctx;
+  ctx.gpu_id = 0;
+  TestUnbiasedNDCG(&ctx);
+}
+
 template <typename CountFunctor>
 void RankItemCountImpl(std::vector<std::uint32_t> const &sorted_items, CountFunctor f,
                        std::uint32_t find_val, std::uint32_t exp_val) {
