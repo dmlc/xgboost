@@ -73,15 +73,15 @@ def build_wheel(
 
 
 def build_sdist(sdist_directory, config_settings=None):
-    if config_settings is not None:
+    if config_settings:
         raise NotImplementedError(
-            f"XGBoost's custom build backend doesn't support config_settings option"
+            f"XGBoost's custom build backend doesn't support config_settings option."
+            f"{config_settings=}"
         )
-    packager_dir = pathlib.Path(__file__).absolute().resolve().parent
     sdist_path = pathlib.Path(sdist_directory, f"{NAME}-{VERSION}.tar.gz")
     with tarfile.open(sdist_path, "w:gz", format=tarfile.PAX_FORMAT) as tf:
-        for path, relative in iter_files((PACKAGE, packager_dir)):
+        for path, relative in iter_files((PACKAGE,)):
             tf.add(path, relative.as_posix())
         pyproject_path = TOPLEVEL_DIR / "pyproject.toml"
-        tf.add(pyproject_path, pyproject_path.relative_to(packager_dir.parent))
+        tf.add(pyproject_path, pyproject_path.relative_to(TOPLEVEL_DIR))
     return sdist_path.name
