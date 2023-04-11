@@ -11,19 +11,19 @@ TEST(Metric, DeclareUnifiedTest(MultiClassError)) { VerifyMultiClassError(); }
 TEST(Metric, DeclareUnifiedTest(MultiClassLogLoss)) { VerifyMultiClassLogLoss(); }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), MultiClassErrorRowSplit) {
-  RunWithInMemoryCommunicator(n_gpus_, &VerifyMultiClassError, DataSplitMode::kRow);
+  RunWithInMemoryCommunicator(world_size_, &VerifyMultiClassError, DataSplitMode::kRow);
 }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), MultiClassErrorColumnSplit) {
-  RunWithInMemoryCommunicator(n_gpus_, &VerifyMultiClassError, DataSplitMode::kCol);
+  RunWithInMemoryCommunicator(world_size_, &VerifyMultiClassError, DataSplitMode::kCol);
 }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), MultiClassLogLossRowSplit) {
-  RunWithInMemoryCommunicator(n_gpus_, &VerifyMultiClassLogLoss, DataSplitMode::kRow);
+  RunWithInMemoryCommunicator(world_size_, &VerifyMultiClassLogLoss, DataSplitMode::kRow);
 }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), MultiClassLogLossColumnSplit) {
-  RunWithInMemoryCommunicator(n_gpus_, &VerifyMultiClassLogLoss, DataSplitMode::kCol);
+  RunWithInMemoryCommunicator(world_size_, &VerifyMultiClassLogLoss, DataSplitMode::kCol);
 }
 }  // namespace metric
 }  // namespace xgboost

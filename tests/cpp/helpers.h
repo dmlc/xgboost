@@ -46,9 +46,9 @@
 #endif
 
 #if defined(__CUDACC__)
-#define ALL_GPUS (xgboost::common::AllVisibleGPUs())
+#define WORLD_SIZE (xgboost::common::AllVisibleGPUs())
 #else
-#define ALL_GPUS (3)
+#define WORLD_SIZE (3)
 #endif
 
 namespace xgboost {
@@ -513,12 +513,12 @@ void RunWithInMemoryCommunicator(int32_t world_size, Function&& function, Args&&
 
 class DeclareUnifiedDistributedTest(MetricTest) : public ::testing::Test {
  protected:
-  int n_gpus_;
+  int world_size_;
 
   void SetUp() override {
-    n_gpus_ = ALL_GPUS;
-    if (n_gpus_ <= 1) {
-      GTEST_SKIP() << "Skipping MGPU test with # GPUs = " << n_gpus_;
+    world_size_ = WORLD_SIZE;
+    if (world_size_ <= 1) {
+      GTEST_SKIP() << "Skipping MGPU test with # GPUs = " << world_size_;
     }
   }
 };

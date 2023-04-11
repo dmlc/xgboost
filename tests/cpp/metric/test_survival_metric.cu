@@ -108,21 +108,21 @@ void VerifyIntervalRegressionAccuracy(DataSplitMode data_split_mode = DataSplitM
 TEST(Metric, DeclareUnifiedTest(AFTNegLogLik)) { VerifyAFTNegLogLik(); }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), AFTNegLogLikRowSplit) {
-  RunWithInMemoryCommunicator(n_gpus_, &VerifyAFTNegLogLik, DataSplitMode::kRow);
+  RunWithInMemoryCommunicator(world_size_, &VerifyAFTNegLogLik, DataSplitMode::kRow);
 }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), AFTNegLogLikColumnSplit) {
-  RunWithInMemoryCommunicator(n_gpus_, &VerifyAFTNegLogLik, DataSplitMode::kCol);
+  RunWithInMemoryCommunicator(world_size_, &VerifyAFTNegLogLik, DataSplitMode::kCol);
 }
 
 TEST(Metric, DeclareUnifiedTest(IntervalRegressionAccuracy)) { VerifyIntervalRegressionAccuracy(); }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), IntervalRegressionAccuracyRowSplit) {
-  RunWithInMemoryCommunicator(n_gpus_, &VerifyIntervalRegressionAccuracy, DataSplitMode::kRow);
+  RunWithInMemoryCommunicator(world_size_, &VerifyIntervalRegressionAccuracy, DataSplitMode::kRow);
 }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), IntervalRegressionAccuracyColumnSplit) {
-  RunWithInMemoryCommunicator(n_gpus_, &VerifyIntervalRegressionAccuracy, DataSplitMode::kCol);
+  RunWithInMemoryCommunicator(world_size_, &VerifyIntervalRegressionAccuracy, DataSplitMode::kCol);
 }
 
 // Test configuration of AFT metric

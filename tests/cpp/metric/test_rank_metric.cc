@@ -50,35 +50,35 @@ TEST(Metric, DeclareUnifiedTest(MAP)) { VerifyMAP(); }
 TEST(Metric, DeclareUnifiedTest(NDCGExpGain)) { VerifyNDCGExpGain(); }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), PrecisionRowSplit) {
-  RunWithInMemoryCommunicator(n_gpus_, &VerifyPrecision, DataSplitMode::kRow);
+  RunWithInMemoryCommunicator(world_size_, &VerifyPrecision, DataSplitMode::kRow);
 }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), PrecisionColumnSplit) {
-  RunWithInMemoryCommunicator(n_gpus_, &VerifyPrecision, DataSplitMode::kCol);
+  RunWithInMemoryCommunicator(world_size_, &VerifyPrecision, DataSplitMode::kCol);
 }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), NDCGRowSplit) {
-  RunWithInMemoryCommunicator(n_gpus_, &VerifyNDCG, DataSplitMode::kRow);
+  RunWithInMemoryCommunicator(world_size_, &VerifyNDCG, DataSplitMode::kRow);
 }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), NDCGColumnSplit) {
-  RunWithInMemoryCommunicator(n_gpus_, &VerifyNDCG, DataSplitMode::kCol);
+  RunWithInMemoryCommunicator(world_size_, &VerifyNDCG, DataSplitMode::kCol);
 }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), MAPRowSplit) {
-  RunWithInMemoryCommunicator(n_gpus_, &VerifyMAP, DataSplitMode::kRow);
+  RunWithInMemoryCommunicator(world_size_, &VerifyMAP, DataSplitMode::kRow);
 }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), MAPColumnSplit) {
-  RunWithInMemoryCommunicator(n_gpus_, &VerifyMAP, DataSplitMode::kCol);
+  RunWithInMemoryCommunicator(world_size_, &VerifyMAP, DataSplitMode::kCol);
 }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), NDCGExpGainRowSplit) {
-  RunWithInMemoryCommunicator(n_gpus_, &VerifyNDCGExpGain, DataSplitMode::kRow);
+  RunWithInMemoryCommunicator(world_size_, &VerifyNDCGExpGain, DataSplitMode::kRow);
 }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), NDCGExpGainColumnSplit) {
-  RunWithInMemoryCommunicator(n_gpus_, &VerifyNDCGExpGain, DataSplitMode::kCol);
+  RunWithInMemoryCommunicator(world_size_, &VerifyNDCGExpGain, DataSplitMode::kCol);
 }
 }  // namespace metric
 }  // namespace xgboost
