@@ -272,7 +272,7 @@ void CalcGrad(Context const* ctx, MetaInfo const& info, std::shared_ptr<ltr::Ran
                        auto sum_lambda = thrust::get<2>(d_max_lambdas[g]);
                        // Normalization
                        if (sum_lambda > 0.0) {
-                         double norm = std::log2(1 + sum_lambda) / sum_lambda;
+                         double norm = std::log2(1.0 + sum_lambda) / sum_lambda;
                          d_gpair[i] *= norm;
                        }
                        d_gpair[i] *= (d_weights[g] * w_norm);

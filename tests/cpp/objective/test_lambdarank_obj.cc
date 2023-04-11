@@ -35,9 +35,32 @@ void TestNDCGGPair(Context const* ctx) {
   obj->Configure(Args{{"lambdarank_pair_method", "topk"}});
   CheckConfigReload(obj, "rank:ndcg");
 
-  // No gain in swapping 2 documents.
-  CheckRankingObjFunction(obj, {1, 1, 1, 1}, {1, 1, 1, 1}, {1.0f, 1.0f}, {0, 2, 4},
-                          {0.0f, -0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f});
+  {
+    // No gain in swapping 2 documents.
+    CheckRankingObjFunction(obj,
+                            {1, 1, 1, 1},
+                            {1, 1, 1, 1},
+                            {1.0f, 1.0f},
+                            {0, 2, 4},
+                            {0.0f, -0.0f, 0.0f, 0.0f},
+                            {0.0f, 0.0f, 0.0f, 0.0f});
+    // Test with setting sample weight to second query group
+    CheckRankingObjFunction(obj,
+                            {0, 0.1f, 0, 0.1f},
+                            {0,   1, 0, 1},
+                            {2.0f, 0.0f},
+                            {0, 2, 4},
+                            {2.06611f, -2.06611f, 0.0f, 0.0f},
+                            {2.169331f, 2.169331f, 0.0f, 0.0f});
+
+    CheckRankingObjFunction(obj,
+                            {0, 0.1f, 0, 0.1f},
+                            {0,   1, 0, 1},
+                            {2.0f, 2.0f},
+                            {0, 2, 4},
+                            {2.06611f, -2.06611f, 2.06611f, -2.06611f},
+                            {2.169331f, 2.169331f, 2.169331f, 2.169331f});
+  }
 
   HostDeviceVector<float> predts{0, 1, 0, 1};
   MetaInfo info;
