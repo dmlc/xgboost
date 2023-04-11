@@ -55,8 +55,10 @@ inline void VerifyRMSE(DataSplitMode data_split_mode = DataSplitMode::kRow) {
                             {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1}, {}, {}, data_split_mode),
               0.6403f, 0.001f);
-  auto expected =
-      (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) ? 4.8990f : 2.8284f;
+  auto expected = 2.8284f;
+  if (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) {
+    expected = sqrt(8.0f * collective::GetWorldSize());
+  }
   EXPECT_NEAR(GetMetricEval(metric,
                             {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1},
@@ -82,8 +84,10 @@ inline void VerifyRMSLE(DataSplitMode data_split_mode = DataSplitMode::kRow) {
                             {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},
                             {1.0f, 1.0f, 1.0f, 1.0f, 1.0f}, {}, {}, data_split_mode),
               0.4063f, 1e-4);
-  auto expected =
-      (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) ? 1.0759f : 0.6212f;
+  auto expected = 0.6212f;
+  if (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) {
+    expected = sqrt(0.3859f * collective::GetWorldSize());
+  }
   EXPECT_NEAR(GetMetricEval(metric,
                             {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},
                             {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
@@ -109,8 +113,10 @@ inline void VerifyMAE(DataSplitMode data_split_mode = DataSplitMode::kRow) {
                             {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1}, {}, {}, data_split_mode),
               0.5f, 0.001f);
-  auto expected =
-      (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) ? 24.0f : 8.0f;
+  auto expected = 8.0f;
+  if (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) {
+    expected *= collective::GetWorldSize();
+  }
   EXPECT_NEAR(GetMetricEval(metric,
                             {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1},
@@ -136,8 +142,10 @@ inline void VerifyMAPE(DataSplitMode data_split_mode = DataSplitMode::kRow) {
                             {50, 400, 500, 4000},
                             {100, 200, 500, 1000}, {}, {}, data_split_mode),
               1.125f, 0.001f);
-  auto expected =
-      (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) ? -79.5 : -26.5f;
+  auto expected = -26.5f;
+  if (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) {
+    expected *= collective::GetWorldSize();
+  }
   EXPECT_NEAR(GetMetricEval(metric,
                             {50, 400, 500, 4000},
                             {100, 200, 500, 1000},
@@ -163,8 +171,10 @@ inline void VerifyMPHE(DataSplitMode data_split_mode = DataSplitMode::kRow) {
                             {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1}, {}, {}, data_split_mode),
               0.1751f, 1e-4);
-  auto expected =
-      (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) ? 10.2112f : 3.4037f;
+  auto expected = 3.40375f;
+  if (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) {
+    expected *= collective::GetWorldSize();
+  }
   EXPECT_NEAR(GetMetricEval(metric.get(),
                             {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1},
@@ -200,8 +210,10 @@ inline void VerifyLogLoss(DataSplitMode data_split_mode = DataSplitMode::kRow) {
                             {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1}, {}, {}, data_split_mode),
               1.2039f, 0.001f);
-  auto expected =
-      (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) ? 65.9167f : 21.9722f;
+  auto expected = 21.9722f;
+  if (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) {
+    expected *= collective::GetWorldSize();
+  }
   EXPECT_NEAR(GetMetricEval(metric,
                             {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1},
@@ -227,8 +239,10 @@ inline void VerifyError(DataSplitMode data_split_mode = DataSplitMode::kRow) {
                             {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1}, {}, {}, data_split_mode),
               0.5f, 0.001f);
-  auto expected =
-      (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) ? 30.0f : 10.0f;
+  auto expected = 10.0f;
+  if (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) {
+    expected *= collective::GetWorldSize();
+  }
   EXPECT_NEAR(GetMetricEval(metric,
                            {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1},
@@ -258,7 +272,10 @@ inline void VerifyError(DataSplitMode data_split_mode = DataSplitMode::kRow) {
                             {-0.1f, -0.9f, 0.1f, 0.9f},
                             {   0,    0,   1,   1}, {}, {}, data_split_mode),
               0.25f, 0.001f);
-  expected = (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) ? 27.0f : 9.0f;
+  expected = 9.0f;
+  if (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) {
+    expected *= collective::GetWorldSize();
+  }
   EXPECT_NEAR(GetMetricEval(metric,
                             {-0.1f, -0.9f, 0.1f, 0.9f},
                             {   0,    0,   1,   1},
@@ -288,8 +305,10 @@ inline void VerifyPoissonNegLogLik(DataSplitMode data_split_mode = DataSplitMode
                             {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1}, {}, {}, data_split_mode),
               1.1019f, 0.001f);
-  auto expected =
-      (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) ? 40.1251f : 13.3750f;
+  auto expected = 13.3750f;
+  if (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) {
+    expected *= collective::GetWorldSize();
+  }
   EXPECT_NEAR(GetMetricEval(metric,
                             {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1},
