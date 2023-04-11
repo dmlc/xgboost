@@ -33,6 +33,7 @@
 #include "dmlc/registry.h"                          // for Registry
 #include "filesystem.h"                             // for TemporaryDirectory
 #include "helpers.h"                                // for GetBaseScore, RandomDataGenerator
+#include "objective_helpers.h"                      // for MakeObjNamesForTest, ObjTestNameGenerator
 #include "xgboost/base.h"                           // for bst_float, Args, bst_feature_t, bst_int
 #include "xgboost/context.h"                        // for Context
 #include "xgboost/data.h"                           // for DMatrix, MetaInfo, DataType
@@ -715,22 +716,9 @@ TEST_P(TestColumnSplit, Objective) {
   this->Run(objective);
 }
 
-auto MakeValues() {
-  auto list = ::dmlc::Registry<::xgboost::ObjFunctionReg>::List();
-  std::vector<std::string> names;
-  std::transform(list.cbegin(), list.cend(), std::back_inserter(names),
-                 [](auto const* entry) { return entry->name; });
-  return names;
-}
-
-INSTANTIATE_TEST_SUITE_P(ColumnSplitObjective, TestColumnSplit, ::testing::ValuesIn(MakeValues()),
+INSTANTIATE_TEST_SUITE_P(ColumnSplitObjective, TestColumnSplit,
+                         ::testing::ValuesIn(MakeObjNamesForTest()),
                          [](const ::testing::TestParamInfo<TestColumnSplit::ParamType>& info) {
-                           auto name = std::string{info.param};
-                           // Name must be a valid c++ symbol
-                           auto it = std::find(name.cbegin(), name.cend(), ':');
-                           if (it != name.cend()) {
-                             name[std::distance(name.cbegin(), it)] = '_';
-                           }
-                           return name;
+                           return ObjTestNameGenerator(info);
                          });
 }  // namespace xgboost
