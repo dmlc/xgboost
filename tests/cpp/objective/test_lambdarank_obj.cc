@@ -31,11 +31,11 @@ TEST(LambdaRank, NDCGJsonIO) {
 }
 
 void TestNDCGGPair(Context const* ctx) {
-  std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", ctx)};
-  obj->Configure(Args{{"lambdarank_pair_method", "topk"}});
-  CheckConfigReload(obj, "rank:ndcg");
-
   {
+    std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", ctx)};
+    obj->Configure(Args{{"lambdarank_pair_method", "topk"}});
+    CheckConfigReload(obj, "rank:ndcg");
+
     // No gain in swapping 2 documents.
     CheckRankingObjFunction(obj,
                             {1, 1, 1, 1},
@@ -44,6 +44,10 @@ void TestNDCGGPair(Context const* ctx) {
                             {0, 2, 4},
                             {0.0f, -0.0f, 0.0f, 0.0f},
                             {0.0f, 0.0f, 0.0f, 0.0f});
+  }
+  {
+    std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", ctx)};
+    obj->Configure(Args{{"lambdarank_pair_method", "topk"}});
     // Test with setting sample weight to second query group
     CheckRankingObjFunction(obj,
                             {0, 0.1f, 0, 0.1f},
@@ -61,6 +65,9 @@ void TestNDCGGPair(Context const* ctx) {
                             {2.06611f, -2.06611f, 2.06611f, -2.06611f},
                             {2.169331f, 2.169331f, 2.169331f, 2.169331f});
   }
+
+  std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", ctx)};
+  obj->Configure(Args{{"lambdarank_pair_method", "topk"}});
 
   HostDeviceVector<float> predts{0, 1, 0, 1};
   MetaInfo info;

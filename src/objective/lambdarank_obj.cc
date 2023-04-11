@@ -22,7 +22,7 @@
 #include "../common/linalg_op.h"           // for begin, cbegin, cend
 #include "../common/optional_weight.h"     // for MakeOptionalWeights, OptionalWeights
 #include "../common/ranking_utils.h"       // for RankingCache, LambdaRankParam, MAPCache, NDCGC...
-#include "../common/threading_utils.h"     // for ParallelFor
+#include "../common/threading_utils.h"     // for ParallelFor, Sched
 #include "../common/transform_iterator.h"  // for IndexTransformIter
 #include "init_estimation.h"               // for FitIntercept
 #include "xgboost/base.h"                  // for bst_group_t, GradientPair, kRtEps, GradientPai...
