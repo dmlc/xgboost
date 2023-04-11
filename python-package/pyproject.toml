@@ -30,9 +30,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-pandas = ["pandas"],
-scikit-learn = ["scikit-learn"],
-dask = ["dask", "pandas", "distributed"],
-datatable = ["datatable"],
-plotting = ["graphviz", "matplotlib"],
+pandas = ["pandas"]
+scikit-learn = ["scikit-learn"]
+dask = ["dask", "pandas", "distributed"]
+datatable = ["datatable"]
+plotting = ["graphviz", "matplotlib"]
 pyspark = ["pyspark", "scikit-learn", "cloudpickle"]
