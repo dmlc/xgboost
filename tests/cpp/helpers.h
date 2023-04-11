@@ -46,9 +46,9 @@
 #endif
 
 #if defined(__CUDACC__)
-#define WORLD_SIZE (xgboost::common::AllVisibleGPUs())
+#define WORLD_SIZE_FOR_TEST (xgboost::common::AllVisibleGPUs())
 #else
-#define WORLD_SIZE (3)
+#define WORLD_SIZE_FOR_TEST (3)
 #endif
 
 namespace xgboost {
@@ -516,7 +516,7 @@ class DeclareUnifiedDistributedTest(MetricTest) : public ::testing::Test {
   int world_size_;
 
   void SetUp() override {
-    world_size_ = WORLD_SIZE;
+    world_size_ = WORLD_SIZE_FOR_TEST;
     if (world_size_ <= 1) {
       GTEST_SKIP() << "Skipping MGPU test with # GPUs = " << world_size_;
     }
