@@ -1,0 +1,4 @@
+[build-system]
+requires = ["packaging"]
+backend-path = ["xgboost"]
+build-backend = "packager.pep517"
