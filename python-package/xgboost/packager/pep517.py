@@ -11,7 +11,8 @@ import tempfile
 import packaging.version
 
 from .distinfo import iter_files
-from .nativelib import locate_libxgboost
+from .nativelib import locate_or_build_libxgboost
+from .sdist import copy_cpp_src_tree
 from .wheel import create_dist_info, create_wheel
 
 
@@ -65,7 +66,7 @@ def build_wheel(
             TAG,
             PACKAGE,
             dist_info=dist_info,
-            libxgboost=locate_libxgboost(TOPLEVEL_DIR),
+            libxgboost=locate_or_build_libxgboost(TOPLEVEL_DIR, tempdir=td_path),
             output_dir=pathlib.Path(wheel_directory).absolute().resolve(),
         )
 
@@ -78,10 +79,20 @@ def build_sdist(sdist_directory, config_settings=None):
             f"XGBoost's custom build backend doesn't support config_settings option."
             f"{config_settings=}"
         )
+
+    cpp_src_dir = TOPLEVEL_DIR.parent
+    if not cpp_src_dir.joinpath("CMakeLists.txt").exists():
+        raise RuntimeError(f"Did not find CMakeLists.txt from {cpp_src_dir}")
+
     sdist_path = pathlib.Path(sdist_directory, f"{NAME}-{VERSION}.tar.gz")
-    with tarfile.open(sdist_path, "w:gz", format=tarfile.PAX_FORMAT) as tf:
-        for path, relative in iter_files((PACKAGE,)):
-            tf.add(path, relative.as_posix())
-        pyproject_path = TOPLEVEL_DIR / "pyproject.toml"
-        tf.add(pyproject_path, pyproject_path.relative_to(TOPLEVEL_DIR))
+    with tempfile.TemporaryDirectory() as td:
+        temp_cpp_src_dir = pathlib.Path(td) / "cpp_src"
+        copy_cpp_src_tree(cpp_src_dir, temp_cpp_src_dir)
+        with tarfile.open(sdist_path, "w:gz", format=tarfile.PAX_FORMAT) as tf:
+            for path, relative in iter_files((PACKAGE,)):
+                tf.add(path, relative.as_posix())
+            for path, relative in iter_files((temp_cpp_src_dir,)):
+                tf.add(path, relative.as_posix())
+            pyproject_path = TOPLEVEL_DIR / "pyproject.toml"
+            tf.add(pyproject_path, pyproject_path.relative_to(TOPLEVEL_DIR))
     return sdist_path.name
