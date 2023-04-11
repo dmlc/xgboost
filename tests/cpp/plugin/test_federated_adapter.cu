@@ -29,7 +29,7 @@ TEST(FederatedAdapterSimpleTest, ThrowOnInvalidCommunicator) {
 TEST_F(FederatedAdapterTest, DeviceAllReduceSum) {
   std::vector<std::thread> threads;
   for (auto rank = 0; rank < kWorldSize; rank++) {
-    threads.emplace_back([rank, server_address = server_address_] {
+    threads.emplace_back([rank, server_address = server_->Address()] {
       FederatedCommunicator comm{kWorldSize, rank, server_address};
       // Assign device 0 to all workers, since we run gtest in a single-GPU machine
       DeviceCommunicatorAdapter adapter{0, &comm};
@@ -52,7 +52,7 @@ TEST_F(FederatedAdapterTest, DeviceAllReduceSum) {
 TEST_F(FederatedAdapterTest, DeviceAllGatherV) {
   std::vector<std::thread> threads;
   for (auto rank = 0; rank < kWorldSize; rank++) {
-    threads.emplace_back([rank, server_address = server_address_] {
+    threads.emplace_back([rank, server_address = server_->Address()] {
       FederatedCommunicator comm{kWorldSize, rank, server_address};
       // Assign device 0 to all workers, since we run gtest in a single-GPU machine
       DeviceCommunicatorAdapter adapter{0, &comm};
