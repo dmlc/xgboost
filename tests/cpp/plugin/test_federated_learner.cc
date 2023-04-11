@@ -8,13 +8,34 @@
 
 #include "../../../plugin/federated/federated_server.h"
 #include "../../../src/collective/communicator-inl.h"
+#include "../../../src/common/linalg_op.h"
 #include "../helpers.h"
+#include "../objective_helpers.h"  // for MakeObjNamesForTest, ObjTestNameGenerator
 #include "helpers.h"
 
 namespace xgboost {
+namespace {
+auto MakeModel(std::string objective, std::shared_ptr<DMatrix> dmat) {
+  std::unique_ptr<Learner> learner{Learner::Create({dmat})};
+  learner->SetParam("tree_method", "approx");
+  learner->SetParam("objective", objective);
+  if (objective.find("quantile") != std::string::npos) {
+    learner->SetParam("quantile_alpha", "0.5");
+  }
+  if (objective.find("multi") != std::string::npos) {
+    learner->SetParam("num_class", "3");
+  }
+  learner->UpdateOneIter(0, dmat);
+  Json config{Object{}};
+  learner->SaveConfig(&config);
 
-void VerifyObjectives(size_t rows, size_t cols, std::vector<float> const &expected_base_scores,
-                      std::vector<Json> const &expected_models) {
+  Json model{Object{}};
+  learner->SaveModel(&model);
+  return model;
+}
+
+void VerifyObjective(size_t rows, size_t cols, float expected_base_score, Json expected_model,
+                     std::string objective) {
   auto const world_size = collective::GetWorldSize();
   auto const rank = collective::GetRank();
   std::shared_ptr<DMatrix> dmat{RandomDataGenerator{rows, cols, 0}.GenerateDMatrix(rank == 0)};
@@ -28,76 +49,72 @@ void VerifyObjectives(size_t rows, size_t cols, std::vector<float> const &expect
       h_lower[i] = 1;
       h_upper[i] = 10;
     }
+
+    if (objective.find("rank:") != std::string::npos) {
+      auto h_label = dmat->Info().labels.HostView();
+      std::size_t k = 0;
+      for (auto &v : h_label) {
+        v = k % 2 == 0;
+        ++k;
+      }
+    }
   }
   std::shared_ptr<DMatrix> sliced{dmat->SliceCol(world_size, rank)};
 
-  auto i = 0;
-  for (auto const *entry : ::dmlc::Registry<::xgboost::ObjFunctionReg>::List()) {
-    std::unique_ptr<Learner> learner{Learner::Create({sliced})};
-    learner->SetParam("tree_method", "approx");
-    learner->SetParam("objective", entry->name);
-    if (entry->name.find("quantile") != std::string::npos) {
-      learner->SetParam("quantile_alpha", "0.5");
-    }
-    if (entry->name.find("multi") != std::string::npos) {
-      learner->SetParam("num_class", "3");
-    }
-    learner->UpdateOneIter(0, sliced);
-
-    Json config{Object{}};
-    learner->SaveConfig(&config);
-    auto base_score = GetBaseScore(config);
-    ASSERT_EQ(base_score, expected_base_scores[i]);
-
-    Json model{Object{}};
-    learner->SaveModel(&model);
-    ASSERT_EQ(model, expected_models[i]);
-
-    i++;
-  }
+  auto model = MakeModel(objective, sliced);
+  auto base_score = GetBaseScore(model);
+  ASSERT_EQ(base_score, expected_base_score);
+  ASSERT_EQ(model, expected_model);
 }
+}  // namespace
 
-class FederatedLearnerTest : public BaseFederatedTest {
+class FederatedLearnerTest : public ::testing::TestWithParam<std::string> {
+  std::unique_ptr<ServerForTest> server_;
+  static int const kWorldSize{3};
+
  protected:
-  static auto constexpr kRows{16};
-  static auto constexpr kCols{16};
+  void SetUp() override { server_ = std::make_unique<ServerForTest>(kWorldSize); }
+  void TearDown() override { server_.reset(nullptr); }
+
+  void Run(std::string objective) {
+    static auto constexpr kRows{16};
+    static auto constexpr kCols{16};
+
+    std::shared_ptr<DMatrix> dmat{RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true)};
+
+    auto &h_upper = dmat->Info().labels_upper_bound_.HostVector();
+    auto &h_lower = dmat->Info().labels_lower_bound_.HostVector();
+    h_lower.resize(kRows);
+    h_upper.resize(kRows);
+    for (size_t i = 0; i < kRows; ++i) {
+      h_lower[i] = 1;
+      h_upper[i] = 10;
+    }
+    if (objective.find("rank:") != std::string::npos) {
+      auto h_label = dmat->Info().labels.HostView();
+      std::size_t k = 0;
+      for (auto &v : h_label) {
+        v = k % 2 == 0;
+        ++k;
+      }
+    }
+
+    auto model = MakeModel(objective, dmat);
+    auto score = GetBaseScore(model);
+
+    RunWithFederatedCommunicator(kWorldSize, server_->Address(), &VerifyObjective, kRows, kCols,
+                                 score, model, objective);
+  }
 };
 
-TEST_F(FederatedLearnerTest, Objectives) {
-  std::shared_ptr<DMatrix> dmat{RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true)};
-
-  auto &h_upper = dmat->Info().labels_upper_bound_.HostVector();
-  auto &h_lower = dmat->Info().labels_lower_bound_.HostVector();
-  h_lower.resize(kRows);
-  h_upper.resize(kRows);
-  for (size_t i = 0; i < kRows; ++i) {
-    h_lower[i] = 1;
-    h_upper[i] = 10;
-  }
-
-  std::vector<float> base_scores;
-  std::vector<Json> models;
-  for (auto const *entry : ::dmlc::Registry<::xgboost::ObjFunctionReg>::List()) {
-    std::unique_ptr<Learner> learner{Learner::Create({dmat})};
-    learner->SetParam("tree_method", "approx");
-    learner->SetParam("objective", entry->name);
-    if (entry->name.find("quantile") != std::string::npos) {
-      learner->SetParam("quantile_alpha", "0.5");
-    }
-    if (entry->name.find("multi") != std::string::npos) {
-      learner->SetParam("num_class", "3");
-    }
-    learner->UpdateOneIter(0, dmat);
-    Json config{Object{}};
-    learner->SaveConfig(&config);
-    base_scores.emplace_back(GetBaseScore(config));
-
-    Json model{Object{}};
-    learner->SaveModel(&model);
-    models.emplace_back(model);
-  }
-
-  RunWithFederatedCommunicator(kWorldSize, server_address_, &VerifyObjectives, kRows, kCols,
-                               base_scores, models);
+TEST_P(FederatedLearnerTest, Objective) {
+  std::string objective = GetParam();
+  this->Run(objective);
 }
+
+INSTANTIATE_TEST_SUITE_P(FederatedLearnerObjective, FederatedLearnerTest,
+                         ::testing::ValuesIn(MakeObjNamesForTest()),
+                         [](const ::testing::TestParamInfo<FederatedLearnerTest::ParamType> &info) {
+                           return ObjTestNameGenerator(info);
+                         });
 }  // namespace xgboost
