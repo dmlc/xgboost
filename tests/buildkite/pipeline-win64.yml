@@ -6,7 +6,7 @@ steps:
       queue: pipeline-loader
   - wait
   - block: ":rocket: Run this test job"
-    if: build.pull_request.repository.fork == true
+    if: build.pull_request.id != null
   #### -------- BUILD --------
   - label: ":windows: Build XGBoost for Windows with CUDA"
     command: "tests/buildkite/build-win64-gpu.ps1"
