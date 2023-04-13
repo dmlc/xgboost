@@ -985,6 +985,31 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
                              const float **out_result);
 
 /*!
+ * \brief make prediction based on dmat (deprecated, use `XGBoosterPredictFromDMatrix` instead)
+ * \param handle handle
+ * \param dmat data matrix
+ * \param option_mask bit-mask of options taken in prediction, possible values
+ *          0:normal prediction
+ *          1:output margin instead of transformed value
+ *          2:output leaf index of trees instead of leaf value, note leaf index is unique per tree
+ *          4:output feature contributions to individual predictions
+ * \param out_len used to store length of returning result
+ * \param out_result used to set a pointer to array
+ * \return 0 when success, -1 when failure happens
+*/
+//TODO: Fix documentation above
+XGB_DLL int XGBoosterInplacePredict(BoosterHandle handle,
+                                    const float *data,
+                                    size_t num_rows,
+                                    size_t num_features,
+                                    DMatrixHandle d_matrix_handle,
+                                    float missing,
+                                    int option_mask,
+                                    int ntree_limit,
+                                    const bst_ulong **len,
+                                    const float **out_result);
+
+/*!
  * \brief Make prediction from DMatrix, replacing \ref XGBoosterPredict.
  *
  * \param handle Booster handle

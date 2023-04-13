@@ -315,6 +315,159 @@ public class Booster implements Serializable, KryoSerializable {
     }
     return predicts;
   }
+  // TODO - ANYTHING
+  /**
+   * Perform thread-safe prediction. Calls
+   * <code>inplace_predict(data, num_rows, num_features, Float.NaN, false, 0, false, false)</code>.
+   *
+   * @param data           Flattened input matrix of features for prediction
+   * @param num_rows       The number of preditions to make (count of input matrix rows)
+   * @param num_features   The number of features in the model (count of input matrix columns)
+   *
+   * @return predict       Result matrix
+   *
+   * @see #inplace_predict(float[] data, int num_rows, int num_features, float missing,
+   *                       boolean outputMargin, int treeLimit, boolean predLeaf,
+   *                       boolean predContribs)
+   */
+  public float[][] inplace_predict(float[] data,
+                                   int num_rows,
+                                   int num_features) throws XGBoostError {
+    return this.inplace_predict(data, num_rows, num_features,
+                Float.NaN, false, 0, false, false);
+  }
+
+  /**
+   * Perform thread-safe prediction. Calls
+   * <code>inplace_predict(data, num_rows, num_features, missing, false, 0, false, false)</code>.
+   *
+   * @param data           Flattened input matrix of features for prediction
+   * @param num_rows       The number of preditions to make (count of input matrix rows)
+   * @param num_features   The number of features in the model (count of input matrix columns)
+   * @param missing        Value indicating missing element in the <code>data</code> input matrix
+   *
+   * @return predict       Result matrix
+   *
+   * @see #inplace_predict(float[] data, int num_rows, int num_features, float missing,
+   *                       boolean outputMargin, int treeLimit, boolean predLeaf,
+   *                       boolean predContribs)
+   */
+  public float[][] inplace_predict(float[] data,
+                                   int num_rows,
+                                   int num_features,
+                                   float missing) throws XGBoostError {
+    return this.inplace_predict(data, num_rows, num_features,
+                missing, false, 0, false, false);
+  }
+
+  /**
+   * Perform thread-safe prediction. Calls
+   * <code>inplace_predict(data, num_rows, num_features, missing,
+   *                       outputMargin, 0, false, false)</code>.
+   *
+   * @param data           Flattened input matrix of features for prediction
+   * @param num_rows       The number of preditions to make (count of input matrix rows)
+   * @param num_features   The number of features in the model (count of input matrix columns)
+   * @param missing        Value indicating missing element in the <code>data</code> input matrix
+   * @param outputMargin   Whether to only predict margin value instead of transformed prediction
+   *
+   * @return predict       Result matrix
+   *
+   * @see #inplace_predict(float[] data, int num_rows, int num_features, float missing,
+   *                       boolean outputMargin, int treeLimit, boolean predLeaf,
+   *                       boolean predContribs)
+   */
+
+  public float[][] inplace_predict(float[] data,
+                                   int num_rows,
+                                   int num_features,
+                                   float missing,
+                                   boolean outputMargin) throws XGBoostError {
+    return this.inplace_predict(data, num_rows, num_features, missing,
+                       outputMargin, 0, false, false);
+  }
+
+  /**
+   * Perform thread-safe prediction. Calls
+   * <code>inplace_predict(data, num_rows, num_features, missing,
+   *                       outputMargin, treeLimit, false, false)</code>.
+   *
+   * @param data           Flattened input matrix of features for prediction
+   * @param num_rows       The number of preditions to make (count of input matrix rows)
+   * @param num_features   The number of features in the model (count of input matrix columns)
+   * @param missing        Value indicating missing element in the <code>data</code> input matrix
+   * @param outputMargin   Whether to only predict margin value instead of transformed prediction
+   * @param treeLimit      limit number of trees, 0 means all trees.
+   *
+   * @return predict       Result matrix
+   *
+   * @see #inplace_predict(float[] data, int num_rows, int num_features, float missing,
+   *                       boolean outputMargin, int treeLimit, boolean predLeaf,
+   *                       boolean predContribs)
+   */
+  public float[][] inplace_predict(float[] data,
+                                   int num_rows,
+                                   int num_features,
+                                   float missing,
+                                   boolean outputMargin,
+                                   int treeLimit) throws XGBoostError {
+    return this.inplace_predict(data, num_rows, num_features, missing,
+                                outputMargin, treeLimit, false, false);
+  }
+
+  /**
+   * Perform thread-safe prediction.
+   *
+   * @param data           Flattened input matrix of features for prediction
+   * @param num_rows       The number of preditions to make (count of input matrix rows)
+   * @param num_features   The number of features in the model (count of input matrix columns)
+   * @param d_matrix_h     The handle for a dmatrix
+   * @param missing        Value indicating missing element in the <code>data</code> input matrix
+   * @param outputMargin   Whether to only predict margin value instead of transformed prediction
+   * @param treeLimit      limit number of trees, 0 means all trees.
+   * @param predLeaf       prediction minimum to keep leafs
+   * @param predContribs   prediction feature contributions
+   *
+   * @return predict       Result matrix
+   */
+  public float[][] inplace_predict(float[] data,
+                                   int num_rows,
+                                   int num_features,
+                                   float missing,
+                                   boolean outputMargin,
+                                   int treeLimit,
+                                   boolean predLeaf,
+                                   boolean predContribs) throws XGBoostError {
+    int optionMask = 0;
+    if (outputMargin) {
+      optionMask |= 1;
+    }
+    if (predLeaf) {
+      optionMask = 2;
+    }
+    if (predContribs) {
+      optionMask = 4;
+    }
+    DMatrix d_mat = new DMatrix(data, num_rows, num_features, missing);
+    float[][] rawPredicts = new float[1][];
+    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterInplacePredict(handle, data, num_rows, num_features,
+        d_mat.getHandle(), missing,
+        optionMask, treeLimit, rawPredicts));  // pass missing and treelimit here?
+
+    // System.out.println("Booster.inplace_predict rawPredicts[0].length = " +
+    //    rawPredicts[0].length);
+
+    int row = num_rows;
+    int col = rawPredicts[0].length / row;
+    float[][] predicts = new float[row][col];
+    int r, c;
+    for (int i = 0; i < rawPredicts[0].length; i++) {
+      r = i / col;
+      c = i % col;
+      predicts[r][c] = rawPredicts[0][i];
+    }
+    return predicts;
+  }
 
   /**
    * Predict leaf indices given the data

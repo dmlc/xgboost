@@ -396,8 +396,9 @@ class CPUPredictor : public Predictor {
   bool InplacePredict(std::shared_ptr<DMatrix> p_m, const gbm::GBTreeModel &model, float missing,
                       PredictionCacheEntry *out_preds, uint32_t tree_begin,
                       unsigned tree_end) const override {
+    //fprintf (stdout, "We are in cpu_predictor");
     auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
-    CHECK(proxy)<< "Inplace predict accepts only DMatrixProxy as input.";
+    //auto proxy = new std::shared_ptr<xgboost::DMatrix>(new xgboost::data::DMatrixProxy);
     auto x = proxy->Adapter();
     if (x.type() == typeid(std::shared_ptr<data::DenseAdapter>)) {
       this->DispatchedInplacePredict<data::DenseAdapter, kBlockOfRowsSize>(
