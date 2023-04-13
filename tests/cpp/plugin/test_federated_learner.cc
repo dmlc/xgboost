@@ -70,7 +70,7 @@ void VerifyObjective(size_t rows, size_t cols, float expected_base_score, Json e
 
 class FederatedLearnerTest : public ::testing::TestWithParam<std::string> {
   std::unique_ptr<ServerForTest> server_;
-  static int const kWorldSize{3};
+  static int constexpr kWorldSize{3};
 
  protected:
   void SetUp() override { server_ = std::make_unique<ServerForTest>(kWorldSize); }

@@ -190,6 +190,10 @@ double GetMultiMetricEval(xgboost::Metric* metric,
   info.group_ptr_ = groups;
   info.data_split_mode = data_split_mode;
 
+  if (info.IsVerticalFederated() && xgboost::collective::GetRank() != 0) {
+    info.labels.Reshape(0);
+  }
+
   return metric->Evaluate(preds, p_fmat);
 }
 

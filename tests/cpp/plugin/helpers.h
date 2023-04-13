@@ -65,7 +65,7 @@ class BaseFederatedTest : public ::testing::Test {
 
   void TearDown() override { server_.reset(nullptr); }
 
-  static int const kWorldSize{3};
+  static int constexpr kWorldSize{3};
   std::unique_ptr<ServerForTest> server_;
 };
 
