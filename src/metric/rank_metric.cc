@@ -28,9 +28,8 @@
 #include <algorithm>                         // for stable_sort, copy, fill_n, min, max
 #include <array>                             // for array
 #include <cmath>                             // for log, sqrt
-#include <cstddef>                           // for size_t, std
-#include <cstdint>                           // for uint32_t
 #include <functional>                        // for less, greater
+#include <limits>                            // for numeric_limits
 #include <map>                               // for operator!=, _Rb_tree_const_iterator
 #include <memory>                            // for allocator, unique_ptr, shared_ptr, __shared_...
 #include <numeric>                           // for accumulate
@@ -39,15 +38,10 @@
 #include <utility>                           // for pair, make_pair
 #include <vector>                            // for vector
 
-#include "../collective/communicator-inl.h"  // for IsDistributed, Allreduce
-#include "../collective/communicator.h"      // for Operation
 #include "../common/algorithm.h"             // for ArgSort, Sort
 #include "../common/linalg_op.h"             // for cbegin, cend
 #include "../common/math.h"                  // for CmpFirst
 #include "../common/optional_weight.h"       // for OptionalWeights, MakeOptionalWeights
-#include "../common/ranking_utils.h"         // for LambdaRankParam, NDCGCache, ParseMetricName
-#include "../common/threading_utils.h"       // for ParallelFor
-#include "../common/transform_iterator.h"    // for IndexTransformIter
 #include "dmlc/common.h"                     // for OMPException
 #include "metric_common.h"                   // for MetricNoCache, GPUMetric, PackedReduceResult
 #include "xgboost/base.h"                    // for bst_float, bst_omp_uint, bst_group_t, Args
@@ -59,7 +53,6 @@
 #include "xgboost/linalg.h"                  // for Tensor, TensorView, Range, VectorView, MakeT...
 #include "xgboost/logging.h"                 // for CHECK, ConsoleLogger, LOG_INFO, CHECK_EQ
 #include "xgboost/metric.h"                  // for MetricReg, XGBOOST_REGISTER_METRIC, Metric
-#include "xgboost/span.h"                    // for Span, operator!=
 #include "xgboost/string_view.h"             // for StringView
 
 namespace {
