@@ -12,7 +12,7 @@ dependencies:
 - scipy
 - llvm-openmp
 - scikit-learn
-- pandas
+- pandas>=2.0
 - matplotlib
 - dask
 - distributed

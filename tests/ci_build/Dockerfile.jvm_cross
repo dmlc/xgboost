@@ -29,7 +29,7 @@ ENV PATH=/opt/mambaforge/bin:/opt/spark/bin:/opt/maven/bin:$PATH
 
 # Install Python packages
 RUN \
-    pip install numpy scipy pandas scikit-learn
+    pip install numpy scipy pandas>=2.0 scikit-learn
 
 ENV GOSU_VERSION 1.10
 

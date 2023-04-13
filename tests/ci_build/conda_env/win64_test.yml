@@ -7,7 +7,7 @@ dependencies:
 - scipy
 - matplotlib
 - scikit-learn
-- pandas
+- pandas>=2.0
 - pytest
 - boto3
 - hypothesis

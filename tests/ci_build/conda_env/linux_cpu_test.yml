@@ -15,7 +15,7 @@ dependencies:
 - numpy
 - scipy
 - scikit-learn
-- pandas
+- pandas>=2.0
 - matplotlib
 - dask>=2022.6
 - distributed>=2022.6

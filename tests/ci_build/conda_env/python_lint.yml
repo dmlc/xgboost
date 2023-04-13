@@ -9,7 +9,7 @@ dependencies:
 - mypy>=0.981
 - numpy
 - scipy
-- pandas
+- pandas>=2.0
 - scikit-learn
 - dask
 - distributed
