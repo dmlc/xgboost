@@ -21,9 +21,9 @@ class MetricNoCache : public Metric {
   virtual double Eval(HostDeviceVector<float> const &predts, MetaInfo const &info) = 0;
 
   double Evaluate(HostDeviceVector<float> const &predts, std::shared_ptr<DMatrix> p_fmat) final {
+    double result{0.0};
     if (p_fmat->Info().IsVerticalFederated()) {
       // TODO(rongou): better abstraction for this.
-      double result{0};
       if (collective::GetRank() == 0) {
         try {
           result = this->Eval(predts, p_fmat->Info());
@@ -34,13 +34,13 @@ class MetricNoCache : public Metric {
       } else {
         collective::Broadcast(&result, sizeof(double), 0);
       }
-      if (std::isinf(result)) {
-        LOG(FATAL) << "Error evaluating metric";
-      }
-      return result;
     } else {
-      return this->Eval(predts, p_fmat->Info());
+      result = this->Eval(predts, p_fmat->Info());
     }
+    if (std::isinf(result)) {
+      LOG(FATAL) << "Error evaluating metric";
+    }
+    return result;
   }
 };
 

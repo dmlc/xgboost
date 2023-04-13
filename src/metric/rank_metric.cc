@@ -385,6 +385,33 @@ class EvalRankWithCache : public Metric {
   }
 
   double Evaluate(HostDeviceVector<float> const& preds, std::shared_ptr<DMatrix> p_fmat) override {
+    double result{0.0};
+    if (p_fmat->Info().IsVerticalFederated()) {
+      // TODO(rongou): better abstraction for this.
+      if (collective::GetRank() == 0) {
+        try {
+          result = DoEvaluate(preds, p_fmat);
+        } catch (dmlc::Error) {
+          result = std::numeric_limits<double>::infinity();
+        }
+        collective::Broadcast(&result, sizeof(double), 0);
+      } else {
+        collective::Broadcast(&result, sizeof(double), 0);
+      }
+    } else {
+      result = DoEvaluate(preds, p_fmat);
+    }
+    if (std::isinf(result)) {
+      LOG(FATAL) << "Error evaluating metric";
+    }
+    return result;
+  }
+
+  virtual double Eval(HostDeviceVector<float> const& preds, MetaInfo const& info,
+                      std::shared_ptr<Cache> p_cache) = 0;
+
+ private:
+  double DoEvaluate(HostDeviceVector<float> const& preds, std::shared_ptr<DMatrix> p_fmat) {
     auto const& info = p_fmat->Info();
     auto p_cache = cache_.CacheItem(p_fmat, ctx_, info, param_);
     if (p_cache->Param() != param_) {
@@ -395,9 +422,6 @@ class EvalRankWithCache : public Metric {
 
     return this->Eval(preds, info, p_cache);
   }
-
-  virtual double Eval(HostDeviceVector<float> const& preds, MetaInfo const& info,
-                      std::shared_ptr<Cache> p_cache) = 0;
 };
 
 namespace {
