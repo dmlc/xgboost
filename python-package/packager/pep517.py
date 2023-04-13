@@ -47,7 +47,7 @@ def get_requires_for_build_sdist(config_settings=None):
     return hatchling.build.get_requires_for_build_sdist(config_settings)
 
 
-def write_hatch_config(dest_dir):
+def write_hatch_config(dest_dir, *, logger):
     """Write a small custom hook for Hatch, to set a custom tag."""
     template = (
         "from hatchling.builders.hooks.plugin.interface import BuildHookInterface\n"
@@ -55,7 +55,9 @@ def write_hatch_config(dest_dir):
         "    def initialize(self, version, build_data):\n"
         "        build_data['tag'] = '{tag}'\n"
     )
-    with open(dest_dir / "hatch_build.py", "w") as f:
+    hatch_build_file = dest_dir / "hatch_build.py"
+    logger.info("Writing %s", str(hatch_build_file))
+    with open(hatch_build_file, "w") as f:
         f.write(template.format(tag=get_tag()))
 
 
@@ -90,7 +92,7 @@ def build_wheel(
         copy_with_logging(
             TOPLEVEL_DIR / "README.rst", whl_workspace_path, logger=logger
         )
-        write_hatch_config(whl_workspace_path)
+        write_hatch_config(whl_workspace_path, logger=logger)
 
         pkg_path = whl_workspace_path / "xgboost"
         copytree_with_logging(TOPLEVEL_DIR / "xgboost", pkg_path, logger=logger)
@@ -135,7 +137,6 @@ def build_sdist(sdist_directory, config_settings=None):
         copy_with_logging(
             TOPLEVEL_DIR / "README.rst", sdist_workspace_path, logger=logger
         )
-        write_hatch_config(sdist_workspace_path)
 
         copytree_with_logging(
             TOPLEVEL_DIR / "xgboost", sdist_workspace_path / "xgboost", logger=logger
