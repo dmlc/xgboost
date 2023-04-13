@@ -7,13 +7,15 @@
 #include "../metric/test_elementwise_metric.h"
 #include "../metric/test_multiclass_metric.h"
 #include "../metric/test_rank_metric.h"
+#include "../metric/test_survival_metric.h"
 #include "helpers.h"
+
+namespace {
+class FederatedMetricTest : public xgboost::BaseFederatedTest {};
+}  // anonymous namespace
 
 namespace xgboost {
 namespace metric {
-
-class FederatedMetricTest : public BaseFederatedTest {};
-
 TEST_F(FederatedMetricTest, BinaryAUCRowSplit) {
   RunWithFederatedCommunicator(kWorldSize, server_->Address(), &VerifyBinaryAUC,
                                DataSplitMode::kRow);
@@ -213,6 +215,29 @@ TEST_F(FederatedMetricTest, NDCGExpGainColumnSplit) {
   RunWithFederatedCommunicator(kWorldSize, server_->Address(), &VerifyNDCGExpGain,
                                DataSplitMode::kCol);
 }
-
 }  // namespace metric
+}  // namespace xgboost
+
+namespace xgboost {
+namespace common {
+TEST_F(FederatedMetricTest, AFTNegLogLikRowSplit) {
+  RunWithFederatedCommunicator(kWorldSize, server_->Address(), &VerifyAFTNegLogLik,
+                               DataSplitMode::kRow);
+}
+
+TEST_F(FederatedMetricTest, AFTNegLogLikColumnSplit) {
+  RunWithFederatedCommunicator(kWorldSize, server_->Address(), &VerifyAFTNegLogLik,
+                               DataSplitMode::kCol);
+}
+
+TEST_F(FederatedMetricTest, IntervalRegressionAccuracyRowSplit) {
+  RunWithFederatedCommunicator(kWorldSize, server_->Address(), &VerifyIntervalRegressionAccuracy,
+                               DataSplitMode::kRow);
+}
+
+TEST_F(FederatedMetricTest, IntervalRegressionAccuracyColumnSplit) {
+  RunWithFederatedCommunicator(kWorldSize, server_->Address(), &VerifyIntervalRegressionAccuracy,
+                               DataSplitMode::kCol);
+}
+}  // namespace common
 }  // namespace xgboost
