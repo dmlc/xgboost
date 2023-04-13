@@ -80,28 +80,22 @@ def build_wheel(
         build_dir = td_path / "libbuild"
         build_dir.mkdir()
 
-        whl_workspace_path = td_path / "whl_workspace"
-        whl_workspace_path.mkdir()
-        logger.info(
-            "Copying project files to temporary directory %s", str(whl_workspace_path)
-        )
+        workspace = td_path / "whl_workspace"
+        workspace.mkdir()
+        logger.info("Copying project files to temporary directory %s", str(workspace))
 
-        copy_with_logging(
-            TOPLEVEL_DIR / "pyproject.toml", whl_workspace_path, logger=logger
-        )
-        copy_with_logging(
-            TOPLEVEL_DIR / "README.rst", whl_workspace_path, logger=logger
-        )
-        write_hatch_config(whl_workspace_path, logger=logger)
+        copy_with_logging(TOPLEVEL_DIR / "pyproject.toml", workspace, logger=logger)
+        copy_with_logging(TOPLEVEL_DIR / "README.rst", workspace, logger=logger)
+        write_hatch_config(workspace, logger=logger)
 
-        pkg_path = whl_workspace_path / "xgboost"
+        pkg_path = workspace / "xgboost"
         copytree_with_logging(TOPLEVEL_DIR / "xgboost", pkg_path, logger=logger)
         lib_path = pkg_path / "lib"
         lib_path.mkdir()
         libxgboost = locate_or_build_libxgboost(TOPLEVEL_DIR, build_dir=build_dir)
         copy_with_logging(libxgboost, lib_path, logger=logger)
 
-        with cd(whl_workspace_path):
+        with cd(workspace):
             wheel_name = hatchling.build.build_wheel(
                 wheel_directory, config_settings, metadata_directory
             )
@@ -125,29 +119,23 @@ def build_sdist(sdist_directory, config_settings=None):
     with tempfile.TemporaryDirectory() as td:
         td_path = pathlib.Path(td)
 
-        sdist_workspace_path = td_path / "sdist_workspace"
-        sdist_workspace_path.mkdir()
-        logger.info(
-            "Copying project files to temporary directory %s", str(sdist_workspace_path)
-        )
+        workspace = td_path / "sdist_workspace"
+        workspace.mkdir()
+        logger.info("Copying project files to temporary directory %s", str(workspace))
 
-        copy_with_logging(
-            TOPLEVEL_DIR / "pyproject.toml", sdist_workspace_path, logger=logger
-        )
-        copy_with_logging(
-            TOPLEVEL_DIR / "README.rst", sdist_workspace_path, logger=logger
-        )
+        copy_with_logging(TOPLEVEL_DIR / "pyproject.toml", workspace, logger=logger)
+        copy_with_logging(TOPLEVEL_DIR / "README.rst", workspace, logger=logger)
 
         copytree_with_logging(
-            TOPLEVEL_DIR / "xgboost", sdist_workspace_path / "xgboost", logger=logger
+            TOPLEVEL_DIR / "xgboost", workspace / "xgboost", logger=logger
         )
         copytree_with_logging(
-            TOPLEVEL_DIR / "packager", sdist_workspace_path / "packager", logger=logger
+            TOPLEVEL_DIR / "packager", workspace / "packager", logger=logger
         )
 
-        temp_cpp_src_dir = sdist_workspace_path / "cpp_src"
+        temp_cpp_src_dir = workspace / "cpp_src"
         copy_cpp_src_tree(cpp_src_dir, target_dir=temp_cpp_src_dir, logger=logger)
 
-        with cd(sdist_workspace_path):
+        with cd(workspace):
             sdist_name = hatchling.build.build_sdist(sdist_directory, config_settings)
     return sdist_name
