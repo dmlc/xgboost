@@ -384,7 +384,7 @@ class EvalRankWithCache : public Metric {
       if (collective::GetRank() == 0) {
         try {
           result = DoEvaluate(preds, p_fmat);
-        } catch (dmlc::Error) {
+        } catch (dmlc::Error&) {
           result = std::numeric_limits<double>::infinity();
         }
         collective::Broadcast(&result, sizeof(double), 0);

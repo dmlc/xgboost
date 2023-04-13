@@ -27,7 +27,7 @@ class MetricNoCache : public Metric {
       if (collective::GetRank() == 0) {
         try {
           result = this->Eval(predts, p_fmat->Info());
-        } catch (dmlc::Error) {
+        } catch (dmlc::Error&) {
           result = std::numeric_limits<double>::infinity();
         }
         collective::Broadcast(&result, sizeof(double), 0);
