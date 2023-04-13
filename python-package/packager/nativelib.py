@@ -1,6 +1,7 @@
 import os
 import shutil
 import subprocess
+import tempfile
 from platform import system
 
 
@@ -17,12 +18,10 @@ def _lib_name() -> str:
     return name
 
 
-def build_libxgboost(cpp_src_dir, *, tempdir):
+def build_libxgboost(cpp_src_dir, *, build_dir):
     if not cpp_src_dir.is_dir():
         raise RuntimeError(f"Expected {cpp_src_dir} to be a directory")
     print(f"Building {_lib_name()} from the C++ source files in {cpp_src_dir}...")
-    build_dir = tempdir / "build"
-    build_dir.mkdir(exist_ok=True)
 
     if shutil.which("ninja"):
         build_tool = "ninja"
@@ -52,7 +51,7 @@ def build_libxgboost(cpp_src_dir, *, tempdir):
     return build_dir / "lib" / _lib_name()
 
 
-def locate_or_build_libxgboost(toplevel_dir, *, tempdir):
+def locate_or_build_libxgboost(toplevel_dir, *, build_dir):
     libxgboost = toplevel_dir.parent / "lib" / _lib_name()
     if libxgboost.exists():
         print(f"Found {libxgboost.name}")
@@ -65,4 +64,4 @@ def locate_or_build_libxgboost(toplevel_dir, *, tempdir):
             "Before building a binary wheel, please build XGBoost shared library using CMake. "
             f"The setup script will expect to see {_lib_name()} at {libxgboost}"
         )
-    return build_libxgboost(cpp_src_dir, tempdir=tempdir)
+    return build_libxgboost(cpp_src_dir, build_dir=build_dir)

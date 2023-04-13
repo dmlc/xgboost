@@ -1,6 +1,9 @@
 [build-system]
-requires = ["packaging"]
-backend-path = ["xgboost"]
+requires = [
+    "packaging",
+    "hatchling"
+]
+backend-path = ["."]
 build-backend = "packager.pep517"
 
 [project]
@@ -36,3 +39,5 @@ dask = ["dask", "pandas", "distributed"]
 datatable = ["datatable"]
 plotting = ["graphviz", "matplotlib"]
 pyspark = ["pyspark", "scikit-learn", "cloudpickle"]
+
+[tool.hatch.build.targets.wheel.hooks.custom]
