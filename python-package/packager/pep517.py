@@ -3,10 +3,9 @@ Custom build backend for XGBoost Python package.
 Builds source distribution and binary wheels
 Follows PEP 517
 """
+import logging
 import os
 import pathlib
-import shutil
-import subprocess
 import sysconfig
 import tempfile
 from contextlib import contextmanager
@@ -15,6 +14,7 @@ import hatchling.build
 
 from .nativelib import locate_or_build_libxgboost
 from .sdist import copy_cpp_src_tree
+from .util import copy_with_logging, copytree_with_logging
 
 
 @contextmanager
@@ -24,7 +24,6 @@ def cd(path):
     path = os.path.realpath(path)
     cwd = os.getcwd()
     os.chdir(path)
-    print("cd " + path)
     try:
         yield path
     finally:
@@ -37,6 +36,7 @@ def get_tag():
 
 
 TOPLEVEL_DIR = pathlib.Path(__file__).parent.parent.absolute().resolve()
+logging.basicConfig(level=logging.INFO)
 
 
 def get_requires_for_build_wheel(config_settings=None):
@@ -64,6 +64,8 @@ def build_wheel(
     config_settings=None,
     metadata_directory=None,
 ):
+    logger = logging.getLogger("xgboost.packager.build_wheel")
+
     if config_settings:
         raise NotImplementedError(
             f"XGBoost's custom build backend doesn't support config_settings option."
@@ -78,18 +80,24 @@ def build_wheel(
 
         whl_workspace_path = td_path / "whl_workspace"
         whl_workspace_path.mkdir()
-        shutil.copy(TOPLEVEL_DIR / "pyproject.toml", whl_workspace_path)
-        shutil.copy(TOPLEVEL_DIR / "README.rst", whl_workspace_path)
+        logger.info(
+            "Copying project files to temporary directory %s", str(whl_workspace_path)
+        )
+
+        copy_with_logging(
+            TOPLEVEL_DIR / "pyproject.toml", whl_workspace_path, logger=logger
+        )
+        copy_with_logging(
+            TOPLEVEL_DIR / "README.rst", whl_workspace_path, logger=logger
+        )
         write_hatch_config(whl_workspace_path)
 
         pkg_path = whl_workspace_path / "xgboost"
-        shutil.copytree(TOPLEVEL_DIR / "xgboost", pkg_path)
+        copytree_with_logging(TOPLEVEL_DIR / "xgboost", pkg_path, logger=logger)
         lib_path = pkg_path / "lib"
         lib_path.mkdir()
         libxgboost = locate_or_build_libxgboost(TOPLEVEL_DIR, build_dir=build_dir)
-        shutil.copy(libxgboost, lib_path)
-
-        subprocess.check_call(["find", str(whl_workspace_path)])
+        copy_with_logging(libxgboost, lib_path, logger=logger)
 
         with cd(whl_workspace_path):
             wheel_name = hatchling.build.build_wheel(
@@ -99,6 +107,8 @@ def build_wheel(
 
 
 def build_sdist(sdist_directory, config_settings=None):
+    logger = logging.getLogger("xgboost.packager.build_sdist")
+
     if config_settings:
         raise NotImplementedError(
             f"XGBoost's custom build backend doesn't support config_settings option."
@@ -115,17 +125,27 @@ def build_sdist(sdist_directory, config_settings=None):
 
         sdist_workspace_path = td_path / "sdist_workspace"
         sdist_workspace_path.mkdir()
-        shutil.copy(TOPLEVEL_DIR / "pyproject.toml", sdist_workspace_path)
-        shutil.copy(TOPLEVEL_DIR / "README.rst", sdist_workspace_path)
+        logger.info(
+            "Copying project files to temporary directory %s", str(sdist_workspace_path)
+        )
+
+        copy_with_logging(
+            TOPLEVEL_DIR / "pyproject.toml", sdist_workspace_path, logger=logger
+        )
+        copy_with_logging(
+            TOPLEVEL_DIR / "README.rst", sdist_workspace_path, logger=logger
+        )
         write_hatch_config(sdist_workspace_path)
 
-        shutil.copytree(TOPLEVEL_DIR / "xgboost", sdist_workspace_path / "xgboost")
-        shutil.copytree(TOPLEVEL_DIR / "packager", sdist_workspace_path / "packager")
+        copytree_with_logging(
+            TOPLEVEL_DIR / "xgboost", sdist_workspace_path / "xgboost", logger=logger
+        )
+        copytree_with_logging(
+            TOPLEVEL_DIR / "packager", sdist_workspace_path / "packager", logger=logger
+        )
 
         temp_cpp_src_dir = sdist_workspace_path / "cpp_src"
-        copy_cpp_src_tree(cpp_src_dir, target_dir=temp_cpp_src_dir)
-
-        subprocess.check_call(["find", str(sdist_workspace_path)])
+        copy_cpp_src_tree(cpp_src_dir, target_dir=temp_cpp_src_dir, logger=logger)
 
         with cd(sdist_workspace_path):
             sdist_name = hatchling.build.build_sdist(sdist_directory, config_settings)

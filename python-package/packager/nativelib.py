@@ -1,7 +1,7 @@
+import logging
 import os
 import shutil
 import subprocess
-import tempfile
 from platform import system
 
 
@@ -19,9 +19,13 @@ def _lib_name() -> str:
 
 
 def build_libxgboost(cpp_src_dir, *, build_dir):
+    logger = logging.getLogger("xgboost.packager.build_libxgboost")
+
     if not cpp_src_dir.is_dir():
         raise RuntimeError(f"Expected {cpp_src_dir} to be a directory")
-    print(f"Building {_lib_name()} from the C++ source files in {cpp_src_dir}...")
+    logger.info(
+        "Building %s from the C++ source files in %s...", _lib_name(), str(cpp_src_dir)
+    )
 
     if shutil.which("ninja"):
         build_tool = "ninja"
@@ -37,11 +41,11 @@ def build_libxgboost(cpp_src_dir, *, build_dir):
         )
 
     generator = "-GNinja" if build_tool == "ninja" else "-GUnix Makefiles"
-    cmake_cmd = ["cmake", cpp_src_dir, generator]
+    cmake_cmd = ["cmake", str(cpp_src_dir), generator]
     cmake_cmd.append("-DKEEP_BUILD_ARTIFACTS_IN_BINARY_DIR=ON")
 
     # TODO(hcho3): handle CMake args
-    print(f"{cmake_cmd=}")
+    logger.info("CMake args: %s", str(cmake_cmd))
     subprocess.check_call(cmake_cmd, cwd=build_dir)
 
     nproc = os.cpu_count()
@@ -52,9 +56,11 @@ def build_libxgboost(cpp_src_dir, *, build_dir):
 
 
 def locate_or_build_libxgboost(toplevel_dir, *, build_dir):
+    logger = logging.getLogger("xgboost.packager.locate_or_build_libxgboost")
+
     libxgboost = toplevel_dir.parent / "lib" / _lib_name()
     if libxgboost.exists():
-        print(f"Found {libxgboost.name}")
+        logger.info("Found %s at %s", libxgboost.name, str(libxgboost.parent))
         return libxgboost
     if toplevel_dir.joinpath("cpp_src").exists():
         # Source distribution; all C++ source files to be found in cpp_src/

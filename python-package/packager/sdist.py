@@ -1,7 +1,7 @@
-import shutil
+from .util import copy_with_logging, copytree_with_logging
 
 
-def copy_cpp_src_tree(cpp_src_dir, target_dir):
+def copy_cpp_src_tree(cpp_src_dir, target_dir, *, logger):
     """Copy C++ source tree into build directory"""
 
     for subdir in [
@@ -13,7 +13,7 @@ def copy_cpp_src_tree(cpp_src_dir, target_dir):
         "cmake",
         "plugin",
     ]:
-        shutil.copytree(cpp_src_dir.joinpath(subdir), target_dir.joinpath(subdir))
+        copytree_with_logging(cpp_src_dir / subdir, target_dir / subdir, logger=logger)
 
     for filename in ["CMakeLists.txt", "LICENSE"]:
-        shutil.copy(cpp_src_dir.joinpath(filename), target_dir)
+        copy_with_logging(cpp_src_dir.joinpath(filename), target_dir, logger=logger)
