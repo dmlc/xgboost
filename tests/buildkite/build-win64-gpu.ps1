@@ -25,6 +25,7 @@ Write-Host "--- Build binary wheel"
 cd ../python-package
 conda activate
 mamba install -y "pip>=23"
+& pip --version
 & pip wheel --no-deps -v . --wheel-dir dist/ --config-settings bundle_vcomp140_dll=True
 Get-ChildItem . -Filter dist/*.whl |
 Foreach-Object {
