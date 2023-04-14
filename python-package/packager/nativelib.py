@@ -66,8 +66,8 @@ def locate_or_build_libxgboost(toplevel_dir, *, build_dir):
         # Source distribution; all C++ source files to be found in cpp_src/
         cpp_src_dir = toplevel_dir.joinpath("cpp_src")
     else:
-        raise RuntimeError(
-            "Before building a binary wheel, please build XGBoost shared library using CMake. "
-            f"The setup script will expect to see {_lib_name()} at {libxgboost}"
-        )
+        # Probably running "pip install ." from python-package/
+        cpp_src_dir = toplevel_dir.parent
+        if not cpp_src_dir.joinpath("CMakeLists.txt").exists():
+            raise RuntimeError(f"Did not find CMakeLists.txt from {cpp_src_dir}")
     return build_libxgboost(cpp_src_dir, build_dir=build_dir)
