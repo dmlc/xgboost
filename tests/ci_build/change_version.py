@@ -54,10 +54,10 @@ def pypkg(
     with open(pyprj_path, "r") as fd:
         pyprj = fd.read()
     matched = re.search('version = "' + r"([0-9]+\.[0-9]+\.[0-9]+.*)" + '"', pyprj)
-    print(matched.group(1))
+    assert matched, "Couldn't find version string in pyproject.toml."
     pyprj = pyprj[: matched.start(1)] + pyver + pyprj[matched.end(1) :]
     with open(pyprj_path, "w") as fd:
-        pyprj = fd.write(pyprj)
+        fd.write(pyprj)
 
 
 @cd(R_PACKAGE)
