@@ -1,7 +1,8 @@
 """
 Custom build backend for XGBoost Python package.
-Builds source distribution and binary wheels
-Follows PEP 517
+Builds source distribution and binary wheels, following PEP 517 / PEP 660.
+Re-uses components of Hatchling (https://github.com/pypa/hatch/tree/master/backend) for the sake
+of brevity.
 """
 import logging
 import os
@@ -19,6 +20,7 @@ from .util import copy_with_logging, copytree_with_logging
 
 @contextmanager
 def cd(path):
+    """Temporarily change working directory"""
     if isinstance(path, pathlib.Path):
         path = str(path)
     path = os.path.realpath(path)
@@ -31,6 +33,7 @@ def cd(path):
 
 
 def get_tag():
+    """Get appropate wheel tag, according to system"""
     tag_platform = sysconfig.get_platform().replace("-", "_").replace(".", "_")
     return f"py3-none-{tag_platform}"
 
@@ -40,14 +43,17 @@ logging.basicConfig(level=logging.INFO)
 
 
 def get_requires_for_build_wheel(config_settings=None):
+    """A PEP 517 method. Delegate to Hatchling"""
     return hatchling.build.get_requires_for_build_wheel(config_settings)
 
 
 def get_requires_for_build_sdist(config_settings=None):
+    """A PEP 517 method. Delegate to Hatchling"""
     return hatchling.build.get_requires_for_build_sdist(config_settings)
 
 
 def get_requires_for_build_editable(config_settings=None):
+    """A PEP 517 method. Delegate to Hatchling"""
     return hatchling.build.get_requires_for_build_editable(config_settings)
 
 
@@ -70,6 +76,7 @@ def build_wheel(
     config_settings=None,
     metadata_directory=None,
 ):
+    """Build a wheel"""
     logger = logging.getLogger("xgboost.packager.build_wheel")
 
     if config_settings:
@@ -107,6 +114,7 @@ def build_wheel(
 
 
 def build_sdist(sdist_directory, config_settings=None):
+    """Build a source distribution"""
     logger = logging.getLogger("xgboost.packager.build_sdist")
 
     if config_settings:
@@ -146,6 +154,7 @@ def build_sdist(sdist_directory, config_settings=None):
 
 
 def build_editable(wheel_directory, config_settings=None, metadata_directory=None):
+    """Build an editable installation. We mostly delegate to Hatchling."""
     logger = logging.getLogger("xgboost.packager.build_editable")
 
     write_hatch_config(TOPLEVEL_DIR, logger=logger)

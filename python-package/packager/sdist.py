@@ -1,3 +1,6 @@
+"""
+Functions for building sdist
+"""
 from .util import copy_with_logging, copytree_with_logging
 
 

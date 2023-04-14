@@ -1,3 +1,6 @@
+"""
+Functions for building libxgboost
+"""
 import logging
 import os
 import shutil
@@ -19,6 +22,7 @@ def _lib_name() -> str:
 
 
 def build_libxgboost(cpp_src_dir, *, build_dir):
+    """Build libxgboost in a temporary directory and obtain the path to built libxgboost"""
     logger = logging.getLogger("xgboost.packager.build_libxgboost")
 
     if not cpp_src_dir.is_dir():
@@ -34,7 +38,7 @@ def build_libxgboost(cpp_src_dir, *, build_dir):
 
     if system() == "Windows":
         raise NotImplementedError(
-            f"Installing from sdist is not supported on Windows. You have two alternatives:\n"
+            "Installing from sdist is not supported on Windows. You have two alternatives:\n"
             "1. Install XGBoost from the official wheel (recommended): pip install xgboost\n"
             "2. Build XGBoost from the source by running CMake at the project root folder. See "
             "documentation for details."
@@ -56,6 +60,7 @@ def build_libxgboost(cpp_src_dir, *, build_dir):
 
 
 def locate_or_build_libxgboost(toplevel_dir, *, build_dir):
+    """Locate libxgboost; if not exist, build it"""
     logger = logging.getLogger("xgboost.packager.locate_or_build_libxgboost")
 
     libxgboost = toplevel_dir.parent / "lib" / _lib_name()
