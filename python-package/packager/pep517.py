@@ -4,6 +4,7 @@ Builds source distribution and binary wheels, following PEP 517 / PEP 660.
 Re-uses components of Hatchling (https://github.com/pypa/hatch/tree/master/backend) for the sake
 of brevity.
 """
+import dataclasses
 import logging
 import os
 import pathlib
@@ -90,6 +91,7 @@ def build_wheel(
 
     build_config = BuildConfiguration()
     build_config.update(config_settings)
+    logger.info("Parsed build configuration: %s", dataclasses.asdict(build_config))
 
     # Create tempdir with Python package + libxgboost
     with tempfile.TemporaryDirectory() as td:
@@ -113,11 +115,11 @@ def build_wheel(
             TOPLEVEL_DIR, build_dir=build_dir, build_config=build_config
         )
         copy_with_logging(libxgboost, lib_path, logger=logger)
-        if system() == "Windows":
+        if system() == "Windows" and build_config.bundle_vcomp140_dll:
             vcomp140_path = pathlib.Path(r"C:\Windows\System32\vcomp140.dll")
             if not vcomp140_path.exists():
                 raise RuntimeError(
-                    "To build XGBoost from the source, please install Microsoft "
+                    "vcomp140.dll is missing. Please install Microsoft "
                     "Visual C++ Redistributable for Visual Studio 2015 at "
                     "https://www.microsoft.com/en-ca/download/details.aspx?id=48145."
                 )

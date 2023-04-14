@@ -7,14 +7,25 @@ from typing import Any, Dict, List, Optional
 class BuildConfiguration:  # pylint: disable=R0902
     """Configurations use when building libxgboost"""
 
+    # Whether to hide C++ symbols in libxgboost.so
     hide_cxx_symbols: bool = True
+    # Whether to enable OpenMP
     use_openmp: bool = True
+    # Whether to enable CUDA
     use_cuda: bool = False
+    # Whether to enable NCCL
     use_nccl: bool = False
+    # Whether to enable HDFS
     use_hdfs: bool = False
+    # Whether to enable Azure Storage
     use_azure: bool = False
+    # Whether to enable AWS S3
     use_s3: bool = False
+    # Whether to enable the dense parser plugin
     plugin_dense_parser: bool = False
+    # Whether to bundle OpenMP library from Microsoft
+    bundle_vcomp140_dll: bool = False
+    # Special option: See explanation below
     use_system_libxgboost: bool = False
 
     def _set_config_setting(
