@@ -24,7 +24,7 @@ if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 Write-Host "--- Build binary wheel"
 cd ../python-package
 conda activate
-& python setup.py bdist_wheel --universal
+& pip wheel -v . --wheel-dir dist/
 Get-ChildItem . -Filter dist/*.whl |
 Foreach-Object {
   & python ../tests/ci_build/rename_whl.py $_.FullName $Env:BUILDKITE_COMMIT win_amd64

@@ -150,7 +150,7 @@ jobs:
       run: |
         cd python-package
         python --version
-        python setup.py install
+        pip install -v .
 
     - name: Test Python package
       run: |
@@ -197,7 +197,7 @@ jobs:
       run: |
         cd python-package
         python --version
-        python setup.py bdist_wheel --universal
+        pip wheel -v . --wheel-dir dist/
         pip install ./dist/*.whl
 
     - name: Test Python package
@@ -241,7 +241,7 @@ jobs:
       run: |
         cd python-package
         python --version
-        python setup.py install
+        pip install -v .
 
     - name: Test Python package
       run: |
