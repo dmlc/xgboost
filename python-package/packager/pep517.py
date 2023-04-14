@@ -10,7 +10,7 @@ import pathlib
 import sysconfig
 import tempfile
 from contextlib import contextmanager
-from typing import Any, Dict, Iterator, Optional, Union, List
+from typing import Any, Dict, Iterator, List, Optional, Union
 
 import hatchling.build
 
@@ -20,7 +20,7 @@ from .util import copy_with_logging, copytree_with_logging
 
 
 @contextmanager
-def cd(path: Union[str, pathlib.Path]) -> Iterator[str]:
+def cd(path: Union[str, pathlib.Path]) -> Iterator[str]:  # pylint: disable=C0103
     """Temporarily change working directory"""
     if isinstance(path, pathlib.Path):
         path = str(path)
@@ -74,7 +74,7 @@ def write_hatch_config(dest_dir: pathlib.Path, *, logger: logging.Logger) -> Non
     )
     hatch_build_file = dest_dir / "hatch_build.py"
     logger.info("Writing %s", str(hatch_build_file))
-    with open(hatch_build_file, "w") as f:
+    with open(hatch_build_file, "w", encoding="utf-8") as f:
         f.write(template.format(tag=get_tag()))
 
 
