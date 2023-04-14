@@ -1,6 +1,6 @@
 """Build configuration"""
 import dataclasses
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 
 @dataclasses.dataclass
@@ -17,7 +17,9 @@ class BuildConfiguration:  # pylint: disable=R0902
     use_s3: bool = False
     plugin_dense_parser: bool = False
 
-    def _set_config_setting(self, config_settings: Dict[str, Any], field_name: str):
+    def _set_config_setting(
+        self, config_settings: Dict[str, Any], field_name: str
+    ) -> None:
         if field_name in config_settings:
             setattr(
                 self,
@@ -28,13 +30,13 @@ class BuildConfiguration:  # pylint: disable=R0902
                 ),
             )
 
-    def update(self, config_settings: Optional[Dict[str, Any]]):
+    def update(self, config_settings: Optional[Dict[str, Any]]) -> None:
         """Parse config_settings from Pip (or other PEP 517 frontend)"""
         if config_settings is not None:
             for field_name in [x.name for x in dataclasses.fields(self)]:
                 self._set_config_setting(config_settings, field_name)
 
-    def get_cmake_args(self):
+    def get_cmake_args(self) -> List[str]:
         """Convert build configuration to CMake args"""
         cmake_args = []
         for field_name in [x.name for x in dataclasses.fields(self)]:
