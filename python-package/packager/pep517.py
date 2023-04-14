@@ -14,6 +14,7 @@ from typing import Any, Dict, Iterator, List, Optional, Union
 
 import hatchling.build
 
+from .build_config import BuildConfiguration
 from .nativelib import locate_or_build_libxgboost
 from .sdist import copy_cpp_src_tree
 from .util import copy_with_logging, copytree_with_logging
@@ -86,11 +87,8 @@ def build_wheel(
     """Build a wheel"""
     logger = logging.getLogger("xgboost.packager.build_wheel")
 
-    if config_settings:
-        raise NotImplementedError(
-            f"XGBoost's custom build backend doesn't support config_settings option."
-            f"{config_settings=}"
-        )
+    build_config = BuildConfiguration()
+    build_config.update(config_settings)
 
     # Create tempdir with Python package + libxgboost
     with tempfile.TemporaryDirectory() as td:
@@ -110,7 +108,9 @@ def build_wheel(
         copytree_with_logging(TOPLEVEL_DIR / "xgboost", pkg_path, logger=logger)
         lib_path = pkg_path / "lib"
         lib_path.mkdir()
-        libxgboost = locate_or_build_libxgboost(TOPLEVEL_DIR, build_dir=build_dir)
+        libxgboost = locate_or_build_libxgboost(
+            TOPLEVEL_DIR, build_dir=build_dir, build_config=build_config
+        )
         copy_with_logging(libxgboost, lib_path, logger=logger)
 
         with cd(workspace):
@@ -129,8 +129,8 @@ def build_sdist(
 
     if config_settings:
         raise NotImplementedError(
-            f"XGBoost's custom build backend doesn't support config_settings option."
-            f"{config_settings=}"
+            "XGBoost's custom build backend doesn't support config_settings option "
+            f"when building sdist. {config_settings=}"
         )
 
     cpp_src_dir = TOPLEVEL_DIR.parent
@@ -170,6 +170,12 @@ def build_editable(
 ) -> str:
     """Build an editable installation. We mostly delegate to Hatchling."""
     logger = logging.getLogger("xgboost.packager.build_editable")
+
+    if config_settings:
+        raise NotImplementedError(
+            "XGBoost's custom build backend doesn't support config_settings option "
+            f"when building editable installation. {config_settings=}"
+        )
 
     write_hatch_config(TOPLEVEL_DIR, logger=logger)
     return hatchling.build.build_editable(
