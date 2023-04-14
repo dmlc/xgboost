@@ -10,7 +10,7 @@ import pathlib
 import sysconfig
 import tempfile
 from contextlib import contextmanager
-from typing import Any, Dict, Iterator, Optional, Union
+from typing import Any, Dict, Iterator, Optional, Union, List
 
 import hatchling.build
 
@@ -45,26 +45,26 @@ logging.basicConfig(level=logging.INFO)
 
 def get_requires_for_build_wheel(
     config_settings: Optional[Dict[str, Any]] = None
-) -> list[str]:
+) -> List[str]:
     """A PEP 517 method. Delegate to Hatchling"""
     return hatchling.build.get_requires_for_build_wheel(config_settings)
 
 
 def get_requires_for_build_sdist(
     config_settings: Optional[Dict[str, Any]] = None
-) -> list[str]:
+) -> List[str]:
     """A PEP 517 method. Delegate to Hatchling"""
     return hatchling.build.get_requires_for_build_sdist(config_settings)
 
 
 def get_requires_for_build_editable(
     config_settings: Optional[Dict[str, Any]] = None
-) -> list[str]:
+) -> List[str]:
     """A PEP 517 method. Delegate to Hatchling"""
     return hatchling.build.get_requires_for_build_editable(config_settings)
 
 
-def write_hatch_config(dest_dir: pathlib.Path, *, logger: logging.Logger):
+def write_hatch_config(dest_dir: pathlib.Path, *, logger: logging.Logger) -> None:
     """Write a small custom hook for Hatch, to set a custom tag."""
     template = (
         "from hatchling.builders.hooks.plugin.interface import BuildHookInterface\n"
@@ -80,7 +80,7 @@ def write_hatch_config(dest_dir: pathlib.Path, *, logger: logging.Logger):
 
 def build_wheel(
     wheel_directory: str,
-    config_settings: Optional[dict[str, Any]] = None,
+    config_settings: Optional[Dict[str, Any]] = None,
     metadata_directory: Optional[str] = None,
 ) -> str:
     """Build a wheel"""
@@ -122,7 +122,7 @@ def build_wheel(
 
 def build_sdist(
     sdist_directory: str,
-    config_settings: Optional[dict[str, Any]] = None,
+    config_settings: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Build a source distribution"""
     logger = logging.getLogger("xgboost.packager.build_sdist")
@@ -165,7 +165,7 @@ def build_sdist(
 
 def build_editable(
     wheel_directory: str,
-    config_settings: Optional[dict[str, Any]] = None,
+    config_settings: Optional[Dict[str, Any]] = None,
     metadata_directory: Optional[str] = None,
 ) -> str:
     """Build an editable installation. We mostly delegate to Hatchling."""
