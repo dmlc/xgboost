@@ -97,7 +97,12 @@ def build_libxgboost(
         else:
             build_tool = "make"
         generator = "-GNinja" if build_tool == "ninja" else "-GUnix Makefiles"
-        _build(generator=generator, build_tool=build_tool)
+        try:
+            _build(generator=generator, build_tool=build_tool)
+        except subprocess.CalledProcessError as e:
+            logger.info("Failed to build with OpenMP. Exception: %s", str(e))
+            build_config.use_openmp = False
+            _build(generator=generator, build_tool=build_tool)
 
     return build_dir / "lib" / _lib_name()
 
