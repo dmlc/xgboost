@@ -8,5 +8,6 @@ dependencies:
 - wheel
 - cmake
 - ninja
+- python-build
 - c-compiler
 - cxx-compiler
