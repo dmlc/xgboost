@@ -12,6 +12,7 @@ systems.  If the instructions do not work for you, please feel free to ask quest
   Consider installing XGBoost from a pre-built binary, to avoid the trouble of building XGBoost from the source.  Checkout :doc:`Installation Guide </install>`.
 
 .. contents:: Contents
+  :local:
 
 .. _get_source:
 
@@ -203,9 +204,11 @@ There are several ways to build and install the package from source:
   
   * ``bundle_vcomp140_dll`` is not useful for ``pip install``, since
     your computer would already have ``vcomp140.dll`` installed. However,
-    the option is highly useful if :ref:`you are building binary wheeels for
-    redistributing XGBoost <binary_wheels>`.
-  * The ``use_system_libxgboost`` option is special. See Item 3 below for
+    the option is highly useful if you are building
+    :ref:`binary wheels to re-distribute XGBoost <binary_wheels>`, since
+    other users may not have ``vcomp140.dll`` installed on their
+    Windows machine.
+  * ``use_system_libxgboost`` is a special option. See Item 3 below for
     detailed description.
 
   .. note:: Verbose flag recommended
