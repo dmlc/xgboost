@@ -31,12 +31,6 @@ Foreach-Object {
   if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 }
 
-Write-Host "--- Insert vcomp140.dll (OpenMP runtime) into the wheel"
-cd dist
-Copy-Item -Path ../../tests/ci_build/insert_vcomp140.py -Destination .
-& python insert_vcomp140.py *.whl
-if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
-
 Write-Host "--- Upload Python wheel"
 cd ../..
 Get-ChildItem . -Filter python-package/dist/*.whl |

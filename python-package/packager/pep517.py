@@ -10,6 +10,7 @@ import pathlib
 import sysconfig
 import tempfile
 from contextlib import contextmanager
+from platform import system
 from typing import Any, Dict, Iterator, List, Optional, Union
 
 import hatchling.build
@@ -112,6 +113,12 @@ def build_wheel(
             TOPLEVEL_DIR, build_dir=build_dir, build_config=build_config
         )
         copy_with_logging(libxgboost, lib_path, logger=logger)
+        if system() == "Windows":
+            copy_with_logging(
+                pathlib.Path(r"C:\Windows\System32\vcomp140.dll"),
+                lib_path,
+                logger=logger,
+            )
 
         with cd(workspace):
             wheel_name = hatchling.build.build_wheel(
