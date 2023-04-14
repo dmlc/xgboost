@@ -7,15 +7,15 @@ from typing import Any, Dict, List, Optional
 class BuildConfiguration:  # pylint: disable=R0902
     """Configurations use when building libxgboost"""
 
-    use_openmp: bool = True
     hide_cxx_symbols: bool = True
-    use_system_libxgboost: bool = False
+    use_openmp: bool = True
     use_cuda: bool = False
     use_nccl: bool = False
     use_hdfs: bool = False
     use_azure: bool = False
     use_s3: bool = False
     plugin_dense_parser: bool = False
+    use_system_libxgboost: bool = False
 
     def _set_config_setting(
         self, config_settings: Dict[str, Any], field_name: str
