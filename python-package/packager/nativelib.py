@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 from platform import system
+from typing import Optional
 
 from .build_config import BuildConfiguration
 
@@ -40,34 +41,57 @@ def build_libxgboost(
         "Building %s from the C++ source files in %s...", _lib_name(), str(cpp_src_dir)
     )
 
-    if shutil.which("ninja"):
-        build_tool = "ninja"
-    else:
-        build_tool = "make"
+    def _build(*, generator: str, build_tool: Optional[str] = None) -> None:
+        cmake_cmd = [
+            "cmake",
+            str(cpp_src_dir),
+            generator,
+            "-DKEEP_BUILD_ARTIFACTS_IN_BINARY_DIR=ON",
+        ]
+        cmake_cmd.extend(build_config.get_cmake_args())
+
+        logger.info("CMake args: %s", str(cmake_cmd))
+        subprocess.check_call(cmake_cmd, cwd=build_dir)
+
+        if system() == "Windows":
+            subprocess.check_call(
+                ["cmake", "--build", ".", "--config", "Release"], cwd=build_dir
+            )
+        else:
+            nproc = os.cpu_count()
+            assert build_tool is not None
+            subprocess.check_call([build_tool, f"-j{nproc}"], cwd=build_dir)
 
     if system() == "Windows":
-        raise NotImplementedError(
-            "Installing from sdist is not supported on Windows. You have two alternatives:\n"
-            "1. Install XGBoost from the official wheel (recommended): pip install xgboost\n"
-            "2. Build XGBoost from the source by running CMake at the project root folder. See "
-            "https://xgboost.readthedocs.io/en/latest/build.html for details."
-        )
-
-    generator = "-GNinja" if build_tool == "ninja" else "-GUnix Makefiles"
-    cmake_cmd = [
-        "cmake",
-        str(cpp_src_dir),
-        generator,
-        "-DKEEP_BUILD_ARTIFACTS_IN_BINARY_DIR=ON",
-    ]
-    cmake_cmd.extend(build_config.get_cmake_args())
-
-    logger.info("CMake args: %s", str(cmake_cmd))
-    subprocess.check_call(cmake_cmd, cwd=build_dir)
-
-    nproc = os.cpu_count()
-    assert build_tool is not None
-    subprocess.check_call([build_tool, f"-j{nproc}"], cwd=build_dir)
+        for generator in (
+            "-GVisual Studio 17 2022",
+            "-GVisual Studio 16 2019",
+            "-GVisual Studio 15 2017",
+            "-GMinGW Makefiles",
+        ):
+            try:
+                _build(generator=generator)
+                logger.info(
+                    "Successfully built %s using generator %s", _lib_name(), generator
+                )
+                break
+            except subprocess.CalledProcessError as e:
+                logger.info(
+                    "Tried building with generator %s but failed with exception %s",
+                    generator,
+                    str(e),
+                )
+                # Empty build directory
+                shutil.rmtree(build_dir)
+                build_dir.mkdir()
+                continue
+    else:
+        if shutil.which("ninja"):
+            build_tool = "ninja"
+        else:
+            build_tool = "make"
+        generator = "-GNinja" if build_tool == "ninja" else "-GUnix Makefiles"
+        _build(generator=generator, build_tool=build_tool)
 
     return build_dir / "lib" / _lib_name()
 
