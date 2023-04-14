@@ -50,7 +50,7 @@ def build_libxgboost(
             "Installing from sdist is not supported on Windows. You have two alternatives:\n"
             "1. Install XGBoost from the official wheel (recommended): pip install xgboost\n"
             "2. Build XGBoost from the source by running CMake at the project root folder. See "
-            "documentation for details."
+            "https://xgboost.readthedocs.io/en/latest/build.html for details."
         )
 
     generator = "-GNinja" if build_tool == "ninja" else "-GUnix Makefiles"
