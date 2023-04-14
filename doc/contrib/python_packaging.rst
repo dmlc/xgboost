@@ -70,6 +70,7 @@ completes quickly.
      
      .. code-block:: console
 
+       $ # Use Pip 22.1+
        $ pip install . --config-settings bundle_vcomp140_dll=True
 
   The XGBoost project uses Option 2: we bundle ``vcomp140.dll``

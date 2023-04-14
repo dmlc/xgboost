@@ -207,6 +207,8 @@ There are several ways to build and install the package from source:
 
     $ pip install -v . --config-settings use_cuda=True --config-settings use_nccl=True
 
+  Use Pip 22.1 or later to use ``--config-settings`` option.
+
   Here are the available options for ``--config-settings``:
 
   .. literalinclude:: ../python-package/packager/build_config.py
