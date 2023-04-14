@@ -1,7 +1,6 @@
 [build-system]
 requires = [
-    "packaging",
-    "hatchling"
+    "hatchling>=1.12.1"
 ]
 backend-path = ["."]
 build-backend = "packager.pep517"
