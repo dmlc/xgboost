@@ -47,6 +47,10 @@ def get_requires_for_build_sdist(config_settings=None):
     return hatchling.build.get_requires_for_build_sdist(config_settings)
 
 
+def get_requires_for_build_editable(config_settings=None):
+    return hatchling.build.get_requires_for_build_editable(config_settings)
+
+
 def write_hatch_config(dest_dir, *, logger):
     """Write a small custom hook for Hatch, to set a custom tag."""
     template = (
@@ -139,3 +143,12 @@ def build_sdist(sdist_directory, config_settings=None):
         with cd(workspace):
             sdist_name = hatchling.build.build_sdist(sdist_directory, config_settings)
     return sdist_name
+
+
+def build_editable(wheel_directory, config_settings=None, metadata_directory=None):
+    logger = logging.getLogger("xgboost.packager.build_editable")
+
+    write_hatch_config(TOPLEVEL_DIR, logger=logger)
+    return hatchling.build.build_editable(
+        wheel_directory, config_settings, metadata_directory
+    )

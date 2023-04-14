@@ -149,3 +149,6 @@ model*.json
 *.rds
 Rplots.pdf
 *.zip
+
+# Python packaging
+/python-package/hatch_build.py
