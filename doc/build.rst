@@ -177,13 +177,27 @@ Building Python Package with Default Toolchains
 ===============================================
 There are several ways to build and install the package from source:
 
-1. Install the Python package directly
+1. Build C++ core with CMake first
+
+  You can first build C++ library using CMake as described in :ref:`build_shared_lib`.
+  After compilation, a shared library will appear in ``lib/`` directory.
+  On Linux distributions, the shared library is ``lib/libxgboost.so``.
+  The install script ``pip install .`` will reuse the shared library instead of compiling
+  it from scratch, making it quite fast to run.
+
+  .. code-block:: console
+
+    $ cd python-package/
+    $ pip install .  # Will re-use lib/libxgboost.so
+
+2. Install the Python package directly
 
   You can navigate to ``python-package/`` directory and install the Python package directly
   by running
 
   .. code-block:: console
 
+    $ cd python-package/
     $ pip install -v .
 
   which will compile XGBoost's native (C++) code using default CMake flags.
@@ -218,15 +232,7 @@ There are several ways to build and install the package from source:
     you add the verbose flag (``-v``) when invoking ``pip install``.
 
 
-2. Build C++ core with CMake first
-
-  This is mostly for C++ developers who iterate frequently on the C++ part of XGBoost.
-  You can build C++ library directly using CMake as described in :ref:`build_shared_lib`.
-  After compilation, a shared library (or called dynamic linked library; the jargon
-  depends on your platform) will appear in XGBoost's source tree under ``lib/``
-  directory.  On Linux distributions, the shared library is ``lib/libxgboost.so``.
-  The install script ``pip install .`` will reuse the shared library instead of compiling
-  it from scratch, making it quite fast to run.
+3. Editable installation
 
   To further enable rapid development and iteration, we provide an **editable installation**.
   In an editable installation, the installed package is simply a symbolic link to your
@@ -246,7 +252,7 @@ There are several ways to build and install the package from source:
     cd ../python-package
     pip install -e .
 
-3. Use ``libxgboost.so`` on system path.
+4. Use ``libxgboost.so`` on system path.
 
   This option is useful for package managers that wish to separately package
   ``libxgboost.so`` and the XGBoost Python package. For example, Conda
@@ -266,7 +272,7 @@ There are several ways to build and install the package from source:
 
   .. code-block:: bash
 
-    cd xgboost/python-package
+    cd python-package
     pip install . --config-settings use_system_libxgboost=True
 
 
