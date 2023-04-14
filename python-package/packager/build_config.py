@@ -51,7 +51,7 @@ class BuildConfiguration:  # pylint: disable=R0902
         """Convert build configuration to CMake args"""
         cmake_args = []
         for field_name in [x.name for x in dataclasses.fields(self)]:
-            if field_name == "use_system_libxgboost":
+            if field_name in ["use_system_libxgboost", "bundle_vcomp140_dll"]:
                 continue
             cmake_option = field_name.upper()
             cmake_value = "ON" if getattr(self, field_name) else "OFF"
