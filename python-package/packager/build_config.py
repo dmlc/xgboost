@@ -23,7 +23,7 @@ class BuildConfiguration:  # pylint: disable=R0902
     use_s3: bool = False
     # Whether to enable the dense parser plugin
     plugin_dense_parser: bool = False
-    # Whether to bundle OpenMP library from Microsoft
+    # Whether to bundle vcomp140.dll, OpenMP library from Microsoft
     bundle_vcomp140_dll: bool = False
     # Special option: See explanation below
     use_system_libxgboost: bool = False
