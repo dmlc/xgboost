@@ -40,7 +40,7 @@ native library ``libxgboost.so``. Build a binary wheel as follows:
 
 .. code-block:: console
 
-   $ pip wheel -v .
+   $ pip wheel --no-deps -v .
 
 Running ``pip install`` with a binary wheel will extract the content of
 the wheel into the current Python environment. Crucially, since the
