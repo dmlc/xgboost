@@ -10,7 +10,7 @@ import pathlib
 import sysconfig
 import tempfile
 from contextlib import contextmanager
-from typing import Any, Optional, Union
+from typing import Any, Dict, Iterator, Optional, Union
 
 import hatchling.build
 
@@ -20,7 +20,7 @@ from .util import copy_with_logging, copytree_with_logging
 
 
 @contextmanager
-def cd(path: Union[str, pathlib.Path]):
+def cd(path: Union[str, pathlib.Path]) -> Iterator[str]:
     """Temporarily change working directory"""
     if isinstance(path, pathlib.Path):
         path = str(path)
@@ -44,21 +44,21 @@ logging.basicConfig(level=logging.INFO)
 
 
 def get_requires_for_build_wheel(
-    config_settings: Optional[dict[str, Any]] = None
+    config_settings: Optional[Dict[str, Any]] = None
 ) -> list[str]:
     """A PEP 517 method. Delegate to Hatchling"""
     return hatchling.build.get_requires_for_build_wheel(config_settings)
 
 
 def get_requires_for_build_sdist(
-    config_settings: Optional[dict[str, Any]] = None
+    config_settings: Optional[Dict[str, Any]] = None
 ) -> list[str]:
     """A PEP 517 method. Delegate to Hatchling"""
     return hatchling.build.get_requires_for_build_sdist(config_settings)
 
 
 def get_requires_for_build_editable(
-    config_settings: Optional[dict[str, Any]] = None
+    config_settings: Optional[Dict[str, Any]] = None
 ) -> list[str]:
     """A PEP 517 method. Delegate to Hatchling"""
     return hatchling.build.get_requires_for_build_editable(config_settings)
