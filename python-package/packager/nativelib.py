@@ -3,6 +3,7 @@ Functions for building libxgboost
 """
 import logging
 import os
+import pathlib
 import shutil
 import subprocess
 from platform import system
@@ -21,7 +22,11 @@ def _lib_name() -> str:
     return name
 
 
-def build_libxgboost(cpp_src_dir, *, build_dir):
+def build_libxgboost(
+    cpp_src_dir: pathlib.Path,
+    *,
+    build_dir: pathlib.Path,
+) -> pathlib.Path:
     """Build libxgboost in a temporary directory and obtain the path to built libxgboost"""
     logger = logging.getLogger("xgboost.packager.build_libxgboost")
 
@@ -59,7 +64,9 @@ def build_libxgboost(cpp_src_dir, *, build_dir):
     return build_dir / "lib" / _lib_name()
 
 
-def locate_or_build_libxgboost(toplevel_dir, *, build_dir):
+def locate_or_build_libxgboost(
+    toplevel_dir: pathlib.Path, *, build_dir: pathlib.Path
+) -> pathlib.Path:
     """Locate libxgboost; if not exist, build it"""
     logger = logging.getLogger("xgboost.packager.locate_or_build_libxgboost")
 

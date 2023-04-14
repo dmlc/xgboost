@@ -10,6 +10,7 @@ import pathlib
 import sysconfig
 import tempfile
 from contextlib import contextmanager
+from typing import Any, Optional, Union
 
 import hatchling.build
 
@@ -19,7 +20,7 @@ from .util import copy_with_logging, copytree_with_logging
 
 
 @contextmanager
-def cd(path):
+def cd(path: Union[str, pathlib.Path]):
     """Temporarily change working directory"""
     if isinstance(path, pathlib.Path):
         path = str(path)
@@ -32,7 +33,7 @@ def cd(path):
         os.chdir(cwd)
 
 
-def get_tag():
+def get_tag() -> str:
     """Get appropate wheel tag, according to system"""
     tag_platform = sysconfig.get_platform().replace("-", "_").replace(".", "_")
     return f"py3-none-{tag_platform}"
@@ -42,22 +43,28 @@ TOPLEVEL_DIR = pathlib.Path(__file__).parent.parent.absolute().resolve()
 logging.basicConfig(level=logging.INFO)
 
 
-def get_requires_for_build_wheel(config_settings=None):
+def get_requires_for_build_wheel(
+    config_settings: Optional[dict[str, Any]] = None
+) -> list[str]:
     """A PEP 517 method. Delegate to Hatchling"""
     return hatchling.build.get_requires_for_build_wheel(config_settings)
 
 
-def get_requires_for_build_sdist(config_settings=None):
+def get_requires_for_build_sdist(
+    config_settings: Optional[dict[str, Any]] = None
+) -> list[str]:
     """A PEP 517 method. Delegate to Hatchling"""
     return hatchling.build.get_requires_for_build_sdist(config_settings)
 
 
-def get_requires_for_build_editable(config_settings=None):
+def get_requires_for_build_editable(
+    config_settings: Optional[dict[str, Any]] = None
+) -> list[str]:
     """A PEP 517 method. Delegate to Hatchling"""
     return hatchling.build.get_requires_for_build_editable(config_settings)
 
 
-def write_hatch_config(dest_dir, *, logger):
+def write_hatch_config(dest_dir: pathlib.Path, *, logger: logging.Logger):
     """Write a small custom hook for Hatch, to set a custom tag."""
     template = (
         "from hatchling.builders.hooks.plugin.interface import BuildHookInterface\n"
@@ -72,10 +79,10 @@ def write_hatch_config(dest_dir, *, logger):
 
 
 def build_wheel(
-    wheel_directory,
-    config_settings=None,
-    metadata_directory=None,
-):
+    wheel_directory: str,
+    config_settings: Optional[dict[str, Any]] = None,
+    metadata_directory: Optional[str] = None,
+) -> str:
     """Build a wheel"""
     logger = logging.getLogger("xgboost.packager.build_wheel")
 
@@ -113,7 +120,10 @@ def build_wheel(
     return wheel_name
 
 
-def build_sdist(sdist_directory, config_settings=None):
+def build_sdist(
+    sdist_directory: str,
+    config_settings: Optional[dict[str, Any]] = None,
+) -> str:
     """Build a source distribution"""
     logger = logging.getLogger("xgboost.packager.build_sdist")
 
@@ -153,7 +163,11 @@ def build_sdist(sdist_directory, config_settings=None):
     return sdist_name
 
 
-def build_editable(wheel_directory, config_settings=None, metadata_directory=None):
+def build_editable(
+    wheel_directory: str,
+    config_settings: Optional[dict[str, Any]] = None,
+    metadata_directory: Optional[str] = None,
+) -> str:
     """Build an editable installation. We mostly delegate to Hatchling."""
     logger = logging.getLogger("xgboost.packager.build_editable")
 
