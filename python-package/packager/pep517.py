@@ -114,8 +114,15 @@ def build_wheel(
         )
         copy_with_logging(libxgboost, lib_path, logger=logger)
         if system() == "Windows":
+            vcomp140_path = pathlib.Path(r"C:\Windows\System32\vcomp140.dll")
+            if not vcomp140_path.exists():
+                raise RuntimeError(
+                    "To build XGBoost from the source, please install Microsoft "
+                    "Visual C++ Redistributable for Visual Studio 2015 at "
+                    "https://www.microsoft.com/en-ca/download/details.aspx?id=48145."
+                )
             copy_with_logging(
-                pathlib.Path(r"C:\Windows\System32\vcomp140.dll"),
+                vcomp140_path,
                 lib_path,
                 logger=logger,
             )
