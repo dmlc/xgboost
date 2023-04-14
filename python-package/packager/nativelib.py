@@ -107,6 +107,21 @@ def build_libxgboost(
     return build_dir / "lib" / _lib_name()
 
 
+def locate_local_libxgboost(
+    toplevel_dir: pathlib.Path,
+    *,
+    logger: logging.Logger,
+) -> Optional[pathlib.Path]:
+    """
+    Locate libxgboost from the local project directory's lib/ subdirectory.
+    """
+    libxgboost = toplevel_dir.parent / "lib" / _lib_name()
+    if libxgboost.exists():
+        logger.info("Found %s at %s", libxgboost.name, str(libxgboost.parent))
+        return libxgboost
+    return None
+
+
 def locate_or_build_libxgboost(
     toplevel_dir: pathlib.Path,
     *,
@@ -116,9 +131,8 @@ def locate_or_build_libxgboost(
     """Locate libxgboost; if not exist, build it"""
     logger = logging.getLogger("xgboost.packager.locate_or_build_libxgboost")
 
-    libxgboost = toplevel_dir.parent / "lib" / _lib_name()
-    if libxgboost.exists():
-        logger.info("Found %s at %s", libxgboost.name, str(libxgboost.parent))
+    libxgboost = locate_local_libxgboost(toplevel_dir, logger=logger)
+    if libxgboost is not None:
         return libxgboost
     if build_config.use_system_libxgboost:
         # Find libxgboost from system prefix

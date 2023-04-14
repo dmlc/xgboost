@@ -15,7 +15,7 @@ from typing import Any, Dict, Iterator, List, Optional, Union
 import hatchling.build
 
 from .build_config import BuildConfiguration
-from .nativelib import locate_or_build_libxgboost
+from .nativelib import locate_local_libxgboost, locate_or_build_libxgboost
 from .sdist import copy_cpp_src_tree
 from .util import copy_with_logging, copytree_with_logging
 
@@ -175,6 +175,12 @@ def build_editable(
         raise NotImplementedError(
             "XGBoost's custom build backend doesn't support config_settings option "
             f"when building editable installation. {config_settings=}"
+        )
+
+    if locate_local_libxgboost(TOPLEVEL_DIR, logger=logger) is None:
+        raise AssertionError(
+            "To use the editable installation, first build libxgboost with CMake. "
+            "See https://xgboost.readthedocs.io/en/latest/build.html for detailed instructions."
         )
 
     write_hatch_config(TOPLEVEL_DIR, logger=logger)
