@@ -198,7 +198,7 @@ def main(args: argparse.Namespace) -> None:
             run_mypy(path)
             for path in [
                 # core
-                "python-package/xgboost/",
+                "python-package/",
                 # demo
                 "demo/json-model/json_parser.py",
                 "demo/guide-python/external_memory.py",
@@ -219,8 +219,6 @@ def main(args: argparse.Namespace) -> None:
                 "tests/ci_build/test_r_package.py",
                 "tests/ci_build/test_utils.py",
                 "tests/ci_build/change_version.py",
-                # Python packaging
-                "python-package/packager/",
             ]
         ):
             subprocess.check_call(["mypy", "--version"])
