@@ -51,28 +51,3 @@ completes quickly.
 .. code-block:: console
   
   $ pip install -v xgboost-2.0.0-py3-none-linux_x86_64.whl
-
-.. note:: Bundling OpenMP library on Windows
-
-  XGBoost uses OpenMP to implement parallel algorithms on CPUs.
-  Consequently, on the Windows platform, XGBoost requires access
-  to the system library ``vcomp140.dll``. Not every Windows
-  machine has this library installed. So we have two choices
-  when it comes to distributing XGBoost:
-
-  1. Ask all users to install
-     `Visual C++ Redistributable for Visual Studio 2015
-     <https://www.microsoft.com/en-us/download/details.aspx?id=48145>`_.
-  2. Inject ``vcomp140.dll`` into the binary wheel. In this
-     case, ``vcomp140.dll`` will be installed in the same directory
-     as XGBoost. To enable bundling, pass ``bundle_vcomp140_dll``
-     option to Pip:
-     
-     .. code-block:: console
-
-       $ # Use Pip 22.1+
-       $ pip install . --config-settings bundle_vcomp140_dll=True
-
-  The XGBoost project uses Option 2: we bundle ``vcomp140.dll``
-  in the binary wheel targeting Windows, before we upload it to
-  Python Packaging Index (PyPI).

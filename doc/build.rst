@@ -216,16 +216,8 @@ There are several ways to build and install the package from source:
     :start-at: @dataclasses.dataclass
     :end-before: def _set_config_setting(
 
-  Some notes on the options:
-  
-  * ``bundle_vcomp140_dll`` is not useful for ``pip install``, since
-    your computer would already have ``vcomp140.dll`` installed. However,
-    the option is highly useful if you are building
-    :ref:`binary wheels to re-distribute XGBoost <binary_wheels>`, since
-    other users may not have ``vcomp140.dll`` installed on their
-    Windows machine.
-  * ``use_system_libxgboost`` is a special option. See Item 3 below for
-    detailed description.
+  ``use_system_libxgboost`` is a special option. See Item 3 below for
+  detailed description.
 
   .. note:: Verbose flag recommended
 

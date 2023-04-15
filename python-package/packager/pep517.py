@@ -115,19 +115,6 @@ def build_wheel(
             TOPLEVEL_DIR, build_dir=build_dir, build_config=build_config
         )
         copy_with_logging(libxgboost, lib_path, logger=logger)
-        if system() == "Windows" and build_config.bundle_vcomp140_dll:
-            vcomp140_path = pathlib.Path(r"C:\Windows\System32\vcomp140.dll")
-            if not vcomp140_path.exists():
-                raise RuntimeError(
-                    "vcomp140.dll is missing. Please install Microsoft "
-                    "Visual C++ Redistributable for Visual Studio 2015 at "
-                    "https://www.microsoft.com/en-ca/download/details.aspx?id=48145."
-                )
-            copy_with_logging(
-                vcomp140_path,
-                lib_path,
-                logger=logger,
-            )
 
         with cd(workspace):
             wheel_name = hatchling.build.build_wheel(

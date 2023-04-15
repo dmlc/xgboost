@@ -23,8 +23,6 @@ class BuildConfiguration:  # pylint: disable=R0902
     use_s3: bool = False
     # Whether to enable the dense parser plugin
     plugin_dense_parser: bool = False
-    # Whether to bundle vcomp140.dll, OpenMP library from Microsoft
-    bundle_vcomp140_dll: bool = False
     # Special option: See explanation below
     use_system_libxgboost: bool = False
 
@@ -51,7 +49,7 @@ class BuildConfiguration:  # pylint: disable=R0902
         """Convert build configuration to CMake args"""
         cmake_args = []
         for field_name in [x.name for x in dataclasses.fields(self)]:
-            if field_name in ["use_system_libxgboost", "bundle_vcomp140_dll"]:
+            if field_name in ["use_system_libxgboost"]:
                 continue
             cmake_option = field_name.upper()
             cmake_value = "ON" if getattr(self, field_name) else "OFF"
