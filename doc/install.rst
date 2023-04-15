@@ -28,16 +28,13 @@ into permission errors.
 
 .. note:: Windows users need to install Visual C++ Redistributable
 
-  If you are not using Windows, ignore this note.
-
   XGBoost requires DLLs from `Visual C++ Redistributable
   <https://www.microsoft.com/en-us/download/details.aspx?id=48145>`_
   in order to function, so make sure to install it. Exception: If
   you have Visual Studio installed, you already have access to
-  necessary libraries and thus don't need to Install Visual C++
+  necessary libraries and thus don't need to install Visual C++
   Redistributable.
 
-.. code-bloack::
 
 Capabilities of binary wheels for each platform:
 
