@@ -24,6 +24,8 @@ if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 Write-Host "--- Build binary wheel"
 cd ../python-package
 conda activate
+& pip install --user -v "pip>=23"
+& pip --version
 & pip wheel --no-deps -v . --wheel-dir dist/
 Get-ChildItem . -Filter dist/*.whl |
 Foreach-Object {
