@@ -34,7 +34,7 @@ Foreach-Object {
 }
 
 Write-Host "--- Upload Python wheel"
-cd ../..
+cd ..
 Get-ChildItem . -Filter python-package/dist/*.whl |
 Foreach-Object {
   & buildkite-agent artifact upload python-package/dist/$_
