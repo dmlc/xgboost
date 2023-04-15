@@ -11,7 +11,6 @@ import pathlib
 import sysconfig
 import tempfile
 from contextlib import contextmanager
-from platform import system
 from typing import Any, Dict, Iterator, List, Optional, Union
 
 import hatchling.build
