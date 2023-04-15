@@ -20,6 +20,7 @@ Pre-built binary wheels are uploaded to PyPI (Python Package Index) for each rel
 
 .. code-block:: bash
 
+  # Pip 21.3+ is required
   pip install xgboost
 
 
