@@ -9,6 +9,7 @@
 #include <memory>  // shared_ptr
 #include <string>
 
+#include "../collective/aggregator.h"
 #include "../collective/communicator-inl.h"
 #include "../common/common.h"
 #include "xgboost/metric.h"
@@ -22,24 +23,10 @@ class MetricNoCache : public Metric {
 
   double Evaluate(HostDeviceVector<float> const &predts, std::shared_ptr<DMatrix> p_fmat) final {
     double result{0.0};
-    if (p_fmat->Info().IsVerticalFederated()) {
-      // TODO(rongou): better abstraction for this.
-      if (collective::GetRank() == 0) {
-        try {
-          result = this->Eval(predts, p_fmat->Info());
-        } catch (dmlc::Error&) {
-          result = std::numeric_limits<double>::infinity();
-        }
-        collective::Broadcast(&result, sizeof(double), 0);
-      } else {
-        collective::Broadcast(&result, sizeof(double), 0);
-      }
-    } else {
-      result = this->Eval(predts, p_fmat->Info());
-    }
-    if (std::isinf(result)) {
-      LOG(FATAL) << "Error evaluating metric";
-    }
+    auto const& info = p_fmat->Info();
+    collective::ApplyWithLabels(info, &result, sizeof(double), [&] {
+      result = this->Eval(predts, info);
+    });
     return result;
   }
 };

@@ -38,6 +38,7 @@
 #include <utility>                           // for pair, make_pair
 #include <vector>                            // for vector
 
+#include "../collective/aggregator.h"        // for ApplyWithLabels
 #include "../common/algorithm.h"             // for ArgSort, Sort
 #include "../common/linalg_op.h"             // for cbegin, cend
 #include "../common/math.h"                  // for CmpFirst
@@ -379,24 +380,9 @@ class EvalRankWithCache : public Metric {
 
   double Evaluate(HostDeviceVector<float> const& preds, std::shared_ptr<DMatrix> p_fmat) override {
     double result{0.0};
-    if (p_fmat->Info().IsVerticalFederated()) {
-      // TODO(rongou): better abstraction for this.
-      if (collective::GetRank() == 0) {
-        try {
-          result = DoEvaluate(preds, p_fmat);
-        } catch (dmlc::Error&) {
-          result = std::numeric_limits<double>::infinity();
-        }
-        collective::Broadcast(&result, sizeof(double), 0);
-      } else {
-        collective::Broadcast(&result, sizeof(double), 0);
-      }
-    } else {
+    collective::ApplyWithLabels(p_fmat->Info(), &result, sizeof(double), [&] {
       result = DoEvaluate(preds, p_fmat);
-    }
-    if (std::isinf(result)) {
-      LOG(FATAL) << "Error evaluating metric";
-    }
+    });
     return result;
   }
 
