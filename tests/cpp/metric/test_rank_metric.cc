@@ -11,16 +11,20 @@
 #include <memory>                        // for unique_ptr
 #include <vector>                        // for vector
 
+#include "test_rank_metric.h"
 #include "../helpers.h"                  // for GetMetricEval, CreateEmptyGe...
 #include "xgboost/base.h"                // for bst_float, kRtEps
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
 #include "xgboost/json.h"                // for Json, String, Object
 
+namespace xgboost {
+namespace metric {
+
 #if !defined(__CUDACC__)
 TEST(Metric, AMS) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
-  EXPECT_ANY_THROW(xgboost::Metric::Create("ams", &ctx));
-  xgboost::Metric* metric = xgboost::Metric::Create("ams@0.5f", &ctx);
+  auto ctx = CreateEmptyGenericParam(GPUIDX);
+  EXPECT_ANY_THROW(Metric::Create("ams", &ctx));
+  Metric* metric = Metric::Create("ams@0.5f", &ctx);
   ASSERT_STREQ(metric->Name(), "ams@0.5");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0.311f, 0.001f);
   EXPECT_NEAR(GetMetricEval(metric,
@@ -29,7 +33,7 @@ TEST(Metric, AMS) {
               0.29710f, 0.001f);
 
   delete metric;
-  metric = xgboost::Metric::Create("ams@0", &ctx);
+  metric = Metric::Create("ams@0", &ctx);
   ASSERT_STREQ(metric->Name(), "ams@0");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0.311f, 0.001f);
 
@@ -37,172 +41,44 @@ TEST(Metric, AMS) {
 }
 #endif
 
-TEST(Metric, DeclareUnifiedTest(Precision)) {
-  // When the limit for precision is not given, it takes the limit at
-  // std::numeric_limits<unsigned>::max(); hence all values are very small
-  // NOTE(AbdealiJK): Maybe this should be fixed to be num_row by default.
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
-  xgboost::Metric * metric = xgboost::Metric::Create("pre", &ctx);
-  ASSERT_STREQ(metric->Name(), "pre");
-  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0, 1e-7);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}),
-              0, 1e-7);
+TEST(Metric, DeclareUnifiedTest(Precision)) { VerifyPrecision(); }
 
-  delete metric;
-  metric = xgboost::Metric::Create("pre@2", &ctx);
-  ASSERT_STREQ(metric->Name(), "pre@2");
-  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0.5f, 1e-7);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}),
-              0.5f, 0.001f);
+TEST(Metric, DeclareUnifiedTest(NDCG)) { VerifyNDCG(); }
 
-  EXPECT_ANY_THROW(GetMetricEval(metric, {0, 1}, {}));
+TEST(Metric, DeclareUnifiedTest(MAP)) { VerifyMAP(); }
 
-  delete metric;
+TEST(Metric, DeclareUnifiedTest(NDCGExpGain)) { VerifyNDCGExpGain(); }
+
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), PrecisionRowSplit) {
+  RunWithInMemoryCommunicator(world_size_, &VerifyPrecision, DataSplitMode::kRow);
 }
 
-namespace xgboost {
-namespace metric {
-TEST(Metric, DeclareUnifiedTest(NDCG)) {
-  auto ctx = CreateEmptyGenericParam(GPUIDX);
-  Metric * metric = xgboost::Metric::Create("ndcg", &ctx);
-  ASSERT_STREQ(metric->Name(), "ndcg");
-  EXPECT_ANY_THROW(GetMetricEval(metric, {0, 1}, {}));
-  ASSERT_NEAR(GetMetricEval(metric,
-                            xgboost::HostDeviceVector<xgboost::bst_float>{},
-                            {}), 1, 1e-10);
-  ASSERT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 1, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}),
-              0.6509f, 0.001f);
-
-  delete metric;
-  metric = xgboost::Metric::Create("ndcg@2", &ctx);
-  ASSERT_STREQ(metric->Name(), "ndcg@2");
-  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 1, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}),
-              0.3868f, 0.001f);
-
-  delete metric;
-  metric = xgboost::Metric::Create("ndcg@-", &ctx);
-  ASSERT_STREQ(metric->Name(), "ndcg-");
-  EXPECT_NEAR(GetMetricEval(metric,
-                            xgboost::HostDeviceVector<xgboost::bst_float>{},
-                            {}), 0, 1e-10);
-  ASSERT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 1.f, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}),
-              0.6509f, 0.001f);
-  delete metric;
-  metric = xgboost::Metric::Create("ndcg-", &ctx);
-  ASSERT_STREQ(metric->Name(), "ndcg-");
-  EXPECT_NEAR(GetMetricEval(metric,
-                            xgboost::HostDeviceVector<xgboost::bst_float>{},
-                            {}), 0, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 1.f, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}),
-               0.6509f, 0.001f);
-
-  delete metric;
-  metric = xgboost::Metric::Create("ndcg@2-", &ctx);
-  ASSERT_STREQ(metric->Name(), "ndcg@2-");
-  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 1.f, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}),
-              1.f - 0.3868f, 1.f - 0.001f);
-
-  delete metric;
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), PrecisionColumnSplit) {
+  RunWithInMemoryCommunicator(world_size_, &VerifyPrecision, DataSplitMode::kCol);
 }
 
-TEST(Metric, DeclareUnifiedTest(MAP)) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
-  Metric * metric = xgboost::Metric::Create("map", &ctx);
-  ASSERT_STREQ(metric->Name(), "map");
-  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 1, kRtEps);
-
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}),
-              0.5f, 0.001f);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            xgboost::HostDeviceVector<xgboost::bst_float>{},
-                            std::vector<xgboost::bst_float>{}), 1, 1e-10);
-
-  // Rank metric with group info
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.2f, 0.8f, 0.4f, 1.7f},
-                            {1, 1, 1, 0, 1, 0},  // Labels
-                            {},  // Weights
-                            {0, 2, 5, 6}),  // Group info
-              0.8611f, 0.001f);
-
-  delete metric;
-  metric = xgboost::Metric::Create("map@-", &ctx);
-  ASSERT_STREQ(metric->Name(), "map-");
-  EXPECT_NEAR(GetMetricEval(metric,
-                            xgboost::HostDeviceVector<xgboost::bst_float>{},
-                            {}), 0, 1e-10);
-
-  delete metric;
-  metric = xgboost::Metric::Create("map-", &ctx);
-  ASSERT_STREQ(metric->Name(), "map-");
-  EXPECT_NEAR(GetMetricEval(metric,
-                            xgboost::HostDeviceVector<xgboost::bst_float>{},
-                            {}), 0, 1e-10);
-
-  delete metric;
-  metric = xgboost::Metric::Create("map@2", &ctx);
-  ASSERT_STREQ(metric->Name(), "map@2");
-  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 1, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}),
-              0.25f, 0.001f);
-  delete metric;
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), NDCGRowSplit) {
+  RunWithInMemoryCommunicator(world_size_, &VerifyNDCG, DataSplitMode::kRow);
 }
 
-TEST(Metric, DeclareUnifiedTest(NDCGExpGain)) {
-  Context ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), NDCGColumnSplit) {
+  RunWithInMemoryCommunicator(world_size_, &VerifyNDCG, DataSplitMode::kCol);
+}
 
-  auto p_fmat = xgboost::RandomDataGenerator{0, 0, 0}.GenerateDMatrix();
-  MetaInfo& info = p_fmat->Info();
-  info.labels = linalg::Matrix<float>{{10.0f, 0.0f, 0.0f, 1.0f, 5.0f}, {5}, ctx.gpu_id};
-  info.num_row_ = info.labels.Shape(0);
-  info.group_ptr_.resize(2);
-  info.group_ptr_[0] = 0;
-  info.group_ptr_[1] = info.num_row_;
-  HostDeviceVector<float> predt{{0.1f, 0.2f, 0.3f, 4.0f, 70.0f}};
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), MAPRowSplit) {
+  RunWithInMemoryCommunicator(world_size_, &VerifyMAP, DataSplitMode::kRow);
+}
 
-  std::unique_ptr<Metric> metric{Metric::Create("ndcg", &ctx)};
-  Json config{Object{}};
-  config["name"] = String{"ndcg"};
-  config["lambdarank_param"] = Object{};
-  config["lambdarank_param"]["ndcg_exp_gain"] = String{"true"};
-  config["lambdarank_param"]["lambdarank_num_pair_per_sample"] = String{"32"};
-  metric->LoadConfig(config);
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), MAPColumnSplit) {
+  RunWithInMemoryCommunicator(world_size_, &VerifyMAP, DataSplitMode::kCol);
+}
 
-  auto ndcg = metric->Evaluate(predt, p_fmat);
-  ASSERT_NEAR(ndcg, 0.409738f, kRtEps);
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), NDCGExpGainRowSplit) {
+  RunWithInMemoryCommunicator(world_size_, &VerifyNDCGExpGain, DataSplitMode::kRow);
+}
 
-  config["lambdarank_param"]["ndcg_exp_gain"] = String{"false"};
-  metric->LoadConfig(config);
-
-  ndcg = metric->Evaluate(predt, p_fmat);
-  ASSERT_NEAR(ndcg, 0.695694f, kRtEps);
-
-  predt.HostVector() = info.labels.Data()->HostVector();
-  ndcg = metric->Evaluate(predt, p_fmat);
-  ASSERT_NEAR(ndcg, 1.0, kRtEps);
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), NDCGExpGainColumnSplit) {
+  RunWithInMemoryCommunicator(world_size_, &VerifyNDCGExpGain, DataSplitMode::kCol);
 }
 }  // namespace metric
 }  // namespace xgboost

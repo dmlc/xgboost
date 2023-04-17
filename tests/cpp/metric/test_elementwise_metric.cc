@@ -1,347 +1,108 @@
 /**
  * Copyright 2018-2023 by XGBoost contributors
  */
-#include <xgboost/json.h>
-#include <xgboost/metric.h>
-
-#include <map>
-#include <memory>
-
-#include "../../../src/common/linalg_op.h"
-#include "../helpers.h"
-
-namespace xgboost {
-namespace {
-inline void CheckDeterministicMetricElementWise(StringView name, int32_t device) {
-  auto ctx = CreateEmptyGenericParam(device);
-  std::unique_ptr<Metric> metric{Metric::Create(name.c_str(), &ctx)};
-
-  HostDeviceVector<float> predts;
-  size_t n_samples = 2048;
-
-  auto p_fmat = EmptyDMatrix();
-  MetaInfo& info = p_fmat->Info();
-  info.labels.Reshape(n_samples, 1);
-  info.num_row_ = n_samples;
-  auto &h_labels = info.labels.Data()->HostVector();
-  auto &h_predts = predts.HostVector();
-
-  SimpleLCG lcg;
-  SimpleRealUniformDistribution<float> dist{0.0f, 1.0f};
-
-  h_labels.resize(n_samples);
-  h_predts.resize(n_samples);
-
-  for (size_t i = 0; i < n_samples; ++i) {
-    h_predts[i] = dist(&lcg);
-    h_labels[i] = dist(&lcg);
-  }
-
-  auto result = metric->Evaluate(predts, p_fmat);
-  for (size_t i = 0; i < 8; ++i) {
-    ASSERT_EQ(metric->Evaluate(predts, p_fmat), result);
-  }
-}
-}  // anonymous namespace
-}  // namespace xgboost
+#include "test_elementwise_metric.h"
 
 namespace xgboost {
 namespace metric {
+TEST(Metric, DeclareUnifiedTest(RMSE)) { VerifyRMSE(); }
 
-TEST(Metric, DeclareUnifiedTest(RMSE)) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
-  xgboost::Metric * metric = xgboost::Metric::Create("rmse", &ctx);
-  metric->Configure({});
-  ASSERT_STREQ(metric->Name(), "rmse");
-  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}),
-              0.6403f, 0.001f);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1},
-                            { -1,   1,   9,  -9}),
-              2.8284f, 0.001f);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1},
-                            {  1,   2,   9,   8}),
-              0.6708f, 0.001f);
-  delete metric;
+TEST(Metric, DeclareUnifiedTest(RMSLE)) { VerifyRMSLE(); }
 
-  xgboost::CheckDeterministicMetricElementWise(xgboost::StringView{"rmse"}, GPUIDX);
+TEST(Metric, DeclareUnifiedTest(MAE)) { VerifyMAE(); }
+
+TEST(Metric, DeclareUnifiedTest(MAPE)) { VerifyMAPE(); }
+
+TEST(Metric, DeclareUnifiedTest(MPHE)) { VerifyMPHE(); }
+
+TEST(Metric, DeclareUnifiedTest(LogLoss)) { VerifyLogLoss(); }
+
+TEST(Metric, DeclareUnifiedTest(Error)) { VerifyError(); }
+
+TEST(Metric, DeclareUnifiedTest(PoissonNegLogLik)) { VerifyPoissonNegLogLik(); }
+
+TEST(Metric, DeclareUnifiedTest(MultiRMSE)) { VerifyMultiRMSE(); }
+
+TEST(Metric, DeclareUnifiedTest(Quantile)) { VerifyQuantile(); }
+
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), RMSERowSplit) {
+  RunWithInMemoryCommunicator(world_size_, &VerifyRMSE, DataSplitMode::kRow);
 }
 
-TEST(Metric, DeclareUnifiedTest(RMSLE)) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
-  xgboost::Metric * metric = xgboost::Metric::Create("rmsle", &ctx);
-  metric->Configure({});
-  ASSERT_STREQ(metric->Name(), "rmsle");
-  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},
-                            {1.0f, 1.0f, 1.0f, 1.0f, 1.0f}),
-              0.4063f, 1e-4);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},
-                            {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
-                            {   0,   -1,    1,    -9,   9}),
-              0.6212f, 1e-4);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},
-                            {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
-                            {   0,    1,    2,    9,    8}),
-              0.2415f, 1e-4);
-  delete metric;
-
-  xgboost::CheckDeterministicMetricElementWise(xgboost::StringView{"rmsle"}, GPUIDX);
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), RMSEColumnSplit) {
+  RunWithInMemoryCommunicator(world_size_, &VerifyRMSE, DataSplitMode::kCol);
 }
 
-TEST(Metric, DeclareUnifiedTest(MAE)) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
-  xgboost::Metric * metric = xgboost::Metric::Create("mae", &ctx);
-  metric->Configure({});
-  ASSERT_STREQ(metric->Name(), "mae");
-  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}),
-              0.5f, 0.001f);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1},
-                            { -1,   1,   9,  -9}),
-              8.0f, 0.001f);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1},
-                            {  1,   2,   9,   8}),
-              0.54f, 0.001f);
-  delete metric;
-
-  xgboost::CheckDeterministicMetricElementWise(xgboost::StringView{"mae"}, GPUIDX);
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), RMSLERowSplit) {
+  RunWithInMemoryCommunicator(world_size_, &VerifyRMSLE, DataSplitMode::kRow);
 }
 
-TEST(Metric, DeclareUnifiedTest(MAPE)) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
-  xgboost::Metric * metric = xgboost::Metric::Create("mape", &ctx);
-  metric->Configure({});
-  ASSERT_STREQ(metric->Name(), "mape");
-  EXPECT_NEAR(GetMetricEval(metric, {150, 300}, {100, 200}), 0.5f, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {50, 400, 500, 4000},
-                            {100, 200, 500, 1000}),
-              1.125f, 0.001f);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {50, 400, 500, 4000},
-                            {100, 200, 500, 1000},
-                            { -1,   1,   9,  -9}),
-              -26.5f, 0.001f);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {50, 400, 500, 4000},
-                            {100, 200, 500, 1000},
-                            {  1,   2,   9,   8}),
-              1.3250f, 0.001f);
-  delete metric;
-
-  xgboost::CheckDeterministicMetricElementWise(xgboost::StringView{"mape"}, GPUIDX);
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), RMSLEColumnSplit) {
+  RunWithInMemoryCommunicator(world_size_, &VerifyRMSLE, DataSplitMode::kCol);
 }
 
-TEST(Metric, DeclareUnifiedTest(MPHE)) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
-  std::unique_ptr<xgboost::Metric> metric{xgboost::Metric::Create("mphe", &ctx)};
-  metric->Configure({});
-  ASSERT_STREQ(metric->Name(), "mphe");
-  EXPECT_NEAR(GetMetricEval(metric.get(), {0, 1}, {0, 1}), 0, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric.get(),
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}),
-              0.1751f, 1e-4);
-  EXPECT_NEAR(GetMetricEval(metric.get(),
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1},
-                            { -1,   1,   9,  -9}),
-              3.4037f, 1e-4);
-  EXPECT_NEAR(GetMetricEval(metric.get(),
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1},
-                            {  1,   2,   9,   8}),
-              0.1922f, 1e-4);
-
-  xgboost::CheckDeterministicMetricElementWise(xgboost::StringView{"mphe"}, GPUIDX);
-
-  metric->Configure({{"huber_slope", "0.1"}});
-  EXPECT_NEAR(GetMetricEval(metric.get(),
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1},
-                            {  1,   2,   9,   8}),
-              0.0461686f, 1e-4);
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), MAERowSplit) {
+  RunWithInMemoryCommunicator(world_size_, &VerifyMAE, DataSplitMode::kRow);
 }
 
-TEST(Metric, DeclareUnifiedTest(LogLoss)) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
-  xgboost::Metric * metric = xgboost::Metric::Create("logloss", &ctx);
-  metric->Configure({});
-  ASSERT_STREQ(metric->Name(), "logloss");
-  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.5f, 1e-17f, 1.0f+1e-17f, 0.9f},
-                            {   0,      0,           1,    1}),
-              0.1996f, 0.001f);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}),
-              1.2039f, 0.001f);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1},
-                            { -1,   1,   9,  -9}),
-              21.9722f, 0.001f);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1},
-                            {  1,   2,   9,   8}),
-              1.3138f, 0.001f);
-  delete metric;
-
-  xgboost::CheckDeterministicMetricElementWise(xgboost::StringView{"logloss"}, GPUIDX);
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), MAEColumnSplit) {
+  RunWithInMemoryCommunicator(world_size_, &VerifyMAE, DataSplitMode::kCol);
 }
 
-TEST(Metric, DeclareUnifiedTest(Error)) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
-  xgboost::Metric * metric = xgboost::Metric::Create("error", &ctx);
-  metric->Configure({});
-  ASSERT_STREQ(metric->Name(), "error");
-  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}),
-              0.5f, 0.001f);
-  EXPECT_NEAR(GetMetricEval(metric,
-                           {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1},
-                            { -1,   1,   9,  -9}),
-              10.0f, 0.001f);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1},
-                            {  1,   2,   9,   8}),
-              0.55f, 0.001f);
-
-  EXPECT_ANY_THROW(xgboost::Metric::Create("error@abc", &ctx));
-  delete metric;
-
-  metric = xgboost::Metric::Create("error@0.5f", &ctx);
-  metric->Configure({});
-  EXPECT_STREQ(metric->Name(), "error");
-
-  delete metric;
-
-  metric = xgboost::Metric::Create("error@0.1", &ctx);
-  metric->Configure({});
-  ASSERT_STREQ(metric->Name(), "error@0.1");
-  EXPECT_STREQ(metric->Name(), "error@0.1");
-  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {-0.1f, -0.9f, 0.1f, 0.9f},
-                            {   0,    0,   1,   1}),
-              0.25f, 0.001f);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {-0.1f, -0.9f, 0.1f, 0.9f},
-                            {   0,    0,   1,   1},
-                            { -1,   1,   9,  -9}),
-              9.0f, 0.001f);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {-0.1f, -0.9f, 0.1f, 0.9f},
-                            {   0,    0,   1,   1},
-                            {  1,   2,   9,   8}),
-              0.45f, 0.001f);
-  delete metric;
-
-  xgboost::CheckDeterministicMetricElementWise(xgboost::StringView{"error@0.5"}, GPUIDX);
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), MAPERowSplit) {
+  RunWithInMemoryCommunicator(world_size_, &VerifyMAPE, DataSplitMode::kRow);
 }
 
-TEST(Metric, DeclareUnifiedTest(PoissionNegLogLik)) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
-  xgboost::Metric * metric = xgboost::Metric::Create("poisson-nloglik", &ctx);
-  metric->Configure({});
-  ASSERT_STREQ(metric->Name(), "poisson-nloglik");
-  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0.5f, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.5f, 1e-17f, 1.0f+1e-17f, 0.9f},
-                            {   0,      0,           1,    1}),
-              0.6263f, 0.001f);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}),
-              1.1019f, 0.001f);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1},
-                            { -1,   1,   9,  -9}),
-              13.3750f, 0.001f);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1},
-                            {  1,   2,   9,   8}),
-              1.5783f, 0.001f);
-  delete metric;
-
-  xgboost::CheckDeterministicMetricElementWise(xgboost::StringView{"poisson-nloglik"}, GPUIDX);
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), MAPEColumnSplit) {
+  RunWithInMemoryCommunicator(world_size_, &VerifyMAPE, DataSplitMode::kCol);
 }
 
-TEST(Metric, DeclareUnifiedTest(MultiRMSE)) {
-  size_t n_samples = 32, n_targets = 8;
-  linalg::Tensor<float, 2> y{{n_samples, n_targets}, GPUIDX};
-  auto &h_y = y.Data()->HostVector();
-  std::iota(h_y.begin(), h_y.end(), 0);
-
-  HostDeviceVector<float> predt(n_samples * n_targets, 0);
-
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
-  std::unique_ptr<Metric> metric{Metric::Create("rmse", &ctx)};
-  metric->Configure({});
-
-  auto loss = GetMultiMetricEval(metric.get(), predt, y);
-  std::vector<float> weights(n_samples, 1);
-  auto loss_w = GetMultiMetricEval(metric.get(), predt, y, weights);
-
-  std::transform(h_y.cbegin(), h_y.cend(), h_y.begin(), [](auto &v) { return v * v; });
-  auto ret = std::sqrt(std::accumulate(h_y.cbegin(), h_y.cend(), 1.0, std::plus<>{}) / h_y.size());
-  ASSERT_FLOAT_EQ(ret, loss);
-  ASSERT_FLOAT_EQ(ret, loss_w);
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), MPHERowSplit) {
+  RunWithInMemoryCommunicator(world_size_, &VerifyMPHE, DataSplitMode::kRow);
 }
 
-TEST(Metric, DeclareUnifiedTest(Quantile)) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
-  std::unique_ptr<Metric> metric{Metric::Create("quantile", &ctx)};
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), MPHEColumnSplit) {
+  RunWithInMemoryCommunicator(world_size_, &VerifyMPHE, DataSplitMode::kCol);
+}
 
-  HostDeviceVector<float> predts{0.1f, 0.9f, 0.1f, 0.9f};
-  std::vector<float> labels{0.5f, 0.5f, 0.9f, 0.1f};
-  std::vector<float> weights{0.2f,  0.4f,0.6f, 0.8f};
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), LogLossRowSplit) {
+  RunWithInMemoryCommunicator(world_size_, &VerifyLogLoss, DataSplitMode::kRow);
+}
 
-  metric->Configure(Args{{"quantile_alpha", "[0.0]"}});
-  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels, weights), 0.400f, 0.001f);
-  metric->Configure(Args{{"quantile_alpha", "[0.2]"}});
-  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels, weights), 0.376f, 0.001f);
-  metric->Configure(Args{{"quantile_alpha", "[0.4]"}});
-  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels, weights), 0.352f, 0.001f);
-  metric->Configure(Args{{"quantile_alpha", "[0.8]"}});
-  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels, weights), 0.304f, 0.001f);
-  metric->Configure(Args{{"quantile_alpha", "[1.0]"}});
-  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels, weights), 0.28f, 0.001f);
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), LogLossColumnSplit) {
+  RunWithInMemoryCommunicator(world_size_, &VerifyLogLoss, DataSplitMode::kCol);
+}
 
-  metric->Configure(Args{{"quantile_alpha", "[0.0]"}});
-  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels), 0.3f, 0.001f);
-  metric->Configure(Args{{"quantile_alpha", "[0.2]"}});
-  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels), 0.3f, 0.001f);
-  metric->Configure(Args{{"quantile_alpha", "[0.4]"}});
-  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels), 0.3f, 0.001f);
-  metric->Configure(Args{{"quantile_alpha", "[0.8]"}});
-  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels), 0.3f, 0.001f);
-  metric->Configure(Args{{"quantile_alpha", "[1.0]"}});
-  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels), 0.3f, 0.001f);
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), ErrorRowSplit) {
+  RunWithInMemoryCommunicator(world_size_, &VerifyError, DataSplitMode::kRow);
+}
+
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), ErrorColumnSplit) {
+  RunWithInMemoryCommunicator(world_size_, &VerifyError, DataSplitMode::kCol);
+}
+
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), PoissonNegLogLikRowSplit) {
+  RunWithInMemoryCommunicator(world_size_, &VerifyPoissonNegLogLik, DataSplitMode::kRow);
+}
+
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), PoissonNegLogLikColumnSplit) {
+  RunWithInMemoryCommunicator(world_size_, &VerifyPoissonNegLogLik, DataSplitMode::kCol);
+}
+
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), MultiRMSERowSplit) {
+  RunWithInMemoryCommunicator(world_size_, &VerifyMultiRMSE, DataSplitMode::kRow);
+}
+
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), MultiRMSEColumnSplit) {
+  RunWithInMemoryCommunicator(world_size_, &VerifyMultiRMSE, DataSplitMode::kCol);
+}
+
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), QuantileRowSplit) {
+  RunWithInMemoryCommunicator(world_size_, &VerifyQuantile, DataSplitMode::kRow);
+}
+
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), QuantileColumnSplit) {
+  RunWithInMemoryCommunicator(world_size_, &VerifyQuantile, DataSplitMode::kCol);
 }
 }  // namespace metric
 }  // namespace xgboost

@@ -244,7 +244,7 @@ struct EvalRank : public MetricNoCache, public EvalRankConfig {
       exc.Rethrow();
     }
 
-    if (collective::IsDistributed()) {
+    if (collective::IsDistributed() && info.IsRowSplit()) {
       double dat[2]{sum_metric, static_cast<double>(ngroups)};
       // approximately estimate the metric using mean
       collective::Allreduce<collective::Operation::kSum>(dat, 2);
@@ -401,9 +401,11 @@ class EvalRankWithCache : public Metric {
 };
 
 namespace {
-double Finalize(double score, double sw) {
+double Finalize(MetaInfo const& info, double score, double sw) {
   std::array<double, 2> dat{score, sw};
-  collective::Allreduce<collective::Operation::kSum>(dat.data(), dat.size());
+  if (info.IsRowSplit()) {
+    collective::Allreduce<collective::Operation::kSum>(dat.data(), dat.size());
+  }
   if (sw > 0.0) {
     score = score / sw;
   }
@@ -430,7 +432,7 @@ class EvalNDCG : public EvalRankWithCache<ltr::NDCGCache> {
               std::shared_ptr<ltr::NDCGCache> p_cache) override {
     if (ctx_->IsCUDA()) {
       auto ndcg = cuda_impl::NDCGScore(ctx_, info, preds, minus_, p_cache);
-      return Finalize(ndcg.Residue(), ndcg.Weights());
+      return Finalize(info, ndcg.Residue(), ndcg.Weights());
     }
 
     // group local ndcg
@@ -476,7 +478,7 @@ class EvalNDCG : public EvalRankWithCache<ltr::NDCGCache> {
       sum_w = std::accumulate(weights.weights.cbegin(), weights.weights.cend(), 0.0);
     }
     auto ndcg = std::accumulate(linalg::cbegin(ndcg_gloc), linalg::cend(ndcg_gloc), 0.0);
-    return Finalize(ndcg, sum_w);
+    return Finalize(info, ndcg, sum_w);
   }
 };
 
@@ -489,7 +491,7 @@ class EvalMAPScore : public EvalRankWithCache<ltr::MAPCache> {
               std::shared_ptr<ltr::MAPCache> p_cache) override {
     if (ctx_->IsCUDA()) {
       auto map = cuda_impl::MAPScore(ctx_, info, predt, minus_, p_cache);
-      return Finalize(map.Residue(), map.Weights());
+      return Finalize(info, map.Residue(), map.Weights());
     }
 
     auto gptr = p_cache->DataGroupPtr(ctx_);
@@ -532,7 +534,7 @@ class EvalMAPScore : public EvalRankWithCache<ltr::MAPCache> {
       sw += weight[i];
     }
     auto sum = std::accumulate(map_gloc.cbegin(), map_gloc.cend(), 0.0);
-    return Finalize(sum, sw);
+    return Finalize(info, sum, sw);
   }
 };
 
