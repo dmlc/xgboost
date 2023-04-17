@@ -217,7 +217,6 @@ inline void VerifyRankingPRAUC(DataSplitMode data_split_mode = DataSplitMode::kR
   std::vector<float> labels{1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f};
   std::vector<uint32_t> groups{0, 2, 6};
 
-/*
   float auc = 0;
   auc = GetMetricEval(metric.get(), {1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f}, labels, {}, groups,
                       data_split_mode);
@@ -230,7 +229,6 @@ inline void VerifyRankingPRAUC(DataSplitMode data_split_mode = DataSplitMode::kR
   auc = GetMetricEval(metric.get(), {1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f},
                       {1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f}, {}, groups, data_split_mode);
   ASSERT_TRUE(std::isnan(auc));
-*/
 
   // Incorrect label
   ASSERT_THROW(GetMetricEval(metric.get(), {1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f},
