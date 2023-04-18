@@ -87,6 +87,15 @@ void LambdaRankUpdatePositionBias(Context const* ctx, linalg::VectorView<double 
 }
 }  // namespace cpu_impl
 
+/**
+ * \brief Base class for pair-wise learning to rank.
+ *
+ *   See `From RankNet to LambdaRank to LambdaMART: An Overview` for a description of the
+ *   algorithm.
+ *
+ *   In addition to ranking, this also implements `Unbiased LambdaMART: An Unbiased
+ *   Pairwise Learning-to-Rank Algorithm`.
+ */
 template <typename Loss, typename Cache>
 class LambdaRankObj : public FitIntercept {
   MetaInfo const* p_info_{nullptr};
