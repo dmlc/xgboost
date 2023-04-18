@@ -9,6 +9,8 @@
 #include <xgboost/data.h>
 
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "communicator-inl.h"
 

@@ -380,27 +380,22 @@ class EvalRankWithCache : public Metric {
 
   double Evaluate(HostDeviceVector<float> const& preds, std::shared_ptr<DMatrix> p_fmat) override {
     double result{0.0};
-    collective::ApplyWithLabels(p_fmat->Info(), &result, sizeof(double), [&] {
-      result = DoEvaluate(preds, p_fmat);
+    auto const& info = p_fmat->Info();
+    collective::ApplyWithLabels(info, &result, sizeof(double), [&] {
+      auto p_cache = cache_.CacheItem(p_fmat, ctx_, info, param_);
+      if (p_cache->Param() != param_) {
+        p_cache = cache_.ResetItem(p_fmat, ctx_, info, param_);
+      }
+      CHECK(p_cache->Param() == param_);
+      CHECK_EQ(preds.Size(), info.labels.Size());
+
+      result = this->Eval(preds, info, p_cache);
     });
     return result;
   }
 
   virtual double Eval(HostDeviceVector<float> const& preds, MetaInfo const& info,
                       std::shared_ptr<Cache> p_cache) = 0;
-
- private:
-  double DoEvaluate(HostDeviceVector<float> const& preds, std::shared_ptr<DMatrix> p_fmat) {
-    auto const& info = p_fmat->Info();
-    auto p_cache = cache_.CacheItem(p_fmat, ctx_, info, param_);
-    if (p_cache->Param() != param_) {
-      p_cache = cache_.ResetItem(p_fmat, ctx_, info, param_);
-    }
-    CHECK(p_cache->Param() == param_);
-    CHECK_EQ(preds.Size(), info.labels.Size());
-
-    return this->Eval(preds, info, p_cache);
-  }
 };
 
 namespace {
