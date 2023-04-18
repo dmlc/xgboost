@@ -5,6 +5,7 @@
 
 #include <gtest/gtest.h>                        // for Test, Message, TestPartResult, CmpHel...
 
+#include <algorithm>                            // for sort
 #include <cstddef>                              // for size_t
 #include <initializer_list>                     // for initializer_list
 #include <map>                                  // for map
@@ -13,7 +14,6 @@
 #include <string>                               // for char_traits, basic_string, string
 #include <vector>                               // for vector
 
-#include "../../../src/common/ranking_utils.h"  // for LambdaRankParam
 #include "../../../src/common/ranking_utils.h"  // for NDCGCache, LambdaRankParam
 #include "../helpers.h"                         // for CheckRankingObjFunction, CheckConfigReload
 #include "xgboost/base.h"                       // for GradientPair, bst_group_t, Args
@@ -25,6 +25,126 @@
 #include "xgboost/span.h"                       // for Span
 
 namespace xgboost::obj {
+TEST(LambdaRank, NDCGJsonIO) {
+  Context ctx;
+  TestNDCGJsonIO(&ctx);
+}
+
+void TestNDCGGPair(Context const* ctx) {
+  {
+    std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", ctx)};
+    obj->Configure(Args{{"lambdarank_pair_method", "topk"}});
+    CheckConfigReload(obj, "rank:ndcg");
+
+    // No gain in swapping 2 documents.
+    CheckRankingObjFunction(obj,
+                            {1, 1, 1, 1},
+                            {1, 1, 1, 1},
+                            {1.0f, 1.0f},
+                            {0, 2, 4},
+                            {0.0f, -0.0f, 0.0f, 0.0f},
+                            {0.0f, 0.0f, 0.0f, 0.0f});
+  }
+  {
+    std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", ctx)};
+    obj->Configure(Args{{"lambdarank_pair_method", "topk"}});
+    // Test with setting sample weight to second query group
+    CheckRankingObjFunction(obj,
+                            {0, 0.1f, 0, 0.1f},
+                            {0,   1, 0, 1},
+                            {2.0f, 0.0f},
+                            {0, 2, 4},
+                            {2.06611f, -2.06611f, 0.0f, 0.0f},
+                            {2.169331f, 2.169331f, 0.0f, 0.0f});
+
+    CheckRankingObjFunction(obj,
+                            {0, 0.1f, 0, 0.1f},
+                            {0,   1, 0, 1},
+                            {2.0f, 2.0f},
+                            {0, 2, 4},
+                            {2.06611f, -2.06611f, 2.06611f, -2.06611f},
+                            {2.169331f, 2.169331f, 2.169331f, 2.169331f});
+  }
+
+  std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", ctx)};
+  obj->Configure(Args{{"lambdarank_pair_method", "topk"}});
+
+  HostDeviceVector<float> predts{0, 1, 0, 1};
+  MetaInfo info;
+  info.labels = linalg::Tensor<float, 2>{{0, 1, 0, 1}, {4, 1}, GPUIDX};
+  info.group_ptr_ = {0, 2, 4};
+  info.num_row_ = 4;
+  HostDeviceVector<GradientPair> gpairs;
+  obj->GetGradient(predts, info, 0, &gpairs);
+  ASSERT_EQ(gpairs.Size(), predts.Size());
+
+  {
+    predts = {1, 0, 1, 0};
+    HostDeviceVector<GradientPair> gpairs;
+    obj->GetGradient(predts, info, 0, &gpairs);
+    for (size_t i = 0; i < gpairs.Size(); ++i) {
+      ASSERT_GT(gpairs.HostSpan()[i].GetHess(), 0);
+    }
+    ASSERT_LT(gpairs.HostSpan()[1].GetGrad(), 0);
+    ASSERT_LT(gpairs.HostSpan()[3].GetGrad(), 0);
+
+    ASSERT_GT(gpairs.HostSpan()[0].GetGrad(), 0);
+    ASSERT_GT(gpairs.HostSpan()[2].GetGrad(), 0);
+
+    info.weights_ = {2, 3};
+    HostDeviceVector<GradientPair> weighted_gpairs;
+    obj->GetGradient(predts, info, 0, &weighted_gpairs);
+    auto const& h_gpairs = gpairs.ConstHostSpan();
+    auto const& h_weighted_gpairs = weighted_gpairs.ConstHostSpan();
+    for (size_t i : {0ul, 1ul}) {
+      ASSERT_FLOAT_EQ(h_weighted_gpairs[i].GetGrad(), h_gpairs[i].GetGrad() * 2.0f);
+      ASSERT_FLOAT_EQ(h_weighted_gpairs[i].GetHess(), h_gpairs[i].GetHess() * 2.0f);
+    }
+    for (size_t i : {2ul, 3ul}) {
+      ASSERT_FLOAT_EQ(h_weighted_gpairs[i].GetGrad(), h_gpairs[i].GetGrad() * 3.0f);
+      ASSERT_FLOAT_EQ(h_weighted_gpairs[i].GetHess(), h_gpairs[i].GetHess() * 3.0f);
+    }
+  }
+
+  ASSERT_NO_THROW(obj->DefaultEvalMetric());
+}
+
+TEST(LambdaRank, NDCGGPair) {
+  Context ctx;
+  TestNDCGGPair(&ctx);
+}
+
+void TestUnbiasedNDCG(Context const* ctx) {
+  std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", ctx)};
+  obj->Configure(Args{{"lambdarank_pair_method", "topk"},
+                      {"lambdarank_unbiased", "true"},
+                      {"lambdarank_bias_norm", "0"}});
+  std::shared_ptr<DMatrix> p_fmat{RandomDataGenerator{10, 1, 0.0f}.GenerateDMatrix(true, false, 2)};
+  auto h_label = p_fmat->Info().labels.HostView().Values();
+  // Move clicked samples to the beginning.
+  std::sort(h_label.begin(), h_label.end(), std::greater<>{});
+  HostDeviceVector<float> predt(p_fmat->Info().num_row_, 1.0f);
+
+  HostDeviceVector<GradientPair> out_gpair;
+  obj->GetGradient(predt, p_fmat->Info(), 0, &out_gpair);
+
+  Json config{Object{}};
+  obj->SaveConfig(&config);
+  auto ti_plus = get<F32Array const>(config["ti+"]);
+  ASSERT_FLOAT_EQ(ti_plus[0], 1.0);
+  // bias is non-increasing when prediction is constant. (constant cost on swapping documents)
+  for (std::size_t i = 1; i < ti_plus.size(); ++i) {
+    ASSERT_LE(ti_plus[i], ti_plus[i - 1]);
+  }
+  auto tj_minus = get<F32Array const>(config["tj-"]);
+  ASSERT_FLOAT_EQ(tj_minus[0], 1.0);
+}
+
+TEST(LambdaRank, UnbiasedNDCG) {
+  Context ctx;
+  TestUnbiasedNDCG(&ctx);
+}
+
 void InitMakePairTest(Context const* ctx, MetaInfo* out_info, HostDeviceVector<float>* out_predt) {
   out_predt->SetDevice(ctx->gpu_id);
   MetaInfo& info = *out_info;

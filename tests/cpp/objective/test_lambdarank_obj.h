@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright (c) 2023, XGBoost Contributors
  */
 #ifndef XGBOOST_OBJECTIVE_TEST_LAMBDARANK_OBJ_H_
 #define XGBOOST_OBJECTIVE_TEST_LAMBDARANK_OBJ_H_
@@ -18,6 +18,25 @@
 #include "../helpers.h"                             // for EmptyDMatrix
 
 namespace xgboost::obj {
+inline void TestNDCGJsonIO(Context const* ctx) {
+  std::unique_ptr<xgboost::ObjFunction> obj{ObjFunction::Create("rank:ndcg", ctx)};
+
+  obj->Configure(Args{});
+  Json j_obj{Object()};
+  obj->SaveConfig(&j_obj);
+
+  ASSERT_EQ(get<String>(j_obj["name"]), "rank:ndcg");
+  auto const& j_param = j_obj["lambdarank_param"];
+
+  ASSERT_EQ(get<String>(j_param["ndcg_exp_gain"]), "1");
+  ASSERT_EQ(get<String>(j_param["lambdarank_num_pair_per_sample"]),
+            std::to_string(ltr::LambdaRankParam::NotSet()));
+}
+
+void TestNDCGGPair(Context const* ctx);
+
+void TestUnbiasedNDCG(Context const* ctx);
+
 /**
  * \brief Initialize test data for make pair tests.
  */
