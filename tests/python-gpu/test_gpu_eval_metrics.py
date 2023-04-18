@@ -1,3 +1,4 @@
+import json
 import sys
 
 import pytest
@@ -36,19 +37,16 @@ class TestGPUEvalMetrics:
 
         Xy = xgboost.DMatrix(X, y, group=group)
 
-        cpu = xgboost.train(
+        booster = xgboost.train(
             {"tree_method": "hist", "eval_metric": "auc", "objective": "rank:ndcg"},
             Xy,
             num_boost_round=10,
         )
-        cpu_auc = float(cpu.eval(Xy).split(":")[1])
-
-        gpu = xgboost.train(
-            {"tree_method": "gpu_hist", "eval_metric": "auc", "objective": "rank:ndcg"},
-            Xy,
-            num_boost_round=10,
-        )
-        gpu_auc = float(gpu.eval(Xy).split(":")[1])
+        cpu_auc = float(booster.eval(Xy).split(":")[1])
+        booster.set_param({"gpu_id": "0"})
+        assert json.loads(booster.save_config())["learner"]["generic_param"]["gpu_id"] == "0"
+        gpu_auc = float(booster.eval(Xy).split(":")[1])
+        assert json.loads(booster.save_config())["learner"]["generic_param"]["gpu_id"] == "0"
 
         np.testing.assert_allclose(cpu_auc, gpu_auc)
 

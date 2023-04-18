@@ -70,7 +70,7 @@ struct LambdaRankParam : public XGBoostParameter<LambdaRankParam> {
   // pairs
   // should be accessed by getter for auto configuration.
   // nolint so that we can keep the string name.
-  PairMethod lambdarank_pair_method{PairMethod::kMean};  // NOLINT
+  PairMethod lambdarank_pair_method{PairMethod::kTopK};  // NOLINT
   std::size_t lambdarank_num_pair_per_sample{NotSet()};  // NOLINT
 
  public:
@@ -78,7 +78,7 @@ struct LambdaRankParam : public XGBoostParameter<LambdaRankParam> {
 
   // unbiased
   bool lambdarank_unbiased{false};
-  double lambdarank_bias_norm{2.0};
+  double lambdarank_bias_norm{1.0};
   // ndcg
   bool ndcg_exp_gain{true};
 
@@ -135,7 +135,7 @@ struct LambdaRankParam : public XGBoostParameter<LambdaRankParam> {
         .set_default(false)
         .describe("Unbiased lambda mart. Use extended IPW to debias click position");
     DMLC_DECLARE_FIELD(lambdarank_bias_norm)
-        .set_default(2.0)
+        .set_default(1.0)
         .set_lower_bound(0.0)
         .describe("Lp regularization for unbiased lambdarank.");
     DMLC_DECLARE_FIELD(ndcg_exp_gain)
