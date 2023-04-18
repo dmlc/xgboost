@@ -89,62 +89,6 @@ TEST(Objective, RankSegmentSorterAscendingTest) {
                                                      5, 4, 6});
 }
 
-TEST(Objective, NDCGLambdaWeightComputerTest) {
-  std::vector<float> hlabels = {3.1f, 1.2f, 2.3f, 4.4f,        // Labels
-                                7.8f, 5.01f, 6.96f,
-                                10.3f, 8.7f, 11.4f, 9.45f, 11.4f};
-  dh::device_vector<bst_float> dlabels(hlabels);
-
-  auto segment_label_sorter = RankSegmentSorterTestImpl<float>(
-    {0, 4, 7, 12},                  // Groups
-    hlabels,
-    {4.4f, 3.1f, 2.3f, 1.2f,        // Expected sorted labels
-     7.8f, 6.96f, 5.01f,
-     11.4f, 11.4f, 10.3f, 9.45f, 8.7f},
-    {3, 0, 2, 1,                    // Expected original positions
-     4, 6, 5,
-     9, 11, 7, 10, 8});
-
-  // Created segmented predictions for the labels from above
-  std::vector<bst_float> hpreds{-9.78f, 24.367f, 0.908f, -11.47f,
-                                -1.03f, -2.79f, -3.1f,
-                                104.22f, 103.1f, -101.7f, 100.5f, 45.1f};
-  dh::device_vector<bst_float> dpreds(hpreds);
-
-  xgboost::obj::NDCGLambdaWeightComputer ndcg_lw_computer(dpreds.data().get(),
-                                                          dlabels.data().get(),
-                                                          *segment_label_sorter);
-
-  // Where will the predictions move from its current position, if they were sorted
-  // descendingly?
-  auto dsorted_pred_pos = ndcg_lw_computer.GetPredictionSorter().GetIndexableSortedPositionsSpan();
-  std::vector<uint32_t> hsorted_pred_pos(segment_label_sorter->GetNumItems());
-  dh::CopyDeviceSpanToVector(&hsorted_pred_pos, dsorted_pred_pos);
-  std::vector<uint32_t> expected_sorted_pred_pos{2, 0, 1, 3,
-                                                 4, 5, 6,
-                                                 7, 8, 11, 9, 10};
-  EXPECT_EQ(expected_sorted_pred_pos, hsorted_pred_pos);
-
-  // Check group DCG values
-  std::vector<float> hgroup_dcgs(segment_label_sorter->GetNumGroups());
-  dh::CopyDeviceSpanToVector(&hgroup_dcgs, ndcg_lw_computer.GetGroupDcgsSpan());
-  std::vector<uint32_t> hgroups(segment_label_sorter->GetNumGroups() + 1);
-  dh::CopyDeviceSpanToVector(&hgroups, segment_label_sorter->GetGroupsSpan());
-  EXPECT_EQ(hgroup_dcgs.size(), segment_label_sorter->GetNumGroups());
-  std::vector<float> hsorted_labels(segment_label_sorter->GetNumItems());
-  dh::CopyDeviceSpanToVector(&hsorted_labels, segment_label_sorter->GetItemsSpan());
-  for (size_t i = 0; i < hgroup_dcgs.size(); ++i) {
-    // Compute group DCG value on CPU and compare
-    auto gbegin = hgroups[i];
-    auto gend = hgroups[i + 1];
-    EXPECT_NEAR(
-      hgroup_dcgs[i],
-      xgboost::obj::NDCGLambdaWeightComputer::ComputeGroupDCGWeight(&hsorted_labels[gbegin],
-                                                                    gend - gbegin),
-      0.01f);
-  }
-}
-
 TEST(Objective, IndexableSortedItemsTest) {
   std::vector<float> hlabels = {3.1f, 1.2f, 2.3f, 4.4f,        // Labels
                                 7.8f, 5.01f, 6.96f,

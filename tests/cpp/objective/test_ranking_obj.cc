@@ -35,24 +35,6 @@ TEST(Objective, DeclareUnifiedTest(PairwiseRankingGPair)) {
   ASSERT_NO_THROW(obj->DefaultEvalMetric());
 }
 
-TEST(Objective, DeclareUnifiedTest(NDCG_JsonIO)) {
-  xgboost::Context ctx;
-  ctx.UpdateAllowUnknown(Args{});
-
-  std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", &ctx)};
-
-  obj->Configure(Args{});
-  Json j_obj {Object()};
-  obj->SaveConfig(&j_obj);
-
-  ASSERT_EQ(get<String>(j_obj["name"]), "rank:ndcg");;
-
-  auto const& j_param = j_obj["lambda_rank_param"];
-
-  ASSERT_EQ(get<String>(j_param["num_pairsample"]), "1");
-  ASSERT_EQ(get<String>(j_param["fix_list_weight"]), "0");
-}
-
 TEST(Objective, DeclareUnifiedTest(PairwiseRankingGPairSameLabels)) {
   std::vector<std::pair<std::string, std::string>> args;
   xgboost::Context ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
@@ -68,33 +50,6 @@ TEST(Objective, DeclareUnifiedTest(PairwiseRankingGPairSameLabels)) {
                           {0.0f, 0.0f, 0.0f, 0.0f},
                           {0.0f, 0.0f, 0.0f, 0.0f});
 
-  ASSERT_NO_THROW(obj->DefaultEvalMetric());
-}
-
-TEST(Objective, DeclareUnifiedTest(NDCGRankingGPair)) {
-  std::vector<std::pair<std::string, std::string>> args;
-  xgboost::Context ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
-
-  std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", &ctx)};
-  obj->Configure(args);
-  CheckConfigReload(obj, "rank:ndcg");
-
-  // Test with setting sample weight to second query group
-  CheckRankingObjFunction(obj,
-                          {0, 0.1f, 0, 0.1f},
-                          {0,   1, 0, 1},
-                          {2.0f, 0.0f},
-                          {0, 2, 4},
-                          {0.7f, -0.7f, 0.0f, 0.0f},
-                          {0.74f, 0.74f, 0.0f, 0.0f});
-
-  CheckRankingObjFunction(obj,
-                          {0, 0.1f, 0, 0.1f},
-                          {0,   1, 0, 1},
-                          {1.0f, 1.0f},
-                          {0, 2, 4},
-                          {0.35f, -0.35f,  0.35f, -0.35f},
-                          {0.368f, 0.368f, 0.368f, 0.368f});
   ASSERT_NO_THROW(obj->DefaultEvalMetric());
 }
 

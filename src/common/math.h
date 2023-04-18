@@ -1,5 +1,5 @@
-/*!
- * Copyright 2015 by Contributors
+/**
+ * Copyright 2015-2023 by XGBoost Contributors
  * \file math.h
  * \brief additional math utils
  * \author Tianqi Chen
@@ -7,16 +7,19 @@
 #ifndef XGBOOST_COMMON_MATH_H_
 #define XGBOOST_COMMON_MATH_H_
 
-#include <xgboost/base.h>
+#include <xgboost/base.h>  // for XGBOOST_DEVICE
 
-#include <algorithm>
-#include <cmath>
-#include <limits>
-#include <utility>
-#include <vector>
+#include <algorithm>    // for max
+#include <cmath>        // for exp, abs, log, lgamma
+#include <limits>       // for numeric_limits
+#include <type_traits>  // for is_floating_point, conditional, is_signed, is_same, declval, enable_if
+#include <utility>      // for pair
 
 namespace xgboost {
 namespace common {
+
+template <typename T> XGBOOST_DEVICE T Sqr(T const &w) { return w * w; }
+
 /*!
  * \brief calculate the sigmoid of the input.
  * \param x input parameter
@@ -30,9 +33,11 @@ XGBOOST_DEVICE inline float Sigmoid(float x) {
   return y;
 }
 
-template <typename T>
-XGBOOST_DEVICE inline static T Sqr(T a) { return a * a; }
-
+XGBOOST_DEVICE inline double Sigmoid(double x) {
+  auto denom = std::exp(-x) + 1.0;
+  auto y = 1.0 / denom;
+  return y;
+}
 /*!
  * \brief Equality test for both integer and floating point.
  */
@@ -133,10 +138,6 @@ inline float LogSum(Iterator begin, Iterator end) {
 inline static bool CmpFirst(const std::pair<float, unsigned> &a,
                             const std::pair<float, unsigned> &b) {
   return a.first > b.first;
-}
-inline static bool CmpSecond(const std::pair<float, unsigned> &a,
-                             const std::pair<float, unsigned> &b) {
-  return a.second > b.second;
 }
 
 // Redefined here to workaround a VC bug that doesn't support overloading for integer
