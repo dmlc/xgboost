@@ -201,6 +201,10 @@ struct GHistIndexMatrixView {
   common::Span<Entry> workspace_;
   std::vector<size_t> current_unroll_;
 
+  std::vector<std::uint32_t> const& ptrs_;
+  std::vector<float> const& mins_;
+  std::vector<float> const& values_;
+
  public:
   size_t base_rowid;
 
@@ -213,6 +217,9 @@ struct GHistIndexMatrixView {
         ft_{ft},
         workspace_{workplace},
         current_unroll_(n_threads > 0 ? n_threads : 1, 0),
+        ptrs_{_page.cut.Ptrs()},
+        mins_{_page.cut.MinValues()},
+        values_{_page.cut.Values()},
         base_rowid{_page.base_rowid} {}
 
   SparsePage::Inst operator[](size_t r) {
@@ -221,7 +228,7 @@ struct GHistIndexMatrixView {
     size_t non_missing{static_cast<std::size_t>(beg)};
 
     for (bst_feature_t c = 0; c < n_features_; ++c) {
-      float f = page_.GetFvalue(r, c, common::IsCat(ft_, c));
+      float f = page_.GetFvalue(ptrs_, values_, mins_, r, c, common::IsCat(ft_, c));
       if (!common::CheckNAN(f)) {
         workspace_[non_missing] = Entry{c, f};
         ++non_missing;

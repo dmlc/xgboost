@@ -239,6 +239,9 @@ class GHistIndexMatrix {
   bst_bin_t GetGindex(size_t ridx, size_t fidx) const;
 
   float GetFvalue(size_t ridx, size_t fidx, bool is_cat) const;
+  float GetFvalue(std::vector<std::uint32_t> const& ptrs, std::vector<float> const& values,
+                  std::vector<float> const& mins, bst_row_t ridx, bst_feature_t fidx,
+                  bool is_cat) const;
 
  private:
   std::unique_ptr<common::ColumnMatrix> columns_;
