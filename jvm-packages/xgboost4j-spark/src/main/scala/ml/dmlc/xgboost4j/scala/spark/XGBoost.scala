@@ -348,17 +348,21 @@ object XGBoost extends Serializable {
   }
 
   /** visiable for testing */
-  private[scala] def getTracker(nWorkers: Int, trackerConf: TrackerConf): IRabitTracker = {
+  private[scala] def getTracker(nWorkers: Int, trackerConf: TrackerConf,
+                                rabitParams: Map[String, String] = Map.empty): IRabitTracker = {
     val tracker: IRabitTracker = trackerConf.trackerImpl match {
-      case "scala" => new RabitTracker(nWorkers)
-      case "python" => new PyRabitTracker(nWorkers, trackerConf.hostIp, trackerConf.pythonExec)
-      case _ => new PyRabitTracker(nWorkers)
+      case "scala" => new RabitTracker(nWorkers, rabitParams = rabitParams)
+      case "python" => new PyRabitTracker(nWorkers, trackerConf.hostIp, trackerConf.pythonExec,
+        rabitParams.asJava)
+      case _ => new PyRabitTracker(nWorkers, rabitParams.asJava)
     }
     tracker
   }
 
-  private def startTracker(nWorkers: Int, trackerConf: TrackerConf): IRabitTracker = {
-    val tracker = getTracker(nWorkers, trackerConf)
+  private def startTracker(
+    nWorkers: Int, trackerConf: TrackerConf, rabitParams: Map[String, String]
+  ): IRabitTracker = {
+    val tracker = getTracker(nWorkers, trackerConf, rabitParams)
     require(tracker.start(trackerConf.workerConnectionTimeout), "FAULT: Failed to start tracker")
     tracker
   }
@@ -377,7 +381,7 @@ object XGBoost extends Serializable {
 
     val xgbParamsFactory = new XGBoostExecutionParamsFactory(params, sc)
     val xgbExecParams = xgbParamsFactory.buildXGBRuntimeParams
-    val xgbRabitParams = xgbParamsFactory.buildRabitParams.asJava
+    val xgbRabitParams = xgbParamsFactory.buildRabitParams
 
     val prevBooster = xgbExecParams.checkpointParam.map { checkpointParam =>
       val checkpointManager = new ExternalCheckpointManager(
@@ -392,10 +396,11 @@ object XGBoost extends Serializable {
 
     try {
       // Train for every ${savingRound} rounds and save the partially completed booster
-      val tracker = startTracker(xgbExecParams.numWorkers, xgbExecParams.trackerConf)
+      val tracker = startTracker(
+        xgbExecParams.numWorkers, xgbExecParams.trackerConf, xgbRabitParams)
       val (booster, metrics) = try {
-        tracker.getWorkerEnvs().putAll(xgbRabitParams)
         val rabitEnv = tracker.getWorkerEnvs
+        logger.error(rabitEnv.toString)
 
         val boostersAndMetrics = trainingRDD.barrier().mapPartitions { iter => {
           var optionWatches: Option[() => Watches] = None

@@ -3,6 +3,7 @@ package ml.dmlc.xgboost4j.java;
 import java.io.*;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -83,17 +84,26 @@ public class RabitTracker implements IRabitTracker {
     }
   }
 
-  public RabitTracker(int numWorkers)
-      throws XGBoostError {
+  public RabitTracker(int numWorkers) throws XGBoostError {
     if (numWorkers < 1) {
       throw new XGBoostError("numWorkers must be greater equal to one");
     }
     this.numWorkers = numWorkers;
   }
 
-  public RabitTracker(int numWorkers, String hostIp, String pythonExec)
+  public RabitTracker(int numWorkers, Map<String, String> rabitParams)
       throws XGBoostError {
-    this(numWorkers);
+    if (numWorkers < 1) {
+      throw new XGBoostError("numWorkers must be greater equal to one");
+    }
+    this.numWorkers = numWorkers;
+    if (Objects.nonNull(rabitParams)) this.envs.putAll(rabitParams);
+  }
+
+  public RabitTracker(
+      int numWorkers, String hostIp, String pythonExec, Map<String, String> rabitParams
+  ) throws XGBoostError {
+    this(numWorkers, rabitParams);
     this.hostIp = hostIp;
     this.pythonExec = pythonExec;
   }
