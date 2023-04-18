@@ -36,12 +36,13 @@ void ApplyWithLabels(MetaInfo const& info, void* buffer, size_t size, Function&&
   if (info.IsVerticalFederated()) {
     // We assume labels are only available on worker 0, so the calculation is done there and result
     // broadcast to other workers.
-    std::vector<char> message(255);
+    std::vector<char> message(1024);
     if (collective::GetRank() == 0) {
       try {
         std::forward<Function>(function)(std::forward<Args>(args)...);
       } catch (dmlc::Error& e) {
-        strcpy(&message[0], e.what());
+        strncpy(&message[0], e.what(), message.size());
+        message.back() = '\0';
       }
     }
     collective::Broadcast(&message[0], message.size(), 0);
