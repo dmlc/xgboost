@@ -33,11 +33,10 @@ class BuildConfiguration:  # pylint: disable=R0902
             setattr(
                 self,
                 field_name,
-                (
-                    config_settings[field_name]
-                    in ["TRUE", "True", "true", "1", "On", "ON", "on"]
-                ),
+                (config_settings[field_name].lower() in ["true", "1", "on"]),
             )
+        else:
+            raise ValueError(f"Field {field_name} is not a valid config_settings")
 
     def update(self, config_settings: Optional[Dict[str, Any]]) -> None:
         """Parse config_settings from Pip (or other PEP 517 frontend)"""
@@ -52,6 +51,6 @@ class BuildConfiguration:  # pylint: disable=R0902
             if field_name in ["use_system_libxgboost"]:
                 continue
             cmake_option = field_name.upper()
-            cmake_value = "ON" if getattr(self, field_name) else "OFF"
+            cmake_value = "ON" if getattr(self, field_name) == True else "OFF"
             cmake_args.append(f"-D{cmake_option}={cmake_value}")
         return cmake_args

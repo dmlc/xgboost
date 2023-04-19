@@ -1,14 +1,13 @@
 """
 Custom build backend for XGBoost Python package.
 Builds source distribution and binary wheels, following PEP 517 / PEP 660.
-Re-uses components of Hatchling (https://github.com/pypa/hatch/tree/master/backend) for the sake
+Reuses components of Hatchling (https://github.com/pypa/hatch/tree/master/backend) for the sake
 of brevity.
 """
 import dataclasses
 import logging
 import os
 import pathlib
-import sysconfig
 import tempfile
 from contextlib import contextmanager
 from typing import Any, Dict, Iterator, List, Optional, Union
@@ -23,9 +22,11 @@ from .util import copy_with_logging, copytree_with_logging
 
 @contextmanager
 def cd(path: Union[str, pathlib.Path]) -> Iterator[str]:  # pylint: disable=C0103
-    """Temporarily change working directory"""
-    if isinstance(path, pathlib.Path):
-        path = str(path)
+    """
+    Temporarily change working directory.
+    TODO(hcho3): Remove this once we adopt Python 3.11, which implements contextlib.chdir.
+    """
+    path = str(path)
     path = os.path.realpath(path)
     cwd = os.getcwd()
     os.chdir(path)
@@ -35,49 +36,14 @@ def cd(path: Union[str, pathlib.Path]) -> Iterator[str]:  # pylint: disable=C010
         os.chdir(cwd)
 
 
-def get_tag() -> str:
-    """Get appropate wheel tag, according to system"""
-    tag_platform = sysconfig.get_platform().replace("-", "_").replace(".", "_")
-    return f"py3-none-{tag_platform}"
-
-
 TOPLEVEL_DIR = pathlib.Path(__file__).parent.parent.absolute().resolve()
 logging.basicConfig(level=logging.INFO)
 
 
-def get_requires_for_build_wheel(
-    config_settings: Optional[Dict[str, Any]] = None
-) -> List[str]:
-    """A PEP 517 method. Delegate to Hatchling"""
-    return hatchling.build.get_requires_for_build_wheel(config_settings)
-
-
-def get_requires_for_build_sdist(
-    config_settings: Optional[Dict[str, Any]] = None
-) -> List[str]:
-    """A PEP 517 method. Delegate to Hatchling"""
-    return hatchling.build.get_requires_for_build_sdist(config_settings)
-
-
-def get_requires_for_build_editable(
-    config_settings: Optional[Dict[str, Any]] = None
-) -> List[str]:
-    """A PEP 517 method. Delegate to Hatchling"""
-    return hatchling.build.get_requires_for_build_editable(config_settings)
-
-
-def write_hatch_config(dest_dir: pathlib.Path, *, logger: logging.Logger) -> None:
-    """Write a small custom hook for Hatch, to set a custom tag."""
-    template = (
-        "from hatchling.builders.hooks.plugin.interface import BuildHookInterface\n"
-        "class CustomBuildHook(BuildHookInterface):\n"
-        "    def initialize(self, version, build_data):\n"
-        "        build_data['tag'] = '{tag}'\n"
-    )
-    hatch_build_file = dest_dir / "hatch_build.py"
-    logger.info("Writing %s", str(hatch_build_file))
-    with open(hatch_build_file, "w", encoding="utf-8") as f:
-        f.write(template.format(tag=get_tag()))
+# Aliases
+get_requires_for_build_sdist = hatchling.build.get_requires_for_build_sdist
+get_requires_for_build_wheel = hatchling.build.get_requires_for_build_wheel
+get_requires_for_build_editable = hatchling.build.get_requires_for_build_editable
 
 
 def build_wheel(
@@ -103,8 +69,8 @@ def build_wheel(
         logger.info("Copying project files to temporary directory %s", str(workspace))
 
         copy_with_logging(TOPLEVEL_DIR / "pyproject.toml", workspace, logger=logger)
+        copy_with_logging(TOPLEVEL_DIR / "hatch_build.py", workspace, logger=logger)
         copy_with_logging(TOPLEVEL_DIR / "README.rst", workspace, logger=logger)
-        write_hatch_config(workspace, logger=logger)
 
         pkg_path = workspace / "xgboost"
         copytree_with_logging(TOPLEVEL_DIR / "xgboost", pkg_path, logger=logger)
