@@ -12,7 +12,7 @@ Notes on packaging XGBoost's Python package
 How to build binary wheels and source distributions
 ***************************************************
 
-Wheels and source distributions (sdist for short) are two main
+Wheels and source distributions (sdist for short) are the two main
 mechanisms for packaging and distributing Python packages.
 
 * A **source distribution** (sdist) is a tarball (``.tar.gz`` extension) that
