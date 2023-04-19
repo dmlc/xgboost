@@ -216,7 +216,7 @@ There are several ways to build and install the package from source:
     :start-at: @dataclasses.dataclass
     :end-before: def _set_config_setting(
 
-  ``use_system_libxgboost`` is a special option. See Item 3 below for
+  ``use_system_libxgboost`` is a special option. See Item 4 below for
   detailed description.
 
   .. note:: Verbose flag recommended
