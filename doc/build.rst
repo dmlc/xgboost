@@ -270,6 +270,11 @@ There are several ways to build and install the package from source:
     pip install . --config-settings use_system_libxgboost=True
 
 
+.. note::
+
+  See :doc:`contrib/python_packaging` for instructions on packaging
+  and distributing XGBoost as Python distributions.
+
 .. _python_mingw:
 
 Building Python Package for Windows with MinGW-w64 (Advanced)
