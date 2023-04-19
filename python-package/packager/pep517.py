@@ -114,6 +114,7 @@ def build_sdist(
         logger.info("Copying project files to temporary directory %s", str(workspace))
 
         copy_with_logging(TOPLEVEL_DIR / "pyproject.toml", workspace, logger=logger)
+        copy_with_logging(TOPLEVEL_DIR / "hatch_build.py", workspace, logger=logger)
         copy_with_logging(TOPLEVEL_DIR / "README.rst", workspace, logger=logger)
 
         copytree_with_logging(
@@ -151,7 +152,6 @@ def build_editable(
             "See https://xgboost.readthedocs.io/en/latest/build.html for detailed instructions."
         )
 
-    write_hatch_config(TOPLEVEL_DIR, logger=logger)
     return hatchling.build.build_editable(
         wheel_directory, config_settings, metadata_directory
     )
