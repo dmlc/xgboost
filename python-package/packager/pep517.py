@@ -10,7 +10,7 @@ import os
 import pathlib
 import tempfile
 from contextlib import contextmanager
-from typing import Any, Dict, Iterator, List, Optional, Union
+from typing import Any, Dict, Iterator, Optional, Union
 
 import hatchling.build
 

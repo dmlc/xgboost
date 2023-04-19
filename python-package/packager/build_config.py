@@ -51,6 +51,6 @@ class BuildConfiguration:  # pylint: disable=R0902
             if field_name in ["use_system_libxgboost"]:
                 continue
             cmake_option = field_name.upper()
-            cmake_value = "ON" if getattr(self, field_name) == True else "OFF"
+            cmake_value = "ON" if getattr(self, field_name) is True else "OFF"
             cmake_args.append(f"-D{cmake_option}={cmake_value}")
         return cmake_args
