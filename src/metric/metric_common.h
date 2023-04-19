@@ -9,6 +9,8 @@
 #include <memory>  // shared_ptr
 #include <string>
 
+#include "../collective/aggregator.h"
+#include "../collective/communicator-inl.h"
 #include "../common/common.h"
 #include "xgboost/metric.h"
 
@@ -20,7 +22,12 @@ class MetricNoCache : public Metric {
   virtual double Eval(HostDeviceVector<float> const &predts, MetaInfo const &info) = 0;
 
   double Evaluate(HostDeviceVector<float> const &predts, std::shared_ptr<DMatrix> p_fmat) final {
-    return this->Eval(predts, p_fmat->Info());
+    double result{0.0};
+    auto const& info = p_fmat->Info();
+    collective::ApplyWithLabels(info, &result, sizeof(double), [&] {
+      result = this->Eval(predts, info);
+    });
+    return result;
   }
 };
 

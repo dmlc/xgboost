@@ -270,7 +270,9 @@ class EvalAUC : public MetricNoCache {
     }
     //  We use the global size to handle empty dataset.
     std::array<size_t, 2> meta{info.labels.Size(), preds.Size()};
-    collective::Allreduce<collective::Operation::kMax>(meta.data(), meta.size());
+    if (!info.IsVerticalFederated()) {
+      collective::Allreduce<collective::Operation::kMax>(meta.data(), meta.size());
+    }
     if (meta[0] == 0) {
       // Empty across all workers, which is not supported.
       auc = std::numeric_limits<double>::quiet_NaN();
