@@ -1,3 +1,7 @@
+"""
+Custom hook to customize the behavior of Hatchling.
+Here, we customize the tag of the generated wheels.
+"""
 import sysconfig
 from typing import Any, Dict
 
@@ -11,5 +15,8 @@ def get_tag() -> str:
 
 
 class CustomBuildHook(BuildHookInterface):
+    """A custom build hook"""
+
     def initialize(self, version: str, build_data: Dict[str, Any]) -> None:
+        """This step ccurs immediately before each build."""
         build_data["tag"] = get_tag()
