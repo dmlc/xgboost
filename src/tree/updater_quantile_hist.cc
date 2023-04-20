@@ -294,6 +294,7 @@ class MultiTargetHistBuilder {
                      std::vector<bst_node_t> *p_out_position) {
     monitor_->Start(__func__);
     if (!task_->UpdateTreeLeaf()) {
+      monitor_->Stop(__func__);
       return;
     }
     for (auto const &part : partitioner_) {
@@ -397,6 +398,7 @@ class HistBuilder {
     evaluator_ = std::make_unique<HistEvaluator<CPUExpandEntry>>(ctx_, this->param_, fmat->Info(),
                                                                  col_sampler_);
     p_last_tree_ = p_tree;
+    monitor_->Stop(__func__);
   }
 
   void EvaluateSplits(DMatrix *p_fmat, RegTree const *p_tree,
