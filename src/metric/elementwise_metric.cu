@@ -8,6 +8,7 @@
  */
 #include <dmlc/registry.h>
 
+#include <array>
 #include <cmath>
 
 #include "../collective/communicator-inl.h"
