@@ -201,7 +201,7 @@ trait GpuTestSuite extends AnyFunSuite with TmpFolderSuite {
 
 }
 
-trait TmpFolderSuite extends BeforeAndAfterAll { self: FunSuite =>
+trait TmpFolderSuite extends BeforeAndAfterAll { self: AnyFunSuite =>
   protected var tempDir: Path = _
 
   override def beforeAll(): Unit = {
