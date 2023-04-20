@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2022 by Contributors
+ Copyright (c) 2014-2023 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ import scala.util.Random
 import scala.collection.JavaConverters._
 
 import ml.dmlc.xgboost4j.java.{Communicator, IRabitTracker, XGBoostError, RabitTracker => PyRabitTracker}
-import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.spark.params.LearningTaskParams
 import ml.dmlc.xgboost4j.scala.ExternalCheckpointManager
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
@@ -44,21 +43,16 @@ import org.apache.spark.sql.SparkSession
  *                                Use a finite, non-zero timeout value to prevent tracker from
  *                                hanging indefinitely (in milliseconds)
  *                                (supported by "scala" implementation only.)
- * @param trackerImpl Choice between "python" or "scala". The former utilizes the Java wrapper of
- *                    the Python Rabit tracker (in dmlc_core), whereas the latter is implemented
- *                    in Scala without Python components, and with full support of timeouts.
- *                    The Scala implementation is currently experimental, use at your own risk.
- *
  * @param hostIp The Rabit Tracker host IP address which is only used for python implementation.
  *               This is only needed if the host IP cannot be automatically guessed.
  * @param pythonExec The python executed path for Rabit Tracker,
  *                   which is only used for python implementation.
  */
-case class TrackerConf(workerConnectionTimeout: Long, trackerImpl: String,
+case class TrackerConf(workerConnectionTimeout: Long,
   hostIp: String = "", pythonExec: String = "")
 
 object TrackerConf {
-  def apply(): TrackerConf = TrackerConf(0L, "python")
+  def apply(): TrackerConf = TrackerConf(0L)
 }
 
 private[scala] case class XGBoostExecutionEarlyStoppingParams(numEarlyStoppingRounds: Int,
@@ -349,11 +343,9 @@ object XGBoost extends Serializable {
 
   /** visiable for testing */
   private[scala] def getTracker(nWorkers: Int, trackerConf: TrackerConf): IRabitTracker = {
-    val tracker: IRabitTracker = trackerConf.trackerImpl match {
-      case "scala" => new RabitTracker(nWorkers)
-      case "python" => new PyRabitTracker(nWorkers, trackerConf.hostIp, trackerConf.pythonExec)
-      case _ => new PyRabitTracker(nWorkers)
-    }
+    val tracker: IRabitTracker = new PyRabitTracker(
+      nWorkers, trackerConf.hostIp, trackerConf.pythonExec
+    )
     tracker
   }
 
