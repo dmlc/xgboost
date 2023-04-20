@@ -212,9 +212,7 @@ struct EvalEWiseSurvivalBase : public MetricNoCache {
                                   info.labels_upper_bound_, preds);
 
     double dat[2]{result.Residue(), result.Weights()};
-    if (info.IsRowSplit()) {
-      collective::Allreduce<collective::Operation::kSum>(dat, 2);
-    }
+    collective::GlobalSum(info, dat);
     return Policy::GetFinal(dat[0], dat[1]);
   }
 

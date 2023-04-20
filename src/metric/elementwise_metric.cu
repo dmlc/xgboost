@@ -198,9 +198,7 @@ class PseudoErrorLoss : public MetricNoCache {
           return std::make_tuple(v, wt);
         });
     double dat[2]{result.Residue(), result.Weights()};
-    if (info.IsRowSplit()) {
-      collective::Allreduce<collective::Operation::kSum>(dat, 2);
-    }
+    collective::GlobalSum(info, dat);
     return EvalRowMAPE::GetFinal(dat[0], dat[1]);
   }
 };
@@ -367,9 +365,7 @@ struct EvalEWiseBase : public MetricNoCache {
         });
 
     double dat[2]{result.Residue(), result.Weights()};
-    if (info.IsRowSplit()) {
-      collective::Allreduce<collective::Operation::kSum>(dat, 2);
-    }
+    collective::GlobalSum(info, dat);
     return Policy::GetFinal(dat[0], dat[1]);
   }
 
@@ -441,9 +437,7 @@ class QuantileError : public MetricNoCache {
     if (info.num_row_ == 0) {
       // empty DMatrix on distributed env
       double dat[2]{0.0, 0.0};
-      if (info.IsRowSplit()) {
-        collective::Allreduce<collective::Operation::kSum>(dat, 2);
-      }
+      collective::GlobalSum(info, dat);
       CHECK_GT(dat[1], 0);
       return dat[0] / dat[1];
     }
@@ -481,9 +475,7 @@ class QuantileError : public MetricNoCache {
           return std::make_tuple(l, w);
         });
     double dat[2]{result.Residue(), result.Weights()};
-    if (info.IsRowSplit()) {
-      collective::Allreduce<collective::Operation::kSum>(dat, 2);
-    }
+    collective::GlobalSum(info, dat);
     CHECK_GT(dat[1], 0);
     return dat[0] / dat[1];
   }

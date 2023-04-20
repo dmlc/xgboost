@@ -170,10 +170,10 @@ class QuantileRegression : public ObjFunction {
     common::Mean(ctx_, *base_score, &temp);
     double meanq = temp(0) * sw;
 
-    if (info.IsRowSplit()) {
-      collective::Allreduce<collective::Operation::kSum>(&meanq, 1);
-      collective::Allreduce<collective::Operation::kSum>(&sw, 1);
-    }
+    double dat[2] {meanq, sw};
+    collective::GlobalSum(info, dat);
+    meanq = dat[0];
+    sw = dat[1];
     meanq /= (sw + kRtEps);
     base_score->Reshape(1);
     base_score->Data()->Fill(meanq);

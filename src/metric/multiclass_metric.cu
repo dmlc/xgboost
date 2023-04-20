@@ -181,9 +181,7 @@ struct EvalMClassBase : public MetricNoCache {
       dat[0] = result.Residue();
       dat[1] = result.Weights();
     }
-    if (info.IsRowSplit()) {
-      collective::Allreduce<collective::Operation::kSum>(dat, 2);
-    }
+    collective::GlobalSum(info, dat);
     return Derived::GetFinal(dat[0], dat[1]);
   }
   /*!

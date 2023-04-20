@@ -7,6 +7,7 @@
 #include <memory>
 #include <vector>
 
+#include "../collective/aggregator.h"
 #include "../common/random.h"
 #include "../data/gradient_index.h"
 #include "common_row_partitioner.h"
@@ -92,9 +93,7 @@ class GloablApproxBuilder {
     for (auto const &g : gpair) {
       root_sum.Add(g);
     }
-    if (p_fmat->Info().IsRowSplit()) {
-      collective::Allreduce<collective::Operation::kSum>(reinterpret_cast<double *>(&root_sum), 2);
-    }
+    collective::GlobalSum(p_fmat->Info(), reinterpret_cast<double *>(&root_sum), 2);
     std::vector<CPUExpandEntry> nodes{best};
     size_t i = 0;
     auto space = ConstructHistSpace(partitioner_, nodes);
