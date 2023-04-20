@@ -728,7 +728,7 @@ class MeanAbsoluteError : public ObjFunction {
     std::transform(linalg::cbegin(out), linalg::cend(out), linalg::begin(out),
                    [w](float v) { return v * w; });
 
-    collective::GlobalSum(info, out.Values());
+    collective::GlobalSum(info, &out.Values());
     collective::GlobalSum(info, &w, 1);
 
     if (common::CloseTo(w, 0.0)) {

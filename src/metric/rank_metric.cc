@@ -393,8 +393,9 @@ class EvalRankWithCache : public Metric {
 
 namespace {
 double Finalize(MetaInfo const& info, double score, double sw) {
-  double dat[2]{score, sw};
-  collective::GlobalSum(info, dat);
+  std::array<double, 2> dat{score, sw};
+  collective::GlobalSum(info, &dat);
+  std::tie(score, sw) = std::tuple_cat(dat);
   if (sw > 0.0) {
     score = score / sw;
   }

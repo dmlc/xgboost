@@ -116,7 +116,7 @@ double MultiClassOVR(Context const *ctx, common::Span<float const> predts, MetaI
 
   // we have 2 averages going in here, first is among workers, second is among
   // classes. allreduce sums up fp/tp auc for each class.
-  collective::GlobalSum(info, results.Values());
+  collective::GlobalSum(info, &results.Values());
   double auc_sum{0};
   double tp_sum{0};
   for (size_t c = 0; c < n_classes; ++c) {

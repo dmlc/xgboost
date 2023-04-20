@@ -169,7 +169,7 @@ struct EvalMClassBase : public MetricNoCache {
     } else {
       CHECK(preds.Size() % info.labels.Size() == 0) << "label and prediction size not match";
     }
-    double dat[2] { 0.0, 0.0 };
+    std::array<double, 2> dat{ 0.0, 0.0 };
     if (info.labels.Size() != 0) {
       const size_t nclass = preds.Size() / info.labels.Size();
       CHECK_GE(nclass, 1U)
@@ -181,7 +181,7 @@ struct EvalMClassBase : public MetricNoCache {
       dat[0] = result.Residue();
       dat[1] = result.Weights();
     }
-    collective::GlobalSum(info, dat);
+    collective::GlobalSum(info, &dat);
     return Derived::GetFinal(dat[0], dat[1]);
   }
   /*!

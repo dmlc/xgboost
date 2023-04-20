@@ -52,12 +52,12 @@ inline void UpdateLeafValues(std::vector<float>* p_quantiles, std::vector<bst_no
   std::vector<int32_t> n_valids(quantiles.size());
   std::transform(quantiles.cbegin(), quantiles.cend(), n_valids.begin(),
                  [](float q) { return static_cast<int32_t>(!std::isnan(q)); });
-  collective::GlobalSum(info, n_valids);
+  collective::GlobalSum(info, &n_valids);
   // convert to 0 for all reduce
   std::replace_if(
       quantiles.begin(), quantiles.end(), [](float q) { return std::isnan(q); }, 0.f);
   // use the mean value
-  collective::GlobalSum(info, quantiles);
+  collective::GlobalSum(info, &quantiles);
   for (size_t i = 0; i < n_leaf; ++i) {
     if (n_valids[i] > 0) {
       quantiles[i] /= static_cast<float>(n_valids[i]);

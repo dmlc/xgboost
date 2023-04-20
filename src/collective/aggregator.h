@@ -8,6 +8,7 @@
 #pragma once
 #include <xgboost/data.h>
 
+#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
@@ -96,13 +97,8 @@ void GlobalSum(MetaInfo const& info, T* values, size_t size) {
 }
 
 template <typename Container>
-void GlobalSum(MetaInfo const& info, Container& values) {
-  GlobalSum(info, values.data(), values.size());
-}
-
-template <typename T, size_t N>
-void GlobalSum(MetaInfo const& info, T (&values)[N]) {
-  GlobalSum(info, values, N);
+void GlobalSum(MetaInfo const& info, Container* values) {
+  GlobalSum(info, values->data(), values->size());
 }
 
 /**
@@ -120,9 +116,8 @@ void GlobalSum(MetaInfo const& info, T (&values)[N]) {
 template <typename T>
 T GlobalRatio(MetaInfo const& info, T dividend, T divisor) {
   std::array<T, 2> results{dividend, divisor};
-  GlobalSum(info, results);
-  dividend = results[0];
-  divisor = results[1];
+  GlobalSum(info, &results);
+  std::tie(dividend, divisor) = std::tuple_cat(results);
   if (divisor <= 0) {
     return std::numeric_limits<T>::quiet_NaN();
   } else {
