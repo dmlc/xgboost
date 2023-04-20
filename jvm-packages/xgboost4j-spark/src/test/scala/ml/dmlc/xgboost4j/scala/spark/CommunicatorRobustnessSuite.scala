@@ -23,9 +23,9 @@ import scala.util.Random
 import ml.dmlc.xgboost4j.java.{Communicator, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.java.IRabitTracker.TrackerStatus
 import ml.dmlc.xgboost4j.scala.DMatrix
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class CommunicatorRobustnessSuite extends FunSuite with PerTest {
+class CommunicatorRobustnessSuite extends AnyFunSuite with PerTest {
 
   private def getXGBoostExecutionParams(paramMap: Map[String, Any]): XGBoostExecutionParams = {
     val classifier = new XGBoostClassifier(paramMap)

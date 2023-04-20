@@ -19,9 +19,9 @@ package ml.dmlc.xgboost4j.scala.spark
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
 
 import org.apache.spark.sql._
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class XGBoostConfigureSuite extends FunSuite with PerTest {
+class XGBoostConfigureSuite extends AnyFunSuite with PerTest {
 
   override def sparkSessionBuilder: SparkSession.Builder = super.sparkSessionBuilder
       .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")

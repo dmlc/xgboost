@@ -69,7 +69,7 @@ pom_template = """
     <dependency>
       <groupId>org.scalactic</groupId>
       <artifactId>scalactic_${{scala.binary.version}}</artifactId>
-      <version>3.0.8</version>
+      <version>3.2.15</version>
       <scope>test</scope>
     </dependency>
     <dependency>

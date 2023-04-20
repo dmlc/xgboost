@@ -20,14 +20,15 @@ import java.nio.file.{Files, Path}
 import java.sql.{Date, Timestamp}
 import java.util.{Locale, TimeZone}
 
-import org.scalatest.{BeforeAndAfterAll, FunSuite}
+import org.scalatest.BeforeAndAfterAll
+import org.scalatest.funsuite.AnyFunSuite
 
 import org.apache.spark.{GpuTestUtils, SparkConf}
 import org.apache.spark.internal.Logging
 import org.apache.spark.network.util.JavaUtils
 import org.apache.spark.sql.{Row, SparkSession}
 
-trait GpuTestSuite extends FunSuite with TmpFolderSuite {
+trait GpuTestSuite extends AnyFunSuite with TmpFolderSuite {
   import SparkSessionHolder.withSparkSession
 
   protected def getResourcePath(resource: String): String = {
@@ -200,7 +201,7 @@ trait GpuTestSuite extends FunSuite with TmpFolderSuite {
 
 }
 
-trait TmpFolderSuite extends BeforeAndAfterAll { self: FunSuite =>
+trait TmpFolderSuite extends BeforeAndAfterAll { self: AnyFunSuite =>
   protected var tempDir: Path = _
 
   override def beforeAll(): Unit = {

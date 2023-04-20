@@ -19,10 +19,10 @@ package ml.dmlc.xgboost4j.scala.spark
 import java.io.File
 
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, ExternalCheckpointManager, XGBoost => SXGBoost}
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 import org.apache.hadoop.fs.{FileSystem, Path}
 
-class ExternalCheckpointManagerSuite extends FunSuite with TmpFolderPerSuite with PerTest {
+class ExternalCheckpointManagerSuite extends AnyFunSuite with TmpFolderPerSuite with PerTest {
 
   private def produceParamMap(checkpointPath: String, checkpointInterval: Int):
   Map[String, Any] = {
