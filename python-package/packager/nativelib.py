@@ -28,7 +28,6 @@ def _lib_name() -> str:
 
 def build_libxgboost(
     cpp_src_dir: pathlib.Path,
-    *,
     build_dir: pathlib.Path,
     build_config: BuildConfiguration,
 ) -> pathlib.Path:
@@ -111,7 +110,6 @@ def build_libxgboost(
 
 def locate_local_libxgboost(
     toplevel_dir: pathlib.Path,
-    *,
     logger: logging.Logger,
 ) -> Optional[pathlib.Path]:
     """
@@ -126,7 +124,6 @@ def locate_local_libxgboost(
 
 def locate_or_build_libxgboost(
     toplevel_dir: pathlib.Path,
-    *,
     build_dir: pathlib.Path,
     build_config: BuildConfiguration,
 ) -> pathlib.Path:

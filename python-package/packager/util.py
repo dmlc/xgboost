@@ -7,7 +7,7 @@ import shutil
 
 
 def copytree_with_logging(
-    src: pathlib.Path, dest: pathlib.Path, *, logger: logging.Logger
+    src: pathlib.Path, dest: pathlib.Path, logger: logging.Logger
 ) -> None:
     """Call shutil.copytree() with logging"""
     logger.info("Copying %s -> %s", str(src), str(dest))
@@ -15,7 +15,7 @@ def copytree_with_logging(
 
 
 def copy_with_logging(
-    src: pathlib.Path, dest: pathlib.Path, *, logger: logging.Logger
+    src: pathlib.Path, dest: pathlib.Path, logger: logging.Logger
 ) -> None:
     """Call shutil.copy() with logging"""
     if dest.is_dir():

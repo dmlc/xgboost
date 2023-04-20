@@ -77,7 +77,7 @@ completes quickly:
   
   $ pip install xgboost-2.0.0-py3-none-linux_x86_64.whl  # Completes quickly
 
-.. rubric:: Foonotes
+.. rubric:: Footnotes
 
 .. [#shared_lib_name] The name of the shared library file will differ
    depending on the operating system in use. See :ref:`build_shared_lib`.

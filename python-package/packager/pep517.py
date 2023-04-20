@@ -147,7 +147,7 @@ def build_editable(
         )
 
     if locate_local_libxgboost(TOPLEVEL_DIR, logger=logger) is None:
-        raise AssertionError(
+        raise RuntimeError(
             "To use the editable installation, first build libxgboost with CMake. "
             "See https://xgboost.readthedocs.io/en/latest/build.html for detailed instructions."
         )
