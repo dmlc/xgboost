@@ -78,6 +78,34 @@ T GlobalMax(MetaInfo const& info, T value) {
 }
 
 /**
+ * @brief Find the global sum of the given values across all workers.
+ *
+ * This only applies when the data is split row-wise (horizontally). When data is split
+ * column-wise (vertically), the original values are returned.
+ *
+ * @tparam T The type of the values.
+ * @param info MetaInfo about the DMatrix.
+ * @param values Pointer to the inputs to sum.
+ * @param size Number of values to sum.
+ */
+template <typename T>
+void GlobalSum(MetaInfo const& info, T* values, size_t size) {
+  if (info.IsRowSplit()) {
+    collective::Allreduce<collective::Operation::kSum>(values, size);
+  }
+}
+
+template <typename Container>
+void GlobalSum(MetaInfo const& info, Container& values) {
+  GlobalSum(info, values.data(), values.size());
+}
+
+template <typename T, size_t N>
+void GlobalSum(MetaInfo const& info, T (&values)[N]) {
+  GlobalSum(info, values, N);
+}
+
+/**
  * @brief Find the global ratio of the given two values across all workers.
  *
  * This only applies when the data is split row-wise (horizontally). When data is split
@@ -91,12 +119,10 @@ T GlobalMax(MetaInfo const& info, T value) {
  */
 template <typename T>
 T GlobalRatio(MetaInfo const& info, T dividend, T divisor) {
-  if (info.IsRowSplit()) {
-    std::array<T, 2> results{dividend, divisor};
-    collective::Allreduce<collective::Operation::kSum>(results.data(), results.size());
-    dividend = results[0];
-    divisor = results[1];
-  }
+  std::array<T, 2> results{dividend, divisor};
+  GlobalSum(info, results);
+  dividend = results[0];
+  divisor = results[1];
   if (divisor <= 0) {
     return std::numeric_limits<T>::quiet_NaN();
   } else {
@@ -104,42 +130,5 @@ T GlobalRatio(MetaInfo const& info, T dividend, T divisor) {
   }
 }
 
-/**
- * @brief Find the global sum of the given values across all workers.
- *
- * This only applies when the data is split row-wise (horizontally). When data is split
- * column-wise (vertically), the original values are returned.
- *
- * @tparam T The type of the values.
- * @param info MetaInfo about the DMatrix.
- * @param values The inputs to sum.
- */
-template <typename T>
-void GlobalSum(MetaInfo const& info, common::Span<T> const& values) {
-  if (info.IsRowSplit()) {
-    collective::Allreduce<collective::Operation::kSum>(values.data(), values.size());
-  }
-}
-
-template <typename T>
-void GlobalSum(MetaInfo const& info, std::vector<T>& values) {
-  if (info.IsRowSplit()) {
-    collective::Allreduce<collective::Operation::kSum>(values.data(), values.size());
-  }
-}
-
-template <typename T, size_t N>
-void GlobalSum(MetaInfo const& info, T (&values)[N]) {
-  if (info.IsRowSplit()) {
-    collective::Allreduce<collective::Operation::kSum>(values, N);
-  }
-}
-
-template <typename T>
-void GlobalSum(MetaInfo const& info, T* values, size_t size) {
-  if (info.IsRowSplit()) {
-    collective::Allreduce<collective::Operation::kSum>(values, size);
-  }
-}
 }  // namespace collective
 }  // namespace xgboost
