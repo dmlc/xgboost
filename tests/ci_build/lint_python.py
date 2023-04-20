@@ -198,7 +198,7 @@ def main(args: argparse.Namespace) -> None:
             run_mypy(path)
             for path in [
                 # core
-                "python-package/xgboost/",
+                "python-package/",
                 # demo
                 "demo/json-model/json_parser.py",
                 "demo/guide-python/external_memory.py",

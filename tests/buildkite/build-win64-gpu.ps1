@@ -24,21 +24,17 @@ if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 Write-Host "--- Build binary wheel"
 cd ../python-package
 conda activate
-& python setup.py bdist_wheel --universal
+& pip install --user -v "pip>=23"
+& pip --version
+& pip wheel --no-deps -v . --wheel-dir dist/
 Get-ChildItem . -Filter dist/*.whl |
 Foreach-Object {
   & python ../tests/ci_build/rename_whl.py $_.FullName $Env:BUILDKITE_COMMIT win_amd64
   if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 }
 
-Write-Host "--- Insert vcomp140.dll (OpenMP runtime) into the wheel"
-cd dist
-Copy-Item -Path ../../tests/ci_build/insert_vcomp140.py -Destination .
-& python insert_vcomp140.py *.whl
-if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
-
 Write-Host "--- Upload Python wheel"
-cd ../..
+cd ..
 Get-ChildItem . -Filter python-package/dist/*.whl |
 Foreach-Object {
   & buildkite-agent artifact upload python-package/dist/$_

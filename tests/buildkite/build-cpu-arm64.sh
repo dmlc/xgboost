@@ -18,7 +18,7 @@ $command_wrapper bash -c "cd build && ctest --extra-verbose"
 
 echo "--- Build binary wheel"
 $command_wrapper bash -c \
-  "cd python-package && rm -rf dist/* && python setup.py bdist_wheel --universal"
+  "cd python-package && rm -rf dist/* && pip wheel --no-deps -v . --wheel-dir dist/"
 $command_wrapper python tests/ci_build/rename_whl.py python-package/dist/*.whl \
   ${BUILDKITE_COMMIT} ${WHEEL_TAG}
 

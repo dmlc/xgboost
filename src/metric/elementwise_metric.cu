@@ -215,7 +215,7 @@ struct EvalError {
     }
   }
   const char *Name() const {
-    static std::string name;
+    static thread_local std::string name;
     if (has_param_) {
       std::ostringstream os;
       os << "error";
@@ -313,7 +313,7 @@ struct EvalTweedieNLogLik {
         << "tweedie variance power must be in interval [1, 2)";
   }
   const char *Name() const {
-    static std::string name;
+    static thread_local std::string name;
     std::ostringstream os;
     os << "tweedie-nloglik@" << rho_;
     name = os.str();

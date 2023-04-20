@@ -1,0 +1,42 @@
+[build-system]
+requires = [
+    "hatchling>=1.12.1"
+]
+backend-path = ["."]
+build-backend = "packager.pep517"
+
+[project]
+name = "xgboost"
+version = "2.0.0-dev"
+authors = [
+    {name = "Hyunsu Cho", email = "chohyu01@cs.washington.edu"},
+    {name = "Jiaming Yuan", email = "jm.yuan@outlook.com"}
+]
+description = "XGBoost Python Package"
+readme = {file = "README.rst", content-type = "text/x-rst"}
+requires-python = ">=3.8"
+license = {text = "Apache-2.0"}
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Development Status :: 5 - Production/Stable",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10"
+]
+dependencies = [
+    "numpy",
+    "scipy"
+]
+
+[project.optional-dependencies]
+pandas = ["pandas"]
+scikit-learn = ["scikit-learn"]
+dask = ["dask", "pandas", "distributed"]
+datatable = ["datatable"]
+plotting = ["graphviz", "matplotlib"]
+pyspark = ["pyspark", "scikit-learn", "cloudpickle"]
+
+[tool.hatch.build.targets.wheel.hooks.custom]

@@ -26,7 +26,7 @@ if [[ "$platform_id" == macosx_* ]]; then
         # cibuildwheel will take care of cross-compilation.
         wheel_tag=macosx_12_0_arm64
         cpython_ver=38
-        setup_env_var='CIBW_TARGET_OSX_ARM64=1'  # extra flag to be passed to setup.py
+        setup_env_var='CIBW_TARGET_OSX_ARM64=1'  # extra flag to be passed to xgboost.packager backend
         export PYTHON_CROSSENV=1
         export MACOSX_DEPLOYMENT_TARGET=12.0
         #OPENMP_URL="https://anaconda.org/conda-forge/llvm-openmp/11.1.0/download/osx-arm64/llvm-openmp-11.1.0-hf3c4609_1.tar.bz2"
