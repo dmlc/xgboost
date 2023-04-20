@@ -49,12 +49,6 @@
           <version>3.2.15</version>
           <scope>provided</scope>
         </dependency>
-        <dependency>
-          <groupId>org.scalatestplus</groupId>
-	  <artifactId>junit-4-13_${scala.binary.version}</artifactId>
-          <version>3.2.15.0</version>
-          <scope>test</scope>
-        </dependency>
     </dependencies>
 
     <build>
