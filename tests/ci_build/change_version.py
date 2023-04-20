@@ -40,14 +40,24 @@ def pypkg(
     major: int, minor: int, patch: int, rc: int, is_rc: bool, is_dev: bool
 ) -> None:
     version = f"{major}.{minor}.{patch}"
-    pyver_path = os.path.join("xgboost", "VERSION")
     pyver = version
     if is_rc:
         pyver = pyver + f"rc{rc}"
     if is_dev:
         pyver = pyver + "-dev"
+
+    pyver_path = os.path.join("xgboost", "VERSION")
     with open(pyver_path, "w") as fd:
-        fd.write(pyver)
+        fd.write(pyver + "\n")
+
+    pyprj_path = os.path.join("pyproject.toml")
+    with open(pyprj_path, "r") as fd:
+        pyprj = fd.read()
+    matched = re.search('version = "' + r"([0-9]+\.[0-9]+\.[0-9]+.*)" + '"', pyprj)
+    assert matched, "Couldn't find version string in pyproject.toml."
+    pyprj = pyprj[: matched.start(1)] + pyver + pyprj[matched.end(1) :]
+    with open(pyprj_path, "w") as fd:
+        fd.write(pyprj)
 
 
 @cd(R_PACKAGE)

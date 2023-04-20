@@ -30,7 +30,7 @@ def plot_importance(
     grid: bool = True,
     show_values: bool = True,
     values_format: str = "{v}",
-    **kwargs: Any
+    **kwargs: Any,
 ) -> Axes:
     """Plot importance based on fitted trees.
 
@@ -155,7 +155,7 @@ def to_graphviz(
     no_color: Optional[str] = None,
     condition_node_params: Optional[dict] = None,
     leaf_node_params: Optional[dict] = None,
-    **kwargs: Any
+    **kwargs: Any,
 ) -> GraphvizSource:
     """Convert specified tree to graphviz instance. IPython can automatically plot
     the returned graphviz instance. Otherwise, you should call .render() method
@@ -250,7 +250,7 @@ def plot_tree(
     num_trees: int = 0,
     rankdir: Optional[str] = None,
     ax: Optional[Axes] = None,
-    **kwargs: Any
+    **kwargs: Any,
 ) -> Axes:
     """Plot specified tree.
 

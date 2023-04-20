@@ -35,8 +35,9 @@ calls ``cibuildwheel`` to build the wheel. The ``cibuildwheel`` is a library tha
 suitable Python environment for each OS and processor target. Since we don't have Apple Silion
 machine in GitHub Actions, cross-compilation is needed; ``cibuildwheel`` takes care of the complex
 task of cross-compiling a Python wheel. (Note that ``cibuildwheel`` will call
-``setup.py bdist_wheel``. Since XGBoost has a native library component, ``setup.py`` contains
-a glue code to call CMake and a C++ compiler to build the native library on the fly.)
+``pip wheel``. Since XGBoost has a native library component, we created a customized build
+backend that hooks into ``pip``. The customized backend contains the glue code to compile the native
+library on the fly.)
 
 *********************************************************
 Reproduce CI testing environments using Docker containers

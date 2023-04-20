@@ -19,7 +19,7 @@ cmake .. -GNinja \
  -DUSE_NCCL=ON
 ninja
 cd ../python-package
-pip install -e .  # or equivalently python setup.py develop
+pip install -e .
 ```
 If CMake fails to locate gRPC, you may need to pass `-DCMAKE_PREFIX_PATH=<grpc path>` to CMake.
 

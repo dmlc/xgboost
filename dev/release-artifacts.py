@@ -105,7 +105,7 @@ def make_pysrc_wheel(release: str, outdir: str) -> None:
         os.mkdir(dist)
 
     with DirectoryExcursion(os.path.join(ROOT, "python-package")):
-        subprocess.check_call(["python", "setup.py", "sdist"])
+        subprocess.check_call(["python", "-m", "build", "--sdist"])
         src = os.path.join(DIST, f"xgboost-{release}.tar.gz")
         subprocess.check_call(["twine", "check", src])
         shutil.move(src, os.path.join(dist, f"xgboost-{release}.tar.gz"))

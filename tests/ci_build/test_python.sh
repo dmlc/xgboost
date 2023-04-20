@@ -28,7 +28,7 @@ function install_xgboost {
   then
     pushd .
     cd python-package
-    python setup.py install --user
+    pip install --user -v .
     popd
   fi
 }

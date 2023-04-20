@@ -16,15 +16,28 @@ Stable Release
 Python
 ------
 
-Pre-built binary are uploaded to PyPI (Python Package Index) for each release.  Supported platforms are Linux (x86_64, aarch64), Windows (x86_64) and MacOS (x86_64, Apple Silicon).
+Pre-built binary wheels are uploaded to PyPI (Python Package Index) for each release. Supported platforms are Linux (x86_64, aarch64), Windows (x86_64) and MacOS (x86_64, Apple Silicon).
 
 .. code-block:: bash
 
+  # Pip 21.3+ is required
   pip install xgboost
 
 
 You might need to run the command with ``--user`` flag or use ``virtualenv`` if you run
-into permission errors.  Python pre-built binary capability for each platform:
+into permission errors.
+
+.. note:: Windows users need to install Visual C++ Redistributable
+
+  XGBoost requires DLLs from `Visual C++ Redistributable
+  <https://www.microsoft.com/en-us/download/details.aspx?id=48145>`_
+  in order to function, so make sure to install it. Exception: If
+  you have Visual Studio installed, you already have access to
+  necessary libraries and thus don't need to install Visual C++
+  Redistributable.
+
+
+Capabilities of binary wheels for each platform:
 
 .. |tick| unicode:: U+2714
 .. |cross| unicode:: U+2718

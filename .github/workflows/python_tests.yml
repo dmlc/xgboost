@@ -65,7 +65,7 @@ jobs:
       run: |
         cd python-package
         python --version
-        python setup.py sdist
+        python -m build --sdist
         pip install -v ./dist/xgboost-*.tar.gz
         cd ..
         python -c 'import xgboost'
@@ -92,6 +92,9 @@ jobs:
         auto-update-conda: true
         python-version: ${{ matrix.python-version }}
         activate-environment: test
+    - name: Install build
+      run: |
+        conda install -c conda-forge python-build
     - name: Display Conda env
       run: |
         conda info
@@ -100,7 +103,7 @@ jobs:
       run: |
         cd python-package
         python --version
-        python setup.py sdist
+        python -m build --sdist
         pip install -v ./dist/xgboost-*.tar.gz
         cd ..
         python -c 'import xgboost'
@@ -147,7 +150,7 @@ jobs:
       run: |
         cd python-package
         python --version
-        python setup.py install
+        pip install -v .
 
     - name: Test Python package
       run: |
@@ -194,7 +197,7 @@ jobs:
       run: |
         cd python-package
         python --version
-        python setup.py bdist_wheel --universal
+        pip wheel -v . --wheel-dir dist/
         pip install ./dist/*.whl
 
     - name: Test Python package
@@ -238,7 +241,7 @@ jobs:
       run: |
         cd python-package
         python --version
-        python setup.py install
+        pip install -v .
 
     - name: Test Python package
       run: |
