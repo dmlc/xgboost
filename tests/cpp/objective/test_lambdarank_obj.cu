@@ -18,6 +18,12 @@ TEST(LambdaRank, GPUNDCGJsonIO) {
   TestNDCGJsonIO(&ctx);
 }
 
+TEST(LambdaRank, GPUMAPStat) {
+  Context ctx;
+  ctx.gpu_id = 0;
+  TestMAPStat(&ctx);
+}
+
 TEST(LambdaRank, GPUNDCGGPair) {
   Context ctx;
   ctx.gpu_id = 0;
@@ -152,5 +158,11 @@ TEST(LambdaRank, RankItemCountOnRight) {
   RankItemCountImpl(sorted_items, wrapper, 4, static_cast<uint32_t>(6));
   RankItemCountImpl(sorted_items, wrapper, 1, static_cast<uint32_t>(1));
   RankItemCountImpl(sorted_items, wrapper, 0, static_cast<uint32_t>(0));
+}
+
+TEST(LambdaRank, GPUMAPGPair) {
+  Context ctx;
+  ctx.gpu_id = 0;
+  TestMAPGPair(&ctx);
 }
 }  // namespace xgboost::obj

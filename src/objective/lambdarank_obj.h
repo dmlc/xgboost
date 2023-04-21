@@ -156,6 +156,27 @@ void LambdaRankGetGradientNDCG(Context const* ctx, std::int32_t iter,
                                linalg::VectorView<double> li, linalg::VectorView<double> lj,
                                HostDeviceVector<GradientPair>* out_gpair);
 
+/**
+ * \brief Generate statistic for MAP used for calculating \Delta Z in lambda mart.
+ */
+void MAPStat(Context const* ctx, MetaInfo const& info, common::Span<std::size_t const> d_rank_idx,
+             std::shared_ptr<ltr::MAPCache> p_cache);
+
+void LambdaRankGetGradientMAP(Context const* ctx, std::int32_t iter,
+                              HostDeviceVector<float> const& predt, MetaInfo const& info,
+                              std::shared_ptr<ltr::MAPCache> p_cache,
+                              linalg::VectorView<double const> t_plus,   // input bias ratio
+                              linalg::VectorView<double const> t_minus,  // input bias ratio
+                              linalg::VectorView<double> li, linalg::VectorView<double> lj,
+                              HostDeviceVector<GradientPair>* out_gpair);
+
+void LambdaRankGetGradientPairwise(Context const* ctx, std::int32_t iter,
+                                   HostDeviceVector<float> const& predt, const MetaInfo& info,
+                                   std::shared_ptr<ltr::RankingCache> p_cache,
+                                   linalg::VectorView<double const> ti_plus,   // input bias ratio
+                                   linalg::VectorView<double const> tj_minus,  // input bias ratio
+                                   linalg::VectorView<double> li, linalg::VectorView<double> lj,
+                                   HostDeviceVector<GradientPair>* out_gpair);
 
 void LambdaRankUpdatePositionBias(Context const* ctx, linalg::VectorView<double const> li_full,
                                   linalg::VectorView<double const> lj_full,
@@ -164,6 +185,18 @@ void LambdaRankUpdatePositionBias(Context const* ctx, linalg::VectorView<double 
                                   linalg::Vector<double>* p_lj,
                                   std::shared_ptr<ltr::RankingCache> p_cache);
 }  // namespace cuda_impl
+
+namespace cpu_impl {
+/**
+ * \brief Generate statistic for MAP used for calculating \Delta Z in lambda mart.
+ *
+ * \param label    Ground truth relevance label.
+ * \param rank_idx Sorted index of prediction.
+ * \param p_cache  An initialized MAPCache.
+ */
+void MAPStat(Context const* ctx, linalg::VectorView<float const> label,
+             common::Span<std::size_t const> rank_idx, std::shared_ptr<ltr::MAPCache> p_cache);
+}  // namespace cpu_impl
 
 /**
  * \param Construct pairs on CPU

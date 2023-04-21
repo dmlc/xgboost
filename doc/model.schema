@@ -219,6 +219,16 @@
         "num_pairsample": { "type": "string" },
         "fix_list_weight": { "type": "string" }
       }
+    },
+    "lambdarank_param": {
+      "type": "object",
+      "properties": {
+        "lambdarank_num_pair_per_sample": { "type": "string" },
+        "lambdarank_pair_method": { "type": "string" },
+        "lambdarank_unbiased": {"type": "string" },
+        "lambdarank_bias_norm": {"type": "string" },
+        "ndcg_exp_gain": {"type": "string"}
+      }
     }
   },
   "type": "object",
@@ -477,22 +487,22 @@
               "type": "object",
               "properties": {
                 "name": { "const": "rank:pairwise" },
-                "lambda_rank_param": { "$ref": "#/definitions/lambda_rank_param"}
+                "lambda_rank_param": { "$ref": "#/definitions/lambdarank_param"}
               },
               "required": [
                 "name",
-                "lambda_rank_param"
+                "lambdarank_param"
               ]
             },
             {
               "type": "object",
               "properties": {
                 "name": { "const": "rank:ndcg" },
-                "lambda_rank_param": { "$ref": "#/definitions/lambda_rank_param"}
+                "lambda_rank_param": { "$ref": "#/definitions/lambdarank_param"}
               },
               "required": [
                 "name",
-                "lambda_rank_param"
+                "lambdarank_param"
               ]
             },
             {

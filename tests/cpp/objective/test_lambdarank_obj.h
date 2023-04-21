@@ -18,6 +18,8 @@
 #include "../helpers.h"                             // for EmptyDMatrix
 
 namespace xgboost::obj {
+void TestMAPStat(Context const* ctx);
+
 inline void TestNDCGJsonIO(Context const* ctx) {
   std::unique_ptr<xgboost::ObjFunction> obj{ObjFunction::Create("rank:ndcg", ctx)};
 
@@ -36,6 +38,8 @@ inline void TestNDCGJsonIO(Context const* ctx) {
 void TestNDCGGPair(Context const* ctx);
 
 void TestUnbiasedNDCG(Context const* ctx);
+
+void TestMAPGPair(Context const* ctx);
 
 /**
  * \brief Initialize test data for make pair tests.

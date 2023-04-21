@@ -47,7 +47,6 @@ DMLC_REGISTRY_LINK_TAG(regression_obj_gpu);
 DMLC_REGISTRY_LINK_TAG(quantile_obj_gpu);
 DMLC_REGISTRY_LINK_TAG(hinge_obj_gpu);
 DMLC_REGISTRY_LINK_TAG(multiclass_obj_gpu);
-DMLC_REGISTRY_LINK_TAG(rank_obj_gpu);
 DMLC_REGISTRY_LINK_TAG(lambdarank_obj);
 DMLC_REGISTRY_LINK_TAG(lambdarank_obj_cu);
 #else
@@ -55,7 +54,6 @@ DMLC_REGISTRY_LINK_TAG(regression_obj);
 DMLC_REGISTRY_LINK_TAG(quantile_obj);
 DMLC_REGISTRY_LINK_TAG(hinge_obj);
 DMLC_REGISTRY_LINK_TAG(multiclass_obj);
-DMLC_REGISTRY_LINK_TAG(rank_obj);
 DMLC_REGISTRY_LINK_TAG(lambdarank_obj);
 #endif  // XGBOOST_USE_CUDA
 }  // namespace obj

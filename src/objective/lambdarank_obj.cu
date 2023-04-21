@@ -390,6 +390,112 @@ void LambdaRankGetGradientNDCG(Context const* ctx, std::int32_t iter,
   Launch(ctx, iter, preds, info, p_cache, delta_ndcg, ti_plus, tj_minus, li, lj, out_gpair);
 }
 
+void MAPStat(Context const* ctx, MetaInfo const& info, common::Span<std::size_t const> d_rank_idx,
+             std::shared_ptr<ltr::MAPCache> p_cache) {
+  common::Span<double> out_n_rel = p_cache->NumRelevant(ctx);
+  common::Span<double> out_acc = p_cache->Acc(ctx);
+
+  CHECK_EQ(out_n_rel.size(), info.num_row_);
+  CHECK_EQ(out_acc.size(), info.num_row_);
+
+  auto group_ptr = p_cache->DataGroupPtr(ctx);
+  auto key_it = dh::MakeTransformIterator<std::size_t>(
+      thrust::make_counting_iterator(0ul),
+      [=] XGBOOST_DEVICE(std::size_t i) -> std::size_t { return dh::SegmentId(group_ptr, i); });
+  auto label = info.labels.View(ctx->gpu_id).Slice(linalg::All(), 0);
+  auto const* cuctx = ctx->CUDACtx();
+
+  {
+    // calculate number of relevant documents
+    auto val_it = dh::MakeTransformIterator<double>(
+        thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) -> double {
+          auto g = dh::SegmentId(group_ptr, i);
+          auto g_label = label.Slice(linalg::Range(group_ptr[g], group_ptr[g + 1]));
+          auto idx_in_group = i - group_ptr[g];
+          auto g_sorted_idx = d_rank_idx.subspan(group_ptr[g], group_ptr[g + 1] - group_ptr[g]);
+          return static_cast<double>(g_label(g_sorted_idx[idx_in_group]));
+        });
+    thrust::inclusive_scan_by_key(cuctx->CTP(), key_it, key_it + info.num_row_, val_it,
+                                  out_n_rel.data());
+  }
+  {
+    // \sum l_k/k
+    auto val_it = dh::MakeTransformIterator<double>(
+        thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) -> double {
+          auto g = dh::SegmentId(group_ptr, i);
+          auto g_label = label.Slice(linalg::Range(group_ptr[g], group_ptr[g + 1]));
+          auto g_sorted_idx = d_rank_idx.subspan(group_ptr[g], group_ptr[g + 1] - group_ptr[g]);
+          auto idx_in_group = i - group_ptr[g];
+          double rank_in_group = idx_in_group + 1.0;
+          return static_cast<double>(g_label(g_sorted_idx[idx_in_group])) / rank_in_group;
+        });
+    thrust::inclusive_scan_by_key(cuctx->CTP(), key_it, key_it + info.num_row_, val_it,
+                                  out_acc.data());
+  }
+}
+
+void LambdaRankGetGradientMAP(Context const* ctx, std::int32_t iter,
+                              HostDeviceVector<float> const& predt, const MetaInfo& info,
+                              std::shared_ptr<ltr::MAPCache> p_cache,
+                              linalg::VectorView<double const> ti_plus,   // input bias ratio
+                              linalg::VectorView<double const> tj_minus,  // input bias ratio
+                              linalg::VectorView<double> li, linalg::VectorView<double> lj,
+                              HostDeviceVector<GradientPair>* out_gpair) {
+  std::int32_t device_id = ctx->gpu_id;
+  dh::safe_cuda(cudaSetDevice(device_id));
+
+  info.labels.SetDevice(device_id);
+  predt.SetDevice(device_id);
+
+  CHECK(p_cache);
+
+  auto d_predt = predt.ConstDeviceSpan();
+  auto const d_sorted_idx = p_cache->SortedIdx(ctx, d_predt);
+
+  MAPStat(ctx, info, d_sorted_idx, p_cache);
+  auto d_n_rel = p_cache->NumRelevant(ctx);
+  auto d_acc = p_cache->Acc(ctx);
+  auto d_gptr = p_cache->DataGroupPtr(ctx).data();
+
+  auto delta_map = [=] XGBOOST_DEVICE(float y_high, float y_low, std::size_t rank_high,
+                                      std::size_t rank_low, bst_group_t g) {
+    if (rank_high > rank_low) {
+      thrust::swap(rank_high, rank_low);
+      thrust::swap(y_high, y_low);
+    }
+    auto cnt = d_gptr[g + 1] - d_gptr[g];
+    auto g_n_rel = d_n_rel.subspan(d_gptr[g], cnt);
+    auto g_acc = d_acc.subspan(d_gptr[g], cnt);
+    auto d = DeltaMAP(y_high, y_low, rank_high, rank_low, g_n_rel, g_acc);
+    return d;
+  };
+
+  Launch(ctx, iter, predt, info, p_cache, delta_map, ti_plus, tj_minus, li, lj, out_gpair);
+}
+
+void LambdaRankGetGradientPairwise(Context const* ctx, std::int32_t iter,
+                                   HostDeviceVector<float> const& predt, const MetaInfo& info,
+                                   std::shared_ptr<ltr::RankingCache> p_cache,
+                                   linalg::VectorView<double const> ti_plus,   // input bias ratio
+                                   linalg::VectorView<double const> tj_minus,  // input bias ratio
+                                   linalg::VectorView<double> li, linalg::VectorView<double> lj,
+                                   HostDeviceVector<GradientPair>* out_gpair) {
+  std::int32_t device_id = ctx->gpu_id;
+  dh::safe_cuda(cudaSetDevice(device_id));
+
+  info.labels.SetDevice(device_id);
+  predt.SetDevice(device_id);
+
+  auto d_predt = predt.ConstDeviceSpan();
+  auto const d_sorted_idx = p_cache->SortedIdx(ctx, d_predt);
+
+  auto delta = [] XGBOOST_DEVICE(float, float, std::size_t, std::size_t, bst_group_t) {
+    return 1.0;
+  };
+
+  Launch(ctx, iter, predt, info, p_cache, delta, ti_plus, tj_minus, li, lj, out_gpair);
+}
+
 namespace {
 struct ReduceOp {
   template <typename Tup>
