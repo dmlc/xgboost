@@ -170,7 +170,7 @@ class QuantileRegression : public ObjFunction {
     common::Mean(ctx_, *base_score, &temp);
     double meanq = temp(0) * sw;
 
-    std::array dat{meanq, sw};
+    std::array<double, 2> dat{meanq, sw};
     collective::GlobalSum(info, &dat);
     std::tie(meanq, sw) = std::tuple_cat(dat);
     meanq /= (sw + kRtEps);

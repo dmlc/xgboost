@@ -170,7 +170,7 @@ struct EvalMClassBase : public MetricNoCache {
     } else {
       CHECK(preds.Size() % info.labels.Size() == 0) << "label and prediction size not match";
     }
-    std::array dat{0.0, 0.0};
+    std::array<double, 2> dat{0.0, 0.0};
     if (info.labels.Size() != 0) {
       const size_t nclass = preds.Size() / info.labels.Size();
       CHECK_GE(nclass, 1U)

@@ -211,7 +211,7 @@ struct EvalEWiseSurvivalBase : public MetricNoCache {
     auto result = reducer_.Reduce(*ctx_, info.weights_, info.labels_lower_bound_,
                                   info.labels_upper_bound_, preds);
 
-    std::array dat{result.Residue(), result.Weights()};
+    std::array<double, 2> dat{result.Residue(), result.Weights()};
     collective::GlobalSum(info, &dat);
     return Policy::GetFinal(dat[0], dat[1]);
   }
