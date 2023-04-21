@@ -115,7 +115,7 @@ void GlobalSum(MetaInfo const& info, Container* values) {
  */
 template <typename T>
 T GlobalRatio(MetaInfo const& info, T dividend, T divisor) {
-  std::array<T, 2> results{dividend, divisor};
+  std::array results{dividend, divisor};
   GlobalSum(info, &results);
   std::tie(dividend, divisor) = std::tuple_cat(results);
   if (divisor <= 0) {
