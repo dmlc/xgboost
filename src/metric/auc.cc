@@ -116,10 +116,7 @@ double MultiClassOVR(Context const *ctx, common::Span<float const> predts, MetaI
 
   // we have 2 averages going in here, first is among workers, second is among
   // classes. allreduce sums up fp/tp auc for each class.
-  if (info.IsRowSplit()) {
-    collective::Allreduce<collective::Operation::kSum>(results.Values().data(),
-                                                       results.Values().size());
-  }
+  collective::GlobalSum(info, &results.Values());
   double auc_sum{0};
   double tp_sum{0};
   for (size_t c = 0; c < n_classes; ++c) {
@@ -293,17 +290,8 @@ class EvalAUC : public MetricNoCache {
         InvalidGroupAUC();
       }
 
-      std::array<double, 2> results{auc, static_cast<double>(valid_groups)};
-      if (info.IsRowSplit()) {
-        collective::Allreduce<collective::Operation::kSum>(results.data(), results.size());
-      }
-      auc = results[0];
-      valid_groups = static_cast<uint32_t>(results[1]);
-
-      if (valid_groups <= 0) {
-        auc = std::numeric_limits<double>::quiet_NaN();
-      } else {
-        auc /= valid_groups;
+      auc = collective::GlobalRatio(info, auc, static_cast<double>(valid_groups));
+      if (!std::isnan(auc)) {
         CHECK_LE(auc, 1) << "Total AUC across groups: " << auc * valid_groups
                          << ", valid groups: " << valid_groups;
       }
@@ -323,19 +311,9 @@ class EvalAUC : public MetricNoCache {
         std::tie(fp, tp, auc) =
             static_cast<Curve *>(this)->EvalBinary(preds, info);
       }
-      double local_area = fp * tp;
-      std::array<double, 2> result{auc, local_area};
-      if (info.IsRowSplit()) {
-        collective::Allreduce<collective::Operation::kSum>(result.data(), result.size());
-      }
-      std::tie(auc, local_area) = common::UnpackArr(std::move(result));
-      if (local_area <= 0) {
-        // the dataset across all workers have only positive or negative sample
-        auc = std::numeric_limits<double>::quiet_NaN();
-      } else {
-        CHECK_LE(auc, local_area);
-        // normalization
-        auc = auc / local_area;
+      auc = collective::GlobalRatio(info, auc, fp * tp);
+      if (!std::isnan(auc)) {
+        CHECK_LE(auc, 1.0);
       }
     }
     if (std::isnan(auc)) {

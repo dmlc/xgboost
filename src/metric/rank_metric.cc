@@ -238,14 +238,7 @@ struct EvalRank : public MetricNoCache, public EvalRankConfig {
       exc.Rethrow();
     }
 
-    if (collective::IsDistributed() && info.IsRowSplit()) {
-      double dat[2]{sum_metric, static_cast<double>(ngroups)};
-      // approximately estimate the metric using mean
-      collective::Allreduce<collective::Operation::kSum>(dat, 2);
-      return dat[0] / dat[1];
-    } else {
-      return sum_metric / ngroups;
-    }
+    return collective::GlobalRatio(info, sum_metric, static_cast<double>(ngroups));
   }
 
   const char* Name() const override {
@@ -401,9 +394,8 @@ class EvalRankWithCache : public Metric {
 namespace {
 double Finalize(MetaInfo const& info, double score, double sw) {
   std::array<double, 2> dat{score, sw};
-  if (info.IsRowSplit()) {
-    collective::Allreduce<collective::Operation::kSum>(dat.data(), dat.size());
-  }
+  collective::GlobalSum(info, &dat);
+  std::tie(score, sw) = std::tuple_cat(dat);
   if (sw > 0.0) {
     score = score / sw;
   }

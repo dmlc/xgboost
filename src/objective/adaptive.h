@@ -6,8 +6,9 @@
 #include <algorithm>
 #include <cstdint>  // std::int32_t
 #include <limits>
-#include <vector>  // std::vector
+#include <vector>   // std::vector
 
+#include "../collective/aggregator.h"
 #include "../collective/communicator-inl.h"
 #include "../common/common.h"
 #include "xgboost/base.h"                // bst_node_t
@@ -41,10 +42,7 @@ inline void UpdateLeafValues(std::vector<float>* p_quantiles, std::vector<bst_no
   auto& quantiles = *p_quantiles;
   auto const& h_node_idx = nidx;
 
-  size_t n_leaf{h_node_idx.size()};
-  if (info.IsRowSplit()) {
-    collective::Allreduce<collective::Operation::kMax>(&n_leaf, 1);
-  }
+  size_t n_leaf = collective::GlobalMax(info, h_node_idx.size());
   CHECK(quantiles.empty() || quantiles.size() == n_leaf);
   if (quantiles.empty()) {
     quantiles.resize(n_leaf, std::numeric_limits<float>::quiet_NaN());
@@ -54,16 +52,12 @@ inline void UpdateLeafValues(std::vector<float>* p_quantiles, std::vector<bst_no
   std::vector<int32_t> n_valids(quantiles.size());
   std::transform(quantiles.cbegin(), quantiles.cend(), n_valids.begin(),
                  [](float q) { return static_cast<int32_t>(!std::isnan(q)); });
-  if (info.IsRowSplit()) {
-    collective::Allreduce<collective::Operation::kSum>(n_valids.data(), n_valids.size());
-  }
+  collective::GlobalSum(info, &n_valids);
   // convert to 0 for all reduce
   std::replace_if(
       quantiles.begin(), quantiles.end(), [](float q) { return std::isnan(q); }, 0.f);
   // use the mean value
-  if (info.IsRowSplit()) {
-    collective::Allreduce<collective::Operation::kSum>(quantiles.data(), quantiles.size());
-  }
+  collective::GlobalSum(info, &quantiles);
   for (size_t i = 0; i < n_leaf; ++i) {
     if (n_valids[i] > 0) {
       quantiles[i] /= static_cast<float>(n_valids[i]);
