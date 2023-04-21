@@ -176,7 +176,7 @@ def test_ranking():
 def test_ranking_metric() -> None:
     from sklearn.metrics import roc_auc_score
 
-    X, y, qid, w = tm.make_ltr(512, 4, 3, 2)
+    X, y, qid, w = tm.make_ltr(512, 4, 3, 1)
     # use auc for test as ndcg_score in sklearn works only on label gain instead of exp
     # gain.
     # note that the auc in sklearn is different from the one in XGBoost. The one in
