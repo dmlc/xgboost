@@ -220,7 +220,7 @@ class GpuXGBoostRegressorSuite extends GpuTestSuite {
 
   test("Ranking: train with Group") {
     withGpuSparkSession(enableCsvConf()) { spark =>
-      val xgbParam = Map("eta" -> 0.1f, "max_depth" -> 2, "objective" -> "rank:pairwise",
+      val xgbParam = Map("eta" -> 0.1f, "max_depth" -> 2, "objective" -> "rank:ndcg",
         "num_round" -> 10, "num_workers" -> 1, "tree_method" -> "gpu_hist",
         "features_cols" -> featureNames, "label_col" -> labelName)
       val Array(trainingDf, testDf) = spark.read.option("header", "true").schema(schema)

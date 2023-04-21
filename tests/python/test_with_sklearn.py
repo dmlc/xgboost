@@ -130,6 +130,7 @@ def test_ranking():
 
     params = {
         "tree_method": "exact",
+        "objective": "rank:ndcg",
         "learning_rate": 0.1,
         "gamma": 1.0,
         "min_child_weight": 0.1,
@@ -158,7 +159,7 @@ def test_ranking():
 
     params_orig = {
         "tree_method": "exact",
-        "objective": "rank:pairwise",
+        "objective": "rank:ndcg",
         "eta": 0.1,
         "gamma": 1.0,
         "min_child_weight": 0.1,
