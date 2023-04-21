@@ -1,6 +1,7 @@
 /**
  * Copyright 2023 by XGBoost contributors
  */
+#include <array>                            // std::array
 #include <cstddef>                          // std::size_t
 #include <cstdint>                          // std::int32_t
 #include <vector>                           // std::vector
