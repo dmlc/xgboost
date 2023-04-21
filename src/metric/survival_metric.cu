@@ -7,6 +7,7 @@
 
 #include <dmlc/registry.h>
 
+#include <array>
 #include <memory>
 #include <vector>
 
