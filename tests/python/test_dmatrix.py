@@ -283,7 +283,7 @@ class TestDMatrix:
             assert m0.feature_types == m1.feature_types
 
     def test_get_info(self):
-        dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
+        dtrain, _ = tm.load_agaricus(__file__)
         dtrain.get_float_info('label')
         dtrain.get_float_info('weight')
         dtrain.get_float_info('base_margin')
@@ -432,7 +432,9 @@ class TestDMatrix:
     def test_uri_categorical(self):
         path = os.path.join(dpath, 'agaricus.txt.train')
         feature_types = ["q"] * 5 + ["c"] + ["q"] * 120
-        Xy = xgb.DMatrix(path + "?indexing_mode=1", feature_types=feature_types)
+        Xy = xgb.DMatrix(
+            path + "?indexing_mode=1&format=libsvm", feature_types=feature_types
+        )
         np.testing.assert_equal(np.array(Xy.feature_types), np.array(feature_types))
 
     def test_base_margin(self):

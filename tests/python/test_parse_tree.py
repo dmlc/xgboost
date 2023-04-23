@@ -13,7 +13,7 @@ rng = np.random.RandomState(1994)
 
 class TestTreesToDataFrame:
     def build_model(self, max_depth, num_round):
-        dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
+        dtrain, _ = tm.load_agaricus(__file__)
         param = {'max_depth': max_depth, 'objective': 'binary:logistic',
                  'verbosity': 1}
         num_round = num_round

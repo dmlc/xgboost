@@ -29,16 +29,16 @@ TEST(FileIterator, Basic) {
   {
     auto zpath = tmpdir.path + "/0-based.svm";
     CreateBigTestData(zpath, 3 * 64, true);
-    zpath += "?indexing_mode=0";
-    FileIterator iter{zpath, 0, 1, "libsvm"};
+    zpath += "?indexing_mode=0&format=libsvm";
+    FileIterator iter{zpath, 0, 1};
     check_n_features(&iter);
   }
 
   {
     auto opath = tmpdir.path + "/1-based.svm";
     CreateBigTestData(opath, 3 * 64, false);
-    opath += "?indexing_mode=1";
-    FileIterator iter{opath, 0, 1, "libsvm"};
+    opath += "?indexing_mode=1&format=libsvm";
+    FileIterator iter{opath, 0, 1};
     check_n_features(&iter);
   }
 }

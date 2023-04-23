@@ -27,8 +27,8 @@ import ml.dmlc.xgboost4j.scala.example.util.CustomEval
  */
 object GeneralizedLinearModel {
   def main(args: Array[String]): Unit = {
-    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
-    val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
+    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train?format=libsvm")
+    val testMat = new DMatrix("../../demo/data/agaricus.txt.test?format=libsvm")
 
     // specify parameters
     // change booster to gblinear, so that we are fitting a linear model

@@ -1,22 +1,50 @@
-/*!
- * Copyright 2021 XGBoost contributors
+/**
+ * Copyright 2021-2023, XGBoost contributors
  */
 #ifndef XGBOOST_DATA_FILE_ITERATOR_H_
 #define XGBOOST_DATA_FILE_ITERATOR_H_
 
-#include <string>
+#include <map>
 #include <memory>
-#include <vector>
+#include <string>
 #include <utility>
+#include <vector>
 
+#include "array_interface.h"
 #include "dmlc/data.h"
 #include "xgboost/c_api.h"
 #include "xgboost/json.h"
 #include "xgboost/linalg.h"
-#include "array_interface.h"
 
 namespace xgboost {
 namespace data {
+inline void ValidateFileFormat(std::string const& uri) {
+  std::vector<std::string> name_cache = common::Split(uri, '#');
+  CHECK_LE(name_cache.size(), 2)
+      << "Only one `#` is allowed in file path for cachefile specification";
+
+  std::vector<std::string> name_args = common::Split(name_cache[0], '?');
+  CHECK_LE(name_args.size(), 2) << "only one `?` is allowed in file path.";
+
+  StringView msg{"URI parameter `format` is required for loading text data: filename?format=csv"};
+  CHECK_EQ(name_args.size(), 2) << msg;
+
+  std::map<std::string, std::string> args;
+  std::vector<std::string> arg_list = common::Split(name_args[1], '&');
+  for (size_t i = 0; i < arg_list.size(); ++i) {
+    std::istringstream is(arg_list[i]);
+    std::pair<std::string, std::string> kv;
+    CHECK(std::getline(is, kv.first, '=')) << "Invalid uri argument format"
+                                           << " for key in arg " << i + 1;
+    CHECK(std::getline(is, kv.second)) << "Invalid uri argument format"
+                                       << " for value in arg " << i + 1;
+    args.insert(kv);
+  }
+  if (args.find("format") == args.cend()) {
+    LOG(FATAL) << msg;
+  }
+}
+
 /**
  * An iterator for implementing external memory support with file inputs.  Users of
  * external memory are encouraged to define their own file parsers/loaders so this one is
@@ -31,8 +59,6 @@ class FileIterator {
   uint32_t part_idx_;
   // Equals to total number of workers.
   uint32_t n_parts_;
-  // Format of the input file, like "libsvm".
-  std::string type_;
 
   DMatrixHandle proxy_;
 
@@ -45,10 +71,9 @@ class FileIterator {
   std::string indices_;
 
  public:
-  FileIterator(std::string uri, unsigned part_index, unsigned num_parts,
-               std::string type)
-      : uri_{std::move(uri)}, part_idx_{part_index}, n_parts_{num_parts},
-        type_{std::move(type)} {
+  FileIterator(std::string uri, unsigned part_index, unsigned num_parts)
+      : uri_{std::move(uri)}, part_idx_{part_index}, n_parts_{num_parts} {
+    ValidateFileFormat(uri_);
     XGProxyDMatrixCreate(&proxy_);
   }
   ~FileIterator() {
@@ -94,9 +119,7 @@ class FileIterator {
   auto Proxy() -> decltype(proxy_) { return proxy_; }
 
   void Reset() {
-    CHECK(!type_.empty());
-    parser_.reset(dmlc::Parser<uint32_t>::Create(uri_.c_str(), part_idx_,
-                                                 n_parts_, type_.c_str()));
+    parser_.reset(dmlc::Parser<uint32_t>::Create(uri_.c_str(), part_idx_, n_parts_, "auto"));
   }
 };
 

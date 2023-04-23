@@ -77,7 +77,7 @@ The external memory version takes in the following `URI <https://en.wikipedia.or
 
 .. code-block:: none
 
-  filename#cacheprefix
+  filename?format=libsvm#cacheprefix
 
 The ``filename`` is the normal path to LIBSVM format file you want to load in, and
 ``cacheprefix`` is a path to a cache file that XGBoost will use for caching preprocessed
@@ -97,13 +97,13 @@ you have a dataset stored in a file similar to ``agaricus.txt.train`` with LIBSV
 
 .. code-block:: python
 
-  dtrain = DMatrix('../data/agaricus.txt.train#dtrain.cache')
+  dtrain = DMatrix('../data/agaricus.txt.train?format=libsvm#dtrain.cache')
 
 XGBoost will first load ``agaricus.txt.train`` in, preprocess it, then write to a new file named
 ``dtrain.cache`` as an on disk cache for storing preprocessed data in an internal binary format.  For
 more notes about text input formats, see :doc:`/tutorials/input_format`.
 
-For CLI version, simply add the cache suffix, e.g. ``"../data/agaricus.txt.train#dtrain.cache"``.
+For CLI version, simply add the cache suffix, e.g. ``"../data/agaricus.txt.train?format=libsvm#dtrain.cache"``.
 
 
 **********************************

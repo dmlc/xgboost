@@ -548,7 +548,7 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
   }
   fo.close();
 
-  std::string uri = tmp_file;
+  std::string uri = tmp_file + "?format=libsvm";
   if (page_size > 0) {
     uri += "#" + tmp_file + ".cache";
   }

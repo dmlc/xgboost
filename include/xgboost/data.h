@@ -566,21 +566,17 @@ class DMatrix {
     return Info().num_nonzero_ == Info().num_row_ * Info().num_col_;
   }
 
-  /*!
+  /**
    * \brief Load DMatrix from URI.
+   *
    * \param uri The URI of input.
    * \param silent Whether print information during loading.
    * \param data_split_mode In distributed mode, split the input according this mode; otherwise,
    *                        it's just an indicator on how the input was split beforehand.
-   * \param file_format The format type of the file, used for dmlc::Parser::Create.
-   *   By default "auto" will be able to load in both local binary file.
-   * \param page_size Page size for external memory.
    * \return The created DMatrix.
    */
-  static DMatrix* Load(const std::string& uri,
-                       bool silent = true,
-                       DataSplitMode data_split_mode = DataSplitMode::kRow,
-                       const std::string& file_format = "auto");
+  static DMatrix* Load(const std::string& uri, bool silent = true,
+                       DataSplitMode data_split_mode = DataSplitMode::kRow);
 
   /**
    * \brief Creates a new DMatrix from an external data adapter.

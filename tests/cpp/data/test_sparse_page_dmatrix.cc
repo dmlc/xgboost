@@ -16,14 +16,19 @@
 #include "../helpers.h"
 
 using namespace xgboost;  // NOLINT
+namespace {
+std::string UriSVM(std::string name, std::string cache) {
+  return name + "?format=libsvm" + "#" + cache + ".cache";
+}
+}  // namespace
 
 template <typename Page>
 void TestSparseDMatrixLoadFile() {
   dmlc::TemporaryDirectory tmpdir;
   auto opath = tmpdir.path + "/1-based.svm";
   CreateBigTestData(opath, 3 * 64, false);
-  opath += "?indexing_mode=1";
-  data::FileIterator iter{opath, 0, 1, "libsvm"};
+  opath += "?indexing_mode=1&format=libsvm";
+  data::FileIterator iter{opath, 0, 1};
   auto n_threads = 0;
   data::SparsePageDMatrix m{&iter,
                             iter.Proxy(),
@@ -112,15 +117,13 @@ TEST(SparsePageDMatrix, MetaInfo) {
   size_t constexpr kEntries = 24;
   CreateBigTestData(tmp_file, kEntries);
 
-  xgboost::DMatrix *dmat = xgboost::DMatrix::Load(tmp_file + "#" + tmp_file + ".cache", false);
+  std::unique_ptr<DMatrix> dmat{xgboost::DMatrix::Load(UriSVM(tmp_file, tmp_file), false)};
 
   // Test the metadata that was parsed
   EXPECT_EQ(dmat->Info().num_row_, 8ul);
   EXPECT_EQ(dmat->Info().num_col_, 5ul);
   EXPECT_EQ(dmat->Info().num_nonzero_, kEntries);
   EXPECT_EQ(dmat->Info().labels.Size(), dmat->Info().num_row_);
-
-  delete dmat;
 }
 
 TEST(SparsePageDMatrix, RowAccess) {
@@ -139,7 +142,7 @@ TEST(SparsePageDMatrix, ColAccess) {
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/simple.libsvm";
   CreateSimpleTestData(tmp_file);
-  xgboost::DMatrix *dmat = xgboost::DMatrix::Load(tmp_file + "#" + tmp_file + ".cache");
+  xgboost::DMatrix *dmat = xgboost::DMatrix::Load(UriSVM(tmp_file, tmp_file));
 
   // Loop over the batches and assert the data is as expected
   size_t iter = 0;
@@ -231,7 +234,7 @@ auto TestSparsePageDMatrixDeterminism(int32_t threads) {
   std::string filename = tempdir.path + "/simple.libsvm";
   CreateBigTestData(filename, 1 << 16);
 
-  data::FileIterator iter(filename, 0, 1, "auto");
+  data::FileIterator iter(filename + "?format=libsvm", 0, 1);
   std::unique_ptr<DMatrix> sparse{
       new data::SparsePageDMatrix{&iter, iter.Proxy(), data::fileiter::Reset, data::fileiter::Next,
                                   std::numeric_limits<float>::quiet_NaN(), threads, filename}};

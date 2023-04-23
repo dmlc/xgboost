@@ -21,8 +21,7 @@ class TestBasic:
         assert not lazy_isinstance(a, 'numpy', 'dataframe')
 
     def test_basic(self):
-        dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
-        dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
+        dtrain, dtest = tm.load_agaricus(__file__)
         param = {'max_depth': 2, 'eta': 1,
                  'objective': 'binary:logistic'}
         # specify validations set to watch performance
@@ -61,8 +60,7 @@ class TestBasic:
     def test_metric_config(self):
         # Make sure that the metric configuration happens in booster so the
         # string `['error', 'auc']` doesn't get passed down to core.
-        dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
-        dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
+        dtrain, dtest = tm.load_agaricus(__file__)
         param = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
                  'objective': 'binary:logistic', 'eval_metric': ['error', 'auc']}
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
@@ -78,8 +76,7 @@ class TestBasic:
             np.testing.assert_allclose(predt_0, predt_1)
 
     def test_multiclass(self):
-        dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
-        dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
+        dtrain, dtest = tm.load_agaricus(__file__)
         param = {'max_depth': 2, 'eta': 1, 'verbosity': 0, 'num_class': 2}
         # specify validations set to watch performance
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
@@ -188,7 +185,7 @@ class TestBasic:
             assert dm.num_col() == cols
 
     def test_cv(self):
-        dm = xgb.DMatrix(dpath + 'agaricus.txt.train')
+        dm, _ = tm.load_agaricus(__file__)
         params = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
                   'objective': 'binary:logistic'}
 
@@ -198,7 +195,7 @@ class TestBasic:
         assert len(cv) == (4)
 
     def test_cv_no_shuffle(self):
-        dm = xgb.DMatrix(dpath + 'agaricus.txt.train')
+        dm, _ = tm.load_agaricus(__file__)
         params = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
                   'objective': 'binary:logistic'}
 
@@ -209,7 +206,7 @@ class TestBasic:
         assert len(cv) == (4)
 
     def test_cv_explicit_fold_indices(self):
-        dm = xgb.DMatrix(dpath + 'agaricus.txt.train')
+        dm, _ = tm.load_agaricus(__file__)
         params = {'max_depth': 2, 'eta': 1, 'verbosity': 0, 'objective':
                   'binary:logistic'}
         folds = [
@@ -268,8 +265,7 @@ class TestBasicPathLike:
 
     def test_DMatrix_init_from_path(self):
         """Initialization from the data path."""
-        dpath = Path('demo/data')
-        dtrain = xgb.DMatrix(dpath / 'agaricus.txt.train')
+        dtrain, _ = tm.load_agaricus(__file__)
         assert dtrain.num_row() == 6513
         assert dtrain.num_col() == 127
 

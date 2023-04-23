@@ -17,12 +17,10 @@ except ImportError:
 pytestmark = pytest.mark.skipif(**tm.no_multiple(tm.no_matplotlib(),
                                                  tm.no_graphviz()))
 
-dpath = 'demo/data/agaricus.txt.train'
-
 
 class TestPlotting:
     def test_plotting(self):
-        m = xgb.DMatrix(dpath)
+        m, _ = tm.load_agaricus(__file__)
         booster = xgb.train({'max_depth': 2, 'eta': 1,
                              'objective': 'binary:logistic'}, m,
                             num_boost_round=2)

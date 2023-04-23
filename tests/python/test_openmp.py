@@ -13,9 +13,7 @@ pytestmark = tm.timeout(10)
 
 class TestOMP:
     def test_omp(self):
-        dpath = 'demo/data/'
-        dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
-        dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
+        dtrain, dtest = tm.load_agaricus(__file__)
 
         param = {'booster': 'gbtree',
                  'objective': 'binary:logistic',
