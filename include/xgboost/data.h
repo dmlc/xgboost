@@ -196,6 +196,14 @@ class MetaInfo {
    */
   bool IsVerticalFederated() const;
 
+  /*!
+   * \brief A convenient method to check if the MetaInfo should contain labels.
+   *
+   * Normally we assume labels are available everywhere. The only exception is in vertical federated
+   * learning where labels are only available on worker 0.
+   */
+  bool ShouldHaveLabels() const;
+
  private:
   void SetInfoFromHost(Context const& ctx, StringView key, Json arr);
   void SetInfoFromCUDA(Context const& ctx, StringView key, Json arr);
