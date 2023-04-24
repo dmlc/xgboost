@@ -1,4 +1,6 @@
 """Xgboost pyspark integration submodule for params."""
+from typing import Dict
+
 # pylint: disable=too-few-public-methods
 from pyspark.ml.param import TypeConverters
 from pyspark.ml.param.shared import Param, Params
@@ -11,7 +13,7 @@ class HasArbitraryParamsDict(Params):
     input.
     """
 
-    arbitrary_params_dict: Param[dict] = Param(
+    arbitrary_params_dict: "Param[Dict]" = Param(
         Params._dummy(),
         "arbitrary_params_dict",
         "arbitrary_params_dict This parameter holds all of the additional parameters which are "
