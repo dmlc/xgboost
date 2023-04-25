@@ -596,10 +596,9 @@ void DispatchDType(ArrayInterface<D> const array, std::int32_t device, Fn fn) {
     // Slicing an array A with shape (4, 2, 3) and stride (6, 3, 1) by [:, 1, :] results
     // in an array B with shape (4, 3) and strides (6, 1). We can't calculate the original
     // size 24 based on the slice.
-    linalg::TensorView<T, D> tensor{common::Span<T const>{static_cast<T *>(array.data),
-                                                          std::numeric_limits<std::size_t>::max()},
-                                    array.shape, array.strides, device};
-    fn(tensor);
+    fn(linalg::TensorView<T, D>{common::Span<T const>{static_cast<T *>(array.data),
+                                                      std::numeric_limits<std::size_t>::max()},
+                                array.shape, array.strides, device});
   };
   switch (array.type) {
     case ArrayInterfaceHandler::kF2: {
