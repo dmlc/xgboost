@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cstddef>  // for size_t
 #include <cstdint>
+#include <limits>  // for numeric_limits
 #include <map>
 #include <string>
 #include <type_traits>  // std::alignment_of,std::remove_pointer_t
