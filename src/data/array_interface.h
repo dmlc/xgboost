@@ -7,7 +7,7 @@
 #define XGBOOST_DATA_ARRAY_INTERFACE_H_
 
 #include <algorithm>
-#include <cstddef>  // std::size_t
+#include <cstddef>  // for size_t
 #include <cstdint>
 #include <map>
 #include <string>
@@ -17,6 +17,7 @@
 
 #include "../common/bitfield.h"
 #include "../common/common.h"
+#include "../common/error_msg.h"  // for NoF128
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 #include "xgboost/json.h"
@@ -454,9 +455,8 @@ class ArrayInterface {
   void AssignType(StringView typestr) {
     using T = ArrayInterfaceHandler::Type;
     if (typestr.size() == 4 && typestr[1] == 'f' && typestr[2] == '1' && typestr[3] == '6') {
+      CHECK(sizeof(long double) == 16) << error::NoF128();
       type = T::kF16;
-      CHECK(sizeof(long double) == 16)
-          << "128-bit floating point is not supported on current platform.";
     } else if (typestr[1] == 'f' && typestr[2] == '2') {
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 600
       type = T::kF2;
@@ -586,14 +586,19 @@ class ArrayInterface {
 };
 
 template <std::int32_t D, typename Fn>
-void ElementWiseOp(ArrayInterface<D> const array, std::int32_t device, Fn fn) {
+void DispatchDType(ArrayInterface<D> const array, std::int32_t device, Fn fn) {
   // Only used for cuDF at the moment.
   CHECK_EQ(array.valid.Size(), 0);
   auto dispatch = [&](auto t) {
-    using T = decltype(t);
-    linalg::TensorView<std::remove_const_t<T> const, D> tensor{
-        common::Span<T const>{static_cast<T const *>(array.data), array.n}, array.shape,
-        array.strides, device};
+    using T = std::remove_const_t<decltype(t)> const;
+    // Set the data size to max as we don't know the original size of a sliced array:
+    //
+    // Slicing an array A with shape (4, 2, 3) and stride (6, 3, 1) by [:, 1, :] results
+    // in an array B with shape (4, 3) and strides (6, 1). We can't calculate the original
+    // size 24 based on the slice.
+    linalg::TensorView<T, D> tensor{common::Span<T const>{static_cast<T *>(array.data),
+                                                          std::numeric_limits<std::size_t>::max()},
+                                    array.shape, array.strides, device};
     fn(tensor);
   };
   switch (array.type) {
@@ -613,8 +618,7 @@ void ElementWiseOp(ArrayInterface<D> const array, std::int32_t device, Fn fn) {
     }
     case ArrayInterfaceHandler::kF16: {
       using T = long double;
-      CHECK(sizeof(long double) == 16)
-          << "128-bit floating point is not supported on current platform.";
+      CHECK(sizeof(long double) == 16) << error::NoF128();
       dispatch(T{});
       break;
     }

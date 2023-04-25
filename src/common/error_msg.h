@@ -24,5 +24,9 @@ constexpr StringView LabelScoreSize() {
 constexpr StringView InfInData() {
   return "Input data contains `inf` or a value too large, while `missing` is not set to `inf`";
 }
+
+constexpr StringView NoF128() {
+  return "128-bit floating point is not supported on current platform.";
+}
 }  // namespace xgboost::error
 #endif  // XGBOOST_COMMON_ERROR_MSG_H_

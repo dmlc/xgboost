@@ -429,9 +429,9 @@ void CopyTensorInfoImpl(Context const& ctx, Json arr_interface, linalg::Tensor<T
   p_out->Reshape(array.shape);
   auto t = p_out->View(Context::kCpuId);
   CHECK(t.CContiguous());
-  ElementWiseOp(array, Context::kCpuId, [&](auto in) {
-    linalg::ElementWiseTransformHost(t, ctx.Threads(), [&](auto i, auto) {
-      return linalg::detail::Apply(in, linalg::UnravelIndex<D>(i, t.Shape()));
+  DispatchDType(array, Context::kCpuId, [&](auto in) {
+    linalg::ElementWiseTransformHost(t, 1, [&](auto i, auto) {
+      return std::apply(in, linalg::UnravelIndex<D>(i, t.Shape()));
     });
   });
 }
