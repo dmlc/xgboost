@@ -219,7 +219,9 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
                 array: Optional[np.ndarray] = part[feature_cols]
             elif part[name].shape[0] > 0:
                 array = part[name]
-                array = stack_series(array)
+                if name == alias.data:
+                    # For the array/vector typed case.
+                    array = stack_series(array)
             else:
                 array = None
 
