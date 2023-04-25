@@ -8,8 +8,11 @@
         <artifactId>xgboost-jvm_2.12</artifactId>
         <version>2.0.0-SNAPSHOT</version>
     </parent>
-    <artifactId>xgboost4j-flink_2.12</artifactId>
+    <artifactId>xgboost4j-flink_${scala.binary.version}</artifactId>
     <version>2.0.0-SNAPSHOT</version>
+    <properties>
+      <flink-ml.version>2.2.0</flink-ml.version>
+    </properties>
     <build>
         <plugins>
             <plugin>
@@ -26,32 +29,22 @@
         <dependency>
             <groupId>ml.dmlc</groupId>
             <artifactId>xgboost4j_${scala.binary.version}</artifactId>
-            <version>2.0.0-SNAPSHOT</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-lang3</artifactId>
-            <version>3.12.0</version>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.flink</groupId>
-            <artifactId>flink-scala_${scala.binary.version}</artifactId>
+            <artifactId>flink-clients</artifactId>
             <version>${flink.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.flink</groupId>
-            <artifactId>flink-clients_${scala.binary.version}</artifactId>
-            <version>${flink.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.flink</groupId>
-            <artifactId>flink-ml_${scala.binary.version}</artifactId>
-            <version>${flink.version}</version>
+            <artifactId>flink-ml-servable-core</artifactId>
+            <version>${flink-ml.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-common</artifactId>
-            <version>3.3.5</version>
+            <version>${hadoop.version}</version>
         </dependency>
     </dependencies>
 
