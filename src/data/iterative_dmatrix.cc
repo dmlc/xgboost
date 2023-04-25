@@ -213,7 +213,7 @@ void IterativeDMatrix::InitFromCPU(DataIterHandle iter_handle, float missing,
         SyncFeatureType(&h_ft);
         p_sketch.reset(new common::HostSketchContainer{
             batch_param_.max_bin, h_ft, column_sizes, !proxy->Info().group_ptr_.empty(),
-            proxy->Info().IsColumnSplit(), ctx_.Threads()});
+            ctx_.Threads()});
       }
       HostAdapterDispatch(proxy, [&](auto const& batch) {
         proxy->Info().num_nonzero_ = batch_nnz[i];
@@ -228,7 +228,7 @@ void IterativeDMatrix::InitFromCPU(DataIterHandle iter_handle, float missing,
     CHECK_EQ(accumulated_rows, Info().num_row_);
 
     CHECK(p_sketch);
-    p_sketch->MakeCuts(&cuts);
+    p_sketch->MakeCuts(Info(), &cuts);
   }
   if (!h_ft.empty()) {
     CHECK_EQ(h_ft.size(), n_features);

@@ -6,6 +6,7 @@
 #include <limits>
 #include <utility>
 
+#include "../collective/aggregator.h"
 #include "../collective/communicator-inl.h"
 #include "../data/adapter.h"
 #include "categorical.h"
@@ -18,13 +19,12 @@ template <typename WQSketch>
 SketchContainerImpl<WQSketch>::SketchContainerImpl(std::vector<bst_row_t> columns_size,
                                                    int32_t max_bins,
                                                    Span<FeatureType const> feature_types,
-                                                   bool use_group, bool col_split,
+                                                   bool use_group,
                                                    int32_t n_threads)
     : feature_types_(feature_types.cbegin(), feature_types.cend()),
       columns_size_{std::move(columns_size)},
       max_bins_{max_bins},
       use_group_ind_{use_group},
-      col_split_{col_split},
       n_threads_{n_threads} {
   monitor_.Init(__func__);
   CHECK_NE(columns_size_.size(), 0);
@@ -202,10 +202,10 @@ void SketchContainerImpl<WQSketch>::GatherSketchInfo(
 }
 
 template <typename WQSketch>
-void SketchContainerImpl<WQSketch>::AllreduceCategories() {
+void SketchContainerImpl<WQSketch>::AllreduceCategories(MetaInfo const& info) {
   auto world_size = collective::GetWorldSize();
   auto rank = collective::GetRank();
-  if (world_size == 1 || col_split_) {
+  if (world_size == 1 || info.IsColumnSplit()) {
     return;
   }
 
@@ -273,6 +273,7 @@ void SketchContainerImpl<WQSketch>::AllreduceCategories() {
 
 template <typename WQSketch>
 void SketchContainerImpl<WQSketch>::AllReduce(
+    MetaInfo const& info,
     std::vector<typename WQSketch::SummaryContainer> *p_reduced,
     std::vector<int32_t>* p_num_cuts) {
   monitor_.Start(__func__);
@@ -281,7 +282,7 @@ void SketchContainerImpl<WQSketch>::AllReduce(
   collective::Allreduce<collective::Operation::kMax>(&n_columns, 1);
   CHECK_EQ(n_columns, sketches_.size()) << "Number of columns differs across workers";
 
-  AllreduceCategories();
+  AllreduceCategories(info);
 
   auto& num_cuts = *p_num_cuts;
   CHECK_EQ(num_cuts.size(), 0);
@@ -292,10 +293,7 @@ void SketchContainerImpl<WQSketch>::AllReduce(
 
   // Prune the intermediate num cuts for synchronization.
   std::vector<bst_row_t> global_column_size(columns_size_);
-  if (!col_split_) {
-    collective::Allreduce<collective::Operation::kSum>(global_column_size.data(),
-                                                       global_column_size.size());
-  }
+  collective::GlobalSum(info, &global_column_size);
 
   ParallelFor(sketches_.size(), n_threads_, [&](size_t i) {
     int32_t intermediate_num_cuts = static_cast<int32_t>(
@@ -316,7 +314,7 @@ void SketchContainerImpl<WQSketch>::AllReduce(
   });
 
   auto world = collective::GetWorldSize();
-  if (world == 1 || col_split_) {
+  if (world == 1 || info.IsColumnSplit()) {
     monitor_.Stop(__func__);
     return;
   }
@@ -382,11 +380,11 @@ auto AddCategories(std::set<float> const &categories, HistogramCuts *cuts) {
 }
 
 template <typename WQSketch>
-void SketchContainerImpl<WQSketch>::MakeCuts(HistogramCuts* cuts) {
+void SketchContainerImpl<WQSketch>::MakeCuts(MetaInfo const& info, HistogramCuts* cuts) {
   monitor_.Start(__func__);
   std::vector<typename WQSketch::SummaryContainer> reduced;
   std::vector<int32_t> num_cuts;
-  this->AllReduce(&reduced, &num_cuts);
+  this->AllReduce(info, &reduced, &num_cuts);
 
   cuts->min_vals_.HostVector().resize(sketches_.size(), 0.0f);
   std::vector<typename WQSketch::SummaryContainer> final_summaries(reduced.size());
@@ -443,8 +441,8 @@ template class SketchContainerImpl<WXQuantileSketch<float, float>>;
 
 HostSketchContainer::HostSketchContainer(int32_t max_bins, common::Span<FeatureType const> ft,
                                          std::vector<size_t> columns_size, bool use_group,
-                                         bool col_split, int32_t n_threads)
-    : SketchContainerImpl{columns_size, max_bins, ft, use_group, col_split, n_threads} {
+                                         int32_t n_threads)
+    : SketchContainerImpl{columns_size, max_bins, ft, use_group, n_threads} {
   monitor_.Init(__func__);
   ParallelFor(sketches_.size(), n_threads_, Sched::Auto(), [&](auto i) {
     auto n_bins = std::min(static_cast<size_t>(max_bins_), columns_size_[i]);

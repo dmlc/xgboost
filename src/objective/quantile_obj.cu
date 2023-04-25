@@ -36,7 +36,7 @@ class QuantileRegression : public ObjFunction {
   bst_target_t Targets(MetaInfo const& info) const override {
     auto const& alpha = param_.quantile_alpha.Get();
     CHECK_EQ(alpha.size(), alpha_.Size()) << "The objective is not yet configured.";
-    if (!info.IsVerticalFederated() || collective::GetRank() == 0) {
+    if (info.ShouldHaveLabels()) {
       CHECK_EQ(info.labels.Shape(1), 1)
           << "Multi-target is not yet supported by the quantile loss.";
     }

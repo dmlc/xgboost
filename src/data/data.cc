@@ -774,6 +774,10 @@ bool MetaInfo::IsVerticalFederated() const {
   return collective::IsFederated() && IsColumnSplit();
 }
 
+bool MetaInfo::ShouldHaveLabels() const {
+  return !IsVerticalFederated() || collective::GetRank() == 0;
+}
+
 using DMatrixThreadLocal =
     dmlc::ThreadLocalStore<std::map<DMatrix const *, XGBAPIThreadLocalEntry>>;
 
