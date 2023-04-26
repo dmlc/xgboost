@@ -223,24 +223,27 @@ float GHistIndexMatrix::GetFvalue(std::vector<std::uint32_t> const &ptrs,
     }
     return common::HistogramCuts::NumericBinValue(ptrs, values, mins, fidx, bin_idx);
   };
-
-  if (columns_->GetColumnType(fidx) == common::kDenseColumn) {
-    if (columns_->AnyMissing()) {
+  switch (columns_->GetColumnType(fidx)) {
+    case common::kDenseColumn: {
+      if (columns_->AnyMissing()) {
+        return common::DispatchBinType(columns_->GetTypeSize(), [&](auto dtype) {
+          auto column = columns_->DenseColumn<decltype(dtype), true>(fidx);
+          auto bin_idx = column[ridx];
+          return common::HistogramCuts::NumericBinValue(ptrs, values, mins, fidx, bin_idx);
+        });
+      } else {
+        return common::DispatchBinType(columns_->GetTypeSize(), [&](auto dtype) {
+          auto column = columns_->DenseColumn<decltype(dtype), false>(fidx);
+          return get_bin_val(column);
+        });
+      }
+    }
+    case common::kSparseColumn: {
       return common::DispatchBinType(columns_->GetTypeSize(), [&](auto dtype) {
-        auto column = columns_->DenseColumn<decltype(dtype), true>(fidx);
-        return get_bin_val(column);
-      });
-    } else {
-      return common::DispatchBinType(columns_->GetTypeSize(), [&](auto dtype) {
-        auto column = columns_->DenseColumn<decltype(dtype), false>(fidx);
+        auto column = columns_->SparseColumn<decltype(dtype)>(fidx, 0);
         return get_bin_val(column);
       });
     }
-  } else {
-    return common::DispatchBinType(columns_->GetTypeSize(), [&](auto dtype) {
-      auto column = columns_->SparseColumn<decltype(dtype)>(fidx, 0);
-      return get_bin_val(column);
-    });
   }
 
   SPAN_CHECK(false);

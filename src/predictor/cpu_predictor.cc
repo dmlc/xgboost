@@ -75,7 +75,7 @@ bst_float PredValue(const SparsePage::Inst &inst,
       psum += (*trees[i])[nidx].LeafValue();
     }
   }
-  p_feats->Drop(inst);
+  p_feats->Drop();
   return psum;
 }
 
@@ -172,13 +172,11 @@ void FVecFill(const size_t block_size, const size_t batch_offset, const int num_
   }
 }
 
-template <typename DataView>
-void FVecDrop(const size_t block_size, const size_t batch_offset, DataView *batch,
-              const size_t fvec_offset, std::vector<RegTree::FVec> *p_feats) {
+void FVecDrop(std::size_t const block_size, std::size_t const fvec_offset,
+              std::vector<RegTree::FVec> *p_feats) {
   for (size_t i = 0; i < block_size; ++i) {
     RegTree::FVec &feats = (*p_feats)[fvec_offset + i];
-    const SparsePage::Inst inst = (*batch)[batch_offset + i];
-    feats.Drop(inst);
+    feats.Drop();
   }
 }
 
@@ -196,7 +194,7 @@ struct SparsePageView {
 struct GHistIndexMatrixView {
  private:
   GHistIndexMatrix const &page_;
-  uint64_t n_features_;
+  std::uint64_t const n_features_;
   common::Span<FeatureType const> ft_;
   common::Span<Entry> workspace_;
   std::vector<size_t> current_unroll_;
@@ -308,7 +306,7 @@ void PredictBatchByBlockOfRowsKernel(DataView batch, gbm::GBTreeModel const &mod
     // process block of rows through all trees to keep cache locality
     PredictByAllTrees(model, tree_begin, tree_end, batch_offset + batch.base_rowid, thread_temp,
                       fvec_offset, block_size, out_predt);
-    FVecDrop(block_size, batch_offset, &batch, fvec_offset, p_thread_temp);
+    FVecDrop(block_size, fvec_offset, p_thread_temp);
   });
 }
 
@@ -536,7 +534,7 @@ class ColumnSplitHelper {
 
       FVecFill(block_size, batch_offset, num_feature, &batch, fvec_offset, &feat_vecs_);
       MaskAllTrees(batch_offset, fvec_offset, block_size);
-      FVecDrop(block_size, batch_offset, &batch, fvec_offset, &feat_vecs_);
+      FVecDrop(block_size, fvec_offset, &feat_vecs_);
     });
 
     AllreduceBitVectors();
@@ -787,7 +785,7 @@ class CPUPredictor : public Predictor {
           }
           preds[ridx * ntree_limit + j] = static_cast<bst_float>(nidx);
         }
-        feats.Drop(page[i]);
+        feats.Drop();
       });
     }
   }
@@ -860,7 +858,7 @@ class CPUPredictor : public Predictor {
                   (tree_weights == nullptr ? 1 : (*tree_weights)[j]);
             }
           }
-          feats.Drop(page[i]);
+          feats.Drop();
           // add base margin to BIAS
           if (base_margin.Size() != 0) {
             CHECK_EQ(base_margin.Shape(1), ngroup);
