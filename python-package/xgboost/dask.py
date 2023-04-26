@@ -73,6 +73,7 @@ from .core import (
     _deprecate_positional_args,
     _expect,
 )
+from .data import _is_cudf_df, _is_cupy_array
 from .sklearn import (
     XGBClassifier,
     XGBClassifierBase,
@@ -1898,11 +1899,9 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierMixIn, XGBClassifierBa
             self.classes_ = await self.client.compute(da.unique(y))
         else:
             self.classes_ = await self.client.compute(y.drop_duplicates())
-        if hasattr(self.classes_, "to_cupy"):
-            # cuDF dataframe
+        if _is_cudf_df(self.classes_):
             self.classes_ = self.classes_.to_cupy()
-        if hasattr(self.classes_, "get"):
-            # cupy array
+        if _is_cupy_array(self.classes_):
             self.classes_ = self.classes_.get()
         self.classes_ = numpy.array(self.classes_)
         self.n_classes_ = len(self.classes_)
