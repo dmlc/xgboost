@@ -166,43 +166,7 @@ float GHistIndexMatrix::GetFvalue(size_t ridx, size_t fidx, bool is_cat) const {
   auto const &values = cut.Values();
   auto const &mins = cut.MinValues();
   auto const &ptrs = cut.Ptrs();
-  if (is_cat) {
-    auto gidx = GetGindex(ridx, fidx);
-    if (gidx == -1) {
-      return std::numeric_limits<float>::quiet_NaN();
-    }
-    return values[gidx];
-  }
-
-  auto get_bin_val = [&](auto &column) {
-    auto bin_idx = column[ridx];
-    if (bin_idx == common::DenseColumnIter<uint8_t, true>::kMissingId) {
-      return std::numeric_limits<float>::quiet_NaN();
-    }
-    return common::HistogramCuts::NumericBinValue(ptrs, values, mins, fidx, bin_idx);
-  };
-
-  if (columns_->GetColumnType(fidx) == common::kDenseColumn) {
-    if (columns_->AnyMissing()) {
-      return common::DispatchBinType(columns_->GetTypeSize(), [&](auto dtype) {
-        auto column = columns_->DenseColumn<decltype(dtype), true>(fidx);
-        return get_bin_val(column);
-      });
-    } else {
-      return common::DispatchBinType(columns_->GetTypeSize(), [&](auto dtype) {
-        auto column = columns_->DenseColumn<decltype(dtype), false>(fidx);
-        return get_bin_val(column);
-      });
-    }
-  } else {
-    return common::DispatchBinType(columns_->GetTypeSize(), [&](auto dtype) {
-      auto column = columns_->SparseColumn<decltype(dtype)>(fidx, 0);
-      return get_bin_val(column);
-    });
-  }
-
-  SPAN_CHECK(false);
-  return std::numeric_limits<float>::quiet_NaN();
+  return this->GetFvalue(ptrs, values, mins, ridx, fidx, is_cat);
 }
 
 float GHistIndexMatrix::GetFvalue(std::vector<std::uint32_t> const &ptrs,
