@@ -192,6 +192,25 @@ def deterministic_repartition(
     return X, y, m
 
 
+@pytest.mark.parametrize("to_frame", [True, False])
+def test_xgbclassifier_classes_type_and_value(to_frame: bool, client: "Client"):
+    X, y = make_classification(n_samples=1000, n_features=4, random_state=123)
+    if to_frame:
+        import pandas as pd
+        feats = [f"var_{i}" for i in range(4)]
+        df = pd.DataFrame(X, columns=feats)
+        df["target"] = y
+        df = dd.from_pandas(df, npartitions=1)
+        X, y = df[feats], df["target"]
+    else:
+        X = da.from_array(X)
+        y = da.from_array(y)
+
+    est = xgb.dask.DaskXGBClassifier(n_estimators=10).fit(X, y)
+    assert isinstance(est.classes_, np.ndarray)
+    np.testing.assert_array_equal(est.classes_, np.array([0, 1]))
+
+
 def test_from_dask_dataframe() -> None:
     with LocalCluster(n_workers=kWorkers, dashboard_address=":0") as cluster:
         with Client(cluster) as client:
