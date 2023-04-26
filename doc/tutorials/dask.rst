@@ -23,7 +23,7 @@ Requirements
 
 Dask can be installed using either pip or conda (see the dask `installation
 documentation <https://docs.dask.org/en/latest/install.html>`_ for more information).  For
-accelerating XGBoost with GPUs, `dask-cuda <https://github.com/rapidsai/dask-cuda>`_ is
+accelerating XGBoost with GPUs, `dask-cuda <https://github.com/rapidsai/dask-cuda>`__ is
 recommended for creating GPU clusters.
 
 
