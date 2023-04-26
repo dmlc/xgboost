@@ -41,8 +41,8 @@
         <maven.wagon.http.retryHandler.count>5</maven.wagon.http.retryHandler.count>
         <log.capi.invocation>OFF</log.capi.invocation>
         <use.cuda>OFF</use.cuda>
-        <cudf.version>23.02.0</cudf.version>
-        <spark.rapids.version>23.02.0</spark.rapids.version>
+        <cudf.version>23.04.0</cudf.version>
+        <spark.rapids.version>23.04.0</spark.rapids.version>
         <cudf.classifier>cuda11</cudf.classifier>
     </properties>
     <repositories>
