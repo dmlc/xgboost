@@ -62,34 +62,24 @@ class FederatedCommunicatorTest : public BaseFederatedTest {
 };
 
 TEST(FederatedCommunicatorSimpleTest, ThrowOnWorldSizeTooSmall) {
-  std::string server_address{GetServerAddress()};
-  auto construct = [server_address]() {
-    FederatedCommunicator comm{0, 0, server_address, "", "", ""};
-  };
+  auto construct = [] { FederatedCommunicator comm{0, 0, "localhost:0", "", "", ""}; };
   EXPECT_THROW(construct(), dmlc::Error);
 }
 
 TEST(FederatedCommunicatorSimpleTest, ThrowOnRankTooSmall) {
-  std::string server_address{GetServerAddress()};
-  auto construct = [server_address]() {
-    FederatedCommunicator comm{1, -1, server_address, "", "", ""};
-  };
+  auto construct = [] { FederatedCommunicator comm{1, -1, "localhost:0", "", "", ""}; };
   EXPECT_THROW(construct(), dmlc::Error);
 }
 
 TEST(FederatedCommunicatorSimpleTest, ThrowOnRankTooBig) {
-  std::string server_address{GetServerAddress()};
-  auto construct = [server_address]() {
-    FederatedCommunicator comm{1, 1, server_address, "", "", ""};
-  };
+  auto construct = [] { FederatedCommunicator comm{1, 1, "localhost:0", "", "", ""}; };
   EXPECT_THROW(construct(), dmlc::Error);
 }
 
 TEST(FederatedCommunicatorSimpleTest, ThrowOnWorldSizeNotInteger) {
-  std::string server_address{GetServerAddress()};
-  auto construct = [server_address]() {
+  auto construct = [] {
     Json config{JsonObject()};
-    config["federated_server_address"] = server_address;
+    config["federated_server_address"] = std::string("localhost:0");
     config["federated_world_size"] = std::string("1");
     config["federated_rank"] = Integer(0);
     FederatedCommunicator::Create(config);
@@ -98,10 +88,9 @@ TEST(FederatedCommunicatorSimpleTest, ThrowOnWorldSizeNotInteger) {
 }
 
 TEST(FederatedCommunicatorSimpleTest, ThrowOnRankNotInteger) {
-  std::string server_address{GetServerAddress()};
-  auto construct = [server_address]() {
+  auto construct = [] {
     Json config{JsonObject()};
-    config["federated_server_address"] = server_address;
+    config["federated_server_address"] = std::string("localhost:0");
     config["federated_world_size"] = 1;
     config["federated_rank"] = std::string("0");
     FederatedCommunicator::Create(config);
@@ -110,15 +99,13 @@ TEST(FederatedCommunicatorSimpleTest, ThrowOnRankNotInteger) {
 }
 
 TEST(FederatedCommunicatorSimpleTest, GetWorldSizeAndRank) {
-  std::string server_address{GetServerAddress()};
-  FederatedCommunicator comm{6, 3, server_address};
+  FederatedCommunicator comm{6, 3, "localhost:0"};
   EXPECT_EQ(comm.GetWorldSize(), 6);
   EXPECT_EQ(comm.GetRank(), 3);
 }
 
 TEST(FederatedCommunicatorSimpleTest, IsDistributed) {
-  std::string server_address{GetServerAddress()};
-  FederatedCommunicator comm{2, 1, server_address};
+  FederatedCommunicator comm{2, 1, "localhost:0"};
   EXPECT_TRUE(comm.IsDistributed());
 }
 
