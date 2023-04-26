@@ -192,13 +192,13 @@ float GHistIndexMatrix::GetFvalue(std::vector<std::uint32_t> const &ptrs,
       if (columns_->AnyMissing()) {
         return common::DispatchBinType(columns_->GetTypeSize(), [&](auto dtype) {
           auto column = columns_->DenseColumn<decltype(dtype), true>(fidx);
-          auto bin_idx = column[ridx];
-          return common::HistogramCuts::NumericBinValue(ptrs, values, mins, fidx, bin_idx);
+          return get_bin_val(column);
         });
       } else {
         return common::DispatchBinType(columns_->GetTypeSize(), [&](auto dtype) {
           auto column = columns_->DenseColumn<decltype(dtype), false>(fidx);
-          return get_bin_val(column);
+          auto bin_idx = column[ridx];
+          return common::HistogramCuts::NumericBinValue(ptrs, values, mins, fidx, bin_idx);
         });
       }
     }
