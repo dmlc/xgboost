@@ -41,3 +41,7 @@ Contents
   XGBoost4J Scala API <scaladocs/xgboost4j/index>
   XGBoost4J-Spark Scala API <scaladocs/xgboost4j-spark/index>
   XGBoost4J-Flink Scala API <scaladocs/xgboost4j-flink/index>
+
+.. note::
+
+  Please note that the flink interface is still under construction.

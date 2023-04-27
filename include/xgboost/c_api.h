@@ -38,7 +38,7 @@ typedef uint64_t bst_ulong;  // NOLINT(*)
  */
 
 /**
- * @defgroup Library
+ * @defgroup Library Library
  *
  * These functions are used to obtain general information about XGBoost including version,
  * build info and current global configuration.
@@ -112,7 +112,7 @@ XGB_DLL int XGBGetGlobalConfig(char const **out_config);
 /**@}*/
 
 /**
- * @defgroup DMatrix
+ * @defgroup DMatrix DMatrix
  *
  * @brief DMatrix is the baisc data storage for XGBoost used by all XGBoost algorithms
  *        including both training, prediction and explanation. There are a few variants of
@@ -200,7 +200,7 @@ XGB_DLL int XGDMatrixCreateFromDense(char const *data, char const *config, DMatr
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGDMatrixCreateFromCSC(char const *indptr, char const *indices, char const *data,
-                                   bst_ulong nrow, char const *c_json_config, DMatrixHandle *out);
+                                   bst_ulong nrow, char const *config, DMatrixHandle *out);
 
 /*!
  * \brief create a matrix content from CSC format
@@ -281,7 +281,7 @@ XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data, char const *
                                                   DMatrixHandle *out);
 
 /**
- * @defgroup Streaming
+ * @defgroup Streaming Streaming
  * @ingroup DMatrix
  *
  * @brief Quantile DMatrix and external memory DMatrix can be created from batches of
@@ -431,7 +431,7 @@ XGB_EXTERN_C typedef void DataIterResetCallback(DataIterHandle handle); // NOLIN
  * - Step 0: Define a data iterator with 2 methods `reset`, and `next`.
  * - Step 1: Create a DMatrix proxy by \ref XGProxyDMatrixCreate and hold the handle.
  * - Step 2: Pass the iterator handle, proxy handle and 2 methods into
- *           `XGDMatrixCreateFromCallback`, along with other parameters encoded as a JSON object.
+ *           \ref XGDMatrixCreateFromCallback, along with other parameters encoded as a JSON object.
  * - Step 3: Call appropriate data setters in `next` functions.
  *
  * \param iter    A handle to external data iterator.
@@ -830,7 +830,7 @@ XGB_DLL int XGDMatrixGetDataAsCSR(DMatrixHandle const handle, char const *config
 /** @} */  // End of DMatrix
 
 /**
- * @defgroup Booster
+ * @defgroup Booster Booster
  *
  * @brief The `Booster` class is the gradient-boosted model for XGBoost.
  * @{
@@ -953,7 +953,7 @@ XGB_DLL int XGBoosterEvalOneIter(BoosterHandle handle, int iter, DMatrixHandle d
  */
 
 /**
- * @defgroup Prediction
+ * @defgroup Prediction Prediction
  * @ingroup Booster
  *
  * @brief These functions are used for running prediction and explanation algorithms.
@@ -1155,7 +1155,7 @@ XGB_DLL int XGBoosterPredictFromCudaColumnar(BoosterHandle handle, char const *v
 
 
 /**
- * @defgroup Serialization
+ * @defgroup Serialization Serialization
  * @ingroup Booster
  *
  * @brief There are multiple ways to serialize a Booster object depending on the use case.
@@ -1490,7 +1490,7 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, const char *config,
 /**@}*/  // End of Booster
 
 /**
- * @defgroup Collective
+ * @defgroup Collective Collective
  *
  * @brief Experimental support for exposing internal communicator in XGBoost.
  *
