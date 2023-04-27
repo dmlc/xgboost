@@ -567,7 +567,7 @@ class RegTree : public Model {
      * \brief drop the trace after fill, must be called after fill.
      * \param inst The sparse instance to drop.
      */
-    void Drop(const SparsePage::Inst& inst);
+    void Drop();
     /*!
      * \brief returns the size of the feature vector
      * \return the size of the feature vector
@@ -807,13 +807,10 @@ inline void RegTree::FVec::Fill(const SparsePage::Inst& inst) {
   has_missing_ = data_.size() != feature_count;
 }
 
-inline void RegTree::FVec::Drop(const SparsePage::Inst& inst) {
-  for (auto const& entry : inst) {
-    if (entry.index >= data_.size()) {
-      continue;
-    }
-    data_[entry.index].flag = -1;
-  }
+inline void RegTree::FVec::Drop() {
+  Entry e{};
+  e.flag = -1;
+  std::fill_n(data_.data(), data_.size(), e);
   has_missing_ = true;
 }
 
