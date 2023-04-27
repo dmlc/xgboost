@@ -13,25 +13,6 @@
 #include "../../../plugin/federated/federated_server.h"
 #include "../../../src/collective/communicator-inl.h"
 
-inline int GenerateRandomPort(int low, int high) {
-  using namespace std::chrono_literals;
-  // Ensure unique timestamp by introducing a small artificial delay
-  std::this_thread::sleep_for(100ms);
-  auto timestamp = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
-                                             std::chrono::system_clock::now().time_since_epoch())
-                                             .count());
-  std::mt19937_64 rng(timestamp);
-  std::uniform_int_distribution<int> dist(low, high);
-  int port = dist(rng);
-  return port;
-}
-
-inline std::string GetServerAddress() {
-  int port = GenerateRandomPort(50000, 60000);
-  std::string address = std::string("localhost:") + std::to_string(port);
-  return address;
-}
-
 namespace xgboost {
 
 class ServerForTest {
@@ -41,13 +22,14 @@ class ServerForTest {
 
  public:
   explicit ServerForTest(std::int32_t world_size) {
-    server_address_ = GetServerAddress();
     server_thread_.reset(new std::thread([this, world_size] {
       grpc::ServerBuilder builder;
       xgboost::federated::FederatedService service{world_size};
-      builder.AddListeningPort(server_address_, grpc::InsecureServerCredentials());
+      int selected_port;
+      builder.AddListeningPort("localhost:0", grpc::InsecureServerCredentials(), &selected_port);
       builder.RegisterService(&service);
       server_ = builder.BuildAndStart();
+      server_address_ = std::string("localhost:") + std::to_string(selected_port);
       server_->Wait();
     }));
   }
@@ -56,7 +38,14 @@ class ServerForTest {
     server_->Shutdown();
     server_thread_->join();
   }
-  auto Address() const { return server_address_; }
+
+  auto Address() const {
+    using namespace std::chrono_literals;
+    while (server_address_.empty()) {
+      std::this_thread::sleep_for(100ms);
+    }
+    return server_address_;
+  }
 };
 
 class BaseFederatedTest : public ::testing::Test {
