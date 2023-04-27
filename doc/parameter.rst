@@ -233,7 +233,7 @@ Parameters for Tree Booster
   .. note:: This parameter is working-in-progress.
 
   - The strategy used for training multi-target models, including multi-target regression
-  and multi-class classification. See :doc:`/tutorials/multioutput` for more information.
+    and multi-class classification. See :doc:`/tutorials/multioutput` for more information.
 
     - ``one_output_per_tree``: One model for each target.
     - ``multi_output_tree``:  Use multi-target trees.
@@ -380,9 +380,9 @@ Specify the learning task and the corresponding learning objective. The objectiv
     See :doc:`/tutorials/aft_survival_analysis` for details.
   - ``multi:softmax``: set XGBoost to do multiclass classification using the softmax objective, you also need to set num_class(number of classes)
   - ``multi:softprob``: same as softmax, but output a vector of ``ndata * nclass``, which can be further reshaped to ``ndata * nclass`` matrix. The result contains predicted probability of each data point belonging to each class.
-  - ``rank:pairwise``: Use LambdaMART to perform pairwise ranking where the pairwise loss is minimized
-  - ``rank:ndcg``: Use LambdaMART to perform list-wise ranking where `Normalized Discounted Cumulative Gain (NDCG) <http://en.wikipedia.org/wiki/NDCG>`_ is maximized
-  - ``rank:map``: Use LambdaMART to perform list-wise ranking where `Mean Average Precision (MAP) <http://en.wikipedia.org/wiki/Mean_average_precision#Mean_average_precision>`_ is maximized
+  - ``rank:ndcg``: Use LambdaMART to perform pair-wise ranking where `Normalized Discounted Cumulative Gain (NDCG) <http://en.wikipedia.org/wiki/NDCG>`_ is maximized. This objective supports position debiasing for click data.
+  - ``rank:map``: Use LambdaMART to perform pair-wise ranking where `Mean Average Precision (MAP) <http://en.wikipedia.org/wiki/Mean_average_precision#Mean_average_precision>`_ is maximized
+  - ``rank:pairwise``: Use LambdaRank to perform pair-wise ranking using the `ranknet` objective.
   - ``reg:gamma``: gamma regression with log-link. Output is a mean of gamma distribution. It might be useful, e.g., for modeling insurance claims severity, or for any outcome that might be `gamma-distributed <https://en.wikipedia.org/wiki/Gamma_distribution#Occurrence_and_applications>`_.
   - ``reg:tweedie``: Tweedie regression with log-link. It might be useful, e.g., for modeling total loss in insurance, or for any outcome that might be `Tweedie-distributed <https://en.wikipedia.org/wiki/Tweedie_distribution#Occurrence_and_applications>`_.
 
@@ -395,8 +395,9 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
 * ``eval_metric`` [default according to objective]
 
-  - Evaluation metrics for validation data, a default metric will be assigned according to objective (rmse for regression, and logloss for classification, mean average precision for ranking)
-  - User can add multiple evaluation metrics. Python users: remember to pass the metrics in as list of parameters pairs instead of map, so that latter ``eval_metric`` won't override previous one
+  - Evaluation metrics for validation data, a default metric will be assigned according to objective (rmse for regression, and logloss for classification, `mean average precision` for ``rank:map``, etc.)
+  - User can add multiple evaluation metrics. Python users: remember to pass the metrics in as list of parameters pairs instead of map, so that latter ``eval_metric`` won't override previous ones
+
   - The choices are listed below:
 
     - ``rmse``: `root mean square error <http://en.wikipedia.org/wiki/Root_mean_square_error>`_
@@ -479,6 +480,36 @@ Parameter for using AFT Survival Loss (``survival:aft``) and Negative Log Likeli
 ====================================================================================================================
 
 * ``aft_loss_distribution``: Probability Density Function, ``normal``, ``logistic``, or ``extreme``.
+
+.. _ltr-param:
+
+Parameters for learning to rank (``rank:ndcg``, ``rank:map``, ``rank:pairwise``)
+================================================================================
+
+These are parameters specific to learning to rank task. See :doc:`Learning to Rank </tutorials/learning_to_rank>` for an in-depth explanation.
+
+* ``lambdarank_pair_method`` [default = ``mean``]
+
+  How to construct pairs for pair-wise learning.
+
+  - ``mean``: Sample ``lambdarank_num_pair_per_sample`` pairs for each document in the query list.
+  - ``topk``: Focus on top-``lambdarank_num_pair_per_sample`` documents. Construct :math:`|query|` pairs for each document at the top-``lambdarank_num_pair_per_sample`` ranked by the model.
+
+* ``lambdarank_num_pair_per_sample`` [range = :math:`[1, \infty]`]
+
+  It specifies the number of pairs sampled for each document when pair method is ``mean``, or the truncation level for queries when the pair method is ``topk``. For example, to train with ``ndcg@6``, set ``lambdarank_num_pair_per_sample`` to :math:`6` and ``lambdarank_pair_method`` to ``topk``.
+
+* ``lambdarank_unbiased`` [default = ``false``]
+
+  Specify whether do we need to debias input click data.
+
+* ``lambdarank_bias_norm`` [default = 2.0]
+
+  :math:`L_p` normalization for position debiasing, default is :math:`L_2`. Only relevant when ``lambdarank_unbiased`` is set to true.
+
+* ``ndcg_exp_gain`` [default = ``true``]
+
+  Whether we should use exponential gain function for ``NDCG``. There are two forms of gain function for ``NDCG``, one is using relevance value directly while the other is using :math:`2^{rel} - 1` to emphasize on retrieving relevant documents. When ``ndcg_exp_gain`` is true (the default), relevance degree cannot be greater than 31.
 
 ***********************
 Command Line Parameters

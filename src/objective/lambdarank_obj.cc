@@ -69,6 +69,7 @@ void LambdaRankUpdatePositionBias(Context const* ctx, linalg::VectorView<double 
       lj(i) += g_lj(i);
     }
   }
+
   // The ti+ is not guaranteed to decrease since it depends on the |\delta Z|
   //
   // The update normalizes the ti+ to make ti+(0) equal to 1, which breaks the probability
@@ -432,9 +433,201 @@ void LambdaRankUpdatePositionBias(Context const*, linalg::VectorView<double cons
 #endif  // !defined(XGBOOST_USE_CUDA)
 }  // namespace cuda_impl
 
+namespace cpu_impl {
+void MAPStat(Context const* ctx, linalg::VectorView<float const> label,
+             common::Span<std::size_t const> rank_idx, std::shared_ptr<ltr::MAPCache> p_cache) {
+  auto h_n_rel = p_cache->NumRelevant(ctx);
+  auto gptr = p_cache->DataGroupPtr(ctx);
+
+  CHECK_EQ(h_n_rel.size(), gptr.back());
+  CHECK_EQ(h_n_rel.size(), label.Size());
+
+  auto h_acc = p_cache->Acc(ctx);
+
+  common::ParallelFor(p_cache->Groups(), ctx->Threads(), [&](auto g) {
+    auto cnt = gptr[g + 1] - gptr[g];
+    auto g_n_rel = h_n_rel.subspan(gptr[g], cnt);
+    auto g_rank = rank_idx.subspan(gptr[g], cnt);
+    auto g_label = label.Slice(linalg::Range(gptr[g], gptr[g + 1]));
+
+    // The number of relevant documents at each position
+    g_n_rel[0] = g_label(g_rank[0]);
+    for (std::size_t k = 1; k < g_rank.size(); ++k) {
+      g_n_rel[k] = g_n_rel[k - 1] + g_label(g_rank[k]);
+    }
+
+    // \sum l_k/k
+    auto g_acc = h_acc.subspan(gptr[g], cnt);
+    g_acc[0] = g_label(g_rank[0]) / 1.0;
+
+    for (std::size_t k = 1; k < g_rank.size(); ++k) {
+      g_acc[k] = g_acc[k - 1] + (g_label(g_rank[k]) / static_cast<double>(k + 1));
+    }
+  });
+}
+}  // namespace cpu_impl
+
+class LambdaRankMAP : public LambdaRankObj<LambdaRankMAP, ltr::MAPCache> {
+ public:
+  void GetGradientImpl(std::int32_t iter, const HostDeviceVector<float>& predt,
+                       const MetaInfo& info, HostDeviceVector<GradientPair>* out_gpair) {
+    CHECK(param_.ndcg_exp_gain) << "NDCG gain can not be set for the MAP objective.";
+    if (ctx_->IsCUDA()) {
+      return cuda_impl::LambdaRankGetGradientMAP(
+          ctx_, iter, predt, info, GetCache(), ti_plus_.View(ctx_->gpu_id),
+          tj_minus_.View(ctx_->gpu_id), li_full_.View(ctx_->gpu_id), lj_full_.View(ctx_->gpu_id),
+          out_gpair);
+    }
+
+    auto gptr = p_cache_->DataGroupPtr(ctx_).data();
+    bst_group_t n_groups = p_cache_->Groups();
+
+    out_gpair->Resize(info.num_row_);
+    auto h_gpair = out_gpair->HostSpan();
+    auto h_label = info.labels.HostView().Slice(linalg::All(), 0);
+    auto h_predt = predt.ConstHostSpan();
+    auto rank_idx = p_cache_->SortedIdx(ctx_, h_predt);
+    auto h_weight = common::MakeOptionalWeights(ctx_, info.weights_);
+
+    auto make_range = [&](bst_group_t g) { return linalg::Range(gptr[g], gptr[g + 1]); };
+
+    cpu_impl::MAPStat(ctx_, h_label, rank_idx, GetCache());
+    auto n_rel = GetCache()->NumRelevant(ctx_);
+    auto acc = GetCache()->Acc(ctx_);
+
+    auto delta_map = [&](auto y_high, auto y_low, std::size_t rank_high, std::size_t rank_low,
+                         bst_group_t g) {
+      if (rank_high > rank_low) {
+        std::swap(rank_high, rank_low);
+        std::swap(y_high, y_low);
+      }
+      auto cnt = gptr[g + 1] - gptr[g];
+      // In a hot loop
+      auto g_n_rel = common::Span<double const>{n_rel.data() + gptr[g], cnt};
+      auto g_acc = common::Span<double const>{acc.data() + gptr[g], cnt};
+      auto d = DeltaMAP(y_high, y_low, rank_high, rank_low, g_n_rel, g_acc);
+      return d;
+    };
+    using D = decltype(delta_map);
+
+    common::ParallelFor(n_groups, ctx_->Threads(), [&](auto g) {
+      auto cnt = gptr[g + 1] - gptr[g];
+      auto w = h_weight[g];
+      auto g_predt = h_predt.subspan(gptr[g], cnt);
+      auto g_gpair = h_gpair.subspan(gptr[g], cnt);
+      auto g_label = h_label.Slice(make_range(g));
+      auto g_rank = rank_idx.subspan(gptr[g], cnt);
+
+      auto args = std::make_tuple(this, iter, g_predt, g_label, w, g_rank, g, delta_map, g_gpair);
+
+      if (param_.lambdarank_unbiased) {
+        std::apply(&LambdaRankMAP::CalcLambdaForGroup<true, D>, args);
+      } else {
+        std::apply(&LambdaRankMAP::CalcLambdaForGroup<false, D>, args);
+      }
+    });
+  }
+  static char const* Name() { return "rank:map"; }
+  [[nodiscard]] const char* DefaultEvalMetric() const override {
+    return this->RankEvalMetric("map");
+  }
+};
+
+#if !defined(XGBOOST_USE_CUDA)
+namespace cuda_impl {
+void MAPStat(Context const*, MetaInfo const&, common::Span<std::size_t const>,
+             std::shared_ptr<ltr::MAPCache>) {
+  common::AssertGPUSupport();
+}
+
+void LambdaRankGetGradientMAP(Context const*, std::int32_t, HostDeviceVector<float> const&,
+                              const MetaInfo&, std::shared_ptr<ltr::MAPCache>,
+                              linalg::VectorView<double const>,  // input bias ratio
+                              linalg::VectorView<double const>,  // input bias ratio
+                              linalg::VectorView<double>, linalg::VectorView<double>,
+                              HostDeviceVector<GradientPair>*) {
+  common::AssertGPUSupport();
+}
+}  // namespace cuda_impl
+#endif  // !defined(XGBOOST_USE_CUDA)
+
+/**
+ * \brief The RankNet loss.
+ */
+class LambdaRankPairwise : public LambdaRankObj<LambdaRankPairwise, ltr::RankingCache> {
+ public:
+  void GetGradientImpl(std::int32_t iter, const HostDeviceVector<float>& predt,
+                       const MetaInfo& info, HostDeviceVector<GradientPair>* out_gpair) {
+    CHECK(param_.ndcg_exp_gain) << "NDCG gain can not be set for the pairwise objective.";
+    if (ctx_->IsCUDA()) {
+      return cuda_impl::LambdaRankGetGradientPairwise(
+          ctx_, iter, predt, info, GetCache(), ti_plus_.View(ctx_->gpu_id),
+          tj_minus_.View(ctx_->gpu_id), li_full_.View(ctx_->gpu_id), lj_full_.View(ctx_->gpu_id),
+          out_gpair);
+    }
+
+    auto gptr = p_cache_->DataGroupPtr(ctx_);
+    bst_group_t n_groups = p_cache_->Groups();
+
+    out_gpair->Resize(info.num_row_);
+    auto h_gpair = out_gpair->HostSpan();
+    auto h_label = info.labels.HostView().Slice(linalg::All(), 0);
+    auto h_predt = predt.ConstHostSpan();
+    auto h_weight = common::MakeOptionalWeights(ctx_, info.weights_);
+
+    auto make_range = [&](bst_group_t g) { return linalg::Range(gptr[g], gptr[g + 1]); };
+    auto rank_idx = p_cache_->SortedIdx(ctx_, h_predt);
+
+    auto delta = [](auto...) { return 1.0; };
+    using D = decltype(delta);
+
+    common::ParallelFor(n_groups, ctx_->Threads(), [&](auto g) {
+      auto cnt = gptr[g + 1] - gptr[g];
+      auto w = h_weight[g];
+      auto g_predt = h_predt.subspan(gptr[g], cnt);
+      auto g_gpair = h_gpair.subspan(gptr[g], cnt);
+      auto g_label = h_label.Slice(make_range(g));
+      auto g_rank = rank_idx.subspan(gptr[g], cnt);
+
+      auto args = std::make_tuple(this, iter, g_predt, g_label, w, g_rank, g, delta, g_gpair);
+      if (param_.lambdarank_unbiased) {
+        std::apply(&LambdaRankPairwise::CalcLambdaForGroup<true, D>, args);
+      } else {
+        std::apply(&LambdaRankPairwise::CalcLambdaForGroup<false, D>, args);
+      }
+    });
+  }
+
+  static char const* Name() { return "rank:pairwise"; }
+  [[nodiscard]] const char* DefaultEvalMetric() const override {
+    return this->RankEvalMetric("ndcg");
+  }
+};
+
+#if !defined(XGBOOST_USE_CUDA)
+namespace cuda_impl {
+void LambdaRankGetGradientPairwise(Context const*, std::int32_t, HostDeviceVector<float> const&,
+                                   const MetaInfo&, std::shared_ptr<ltr::RankingCache>,
+                                   linalg::VectorView<double const>,  // input bias ratio
+                                   linalg::VectorView<double const>,  // input bias ratio
+                                   linalg::VectorView<double>, linalg::VectorView<double>,
+                                   HostDeviceVector<GradientPair>*) {
+  common::AssertGPUSupport();
+}
+}  // namespace cuda_impl
+#endif  // !defined(XGBOOST_USE_CUDA)
+
 XGBOOST_REGISTER_OBJECTIVE(LambdaRankNDCG, LambdaRankNDCG::Name())
     .describe("LambdaRank with NDCG loss as objective")
     .set_body([]() { return new LambdaRankNDCG{}; });
+
+XGBOOST_REGISTER_OBJECTIVE(LambdaRankPairwise, LambdaRankPairwise::Name())
+    .describe("LambdaRank with RankNet loss as objective")
+    .set_body([]() { return new LambdaRankPairwise{}; });
+
+XGBOOST_REGISTER_OBJECTIVE(LambdaRankMAP, LambdaRankMAP::Name())
+    .describe("LambdaRank with MAP loss as objective.")
+    .set_body([]() { return new LambdaRankMAP{}; });
 
 DMLC_REGISTRY_FILE_TAG(lambdarank_obj);
 }  // namespace xgboost::obj

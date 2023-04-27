@@ -32,7 +32,6 @@ OBJECTS= \
     $(PKGROOT)/src/objective/objective.o \
     $(PKGROOT)/src/objective/regression_obj.o \
     $(PKGROOT)/src/objective/multiclass_obj.o \
-    $(PKGROOT)/src/objective/rank_obj.o \
     $(PKGROOT)/src/objective/lambdarank_obj.o \
     $(PKGROOT)/src/objective/hinge.o \
     $(PKGROOT)/src/objective/aft_obj.o \

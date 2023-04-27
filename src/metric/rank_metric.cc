@@ -493,7 +493,6 @@ class EvalMAPScore : public EvalRankWithCache<ltr::MAPCache> {
     auto rank_idx = p_cache->SortedIdx(ctx_, predt.ConstHostSpan());
 
     common::ParallelFor(p_cache->Groups(), ctx_->Threads(), [&](auto g) {
-      auto g_predt = h_predt.Slice(linalg::Range(gptr[g], gptr[g + 1]));
       auto g_label = h_label.Slice(linalg::Range(gptr[g], gptr[g + 1]));
       auto g_rank = rank_idx.subspan(gptr[g]);
 
