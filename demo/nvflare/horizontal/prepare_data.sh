@@ -15,8 +15,8 @@ split -n l/${world_size} --numeric-suffixes=1 -a 1 ../data/agaricus.txt.train ag
 split -n l/${world_size} --numeric-suffixes=1 -a 1 ../data/agaricus.txt.test agaricus.txt.test-site-
 
 nvflare poc -n 2 --prepare
-mkdir -p /tmp/nvflare/poc/admin/transfer/hello-xgboost
-cp -fr config custom /tmp/nvflare/poc/admin/transfer/hello-xgboost
+mkdir -p /tmp/nvflare/poc/admin/transfer/horizontal-xgboost
+cp -fr config custom /tmp/nvflare/poc/admin/transfer/horizontal-xgboost
 cp server-*.pem client-cert.pem /tmp/nvflare/poc/server/
 for id in $(eval echo "{1..$world_size}"); do
   cp server-cert.pem client-*.pem /tmp/nvflare/poc/site-"$id"/
