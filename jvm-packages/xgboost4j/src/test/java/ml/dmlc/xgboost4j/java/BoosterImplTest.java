@@ -30,8 +30,8 @@ import org.junit.Test;
  * @author hzx
  */
 public class BoosterImplTest {
-  private String train_uri = "../../demo/data/agaricus.txt.train?indexing_mode=1";
-  private String test_uri = "../../demo/data/agaricus.txt.test?indexing_mode=1";
+  private String train_uri = "../../demo/data/agaricus.txt.train?indexing_mode=1&format=libsvm";
+  private String test_uri = "../../demo/data/agaricus.txt.test?indexing_mode=1&format=libsvm";
 
   public static class EvalError implements IEvaluation {
     @Override

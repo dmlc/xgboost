@@ -23,8 +23,8 @@ import ml.dmlc.xgboost4j.scala.{XGBoost, DMatrix}
 object PredictFirstNTree {
 
   def main(args: Array[String]): Unit = {
-    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
-    val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
+    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train?format=libsvm")
+    val testMat = new DMatrix("../../demo/data/agaricus.txt.test?format=libsvm")
 
     val params = new mutable.HashMap[String, Any]()
     params += "eta" -> 1.0

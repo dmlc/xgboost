@@ -134,8 +134,8 @@ class TestMonotoneConstraints:
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_training_accuracy(self):
         from sklearn.metrics import accuracy_score
-        dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train?indexing_mode=1')
-        dtest = xgb.DMatrix(dpath + 'agaricus.txt.test?indexing_mode=1')
+        dtrain = xgb.DMatrix(dpath + "agaricus.txt.train?indexing_mode=1&format=libsvm")
+        dtest = xgb.DMatrix(dpath + "agaricus.txt.test?indexing_mode=1&format=libsvm")
         params = {'eta': 1, 'max_depth': 6, 'objective': 'binary:logistic',
                   'tree_method': 'hist', 'monotone_constraints': '(1, 0)'}
         num_boost_round = 5

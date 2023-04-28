@@ -154,9 +154,7 @@ class TestTreeMethod:
 
     def test_hist_categorical(self):
         # hist must be same as exact on all-categorial data
-        dpath = 'demo/data/'
-        ag_dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
-        ag_dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
+        ag_dtrain, ag_dtest = tm.load_agaricus(__file__)
         ag_param = {'max_depth': 2,
                     'tree_method': 'hist',
                     'eta': 1,

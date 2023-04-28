@@ -25,8 +25,8 @@ object ExternalMemory {
     // this is the only difference, add a # followed by a cache prefix name
     // several cache file with the prefix will be generated
     // currently only support convert from libsvm file
-    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train#dtrain.cache")
-    val testMat = new DMatrix("../../demo/data/agaricus.txt.test#dtest.cache")
+    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train?format=libsvm#dtrain.cache")
+    val testMat = new DMatrix("../../demo/data/agaricus.txt.test?format=libsvm#dtest.cache")
 
     val params = new mutable.HashMap[String, Any]()
     params += "eta" -> 1.0

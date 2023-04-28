@@ -29,9 +29,9 @@ import ml.dmlc.xgboost4j.java.example.util.DataLoader;
 public class EarlyStopping {
   public static void main(String[] args) throws IOException, XGBoostError {
     DataLoader.CSRSparseData trainCSR =
-        DataLoader.loadSVMFile("../../demo/data/agaricus.txt.train");
+        DataLoader.loadSVMFile("../../demo/data/agaricus.txt.train?format=libsvm");
     DataLoader.CSRSparseData testCSR =
-        DataLoader.loadSVMFile("../../demo/data/agaricus.txt.test");
+        DataLoader.loadSVMFile("../../demo/data/agaricus.txt.test?format=libsvm");
 
     Map<String, Object> paramMap = new HashMap<String, Object>() {
       {

@@ -882,5 +882,12 @@ def data_dir(path: str) -> str:
     return os.path.join(demo_dir(path), "data")
 
 
+def load_agaricus(path: str) -> Tuple[xgb.DMatrix, xgb.DMatrix]:
+    dpath = data_dir(path)
+    dtrain = xgb.DMatrix(os.path.join(dpath, "agaricus.txt.train?format=libsvm"))
+    dtest = xgb.DMatrix(os.path.join(dpath, "agaricus.txt.test?format=libsvm"))
+    return dtrain, dtest
+
+
 def project_root(path: str) -> str:
     return normpath(os.path.join(demo_dir(path), os.path.pardir))

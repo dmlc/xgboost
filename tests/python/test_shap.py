@@ -46,8 +46,8 @@ class TestSHAP:
         fscores = bst.get_fscore()
         assert scores1 == fscores
 
-        dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
-        dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
+        dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train?format=libsvm')
+        dtest = xgb.DMatrix(dpath + 'agaricus.txt.test?format=libsvm')
 
         def fn(max_depth, num_rounds):
             # train

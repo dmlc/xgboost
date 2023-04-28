@@ -157,8 +157,7 @@ TEST(MetaInfo, LoadQid) {
   dmlc::TemporaryDirectory tempdir;
   std::string tmp_file = tempdir.path + "/qid_test.libsvm";
   {
-    std::unique_ptr<dmlc::Stream> fs(
-      dmlc::Stream::Create(tmp_file.c_str(), "w"));
+    std::unique_ptr<dmlc::Stream> fs(dmlc::Stream::Create(tmp_file.c_str(), "w"));
     dmlc::ostream os(fs.get());
     os << R"qid(3 qid:1 1:1 2:1 3:0 4:0.2 5:0
                 2 qid:1 1:0 2:0 3:1 4:0.1 5:1
@@ -175,7 +174,7 @@ TEST(MetaInfo, LoadQid) {
     os.set_stream(nullptr);
   }
   std::unique_ptr<xgboost::DMatrix> dmat(
-    xgboost::DMatrix::Load(tmp_file, true, xgboost::DataSplitMode::kRow, "libsvm"));
+      xgboost::DMatrix::Load(tmp_file + "?format=libsvm", true, xgboost::DataSplitMode::kRow));
 
   const xgboost::MetaInfo& info = dmat->Info();
   const std::vector<xgboost::bst_uint> expected_group_ptr{0, 4, 8, 12};

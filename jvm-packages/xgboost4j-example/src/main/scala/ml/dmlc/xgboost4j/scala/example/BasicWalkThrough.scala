@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014-2023 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -36,8 +36,8 @@ object BasicWalkThrough {
   }
 
   def main(args: Array[String]): Unit = {
-    val trainMax = new DMatrix("../../demo/data/agaricus.txt.train")
-    val testMax = new DMatrix("../../demo/data/agaricus.txt.test")
+    val trainMax = new DMatrix("../../demo/data/agaricus.txt.train?format=libsvm")
+    val testMax = new DMatrix("../../demo/data/agaricus.txt.test?format=libsvm")
 
     val params = new mutable.HashMap[String, Any]()
     params += "eta" -> 1.0
@@ -76,7 +76,7 @@ object BasicWalkThrough {
 
     // build dmatrix from CSR Sparse Matrix
     println("start build dmatrix from csr sparse data ...")
-    val spData = DataLoader.loadSVMFile("../../demo/data/agaricus.txt.train")
+    val spData = DataLoader.loadSVMFile("../../demo/data/agaricus.txt.train?format=libsvm")
     val trainMax2 = new DMatrix(spData.rowHeaders, spData.colIndex, spData.data,
       JDMatrix.SparseType.CSR)
     trainMax2.setLabel(spData.labels)

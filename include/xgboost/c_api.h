@@ -138,7 +138,11 @@ XGB_DLL int XGDMatrixCreateFromFile(const char *fname, int silent, DMatrixHandle
 /*!
  * \brief load a data matrix
  * \param config JSON encoded parameters for DMatrix construction.  Accepted fields are:
- *   - uri: The URI of the input file.
+
+ *   - uri: The URI of the input file. The URI parameter `format` is required when loading text data.
+ *          \verbatim embed:rst:leading-asterisk
+ *            See :doc:`/tutorials/input_format` for more info.
+ *          \endverbatim
  *   - silent (optional): Whether to print message during loading. Default to true.
  *   - data_split_mode (optional): Whether to split by row or column. In distributed mode, the
  *     file is split accordingly; otherwise this is only an indicator on how the file was split

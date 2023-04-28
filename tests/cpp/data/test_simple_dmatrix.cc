@@ -17,11 +17,15 @@
 
 using namespace xgboost;  // NOLINT
 
+namespace {
+std::string UriSVM(std::string name) { return name + "?format=libsvm"; }
+}  // namespace
+
 TEST(SimpleDMatrix, MetaInfo) {
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/simple.libsvm";
   CreateSimpleTestData(tmp_file);
-  xgboost::DMatrix *dmat = xgboost::DMatrix::Load(tmp_file);
+  xgboost::DMatrix *dmat = xgboost::DMatrix::Load(UriSVM(tmp_file));
 
   // Test the metadata that was parsed
   EXPECT_EQ(dmat->Info().num_row_, 2);
@@ -37,7 +41,7 @@ TEST(SimpleDMatrix, RowAccess) {
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/simple.libsvm";
   CreateSimpleTestData(tmp_file);
-  xgboost::DMatrix *dmat = xgboost::DMatrix::Load(tmp_file, false);
+  xgboost::DMatrix *dmat = xgboost::DMatrix::Load(UriSVM(tmp_file), false);
 
   // Loop over the batches and count the records
   int64_t row_count = 0;
@@ -60,7 +64,7 @@ TEST(SimpleDMatrix, ColAccessWithoutBatches) {
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/simple.libsvm";
   CreateSimpleTestData(tmp_file);
-  xgboost::DMatrix *dmat = xgboost::DMatrix::Load(tmp_file);
+  xgboost::DMatrix *dmat = xgboost::DMatrix::Load(UriSVM(tmp_file));
 
   ASSERT_TRUE(dmat->SingleColBlock());
 
@@ -387,7 +391,7 @@ TEST(SimpleDMatrix, SaveLoadBinary) {
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/simple.libsvm";
   CreateSimpleTestData(tmp_file);
-  xgboost::DMatrix * dmat = xgboost::DMatrix::Load(tmp_file);
+  xgboost::DMatrix * dmat = xgboost::DMatrix::Load(UriSVM(tmp_file));
   data::SimpleDMatrix *simple_dmat = dynamic_cast<data::SimpleDMatrix*>(dmat);
 
   const std::string tmp_binfile = tempdir.path + "/csr_source.binary";

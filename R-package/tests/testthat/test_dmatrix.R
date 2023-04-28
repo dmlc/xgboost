@@ -72,7 +72,7 @@ test_that("xgb.DMatrix: saving, loading", {
   tmp <- c("0 1:1 2:1", "1 3:1", "0 1:1")
   tmp_file <- tempfile(fileext = ".libsvm")
   writeLines(tmp, tmp_file)
-  dtest4 <- xgb.DMatrix(tmp_file, silent = TRUE)
+  dtest4 <- xgb.DMatrix(paste(tmp_file, "?format=libsvm", sep = ""), silent = TRUE)
   expect_equal(dim(dtest4), c(3, 4))
   expect_equal(getinfo(dtest4, 'label'), c(0, 1, 0))
 
