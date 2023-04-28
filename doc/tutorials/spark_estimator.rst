@@ -108,8 +108,8 @@ virtualenv and pip:
   python -m venv xgboost_env
   source xgboost_env/bin/activate
   pip install pyarrow pandas venv-pack xgboost
-  # https://rapids.ai/pip.html#install
-  pip install cudf-cu11 --extra-index-url=https://pypi.ngc.nvidia.com
+  # https://docs.rapids.ai/install#pip-install
+  pip install cudf-cu11 --extra-index-url=https://pypi.nvidia.com
   venv-pack -o xgboost_env.tar.gz
 
 With Conda:
@@ -241,7 +241,7 @@ additional spark configurations and dependencies:
     --master spark://<master-ip>:7077 \
     --conf spark.executor.resource.gpu.amount=1 \
     --conf spark.task.resource.gpu.amount=1 \
-    --packages com.nvidia:rapids-4-spark_2.12:22.08.0 \
+    --packages com.nvidia:rapids-4-spark_2.12:23.04.0 \
     --conf spark.plugins=com.nvidia.spark.SQLPlugin \
     --conf spark.sql.execution.arrow.maxRecordsPerBatch=1000000 \
     --archives xgboost_env.tar.gz#environment \
