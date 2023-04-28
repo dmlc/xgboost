@@ -1,5 +1,5 @@
-/*!
- * Copyright 2015-2021 by Contributors
+/**
+ * Copyright 2015-2023, XGBoost Contributors
  * \file sparse_page_dmatrix.h
  * \brief External-memory version of DMatrix.
  * \author Tianqi Chen
@@ -9,12 +9,13 @@
 
 #include <xgboost/data.h>
 #include <xgboost/logging.h>
+
 #include <algorithm>
+#include <map>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
-#include <map>
 
 #include "ellpack_page_source.h"
 #include "gradient_index_page_source.h"
@@ -69,19 +70,18 @@ class SparsePageDMatrix : public DMatrix {
   XGDMatrixCallbackNext *next_;
 
   float missing_;
-  Context ctx_;
+  Context fmat_ctx_;
   std::string cache_prefix_;
-  uint32_t n_batches_ {0};
+  uint32_t n_batches_{0};
   // sparse page is the source to other page types, we make a special member function.
-  void InitializeSparsePage();
+  void InitializeSparsePage(Context const *ctx);
   // Non-virtual version that can be used in constructor
-  BatchSet<SparsePage> GetRowBatchesImpl();
+  BatchSet<SparsePage> GetRowBatchesImpl(Context const *ctx);
 
  public:
-  explicit SparsePageDMatrix(DataIterHandle iter, DMatrixHandle proxy,
-                             DataIterResetCallback *reset,
-                             XGDMatrixCallbackNext *next, float missing,
-                             int32_t nthreads, std::string cache_prefix);
+  explicit SparsePageDMatrix(DataIterHandle iter, DMatrixHandle proxy, DataIterResetCallback *reset,
+                             XGDMatrixCallbackNext *next, float missing, int32_t nthreads,
+                             std::string cache_prefix);
 
   ~SparsePageDMatrix() override {
     // Clear out all resources before deleting the cache file.
@@ -98,9 +98,9 @@ class SparsePageDMatrix : public DMatrix {
     }
   }
 
-  MetaInfo& Info() override;
-  const MetaInfo& Info() const override;
-  Context const* Ctx() const override { return &ctx_; }
+  MetaInfo &Info() override;
+  const MetaInfo &Info() const override;
+  Context const *Ctx() const override { return &fmat_ctx_; }
 
   bool SingleColBlock() const override { return false; }
   DMatrix *Slice(common::Span<int32_t const>) override {
@@ -114,11 +114,11 @@ class SparsePageDMatrix : public DMatrix {
 
  private:
   BatchSet<SparsePage> GetRowBatches() override;
-  BatchSet<CSCPage> GetColumnBatches() override;
-  BatchSet<SortedCSCPage> GetSortedColumnBatches() override;
-  BatchSet<EllpackPage> GetEllpackBatches(const BatchParam& param) override;
-  BatchSet<GHistIndexMatrix> GetGradientIndex(const BatchParam&) override;
-  BatchSet<ExtSparsePage> GetExtBatches(BatchParam const &) override {
+  BatchSet<CSCPage> GetColumnBatches(Context const *ctx) override;
+  BatchSet<SortedCSCPage> GetSortedColumnBatches(Context const *ctx) override;
+  BatchSet<EllpackPage> GetEllpackBatches(Context const *ctx, const BatchParam &param) override;
+  BatchSet<GHistIndexMatrix> GetGradientIndex(Context const *ctx, const BatchParam &) override;
+  BatchSet<ExtSparsePage> GetExtBatches(Context const *, BatchParam const &) override {
     LOG(FATAL) << "Can not obtain a single CSR page for external memory DMatrix";
     return BatchSet<ExtSparsePage>(BatchIterator<ExtSparsePage>(nullptr));
   }
@@ -141,9 +141,8 @@ inline std::string MakeId(std::string prefix, SparsePageDMatrix *ptr) {
   return prefix + "-" + ss.str();
 }
 
-inline std::string
-MakeCache(SparsePageDMatrix *ptr, std::string format, std::string prefix,
-          std::map<std::string, std::shared_ptr<Cache>> *out) {
+inline std::string MakeCache(SparsePageDMatrix *ptr, std::string format, std::string prefix,
+                             std::map<std::string, std::shared_ptr<Cache>> *out) {
   auto &cache_info = *out;
   auto name = MakeId(prefix, ptr);
   auto id = name + format;

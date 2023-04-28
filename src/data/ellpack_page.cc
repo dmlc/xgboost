@@ -1,5 +1,5 @@
-/*!
- * Copyright 2019 XGBoost contributors
+/**
+ * Copyright 2019-2023, XGBoost contributors
  */
 #ifndef XGBOOST_USE_CUDA
 
@@ -12,7 +12,7 @@ class EllpackPageImpl {};
 
 EllpackPage::EllpackPage() = default;
 
-EllpackPage::EllpackPage(DMatrix*, const BatchParam&) {
+EllpackPage::EllpackPage(Context const*, DMatrix*, const BatchParam&) {
   LOG(FATAL) << "Internal Error: XGBoost is not compiled with CUDA but "
                 "EllpackPage is required";
 }

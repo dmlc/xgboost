@@ -1,6 +1,8 @@
-/*!
- * Copyright 2020-2022 by Contributors
+/**
+ * Copyright 2020-2023 by XGBoost Contributors
  * \file iterative_dmatrix.h
+ *
+ * \brief Implementation of the higher-level `QuantileDMatrix`.
  */
 #ifndef XGBOOST_DATA_ITERATIVE_DMATRIX_H_
 #define XGBOOST_DATA_ITERATIVE_DMATRIX_H_
@@ -10,10 +12,12 @@
 #include <utility>
 #include <vector>
 
+#include "../common/error_msg.h"
 #include "proxy_dmatrix.h"
 #include "simple_batch_iterator.h"
 #include "xgboost/base.h"
 #include "xgboost/c_api.h"
+#include "xgboost/context.h"  // for Context
 #include "xgboost/data.h"
 
 namespace xgboost {
@@ -43,21 +47,17 @@ namespace data {
  */
 class IterativeDMatrix : public DMatrix {
   MetaInfo info_;
-  Context ctx_;
-  BatchParam batch_param_;
   std::shared_ptr<EllpackPage> ellpack_;
   std::shared_ptr<GHistIndexMatrix> ghist_;
+  BatchParam batch_;
 
   DMatrixHandle proxy_;
   DataIterResetCallback *reset_;
   XGDMatrixCallbackNext *next_;
+  Context fmat_ctx_;
 
   void CheckParam(BatchParam const &param) {
-    // FIXME(Jiamingy): https://github.com/dmlc/xgboost/issues/7976
-    if (param.max_bin != batch_param_.max_bin && param.max_bin != 0) {
-      LOG(WARNING) << "Inconsistent max_bin between Quantile DMatrix and Booster:" << param.max_bin
-                   << " vs. " << batch_param_.max_bin;
-    }
+    CHECK_EQ(param.max_bin, batch_.max_bin) << error::InconsistentMaxBin();
     CHECK(!param.regen && param.hess.empty())
         << "Only `hist` and `gpu_hist` tree method can use `QuantileDMatrix`.";
   }
@@ -68,8 +68,10 @@ class IterativeDMatrix : public DMatrix {
     return BatchSet<Page>(BatchIterator<Page>(nullptr));
   }
 
-  void InitFromCUDA(DataIterHandle iter, float missing, std::shared_ptr<DMatrix> ref);
-  void InitFromCPU(DataIterHandle iter_handle, float missing, std::shared_ptr<DMatrix> ref);
+  void InitFromCUDA(Context const *ctx, BatchParam const &p, DataIterHandle iter_handle,
+                    float missing, std::shared_ptr<DMatrix> ref);
+  void InitFromCPU(Context const *ctx, BatchParam const &p, DataIterHandle iter_handle,
+                   float missing, std::shared_ptr<DMatrix> ref);
 
  public:
   explicit IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle proxy,
@@ -94,51 +96,40 @@ class IterativeDMatrix : public DMatrix {
     LOG(FATAL) << "Not implemented.";
     return BatchSet<SparsePage>(BatchIterator<SparsePage>(nullptr));
   }
-  BatchSet<CSCPage> GetColumnBatches() override { return InvalidTreeMethod<CSCPage>(); }
-  BatchSet<SortedCSCPage> GetSortedColumnBatches() override {
+  BatchSet<CSCPage> GetColumnBatches(Context const *) override {
+    return InvalidTreeMethod<CSCPage>();
+  }
+  BatchSet<SortedCSCPage> GetSortedColumnBatches(Context const *) override {
     return InvalidTreeMethod<SortedCSCPage>();
   }
-  BatchSet<GHistIndexMatrix> GetGradientIndex(BatchParam const &param) override;
+  BatchSet<GHistIndexMatrix> GetGradientIndex(Context const *ctx, BatchParam const &param) override;
 
-  BatchSet<EllpackPage> GetEllpackBatches(const BatchParam &param) override;
-  BatchSet<ExtSparsePage> GetExtBatches(BatchParam const& param) override;
+  BatchSet<EllpackPage> GetEllpackBatches(Context const *ctx, const BatchParam &param) override;
+  BatchSet<ExtSparsePage> GetExtBatches(Context const *ctx, BatchParam const &param) override;
 
   bool SingleColBlock() const override { return true; }
 
   MetaInfo &Info() override { return info_; }
   MetaInfo const &Info() const override { return info_; }
 
-  Context const *Ctx() const override { return &ctx_; }
+  Context const *Ctx() const override { return &fmat_ctx_; }
 };
 
 /**
- * \brief Get quantile cuts from reference Quantile DMatrix.
+ * \brief Get quantile cuts from reference (Quantile)DMatrix.
+ *
+ * \param ctx The context of the new DMatrix.
+ * \param ref The reference DMatrix.
+ * \param n_features Number of features, used for validation only.
+ * \param p Batch parameter for the new DMatrix.
+ * \param p_cuts Output quantile cuts.
  */
-void GetCutsFromRef(std::shared_ptr<DMatrix> ref_, bst_feature_t n_features, BatchParam p,
-                    common::HistogramCuts *p_cuts);
+void GetCutsFromRef(Context const *ctx, std::shared_ptr<DMatrix> ref, bst_feature_t n_features,
+                    BatchParam p, common::HistogramCuts *p_cuts);
 /**
  * \brief Get quantile cuts from ellpack page.
  */
 void GetCutsFromEllpack(EllpackPage const &page, common::HistogramCuts *cuts);
-
-#if !defined(XGBOOST_USE_CUDA)
-inline void IterativeDMatrix::InitFromCUDA(DataIterHandle, float, std::shared_ptr<DMatrix>) {
-  // silent the warning about unused variables.
-  (void)(proxy_);
-  (void)(reset_);
-  (void)(next_);
-  common::AssertGPUSupport();
-}
-inline BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(const BatchParam &) {
-  common::AssertGPUSupport();
-  auto begin_iter = BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(ellpack_));
-  return BatchSet<EllpackPage>(BatchIterator<EllpackPage>(begin_iter));
-}
-
-inline void GetCutsFromEllpack(EllpackPage const &, common::HistogramCuts *) {
-  common::AssertGPUSupport();
-}
-#endif  // !defined(XGBOOST_USE_CUDA)
 }  // namespace data
 }  // namespace xgboost
 

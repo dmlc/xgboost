@@ -1,9 +1,14 @@
+/**
+ * Copyright 2020-2023, XGBoost Contributors
+ */
 #include <gtest/gtest.h>
+
 #include <vector>
 
 #include "../../../../src/common/categorical.h"
 #include "../../../../src/tree/gpu_hist/histogram.cuh"
 #include "../../../../src/tree/gpu_hist/row_partitioner.cuh"
+#include "../../../../src/tree/param.h"  // TrainParam
 #include "../../categorical_helpers.h"
 #include "../../helpers.h"
 
@@ -11,15 +16,15 @@ namespace xgboost {
 namespace tree {
 
 void TestDeterministicHistogram(bool is_dense, int shm_size) {
-  Context ctx = CreateEmptyGenericParam(0);
+  Context ctx = MakeCUDACtx(0);
   size_t constexpr kBins = 256, kCols = 120, kRows = 16384, kRounds = 16;
   float constexpr kLower = -1e-2, kUpper = 1e2;
 
   float sparsity = is_dense ? 0.0f : 0.5f;
   auto matrix = RandomDataGenerator(kRows, kCols, sparsity).GenerateDMatrix();
-  BatchParam batch_param{0, static_cast<int32_t>(kBins)};
+  auto batch_param = BatchParam{kBins, tree::TrainParam::DftSparseThreshold()};
 
-  for (auto const& batch : matrix->GetBatches<EllpackPage>(batch_param)) {
+  for (auto const& batch : matrix->GetBatches<EllpackPage>(&ctx, batch_param)) {
     auto* page = batch.Impl();
 
     tree::RowPartitioner row_partitioner(0, kRows);
@@ -114,13 +119,13 @@ void ValidateCategoricalHistogram(size_t n_categories, common::Span<GradientPair
 
 // Test 1 vs rest categorical histogram is equivalent to one hot encoded data.
 void TestGPUHistogramCategorical(size_t num_categories) {
-  auto ctx = CreateEmptyGenericParam(0);
+  auto ctx = MakeCUDACtx(0);
   size_t constexpr kRows = 340;
   size_t constexpr kBins = 256;
   auto x = GenerateRandomCategoricalSingleColumn(kRows, num_categories);
   auto cat_m = GetDMatrixFromData(x, kRows, 1);
   cat_m->Info().feature_types.HostVector().push_back(FeatureType::kCategorical);
-  BatchParam batch_param{0, static_cast<int32_t>(kBins)};
+  auto batch_param = BatchParam{kBins, tree::TrainParam::DftSparseThreshold()};
   tree::RowPartitioner row_partitioner(0, kRows);
   auto ridx = row_partitioner.GetRows(0);
   dh::device_vector<GradientPairInt64> cat_hist(num_categories);
@@ -130,7 +135,7 @@ void TestGPUHistogramCategorical(size_t num_categories) {
   /**
    * Generate hist with cat data.
    */
-  for (auto const &batch : cat_m->GetBatches<EllpackPage>(batch_param)) {
+  for (auto const &batch : cat_m->GetBatches<EllpackPage>(&ctx, batch_param)) {
     auto* page = batch.Impl();
     FeatureGroups single_group(page->Cuts());
     BuildGradientHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(0),
@@ -144,7 +149,7 @@ void TestGPUHistogramCategorical(size_t num_categories) {
   auto x_encoded = OneHotEncodeFeature(x, num_categories);
   auto encode_m = GetDMatrixFromData(x_encoded, kRows, num_categories);
   dh::device_vector<GradientPairInt64> encode_hist(2 * num_categories);
-  for (auto const &batch : encode_m->GetBatches<EllpackPage>(batch_param)) {
+  for (auto const &batch : encode_m->GetBatches<EllpackPage>(&ctx, batch_param)) {
     auto* page = batch.Impl();
     FeatureGroups single_group(page->Cuts());
     BuildGradientHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(0),

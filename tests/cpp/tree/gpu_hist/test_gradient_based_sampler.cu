@@ -1,12 +1,13 @@
-/*!
- * Copyright 2020-2021 by XGBoost Contributors
+/**
+ * Copyright 2020-2023, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 
 #include "../../../../src/data/ellpack_page.cuh"
 #include "../../../../src/tree/gpu_hist/gradient_based_sampler.cuh"
 #include "../../../../src/tree/param.h"
-#include "../../filesystem.h"  // dmlc::TemporaryDirectory
+#include "../../../../src/tree/param.h"  // TrainParam
+#include "../../filesystem.h"            // dmlc::TemporaryDirectory
 #include "../../helpers.h"
 
 namespace xgboost {
@@ -31,14 +32,15 @@ void VerifySampling(size_t page_size,
   }
   gpair.SetDevice(0);
 
-  BatchParam param{0, 256};
-  auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
+  Context ctx{MakeCUDACtx(0)};
+  auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
+  auto page = (*dmat->GetBatches<EllpackPage>(&ctx, param).begin()).Impl();
   if (page_size != 0) {
     EXPECT_NE(page->n_rows, kRows);
   }
 
-  GradientBasedSampler sampler(page, kRows, param, subsample, sampling_method);
-  auto sample = sampler.Sample(gpair.DeviceSpan(), dmat.get());
+  GradientBasedSampler sampler(&ctx, page, kRows, param, subsample, sampling_method);
+  auto sample = sampler.Sample(&ctx, gpair.DeviceSpan(), dmat.get());
 
   if (fixed_size_sampling) {
     EXPECT_EQ(sample.sample_rows, kRows);
@@ -86,12 +88,13 @@ TEST(GradientBasedSampler, NoSamplingExternalMemory) {
   auto gpair = GenerateRandomGradients(kRows);
   gpair.SetDevice(0);
 
-  BatchParam param{0, 256};
-  auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
+  Context ctx{MakeCUDACtx(0)};
+  auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
+  auto page = (*dmat->GetBatches<EllpackPage>(&ctx, param).begin()).Impl();
   EXPECT_NE(page->n_rows, kRows);
 
-  GradientBasedSampler sampler(page, kRows, param, kSubsample, TrainParam::kUniform);
-  auto sample = sampler.Sample(gpair.DeviceSpan(), dmat.get());
+  GradientBasedSampler sampler(&ctx, page, kRows, param, kSubsample, TrainParam::kUniform);
+  auto sample = sampler.Sample(&ctx, gpair.DeviceSpan(), dmat.get());
   auto sampled_page = sample.page;
   EXPECT_EQ(sample.sample_rows, kRows);
   EXPECT_EQ(sample.gpair.size(), gpair.Size());
@@ -103,7 +106,7 @@ TEST(GradientBasedSampler, NoSamplingExternalMemory) {
       ci(buffer.data(), sampled_page->NumSymbols());
 
   size_t offset = 0;
-  for (auto& batch : dmat->GetBatches<EllpackPage>(param)) {
+  for (auto& batch : dmat->GetBatches<EllpackPage>(&ctx, param)) {
     auto page = batch.Impl();
     std::vector<common::CompressedByteT> page_buffer(page->gidx_buffer.HostVector());
     common::CompressedIterator<common::CompressedByteT>

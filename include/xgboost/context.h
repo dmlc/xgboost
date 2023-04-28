@@ -50,7 +50,19 @@ struct Context : public XGBoostParameter<Context> {
 
   bool IsCPU() const { return gpu_id == kCpuId; }
   bool IsCUDA() const { return !IsCPU(); }
+
   CUDAContext const* CUDACtx() const;
+  // Make a CUDA context based on the current context.
+  Context MakeCUDA(std::int32_t device = 0) const {
+    Context ctx = *this;
+    ctx.gpu_id = device;
+    return ctx;
+  }
+  Context MakeCPU() const {
+    Context ctx = *this;
+    ctx.gpu_id = kCpuId;
+    return ctx;
+  }
 
   // declare parameters
   DMLC_DECLARE_PARAMETER(Context) {

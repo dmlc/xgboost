@@ -1,11 +1,12 @@
-/*!
- * Copyright 2020-2022 XGBoost contributors
+/**
+ * Copyright 2020-2023, XGBoost contributors
  */
 #include <gtest/gtest.h>
 
 #include "../../../src/data/device_adapter.cuh"
 #include "../../../src/data/ellpack_page.cuh"
 #include "../../../src/data/iterative_dmatrix.h"
+#include "../../../src/tree/param.h"  // TrainParam
 #include "../helpers.h"
 #include "test_iterative_dmatrix.h"
 
@@ -13,15 +14,17 @@ namespace xgboost {
 namespace data {
 
 void TestEquivalent(float sparsity) {
+  Context ctx{MakeCUDACtx(0)};
+
   CudaArrayIterForTest iter{sparsity};
   IterativeDMatrix m(&iter, iter.Proxy(), nullptr, Reset, Next,
                      std::numeric_limits<float>::quiet_NaN(), 0, 256);
-  size_t offset = 0;
-  auto first = (*m.GetEllpackBatches({}).begin()).Impl();
+  std::size_t offset = 0;
+  auto first = (*m.GetEllpackBatches(&ctx, {}).begin()).Impl();
   std::unique_ptr<EllpackPageImpl> page_concatenated {
     new EllpackPageImpl(0, first->Cuts(), first->is_dense,
                         first->row_stride, 1000 * 100)};
-  for (auto& batch : m.GetBatches<EllpackPage>({})) {
+  for (auto& batch : m.GetBatches<EllpackPage>(&ctx, {})) {
     auto page = batch.Impl();
     size_t num_elements = page_concatenated->Copy(0, page, offset);
     offset += num_elements;
@@ -34,8 +37,8 @@ void TestEquivalent(float sparsity) {
   auto adapter = CupyAdapter(interface_str);
   std::unique_ptr<DMatrix> dm{
       DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 0)};
-  BatchParam bp {0, 256};
-  for (auto& ellpack : dm->GetBatches<EllpackPage>(bp)) {
+  auto bp = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
+  for (auto& ellpack : dm->GetBatches<EllpackPage>(&ctx, bp)) {
     auto from_data = ellpack.Impl()->GetDeviceAccessor(0);
 
     std::vector<float> cuts_from_iter(from_iter.gidx_fvalue_map.size());
@@ -92,7 +95,8 @@ TEST(IterativeDeviceDMatrix, RowMajor) {
                      std::numeric_limits<float>::quiet_NaN(), 0, 256);
   size_t n_batches = 0;
   std::string interface_str = iter.AsArray();
-  for (auto& ellpack : m.GetBatches<EllpackPage>({})) {
+  Context ctx{MakeCUDACtx(0)};
+  for (auto& ellpack : m.GetBatches<EllpackPage>(&ctx, {})) {
     n_batches ++;
     auto impl = ellpack.Impl();
     common::CompressedIterator<uint32_t> iterator(
@@ -140,7 +144,10 @@ TEST(IterativeDeviceDMatrix, RowMajorMissing) {
 
   IterativeDMatrix m(&iter, iter.Proxy(), nullptr, Reset, Next,
                      std::numeric_limits<float>::quiet_NaN(), 0, 256);
-  auto &ellpack = *m.GetBatches<EllpackPage>({0, 256}).begin();
+  auto ctx = MakeCUDACtx(0);
+  auto& ellpack =
+      *m.GetBatches<EllpackPage>(&ctx, BatchParam{256, tree::TrainParam::DftSparseThreshold()})
+           .begin();
   auto impl = ellpack.Impl();
   common::CompressedIterator<uint32_t> iterator(
       impl->gidx_buffer.HostVector().data(), impl->NumSymbols());
@@ -171,8 +178,9 @@ TEST(IterativeDeviceDMatrix, IsDense) {
 }
 
 TEST(IterativeDeviceDMatrix, Ref) {
+  Context ctx{MakeCUDACtx(0)};
   TestRefDMatrix<EllpackPage, CudaArrayIterForTest>(
-      [](EllpackPage const& page) { return page.Impl()->Cuts(); });
+      &ctx, [](EllpackPage const& page) { return page.Impl()->Cuts(); });
 }
 }  // namespace data
 }  // namespace xgboost

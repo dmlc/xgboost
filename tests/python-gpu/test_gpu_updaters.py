@@ -153,12 +153,18 @@ class TestGPUUpdaters:
         tm.dataset_strategy
     )
     @settings(deadline=None, max_examples=20, print_blob=True)
-    def test_gpu_hist_device_dmatrix(self, param, num_rounds, dataset):
+    def test_gpu_hist_device_dmatrix(
+        self, param: dict, num_rounds: int, dataset: tm.TestDataset
+    ) -> None:
         # We cannot handle empty dataset yet
         assume(len(dataset.y) > 0)
         param['tree_method'] = 'gpu_hist'
         param = dataset.set_params(param)
-        result = train_result(param, dataset.get_device_dmat(), num_rounds)
+        result = train_result(
+            param,
+            dataset.get_device_dmat(max_bin=param.get("max_bin", None)),
+            num_rounds
+        )
         note(result)
         assert tm.non_increasing(result['train'][dataset.metric], tolerance=1e-3)
 

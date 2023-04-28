@@ -706,7 +706,7 @@ class GPUPredictor : public xgboost::Predictor {
       }
     } else {
       size_t batch_offset = 0;
-      for (auto const& page : dmat->GetBatches<EllpackPage>(BatchParam{})) {
+      for (auto const& page : dmat->GetBatches<EllpackPage>(ctx_, BatchParam{})) {
         dmat->Info().feature_types.SetDevice(ctx_->gpu_id);
         auto feature_types = dmat->Info().feature_types.ConstDeviceSpan();
         this->PredictInternal(
@@ -983,7 +983,7 @@ class GPUPredictor : public xgboost::Predictor {
         batch_offset += batch.Size();
       }
     } else {
-      for (auto const& batch : p_fmat->GetBatches<EllpackPage>(BatchParam{})) {
+      for (auto const& batch : p_fmat->GetBatches<EllpackPage>(ctx_, BatchParam{})) {
         bst_row_t batch_offset = 0;
         EllpackDeviceAccessor data{batch.Impl()->GetDeviceAccessor(ctx_->gpu_id)};
         size_t num_rows = batch.Size();

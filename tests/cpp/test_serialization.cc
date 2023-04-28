@@ -203,7 +203,11 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
     learner->Save(&mem_out);
     ASSERT_EQ(model_at_kiter, serialised_model_tmp);
 
-    learner->SetParam("gpu_id", "0");
+    for (auto const& [key, value] : args) {
+      if (key == "tree_method" && value == "gpu_hist") {
+        learner->SetParam("gpu_id", "0");
+      }
+    }
     // Pull data to device
     for (auto &batch : p_dmat->GetBatches<SparsePage>()) {
       batch.data.SetDevice(0);

@@ -34,7 +34,7 @@ TEST(Approx, Partitioner) {
   std::vector<CPUExpandEntry> candidates{{0, 0}};
   candidates.front().split.loss_chg = 0.4;
 
-  for (auto const& page : Xy->GetBatches<GHistIndexMatrix>({64, hess, true})) {
+  for (auto const& page : Xy->GetBatches<GHistIndexMatrix>(&ctx, {64, hess, true})) {
     bst_feature_t const split_ind = 0;
     {
       auto min_value = page.cut.MinValues()[split_ind];
@@ -84,7 +84,7 @@ void TestColumnSplitPartitioner(size_t n_samples, size_t base_rowid, std::shared
 
   Context ctx;
   ctx.InitAllowUnknown(Args{});
-  for (auto const& page : dmat->GetBatches<GHistIndexMatrix>({64, *hess, true})) {
+  for (auto const& page : dmat->GetBatches<GHistIndexMatrix>(&ctx, {64, *hess, true})) {
     {
       RegTree tree;
       CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid, true};
@@ -133,7 +133,7 @@ TEST(Approx, PartitionerColSplit) {
   Context ctx;
   ctx.InitAllowUnknown(Args{});
   CommonRowPartitioner mid_partitioner{&ctx, n_samples, base_rowid, false};
-  for (auto const& page : Xy->GetBatches<GHistIndexMatrix>({64, hess, true})) {
+  for (auto const& page : Xy->GetBatches<GHistIndexMatrix>(&ctx, {64, hess, true})) {
     bst_feature_t const split_ind = 0;
     min_value = page.cut.MinValues()[split_ind];
 

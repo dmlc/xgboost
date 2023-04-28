@@ -170,7 +170,7 @@ class HistogramCuts {
  * \param use_sorted Whether should we use SortedCSC for sketching, it's more efficient
  *                   but consumes more memory.
  */
-HistogramCuts SketchOnDMatrix(DMatrix* m, int32_t max_bins, int32_t n_threads,
+HistogramCuts SketchOnDMatrix(Context const* ctx, DMatrix* m, bst_bin_t max_bins,
                               bool use_sorted = false, Span<float> const hessian = {});
 
 enum BinTypeSize : uint8_t {

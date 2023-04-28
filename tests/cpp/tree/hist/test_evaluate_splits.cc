@@ -41,7 +41,7 @@ void TestEvaluateSplits(bool force_read_by_column) {
 
   size_t constexpr kMaxBins = 4;
   // dense, no missing values
-  GHistIndexMatrix gmat(dmat.get(), kMaxBins, 0.5, false, AllThreadsForTest());
+  GHistIndexMatrix gmat(&ctx, dmat.get(), kMaxBins, 0.5, false);
   common::RowSetCollection row_set_collection;
   std::vector<size_t> &row_indices = *row_set_collection.Data();
   row_indices.resize(kRows);
@@ -228,7 +228,7 @@ auto CompareOneHotAndPartition(bool onehot) {
   auto evaluator = HistEvaluator<CPUExpandEntry>{&ctx, &param, dmat->Info(), sampler};
   std::vector<CPUExpandEntry> entries(1);
 
-  for (auto const &gmat : dmat->GetBatches<GHistIndexMatrix>({32, param.sparse_threshold})) {
+  for (auto const &gmat : dmat->GetBatches<GHistIndexMatrix>(&ctx, {32, param.sparse_threshold})) {
     common::HistCollection hist;
 
     entries.front().nid = 0;

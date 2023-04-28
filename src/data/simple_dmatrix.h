@@ -32,7 +32,7 @@ class SimpleDMatrix : public DMatrix {
 
   MetaInfo& Info() override;
   const MetaInfo& Info() const override;
-  Context const* Ctx() const override { return &ctx_; }
+  Context const* Ctx() const override { return &fmat_ctx_; }
 
   bool SingleColBlock() const override { return true; }
   DMatrix* Slice(common::Span<int32_t const> ridxs) override;
@@ -43,11 +43,11 @@ class SimpleDMatrix : public DMatrix {
 
  protected:
   BatchSet<SparsePage> GetRowBatches() override;
-  BatchSet<CSCPage> GetColumnBatches() override;
-  BatchSet<SortedCSCPage> GetSortedColumnBatches() override;
-  BatchSet<EllpackPage> GetEllpackBatches(const BatchParam& param) override;
-  BatchSet<GHistIndexMatrix> GetGradientIndex(const BatchParam& param) override;
-  BatchSet<ExtSparsePage> GetExtBatches(BatchParam const& param) override;
+  BatchSet<CSCPage> GetColumnBatches(Context const* ctx) override;
+  BatchSet<SortedCSCPage> GetSortedColumnBatches(Context const* ctx) override;
+  BatchSet<EllpackPage> GetEllpackBatches(Context const* ctx, const BatchParam& param) override;
+  BatchSet<GHistIndexMatrix> GetGradientIndex(Context const* ctx, const BatchParam& param) override;
+  BatchSet<ExtSparsePage> GetExtBatches(Context const* ctx, BatchParam const& param) override;
 
   MetaInfo info_;
   // Primary storage type
@@ -69,10 +69,11 @@ class SimpleDMatrix : public DMatrix {
    * starting from 0. However, all the algorithms assume the features are globally indexed, so we
    * reindex the features based on the offset needed to obtain the global view.
    */
-  void ReindexFeatures();
+  void ReindexFeatures(Context const* ctx);
 
  private:
-  Context ctx_;
+  // Context used only for DMatrix initialization.
+  Context fmat_ctx_;
 };
 }  // namespace data
 }  // namespace xgboost

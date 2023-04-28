@@ -800,9 +800,8 @@ class SketchContainerImpl {
    * \param max_bins maximum number of bins for each feature.
    * \param use_group whether is assigned to group to data instance.
    */
-  SketchContainerImpl(std::vector<bst_row_t> columns_size, int32_t max_bins,
-                      common::Span<FeatureType const> feature_types, bool use_group,
-                      int32_t n_threads);
+  SketchContainerImpl(Context const *ctx, std::vector<bst_row_t> columns_size, int32_t max_bins,
+                      common::Span<FeatureType const> feature_types, bool use_group);
 
   static bool UseGroup(MetaInfo const &info) {
     size_t const num_groups =
@@ -894,8 +893,8 @@ class HostSketchContainer : public SketchContainerImpl<WQuantileSketch<float, fl
   using WQSketch = WQuantileSketch<float, float>;
 
  public:
-  HostSketchContainer(int32_t max_bins, common::Span<FeatureType const> ft,
-                      std::vector<size_t> columns_size, bool use_group, int32_t n_threads);
+  HostSketchContainer(Context const *ctx, bst_bin_t max_bins, common::Span<FeatureType const> ft,
+                      std::vector<size_t> columns_size, bool use_group);
 
   template <typename Batch>
   void PushAdapterBatch(Batch const &batch, size_t base_rowid, MetaInfo const &info, float missing);
@@ -990,10 +989,10 @@ class SortedSketchContainer : public SketchContainerImpl<WXQuantileSketch<float,
   using Super = SketchContainerImpl<WXQuantileSketch<float, float>>;
 
  public:
-  explicit SortedSketchContainer(int32_t max_bins, common::Span<FeatureType const> ft,
-                                 std::vector<size_t> columns_size, bool use_group,
-                                 int32_t n_threads)
-      : SketchContainerImpl{columns_size, max_bins, ft, use_group, n_threads} {
+  explicit SortedSketchContainer(Context const *ctx, int32_t max_bins,
+                                 common::Span<FeatureType const> ft,
+                                 std::vector<size_t> columns_size, bool use_group)
+      : SketchContainerImpl{ctx, columns_size, max_bins, ft, use_group} {
     monitor_.Init(__func__);
     sketches_.resize(columns_size.size());
     size_t i = 0;

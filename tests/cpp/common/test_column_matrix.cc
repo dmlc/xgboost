@@ -14,11 +14,12 @@ TEST(DenseColumn, Test) {
   int32_t max_num_bins[] = {static_cast<int32_t>(std::numeric_limits<uint8_t>::max()) + 1,
                             static_cast<int32_t>(std::numeric_limits<uint16_t>::max()) + 1,
                             static_cast<int32_t>(std::numeric_limits<uint16_t>::max()) + 2};
+  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
   BinTypeSize last{kUint8BinsTypeSize};
   for (int32_t max_num_bin : max_num_bins) {
     auto dmat = RandomDataGenerator(100, 10, 0.0).GenerateDMatrix();
     auto sparse_thresh = 0.2;
-    GHistIndexMatrix gmat{dmat.get(), max_num_bin, sparse_thresh, false, AllThreadsForTest()};
+    GHistIndexMatrix gmat{&ctx, dmat.get(), max_num_bin, sparse_thresh, false};
     ColumnMatrix column_matrix;
     for (auto const& page : dmat->GetBatches<SparsePage>()) {
       column_matrix.InitFromSparse(page, gmat, sparse_thresh, AllThreadsForTest());
@@ -62,9 +63,10 @@ TEST(SparseColumn, Test) {
   int32_t max_num_bins[] = {static_cast<int32_t>(std::numeric_limits<uint8_t>::max()) + 1,
                             static_cast<int32_t>(std::numeric_limits<uint16_t>::max()) + 1,
                             static_cast<int32_t>(std::numeric_limits<uint16_t>::max()) + 2};
+  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
   for (int32_t max_num_bin : max_num_bins) {
     auto dmat = RandomDataGenerator(100, 1, 0.85).GenerateDMatrix();
-    GHistIndexMatrix gmat{dmat.get(), max_num_bin, 0.5f, false, AllThreadsForTest()};
+    GHistIndexMatrix gmat{&ctx, dmat.get(), max_num_bin, 0.5f, false};
     ColumnMatrix column_matrix;
     for (auto const& page : dmat->GetBatches<SparsePage>()) {
       column_matrix.InitFromSparse(page, gmat, 1.0, AllThreadsForTest());
@@ -90,9 +92,10 @@ TEST(DenseColumnWithMissing, Test) {
   int32_t max_num_bins[] = {static_cast<int32_t>(std::numeric_limits<uint8_t>::max()) + 1,
                             static_cast<int32_t>(std::numeric_limits<uint16_t>::max()) + 1,
                             static_cast<int32_t>(std::numeric_limits<uint16_t>::max()) + 2};
+  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
   for (int32_t max_num_bin : max_num_bins) {
     auto dmat = RandomDataGenerator(100, 1, 0.5).GenerateDMatrix();
-    GHistIndexMatrix gmat(dmat.get(), max_num_bin, 0.2, false, AllThreadsForTest());
+    GHistIndexMatrix gmat(&ctx, dmat.get(), max_num_bin, 0.2, false);
     ColumnMatrix column_matrix;
     for (auto const& page : dmat->GetBatches<SparsePage>()) {
       column_matrix.InitFromSparse(page, gmat, 0.2, AllThreadsForTest());

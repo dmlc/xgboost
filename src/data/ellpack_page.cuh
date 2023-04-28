@@ -155,7 +155,7 @@ class EllpackPageImpl {
    * This is used in the in-memory case. The ELLPACK page is constructed from an existing DMatrix
    * in CSR format.
    */
-  explicit EllpackPageImpl(DMatrix* dmat, const BatchParam& parm);
+  explicit EllpackPageImpl(Context const* ctx, DMatrix* dmat, const BatchParam& parm);
 
   template <typename AdapterBatch>
   explicit EllpackPageImpl(AdapterBatch batch, float missing, int device, bool is_dense,

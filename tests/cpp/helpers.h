@@ -388,6 +388,11 @@ inline Context CreateEmptyGenericParam(int gpu_id) {
   return tparam;
 }
 
+/**
+ * \brief Make a context that uses CUDA.
+ */
+inline Context MakeCUDACtx(std::int32_t device) { return Context{}.MakeCUDA(device); }
+
 inline HostDeviceVector<GradientPair> GenerateRandomGradients(const size_t n_rows,
                                                               float lower= 0.0f, float upper = 1.0f) {
   xgboost::SimpleLCG gen;
