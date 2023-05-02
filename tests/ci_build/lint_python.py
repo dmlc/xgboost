@@ -1,137 +1,132 @@
 import argparse
 import os
+import pathlib
 import subprocess
 import sys
+from collections import Counter
 from multiprocessing import Pool, cpu_count
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple, cast
 
-from pylint import epylint
 from test_utils import PY_PACKAGE, ROOT, cd, print_time, record_time
 
-CURDIR = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))
-SRCPATH = os.path.normpath(
-    os.path.join(CURDIR, os.path.pardir, os.path.pardir, "python-package")
-)
+
+def check_cmd_print_failure_assistance(cmd: List[str]) -> bool:
+    if subprocess.run(cmd).returncode == 0:
+        return True
+
+    subprocess.run([cmd[0], "--version"])
+    msg = """
+Please run the following command on your machine to address the formatting error:
+
+    """
+    msg += " ".join(cmd)
+    print(msg, file=sys.stderr)
+    return False
 
 
 @record_time
+@cd(PY_PACKAGE)
 def run_black(rel_path: str, fix: bool) -> bool:
-    if fix:
-        cmd = ["black", "-q", rel_path]
-    else:
-        cmd = ["black", "-q", "--check", rel_path]
-    ret = subprocess.run(cmd).returncode
-    if ret != 0:
-        subprocess.run(["black", "--version"])
-        msg = """
-Please run the following command on your machine to address the formatting error:
+    cmd = ["black", "-q", os.path.join(ROOT, rel_path)]
+    if not fix:
+        cmd += ["--check"]
 
-        """
-        msg += " ".join(cmd)
-        print(msg, file=sys.stderr)
-        return False
-    return True
+    return check_cmd_print_failure_assistance(cmd)
 
 
 @record_time
+@cd(PY_PACKAGE)
 def run_isort(rel_path: str, fix: bool) -> bool:
-    if fix:
-        cmd = ["isort", f"--src={SRCPATH}", "--profile=black", rel_path]
-    else:
-        cmd = ["isort", f"--src={SRCPATH}", "--check", "--profile=black", rel_path]
-    ret = subprocess.run(cmd).returncode
-    if ret != 0:
-        subprocess.run(["isort", "--version"])
-        msg = """
-Please run the following command on your machine to address the formatting error:
+    cmd = ["isort", os.path.join(ROOT, rel_path)]
+    if not fix:
+        cmd += ["--check"]
 
-        """
-        msg += " ".join(cmd)
-        print(msg, file=sys.stderr)
-        return False
-    return True
+    return check_cmd_print_failure_assistance(cmd)
 
 
 @record_time
 @cd(PY_PACKAGE)
 def run_mypy(rel_path: str) -> bool:
-    path = os.path.join(ROOT, rel_path)
-    ret = subprocess.run(["mypy", path])
-    if ret.returncode != 0:
-        return False
-    return True
+    cmd = ["mypy", os.path.join(ROOT, rel_path)]
+
+    return check_cmd_print_failure_assistance(cmd)
 
 
 class PyLint:
     """A helper for running pylint, mostly copied from dmlc-core/scripts."""
 
-    def __init__(self) -> None:
-        self.pypackage_root = os.path.join(ROOT, "python-package/")
-        self.pylint_cats = set(["error", "warning", "convention", "refactor"])
-        self.pylint_opts = [
-            "--extension-pkg-whitelist=numpy",
-            "--rcfile=" + os.path.join(self.pypackage_root, ".pylintrc"),
-        ]
+    MESSAGE_CATEGORIES = {
+        "Fatal",
+        "Error",
+        "Warning",
+        "Convention",
+        "Refactor",
+        "Information",
+    }
+    MESSAGE_PREFIX_TO_CATEGORY = {
+        category[0]: category for category in MESSAGE_CATEGORIES
+    }
 
-    def run(self, path: str) -> Tuple[Dict, str, str]:
-        (pylint_stdout, pylint_stderr) = epylint.py_run(
-            " ".join([str(path)] + self.pylint_opts), return_std=True
+    @classmethod
+    @cd(PY_PACKAGE)
+    def get_summary(cls, path: str) -> Tuple[str, Dict[str, int], str, str, bool]:
+        ret = subprocess.run(["pylint", path], capture_output=True)
+        stdout = ret.stdout.decode("utf-8")
+
+        emap: Dict[str, int] = Counter()
+        for line in stdout.splitlines():
+            if ":" in line and (
+                category := cls.MESSAGE_PREFIX_TO_CATEGORY.get(
+                    line.split(":")[-2].strip()[0]
+                )
+            ):
+                emap[category] += 1
+
+        return path, emap, stdout, ret.stderr.decode("utf-8"), ret.returncode == 0
+
+    @staticmethod
+    def print_summary_map(result_map: Dict[str, Dict[str, int]]) -> int:
+        """Print summary of certain result map."""
+        if len(result_map) == 0:
+            return 0
+
+        ftype = "Python"
+        nfail = sum(map(bool, result_map.values()))
+        print(
+            f"====={len(result_map) - nfail}/{len(result_map)} {ftype} files passed check====="
         )
-        emap = {}
-        err = pylint_stderr.read()
+        for fname, emap in result_map.items():
+            if emap:
+                print(
+                    f"{fname}: {sum(emap.values())} Errors of {len(emap)} Categories map={emap}"
+                )
+        return nfail
 
-        out = []
-        for line in pylint_stdout:
-            out.append(line)
-            key = line.split(":")[-1].split("(")[0].strip()
-            if key not in self.pylint_cats:
-                continue
-            if key not in emap:
-                emap[key] = 1
-            else:
-                emap[key] += 1
-
-        return {path: emap}, err, "\n".join(out)
-
-    def __call__(self) -> bool:
+    @classmethod
+    def run(cls) -> bool:
         all_errors: Dict[str, Dict[str, int]] = {}
 
-        def print_summary_map(result_map: Dict[str, Dict[str, int]]) -> int:
-            """Print summary of certain result map."""
-            if len(result_map) == 0:
-                return 0
-            ftype = "Python"
-            npass = sum(1 for x in result_map.values() if len(x) == 0)
-            print(f"====={npass}/{len(result_map)} {ftype} files passed check=====")
-            for fname, emap in result_map.items():
-                if len(emap) == 0:
-                    continue
-                print(
-                    f"{fname}: {sum(emap.values())} Errors of {len(emap)} Categories map={str(emap)}"
-                )
-            return len(result_map) - npass
-
-        all_scripts = []
-        for root, dirs, files in os.walk(self.pypackage_root):
-            for f in files:
-                if f.endswith(".py"):
-                    all_scripts.append(os.path.join(root, f))
-
         with Pool(cpu_count()) as pool:
-            error_maps = pool.map(self.run, all_scripts)
-            for emap, err, out in error_maps:
+            error_maps = pool.map(
+                cls.get_summary,
+                (os.fspath(file) for file in pathlib.Path(PY_PACKAGE).glob("**/*.py")),
+            )
+            for path, emap, out, err, succeeded in error_maps:
+                all_errors[path] = emap
+                if succeeded:
+                    continue
+
                 print(out)
                 if len(err) != 0:
                     print(err)
-                all_errors.update(emap)
 
-        nerr = print_summary_map(all_errors)
+        nerr = cls.print_summary_map(all_errors)
         return nerr == 0
 
 
 @record_time
 def run_pylint() -> bool:
-    return PyLint()()
+    return PyLint.run()
 
 
 @record_time
@@ -194,7 +189,7 @@ def main(args: argparse.Namespace) -> None:
             sys.exit(-1)
 
     if args.type_check == 1:
-        if not all(
+        mypy_results = [
             run_mypy(path)
             for path in [
                 # core
@@ -220,8 +215,8 @@ def main(args: argparse.Namespace) -> None:
                 "tests/ci_build/test_utils.py",
                 "tests/ci_build/change_version.py",
             ]
-        ):
-            subprocess.check_call(["mypy", "--version"])
+        ]
+        if not all(mypy_results):
             sys.exit(-1)
 
     if args.pylint == 1:
