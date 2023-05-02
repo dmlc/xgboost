@@ -8,10 +8,10 @@ pom_template = """
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>ml.dmlc</groupId>
-  <artifactId>xgboost4j-tester_2.12</artifactId>
+  <artifactId>xgboost4j-tester_${scala.binary.version}</artifactId>
   <version>1.0-SNAPSHOT</version>
 
-  <name>xgboost4j-tester_2.12</name>
+  <name>xgboost4j-tester</name>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

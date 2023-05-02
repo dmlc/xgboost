@@ -73,12 +73,13 @@ object DistTrainWithFlink {
           .map(_.f1.f0)
           .returns(testDataTypeHint)
 
-    val paramMap = mapAsJavaMap(Map(
-      ("eta", "0.1".asInstanceOf[AnyRef]),
-      ("max_depth", "2"),
-      ("objective", "binary:logistic"),
-      ("verbosity", "1")
-    ))
+    val paramMap = Map(
+        ("eta", "0.1".asInstanceOf[AnyRef]),
+        ("max_depth", "2"),
+        ("objective", "binary:logistic"),
+        ("verbosity", "1")
+      )
+      .asJava
 
     // number of iterations
     val round = 2

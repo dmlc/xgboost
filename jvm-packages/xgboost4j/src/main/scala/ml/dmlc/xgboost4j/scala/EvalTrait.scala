@@ -37,7 +37,7 @@ trait EvalTrait extends IEvaluation {
    */
   def eval(predicts: Array[Array[Float]], dmat: DMatrix): Float
 
-  private[scala] def eval(predicts: Array[Array[Float]], jdmat: java.DMatrix): Float = {
+  def eval(predicts: Array[Array[Float]], jdmat: java.DMatrix): Float = {
     require(predicts.length == jdmat.getLabel.length, "predicts size and label size must match " +
       s" predicts size: ${predicts.length}, label size: ${jdmat.getLabel.length}")
     eval(predicts, new DMatrix(jdmat))

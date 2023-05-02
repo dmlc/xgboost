@@ -17,12 +17,11 @@
 package ml.dmlc.xgboost4j.scala
 
 import java.io.InputStream
+import ml.dmlc.xgboost4j.java.{XGBoostError, XGBoost => JXGBoost}
 
-import ml.dmlc.xgboost4j.java.{XGBoostError, Booster => JBooster, XGBoost => JXGBoost}
-import scala.collection.JavaConverters._
-
+import scala.jdk.CollectionConverters._
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.hadoop.fs.Path
 
 /**
   * XGBoost Scala Training function.
@@ -40,7 +39,12 @@ object XGBoost {
       earlyStoppingRound: Int = 0,
       prevBooster: Booster,
       checkpointParams: Option[ExternalCheckpointParams]): Booster = {
-    val jWatches = watches.mapValues(_.jDMatrix).asJava
+
+    // we have to filter null value for customized obj and eval
+    val jParams: java.util.Map[String, AnyRef] =
+      params.filter(_._2 != null).mapValues(_.toString.asInstanceOf[AnyRef]).toMap.asJava
+
+    val jWatches = watches.mapValues(_.jDMatrix).toMap.asJava
     val jBooster = if (prevBooster == null) {
       null
     } else {
@@ -51,8 +55,7 @@ object XGBoost {
       map(cp => {
           JXGBoost.trainAndSaveCheckpoint(
             dtrain.jDMatrix,
-            // we have to filter null value for customized obj and eval
-            params.filter(_._2 != null).mapValues(_.toString.asInstanceOf[AnyRef]).asJava,
+            jParams,
             numRounds, jWatches, metrics, obj, eval, earlyStoppingRound, jBooster,
             cp.checkpointInterval,
             cp.checkpointPath,
@@ -61,8 +64,7 @@ object XGBoost {
       getOrElse(
         JXGBoost.train(
           dtrain.jDMatrix,
-          // we have to filter null value for customized obj and eval
-          params.filter(_._2 != null).mapValues(_.toString.asInstanceOf[AnyRef]).asJava,
+          jParams,
           numRounds, jWatches, metrics, obj, eval, earlyStoppingRound, jBooster)
       )
     if (prevBooster == null) {
