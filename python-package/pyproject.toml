@@ -31,6 +31,10 @@ dependencies = [
     "scipy"
 ]
 
+[project.urls]
+documentation = "https://xgboost.readthedocs.io/en/stable/"
+repository = "https://github.com/dmlc/xgboost"
+
 [project.optional-dependencies]
 pandas = ["pandas"]
 scikit-learn = ["scikit-learn"]
