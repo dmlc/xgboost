@@ -26,9 +26,7 @@ class BuildConfiguration:  # pylint: disable=R0902
     # Special option: See explanation below
     use_system_libxgboost: bool = False
 
-    def _set_config_setting(
-        self, config_settings: Dict[str, Any]
-    ) -> None:
+    def _set_config_setting(self, config_settings: Dict[str, Any]) -> None:
         for field_name in config_settings:
             setattr(
                 self,
