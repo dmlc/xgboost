@@ -130,9 +130,6 @@ def locate_or_build_libxgboost(
     """Locate libxgboost; if not exist, build it"""
     logger = logging.getLogger("xgboost.packager.locate_or_build_libxgboost")
 
-    libxgboost = locate_local_libxgboost(toplevel_dir, logger=logger)
-    if libxgboost is not None:
-        return libxgboost
     if build_config.use_system_libxgboost:
         # Find libxgboost from system prefix
         sys_prefix = pathlib.Path(sys.prefix).absolute().resolve()
@@ -144,6 +141,10 @@ def locate_or_build_libxgboost(
             )
 
         logger.info("Using system XGBoost: %s", str(libxgboost))
+        return libxgboost
+
+    libxgboost = locate_local_libxgboost(toplevel_dir, logger=logger)
+    if libxgboost is not None:
         return libxgboost
 
     if toplevel_dir.joinpath("cpp_src").exists():
