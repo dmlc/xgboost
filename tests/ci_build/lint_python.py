@@ -37,7 +37,8 @@ def run_black(rel_path: str, fix: bool) -> bool:
 @record_time
 @cd(PY_PACKAGE)
 def run_isort(rel_path: str, fix: bool) -> bool:
-    cmd = ["isort", os.path.join(ROOT, rel_path)]
+    # Isort gets confused when trying to find the config file, so specified explicitly.
+    cmd = ["isort", "--settings-path", PY_PACKAGE, os.path.join(ROOT, rel_path)]
     if not fix:
         cmd += ["--check"]
 
@@ -145,7 +146,6 @@ def main(args: argparse.Namespace) -> None:
                 "tests/python/test_quantile_dmatrix.py",
                 "tests/python/test_tree_regularization.py",
                 "tests/python-gpu/test_gpu_data_iterator.py",
-                "tests/ci_build/lint_python.py",
                 "tests/test_distributed/test_with_spark/",
                 "tests/test_distributed/test_gpu_with_spark/",
                 # demo
