@@ -133,15 +133,15 @@ def locate_or_build_libxgboost(
     if build_config.use_system_libxgboost:
         # Find libxgboost from system prefix
         sys_prefix = pathlib.Path(sys.prefix).absolute().resolve()
-        libxgboost = sys_prefix / "lib" / _lib_name()
-        if not libxgboost.exists():
+        libxgboost_sys = sys_prefix / "lib" / _lib_name()
+        if not libxgboost_sys.exists():
             raise RuntimeError(
                 f"use_system_libxgboost was specified but {_lib_name()} is "
-                f"not found in {libxgboost.parent}"
+                f"not found in {libxgboost_sys.parent}"
             )
 
-        logger.info("Using system XGBoost: %s", str(libxgboost))
-        return libxgboost
+        logger.info("Using system XGBoost: %s", str(libxgboost_sys))
+        return libxgboost_sys
 
     libxgboost = locate_local_libxgboost(toplevel_dir, logger=logger)
     if libxgboost is not None:
