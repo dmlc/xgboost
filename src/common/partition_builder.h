@@ -187,8 +187,8 @@ class PartitionBuilder {
   void MaskKernel(ColumnType* p_column, common::Span<const size_t> row_indices, size_t base_rowid,
                   BitVector* decision_bits, BitVector* missing_bits, Predicate&& pred) {
     auto& column = *p_column;
-    for (auto row_id : row_indices) {
-      const int32_t bin_id = column[row_id - base_rowid];
+    for (auto const row_id : row_indices) {
+      auto const bin_id = column[row_id - base_rowid];
       if (any_missing && bin_id == ColumnType::kMissingId) {
         missing_bits->Set(row_id - base_rowid);
       } else if (pred(row_id, bin_id)) {
@@ -210,7 +210,6 @@ class PartitionBuilder {
     common::Span<const size_t> rid_span(rid + range.begin(), rid + range.end());
     std::size_t nid = nodes[node_in_set].nid;
     bst_feature_t fid = tree[nid].SplitIndex();
-    bool default_left = tree.DefaultLeft(nid);
     bool is_cat = tree.GetSplitTypes()[nid] == FeatureType::kCategorical;
     auto node_cats = tree.NodeCats(nid);
     auto const& cut_values = gmat.cut.Values();
@@ -219,7 +218,7 @@ class PartitionBuilder {
       for (auto row_id : rid_span) {
         auto gidx = gmat.GetGindex(row_id, fid);
         if (gidx > -1) {
-          bool go_left = false;
+          bool go_left;
           if (is_cat) {
             go_left = Decision(node_cats, cut_values[gidx]);
           } else {
