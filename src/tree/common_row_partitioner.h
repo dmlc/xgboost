@@ -38,19 +38,21 @@ class ColumnSplitHelper {
     missing_bits_ = BitVector(common::Span<BitVector::value_type>(missing_storage_));
   }
 
-  template <typename ExpandEntry>
+  template <typename BinIdxType, bool any_missing, bool any_cat, typename ExpandEntry>
   void Partition(common::BlockedSpace2d const& space, std::int32_t n_threads,
                  GHistIndexMatrix const& gmat, common::ColumnMatrix const& column_matrix,
-                 std::vector<ExpandEntry> const& nodes, RegTree const* p_tree) {
+                 std::vector<ExpandEntry> const& nodes,
+                 std::vector<int32_t> const& split_conditions, RegTree const* p_tree) {
     // When data is split by column, we don't have all the feature values in the local worker, so
     // we first collect all the decisions and whether the feature is missing into bit vectors.
     std::fill(decision_storage_.begin(), decision_storage_.end(), 0);
     std::fill(missing_storage_.begin(), missing_storage_.end(), 0);
     common::ParallelFor2d(space, n_threads, [&](size_t node_in_set, common::Range1d r) {
       const int32_t nid = nodes[node_in_set].nid;
-      partition_builder_->MaskRows(node_in_set, nodes, r, gmat, column_matrix, *p_tree,
-                                   (*row_set_collection_)[nid].begin, &decision_bits_,
-                                   &missing_bits_);
+      bst_bin_t split_cond = column_matrix.IsInitialized() ? split_conditions[node_in_set] : 0;
+      partition_builder_->MaskRows<BinIdxType, any_missing, any_cat>(
+          node_in_set, nodes, r, split_cond, gmat, column_matrix, *p_tree,
+          (*row_set_collection_)[nid].begin, &decision_bits_, &missing_bits_);
     });
 
     // Then aggregate the bit vectors across all the workers.
@@ -217,7 +219,8 @@ class CommonRowPartitioner {
     // 2.3 Split elements of row_set_collection_ to left and right child-nodes for each node
     // Store results in intermediate buffers from partition_builder_
     if (is_col_split_) {
-      column_split_helper_.Partition(space, ctx->Threads(), gmat, column_matrix, nodes, p_tree);
+      column_split_helper_.Partition<BinIdxType, any_missing, any_cat>(
+          space, ctx->Threads(), gmat, column_matrix, nodes, split_conditions, p_tree);
     } else {
       common::ParallelFor2d(space, ctx->Threads(), [&](size_t node_in_set, common::Range1d r) {
         size_t begin = r.begin();
