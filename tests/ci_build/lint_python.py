@@ -5,9 +5,83 @@ import subprocess
 import sys
 from collections import Counter
 from multiprocessing import Pool, cpu_count
-from typing import Dict, List, Tuple, cast
+from typing import Dict, List, Tuple
 
 from test_utils import PY_PACKAGE, ROOT, cd, print_time, record_time
+
+
+class LintersPaths:
+    """The paths each linter run on."""
+
+    BLACK = (
+        # core
+        "python-package/",
+        # tests
+        "tests/python/test_config.py",
+        "tests/python/test_data_iterator.py",
+        "tests/python/test_dt.py",
+        "tests/python/test_predict.py",
+        "tests/python/test_quantile_dmatrix.py",
+        "tests/python/test_tree_regularization.py",
+        "tests/python-gpu/test_gpu_data_iterator.py",
+        "tests/test_distributed/test_with_spark/",
+        "tests/test_distributed/test_gpu_with_spark/",
+        # demo
+        "demo/json-model/json_parser.py",
+        "demo/guide-python/cat_in_the_dat.py",
+        "demo/guide-python/categorical.py",
+        "demo/guide-python/feature_weights.py",
+        "demo/guide-python/sklearn_parallel.py",
+        "demo/guide-python/spark_estimator_examples.py",
+        "demo/guide-python/individual_trees.py",
+        "demo/guide-python/quantile_regression.py",
+        "demo/guide-python/multioutput_regression.py",
+        # CI
+        "tests/ci_build/lint_python.py",
+        "tests/ci_build/test_r_package.py",
+        "tests/ci_build/test_utils.py",
+        "tests/ci_build/change_version.py",
+    )
+
+    ISORT = (
+        # core
+        "python-package/",
+        # tests
+        "tests/test_distributed/",
+        "tests/python/",
+        "tests/python-gpu/",
+        "tests/ci_build/",
+        # demo
+        "demo/",
+        # misc
+        "dev/",
+        "doc/",
+    )
+
+    MYPY = (
+        # core
+        "python-package/",
+        # tests
+        "tests/python/test_dt.py",
+        "tests/python/test_data_iterator.py",
+        "tests/python-gpu/test_gpu_data_iterator.py",
+        "tests/test_distributed/test_with_spark/test_data.py",
+        "tests/test_distributed/test_gpu_with_spark/test_data.py",
+        "tests/test_distributed/test_gpu_with_dask/test_gpu_with_dask.py",
+        # demo
+        "demo/json-model/json_parser.py",
+        "demo/guide-python/external_memory.py",
+        "demo/guide-python/cat_in_the_dat.py",
+        "demo/guide-python/feature_weights.py",
+        "demo/guide-python/individual_trees.py",
+        "demo/guide-python/quantile_regression.py",
+        "demo/guide-python/multioutput_regression.py",
+        # CI
+        "tests/ci_build/lint_python.py",
+        "tests/ci_build/test_r_package.py",
+        "tests/ci_build/test_utils.py",
+        "tests/ci_build/change_version.py",
+    )
 
 
 def check_cmd_print_failure_assistance(cmd: List[str]) -> bool:
@@ -71,6 +145,7 @@ class PyLint:
     @classmethod
     @cd(PY_PACKAGE)
     def get_summary(cls, path: str) -> Tuple[str, Dict[str, int], str, str, bool]:
+        """Get the summary of pylint's errors, warnings, etc."""
         ret = subprocess.run(["pylint", path], capture_output=True)
         stdout = ret.stdout.decode("utf-8")
 
@@ -105,6 +180,7 @@ class PyLint:
 
     @classmethod
     def run(cls) -> bool:
+        """Run pylint with parallelization on a batch of paths."""
         all_errors: Dict[str, Dict[str, int]] = {}
 
         with Pool(cpu_count()) as pool:
@@ -133,89 +209,16 @@ def run_pylint() -> bool:
 @record_time
 def main(args: argparse.Namespace) -> None:
     if args.format == 1:
-        black_results = [
-            run_black(path, args.fix)
-            for path in [
-                # core
-                "python-package/",
-                # tests
-                "tests/python/test_config.py",
-                "tests/python/test_data_iterator.py",
-                "tests/python/test_dt.py",
-                "tests/python/test_predict.py",
-                "tests/python/test_quantile_dmatrix.py",
-                "tests/python/test_tree_regularization.py",
-                "tests/python-gpu/test_gpu_data_iterator.py",
-                "tests/test_distributed/test_with_spark/",
-                "tests/test_distributed/test_gpu_with_spark/",
-                # demo
-                "demo/json-model/json_parser.py",
-                "demo/guide-python/cat_in_the_dat.py",
-                "demo/guide-python/categorical.py",
-                "demo/guide-python/feature_weights.py",
-                "demo/guide-python/sklearn_parallel.py",
-                "demo/guide-python/spark_estimator_examples.py",
-                "demo/guide-python/individual_trees.py",
-                "demo/guide-python/quantile_regression.py",
-                "demo/guide-python/multioutput_regression.py",
-                # CI
-                "tests/ci_build/lint_python.py",
-                "tests/ci_build/test_r_package.py",
-                "tests/ci_build/test_utils.py",
-                "tests/ci_build/change_version.py",
-            ]
-        ]
+        black_results = [run_black(path, args.fix) for path in LintersPaths.BLACK]
         if not all(black_results):
             sys.exit(-1)
 
-        isort_results = [
-            run_isort(path, args.fix)
-            for path in [
-                # core
-                "python-package/",
-                # tests
-                "tests/test_distributed/",
-                "tests/python/",
-                "tests/python-gpu/",
-                "tests/ci_build/",
-                # demo
-                "demo/",
-                # misc
-                "dev/",
-                "doc/",
-            ]
-        ]
+        isort_results = [run_isort(path, args.fix) for path in LintersPaths.ISORT]
         if not all(isort_results):
             sys.exit(-1)
 
     if args.type_check == 1:
-        mypy_results = [
-            run_mypy(path)
-            for path in [
-                # core
-                "python-package/",
-                # demo
-                "demo/json-model/json_parser.py",
-                "demo/guide-python/external_memory.py",
-                "demo/guide-python/cat_in_the_dat.py",
-                "demo/guide-python/feature_weights.py",
-                "demo/guide-python/individual_trees.py",
-                "demo/guide-python/quantile_regression.py",
-                "demo/guide-python/multioutput_regression.py",
-                # tests
-                "tests/python/test_dt.py",
-                "tests/python/test_data_iterator.py",
-                "tests/python-gpu/test_gpu_data_iterator.py",
-                "tests/test_distributed/test_with_spark/test_data.py",
-                "tests/test_distributed/test_gpu_with_spark/test_data.py",
-                "tests/test_distributed/test_gpu_with_dask/test_gpu_with_dask.py",
-                # CI
-                "tests/ci_build/lint_python.py",
-                "tests/ci_build/test_r_package.py",
-                "tests/ci_build/test_utils.py",
-                "tests/ci_build/change_version.py",
-            ]
-        ]
+        mypy_results = [run_mypy(path) for path in LintersPaths.MYPY]
         if not all(mypy_results):
             sys.exit(-1)
 
