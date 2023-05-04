@@ -1028,12 +1028,11 @@ XGB_DLL int XGBoosterInplacePredict(BoosterHandle handle,
   CHECK_HANDLE();
   xgboost::bst_ulong out_dim;
 
-  auto proxy = data::DMatrixProxy();
   auto *learner = static_cast<xgboost::Learner *>(handle);
   auto iteration_end = GetIterationFromTreeLimit(ntree_limit, learner);
-  proxy.SetDenseData(data, num_rows, num_features);
-  std::shared_ptr<DMatrix> p_m{&proxy};
-  InplacePredictImplCore(p_m, learner, (xgboost::PredictionType)0, missing, num_rows, num_features,
+  auto proxy = std::make_shared<data::DMatrixProxy>();
+  proxy->SetDenseData(data, num_rows, num_features);
+  InplacePredictImplCore(proxy, learner, (xgboost::PredictionType)0, missing, num_rows, num_features,
                          0, iteration_end, true, len, &out_dim, out_result);
   API_END();
 }
