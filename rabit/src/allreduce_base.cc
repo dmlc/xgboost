@@ -200,12 +200,6 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
   if (!strcmp(name, "DMLC_WORKER_CONNECT_RETRY")) {
     connect_retry = atoi(val);
   }
-  if (!strcmp(name, "rabit_bootstrap_cache")) {
-    rabit_bootstrap_cache = utils::StringToBool(val);
-  }
-  if (!strcmp(name, "rabit_debug")) {
-    rabit_debug = utils::StringToBool(val);
-  }
   if (!strcmp(name, "rabit_timeout")) {
     rabit_timeout = utils::StringToBool(val);
   }

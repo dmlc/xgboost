@@ -487,10 +487,6 @@ class AllreduceBase : public IEngine {
   int world_size;  // NOLINT
   // connect retry time
   int connect_retry;  // NOLINT
-  // enable bootstrap cache 0 false 1 true
-  bool rabit_bootstrap_cache = false;  // NOLINT
-  // enable detailed logging
-  bool rabit_debug = false;  // NOLINT
   // by default, if rabit worker not recover in half an hour exit
   std::chrono::seconds timeout_sec{std::chrono::seconds{1800}}; // NOLINT
   // flag to enable rabit_timeout

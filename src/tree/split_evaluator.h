@@ -49,6 +49,8 @@ class TreeEvaluator {
       monotone_.HostVector().resize(n_features, 0);
       has_constraint_ = false;
     } else {
+      CHECK_LE(p.monotone_constraints.size(), n_features)
+          << "The size of monotone constraint should be less or equal to the number of features.";
       monotone_.HostVector() = p.monotone_constraints;
       monotone_.HostVector().resize(n_features, 0);
       // Initialised to some small size, can grow if needed

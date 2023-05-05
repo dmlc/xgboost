@@ -9,13 +9,13 @@ build-backend = "packager.pep517"
 name = "xgboost"
 version = "2.0.0-dev"
 authors = [
-    {name = "Hyunsu Cho", email = "chohyu01@cs.washington.edu"},
-    {name = "Jiaming Yuan", email = "jm.yuan@outlook.com"}
+    { name = "Hyunsu Cho", email = "chohyu01@cs.washington.edu" },
+    { name = "Jiaming Yuan", email = "jm.yuan@outlook.com" }
 ]
 description = "XGBoost Python Package"
-readme = {file = "README.rst", content-type = "text/x-rst"}
+readme = { file = "README.rst", content-type = "text/x-rst" }
 requires-python = ">=3.8"
-license = {text = "Apache-2.0"}
+license = { text = "Apache-2.0" }
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Development Status :: 5 - Production/Stable",
@@ -24,12 +24,17 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10"
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11"
 ]
 dependencies = [
     "numpy",
     "scipy"
 ]
+
+[project.urls]
+documentation = "https://xgboost.readthedocs.io/en/stable/"
+repository = "https://github.com/dmlc/xgboost"
 
 [project.optional-dependencies]
 pandas = ["pandas"]
@@ -40,3 +45,39 @@ plotting = ["graphviz", "matplotlib"]
 pyspark = ["pyspark", "scikit-learn", "cloudpickle"]
 
 [tool.hatch.build.targets.wheel.hooks.custom]
+
+[tool.isort]
+profile = "black"
+
+[tool.mypy]
+ignore_missing_imports = true
+disallow_untyped_defs = true
+follow_imports = "silent"
+
+[tool.pylint.main]
+ignore = ["tests"]
+extension-pkg-whitelist = ["numpy"]
+disable = [
+    "attribute-defined-outside-init",
+    "import-outside-toplevel",
+    "too-many-nested-blocks",
+    "unexpected-special-method-signature",
+    "unsubscriptable-object",
+    "useless-object-inheritance"
+]
+dummy-variables-rgx = "(unused|)_.*"
+reports = false
+
+[tool.pylint.basic]
+# Enforce naming convention
+const-naming-style = "UPPER_CASE"
+class-naming-style = "PascalCase"
+function-naming-style = "snake_case"
+method-naming-style = "snake_case"
+attr-naming-style = "snake_case"
+argument-naming-style = "snake_case"
+variable-naming-style = "snake_case"
+class-attribute-naming-style = "snake_case"
+
+# Allow single-letter variables
+variable-rgx = "[a-zA-Z_][a-z0-9_]{0,30}$"

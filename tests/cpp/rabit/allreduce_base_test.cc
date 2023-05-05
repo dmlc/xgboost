@@ -20,32 +20,6 @@ TEST(AllreduceBase, InitTask)
   EXPECT_EQ(base.task_id, "1");
 }
 
-TEST(AllreduceBase, InitWithCacheOn)
-{
-  rabit::engine::AllreduceBase base;
-
-  std::string rabit_task_id = "rabit_task_id=1";
-  char cmd[rabit_task_id.size()+1];
-  std::copy(rabit_task_id.begin(), rabit_task_id.end(), cmd);
-  cmd[rabit_task_id.size()] = '\0';
-
-  std::string rabit_bootstrap_cache = "rabit_bootstrap_cache=1";
-  char cmd2[rabit_bootstrap_cache.size()+1];
-  std::copy(rabit_bootstrap_cache.begin(), rabit_bootstrap_cache.end(), cmd2);
-  cmd2[rabit_bootstrap_cache.size()] = '\0';
-
-  std::string rabit_debug = "rabit_debug=1";
-  char cmd3[rabit_debug.size()+1];
-  std::copy(rabit_debug.begin(), rabit_debug.end(), cmd3);
-  cmd3[rabit_debug.size()] = '\0';
-
-  char* argv[] = {cmd, cmd2, cmd3};
-  base.Init(3, argv);
-  EXPECT_EQ(base.task_id, "1");
-  EXPECT_TRUE(base.rabit_bootstrap_cache);
-  EXPECT_EQ(base.rabit_debug, 1);
-}
-
 TEST(AllreduceBase, InitWithRingReduce)
 {
   rabit::engine::AllreduceBase base;
