@@ -1023,7 +1023,6 @@ void InplacePredictImpl(std::shared_ptr<DMatrix> p_m, char const *c_json_config,
                         const float **out_result) {
   xgboost_CHECK_C_ARG_PTR(c_json_config);
   auto config = Json::Load(StringView{c_json_config});
-  CHECK_EQ(get<Integer const>(config["cache_id"]), 0) << "Cache ID is not supported yet";
 
   HostDeviceVector<float> *p_predt{nullptr};
   auto type = PredictionType(RequiredArg<Integer>(config, "type", __func__));

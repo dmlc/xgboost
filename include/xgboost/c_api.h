@@ -1067,6 +1067,9 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle, DMatrixHandle dmat
 /**
  * \brief Inplace prediction from CPU dense matrix.
  *
+ * \note If the booster is configured to run on a CUDA device, XGBoost falls back to run
+ *       prediction with DMatrix with a performance warning.
+ *
  * \param handle        Booster handle.
  * \param values        JSON encoded __array_interface__ to values.
  * \param config        See \ref XGBoosterPredictFromDMatrix for more info.
@@ -1090,6 +1093,9 @@ XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, char const *values, 
 
 /**
  * \brief Inplace prediction from CPU CSR matrix.
+ *
+ * \note If the booster is configured to run on a CUDA device, XGBoost falls back to run
+ *       prediction with DMatrix with a performance warning.
  *
  * \param handle        Booster handle.
  * \param indptr        JSON encoded __array_interface__ to row pointer in CSR.
@@ -1116,6 +1122,9 @@ XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle, char const *indptr, ch
 /**
  * \brief Inplace prediction from CUDA Dense matrix (cupy in Python).
  *
+ * \note If the booster is configured to run on a CPU, XGBoost falls back to run
+ *       prediction with DMatrix with a performance warning.
+ *
  * \param handle        Booster handle
  * \param values        JSON encoded __cuda_array_interface__ to values.
  * \param config        See \ref XGBoosterPredictFromDMatrix for more info.
@@ -1136,6 +1145,9 @@ XGB_DLL int XGBoosterPredictFromCudaArray(BoosterHandle handle, char const *valu
 
 /**
  * \brief Inplace prediction from CUDA dense dataframe (cuDF in Python).
+ *
+ * \note If the booster is configured to run on a CPU, XGBoost falls back to run
+ *       prediction with DMatrix with a performance warning.
  *
  * \param handle        Booster handle
  * \param values        List of __cuda_array_interface__ for all columns encoded in JSON list.

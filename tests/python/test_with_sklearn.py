@@ -1418,23 +1418,6 @@ def test_categorical():
     np.testing.assert_allclose(predt_cat, predt_enc)
 
 
-def test_prediction_config():
-    reg = xgb.XGBRegressor()
-    assert reg._can_use_inplace_predict() is True
-
-    reg.set_params(predictor="cpu_predictor")
-    assert reg._can_use_inplace_predict() is False
-
-    reg.set_params(predictor="auto")
-    assert reg._can_use_inplace_predict() is True
-
-    reg.set_params(predictor=None)
-    assert reg._can_use_inplace_predict() is True
-
-    reg.set_params(booster="gblinear")
-    assert reg._can_use_inplace_predict() is False
-
-
 def test_evaluation_metric():
     from sklearn.datasets import load_diabetes, load_digits
     from sklearn.metrics import mean_absolute_error

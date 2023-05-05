@@ -1,4 +1,5 @@
 import sys
+from copy import copy
 
 import numpy as np
 import pytest
@@ -47,43 +48,45 @@ class TestGPUPredict:
         # with 5000 rows is 0.04.
         for num_rows in test_num_rows:
             for num_cols in test_num_cols:
-                dtrain = xgb.DMatrix(np.random.randn(num_rows, num_cols),
-                                     label=[0, 1] * int(num_rows / 2))
-                dval = xgb.DMatrix(np.random.randn(num_rows, num_cols),
-                                   label=[0, 1] * int(num_rows / 2))
-                dtest = xgb.DMatrix(np.random.randn(num_rows, num_cols),
-                                    label=[0, 1] * int(num_rows / 2))
-                watchlist = [(dtrain, 'train'), (dval, 'validation')]
+                dtrain = xgb.DMatrix(
+                    np.random.randn(num_rows, num_cols),
+                    label=[0, 1] * int(num_rows / 2),
+                )
+                dval = xgb.DMatrix(
+                    np.random.randn(num_rows, num_cols),
+                    label=[0, 1] * int(num_rows / 2),
+                )
+                dtest = xgb.DMatrix(
+                    np.random.randn(num_rows, num_cols),
+                    label=[0, 1] * int(num_rows / 2),
+                )
+                watchlist = [(dtrain, "train"), (dval, "validation")]
                 res = {}
                 param = {
                     "objective": "binary:logistic",
-                    "predictor": "gpu_predictor",
-                    'eval_metric': 'logloss',
-                    'tree_method': 'gpu_hist',
-                    'max_depth': 1
+                    "eval_metric": "logloss",
+                    "tree_method": "gpu_hist",
+                    "gpu_id": 0,
+                    "max_depth": 1,
                 }
-                bst = xgb.train(param, dtrain, iterations, evals=watchlist,
-                                evals_result=res)
-                assert self.non_increasing(res["train"]["logloss"])
+                bst = xgb.train(
+                    param, dtrain, iterations, evals=watchlist, evals_result=res
+                )
+                assert tm.non_increasing(res["train"]["logloss"], tolerance=0.001)
+
                 gpu_pred_train = bst.predict(dtrain, output_margin=True)
                 gpu_pred_test = bst.predict(dtest, output_margin=True)
                 gpu_pred_val = bst.predict(dval, output_margin=True)
 
-                param["predictor"] = "cpu_predictor"
-                bst_cpu = xgb.train(param, dtrain, iterations, evals=watchlist)
+                bst.set_param({"gpu_id": -1, "tree_method": "hist"})
+                bst_cpu = copy(bst)
                 cpu_pred_train = bst_cpu.predict(dtrain, output_margin=True)
                 cpu_pred_test = bst_cpu.predict(dtest, output_margin=True)
                 cpu_pred_val = bst_cpu.predict(dval, output_margin=True)
 
-                np.testing.assert_allclose(cpu_pred_train, gpu_pred_train,
-                                           rtol=1e-6)
-                np.testing.assert_allclose(cpu_pred_val, gpu_pred_val,
-                                           rtol=1e-6)
-                np.testing.assert_allclose(cpu_pred_test, gpu_pred_test,
-                                           rtol=1e-6)
-
-    def non_increasing(self, L):
-        return all((y - x) < 0.001 for x, y in zip(L, L[1:]))
+                np.testing.assert_allclose(cpu_pred_train, gpu_pred_train, rtol=1e-6)
+                np.testing.assert_allclose(cpu_pred_val, gpu_pred_val, rtol=1e-6)
+                np.testing.assert_allclose(cpu_pred_test, gpu_pred_test, rtol=1e-6)
 
     # Test case for a bug where multiple batch predictions made on a
     # test set produce incorrect results

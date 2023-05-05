@@ -8,9 +8,11 @@
 #include <xgboost/data.h>                         // for DMatrix, BatchIterator, BatchSet, MetaInfo
 #include <xgboost/host_device_vector.h>           // for HostDeviceVector
 #include <xgboost/predictor.h>                    // for PredictionCacheEntry, Predictor, Predic...
+#include <xgboost/string_view.h>                  // for StringView
 
 #include <algorithm>                              // for max
 #include <limits>                                 // for numeric_limits
+#include <memory>                                 // for shared_ptr
 #include <unordered_map>                          // for unordered_map
 
 #include "../../../src/common/bitfield.h"         // for LBitField32
@@ -168,8 +170,6 @@ void VerifyPredictionWithLesserFeatures(Learner *learner, std::string const &pre
                                         size_t rows, std::shared_ptr<DMatrix> const &m_test,
                                         std::shared_ptr<DMatrix> const &m_invalid) {
   HostDeviceVector<float> prediction;
-  learner->SetParam("predictor", predictor_name);
-  learner->Configure();
   Json config{Object()};
   learner->SaveConfig(&config);
   ASSERT_EQ(get<String>(config["learner"]["gradient_booster"]["gbtree_train_param"]["predictor"]),
@@ -182,12 +182,25 @@ void VerifyPredictionWithLesserFeatures(Learner *learner, std::string const &pre
 
 #if defined(XGBOOST_USE_CUDA)
   HostDeviceVector<float> from_cpu;
-  learner->SetParam("predictor", "cpu_predictor");
-  learner->Predict(m_test, false, &from_cpu, 0, 0);
+  {
+    auto learner = make_learner();
+    ASSERT_EQ(from_cpu.DeviceIdx(), Context::kCpuId);
+    learner->SetParam("gpu_id", "-1");
+    learner->SetParam("tree_method", "hist");
+    learner->Predict(m_test, false, &from_cpu, 0, 0);
+    ASSERT_TRUE(from_cpu.HostCanWrite());
+    ASSERT_FALSE(from_cpu.DeviceCanRead());
+  }
 
   HostDeviceVector<float> from_cuda;
-  learner->SetParam("predictor", "gpu_predictor");
-  learner->Predict(m_test, false, &from_cuda, 0, 0);
+  {
+    learner->SetParam("gpu_id", "0");
+    learner->SetParam("tree_method", "gpu_hist");
+    learner->Predict(m_test, false, &from_cuda, 0, 0);
+    ASSERT_EQ(from_cuda.DeviceIdx(), 0);
+    ASSERT_TRUE(from_cuda.DeviceCanWrite());
+    ASSERT_FALSE(from_cuda.HostCanRead());
+  }
 
   auto const &h_cpu = from_cpu.ConstHostVector();
   auto const &h_gpu = from_cuda.ConstHostVector();

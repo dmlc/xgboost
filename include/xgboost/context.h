@@ -1,5 +1,5 @@
-/*!
- * Copyright 2014-2022 by Contributors
+/**
+ * Copyright 2014-2023, XGBoost Contributors
  * \file context.h
  */
 #ifndef XGBOOST_CONTEXT_H_
@@ -8,8 +8,9 @@
 #include <xgboost/logging.h>
 #include <xgboost/parameter.h>
 
-#include <memory>  // std::shared_ptr
-#include <string>
+#include <cstdint>  // for uint8_t, int32_t, int64_t
+#include <memory>   // for shared_ptr
+#include <string>   // for string
 
 namespace xgboost {
 
@@ -20,6 +21,11 @@ struct Context : public XGBoostParameter<Context> {
   // Constant representing the device ID of CPU.
   static std::int32_t constexpr kCpuId = -1;
   static std::int64_t constexpr kDefaultSeed = 0;
+
+  enum DeviceType : std::uint8_t {
+    kCPU,
+    kCUDA,
+  };
 
  public:
   Context();
@@ -50,6 +56,20 @@ struct Context : public XGBoostParameter<Context> {
 
   bool IsCPU() const { return gpu_id == kCpuId; }
   bool IsCUDA() const { return !IsCPU(); }
+
+  DeviceType Device() const { return IsCPU() ? kCPU : kCUDA; }
+  std::string DeviceName() const {
+    switch (Device()) {
+      case Context::kCPU:
+        return "CPU";
+      case Context::kCUDA:
+        return "CUDA";
+      default: {
+        LOG(FATAL) << "Unknown device.";
+        return "";
+      }
+    }
+  }
 
   CUDAContext const* CUDACtx() const;
   // Make a CUDA context based on the current context.

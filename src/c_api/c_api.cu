@@ -107,7 +107,6 @@ int InplacePreidctCuda(BoosterHandle handle, char const *c_array_interface,
   proxy->SetCUDAArray(c_array_interface);
 
   auto config = Json::Load(StringView{c_json_config});
-  CHECK_EQ(get<Integer const>(config["cache_id"]), 0) << "Cache ID is not supported yet";
   auto *learner = static_cast<Learner *>(handle);
 
   HostDeviceVector<float> *p_predt{nullptr};
@@ -118,7 +117,12 @@ int InplacePreidctCuda(BoosterHandle handle, char const *c_array_interface,
                           RequiredArg<Integer>(config, "iteration_begin", __func__),
                           RequiredArg<Integer>(config, "iteration_end", __func__));
   CHECK(p_predt);
-  CHECK(p_predt->DeviceCanRead() && !p_predt->HostCanRead());
+  if (learner->Ctx()->IsCUDA()) {
+    CHECK(p_predt->DeviceCanRead() && !p_predt->HostCanRead());
+  } else {
+    CHECK(p_predt->HostCanRead() && !p_predt->DeviceCanRead());
+    p_predt->SetDevice(proxy->DeviceIdx());
+  }
 
   auto &shape = learner->GetThreadLocal().prediction_shape;
   size_t n_samples = p_m->Info().num_row_;

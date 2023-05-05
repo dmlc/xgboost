@@ -113,12 +113,16 @@ class TestPickling:
         x, y = build_dataset()
         train_x = xgb.DMatrix(x, label=y)
 
-        param = {'tree_method': 'gpu_hist',
-                 'verbosity': 1, 'predictor': 'gpu_predictor'}
+        param = {'tree_method': 'gpu_hist', 'verbosity': 1}
         bst = xgb.train(param, train_x)
-        config = json.loads(bst.save_config())
-        assert config['learner']['gradient_booster']['gbtree_train_param'][
-            'predictor'] == 'gpu_predictor'
+
+        with tm.captured_output() as (out, err):
+            bst.inplace_predict(x)
+
+        # The warning is redirected to Python callback, so it's printed in stdout
+        # instead of stderr.
+        stdout = out.getvalue()
+        assert stdout.find("mismatched devices") != -1
 
         save_pickle(bst, model_path)
 

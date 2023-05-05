@@ -1093,12 +1093,7 @@ class XGBModel(XGBModelBase):
             return self
 
     def _can_use_inplace_predict(self) -> bool:
-        # When predictor is explicitly set, using `inplace_predict` might result into
-        # error with incompatible data type.
-        # Inplace predict doesn't handle as many data types as DMatrix, but it's
-        # sufficient for dask interface where input is simpiler.
-        predictor = self.get_xgb_params().get("predictor", None)
-        if predictor in ("auto", None) and self.booster != "gblinear":
+        if self.booster != "gblinear":
             return True
         return False
 

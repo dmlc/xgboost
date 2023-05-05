@@ -170,46 +170,46 @@ TEST(CpuPredictor, InplacePredict) {
   }
 }
 
+namespace {
 void TestUpdatePredictionCache(bool use_subsampling) {
-  size_t constexpr kRows = 64, kCols = 16, kClasses = 4;
+  std::size_t constexpr kRows = 64, kCols = 16, kClasses = 4;
   LearnerModelParam mparam{MakeMP(kCols, .0, kClasses)};
   Context ctx;
 
   std::unique_ptr<gbm::GBTree> gbm;
   gbm.reset(static_cast<gbm::GBTree*>(GradientBooster::Create("gbtree", &ctx, &mparam)));
-  std::map<std::string, std::string> cfg;
-  cfg["tree_method"] = "hist";
-  cfg["predictor"]   = "cpu_predictor";
+  Args args{{"tree_method", "hist"}};
   if (use_subsampling) {
-    cfg["subsample"] = "0.5";
+    args.emplace_back("subsample", "0.5");
   }
-  Args args = {cfg.cbegin(), cfg.cend()};
   gbm->Configure(args);
 
   auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix(true, true, kClasses);
 
   HostDeviceVector<GradientPair> gpair;
   auto& h_gpair = gpair.HostVector();
-  h_gpair.resize(kRows*kClasses);
-  for (size_t i = 0; i < kRows*kClasses; ++i) {
+  h_gpair.resize(kRows * kClasses);
+  for (size_t i = 0; i < kRows * kClasses; ++i) {
     h_gpair[i] = {static_cast<float>(i), 1};
   }
 
   PredictionCacheEntry predtion_cache;
-  predtion_cache.predictions.Resize(kRows*kClasses, 0);
-  // after one training iteration predtion_cache is filled with cached in QuantileHistMaker::Builder prediction values
+  predtion_cache.predictions.Resize(kRows * kClasses, 0);
+  // after one training iteration predtion_cache is filled with cached in QuantileHistMaker
+  // prediction values
   gbm->DoBoost(dmat.get(), &gpair, &predtion_cache, nullptr);
 
   PredictionCacheEntry out_predictions;
-  // perform fair prediction on the same input data, should be equal to cached result
+  // perform prediction from scratch on the same input data, should be equal to cached result
   gbm->PredictBatch(dmat.get(), &out_predictions, false, 0, 0);
 
-  std::vector<float> &out_predictions_h = out_predictions.predictions.HostVector();
-  std::vector<float> &predtion_cache_from_train = predtion_cache.predictions.HostVector();
+  std::vector<float>& out_predictions_h = out_predictions.predictions.HostVector();
+  std::vector<float>& predtion_cache_from_train = predtion_cache.predictions.HostVector();
   for (size_t i = 0; i < out_predictions_h.size(); ++i) {
     ASSERT_NEAR(out_predictions_h[i], predtion_cache_from_train[i], kRtEps);
   }
 }
+}  // namespace
 
 TEST(CPUPredictor, GHistIndex) {
   size_t constexpr kRows{128}, kCols{16}, kBins{64};
@@ -244,7 +244,8 @@ TEST(CpuPredictor, UpdatePredictionCache) {
 }
 
 TEST(CpuPredictor, LesserFeatures) {
-  TestPredictionWithLesserFeatures("cpu_predictor");
+  Context ctx;
+  TestPredictionWithLesserFeatures(&ctx);
 }
 
 TEST(CpuPredictor, LesserFeaturesColumnSplit) {

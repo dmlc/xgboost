@@ -15,8 +15,7 @@
 #include "../helpers.h"
 #include "test_predictor.h"
 
-namespace xgboost {
-namespace predictor {
+namespace xgboost::predictor {
 
 TEST(GPUPredictor, Basic) {
   auto cpu_lparam = MakeCUDACtx(-1);
@@ -141,7 +140,8 @@ TEST(GPUPredictor, InplacePredictCuDF) {
 }
 
 TEST(GpuPredictor, LesserFeatures) {
-  TestPredictionWithLesserFeatures("gpu_predictor");
+  auto ctx = MakeCUDACtx(0);
+  TestPredictionWithLesserFeatures(&ctx);
 }
 
 // Very basic test of empty model
@@ -241,5 +241,4 @@ TEST(GPUPredictor, Sparse) {
   TestSparsePrediction(0.2, "gpu_predictor");
   TestSparsePrediction(0.8, "gpu_predictor");
 }
-}  // namespace predictor
-}  // namespace xgboost
+}  // namespace xgboost::predictor

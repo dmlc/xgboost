@@ -1,17 +1,20 @@
-/*!
- * Copyright 2019-2022 XGBoost contributors
+/**
+ * Copyright 2019-2023, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>
+#include <xgboost/host_device_vector.h>  // for HostDeviceVector
+#include <xgboost/learner.h>             // for Learner
 
-#include "../../../src/data/adapter.h"
-#include "../../../src/data/proxy_dmatrix.h"
+#include <limits>  // for numeric_limits
+#include <memory>  // for shared_ptr
+#include <string>  // for string
+
+#include "../../../src/data/proxy_dmatrix.h"  // for DMatrixProxy
 #include "../../../src/gbm/gbtree.h"
 #include "../filesystem.h"  // dmlc::TemporaryDirectory
 #include "../helpers.h"
 #include "xgboost/base.h"
-#include "xgboost/host_device_vector.h"
-#include "xgboost/learner.h"
 #include "xgboost/predictor.h"
 
 namespace xgboost {
@@ -118,7 +121,7 @@ TEST(GBTree, ChoosePredictor) {
 
   auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
-  auto& data = (*(p_dmat->GetBatches<SparsePage>().begin())).data;
+  auto const& data = (*(p_dmat->GetBatches<SparsePage>().begin())).data;
   p_dmat->Info().labels.Reshape(kRows);
 
   auto learner = std::unique_ptr<Learner>(Learner::Create({p_dmat}));
@@ -145,7 +148,7 @@ TEST(GBTree, ChoosePredictor) {
   for (size_t i = 0; i < 4; ++i) {
     learner->UpdateOneIter(i, p_dmat);
   }
-  ASSERT_TRUE(data.HostCanWrite());
+  ASSERT_TRUE(data.HostCanRead());
 
   // pull data into device.
   data.HostVector();

@@ -1,12 +1,11 @@
-/*!
- * Copyright 2020-2022, XGBoost contributors
+/**
+ * Copyright 2020-2023, XGBoost contributors
  */
-#include "proxy_dmatrix.h"
 #include "device_adapter.cuh"
+#include "proxy_dmatrix.cuh"
+#include "proxy_dmatrix.h"
 
-namespace xgboost {
-namespace data {
-
+namespace xgboost::data {
 void DMatrixProxy::FromCudaColumnar(StringView interface_str) {
   std::shared_ptr<data::CudfAdapter> adapter{new CudfAdapter{interface_str}};
   auto const& value = adapter->Value();
@@ -31,5 +30,15 @@ void DMatrixProxy::FromCudaArray(StringView interface_str) {
     ctx_.gpu_id = dh::CurrentDevice();
   }
 }
-}  // namespace data
-}  // namespace xgboost
+
+namespace cuda_impl {
+std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const* ctx,
+                                                std::shared_ptr<DMatrixProxy> proxy,
+                                                float missing) {
+  return Dispatch<false>(proxy.get(), [&](auto const& adapter) {
+    auto p_fmat = std::shared_ptr<DMatrix>{DMatrix::Create(adapter.get(), missing, ctx->Threads())};
+    return p_fmat;
+  });
+}
+}  // namespace cuda_impl
+}  // namespace xgboost::data

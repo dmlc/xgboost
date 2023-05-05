@@ -18,9 +18,11 @@
 #include <vector>
 
 #include "../common/common.h"
+#include "../common/error_msg.h"  // for UnknownDevice
 #include "../common/random.h"
 #include "../common/threading_utils.h"
 #include "../common/timer.h"
+#include "../data/proxy_dmatrix.h"  // for DMatrixProxy, HostAdapterDispatch
 #include "gbtree_model.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
@@ -58,9 +60,8 @@ void GBTree::Configure(Args const& cfg) {
   cpu_predictor_->Configure(cfg);
 #if defined(XGBOOST_USE_CUDA)
   auto n_gpus = common::AllVisibleGPUs();
-  if (!gpu_predictor_ && n_gpus != 0) {
-    gpu_predictor_ = std::unique_ptr<Predictor>(
-        Predictor::Create("gpu_predictor", this->ctx_));
+  if (!gpu_predictor_) {
+    gpu_predictor_ = std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", this->ctx_));
   }
   if (n_gpus != 0) {
     gpu_predictor_->Configure(cfg);
@@ -374,12 +375,7 @@ void GBTree::LoadConfig(Json const& in) {
   // This would cause all trees to be pushed to trees_to_update
   // e.g. updating a model, then saving and loading it would result in an empty model
   tparam_.process_type = TreeProcessType::kDefault;
-  int32_t const n_gpus = xgboost::common::AllVisibleGPUs();
-  if (n_gpus == 0 && tparam_.predictor == PredictorType::kGPUPredictor) {
-    LOG(WARNING) << "Loading from a raw memory buffer on CPU only machine.  "
-                    "Changing predictor to auto.";
-    tparam_.UpdateAllowUnknown(Args{{"predictor", "auto"}});
-  }
+  std::int32_t const n_gpus = xgboost::common::AllVisibleGPUs();
 
   auto msg = StringView{
       R"(
@@ -505,8 +501,8 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
   out_model.param.num_parallel_tree = model_.param.num_parallel_tree;
 }
 
-void GBTree::PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool,
-                          bst_layer_t layer_begin, bst_layer_t layer_end) {
+void GBTree::PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* out_preds,
+                              bst_layer_t layer_begin, bst_layer_t layer_end) const {
   CHECK(configured_);
   if (layer_end == 0) {
     layer_end = this->BoostedRounds();
@@ -546,30 +542,57 @@ void GBTree::PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool
   }
 }
 
-std::unique_ptr<Predictor> const &
-GBTree::GetPredictor(HostDeviceVector<float> const *out_pred,
-                     DMatrix *f_dmat) const {
+void GBTree::PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool,
+                          bst_layer_t layer_begin, bst_layer_t layer_end) {
+  // dispatch to const function.
+  this->PredictBatchImpl(p_fmat, out_preds, layer_begin, layer_end);
+}
+
+void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
+                            PredictionCacheEntry* out_preds, bst_layer_t layer_begin,
+                            bst_layer_t layer_end) const {
   CHECK(configured_);
-  if (tparam_.predictor != PredictorType::kAuto) {
-    if (tparam_.predictor == PredictorType::kGPUPredictor) {
+  auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
+  CHECK_LE(tree_end, model_.trees.size()) << "Invalid number of trees.";
+  if (p_m->Ctx()->Device() != this->ctx_->Device()) {
+    LOG(WARNING) << "Falling back to prediction using DMatrix due to mismatched devices. XGBoost "
+                 << "is running on: " << this->ctx_->DeviceName()
+                 << ", while the input data is on: " << p_m->Ctx()->DeviceName() << ".";
+    auto proxy = std::dynamic_pointer_cast<data::DMatrixProxy>(p_m);
+    auto any_adapter = proxy->Adapter();
+    auto p_fmat = data::CreateDMatrixFromProxy(ctx_, proxy, missing);
+    this->PredictBatchImpl(p_fmat.get(), out_preds, layer_begin, layer_end);
+    return;
+  }
+
+  if (this->ctx_->IsCPU()) {
+    this->cpu_predictor_->InplacePredict(p_m, model_, missing, out_preds, tree_begin, tree_end);
+  } else if (p_m->Ctx()->IsCUDA()) {
+    CHECK(this->gpu_predictor_);
+    this->gpu_predictor_->InplacePredict(p_m, model_, missing, out_preds, tree_begin, tree_end);
+  } else {
+    LOG(FATAL) << error::UnknownDevice();
+  }
+}
+
+std::unique_ptr<Predictor> const& GBTree::GetPredictor(HostDeviceVector<float> const* out_pred,
+                                                       DMatrix* f_dmat) const {
+  CHECK(configured_);
+
+  // Data comes from SparsePageDMatrix. Since we are loading data in pages, no need to
+  // prevent data copy.
+  if ((f_dmat && !f_dmat->SingleColBlock())) {
+    if (ctx_->IsCPU()) {
+      return cpu_predictor_;
+    } else {
 #if defined(XGBOOST_USE_CUDA)
       CHECK_GE(common::AllVisibleGPUs(), 1) << "No visible GPU is found for XGBoost.";
-      CHECK(gpu_predictor_);
       return gpu_predictor_;
 #else
       common::AssertGPUSupport();
+      return cpu_predictor_;
 #endif  // defined(XGBOOST_USE_CUDA)
     }
-    if (tparam_.predictor == PredictorType::kOneAPIPredictor) {
-#if defined(XGBOOST_USE_ONEAPI)
-      CHECK(oneapi_predictor_);
-      return oneapi_predictor_;
-#else
-      common::AssertOneAPISupport();
-#endif  // defined(XGBOOST_USE_ONEAPI)
-    }
-    CHECK(cpu_predictor_);
-    return cpu_predictor_;
   }
 
   // Data comes from SparsePageDMatrix. Since we are loading data in pages, no need to
@@ -589,12 +612,11 @@ GBTree::GetPredictor(HostDeviceVector<float> const *out_pred,
   }
 
   // Data comes from Device DMatrix.
-  auto is_ellpack = f_dmat && f_dmat->PageExists<EllpackPage>() &&
-                    !f_dmat->PageExists<SparsePage>();
+  auto is_ellpack =
+      f_dmat && f_dmat->PageExists<EllpackPage>() && !f_dmat->PageExists<SparsePage>();
   // Data comes from device memory, like CuDF or CuPy.
-  auto is_from_device =
-      f_dmat && f_dmat->PageExists<SparsePage>() &&
-      (*(f_dmat->GetBatches<SparsePage>().begin())).data.DeviceCanRead();
+  auto is_from_device = f_dmat && f_dmat->PageExists<SparsePage>() &&
+                        (*(f_dmat->GetBatches<SparsePage>().begin())).data.DeviceCanRead();
   auto on_device = is_ellpack || is_from_device;
 
   // Use GPU Predictor if data is already on device and gpu_id is set.
@@ -750,7 +772,7 @@ class Dart : public GBTree {
                         bool training, unsigned layer_begin,
                         unsigned layer_end) const {
     CHECK(!this->model_.learner_model_param->IsVectorLeaf()) << "dart" << MTNotImplemented();
-    auto &predictor = this->GetPredictor(&p_out_preds->predictions, p_fmat);
+    auto& predictor = this->GetPredictor(&p_out_preds->predictions, p_fmat);
     CHECK(predictor);
     predictor->InitOutPredictions(p_fmat->Info(), &p_out_preds->predictions,
                                   model_);
@@ -814,49 +836,46 @@ class Dart : public GBTree {
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     auto n_groups = model_.learner_model_param->num_output_group;
 
-    std::vector<Predictor const*> predictors {
-      cpu_predictor_.get(),
-#if defined(XGBOOST_USE_CUDA)
-      gpu_predictor_.get()
-#endif  // defined(XGBOOST_USE_CUDA)
-    };
-    Predictor const* predictor{nullptr};
-    StringView msg{"Unsupported data type for inplace predict."};
+    if (ctx_->Device() != p_fmat->Ctx()->Device()) {
+      LOG(WARNING) << "Falling back to prediction using DMatrix due to mismatched devices. XGBoost "
+                   << "is running on: " << this->ctx_->DeviceName()
+                   << ", while the input data is on: " << p_fmat->Ctx()->DeviceName() << ".";
+      auto proxy = std::dynamic_pointer_cast<data::DMatrixProxy>(p_fmat);
+      auto any_adapter = proxy->Adapter();
+      auto p_fmat = data::CreateDMatrixFromProxy(ctx_, proxy, missing);
+      this->PredictBatchImpl(p_fmat.get(), p_out_preds, false, layer_begin, layer_end);
+      return;
+    }
 
+    StringView msg{"Unsupported data type for inplace predict."};
     PredictionCacheEntry predts;
     if (ctx_->gpu_id != Context::kCpuId) {
       predts.predictions.SetDevice(ctx_->gpu_id);
     }
     predts.predictions.Resize(p_fmat->Info().num_row_ * n_groups, 0);
 
+    auto get_predictor = [&]() -> Predictor const* {
+      if (ctx_->IsCPU()) {
+        return cpu_predictor_.get();
+      } else if (ctx_->IsCUDA()) {
+        CHECK(this->gpu_predictor_);
+        return gpu_predictor_.get();
+      } else {
+        LOG(FATAL) << error::UnknownDevice();
+        return nullptr;
+      }
+    };
     auto predict_impl = [&](size_t i) {
       predts.predictions.Fill(0);
-      if (tparam_.predictor == PredictorType::kAuto) {
-        // Try both predictor implementations
-        bool success = false;
-        for (auto const& p : predictors) {
-          if (p && p->InplacePredict(p_fmat, model_, missing, &predts, i, i + 1)) {
-            success = true;
-            predictor = p;
-            break;
-          }
-        }
-        CHECK(success) << msg;
-      } else {
-        predictor = this->GetPredictor().get();
-        bool success = predictor->InplacePredict(p_fmat, model_, missing, &predts, i, i + 1);
-        CHECK(success) << msg << std::endl
-                       << "Current Predictor: "
-                       << (tparam_.predictor == PredictorType::kCPUPredictor ? "cpu_predictor"
-                                                                             : "gpu_predictor");
-      }
+      bool success{get_predictor()->InplacePredict(p_fmat, model_, missing, &predts, i, i + 1)};
+      CHECK(success) << msg;
     };
 
     // Inplace predict is not used for training, so no need to drop tree.
     for (bst_tree_t i = tree_begin; i < tree_end; ++i) {
       predict_impl(i);
       if (i == tree_begin) {
-        predictor->InitOutPredictions(p_fmat->Info(), &p_out_preds->predictions, model_);
+        get_predictor()->InitOutPredictions(p_fmat->Info(), &p_out_preds->predictions, model_);
       }
       // Multiple the tree weight
       auto w = this->weight_drop_.at(i);

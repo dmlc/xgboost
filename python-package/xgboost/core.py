@@ -2187,13 +2187,18 @@ class Booster:
         base_margin: Any = None,
         strict_shape: bool = False,
     ) -> NumpyOrCupy:
-        """Run prediction in-place, Unlike :py:meth:`predict` method, inplace prediction
-        does not cache the prediction result.
+        """Run prediction in-place when possible, Unlike :py:meth:`predict` method,
+        inplace prediction does not cache the prediction result.
 
         Calling only ``inplace_predict`` in multiple threads is safe and lock
         free.  But the safety does not hold when used in conjunction with other
         methods. E.g. you can't train the booster in one thread and perform
         prediction in the other.
+
+        .. note::
+
+            If the device ordinal of the input data doesn't match the one configured for
+            the booster, data will be copied to the booster device.
 
         .. code-block:: python
 
