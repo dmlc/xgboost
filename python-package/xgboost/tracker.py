@@ -51,6 +51,54 @@ class ExSocket:
         slen = self.recvint()
         return self.recvall(slen).decode()
 
+    def send_numpy_array(self, array: np.ndarray) -> None:
+        """Send a numpy array"""
+        self.sendint(array.nbytes)
+        self.sock.sendall(array.tobytes())
+
+    def recv_numpy_array(self, shape: Tuple[int, ...], dtype: np.dtype) -> np.ndarray:
+        """Receive a numpy array"""
+        nbytes = np.prod(shape) * dtype.itemsize
+        data = self.recvall(nbytes)
+        return np.frombuffer(data, dtype=dtype).reshape(shape)
+
+    def send_xgboost_model(self, model: xgboost.Booster) -> None:
+        """Send an xgboost model"""
+        model_bytes = model.save_raw()
+        self.sendint(len(model_bytes))
+        self.sock.sendall(model_bytes)
+
+    def recv_xgboost_model(self) -> xgboost.Booster:
+        """Receive an xgboost model"""
+        model_bytes = self.recvall(self.recvint())
+        return xgboost.Booster(model_file=BytesIO(model_bytes))
+
+    def send_training_data(self, data: List[Tuple[np.ndarray, np.ndarray]]) -> None:
+        """Send training data"""
+        self.sendint(len(data))
+        for x, y in data:
+            self.send_numpy_array(x)
+            self.send_numpy_array(y)
+
+    def recv_training_data(self) -> List[Tuple[np.ndarray, np.ndarray]]:
+        """Receive training data"""
+        n = self.recvint()
+        data = []
+        for i in range(n):
+            x = self.recv_numpy_array(shape=(self.recvint(), self.recvint()), dtype=np.float32)
+            y = self.recv_numpy_array(shape=(self.recvint(),), dtype=np.float32)
+            data.append((x, y))
+        return data
+
+    def send_status_message(self, message: Dict[str, Any]) -> None:
+        """Send a status message"""
+        message_json = json.dumps(message)
+        self.sendstr(message_json)
+
+    def recv_status_message(self) -> Dict[str, Any]:
+        """Receive a status message"""
+        message_json = self.recvstr()
+        return json.loads(message_json)
 
 # magic number used to verify existence of data
 MAGIC_NUM = 0xFF99
