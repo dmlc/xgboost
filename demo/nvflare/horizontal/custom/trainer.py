@@ -63,8 +63,8 @@ class XGBoostTrainer(Executor):
         }
         with xgb.collective.CommunicatorContext(**communicator_env):
             # Load file, file will not be sharded in federated mode.
-            dtrain = xgb.DMatrix('agaricus.txt.train')
-            dtest = xgb.DMatrix('agaricus.txt.test')
+            dtrain = xgb.DMatrix('agaricus.txt.train?format=libsvm')
+            dtest = xgb.DMatrix('agaricus.txt.test?format=libsvm')
 
             # Specify parameters via map, definition are same as c++ version
             param = {'max_depth': 2, 'eta': 1, 'objective': 'binary:logistic'}
