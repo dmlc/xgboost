@@ -119,7 +119,8 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
                        bool pred_leaf = false,
                        bool pred_contribs = false,
                        bool approx_contribs = false,
-                       bool pred_interactions = false) = 0;
+                       bool pred_interactions = false,
+                       std::vector<std::vector<int32_t>> *decision_path = nullptr) = 0;
 
   /*!
    * \brief Inplace prediction.
@@ -251,6 +252,8 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
   virtual std::vector<std::string> DumpModel(const FeatureMap& fmap,
                                              bool with_stats,
                                              std::string format) = 0;
+
+  virtual std::vector<std::string> DumpDecisionPath(const FeatureMap& fmap, bool with_stats, const std::vector<std::vector<int32_t>> &decision_path) = 0;
 
   virtual XGBAPIThreadLocalEntry& GetThreadLocal() const = 0;
   /*!

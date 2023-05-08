@@ -64,32 +64,61 @@ TEST(GBTree, PredictionCache) {
   PredictionCacheEntry out_predictions;
   gbtree.DoBoost(p_m.get(), &gpair, &out_predictions, nullptr);
 
-  gbtree.PredictBatch(p_m.get(), &out_predictions, false, 0, 0);
+  gbtree.PredictBatch(p_m.get(), &out_predictions, false, nullptr, 0, 0);
   ASSERT_EQ(1, out_predictions.version);
   std::vector<float> first_iter = out_predictions.predictions.HostVector();
   // Add 1 more boosted round
   gbtree.DoBoost(p_m.get(), &gpair, &out_predictions, nullptr);
-  gbtree.PredictBatch(p_m.get(), &out_predictions, false, 0, 0);
+  gbtree.PredictBatch(p_m.get(), &out_predictions, false, nullptr, 0, 0);
   ASSERT_EQ(2, out_predictions.version);
   // Update the cache for all rounds
   out_predictions.version = 0;
-  gbtree.PredictBatch(p_m.get(), &out_predictions, false, 0, 0);
+  gbtree.PredictBatch(p_m.get(), &out_predictions, false, nullptr, 0, 0);
   ASSERT_EQ(2, out_predictions.version);
 
   gbtree.DoBoost(p_m.get(), &gpair, &out_predictions, nullptr);
   // drop the cache.
-  gbtree.PredictBatch(p_m.get(), &out_predictions, false, 1, 2);
+  gbtree.PredictBatch(p_m.get(), &out_predictions, false, nullptr, 1, 2);
   ASSERT_EQ(0, out_predictions.version);
   // half open set [1, 3)
-  gbtree.PredictBatch(p_m.get(), &out_predictions, false, 1, 3);
+  gbtree.PredictBatch(p_m.get(), &out_predictions, false, nullptr, 1, 3);
   ASSERT_EQ(0, out_predictions.version);
   // iteration end
-  gbtree.PredictBatch(p_m.get(), &out_predictions, false, 0, 2);
+  gbtree.PredictBatch(p_m.get(), &out_predictions, false, nullptr, 0, 2);
   ASSERT_EQ(2, out_predictions.version);
   // restart the cache when end iteration is smaller than cache version
-  gbtree.PredictBatch(p_m.get(), &out_predictions, false, 0, 1);
+  gbtree.PredictBatch(p_m.get(), &out_predictions, false, nullptr, 0, 1);
   ASSERT_EQ(1, out_predictions.version);
   ASSERT_EQ(out_predictions.predictions.HostVector(), first_iter);
+}
+
+TEST(GBTree, DecisionPath) {
+  size_t constexpr kRows = 100, kCols = 10;
+  Context ctx;
+  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
+
+  std::unique_ptr<GradientBooster> p_gbm{GradientBooster::Create("gbtree", &ctx, &mparam)};
+  auto& gbtree = dynamic_cast<gbm::GBTree&>(*p_gbm);
+
+  gbtree.Configure({{"tree_method", "hist"}});
+
+  auto p_m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
+  auto gpair = GenerateRandomGradients(kRows);
+  PredictionCacheEntry out_predictions;
+  gbtree.DoBoost(p_m.get(), &gpair, &out_predictions, nullptr);
+
+  FeatureMap feature_map {};
+  for (uint32_t feat_i = 0; feat_i < kCols; ++feat_i) {
+    feature_map.PushBack(feat_i, (std::string("feat_slot_") + std::to_string(feat_i)).c_str(), "float");
+  }
+  std::vector<std::vector<bst_node_t>> decision_paths;
+  gbtree.PredictBatch(p_m.get(), &out_predictions, false, &decision_paths, 0, 1);
+  auto decision_paths_dumped = gbtree.DumpDecisionPath(feature_map, true, decision_paths);
+  for (uint32_t tree_id = 0; tree_id < decision_paths_dumped.size(); ++tree_id) {
+    fprintf(stderr, "tree_id: %u\n\t%s\n", tree_id, decision_paths_dumped.at(tree_id).c_str());
+  }
+  ASSERT_EQ(1, out_predictions.version);
+  std::vector<float> first_iter = out_predictions.predictions.HostVector();
 }
 
 TEST(GBTree, WrongUpdater) {

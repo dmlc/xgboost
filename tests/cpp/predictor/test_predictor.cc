@@ -238,7 +238,7 @@ void TestCategoricalPrediction(std::string name) {
   m->Info().feature_types.HostVector() = types;
 
   predictor->InitOutPredictions(m->Info(), &out_predictions.predictions, model);
-  predictor->PredictBatch(m.get(), &out_predictions, model, 0);
+  predictor->PredictBatch(m.get(), &out_predictions, model, nullptr, 0);
   auto score = mparam.BaseScore(Context::kCpuId)(0);
   ASSERT_EQ(out_predictions.predictions.Size(), 1ul);
   ASSERT_EQ(out_predictions.predictions.HostVector()[0],
@@ -248,7 +248,7 @@ void TestCategoricalPrediction(std::string name) {
   m = GetDMatrixFromData(row, 1, kCols);
   out_predictions.version = 0;
   predictor->InitOutPredictions(m->Info(), &out_predictions.predictions, model);
-  predictor->PredictBatch(m.get(), &out_predictions, model, 0);
+  predictor->PredictBatch(m.get(), &out_predictions, model, nullptr, 0);
   ASSERT_EQ(out_predictions.predictions.HostVector()[0], left_weight + score);
 }
 
@@ -276,7 +276,7 @@ void TestCategoricalPredictLeaf(StringView name) {
   row[split_ind] = split_cat;
   auto m = GetDMatrixFromData(row, 1, kCols);
 
-  predictor->PredictLeaf(m.get(), &out_predictions.predictions, model);
+  predictor->PredictLeaf(m.get(), &out_predictions.predictions, model, nullptr);
   CHECK_EQ(out_predictions.predictions.Size(), 1);
   // go to left if it doesn't match the category, otherwise right.
   ASSERT_EQ(out_predictions.predictions.HostVector()[0], 2);
@@ -285,7 +285,7 @@ void TestCategoricalPredictLeaf(StringView name) {
   m = GetDMatrixFromData(row, 1, kCols);
   out_predictions.version = 0;
   predictor->InitOutPredictions(m->Info(), &out_predictions.predictions, model);
-  predictor->PredictLeaf(m.get(), &out_predictions.predictions, model);
+  predictor->PredictLeaf(m.get(), &out_predictions.predictions, model, nullptr);
   ASSERT_EQ(out_predictions.predictions.HostVector()[0], 1);
 }
 

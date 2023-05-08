@@ -119,6 +119,18 @@ struct GBTreeModel : public Model {
                         [&](size_t i) { dump[i] = trees[i]->DumpModel(fmap, with_stats, format); });
     return dump;
   }
+
+  [[nodiscard]] std::vector<std::string> DumpDecisionPath(const FeatureMap& fmap,
+                                 bool with_stats,
+                                 const std::vector<std::vector<int32_t>> &decision_path) const {
+    std::vector<std::string> dump;
+    dump.resize(trees.size());
+    for (uint32_t i = 0; i < trees.size(); ++i) {
+      dump[i] = trees[i]->DumpDecisionPath(fmap, with_stats, decision_path[i]);
+    }
+    return dump;
+  }
+
   /**
    * \brief Add trees to the model.
    *

@@ -568,7 +568,7 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
 }
 
 void GBTree::PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool,
-                          bst_layer_t layer_begin, bst_layer_t layer_end) {
+                          std::vector<std::vector<bst_node_t>> *decision_paths, bst_layer_t layer_begin, bst_layer_t layer_end) {
   CHECK(configured_);
   if (layer_end == 0) {
     layer_end = this->BoostedRounds();
@@ -598,7 +598,19 @@ void GBTree::PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool
   auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
   CHECK_LE(tree_end, model_.trees.size()) << "Invalid number of trees.";
   if (tree_end > tree_begin) {
-    predictor->PredictBatch(p_fmat, out_preds, model_, tree_begin, tree_end);
+    if (decision_paths != nullptr) {
+      decision_paths->resize(tree_end);
+    }
+    predictor->PredictBatch(p_fmat, out_preds, model_, decision_paths, tree_begin, tree_end);
+//    if (decision_paths != nullptr) {
+//      fprintf(stderr, "dumping decision paths...\n");
+//      for (uint32_t tree_id = 0; tree_id < decision_paths->size(); ++tree_id) {
+//        fprintf(stderr, "\ttree %u\n", tree_id);
+//        for (int nid : decision_paths->at(tree_id)) {
+//          fprintf(stderr, "\t\tnid %u\n", nid);
+//        }
+//      }
+//    }
   }
   if (reset) {
     out_preds->version = 0;
@@ -823,7 +835,7 @@ class Dart : public GBTree {
       auto version = i / layer_trees();
       p_out_preds->version = version;
       predts.predictions.Fill(0);
-      predictor->PredictBatch(p_fmat, &predts, model_, i, i + 1);
+      predictor->PredictBatch(p_fmat, &predts, model_, nullptr, i, i + 1);
 
       // Multiple the weight to output prediction.
       auto w = this->weight_drop_.at(i);
@@ -848,7 +860,7 @@ class Dart : public GBTree {
   }
 
   void PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* p_out_preds, bool training,
-                    bst_layer_t layer_begin, bst_layer_t layer_end) override {
+                    std::vector<std::vector<bst_node_t>> *decision_paths, bst_layer_t layer_begin, bst_layer_t layer_end) override {
     DropTrees(training);
     this->PredictBatchImpl(p_fmat, p_out_preds, training, layer_begin, layer_end);
   }
@@ -881,7 +893,7 @@ class Dart : public GBTree {
         // Try both predictor implementations
         bool success = false;
         for (auto const& p : predictors) {
-          if (p && p->InplacePredict(p_fmat, model_, missing, &predts, i, i + 1)) {
+          if (p && p->InplacePredict(p_fmat, model_, missing, &predts, nullptr, i, i + 1)) {
             success = true;
             predictor = p;
             break;
@@ -890,7 +902,7 @@ class Dart : public GBTree {
         CHECK(success) << msg;
       } else {
         predictor = this->GetPredictor().get();
-        bool success = predictor->InplacePredict(p_fmat, model_, missing, &predts, i, i + 1);
+        bool success = predictor->InplacePredict(p_fmat, model_, missing, &predts, nullptr, i, i + 1);
         CHECK(success) << msg << std::endl
                        << "Current Predictor: "
                        << (tparam_.predictor == PredictorType::kCPUPredictor ? "cpu_predictor"
@@ -935,7 +947,7 @@ class Dart : public GBTree {
     auto &predictor = this->GetPredictor();
     uint32_t _, tree_end;
     std::tie(_, tree_end) = detail::LayerToTree(model_, layer_begin, layer_end);
-    predictor->PredictInstance(inst, out_preds, model_, tree_end);
+    predictor->PredictInstance(inst, out_preds, model_, nullptr, tree_end);
   }
 
   void PredictContribution(DMatrix* p_fmat,

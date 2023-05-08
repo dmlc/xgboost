@@ -156,6 +156,10 @@ class TreeGenerator {
     ss_ << this->BuildTree(tree, 0, 0);
   }
 
+  virtual void BuildPath(RegTree const& tree, const std::vector<int32_t> &decision_path) {
+    throw "Not implemented";
+  }
+
   std::string Str() const {
     return ss_.str();
   }
@@ -509,6 +513,23 @@ class JsonGenerator : public TreeGenerator {
                                            this->SplitNode(tree, nid, depth)}});
     return result;
   }
+
+  void BuildPath(RegTree const &tree, const std::vector<int32_t> &path) override {
+    static std::string const pathEntryTemplate = "{{properties} {stat}},\n";
+    std::string result;
+    for (uint32_t i = 0; i < path.size(); ++i) {
+      int32_t nid = path.at(i);
+      std::string properties = SuperT::SplitNode(tree, nid, i);
+      result += SuperT::Match(
+          pathEntryTemplate,
+          {
+              {"{properties}", properties},
+              {"{stat}", with_stats_ ? this->NodeStat(tree, nid) : ""},
+          }
+      );
+    }
+    ss_ << result;
+  }
 };
 
 XGBOOST_REGISTER_TREE_IO(JsonGenerator, "json")
@@ -738,6 +759,14 @@ std::string RegTree::DumpModel(const FeatureMap& fmap, bool with_stats, std::str
 
   std::string result = builder->Str();
   return result;
+}
+
+std::string RegTree::DumpDecisionPath(const FeatureMap& fmap,
+                             bool with_stats,
+                             const std::vector<int32_t> &decision_path) const {
+  std::unique_ptr<TreeGenerator> builder{TreeGenerator::Create("json", fmap, with_stats)};
+  builder->BuildPath(*this, decision_path);
+  return builder->Str();
 }
 
 bool RegTree::Equal(const RegTree& b) const {

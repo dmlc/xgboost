@@ -109,7 +109,7 @@ class Predictor {
    * \param           tree_end    The tree end index.
    */
   virtual void PredictBatch(DMatrix* dmat, PredictionCacheEntry* out_preds,
-                            const gbm::GBTreeModel& model, uint32_t tree_begin,
+                            const gbm::GBTreeModel& model, std::vector<std::vector<bst_node_t>> *path_list, uint32_t tree_begin,
                             uint32_t tree_end = 0) const = 0;
 
   /**
@@ -126,7 +126,7 @@ class Predictor {
    * \return True if the data can be handled by current predictor, false otherwise.
    */
   virtual bool InplacePredict(std::shared_ptr<DMatrix> p_fmat, const gbm::GBTreeModel& model,
-                              float missing, PredictionCacheEntry* out_preds,
+                              float missing, PredictionCacheEntry* out_preds, std::vector<std::vector<bst_node_t>> *path_list,
                               uint32_t tree_begin = 0, uint32_t tree_end = 0) const = 0;
   /**
    * \brief online prediction function, predict score for one instance at a time
@@ -142,7 +142,7 @@ class Predictor {
 
   virtual void PredictInstance(const SparsePage::Inst& inst,
                                std::vector<bst_float>* out_preds,
-                               const gbm::GBTreeModel& model,
+                               const gbm::GBTreeModel& model, std::vector<std::vector<bst_node_t>> *path_list,
                                unsigned tree_end = 0) const = 0;
 
   /**
@@ -156,7 +156,7 @@ class Predictor {
    */
 
   virtual void PredictLeaf(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
-                           const gbm::GBTreeModel& model,
+                           const gbm::GBTreeModel& model, std::vector<std::vector<bst_node_t>> *path_list,
                            unsigned tree_end = 0) const = 0;
 
   /**

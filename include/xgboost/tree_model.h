@@ -618,6 +618,11 @@ class RegTree : public Model {
    */
   [[nodiscard]] std::string DumpModel(const FeatureMap& fmap, bool with_stats,
                                       std::string format) const;
+
+  [[nodiscard]] std::string DumpDecisionPath(const FeatureMap& fmap,
+                            bool with_stats,
+                            const std::vector<int32_t> &decision_path) const ;
+
   /*!
    * \brief Get split type for a node.
    * \param nidx Index of node.

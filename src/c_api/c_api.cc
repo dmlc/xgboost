@@ -993,10 +993,26 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
   bool interactions = type == PredictionType::kInteraction ||
                       type == PredictionType::kApproxInteraction;
   bool training = RequiredArg<Boolean>(config, "training", __func__);
-  learner->Predict(p_m, type == PredictionType::kMargin, &entry.predictions,
-                   iteration_begin, iteration_end, training,
-                   type == PredictionType::kLeaf, contribs, approximate,
-                   interactions);
+  bool print_decision_path = RequiredArg<Boolean>(config, "print_decision_path", __func__);
+
+  if (print_decision_path) {
+    std::vector<std::vector<int32_t>> decision_paths;
+    learner->Predict(p_m, type == PredictionType::kMargin, &entry.predictions,
+                     iteration_begin, iteration_end, training,
+                     type == PredictionType::kLeaf, contribs, approximate,
+                     interactions, &decision_paths);
+    auto decision_paths_output = learner->DumpDecisionPath(LoadFeatureMap(std::string{}), true, decision_paths);
+    fprintf(stderr, "[\n");
+    for (uint32_t tree_id = 0; tree_id < decision_paths_output.size(); ++tree_id) {
+      fprintf(stderr, "{\"tree_id\": %u, \"path\": [%s]},\n", tree_id, decision_paths_output.at(tree_id).c_str());
+    }
+    fprintf(stderr, "]\n");
+  } else {
+    learner->Predict(p_m, type == PredictionType::kMargin, &entry.predictions,
+                     iteration_begin, iteration_end, training,
+                     type == PredictionType::kLeaf, contribs, approximate,
+                     interactions, nullptr);
+  }
 
   xgboost_CHECK_C_ARG_PTR(out_result);
   *out_result = dmlc::BeginPtr(entry.predictions.ConstHostVector());
