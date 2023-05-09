@@ -90,13 +90,16 @@ void TestColumnSplit(int32_t rows, bst_feature_t cols, RegTree const& expected_t
   param.Init(Args{});
   updater->Update(&param, p_gradients.get(), sliced.get(), position, {&tree});
 
-  EXPECT_EQ(tree.NumExtraNodes(), 10);
-  EXPECT_EQ(tree[0].SplitIndex(), 1);
+  ASSERT_EQ(tree.NumExtraNodes(), 10);
+  ASSERT_EQ(tree[0].SplitIndex(), 1);
 
-  EXPECT_NE(tree[tree[0].LeftChild()].SplitIndex(), 0);
-  EXPECT_NE(tree[tree[0].RightChild()].SplitIndex(), 0);
+  ASSERT_NE(tree[tree[0].LeftChild()].SplitIndex(), 0);
+  ASSERT_NE(tree[tree[0].RightChild()].SplitIndex(), 0);
 
-  EXPECT_EQ(tree, expected_tree);
+  FeatureMap fmap;
+  auto json = tree.DumpModel(fmap, false, "json");
+  auto expected_json = expected_tree.DumpModel(fmap, false, "json");
+  ASSERT_EQ(json, expected_json);
 }
 }  // anonymous namespace
 
