@@ -1,7 +1,7 @@
 /**
  * Copyright 2021-2023, XGBoost Contributors
  */
-#include <cinttypes>  // for int64_t
+#include <cstdint>  // for int64_t
 
 #include "../common/common.h"
 #include "../common/device_helpers.cuh"  // for DefaultStream, CUDAEvent
