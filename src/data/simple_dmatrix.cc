@@ -166,7 +166,7 @@ BatchSet<GHistIndexMatrix> SimpleDMatrix::GetGradientIndex(Context const* ctx,
   }
   if (!gradient_index_ || detail::RegenGHist(batch_param_, param)) {
     // GIDX page doesn't exist, generate it
-    LOG(INFO) << "Generating new Gradient Index.";
+    LOG(DEBUG) << "Generating new Gradient Index.";
     // These places can ask for a CSR gidx:
     // - CPU Hist: the ctx must be on CPU.
     // - IterativeDMatrix::InitFromCPU: The ctx must be on CPU.

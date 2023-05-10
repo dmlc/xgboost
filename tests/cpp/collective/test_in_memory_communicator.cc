@@ -26,6 +26,60 @@ class InMemoryCommunicatorTest : public ::testing::Test {
 
   static void Allgather(int rank) {
     InMemoryCommunicator comm{kWorldSize, rank};
+    VerifyAllgather(comm, rank);
+  }
+
+  static void AllreduceMax(int rank) {
+    InMemoryCommunicator comm{kWorldSize, rank};
+    VerifyAllreduceMax(comm, rank);
+  }
+
+  static void AllreduceMin(int rank) {
+    InMemoryCommunicator comm{kWorldSize, rank};
+    VerifyAllreduceMin(comm, rank);
+  }
+
+  static void AllreduceSum(int rank) {
+    InMemoryCommunicator comm{kWorldSize, rank};
+    VerifyAllreduceSum(comm);
+  }
+
+  static void AllreduceBitwiseAND(int rank) {
+    InMemoryCommunicator comm{kWorldSize, rank};
+    VerifyAllreduceBitwiseAND(comm, rank);
+  }
+
+  static void AllreduceBitwiseOR(int rank) {
+    InMemoryCommunicator comm{kWorldSize, rank};
+    VerifyAllreduceBitwiseOR(comm, rank);
+  }
+
+  static void AllreduceBitwiseXOR(int rank) {
+    InMemoryCommunicator comm{kWorldSize, rank};
+    VerifyAllreduceBitwiseXOR(comm, rank);
+  }
+
+  static void Broadcast(int rank) {
+    InMemoryCommunicator comm{kWorldSize, rank};
+    VerifyBroadcast(comm, rank);
+  }
+
+  static void Mixture(int rank) {
+    InMemoryCommunicator comm{kWorldSize, rank};
+    for (auto i = 0; i < 5; i++) {
+      VerifyAllgather(comm, rank);
+      VerifyAllreduceMax(comm, rank);
+      VerifyAllreduceMin(comm, rank);
+      VerifyAllreduceSum(comm);
+      VerifyAllreduceBitwiseAND(comm, rank);
+      VerifyAllreduceBitwiseOR(comm, rank);
+      VerifyAllreduceBitwiseXOR(comm, rank);
+      VerifyBroadcast(comm, rank);
+    }
+  }
+
+ protected:
+  static void VerifyAllgather(InMemoryCommunicator &comm, int rank) {
     char buffer[kWorldSize] = {'a', 'b', 'c'};
     buffer[rank] = '0' + rank;
     comm.AllGather(buffer, kWorldSize);
@@ -34,8 +88,7 @@ class InMemoryCommunicatorTest : public ::testing::Test {
     }
   }
 
-  static void AllreduceMax(int rank) {
-    InMemoryCommunicator comm{kWorldSize, rank};
+  static void VerifyAllreduceMax(InMemoryCommunicator &comm, int rank) {
     int buffer[] = {1 + rank, 2 + rank, 3 + rank, 4 + rank, 5 + rank};
     comm.AllReduce(buffer, sizeof(buffer) / sizeof(buffer[0]), DataType::kInt32, Operation::kMax);
     int expected[] = {3, 4, 5, 6, 7};
@@ -44,8 +97,7 @@ class InMemoryCommunicatorTest : public ::testing::Test {
     }
   }
 
-  static void AllreduceMin(int rank) {
-    InMemoryCommunicator comm{kWorldSize, rank};
+  static void VerifyAllreduceMin(InMemoryCommunicator &comm, int rank) {
     int buffer[] = {1 + rank, 2 + rank, 3 + rank, 4 + rank, 5 + rank};
     comm.AllReduce(buffer, sizeof(buffer) / sizeof(buffer[0]), DataType::kInt32, Operation::kMin);
     int expected[] = {1, 2, 3, 4, 5};
@@ -54,8 +106,7 @@ class InMemoryCommunicatorTest : public ::testing::Test {
     }
   }
 
-  static void AllreduceSum(int rank) {
-    InMemoryCommunicator comm{kWorldSize, rank};
+  static void VerifyAllreduceSum(InMemoryCommunicator &comm) {
     int buffer[] = {1, 2, 3, 4, 5};
     comm.AllReduce(buffer, sizeof(buffer) / sizeof(buffer[0]), DataType::kInt32, Operation::kSum);
     int expected[] = {3, 6, 9, 12, 15};
@@ -64,16 +115,14 @@ class InMemoryCommunicatorTest : public ::testing::Test {
     }
   }
 
-  static void AllreduceBitwiseAND(int rank) {
-    InMemoryCommunicator comm{kWorldSize, rank};
+  static void VerifyAllreduceBitwiseAND(InMemoryCommunicator &comm, int rank) {
     std::bitset<2> original(rank);
     auto buffer = original.to_ulong();
     comm.AllReduce(&buffer, 1, DataType::kUInt32, Operation::kBitwiseAND);
     EXPECT_EQ(buffer, 0UL);
   }
 
-  static void AllreduceBitwiseOR(int rank) {
-    InMemoryCommunicator comm{kWorldSize, rank};
+  static void VerifyAllreduceBitwiseOR(InMemoryCommunicator &comm, int rank) {
     std::bitset<2> original(rank);
     auto buffer = original.to_ulong();
     comm.AllReduce(&buffer, 1, DataType::kUInt32, Operation::kBitwiseOR);
@@ -82,8 +131,7 @@ class InMemoryCommunicatorTest : public ::testing::Test {
     EXPECT_EQ(actual, expected);
   }
 
-  static void AllreduceBitwiseXOR(int rank) {
-    InMemoryCommunicator comm{kWorldSize, rank};
+  static void VerifyAllreduceBitwiseXOR(InMemoryCommunicator &comm, int rank) {
     std::bitset<3> original(rank * 2);
     auto buffer = original.to_ulong();
     comm.AllReduce(&buffer, 1, DataType::kUInt32, Operation::kBitwiseXOR);
@@ -92,8 +140,7 @@ class InMemoryCommunicatorTest : public ::testing::Test {
     EXPECT_EQ(actual, expected);
   }
 
-  static void Broadcast(int rank) {
-    InMemoryCommunicator comm{kWorldSize, rank};
+  static void VerifyBroadcast(InMemoryCommunicator &comm, int rank) {
     if (rank == 0) {
       std::string buffer{"hello"};
       comm.Broadcast(&buffer[0], buffer.size(), 0);
@@ -105,7 +152,6 @@ class InMemoryCommunicatorTest : public ::testing::Test {
     }
   }
 
- protected:
   static int const kWorldSize{3};
 };
 
@@ -172,6 +218,8 @@ TEST_F(InMemoryCommunicatorTest, AllreduceBitwiseOR) { Verify(&AllreduceBitwiseO
 TEST_F(InMemoryCommunicatorTest, AllreduceBitwiseXOR) { Verify(&AllreduceBitwiseXOR); }
 
 TEST_F(InMemoryCommunicatorTest, Broadcast) { Verify(&Broadcast); }
+
+TEST_F(InMemoryCommunicatorTest, Mixture) { Verify(&Mixture); }
 
 }  // namespace collective
 }  // namespace xgboost
