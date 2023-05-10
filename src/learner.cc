@@ -1237,7 +1237,7 @@ class LearnerImpl : public LearnerIO {
   }
 
   std::vector<std::string> DumpDecisionPath(const FeatureMap& fmap, bool with_stats,
-                                            const std::vector<std::vector<int32_t>> &decision_paths) override {
+      const std::vector<TreeSetDecisionPath>& decision_paths) override {
     return gbm_->DumpDecisionPath(fmap, with_stats, decision_paths);
   }
 
@@ -1277,6 +1277,10 @@ class LearnerImpl : public LearnerIO {
     erase_attr("best_iteration");
     erase_attr("best_score");
     return out_impl;
+  }
+
+  uint64_t GetTreeCount() const override {
+    return gbm_->GetTreeCount();
   }
 
   void UpdateOneIter(int iter, std::shared_ptr<DMatrix> train) override {
@@ -1364,8 +1368,7 @@ class LearnerImpl : public LearnerIO {
                HostDeviceVector<bst_float> *out_preds, unsigned layer_begin,
                unsigned layer_end, bool training,
                bool pred_leaf, bool pred_contribs, bool approx_contribs,
-               bool pred_interactions,
-               std::vector<std::vector<int32_t>> *decision_paths) override {
+               bool pred_interactions, std::vector<TreeSetDecisionPath>* decision_paths) override {
     int multiple_predictions = static_cast<int>(pred_leaf) +
                                static_cast<int>(pred_interactions) +
                                static_cast<int>(pred_contribs);
@@ -1385,11 +1388,7 @@ class LearnerImpl : public LearnerIO {
       gbm_->PredictLeaf(data.get(), out_preds, layer_begin, layer_end);
     } else {
       auto& prediction = prediction_container_.Cache(data, ctx_.gpu_id);
-      if (decision_paths != nullptr) {
-        this->PredictRaw(data.get(), &prediction, training, decision_paths, layer_begin, layer_end);
-      } else {
-        this->PredictRaw(data.get(), &prediction, training, nullptr, layer_begin, layer_end);
-      }
+      this->PredictRaw(data.get(), &prediction, training, decision_paths, layer_begin, layer_end);
       // Copy the prediction cache to output prediction. out_preds comes from C API
       out_preds->SetDevice(ctx_.gpu_id);
       out_preds->Resize(prediction.predictions.Size());
@@ -1456,7 +1455,7 @@ class LearnerImpl : public LearnerIO {
    * \param training allow dropout when the DART booster is being used
    */
   void PredictRaw(DMatrix *data, PredictionCacheEntry *out_preds, bool training,
-                  std::vector<std::vector<bst_node_t>> *decision_paths, unsigned layer_begin, unsigned layer_end) const {
+                  std::vector<TreeSetDecisionPath> *decision_paths, unsigned layer_begin, unsigned layer_end) const {
     CHECK(gbm_ != nullptr) << "Predict must happen after Load or configuration";
     this->CheckModelInitialized();
     this->ValidateDMatrix(data, false);

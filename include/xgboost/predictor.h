@@ -26,6 +26,7 @@ struct GBTreeModel;
 }  // namespace xgboost
 
 namespace xgboost {
+class TreeSetDecisionPath;
 /**
  * \brief Contains pointer to input matrix and associated cached predictions.
  */
@@ -109,7 +110,8 @@ class Predictor {
    * \param           tree_end    The tree end index.
    */
   virtual void PredictBatch(DMatrix* dmat, PredictionCacheEntry* out_preds,
-                            const gbm::GBTreeModel& model, std::vector<std::vector<bst_node_t>> *path_list, uint32_t tree_begin,
+                            const gbm::GBTreeModel& model,
+                            std::vector<TreeSetDecisionPath>* path_list, uint32_t tree_begin,
                             uint32_t tree_end = 0) const = 0;
 
   /**
@@ -126,7 +128,7 @@ class Predictor {
    * \return True if the data can be handled by current predictor, false otherwise.
    */
   virtual bool InplacePredict(std::shared_ptr<DMatrix> p_fmat, const gbm::GBTreeModel& model,
-                              float missing, PredictionCacheEntry* out_preds, std::vector<std::vector<bst_node_t>> *path_list,
+                              float missing, PredictionCacheEntry* out_preds, std::vector<TreeSetDecisionPath> *path_list,
                               uint32_t tree_begin = 0, uint32_t tree_end = 0) const = 0;
   /**
    * \brief online prediction function, predict score for one instance at a time

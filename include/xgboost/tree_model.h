@@ -839,5 +839,29 @@ inline bool RegTree::FVec::HasMissing() const {
 inline StringView MTNotImplemented() {
   return " support for multi-target tree is not yet implemented.";
 }
+
+class TreeSetDecisionPath {
+public:
+  TreeSetDecisionPath(uint32_t tree_count)
+    : tree2path_(tree_count) {}
+
+  const std::vector<bst_node_t> &get_decision_path(uint32_t tree_id) const {
+    return tree2path_.at(tree_id);
+  }
+
+  void set_decision_path(uint32_t tree_id, std::vector<bst_node_t> &&new_path) {
+    tree2path_.at(tree_id) = std::forward<std::vector<bst_node_t>>(new_path);
+  }
+
+  uint32_t num_trees() const {
+    return tree2path_.size();
+  }
+
+private:
+  std::vector<std::vector<bst_node_t>> tree2path_;
+};
+
+void PrintDecisionPath(FILE *os, const std::vector<std::string> &decision_paths_dumped);
+
 }  // namespace xgboost
 #endif  // XGBOOST_TREE_MODEL_H_

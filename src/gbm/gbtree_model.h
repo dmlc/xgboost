@@ -120,15 +120,28 @@ struct GBTreeModel : public Model {
     return dump;
   }
 
-  [[nodiscard]] std::vector<std::string> DumpDecisionPath(const FeatureMap& fmap,
-                                 bool with_stats,
-                                 const std::vector<std::vector<int32_t>> &decision_path) const {
-    std::vector<std::string> dump;
-    dump.resize(trees.size());
-    for (uint32_t i = 0; i < trees.size(); ++i) {
-      dump[i] = trees[i]->DumpDecisionPath(fmap, with_stats, decision_path[i]);
+  [[nodiscard]] std::vector<std::string> DumpDecisionPath(const FeatureMap& fmap, bool with_stats,
+      const std::vector<TreeSetDecisionPath>& decision_path_list) const {
+    std::vector<std::string> dump_row_tree;
+    dump_row_tree.reserve(decision_path_list.size());
+    for (uint64_t row_index = 0; row_index < decision_path_list.size(); ++row_index) {
+      auto &decision_path = decision_path_list.at(row_index);
+      std::string row_dump {"{\"row_index\": "};
+      row_dump += std::to_string(row_index) + std::string(", \"decision_path_per_tree\": [\n");
+      for (uint32_t tree_id = 0; tree_id < decision_path.num_trees(); ++tree_id) {
+        std::string path_dumped = trees.at(tree_id)->DumpDecisionPath(fmap, with_stats,
+                                            decision_path.get_decision_path(tree_id));
+        row_dump += std::string("{ \"tree_id\": ") + std::to_string(tree_id)
+                    + std::string(", \"decision_path\": [\n") + path_dumped + std::string("]\n");
+      }
+      row_dump += std::string("]}");
+      dump_row_tree.emplace_back(std::move(row_dump));
     }
-    return dump;
+    return dump_row_tree;
+  }
+
+  [[nodiscard]] uint64_t GetTreeCount() const {
+    return trees.size();
   }
 
   /**

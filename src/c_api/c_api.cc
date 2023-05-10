@@ -47,6 +47,7 @@
 #include "xgboost/span.h"                    // for Span
 #include "xgboost/string_view.h"             // for StringView, operator<<
 #include "xgboost/version_config.h"          // for XGBOOST_VER_MAJOR, XGBOOST_VER_MINOR, XGBOOS...
+#include "xgboost/tree_model.h"              // for decision path
 
 #if defined(XGBOOST_USE_FEDERATED)
 #include "../../plugin/federated/federated_server.h"
@@ -994,19 +995,20 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
                       type == PredictionType::kApproxInteraction;
   bool training = RequiredArg<Boolean>(config, "training", __func__);
   bool print_decision_path = RequiredArg<Boolean>(config, "print_decision_path", __func__);
+  std::string fmap_path = RequiredArg<String>(config, "fmap", __func__ );
 
   if (print_decision_path) {
-    std::vector<std::vector<int32_t>> decision_paths;
+    std::vector<TreeSetDecisionPath> row2paths;
+    row2paths.reserve(p_m->Info().num_row_);
+    for (uint32_t row_id = 0; row_id < p_m->Info().num_row_; ++row_id) {
+      row2paths.emplace_back(TreeSetDecisionPath{static_cast<uint32_t>(learner->GetTreeCount())});
+    }
     learner->Predict(p_m, type == PredictionType::kMargin, &entry.predictions,
                      iteration_begin, iteration_end, training,
                      type == PredictionType::kLeaf, contribs, approximate,
-                     interactions, &decision_paths);
-    auto decision_paths_output = learner->DumpDecisionPath(LoadFeatureMap(std::string{}), true, decision_paths);
-    fprintf(stderr, "[\n");
-    for (uint32_t tree_id = 0; tree_id < decision_paths_output.size(); ++tree_id) {
-      fprintf(stderr, "{\"tree_id\": %u, \"path\": [%s]},\n", tree_id, decision_paths_output.at(tree_id).c_str());
-    }
-    fprintf(stderr, "]\n");
+                     interactions, &row2paths);
+    auto decision_paths_dumped = learner->DumpDecisionPath(LoadFeatureMap(fmap_path), true, row2paths);
+    PrintDecisionPath(stderr, decision_paths_dumped);
   } else {
     learner->Predict(p_m, type == PredictionType::kMargin, &entry.predictions,
                      iteration_begin, iteration_end, training,

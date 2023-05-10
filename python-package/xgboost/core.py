@@ -2055,6 +2055,8 @@ class Booster:
         training: bool = False,
         iteration_range: Tuple[int, int] = (0, 0),
         strict_shape: bool = False,
+        print_decision_path: bool = False,
+        fmap: str = "",
     ) -> np.ndarray:
         """Predict with data.  The full model will be used unless `iteration_range` is specified,
         meaning user have to either slice the model or use the ``best_iteration``
@@ -2145,6 +2147,8 @@ class Booster:
             "iteration_begin": iteration_range[0],
             "iteration_end": iteration_range[1],
             "strict_shape": strict_shape,
+            "print_decision_path": print_decision_path,
+            "fmap": fmap,
         }
 
         def assign_type(t: int) -> None:

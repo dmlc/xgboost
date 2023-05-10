@@ -247,7 +247,7 @@ class GBTree : public GradientBooster {
   }
 
   void PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool training,
-                    std::vector<std::vector<bst_node_t>> *decision_paths, bst_layer_t layer_begin, bst_layer_t layer_end) override;
+                    std::vector<TreeSetDecisionPath>* decision_paths, bst_layer_t layer_begin, bst_layer_t layer_end) override;
 
   void InplacePredict(std::shared_ptr<DMatrix> p_m, float missing, PredictionCacheEntry* out_preds,
                       bst_layer_t layer_begin, bst_layer_t layer_end) const override {
@@ -394,8 +394,12 @@ class GBTree : public GradientBooster {
 
   std::vector<std::string> DumpDecisionPath(const FeatureMap& fmap,
                                             bool with_stats,
-                                            const std::vector<std::vector<int32_t>> &decision_paths) const override {
+      const std::vector<TreeSetDecisionPath>& decision_paths) const override {
     return model_.DumpDecisionPath(fmap, with_stats, decision_paths);
+  }
+
+  uint64_t GetTreeCount() const override {
+    return model_.GetTreeCount();
   }
 
  protected:

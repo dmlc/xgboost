@@ -26,6 +26,7 @@ namespace xgboost {
 class Json;
 class FeatureMap;
 class ObjFunction;
+class TreeSetDecisionPath;
 
 struct Context;
 struct LearnerModelParam;
@@ -99,7 +100,7 @@ class GradientBooster : public Model, public Configurable {
    * \param end      End of booster layer. 0 means do not limit trees.
    */
   virtual void PredictBatch(DMatrix* dmat, PredictionCacheEntry* out_preds, bool training,
-                            std::vector<std::vector<bst_node_t>> *decision_path, bst_layer_t begin, bst_layer_t end) = 0;
+                            std::vector<TreeSetDecisionPath>* decision_path, bst_layer_t begin, bst_layer_t end) = 0;
 
   /**
    * \brief Inplace prediction.
@@ -175,7 +176,9 @@ class GradientBooster : public Model, public Configurable {
 
   virtual std::vector<std::string> DumpDecisionPath(const FeatureMap& fmap,
                                                     bool with_stats,
-                                                    const std::vector<std::vector<int32_t>> &decision_paths) const = 0;
+      const std::vector<TreeSetDecisionPath>& decision_paths) const = 0;
+
+  virtual uint64_t GetTreeCount() const = 0;
 
   virtual void FeatureScore(std::string const& importance_type,
                             common::Span<int32_t const> trees,

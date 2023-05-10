@@ -111,12 +111,14 @@ TEST(GBTree, DecisionPath) {
   for (uint32_t feat_i = 0; feat_i < kCols; ++feat_i) {
     feature_map.PushBack(feat_i, (std::string("feat_slot_") + std::to_string(feat_i)).c_str(), "float");
   }
-  std::vector<std::vector<bst_node_t>> decision_paths;
-  gbtree.PredictBatch(p_m.get(), &out_predictions, false, &decision_paths, 0, 1);
-  auto decision_paths_dumped = gbtree.DumpDecisionPath(feature_map, true, decision_paths);
-  for (uint32_t tree_id = 0; tree_id < decision_paths_dumped.size(); ++tree_id) {
-    fprintf(stderr, "tree_id: %u\n\t%s\n", tree_id, decision_paths_dumped.at(tree_id).c_str());
+  std::vector<TreeSetDecisionPath> row2paths;
+  row2paths.reserve(p_m->Info().num_row_);
+  for (uint32_t row_id = 0; row_id < p_m->Info().num_row_; ++row_id) {
+    row2paths.emplace_back(TreeSetDecisionPath{static_cast<uint32_t>(gbtree.GetTreeCount())});
   }
+  gbtree.PredictBatch(p_m.get(), &out_predictions, false, &row2paths, 0, 1);
+  auto decision_paths_dumped = gbtree.DumpDecisionPath(feature_map, true, row2paths);
+  PrintDecisionPath(stderr, decision_paths_dumped);
   ASSERT_EQ(1, out_predictions.version);
   std::vector<float> first_iter = out_predictions.predictions.HostVector();
 }

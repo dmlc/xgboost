@@ -67,6 +67,9 @@ std::vector<bst_node_t> GetLeafIndexVerbose(RegTree const &tree, const RegTree::
     nidx = GetNextNode<has_missing, has_categorical>(
         tree[nidx], nidx, fvalue, has_missing && feat.IsMissing(split_index), cats);
   }
+  if (nid_list.empty()) {
+    nid_list.push_back(nidx);
+  }
   return nid_list;
 }
 
@@ -177,10 +180,11 @@ std::vector<bst_node_t> PredValueByOneTreeVerbose(RegTree::FVec const &p_feats, 
 
 namespace {
 template <bool verbose>
-std::map<uint32_t, std::vector<bst_node_t>> PredictByAllTrees(gbm::GBTreeModel const &model, std::uint32_t const tree_begin,
+void PredictByAllTrees(gbm::GBTreeModel const &model, std::uint32_t const tree_begin,
                        std::uint32_t const tree_end, std::size_t const predict_offset,
                        std::vector<RegTree::FVec> const &thread_temp, std::size_t const offset,
-                       std::size_t const block_size, linalg::MatrixView<float> out_predt) {
+                       std::size_t const block_size, linalg::MatrixView<float> out_predt,
+                       std::vector<TreeSetDecisionPath> *path_list) {
   std::map<uint32_t, std::vector<bst_node_t>> tree2path;
   for (std::uint32_t tree_id = tree_begin; tree_id < tree_end; ++tree_id) {
     auto const &tree = *model.trees.at(tree_id);
@@ -193,19 +197,22 @@ std::map<uint32_t, std::vector<bst_node_t>> PredictByAllTrees(gbm::GBTreeModel c
         for (std::size_t i = 0; i < block_size; ++i) {
           auto t_predts = out_predt.Slice(predict_offset + i, linalg::All());
           if (verbose) {
-            node_path = multi::PredValueByOneTreeVerbose<true>(thread_temp[offset + i], *tree.GetMultiTargetTree(), cats,
-                                                               t_predts);
+            path_list->at(offset + i).set_decision_path(tree_id,
+                                                        multi::PredValueByOneTreeVerbose<true>(
+                                                            thread_temp[offset + i],
+                                                            *tree.GetMultiTargetTree(),
+                                                            cats, t_predts));
           } else {
             multi::PredValueByOneTree<true>(thread_temp[offset + i], *tree.GetMultiTargetTree(), cats,
-                                                   t_predts);
+                                            t_predts);
           }
         }
       } else {
         for (std::size_t i = 0; i < block_size; ++i) {
           auto t_predts = out_predt.Slice(predict_offset + i, linalg::All());
           if (verbose) {
-            node_path = multi::PredValueByOneTreeVerbose<false>(thread_temp[offset + i], *tree.GetMultiTargetTree(),
-                                                                cats, t_predts);
+            path_list->at(offset + i).set_decision_path(tree_id, multi::PredValueByOneTreeVerbose<false>(thread_temp[offset + i], *tree.GetMultiTargetTree(),
+                                                                cats, t_predts));
           } else {
             multi::PredValueByOneTree<false>(thread_temp[offset + i], *tree.GetMultiTargetTree(),
                                                     cats, t_predts);
@@ -219,6 +226,7 @@ std::map<uint32_t, std::vector<bst_node_t>> PredictByAllTrees(gbm::GBTreeModel c
           if (verbose) {
             node_path = scalar::PredValueByOneTreeVerbose<true>(thread_temp[offset + i], tree, cats);
             out_predt(predict_offset + i, gid) += tree[node_path.back()].LeafValue();
+            path_list->at(offset + i).set_decision_path(tree_id, std::move(node_path));
           } else {
             out_predt(predict_offset + i, gid) +=
                 scalar::PredValueByOneTree<true>(thread_temp[offset + i], tree, cats);
@@ -229,6 +237,7 @@ std::map<uint32_t, std::vector<bst_node_t>> PredictByAllTrees(gbm::GBTreeModel c
           if (verbose) {
             node_path = scalar::PredValueByOneTreeVerbose<true>(thread_temp[offset + i], tree, cats);
             out_predt(predict_offset + i, gid) += tree[node_path.back()].LeafValue();
+            path_list->at(offset + i).set_decision_path(tree_id, std::move(node_path));
           } else {
             out_predt(predict_offset + i, gid) +=
                 scalar::PredValueByOneTree<true>(thread_temp[offset + i], tree, cats);
@@ -240,7 +249,6 @@ std::map<uint32_t, std::vector<bst_node_t>> PredictByAllTrees(gbm::GBTreeModel c
       tree2path.insert(std::make_pair(tree_id, node_path));
     }
   }
-  return tree2path;
 }
 
 template <typename DataView>
@@ -370,10 +378,10 @@ class AdapterView {
 };
 
 template <typename DataView, size_t block_of_rows_size, bool verbose>
-std::map<uint32_t, std::vector<bst_node_t>> PredictBatchByBlockOfRowsKernel(DataView batch, gbm::GBTreeModel const &model,
+void PredictBatchByBlockOfRowsKernel(DataView batch, gbm::GBTreeModel const &model,
                                      std::uint32_t tree_begin, std::uint32_t tree_end,
                                      std::vector<RegTree::FVec> *p_thread_temp, int32_t n_threads,
-                                     linalg::TensorView<float, 2> out_predt) {
+                                     linalg::TensorView<float, 2> out_predt, std::vector<TreeSetDecisionPath> *path_list) {
   auto &thread_temp = *p_thread_temp;
 
   // parallel over local batch
@@ -381,9 +389,6 @@ std::map<uint32_t, std::vector<bst_node_t>> PredictBatchByBlockOfRowsKernel(Data
   const int num_feature = model.learner_model_param->num_feature;
   omp_ulong n_blocks = common::DivRoundUp(nsize, block_of_rows_size);
   // verbose decision path information
-  std::map<uint32_t, std::vector<bst_node_t>> tree2path_globl;
-  omp_lock_t globl_lock;
-  omp_init_lock(&globl_lock);
 
   common::ParallelFor(n_blocks, n_threads, [&](bst_omp_uint block_id) {
     const size_t batch_offset = block_id * block_of_rows_size;
@@ -393,18 +398,14 @@ std::map<uint32_t, std::vector<bst_node_t>> PredictBatchByBlockOfRowsKernel(Data
     FVecFill(block_size, batch_offset, num_feature, &batch, fvec_offset, p_thread_temp);
     // process block of rows through all trees to keep cache locality
     if (verbose) {
-      auto tree2path = PredictByAllTrees<true>(model, tree_begin, tree_end, batch_offset + batch.base_rowid, thread_temp,
-                        fvec_offset, block_size, out_predt);
-      omp_set_lock(&globl_lock);
-      tree2path_globl.insert(tree2path.begin(), tree2path.end());
-      omp_unset_lock(&globl_lock);
+      PredictByAllTrees<true>(model, tree_begin, tree_end, batch_offset + batch.base_rowid, thread_temp,
+                        fvec_offset, block_size, out_predt, path_list);
     } else {
       PredictByAllTrees<false>(model, tree_begin, tree_end, batch_offset + batch.base_rowid, thread_temp,
-                        fvec_offset, block_size, out_predt);
+                        fvec_offset, block_size, out_predt, path_list);
     }
     FVecDrop(block_size, fvec_offset, p_thread_temp);
   });
-  return tree2path_globl;
 }
 
 float FillNodeMeanValues(RegTree const *tree, bst_node_t nidx, std::vector<float> *mean_values) {
@@ -706,12 +707,12 @@ class ColumnSplitHelper {
 class CPUPredictor : public Predictor {
  protected:
   template <bool verbose>
-  std::map<uint32_t, std::vector<bst_node_t>> PredictDMatrix(DMatrix *p_fmat, std::vector<bst_float> *out_preds,
+  void PredictDMatrix(DMatrix *p_fmat, std::vector<bst_float> *out_preds, std::vector<TreeSetDecisionPath> *path_list,
                       gbm::GBTreeModel const &model, int32_t tree_begin, int32_t tree_end) const {
     if (p_fmat->Info().IsColumnSplit()) {
       ColumnSplitHelper helper(this->ctx_->Threads(), model, tree_begin, tree_end);
       helper.PredictDMatrix(p_fmat, out_preds);
-      return std::map<uint32_t, std::vector<bst_node_t>> {};
+      return;
     }
 
     auto const n_threads = this->ctx_->Threads();
@@ -729,60 +730,51 @@ class CPUPredictor : public Predictor {
     CHECK_EQ(out_preds->size(), n_samples * n_groups);
     linalg::TensorView<float, 2> out_predt{*out_preds, {n_samples, n_groups}, ctx_->gpu_id};
 
-    std::map<uint32_t, std::vector<bst_node_t>> tree2path_globl;
+    std::vector<TreeSetDecisionPath> result;
     if (!p_fmat->PageExists<SparsePage>()) {
       std::vector<Entry> workspace(p_fmat->Info().num_col_ * kUnroll * n_threads);
       auto ft = p_fmat->Info().feature_types.ConstHostVector();
       for (auto const &batch : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, {})) {
         if (blocked) {
-          auto tree2path = PredictBatchByBlockOfRowsKernel<GHistIndexMatrixView, kBlockOfRowsSize, verbose>(
+          PredictBatchByBlockOfRowsKernel<GHistIndexMatrixView, kBlockOfRowsSize, verbose>(
               GHistIndexMatrixView{batch, p_fmat->Info().num_col_, ft, workspace, n_threads}, model,
-              tree_begin, tree_end, &feat_vecs, n_threads, out_predt);
-          tree2path_globl.insert(tree2path.begin(), tree2path.end());
+              tree_begin, tree_end, &feat_vecs, n_threads, out_predt, path_list);
         } else {
-          auto tree2path = PredictBatchByBlockOfRowsKernel<GHistIndexMatrixView, 1, verbose>(
+          PredictBatchByBlockOfRowsKernel<GHistIndexMatrixView, 1, verbose>(
               GHistIndexMatrixView{batch, p_fmat->Info().num_col_, ft, workspace, n_threads}, model,
-              tree_begin, tree_end, &feat_vecs, n_threads, out_predt);
-          tree2path_globl.insert(tree2path.begin(), tree2path.end());
+              tree_begin, tree_end, &feat_vecs, n_threads, out_predt, path_list);
         }
       }
     } else {
       for (auto const &batch : p_fmat->GetBatches<SparsePage>()) {
         if (blocked) {
-          auto tree2path = PredictBatchByBlockOfRowsKernel<SparsePageView, kBlockOfRowsSize, verbose>(
+          PredictBatchByBlockOfRowsKernel<SparsePageView, kBlockOfRowsSize, verbose>(
               SparsePageView{&batch}, model, tree_begin, tree_end, &feat_vecs, n_threads,
-              out_predt);
-          tree2path_globl.insert(tree2path.begin(), tree2path.end());
+              out_predt, path_list);
         } else {
-          auto tree2path = PredictBatchByBlockOfRowsKernel<SparsePageView, 1, verbose>(SparsePageView{&batch}, model,
+          PredictBatchByBlockOfRowsKernel<SparsePageView, 1, verbose>(SparsePageView{&batch}, model,
                                                              tree_begin, tree_end, &feat_vecs,
-                                                             n_threads, out_predt);
-          tree2path_globl.insert(tree2path.begin(), tree2path.end());
+                                                             n_threads, out_predt, path_list);
         }
       }
     }
-    return tree2path_globl;
   }
 
  public:
   explicit CPUPredictor(Context const *ctx) : Predictor::Predictor{ctx} {}
 
   void PredictBatch(DMatrix *dmat, PredictionCacheEntry *predts, const gbm::GBTreeModel &model,
-                    std::vector<std::vector<bst_node_t>> *path_list, uint32_t tree_begin, uint32_t tree_end = 0) const override {
+                    std::vector<TreeSetDecisionPath> *path_list, uint32_t tree_begin, uint32_t tree_end = 0) const override {
     auto *out_preds = &predts->predictions;
     // This is actually already handled in gbm, but large amount of tests rely on the
     // behaviour.
     if (tree_end == 0) {
       tree_end = model.trees.size();
     }
-    std::map<uint32_t, std::vector<bst_node_t>> tree2path;
     if (path_list != nullptr) {
-      tree2path = this->PredictDMatrix<true>(dmat, &out_preds->HostVector(), model, tree_begin, tree_end);
-      for (auto &pair : tree2path) {
-        path_list->at(pair.first) = pair.second;
-      }
+      this->PredictDMatrix<true>(dmat, &out_preds->HostVector(), path_list, model, tree_begin, tree_end);
     } else {
-      this->PredictDMatrix<false>(dmat, &out_preds->HostVector(), model, tree_begin, tree_end);
+      this->PredictDMatrix<false>(dmat, &out_preds->HostVector(), path_list, model, tree_begin, tree_end);
     }
   }
 
@@ -790,7 +782,7 @@ class CPUPredictor : public Predictor {
   void DispatchedInplacePredict(std::any const &x, std::shared_ptr<DMatrix> p_m,
                                 const gbm::GBTreeModel &model, float missing,
                                 PredictionCacheEntry *out_preds, uint32_t tree_begin,
-                                uint32_t tree_end) const {
+                                uint32_t tree_end, std::vector<TreeSetDecisionPath> *path_list) const {
     auto const n_threads = this->ctx_->Threads();
     auto m = std::any_cast<std::shared_ptr<Adapter>>(x);
     CHECK_EQ(m->NumColumns(), model.learner_model_param->num_feature)
@@ -812,27 +804,27 @@ class CPUPredictor : public Predictor {
     linalg::TensorView<float, 2> out_predt{predictions, {m->NumRows(), n_groups}, Context::kCpuId};
     PredictBatchByBlockOfRowsKernel<AdapterView<Adapter>, kBlockSize, false>(
         AdapterView<Adapter>(m.get(), missing, common::Span<Entry>{workspace}, n_threads), model,
-        tree_begin, tree_end, &thread_temp, n_threads, out_predt);
+        tree_begin, tree_end, &thread_temp, n_threads, out_predt, path_list);
   }
 
   bool InplacePredict(std::shared_ptr<DMatrix> p_m, const gbm::GBTreeModel &model, float missing,
-                      PredictionCacheEntry *out_preds, std::vector<std::vector<bst_node_t>> *path_list, uint32_t tree_begin,
+                      PredictionCacheEntry *out_preds, std::vector<TreeSetDecisionPath> *path_list, uint32_t tree_begin,
                       unsigned tree_end) const override {
     auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
     CHECK(proxy)<< "Inplace predict accepts only DMatrixProxy as input.";
     auto x = proxy->Adapter();
     if (x.type() == typeid(std::shared_ptr<data::DenseAdapter>)) {
       this->DispatchedInplacePredict<data::DenseAdapter, kBlockOfRowsSize>(
-          x, p_m, model, missing, out_preds, tree_begin, tree_end);
+          x, p_m, model, missing, out_preds, tree_begin, tree_end, path_list);
     } else if (x.type() == typeid(std::shared_ptr<data::CSRAdapter>)) {
       this->DispatchedInplacePredict<data::CSRAdapter, 1>(x, p_m, model, missing, out_preds,
-                                                          tree_begin, tree_end);
+                                                          tree_begin, tree_end, path_list);
     } else if (x.type() == typeid(std::shared_ptr<data::ArrayAdapter>)) {
       this->DispatchedInplacePredict<data::ArrayAdapter, kBlockOfRowsSize>(
-          x, p_m, model, missing, out_preds, tree_begin, tree_end);
+          x, p_m, model, missing, out_preds, tree_begin, tree_end, path_list);
     } else if (x.type() == typeid(std::shared_ptr<data::CSRArrayAdapter>)) {
       this->DispatchedInplacePredict<data::CSRArrayAdapter, 1>(x, p_m, model, missing, out_preds,
-                                                               tree_begin, tree_end);
+                                                               tree_begin, tree_end, path_list);
     } else {
       return false;
     }

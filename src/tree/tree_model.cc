@@ -515,7 +515,7 @@ class JsonGenerator : public TreeGenerator {
   }
 
   void BuildPath(RegTree const &tree, const std::vector<int32_t> &path) override {
-    static std::string const pathEntryTemplate = "{{properties} {stat}},\n";
+    static std::string const pathEntryTemplate = "{{properties} {stat}}";
     std::string result;
     for (uint32_t i = 0; i < path.size(); ++i) {
       int32_t nid = path.at(i);
@@ -527,10 +527,22 @@ class JsonGenerator : public TreeGenerator {
               {"{stat}", with_stats_ ? this->NodeStat(tree, nid) : ""},
           }
       );
+      if (i < path.size() - 1) {
+        result += std::string(",");
+      }
+      result += std::string("\n");
     }
     ss_ << result;
   }
 };
+
+void PrintDecisionPath(FILE *os, const std::vector<std::string> &decision_paths_dumped) {
+  fprintf(os, "[");
+  for (uint32_t tree_id = 0; tree_id < decision_paths_dumped.size(); ++tree_id) {
+    fprintf(stderr, "%s,\n", decision_paths_dumped.at(tree_id).c_str());
+  }
+  fprintf(os, "]");
+}
 
 XGBOOST_REGISTER_TREE_IO(JsonGenerator, "json")
     .describe("Dump json representation of tree")

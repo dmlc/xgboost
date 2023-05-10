@@ -35,6 +35,7 @@ class Json;
 struct XGBAPIThreadLocalEntry;
 template <typename T>
 class HostDeviceVector;
+class TreeSetDecisionPath;
 
 enum class PredictionType : std::uint8_t {  // NOLINT
   kValue = 0,
@@ -120,7 +121,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
                        bool pred_contribs = false,
                        bool approx_contribs = false,
                        bool pred_interactions = false,
-                       std::vector<std::vector<int32_t>> *decision_path = nullptr) = 0;
+                       std::vector<TreeSetDecisionPath> *decision_path = nullptr) = 0;
 
   /*!
    * \brief Inplace prediction.
@@ -242,6 +243,9 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    */
   virtual Learner* Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step,
                          bool* out_of_bound) = 0;
+
+  virtual uint64_t GetTreeCount() const = 0;
+
   /*!
    * \brief dump the model in the requested format
    * \param fmap feature map that may help give interpretations of feature
@@ -253,7 +257,8 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
                                              bool with_stats,
                                              std::string format) = 0;
 
-  virtual std::vector<std::string> DumpDecisionPath(const FeatureMap& fmap, bool with_stats, const std::vector<std::vector<int32_t>> &decision_path) = 0;
+  virtual std::vector<std::string> DumpDecisionPath(const FeatureMap& fmap, bool with_stats,
+      const std::vector<TreeSetDecisionPath>& decision_path) = 0;
 
   virtual XGBAPIThreadLocalEntry& GetThreadLocal() const = 0;
   /*!
