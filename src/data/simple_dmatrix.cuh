@@ -64,7 +64,7 @@ void CountRowOffsets(const AdapterBatchT& batch, common::Span<bst_row_t> offset,
 template <typename AdapterBatchT>
 size_t CopyToSparsePage(AdapterBatchT const& batch, int32_t device, float missing,
                         SparsePage* page) {
-  bool valid = HasInfInData(batch, IsValidFunctor{missing});
+  bool valid = NoInfInData(batch, IsValidFunctor{missing});
   CHECK(valid) << error::InfInData();
 
   page->offset.SetDevice(device);

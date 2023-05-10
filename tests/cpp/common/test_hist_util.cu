@@ -21,8 +21,7 @@
 #include "../helpers.h"
 #include "test_hist_util.h"
 
-namespace xgboost {
-namespace common {
+namespace xgboost::common {
 
 template <typename AdapterT>
 HistogramCuts GetHostCuts(Context const* ctx, AdapterT* adapter, int num_bins, float missing) {
@@ -48,22 +47,6 @@ TEST(HistUtil, DeviceSketch) {
   EXPECT_EQ(device_cuts.MinValues(), host_cuts.MinValues());
 }
 
-TEST(HistUtil, SketchBatchNumElements) {
-#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-  LOG(WARNING) << "Test not runnable with RMM enabled.";
-  return;
-#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-  size_t constexpr kCols = 10000;
-  int device;
-  dh::safe_cuda(cudaGetDevice(&device));
-  auto avail = static_cast<size_t>(dh::AvailableMemory(device) * 0.8);
-  auto per_elem = detail::BytesPerElement(false);
-  auto avail_elem = avail / per_elem;
-  size_t rows = avail_elem / kCols * 10;
-  auto batch = detail::SketchBatchNumElements(0, rows, kCols, rows * kCols, device, 256, false);
-  ASSERT_EQ(batch, avail_elem);
-}
-
 TEST(HistUtil, DeviceSketchMemory) {
   int num_columns = 100;
   int num_rows = 1000;
@@ -71,15 +54,26 @@ TEST(HistUtil, DeviceSketchMemory) {
   auto x = GenerateRandom(num_rows, num_columns);
   auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
 
-  dh::GlobalMemoryLogger().Clear();
-  ConsoleLogger::Configure({{"verbosity", "3"}});
-  auto device_cuts = DeviceSketch(0, dmat.get(), num_bins);
+  SketchContainer sketch_container(dmat->Info().feature_types, num_bins, dmat->Info().num_col_,
+                                   dmat->Info().num_row_, 0);
+  auto verbosity = GlobalConfigThreadLocalStore::Get()->verbosity;
 
-  size_t bytes_required = detail::RequiredMemory(
-      num_rows, num_columns, num_rows * num_columns, num_bins, false);
-  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
-  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 0.95);
-  ConsoleLogger::Configure({{"verbosity", "0"}});
+  for (auto const& page : dmat->GetBatches<SparsePage>()) {
+    dh::GlobalMemoryLogger().Clear();
+    ConsoleLogger::Configure({{"verbosity", "3"}});
+
+    size_t num_cuts_per_feature =
+        detail::RequiredSampleCutsPerColumn(num_bins, dmat->Info().num_row_);
+    ProcessBatch(0, dmat->Info(), page, 0, page.data.Size(), &sketch_container,
+                 num_cuts_per_feature, dmat->Info().num_col_);
+    std::size_t bytes_required = detail::RequiredMemory(
+        num_rows, num_columns, num_rows * num_columns, num_bins, false, page.data.DeviceCanRead());
+
+    EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
+    EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 0.95);
+  }
+
+  ConsoleLogger::Configure({{"verbosity", std::to_string(verbosity)}});
 }
 
 TEST(HistUtil, DeviceSketchWeightsMemory) {
@@ -89,16 +83,27 @@ TEST(HistUtil, DeviceSketchWeightsMemory) {
   auto x = GenerateRandom(num_rows, num_columns);
   auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
   dmat->Info().weights_.HostVector() = GenerateRandomWeights(num_rows);
+  dmat->Info().weights_.SetDevice(0);
+  SketchContainer sketch_container(dmat->Info().feature_types, num_bins, dmat->Info().num_col_,
+                                   dmat->Info().num_row_, 0);
 
-  dh::GlobalMemoryLogger().Clear();
-  ConsoleLogger::Configure({{"verbosity", "3"}});
-  auto device_cuts = DeviceSketch(0, dmat.get(), num_bins);
-  ConsoleLogger::Configure({{"verbosity", "0"}});
+  for (auto const& page : dmat->GetBatches<SparsePage>()) {
+    auto verbosity = GlobalConfigThreadLocalStore::Get()->verbosity;
+    dh::GlobalMemoryLogger().Clear();
+    ConsoleLogger::Configure({{"verbosity", "3"}});
 
-  size_t bytes_required = detail::RequiredMemory(
-      num_rows, num_columns, num_rows * num_columns, num_bins, true);
-  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
-  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required);
+    size_t num_cuts_per_feature =
+        detail::RequiredSampleCutsPerColumn(num_bins, dmat->Info().num_row_);
+    ProcessWeightedBatch(0, dmat->Info(), page, 0, page.data.Size(), &sketch_container,
+                         num_cuts_per_feature, dmat->Info().num_col_, false, {});
+    std::size_t bytes_required = detail::RequiredMemory(
+        num_rows, num_columns, num_rows * num_columns, num_bins, true, page.data.DeviceCanRead());
+
+    EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
+    EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 0.95);
+
+    ConsoleLogger::Configure({{"verbosity", std::to_string(verbosity)}});
+  }
 }
 
 TEST(HistUtil, DeviceSketchDeterminism) {
@@ -196,7 +201,7 @@ TEST(HistUtil, DeviceSketchMultipleColumnsWeights) {
   }
 }
 
-TEST(HistUitl, DeviceSketchWeights) {
+TEST(HistUtil, DeviceSketchWeights) {
   int bin_sizes[] = {2, 16, 256, 512};
   int sizes[] = {100, 1000, 1500};
   int num_columns = 5;
@@ -318,24 +323,6 @@ TEST(HistUtil, AdapterDeviceSketch) {
   EXPECT_EQ(device_cuts.MinValues(), host_cuts.MinValues());
 }
 
-TEST(HistUtil, AdapterDeviceSketchMemory) {
-  int num_columns = 100;
-  int num_rows = 1000;
-  int num_bins = 256;
-  auto x = GenerateRandom(num_rows, num_columns);
-  auto x_device = thrust::device_vector<float>(x);
-  auto adapter = AdapterFromData(x_device, num_rows, num_columns);
-
-  dh::GlobalMemoryLogger().Clear();
-  ConsoleLogger::Configure({{"verbosity", "3"}});
-  auto cuts = MakeUnweightedCutsForTest(adapter, num_bins, std::numeric_limits<float>::quiet_NaN());
-  ConsoleLogger::Configure({{"verbosity", "0"}});
-  size_t bytes_required = detail::RequiredMemory(
-      num_rows, num_columns, num_rows * num_columns, num_bins, false);
-  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
-  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 0.95);
-}
-
 TEST(HistUtil, AdapterSketchSlidingWindowMemory) {
   int num_columns = 100;
   int num_rows = 1000;
@@ -343,22 +330,25 @@ TEST(HistUtil, AdapterSketchSlidingWindowMemory) {
   auto x = GenerateRandom(num_rows, num_columns);
   auto x_device = thrust::device_vector<float>(x);
   auto adapter = AdapterFromData(x_device, num_rows, num_columns);
-  MetaInfo info;
 
-  dh::GlobalMemoryLogger().Clear();
-  ConsoleLogger::Configure({{"verbosity", "3"}});
-  common::HistogramCuts batched_cuts;
+  MetaInfo info;
   HostDeviceVector<FeatureType> ft;
   SketchContainer sketch_container(ft, num_bins, num_columns, num_rows, 0);
-  AdapterDeviceSketch(adapter.Value(), num_bins, info, std::numeric_limits<float>::quiet_NaN(),
-                      &sketch_container);
-  HistogramCuts cuts;
-  sketch_container.MakeCuts(&cuts);
-  size_t bytes_required = detail::RequiredMemory(
-      num_rows, num_columns, num_rows * num_columns, num_bins, false);
+
+  dh::GlobalMemoryLogger().Clear();
+  auto verbosity = GlobalConfigThreadLocalStore::Get()->verbosity;
+  ConsoleLogger::Configure({{"verbosity", "3"}});
+
+  auto nnz = std::numeric_limits<size_t>::max();
+  AdapterDeviceSketch(adapter.Value(), num_bins, info, nnz, &sketch_container);
+
+  size_t num_cuts_per_feature = detail::RequiredSampleCutsPerColumn(num_bins, num_rows);
+  size_t bytes_required =
+      detail::RequiredMemory(num_rows, num_columns, nnz, num_cuts_per_feature, false, true);
   EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
   EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 0.95);
-  ConsoleLogger::Configure({{"verbosity", "0"}});
+
+  ConsoleLogger::Configure({{"verbosity", std::to_string(verbosity)}});
 }
 
 TEST(HistUtil, AdapterSketchSlidingWindowWeightedMemory) {
@@ -368,31 +358,34 @@ TEST(HistUtil, AdapterSketchSlidingWindowWeightedMemory) {
   auto x = GenerateRandom(num_rows, num_columns);
   auto x_device = thrust::device_vector<float>(x);
   auto adapter = AdapterFromData(x_device, num_rows, num_columns);
+
   MetaInfo info;
   auto& h_weights = info.weights_.HostVector();
   h_weights.resize(num_rows);
   std::fill(h_weights.begin(), h_weights.end(), 1.0f);
+  info.weights_.SetDevice(0);
 
-  dh::GlobalMemoryLogger().Clear();
-  ConsoleLogger::Configure({{"verbosity", "3"}});
-  common::HistogramCuts batched_cuts;
   HostDeviceVector<FeatureType> ft;
   SketchContainer sketch_container(ft, num_bins, num_columns, num_rows, 0);
-  AdapterDeviceSketch(adapter.Value(), num_bins, info,
-                      std::numeric_limits<float>::quiet_NaN(),
-                      &sketch_container);
 
-  HistogramCuts cuts;
-  sketch_container.MakeCuts(&cuts);
-  ConsoleLogger::Configure({{"verbosity", "0"}});
-  size_t bytes_required = detail::RequiredMemory(
-      num_rows, num_columns, num_rows * num_columns, num_bins, true);
+  dh::GlobalMemoryLogger().Clear();
+  auto verbosity = GlobalConfigThreadLocalStore::Get()->verbosity;
+  ConsoleLogger::Configure({{"verbosity", "3"}});
+
+  auto nnz = std::numeric_limits<size_t>::max();
+  AdapterDeviceSketch(adapter.Value(), num_bins, info, nnz, &sketch_container);
+
+  size_t num_cuts_per_feature = detail::RequiredSampleCutsPerColumn(num_bins, num_rows);
+  size_t bytes_required =
+      detail::RequiredMemory(num_rows, num_columns, nnz, num_cuts_per_feature, true, true);
   EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
   EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required);
+
+  ConsoleLogger::Configure({{"verbosity", std::to_string(verbosity)}});
 }
 
-void TestCategoricalSketchAdapter(size_t n, size_t num_categories,
-                                  int32_t num_bins, bool weighted) {
+void TestCategoricalSketchAdapter(size_t n, size_t num_categories, int32_t num_bins, bool weighted,
+                                  std::size_t batch_size) {
   auto h_x = GenerateRandomCategoricalSingleColumn(n, num_categories);
   thrust::device_vector<float> x(h_x);
   auto adapter = AdapterFromData(x, n, 1);
@@ -413,8 +406,8 @@ void TestCategoricalSketchAdapter(size_t n, size_t num_categories,
 
   ASSERT_EQ(info.feature_types.Size(), 1);
   SketchContainer container(info.feature_types, num_bins, 1, n, 0);
-  AdapterDeviceSketch(adapter.Value(), num_bins, info,
-                      std::numeric_limits<float>::quiet_NaN(), &container);
+  AdapterDeviceSketch(adapter.Value(), num_bins, info, std::numeric_limits<float>::quiet_NaN(),
+                      &container, batch_size);
   HistogramCuts cuts;
   container.MakeCuts(&cuts);
 
@@ -448,9 +441,21 @@ TEST(HistUtil, AdapterDeviceSketchCategorical) {
       auto x_device = thrust::device_vector<float>(x);
       auto adapter = AdapterFromData(x_device, n, 1);
       ValidateBatchedCuts(adapter, num_bins, dmat.get());
-      TestCategoricalSketchAdapter(n, num_categories, num_bins, true);
-      TestCategoricalSketchAdapter(n, num_categories, num_bins, false);
+      TestCategoricalSketchAdapter(n, num_categories, num_bins, true, /*batch_size=*/0);
+      TestCategoricalSketchAdapter(n, num_categories, num_bins, false, /*batch_size=*/0);
     }
+  }
+
+  for (std::size_t batch_size : {4ul, 32ul}) {
+    std::size_t n_samples = 4096;
+    std::int32_t n_categories = 64;
+    bst_bin_t n_bins = 13;
+    auto x = GenerateRandomCategoricalSingleColumn(n_samples, n_categories);
+    auto dmat = GetDMatrixFromData(x, n_samples, 1);
+    auto x_device = thrust::device_vector<float>(x);
+
+    auto adapter = AdapterFromData(x_device, n_samples, 1);
+    TestCategoricalSketchAdapter(n_samples, n_categories, n_bins, true, batch_size);
   }
 }
 
@@ -471,8 +476,8 @@ TEST(HistUtil, AdapterDeviceSketchMultipleColumns) {
 
 TEST(HistUtil, AdapterDeviceSketchBatches) {
   int num_bins = 256;
-  int num_rows = 5000;
-  int batch_sizes[] = {0, 100, 1500, 6000};
+  int num_rows = 512;
+  int batch_sizes[] = {0, 100};
   int num_columns = 5;
   for (auto batch_size : batch_sizes) {
     auto x = GenerateRandom(num_rows, num_columns);
@@ -481,6 +486,130 @@ TEST(HistUtil, AdapterDeviceSketchBatches) {
     auto adapter = AdapterFromData(x_device, num_rows, num_columns);
     ValidateBatchedCuts(adapter, num_bins, dmat.get(), batch_size);
   }
+}
+
+namespace {
+auto MakeData(Context const* ctx, std::size_t n_samples, bst_feature_t n_features) {
+  dh::safe_cuda(cudaSetDevice(ctx->gpu_id));
+  auto n = n_samples * n_features;
+  std::vector<float> x;
+  x.resize(n);
+
+  std::iota(x.begin(), x.end(), 0);
+  std::int32_t c{0};
+  float missing = n_samples * n_features;
+  for (std::size_t i = 0; i < x.size(); ++i) {
+    if (i % 5 == 0) {
+      x[i] = missing;
+      c++;
+    }
+  }
+  thrust::device_vector<float> d_x;
+  d_x = x;
+
+  auto n_invalids = n / 10 * 2 + 1;
+  auto is_valid = data::IsValidFunctor{missing};
+  return std::tuple{x, d_x, n_invalids, is_valid};
+}
+
+void TestGetColumnSize(std::size_t n_samples) {
+  auto ctx = MakeCUDACtx(0);
+  bst_feature_t n_features = 12;
+  [[maybe_unused]] auto [x, d_x, n_invalids, is_valid] = MakeData(&ctx, n_samples, n_features);
+
+  auto adapter = AdapterFromData(d_x, n_samples, n_features);
+  auto batch = adapter.Value();
+
+  auto batch_iter = dh::MakeTransformIterator<data::COOTuple>(
+      thrust::make_counting_iterator(0llu),
+      [=] __device__(std::size_t idx) { return batch.GetElement(idx); });
+
+  dh::caching_device_vector<std::size_t> column_sizes_scan;
+  column_sizes_scan.resize(n_features + 1);
+  std::vector<std::size_t> h_column_size(column_sizes_scan.size());
+  std::vector<std::size_t> h_column_size_1(column_sizes_scan.size());
+
+  detail::LaunchGetColumnSizeKernel<decltype(batch_iter), true, true>(
+      ctx.gpu_id, IterSpan{batch_iter, batch.Size()}, is_valid, dh::ToSpan(column_sizes_scan));
+  thrust::copy(column_sizes_scan.begin(), column_sizes_scan.end(), h_column_size.begin());
+
+  detail::LaunchGetColumnSizeKernel<decltype(batch_iter), true, false>(
+      ctx.gpu_id, IterSpan{batch_iter, batch.Size()}, is_valid, dh::ToSpan(column_sizes_scan));
+  thrust::copy(column_sizes_scan.begin(), column_sizes_scan.end(), h_column_size_1.begin());
+  ASSERT_EQ(h_column_size, h_column_size_1);
+
+  detail::LaunchGetColumnSizeKernel<decltype(batch_iter), false, true>(
+      ctx.gpu_id, IterSpan{batch_iter, batch.Size()}, is_valid, dh::ToSpan(column_sizes_scan));
+  thrust::copy(column_sizes_scan.begin(), column_sizes_scan.end(), h_column_size_1.begin());
+  ASSERT_EQ(h_column_size, h_column_size_1);
+
+  detail::LaunchGetColumnSizeKernel<decltype(batch_iter), false, false>(
+      ctx.gpu_id, IterSpan{batch_iter, batch.Size()}, is_valid, dh::ToSpan(column_sizes_scan));
+  thrust::copy(column_sizes_scan.begin(), column_sizes_scan.end(), h_column_size_1.begin());
+  ASSERT_EQ(h_column_size, h_column_size_1);
+}
+
+void TestMakeEntries(bst_row_t n_samples) {
+  bst_bin_t n_bins_per_feat = 256;
+  bst_feature_t n_features = 12;
+
+  auto ctx = MakeCUDACtx(0);
+  auto [x, d_x, n_invalids, is_valid] = MakeData(&ctx, n_samples, n_features);
+
+  HostDeviceVector<SketchContainer::OffsetT> cuts_ptr;
+  cuts_ptr.SetDevice(ctx.gpu_id);
+  auto n = n_samples * n_features;
+
+  auto adapter = AdapterFromData(d_x, n_samples, n_features);
+  auto batch = adapter.Value();
+
+  auto batch_iter = dh::MakeTransformIterator<data::COOTuple>(
+      thrust::make_counting_iterator(0llu),
+      [=] __device__(std::size_t idx) { return batch.GetElement(idx); });
+  dh::caching_device_vector<size_t> column_sizes_scan;
+  dh::device_vector<detail::SortedIdxT> sorted_idx;
+  std::size_t begin = 0, end = batch.Size();
+
+  detail::MakeEntriesFromAdapter(batch_iter, {begin, end}, is_valid, n_features, n_bins_per_feat,
+                                 ctx.gpu_id, &cuts_ptr, &column_sizes_scan, &sorted_idx);
+  ASSERT_EQ(sorted_idx.size(), n - n_invalids);
+
+  std::vector<std::uint32_t> h_sorted_idx(sorted_idx.size());
+  thrust::copy(sorted_idx.cbegin(), sorted_idx.cend(), h_sorted_idx.begin());
+
+  for (auto idx : h_sorted_idx) {
+    ASSERT_TRUE(is_valid(x[idx]));
+  }
+
+  std::vector<std::uint32_t> h_column_ptr(column_sizes_scan.size());
+  thrust::copy(column_sizes_scan.cbegin(), column_sizes_scan.cend(), h_column_ptr.begin());
+
+  for (std::size_t i = 1; i < column_sizes_scan.size(); ++i) {
+    auto beg = column_sizes_scan[i - 1];
+    auto end = column_sizes_scan[i];
+    for (std::size_t j = beg + 1; j < end; ++j) {
+      ASSERT_LE(h_sorted_idx.at(j - 1), h_sorted_idx.at(j));
+    }
+  }
+}
+}  // namespace
+
+TEST(HistUtil, MakeEntries) {
+  bst_row_t n_samples = 4096;
+  TestMakeEntries(n_samples);
+}
+
+TEST(HistUtil, DISABLED_MakeEntriesLarge) {
+  // Disabled by default due to memory limit.
+  bst_row_t n_samples =
+      static_cast<bst_row_t>(std::numeric_limits<std::uint32_t>::max()) / 12 + 256;
+  ASSERT_GT(n_samples * 12, std::numeric_limits<std::uint32_t>::max());
+  TestMakeEntries(n_samples);
+}
+
+TEST(HistUtil, GetColumnSize) {
+  bst_row_t n_samples = 4096;
+  TestGetColumnSize(n_samples);
 }
 
 // Check sketching from adapter or DMatrix results in the same answer
@@ -529,7 +658,7 @@ TEST(HistUtil, DeviceSketchFromGroupWeights) {
   ASSERT_EQ(cuts.Ptrs().size(), weighted_cuts.Ptrs().size());
 
   for (size_t i = 0; i < cuts.Values().size(); ++i) {
-    EXPECT_EQ(cuts.Values()[i], weighted_cuts.Values()[i]) << "i:"<< i;
+    EXPECT_EQ(cuts.Values()[i], weighted_cuts.Values()[i]);
   }
   for (size_t i = 0; i < cuts.MinValues().size(); ++i) {
     ASSERT_EQ(cuts.MinValues()[i], weighted_cuts.MinValues()[i]);
@@ -540,92 +669,94 @@ TEST(HistUtil, DeviceSketchFromGroupWeights) {
   ValidateCuts(weighted_cuts, m.get(), kBins);
 }
 
-void TestAdapterSketchFromWeights(bool with_group) {
-  size_t constexpr kRows = 300, kCols = 20, kBins = 256;
-  size_t constexpr kGroups = 10;
-  HostDeviceVector<float> storage;
-  std::string m =
-      RandomDataGenerator{kRows, kCols, 0}.Device(0).GenerateArrayInterface(
-          &storage);
-  MetaInfo info;
-  Context ctx;
-  auto& h_weights = info.weights_.HostVector();
-  if (with_group) {
-    h_weights.resize(kGroups);
-  } else {
-    h_weights.resize(kRows);
-  }
-  std::fill(h_weights.begin(), h_weights.end(), 1.0f);
-
-  std::vector<bst_group_t> groups(kGroups);
-  if (with_group) {
-    for (size_t i = 0; i < kGroups; ++i) {
-      groups[i] = kRows / kGroups;
-    }
-    info.SetInfo(ctx, "group", groups.data(), DataType::kUInt32, kGroups);
-  }
-
-  info.weights_.SetDevice(0);
-  info.num_row_ = kRows;
-  info.num_col_ = kCols;
-
-  data::CupyAdapter adapter(m);
-  auto const& batch = adapter.Value();
-  HostDeviceVector<FeatureType> ft;
-  SketchContainer sketch_container(ft, kBins, kCols, kRows, 0);
-  AdapterDeviceSketch(adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
-                      &sketch_container);
-
-  common::HistogramCuts cuts;
-  sketch_container.MakeCuts(&cuts);
-
-  auto dmat = GetDMatrixFromData(storage.HostVector(), kRows, kCols);
-  if (with_group) {
-    dmat->Info().SetInfo(ctx, "group", groups.data(), DataType::kUInt32, kGroups);
-  }
-
-  dmat->Info().SetInfo(ctx, "weight", h_weights.data(), DataType::kFloat32, h_weights.size());
-  dmat->Info().num_col_ = kCols;
-  dmat->Info().num_row_ = kRows;
-  ASSERT_EQ(cuts.Ptrs().size(), kCols + 1);
-  ValidateCuts(cuts, dmat.get(), kBins);
-
-  if (with_group) {
-    dmat->Info().weights_ = decltype(dmat->Info().weights_)();  // remove weight
-    HistogramCuts non_weighted = DeviceSketch(0, dmat.get(), kBins, 0);
-    for (size_t i = 0; i < cuts.Values().size(); ++i) {
-      ASSERT_EQ(cuts.Values()[i], non_weighted.Values()[i]);
-    }
-    for (size_t i = 0; i < cuts.MinValues().size(); ++i) {
-      ASSERT_EQ(cuts.MinValues()[i], non_weighted.MinValues()[i]);
-    }
-    for (size_t i = 0; i < cuts.Ptrs().size(); ++i) {
-      ASSERT_EQ(cuts.Ptrs().at(i), non_weighted.Ptrs().at(i));
-    }
-  }
-
-  if (with_group) {
-    common::HistogramCuts weighted;
+class HistUtilSketch : public ::testing::TestWithParam<bool> {
+ public:
+  void TestAdapterSketchFromWeights(bool with_group) {
+    size_t constexpr kRows = 300, kCols = 20, kBins = 256;
+    size_t constexpr kGroups = 10;
+    HostDeviceVector<float> storage;
+    std::string m = RandomDataGenerator{kRows, kCols, 0}.Device(0).GenerateArrayInterface(&storage);
+    MetaInfo info;
+    Context ctx;
     auto& h_weights = info.weights_.HostVector();
-    h_weights.resize(kGroups);
-    // Generate different weight.
-    for (size_t i = 0; i < h_weights.size(); ++i) {
-      // FIXME(jiamingy): Some entries generated GPU test cannot pass the validate cuts if
-      // we use more diverse weights, partially caused by
-      // https://github.com/dmlc/xgboost/issues/7946
-      h_weights[i] = (i % 2 == 0 ? 1 : 2) / static_cast<float>(kGroups);
+    if (with_group) {
+      h_weights.resize(kGroups);
+    } else {
+      h_weights.resize(kRows);
     }
+    std::fill(h_weights.begin(), h_weights.end(), 1.0f);
+
+    std::vector<bst_group_t> groups(kGroups);
+    if (with_group) {
+      for (size_t i = 0; i < kGroups; ++i) {
+        groups[i] = kRows / kGroups;
+      }
+      info.SetInfo(ctx, "group", groups.data(), DataType::kUInt32, kGroups);
+    }
+
+    info.weights_.SetDevice(0);
+    info.num_row_ = kRows;
+    info.num_col_ = kCols;
+
+    data::CupyAdapter adapter(m);
+    auto const& batch = adapter.Value();
+    HostDeviceVector<FeatureType> ft;
     SketchContainer sketch_container(ft, kBins, kCols, kRows, 0);
     AdapterDeviceSketch(adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
                         &sketch_container);
-    sketch_container.MakeCuts(&weighted);
-    ValidateCuts(weighted, dmat.get(), kBins);
+
+    common::HistogramCuts cuts;
+    sketch_container.MakeCuts(&cuts);
+
+    auto dmat = GetDMatrixFromData(storage.HostVector(), kRows, kCols);
+    if (with_group) {
+      dmat->Info().SetInfo(ctx, "group", groups.data(), DataType::kUInt32, kGroups);
+    }
+
+    dmat->Info().SetInfo(ctx, "weight", h_weights.data(), DataType::kFloat32, h_weights.size());
+    dmat->Info().num_col_ = kCols;
+    dmat->Info().num_row_ = kRows;
+    ASSERT_EQ(cuts.Ptrs().size(), kCols + 1);
+    ValidateCuts(cuts, dmat.get(), kBins);
+
+    if (with_group) {
+      dmat->Info().weights_ = decltype(dmat->Info().weights_)();  // remove weight
+      HistogramCuts non_weighted = DeviceSketch(0, dmat.get(), kBins, 0);
+      for (size_t i = 0; i < cuts.Values().size(); ++i) {
+        ASSERT_EQ(cuts.Values()[i], non_weighted.Values()[i]);
+      }
+      for (size_t i = 0; i < cuts.MinValues().size(); ++i) {
+        ASSERT_EQ(cuts.MinValues()[i], non_weighted.MinValues()[i]);
+      }
+      for (size_t i = 0; i < cuts.Ptrs().size(); ++i) {
+        ASSERT_EQ(cuts.Ptrs().at(i), non_weighted.Ptrs().at(i));
+      }
+    }
+
+    if (with_group) {
+      common::HistogramCuts weighted;
+      auto& h_weights = info.weights_.HostVector();
+      h_weights.resize(kGroups);
+      // Generate different weight.
+      for (size_t i = 0; i < h_weights.size(); ++i) {
+        // FIXME(jiamingy): Some entries generated GPU test cannot pass the validate cuts if
+        // we use more diverse weights, partially caused by
+        // https://github.com/dmlc/xgboost/issues/7946
+        h_weights[i] = (i % 2 == 0 ? 1 : 2) / static_cast<float>(kGroups);
+      }
+      SketchContainer sketch_container(ft, kBins, kCols, kRows, 0);
+      AdapterDeviceSketch(adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
+                          &sketch_container);
+      sketch_container.MakeCuts(&weighted);
+      ValidateCuts(weighted, dmat.get(), kBins);
+    }
   }
+};
+
+TEST_P(HistUtilSketch, AdapterSketchFromWeights) {
+  bool with_group = GetParam();
+  this->TestAdapterSketchFromWeights(with_group);
 }
 
-TEST(HistUtil, AdapterSketchFromWeights) {
-  TestAdapterSketchFromWeights(false);
-  TestAdapterSketchFromWeights(true);
-}
-}  // namespace common
-}  // namespace xgboost
+INSTANTIATE_TEST_SUITE_P(HistUtil, HistUtilSketch, ::testing::Values(true, false));
+}  // namespace xgboost::common

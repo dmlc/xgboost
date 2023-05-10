@@ -1,5 +1,5 @@
-/*!
- * Copyright 2018 XGBoost contributors
+/**
+ * Copyright 2018-2023, XGBoost contributors
  * \brief span class based on ISO++20 span
  *
  * About NOLINTs in this file:
@@ -668,6 +668,41 @@ XGBOOST_DEVICE auto as_writable_bytes(Span<T, E> s) __span_noexcept ->  // NOLIN
     Span<byte, detail::ExtentAsBytesValue<T, E>::value> {
   return {reinterpret_cast<byte*>(s.data()), s.size_bytes()};
 }
+
+// A simpiler custom Span type with general iterator instead of pointer.
+template <typename It>
+class IterSpan {
+  It it_;
+  std::size_t size_{0};
+
+ public:
+  using element_type = typename std::iterator_traits<It>::value_type;  // NOLINT
+  using index_type = std::size_t;                                      // NOLINT
+  using iterator = It;                                                 // NOLINT
+
+ public:
+  IterSpan() = default;
+  XGBOOST_DEVICE IterSpan(It it, std::size_t size) : it_{it}, size_{size} {}
+  XGBOOST_DEVICE explicit IterSpan(common::Span<It, dynamic_extent> span)
+      : it_{span.data()}, size_{span.size()} {}
+
+  XGBOOST_DEVICE std::size_t size() const { return size_; }  // NOLINT
+  XGBOOST_DEVICE decltype(auto) operator[](std::size_t i) const { return it_[i]; }
+  XGBOOST_DEVICE decltype(auto) operator[](std::size_t i) { return it_[i]; }
+  XGBOOST_DEVICE bool empty() const { return size() == 0; }  // NOLINT
+  XGBOOST_DEVICE It data() const { return it_; }             // NOLINT
+  XGBOOST_DEVICE IterSpan<It> subspan(                       // NOLINT
+      index_type _offset, index_type _count = dynamic_extent) const {
+    SPAN_CHECK((_count == dynamic_extent) ? (_offset <= size()) : (_offset + _count <= size()));
+    return {data() + _offset, _count == dynamic_extent ? size() - _offset : _count};
+  }
+  XGBOOST_DEVICE constexpr iterator begin() const __span_noexcept {  // NOLINT
+    return {this, 0};
+  }
+  XGBOOST_DEVICE constexpr iterator end() const __span_noexcept {  // NOLINT
+    return {this, size()};
+  }
+};
 }  // namespace common
 }  // namespace xgboost
 

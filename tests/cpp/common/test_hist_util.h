@@ -120,12 +120,10 @@ inline void TestBinDistribution(const HistogramCuts& cuts, int column_idx,
 
 // Test sketch quantiles against the real quantiles Not a very strict
 // test
-inline void TestRank(const std::vector<float> &column_cuts,
-                     const std::vector<float> &sorted_x,
-                     const std::vector<float> &sorted_weights) {
+inline void TestRank(const std::vector<float>& column_cuts, const std::vector<float>& sorted_x,
+                     const std::vector<float>& sorted_weights) {
   double eps = 0.05;
-  auto total_weight =
-      std::accumulate(sorted_weights.begin(), sorted_weights.end(), 0.0);
+  auto total_weight = std::accumulate(sorted_weights.begin(), sorted_weights.end(), 0.0);
   // Ignore the last cut, its special
   double sum_weight = 0.0;
   size_t j = 0;
@@ -136,28 +134,26 @@ inline void TestRank(const std::vector<float> &column_cuts,
     }
     double expected_rank = ((i + 1) * total_weight) / column_cuts.size();
     double acceptable_error = std::max(2.9, total_weight * eps);
-    EXPECT_LE(std::abs(expected_rank - sum_weight), acceptable_error);
+    ASSERT_LE(std::abs(expected_rank - sum_weight), acceptable_error);
   }
 }
 
 inline void ValidateColumn(const HistogramCuts& cuts, int column_idx,
                            const std::vector<float>& sorted_column,
-                           const std::vector<float>& sorted_weights,
-                           size_t num_bins) {
-
+                           const std::vector<float>& sorted_weights, size_t num_bins) {
   // Check the endpoints are correct
   CHECK_GT(sorted_column.size(), 0);
-  EXPECT_LT(cuts.MinValues().at(column_idx), sorted_column.front());
-  EXPECT_GT(cuts.Values()[cuts.Ptrs()[column_idx]], sorted_column.front());
-  EXPECT_GE(cuts.Values()[cuts.Ptrs()[column_idx+1]-1], sorted_column.back());
+  ASSERT_LT(cuts.MinValues().at(column_idx), sorted_column.front());
+  ASSERT_GT(cuts.Values()[cuts.Ptrs()[column_idx]], sorted_column.front());
+  ASSERT_GE(cuts.Values()[cuts.Ptrs()[column_idx + 1] - 1], sorted_column.back());
 
   // Check the cuts are sorted
   auto cuts_begin = cuts.Values().begin() + cuts.Ptrs()[column_idx];
   auto cuts_end = cuts.Values().begin() + cuts.Ptrs()[column_idx + 1];
-  EXPECT_TRUE(std::is_sorted(cuts_begin, cuts_end));
+  ASSERT_TRUE(std::is_sorted(cuts_begin, cuts_end));
 
   // Check all cut points are unique
-  EXPECT_EQ(std::set<float>(cuts_begin, cuts_end).size(),
+  ASSERT_EQ(std::set<float>(cuts_begin, cuts_end).size(),
             static_cast<size_t>(cuts_end - cuts_begin));
 
   auto unique = std::set<float>(sorted_column.begin(), sorted_column.end());
@@ -173,8 +169,7 @@ inline void ValidateColumn(const HistogramCuts& cuts, int column_idx,
     int num_cuts_column = cuts.Ptrs()[column_idx + 1] - cuts.Ptrs()[column_idx];
     std::vector<float> column_cuts(num_cuts_column);
     std::copy(cuts.Values().begin() + cuts.Ptrs()[column_idx],
-      cuts.Values().begin() + cuts.Ptrs()[column_idx + 1],
-      column_cuts.begin());
+              cuts.Values().begin() + cuts.Ptrs()[column_idx + 1], column_cuts.begin());
     TestBinDistribution(cuts, column_idx, sorted_column, sorted_weights);
     TestRank(column_cuts, sorted_column, sorted_weights);
   }

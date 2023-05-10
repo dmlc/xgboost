@@ -22,7 +22,7 @@ TEST(GPUQuantile, Basic) {
   dh::device_vector<bst_row_t> cuts_ptr(kCols+1);
   thrust::fill(cuts_ptr.begin(), cuts_ptr.end(), 0);
   // Push empty
-  sketch.Push(dh::ToSpan(entries), dh::ToSpan(cuts_ptr), dh::ToSpan(cuts_ptr), 0);
+  sketch.Push(entries.data().get(), dh::ToSpan(cuts_ptr), dh::ToSpan(cuts_ptr), 0);
   ASSERT_EQ(sketch.Data().size(), 0);
 }
 
@@ -50,7 +50,7 @@ void TestSketchUnique(float sparsity) {
         thrust::make_counting_iterator(0llu),
         [=] __device__(size_t idx) { return batch.GetElement(idx); });
     auto end = kCols * kRows;
-    detail::GetColumnSizesScan(0, kCols, n_cuts, batch_iter, is_valid, 0, end,
+    detail::GetColumnSizesScan(0, kCols, n_cuts, IterSpan{batch_iter, end}, is_valid,
                                &cut_sizes_scan, &column_sizes_scan);
     auto const& cut_sizes = cut_sizes_scan.HostVector();
     ASSERT_LE(sketch.Data().size(), cut_sizes.back());
@@ -518,7 +518,7 @@ TEST(GPUQuantile, Push) {
 
   HostDeviceVector<FeatureType> ft;
   SketchContainer sketch(ft, n_bins, kCols, kRows, 0);
-  sketch.Push(dh::ToSpan(d_entries), dh::ToSpan(columns_ptr), dh::ToSpan(columns_ptr), kRows, {});
+  sketch.Push(d_entries.data().get(), dh::ToSpan(columns_ptr), dh::ToSpan(columns_ptr), kRows, {});
 
   auto sketch_data = sketch.Data();
 
@@ -568,8 +568,8 @@ TEST(GPUQuantile, MultiColPush) {
                          columns_ptr.begin());
   dh::device_vector<size_t> cuts_ptr(columns_ptr);
 
-  sketch.Push(dh::ToSpan(d_entries), dh::ToSpan(columns_ptr),
-              dh::ToSpan(cuts_ptr), kRows * kCols, {});
+  sketch.Push(d_entries.data().get(), dh::ToSpan(columns_ptr), dh::ToSpan(cuts_ptr), kRows * kCols,
+              {});
 
   auto sketch_data = sketch.Data();
   ASSERT_EQ(sketch_data.size(), kCols * 2);

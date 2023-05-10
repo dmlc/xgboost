@@ -1,21 +1,111 @@
+/**
+ * Copyright 2020~2023, XGBoost contributors
+ *
+ * \brief GPU implementation of GK sketching.
+ */
 #ifndef XGBOOST_COMMON_QUANTILE_CUH_
 #define XGBOOST_COMMON_QUANTILE_CUH_
 
 #include <memory>
 
-#include "xgboost/span.h"
-#include "xgboost/data.h"
+#include "categorical.h"
 #include "device_helpers.cuh"
 #include "quantile.h"
 #include "timer.h"
-#include "categorical.h"
+#include "xgboost/data.h"
+#include "xgboost/span.h"  // for IterSpan, Span
 
-namespace xgboost {
-namespace common {
+namespace xgboost::common {
 
 class HistogramCuts;
 using WQSketch = WQuantileSketch<bst_float, bst_float>;
 using SketchEntry = WQSketch::Entry;
+
+// Algorithm 4 in XGBoost's paper, using binary search to find i.
+template <typename EntryIter>
+__device__ SketchEntry BinarySearchQuery(EntryIter beg, EntryIter end, float rank) {
+  assert(end - beg >= 2);
+  rank *= 2;
+  auto front = *beg;
+  if (rank < front.rmin + front.rmax) {
+    return *beg;
+  }
+  auto back = *(end - 1);
+  if (rank >= back.rmin + back.rmax) {
+    return back;
+  }
+
+  auto search_begin = dh::MakeTransformIterator<float>(
+      beg, [=] __device__(SketchEntry const &entry) {
+        return entry.rmin + entry.rmax;
+      });
+  auto search_end = search_begin + (end - beg);
+  auto i =
+      thrust::upper_bound(thrust::seq, search_begin + 1, search_end - 1, rank) -
+      search_begin - 1;
+  if (rank < (*(beg + i)).RMinNext() + (*(beg + i + 1)).RMaxPrev()) {
+    return *(beg + i);
+  } else {
+    return *(beg + i + 1);
+  }
+}
+
+template <typename EntryIter, typename ToSketchEntry>
+void PruneImpl(common::Span<bst_row_t const> cuts_ptr, EntryIter sorted_data,
+               Span<size_t const> columns_ptr_in,  // could be ptr for data or cuts
+               Span<FeatureType const> feature_types, Span<SketchEntry> out_cuts,
+               ToSketchEntry to_sketch_entry) {
+  dh::LaunchN(out_cuts.size(), [=] __device__(size_t idx) {
+    size_t column_id = dh::SegmentId(cuts_ptr, idx);
+    auto out_column = out_cuts.subspan(
+        cuts_ptr[column_id], cuts_ptr[column_id + 1] - cuts_ptr[column_id]);
+
+    auto in_column_beg = columns_ptr_in[column_id];
+    auto in_column =
+        IterSpan{sorted_data + in_column_beg, columns_ptr_in[column_id + 1] - in_column_beg};
+    // auto in_column = sorted_data.subspan(columns_ptr_in[column_id],
+    //                                      columns_ptr_in[column_id + 1] - columns_ptr_in[column_id]);
+    auto to = cuts_ptr[column_id + 1] - cuts_ptr[column_id];
+    idx -= cuts_ptr[column_id];
+    auto front = to_sketch_entry(0ul, in_column, column_id);
+    auto back = to_sketch_entry(in_column.size() - 1, in_column, column_id);
+
+    auto is_cat = IsCat(feature_types, column_id);
+    if (in_column.size() <= to || is_cat) {
+      // cut idx equals sample idx
+      out_column[idx] = to_sketch_entry(idx, in_column, column_id);
+      return;
+    }
+    // 1 thread for each output.  See A.4 for detail.
+    auto d_out = out_column;
+    if (idx == 0) {
+      d_out.front() = front;
+      return;
+    }
+    if (idx == to - 1) {
+      d_out.back() = back;
+      return;
+    }
+
+    float w = back.rmin - front.rmax;
+    auto budget = static_cast<float>(d_out.size());
+    assert(budget != 0);
+    auto q = ((static_cast<float>(idx) * w) / (static_cast<float>(to) - 1.0f) + front.rmax);
+    auto it = dh::MakeTransformIterator<SketchEntry>(
+        thrust::make_counting_iterator(0ul), [=] __device__(size_t idx) {
+          auto e = to_sketch_entry(idx, in_column, column_id);
+          return e;
+        });
+    d_out[idx] = BinarySearchQuery(it, it + in_column.size(), q);
+  });
+}
+
+template <typename T, typename U>
+void CopyTo(Span<T> out, Span<U> src) {
+  CHECK_EQ(out.size(), src.size());
+  static_assert(std::is_same<std::remove_cv_t<T>, std::remove_cv_t<T>>::value);
+  dh::safe_cuda(cudaMemcpyAsync(out.data(), src.data(), out.size_bytes(), cudaMemcpyDefault));
+}
 
 namespace detail {
 struct SketchUnique {
@@ -67,10 +157,10 @@ class SketchContainer {
       return entries_b_;
     }
   }
-  dh::device_vector<SketchEntry> const& Current() const {
+  [[nodiscard]] dh::device_vector<SketchEntry> const& Current() const {
     return const_cast<SketchContainer*>(this)->Current();
   }
-  dh::device_vector<SketchEntry> const& Other() const {
+  [[nodiscard]] dh::device_vector<SketchEntry> const& Other() const {
     return const_cast<SketchContainer*>(this)->Other();
   }
   void Alternate() {
@@ -88,7 +178,7 @@ class SketchContainer {
  public:
   /* \breif GPU quantile structure, with sketch data for each columns.
    *
-   * \param max_bin     Maximum number of bins per columns
+   * \param max_bin     Maximum number of bins per column.
    * \param num_columns Total number of columns in dataset.
    * \param num_rows    Total number of rows in known dataset (typically the rows in current worker).
    * \param device      GPU ID.
@@ -130,17 +220,65 @@ class SketchContainer {
    * addition inside `RMinNext` and subtraction in `RMaxPrev`. */
   void FixError();
 
-  /* \brief Push sorted entries.
+  /**
+   * \brief Push sorted entries.
    *
-   * \param entries Sorted entries.
+   * \param sorted_entries Iterator to sorted entries.
    * \param columns_ptr CSC pointer for entries.
    * \param cuts_ptr CSC pointer for cuts.
    * \param total_cuts Total number of cuts, equal to the back of cuts_ptr.
    * \param weights (optional) data weights.
    */
-  void Push(Span<Entry const> entries, Span<size_t> columns_ptr,
-            common::Span<OffsetT> cuts_ptr, size_t total_cuts,
-            Span<float> weights = {});
+  template <typename EntryIter, typename WeightIter = Span<float const>::iterator>
+  void Push(EntryIter sorted_entries, Span<size_t> columns_ptr, common::Span<OffsetT> cuts_ptr,
+            size_t total_cuts, IterSpan<WeightIter> weights = {}) {
+     dh::safe_cuda(cudaSetDevice(device_));
+     Span<SketchEntry> out;
+     dh::device_vector<SketchEntry> cuts;
+     bool first_window = this->Current().empty();
+     if (!first_window) {
+      cuts.resize(total_cuts);
+      out = dh::ToSpan(cuts);
+     } else {
+      this->Current().resize(total_cuts);
+      out = dh::ToSpan(this->Current());
+     }
+     auto ft = this->feature_types_.ConstDeviceSpan();
+     if (weights.empty()) {
+      auto to_sketch_entry = [] __device__(size_t sample_idx, auto const& column, size_t) {
+        float rmin = sample_idx;
+        float rmax = sample_idx + 1;
+        return SketchEntry{rmin, rmax, 1, column[sample_idx].fvalue};
+      };  // NOLINT
+      PruneImpl(cuts_ptr, sorted_entries, columns_ptr, ft, out, to_sketch_entry);
+     } else {
+      auto to_sketch_entry = [weights, columns_ptr] __device__(
+                                 size_t sample_idx, auto const& column, size_t column_id) {
+        auto column_weights_scan = weights.subspan(columns_ptr[column_id], column.size());
+        float rmin = sample_idx > 0 ? column_weights_scan[sample_idx - 1] : 0.0f;
+        float rmax = column_weights_scan[sample_idx];
+        float wmin = rmax - rmin;
+        wmin = wmin < 0 ? kRtEps : wmin;  // GPU scan can generate floating error.
+        return SketchEntry{rmin, rmax, wmin, column[sample_idx].fvalue};
+      };  // NOLINT
+      PruneImpl(cuts_ptr, sorted_entries, columns_ptr, ft, out, to_sketch_entry);
+     }
+     auto n_uniques = this->ScanInput(out, cuts_ptr);
+
+     if (!first_window) {
+      CHECK_EQ(this->columns_ptr_.Size(), cuts_ptr.size());
+      out = out.subspan(0, n_uniques);
+      this->Merge(cuts_ptr, out);
+      this->FixError();
+     } else {
+      this->Current().resize(n_uniques);
+      this->columns_ptr_.SetDevice(device_);
+      this->columns_ptr_.Resize(cuts_ptr.size());
+
+      auto d_cuts_ptr = this->columns_ptr_.DeviceSpan();
+      CopyTo(d_cuts_ptr, cuts_ptr);
+     }
+  }
   /* \brief Prune the quantile structure.
    *
    * \param to The maximum size of pruned quantile.  If the size of quantile
@@ -199,7 +337,6 @@ class SketchContainer {
     return n_uniques;
   }
 };
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common
 
 #endif  // XGBOOST_COMMON_QUANTILE_CUH_

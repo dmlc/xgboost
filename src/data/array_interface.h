@@ -26,6 +26,10 @@
 #include "xgboost/logging.h"
 #include "xgboost/span.h"
 
+#if defined(XGBOOST_USE_CUDA)
+#include "cuda_fp16.h"
+#endif
+
 namespace xgboost {
 // Common errors in parsing columnar format.
 struct ArrayInterfaceErrors {
@@ -459,11 +463,11 @@ class ArrayInterface {
       CHECK(sizeof(long double) == 16) << error::NoF128();
       type = T::kF16;
     } else if (typestr[1] == 'f' && typestr[2] == '2') {
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 600
+#if defined(XGBOOST_USE_CUDA)
       type = T::kF2;
 #else
       LOG(FATAL) << "Half type is not supported.";
-#endif  // defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 600
+#endif  // defined(XGBOOST_USE_CUDA)
     } else if (typestr[1] == 'f' && typestr[2] == '4') {
       type = T::kF4;
     } else if (typestr[1] == 'f' && typestr[2] == '8') {
@@ -498,12 +502,9 @@ class ArrayInterface {
     using T = ArrayInterfaceHandler::Type;
     switch (type) {
       case T::kF2: {
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 600
+#if defined(XGBOOST_USE_CUDA)
         return func(reinterpret_cast<__half const *>(data));
-#else
-        SPAN_CHECK(false);
-        return func(reinterpret_cast<float const *>(data));
-#endif  // defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 600
+#endif  // defined(XGBOOST_USE_CUDA)
       }
       case T::kF4:
         return func(reinterpret_cast<float const *>(data));
@@ -552,11 +553,11 @@ class ArrayInterface {
   }
 
   template <typename T = float, typename... Index>
-  XGBOOST_DEVICE T operator()(Index &&...index) const {
+  XGBOOST_HOST_DEV_INLINE T operator()(Index &&...index) const {
     static_assert(sizeof...(index) <= D, "Invalid index.");
     return this->DispatchCall([=](auto const *p_values) -> T {
       std::size_t offset = linalg::detail::Offset<0ul>(strides, 0ul, index...);
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 600
+#if defined(XGBOOST_USE_CUDA)
       // No operator defined for half -> size_t
       using Type = std::conditional_t<
           std::is_same<__half,
@@ -566,7 +567,7 @@ class ArrayInterface {
       return static_cast<T>(static_cast<Type>(p_values[offset]));
 #else
       return static_cast<T>(p_values[offset]);
-#endif
+#endif  // defined(XGBOOST_USE_CUDA)
     });
   }
 
@@ -603,7 +604,7 @@ void DispatchDType(ArrayInterface<D> const array, std::int32_t device, Fn fn) {
   };
   switch (array.type) {
     case ArrayInterfaceHandler::kF2: {
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 600
+#if defined(XGBOOST_USE_CUDA)
       dispatch(__half{});
 #endif
       break;
