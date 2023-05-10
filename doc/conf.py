@@ -143,7 +143,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx_gallery.gen_gallery",
     "breathe",
-    "recommonmark",
+    "myst_parser",
 ]
 
 sphinx_gallery_conf = {
