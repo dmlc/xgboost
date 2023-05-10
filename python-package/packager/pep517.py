@@ -79,7 +79,8 @@ def build_wheel(
         libxgboost = locate_or_build_libxgboost(
             TOPLEVEL_DIR, build_dir=build_dir, build_config=build_config
         )
-        copy_with_logging(libxgboost, lib_path, logger=logger)
+        if not build_config.use_system_libxgboost:
+            copy_with_logging(libxgboost, lib_path, logger=logger)
 
         with cd(workspace):
             wheel_name = hatchling.build.build_wheel(

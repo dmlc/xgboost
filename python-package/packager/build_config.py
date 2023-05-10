@@ -26,23 +26,18 @@ class BuildConfiguration:  # pylint: disable=R0902
     # Special option: See explanation below
     use_system_libxgboost: bool = False
 
-    def _set_config_setting(
-        self, config_settings: Dict[str, Any], field_name: str
-    ) -> None:
-        if field_name in config_settings:
+    def _set_config_setting(self, config_settings: Dict[str, Any]) -> None:
+        for field_name in config_settings:
             setattr(
                 self,
                 field_name,
                 (config_settings[field_name].lower() in ["true", "1", "on"]),
             )
-        else:
-            raise ValueError(f"Field {field_name} is not a valid config_settings")
 
     def update(self, config_settings: Optional[Dict[str, Any]]) -> None:
         """Parse config_settings from Pip (or other PEP 517 frontend)"""
         if config_settings is not None:
-            for field_name in [x.name for x in dataclasses.fields(self)]:
-                self._set_config_setting(config_settings, field_name)
+            self._set_config_setting(config_settings)
 
     def get_cmake_args(self) -> List[str]:
         """Convert build configuration to CMake args"""
