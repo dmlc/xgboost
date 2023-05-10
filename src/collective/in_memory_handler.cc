@@ -222,15 +222,15 @@ void InMemoryHandler::Handle(char const* input, std::size_t bytes, std::string* 
 
   std::unique_lock<std::mutex> lock(mutex_);
 
-  LOG(INFO) << functor.name << " rank " << rank << ": waiting for current sequence number";
+  LOG(DEBUG) << functor.name << " rank " << rank << ": waiting for current sequence number";
   cv_.wait(lock, [this, sequence_number] { return sequence_number_ == sequence_number; });
 
-  LOG(INFO) << functor.name << " rank " << rank << ": handling request";
+  LOG(DEBUG) << functor.name << " rank " << rank << ": handling request";
   functor(input, bytes, &buffer_);
   received_++;
 
   if (received_ == world_size_) {
-    LOG(INFO) << functor.name << " rank " << rank << ": all requests received";
+    LOG(DEBUG) << functor.name << " rank " << rank << ": all requests received";
     output->assign(buffer_);
     sent_++;
     lock.unlock();
@@ -238,15 +238,15 @@ void InMemoryHandler::Handle(char const* input, std::size_t bytes, std::string* 
     return;
   }
 
-  LOG(INFO) << functor.name << " rank " << rank << ": waiting for all clients";
+  LOG(DEBUG) << functor.name << " rank " << rank << ": waiting for all clients";
   cv_.wait(lock, [this] { return received_ == world_size_; });
 
-  LOG(INFO) << functor.name << " rank " << rank << ": sending reply";
+  LOG(DEBUG) << functor.name << " rank " << rank << ": sending reply";
   output->assign(buffer_);
   sent_++;
 
   if (sent_ == world_size_) {
-    LOG(INFO) << functor.name << " rank " << rank << ": all replies sent";
+    LOG(DEBUG) << functor.name << " rank " << rank << ": all replies sent";
     sent_ = 0;
     received_ = 0;
     buffer_.clear();
