@@ -26,9 +26,9 @@ class IndexTransformIter {
 
  public:
   using iterator_category = std::random_access_iterator_tag;  // NOLINT
-  using value_type = std::result_of_t<Fn(std::size_t)>;       // NOLINT
+  using reference = std::result_of_t<Fn(std::size_t)>;        // NOLINT
+  using value_type = std::remove_cv_t<std::remove_reference_t<reference>>; // NOLINT
   using difference_type = detail::ptrdiff_t;                  // NOLINT
-  using reference = std::add_lvalue_reference_t<value_type>;  // NOLINT
   using pointer = std::add_pointer_t<value_type>;             // NOLINT
 
  public:
@@ -43,8 +43,8 @@ class IndexTransformIter {
     return *this;
   }
 
-  value_type operator*() const { return fn_(iter_); }
-  value_type operator[](std::size_t i) const {
+  reference operator*() const { return fn_(iter_); }
+  reference operator[](std::size_t i) const {
     auto iter = *this + i;
     return *iter;
   }
