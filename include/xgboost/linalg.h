@@ -150,7 +150,7 @@ inline LINALG_HD int Popc(uint64_t v) {
   return __popcll(v);
 #elif defined(__GNUC__) || defined(__clang__)
   return __builtin_popcountll(v);
-#elif defined(_MSC_VER) && _defined(_M_X64)
+#elif defined(_MSC_VER) && defined(_M_X64)
   return __popcnt64(v);
 #else
   return NativePopc(v);
