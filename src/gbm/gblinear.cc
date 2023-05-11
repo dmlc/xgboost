@@ -231,7 +231,7 @@ class GBLinear : public GradientBooster {
   }
 
   std::vector<std::string> DumpDecisionPath(const FeatureMap& fmap,
-                                            bool with_stats,
+                                            bool with_stats, std::string format,
       const std::vector<TreeSetDecisionPath>& decision_paths) const override {
     throw "Not implemented";
   }

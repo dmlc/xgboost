@@ -96,11 +96,13 @@ class GradientBooster : public Model, public Configurable {
    * \param out_preds output vector to hold the predictions
    * \param training Whether the prediction value is used for training.  For dart booster
    *                 drop out is performed during training.
+   * \param decision_paths Optional container of recorded decision paths. If not null,
+   *                      paths taken in this prediction is recorded for each row.
    * \param begin    Beginning of boosted tree layer used for prediction.
    * \param end      End of booster layer. 0 means do not limit trees.
    */
   virtual void PredictBatch(DMatrix* dmat, PredictionCacheEntry* out_preds, bool training,
-                            std::vector<TreeSetDecisionPath>* decision_path, bst_layer_t begin, bst_layer_t end) = 0;
+                            std::vector<TreeSetDecisionPath>* decision_paths, bst_layer_t begin, bst_layer_t end) = 0;
 
   /**
    * \brief Inplace prediction.
@@ -174,10 +176,21 @@ class GradientBooster : public Model, public Configurable {
                                              bool with_stats,
                                              std::string format) const = 0;
 
+  /*!
+   * \brief dump decision paths collected in PredictBatch
+   * @param fmap feature map that may help give interpretations of feature
+   * @param with_stats extra statistics while dumping paths
+   * @param decision_paths decision paths collected in PredictBatch
+   * @return a vector of dump for decision paths.
+   */
   virtual std::vector<std::string> DumpDecisionPath(const FeatureMap& fmap,
-                                                    bool with_stats,
+                                                    bool with_stats, std::string format,
       const std::vector<TreeSetDecisionPath>& decision_paths) const = 0;
 
+  /*!
+   * \brief get the number of trees in this model
+   * @return the numer of trees in this model.
+   */
   virtual uint64_t GetTreeCount() const = 0;
 
   virtual void FeatureScore(std::string const& importance_type,

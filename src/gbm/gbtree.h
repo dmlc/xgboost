@@ -393,9 +393,9 @@ class GBTree : public GradientBooster {
   }
 
   std::vector<std::string> DumpDecisionPath(const FeatureMap& fmap,
-                                            bool with_stats,
+                                            bool with_stats, std::string format,
       const std::vector<TreeSetDecisionPath>& decision_paths) const override {
-    return model_.DumpDecisionPath(fmap, with_stats, decision_paths);
+    return model_.DumpDecisionPath(fmap, with_stats, format, decision_paths);
   }
 
   uint64_t GetTreeCount() const override {

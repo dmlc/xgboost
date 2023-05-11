@@ -619,9 +619,18 @@ class RegTree : public Model {
   [[nodiscard]] std::string DumpModel(const FeatureMap& fmap, bool with_stats,
                                       std::string format) const;
 
+  /*!
+   * \brief dump the model in the requested format as a text string
+   * \param fmap feature map that may help give interpretations of feature
+   * \param with_stats whether dump out statistics as well
+   * \param format the format to dump the decision paths in
+   * \param decision_paths Optional container of recorded decision paths. If not null,
+   *                      paths taken in this prediction is recorded for each row.
+   * \return the string of dumped model
+   */
   [[nodiscard]] std::string DumpDecisionPath(const FeatureMap& fmap,
-                            bool with_stats,
-                            const std::vector<int32_t> &decision_path) const ;
+                            bool with_stats, std::string format,
+                            const std::vector<int32_t> &decision_paths) const ;
 
   /*!
    * \brief Get split type for a node.
@@ -861,7 +870,7 @@ private:
   std::vector<std::vector<bst_node_t>> tree2path_;
 };
 
-void PrintDecisionPath(FILE *os, const std::vector<std::string> &decision_paths_dumped);
+void PrintDecisionPath(std::ostream &os, const std::vector<std::string> &decision_paths_dumped);
 
 }  // namespace xgboost
 #endif  // XGBOOST_TREE_MODEL_H_

@@ -357,6 +357,27 @@ class TextGenerator : public TreeGenerator {
         {{"{nodes}", this->BuildTree(tree, 0, 0)}});
     ss_ << result;
   }
+
+  void BuildPath(RegTree const &tree, const std::vector<int32_t> &path) override {
+    static std::string const pathEntryTemplate = "{properties} {stat}";
+    std::string result;
+    for (uint32_t i = 0; i < path.size(); ++i) {
+      int32_t nid = path.at(i);
+      std::string properties = SuperT::SplitNode(tree, nid, i);
+      result += SuperT::Match(
+          pathEntryTemplate,
+          {
+              {"{properties}", properties},
+              {"{stat}", with_stats_ ? this->NodeStat(tree, nid) : ""},
+          }
+      );
+      if (i < path.size() - 1) {
+        result += std::string(",");
+      }
+      result += std::string("\n");
+    }
+    ss_ << result;
+  }
 };
 
 XGBOOST_REGISTER_TREE_IO(TextGenerator, "text")
@@ -520,6 +541,10 @@ class JsonGenerator : public TreeGenerator {
     for (uint32_t i = 0; i < path.size(); ++i) {
       int32_t nid = path.at(i);
       std::string properties = SuperT::SplitNode(tree, nid, i);
+      // some indentations
+      for (uint32_t d = 0; d < i; ++d) {
+        result += '\t';
+      }
       result += SuperT::Match(
           pathEntryTemplate,
           {
@@ -536,12 +561,12 @@ class JsonGenerator : public TreeGenerator {
   }
 };
 
-void PrintDecisionPath(FILE *os, const std::vector<std::string> &decision_paths_dumped) {
-  fprintf(os, "[");
+void PrintDecisionPath(std::ostream &os, const std::vector<std::string> &decision_paths_dumped) {
+  os << "[";
   for (uint32_t tree_id = 0; tree_id < decision_paths_dumped.size(); ++tree_id) {
-    fprintf(stderr, "%s,\n", decision_paths_dumped.at(tree_id).c_str());
+    os << decision_paths_dumped.at(tree_id) << ",\n";
   }
-  fprintf(os, "]");
+  os << "]";
 }
 
 XGBOOST_REGISTER_TREE_IO(JsonGenerator, "json")
@@ -774,10 +799,10 @@ std::string RegTree::DumpModel(const FeatureMap& fmap, bool with_stats, std::str
 }
 
 std::string RegTree::DumpDecisionPath(const FeatureMap& fmap,
-                             bool with_stats,
-                             const std::vector<int32_t> &decision_path) const {
-  std::unique_ptr<TreeGenerator> builder{TreeGenerator::Create("json", fmap, with_stats)};
-  builder->BuildPath(*this, decision_path);
+                             bool with_stats, std::string format,
+                             const std::vector<int32_t> &decision_paths) const {
+  std::unique_ptr<TreeGenerator> builder{TreeGenerator::Create(format, fmap, with_stats)};
+  builder->BuildPath(*this, decision_paths);
   return builder->Str();
 }
 

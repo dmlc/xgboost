@@ -1236,9 +1236,9 @@ class LearnerImpl : public LearnerIO {
     return gbm_->DumpModel(fmap, with_stats, format);
   }
 
-  std::vector<std::string> DumpDecisionPath(const FeatureMap& fmap, bool with_stats,
+  std::vector<std::string> DumpDecisionPath(const FeatureMap& fmap, bool with_stats, std::string format,
       const std::vector<TreeSetDecisionPath>& decision_paths) override {
-    return gbm_->DumpDecisionPath(fmap, with_stats, decision_paths);
+    return gbm_->DumpDecisionPath(fmap, with_stats, format, decision_paths);
   }
 
   Learner* Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step,
@@ -1453,6 +1453,8 @@ class LearnerImpl : public LearnerIO {
    * \param ntree_limit limit number of trees used for boosted tree
    *   predictor, when it equals 0, this means we are using all the trees
    * \param training allow dropout when the DART booster is being used
+   * \param decision_paths Optional container of recorded decision paths. If not null,
+   *                       paths taken in this prediction is recorded for each row.
    */
   void PredictRaw(DMatrix *data, PredictionCacheEntry *out_preds, bool training,
                   std::vector<TreeSetDecisionPath> *decision_paths, unsigned layer_begin, unsigned layer_end) const {

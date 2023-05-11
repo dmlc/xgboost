@@ -106,12 +106,14 @@ class Predictor {
    * \param [in,out]  dmat        Feature matrix.
    * \param [in,out]  out_preds   The output preds.
    * \param           model       The model to predict from.
+   * \param [out]     decision_path Optional container of recorded decision paths. If not null,
+   *                                paths taken in this prediction is recorded for each row.
    * \param           tree_begin  The tree begin index.
    * \param           tree_end    The tree end index.
    */
   virtual void PredictBatch(DMatrix* dmat, PredictionCacheEntry* out_preds,
                             const gbm::GBTreeModel& model,
-                            std::vector<TreeSetDecisionPath>* path_list, uint32_t tree_begin,
+                            std::vector<TreeSetDecisionPath>* decision_paths, uint32_t tree_begin,
                             uint32_t tree_end = 0) const = 0;
 
   /**
@@ -122,13 +124,15 @@ class Predictor {
    * \param           model                  The model to predict from.
    * \param           missing                Missing value in the data.
    * \param [in,out]  out_preds              The output preds.
+   * \param [out]     decision_paths Optional container of recorded decision paths. If not null,
+   *                                paths taken in this prediction is recorded for each row.
    * \param           tree_begin (Optional) Beginning of boosted trees used for prediction.
    * \param           tree_end   (Optional) End of booster trees. 0 means do not limit trees.
    *
    * \return True if the data can be handled by current predictor, false otherwise.
    */
   virtual bool InplacePredict(std::shared_ptr<DMatrix> p_fmat, const gbm::GBTreeModel& model,
-                              float missing, PredictionCacheEntry* out_preds, std::vector<TreeSetDecisionPath> *path_list,
+                              float missing, PredictionCacheEntry* out_preds, std::vector<TreeSetDecisionPath> *decision_paths,
                               uint32_t tree_begin = 0, uint32_t tree_end = 0) const = 0;
   /**
    * \brief online prediction function, predict score for one instance at a time
@@ -139,12 +143,14 @@ class Predictor {
    * \param           inst        The instance to predict.
    * \param [in,out]  out_preds   The output preds.
    * \param           model       The model to predict from
+   * \param [out]     decision_paths Optional container of recorded decision paths. If not null,
+   *                                paths taken in this prediction is recorded for each row.
    * \param           tree_end    (Optional) The tree end index.
    */
 
   virtual void PredictInstance(const SparsePage::Inst& inst,
                                std::vector<bst_float>* out_preds,
-                               const gbm::GBTreeModel& model, std::vector<std::vector<bst_node_t>> *path_list,
+                               const gbm::GBTreeModel& model, std::vector<std::vector<bst_node_t>> *decision_paths,
                                unsigned tree_end = 0) const = 0;
 
   /**

@@ -117,7 +117,7 @@ TEST(GBTree, DecisionPath) {
     row2paths.emplace_back(TreeSetDecisionPath{static_cast<uint32_t>(gbtree.GetTreeCount())});
   }
   gbtree.PredictBatch(p_m.get(), &out_predictions, false, &row2paths, 0, 1);
-  auto decision_paths_dumped = gbtree.DumpDecisionPath(feature_map, true, row2paths);
+  auto decision_paths_dumped = gbtree.DumpDecisionPath(feature_map, true, "text", row2paths);
   PrintDecisionPath(stderr, decision_paths_dumped);
   ASSERT_EQ(1, out_predictions.version);
   std::vector<float> first_iter = out_predictions.predictions.HostVector();

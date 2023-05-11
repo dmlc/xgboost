@@ -996,6 +996,8 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
   bool training = RequiredArg<Boolean>(config, "training", __func__);
   bool print_decision_path = RequiredArg<Boolean>(config, "print_decision_path", __func__);
   std::string fmap_path = RequiredArg<String>(config, "fmap", __func__ );
+  std::string format = RequiredArg<String>(config, "format", __func__);
+  std::string out_path = RequiredArg<String>(config, "dump_file", __func__);
 
   if (print_decision_path) {
     std::vector<TreeSetDecisionPath> row2paths;
@@ -1007,8 +1009,10 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
                      iteration_begin, iteration_end, training,
                      type == PredictionType::kLeaf, contribs, approximate,
                      interactions, &row2paths);
-    auto decision_paths_dumped = learner->DumpDecisionPath(LoadFeatureMap(fmap_path), true, row2paths);
-    PrintDecisionPath(stderr, decision_paths_dumped);
+    auto decision_paths_dumped = learner->DumpDecisionPath(LoadFeatureMap(fmap_path), true, format, row2paths);
+
+    std::ofstream out_file {out_path};
+    PrintDecisionPath(out_file, decision_paths_dumped);
   } else {
     learner->Predict(p_m, type == PredictionType::kMargin, &entry.predictions,
                      iteration_begin, iteration_end, training,

@@ -2057,6 +2057,8 @@ class Booster:
         strict_shape: bool = False,
         print_decision_path: bool = False,
         fmap: str = "",
+        format: str = "text",
+        dump_file: str = "decision_path_dump.txt",
     ) -> np.ndarray:
         """Predict with data.  The full model will be used unless `iteration_range` is specified,
         meaning user have to either slice the model or use the ``best_iteration``
@@ -2132,6 +2134,21 @@ class Booster:
 
             .. versionadded:: 1.4.0
 
+        dump_file :
+            Name of the file to hold decision file dump. Active only when
+            `print_decision_path` is True.
+
+        format :
+            Format of model dump file. Can be 'text' or 'json'. Active only when
+            `print_decision_path` is True.
+
+        fmap :
+            Name of the file containing feature map names. Active only when
+            `print_decision_path` is True.
+
+        print_decision_path :
+            Whether to dump the decision path of each row of data onto `dump_file`.
+
         Returns
         -------
         prediction : numpy array
@@ -2149,6 +2166,8 @@ class Booster:
             "strict_shape": strict_shape,
             "print_decision_path": print_decision_path,
             "fmap": fmap,
+            "format": format,
+            "dump_file": dump_file,
         }
 
         def assign_type(t: int) -> None:
