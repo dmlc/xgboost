@@ -4,9 +4,6 @@
  * \brief The command line interface program of xgboost.
  *  This file is not included in dynamic library.
  */
-#define _CRT_SECURE_NO_WARNINGS
-#define _CRT_SECURE_NO_DEPRECATE
-
 #if !defined(NOMINMAX) && defined(_WIN32)
 #define NOMINMAX
 #endif  // !defined(NOMINMAX)
