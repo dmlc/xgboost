@@ -13,6 +13,7 @@
 #include <utility>                           // for move, swap
 #include <vector>                            // for vector
 
+#include "../collective/aggregator.h"        // for GlobalSum
 #include "../collective/communicator-inl.h"  // for Allreduce, IsDistributed
 #include "../collective/communicator.h"      // for Operation
 #include "../common/hist_util.h"             // for HistogramCuts, HistCollection
@@ -200,8 +201,8 @@ class MultiTargetHistBuilder {
       }
     }
     CHECK(root_sum.CContiguous());
-    collective::Allreduce<collective::Operation::kSum>(
-        reinterpret_cast<double *>(root_sum.Values().data()), root_sum.Size() * 2);
+    collective::GlobalSum(p_fmat->Info(), reinterpret_cast<double *>(root_sum.Values().data()),
+                          root_sum.Size() * 2);
 
     std::vector<MultiExpandEntry> nodes{best};
     std::size_t i = 0;
@@ -455,8 +456,7 @@ class HistBuilder {
         for (auto const &grad : gpair_h) {
           grad_stat.Add(grad.GetGrad(), grad.GetHess());
         }
-        collective::Allreduce<collective::Operation::kSum>(reinterpret_cast<double *>(&grad_stat),
-                                                           2);
+        collective::GlobalSum(p_fmat->Info(), reinterpret_cast<double *>(&grad_stat), 2);
       }
 
       auto weight = evaluator_->InitRoot(GradStats{grad_stat});

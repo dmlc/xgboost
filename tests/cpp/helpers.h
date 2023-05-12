@@ -388,6 +388,23 @@ inline Context CreateEmptyGenericParam(int gpu_id) {
   return tparam;
 }
 
+inline std::unique_ptr<HostDeviceVector<GradientPair>> GenerateGradients(
+    std::size_t rows, bst_target_t n_targets = 1) {
+  auto p_gradients = std::make_unique<HostDeviceVector<GradientPair>>(rows * n_targets);
+  auto& h_gradients = p_gradients->HostVector();
+
+  xgboost::SimpleLCG gen;
+  xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
+
+  for (std::size_t i = 0; i < rows * n_targets; ++i) {
+    auto grad = dist(&gen);
+    auto hess = dist(&gen);
+    h_gradients[i] = GradientPair{grad, hess};
+  }
+
+  return p_gradients;
+}
+
 /**
  * \brief Make a context that uses CUDA.
  */
