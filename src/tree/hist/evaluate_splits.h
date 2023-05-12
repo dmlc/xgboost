@@ -368,7 +368,7 @@ class HistEvaluator {
       auto const world = collective::GetWorldSize();
       auto const rank = collective::GetRank();
       auto const num_entries = entries.size();
-      std::vector<ExpandEntry> buffer{num_entries * world};
+      std::vector<ExpandEntry> buffer(num_entries * world);
       std::copy_n(entries.cbegin(), num_entries, buffer.begin() + num_entries * rank);
       collective::Allgather(buffer.data(), buffer.size() * sizeof(ExpandEntry));
       for (auto worker = 0; worker < world; ++worker) {
@@ -465,6 +465,7 @@ class HistMultiEvaluator {
   FeatureInteractionConstraintHost interaction_constraints_;
   std::shared_ptr<common::ColumnSampler> column_sampler_;
   Context const *ctx_;
+  bool is_col_split_{false};
 
  private:
   static double MultiCalcSplitGain(TrainParam const &param,
@@ -597,6 +598,22 @@ class HistMultiEvaluator {
         entries[nidx_in_set].split.Update(tloc_candidates[n_threads * nidx_in_set + tidx].split);
       }
     }
+
+    if (is_col_split_) {
+      // With column-wise data split, we gather the best splits from all the workers and update the
+      // expand entries accordingly.
+      auto const world = collective::GetWorldSize();
+      auto const rank = collective::GetRank();
+      auto const num_entries = entries.size();
+      std::vector<MultiExpandEntry> buffer(num_entries * world);
+      std::copy_n(entries.cbegin(), num_entries, buffer.begin() + num_entries * rank);
+      collective::Allgather(buffer.data(), buffer.size() * sizeof(MultiExpandEntry));
+      for (auto worker = 0; worker < world; ++worker) {
+        for (std::size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
+          entries[nidx_in_set].split.Update(buffer[worker * num_entries + nidx_in_set].split);
+        }
+      }
+    }
   }
 
   linalg::Vector<float> InitRoot(linalg::VectorView<GradientPairPrecise const> root_sum) {
@@ -660,7 +677,10 @@ class HistMultiEvaluator {
 
   explicit HistMultiEvaluator(Context const *ctx, MetaInfo const &info, TrainParam const *param,
                               std::shared_ptr<common::ColumnSampler> sampler)
-      : param_{param}, column_sampler_{std::move(sampler)}, ctx_{ctx} {
+      : param_{param},
+        column_sampler_{std::move(sampler)},
+        ctx_{ctx},
+        is_col_split_{info.IsColumnSplit()} {
     interaction_constraints_.Configure(*param, info.num_col_);
     column_sampler_->Init(ctx, info.num_col_, info.feature_weights.HostVector(),
                           param_->colsample_bynode, param_->colsample_bylevel,
