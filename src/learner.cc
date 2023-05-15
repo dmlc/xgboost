@@ -1283,6 +1283,10 @@ class LearnerImpl : public LearnerIO {
     return gbm_->GetTreeCount();
   }
 
+  virtual std::vector<bst_node_t> GetMaxNodePerTree() const {
+    return gbm_->GetMaxNodePerTree();
+  }
+
   void UpdateOneIter(int iter, std::shared_ptr<DMatrix> train) override {
     monitor_.Start("UpdateOneIter");
     TrainingObserver::Instance().Update(iter);

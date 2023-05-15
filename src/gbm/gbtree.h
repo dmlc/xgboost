@@ -402,6 +402,10 @@ class GBTree : public GradientBooster {
     return model_.GetTreeCount();
   }
 
+  virtual std::vector<bst_node_t> GetMaxNodePerTree() const override {
+    return model_.GetMaxNodePerTree();
+  }
+
  protected:
   // initialize updater before using them
   void InitUpdater(Args const& cfg);

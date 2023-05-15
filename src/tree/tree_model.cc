@@ -7,6 +7,8 @@
 #include <dmlc/registry.h>
 #include <xgboost/json.h>
 #include <xgboost/tree_model.h>
+#include <xgboost/linalg.h>
+#include <xgboost/context.h>
 
 #include <cmath>
 #include <iomanip>
@@ -560,6 +562,29 @@ class JsonGenerator : public TreeGenerator {
     ss_ << result;
   }
 };
+
+std::vector<std::vector<std::vector<uint32_t>>>
+PathToIndicatorMatrices(const std::vector<TreeSetDecisionPath> &decision_paths,
+                        const std::vector<bst_node_t> &tree2max_node) {
+  CHECK_GT(decision_paths.size(), 0);
+  uint64_t num_trees = decision_paths.at(0).num_trees();
+  std::vector<std::vector<std::vector<uint32_t>>> result{
+      num_trees, std::vector<std::vector<uint32_t>> {}
+  };
+  for (uint32_t tree_id = 0; tree_id < result.size(); ++tree_id) {
+    auto &tree_local = result.at(tree_id);
+    tree_local.reserve(decision_paths.size());
+    std::vector<uint32_t> row;
+    uint64_t num_node = tree2max_node.at(tree_id);
+    row.reserve(num_node);
+    row.insert(row.end(), num_node, 0);
+    tree_local.insert(tree_local.end(), decision_paths.size(), row);
+  }
+  for (uint64_t row_id = 0; row_id < decision_paths.size(); ++row_id) {
+    decision_paths.at(row_id).update_indicator(row_id, result);
+  }
+  return result;
+}
 
 void PrintDecisionPath(std::ostream &os, const std::vector<std::string> &decision_paths_dumped) {
   os << "[";

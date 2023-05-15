@@ -132,7 +132,8 @@ class Predictor {
    * \return True if the data can be handled by current predictor, false otherwise.
    */
   virtual bool InplacePredict(std::shared_ptr<DMatrix> p_fmat, const gbm::GBTreeModel& model,
-                              float missing, PredictionCacheEntry* out_preds, std::vector<TreeSetDecisionPath> *decision_paths,
+                              float missing, PredictionCacheEntry* out_preds,
+                              std::vector<TreeSetDecisionPath> *decision_paths,
                               uint32_t tree_begin = 0, uint32_t tree_end = 0) const = 0;
   /**
    * \brief online prediction function, predict score for one instance at a time

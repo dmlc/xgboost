@@ -250,6 +250,8 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    */
   virtual uint64_t GetTreeCount() const = 0;
 
+  virtual std::vector<bst_node_t> GetMaxNodePerTree() const = 0;
+
   /*!
    * \brief dump the model in the requested format
    * \param fmap feature map that may help give interpretations of feature
@@ -268,8 +270,10 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * @param decision_paths decision paths collected in PredictBatch
    * @return a vector of dump for decision paths.
    */
-  virtual std::vector<std::string> DumpDecisionPath(const FeatureMap& fmap, bool with_stats, std::string format,
-      const std::vector<TreeSetDecisionPath>& decision_path) = 0;
+  virtual std::vector<std::string> DumpDecisionPath(const FeatureMap& fmap, bool with_stats,
+                                                    std::string format,
+                                                    const std::vector<TreeSetDecisionPath>&
+                                                        decision_path) = 0;
 
   virtual XGBAPIThreadLocalEntry& GetThreadLocal() const = 0;
   /*!

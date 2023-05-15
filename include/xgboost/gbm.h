@@ -102,7 +102,8 @@ class GradientBooster : public Model, public Configurable {
    * \param end      End of booster layer. 0 means do not limit trees.
    */
   virtual void PredictBatch(DMatrix* dmat, PredictionCacheEntry* out_preds, bool training,
-                            std::vector<TreeSetDecisionPath>* decision_paths, bst_layer_t begin, bst_layer_t end) = 0;
+                            std::vector<TreeSetDecisionPath>* decision_paths, bst_layer_t begin,
+                            bst_layer_t end) = 0;
 
   /**
    * \brief Inplace prediction.
@@ -192,6 +193,8 @@ class GradientBooster : public Model, public Configurable {
    * @return the numer of trees in this model.
    */
   virtual uint64_t GetTreeCount() const = 0;
+
+  virtual std::vector<bst_node_t> GetMaxNodePerTree() const = 0;
 
   virtual void FeatureScore(std::string const& importance_type,
                             common::Span<int32_t const> trees,

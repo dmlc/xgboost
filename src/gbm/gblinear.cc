@@ -240,6 +240,10 @@ class GBLinear : public GradientBooster {
     return 0;
   }
 
+  virtual std::vector<bst_node_t> GetMaxNodePerTree() const override {
+    throw "Not implemented";
+  }
+
   void FeatureScore(std::string const &importance_type,
                     common::Span<int32_t const> trees,
                     std::vector<bst_feature_t> *out_features,
