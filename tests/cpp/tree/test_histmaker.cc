@@ -9,12 +9,17 @@
 #include "../helpers.h"
 
 namespace xgboost::tree {
-std::shared_ptr<DMatrix> GenerateDMatrix(std::size_t rows, std::size_t cols){
-  return RandomDataGenerator{rows, cols, 0.6f}.Seed(3).GenerateDMatrix();
+std::shared_ptr<DMatrix> GenerateDMatrix(std::size_t rows, std::size_t cols,
+                                         bool categorical = false) {
+  if (categorical) {
+    std::vector<FeatureType> ft(cols, FeatureType::kCategorical);
+    return RandomDataGenerator(rows, cols, 0.6f).Seed(3).Type(ft).MaxCategory(17).GenerateDMatrix();
+  } else {
+    return RandomDataGenerator{rows, cols, 0.6f}.Seed(3).GenerateDMatrix();
+  }
 }
 
-TEST(GrowHistMaker, InteractionConstraint)
-{
+TEST(GrowHistMaker, InteractionConstraint) {
   auto constexpr kRows = 32;
   auto constexpr kCols = 16;
   auto p_dmat = GenerateDMatrix(kRows, kCols);
@@ -58,8 +63,9 @@ TEST(GrowHistMaker, InteractionConstraint)
 }
 
 namespace {
-void TestColumnSplit(int32_t rows, bst_feature_t cols, RegTree const& expected_tree) {
-  auto p_dmat = GenerateDMatrix(rows, cols);
+void VerifyColumnSplit(int32_t rows, bst_feature_t cols, bool categorical,
+                       RegTree const& expected_tree) {
+  auto p_dmat = GenerateDMatrix(rows, cols, categorical);
   auto p_gradients = GenerateGradients(rows);
   Context ctx;
   ObjInfo task{ObjInfo::kRegression};
@@ -80,16 +86,15 @@ void TestColumnSplit(int32_t rows, bst_feature_t cols, RegTree const& expected_t
   expected_tree.SaveModel(&expected_json);
   ASSERT_EQ(json, expected_json);
 }
-}  // anonymous namespace
 
-TEST(GrowHistMaker, ColumnSplit) {
+void TestColumnSplit(bool categorical) {
   auto constexpr kRows = 32;
   auto constexpr kCols = 16;
 
   RegTree expected_tree{1u, kCols};
   ObjInfo task{ObjInfo::kRegression};
   {
-    auto p_dmat = GenerateDMatrix(kRows, kCols);
+    auto p_dmat = GenerateDMatrix(kRows, kCols, categorical);
     auto p_gradients = GenerateGradients(kRows);
     Context ctx;
     std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create("grow_histmaker", &ctx, &task)};
@@ -100,6 +105,12 @@ TEST(GrowHistMaker, ColumnSplit) {
   }
 
   auto constexpr kWorldSize = 2;
-  RunWithInMemoryCommunicator(kWorldSize, TestColumnSplit, kRows, kCols, std::cref(expected_tree));
+  RunWithInMemoryCommunicator(kWorldSize, VerifyColumnSplit, kRows, kCols, categorical,
+                              std::cref(expected_tree));
 }
+}  // anonymous namespace
+
+TEST(GrowHistMaker, ColumnSplitNumerical) { TestColumnSplit(false); }
+
+TEST(GrowHistMaker, ColumnSplitCategorical) { TestColumnSplit(true); }
 }  // namespace xgboost::tree
