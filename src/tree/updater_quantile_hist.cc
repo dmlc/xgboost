@@ -336,7 +336,7 @@ class HistBuilder {
   common::Monitor *monitor_;
   TrainParam const *param_;
   std::shared_ptr<common::ColumnSampler> col_sampler_;
-  std::unique_ptr<HistEvaluator<CPUExpandEntry>> evaluator_;
+  std::unique_ptr<HistEvaluator> evaluator_;
   std::vector<CommonRowPartitioner> partitioner_;
 
   // back pointers to tree and data matrix
@@ -355,7 +355,7 @@ class HistBuilder {
       : monitor_{monitor},
         param_{param},
         col_sampler_{std::move(column_sampler)},
-        evaluator_{std::make_unique<HistEvaluator<CPUExpandEntry>>(ctx, param, fmat->Info(),
+        evaluator_{std::make_unique<HistEvaluator>(ctx, param, fmat->Info(),
                                                                    col_sampler_)},
         p_last_fmat_(fmat),
         histogram_builder_{new HistogramBuilder<CPUExpandEntry>},
@@ -396,8 +396,7 @@ class HistBuilder {
     }
     histogram_builder_->Reset(n_total_bins, HistBatch(param_), ctx_->Threads(), page_id,
                               collective::IsDistributed(), fmat->Info().IsColumnSplit());
-    evaluator_ = std::make_unique<HistEvaluator<CPUExpandEntry>>(ctx_, this->param_, fmat->Info(),
-                                                                 col_sampler_);
+    evaluator_ = std::make_unique<HistEvaluator>(ctx_, this->param_, fmat->Info(), col_sampler_);
     p_last_tree_ = p_tree;
     monitor_->Stop(__func__);
   }

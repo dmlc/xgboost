@@ -25,7 +25,6 @@
 #include "xgboost/linalg.h"            // for Constants, Vector
 
 namespace xgboost::tree {
-template <typename ExpandEntry>
 class HistEvaluator {
  private:
   struct NodeEntry {
@@ -288,7 +287,7 @@ class HistEvaluator {
  public:
   void EvaluateSplits(const common::HistCollection &hist, common::HistogramCuts const &cut,
                       common::Span<FeatureType const> feature_types, const RegTree &tree,
-                      std::vector<ExpandEntry> *p_entries) {
+                      std::vector<CPUExpandEntry> *p_entries) {
     auto n_threads = ctx_->Threads();
     auto& entries = *p_entries;
     // All nodes are on the same level, so we can store the shared ptr.
@@ -306,7 +305,7 @@ class HistEvaluator {
       return features[nidx_in_set]->Size();
     }, grain_size);
 
-    std::vector<ExpandEntry> tloc_candidates(n_threads * entries.size());
+    std::vector<CPUExpandEntry> tloc_candidates(n_threads * entries.size());
     for (size_t i = 0; i < entries.size(); ++i) {
       for (decltype(n_threads) j = 0; j < n_threads; ++j) {
         tloc_candidates[i * n_threads + j] = entries[i];
@@ -368,9 +367,42 @@ class HistEvaluator {
       auto const world = collective::GetWorldSize();
       auto const rank = collective::GetRank();
       auto const num_entries = entries.size();
-      std::vector<ExpandEntry> buffer(num_entries * world);
-      std::copy_n(entries.cbegin(), num_entries, buffer.begin() + num_entries * rank);
-      collective::Allgather(buffer.data(), buffer.size() * sizeof(ExpandEntry));
+      std::vector<CPUExpandEntry> buffer(num_entries * world);
+      for (auto i = 0; i < num_entries; i++) {
+        auto& copy = buffer[num_entries * rank + i];
+        auto& entry = entries[i];
+        copy.nid = entry.nid;
+        copy.depth = entry.depth;
+        copy.split.loss_chg = entry.split.loss_chg;
+        copy.split.sindex = entry.split.sindex;
+        copy.split.split_value = entry.split.split_value;
+        copy.split.is_cat = entry.split.is_cat;
+        copy.split.left_sum = entry.split.left_sum;
+        copy.split.right_sum = entry.split.right_sum;
+      }
+      collective::Allgather(buffer.data(), buffer.size() * sizeof(CPUExpandEntry));
+
+      std::vector<std::size_t> cat_bits_sizes(num_entries * world);
+      for (auto i = 0; i < num_entries; i++) {
+        cat_bits_sizes[num_entries * rank + i] = entries[i].split.cat_bits.size();
+      }
+      collective::Allgather(cat_bits_sizes.data(), cat_bits_sizes.size() * sizeof(std::size_t));
+      std::vector<std::size_t> cat_bits_offsets(num_entries * world);
+      for (auto i = 1; i < num_entries * world; i++) {
+        cat_bits_offsets[i] = cat_bits_offsets[i - 1] + cat_bits_sizes[i - 1];
+      }
+      std::vector<uint32_t> all_cat_bits(cat_bits_offsets.back() + cat_bits_sizes.back());
+      for (auto i = 0; i < num_entries; i++) {
+        std::copy_n(entries[i].split.cat_bits.cbegin(), entries[i].split.cat_bits.size(),
+                    all_cat_bits.begin() + cat_bits_offsets[num_entries * rank + i]);
+      }
+      collective::Allgather(all_cat_bits.data(), all_cat_bits.size() * sizeof(uint32_t));
+      for (auto i = 0; i < num_entries * world; i++) {
+        buffer[i].split.cat_bits = std::vector<uint32_t>(cat_bits_sizes[i]);
+        std::copy_n(all_cat_bits.begin() + cat_bits_offsets[i], cat_bits_sizes[i],
+                    buffer[i].split.cat_bits.begin());
+      }
+
       for (auto worker = 0; worker < world; ++worker) {
         for (std::size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
           entries[nidx_in_set].split.Update(buffer[worker * num_entries + nidx_in_set].split);
@@ -380,7 +412,7 @@ class HistEvaluator {
   }
 
   // Add splits to tree, handles all statistic
-  void ApplyTreeSplit(ExpandEntry const& candidate, RegTree *p_tree) {
+  void ApplyTreeSplit(CPUExpandEntry const& candidate, RegTree *p_tree) {
     auto evaluator = tree_evaluator_.GetEvaluator();
     RegTree &tree = *p_tree;
 

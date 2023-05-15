@@ -79,7 +79,7 @@ TEST(CPUMonoConstraint, Basic) {
   auto Xy = RandomDataGenerator{kRows, kCols, 0.0}.GenerateDMatrix(true);
   auto sampler = std::make_shared<common::ColumnSampler>();
 
-  HistEvaluator<CPUExpandEntry> evalutor{&ctx, &param, Xy->Info(), sampler};
+  HistEvaluator evalutor{&ctx, &param, Xy->Info(), sampler};
   evalutor.InitRoot(GradStats{2.0, 2.0});
 
   SplitEntry split;
