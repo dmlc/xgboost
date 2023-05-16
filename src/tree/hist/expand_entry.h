@@ -70,6 +70,22 @@ struct CPUExpandEntry : public ExpandEntryImpl<CPUExpandEntry> {
     os << "split:\n" << e.split << std::endl;
     return os;
   }
+
+  /**
+   * @brief Copy primitive fields into this, and collect cat_bits into a vector.
+   *
+   * This is used for allgather.
+   *
+   * @param that The other entry to copy from
+   * @param collected_cat_bits The vector to collect cat_bits
+   * @param cat_bits_sizes The sizes of the collected cat_bits
+   */
+  void CopyAndCollect(CPUExpandEntry const& that, std::vector<uint32_t>* collected_cat_bits,
+                      std::vector<std::size_t>* cat_bits_sizes) {
+    nid = that.nid;
+    depth = that.depth;
+    split.CopyAndCollect(that.split, collected_cat_bits, cat_bits_sizes);
+  }
 };
 
 struct MultiExpandEntry : public ExpandEntryImpl<MultiExpandEntry> {

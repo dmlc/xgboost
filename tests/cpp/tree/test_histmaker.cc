@@ -12,7 +12,10 @@ namespace xgboost::tree {
 std::shared_ptr<DMatrix> GenerateDMatrix(std::size_t rows, std::size_t cols,
                                          bool categorical = false) {
   if (categorical) {
-    std::vector<FeatureType> ft(cols, FeatureType::kCategorical);
+    std::vector<FeatureType> ft(cols);
+    for (size_t i = 0; i < ft.size(); ++i) {
+      ft[i] = (i % 3 == 0) ? FeatureType::kNumerical : FeatureType::kCategorical;
+    }
     return RandomDataGenerator(rows, cols, 0.6f).Seed(3).Type(ft).MaxCategory(17).GenerateDMatrix();
   } else {
     return RandomDataGenerator{rows, cols, 0.6f}.Seed(3).GenerateDMatrix();

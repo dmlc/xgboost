@@ -284,6 +284,39 @@ class HistEvaluator {
     return left_sum;
   }
 
+  /**
+   * @brief Gather the expand entries from all the workers.
+   * @param entries Local expand entries on this worker.
+   * @return Global expand entries gathered from all workers.
+   */
+  std::vector<CPUExpandEntry> Allgather(std::vector<CPUExpandEntry> const &entries) {
+    auto const world = collective::GetWorldSize();
+    auto const rank = collective::GetRank();
+    auto const num_entries = entries.size();
+
+    // First, gather all the primitive fields.
+    std::vector<CPUExpandEntry> all_entries(num_entries * world);
+    std::vector<uint32_t> local_cat_bits;
+    std::vector<std::size_t> local_cat_bits_sizes;
+    for (auto i = 0; i < num_entries; i++) {
+      all_entries[num_entries * rank + i].CopyAndCollect(entries[i], &local_cat_bits,
+                                                         &local_cat_bits_sizes);
+    }
+    collective::Allgather(all_entries.data(), all_entries.size() * sizeof(CPUExpandEntry));
+
+    // Gather all the cat_bits.
+    auto gathered = collective::AllgatherV(local_cat_bits, local_cat_bits_sizes);
+
+    // Copy the cat_bits back into all expand entries.
+    for (auto i = 0; i < num_entries * world; i++) {
+      all_entries[i].split.cat_bits.resize(gathered.sizes[i]);
+      std::copy_n(gathered.result.begin() + gathered.offsets[i], gathered.sizes[i],
+                  all_entries[i].split.cat_bits.begin());
+    }
+
+    return all_entries;
+  }
+
  public:
   void EvaluateSplits(const common::HistCollection &hist, common::HistogramCuts const &cut,
                       common::Span<FeatureType const> feature_types, const RegTree &tree,
@@ -364,48 +397,11 @@ class HistEvaluator {
     if (is_col_split_) {
       // With column-wise data split, we gather the best splits from all the workers and update the
       // expand entries accordingly.
-      auto const world = collective::GetWorldSize();
-      auto const rank = collective::GetRank();
-      auto const num_entries = entries.size();
-      std::vector<CPUExpandEntry> buffer(num_entries * world);
-      for (auto i = 0; i < num_entries; i++) {
-        auto& copy = buffer[num_entries * rank + i];
-        auto& entry = entries[i];
-        copy.nid = entry.nid;
-        copy.depth = entry.depth;
-        copy.split.loss_chg = entry.split.loss_chg;
-        copy.split.sindex = entry.split.sindex;
-        copy.split.split_value = entry.split.split_value;
-        copy.split.is_cat = entry.split.is_cat;
-        copy.split.left_sum = entry.split.left_sum;
-        copy.split.right_sum = entry.split.right_sum;
-      }
-      collective::Allgather(buffer.data(), buffer.size() * sizeof(CPUExpandEntry));
-
-      std::vector<std::size_t> cat_bits_sizes(num_entries * world);
-      for (auto i = 0; i < num_entries; i++) {
-        cat_bits_sizes[num_entries * rank + i] = entries[i].split.cat_bits.size();
-      }
-      collective::Allgather(cat_bits_sizes.data(), cat_bits_sizes.size() * sizeof(std::size_t));
-      std::vector<std::size_t> cat_bits_offsets(num_entries * world);
-      for (auto i = 1; i < num_entries * world; i++) {
-        cat_bits_offsets[i] = cat_bits_offsets[i - 1] + cat_bits_sizes[i - 1];
-      }
-      std::vector<uint32_t> all_cat_bits(cat_bits_offsets.back() + cat_bits_sizes.back());
-      for (auto i = 0; i < num_entries; i++) {
-        std::copy_n(entries[i].split.cat_bits.cbegin(), entries[i].split.cat_bits.size(),
-                    all_cat_bits.begin() + cat_bits_offsets[num_entries * rank + i]);
-      }
-      collective::Allgather(all_cat_bits.data(), all_cat_bits.size() * sizeof(uint32_t));
-      for (auto i = 0; i < num_entries * world; i++) {
-        buffer[i].split.cat_bits = std::vector<uint32_t>(cat_bits_sizes[i]);
-        std::copy_n(all_cat_bits.begin() + cat_bits_offsets[i], cat_bits_sizes[i],
-                    buffer[i].split.cat_bits.begin());
-      }
-
-      for (auto worker = 0; worker < world; ++worker) {
+      auto all_entries = Allgather(entries);
+      for (auto worker = 0; worker < collective::GetWorldSize(); ++worker) {
         for (std::size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
-          entries[nidx_in_set].split.Update(buffer[worker * num_entries + nidx_in_set].split);
+          entries[nidx_in_set].split.Update(
+              all_entries[worker * entries.size() + nidx_in_set].split);
         }
       }
     }
