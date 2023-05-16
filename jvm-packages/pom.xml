@@ -35,6 +35,7 @@
         <maven.compiler.target>1.8</maven.compiler.target>
         <flink.version>1.17.0</flink.version>
         <spark.version>3.4.0</spark.version>
+        <spark.version.gpu>3.3.2</spark.version.gpu>
         <scala.version>2.12.17</scala.version>
         <scala.binary.version>2.12</scala.binary.version>
         <hadoop.version>3.3.5</hadoop.version>
