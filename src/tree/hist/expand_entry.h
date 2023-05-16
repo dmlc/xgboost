@@ -135,6 +135,24 @@ struct MultiExpandEntry : public ExpandEntryImpl<MultiExpandEntry> {
     os << "]\n";
     return os;
   }
+
+  /**
+   * @brief Copy primitive fields into this, and collect cat_bits and gradients into vectors.
+   *
+   * This is used for allgather.
+   *
+   * @param that The other entry to copy from
+   * @param collected_cat_bits The vector to collect cat_bits
+   * @param cat_bits_sizes The sizes of the collected cat_bits
+   * @param collected_gradients The vector to collect gradients
+   */
+  void CopyAndCollect(MultiExpandEntry const& that, std::vector<uint32_t>* collected_cat_bits,
+                      std::vector<std::size_t>* cat_bits_sizes,
+                      std::vector<GradientPairPrecise>* collected_gradients) {
+    nid = that.nid;
+    depth = that.depth;
+    split.CopyAndCollect(that.split, collected_cat_bits, cat_bits_sizes, collected_gradients);
+  }
 };
 }  // namespace xgboost::tree
 #endif  // XGBOOST_TREE_HIST_EXPAND_ENTRY_H_

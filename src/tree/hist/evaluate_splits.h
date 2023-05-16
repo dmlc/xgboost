@@ -296,21 +296,20 @@ class HistEvaluator {
 
     // First, gather all the primitive fields.
     std::vector<CPUExpandEntry> all_entries(num_entries * world);
-    std::vector<uint32_t> local_cat_bits;
-    std::vector<std::size_t> local_cat_bits_sizes;
+    std::vector<uint32_t> cat_bits;
+    std::vector<std::size_t> cat_bits_sizes;
     for (auto i = 0; i < num_entries; i++) {
-      all_entries[num_entries * rank + i].CopyAndCollect(entries[i], &local_cat_bits,
-                                                         &local_cat_bits_sizes);
+      all_entries[num_entries * rank + i].CopyAndCollect(entries[i], &cat_bits, &cat_bits_sizes);
     }
     collective::Allgather(all_entries.data(), all_entries.size() * sizeof(CPUExpandEntry));
 
     // Gather all the cat_bits.
-    auto gathered = collective::AllgatherV(local_cat_bits, local_cat_bits_sizes);
+    auto gathered = collective::AllgatherV(cat_bits, cat_bits_sizes);
 
     // Copy the cat_bits back into all expand entries.
     for (auto i = 0; i < num_entries * world; i++) {
       all_entries[i].split.cat_bits.resize(gathered.sizes[i]);
-      std::copy_n(gathered.result.begin() + gathered.offsets[i], gathered.sizes[i],
+      std::copy_n(gathered.result.cbegin() + gathered.offsets[i], gathered.sizes[i],
                   all_entries[i].split.cat_bits.begin());
     }
 
@@ -572,6 +571,56 @@ class HistMultiEvaluator {
     return false;
   }
 
+  /**
+   * @brief Gather the expand entries from all the workers.
+   * @param entries Local expand entries on this worker.
+   * @return Global expand entries gathered from all workers.
+   */
+  std::vector<MultiExpandEntry> Allgather(std::vector<MultiExpandEntry> const &entries) {
+    auto const world = collective::GetWorldSize();
+    auto const rank = collective::GetRank();
+    auto const num_entries = entries.size();
+
+    // First, gather all the primitive fields.
+    std::vector<MultiExpandEntry> all_entries(num_entries * world);
+    std::vector<uint32_t> cat_bits;
+    std::vector<std::size_t> cat_bits_sizes;
+    std::vector<GradientPairPrecise> gradients;
+    for (auto i = 0; i < num_entries; i++) {
+      all_entries[num_entries * rank + i].CopyAndCollect(entries[i], &cat_bits, &cat_bits_sizes, &gradients);
+    }
+    collective::Allgather(all_entries.data(), all_entries.size() * sizeof(MultiExpandEntry));
+
+    // Gather all the cat_bits.
+    auto gathered_cat_bits = collective::AllgatherV(cat_bits, cat_bits_sizes);
+
+    // Copy the cat_bits back into all expand entries.
+    for (auto i = 0; i < num_entries * world; i++) {
+      all_entries[i].split.cat_bits.resize(gathered_cat_bits.sizes[i]);
+      std::copy_n(gathered_cat_bits.result.cbegin() + gathered_cat_bits.offsets[i],
+                  gathered_cat_bits.sizes[i], all_entries[i].split.cat_bits.begin());
+    }
+
+    // Gather all the gradients.
+    auto num_gradients = gradients.size();
+    std::vector<GradientPairPrecise> all_gradients(num_gradients * world);
+    std::copy_n(gradients.cbegin(), num_gradients, all_gradients.begin() + num_gradients * rank);
+    collective::Allgather(all_gradients.data(), all_gradients.size() * sizeof(GradientPairPrecise));
+
+    // Copy the gradients back into all expand entries.
+    auto gradients_per_side = num_gradients / 2;
+    for (auto i = 0; i < num_entries * world; i++) {
+      all_entries[i].split.left_sum.resize(gradients_per_side);
+      std::copy_n(all_gradients.cbegin() + i * num_gradients, gradients_per_side,
+                  all_entries[i].split.left_sum.begin());
+      all_entries[i].split.right_sum.resize(gradients_per_side);
+      std::copy_n(all_gradients.cbegin() + i * num_gradients + gradients_per_side,
+                  gradients_per_side, all_entries[i].split.right_sum.begin());
+    }
+
+    return all_entries;
+  }
+
  public:
   void EvaluateSplits(RegTree const &tree, common::Span<const common::HistCollection *> hist,
                       common::HistogramCuts const &cut, std::vector<MultiExpandEntry> *p_entries) {
@@ -630,15 +679,11 @@ class HistMultiEvaluator {
     if (is_col_split_) {
       // With column-wise data split, we gather the best splits from all the workers and update the
       // expand entries accordingly.
-      auto const world = collective::GetWorldSize();
-      auto const rank = collective::GetRank();
-      auto const num_entries = entries.size();
-      std::vector<MultiExpandEntry> buffer(num_entries * world);
-      std::copy_n(entries.cbegin(), num_entries, buffer.begin() + num_entries * rank);
-      collective::Allgather(buffer.data(), buffer.size() * sizeof(MultiExpandEntry));
-      for (auto worker = 0; worker < world; ++worker) {
+      auto all_entries = Allgather(entries);
+      for (auto worker = 0; worker < collective::GetWorldSize(); ++worker) {
         for (std::size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
-          entries[nidx_in_set].split.Update(buffer[worker * num_entries + nidx_in_set].split);
+          entries[nidx_in_set].split.Update(
+              all_entries[worker * entries.size() + nidx_in_set].split);
         }
       }
     }
