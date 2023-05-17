@@ -209,7 +209,7 @@ class PartitionBuilder {
                 BitVector* decision_bits, BitVector* missing_bits) {
     common::Span<const size_t> rid_span(rid + range.begin(), rid + range.end());
     std::size_t nid = nodes[node_in_set].nid;
-    bst_feature_t fid = tree[nid].SplitIndex();
+    bst_feature_t fid = tree.SplitIndex(nid);
     bool is_cat = tree.GetSplitTypes()[nid] == FeatureType::kCategorical;
     auto node_cats = tree.NodeCats(nid);
     auto const& cut_values = gmat.cut.Values();
@@ -270,7 +270,7 @@ class PartitionBuilder {
     common::Span<size_t> left = GetLeftBuffer(node_in_set, range.begin(), range.end());
     common::Span<size_t> right = GetRightBuffer(node_in_set, range.begin(), range.end());
     std::size_t nid = nodes[node_in_set].nid;
-    bool default_left = tree[nid].DefaultLeft();
+    bool default_left = tree.DefaultLeft(nid);
 
     auto pred = [&](auto ridx) {
       bool go_left = default_left;
