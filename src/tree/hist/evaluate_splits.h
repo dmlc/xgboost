@@ -608,13 +608,14 @@ class HistMultiEvaluator {
     collective::Allgather(all_gradients.data(), all_gradients.size() * sizeof(GradientPairPrecise));
 
     // Copy the gradients back into all expand entries.
-    auto gradients_per_side = num_gradients / 2;
+    auto gradients_per_entry = num_gradients / num_entries;
+    auto gradients_per_side = gradients_per_entry / 2;
     for (auto i = 0; i < num_entries * world; i++) {
       all_entries[i].split.left_sum.resize(gradients_per_side);
-      std::copy_n(all_gradients.cbegin() + i * num_gradients, gradients_per_side,
+      std::copy_n(all_gradients.cbegin() + i * gradients_per_entry, gradients_per_side,
                   all_entries[i].split.left_sum.begin());
       all_entries[i].split.right_sum.resize(gradients_per_side);
-      std::copy_n(all_gradients.cbegin() + i * num_gradients + gradients_per_side,
+      std::copy_n(all_gradients.cbegin() + i * gradients_per_entry + gradients_per_side,
                   gradients_per_side, all_entries[i].split.right_sum.begin());
     }
 
