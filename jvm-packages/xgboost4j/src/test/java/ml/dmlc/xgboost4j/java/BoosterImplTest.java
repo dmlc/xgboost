@@ -23,44 +23,12 @@ import java.util.Map;
 
 import junit.framework.TestCase;
 import org.junit.Test;
+import org.junit.Assert.assertArrayEquals;
 
 import java.util.Random;
 import java.io.PrintStream;
 import java.util.*;
 import java.util.concurrent.*;
-
-//
-// Utility class for comparing array contents
-//
-class ArrayComparator {
-  public static boolean compare(float[][] one, float[][] two) {
-
-    // Test that both arrays are the same size in the first dimension
-    if (one.length != two.length) {
-      System.err.println("Array first dimensions are not identical in size");
-      return false;
-    }
-
-    // Test that both arrays are the same size in the second dimension
-    if (one[0].length != two[0].length) {
-      System.err.println("Array second dimensions are not identical in size");
-      return false;
-    }
-
-    // Test that all the array elements are identical
-    for (int i=0; i<one.length; i++) {
-      for (int j=0; j<one[i].length; j++) {
-        if (one[i][j] != two[i][j]) {
-          System.err.println("Array elements [" + i + "][" + j + "] are not identical");
-          System.err.println(one[i][j] + " != " + two[i][j]);
-          return false;
-        }
-      }
-    }
-
-    return true;
-  }
-}
 
 //
 // Utility class for printing out array contents
@@ -334,7 +302,7 @@ public class BoosterImplTest {
     float[][] inplace_predicts = booster.inplace_predict(testX, test_rows, features);
 
     // Confirm that the two prediction results are identical
-    TestCase.assertTrue(ArrayComparator.compare(predicts, inplace_predicts));
+    assertArrayEquals("Two prediction results should be identical", predicts, inplace_predicts, 0);
 
 
     // Multi-thread prediction

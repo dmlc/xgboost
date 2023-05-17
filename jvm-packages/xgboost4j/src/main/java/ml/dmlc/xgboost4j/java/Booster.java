@@ -440,7 +440,7 @@ public class Booster implements Serializable, KryoSerializable {
                                    boolean predContribs) throws XGBoostError {
     int optionMask = 0;
     if (outputMargin) {
-      optionMask |= 1;
+      optionMask = 1;
     }
     if (predLeaf) {
       optionMask = 2;
