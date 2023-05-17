@@ -279,7 +279,7 @@ void TestColSplitQuantile(size_t rows, size_t cols) {
 }  // anonymous namespace
 
 TEST(Quantile, ColSplitBasic) {
-  constexpr size_t kRows = 10, kCols = 10;
+  constexpr size_t kRows = 16, kCols = 16;
   TestColSplitQuantile<false>(kRows, kCols);
 }
 
