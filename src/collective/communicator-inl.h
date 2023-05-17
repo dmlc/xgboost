@@ -3,6 +3,7 @@
  */
 #pragma once
 #include <string>
+#include <vector>
 
 #include "communicator.h"
 

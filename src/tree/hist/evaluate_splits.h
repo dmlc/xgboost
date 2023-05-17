@@ -587,7 +587,8 @@ class HistMultiEvaluator {
     std::vector<std::size_t> cat_bits_sizes;
     std::vector<GradientPairPrecise> gradients;
     for (auto i = 0; i < num_entries; i++) {
-      all_entries[num_entries * rank + i].CopyAndCollect(entries[i], &cat_bits, &cat_bits_sizes, &gradients);
+      all_entries[num_entries * rank + i].CopyAndCollect(entries[i], &cat_bits, &cat_bits_sizes,
+                                                         &gradients);
     }
     collective::Allgather(all_entries.data(), all_entries.size() * sizeof(MultiExpandEntry));
 
