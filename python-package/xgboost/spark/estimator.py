@@ -1,18 +1,77 @@
 """Xgboost pyspark integration submodule for estimator API."""
 # pylint: disable=too-many-ancestors
+# pylint: disable=fixme, too-many-ancestors, protected-access, no-member, invalid-name
+
 from typing import Any, Type
 
+import numpy as np
+from pyspark.ml.param import Param, Params
 from pyspark.ml.param.shared import HasProbabilityCol, HasRawPredictionCol
 
 from xgboost import XGBClassifier, XGBRanker, XGBRegressor
 
 from .core import (  # type: ignore
-    SparkXGBClassifierModel,
-    SparkXGBRankerModel,
-    SparkXGBRegressorModel,
-    _set_pyspark_xgb_cls_param_attrs,
+    _ClassificationModel,
     _SparkXGBEstimator,
+    _SparkXGBModel,
 )
+from .utils import get_class_name
+
+
+def _set_pyspark_xgb_cls_param_attrs(
+    estimator: _SparkXGBEstimator, model: _SparkXGBModel
+) -> None:
+    """This function automatically infer to xgboost parameters and set them
+    into corresponding pyspark estimators and models"""
+    params_dict = estimator._get_xgb_params_default()
+
+    def param_value_converter(v: Any) -> Any:
+        if isinstance(v, np.generic):
+            # convert numpy scalar values to corresponding python scalar values
+            return np.array(v).item()
+        if isinstance(v, dict):
+            return {k: param_value_converter(nv) for k, nv in v.items()}
+        if isinstance(v, list):
+            return [param_value_converter(nv) for nv in v]
+        return v
+
+    def set_param_attrs(attr_name: str, param: Param) -> None:
+        param.typeConverter = param_value_converter
+        setattr(estimator, attr_name, param)
+        setattr(model, attr_name, param)
+
+    for name in params_dict.keys():
+        doc = (
+            f"Refer to XGBoost doc of "
+            f"{get_class_name(estimator._xgb_cls())} for this param {name}"
+        )
+
+        param_obj: Param = Param(Params._dummy(), name=name, doc=doc)
+        set_param_attrs(name, param_obj)
+
+    fit_params_dict = estimator._get_fit_params_default()
+    for name in fit_params_dict.keys():
+        doc = (
+            f"Refer to XGBoost doc of {get_class_name(estimator._xgb_cls())}"
+            f".fit() for this param {name}"
+        )
+        if name == "callbacks":
+            doc += (
+                "The callbacks can be arbitrary functions. It is saved using cloudpickle "
+                "which is not a fully self-contained format. It may fail to load with "
+                "different versions of dependencies."
+            )
+        param_obj = Param(Params._dummy(), name=name, doc=doc)
+        set_param_attrs(name, param_obj)
+
+    predict_params_dict = estimator._get_predict_params_default()
+    for name in predict_params_dict.keys():
+        doc = (
+            f"Refer to XGBoost doc of {get_class_name(estimator._xgb_cls())}"
+            f".predict() for this param {name}"
+        )
+        param_obj = Param(Params._dummy(), name=name, doc=doc)
+        set_param_attrs(name, param_obj)
 
 
 class SparkXGBRegressor(_SparkXGBEstimator):
@@ -105,7 +164,7 @@ class SparkXGBRegressor(_SparkXGBEstimator):
         return XGBRegressor
 
     @classmethod
-    def _pyspark_model_cls(cls) -> Type[SparkXGBRegressorModel]:
+    def _pyspark_model_cls(cls) -> Type["SparkXGBRegressorModel"]:
         return SparkXGBRegressorModel
 
     def _validate_params(self) -> None:
@@ -114,6 +173,18 @@ class SparkXGBRegressor(_SparkXGBEstimator):
             raise ValueError(
                 "Spark Xgboost regressor estimator does not support `qid_col` param."
             )
+
+
+class SparkXGBRegressorModel(_SparkXGBModel):
+    """
+    The model returned by :func:`xgboost.spark.SparkXGBRegressor.fit`
+
+    .. Note:: This API is experimental.
+    """
+
+    @classmethod
+    def _xgb_cls(cls) -> Type[XGBRegressor]:
+        return XGBRegressor
 
 
 _set_pyspark_xgb_cls_param_attrs(SparkXGBRegressor, SparkXGBRegressorModel)
@@ -224,7 +295,7 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
         return XGBClassifier
 
     @classmethod
-    def _pyspark_model_cls(cls) -> Type[SparkXGBClassifierModel]:
+    def _pyspark_model_cls(cls) -> Type["SparkXGBClassifierModel"]:
         return SparkXGBClassifierModel
 
     def _validate_params(self) -> None:
@@ -237,6 +308,18 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
             raise ValueError(
                 "Setting custom 'objective' param is not allowed in 'SparkXGBClassifier'."
             )
+
+
+class SparkXGBClassifierModel(_ClassificationModel):
+    """
+    The model returned by :func:`xgboost.spark.SparkXGBClassifier.fit`
+
+    .. Note:: This API is experimental.
+    """
+
+    @classmethod
+    def _xgb_cls(cls) -> Type[XGBClassifier]:
+        return XGBClassifier
 
 
 _set_pyspark_xgb_cls_param_attrs(SparkXGBClassifier, SparkXGBClassifierModel)
@@ -352,7 +435,7 @@ class SparkXGBRanker(_SparkXGBEstimator):
         return XGBRanker
 
     @classmethod
-    def _pyspark_model_cls(cls) -> Type[SparkXGBRankerModel]:
+    def _pyspark_model_cls(cls) -> Type["SparkXGBRankerModel"]:
         return SparkXGBRankerModel
 
     def _validate_params(self) -> None:
@@ -361,6 +444,18 @@ class SparkXGBRanker(_SparkXGBEstimator):
             raise ValueError(
                 "Spark Xgboost ranker estimator requires setting `qid_col` param."
             )
+
+
+class SparkXGBRankerModel(_SparkXGBModel):
+    """
+    The model returned by :func:`xgboost.spark.SparkXGBRanker.fit`
+
+    .. Note:: This API is experimental.
+    """
+
+    @classmethod
+    def _xgb_cls(cls) -> Type[XGBRanker]:
+        return XGBRanker
 
 
 _set_pyspark_xgb_cls_param_attrs(SparkXGBRanker, SparkXGBRankerModel)

@@ -1,15 +1,19 @@
 """Xgboost pyspark integration submodule for helper functions."""
+# pylint: disable=fixme
+
 import inspect
 import logging
+import os
 import sys
+import uuid
 from threading import Thread
 from typing import Any, Callable, Dict, Set, Type
 
 import pyspark
-from pyspark import BarrierTaskContext, SparkContext
+from pyspark import BarrierTaskContext, SparkContext, SparkFiles
 from pyspark.sql.session import SparkSession
 
-from xgboost import collective
+from xgboost import Booster, XGBModel, collective
 from xgboost.tracker import RabitTracker
 
 
@@ -133,3 +137,52 @@ def _get_gpu_id(task_context: BarrierTaskContext) -> int:
         )
     # return the first gpu id.
     return int(resources["gpu"].addresses[0].strip())
+
+
+def _get_or_create_tmp_dir() -> str:
+    root_dir = SparkFiles.getRootDirectory()
+    xgb_tmp_dir = os.path.join(root_dir, "xgboost-tmp")
+    if not os.path.exists(xgb_tmp_dir):
+        os.makedirs(xgb_tmp_dir)
+    return xgb_tmp_dir
+
+
+def deserialize_xgb_model(
+    model: str, xgb_model_creator: Callable[[], XGBModel]
+) -> XGBModel:
+    """
+    Deserialize an xgboost.XGBModel instance from the input model.
+    """
+    xgb_model = xgb_model_creator()
+    xgb_model.load_model(bytearray(model.encode("utf-8")))
+    return xgb_model
+
+
+def serialize_booster(booster: Booster) -> str:
+    """
+    Serialize the input booster to a string.
+
+    Parameters
+    ----------
+    booster:
+        an xgboost.core.Booster instance
+    """
+    # TODO: change to use string io
+    tmp_file_name = os.path.join(_get_or_create_tmp_dir(), f"{uuid.uuid4()}.json")
+    booster.save_model(tmp_file_name)
+    with open(tmp_file_name, encoding="utf-8") as f:
+        ser_model_string = f.read()
+    return ser_model_string
+
+
+def deserialize_booster(model: str) -> Booster:
+    """
+    Deserialize an xgboost.core.Booster from the input ser_model_string.
+    """
+    booster = Booster()
+    # TODO: change to use string io
+    tmp_file_name = os.path.join(_get_or_create_tmp_dir(), f"{uuid.uuid4()}.json")
+    with open(tmp_file_name, "w", encoding="utf-8") as f:
+        f.write(model)
+    booster.load_model(tmp_file_name)
+    return booster
