@@ -306,12 +306,12 @@ class HistEvaluator {
     // Gather all the cat_bits.
     auto gathered = collective::AllgatherV(cat_bits, cat_bits_sizes);
 
-    // Copy the cat_bits back into all expand entries.
-    for (auto i = 0; i < num_entries * world; i++) {
+    common::ParallelFor(num_entries * world, ctx_->Threads(), [&] (auto i) {
+      // Copy the cat_bits back into all expand entries.
       all_entries[i].split.cat_bits.resize(gathered.sizes[i]);
       std::copy_n(gathered.result.cbegin() + gathered.offsets[i], gathered.sizes[i],
                   all_entries[i].split.cat_bits.begin());
-    }
+    });
 
     return all_entries;
   }
@@ -595,30 +595,29 @@ class HistMultiEvaluator {
     // Gather all the cat_bits.
     auto gathered_cat_bits = collective::AllgatherV(cat_bits, cat_bits_sizes);
 
-    // Copy the cat_bits back into all expand entries.
-    for (auto i = 0; i < num_entries * world; i++) {
-      all_entries[i].split.cat_bits.resize(gathered_cat_bits.sizes[i]);
-      std::copy_n(gathered_cat_bits.result.cbegin() + gathered_cat_bits.offsets[i],
-                  gathered_cat_bits.sizes[i], all_entries[i].split.cat_bits.begin());
-    }
-
     // Gather all the gradients.
-    auto num_gradients = gradients.size();
+    auto const num_gradients = gradients.size();
     std::vector<GradientPairPrecise> all_gradients(num_gradients * world);
     std::copy_n(gradients.cbegin(), num_gradients, all_gradients.begin() + num_gradients * rank);
     collective::Allgather(all_gradients.data(), all_gradients.size() * sizeof(GradientPairPrecise));
 
-    // Copy the gradients back into all expand entries.
-    auto gradients_per_entry = num_gradients / num_entries;
-    auto gradients_per_side = gradients_per_entry / 2;
-    for (auto i = 0; i < num_entries * world; i++) {
+    auto const total_entries = num_entries * world;
+    auto const gradients_per_entry = num_gradients / num_entries;
+    auto const gradients_per_side = gradients_per_entry / 2;
+    common::ParallelFor(total_entries, ctx_->Threads(), [&] (auto i) {
+      // Copy the cat_bits back into all expand entries.
+      all_entries[i].split.cat_bits.resize(gathered_cat_bits.sizes[i]);
+      std::copy_n(gathered_cat_bits.result.cbegin() + gathered_cat_bits.offsets[i],
+                  gathered_cat_bits.sizes[i], all_entries[i].split.cat_bits.begin());
+
+      // Copy the gradients back into all expand entries.
       all_entries[i].split.left_sum.resize(gradients_per_side);
       std::copy_n(all_gradients.cbegin() + i * gradients_per_entry, gradients_per_side,
                   all_entries[i].split.left_sum.begin());
       all_entries[i].split.right_sum.resize(gradients_per_side);
       std::copy_n(all_gradients.cbegin() + i * gradients_per_entry + gradients_per_side,
                   gradients_per_side, all_entries[i].split.right_sum.begin());
-    }
+    });
 
     return all_entries;
   }
