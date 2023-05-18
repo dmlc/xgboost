@@ -1060,7 +1060,8 @@ void InplacePredictImpl(std::shared_ptr<DMatrix> p_m, char const *c_json_config,
   xgboost_CHECK_C_ARG_PTR(out_shape);
 
   InplacePredictImplCore(p_m, learner, type, missing, n_samples, n_features,
-                         iteration_begin, iteration_end, strict_shape, out_shape, out_dim, out_result);
+                         iteration_begin, iteration_end, strict_shape, out_shape,
+                         out_dim, out_result);
 }
 
 XGB_DLL int XGBoosterInplacePredict(BoosterHandle handle,
@@ -1081,8 +1082,8 @@ XGB_DLL int XGBoosterInplacePredict(BoosterHandle handle,
   auto iteration_end = GetIterationFromTreeLimit(ntree_limit, learner);
   auto proxy = std::make_shared<data::DMatrixProxy>();
   proxy->SetDenseData(data, num_rows, num_features);
-  InplacePredictImplCore(proxy, learner, (xgboost::PredictionType)0, missing, num_rows, num_features,
-                         0, iteration_end, true, len, &out_dim, out_result);
+  InplacePredictImplCore(proxy, learner, (xgboost::PredictionType)0, missing, num_rows,
+                         num_features, 0, iteration_end, true, len, &out_dim, out_result);
   API_END();
 }
 

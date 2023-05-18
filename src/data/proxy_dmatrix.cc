@@ -17,7 +17,8 @@ void DMatrixProxy::SetArrayData(char const *c_interface) {
 
 void DMatrixProxy::SetDenseData(const float *data, size_t num_rows,
                                 size_t num_features) {
-  std::shared_ptr<xgboost::data::DenseAdapter> adapter{new xgboost::data::DenseAdapter(data, num_rows, num_features)};
+  std::shared_ptr<xgboost::data::DenseAdapter> adapter{new xgboost::data::DenseAdapter(
+      data, num_rows, num_features)};
   this->batch_ = adapter;
   this->Info().num_col_ = adapter->NumColumns();
   this->Info().num_row_ = adapter->NumRows();
