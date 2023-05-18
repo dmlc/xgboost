@@ -20,15 +20,15 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
-
-import junit.framework.TestCase;
-import org.junit.Test;
-import org.junit.Assert.assertArrayEquals;
-
 import java.util.Random;
 import java.io.PrintStream;
 import java.util.*;
 import java.util.concurrent.*;
+
+import junit.framework.TestCase;
+import org.junit.Test;
+
+import static org.junit.Assert.assertArrayEquals;
 
 //
 // Utility class for printing out array contents
