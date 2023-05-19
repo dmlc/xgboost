@@ -302,7 +302,7 @@ public class BoosterImplTest {
     float[][] inplace_predicts = booster.inplace_predict(testX, test_rows, features);
 
     // Confirm that the two prediction results are identical
-    assertArrayEquals("Two prediction results should be identical", predicts, inplace_predicts, 0);
+    assertArrayEquals(predicts, inplace_predicts);
 
 
     // Multi-thread prediction
