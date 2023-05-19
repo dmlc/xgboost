@@ -48,7 +48,9 @@ class TestGPUUpdatersMulti:
 class TestGPUUpdaters:
     cputest = test_up.TestTreeMethod()
 
-    @given(hist_parameter_strategy, strategies.integers(1, 20), tm.dataset_strategy)
+    @given(
+        hist_parameter_strategy, strategies.integers(1, 20), tm.make_dataset_strategy()
+    )
     @settings(deadline=None, max_examples=50, print_blob=True)
     def test_gpu_hist(self, param, num_rounds, dataset):
         param["tree_method"] = "gpu_hist"
@@ -150,7 +152,7 @@ class TestGPUUpdaters:
     @given(
         hist_parameter_strategy,
         strategies.integers(1, 20),
-        tm.dataset_strategy
+        tm.make_dataset_strategy(),
     )
     @settings(deadline=None, max_examples=20, print_blob=True)
     def test_gpu_hist_device_dmatrix(
@@ -171,7 +173,7 @@ class TestGPUUpdaters:
     @given(
         hist_parameter_strategy,
         strategies.integers(1, 3),
-        tm.dataset_strategy
+        tm.make_dataset_strategy(),
     )
     @settings(deadline=None, max_examples=10, print_blob=True)
     def test_external_memory(self, param, num_rounds, dataset):
@@ -213,7 +215,7 @@ class TestGPUUpdaters:
         np.testing.assert_allclose(predictions, 0.0, 1e-6)
 
     @pytest.mark.mgpu
-    @given(tm.dataset_strategy, strategies.integers(0, 10))
+    @given(tm.make_dataset_strategy(), strategies.integers(0, 10))
     @settings(deadline=None, max_examples=10, print_blob=True)
     def test_specified_gpu_id_gpu_update(self, dataset, gpu_id):
         param = {'tree_method': 'gpu_hist', 'gpu_id': gpu_id}
