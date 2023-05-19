@@ -645,7 +645,7 @@ def make_datasets_with_margin(
 # A strategy for drawing from a set of example datasets. May add random weights to the
 # dataset
 @memory.cache
-def make_dataset_strategy():
+def make_dataset_strategy() -> Callable:
     _unweighted_datasets_strategy = strategies.sampled_from(
         [
             TestDataset(
