@@ -19,7 +19,7 @@ from .utils import get_class_name
 
 
 def _set_pyspark_xgb_cls_param_attrs(
-    estimator: _SparkXGBEstimator, model: _SparkXGBModel
+    estimator: Type[_SparkXGBEstimator], model: Type[_SparkXGBModel]
 ) -> None:
     """This function automatically infer to xgboost parameters and set them
     into corresponding pyspark estimators and models"""
@@ -304,7 +304,7 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
             raise ValueError(
                 "Spark Xgboost classifier estimator does not support `qid_col` param."
             )
-        if self.getOrDefault(self.objective):  # pylint: disable=no-member
+        if self.getOrDefault("objective"):  # pylint: disable=no-member
             raise ValueError(
                 "Setting custom 'objective' param is not allowed in 'SparkXGBClassifier'."
             )
