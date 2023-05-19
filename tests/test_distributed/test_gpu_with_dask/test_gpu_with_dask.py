@@ -243,7 +243,7 @@ class TestDistributedGPU:
     @given(
         params=hist_parameter_strategy,
         num_rounds=strategies.integers(1, 20),
-        dataset=tm.dataset_strategy,
+        dataset=tm.make_dataset_strategy(),
         dmatrix_type=strategies.sampled_from(
             [dxgb.DaskDMatrix, dxgb.DaskQuantileDMatrix]
         ),

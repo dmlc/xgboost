@@ -1458,9 +1458,10 @@ class TestWithDask:
         else:
             assert history[-1] < history[0]
 
-    @given(params=hist_parameter_strategy,
-           dataset=tm.dataset_strategy)
-    @settings(deadline=None, max_examples=10, suppress_health_check=suppress, print_blob=True)
+    @given(params=hist_parameter_strategy, dataset=tm.make_dataset_strategy())
+    @settings(
+        deadline=None, max_examples=10, suppress_health_check=suppress, print_blob=True
+    )
     def test_hist(
             self, params: Dict, dataset: tm.TestDataset, client: "Client"
     ) -> None:
@@ -1524,7 +1525,7 @@ class TestWithDask:
         rmse = result["history"]["Valid"]["rmse"][-1]
         assert rmse < 32.0
 
-    @given(params=hist_parameter_strategy, dataset=tm.dataset_strategy)
+    @given(params=hist_parameter_strategy, dataset=tm.make_dataset_strategy())
     @settings(
         deadline=None, max_examples=10, suppress_health_check=suppress, print_blob=True
     )
