@@ -515,7 +515,7 @@ inline std::int32_t AllThreadsForTest() { return Context{}.Threads(); }
 
 template <typename Function, typename... Args>
 void RunWithInMemoryCommunicator(int32_t world_size, Function&& function, Args&&... args) {
-  common::ParallelFor(world_size, world_size, [&] (auto rank) {
+  auto run = [&](auto rank) {
     Json config{JsonObject()};
     config["xgboost_communicator"] = String("in-memory");
     config["in_memory_world_size"] = world_size;
@@ -525,7 +525,18 @@ void RunWithInMemoryCommunicator(int32_t world_size, Function&& function, Args&&
     std::forward<Function>(function)(std::forward<Args>(args)...);
 
     xgboost::collective::Finalize();
-  });
+  };
+#if defined(_OPENMP)
+  common::ParallelFor(world_size, world_size, run);
+#else
+  std::vector<std::thread> threads;
+  for (auto rank = 0; rank < world_size; rank++) {
+    threads.emplace_back(run, rank);
+  }
+  for (auto& thread : threads) {
+    thread.join();
+  }
+#endif
 }
 
 class DeclareUnifiedDistributedTest(MetricTest) : public ::testing::Test {

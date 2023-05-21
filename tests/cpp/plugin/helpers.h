@@ -63,7 +63,7 @@ class BaseFederatedTest : public ::testing::Test {
 template <typename Function, typename... Args>
 void RunWithFederatedCommunicator(int32_t world_size, std::string const& server_address,
                                   Function&& function, Args&&... args) {
-  common::ParallelFor(world_size, world_size, [&] (auto rank) {
+  auto run = [&](auto rank) {
     Json config{JsonObject()};
     config["xgboost_communicator"] = String("federated");
     config["federated_server_address"] = String(server_address);
@@ -74,7 +74,18 @@ void RunWithFederatedCommunicator(int32_t world_size, std::string const& server_
     std::forward<Function>(function)(std::forward<Args>(args)...);
 
     xgboost::collective::Finalize();
-  });
+  };
+#if defined(_OPENMP)
+  common::ParallelFor(world_size, world_size, run);
+#else
+  std::vector<std::thread> threads;
+  for (auto rank = 0; rank < world_size; rank++) {
+    threads.emplace_back(run, rank);
+  }
+  for (auto& thread : threads) {
+    thread.join();
+  }
+#endif
 }
 
 }  // namespace xgboost

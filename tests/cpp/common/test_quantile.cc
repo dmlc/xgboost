@@ -194,14 +194,7 @@ void DoTestColSplitQuantile(size_t rows, size_t cols) {
     return dmat->SliceCol(world, rank);
   }()};
 
-  std::vector<bst_row_t> column_size(cols, 0);
-  auto const slice_size = cols / world;
-  auto const slice_start = slice_size * rank;
-  auto const slice_end = (rank == world - 1) ? cols : slice_start + slice_size;
-  for (auto i = slice_start; i < slice_end; i++) {
-    column_size[i] = rows;
-  }
-
+  std::vector<bst_row_t> column_size(cols, rows);
   auto const n_bins = 64;
 
   // Generate cuts for distributed environment.
