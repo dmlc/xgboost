@@ -28,8 +28,12 @@ def train_result(param, dmat, num_rounds):
 
 
 class TestLinear:
-    @given(parameter_strategy, strategies.integers(10, 50),
-           tm.dataset_strategy, coord_strategy)
+    @given(
+        parameter_strategy,
+        strategies.integers(10, 50),
+        tm.make_dataset_strategy(),
+        coord_strategy
+    )
     @settings(deadline=None, max_examples=20, print_blob=True)
     def test_coordinate(self, param, num_rounds, dataset, coord_param):
         param['updater'] = 'coord_descent'
@@ -45,7 +49,7 @@ class TestLinear:
     @given(
         parameter_strategy,
         strategies.integers(10, 50),
-        tm.dataset_strategy,
+        tm.make_dataset_strategy(),
         coord_strategy,
         strategies.floats(1e-5, 0.8),
         strategies.floats(1e-5, 0.8)
@@ -61,8 +65,9 @@ class TestLinear:
         note(result)
         assert tm.non_increasing([result[0], result[-1]])
 
-    @given(parameter_strategy, strategies.integers(10, 50),
-           tm.dataset_strategy)
+    @given(
+        parameter_strategy, strategies.integers(10, 50), tm.make_dataset_strategy()
+    )
     @settings(deadline=None, max_examples=20, print_blob=True)
     def test_shotgun(self, param, num_rounds, dataset):
         param['updater'] = 'shotgun'
@@ -77,9 +82,13 @@ class TestLinear:
             sampled_result = result
         assert tm.non_increasing(sampled_result)
 
-    @given(parameter_strategy, strategies.integers(10, 50),
-           tm.dataset_strategy, strategies.floats(1e-5, 1.0),
-           strategies.floats(1e-5, 1.0))
+    @given(
+        parameter_strategy,
+        strategies.integers(10, 50),
+        tm.make_dataset_strategy(),
+        strategies.floats(1e-5, 1.0),
+        strategies.floats(1e-5, 1.0)
+    )
     @settings(deadline=None, max_examples=20, print_blob=True)
     def test_shotgun_regularised(self, param, num_rounds, dataset, alpha, lambd):
         param['updater'] = 'shotgun'

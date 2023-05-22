@@ -28,8 +28,7 @@ def train_result(param, dmat, num_rounds):
 
 
 class TestGPULinear:
-    @given(parameter_strategy, strategies.integers(10, 50),
-           tm.dataset_strategy)
+    @given(parameter_strategy, strategies.integers(10, 50), tm.make_dataset_strategy())
     @settings(deadline=None, max_examples=20, print_blob=True)
     def test_gpu_coordinate(self, param, num_rounds, dataset):
         assume(len(dataset.y) > 0)
@@ -45,7 +44,7 @@ class TestGPULinear:
     @given(
         parameter_strategy,
         strategies.integers(10, 50),
-        tm.dataset_strategy,
+        tm.make_dataset_strategy(),
         strategies.floats(1e-5, 0.8),
         strategies.floats(1e-5, 0.8)
     )
