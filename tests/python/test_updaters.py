@@ -87,8 +87,9 @@ class TestTreeMethod:
     USE_ONEHOT = np.iinfo(np.int32).max
     USE_PART = 1
 
-    @given(exact_parameter_strategy, strategies.integers(1, 20),
-           tm.dataset_strategy)
+    @given(
+        exact_parameter_strategy, strategies.integers(1, 20), tm.make_dataset_strategy()
+    )
     @settings(deadline=None, print_blob=True)
     def test_exact(self, param, num_rounds, dataset):
         if dataset.name.endswith("-l1"):
@@ -102,7 +103,7 @@ class TestTreeMethod:
         exact_parameter_strategy,
         hist_parameter_strategy,
         strategies.integers(1, 20),
-        tm.dataset_strategy,
+        tm.make_dataset_strategy(),
     )
     @settings(deadline=None, print_blob=True)
     def test_approx(self, param, hist_param, num_rounds, dataset):
@@ -141,7 +142,7 @@ class TestTreeMethod:
         exact_parameter_strategy,
         hist_parameter_strategy,
         strategies.integers(1, 20),
-        tm.dataset_strategy
+        tm.make_dataset_strategy()
     )
     @settings(deadline=None, print_blob=True)
     def test_hist(self, param: dict, hist_param: dict, num_rounds: int, dataset: tm.TestDataset) -> None:

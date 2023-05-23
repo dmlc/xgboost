@@ -265,8 +265,9 @@ class TestGPUPredict:
         base_margin = cudf.Series(rng.randn(rows))
         self.run_inplace_base_margin(booster, dtrain, X, base_margin)
 
-    @given(strategies.integers(1, 10),
-           tm.dataset_strategy, shap_parameter_strategy)
+    @given(
+        strategies.integers(1, 10), tm.make_dataset_strategy(), shap_parameter_strategy
+    )
     @settings(deadline=None, max_examples=20, print_blob=True)
     def test_shap(self, num_rounds, dataset, param):
         if dataset.name.endswith("-l1"):  # not supported by the exact tree method
@@ -281,8 +282,9 @@ class TestGPUPredict:
         assume(len(dataset.y) > 0)
         assert np.allclose(np.sum(shap, axis=len(shap.shape) - 1), margin, 1e-3, 1e-3)
 
-    @given(strategies.integers(1, 10),
-           tm.dataset_strategy, shap_parameter_strategy)
+    @given(
+        strategies.integers(1, 10), tm.make_dataset_strategy(), shap_parameter_strategy
+    )
     @settings(deadline=None, max_examples=10, print_blob=True)
     def test_shap_interactions(self, num_rounds, dataset, param):
         if dataset.name.endswith("-l1"):  # not supported by the exact tree method
@@ -335,7 +337,7 @@ class TestGPUPredict:
 
         np.testing.assert_equal(cpu_leaf, gpu_leaf)
 
-    @given(predict_parameter_strategy, tm.dataset_strategy)
+    @given(predict_parameter_strategy, tm.make_dataset_strategy())
     @settings(deadline=None, max_examples=20, print_blob=True)
     def test_predict_leaf_gbtree(self, param, dataset):
         # Unsupported for random forest
@@ -346,7 +348,7 @@ class TestGPUPredict:
         param['tree_method'] = 'gpu_hist'
         self.run_predict_leaf_booster(param, 10, dataset)
 
-    @given(predict_parameter_strategy, tm.dataset_strategy)
+    @given(predict_parameter_strategy, tm.make_dataset_strategy())
     @settings(deadline=None, max_examples=20, print_blob=True)
     def test_predict_leaf_dart(self, param: dict, dataset: tm.TestDataset) -> None:
         # Unsupported for random forest
