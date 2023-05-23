@@ -79,7 +79,6 @@ class InplacePredictThread extends Thread {
 
   @Override
   public void run() {
-//    System.err.println("Thread #" + thread_num + " started.");
 
     try {
       // Perform n_preds number of single-vector predictions
@@ -92,7 +91,6 @@ class InplacePredictThread extends Thread {
 
         // Confirm results as expected
         if (predictions[0][0] != this.true_predicts[r][0]) {
-//          System.err.println("Error in thread #" + this.thread_num);
           success = false;
           return;  // bail at the first error.
         }
@@ -128,7 +126,6 @@ class InplacePredictionTask implements Callable<Boolean> {
 
   @Override
   public Boolean call() throws Exception {
-//    System.err.println("Task #" + task_num + " started.");
 
     // Perform n_preds number of single-vector predictions
     for (int i=0; i<n_preds; i++) {
@@ -145,17 +142,15 @@ class InplacePredictionTask implements Callable<Boolean> {
       }
     }
 
-//    System.err.println("Task #" + task_num + " finished.");
-
     // No errors found
     return true;
   }
 }
 
 /**
- * test cases for Booster
- *
- * @author hzx
+ * test cases for Booster Inplace Predict
+ * 
+ * @author Sovrn
  */
 public class BoosterImplTest {
   private String train_uri = "../../demo/data/agaricus.txt.train?indexing_mode=1&format=libsvm";
@@ -231,8 +226,6 @@ public class BoosterImplTest {
   }
   @Test
   public void testBoosterInplacePredict() throws  XGBoostError, IOException {
-
-//    System.out.println("=-=-=-=-=- testBoosterInplacePredict 2 =-=-=-=-=");
 
     Random rng = new Random();
 
@@ -340,8 +333,6 @@ public class BoosterImplTest {
     } catch (InterruptedException | ExecutionException e) {
         throw new RuntimeException(e);
     }
-
-//    System.out.println("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-");
   }
 
   @Test
