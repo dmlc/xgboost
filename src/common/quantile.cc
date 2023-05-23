@@ -206,7 +206,7 @@ template <typename WQSketch>
 void SketchContainerImpl<WQSketch>::AllreduceCategories(MetaInfo const& info) {
   auto world_size = collective::GetWorldSize();
   auto rank = collective::GetRank();
-  if (world_size == 1) {
+  if (world_size == 1 || info.IsColumnSplit()) {
     return;
   }
 
@@ -312,7 +312,7 @@ void SketchContainerImpl<WQSketch>::AllReduce(
   });
 
   auto world = collective::GetWorldSize();
-  if (world == 1) {
+  if (world == 1 || info.IsColumnSplit()) {
     monitor_.Stop(__func__);
     return;
   }
