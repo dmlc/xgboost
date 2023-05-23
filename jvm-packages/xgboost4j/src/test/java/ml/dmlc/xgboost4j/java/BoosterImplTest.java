@@ -150,7 +150,7 @@ class InplacePredictionTask implements Callable<Boolean> {
 /**
  * test cases for Booster Inplace Predict
  * 
- * @author Sovrn
+ * @author hzx and Sovrn
  */
 public class BoosterImplTest {
   private String train_uri = "../../demo/data/agaricus.txt.train?indexing_mode=1&format=libsvm";
