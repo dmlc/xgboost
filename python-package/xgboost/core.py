@@ -82,12 +82,10 @@ def from_pystr_to_cstr(data: Union[str, List[str]]) -> Union[bytes, ctypes.Array
     if isinstance(data, str):
         return bytes(data, "utf-8")
     if isinstance(data, list):
-        pointers: ctypes.Array[ctypes.c_char_p] = (ctypes.c_char_p * len(data))()
-        data_as_bytes = [bytes(d, "utf-8") for d in data]
-        pointers[:] = data_as_bytes  # type: ignore
+        data_as_bytes: List[bytes] = [bytes(d, "utf-8") for d in data]
+        pointers: ctypes.Array[ctypes.c_char_p] = (ctypes.c_char_p * len(data_as_bytes))(*data_as_bytes)
         return pointers
     raise TypeError()
-
 
 def from_cstr_to_pystr(data: CStrPptr, length: c_bst_ulong) -> List[str]:
     """Revert C pointer to Python str
