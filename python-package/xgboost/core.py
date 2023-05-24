@@ -317,7 +317,7 @@ def _cuda_array_interface(data: DataType) -> bytes:
 def ctypes2numpy(cptr: CNumericPtr, length: int, dtype: Type[np.number]) -> np.ndarray:
     """Convert a ctypes pointer array to a numpy array."""
     ctype: Type[CNumeric] = _numpy2ctypes_type(dtype)
-    if not isinstance(cptr, ctypes.POINTER(ctype)):  # type: ignore
+    if not isinstance(cptr, ctypes.POINTER(ctype)):
         raise RuntimeError(f"expected {ctype} pointer")
     res = np.zeros(length, dtype=dtype)
     if not ctypes.memmove(res.ctypes.data, cptr, length * res.strides[0]):
@@ -2458,9 +2458,9 @@ class Booster:
             raise TypeError("Unknown file type: ", fname)
 
         if self.attr("best_iteration") is not None:
-            self.best_iteration = int(self.attr("best_iteration"))  # type: ignore
+            self.best_iteration = int(cast(int,self.attr("best_iteration")))
         if self.attr("best_score") is not None:
-            self.best_score = float(self.attr("best_score"))  # type: ignore
+            self.best_score = float(cast(float,self.attr("best_score")))
 
     def num_boosted_rounds(self) -> int:
         """Get number of boosted rounds.  For gblinear this is reset to 0 after
