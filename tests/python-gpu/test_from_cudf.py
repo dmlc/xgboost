@@ -43,8 +43,9 @@ def dmatrix_from_cudf(input_type, DMatrixT, missing=np.NAN):
 
 
 def _test_from_cudf(DMatrixT):
-    '''Test constructing DMatrix from cudf'''
+    """Test constructing DMatrix from cudf"""
     import cudf
+
     dmatrix_from_cudf(np.float32, DMatrixT, np.NAN)
     dmatrix_from_cudf(np.float64, DMatrixT, np.NAN)
 
@@ -52,37 +53,35 @@ def _test_from_cudf(DMatrixT):
     dmatrix_from_cudf(np.int32, DMatrixT, -2)
     dmatrix_from_cudf(np.int64, DMatrixT, -3)
 
-    cd = cudf.DataFrame({'x': [1, 2, 3], 'y': [0.1, 0.2, 0.3]})
+    cd = cudf.DataFrame({"x": [1, 2, 3], "y": [0.1, 0.2, 0.3]})
     dtrain = DMatrixT(cd)
 
-    assert dtrain.feature_names == ['x', 'y']
-    assert dtrain.feature_types == ['int', 'float']
+    assert dtrain.feature_names == ["x", "y"]
+    assert dtrain.feature_types == ["int", "float"]
 
-    series = cudf.DataFrame({'x': [1, 2, 3]}).iloc[:, 0]
+    series = cudf.DataFrame({"x": [1, 2, 3]}).iloc[:, 0]
     assert isinstance(series, cudf.Series)
     dtrain = DMatrixT(series)
 
-    assert dtrain.feature_names == ['x']
-    assert dtrain.feature_types == ['int']
+    assert dtrain.feature_names == ["x"]
+    assert dtrain.feature_types == ["int"]
 
     with pytest.raises(ValueError, match=r".*multi.*"):
         dtrain = DMatrixT(cd, label=cd)
         xgb.train({"tree_method": "gpu_hist", "objective": "multi:softprob"}, dtrain)
 
     # Test when number of elements is less than 8
-    X = cudf.DataFrame({'x': cudf.Series([0, 1, 2, np.NAN, 4],
-                                         dtype=np.int32)})
+    X = cudf.DataFrame({"x": cudf.Series([0, 1, 2, np.NAN, 4], dtype=np.int32)})
     dtrain = DMatrixT(X)
     assert dtrain.num_col() == 1
     assert dtrain.num_row() == 5
 
     # Boolean is not supported.
-    X_boolean = cudf.DataFrame({'x': cudf.Series([True, False])})
+    X_boolean = cudf.DataFrame({"x": cudf.Series([True, False])})
     with pytest.raises(Exception):
         dtrain = DMatrixT(X_boolean)
 
-    y_boolean = cudf.DataFrame({
-        'x': cudf.Series([True, False, True, True, True])})
+    y_boolean = cudf.DataFrame({"x": cudf.Series([True, False, True, True, True])})
     with pytest.raises(Exception):
         dtrain = DMatrixT(X_boolean, label=y_boolean)
 

@@ -106,13 +106,20 @@ std::size_t SketchBatchNumElements(size_t sketch_batch_num_elements, bst_row_t n
     nnz = std::min(num_rows * static_cast<size_t>(columns), nnz);
     std::size_t required_memory{0ul};
 
+    if (nnz <= 2) {
+      // short cut
+      return kMaxNumEntrySort;
+    }
+
     do {
       required_memory = RequiredMemory(num_rows, columns, nnz, num_cuts, has_weight, d_can_read);
       if (required_memory > avail) {
         LOG(WARNING) << "Insufficient memory, dividing the data into smaller batches.";
       }
       sketch_batch_num_elements = nnz;
-      nnz = nnz / 2;
+      if (required_memory > avail) {
+        nnz = nnz / 2;
+      }
     } while (required_memory > avail && nnz >= 2);
 
     if (nnz <= 2) {
