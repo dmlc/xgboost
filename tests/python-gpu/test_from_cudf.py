@@ -12,7 +12,7 @@ from test_dmatrix import set_base_margin_info
 
 
 def dmatrix_from_cudf(input_type, DMatrixT, missing=np.NAN):
-    '''Test constructing DMatrix from cudf'''
+    """Test constructing DMatrix from cudf"""
     import cudf
     import pandas as pd
 
@@ -25,19 +25,21 @@ def dmatrix_from_cudf(input_type, DMatrixT, missing=np.NAN):
     na[5, 0] = missing
     na[3, 1] = missing
 
-    pa = pd.DataFrame({'0': na[:, 0],
-                       '1': na[:, 1],
-                       '2': na[:, 2].astype(np.int32)})
+    pa = pd.DataFrame({"0": na[:, 0], "1": na[:, 1], "2": na[:, 2].astype(np.int32)})
 
     np_label = np.random.randn(kRows).astype(input_type)
     pa_label = pd.DataFrame(np_label)
 
-    cd = cudf.from_pandas(pa)
+    cudf_df = cudf.from_pandas(pa)
+    cudf_df[["0", "1"]] = cudf_df[["0", "1"]].astype(input_type)
     cd_label = cudf.from_pandas(pa_label).iloc[:, 0]
 
-    dtrain = DMatrixT(cd, missing=missing, label=cd_label)
+    dtrain = DMatrixT(cudf_df, missing=missing, label=cd_label)
     assert dtrain.num_col() == kCols
     assert dtrain.num_row() == kRows
+
+    dtrain_from_pd = DMatrixT(pa, missing=missing, label=pa_label)
+    tm.predictor_equal(dtrain_from_pd, dtrain)
 
 
 def _test_from_cudf(DMatrixT):
