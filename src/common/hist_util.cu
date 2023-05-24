@@ -101,18 +101,22 @@ std::size_t SketchBatchNumElements(size_t sketch_batch_num_elements, bst_row_t n
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
   if (sketch_batch_num_elements == 0) {
-    std::size_t required_memory{0};
     // Use up to 80% of available space
     auto avail = dh::AvailableMemory(device) * 0.8;
     nnz = std::min(num_rows * static_cast<size_t>(columns), nnz);
+    std::size_t required_memory{0ul};
 
     do {
       required_memory = RequiredMemory(num_rows, columns, nnz, num_cuts, has_weight, d_can_read);
+      if (required_memory > avail) {
+        LOG(WARNING) << "Insufficient memory, dividing the data into smaller batches.";
+      }
       sketch_batch_num_elements = nnz;
       nnz = nnz / 2;
     } while (required_memory > avail && nnz >= 2);
 
     if (nnz <= 2) {
+      LOG(WARNING) << "Unable to finish sketching due to memory limit.";
       // let it OOM.
       return kMaxNumEntrySort;
     }

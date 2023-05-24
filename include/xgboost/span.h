@@ -669,7 +669,7 @@ XGBOOST_DEVICE auto as_writable_bytes(Span<T, E> s) __span_noexcept ->  // NOLIN
   return {reinterpret_cast<byte*>(s.data()), s.size_bytes()};
 }
 
-// A simpiler custom Span type with general iterator instead of pointer.
+// A simple custom Span type that uses general iterator instead of pointer.
 template <typename It>
 class IterSpan {
   It it_;
