@@ -308,12 +308,12 @@ class ArrayInterfaceHandler {
 template <typename T, typename E = void>
 struct ToDType;
 // float
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 600
+#if defined(XGBOOST_USE_CUDA)
 template <>
 struct ToDType<__half> {
   static constexpr ArrayInterfaceHandler::Type kType = ArrayInterfaceHandler::kF2;
 };
-#endif  // defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 600
+#endif  // defined(XGBOOST_USE_CUDA)
 template <>
 struct ToDType<float> {
   static constexpr ArrayInterfaceHandler::Type kType = ArrayInterfaceHandler::kF4;
@@ -494,8 +494,8 @@ class ArrayInterface {
     }
   }
 
-  XGBOOST_DEVICE size_t Shape(size_t i) const { return shape[i]; }
-  XGBOOST_DEVICE size_t Stride(size_t i) const { return strides[i]; }
+  [[nodiscard]] XGBOOST_DEVICE std::size_t Shape(size_t i) const { return shape[i]; }
+  [[nodiscard]] XGBOOST_DEVICE std::size_t Stride(size_t i) const { return strides[i]; }
 
   template <typename Fn>
   XGBOOST_HOST_DEV_INLINE decltype(auto) DispatchCall(Fn func) const {
@@ -541,12 +541,12 @@ class ArrayInterface {
     return func(reinterpret_cast<uint64_t const *>(data));
   }
 
-  XGBOOST_DEVICE std::size_t ElementSize() const {
+  [[nodiscard]] XGBOOST_DEVICE std::size_t ElementSize() const {
     return this->DispatchCall([](auto *typed_data_ptr) {
       return sizeof(std::remove_pointer_t<decltype(typed_data_ptr)>);
     });
   }
-  XGBOOST_DEVICE std::size_t ElementAlignment() const {
+  [[nodiscard]] XGBOOST_DEVICE std::size_t ElementAlignment() const {
     return this->DispatchCall([](auto *typed_data_ptr) {
       return std::alignment_of<std::remove_pointer_t<decltype(typed_data_ptr)>>::value;
     });

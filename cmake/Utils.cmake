@@ -167,6 +167,7 @@ function(xgboost_set_cuda_flags target)
 
   target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_CUDA=1)
   target_include_directories(${target} PRIVATE ${xgboost_SOURCE_DIR}/gputreeshap)
+  target_link_libraries(${target} PRIVATE CUDA::cudart)
 
   if (MSVC)
     target_compile_options(${target} PRIVATE
