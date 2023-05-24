@@ -395,7 +395,7 @@ class EarlyStopping(TrainingCallback):
             self.stopping_history[name][metric] = cast(_ScoreList, [score])
             self.best_scores[name] = {}
             self.best_scores[name][metric] = [score]
-            model.set_attr(best_score=str(score), best_iteration=int(epoch))
+            model.set_attr(best_score=str(score), best_iteration=str(epoch))
         elif not improve_op(score, self.best_scores[name][metric][-1]):
             # Not improved
             self.stopping_history[name][metric].append(score)  # type: ignore
