@@ -38,19 +38,18 @@ def using_dask_matrix(client: Client, X, y):
 
 
 def using_quantile_device_dmatrix(client: Client, X, y):
-    """`DaskQuantileDMatrix` is a data type specialized for `gpu_hist`, tree
-     method that reduces memory overhead.  When training on GPU pipeline, it's
-     preferred over `DaskDMatrix`.
+    """`DaskQuantileDMatrix` is a data type specialized for `gpu_hist` and `hist` tree
+     methods for reducing memory usage.
 
     .. versionadded:: 1.2.0
 
     """
-    # Input must be on GPU for `DaskQuantileDMatrix`.
     X = dask_cudf.from_dask_dataframe(dd.from_dask_array(X))
     y = dask_cudf.from_dask_dataframe(dd.from_dask_array(y))
 
-    # `DaskQuantileDMatrix` is used instead of `DaskDMatrix`, be careful
-    # that it can not be used for anything else other than training.
+    # `DaskQuantileDMatrix` is used instead of `DaskDMatrix`, be careful that it can not
+    # be used for anything else other than training unless a reference is specified. See
+    # the `ref` argument of `DaskQuantileDMatrix`.
     dtrain = dxgb.DaskQuantileDMatrix(client, X, y)
     output = xgb.dask.train(
         client, {"verbosity": 2, "tree_method": "gpu_hist"}, dtrain, num_boost_round=4
