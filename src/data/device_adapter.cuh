@@ -237,8 +237,8 @@ bool NoInfInData(AdapterBatchT const& batch, IsValidFunctor is_valid) {
   // intervals to early stop. But we expect all data to be valid here, using small
   // intervals only decreases performance due to excessive kernel launch and stream
   // synchronization.
-  auto valid = thrust::reduce(thrust::cuda::par(alloc), value_iter, value_iter + batch.Size(), true,
-                              thrust::logical_and<>{});
+  auto valid = dh::Reduce(thrust::cuda::par(alloc), value_iter, value_iter + batch.Size(), true,
+                          thrust::logical_and<>{});
   return valid;
 }
 };  // namespace data
