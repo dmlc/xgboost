@@ -83,9 +83,12 @@ def from_pystr_to_cstr(data: Union[str, List[str]]) -> Union[bytes, ctypes.Array
         return bytes(data, "utf-8")
     if isinstance(data, list):
         data_as_bytes: List[bytes] = [bytes(d, "utf-8") for d in data]
-        pointers: ctypes.Array[ctypes.c_char_p] = (ctypes.c_char_p * len(data_as_bytes))(*data_as_bytes)
+        pointers: ctypes.Array[ctypes.c_char_p] = (
+            ctypes.c_char_p * len(data_as_bytes)
+        )(*data_as_bytes)
         return pointers
     raise TypeError()
+
 
 def from_cstr_to_pystr(data: CStrPptr, length: c_bst_ulong) -> List[str]:
     """Revert C pointer to Python str
@@ -2458,9 +2461,9 @@ class Booster:
             raise TypeError("Unknown file type: ", fname)
 
         if self.attr("best_iteration") is not None:
-            self.best_iteration = int(cast(int,self.attr("best_iteration")))
+            self.best_iteration = int(cast(int, self.attr("best_iteration")))
         if self.attr("best_score") is not None:
-            self.best_score = float(cast(float,self.attr("best_score")))
+            self.best_score = float(cast(float, self.attr("best_score")))
 
     def num_boosted_rounds(self) -> int:
         """Get number of boosted rounds.  For gblinear this is reset to 0 after
