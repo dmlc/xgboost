@@ -369,6 +369,7 @@ auto AddCategories(std::set<float> const &categories, HistogramCuts *cuts) {
     InvalidCategory();
   }
   auto &cut_values = cuts->cut_values_.HostVector();
+  // With column-wise data split, the categories may be empty.
   auto max_cat =
       categories.empty() ? 0.0f : *std::max_element(categories.cbegin(), categories.cend());
   CheckMaxCat(max_cat, categories.size());
