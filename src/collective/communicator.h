@@ -229,7 +229,6 @@ class Communicator {
   static thread_local std::unique_ptr<Communicator> communicator_;
   static thread_local CommunicatorType type_;
 #if defined(XGBOOST_USE_CUDA)
-  static thread_local int device_ordinal_;
   static thread_local std::unique_ptr<DeviceCommunicator> device_communicator_;
 #endif
 
