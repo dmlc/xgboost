@@ -29,7 +29,7 @@ class CudfAdapterBatch : public detail::NoMetaInfo {
       : columns_(columns),
         num_rows_(num_rows) {}
   size_t Size() const { return num_rows_ * columns_.size(); }
-  __device__ COOTuple GetElement(size_t idx) const {
+  __device__ __forceinline__ COOTuple GetElement(size_t idx) const {
     size_t column_idx = idx % columns_.size();
     size_t row_idx = idx / columns_.size();
     auto const& column = columns_[column_idx];
@@ -221,13 +221,24 @@ size_t GetRowCounts(const AdapterBatchT batch, common::Span<size_t> offset,
  * \brief Check there's no inf in data.
  */
 template <typename AdapterBatchT>
-bool HasInfInData(AdapterBatchT const& batch, IsValidFunctor is_valid) {
+bool NoInfInData(AdapterBatchT const& batch, IsValidFunctor is_valid) {
   auto counting = thrust::make_counting_iterator(0llu);
-  auto value_iter = dh::MakeTransformIterator<float>(
-      counting, [=] XGBOOST_DEVICE(std::size_t idx) { return batch.GetElement(idx).value; });
-  auto valid =
-      thrust::none_of(value_iter, value_iter + batch.Size(),
-                      [is_valid] XGBOOST_DEVICE(float v) { return is_valid(v) && std::isinf(v); });
+  auto value_iter = dh::MakeTransformIterator<bool>(counting, [=] XGBOOST_DEVICE(std::size_t idx) {
+    auto v = batch.GetElement(idx).value;
+    if (!is_valid(v)) {
+      // discard the invalid elements.
+      return true;
+    }
+    // check that there's no inf in data.
+    return !std::isinf(v);
+  });
+  dh::XGBCachingDeviceAllocator<char> alloc;
+  // The default implementation in thrust optimizes any_of/none_of/all_of by using small
+  // intervals to early stop. But we expect all data to be valid here, using small
+  // intervals only decreases performance due to excessive kernel launch and stream
+  // synchronization.
+  auto valid = dh::Reduce(thrust::cuda::par(alloc), value_iter, value_iter + batch.Size(), true,
+                          thrust::logical_and<>{});
   return valid;
 }
 };  // namespace data
