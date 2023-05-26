@@ -672,23 +672,24 @@ XGBOOST_DEVICE auto as_writable_bytes(Span<T, E> s) __span_noexcept ->  // NOLIN
 // A simple custom Span type that uses general iterator instead of pointer.
 template <typename It>
 class IterSpan {
-  It it_;
-  std::size_t size_{0};
-
  public:
   using element_type = typename std::iterator_traits<It>::value_type;  // NOLINT
   using index_type = std::size_t;                                      // NOLINT
   using iterator = It;                                                 // NOLINT
 
+ private:
+  It it_;
+  index_type size_{0};
+
  public:
   IterSpan() = default;
-  XGBOOST_DEVICE IterSpan(It it, std::size_t size) : it_{it}, size_{size} {}
+  XGBOOST_DEVICE IterSpan(It it, index_type size) : it_{std::move(it)}, size_{size} {}
   XGBOOST_DEVICE explicit IterSpan(common::Span<It, dynamic_extent> span)
       : it_{span.data()}, size_{span.size()} {}
 
-  XGBOOST_DEVICE std::size_t size() const { return size_; }  // NOLINT
-  XGBOOST_DEVICE decltype(auto) operator[](std::size_t i) const { return it_[i]; }
-  XGBOOST_DEVICE decltype(auto) operator[](std::size_t i) { return it_[i]; }
+  XGBOOST_DEVICE index_type size() const { return size_; }  // NOLINT
+  XGBOOST_DEVICE decltype(auto) operator[](index_type i) const { return it_[i]; }
+  XGBOOST_DEVICE decltype(auto) operator[](index_type i) { return it_[i]; }
   XGBOOST_DEVICE bool empty() const { return size() == 0; }  // NOLINT
   XGBOOST_DEVICE It data() const { return it_; }             // NOLINT
   XGBOOST_DEVICE IterSpan<It> subspan(                       // NOLINT

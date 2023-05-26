@@ -55,6 +55,7 @@
 #include "../../util_type.cuh"
 #include "xgboost/span.h"
 
+// NOLINTBEGIN
 namespace cub_argsort {
 namespace detail {
 CUB_RUNTIME_FUNCTION inline cudaError_t HasUVA(bool &has_uva) {
@@ -426,3 +427,4 @@ struct DispatchRadixArgSort : SelectedPolicy {
   }
 };
 }  // namespace cub_argsort
+// NOLINTEND

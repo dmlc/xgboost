@@ -45,6 +45,7 @@
 #include "../block/radix_rank_sort_operations.cuh"
 #include "../util_type.cuh"
 
+// NOLINTBEGIN
 namespace cub_argsort {
 template <
   int _BLOCK_THREADS,
@@ -241,3 +242,4 @@ struct AgentRadixSortHistogram {
     }
 };
 }  // namespace cub_argsort
+// NOLINTEND

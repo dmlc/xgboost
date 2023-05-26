@@ -4,6 +4,7 @@
 
 #include <cub/util_type.cuh>
 
+// NOLINTBEGIN
 namespace cub_argsort {
 struct EntryTrait : public ::cub::BaseTraits<::cub::NOT_A_NUMBER, false, false, unsigned long long,
                                              xgboost::Entry> {
@@ -54,3 +55,4 @@ template <typename T>
 struct MyTraits : public std::conditional_t<std::is_same_v<T, xgboost::Entry>, EntryTrait,
                                             ::cub::NumericTraits<T>> {};
 }  // namespace cub_argsort
+// NOLINTEND

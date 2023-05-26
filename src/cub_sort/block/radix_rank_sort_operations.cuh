@@ -6,6 +6,7 @@
 
 #include "../util_type.cuh"
 
+// NOLINTBEGIN
 namespace cub_argsort {
 /** \brief Twiddling keys for radix sort. */
 template <bool IS_DESCENDING, typename KeyT>
@@ -27,3 +28,4 @@ struct RadixSortTwiddle {
   }
 };
 }  // namespace cub_argsort
+// NOLINTEND

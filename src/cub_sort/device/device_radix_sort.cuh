@@ -41,6 +41,7 @@
 #include "dispatch/dispatch_radix_sort.cuh"
 #include "xgboost/span.h"
 
+// NOLINTBEGIN
 namespace cub_argsort {
 namespace detail {
 
@@ -84,3 +85,4 @@ struct DeviceRadixSort {
   }
 };
 }  // namespace cub_argsort
+// NOLINTEND

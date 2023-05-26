@@ -45,6 +45,7 @@
 #include "../block/radix_rank_sort_operations.cuh"
 #include "../util_type.cuh"
 
+// NOLINTBEGIN
 namespace cub_argsort {
 template <typename ReturnT, typename IterT, typename FuncT>
 XGBOOST_DEVICE thrust::transform_iterator<FuncT, IterT, ReturnT> MakeTransformIterator(IterT iter,
@@ -517,3 +518,4 @@ struct AgentRadixSortOnesweep {
     }
 };
 }  // namespace cub_argsort
+// NOLINTEND
