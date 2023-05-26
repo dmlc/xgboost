@@ -597,7 +597,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
             if self.hasParam(k):
                 if k == "features_col" and isinstance(v, list):
-                    self._set({"features_cols": v})
+                    self._set(**{"features_cols": v})
                 else:
                     self._set(**{str(k): v})
             else:

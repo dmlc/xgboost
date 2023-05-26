@@ -1,6 +1,8 @@
 """Xgboost pyspark integration submodule for estimator API."""
 # pylint: disable=too-many-ancestors
 # pylint: disable=fixme, too-many-ancestors, protected-access, no-member, invalid-name
+# pylint: disable=unused-argument, too-many-locals
+
 
 from typing import Any, Dict, List, Optional, Type, Union
 
@@ -139,7 +141,8 @@ class SparkXGBRegressor(_SparkXGBEstimator):
         Boolean value to specify whether the executors are running on GPU
         instances.
     force_repartition:
-        Boolean value to specify if forcing the input dataset to be repartitioned before XGBoost training.
+        Boolean value to specify if forcing the input dataset to be repartitioned
+        before XGBoost training.
     repartition_random_shuffle
         Boolean value to specify if randomly shuffling the dataset when repartitioning is required.
     enable_sparse_data_optim:
@@ -148,7 +151,8 @@ class SparkXGBRegressor(_SparkXGBEstimator):
         dense matrix.
 
     xgboost_parameters:
-        A dictionary of xgboost parameters, please refer to https://xgboost.readthedocs.io/en/stable/parameter.html
+        A dictionary of xgboost parameters, please refer to
+        https://xgboost.readthedocs.io/en/stable/parameter.html
 
     .. Note:: The Parameters chart above contains parameters that need special handling.
         For a full list of parameters, see entries with `Param(parent=...` below.
@@ -305,7 +309,8 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
         Boolean value to specify whether the executors are running on GPU
         instances.
     force_repartition:
-        Boolean value to specify if forcing the input dataset to be repartitioned before XGBoost training.
+        Boolean value to specify if forcing the input dataset to be repartitioned
+        before XGBoost training.
     repartition_random_shuffle
         Boolean value to specify if randomly shuffling the dataset when repartitioning is required.
     enable_sparse_data_optim:
@@ -314,7 +319,8 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
         dense matrix.
 
     xgboost_parameters:
-        A dictionary of xgboost parameters, please refer to https://xgboost.readthedocs.io/en/stable/parameter.html
+        A dictionary of xgboost parameters, please refer to
+        https://xgboost.readthedocs.io/en/stable/parameter.html
 
     .. Note:: The Parameters chart above contains parameters that need special handling.
         For a full list of parameters, see entries with `Param(parent=...` below.
@@ -475,7 +481,8 @@ class SparkXGBRanker(_SparkXGBEstimator):
         Boolean value to specify whether the executors are running on GPU
         instances.
     force_repartition:
-        Boolean value to specify if forcing the input dataset to be repartitioned before XGBoost training.
+        Boolean value to specify if forcing the input dataset to be repartitioned
+        before XGBoost training.
     repartition_random_shuffle
         Boolean value to specify if randomly shuffling the dataset when repartitioning is required.
     enable_sparse_data_optim:
@@ -484,7 +491,8 @@ class SparkXGBRanker(_SparkXGBEstimator):
         dense matrix.
 
     xgboost_parameters:
-        A dictionary of xgboost parameters, please refer to https://xgboost.readthedocs.io/en/stable/parameter.html
+        A dictionary of xgboost parameters, please refer to
+        https://xgboost.readthedocs.io/en/stable/parameter.html
 
     .. Note:: The Parameters chart above contains parameters that need special handling.
         For a full list of parameters, see entries with `Param(parent=...` below.
