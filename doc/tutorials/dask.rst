@@ -519,6 +519,9 @@ Troubleshooting
   the ``NCCL_SOCKET_IFNAME``. In addition, you can use ``NCCL_DEBUG`` to obtain debug
   logs.
 
+- If NCCL fails to initialize in a container environment, it might be caused by limited
+  system shared memory. With docker, one can try the flag: `--shm-size=4g`.
+
 - MIG (Multi-Instance GPU) is not yet supported by NCCL. You will receive an error message
   that includes `Multiple processes within a communication group ...` upon initialization.
 
