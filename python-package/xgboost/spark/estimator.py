@@ -469,7 +469,7 @@ class SparkXGBRanker(_SparkXGBEstimator):
         To specify the base margins of the training and validation
         dataset, set :py:attr:`xgboost.spark.SparkXGBClassifier.base_margin_col` parameter
         instead of setting `base_margin` and `base_margin_eval_set` in the
-        `xgboost.XGBClassifier` fit method. Note: this isn't available for distributed
+        :py:class:`xgboost.XGBClassifier` fit method. Note: this isn't available for distributed
         training.
     qid_col"
         Query id column name.
