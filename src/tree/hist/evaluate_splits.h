@@ -25,7 +25,6 @@
 #include "xgboost/linalg.h"            // for Constants, Vector
 
 namespace xgboost::tree {
-template <typename ExpandEntry>
 class HistEvaluator {
  private:
   struct NodeEntry {
@@ -285,10 +284,42 @@ class HistEvaluator {
     return left_sum;
   }
 
+  /**
+   * @brief Gather the expand entries from all the workers.
+   * @param entries Local expand entries on this worker.
+   * @return Global expand entries gathered from all workers.
+   */
+  std::vector<CPUExpandEntry> Allgather(std::vector<CPUExpandEntry> const &entries) {
+    auto const world = collective::GetWorldSize();
+    auto const rank = collective::GetRank();
+    auto const num_entries = entries.size();
+
+    // First, gather all the primitive fields.
+    std::vector<CPUExpandEntry> all_entries(num_entries * world);
+    std::vector<uint32_t> cat_bits;
+    std::vector<std::size_t> cat_bits_sizes;
+    for (auto i = 0; i < num_entries; i++) {
+      all_entries[num_entries * rank + i].CopyAndCollect(entries[i], &cat_bits, &cat_bits_sizes);
+    }
+    collective::Allgather(all_entries.data(), all_entries.size() * sizeof(CPUExpandEntry));
+
+    // Gather all the cat_bits.
+    auto gathered = collective::AllgatherV(cat_bits, cat_bits_sizes);
+
+    common::ParallelFor(num_entries * world, ctx_->Threads(), [&] (auto i) {
+      // Copy the cat_bits back into all expand entries.
+      all_entries[i].split.cat_bits.resize(gathered.sizes[i]);
+      std::copy_n(gathered.result.cbegin() + gathered.offsets[i], gathered.sizes[i],
+                  all_entries[i].split.cat_bits.begin());
+    });
+
+    return all_entries;
+  }
+
  public:
   void EvaluateSplits(const common::HistCollection &hist, common::HistogramCuts const &cut,
                       common::Span<FeatureType const> feature_types, const RegTree &tree,
-                      std::vector<ExpandEntry> *p_entries) {
+                      std::vector<CPUExpandEntry> *p_entries) {
     auto n_threads = ctx_->Threads();
     auto& entries = *p_entries;
     // All nodes are on the same level, so we can store the shared ptr.
@@ -306,7 +337,7 @@ class HistEvaluator {
       return features[nidx_in_set]->Size();
     }, grain_size);
 
-    std::vector<ExpandEntry> tloc_candidates(n_threads * entries.size());
+    std::vector<CPUExpandEntry> tloc_candidates(n_threads * entries.size());
     for (size_t i = 0; i < entries.size(); ++i) {
       for (decltype(n_threads) j = 0; j < n_threads; ++j) {
         tloc_candidates[i * n_threads + j] = entries[i];
@@ -365,22 +396,18 @@ class HistEvaluator {
     if (is_col_split_) {
       // With column-wise data split, we gather the best splits from all the workers and update the
       // expand entries accordingly.
-      auto const world = collective::GetWorldSize();
-      auto const rank = collective::GetRank();
-      auto const num_entries = entries.size();
-      std::vector<ExpandEntry> buffer{num_entries * world};
-      std::copy_n(entries.cbegin(), num_entries, buffer.begin() + num_entries * rank);
-      collective::Allgather(buffer.data(), buffer.size() * sizeof(ExpandEntry));
-      for (auto worker = 0; worker < world; ++worker) {
+      auto all_entries = Allgather(entries);
+      for (auto worker = 0; worker < collective::GetWorldSize(); ++worker) {
         for (std::size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
-          entries[nidx_in_set].split.Update(buffer[worker * num_entries + nidx_in_set].split);
+          entries[nidx_in_set].split.Update(
+              all_entries[worker * entries.size() + nidx_in_set].split);
         }
       }
     }
   }
 
   // Add splits to tree, handles all statistic
-  void ApplyTreeSplit(ExpandEntry const& candidate, RegTree *p_tree) {
+  void ApplyTreeSplit(CPUExpandEntry const& candidate, RegTree *p_tree) {
     auto evaluator = tree_evaluator_.GetEvaluator();
     RegTree &tree = *p_tree;
 
@@ -465,6 +492,7 @@ class HistMultiEvaluator {
   FeatureInteractionConstraintHost interaction_constraints_;
   std::shared_ptr<common::ColumnSampler> column_sampler_;
   Context const *ctx_;
+  bool is_col_split_{false};
 
  private:
   static double MultiCalcSplitGain(TrainParam const &param,
@@ -543,6 +571,57 @@ class HistMultiEvaluator {
     return false;
   }
 
+  /**
+   * @brief Gather the expand entries from all the workers.
+   * @param entries Local expand entries on this worker.
+   * @return Global expand entries gathered from all workers.
+   */
+  std::vector<MultiExpandEntry> Allgather(std::vector<MultiExpandEntry> const &entries) {
+    auto const world = collective::GetWorldSize();
+    auto const rank = collective::GetRank();
+    auto const num_entries = entries.size();
+
+    // First, gather all the primitive fields.
+    std::vector<MultiExpandEntry> all_entries(num_entries * world);
+    std::vector<uint32_t> cat_bits;
+    std::vector<std::size_t> cat_bits_sizes;
+    std::vector<GradientPairPrecise> gradients;
+    for (auto i = 0; i < num_entries; i++) {
+      all_entries[num_entries * rank + i].CopyAndCollect(entries[i], &cat_bits, &cat_bits_sizes,
+                                                         &gradients);
+    }
+    collective::Allgather(all_entries.data(), all_entries.size() * sizeof(MultiExpandEntry));
+
+    // Gather all the cat_bits.
+    auto gathered_cat_bits = collective::AllgatherV(cat_bits, cat_bits_sizes);
+
+    // Gather all the gradients.
+    auto const num_gradients = gradients.size();
+    std::vector<GradientPairPrecise> all_gradients(num_gradients * world);
+    std::copy_n(gradients.cbegin(), num_gradients, all_gradients.begin() + num_gradients * rank);
+    collective::Allgather(all_gradients.data(), all_gradients.size() * sizeof(GradientPairPrecise));
+
+    auto const total_entries = num_entries * world;
+    auto const gradients_per_entry = num_gradients / num_entries;
+    auto const gradients_per_side = gradients_per_entry / 2;
+    common::ParallelFor(total_entries, ctx_->Threads(), [&] (auto i) {
+      // Copy the cat_bits back into all expand entries.
+      all_entries[i].split.cat_bits.resize(gathered_cat_bits.sizes[i]);
+      std::copy_n(gathered_cat_bits.result.cbegin() + gathered_cat_bits.offsets[i],
+                  gathered_cat_bits.sizes[i], all_entries[i].split.cat_bits.begin());
+
+      // Copy the gradients back into all expand entries.
+      all_entries[i].split.left_sum.resize(gradients_per_side);
+      std::copy_n(all_gradients.cbegin() + i * gradients_per_entry, gradients_per_side,
+                  all_entries[i].split.left_sum.begin());
+      all_entries[i].split.right_sum.resize(gradients_per_side);
+      std::copy_n(all_gradients.cbegin() + i * gradients_per_entry + gradients_per_side,
+                  gradients_per_side, all_entries[i].split.right_sum.begin());
+    });
+
+    return all_entries;
+  }
+
  public:
   void EvaluateSplits(RegTree const &tree, common::Span<const common::HistCollection *> hist,
                       common::HistogramCuts const &cut, std::vector<MultiExpandEntry> *p_entries) {
@@ -595,6 +674,18 @@ class HistMultiEvaluator {
     for (std::size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
       for (auto tidx = 0; tidx < n_threads; ++tidx) {
         entries[nidx_in_set].split.Update(tloc_candidates[n_threads * nidx_in_set + tidx].split);
+      }
+    }
+
+    if (is_col_split_) {
+      // With column-wise data split, we gather the best splits from all the workers and update the
+      // expand entries accordingly.
+      auto all_entries = Allgather(entries);
+      for (auto worker = 0; worker < collective::GetWorldSize(); ++worker) {
+        for (std::size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
+          entries[nidx_in_set].split.Update(
+              all_entries[worker * entries.size() + nidx_in_set].split);
+        }
       }
     }
   }
@@ -660,7 +751,10 @@ class HistMultiEvaluator {
 
   explicit HistMultiEvaluator(Context const *ctx, MetaInfo const &info, TrainParam const *param,
                               std::shared_ptr<common::ColumnSampler> sampler)
-      : param_{param}, column_sampler_{std::move(sampler)}, ctx_{ctx} {
+      : param_{param},
+        column_sampler_{std::move(sampler)},
+        ctx_{ctx},
+        is_col_split_{info.IsColumnSplit()} {
     interaction_constraints_.Configure(*param, info.num_col_);
     column_sampler_->Init(ctx, info.num_col_, info.feature_weights.HostVector(),
                           param_->colsample_bynode, param_->colsample_bylevel,

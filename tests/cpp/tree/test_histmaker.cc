@@ -9,28 +9,20 @@
 #include "../helpers.h"
 
 namespace xgboost::tree {
-std::shared_ptr<DMatrix> GenerateDMatrix(std::size_t rows, std::size_t cols){
-  return RandomDataGenerator{rows, cols, 0.6f}.Seed(3).GenerateDMatrix();
-}
-
-std::unique_ptr<HostDeviceVector<GradientPair>> GenerateGradients(std::size_t rows) {
-  auto p_gradients = std::make_unique<HostDeviceVector<GradientPair>>(rows);
-  auto& h_gradients = p_gradients->HostVector();
-
-  xgboost::SimpleLCG gen;
-  xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
-
-  for (std::size_t i = 0; i < rows; ++i) {
-    auto grad = dist(&gen);
-    auto hess = dist(&gen);
-    h_gradients[i] = GradientPair{grad, hess};
+std::shared_ptr<DMatrix> GenerateDMatrix(std::size_t rows, std::size_t cols,
+                                         bool categorical = false) {
+  if (categorical) {
+    std::vector<FeatureType> ft(cols);
+    for (size_t i = 0; i < ft.size(); ++i) {
+      ft[i] = (i % 3 == 0) ? FeatureType::kNumerical : FeatureType::kCategorical;
+    }
+    return RandomDataGenerator(rows, cols, 0.6f).Seed(3).Type(ft).MaxCategory(17).GenerateDMatrix();
+  } else {
+    return RandomDataGenerator{rows, cols, 0.6f}.Seed(3).GenerateDMatrix();
   }
-
-  return p_gradients;
 }
 
-TEST(GrowHistMaker, InteractionConstraint)
-{
+TEST(GrowHistMaker, InteractionConstraint) {
   auto constexpr kRows = 32;
   auto constexpr kCols = 16;
   auto p_dmat = GenerateDMatrix(kRows, kCols);
@@ -74,8 +66,9 @@ TEST(GrowHistMaker, InteractionConstraint)
 }
 
 namespace {
-void TestColumnSplit(int32_t rows, bst_feature_t cols, RegTree const& expected_tree) {
-  auto p_dmat = GenerateDMatrix(rows, cols);
+void VerifyColumnSplit(int32_t rows, bst_feature_t cols, bool categorical,
+                       RegTree const& expected_tree) {
+  auto p_dmat = GenerateDMatrix(rows, cols, categorical);
   auto p_gradients = GenerateGradients(rows);
   Context ctx;
   ObjInfo task{ObjInfo::kRegression};
@@ -90,27 +83,21 @@ void TestColumnSplit(int32_t rows, bst_feature_t cols, RegTree const& expected_t
   param.Init(Args{});
   updater->Update(&param, p_gradients.get(), sliced.get(), position, {&tree});
 
-  ASSERT_EQ(tree.NumExtraNodes(), 10);
-  ASSERT_EQ(tree[0].SplitIndex(), 1);
-
-  ASSERT_NE(tree[tree[0].LeftChild()].SplitIndex(), 0);
-  ASSERT_NE(tree[tree[0].RightChild()].SplitIndex(), 0);
-
-  FeatureMap fmap;
-  auto json = tree.DumpModel(fmap, false, "json");
-  auto expected_json = expected_tree.DumpModel(fmap, false, "json");
+  Json json{Object{}};
+  tree.SaveModel(&json);
+  Json expected_json{Object{}};
+  expected_tree.SaveModel(&expected_json);
   ASSERT_EQ(json, expected_json);
 }
-}  // anonymous namespace
 
-TEST(GrowHistMaker, ColumnSplit) {
+void TestColumnSplit(bool categorical) {
   auto constexpr kRows = 32;
   auto constexpr kCols = 16;
 
   RegTree expected_tree{1u, kCols};
   ObjInfo task{ObjInfo::kRegression};
   {
-    auto p_dmat = GenerateDMatrix(kRows, kCols);
+    auto p_dmat = GenerateDMatrix(kRows, kCols, categorical);
     auto p_gradients = GenerateGradients(kRows);
     Context ctx;
     std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create("grow_histmaker", &ctx, &task)};
@@ -121,6 +108,12 @@ TEST(GrowHistMaker, ColumnSplit) {
   }
 
   auto constexpr kWorldSize = 2;
-  RunWithInMemoryCommunicator(kWorldSize, TestColumnSplit, kRows, kCols, std::cref(expected_tree));
+  RunWithInMemoryCommunicator(kWorldSize, VerifyColumnSplit, kRows, kCols, categorical,
+                              std::cref(expected_tree));
 }
+}  // anonymous namespace
+
+TEST(GrowHistMaker, ColumnSplitNumerical) { TestColumnSplit(false); }
+
+TEST(GrowHistMaker, ColumnSplitCategorical) { TestColumnSplit(true); }
 }  // namespace xgboost::tree

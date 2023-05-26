@@ -419,6 +419,60 @@ struct SplitEntryContainer {
        << "right_sum: " << s.right_sum << std::endl;
     return os;
   }
+
+  /**
+   * @brief Copy primitive fields into this, and collect cat_bits into a vector.
+   *
+   * This is used for allgather.
+   *
+   * @param that The other entry to copy from
+   * @param collected_cat_bits The vector to collect cat_bits
+   * @param cat_bits_sizes The sizes of the collected cat_bits
+   */
+  void CopyAndCollect(SplitEntryContainer<GradientT> const &that,
+                      std::vector<uint32_t> *collected_cat_bits,
+                      std::vector<std::size_t> *cat_bits_sizes) {
+    loss_chg = that.loss_chg;
+    sindex = that.sindex;
+    split_value = that.split_value;
+    is_cat = that.is_cat;
+    static_assert(std::is_trivially_copyable_v<GradientT>);
+    left_sum = that.left_sum;
+    right_sum = that.right_sum;
+    collected_cat_bits->insert(collected_cat_bits->end(), that.cat_bits.cbegin(),
+                               that.cat_bits.cend());
+    cat_bits_sizes->emplace_back(that.cat_bits.size());
+  }
+
+  /**
+   * @brief Copy primitive fields into this, and collect cat_bits and gradient sums into vectors.
+   *
+   * This is used for allgather.
+   *
+   * @param that The other entry to copy from
+   * @param collected_cat_bits The vector to collect cat_bits
+   * @param cat_bits_sizes The sizes of the collected cat_bits
+   * @param collected_gradients The vector to collect gradients
+   */
+  template <typename G>
+  void CopyAndCollect(SplitEntryContainer<GradientT> const &that,
+                      std::vector<uint32_t> *collected_cat_bits,
+                      std::vector<std::size_t> *cat_bits_sizes,
+                      std::vector<G> *collected_gradients) {
+    loss_chg = that.loss_chg;
+    sindex = that.sindex;
+    split_value = that.split_value;
+    is_cat = that.is_cat;
+    collected_cat_bits->insert(collected_cat_bits->end(), that.cat_bits.cbegin(),
+                               that.cat_bits.cend());
+    cat_bits_sizes->emplace_back(that.cat_bits.size());
+    static_assert(!std::is_trivially_copyable_v<GradientT>);
+    collected_gradients->insert(collected_gradients->end(), that.left_sum.cbegin(),
+                                that.left_sum.cend());
+    collected_gradients->insert(collected_gradients->end(), that.right_sum.cbegin(),
+                                that.right_sum.cend());
+  }
+
   /*!\return feature index to split on */
   [[nodiscard]] bst_feature_t SplitIndex() const { return sindex & ((1U << 31) - 1U); }
   /*!\return whether missing value goes to left branch */

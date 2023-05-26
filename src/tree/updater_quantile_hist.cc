@@ -13,6 +13,7 @@
 #include <utility>                           // for move, swap
 #include <vector>                            // for vector
 
+#include "../collective/aggregator.h"        // for GlobalSum
 #include "../collective/communicator-inl.h"  // for Allreduce, IsDistributed
 #include "../collective/communicator.h"      // for Operation
 #include "../common/hist_util.h"             // for HistogramCuts, HistCollection
@@ -200,8 +201,8 @@ class MultiTargetHistBuilder {
       }
     }
     CHECK(root_sum.CContiguous());
-    collective::Allreduce<collective::Operation::kSum>(
-        reinterpret_cast<double *>(root_sum.Values().data()), root_sum.Size() * 2);
+    collective::GlobalSum(p_fmat->Info(), reinterpret_cast<double *>(root_sum.Values().data()),
+                          root_sum.Size() * 2);
 
     std::vector<MultiExpandEntry> nodes{best};
     std::size_t i = 0;
@@ -335,7 +336,7 @@ class HistBuilder {
   common::Monitor *monitor_;
   TrainParam const *param_;
   std::shared_ptr<common::ColumnSampler> col_sampler_;
-  std::unique_ptr<HistEvaluator<CPUExpandEntry>> evaluator_;
+  std::unique_ptr<HistEvaluator> evaluator_;
   std::vector<CommonRowPartitioner> partitioner_;
 
   // back pointers to tree and data matrix
@@ -354,7 +355,7 @@ class HistBuilder {
       : monitor_{monitor},
         param_{param},
         col_sampler_{std::move(column_sampler)},
-        evaluator_{std::make_unique<HistEvaluator<CPUExpandEntry>>(ctx, param, fmat->Info(),
+        evaluator_{std::make_unique<HistEvaluator>(ctx, param, fmat->Info(),
                                                                    col_sampler_)},
         p_last_fmat_(fmat),
         histogram_builder_{new HistogramBuilder<CPUExpandEntry>},
@@ -395,8 +396,7 @@ class HistBuilder {
     }
     histogram_builder_->Reset(n_total_bins, HistBatch(param_), ctx_->Threads(), page_id,
                               collective::IsDistributed(), fmat->Info().IsColumnSplit());
-    evaluator_ = std::make_unique<HistEvaluator<CPUExpandEntry>>(ctx_, this->param_, fmat->Info(),
-                                                                 col_sampler_);
+    evaluator_ = std::make_unique<HistEvaluator>(ctx_, this->param_, fmat->Info(), col_sampler_);
     p_last_tree_ = p_tree;
     monitor_->Stop(__func__);
   }
@@ -455,8 +455,7 @@ class HistBuilder {
         for (auto const &grad : gpair_h) {
           grad_stat.Add(grad.GetGrad(), grad.GetHess());
         }
-        collective::Allreduce<collective::Operation::kSum>(reinterpret_cast<double *>(&grad_stat),
-                                                           2);
+        collective::GlobalSum(p_fmat->Info(), reinterpret_cast<double *>(&grad_stat), 2);
       }
 
       auto weight = evaluator_->InitRoot(GradStats{grad_stat});

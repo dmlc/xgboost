@@ -13,6 +13,7 @@
 
 #include "../../../plugin/federated/federated_server.h"
 #include "../../../src/collective/communicator-inl.h"
+#include "../../../src/common/threading_utils.h"
 
 namespace xgboost {
 
@@ -75,11 +76,7 @@ void RunWithFederatedCommunicator(int32_t world_size, std::string const& server_
     xgboost::collective::Finalize();
   };
 #if defined(_OPENMP)
-#pragma omp parallel num_threads(world_size)
-  {
-    auto rank = omp_get_thread_num();
-    run(rank);
-  }
+  common::ParallelFor(world_size, world_size, run);
 #else
   std::vector<std::thread> threads;
   for (auto rank = 0; rank < world_size; rank++) {

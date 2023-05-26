@@ -23,6 +23,7 @@
 
 #include "../../src/collective/communicator-inl.h"
 #include "../../src/common/common.h"
+#include "../../src/common/threading_utils.h"
 #include "../../src/data/array_interface.h"
 #include "filesystem.h"  // dmlc::TemporaryDirectory
 #include "xgboost/linalg.h"
@@ -388,6 +389,23 @@ inline Context CreateEmptyGenericParam(int gpu_id) {
   return tparam;
 }
 
+inline std::unique_ptr<HostDeviceVector<GradientPair>> GenerateGradients(
+    std::size_t rows, bst_target_t n_targets = 1) {
+  auto p_gradients = std::make_unique<HostDeviceVector<GradientPair>>(rows * n_targets);
+  auto& h_gradients = p_gradients->HostVector();
+
+  xgboost::SimpleLCG gen;
+  xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
+
+  for (std::size_t i = 0; i < rows * n_targets; ++i) {
+    auto grad = dist(&gen);
+    auto hess = dist(&gen);
+    h_gradients[i] = GradientPair{grad, hess};
+  }
+
+  return p_gradients;
+}
+
 /**
  * \brief Make a context that uses CUDA.
  */
@@ -509,11 +527,7 @@ void RunWithInMemoryCommunicator(int32_t world_size, Function&& function, Args&&
     xgboost::collective::Finalize();
   };
 #if defined(_OPENMP)
-#pragma omp parallel num_threads(world_size)
-  {
-    auto rank = omp_get_thread_num();
-    run(rank);
-  }
+  common::ParallelFor(world_size, world_size, run);
 #else
   std::vector<std::thread> threads;
   for (auto rank = 0; rank < world_size; rank++) {

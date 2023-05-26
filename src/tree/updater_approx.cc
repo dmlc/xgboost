@@ -44,7 +44,7 @@ class GloablApproxBuilder {
  protected:
   TrainParam const *param_;
   std::shared_ptr<common::ColumnSampler> col_sampler_;
-  HistEvaluator<CPUExpandEntry> evaluator_;
+  HistEvaluator evaluator_;
   HistogramBuilder<CPUExpandEntry> histogram_builder_;
   Context const *ctx_;
   ObjInfo const *const task_;

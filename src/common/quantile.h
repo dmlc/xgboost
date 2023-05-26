@@ -822,7 +822,8 @@ class SketchContainerImpl {
     return group_ind;
   }
   // Gather sketches from all workers.
-  void GatherSketchInfo(std::vector<typename WQSketch::SummaryContainer> const &reduced,
+  void GatherSketchInfo(MetaInfo const& info,
+                        std::vector<typename WQSketch::SummaryContainer> const &reduced,
                         std::vector<bst_row_t> *p_worker_segments,
                         std::vector<bst_row_t> *p_sketches_scan,
                         std::vector<typename WQSketch::Entry> *p_global_sketches);

@@ -698,6 +698,9 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_col
     this->feature_type_names = that.feature_type_names;
     auto &h_feature_types = feature_types.HostVector();
     LoadFeatureType(this->feature_type_names, &h_feature_types);
+  } else if (!that.feature_types.Empty()) {
+    this->feature_types.Resize(that.feature_types.Size());
+    this->feature_types.Copy(that.feature_types);
   }
   if (!that.feature_weights.Empty()) {
     this->feature_weights.Resize(that.feature_weights.Size());
