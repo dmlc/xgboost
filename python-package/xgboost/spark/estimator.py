@@ -462,7 +462,7 @@ class SparkXGBRanker(_SparkXGBEstimator):
     weight_col:
         To specify the weight of the training and validation dataset, set
         :py:attr:`xgboost.spark.SparkXGBClassifier.weight_col` parameter instead of setting
-        `sample_weight` and `sample_weight_eval_set` parameter in `xgboost.XGBClassifier`
+        `sample_weight` and `sample_weight_eval_set` parameter in :py:class:`xgboost.XGBClassifier`
         fit method.    base_margin_col
         Base margin column name
     base_margin_col:
