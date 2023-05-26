@@ -32,11 +32,12 @@
 #include <xgboost/base.h>
 #include <xgboost/logging.h>
 
-#include <cinttypes>          // size_t
-#include <limits>             // numeric_limits
-#include <iterator>
-#include <type_traits>
+#include <cinttypes>  // size_t
 #include <cstdio>
+#include <iterator>
+#include <limits>  // numeric_limits
+#include <type_traits>
+#include <utility>  // for move
 
 #if defined(__CUDACC__)
 #include <cuda_runtime.h>
