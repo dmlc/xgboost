@@ -128,8 +128,7 @@ class SparkXGBRegressor(_SparkXGBEstimator):
         To specify the base margins of the training and validation
         dataset, set :py:attr:`xgboost.spark.SparkXGBRegressor.base_margin_col` parameter
         instead of setting `base_margin` and `base_margin_eval_set` in the
-        `xgboost.XGBRegressor` fit method. Note: this isn't available for distributed
-        training.
+        `xgboost.XGBRegressor` fit method.
 
     num_workers:
         How many XGBoost workers to be used to train.
@@ -292,8 +291,7 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
         To specify the base margins of the training and validation
         dataset, set :py:attr:`xgboost.spark.SparkXGBClassifier.base_margin_col` parameter
         instead of setting `base_margin` and `base_margin_eval_set` in the
-        `xgboost.XGBClassifier` fit method. Note: this isn't available for distributed
-        training.
+        `xgboost.XGBClassifier` fit method.
 
     num_workers:
         How many XGBoost workers to be used to train.
@@ -460,8 +458,7 @@ class SparkXGBRanker(_SparkXGBEstimator):
         To specify the base margins of the training and validation
         dataset, set :py:attr:`xgboost.spark.SparkXGBRanker.base_margin_col` parameter
         instead of setting `base_margin` and `base_margin_eval_set` in the
-        :py:class:`xgboost.XGBRanker` fit method. Note: this isn't available for distributed
-        training.
+        :py:class:`xgboost.XGBRanker` fit method.
     qid_col:
         Query id column name.
 
