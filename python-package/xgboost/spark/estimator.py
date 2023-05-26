@@ -457,7 +457,7 @@ class SparkXGBRanker(_SparkXGBEstimator):
         For params related to `xgboost.XGBClassifier` training with
         evaluation dataset's supervision,
         set :py:attr:`xgboost.spark.SparkXGBClassifier.validation_indicator_col`
-        parameter instead of setting the `eval_set` parameter in `xgboost.XGBClassifier`
+        parameter instead of setting the `eval_set` parameter in :py:class:`xgboost.XGBClassifier`
         fit method.
     weight_col:
         To specify the weight of the training and validation dataset, set
