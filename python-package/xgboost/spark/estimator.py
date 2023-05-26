@@ -471,7 +471,7 @@ class SparkXGBRanker(_SparkXGBEstimator):
         instead of setting `base_margin` and `base_margin_eval_set` in the
         :py:class:`xgboost.XGBClassifier` fit method. Note: this isn't available for distributed
         training.
-    qid_col"
+    qid_col:
         Query id column name.
 
     num_workers:
