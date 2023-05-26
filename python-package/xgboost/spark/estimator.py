@@ -131,8 +131,6 @@ class SparkXGBRegressor(_SparkXGBEstimator):
         instead of setting `base_margin` and `base_margin_eval_set` in the
         `xgboost.XGBClassifier` fit method. Note: this isn't available for distributed
         training.
-    qid_col"
-        Query id column name.
 
     num_workers:
         How many XGBoost workers to be used to train.
@@ -150,7 +148,7 @@ class SparkXGBRegressor(_SparkXGBEstimator):
         Xgboost DMatrix object will be constructed from sparse matrix instead of
         dense matrix.
 
-    xgboost_parameters:
+    kwargs:
         A dictionary of xgboost parameters, please refer to
         https://xgboost.readthedocs.io/en/stable/parameter.html
 
@@ -193,13 +191,12 @@ class SparkXGBRegressor(_SparkXGBEstimator):
         validation_indicator_col: Optional[str] = None,
         weight_col: Optional[str] = None,
         base_margin_col: Optional[str] = None,
-        qid_col: Optional[str] = None,
         num_workers: int = 1,
         use_gpu: bool = False,
         force_repartition: bool = False,
         repartition_random_shuffle: bool = False,
         enable_sparse_data_optim: bool = False,
-        **xgboost_parameters: Dict[str, Any],
+        **kwargs: Dict[str, Any],
     ) -> None:
         super().__init__()
         input_kwargs = self._input_kwargs
@@ -299,8 +296,6 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
         instead of setting `base_margin` and `base_margin_eval_set` in the
         `xgboost.XGBClassifier` fit method. Note: this isn't available for distributed
         training.
-    qid_col"
-        Query id column name.
 
     num_workers:
         How many XGBoost workers to be used to train.
@@ -318,7 +313,7 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
         Xgboost DMatrix object will be constructed from sparse matrix instead of
         dense matrix.
 
-    xgboost_parameters:
+    kwargs:
         A dictionary of xgboost parameters, please refer to
         https://xgboost.readthedocs.io/en/stable/parameter.html
 
@@ -362,13 +357,12 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
         validation_indicator_col: Optional[str] = None,
         weight_col: Optional[str] = None,
         base_margin_col: Optional[str] = None,
-        qid_col: Optional[str] = None,
         num_workers: int = 1,
         use_gpu: bool = False,
         force_repartition: bool = False,
         repartition_random_shuffle: bool = False,
         enable_sparse_data_optim: bool = False,
-        **xgboost_parameters: Dict[str, Any],
+        **kwargs: Dict[str, Any],
     ) -> None:
         super().__init__()
         # The default 'objective' param value comes from sklearn `XGBClassifier` ctor,
@@ -490,7 +484,7 @@ class SparkXGBRanker(_SparkXGBEstimator):
         Xgboost DMatrix object will be constructed from sparse matrix instead of
         dense matrix.
 
-    xgboost_parameters:
+    kwargs:
         A dictionary of xgboost parameters, please refer to
         https://xgboost.readthedocs.io/en/stable/parameter.html
 
@@ -548,7 +542,7 @@ class SparkXGBRanker(_SparkXGBEstimator):
         force_repartition: bool = False,
         repartition_random_shuffle: bool = False,
         enable_sparse_data_optim: bool = False,
-        **xgboost_parameters: Dict[str, Any],
+        **kwargs: Dict[str, Any],
     ) -> None:
         super().__init__()
         input_kwargs = self._input_kwargs
