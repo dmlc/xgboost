@@ -114,22 +114,21 @@ class SparkXGBRegressor(_SparkXGBEstimator):
     pred_contrib_col:
         Contribution prediction column name.
     validation_indicator_col
-        For params related to `xgboost.XGBClassifier` training with
+        For params related to `xgboost.XGBRegressor` training with
         evaluation dataset's supervision,
-        set :py:attr:`xgboost.spark.SparkXGBClassifier.validation_indicator_col`
-        parameter instead of setting the `eval_set` parameter in `xgboost.XGBClassifier`
+        set :py:attr:`xgboost.spark.SparkXGBRegressor.validation_indicator_col`
+        parameter instead of setting the `eval_set` parameter in `xgboost.XGBRegressor`
         fit method.
     weight_col:
         To specify the weight of the training and validation dataset, set
-        :py:attr:`xgboost.spark.SparkXGBClassifier.weight_col` parameter instead of setting
-        `sample_weight` and `sample_weight_eval_set` parameter in `xgboost.XGBClassifier`
-        fit method.    base_margin_col
-        Base margin column name
+        :py:attr:`xgboost.spark.SparkXGBRegressor.weight_col` parameter instead of setting
+        `sample_weight` and `sample_weight_eval_set` parameter in `xgboost.XGBRegressor`
+        fit method.
     base_margin_col:
         To specify the base margins of the training and validation
-        dataset, set :py:attr:`xgboost.spark.SparkXGBClassifier.base_margin_col` parameter
+        dataset, set :py:attr:`xgboost.spark.SparkXGBRegressor.base_margin_col` parameter
         instead of setting `base_margin` and `base_margin_eval_set` in the
-        `xgboost.XGBClassifier` fit method. Note: this isn't available for distributed
+        `xgboost.XGBRegressor` fit method. Note: this isn't available for distributed
         training.
 
     num_workers:
@@ -288,8 +287,7 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
         To specify the weight of the training and validation dataset, set
         :py:attr:`xgboost.spark.SparkXGBClassifier.weight_col` parameter instead of setting
         `sample_weight` and `sample_weight_eval_set` parameter in `xgboost.XGBClassifier`
-        fit method.    base_margin_col
-        Base margin column name
+        fit method.
     base_margin_col:
         To specify the base margins of the training and validation
         dataset, set :py:attr:`xgboost.spark.SparkXGBClassifier.base_margin_col` parameter
@@ -448,22 +446,21 @@ class SparkXGBRanker(_SparkXGBEstimator):
     pred_contrib_col:
         Contribution prediction column name.
     validation_indicator_col
-        For params related to `xgboost.XGBClassifier` training with
+        For params related to `xgboost.XGBRanker` training with
         evaluation dataset's supervision,
-        set :py:attr:`xgboost.spark.SparkXGBClassifier.validation_indicator_col`
-        parameter instead of setting the `eval_set` parameter in :py:class:`xgboost.XGBClassifier`
+        set :py:attr:`xgboost.spark.SparkXGBRanker.validation_indicator_col`
+        parameter instead of setting the `eval_set` parameter in :py:class:`xgboost.XGBRanker`
         fit method.
     weight_col:
         To specify the weight of the training and validation dataset, set
-        :py:attr:`xgboost.spark.SparkXGBClassifier.weight_col` parameter instead of setting
-        `sample_weight` and `sample_weight_eval_set` parameter in :py:class:`xgboost.XGBClassifier`
-        fit method.    base_margin_col
-        Base margin column name
+        :py:attr:`xgboost.spark.SparkXGBRanker.weight_col` parameter instead of setting
+        `sample_weight` and `sample_weight_eval_set` parameter in :py:class:`xgboost.XGBRanker`
+        fit method.
     base_margin_col:
         To specify the base margins of the training and validation
-        dataset, set :py:attr:`xgboost.spark.SparkXGBClassifier.base_margin_col` parameter
+        dataset, set :py:attr:`xgboost.spark.SparkXGBRanker.base_margin_col` parameter
         instead of setting `base_margin` and `base_margin_eval_set` in the
-        :py:class:`xgboost.XGBClassifier` fit method. Note: this isn't available for distributed
+        :py:class:`xgboost.XGBRanker` fit method. Note: this isn't available for distributed
         training.
     qid_col:
         Query id column name.
