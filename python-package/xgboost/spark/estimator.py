@@ -302,7 +302,7 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
     force_repartition:
         Boolean value to specify if forcing the input dataset to be repartitioned
         before XGBoost training.
-    repartition_random_shuffle
+    repartition_random_shuffle:
         Boolean value to specify if randomly shuffling the dataset when repartitioning is required.
     enable_sparse_data_optim:
         Boolean value to specify if enabling sparse data optimization, if True,
