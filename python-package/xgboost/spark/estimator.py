@@ -86,8 +86,8 @@ class SparkXGBRegressor(_SparkXGBEstimator):
     :py:class:`~pyspark.ml.classification.OneVsRest`
 
     SparkXGBRegressor automatically supports most of the parameters in
-    `xgboost.XGBRegressor` constructor and most of the parameters used in
-    :py:class:`xgboost.XGBRegressor` fit and predict method.
+    :py:class:`xgboost.XGBRegressor` constructor and most of the parameters used in
+    :py:meth:`xgboost.XGBRegressor.fit` and :py:meth:`xgboost.XGBRegressor.predict` method.
 
     SparkXGBRegressor doesn't support setting `gpu_id` but support another param `use_gpu`,
     see doc below for more details.
@@ -113,7 +113,7 @@ class SparkXGBRegressor(_SparkXGBEstimator):
         Prediction column name. Default to "prediction"
     pred_contrib_col:
         Contribution prediction column name.
-    validation_indicator_col
+    validation_indicator_col:
         For params related to `xgboost.XGBRegressor` training with
         evaluation dataset's supervision,
         set :py:attr:`xgboost.spark.SparkXGBRegressor.validation_indicator_col`
@@ -139,7 +139,7 @@ class SparkXGBRegressor(_SparkXGBEstimator):
     force_repartition:
         Boolean value to specify if forcing the input dataset to be repartitioned
         before XGBoost training.
-    repartition_random_shuffle
+    repartition_random_shuffle:
         Boolean value to specify if randomly shuffling the dataset when repartitioning is required.
     enable_sparse_data_optim:
         Boolean value to specify if enabling sparse data optimization, if True,
@@ -150,10 +150,14 @@ class SparkXGBRegressor(_SparkXGBEstimator):
         A dictionary of xgboost parameters, please refer to
         https://xgboost.readthedocs.io/en/stable/parameter.html
 
-    .. Note:: The Parameters chart above contains parameters that need special handling.
-        For a full list of parameters, see entries with `Param(parent=...` below.
+    Note
+    ----
 
-    .. Note:: This API is experimental.
+    The Parameters chart above contains parameters that need special handling.
+    For a full list of parameters, see entries with `Param(parent=...` below.
+
+    This API is experimental.
+
 
     Examples
     --------
@@ -240,8 +244,8 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
     :py:class:`~pyspark.ml.classification.OneVsRest`
 
     SparkXGBClassifier automatically supports most of the parameters in
-    `xgboost.XGBClassifier` constructor and most of the parameters used in
-    :py:class:`xgboost.XGBClassifier` fit and predict method.
+    :py:class:`xgboost.XGBClassifier` constructor and most of the parameters used in
+    :py:meth:`xgboost.XGBClassifier.fit` and :py:meth:`xgboost.XGBClassifier.predict` method.
 
     SparkXGBClassifier doesn't support setting `gpu_id` but support another param `use_gpu`,
     see doc below for more details.
@@ -313,10 +317,13 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
         A dictionary of xgboost parameters, please refer to
         https://xgboost.readthedocs.io/en/stable/parameter.html
 
-    .. Note:: The Parameters chart above contains parameters that need special handling.
-        For a full list of parameters, see entries with `Param(parent=...` below.
+    Note
+    ----
 
-    .. Note:: This API is experimental.
+    The Parameters chart above contains parameters that need special handling.
+    For a full list of parameters, see entries with `Param(parent=...` below.
+
+    This API is experimental.
 
     Examples
     --------
@@ -413,8 +420,8 @@ class SparkXGBRanker(_SparkXGBEstimator):
     :py:class:`~pyspark.ml.classification.OneVsRest`
 
     SparkXGBRanker automatically supports most of the parameters in
-    `xgboost.XGBRanker` constructor and most of the parameters used in
-    :py:class:`xgboost.XGBRanker` fit and predict method.
+    :py:class:`xgboost.XGBRanker` constructor and most of the parameters used in
+    :py:meth:`xgboost.XGBRanker.fit` and :py:meth:`xgboost.XGBRanker.predict` method.
 
     SparkXGBRanker doesn't support setting `gpu_id` but support another param `use_gpu`,
     see doc below for more details.
@@ -443,7 +450,7 @@ class SparkXGBRanker(_SparkXGBEstimator):
         Prediction column name. Default to "prediction"
     pred_contrib_col:
         Contribution prediction column name.
-    validation_indicator_col
+    validation_indicator_col:
         For params related to `xgboost.XGBRanker` training with
         evaluation dataset's supervision,
         set :py:attr:`xgboost.spark.SparkXGBRanker.validation_indicator_col`
@@ -471,7 +478,7 @@ class SparkXGBRanker(_SparkXGBEstimator):
     force_repartition:
         Boolean value to specify if forcing the input dataset to be repartitioned
         before XGBoost training.
-    repartition_random_shuffle
+    repartition_random_shuffle:
         Boolean value to specify if randomly shuffling the dataset when repartitioning is required.
     enable_sparse_data_optim:
         Boolean value to specify if enabling sparse data optimization, if True,
