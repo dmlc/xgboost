@@ -252,7 +252,7 @@ inline AllgatherVResult<T> AllgatherV(std::vector<T> const &inputs,
 
   // Calculate input offsets (std::exclusive_scan).
   std::vector<std::size_t> offsets(all_sizes.size());
-  for (auto i = 1; i < offsets.size(); i++) {
+  for (std::size_t i = 1; i < offsets.size(); i++) {
     offsets[i] = offsets[i - 1] + all_sizes[i - 1];
   }
 

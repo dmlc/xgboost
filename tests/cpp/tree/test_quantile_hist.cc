@@ -113,7 +113,6 @@ void VerifyColumnSplitPartitioner(bst_target_t n_targets, size_t n_samples,
 
   for (auto const& page : Xy->GetBatches<SparsePage>()) {
     GHistIndexMatrix gmat(page, {}, cuts, 64, true, 0.5, ctx.Threads());
-    bst_feature_t const split_ind = 0;
     common::ColumnMatrix column_indices;
     column_indices.InitFromSparse(page, gmat, 0.5, ctx.Threads());
     {
