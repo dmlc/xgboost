@@ -20,10 +20,9 @@ import org.apache.spark.ml.{Pipeline, PipelineModel}
 import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator
 import org.apache.spark.ml.feature._
 import org.apache.spark.ml.tuning._
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.types._
-
-import ml.dmlc.xgboost4j.scala.spark.{XGBoostClassifier, XGBoostClassificationModel}
+import ml.dmlc.xgboost4j.scala.spark.{XGBoostClassificationModel, XGBoostClassifier}
 
 // this example works with Iris dataset (https://archive.ics.uci.edu/ml/datasets/iris)
 
@@ -49,6 +48,13 @@ object SparkMLlibPipeline {
       .builder()
       .appName("XGBoost4J-Spark Pipeline Example")
       .getOrCreate()
+
+    run(spark, inputPath, nativeModelPath, pipelineModelPath, treeMethod, numWorkers)
+      .show(false)
+  }
+  private[spark] def run(spark: SparkSession, inputPath: String, nativeModelPath: String,
+                         pipelineModelPath: String, treeMethod: String,
+                         numWorkers: Int): DataFrame = {
 
     // Load dataset
     val schema = new StructType(Array(
@@ -90,11 +96,11 @@ object SparkMLlibPipeline {
     val labelConverter = new IndexToString()
       .setInputCol("prediction")
       .setOutputCol("realLabel")
-      .setLabels(labelIndexer.labels)
+      .setLabels(labelIndexer.labelsArray(0))
 
     val pipeline = new Pipeline()
       .setStages(Array(assembler, labelIndexer, booster, labelConverter))
-    val model = pipeline.fit(training)
+    val model: PipelineModel = pipeline.fit(training)
 
     // Batch prediction
     val prediction = model.transform(test)
@@ -136,6 +142,6 @@ object SparkMLlibPipeline {
 
     // Load a saved model and serving
     val model2 = PipelineModel.load(pipelineModelPath)
-    model2.transform(test).show(false)
+    model2.transform(test)
   }
 }

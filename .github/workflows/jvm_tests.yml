@@ -75,3 +75,13 @@ jobs:
       if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
       env:
         RABIT_MOCK: ON
+
+
+    - name: Build and Test XGBoost4J with scala 2.13
+      run: |
+        rm -rfv build/
+        cd jvm-packages
+        mvn -B clean install test -Pdefault,scala-2.13
+      if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
+      env:
+        RABIT_MOCK: ON

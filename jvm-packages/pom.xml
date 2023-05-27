@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>ml.dmlc</groupId>
-    <artifactId>xgboost-jvm_2.12</artifactId>
+    <artifactId>xgboost-jvm</artifactId>
     <version>2.0.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>XGBoost JVM Package</name>
@@ -34,6 +34,7 @@
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
         <flink.version>1.17.1</flink.version>
+        <junit.version>4.13.2</junit.version>
         <spark.version>3.4.0</spark.version>
         <spark.version.gpu>3.3.2</spark.version.gpu>
         <scala.version>2.12.17</scala.version>
@@ -45,7 +46,9 @@
         <cudf.version>23.04.0</cudf.version>
         <spark.rapids.version>23.04.1</spark.rapids.version>
         <cudf.classifier>cuda11</cudf.classifier>
-    </properties>
+        <scalatest.version>3.2.16</scalatest.version>
+        <scala-collection-compat.version>2.9.0</scala-collection-compat.version>
+      </properties>
     <repositories>
         <repository>
             <id>central_maven</id>
@@ -69,6 +72,14 @@
                 <module>xgboost4j-spark</module>
                 <module>xgboost4j-flink</module>
             </modules>
+        </profile>
+
+        <profile>
+            <id>scala-2.13</id>
+            <properties>
+                <scala.binary.version>2.13</scala.binary.version>
+                <scala.version>2.13.10</scala.version>
+            </properties>
         </profile>
 
         <!-- gpu profile with both cpu and gpu test suites -->
@@ -467,6 +478,7 @@
         </plugins>
     </reporting>
     <dependencies>
+
         <dependency>
             <groupId>com.esotericsoftware</groupId>
             <artifactId>kryo</artifactId>
@@ -484,6 +496,11 @@
             <version>${scala.version}</version>
         </dependency>
         <dependency>
+          <groupId>org.scala-lang.modules</groupId>
+          <artifactId>scala-collection-compat_${scala.binary.version}</artifactId>
+          <version>${scala-collection-compat.version}</version>
+        </dependency>
+        <dependency>
             <groupId>commons-logging</groupId>
             <artifactId>commons-logging</artifactId>
             <version>1.2</version>
@@ -491,13 +508,13 @@
         <dependency>
             <groupId>org.scalatest</groupId>
             <artifactId>scalatest_${scala.binary.version}</artifactId>
-            <version>3.2.16</version>
+            <version>${scalatest.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.scalactic</groupId>
             <artifactId>scalactic_${scala.binary.version}</artifactId>
-            <version>3.2.15</version>
+            <version>${scalatest.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
