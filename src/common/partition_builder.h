@@ -263,8 +263,7 @@ class PartitionBuilder {
   template <typename ExpandEntry>
   void PartitionByMask(const size_t node_in_set, std::vector<ExpandEntry> const& nodes,
                        const common::Range1d range, GHistIndexMatrix const& gmat,
-                       const common::ColumnMatrix& column_matrix, const RegTree& tree,
-                       const size_t* rid, BitVector const& decision_bits,
+                       const RegTree& tree, const size_t* rid, BitVector const& decision_bits,
                        BitVector const& missing_bits) {
     common::Span<const size_t> rid_span(rid + range.begin(), rid + range.end());
     common::Span<size_t> left = GetLeftBuffer(node_in_set, range.begin(), range.end());

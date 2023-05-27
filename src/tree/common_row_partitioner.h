@@ -67,7 +67,7 @@ class ColumnSplitHelper {
       const int32_t nid = nodes[node_in_set].nid;
       const size_t task_id = partition_builder_->GetTaskIdx(node_in_set, begin);
       partition_builder_->AllocateForTask(task_id);
-      partition_builder_->PartitionByMask(node_in_set, nodes, r, gmat, column_matrix, *p_tree,
+      partition_builder_->PartitionByMask(node_in_set, nodes, r, gmat, *p_tree,
                                           (*row_set_collection_)[nid].begin, decision_bits_,
                                           missing_bits_);
     });
