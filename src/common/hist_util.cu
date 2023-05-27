@@ -204,9 +204,8 @@ void ProcessBatch(int device, MetaInfo const &info, const SparsePage &page,
         return {0, e.index, e.fvalue};  // row_idx is not needed for scanning column size.
       });
   detail::GetColumnSizesScan(device, num_columns, num_cuts_per_feature,
-                             batch_it, dummy_is_valid,
-                             0, sorted_entries.size(),
-                             &cuts_ptr, &column_sizes_scan);
+                             IterSpan{batch_it, sorted_entries.size()}, dummy_is_valid, &cuts_ptr,
+                             &column_sizes_scan);
   auto d_cuts_ptr = cuts_ptr.DeviceSpan();
 
   if (sketch_container->HasCategorical()) {
@@ -273,9 +272,8 @@ void ProcessWeightedBatch(int device, const SparsePage& page,
         return {0, e.index, e.fvalue};  // row_idx is not needed for scaning column size.
       });
   detail::GetColumnSizesScan(device, num_columns, num_cuts_per_feature,
-                             batch_it, dummy_is_valid,
-                             0, sorted_entries.size(),
-                             &cuts_ptr, &column_sizes_scan);
+                             IterSpan{batch_it, sorted_entries.size()}, dummy_is_valid, &cuts_ptr,
+                             &column_sizes_scan);
   auto d_cuts_ptr = cuts_ptr.DeviceSpan();
   if (sketch_container->HasCategorical()) {
     detail::RemoveDuplicatedCategories(device, info, d_cuts_ptr,

@@ -483,6 +483,73 @@ TEST(HistUtil, AdapterDeviceSketchBatches) {
   }
 }
 
+namespace {
+auto MakeData(Context const* ctx, std::size_t n_samples, bst_feature_t n_features) {
+  dh::safe_cuda(cudaSetDevice(ctx->gpu_id));
+  auto n = n_samples * n_features;
+  std::vector<float> x;
+  x.resize(n);
+
+  std::iota(x.begin(), x.end(), 0);
+  std::int32_t c{0};
+  float missing = n_samples * n_features;
+  for (std::size_t i = 0; i < x.size(); ++i) {
+    if (i % 5 == 0) {
+      x[i] = missing;
+      c++;
+    }
+  }
+  thrust::device_vector<float> d_x;
+  d_x = x;
+
+  auto n_invalids = n / 10 * 2 + 1;
+  auto is_valid = data::IsValidFunctor{missing};
+  return std::tuple{x, d_x, n_invalids, is_valid};
+}
+
+void TestGetColumnSize(std::size_t n_samples) {
+  auto ctx = MakeCUDACtx(0);
+  bst_feature_t n_features = 12;
+  [[maybe_unused]] auto [x, d_x, n_invalids, is_valid] = MakeData(&ctx, n_samples, n_features);
+
+  auto adapter = AdapterFromData(d_x, n_samples, n_features);
+  auto batch = adapter.Value();
+
+  auto batch_iter = dh::MakeTransformIterator<data::COOTuple>(
+      thrust::make_counting_iterator(0llu),
+      [=] __device__(std::size_t idx) { return batch.GetElement(idx); });
+
+  dh::caching_device_vector<std::size_t> column_sizes_scan;
+  column_sizes_scan.resize(n_features + 1);
+  std::vector<std::size_t> h_column_size(column_sizes_scan.size());
+  std::vector<std::size_t> h_column_size_1(column_sizes_scan.size());
+
+  detail::LaunchGetColumnSizeKernel<decltype(batch_iter), true, true>(
+      ctx.gpu_id, IterSpan{batch_iter, batch.Size()}, is_valid, dh::ToSpan(column_sizes_scan));
+  thrust::copy(column_sizes_scan.begin(), column_sizes_scan.end(), h_column_size.begin());
+
+  detail::LaunchGetColumnSizeKernel<decltype(batch_iter), true, false>(
+      ctx.gpu_id, IterSpan{batch_iter, batch.Size()}, is_valid, dh::ToSpan(column_sizes_scan));
+  thrust::copy(column_sizes_scan.begin(), column_sizes_scan.end(), h_column_size_1.begin());
+  ASSERT_EQ(h_column_size, h_column_size_1);
+
+  detail::LaunchGetColumnSizeKernel<decltype(batch_iter), false, true>(
+      ctx.gpu_id, IterSpan{batch_iter, batch.Size()}, is_valid, dh::ToSpan(column_sizes_scan));
+  thrust::copy(column_sizes_scan.begin(), column_sizes_scan.end(), h_column_size_1.begin());
+  ASSERT_EQ(h_column_size, h_column_size_1);
+
+  detail::LaunchGetColumnSizeKernel<decltype(batch_iter), false, false>(
+      ctx.gpu_id, IterSpan{batch_iter, batch.Size()}, is_valid, dh::ToSpan(column_sizes_scan));
+  thrust::copy(column_sizes_scan.begin(), column_sizes_scan.end(), h_column_size_1.begin());
+  ASSERT_EQ(h_column_size, h_column_size_1);
+}
+}  // namespace
+
+TEST(HistUtil, GetColumnSize) {
+  bst_row_t n_samples = 4096;
+  TestGetColumnSize(n_samples);
+}
+
 // Check sketching from adapter or DMatrix results in the same answer
 // Consistency here is useful for testing and user experience
 TEST(HistUtil, SketchingEquivalent) {

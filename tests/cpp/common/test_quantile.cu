@@ -50,7 +50,7 @@ void TestSketchUnique(float sparsity) {
         thrust::make_counting_iterator(0llu),
         [=] __device__(size_t idx) { return batch.GetElement(idx); });
     auto end = kCols * kRows;
-    detail::GetColumnSizesScan(0, kCols, n_cuts, batch_iter, is_valid, 0, end,
+    detail::GetColumnSizesScan(0, kCols, n_cuts, IterSpan{batch_iter, end}, is_valid,
                                &cut_sizes_scan, &column_sizes_scan);
     auto const& cut_sizes = cut_sizes_scan.HostVector();
     ASSERT_LE(sketch.Data().size(), cut_sizes.back());
