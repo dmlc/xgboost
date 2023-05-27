@@ -1,5 +1,5 @@
 ARG CUDA_VERSION_ARG
-FROM nvidia/cuda:$CUDA_VERSION_ARG-devel-ubuntu20.04
+FROM nvidia/cuda:$CUDA_VERSION_ARG-devel-ubuntu22.04
 ARG CUDA_VERSION_ARG
 
 # Environment
@@ -7,21 +7,20 @@ ENV DEBIAN_FRONTEND noninteractive
 
 # Install all basic requirements
 RUN \
-    apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub && \
+    apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub && \
     apt-get update && \
-    apt-get install -y tar unzip wget git build-essential python3 python3-pip software-properties-common \
+    apt-get install -y wget git python3 python3-pip software-properties-common \
                        apt-transport-https ca-certificates gnupg-agent && \
-    wget -nv -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
-    add-apt-repository -u 'deb http://apt.llvm.org/focal/ llvm-toolchain-focal-15 main' && \
-    apt-get update && \
     apt-get install -y llvm-15 clang-tidy-15 clang-15 libomp-15-dev && \
-    wget -nv -nc https://cmake.org/files/v3.18/cmake-3.18.0-Linux-x86_64.sh --no-check-certificate && \
-    bash cmake-3.18.0-Linux-x86_64.sh --skip-license --prefix=/usr
+    apt-get install -y cmake
 
 # Set default clang-tidy version
 RUN \
     update-alternatives --install /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-15 100 && \
     update-alternatives --install /usr/bin/clang clang /usr/bin/clang-15 100
+
+RUN \
+    apt-get install libgtest-dev libgmock-dev -y
 
 # Install Python packages
 RUN \

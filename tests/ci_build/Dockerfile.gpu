@@ -1,5 +1,5 @@
 ARG CUDA_VERSION_ARG
-FROM nvidia/cuda:$CUDA_VERSION_ARG-runtime-ubuntu18.04
+FROM nvidia/cuda:$CUDA_VERSION_ARG-runtime-ubuntu22.04
 ARG CUDA_VERSION_ARG
 ARG RAPIDS_VERSION_ARG
 
@@ -9,7 +9,7 @@ SHELL ["/bin/bash", "-c"]   # Use Bash as shell
 
 # Install all basic requirements
 RUN \
-    apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub && \
+    apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub && \
     apt-get update && \
     apt-get install -y wget unzip bzip2 libgomp1 build-essential openjdk-8-jdk-headless && \
     # Python
