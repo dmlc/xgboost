@@ -270,7 +270,7 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
         Prediction column name. Default to "prediction"
     probability_col:
         Column name for predicted class conditional probabilities. Default to probabilityCol
-    raw_prediction_col
+    raw_prediction_col:
         The `output_margin=True` is implicitly supported by the
         `rawPredictionCol` output column, which is always returned with the predicted margin
         values.
