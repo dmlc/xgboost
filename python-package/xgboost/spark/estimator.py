@@ -276,7 +276,7 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
         values.
     pred_contrib_col:
         Contribution prediction column name.
-    validation_indicator_col
+    validation_indicator_col:
         For params related to `xgboost.XGBClassifier` training with
         evaluation dataset's supervision,
         set :py:attr:`xgboost.spark.SparkXGBClassifier.validation_indicator_col`
