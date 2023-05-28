@@ -35,6 +35,7 @@ class Json;
 struct XGBAPIThreadLocalEntry;
 template <typename T>
 class HostDeviceVector;
+class TreeSetDecisionPath;
 
 enum class PredictionType : std::uint8_t {  // NOLINT
   kValue = 0,
@@ -119,7 +120,8 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
                        bool pred_leaf = false,
                        bool pred_contribs = false,
                        bool approx_contribs = false,
-                       bool pred_interactions = false) = 0;
+                       bool pred_interactions = false,
+                       std::vector<TreeSetDecisionPath> *decision_path = nullptr) = 0;
 
   /*!
    * \brief Inplace prediction.
@@ -241,6 +243,15 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    */
   virtual Learner* Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step,
                          bool* out_of_bound) = 0;
+
+  /*!
+   * \brief get the number of trees in this model
+   * @return the numer of trees in this model.
+   */
+  virtual uint64_t GetTreeCount() const = 0;
+
+  virtual std::vector<bst_node_t> GetMaxNodePerTree() const = 0;
+
   /*!
    * \brief dump the model in the requested format
    * \param fmap feature map that may help give interpretations of feature
@@ -251,6 +262,18 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
   virtual std::vector<std::string> DumpModel(const FeatureMap& fmap,
                                              bool with_stats,
                                              std::string format) = 0;
+
+  /*!
+   * \brief dump decision paths collected in PredictBatch
+   * @param fmap feature map that may help give interpretations of feature
+   * @param with_stats extra statistics while dumping paths
+   * @param decision_paths decision paths collected in PredictBatch
+   * @return a vector of dump for decision paths.
+   */
+  virtual std::vector<std::string> DumpDecisionPath(const FeatureMap& fmap, bool with_stats,
+                                                    std::string format,
+                                                    const std::vector<TreeSetDecisionPath>&
+                                                        decision_path) = 0;
 
   virtual XGBAPIThreadLocalEntry& GetThreadLocal() const = 0;
   /*!

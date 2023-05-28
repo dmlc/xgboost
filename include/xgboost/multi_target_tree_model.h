@@ -89,6 +89,10 @@ class MultiTargetTree : public Model {
     return this->NodeWeight(nidx);
   }
 
+  [[nodiscard]] linalg::VectorView<float const> NodeValue(bst_node_t nidx) const {
+    return this->NodeWeight(nidx);
+  }
+
   void LoadModel(Json const& in) override;
   void SaveModel(Json* out) const override;
 };

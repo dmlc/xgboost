@@ -36,7 +36,7 @@ TEST(CpuPredictor, Basic) {
   // Test predict batch
   PredictionCacheEntry out_predictions;
   cpu_predictor->InitOutPredictions(dmat->Info(), &out_predictions.predictions, model);
-  cpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
+  cpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, nullptr, 0);
 
   std::vector<float>& out_predictions_h = out_predictions.predictions.HostVector();
   for (size_t i = 0; i < out_predictions.predictions.Size(); i++) {
@@ -48,13 +48,13 @@ TEST(CpuPredictor, Basic) {
   auto page = batch.GetView();
   for (size_t i = 0; i < batch.Size(); i++) {
     std::vector<float> instance_out_predictions;
-    cpu_predictor->PredictInstance(page[i], &instance_out_predictions, model);
+    cpu_predictor->PredictInstance(page[i], &instance_out_predictions, model, nullptr);
     ASSERT_EQ(instance_out_predictions[0], 1.5);
   }
 
   // Test predict leaf
   HostDeviceVector<float> leaf_out_predictions;
-  cpu_predictor->PredictLeaf(dmat.get(), &leaf_out_predictions, model);
+  cpu_predictor->PredictLeaf(dmat.get(), &leaf_out_predictions, model, nullptr);
   auto const& h_leaf_out_predictions = leaf_out_predictions.ConstHostVector();
   for (auto v : h_leaf_out_predictions) {
     ASSERT_EQ(v, 0);
@@ -112,7 +112,7 @@ void TestColumnSplitPredictBatch() {
   PredictionCacheEntry out_predictions;
   cpu_predictor->InitOutPredictions(dmat->Info(), &out_predictions.predictions, model);
   auto sliced = std::unique_ptr<DMatrix>{dmat->SliceCol(world_size, rank)};
-  cpu_predictor->PredictBatch(sliced.get(), &out_predictions, model, 0);
+  cpu_predictor->PredictBatch(sliced.get(), &out_predictions, model, nullptr, 0);
 
   std::vector<float>& out_predictions_h = out_predictions.predictions.HostVector();
   for (size_t i = 0; i < out_predictions.predictions.Size(); i++) {
@@ -149,7 +149,7 @@ TEST(CpuPredictor, ExternalMemory) {
   // Test predict batch
   PredictionCacheEntry out_predictions;
   cpu_predictor->InitOutPredictions(dmat->Info(), &out_predictions.predictions, model);
-  cpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
+  cpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, nullptr, 0);
   std::vector<float> &out_predictions_h = out_predictions.predictions.HostVector();
   ASSERT_EQ(out_predictions.predictions.Size(), dmat->Info().num_row_);
   for (const auto& v : out_predictions_h) {
@@ -158,7 +158,7 @@ TEST(CpuPredictor, ExternalMemory) {
 
   // Test predict leaf
   HostDeviceVector<float> leaf_out_predictions;
-  cpu_predictor->PredictLeaf(dmat.get(), &leaf_out_predictions, model);
+  cpu_predictor->PredictLeaf(dmat.get(), &leaf_out_predictions, model, nullptr);
   auto const& h_leaf_out_predictions = leaf_out_predictions.ConstHostVector();
   ASSERT_EQ(h_leaf_out_predictions.size(), dmat->Info().num_row_);
   for (const auto& v : h_leaf_out_predictions) {
@@ -264,7 +264,7 @@ void TestUpdatePredictionCache(bool use_subsampling) {
 
   PredictionCacheEntry out_predictions;
   // perform fair prediction on the same input data, should be equal to cached result
-  gbm->PredictBatch(dmat.get(), &out_predictions, false, 0, 0);
+  gbm->PredictBatch(dmat.get(), &out_predictions, false, nullptr, 0, 0);
 
   std::vector<float> &out_predictions_h = out_predictions.predictions.HostVector();
   std::vector<float> &predtion_cache_from_train = predtion_cache.predictions.HostVector();

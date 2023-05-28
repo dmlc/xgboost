@@ -1236,6 +1236,11 @@ class LearnerImpl : public LearnerIO {
     return gbm_->DumpModel(fmap, with_stats, format);
   }
 
+  std::vector<std::string> DumpDecisionPath(const FeatureMap& fmap, bool with_stats, std::string format,
+      const std::vector<TreeSetDecisionPath>& decision_paths) override {
+    return gbm_->DumpDecisionPath(fmap, with_stats, format, decision_paths);
+  }
+
   Learner* Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step,
                  bool* out_of_bound) override {
     this->Configure();
@@ -1274,6 +1279,14 @@ class LearnerImpl : public LearnerIO {
     return out_impl;
   }
 
+  uint64_t GetTreeCount() const override {
+    return gbm_->GetTreeCount();
+  }
+
+  virtual std::vector<bst_node_t> GetMaxNodePerTree() const {
+    return gbm_->GetMaxNodePerTree();
+  }
+
   void UpdateOneIter(int iter, std::shared_ptr<DMatrix> train) override {
     monitor_.Start("UpdateOneIter");
     TrainingObserver::Instance().Update(iter);
@@ -1289,7 +1302,7 @@ class LearnerImpl : public LearnerIO {
     auto& predt = prediction_container_.Cache(train, ctx_.gpu_id);
 
     monitor_.Start("PredictRaw");
-    this->PredictRaw(train.get(), &predt, true, 0, 0);
+    this->PredictRaw(train.get(), &predt, true, nullptr, 0, 0);
     TrainingObserver::Instance().Observe(predt.predictions, "Predictions");
     monitor_.Stop("PredictRaw");
 
@@ -1339,7 +1352,7 @@ class LearnerImpl : public LearnerIO {
       std::shared_ptr<DMatrix> m = data_sets[i];
       auto &predt = prediction_container_.Cache(m, ctx_.gpu_id);
       this->ValidateDMatrix(m.get(), false);
-      this->PredictRaw(m.get(), &predt, false, 0, 0);
+      this->PredictRaw(m.get(), &predt, false, nullptr, 0, 0);
 
       auto &out = output_predictions_.Cache(m, ctx_.gpu_id).predictions;
       out.Resize(predt.predictions.Size());
@@ -1359,7 +1372,7 @@ class LearnerImpl : public LearnerIO {
                HostDeviceVector<bst_float> *out_preds, unsigned layer_begin,
                unsigned layer_end, bool training,
                bool pred_leaf, bool pred_contribs, bool approx_contribs,
-               bool pred_interactions) override {
+               bool pred_interactions, std::vector<TreeSetDecisionPath>* decision_paths) override {
     int multiple_predictions = static_cast<int>(pred_leaf) +
                                static_cast<int>(pred_interactions) +
                                static_cast<int>(pred_contribs);
@@ -1379,7 +1392,7 @@ class LearnerImpl : public LearnerIO {
       gbm_->PredictLeaf(data.get(), out_preds, layer_begin, layer_end);
     } else {
       auto& prediction = prediction_container_.Cache(data, ctx_.gpu_id);
-      this->PredictRaw(data.get(), &prediction, training, layer_begin, layer_end);
+      this->PredictRaw(data.get(), &prediction, training, decision_paths, layer_begin, layer_end);
       // Copy the prediction cache to output prediction. out_preds comes from C API
       out_preds->SetDevice(ctx_.gpu_id);
       out_preds->Resize(prediction.predictions.Size());
@@ -1444,13 +1457,15 @@ class LearnerImpl : public LearnerIO {
    * \param ntree_limit limit number of trees used for boosted tree
    *   predictor, when it equals 0, this means we are using all the trees
    * \param training allow dropout when the DART booster is being used
+   * \param decision_paths Optional container of recorded decision paths. If not null,
+   *                       paths taken in this prediction is recorded for each row.
    */
   void PredictRaw(DMatrix *data, PredictionCacheEntry *out_preds, bool training,
-                  unsigned layer_begin, unsigned layer_end) const {
+                  std::vector<TreeSetDecisionPath> *decision_paths, unsigned layer_begin, unsigned layer_end) const {
     CHECK(gbm_ != nullptr) << "Predict must happen after Load or configuration";
     this->CheckModelInitialized();
     this->ValidateDMatrix(data, false);
-    gbm_->PredictBatch(data, out_preds, training, layer_begin, layer_end);
+    gbm_->PredictBatch(data, out_preds, training, decision_paths, layer_begin, layer_end);
   }
 
   void ValidateDMatrix(DMatrix* p_fmat, bool is_training) const {

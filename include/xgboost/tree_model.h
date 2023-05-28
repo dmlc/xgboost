@@ -18,6 +18,7 @@
 #include <xgboost/multi_target_tree_model.h>  // for MultiTargetTree
 
 #include <algorithm>
+#include <utility>
 #include <cstring>
 #include <limits>
 #include <memory>  // for make_unique
@@ -618,6 +619,20 @@ class RegTree : public Model {
    */
   [[nodiscard]] std::string DumpModel(const FeatureMap& fmap, bool with_stats,
                                       std::string format) const;
+
+  /*!
+   * \brief dump the model in the requested format as a text string
+   * \param fmap feature map that may help give interpretations of feature
+   * \param with_stats whether dump out statistics as well
+   * \param format the format to dump the decision paths in
+   * \param decision_paths Optional container of recorded decision paths. If not null,
+   *                      paths taken in this prediction is recorded for each row.
+   * \return the string of dumped model
+   */
+  [[nodiscard]] std::string DumpDecisionPath(const FeatureMap& fmap,
+                            bool with_stats, std::string format,
+                            const std::vector<int32_t> &decision_paths) const;
+
   /*!
    * \brief Get split type for a node.
    * \param nidx Index of node.
@@ -834,5 +849,46 @@ inline bool RegTree::FVec::HasMissing() const {
 inline StringView MTNotImplemented() {
   return " support for multi-target tree is not yet implemented.";
 }
+
+class TreeSetDecisionPath {
+public:
+  explicit TreeSetDecisionPath(uint32_t tree_count)
+    : tree2path_(tree_count) {}
+
+  const std::vector<bst_node_t> &get_decision_path(uint32_t tree_id) const {
+    return tree2path_.at(tree_id);
+  }
+
+  void set_decision_path(uint32_t tree_id, std::vector<bst_node_t> &&new_path) {
+    CHECK_EQ(tree2path_.at(tree_id).size(), 0ul);
+    tree2path_.at(tree_id) = std::forward<std::vector<bst_node_t>>(new_path);
+  }
+
+  uint32_t num_trees() const {
+    return tree2path_.size();
+  }
+
+  void update_indicator(uint64_t row_id,
+                        std::vector<std::vector<std::vector<uint32_t>>> &indicator_tree_row_node) const {
+    for (uint32_t tree_id = 0; tree_id < tree2path_.size(); ++tree_id) {
+      auto &path = tree2path_.at(tree_id);
+      for (bst_node_t node_id : path) {
+        indicator_tree_row_node
+            .at(tree_id)
+            .at(row_id)
+            .at(node_id) = 1;
+      }
+    }
+  }
+
+private:
+    std::vector<std::vector<bst_node_t>> tree2path_;
+};
+
+void PrintDecisionPath(std::ostream &os, const std::vector<std::string> &decision_paths_dumped);
+std::vector<std::vector<std::vector<uint32_t>>>
+PathToIndicatorMatrices(const std::vector<TreeSetDecisionPath> &decision_paths,
+                        const std::vector<bst_node_t> &tree2max_node);
+
 }  // namespace xgboost
 #endif  // XGBOOST_TREE_MODEL_H_

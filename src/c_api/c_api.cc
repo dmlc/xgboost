@@ -47,6 +47,7 @@
 #include "xgboost/span.h"                    // for Span
 #include "xgboost/string_view.h"             // for StringView, operator<<
 #include "xgboost/version_config.h"          // for XGBOOST_VER_MAJOR, XGBOOST_VER_MINOR, XGBOOS...
+#include "xgboost/tree_model.h"              // for decision path
 
 #if defined(XGBOOST_USE_FEDERATED)
 #include "../../plugin/federated/federated_server.h"
@@ -993,10 +994,34 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
   bool interactions = type == PredictionType::kInteraction ||
                       type == PredictionType::kApproxInteraction;
   bool training = RequiredArg<Boolean>(config, "training", __func__);
-  learner->Predict(p_m, type == PredictionType::kMargin, &entry.predictions,
-                   iteration_begin, iteration_end, training,
-                   type == PredictionType::kLeaf, contribs, approximate,
-                   interactions);
+  bool print_decision_path = RequiredArg<Boolean>(config, "print_decision_path", __func__);
+  std::string fmap_path = RequiredArg<String>(config, "fmap", __func__ );
+  std::string format = RequiredArg<String>(config, "format", __func__);
+  std::string out_path = RequiredArg<String>(config, "dump_file", __func__);
+
+  std::vector<std::vector<std::vector<uint32_t>>> decision_path_result;
+  if (print_decision_path) {
+    std::vector<TreeSetDecisionPath> row2paths;
+    row2paths.reserve(p_m->Info().num_row_);
+    for (uint32_t row_id = 0; row_id < p_m->Info().num_row_; ++row_id) {
+      row2paths.emplace_back(TreeSetDecisionPath{static_cast<uint32_t>(learner->GetTreeCount())});
+    }
+    learner->Predict(p_m, type == PredictionType::kMargin, &entry.predictions,
+                     iteration_begin, iteration_end, training,
+                     type == PredictionType::kLeaf, contribs, approximate,
+                     interactions, &row2paths);
+    learner->GetTreeCount();
+    decision_path_result = PathToIndicatorMatrices(row2paths, learner->GetMaxNodePerTree());
+
+    std::ofstream out_file {out_path};
+    auto dumped_decision_paths = learner->DumpDecisionPath(LoadFeatureMap(fmap_path), true, format, row2paths);
+    PrintDecisionPath(out_file, dumped_decision_paths);
+  } else {
+    learner->Predict(p_m, type == PredictionType::kMargin, &entry.predictions,
+                     iteration_begin, iteration_end, training,
+                     type == PredictionType::kLeaf, contribs, approximate,
+                     interactions, nullptr);
+  }
 
   xgboost_CHECK_C_ARG_PTR(out_result);
   *out_result = dmlc::BeginPtr(entry.predictions.ConstHostVector());

@@ -247,7 +247,7 @@ class GBTree : public GradientBooster {
   }
 
   void PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool training,
-                    bst_layer_t layer_begin, bst_layer_t layer_end) override;
+                    std::vector<TreeSetDecisionPath>* decision_paths, bst_layer_t layer_begin, bst_layer_t layer_end) override;
 
   void InplacePredict(std::shared_ptr<DMatrix> p_m, float missing, PredictionCacheEntry* out_preds,
                       bst_layer_t layer_begin, bst_layer_t layer_end) const override {
@@ -264,14 +264,14 @@ class GBTree : public GradientBooster {
     if (tparam_.predictor == PredictorType::kAuto) {
       // Try both predictor implementations
       for (auto const &p : predictors) {
-        if (p && p->InplacePredict(p_m, model_, missing, out_preds, tree_begin, tree_end)) {
+        if (p && p->InplacePredict(p_m, model_, missing, out_preds, nullptr, tree_begin, tree_end)) {
           return;
         }
       }
       LOG(FATAL) << msg;
     } else {
       bool success = this->GetPredictor()->InplacePredict(p_m, model_, missing, out_preds,
-                                                          tree_begin, tree_end);
+                                                          nullptr, tree_begin, tree_end);
       CHECK(success) << msg << std::endl
                      << "Current Predictor: "
                      << (tparam_.predictor == PredictorType::kCPUPredictor
@@ -350,7 +350,7 @@ class GBTree : public GradientBooster {
     CHECK(configured_);
     std::uint32_t _, tree_end;
     std::tie(_, tree_end) = detail::LayerToTree(model_, layer_begin, layer_end);
-    cpu_predictor_->PredictInstance(inst, out_preds, model_, tree_end);
+    cpu_predictor_->PredictInstance(inst, out_preds, model_, nullptr, tree_end);
   }
 
   void PredictLeaf(DMatrix* p_fmat,
@@ -359,7 +359,7 @@ class GBTree : public GradientBooster {
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict leaf supports only iteration end: (0, "
                                "n_iteration), use model slicing instead.";
-    this->GetPredictor()->PredictLeaf(p_fmat, out_preds, model_, tree_end);
+    this->GetPredictor()->PredictLeaf(p_fmat, out_preds, model_, nullptr, tree_end);
   }
 
   void PredictContribution(DMatrix* p_fmat,
@@ -390,6 +390,20 @@ class GBTree : public GradientBooster {
   [[nodiscard]] std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,
                                                    std::string format) const override {
     return model_.DumpModel(fmap, with_stats, this->ctx_->Threads(), format);
+  }
+
+  std::vector<std::string> DumpDecisionPath(const FeatureMap& fmap,
+                                            bool with_stats, std::string format,
+      const std::vector<TreeSetDecisionPath>& decision_paths) const override {
+    return model_.DumpDecisionPath(fmap, with_stats, format, decision_paths);
+  }
+
+  uint64_t GetTreeCount() const override {
+    return model_.GetTreeCount();
+  }
+
+  virtual std::vector<bst_node_t> GetMaxNodePerTree() const override {
+    return model_.GetMaxNodePerTree();
   }
 
  protected:

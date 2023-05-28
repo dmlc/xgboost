@@ -148,7 +148,7 @@ class GBLinear : public GradientBooster {
   }
 
   void PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* predts, bool /*training*/,
-                    bst_layer_t layer_begin, bst_layer_t) override {
+                    std::vector<TreeSetDecisionPath>*, bst_layer_t layer_begin, bst_layer_t) override {
     monitor_.Start("PredictBatch");
     LinearCheckLayer(layer_begin);
     auto* out_preds = &predts->predictions;
@@ -228,6 +228,20 @@ class GBLinear : public GradientBooster {
                                      bool with_stats,
                                      std::string format) const override {
     return model_.DumpModel(fmap, with_stats, format);
+  }
+
+  std::vector<std::string> DumpDecisionPath(const FeatureMap& fmap,
+                                            bool with_stats, std::string format,
+      const std::vector<TreeSetDecisionPath>& decision_paths) const override {
+    throw "Not implemented";
+  }
+
+  uint64_t GetTreeCount() const override {
+    return 0;
+  }
+
+  virtual std::vector<bst_node_t> GetMaxNodePerTree() const override {
+    throw "Not implemented";
   }
 
   void FeatureScore(std::string const &importance_type,
