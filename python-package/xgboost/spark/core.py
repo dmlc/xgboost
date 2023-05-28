@@ -337,11 +337,9 @@ class _SparkXGBParams(
 
         if self.getOrDefault(self.features_cols):
             if not self.getOrDefault(self.use_gpu):
-                raise ValueError("features_cols param requires enabling use_gpu.")
-
-            get_logger(self.__class__.__name__).warning(
-                "If features_cols param set, then features_col param is ignored."
-            )
+                raise ValueError(
+                    "features_col param with list value requires enabling use_gpu."
+                )
 
         if self.getOrDefault("objective") is not None:
             if not isinstance(self.getOrDefault("objective"), str):
@@ -547,6 +545,8 @@ FeatureProp = namedtuple(
 
 
 class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
+    _input_kwargs: Dict[str, Any]
+
     def __init__(self) -> None:
         super().__init__()
         self._set_xgb_params_default()
@@ -576,6 +576,11 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             raise ValueError("Invalid param name: 'arbitrary_params_dict'.")
 
         for k, v in kwargs.items():
+            # We're not allowing user use features_cols directly.
+            if k == self.features_cols.name:
+                raise ValueError(
+                    f"Unsupported param '{k}' please use features_col instead."
+                )
             if k in _inverse_pyspark_param_alias_map:
                 raise ValueError(
                     f"Please use param name {_inverse_pyspark_param_alias_map[k]} instead."
@@ -591,7 +596,10 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                     k = real_k
 
             if self.hasParam(k):
-                self._set(**{str(k): v})
+                if k == "features_col" and isinstance(v, list):
+                    self._set(**{"features_cols": v})
+                else:
+                    self._set(**{str(k): v})
             else:
                 if (
                     k in _unsupported_xgb_params
