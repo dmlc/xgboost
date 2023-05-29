@@ -27,20 +27,29 @@ In the following two sections, we will provide a step by step walk through of im
 the ``Squared Log Error (SLE)`` objective function:
 
 .. math::
-   \frac{1}{2}[log(pred + 1) - log(label + 1)]^2
+   \frac{1}{2}[\log(pred + 1) - \log(label + 1)]^2
 
 and its default metric ``Root Mean Squared Log Error(RMSLE)``:
 
 .. math::
-   \sqrt{\frac{1}{N}[log(pred + 1) - log(label + 1)]^2}
+   \sqrt{\frac{1}{N}[\log(pred + 1) - \log(label + 1)]^2}
 
 Although XGBoost has native support for said functions, using it for demonstration
 provides us the opportunity of comparing the result from our own implementation and the
 one from XGBoost internal for learning purposes.  After finishing this tutorial, we should
 be able to provide our own functions for rapid experiments.  And at the end, we will
 provide some notes on non-identy link function along with examples of using custom metric
-and objective with `scikit-learn` interface.
-with scikit-learn interface.
+and objective with the `scikit-learn` interface.
+
+If we compute the gradient of said objective function:
+
+.. math::
+   g = \frac{\partial{objective}}{\partial{pred}} = \frac{\log(pred + 1) - \log(label + 1)}{pred + 1}
+
+As well as the hessian (the second derivative of the objective):
+
+.. math::
+   h = \frac{\partial^2{objective}}{\partial{pred}} = \frac{ - \log(pred + 1) + \log(label + 1) + 1}{(pred + 1)^2}
 
 *****************************
 Customized Objective Function
