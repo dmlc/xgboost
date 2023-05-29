@@ -42,6 +42,14 @@ provide some notes on non-identy link function along with examples of using cust
 and objective with `scikit-learn` interface.
 with scikit-learn interface.
 
+If we compute the gradient of said objective function:
+.. math::
+   gradient = \frac{d(objective)}{d(pred)} = \frac{log(pred + 1) - log(label + 1)}{pred + 1}
+   
+As well as the hessian (the second derivative of the objective) :
+.. math::
+   hessian = \frac{d(gradient)}{d(pred)} = \frac{ - log(pred + 1) + log(label + 1) + 1}{(pred + 1)^2}
+
 *****************************
 Customized Objective Function
 *****************************
