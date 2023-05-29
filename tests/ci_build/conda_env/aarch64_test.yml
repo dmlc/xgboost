@@ -28,7 +28,7 @@ dependencies:
 - llvmlite
 - cffi
 - pyarrow
-- pyspark
+- pyspark>=3.4.0
 - cloudpickle
 - pip:
   - awscli
