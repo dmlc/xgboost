@@ -95,7 +95,7 @@ void HostSketchContainer::PushAdapterBatch(Batch const &batch, size_t base_rowid
         << "For a learning to rank task, the size of weight should be equal to the number of query "
            "groups.";
   } else if (!h_weights.empty()) {
-    CHECK_EQ(h_weights.size(), info.num_row_) << "Invalid size of sample weight.";
+    CHECK_EQ(h_weights.size(), batch.Size()) << "Invalid size of sample weight.";
   }
 
   auto is_valid = data::IsValidFunctor{missing};
