@@ -48,9 +48,9 @@ PackedReduceResult PreScore(Context const *ctx, MetaInfo const &info,
         i -= g_begin;
         auto g_label = d_label.Slice(linalg::Range(g_begin, g_end));
         auto g_rank = d_rank_idx.subspan(g_begin, g_end - g_begin);
-        auto y = g_label(g_rank[i]);
+        double y = g_label(g_rank[i]);
         auto n = std::min(static_cast<std::size_t>(topk), g_label.Size());
-        float w{d_weight[g]};
+        double w{d_weight[g]};
         if (i >= n) {
           return 0.0;
         }
