@@ -149,6 +149,8 @@ if (USE_CUDA)
   set(GEN_CODE "")
   format_gencode_flags("${GPU_COMPUTE_VER}" GEN_CODE)
   add_subdirectory(${PROJECT_SOURCE_DIR}/gputreeshap)
+
+  find_package(CUDAToolkit REQUIRED)
 endif (USE_CUDA)
 
 if (FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND

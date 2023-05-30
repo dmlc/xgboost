@@ -882,7 +882,7 @@ def _transform_cupy_array(data: DataType) -> CupyT:
 
     if not hasattr(data, "__cuda_array_interface__") and hasattr(data, "__array__"):
         data = cupy.array(data, copy=False)
-    if data.dtype.hasobject or data.dtype in [cupy.float16, cupy.bool_]:
+    if data.dtype.hasobject or data.dtype in [cupy.bool_]:
         data = data.astype(cupy.float32, copy=False)
     return data
 
