@@ -25,96 +25,6 @@
 
 namespace xgboost {
 namespace common {
-
-using WQSketch = HostSketchContainer::WQSketch;
-using SketchEntry = WQSketch::Entry;
-
-// Algorithm 4 in XGBoost's paper, using binary search to find i.
-template <typename EntryIter>
-__device__ SketchEntry BinarySearchQuery(EntryIter beg, EntryIter end, float rank) {
-  assert(end - beg >= 2);
-  rank *= 2;
-  auto front = *beg;
-  if (rank < front.rmin + front.rmax) {
-    return *beg;
-  }
-  auto back = *(end - 1);
-  if (rank >= back.rmin + back.rmax) {
-    return back;
-  }
-
-  auto search_begin = dh::MakeTransformIterator<float>(
-      beg, [=] __device__(SketchEntry const &entry) {
-        return entry.rmin + entry.rmax;
-      });
-  auto search_end = search_begin + (end - beg);
-  auto i =
-      thrust::upper_bound(thrust::seq, search_begin + 1, search_end - 1, rank) -
-      search_begin - 1;
-  if (rank < (*(beg + i)).RMinNext() + (*(beg + i + 1)).RMaxPrev()) {
-    return *(beg + i);
-  } else {
-    return *(beg + i + 1);
-  }
-}
-
-template <typename InEntry, typename ToSketchEntry>
-void PruneImpl(common::Span<SketchContainer::OffsetT const> cuts_ptr,
-               Span<InEntry const> sorted_data,
-               Span<size_t const> columns_ptr_in,  // could be ptr for data or cuts
-               Span<FeatureType const> feature_types, Span<SketchEntry> out_cuts,
-               ToSketchEntry to_sketch_entry) {
-  dh::LaunchN(out_cuts.size(), [=] __device__(size_t idx) {
-    size_t column_id = dh::SegmentId(cuts_ptr, idx);
-    auto out_column = out_cuts.subspan(
-        cuts_ptr[column_id], cuts_ptr[column_id + 1] - cuts_ptr[column_id]);
-    auto in_column = sorted_data.subspan(columns_ptr_in[column_id],
-                                         columns_ptr_in[column_id + 1] -
-                                             columns_ptr_in[column_id]);
-    auto to = cuts_ptr[column_id + 1] - cuts_ptr[column_id];
-    idx -= cuts_ptr[column_id];
-    auto front = to_sketch_entry(0ul, in_column, column_id);
-    auto back = to_sketch_entry(in_column.size() - 1, in_column, column_id);
-
-    auto is_cat = IsCat(feature_types, column_id);
-    if (in_column.size() <= to || is_cat) {
-      // cut idx equals sample idx
-      out_column[idx] = to_sketch_entry(idx, in_column, column_id);
-      return;
-    }
-    // 1 thread for each output.  See A.4 for detail.
-    auto d_out = out_column;
-    if (idx == 0) {
-      d_out.front() = front;
-      return;
-    }
-    if (idx == to - 1) {
-      d_out.back() = back;
-      return;
-    }
-
-    float w = back.rmin - front.rmax;
-    auto budget = static_cast<float>(d_out.size());
-    assert(budget != 0);
-    auto q = ((static_cast<float>(idx) * w) / (static_cast<float>(to) - 1.0f) + front.rmax);
-    auto it = dh::MakeTransformIterator<SketchEntry>(
-        thrust::make_counting_iterator(0ul), [=] __device__(size_t idx) {
-          auto e = to_sketch_entry(idx, in_column, column_id);
-          return e;
-        });
-    d_out[idx] = BinarySearchQuery(it, it + in_column.size(), q);
-  });
-}
-
-template <typename T, typename U>
-void CopyTo(Span<T> out, Span<U> src) {
-  CHECK_EQ(out.size(), src.size());
-  static_assert(std::is_same<std::remove_cv_t<T>, std::remove_cv_t<T>>::value);
-  dh::safe_cuda(cudaMemcpyAsync(out.data(), src.data(),
-                                out.size_bytes(),
-                                cudaMemcpyDefault));
-}
-
 // Compute the merge path.
 common::Span<thrust::tuple<uint64_t, uint64_t>> MergePath(
     Span<SketchEntry const> const &d_x, Span<bst_row_t const> const &x_ptr,
@@ -306,62 +216,6 @@ void MergeImpl(int32_t device, Span<SketchEntry const> const &d_x,
   });
 }
 
-void SketchContainer::Push(Span<Entry const> entries, Span<size_t> columns_ptr,
-                           common::Span<OffsetT> cuts_ptr,
-                           size_t total_cuts, Span<float> weights) {
-  dh::safe_cuda(cudaSetDevice(device_));
-  Span<SketchEntry> out;
-  dh::device_vector<SketchEntry> cuts;
-  bool first_window = this->Current().empty();
-  if (!first_window) {
-    cuts.resize(total_cuts);
-    out = dh::ToSpan(cuts);
-  } else {
-    this->Current().resize(total_cuts);
-    out = dh::ToSpan(this->Current());
-  }
-  auto ft = this->feature_types_.ConstDeviceSpan();
-  if (weights.empty()) {
-    auto to_sketch_entry = [] __device__(size_t sample_idx,
-                                         Span<Entry const> const &column,
-                                         size_t) {
-      float rmin = sample_idx;
-      float rmax = sample_idx + 1;
-      return SketchEntry{rmin, rmax, 1, column[sample_idx].fvalue};
-    }; // NOLINT
-    PruneImpl<Entry>(cuts_ptr, entries, columns_ptr, ft, out, to_sketch_entry);
-  } else {
-    auto to_sketch_entry = [weights, columns_ptr] __device__(
-                               size_t sample_idx,
-                               Span<Entry const> const &column,
-                               size_t column_id) {
-      Span<float const> column_weights_scan =
-          weights.subspan(columns_ptr[column_id], column.size());
-      float rmin = sample_idx > 0 ? column_weights_scan[sample_idx - 1] : 0.0f;
-      float rmax = column_weights_scan[sample_idx];
-      float wmin = rmax - rmin;
-      wmin = wmin < 0 ? kRtEps : wmin;  // GPU scan can generate floating error.
-      return SketchEntry{rmin, rmax, wmin, column[sample_idx].fvalue};
-    }; // NOLINT
-    PruneImpl<Entry>(cuts_ptr, entries, columns_ptr, ft, out, to_sketch_entry);
-  }
-  auto n_uniques = this->ScanInput(out, cuts_ptr);
-
-  if (!first_window) {
-    CHECK_EQ(this->columns_ptr_.Size(), cuts_ptr.size());
-    out = out.subspan(0, n_uniques);
-    this->Merge(cuts_ptr, out);
-    this->FixError();
-  } else {
-    this->Current().resize(n_uniques);
-    this->columns_ptr_.SetDevice(device_);
-    this->columns_ptr_.Resize(cuts_ptr.size());
-
-    auto d_cuts_ptr = this->columns_ptr_.DeviceSpan();
-    CopyTo(d_cuts_ptr, cuts_ptr);
-  }
-}
-
 size_t SketchContainer::ScanInput(Span<SketchEntry> entries, Span<OffsetT> d_columns_ptr_in) {
   /* There are 2 types of duplication.  First is duplicated feature values, which comes
    * from user input data.  Second is duplicated sketching entries, which is generated by
@@ -429,11 +283,11 @@ void SketchContainer::Prune(size_t to) {
   auto d_columns_ptr_out = columns_ptr_b_.ConstDeviceSpan();
   auto out = dh::ToSpan(this->Other());
   auto in = dh::ToSpan(this->Current());
-  auto no_op = [] __device__(size_t sample_idx,
-                             Span<SketchEntry const> const &entries,
-                             size_t) { return entries[sample_idx]; }; // NOLINT
+  auto no_op = [] __device__(size_t sample_idx, auto const &entries, size_t) {
+    return entries[sample_idx];
+  };  // NOLINT
   auto ft = this->feature_types_.ConstDeviceSpan();
-  PruneImpl<SketchEntry>(d_columns_ptr_out, in, d_columns_ptr_in, ft, out, no_op);
+  PruneImpl(d_columns_ptr_out, in.data(), d_columns_ptr_in, ft, out, no_op);
   this->columns_ptr_.Copy(columns_ptr_b_);
   this->Alternate();
 

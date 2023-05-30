@@ -146,7 +146,7 @@ auto MakeWQSegOp(SegIt seg_it, ValIt val_it, AlphaIt alpha_it, Span<float const>
  *    std::distance(seg_begin, seg_end) should be equal to n_segments + 1
  */
 template <typename SegIt, typename ValIt, typename AlphaIt,
-          std::enable_if_t<!std::is_floating_point<AlphaIt>::value>* = nullptr>
+          std::enable_if_t<!std::is_floating_point_v<AlphaIt>>* = nullptr>
 void SegmentedQuantile(Context const* ctx, AlphaIt alpha_it, SegIt seg_begin, SegIt seg_end,
                        ValIt val_begin, ValIt val_end, HostDeviceVector<float>* quantiles) {
   dh::device_vector<std::size_t> sorted_idx;

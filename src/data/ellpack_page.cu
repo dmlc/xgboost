@@ -333,7 +333,7 @@ void CopyGHistToEllpack(GHistIndexMatrix const& page, common::Span<size_t const>
       // is dense, ifeature is the actual feature index.
       offset = d_csc_indptr[ifeature];
     }
-    common::cuda::DispatchBinType(bin_type, [&](auto t) {
+    common::cuda_impl::DispatchBinType(bin_type, [&](auto t) {
       using T = decltype(t);
       auto ptr = reinterpret_cast<T const*>(d_data.data());
       auto bin_idx = ptr[r_begin + ifeature] + offset;

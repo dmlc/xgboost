@@ -366,8 +366,8 @@ inline void IterativeDMatrix::InitFromCUDA(Context const*, BatchParam const&, Da
   common::AssertGPUSupport();
 }
 
-inline BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(Context const* ctx,
-                                                                 BatchParam const& param) {
+inline BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(Context const*,
+                                                                 BatchParam const&) {
   common::AssertGPUSupport();
   auto begin_iter = BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(ellpack_));
   return BatchSet<EllpackPage>(BatchIterator<EllpackPage>(begin_iter));
