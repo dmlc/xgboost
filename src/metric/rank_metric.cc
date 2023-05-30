@@ -336,10 +336,6 @@ class EvalPrecision : public EvalRankWithCache<ltr::PreCache> {
     auto weight = common::MakeOptionalWeights(ctx_, info.weights_);
     auto pre = p_cache->Pre(ctx_);
 
-    // 1 group, while weight has the shape of n_samples, we treat it as binary
-    // classification and weight is the sample weight
-    bool const is_sample_weight = n_groups == 1 && weight.Size() == rank_idx.size();
-
     common::ParallelFor(p_cache->Groups(), ctx_->Threads(), [&](auto g) {
       auto g_label = h_label.Slice(linalg::Range(gptr[g], gptr[g + 1]));
       auto g_rank = rank_idx.subspan(gptr[g], gptr[g + 1] - gptr[g]);
@@ -347,24 +343,14 @@ class EvalPrecision : public EvalRankWithCache<ltr::PreCache> {
       auto n = std::min(static_cast<std::size_t>(param_.TopK()), g_label.Size());
       double n_hits{0.0};
       for (std::size_t i = 0; i < n; ++i) {
-        if (is_sample_weight) {
-          n_hits += g_label(g_rank[i]) * weight[i + gptr[g]];
-        } else {
-          n_hits += g_label(g_rank[i]) * weight[g];
-        }
+        n_hits += g_label(g_rank[i]) * weight[g];
       }
-      pre[g] = n_hits / n;
+      pre[g] = n_hits / static_cast<double>(n);
     });
 
     auto sw = 0.0;
-    if (is_sample_weight) {
-      for (std::size_t i = 0; i < rank_idx.size(); ++i) {
-        sw += weight[i];
-      }
-    } else {
-      for (std::size_t i = 0; i < pre.size(); ++i) {
-        sw += weight[i];
-      }
+    for (std::size_t i = 0; i < pre.size(); ++i) {
+      sw += weight[i];
     }
 
     auto sum = std::accumulate(pre.cbegin(), pre.cend(), 0.0);

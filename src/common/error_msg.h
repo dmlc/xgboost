@@ -13,12 +13,6 @@ constexpr StringView GroupWeight() {
   return "Size of weight must equal to the number of query groups when ranking group is used.";
 }
 
-constexpr StringView WeightSize() {
-  return "Invalid size of weight. For a binary classification task, it's size should be equal "
-         "to the number of samples. For a learning to rank task, it's size should be equal to "
-         "the number of query groups.";
-}
-
 constexpr StringView GroupSize() {
   return "Invalid query group structure. The number of rows obtained from group doesn't equal to ";
 }

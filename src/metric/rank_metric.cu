@@ -40,8 +40,6 @@ PackedReduceResult PreScore(Context const *ctx, MetaInfo const &info,
   auto topk = p_cache->Param().TopK();
   auto d_weight = common::MakeOptionalWeights(ctx, info.weights_);
 
-  bool const is_sample_weight = d_gptr.size() == 2 && d_weight.Size() == d_rank_idx.size();
-
   auto it = dh::MakeTransformIterator<double>(
       thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) {
         auto g = dh::SegmentId(d_gptr, i);
@@ -52,13 +50,7 @@ PackedReduceResult PreScore(Context const *ctx, MetaInfo const &info,
         auto g_rank = d_rank_idx.subspan(g_begin, g_end - g_begin);
         auto y = g_label(g_rank[i]);
         auto n = std::min(static_cast<std::size_t>(topk), g_label.Size());
-        float w{0.0f};
-        if (is_sample_weight) {
-          w = d_weight[i];
-        } else {
-          // learning to rank, query group weight
-          w = d_weight[g];
-        }
+        float w{d_weight[g]};
         if (i >= n) {
           return 0.0;
         }
@@ -70,8 +62,8 @@ PackedReduceResult PreScore(Context const *ctx, MetaInfo const &info,
   thrust::fill_n(cuctx->CTP(), pre.data(), pre.size(), 0.0);
 
   std::size_t bytes;
-  cub::DeviceSegmentedReduce::Sum(nullptr, bytes, it, pre.data(), p_cache->Groups(),
-                                  d_gptr.data(), d_gptr.data() + 1, cuctx->Stream());
+  cub::DeviceSegmentedReduce::Sum(nullptr, bytes, it, pre.data(), p_cache->Groups(), d_gptr.data(),
+                                  d_gptr.data() + 1, cuctx->Stream());
   dh::TemporaryArray<char> temp(bytes);
   cub::DeviceSegmentedReduce::Sum(temp.data().get(), bytes, it, pre.data(), p_cache->Groups(),
                                   d_gptr.data(), d_gptr.data() + 1, cuctx->Stream());
@@ -79,7 +71,7 @@ PackedReduceResult PreScore(Context const *ctx, MetaInfo const &info,
   auto w_it =
       dh::MakeTransformIterator<double>(thrust::make_counting_iterator(0ul),
                                         [=] XGBOOST_DEVICE(std::size_t g) { return d_weight[g]; });
-  auto n_weights = is_sample_weight ? d_rank_idx.size() : p_cache->Groups();
+  auto n_weights = p_cache->Groups();
   auto sw = dh::Reduce(cuctx->CTP(), w_it, w_it + n_weights, 0.0, thrust::plus<double>{});
   auto sum =
       dh::Reduce(cuctx->CTP(), dh::tcbegin(pre), dh::tcend(pre), 0.0, thrust::plus<double>{});

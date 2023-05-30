@@ -203,11 +203,7 @@ class RankingCache {
       this->InitOnCUDA(ctx, info);
     }
     if (!info.weights_.Empty()) {
-      if (info.group_ptr_.empty()) {
-        CHECK(Groups() == info.weights_.Size() || info.weights_.Size() == info.num_row_) << error::WeightSize();
-      } else {
-        CHECK_EQ(Groups(), info.weights_.Size()) << error::GroupWeight();
-      }
+      CHECK_EQ(Groups(), info.weights_.Size()) << error::GroupWeight();
     }
   }
   [[nodiscard]] std::size_t MaxPositionSize() const {
