@@ -12,6 +12,7 @@ from xgboost.core import _parse_eval_str
 def check_precision_score(tree_method: str) -> None:
     """Test for precision with ranking and classification."""
     datasets = pytest.importorskip("sklearn.datasets")
+    model_selection = pytest.importorskip("sklearn.model_selection")
 
     X, y = datasets.make_classification(
         n_samples=1024, n_features=4, n_classes=2, random_state=2023
@@ -56,6 +57,36 @@ def check_precision_score(tree_method: str) -> None:
     assert result[1][0].endswith("pre@32")
     score_1 = result[1][1]
     assert score_1 == score_0
+
+    X, y = datasets.make_classification(n_samples=128, n_features=4, random_state=1994)
+    clf = xgb.XGBClassifier(
+        tree_method=tree_method, eval_metric="pre@32", n_estimators=3
+    )
+    X_train, X_test, y_train, y_test = model_selection.train_test_split(
+        X, y, random_state=1994
+    )
+    w_train = np.ones(y_train.shape)
+    w_test = np.ones(y_test.shape)
+    clf.fit(
+        X_train,
+        y_train,
+        sample_weight=w_train,
+        eval_set=[(X_test, y_test)],
+        sample_weight_eval_set=[w_test],
+    )
+
+    clf_1 = xgb.XGBClassifier(
+        tree_method=tree_method, eval_metric="pre@32", n_estimators=3
+    )
+    clf_1.fit(
+        X_train,
+        y_train,
+        eval_set=[(X_test, y_test)],
+    )
+    print(clf.evals_result())
+    print(clf_1.evals_result())
+
+    from sklearn.metrics import precision_score
 
 
 def check_quantile_error(tree_method: str) -> None:

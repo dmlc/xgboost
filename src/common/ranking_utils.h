@@ -189,7 +189,6 @@ class RankingCache {
 
  protected:
   [[nodiscard]] std::size_t MaxGroupSize() const { return max_group_size_; }
-  [[nodiscard]] virtual bool AllowClassification() const { return false; }
 
  public:
   RankingCache(Context const* ctx, MetaInfo const& info, LambdaRankParam const& p) : param_{p} {
@@ -204,7 +203,7 @@ class RankingCache {
       this->InitOnCUDA(ctx, info);
     }
     if (!info.weights_.Empty()) {
-      if (this->AllowClassification()) {
+      if (info.group_ptr_.empty()) {
         CHECK(Groups() == info.weights_.Size() || info.weights_.Size() == info.num_row_) << error::WeightSize();
       } else {
         CHECK_EQ(Groups(), info.weights_.Size()) << error::GroupWeight();
@@ -390,8 +389,6 @@ class PreCache : public RankingCache {
   void InitOnCUDA(Context const* ctx, MetaInfo const& info);
 
  public:
-  [[nodiscard]] bool AllowClassification() const override { return true; }
-
   PreCache(Context const* ctx, MetaInfo const& info, LambdaRankParam const& p)
       : RankingCache{ctx, info, p} {
     if (ctx->IsCPU()) {
