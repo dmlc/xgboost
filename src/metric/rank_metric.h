@@ -42,7 +42,7 @@ inline PackedReduceResult MAPScore(Context const *, MetaInfo const &,
 
 inline PackedReduceResult PreScore(Context const *, MetaInfo const &,
                                    HostDeviceVector<float> const &,
-                                   std::shared_ptr<ltr::MAPCache>) {
+                                   std::shared_ptr<ltr::PreCache>) {
   common::AssertGPUSupport();
   return {};
 }
