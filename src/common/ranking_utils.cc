@@ -121,7 +121,7 @@ void PreCache::InitOnCPU(Context const*, MetaInfo const& info) {
 }
 
 #if !defined(XGBOOST_USE_CUDA)
-void PreCache::InitOnCUDA(Context const*, MetaInfo const&) { common::AssertGPUSupport() }
+void PreCache::InitOnCUDA(Context const*, MetaInfo const&) { common::AssertGPUSupport(); }
 #endif  // !defined(XGBOOST_USE_CUDA)
 
 void MAPCache::InitOnCPU(Context const*, MetaInfo const& info) {
