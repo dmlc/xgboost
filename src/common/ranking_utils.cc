@@ -126,7 +126,8 @@ void PreCache::InitOnCUDA(Context const*, MetaInfo const&) { common::AssertGPUSu
 
 void MAPCache::InitOnCPU(Context const*, MetaInfo const& info) {
   auto const& h_label = info.labels.HostView().Slice(linalg::All(), 0);
-  CheckPreLabels("map", h_label, [](auto beg, auto end, auto op) { return std::all_of(beg, end, op); });
+  CheckPreLabels("map", h_label,
+                 [](auto beg, auto end, auto op) { return std::all_of(beg, end, op); });
 }
 
 #if !defined(XGBOOST_USE_CUDA)
