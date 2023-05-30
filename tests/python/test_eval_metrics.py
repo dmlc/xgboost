@@ -3,7 +3,7 @@ import pytest
 
 import xgboost as xgb
 from xgboost import testing as tm
-from xgboost.testing.metrics import check_quantile_error
+from xgboost.testing.metrics import check_precision_score, check_quantile_error
 
 rng = np.random.RandomState(1337)
 
@@ -314,6 +314,9 @@ class TestEvalMetrics:
 
     def test_pr_auc_ltr(self):
         self.run_pr_auc_ltr("hist")
+
+    def test_precision_score(self):
+        check_precision_score("hist")
 
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_quantile_error(self) -> None:
