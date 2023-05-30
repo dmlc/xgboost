@@ -309,12 +309,20 @@ double Finalize(MetaInfo const& info, double score, double sw) {
 }
 }  // namespace
 
-class EvalPrecision : public EvalRankWithCache<ltr::MAPCache> {
+class EvalPrecision : public EvalRankWithCache<ltr::PreCache> {
  public:
   using EvalRankWithCache::EvalRankWithCache;
 
   double Eval(HostDeviceVector<float> const& predt, MetaInfo const& info,
-              std::shared_ptr<ltr::MAPCache> p_cache) final {
+              std::shared_ptr<ltr::PreCache> p_cache) final {
+    auto n_groups = p_cache->Groups();
+    if (!info.weights_.Empty()) {
+      CHECK(info.weights_.Size() == info.num_row_ || info.weights_.Size() == n_groups)
+          << "Invalid size of weight. For a binary classification task, it's size should be equal "
+             "to the number of samples. For a learning to rank task, it's size should be equal to "
+             "the number of query groups.";
+    }
+
     if (ctx_->IsCUDA()) {
       auto pre = cuda_impl::PreScore(ctx_, info, predt, p_cache);
       return Finalize(info, pre.Residue(), pre.Weights());
@@ -326,11 +334,11 @@ class EvalPrecision : public EvalRankWithCache<ltr::MAPCache> {
     auto rank_idx = p_cache->SortedIdx(ctx_, predt.ConstHostSpan());
 
     auto weight = common::MakeOptionalWeights(ctx_, info.weights_);
-    auto pre = p_cache->Map(ctx_);
+    auto pre = p_cache->Pre(ctx_);
 
     // 1 group, while weight has the shape of n_samples, we treat it as binary
     // classification and weight is the sample weight
-    bool const is_sample_weight = gptr.size() == 2 && weight.Size() == rank_idx.size();
+    bool const is_sample_weight = n_groups == 1 && weight.Size() == rank_idx.size();
 
     common::ParallelFor(p_cache->Groups(), ctx_->Threads(), [&](auto g) {
       auto g_label = h_label.Slice(linalg::Range(gptr[g], gptr[g + 1]));

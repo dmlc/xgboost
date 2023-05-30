@@ -23,7 +23,7 @@ PackedReduceResult MAPScore(Context const *ctx, MetaInfo const &info,
 
 PackedReduceResult PreScore(Context const *ctx, MetaInfo const &info,
                             HostDeviceVector<float> const &predt,
-                            std::shared_ptr<ltr::MAPCache> p_cache);
+                            std::shared_ptr<ltr::PreCache> p_cache);
 
 #if !defined(XGBOOST_USE_CUDA)
 inline PackedReduceResult NDCGScore(Context const *, MetaInfo const &,

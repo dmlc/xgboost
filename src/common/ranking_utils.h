@@ -189,6 +189,7 @@ class RankingCache {
 
  protected:
   [[nodiscard]] std::size_t MaxGroupSize() const { return max_group_size_; }
+  [[nodiscard]] virtual bool AllowClassification() const { return false; }
 
  public:
   RankingCache(Context const* ctx, MetaInfo const& info, LambdaRankParam const& p) : param_{p} {
@@ -203,7 +204,11 @@ class RankingCache {
       this->InitOnCUDA(ctx, info);
     }
     if (!info.weights_.Empty()) {
-      CHECK_EQ(Groups(), info.weights_.Size()) << error::GroupWeight();
+      if (this->AllowClassification()) {
+        CHECK(Groups() == info.weights_.Size() || info.weights_.Size() == info.num_row_) << error::WeightSize();
+      } else {
+        CHECK_EQ(Groups(), info.weights_.Size()) << error::GroupWeight();
+      }
     }
   }
   [[nodiscard]] std::size_t MaxPositionSize() const {
@@ -372,11 +377,38 @@ bool IsBinaryRel(linalg::VectorView<float const> label, AllOf all_of) {
  *         both CPU and GPU.
  */
 template <typename AllOf>
-void CheckMapLabels(linalg::VectorView<float const> label, AllOf all_of) {
+void CheckPreLabels(StringView name, linalg::VectorView<float const> label, AllOf all_of) {
   auto s_label = label.Values();
   auto is_binary = IsBinaryRel(label, all_of);
-  CHECK(is_binary) << "MAP can only be used with binary labels.";
+  CHECK(is_binary) << name << " can only be used with binary labels.";
 }
+
+class PreCache : public RankingCache {
+  HostDeviceVector<double> pre_;
+
+  void InitOnCPU(Context const* ctx, MetaInfo const& info);
+  void InitOnCUDA(Context const* ctx, MetaInfo const& info);
+
+ public:
+  [[nodiscard]] bool AllowClassification() const override { return true; }
+
+  PreCache(Context const* ctx, MetaInfo const& info, LambdaRankParam const& p)
+      : RankingCache{ctx, info, p} {
+    if (ctx->IsCPU()) {
+      this->InitOnCPU(ctx, info);
+    } else {
+      this->InitOnCUDA(ctx, info);
+    }
+  }
+
+  common::Span<double> Pre(Context const* ctx) {
+    if (pre_.Empty()) {
+      pre_.SetDevice(ctx->gpu_id);
+      pre_.Resize(this->Groups());
+    }
+    return ctx->IsCPU() ? pre_.HostSpan() : pre_.DeviceSpan();
+  }
+};
 
 class MAPCache : public RankingCache {
   // Total number of relevant documents for each group

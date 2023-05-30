@@ -31,7 +31,7 @@ DMLC_REGISTRY_FILE_TAG(rank_metric_gpu);
 namespace cuda_impl {
 PackedReduceResult PreScore(Context const *ctx, MetaInfo const &info,
                             HostDeviceVector<float> const &predt,
-                            std::shared_ptr<ltr::MAPCache> p_cache) {
+                            std::shared_ptr<ltr::PreCache> p_cache) {
   auto d_gptr = p_cache->DataGroupPtr(ctx);
   auto d_label = info.labels.View(ctx->gpu_id).Slice(linalg::All(), 0);
 
@@ -66,7 +66,7 @@ PackedReduceResult PreScore(Context const *ctx, MetaInfo const &info,
       });
 
   auto cuctx = ctx->CUDACtx();
-  auto pre = p_cache->Map(ctx);
+  auto pre = p_cache->Pre(ctx);
   thrust::fill_n(cuctx->CTP(), pre.data(), pre.size(), 0.0);
 
   std::size_t bytes;
