@@ -695,6 +695,10 @@ inline std::vector<float> UnrollGroupWeights(MetaInfo const &info) {
     return group_weights;
   }
 
+  CHECK_EQ(info.weights_.Size(), info.group_ptr_.size() - 1)
+      << "For a learning to rank task, the size of weight should be equal to the number of query "
+         "groups.";
+
   size_t n_samples = info.num_row_;
   auto const &group_ptr = info.group_ptr_;
   std::vector<float> results(n_samples);
