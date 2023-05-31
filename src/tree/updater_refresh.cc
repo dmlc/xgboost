@@ -20,7 +20,7 @@ namespace xgboost::tree {
 
 DMLC_REGISTRY_FILE_TAG(updater_refresh);
 
-/*! \brief pruner that prunes a tree after growing finishs */
+/*! \brief pruner that prunes a tree after growing finishes */
 class TreeRefresher : public TreeUpdater {
  public:
   explicit TreeRefresher(Context const *ctx) : TreeUpdater(ctx) {}
