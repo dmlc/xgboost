@@ -12,7 +12,6 @@ from xgboost.core import _parse_eval_str
 def check_precision_score(tree_method: str) -> None:
     """Test for precision with ranking and classification."""
     datasets = pytest.importorskip("sklearn.datasets")
-    model_selection = pytest.importorskip("sklearn.model_selection")
 
     X, y = datasets.make_classification(
         n_samples=1024, n_features=4, n_classes=2, random_state=2023
