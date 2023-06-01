@@ -1,0 +1,33 @@
+name: update-rapids
+
+on:
+  pull_request:
+  push:
+  schedule:
+    - cron: "0 7 * * *"  # Run once daily
+
+permissions:
+  contents: read  # to fetch code (actions/checkout)
+
+defaults:
+  run:
+    shell: bash -l {0}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # To use GitHub CLI
+
+jobs:
+  update-rapids:
+    name: Check latest RAPIDS
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+    - name: Check latest RAPIDS and update conftest.sh
+      run: |
+        bash tests/buildkite/update-rapids.sh
