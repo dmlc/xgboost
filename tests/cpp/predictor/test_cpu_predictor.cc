@@ -62,7 +62,7 @@ void TestBasic() {
 
   // Test predict leaf
   HostDeviceVector<float> leaf_out_predictions;
-  cpu_predictor->PredictLeaf(dmat.get(), &leaf_out_predictions, model, 0, is_column_split);
+  cpu_predictor->PredictLeaf(dmat.get(), &leaf_out_predictions, model, 0);
   auto const& h_leaf_out_predictions = leaf_out_predictions.ConstHostVector();
   for (auto v : h_leaf_out_predictions) {
     ASSERT_EQ(v, 0);
