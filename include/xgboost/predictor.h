@@ -151,15 +151,17 @@ class Predictor {
    * \brief predict the leaf index of each tree, the output will be nsample *
    * ntree vector this is only valid in gbtree predictor.
    *
-   * \param [in,out]  dmat        The input feature matrix.
-   * \param [in,out]  out_preds   The output preds.
-   * \param           model       Model to make predictions from.
-   * \param           tree_end    (Optional) The tree end index.
+   * \param [in,out]  dmat            The input feature matrix.
+   * \param [in,out]  out_preds       The output preds.
+   * \param           model           Model to make predictions from.
+   * \param           tree_end        (Optional) The tree end index.
+   * \param           is_column_split (Optional) If the data is split column-wise.
    */
 
   virtual void PredictLeaf(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
                            const gbm::GBTreeModel& model,
-                           unsigned tree_end = 0) const = 0;
+                           unsigned tree_end = 0,
+                           bool is_column_split = false) const = 0;
 
   /**
    * \brief feature contributions to individual predictions; the output will be

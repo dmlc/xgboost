@@ -428,6 +428,17 @@ class ColumnSplitHelper {
     PredictBatchKernel<SingleInstanceView, 1>(SingleInstanceView{inst}, out_preds);
   }
 
+  void PredictLeaf(DMatrix *p_fmat, std::vector<bst_float> *out_preds) {
+    CHECK(xgboost::collective::IsDistributed())
+        << "column-split prediction is only supported for distributed training";
+
+    for (auto const &batch : p_fmat->GetBatches<SparsePage>()) {
+      CHECK_EQ(out_preds->size(),
+               p_fmat->Info().num_row_ * model_.learner_model_param->num_output_group);
+      PredictBatchKernel<SparsePageView, kBlockOfRowsSize, true>(SparsePageView{&batch}, out_preds);
+    }
+  }
+
  private:
   using BitVector = RBitField8;
 
@@ -517,24 +528,31 @@ class ColumnSplitHelper {
     return nid;
   }
 
+  template <bool predict_leaf = false>
   bst_float PredictOneTree(std::size_t tree_id, std::size_t row_id) {
     auto const &tree = *model_.trees[tree_id];
     auto const leaf = GetLeafIndex(tree, tree_id, row_id);
-    return tree[leaf].LeafValue();
+    if constexpr (predict_leaf) {
+      return static_cast<bst_float>(leaf);
+    } else {
+      return tree[leaf].LeafValue();
+    }
   }
 
+  template <bool predict_leaf = false>
   void PredictAllTrees(std::vector<bst_float> *out_preds, std::size_t batch_offset,
                        std::size_t predict_offset, std::size_t num_group, std::size_t block_size) {
     auto &preds = *out_preds;
     for (size_t tree_id = tree_begin_; tree_id < tree_end_; ++tree_id) {
       auto const gid = model_.tree_info[tree_id];
       for (size_t i = 0; i < block_size; ++i) {
-        preds[(predict_offset + i) * num_group + gid] += PredictOneTree(tree_id, batch_offset + i);
+        preds[(predict_offset + i) * num_group + gid] +=
+            PredictOneTree<predict_leaf>(tree_id, batch_offset + i);
       }
     }
   }
 
-  template <typename DataView, size_t block_of_rows_size>
+  template <typename DataView, size_t block_of_rows_size, bool predict_leaf = false>
   void PredictBatchKernel(DataView batch, std::vector<bst_float> *out_preds) {
     auto const num_group = model_.learner_model_param->num_output_group;
 
@@ -563,8 +581,8 @@ class ColumnSplitHelper {
       auto const batch_offset = block_id * block_of_rows_size;
       auto const block_size = std::min(static_cast<std::size_t>(nsize - batch_offset),
                                        static_cast<std::size_t>(block_of_rows_size));
-      PredictAllTrees(out_preds, batch_offset, batch_offset + batch.base_rowid, num_group,
-                      block_size);
+      PredictAllTrees<predict_leaf>(out_preds, batch_offset, batch_offset + batch.base_rowid,
+                                    num_group, block_size);
     });
 
     ClearBitVectors();
@@ -776,18 +794,26 @@ class CPUPredictor : public Predictor {
   }
 
   void PredictLeaf(DMatrix *p_fmat, HostDeviceVector<bst_float> *out_preds,
-                   const gbm::GBTreeModel &model, unsigned ntree_limit) const override {
+                   const gbm::GBTreeModel &model, unsigned ntree_limit,
+                   bool is_column_split) const override {
     auto const n_threads = this->ctx_->Threads();
-    std::vector<RegTree::FVec> feat_vecs;
-    const int num_feature = model.learner_model_param->num_feature;
-    InitThreadTemp(n_threads, &feat_vecs);
-    const MetaInfo &info = p_fmat->Info();
     // number of valid trees
     if (ntree_limit == 0 || ntree_limit > model.trees.size()) {
       ntree_limit = static_cast<unsigned>(model.trees.size());
     }
+    const MetaInfo &info = p_fmat->Info();
     std::vector<bst_float> &preds = out_preds->HostVector();
     preds.resize(info.num_row_ * ntree_limit);
+
+    if (is_column_split) {
+      ColumnSplitHelper helper(n_threads, model, 0, ntree_limit);
+      helper.PredictLeaf(p_fmat, &preds);
+      return;
+    }
+
+    std::vector<RegTree::FVec> feat_vecs;
+    const int num_feature = model.learner_model_param->num_feature;
+    InitThreadTemp(n_threads, &feat_vecs);
     // start collecting the prediction
     for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
       // parallel over local batch
