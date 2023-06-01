@@ -20,8 +20,6 @@ rm -rf ../build/
 # Re-build package without Mock Rabit
 # Deploy to S3 bucket xgboost-maven-repo
 mvn --no-transfer-progress package deploy -Duse.cuda=ON -P release-to-s3 -Dspark.version=${spark_version} -DskipTests
-# Deploy scala 2.13 to S3 bucket xgboost-maven-repo
-mvn --no-transfer-progress package deploy -P release-to-s3,default,scala-2.13 -Dspark.version=${spark_version} -DskipTests
 
 set +x
 set +e
