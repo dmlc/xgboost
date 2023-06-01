@@ -17,7 +17,10 @@
 #include "test_predictor.h"
 
 namespace xgboost {
-TEST(CpuPredictor, Basic) {
+
+namespace {
+template <bool is_column_split = false>
+void TestBasic() {
   auto lparam = CreateEmptyGenericParam(GPUIDX);
   std::unique_ptr<Predictor> cpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &lparam));
@@ -32,6 +35,11 @@ TEST(CpuPredictor, Basic) {
   gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx);
 
   auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
+  if constexpr (is_column_split) {
+    auto const world_size = collective::GetWorldSize();
+    auto const rank = collective::GetRank();
+    dmat = std::shared_ptr<DMatrix>{dmat->SliceCol(world_size, rank)};
+  }
 
   // Test predict batch
   PredictionCacheEntry out_predictions;
@@ -48,7 +56,7 @@ TEST(CpuPredictor, Basic) {
   auto page = batch.GetView();
   for (size_t i = 0; i < batch.Size(); i++) {
     std::vector<float> instance_out_predictions;
-    cpu_predictor->PredictInstance(page[i], &instance_out_predictions, model);
+    cpu_predictor->PredictInstance(page[i], &instance_out_predictions, model, 0, is_column_split);
     ASSERT_EQ(instance_out_predictions[0], 1.5);
   }
 
@@ -89,41 +97,15 @@ TEST(CpuPredictor, Basic) {
     }
   }
 }
-
-namespace {
-void TestColumnSplitPredictBatch() {
-  size_t constexpr kRows = 5;
-  size_t constexpr kCols = 5;
-  auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
-  auto const world_size = collective::GetWorldSize();
-  auto const rank = collective::GetRank();
-
-  auto lparam = CreateEmptyGenericParam(GPUIDX);
-  std::unique_ptr<Predictor> cpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &lparam));
-
-  LearnerModelParam mparam{MakeMP(kCols, .0, 1)};
-
-  Context ctx;
-  ctx.UpdateAllowUnknown(Args{});
-  gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx);
-
-  // Test predict batch
-  PredictionCacheEntry out_predictions;
-  cpu_predictor->InitOutPredictions(dmat->Info(), &out_predictions.predictions, model);
-  auto sliced = std::unique_ptr<DMatrix>{dmat->SliceCol(world_size, rank)};
-  cpu_predictor->PredictBatch(sliced.get(), &out_predictions, model, 0);
-
-  std::vector<float>& out_predictions_h = out_predictions.predictions.HostVector();
-  for (size_t i = 0; i < out_predictions.predictions.Size(); i++) {
-    ASSERT_EQ(out_predictions_h[i], 1.5);
-  }
-}
 }  // anonymous namespace
 
-TEST(CpuPredictor, ColumnSplit) {
+TEST(CpuPredictor, Basic) {
+  TestBasic();
+}
+
+TEST(CpuPredictor, ColumnSplitBasic) {
   auto constexpr kWorldSize = 2;
-  RunWithInMemoryCommunicator(kWorldSize, TestColumnSplitPredictBatch);
+  RunWithInMemoryCommunicator(kWorldSize, TestBasic<true>);
 }
 
 TEST(CpuPredictor, IterationRange) {

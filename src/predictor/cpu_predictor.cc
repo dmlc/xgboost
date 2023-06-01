@@ -191,6 +191,18 @@ struct SparsePageView {
   size_t Size() const { return view.Size(); }
 };
 
+struct SingleInstanceView {
+  bst_row_t base_rowid{};
+  SparsePage::Inst const &inst;
+
+  explicit SingleInstanceView(SparsePage::Inst const &instance) : inst{instance} {}
+  SparsePage::Inst operator[](size_t i) {
+    CHECK_EQ(i, 0);
+    return inst;
+  }
+  static size_t Size() { return 1; }
+};
+
 struct GHistIndexMatrixView {
  private:
   GHistIndexMatrix const &page_;
@@ -407,6 +419,13 @@ class ColumnSplitHelper {
                p_fmat->Info().num_row_ * model_.learner_model_param->num_output_group);
       PredictBatchKernel<SparsePageView, kBlockOfRowsSize>(SparsePageView{&batch}, out_preds);
     }
+  }
+
+  void PredictInstance(SparsePage::Inst const &inst, std::vector<bst_float> *out_preds) {
+    CHECK(xgboost::collective::IsDistributed())
+        << "column-split prediction is only supported for distributed training";
+
+    PredictBatchKernel<SingleInstanceView, 1>(SingleInstanceView{inst}, out_preds);
   }
 
  private:
@@ -728,18 +747,25 @@ class CPUPredictor : public Predictor {
     return true;
   }
 
-  void PredictInstance(const SparsePage::Inst& inst,
-                       std::vector<bst_float>* out_preds,
-                       const gbm::GBTreeModel& model, unsigned ntree_limit) const override {
+  void PredictInstance(const SparsePage::Inst &inst, std::vector<bst_float> *out_preds,
+                       const gbm::GBTreeModel &model, unsigned ntree_limit,
+                       bool is_column_split) const override {
     CHECK(!model.learner_model_param->IsVectorLeaf()) << "predict instance" << MTNotImplemented();
-    std::vector<RegTree::FVec> feat_vecs;
-    feat_vecs.resize(1, RegTree::FVec());
-    feat_vecs[0].Init(model.learner_model_param->num_feature);
     ntree_limit *= model.learner_model_param->num_output_group;
     if (ntree_limit == 0 || ntree_limit > model.trees.size()) {
       ntree_limit = static_cast<unsigned>(model.trees.size());
     }
     out_preds->resize(model.learner_model_param->num_output_group);
+
+    if (is_column_split) {
+      ColumnSplitHelper helper(this->ctx_->Threads(), model, 0, ntree_limit);
+      helper.PredictInstance(inst, out_preds);
+      return;
+    }
+
+    std::vector<RegTree::FVec> feat_vecs;
+    feat_vecs.resize(1, RegTree::FVec());
+    feat_vecs[0].Init(model.learner_model_param->num_feature);
     auto base_score = model.learner_model_param->BaseScore(ctx_)(0);
     // loop over output groups
     for (uint32_t gid = 0; gid < model.learner_model_param->num_output_group; ++gid) {
