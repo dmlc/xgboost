@@ -68,6 +68,11 @@ void TestBasic() {
     ASSERT_EQ(v, 0);
   }
 
+  if (is_column_split) {
+    // Predict contribution is not supported for column split.
+    return;
+  }
+
   // Test predict contribution
   HostDeviceVector<float> out_contribution_hdv;
   auto& out_contribution = out_contribution_hdv.HostVector();

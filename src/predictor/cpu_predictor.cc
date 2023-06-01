@@ -847,6 +847,8 @@ class CPUPredictor : public Predictor {
                            int condition, unsigned condition_feature) const override {
     CHECK(!model.learner_model_param->IsVectorLeaf())
         << "Predict contribution" << MTNotImplemented();
+    CHECK(!p_fmat->Info().IsColumnSplit())
+        << "Predict contribution support for column-wise data split is not yet implemented.";
     auto const n_threads = this->ctx_->Threads();
     const int num_feature = model.learner_model_param->num_feature;
     std::vector<RegTree::FVec> feat_vecs;
