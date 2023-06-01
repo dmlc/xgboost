@@ -137,7 +137,7 @@ class InplacePredictionTask implements Callable<Boolean> {
 
       // Confirm results as expected
       if (predictions[0][0] != this.true_predicts[r][0]) {
-          System.err.println("Error in task #" + this.task_num);
+        System.err.println("Error in task #" + this.task_num);
         return false;  // bail at the first error.
       }
     }
