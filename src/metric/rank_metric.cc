@@ -317,10 +317,7 @@ class EvalPrecision : public EvalRankWithCache<ltr::PreCache> {
               std::shared_ptr<ltr::PreCache> p_cache) final {
     auto n_groups = p_cache->Groups();
     if (!info.weights_.Empty()) {
-      CHECK(info.weights_.Size() == info.num_row_ || info.weights_.Size() == n_groups)
-          << "Invalid size of weight. For a binary classification task, it's size should be equal "
-             "to the number of samples. For a learning to rank task, it's size should be equal to "
-             "the number of query groups.";
+      CHECK_EQ(info.weights_.Size(), n_groups) << error::GroupWeight();
     }
 
     if (ctx_->IsCUDA()) {

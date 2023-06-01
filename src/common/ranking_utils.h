@@ -366,7 +366,7 @@ bool IsBinaryRel(linalg::VectorView<float const> label, AllOf all_of) {
   });
 }
 /**
- * \brief Validate label for MAP
+ * \brief Validate label for precision-based metric.
  *
  * \tparam Implementation of std::all_of. Specified as a parameter to reuse the check for
  *         both CPU and GPU.
