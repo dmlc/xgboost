@@ -26,7 +26,7 @@ set_property(TARGET test PROPERTY CUDA_ARCHITECTURES \${CMAKE_CUDA_ARCHITECTURES
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 EOF
 
-cmake . -GNinja
+cmake . -GNinja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 gen_code=$(grep -o -- '--generate-code=\S*' compile_commands.json | paste -sd ' ')
 
 nvprune ${gen_code} /usr/lib64/libnccl_static.a -o ../libnccl_static.a
