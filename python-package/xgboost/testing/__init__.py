@@ -36,14 +36,11 @@ import xgboost as xgb
 from xgboost.core import ArrayLike
 from xgboost.sklearn import SklObjective
 from xgboost.testing.data import (
-    ClickFold,
-    RelDataCV,
     get_california_housing,
     get_cancer,
     get_digits,
     get_sparse,
     memory,
-    simulate_clicks,
 )
 
 hypothesis = pytest.importorskip("hypothesis")
