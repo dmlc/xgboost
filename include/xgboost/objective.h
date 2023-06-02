@@ -11,7 +11,6 @@
 #include <xgboost/base.h>
 #include <xgboost/data.h>
 #include <xgboost/host_device_vector.h>
-#include <xgboost/json.h>  // for Json, Null
 #include <xgboost/model.h>
 #include <xgboost/task.h>
 
