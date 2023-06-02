@@ -55,7 +55,7 @@ void TestBasic(DMatrix* dmat) {
 
   // Test predict leaf
   HostDeviceVector<float> leaf_out_predictions;
-  cpu_predictor->PredictLeaf(dmat, &leaf_out_predictions, model, 0);
+  cpu_predictor->PredictLeaf(dmat, &leaf_out_predictions, model);
   auto const& h_leaf_out_predictions = leaf_out_predictions.ConstHostVector();
   for (auto v : h_leaf_out_predictions) {
     ASSERT_EQ(v, 0);
