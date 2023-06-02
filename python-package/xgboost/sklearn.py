@@ -1783,30 +1783,14 @@ def _get_qid(
     X: ArrayLike, qid: Optional[ArrayLike]
 ) -> Tuple[ArrayLike, Optional[ArrayLike]]:
     """Get the special qid column from X if exists."""
-    has_qid = hasattr(X, "qid")
-    if (_is_pandas_df(X) or _is_cudf_df(X)) and has_qid:
+    if (_is_pandas_df(X) or _is_cudf_df(X)) and hasattr(X, "qid"):
         if qid is not None:
             raise ValueError(
                 "Found both the special column `qid` in `X` and the `qid` from the"
                 "`fit` method. Please remove one of them."
             )
-    if _is_cudf_df(X) and has_qid:
         q_x = X.qid
         X = X.drop("qid", axis=1)
-        return X, q_x
-    if _is_pandas_df(X) and has_qid:
-        import pandas as pd
-
-        q_x = X.qid
-        series = []
-        columns = X.columns.difference(["qid"])
-        for c in columns:
-            if c == "qid":
-                continue
-
-            s_view = X[c].view(X[c].dtype)
-            series.append(s_view)
-        X = pd.DataFrame(series, columns=columns)
         return X, q_x
     return X, qid
 
