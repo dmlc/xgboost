@@ -52,32 +52,13 @@ Metric::Create(const std::string& name, Context const* ctx) {
   metric->ctx_ = ctx;
   return metric;
 }
-
-GPUMetric* GPUMetric::CreateGPUMetric(const std::string& name, Context const* ctx) {
-  auto metric = CreateMetricImpl<MetricGPUReg>(name);
-  if (metric == nullptr) {
-    LOG(WARNING) << "Cannot find a GPU metric builder for metric " << name
-                 << ". Resorting to the CPU builder";
-    return nullptr;
-  }
-
-  // Narrowing reference only for the compiler to allow assignment to a base class member.
-  // As such, using this narrowed reference to refer to derived members will be an illegal op.
-  // This is moot, as this type is stateless.
-  auto casted = static_cast<GPUMetric*>(metric);
-  CHECK(casted);
-  casted->ctx_ = ctx;
-  return casted;
-}
 }  // namespace xgboost
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::MetricReg);
-DMLC_REGISTRY_ENABLE(::xgboost::MetricGPUReg);
 }
 
-namespace xgboost {
-namespace metric {
+namespace xgboost::metric {
 // List of files that will be force linked in static links.
 DMLC_REGISTRY_LINK_TAG(auc);
 DMLC_REGISTRY_LINK_TAG(elementwise_metric);
@@ -88,5 +69,4 @@ DMLC_REGISTRY_LINK_TAG(rank_metric);
 DMLC_REGISTRY_LINK_TAG(auc_gpu);
 DMLC_REGISTRY_LINK_TAG(rank_metric_gpu);
 #endif
-}  // namespace metric
-}  // namespace xgboost
+}  // namespace xgboost::metric

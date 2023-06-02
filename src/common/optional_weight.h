@@ -8,8 +8,7 @@
 #include "xgboost/host_device_vector.h"  // HostDeviceVector
 #include "xgboost/span.h"                // Span
 
-namespace xgboost {
-namespace common {
+namespace xgboost::common {
 struct OptionalWeights {
   Span<float const> weights;
   float dft{1.0f};  // fixme: make this compile time constant
@@ -18,7 +17,8 @@ struct OptionalWeights {
   explicit OptionalWeights(float w) : dft{w} {}
 
   XGBOOST_DEVICE float operator[](size_t i) const { return weights.empty() ? dft : weights[i]; }
-  auto Empty() const { return weights.empty(); }
+  [[nodiscard]] auto Empty() const { return weights.empty(); }
+  [[nodiscard]] auto Size() const { return weights.size(); }
 };
 
 inline OptionalWeights MakeOptionalWeights(Context const* ctx,
@@ -28,6 +28,5 @@ inline OptionalWeights MakeOptionalWeights(Context const* ctx,
   }
   return OptionalWeights{ctx->IsCPU() ? weights.ConstHostSpan() : weights.ConstDeviceSpan()};
 }
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_OPTIONAL_WEIGHT_H_

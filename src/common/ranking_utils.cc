@@ -114,9 +114,20 @@ void NDCGCache::InitOnCUDA(Context const*, MetaInfo const&) { common::AssertGPUS
 
 DMLC_REGISTER_PARAMETER(LambdaRankParam);
 
+void PreCache::InitOnCPU(Context const*, MetaInfo const& info) {
+  auto const& h_label = info.labels.HostView().Slice(linalg::All(), 0);
+  CheckPreLabels("pre", h_label,
+                 [](auto beg, auto end, auto op) { return std::all_of(beg, end, op); });
+}
+
+#if !defined(XGBOOST_USE_CUDA)
+void PreCache::InitOnCUDA(Context const*, MetaInfo const&) { common::AssertGPUSupport(); }
+#endif  // !defined(XGBOOST_USE_CUDA)
+
 void MAPCache::InitOnCPU(Context const*, MetaInfo const& info) {
   auto const& h_label = info.labels.HostView().Slice(linalg::All(), 0);
-  CheckMapLabels(h_label, [](auto beg, auto end, auto op) { return std::all_of(beg, end, op); });
+  CheckPreLabels("map", h_label,
+                 [](auto beg, auto end, auto op) { return std::all_of(beg, end, op); });
 }
 
 #if !defined(XGBOOST_USE_CUDA)
