@@ -19,12 +19,12 @@
 
 #include "categorical.h"
 #include "common.h"
+#include "error_msg.h"        // GroupWeight
 #include "optional_weight.h"  // OptionalWeights
 #include "threading_utils.h"
 #include "timer.h"
 
-namespace xgboost {
-namespace common {
+namespace xgboost::common {
 /*!
  * \brief experimental wsummary
  * \tparam DType type of data content
@@ -695,13 +695,18 @@ inline std::vector<float> UnrollGroupWeights(MetaInfo const &info) {
     return group_weights;
   }
 
-  size_t n_samples = info.num_row_;
   auto const &group_ptr = info.group_ptr_;
-  std::vector<float> results(n_samples);
   CHECK_GE(group_ptr.size(), 2);
-  CHECK_EQ(group_ptr.back(), n_samples);
+
+  auto n_groups = group_ptr.size() - 1;
+  CHECK_EQ(info.weights_.Size(), n_groups) << error::GroupWeight();
+
+  bst_row_t n_samples = info.num_row_;
+  std::vector<float> results(n_samples);
+  CHECK_EQ(group_ptr.back(), n_samples)
+      << error::GroupSize() << " the number of rows from the data.";
   size_t cur_group = 0;
-  for (size_t i = 0; i < n_samples; ++i) {
+  for (bst_row_t i = 0; i < n_samples; ++i) {
     results[i] = group_weights[cur_group];
     if (i == group_ptr[cur_group + 1]) {
       cur_group++;
@@ -1010,6 +1015,5 @@ class SortedSketchContainer : public SketchContainerImpl<WXQuantileSketch<float,
    */
   void PushColPage(SparsePage const &page, MetaInfo const &info, Span<float const> hessian);
 };
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_QUANTILE_H_

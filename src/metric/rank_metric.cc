@@ -1,25 +1,6 @@
 /**
  * Copyright 2020-2023 by XGBoost contributors
  */
-// When device ordinal is present, we would want to build the metrics on the GPU. It is *not*
-// possible for a valid device ordinal to be present for non GPU builds. However, it is possible
-// for an invalid device ordinal to be specified in GPU builds - to train/predict and/or compute
-// the metrics on CPU. To accommodate these scenarios, the following is done for the metrics
-// accelerated on the GPU.
-// - An internal GPU registry holds all the GPU metric types (defined in the .cu file)
-// - An instance of the appropriate GPU metric type is created when a device ordinal is present
-// - If the creation is successful, the metric computation is done on the device
-// - else, it falls back on the CPU
-// - The GPU metric types are *only* registered when xgboost is built for GPUs
-//
-// This is done for 2 reasons:
-// - Clear separation of CPU and GPU logic
-// - Sorting datasets containing large number of rows is (much) faster when parallel sort
-//   semantics is used on the CPU. The __gnu_parallel/concurrency primitives needed to perform
-//   this cannot be used when the translation unit is compiled using the 'nvcc' compiler (as the
-//   corresponding headers that brings in those function declaration can't be included with CUDA).
-//   This precludes the CPU and GPU logic to coexist inside a .cu file
-
 #include "rank_metric.h"
 
 #include <dmlc/omp.h>
@@ -57,55 +38,8 @@
 #include "xgboost/string_view.h"             // for StringView
 
 namespace {
-
 using PredIndPair = std::pair<xgboost::bst_float, xgboost::ltr::rel_degree_t>;
 using PredIndPairContainer = std::vector<PredIndPair>;
-
-/*
- * Adapter to access instance weights.
- *
- *  - For ranking task, weights are per-group
- *  - For binary classification task, weights are per-instance
- *
- * WeightPolicy::GetWeightOfInstance() :
- *   get weight associated with an individual instance, using index into
- *   `info.weights`
- * WeightPolicy::GetWeightOfSortedRecord() :
- *   get weight associated with an individual instance, using index into
- *   sorted records `rec` (in ascending order of predicted labels). `rec` is
- *   of type PredIndPairContainer
- */
-
-class PerInstanceWeightPolicy {
- public:
-  inline static xgboost::bst_float
-  GetWeightOfInstance(const xgboost::MetaInfo& info,
-                      unsigned instance_id, unsigned) {
-    return info.GetWeight(instance_id);
-  }
-  inline static xgboost::bst_float
-  GetWeightOfSortedRecord(const xgboost::MetaInfo& info,
-                          const PredIndPairContainer& rec,
-                          unsigned record_id, unsigned) {
-    return info.GetWeight(rec[record_id].second);
-  }
-};
-
-class PerGroupWeightPolicy {
- public:
-  inline static xgboost::bst_float
-  GetWeightOfInstance(const xgboost::MetaInfo& info,
-                      unsigned, unsigned group_id) {
-    return info.GetWeight(group_id);
-  }
-
-  inline static xgboost::bst_float
-  GetWeightOfSortedRecord(const xgboost::MetaInfo& info,
-                          const PredIndPairContainer&,
-                          unsigned, unsigned group_id) {
-    return info.GetWeight(group_id);
-  }
-};
 }  // anonymous namespace
 
 namespace xgboost::metric {
@@ -177,10 +111,6 @@ struct EvalAMS : public MetricNoCache {
 
 /*! \brief Evaluate rank list */
 struct EvalRank : public MetricNoCache, public EvalRankConfig {
- private:
-  // This is used to compute the ranking metrics on the GPU - for training jobs that run on the GPU.
-  std::unique_ptr<MetricNoCache> rank_gpu_;
-
  public:
   double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info) override {
     CHECK_EQ(preds.Size(), info.labels.Size())
@@ -199,20 +129,10 @@ struct EvalRank : public MetricNoCache, public EvalRankConfig {
     // sum statistics
     double sum_metric = 0.0f;
 
-    // Check and see if we have the GPU metric registered in the internal registry
-    if (ctx_->gpu_id >= 0) {
-      if (!rank_gpu_) {
-        rank_gpu_.reset(GPUMetric::CreateGPUMetric(this->Name(), ctx_));
-      }
-      if (rank_gpu_) {
-        sum_metric = rank_gpu_->Eval(preds, info);
-      }
-    }
-
     CHECK(ctx_);
     std::vector<double> sum_tloc(ctx_->Threads(), 0.0);
 
-    if (!rank_gpu_ || ctx_->gpu_id < 0) {
+    {
       const auto& labels = info.labels.View(Context::kCpuId);
       const auto &h_preds = preds.ConstHostVector();
 
@@ -251,23 +171,6 @@ struct EvalRank : public MetricNoCache, public EvalRankConfig {
   }
 
   virtual double EvalGroup(PredIndPairContainer *recptr) const = 0;
-};
-
-/*! \brief Precision at N, for both classification and rank */
-struct EvalPrecision : public EvalRank {
- public:
-  explicit EvalPrecision(const char* name, const char* param) : EvalRank(name, param) {}
-
-  double EvalGroup(PredIndPairContainer *recptr) const override {
-    PredIndPairContainer &rec(*recptr);
-    // calculate Precision
-    std::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
-    unsigned nhit = 0;
-    for (size_t j = 0; j < rec.size() && j < this->topn; ++j) {
-      nhit += (rec[j].second != 0);
-    }
-    return static_cast<double>(nhit) / this->topn;
-  }
 };
 
 /*! \brief Cox: Partial likelihood of the Cox proportional hazards model */
@@ -312,7 +215,7 @@ struct EvalCox : public MetricNoCache {
     return out/num_events;  // normalize by the number of events
   }
 
-  const char* Name() const override {
+  [[nodiscard]] const char* Name() const override {
     return "cox-nloglik";
   }
 };
@@ -320,10 +223,6 @@ struct EvalCox : public MetricNoCache {
 XGBOOST_REGISTER_METRIC(AMS, "ams")
 .describe("AMS metric for higgs.")
 .set_body([](const char* param) { return new EvalAMS(param); });
-
-XGBOOST_REGISTER_METRIC(Precision, "pre")
-.describe("precision@k for rank.")
-.set_body([](const char* param) { return new EvalPrecision("pre", param); });
 
 XGBOOST_REGISTER_METRIC(Cox, "cox-nloglik")
 .describe("Negative log partial likelihood of Cox proportional hazards model.")
@@ -387,6 +286,8 @@ class EvalRankWithCache : public Metric {
     return result;
   }
 
+  [[nodiscard]] const char* Name() const override { return name_.c_str(); }
+
   virtual double Eval(HostDeviceVector<float> const& preds, MetaInfo const& info,
                       std::shared_ptr<Cache> p_cache) = 0;
 };
@@ -408,6 +309,52 @@ double Finalize(MetaInfo const& info, double score, double sw) {
 }
 }  // namespace
 
+class EvalPrecision : public EvalRankWithCache<ltr::PreCache> {
+ public:
+  using EvalRankWithCache::EvalRankWithCache;
+
+  double Eval(HostDeviceVector<float> const& predt, MetaInfo const& info,
+              std::shared_ptr<ltr::PreCache> p_cache) final {
+    auto n_groups = p_cache->Groups();
+    if (!info.weights_.Empty()) {
+      CHECK_EQ(info.weights_.Size(), n_groups) << error::GroupWeight();
+    }
+
+    if (ctx_->IsCUDA()) {
+      auto pre = cuda_impl::PreScore(ctx_, info, predt, p_cache);
+      return Finalize(info, pre.Residue(), pre.Weights());
+    }
+
+    auto gptr = p_cache->DataGroupPtr(ctx_);
+    auto h_label = info.labels.HostView().Slice(linalg::All(), 0);
+    auto h_predt = linalg::MakeTensorView(ctx_, &predt, predt.Size());
+    auto rank_idx = p_cache->SortedIdx(ctx_, predt.ConstHostSpan());
+
+    auto weight = common::MakeOptionalWeights(ctx_, info.weights_);
+    auto pre = p_cache->Pre(ctx_);
+
+    common::ParallelFor(p_cache->Groups(), ctx_->Threads(), [&](auto g) {
+      auto g_label = h_label.Slice(linalg::Range(gptr[g], gptr[g + 1]));
+      auto g_rank = rank_idx.subspan(gptr[g], gptr[g + 1] - gptr[g]);
+
+      auto n = std::min(static_cast<std::size_t>(param_.TopK()), g_label.Size());
+      double n_hits{0.0};
+      for (std::size_t i = 0; i < n; ++i) {
+        n_hits += g_label(g_rank[i]) * weight[g];
+      }
+      pre[g] = n_hits / static_cast<double>(n);
+    });
+
+    auto sw = 0.0;
+    for (std::size_t i = 0; i < pre.size(); ++i) {
+      sw += weight[i];
+    }
+
+    auto sum = std::accumulate(pre.cbegin(), pre.cend(), 0.0);
+    return Finalize(info, sum, sw);
+  }
+};
+
 /**
  * \brief Implement the NDCG score function for learning to rank.
  *
@@ -416,7 +363,6 @@ double Finalize(MetaInfo const& info, double score, double sw) {
 class EvalNDCG : public EvalRankWithCache<ltr::NDCGCache> {
  public:
   using EvalRankWithCache::EvalRankWithCache;
-  const char* Name() const override { return name_.c_str(); }
 
   double Eval(HostDeviceVector<float> const& preds, MetaInfo const& info,
               std::shared_ptr<ltr::NDCGCache> p_cache) override {
@@ -475,7 +421,6 @@ class EvalNDCG : public EvalRankWithCache<ltr::NDCGCache> {
 class EvalMAPScore : public EvalRankWithCache<ltr::MAPCache> {
  public:
   using EvalRankWithCache::EvalRankWithCache;
-  const char* Name() const override { return name_.c_str(); }
 
   double Eval(HostDeviceVector<float> const& predt, MetaInfo const& info,
               std::shared_ptr<ltr::MAPCache> p_cache) override {
@@ -494,7 +439,7 @@ class EvalMAPScore : public EvalRankWithCache<ltr::MAPCache> {
 
     common::ParallelFor(p_cache->Groups(), ctx_->Threads(), [&](auto g) {
       auto g_label = h_label.Slice(linalg::Range(gptr[g], gptr[g + 1]));
-      auto g_rank = rank_idx.subspan(gptr[g]);
+      auto g_rank = rank_idx.subspan(gptr[g], gptr[g + 1] - gptr[g]);
 
       auto n = std::min(static_cast<std::size_t>(param_.TopK()), g_label.Size());
       double n_hits{0.0};
@@ -526,6 +471,10 @@ class EvalMAPScore : public EvalRankWithCache<ltr::MAPCache> {
     return Finalize(info, sum, sw);
   }
 };
+
+XGBOOST_REGISTER_METRIC(Precision, "pre")
+    .describe("precision@k for rank.")
+    .set_body([](const char* param) { return new EvalPrecision("pre", param); });
 
 XGBOOST_REGISTER_METRIC(EvalMAP, "map")
     .describe("map@k for ranking.")

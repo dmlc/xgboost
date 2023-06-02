@@ -205,8 +205,13 @@ void NDCGCache::InitOnCUDA(Context const* ctx, MetaInfo const& info) {
               [=] XGBOOST_DEVICE(std::size_t i) { d_discount[i] = CalcDCGDiscount(i); });
 }
 
+void PreCache::InitOnCUDA(Context const* ctx, MetaInfo const& info) {
+  auto const d_label = info.labels.View(ctx->gpu_id).Slice(linalg::All(), 0);
+  CheckPreLabels("pre", d_label, CheckMAPOp{ctx->CUDACtx()});
+}
+
 void MAPCache::InitOnCUDA(Context const* ctx, MetaInfo const& info) {
   auto const d_label = info.labels.View(ctx->gpu_id).Slice(linalg::All(), 0);
-  CheckMapLabels(d_label, CheckMAPOp{ctx->CUDACtx()});
+  CheckPreLabels("map", d_label, CheckMAPOp{ctx->CUDACtx()});
 }
 }  // namespace xgboost::ltr

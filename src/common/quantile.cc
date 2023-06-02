@@ -90,6 +90,9 @@ void HostSketchContainer::PushAdapterBatch(Batch const &batch, size_t base_rowid
                                            MetaInfo const &info, float missing) {
   auto const &h_weights =
       (use_group_ind_ ? detail::UnrollGroupWeights(info) : info.weights_.HostVector());
+  if (!use_group_ind_ && !h_weights.empty()) {
+    CHECK_EQ(h_weights.size(), batch.Size()) << "Invalid size of sample weight.";
+  }
 
   auto is_valid = data::IsValidFunctor{missing};
   auto weights = OptionalWeights{Span<float const>{h_weights}};

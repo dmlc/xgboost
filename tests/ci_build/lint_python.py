@@ -90,7 +90,7 @@ def check_cmd_print_failure_assistance(cmd: List[str]) -> bool:
 
     subprocess.run([cmd[0], "--version"])
     msg = """
-Please run the following command on your machine to address the formatting error:
+Please run the following command on your machine to address the error:
 
     """
     msg += " ".join(cmd)
