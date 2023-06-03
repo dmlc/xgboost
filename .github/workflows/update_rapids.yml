@@ -2,7 +2,7 @@ name: update-rapids
 
 on:
   schedule:
-    - cron: "0 7 * * *"  # Run once daily
+    - cron: "20 20 * * *"  # Run once daily
 
 permissions:
   contents: read  # to fetch code (actions/checkout)
@@ -31,7 +31,10 @@ jobs:
         bash tests/buildkite/update-rapids.sh
     - name: Create Pull Request
       uses: peter-evans/create-pull-request@v5
-      add-paths: tests/buildkite
-      branch: create-pull-request/update-rapids
-      base: master
       if: github.ref == 'refs/heads/master'
+      with:
+        add-paths: |
+          tests/buildkite
+        branch: create-pull-request/update-rapids
+        base: master
+      
