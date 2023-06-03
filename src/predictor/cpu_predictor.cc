@@ -196,10 +196,7 @@ struct SingleInstanceView {
   SparsePage::Inst const &inst;
 
   explicit SingleInstanceView(SparsePage::Inst const &instance) : inst{instance} {}
-  SparsePage::Inst operator[](size_t i) {
-    CHECK_EQ(i, 0);
-    return inst;
-  }
+  SparsePage::Inst operator[](size_t) { return inst; }
   static size_t Size() { return 1; }
 };
 
