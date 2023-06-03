@@ -930,6 +930,8 @@ class CPUPredictor : public Predictor {
                                        bool approximate) const override {
     CHECK(!model.learner_model_param->IsVectorLeaf())
         << "Predict interaction contribution" << MTNotImplemented();
+    CHECK(!p_fmat->Info().IsColumnSplit()) << "Predict interaction contribution support for "
+                                              "column-wise data split is not yet implemented.";
     const MetaInfo& info = p_fmat->Info();
     const int ngroup = model.learner_model_param->num_output_group;
     size_t const ncolumns = model.learner_model_param->num_feature;
