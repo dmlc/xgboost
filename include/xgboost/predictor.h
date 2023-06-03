@@ -151,10 +151,10 @@ class Predictor {
    * \brief predict the leaf index of each tree, the output will be nsample *
    * ntree vector this is only valid in gbtree predictor.
    *
-   * \param [in,out]  dmat            The input feature matrix.
-   * \param [in,out]  out_preds       The output preds.
-   * \param           model           Model to make predictions from.
-   * \param           tree_end        (Optional) The tree end index.
+   * \param [in,out]  dmat        The input feature matrix.
+   * \param [in,out]  out_preds   The output preds.
+   * \param           model       Model to make predictions from.
+   * \param           tree_end    (Optional) The tree end index.
    */
 
   virtual void PredictLeaf(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
