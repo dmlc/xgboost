@@ -167,7 +167,9 @@ XGBoost implements distributed learning-to-rank with integration of multiple fra
 Reproducible Result
 *******************
 
-Like any other tasks, XGBoost should generate reproducible results given the same hardware and software environments (and data partitions, if distributed interface is used). Even when the underlying environment has changed, the result should still be consistent. However, when the ``lambdarank_pair_method`` is set to ``mean``, XGBoost uses random sampling, and results may differ depending on the platform used. The random number generator used on Windows (Microsoft Visual C++) is different from the ones used on other platforms like Linux (GCC, Clang), so the output varies significantly between these platforms.
+Like any other tasks, XGBoost should generate reproducible results given the same hardware and software environments (and data partitions, if distributed interface is used). Even when the underlying environment has changed, the result should still be consistent. However, when the ``lambdarank_pair_method`` is set to ``mean``, XGBoost uses random sampling, and results may differ depending on the platform used. The random number generator used on Windows (Microsoft Visual C++) is different from the ones used on other platforms like Linux (GCC, Clang) [#f0]_, so the output varies significantly between these platforms.
+
+.. [#f0] `minstd_rand` implementation is different on MSVC. The implementations from GCC and Thrust produce the same output.
 
 **********
 References
