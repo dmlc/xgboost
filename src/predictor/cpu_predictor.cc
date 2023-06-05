@@ -529,7 +529,6 @@ class ColumnSplitHelper {
     if constexpr (predict_leaf) {
       return static_cast<bst_float>(leaf);
     } else {
-      CHECK(!tree.IsMultiTarget());
       return tree[leaf].LeafValue();
     }
   }
@@ -543,7 +542,7 @@ class ColumnSplitHelper {
       for (size_t i = 0; i < block_size; ++i) {
         auto const result = PredictOneTree<predict_leaf>(tree_id, batch_offset + i);
         if constexpr (predict_leaf) {
-          preds[(predict_offset + i) * num_group + gid] = result;
+          preds[(predict_offset + i) * (tree_end_ - tree_begin_) + tree_id] = result;
         } else {
           preds[(predict_offset + i) * num_group + gid] += result;
         }
