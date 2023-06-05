@@ -289,7 +289,6 @@ void TestCategoricalPredictLeaf(StringView name) {
   ASSERT_EQ(out_predictions.predictions.HostVector()[0], 1);
 }
 
-
 void TestIterationRange(std::string name) {
   size_t constexpr kRows = 1000, kCols = 20, kClasses = 4, kForest = 3;
   auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix(true, true, kClasses);
@@ -361,6 +360,83 @@ void TestIterationRange(std::string name) {
     ASSERT_EQ(h_sliced.size(), h_range.size());
     ASSERT_EQ(h_sliced, h_range);
   }
+}
+
+namespace {
+void VerifyIterationRangeColumnSplit(DMatrix *dmat, Learner *learner, Learner *sliced,
+                                     std::vector<float> const &expected_margin_ranged,
+                                     std::vector<float> const &expected_margin_sliced,
+                                     std::vector<float> const &expected_leaf_ranged,
+                                     std::vector<float> const &expected_leaf_sliced) {
+  auto const world_size = collective::GetWorldSize();
+  auto const rank = collective::GetRank();
+  std::shared_ptr<DMatrix> Xy{dmat->SliceCol(world_size, rank)};
+
+  HostDeviceVector<float> out_predt_sliced;
+  HostDeviceVector<float> out_predt_ranged;
+
+  // margin
+  {
+    sliced->Predict(Xy, true, &out_predt_sliced, 0, 0, false, false, false, false, false);
+    learner->Predict(Xy, true, &out_predt_ranged, 0, 3, false, false, false, false, false);
+    auto const &h_sliced = out_predt_sliced.HostVector();
+    auto const &h_range = out_predt_ranged.HostVector();
+    ASSERT_EQ(h_sliced.size(), expected_margin_sliced.size());
+    ASSERT_EQ(h_sliced, expected_margin_sliced);
+    ASSERT_EQ(h_range.size(), expected_margin_ranged.size());
+    ASSERT_EQ(h_range, expected_margin_ranged);
+  }
+
+  // Leaf
+  {
+    sliced->Predict(Xy, false, &out_predt_sliced, 0, 0, false, true, false, false, false);
+    learner->Predict(Xy, false, &out_predt_ranged, 0, 3, false, true, false, false, false);
+    auto const &h_sliced = out_predt_sliced.HostVector();
+    auto const &h_range = out_predt_ranged.HostVector();
+    ASSERT_EQ(h_sliced.size(), expected_leaf_sliced.size());
+    ASSERT_EQ(h_sliced, expected_leaf_sliced);
+    ASSERT_EQ(h_range.size(), expected_leaf_ranged.size());
+    ASSERT_EQ(h_range, expected_leaf_ranged);
+  }
+}
+}  // anonymous namespace
+
+void TestIterationRangeColumnSplit(std::string name) {
+  size_t constexpr kRows = 1000, kCols = 20, kClasses = 4, kForest = 3;
+  auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix(true, true, kClasses);
+  std::unique_ptr<Learner> learner{Learner::Create({dmat})};
+
+  learner->SetParams(Args{{"num_parallel_tree", std::to_string(kForest)}, {"predictor", name}});
+
+  size_t kIters = 10;
+  for (size_t i = 0; i < kIters; ++i) {
+    learner->UpdateOneIter(i, dmat);
+  }
+
+  bool bound = false;
+  std::unique_ptr<Learner> sliced{learner->Slice(0, 3, 1, &bound)};
+  ASSERT_FALSE(bound);
+
+  // margin
+  HostDeviceVector<float> margin_predt_sliced;
+  HostDeviceVector<float> margin_predt_ranged;
+  sliced->Predict(dmat, true, &margin_predt_sliced, 0, 0, false, false, false, false, false);
+  learner->Predict(dmat, true, &margin_predt_ranged, 0, 3, false, false, false, false, false);
+  auto const &margin_sliced = margin_predt_sliced.HostVector();
+  auto const &margin_ranged = margin_predt_ranged.HostVector();
+
+  // Leaf
+  HostDeviceVector<float> leaf_predt_sliced;
+  HostDeviceVector<float> leaf_predt_ranged;
+  sliced->Predict(dmat, false, &leaf_predt_sliced, 0, 0, false, true, false, false, false);
+  learner->Predict(dmat, false, &leaf_predt_ranged, 0, 3, false, true, false, false, false);
+  auto const &leaf_sliced = leaf_predt_sliced.HostVector();
+  auto const &leaf_ranged = leaf_predt_ranged.HostVector();
+
+  auto constexpr kWorldSize = 2;
+  RunWithInMemoryCommunicator(kWorldSize, VerifyIterationRangeColumnSplit, dmat.get(),
+                              learner.get(), sliced.get(), margin_ranged, margin_sliced,
+                              leaf_ranged, leaf_sliced);
 }
 
 void TestSparsePrediction(float sparsity, std::string predictor) {

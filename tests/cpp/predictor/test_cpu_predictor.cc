@@ -126,6 +126,10 @@ TEST(CpuPredictor, IterationRange) {
   TestIterationRange("cpu_predictor");
 }
 
+TEST(CpuPredictor, IterationRangeColmnSplit) {
+  TestIterationRangeColumnSplit("cpu_predictor");
+}
+
 TEST(CpuPredictor, ExternalMemory) {
   size_t constexpr kPageSize = 64, kEntriesPerCol = 3;
   size_t constexpr kEntries = kPageSize * kEntriesPerCol * 2;

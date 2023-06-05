@@ -700,6 +700,12 @@ class RegTree : public Model {
     }
     return (*this)[nidx].IsLeaf();
   }
+  [[nodiscard]] bool IsDeleted(bst_node_t nidx) const {
+    if (IsMultiTarget()) {
+      return false;
+    }
+    return (*this)[nidx].IsDeleted();
+  }
   [[nodiscard]] bst_node_t Parent(bst_node_t nidx) const {
     if (IsMultiTarget()) {
       return this->p_mt_tree_->Parent(nidx);

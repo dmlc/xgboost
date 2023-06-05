@@ -92,6 +92,8 @@ void TestCategoricalPredictLeaf(StringView name);
 
 void TestIterationRange(std::string name);
 
+void TestIterationRangeColumnSplit(std::string name);
+
 void TestSparsePrediction(float sparsity, std::string predictor);
 
 void TestVectorLeafPrediction(Context const* ctx);
