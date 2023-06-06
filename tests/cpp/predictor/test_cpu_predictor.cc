@@ -235,6 +235,10 @@ TEST(CPUPredictor, CategoricalPredictLeaf) {
   TestCategoricalPredictLeaf(StringView{"cpu_predictor"});
 }
 
+TEST(CPUPredictor, CategoricalPredictLeafColumnSplit) {
+  TestCategoricalPredictLeafColumnSplit(StringView{"cpu_predictor"});
+}
+
 TEST(CpuPredictor, UpdatePredictionCache) {
   TestUpdatePredictionCache(false);
   TestUpdatePredictionCache(true);

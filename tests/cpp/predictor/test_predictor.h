@@ -90,7 +90,9 @@ void TestCategoricalPrediction(std::string name, bool is_column_split = false);
 
 void TestCategoricalPredictionColumnSplit(std::string name);
 
-void TestCategoricalPredictLeaf(StringView name);
+void TestCategoricalPredictLeaf(StringView name, bool is_column_split = false);
+
+void TestCategoricalPredictLeafColumnSplit(StringView name);
 
 void TestIterationRange(std::string name);
 

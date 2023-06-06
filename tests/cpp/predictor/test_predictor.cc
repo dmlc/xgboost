@@ -263,7 +263,7 @@ void TestCategoricalPredictionColumnSplit(std::string name) {
   RunWithInMemoryCommunicator(kWorldSize, TestCategoricalPrediction, name, true);
 }
 
-void TestCategoricalPredictLeaf(StringView name) {
+void TestCategoricalPredictLeaf(StringView name, bool is_column_split) {
   size_t constexpr kCols = 10;
   PredictionCacheEntry out_predictions;
 
@@ -286,6 +286,9 @@ void TestCategoricalPredictLeaf(StringView name) {
   std::vector<float> row(kCols);
   row[split_ind] = split_cat;
   auto m = GetDMatrixFromData(row, 1, kCols);
+  if (is_column_split) {
+    m = std::shared_ptr<DMatrix>{m->SliceCol(collective::GetWorldSize(), collective::GetRank())};
+  }
 
   predictor->PredictLeaf(m.get(), &out_predictions.predictions, model);
   CHECK_EQ(out_predictions.predictions.Size(), 1);
@@ -294,10 +297,18 @@ void TestCategoricalPredictLeaf(StringView name) {
 
   row[split_ind] = split_cat + 1;
   m = GetDMatrixFromData(row, 1, kCols);
+  if (is_column_split) {
+    m = std::shared_ptr<DMatrix>{m->SliceCol(collective::GetWorldSize(), collective::GetRank())};
+  }
   out_predictions.version = 0;
   predictor->InitOutPredictions(m->Info(), &out_predictions.predictions, model);
   predictor->PredictLeaf(m.get(), &out_predictions.predictions, model);
   ASSERT_EQ(out_predictions.predictions.HostVector()[0], 1);
+}
+
+void TestCategoricalPredictLeafColumnSplit(StringView name) {
+  auto constexpr kWorldSize = 2;
+  RunWithInMemoryCommunicator(kWorldSize, TestCategoricalPredictLeaf, name, true);
 }
 
 void TestIterationRange(std::string name) {
