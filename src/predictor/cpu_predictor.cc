@@ -745,6 +745,8 @@ class CPUPredictor : public Predictor {
                       unsigned tree_end) const override {
     auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
     CHECK(proxy)<< "Inplace predict accepts only DMatrixProxy as input.";
+    CHECK(!p_m->Info().IsColumnSplit())
+        << "Inplace predict support for column-wise data split is not yet implemented.";
     auto x = proxy->Adapter();
     if (x.type() == typeid(std::shared_ptr<data::DenseAdapter>)) {
       this->DispatchedInplacePredict<data::DenseAdapter, kBlockOfRowsSize>(
