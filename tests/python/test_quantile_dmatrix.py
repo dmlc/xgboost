@@ -55,6 +55,38 @@ class TestQuantileDMatrix:
         r = np.arange(1.0, n_samples)
         np.testing.assert_allclose(Xy.get_data().toarray()[1:, 0], r)
 
+    def test_error(self):
+        from sklearn.model_selection import train_test_split
+
+        rng = np.random.default_rng(1994)
+        X, y = make_categorical(
+            n_samples=128, n_features=2, n_categories=3, onehot=False
+        )
+        reg = xgb.XGBRegressor(tree_method="hist", enable_categorical=True)
+        w = rng.uniform(0, 1, size=y.shape[0])
+
+        X_train, X_test, y_train, y_test, w_train, w_test = train_test_split(
+            X, y, w, random_state=1994
+        )
+
+        with pytest.raises(ValueError, match="sample weight"):
+            reg.fit(
+                X,
+                y,
+                sample_weight=w_train,
+                eval_set=[(X_test, y_test)],
+                sample_weight_eval_set=[w_test],
+            )
+
+        with pytest.raises(ValueError, match="sample weight"):
+            reg.fit(
+                X_train,
+                y_train,
+                sample_weight=w,
+                eval_set=[(X_test, y_test)],
+                sample_weight_eval_set=[w_test],
+            )
+
     @pytest.mark.parametrize("sparsity", [0.0, 0.1, 0.8, 0.9])
     def test_with_iterator(self, sparsity: float) -> None:
         n_samples_per_batch = 317

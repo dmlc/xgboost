@@ -37,7 +37,7 @@
         <junit.version>4.13.2</junit.version>
         <spark.version>3.4.0</spark.version>
         <spark.version.gpu>3.3.2</spark.version.gpu>
-        <scala.version>2.12.17</scala.version>
+        <scala.version>2.12.18</scala.version>
         <scala.binary.version>2.12</scala.binary.version>
         <hadoop.version>3.3.5</hadoop.version>
         <maven.wagon.http.retryHandler.count>5</maven.wagon.http.retryHandler.count>
@@ -130,7 +130,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-release-plugin</artifactId>
-                        <version>3.0.0</version>
+                        <version>3.0.1</version>
                         <configuration>
                             <autoVersionSubmodules>true</autoVersionSubmodules>
                             <useReleaseProfile>false</useReleaseProfile>
@@ -301,14 +301,6 @@
                     <url>https://s3.amazonaws.com/xgboost-maven-repo/release</url>
                 </repository>
             </repositories>
-            <modules>
-                <module>xgboost4j</module>
-                <module>xgboost4j-example</module>
-                <module>xgboost4j-spark</module>
-                <module>xgboost4j-flink</module>
-                <module>xgboost4j-gpu</module>
-                <module>xgboost4j-spark-gpu</module>
-            </modules>
             <build>
                 <plugins>
                     <plugin>

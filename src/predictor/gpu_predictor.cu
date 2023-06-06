@@ -929,7 +929,7 @@ class GPUPredictor : public xgboost::Predictor {
 
   void PredictInstance(const SparsePage::Inst&,
                        std::vector<bst_float>*,
-                       const gbm::GBTreeModel&, unsigned) const override {
+                       const gbm::GBTreeModel&, unsigned, bool) const override {
     LOG(FATAL) << "[Internal error]: " << __func__
                << " is not implemented in GPU Predictor.";
   }

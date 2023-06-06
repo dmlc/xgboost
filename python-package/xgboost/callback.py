@@ -372,6 +372,8 @@ class EarlyStopping(TrainingCallback):
             maximize_metrics = (
                 "auc",
                 "aucpr",
+                "pre",
+                "pre@",
                 "map",
                 "ndcg",
                 "auc@",
