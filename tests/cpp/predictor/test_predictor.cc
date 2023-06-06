@@ -212,7 +212,7 @@ void GBTreeModelForTest(gbm::GBTreeModel *model, uint32_t split_ind,
   model->CommitModelGroup(std::move(trees), 0);
 }
 
-void TestCategoricalPrediction(std::string name) {
+void TestCategoricalPrediction(std::string name, bool is_column_split) {
   size_t constexpr kCols = 10;
   PredictionCacheEntry out_predictions;
 
@@ -236,6 +236,9 @@ void TestCategoricalPrediction(std::string name) {
 
   std::vector<FeatureType> types(10, FeatureType::kCategorical);
   m->Info().feature_types.HostVector() = types;
+  if (is_column_split) {
+    m = std::shared_ptr<DMatrix>{m->SliceCol(collective::GetWorldSize(), collective::GetRank())};
+  }
 
   predictor->InitOutPredictions(m->Info(), &out_predictions.predictions, model);
   predictor->PredictBatch(m.get(), &out_predictions, model, 0);
@@ -246,10 +249,18 @@ void TestCategoricalPrediction(std::string name) {
 
   row[split_ind] = split_cat + 1;
   m = GetDMatrixFromData(row, 1, kCols);
+  if (is_column_split) {
+    m = std::shared_ptr<DMatrix>{m->SliceCol(collective::GetWorldSize(), collective::GetRank())};
+  }
   out_predictions.version = 0;
   predictor->InitOutPredictions(m->Info(), &out_predictions.predictions, model);
   predictor->PredictBatch(m.get(), &out_predictions, model, 0);
   ASSERT_EQ(out_predictions.predictions.HostVector()[0], left_weight + score);
+}
+
+void TestCategoricalPredictionColumnSplit(std::string name) {
+  auto constexpr kWorldSize = 2;
+  RunWithInMemoryCommunicator(kWorldSize, TestCategoricalPrediction, name, true);
 }
 
 void TestCategoricalPredictLeaf(StringView name) {

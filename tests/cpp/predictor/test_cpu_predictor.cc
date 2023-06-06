@@ -117,7 +117,7 @@ void TestColumnSplit() {
 }
 }  // anonymous namespace
 
-TEST(CpuPredictor, ColumnSplitBasic) {
+TEST(CpuPredictor, BasicColumnSplit) {
   auto constexpr kWorldSize = 2;
   RunWithInMemoryCommunicator(kWorldSize, TestColumnSplit);
 }
@@ -225,6 +225,10 @@ TEST(CPUPredictor, GHistIndex) {
 
 TEST(CPUPredictor, CategoricalPrediction) {
   TestCategoricalPrediction("cpu_predictor");
+}
+
+TEST(CPUPredictor, CategoricalPredictionColumnSplit) {
+  TestCategoricalPredictionColumnSplit("cpu_predictor");
 }
 
 TEST(CPUPredictor, CategoricalPredictLeaf) {
