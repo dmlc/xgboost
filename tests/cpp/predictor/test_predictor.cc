@@ -214,10 +214,10 @@ void VerifyPredictionWithLesserFeaturesColumnSplit(Learner *learner,
                                                    std::shared_ptr<DMatrix> m_invalid) {
   auto const world_size = collective::GetWorldSize();
   auto const rank = collective::GetRank();
-  m_test = std::shared_ptr<DMatrix>{m_test->SliceCol(world_size, rank)};
-  m_invalid = std::shared_ptr<DMatrix>{m_invalid->SliceCol(world_size, rank)};
+  std::shared_ptr<DMatrix> sliced_test{m_test->SliceCol(world_size, rank)};
+  std::shared_ptr<DMatrix> sliced_invalid{m_invalid->SliceCol(world_size, rank)};
 
-  VerifyPredictionWithLesserFeatures(learner, predictor_name, rows, m_test, m_invalid);
+  VerifyPredictionWithLesserFeatures(learner, predictor_name, rows, sliced_test, sliced_invalid);
 }
 }  // anonymous namespace
 
