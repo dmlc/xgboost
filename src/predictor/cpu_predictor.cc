@@ -152,7 +152,7 @@ void PredictByAllTrees(gbm::GBTreeModel const &model, std::uint32_t const tree_b
       } else {
         for (std::size_t i = 0; i < block_size; ++i) {
           out_predt(predict_offset + i, gid) +=
-              scalar::PredValueByOneTree<true>(thread_temp[offset + i], tree, cats);
+              scalar::PredValueByOneTree<false>(thread_temp[offset + i], tree, cats);
         }
       }
     }
