@@ -648,6 +648,9 @@ class CPUPredictor : public Predictor {
   void PredictDMatrix(DMatrix *p_fmat, std::vector<bst_float> *out_preds,
                       gbm::GBTreeModel const &model, int32_t tree_begin, int32_t tree_end) const {
     if (p_fmat->Info().IsColumnSplit()) {
+      CHECK(!model.learner_model_param->IsVectorLeaf())
+          << "Predict DMatrix with column split" << MTNotImplemented();
+
       ColumnSplitHelper helper(this->ctx_->Threads(), model, tree_begin, tree_end);
       helper.PredictDMatrix(p_fmat, out_preds);
       return;
@@ -778,6 +781,9 @@ class CPUPredictor : public Predictor {
     out_preds->resize(model.learner_model_param->num_output_group);
 
     if (is_column_split) {
+      CHECK(!model.learner_model_param->IsVectorLeaf())
+          << "Predict instance with column split" << MTNotImplemented();
+
       ColumnSplitHelper helper(this->ctx_->Threads(), model, 0, ntree_limit);
       helper.PredictInstance(inst, out_preds);
       return;
@@ -807,6 +813,9 @@ class CPUPredictor : public Predictor {
     preds.resize(info.num_row_ * ntree_limit);
 
     if (p_fmat->Info().IsColumnSplit()) {
+      CHECK(!model.learner_model_param->IsVectorLeaf())
+          << "Predict leaf with column split" << MTNotImplemented();
+
       ColumnSplitHelper helper(n_threads, model, 0, ntree_limit);
       helper.PredictLeaf(p_fmat, &preds);
       return;
