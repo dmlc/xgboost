@@ -86,6 +86,8 @@ void TestInplacePrediction(std::shared_ptr<DMatrix> x, std::string predictor, bs
 
 void TestPredictionWithLesserFeatures(std::string preditor_name);
 
+void TestPredictionWithLesserFeaturesColumnSplit(std::string preditor_name);
+
 void TestCategoricalPrediction(std::string name, bool is_column_split = false);
 
 void TestCategoricalPredictionColumnSplit(std::string name);

@@ -468,15 +468,16 @@ class ColumnSplitHelper {
     auto const &tree = *model_.trees[tree_id];
     auto const &cats = tree.GetCategoriesMatrix();
     auto const has_categorical = tree.HasCategoricalSplit();
-    bst_node_t n_nodes = tree.NumNodes();
+    bst_node_t n_nodes = tree.GetNodes().size();
 
     for (bst_node_t nid = 0; nid < n_nodes; nid++) {
-      if (tree.IsDeleted(nid) || tree.IsLeaf(nid)) {
+      auto const &node = tree[nid];
+      if (node.IsDeleted() || node.IsLeaf()) {
         continue;
       }
 
       auto const bit_index = BitIndex(tree_id, row_id, nid);
-      unsigned split_index = tree.SplitIndex(nid);
+      unsigned split_index = node.SplitIndex();
       if (feat.IsMissing(split_index)) {
         missing_bits_.Set(bit_index);
         continue;
@@ -492,7 +493,7 @@ class ColumnSplitHelper {
         continue;
       }
 
-      if (fvalue >= tree.SplitCond(nid)) {
+      if (fvalue >= node.SplitCond()) {
         decision_bits_.Set(bit_index);
       }
     }
@@ -506,19 +507,19 @@ class ColumnSplitHelper {
     }
   }
 
-  bst_node_t GetNextNode(RegTree const &tree, bst_node_t nid, std::size_t bit_index) {
+  bst_node_t GetNextNode(RegTree::Node const &node, std::size_t bit_index) {
     if (missing_bits_.Check(bit_index)) {
-      return tree.DefaultLeft(nid);
+      return node.DefaultChild();
     } else {
-      return tree.LeftChild(nid) + decision_bits_.Check(bit_index);
+      return node.LeftChild() + decision_bits_.Check(bit_index);
     }
   }
 
   bst_node_t GetLeafIndex(RegTree const &tree, std::size_t tree_id, std::size_t row_id) {
     bst_node_t nid = 0;
-    while (!tree.IsLeaf(nid)) {
+    while (!tree[nid].IsLeaf()) {
       auto const bit_index = BitIndex(tree_id, row_id, nid);
-      nid = GetNextNode(tree, nid, bit_index);
+      nid = GetNextNode(tree[nid], bit_index);
     }
     return nid;
   }
