@@ -102,6 +102,8 @@ void TestIterationRangeColumnSplit(std::string name);
 
 void TestSparsePrediction(float sparsity, std::string predictor);
 
+void TestSparsePredictionColumnSplit(float sparsity, std::string predictor);
+
 void TestVectorLeafPrediction(Context const* ctx);
 }  // namespace xgboost
 

@@ -257,6 +257,11 @@ TEST(CpuPredictor, Sparse) {
   TestSparsePrediction(0.8, "cpu_predictor");
 }
 
+TEST(CpuPredictor, SparseColumnSplit) {
+  TestSparsePredictionColumnSplit(0.2, "cpu_predictor");
+  TestSparsePredictionColumnSplit(0.8, "cpu_predictor");
+}
+
 TEST(CpuPredictor, Multi) {
   Context ctx;
   ctx.nthread = 1;

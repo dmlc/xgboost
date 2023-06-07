@@ -540,6 +540,43 @@ void TestSparsePrediction(float sparsity, std::string predictor) {
   }
 }
 
+namespace {
+void VerifySparsePredictionColumnSplit(DMatrix *dmat, Learner *learner,
+                                       std::vector<float> const &expected_predt) {
+  std::shared_ptr<DMatrix> sliced{
+      dmat->SliceCol(collective::GetWorldSize(), collective::GetRank())};
+  HostDeviceVector<float> sparse_predt;
+  learner->Predict(sliced, false, &sparse_predt, 0, 0);
+
+  auto const &predt = sparse_predt.HostVector();
+  ASSERT_EQ(predt.size(), expected_predt.size());
+  for (size_t i = 0; i < predt.size(); ++i) {
+    ASSERT_FLOAT_EQ(predt[i], expected_predt[i]);
+  }
+}
+}  // anonymous namespace
+
+void TestSparsePredictionColumnSplit(float sparsity, std::string predictor) {
+  size_t constexpr kRows = 512, kCols = 128, kIters = 4;
+  auto Xy = RandomDataGenerator(kRows, kCols, sparsity).GenerateDMatrix(true);
+  auto learner = LearnerForTest(Xy, kIters);
+
+  HostDeviceVector<float> sparse_predt;
+
+  Json model{Object{}};
+  learner->SaveModel(&model);
+
+  learner.reset(Learner::Create({Xy}));
+  learner->LoadModel(model);
+
+  learner->SetParam("predictor", predictor);
+  learner->Predict(Xy, false, &sparse_predt, 0, 0);
+
+  auto constexpr kWorldSize = 2;
+  RunWithInMemoryCommunicator(kWorldSize, VerifySparsePredictionColumnSplit, Xy.get(),
+                              learner.get(), sparse_predt.HostVector());
+}
+
 void TestVectorLeafPrediction(Context const *ctx) {
   std::unique_ptr<Predictor> cpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", ctx));
