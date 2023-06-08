@@ -22,7 +22,7 @@ namespace metric {
 
 #if !defined(__CUDACC__)
 TEST(Metric, AMS) {
-  auto ctx = CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
   EXPECT_ANY_THROW(Metric::Create("ams", &ctx));
   Metric* metric = Metric::Create("ams@0.5f", &ctx);
   ASSERT_STREQ(metric->Name(), "ams@0.5");

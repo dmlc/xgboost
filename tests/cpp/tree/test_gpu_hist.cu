@@ -91,7 +91,7 @@ void TestBuildHist(bool use_shared_memory_histograms) {
 
   auto page = BuildEllpackPage(kNRows, kNCols);
   BatchParam batch_param{};
-  Context ctx{CreateEmptyGenericParam(0)};
+  Context ctx{MakeCUDACtx(0)};
   GPUHistMakerDevice<GradientSumT> maker(&ctx, page.get(), {}, kNRows, param, kNCols, kNCols,
                                          batch_param);
   xgboost::SimpleLCG gen;
@@ -169,7 +169,7 @@ void TestHistogramIndexImpl() {
   int constexpr kNRows = 1000, kNCols = 10;
 
   // Build 2 matrices and build a histogram maker with that
-  Context ctx(CreateEmptyGenericParam(0));
+  Context ctx(MakeCUDACtx(0));
   ObjInfo task{ObjInfo::kRegression};
   tree::GPUHistMaker hist_maker{&ctx, &task}, hist_maker_ext{&ctx, &task};
   std::unique_ptr<DMatrix> hist_maker_dmat(
@@ -262,7 +262,7 @@ TEST(GpuHist, UniformSampling) {
   // Build a tree using the in-memory DMatrix.
   RegTree tree;
   HostDeviceVector<bst_float> preds(kRows, 0.0, 0);
-  Context ctx(CreateEmptyGenericParam(0));
+  Context ctx(MakeCUDACtx(0));
   UpdateTree(&ctx, &gpair, dmat.get(), 0, &tree, &preds, 1.0, "uniform", kRows);
   // Build another tree using sampling.
   RegTree tree_sampling;
@@ -292,7 +292,7 @@ TEST(GpuHist, GradientBasedSampling) {
   // Build a tree using the in-memory DMatrix.
   RegTree tree;
   HostDeviceVector<bst_float> preds(kRows, 0.0, 0);
-  Context ctx(CreateEmptyGenericParam(0));
+  Context ctx(MakeCUDACtx(0));
   UpdateTree(&ctx, &gpair, dmat.get(), 0, &tree, &preds, 1.0, "uniform", kRows);
 
   // Build another tree using sampling.
@@ -327,7 +327,7 @@ TEST(GpuHist, ExternalMemory) {
 
   // Build a tree using the in-memory DMatrix.
   RegTree tree;
-  Context ctx(CreateEmptyGenericParam(0));
+  Context ctx(MakeCUDACtx(0));
   HostDeviceVector<bst_float> preds(kRows, 0.0, 0);
   UpdateTree(&ctx, &gpair, dmat.get(), 0, &tree, &preds, 1.0, "uniform", kRows);
   // Build another tree using multiple ELLPACK pages.
@@ -365,7 +365,7 @@ TEST(GpuHist, ExternalMemoryWithSampling) {
   // Build a tree using the in-memory DMatrix.
   auto rng = common::GlobalRandom();
 
-  Context ctx(CreateEmptyGenericParam(0));
+  Context ctx(MakeCUDACtx(0));
   RegTree tree;
   HostDeviceVector<bst_float> preds(kRows, 0.0, 0);
   UpdateTree(&ctx, &gpair, dmat.get(), 0, &tree, &preds, kSubsample, kSamplingMethod, kRows);
@@ -386,7 +386,7 @@ TEST(GpuHist, ExternalMemoryWithSampling) {
 }
 
 TEST(GpuHist, ConfigIO) {
-  Context ctx(CreateEmptyGenericParam(0));
+  Context ctx(MakeCUDACtx(0));
   ObjInfo task{ObjInfo::kRegression};
   std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create("grow_gpu_hist", &ctx, &task)};
   updater->Configure(Args{});
@@ -404,7 +404,7 @@ TEST(GpuHist, ConfigIO) {
 }
 
 TEST(GpuHist, MaxDepth) {
-  Context ctx(CreateEmptyGenericParam(0));
+  Context ctx(MakeCUDACtx(0));
   size_t constexpr kRows = 16;
   size_t constexpr kCols = 4;
   auto p_mat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();

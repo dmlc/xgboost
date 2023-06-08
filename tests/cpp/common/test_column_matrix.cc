@@ -14,7 +14,7 @@ TEST(DenseColumn, Test) {
   int32_t max_num_bins[] = {static_cast<int32_t>(std::numeric_limits<uint8_t>::max()) + 1,
                             static_cast<int32_t>(std::numeric_limits<uint16_t>::max()) + 1,
                             static_cast<int32_t>(std::numeric_limits<uint16_t>::max()) + 2};
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
+  Context ctx;
   BinTypeSize last{kUint8BinsTypeSize};
   for (int32_t max_num_bin : max_num_bins) {
     auto dmat = RandomDataGenerator(100, 10, 0.0).GenerateDMatrix();
@@ -63,7 +63,7 @@ TEST(SparseColumn, Test) {
   int32_t max_num_bins[] = {static_cast<int32_t>(std::numeric_limits<uint8_t>::max()) + 1,
                             static_cast<int32_t>(std::numeric_limits<uint16_t>::max()) + 1,
                             static_cast<int32_t>(std::numeric_limits<uint16_t>::max()) + 2};
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
+  Context ctx;
   for (int32_t max_num_bin : max_num_bins) {
     auto dmat = RandomDataGenerator(100, 1, 0.85).GenerateDMatrix();
     GHistIndexMatrix gmat{&ctx, dmat.get(), max_num_bin, 0.5f, false};
@@ -92,7 +92,7 @@ TEST(DenseColumnWithMissing, Test) {
   int32_t max_num_bins[] = {static_cast<int32_t>(std::numeric_limits<uint8_t>::max()) + 1,
                             static_cast<int32_t>(std::numeric_limits<uint16_t>::max()) + 1,
                             static_cast<int32_t>(std::numeric_limits<uint16_t>::max()) + 2};
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
+  Context ctx;
   for (int32_t max_num_bin : max_num_bins) {
     auto dmat = RandomDataGenerator(100, 1, 0.5).GenerateDMatrix();
     GHistIndexMatrix gmat(&ctx, dmat.get(), max_num_bin, 0.2, false);

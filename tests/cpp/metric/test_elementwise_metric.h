@@ -15,7 +15,7 @@ namespace xgboost {
 namespace metric {
 
 inline void CheckDeterministicMetricElementWise(StringView name, int32_t device) {
-  auto ctx = CreateEmptyGenericParam(device);
+  auto ctx = MakeCUDACtx(device);
   std::unique_ptr<Metric> metric{Metric::Create(name.c_str(), &ctx)};
 
   HostDeviceVector<float> predts;
@@ -46,7 +46,7 @@ inline void CheckDeterministicMetricElementWise(StringView name, int32_t device)
 }
 
 inline void VerifyRMSE(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
   xgboost::Metric * metric = xgboost::Metric::Create("rmse", &ctx);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "rmse");
@@ -75,7 +75,7 @@ inline void VerifyRMSE(DataSplitMode data_split_mode = DataSplitMode::kRow) {
 }
 
 inline void VerifyRMSLE(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
   xgboost::Metric * metric = xgboost::Metric::Create("rmsle", &ctx);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "rmsle");
@@ -104,7 +104,7 @@ inline void VerifyRMSLE(DataSplitMode data_split_mode = DataSplitMode::kRow) {
 }
 
 inline void VerifyMAE(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
   xgboost::Metric * metric = xgboost::Metric::Create("mae", &ctx);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "mae");
@@ -133,7 +133,7 @@ inline void VerifyMAE(DataSplitMode data_split_mode = DataSplitMode::kRow) {
 }
 
 inline void VerifyMAPE(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
   xgboost::Metric * metric = xgboost::Metric::Create("mape", &ctx);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "mape");
@@ -162,7 +162,7 @@ inline void VerifyMAPE(DataSplitMode data_split_mode = DataSplitMode::kRow) {
 }
 
 inline void VerifyMPHE(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
   std::unique_ptr<xgboost::Metric> metric{xgboost::Metric::Create("mphe", &ctx)};
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "mphe");
@@ -197,7 +197,7 @@ inline void VerifyMPHE(DataSplitMode data_split_mode = DataSplitMode::kRow) {
 }
 
 inline void VerifyLogLoss(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
   xgboost::Metric * metric = xgboost::Metric::Create("logloss", &ctx);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "logloss");
@@ -230,7 +230,7 @@ inline void VerifyLogLoss(DataSplitMode data_split_mode = DataSplitMode::kRow) {
 }
 
 inline void VerifyError(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
   xgboost::Metric * metric = xgboost::Metric::Create("error", &ctx);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "error");
@@ -292,7 +292,7 @@ inline void VerifyError(DataSplitMode data_split_mode = DataSplitMode::kRow) {
 }
 
 inline void VerifyPoissonNegLogLik(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
   xgboost::Metric * metric = xgboost::Metric::Create("poisson-nloglik", &ctx);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "poisson-nloglik");
@@ -332,7 +332,7 @@ inline void VerifyMultiRMSE(DataSplitMode data_split_mode = DataSplitMode::kRow)
 
   HostDeviceVector<float> predt(n_samples * n_targets, 0);
 
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
   std::unique_ptr<Metric> metric{Metric::Create("rmse", &ctx)};
   metric->Configure({});
 
@@ -347,7 +347,7 @@ inline void VerifyMultiRMSE(DataSplitMode data_split_mode = DataSplitMode::kRow)
 }
 
 inline void VerifyQuantile(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
   std::unique_ptr<Metric> metric{Metric::Create("quantile", &ctx)};
 
   HostDeviceVector<float> predts{0.1f, 0.9f, 0.1f, 0.9f};

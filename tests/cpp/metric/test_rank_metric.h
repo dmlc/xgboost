@@ -20,7 +20,7 @@
 namespace xgboost::metric {
 
 inline void VerifyPrecision(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
   std::unique_ptr<xgboost::Metric> metric{Metric::Create("pre", &ctx)};
   ASSERT_STREQ(metric->Name(), "pre");
   EXPECT_NEAR(GetMetricEval(metric.get(), {0, 1}, {0, 1}, {}, {}, data_split_mode), 0.5, 1e-7);
@@ -44,7 +44,7 @@ inline void VerifyPrecision(DataSplitMode data_split_mode = DataSplitMode::kRow)
 }
 
 inline void VerifyNDCG(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  auto ctx = CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
   Metric * metric = xgboost::Metric::Create("ndcg", &ctx);
   ASSERT_STREQ(metric->Name(), "ndcg");
   EXPECT_ANY_THROW(GetMetricEval(metric, {0, 1}, {}, {}, {}, data_split_mode));
@@ -102,7 +102,7 @@ inline void VerifyNDCG(DataSplitMode data_split_mode = DataSplitMode::kRow) {
 }
 
 inline void VerifyMAP(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
   Metric * metric = xgboost::Metric::Create("map", &ctx);
   ASSERT_STREQ(metric->Name(), "map");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}, data_split_mode), 1, kRtEps);
@@ -150,7 +150,7 @@ inline void VerifyMAP(DataSplitMode data_split_mode = DataSplitMode::kRow) {
 }
 
 inline void VerifyNDCGExpGain(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  Context ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+  Context ctx = MakeCUDACtx(GPUIDX);
 
   auto p_fmat = xgboost::RandomDataGenerator{0, 0, 0}.GenerateDMatrix();
   MetaInfo& info = p_fmat->Info();

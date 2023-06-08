@@ -33,8 +33,7 @@ class UpdaterTreeStatTest : public ::testing::Test {
     ObjInfo task{ObjInfo::kRegression};
     param.Init(Args{});
 
-    Context ctx(updater == "grow_gpu_hist" ? CreateEmptyGenericParam(0)
-                                           : CreateEmptyGenericParam(Context::kCpuId));
+    Context ctx(updater == "grow_gpu_hist" ? MakeCUDACtx(0) : MakeCUDACtx(Context::kCpuId));
     auto up = std::unique_ptr<TreeUpdater>{TreeUpdater::Create(updater, &ctx, &task)};
     up->Configure(Args{});
     RegTree tree{1u, kCols};
@@ -79,8 +78,7 @@ class UpdaterEtaTest : public ::testing::Test {
   void RunTest(std::string updater) {
     ObjInfo task{ObjInfo::kClassification};
 
-    Context ctx(updater == "grow_gpu_hist" ? CreateEmptyGenericParam(0)
-                                           : CreateEmptyGenericParam(Context::kCpuId));
+    Context ctx(updater == "grow_gpu_hist" ? MakeCUDACtx(0) : MakeCUDACtx(Context::kCpuId));
 
     float eta = 0.4;
     auto up_0 = std::unique_ptr<TreeUpdater>{TreeUpdater::Create(updater, &ctx, &task)};
@@ -156,8 +154,7 @@ class TestMinSplitLoss : public ::testing::Test {
     param.UpdateAllowUnknown(args);
     ObjInfo task{ObjInfo::kRegression};
 
-    Context ctx(updater == "grow_gpu_hist" ? CreateEmptyGenericParam(0)
-                                           : CreateEmptyGenericParam(Context::kCpuId));
+    Context ctx{MakeCUDACtx(updater == "grow_gpu_hist" ? 0 : Context::kCpuId)};
     auto up = std::unique_ptr<TreeUpdater>{TreeUpdater::Create(updater, &ctx, &task)};
     up->Configure({});
 

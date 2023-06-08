@@ -13,7 +13,7 @@
 namespace xgboost {
 namespace common {
 inline void CheckDeterministicMetricElementWise(StringView name, int32_t device) {
-  auto ctx = CreateEmptyGenericParam(device);
+  auto ctx = MakeCUDACtx(device);
   std::unique_ptr<Metric> metric{Metric::Create(name.c_str(), &ctx)};
   metric->Configure(Args{});
 
@@ -48,7 +48,7 @@ inline void CheckDeterministicMetricElementWise(StringView name, int32_t device)
 }
 
 inline void VerifyAFTNegLogLik(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
 
   /**
    * Test aggregate output from the AFT metric over a small test data set.
@@ -79,7 +79,7 @@ inline void VerifyAFTNegLogLik(DataSplitMode data_split_mode = DataSplitMode::kR
 }
 
 inline void VerifyIntervalRegressionAccuracy(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
 
   auto p_fmat = EmptyDMatrix();
   MetaInfo& info = p_fmat->Info();

@@ -67,7 +67,7 @@ void TestSparseDMatrixLoadFile(Context const* ctx) {
 }
 
 TEST(SparsePageDMatrix, LoadFile) {
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
+  Context ctx;
   TestSparseDMatrixLoadFile<SparsePage>(&ctx);
   TestSparseDMatrixLoadFile<CSCPage>(&ctx);
   TestSparseDMatrixLoadFile<SortedCSCPage>(&ctx);
@@ -77,7 +77,7 @@ TEST(SparsePageDMatrix, LoadFile) {
 template <typename Page>
 void TestRetainPage() {
   auto m = CreateSparsePageDMatrix(10000);
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
+  Context ctx;
   auto batches = m->GetBatches<Page>(&ctx);
   auto begin = batches.begin();
   auto end = batches.end();
@@ -145,7 +145,7 @@ TEST(SparsePageDMatrix, ColAccess) {
   const std::string tmp_file = tempdir.path + "/simple.libsvm";
   CreateSimpleTestData(tmp_file);
   xgboost::DMatrix *dmat = xgboost::DMatrix::Load(UriSVM(tmp_file, tmp_file));
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
+  Context ctx;
 
   // Loop over the batches and assert the data is as expected
   size_t iter = 0;
@@ -224,7 +224,7 @@ TEST(SparsePageDMatrix, ColAccessBatches) {
   // Create multiple sparse pages
   std::unique_ptr<xgboost::DMatrix> dmat{xgboost::CreateSparsePageDMatrix(kEntries)};
   ASSERT_EQ(dmat->Ctx()->Threads(), AllThreadsForTest());
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
+  Context ctx;
   for (auto const &page : dmat->GetBatches<xgboost::CSCPage>(&ctx)) {
     ASSERT_EQ(dmat->Info().num_col_, page.Size());
   }

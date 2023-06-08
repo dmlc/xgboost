@@ -11,7 +11,7 @@ namespace xgboost {
 namespace metric {
 
 inline void VerifyBinaryAUC(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
   std::unique_ptr<Metric> uni_ptr{Metric::Create("auc", &ctx)};
   Metric* metric = uni_ptr.get();
   ASSERT_STREQ(metric->Name(), "auc");
@@ -54,7 +54,7 @@ inline void VerifyBinaryAUC(DataSplitMode data_split_mode = DataSplitMode::kRow)
 }
 
 inline void VerifyMultiClassAUC(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  auto ctx = CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
   std::unique_ptr<Metric> uni_ptr{Metric::Create("auc", &ctx)};
   auto metric = uni_ptr.get();
 
@@ -115,7 +115,7 @@ inline void VerifyMultiClassAUC(DataSplitMode data_split_mode = DataSplitMode::k
 }
 
 inline void VerifyRankingAUC(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  auto ctx = CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
   std::unique_ptr<Metric> metric{Metric::Create("auc", &ctx)};
 
   // single group
@@ -149,7 +149,7 @@ inline void VerifyRankingAUC(DataSplitMode data_split_mode = DataSplitMode::kRow
 }
 
 inline void VerifyPRAUC(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
 
   xgboost::Metric* metric = xgboost::Metric::Create("aucpr", &ctx);
   ASSERT_STREQ(metric->Name(), "aucpr");
@@ -186,7 +186,7 @@ inline void VerifyPRAUC(DataSplitMode data_split_mode = DataSplitMode::kRow) {
 }
 
 inline void VerifyMultiClassPRAUC(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
 
   std::unique_ptr<Metric> metric{Metric::Create("aucpr", &ctx)};
 
@@ -210,7 +210,7 @@ inline void VerifyMultiClassPRAUC(DataSplitMode data_split_mode = DataSplitMode:
 }
 
 inline void VerifyRankingPRAUC(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
 
   std::unique_ptr<Metric> metric{Metric::Create("aucpr", &ctx)};
 

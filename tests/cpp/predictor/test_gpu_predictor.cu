@@ -19,8 +19,8 @@ namespace xgboost {
 namespace predictor {
 
 TEST(GPUPredictor, Basic) {
-  auto cpu_lparam = CreateEmptyGenericParam(-1);
-  auto gpu_lparam = CreateEmptyGenericParam(0);
+  auto cpu_lparam = MakeCUDACtx(-1);
+  auto gpu_lparam = MakeCUDACtx(0);
 
   std::unique_ptr<Predictor> gpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &gpu_lparam));
@@ -84,7 +84,7 @@ TEST(GPUPredictor, EllpackTraining) {
 }
 
 TEST(GPUPredictor, ExternalMemoryTest) {
-  auto lparam = CreateEmptyGenericParam(0);
+  auto lparam = MakeCUDACtx(0);
   std::unique_ptr<Predictor> gpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &lparam));
   gpu_predictor->Configure({});
@@ -157,7 +157,7 @@ TEST(GPUPredictor, ShapStump) {
   trees.push_back(std::unique_ptr<RegTree>(new RegTree));
   model.CommitModelGroup(std::move(trees), 0);
 
-  auto gpu_lparam = CreateEmptyGenericParam(0);
+  auto gpu_lparam = MakeCUDACtx(0);
   std::unique_ptr<Predictor> gpu_predictor = std::unique_ptr<Predictor>(
       Predictor::Create("gpu_predictor", &gpu_lparam));
   gpu_predictor->Configure({});
@@ -185,8 +185,8 @@ TEST(GPUPredictor, Shap) {
   trees[0]->ExpandNode(0, 0, 0.5, true, 1.0, -1.0, 1.0, 0.0, 5.0, 2.0, 3.0);
   model.CommitModelGroup(std::move(trees), 0);
 
-  auto gpu_lparam = CreateEmptyGenericParam(0);
-  auto cpu_lparam = CreateEmptyGenericParam(-1);
+  auto gpu_lparam = MakeCUDACtx(0);
+  auto cpu_lparam = MakeCUDACtx(-1);
   std::unique_ptr<Predictor> gpu_predictor = std::unique_ptr<Predictor>(
       Predictor::Create("gpu_predictor", &gpu_lparam));
   std::unique_ptr<Predictor> cpu_predictor = std::unique_ptr<Predictor>(
@@ -221,7 +221,7 @@ TEST(GPUPredictor, CategoricalPredictLeaf) {
 TEST(GPUPredictor, PredictLeafBasic) {
   size_t constexpr kRows = 5, kCols = 5;
   auto dmat = RandomDataGenerator(kRows, kCols, 0).Device(0).GenerateDMatrix();
-  auto lparam = CreateEmptyGenericParam(GPUIDX);
+  auto lparam = MakeCUDACtx(GPUIDX);
   std::unique_ptr<Predictor> gpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &lparam));
   gpu_predictor->Configure({});
