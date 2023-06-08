@@ -23,8 +23,8 @@ Installation
   :local:
   :backlinks: none
 
-Checkout the :doc:`Installation Guide </install>` for how to install jvm package, or
-:doc:`Building from Source </build>` on how to build it form source.
+Checkout the :doc:`Installation Guide </install>` for how to install the jvm package, or
+:doc:`Building from Source </build>` on how to build it from the sources.
 
 ********
 Contents
