@@ -86,13 +86,23 @@ void TestInplacePrediction(std::shared_ptr<DMatrix> x, std::string predictor, bs
 
 void TestPredictionWithLesserFeatures(std::string preditor_name);
 
-void TestCategoricalPrediction(std::string name);
+void TestPredictionWithLesserFeaturesColumnSplit(std::string preditor_name);
 
-void TestCategoricalPredictLeaf(StringView name);
+void TestCategoricalPrediction(std::string name, bool is_column_split = false);
+
+void TestCategoricalPredictionColumnSplit(std::string name);
+
+void TestCategoricalPredictLeaf(StringView name, bool is_column_split = false);
+
+void TestCategoricalPredictLeafColumnSplit(StringView name);
 
 void TestIterationRange(std::string name);
 
+void TestIterationRangeColumnSplit(std::string name);
+
 void TestSparsePrediction(float sparsity, std::string predictor);
+
+void TestSparsePredictionColumnSplit(float sparsity, std::string predictor);
 
 void TestVectorLeafPrediction(Context const* ctx);
 }  // namespace xgboost
