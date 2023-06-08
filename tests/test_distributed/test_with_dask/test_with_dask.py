@@ -2013,11 +2013,12 @@ def test_init_estimation(client: Client) -> None:
     check_init_estimation("hist", client)
 
 
-def test_uneven_nan() -> None:
+@pytest.mark.parametrize("tree_method", ["hist", "approx"])
+def test_uneven_nan(tree_method) -> None:
     n_workers = 2
     with LocalCluster(n_workers=n_workers) as cluster:
         with Client(cluster) as client:
-            check_uneven_nan(client, "hist", n_workers)
+            check_uneven_nan(client, tree_method, n_workers)
 
 
 class TestDaskCallbacks:
