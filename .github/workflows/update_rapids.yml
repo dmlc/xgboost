@@ -1,11 +1,13 @@
 name: update-rapids
 
 on:
+  workflow_dispatch:
   schedule:
-    - cron: "20 20 * * *"  # Run once daily
+    - cron: "0 20 * * *"  # Run once daily
 
 permissions:
-  contents: read  # to fetch code (actions/checkout)
+  pull-requests: write
+  contents: write
 
 defaults:
   run:
@@ -37,4 +39,6 @@ jobs:
           tests/buildkite
         branch: create-pull-request/update-rapids
         base: master
+        title: "[CI] Update RAPIDS to latest stable"
+        commit-message: "[CI] Update RAPIDS to latest stable"
       
