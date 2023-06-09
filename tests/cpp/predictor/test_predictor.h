@@ -37,10 +37,10 @@ void TestPredictionFromGradientIndex(std::string name, size_t rows, size_t cols,
   constexpr size_t kClasses { 3 };
 
   LearnerModelParam mparam{MakeMP(cols, .5, kClasses)};
-  auto lparam = CreateEmptyGenericParam(0);
+  auto cuda_ctx = MakeCUDACtx(0);
 
   std::unique_ptr<Predictor> predictor =
-      std::unique_ptr<Predictor>(Predictor::Create(name, &lparam));
+      std::unique_ptr<Predictor>(Predictor::Create(name, &cuda_ctx));
   predictor->Configure({});
 
   Context ctx;

@@ -21,7 +21,7 @@
 #include "../../../src/data/adapter.h"          // for SparsePageAdapterBatch
 #include "../../../src/data/gradient_index.h"   // for GHistIndexMatrix
 #include "../../../src/tree/param.h"            // for TrainParam
-#include "../helpers.h"                         // for CreateEmptyGenericParam, GenerateRandomCa...
+#include "../helpers.h"                         // for GenerateRandomCategoricalSingleColumn...
 #include "xgboost/base.h"                       // for bst_bin_t
 #include "xgboost/context.h"                    // for Context
 #include "xgboost/host_device_vector.h"         // for HostDeviceVector
@@ -29,7 +29,7 @@
 namespace xgboost {
 namespace data {
 TEST(GradientIndex, ExternalMemory) {
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
+  Context ctx;
   std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(10000);
   std::vector<size_t> base_rowids;
   std::vector<float> hessian(dmat->Info().num_row_, 1);
@@ -58,7 +58,7 @@ TEST(GradientIndex, FromCategoricalBasic) {
   size_t max_bins = 8;
   auto x = GenerateRandomCategoricalSingleColumn(kRows, kCats);
   auto m = GetDMatrixFromData(x, kRows, 1);
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
+  Context ctx;
 
   auto &h_ft = m->Info().feature_types.HostVector();
   h_ft.resize(kCols, FeatureType::kCategorical);

@@ -108,7 +108,7 @@ TEST(SparsePageDMatrix, RetainEllpackPage) {
 }
 
 TEST(SparsePageDMatrix, EllpackPageContent) {
-  auto ctx = CreateEmptyGenericParam(0);
+  auto ctx = MakeCUDACtx(0);
   constexpr size_t kRows = 6;
   constexpr size_t kCols = 2;
   constexpr size_t kPageSize = 1;

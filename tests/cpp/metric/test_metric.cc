@@ -2,10 +2,10 @@
 #include <xgboost/metric.h>
 
 #include "../helpers.h"
-
+namespace xgboost {
 TEST(Metric, UnknownMetric) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
-  xgboost::Metric * metric = nullptr;
+  auto ctx = MakeCUDACtx(GPUIDX);
+  xgboost::Metric* metric = nullptr;
   EXPECT_ANY_THROW(metric = xgboost::Metric::Create("unknown_name", &ctx));
   EXPECT_NO_THROW(metric = xgboost::Metric::Create("rmse", &ctx));
   if (metric) {
@@ -18,3 +18,4 @@ TEST(Metric, UnknownMetric) {
     delete metric;
   }
 }
+}  // namespace xgboost

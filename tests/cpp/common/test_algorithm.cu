@@ -11,7 +11,7 @@
 
 #include "../../../src/common/algorithm.cuh"
 #include "../../../src/common/device_helpers.cuh"
-#include "../helpers.h"  // CreateEmptyGenericParam
+#include "../helpers.h"  // MakeCUDACtx
 
 namespace xgboost {
 namespace common {
@@ -83,7 +83,7 @@ TEST(Algorithm, GpuArgSort) {
 TEST(Algorithm, SegmentedSequence) {
   dh::device_vector<std::size_t> idx(16);
   dh::device_vector<std::size_t> ptr(3);
-  Context ctx = CreateEmptyGenericParam(0);
+  Context ctx = MakeCUDACtx(0);
   ptr[0] = 0;
   ptr[1] = 4;
   ptr[2] = idx.size();
