@@ -103,7 +103,6 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
   uint32_t n_batches_ {0};
 
   std::shared_ptr<Cache> cache_info_;
-  // std::unique_ptr<dmlc::Stream> fo_;
 
   using Ring = std::vector<std::future<std::shared_ptr<S>>>;
   // A ring storing futures to data.  Since the DMatrix iterator is forward only, so we
@@ -120,7 +119,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     }
     // An heuristic for number of pre-fetched batches.  We can make it part of BatchParam
     // to let user adjust number of pre-fetched batches when needed.
-    uint32_t constexpr kPreFetch = 4;
+    uint32_t constexpr kPreFetch = 3;
 
     size_t n_prefetch_batches = std::min(kPreFetch, n_batches_);
     CHECK_GT(n_prefetch_batches, 0) << "total batches:" << n_batches_;
@@ -149,10 +148,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
         auto fd = open(n.c_str(), O_RDONLY);
         CHECK_GE(fd, 0) << "Failed to open:" << n << ". " << strerror(errno);
         auto ptr = mmap64(nullptr, length, PROT_READ, MAP_PRIVATE, fd, offset);
-        if (ptr == MAP_FAILED) {
-          LOG(FATAL) << "Failed to map: " << n << ". " << strerror(errno) << ". "
-                     << "len:" << length << " off:" << offset << " it:" << fetch_it << std::endl;
-        }
+        CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << n << ". " << strerror(errno);
 
         // read page
         auto fi = common::MemoryFixSizeBuffer(ptr, length);
