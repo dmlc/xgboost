@@ -5,24 +5,27 @@
 #ifndef XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_
 #define XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_
 
+#include <fcntl.h>     // for open, O_RDONLY
+#include <sys/mman.h>  // for mmap, munmap
+#include <unistd.h>  // for close
+
 #include <algorithm>  // std::min
-#include <string>
-#include <utility>
-#include <vector>
 #include <future>
-#include <thread>
 #include <map>
 #include <memory>
-
-#include "xgboost/base.h"
-#include "xgboost/data.h"
-
-#include "adapter.h"
-#include "sparse_page_writer.h"
-#include "proxy_dmatrix.h"
+#include <string>
+#include <thread>
+#include <utility>
+#include <vector>
 
 #include "../common/common.h"
+#include "../common/io.h"
 #include "../common/timer.h"
+#include "adapter.h"
+#include "proxy_dmatrix.h"
+#include "sparse_page_writer.h"
+#include "xgboost/base.h"
+#include "xgboost/data.h"
 
 namespace xgboost {
 namespace data {
@@ -40,6 +43,7 @@ struct Cache {
   std::string format;
   // offset into binary cache file.
   std::vector<size_t> offset;
+  std::vector<std::uint64_t> bytes;
 
   Cache(bool w, std::string n, std::string fmt)
       : written{w}, name{std::move(n)}, format{std::move(fmt)} {
@@ -53,6 +57,10 @@ struct Cache {
 
   std::string ShardName() {
     return ShardName(this->name, this->format);
+  }
+  void Push(std::size_t n_bytes) {
+    bytes.push_back(n_bytes);
+    offset.push_back(n_bytes);
   }
 
   // The write is completed.
@@ -95,7 +103,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
   uint32_t n_batches_ {0};
 
   std::shared_ptr<Cache> cache_info_;
-  std::unique_ptr<dmlc::Stream> fo_;
+  // std::unique_ptr<dmlc::Stream> fo_;
 
   using Ring = std::vector<std::future<std::shared_ptr<S>>>;
   // A ring storing futures to data.  Since the DMatrix iterator is forward only, so we
@@ -107,8 +115,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     if (!cache_info_->written) {
       return false;
     }
-    if (fo_) {
-      fo_.reset();  // flush the data to disk.
+    if (ring_->empty()) {
       ring_->resize(n_batches_);
     }
     // An heuristic for number of pre-fetched batches.  We can make it part of BatchParam
@@ -126,20 +133,39 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
       }
       auto const *self = this;  // make sure it's const
       CHECK_LT(fetch_it, cache_info_->offset.size());
-      ring_->at(fetch_it) = std::async(std::launch::async, [fetch_it, self]() {
+      dmlc::OMPException exec;
+      ring_->at(fetch_it) = std::async(std::launch::async, [&exec, fetch_it, self]() {
+        auto page = std::make_shared<S>();
+
         common::Timer timer;
         timer.Start();
         std::unique_ptr<SparsePageFormat<S>> fmt{CreatePageFormat<S>("raw")};
         auto n = self->cache_info_->ShardName();
-        size_t offset = self->cache_info_->offset.at(fetch_it);
-        std::unique_ptr<dmlc::SeekStream> fi{dmlc::SeekStream::CreateForRead(n.c_str())};
-        fi->Seek(offset);
-        CHECK_EQ(fi->Tell(), offset);
-        auto page = std::make_shared<S>();
-        CHECK(fmt->Read(page.get(), fi.get()));
+
+        std::uint64_t offset = self->cache_info_->offset.at(fetch_it);
+        std::uint64_t length = self->cache_info_->bytes.at(fetch_it);
+
+        // mmap
+        auto fd = open(n.c_str(), O_RDONLY);
+        CHECK_GE(fd, 0) << "Failed to open:" << n << ". " << strerror(errno);
+        auto ptr = mmap64(nullptr, length, PROT_READ, MAP_PRIVATE, fd, offset);
+        if (ptr == MAP_FAILED) {
+          LOG(FATAL) << "Failed to map: " << n << ". " << strerror(errno) << ". "
+                     << "len:" << length << " off:" << offset << " it:" << fetch_it << std::endl;
+        }
+
+        // read page
+        auto fi = common::MemoryFixSizeBuffer(ptr, length);
+        CHECK(fmt->Read(page.get(), &fi));
         LOG(INFO) << "Read a page in " << timer.ElapsedSeconds() << " seconds.";
+
+        // cleanup
+        CHECK_NE(close(fd), -1) << "Faled to close: " << n << ". " << strerror(errno);
+        CHECK_NE(munmap(ptr, length), -1) << "Faled to munmap: " << n << ". " << strerror(errno);
+
         return page;
       });
+      exec.Rethrow();
     }
     CHECK_EQ(std::count_if(ring_->cbegin(), ring_->cend(), [](auto const& f) { return f.valid(); }),
              n_prefetch_batches)
@@ -153,16 +179,26 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     common::Timer timer;
     timer.Start();
     std::unique_ptr<SparsePageFormat<S>> fmt{CreatePageFormat<S>("raw")};
-    if (!fo_) {
-      auto n = cache_info_->ShardName();
-      fo_.reset(dmlc::Stream::Create(n.c_str(), "w"));
-    }
-    auto bytes = fmt->Write(*page_, fo_.get());
+
+    auto name = cache_info_->ShardName();
+    std::unique_ptr<dmlc::Stream> fo{dmlc::Stream::Create(name.c_str(), "a")};
+
+    auto bytes = fmt->Write(*page_, fo.get());
+
+    // align for mmap
+    auto page_size = getpagesize();
+    CHECK(page_size != 0 && page_size % 2 == 0) << "Failed to get page size on the current system.";
+    auto n = bytes / page_size;
+    auto padded = (n + 1) * page_size;
+    auto padding = padded - bytes;
+    std::vector<std::uint8_t> padding_bytes(padding, 0);
+    fo->Write(padding_bytes.data(), padding_bytes.size());
+
     timer.Stop();
 
     LOG(INFO) << static_cast<double>(bytes) / 1024.0 / 1024.0 << " MB written in "
               << timer.ElapsedSeconds() << " seconds.";
-    cache_info_->offset.push_back(bytes);
+    cache_info_->Push(padded);
   }
 
   virtual void Fetch() = 0;
