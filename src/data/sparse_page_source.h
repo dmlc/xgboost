@@ -132,8 +132,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
       }
       auto const *self = this;  // make sure it's const
       CHECK_LT(fetch_it, cache_info_->offset.size());
-      dmlc::OMPException exec;
-      ring_->at(fetch_it) = std::async(std::launch::async, [&exec, fetch_it, self]() {
+      ring_->at(fetch_it) = std::async(std::launch::async, [fetch_it, self]() {
         auto page = std::make_shared<S>();
 
         common::Timer timer;
@@ -156,12 +155,11 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
         LOG(INFO) << "Read a page in " << timer.ElapsedSeconds() << " seconds.";
 
         // cleanup
-        CHECK_NE(close(fd), -1) << "Faled to close: " << n << ". " << strerror(errno);
         CHECK_NE(munmap(ptr, length), -1) << "Faled to munmap: " << n << ". " << strerror(errno);
+        CHECK_NE(close(fd), -1) << "Faled to close: " << n << ". " << strerror(errno);
 
         return page;
       });
-      exec.Rethrow();
     }
     CHECK_EQ(std::count_if(ring_->cbegin(), ring_->cend(), [](auto const& f) { return f.valid(); }),
              n_prefetch_batches)
