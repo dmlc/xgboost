@@ -39,4 +39,6 @@ jobs:
           tests/buildkite
         branch: create-pull-request/update-rapids
         base: master
+        title: "[CI] Update RAPIDS to latest stable"
+        commit-message: "[CI] Update RAPIDS to latest stable"
       
