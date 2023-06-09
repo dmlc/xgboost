@@ -2,10 +2,11 @@ name: update-rapids
 
 on:
   schedule:
-    - cron: "20 20 * * *"  # Run once daily
+    - cron: "13 2 * * *"  # Run once daily
 
 permissions:
-  contents: read  # to fetch code (actions/checkout)
+  pull-requests: write
+  contents: write
 
 defaults:
   run:
