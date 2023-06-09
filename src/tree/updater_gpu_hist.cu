@@ -285,7 +285,7 @@ struct GPUHistMakerDevice {
         matrix.feature_segments,
         matrix.gidx_fvalue_map,
         matrix.min_fvalue,
-        matrix.is_dense
+        matrix.is_dense && !collective::IsDistributed()
     };
     auto split = this->evaluator_.EvaluateSingleSplit(inputs, shared_inputs);
     return split;
@@ -299,11 +299,11 @@ struct GPUHistMakerDevice {
     std::vector<bst_node_t> nidx(2 * candidates.size());
     auto h_node_inputs = pinned2.GetSpan<EvaluateSplitInputs>(2 * candidates.size());
     auto matrix = page->GetDeviceAccessor(ctx_->gpu_id);
-    EvaluateSplitSharedInputs shared_inputs{
-        GPUTrainingParam{param}, *quantiser, feature_types,     matrix.feature_segments,
-        matrix.gidx_fvalue_map,  matrix.min_fvalue,
-        matrix.is_dense
-    };
+    EvaluateSplitSharedInputs shared_inputs{GPUTrainingParam{param}, *quantiser, feature_types,
+                                            matrix.feature_segments, matrix.gidx_fvalue_map,
+                                            matrix.min_fvalue,
+                                            // is_dense represents the local data
+                                            matrix.is_dense && !collective::IsDistributed()};
     dh::TemporaryArray<GPUExpandEntry> entries(2 * candidates.size());
     // Store the feature set ptrs so they dont go out of scope before the kernel is called
     std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> feature_sets;
