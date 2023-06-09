@@ -1,13 +1,9 @@
-/*!
- *  Copyright 2014-2022 by XGBoost Contributors
+/**
+ *  Copyright 2014-2023, XGBoost Contributors
  * \file sparse_page_source.h
  */
 #ifndef XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_
 #define XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_
-
-#include <fcntl.h>     // for open, O_RDONLY
-#include <sys/mman.h>  // for mmap, munmap
-#include <unistd.h>  // for close
 
 #include <algorithm>  // std::min
 #include <future>
@@ -19,7 +15,7 @@
 #include <vector>
 
 #include "../common/common.h"
-#include "../common/io.h"
+#include "../common/io.h"  // for PrivateMmapStream
 #include "../common/timer.h"
 #include "adapter.h"
 #include "proxy_dmatrix.h"
