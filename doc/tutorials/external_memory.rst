@@ -16,9 +16,9 @@ not supported by ``exact`` tree method.
 .. note::
 
    When externel memory is used, the CPU training performance is IO bounded. Meaning, the
-   training speed almost exclusively determined by the disk IO speed. For GPU, please read
-   on and see the gradient-based sampling with external memory. During benchmark, we used
-   a NVME connected to a PCIE slot, the performance is "usable" with ``hist`` on CPU.
+   training speed is almost exclusively determined by the disk IO speed. For GPU, please
+   read on and see the gradient-based sampling with external memory. During benchmark, we
+   used a NVME connected to a PCIE slot, the performance is "usable" with ``hist`` on CPU.
 
 *************
 Data Iterator

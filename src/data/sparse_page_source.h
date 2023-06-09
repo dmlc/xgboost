@@ -5,7 +5,9 @@
 #ifndef XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_
 #define XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_
 
-#include <algorithm>  // std::min
+#include <unistd.h>  // for getpagesize
+
+#include <algorithm>  // for min
 #include <future>
 #include <map>
 #include <memory>
@@ -164,7 +166,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     auto bytes = fmt->Write(*page_, fo.get());
 
     // align for mmap
-    auto page_size = getpagesize();
+    decltype(bytes) page_size = getpagesize();
     CHECK(page_size != 0 && page_size % 2 == 0) << "Failed to get page size on the current system.";
     auto n = bytes / page_size;
     auto padded = (n + 1) * page_size;

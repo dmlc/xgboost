@@ -1,24 +1,25 @@
-/*!
- * Copyright (c) by XGBoost Contributors 2019-2022
+/**
+ * Copyright 2019-2023, by XGBoost Contributors
  */
 #if defined(__unix__)
+#include <fcntl.h>     // for open, O_RDONLY
+#include <sys/mman.h>  // for mmap, mmap64, munmap
 #include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
-#endif  // defined(__unix__)
+#include <unistd.h>  // for close
+#endif               // defined(__unix__)
 #include <algorithm>
-#include <fstream>
-#include <string>
-#include <memory>
-#include <utility>
+#include <cerrno>  // for errno
 #include <cstdio>
+#include <fstream>
+#include <memory>
+#include <string>
+#include <utility>
 
-#include "xgboost/logging.h"
 #include "io.h"
+#include "xgboost/logging.h"
 
 namespace xgboost {
 namespace common {
-
 size_t PeekableInStream::Read(void* dptr, size_t size) {
   size_t nbuffer = buffer_.length() - buffer_ptr_;
   if (nbuffer == 0) return strm_->Read(dptr, size);
@@ -154,6 +155,36 @@ std::string FileExtension(std::string fname, bool lower) {
   } else {
     return "";
   }
+}
+
+void* PrivateMmapStream::Open(StringView path, bool read_only, std::size_t offset,
+                              std::size_t length) {
+  fd_ = open(path.c_str(), O_RDONLY);
+  CHECK_GE(fd_, 0) << "Failed to open:" << path << ". " << strerror(errno);
+
+  char* ptr{nullptr};
+  int prot{PROT_READ};
+  if (!read_only) {
+    prot |= PROT_WRITE;
+  }
+#if defined(__linux__) || defined(__GLIBC__)
+  ptr = reinterpret_cast<char*>(mmap64(nullptr, length, prot, MAP_PRIVATE, fd_, offset));
+#elif defined(_MSC_VER)
+  // fixme: not yet implemented
+  ptr = reinterpret_cast<char*>(mmap(nullptr, length, prot, MAP_PRIVATE, fd_, offset));
+#else
+  CHECK_LE(offset, std::numeric_limits<off_t>::max())
+      << "File size has exceeded the limit on the current system.";
+  ptr = reinterpret_cast<char*>(mmap(nullptr, length, prot, MAP_PRIVATE, fd_, offset));
+#endif  // defined(__linux__)
+  CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << path << ". " << strerror(errno);
+  return ptr;
+}
+
+PrivateMmapStream::~PrivateMmapStream() {
+  CHECK_NE(munmap(p_buffer_, buffer_size_), -1)
+      << "Faled to munmap." << path_ << ". " << strerror(errno);
+  CHECK_NE(close(fd_), -1) << "Faled to close: " << path_ << ". " << strerror(errno);
 }
 }  // namespace common
 }  // namespace xgboost
