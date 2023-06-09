@@ -21,7 +21,7 @@
 #include "../split_evaluator.h"        // for TreeEvaluator
 #include "expand_entry.h"              // for MultiExpandEntry
 #include "xgboost/base.h"              // for bst_node_t, bst_target_t, bst_feature_t
-#include "xgboost/context.h"           // for COntext
+#include "xgboost/context.h"           // for Context
 #include "xgboost/linalg.h"            // for Constants, Vector
 
 namespace xgboost::tree {
