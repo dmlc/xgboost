@@ -1,7 +1,7 @@
 /**
  * Copyright 2019-2023, by XGBoost Contributors
  */
-#if defined(__unix__)
+#if defined(__unix__) || defined(__APPLE__)
 #include <fcntl.h>     // for open, O_RDONLY
 #include <sys/mman.h>  // for mmap, mmap64, munmap
 #include <sys/stat.h>
