@@ -1,11 +1,14 @@
+# pylint: disable=invalid-name
 """Utilities for data generation."""
 import os
 import zipfile
-from typing import Any, Generator, List, Tuple, Union
+from dataclasses import dataclass
+from typing import Any, Generator, List, NamedTuple, Optional, Tuple, Union
 from urllib import request
 
 import numpy as np
 import pytest
+from numpy import typing as npt
 from numpy.random import Generator as RNG
 from scipy import sparse
 
@@ -340,3 +343,263 @@ def get_mq2008(
         y_valid,
         qid_valid,
     )
+
+
+RelData = Tuple[sparse.csr_matrix, npt.NDArray[np.int32], npt.NDArray[np.int32]]
+
+
+@dataclass
+class ClickFold:
+    """A structure containing information about generated user-click data."""
+
+    X: sparse.csr_matrix
+    y: npt.NDArray[np.int32]
+    qid: npt.NDArray[np.int32]
+    score: npt.NDArray[np.float32]
+    click: npt.NDArray[np.int32]
+    pos: npt.NDArray[np.int64]
+
+
+class RelDataCV(NamedTuple):
+    """Simple data struct for holding a train-test split of a learning to rank dataset."""
+
+    train: RelData
+    test: RelData
+    max_rel: int
+
+    def is_binary(self) -> bool:
+        """Whether the label consists of binary relevance degree."""
+        return self.max_rel == 1
+
+
+class PBM:  # pylint: disable=too-few-public-methods
+    """Simulate click data with position bias model. There are other models available in
+    `ULTRA <https://github.com/ULTR-Community/ULTRA.git>`_ like the cascading model.
+
+    References
+    ----------
+    Unbiased LambdaMART: An Unbiased Pairwise Learning-to-Rank Algorithm
+
+    """
+
+    def __init__(self, eta: float) -> None:
+        # click probability for each relevance degree. (from 0 to 4)
+        self.click_prob = np.array([0.1, 0.16, 0.28, 0.52, 1.0])
+        exam_prob = np.array(
+            [0.68, 0.61, 0.48, 0.34, 0.28, 0.20, 0.11, 0.10, 0.08, 0.06]
+        )
+        # Observation probability, encoding positional bias for each position
+        self.exam_prob = np.power(exam_prob, eta)
+
+    def sample_clicks_for_query(
+        self, labels: npt.NDArray[np.int32], position: npt.NDArray[np.int64]
+    ) -> npt.NDArray[np.int32]:
+        """Sample clicks for one query based on input relevance degree and position.
+
+        Parameters
+        ----------
+
+        labels :
+            relevance_degree
+
+        """
+        labels = np.array(labels, copy=True)
+
+        click_prob = np.zeros(labels.shape)
+        # minimum
+        labels[labels < 0] = 0
+        # maximum
+        labels[labels >= len(self.click_prob)] = -1
+        click_prob = self.click_prob[labels]
+
+        exam_prob = np.zeros(labels.shape)
+        assert position.size == labels.size
+        ranks = np.array(position, copy=True)
+        # maximum
+        ranks[ranks >= self.exam_prob.size] = -1
+        exam_prob = self.exam_prob[ranks]
+
+        rng = np.random.default_rng(1994)
+        prob = rng.random(size=labels.shape[0], dtype=np.float32)
+
+        clicks: npt.NDArray[np.int32] = np.zeros(labels.shape, dtype=np.int32)
+        clicks[prob < exam_prob * click_prob] = 1
+        return clicks
+
+
+def rlencode(x: npt.NDArray[np.int32]) -> Tuple[npt.NDArray, npt.NDArray, npt.NDArray]:
+    """Run length encoding using numpy, modified from:
+    https://gist.github.com/nvictus/66627b580c13068589957d6ab0919e66
+
+    """
+    x = np.asarray(x)
+    n = x.size
+    starts = np.r_[0, np.flatnonzero(~np.isclose(x[1:], x[:-1], equal_nan=True)) + 1]
+    lengths = np.diff(np.r_[starts, n])
+    values = x[starts]
+    indptr = np.append(starts, np.array([x.size]))
+
+    return indptr, lengths, values
+
+
+def init_rank_score(
+    X: sparse.csr_matrix,
+    y: npt.NDArray[np.int32],
+    qid: npt.NDArray[np.int32],
+    sample_rate: float = 0.1,
+) -> npt.NDArray[np.float32]:
+    """We use XGBoost to generate the initial score instead of SVMRank for
+    simplicity. Sample rate is set to 0.1 by default so that we can test with small
+    datasets.
+
+    """
+    # random sample
+    rng = np.random.default_rng(1994)
+    n_samples = int(X.shape[0] * sample_rate)
+    index = np.arange(0, X.shape[0], dtype=np.uint64)
+    rng.shuffle(index)
+    index = index[:n_samples]
+
+    X_train = X[index]
+    y_train = y[index]
+    qid_train = qid[index]
+
+    # Sort training data based on query id, required by XGBoost.
+    sorted_idx = np.argsort(qid_train)
+    X_train = X_train[sorted_idx]
+    y_train = y_train[sorted_idx]
+    qid_train = qid_train[sorted_idx]
+
+    ltr = xgboost.XGBRanker(objective="rank:ndcg", tree_method="hist")
+    ltr.fit(X_train, y_train, qid=qid_train)
+
+    # Use the original order of the data.
+    scores = ltr.predict(X)
+    return scores
+
+
+def simulate_one_fold(
+    fold: Tuple[sparse.csr_matrix, npt.NDArray[np.int32], npt.NDArray[np.int32]],
+    scores_fold: npt.NDArray[np.float32],
+) -> ClickFold:
+    """Simulate clicks for one fold."""
+    X_fold, y_fold, qid_fold = fold
+    assert qid_fold.dtype == np.int32
+
+    qids = np.unique(qid_fold)
+
+    position = np.empty((y_fold.size,), dtype=np.int64)
+    clicks = np.empty((y_fold.size,), dtype=np.int32)
+    pbm = PBM(eta=1.0)
+
+    # Avoid grouping by qid as we want to preserve the original data partition by
+    # the dataset authors.
+    for q in qids:
+        qid_mask = q == qid_fold
+        qid_mask = qid_mask.reshape(qid_mask.shape[0])
+        query_scores = scores_fold[qid_mask]
+        # Initial rank list, scores sorted to decreasing order
+        query_position = np.argsort(query_scores)[::-1]
+        position[qid_mask] = query_position
+        # get labels
+        relevance_degrees = y_fold[qid_mask]
+        query_clicks = pbm.sample_clicks_for_query(relevance_degrees, query_position)
+        clicks[qid_mask] = query_clicks
+
+    assert X_fold.shape[0] == qid_fold.shape[0], (X_fold.shape, qid_fold.shape)
+    assert X_fold.shape[0] == clicks.shape[0], (X_fold.shape, clicks.shape)
+
+    return ClickFold(X_fold, y_fold, qid_fold, scores_fold, clicks, position)
+
+
+# pylint: disable=too-many-locals
+def simulate_clicks(cv_data: RelDataCV) -> Tuple[ClickFold, Optional[ClickFold]]:
+    """Simulate click data using position biased model (PBM)."""
+    X, y, qid = list(zip(cv_data.train, cv_data.test))
+
+    # ptr to train-test split
+    indptr = np.array([0] + [v.shape[0] for v in X])
+    indptr = np.cumsum(indptr)
+
+    assert len(indptr) == 2 + 1  # train, test
+    X_full = sparse.vstack(X)
+    y_full = np.concatenate(y)
+    qid_full = np.concatenate(qid)
+
+    # Obtain initial relevance score for click simulation
+    scores_full = init_rank_score(X_full, y_full, qid_full)
+    # partition it back to (train, test) tuple
+    scores = [scores_full[indptr[i - 1] : indptr[i]] for i in range(1, indptr.size)]
+
+    X_lst, y_lst, q_lst, s_lst, c_lst, p_lst = [], [], [], [], [], []
+    for i in range(indptr.size - 1):
+        fold = simulate_one_fold((X[i], y[i], qid[i]), scores[i])
+        X_lst.append(fold.X)
+        y_lst.append(fold.y)
+        q_lst.append(fold.qid)
+        s_lst.append(fold.score)
+        c_lst.append(fold.click)
+        p_lst.append(fold.pos)
+
+    scores_check_1 = [s_lst[i] for i in range(indptr.size - 1)]
+    for i in range(2):
+        assert (scores_check_1[i] == scores[i]).all()
+
+    if len(X_lst) == 1:
+        train = ClickFold(X_lst[0], y_lst[0], q_lst[0], s_lst[0], c_lst[0], p_lst[0])
+        test = None
+    else:
+        train, test = (
+            ClickFold(X_lst[i], y_lst[i], q_lst[i], s_lst[i], c_lst[i], p_lst[i])
+            for i in range(len(X_lst))
+        )
+    return train, test
+
+
+def sort_ltr_samples(
+    X: sparse.csr_matrix,
+    y: npt.NDArray[np.int32],
+    qid: npt.NDArray[np.int32],
+    clicks: npt.NDArray[np.int32],
+    pos: npt.NDArray[np.int64],
+) -> Tuple[
+    sparse.csr_matrix,
+    npt.NDArray[np.int32],
+    npt.NDArray[np.int32],
+    npt.NDArray[np.int32],
+]:
+    """Sort data based on query index and position."""
+    sorted_idx = np.argsort(qid)
+    X = X[sorted_idx]
+    clicks = clicks[sorted_idx]
+    qid = qid[sorted_idx]
+    pos = pos[sorted_idx]
+
+    indptr, _, _ = rlencode(qid)
+
+    for i in range(1, indptr.size):
+        beg = indptr[i - 1]
+        end = indptr[i]
+
+        assert beg < end, (beg, end)
+        assert np.unique(qid[beg:end]).size == 1, (beg, end)
+
+        query_pos = pos[beg:end]
+        assert query_pos.min() == 0, query_pos.min()
+        assert query_pos.max() >= query_pos.size - 1, (
+            query_pos.max(),
+            query_pos.size,
+            i,
+            np.unique(qid[beg:end]),
+        )
+        sorted_idx = np.argsort(query_pos)
+
+        X[beg:end] = X[beg:end][sorted_idx]
+        clicks[beg:end] = clicks[beg:end][sorted_idx]
+        y[beg:end] = y[beg:end][sorted_idx]
+        # not necessary
+        qid[beg:end] = qid[beg:end][sorted_idx]
+
+    data = X, clicks, y, qid
+
+    return data

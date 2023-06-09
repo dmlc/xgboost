@@ -16,8 +16,10 @@ C++ Coding Guideline
   * Each line of text may contain up to 100 characters.
   * The use of C++ exceptions is allowed.
 
-- Use C++11 features such as smart pointers, braced initializers, lambda functions, and ``std::thread``.
+- Use C++17 features such as smart pointers, braced initializers, lambda functions, and ``std::thread``.
 - Use Doxygen to document all the interface code.
+- We have some comments around symbols imported by headers, some of those are hinted by `include-what-you-use <https://include-what-you-use.org>`_. It's not required.
+- We use clang-tidy and clang-format. You can check their configuration in the root directory of the XGBoost source tree.
 - We have a series of automatic checks to ensure that all of our codebase complies with the Google style. Before submitting your pull request, you are encouraged to run the style checks on your machine. See :ref:`running_checks_locally`.
 
 ***********************

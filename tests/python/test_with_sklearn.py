@@ -130,11 +130,11 @@ def test_ranking():
 
     params = {
         "tree_method": "exact",
+        "objective": "rank:pairwise",
         "learning_rate": 0.1,
         "gamma": 1.0,
         "min_child_weight": 0.1,
         "max_depth": 6,
-        "eval_metric": "ndcg",
         "n_estimators": 4,
     }
     model = xgb.sklearn.XGBRanker(**params)
@@ -163,7 +163,6 @@ def test_ranking():
         "gamma": 1.0,
         "min_child_weight": 0.1,
         "max_depth": 6,
-        "eval_metric": "ndcg",
     }
     xgb_model_orig = xgb.train(
         params_orig, train_data, num_boost_round=4, evals=[(valid_data, "validation")]

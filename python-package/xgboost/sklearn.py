@@ -1796,7 +1796,11 @@ def _get_qid(
 
 
 @xgboost_model_doc(
-    """Implementation of the Scikit-Learn API for XGBoost Ranking.""",
+    """Implementation of the Scikit-Learn API for XGBoost Ranking.
+
+See :doc:`Learning to Rank </tutorials/learning_to_rank>` for an introducion.
+
+    """,
     ["estimators", "model"],
     end_note="""
         .. note::
@@ -1845,7 +1849,7 @@ def _get_qid(
 class XGBRanker(XGBModel, XGBRankerMixIn):
     # pylint: disable=missing-docstring,too-many-arguments,invalid-name
     @_deprecate_positional_args
-    def __init__(self, *, objective: str = "rank:pairwise", **kwargs: Any):
+    def __init__(self, *, objective: str = "rank:ndcg", **kwargs: Any):
         super().__init__(objective=objective, **kwargs)
         if callable(self.objective):
             raise ValueError("custom objective function not supported by XGBRanker")
@@ -2029,7 +2033,7 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
             self._Booster = train(
                 params,
                 train_dmatrix,
-                self.get_num_boosting_rounds(),
+                num_boost_round=self.get_num_boosting_rounds(),
                 early_stopping_rounds=early_stopping_rounds,
                 evals=evals,
                 evals_result=evals_result,

@@ -36,6 +36,7 @@ class LintersPaths:
         "demo/guide-python/individual_trees.py",
         "demo/guide-python/quantile_regression.py",
         "demo/guide-python/multioutput_regression.py",
+        "demo/guide-python/learning_to_rank.py",
         # CI
         "tests/ci_build/lint_python.py",
         "tests/ci_build/test_r_package.py",
@@ -76,6 +77,7 @@ class LintersPaths:
         "demo/guide-python/individual_trees.py",
         "demo/guide-python/quantile_regression.py",
         "demo/guide-python/multioutput_regression.py",
+        "demo/guide-python/learning_to_rank.py",
         # CI
         "tests/ci_build/lint_python.py",
         "tests/ci_build/test_r_package.py",
