@@ -1,8 +1,9 @@
 name: update-rapids
 
 on:
+  workflow_dispatch:
   schedule:
-    - cron: "13 2 * * *"  # Run once daily
+    - cron: "0 20 * * *"  # Run once daily
 
 permissions:
   pull-requests: write
