@@ -123,7 +123,7 @@ LambdaGrad(linalg::VectorView<float const> labels, common::Span<float const> pre
   }
 
   auto lambda_ij = (sigmoid - 1.0) * delta_metric;
-  auto hessian_ij = std::max(sigmoid * (1.0 - sigmoid), Eps64()) * delta_metric;
+  auto hessian_ij = std::max(sigmoid * (1.0 - sigmoid), Eps64()) * delta_metric * 2.0;
 
   auto k = t_plus.Size();
   assert(t_minus.Size() == k && "Invalid size of position bias");
