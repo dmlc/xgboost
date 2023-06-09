@@ -8,6 +8,18 @@ The feature is still experimental and not yet ready for production use.  In this
 we will introduce both methods.  Please note that training on data from external memory is
 not supported by ``exact`` tree method.
 
+.. warning::
+
+   The implementation of external memory uses ``mmap`` and is not tested against errors
+   like disconnected network devices. (`SIGBUS`)
+
+.. note::
+
+   When externel memory is used, the CPU training performance is IO bounded. Meaning, the
+   training speed almost exclusively determined by the disk IO speed. For GPU, please read
+   on and see the gradient-based sampling with external memory. During benchmark, we used
+   a NVME connected to a PCIE slot, the performance is "usable" with ``hist`` on CPU.
+
 *************
 Data Iterator
 *************

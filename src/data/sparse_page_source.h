@@ -123,9 +123,9 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
 
     size_t n_prefetch_batches = std::min(kPreFetch, n_batches_);
     CHECK_GT(n_prefetch_batches, 0) << "total batches:" << n_batches_;
-    size_t fetch_it = count_;
+    std::size_t fetch_it = count_;
 
-    for (size_t i = 0; i < n_prefetch_batches; ++i, ++fetch_it) {
+    for (std::size_t i = 0; i < n_prefetch_batches; ++i, ++fetch_it) {
       fetch_it %= n_batches_;  // ring
       if (ring_->at(fetch_it).valid()) {
         continue;
@@ -143,21 +143,9 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
         std::uint64_t offset = self->cache_info_->offset.at(fetch_it);
         std::uint64_t length = self->cache_info_->bytes.at(fetch_it);
 
-        // mmap
-        auto fd = open(n.c_str(), O_RDONLY);
-        CHECK_GE(fd, 0) << "Failed to open:" << n << ". " << strerror(errno);
-        auto ptr = mmap64(nullptr, length, PROT_READ, MAP_PRIVATE, fd, offset);
-        CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << n << ". " << strerror(errno);
-
-        // read page
-        auto fi = common::MemoryFixSizeBuffer(ptr, length);
-        CHECK(fmt->Read(page.get(), &fi));
+        auto fi = std::make_unique<common::PrivateMmapStream>(n, true, offset, length);
+        CHECK(fmt->Read(page.get(), fi.get()));
         LOG(INFO) << "Read a page in " << timer.ElapsedSeconds() << " seconds.";
-
-        // cleanup
-        CHECK_NE(munmap(ptr, length), -1) << "Faled to munmap: " << n << ". " << strerror(errno);
-        CHECK_NE(close(fd), -1) << "Faled to close: " << n << ". " << strerror(errno);
-
         return page;
       });
     }

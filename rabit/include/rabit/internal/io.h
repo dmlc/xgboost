@@ -60,7 +60,7 @@ struct MemoryFixSizeBuffer : public SeekStream {
     return curr_ptr_ == buffer_size_;
   }
 
- private:
+ protected:
   /*! \brief in memory buffer */
   char *p_buffer_;
   /*! \brief current pointer */

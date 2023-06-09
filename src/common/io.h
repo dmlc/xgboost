@@ -9,10 +9,15 @@
 #define XGBOOST_COMMON_IO_H_
 
 #include <dmlc/io.h>
+#include <fcntl.h>  // for open, O_RDONLY
 #include <rabit/rabit.h>
-#include <string>
+#include <sys/mman.h>  // for mmap, munmap
+#include <unistd.h>    // for close
+#include <xgboost/string_view.h>
+
 #include <cstring>
 #include <fstream>
+#include <string>
 
 #include "common.h"
 
@@ -127,6 +132,48 @@ inline std::string ReadAll(std::string const &path) {
   return content;
 }
 
+/**
+ * \brief Private mmap file, copy-on-write
+ */
+class PrivateMmapStream : public MemoryFixSizeBuffer {
+  std::int32_t fd_;
+  std::string path_;
+
+  void* Open(StringView path, bool read_only, std::size_t offset, std::size_t length) {
+    fd_ = open(path.c_str(), O_RDONLY);
+    CHECK_GE(fd_, 0) << "Failed to open:" << path << ". " << strerror(errno);
+
+    char* ptr{nullptr};
+    int prot{PROT_READ};
+    if (!read_only) {
+      prot |= PROT_WRITE;
+    }
+#if defined(__linux__)
+    ptr = reinterpret_cast<char*>(mmap64(nullptr, length, prot, MAP_PRIVATE, fd_, offset));
+#elif defined(__APPLE__)
+    CHECK_LE(offset, std::numeric_limits<off_t>::max())
+        << "File size has exceeded the limit on macos.";
+    ptr = reinterpret_cast<char*>(mmap(nullptr, length, prot, MAP_PRIVATE, fd_, offset));
+#else
+    // fixme: not yet implemented
+    ptr = reinterpret_cast<char*>(mmap(nullptr, length, prot, MAP_PRIVATE, fd_, offset));
+#endif  // defined(__linux__)
+    CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << path << ". " << strerror(errno);
+    return ptr;
+  }
+
+ public:
+  explicit PrivateMmapStream(std::string path, bool read_only, std::size_t offset,
+                             std::size_t length)
+      : MemoryFixSizeBuffer{Open(StringView{path}, read_only, offset, length), length},
+        path_{path} {}
+
+  ~PrivateMmapStream() override {
+    CHECK_NE(munmap(p_buffer_, buffer_size_), -1)
+        << "Faled to munmap." << path_ << ". " << strerror(errno);
+    CHECK_NE(close(fd_), -1) << "Faled to close: " << path_ << ". " << strerror(errno);
+  }
+};
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_IO_H_
