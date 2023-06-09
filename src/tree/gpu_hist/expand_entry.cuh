@@ -42,12 +42,6 @@ struct GPUExpandEntry {
     return true;
   }
 
-  static bool ChildIsValid(const TrainParam& param, int depth, int num_leaves) {
-    if (param.max_depth > 0 && depth >= param.max_depth) return false;
-    if (param.max_leaves > 0 && num_leaves >= param.max_leaves) return false;
-    return true;
-  }
-
   bst_float GetLossChange() const {
     return split.loss_chg;
   }
