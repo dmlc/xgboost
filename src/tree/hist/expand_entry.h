@@ -26,12 +26,6 @@ struct ExpandEntryImpl {
   }
   [[nodiscard]] bst_node_t GetNodeId() const { return nid; }
 
-  static bool ChildIsValid(TrainParam const& param, bst_node_t depth, bst_node_t num_leaves) {
-    if (param.max_depth > 0 && depth >= param.max_depth) return false;
-    if (param.max_leaves > 0 && num_leaves >= param.max_leaves) return false;
-    return true;
-  }
-
   [[nodiscard]] bool IsValid(TrainParam const& param, bst_node_t num_leaves) const {
     return static_cast<Impl const*>(this)->IsValidImpl(param, num_leaves);
   }
