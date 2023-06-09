@@ -16,9 +16,11 @@ Documentation
 * The documentation is the ``doc/`` directory.
 * You can build it locally using ``make html`` command.
 
-   .. code-block:: bash
+  .. code-block:: bash
 
-     make html
+    make html
+
+  Run ``make help`` to learn about the other commands.
 
 The online document is hosted by `Read the Docs <https://readthedocs.org/>`__ where the imported project is managed by `Hyunsu Cho <https://github.com/hcho3>`__ and `Jiaming Yuan <https://github.com/trivialfis>`__.
 
@@ -41,17 +43,25 @@ Build Docs on macOS using Conda
      conda activate xgboost-docs
 
 #. Install required packages (in the current environment) using ``pip`` command.
-   For some reason, it is currently not possible to install the required packages using ``conda``.
 
    .. code-block:: bash
 
      pip install -r requirements.txt
 
-#. (optional) Install graphviz
+   .. note::
+      It is currently not possible to install the required packages using ``conda``
+      due to ``xgboost_ray`` being unavailable in conda channels.
+
+      .. code-block:: bash
+
+        conda install --file requirements.txt --yes -c conda-forge
+
+
+#. (optional) Install `graphviz <https://www.graphviz.org/>`__
 
    .. code-block:: bash
 
-     brew install graphviz
+     conda install graphviz --yes
 
 #. Eventually, build the docs.
 
