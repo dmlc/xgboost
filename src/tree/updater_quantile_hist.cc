@@ -72,9 +72,9 @@ void UpdateTree(common::Monitor *monitor_, linalg::MatrixView<GradientPair const
    *   Applied: Ditto
    */
   while (!expand_set.empty()) {
-    // candidates that can be further splited.
+    // candidates that can be further split.
     std::vector<ExpandEntry> valid_candidates;
-    // candidaates that can be applied.
+    // candidates that can be applied.
     std::vector<ExpandEntry> applied;
     for (auto const &candidate : expand_set) {
       updater->ApplyTreeSplit(candidate, p_tree);
