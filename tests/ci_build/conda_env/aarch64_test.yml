@@ -31,6 +31,5 @@ dependencies:
 - pyspark
 - cloudpickle
 - pip:
-  - shap
   - awscli
   - auditwheel
