@@ -117,7 +117,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     }
     // An heuristic for number of pre-fetched batches.  We can make it part of BatchParam
     // to let user adjust number of pre-fetched batches when needed.
-    uint32_t constexpr kPreFetch = 1;
+    uint32_t constexpr kPreFetch = 4;
 
     size_t n_prefetch_batches = std::min(kPreFetch, n_batches_);
     CHECK_GT(n_prefetch_batches, 0) << "total batches:" << n_batches_;
@@ -140,7 +140,6 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
 
         std::uint64_t offset = self->cache_info_->offset.at(fetch_it);
         std::uint64_t length = self->cache_info_->bytes.at(fetch_it);
-        // std::cout << typeid(S).name() << " offset:" << offset << " length:" << length << std::endl;
 
         auto fi = std::make_unique<common::PrivateMmapStream>(n, true, offset, length);
         CHECK(fmt->Read(page.get(), fi.get()));

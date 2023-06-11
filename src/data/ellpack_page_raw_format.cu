@@ -28,7 +28,6 @@ class EllpackPageRawFormat : public SparsePageFormat<EllpackPage> {
     if (!fi->Read(&impl->base_rowid)) {
       return false;
     }
-    std::cout << "impl brd:" << impl->base_rowid << std::endl;
     return true;
   }
 
@@ -42,7 +41,6 @@ class EllpackPageRawFormat : public SparsePageFormat<EllpackPage> {
     bytes += sizeof(impl->is_dense);
     fo->Write(impl->row_stride);
     bytes += sizeof(impl->row_stride);
-    std::cout << "write brd:" << impl->base_rowid << std::endl;
     CHECK(!impl->gidx_buffer.ConstHostVector().empty());
     fo->Write(impl->gidx_buffer.HostVector());
     bytes += impl->gidx_buffer.ConstHostSpan().size_bytes() + sizeof(uint64_t);
