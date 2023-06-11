@@ -7,6 +7,7 @@
 
 #include "../../../src/tree/constraints.h"
 #include "../../../src/tree/hist/evaluate_splits.h"
+#include "../../../src/tree/hist/expand_entry.h"
 #include "../helpers.h"
 
 namespace xgboost {
@@ -79,13 +80,14 @@ TEST(CPUMonoConstraint, Basic) {
   auto Xy = RandomDataGenerator{kRows, kCols, 0.0}.GenerateDMatrix(true);
   auto sampler = std::make_shared<common::ColumnSampler>();
 
-  HistEvaluator<CPUExpandEntry> evalutor{&ctx, &param, Xy->Info(), sampler};
+  HistEvaluator<CPUExpandEntry> evalutor{param, Xy->Info(), ctx.Threads(), sampler};
   evalutor.InitRoot(GradStats{2.0, 2.0});
 
   SplitEntry split;
   split.Update(1.0f, 0, 3.0, false, false, GradStats{1.0, 1.0}, GradStats{1.0, 1.0});
   CPUExpandEntry entry{0, 0, split};
-  RegTree tree{1, static_cast<bst_feature_t>(kCols)};
+  RegTree tree;
+  tree.param.UpdateAllowUnknown(Args{{"num_feature", std::to_string(kCols)}});
   evalutor.ApplyTreeSplit(entry, &tree);
 
   ASSERT_TRUE(evalutor.Evaluator().has_constraint);
