@@ -389,6 +389,7 @@ class HistEvaluator {
     tree_evaluator_.AddSplit(candidate.nid, left_child, right_child,
                              tree[candidate.nid].SplitIndex(), left_weight,
                              right_weight);
+    evaluator = tree_evaluator_.GetEvaluator();
 
     auto max_node = std::max(left_child, tree[candidate.nid].RightChild());
     max_node = std::max(candidate.nid, max_node);
