@@ -24,6 +24,7 @@ void EllpackPageSource::Fetch() {
     auto *impl = this->page_->Impl();
     *impl = EllpackPageImpl(device_, *cuts_, *csr, is_dense_, row_stride_, feature_types_);
     page_->SetBaseRowId(csr->base_rowid);
+    std::cout << "csr br:" << csr->base_rowid << std::endl;
     this->WriteCache();
   }
 }
