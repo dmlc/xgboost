@@ -78,7 +78,7 @@ CPUExpandEntry QuantileHistMaker::Builder::InitRoot(
 
   {
     GradientPairPrecise grad_stat;
-    if (p_fmat->IsDense()) {
+    if (p_fmat->IsDense() && !collective::IsDistributed()) {
       /**
        * Specialized code for dense data: For dense data (with no missing value), the sum
        * of gradient histogram is equal to snode[nid]
