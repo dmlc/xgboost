@@ -130,6 +130,16 @@ inline std::string ReadAll(std::string const &path) {
 }
 
 /**
+ * @brief Pad the output file for a page to make it mmap compatible.
+ *
+ * @param file_bytes The size of the output file
+ * @param fo         Stream used to write the file.
+ *
+ * @return The file size after being padded.
+ */
+std::size_t PadPageForMMAP(std::size_t file_bytes, dmlc::Stream* fo);
+
+/**
  * \brief Private mmap file, copy-on-write
  */
 class PrivateMmapStream : public MemoryFixSizeBuffer {

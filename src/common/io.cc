@@ -158,6 +158,18 @@ std::string FileExtension(std::string fname, bool lower) {
   }
 }
 
+std::size_t PadPageForMMAP(std::size_t file_bytes, dmlc::Stream* fo) {
+  decltype(file_bytes) page_size = getpagesize();
+  CHECK(page_size != 0 && page_size % 2 == 0) << "Failed to get page size on the current system.";
+  CHECK_NE(file_bytes, 0) << "Empty page encountered.";
+  auto n_pages = file_bytes / page_size + !!(file_bytes % page_size != 0);
+  auto padded = n_pages * page_size;
+  auto padding = padded - file_bytes;
+  std::vector<std::uint8_t> padding_bytes(padding, 0);
+  fo->Write(padding_bytes.data(), padding_bytes.size());
+  return padded;
+}
+
 void* PrivateMmapStream::Open(StringView path, bool read_only, std::size_t offset,
                               std::size_t length) {
   fd_ = open(path.c_str(), O_RDONLY);

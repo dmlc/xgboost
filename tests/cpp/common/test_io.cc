@@ -89,5 +89,51 @@ TEST(IO, LoadSequentialFile) {
 
   ASSERT_THROW(LoadSequentialFile("non-exist", true), dmlc::Error);
 }
+
+TEST(IO, PrivateMmapStream) {
+  dmlc::TemporaryDirectory tempdir;
+  auto path = tempdir.path + "/testfile";
+
+  std::size_t n_batches{8};
+  std::vector<std::vector<std::int32_t>> batches;
+  std::vector<std::size_t> offset{0ul};
+
+  using T = std::int32_t;
+
+  {
+    std::unique_ptr<dmlc::Stream> fo{dmlc::Stream::Create(path.c_str(), "w")};
+    for (std::size_t i = 0; i < n_batches; ++i) {
+      std::size_t size = (i + 1) * 2;
+      std::vector<T> data(size, 0);
+      std::iota(data.begin(), data.end(), i * i);
+
+      fo->Write(static_cast<std::uint64_t>(data.size()));
+      fo->Write(data.data(), data.size() * sizeof(T));
+
+      std::size_t bytes = sizeof(std::uint64_t) + data.size() * sizeof(T);
+      auto padded = common::PadPageForMMAP(bytes, fo.get());
+      offset.push_back(padded);
+
+      batches.emplace_back(std::move(data));
+    }
+  }
+
+  // Turn size info offset
+  std::partial_sum(offset.begin(), offset.end(), offset.begin());
+
+  for (std::size_t i = 0; i < n_batches; ++i) {
+    std::size_t off = offset[i];
+    std::size_t n = offset.at(i + 1) - offset[i];
+    std::unique_ptr<dmlc::Stream> fi{std::make_unique<PrivateMmapStream>(path, true, off, n)};
+    std::vector<T> data;
+
+    std::uint64_t size{0};
+    fi->Read(&size);
+    data.resize(size);
+
+    fi->Read(data.data(), size * sizeof(T));
+    ASSERT_EQ(data, batches[i]);
+  }
+}
 }  // namespace common
 }  // namespace xgboost

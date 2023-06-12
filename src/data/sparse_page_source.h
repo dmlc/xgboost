@@ -15,7 +15,7 @@
 #include <vector>
 
 #include "../common/common.h"
-#include "../common/io.h"  // for PrivateMmapStream
+#include "../common/io.h"  // for PrivateMmapStream, PadPageForMMAP
 #include "../common/timer.h"
 #include "adapter.h"
 #include "proxy_dmatrix.h"
@@ -31,16 +31,6 @@ inline void TryDeleteCacheFile(const std::string& file) {
               << "; you may want to remove it manually";
   }
 }
-
-/**
- * @brief Pad the output file for a page to make it mmap compatible.
- *
- * @param file_bytes The size of the output file
- * @param fo         Stream used to write the file.
- *
- * @return The file size after being padded.
- */
-std::size_t PadPageForMMAP(std::size_t file_bytes, dmlc::Stream* fo);
 
 struct Cache {
   // whether the write to the cache is complete
@@ -176,7 +166,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     }
 
     auto bytes = fmt->Write(*page_, fo.get());
-    auto padded = PadPageForMMAP(bytes, fo.get());
+    auto padded = common::PadPageForMMAP(bytes, fo.get());
 
     timer.Stop();
     LOG(INFO) << static_cast<double>(bytes) / 1024.0 / 1024.0 << " MB written in "
