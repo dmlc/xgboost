@@ -140,7 +140,7 @@ inline std::string ReadAll(std::string const &path) {
 std::size_t PadPageForMmap(std::size_t file_bytes, dmlc::Stream* fo);
 
 /**
- * \brief Private mmap file, copy-on-write
+ * @brief Private mmap file, copy-on-write. File must be properly aligned by `PadPageForMmap()`.
  */
 class PrivateMmapStream : public MemoryFixSizeBuffer {
   std::int32_t fd_;
