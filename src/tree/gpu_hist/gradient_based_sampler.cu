@@ -146,11 +146,12 @@ class PoissonSampling : public thrust::binary_function<GradientPair, size_t, Gra
   CombineGradientPair combine_;
 };
 
-NoSampling::NoSampling(EllpackPageImpl const* page) : page_(page) {}
+NoSampling::NoSampling(BatchParam batch_param) : batch_param_(std::move(batch_param)) {}
 
-GradientBasedSample NoSampling::Sample(Context const*, common::Span<GradientPair> gpair,
+GradientBasedSample NoSampling::Sample(Context const* ctx, common::Span<GradientPair> gpair,
                                        DMatrix* dmat) {
-  return {dmat->Info().num_row_, page_, gpair};
+  auto page = (*dmat->GetBatches<EllpackPage>(ctx, batch_param_).begin()).Impl();
+  return {dmat->Info().num_row_, page, gpair};
 }
 
 ExternalMemoryNoSampling::ExternalMemoryNoSampling(Context const* ctx, EllpackPageImpl const* page,
@@ -349,7 +350,7 @@ GradientBasedSampler::GradientBasedSampler(Context const* ctx, EllpackPageImpl c
     if (is_external_memory) {
       strategy_.reset(new ExternalMemoryNoSampling(ctx, page, n_rows, batch_param));
     } else {
-      strategy_.reset(new NoSampling(page));
+      strategy_.reset(new NoSampling(batch_param));
     }
   }
 }

@@ -32,12 +32,12 @@ class SamplingStrategy {
 /*! \brief No sampling in in-memory mode. */
 class NoSampling : public SamplingStrategy {
  public:
-  explicit NoSampling(EllpackPageImpl const* page);
+  explicit NoSampling(BatchParam batch_param);
   GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair,
                              DMatrix* dmat) override;
 
  private:
-  EllpackPageImpl const* page_;
+  BatchParam batch_param_;
 };
 
 /*! \brief No sampling in external memory mode. */
