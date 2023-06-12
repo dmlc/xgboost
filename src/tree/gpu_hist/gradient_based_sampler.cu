@@ -154,20 +154,22 @@ GradientBasedSample NoSampling::Sample(Context const* ctx, common::Span<Gradient
   return {dmat->Info().num_row_, page, gpair};
 }
 
-ExternalMemoryNoSampling::ExternalMemoryNoSampling(Context const* ctx, EllpackPageImpl const* page,
-                                                   size_t n_rows, BatchParam batch_param)
-    : batch_param_{std::move(batch_param)},
-      page_(new EllpackPageImpl(ctx->gpu_id, page->Cuts(), page->is_dense, page->row_stride,
-                                n_rows)) {}
+ExternalMemoryNoSampling::ExternalMemoryNoSampling(BatchParam batch_param)
+    : batch_param_{std::move(batch_param)} {}
 
 GradientBasedSample ExternalMemoryNoSampling::Sample(Context const* ctx,
                                                      common::Span<GradientPair> gpair,
                                                      DMatrix* dmat) {
   if (!page_concatenated_) {
     // Concatenate all the external memory ELLPACK pages into a single in-memory page.
+    page_.reset(nullptr);
     size_t offset = 0;
     for (auto& batch : dmat->GetBatches<EllpackPage>(ctx, batch_param_)) {
       auto page = batch.Impl();
+      if (!page_) {
+        page_ = std::make_unique<EllpackPageImpl>(ctx->gpu_id, page->Cuts(), page->is_dense,
+                                                  page->row_stride, dmat->Info().num_row_);
+      }
       size_t num_elements = page_->Copy(ctx->gpu_id, page, offset);
       offset += num_elements;
     }
@@ -319,13 +321,12 @@ GradientBasedSample ExternalMemoryGradientBasedSampling::Sample(Context const* c
   return {sample_rows, page_.get(), dh::ToSpan(gpair_)};
 }
 
-GradientBasedSampler::GradientBasedSampler(Context const* ctx, EllpackPageImpl const* page,
+GradientBasedSampler::GradientBasedSampler(Context const* ctx, bool is_external_memory,
                                            size_t n_rows, const BatchParam& batch_param,
                                            float subsample, int sampling_method) {
   monitor_.Init("gradient_based_sampler");
 
   bool is_sampling = subsample < 1.0;
-  bool is_external_memory = page->n_rows != n_rows;
 
   if (is_sampling) {
     switch (sampling_method) {
@@ -338,17 +339,17 @@ GradientBasedSampler::GradientBasedSampler(Context const* ctx, EllpackPageImpl c
         break;
       case TrainParam::kGradientBased:
         if (is_external_memory) {
-          strategy_.reset(
-              new ExternalMemoryGradientBasedSampling(n_rows, batch_param, subsample));
+          strategy_.reset(new ExternalMemoryGradientBasedSampling(n_rows, batch_param, subsample));
         } else {
           strategy_.reset(new GradientBasedSampling(n_rows, batch_param, subsample));
         }
         break;
-      default:LOG(FATAL) << "unknown sampling method";
+      default:
+        LOG(FATAL) << "unknown sampling method";
     }
   } else {
     if (is_external_memory) {
-      strategy_.reset(new ExternalMemoryNoSampling(ctx, page, n_rows, batch_param));
+      strategy_.reset(new ExternalMemoryNoSampling(batch_param));
     } else {
       strategy_.reset(new NoSampling(batch_param));
     }

@@ -205,32 +205,25 @@ struct GPUHistMakerDevice {
 
   std::unique_ptr<FeatureGroups> feature_groups;
 
-
-  GPUHistMakerDevice(Context const* ctx, EllpackPageImpl const* _page,
-                     common::Span<FeatureType const> _feature_types, bst_uint _n_rows,
+  GPUHistMakerDevice(Context const* ctx, bool is_external_memory,
+                     common::Span<FeatureType const> _feature_types, bst_row_t _n_rows,
                      TrainParam _param, uint32_t column_sampler_seed, uint32_t n_features,
                      BatchParam _batch_param)
       : evaluator_{_param, n_features, ctx->gpu_id},
         ctx_(ctx),
-        page(_page),
         feature_types{_feature_types},
         param(std::move(_param)),
         column_sampler(column_sampler_seed),
         interaction_constraints(param, n_features),
         batch_param(std::move(_batch_param)) {
-    sampler.reset(new GradientBasedSampler(ctx, page, _n_rows, batch_param, param.subsample,
-                                           param.sampling_method));
+    sampler.reset(new GradientBasedSampler(ctx, is_external_memory, _n_rows, batch_param,
+                                           param.subsample, param.sampling_method));
     if (!param.monotone_constraints.empty()) {
       // Copy assigning an empty vector causes an exception in MSVC debug builds
       monotone_constraints = param.monotone_constraints;
     }
 
-    // Init histogram
-    hist.Init(ctx_->gpu_id, page->Cuts().TotalBins());
     monitor.Init(std::string("GPUHistMakerDevice") + std::to_string(ctx_->gpu_id));
-    feature_groups.reset(new FeatureGroups(page->Cuts(), page->is_dense,
-                                           dh::MaxSharedMemoryOptin(ctx_->gpu_id),
-                                           sizeof(GradientSumT)));
   }
 
   ~GPUHistMakerDevice() {  // NOLINT
@@ -247,9 +240,6 @@ struct GPUHistMakerDevice {
                               param.colsample_bytree);
     dh::safe_cuda(cudaSetDevice(ctx_->gpu_id));
 
-    this->evaluator_.Reset(page->Cuts(), feature_types, dmat->Info().num_col_, param,
-                           ctx_->gpu_id);
-
     this->interaction_constraints.Reset();
 
     if (d_gpair.size() != dh_gpair->Size()) {
@@ -262,11 +252,22 @@ struct GPUHistMakerDevice {
     page = sample.page;
     gpair = sample.gpair;
 
+    this->evaluator_.Reset(page->Cuts(), feature_types, dmat->Info().num_col_, param, ctx_->gpu_id);
+
     quantiser.reset(new GradientQuantiser(this->gpair));
 
     row_partitioner.reset();  // Release the device memory first before reallocating
     row_partitioner.reset(new RowPartitioner(ctx_->gpu_id,  sample.sample_rows));
+
+    // Init histogram
+    hist.Init(ctx_->gpu_id, page->Cuts().TotalBins());
     hist.Reset();
+
+    if (!feature_groups) {
+      feature_groups.reset(new FeatureGroups(page->Cuts(), page->is_dense,
+                                             dh::MaxSharedMemoryOptin(ctx_->gpu_id),
+                                             sizeof(GradientSumT)));
+    }
   }
 
   GPUExpandEntry EvaluateRootSplit(GradientPairInt64 root_sum) {
@@ -809,12 +810,11 @@ class GPUHistMaker : public TreeUpdater {
     collective::Broadcast(&column_sampling_seed, sizeof(column_sampling_seed), 0);
 
     auto batch_param = BatchParam{param->max_bin, TrainParam::DftSparseThreshold()};
-    auto page = (*dmat->GetBatches<EllpackPage>(ctx_, batch_param).begin()).Impl();
     dh::safe_cuda(cudaSetDevice(ctx_->gpu_id));
     info_->feature_types.SetDevice(ctx_->gpu_id);
     maker.reset(new GPUHistMakerDevice<GradientSumT>(
-        ctx_, page, info_->feature_types.ConstDeviceSpan(), info_->num_row_, *param,
-        column_sampling_seed, info_->num_col_, batch_param));
+        ctx_, !dmat->SingleColBlock(), info_->feature_types.ConstDeviceSpan(), info_->num_row_,
+        *param, column_sampling_seed, info_->num_col_, batch_param));
 
     p_last_fmat_ = dmat;
     initialised_ = true;

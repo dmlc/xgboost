@@ -43,14 +43,13 @@ class NoSampling : public SamplingStrategy {
 /*! \brief No sampling in external memory mode. */
 class ExternalMemoryNoSampling : public SamplingStrategy {
  public:
-  ExternalMemoryNoSampling(Context const* ctx, EllpackPageImpl const* page, size_t n_rows,
-                           BatchParam batch_param);
+  explicit ExternalMemoryNoSampling(BatchParam batch_param);
   GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair,
                              DMatrix* dmat) override;
 
  private:
   BatchParam batch_param_;
-  std::unique_ptr<EllpackPageImpl> page_;
+  std::unique_ptr<EllpackPageImpl> page_{nullptr};
   bool page_concatenated_{false};
 };
 
@@ -123,7 +122,7 @@ class ExternalMemoryGradientBasedSampling : public SamplingStrategy {
  */
 class GradientBasedSampler {
  public:
-  GradientBasedSampler(Context const* ctx, EllpackPageImpl const* page, size_t n_rows,
+  GradientBasedSampler(Context const* ctx, bool is_external_memory, size_t n_rows,
                        const BatchParam& batch_param, float subsample, int sampling_method);
 
   /*! \brief Sample from a DMatrix based on the given gradient pairs. */

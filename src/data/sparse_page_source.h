@@ -6,7 +6,7 @@
 #define XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_
 
 #include <algorithm>  // for min
-#include <future>
+#include <future>     // async
 #include <map>
 #include <memory>
 #include <string>
@@ -18,6 +18,7 @@
 #include "../common/io.h"  // for PrivateMmapStream, PadPageForMMAP
 #include "../common/timer.h"
 #include "adapter.h"
+#include "dmlc/common.h"  // OMPException
 #include "proxy_dmatrix.h"
 #include "sparse_page_writer.h"
 #include "xgboost/base.h"
@@ -102,6 +103,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
   // A ring storing futures to data.  Since the DMatrix iterator is forward only, so we
   // can pre-fetch data in a ring.
   std::unique_ptr<Ring> ring_{new Ring};
+  dmlc::OMPException exec_;
 
   bool ReadCache() {
     CHECK(!at_end_);
@@ -119,35 +121,41 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     CHECK_GT(n_prefetch_batches, 0) << "total batches:" << n_batches_;
     std::size_t fetch_it = count_;
 
+    exec_.Rethrow();
+
     for (std::size_t i = 0; i < n_prefetch_batches; ++i, ++fetch_it) {
       fetch_it %= n_batches_;  // ring
       if (ring_->at(fetch_it).valid()) {
         continue;
       }
-      auto const *self = this;  // make sure it's const
+      auto const* self = this;  // make sure it's const
       CHECK_LT(fetch_it, cache_info_->offset.size());
-      ring_->at(fetch_it) = std::async(std::launch::async, [fetch_it, self]() {
+      ring_->at(fetch_it) = std::async(std::launch::async, [fetch_it, self, this]() {
         auto page = std::make_shared<S>();
+        this->exec_.Run([&] {
+          common::Timer timer;
+          timer.Start();
+          std::unique_ptr<SparsePageFormat<S>> fmt{CreatePageFormat<S>("raw")};
+          auto n = self->cache_info_->ShardName();
 
-        common::Timer timer;
-        timer.Start();
-        std::unique_ptr<SparsePageFormat<S>> fmt{CreatePageFormat<S>("raw")};
-        auto n = self->cache_info_->ShardName();
+          std::uint64_t offset = self->cache_info_->offset.at(fetch_it);
+          std::uint64_t length = self->cache_info_->offset.at(fetch_it + 1) - offset;
 
-        std::uint64_t offset = self->cache_info_->offset.at(fetch_it);
-        std::uint64_t length = self->cache_info_->offset.at(fetch_it + 1) - offset;
-
-        auto fi = std::make_unique<common::PrivateMmapStream>(n, true, offset, length);
-        CHECK(fmt->Read(page.get(), fi.get()));
-        LOG(INFO) << "Read a page in " << timer.ElapsedSeconds() << " seconds.";
+          auto fi = std::make_unique<common::PrivateMmapStream>(n, true, offset, length);
+          CHECK(fmt->Read(page.get(), fi.get()));
+          LOG(INFO) << "Read a page in " << timer.ElapsedSeconds() << " seconds.";
+        });
         return page;
       });
     }
+
     CHECK_EQ(std::count_if(ring_->cbegin(), ring_->cend(), [](auto const& f) { return f.valid(); }),
              n_prefetch_batches)
         << "Sparse DMatrix assumes forward iteration.";
     page_ = (*ring_)[count_].get();
     CHECK(!(*ring_)[count_].valid());
+    exec_.Rethrow();
+
     return true;
   }
 
