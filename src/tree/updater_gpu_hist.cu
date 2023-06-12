@@ -176,7 +176,7 @@ struct GPUHistMakerDevice {
   Context const* ctx_;
 
  public:
-  EllpackPageImpl const* page;
+  EllpackPageImpl const* page{nullptr};
   common::Span<FeatureType const> feature_types;
   BatchParam batch_param;
 

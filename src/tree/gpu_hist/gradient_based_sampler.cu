@@ -175,8 +175,8 @@ GradientBasedSample ExternalMemoryNoSampling::Sample(Context const* ctx,
   return {dmat->Info().num_row_, page_.get(), gpair};
 }
 
-UniformSampling::UniformSampling(EllpackPageImpl const* page, float subsample)
-    : page_(page), subsample_(subsample) {}
+UniformSampling::UniformSampling(BatchParam batch_param, float subsample)
+    : batch_param_{std::move(batch_param)}, subsample_(subsample) {}
 
 GradientBasedSample UniformSampling::Sample(Context const* ctx, common::Span<GradientPair> gpair,
                                             DMatrix* dmat) {
@@ -185,7 +185,8 @@ GradientBasedSample UniformSampling::Sample(Context const* ctx, common::Span<Gra
   thrust::replace_if(cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair),
                      thrust::counting_iterator<std::size_t>(0),
                      BernoulliTrial(common::GlobalRandom()(), subsample_), GradientPair());
-  return {dmat->Info().num_row_, page_, gpair};
+  auto page = (*dmat->GetBatches<EllpackPage>(ctx, batch_param_).begin()).Impl();
+  return {dmat->Info().num_row_, page, gpair};
 }
 
 ExternalMemoryUniformSampling::ExternalMemoryUniformSampling(size_t n_rows,
@@ -331,7 +332,7 @@ GradientBasedSampler::GradientBasedSampler(Context const* ctx, EllpackPageImpl c
         if (is_external_memory) {
           strategy_.reset(new ExternalMemoryUniformSampling(n_rows, batch_param, subsample));
         } else {
-          strategy_.reset(new UniformSampling(page, subsample));
+          strategy_.reset(new UniformSampling(batch_param, subsample));
         }
         break;
       case TrainParam::kGradientBased:

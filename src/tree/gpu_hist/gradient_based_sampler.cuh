@@ -57,12 +57,12 @@ class ExternalMemoryNoSampling : public SamplingStrategy {
 /*! \brief Uniform sampling in in-memory mode. */
 class UniformSampling : public SamplingStrategy {
  public:
-  UniformSampling(EllpackPageImpl const* page, float subsample);
+  UniformSampling(BatchParam batch_param, float subsample);
   GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair,
                              DMatrix* dmat) override;
 
  private:
-  EllpackPageImpl const* page_;
+  BatchParam batch_param_;
   float subsample_;
 };
 
