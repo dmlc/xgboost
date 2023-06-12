@@ -93,6 +93,14 @@ def no_ipv6() -> PytestSkip:
     return {"condition": not has_ipv6(), "reason": "IPv6 is required to be enabled."}
 
 
+def no_unix() -> PytestSkip:
+    """PyTest skip mark for non-unix."""
+    return {
+        "condition": system() == "Windows",
+        "reason": "unix system is required to be enabled.",
+    }
+
+
 def no_ubjson() -> PytestSkip:
     return no_mod("ubjson")
 

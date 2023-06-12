@@ -103,6 +103,7 @@ def test_cross_validation_demo():
     subprocess.check_call(cmd)
 
 
+@pytest.mark.skipif(**tm.no_unix())
 def test_external_memory_demo():
     script = os.path.join(PYTHON_DEMO_DIR, 'external_memory.py')
     cmd = ['python', script]
