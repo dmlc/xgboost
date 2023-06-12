@@ -11,6 +11,7 @@
 #include <cerrno>  // for errno
 #include <cstdio>
 #include <fstream>
+#include <limits>  // for numeric_limits
 #include <memory>
 #include <string>
 #include <utility>
