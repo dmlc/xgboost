@@ -170,8 +170,7 @@ void* PrivateMmapStream::Open(StringView path, bool read_only, std::size_t offse
 #if defined(__linux__) || defined(__GLIBC__)
   ptr = reinterpret_cast<char*>(mmap64(nullptr, length, prot, MAP_PRIVATE, fd_, offset));
 #elif defined(_MSC_VER)
-  // fixme: not yet implemented
-  ptr = reinterpret_cast<char*>(mmap(nullptr, length, prot, MAP_PRIVATE, fd_, offset));
+  LOG(FATAL) << "External memory is not implemented for Windows.";
 #else
   CHECK_LE(offset, std::numeric_limits<off_t>::max())
       << "File size has exceeded the limit on the current system.";

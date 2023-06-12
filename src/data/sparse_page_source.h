@@ -5,8 +5,6 @@
 #ifndef XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_
 #define XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_
 
-#include <unistd.h>  // for getpagesize
-
 #include <algorithm>  // for min
 #include <future>
 #include <map>
@@ -34,6 +32,16 @@ inline void TryDeleteCacheFile(const std::string& file) {
   }
 }
 
+/**
+ * @brief Pad the output file for a page to make it mmap compatible.
+ *
+ * @param file_bytes The size of the output file
+ * @param fo         Stream used to write the file.
+ *
+ * @return The file size after being padded.
+ */
+std::size_t PadPageForMMAP(std::size_t file_bytes, dmlc::Stream* fo);
+
 struct Cache {
   // whether the write to the cache is complete
   bool written;
@@ -41,7 +49,6 @@ struct Cache {
   std::string format;
   // offset into binary cache file.
   std::vector<size_t> offset;
-  std::vector<std::uint64_t> bytes;
 
   Cache(bool w, std::string n, std::string fmt)
       : written{w}, name{std::move(n)}, format{std::move(fmt)} {
@@ -57,7 +64,6 @@ struct Cache {
     return ShardName(this->name, this->format);
   }
   void Push(std::size_t n_bytes) {
-    bytes.push_back(n_bytes);
     offset.push_back(n_bytes);
   }
 
@@ -139,7 +145,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
         auto n = self->cache_info_->ShardName();
 
         std::uint64_t offset = self->cache_info_->offset.at(fetch_it);
-        std::uint64_t length = self->cache_info_->bytes.at(fetch_it);
+        std::uint64_t length = self->cache_info_->offset.at(fetch_it + 1) - offset;
 
         auto fi = std::make_unique<common::PrivateMmapStream>(n, true, offset, length);
         CHECK(fmt->Read(page.get(), fi.get()));
@@ -151,6 +157,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
              n_prefetch_batches)
         << "Sparse DMatrix assumes forward iteration.";
     page_ = (*ring_)[count_].get();
+    CHECK(!(*ring_)[count_].valid());
     return true;
   }
 
@@ -169,18 +176,9 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     }
 
     auto bytes = fmt->Write(*page_, fo.get());
-
-    // align for mmap
-    decltype(bytes) page_size = getpagesize();
-    CHECK(page_size != 0 && page_size % 2 == 0) << "Failed to get page size on the current system.";
-    auto n = bytes / page_size;
-    auto padded = (n + 1) * page_size;
-    auto padding = padded - bytes;
-    std::vector<std::uint8_t> padding_bytes(padding, 0);
-    fo->Write(padding_bytes.data(), padding_bytes.size());
+    auto padded = PadPageForMMAP(bytes, fo.get());
 
     timer.Stop();
-
     LOG(INFO) << static_cast<double>(bytes) / 1024.0 / 1024.0 << " MB written in "
               << timer.ElapsedSeconds() << " seconds.";
     cache_info_->Push(padded);
@@ -280,6 +278,7 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
     }
 
     if (at_end_) {
+      CHECK_EQ(cache_info_->offset.size(), n_batches_ + 1);
       cache_info_->Commit();
       if (n_batches_ != 0) {
         CHECK_EQ(count_, n_batches_);

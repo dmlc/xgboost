@@ -75,21 +75,22 @@ class Iterator(xgboost.DataIter):
 
 def main(tmpdir: str) -> xgboost.Booster:
     # generate some random data for demo
-    files = make_batches(2 ** 16, 17, 31, tmpdir)
+    files = make_batches(1024, 17, 31, tmpdir)
     it = Iterator(files)
     # For non-data arguments, specify it here once instead of passing them by the `next`
     # method.
     missing = np.NaN
     Xy = xgboost.DMatrix(it, missing=missing, enable_categorical=False)
 
-    # Other tree methods including ``hist`` and ``gpu_hist`` also work, see tutorial in
-    # doc for details.
+    # Other tree methods including ``approx``, ``hist``, and ``gpu_hist`` are supported,
+    # see tutorial in doc for details.
     booster = xgboost.train(
-        {"tree_method": "gpu_hist", "max_depth": 6, "sampling_method": "gradient_based", "subsample": 0.5},
+        {"tree_method": "hist", "max_depth": 4},
         Xy,
         evals=[(Xy, "Train")],
-        num_boost_round=2,
+        num_boost_round=10,
     )
+    return booster
 
 
 if __name__ == "__main__":

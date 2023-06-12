@@ -10,8 +10,9 @@ not supported by ``exact`` tree method.
 
 .. warning::
 
-   The implementation of external memory uses ``mmap`` and is not tested against errors
-   like disconnected network devices. (`SIGBUS`)
+   The implementation of external memory uses ``mmap`` and is not tested against system
+   errors like disconnected network devices (`SIGBUS`). In addition, Windows is not yet
+   supported.
 
 .. note::
 
