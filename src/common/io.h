@@ -137,7 +137,7 @@ inline std::string ReadAll(std::string const &path) {
  *
  * @return The file size after being padded.
  */
-std::size_t PadPageForMMAP(std::size_t file_bytes, dmlc::Stream* fo);
+std::size_t PadPageForMmap(std::size_t file_bytes, dmlc::Stream* fo);
 
 /**
  * \brief Private mmap file, copy-on-write

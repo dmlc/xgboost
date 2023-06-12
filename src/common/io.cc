@@ -158,7 +158,7 @@ std::string FileExtension(std::string fname, bool lower) {
   }
 }
 
-std::size_t PadPageForMMAP(std::size_t file_bytes, dmlc::Stream* fo) {
+std::size_t PadPageForMmap(std::size_t file_bytes, dmlc::Stream* fo) {
   decltype(file_bytes) page_size = getpagesize();
   CHECK(page_size != 0 && page_size % 2 == 0) << "Failed to get page size on the current system.";
   CHECK_NE(file_bytes, 0) << "Empty page encountered.";

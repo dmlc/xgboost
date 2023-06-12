@@ -111,7 +111,7 @@ TEST(IO, PrivateMmapStream) {
       fo->Write(data.data(), data.size() * sizeof(T));
 
       std::size_t bytes = sizeof(std::uint64_t) + data.size() * sizeof(T);
-      auto padded = common::PadPageForMMAP(bytes, fo.get());
+      auto padded = common::PadPageForMmap(bytes, fo.get());
       offset.push_back(padded);
 
       batches.emplace_back(std::move(data));

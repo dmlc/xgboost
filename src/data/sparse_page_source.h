@@ -166,7 +166,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     }
 
     auto bytes = fmt->Write(*page_, fo.get());
-    auto padded = common::PadPageForMMAP(bytes, fo.get());
+    auto padded = common::PadPageForMmap(bytes, fo.get());
 
     timer.Stop();
     LOG(INFO) << static_cast<double>(bytes) / 1024.0 / 1024.0 << " MB written in "
