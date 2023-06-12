@@ -236,12 +236,10 @@ GradientBasedSample ExternalMemoryUniformSampling::Sample(Context const* ctx,
   return {sample_rows, page_.get(), dh::ToSpan(gpair_)};
 }
 
-GradientBasedSampling::GradientBasedSampling(EllpackPageImpl const* page,
-                                             size_t n_rows,
-                                             const BatchParam&,
+GradientBasedSampling::GradientBasedSampling(std::size_t n_rows, BatchParam batch_param,
                                              float subsample)
-    : page_(page),
-      subsample_(subsample),
+    : subsample_(subsample),
+      batch_param_{std::move(batch_param)},
       threshold_(n_rows + 1, 0.0f),
       grad_sum_(n_rows, 0.0f) {}
 
@@ -252,12 +250,14 @@ GradientBasedSample GradientBasedSampling::Sample(Context const* ctx,
   size_t threshold_index = GradientBasedSampler::CalculateThresholdIndex(
       gpair, dh::ToSpan(threshold_), dh::ToSpan(grad_sum_), n_rows * subsample_);
 
+  auto page = (*dmat->GetBatches<EllpackPage>(ctx, batch_param_).begin()).Impl();
+
   // Perform Poisson sampling in place.
   thrust::transform(cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair),
                     thrust::counting_iterator<size_t>(0), dh::tbegin(gpair),
                     PoissonSampling(dh::ToSpan(threshold_), threshold_index,
                                     RandomWeight(common::GlobalRandom()())));
-  return {n_rows, page_, gpair};
+  return {n_rows, page, gpair};
 }
 
 ExternalMemoryGradientBasedSampling::ExternalMemoryGradientBasedSampling(
@@ -339,7 +339,7 @@ GradientBasedSampler::GradientBasedSampler(Context const* ctx, EllpackPageImpl c
           strategy_.reset(
               new ExternalMemoryGradientBasedSampling(n_rows, batch_param, subsample));
         } else {
-          strategy_.reset(new GradientBasedSampling(page, n_rows, batch_param, subsample));
+          strategy_.reset(new GradientBasedSampling(n_rows, batch_param, subsample));
         }
         break;
       default:LOG(FATAL) << "unknown sampling method";
