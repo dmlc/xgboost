@@ -264,10 +264,9 @@ GradientBasedSample GradientBasedSampling::Sample(Context const* ctx,
   return {n_rows, page, gpair};
 }
 
-ExternalMemoryGradientBasedSampling::ExternalMemoryGradientBasedSampling(
-    size_t n_rows,
-    BatchParam batch_param,
-    float subsample)
+ExternalMemoryGradientBasedSampling::ExternalMemoryGradientBasedSampling(size_t n_rows,
+                                                                         BatchParam batch_param,
+                                                                         float subsample)
     : batch_param_(std::move(batch_param)),
       subsample_(subsample),
       threshold_(n_rows + 1, 0.0f),
@@ -277,16 +276,15 @@ ExternalMemoryGradientBasedSampling::ExternalMemoryGradientBasedSampling(
 GradientBasedSample ExternalMemoryGradientBasedSampling::Sample(Context const* ctx,
                                                                 common::Span<GradientPair> gpair,
                                                                 DMatrix* dmat) {
-  size_t n_rows = dmat->Info().num_row_;
+  auto cuctx = ctx->CUDACtx();
+  bst_row_t n_rows = dmat->Info().num_row_;
   size_t threshold_index = GradientBasedSampler::CalculateThresholdIndex(
       gpair, dh::ToSpan(threshold_), dh::ToSpan(grad_sum_), n_rows * subsample_);
 
   // Perform Poisson sampling in place.
-  thrust::transform(dh::tbegin(gpair), dh::tend(gpair),
-                    thrust::counting_iterator<size_t>(0),
-                    dh::tbegin(gpair),
-                    PoissonSampling(dh::ToSpan(threshold_),
-                                    threshold_index,
+  thrust::transform(cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair),
+                    thrust::counting_iterator<size_t>(0), dh::tbegin(gpair),
+                    PoissonSampling(dh::ToSpan(threshold_), threshold_index,
                                     RandomWeight(common::GlobalRandom()())));
 
   // Count the sampled rows.
@@ -294,16 +292,15 @@ GradientBasedSample ExternalMemoryGradientBasedSampling::Sample(Context const* c
 
   // Compact gradient pairs.
   gpair_.resize(sample_rows);
-  thrust::copy_if(dh::tbegin(gpair), dh::tend(gpair), gpair_.begin(), IsNonZero());
+  thrust::copy_if(cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair), gpair_.begin(), IsNonZero());
 
   // Index the sample rows.
-  thrust::transform(dh::tbegin(gpair), dh::tend(gpair), sample_row_index_.begin(), IsNonZero());
-  thrust::exclusive_scan(sample_row_index_.begin(), sample_row_index_.end(),
-    sample_row_index_.begin());
-  thrust::transform(dh::tbegin(gpair), dh::tend(gpair),
-                    sample_row_index_.begin(),
-                    sample_row_index_.begin(),
-                    ClearEmptyRows());
+  thrust::transform(cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair), sample_row_index_.begin(),
+                    IsNonZero());
+  thrust::exclusive_scan(cuctx->CTP(), sample_row_index_.begin(), sample_row_index_.end(),
+                         sample_row_index_.begin());
+  thrust::transform(cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair), sample_row_index_.begin(),
+                    sample_row_index_.begin(), ClearEmptyRows());
 
   auto batch_iterator = dmat->GetBatches<EllpackPage>(ctx, batch_param_);
   auto first_page = (*batch_iterator.begin()).Impl();
@@ -365,11 +362,11 @@ GradientBasedSample GradientBasedSampler::Sample(Context const* ctx,
   return sample;
 }
 
-size_t GradientBasedSampler::CalculateThresholdIndex(
-    common::Span<GradientPair> gpair, common::Span<float> threshold,
-    common::Span<float> grad_sum, size_t sample_rows) {
-  thrust::fill(dh::tend(threshold) - 1, dh::tend(threshold),
-               std::numeric_limits<float>::max());
+size_t GradientBasedSampler::CalculateThresholdIndex(common::Span<GradientPair> gpair,
+                                                     common::Span<float> threshold,
+                                                     common::Span<float> grad_sum,
+                                                     size_t sample_rows) {
+  thrust::fill(dh::tend(threshold) - 1, dh::tend(threshold), std::numeric_limits<float>::max());
   thrust::transform(dh::tbegin(gpair), dh::tend(gpair), dh::tbegin(threshold),
                     CombineGradientPair());
   thrust::sort(dh::tbegin(threshold), dh::tend(threshold) - 1);
@@ -382,6 +379,5 @@ size_t GradientBasedSampler::CalculateThresholdIndex(
       thrust::min_element(dh::tbegin(grad_sum), dh::tend(grad_sum));
   return thrust::distance(dh::tbegin(grad_sum), min) + 1;
 }
-
 };  // namespace tree
 };  // namespace xgboost

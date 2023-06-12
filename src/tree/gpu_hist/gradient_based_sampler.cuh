@@ -104,11 +104,11 @@ class ExternalMemoryGradientBasedSampling : public SamplingStrategy {
  private:
   BatchParam batch_param_;
   float subsample_;
-  dh::caching_device_vector<float> threshold_;
-  dh::caching_device_vector<float> grad_sum_;
+  dh::device_vector<float> threshold_;
+  dh::device_vector<float> grad_sum_;
   std::unique_ptr<EllpackPageImpl> page_;
   dh::device_vector<GradientPair> gpair_;
-  dh::caching_device_vector<size_t> sample_row_index_;
+  dh::device_vector<size_t> sample_row_index_;
 };
 
 /*! \brief Draw a sample of rows from a DMatrix.
