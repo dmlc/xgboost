@@ -15,6 +15,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>  // for vector
 
 #include "io.h"
 #include "xgboost/logging.h"
