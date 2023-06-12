@@ -8,6 +8,7 @@
 #include <string>  // for string
 
 #include "../../../src/collective/nccl_device_communicator.cuh"
+#include "../../../src/collective/communicator-inl.cuh"
 
 namespace xgboost {
 namespace collective {

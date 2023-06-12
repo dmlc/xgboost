@@ -36,7 +36,7 @@ TEST_F(FederatedAdapterTest, DeviceAllReduceSum) {
       int count = 3;
       thrust::device_vector<double> buffer(count, 0);
       thrust::sequence(buffer.begin(), buffer.end());
-      adapter.AllReduceSum(buffer.data().get(), count);
+      adapter.AllReduce(buffer.data().get(), count, DataType::kDouble, Operation::kSum);
       thrust::host_vector<double> host_buffer = buffer;
       EXPECT_EQ(host_buffer.size(), count);
       for (auto i = 0; i < count; i++) {
