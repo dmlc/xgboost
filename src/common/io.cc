@@ -203,13 +203,6 @@ auto SystemErrorMsg() {
 }
 }  // anonymous namespace
 
-PrivateMmapStream::PrivateMmapStream(std::string path, bool read_only, std::size_t offset,
-                                     std::size_t length)
-    : MemoryFixSizeBuffer{} {
-  this->p_buffer_ = Open(std::move(path), read_only, offset, length);
-  this->buffer_size_ = length;
-}
-
 char* PrivateMmapStream::Open(std::string path, bool read_only, std::size_t offset,
                               std::size_t length) {
 #if defined(_MSC_VER)
@@ -255,6 +248,13 @@ char* PrivateMmapStream::Open(std::string path, bool read_only, std::size_t offs
   handle_.reset(new MMAPFile{fd, ptr, view_size, std::move(path)});
   ptr += (offset - view_start);
   return ptr;
+}
+
+PrivateMmapStream::PrivateMmapStream(std::string path, bool read_only, std::size_t offset,
+                                     std::size_t length)
+    : MemoryFixSizeBuffer{}, handle_{nullptr} {
+  this->p_buffer_ = Open(std::move(path), read_only, offset, length);
+  this->buffer_size_ = length;
 }
 
 PrivateMmapStream::~PrivateMmapStream() {

@@ -136,8 +136,7 @@ std::size_t GetPageSize();
  */
 class PrivateMmapStream : public MemoryFixSizeBuffer {
   struct MMAPFile;
-
-  std::unique_ptr<MMAPFile> handle_{nullptr};
+  std::unique_ptr<MMAPFile> handle_;
 
   char* Open(std::string path, bool read_only, std::size_t offset, std::size_t length);
 
