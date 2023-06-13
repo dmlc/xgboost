@@ -5,8 +5,11 @@
 #include <fcntl.h>     // for open, O_RDONLY
 #include <sys/mman.h>  // for mmap, mmap64, munmap
 #include <sys/stat.h>
-#include <unistd.h>  // for close
+#include <unistd.h>  // for close, getpagesize
+#elif defined(_MSC_VER)
+#include <windows.h>
 #endif               // defined(__unix__)
+
 #include <algorithm>
 #include <cerrno>  // for errno
 #include <cstdio>
@@ -171,33 +174,69 @@ std::size_t PadPageForMmap(std::size_t file_bytes, dmlc::Stream* fo) {
   return padded;
 }
 
-void* PrivateMmapStream::Open(StringView path, bool read_only, std::size_t offset,
-                              std::size_t length) {
-  fd_ = open(path.c_str(), O_RDONLY);
-  CHECK_GE(fd_, 0) << "Failed to open:" << path << ". " << strerror(errno);
+struct PrivateMmapStream::MMAPFile {
+#if defined(_MSC_VER)
+  HANDLE fd;
+#else
+  std::int32_t fd;
+#endif
+  std::string path;
+};
 
-  char* ptr{nullptr};
+PrivateMmapStream::PrivateMmapStream(std::string path, bool read_only, std::size_t offset,
+                                     std::size_t length)
+    : MemoryFixSizeBuffer{Open(std::move(path), read_only, offset, length), length} {}
+
+void* PrivateMmapStream::Open(std::string path, bool read_only, std::size_t offset,
+                              std::size_t length) {
+#if defined(_MSC_VER)
+  HANDLE fd = CreateFile(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+                         FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, nullptr);
+  CHECK_NE(fd, INVALID_HANDLE_VALUE) << "Failed to open:" << path;
+#else
+  auto fd = open(path.c_str(), O_RDONLY);
+#endif
+  CHECK_GE(fd, 0) << "Failed to open:" << path << ". " << strerror(errno);
+  handle_ = std::make_unique<MMAPFile>(fd, std::move(path));
+
+  void* ptr{nullptr};
+#if defined(__linux__) || defined(__GLIBC__)
   int prot{PROT_READ};
   if (!read_only) {
     prot |= PROT_WRITE;
   }
-#if defined(__linux__) || defined(__GLIBC__)
-  ptr = reinterpret_cast<char*>(mmap64(nullptr, length, prot, MAP_PRIVATE, fd_, offset));
+  ptr = reinterpret_cast<char*>(mmap64(nullptr, length, prot, MAP_PRIVATE, handle_->fd, offset));
+  CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << handle_->path << ". " << strerror(errno);
 #elif defined(_MSC_VER)
-  LOG(FATAL) << "External memory is not implemented for Windows.";
+  auto file_size = GetFileSize(handle_->fd, nullptr);
+  DWORD access = read_only ? PAGE_READONLY : PAGE_READWRITE;
+  auto map_file = CreateFileMapping(handle_->fd, nullptr, access, 0, file_size, nullptr);
+  access = read_only ? FILE_MAP_READ : FILE_MAP_ALL_ACCESS;
+  ptr = MapViewOfFile(map_file, access, 0, offset, length);
+  CHECK_NE(ptr, nullptr) << "Failed to map: " << handle_->path << ". " << GetLastError();
 #else
   CHECK_LE(offset, std::numeric_limits<off_t>::max())
       << "File size has exceeded the limit on the current system.";
+  int prot{PROT_READ};
+  if (!read_only) {
+    prot |= PROT_WRITE;
+  }
   ptr = reinterpret_cast<char*>(mmap(nullptr, length, prot, MAP_PRIVATE, fd_, offset));
+  CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << handle_->path << ". " << strerror(errno);
 #endif  // defined(__linux__)
-  CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << path << ". " << strerror(errno);
   return ptr;
 }
 
 PrivateMmapStream::~PrivateMmapStream() {
+  CHECK(handle_);
+#if defined(_MSC_VER)
+  CHECK(UnmapViewOfFile(p_buffer_)) "Faled to munmap." << handle_->path << ". " << GetLastError();
+  CloseHandle(handle_->fd);
+#else
   CHECK_NE(munmap(p_buffer_, buffer_size_), -1)
-      << "Faled to munmap." << path_ << ". " << strerror(errno);
-  CHECK_NE(close(fd_), -1) << "Faled to close: " << path_ << ". " << strerror(errno);
+      << "Faled to munmap." << handle_->path << ". " << strerror(errno);
+  CHECK_NE(close(fd_), -1) << "Faled to close: " << handle_->path << ". " << strerror(errno);
+#endif
 }
 }  // namespace common
 }  // namespace xgboost
