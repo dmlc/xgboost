@@ -15,8 +15,8 @@
 #include <vector>
 
 #include "../common/common.h"
-#include "../common/io.h"  // for PrivateMmapStream, PadPageForMMAP
-#include "../common/timer.h"
+#include "../common/io.h"     // for PrivateMmapStream, PadPageForMMAP
+#include "../common/timer.h"  // for Monitor, Timer
 #include "adapter.h"
 #include "dmlc/common.h"  // OMPException
 #include "proxy_dmatrix.h"
@@ -104,6 +104,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
   // can pre-fetch data in a ring.
   std::unique_ptr<Ring> ring_{new Ring};
   dmlc::OMPException exec_;
+  common::Monitor monitor_;
 
   bool ReadCache() {
     CHECK(!at_end_);
@@ -123,6 +124,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
 
     exec_.Rethrow();
 
+    monitor_.Start("launch");
     for (std::size_t i = 0; i < n_prefetch_batches; ++i, ++fetch_it) {
       fetch_it %= n_batches_;  // ring
       if (ring_->at(fetch_it).valid()) {
@@ -148,11 +150,14 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
         return page;
       });
     }
+    monitor_.Stop("launch");
 
     CHECK_EQ(std::count_if(ring_->cbegin(), ring_->cend(), [](auto const& f) { return f.valid(); }),
              n_prefetch_batches)
         << "Sparse DMatrix assumes forward iteration.";
+    monitor_.Start("Wait");
     page_ = (*ring_)[count_].get();
+    monitor_.Stop("Wait");
     CHECK(!(*ring_)[count_].valid());
     exec_.Rethrow();
 
@@ -184,10 +189,15 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
   virtual void Fetch() = 0;
 
  public:
-  SparsePageSourceImpl(float missing, int nthreads, bst_feature_t n_features,
-                       uint32_t n_batches, std::shared_ptr<Cache> cache)
-      : missing_{missing}, nthreads_{nthreads}, n_features_{n_features},
-        n_batches_{n_batches}, cache_info_{std::move(cache)} {}
+  SparsePageSourceImpl(float missing, int nthreads, bst_feature_t n_features, uint32_t n_batches,
+                       std::shared_ptr<Cache> cache)
+      : missing_{missing},
+        nthreads_{nthreads},
+        n_features_{n_features},
+        n_batches_{n_batches},
+        cache_info_{std::move(cache)} {
+    monitor_.Init(typeid(S).name());  // not pretty, but works for basic profiling
+  }
 
   SparsePageSourceImpl(SparsePageSourceImpl const &that) = delete;
 
