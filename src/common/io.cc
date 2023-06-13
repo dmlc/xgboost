@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <unistd.h>  // for close, getpagesize
 #elif defined(_MSC_VER)
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #endif               // defined(__unix__)
 
@@ -26,6 +27,7 @@
 
 #include "io.h"
 #include "xgboost/logging.h"
+#include "xgboost/collective/socket.h"
 
 namespace xgboost {
 namespace common {
@@ -170,7 +172,8 @@ std::size_t GetPageSize() {
 #if defined(_MSC_VER)
   SYSTEM_INFO sys_info;
   GetSystemInfo(&sys_info);
-  return sys_info.dwPageSize;
+  // During testing, `sys_info.dwPageSize` is of size 4096 while `dwAllocationGranularity` is of size 65536.
+  return sys_info.dwAllocationGranularity;
 #else
   return getpagesize();
 #endif
@@ -190,18 +193,21 @@ std::size_t PadPageForMmap(std::size_t file_bytes, dmlc::Stream* fo) {
 
 struct PrivateMmapStream::MMAPFile {
 #if defined(_MSC_VER)
-  HANDLE fd;
+  HANDLE fd{ INVALID_HANDLE_VALUE };
 #else
-  std::int32_t fd;
+  std::int32_t fd {0};
 #endif
   std::string path;
 };
 
 PrivateMmapStream::PrivateMmapStream(std::string path, bool read_only, std::size_t offset,
                                      std::size_t length)
-    : MemoryFixSizeBuffer{Open(std::move(path), read_only, offset, length), length} {}
+    : MemoryFixSizeBuffer{} {
+  this->p_buffer_ = Open(std::move(path), read_only, offset, length);
+  this->buffer_size_ = length;
+}
 
-void* PrivateMmapStream::Open(std::string path, bool read_only, std::size_t offset,
+char* PrivateMmapStream::Open(std::string path, bool read_only, std::size_t offset,
                               std::size_t length) {
 #if defined(_MSC_VER)
   HANDLE fd = CreateFile(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
@@ -211,7 +217,8 @@ void* PrivateMmapStream::Open(std::string path, bool read_only, std::size_t offs
   auto fd = open(path.c_str(), O_RDONLY);
   CHECK_GE(fd, 0) << "Failed to open:" << path << ". " << strerror(errno);
 #endif
-  handle_.reset(new MMAPFile{fd, std::move(path)});
+  handle_ = nullptr;
+  handle_.reset(new MMAPFile{fd, path});
 
   void* ptr{nullptr};
 #if defined(__linux__) || defined(__GLIBC__)
@@ -228,8 +235,12 @@ void* PrivateMmapStream::Open(std::string path, bool read_only, std::size_t offs
   access = read_only ? FILE_MAP_READ : FILE_MAP_ALL_ACCESS;
   std::uint32_t loff = static_cast<std::uint32_t>(offset);
   std::uint32_t hoff = offset >> 32;
+  CHECK(map_file) << "Failed to map: " << handle_->path << ". " << GetLastError();;
   ptr = MapViewOfFile(map_file, access, hoff, loff, length);
-  CHECK_NE(ptr, nullptr) << "Failed to map: " << handle_->path << ". " << GetLastError();
+  if (ptr == nullptr) {
+    system::ThrowAtError("MapViewOfFile");
+  }
+  CHECK_NE(ptr, nullptr) << "Failed to map: " << handle_->path << ". " << GetLastError() ;
 #else
   CHECK_LE(offset, std::numeric_limits<off_t>::max())
       << "File size has exceeded the limit on the current system.";
@@ -240,18 +251,22 @@ void* PrivateMmapStream::Open(std::string path, bool read_only, std::size_t offs
   ptr = reinterpret_cast<char*>(mmap(nullptr, length, prot, MAP_PRIVATE, fd_, offset));
   CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << handle_->path << ". " << strerror(errno);
 #endif  // defined(__linux__)
-  return ptr;
+  return reinterpret_cast<char*>(ptr);
 }
 
 PrivateMmapStream::~PrivateMmapStream() {
   CHECK(handle_);
 #if defined(_MSC_VER)
-  CHECK(UnmapViewOfFile(p_buffer_)) "Faled to munmap." << handle_->path << ". " << GetLastError();
-  CloseHandle(handle_->fd);
+  if (p_buffer_) {
+    CHECK(UnmapViewOfFile(p_buffer_)) "Faled to munmap." << GetLastError();
+  }
+  if (handle_->fd != INVALID_HANDLE_VALUE) {
+    CHECK(CloseHandle(handle_->fd));
+  }
 #else
   CHECK_NE(munmap(p_buffer_, buffer_size_), -1)
       << "Faled to munmap." << handle_->path << ". " << strerror(errno);
-  CHECK_NE(close(fd_), -1) << "Faled to close: " << handle_->path << ". " << strerror(errno);
+  CHECK_NE(close(handle_->fd), -1) << "Faled to close: " << handle_->path << ". " << strerror(errno);
 #endif
 }
 }  // namespace common

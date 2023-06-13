@@ -146,9 +146,9 @@ std::size_t PadPageForMmap(std::size_t file_bytes, dmlc::Stream* fo);
 class PrivateMmapStream : public MemoryFixSizeBuffer {
   struct MMAPFile;
 
-  std::unique_ptr<MMAPFile> handle_;
+  std::unique_ptr<MMAPFile> handle_{nullptr};
 
-  void* Open(std::string path, bool read_only, std::size_t offset, std::size_t length);
+  char* Open(std::string path, bool read_only, std::size_t offset, std::size_t length);
 
  public:
   /**

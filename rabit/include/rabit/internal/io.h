@@ -6,6 +6,11 @@
  */
 #ifndef RABIT_INTERNAL_IO_H_
 #define RABIT_INTERNAL_IO_H_
+
+#if !defined(NOMINMAX) && defined(_WIN32)
+#define NOMINMAX
+#endif  // !defined(NOMINMAX)
+
 #include <cstdio>
 #include <vector>
 #include <cstring>
@@ -25,6 +30,9 @@ struct MemoryFixSizeBuffer : public SeekStream {
  public:
   // similar to SEEK_END in libc
   static size_t constexpr kSeekEnd = std::numeric_limits<size_t>::max();
+
+protected:
+  MemoryFixSizeBuffer() = default;
 
  public:
   MemoryFixSizeBuffer(void *p_buffer, size_t buffer_size)
@@ -62,11 +70,11 @@ struct MemoryFixSizeBuffer : public SeekStream {
 
  protected:
   /*! \brief in memory buffer */
-  char *p_buffer_;
+  char* p_buffer_{nullptr};
   /*! \brief current pointer */
-  size_t buffer_size_;
+  std::size_t buffer_size_{ 0 };
   /*! \brief current pointer */
-  size_t curr_ptr_;
+  std::size_t curr_ptr_{ 0 };
 };  // class MemoryFixSizeBuffer
 
 /*! \brief a in memory buffer that can be read and write as stream interface */
