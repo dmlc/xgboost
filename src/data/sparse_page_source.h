@@ -168,9 +168,9 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     auto name = cache_info_->ShardName();
     std::unique_ptr<dmlc::Stream> fo;
     if (this->Iter() == 0) {
-      fo.reset(dmlc::Stream::Create(name.c_str(), "w"));
+      fo.reset(dmlc::Stream::Create(name.c_str(), "wb"));
     } else {
-      fo.reset(dmlc::Stream::Create(name.c_str(), "a"));
+      fo.reset(dmlc::Stream::Create(name.c_str(), "ab"));
     }
 
     auto bytes = fmt->Write(*page_, fo.get());
