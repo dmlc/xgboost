@@ -174,12 +174,11 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     }
 
     auto bytes = fmt->Write(*page_, fo.get());
-    auto padded = common::PadPageForMmap(bytes, fo.get());
 
     timer.Stop();
     LOG(INFO) << static_cast<double>(bytes) / 1024.0 / 1024.0 << " MB written in "
               << timer.ElapsedSeconds() << " seconds.";
-    cache_info_->Push(padded);
+    cache_info_->Push(bytes);
   }
 
   virtual void Fetch() = 0;
