@@ -187,8 +187,8 @@ std::size_t PadPageForMmap(std::size_t file_bytes, dmlc::Stream* fo) {
   auto padded = n_pages * page_size;
   auto padding = padded - file_bytes;
   std::vector<std::uint8_t> padding_bytes(padding, 0);
-  fo->Write(padding_bytes.data(), padding_bytes.size());
-  return padded;
+  // fo->Write(padding_bytes.data(), padding_bytes.size());
+  return file_bytes;
 }
 
 struct PrivateMmapStream::MMAPFile {
@@ -197,6 +197,8 @@ struct PrivateMmapStream::MMAPFile {
 #else
   std::int32_t fd {0};
 #endif
+  char* base_ptr{ nullptr };
+  std::size_t base_size{0};
   std::string path;
 };
 
@@ -217,30 +219,31 @@ char* PrivateMmapStream::Open(std::string path, bool read_only, std::size_t offs
   auto fd = open(path.c_str(), O_RDONLY);
   CHECK_GE(fd, 0) << "Failed to open:" << path << ". " << strerror(errno);
 #endif
-  handle_ = nullptr;
-  handle_.reset(new MMAPFile{fd, path});
 
-  void* ptr{nullptr};
+  char* ptr{nullptr};
+  auto view_start = offset / GetPageSize() * GetPageSize();
+  auto view_size = length + (offset - view_start);
+  std::cout << view_start << " size: " << view_size << std::endl;
 #if defined(__linux__) || defined(__GLIBC__)
   int prot{PROT_READ};
   if (!read_only) {
     prot |= PROT_WRITE;
   }
-  ptr = reinterpret_cast<char*>(mmap64(nullptr, length, prot, MAP_PRIVATE, handle_->fd, offset));
-  CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << handle_->path << ". " << strerror(errno);
+  ptr = reinterpret_cast<char*>(mmap64(nullptr, view_size, prot, MAP_PRIVATE, fd, view_start));
+  CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << path << ". " << strerror(errno);
 #elif defined(_MSC_VER)
-  auto file_size = GetFileSize(handle_->fd, nullptr);
+  auto file_size = GetFileSize(fd, nullptr);
   DWORD access = read_only ? PAGE_READONLY : PAGE_READWRITE;
-  auto map_file = CreateFileMapping(handle_->fd, nullptr, access, 0, file_size, nullptr);
+  auto map_file = CreateFileMapping(fd, nullptr, access, 0, file_size, nullptr);
   access = read_only ? FILE_MAP_READ : FILE_MAP_ALL_ACCESS;
-  std::uint32_t loff = static_cast<std::uint32_t>(offset);
-  std::uint32_t hoff = offset >> 32;
-  CHECK(map_file) << "Failed to map: " << handle_->path << ". " << GetLastError();;
-  ptr = MapViewOfFile(map_file, access, hoff, loff, length);
+  std::uint32_t loff = static_cast<std::uint32_t>(view_start);
+  std::uint32_t hoff = view_start >> 32;
+  CHECK(map_file) << "Failed to map: " << path << ". " << GetLastError();
+  ptr = reinterpret_cast<char*>(MapViewOfFile(map_file, access, hoff, loff, view_size));
   if (ptr == nullptr) {
     system::ThrowAtError("MapViewOfFile");
   }
-  CHECK_NE(ptr, nullptr) << "Failed to map: " << handle_->path << ". " << GetLastError() ;
+  CHECK_NE(ptr, nullptr) << "Failed to map: " << path << ". " << GetLastError();
 #else
   CHECK_LE(offset, std::numeric_limits<off_t>::max())
       << "File size has exceeded the limit on the current system.";
@@ -248,23 +251,26 @@ char* PrivateMmapStream::Open(std::string path, bool read_only, std::size_t offs
   if (!read_only) {
     prot |= PROT_WRITE;
   }
-  ptr = reinterpret_cast<char*>(mmap(nullptr, length, prot, MAP_PRIVATE, fd_, offset));
-  CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << handle_->path << ". " << strerror(errno);
+  ptr = reinterpret_cast<char*>(mmap(nullptr, view_size, prot, MAP_PRIVATE, fd, view_start));
+  CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << path << ". " << strerror(errno);
 #endif  // defined(__linux__)
-  return reinterpret_cast<char*>(ptr);
+
+  handle_.reset(new MMAPFile{ fd, ptr, view_size, std::move(path) });
+  ptr += (offset - view_start);
+  return ptr;
 }
 
 PrivateMmapStream::~PrivateMmapStream() {
   CHECK(handle_);
 #if defined(_MSC_VER)
   if (p_buffer_) {
-    CHECK(UnmapViewOfFile(p_buffer_)) "Faled to munmap." << GetLastError();
+    CHECK(UnmapViewOfFile(handle_->base_ptr)) "Faled to munmap." << GetLastError();
   }
   if (handle_->fd != INVALID_HANDLE_VALUE) {
     CHECK(CloseHandle(handle_->fd));
   }
 #else
-  CHECK_NE(munmap(p_buffer_, buffer_size_), -1)
+  CHECK_NE(munmap(handle_->base_ptr, handle_->base_size), -1)
       << "Faled to munmap." << handle_->path << ". " << strerror(errno);
   CHECK_NE(close(handle_->fd), -1) << "Faled to close: " << handle_->path << ". " << strerror(errno);
 #endif
