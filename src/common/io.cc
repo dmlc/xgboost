@@ -5,29 +5,33 @@
 #define NOMINMAX
 #endif  // !defined(NOMINMAX)
 
-#if defined(__unix__) || defined(__APPLE__)
+#if defined(__unix__) || defined(__APPLE__) || defined(__MINGW32__)
 #include <fcntl.h>     // for open, O_RDONLY
 #include <sys/mman.h>  // for mmap, mmap64, munmap
-#include <sys/stat.h>
-#include <unistd.h>  // for close, getpagesize
+#include <unistd.h>    // for close, getpagesize
 #elif defined(_MSC_VER)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
-#endif               // defined(__unix__)
+#endif  // defined(__unix__)
 
-#include <algorithm>
-#include <cerrno>  // for errno
-#include <cstdio>
-#include <fstream>
-#include <limits>  // for numeric_limits
-#include <memory>
-#include <string>
-#include <utility>
-#include <vector>  // for vector
+#include <algorithm>     // for copy, transform
+#include <cctype>        // for tolower
+#include <cerrno>        // for errno
+#include <cstddef>       // for size_t
+#include <cstdint>       // for int32_t, uint32_t
+#include <cstring>       // for memcpy
+#include <fstream>       // for ifstream
+#include <iterator>      // for distance
+#include <limits>        // for numeric_limits
+#include <memory>        // for unique_ptr
+#include <string>        // for string
+#include <system_error>  // for error_code, system_category
+#include <utility>       // for move
+#include <vector>        // for vector
 
 #include "io.h"
+#include "xgboost/collective/socket.h"  // for LastError
 #include "xgboost/logging.h"
-#include "xgboost/collective/socket.h"
 
 namespace xgboost {
 namespace common {
@@ -191,6 +195,14 @@ struct PrivateMmapStream::MMAPFile {
   std::string path;
 };
 
+namespace {
+auto SystemErrorMsg() {
+  std::int32_t errsv = system::LastError();
+  auto err = std::error_code{errsv, std::system_category()};
+  return err;
+}
+}  // anonymous namespace
+
 PrivateMmapStream::PrivateMmapStream(std::string path, bool read_only, std::size_t offset,
                                      std::size_t length)
     : MemoryFixSizeBuffer{} {
@@ -206,7 +218,7 @@ char* PrivateMmapStream::Open(std::string path, bool read_only, std::size_t offs
   CHECK_NE(fd, INVALID_HANDLE_VALUE) << "Failed to open:" << path;
 #else
   auto fd = open(path.c_str(), O_RDONLY);
-  CHECK_GE(fd, 0) << "Failed to open:" << path << ". " << strerror(errno);
+  CHECK_GE(fd, 0) << "Failed to open:" << path << ". " << SystemErrorMsg();
 #endif
 
   char* ptr{nullptr};
@@ -218,7 +230,7 @@ char* PrivateMmapStream::Open(std::string path, bool read_only, std::size_t offs
     prot |= PROT_WRITE;
   }
   ptr = reinterpret_cast<char*>(mmap64(nullptr, view_size, prot, MAP_PRIVATE, fd, view_start));
-  CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << path << ". " << strerror(errno);
+  CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << path << ". " << SystemErrorMsg();
 #elif defined(_MSC_VER)
   auto file_size = GetFileSize(fd, nullptr);
   DWORD access = read_only ? PAGE_READONLY : PAGE_READWRITE;
@@ -228,10 +240,7 @@ char* PrivateMmapStream::Open(std::string path, bool read_only, std::size_t offs
   std::uint32_t hoff = view_start >> 32;
   CHECK(map_file) << "Failed to map: " << path << ". " << GetLastError();
   ptr = reinterpret_cast<char*>(MapViewOfFile(map_file, access, hoff, loff, view_size));
-  if (ptr == nullptr) {
-    system::ThrowAtError("MapViewOfFile");
-  }
-  CHECK_NE(ptr, nullptr) << "Failed to map: " << path << ". " << GetLastError();
+  CHECK_NE(ptr, nullptr) << "Failed to map: " << path << ". " << SystemErrorMsg();
 #else
   CHECK_LE(offset, std::numeric_limits<off_t>::max())
       << "File size has exceeded the limit on the current system.";
@@ -240,7 +249,7 @@ char* PrivateMmapStream::Open(std::string path, bool read_only, std::size_t offs
     prot |= PROT_WRITE;
   }
   ptr = reinterpret_cast<char*>(mmap(nullptr, view_size, prot, MAP_PRIVATE, fd, view_start));
-  CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << path << ". " << strerror(errno);
+  CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << path << ". " << SystemErrorMsg();
 #endif  // defined(__linux__)
 
   handle_.reset(new MMAPFile{fd, ptr, view_size, std::move(path)});
