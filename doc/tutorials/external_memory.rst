@@ -21,8 +21,7 @@ GPU-based training algorithm. We will introduce them in the following sections.
 .. note::
 
    The implementation of external memory uses ``mmap`` and is not tested against system
-   errors like disconnected network devices (`SIGBUS`). In addition, Windows is not yet
-   supported.
+   errors like disconnected network devices (`SIGBUS`).
 
 *************
 Data Iterator
