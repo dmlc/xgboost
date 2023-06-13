@@ -1,6 +1,10 @@
 /**
  * Copyright 2019-2023, by XGBoost Contributors
  */
+#if !defined(NOMINMAX) && defined(_WIN32)
+#define NOMINMAX
+#endif  // !defined(NOMINMAX)
+
 #if defined(__unix__) || defined(__APPLE__)
 #include <fcntl.h>     // for open, O_RDONLY
 #include <sys/mman.h>  // for mmap, mmap64, munmap
@@ -162,8 +166,18 @@ std::string FileExtension(std::string fname, bool lower) {
   }
 }
 
+std::size_t GetPageSize() {
+#if defined(_MSC_VER)
+  SYSTEM_INFO sys_info;
+  GetSystemInfo(&sys_info);
+  return sys_info.dwPageSize;
+#else
+  return getpagesize();
+#endif
+}
+
 std::size_t PadPageForMmap(std::size_t file_bytes, dmlc::Stream* fo) {
-  decltype(file_bytes) page_size = getpagesize();
+  decltype(file_bytes) page_size = GetPageSize();
   CHECK(page_size != 0 && page_size % 2 == 0) << "Failed to get page size on the current system.";
   CHECK_NE(file_bytes, 0) << "Empty page encountered.";
   auto n_pages = file_bytes / page_size + !!(file_bytes % page_size != 0);
@@ -195,9 +209,9 @@ void* PrivateMmapStream::Open(std::string path, bool read_only, std::size_t offs
   CHECK_NE(fd, INVALID_HANDLE_VALUE) << "Failed to open:" << path;
 #else
   auto fd = open(path.c_str(), O_RDONLY);
-#endif
   CHECK_GE(fd, 0) << "Failed to open:" << path << ". " << strerror(errno);
-  handle_ = std::make_unique<MMAPFile>(fd, std::move(path));
+#endif
+  handle_.reset(new MMAPFile{fd, std::move(path)});
 
   void* ptr{nullptr};
 #if defined(__linux__) || defined(__GLIBC__)
@@ -212,7 +226,9 @@ void* PrivateMmapStream::Open(std::string path, bool read_only, std::size_t offs
   DWORD access = read_only ? PAGE_READONLY : PAGE_READWRITE;
   auto map_file = CreateFileMapping(handle_->fd, nullptr, access, 0, file_size, nullptr);
   access = read_only ? FILE_MAP_READ : FILE_MAP_ALL_ACCESS;
-  ptr = MapViewOfFile(map_file, access, 0, offset, length);
+  std::uint32_t loff = static_cast<std::uint32_t>(offset);
+  std::uint32_t hoff = offset >> 32;
+  ptr = MapViewOfFile(map_file, access, hoff, loff, length);
   CHECK_NE(ptr, nullptr) << "Failed to map: " << handle_->path << ". " << GetLastError();
 #else
   CHECK_LE(offset, std::numeric_limits<off_t>::max())
