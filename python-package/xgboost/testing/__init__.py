@@ -198,14 +198,14 @@ class IteratorForTest(xgb.core.DataIter):
         X: Sequence,
         y: Sequence,
         w: Optional[Sequence],
-        cache: Optional[str] = "./",
+        cache: Optional[str],
     ) -> None:
         assert len(X) == len(y)
         self.X = X
         self.y = y
         self.w = w
         self.it = 0
-        super().__init__(cache)
+        super().__init__(cache_prefix=cache)
 
     def next(self, input_data: Callable) -> int:
         if self.it == len(self.X):
@@ -347,7 +347,9 @@ class TestDataset:
             if w is not None:
                 weight.append(w)
 
-        it = IteratorForTest(predictor, response, weight if weight else None)
+        it = IteratorForTest(
+            predictor, response, weight if weight else None, cache="cache"
+        )
         return xgb.DMatrix(it)
 
     def __repr__(self) -> str:
