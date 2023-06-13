@@ -10,11 +10,11 @@
 
 #include <dmlc/io.h>
 #include <rabit/rabit.h>
-#include <xgboost/string_view.h>
 
 #include <cstring>
 #include <fstream>
 #include <string>  // for string
+#include <utility> // for move
 
 #include "common.h"
 
@@ -129,14 +129,16 @@ inline std::string ReadAll(std::string const &path) {
   return content;
 }
 
+std::size_t GetPageSize();
 /**
  * \brief Private mmap file, copy-on-write
  */
 class PrivateMmapStream : public MemoryFixSizeBuffer {
-  std::int32_t fd_;
-  std::string path_;
+  struct MMAPFile;
 
-  void* Open(StringView path, bool read_only, std::size_t offset, std::size_t length);
+  std::unique_ptr<MMAPFile> handle_;
+
+  void* Open(std::string path, bool read_only, std::size_t offset, std::size_t length);
 
  public:
   /**
@@ -148,9 +150,7 @@ class PrivateMmapStream : public MemoryFixSizeBuffer {
    * @param length    See the `length` parameter of `mmap` for details.
    */
   explicit PrivateMmapStream(std::string path, bool read_only, std::size_t offset,
-                             std::size_t length)
-      : MemoryFixSizeBuffer{Open(StringView{path}, read_only, offset, length), length},
-        path_{path} {}
+                             std::size_t length);
 
   ~PrivateMmapStream() override;
 };
