@@ -13,8 +13,8 @@
 
 #include <cstring>
 #include <fstream>
+#include <memory>  // for unique_ptr
 #include <string>  // for string
-#include <utility> // for move
 
 #include "common.h"
 

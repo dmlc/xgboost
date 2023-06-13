@@ -5,11 +5,11 @@
 #define NOMINMAX
 #endif  // !defined(NOMINMAX)
 
-#if defined(__unix__) || defined(__APPLE__) || defined(__MINGW32__)
+#if defined(__unix__) || defined(__APPLE__)
 #include <fcntl.h>     // for open, O_RDONLY
 #include <sys/mman.h>  // for mmap, mmap64, munmap
 #include <unistd.h>    // for close, getpagesize
-#elif defined(_MSC_VER)
+#elif defined(_MSC_VER) || defined(__MINGW32__)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #endif  // defined(__unix__)
@@ -231,7 +231,7 @@ char* PrivateMmapStream::Open(std::string path, bool read_only, std::size_t offs
   access = read_only ? FILE_MAP_READ : FILE_MAP_ALL_ACCESS;
   std::uint32_t loff = static_cast<std::uint32_t>(view_start);
   std::uint32_t hoff = view_start >> 32;
-  CHECK(map_file) << "Failed to map: " << path << ". " << GetLastError();
+  CHECK(map_file) << "Failed to map: " << path << ". " << SystemErrorMsg();
   ptr = reinterpret_cast<char*>(MapViewOfFile(map_file, access, hoff, loff, view_size));
   CHECK_NE(ptr, nullptr) << "Failed to map: " << path << ". " << SystemErrorMsg();
 #else
@@ -261,16 +261,16 @@ PrivateMmapStream::~PrivateMmapStream() {
   CHECK(handle_);
 #if defined(_MSC_VER)
   if (p_buffer_) {
-    CHECK(UnmapViewOfFile(handle_->base_ptr)) "Faled to munmap." << GetLastError();
+    CHECK(UnmapViewOfFile(handle_->base_ptr)) "Faled to munmap. " << SystemErrorMsg();
   }
   if (handle_->fd != INVALID_HANDLE_VALUE) {
-    CHECK(CloseHandle(handle_->fd));
+    CHECK(CloseHandle(handle_->fd)) << "Failed to close handle. " << SystemErrorMsg();
   }
 #else
   CHECK_NE(munmap(handle_->base_ptr, handle_->base_size), -1)
-      << "Faled to munmap." << handle_->path << ". " << strerror(errno);
+      << "Faled to munmap." << handle_->path << ". " << SystemErrorMsg();
   CHECK_NE(close(handle_->fd), -1)
-      << "Faled to close: " << handle_->path << ". " << strerror(errno);
+      << "Faled to close: " << handle_->path << ". " << SystemErrorMsg();
 #endif
 }
 }  // namespace common
