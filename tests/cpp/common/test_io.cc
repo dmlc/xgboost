@@ -103,7 +103,7 @@ TEST(IO, PrivateMmapStream) {
   {
     std::unique_ptr<dmlc::Stream> fo{dmlc::Stream::Create(path.c_str(), "w")};
     for (std::size_t i = 0; i < n_batches; ++i) {
-      std::size_t size = (i + 1) * 2;
+      std::size_t size = (i + 1) * 8192;
       std::vector<T> data(size, 0);
       std::iota(data.begin(), data.end(), i * i);
 

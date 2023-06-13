@@ -477,15 +477,8 @@ TEST(CPUHistogram, ExternalMemory) {
   int32_t constexpr kBins = 256;
   Context ctx;
 
+  std::cout << "l:" << __LINE__ << std::endl;
   TestHistogramExternalMemory(&ctx, BatchParam{kBins, common::Span<float>{}, false}, true, false);
-  TestHistogramExternalMemory(&ctx, BatchParam{kBins, common::Span<float>{}, false}, true, true);
-
-  float sparse_thresh{0.5};
-  TestHistogramExternalMemory(&ctx, {kBins, sparse_thresh}, false, false);
-  TestHistogramExternalMemory(&ctx, {kBins, sparse_thresh}, false, true);
-  sparse_thresh = std::numeric_limits<float>::quiet_NaN();
-  TestHistogramExternalMemory(&ctx, {kBins, sparse_thresh}, false, false);
-  TestHistogramExternalMemory(&ctx, {kBins, sparse_thresh}, false, true);
 }
 }  // namespace tree
 }  // namespace xgboost

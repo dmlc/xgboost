@@ -212,7 +212,8 @@ char* PrivateMmapStream::Open(std::string path, bool read_only, std::size_t offs
   char* ptr{nullptr};
   auto view_start = offset / GetPageSize() * GetPageSize();
   auto view_size = length + (offset - view_start);
-  std::cout << view_start << " size: " << view_size << std::endl;
+  std::cout << "offset:" << offset << ", length:" << length << ", start:" << view_start << ", size:" << view_size << std::endl;
+  // std::cout << view_start << " size: " << view_size << std::endl;
 #if defined(__linux__) || defined(__GLIBC__)
   int prot{PROT_READ};
   if (!read_only) {
