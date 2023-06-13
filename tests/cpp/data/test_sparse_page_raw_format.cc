@@ -59,5 +59,40 @@ TEST(SparsePageRawFormat, CSCPage) {
 TEST(SparsePageRawFormat, SortedCSCPage) {
   TestSparsePageRawFormat<SortedCSCPage>();
 }
+
+TEST(Debug, WritePage) {
+  std::string path {"testfile"};
+  std::unique_ptr<SparsePageFormat<SparsePage>> fmt{CreatePageFormat<SparsePage>("raw")};
+  auto Xy = RandomDataGenerator{ 8192 * 8, 12, 0.0 }.GenerateDMatrix();
+  {
+    std::unique_ptr<dmlc::Stream> fo{dmlc::Stream::Create(path.c_str(), "w")};
+    for (auto const& page : Xy->GetBatches<SparsePage>()) {
+      std::cout << "back:" << page.offset.HostVector().back() << std::endl;
+      fmt->Write(page, fo.get());
+    }
+  }
+  {
+    std::unique_ptr<dmlc::Stream> fo{dmlc::Stream::Create(path.c_str(), "ab")};
+    for (auto const& page : Xy->GetBatches<SparsePage>()) {
+      std::cout << "back:" << page.offset.HostVector().back() << std::endl;
+      fmt->Write(page, fo.get());
+    }
+  }
+
+  {
+    std::unique_ptr<SparsePageFormat<SparsePage>> fmt{CreatePageFormat<SparsePage>("raw")};
+    std::unique_ptr<dmlc::SeekStream> fi{dmlc::SeekStream::CreateForRead(path.c_str())};
+    {
+      SparsePage page;
+      fmt->Read(&page, fi.get());
+      std::cout << "back:" << page.offset.HostVector().back() << std::endl;
+    }
+    {
+      SparsePage page;
+      fmt->Read(&page, fi.get());
+      std::cout << "back:" << page.offset.HostVector().back() << std::endl;
+    }
+  }
+}
 }  // namespace data
 }  // namespace xgboost

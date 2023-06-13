@@ -115,7 +115,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     }
     // An heuristic for number of pre-fetched batches.  We can make it part of BatchParam
     // to let user adjust number of pre-fetched batches when needed.
-    uint32_t constexpr kPreFetch = 1;
+    uint32_t constexpr kPreFetch = 4;
 
     size_t n_prefetch_batches = std::min(kPreFetch, n_batches_);
     CHECK_GT(n_prefetch_batches, 0) << "total batches:" << n_batches_;
@@ -132,7 +132,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
       CHECK_LT(fetch_it, cache_info_->offset.size());
       ring_->at(fetch_it) = std::async(std::launch::async, [fetch_it, self, this]() {
         auto page = std::make_shared<S>();
-//        this->exec_.Run([&] {
+        this->exec_.Run([&] {
           common::Timer timer;
           timer.Start();
           std::unique_ptr<SparsePageFormat<S>> fmt{CreatePageFormat<S>("raw")};
@@ -144,7 +144,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
           auto fi = std::make_unique<common::PrivateMmapStream>(n, true, offset, length);
           CHECK(fmt->Read(page.get(), fi.get()));
           LOG(INFO) << "Read a page in " << timer.ElapsedSeconds() << " seconds.";
- //       });
+        });
         return page;
       });
     }
@@ -174,7 +174,6 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     }
 
     auto bytes = fmt->Write(*page_, fo.get());
-    std::cout << "wrote: " << bytes << std::endl;
 
     timer.Stop();
     LOG(INFO) << static_cast<double>(bytes) / 1024.0 / 1024.0 << " MB written in "
