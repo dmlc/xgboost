@@ -94,7 +94,12 @@ TEST(IO, PrivateMmapStream) {
   dmlc::TemporaryDirectory tempdir;
   auto path = tempdir.path + "/testfile";
 
-  std::size_t n_batches{8};
+  // The page size on Linux is usually set to 4096, while the allocation granularity on
+  // the Windows machine where this test is writted is 65536. We span the test to cover
+  // all of them.
+  std::size_t n_batches{64};
+  std::size_t multiplier{2048};
+
   std::vector<std::vector<std::int32_t>> batches;
   std::vector<std::size_t> offset{0ul};
 
@@ -103,7 +108,7 @@ TEST(IO, PrivateMmapStream) {
   {
     std::unique_ptr<dmlc::Stream> fo{dmlc::Stream::Create(path.c_str(), "w")};
     for (std::size_t i = 0; i < n_batches; ++i) {
-      std::size_t size = (i + 1) * 8192;
+      std::size_t size = (i + 1) * multiplier;
       std::vector<T> data(size, 0);
       std::iota(data.begin(), data.end(), i * i);
 
