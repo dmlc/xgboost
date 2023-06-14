@@ -24,9 +24,9 @@ Documentation
 
 The online document is hosted by `Read the Docs <https://readthedocs.org/>`__ where the imported project is managed by `Hyunsu Cho <https://github.com/hcho3>`__ and `Jiaming Yuan <https://github.com/trivialfis>`__.
 
-===============================
-Build Docs on macOS using Conda
-===============================
+=========================================
+Build the Python Docs using pip and Conda
+=========================================
 
 #. Create a conda environment.
 
