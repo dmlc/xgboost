@@ -51,6 +51,7 @@ class NcclDeviceCommunicator : public DeviceCommunicator {
         << "device is not supported. " << PrintUUID(s_this_uuid) << "\n";
 
     nccl_unique_id_ = GetUniqueId();
+    dh::safe_cuda(cudaSetDevice(device_ordinal_));
     dh::safe_nccl(ncclCommInitRank(&nccl_comm_, world, nccl_unique_id_, rank));
     dh::safe_cuda(cudaStreamCreate(&cuda_stream_));
   }
@@ -79,9 +80,13 @@ class NcclDeviceCommunicator : public DeviceCommunicator {
     }
 
     dh::safe_cuda(cudaSetDevice(device_ordinal_));
-    dh::safe_nccl(ncclAllReduce(send_receive_buffer, send_receive_buffer, count,
-                                GetNcclDataType(data_type), GetNcclRedOp(op), nccl_comm_,
-                                cuda_stream_));
+    if (IsBitwiseOp(op)) {
+      BitwiseAllReduce(send_receive_buffer, count, data_type, op);
+    } else {
+      dh::safe_nccl(ncclAllReduce(send_receive_buffer, send_receive_buffer, count,
+                                  GetNcclDataType(data_type), GetNcclRedOp(op), nccl_comm_,
+                                  cuda_stream_));
+    }
     allreduce_bytes_ += count * GetTypeSize(data_type);
     allreduce_calls_ += 1;
   }
@@ -193,6 +198,11 @@ class NcclDeviceCommunicator : public DeviceCommunicator {
     return result;
   }
 
+  static bool IsBitwiseOp(Operation const &op) {
+    return op == Operation::kBitwiseAND || op == Operation::kBitwiseOR ||
+           op == Operation::kBitwiseXOR;
+  }
+
   static ncclRedOp_t GetNcclRedOp(Operation const &op) {
     ncclRedOp_t result;
     switch (op) {
@@ -205,14 +215,44 @@ class NcclDeviceCommunicator : public DeviceCommunicator {
       case Operation::kSum:
         result = ncclSum;
         break;
-      case Operation::kBitwiseAND:
-      case Operation::kBitwiseOR:
-      case Operation::kBitwiseXOR:
-        LOG(FATAL) << "Not implemented yet.";
       default:
-        LOG(FATAL) << "Unknown reduce operation.";
+        LOG(FATAL) << "Unsupported reduce operation.";
     }
     return result;
+  }
+
+  void BitwiseAllReduce(void *send_receive_buffer, std::size_t count, DataType data_type,
+                        Operation op) {
+    auto const world_size = communicator_->GetWorldSize();
+    auto const size = static_cast<int64_t>(count * GetTypeSize(data_type));
+    dh::caching_device_vector<char> buffer(size * world_size);
+    dh::safe_nccl(ncclAllGather(send_receive_buffer, buffer.data().get(), count,
+                                GetNcclDataType(data_type), nccl_comm_, cuda_stream_));
+    auto nosync_exec_policy = thrust::cuda::par_nosync.on(cuda_stream_);
+    for (auto rank = 1; rank < world_size; rank++) {
+      switch (op) {
+        case Operation::kBitwiseAND:
+          thrust::transform(nosync_exec_policy, buffer.cbegin() + (rank - 1) * size,
+                            buffer.cbegin() + rank * size, buffer.cbegin() + rank * size,
+                            buffer.begin() + rank * size, thrust::bit_and<char>());
+          break;
+        case Operation::kBitwiseOR:
+          thrust::transform(nosync_exec_policy, buffer.cbegin() + (rank - 1) * size,
+                            buffer.cbegin() + rank * size, buffer.cbegin() + rank * size,
+                            buffer.begin() + rank * size, thrust::bit_or<char>());
+          break;
+        case Operation::kBitwiseXOR:
+          thrust::transform(nosync_exec_policy, buffer.cbegin() + (rank - 1) * size,
+                            buffer.cbegin() + rank * size, buffer.cbegin() + rank * size,
+                            buffer.begin() + rank * size, thrust::bit_xor<char>());
+          break;
+        default:
+          LOG(FATAL) << "Not a bitwise reduce operation.";
+      }
+    }
+    dh::safe_cuda(cudaMemcpyAsync(send_receive_buffer,
+                                  buffer.data().get() + (world_size - 1) * size, size,
+                                  cudaMemcpyDefault, cuda_stream_));
   }
 
   int const device_ordinal_;
