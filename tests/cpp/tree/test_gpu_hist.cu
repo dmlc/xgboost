@@ -92,8 +92,8 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   auto page = BuildEllpackPage(kNRows, kNCols);
   BatchParam batch_param{};
   Context ctx{MakeCUDACtx(0)};
-  GPUHistMakerDevice<GradientSumT> maker(&ctx, page.get(), {}, kNRows, param, kNCols, kNCols,
-                                         batch_param);
+  GPUHistMakerDevice<GradientSumT> maker(&ctx, /*is_external_memory=*/false, {}, kNRows, param,
+                                         kNCols, kNCols, batch_param);
   xgboost::SimpleLCG gen;
   xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
   HostDeviceVector<GradientPair> gpair(kNRows);
@@ -106,9 +106,15 @@ void TestBuildHist(bool use_shared_memory_histograms) {
 
   thrust::host_vector<common::CompressedByteT> h_gidx_buffer (page->gidx_buffer.HostVector());
   maker.row_partitioner.reset(new RowPartitioner(0, kNRows));
+
+  maker.hist.Init(0, page->Cuts().TotalBins());
   maker.hist.AllocateHistograms({0});
+
   maker.gpair = gpair.DeviceSpan();
   maker.quantiser.reset(new GradientQuantiser(maker.gpair));
+  maker.page = page.get();
+
+  maker.InitFeatureGroupsOnce();
 
   BuildGradientHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(0),
                          maker.feature_groups->DeviceAccessor(0), gpair.DeviceSpan(),
@@ -126,8 +132,8 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   std::vector<GradientPairPrecise> solution = GetHostHistGpair();
   for (size_t i = 0; i < h_result.size(); ++i) {
     auto result = maker.quantiser->ToFloatingPoint(h_result[i]);
-    EXPECT_NEAR(result.GetGrad(), solution[i].GetGrad(), 0.01f);
-    EXPECT_NEAR(result.GetHess(), solution[i].GetHess(), 0.01f);
+    ASSERT_NEAR(result.GetGrad(), solution[i].GetGrad(), 0.01f);
+    ASSERT_NEAR(result.GetHess(), solution[i].GetHess(), 0.01f);
   }
 }
 

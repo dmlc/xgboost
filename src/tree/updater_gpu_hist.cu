@@ -230,9 +230,16 @@ struct GPUHistMakerDevice {
     dh::safe_cuda(cudaSetDevice(ctx_->gpu_id));
   }
 
+  void InitFeatureGroupsOnce() {
+    if (!feature_groups) {
+      CHECK(page);
+      feature_groups.reset(new FeatureGroups(page->Cuts(), page->is_dense,
+                                             dh::MaxSharedMemoryOptin(ctx_->gpu_id),
+                                             sizeof(GradientSumT)));
+    }
+  }
+
   // Reset values for each update iteration
-  // Note that the column sampler must be passed by value because it is not
-  // thread safe
   void Reset(HostDeviceVector<GradientPair>* dh_gpair, DMatrix* dmat, int64_t num_columns) {
     auto const& info = dmat->Info();
     this->column_sampler.Init(ctx_, num_columns, info.feature_weights.HostVector(),
@@ -245,9 +252,9 @@ struct GPUHistMakerDevice {
     if (d_gpair.size() != dh_gpair->Size()) {
       d_gpair.resize(dh_gpair->Size());
     }
-    dh::safe_cuda(cudaMemcpyAsync(
-        d_gpair.data().get(), dh_gpair->ConstDevicePointer(),
-        dh_gpair->Size() * sizeof(GradientPair), cudaMemcpyDeviceToDevice));
+    dh::safe_cuda(cudaMemcpyAsync(d_gpair.data().get(), dh_gpair->ConstDevicePointer(),
+                                  dh_gpair->Size() * sizeof(GradientPair),
+                                  cudaMemcpyDeviceToDevice));
     auto sample = sampler->Sample(ctx_, dh::ToSpan(d_gpair), dmat);
     page = sample.page;
     gpair = sample.gpair;
@@ -257,17 +264,13 @@ struct GPUHistMakerDevice {
     quantiser.reset(new GradientQuantiser(this->gpair));
 
     row_partitioner.reset();  // Release the device memory first before reallocating
-    row_partitioner.reset(new RowPartitioner(ctx_->gpu_id,  sample.sample_rows));
+    row_partitioner.reset(new RowPartitioner(ctx_->gpu_id, sample.sample_rows));
 
     // Init histogram
     hist.Init(ctx_->gpu_id, page->Cuts().TotalBins());
     hist.Reset();
 
-    if (!feature_groups) {
-      feature_groups.reset(new FeatureGroups(page->Cuts(), page->is_dense,
-                                             dh::MaxSharedMemoryOptin(ctx_->gpu_id),
-                                             sizeof(GradientSumT)));
-    }
+    this->InitFeatureGroupsOnce();
   }
 
   GPUExpandEntry EvaluateRootSplit(GradientPairInt64 root_sum) {
