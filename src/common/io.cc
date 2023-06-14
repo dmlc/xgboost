@@ -5,11 +5,19 @@
 #define NOMINMAX
 #endif  // !defined(NOMINMAX)
 
+#if !defined(xgboost_IS_WIN)
+
+#if defined(_MSC_VER) || defined(__MINGW32__)
+#define xgboost_IS_WIN 1
+#endif  // defined(_MSC_VER) || defined(__MINGW32__)
+
+#endif  // !defined(xgboost_IS_WIN)
+
 #if defined(__unix__) || defined(__APPLE__)
 #include <fcntl.h>     // for open, O_RDONLY
 #include <sys/mman.h>  // for mmap, mmap64, munmap
 #include <unistd.h>    // for close, getpagesize
-#elif defined(_MSC_VER) || defined(__MINGW32__)
+#elif defined(xgboost_IS_WIN)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #endif  // defined(__unix__)
@@ -173,7 +181,7 @@ std::string FileExtension(std::string fname, bool lower) {
 }
 
 std::size_t GetPageSize() {
-#if defined(_MSC_VER)
+#if defined(xgboost_IS_WIN)
   SYSTEM_INFO sys_info;
   GetSystemInfo(&sys_info);
   // During testing, `sys_info.dwPageSize` is of size 4096 while `dwAllocationGranularity` is of
@@ -185,8 +193,9 @@ std::size_t GetPageSize() {
 }
 
 struct PrivateMmapStream::MMAPFile {
-#if defined(_MSC_VER)
+#if defined(xgboost_IS_WIN)
   HANDLE fd{INVALID_HANDLE_VALUE};
+  HANDLE file_map{ INVALID_HANDLE_VALUE };
 #else
   std::int32_t fd{0};
 #endif
@@ -205,7 +214,7 @@ auto SystemErrorMsg() {
 
 char* PrivateMmapStream::Open(std::string path, bool read_only, std::size_t offset,
                               std::size_t length) {
-#if defined(_MSC_VER)
+#if defined(xgboost_IS_WIN)
   HANDLE fd = CreateFile(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
                          FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, nullptr);
   CHECK_NE(fd, INVALID_HANDLE_VALUE) << "Failed to open:" << path;
@@ -224,7 +233,8 @@ char* PrivateMmapStream::Open(std::string path, bool read_only, std::size_t offs
   }
   ptr = reinterpret_cast<char*>(mmap64(nullptr, view_size, prot, MAP_PRIVATE, fd, view_start));
   CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << path << ". " << SystemErrorMsg();
-#elif defined(_MSC_VER)
+  handle_.reset(new MMAPFile{ fd, ptr, view_size, std::move(path) });
+#elif defined(xgboost_IS_WIN)
   auto file_size = GetFileSize(fd, nullptr);
   DWORD access = read_only ? PAGE_READONLY : PAGE_READWRITE;
   auto map_file = CreateFileMapping(fd, nullptr, access, 0, file_size, nullptr);
@@ -234,6 +244,7 @@ char* PrivateMmapStream::Open(std::string path, bool read_only, std::size_t offs
   CHECK(map_file) << "Failed to map: " << path << ". " << SystemErrorMsg();
   ptr = reinterpret_cast<char*>(MapViewOfFile(map_file, access, hoff, loff, view_size));
   CHECK_NE(ptr, nullptr) << "Failed to map: " << path << ". " << SystemErrorMsg();
+  handle_.reset(new MMAPFile{ fd, map_file, ptr, view_size, std::move(path) });
 #else
   CHECK_LE(offset, std::numeric_limits<off_t>::max())
       << "File size has exceeded the limit on the current system.";
@@ -243,9 +254,9 @@ char* PrivateMmapStream::Open(std::string path, bool read_only, std::size_t offs
   }
   ptr = reinterpret_cast<char*>(mmap(nullptr, view_size, prot, MAP_PRIVATE, fd, view_start));
   CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << path << ". " << SystemErrorMsg();
+  handle_.reset(new MMAPFile{ fd, ptr, view_size, std::move(path) });
 #endif  // defined(__linux__)
 
-  handle_.reset(new MMAPFile{fd, ptr, view_size, std::move(path)});
   ptr += (offset - view_start);
   return ptr;
 }
@@ -259,19 +270,26 @@ PrivateMmapStream::PrivateMmapStream(std::string path, bool read_only, std::size
 
 PrivateMmapStream::~PrivateMmapStream() {
   CHECK(handle_);
-#if defined(_MSC_VER)
+#if defined(xgboost_IS_WIN)
   if (p_buffer_) {
-    CHECK(UnmapViewOfFile(handle_->base_ptr)) "Faled to munmap. " << SystemErrorMsg();
+    CHECK(UnmapViewOfFile(handle_->base_ptr)) "Faled to call munmap: " << SystemErrorMsg();
   }
   if (handle_->fd != INVALID_HANDLE_VALUE) {
-    CHECK(CloseHandle(handle_->fd)) << "Failed to close handle. " << SystemErrorMsg();
+    CHECK(CloseHandle(handle_->fd)) << "Failed to close handle: " << SystemErrorMsg();
+  }
+  if (handle_->file_map != INVALID_HANDLE_VALUE) {
+    CHECK(CloseHandle(handle_->file_map)) << "Failed to close mapping object: " << SystemErrorMsg();
   }
 #else
   CHECK_NE(munmap(handle_->base_ptr, handle_->base_size), -1)
-      << "Faled to munmap." << handle_->path << ". " << SystemErrorMsg();
+      << "Faled to call munmap: " << handle_->path << ". " << SystemErrorMsg();
   CHECK_NE(close(handle_->fd), -1)
       << "Faled to close: " << handle_->path << ". " << SystemErrorMsg();
 #endif
 }
 }  // namespace common
 }  // namespace xgboost
+
+#if defined(xgboost_IS_WIN)
+#undef xgboost_IS_WIN
+#endif  // defined(xgboost_IS_WIN)
