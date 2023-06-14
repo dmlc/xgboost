@@ -29,7 +29,7 @@ namespace data {
 inline void TryDeleteCacheFile(const std::string& file) {
   if (std::remove(file.c_str()) != 0) {
     LOG(WARNING) << "Couldn't remove external memory cache file " << file
-              << "; you may want to remove it manually";
+                 << "; you may want to remove it manually";
   }
 }
 
