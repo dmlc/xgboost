@@ -145,7 +145,10 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
 
           auto fi = std::make_unique<common::PrivateMmapStream>(n, true, offset, length);
           CHECK(fmt->Read(page.get(), fi.get()));
-          LOG(INFO) << "Read a page in " << timer.ElapsedSeconds() << " seconds.";
+          timer.Stop();
+
+          LOG(INFO) << "Read a page `" << typeid(S).name() << "` in " << timer.ElapsedSeconds()
+                    << " seconds.";
         });
         return page;
       });
