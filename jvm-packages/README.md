@@ -146,14 +146,16 @@ Spark assumes that the dataset is 1-based indexed. However, when you do predicti
 
 You can build/package xgboost4j locally with the following steps:
 
-**Linux:**
+### Linux
+
 1. Ensure [Docker for Linux](https://docs.docker.com/install/) is installed.
 2. Clone this repo: `git clone --recursive https://github.com/dmlc/xgboost.git`
 3. Run the following command:
   - With Tests: `./xgboost/jvm-packages/dev/build-linux.sh`
   - Skip Tests: `./xgboost/jvm-packages/dev/build-linux.sh --skip-tests`
 
-**Windows:**
+### Windows
+
 1. Ensure [Docker for Windows](https://docs.docker.com/docker-for-windows/install/) is installed.
 2. Clone this repo: `git clone --recursive https://github.com/dmlc/xgboost.git`
 3. Run the following command:
@@ -161,3 +163,50 @@ You can build/package xgboost4j locally with the following steps:
   - Skip Tests: `.\xgboost\jvm-packages\dev\build-linux.cmd --skip-tests`
 
 *Note: this will create jars for deployment on Linux machines.*
+
+### macOS
+
+1. Clone this repo
+
+    ```shell
+    git clone --recursive https://github.com/dmlc/xgboost.git
+    ```
+
+   **Note**
+   `--recursive` is crucial to ensure that the repo has access to all the files required for a local build.
+
+2. Switch to `jvm-packages` directory
+
+    ```shell
+    cd jvm-packages
+    ```
+
+3. Run the command
+  
+    ```shell
+    mvn --batch-mode clean package -DskipTests
+    ```
+    
+    Skip `-DskipTests` to execute tests.
+
+The whole process would then look as follows:
+
+```console
+$ git clone --recursive https://github.com/dmlc/xgboost.git
+Cloning into 'xgboost'
+...
+$ cd xgboost/jvm-packages
+$ mvn --batch-mode clean package -DskipTests
+...
+[INFO] ------------------------------------------------------------------------
+[INFO] Reactor Summary for XGBoost JVM Package 2.0.0-SNAPSHOT:
+[INFO]
+[INFO] XGBoost JVM Package ................................ SUCCESS [  3.107 s]
+[INFO] xgboost4j .......................................... SUCCESS [03:30 min]
+[INFO] xgboost4j-spark .................................... SUCCESS [ 45.192 s]
+[INFO] xgboost4j-flink .................................... SUCCESS [  3.770 s]
+[INFO] xgboost4j-example .................................. SUCCESS [ 22.957 s]
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+```
