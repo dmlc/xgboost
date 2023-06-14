@@ -122,8 +122,8 @@ class ExternalMemoryGradientBasedSampling : public SamplingStrategy {
  */
 class GradientBasedSampler {
  public:
-  GradientBasedSampler(Context const* ctx, bool is_external_memory, size_t n_rows,
-                       const BatchParam& batch_param, float subsample, int sampling_method);
+  GradientBasedSampler(Context const* ctx, size_t n_rows, const BatchParam& batch_param,
+                       float subsample, int sampling_method, bool is_external_memory);
 
   /*! \brief Sample from a DMatrix based on the given gradient pairs. */
   GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair, DMatrix* dmat);

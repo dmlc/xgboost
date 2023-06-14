@@ -318,9 +318,9 @@ GradientBasedSample ExternalMemoryGradientBasedSampling::Sample(Context const* c
   return {sample_rows, page_.get(), dh::ToSpan(gpair_)};
 }
 
-GradientBasedSampler::GradientBasedSampler(Context const* /*ctx*/, bool is_external_memory,
-                                           size_t n_rows, const BatchParam& batch_param,
-                                           float subsample, int sampling_method) {
+GradientBasedSampler::GradientBasedSampler(Context const* /*ctx*/, size_t n_rows,
+                                           const BatchParam& batch_param, float subsample,
+                                           int sampling_method, bool is_external_memory) {
   // The ctx is kept here for future development of stream-based operations.
   monitor_.Init("gradient_based_sampler");
 
