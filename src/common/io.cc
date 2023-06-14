@@ -180,7 +180,21 @@ std::string FileExtension(std::string fname, bool lower) {
   }
 }
 
-std::size_t GetPageSize() {
+struct PrivateMmapStream::MMAPFile {
+#if defined(xgboost_IS_WIN)
+  HANDLE fd{INVALID_HANDLE_VALUE};
+  HANDLE file_map{INVALID_HANDLE_VALUE};
+#else
+  std::int32_t fd{0};
+#endif
+  char* base_ptr{nullptr};
+  std::size_t base_size{0};
+  std::string path;
+};
+
+namespace {
+// Get system alignment value for IO with mmap.
+std::size_t GetMmapAlignment() {
 #if defined(xgboost_IS_WIN)
   SYSTEM_INFO sys_info;
   GetSystemInfo(&sys_info);
@@ -192,19 +206,6 @@ std::size_t GetPageSize() {
 #endif
 }
 
-struct PrivateMmapStream::MMAPFile {
-#if defined(xgboost_IS_WIN)
-  HANDLE fd{INVALID_HANDLE_VALUE};
-  HANDLE file_map{ INVALID_HANDLE_VALUE };
-#else
-  std::int32_t fd{0};
-#endif
-  char* base_ptr{nullptr};
-  std::size_t base_size{0};
-  std::string path;
-};
-
-namespace {
 auto SystemErrorMsg() {
   std::int32_t errsv = system::LastError();
   auto err = std::error_code{errsv, std::system_category()};
@@ -217,15 +218,17 @@ char* PrivateMmapStream::Open(std::string path, bool read_only, std::size_t offs
 #if defined(xgboost_IS_WIN)
   HANDLE fd = CreateFile(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
                          FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, nullptr);
-  CHECK_NE(fd, INVALID_HANDLE_VALUE) << "Failed to open:" << path;
+  CHECK_NE(fd, INVALID_HANDLE_VALUE) << "Failed to open:" << path << ". " << SystemErrorMsg();
 #else
   auto fd = open(path.c_str(), O_RDONLY);
   CHECK_GE(fd, 0) << "Failed to open:" << path << ". " << SystemErrorMsg();
 #endif
 
   char* ptr{nullptr};
-  auto view_start = offset / GetPageSize() * GetPageSize();
+  // Round down for alignment.
+  auto view_start = offset / GetMmapAlignment() * GetMmapAlignment();
   auto view_size = length + (offset - view_start);
+
 #if defined(__linux__) || defined(__GLIBC__)
   int prot{PROT_READ};
   if (!read_only) {
@@ -233,7 +236,7 @@ char* PrivateMmapStream::Open(std::string path, bool read_only, std::size_t offs
   }
   ptr = reinterpret_cast<char*>(mmap64(nullptr, view_size, prot, MAP_PRIVATE, fd, view_start));
   CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << path << ". " << SystemErrorMsg();
-  handle_.reset(new MMAPFile{ fd, ptr, view_size, std::move(path) });
+  handle_.reset(new MMAPFile{fd, ptr, view_size, std::move(path)});
 #elif defined(xgboost_IS_WIN)
   auto file_size = GetFileSize(fd, nullptr);
   DWORD access = read_only ? PAGE_READONLY : PAGE_READWRITE;
@@ -244,7 +247,7 @@ char* PrivateMmapStream::Open(std::string path, bool read_only, std::size_t offs
   CHECK(map_file) << "Failed to map: " << path << ". " << SystemErrorMsg();
   ptr = reinterpret_cast<char*>(MapViewOfFile(map_file, access, hoff, loff, view_size));
   CHECK_NE(ptr, nullptr) << "Failed to map: " << path << ". " << SystemErrorMsg();
-  handle_.reset(new MMAPFile{ fd, map_file, ptr, view_size, std::move(path) });
+  handle_.reset(new MMAPFile{fd, map_file, ptr, view_size, std::move(path)});
 #else
   CHECK_LE(offset, std::numeric_limits<off_t>::max())
       << "File size has exceeded the limit on the current system.";
@@ -254,7 +257,7 @@ char* PrivateMmapStream::Open(std::string path, bool read_only, std::size_t offs
   }
   ptr = reinterpret_cast<char*>(mmap(nullptr, view_size, prot, MAP_PRIVATE, fd, view_start));
   CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << path << ". " << SystemErrorMsg();
-  handle_.reset(new MMAPFile{ fd, ptr, view_size, std::move(path) });
+  handle_.reset(new MMAPFile{fd, ptr, view_size, std::move(path)});
 #endif  // defined(__linux__)
 
   ptr += (offset - view_start);

@@ -1,5 +1,5 @@
-/*!
- * Copyright 2019 by XGBoost Contributors
+/**
+ * Copyright 2019-2023, XGBoost Contributors
  */
 #pragma once
 #include <xgboost/base.h>

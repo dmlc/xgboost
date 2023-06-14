@@ -129,10 +129,11 @@ inline std::string ReadAll(std::string const &path) {
   return content;
 }
 
-std::size_t GetPageSize();
-
 /**
- * @brief Private mmap file, copy-on-write. File must be properly aligned by `PadPageForMmap()`.
+ * @brief Private mmap file, copy-on-write when running on Linux-based distributions.
+ *
+ *  It can calculate alignment automatically based on system page size (or allocation
+ *  granularity on Windows).
  */
 class PrivateMmapStream : public MemoryFixSizeBuffer {
   struct MMAPFile;

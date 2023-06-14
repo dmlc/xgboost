@@ -8,10 +8,10 @@ infeasible. Staring from 1.5, users can define a custom iterator to load data in
 for running XGBoost algorithms. External memory can be used for both training and
 prediction, but training is the primary use case and it will be our focus in this
 tutorial. For prediction and evaluation, users can iterate through the data themseleves
-while training requires the full dataset to be loaded to the memory.
+while training requires the full dataset to be loaded into the memory.
 
-During training, there are two different approaches for external memory support available
-in XGBoost, one for CPU-based algorithms like ``hist`` and ``approx``, another one for the
+During training, there are two different modes for external memory support available in
+XGBoost, one for CPU-based algorithms like ``hist`` and ``approx``, another one for the
 GPU-based training algorithm. We will introduce them in the following sections.
 
 .. note::
@@ -20,8 +20,7 @@ GPU-based training algorithm. We will introduce them in the following sections.
 
 .. note::
 
-   The implementation of external memory uses ``mmap`` and is not tested against system
-   errors like disconnected network devices (`SIGBUS`).
+   The feature is still experimental as of 2.0. The performance is not well optimized.
 
 *************
 Data Iterator
@@ -78,7 +77,7 @@ constructor.
   booster = xgboost.train({"tree_method": "hist"}, Xy)
 
 
-The above snippet is a simplified version of ``demo/guide-python/external_memory.py``.
+The above snippet is a simplified version of :ref:`sphx_glr_python_examples_external_memory.py`.
 For an example in C, please see ``demo/c-api/external-memory/``. The iterator is the
 common interface for using external memory with XGBoost, you can pass the resulting
 ``DMatrix`` object for training, prediction, and evaluation.
@@ -102,7 +101,7 @@ performance.
 
 If external memory is used, the performance of CPU training is limited by IO
 (input/output) speed. This means that the disk IO speed primarily determines the training
-speed. During benchmarking, we used an NVME connected to a PCIe-4 slot, other types of
+speed. During benchmarking, we used an NVMe connected to a PCIe-4 slot, other types of
 storage can be too slow for practical usage. In addition, your system may perform caching
 to reduce the overhead of file reading.
 
@@ -146,6 +145,17 @@ and internal runtime structures are concatenated. This means that memory reducti
 effective when dealing with wide datasets where ``X`` is larger compared to other data
 like ``y``, while it has little impact on slim datasets.
 
+
+Starting with XGBoost 2.0, the implementation of external memory uses ``mmap`` and is not
+tested against system errors like disconnected network devices (`SIGBUS`). Due to the
+intense IO operations, we recommend more robust solutions like NVMe. Also, it's worth
+noting that most tests have been conducted on Linux distributions.
+
+Another important point to keep in mind is that creating the initial cache for XGBoost may
+take some time. The interface to external memory is through custom iterators, which may or
+may not be thread-safe. Therefore, initialization is performed sequentially.
+
+
 ****************
 Text File Inputs
 ****************
@@ -154,7 +164,8 @@ This is the original form of external memory support, users are encouraged to us
 data iterator instead. There is no big difference between using external memory version of
 text input and the in-memory version.  The only difference is the filename format.
 
-The external memory version takes in the following `URI <https://en.wikipedia.org/wiki/Uniform_Resource_Identifier>`_ format:
+The external memory version takes in the following `URI
+<https://en.wikipedia.org/wiki/Uniform_Resource_Identifier>`_ format:
 
 .. code-block:: none
 
@@ -172,9 +183,8 @@ To load from csv files, use the following syntax:
 
 where ``label_column`` should point to the csv column acting as the label.
 
-To provide a simple example for illustration, extracting the code from
-`demo/guide-python/external_memory.py <https://github.com/dmlc/xgboost/blob/master/demo/guide-python/external_memory.py>`_. If
-you have a dataset stored in a file similar to ``agaricus.txt.train`` with LIBSVM format, the external memory support can be enabled by:
+If you have a dataset stored in a file similar to ``demo/data/agaricus.txt.train`` with LIBSVM
+format, the external memory support can be enabled by:
 
 .. code-block:: python
 
