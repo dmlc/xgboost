@@ -145,11 +145,9 @@ and internal runtime structures are concatenated. This means that memory reducti
 effective when dealing with wide datasets where ``X`` is larger compared to other data
 like ``y``, while it has little impact on slim datasets.
 
-
-Starting with XGBoost 2.0, the implementation of external memory uses ``mmap`` and is not
-tested against system errors like disconnected network devices (`SIGBUS`). Due to the
-intense IO operations, we recommend more robust solutions like NVMe. Also, it's worth
-noting that most tests have been conducted on Linux distributions.
+Starting with XGBoost 2.0, the implementation of external memory uses ``mmap``. It is not
+yet tested against system errors like disconnected network devices (`SIGBUS`). Also, it's
+worth noting that most tests have been conducted on Linux distributions.
 
 Another important point to keep in mind is that creating the initial cache for XGBoost may
 take some time. The interface to external memory is through custom iterators, which may or
