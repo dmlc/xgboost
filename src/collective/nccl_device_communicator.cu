@@ -2,7 +2,6 @@
  * Copyright 2023 XGBoost contributors
  */
 #if defined(XGBOOST_USE_NCCL)
-
 #include "nccl_device_communicator.cuh"
 
 namespace xgboost {
@@ -226,5 +225,4 @@ void NcclDeviceCommunicator::Synchronize() {
 
 }  // namespace collective
 }  // namespace xgboost
-
 #endif
