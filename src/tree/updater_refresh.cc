@@ -89,7 +89,7 @@ class TreeRefresher : public TreeUpdater {
                      dmlc::BeginPtr(stemp[tid]) + offset);
             offset += tree->param.num_nodes;
           }
-          feats.Drop(inst);
+          feats.Drop();
         });
       }
       // aggregate the statistics

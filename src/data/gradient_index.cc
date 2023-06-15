@@ -149,10 +149,28 @@ common::ColumnMatrix const &GHistIndexMatrix::Transpose() const {
   return *columns_;
 }
 
+bst_bin_t GHistIndexMatrix::GetGindex(size_t ridx, size_t fidx) const {
+  auto begin = RowIdx(ridx);
+  if (IsDense()) {
+    return static_cast<bst_bin_t>(index[begin + fidx]);
+  }
+  auto end = RowIdx(ridx + 1);
+  auto const& cut_ptrs = cut.Ptrs();
+  auto f_begin = cut_ptrs[fidx];
+  auto f_end = cut_ptrs[fidx + 1];
+  return BinarySearchBin(begin, end, index, f_begin, f_end);
+}
+
 float GHistIndexMatrix::GetFvalue(size_t ridx, size_t fidx, bool is_cat) const {
   auto const &values = cut.Values();
   auto const &mins = cut.MinValues();
   auto const &ptrs = cut.Ptrs();
+  return this->GetFvalue(ptrs, values, mins, ridx, fidx, is_cat);
+}
+
+float GHistIndexMatrix::GetFvalue(std::vector<std::uint32_t> const &ptrs,
+                                  std::vector<float> const &values, std::vector<float> const &mins,
+                                  bst_row_t ridx, bst_feature_t fidx, bool is_cat) const {
   if (is_cat) {
     auto f_begin = ptrs[fidx];
     auto f_end = ptrs[fidx + 1];
@@ -172,24 +190,27 @@ float GHistIndexMatrix::GetFvalue(size_t ridx, size_t fidx, bool is_cat) const {
     }
     return common::HistogramCuts::NumericBinValue(ptrs, values, mins, fidx, bin_idx);
   };
-
-  if (columns_->GetColumnType(fidx) == common::kDenseColumn) {
-    if (columns_->AnyMissing()) {
+  switch (columns_->GetColumnType(fidx)) {
+    case common::kDenseColumn: {
+      if (columns_->AnyMissing()) {
+        return common::DispatchBinType(columns_->GetTypeSize(), [&](auto dtype) {
+          auto column = columns_->DenseColumn<decltype(dtype), true>(fidx);
+          return get_bin_val(column);
+        });
+      } else {
+        return common::DispatchBinType(columns_->GetTypeSize(), [&](auto dtype) {
+          auto column = columns_->DenseColumn<decltype(dtype), false>(fidx);
+          auto bin_idx = column[ridx];
+          return common::HistogramCuts::NumericBinValue(ptrs, values, mins, fidx, bin_idx);
+        });
+      }
+    }
+    case common::kSparseColumn: {
       return common::DispatchBinType(columns_->GetTypeSize(), [&](auto dtype) {
-        auto column = columns_->DenseColumn<decltype(dtype), true>(fidx);
-        return get_bin_val(column);
-      });
-    } else {
-      return common::DispatchBinType(columns_->GetTypeSize(), [&](auto dtype) {
-        auto column = columns_->DenseColumn<decltype(dtype), false>(fidx);
+        auto column = columns_->SparseColumn<decltype(dtype)>(fidx, 0);
         return get_bin_val(column);
       });
     }
-  } else {
-    return common::DispatchBinType(columns_->GetTypeSize(), [&](auto dtype) {
-      auto column = columns_->SparseColumn<decltype(dtype)>(fidx, 0);
-      return get_bin_val(column);
-    });
   }
 
   SPAN_CHECK(false);

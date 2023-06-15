@@ -63,7 +63,7 @@ bst_float PredValue(const SparsePage::Inst &inst,
       psum += (*trees[i])[nidx].LeafValue();
     }
   }
-  p_feats->Drop(inst);
+  p_feats->Drop();
   return psum;
 }
 
@@ -116,13 +116,11 @@ void FVecFill(const size_t block_size, const size_t batch_offset, const int num_
   }
 }
 
-template <typename DataView>
-void FVecDrop(const size_t block_size, const size_t batch_offset, DataView* batch,
-              const size_t fvec_offset, std::vector<RegTree::FVec>* p_feats) {
+void FVecDrop(std::size_t const block_size, std::size_t const fvec_offset,
+              std::vector<RegTree::FVec> *p_feats) {
   for (size_t i = 0; i < block_size; ++i) {
     RegTree::FVec &feats = (*p_feats)[fvec_offset + i];
-    const SparsePage::Inst inst = (*batch)[batch_offset + i];
-    feats.Drop(inst);
+    feats.Drop();
   }
 }
 
@@ -142,10 +140,14 @@ struct SparsePageView {
 struct GHistIndexMatrixView {
  private:
   GHistIndexMatrix const &page_;
-  uint64_t n_features_;
+  std::uint64_t const n_features_;
   common::Span<FeatureType const> ft_;
   common::Span<Entry> workspace_;
   std::vector<size_t> current_unroll_;
+
+  std::vector<std::uint32_t> const& ptrs_;
+  std::vector<float> const& mins_;
+  std::vector<float> const& values_;
 
  public:
   size_t base_rowid;
@@ -159,6 +161,9 @@ struct GHistIndexMatrixView {
         ft_{ft},
         workspace_{workplace},
         current_unroll_(n_threads > 0 ? n_threads : 1, 0),
+        ptrs_{_page.cut.Ptrs()},
+        mins_{_page.cut.MinValues()},
+        values_{_page.cut.Values()},
         base_rowid{_page.base_rowid} {}
 
   SparsePage::Inst operator[](size_t r) {
@@ -167,7 +172,7 @@ struct GHistIndexMatrixView {
     size_t non_missing{beg};
 
     for (bst_feature_t c = 0; c < n_features_; ++c) {
-      float f = page_.GetFvalue(r, c, common::IsCat(ft_, c));
+      float f = page_.GetFvalue(ptrs_, values_, mins_, r, c, common::IsCat(ft_, c));
       if (!common::CheckNAN(f)) {
         workspace_[non_missing] = Entry{c, f};
         ++non_missing;
@@ -250,10 +255,9 @@ void PredictBatchByBlockOfRowsKernel(
     FVecFill(block_size, batch_offset, num_feature, &batch, fvec_offset,
              p_thread_temp);
     // process block of rows through all trees to keep cache locality
-    PredictByAllTrees(model, tree_begin, tree_end, out_preds,
-                      batch_offset + batch.base_rowid, num_group, thread_temp,
-                      fvec_offset, block_size);
-    FVecDrop(block_size, batch_offset, &batch, fvec_offset, p_thread_temp);
+    PredictByAllTrees(model, tree_begin, tree_end, out_preds, batch_offset + batch.base_rowid,
+                      num_group, thread_temp, fvec_offset, block_size);
+    FVecDrop(block_size, fvec_offset, p_thread_temp);
   });
 }
 
@@ -470,7 +474,7 @@ class CPUPredictor : public Predictor {
           bst_node_t tid = GetLeafIndex<true, true>(tree, feats, cats);
           preds[ridx * ntree_limit + j] = static_cast<bst_float>(tid);
         }
-        feats.Drop(page[i]);
+        feats.Drop();
       });
     }
   }
@@ -544,7 +548,7 @@ class CPUPredictor : public Predictor {
                   (tree_weights == nullptr ? 1 : (*tree_weights)[j]);
             }
           }
-          feats.Drop(page[i]);
+          feats.Drop();
           // add base margin to BIAS
           if (base_margin.Size() != 0) {
             CHECK_EQ(base_margin.Shape(1), ngroup);
