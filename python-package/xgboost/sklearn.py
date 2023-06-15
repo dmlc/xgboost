@@ -381,16 +381,20 @@ __model_doc = f"""
           every **early_stopping_rounds** round(s) to continue training.  Requires at
           least one item in **eval_set** in :py:meth:`fit`.
 
-        - The method returns the model from the last iteration, not the best one, use a
-          callback :py:class:`xgboost.callback.EarlyStopping` if returning the best
-          model is preferred.
+        - If early stopping occurs, the model will have two additional attributes:
+          :py:attr:`best_score` and :py:attr:`best_iteration`. These are used by the
+          :py:meth:`predict` and :py:meth:`apply` methods to determine the optimal
+          number of trees during inference. If users want to access the full model
+          (including trees built after early stopping), they can specify the
+          `iteration_range` in these inference methods. In addition, other utilities
+          like model plotting can also use the entire model.
+
+        - If you prefer to discard the trees after `best_iteration`, consider using the
+          callback function :py:class:`xgboost.callback.EarlyStopping`.
 
         - If there's more than one item in **eval_set**, the last entry will be used for
           early stopping.  If there's more than one metric in **eval_metric**, the last
           metric will be used for early stopping.
-
-        - If early stopping occurs, the model will have three additional fields:
-          :py:attr:`best_score`, :py:attr:`best_iteration`.
 
         .. note::
 
