@@ -150,10 +150,7 @@ class PrivateMmapConstStream : public MemoryFixSizeBuffer {
    * @param length    See the `length` parameter of `mmap` for details.
    */
   explicit PrivateMmapConstStream(std::string path, std::size_t offset, std::size_t length);
-  std::size_t Read(void*, std::size_t) override {
-    LOG(FATAL) << "Read-only stream.";
-    return 0;
-  }
+  void Write(void const*, std::size_t) override { LOG(FATAL) << "Read-only stream."; }
 
   ~PrivateMmapConstStream() override;
 };
