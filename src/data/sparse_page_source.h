@@ -24,8 +24,7 @@
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 
-namespace xgboost {
-namespace data {
+namespace xgboost::data {
 inline void TryDeleteCacheFile(const std::string& file) {
   if (std::remove(file.c_str()) != 0) {
     LOG(WARNING) << "Couldn't remove external memory cache file " << file
@@ -143,7 +142,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
           std::uint64_t offset = self->cache_info_->offset.at(fetch_it);
           std::uint64_t length = self->cache_info_->offset.at(fetch_it + 1) - offset;
 
-          auto fi = std::make_unique<common::PrivateMmapStream>(n, true, offset, length);
+          auto fi = std::make_unique<common::PrivateMmapConstStream>(n, offset, length);
           CHECK(fmt->Read(page.get(), fi.get()));
           timer.Stop();
 
@@ -401,6 +400,5 @@ class SortedCSCPageSource : public PageSourceIncMixIn<SortedCSCPage> {
     this->Fetch();
   }
 };
-}  // namespace data
-}  // namespace xgboost
+}  // namespace xgboost::data
 #endif  // XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_

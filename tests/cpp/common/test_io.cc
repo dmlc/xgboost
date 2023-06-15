@@ -9,8 +9,7 @@
 #include "../helpers.h"
 #include "../filesystem.h"  // dmlc::TemporaryDirectory
 
-namespace xgboost {
-namespace common {
+namespace xgboost::common {
 TEST(MemoryFixSizeBuffer, Seek) {
   size_t constexpr kSize { 64 };
   std::vector<int32_t> memory( kSize );
@@ -128,7 +127,7 @@ TEST(IO, PrivateMmapStream) {
   for (std::size_t i = 0; i < n_batches; ++i) {
     std::size_t off = offset[i];
     std::size_t n = offset.at(i + 1) - offset[i];
-    std::unique_ptr<dmlc::Stream> fi{std::make_unique<PrivateMmapStream>(path, true, off, n)};
+    std::unique_ptr<dmlc::Stream> fi{std::make_unique<PrivateMmapConstStream>(path, off, n)};
     std::vector<T> data;
 
     std::uint64_t size{0};
@@ -139,5 +138,4 @@ TEST(IO, PrivateMmapStream) {
     ASSERT_EQ(data, batches[i]);
   }
 }
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common

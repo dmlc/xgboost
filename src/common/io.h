@@ -130,30 +130,32 @@ inline std::string ReadAll(std::string const &path) {
 }
 
 /**
- * @brief Private mmap file, copy-on-write when running on Linux-based distributions.
+ * @brief Private mmap file as a read-only stream.
  *
  *  It can calculate alignment automatically based on system page size (or allocation
  *  granularity on Windows).
  */
-class PrivateMmapStream : public MemoryFixSizeBuffer {
+class PrivateMmapConstStream : public MemoryFixSizeBuffer {
   struct MMAPFile;
   std::unique_ptr<MMAPFile> handle_;
 
-  char* Open(std::string path, bool read_only, std::size_t offset, std::size_t length);
+  char* Open(std::string path, std::size_t offset, std::size_t length);
 
  public:
   /**
    * @brief Construct a private mmap stream.
    *
    * @param path      File path.
-   * @param read_only See the `prot` parameter of `mmap` for details.
    * @param offset    See the `offset` parameter of `mmap` for details.
    * @param length    See the `length` parameter of `mmap` for details.
    */
-  explicit PrivateMmapStream(std::string path, bool read_only, std::size_t offset,
-                             std::size_t length);
+  explicit PrivateMmapConstStream(std::string path, std::size_t offset, std::size_t length);
+  std::size_t Read(void*, std::size_t) override {
+    LOG(FATAL) << "Read-only stream.";
+    return 0;
+  }
 
-  ~PrivateMmapStream() override;
+  ~PrivateMmapConstStream() override;
 };
 }  // namespace common
 }  // namespace xgboost
