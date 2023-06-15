@@ -41,8 +41,7 @@
 #include "xgboost/collective/socket.h"  // for LastError
 #include "xgboost/logging.h"
 
-namespace xgboost {
-namespace common {
+namespace xgboost::common {
 size_t PeekableInStream::Read(void* dptr, size_t size) {
   size_t nbuffer = buffer_.length() - buffer_ptr_;
   if (nbuffer == 0) return strm_->Read(dptr, size);
@@ -118,11 +117,32 @@ void FixedSizeStream::Take(std::string* out) {
   *out = std::move(buffer_);
 }
 
+namespace {
+// Get system alignment value for IO with mmap.
+std::size_t GetMmapAlignment() {
+#if defined(xgboost_IS_WIN)
+  SYSTEM_INFO sys_info;
+  GetSystemInfo(&sys_info);
+  // During testing, `sys_info.dwPageSize` is of size 4096 while `dwAllocationGranularity` is of
+  // size 65536.
+  return sys_info.dwAllocationGranularity;
+#else
+  return getpagesize();
+#endif
+}
+
+auto SystemErrorMsg() {
+  std::int32_t errsv = system::LastError();
+  auto err = std::error_code{errsv, std::system_category()};
+  return err.message();
+}
+}  // anonymous namespace
+
 std::string LoadSequentialFile(std::string uri, bool stream) {
   auto OpenErr = [&uri]() {
     std::string msg;
     msg = "Opening " + uri + " failed: ";
-    msg += strerror(errno);
+    msg += SystemErrorMsg();
     LOG(FATAL) << msg;
   };
 
@@ -192,29 +212,12 @@ struct PrivateMmapStream::MMAPFile {
   std::string path;
 };
 
-namespace {
-// Get system alignment value for IO with mmap.
-std::size_t GetMmapAlignment() {
-#if defined(xgboost_IS_WIN)
-  SYSTEM_INFO sys_info;
-  GetSystemInfo(&sys_info);
-  // During testing, `sys_info.dwPageSize` is of size 4096 while `dwAllocationGranularity` is of
-  // size 65536.
-  return sys_info.dwAllocationGranularity;
-#else
-  return getpagesize();
-#endif
-}
-
-auto SystemErrorMsg() {
-  std::int32_t errsv = system::LastError();
-  auto err = std::error_code{errsv, std::system_category()};
-  return err;
-}
-}  // anonymous namespace
-
 char* PrivateMmapStream::Open(std::string path, bool read_only, std::size_t offset,
                               std::size_t length) {
+  if (length == 0) {
+    return nullptr;
+  }
+
 #if defined(xgboost_IS_WIN)
   HANDLE fd = CreateFile(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
                          FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, nullptr);
@@ -284,14 +287,17 @@ PrivateMmapStream::~PrivateMmapStream() {
     CHECK(CloseHandle(handle_->file_map)) << "Failed to close mapping object: " << SystemErrorMsg();
   }
 #else
-  CHECK_NE(munmap(handle_->base_ptr, handle_->base_size), -1)
-      << "Faled to call munmap: " << handle_->path << ". " << SystemErrorMsg();
-  CHECK_NE(close(handle_->fd), -1)
-      << "Faled to close: " << handle_->path << ". " << SystemErrorMsg();
+  if (handle_->base_ptr) {
+    CHECK_NE(munmap(handle_->base_ptr, handle_->base_size), -1)
+        << "Faled to call munmap: " << handle_->path << ". " << SystemErrorMsg();
+  }
+  if (handle_->fd != 0) {
+    CHECK_NE(close(handle_->fd), -1)
+        << "Faled to close: " << handle_->path << ". " << SystemErrorMsg();
+  }
 #endif
 }
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common
 
 #if defined(xgboost_IS_WIN)
 #undef xgboost_IS_WIN
