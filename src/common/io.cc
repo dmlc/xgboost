@@ -222,7 +222,7 @@ char* PrivateMmapConstStream::Open(std::string path, std::size_t offset, std::si
                          FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, nullptr);
   CHECK_NE(fd, INVALID_HANDLE_VALUE) << "Failed to open:" << path << ". " << SystemErrorMsg();
 #else
-  auto fd = open(path.c_str(), O_RDWR);
+  auto fd = open(path.c_str(), O_RDONLY);
   CHECK_GE(fd, 0) << "Failed to open:" << path << ". " << SystemErrorMsg();
 #endif
 
