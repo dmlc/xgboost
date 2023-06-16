@@ -8,14 +8,14 @@ namespace xgboost {
 namespace collective {
 
 NcclDeviceCommunicator::NcclDeviceCommunicator(int device_ordinal, Communicator *communicator)
-    : device_ordinal_{device_ordinal}, communicator_{communicator} {
-  if (device_ordinal_ < 0) {
-    LOG(FATAL) << "Invalid device ordinal: " << device_ordinal_;
-  }
-  if (communicator_ == nullptr) {
-    LOG(FATAL) << "Communicator cannot be null.";
-  }
-
+    : device_ordinal_{device_ordinal},
+      communicator_{communicator},
+      cuda_stream_{[device_ordinal]() {
+        CHECK_GE(device_ordinal, 0);
+        dh::safe_cuda(cudaSetDevice(device_ordinal));
+        return dh::CUDAStream();
+      }()} {
+  CHECK_NOTNULL(communicator_);
   int32_t const rank = communicator_->GetRank();
   int32_t const world = communicator_->GetWorldSize();
 
@@ -48,15 +48,11 @@ NcclDeviceCommunicator::NcclDeviceCommunicator(int device_ordinal, Communicator 
   nccl_unique_id_ = GetUniqueId();
   dh::safe_cuda(cudaSetDevice(device_ordinal_));
   dh::safe_nccl(ncclCommInitRank(&nccl_comm_, world, nccl_unique_id_, rank));
-  dh::safe_cuda(cudaStreamCreate(&cuda_stream_));
 }
 
 NcclDeviceCommunicator::~NcclDeviceCommunicator() {
   if (communicator_->GetWorldSize() == 1) {
     return;
-  }
-  if (cuda_stream_) {
-    dh::safe_cuda(cudaStreamDestroy(cuda_stream_));
   }
   if (nccl_comm_) {
     dh::safe_nccl(ncclCommDestroy(nccl_comm_));
@@ -146,22 +142,22 @@ void NcclDeviceCommunicator::BitwiseAllReduce(void *send_receive_buffer, std::si
 
   // First gather data from all the workers.
   dh::safe_nccl(ncclAllGather(send_receive_buffer, device_buffer, count, GetNcclDataType(data_type),
-                              nccl_comm_, cuda_stream_));
+                              nccl_comm_, cuda_stream_.Handle()));
 
   // Then reduce locally.
   auto *out_buffer = static_cast<char *>(send_receive_buffer);
   switch (op) {
     case Operation::kBitwiseAND:
       RunBitwiseAllreduce(out_buffer, device_buffer, thrust::bit_and<char>(), world_size, size,
-                          cuda_stream_);
+                          cuda_stream_.Handle());
       break;
     case Operation::kBitwiseOR:
       RunBitwiseAllreduce(out_buffer, device_buffer, thrust::bit_or<char>(), world_size, size,
-                          cuda_stream_);
+                          cuda_stream_.Handle());
       break;
     case Operation::kBitwiseXOR:
       RunBitwiseAllreduce(out_buffer, device_buffer, thrust::bit_xor<char>(), world_size, size,
-                          cuda_stream_);
+                          cuda_stream_.Handle());
       break;
     default:
       LOG(FATAL) << "Not a bitwise reduce operation.";
@@ -180,7 +176,7 @@ void NcclDeviceCommunicator::AllReduce(void *send_receive_buffer, std::size_t co
   } else {
     dh::safe_nccl(ncclAllReduce(send_receive_buffer, send_receive_buffer, count,
                                 GetNcclDataType(data_type), GetNcclRedOp(op), nccl_comm_,
-                                cuda_stream_));
+                                cuda_stream_.Handle()));
   }
   allreduce_bytes_ += count * GetTypeSize(data_type);
   allreduce_calls_ += 1;
@@ -209,7 +205,7 @@ void NcclDeviceCommunicator::AllGatherV(void const *send_buffer, size_t length_b
   for (int32_t i = 0; i < world_size; ++i) {
     size_t as_bytes = segments->at(i);
     dh::safe_nccl(ncclBroadcast(send_buffer, receive_buffer->data().get() + offset, as_bytes,
-                                ncclChar, i, nccl_comm_, cuda_stream_));
+                                ncclChar, i, nccl_comm_, cuda_stream_.Handle()));
     offset += as_bytes;
   }
   dh::safe_nccl(ncclGroupEnd());
@@ -220,7 +216,7 @@ void NcclDeviceCommunicator::Synchronize() {
     return;
   }
   dh::safe_cuda(cudaSetDevice(device_ordinal_));
-  dh::safe_cuda(cudaStreamSynchronize(cuda_stream_));
+  cuda_stream_.Sync();
 }
 
 }  // namespace collective
