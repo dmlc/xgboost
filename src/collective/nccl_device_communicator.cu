@@ -16,6 +16,7 @@ NcclDeviceCommunicator::NcclDeviceCommunicator(int device_ordinal, Communicator 
         return dh::CUDAStream();
       }()} {
   CHECK_NOTNULL(communicator_);
+
   int32_t const rank = communicator_->GetRank();
   int32_t const world = communicator_->GetWorldSize();
 
