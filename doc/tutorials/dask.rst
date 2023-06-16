@@ -54,6 +54,9 @@ on a dask cluster:
         y = da.random.random(size=(num_obs, 1), chunks=(1000, 1))
 
         dtrain = xgb.dask.DaskDMatrix(client, X, y)
+        # or
+        # dtrain = xgb.dask.DaskQuantileDMatrix(client, X, y)
+        # `DaskQuantileDMatrix` is available for the `hist` and `gpu_hist` tree method.
 
         output = xgb.dask.train(
             client,

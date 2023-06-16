@@ -3,11 +3,12 @@
  */
 #include <gtest/gtest.h>
 
-#include <fstream>
+#include <cstddef>  // for size_t
+#include <fstream>  // for ofstream
 
 #include "../../../src/common/io.h"
-#include "../helpers.h"
 #include "../filesystem.h"  // dmlc::TemporaryDirectory
+#include "../helpers.h"
 
 namespace xgboost::common {
 TEST(MemoryFixSizeBuffer, Seek) {
@@ -87,6 +88,27 @@ TEST(IO, LoadSequentialFile) {
   ASSERT_EQ(loaded, str);
 
   ASSERT_THROW(LoadSequentialFile("non-exist", true), dmlc::Error);
+}
+
+TEST(IO, Resource) {
+  std::size_t n = 128;
+  std::shared_ptr<ResourceHandler> resource = std::make_shared<MallocResource>(n);
+  ASSERT_EQ(resource->Size(), n);
+  ASSERT_EQ(resource->Type(), ResourceHandler::kMalloc);
+
+  dmlc::TemporaryDirectory tmpdir;
+  auto path = tmpdir.path + "/testfile";
+
+  std::ofstream fout(path, std::ios::binary);
+  double val{1.0};
+  fout.write(reinterpret_cast<char const *>(&val), sizeof(val));
+  fout << 1.0 << std::endl;
+  fout.close();
+
+  resource = std::make_shared<MmapResource>(path, 0, sizeof(double));
+  ASSERT_EQ(resource->Size(), sizeof(double));
+  ASSERT_EQ(resource->Type(), ResourceHandler::kMmap);
+  ASSERT_EQ(resource->DataAs<double>()[0], val);
 }
 
 TEST(IO, PrivateMmapStream) {
