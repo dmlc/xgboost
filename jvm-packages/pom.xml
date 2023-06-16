@@ -47,7 +47,7 @@
         <spark.rapids.version>23.04.1</spark.rapids.version>
         <cudf.classifier>cuda11</cudf.classifier>
         <scalatest.version>3.2.16</scalatest.version>
-        <scala-collection-compat.version>2.10.0</scala-collection-compat.version>
+        <scala-collection-compat.version>2.11.0</scala-collection-compat.version>
       </properties>
     <repositories>
         <repository>
