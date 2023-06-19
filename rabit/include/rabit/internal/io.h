@@ -1,18 +1,21 @@
-/*!
- *  Copyright (c) 2014-2019 by Contributors
+/**
+ *  Copyright 2014-2023, XGBoost Contributors
  * \file io.h
  * \brief utilities with different serializable implementations
  * \author Tianqi Chen
  */
 #ifndef RABIT_INTERNAL_IO_H_
 #define RABIT_INTERNAL_IO_H_
-#include <cstdio>
-#include <vector>
-#include <cstring>
-#include <string>
+
 #include <algorithm>
-#include <numeric>
+#include <cstddef>  // for size_t
+#include <cstdio>
+#include <cstring>  // for memcpy
 #include <limits>
+#include <numeric>
+#include <string>
+#include <vector>
+
 #include "rabit/internal/utils.h"
 #include "rabit/serializable.h"
 
@@ -20,54 +23,61 @@ namespace rabit {
 namespace utils {
 /*! \brief re-use definition of dmlc::SeekStream */
 using SeekStream = dmlc::SeekStream;
-/*! \brief fixed size memory buffer */
+/**
+ * @brief Fixed size memory buffer as a stream.
+ */
 struct MemoryFixSizeBuffer : public SeekStream {
  public:
   // similar to SEEK_END in libc
-  static size_t constexpr kSeekEnd = std::numeric_limits<size_t>::max();
+  static std::size_t constexpr kSeekEnd = std::numeric_limits<std::size_t>::max();
+
+ protected:
+  MemoryFixSizeBuffer() = default;
 
  public:
-  MemoryFixSizeBuffer(void *p_buffer, size_t buffer_size)
-      : p_buffer_(reinterpret_cast<char*>(p_buffer)),
-        buffer_size_(buffer_size) {
-    curr_ptr_ = 0;
-  }
+  /**
+   * @brief Ctor
+   *
+   * @param p_buffer Pointer to the source buffer with size `buffer_size`.
+   * @param buffer_size Size of the source buffer
+   */
+  MemoryFixSizeBuffer(void *p_buffer, std::size_t buffer_size)
+      : p_buffer_(reinterpret_cast<char *>(p_buffer)), buffer_size_(buffer_size) {}
   ~MemoryFixSizeBuffer() override = default;
-  size_t Read(void *ptr, size_t size) override {
-    size_t nread = std::min(buffer_size_ - curr_ptr_, size);
+
+  std::size_t Read(void *ptr, std::size_t size) override {
+    std::size_t nread = std::min(buffer_size_ - curr_ptr_, size);
     if (nread != 0) std::memcpy(ptr, p_buffer_ + curr_ptr_, nread);
     curr_ptr_ += nread;
     return nread;
   }
-  void Write(const void *ptr, size_t size) override {
+  void Write(const void *ptr, std::size_t size) override {
     if (size == 0) return;
-    utils::Assert(curr_ptr_ + size <=  buffer_size_,
-                  "write position exceed fixed buffer size");
+    CHECK_LE(curr_ptr_ + size, buffer_size_);
     std::memcpy(p_buffer_ + curr_ptr_, ptr, size);
     curr_ptr_ += size;
   }
-  void Seek(size_t pos) override {
+  void Seek(std::size_t pos) override {
     if (pos == kSeekEnd) {
       curr_ptr_ = buffer_size_;
     } else {
-      curr_ptr_ = static_cast<size_t>(pos);
+      curr_ptr_ = static_cast<std::size_t>(pos);
     }
   }
-  size_t Tell() override {
-    return curr_ptr_;
-  }
-  virtual bool AtEnd() const {
-    return curr_ptr_ == buffer_size_;
-  }
+  /**
+   * @brief Current position in the buffer (stream).
+   */
+  std::size_t Tell() override { return curr_ptr_; }
+  virtual bool AtEnd() const { return curr_ptr_ == buffer_size_; }
 
- private:
+ protected:
   /*! \brief in memory buffer */
-  char *p_buffer_;
+  char *p_buffer_{nullptr};
   /*! \brief current pointer */
-  size_t buffer_size_;
+  std::size_t buffer_size_{0};
   /*! \brief current pointer */
-  size_t curr_ptr_;
-};  // class MemoryFixSizeBuffer
+  std::size_t curr_ptr_{0};
+};
 
 /*! \brief a in memory buffer that can be read and write as stream interface */
 struct MemoryBufferStream : public SeekStream {

@@ -1,5 +1,5 @@
-/*!
- * Copyright by XGBoost Contributors 2014-2022
+/**
+ * Copyright 2014-2023, XGBoost Contributors
  * \file io.h
  * \brief general stream interface for serialization, I/O
  * \author Tianqi Chen
@@ -10,9 +10,11 @@
 
 #include <dmlc/io.h>
 #include <rabit/rabit.h>
-#include <string>
+
 #include <cstring>
 #include <fstream>
+#include <memory>  // for unique_ptr
+#include <string>  // for string
 
 #include "common.h"
 
@@ -127,6 +129,31 @@ inline std::string ReadAll(std::string const &path) {
   return content;
 }
 
+/**
+ * @brief Private mmap file as a read-only stream.
+ *
+ *  It can calculate alignment automatically based on system page size (or allocation
+ *  granularity on Windows).
+ */
+class PrivateMmapConstStream : public MemoryFixSizeBuffer {
+  struct MMAPFile;
+  std::unique_ptr<MMAPFile> handle_;
+
+  char* Open(std::string path, std::size_t offset, std::size_t length);
+
+ public:
+  /**
+   * @brief Construct a private mmap stream.
+   *
+   * @param path      File path.
+   * @param offset    See the `offset` parameter of `mmap` for details.
+   * @param length    See the `length` parameter of `mmap` for details.
+   */
+  explicit PrivateMmapConstStream(std::string path, std::size_t offset, std::size_t length);
+  void Write(void const*, std::size_t) override { LOG(FATAL) << "Read-only stream."; }
+
+  ~PrivateMmapConstStream() override;
+};
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_IO_H_

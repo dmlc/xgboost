@@ -64,7 +64,8 @@ def run_data_iterator(
     subsample_rate = 0.8 if subsample else 1.0
 
     it = IteratorForTest(
-        *make_batches(n_samples_per_batch, n_features, n_batches, use_cupy)
+        *make_batches(n_samples_per_batch, n_features, n_batches, use_cupy),
+        cache="cache"
     )
     if n_batches == 0:
         with pytest.raises(ValueError, match="1 batch"):

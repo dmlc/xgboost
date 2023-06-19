@@ -39,7 +39,8 @@ void VerifySampling(size_t page_size,
     EXPECT_NE(page->n_rows, kRows);
   }
 
-  GradientBasedSampler sampler(&ctx, page, kRows, param, subsample, sampling_method);
+  GradientBasedSampler sampler(&ctx, kRows, param, subsample, sampling_method,
+                               !fixed_size_sampling);
   auto sample = sampler.Sample(&ctx, gpair.DeviceSpan(), dmat.get());
 
   if (fixed_size_sampling) {
@@ -93,7 +94,7 @@ TEST(GradientBasedSampler, NoSamplingExternalMemory) {
   auto page = (*dmat->GetBatches<EllpackPage>(&ctx, param).begin()).Impl();
   EXPECT_NE(page->n_rows, kRows);
 
-  GradientBasedSampler sampler(&ctx, page, kRows, param, kSubsample, TrainParam::kUniform);
+  GradientBasedSampler sampler(&ctx, kRows, param, kSubsample, TrainParam::kUniform, true);
   auto sample = sampler.Sample(&ctx, gpair.DeviceSpan(), dmat.get());
   auto sampled_page = sample.page;
   EXPECT_EQ(sample.sample_rows, kRows);
@@ -141,7 +142,8 @@ TEST(GradientBasedSampler, GradientBasedSampling) {
   constexpr size_t kPageSize = 0;
   constexpr float kSubsample = 0.8;
   constexpr int kSamplingMethod = TrainParam::kGradientBased;
-  VerifySampling(kPageSize, kSubsample, kSamplingMethod);
+  constexpr bool kFixedSizeSampling = true;
+  VerifySampling(kPageSize, kSubsample, kSamplingMethod, kFixedSizeSampling);
 }
 
 TEST(GradientBasedSampler, GradientBasedSamplingExternalMemory) {

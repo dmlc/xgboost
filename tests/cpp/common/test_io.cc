@@ -1,5 +1,5 @@
-/*!
- * Copyright (c) by XGBoost Contributors 2019
+/**
+ * Copyright 2019-2023, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 
@@ -9,8 +9,7 @@
 #include "../helpers.h"
 #include "../filesystem.h"  // dmlc::TemporaryDirectory
 
-namespace xgboost {
-namespace common {
+namespace xgboost::common {
 TEST(MemoryFixSizeBuffer, Seek) {
   size_t constexpr kSize { 64 };
   std::vector<int32_t> memory( kSize );
@@ -89,5 +88,54 @@ TEST(IO, LoadSequentialFile) {
 
   ASSERT_THROW(LoadSequentialFile("non-exist", true), dmlc::Error);
 }
-}  // namespace common
-}  // namespace xgboost
+
+TEST(IO, PrivateMmapStream) {
+  dmlc::TemporaryDirectory tempdir;
+  auto path = tempdir.path + "/testfile";
+
+  // The page size on Linux is usually set to 4096, while the allocation granularity on
+  // the Windows machine where this test is writted is 65536. We span the test to cover
+  // all of them.
+  std::size_t n_batches{64};
+  std::size_t multiplier{2048};
+
+  std::vector<std::vector<std::int32_t>> batches;
+  std::vector<std::size_t> offset{0ul};
+
+  using T = std::int32_t;
+
+  {
+    std::unique_ptr<dmlc::Stream> fo{dmlc::Stream::Create(path.c_str(), "w")};
+    for (std::size_t i = 0; i < n_batches; ++i) {
+      std::size_t size = (i + 1) * multiplier;
+      std::vector<T> data(size, 0);
+      std::iota(data.begin(), data.end(), i * i);
+
+      fo->Write(static_cast<std::uint64_t>(data.size()));
+      fo->Write(data.data(), data.size() * sizeof(T));
+
+      std::size_t bytes = sizeof(std::uint64_t) + data.size() * sizeof(T);
+      offset.push_back(bytes);
+
+      batches.emplace_back(std::move(data));
+    }
+  }
+
+  // Turn size info offset
+  std::partial_sum(offset.begin(), offset.end(), offset.begin());
+
+  for (std::size_t i = 0; i < n_batches; ++i) {
+    std::size_t off = offset[i];
+    std::size_t n = offset.at(i + 1) - offset[i];
+    std::unique_ptr<dmlc::Stream> fi{std::make_unique<PrivateMmapConstStream>(path, off, n)};
+    std::vector<T> data;
+
+    std::uint64_t size{0};
+    fi->Read(&size);
+    data.resize(size);
+
+    fi->Read(data.data(), size * sizeof(T));
+    ASSERT_EQ(data, batches[i]);
+  }
+}
+}  // namespace xgboost::common
