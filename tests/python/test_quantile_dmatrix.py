@@ -255,7 +255,7 @@ class TestQuantileDMatrix:
 
     @pytest.mark.parametrize("sparsity", [0.0, 0.5])
     def test_predict(self, sparsity: float) -> None:
-        n_samples, n_features = 16, 2
+        n_samples, n_features = 256, 4
         X, y = make_categorical(
             n_samples, n_features, n_categories=13, onehot=False, sparsity=sparsity
         )
