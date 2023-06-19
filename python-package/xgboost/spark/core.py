@@ -1118,9 +1118,9 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
             )
         return features_col, feature_col_names
 
-    def _get_pred_contrib_col_name(self) -> str:
+    def _get_pred_contrib_col_name(self) -> Optional[str]:
         """Return the pred_contrib_col col name"""
-        pred_contrib_col_name = ""
+        pred_contrib_col_name = None
         if (
             self.isDefined(self.pred_contrib_col)
             and self.getOrDefault(self.pred_contrib_col) != ""
@@ -1130,12 +1130,12 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
         return pred_contrib_col_name
 
     def _out_schema(self) -> str:
-        """The returned type of the user-defined function. The value can be either a
-        :class:`pyspark.sql.types.DataType` object or a DDL-formatted type string."""
+        """The returned type of the user-defined function. The value must
+        be a DDL-formatted type string."""
 
         return (
             f"{pred.prediction} double, {pred.pred_contrib} array<double>"
-            if self._get_pred_contrib_col_name()
+            if self._get_pred_contrib_col_name() is not None
             else "double"
         )
 
@@ -1157,13 +1157,12 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
             )
             data[pred.prediction] = pd.Series(preds)
 
-            result = data[pred.prediction]
-            if pred_contrib_col_name:
+            if pred_contrib_col_name is not None:
                 contribs = pred_contribs(model, X, base_margin)
                 data[pred.pred_contrib] = pd.Series(list(contribs))
-                result = pd.DataFrame(data=data)
+                return pd.DataFrame(data=data)
 
-            return result
+            return data[pred.prediction]
 
         return _predict
 
@@ -1185,7 +1184,7 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
                 )
 
             pred_contrib_col_name = self._get_pred_contrib_col_name()
-            if pred_contrib_col_name:
+            if pred_contrib_col_name is not None:
                 dataset = dataset.withColumn(
                     pred_contrib_col_name,
                     array_to_vector(getattr(col(pred_struct_col), pred.pred_contrib)),
@@ -1257,7 +1256,7 @@ class _ClassificationModel(  # pylint: disable=abstract-method
             f"{pred.raw_prediction} array<double>, {pred.prediction} double,"
             f" {pred.probability} array<double>"
         )
-        if self._get_pred_contrib_col_name():
+        if self._get_pred_contrib_col_name() is not None:
             # We will force setting strict_shape to True when predicting contribs,
             # So, it will also output 3-D shape result.
             schema = f"{schema}, {pred.pred_contrib} array<array<double>>"
@@ -1302,7 +1301,7 @@ class _ClassificationModel(  # pylint: disable=abstract-method
                 pred.probability: pd.Series(list(class_probs)),
             }
 
-            if pred_contrib_col_name:
+            if pred_contrib_col_name is not None:
                 contribs = pred_contribs(model, X, base_margin, strict_shape=True)
                 result[pred.pred_contrib] = pd.Series(list(contribs.tolist()))
 
@@ -1335,7 +1334,7 @@ class _ClassificationModel(  # pylint: disable=abstract-method
             )
 
         pred_contrib_col_name = self._get_pred_contrib_col_name()
-        if pred_contrib_col_name:
+        if pred_contrib_col_name is not None:
             dataset = dataset.withColumn(
                 pred_contrib_col_name,
                 getattr(col(pred_struct_col), pred.pred_contrib),
