@@ -83,7 +83,9 @@ template <typename BinIdxType>
 void CheckColumWithMissingValue(const DenseColumnIter<BinIdxType, true>& col,
                                 const GHistIndexMatrix& gmat) {
   for (auto i = 0ull; i < col.Size(); i++) {
-    if (col.IsMissing(i)) continue;
+    if (col.IsMissing(i)) {
+      continue;
+    }
     EXPECT_EQ(gmat.index[gmat.row_ptr[i]], col.GetGlobalBinIdx(i));
   }
 }

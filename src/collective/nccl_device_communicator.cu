@@ -70,7 +70,7 @@ NcclDeviceCommunicator::~NcclDeviceCommunicator() {
 
 namespace {
 ncclDataType_t GetNcclDataType(DataType const &data_type) {
-  ncclDataType_t result;
+  ncclDataType_t result{ncclInt8};
   switch (data_type) {
     case DataType::kInt8:
       result = ncclInt8;
@@ -108,7 +108,7 @@ bool IsBitwiseOp(Operation const &op) {
 }
 
 ncclRedOp_t GetNcclRedOp(Operation const &op) {
-  ncclRedOp_t result;
+  ncclRedOp_t result{ncclMax};
   switch (op) {
     case Operation::kMax:
       result = ncclMax;

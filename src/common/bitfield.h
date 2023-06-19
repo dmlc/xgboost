@@ -105,7 +105,7 @@ struct BitFieldContainer {
     auto tid = blockIdx.x * blockDim.x + threadIdx.x;
     size_t min_size = min(bits_.size(), rhs.bits_.size());
     if (tid < min_size) {
-      bits_[tid] |= rhs.bits_[tid];
+      Data()[tid] |= rhs.Data()[tid];
     }
     return *this;
   }
@@ -113,7 +113,7 @@ struct BitFieldContainer {
   BitFieldContainer& operator|=(BitFieldContainer const& rhs) {
     size_t min_size = std::min(bits_.size(), rhs.bits_.size());
     for (size_t i = 0; i < min_size; ++i) {
-      bits_[i] |= rhs.bits_[i];
+      Data()[i] |= rhs.Data()[i];
     }
     return *this;
   }
@@ -124,7 +124,7 @@ struct BitFieldContainer {
     size_t min_size = min(bits_.size(), rhs.bits_.size());
     auto tid = blockIdx.x * blockDim.x + threadIdx.x;
     if (tid < min_size) {
-      bits_[tid] &= rhs.bits_[tid];
+      Data()[tid] &= rhs.Data()[tid];
     }
     return *this;
   }
@@ -132,64 +132,66 @@ struct BitFieldContainer {
   BitFieldContainer& operator&=(BitFieldContainer const& rhs) {
     size_t min_size = std::min(bits_.size(), rhs.bits_.size());
     for (size_t i = 0; i < min_size; ++i) {
-      bits_[i] &= rhs.bits_[i];
+      Data()[i] &= rhs.Data()[i];
     }
     return *this;
   }
 #endif  // defined(__CUDA_ARCH__)
 
 #if defined(__CUDA_ARCH__)
-  __device__ auto Set(index_type pos) {
+  __device__ auto Set(index_type pos) noexcept(true) {
     Pos pos_v = Direction::Shift(ToBitPos(pos));
-    value_type& value = bits_[pos_v.int_pos];
+    value_type& value = Data()[pos_v.int_pos];
     value_type set_bit = kOne << pos_v.bit_pos;
     using Type = typename dh::detail::AtomicDispatcher<sizeof(value_type)>::Type;
     atomicOr(reinterpret_cast<Type *>(&value), set_bit);
   }
-  __device__ void Clear(index_type pos) {
+  __device__ void Clear(index_type pos) noexcept(true) {
     Pos pos_v = Direction::Shift(ToBitPos(pos));
-    value_type& value = bits_[pos_v.int_pos];
+    value_type& value = Data()[pos_v.int_pos];
     value_type clear_bit = ~(kOne << pos_v.bit_pos);
     using Type = typename dh::detail::AtomicDispatcher<sizeof(value_type)>::Type;
     atomicAnd(reinterpret_cast<Type *>(&value), clear_bit);
   }
 #else
-  void Set(index_type pos) {
+  void Set(index_type pos) noexcept(true) {
     Pos pos_v = Direction::Shift(ToBitPos(pos));
-    value_type& value = bits_[pos_v.int_pos];
+    value_type& value = Data()[pos_v.int_pos];
     value_type set_bit = kOne << pos_v.bit_pos;
     value |= set_bit;
   }
-  void Clear(index_type pos) {
+  void Clear(index_type pos) noexcept(true) {
     Pos pos_v = Direction::Shift(ToBitPos(pos));
-    value_type& value = bits_[pos_v.int_pos];
+    value_type& value = Data()[pos_v.int_pos];
     value_type clear_bit = ~(kOne << pos_v.bit_pos);
     value &= clear_bit;
   }
 #endif  // defined(__CUDA_ARCH__)
 
-  XGBOOST_DEVICE bool Check(Pos pos_v) const {
+  XGBOOST_DEVICE bool Check(Pos pos_v) const noexcept(true) {
     pos_v = Direction::Shift(pos_v);
     SPAN_LT(pos_v.int_pos, bits_.size());
-    value_type const value = bits_[pos_v.int_pos];
+    value_type const value = Data()[pos_v.int_pos];
     value_type const test_bit = kOne << pos_v.bit_pos;
     value_type result = test_bit & value;
     return static_cast<bool>(result);
   }
-  XGBOOST_DEVICE bool Check(index_type pos) const {
+  XGBOOST_DEVICE [[nodiscard]] bool Check(index_type pos) const noexcept(true) {
     Pos pos_v = ToBitPos(pos);
     return Check(pos_v);
   }
 
-  XGBOOST_DEVICE size_t Size() const { return kValueSize * bits_.size(); }
+  XGBOOST_DEVICE [[nodiscard]] std::size_t Size() const noexcept(true) {
+    return kValueSize * bits_.size();
+  }
 
-  XGBOOST_DEVICE pointer Data() const { return bits_.data(); }
+  XGBOOST_DEVICE pointer Data() const noexcept(true) { return bits_.data(); }
 
   inline friend std::ostream &
   operator<<(std::ostream &os, BitFieldContainer<VT, Direction, IsConst> field) {
     os << "Bits " << "storage size: " << field.bits_.size() << "\n";
     for (typename common::Span<value_type>::index_type i = 0; i < field.bits_.size(); ++i) {
-      std::bitset<BitFieldContainer<VT, Direction, IsConst>::kValueSize> bset(field.bits_[i]);
+      std::bitset<BitFieldContainer<VT, Direction, IsConst>::kValueSize> bset(field.Data()[i]);
       os << bset << "\n";
     }
     return os;
