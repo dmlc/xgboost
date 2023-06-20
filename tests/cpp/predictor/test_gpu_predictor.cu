@@ -57,6 +57,72 @@ TEST(GPUPredictor, Basic) {
   }
 }
 
+namespace {
+void VerifyBasicColumnSplit(std::array<std::vector<float>, 32> const& expected_result) {
+  auto const world_size = collective::GetWorldSize();
+  auto const rank = collective::GetRank();
+
+  auto lparam = MakeCUDACtx(rank);
+  std::unique_ptr<Predictor> predictor =
+      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &lparam));
+  predictor->Configure({});
+
+  for (size_t i = 1; i < 33; i *= 2) {
+    size_t n_row = i, n_col = i;
+    auto dmat = RandomDataGenerator(n_row, n_col, 0).GenerateDMatrix();
+    std::unique_ptr<DMatrix> sliced{dmat->SliceCol(world_size, rank)};
+
+    Context ctx;
+    ctx.gpu_id = rank;
+    LearnerModelParam mparam{MakeMP(n_col, .5, 1, ctx.gpu_id)};
+    gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx);
+
+    // Test predict batch
+    PredictionCacheEntry out_predictions;
+
+    predictor->InitOutPredictions(dmat->Info(), &out_predictions.predictions, model);
+    predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
+
+    std::vector<float>& out_predictions_h = out_predictions.predictions.HostVector();
+    EXPECT_EQ(out_predictions_h, expected_result[i - 1]);
+  }
+}
+}  // anonymous namespace
+
+TEST(GPUPredictor, MGPUBasicColumnSplit) {
+  auto const n_gpus = common::AllVisibleGPUs();
+  if (n_gpus <= 1) {
+    GTEST_SKIP() << "Skipping MGPUIBasicColumnSplit test with # GPUs = " << n_gpus;
+  }
+
+  auto lparam = MakeCUDACtx(0);
+  std::unique_ptr<Predictor> predictor =
+      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &lparam));
+  predictor->Configure({});
+
+  std::array<std::vector<float>, 32> result{};
+  for (size_t i = 1; i < 33; i *= 2) {
+    size_t n_row = i, n_col = i;
+    auto dmat = RandomDataGenerator(n_row, n_col, 0).GenerateDMatrix();
+
+    Context ctx;
+    ctx.gpu_id = 0;
+    LearnerModelParam mparam{MakeMP(n_col, .5, 1, ctx.gpu_id)};
+    gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx);
+
+    // Test predict batch
+    PredictionCacheEntry out_predictions;
+
+    predictor->InitOutPredictions(dmat->Info(), &out_predictions.predictions, model);
+    predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
+
+    std::vector<float>& out_predictions_h = out_predictions.predictions.HostVector();
+    result[i - 1] = out_predictions_h;
+  }
+
+  RunWithInMemoryCommunicator(n_gpus, VerifyBasicColumnSplit, result);
+}
+
 TEST(GPUPredictor, EllpackBasic) {
   size_t constexpr kCols {8};
   for (size_t bins = 2; bins < 258; bins += 16) {
