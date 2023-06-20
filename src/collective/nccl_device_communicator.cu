@@ -129,10 +129,11 @@ template <typename Func>
 void RunBitwiseAllreduce(char *out_buffer, char const *device_buffer, Func func, int world_size,
                          std::size_t size, cudaStream_t stream) {
   dh::LaunchN(size, stream, [=] __device__(std::size_t idx) {
-    out_buffer[idx] = device_buffer[idx];
+    auto result = device_buffer[idx];
     for (auto rank = 1; rank < world_size; rank++) {
-      out_buffer[idx] = func(out_buffer[idx], device_buffer[rank * size + idx]);
+      result = func(result, device_buffer[rank * size + idx]);
     }
+    out_buffer[idx] = result;
   });
 }
 }  // anonymous namespace
