@@ -182,7 +182,7 @@ struct BitFieldContainer {
     value_type result = test_bit & value;
     return static_cast<bool>(result);
   }
-   [[nodiscard]] XGBOOST_DEVICE bool Check(index_type pos) const noexcept(true) {
+  [[nodiscard]] XGBOOST_DEVICE bool Check(index_type pos) const noexcept(true) {
     Pos pos_v = ToBitPos(pos);
     return Check(pos_v);
   }
@@ -190,7 +190,7 @@ struct BitFieldContainer {
    * @brief Returns the total number of bits that can be viewed. This is equal to or
    *        larger than the acutal number of valid bits.
    */
-   [[nodiscard]] XGBOOST_DEVICE size_type Capacity() const noexcept(true) {
+  [[nodiscard]] XGBOOST_DEVICE size_type Capacity() const noexcept(true) {
     return kValueSize * NumValues();
   }
   /**
