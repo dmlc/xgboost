@@ -1,5 +1,5 @@
-/*!
- * Copyright 2019 by Contributors
+/**
+ * Copyright 2019-2023, XGBoost Contributors
  * \file bitfield.h
  */
 #ifndef XGBOOST_COMMON_BITFIELD_H_
@@ -50,14 +50,17 @@ __forceinline__ __device__ BitFieldAtomicType AtomicAnd(BitFieldAtomicType* addr
 }
 #endif  // defined(__CUDACC__)
 
-/*!
- * \brief A non-owning type with auxiliary methods defined for manipulating bits.
+/**
+ * @brief A non-owning type with auxiliary methods defined for manipulating bits.
  *
- * \tparam Direction Whether the bits start from left or from right.
+ * @tparam VT        Underlying value type, must be an unsigned integer.
+ * @tparam Direction Whether the bits start from left or from right.
+ * @tparam IsConst   Whether the view is const.
  */
 template <typename VT, typename Direction, bool IsConst = false>
 struct BitFieldContainer {
   using value_type = std::conditional_t<IsConst, VT const, VT>;  // NOLINT
+  using size_type = size_t;                                      // NOLINT
   using index_type = size_t;                                     // NOLINT
   using pointer = value_type*;                                   // NOLINT
 
@@ -70,8 +73,9 @@ struct BitFieldContainer {
   };
 
  private:
-  common::Span<value_type> bits_;
-  static_assert(!std::is_signed<VT>::value, "Must use unsiged type as underlying storage.");
+  value_type* bits_{nullptr};
+  size_type n_values_{0};
+  static_assert(!std::is_signed<VT>::value, "Must use an unsiged type as the underlying storage.");
 
  public:
   XGBOOST_DEVICE static Pos ToBitPos(index_type pos) {
@@ -86,13 +90,15 @@ struct BitFieldContainer {
 
  public:
   BitFieldContainer() = default;
-  XGBOOST_DEVICE explicit BitFieldContainer(common::Span<value_type> bits) : bits_{bits} {}
-  XGBOOST_DEVICE BitFieldContainer(BitFieldContainer const& other) : bits_{other.bits_} {}
+  XGBOOST_DEVICE explicit BitFieldContainer(common::Span<value_type> bits)
+      : bits_{bits.data()}, n_values_{bits.size()} {}
+  BitFieldContainer(BitFieldContainer const& other) = default;
+  BitFieldContainer(BitFieldContainer&& other) = default;
   BitFieldContainer &operator=(BitFieldContainer const &that) = default;
   BitFieldContainer &operator=(BitFieldContainer &&that) = default;
 
-  XGBOOST_DEVICE common::Span<value_type>       Bits()       { return bits_; }
-  XGBOOST_DEVICE common::Span<value_type const> Bits() const { return bits_; }
+  XGBOOST_DEVICE auto Bits() { return common::Span<value_type>{bits_, NumValues()}; }
+  XGBOOST_DEVICE auto Bits() const { return common::Span<value_type const>{bits_, NumValues()}; }
 
   /*\brief Compute the size of needed memory allocation.  The returned value is in terms
    *       of number of elements with `BitFieldContainer::value_type'.
@@ -103,7 +109,7 @@ struct BitFieldContainer {
 #if defined(__CUDA_ARCH__)
   __device__ BitFieldContainer& operator|=(BitFieldContainer const& rhs) {
     auto tid = blockIdx.x * blockDim.x + threadIdx.x;
-    size_t min_size = min(bits_.size(), rhs.bits_.size());
+    size_t min_size = min(NumValues(), rhs.NumValues());
     if (tid < min_size) {
       Data()[tid] |= rhs.Data()[tid];
     }
@@ -111,7 +117,7 @@ struct BitFieldContainer {
   }
 #else
   BitFieldContainer& operator|=(BitFieldContainer const& rhs) {
-    size_t min_size = std::min(bits_.size(), rhs.bits_.size());
+    size_t min_size = std::min(NumValues(), rhs.NumValues());
     for (size_t i = 0; i < min_size; ++i) {
       Data()[i] |= rhs.Data()[i];
     }
@@ -121,7 +127,7 @@ struct BitFieldContainer {
 
 #if defined(__CUDA_ARCH__)
   __device__ BitFieldContainer& operator&=(BitFieldContainer const& rhs) {
-    size_t min_size = min(bits_.size(), rhs.bits_.size());
+    size_t min_size = min(NumValues(), rhs.NumValues());
     auto tid = blockIdx.x * blockDim.x + threadIdx.x;
     if (tid < min_size) {
       Data()[tid] &= rhs.Data()[tid];
@@ -130,7 +136,7 @@ struct BitFieldContainer {
   }
 #else
   BitFieldContainer& operator&=(BitFieldContainer const& rhs) {
-    size_t min_size = std::min(bits_.size(), rhs.bits_.size());
+    size_t min_size = std::min(NumValues(), rhs.NumValues());
     for (size_t i = 0; i < min_size; ++i) {
       Data()[i] &= rhs.Data()[i];
     }
@@ -170,27 +176,35 @@ struct BitFieldContainer {
 
   XGBOOST_DEVICE bool Check(Pos pos_v) const noexcept(true) {
     pos_v = Direction::Shift(pos_v);
-    SPAN_LT(pos_v.int_pos, bits_.size());
+    assert(pos_v.int_pos < NumValues());
     value_type const value = Data()[pos_v.int_pos];
     value_type const test_bit = kOne << pos_v.bit_pos;
     value_type result = test_bit & value;
     return static_cast<bool>(result);
   }
-  XGBOOST_DEVICE [[nodiscard]] bool Check(index_type pos) const noexcept(true) {
+   [[nodiscard]] XGBOOST_DEVICE bool Check(index_type pos) const noexcept(true) {
     Pos pos_v = ToBitPos(pos);
     return Check(pos_v);
   }
-
-  XGBOOST_DEVICE [[nodiscard]] std::size_t Size() const noexcept(true) {
-    return kValueSize * bits_.size();
+  /**
+   * @brief Returns the total number of bits that can be viewed. This is equal to or
+   *        larger than the acutal number of valid bits.
+   */
+   [[nodiscard]] XGBOOST_DEVICE size_type Capacity() const noexcept(true) {
+    return kValueSize * NumValues();
   }
+  /**
+   * @brief Number of storage unit used in this bit field.
+   */
+  [[nodiscard]] XGBOOST_DEVICE size_type NumValues() const noexcept(true) { return n_values_; }
 
-  XGBOOST_DEVICE pointer Data() const noexcept(true) { return bits_.data(); }
+  XGBOOST_DEVICE pointer Data() const noexcept(true) { return bits_; }
 
-  inline friend std::ostream &
-  operator<<(std::ostream &os, BitFieldContainer<VT, Direction, IsConst> field) {
-    os << "Bits " << "storage size: " << field.bits_.size() << "\n";
-    for (typename common::Span<value_type>::index_type i = 0; i < field.bits_.size(); ++i) {
+  inline friend std::ostream& operator<<(std::ostream& os,
+                                         BitFieldContainer<VT, Direction, IsConst> field) {
+    os << "Bits "
+       << "storage size: " << field.NumValues() << "\n";
+    for (typename common::Span<value_type>::index_type i = 0; i < field.NumValues(); ++i) {
       std::bitset<BitFieldContainer<VT, Direction, IsConst>::kValueSize> bset(field.Data()[i]);
       os << bset << "\n";
     }

@@ -285,8 +285,6 @@ TEST(GpuHist, PartitionTwoNodes) {
                                     dh::ToSpan(feature_histogram_b)};
     thrust::device_vector<GPUExpandEntry> results(2);
     evaluator.EvaluateSplits({0, 1}, 1, dh::ToSpan(inputs), shared_inputs, dh::ToSpan(results));
-    GPUExpandEntry result_a = results[0];
-    GPUExpandEntry result_b = results[1];
     EXPECT_EQ(std::bitset<32>(evaluator.GetHostNodeCats(0)[0]),
               std::bitset<32>("10000000000000000000000000000000"));
     EXPECT_EQ(std::bitset<32>(evaluator.GetHostNodeCats(1)[0]),
