@@ -6,10 +6,10 @@ from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import pytest
-from xgboost.core import Booster
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.core import Booster
 
 dpath = 'demo/data/'
 rng = np.random.RandomState(1994)
