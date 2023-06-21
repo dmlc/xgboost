@@ -10,7 +10,6 @@
 #include <memory>       // for shared_ptr, make_shared
 #include <type_traits>  // for is_reference_v, remove_reference_t, is_same_v
 #include <utility>      // for swap, move
-#include <vector>       // for vector
 
 #include "io.h"  // for ResourceHandler, ResourceReadStream, MallocResource
 #include "xgboost/logging.h"
@@ -28,8 +27,8 @@ class RefResourceView {
   static_assert(!std::is_reference_v<T>);
 
  public:
-  using value_type = T;                                  // NOLINT
-  using size_type = typename std::vector<T>::size_type;  // NOLINT
+  using value_type = T;             // NOLINT
+  using size_type = std::uint64_t;  // NOLINT
 
  private:
   value_type* ptr_{nullptr};

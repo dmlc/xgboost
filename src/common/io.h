@@ -230,6 +230,8 @@ constexpr std::size_t IOAlignment() {
  *  This class is to facilitate the use of mmap. Caller can optionally use the `Read()`
  *  method or the `Consume()` method. The former copies data into output, while the latter
  *  makes copy only if it's a primitive type.
+ *
+ *  Input is required to be aligned to IOAlignment().
  */
 class ResourceReadStream : public dmlc::SeekStream {
   std::shared_ptr<ResourceHandler> resource_;
@@ -332,6 +334,8 @@ class ResourceReadStream : public dmlc::SeekStream {
  *
  *  It can calculate alignment automatically based on system page size (or allocation
  *  granularity on Windows).
+ *
+ *  The file is required to be aligned by IOAlignment().
  */
 class PrivateMmapConstStream : public ResourceReadStream {
  public:
@@ -378,6 +382,9 @@ class AlignedWriteStream {
   }
 };
 
+/**
+ * @brief Output stream backed by a file. Aligned to IOAlignment() bytes.
+ */
 class AlignedFileWriteStream : public AlignedWriteStream {
   std::unique_ptr<dmlc::Stream> pimpl_;
 
@@ -390,6 +397,9 @@ class AlignedFileWriteStream : public AlignedWriteStream {
   ~AlignedFileWriteStream() override = default;
 };
 
+/**
+ * @brief Output stream backed by memory buffer. Aligned to IOAlignment() bytes.
+ */
 class AlignedMemWriteStream : public AlignedFileWriteStream {
   std::unique_ptr<MemoryBufferStream> pimpl_;
 

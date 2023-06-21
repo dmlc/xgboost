@@ -146,17 +146,35 @@ TEST(IO, PrivateMmapStream) {
   // Turn size info offset
   std::partial_sum(offset.begin(), offset.end(), offset.begin());
 
+  // Test read
   for (std::size_t i = 0; i < n_batches; ++i) {
     std::size_t off = offset[i];
     std::size_t n = offset.at(i + 1) - offset[i];
-    std::unique_ptr<dmlc::Stream> fi{std::make_unique<PrivateMmapConstStream>(path, off, n)};
+    std::unique_ptr<dmlc::SeekStream> fi{std::make_unique<PrivateMmapConstStream>(path, off, n)};
     std::vector<T> data;
 
     std::uint64_t size{0};
     fi->Read(&size);
+    ASSERT_EQ(fi->Tell(), sizeof(size));
     data.resize(size);
 
     fi->Read(data.data(), size * sizeof(T));
+    ASSERT_EQ(data, batches[i]);
+  }
+
+  // Test consume
+  for (std::size_t i = 0; i < n_batches; ++i) {
+    std::size_t off = offset[i];
+    std::size_t n = offset.at(i + 1) - offset[i];
+    std::unique_ptr<ResourceReadStream> fi{std::make_unique<PrivateMmapConstStream>(path, off, n)};
+    std::vector<T> data;
+
+    std::uint64_t size{0};
+    ASSERT_TRUE(fi->Consume(&size));
+    ASSERT_EQ(fi->Tell(), sizeof(size));
+    data.resize(size);
+
+    ASSERT_EQ(fi->Read(data.data(), size * sizeof(T)), sizeof(T) * size);
     ASSERT_EQ(data, batches[i]);
   }
 }
