@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include "../../../src/common/linalg_op.cuh"
+#include "../helpers.h"
 #include "xgboost/context.h"
 #include "xgboost/linalg.h"
 
@@ -54,8 +55,7 @@ void TestElementWiseKernel() {
 }
 
 void TestSlice() {
-  Context ctx;
-  ctx.gpu_id = 1;
+  auto ctx = MakeCUDACtx(1);
   thrust::device_vector<double> data(2 * 3 * 4);
   auto t = MakeTensorView(&ctx, dh::ToSpan(data), 2, 3, 4);
   dh::LaunchN(1, [=] __device__(size_t) {

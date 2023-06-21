@@ -22,7 +22,8 @@ Supported parameters
 GPU accelerated prediction is enabled by default for the above mentioned ``tree_method`` parameters but can be switched to CPU prediction by setting ``predictor`` to ``cpu_predictor``. This could be useful if you want to conserve GPU memory. Likewise when using CPU algorithms, GPU accelerated prediction can be enabled by setting ``predictor`` to ``gpu_predictor``.
 
 The device ordinal (which GPU to use if you have many of them) can be selected using the
-``gpu_id`` parameter, which defaults to 0 (the first device reported by CUDA runtime).
+``device`` parameter, which defaults to 0 when "CUDA" is specified(the first device reported by CUDA
+runtime).
 
 
 The GPU algorithms currently work with CLI, Python, R, and JVM packages. See :doc:`/install` for details.
@@ -30,13 +31,13 @@ The GPU algorithms currently work with CLI, Python, R, and JVM packages. See :do
 .. code-block:: python
   :caption: Python example
 
-  param['gpu_id'] = 0
+  param["device"] = "cuda:0"
   param['tree_method'] = 'gpu_hist'
 
 .. code-block:: python
   :caption: With Scikit-Learn interface
 
-  XGBRegressor(tree_method='gpu_hist', gpu_id=0)
+  XGBRegressor(tree_method='gpu_hist', device="cuda")
 
 
 GPU-Accelerated SHAP values
@@ -45,7 +46,7 @@ XGBoost makes use of `GPUTreeShap <https://github.com/rapidsai/gputreeshap>`_ as
 
 .. code-block:: python
 
-  model.set_param({"gpu_id": "0", "tree_method": "gpu_hist"})
+  model.set_param({"device": "cuda:0", "tree_method": "gpu_hist"})
   shap_values = model.predict(dtrain, pred_contribs=True)
   shap_interaction_values = model.predict(dtrain, pred_interactions=True)
 

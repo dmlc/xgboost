@@ -149,7 +149,7 @@ Also for inplace prediction:
 .. code-block:: python
 
   # where X is a dask DataFrame or dask Array backed by cupy or cuDF.
-  booster.set_param({"gpu_id": "0"})
+  booster.set_param({"device": "cuda:0"})
   prediction = xgb.dask.inplace_predict(client, booster, X)
 
 When input is ``da.Array`` object, output is always ``da.Array``.  However, if the input

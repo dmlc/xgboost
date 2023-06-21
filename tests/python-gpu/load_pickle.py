@@ -49,7 +49,7 @@ class TestLoadPickle:
         bst = load_pickle(model_path)
         config = bst.save_config()
         config = json.loads(config)
-        assert config["learner"]["generic_param"]["gpu_id"] == "0"
+        assert config["learner"]["generic_param"]["device"] == "cuda:0"
 
         x, y = build_dataset()
         test_x = xgb.DMatrix(x)

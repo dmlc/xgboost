@@ -729,9 +729,9 @@ def set_ordinal(ordinal: int, booster: M) -> M:
 
     """
     if ordinal < 0:
-        params = {"gpu_id": -1, "tree_method": "hist"}
+        params = {"device": "cpu", "tree_method": "hist"}
     else:
-        params = {"gpu_id": ordinal, "tree_method": "gpu_hist"}
+        params = {"device": f"cuda:{ordinal}", "tree_method": "gpu_hist"}
 
     if isinstance(booster, xgb.Booster):
         booster.set_param(params)

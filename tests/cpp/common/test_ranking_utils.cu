@@ -23,8 +23,7 @@
 
 namespace xgboost::ltr {
 void TestCalcQueriesInvIDCG() {
-  Context ctx;
-  ctx.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
+  auto ctx = MakeCUDACtx(0);
   std::size_t n_groups = 5, n_samples_per_group = 32;
 
   dh::device_vector<float> scores(n_samples_per_group * n_groups);
@@ -85,20 +84,17 @@ void TestRankingCache(Context const* ctx) {
 }  // namespace
 
 TEST(RankingCache, InitFromGPU) {
-  Context ctx;
-  ctx.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
+  auto ctx = MakeCUDACtx(0);
   TestRankingCache(&ctx);
 }
 
 TEST(NDCGCache, InitFromGPU) {
-  Context ctx;
-  ctx.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
+  auto ctx = MakeCUDACtx(0);
   TestNDCGCache(&ctx);
 }
 
 TEST(MAPCache, InitFromGPU) {
-  Context ctx;
-  ctx.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
+  auto ctx = MakeCUDACtx(0);
   TestMAPCache(&ctx);
 }
 }  // namespace xgboost::ltr

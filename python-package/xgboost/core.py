@@ -2277,10 +2277,10 @@ class Booster:
 
         .. code-block:: python
 
-            booster.set_param({"gpu_id": "0", "tree_method": "gpu_hist"})
+            booster.set_param({"device": "gpu:0", "tree_method": "gpu_hist"})
             booster.inplace_predict(cupy_array)
 
-            booster.set_param({"gpu_id": "-1", "tree_method": "hist"})
+            booster.set_param({"device": "cpu", "tree_method": "hist"})
             booster.inplace_predict(numpy_array)
 
         .. versionadded:: 1.1.0

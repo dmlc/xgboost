@@ -40,7 +40,7 @@
 #include "common/api_entry.h"             // for XGBAPIThreadLocalEntry
 #include "common/charconv.h"              // for to_chars, to_chars_result, NumericLimits, from_...
 #include "common/common.h"                // for ToString, Split
-#include "common/error_msg.h"             // for MaxFeatureSize, WarnOldSerialization
+#include "common/error_msg.h"             // for MaxFeatureSize, WarnOldSerialization, ...
 #include "common/io.h"                    // for PeekableInStream, ReadAll, FixedSizeStream, Mem...
 #include "common/observer.h"              // for TrainingObserver
 #include "common/random.h"                // for GlobalRandom
@@ -711,6 +711,7 @@ class LearnerConfiguration : public Learner {
     // FIXME(trivialfis): Make eval_metric a training parameter.
     keys.emplace_back(kEvalMetric);
     keys.emplace_back("num_output_group");
+    keys.emplace_back("gpu_id");  // deprecated param.
 
     std::sort(keys.begin(), keys.end());
 
@@ -1454,7 +1455,7 @@ class LearnerImpl : public LearnerIO {
     }
 
     if (p_fmat->Info().num_row_ == 0) {
-      LOG(WARNING) << "Empty dataset at worker: " << collective::GetRank();
+      error::WarnEmptyDataset();
     }
   }
 

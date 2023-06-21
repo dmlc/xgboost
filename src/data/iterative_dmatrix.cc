@@ -33,10 +33,11 @@ IterativeDMatrix::IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle pro
   bool valid = iter.Next();
   CHECK(valid) << "Iterative DMatrix must have at least 1 batch.";
 
-  auto d = MakeProxy(proxy_)->DeviceIdx();
+  auto pctx = MakeProxy(proxy_)->Ctx();
 
   Context ctx;
-  ctx.UpdateAllowUnknown(Args{{"nthread", std::to_string(nthread)}, {"gpu_id", std::to_string(d)}});
+  ctx.UpdateAllowUnknown(
+      Args{{"nthread", std::to_string(nthread)}, {"device", pctx->DeviceName()}});
   // hardcoded parameter.
   BatchParam p{max_bin, tree::TrainParam::DftSparseThreshold()};
 

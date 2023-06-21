@@ -567,7 +567,7 @@ inline void ConfigLearnerByCtx(Context const* ctx, Learner* learner) {
   } else {
     learner->SetParam("tree_method", "gpu_hist");
   }
-  learner->SetParam("gpu_id", std::to_string(ctx->gpu_id));
+  learner->SetParam("device", ctx->DeviceName());
   learner->Configure();
   ASSERT_EQ(learner->Ctx()->gpu_id, ctx->gpu_id);
 }

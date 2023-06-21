@@ -120,7 +120,7 @@ void TestInplacePrediction(Context const *ctx, std::shared_ptr<DMatrix> x, bst_r
     learner->UpdateOneIter(it, m);
   }
 
-  learner->SetParam("gpu_id", std::to_string(ctx->gpu_id));
+  learner->SetParam("device", ctx->DeviceName());
   learner->Configure();
 
   HostDeviceVector<float> *p_out_predictions_0{nullptr};
@@ -153,7 +153,7 @@ void TestInplacePrediction(Context const *ctx, std::shared_ptr<DMatrix> x, bst_r
     ASSERT_NEAR(h_pred[i], h_pred_0[i] + h_pred_1[i] - 0.5f, kRtEps);
   }
 
-  learner->SetParam("gpu_id", "-1");
+  learner->SetParam("device", "cpu");
   learner->Configure();
 }
 
@@ -465,11 +465,7 @@ void TestIterationRangeColumnSplit(Context const* ctx) {
   auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix(true, true, kClasses);
   auto learner = LearnerForTest(ctx, dmat, kIters, kForest);
 
-  if (ctx->IsCPU()) {
-    learner->SetParams(Args{{"gpu_id", std::to_string(-1)}});
-  } else {
-    learner->SetParams(Args{{"gpu_id", std::to_string(0)}});
-  }
+  ConfigLearnerByCtx(ctx, learner.get());
 
   bool bound = false;
   std::unique_ptr<Learner> sliced{learner->Slice(0, 3, 1, &bound)};

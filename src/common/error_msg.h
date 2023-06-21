@@ -82,5 +82,9 @@ inline void WarnOldSerialization() {
 void WarnDeprecatedGPUHist();
 
 void WarnManualUpdater();
+
+void WarnDeprecatedGPUId();
+
+void WarnEmptyDataset();
 }  // namespace xgboost::error
 #endif  // XGBOOST_COMMON_ERROR_MSG_H_

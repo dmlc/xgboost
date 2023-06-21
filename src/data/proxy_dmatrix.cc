@@ -54,6 +54,7 @@ std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const *ctx,
     p_fmat = cuda_impl::CreateDMatrixFromProxy(ctx, proxy, missing);
   }
 
+  CHECK(p_fmat) << "Failed to fallback.";
   return p_fmat;
 }
 }  // namespace xgboost::data

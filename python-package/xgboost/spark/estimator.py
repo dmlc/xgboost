@@ -78,8 +78,7 @@ def _set_pyspark_xgb_cls_param_attrs(
 
 
 class SparkXGBRegressor(_SparkXGBEstimator):
-    """
-    SparkXGBRegressor is a PySpark ML estimator. It implements the XGBoost regression
+    """SparkXGBRegressor is a PySpark ML estimator. It implements the XGBoost regression
     algorithm based on XGBoost python library, and it can be used in PySpark Pipeline
     and PySpark ML meta algorithms like :py:class:`~pyspark.ml.tuning.CrossValidator`/
     :py:class:`~pyspark.ml.tuning.TrainValidationSplit`/
@@ -89,8 +88,8 @@ class SparkXGBRegressor(_SparkXGBEstimator):
     :py:class:`xgboost.XGBRegressor` constructor and most of the parameters used in
     :py:meth:`xgboost.XGBRegressor.fit` and :py:meth:`xgboost.XGBRegressor.predict` method.
 
-    SparkXGBRegressor doesn't support setting `gpu_id` but support another param `use_gpu`,
-    see doc below for more details.
+    SparkXGBRegressor doesn't support setting `device` but supports another param
+    `use_gpu`, see doc below for more details.
 
     SparkXGBRegressor doesn't support setting `base_margin` explicitly as well, but support
     another param called `base_margin_col`. see doc below for more details.
@@ -247,8 +246,8 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
     :py:class:`xgboost.XGBClassifier` constructor and most of the parameters used in
     :py:meth:`xgboost.XGBClassifier.fit` and :py:meth:`xgboost.XGBClassifier.predict` method.
 
-    SparkXGBClassifier doesn't support setting `gpu_id` but support another param `use_gpu`,
-    see doc below for more details.
+    SparkXGBClassifier doesn't support setting `device` but support another param
+    `use_gpu`, see doc below for more details.
 
     SparkXGBClassifier doesn't support setting `base_margin` explicitly as well, but support
     another param called `base_margin_col`. see doc below for more details.
@@ -423,7 +422,7 @@ class SparkXGBRanker(_SparkXGBEstimator):
     :py:class:`xgboost.XGBRanker` constructor and most of the parameters used in
     :py:meth:`xgboost.XGBRanker.fit` and :py:meth:`xgboost.XGBRanker.predict` method.
 
-    SparkXGBRanker doesn't support setting `gpu_id` but support another param `use_gpu`,
+    SparkXGBRanker doesn't support setting `device` but support another param `use_gpu`,
     see doc below for more details.
 
     SparkXGBRanker doesn't support setting `base_margin` explicitly as well, but support

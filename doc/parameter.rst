@@ -59,6 +59,16 @@ General Parameters
 
   - Feature dimension used in boosting, set to maximum dimension of the feature
 
+* ``device`` [default=``cpu``]
+
+  - Device for XGBoost to run. User can set it to one of the following values:
+
+    + ``cpu``: Use CPU.
+    + ``cuda``: Use a GPU (CUDA device).
+    + ``cuda:<ordinal>``: ``<ordinal>`` is an integer that specifies the ordinal of the GPU (which GPU do you want to use if you have more than one devices).
+    + ``gpu``: Same as ``cuda``.
+    + ``gpu:<ordinal>``: Same as ``cuda:<ordinal>``.
+
 Parameters for Tree Booster
 ===========================
 * ``eta`` [default=0.3, alias: ``learning_rate``]
