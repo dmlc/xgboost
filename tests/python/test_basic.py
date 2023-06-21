@@ -2,18 +2,13 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from typing import (
-    Any,
-    Dict,
-    List,
-    Tuple,
-)
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import pytest
+from xgboost.core import Booster
 
 import xgboost as xgb
-from xgboost.core import Booster
 from xgboost import testing as tm
 
 dpath = 'demo/data/'
