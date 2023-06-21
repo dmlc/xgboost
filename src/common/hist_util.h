@@ -84,7 +84,7 @@ class HistogramCuts {
     return *this;
   }
 
-  uint32_t FeatureBins(bst_feature_t feature) const {
+  [[nodiscard]] bst_bin_t FeatureBins(bst_feature_t feature) const {
     return cut_ptrs_.ConstHostVector().at(feature + 1) - cut_ptrs_.ConstHostVector()[feature];
   }
 
@@ -92,8 +92,8 @@ class HistogramCuts {
   std::vector<float>    const& Values()    const { return cut_values_.ConstHostVector(); }
   std::vector<float>    const& MinValues() const { return min_vals_.ConstHostVector();   }
 
-  bool HasCategorical() const { return has_categorical_; }
-  float MaxCategory() const { return max_cat_; }
+  [[nodiscard]] bool HasCategorical() const { return has_categorical_; }
+  [[nodiscard]] float MaxCategory() const { return max_cat_; }
   /**
    * \brief Set meta info about categorical features.
    *
@@ -105,12 +105,13 @@ class HistogramCuts {
     max_cat_ = max_cat;
   }
 
-  size_t TotalBins() const { return cut_ptrs_.ConstHostVector().back(); }
+  [[nodiscard]] bst_bin_t TotalBins() const { return cut_ptrs_.ConstHostVector().back(); }
 
   // Return the index of a cut point that is strictly greater than the input
   // value, or the last available index if none exists
-  bst_bin_t SearchBin(float value, bst_feature_t column_id, std::vector<uint32_t> const& ptrs,
-                      std::vector<float> const& values) const {
+  [[nodiscard]] bst_bin_t SearchBin(float value, bst_feature_t column_id,
+                                    std::vector<uint32_t> const& ptrs,
+                                    std::vector<float> const& values) const {
     auto end = ptrs[column_id + 1];
     auto beg = ptrs[column_id];
     auto it = std::upper_bound(values.cbegin() + beg, values.cbegin() + end, value);
@@ -119,20 +120,20 @@ class HistogramCuts {
     return idx;
   }
 
-  bst_bin_t SearchBin(float value, bst_feature_t column_id) const {
+  [[nodiscard]] bst_bin_t SearchBin(float value, bst_feature_t column_id) const {
     return this->SearchBin(value, column_id, Ptrs(), Values());
   }
-
   /**
    * \brief Search the bin index for numerical feature.
    */
-  bst_bin_t SearchBin(Entry const& e) const { return SearchBin(e.fvalue, e.index); }
+  [[nodiscard]] bst_bin_t SearchBin(Entry const& e) const { return SearchBin(e.fvalue, e.index); }
 
   /**
    * \brief Search the bin index for categorical feature.
    */
-  bst_bin_t SearchCatBin(float value, bst_feature_t fidx, std::vector<uint32_t> const& ptrs,
-                         std::vector<float> const& vals) const {
+  [[nodiscard]] bst_bin_t SearchCatBin(float value, bst_feature_t fidx,
+                                       std::vector<uint32_t> const& ptrs,
+                                       std::vector<float> const& vals) const {
     auto end = ptrs.at(fidx + 1) + vals.cbegin();
     auto beg = ptrs[fidx] + vals.cbegin();
     // Truncates the value in case it's not perfectly rounded.
@@ -143,12 +144,14 @@ class HistogramCuts {
     }
     return bin_idx;
   }
-  bst_bin_t SearchCatBin(float value, bst_feature_t fidx) const {
+  [[nodiscard]] bst_bin_t SearchCatBin(float value, bst_feature_t fidx) const {
     auto const& ptrs = this->Ptrs();
     auto const& vals = this->Values();
     return this->SearchCatBin(value, fidx, ptrs, vals);
   }
-  bst_bin_t SearchCatBin(Entry const& e) const { return SearchCatBin(e.fvalue, e.index); }
+  [[nodiscard]] bst_bin_t SearchCatBin(Entry const& e) const {
+    return SearchCatBin(e.fvalue, e.index);
+  }
 
   /**
    * \brief Return numerical bin value given bin index.

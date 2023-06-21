@@ -213,7 +213,7 @@ std::vector<bst_cat_t> GetSplitCategories(RegTree const &tree, int32_t nidx) {
   auto split = common::KCatBitField{csr.categories.subspan(seg.beg, seg.size)};
 
   std::vector<bst_cat_t> cats;
-  for (size_t i = 0; i < split.Size(); ++i) {
+  for (size_t i = 0; i < split.Capacity(); ++i) {
     if (split.Check(i)) {
       cats.push_back(static_cast<bst_cat_t>(i));
     }
@@ -1004,7 +1004,7 @@ void RegTree::SaveCategoricalSplit(Json* p_out) const {
       auto segment = split_categories_segments_[i];
       auto node_categories = this->GetSplitCategories().subspan(segment.beg, segment.size);
       common::KCatBitField const cat_bits(node_categories);
-      for (size_t i = 0; i < cat_bits.Size(); ++i) {
+      for (size_t i = 0; i < cat_bits.Capacity(); ++i) {
         if (cat_bits.Check(i)) {
           categories.GetArray().emplace_back(i);
         }
