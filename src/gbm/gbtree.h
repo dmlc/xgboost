@@ -56,9 +56,7 @@ DECLARE_FIELD_ENUM_CLASS(xgboost::TreeMethod);
 DECLARE_FIELD_ENUM_CLASS(xgboost::TreeProcessType);
 DECLARE_FIELD_ENUM_CLASS(xgboost::PredictorType);
 
-namespace xgboost {
-namespace gbm {
-
+namespace xgboost::gbm {
 /*! \brief training parameters */
 struct GBTreeTrainParam : public XGBoostParameter<GBTreeTrainParam> {
   /*! \brief tree updater sequence */
@@ -194,10 +192,9 @@ class GBTree : public GradientBooster {
   void Configure(const Args& cfg) override;
   // Revise `tree_method` and `updater` parameters after seeing the training
   // data matrix, only useful when tree_method is auto.
-  void PerformTreeMethodHeuristic(DMatrix* fmat);
+  void PerformTreeMethodHeuristic();
   /*! \brief Map `tree_method` parameter to `updater` parameter */
   void ConfigureUpdaters();
-  void ConfigureWithKnownData(Args const& cfg, DMatrix* fmat);
 
   /**
    * \brief Optionally update the leaf value.
@@ -222,11 +219,7 @@ class GBTree : public GradientBooster {
     return tparam_;
   }
 
-  void Load(dmlc::Stream* fi) override {
-    model_.Load(fi);
-    this->cfg_.clear();
-  }
-
+  void Load(dmlc::Stream* fi) override { model_.Load(fi); }
   void Save(dmlc::Stream* fo) const override {
     model_.Save(fo);
   }
@@ -416,8 +409,6 @@ class GBTree : public GradientBooster {
   bool showed_updater_warning_ {false};
   bool specified_updater_   {false};
   bool configured_ {false};
-  // configurations for tree
-  Args cfg_;
   // the updaters that can be applied to each of tree
   std::vector<std::unique_ptr<TreeUpdater>> updaters_;
   // Predictors
@@ -431,7 +422,6 @@ class GBTree : public GradientBooster {
   common::Monitor monitor_;
 };
 
-}  // namespace gbm
-}  // namespace xgboost
+}  // namespace xgboost::gbm
 
 #endif  // XGBOOST_GBM_GBTREE_H_
