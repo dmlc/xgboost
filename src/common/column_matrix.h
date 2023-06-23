@@ -197,7 +197,7 @@ class ColumnMatrix {
     if (type_[fid] == kDenseColumn) {
       ColumnBinT* begin = &local_index[feature_offsets_[fid]];
       begin[rid] = bin_id - index_base_[fid];
-      // not thread-safe with bool vector.
+      // not thread-safe with bit field.
       // FIXME(jiamingy): We can directly assign kMissingId to the index to avoid missing
       // flags.
       missing_.SetValid(feature_offsets_[fid] + rid);

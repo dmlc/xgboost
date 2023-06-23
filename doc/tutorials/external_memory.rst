@@ -28,7 +28,8 @@ development. Like the :py:class:`~xgboost.QuantileDMatrix` with
 supplied by the user. However, unlike the :py:class:`~xgboost.QuantileDMatrix`, external
 memory will not concatenate the batches unless GPU is used (it uses a hybrid approach,
 more details follow). Instead, it will cache all batches on the external memory and fetch
-them on-demand.
+them on-demand.  Go to the end of the document to see a comparison between
+`QuantileDMatrix` and external memory.
 
 *************
 Data Iterator
@@ -208,7 +209,9 @@ construction of `QuantileDmatrix` with data chunks. On the other hand, if it's p
 :py:class:`~xgboost.DMatrix`, it instead enables the external memory feature. The
 :py:class:`~xgboost.QuantileDmatrix` concatenates the data on memory after compression and
 doesn't fetch data during training. On the other hand, the external memory `DMatrix`
-fetches data batches from external memory on-demand.
+fetches data batches from external memory on-demand.  Use the `QuantileDMatrix` (with
+iterator if necessary) when you can fit most of your data in memory. The training would be
+an order of magnitute faster than using external memory.
 
 ****************
 Text File Inputs
