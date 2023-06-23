@@ -140,7 +140,8 @@ struct MMAPFile;
 
 /**
  * @brief Handler for one-shot resource. Unlike `std::pmr::*`, the resource handler is
- *        fixed once it's constructed. User cannot use mutable operations like resize.
+ *        fixed once it's constructed. Users cannot use mutable operations like resize
+ *        without acquiring the specific resource first.
  */
 class ResourceHandler {
  public:
