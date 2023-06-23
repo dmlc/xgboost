@@ -12,7 +12,7 @@
 #include <vector>       // for vector
 
 #include "../data/gradient_index.h"  // for GHistIndexMatrix
-#include "io.h"                      // for ResourceReadStream, AlignedFileWriteStream
+#include "io.h"                      // for AlignedResourceReadStream, AlignedFileWriteStream
 #include "xgboost/base.h"            // for bst_feaature_t
 #include "xgboost/span.h"            // for Span
 
@@ -76,7 +76,7 @@ void ColumnMatrix::InitStorage(GHistIndexMatrix const& gmat, double sparse_thres
 }
 
 // IO procedures for external memory.
-bool ColumnMatrix::Read(ResourceReadStream* fi, uint32_t const* index_base) {
+bool ColumnMatrix::Read(AlignedResourceReadStream* fi, uint32_t const* index_base) {
   if (!common::ReadVec(fi, &index_)) {
     return false;
   }

@@ -280,7 +280,7 @@ constexpr std::size_t IOAlignment() {
  *
  *  Input is required to be aligned to IOAlignment().
  */
-class ResourceReadStream : public dmlc::SeekStream {
+class AlignedResourceReadStream : public dmlc::SeekStream {
   std::shared_ptr<ResourceHandler> resource_;
   std::size_t curr_ptr_{0};
 
@@ -288,7 +288,7 @@ class ResourceReadStream : public dmlc::SeekStream {
   static std::size_t constexpr kSeekEnd = std::numeric_limits<std::size_t>::max();
 
  public:
-  explicit ResourceReadStream(std::shared_ptr<ResourceHandler> resource)
+  explicit AlignedResourceReadStream(std::shared_ptr<ResourceHandler> resource)
       : resource_{std::move(resource)} {}
 
   [[nodiscard]] std::shared_ptr<ResourceHandler> Share() noexcept(true) { return resource_; }
@@ -384,7 +384,7 @@ class ResourceReadStream : public dmlc::SeekStream {
  *
  *  The file is required to be aligned by IOAlignment().
  */
-class PrivateMmapConstStream : public ResourceReadStream {
+class PrivateMmapConstStream : public AlignedResourceReadStream {
  public:
   /**
    * @brief Construct a private mmap stream.
@@ -394,7 +394,7 @@ class PrivateMmapConstStream : public ResourceReadStream {
    * @param length    See the `length` parameter of `mmap` for details.
    */
   explicit PrivateMmapConstStream(std::string path, std::size_t offset, std::size_t length)
-      : ResourceReadStream{std::make_shared<MmapResource>(path, offset, length)} {}
+      : AlignedResourceReadStream{std::make_shared<MmapResource>(path, offset, length)} {}
   ~PrivateMmapConstStream() override = default;
 };
 

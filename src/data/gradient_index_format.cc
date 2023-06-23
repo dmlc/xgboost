@@ -6,7 +6,7 @@
 #include <type_traits>  // for underlying_type_t
 #include <vector>       // for vector
 
-#include "../common/io.h"                 // for ResourceReadStream
+#include "../common/io.h"                 // for AlignedResourceReadStream
 #include "../common/ref_resource_view.h"  // for ReadVec, WriteVec
 #include "gradient_index.h"               // for GHistIndexMatrix
 #include "histogram_cut_format.h"         // for ReadHistogramCuts
@@ -15,7 +15,7 @@
 namespace xgboost::data {
 class GHistIndexRawFormat : public SparsePageFormat<GHistIndexMatrix> {
  public:
-  bool Read(GHistIndexMatrix* page, common::ResourceReadStream* fi) override {
+  bool Read(GHistIndexMatrix* page, common::AlignedResourceReadStream* fi) override {
     CHECK(fi);
 
     if (!ReadHistogramCuts(&page->cut, fi)) {

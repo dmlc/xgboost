@@ -236,7 +236,7 @@ float GHistIndexMatrix::GetFvalue(std::vector<std::uint32_t> const &ptrs,
   return std::numeric_limits<float>::quiet_NaN();
 }
 
-bool GHistIndexMatrix::ReadColumnPage(common::ResourceReadStream *fi) {
+bool GHistIndexMatrix::ReadColumnPage(common::AlignedResourceReadStream *fi) {
   return this->columns_->Read(fi, this->cut.Ptrs().data());
 }
 

@@ -8,7 +8,7 @@
 #include <memory>   // for unique_ptr
 
 #include "../../../src/common/column_matrix.h"
-#include "../../../src/common/io.h"            // for MmapResource, ResourceReadStream...
+#include "../../../src/common/io.h"            // for MmapResource, AlignedResourceReadStream...
 #include "../../../src/data/gradient_index.h"  // for GHistIndexMatrix
 #include "../../../src/data/sparse_page_source.h"
 #include "../helpers.h"  // for RandomDataGenerator
@@ -34,7 +34,7 @@ TEST(GHistIndexPageRawFormat, IO) {
 
   GHistIndexMatrix page;
 
-  std::unique_ptr<common::ResourceReadStream> fi{
+  std::unique_ptr<common::AlignedResourceReadStream> fi{
       std::make_unique<common::PrivateMmapConstStream>(path, 0, bytes)};
   format->Read(&page, fi.get());
 

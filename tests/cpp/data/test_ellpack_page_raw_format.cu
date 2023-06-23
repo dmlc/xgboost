@@ -4,7 +4,7 @@
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
 
-#include "../../../src/common/io.h"  // for PrivateMmapConstStream, ResourceReadStream...
+#include "../../../src/common/io.h"  // for PrivateMmapConstStream, AlignedResourceReadStream...
 #include "../../../src/data/ellpack_page.cuh"
 #include "../../../src/data/sparse_page_source.h"
 #include "../../../src/tree/param.h"  // TrainParam
@@ -31,7 +31,7 @@ TEST(EllpackPageRawFormat, IO) {
   }
 
   EllpackPage page;
-  std::unique_ptr<common::ResourceReadStream> fi{
+  std::unique_ptr<common::AlignedResourceReadStream> fi{
       std::make_unique<common::PrivateMmapConstStream>(path.c_str(), 0, n_bytes)};
   format->Read(&page, fi.get());
 

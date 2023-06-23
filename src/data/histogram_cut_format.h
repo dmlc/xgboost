@@ -9,11 +9,11 @@
 #include <cstddef>  // for size_t
 
 #include "../common/hist_util.h"          // for HistogramCuts
-#include "../common/io.h"                 // for ResourceReadStream, AlignedFileWriteStream
+#include "../common/io.h"                 // for AlignedResourceReadStream, AlignedFileWriteStream
 #include "../common/ref_resource_view.h"  // for WriteVec, ReadVec
 
 namespace xgboost::data {
-inline bool ReadHistogramCuts(common::HistogramCuts *cuts, common::ResourceReadStream *fi) {
+inline bool ReadHistogramCuts(common::HistogramCuts *cuts, common::AlignedResourceReadStream *fi) {
   if (!common::ReadVec(fi, &cuts->cut_values_.HostVector())) {
     return false;
   }

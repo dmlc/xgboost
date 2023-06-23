@@ -196,7 +196,7 @@ TEST(IO, PrivateMmapStream) {
   for (std::size_t i = 0; i < n_batches; ++i) {
     std::size_t off = offset[i];
     std::size_t n = offset.at(i + 1) - offset[i];
-    std::unique_ptr<ResourceReadStream> fi{std::make_unique<PrivateMmapConstStream>(path, off, n)};
+    std::unique_ptr<AlignedResourceReadStream> fi{std::make_unique<PrivateMmapConstStream>(path, off, n)};
     std::vector<T> data;
 
     std::uint64_t size{0};

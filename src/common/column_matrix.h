@@ -28,7 +28,7 @@
 namespace xgboost::common {
 class ColumnMatrix;
 class AlignedFileWriteStream;
-class ResourceReadStream;
+class AlignedResourceReadStream;
 
 /*! \brief column type */
 enum ColumnType : std::uint8_t { kDenseColumn, kSparseColumn };
@@ -406,7 +406,7 @@ class ColumnMatrix {
   [[nodiscard]] bool AnyMissing() const { return any_missing_; }
 
   // IO procedures for external memory.
-  [[nodiscard]] bool Read(ResourceReadStream* fi, uint32_t const* index_base);
+  [[nodiscard]] bool Read(AlignedResourceReadStream* fi, uint32_t const* index_base);
   [[nodiscard]] std::size_t Write(AlignedFileWriteStream* fo) const;
 
  private:

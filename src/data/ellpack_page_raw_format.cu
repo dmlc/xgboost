@@ -6,7 +6,7 @@
 
 #include <cstddef>  // for size_t
 
-#include "../common/io.h"  // for ResourceReadStream, AlignedFileWriteStream
+#include "../common/io.h"  // for AlignedResourceReadStream, AlignedFileWriteStream
 #include "ellpack_page.cuh"
 #include "histogram_cut_format.h"
 #include "sparse_page_writer.h"
@@ -17,7 +17,7 @@ DMLC_REGISTRY_FILE_TAG(ellpack_page_raw_format);
 
 class EllpackPageRawFormat : public SparsePageFormat<EllpackPage> {
  public:
-  bool Read(EllpackPage* page, common::ResourceReadStream* fi) override {
+  bool Read(EllpackPage* page, common::AlignedResourceReadStream* fi) override {
     auto* impl = page->Impl();
     if (!ReadHistogramCuts(&impl->Cuts(), fi)) {
       return false;

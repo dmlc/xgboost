@@ -11,7 +11,7 @@
 #include <type_traits>  // for is_reference_v, remove_reference_t, is_same_v
 #include <utility>      // for swap, move
 
-#include "io.h"  // for ResourceHandler, ResourceReadStream, MallocResource
+#include "io.h"  // for ResourceHandler, AlignedResourceReadStream, MallocResource
 #include "xgboost/logging.h"
 #include "xgboost/span.h"  // for Span
 
@@ -102,7 +102,7 @@ class RefResourceView {
  *  If the output vector is a referenced counted view, no copying occur.
  */
 template <typename Vec>
-[[nodiscard]] bool ReadVec(common::ResourceReadStream* fi, Vec* vec) {
+[[nodiscard]] bool ReadVec(common::AlignedResourceReadStream* fi, Vec* vec) {
   std::uint64_t n{0};
   if (!fi->Read(&n)) {
     return false;

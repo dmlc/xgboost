@@ -5,7 +5,7 @@
  */
 #include <dmlc/registry.h>
 
-#include "../common/io.h"                 // for ResourceReadStream, AlignedFileWriteStream
+#include "../common/io.h"                 // for AlignedResourceReadStream, AlignedFileWriteStream
 #include "../common/ref_resource_view.h"  // for WriteVec
 #include "./sparse_page_writer.h"
 #include "xgboost/data.h"
@@ -17,7 +17,7 @@ DMLC_REGISTRY_FILE_TAG(sparse_page_raw_format);
 template <typename T>
 class SparsePageRawFormat : public SparsePageFormat<T> {
  public:
-  bool Read(T* page, common::ResourceReadStream* fi) override {
+  bool Read(T* page, common::AlignedResourceReadStream* fi) override {
     auto& offset_vec = page->offset.HostVector();
     if (!common::ReadVec(fi, &offset_vec)) {
       return false;

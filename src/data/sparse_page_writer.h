@@ -9,7 +9,7 @@
 #include <functional>  // for function
 #include <string>      // for string
 
-#include "../common/io.h"   // for ResourceReadStream, AlignedFileWriteStream
+#include "../common/io.h"   // for AlignedResourceReadStream, AlignedFileWriteStream
 #include "dmlc/io.h"        // for Stream
 #include "dmlc/registry.h"  // for Registry, FunctionRegEntryBase
 #include "xgboost/data.h"   // for SparsePage,CSCPage,SortedCSCPage,EllpackPage ...
@@ -32,7 +32,7 @@ class SparsePageFormat {
    * @param fi the input stream of the file
    * @return true of the loading as successful, false if end of file was reached
    */
-  virtual bool Read(T* page, common::ResourceReadStream* fi) = 0;
+  virtual bool Read(T* page, common::AlignedResourceReadStream* fi) = 0;
   /**
    * @brief save the data to fo, when a page was written.
    *

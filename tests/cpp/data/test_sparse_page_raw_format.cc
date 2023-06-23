@@ -7,7 +7,7 @@
 #include <memory>  // for allocator, unique_ptr, __shared_ptr_ac...
 #include <string>  // for char_traits, operator+, basic_string
 
-#include "../../../src/common/io.h"                // for PrivateMmapConstStream, ResourceReadStream...
+#include "../../../src/common/io.h"  // for PrivateMmapConstStream, AlignedResourceReadStream...
 #include "../../../src/data/sparse_page_writer.h"  // for CreatePageFormat
 #include "../helpers.h"                            // for RandomDataGenerator
 #include "dmlc/filesystem.h"                       // for TemporaryDirectory
@@ -36,7 +36,7 @@ template <typename S> void TestSparsePageRawFormat() {
   }
 
   S page;
-  std::unique_ptr<common::ResourceReadStream> fi{
+  std::unique_ptr<common::AlignedResourceReadStream> fi{
       std::make_unique<common::PrivateMmapConstStream>(path.c_str(), 0, n_bytes)};
   format->Read(&page, fi.get());
   for (size_t i = 0; i < orig.data.Size(); ++i) {
