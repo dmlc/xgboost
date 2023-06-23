@@ -143,7 +143,8 @@ struct MMAPFile;
  */
 class ResourceHandler {
  public:
-  enum Kind {
+  // RTTI
+  enum Kind : std::uint8_t {
     kMalloc = 0,
     kMmap = 1,
   };
@@ -180,22 +181,68 @@ class ResourceHandler {
 };
 
 class MallocResource : public ResourceHandler {
-  std::byte* ptr_{nullptr};
+  void* ptr_{nullptr};
   std::size_t n_{0};
 
- public:
-  explicit MallocResource(std::size_t n_bytes)
-      : ResourceHandler{kMalloc},
-        ptr_{reinterpret_cast<std::byte*>(std::malloc(n_bytes))},
-        n_{n_bytes} {
-    if (!ptr_) {
-      LOG(FATAL) << "bad_malloc: Failed to allocate " << n_bytes << " bytes.";
-    }
+  void Clear() noexcept(true) {
+    std::free(ptr_);
+    ptr_ = nullptr;
+    n_ = 0;
   }
-  ~MallocResource() noexcept(true) override { std::free(ptr_); }
+
+ public:
+  explicit MallocResource(std::size_t n_bytes) : ResourceHandler{kMalloc} { this->Resize(n_bytes); }
+  ~MallocResource() noexcept(true) override { this->Clear(); }
 
   void* Data() override { return ptr_; }
   [[nodiscard]] std::size_t Size() const override { return n_; }
+  /**
+   * @brief Resize the resource to n_bytes. Unlike std::vector::resize, it prefers realloc
+   *        over malloc.
+   *
+   * @tparam force_malloc Force the use of malloc over realloc. Used for testing.
+   *
+   * @param n_bytes The new size.
+   */
+  template <bool force_malloc = false>
+  void Resize(std::size_t n_bytes) {
+    // realloc(ptr, 0) works, but is deprecated.
+    if (n_bytes == 0) {
+      this->Clear();
+      return;
+    }
+
+    // If realloc fails, we need to copy the data ourselves.
+    bool need_copy{false};
+    void* new_ptr{nullptr};
+    // use realloc first, it can handle nullptr.
+    if constexpr (!force_malloc) {
+      new_ptr = std::realloc(ptr_, n_bytes);
+    }
+    // retry with malloc if realloc fails
+    if (!new_ptr) {
+      // ptr_ is preserved if realloc fails
+      new_ptr = std::malloc(n_bytes);
+      need_copy = true;
+    }
+    if (!new_ptr) {
+      // malloc fails
+      LOG(FATAL) << "bad_malloc: Failed to allocate " << n_bytes << " bytes.";
+    }
+
+    if (need_copy) {
+      std::copy_n(reinterpret_cast<std::byte*>(ptr_), n_, reinterpret_cast<std::byte*>(new_ptr));
+    }
+    // default initialize
+    std::memset(reinterpret_cast<std::byte*>(new_ptr) + n_, '\0', n_bytes - n_);
+    // free the old ptr if malloc is used.
+    if (need_copy) {
+      this->Clear();
+    }
+
+    ptr_ = new_ptr;
+    n_ = n_bytes;
+  }
 };
 
 /**

@@ -91,24 +91,54 @@ TEST(IO, LoadSequentialFile) {
 }
 
 TEST(IO, Resource) {
-  std::size_t n = 128;
-  std::shared_ptr<ResourceHandler> resource = std::make_shared<MallocResource>(n);
-  ASSERT_EQ(resource->Size(), n);
-  ASSERT_EQ(resource->Type(), ResourceHandler::kMalloc);
+  {
+    // test malloc basic
+    std::size_t n = 128;
+    std::shared_ptr<ResourceHandler> resource = std::make_shared<MallocResource>(n);
+    ASSERT_EQ(resource->Size(), n);
+    ASSERT_EQ(resource->Type(), ResourceHandler::kMalloc);
+  }
 
-  dmlc::TemporaryDirectory tmpdir;
-  auto path = tmpdir.path + "/testfile";
+  // test malloc resize
+  auto test_malloc_resize = [](bool force_malloc) {
+    std::size_t n = 64;
+    std::shared_ptr<ResourceHandler> resource = std::make_shared<MallocResource>(n);
+    auto ptr = reinterpret_cast<std::uint8_t *>(resource->Data());
+    std::iota(ptr, ptr + n, 0);
 
-  std::ofstream fout(path, std::ios::binary);
-  double val{1.0};
-  fout.write(reinterpret_cast<char const *>(&val), sizeof(val));
-  fout << 1.0 << std::endl;
-  fout.close();
+    auto malloc_resource = std::dynamic_pointer_cast<MallocResource>(resource);
+    ASSERT_TRUE(malloc_resource);
+    if (force_malloc) {
+      malloc_resource->Resize<true>(n * 2);
+    } else {
+      malloc_resource->Resize<false>(n * 2);
+    }
+    for (std::size_t i = 0; i < n; ++i) {
+      ASSERT_EQ(malloc_resource->DataAs<std::uint8_t>()[i], i) << force_malloc;
+    }
+    for (std::size_t i = n; i < 2 * n; ++i) {
+      ASSERT_EQ(malloc_resource->DataAs<std::uint8_t>()[i], 0);
+    }
+  };
+  test_malloc_resize(true);
+  test_malloc_resize(false);
 
-  resource = std::make_shared<MmapResource>(path, 0, sizeof(double));
-  ASSERT_EQ(resource->Size(), sizeof(double));
-  ASSERT_EQ(resource->Type(), ResourceHandler::kMmap);
-  ASSERT_EQ(resource->DataAs<double>()[0], val);
+  {
+    // test mmap
+    dmlc::TemporaryDirectory tmpdir;
+    auto path = tmpdir.path + "/testfile";
+
+    std::ofstream fout(path, std::ios::binary);
+    double val{1.0};
+    fout.write(reinterpret_cast<char const *>(&val), sizeof(val));
+    fout << 1.0 << std::endl;
+    fout.close();
+
+    auto resource = std::make_shared<MmapResource>(path, 0, sizeof(double));
+    ASSERT_EQ(resource->Size(), sizeof(double));
+    ASSERT_EQ(resource->Type(), ResourceHandler::kMmap);
+    ASSERT_EQ(resource->DataAs<double>()[0], val);
+  }
 }
 
 TEST(IO, PrivateMmapStream) {

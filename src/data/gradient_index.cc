@@ -125,7 +125,7 @@ INSTANTIATION_PUSH(data::SparsePageAdapterBatch)
 #undef INSTANTIATION_PUSH
 
 void GHistIndexMatrix::ResizeIndex(const size_t n_index, const bool isDense) {
-  auto make_index = [&](auto t, common::BinTypeSize t_size) {
+  auto make_index = [this, n_index](auto t, common::BinTypeSize t_size) {
     // Must resize instead of allocating a new one. This function is called everytime a
     // new batch is pushed, and we grow the size accordingly without loosing the data the
     // previous batches.
@@ -133,9 +133,21 @@ void GHistIndexMatrix::ResizeIndex(const size_t n_index, const bool isDense) {
     std::size_t n_bytes = sizeof(T) * n_index;
     CHECK_GE(n_bytes, this->data.size());
 
-    auto new_vec = common::MakeFixedVecWithMalloc(n_bytes, std::uint8_t{0});
-    std::copy_n(this->data.cbegin(), this->data.size(), new_vec.begin());
+    auto resource = this->data.Resource();
+    decltype(this->data) new_vec;
+    if (!resource) {
+      CHECK(this->data.empty());
+      new_vec = common::MakeFixedVecWithMalloc(n_bytes, std::uint8_t{0});
+    } else {
+      CHECK(resource->Type() == common::ResourceHandler::kMalloc);
+      auto malloc_resource = std::dynamic_pointer_cast<common::MallocResource>(resource);
+      CHECK(malloc_resource);
+      malloc_resource->Resize(n_bytes);
 
+      // gcc-11.3 doesn't work if DataAs is used.
+      std::uint8_t *new_ptr = reinterpret_cast<std::uint8_t *>(malloc_resource->Data());
+      new_vec = {new_ptr, n_bytes / sizeof(std::uint8_t), malloc_resource};
+    }
     this->data = std::move(new_vec);
     this->index = common::Index{common::Span{data.data(), data.size()}, t_size};
   };
