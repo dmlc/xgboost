@@ -268,9 +268,6 @@ constexpr std::size_t IOAlignment() {
   return 8;
 }
 
-// FIXME(Jiamingy): Remove the dependency on `dmlc::SeekStream` once all page types
-// support reading with mmap. The SeekStream has the default dtor that doesn't permit
-// exception. Also, we don't want a write method.
 /**
  * @brief Wrap resource into a dmlc stream.
  *
@@ -280,7 +277,7 @@ constexpr std::size_t IOAlignment() {
  *
  *  Input is required to be aligned to IOAlignment().
  */
-class AlignedResourceReadStream : public dmlc::SeekStream {
+class AlignedResourceReadStream {
   std::shared_ptr<ResourceHandler> resource_;
   std::size_t curr_ptr_{0};
 
@@ -324,20 +321,11 @@ class AlignedResourceReadStream : public dmlc::SeekStream {
     return true;
   }
 
-  [[nodiscard]] std::size_t Tell() noexcept(true) override { return curr_ptr_; }
-  // Be caucious about calling this method. We don't really need it in XGBoost, defined
-  // only for being a proper dmlc::SeekStream. Seek can ruin alignment.
-  void Seek(std::size_t pos) noexcept(true) override {
-    if (pos == kSeekEnd) {
-      curr_ptr_ = resource_->Size();
-    } else {
-      curr_ptr_ = static_cast<std::size_t>(pos);
-    }
-  }
+  [[nodiscard]] virtual std::size_t Tell() noexcept(true) { return curr_ptr_; }
   /**
    * @brief Read n_bytes of data, output is copied into ptr.
    */
-  [[nodiscard]] std::size_t Read(void* ptr, std::size_t n_bytes) noexcept(true) override {
+  [[nodiscard]] std::size_t Read(void* ptr, std::size_t n_bytes) noexcept(true) {
     auto [res_ptr, forward] = this->Consume(n_bytes);
     if (forward != 0) {
       std::memcpy(ptr, res_ptr, forward);
@@ -373,7 +361,7 @@ class AlignedResourceReadStream : public dmlc::SeekStream {
     return true;
   }
 
-  void Write(const void*, std::size_t) override { LOG(FATAL) << "Read-only stream."; }
+  virtual ~AlignedResourceReadStream() noexcept(false) = default;
 };
 
 /**
@@ -395,7 +383,7 @@ class PrivateMmapConstStream : public AlignedResourceReadStream {
    */
   explicit PrivateMmapConstStream(std::string path, std::size_t offset, std::size_t length)
       : AlignedResourceReadStream{std::make_shared<MmapResource>(path, offset, length)} {}
-  ~PrivateMmapConstStream() override = default;
+  ~PrivateMmapConstStream() noexcept(false) override = default;
 };
 
 /**
