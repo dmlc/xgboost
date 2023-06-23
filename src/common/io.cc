@@ -323,6 +323,11 @@ MmapResource::~MmapResource() noexcept(false) {
 
 [[nodiscard]] std::size_t MmapResource::Size() const { return n_; }
 
+// For some reason, NVCC 12.1 marks the function deleted if we expose it in the header.
+// NVCC 11.8 doesn't allow `noexcept(false) = default` altogether.
+AlignedResourceReadStream::~AlignedResourceReadStream() noexcept(false) {}  // NOLINT
+PrivateMmapConstStream::~PrivateMmapConstStream() noexcept(false) {}        // NOLINT
+
 AlignedFileWriteStream::AlignedFileWriteStream(StringView path, StringView flags)
     : pimpl_{dmlc::Stream::Create(path.c_str(), flags.c_str())} {}
 

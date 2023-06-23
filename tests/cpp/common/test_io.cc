@@ -184,7 +184,7 @@ TEST(IO, PrivateMmapStream) {
     std::vector<T> data;
 
     std::uint64_t size{0};
-    ASSERT_EQ(fi->Read(&size), sizeof(size));
+    ASSERT_TRUE(fi->Read(&size));
     ASSERT_EQ(fi->Tell(), sizeof(size));
     data.resize(size);
 

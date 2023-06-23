@@ -13,6 +13,7 @@
 #include <algorithm>    // for min
 #include <array>        // for array
 #include <cstddef>      // for byte, size_t
+#include <cstdlib>      // for malloc, realloc, free
 #include <cstring>      // for memcpy
 #include <fstream>      // for ifstream
 #include <limits>       // for numeric_limits
@@ -361,7 +362,7 @@ class AlignedResourceReadStream {
     return true;
   }
 
-  virtual ~AlignedResourceReadStream() noexcept(false) = default;
+  virtual ~AlignedResourceReadStream() noexcept(false);
 };
 
 /**
@@ -383,7 +384,7 @@ class PrivateMmapConstStream : public AlignedResourceReadStream {
    */
   explicit PrivateMmapConstStream(std::string path, std::size_t offset, std::size_t length)
       : AlignedResourceReadStream{std::make_shared<MmapResource>(path, offset, length)} {}
-  ~PrivateMmapConstStream() noexcept(false) override = default;
+  ~PrivateMmapConstStream() noexcept(false) override;
 };
 
 /**
