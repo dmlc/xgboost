@@ -48,8 +48,9 @@ Notice that the samples are sorted based on their query index in a non-decreasin
   import xgboost as xgb
 
   # Make a synthetic ranking dataset for demonstration
-  X, y = make_classification(random_state=rng)
-  rng = np.random.default_rng(1994)
+  seed = 1994 
+  X, y = make_classification(random_state=seed)
+  rng = np.random.default_rng(seed)
   n_query_groups = 3
   qid = rng.integers(0, 3, size=X.shape[0])
 
