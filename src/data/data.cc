@@ -416,7 +416,8 @@ void CopyTensorInfoImpl(Context const& ctx, Json arr_interface, linalg::Tensor<T
     p_out->Reshape(array.shape);
     return;
   }
-  CHECK(array.valid.Size() == 0) << "Meta info like label or weight can not have missing value.";
+  CHECK_EQ(array.valid.Capacity(), 0)
+      << "Meta info like label or weight can not have missing value.";
   if (array.is_contiguous && array.type == ToDType<T>::kType) {
     // Handle contigious
     p_out->ModifyInplace([&](HostDeviceVector<T>* data, common::Span<size_t, D> shape) {
