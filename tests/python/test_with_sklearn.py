@@ -750,7 +750,7 @@ def test_parameters_access():
         ]["tree_method"]
         return tm
 
-    assert get_tm(clf) == "exact"
+    assert get_tm(clf) == "auto"  # Kept as auto, immutable since 2.0
 
     clf = pickle.loads(pickle.dumps(clf))
 
@@ -758,7 +758,7 @@ def test_parameters_access():
     assert clf.n_estimators == 2
     assert clf.get_params()["tree_method"] is None
     assert clf.get_params()["n_estimators"] == 2
-    assert get_tm(clf) == "exact"  # preserved for pickle
+    assert get_tm(clf) == "auto"  # preserved for pickle
 
     clf = save_load(clf)
 

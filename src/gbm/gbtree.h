@@ -190,9 +190,6 @@ class GBTree : public GradientBooster {
       : GradientBooster{ctx}, model_(booster_config, ctx_) {}
 
   void Configure(const Args& cfg) override;
-  // Revise `tree_method` and `updater` parameters after seeing the training
-  // data matrix, only useful when tree_method is auto.
-  void PerformTreeMethodHeuristic();
   /*! \brief Map `tree_method` parameter to `updater` parameter */
   void ConfigureUpdaters();
 

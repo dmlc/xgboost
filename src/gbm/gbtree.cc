@@ -91,7 +91,12 @@ void GBTree::Configure(Args const& cfg) {
     showed_updater_warning_ = true;
   }
 
-  this->PerformTreeMethodHeuristic();
+  if (model_.learner_model_param->IsVectorLeaf()) {
+    CHECK(tparam_.tree_method == TreeMethod::kHist || tparam_.tree_method == TreeMethod::kAuto)
+        << "Only the hist tree method is supported for building multi-target trees with vector "
+           "leaf.";
+  }
+  LOG(DEBUG) << "Using tree method: " << static_cast<int>(tparam_.tree_method);
   this->ConfigureUpdaters();
 
   if (updater_seq != tparam_.updater_seq) {
@@ -106,27 +111,6 @@ void GBTree::Configure(Args const& cfg) {
   configured_ = true;
 }
 
-void GBTree::PerformTreeMethodHeuristic() {
-  if (specified_updater_) {
-    // This method is disabled when `updater` parameter is explicitly
-    // set, since only experts are expected to do so.
-    return;
-  }
-  if (model_.learner_model_param->IsVectorLeaf()) {
-    CHECK(tparam_.tree_method == TreeMethod::kHist || tparam_.tree_method == TreeMethod::kAuto)
-        << "Only the hist tree method is supported for building multi-target trees with vector "
-           "leaf.";
-  }
-
-  // tparam_ is set before calling this function.
-  if (tparam_.tree_method != TreeMethod::kAuto) {
-    return;
-  }
-
-  tparam_.tree_method = TreeMethod::kHist;
-  LOG(DEBUG) << "Using tree method: " << static_cast<int>(tparam_.tree_method);
-}
-
 void GBTree::ConfigureUpdaters() {
   if (specified_updater_) {
     return;
@@ -134,21 +118,17 @@ void GBTree::ConfigureUpdaters() {
   // `updater` parameter was manually specified
   /* Choose updaters according to tree_method parameters */
   switch (tparam_.tree_method) {
-    case TreeMethod::kAuto:
-      // Use heuristic to choose between 'exact' and 'approx' This
-      // choice is carried out in PerformTreeMethodHeuristic() before
-      // calling this function.
+    case TreeMethod::kAuto:  // Use hist as default in 2.0
+    case TreeMethod::kHist: {
+      tparam_.updater_seq = "grow_quantile_histmaker";
       break;
+    }
     case TreeMethod::kApprox:
       tparam_.updater_seq = "grow_histmaker";
       break;
     case TreeMethod::kExact:
       tparam_.updater_seq = "grow_colmaker,prune";
       break;
-    case TreeMethod::kHist: {
-      tparam_.updater_seq = "grow_quantile_histmaker";
-      break;
-    }
     case TreeMethod::kGPUHist: {
       common::AssertGPUSupport();
       tparam_.updater_seq = "grow_gpu_hist";
