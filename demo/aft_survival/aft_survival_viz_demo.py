@@ -64,6 +64,8 @@ accuracy_history = []
 
 
 class PlotIntermediateModel(xgb.callback.TrainingCallback):
+    """Custom callback to plot intermediate models."""
+
     def __init__(self) -> None:
         super().__init__()
 
