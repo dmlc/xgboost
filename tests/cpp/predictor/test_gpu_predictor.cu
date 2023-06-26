@@ -80,8 +80,8 @@ void VerifyBasicColumnSplit(std::array<std::vector<float>, 32> const& expected_r
     // Test predict batch
     PredictionCacheEntry out_predictions;
 
-    predictor->InitOutPredictions(dmat->Info(), &out_predictions.predictions, model);
-    predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
+    predictor->InitOutPredictions(sliced->Info(), &out_predictions.predictions, model);
+    predictor->PredictBatch(sliced.get(), &out_predictions, model, 0);
 
     std::vector<float>& out_predictions_h = out_predictions.predictions.HostVector();
     EXPECT_EQ(out_predictions_h, expected_result[i - 1]);
