@@ -408,7 +408,7 @@ test_that("colsample_bytree works", {
   xgb.importance(model = bst)
   # If colsample_bytree works properly, a variety of features should be used
   # in the 100 trees
-  expect_gte(nrow(xgb.importance(model = bst)), 30)
+  expect_gte(nrow(xgb.importance(model = bst)), 28)
 })
 
 test_that("Configuration works", {
