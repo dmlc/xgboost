@@ -121,7 +121,8 @@ class TestSHAP:
             else:
                 ind = tree[i]["feature_index"]
                 if z[ind] == 1:
-                    if x[ind] < tree[i]["threshold"]:
+                    # 1e-6 for numeric error from parsing text dump.
+                    if x[ind] + 1e-6 < tree[i]["threshold"]:
                         return exp_value_rec(tree, z, x, tree[i]["yes_ind"])
                     else:
                         return exp_value_rec(tree, z, x, tree[i]["no_ind"])
