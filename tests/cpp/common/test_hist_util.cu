@@ -143,11 +143,14 @@ TEST(HistUtil, DeviceSketchCategoricalFeatures) {
 
 void TestMixedSketch() {
   size_t n_samples = 1000, n_features = 2, n_categories = 3;
+  bst_bin_t n_bins = 64;
+
   std::vector<float> data(n_samples * n_features);
   SimpleLCG gen;
   SimpleRealUniformDistribution<float> cat_d{0.0f, static_cast<float>(n_categories)};
   SimpleRealUniformDistribution<float> num_d{0.0f, 3.0f};
   for (size_t i = 0; i < n_samples * n_features; ++i) {
+    // two features, row major. The first column is numeric and the second is categorical.
     if (i % 2 == 0) {
       data[i] = std::floor(cat_d(&gen));
     } else {
@@ -159,12 +162,75 @@ void TestMixedSketch() {
   m->Info().feature_types.HostVector().push_back(FeatureType::kCategorical);
   m->Info().feature_types.HostVector().push_back(FeatureType::kNumerical);
 
-  auto cuts = DeviceSketch(0, m.get(), 64);
-  ASSERT_EQ(cuts.Values().size(), 64 + n_categories);
+  auto cuts = DeviceSketch(0, m.get(), n_bins);
+  ASSERT_EQ(cuts.Values().size(), n_bins + n_categories);
 }
 
-TEST(HistUtil, DeviceSketchMixedFeatures) {
-  TestMixedSketch();
+TEST(HistUtil, DeviceSketchMixedFeatures) { TestMixedSketch(); }
+
+TEST(HistUtil, RemoveDuplicatedCategories) {
+  bst_row_t n_samples = 512;
+  bst_feature_t n_features = 3;
+  bst_cat_t n_categories = 5;
+
+  auto ctx = MakeCUDACtx(0);
+  SimpleLCG rng;
+  SimpleRealUniformDistribution<float> cat_d{0.0f, static_cast<float>(n_categories)};
+
+  dh::device_vector<Entry> sorted_entries(n_samples * n_features);
+  for (std::size_t i = 0; i < n_samples; ++i) {
+    for (bst_feature_t j = 0; j < n_features; ++j) {
+      float fvalue{0.0f};
+      // The second column is categorical
+      if (j == 1) {
+        fvalue = std::floor(cat_d(&rng));
+      } else {
+        fvalue = i;
+      }
+      sorted_entries[i * n_features + j] = Entry{j, fvalue};
+    }
+  }
+
+  MetaInfo info;
+  info.num_col_ = n_features;
+  info.num_row_ = n_samples;
+  info.feature_types.HostVector() = std::vector<FeatureType>{
+      FeatureType::kNumerical, FeatureType::kCategorical, FeatureType::kNumerical};
+  ASSERT_EQ(info.feature_types.Size(), n_features);
+
+  HostDeviceVector<bst_row_t> cuts_ptr{0, n_samples, n_samples * 2, n_samples * 3};
+  cuts_ptr.SetDevice(0);
+
+  dh::device_vector<float> weight(n_samples * n_features, 0);
+  dh::Iota(dh::ToSpan(weight));
+
+  dh::caching_device_vector<bst_row_t> columns_ptr(4);
+  for (std::size_t i = 0; i < columns_ptr.size(); ++i) {
+    columns_ptr[i] = i * n_samples;
+  }
+  // sort into column major
+  thrust::sort_by_key(sorted_entries.begin(), sorted_entries.end(), weight.begin(),
+                      detail::EntryCompareOp());
+
+  detail::RemoveDuplicatedCategories(ctx.gpu_id, info, cuts_ptr.DeviceSpan(), &sorted_entries,
+                                     &weight, &columns_ptr);
+
+  auto const& h_cptr = cuts_ptr.ConstHostVector();
+  ASSERT_EQ(h_cptr.back(), n_samples * 2 + n_categories);
+  // check numerical
+  for (std::size_t i = 0; i < n_samples; ++i) {
+    ASSERT_EQ(weight[i], i * 3);
+  }
+  auto beg = n_samples + n_categories;
+  for (std::size_t i = 0; i < n_samples; ++i) {
+    ASSERT_EQ(weight[i + beg], i * 3 + 2);
+  }
+  // check categorical
+  beg = n_samples;
+  for (std::size_t i = 0; i < n_categories; ++i) {
+    // all from the second column
+    ASSERT_EQ(static_cast<bst_feature_t>(weight[i + beg]) % n_features, 1);
+  }
 }
 
 TEST(HistUtil, DeviceSketchMultipleColumns) {

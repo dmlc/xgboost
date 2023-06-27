@@ -137,6 +137,9 @@ void RemoveDuplicatedCategories(int32_t device, MetaInfo const& info, Span<bst_r
   auto& column_sizes_scan = *p_column_sizes_scan;
   auto& sorted_entries = *p_sorted_entries;
   // Removing duplicated entries in categorical features.
+
+  // We don't need to accumulate weight for duplicated entries as there's no weighted
+  // sketching for categorical features, the categories are the cut values.
   dh::caching_device_vector<size_t> new_column_scan(column_sizes_scan.size());
   std::size_t n_uniques{0};
   if (p_sorted_weights) {
