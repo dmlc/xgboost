@@ -22,6 +22,15 @@ GPU-based training algorithm. We will introduce them in the following sections.
 
    The feature is still experimental as of 2.0. The performance is not well optimized.
 
+The external memory support has gone through multiple iterations and is still under heavy
+development. Like the :py:class:`~xgboost.QuantileDMatrix` with
+:py:class:`~xgboost.DataIter`, XGBoost loads data batch-by-batch using a custom iterator
+supplied by the user. However, unlike the :py:class:`~xgboost.QuantileDMatrix`, external
+memory will not concatenate the batches unless GPU is used (it uses a hybrid approach,
+more details follow). Instead, it will cache all batches on the external memory and fetch
+them on-demand.  Go to the end of the document to see a comparison between
+`QuantileDMatrix` and external memory.
+
 *************
 Data Iterator
 *************
@@ -113,10 +122,11 @@ External memory is supported by GPU algorithms (i.e. when ``tree_method`` is set
 ``gpu_hist``). However, the algorithm used for GPU is different from the one used for
 CPU. When training on a CPU, the tree method iterates through all batches from external
 memory for each step of the tree construction algorithm. On the other hand, the GPU
-algorithm concatenates all batches into one and stores it in GPU memory. To reduce overall
-memory usage, users can utilize subsampling. The good news is that the GPU hist tree
-method supports gradient-based sampling, enabling users to set a low sampling rate without
-compromising accuracy.
+algorithm uses a hybrid approach. It iterates through the data during the beginning of
+each iteration and concatenates all batches into one in GPU memory. To reduce overall
+memory usage, users can utilize subsampling. The GPU hist tree method supports
+`gradient-based sampling`, enabling users to set a low sampling rate without compromising
+accuracy.
 
 .. code-block:: python
 
@@ -134,6 +144,8 @@ see `this paper <https://arxiv.org/abs/2005.09148>`_.
    When GPU is running out of memory during iteration on external memory, user might
    recieve a segfault instead of an OOM exception.
 
+.. _ext_remarks:
+
 *******
 Remarks
 *******
@@ -142,17 +154,64 @@ When using external memory with XBGoost, data is divided into smaller chunks so 
 a fraction of it needs to be stored in memory at any given time. It's important to note
 that this method only applies to the predictor data (``X``), while other data, like labels
 and internal runtime structures are concatenated. This means that memory reduction is most
-effective when dealing with wide datasets where ``X`` is larger compared to other data
-like ``y``, while it has little impact on slim datasets.
+effective when dealing with wide datasets where ``X`` is significantly larger in size
+compared to other data like ``y``, while it has little impact on slim datasets.
+
+As one might expect, fetching data on-demand puts significant pressure on the storage
+device. Today's computing device can process way more data than a storage can read in a
+single unit of time. The ratio is at order of magnitudes. An GPU is capable of processing
+hundred of Gigabytes of floating-point data in a split second. On the other hand, a
+four-lane NVMe storage connected to a PCIe-4 slot usually has about 6GB/s of data transfer
+rate. As a result, the training is likely to be severely bounded by your storage
+device. Before adopting the external memory solution, some back-of-envelop calculations
+might help you see whether it's viable. For instance, if your NVMe drive can transfer 4GB
+(a fairly practical number) of data per second and you have a 100GB of data in compressed
+XGBoost cache (which corresponds to a dense float32 numpy array with the size of 200GB,
+give or take). A tree with depth 8 needs at least 16 iterations through the data when the
+parameter is right. You need about 14 minutes to train a single tree without accounting
+for some other overheads and assume the computation overlaps with the IO. If your dataset
+happens to have TB-level size, then you might need thousands of trees to get a generalized
+model. These calculations can help you get an estimate on the expected training time.
+
+However, sometimes we can ameliorate this limitation. One should also consider that the OS
+(mostly talking about the Linux kernel) can usually cache the data on host memory. It only
+evicts pages when new data comes in and there's no room left. In practice, at least some
+portion of the data can persist on the host memory throughout the entire training
+session. We are aware of this cache when optimizing the external memory fetcher. The
+compressed cache is usually smaller than the raw input data, especially when the input is
+dense without any missing value. If the host memory can fit a significant portion of this
+compressed cache, then the performance should be decent after initialization. Our
+development so far focus on two fronts of optimization for external memory:
+
+- Avoid iterating through the data whenever appropriate.
+- If the OS can cache the data, the performance should be close to in-core training.
 
 Starting with XGBoost 2.0, the implementation of external memory uses ``mmap``. It is not
-yet tested against system errors like disconnected network devices (`SIGBUS`). Also, it's
-worth noting that most tests have been conducted on Linux distributions.
+tested against system errors like disconnected network devices (`SIGBUS`). In the face of
+a bus error, you will see a hard crash and need to clean up the cache files. If the
+training session might take a long time and you are using solutions like NVMe-oF, we
+recommend checkpointing your model periodically. Also, it's worth noting that most tests
+have been conducted on Linux distributions.
+
 
 Another important point to keep in mind is that creating the initial cache for XGBoost may
-take some time. The interface to external memory is through custom iterators, which may or
-may not be thread-safe. Therefore, initialization is performed sequentially.
+take some time. The interface to external memory is through custom iterators, which we can
+not assume to be thread-safe. Therefore, initialization is performed sequentially. Using
+the `xgboost.config_context` with `verbosity=2` can give you some information on what
+XGBoost is doing during the wait if you don't mind the extra output.
 
+*******************************
+Compared to the QuantileDMatrix
+*******************************
+
+Passing an iterator to the :py:class:`~xgboost.QuantileDmatrix` enables direct
+construction of `QuantileDmatrix` with data chunks. On the other hand, if it's passed to
+:py:class:`~xgboost.DMatrix`, it instead enables the external memory feature. The
+:py:class:`~xgboost.QuantileDmatrix` concatenates the data on memory after compression and
+doesn't fetch data during training. On the other hand, the external memory `DMatrix`
+fetches data batches from external memory on-demand.  Use the `QuantileDMatrix` (with
+iterator if necessary) when you can fit most of your data in memory. The training would be
+an order of magnitute faster than using external memory.
 
 ****************
 Text File Inputs

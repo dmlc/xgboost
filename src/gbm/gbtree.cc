@@ -634,6 +634,22 @@ GBTree::GetPredictor(HostDeviceVector<float> const *out_pred,
     return cpu_predictor_;
   }
 
+  // Data comes from SparsePageDMatrix. Since we are loading data in pages, no need to
+  // prevent data copy.
+  if (f_dmat && !f_dmat->SingleColBlock()) {
+    if (ctx_->IsCPU()) {
+      return cpu_predictor_;
+    } else {
+#if defined(XGBOOST_USE_CUDA)
+      CHECK_GE(common::AllVisibleGPUs(), 1) << "No visible GPU is found for XGBoost.";
+      return gpu_predictor_;
+#else
+      common::AssertGPUSupport();
+      return cpu_predictor_;
+#endif  // defined(XGBOOST_USE_CUDA)
+    }
+  }
+
   // Data comes from Device DMatrix.
   auto is_ellpack = f_dmat && f_dmat->PageExists<EllpackPage>() &&
                     !f_dmat->PageExists<SparsePage>();

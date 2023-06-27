@@ -6,9 +6,11 @@
 #define XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_
 
 #include <algorithm>  // for min
+#include <atomic>     // for atomic
 #include <future>     // for async
 #include <map>
 #include <memory>
+#include <mutex>  // for mutex
 #include <string>
 #include <thread>
 #include <utility>  // for pair, move
@@ -18,7 +20,6 @@
 #include "../common/io.h"     // for PrivateMmapConstStream
 #include "../common/timer.h"  // for Monitor, Timer
 #include "adapter.h"
-#include "dmlc/common.h"         // for OMPException
 #include "proxy_dmatrix.h"       // for DMatrixProxy
 #include "sparse_page_writer.h"  // for SparsePageFormat
 #include "xgboost/base.h"
@@ -93,6 +94,47 @@ class TryLockGuard {
   }
 };
 
+// Similar to `dmlc::OMPException`, but doesn't need the threads to be joined before rethrow
+class ExceHandler {
+  std::mutex mutex_;
+  std::atomic<bool> flag_{false};
+  std::exception_ptr curr_exce_{nullptr};
+
+ public:
+  template <typename Fn>
+  decltype(auto) Run(Fn&& fn) noexcept(true) {
+    try {
+      return fn();
+    } catch (dmlc::Error const& e) {
+      std::lock_guard<std::mutex> guard{mutex_};
+      if (!curr_exce_) {
+        curr_exce_ = std::current_exception();
+      }
+      flag_ = true;
+    } catch (std::exception const& e) {
+      std::lock_guard<std::mutex> guard{mutex_};
+      if (!curr_exce_) {
+        curr_exce_ = std::current_exception();
+      }
+      flag_ = true;
+    } catch (...) {
+      std::lock_guard<std::mutex> guard{mutex_};
+      if (!curr_exce_) {
+        curr_exce_ = std::current_exception();
+      }
+      flag_ = true;
+    }
+    return std::invoke_result_t<Fn>();
+  }
+
+  void Rethrow() noexcept(false) {
+    if (flag_) {
+      CHECK(curr_exce_);
+      std::rethrow_exception(curr_exce_);
+    }
+  }
+};
+
 /**
  * @brief Base class for all page sources. Handles fetching, writing, and iteration.
  */
@@ -122,7 +164,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
   // Catching exception in pre-fetch threads to prevent segfault. Not always work though,
   // OOM error can be delayed due to lazy commit. On the bright side, if mmap is used then
   // OOM error should be rare.
-  dmlc::OMPException exec_;
+  ExceHandler exce_;
   common::Monitor monitor_;
 
   bool ReadCache() {
@@ -141,7 +183,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     CHECK_GT(n_prefetch_batches, 0) << "total batches:" << n_batches_;
     std::size_t fetch_it = count_;
 
-    exec_.Rethrow();
+    exce_.Rethrow();
 
     for (std::size_t i = 0; i < n_prefetch_batches; ++i, ++fetch_it) {
       fetch_it %= n_batches_;  // ring
@@ -152,7 +194,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
       CHECK_LT(fetch_it, cache_info_->offset.size());
       ring_->at(fetch_it) = std::async(std::launch::async, [fetch_it, self, this]() {
         auto page = std::make_shared<S>();
-        this->exec_.Run([&] {
+        this->exce_.Run([&] {
           std::unique_ptr<SparsePageFormat<S>> fmt{CreatePageFormat<S>("raw")};
           auto name = self->cache_info_->ShardName();
           auto [offset, length] = self->cache_info_->View(fetch_it);
@@ -172,7 +214,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     CHECK(!(*ring_)[count_].valid());
     monitor_.Stop("Wait");
 
-    exec_.Rethrow();
+    exce_.Rethrow();
 
     return true;
   }
@@ -184,11 +226,11 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     std::unique_ptr<SparsePageFormat<S>> fmt{CreatePageFormat<S>("raw")};
 
     auto name = cache_info_->ShardName();
-    std::unique_ptr<dmlc::Stream> fo;
+    std::unique_ptr<common::AlignedFileWriteStream> fo;
     if (this->Iter() == 0) {
-      fo.reset(dmlc::Stream::Create(name.c_str(), "wb"));
+      fo = std::make_unique<common::AlignedFileWriteStream>(StringView{name}, "wb");
     } else {
-      fo.reset(dmlc::Stream::Create(name.c_str(), "ab"));
+      fo = std::make_unique<common::AlignedFileWriteStream>(StringView{name}, "ab");
     }
 
     auto bytes = fmt->Write(*page_, fo.get());

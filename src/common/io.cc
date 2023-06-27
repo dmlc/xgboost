@@ -200,21 +200,43 @@ std::string FileExtension(std::string fname, bool lower) {
   }
 }
 
-struct PrivateMmapConstStream::MMAPFile {
+// For some reason, NVCC 12.1 marks the function deleted if we expose it in the header.
+// NVCC 11.8 doesn't allow `noexcept(false) = default` altogether.
+ResourceHandler::~ResourceHandler() noexcept(false) {}  // NOLINT
+
+struct MMAPFile {
 #if defined(xgboost_IS_WIN)
   HANDLE fd{INVALID_HANDLE_VALUE};
   HANDLE file_map{INVALID_HANDLE_VALUE};
 #else
   std::int32_t fd{0};
 #endif
-  char* base_ptr{nullptr};
+  std::byte* base_ptr{nullptr};
   std::size_t base_size{0};
+  std::size_t delta{0};
   std::string path;
+
+  MMAPFile() = default;
+
+#if defined(xgboost_IS_WIN)
+  MMAPFile(HANDLE fd, HANDLE fm, std::byte* base_ptr, std::size_t base_size, std::size_t delta,
+           std::string path)
+      : fd{fd},
+        file_map{fm},
+        base_ptr{base_ptr},
+        base_size{base_size},
+        delta{delta},
+        path{std::move(path)} {}
+#else
+  MMAPFile(std::int32_t fd, std::byte* base_ptr, std::size_t base_size, std::size_t delta,
+           std::string path)
+      : fd{fd}, base_ptr{base_ptr}, base_size{base_size}, delta{delta}, path{std::move(path)} {}
+#endif
 };
 
-char* PrivateMmapConstStream::Open(std::string path, std::size_t offset, std::size_t length) {
+std::unique_ptr<MMAPFile> Open(std::string path, std::size_t offset, std::size_t length) {
   if (length == 0) {
-    return nullptr;
+    return std::make_unique<MMAPFile>();
   }
 
 #if defined(xgboost_IS_WIN)
@@ -226,16 +248,18 @@ char* PrivateMmapConstStream::Open(std::string path, std::size_t offset, std::si
   CHECK_GE(fd, 0) << "Failed to open:" << path << ". " << SystemErrorMsg();
 #endif
 
-  char* ptr{nullptr};
+  std::byte* ptr{nullptr};
   // Round down for alignment.
   auto view_start = offset / GetMmapAlignment() * GetMmapAlignment();
   auto view_size = length + (offset - view_start);
 
 #if defined(__linux__) || defined(__GLIBC__)
   int prot{PROT_READ};
-  ptr = reinterpret_cast<char*>(mmap64(nullptr, view_size, prot, MAP_PRIVATE, fd, view_start));
+  ptr = reinterpret_cast<std::byte*>(mmap64(nullptr, view_size, prot, MAP_PRIVATE, fd, view_start));
+  madvise(ptr, view_size, MADV_WILLNEED);
   CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << path << ". " << SystemErrorMsg();
-  handle_.reset(new MMAPFile{fd, ptr, view_size, std::move(path)});
+  auto handle =
+      std::make_unique<MMAPFile>(fd, ptr, view_size, offset - view_start, std::move(path));
 #elif defined(xgboost_IS_WIN)
   auto file_size = GetFileSize(fd, nullptr);
   DWORD access = PAGE_READONLY;
@@ -244,33 +268,32 @@ char* PrivateMmapConstStream::Open(std::string path, std::size_t offset, std::si
   std::uint32_t loff = static_cast<std::uint32_t>(view_start);
   std::uint32_t hoff = view_start >> 32;
   CHECK(map_file) << "Failed to map: " << path << ". " << SystemErrorMsg();
-  ptr = reinterpret_cast<char*>(MapViewOfFile(map_file, access, hoff, loff, view_size));
+  ptr = reinterpret_cast<std::byte*>(MapViewOfFile(map_file, access, hoff, loff, view_size));
   CHECK_NE(ptr, nullptr) << "Failed to map: " << path << ". " << SystemErrorMsg();
-  handle_.reset(new MMAPFile{fd, map_file, ptr, view_size, std::move(path)});
+  auto handle = std::make_unique<MMAPFile>(fd, map_file, ptr, view_size, offset - view_start,
+                                           std::move(path));
 #else
   CHECK_LE(offset, std::numeric_limits<off_t>::max())
       << "File size has exceeded the limit on the current system.";
   int prot{PROT_READ};
-  ptr = reinterpret_cast<char*>(mmap(nullptr, view_size, prot, MAP_PRIVATE, fd, view_start));
+  ptr = reinterpret_cast<std::byte*>(mmap(nullptr, view_size, prot, MAP_PRIVATE, fd, view_start));
   CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << path << ". " << SystemErrorMsg();
-  handle_.reset(new MMAPFile{fd, ptr, view_size, std::move(path)});
+  auto handle =
+      std::make_unique<MMAPFile>(fd, ptr, view_size, offset - view_start, std::move(path));
 #endif  // defined(__linux__)
 
-  ptr += (offset - view_start);
-  return ptr;
+  return handle;
 }
 
-PrivateMmapConstStream::PrivateMmapConstStream(std::string path, std::size_t offset,
-                                               std::size_t length)
-    : MemoryFixSizeBuffer{}, handle_{nullptr} {
-  this->p_buffer_ = Open(std::move(path), offset, length);
-  this->buffer_size_ = length;
-}
+MmapResource::MmapResource(std::string path, std::size_t offset, std::size_t length)
+    : ResourceHandler{kMmap}, handle_{Open(std::move(path), offset, length)}, n_{length} {}
 
-PrivateMmapConstStream::~PrivateMmapConstStream() {
-  CHECK(handle_);
+MmapResource::~MmapResource() noexcept(false) {
+  if (!handle_) {
+    return;
+  }
 #if defined(xgboost_IS_WIN)
-  if (p_buffer_) {
+  if (handle_->base_ptr) {
     CHECK(UnmapViewOfFile(handle_->base_ptr)) "Faled to call munmap: " << SystemErrorMsg();
   }
   if (handle_->fd != INVALID_HANDLE_VALUE) {
@@ -289,6 +312,43 @@ PrivateMmapConstStream::~PrivateMmapConstStream() {
         << "Faled to close: " << handle_->path << ". " << SystemErrorMsg();
   }
 #endif
+}
+
+[[nodiscard]] void* MmapResource::Data() {
+  if (!handle_) {
+    return nullptr;
+  }
+  return handle_->base_ptr + handle_->delta;
+}
+
+[[nodiscard]] std::size_t MmapResource::Size() const { return n_; }
+
+// For some reason, NVCC 12.1 marks the function deleted if we expose it in the header.
+// NVCC 11.8 doesn't allow `noexcept(false) = default` altogether.
+AlignedResourceReadStream::~AlignedResourceReadStream() noexcept(false) {}  // NOLINT
+PrivateMmapConstStream::~PrivateMmapConstStream() noexcept(false) {}        // NOLINT
+
+AlignedFileWriteStream::AlignedFileWriteStream(StringView path, StringView flags)
+    : pimpl_{dmlc::Stream::Create(path.c_str(), flags.c_str())} {}
+
+[[nodiscard]] std::size_t AlignedFileWriteStream::DoWrite(const void* ptr,
+                                                          std::size_t n_bytes) noexcept(true) {
+  pimpl_->Write(ptr, n_bytes);
+  return n_bytes;
+}
+
+AlignedMemWriteStream::AlignedMemWriteStream(std::string* p_buf)
+    : pimpl_{std::make_unique<MemoryBufferStream>(p_buf)} {}
+AlignedMemWriteStream::~AlignedMemWriteStream() = default;
+
+[[nodiscard]] std::size_t AlignedMemWriteStream::DoWrite(const void* ptr,
+                                                         std::size_t n_bytes) noexcept(true) {
+  this->pimpl_->Write(ptr, n_bytes);
+  return n_bytes;
+}
+
+[[nodiscard]] std::size_t AlignedMemWriteStream::Tell() const noexcept(true) {
+  return this->pimpl_->Tell();
 }
 }  // namespace xgboost::common
 

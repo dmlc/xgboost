@@ -1,38 +1,49 @@
-/*!
- * Copyright 2021-2022 XGBoost contributors
+/**
+ * Copyright 2021-2023 XGBoost contributors
  */
-#include "sparse_page_writer.h"
-#include "gradient_index.h"
-#include "histogram_cut_format.h"
+#include <cstddef>      // for size_t
+#include <cstdint>      // for uint8_t
+#include <type_traits>  // for underlying_type_t
+#include <vector>       // for vector
 
-namespace xgboost {
-namespace data {
+#include "../common/io.h"                 // for AlignedResourceReadStream
+#include "../common/ref_resource_view.h"  // for ReadVec, WriteVec
+#include "gradient_index.h"               // for GHistIndexMatrix
+#include "histogram_cut_format.h"         // for ReadHistogramCuts
+#include "sparse_page_writer.h"           // for SparsePageFormat
+
+namespace xgboost::data {
 class GHistIndexRawFormat : public SparsePageFormat<GHistIndexMatrix> {
  public:
-  bool Read(GHistIndexMatrix* page, dmlc::SeekStream* fi) override {
+  bool Read(GHistIndexMatrix* page, common::AlignedResourceReadStream* fi) override {
+    CHECK(fi);
+
     if (!ReadHistogramCuts(&page->cut, fi)) {
       return false;
     }
+
     // indptr
-    fi->Read(&page->row_ptr);
-    // data
-    std::vector<uint8_t> data;
-    if (!fi->Read(&data)) {
+    if (!common::ReadVec(fi, &page->row_ptr)) {
       return false;
     }
-    page->index.Resize(data.size());
-    std::copy(data.cbegin(), data.cend(), page->index.begin());
-    // bin type
+
+    // data
+    // - bin type
     // Old gcc doesn't support reading from enum.
     std::underlying_type_t<common::BinTypeSize> uint_bin_type{0};
     if (!fi->Read(&uint_bin_type)) {
       return false;
     }
-    common::BinTypeSize size_type =
-        static_cast<common::BinTypeSize>(uint_bin_type);
-    page->index.SetBinTypeSize(size_type);
+    common::BinTypeSize size_type = static_cast<common::BinTypeSize>(uint_bin_type);
+    // - index buffer
+    if (!common::ReadVec(fi, &page->data)) {
+      return false;
+    }
+    // - index
+    page->index = common::Index{common::Span{page->data.data(), page->data.size()}, size_type};
+
     // hit count
-    if (!fi->Read(&page->hit_count)) {
+    if (!common::ReadVec(fi, &page->hit_count)) {
       return false;
     }
     if (!fi->Read(&page->max_numeric_bins_per_feat)) {
@@ -50,38 +61,33 @@ class GHistIndexRawFormat : public SparsePageFormat<GHistIndexMatrix> {
       page->index.SetBinOffset(page->cut.Ptrs());
     }
 
-    page->ReadColumnPage(fi);
+    if (!page->ReadColumnPage(fi)) {
+      return false;
+    }
     return true;
   }
 
-  size_t Write(GHistIndexMatrix const &page, dmlc::Stream *fo) override {
-    size_t bytes = 0;
+  std::size_t Write(GHistIndexMatrix const& page, common::AlignedFileWriteStream* fo) override {
+    std::size_t bytes = 0;
     bytes += WriteHistogramCuts(page.cut, fo);
     // indptr
-    fo->Write(page.row_ptr);
-    bytes += page.row_ptr.size() * sizeof(decltype(page.row_ptr)::value_type) +
-             sizeof(uint64_t);
+    bytes += common::WriteVec(fo, page.row_ptr);
+
     // data
-    std::vector<uint8_t> data(page.index.begin(), page.index.end());
-    fo->Write(data);
-    bytes += data.size() * sizeof(decltype(data)::value_type) + sizeof(uint64_t);
-    // bin type
-    std::underlying_type_t<common::BinTypeSize> uint_bin_type =
-        page.index.GetBinTypeSize();
-    fo->Write(uint_bin_type);
-    bytes += sizeof(page.index.GetBinTypeSize());
+    // - bin type
+    std::underlying_type_t<common::BinTypeSize> uint_bin_type = page.index.GetBinTypeSize();
+    bytes += fo->Write(uint_bin_type);
+    // - index buffer
+    std::vector<std::uint8_t> data(page.index.begin(), page.index.end());
+    bytes += fo->Write(static_cast<std::uint64_t>(data.size()));
+    bytes += fo->Write(data.data(), data.size());
+
     // hit count
-    fo->Write(page.hit_count);
-    bytes +=
-        page.hit_count.size() * sizeof(decltype(page.hit_count)::value_type) +
-        sizeof(uint64_t);
+    bytes += common::WriteVec(fo, page.hit_count);
     // max_bins, base row, is_dense
-    fo->Write(page.max_numeric_bins_per_feat);
-    bytes += sizeof(page.max_numeric_bins_per_feat);
-    fo->Write(page.base_rowid);
-    bytes += sizeof(page.base_rowid);
-    fo->Write(page.IsDense());
-    bytes += sizeof(page.IsDense());
+    bytes += fo->Write(page.max_numeric_bins_per_feat);
+    bytes += fo->Write(page.base_rowid);
+    bytes += fo->Write(page.IsDense());
 
     bytes += page.WriteColumnPage(fo);
     return bytes;
@@ -93,6 +99,4 @@ DMLC_REGISTRY_FILE_TAG(gradient_index_format);
 XGBOOST_REGISTER_GHIST_INDEX_PAGE_FORMAT(raw)
     .describe("Raw GHistIndex binary data format.")
     .set_body([]() { return new GHistIndexRawFormat(); });
-
-}  // namespace data
-}  // namespace xgboost
+}  // namespace xgboost::data
