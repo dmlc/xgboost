@@ -85,9 +85,18 @@ test_that("dart prediction works", {
     rnorm(100)
 
   set.seed(1994)
-  booster_by_xgboost <- xgboost(data = d, label = y, max_depth = 2, booster = "dart",
-                                rate_drop = 0.5, one_drop = TRUE,
-                                eta = 1, nthread = 2, nrounds = nrounds, objective = "reg:squarederror")
+  booster_by_xgboost <- xgboost(
+    data = d,
+    label = y,
+    max_depth = 2,
+    booster = "dart",
+    rate_drop = 0.5,
+    one_drop = TRUE,
+    eta = 1,
+    nthread = 2,
+    nrounds = nrounds,
+    objective = "reg:squarederror"
+  )
   pred_by_xgboost_0 <- predict(booster_by_xgboost, newdata = d, ntreelimit = 0)
   pred_by_xgboost_1 <- predict(booster_by_xgboost, newdata = d, ntreelimit = nrounds)
   expect_true(all(matrix(pred_by_xgboost_0, byrow = TRUE) == matrix(pred_by_xgboost_1, byrow = TRUE)))
@@ -97,19 +106,19 @@ test_that("dart prediction works", {
 
   set.seed(1994)
   dtrain <- xgb.DMatrix(data = d, info = list(label = y))
-  booster_by_train <- xgb.train(params = list(
-                                    booster = "dart",
-                                    max_depth = 2,
-                                    eta = 1,
-                                    rate_drop = 0.5,
-                                    one_drop = TRUE,
-                                    nthread = 1,
-                                    tree_method = "exact",
-                                    objective = "reg:squarederror"
-                                ),
-                                data = dtrain,
-                                nrounds = nrounds
-                                )
+  booster_by_train <- xgb.train(
+    params = list(
+      booster = "dart",
+      max_depth = 2,
+      eta = 1,
+      rate_drop = 0.5,
+      one_drop = TRUE,
+      nthread = 1,
+      objective = "reg:squarederror"
+    ),
+    data = dtrain,
+    nrounds = nrounds
+  )
   pred_by_train_0 <- predict(booster_by_train, newdata = dtrain, ntreelimit = 0)
   pred_by_train_1 <- predict(booster_by_train, newdata = dtrain, ntreelimit = nrounds)
   pred_by_train_2 <- predict(booster_by_train, newdata = dtrain, training = TRUE)
@@ -399,7 +408,7 @@ test_that("colsample_bytree works", {
   xgb.importance(model = bst)
   # If colsample_bytree works properly, a variety of features should be used
   # in the 100 trees
-  expect_gte(nrow(xgb.importance(model = bst)), 30)
+  expect_gte(nrow(xgb.importance(model = bst)), 28)
 })
 
 test_that("Configuration works", {

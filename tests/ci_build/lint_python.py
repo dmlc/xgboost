@@ -23,6 +23,7 @@ class LintersPaths:
         "tests/python/test_predict.py",
         "tests/python/test_quantile_dmatrix.py",
         "tests/python/test_tree_regularization.py",
+        "tests/python/test_shap.py",
         "tests/python-gpu/test_gpu_data_iterator.py",
         "tests/test_distributed/test_with_spark/",
         "tests/test_distributed/test_gpu_with_spark/",
