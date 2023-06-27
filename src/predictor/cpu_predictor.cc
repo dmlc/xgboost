@@ -483,12 +483,9 @@ class ColumnSplitHelper {
       }
 
       auto const fvalue = feat.GetFvalue(split_index);
-      auto decision = false;
-      if (tree.HasCategoricalSplit()) {
-        decision = GetDecision<true>(node, nid, fvalue, cats);
-      } else {
-        decision = GetDecision<false>(node, nid, fvalue, cats);
-      }
+      auto const decision = tree.HasCategoricalSplit()
+                                ? GetDecision<true>(node, nid, fvalue, cats)
+                                : GetDecision<false>(node, nid, fvalue, cats);
       if (decision) {
         decision_bits_.Set(bit_index);
       }
