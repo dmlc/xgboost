@@ -766,7 +766,7 @@ class ColumnSplitHelper {
       SparsePageView data(batch.data.DeviceSpan(), batch.offset.DeviceSpan(), num_features);
 
       auto const grid = static_cast<uint32_t>(common::DivRoundUp(num_rows, kBlockThreads));
-      dh::LaunchKernel{grid, kBlockThreads, shared_memory_bytes}(
+      dh::LaunchKernel {grid, kBlockThreads, shared_memory_bytes} (
           MaskBitVectorKernel, data, model.nodes.ConstDeviceSpan(),
           model.tree_segments.ConstDeviceSpan(), model.tree_group.ConstDeviceSpan(),
           model.split_types.ConstDeviceSpan(), model.categories_tree_segments.ConstDeviceSpan(),
@@ -776,7 +776,7 @@ class ColumnSplitHelper {
 
       AllReduceBitVectors(&decision_storage, &missing_storage);
 
-      dh::LaunchKernel{grid, kBlockThreads}(
+      dh::LaunchKernel {grid, kBlockThreads} (
           PredictByBitVectorKernel, model.nodes.ConstDeviceSpan(),
           out_preds->DeviceSpan().subspan(batch_offset), model.tree_segments.ConstDeviceSpan(),
           model.tree_group.ConstDeviceSpan(), model.split_types.ConstDeviceSpan(),
@@ -795,6 +795,7 @@ class ColumnSplitHelper {
         gpu_id_, decision_storage->data().get(), decision_storage->size());
     collective::AllReduce<collective::Operation::kBitwiseOR>(  // Align to make it easier to read.
         gpu_id_, missing_storage->data().get(), missing_storage->size());
+    collective::Synchronize(gpu_id_);
   }
 
   static void ResizeBitVectors(dh::caching_device_vector<BitType>* decision_storage,
