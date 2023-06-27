@@ -26,8 +26,7 @@
 #include "xgboost/context.h"                    // for Context
 #include "xgboost/host_device_vector.h"         // for HostDeviceVector
 
-namespace xgboost {
-namespace data {
+namespace xgboost::data {
 TEST(GradientIndex, ExternalMemory) {
   Context ctx;
   std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(10000);
@@ -171,7 +170,7 @@ class GHistIndexMatrixTest : public testing::TestWithParam<std::tuple<float, flo
     gpu_ctx.gpu_id = 0;
     for (auto const &page : Xy->GetBatches<EllpackPage>(
              &gpu_ctx, BatchParam{kBins, tree::TrainParam::DftSparseThreshold()})) {
-      from_ellpack.reset(new GHistIndexMatrix{&ctx, Xy->Info(), page, p});
+      from_ellpack = std::make_unique<GHistIndexMatrix>(&ctx, Xy->Info(), page, p);
     }
 
     for (auto const &from_sparse_page : Xy->GetBatches<GHistIndexMatrix>(&ctx, p)) {
@@ -199,13 +198,15 @@ class GHistIndexMatrixTest : public testing::TestWithParam<std::tuple<float, flo
 
       std::string from_sparse_buf;
       {
-        common::MemoryBufferStream fo{&from_sparse_buf};
-        columns_from_sparse.Write(&fo);
+        common::AlignedMemWriteStream fo{&from_sparse_buf};
+        auto n_bytes = columns_from_sparse.Write(&fo);
+        ASSERT_EQ(fo.Tell(), n_bytes);
       }
       std::string from_ellpack_buf;
       {
-        common::MemoryBufferStream fo{&from_ellpack_buf};
-        columns_from_sparse.Write(&fo);
+        common::AlignedMemWriteStream fo{&from_ellpack_buf};
+        auto n_bytes = columns_from_sparse.Write(&fo);
+        ASSERT_EQ(fo.Tell(), n_bytes);
       }
       ASSERT_EQ(from_sparse_buf, from_ellpack_buf);
     }
@@ -229,5 +230,4 @@ INSTANTIATE_TEST_SUITE_P(GHistIndexMatrix, GHistIndexMatrixTest,
                                          std::make_tuple(.6f, .4)));  // dense columns
 
 #endif  // defined(XGBOOST_USE_CUDA)
-}  // namespace data
-}  // namespace xgboost
+}  // namespace xgboost::data

@@ -2,20 +2,20 @@
  * Copyright 2021-2023, XGBoost contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/data.h>                          // for CSCPage, SortedCSCPage, SparsePage
+#include <xgboost/data.h>  // for CSCPage, SortedCSCPage, SparsePage
 
-#include <memory>                                  // for allocator, unique_ptr, __shared_ptr_ac...
-#include <string>                                  // for char_traits, operator+, basic_string
+#include <memory>  // for allocator, unique_ptr, __shared_ptr_ac...
+#include <string>  // for char_traits, operator+, basic_string
 
+#include "../../../src/common/io.h"  // for PrivateMmapConstStream, AlignedResourceReadStream...
 #include "../../../src/data/sparse_page_writer.h"  // for CreatePageFormat
 #include "../helpers.h"                            // for RandomDataGenerator
 #include "dmlc/filesystem.h"                       // for TemporaryDirectory
-#include "dmlc/io.h"                               // for SeekStream, Stream
+#include "dmlc/io.h"                               // for Stream
 #include "gtest/gtest_pred_impl.h"                 // for Test, AssertionResult, ASSERT_EQ, TEST
 #include "xgboost/context.h"                       // for Context
 
-namespace xgboost {
-namespace data {
+namespace xgboost::data {
 template <typename S> void TestSparsePageRawFormat() {
   std::unique_ptr<SparsePageFormat<S>> format{CreatePageFormat<S>("raw")};
   Context ctx;
@@ -25,17 +25,19 @@ template <typename S> void TestSparsePageRawFormat() {
   dmlc::TemporaryDirectory tmpdir;
   std::string path = tmpdir.path + "/sparse.page";
   S orig;
+  std::size_t n_bytes{0};
   {
     // block code to flush the stream
-    std::unique_ptr<dmlc::Stream> fo{dmlc::Stream::Create(path.c_str(), "w")};
+    auto fo = std::make_unique<common::AlignedFileWriteStream>(StringView{path}, "wb");
     for (auto const &page : m->GetBatches<S>(&ctx)) {
       orig.Push(page);
-      format->Write(page, fo.get());
+      n_bytes = format->Write(page, fo.get());
     }
   }
 
   S page;
-  std::unique_ptr<dmlc::SeekStream> fi{dmlc::SeekStream::CreateForRead(path.c_str())};
+  std::unique_ptr<common::AlignedResourceReadStream> fi{
+      std::make_unique<common::PrivateMmapConstStream>(path.c_str(), 0, n_bytes)};
   format->Read(&page, fi.get());
   for (size_t i = 0; i < orig.data.Size(); ++i) {
     ASSERT_EQ(page.data.HostVector()[i].fvalue,
@@ -59,5 +61,4 @@ TEST(SparsePageRawFormat, CSCPage) {
 TEST(SparsePageRawFormat, SortedCSCPage) {
   TestSparsePageRawFormat<SortedCSCPage>();
 }
-}  // namespace data
-}  // namespace xgboost
+}  // namespace xgboost::data

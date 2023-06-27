@@ -475,18 +475,22 @@ def test_rf_regression():
     run_housing_rf_regression("hist")
 
 
-def test_parameter_tuning():
+@pytest.mark.parametrize("tree_method", ["exact", "hist", "approx"])
+def test_parameter_tuning(tree_method: str) -> None:
     from sklearn.datasets import fetch_california_housing
     from sklearn.model_selection import GridSearchCV
 
     X, y = fetch_california_housing(return_X_y=True)
-    xgb_model = xgb.XGBRegressor(learning_rate=0.1)
-    clf = GridSearchCV(xgb_model, {'max_depth': [2, 4],
-                                   'n_estimators': [50, 200]},
-                       cv=2, verbose=1)
-    clf.fit(X, y)
-    assert clf.best_score_ < 0.7
-    assert clf.best_params_ == {'n_estimators': 200, 'max_depth': 4}
+    reg = xgb.XGBRegressor(learning_rate=0.1, tree_method=tree_method)
+    grid_cv = GridSearchCV(
+        reg, {"max_depth": [2, 4], "n_estimators": [50, 200]}, cv=2, verbose=1
+    )
+    grid_cv.fit(X, y)
+    assert grid_cv.best_score_ < 0.7
+    assert grid_cv.best_params_ == {
+        "n_estimators": 200,
+        "max_depth": 4 if tree_method == "exact" else 2,
+    }
 
 
 def test_regression_with_custom_objective():
@@ -750,7 +754,7 @@ def test_parameters_access():
         ]["tree_method"]
         return tm
 
-    assert get_tm(clf) == "exact"
+    assert get_tm(clf) == "auto"  # Kept as auto, immutable since 2.0
 
     clf = pickle.loads(pickle.dumps(clf))
 
@@ -758,7 +762,7 @@ def test_parameters_access():
     assert clf.n_estimators == 2
     assert clf.get_params()["tree_method"] is None
     assert clf.get_params()["n_estimators"] == 2
-    assert get_tm(clf) == "exact"  # preserved for pickle
+    assert get_tm(clf) == "auto"  # preserved for pickle
 
     clf = save_load(clf)
 

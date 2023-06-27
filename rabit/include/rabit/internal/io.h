@@ -19,8 +19,7 @@
 #include "rabit/internal/utils.h"
 #include "rabit/serializable.h"
 
-namespace rabit {
-namespace utils {
+namespace rabit::utils {
 /*! \brief re-use definition of dmlc::SeekStream */
 using SeekStream = dmlc::SeekStream;
 /**
@@ -30,9 +29,6 @@ struct MemoryFixSizeBuffer : public SeekStream {
  public:
   // similar to SEEK_END in libc
   static std::size_t constexpr kSeekEnd = std::numeric_limits<std::size_t>::max();
-
- protected:
-  MemoryFixSizeBuffer() = default;
 
  public:
   /**
@@ -68,7 +64,7 @@ struct MemoryFixSizeBuffer : public SeekStream {
    * @brief Current position in the buffer (stream).
    */
   std::size_t Tell() override { return curr_ptr_; }
-  virtual bool AtEnd() const { return curr_ptr_ == buffer_size_; }
+  [[nodiscard]] virtual bool AtEnd() const { return curr_ptr_ == buffer_size_; }
 
  protected:
   /*! \brief in memory buffer */
@@ -119,6 +115,5 @@ struct MemoryBufferStream : public SeekStream {
   /*! \brief current pointer */
   size_t curr_ptr_;
 };  // class MemoryBufferStream
-}  // namespace utils
-}  // namespace rabit
+}  // namespace rabit::utils
 #endif  // RABIT_INTERNAL_IO_H_

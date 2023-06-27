@@ -9,13 +9,14 @@
 #include <atomic>     // for atomic
 #include <cinttypes>  // for uint32_t
 #include <cstddef>    // for size_t
-#include <memory>
+#include <memory>     // for make_unique
 #include <vector>
 
 #include "../common/categorical.h"
 #include "../common/error_msg.h"  // for InfInData
 #include "../common/hist_util.h"
 #include "../common/numeric.h"
+#include "../common/ref_resource_view.h"  // for RefResourceView
 #include "../common/threading_utils.h"
 #include "../common/transform_iterator.h"  // for MakeIndexTransformIter
 #include "adapter.h"
@@ -25,9 +26,11 @@
 namespace xgboost {
 namespace common {
 class ColumnMatrix;
+class AlignedFileWriteStream;
 }  // namespace common
-/*!
- * \brief preprocessed global index matrix, in CSR format
+
+/**
+ * @brief preprocessed global index matrix, in CSR format.
  *
  *  Transform floating values to integer index in histogram This is a global histogram
  *  index for CPU histogram.  On GPU ellpack page is used.
@@ -133,20 +136,22 @@ class GHistIndexMatrix {
   }
 
  public:
-  /*! \brief row pointer to rows by element position */
-  std::vector<size_t> row_ptr;
-  /*! \brief The index data */
+  /** @brief row pointer to rows by element position */
+  common::RefResourceView<std::size_t> row_ptr;
+  /** @brief data storage for index. */
+  common::RefResourceView<std::uint8_t> data;
+  /** @brief The histogram index. */
   common::Index index;
-  /*! \brief hit count of each index, used for constructing the ColumnMatrix */
-  std::vector<size_t> hit_count;
-  /*! \brief The corresponding cuts */
+  /** @brief hit count of each index, used for constructing the ColumnMatrix */
+  common::RefResourceView<std::size_t> hit_count;
+  /** @brief The corresponding cuts */
   common::HistogramCuts cut;
-  /** \brief max_bin for each feature. */
+  /** @brief max_bin for each feature. */
   bst_bin_t max_numeric_bins_per_feat;
-  /*! \brief base row index for current page (used by external memory) */
-  size_t base_rowid{0};
+  /** @brief base row index for current page (used by external memory) */
+  bst_row_t base_rowid{0};
 
-  bst_bin_t MaxNumBinPerFeat() const {
+  [[nodiscard]] bst_bin_t MaxNumBinPerFeat() const {
     return std::max(static_cast<bst_bin_t>(cut.MaxCategory() + 1), max_numeric_bins_per_feat);
   }
 
@@ -218,29 +223,27 @@ class GHistIndexMatrix {
     }
   }
 
-  bool IsDense() const {
-    return isDense_;
-  }
+  [[nodiscard]] bool IsDense() const { return isDense_; }
   void SetDense(bool is_dense) { isDense_ = is_dense; }
   /**
-   * \brief Get the local row index.
+   * @brief Get the local row index.
    */
-  size_t RowIdx(size_t ridx) const { return row_ptr[ridx - base_rowid]; }
+  [[nodiscard]] std::size_t RowIdx(size_t ridx) const { return row_ptr[ridx - base_rowid]; }
 
-  bst_row_t Size() const { return row_ptr.empty() ? 0 : row_ptr.size() - 1; }
-  bst_feature_t Features() const { return cut.Ptrs().size() - 1; }
+  [[nodiscard]] bst_row_t Size() const { return row_ptr.empty() ? 0 : row_ptr.size() - 1; }
+  [[nodiscard]] bst_feature_t Features() const { return cut.Ptrs().size() - 1; }
 
-  bool ReadColumnPage(dmlc::SeekStream* fi);
-  size_t WriteColumnPage(dmlc::Stream* fo) const;
+  [[nodiscard]] bool ReadColumnPage(common::AlignedResourceReadStream* fi);
+  [[nodiscard]] std::size_t WriteColumnPage(common::AlignedFileWriteStream* fo) const;
 
-  common::ColumnMatrix const& Transpose() const;
+  [[nodiscard]] common::ColumnMatrix const& Transpose() const;
 
-  bst_bin_t GetGindex(size_t ridx, size_t fidx) const;
+  [[nodiscard]] bst_bin_t GetGindex(size_t ridx, size_t fidx) const;
 
-  float GetFvalue(size_t ridx, size_t fidx, bool is_cat) const;
-  float GetFvalue(std::vector<std::uint32_t> const& ptrs, std::vector<float> const& values,
-                  std::vector<float> const& mins, bst_row_t ridx, bst_feature_t fidx,
-                  bool is_cat) const;
+  [[nodiscard]] float GetFvalue(size_t ridx, size_t fidx, bool is_cat) const;
+  [[nodiscard]] float GetFvalue(std::vector<std::uint32_t> const& ptrs,
+                                std::vector<float> const& values, std::vector<float> const& mins,
+                                bst_row_t ridx, bst_feature_t fidx, bool is_cat) const;
 
  private:
   std::unique_ptr<common::ColumnMatrix> columns_;
@@ -294,5 +297,5 @@ void AssignColumnBinIndex(GHistIndexMatrix const& page, Fn&& assign) {
     }
   });
 }
-}      // namespace xgboost
+}  // namespace xgboost
 #endif  // XGBOOST_DATA_GRADIENT_INDEX_H_

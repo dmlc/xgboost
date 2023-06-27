@@ -1,36 +1,38 @@
-/*!
- * Copyright 2021 XGBoost contributors
+/**
+ * Copyright 2021-2023, XGBoost contributors
  */
 #ifndef XGBOOST_DATA_HISTOGRAM_CUT_FORMAT_H_
 #define XGBOOST_DATA_HISTOGRAM_CUT_FORMAT_H_
 
-#include "../common/hist_util.h"
+#include <dmlc/io.h>  // for Stream
 
-namespace xgboost {
-namespace data {
-inline bool ReadHistogramCuts(common::HistogramCuts *cuts, dmlc::SeekStream *fi) {
-  if (!fi->Read(&cuts->cut_values_.HostVector())) {
+#include <cstddef>  // for size_t
+
+#include "../common/hist_util.h"          // for HistogramCuts
+#include "../common/io.h"                 // for AlignedResourceReadStream, AlignedFileWriteStream
+#include "../common/ref_resource_view.h"  // for WriteVec, ReadVec
+
+namespace xgboost::data {
+inline bool ReadHistogramCuts(common::HistogramCuts *cuts, common::AlignedResourceReadStream *fi) {
+  if (!common::ReadVec(fi, &cuts->cut_values_.HostVector())) {
     return false;
   }
-  if (!fi->Read(&cuts->cut_ptrs_.HostVector())) {
+  if (!common::ReadVec(fi, &cuts->cut_ptrs_.HostVector())) {
     return false;
   }
-  if (!fi->Read(&cuts->min_vals_.HostVector())) {
+  if (!common::ReadVec(fi, &cuts->min_vals_.HostVector())) {
     return false;
   }
   return true;
 }
 
-inline size_t WriteHistogramCuts(common::HistogramCuts const &cuts, dmlc::Stream *fo) {
-  size_t bytes = 0;
-  fo->Write(cuts.cut_values_.ConstHostVector());
-  bytes += cuts.cut_values_.ConstHostSpan().size_bytes() + sizeof(uint64_t);
-  fo->Write(cuts.cut_ptrs_.ConstHostVector());
-  bytes += cuts.cut_ptrs_.ConstHostSpan().size_bytes() + sizeof(uint64_t);
-  fo->Write(cuts.min_vals_.ConstHostVector());
-  bytes += cuts.min_vals_.ConstHostSpan().size_bytes() + sizeof(uint64_t);
+inline std::size_t WriteHistogramCuts(common::HistogramCuts const &cuts,
+                                      common::AlignedFileWriteStream *fo) {
+  std::size_t bytes = 0;
+  bytes += common::WriteVec(fo, cuts.Values());
+  bytes += common::WriteVec(fo, cuts.Ptrs());
+  bytes += common::WriteVec(fo, cuts.MinValues());
   return bytes;
 }
-}  // namespace data
-}  // namespace xgboost
+}  // namespace xgboost::data
 #endif  // XGBOOST_DATA_HISTOGRAM_CUT_FORMAT_H_
