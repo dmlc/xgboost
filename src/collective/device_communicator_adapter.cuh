@@ -11,7 +11,7 @@ namespace collective {
 
 class DeviceCommunicatorAdapter : public DeviceCommunicator {
  public:
-  DeviceCommunicatorAdapter(int device_ordinal)
+  explicit DeviceCommunicatorAdapter(int device_ordinal)
       : device_ordinal_{device_ordinal}, world_size_{GetWorldSize()}, rank_{GetRank()} {
     if (device_ordinal_ < 0) {
       LOG(FATAL) << "Invalid device ordinal: " << device_ordinal_;
