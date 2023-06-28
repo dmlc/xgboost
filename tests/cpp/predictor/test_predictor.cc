@@ -161,13 +161,12 @@ namespace {
 std::unique_ptr<Learner> LearnerForTest(Context const *ctx, std::shared_ptr<DMatrix> dmat,
                                         size_t iters, size_t forest = 1) {
   std::unique_ptr<Learner> learner{Learner::Create({dmat})};
-  if (ctx->IsCUDA()) {
-    learner->SetParam("tree_method", "gpu_hist");
-  }
   learner->SetParams(Args{{"num_parallel_tree", std::to_string(forest)}});
   for (size_t i = 0; i < iters; ++i) {
     learner->UpdateOneIter(i, dmat);
   }
+
+  ConfigLearnerByCtx(ctx, learner.get());
   return learner;
 }
 
@@ -368,11 +367,6 @@ void TestIterationRange(Context const* ctx) {
   size_t constexpr kRows = 1000, kCols = 20, kClasses = 4, kForest = 3, kIters = 10;
   auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix(true, true, kClasses);
   auto learner = LearnerForTest(ctx, dmat, kIters, kForest);
-  if (ctx->IsCPU()) {
-    learner->SetParams(Args{{"tree_method", "gpu_hist"}, {"gpu_id", "0"}});
-  } else {
-    learner->SetParams(Args{{"tree_method", "hist"}});
-  }
 
   bool bound = false;
   std::unique_ptr<Learner> sliced {learner->Slice(0, 3, 1, &bound)};
