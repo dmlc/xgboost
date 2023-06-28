@@ -32,9 +32,7 @@ void RunLengthEncode(Iter begin, Iter end, std::vector<Idx>* p_out) {
       out.push_back(i);
     }
   }
-  if (out.back() != n) {
-    out.push_back(n);
-  }
+  out.push_back(n);
 }
 
 /**
