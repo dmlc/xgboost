@@ -277,4 +277,6 @@ TEST(CpuPredictor, Multi) {
   ctx.nthread = 1;
   TestVectorLeafPrediction(&ctx);
 }
+
+TEST(CpuPredictor, Access) { TestPredictionDeviceAccess(); }
 }  // namespace xgboost

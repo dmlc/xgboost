@@ -182,34 +182,6 @@ void VerifyPredictionWithLesserFeatures(Learner *learner, bst_row_t kRows,
   ASSERT_EQ(prediction.Size(), kRows);
 
   ASSERT_THROW({ learner->Predict(m_invalid, false, &prediction, 0, 0); }, dmlc::Error);
-
-  HostDeviceVector<float> from_cpu;
-  {
-    ASSERT_EQ(from_cpu.DeviceIdx(), Context::kCpuId);
-    Context cpu_ctx;
-    ConfigLearnerByCtx(&cpu_ctx, learner);
-    learner->Predict(m_test, false, &from_cpu, 0, 0);
-    ASSERT_TRUE(from_cpu.HostCanWrite());
-    ASSERT_FALSE(from_cpu.DeviceCanRead());
-  }
-
-#if defined(XGBOOST_USE_CUDA)
-  HostDeviceVector<float> from_cuda;
-  {
-    Context cuda_ctx = MakeCUDACtx(0);
-    ConfigLearnerByCtx(&cuda_ctx, learner);
-    learner->Predict(m_test, false, &from_cuda, 0, 0);
-    ASSERT_EQ(from_cuda.DeviceIdx(), 0);
-    ASSERT_TRUE(from_cuda.DeviceCanWrite());
-    ASSERT_FALSE(from_cuda.HostCanRead());
-  }
-
-  auto const &h_cpu = from_cpu.ConstHostVector();
-  auto const &h_gpu = from_cuda.ConstHostVector();
-  for (size_t i = 0; i < h_cpu.size(); ++i) {
-    ASSERT_NEAR(h_cpu[i], h_gpu[i], kRtEps);
-  }
-#endif  // defined(XGBOOST_USE_CUDA)
 }
 
 void VerifyPredictionWithLesserFeaturesColumnSplit(Learner *learner, size_t rows,
@@ -231,6 +203,42 @@ void TestPredictionWithLesserFeatures(Context const *ctx) {
   auto m_test = RandomDataGenerator(kRows, kTestCols, 0.5).GenerateDMatrix(false);
   auto m_invalid = RandomDataGenerator(kRows, kTrainCols + 1, 0.5).GenerateDMatrix(false);
   VerifyPredictionWithLesserFeatures(learner.get(), kRows, m_test, m_invalid);
+}
+
+void TestPredictionDeviceAccess() {
+  Context ctx;
+  size_t constexpr kRows = 256, kTrainCols = 256, kTestCols = 4, kIters = 4;
+  auto m_train = RandomDataGenerator(kRows, kTrainCols, 0.5).GenerateDMatrix(true);
+  auto m_test = RandomDataGenerator(kRows, kTestCols, 0.5).GenerateDMatrix(false);
+  auto learner = LearnerForTest(&ctx, m_train, kIters);
+
+  HostDeviceVector<float> from_cpu;
+  {
+    ASSERT_EQ(from_cpu.DeviceIdx(), Context::kCpuId);
+    Context cpu_ctx;
+    ConfigLearnerByCtx(&cpu_ctx, learner.get());
+    learner->Predict(m_test, false, &from_cpu, 0, 0);
+    ASSERT_TRUE(from_cpu.HostCanWrite());
+    ASSERT_FALSE(from_cpu.DeviceCanRead());
+  }
+
+#if defined(XGBOOST_USE_CUDA)
+  HostDeviceVector<float> from_cuda;
+  {
+    Context cuda_ctx = MakeCUDACtx(0);
+    ConfigLearnerByCtx(&cuda_ctx, learner.get());
+    learner->Predict(m_test, false, &from_cuda, 0, 0);
+    ASSERT_EQ(from_cuda.DeviceIdx(), 0);
+    ASSERT_TRUE(from_cuda.DeviceCanWrite());
+    ASSERT_FALSE(from_cuda.HostCanRead());
+  }
+
+  auto const &h_cpu = from_cpu.ConstHostVector();
+  auto const &h_gpu = from_cuda.ConstHostVector();
+  for (size_t i = 0; i < h_cpu.size(); ++i) {
+    ASSERT_NEAR(h_cpu[i], h_gpu[i], kRtEps);
+  }
+#endif  // defined(XGBOOST_USE_CUDA)
 }
 
 void TestPredictionWithLesserFeaturesColumnSplit(Context const *ctx) {

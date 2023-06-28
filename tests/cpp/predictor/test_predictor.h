@@ -93,6 +93,8 @@ void TestInplacePrediction(Context const* ctx, std::shared_ptr<DMatrix> x, bst_r
 
 void TestPredictionWithLesserFeatures(Context const* ctx);
 
+void TestPredictionDeviceAccess();
+
 void TestCategoricalPrediction(Context const* ctx, bool is_column_split);
 
 void TestCategoricalPredictionColumnSplit(Context const* ctx);
