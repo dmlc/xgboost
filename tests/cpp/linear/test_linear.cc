@@ -17,7 +17,7 @@ TEST(Linear, Shotgun) {
 
   auto p_fmat = xgboost::RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
   LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
 
   {
@@ -49,7 +49,7 @@ TEST(Linear, coordinate) {
 
   auto p_fmat = xgboost::RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
   LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
 
   auto updater = std::unique_ptr<xgboost::LinearUpdater>(

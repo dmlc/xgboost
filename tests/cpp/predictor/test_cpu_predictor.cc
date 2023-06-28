@@ -20,16 +20,15 @@ namespace xgboost {
 
 namespace {
 void TestBasic(DMatrix* dmat) {
-  auto lparam = CreateEmptyGenericParam(GPUIDX);
+  Context ctx;
   std::unique_ptr<Predictor> cpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &lparam));
+      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &ctx));
 
   size_t const kRows = dmat->Info().num_row_;
   size_t const kCols = dmat->Info().num_col_;
 
   LearnerModelParam mparam{MakeMP(kCols, .0, 1)};
 
-  Context ctx;
   ctx.UpdateAllowUnknown(Args{});
   gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx);
 

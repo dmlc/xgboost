@@ -12,7 +12,7 @@
 
 namespace xgboost {
 TEST(Plugin, OneAPIPredictorBasic) {
-  auto lparam = CreateEmptyGenericParam(0);
+  auto lparam = MakeCUDACtx(0);
   std::unique_ptr<Predictor> oneapi_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("oneapi_predictor", &lparam));
 
@@ -82,7 +82,7 @@ TEST(Plugin, OneAPIPredictorExternalMemory) {
   dmlc::TemporaryDirectory tmpdir;
   std::string filename = tmpdir.path + "/big.libsvm";
   std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(12, 64, filename);
-  auto lparam = CreateEmptyGenericParam(0);
+  auto lparam = MakeCUDACtx(0);
 
   std::unique_ptr<Predictor> oneapi_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("oneapi_predictor", &lparam));

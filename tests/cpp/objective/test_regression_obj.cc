@@ -17,7 +17,7 @@
 namespace xgboost {
 
 TEST(Objective, DeclareUnifiedTest(LinearRegressionGPair)) {
-  Context ctx = CreateEmptyGenericParam(GPUIDX);
+  Context ctx = MakeCUDACtx(GPUIDX);
   std::vector<std::pair<std::string, std::string>> args;
 
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:squarederror", &ctx)};
@@ -39,7 +39,7 @@ TEST(Objective, DeclareUnifiedTest(LinearRegressionGPair)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(SquaredLog)) {
-  Context ctx = CreateEmptyGenericParam(GPUIDX);
+  Context ctx = MakeCUDACtx(GPUIDX);
   std::vector<std::pair<std::string, std::string>> args;
 
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:squaredlogerror", &ctx)};
@@ -62,7 +62,7 @@ TEST(Objective, DeclareUnifiedTest(SquaredLog)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(PseudoHuber)) {
-  Context ctx = CreateEmptyGenericParam(GPUIDX);
+  Context ctx = MakeCUDACtx(GPUIDX);
   Args args;
 
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:pseudohubererror", &ctx)};
@@ -91,7 +91,7 @@ TEST(Objective, DeclareUnifiedTest(PseudoHuber)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(LogisticRegressionGPair)) {
-  Context ctx = CreateEmptyGenericParam(GPUIDX);
+  Context ctx = MakeCUDACtx(GPUIDX);
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:logistic", &ctx)};
 
@@ -107,7 +107,7 @@ TEST(Objective, DeclareUnifiedTest(LogisticRegressionGPair)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(LogisticRegressionBasic)) {
-  Context ctx = CreateEmptyGenericParam(GPUIDX);
+  Context ctx = MakeCUDACtx(GPUIDX);
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:logistic", &ctx)};
 
@@ -136,7 +136,7 @@ TEST(Objective, DeclareUnifiedTest(LogisticRegressionBasic)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(LogisticRawGPair)) {
-  Context ctx = CreateEmptyGenericParam(GPUIDX);
+  Context ctx = MakeCUDACtx(GPUIDX);
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction>  obj {
     ObjFunction::Create("binary:logitraw", &ctx)
@@ -152,7 +152,7 @@ TEST(Objective, DeclareUnifiedTest(LogisticRawGPair)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(PoissonRegressionGPair)) {
-  Context ctx = CreateEmptyGenericParam(GPUIDX);
+  Context ctx = MakeCUDACtx(GPUIDX);
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj {
     ObjFunction::Create("count:poisson", &ctx)
@@ -176,7 +176,7 @@ TEST(Objective, DeclareUnifiedTest(PoissonRegressionGPair)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(PoissonRegressionBasic)) {
-  Context ctx = CreateEmptyGenericParam(GPUIDX);
+  Context ctx = MakeCUDACtx(GPUIDX);
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj {
     ObjFunction::Create("count:poisson", &ctx)
@@ -205,7 +205,7 @@ TEST(Objective, DeclareUnifiedTest(PoissonRegressionBasic)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(GammaRegressionGPair)) {
-  Context ctx = CreateEmptyGenericParam(GPUIDX);
+  Context ctx = MakeCUDACtx(GPUIDX);
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj {
     ObjFunction::Create("reg:gamma", &ctx)
@@ -227,7 +227,7 @@ TEST(Objective, DeclareUnifiedTest(GammaRegressionGPair)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(GammaRegressionBasic)) {
-  Context ctx = CreateEmptyGenericParam(GPUIDX);
+  Context ctx = MakeCUDACtx(GPUIDX);
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:gamma", &ctx)};
 
@@ -256,7 +256,7 @@ TEST(Objective, DeclareUnifiedTest(GammaRegressionBasic)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(TweedieRegressionGPair)) {
-  Context ctx = CreateEmptyGenericParam(GPUIDX);
+  Context ctx = MakeCUDACtx(GPUIDX);
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:tweedie", &ctx)};
 
@@ -280,7 +280,7 @@ TEST(Objective, DeclareUnifiedTest(TweedieRegressionGPair)) {
 
 #if defined(__CUDACC__)
 TEST(Objective, CPU_vs_CUDA) {
-  Context ctx = CreateEmptyGenericParam(GPUIDX);
+  Context ctx = MakeCUDACtx(GPUIDX);
 
   ObjFunction* obj = ObjFunction::Create("reg:squarederror", &ctx);
   HostDeviceVector<GradientPair> cpu_out_preds;
@@ -331,7 +331,7 @@ TEST(Objective, CPU_vs_CUDA) {
 #endif
 
 TEST(Objective, DeclareUnifiedTest(TweedieRegressionBasic)) {
-  Context ctx = CreateEmptyGenericParam(GPUIDX);
+  Context ctx = MakeCUDACtx(GPUIDX);
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:tweedie", &ctx)};
 
@@ -360,7 +360,7 @@ TEST(Objective, DeclareUnifiedTest(TweedieRegressionBasic)) {
 // CoxRegression not implemented in GPU code, no need for testing.
 #if !defined(__CUDACC__)
 TEST(Objective, CoxRegressionGPair) {
-  Context ctx = CreateEmptyGenericParam(GPUIDX);
+  Context ctx = MakeCUDACtx(GPUIDX);
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("survival:cox", &ctx)};
 
@@ -375,7 +375,7 @@ TEST(Objective, CoxRegressionGPair) {
 #endif
 
 TEST(Objective, DeclareUnifiedTest(AbsoluteError)) {
-  Context ctx = CreateEmptyGenericParam(GPUIDX);
+  Context ctx = MakeCUDACtx(GPUIDX);
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:absoluteerror", &ctx)};
   obj->Configure({});
   CheckConfigReload(obj, "reg:absoluteerror");
@@ -419,7 +419,7 @@ TEST(Objective, DeclareUnifiedTest(AbsoluteError)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(AbsoluteErrorLeaf)) {
-  Context ctx = CreateEmptyGenericParam(GPUIDX);
+  Context ctx = MakeCUDACtx(GPUIDX);
   bst_target_t constexpr kTargets = 3, kRows = 16;
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:absoluteerror", &ctx)};
   obj->Configure({});

@@ -379,6 +379,8 @@ TEST(Learner, Seed) {
 TEST(Learner, ConstantSeed) {
   auto m = RandomDataGenerator{10, 10, 0}.GenerateDMatrix(true);
   std::unique_ptr<Learner> learner{Learner::Create({m})};
+  // Use exact as it doesn't initialize column sampler at construction, which alters the rng.
+  learner->SetParam("tree_method", "exact");
   learner->Configure();  // seed the global random
 
   std::uniform_real_distribution<float> dist;

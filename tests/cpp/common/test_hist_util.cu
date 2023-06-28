@@ -310,7 +310,7 @@ TEST(HistUtil, AdapterDeviceSketch) {
   data::CupyAdapter adapter(str);
 
   auto device_cuts = MakeUnweightedCutsForTest(adapter, num_bins, missing);
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
+  Context ctx;
   auto host_cuts = GetHostCuts(&ctx, &adapter, num_bins, missing);
 
   EXPECT_EQ(device_cuts.Values(), host_cuts.Values());

@@ -6,35 +6,34 @@ import scipy
 import scipy.special
 
 import xgboost as xgb
-
-dpath = 'demo/data/'
-rng = np.random.RandomState(1994)
+from xgboost import testing as tm
 
 
 class TestSHAP:
-
-    def test_feature_importances(self):
-        data = np.random.randn(100, 5)
+    def test_feature_importances(self) -> None:
+        rng = np.random.RandomState(1994)
+        data = rng.randn(100, 5)
         target = np.array([0, 1] * 50)
 
-        features = ['Feature1', 'Feature2', 'Feature3', 'Feature4', 'Feature5']
+        features = ["Feature1", "Feature2", "Feature3", "Feature4", "Feature5"]
 
-        dm = xgb.DMatrix(data, label=target,
-                         feature_names=features)
-        params = {'objective': 'multi:softprob',
-                  'eval_metric': 'mlogloss',
-                  'eta': 0.3,
-                  'num_class': 3}
+        dm = xgb.DMatrix(data, label=target, feature_names=features)
+        params = {
+            "objective": "multi:softprob",
+            "eval_metric": "mlogloss",
+            "eta": 0.3,
+            "num_class": 3,
+        }
 
         bst = xgb.train(params, dm, num_boost_round=10)
 
         # number of feature importances should == number of features
         scores1 = bst.get_score()
-        scores2 = bst.get_score(importance_type='weight')
-        scores3 = bst.get_score(importance_type='cover')
-        scores4 = bst.get_score(importance_type='gain')
-        scores5 = bst.get_score(importance_type='total_cover')
-        scores6 = bst.get_score(importance_type='total_gain')
+        scores2 = bst.get_score(importance_type="weight")
+        scores3 = bst.get_score(importance_type="cover")
+        scores4 = bst.get_score(importance_type="gain")
+        scores5 = bst.get_score(importance_type="total_cover")
+        scores6 = bst.get_score(importance_type="total_gain")
         assert len(scores1) == len(features)
         assert len(scores2) == len(features)
         assert len(scores3) == len(features)
@@ -46,12 +45,11 @@ class TestSHAP:
         fscores = bst.get_fscore()
         assert scores1 == fscores
 
-        dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train?format=libsvm')
-        dtest = xgb.DMatrix(dpath + 'agaricus.txt.test?format=libsvm')
+        dtrain, dtest = tm.load_agaricus(__file__)
 
-        def fn(max_depth, num_rounds):
+        def fn(max_depth: int, num_rounds: int) -> None:
             # train
-            params = {'max_depth': max_depth, 'eta': 1, 'verbosity': 0}
+            params = {"max_depth": max_depth, "eta": 1, "verbosity": 0}
             bst = xgb.train(params, dtrain, num_boost_round=num_rounds)
 
             # predict
@@ -82,7 +80,7 @@ class TestSHAP:
         assert out[0, 1] == 0.375
         assert out[0, 2] == 0.25
 
-        def parse_model(model):
+        def parse_model(model: xgb.Booster) -> list:
             trees = []
             r_exp = r"([0-9]+):\[f([0-9]+)<([0-9\.e-]+)\] yes=([0-9]+),no=([0-9]+).*cover=([0-9e\.]+)"
             r_exp_leaf = r"([0-9]+):leaf=([0-9\.e-]+),cover=([0-9e\.]+)"
@@ -93,7 +91,9 @@ class TestSHAP:
                     match = re.search(r_exp, line)
                     if match is not None:
                         ind = int(match.group(1))
+                        assert trees[-1] is not None
                         while ind >= len(trees[-1]):
+                            assert isinstance(trees[-1], list)
                             trees[-1].append(None)
                         trees[-1][ind] = {
                             "yes_ind": int(match.group(4)),
@@ -101,17 +101,16 @@ class TestSHAP:
                             "value": None,
                             "threshold": float(match.group(3)),
                             "feature_index": int(match.group(2)),
-                            "cover": float(match.group(6))
+                            "cover": float(match.group(6)),
                         }
                     else:
-
                         match = re.search(r_exp_leaf, line)
                         ind = int(match.group(1))
                         while ind >= len(trees[-1]):
                             trees[-1].append(None)
                         trees[-1][ind] = {
                             "value": float(match.group(2)),
-                            "cover": float(match.group(3))
+                            "cover": float(match.group(3)),
                         }
             return trees
 
@@ -121,7 +120,8 @@ class TestSHAP:
             else:
                 ind = tree[i]["feature_index"]
                 if z[ind] == 1:
-                    if x[ind] < tree[i]["threshold"]:
+                    # 1e-6 for numeric error from parsing text dump.
+                    if x[ind] + 1e-6 <= tree[i]["threshold"]:
                         return exp_value_rec(tree, z, x, tree[i]["yes_ind"])
                     else:
                         return exp_value_rec(tree, z, x, tree[i]["no_ind"])
@@ -136,10 +136,13 @@ class TestSHAP:
                     return val
 
         def exp_value(trees, z, x):
+            "E[f(z)|Z_s = X_s]"
             return np.sum([exp_value_rec(tree, z, x) for tree in trees])
 
         def all_subsets(ss):
-            return itertools.chain(*map(lambda x: itertools.combinations(ss, x), range(0, len(ss) + 1)))
+            return itertools.chain(
+                *map(lambda x: itertools.combinations(ss, x), range(0, len(ss) + 1))
+            )
 
         def shap_value(trees, x, i, cond=None, cond_value=None):
             M = len(x)
@@ -196,7 +199,9 @@ class TestSHAP:
                 z[i] = 0
                 v01 = exp_value(trees, z, x)
                 z[j] = 0
-                total += (v11 - v01 - v10 + v00) / (scipy.special.binom(M - 2, len(subset)) * (M - 1))
+                total += (v11 - v01 - v10 + v00) / (
+                    scipy.special.binom(M - 2, len(subset)) * (M - 1)
+                )
                 z[list(subset)] = 0
             return total
 
@@ -220,11 +225,10 @@ class TestSHAP:
         assert np.linalg.norm(brute_force - fast_method[0, :, :]) < 1e-4
 
         # test a random function
-        np.random.seed(0)
         M = 2
         N = 4
-        X = np.random.randn(N, M)
-        y = np.random.randn(N)
+        X = rng.randn(N, M)
+        y = rng.randn(N)
         param = {"max_depth": 2, "base_score": 0.0, "eta": 1.0, "lambda": 0}
         bst = xgb.train(param, xgb.DMatrix(X, label=y), 1)
         brute_force = shap_values(parse_model(bst), X[0, :])
@@ -236,11 +240,10 @@ class TestSHAP:
         assert np.linalg.norm(brute_force - fast_method[0, :, :]) < 1e-4
 
         # test another larger more complex random function
-        np.random.seed(0)
         M = 5
         N = 100
-        X = np.random.randn(N, M)
-        y = np.random.randn(N)
+        X = rng.randn(N, M)
+        y = rng.randn(N)
         base_score = 1.0
         param = {"max_depth": 5, "base_score": base_score, "eta": 0.1, "gamma": 2.0}
         bst = xgb.train(param, xgb.DMatrix(X, label=y), 10)

@@ -1,16 +1,27 @@
-/*!
- * Copyright 2017-2022 by XGBoost Contributors
+/**
+ * Copyright 2017-2023, XGBoost Contributors
  * \brief Utility for fast column-wise access
  */
 #include "column_matrix.h"
 
-namespace xgboost {
-namespace common {
+#include <algorithm>    // for transform
+#include <cstddef>      // for size_t
+#include <cstdint>      // for uint64_t, uint8_t
+#include <limits>       // for numeric_limits
+#include <type_traits>  // for remove_reference_t
+#include <vector>       // for vector
+
+#include "../data/gradient_index.h"  // for GHistIndexMatrix
+#include "io.h"                      // for AlignedResourceReadStream, AlignedFileWriteStream
+#include "xgboost/base.h"            // for bst_feaature_t
+#include "xgboost/span.h"            // for Span
+
+namespace xgboost::common {
 void ColumnMatrix::InitStorage(GHistIndexMatrix const& gmat, double sparse_threshold) {
   auto const nfeature = gmat.Features();
   const size_t nrow = gmat.Size();
   // identify type of each column
-  type_.resize(nfeature);
+  type_ = common::MakeFixedVecWithMalloc(nfeature, ColumnType{});
 
   uint32_t max_val = std::numeric_limits<uint32_t>::max();
   for (bst_feature_t fid = 0; fid < nfeature; ++fid) {
@@ -34,7 +45,7 @@ void ColumnMatrix::InitStorage(GHistIndexMatrix const& gmat, double sparse_thres
 
   // want to compute storage boundary for each feature
   // using variants of prefix sum scan
-  feature_offsets_.resize(nfeature + 1);
+  feature_offsets_ = common::MakeFixedVecWithMalloc(nfeature + 1, std::size_t{0});
   size_t accum_index = 0;
   feature_offsets_[0] = accum_index;
   for (bst_feature_t fid = 1; fid < nfeature + 1; ++fid) {
@@ -49,9 +60,11 @@ void ColumnMatrix::InitStorage(GHistIndexMatrix const& gmat, double sparse_thres
   SetTypeSize(gmat.MaxNumBinPerFeat());
   auto storage_size =
       feature_offsets_.back() * static_cast<std::underlying_type_t<BinTypeSize>>(bins_type_size_);
-  index_.resize(storage_size, 0);
+
+  index_ = common::MakeFixedVecWithMalloc(storage_size, std::uint8_t{0});
+
   if (!all_dense_column) {
-    row_ind_.resize(feature_offsets_[nfeature]);
+    row_ind_ = common::MakeFixedVecWithMalloc(feature_offsets_[nfeature], std::size_t{0});
   }
 
   // store least bin id for each feature
@@ -59,7 +72,51 @@ void ColumnMatrix::InitStorage(GHistIndexMatrix const& gmat, double sparse_thres
 
   any_missing_ = !gmat.IsDense();
 
-  missing_flags_.clear();
+  missing_ = MissingIndicator{0, false};
 }
-}  // namespace common
-}  // namespace xgboost
+
+// IO procedures for external memory.
+bool ColumnMatrix::Read(AlignedResourceReadStream* fi, uint32_t const* index_base) {
+  if (!common::ReadVec(fi, &index_)) {
+    return false;
+  }
+  if (!common::ReadVec(fi, &type_)) {
+    return false;
+  }
+  if (!common::ReadVec(fi, &row_ind_)) {
+    return false;
+  }
+  if (!common::ReadVec(fi, &feature_offsets_)) {
+    return false;
+  }
+
+  if (!common::ReadVec(fi, &missing_.storage)) {
+    return false;
+  }
+  missing_.InitView();
+
+  index_base_ = index_base;
+  if (!fi->Read(&bins_type_size_)) {
+    return false;
+  }
+  if (!fi->Read(&any_missing_)) {
+    return false;
+  }
+  return true;
+}
+
+std::size_t ColumnMatrix::Write(AlignedFileWriteStream* fo) const {
+  std::size_t bytes{0};
+
+  bytes += common::WriteVec(fo, index_);
+  bytes += common::WriteVec(fo, type_);
+  bytes += common::WriteVec(fo, row_ind_);
+  bytes += common::WriteVec(fo, feature_offsets_);
+  bytes += common::WriteVec(fo, missing_.storage);
+
+  bytes += fo->Write(bins_type_size_);
+  bytes += fo->Write(any_missing_);
+
+  return bytes;
+}
+}  // namespace xgboost::common

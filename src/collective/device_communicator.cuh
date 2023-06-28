@@ -17,32 +17,15 @@ class DeviceCommunicator {
   virtual ~DeviceCommunicator() = default;
 
   /**
-   * @brief Sum values from all processes and distribute the result back to all processes.
+   * @brief Combines values from all processes and distributes the result back to all processes.
+   *
    * @param send_receive_buffer Buffer storing the data.
    * @param count               Number of elements in the buffer.
+   * @param data_type           Data type stored in the buffer.
+   * @param op                  The operation to perform.
    */
-  virtual void AllReduceSum(float *send_receive_buffer, size_t count) = 0;
-
-  /**
-   * @brief Sum values from all processes and distribute the result back to all processes.
-   * @param send_receive_buffer Buffer storing the data.
-   * @param count               Number of elements in the buffer.
-   */
-  virtual void AllReduceSum(double *send_receive_buffer, size_t count) = 0;
-
-  /**
-   * @brief Sum values from all processes and distribute the result back to all processes.
-   * @param send_receive_buffer Buffer storing the data.
-   * @param count               Number of elements in the buffer.
-   */
-  virtual void AllReduceSum(int64_t *send_receive_buffer, size_t count) = 0;
-
-  /**
-   * @brief Sum values from all processes and distribute the result back to all processes.
-   * @param send_receive_buffer Buffer storing the data.
-   * @param count               Number of elements in the buffer.
-   */
-  virtual void AllReduceSum(uint64_t *send_receive_buffer, size_t count) = 0;
+  virtual void AllReduce(void *send_receive_buffer, std::size_t count, DataType data_type,
+                         Operation op) = 0;
 
   /**
    * @brief Gather variable-length values from all processes.

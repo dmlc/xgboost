@@ -25,7 +25,7 @@ void InitRowPartitionForTest(common::RowSetCollection *row_set, size_t n_samples
 }  // anonymous namespace
 
 void TestAddHistRows(bool is_distributed) {
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
+  Context ctx;
   std::vector<CPUExpandEntry> nodes_for_explicit_hist_build_;
   std::vector<CPUExpandEntry> nodes_for_subtraction_trick_;
   int starting_index = std::numeric_limits<int>::max();
@@ -74,7 +74,7 @@ TEST(CPUHistogram, AddRows) {
 void TestSyncHist(bool is_distributed) {
   size_t constexpr kNRows = 8, kNCols = 16;
   int32_t constexpr kMaxBins = 4;
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
+  Context ctx;
 
   std::vector<CPUExpandEntry> nodes_for_explicit_hist_build_;
   std::vector<CPUExpandEntry> nodes_for_subtraction_trick_;
@@ -229,7 +229,7 @@ TEST(CPUHistogram, SyncHist) {
 void TestBuildHistogram(bool is_distributed, bool force_read_by_column, bool is_col_split) {
   size_t constexpr kNRows = 8, kNCols = 16;
   int32_t constexpr kMaxBins = 4;
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
+  Context ctx;
   auto p_fmat =
       RandomDataGenerator(kNRows, kNCols, 0.8).Seed(3).GenerateDMatrix();
   if (is_col_split) {
@@ -330,7 +330,7 @@ void TestHistogramCategorical(size_t n_categories, bool force_read_by_column) {
   auto x = GenerateRandomCategoricalSingleColumn(kRows, n_categories);
   auto cat_m = GetDMatrixFromData(x, kRows, 1);
   cat_m->Info().feature_types.HostVector().push_back(FeatureType::kCategorical);
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
+  Context ctx;
 
   BatchParam batch_param{0, static_cast<int32_t>(kBins)};
 
@@ -475,7 +475,7 @@ void TestHistogramExternalMemory(Context const *ctx, BatchParam batch_param, boo
 
 TEST(CPUHistogram, ExternalMemory) {
   int32_t constexpr kBins = 256;
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
+  Context ctx;
 
   TestHistogramExternalMemory(&ctx, BatchParam{kBins, common::Span<float>{}, false}, true, false);
   TestHistogramExternalMemory(&ctx, BatchParam{kBins, common::Span<float>{}, false}, true, true);

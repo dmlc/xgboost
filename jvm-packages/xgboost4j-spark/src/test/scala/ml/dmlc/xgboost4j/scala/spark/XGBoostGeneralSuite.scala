@@ -201,7 +201,7 @@ class XGBoostGeneralSuite extends AnyFunSuite with TmpFolderPerSuite with PerTes
       sc,
       buildTrainingRDD,
       List("eta" -> "1", "max_depth" -> "6",
-        "objective" -> "rank:pairwise", "num_round" -> 5, "num_workers" -> numWorkers,
+        "objective" -> "rank:ndcg", "num_round" -> 5, "num_workers" -> numWorkers,
         "custom_eval" -> null, "custom_obj" -> null, "use_external_memory" -> false,
         "missing" -> Float.NaN).toMap)
 
@@ -268,7 +268,7 @@ class XGBoostGeneralSuite extends AnyFunSuite with TmpFolderPerSuite with PerTes
     val training = buildDataFrameWithGroup(Ranking.train, 5)
     val Array(train, eval1, eval2) = training.randomSplit(Array(0.6, 0.2, 0.2), 0)
     val paramMap1 = Map("eta" -> "1", "max_depth" -> "6",
-      "objective" -> "rank:pairwise",
+      "objective" -> "rank:ndcg",
       "num_round" -> 5, "num_workers" -> numWorkers, "group_col" -> "group")
     val xgb1 = new XGBoostRegressor(paramMap1).setEvalSets(Map("eval1" -> eval1, "eval2" -> eval2))
     val model1 = xgb1.fit(train)
@@ -281,7 +281,7 @@ class XGBoostGeneralSuite extends AnyFunSuite with TmpFolderPerSuite with PerTes
     assert(model1.summary.trainObjectiveHistory !== model1.summary.validationObjectiveHistory(1))
 
     val paramMap2 = Map("eta" -> "1", "max_depth" -> "6",
-      "objective" -> "rank:pairwise",
+      "objective" -> "rank:ndcg",
       "num_round" -> 5, "num_workers" -> numWorkers, "group_col" -> "group",
       "eval_sets" -> Map("eval1" -> eval1, "eval2" -> eval2))
     val xgb2 = new XGBoostRegressor(paramMap2)

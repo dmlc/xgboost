@@ -419,6 +419,7 @@ class HistBuilder {
 
   CPUExpandEntry InitRoot(DMatrix *p_fmat, linalg::MatrixView<GradientPair const> gpair,
                           RegTree *p_tree) {
+    monitor_->Start(__func__);
     CPUExpandEntry node(RegTree::kRoot, p_tree->GetDepth(0));
 
     std::size_t page_id = 0;
@@ -434,7 +435,7 @@ class HistBuilder {
 
     {
       GradientPairPrecise grad_stat;
-      if (p_fmat->IsDense()) {
+      if (p_fmat->IsDense() && !collective::IsDistributed()) {
         /**
          * Specialized code for dense data: For dense data (with no missing value), the sum
          * of gradient histogram is equal to snode[nid]
@@ -475,12 +476,14 @@ class HistBuilder {
       node = entries.front();
     }
 
+    monitor_->Stop(__func__);
     return node;
   }
 
   void BuildHistogram(DMatrix *p_fmat, RegTree *p_tree,
                       std::vector<CPUExpandEntry> const &valid_candidates,
                       linalg::MatrixView<GradientPair const> gpair) {
+    monitor_->Start(__func__);
     std::vector<CPUExpandEntry> nodes_to_build(valid_candidates.size());
     std::vector<CPUExpandEntry> nodes_to_sub(valid_candidates.size());
 
@@ -508,6 +511,7 @@ class HistBuilder {
                                     nodes_to_sub, gpair.Values());
       ++page_id;
     }
+    monitor_->Stop(__func__);
   }
 
   void UpdatePosition(DMatrix *p_fmat, RegTree const *p_tree,
@@ -525,6 +529,7 @@ class HistBuilder {
                      std::vector<bst_node_t> *p_out_position) {
     monitor_->Start(__func__);
     if (!task_->UpdateTreeLeaf()) {
+    monitor_->Stop(__func__);
       return;
     }
     for (auto const &part : partitioner_) {

@@ -18,9 +18,8 @@ CLI_DEMO_DIR = os.path.join(DEMO_DIR, 'CLI')
 def test_basic_walkthrough():
     script = os.path.join(PYTHON_DEMO_DIR, 'basic_walkthrough.py')
     cmd = ['python', script]
-    subprocess.check_call(cmd)
-    os.remove('dump.nice.txt')
-    os.remove('dump.raw.txt')
+    with tempfile.TemporaryDirectory() as tmpdir:
+        subprocess.check_call(cmd, cwd=tmpdir)
 
 
 @pytest.mark.skipif(**tm.no_matplotlib())

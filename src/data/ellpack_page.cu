@@ -5,6 +5,7 @@
 #include <thrust/iterator/transform_output_iterator.h>
 
 #include "../common/categorical.h"
+#include "../common/cuda_context.cuh"
 #include "../common/hist_util.cuh"
 #include "../common/random.h"
 #include "../common/transform_iterator.h"  // MakeIndexTransformIter
@@ -313,7 +314,8 @@ void CopyGHistToEllpack(GHistIndexMatrix const& page, common::Span<size_t const>
   auto d_csc_indptr = dh::ToSpan(csc_indptr);
 
   auto bin_type = page.index.GetBinTypeSize();
-  common::CompressedBufferWriter writer{page.cut.TotalBins() + 1};  // +1 for null value
+  common::CompressedBufferWriter writer{page.cut.TotalBins() +
+                                        static_cast<std::size_t>(1)};  // +1 for null value
 
   dh::LaunchN(row_stride * page.Size(), [=] __device__(size_t idx) mutable {
     auto ridx = idx / row_stride;
@@ -357,8 +359,10 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, GHistIndexMatrix const& pag
 
   // copy gidx
   common::CompressedByteT* d_compressed_buffer = gidx_buffer.DevicePointer();
-  dh::device_vector<size_t> row_ptr(page.row_ptr);
+  dh::device_vector<size_t> row_ptr(page.row_ptr.size());
   auto d_row_ptr = dh::ToSpan(row_ptr);
+  dh::safe_cuda(cudaMemcpyAsync(d_row_ptr.data(), page.row_ptr.data(), d_row_ptr.size_bytes(),
+                                cudaMemcpyHostToDevice, ctx->CUDACtx()->Stream()));
 
   auto accessor = this->GetDeviceAccessor(ctx->gpu_id, ft);
   auto null = accessor.NullValue();

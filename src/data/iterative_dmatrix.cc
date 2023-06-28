@@ -240,9 +240,9 @@ void IterativeDMatrix::InitFromCPU(Context const* ctx, BatchParam const& p,
    * Generate gradient index.
    */
   this->ghist_ = std::make_unique<GHistIndexMatrix>(Info(), std::move(cuts), p.max_bin);
-  size_t rbegin = 0;
-  size_t prev_sum = 0;
-  size_t i = 0;
+  std::size_t rbegin = 0;
+  std::size_t prev_sum = 0;
+  std::size_t i = 0;
   while (iter.Next()) {
     HostAdapterDispatch(proxy, [&](auto const& batch) {
       proxy->Info().num_nonzero_ = batch_nnz[i];

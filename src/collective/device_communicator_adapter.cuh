@@ -23,20 +23,18 @@ class DeviceCommunicatorAdapter : public DeviceCommunicator {
 
   ~DeviceCommunicatorAdapter() override = default;
 
-  void AllReduceSum(float *send_receive_buffer, size_t count) override {
-    DoAllReduceSum<collective::DataType::kFloat>(send_receive_buffer, count);
-  }
+  void AllReduce(void *send_receive_buffer, std::size_t count, DataType data_type,
+                 Operation op) override {
+    if (communicator_->GetWorldSize() == 1) {
+      return;
+    }
 
-  void AllReduceSum(double *send_receive_buffer, size_t count) override {
-    DoAllReduceSum<collective::DataType::kDouble>(send_receive_buffer, count);
-  }
-
-  void AllReduceSum(int64_t *send_receive_buffer, size_t count) override {
-    DoAllReduceSum<collective::DataType::kInt64>(send_receive_buffer, count);
-  }
-
-  void AllReduceSum(uint64_t *send_receive_buffer, size_t count) override {
-    DoAllReduceSum<collective::DataType::kUInt64>(send_receive_buffer, count);
+    dh::safe_cuda(cudaSetDevice(device_ordinal_));
+    auto size = count * GetTypeSize(data_type);
+    host_buffer_.reserve(size);
+    dh::safe_cuda(cudaMemcpy(host_buffer_.data(), send_receive_buffer, size, cudaMemcpyDefault));
+    communicator_->AllReduce(host_buffer_.data(), count, data_type, op);
+    dh::safe_cuda(cudaMemcpy(send_receive_buffer, host_buffer_.data(), size, cudaMemcpyDefault));
   }
 
   void AllGatherV(void const *send_buffer, size_t length_bytes, std::vector<std::size_t> *segments,
@@ -77,20 +75,6 @@ class DeviceCommunicatorAdapter : public DeviceCommunicator {
   }
 
  private:
-  template <collective::DataType data_type, typename T>
-  void DoAllReduceSum(T *send_receive_buffer, size_t count) {
-    if (communicator_->GetWorldSize() == 1) {
-      return;
-    }
-
-    dh::safe_cuda(cudaSetDevice(device_ordinal_));
-    auto size = count * sizeof(T);
-    host_buffer_.reserve(size);
-    dh::safe_cuda(cudaMemcpy(host_buffer_.data(), send_receive_buffer, size, cudaMemcpyDefault));
-    communicator_->AllReduce(host_buffer_.data(), count, data_type, collective::Operation::kSum);
-    dh::safe_cuda(cudaMemcpy(send_receive_buffer, host_buffer_.data(), size, cudaMemcpyDefault));
-  }
-
   int const device_ordinal_;
   Communicator *communicator_;
   /// Host buffer used to call communicator functions.

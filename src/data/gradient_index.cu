@@ -1,5 +1,5 @@
-/*!
- * Copyright 2022 by XGBoost Contributors
+/**
+ * Copyright 2022-2023, XGBoost Contributors
  */
 #include <memory>  // std::unique_ptr
 
@@ -41,9 +41,9 @@ void SetIndexData(Context const* ctx, EllpackPageImpl const* page,
 }
 
 void GetRowPtrFromEllpack(Context const* ctx, EllpackPageImpl const* page,
-                          std::vector<size_t>* p_out) {
+                          common::RefResourceView<std::size_t>* p_out) {
   auto& row_ptr = *p_out;
-  row_ptr.resize(page->Size() + 1, 0);
+  row_ptr = common::MakeFixedVecWithMalloc(page->Size() + 1, std::size_t{0});
   if (page->is_dense) {
     std::fill(row_ptr.begin() + 1, row_ptr.end(), page->row_stride);
   } else {
@@ -95,7 +95,7 @@ GHistIndexMatrix::GHistIndexMatrix(Context const* ctx, MetaInfo const& info,
         ctx, page, &hit_count_tloc_, [&](auto bin_idx, auto) { return bin_idx; }, this);
   }
 
-  this->hit_count.resize(n_bins_total, 0);
+  this->hit_count = common::MakeFixedVecWithMalloc(n_bins_total, std::size_t{0});
   this->GatherHitCount(ctx->Threads(), n_bins_total);
 
   // sanity checks
