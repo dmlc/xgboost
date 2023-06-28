@@ -5,27 +5,76 @@
 #ifndef XGBOOST_CONTEXT_H_
 #define XGBOOST_CONTEXT_H_
 
+#include <xgboost/base.h>  // for bst_d_ordinal_t
 #include <xgboost/logging.h>
 #include <xgboost/parameter.h>
 
-#include <cstdint>  // for uint8_t, int32_t, int64_t
-#include <memory>   // for shared_ptr
-#include <string>   // for string
+#include <memory>  // std::shared_ptr
+#include <string>
 
 namespace xgboost {
 
 struct CUDAContext;
+
+/**
+ * @brief A type for device ordinal. The type is packed into 32-bit for efficient use in
+ *        viewing types like `linalg::TensorView`.
+ */
+struct DeviceOrd {
+  enum Type : std::int16_t { kCPU = 0, kCUDA = 1 } device{kCPU};
+  // CUDA device ordinal.
+  bst_d_ordinal_t ordinal{-1};
+
+  [[nodiscard]] bool IsCUDA() const { return device == kCUDA; }
+  [[nodiscard]] bool IsCPU() const { return device == kCPU; }
+
+  DeviceOrd() = default;
+  constexpr DeviceOrd(Type type, bst_d_ordinal_t ord) : device{type}, ordinal{ord} {}
+
+  DeviceOrd(DeviceOrd const& that) = default;
+  DeviceOrd& operator=(DeviceOrd const& that) = default;
+  DeviceOrd(DeviceOrd&& that) = default;
+  DeviceOrd& operator=(DeviceOrd&& that) = default;
+
+  /**
+   * @brief Constructor for CPU.
+   */
+  [[nodiscard]] constexpr static auto CPU() { return DeviceOrd{kCPU, -1}; }
+  /**
+   * @brief Constructor for CUDA device.
+   *
+   * @param bst_d_ordinal_t CUDA device ordinal.
+   */
+  [[nodiscard]] static auto CUDA(bst_d_ordinal_t ordinal) { return DeviceOrd{kCPU, ordinal}; }
+
+  [[nodiscard]] bool operator==(DeviceOrd const& that) const {
+    return device == that.device && ordinal == that.ordinal;
+  }
+  [[nodiscard]] bool operator!=(DeviceOrd const& that) const { return !(*this == that); }
+  /**
+   * @brief Get a string representation of the device and the ordinal.
+   */
+  [[nodiscard]] std::string Name() const {
+    switch (device) {
+      case DeviceOrd::kCPU:
+        return "CPU";
+      case DeviceOrd::kCUDA:
+        return "CUDA:" + std::to_string(ordinal);
+      default: {
+        LOG(FATAL) << "Unknown device.";
+        return "";
+      }
+    }
+  }
+};
+
+static_assert(sizeof(DeviceOrd) == sizeof(std::int32_t));
 
 struct Context : public XGBoostParameter<Context> {
  public:
   // Constant representing the device ID of CPU.
   static std::int32_t constexpr kCpuId = -1;
   static std::int64_t constexpr kDefaultSeed = 0;
-
-  enum DeviceType : std::uint8_t {
-    kCPU,
-    kCUDA,
-  };
 
  public:
   Context();
@@ -42,11 +91,10 @@ struct Context : public XGBoostParameter<Context> {
   // fail when gpu_id is invalid
   bool fail_on_invalid_gpu_id{false};
   bool validate_parameters{false};
-
-  /*!
-   * \brief Configure the parameter `gpu_id'.
+  /**
+   * @brief Configure the parameter `gpu_id'.
    *
-   * \param require_gpu  Whether GPU is explicitly required from user.
+   * @param require_gpu  Whether GPU is explicitly required from user.
    */
   void ConfigureGpuId(bool require_gpu);
   /*!
@@ -57,19 +105,13 @@ struct Context : public XGBoostParameter<Context> {
   bool IsCPU() const { return gpu_id == kCpuId; }
   bool IsCUDA() const { return !IsCPU(); }
 
-  DeviceType Device() const { return IsCPU() ? kCPU : kCUDA; }
-  std::string DeviceName() const {
-    switch (Device()) {
-      case Context::kCPU:
-        return "CPU";
-      case Context::kCUDA:
-        return "CUDA";
-      default: {
-        LOG(FATAL) << "Unknown device.";
-        return "";
-      }
-    }
+  DeviceOrd Device() const {
+    return IsCPU() ? DeviceOrd::CPU() : DeviceOrd::CUDA(static_cast<bst_d_ordinal_t>(gpu_id));
   }
+  /**
+   * @brief Name of the current device.
+   */
+  std::string DeviceName() const { return Device().Name(); }
 
   CUDAContext const* CUDACtx() const;
   // Make a CUDA context based on the current context.
