@@ -620,7 +620,7 @@ std::unique_ptr<Predictor> const& GBTree::GetPredictor(HostDeviceVector<float> c
   auto on_device = is_ellpack || is_from_device;
 
   // Use GPU Predictor if data is already on device and gpu_id is set.
-  if (on_device && ctx_->gpu_id >= 0) {
+  if (on_device && ctx_->IsCUDA()) {
 #if defined(XGBOOST_USE_CUDA)
     CHECK_GE(common::AllVisibleGPUs(), 1) << "No visible GPU is found for XGBoost.";
     CHECK(gpu_predictor_);

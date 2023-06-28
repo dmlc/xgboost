@@ -365,11 +365,14 @@ void TestCategoricalPredictLeafColumnSplit(Context const *ctx) {
 
 void TestIterationRange(Context const* ctx) {
   size_t constexpr kRows = 1000, kCols = 20, kClasses = 4, kForest = 3, kIters = 10;
-  auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix(true, true, kClasses);
+  auto dmat = RandomDataGenerator(kRows, kCols, 0)
+                  .Device(ctx->gpu_id)
+                  .GenerateDMatrix(true, true, kClasses);
   auto learner = LearnerForTest(ctx, dmat, kIters, kForest);
 
   bool bound = false;
-  std::unique_ptr<Learner> sliced {learner->Slice(0, 3, 1, &bound)};
+  bst_layer_t lend{3};
+  std::unique_ptr<Learner> sliced{learner->Slice(0, lend, 1, &bound)};
   ASSERT_FALSE(bound);
 
   HostDeviceVector<float> out_predt_sliced;
@@ -377,11 +380,8 @@ void TestIterationRange(Context const* ctx) {
 
   // margin
   {
-    sliced->Predict(dmat, true, &out_predt_sliced, 0, 0, false, false, false,
-                    false, false);
-
-    learner->Predict(dmat, true, &out_predt_ranged, 0, 3, false, false, false,
-                     false, false);
+    sliced->Predict(dmat, true, &out_predt_sliced, 0, 0, false, false, false, false, false);
+    learner->Predict(dmat, true, &out_predt_ranged, 0, lend, false, false, false, false, false);
 
     auto const &h_sliced = out_predt_sliced.HostVector();
     auto const &h_range = out_predt_ranged.HostVector();
@@ -391,11 +391,8 @@ void TestIterationRange(Context const* ctx) {
 
   // SHAP
   {
-    sliced->Predict(dmat, false, &out_predt_sliced, 0, 0, false, false,
-                    true, false, false);
-
-    learner->Predict(dmat, false, &out_predt_ranged, 0, 3, false, false, true,
-                     false, false);
+    sliced->Predict(dmat, false, &out_predt_sliced, 0, 0, false, false, true, false, false);
+    learner->Predict(dmat, false, &out_predt_ranged, 0, lend, false, false, true, false, false);
 
     auto const &h_sliced = out_predt_sliced.HostVector();
     auto const &h_range = out_predt_ranged.HostVector();
@@ -405,10 +402,8 @@ void TestIterationRange(Context const* ctx) {
 
   // SHAP interaction
   {
-    sliced->Predict(dmat, false, &out_predt_sliced, 0, 0, false, false,
-                    false, false, true);
-    learner->Predict(dmat, false, &out_predt_ranged, 0, 3, false, false, false,
-                     false, true);
+    sliced->Predict(dmat, false, &out_predt_sliced, 0, 0, false, false, false, false, true);
+    learner->Predict(dmat, false, &out_predt_ranged, 0, lend, false, false, false, false, true);
     auto const &h_sliced = out_predt_sliced.HostVector();
     auto const &h_range = out_predt_ranged.HostVector();
     ASSERT_EQ(h_sliced.size(), h_range.size());
@@ -417,10 +412,8 @@ void TestIterationRange(Context const* ctx) {
 
   // Leaf
   {
-    sliced->Predict(dmat, false, &out_predt_sliced, 0, 0, false, true,
-                    false, false, false);
-    learner->Predict(dmat, false, &out_predt_ranged, 0, 3, false, true, false,
-                     false, false);
+    sliced->Predict(dmat, false, &out_predt_sliced, 0, 0, false, true, false, false, false);
+    learner->Predict(dmat, false, &out_predt_ranged, 0, lend, false, true, false, false, false);
     auto const &h_sliced = out_predt_sliced.HostVector();
     auto const &h_range = out_predt_ranged.HostVector();
     ASSERT_EQ(h_sliced.size(), h_range.size());
