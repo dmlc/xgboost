@@ -186,8 +186,8 @@ void VerifyPredictionWithLesserFeatures(Learner *learner, bst_row_t kRows,
   HostDeviceVector<float> from_cpu;
   {
     ASSERT_EQ(from_cpu.DeviceIdx(), Context::kCpuId);
-    learner->SetParam("gpu_id", "-1");
-    learner->SetParam("tree_method", "hist");
+    Context cpu_ctx;
+    ConfigLearnerByCtx(&cpu_ctx, learner);
     learner->Predict(m_test, false, &from_cpu, 0, 0);
     ASSERT_TRUE(from_cpu.HostCanWrite());
     ASSERT_FALSE(from_cpu.DeviceCanRead());
@@ -196,8 +196,8 @@ void VerifyPredictionWithLesserFeatures(Learner *learner, bst_row_t kRows,
 #if defined(XGBOOST_USE_CUDA)
   HostDeviceVector<float> from_cuda;
   {
-    learner->SetParam("gpu_id", "0");
-    learner->SetParam("tree_method", "gpu_hist");
+    Context cuda_ctx = MakeCUDACtx(0);
+    ConfigLearnerByCtx(&cuda_ctx, learner);
     learner->Predict(m_test, false, &from_cuda, 0, 0);
     ASSERT_EQ(from_cuda.DeviceIdx(), 0);
     ASSERT_TRUE(from_cuda.DeviceCanWrite());
