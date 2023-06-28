@@ -57,13 +57,14 @@ TEST(GPUPredictor, Basic) {
 }
 
 TEST(GPUPredictor, EllpackBasic) {
-  size_t constexpr kCols {8};
+  size_t constexpr kCols{8};
+  auto ctx = MakeCUDACtx(0);
   for (size_t bins = 2; bins < 258; bins += 16) {
     size_t rows = bins * 16;
     auto p_m = RandomDataGenerator{rows, kCols, 0.0}.Bins(bins).Device(0).GenerateDeviceDMatrix();
     ASSERT_FALSE(p_m->PageExists<SparsePage>());
-    TestPredictionFromGradientIndex<EllpackPage>("gpu_predictor", rows, kCols, p_m);
-    TestPredictionFromGradientIndex<EllpackPage>("gpu_predictor", bins, kCols, p_m);
+    TestPredictionFromGradientIndex<EllpackPage>(&ctx, rows, kCols, p_m);
+    TestPredictionFromGradientIndex<EllpackPage>(&ctx, bins, kCols, p_m);
   }
 }
 
@@ -118,25 +119,27 @@ TEST(GPUPredictor, ExternalMemoryTest) {
 }
 
 TEST(GPUPredictor, InplacePredictCupy) {
+  auto ctx = MakeCUDACtx(0);
   size_t constexpr kRows{128}, kCols{64};
   RandomDataGenerator gen(kRows, kCols, 0.5);
-  gen.Device(0);
+  gen.Device(ctx.gpu_id);
   HostDeviceVector<float> data;
   std::string interface_str = gen.GenerateArrayInterface(&data);
   std::shared_ptr<DMatrix> p_fmat{new data::DMatrixProxy};
   dynamic_cast<data::DMatrixProxy*>(p_fmat.get())->SetCUDAArray(interface_str.c_str());
-  TestInplacePrediction(p_fmat, "gpu_predictor", kRows, kCols, 0);
+  TestInplacePrediction(&ctx, p_fmat, kRows, kCols);
 }
 
 TEST(GPUPredictor, InplacePredictCuDF) {
+  auto ctx = MakeCUDACtx(0);
   size_t constexpr kRows{128}, kCols{64};
   RandomDataGenerator gen(kRows, kCols, 0.5);
-  gen.Device(0);
+  gen.Device(ctx.gpu_id);
   std::vector<HostDeviceVector<float>> storage(kCols);
   auto interface_str = gen.GenerateColumnarArrayInterface(&storage);
   std::shared_ptr<DMatrix> p_fmat{new data::DMatrixProxy};
   dynamic_cast<data::DMatrixProxy*>(p_fmat.get())->SetCUDAArray(interface_str.c_str());
-  TestInplacePrediction(p_fmat, "gpu_predictor", kRows, kCols, 0);
+  TestInplacePrediction(&ctx, p_fmat, kRows, kCols);
 }
 
 TEST(GpuPredictor, LesserFeatures) {
@@ -206,15 +209,18 @@ TEST(GPUPredictor, Shap) {
 }
 
 TEST(GPUPredictor, IterationRange) {
-  TestIterationRange("gpu_predictor");
+  auto ctx = MakeCUDACtx(0);
+  TestIterationRange(&ctx);
 }
 
 TEST(GPUPredictor, CategoricalPrediction) {
-  TestCategoricalPrediction("gpu_predictor");
+  auto ctx = MakeCUDACtx(0);
+  TestCategoricalPrediction(&ctx, false);
 }
 
 TEST(GPUPredictor, CategoricalPredictLeaf) {
-  TestCategoricalPredictLeaf(StringView{"gpu_predictor"});
+  auto ctx = MakeCUDACtx(0);
+  TestCategoricalPredictLeaf(&ctx, false);
 }
 
 TEST(GPUPredictor, PredictLeafBasic) {
@@ -238,7 +244,8 @@ TEST(GPUPredictor, PredictLeafBasic) {
 }
 
 TEST(GPUPredictor, Sparse) {
-  TestSparsePrediction(0.2, "gpu_predictor");
-  TestSparsePrediction(0.8, "gpu_predictor");
+  auto ctx = MakeCUDACtx(0);
+  TestSparsePrediction(&ctx, 0.2);
+  TestSparsePrediction(&ctx, 0.8);
 }
 }  // namespace xgboost::predictor

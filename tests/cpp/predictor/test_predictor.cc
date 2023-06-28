@@ -101,10 +101,10 @@ void TestTrainingPrediction(size_t rows, size_t bins,
   }
 }
 
-void TestInplacePrediction(std::shared_ptr<DMatrix> x, std::string predictor, bst_row_t rows,
-                           bst_feature_t cols, int32_t device) {
-  size_t constexpr kClasses { 4 };
-  auto gen = RandomDataGenerator{rows, cols, 0.5}.Device(device);
+void TestInplacePrediction(Context const *ctx, std::shared_ptr<DMatrix> x, bst_row_t rows,
+                           bst_feature_t cols) {
+  std::size_t constexpr kClasses { 4 };
+  auto gen = RandomDataGenerator{rows, cols, 0.5}.Device(ctx->gpu_id);
   std::shared_ptr<DMatrix> m = gen.GenerateDMatrix(true, false, kClasses);
 
   std::unique_ptr<Learner> learner {
@@ -115,11 +115,13 @@ void TestInplacePrediction(std::shared_ptr<DMatrix> x, std::string predictor, bs
   learner->SetParam("num_class", std::to_string(kClasses));
   learner->SetParam("seed", "0");
   learner->SetParam("subsample", "0.5");
-  learner->SetParam("gpu_id", std::to_string(device));
-  learner->SetParam("predictor", predictor);
+  learner->SetParam("tree_method", "hist");
   for (int32_t it = 0; it < 4; ++it) {
     learner->UpdateOneIter(it, m);
   }
+
+  learner->SetParam("gpu_id", std::to_string(ctx->gpu_id));
+  learner->Configure();
 
   HostDeviceVector<float> *p_out_predictions_0{nullptr};
   learner->InplacePredict(x, PredictionType::kMargin, std::numeric_limits<float>::quiet_NaN(),
@@ -156,9 +158,12 @@ void TestInplacePrediction(std::shared_ptr<DMatrix> x, std::string predictor, bs
 }
 
 namespace {
-std::unique_ptr<Learner> LearnerForTest(std::shared_ptr<DMatrix> dmat, size_t iters,
-                                        size_t forest = 1) {
+std::unique_ptr<Learner> LearnerForTest(Context const *ctx, std::shared_ptr<DMatrix> dmat,
+                                        size_t iters, size_t forest = 1) {
   std::unique_ptr<Learner> learner{Learner::Create({dmat})};
+  if (ctx->IsCUDA()) {
+    learner->SetParam("tree_method", "gpu_hist");
+  }
   learner->SetParams(Args{{"num_parallel_tree", std::to_string(forest)}});
   for (size_t i = 0; i < iters; ++i) {
     learner->UpdateOneIter(i, dmat);
@@ -166,28 +171,9 @@ std::unique_ptr<Learner> LearnerForTest(std::shared_ptr<DMatrix> dmat, size_t it
   return learner;
 }
 
-void VerifyPredictionWithLesserFeatures(Context const *ctx) {
-  size_t constexpr kRows = 256, kTrainCols = 256, kTestCols = 4, kIters = 4;
-  auto m_train = RandomDataGenerator(kRows, kTrainCols, 0.5).GenerateDMatrix(true);
-  auto m_test = RandomDataGenerator(kRows, kTestCols, 0.5).GenerateDMatrix(false);
-
-  auto make_learner = [&]() {
-    std::unique_ptr<Learner> learner{Learner::Create({m_train})};
-    learner->SetParam("gpu_id", std::to_string(ctx->gpu_id));
-    if (ctx->IsCUDA()) {
-      learner->SetParam("tree_method", "gpu_hist");
-    } else {
-      learner->SetParam("tree_method", "hist");
-    }
-    learner->Configure();
-
-    for (size_t i = 0; i < kIters; ++i) {
-      learner->UpdateOneIter(i, m_train);
-    }
-    return learner;
-  };
-  auto learner = make_learner();
-
+void VerifyPredictionWithLesserFeatures(Learner *learner, bst_row_t kRows,
+                                        std::shared_ptr<DMatrix> m_test,
+                                        std::shared_ptr<DMatrix> m_invalid) {
   HostDeviceVector<float> prediction;
   Json config{Object()};
   learner->SaveConfig(&config);
@@ -195,13 +181,10 @@ void VerifyPredictionWithLesserFeatures(Context const *ctx) {
   learner->Predict(m_test, false, &prediction, 0, 0);
   ASSERT_EQ(prediction.Size(), kRows);
 
-  auto m_invalid = RandomDataGenerator(kRows, kTrainCols + 1, 0.5).GenerateDMatrix(false);
   ASSERT_THROW({ learner->Predict(m_invalid, false, &prediction, 0, 0); }, dmlc::Error);
 
-#if defined(XGBOOST_USE_CUDA)
   HostDeviceVector<float> from_cpu;
   {
-    auto learner = make_learner();
     ASSERT_EQ(from_cpu.DeviceIdx(), Context::kCpuId);
     learner->SetParam("gpu_id", "-1");
     learner->SetParam("tree_method", "hist");
@@ -210,6 +193,7 @@ void VerifyPredictionWithLesserFeatures(Context const *ctx) {
     ASSERT_FALSE(from_cpu.DeviceCanRead());
   }
 
+#if defined(XGBOOST_USE_CUDA)
   HostDeviceVector<float> from_cuda;
   {
     learner->SetParam("gpu_id", "0");
@@ -228,18 +212,7 @@ void VerifyPredictionWithLesserFeatures(Context const *ctx) {
 #endif  // defined(XGBOOST_USE_CUDA)
 }
 
-void TestPredictionWithLesserFeatures(std::string predictor_name) {
-  size_t constexpr kRows = 256, kTrainCols = 256, kTestCols = 4, kIters = 4;
-  auto m_train = RandomDataGenerator(kRows, kTrainCols, 0.5).GenerateDMatrix(true);
-  auto learner = LearnerForTest(m_train, kIters);
-  auto m_test = RandomDataGenerator(kRows, kTestCols, 0.5).GenerateDMatrix(false);
-  auto m_invalid = RandomDataGenerator(kRows, kTrainCols + 1, 0.5).GenerateDMatrix(false);
-  VerifyPredictionWithLesserFeatures(learner.get(), predictor_name, kRows, m_test, m_invalid);
-}
-
-namespace {
-void VerifyPredictionWithLesserFeaturesColumnSplit(Learner *learner,
-                                                   std::string const &predictor_name, size_t rows,
+void VerifyPredictionWithLesserFeaturesColumnSplit(Learner *learner, size_t rows,
                                                    std::shared_ptr<DMatrix> m_test,
                                                    std::shared_ptr<DMatrix> m_invalid) {
   auto const world_size = collective::GetWorldSize();
@@ -247,20 +220,29 @@ void VerifyPredictionWithLesserFeaturesColumnSplit(Learner *learner,
   std::shared_ptr<DMatrix> sliced_test{m_test->SliceCol(world_size, rank)};
   std::shared_ptr<DMatrix> sliced_invalid{m_invalid->SliceCol(world_size, rank)};
 
-  VerifyPredictionWithLesserFeatures(learner, predictor_name, rows, sliced_test, sliced_invalid);
+  VerifyPredictionWithLesserFeatures(learner, rows, sliced_test, sliced_invalid);
 }
 }  // anonymous namespace
 
-void TestPredictionWithLesserFeaturesColumnSplit(std::string predictor_name) {
+void TestPredictionWithLesserFeatures(Context const *ctx) {
   size_t constexpr kRows = 256, kTrainCols = 256, kTestCols = 4, kIters = 4;
   auto m_train = RandomDataGenerator(kRows, kTrainCols, 0.5).GenerateDMatrix(true);
-  auto learner = LearnerForTest(m_train, kIters);
+  auto learner = LearnerForTest(ctx, m_train, kIters);
+  auto m_test = RandomDataGenerator(kRows, kTestCols, 0.5).GenerateDMatrix(false);
+  auto m_invalid = RandomDataGenerator(kRows, kTrainCols + 1, 0.5).GenerateDMatrix(false);
+  VerifyPredictionWithLesserFeatures(learner.get(), kRows, m_test, m_invalid);
+}
+
+void TestPredictionWithLesserFeaturesColumnSplit(Context const *ctx) {
+  size_t constexpr kRows = 256, kTrainCols = 256, kTestCols = 4, kIters = 4;
+  auto m_train = RandomDataGenerator(kRows, kTrainCols, 0.5).GenerateDMatrix(true);
+  auto learner = LearnerForTest(ctx, m_train, kIters);
   auto m_test = RandomDataGenerator(kRows, kTestCols, 0.5).GenerateDMatrix(false);
   auto m_invalid = RandomDataGenerator(kRows, kTrainCols + 1, 0.5).GenerateDMatrix(false);
 
   auto constexpr kWorldSize = 2;
   RunWithInMemoryCommunicator(kWorldSize, VerifyPredictionWithLesserFeaturesColumnSplit,
-                              learner.get(), predictor_name, kRows, m_test, m_invalid);
+                              learner.get(), kRows, m_test, m_invalid);
 }
 
 void GBTreeModelForTest(gbm::GBTreeModel *model, uint32_t split_ind,
@@ -282,7 +264,7 @@ void GBTreeModelForTest(gbm::GBTreeModel *model, uint32_t split_ind,
   model->CommitModelGroup(std::move(trees), 0);
 }
 
-void TestCategoricalPrediction(std::string name, bool is_column_split) {
+void TestCategoricalPrediction(Context const* ctx, bool is_column_split) {
   size_t constexpr kCols = 10;
   PredictionCacheEntry out_predictions;
 
@@ -292,13 +274,10 @@ void TestCategoricalPrediction(std::string name, bool is_column_split) {
   float left_weight = 1.3f;
   float right_weight = 1.7f;
 
-  Context ctx;
-  ctx.UpdateAllowUnknown(Args{});
-  gbm::GBTreeModel model(&mparam, &ctx);
+  gbm::GBTreeModel model(&mparam, ctx);
   GBTreeModelForTest(&model, split_ind, split_cat, left_weight, right_weight);
 
-  ctx.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
-  std::unique_ptr<Predictor> predictor{Predictor::Create(name.c_str(), &ctx)};
+  std::unique_ptr<Predictor> predictor{CreatePredictorForTest(ctx)};
 
   std::vector<float> row(kCols);
   row[split_ind] = split_cat;
@@ -328,12 +307,12 @@ void TestCategoricalPrediction(std::string name, bool is_column_split) {
   ASSERT_EQ(out_predictions.predictions.HostVector()[0], left_weight + score);
 }
 
-void TestCategoricalPredictionColumnSplit(std::string name) {
+void TestCategoricalPredictionColumnSplit(Context const *ctx) {
   auto constexpr kWorldSize = 2;
-  RunWithInMemoryCommunicator(kWorldSize, TestCategoricalPrediction, name, true);
+  RunWithInMemoryCommunicator(kWorldSize, TestCategoricalPrediction, ctx, true);
 }
 
-void TestCategoricalPredictLeaf(StringView name, bool is_column_split) {
+void TestCategoricalPredictLeaf(Context const *ctx, bool is_column_split) {
   size_t constexpr kCols = 10;
   PredictionCacheEntry out_predictions;
 
@@ -344,14 +323,10 @@ void TestCategoricalPredictLeaf(StringView name, bool is_column_split) {
   float left_weight = 1.3f;
   float right_weight = 1.7f;
 
-  Context ctx;
-  ctx.UpdateAllowUnknown(Args{});
-
-  gbm::GBTreeModel model(&mparam, &ctx);
+  gbm::GBTreeModel model(&mparam, ctx);
   GBTreeModelForTest(&model, split_ind, split_cat, left_weight, right_weight);
 
-  ctx.gpu_id = 0;
-  std::unique_ptr<Predictor> predictor{Predictor::Create(name.c_str(), &ctx)};
+  std::unique_ptr<Predictor> predictor{CreatePredictorForTest(ctx)};
 
   std::vector<float> row(kCols);
   row[split_ind] = split_cat;
@@ -376,16 +351,20 @@ void TestCategoricalPredictLeaf(StringView name, bool is_column_split) {
   ASSERT_EQ(out_predictions.predictions.HostVector()[0], 1);
 }
 
-void TestCategoricalPredictLeafColumnSplit(StringView name) {
+void TestCategoricalPredictLeafColumnSplit(Context const *ctx) {
   auto constexpr kWorldSize = 2;
-  RunWithInMemoryCommunicator(kWorldSize, TestCategoricalPredictLeaf, name, true);
+  RunWithInMemoryCommunicator(kWorldSize, TestCategoricalPredictLeaf, ctx, true);
 }
 
-void TestIterationRange(std::string name) {
+void TestIterationRange(Context const* ctx) {
   size_t constexpr kRows = 1000, kCols = 20, kClasses = 4, kForest = 3, kIters = 10;
   auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix(true, true, kClasses);
-  auto learner = LearnerForTest(dmat, kIters, kForest);
-  learner->SetParams(Args{{"predictor", name}});
+  auto learner = LearnerForTest(ctx, dmat, kIters, kForest);
+  if (ctx->IsCPU()) {
+    learner->SetParams(Args{{"tree_method", "gpu_hist"}, {"gpu_id", "0"}});
+  } else {
+    learner->SetParams(Args{{"tree_method", "hist"}});
+  }
 
   bool bound = false;
   std::unique_ptr<Learner> sliced {learner->Slice(0, 3, 1, &bound)};
@@ -486,11 +465,16 @@ void VerifyIterationRangeColumnSplit(DMatrix *dmat, Learner *learner, Learner *s
 }
 }  // anonymous namespace
 
-void TestIterationRangeColumnSplit(std::string name) {
+void TestIterationRangeColumnSplit(Context const* ctx) {
   size_t constexpr kRows = 1000, kCols = 20, kClasses = 4, kForest = 3, kIters = 10;
   auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix(true, true, kClasses);
-  auto learner = LearnerForTest(dmat, kIters, kForest);
-  learner->SetParams(Args{{"predictor", name}});
+  auto learner = LearnerForTest(ctx, dmat, kIters, kForest);
+
+  if (ctx->IsCPU()) {
+    learner->SetParams(Args{{"gpu_id", std::to_string(-1)}});
+  } else {
+    learner->SetParams(Args{{"gpu_id", std::to_string(0)}});
+  }
 
   bool bound = false;
   std::unique_ptr<Learner> sliced{learner->Slice(0, 3, 1, &bound)};
@@ -518,10 +502,10 @@ void TestIterationRangeColumnSplit(std::string name) {
                               leaf_ranged, leaf_sliced);
 }
 
-void TestSparsePrediction(float sparsity, std::string predictor) {
+void TestSparsePrediction(Context const *ctx, float sparsity) {
   size_t constexpr kRows = 512, kCols = 128, kIters = 4;
   auto Xy = RandomDataGenerator(kRows, kCols, sparsity).GenerateDMatrix(true);
-  auto learner = LearnerForTest(Xy, kIters);
+  auto learner = LearnerForTest(ctx, Xy, kIters);
 
   HostDeviceVector<float> sparse_predt;
 
@@ -531,11 +515,14 @@ void TestSparsePrediction(float sparsity, std::string predictor) {
   learner.reset(Learner::Create({Xy}));
   learner->LoadModel(model);
 
-  learner->SetParam("predictor", predictor);
+  if (ctx->IsCUDA()) {
+    learner->SetParam("tree_method", "gpu_hist");
+    learner->SetParam("gpu_id", std::to_string(ctx->gpu_id));
+  }
   learner->Predict(Xy, false, &sparse_predt, 0, 0);
 
   HostDeviceVector<float> with_nan(kRows * kCols, std::numeric_limits<float>::quiet_NaN());
-  auto& h_with_nan = with_nan.HostVector();
+  auto &h_with_nan = with_nan.HostVector();
   for (auto const &page : Xy->GetBatches<SparsePage>()) {
     auto batch = page.GetView();
     for (size_t i = 0; i < batch.Size(); ++i) {
@@ -546,7 +533,8 @@ void TestSparsePrediction(float sparsity, std::string predictor) {
     }
   }
 
-  learner->SetParam("predictor", "cpu_predictor");
+  learner->SetParam("tree_method", "hist");
+  learner->SetParam("gpu_id", "-1");
   // Xcode_12.4 doesn't compile with `std::make_shared`.
   auto dense = std::shared_ptr<DMatrix>(new data::DMatrixProxy{});
   auto array_interface = GetArrayInterface(&with_nan, kRows, kCols);
@@ -557,8 +545,8 @@ void TestSparsePrediction(float sparsity, std::string predictor) {
   learner->InplacePredict(dense, PredictionType::kValue, std::numeric_limits<float>::quiet_NaN(),
                           &p_dense_predt, 0, 0);
 
-  auto const& dense_predt = *p_dense_predt;
-  if (predictor == "cpu_predictor") {
+  auto const &dense_predt = *p_dense_predt;
+  if (ctx->IsCPU()) {
     ASSERT_EQ(dense_predt.HostVector(), sparse_predt.HostVector());
   } else {
     auto const &h_dense = dense_predt.HostVector();
@@ -586,10 +574,10 @@ void VerifySparsePredictionColumnSplit(DMatrix *dmat, Learner *learner,
 }
 }  // anonymous namespace
 
-void TestSparsePredictionColumnSplit(float sparsity, std::string predictor) {
+void TestSparsePredictionColumnSplit(Context const* ctx, float sparsity) {
   size_t constexpr kRows = 512, kCols = 128, kIters = 4;
   auto Xy = RandomDataGenerator(kRows, kCols, sparsity).GenerateDMatrix(true);
-  auto learner = LearnerForTest(Xy, kIters);
+  auto learner = LearnerForTest(ctx, Xy, kIters);
 
   HostDeviceVector<float> sparse_predt;
 
@@ -599,7 +587,12 @@ void TestSparsePredictionColumnSplit(float sparsity, std::string predictor) {
   learner.reset(Learner::Create({Xy}));
   learner->LoadModel(model);
 
-  learner->SetParam("predictor", predictor);
+  if (ctx->IsCPU()) {
+    learner->SetParams(Args{{"tree_method", "hist"}, {"gpu_id", "-1"}});
+  } else {
+    learner->SetParams(Args{{"tree_method", "gpu_hist"}, {"gpu_id", "0"}});
+  }
+
   learner->Predict(Xy, false, &sparse_predt, 0, 0);
 
   auto constexpr kWorldSize = 2;

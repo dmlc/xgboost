@@ -122,11 +122,13 @@ TEST(CpuPredictor, BasicColumnSplit) {
 }
 
 TEST(CpuPredictor, IterationRange) {
-  TestIterationRange("cpu_predictor");
+  Context ctx;
+  TestIterationRange(&ctx);
 }
 
 TEST(CpuPredictor, IterationRangeColmnSplit) {
-  TestIterationRangeColumnSplit("cpu_predictor");
+  Context ctx;
+  TestIterationRangeColumnSplit(&ctx);
 }
 
 TEST(CpuPredictor, ExternalMemory) {
@@ -139,7 +141,8 @@ TEST(CpuPredictor, ExternalMemory) {
 TEST(CpuPredictor, InplacePredict) {
   bst_row_t constexpr kRows{128};
   bst_feature_t constexpr kCols{64};
-  auto gen = RandomDataGenerator{kRows, kCols, 0.5}.Device(-1);
+  Context ctx;
+  auto gen = RandomDataGenerator{kRows, kCols, 0.5}.Device(ctx.gpu_id);
   {
     HostDeviceVector<float> data;
     gen.GenerateDense(&data);
@@ -149,7 +152,7 @@ TEST(CpuPredictor, InplacePredict) {
     std::string arr_str;
     Json::Dump(array_interface, &arr_str);
     x->SetArrayData(arr_str.data());
-    TestInplacePrediction(x, "cpu_predictor", kRows, kCols, Context::kCpuId);
+    TestInplacePrediction(&ctx, x, kRows, kCols);
   }
 
   {
@@ -166,7 +169,7 @@ TEST(CpuPredictor, InplacePredict) {
     Json::Dump(col_interface, &col_str);
     std::shared_ptr<data::DMatrixProxy> x{new data::DMatrixProxy};
     x->SetCSRData(rptr_str.data(), col_str.data(), data_str.data(), kCols, true);
-    TestInplacePrediction(x, "cpu_predictor", kRows, kCols, Context::kCpuId);
+    TestInplacePrediction(&ctx, x, kRows, kCols);
   }
 }
 
@@ -223,19 +226,23 @@ TEST(CPUPredictor, GHistIndex) {
 }
 
 TEST(CPUPredictor, CategoricalPrediction) {
-  TestCategoricalPrediction("cpu_predictor");
+  Context ctx;
+  TestCategoricalPrediction(&ctx, false);
 }
 
 TEST(CPUPredictor, CategoricalPredictionColumnSplit) {
-  TestCategoricalPredictionColumnSplit("cpu_predictor");
+  Context ctx;
+  TestCategoricalPredictionColumnSplit(&ctx);
 }
 
 TEST(CPUPredictor, CategoricalPredictLeaf) {
-  TestCategoricalPredictLeaf(StringView{"cpu_predictor"});
+  Context ctx;
+  TestCategoricalPredictLeaf(&ctx, false);
 }
 
 TEST(CPUPredictor, CategoricalPredictLeafColumnSplit) {
-  TestCategoricalPredictLeafColumnSplit(StringView{"cpu_predictor"});
+  Context ctx;
+  TestCategoricalPredictLeafColumnSplit(&ctx);
 }
 
 TEST(CpuPredictor, UpdatePredictionCache) {
@@ -249,17 +256,20 @@ TEST(CpuPredictor, LesserFeatures) {
 }
 
 TEST(CpuPredictor, LesserFeaturesColumnSplit) {
-  TestPredictionWithLesserFeaturesColumnSplit("cpu_predictor");
+  Context ctx;
+  TestPredictionWithLesserFeaturesColumnSplit(&ctx);
 }
 
 TEST(CpuPredictor, Sparse) {
-  TestSparsePrediction(0.2, "cpu_predictor");
-  TestSparsePrediction(0.8, "cpu_predictor");
+  Context ctx;
+  TestSparsePrediction(&ctx, 0.2);
+  TestSparsePrediction(&ctx, 0.8);
 }
 
 TEST(CpuPredictor, SparseColumnSplit) {
-  TestSparsePredictionColumnSplit(0.2, "cpu_predictor");
-  TestSparsePredictionColumnSplit(0.8, "cpu_predictor");
+  Context ctx;
+  TestSparsePredictionColumnSplit(&ctx, 0.2);
+  TestSparsePredictionColumnSplit(&ctx, 0.8);
 }
 
 TEST(CpuPredictor, Multi) {
