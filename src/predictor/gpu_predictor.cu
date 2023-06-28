@@ -728,7 +728,7 @@ __global__ void PredictByBitVectorKernel(
 
 class ColumnSplitHelper {
  public:
-  explicit ColumnSplitHelper(std::int32_t gpu_id) : gpu_id_{gpu_id} {}
+  explicit ColumnSplitHelper(Context const* ctx) : ctx_{ctx} {}
 
   void PredictBatch(DMatrix* dmat, HostDeviceVector<float>* out_preds,
                     gbm::GBTreeModel const& model, DeviceModel const& d_model) const {
@@ -742,12 +742,12 @@ class ColumnSplitHelper {
 
   void PredictDMatrix(DMatrix* dmat, HostDeviceVector<float>* out_preds, DeviceModel const& model,
                       bst_feature_t num_features, std::uint32_t num_group) const {
-    dh::safe_cuda(cudaSetDevice(gpu_id_));
+    dh::safe_cuda(cudaSetDevice(ctx_->gpu_id));
     dh::caching_device_vector<BitType> decision_storage{};
     dh::caching_device_vector<BitType> missing_storage{};
 
     auto constexpr kBlockThreads = 128;
-    auto const max_shared_memory_bytes = dh::MaxSharedMemory(gpu_id_);
+    auto const max_shared_memory_bytes = dh::MaxSharedMemory(ctx_->gpu_id);
     auto const shared_memory_bytes =
         SharedMemoryBytes<kBlockThreads>(num_features, max_shared_memory_bytes);
     auto const use_shared = shared_memory_bytes != 0;
@@ -760,8 +760,8 @@ class ColumnSplitHelper {
       BitVector decision_bits{dh::ToSpan(decision_storage)};
       BitVector missing_bits{dh::ToSpan(missing_storage)};
 
-      batch.offset.SetDevice(gpu_id_);
-      batch.data.SetDevice(gpu_id_);
+      batch.offset.SetDevice(ctx_->gpu_id);
+      batch.data.SetDevice(ctx_->gpu_id);
       std::size_t entry_start = 0;
       SparsePageView data(batch.data.DeviceSpan(), batch.offset.DeviceSpan(), num_features);
 
@@ -792,10 +792,10 @@ class ColumnSplitHelper {
   void AllReduceBitVectors(dh::caching_device_vector<BitType>* decision_storage,
                            dh::caching_device_vector<BitType>* missing_storage) const {
     collective::AllReduce<collective::Operation::kBitwiseAND>(
-        gpu_id_, decision_storage->data().get(), decision_storage->size());
+        ctx_->gpu_id, decision_storage->data().get(), decision_storage->size());
     collective::AllReduce<collective::Operation::kBitwiseOR>(  // Align to make it easier to read.
-        gpu_id_, missing_storage->data().get(), missing_storage->size());
-    collective::Synchronize(gpu_id_);
+        ctx_->gpu_id, missing_storage->data().get(), missing_storage->size());
+    collective::Synchronize(ctx_->gpu_id);
   }
 
   static void ResizeBitVectors(dh::caching_device_vector<BitType>* decision_storage,
@@ -812,7 +812,7 @@ class ColumnSplitHelper {
     missing_storage->clear();
   }
 
-  std::int32_t const gpu_id_;
+  Context const* ctx_;
 };
 }  // anonymous namespace
 
@@ -918,7 +918,7 @@ class GPUPredictor : public xgboost::Predictor {
 
  public:
   explicit GPUPredictor(Context const* ctx)
-      : Predictor::Predictor{ctx}, column_split_helper_{ctx->gpu_id} {}
+      : Predictor::Predictor{ctx}, column_split_helper_{ctx} {}
 
   ~GPUPredictor() override {
     if (ctx_->gpu_id >= 0 && ctx_->gpu_id < common::AllVisibleGPUs()) {

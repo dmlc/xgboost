@@ -62,9 +62,9 @@ void VerifyBasicColumnSplit(std::array<std::vector<float>, 32> const& expected_r
   auto const world_size = collective::GetWorldSize();
   auto const rank = collective::GetRank();
 
-  auto lparam = MakeCUDACtx(rank);
+  auto ctx = MakeCUDACtx(rank);
   std::unique_ptr<Predictor> predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &lparam));
+      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &ctx));
   predictor->Configure({});
 
   for (size_t i = 1; i < 33; i *= 2) {
@@ -72,8 +72,6 @@ void VerifyBasicColumnSplit(std::array<std::vector<float>, 32> const& expected_r
     auto dmat = RandomDataGenerator(n_row, n_col, 0).GenerateDMatrix();
     std::unique_ptr<DMatrix> sliced{dmat->SliceCol(world_size, rank)};
 
-    Context ctx;
-    ctx.gpu_id = rank;
     LearnerModelParam mparam{MakeMP(n_col, .5, 1, ctx.gpu_id)};
     gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx);
 
@@ -95,9 +93,9 @@ TEST(GPUPredictor, MGPUBasicColumnSplit) {
     GTEST_SKIP() << "Skipping MGPUIBasicColumnSplit test with # GPUs = " << n_gpus;
   }
 
-  auto lparam = MakeCUDACtx(0);
+  auto ctx = MakeCUDACtx(0);
   std::unique_ptr<Predictor> predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &lparam));
+      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &ctx));
   predictor->Configure({});
 
   std::array<std::vector<float>, 32> result{};
@@ -105,8 +103,6 @@ TEST(GPUPredictor, MGPUBasicColumnSplit) {
     size_t n_row = i, n_col = i;
     auto dmat = RandomDataGenerator(n_row, n_col, 0).GenerateDMatrix();
 
-    Context ctx;
-    ctx.gpu_id = 0;
     LearnerModelParam mparam{MakeMP(n_col, .5, 1, ctx.gpu_id)};
     gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx);
 

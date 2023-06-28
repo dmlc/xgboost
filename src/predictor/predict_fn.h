@@ -9,8 +9,8 @@
 namespace xgboost::predictor {
 /** @brief Whether it should traverse to the left branch of a tree. */
 template <bool has_categorical>
-inline XGBOOST_DEVICE bool GetDecision(RegTree::Node const &node, bst_node_t nid, float fvalue,
-                                       RegTree::CategoricalSplitMatrix const &cats) {
+XGBOOST_DEVICE bool GetDecision(RegTree::Node const &node, bst_node_t nid, float fvalue,
+                                RegTree::CategoricalSplitMatrix const &cats) {
   if (has_categorical && common::IsCat(cats.split_type, nid)) {
     auto node_categories = cats.categories.subspan(cats.node_ptr[nid].beg, cats.node_ptr[nid].size);
     return common::Decision(node_categories, fvalue);
