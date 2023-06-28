@@ -35,7 +35,7 @@ DeviceCommunicator* Communicator::GetDevice(int device_ordinal) {
       device_communicator_.reset(new DeviceCommunicatorAdapter(device_ordinal));
     }
 #else
-    device_communicator_.reset(new DeviceCommunicatorAdapter(device_ordinal, Get()));
+    device_communicator_.reset(new DeviceCommunicatorAdapter(device_ordinal));
 #endif
   }
   return device_communicator_.get();
