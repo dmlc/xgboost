@@ -166,18 +166,36 @@ std::unique_ptr<Learner> LearnerForTest(std::shared_ptr<DMatrix> dmat, size_t it
   return learner;
 }
 
-void VerifyPredictionWithLesserFeatures(Learner *learner, std::string const &predictor_name,
-                                        size_t rows, std::shared_ptr<DMatrix> const &m_test,
-                                        std::shared_ptr<DMatrix> const &m_invalid) {
+void VerifyPredictionWithLesserFeatures(Context const *ctx) {
+  size_t constexpr kRows = 256, kTrainCols = 256, kTestCols = 4, kIters = 4;
+  auto m_train = RandomDataGenerator(kRows, kTrainCols, 0.5).GenerateDMatrix(true);
+  auto m_test = RandomDataGenerator(kRows, kTestCols, 0.5).GenerateDMatrix(false);
+
+  auto make_learner = [&]() {
+    std::unique_ptr<Learner> learner{Learner::Create({m_train})};
+    learner->SetParam("gpu_id", std::to_string(ctx->gpu_id));
+    if (ctx->IsCUDA()) {
+      learner->SetParam("tree_method", "gpu_hist");
+    } else {
+      learner->SetParam("tree_method", "hist");
+    }
+    learner->Configure();
+
+    for (size_t i = 0; i < kIters; ++i) {
+      learner->UpdateOneIter(i, m_train);
+    }
+    return learner;
+  };
+  auto learner = make_learner();
+
   HostDeviceVector<float> prediction;
   Json config{Object()};
   learner->SaveConfig(&config);
-  ASSERT_EQ(get<String>(config["learner"]["gradient_booster"]["gbtree_train_param"]["predictor"]),
-            predictor_name);
 
   learner->Predict(m_test, false, &prediction, 0, 0);
-  ASSERT_EQ(prediction.Size(), rows);
+  ASSERT_EQ(prediction.Size(), kRows);
 
+  auto m_invalid = RandomDataGenerator(kRows, kTrainCols + 1, 0.5).GenerateDMatrix(false);
   ASSERT_THROW({ learner->Predict(m_invalid, false, &prediction, 0, 0); }, dmlc::Error);
 
 #if defined(XGBOOST_USE_CUDA)
@@ -209,7 +227,6 @@ void VerifyPredictionWithLesserFeatures(Learner *learner, std::string const &pre
   }
 #endif  // defined(XGBOOST_USE_CUDA)
 }
-}  // anonymous namespace
 
 void TestPredictionWithLesserFeatures(std::string predictor_name) {
   size_t constexpr kRows = 256, kTrainCols = 256, kTestCols = 4, kIters = 4;
