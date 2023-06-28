@@ -37,7 +37,14 @@ class ServerForTest {
   }
 
   ~ServerForTest() {
+    using namespace std::chrono_literals;
+    while (!server_) {
+      std::this_thread::sleep_for(100ms);
+    }
     server_->Shutdown();
+    while (!server_thread_) {
+      std::this_thread::sleep_for(100ms);
+    }
     server_thread_->join();
   }
 
