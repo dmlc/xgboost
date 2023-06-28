@@ -505,7 +505,7 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
   out_model.param.num_parallel_tree = model_.param.num_parallel_tree;
 }
 
-void GBTree::PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool,
+void GBTree::PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool is_training,
                           bst_layer_t layer_begin, bst_layer_t layer_end) {
   CHECK(configured_);
   if (layer_end == 0) {
@@ -526,7 +526,7 @@ void GBTree::PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool
     CHECK_EQ(out_preds->version, 0);
   }
 
-  auto const& predictor = GetPredictor(&out_preds->predictions, p_fmat);
+  auto const& predictor = GetPredictor(&out_preds->predictions, p_fmat, is_training);
   if (out_preds->version == 0) {
     // out_preds->Size() can be non-zero as it's initialized here before any
     // tree is built at the 0^th iterator.
@@ -546,9 +546,8 @@ void GBTree::PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool
   }
 }
 
-std::unique_ptr<Predictor> const &
-GBTree::GetPredictor(HostDeviceVector<float> const *out_pred,
-                     DMatrix *f_dmat) const {
+std::unique_ptr<Predictor> const& GBTree::GetPredictor(HostDeviceVector<float> const* out_pred,
+                                                       DMatrix* f_dmat, bool is_training) const {
   CHECK(configured_);
   if (tparam_.predictor != PredictorType::kAuto) {
     if (tparam_.predictor == PredictorType::kGPUPredictor) {
@@ -574,7 +573,7 @@ GBTree::GetPredictor(HostDeviceVector<float> const *out_pred,
 
   // Data comes from SparsePageDMatrix. Since we are loading data in pages, no need to
   // prevent data copy.
-  if (f_dmat && !f_dmat->SingleColBlock()) {
+  if ((f_dmat && !f_dmat->SingleColBlock()) || !is_training) {
     if (ctx_->IsCPU()) {
       return cpu_predictor_;
     } else {
@@ -589,12 +588,11 @@ GBTree::GetPredictor(HostDeviceVector<float> const *out_pred,
   }
 
   // Data comes from Device DMatrix.
-  auto is_ellpack = f_dmat && f_dmat->PageExists<EllpackPage>() &&
-                    !f_dmat->PageExists<SparsePage>();
+  auto is_ellpack =
+      f_dmat && f_dmat->PageExists<EllpackPage>() && !f_dmat->PageExists<SparsePage>();
   // Data comes from device memory, like CuDF or CuPy.
-  auto is_from_device =
-      f_dmat && f_dmat->PageExists<SparsePage>() &&
-      (*(f_dmat->GetBatches<SparsePage>().begin())).data.DeviceCanRead();
+  auto is_from_device = f_dmat && f_dmat->PageExists<SparsePage>() &&
+                        (*(f_dmat->GetBatches<SparsePage>().begin())).data.DeviceCanRead();
   auto on_device = is_ellpack || is_from_device;
 
   // Use GPU Predictor if data is already on device and gpu_id is set.
@@ -750,7 +748,7 @@ class Dart : public GBTree {
                         bool training, unsigned layer_begin,
                         unsigned layer_end) const {
     CHECK(!this->model_.learner_model_param->IsVectorLeaf()) << "dart" << MTNotImplemented();
-    auto &predictor = this->GetPredictor(&p_out_preds->predictions, p_fmat);
+    auto &predictor = this->GetPredictor(&p_out_preds->predictions, p_fmat, training);
     CHECK(predictor);
     predictor->InitOutPredictions(p_fmat->Info(), &p_out_preds->predictions,
                                   model_);
@@ -843,7 +841,7 @@ class Dart : public GBTree {
         }
         CHECK(success) << msg;
       } else {
-        predictor = this->GetPredictor().get();
+        predictor = this->GetPredictor(nullptr, nullptr, false).get();
         bool success = predictor->InplacePredict(p_fmat, model_, missing, &predts, i, i + 1);
         CHECK(success) << msg << std::endl
                        << "Current Predictor: "
@@ -886,7 +884,7 @@ class Dart : public GBTree {
                        std::vector<bst_float> *out_preds,
                        unsigned layer_begin, unsigned layer_end) override {
     DropTrees(false);
-    auto &predictor = this->GetPredictor();
+    auto& predictor = this->GetPredictor(nullptr, nullptr, false);
     uint32_t _, tree_end;
     std::tie(_, tree_end) = detail::LayerToTree(model_, layer_begin, layer_end);
     predictor->PredictInstance(inst, out_preds, model_, tree_end);
