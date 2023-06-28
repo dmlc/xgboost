@@ -1,5 +1,5 @@
-/*!
- * Copyright 2020-2022 by XGBoost Contributors
+/**
+ * Copyright 2020-2023, XGBoost Contributors
  * \file categorical.h
  */
 #ifndef XGBOOST_COMMON_CATEGORICAL_H_
@@ -10,7 +10,6 @@
 #include "bitfield.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
-#include "xgboost/parameter.h"
 #include "xgboost/span.h"
 
 namespace xgboost {

@@ -382,13 +382,6 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs,
                                                   LearnerModelParam const* learner_model_param,
                                                   Context const* generic_param);
 
-inline Context CreateEmptyGenericParam(int gpu_id) {
-  xgboost::Context tparam;
-  std::vector<std::pair<std::string, std::string>> args{{"gpu_id", std::to_string(gpu_id)}};
-  tparam.Init(args);
-  return tparam;
-}
-
 inline std::unique_ptr<HostDeviceVector<GradientPair>> GenerateGradients(
     std::size_t rows, bst_target_t n_targets = 1) {
   auto p_gradients = std::make_unique<HostDeviceVector<GradientPair>>(rows * n_targets);
@@ -407,9 +400,14 @@ inline std::unique_ptr<HostDeviceVector<GradientPair>> GenerateGradients(
 }
 
 /**
- * \brief Make a context that uses CUDA.
+ * \brief Make a context that uses CUDA if device >= 0.
  */
-inline Context MakeCUDACtx(std::int32_t device) { return Context{}.MakeCUDA(device); }
+inline Context MakeCUDACtx(std::int32_t device) {
+  if (device == Context::kCpuId) {
+    return Context{};
+  }
+  return Context{}.MakeCUDA(device);
+}
 
 inline HostDeviceVector<GradientPair> GenerateRandomGradients(const size_t n_rows,
                                                               float lower= 0.0f, float upper = 1.0f) {

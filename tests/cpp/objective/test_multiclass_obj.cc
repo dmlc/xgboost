@@ -9,7 +9,7 @@
 namespace xgboost {
 
 TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassObjGPair)) {
-  Context ctx = CreateEmptyGenericParam(GPUIDX);
+  Context ctx = MakeCUDACtx(GPUIDX);
   std::vector<std::pair<std::string, std::string>> args {{"num_class", "3"}};
   std::unique_ptr<ObjFunction> obj {
     ObjFunction::Create("multi:softmax", &ctx)
@@ -36,7 +36,7 @@ TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassObjGPair)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassBasic)) {
-  auto ctx = CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
   std::vector<std::pair<std::string, std::string>> args{
       std::pair<std::string, std::string>("num_class", "3")};
 
@@ -57,7 +57,7 @@ TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassBasic)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(SoftprobMultiClassBasic)) {
-  Context ctx = CreateEmptyGenericParam(GPUIDX);
+  Context ctx = MakeCUDACtx(GPUIDX);
   std::vector<std::pair<std::string, std::string>> args {
     std::pair<std::string, std::string>("num_class", "3")};
 

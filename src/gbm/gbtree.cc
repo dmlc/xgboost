@@ -39,7 +39,6 @@ namespace xgboost::gbm {
 DMLC_REGISTRY_FILE_TAG(gbtree);
 
 void GBTree::Configure(Args const& cfg) {
-  this->cfg_ = cfg;
   std::string updater_seq = tparam_.updater_seq;
   tparam_.UpdateAllowUnknown(cfg);
   tree_param_.UpdateAllowUnknown(cfg);
@@ -78,10 +77,9 @@ void GBTree::Configure(Args const& cfg) {
 
   monitor_.Init("GBTree");
 
-  specified_updater_ = std::any_of(cfg.cbegin(), cfg.cend(),
-                   [](std::pair<std::string, std::string> const& arg) {
-                     return arg.first == "updater";
-                   });
+  specified_updater_ = std::any_of(
+      cfg.cbegin(), cfg.cend(),
+      [](std::pair<std::string, std::string> const& arg) { return arg.first == "updater"; });
 
   if (specified_updater_ && !showed_updater_warning_) {
     LOG(WARNING) << "DANGER AHEAD: You have manually specified `updater` "
@@ -93,77 +91,24 @@ void GBTree::Configure(Args const& cfg) {
     showed_updater_warning_ = true;
   }
 
+  if (model_.learner_model_param->IsVectorLeaf()) {
+    CHECK(tparam_.tree_method == TreeMethod::kHist || tparam_.tree_method == TreeMethod::kAuto)
+        << "Only the hist tree method is supported for building multi-target trees with vector "
+           "leaf.";
+  }
+  LOG(DEBUG) << "Using tree method: " << static_cast<int>(tparam_.tree_method);
   this->ConfigureUpdaters();
+
   if (updater_seq != tparam_.updater_seq) {
     updaters_.clear();
     this->InitUpdater(cfg);
   } else {
-    for (auto &up : updaters_) {
+    for (auto& up : updaters_) {
       up->Configure(cfg);
     }
   }
 
   configured_ = true;
-}
-
-// FIXME(trivialfis): This handles updaters.  Because the choice of updaters depends on
-// whether external memory is used and how large is dataset.  We can remove the dependency
-// on DMatrix once `hist` tree method can handle external memory so that we can make it
-// default.
-void GBTree::ConfigureWithKnownData(Args const& cfg, DMatrix* fmat) {
-  CHECK(this->configured_);
-  std::string updater_seq = tparam_.updater_seq;
-  CHECK(tparam_.GetInitialised());
-
-  tparam_.UpdateAllowUnknown(cfg);
-
-  this->PerformTreeMethodHeuristic(fmat);
-  this->ConfigureUpdaters();
-
-  // initialize the updaters only when needed.
-  if (updater_seq != tparam_.updater_seq) {
-    LOG(DEBUG) << "Using updaters: " << tparam_.updater_seq;
-    this->updaters_.clear();
-    this->InitUpdater(cfg);
-  }
-}
-
-void GBTree::PerformTreeMethodHeuristic(DMatrix* fmat) {
-  if (specified_updater_) {
-    // This method is disabled when `updater` parameter is explicitly
-    // set, since only experts are expected to do so.
-    return;
-  }
-  if (model_.learner_model_param->IsVectorLeaf()) {
-    CHECK(tparam_.tree_method == TreeMethod::kHist)
-        << "Only the hist tree method is supported for building multi-target trees with vector "
-           "leaf.";
-  }
-
-  // tparam_ is set before calling this function.
-  if (tparam_.tree_method != TreeMethod::kAuto) {
-    return;
-  }
-
-  if (collective::IsDistributed()) {
-    LOG(INFO) << "Tree method is automatically selected to be 'approx' "
-                 "for distributed training.";
-    tparam_.tree_method = TreeMethod::kApprox;
-  } else if (!fmat->SingleColBlock()) {
-    LOG(INFO) << "Tree method is automatically set to 'approx' "
-                 "since external-memory data matrix is used.";
-    tparam_.tree_method = TreeMethod::kApprox;
-  } else if (fmat->Info().num_row_ >= (4UL << 20UL)) {
-    /* Choose tree_method='approx' automatically for large data matrix */
-    LOG(INFO) << "Tree method is automatically selected to be "
-                 "'approx' for faster speed. To use old behavior "
-                 "(exact greedy algorithm on single machine), "
-                 "set tree_method to 'exact'.";
-    tparam_.tree_method = TreeMethod::kApprox;
-  } else {
-    tparam_.tree_method = TreeMethod::kExact;
-  }
-  LOG(DEBUG) << "Using tree method: " << static_cast<int>(tparam_.tree_method);
 }
 
 void GBTree::ConfigureUpdaters() {
@@ -173,31 +118,25 @@ void GBTree::ConfigureUpdaters() {
   // `updater` parameter was manually specified
   /* Choose updaters according to tree_method parameters */
   switch (tparam_.tree_method) {
-    case TreeMethod::kAuto:
-      // Use heuristic to choose between 'exact' and 'approx' This
-      // choice is carried out in PerformTreeMethodHeuristic() before
-      // calling this function.
+    case TreeMethod::kAuto:  // Use hist as default in 2.0
+    case TreeMethod::kHist: {
+      tparam_.updater_seq = "grow_quantile_histmaker";
       break;
+    }
     case TreeMethod::kApprox:
       tparam_.updater_seq = "grow_histmaker";
       break;
     case TreeMethod::kExact:
       tparam_.updater_seq = "grow_colmaker,prune";
       break;
-    case TreeMethod::kHist: {
-      LOG(INFO) << "Tree method is selected to be 'hist', which uses a single updater "
-                   "grow_quantile_histmaker.";
-      tparam_.updater_seq = "grow_quantile_histmaker";
-      break;
-    }
     case TreeMethod::kGPUHist: {
       common::AssertGPUSupport();
       tparam_.updater_seq = "grow_gpu_hist";
       break;
     }
     default:
-      LOG(FATAL) << "Unknown tree_method ("
-                 << static_cast<int>(tparam_.tree_method) << ") detected";
+      LOG(FATAL) << "Unknown tree_method (" << static_cast<int>(tparam_.tree_method)
+                 << ") detected";
   }
 }
 
@@ -253,7 +192,6 @@ void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
                      PredictionCacheEntry* predt, ObjFunction const* obj) {
   TreesOneIter new_trees;
   bst_target_t const n_groups = model_.learner_model_param->OutputLength();
-  ConfigureWithKnownData(this->cfg_, p_fmat);
   monitor_.Start("BoostNewTrees");
 
   // Weird case that tree method is cpu-based but gpu_id is set.  Ideally we should let
@@ -632,6 +570,22 @@ GBTree::GetPredictor(HostDeviceVector<float> const *out_pred,
     }
     CHECK(cpu_predictor_);
     return cpu_predictor_;
+  }
+
+  // Data comes from SparsePageDMatrix. Since we are loading data in pages, no need to
+  // prevent data copy.
+  if (f_dmat && !f_dmat->SingleColBlock()) {
+    if (ctx_->IsCPU()) {
+      return cpu_predictor_;
+    } else {
+#if defined(XGBOOST_USE_CUDA)
+      CHECK_GE(common::AllVisibleGPUs(), 1) << "No visible GPU is found for XGBoost.";
+      return gpu_predictor_;
+#else
+      common::AssertGPUSupport();
+      return cpu_predictor_;
+#endif  // defined(XGBOOST_USE_CUDA)
+    }
   }
 
   // Data comes from Device DMatrix.

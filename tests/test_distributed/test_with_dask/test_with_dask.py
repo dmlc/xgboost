@@ -4,7 +4,6 @@ import json
 import os
 import pickle
 import socket
-import subprocess
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
@@ -41,7 +40,7 @@ from distributed import Client, LocalCluster
 from toolz import sliding_window  # dependency of dask
 
 from xgboost.dask import DaskDMatrix
-from xgboost.testing.dask import check_init_estimation
+from xgboost.testing.dask import check_init_estimation, check_uneven_nan
 
 dask.config.set({"distributed.scheduler.allowed-failures": False})
 
@@ -2012,6 +2011,14 @@ def test_parallel_submit_multi_clients() -> None:
 
 def test_init_estimation(client: Client) -> None:
     check_init_estimation("hist", client)
+
+
+@pytest.mark.parametrize("tree_method", ["hist", "approx"])
+def test_uneven_nan(tree_method) -> None:
+    n_workers = 2
+    with LocalCluster(n_workers=n_workers) as cluster:
+        with Client(cluster) as client:
+            check_uneven_nan(client, tree_method, n_workers)
 
 
 class TestDaskCallbacks:

@@ -44,7 +44,7 @@ try:
     from dask_cuda import LocalCUDACluster
 
     from xgboost import dask as dxgb
-    from xgboost.testing.dask import check_init_estimation
+    from xgboost.testing.dask import check_init_estimation, check_uneven_nan
 except ImportError:
     pass
 
@@ -223,6 +223,12 @@ class TestDistributedGPU:
 
     def test_init_estimation(self, local_cuda_client: Client) -> None:
         check_init_estimation("gpu_hist", local_cuda_client)
+
+    def test_uneven_nan(self) -> None:
+        n_workers = 2
+        with LocalCUDACluster(n_workers=n_workers) as cluster:
+            with Client(cluster) as client:
+                check_uneven_nan(client, "gpu_hist", n_workers)
 
     @pytest.mark.skipif(**tm.no_dask_cudf())
     def test_dask_dataframe(self, local_cuda_client: Client) -> None:

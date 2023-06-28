@@ -156,28 +156,28 @@ TEST(CutsBuilder, SearchGroupInd) {
 }
 
 TEST(HistUtil, DenseCutsCategorical) {
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
-   int categorical_sizes[] = {2, 6, 8, 12};
-   int num_bins = 256;
-   int sizes[] = {25, 100, 1000};
-   for (auto n : sizes) {
-     for (auto num_categories : categorical_sizes) {
-       auto x = GenerateRandomCategoricalSingleColumn(n, num_categories);
-       std::vector<float> x_sorted(x);
-       std::sort(x_sorted.begin(), x_sorted.end());
-       auto dmat = GetDMatrixFromData(x, n, 1);
-       HistogramCuts cuts = SketchOnDMatrix(&ctx, dmat.get(), num_bins);
-       auto cuts_from_sketch = cuts.Values();
-       EXPECT_LT(cuts.MinValues()[0], x_sorted.front());
-       EXPECT_GT(cuts_from_sketch.front(), x_sorted.front());
-       EXPECT_GE(cuts_from_sketch.back(), x_sorted.back());
-       EXPECT_EQ(cuts_from_sketch.size(), static_cast<size_t>(num_categories));
-     }
-   }
+  Context ctx;
+  int categorical_sizes[] = {2, 6, 8, 12};
+  int num_bins = 256;
+  int sizes[] = {25, 100, 1000};
+  for (auto n : sizes) {
+    for (auto num_categories : categorical_sizes) {
+      auto x = GenerateRandomCategoricalSingleColumn(n, num_categories);
+      std::vector<float> x_sorted(x);
+      std::sort(x_sorted.begin(), x_sorted.end());
+      auto dmat = GetDMatrixFromData(x, n, 1);
+      HistogramCuts cuts = SketchOnDMatrix(&ctx, dmat.get(), num_bins);
+      auto cuts_from_sketch = cuts.Values();
+      EXPECT_LT(cuts.MinValues()[0], x_sorted.front());
+      EXPECT_GT(cuts_from_sketch.front(), x_sorted.front());
+      EXPECT_GE(cuts_from_sketch.back(), x_sorted.back());
+      EXPECT_EQ(cuts_from_sketch.size(), static_cast<size_t>(num_categories));
+    }
+  }
 }
 
 TEST(HistUtil, DenseCutsAccuracyTest) {
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
+  Context ctx;
   int bin_sizes[] = {2, 16, 256, 512};
   int sizes[] = {100};
   int num_columns = 5;
@@ -195,7 +195,7 @@ TEST(HistUtil, DenseCutsAccuracyTestWeights) {
   int bin_sizes[] = {2, 16, 256, 512};
   int sizes[] = {100, 1000, 1500};
   int num_columns = 5;
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
+  Context ctx;
   for (auto num_rows : sizes) {
     auto x = GenerateRandom(num_rows, num_columns);
     auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
@@ -218,7 +218,7 @@ void TestQuantileWithHessian(bool use_sorted) {
   int bin_sizes[] = {2, 16, 256, 512};
   int sizes[] = {1000, 1500};
   int num_columns = 5;
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
+  Context ctx;
   for (auto num_rows : sizes) {
     auto x = GenerateRandom(num_rows, num_columns);
     auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
@@ -257,7 +257,7 @@ TEST(HistUtil, DenseCutsExternalMemory) {
   int bin_sizes[] = {2, 16, 256, 512};
   int sizes[] = {100, 1000, 1500};
   int num_columns = 5;
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
+  Context ctx;
   for (auto num_rows : sizes) {
     auto x = GenerateRandom(num_rows, num_columns);
     dmlc::TemporaryDirectory tmpdir;
@@ -278,7 +278,7 @@ TEST(HistUtil, IndexBinBound) {
                                            kUint32BinsTypeSize};
   size_t constexpr kRows = 100;
   size_t constexpr kCols = 10;
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
+  Context ctx;
   size_t bin_id = 0;
   for (auto max_bin : bin_sizes) {
     auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
@@ -303,7 +303,7 @@ TEST(HistUtil, IndexBinData) {
                                      static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 2 };
   size_t constexpr kRows = 100;
   size_t constexpr kCols = 10;
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
+  Context ctx;
 
   for (auto max_bin : kBinSizes) {
     auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
@@ -331,7 +331,7 @@ void TestSketchFromWeights(bool with_group) {
   size_t constexpr kRows = 300, kCols = 20, kBins = 256;
   size_t constexpr kGroups = 10;
   auto m = RandomDataGenerator{kRows, kCols, 0}.Device(0).GenerateDMatrix();
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
+  Context ctx;
   common::HistogramCuts cuts = SketchOnDMatrix(&ctx, m.get(), kBins);
 
   MetaInfo info;
@@ -397,7 +397,7 @@ TEST(HistUtil, SketchFromWeights) {
 }
 
 TEST(HistUtil, SketchCategoricalFeatures) {
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
+  Context ctx;
   TestCategoricalSketch(1000, 256, 32, false, [&ctx](DMatrix* p_fmat, int32_t num_bins) {
     return SketchOnDMatrix(&ctx, p_fmat, num_bins);
   });

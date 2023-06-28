@@ -305,7 +305,7 @@ class IterForDMatrixTest(xgb.core.DataIter):
             self._labels = [rng.randn(self.rows)] * self.BATCHES
 
         self.it = 0             # set iterator to 0
-        super().__init__()
+        super().__init__(cache_prefix=None)
 
     def as_array(self):
         import cudf

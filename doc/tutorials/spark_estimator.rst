@@ -146,7 +146,7 @@ using a list of feature names and the additional parameter ``use_gpu``:
   label_name = "class"
 
   # get a list with feature column names
-  feature_names = [x.name for x in train_df.schema if x.name != label]
+  feature_names = [x.name for x in train_df.schema if x.name != label_name]
 
   # create a xgboost pyspark regressor estimator and set use_gpu=True
   regressor = SparkXGBRegressor(

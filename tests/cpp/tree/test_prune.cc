@@ -29,7 +29,7 @@ TEST(Updater, Prune) {
   std::shared_ptr<DMatrix> p_dmat {
     RandomDataGenerator{32, 10, 0}.GenerateDMatrix() };
 
-  auto ctx = CreateEmptyGenericParam(GPUIDX);
+  Context ctx;
 
   // prepare tree
   RegTree tree = RegTree{1u, kCols};

@@ -2,14 +2,18 @@
  * Copyright 2021-2023, XGBoost contributors
  */
 #include <gtest/gtest.h>
+#include <xgboost/context.h>  // for Context
+
+#include <cstddef>  // for size_t
+#include <memory>   // for unique_ptr
 
 #include "../../../src/common/column_matrix.h"
-#include "../../../src/data/gradient_index.h"
+#include "../../../src/common/io.h"            // for MmapResource, AlignedResourceReadStream...
+#include "../../../src/data/gradient_index.h"  // for GHistIndexMatrix
 #include "../../../src/data/sparse_page_source.h"
-#include "../helpers.h"
+#include "../helpers.h"  // for RandomDataGenerator
 
-namespace xgboost {
-namespace data {
+namespace xgboost::data {
 TEST(GHistIndexPageRawFormat, IO) {
   Context ctx;
 
@@ -20,15 +24,18 @@ TEST(GHistIndexPageRawFormat, IO) {
   std::string path = tmpdir.path + "/ghistindex.page";
   auto batch = BatchParam{256, 0.5};
 
+  std::size_t bytes{0};
   {
-    std::unique_ptr<dmlc::Stream> fo{dmlc::Stream::Create(path.c_str(), "w")};
+    auto fo = std::make_unique<common::AlignedFileWriteStream>(StringView{path}, "wb");
     for (auto const &index : m->GetBatches<GHistIndexMatrix>(&ctx, batch)) {
-      format->Write(index, fo.get());
+      bytes += format->Write(index, fo.get());
     }
   }
 
   GHistIndexMatrix page;
-  std::unique_ptr<dmlc::SeekStream> fi{dmlc::SeekStream::CreateForRead(path.c_str())};
+
+  std::unique_ptr<common::AlignedResourceReadStream> fi{
+      std::make_unique<common::PrivateMmapConstStream>(path, 0, bytes)};
   format->Read(&page, fi.get());
 
   for (auto const &gidx : m->GetBatches<GHistIndexMatrix>(&ctx, batch)) {
@@ -37,6 +44,8 @@ TEST(GHistIndexPageRawFormat, IO) {
     ASSERT_EQ(loaded.cut.MinValues(), page.cut.MinValues());
     ASSERT_EQ(loaded.cut.Values(), page.cut.Values());
     ASSERT_EQ(loaded.base_rowid, page.base_rowid);
+    ASSERT_EQ(loaded.row_ptr.size(), page.row_ptr.size());
+    ASSERT_TRUE(std::equal(loaded.row_ptr.cbegin(), loaded.row_ptr.cend(), page.row_ptr.cbegin()));
     ASSERT_EQ(loaded.IsDense(), page.IsDense());
     ASSERT_TRUE(std::equal(loaded.index.begin(), loaded.index.end(), page.index.begin()));
     ASSERT_TRUE(std::equal(loaded.index.Offset(), loaded.index.Offset() + loaded.index.OffsetSize(),
@@ -45,5 +54,4 @@ TEST(GHistIndexPageRawFormat, IO) {
     ASSERT_EQ(loaded.Transpose().GetTypeSize(), loaded.Transpose().GetTypeSize());
   }
 }
-}  // namespace data
-}  // namespace xgboost
+}  // namespace xgboost::data

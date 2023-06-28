@@ -1,5 +1,5 @@
-/*!
- * Copyright 2019 XGBoost contributors
+/**
+ * Copyright 2019-2023, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <thrust/copy.h>
@@ -53,7 +53,7 @@ void CompareBitField(LBitField64 d_field, std::set<uint32_t> positions) {
   LBitField64 h_field{ {h_field_storage.data(),
                         h_field_storage.data() + h_field_storage.size()} };
 
-  for (size_t i = 0; i < h_field.Size(); ++i) {
+  for (size_t i = 0; i < h_field.Capacity(); ++i) {
     if (positions.find(i) != positions.cend()) {
       ASSERT_TRUE(h_field.Check(i));
     } else {
@@ -82,7 +82,7 @@ TEST(GPUFeatureInteractionConstraint, Init) {
         {h_node_storage.data(), h_node_storage.data() +  h_node_storage.size()}
       };
       // no feature is attached to node.
-      for (size_t i = 0; i < h_node.Size(); ++i) {
+      for (size_t i = 0; i < h_node.Capacity(); ++i) {
         ASSERT_FALSE(h_node.Check(i));
       }
     }

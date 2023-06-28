@@ -31,7 +31,7 @@ TEST_F(DeclareUnifiedDistributedTest(MetricTest), IntervalRegressionAccuracyColu
 
 // Test configuration of AFT metric
 TEST(AFTNegLogLikMetric, DeclareUnifiedTest(Configuration)) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
   std::unique_ptr<Metric> metric(Metric::Create("aft-nloglik", &ctx));
   metric->Configure({{"aft_loss_distribution", "normal"}, {"aft_loss_distribution_scale", "10"}});
 

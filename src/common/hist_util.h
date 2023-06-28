@@ -84,7 +84,7 @@ class HistogramCuts {
     return *this;
   }
 
-  uint32_t FeatureBins(bst_feature_t feature) const {
+  [[nodiscard]] bst_bin_t FeatureBins(bst_feature_t feature) const {
     return cut_ptrs_.ConstHostVector().at(feature + 1) - cut_ptrs_.ConstHostVector()[feature];
   }
 
@@ -92,8 +92,8 @@ class HistogramCuts {
   std::vector<float>    const& Values()    const { return cut_values_.ConstHostVector(); }
   std::vector<float>    const& MinValues() const { return min_vals_.ConstHostVector();   }
 
-  bool HasCategorical() const { return has_categorical_; }
-  float MaxCategory() const { return max_cat_; }
+  [[nodiscard]] bool HasCategorical() const { return has_categorical_; }
+  [[nodiscard]] float MaxCategory() const { return max_cat_; }
   /**
    * \brief Set meta info about categorical features.
    *
@@ -105,12 +105,13 @@ class HistogramCuts {
     max_cat_ = max_cat;
   }
 
-  size_t TotalBins() const { return cut_ptrs_.ConstHostVector().back(); }
+  [[nodiscard]] bst_bin_t TotalBins() const { return cut_ptrs_.ConstHostVector().back(); }
 
   // Return the index of a cut point that is strictly greater than the input
   // value, or the last available index if none exists
-  bst_bin_t SearchBin(float value, bst_feature_t column_id, std::vector<uint32_t> const& ptrs,
-                      std::vector<float> const& values) const {
+  [[nodiscard]] bst_bin_t SearchBin(float value, bst_feature_t column_id,
+                                    std::vector<uint32_t> const& ptrs,
+                                    std::vector<float> const& values) const {
     auto end = ptrs[column_id + 1];
     auto beg = ptrs[column_id];
     auto it = std::upper_bound(values.cbegin() + beg, values.cbegin() + end, value);
@@ -119,20 +120,20 @@ class HistogramCuts {
     return idx;
   }
 
-  bst_bin_t SearchBin(float value, bst_feature_t column_id) const {
+  [[nodiscard]] bst_bin_t SearchBin(float value, bst_feature_t column_id) const {
     return this->SearchBin(value, column_id, Ptrs(), Values());
   }
-
   /**
    * \brief Search the bin index for numerical feature.
    */
-  bst_bin_t SearchBin(Entry const& e) const { return SearchBin(e.fvalue, e.index); }
+  [[nodiscard]] bst_bin_t SearchBin(Entry const& e) const { return SearchBin(e.fvalue, e.index); }
 
   /**
    * \brief Search the bin index for categorical feature.
    */
-  bst_bin_t SearchCatBin(float value, bst_feature_t fidx, std::vector<uint32_t> const& ptrs,
-                         std::vector<float> const& vals) const {
+  [[nodiscard]] bst_bin_t SearchCatBin(float value, bst_feature_t fidx,
+                                       std::vector<uint32_t> const& ptrs,
+                                       std::vector<float> const& vals) const {
     auto end = ptrs.at(fidx + 1) + vals.cbegin();
     auto beg = ptrs[fidx] + vals.cbegin();
     // Truncates the value in case it's not perfectly rounded.
@@ -143,12 +144,14 @@ class HistogramCuts {
     }
     return bin_idx;
   }
-  bst_bin_t SearchCatBin(float value, bst_feature_t fidx) const {
+  [[nodiscard]] bst_bin_t SearchCatBin(float value, bst_feature_t fidx) const {
     auto const& ptrs = this->Ptrs();
     auto const& vals = this->Values();
     return this->SearchCatBin(value, fidx, ptrs, vals);
   }
-  bst_bin_t SearchCatBin(Entry const& e) const { return SearchCatBin(e.fvalue, e.index); }
+  [[nodiscard]] bst_bin_t SearchCatBin(Entry const& e) const {
+    return SearchCatBin(e.fvalue, e.index);
+  }
 
   /**
    * \brief Return numerical bin value given bin index.
@@ -200,13 +203,33 @@ auto DispatchBinType(BinTypeSize type, Fn&& fn) {
 }
 
 /**
- * \brief Optionally compressed gradient index. The compression works only with dense
+ * @brief Optionally compressed gradient index. The compression works only with dense
  *        data.
  *
  *   The main body of construction code is in gradient_index.cc, this struct is only a
- *   storage class.
+ *   view class.
  */
-struct Index {
+class Index {
+ private:
+  void SetBinTypeSize(BinTypeSize binTypeSize) {
+    binTypeSize_ = binTypeSize;
+    switch (binTypeSize) {
+      case kUint8BinsTypeSize:
+        func_ = &GetValueFromUint8;
+        break;
+      case kUint16BinsTypeSize:
+        func_ = &GetValueFromUint16;
+        break;
+      case kUint32BinsTypeSize:
+        func_ = &GetValueFromUint32;
+        break;
+      default:
+        CHECK(binTypeSize == kUint8BinsTypeSize || binTypeSize == kUint16BinsTypeSize ||
+              binTypeSize == kUint32BinsTypeSize);
+    }
+  }
+
+ public:
   // Inside the compressor, bin_idx is the index for cut value across all features. By
   // subtracting it with starting pointer of each feature, we can reduce it to smaller
   // value and store it with smaller types. Usable only with dense data.
@@ -230,10 +253,24 @@ struct Index {
   }
 
   Index() { SetBinTypeSize(binTypeSize_); }
-  Index(const Index& i) = delete;
-  Index& operator=(Index i) = delete;
+
+  Index(Index const& i) = delete;
+  Index& operator=(Index const& i) = delete;
   Index(Index&& i) = delete;
-  Index& operator=(Index&& i) = delete;
+
+  /** @brief Move assignment for lazy initialization. */
+  Index& operator=(Index&& i) = default;
+
+  /**
+   * @brief Construct the index from data.
+   *
+   * @param data     Storage for compressed histogram bin.
+   * @param bin_size Number of bytes for each bin.
+   */
+  Index(Span<std::uint8_t> data, BinTypeSize bin_size) : data_{data} {
+    this->SetBinTypeSize(bin_size);
+  }
+
   uint32_t operator[](size_t i) const {
     if (!bin_offset_.empty()) {
       // dense, compressed
@@ -244,26 +281,7 @@ struct Index {
       return func_(data_.data(), i);
     }
   }
-  void SetBinTypeSize(BinTypeSize binTypeSize) {
-    binTypeSize_ = binTypeSize;
-    switch (binTypeSize) {
-      case kUint8BinsTypeSize:
-        func_ = &GetValueFromUint8;
-        break;
-      case kUint16BinsTypeSize:
-        func_ = &GetValueFromUint16;
-        break;
-      case kUint32BinsTypeSize:
-        func_ = &GetValueFromUint32;
-        break;
-      default:
-        CHECK(binTypeSize == kUint8BinsTypeSize || binTypeSize == kUint16BinsTypeSize ||
-              binTypeSize == kUint32BinsTypeSize);
-    }
-  }
-  BinTypeSize GetBinTypeSize() const {
-    return binTypeSize_;
-  }
+  [[nodiscard]] BinTypeSize GetBinTypeSize() const { return binTypeSize_; }
   template <typename T>
   T const* data() const {  // NOLINT
     return reinterpret_cast<T const*>(data_.data());
@@ -272,30 +290,27 @@ struct Index {
   T* data() {  // NOLINT
     return reinterpret_cast<T*>(data_.data());
   }
-  uint32_t const* Offset() const { return bin_offset_.data(); }
-  size_t OffsetSize() const { return bin_offset_.size(); }
-  size_t Size() const { return data_.size() / (binTypeSize_); }
+  [[nodiscard]] std::uint32_t const* Offset() const { return bin_offset_.data(); }
+  [[nodiscard]] std::size_t OffsetSize() const { return bin_offset_.size(); }
+  [[nodiscard]] std::size_t Size() const { return data_.size() / (binTypeSize_); }
 
-  void Resize(const size_t n_bytes) {
-    data_.resize(n_bytes);
-  }
   // set the offset used in compression, cut_ptrs is the CSC indptr in HistogramCuts
   void SetBinOffset(std::vector<uint32_t> const& cut_ptrs) {
     bin_offset_.resize(cut_ptrs.size() - 1);  // resize to number of features.
     std::copy_n(cut_ptrs.begin(), bin_offset_.size(), bin_offset_.begin());
   }
-  std::vector<uint8_t>::const_iterator begin() const {  // NOLINT
-    return data_.begin();
+  auto begin() const {  // NOLINT
+    return data_.data();
   }
-  std::vector<uint8_t>::const_iterator end() const {  // NOLINT
-    return data_.end();
+  auto end() const {  // NOLINT
+    return data_.data() + data_.size();
   }
 
-  std::vector<uint8_t>::iterator begin() {  // NOLINT
-    return data_.begin();
+  auto begin() {  // NOLINT
+    return data_.data();
   }
-  std::vector<uint8_t>::iterator end() {  // NOLINT
-    return data_.end();
+  auto end() {  // NOLINT
+    return data_.data() + data_.size();
   }
 
  private:
@@ -310,12 +325,12 @@ struct Index {
 
   using Func = uint32_t (*)(uint8_t const*, size_t);
 
-  std::vector<uint8_t> data_;
+  Span<std::uint8_t> data_;
   // starting position of each feature inside the cut values (the indptr of the CSC cut matrix
   // HistogramCuts without the last entry.) Used for bin compression.
   std::vector<uint32_t> bin_offset_;
 
-  BinTypeSize binTypeSize_ {kUint8BinsTypeSize};
+  BinTypeSize binTypeSize_{kUint8BinsTypeSize};
   Func func_;
 };
 

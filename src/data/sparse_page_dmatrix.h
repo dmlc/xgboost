@@ -7,9 +7,6 @@
 #ifndef XGBOOST_DATA_SPARSE_PAGE_DMATRIX_H_
 #define XGBOOST_DATA_SPARSE_PAGE_DMATRIX_H_
 
-#include <xgboost/data.h>
-#include <xgboost/logging.h>
-
 #include <algorithm>
 #include <map>
 #include <memory>
@@ -20,35 +17,33 @@
 #include "ellpack_page_source.h"
 #include "gradient_index_page_source.h"
 #include "sparse_page_source.h"
+#include "xgboost/data.h"
+#include "xgboost/logging.h"
 
-namespace xgboost {
-namespace data {
+namespace xgboost::data {
 /**
  * \brief DMatrix used for external memory.
  *
  * The external memory is created for controlling memory usage by splitting up data into
- * multiple batches.  However that doesn't mean we will actually process exact 1 batch at
- * a time, which would be terribly slow considering that we have to loop through the
- * whole dataset for every tree split.  So we use async pre-fetch and let caller to decide
- * how many batches it wants to process by returning data as shared pointer.  The caller
- * can use async function to process the data or just stage those batches, making the
- * decision is out of the scope for sparse page dmatrix.  These 2 optimizations might
- * defeat the purpose of splitting up dataset since if you load all the batches then the
- * memory usage is even worse than using a single batch.  Essentially we need to control
- * how many batches can be in memory at the same time.
+ * multiple batches.  However that doesn't mean we will actually process exactly 1 batch
+ * at a time, which would be terribly slow considering that we have to loop through the
+ * whole dataset for every tree split.  So we use async to pre-fetch pages and let the
+ * caller to decide how many batches it wants to process by returning data as a shared
+ * pointer. The caller can use async function to process the data or just stage those
+ * batches based on its use cases. These two optimizations might defeat the purpose of
+ * splitting up dataset since if you stage all the batches then the memory usage might be
+ * even worse than using a single batch. As a result, we must control how many batches can
+ * be in memory at any given time.
  *
- * Right now the write to the cache is sequential operation and is blocking, reading from
- * cache is async but with a hard coded limit of 4 pages as an heuristic.  So by sparse
- * dmatrix itself there can be only 9 pages in main memory (might be of different types)
- * at the same time: 1 page pending for write, 4 pre-fetched sparse pages, 4 pre-fetched
- * dependent pages.  If the caller stops iteration at the middle and start again, then the
- * number of pages in memory can hit 16 due to pre-fetching, but this should be a bug in
- * caller's code (XGBoost doesn't discard a large portion of data at the end, there's not
- * sampling algo that samples only the first portion of data).
+ * Right now the write to the cache is a sequential operation and is blocking. Reading
+ * from cache on ther other hand, is async but with a hard coded limit of 3 pages as an
+ * heuristic.  So by sparse dmatrix itself there can be only 7 pages in main memory (might
+ * be of different types) at the same time: 1 page pending for write, 3 pre-fetched sparse
+ * pages, 3 pre-fetched dependent pages.
  *
  * Of course if the caller decides to retain some batches to perform parallel processing,
  * then we might load all pages in memory, which is also considered as a bug in caller's
- * code.  So if the algo supports external memory, it must be careful that queue for async
+ * code. So if the algo supports external memory, it must be careful that queue for async
  * call must have an upper limit.
  *
  * Another assumption we make is that the data must be immutable so caller should never
@@ -101,7 +96,7 @@ class SparsePageDMatrix : public DMatrix {
   MetaInfo &Info() override;
   const MetaInfo &Info() const override;
   Context const *Ctx() const override { return &fmat_ctx_; }
-
+  // The only DMatrix implementation that returns false.
   bool SingleColBlock() const override { return false; }
   DMatrix *Slice(common::Span<int32_t const>) override {
     LOG(FATAL) << "Slicing DMatrix is not supported for external memory.";
@@ -153,6 +148,5 @@ inline std::string MakeCache(SparsePageDMatrix *ptr, std::string format, std::st
   }
   return id;
 }
-}  // namespace data
-}  // namespace xgboost
+}  // namespace xgboost::data
 #endif  // XGBOOST_DATA_SPARSE_PAGE_DMATRIX_H_

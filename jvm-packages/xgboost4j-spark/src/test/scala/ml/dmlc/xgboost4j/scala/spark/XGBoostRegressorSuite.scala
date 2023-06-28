@@ -121,7 +121,7 @@ class XGBoostRegressorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
 
   test("ranking: use group data") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "rank:pairwise", "num_workers" -> numWorkers, "num_round" -> 5,
+      "objective" -> "rank:ndcg", "num_workers" -> numWorkers, "num_round" -> 5,
       "group_col" -> "group", "tree_method" -> treeMethod)
 
     val trainingDF = buildDataFrameWithGroup(Ranking.train)

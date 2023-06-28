@@ -1,12 +1,57 @@
 import itertools
+import json
 import os
 import shutil
+from typing import Optional
 
 import numpy as np
+import pytest
+from hypothesis import given, note, settings
 from scipy.sparse import csr_matrix
 
 import xgboost
 from xgboost import testing as tm
+from xgboost.testing.data import RelDataCV, simulate_clicks, sort_ltr_samples
+from xgboost.testing.params import lambdarank_parameter_strategy
+
+
+def test_ndcg_custom_gain():
+    def ndcg_gain(y: np.ndarray) -> np.ndarray:
+        return np.exp2(y.astype(np.float64)) - 1.0
+
+    X, y, q, w = tm.make_ltr(n_samples=1024, n_features=4, n_query_groups=3, max_rel=3)
+    y_gain = ndcg_gain(y)
+
+    byxgb = xgboost.XGBRanker(tree_method="hist", ndcg_exp_gain=True, n_estimators=10)
+    byxgb.fit(
+        X,
+        y,
+        qid=q,
+        sample_weight=w,
+        eval_set=[(X, y)],
+        eval_qid=(q,),
+        sample_weight_eval_set=(w,),
+        verbose=True,
+    )
+    byxgb_json = json.loads(byxgb.get_booster().save_raw(raw_format="json"))
+
+    bynp = xgboost.XGBRanker(tree_method="hist", ndcg_exp_gain=False, n_estimators=10)
+    bynp.fit(
+        X,
+        y_gain,
+        qid=q,
+        sample_weight=w,
+        eval_set=[(X, y_gain)],
+        eval_qid=(q,),
+        sample_weight_eval_set=(w,),
+        verbose=True,
+    )
+    bynp_json = json.loads(bynp.get_booster().save_raw(raw_format="json"))
+
+    # Remove the difference in parameter for comparison
+    byxgb_json["learner"]["objective"]["lambdarank_param"]["ndcg_exp_gain"] = "0"
+    assert byxgb.evals_result() == bynp.evals_result()
+    assert byxgb_json == bynp_json
 
 
 def test_ranking_with_unweighted_data():
@@ -73,8 +118,77 @@ def test_ranking_with_weighted_data():
         assert all(p <= q for p, q in zip(is_sorted, is_sorted[1:]))
 
 
-class TestRanking:
+def test_error_msg() -> None:
+    X, y, qid, w = tm.make_ltr(10, 2, 2, 2)
+    ranker = xgboost.XGBRanker()
+    with pytest.raises(ValueError, match=r"equal to the number of query groups"):
+        ranker.fit(X, y, qid=qid, sample_weight=y)
 
+
+@given(lambdarank_parameter_strategy)
+@settings(deadline=None, print_blob=True)
+def test_lambdarank_parameters(params):
+    if params["objective"] == "rank:map":
+        rel = 1
+    else:
+        rel = 4
+    X, y, q, w = tm.make_ltr(4096, 3, 13, rel)
+    ranker = xgboost.XGBRanker(tree_method="hist", n_estimators=64, **params)
+    ranker.fit(X, y, qid=q, sample_weight=w, eval_set=[(X, y)], eval_qid=[q])
+    for k, v in ranker.evals_result()["validation_0"].items():
+        note(v)
+        assert v[-1] >= v[0]
+        assert ranker.n_features_in_ == 3
+
+
+@pytest.mark.skipif(**tm.no_pandas())
+@pytest.mark.skipif(**tm.no_sklearn())
+def test_unbiased() -> None:
+    import pandas as pd
+    from sklearn.model_selection import train_test_split
+
+    X, y, q, w = tm.make_ltr(8192, 2, n_query_groups=6, max_rel=4)
+    X, Xe, y, ye, q, qe = train_test_split(X, y, q, test_size=0.2, random_state=3)
+    X = csr_matrix(X)
+    Xe = csr_matrix(Xe)
+    data = RelDataCV((X, y, q), (Xe, ye, qe), max_rel=4)
+
+    train, _ = simulate_clicks(data)
+    x, c, y, q = sort_ltr_samples(
+        train.X, train.y, train.qid, train.click, train.pos
+    )
+    df: Optional[pd.DataFrame] = None
+
+    class Position(xgboost.callback.TrainingCallback):
+        def after_training(self, model) -> bool:
+            nonlocal df
+            config = json.loads(model.save_config())
+            ti_plus = np.array(config["learner"]["objective"]["ti+"])
+            tj_minus = np.array(config["learner"]["objective"]["tj-"])
+            df = pd.DataFrame({"ti+": ti_plus, "tj-": tj_minus})
+            return model
+
+    ltr = xgboost.XGBRanker(
+        n_estimators=8,
+        tree_method="hist",
+        lambdarank_unbiased=True,
+        lambdarank_num_pair_per_sample=12,
+        lambdarank_pair_method="topk",
+        objective="rank:ndcg",
+        callbacks=[Position()],
+        boost_from_average=0,
+    )
+    ltr.fit(x, c, qid=q, eval_set=[(x, c)], eval_qid=[q])
+
+    assert df is not None
+    # normalized
+    np.testing.assert_allclose(df["ti+"].iloc[0], 1.0)
+    np.testing.assert_allclose(df["tj-"].iloc[0], 1.0)
+    # less biased on low ranks.
+    assert df["ti+"].iloc[-1] < df["ti+"].iloc[0]
+
+
+class TestRanking:
     @classmethod
     def setup_class(cls):
         """

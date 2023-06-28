@@ -29,7 +29,7 @@ GHistIndexMatrix::GHistIndexMatrix(Context const *ctx, DMatrix *p_fmat, bst_bin_
   cut = common::SketchOnDMatrix(ctx, p_fmat, max_bins_per_feat, sorted_sketch, hess);
 
   const uint32_t nbins = cut.Ptrs().back();
-  hit_count.resize(nbins, 0);
+  hit_count = common::MakeFixedVecWithMalloc(nbins, std::size_t{0});
   hit_count_tloc_.resize(ctx->Threads() * nbins, 0);
 
   size_t new_size = 1;
@@ -37,8 +37,7 @@ GHistIndexMatrix::GHistIndexMatrix(Context const *ctx, DMatrix *p_fmat, bst_bin_
     new_size += batch.Size();
   }
 
-  row_ptr.resize(new_size);
-  row_ptr[0] = 0;
+  row_ptr = common::MakeFixedVecWithMalloc(new_size, std::size_t{0});
 
   const bool isDense = p_fmat->IsDense();
   this->isDense_ = isDense;
@@ -61,8 +60,8 @@ GHistIndexMatrix::GHistIndexMatrix(Context const *ctx, DMatrix *p_fmat, bst_bin_
 
 GHistIndexMatrix::GHistIndexMatrix(MetaInfo const &info, common::HistogramCuts &&cuts,
                                    bst_bin_t max_bin_per_feat)
-    : row_ptr(info.num_row_ + 1, 0),
-      hit_count(cuts.TotalBins(), 0),
+    : row_ptr{common::MakeFixedVecWithMalloc(info.num_row_ + 1, std::size_t{0})},
+      hit_count{common::MakeFixedVecWithMalloc(cuts.TotalBins(), std::size_t{0})},
       cut{std::forward<common::HistogramCuts>(cuts)},
       max_numeric_bins_per_feat(max_bin_per_feat),
       isDense_{info.num_col_ * info.num_row_ == info.num_nonzero_} {}
@@ -95,12 +94,10 @@ GHistIndexMatrix::GHistIndexMatrix(SparsePage const &batch, common::Span<Feature
       isDense_{isDense} {
   CHECK_GE(n_threads, 1);
   CHECK_EQ(row_ptr.size(), 0);
-  // The number of threads is pegged to the batch size. If the OMP
-  // block is parallelized on anything other than the batch/block size,
-  // it should be reassigned
-  row_ptr.resize(batch.Size() + 1, 0);
+  row_ptr = common::MakeFixedVecWithMalloc(batch.Size() + 1, std::size_t{0});
+
   const uint32_t nbins = cut.Ptrs().back();
-  hit_count.resize(nbins, 0);
+  hit_count = common::MakeFixedVecWithMalloc(nbins, std::size_t{0});
   hit_count_tloc_.resize(n_threads * nbins, 0);
 
   this->PushBatch(batch, ft, n_threads);
@@ -128,20 +125,45 @@ INSTANTIATION_PUSH(data::SparsePageAdapterBatch)
 #undef INSTANTIATION_PUSH
 
 void GHistIndexMatrix::ResizeIndex(const size_t n_index, const bool isDense) {
+  auto make_index = [this, n_index](auto t, common::BinTypeSize t_size) {
+    // Must resize instead of allocating a new one. This function is called everytime a
+    // new batch is pushed, and we grow the size accordingly without loosing the data the
+    // previous batches.
+    using T = decltype(t);
+    std::size_t n_bytes = sizeof(T) * n_index;
+    CHECK_GE(n_bytes, this->data.size());
+
+    auto resource = this->data.Resource();
+    decltype(this->data) new_vec;
+    if (!resource) {
+      CHECK(this->data.empty());
+      new_vec = common::MakeFixedVecWithMalloc(n_bytes, std::uint8_t{0});
+    } else {
+      CHECK(resource->Type() == common::ResourceHandler::kMalloc);
+      auto malloc_resource = std::dynamic_pointer_cast<common::MallocResource>(resource);
+      CHECK(malloc_resource);
+      malloc_resource->Resize(n_bytes);
+
+      // gcc-11.3 doesn't work if DataAs is used.
+      std::uint8_t *new_ptr = reinterpret_cast<std::uint8_t *>(malloc_resource->Data());
+      new_vec = {new_ptr, n_bytes / sizeof(std::uint8_t), malloc_resource};
+    }
+    this->data = std::move(new_vec);
+    this->index = common::Index{common::Span{data.data(), data.size()}, t_size};
+  };
+
   if ((MaxNumBinPerFeat() - 1 <= static_cast<int>(std::numeric_limits<uint8_t>::max())) &&
       isDense) {
     // compress dense index to uint8
-    index.SetBinTypeSize(common::kUint8BinsTypeSize);
-    index.Resize((sizeof(uint8_t)) * n_index);
+    make_index(std::uint8_t{}, common::kUint8BinsTypeSize);
   } else if ((MaxNumBinPerFeat() - 1 > static_cast<int>(std::numeric_limits<uint8_t>::max()) &&
               MaxNumBinPerFeat() - 1 <= static_cast<int>(std::numeric_limits<uint16_t>::max())) &&
              isDense) {
     // compress dense index to uint16
-    index.SetBinTypeSize(common::kUint16BinsTypeSize);
-    index.Resize((sizeof(uint16_t)) * n_index);
+    make_index(std::uint16_t{}, common::kUint16BinsTypeSize);
   } else {
-    index.SetBinTypeSize(common::kUint32BinsTypeSize);
-    index.Resize((sizeof(uint32_t)) * n_index);
+    // no compression
+    make_index(std::uint32_t{}, common::kUint32BinsTypeSize);
   }
 }
 
@@ -214,11 +236,11 @@ float GHistIndexMatrix::GetFvalue(std::vector<std::uint32_t> const &ptrs,
   return std::numeric_limits<float>::quiet_NaN();
 }
 
-bool GHistIndexMatrix::ReadColumnPage(dmlc::SeekStream *fi) {
+bool GHistIndexMatrix::ReadColumnPage(common::AlignedResourceReadStream *fi) {
   return this->columns_->Read(fi, this->cut.Ptrs().data());
 }
 
-size_t GHistIndexMatrix::WriteColumnPage(dmlc::Stream *fo) const {
+std::size_t GHistIndexMatrix::WriteColumnPage(common::AlignedFileWriteStream *fo) const {
   return this->columns_->Write(fo);
 }
 }  // namespace xgboost

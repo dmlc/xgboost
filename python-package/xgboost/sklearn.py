@@ -381,16 +381,20 @@ __model_doc = f"""
           every **early_stopping_rounds** round(s) to continue training.  Requires at
           least one item in **eval_set** in :py:meth:`fit`.
 
-        - The method returns the model from the last iteration, not the best one, use a
-          callback :py:class:`xgboost.callback.EarlyStopping` if returning the best
-          model is preferred.
+        - If early stopping occurs, the model will have two additional attributes:
+          :py:attr:`best_score` and :py:attr:`best_iteration`. These are used by the
+          :py:meth:`predict` and :py:meth:`apply` methods to determine the optimal
+          number of trees during inference. If users want to access the full model
+          (including trees built after early stopping), they can specify the
+          `iteration_range` in these inference methods. In addition, other utilities
+          like model plotting can also use the entire model.
+
+        - If you prefer to discard the trees after `best_iteration`, consider using the
+          callback function :py:class:`xgboost.callback.EarlyStopping`.
 
         - If there's more than one item in **eval_set**, the last entry will be used for
           early stopping.  If there's more than one metric in **eval_metric**, the last
           metric will be used for early stopping.
-
-        - If early stopping occurs, the model will have three additional fields:
-          :py:attr:`best_score`, :py:attr:`best_iteration`.
 
         .. note::
 
@@ -1796,7 +1800,11 @@ def _get_qid(
 
 
 @xgboost_model_doc(
-    """Implementation of the Scikit-Learn API for XGBoost Ranking.""",
+    """Implementation of the Scikit-Learn API for XGBoost Ranking.
+
+See :doc:`Learning to Rank </tutorials/learning_to_rank>` for an introducion.
+
+    """,
     ["estimators", "model"],
     end_note="""
         .. note::
@@ -1845,7 +1853,7 @@ def _get_qid(
 class XGBRanker(XGBModel, XGBRankerMixIn):
     # pylint: disable=missing-docstring,too-many-arguments,invalid-name
     @_deprecate_positional_args
-    def __init__(self, *, objective: str = "rank:pairwise", **kwargs: Any):
+    def __init__(self, *, objective: str = "rank:ndcg", **kwargs: Any):
         super().__init__(objective=objective, **kwargs)
         if callable(self.objective):
             raise ValueError("custom objective function not supported by XGBRanker")
@@ -2029,7 +2037,7 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
             self._Booster = train(
                 params,
                 train_dmatrix,
-                self.get_num_boosting_rounds(),
+                num_boost_round=self.get_num_boosting_rounds(),
                 early_stopping_rounds=early_stopping_rounds,
                 evals=evals,
                 evals_result=evals_result,
