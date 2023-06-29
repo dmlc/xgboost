@@ -706,7 +706,6 @@ class CPUPredictor : public Predictor {
 
   void PredictBatch(DMatrix *dmat, PredictionCacheEntry *predts, const gbm::GBTreeModel &model,
                     uint32_t tree_begin, uint32_t tree_end = 0) const override {
-    std::cout << "CPU:" << __func__  << std::endl;
     auto *out_preds = &predts->predictions;
     // This is actually already handled in gbm, but large amount of tests rely on the
     // behaviour.
@@ -804,7 +803,6 @@ class CPUPredictor : public Predictor {
 
   void PredictLeaf(DMatrix *p_fmat, HostDeviceVector<bst_float> *out_preds,
                    const gbm::GBTreeModel &model, unsigned ntree_limit) const override {
-    std::cout << "CPU:" << __func__  << std::endl;
     auto const n_threads = this->ctx_->Threads();
     // number of valid trees
     if (ntree_limit == 0 || ntree_limit > model.trees.size()) {

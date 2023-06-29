@@ -731,7 +731,6 @@ class GPUPredictor : public xgboost::Predictor {
   void PredictBatch(DMatrix* dmat, PredictionCacheEntry* predts,
                     const gbm::GBTreeModel& model, uint32_t tree_begin,
                     uint32_t tree_end = 0) const override {
-    std::cout << "CUDA:" << __func__ << std::endl;
     int device = ctx_->gpu_id;
     CHECK_GE(device, 0) << "Set `gpu_id' to positive value for processing GPU data.";
     auto* out_preds = &predts->predictions;
@@ -938,7 +937,6 @@ class GPUPredictor : public xgboost::Predictor {
   void PredictLeaf(DMatrix *p_fmat, HostDeviceVector<bst_float> *predictions,
                    const gbm::GBTreeModel &model,
                    unsigned tree_end) const override {
-    std::cout << "CUDA:" << __func__  << std::endl;
     dh::safe_cuda(cudaSetDevice(ctx_->gpu_id));
     auto max_shared_memory_bytes = ConfigureDevice(ctx_->gpu_id);
 
