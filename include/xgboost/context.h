@@ -45,7 +45,7 @@ struct DeviceOrd {
    *
    * @param bst_d_ordinal_t CUDA device ordinal.
    */
-  [[nodiscard]] static auto CUDA(bst_d_ordinal_t ordinal) { return DeviceOrd{kCPU, ordinal}; }
+  [[nodiscard]] static auto CUDA(bst_d_ordinal_t ordinal) { return DeviceOrd{kCUDA, ordinal}; }
 
   [[nodiscard]] bool operator==(DeviceOrd const& that) const {
     return device == that.device && ordinal == that.ordinal;

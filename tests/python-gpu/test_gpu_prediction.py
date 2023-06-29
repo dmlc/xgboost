@@ -212,9 +212,10 @@ class TestGPUPredict:
         )
         reg.fit(X, y)
 
+        reg = tm.set_ordinal(device, reg)
         gpu_predt = reg.predict(X)
-        reg.set_params(predictor="cpu_predictor")
-        cpu_predt = reg.predict(X)
+        reg = tm.set_ordinal(-1, reg)
+        cpu_predt = reg.predict(cp.asnumpy(X))
         np.testing.assert_allclose(gpu_predt, cpu_predt, atol=1e-6)
         cp.cuda.runtime.setDevice(0)
 
@@ -222,7 +223,6 @@ class TestGPUPredict:
     def test_inplace_predict_cupy(self):
         self.run_inplace_predict_cupy(0)
 
-    @pytest.mark.xfail
     @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.mgpu
     def test_inplace_predict_cupy_specified_device(self):
