@@ -53,7 +53,7 @@ void TestTrainingPrediction(size_t rows, size_t bins,
   size_t constexpr kIters = 3;
 
   std::unique_ptr<Learner> learner;
-  auto train = [&](std::string predictor) {
+  auto train = [&](Context const& ctx) {
     p_hist->Info().labels.Reshape(rows, 1);
     auto &h_label = p_hist->Info().labels.Data()->HostVector();
 
@@ -67,7 +67,7 @@ void TestTrainingPrediction(size_t rows, size_t bins,
     learner->SetParam("num_feature", std::to_string(kCols));
     learner->SetParam("num_class", std::to_string(kClasses));
     learner->SetParam("max_bin", std::to_string(bins));
-    learner->SetParam("predictor", predictor);
+    ConfigLearnerByCtx(&ctx, learner.get());
     learner->Configure();
 
     for (size_t i = 0; i < kIters; ++i) {
@@ -79,7 +79,7 @@ void TestTrainingPrediction(size_t rows, size_t bins,
 
     learner.reset(Learner::Create({}));
     learner->LoadModel(model);
-    learner->SetParam("predictor", predictor);
+    ConfigLearnerByCtx(&ctx, learner.get());
     learner->Configure();
 
     HostDeviceVector<float> from_full;
@@ -95,9 +95,9 @@ void TestTrainingPrediction(size_t rows, size_t bins,
   };
 
   if (tree_method == "gpu_hist") {
-    train("gpu_predictor");
+    train(MakeCUDACtx(0));
   } else {
-    train("cpu_predictor");
+    train(Context{});
   }
 }
 
@@ -582,12 +582,7 @@ void TestSparsePredictionColumnSplit(Context const* ctx, float sparsity) {
   learner.reset(Learner::Create({Xy}));
   learner->LoadModel(model);
 
-  if (ctx->IsCPU()) {
-    learner->SetParams(Args{{"tree_method", "hist"}, {"gpu_id", "-1"}});
-  } else {
-    learner->SetParams(Args{{"tree_method", "gpu_hist"}, {"gpu_id", "0"}});
-  }
-
+  ConfigLearnerByCtx(ctx, learner.get());
   learner->Predict(Xy, false, &sparse_predt, 0, 0);
 
   auto constexpr kWorldSize = 2;
