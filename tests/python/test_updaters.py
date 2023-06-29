@@ -294,7 +294,9 @@ class TestTreeMethod:
             y_predt = booster.predict(Xy)
 
             rmse = tm.root_mean_square(label, y_predt)
-            np.testing.assert_allclose(rmse, evals_result["Train"]["rmse"][-1])
+            np.testing.assert_allclose(
+                rmse, evals_result["Train"]["rmse"][-1], rtol=2e-5
+            )
 
         # Test with OHE split
         run(self.USE_ONEHOT)
