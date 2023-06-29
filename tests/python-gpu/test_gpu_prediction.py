@@ -487,19 +487,16 @@ class TestGPUPredict:
         predt_orig = booster.inplace_predict(orig)
         # all primitive types in numpy
         for dtype in [
-            cp.signedinteger,
             cp.byte,
             cp.short,
             cp.intc,
             cp.int_,
             cp.longlong,
-            cp.unsignedinteger,
             cp.ubyte,
             cp.ushort,
             cp.uintc,
             cp.uint,
             cp.ulonglong,
-            cp.floating,
             cp.half,
             cp.single,
             cp.double,
