@@ -15,6 +15,7 @@
 #include "../common/bitfield.h"
 #include "../common/categorical.h"
 #include "../common/common.h"
+#include "../common/cuda_context.cuh"
 #include "../common/device_helpers.cuh"
 #include "../data/device_adapter.cuh"
 #include "../data/ellpack_page.cuh"
@@ -766,7 +767,7 @@ class ColumnSplitHelper {
       SparsePageView data(batch.data.DeviceSpan(), batch.offset.DeviceSpan(), num_features);
 
       auto const grid = static_cast<uint32_t>(common::DivRoundUp(num_rows, kBlockThreads));
-      dh::LaunchKernel {grid, kBlockThreads, shared_memory_bytes} (
+      dh::LaunchKernel {grid, kBlockThreads, shared_memory_bytes, ctx_->CUDACtx()->Stream()} (
           MaskBitVectorKernel, data, model.nodes.ConstDeviceSpan(),
           model.tree_segments.ConstDeviceSpan(), model.tree_group.ConstDeviceSpan(),
           model.split_types.ConstDeviceSpan(), model.categories_tree_segments.ConstDeviceSpan(),
@@ -776,7 +777,7 @@ class ColumnSplitHelper {
 
       AllReduceBitVectors(&decision_storage, &missing_storage);
 
-      dh::LaunchKernel {grid, kBlockThreads} (
+      dh::LaunchKernel {grid, kBlockThreads, 0, ctx_->CUDACtx()->Stream()} (
           PredictByBitVectorKernel, model.nodes.ConstDeviceSpan(),
           out_preds->DeviceSpan().subspan(batch_offset), model.tree_segments.ConstDeviceSpan(),
           model.tree_group.ConstDeviceSpan(), model.split_types.ConstDeviceSpan(),
@@ -791,9 +792,9 @@ class ColumnSplitHelper {
 
   void AllReduceBitVectors(dh::caching_device_vector<BitType>* decision_storage,
                            dh::caching_device_vector<BitType>* missing_storage) const {
-    collective::AllReduce<collective::Operation::kBitwiseAND>(
+    collective::AllReduce<collective::Operation::kBitwiseOR>(
         ctx_->gpu_id, decision_storage->data().get(), decision_storage->size());
-    collective::AllReduce<collective::Operation::kBitwiseOR>(  // Align to make it easier to read.
+    collective::AllReduce<collective::Operation::kBitwiseAND>(
         ctx_->gpu_id, missing_storage->data().get(), missing_storage->size());
     collective::Synchronize(ctx_->gpu_id);
   }
@@ -802,14 +803,20 @@ class ColumnSplitHelper {
                                dh::caching_device_vector<BitType>* missing_storage,
                                std::size_t total_bits) {
     auto const size = BitVector::ComputeStorageSize(total_bits);
-    if (decision_storage->size() < size) {
+    auto const old_decision_size = decision_storage->size();
+    if (old_decision_size < size) {
       decision_storage->resize(size);
     }
-    decision_storage->clear();
-    if (missing_storage->size() < size) {
+    if (old_decision_size != 0) {
+      thrust::fill(decision_storage->begin(), decision_storage->end(), 0);
+    }
+    auto const old_missing_size = missing_storage->size();
+    if (old_missing_size < size) {
       missing_storage->resize(size);
     }
-    missing_storage->clear();
+    if (old_missing_size != 0) {
+      thrust::fill(missing_storage->begin(), missing_storage->end(), 0);
+    }
   }
 
   Context const* ctx_;
