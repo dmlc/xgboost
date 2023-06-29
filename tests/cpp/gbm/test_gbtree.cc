@@ -116,8 +116,7 @@ TEST(GBTree, WrongUpdater) {
 #ifdef XGBOOST_USE_CUDA
 TEST(GBTree, ChoosePredictor) {
   // The test ensures data don't get pulled into device.
-  size_t constexpr kRows = 17;
-  size_t constexpr kCols = 15;
+  std::size_t constexpr kRows = 17, kCols = 15;
 
   auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
@@ -130,14 +129,13 @@ TEST(GBTree, ChoosePredictor) {
     learner->UpdateOneIter(i, p_dmat);
   }
   ASSERT_TRUE(data.HostCanWrite());
+
   dmlc::TemporaryDirectory tempdir;
   const std::string fname = tempdir.path + "/model_param.bst";
-
   {
     std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname.c_str(), "w"));
     learner->Save(fo.get());
   }
-
   // a new learner
   learner = std::unique_ptr<Learner>(Learner::Create({p_dmat}));
   {
@@ -148,7 +146,9 @@ TEST(GBTree, ChoosePredictor) {
   for (size_t i = 0; i < 4; ++i) {
     learner->UpdateOneIter(i, p_dmat);
   }
-  ASSERT_TRUE(data.HostCanRead());
+  ASSERT_TRUE(data.HostCanWrite());
+  ASSERT_FALSE(data.DeviceCanWrite());
+  ASSERT_FALSE(data.DeviceCanRead());
 
   // pull data into device.
   data.HostVector();

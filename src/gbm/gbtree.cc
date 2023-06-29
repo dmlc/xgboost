@@ -586,13 +586,9 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
     if (ctx_->IsCPU()) {
       return cpu_predictor_;
     } else {
-#if defined(XGBOOST_USE_CUDA)
-      CHECK_GE(common::AllVisibleGPUs(), 1) << "No visible GPU is found for XGBoost.";
-      return gpu_predictor_;
-#else
       common::AssertGPUSupport();
-      return cpu_predictor_;
-#endif  // defined(XGBOOST_USE_CUDA)
+      CHECK(gpu_predictor_);
+      return gpu_predictor_;
     }
   }
 
@@ -606,15 +602,9 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
 
   // Use GPU Predictor if data is already on device and gpu_id is set.
   if (on_device && ctx_->IsCUDA()) {
-#if defined(XGBOOST_USE_CUDA)
-    CHECK_GE(common::AllVisibleGPUs(), 1) << "No visible GPU is found for XGBoost.";
+    common::AssertGPUSupport();
     CHECK(gpu_predictor_);
     return gpu_predictor_;
-#else
-    LOG(FATAL) << "Data is on CUDA device, but XGBoost is not compiled with "
-                  "CUDA support.";
-    return cpu_predictor_;
-#endif  // defined(XGBOOST_USE_CUDA)
   }
 
   // GPU_Hist by default has prediction cache calculated from quantile values,
@@ -634,17 +624,11 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
   if (ctx_->IsCPU()) {
     return cpu_predictor_;
   } else {
-#if defined(XGBOOST_USE_CUDA)
-    CHECK_GE(common::AllVisibleGPUs(), 1) << "No visible GPU is found for XGBoost.";
+    common::AssertGPUSupport();
     CHECK(gpu_predictor_);
     return gpu_predictor_;
-#else
-    common::AssertGPUSupport();
-    return cpu_predictor_;
-#endif  // defined(XGBOOST_USE_CUDA)
   }
 
-  CHECK(cpu_predictor_);
   return cpu_predictor_;
 }
 
