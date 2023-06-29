@@ -122,30 +122,31 @@ class TestGPUPredict:
         tr_size = 2500
         X = np.random.rand(m, n)
         y = 200 * np.matmul(X, np.arange(-3, -3 + n))
+        y = y.reshape(y.size)
         X_train, y_train = X[:tr_size, :], y[:tr_size]
         X_test, y_test = X[tr_size:, :], y[tr_size:]
 
-        # First with cpu_predictor
-        params = {'tree_method': 'gpu_hist',
-                  'predictor': 'cpu_predictor',
-                  'n_jobs': -1,
-                  'seed': 123}
-        m = xgb.XGBRegressor(**params).fit(X_train, y_train)
-        cpu_train_score = m.score(X_train, y_train)
-        cpu_test_score = m.score(X_test, y_test)
-
-        # Now with gpu_predictor
-        params['predictor'] = 'gpu_predictor'
-
+        params = {
+            "tree_method": "gpu_hist",
+            "gpu_id": "0",
+            "n_jobs": -1,
+            "seed": 123,
+        }
         m = xgb.XGBRegressor(**params).fit(X_train, y_train)
         gpu_train_score = m.score(X_train, y_train)
         gpu_test_score = m.score(X_test, y_test)
+
+        # Now with cpu
+        m = tm.set_ordinal(-1, m)
+        cpu_train_score = m.score(X_train, y_train)
+        cpu_test_score = m.score(X_test, y_test)
 
         assert np.allclose(cpu_train_score, gpu_train_score)
         assert np.allclose(cpu_test_score, gpu_test_score)
 
     def run_inplace_base_margin(self, booster, dtrain, X, base_margin):
         import cupy as cp
+
         dtrain.set_info(base_margin=base_margin)
         from_inplace = booster.inplace_predict(data=X, base_margin=base_margin)
         from_dmatrix = booster.predict(dtrain)

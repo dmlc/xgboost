@@ -25,6 +25,7 @@ from typing import (
     Set,
     Tuple,
     TypedDict,
+    TypeVar,
     Union,
 )
 
@@ -711,7 +712,10 @@ def predictor_equal(lhs: xgb.DMatrix, rhs: xgb.DMatrix) -> bool:
     )
 
 
-def set_ordinal(ordinal: int, booster: Union[xgb.Booster, xgb.XGBModel]) -> None:
+M = TypeVar("M", xgb.Booster, xgb.XGBModel)
+
+
+def set_ordinal(ordinal: int, booster: M) -> M:
     """Temporary solution for setting the device ordinal until we move away from
     `gpu_id`.
 
@@ -725,6 +729,8 @@ def set_ordinal(ordinal: int, booster: Union[xgb.Booster, xgb.XGBModel]) -> None
         booster.set_param(params)
     elif isinstance(booster, xgb.XGBModel):
         booster.set_params(**params)
+
+    return booster
 
 
 def eval_error_metric(predt: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[str, np.float64]:

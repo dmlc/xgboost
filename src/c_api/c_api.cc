@@ -1041,6 +1041,7 @@ void InplacePredictImpl(std::shared_ptr<DMatrix> p_m, char const *c_json_config,
   xgboost_CHECK_C_ARG_PTR(out_dim);
   CalcPredictShape(strict_shape, type, n_samples, n_features, chunksize, learner->Groups(),
                    learner->BoostedRounds(), &shape, out_dim);
+  CHECK_GE(p_predt->Size(), n_samples);
 
   xgboost_CHECK_C_ARG_PTR(out_result);
   xgboost_CHECK_C_ARG_PTR(out_shape);

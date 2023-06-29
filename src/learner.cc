@@ -1412,6 +1412,8 @@ class LearnerImpl : public LearnerIO {
     this->CheckModelInitialized();
 
     auto& out_predictions = this->GetThreadLocal().prediction_entry;
+    out_predictions.version = 0;
+
     this->gbm_->InplacePredict(p_m, missing, &out_predictions, iteration_begin, iteration_end);
     if (type == PredictionType::kValue) {
       obj_->PredTransform(&out_predictions.predictions);

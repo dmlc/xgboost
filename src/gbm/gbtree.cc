@@ -558,6 +558,7 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
     LOG(WARNING) << "Falling back to prediction using DMatrix due to mismatched devices. XGBoost "
                  << "is running on: " << this->ctx_->DeviceName()
                  << ", while the input data is on: " << p_m->Ctx()->DeviceName() << ".";
+    CHECK_EQ(out_preds->version, 0);
     auto proxy = std::dynamic_pointer_cast<data::DMatrixProxy>(p_m);
     auto any_adapter = proxy->Adapter();
     auto p_fmat = data::CreateDMatrixFromProxy(ctx_, proxy, missing);
