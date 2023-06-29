@@ -117,7 +117,11 @@ int InplacePreidctCuda(BoosterHandle handle, char const *c_array_interface,
                           RequiredArg<Integer>(config, "iteration_begin", __func__),
                           RequiredArg<Integer>(config, "iteration_end", __func__));
   CHECK(p_predt);
-  CHECK(p_predt->DeviceCanRead() && !p_predt->HostCanRead());
+  if (learner->Ctx()->IsCPU()) {
+    CHECK(p_predt->HostCanRead() && !p_predt->DeviceCanRead());
+  } else {
+    CHECK(p_predt->DeviceCanRead() && !p_predt->HostCanRead());
+  }
   p_predt->SetDevice(proxy->DeviceIdx());
 
   auto &shape = learner->GetThreadLocal().prediction_shape;
