@@ -799,23 +799,23 @@ class ColumnSplitHelper {
     collective::Synchronize(ctx_->gpu_id);
   }
 
-  static void ResizeBitVectors(dh::caching_device_vector<BitType>* decision_storage,
+  void ResizeBitVectors(dh::caching_device_vector<BitType>* decision_storage,
                                dh::caching_device_vector<BitType>* missing_storage,
-                               std::size_t total_bits) {
+                               std::size_t total_bits) const {
     auto const size = BitVector::ComputeStorageSize(total_bits);
     auto const old_decision_size = decision_storage->size();
     if (old_decision_size < size) {
       decision_storage->resize(size);
     }
     if (old_decision_size != 0) {
-      thrust::fill(decision_storage->begin(), decision_storage->end(), 0);
+      thrust::fill(ctx_->CUDACtx()->CTP(), decision_storage->begin(), decision_storage->end(), 0);
     }
     auto const old_missing_size = missing_storage->size();
     if (old_missing_size < size) {
       missing_storage->resize(size);
     }
     if (old_missing_size != 0) {
-      thrust::fill(missing_storage->begin(), missing_storage->end(), 0);
+      thrust::fill(ctx_->CUDACtx()->CTP(), missing_storage->begin(), missing_storage->end(), 0);
     }
   }
 
