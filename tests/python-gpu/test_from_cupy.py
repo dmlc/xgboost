@@ -221,9 +221,10 @@ Arrow specification.'''
     def test_specified_device(self):
         import cupy as cp
         cp.cuda.runtime.setDevice(0)
-        dtrain = dmatrix_from_cupy(
-            np.float32, xgb.QuantileDMatrix, np.nan)
-        with pytest.raises(xgb.core.XGBoostError):
+        dtrain = dmatrix_from_cupy(np.float32, xgb.QuantileDMatrix, np.nan)
+        with pytest.raises(
+            xgb.core.XGBoostError, match="Data is resided on a different device"
+        ):
             xgb.train(
                 {'tree_method': 'gpu_hist', 'gpu_id': 1}, dtrain, num_boost_round=10
             )
