@@ -338,10 +338,10 @@ class TestGPUPredict:
         booster = xgb.train(
             param, dtrain=dataset.get_dmat(), num_boost_round=num_rounds
         )
-        booster.set_param({"predictor": "cpu_predictor"})
+        booster = tm.set_ordinal(-1, booster)
         cpu_leaf = booster.predict(m, pred_leaf=True)
 
-        booster.set_param({"predictor": "gpu_predictor"})
+        booster = tm.set_ordinal(0, booster)
         gpu_leaf = booster.predict(m, pred_leaf=True)
 
         np.testing.assert_equal(cpu_leaf, gpu_leaf)
@@ -353,8 +353,8 @@ class TestGPUPredict:
         if param.get("num_parallel_tree", 1) > 1 and dataset.name.endswith("-l1"):
             return
 
-        param['booster'] = 'gbtree'
-        param['tree_method'] = 'gpu_hist'
+        param["booster"] = "gbtree"
+        param["tree_method"] = "gpu_hist"
         self.run_predict_leaf_booster(param, 10, dataset)
 
     @given(predict_parameter_strategy, tm.make_dataset_strategy())
@@ -364,8 +364,8 @@ class TestGPUPredict:
         if param.get("num_parallel_tree", 1) > 1 and dataset.name.endswith("-l1"):
             return
 
-        param['booster'] = 'dart'
-        param['tree_method'] = 'gpu_hist'
+        param["booster"] = "dart"
+        param["tree_method"] = "gpu_hist"
         self.run_predict_leaf_booster(param, 10, dataset)
 
     @pytest.mark.skipif(**tm.no_sklearn())
