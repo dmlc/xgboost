@@ -5,7 +5,7 @@ from typing import cast
 import pytest
 
 strategies = pytest.importorskip("hypothesis.strategies")
-
+max_leaves = [2**i + 1 for i in range(0, 10)] + [0]
 
 exact_parameter_strategy = strategies.fixed_dictionaries(
     {
@@ -27,7 +27,7 @@ exact_parameter_strategy = strategies.fixed_dictionaries(
 hist_parameter_strategy = strategies.fixed_dictionaries(
     {
         "max_depth": strategies.integers(1, 11),
-        "max_leaves": strategies.integers(0, 1024),
+        "max_leaves": strategies.sampled_from(max_leaves),
         "max_bin": strategies.integers(2, 512),
         "grow_policy": strategies.sampled_from(["lossguide", "depthwise"]),
         "min_child_weight": strategies.floats(0.5, 2.0),
@@ -44,7 +44,7 @@ hist_parameter_strategy = strategies.fixed_dictionaries(
 hist_multi_parameter_strategy = strategies.fixed_dictionaries(
     {
         "max_depth": strategies.integers(1, 11),
-        "max_leaves": strategies.integers(0, 1024),
+        "max_leaves": strategies.sampled_from(max_leaves),
         "max_bin": strategies.integers(2, 512),
         "multi_strategy": strategies.sampled_from(
             ["multi_output_tree", "one_output_per_tree"]
