@@ -24,16 +24,20 @@ from test_predict import run_threaded_predict  # noqa
 
 rng = np.random.RandomState(1994)
 
-shap_parameter_strategy = strategies.fixed_dictionaries({
-    'max_depth': strategies.integers(1, 11),
-    'max_leaves': strategies.integers(0, 256),
-    'num_parallel_tree': strategies.sampled_from([1, 10]),
-}).filter(lambda x: x['max_depth'] > 0 or x['max_leaves'] > 0)
+shap_parameter_strategy = strategies.fixed_dictionaries(
+    {
+        "max_depth": strategies.integers(1, 11),
+        "max_leaves": strategies.integers(0, 256),
+        "num_parallel_tree": strategies.sampled_from([1, 10]),
+    }
+).filter(lambda x: x["max_depth"] > 0 or x["max_leaves"] > 0)
 
-predict_parameter_strategy = strategies.fixed_dictionaries({
-    'max_depth': strategies.integers(1, 8),
-    'num_parallel_tree': strategies.sampled_from([1, 4]),
-})
+predict_parameter_strategy = strategies.fixed_dictionaries(
+    {
+        "max_depth": strategies.integers(1, 8),
+        "num_parallel_tree": strategies.sampled_from([1, 4]),
+    }
+)
 
 pytestmark = tm.timeout(20)
 
@@ -154,10 +158,11 @@ class TestGPUPredict:
 
     def run_inplace_predict_cupy(self, device: int) -> None:
         import cupy as cp
+
         cp.cuda.runtime.setDevice(device)
         rows = 1000
         cols = 10
-        missing = 11            # set to integer for testing
+        missing = 11  # set to integer for testing
 
         cp_rng = cp.random.RandomState(1994)
         cp.random.set_random_state(cp_rng)
@@ -170,7 +175,7 @@ class TestGPUPredict:
         dtrain = xgb.DMatrix(X, y)
 
         booster = xgb.train(
-            {'tree_method': 'gpu_hist', "gpu_id": device}, dtrain, num_boost_round=10
+            {"tree_method": "gpu_hist", "gpu_id": device}, dtrain, num_boost_round=10
         )
 
         test = xgb.DMatrix(X[:10, ...], missing=missing)
@@ -188,7 +193,7 @@ class TestGPUPredict:
         # Don't do this on Windows, see issue #5793
         if sys.platform.startswith("win"):
             pytest.skip(
-                'Multi-threaded in-place prediction with cuPy is not working on Windows'
+                "Multi-threaded in-place prediction with cuPy is not working on Windows"
             )
         for i in range(10):
             run_threaded_predict(X, rows, predict_dense)
@@ -222,6 +227,7 @@ class TestGPUPredict:
     @pytest.mark.mgpu
     def test_inplace_predict_cupy_specified_device(self):
         import cupy as cp
+
         n_devices = cp.cuda.runtime.getDeviceCount()
         for d in range(n_devices):
             self.run_inplace_predict_cupy(d)
@@ -232,6 +238,7 @@ class TestGPUPredict:
         import cudf
         import cupy as cp
         import pandas as pd
+
         rows = 1000
         cols = 10
         rng = np.random.RandomState(1994)
@@ -243,8 +250,7 @@ class TestGPUPredict:
 
         dtrain = xgb.DMatrix(X, y)
 
-        booster = xgb.train({'tree_method': 'gpu_hist'},
-                            dtrain, num_boost_round=10)
+        booster = xgb.train({"tree_method": "gpu_hist"}, dtrain, num_boost_round=10)
         test = xgb.DMatrix(X)
         predt_from_array = booster.inplace_predict(X)
         predt_from_dmatrix = booster.predict(test)
@@ -469,12 +475,11 @@ class TestGPUPredict:
     @pytest.mark.skipif(**tm.no_cupy())
     def test_dtypes(self):
         import cupy as cp
+
         rows = 1000
         cols = 10
         rng = cp.random.RandomState(1994)
-        orig = rng.randint(low=0, high=127, size=rows * cols).reshape(
-            rows, cols
-        )
+        orig = rng.randint(low=0, high=127, size=rows * cols).reshape(rows, cols)
         y = rng.randint(low=0, high=127, size=rows)
         dtrain = xgb.DMatrix(orig, label=y)
         booster = xgb.train({"tree_method": "gpu_hist"}, dtrain)
@@ -504,9 +509,7 @@ class TestGPUPredict:
             cp.testing.assert_allclose(predt, predt_orig)
 
         # boolean
-        orig = cp.random.binomial(1, 0.5, size=rows * cols).reshape(
-            rows, cols
-        )
+        orig = cp.random.binomial(1, 0.5, size=rows * cols).reshape(rows, cols)
         predt_orig = booster.inplace_predict(orig)
         for dtype in [cp.bool8, cp.bool_]:
             X = cp.array(orig, dtype=dtype)
