@@ -2202,10 +2202,10 @@ class Booster:
 
         .. code-block:: python
 
-            booster.set_param({"predictor": "gpu_predictor"})
+            booster.set_param({"gpu_id": "0", "tree_method": "gpu_hist"})
             booster.inplace_predict(cupy_array)
 
-            booster.set_param({"predictor": "cpu_predictor"})
+            booster.set_param({"gpu_id": "-1", "tree_method": "hist"})
             booster.inplace_predict(numpy_array)
 
         .. versionadded:: 1.1.0
@@ -2213,9 +2213,7 @@ class Booster:
         Parameters
         ----------
         data :
-            The input data, must not be a view for numpy array.  Set
-            ``predictor`` to ``gpu_predictor`` for running prediction on CuPy
-            array or CuDF DataFrame.
+            The input data.
         iteration_range :
             See :py:meth:`predict` for details.
         predict_type :

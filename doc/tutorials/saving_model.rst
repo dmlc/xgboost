@@ -173,7 +173,6 @@ Will print out something similar to (not actual output as it's too long for demo
         "gradient_booster": {
           "gbtree_train_param": {
             "num_parallel_tree": "1",
-            "predictor": "gpu_predictor",
             "process_type": "default",
             "tree_method": "gpu_hist",
             "updater": "grow_gpu_hist",
