@@ -78,7 +78,6 @@ public class BoosterTest {
         put("num_round", round);
         put("num_workers", 1);
         put("tree_method", "gpu_hist");
-        put("predictor", "gpu_predictor");
         put("max_bin", maxBin);
       }
     };
