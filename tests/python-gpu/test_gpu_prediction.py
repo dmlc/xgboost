@@ -412,7 +412,7 @@ class TestGPUPredict:
                 "tree_method": "gpu_hist",
                 "booster": "dart",
                 "rate_drop": 0.5,
-                "objective": "binary:logistic"
+                "objective": "binary:logistic",
             }
         else:
             params = {
@@ -420,15 +420,18 @@ class TestGPUPredict:
                 "booster": "dart",
                 "rate_drop": 0.5,
                 "objective": "multi:softprob",
-                "num_class": n_classes
+                "num_class": n_classes,
             }
 
         booster = xgb.train(params, Xy, num_boost_round=32)
-        # predictor=auto
+
+        # auto (GPU)
         inplace = booster.inplace_predict(X)
         copied = booster.predict(Xy)
+
+        # CPU
+        booster = tm.set_ordinal(-1, booster)
         cpu_inplace = booster.inplace_predict(X_)
-        booster.set_param({"predictor": "cpu_predictor"})
         cpu_copied = booster.predict(Xy)
 
         copied = cp.array(copied)
@@ -436,7 +439,8 @@ class TestGPUPredict:
         cp.testing.assert_allclose(cpu_copied, copied, atol=1e-6)
         cp.testing.assert_allclose(inplace, copied, atol=1e-6)
 
-        booster.set_param({"predictor": "gpu_predictor"})
+        # GPU
+        booster = tm.set_ordinal(0, booster)
         inplace = booster.inplace_predict(X)
         copied = booster.predict(Xy)
 
