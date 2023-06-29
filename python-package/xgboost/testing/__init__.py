@@ -711,6 +711,22 @@ def predictor_equal(lhs: xgb.DMatrix, rhs: xgb.DMatrix) -> bool:
     )
 
 
+def set_ordinal(ordinal: int, booster: Union[xgb.Booster, xgb.XGBModel]) -> None:
+    """Temporary solution for setting the device ordinal until we move away from
+    `gpu_id`.
+
+    """
+    if ordinal < 0:
+        params = {"gpu_id": -1, "tree_method": "hist"}
+    else:
+        params = {"gpu_id": ordinal, "tree_method": "gpu_hist"}
+
+    if isinstance(booster, xgb.Booster):
+        booster.set_param(params)
+    elif isinstance(booster, xgb.XGBModel):
+        booster.set_params(**params)
+
+
 def eval_error_metric(predt: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[str, np.float64]:
     """Evaluation metric for xgb.train"""
     label = dtrain.get_label()

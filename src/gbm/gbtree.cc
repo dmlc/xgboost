@@ -501,7 +501,7 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
   out_model.param.num_parallel_tree = model_.param.num_parallel_tree;
 }
 
-void GBTree::PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* out_preds,
+void GBTree::PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool is_training,
                               bst_layer_t layer_begin, bst_layer_t layer_end) const {
   CHECK(configured_);
   if (layer_end == 0) {
@@ -522,7 +522,7 @@ void GBTree::PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* out_preds,
     CHECK_EQ(out_preds->version, 0);
   }
 
-  auto const& predictor = GetPredictor(&out_preds->predictions, p_fmat);
+  auto const& predictor = GetPredictor(is_training, &out_preds->predictions, p_fmat);
   if (out_preds->version == 0) {
     // out_preds->Size() can be non-zero as it's initialized here before any
     // tree is built at the 0^th iterator.
@@ -542,10 +542,10 @@ void GBTree::PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* out_preds,
   }
 }
 
-void GBTree::PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool,
+void GBTree::PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool is_training,
                           bst_layer_t layer_begin, bst_layer_t layer_end) {
   // dispatch to const function.
-  this->PredictBatchImpl(p_fmat, out_preds, layer_begin, layer_end);
+  this->PredictBatchImpl(p_fmat, out_preds, is_training, layer_begin, layer_end);
 }
 
 void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
@@ -561,7 +561,7 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
     auto proxy = std::dynamic_pointer_cast<data::DMatrixProxy>(p_m);
     auto any_adapter = proxy->Adapter();
     auto p_fmat = data::CreateDMatrixFromProxy(ctx_, proxy, missing);
-    this->PredictBatchImpl(p_fmat.get(), out_preds, layer_begin, layer_end);
+    this->PredictBatchImpl(p_fmat.get(), out_preds, false, layer_begin, layer_end);
     return;
   }
 
@@ -575,8 +575,8 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
   }
 }
 
-std::unique_ptr<Predictor> const& GBTree::GetPredictor(HostDeviceVector<float> const* out_pred,
-                                                       DMatrix* f_dmat) const {
+[[nodiscard]] std::unique_ptr<Predictor> const& GBTree::GetPredictor(
+    bool is_training, HostDeviceVector<float> const* out_pred, DMatrix* f_dmat) const {
   CHECK(configured_);
 
   // Data comes from SparsePageDMatrix. Since we are loading data in pages, no need to
@@ -625,7 +625,7 @@ std::unique_ptr<Predictor> const& GBTree::GetPredictor(HostDeviceVector<float> c
   if ((out_pred && out_pred->Size() == 0) && (model_.param.num_trees != 0) &&
       // FIXME(trivialfis): Implement a better method for testing whether data
       // is on device after DMatrix refactoring is done.
-      !on_device) {
+      !on_device && is_training) {
     CHECK(cpu_predictor_);
     return cpu_predictor_;
   }
@@ -758,7 +758,7 @@ class Dart : public GBTree {
                         bool training, unsigned layer_begin,
                         unsigned layer_end) const {
     CHECK(!this->model_.learner_model_param->IsVectorLeaf()) << "dart" << MTNotImplemented();
-    auto& predictor = this->GetPredictor(&p_out_preds->predictions, p_fmat);
+    auto& predictor = this->GetPredictor(training, &p_out_preds->predictions, p_fmat);
     CHECK(predictor);
     predictor->InitOutPredictions(p_fmat->Info(), &p_out_preds->predictions,
                                   model_);
@@ -891,7 +891,7 @@ class Dart : public GBTree {
                        std::vector<bst_float> *out_preds,
                        unsigned layer_begin, unsigned layer_end) override {
     DropTrees(false);
-    auto &predictor = this->GetPredictor();
+    auto &predictor = this->GetPredictor(false);
     uint32_t _, tree_end;
     std::tie(_, tree_end) = detail::LayerToTree(model_, layer_begin, layer_end);
     predictor->PredictInstance(inst, out_preds, model_, tree_end);

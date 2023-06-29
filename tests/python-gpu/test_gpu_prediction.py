@@ -12,8 +12,10 @@ from xgboost.compat import PANDAS_INSTALLED
 if PANDAS_INSTALLED:
     from hypothesis.extra.pandas import column, data_frames, range_indexes
 else:
+
     def noop(*args, **kwargs):
         pass
+
     column, data_frames, range_indexes = noop, noop, noop
 
 sys.path.append("tests/python")
@@ -97,20 +99,19 @@ class TestGPUPredict:
 
         n = 1000
         X, y = make_regression(n, random_state=rng)
-        X_train, X_test, y_train, y_test = train_test_split(X, y,
-                                                            random_state=123)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=123)
         dtrain = xgb.DMatrix(X_train, label=y_train)
-        dtest = xgb.DMatrix(X_test)
 
         params = {}
         params["tree_method"] = "gpu_hist"
         bst = xgb.train(params, dtrain)
 
-        bst.set_param({"gpu_id": "0"})
-        predict_gpu_0 = bst.predict(dtest)
-        predict_gpu_1 = bst.predict(dtest)
-        bst.set_param({"gpu_id": "-1", "tree_method": "hist"})
-        predict_cpu = bst.predict(dtest)
+        tm.set_ordinal(0, bst)
+        # Don't reuse the DMatrix for prediction, otherwise the result is cached.
+        predict_gpu_0 = bst.predict(xgb.DMatrix(X_test))
+        predict_gpu_1 = bst.predict(xgb.DMatrix(X_test))
+        tm.set_ordinal(-1, bst)
+        predict_cpu = bst.predict(xgb.DMatrix(X_test))
 
         assert np.allclose(predict_gpu_0, predict_gpu_1)
         assert np.allclose(predict_gpu_0, predict_cpu)

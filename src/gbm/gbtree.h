@@ -213,8 +213,8 @@ class GBTree : public GradientBooster {
     return !model_.trees.empty() || !model_.trees_to_update.empty();
   }
 
-  void PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bst_layer_t layer_begin,
-                        bst_layer_t layer_end) const;
+  void PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool is_training,
+                        bst_layer_t layer_begin, bst_layer_t layer_end) const;
 
   void PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool training,
                     bst_layer_t layer_begin, bst_layer_t layer_end) override;
@@ -301,7 +301,7 @@ class GBTree : public GradientBooster {
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict leaf supports only iteration end: (0, "
                                "n_iteration), use model slicing instead.";
-    this->GetPredictor()->PredictLeaf(p_fmat, out_preds, model_, tree_end);
+    this->GetPredictor(false)->PredictLeaf(p_fmat, out_preds, model_, tree_end);
   }
 
   void PredictContribution(DMatrix* p_fmat,
@@ -313,8 +313,8 @@ class GBTree : public GradientBooster {
     CHECK_EQ(tree_begin, 0)
         << "Predict contribution supports only iteration end: (0, "
            "n_iteration), using model slicing instead.";
-    this->GetPredictor()->PredictContribution(
-        p_fmat, out_contribs, model_, tree_end, nullptr, approximate);
+    this->GetPredictor(false)->PredictContribution(p_fmat, out_contribs, model_, tree_end, nullptr,
+                                                   approximate);
   }
 
   void PredictInteractionContributions(
@@ -325,8 +325,8 @@ class GBTree : public GradientBooster {
     CHECK_EQ(tree_begin, 0)
         << "Predict interaction contribution supports only iteration end: (0, "
            "n_iteration), using model slicing instead.";
-    this->GetPredictor()->PredictInteractionContributions(
-        p_fmat, out_contribs, model_, tree_end, nullptr, approximate);
+    this->GetPredictor(false)->PredictInteractionContributions(p_fmat, out_contribs, model_,
+                                                               tree_end, nullptr, approximate);
   }
 
   [[nodiscard]] std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,
@@ -342,8 +342,9 @@ class GBTree : public GradientBooster {
                      std::vector<HostDeviceVector<bst_node_t>>* out_position,
                      std::vector<std::unique_ptr<RegTree>>* ret);
 
-  std::unique_ptr<Predictor> const& GetPredictor(HostDeviceVector<float> const* out_pred = nullptr,
-                                                 DMatrix* f_dmat = nullptr) const;
+  [[nodiscard]] std::unique_ptr<Predictor> const& GetPredictor(
+      bool is_training, HostDeviceVector<float> const* out_pred = nullptr,
+      DMatrix* f_dmat = nullptr) const;
 
   // commit new trees all at once
   virtual void CommitModel(TreesOneIter&& new_trees);
