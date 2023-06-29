@@ -47,8 +47,8 @@ class Iterator(xgboost.DataIter):
 
     def load_file(self) -> Tuple[np.ndarray, np.ndarray]:
         X_path, y_path = self._file_paths[self._it]
-        X = np.load(X_path)
-        y = np.load(y_path)
+        X = np.lib.format.open_memmap(filename=X_path, mode="r")
+        y = np.lib.format.open_memmap(filename=y_path, mode="r")
         assert X.shape[0] == y.shape[0]
         return X, y
 
