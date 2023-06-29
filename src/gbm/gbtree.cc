@@ -898,19 +898,18 @@ class Dart : public GBTree {
     predictor->PredictInstance(inst, out_preds, model_, tree_end);
   }
 
-  void PredictContribution(DMatrix* p_fmat,
-                           HostDeviceVector<bst_float>* out_contribs,
-                           unsigned layer_begin, unsigned layer_end, bool approximate, int,
-                           unsigned) override {
+  void PredictContribution(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_contribs,
+                           bst_layer_t layer_begin, bst_layer_t layer_end,
+                           bool approximate) override {
     CHECK(configured_);
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     cpu_predictor_->PredictContribution(p_fmat, out_contribs, model_, tree_end, &weight_drop_,
                                         approximate);
   }
 
-  void PredictInteractionContributions(
-      DMatrix *p_fmat, HostDeviceVector<bst_float> *out_contribs,
-      unsigned layer_begin, unsigned layer_end, bool approximate) override {
+  void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
+                                       bst_layer_t layer_begin, bst_layer_t layer_end,
+                                       bool approximate) override {
     CHECK(configured_);
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     cpu_predictor_->PredictInteractionContributions(p_fmat, out_contribs, model_, tree_end,

@@ -172,8 +172,7 @@ class GBLinear : public GradientBooster {
   }
 
   void PredictContribution(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_contribs,
-                           uint32_t layer_begin, uint32_t /*layer_end*/, bool, int,
-                           unsigned) override {
+                           bst_layer_t layer_begin, bst_layer_t /*layer_end*/, bool) override {
     model_.LazyInitModel();
     LinearCheckLayer(layer_begin);
     auto base_margin = p_fmat->Info().base_margin_.View(Context::kCpuId);
@@ -210,8 +209,8 @@ class GBLinear : public GradientBooster {
     }
   }
 
-  void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_contribs,
-                                       unsigned layer_begin, unsigned /*layer_end*/,
+  void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
+                                       bst_layer_t layer_begin, bst_layer_t /*layer_end*/,
                                        bool) override {
     LinearCheckLayer(layer_begin);
     std::vector<bst_float>& contribs = out_contribs->HostVector();

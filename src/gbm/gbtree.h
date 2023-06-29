@@ -304,27 +304,24 @@ class GBTree : public GradientBooster {
     this->GetPredictor(false)->PredictLeaf(p_fmat, out_preds, model_, tree_end);
   }
 
-  void PredictContribution(DMatrix* p_fmat,
-                           HostDeviceVector<bst_float>* out_contribs,
-                           uint32_t layer_begin, uint32_t layer_end, bool approximate,
-                           int, unsigned) override {
+  void PredictContribution(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
+                           bst_layer_t layer_begin, bst_layer_t layer_end,
+                           bool approximate) override {
     CHECK(configured_);
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
-    CHECK_EQ(tree_begin, 0)
-        << "Predict contribution supports only iteration end: (0, "
-           "n_iteration), using model slicing instead.";
+    CHECK_EQ(tree_begin, 0) << "Predict contribution supports only iteration end: (0, "
+                               "n_iteration), using model slicing instead.";
     this->GetPredictor(false)->PredictContribution(p_fmat, out_contribs, model_, tree_end, nullptr,
                                                    approximate);
   }
 
-  void PredictInteractionContributions(
-      DMatrix *p_fmat, HostDeviceVector<bst_float> *out_contribs,
-      uint32_t layer_begin, uint32_t layer_end, bool approximate) override {
+  void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
+                                       bst_layer_t layer_begin, bst_layer_t layer_end,
+                                       bool approximate) override {
     CHECK(configured_);
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
-    CHECK_EQ(tree_begin, 0)
-        << "Predict interaction contribution supports only iteration end: (0, "
-           "n_iteration), using model slicing instead.";
+    CHECK_EQ(tree_begin, 0) << "Predict interaction contribution supports only iteration end: (0, "
+                               "n_iteration), using model slicing instead.";
     this->GetPredictor(false)->PredictInteractionContributions(p_fmat, out_contribs, model_,
                                                                tree_end, nullptr, approximate);
   }
