@@ -30,12 +30,12 @@ DeviceCommunicator* Communicator::GetDevice(int device_ordinal) {
     old_world_size = communicator_->GetWorldSize();
 #ifdef XGBOOST_USE_NCCL
     if (type_ != CommunicatorType::kFederated) {
-      device_communicator_.reset(new NcclDeviceCommunicator(device_ordinal, Get()));
+      device_communicator_.reset(new NcclDeviceCommunicator(device_ordinal));
     } else {
-      device_communicator_.reset(new DeviceCommunicatorAdapter(device_ordinal, Get()));
+      device_communicator_.reset(new DeviceCommunicatorAdapter(device_ordinal));
     }
 #else
-    device_communicator_.reset(new DeviceCommunicatorAdapter(device_ordinal, Get()));
+    device_communicator_.reset(new DeviceCommunicatorAdapter(device_ordinal));
 #endif
   }
   return device_communicator_.get();

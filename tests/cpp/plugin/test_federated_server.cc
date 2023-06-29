@@ -39,7 +39,7 @@ class FederatedServerTest : public BaseFederatedTest {
 
  protected:
   static void CheckAllgather(federated::FederatedClient& client, int rank) {
-    int data[kWorldSize] = {0, 0, 0};
+    int data[kWorldSize] = {0, 0};
     data[rank] = rank;
     std::string send_buffer(reinterpret_cast<char const*>(data), sizeof(data));
     auto reply = client.Allgather(send_buffer);
@@ -54,7 +54,7 @@ class FederatedServerTest : public BaseFederatedTest {
     std::string send_buffer(reinterpret_cast<char const*>(data), sizeof(data));
     auto reply = client.Allreduce(send_buffer, federated::INT32, federated::SUM);
     auto const* result = reinterpret_cast<int const*>(reply.data());
-    int expected[] = {3, 6, 9, 12, 15};
+    int expected[] = {2, 4, 6, 8, 10};
     for (auto i = 0; i < 5; i++) {
       EXPECT_EQ(result[i], expected[i]);
     }
