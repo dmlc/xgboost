@@ -104,19 +104,16 @@ class TestGPUPredict:
 
         params = {}
         params["tree_method"] = "gpu_hist"
+        bst = xgb.train(params, dtrain)
 
-        params['predictor'] = "gpu_predictor"
-        bst_gpu_predict = xgb.train(params, dtrain)
+        bst.set_param({"gpu_id": "0"})
+        predict_gpu_0 = bst.predict(dtest)
+        predict_gpu_1 = bst.predict(dtest)
+        bst.set_param({"gpu_id": "-1", "tree_method": "hist"})
+        predict_cpu = bst.predict(dtest)
 
-        params['predictor'] = "cpu_predictor"
-        bst_cpu_predict = xgb.train(params, dtrain)
-
-        predict0 = bst_gpu_predict.predict(dtest)
-        predict1 = bst_gpu_predict.predict(dtest)
-        cpu_predict = bst_cpu_predict.predict(dtest)
-
-        assert np.allclose(predict0, predict1)
-        assert np.allclose(predict0, cpu_predict)
+        assert np.allclose(predict_gpu_0, predict_gpu_1)
+        assert np.allclose(predict_gpu_0, predict_cpu)
 
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_sklearn(self):
