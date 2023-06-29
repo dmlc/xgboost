@@ -277,9 +277,6 @@ __model_doc = f"""
         Device ordinal.
     validate_parameters : Optional[bool]
         Give warnings for unknown parameter.
-    predictor : Optional[str]
-        Force XGBoost to use specific predictor, available choices are [cpu_predictor,
-        gpu_predictor].
     enable_categorical : bool
 
         .. versionadded:: 1.5.0
@@ -652,7 +649,6 @@ class XGBModel(XGBModelBase):
         importance_type: Optional[str] = None,
         gpu_id: Optional[int] = None,
         validate_parameters: Optional[bool] = None,
-        predictor: Optional[str] = None,
         enable_categorical: bool = False,
         feature_types: Optional[FeatureTypes] = None,
         max_cat_to_onehot: Optional[int] = None,
@@ -699,7 +695,6 @@ class XGBModel(XGBModelBase):
         self.importance_type = importance_type
         self.gpu_id = gpu_id
         self.validate_parameters = validate_parameters
-        self.predictor = predictor
         self.enable_categorical = enable_categorical
         self.feature_types = feature_types
         self.max_cat_to_onehot = max_cat_to_onehot
@@ -1119,9 +1114,9 @@ class XGBModel(XGBModelBase):
         iteration_range: Optional[Tuple[int, int]] = None,
     ) -> ArrayLike:
         """Predict with `X`.  If the model is trained with early stopping, then
-        :py:attr:`best_iteration` is used automatically.  For tree models, when data is
-        on GPU, like cupy array or cuDF dataframe and `predictor` is not specified, the
-        prediction is run on GPU automatically, otherwise it will run on CPU.
+        :py:attr:`best_iteration` is used automatically. The estimator uses
+        `inplace_predict` by default and fall back to using :py:class:`DMatrix` if
+        devices between the data and the estimator don't match.
 
         .. note:: This function is only thread safe for `gbtree` and `dart`.
 
@@ -1583,7 +1578,9 @@ class XGBClassifier(XGBModel, XGBClassifierMixIn, XGBClassifierBase):
     ) -> np.ndarray:
         """Predict the probability of each `X` example being of a given class. If the
         model is trained with early stopping, then :py:attr:`best_iteration` is used
-        automatically.
+        automatically. The estimator uses `inplace_predict` by default and fall back to
+        using :py:class:`DMatrix` if devices between the data and the estimator don't
+        match.
 
         .. note:: This function is only thread safe for `gbtree` and `dart`.
 
