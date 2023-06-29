@@ -274,11 +274,12 @@ class TestGPUPredict:
     def test_shap(self, num_rounds, dataset, param):
         if dataset.name.endswith("-l1"):  # not supported by the exact tree method
             return
-        param.update({"predictor": "gpu_predictor", "gpu_id": 0})
+        param.update({"tree_method": "gpu_hist", "gpu_id": 0})
         param = dataset.set_params(param)
         dmat = dataset.get_dmat()
         bst = xgb.train(param, dmat, num_rounds)
         test_dmat = xgb.DMatrix(dataset.X, dataset.y, dataset.w, dataset.margin)
+        bst = tm.set_ordinal(0, bst)
         shap = bst.predict(test_dmat, pred_contribs=True)
         margin = bst.predict(test_dmat, output_margin=True)
         assume(len(dataset.y) > 0)
@@ -291,31 +292,35 @@ class TestGPUPredict:
     def test_shap_interactions(self, num_rounds, dataset, param):
         if dataset.name.endswith("-l1"):  # not supported by the exact tree method
             return
-        param.update({"predictor": "gpu_predictor", "gpu_id": 0})
+        param.update({"tree_method": "hist", "gpu_id": 0})
         param = dataset.set_params(param)
         dmat = dataset.get_dmat()
         bst = xgb.train(param, dmat, num_rounds)
         test_dmat = xgb.DMatrix(dataset.X, dataset.y, dataset.w, dataset.margin)
+        bst = tm.set_ordinal(0, bst)
         shap = bst.predict(test_dmat, pred_interactions=True)
         margin = bst.predict(test_dmat, output_margin=True)
         assume(len(dataset.y) > 0)
-        assert np.allclose(np.sum(shap, axis=(len(shap.shape) - 1, len(shap.shape) - 2)),
-                           margin,
-                           1e-3, 1e-3)
+        assert np.allclose(
+            np.sum(shap, axis=(len(shap.shape) - 1, len(shap.shape) - 2)),
+            margin,
+            1e-3,
+            1e-3,
+        )
 
     def test_shap_categorical(self):
         X, y = tm.make_categorical(100, 20, 7, False)
         Xy = xgb.DMatrix(X, y, enable_categorical=True)
         booster = xgb.train({"tree_method": "gpu_hist"}, Xy, num_boost_round=10)
 
-        booster.set_param({"predictor": "gpu_predictor"})
+        booster = tm.set_ordinal(0, booster)
         shap = booster.predict(Xy, pred_contribs=True)
         margin = booster.predict(Xy, output_margin=True)
         np.testing.assert_allclose(
             np.sum(shap, axis=len(shap.shape) - 1), margin, rtol=1e-3
         )
 
-        booster.set_param({"predictor": "cpu_predictor"})
+        booster = tm.set_ordinal(-1, booster)
         shap = booster.predict(Xy, pred_contribs=True)
         margin = booster.predict(Xy, output_margin=True)
         np.testing.assert_allclose(
@@ -323,18 +328,20 @@ class TestGPUPredict:
         )
 
     def test_predict_leaf_basic(self):
-        gpu_leaf = run_predict_leaf('gpu_predictor')
-        cpu_leaf = run_predict_leaf('cpu_predictor')
+        gpu_leaf = run_predict_leaf(0)
+        cpu_leaf = run_predict_leaf(-1)
         np.testing.assert_equal(gpu_leaf, cpu_leaf)
 
     def run_predict_leaf_booster(self, param, num_rounds, dataset):
         param = dataset.set_params(param)
         m = dataset.get_dmat()
-        booster = xgb.train(param, dtrain=dataset.get_dmat(), num_boost_round=num_rounds)
-        booster.set_param({'predictor': 'cpu_predictor'})
+        booster = xgb.train(
+            param, dtrain=dataset.get_dmat(), num_boost_round=num_rounds
+        )
+        booster.set_param({"predictor": "cpu_predictor"})
         cpu_leaf = booster.predict(m, pred_leaf=True)
 
-        booster.set_param({'predictor': 'gpu_predictor'})
+        booster.set_param({"predictor": "gpu_predictor"})
         gpu_leaf = booster.predict(m, pred_leaf=True)
 
         np.testing.assert_equal(cpu_leaf, gpu_leaf)
