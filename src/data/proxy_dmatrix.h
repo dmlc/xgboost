@@ -114,6 +114,19 @@ inline DMatrixProxy* MakeProxy(DMatrixHandle proxy) {
   return typed;
 }
 
+/**
+ * @brief Dispatch function call based on input type.
+ *
+ * @tparam get_value Whether the funciton Fn accept an adapter batch or the adapter itself.
+ * @tparam Fn        The type of the function to be dispatched.
+ *
+ * @param proxy The proxy object holding the reference to the input.
+ * @param fn    The function to be dispatched.
+ * @param type_error[out] Set to ture if it's not null and the input data is not recognized by
+ *                        the host.
+ *
+ * @return The return value of the function being dispatched.
+ */
 template <bool get_value = true, typename Fn>
 decltype(auto) HostAdapterDispatch(DMatrixProxy const* proxy, Fn fn, bool* type_error = nullptr) {
   if (proxy->Adapter().type() == typeid(std::shared_ptr<CSRArrayAdapter>)) {
@@ -153,6 +166,9 @@ decltype(auto) HostAdapterDispatch(DMatrixProxy const* proxy, Fn fn, bool* type_
   }
 }
 
+/**
+ * @brief Create a `SimpleDMatrix` instance from a `DMatrixProxy`.
+ */
 std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const* ctx,
                                                 std::shared_ptr<DMatrixProxy> proxy, float missing);
 }  // namespace xgboost::data

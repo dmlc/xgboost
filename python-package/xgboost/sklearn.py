@@ -1115,7 +1115,7 @@ class XGBModel(XGBModelBase):
     ) -> ArrayLike:
         """Predict with `X`.  If the model is trained with early stopping, then
         :py:attr:`best_iteration` is used automatically. The estimator uses
-        `inplace_predict` by default and fall back to using :py:class:`DMatrix` if
+        `inplace_predict` by default and falls back to using :py:class:`DMatrix` if
         devices between the data and the estimator don't match.
 
         .. note:: This function is only thread safe for `gbtree` and `dart`.
@@ -1578,7 +1578,7 @@ class XGBClassifier(XGBModel, XGBClassifierMixIn, XGBClassifierBase):
     ) -> np.ndarray:
         """Predict the probability of each `X` example being of a given class. If the
         model is trained with early stopping, then :py:attr:`best_iteration` is used
-        automatically. The estimator uses `inplace_predict` by default and fall back to
+        automatically. The estimator uses `inplace_predict` by default and falls back to
         using :py:class:`DMatrix` if devices between the data and the estimator don't
         match.
 

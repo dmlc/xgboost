@@ -92,7 +92,7 @@ XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data,
   API_END();
 }
 
-int InplacePreidctCuda(BoosterHandle handle, char const *c_array_interface,
+int InplacePreidctCUDA(BoosterHandle handle, char const *c_array_interface,
                        char const *c_json_config, std::shared_ptr<DMatrix> p_m,
                        xgboost::bst_ulong const **out_shape, xgboost::bst_ulong *out_dim,
                        const float **out_result) {
@@ -118,6 +118,7 @@ int InplacePreidctCuda(BoosterHandle handle, char const *c_array_interface,
                           RequiredArg<Integer>(config, "iteration_end", __func__));
   CHECK(p_predt);
   if (learner->Ctx()->IsCPU()) {
+    // Prediction using DMatrix as fallback.
     CHECK(p_predt->HostCanRead() && !p_predt->DeviceCanRead());
   } else {
     CHECK(p_predt->DeviceCanRead() && !p_predt->HostCanRead());
@@ -150,7 +151,7 @@ XGB_DLL int XGBoosterPredictFromCudaColumnar(BoosterHandle handle, char const *c
   if (m) {
     p_m = *static_cast<std::shared_ptr<DMatrix> *>(m);
   }
-  return InplacePreidctCuda(handle, c_json_strs, c_json_config, p_m, out_shape, out_dim,
+  return InplacePreidctCUDA(handle, c_json_strs, c_json_config, p_m, out_shape, out_dim,
                             out_result);
 }
 
@@ -163,6 +164,6 @@ XGB_DLL int XGBoosterPredictFromCudaArray(BoosterHandle handle, char const *c_js
     p_m = *static_cast<std::shared_ptr<DMatrix> *>(m);
   }
   xgboost_CHECK_C_ARG_PTR(out_result);
-  return InplacePreidctCuda(handle, c_json_strs, c_json_config, p_m, out_shape, out_dim,
+  return InplacePreidctCUDA(handle, c_json_strs, c_json_config, p_m, out_shape, out_dim,
                             out_result);
 }

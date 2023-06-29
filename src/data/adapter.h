@@ -300,7 +300,6 @@ class ArrayAdapter : public detail::SingleBatchDataIter<ArrayAdapterBatch> {
     auto j = Json::Load(array_interface);
     array_interface_ = ArrayInterface<2>(get<Object const>(j));
     batch_ = ArrayAdapterBatch{array_interface_};
-    error::MaxFeatureSize(this->NumColumns());
   }
   [[nodiscard]] ArrayAdapterBatch const& Value() const override { return batch_; }
   [[nodiscard]] std::size_t NumRows() const { return array_interface_.Shape(0); }
