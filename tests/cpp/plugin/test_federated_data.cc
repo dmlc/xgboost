@@ -30,7 +30,7 @@ void VerifyLoadUri() {
   std::string uri = path + "?format=csv";
   dmat.reset(DMatrix::Load(uri, false, DataSplitMode::kCol));
 
-  ASSERT_EQ(dmat->Info().num_col_, 8 * collective::GetWorldSize() + 3);
+  ASSERT_EQ(dmat->Info().num_col_, 8 * collective::GetWorldSize() + 1);
   ASSERT_EQ(dmat->Info().num_row_, kRows);
 
   for (auto const& page : dmat->GetBatches<SparsePage>()) {
