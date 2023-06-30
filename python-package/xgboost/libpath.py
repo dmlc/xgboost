@@ -27,7 +27,7 @@ def find_lib_path() -> List[str]:
         os.path.join(curr_path, os.path.pardir, os.path.pardir, "lib"),
         # use libxgboost from a system prefix, if available.  This should be the last
         # option.
-        os.path.join(sys.prefix, "lib"),
+        os.path.join(sys.base_prefix, 'lib'),
     ]
 
     if sys.platform == "win32":

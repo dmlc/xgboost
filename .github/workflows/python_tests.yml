@@ -108,6 +108,37 @@ jobs:
         cd ..
         python -c 'import xgboost'
 
+  python-system-installation-test-on-Linux:
+    runs-on: ${{ matrix.os }}
+    name: Test installing XGBoost Python with System Installation on Linux
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.8"]
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+    - name: Install Ubuntu system dependencies
+      run: |
+        sudo apt-get install -y --no-install-recommends ninja-build
+    - name: Build and install XGBoost
+      shell: bash -l {0}
+      run: |
+        mkdir build
+        cd build
+        cmake ..
+        make -j$(nproc)
+        cd ..
+        cp lib/* $(python  -c 'import sys; print(sys.base_prefix)')/lib
+        pip install virtualenv
+        virtualenv venv
+        export VIRTUAL_ENV="$(pwd)/venv"
+        export PATH="$VIRTUAL_ENV/bin:$PATH"
+        cd python-package
+        pip install . --config-settings use_system_libxgboost=True
+        python -c 'import xgboost'
+
   python-tests-on-macos:
     name: Test XGBoost Python package on ${{ matrix.config.os }}
     runs-on: ${{ matrix.config.os }}
