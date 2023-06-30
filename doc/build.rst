@@ -259,7 +259,7 @@ There are several ways to build and install the package from source:
 
     import sys
     import pathlib
-    libpath = pathlib.Path(sys.prefix).joinpath("lib", "libxgboost.so")
+    libpath = pathlib.Path(sys.base_prefix).joinpath("lib", "libxgboost.so")
     assert libpath.exists()
 
   Then pass ``use_system_libxgboost=True`` option to ``pip install``:
