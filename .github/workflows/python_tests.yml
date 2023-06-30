@@ -108,37 +108,6 @@ jobs:
         cd ..
         python -c 'import xgboost'
 
-  python-system-installation-test-on-Linux:
-    runs-on: ${{ matrix.os }}
-    name: Test installing XGBoost Python with System Installation on Linux
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-        python-version: ["3.8"]
-    steps:
-    - uses: actions/checkout@v2
-      with:
-        submodules: 'true'
-    - name: Install Ubuntu system dependencies
-      run: |
-        sudo apt-get install -y --no-install-recommends ninja-build
-    - name: Build and install XGBoost
-      shell: bash -l {0}
-      run: |
-        mkdir build
-        cd build
-        cmake ..
-        make -j$(nproc)
-        cd ..
-        cp lib/* $(python  -c 'import sys; print(sys.base_prefix)')/lib
-        pip install virtualenv
-        virtualenv venv
-        export VIRTUAL_ENV="$(pwd)/venv"
-        export PATH="$VIRTUAL_ENV/bin:$PATH"
-        cd python-package
-        pip install . --config-settings use_system_libxgboost=True
-        python -c 'import xgboost'
-
   python-tests-on-macos:
     name: Test XGBoost Python package on ${{ matrix.config.os }}
     runs-on: ${{ matrix.config.os }}
@@ -286,3 +255,44 @@ jobs:
       shell: bash -l {0}
       run: |
         pytest -s -v -rxXs --durations=0 ./tests/test_distributed/test_with_spark
+
+  python-system-installation-on-ubuntu:
+    name: Test XGBoost Python package System Installation on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'true'
+
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.8
+
+      - name: Install ninja
+        run: |
+          apt-get update && apt-get install -y ninja-build
+
+      - name: Build XGBoost on Ubuntu
+        run: |
+          mkdir build
+          cd build
+          cmake .. -GNinja
+          ninja
+
+      - name: Copy lib to system lib
+        run: |
+          cp lib/* "$(python -c 'import sys; print(sys.base_prefix)')/lib"
+
+      - name: Install XGBoost in Virtual Environment
+        run: |
+          cd python-package
+          pip install virtualenv
+          virtualenv venv
+          source venv/bin/activate && \
+            pip install -v . --config-settings use_system_libxgboost=True && \
+            python -c 'import xgboost'
