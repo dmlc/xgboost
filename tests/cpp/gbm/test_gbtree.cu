@@ -55,6 +55,7 @@ void TestInplaceFallback(Context const* ctx) {
   }
 
   HostDeviceVector<float>* out_predt{nullptr};
+  ConsoleLogger::Configure(Args{{"verbosity", "1"}});
   // test whether the warning is raised
   ::testing::internal::CaptureStderr();
   learner->InplacePredict(p_m, PredictionType::kValue, std::numeric_limits<float>::quiet_NaN(),
