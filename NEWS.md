@@ -3,6 +3,23 @@ XGBoost Change Log
 
 This file records the changes in xgboost library in reverse chronological order.
 
+## 1.7.6 (2023 Jun 16)
+
+This is a patch release for bug fixes. The CRAN package for the R binding is kept at 1.7.5.
+
+### Bug Fixes
+* Fix distributed training with mixed dense and sparse partitions. (#9272)
+* Fix monotone constraints on CPU with large trees. (#9122)
+* [spark] Make the spark model have the same UID as its estimator (#9022)
+* Optimize prediction with `QuantileDMatrix`. (#9096)
+
+### Document
+* Improve doxygen (#8959)
+* Update the cuDF pip index URL. (#9106)
+
+### Maintenance
+* Fix tests with pandas 2.0. (#9014)
+
 ## 1.7.5 (2023 Mar 30)
 This is a patch release for bug fixes.
 
