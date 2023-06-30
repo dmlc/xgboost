@@ -5,12 +5,13 @@
 #ifndef XGBOOST_CONTEXT_H_
 #define XGBOOST_CONTEXT_H_
 
-#include <xgboost/base.h>  // for bst_d_ordinal_t
-#include <xgboost/logging.h>
-#include <xgboost/parameter.h>
+#include <xgboost/base.h>       // for bst_d_ordinal_t
+#include <xgboost/logging.h>    // for CHECK_GE
+#include <xgboost/parameter.h>  // for XGBoostParameter
 
-#include <memory>  // std::shared_ptr
-#include <string>
+#include <cstdint>  // for int16_t, int32_t, int64_t
+#include <memory>   // for shared_ptr
+#include <string>   // for string, to_string
 
 namespace xgboost {
 
@@ -70,6 +71,9 @@ struct DeviceOrd {
 
 static_assert(sizeof(DeviceOrd) == sizeof(std::int32_t));
 
+/**
+ * @brief Runtime context for XGBoost. Contains information like threads and device.
+ */
 struct Context : public XGBoostParameter<Context> {
  public:
   // Constant representing the device ID of CPU.
