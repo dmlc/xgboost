@@ -183,7 +183,7 @@ class SimpleRealUniformDistribution {
 
     for (size_t k = m; k != 0; --k) {
       sum_value += static_cast<ResultT>((*rng)() - rng->Min()) * r_k;
-      r_k *= r;
+      r_k *= static_cast<ResultT>(r);
     }
 
     ResultT res = sum_value / r_k;
@@ -322,15 +322,14 @@ inline std::shared_ptr<DMatrix> EmptyDMatrix() {
   return RandomDataGenerator{0, 0, 0.0}.GenerateDMatrix();
 }
 
-inline std::vector<float>
-GenerateRandomCategoricalSingleColumn(int n, size_t num_categories) {
+inline std::vector<float> GenerateRandomCategoricalSingleColumn(int n, size_t num_categories) {
   std::vector<float> x(n);
   std::mt19937 rng(0);
   std::uniform_int_distribution<size_t> dist(0, num_categories - 1);
   std::generate(x.begin(), x.end(), [&]() { return dist(rng); });
   // Make sure each category is present
-  for(size_t i = 0; i < num_categories; i++) {
-    x[i] = i;
+  for (size_t i = 0; i < num_categories; i++) {
+    x[i] = static_cast<decltype(x)::value_type>(i);
   }
   return x;
 }

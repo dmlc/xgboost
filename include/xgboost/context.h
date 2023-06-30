@@ -43,7 +43,7 @@ struct DeviceOrd {
   /**
    * @brief Constructor for CUDA device.
    *
-   * @param bst_d_ordinal_t CUDA device ordinal.
+   * @param ordinal CUDA device ordinal.
    */
   [[nodiscard]] static auto CUDA(bst_d_ordinal_t ordinal) { return DeviceOrd{kCUDA, ordinal}; }
 
@@ -94,33 +94,56 @@ struct Context : public XGBoostParameter<Context> {
   /**
    * @brief Configure the parameter `gpu_id'.
    *
-   * @param require_gpu  Whether GPU is explicitly required from user.
+   * @param require_gpu Whether GPU is explicitly required by the user through other
+   *                    configurations.
    */
   void ConfigureGpuId(bool require_gpu);
-  /*!
-   * Return automatically chosen threads.
+  /**
+   * @brief Returns the automatically chosen number of threads based on the `nthread`
+   *        parameter and the system settting.
    */
-  std::int32_t Threads() const;
-
-  bool IsCPU() const { return gpu_id == kCpuId; }
-  bool IsCUDA() const { return !IsCPU(); }
-
-  DeviceOrd Device() const {
+  [[nodiscard]] std::int32_t Threads() const;
+  /**
+   * @brief Is XGBoost running on CPU?
+   */
+  [[nodiscard]] bool IsCPU() const { return gpu_id == kCpuId; }
+  /**
+   * @brief Is XGBoost running on a CUDA device?
+   */
+  [[nodiscard]] bool IsCUDA() const { return !IsCPU(); }
+  /**
+   * @brief Get the current device and ordinal.
+   */
+  [[nodiscard]] DeviceOrd Device() const {
     return IsCPU() ? DeviceOrd::CPU() : DeviceOrd::CUDA(static_cast<bst_d_ordinal_t>(gpu_id));
   }
   /**
+   * @brief Get the CUDA device ordinal. -1 if XGBoost is running on CPU.
+   */
+  [[nodiscard]] bst_d_ordinal_t Ordinal() const { return this->gpu_id; }
+  /**
    * @brief Name of the current device.
    */
-  std::string DeviceName() const { return Device().Name(); }
-
-  CUDAContext const* CUDACtx() const;
-  // Make a CUDA context based on the current context.
-  Context MakeCUDA(std::int32_t device = 0) const {
+  [[nodiscard]] std::string DeviceName() const { return Device().Name(); }
+  /**
+   * @brief Get a CUDA device context for allocator and stream.
+   */
+  [[nodiscard]] CUDAContext const* CUDACtx() const;
+  /**
+   * @brief Make a CUDA context based on the current context.
+   *
+   * @param ordinal The CUDA device ordinal.
+   */
+  [[nodiscard]] Context MakeCUDA(std::int32_t ordinal = 0) const {
     Context ctx = *this;
-    ctx.gpu_id = device;
+    CHECK_GE(ordinal, 0);
+    ctx.gpu_id = ordinal;
     return ctx;
   }
-  Context MakeCPU() const {
+  /**
+   * @brief Make a CPU context based on the current context.
+   */
+  [[nodiscard]] Context MakeCPU() const {
     Context ctx = *this;
     ctx.gpu_id = kCpuId;
     return ctx;
@@ -149,9 +172,9 @@ struct Context : public XGBoostParameter<Context> {
   }
 
  private:
-  // mutable for lazy initialization for cuda context to avoid initializing CUDA at load.
-  // shared_ptr is used instead of unique_ptr as with unique_ptr it's difficult to define p_impl
-  // while trying to hide CUDA code from host compiler.
+  // mutable for lazy cuda context initialization. This avoids initializing CUDA at load.
+  // shared_ptr is used instead of unique_ptr as with unique_ptr it's difficult to define
+  // p_impl while trying to hide CUDA code from the host compiler.
   mutable std::shared_ptr<CUDAContext> cuctx_;
   // cached value for CFS CPU limit. (used in containerized env)
   std::int32_t cfs_cpu_count_;  // NOLINT
