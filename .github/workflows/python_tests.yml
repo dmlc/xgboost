@@ -275,7 +275,7 @@ jobs:
 
       - name: Install ninja
         run: |
-          apt-get update && apt-get install -y ninja-build
+          sudo apt-get update && sudo apt-get install -y ninja-build
 
       - name: Build XGBoost on Ubuntu
         run: |
