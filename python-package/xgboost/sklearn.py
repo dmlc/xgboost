@@ -935,8 +935,7 @@ class XGBModel(XGBModelBase):
         callbacks = self.callbacks if self.callbacks is not None else callbacks
 
         tree_method = params.get("tree_method", None)
-        cat_support = {"gpu_hist", "approx", "hist"}
-        if self.enable_categorical and tree_method not in cat_support:
+        if self.enable_categorical and tree_method == "exact":
             raise ValueError(
                 "Experimental support for categorical data is not implemented for"
                 " current tree method yet."
