@@ -342,16 +342,6 @@ TEST(Learner, GPUConfiguration) {
     learner->UpdateOneIter(0, p_dmat);
     ASSERT_EQ(learner->Ctx()->gpu_id, 0);
   }
-  {
-    // With CPU algorithm but GPU Predictor, this is to simulate when
-    // XGBoost is only used for prediction, so tree method is not
-    // specified.
-    std::unique_ptr<Learner> learner {Learner::Create(mat)};
-    learner->SetParams({Arg{"tree_method", "hist"},
-                        Arg{"predictor", "gpu_predictor"}});
-    learner->UpdateOneIter(0, p_dmat);
-    ASSERT_EQ(learner->Ctx()->gpu_id, 0);
-  }
 }
 #endif  // defined(XGBOOST_USE_CUDA)
 

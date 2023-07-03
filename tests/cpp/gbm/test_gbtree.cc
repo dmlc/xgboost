@@ -1,17 +1,20 @@
-/*!
- * Copyright 2019-2022 XGBoost contributors
+/**
+ * Copyright 2019-2023, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>
+#include <xgboost/host_device_vector.h>  // for HostDeviceVector
+#include <xgboost/learner.h>             // for Learner
 
-#include "../../../src/data/adapter.h"
-#include "../../../src/data/proxy_dmatrix.h"
+#include <limits>  // for numeric_limits
+#include <memory>  // for shared_ptr
+#include <string>  // for string
+
+#include "../../../src/data/proxy_dmatrix.h"  // for DMatrixProxy
 #include "../../../src/gbm/gbtree.h"
 #include "../filesystem.h"  // dmlc::TemporaryDirectory
 #include "../helpers.h"
 #include "xgboost/base.h"
-#include "xgboost/host_device_vector.h"
-#include "xgboost/learner.h"
 #include "xgboost/predictor.h"
 
 namespace xgboost {
@@ -113,12 +116,11 @@ TEST(GBTree, WrongUpdater) {
 #ifdef XGBOOST_USE_CUDA
 TEST(GBTree, ChoosePredictor) {
   // The test ensures data don't get pulled into device.
-  size_t constexpr kRows = 17;
-  size_t constexpr kCols = 15;
+  std::size_t constexpr kRows = 17, kCols = 15;
 
   auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
-  auto& data = (*(p_dmat->GetBatches<SparsePage>().begin())).data;
+  auto const& data = (*(p_dmat->GetBatches<SparsePage>().begin())).data;
   p_dmat->Info().labels.Reshape(kRows);
 
   auto learner = std::unique_ptr<Learner>(Learner::Create({p_dmat}));
@@ -127,14 +129,13 @@ TEST(GBTree, ChoosePredictor) {
     learner->UpdateOneIter(i, p_dmat);
   }
   ASSERT_TRUE(data.HostCanWrite());
+
   dmlc::TemporaryDirectory tempdir;
   const std::string fname = tempdir.path + "/model_param.bst";
-
   {
     std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname.c_str(), "w"));
     learner->Save(fo.get());
   }
-
   // a new learner
   learner = std::unique_ptr<Learner>(Learner::Create({p_dmat}));
   {
@@ -146,6 +147,8 @@ TEST(GBTree, ChoosePredictor) {
     learner->UpdateOneIter(i, p_dmat);
   }
   ASSERT_TRUE(data.HostCanWrite());
+  ASSERT_FALSE(data.DeviceCanWrite());
+  ASSERT_FALSE(data.DeviceCanRead());
 
   // pull data into device.
   data.HostVector();
@@ -232,14 +235,15 @@ TEST(Dart, JsonIO) {
 namespace {
 class Dart : public testing::TestWithParam<char const*> {
  public:
-  void Run(std::string predictor) {
+  void Run(std::string device) {
     size_t constexpr kRows = 16, kCols = 10;
 
     HostDeviceVector<float> data;
-    auto rng = RandomDataGenerator(kRows, kCols, 0);
-    if (predictor == "gpu_predictor") {
-      rng.Device(0);
+    Context ctx;
+    if (device == "GPU") {
+      ctx = MakeCUDACtx(0);
     }
+    auto rng = RandomDataGenerator(kRows, kCols, 0).Device(ctx.gpu_id);
     auto array_str = rng.GenerateArrayInterface(&data);
     auto p_mat = GetDMatrixFromData(data.HostVector(), kRows, kCols);
 
@@ -258,14 +262,14 @@ class Dart : public testing::TestWithParam<char const*> {
       learner->UpdateOneIter(i, p_mat);
     }
 
-    learner->SetParam("predictor", predictor);
+    ConfigLearnerByCtx(&ctx, learner.get());
 
     HostDeviceVector<float> predts_training;
     learner->Predict(p_mat, false, &predts_training, 0, 0, true);
 
     HostDeviceVector<float>* inplace_predts;
     std::shared_ptr<data::DMatrixProxy> x{new data::DMatrixProxy{}};
-    if (predictor == "gpu_predictor") {
+    if (ctx.IsCUDA()) {
       x->SetCUDAArray(array_str.c_str());
     } else {
       x->SetArrayData(array_str.c_str());
@@ -295,10 +299,9 @@ class Dart : public testing::TestWithParam<char const*> {
 TEST_P(Dart, Prediction) { this->Run(GetParam()); }
 
 #if defined(XGBOOST_USE_CUDA)
-INSTANTIATE_TEST_SUITE_P(PredictorTypes, Dart,
-                         testing::Values("auto", "cpu_predictor", "gpu_predictor"));
+INSTANTIATE_TEST_SUITE_P(PredictorTypes, Dart, testing::Values("CPU", "GPU"));
 #else
-INSTANTIATE_TEST_SUITE_P(PredictorTypes, Dart, testing::Values("auto", "cpu_predictor"));
+INSTANTIATE_TEST_SUITE_P(PredictorTypes, Dart, testing::Values("CPU"));
 #endif  // defined(XGBOOST_USE_CUDA)
 
 

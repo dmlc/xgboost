@@ -87,15 +87,6 @@ with the native Python interface :py:meth:`xgboost.Booster.predict` and
 behavior.  Also the ``save_best`` parameter from :py:obj:`xgboost.callback.EarlyStopping`
 might be useful.
 
-*********
-Predictor
-*********
-
-There are 2 predictors in XGBoost (3 if you have the one-api plugin enabled), namely
-``cpu_predictor`` and ``gpu_predictor``.  The default option is ``auto`` so that XGBoost
-can employ some heuristics for saving GPU memory during training.  They might have slight
-different outputs due to floating point errors.
-
 
 ***********
 Base Margin
@@ -134,15 +125,6 @@ it.  Be aware that the output of in-place prediction depends on input data type,
 input is on GPU data output is :py:obj:`cupy.ndarray`, otherwise a :py:obj:`numpy.ndarray`
 is returned.
 
-****************
-Categorical Data
-****************
-
-Other than users performing encoding, XGBoost has experimental support for categorical
-data using ``gpu_hist`` and ``gpu_predictor``.  No special operation needs to be done on
-input test data since the information about categories is encoded into the model during
-training.
-
 *************
 Thread Safety
 *************
@@ -159,7 +141,6 @@ instance we might accidentally call ``clf.set_params()`` inside a predict functi
 
     def predict_fn(clf: xgb.XGBClassifier, X):
         X = preprocess(X)
-        clf.set_params(predictor="gpu_predictor")  # NOT safe!
         clf.set_params(n_jobs=1)  # NOT safe!
         return clf.predict_proba(X, iteration_range=(0, 10))
 

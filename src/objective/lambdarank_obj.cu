@@ -577,8 +577,8 @@ void LambdaRankUpdatePositionBias(Context const* ctx, linalg::VectorView<double 
                        if (lj(0) >= Eps64()) {
                          tj_minus(i) = std::pow(lj(i) / lj(0), regularizer);
                        }
-                       assert(!std::isinf(ti_plus(i)));
-                       assert(!std::isinf(tj_minus(i)));
+                       assert(!isinf(ti_plus(i)));
+                       assert(!isinf(tj_minus(i)));
                      });
 }
 }  // namespace cuda_impl

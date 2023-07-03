@@ -1,14 +1,11 @@
-/*!
- * Copyright 2021 by Contributors
+/**
+ * Copyright 2021-2023, XGBoost Contributors
  */
 #include "../common/device_helpers.cuh"
-#include "xgboost/context.h"
 #include "xgboost/linalg.h"
 #include "xgboost/span.h"
 
-namespace xgboost {
-namespace gbm {
-
+namespace xgboost::gbm {
 void GPUCopyGradient(HostDeviceVector<GradientPair> const *in_gpair,
                      bst_group_t n_groups, bst_group_t group_id,
                      HostDeviceVector<GradientPair> *out_gpair) {
@@ -41,5 +38,4 @@ void GPUDartInplacePredictInc(common::Span<float> out_predts, common::Span<float
     out_predts[offset] += (predts[offset] - base_score(0)) * tree_w;
   });
 }
-}  // namespace gbm
-}  // namespace xgboost
+}  // namespace xgboost::gbm

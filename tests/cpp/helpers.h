@@ -183,7 +183,7 @@ class SimpleRealUniformDistribution {
 
     for (size_t k = m; k != 0; --k) {
       sum_value += static_cast<ResultT>((*rng)() - rng->Min()) * r_k;
-      r_k *= r;
+      r_k *= static_cast<ResultT>(r);
     }
 
     ResultT res = sum_value / r_k;
@@ -322,15 +322,14 @@ inline std::shared_ptr<DMatrix> EmptyDMatrix() {
   return RandomDataGenerator{0, 0, 0.0}.GenerateDMatrix();
 }
 
-inline std::vector<float>
-GenerateRandomCategoricalSingleColumn(int n, size_t num_categories) {
+inline std::vector<float> GenerateRandomCategoricalSingleColumn(int n, size_t num_categories) {
   std::vector<float> x(n);
   std::mt19937 rng(0);
   std::uniform_int_distribution<size_t> dist(0, num_categories - 1);
   std::generate(x.begin(), x.end(), [&]() { return dist(rng); });
   // Make sure each category is present
-  for(size_t i = 0; i < num_categories; i++) {
-    x[i] = i;
+  for (size_t i = 0; i < num_categories; i++) {
+    x[i] = static_cast<decltype(x)::value_type>(i);
   }
   return x;
 }
@@ -549,4 +548,15 @@ class DeclareUnifiedDistributedTest(MetricTest) : public ::testing::Test {
   }
 };
 
+// A temporary solution before we move away from gpu_id.
+inline void ConfigLearnerByCtx(Context const* ctx, Learner* learner) {
+  if (ctx->IsCPU()) {
+    learner->SetParam("tree_method", "hist");
+  } else {
+    learner->SetParam("tree_method", "gpu_hist");
+  }
+  learner->SetParam("gpu_id", std::to_string(ctx->gpu_id));
+  learner->Configure();
+  ASSERT_EQ(learner->Ctx()->gpu_id, ctx->gpu_id);
+}
 }  // namespace xgboost

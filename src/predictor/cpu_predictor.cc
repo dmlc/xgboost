@@ -883,9 +883,8 @@ class CPUPredictor : public Predictor {
     for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
       auto page = batch.GetView();
       // parallel over local batch
-      const auto nsize = static_cast<bst_omp_uint>(batch.Size());
-      common::ParallelFor(nsize, n_threads, [&](bst_omp_uint i) {
-        auto row_idx = static_cast<size_t>(batch.base_rowid + i);
+      common::ParallelFor(batch.Size(), n_threads, [&](auto i) {
+        auto row_idx = batch.base_rowid + i;
         RegTree::FVec &feats = feat_vecs[omp_get_thread_num()];
         if (feats.Size() == 0) {
           feats.Init(num_feature);

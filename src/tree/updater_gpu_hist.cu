@@ -226,9 +226,7 @@ struct GPUHistMakerDevice {
     monitor.Init(std::string("GPUHistMakerDevice") + std::to_string(ctx_->gpu_id));
   }
 
-  ~GPUHistMakerDevice() {  // NOLINT
-    dh::safe_cuda(cudaSetDevice(ctx_->gpu_id));
-  }
+  ~GPUHistMakerDevice() = default;
 
   void InitFeatureGroupsOnce() {
     if (!feature_groups) {

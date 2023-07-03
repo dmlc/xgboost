@@ -45,7 +45,7 @@ XGBoost makes use of `GPUTreeShap <https://github.com/rapidsai/gputreeshap>`_ as
 
 .. code-block:: python
 
-  model.set_param({"predictor": "gpu_predictor"})
+  model.set_param({"gpu_id": "0", "tree_method": "gpu_hist"})
   shap_values = model.predict(dtrain, pred_contribs=True)
   shap_interaction_values = model.predict(dtrain, pred_interactions=True)
 

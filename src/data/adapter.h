@@ -7,7 +7,7 @@
 #include <dmlc/data.h>
 
 #include <algorithm>
-#include <cstddef>  // std::size_t
+#include <cstddef>  // for size_t
 #include <functional>
 #include <limits>
 #include <map>
@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "../c_api/c_api_error.h"
+#include "../common/error_msg.h"  // for MaxFeatureSize
 #include "../common/math.h"
 #include "array_interface.h"
 #include "arrow-cdi.h"
@@ -300,9 +301,9 @@ class ArrayAdapter : public detail::SingleBatchDataIter<ArrayAdapterBatch> {
     array_interface_ = ArrayInterface<2>(get<Object const>(j));
     batch_ = ArrayAdapterBatch{array_interface_};
   }
-  ArrayAdapterBatch const& Value() const override { return batch_; }
-  size_t NumRows() const { return array_interface_.Shape(0); }
-  size_t NumColumns() const { return array_interface_.Shape(1); }
+  [[nodiscard]] ArrayAdapterBatch const& Value() const override { return batch_; }
+  [[nodiscard]] std::size_t NumRows() const { return array_interface_.Shape(0); }
+  [[nodiscard]] std::size_t NumColumns() const { return array_interface_.Shape(1); }
 
  private:
   ArrayAdapterBatch batch_;

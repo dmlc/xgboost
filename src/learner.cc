@@ -40,6 +40,7 @@
 #include "common/api_entry.h"             // for XGBAPIThreadLocalEntry
 #include "common/charconv.h"              // for to_chars, to_chars_result, NumericLimits, from_...
 #include "common/common.h"                // for ToString, Split
+#include "common/error_msg.h"             // for MaxFeatureSize
 #include "common/io.h"                    // for PeekableInStream, ReadAll, FixedSizeStream, Mem...
 #include "common/observer.h"              // for TrainingObserver
 #include "common/random.h"                // for GlobalRandom
@@ -763,9 +764,7 @@ class LearnerConfiguration : public Learner {
         CHECK(matrix.first.ptr);
         CHECK(!matrix.second.ref.expired());
         const uint64_t num_col = matrix.first.ptr->Info().num_col_;
-        CHECK_LE(num_col, static_cast<uint64_t>(std::numeric_limits<unsigned>::max()))
-            << "Unfortunately, XGBoost does not support data matrices with "
-            << std::numeric_limits<unsigned>::max() << " features or greater";
+        error::MaxFeatureSize(num_col);
         num_feature = std::max(num_feature, static_cast<uint32_t>(num_col));
       }
 
@@ -1413,6 +1412,8 @@ class LearnerImpl : public LearnerIO {
     this->CheckModelInitialized();
 
     auto& out_predictions = this->GetThreadLocal().prediction_entry;
+    out_predictions.version = 0;
+
     this->gbm_->InplacePredict(p_m, missing, &out_predictions, iteration_begin, iteration_end);
     if (type == PredictionType::kValue) {
       obj_->PredTransform(&out_predictions.predictions);

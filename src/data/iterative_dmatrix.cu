@@ -31,10 +31,10 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
   dh::XGBCachingDeviceAllocator<char> alloc;
 
   auto num_rows = [&]() {
-    return Dispatch(proxy, [](auto const& value) { return value.NumRows(); });
+    return cuda_impl::Dispatch(proxy, [](auto const& value) { return value.NumRows(); });
   };
   auto num_cols = [&]() {
-    return Dispatch(proxy, [](auto const& value) { return value.NumCols(); });
+    return cuda_impl::Dispatch(proxy, [](auto const& value) { return value.NumCols(); });
   };
 
   size_t row_stride = 0;
@@ -74,7 +74,7 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
                                      get_device());
       auto* p_sketch = &sketch_containers.back();
       proxy->Info().weights_.SetDevice(get_device());
-      Dispatch(proxy, [&](auto const& value) {
+      cuda_impl::Dispatch(proxy, [&](auto const& value) {
         common::AdapterDeviceSketch(value, p.max_bin, proxy->Info(), missing, p_sketch);
       });
     }
@@ -82,7 +82,7 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
     accumulated_rows += batch_rows;
     dh::device_vector<size_t> row_counts(batch_rows + 1, 0);
     common::Span<size_t> row_counts_span(row_counts.data().get(), row_counts.size());
-    row_stride = std::max(row_stride, Dispatch(proxy, [=](auto const& value) {
+    row_stride = std::max(row_stride, cuda_impl::Dispatch(proxy, [=](auto const& value) {
                             return GetRowCounts(value, row_counts_span, get_device(), missing);
                           }));
     nnz += thrust::reduce(thrust::cuda::par(alloc), row_counts.begin(), row_counts.end());
@@ -136,14 +136,14 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
     auto rows = num_rows();
     dh::device_vector<size_t> row_counts(rows + 1, 0);
     common::Span<size_t> row_counts_span(row_counts.data().get(), row_counts.size());
-    Dispatch(proxy, [=](auto const& value) {
+    cuda_impl::Dispatch(proxy, [=](auto const& value) {
       return GetRowCounts(value, row_counts_span, get_device(), missing);
     });
     auto is_dense = this->IsDense();
 
     proxy->Info().feature_types.SetDevice(get_device());
     auto d_feature_types = proxy->Info().feature_types.ConstDeviceSpan();
-    auto new_impl = Dispatch(proxy, [&](auto const& value) {
+    auto new_impl = cuda_impl::Dispatch(proxy, [&](auto const& value) {
       return EllpackPageImpl(value, missing, get_device(), is_dense, row_counts_span,
                              d_feature_types, row_stride, rows, cuts);
     });

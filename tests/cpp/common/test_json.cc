@@ -41,7 +41,6 @@ std::string GetModelStr() {
     "num_class": "0",
     "num_feature": "10",
     "objective": "reg:linear",
-    "predictor": "gpu_predictor",
     "tree_method": "gpu_hist",
     "updater": "grow_gpu_hist"
   },

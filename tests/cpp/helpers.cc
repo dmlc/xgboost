@@ -395,6 +395,9 @@ std::shared_ptr<DMatrix> RandomDataGenerator::GenerateDMatrix(bool with_label, b
     for (auto const& page : out->GetBatches<SparsePage>()) {
       page.data.SetDevice(device_);
       page.offset.SetDevice(device_);
+      // pull to device
+      page.data.ConstDeviceSpan();
+      page.offset.ConstDeviceSpan();
     }
   }
   if (!ft_.empty()) {

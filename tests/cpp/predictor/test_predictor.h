@@ -31,8 +31,17 @@ inline gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param, Context 
   return model;
 }
 
+inline auto CreatePredictorForTest(Context const* ctx) {
+  if (ctx->IsCPU()) {
+    return Predictor::Create("cpu_predictor", ctx);
+  } else {
+    return Predictor::Create("gpu_predictor", ctx);
+  }
+}
+
+// fixme: cpu test
 template <typename Page>
-void TestPredictionFromGradientIndex(std::string name, size_t rows, size_t cols,
+void TestPredictionFromGradientIndex(Context const* ctx, size_t rows, size_t cols,
                                      std::shared_ptr<DMatrix> p_hist) {
   constexpr size_t kClasses { 3 };
 
@@ -40,12 +49,10 @@ void TestPredictionFromGradientIndex(std::string name, size_t rows, size_t cols,
   auto cuda_ctx = MakeCUDACtx(0);
 
   std::unique_ptr<Predictor> predictor =
-      std::unique_ptr<Predictor>(Predictor::Create(name, &cuda_ctx));
+      std::unique_ptr<Predictor>(CreatePredictorForTest(&cuda_ctx));
   predictor->Configure({});
 
-  Context ctx;
-  ctx.UpdateAllowUnknown(Args{});
-  gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx, kClasses);
+  gbm::GBTreeModel model = CreateTestModel(&mparam, ctx, kClasses);
 
   {
     auto p_precise = RandomDataGenerator(rows, cols, 0).GenerateDMatrix();
@@ -81,28 +88,30 @@ void TestTrainingPrediction(size_t rows, size_t bins, std::string tree_method,
                             std::shared_ptr<DMatrix> p_full,
                             std::shared_ptr<DMatrix> p_hist);
 
-void TestInplacePrediction(std::shared_ptr<DMatrix> x, std::string predictor, bst_row_t rows,
-                           bst_feature_t cols, int32_t device = -1);
+void TestInplacePrediction(Context const* ctx, std::shared_ptr<DMatrix> x, bst_row_t rows,
+                           bst_feature_t cols);
 
-void TestPredictionWithLesserFeatures(std::string preditor_name);
+void TestPredictionWithLesserFeatures(Context const* ctx);
 
-void TestPredictionWithLesserFeaturesColumnSplit(std::string preditor_name);
+void TestPredictionDeviceAccess();
 
-void TestCategoricalPrediction(std::string name, bool is_column_split = false);
+void TestCategoricalPrediction(Context const* ctx, bool is_column_split);
 
-void TestCategoricalPredictionColumnSplit(std::string name);
+void TestCategoricalPredictionColumnSplit(Context const* ctx);
 
-void TestCategoricalPredictLeaf(StringView name, bool is_column_split = false);
+void TestPredictionWithLesserFeaturesColumnSplit(Context const* ctx);
 
-void TestCategoricalPredictLeafColumnSplit(StringView name);
+void TestCategoricalPredictLeaf(Context const* ctx, bool is_column_split);
 
-void TestIterationRange(std::string name);
+void TestCategoricalPredictLeafColumnSplit(Context const* ctx);
 
-void TestIterationRangeColumnSplit(std::string name);
+void TestIterationRange(Context const* ctx);
 
-void TestSparsePrediction(float sparsity, std::string predictor);
+void TestIterationRangeColumnSplit(Context const* ctx);
 
-void TestSparsePredictionColumnSplit(float sparsity, std::string predictor);
+void TestSparsePrediction(Context const* ctx, float sparsity);
+
+void TestSparsePredictionColumnSplit(Context const* ctx, float sparsity);
 
 void TestVectorLeafPrediction(Context const* ctx);
 }  // namespace xgboost

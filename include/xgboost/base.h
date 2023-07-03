@@ -10,6 +10,7 @@
 #include <dmlc/omp.h>
 
 #include <cmath>
+#include <cstdint>
 #include <iostream>
 #include <string>
 #include <utility>
@@ -112,7 +113,7 @@ using bst_row_t = std::size_t;   // NOLINT
 /*! \brief Type for tree node index. */
 using bst_node_t = std::int32_t;      // NOLINT
 /*! \brief Type for ranking group index. */
-using bst_group_t = std::uint32_t;      // NOLINT
+using bst_group_t = std::uint32_t;  // NOLINT
 /**
  * \brief Type for indexing into output targets.
  */
@@ -125,6 +126,10 @@ using bst_layer_t = std::int32_t;  // NOLINT
  * \brief Type for indexing trees.
  */
 using bst_tree_t = std::int32_t;  // NOLINT
+/**
+ * @brief Ordinal of a CUDA device.
+ */
+using bst_d_ordinal_t = std::int16_t;  // NOLINT
 
 namespace detail {
 /*! \brief Implementation of gradient statistics pair. Template specialisation

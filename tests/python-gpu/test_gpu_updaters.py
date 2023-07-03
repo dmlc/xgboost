@@ -260,7 +260,6 @@ class TestGPUUpdaters:
                 "seed": 66,
                 "subsample": 0.5,
                 "gamma": 0.2,
-                "predictor": "auto",
                 "eval_metric": "auc",
             },
             num_boost_round=150,

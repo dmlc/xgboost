@@ -122,11 +122,13 @@ TEST(CpuPredictor, BasicColumnSplit) {
 }
 
 TEST(CpuPredictor, IterationRange) {
-  TestIterationRange("cpu_predictor");
+  Context ctx;
+  TestIterationRange(&ctx);
 }
 
 TEST(CpuPredictor, IterationRangeColmnSplit) {
-  TestIterationRangeColumnSplit("cpu_predictor");
+  Context ctx;
+  TestIterationRangeColumnSplit(&ctx);
 }
 
 TEST(CpuPredictor, ExternalMemory) {
@@ -139,7 +141,8 @@ TEST(CpuPredictor, ExternalMemory) {
 TEST(CpuPredictor, InplacePredict) {
   bst_row_t constexpr kRows{128};
   bst_feature_t constexpr kCols{64};
-  auto gen = RandomDataGenerator{kRows, kCols, 0.5}.Device(-1);
+  Context ctx;
+  auto gen = RandomDataGenerator{kRows, kCols, 0.5}.Device(ctx.gpu_id);
   {
     HostDeviceVector<float> data;
     gen.GenerateDense(&data);
@@ -149,7 +152,7 @@ TEST(CpuPredictor, InplacePredict) {
     std::string arr_str;
     Json::Dump(array_interface, &arr_str);
     x->SetArrayData(arr_str.data());
-    TestInplacePrediction(x, "cpu_predictor", kRows, kCols, Context::kCpuId);
+    TestInplacePrediction(&ctx, x, kRows, kCols);
   }
 
   {
@@ -166,50 +169,50 @@ TEST(CpuPredictor, InplacePredict) {
     Json::Dump(col_interface, &col_str);
     std::shared_ptr<data::DMatrixProxy> x{new data::DMatrixProxy};
     x->SetCSRData(rptr_str.data(), col_str.data(), data_str.data(), kCols, true);
-    TestInplacePrediction(x, "cpu_predictor", kRows, kCols, Context::kCpuId);
+    TestInplacePrediction(&ctx, x, kRows, kCols);
   }
 }
 
+namespace {
 void TestUpdatePredictionCache(bool use_subsampling) {
-  size_t constexpr kRows = 64, kCols = 16, kClasses = 4;
+  std::size_t constexpr kRows = 64, kCols = 16, kClasses = 4;
   LearnerModelParam mparam{MakeMP(kCols, .0, kClasses)};
   Context ctx;
 
   std::unique_ptr<gbm::GBTree> gbm;
   gbm.reset(static_cast<gbm::GBTree*>(GradientBooster::Create("gbtree", &ctx, &mparam)));
-  std::map<std::string, std::string> cfg;
-  cfg["tree_method"] = "hist";
-  cfg["predictor"]   = "cpu_predictor";
+  Args args{{"tree_method", "hist"}};
   if (use_subsampling) {
-    cfg["subsample"] = "0.5";
+    args.emplace_back("subsample", "0.5");
   }
-  Args args = {cfg.cbegin(), cfg.cend()};
   gbm->Configure(args);
 
   auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix(true, true, kClasses);
 
   HostDeviceVector<GradientPair> gpair;
   auto& h_gpair = gpair.HostVector();
-  h_gpair.resize(kRows*kClasses);
-  for (size_t i = 0; i < kRows*kClasses; ++i) {
+  h_gpair.resize(kRows * kClasses);
+  for (size_t i = 0; i < kRows * kClasses; ++i) {
     h_gpair[i] = {static_cast<float>(i), 1};
   }
 
   PredictionCacheEntry predtion_cache;
-  predtion_cache.predictions.Resize(kRows*kClasses, 0);
-  // after one training iteration predtion_cache is filled with cached in QuantileHistMaker::Builder prediction values
+  predtion_cache.predictions.Resize(kRows * kClasses, 0);
+  // after one training iteration predtion_cache is filled with cached in QuantileHistMaker
+  // prediction values
   gbm->DoBoost(dmat.get(), &gpair, &predtion_cache, nullptr);
 
   PredictionCacheEntry out_predictions;
-  // perform fair prediction on the same input data, should be equal to cached result
+  // perform prediction from scratch on the same input data, should be equal to cached result
   gbm->PredictBatch(dmat.get(), &out_predictions, false, 0, 0);
 
-  std::vector<float> &out_predictions_h = out_predictions.predictions.HostVector();
-  std::vector<float> &predtion_cache_from_train = predtion_cache.predictions.HostVector();
+  std::vector<float>& out_predictions_h = out_predictions.predictions.HostVector();
+  std::vector<float>& predtion_cache_from_train = predtion_cache.predictions.HostVector();
   for (size_t i = 0; i < out_predictions_h.size(); ++i) {
     ASSERT_NEAR(out_predictions_h[i], predtion_cache_from_train[i], kRtEps);
   }
 }
+}  // namespace
 
 TEST(CPUPredictor, GHistIndex) {
   size_t constexpr kRows{128}, kCols{16}, kBins{64};
@@ -223,19 +226,23 @@ TEST(CPUPredictor, GHistIndex) {
 }
 
 TEST(CPUPredictor, CategoricalPrediction) {
-  TestCategoricalPrediction("cpu_predictor");
+  Context ctx;
+  TestCategoricalPrediction(&ctx, false);
 }
 
 TEST(CPUPredictor, CategoricalPredictionColumnSplit) {
-  TestCategoricalPredictionColumnSplit("cpu_predictor");
+  Context ctx;
+  TestCategoricalPredictionColumnSplit(&ctx);
 }
 
 TEST(CPUPredictor, CategoricalPredictLeaf) {
-  TestCategoricalPredictLeaf(StringView{"cpu_predictor"});
+  Context ctx;
+  TestCategoricalPredictLeaf(&ctx, false);
 }
 
 TEST(CPUPredictor, CategoricalPredictLeafColumnSplit) {
-  TestCategoricalPredictLeafColumnSplit(StringView{"cpu_predictor"});
+  Context ctx;
+  TestCategoricalPredictLeafColumnSplit(&ctx);
 }
 
 TEST(CpuPredictor, UpdatePredictionCache) {
@@ -244,21 +251,25 @@ TEST(CpuPredictor, UpdatePredictionCache) {
 }
 
 TEST(CpuPredictor, LesserFeatures) {
-  TestPredictionWithLesserFeatures("cpu_predictor");
+  Context ctx;
+  TestPredictionWithLesserFeatures(&ctx);
 }
 
 TEST(CpuPredictor, LesserFeaturesColumnSplit) {
-  TestPredictionWithLesserFeaturesColumnSplit("cpu_predictor");
+  Context ctx;
+  TestPredictionWithLesserFeaturesColumnSplit(&ctx);
 }
 
 TEST(CpuPredictor, Sparse) {
-  TestSparsePrediction(0.2, "cpu_predictor");
-  TestSparsePrediction(0.8, "cpu_predictor");
+  Context ctx;
+  TestSparsePrediction(&ctx, 0.2);
+  TestSparsePrediction(&ctx, 0.8);
 }
 
 TEST(CpuPredictor, SparseColumnSplit) {
-  TestSparsePredictionColumnSplit(0.2, "cpu_predictor");
-  TestSparsePredictionColumnSplit(0.8, "cpu_predictor");
+  Context ctx;
+  TestSparsePredictionColumnSplit(&ctx, 0.2);
+  TestSparsePredictionColumnSplit(&ctx, 0.8);
 }
 
 TEST(CpuPredictor, Multi) {
@@ -266,4 +277,6 @@ TEST(CpuPredictor, Multi) {
   ctx.nthread = 1;
   TestVectorLeafPrediction(&ctx);
 }
+
+TEST(CpuPredictor, Access) { TestPredictionDeviceAccess(); }
 }  // namespace xgboost

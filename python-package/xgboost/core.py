@@ -2187,20 +2187,25 @@ class Booster:
         base_margin: Any = None,
         strict_shape: bool = False,
     ) -> NumpyOrCupy:
-        """Run prediction in-place, Unlike :py:meth:`predict` method, inplace prediction
-        does not cache the prediction result.
+        """Run prediction in-place when possible, Unlike :py:meth:`predict` method,
+        inplace prediction does not cache the prediction result.
 
         Calling only ``inplace_predict`` in multiple threads is safe and lock
         free.  But the safety does not hold when used in conjunction with other
         methods. E.g. you can't train the booster in one thread and perform
         prediction in the other.
 
+        .. note::
+
+            If the device ordinal of the input data doesn't match the one configured for
+            the booster, data will be copied to the booster device.
+
         .. code-block:: python
 
-            booster.set_param({"predictor": "gpu_predictor"})
+            booster.set_param({"gpu_id": "0", "tree_method": "gpu_hist"})
             booster.inplace_predict(cupy_array)
 
-            booster.set_param({"predictor": "cpu_predictor"})
+            booster.set_param({"gpu_id": "-1", "tree_method": "hist"})
             booster.inplace_predict(numpy_array)
 
         .. versionadded:: 1.1.0
@@ -2208,9 +2213,7 @@ class Booster:
         Parameters
         ----------
         data :
-            The input data, must not be a view for numpy array.  Set
-            ``predictor`` to ``gpu_predictor`` for running prediction on CuPy
-            array or CuDF DataFrame.
+            The input data.
         iteration_range :
             See :py:meth:`predict` for details.
         predict_type :

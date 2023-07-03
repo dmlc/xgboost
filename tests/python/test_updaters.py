@@ -274,7 +274,7 @@ class TestTreeMethod:
     ) -> None:
         parameters: Dict[str, Any] = {"tree_method": tree_method}
         cat, label = tm.make_categorical(
-            n_samples=rows, n_features=cols, n_categories=cats, onehot=False, sparsity=0.5
+            rows, n_features=cols, n_categories=cats, onehot=False, sparsity=0.5
         )
         Xy = xgb.DMatrix(cat, label, enable_categorical=True)
 
@@ -294,7 +294,9 @@ class TestTreeMethod:
             y_predt = booster.predict(Xy)
 
             rmse = tm.root_mean_square(label, y_predt)
-            np.testing.assert_allclose(rmse, evals_result["Train"]["rmse"][-1])
+            np.testing.assert_allclose(
+                rmse, evals_result["Train"]["rmse"][-1], rtol=2e-5
+            )
 
         # Test with OHE split
         run(self.USE_ONEHOT)
@@ -311,10 +313,8 @@ class TestTreeMethod:
         by_etl_results: Dict[str, Dict[str, List[float]]] = {}
         by_builtin_results: Dict[str, Dict[str, List[float]]] = {}
 
-        predictor = "gpu_predictor" if tree_method == "gpu_hist" else None
         parameters: Dict[str, Any] = {
             "tree_method": tree_method,
-            "predictor": predictor,
             # Use one-hot exclusively
             "max_cat_to_onehot": self.USE_ONEHOT
         }

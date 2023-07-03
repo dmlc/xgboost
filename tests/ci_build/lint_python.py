@@ -25,6 +25,9 @@ class LintersPaths:
         "tests/python/test_tree_regularization.py",
         "tests/python/test_shap.py",
         "tests/python-gpu/test_gpu_data_iterator.py",
+        "tests/python-gpu/test_gpu_prediction.py",
+        "tests/python-gpu/load_pickle.py",
+        "tests/python-gpu/test_gpu_pickling.py",
         "tests/test_distributed/test_with_spark/",
         "tests/test_distributed/test_gpu_with_spark/",
         # demo
@@ -68,6 +71,7 @@ class LintersPaths:
         "tests/python/test_dt.py",
         "tests/python/test_data_iterator.py",
         "tests/python-gpu/test_gpu_data_iterator.py",
+        "tests/python-gpu/load_pickle.py",
         "tests/test_distributed/test_with_spark/test_data.py",
         "tests/test_distributed/test_gpu_with_spark/test_data.py",
         "tests/test_distributed/test_gpu_with_dask/test_gpu_with_dask.py",
