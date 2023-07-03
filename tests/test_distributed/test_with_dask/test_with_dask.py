@@ -308,7 +308,7 @@ def test_dask_sparse(client: "Client") -> None:
 
 
 def run_categorical(client: "Client", tree_method: str, X, X_onehot, y) -> None:
-    parameters = {"tree_method": tree_method, "max_cat_to_onehot": 9999} # force onehot
+    parameters = {"tree_method": tree_method, "max_cat_to_onehot": 9999}  # force onehot
     rounds = 10
     m = xgb.dask.DaskDMatrix(client, X_onehot, y, enable_categorical=True)
     by_etl_results = xgb.dask.train(
@@ -364,9 +364,9 @@ def run_categorical(client: "Client", tree_method: str, X, X_onehot, y) -> None:
     check_model_output(reg.get_booster())
 
     reg = xgb.dask.DaskXGBRegressor(
-        enable_categorical=True, n_estimators=10
+        enable_categorical=True, n_estimators=10, tree_method="exact"
     )
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="categorical data"):
         reg.fit(X, y)
     # check partition based
     reg = xgb.dask.DaskXGBRegressor(
