@@ -9,9 +9,10 @@
 #include <xgboost/logging.h>    // for CHECK_GE
 #include <xgboost/parameter.h>  // for XGBoostParameter
 
-#include <cstdint>  // for int16_t, int32_t, int64_t
-#include <memory>   // for shared_ptr
-#include <string>   // for string, to_string
+#include <cstdint>      // for int16_t, int32_t, int64_t
+#include <memory>       // for shared_ptr
+#include <string>       // for string, to_string
+#include <type_traits>  // for invoke_result_t, is_same_v
 
 namespace xgboost {
 
@@ -151,6 +152,25 @@ struct Context : public XGBoostParameter<Context> {
     Context ctx = *this;
     ctx.gpu_id = kCpuId;
     return ctx;
+  }
+  /**
+   * @brief Call function based on the current device.
+   */
+  template <typename CPUFn, typename CUDAFn>
+  decltype(auto) DispatchDevice(CPUFn&& cpu_fn, CUDAFn&& cuda_fn) const {
+    static_assert(std::is_same_v<std::invoke_result_t<CPUFn>, std::invoke_result_t<CUDAFn>>);
+    switch (this->Device().device) {
+      case DeviceOrd::kCPU:
+        return cpu_fn();
+      case DeviceOrd::kCUDA:
+        return cuda_fn();
+      default:
+        // Do not use the device name as this is likely an internal error, the name
+        // wouldn't be valid.
+        LOG(FATAL) << "Unknown device type:" << static_cast<std::int16_t>(this->Device().device);
+        break;
+    }
+    return std::invoke_result_t<CPUFn>();
   }
 
   // declare parameters

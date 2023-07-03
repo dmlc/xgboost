@@ -47,5 +47,9 @@ inline void MaxFeatureSize(std::uint64_t n_features) {
       << "Unfortunately, XGBoost does not support data matrices with "
       << std::numeric_limits<bst_feature_t>::max() << " features or greater";
 }
+
+constexpr StringView InplacePredictProxy() {
+  return "Inplace predict accepts only DMatrixProxy as input.";
+}
 }  // namespace xgboost::error
 #endif  // XGBOOST_COMMON_ERROR_MSG_H_

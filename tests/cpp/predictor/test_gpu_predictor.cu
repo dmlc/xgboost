@@ -123,7 +123,8 @@ TEST(GPUPredictor, EllpackBasic) {
   auto ctx = MakeCUDACtx(0);
   for (size_t bins = 2; bins < 258; bins += 16) {
     size_t rows = bins * 16;
-    auto p_m = RandomDataGenerator{rows, kCols, 0.0}.Bins(bins).Device(0).GenerateDeviceDMatrix();
+    auto p_m =
+        RandomDataGenerator{rows, kCols, 0.0}.Bins(bins).Device(0).GenerateDeviceDMatrix(false);
     ASSERT_FALSE(p_m->PageExists<SparsePage>());
     TestPredictionFromGradientIndex<EllpackPage>(&ctx, rows, kCols, p_m);
     TestPredictionFromGradientIndex<EllpackPage>(&ctx, bins, kCols, p_m);
@@ -133,7 +134,7 @@ TEST(GPUPredictor, EllpackBasic) {
 TEST(GPUPredictor, EllpackTraining) {
   size_t constexpr kRows { 128 }, kCols { 16 }, kBins { 64 };
   auto p_ellpack =
-      RandomDataGenerator{kRows, kCols, 0.0}.Bins(kBins).Device(0).GenerateDeviceDMatrix();
+      RandomDataGenerator{kRows, kCols, 0.0}.Bins(kBins).Device(0).GenerateDeviceDMatrix(false);
   HostDeviceVector<float> storage(kRows * kCols);
   auto columnar = RandomDataGenerator{kRows, kCols, 0.0}
        .Device(0)
@@ -219,7 +220,7 @@ TEST(GPUPredictor, ShapStump) {
   gbm::GBTreeModel model(&mparam, &ctx);
 
   std::vector<std::unique_ptr<RegTree>> trees;
-  trees.push_back(std::unique_ptr<RegTree>(new RegTree));
+  trees.push_back(std::make_unique<RegTree>());
   model.CommitModelGroup(std::move(trees), 0);
 
   auto gpu_lparam = MakeCUDACtx(0);
@@ -246,7 +247,7 @@ TEST(GPUPredictor, Shap) {
   gbm::GBTreeModel model(&mparam, &ctx);
 
   std::vector<std::unique_ptr<RegTree>> trees;
-  trees.push_back(std::unique_ptr<RegTree>(new RegTree));
+  trees.push_back(std::make_unique<RegTree>());
   trees[0]->ExpandNode(0, 0, 0.5, true, 1.0, -1.0, 1.0, 0.0, 5.0, 2.0, 3.0);
   model.CommitModelGroup(std::move(trees), 0);
 

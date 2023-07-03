@@ -16,6 +16,7 @@
 #include "../common/bitfield.h"               // for RBitField8
 #include "../common/categorical.h"            // for IsCat, Decision
 #include "../common/common.h"                 // for DivRoundUp
+#include "../common/error_msg.h"              // for InplacePredictProxy
 #include "../common/math.h"                   // for CheckNAN
 #include "../common/threading_utils.h"        // for ParallelFor
 #include "../data/adapter.h"                  // for ArrayAdapter, CSRAdapter, CSRArrayAdapter
@@ -741,7 +742,7 @@ class CPUPredictor : public Predictor {
                       PredictionCacheEntry *out_preds, uint32_t tree_begin,
                       unsigned tree_end) const override {
     auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
-    CHECK(proxy)<< "Inplace predict accepts only DMatrixProxy as input.";
+    CHECK(proxy)<< error::InplacePredictProxy();
     CHECK(!p_m->Info().IsColumnSplit())
         << "Inplace predict support for column-wise data split is not yet implemented.";
     auto x = proxy->Adapter();

@@ -6,24 +6,22 @@
  */
 #pragma once
 #include <xgboost/base.h>
-#include <xgboost/cache.h>  // DMatrixCache
+#include <xgboost/cache.h>    // for DMatrixCache
+#include <xgboost/context.h>  // for Context
 #include <xgboost/context.h>
 #include <xgboost/data.h>
 #include <xgboost/host_device_vector.h>
 
-#include <functional>  // std::function
-#include <memory>
+#include <functional>  // for function
+#include <memory>      // for shared_ptr
 #include <string>
-#include <thread>   // for get_id
 #include <utility>  // for make_pair
 #include <vector>
 
 // Forward declarations
-namespace xgboost {
-namespace gbm {
+namespace xgboost::gbm {
 struct GBTreeModel;
-}  // namespace gbm
-}  // namespace xgboost
+}  // namespace xgboost::gbm
 
 namespace xgboost {
 /**

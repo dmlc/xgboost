@@ -76,9 +76,11 @@ TEST(SparsePageDMatrix, LoadFile) {
 // allow caller to retain pages so they can process multiple pages at the same time.
 template <typename Page>
 void TestRetainPage() {
-  auto m = CreateSparsePageDMatrix(10000);
+  std::size_t n_batches = 4;
+  auto p_fmat = RandomDataGenerator{1024, 128, 0.5f}.Batches(n_batches).GenerateSparsePageDMatrix(
+      "cache", true);
   Context ctx;
-  auto batches = m->GetBatches<Page>(&ctx);
+  auto batches = p_fmat->GetBatches<Page>(&ctx);
   auto begin = batches.begin();
   auto end = batches.end();
 
@@ -94,7 +96,7 @@ void TestRetainPage() {
     }
     ASSERT_EQ(pages.back().Size(), (*it).Size());
   }
-  ASSERT_GE(iterators.size(), 2);
+  ASSERT_GE(iterators.size(), n_batches);
 
   for (size_t i = 0; i < iterators.size(); ++i) {
     ASSERT_EQ((*iterators[i]).Size(), pages.at(i).Size());
@@ -102,7 +104,7 @@ void TestRetainPage() {
   }
 
   // make sure it's const and the caller can not modify the content of page.
-  for (auto &page : m->GetBatches<Page>({&ctx})) {
+  for (auto &page : p_fmat->GetBatches<Page>({&ctx})) {
     static_assert(std::is_const<std::remove_reference_t<decltype(page)>>::value);
   }
 }

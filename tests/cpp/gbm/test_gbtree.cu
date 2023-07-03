@@ -61,7 +61,6 @@ void TestInplaceFallback(Context const* ctx) {
   learner->InplacePredict(p_m, PredictionType::kValue, std::numeric_limits<float>::quiet_NaN(),
                           &out_predt, 0, 0);
   auto output = testing::internal::GetCapturedStderr();
-  std::cout << "output:" << output << std::endl;
   ASSERT_NE(output.find("Falling back"), std::string::npos);
 
   // test when the contexts match
