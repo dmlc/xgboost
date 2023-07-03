@@ -558,7 +558,11 @@ TEST(GBTree, InplacePredictionError) {
     if (ctx->IsCPU()) {
       p_fmat = rng.GenerateQuantileDMatrix(true);
     } else {
+#if defined(XGBOOST_USE_CUDA)
       p_fmat = rng.GenerateDeviceDMatrix(true);
+#else
+      CHECK(p_fmat);
+#endif  // defined(XGBOOST_USE_CUDA)
     };
     std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
     learner->SetParam("booster", booster);

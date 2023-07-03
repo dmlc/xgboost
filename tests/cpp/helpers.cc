@@ -424,7 +424,11 @@ void RandomDataGenerator::GenerateCSR(
   if (device_ == Context::kCpuId) {
     iter = std::make_unique<NumpyArrayIterForTest>(this->sparsity_, rows_, cols_, n_batches_);
   } else {
+#if defined(XGBOOST_USE_CUDA)
     iter = std::make_unique<CudaArrayIterForTest>(this->sparsity_, rows_, cols_, n_batches_);
+#else
+    CHECK(iter);
+#endif  // defined(XGBOOST_USE_CUDA)
   }
 
   std::unique_ptr<DMatrix> dmat{

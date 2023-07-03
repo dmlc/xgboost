@@ -455,11 +455,11 @@ class ArrayIterForTest {
   size_t static constexpr Cols() { return 13; }
 
  public:
-  std::string AsArray() const { return interface_; }
+  [[nodiscard]] std::string AsArray() const { return interface_; }
 
   virtual int Next() = 0;
   virtual void Reset() { iter_ = 0; }
-  size_t Iter() const { return iter_; }
+  [[nodiscard]] std::size_t Iter() const { return iter_; }
   auto Proxy() -> decltype(proxy_) { return proxy_; }
 
   explicit ArrayIterForTest(float sparsity, size_t rows, size_t cols, size_t batches);
