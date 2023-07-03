@@ -91,6 +91,9 @@
                     <value>ON</value>
                 </property>
             </activation>
+            <properties>
+               <use.cuda>ON</use.cuda>
+            </properties>
             <modules>
                 <module>xgboost4j-gpu</module>
                 <module>xgboost4j-spark-gpu</module>
