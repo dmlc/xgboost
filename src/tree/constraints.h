@@ -1,5 +1,5 @@
-/*!
- * Copyright 2018-2019 by Contributors
+/**
+ * Copyright 2018-2023 by Contributors
  */
 #ifndef XGBOOST_TREE_CONSTRAINTS_H_
 #define XGBOOST_TREE_CONSTRAINTS_H_
@@ -8,10 +8,8 @@
 #include <unordered_set>
 #include <vector>
 
-#include "xgboost/span.h"
-#include "xgboost/base.h"
-
 #include "param.h"
+#include "xgboost/base.h"
 
 namespace xgboost {
 /*!

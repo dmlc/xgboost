@@ -256,3 +256,23 @@ def check_get_quantile_cut(tree_method: str) -> None:
     check_get_quantile_cut_device(tree_method, False)
     if use_cupy:
         check_get_quantile_cut_device(tree_method, True)
+
+
+def train_result(
+    param: Dict[str, Any], dmat: xgb.DMatrix, num_rounds: int
+) -> Dict[str, Any]:
+    result: Dict[str, Any] = {}
+    booster = xgb.train(
+        param,
+        dmat,
+        num_rounds,
+        evals=[(dmat, "train")],
+        verbose_eval=False,
+        evals_result=result,
+    )
+    assert booster.num_features() == dmat.num_col()
+    assert booster.num_boosted_rounds() == num_rounds
+    assert booster.feature_names == dmat.feature_names
+    assert booster.feature_types == dmat.feature_types
+
+    return result

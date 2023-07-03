@@ -18,25 +18,8 @@ from xgboost.testing.updater import (
     check_get_quantile_cut,
     check_init_estimation,
     check_quantile_loss,
+    train_result,
 )
-
-
-def train_result(param, dmat, num_rounds):
-    result = {}
-    booster = xgb.train(
-        param,
-        dmat,
-        num_rounds,
-        evals=[(dmat, "train")],
-        verbose_eval=False,
-        evals_result=result,
-    )
-    assert booster.num_features() == dmat.num_col()
-    assert booster.num_boosted_rounds() == num_rounds
-    assert booster.feature_names == dmat.feature_names
-    assert booster.feature_types == dmat.feature_types
-
-    return result
 
 
 class TestTreeMethodMulti:

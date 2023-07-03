@@ -12,7 +12,7 @@
 #include <vector>                        // for vector
 
 #include "dmlc/parameter.h"              // for FieldEntry, DMLC_DECLARE_FIELD
-#include "error_msg.h"                   // for GroupWeight, GroupSize
+#include "error_msg.h"                   // for GroupWeight, GroupSize, InvalidCUDAOrdinal
 #include "xgboost/base.h"                // for XGBOOST_DEVICE, bst_group_t
 #include "xgboost/context.h"             // for Context
 #include "xgboost/data.h"                // for MetaInfo
@@ -240,7 +240,7 @@ class RankingCache {
   // The function simply returns a uninitialized buffer as this is only used by the
   // objective for creating pairs.
   common::Span<std::size_t> SortedIdxY(Context const* ctx, std::size_t n_samples) {
-    CHECK(ctx->IsCUDA());
+    CHECK(ctx->IsCUDA()) << error::InvalidCUDAOrdinal();
     if (y_sorted_idx_cache_.Empty()) {
       y_sorted_idx_cache_.SetDevice(ctx->gpu_id);
       y_sorted_idx_cache_.Resize(n_samples);
@@ -248,7 +248,7 @@ class RankingCache {
     return y_sorted_idx_cache_.DeviceSpan();
   }
   common::Span<float> RankedY(Context const* ctx, std::size_t n_samples) {
-    CHECK(ctx->IsCUDA());
+    CHECK(ctx->IsCUDA()) << error::InvalidCUDAOrdinal();
     if (y_ranked_by_model_.Empty()) {
       y_ranked_by_model_.SetDevice(ctx->gpu_id);
       y_ranked_by_model_.Resize(n_samples);
