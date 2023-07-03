@@ -4,11 +4,13 @@
 #include <gtest/gtest.h>
 #include <xgboost/context.h>
 #include <xgboost/host_device_vector.h>  // for HostDeviceVector
+#include <xgboost/json.h>                // for Json, Object
 #include <xgboost/learner.h>             // for Learner
 
-#include <limits>  // for numeric_limits
-#include <memory>  // for shared_ptr
-#include <string>  // for string
+#include <limits>    // for numeric_limits
+#include <memory>    // for shared_ptr
+#include <optional>  // for optional
+#include <string>    // for string
 
 #include "../../../src/data/proxy_dmatrix.h"  // for DMatrixProxy
 #include "../../../src/gbm/gbtree.h"
@@ -164,6 +166,115 @@ TEST(GBTree, ChoosePredictor) {
   }
   // data is not pulled back into host
   ASSERT_FALSE(data.HostCanWrite());
+}
+
+TEST(GBTree, ChooseTreeMethod) {
+  bst_row_t n_samples{128};
+  bst_feature_t n_features{64};
+  auto Xy = RandomDataGenerator{n_samples, n_features, 0.5f}.GenerateDMatrix(true);
+
+  auto with_update = [&](std::optional<std::string> device,
+                         std::optional<std::string> tree_method) {
+    auto learner = std::unique_ptr<Learner>(Learner::Create({Xy}));
+    if (tree_method.has_value()) {
+      learner->SetParam("tree_method", tree_method.value());
+    }
+    if (device.has_value()) {
+      learner->SetParam("gpu_id", device.value());
+    }
+    learner->Configure();
+    for (std::int32_t i = 0; i < 3; ++i) {
+      learner->UpdateOneIter(0, Xy);
+    }
+    Json config{Object{}};
+    learner->SaveConfig(&config);
+    auto updater = config["learner"]["gradient_booster"]["updater"];
+    CHECK(!IsA<Null>(updater));
+    return updater;
+  };
+
+  auto with_boost = [&](std::optional<std::string> device, std::optional<std::string> tree_method) {
+    auto learner = std::unique_ptr<Learner>(Learner::Create({Xy}));
+    if (tree_method.has_value()) {
+      learner->SetParam("tree_method", tree_method.value());
+    }
+    if (device.has_value()) {
+      learner->SetParam("gpu_id", device.value());
+    }
+    learner->Configure();
+    for (std::int32_t i = 0; i < 3; ++i) {
+      HostDeviceVector<GradientPair> gpair{GenerateRandomGradients(Xy->Info().num_row_)};
+      learner->BoostOneIter(0, Xy, &gpair);
+    }
+
+    Json config{Object{}};
+    learner->SaveConfig(&config);
+    auto updater = config["learner"]["gradient_booster"]["updater"];
+    return updater;
+  };
+
+  // |        | hist    | gpu_hist | exact | NA  |
+  // |--------+---------+----------+-------+-----|
+  // | CUDA:0 | GPU     | GPU (w)  | Err   | GPU | # not yet tested
+  // | CPU    | CPU     | Err      | CPU   | CPU | # not yet tested
+  // |--------+---------+----------+-------+-----|
+  // | -1     | CPU     | Err      | CPU   | CPU |
+  // | 0      | GPU (w) | GPU (w)  | Err   | GPU |
+  // | NA     | CPU     | GPU (w)  | CPU   | CPU |
+  //
+  // - (w): warning
+  // - CPU: Run on CPU.
+  // - GPU: Run on CUDA.
+  // - Err: Not feasible.
+  // - NA:  Parameter is not specified.
+
+  std::map<std::pair<std::optional<std::string>, std::optional<std::string>>, std::string>
+      expectation{
+          // hist
+          {{"hist", "-1"}, "grow_quantile_histmaker"},
+          {{"hist", "0"}, "grow_gpu_hist"},
+          {{"hist", std::nullopt}, "grow_quantile_histmaker"},
+          // gpu_hist
+          // {{"gpu_hist", "-1"}, "err"},
+          {{"gpu_hist", "0"}, "grow_gpu_hist"},
+          {{"gpu_hist", std::nullopt}, "grow_gpu_hist"},
+          // exact
+          {{"exact", "-1"}, "grow_colmaker"},
+          {{"exact", "0"}, "err"},
+          {{"exact", std::nullopt}, "grow_colmaker"},
+          // NA
+          {{std::nullopt, "-1"}, "grow_quantile_histmaker"},
+          {{std::nullopt, "0"}, "grow_gpu_hist"},  // default to hist
+          {{std::nullopt, std::nullopt}, "grow_quantile_histmaker"},
+      };
+
+  auto check_updater = [&](std::string name, Json updater) {
+    auto map = get<Object const>(updater);
+    ASSERT_NE(map.find(name), map.cend());
+  };
+
+  auto run_test = [&](auto fn) {
+    for (auto const& kv : expectation) {
+      auto device = kv.first.second;
+      auto tm = kv.first.first;
+
+      if (kv.second == "err") {
+        ASSERT_THROW({ fn(device, tm); }, dmlc::Error)
+            << " device:" << device.value_or("NA") << " tm:" << tm.value_or("NA");
+        continue;
+      }
+      auto up = fn(device, tm);
+      check_updater(kv.second, up);
+      // auto map = get<Object const>(up);
+      // for (auto const& got : map) {
+      //   ASSERT_EQ(got.first, kv.second)
+      //       << " device:" << device.value_or("NA") << " tm:" << tm.value_or("NA");
+      // }
+    }
+  };
+
+  run_test(with_update);
+  run_test(with_boost);
 }
 #endif  // XGBOOST_USE_CUDA
 

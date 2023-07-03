@@ -172,20 +172,17 @@ class GBTree : public GradientBooster {
   explicit GBTree(LearnerModelParam const* booster_config, Context const* ctx)
       : GradientBooster{ctx}, model_(booster_config, ctx_) {}
 
-  void Configure(const Args& cfg) override;
-  /*! \brief Map `tree_method` parameter to `updater` parameter */
-  void ConfigureUpdaters();
-
+  void Configure(Args const& cfg) override;
   /**
-   * \brief Optionally update the leaf value.
+   * @brief Optionally update the leaf value.
    */
   void UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const& predictions,
-                      ObjFunction const* obj,
-                      std::int32_t group_idx,
+                      ObjFunction const* obj, std::int32_t group_idx,
                       std::vector<HostDeviceVector<bst_node_t>> const& node_position,
                       std::vector<std::unique_ptr<RegTree>>* p_trees);
-
-  /*! \brief Carry out one iteration of boosting */
+  /**
+   * @brief Carry out one iteration of boosting.
+   */
   void DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
                PredictionCacheEntry* predt, ObjFunction const* obj) override;
 

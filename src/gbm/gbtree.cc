@@ -40,8 +40,38 @@
 namespace xgboost::gbm {
 DMLC_REGISTRY_FILE_TAG(gbtree);
 
+namespace {
+/** @brief Map the `tree_method` parameter to the `updater` parameter. */
+std::string MapTreeMethodToUpdaters(Context const* ctx_, TreeMethod tree_method) {
+  // Choose updaters according to tree_method parameters
+  switch (tree_method) {
+    case TreeMethod::kAuto:  // Use hist as default in 2.0
+    case TreeMethod::kHist: {
+      return ctx_->DispatchDevice([] { return "grow_quantile_histmaker"; },
+                                  [] {
+                                    common::AssertGPUSupport();
+                                    return "grow_gpu_hist";
+                                  });
+    }
+    case TreeMethod::kApprox:
+      CHECK(ctx_->IsCPU()) << "The `approx` tree method is not supported on GPU.";
+      return "grow_histmaker";
+    case TreeMethod::kExact:
+      CHECK(ctx_->IsCPU()) << "The `exact` tree method is not supported on GPU.";
+      return "grow_colmaker,prune";
+    case TreeMethod::kGPUHist: {
+      common::AssertGPUSupport();
+      error::WarnDeprecatedGPUHist();
+      return "grow_gpu_hist";
+    }
+    default:
+      auto tm = static_cast<std::underlying_type_t<TreeMethod>>(tree_method);
+      LOG(FATAL) << "Unknown tree_method: `" << tm << "`.";
+  }
+}
+}  // namespace
+
 void GBTree::Configure(Args const& cfg) {
-  std::string updater_seq = tparam_.updater_seq;
   tparam_.UpdateAllowUnknown(cfg);
   tree_param_.UpdateAllowUnknown(cfg);
 
@@ -54,8 +84,7 @@ void GBTree::Configure(Args const& cfg) {
 
   // configure predictors
   if (!cpu_predictor_) {
-    cpu_predictor_ = std::unique_ptr<Predictor>(
-        Predictor::Create("cpu_predictor", this->ctx_));
+    cpu_predictor_ = std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", this->ctx_));
   }
   cpu_predictor_->Configure(cfg);
 #if defined(XGBOOST_USE_CUDA)
@@ -78,27 +107,29 @@ void GBTree::Configure(Args const& cfg) {
 
   monitor_.Init("GBTree");
 
-  specified_updater_ = std::any_of(
-      cfg.cbegin(), cfg.cend(),
-      [](std::pair<std::string, std::string> const& arg) { return arg.first == "updater"; });
-
+  // `updater` parameter was manually specified
+  specified_updater_ =
+      std::any_of(cfg.cbegin(), cfg.cend(), [](auto const& arg) { return arg.first == "updater"; });
   if (specified_updater_ && !showed_updater_warning_) {
     LOG(WARNING) << "DANGER AHEAD: You have manually specified `updater` "
-        "parameter. The `tree_method` parameter will be ignored. "
-        "Incorrect sequence of updaters will produce undefined "
-        "behavior. For common uses, we recommend using "
-        "`tree_method` parameter instead.";
+                    "parameter. The `tree_method` parameter will be ignored. "
+                    "Incorrect sequence of updaters will produce undefined "
+                    "behavior. For common uses, we recommend using "
+                    "`tree_method` parameter instead.";
     // Don't drive users to silent XGBOost.
     showed_updater_warning_ = true;
   }
-
   if (model_.learner_model_param->IsVectorLeaf()) {
     CHECK(tparam_.tree_method == TreeMethod::kHist || tparam_.tree_method == TreeMethod::kAuto)
         << "Only the hist tree method is supported for building multi-target trees with vector "
            "leaf.";
   }
   LOG(DEBUG) << "Using tree method: " << static_cast<int>(tparam_.tree_method);
-  this->ConfigureUpdaters();
+
+  std::string updater_seq = tparam_.updater_seq;
+  if (!specified_updater_) {
+    this->tparam_.updater_seq = MapTreeMethodToUpdaters(ctx_, tparam_.tree_method);
+  }
 
   if (updater_seq != tparam_.updater_seq) {
     updaters_.clear();
@@ -110,35 +141,6 @@ void GBTree::Configure(Args const& cfg) {
   }
 
   configured_ = true;
-}
-
-void GBTree::ConfigureUpdaters() {
-  if (specified_updater_) {
-    return;
-  }
-  // `updater` parameter was manually specified
-  /* Choose updaters according to tree_method parameters */
-  switch (tparam_.tree_method) {
-    case TreeMethod::kAuto:  // Use hist as default in 2.0
-    case TreeMethod::kHist: {
-      tparam_.updater_seq = "grow_quantile_histmaker";
-      break;
-    }
-    case TreeMethod::kApprox:
-      tparam_.updater_seq = "grow_histmaker";
-      break;
-    case TreeMethod::kExact:
-      tparam_.updater_seq = "grow_colmaker,prune";
-      break;
-    case TreeMethod::kGPUHist: {
-      common::AssertGPUSupport();
-      tparam_.updater_seq = "grow_gpu_hist";
-      break;
-    }
-    default:
-      LOG(FATAL) << "Unknown tree_method (" << static_cast<int>(tparam_.tree_method)
-                 << ") detected";
-  }
 }
 
 void GPUCopyGradient(HostDeviceVector<GradientPair> const*, bst_group_t, bst_group_t,
@@ -195,14 +197,8 @@ void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
   bst_target_t const n_groups = model_.learner_model_param->OutputLength();
   monitor_.Start("BoostNewTrees");
 
-  // Weird case that tree method is cpu-based but gpu_id is set.  Ideally we should let
-  // `gpu_id` be the single source of determining what algorithms to run, but that will
-  // break a lots of existing code.
-  auto device = tparam_.tree_method != TreeMethod::kGPUHist ? Context::kCpuId : ctx_->gpu_id;
-  auto out = linalg::MakeTensorView(
-      device,
-      device == Context::kCpuId ? predt->predictions.HostSpan() : predt->predictions.DeviceSpan(),
-      p_fmat->Info().num_row_, model_.learner_model_param->OutputLength());
+  auto out = linalg::MakeTensorView(ctx_, &predt->predictions, p_fmat->Info().num_row_,
+                                    model_.learner_model_param->OutputLength());
   CHECK_NE(n_groups, 0);
 
   if (!p_fmat->SingleColBlock() && obj->Task().UpdateTreeLeaf()) {
