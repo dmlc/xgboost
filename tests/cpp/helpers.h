@@ -238,7 +238,7 @@ class RandomDataGenerator {
   bst_target_t n_targets_{1};
 
   std::int32_t device_{Context::kCpuId};
-  std::size_t n_batches_{1};
+  std::size_t n_batches_{0};
   std::uint64_t seed_{0};
   SimpleLCG lcg_;
 

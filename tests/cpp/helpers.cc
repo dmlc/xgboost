@@ -420,6 +420,8 @@ void RandomDataGenerator::GenerateCSR(
 [[nodiscard]] std::shared_ptr<DMatrix> RandomDataGenerator::GenerateSparsePageDMatrix(
     std::string prefix, bool with_label) const {
   CHECK_GE(this->rows_, this->n_batches_);
+  CHECK_GE(this->n_batches_, 1)
+      << "Must set the n_batches before generating an external memory DMatrix.";
   std::unique_ptr<ArrayIterForTest> iter;
   if (device_ == Context::kCpuId) {
     iter = std::make_unique<NumpyArrayIterForTest>(this->sparsity_, rows_, cols_, n_batches_);
@@ -445,9 +447,10 @@ void RandomDataGenerator::GenerateCSR(
   for (const auto& batch : dmat->GetBatches<xgboost::SparsePage>()) {
     batch_count++;
     row_count += batch.Size();
+    CHECK_NE(batch.data.Size(), 0);
   }
 
-  EXPECT_GE(batch_count, n_batches_);
+  EXPECT_EQ(batch_count, n_batches_);
   EXPECT_EQ(row_count, dmat->Info().num_row_);
 
   if (with_label) {

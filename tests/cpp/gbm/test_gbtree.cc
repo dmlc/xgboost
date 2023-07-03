@@ -520,7 +520,8 @@ TEST(GBTree, InplacePredictionError) {
 
   auto test_ext_err = [&](std::string booster, Context const* ctx) {
     std::shared_ptr<DMatrix> p_fmat =
-        RandomDataGenerator{n_samples, n_features, 0.5f}.GenerateSparsePageDMatrix("cache", true);
+        RandomDataGenerator{n_samples, n_features, 0.5f}.Batches(2).GenerateSparsePageDMatrix(
+            "cache", true);
     std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
     learner->SetParam("booster", booster);
     ConfigLearnerByCtx(ctx, learner.get());

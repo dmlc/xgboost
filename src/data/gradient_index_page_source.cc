@@ -1,10 +1,9 @@
-/*!
- * Copyright 2021-2022 by XGBoost Contributors
+/**
+ * Copyright 2021-2023, XGBoost Contributors
  */
 #include "gradient_index_page_source.h"
 
-namespace xgboost {
-namespace data {
+namespace xgboost::data {
 void GradientIndexPageSource::Fetch() {
   if (!this->ReadCache()) {
     if (count_ != 0 && !sync_) {
@@ -21,5 +20,4 @@ void GradientIndexPageSource::Fetch() {
     this->WriteCache();
   }
 }
-}  // namespace data
-}  // namespace xgboost
+}  // namespace xgboost::data

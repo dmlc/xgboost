@@ -29,8 +29,10 @@
 namespace xgboost::data {
 TEST(GradientIndex, ExternalMemoryBaseRowID) {
   Context ctx;
-  auto p_fmat =
-      RandomDataGenerator{4096, 256, 8}.Device(ctx.gpu_id).GenerateSparsePageDMatrix("cache", true);
+  auto p_fmat = RandomDataGenerator{4096, 256, 0.5}
+                    .Device(ctx.gpu_id)
+                    .Batches(8)
+                    .GenerateSparsePageDMatrix("cache", true);
 
   std::vector<size_t> base_rowids;
   std::vector<float> hessian(p_fmat->Info().num_row_, 1);
