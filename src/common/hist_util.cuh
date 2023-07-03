@@ -240,10 +240,10 @@ void MakeEntriesFromAdapter(AdapterBatch const& batch, BatchIter batch_iter, Ran
 void SortByWeight(dh::device_vector<float>* weights,
                   dh::device_vector<Entry>* sorted_entries);
 
-void RemoveDuplicatedCategories(
-    int32_t device, MetaInfo const &info, Span<bst_row_t> d_cuts_ptr,
-    dh::device_vector<Entry> *p_sorted_entries,
-    dh::caching_device_vector<size_t> *p_column_sizes_scan);
+void RemoveDuplicatedCategories(int32_t device, MetaInfo const& info, Span<bst_row_t> d_cuts_ptr,
+                                dh::device_vector<Entry>* p_sorted_entries,
+                                dh::device_vector<float>* p_sorted_weights,
+                                dh::caching_device_vector<size_t>* p_column_sizes_scan);
 }  // namespace detail
 
 // Compute sketch on DMatrix.
@@ -275,8 +275,8 @@ void ProcessSlidingWindow(AdapterBatch const &batch, MetaInfo const &info,
 
   if (sketch_container->HasCategorical()) {
     auto d_cuts_ptr = cuts_ptr.DeviceSpan();
-    detail::RemoveDuplicatedCategories(device, info, d_cuts_ptr,
-                                       &sorted_entries, &column_sizes_scan);
+    detail::RemoveDuplicatedCategories(device, info, d_cuts_ptr, &sorted_entries, nullptr,
+                                       &column_sizes_scan);
   }
 
   auto d_cuts_ptr = cuts_ptr.DeviceSpan();
@@ -354,8 +354,8 @@ void ProcessWeightedSlidingWindow(Batch batch, MetaInfo const& info,
 
   if (sketch_container->HasCategorical()) {
     auto d_cuts_ptr = cuts_ptr.DeviceSpan();
-    detail::RemoveDuplicatedCategories(device, info, d_cuts_ptr,
-                                       &sorted_entries, &column_sizes_scan);
+    detail::RemoveDuplicatedCategories(device, info, d_cuts_ptr, &sorted_entries, &temp_weights,
+                                       &column_sizes_scan);
   }
 
   auto const& h_cuts_ptr = cuts_ptr.ConstHostVector();
