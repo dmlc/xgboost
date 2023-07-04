@@ -419,7 +419,7 @@ def from_array_interface(interface: dict) -> NumpyOrCupy:
         if spec is None:
             raise ImportError("`cupy` is required for handling CUDA buffer.")
 
-        import cupy as cp
+        import cupy as cp  # pylint: disable=import-error
 
         arr.__cuda_array_interface__ = interface
         out = cp.array(arr, copy=True)
