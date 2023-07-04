@@ -15,8 +15,9 @@
 
 #include "../../../src/c_api/c_api_error.h"
 #include "../../../src/common/io.h"
-#include "../../../src/data/adapter.h"         // for ArrayAdapter
-#include "../../../src/data/gradient_index.h"  // for GHistIndexMatrix
+#include "../../../src/data/adapter.h"            // for ArrayAdapter
+#include "../../../src/data/gradient_index.h"     // for GHistIndexMatrix
+#include "../../../src/data/iterative_dmatrix.h"  // for IterativeDMatrix
 #include "../helpers.h"
 
 TEST(CAPI, XGDMatrixCreateFromMatDT) {
@@ -474,5 +475,22 @@ TEST(CAPI, XGDMatrixSaveQuantileCut) {
 
     ASSERT_EQ(ptrs[n_features], out_indptr[n_features]);
   }
+
+  XGDMatrixFree(p_fmat);
+  XGBoosterFree(booster);
+
+  std::size_t n_batches{4};
+  NumpyArrayIterForTest iter_0{0.0f, n_samples, n_features, n_batches};
+  auto proxy = iter_0.Proxy();
+  ASSERT_EQ(XGDMatrixCreateFromCallback(static_cast<DataIterHandle>(&iter_0), proxy, Reset, Next,
+                                        s_config.c_str(), &p_fmat),
+            0);
+
+  bst_bin_t n_bins{16};
+  NumpyArrayIterForTest iter_1{0.0f, n_samples, n_features, n_batches};
+  auto m =
+      std::make_shared<data::IterativeDMatrix>(&iter_1, iter_1.Proxy(), nullptr, Reset, Next,
+                                               std::numeric_limits<float>::quiet_NaN(), 0, n_bins);
+  ASSERT_EQ(XGDMatrixSaveQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), 0);
 }
 }  // namespace xgboost
