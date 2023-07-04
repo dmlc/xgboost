@@ -180,18 +180,17 @@ def check_cut(
                 assert data[j] == data[j - 1] + 1
 
 
-def check_get_quantile_cut(tree_method: str) -> None:
-    """Check the quantile cut getter."""
+def check_get_quantile_cut_device(tree_method: str, use_cupy: bool) -> None:
+    """Check with optional cupy."""
     from pandas.api.types import is_categorical_dtype
 
     n_samples = 1024
     n_features = 14
     max_bin = 16
-    use_cupy = tree_method == "gpu_hist"
     dtypes = [np.float32] * n_features
 
     # numerical
-    X, y, w = tm.make_regression(n_samples, n_features, use_cupy)
+    X, y, w = tm.make_regression(n_samples, n_features, use_cupy=use_cupy)
     # - qdm
     Xyw: xgb.DMatrix = xgb.QuantileDMatrix(X, y, weight=w, max_bin=max_bin)
     indptr, data = Xyw.get_quantile_cut()
@@ -210,6 +209,7 @@ def check_get_quantile_cut(tree_method: str) -> None:
     )
     Xy: xgb.DMatrix = xgb.DMatrix(it)
     xgb.train({"tree_method": tree_method, "max_bin": max_bin}, Xyw)
+    indptr, data = Xyw.get_quantile_cut()
     check_cut((max_bin + 1) * n_features, indptr, data, dtypes)
 
     # categorical
@@ -235,15 +235,24 @@ def check_get_quantile_cut(tree_method: str) -> None:
     X, y = tm.make_categorical(
         n_samples, n_features, n_categories, False, sparsity=0.8, cat_ratio=0.5
     )
-    # - qdm
-    Xy = xgb.QuantileDMatrix(X, y, max_bin=max_bin, enable_categorical=True)
-    indptr, data = Xy.get_quantile_cut()
     n_cat_features = len([0 for dtype in X.dtypes if is_categorical_dtype(dtype)])
     n_num_features = n_features - n_cat_features
     n_entries = n_categories * n_cat_features + (max_bin + 1) * n_num_features
+    # - qdm
+    Xy = xgb.QuantileDMatrix(X, y, max_bin=max_bin, enable_categorical=True)
+    indptr, data = Xy.get_quantile_cut()
     check_cut(n_entries, indptr, data, X.dtypes)
     # - dm
     Xy = xgb.DMatrix(X, y, enable_categorical=True)
     xgb.train({"tree_method": tree_method, "max_bin": max_bin}, Xy)
     indptr, data = Xy.get_quantile_cut()
     check_cut(n_entries, indptr, data, X.dtypes)
+
+
+def check_get_quantile_cut(tree_method: str) -> None:
+    """Check the quantile cut getter."""
+
+    use_cupy = tree_method == "gpu_hist"
+    check_get_quantile_cut_device(tree_method, False)
+    if use_cupy:
+        check_get_quantile_cut_device(tree_method, True)
