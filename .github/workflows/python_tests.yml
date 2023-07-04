@@ -255,3 +255,44 @@ jobs:
       shell: bash -l {0}
       run: |
         pytest -s -v -rxXs --durations=0 ./tests/test_distributed/test_with_spark
+
+  python-system-installation-on-ubuntu:
+    name: Test XGBoost Python package System Installation on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'true'
+
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.8
+
+      - name: Install ninja
+        run: |
+          sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Build XGBoost on Ubuntu
+        run: |
+          mkdir build
+          cd build
+          cmake .. -GNinja
+          ninja
+
+      - name: Copy lib to system lib
+        run: |
+          cp lib/* "$(python -c 'import sys; print(sys.base_prefix)')/lib"
+
+      - name: Install XGBoost in Virtual Environment
+        run: |
+          cd python-package
+          pip install virtualenv
+          virtualenv venv
+          source venv/bin/activate && \
+            pip install -v . --config-settings use_system_libxgboost=True && \
+            python -c 'import xgboost'
