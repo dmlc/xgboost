@@ -269,5 +269,6 @@ class TestGPUUpdaters:
             num_boost_round=150,
         )
 
+    @pytest.mark.skipif(**tm.no_cudf())
     def test_get_quantile_cut(self) -> None:
         check_get_quantile_cut("gpu_hist")

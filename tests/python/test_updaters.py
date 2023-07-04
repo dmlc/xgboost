@@ -542,6 +542,7 @@ class TestTreeMethod:
     def test_quantile_loss(self, weighted: bool) -> None:
         check_quantile_loss("hist", weighted)
 
+    @pytest.mark.skipif(**tm.no_pandas())
     @pytest.mark.parametrize("tree_method", ["hist", "approx"])
     def test_get_quantile_cut(self, tree_method: str) -> None:
         check_get_quantile_cut(tree_method)

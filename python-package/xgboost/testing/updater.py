@@ -216,8 +216,8 @@ def check_get_quantile_cut(tree_method: str) -> None:
     n_categories = 32
     X, y = tm.make_categorical(n_samples, n_features, n_categories, False, sparsity=0.8)
     if use_cupy:
-        import cudf
-        import cupy as cp
+        import cudf  # pylint: disable=import-error
+        import cupy as cp  # pylint: disable=import-error
 
         X = cudf.from_pandas(X)
         y = cp.array(y)
