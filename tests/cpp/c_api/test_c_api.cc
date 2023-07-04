@@ -8,6 +8,7 @@
 #include <xgboost/learner.h>
 #include <xgboost/version_config.h>
 
+#include <array>    // for array
 #include <cstddef>  // std::size_t
 #include <limits>   // std::numeric_limits
 #include <string>   // std::string
@@ -15,9 +16,10 @@
 
 #include "../../../src/c_api/c_api_error.h"
 #include "../../../src/common/io.h"
-#include "../../../src/data/adapter.h"            // for ArrayAdapter
-#include "../../../src/data/gradient_index.h"     // for GHistIndexMatrix
-#include "../../../src/data/iterative_dmatrix.h"  // for IterativeDMatrix
+#include "../../../src/data/adapter.h"              // for ArrayAdapter
+#include "../../../src/data/array_interface.h"      // for ArrayInterface
+#include "../../../src/data/gradient_index.h"       // for GHistIndexMatrix
+#include "../../../src/data/iterative_dmatrix.h"    // for IterativeDMatrix
 #include "../../../src/data/sparse_page_dmatrix.h"  // for SparsePageDMatrix
 #include "../helpers.h"
 
@@ -141,9 +143,9 @@ TEST(CAPI, ConfigIO) {
   BoosterHandle handle = learner.get();
   learner->UpdateOneIter(0, p_dmat);
 
-  char const* out[1];
+  std::array<char const* , 1> out;
   bst_ulong len {0};
-  XGBoosterSaveJsonConfig(handle, &len, out);
+  XGBoosterSaveJsonConfig(handle, &len, out.data());
 
   std::string config_str_0 { out[0] };
   auto config_0 = Json::Load({config_str_0.c_str(), config_str_0.size()});
@@ -151,7 +153,7 @@ TEST(CAPI, ConfigIO) {
 
   bst_ulong len_1 {0};
   std::string config_str_1 { out[0] };
-  XGBoosterSaveJsonConfig(handle, &len_1, out);
+  XGBoosterSaveJsonConfig(handle, &len_1, out.data());
   auto config_1 = Json::Load({config_str_1.c_str(), config_str_1.size()});
 
   ASSERT_EQ(config_0, config_1);
@@ -270,9 +272,9 @@ TEST(CAPI, DMatrixSetFeatureName) {
     ASSERT_EQ(std::to_string(i), c_out_features[i]);
   }
 
-  char const* feat_types [] {"i", "q"};
+  std::array<char const *, 2> feat_types{"i", "q"};
   static_assert(sizeof(feat_types) / sizeof(feat_types[0]) == kCols);
-  XGDMatrixSetStrFeatureInfo(handle, "feature_type", feat_types, kCols);
+  XGDMatrixSetStrFeatureInfo(handle, "feature_type", feat_types.data(), kCols);
   char const **c_out_types;
   XGDMatrixGetStrFeatureInfo(handle, u8"feature_type", &out_len,
                              &c_out_types);
@@ -526,8 +528,18 @@ void TestXGDMatrixSaveQuantileCut(Context const *ctx) {
   dconfig["ntread"] = Integer{Context{}.Threads()};
   dconfig["missing"] = Number{std::numeric_limits<float>::quiet_NaN()};
 
-  auto check_result = [n_features, &ctx](std::shared_ptr<DMatrix> Xy, float const *out_data,
-                                         std::uint64_t const *out_indptr) {
+  auto check_result = [n_features, &ctx](std::shared_ptr<DMatrix> Xy, StringView s_out_data,
+                                         StringView s_out_indptr) {
+    auto i_out_data = ArrayInterface<1, false>{s_out_data};
+    ASSERT_EQ(i_out_data.type, ArrayInterfaceHandler::kF4);
+    auto out_data = static_cast<float const *>(i_out_data.data);
+    ASSERT_TRUE(out_data);
+
+    auto i_out_indptr = ArrayInterface<1, false>{s_out_indptr};
+    ASSERT_EQ(i_out_indptr.type, ArrayInterfaceHandler::kU8);
+    auto out_indptr = static_cast<std::uint64_t const *>(i_out_indptr.data);
+    ASSERT_TRUE(out_data);
+
     if (ctx->IsCPU()) {
       CheckResult<GHistIndexMatrix>(ctx, n_features, Xy, out_data, out_indptr);
     } else {
@@ -538,14 +550,14 @@ void TestXGDMatrixSaveQuantileCut(Context const *ctx) {
   Json config{Null{}};
   std::string s_config;
   Json::Dump(config, &s_config);
-  bst_ulong *out_indptr;
-  float *out_data;
+  char const *out_indptr;
+  char const *out_data;
 
   {
     // SimpleDMatrix
     auto [p_fmat, Xy] = MakeSimpleDMatrixForTest(n_samples, n_features, dconfig);
     // assert fail, we don't have the quantile yet.
-    ASSERT_EQ(XGDMatrixSaveQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), -1);
+    ASSERT_EQ(XGDMatrixGetQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), -1);
 
     std::array<DMatrixHandle, 1> mats{p_fmat};
     BoosterHandle booster;
@@ -555,7 +567,7 @@ void TestXGDMatrixSaveQuantileCut(Context const *ctx) {
       ASSERT_EQ(XGBoosterSetParam(booster, "tree_method", "gpu_hist"), 0);
     }
     ASSERT_EQ(XGBoosterUpdateOneIter(booster, 0, p_fmat), 0);
-    ASSERT_EQ(XGDMatrixSaveQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), 0);
+    ASSERT_EQ(XGDMatrixGetQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), 0);
 
     check_result(Xy, out_data, out_indptr);
 
@@ -566,7 +578,7 @@ void TestXGDMatrixSaveQuantileCut(Context const *ctx) {
   {
     // IterativeDMatrix
     auto [p_fmat, Xy] = MakeQDMForTest(ctx, n_samples, n_features, dconfig);
-    ASSERT_EQ(XGDMatrixSaveQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), 0);
+    ASSERT_EQ(XGDMatrixGetQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), 0);
 
     check_result(Xy, out_data, out_indptr);
     XGDMatrixFree(p_fmat);
@@ -576,7 +588,7 @@ void TestXGDMatrixSaveQuantileCut(Context const *ctx) {
     // SparsePageDMatrix
     auto [p_fmat, Xy] = MakeExtMemForTest(n_samples, n_features, dconfig);
     // assert fail, we don't have the quantile yet.
-    ASSERT_EQ(XGDMatrixSaveQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), -1);
+    ASSERT_EQ(XGDMatrixGetQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), -1);
 
     std::array<DMatrixHandle, 1> mats{p_fmat};
     BoosterHandle booster;
@@ -586,7 +598,7 @@ void TestXGDMatrixSaveQuantileCut(Context const *ctx) {
       ASSERT_EQ(XGBoosterSetParam(booster, "tree_method", "gpu_hist"), 0);
     }
     ASSERT_EQ(XGBoosterUpdateOneIter(booster, 0, p_fmat), 0);
-    ASSERT_EQ(XGDMatrixSaveQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), 0);
+    ASSERT_EQ(XGDMatrixGetQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), 0);
 
     XGDMatrixFree(p_fmat);
     XGBoosterFree(booster);

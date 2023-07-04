@@ -3,7 +3,7 @@
  */
 #include "xgboost/c_api.h"
 
-#include <algorithm>                         // for copy
+#include <algorithm>                         // for copy, transform
 #include <cinttypes>                         // for strtoimax
 #include <cmath>                             // for nan
 #include <cstring>                           // for strcmp
@@ -832,8 +832,8 @@ void GetCutImpl(Context const *ctx, std::shared_ptr<DMatrix> p_m,
 }
 }  // namespace
 
-XGB_DLL int XGDMatrixSaveQuantileCut(DMatrixHandle const handle, char const *config,
-                                     bst_ulong **out_indptr, float **out_data) {
+XGB_DLL int XGDMatrixGetQuantileCut(DMatrixHandle const handle, char const *config,
+                                    char const **out_indptr, char const **out_data) {
   API_BEGIN();
   CHECK_HANDLE();
 
@@ -846,9 +846,10 @@ XGB_DLL int XGDMatrixSaveQuantileCut(DMatrixHandle const handle, char const *con
   auto jconfig = Json::Load(StringView{config});
 
   if (!p_m->PageExists<GHistIndexMatrix>() && !p_m->PageExists<EllpackPage>()) {
-    LOG(FATAL) << "The DMatrix hasn't been used for training yet.";
+    LOG(FATAL) << "The quantile cut hasn't been generated yet. Unless this is a `QuantileDMatrix`, "
+                  "quantile cut is generated during training.";
   }
-
+  // Get return buffer
   auto &data = p_m->GetThreadLocal().ret_vec_float;
   auto &indptr = p_m->GetThreadLocal().ret_vec_u64;
 
@@ -860,8 +861,24 @@ XGB_DLL int XGDMatrixSaveQuantileCut(DMatrixHandle const handle, char const *con
     GetCutImpl<EllpackPage>(&ctx, p_m, &indptr, &data);
   }
 
-  *out_indptr = indptr.data();
-  *out_data = data.data();
+  // Create a CPU context
+  Context ctx;
+  // Get return buffer
+  auto &ret_vec_str = p_m->GetThreadLocal().ret_vec_str;
+  ret_vec_str.clear();
+
+  ret_vec_str.emplace_back(linalg::ArrayInterfaceStr(
+      linalg::MakeTensorView(&ctx, common::Span{indptr.data(), indptr.size()}, indptr.size())));
+  ret_vec_str.emplace_back(linalg::ArrayInterfaceStr(
+      linalg::MakeTensorView(&ctx, common::Span{data.data(), data.size()}, data.size())));
+
+  auto &charp_vecs = p_m->GetThreadLocal().ret_vec_charp;
+  charp_vecs.resize(ret_vec_str.size());
+  std::transform(ret_vec_str.cbegin(), ret_vec_str.cend(), charp_vecs.begin(),
+                 [](auto const &str) { return str.c_str(); });
+
+  *out_indptr = charp_vecs[0];
+  *out_data = charp_vecs[1];
   API_END();
 }
 

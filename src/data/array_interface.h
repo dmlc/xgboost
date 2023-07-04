@@ -455,7 +455,7 @@ class ArrayInterface {
 
   explicit ArrayInterface(std::string const &str) : ArrayInterface{StringView{str}} {}
 
-  explicit ArrayInterface(StringView str) : ArrayInterface<D>{Json::Load(str)} {}
+  explicit ArrayInterface(StringView str) : ArrayInterface{Json::Load(str)} {}
 
   void AssignType(StringView typestr) {
     using T = ArrayInterfaceHandler::Type;
