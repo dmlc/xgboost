@@ -504,18 +504,17 @@ void CheckResult(Context const *ctx, bst_feature_t n_features, std::shared_ptr<D
     auto const &vals = cut.Values();
     auto const &mins = cut.MinValues();
     for (bst_feature_t f = 0; f < Xy->Info().num_col_; ++f) {
-      ASSERT_EQ(mins[f], out_data[0]);
-      ASSERT_EQ(ptrs[f], out_indptr[f]);
-      out_data += 1;
-      auto beg = ptrs[f];
-      auto end = ptrs[f + 1];
-      for (auto i = beg; i < end; ++i) {
-        ASSERT_EQ(vals[i], out_data[0]);
-        out_data += 1;
+      ASSERT_EQ(ptrs[f] + f, out_indptr[f]);
+      ASSERT_EQ(mins[f], out_data[out_indptr[f]]);
+      auto beg = out_indptr[f];
+      auto end = out_indptr[f + 1];
+      auto val_beg = ptrs[f];
+      for (std::uint64_t i = beg + 1, j = val_beg; i < end; ++i, ++j) {
+        ASSERT_EQ(vals[j], out_data[i]);
       }
     }
 
-    ASSERT_EQ(ptrs[n_features], out_indptr[n_features]);
+    ASSERT_EQ(ptrs[n_features] + n_features, out_indptr[n_features]);
   }
 }
 

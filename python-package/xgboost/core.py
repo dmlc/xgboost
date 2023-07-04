@@ -1060,6 +1060,21 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         )
         return ret
 
+    def get_quantile_cut(self) -> Tuple[np.ndarray, np.ndarray]:
+        """Get quantile cuts for quantisation."""
+        c_indptr = ctypes.POINTER(c_bst_ulong)()
+        c_data = ctypes.POINTER(ctypes.c_float)()
+        config = make_jcargs()
+        _check_call(
+            _LIB.XGDMatrixSaveQuantileCut(
+                self.handle, config, ctypes.byref(c_indptr), ctypes.byref(c_data)
+            )
+        )
+        n_features = self.num_col()
+        indptr = ctypes2numpy(c_indptr, n_features + 1, np.uint64)
+        data = ctypes2numpy(c_data, int(indptr[-1]), np.float32)
+        return indptr, data
+
     def num_row(self) -> int:
         """Get the number of rows in the DMatrix."""
         ret = c_bst_ulong()
