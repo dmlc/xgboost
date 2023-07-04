@@ -97,7 +97,6 @@ amount of memory:
     array = np.array(...)
 
 You can find some more specific memory reduction practices scattered through the documents
-For instances: :doc:`/tutorials/dask`, :doc:`/gpu/index`,
-:doc:`/contrib/scaling`. However, before going into these, being conscious about making
-data copies is a good starting point. It usually consumes a lot more memory than people
-expect.
+For instances: :doc:`/tutorials/dask`, :doc:`/gpu/index`. However, before going into
+these, being conscious about making data copies is a good starting point. It usually
+consumes a lot more memory than people expect.
