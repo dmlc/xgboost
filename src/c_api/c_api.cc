@@ -24,6 +24,7 @@
 #include "../common/io.h"                    // for FileExtension, LoadSequentialFile, MemoryBuf...
 #include "../common/threading_utils.h"       // for OmpGetNumThreads, ParallelFor
 #include "../data/adapter.h"                 // for ArrayAdapter, DenseAdapter, RecordBatchesIte...
+#include "../data/ellpack_page.h"            // for EllpackPage
 #include "../data/proxy_dmatrix.h"           // for DMatrixProxy
 #include "../data/simple_dmatrix.h"          // for SimpleDMatrix
 #include "c_api_error.h"                     // for xgboost_CHECK_C_ARG_PTR, API_END, API_BEGIN
@@ -783,6 +784,41 @@ XGB_DLL int XGDMatrixGetDataAsCSR(DMatrixHandle const handle, char const *config
   API_END();
 }
 
+namespace {
+template <typename Page>
+void GetCutImpl(Context const *ctx, std::shared_ptr<DMatrix> p_m,
+                std::vector<std::uint64_t> *p_indptr, std::vector<float> *p_data) {
+  auto &indptr = *p_indptr;
+  auto &data = *p_data;
+  for (auto const &page : p_m->GetBatches<Page>(ctx, {})) {
+    auto const &cut = page.Cuts();
+
+    auto const &ptrs = cut.Ptrs();
+    indptr.resize(ptrs.size());
+    std::copy_n(ptrs.cbegin(), ptrs.size(), indptr.data());
+
+    auto const &vals = cut.Values();
+    auto const &mins = cut.MinValues();
+
+    CHECK_EQ(indptr.back(), vals.size());
+    bst_feature_t n_features = p_m->Info().num_col_;
+    data.resize(vals.size() + n_features);  // |vals| + |mins|
+    std::size_t i{0};
+    for (bst_feature_t fidx = 0; fidx < n_features; ++fidx) {
+      CHECK_LT(i, data.size());
+      data[i] = mins[fidx];
+      i++;
+      auto beg = ptrs[fidx];
+      auto end = ptrs[fidx + 1];
+      CHECK_LE(end, data.size());
+      std::copy(vals.cbegin() + beg, vals.cbegin() + end, data.begin() + i);
+      i += (end - beg);
+    }
+    break;
+  }
+}
+}  // namespace
+
 XGB_DLL int XGDMatrixSaveQuantileCut(DMatrixHandle const handle, char const *config,
                                      bst_ulong **out_indptr, float **out_data) {
   API_BEGIN();
@@ -802,32 +838,13 @@ XGB_DLL int XGDMatrixSaveQuantileCut(DMatrixHandle const handle, char const *con
 
   auto &data = p_m->GetThreadLocal().ret_vec_float;
   auto &indptr = p_m->GetThreadLocal().ret_vec_u64;
-  Context ctx;
 
-  for (auto const &page : p_m->GetBatches<GHistIndexMatrix>(&ctx, {})) {
-    auto const &cut = page.cut;
-
-    auto const &ptrs = cut.Ptrs();
-    indptr.resize(ptrs.size());
-    std::copy_n(ptrs.cbegin(), ptrs.size(), indptr.data());
-
-    auto const &vals = cut.Values();
-    auto const &mins = cut.MinValues();
-
-    CHECK_EQ(indptr.back(), vals.size());
-    data.resize(vals.size() + page.Features());  // |vals| + |mins|
-    std::size_t i{0};
-    for (bst_feature_t fidx = 0; fidx < page.Features(); ++fidx) {
-      CHECK_LT(i, data.size());
-      data[i] = mins[fidx];
-      i++;
-      auto beg = ptrs[fidx];
-      auto end = ptrs[fidx + 1];
-      CHECK_LE(end, data.size());
-      std::copy(vals.cbegin() + beg, vals.cbegin() + end, data.begin() + i);
-      i += (end - beg);
-    }
-    break;
+  if (p_m->PageExists<GHistIndexMatrix>()) {
+    auto ctx = p_m->Ctx()->IsCPU() ? *p_m->Ctx() : p_m->Ctx()->MakeCPU();
+    GetCutImpl<GHistIndexMatrix>(&ctx, p_m, &indptr, &data);
+  } else {
+    auto ctx = p_m->Ctx()->IsCUDA() ? *p_m->Ctx() : p_m->Ctx()->MakeCUDA(0);
+    GetCutImpl<EllpackPage>(&ctx, p_m, &indptr, &data);
   }
 
   *out_indptr = indptr.data();

@@ -413,6 +413,18 @@ std::shared_ptr<DMatrix> RandomDataGenerator::GenerateQuantileDMatrix() {
   return m;
 }
 
+#if !defined(XGBOOST_USE_CUDA)
+CudaArrayIterForTest::CudaArrayIterForTest(float sparsity, size_t rows, size_t cols, size_t batches)
+    : ArrayIterForTest{sparsity, rows, cols, batches} {
+  common::AssertGPUSupport();
+}
+
+int CudaArrayIterForTest::Next() {
+  common::AssertGPUSupport();
+  return 0;
+}
+#endif  // !defined(XGBOOST_USE_CUDA)
+
 NumpyArrayIterForTest::NumpyArrayIterForTest(float sparsity, size_t rows, size_t cols,
                                              size_t batches)
     : ArrayIterForTest{sparsity, rows, cols, batches} {

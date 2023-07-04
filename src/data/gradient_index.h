@@ -245,6 +245,9 @@ class GHistIndexMatrix {
                                 std::vector<float> const& values, std::vector<float> const& mins,
                                 bst_row_t ridx, bst_feature_t fidx, bool is_cat) const;
 
+  [[nodiscard]] common::HistogramCuts& Cuts() { return cut; }
+  [[nodiscard]] common::HistogramCuts const& Cuts() const { return cut; }
+
  private:
   std::unique_ptr<common::ColumnMatrix> columns_;
   std::vector<size_t> hit_count_tloc_;

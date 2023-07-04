@@ -1,17 +1,18 @@
-/*!
- * Copyright 2019 by XGBoost Contributors
+/**
+ * Copyright 2019-2023, XGBoost Contributors
  */
 
-#ifndef XGBOOST_DATA_ELLPACK_PAGE_H_
-#define XGBOOST_DATA_ELLPACK_PAGE_H_
+#ifndef XGBOOST_DATA_ELLPACK_PAGE_CUH_
+#define XGBOOST_DATA_ELLPACK_PAGE_CUH_
 
+#include <thrust/binary_search.h>
 #include <xgboost/data.h>
 
+#include "../common/categorical.h"
 #include "../common/compressed_iterator.h"
 #include "../common/device_helpers.cuh"
 #include "../common/hist_util.h"
-#include "../common/categorical.h"
-#include <thrust/binary_search.h>
+#include "ellpack_page.h"
 
 namespace xgboost {
 /** \brief Struct for accessing and manipulating an ELLPACK matrix on the
@@ -194,8 +195,8 @@ class EllpackPageImpl {
     base_rowid = row_id;
   }
 
-  common::HistogramCuts& Cuts() { return cuts_; }
-  common::HistogramCuts const& Cuts() const { return cuts_; }
+  [[nodiscard]] common::HistogramCuts& Cuts() { return cuts_; }
+  [[nodiscard]] common::HistogramCuts const& Cuts() const { return cuts_; }
 
   /*! \return Estimation of memory cost of this page. */
   static size_t MemCostBytes(size_t num_rows, size_t row_stride, const common::HistogramCuts&cuts) ;
@@ -256,4 +257,4 @@ inline size_t GetRowStride(DMatrix* dmat) {
 }
 }  // namespace xgboost
 
-#endif  // XGBOOST_DATA_ELLPACK_PAGE_H_
+#endif  // XGBOOST_DATA_ELLPACK_PAGE_CUH_
