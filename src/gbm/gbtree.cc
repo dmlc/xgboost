@@ -18,7 +18,7 @@
 #include <vector>
 
 #include "../common/common.h"
-#include "../common/error_msg.h"  // for UnknownDevice, InplacePredictProxy
+#include "../common/error_msg.h"  // for UnknownDevice, WarnOldSerialization, InplacePredictProxy
 #include "../common/random.h"
 #include "../common/threading_utils.h"
 #include "../common/timer.h"
@@ -391,19 +391,32 @@ void GBTree::LoadConfig(Json const& in) {
     LOG(WARNING) << msg << "  Changing `tree_method` to `hist`.";
   }
 
-  auto const& j_updaters = get<Object const>(in["updater"]);
+  std::vector<Json> updater_seq;
+  if (IsA<Object>(in["updater"])) {
+    // before 2.0
+    error::WarnOldSerialization();
+    for (auto const& kv : get<Object const>(in["updater"])) {
+      auto name = kv.first;
+      auto config = kv.second;
+      config["name"] = name;
+      updater_seq.push_back(config);
+    }
+  } else {
+    // after 2.0
+    auto const& j_updaters = get<Array const>(in["updater"]);
+    updater_seq = j_updaters;
+  }
+
   updaters_.clear();
 
-  for (auto const& kv : j_updaters) {
-    auto name = kv.first;
+  for (auto const& config : updater_seq) {
+    auto name = get<String>(config["name"]);
     if (n_gpus == 0 && name == "grow_gpu_hist") {
       name = "grow_quantile_histmaker";
       LOG(WARNING) << "Changing updater from `grow_gpu_hist` to `grow_quantile_histmaker`.";
     }
-    std::unique_ptr<TreeUpdater> up{
-        TreeUpdater::Create(name, ctx_, &model_.learner_model_param->task)};
-    up->LoadConfig(kv.second);
-    updaters_.push_back(std::move(up));
+    updaters_.emplace_back(TreeUpdater::Create(name, ctx_, &model_.learner_model_param->task));
+    updaters_.back()->LoadConfig(config);
   }
 
   specified_updater_ = get<Boolean>(in["specified_updater"]);
@@ -425,13 +438,14 @@ void GBTree::SaveConfig(Json* p_out) const {
   // language binding doesn't need to know about the forest size.
   out["gbtree_model_param"] = ToJson(model_.param);
 
-  out["updater"] = Object();
+  out["updater"] = Array{};
+  auto& j_updaters = get<Array>(out["updater"]);
 
-  auto& j_updaters = out["updater"];
-  for (auto const& up : updaters_) {
-    j_updaters[up->Name()] = Object();
-    auto& j_up = j_updaters[up->Name()];
-    up->SaveConfig(&j_up);
+  for (auto const& up : this->updaters_) {
+    Json up_config{Object{}};
+    up_config["name"] = String{up->Name()};
+    up->SaveConfig(&up_config);
+    j_updaters.emplace_back(up_config);
   }
   out["specified_updater"] = Boolean{specified_updater_};
 }

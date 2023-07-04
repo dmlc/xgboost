@@ -174,32 +174,52 @@ TEST(GBTree, JsonIO) {
   Context ctx;
   LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
 
-  std::unique_ptr<GradientBooster> gbm {
-    CreateTrainedGBM("gbtree", Args{}, kRows, kCols, &mparam, &ctx) };
+  std::unique_ptr<GradientBooster> gbm{
+      CreateTrainedGBM("gbtree", Args{{"tree_method", "exact"}, {"default_direction", "left"}},
+                       kRows, kCols, &mparam, &ctx)};
 
-  Json model {Object()};
+  Json model{Object()};
   model["model"] = Object();
-  auto& j_model = model["model"];
+  auto j_model = model["model"];
 
   model["config"] = Object();
-  auto& j_param = model["config"];
+  auto j_config = model["config"];
 
   gbm->SaveModel(&j_model);
-  gbm->SaveConfig(&j_param);
+  gbm->SaveConfig(&j_config);
 
   std::string model_str;
   Json::Dump(model, &model_str);
 
   model = Json::Load({model_str.c_str(), model_str.size()});
-  ASSERT_EQ(get<String>(model["model"]["name"]), "gbtree");
+  j_model = model["model"];
+  j_config = model["config"];
+  ASSERT_EQ(get<String>(j_model["name"]), "gbtree");
 
-  auto const& gbtree_model = model["model"]["model"];
+  auto gbtree_model = j_model["model"];
   ASSERT_EQ(get<Array>(gbtree_model["trees"]).size(), 1ul);
   ASSERT_EQ(get<Integer>(get<Object>(get<Array>(gbtree_model["trees"]).front()).at("id")), 0);
   ASSERT_EQ(get<Array>(gbtree_model["tree_info"]).size(), 1ul);
-
-  auto j_train_param = model["config"]["gbtree_model_param"];
+  auto j_train_param = j_config["gbtree_model_param"];
   ASSERT_EQ(get<String>(j_train_param["num_parallel_tree"]), "1");
+
+  auto check_config = [](Json j_up_config) {
+    auto colmaker = get<Array const>(j_up_config).front();
+    auto pruner = get<Array const>(j_up_config).back();
+    ASSERT_EQ(get<String const>(colmaker["name"]), "grow_colmaker");
+    ASSERT_EQ(get<String const>(pruner["name"]), "prune");
+    ASSERT_EQ(get<String const>(colmaker["colmaker_train_param"]["default_direction"]), "left");
+  };
+  check_config(j_config["updater"]);
+
+  std::unique_ptr<GradientBooster> loaded(gbm::GBTree::Create("gbtree", &ctx, &mparam));
+  loaded->LoadModel(j_model);
+  loaded->LoadConfig(j_config);
+
+  // roundtrip test
+  Json j_config_rt{Object{}};
+  loaded->SaveConfig(&j_config_rt);
+  check_config(j_config_rt["updater"]);
 }
 
 TEST(Dart, JsonIO) {
