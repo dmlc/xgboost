@@ -20,6 +20,7 @@
 #include "../collective/communicator-inl.h"  // for Allreduce, Broadcast, Finalize, GetProcessor...
 #include "../common/api_entry.h"             // for XGBAPIThreadLocalEntry
 #include "../common/charconv.h"              // for from_chars, to_chars, NumericLimits, from_ch...
+#include "../common/hist_util.h"             // for HistogramCuts
 #include "../common/io.h"                    // for FileExtension, LoadSequentialFile, MemoryBuf...
 #include "../common/threading_utils.h"       // for OmpGetNumThreads, ParallelFor
 #include "../data/adapter.h"                 // for ArrayAdapter, DenseAdapter, RecordBatchesIte...
@@ -779,6 +780,58 @@ XGB_DLL int XGDMatrixGetDataAsCSR(DMatrixHandle const handle, char const *config
     });
   }
 
+  API_END();
+}
+
+XGB_DLL int XGDMatrixSaveQuantileCut(DMatrixHandle const handle, char const *config,
+                                     bst_ulong **out_indptr, float **out_data) {
+  API_BEGIN();
+  CHECK_HANDLE();
+
+  auto p_m = CastDMatrixHandle(handle);
+
+  xgboost_CHECK_C_ARG_PTR(config);
+  xgboost_CHECK_C_ARG_PTR(out_indptr);
+  xgboost_CHECK_C_ARG_PTR(out_data);
+
+  auto jconfig = Json::Load(StringView{config});
+
+  if (!p_m->PageExists<GHistIndexMatrix>() && !p_m->PageExists<EllpackPage>()) {
+    LOG(FATAL) << "The DMatrix hasn't been used for training yet.";
+  }
+
+  auto &data = p_m->GetThreadLocal().ret_vec_float;
+  auto &indptr = p_m->GetThreadLocal().ret_vec_u64;
+  Context ctx;
+
+  for (auto const &page : p_m->GetBatches<GHistIndexMatrix>(&ctx, {})) {
+    auto const &cut = page.cut;
+
+    auto const &ptrs = cut.Ptrs();
+    indptr.resize(ptrs.size());
+    std::copy_n(ptrs.cbegin(), ptrs.size(), indptr.data());
+
+    auto const &vals = cut.Values();
+    auto const &mins = cut.MinValues();
+
+    CHECK_EQ(indptr.back(), vals.size());
+    data.resize(vals.size() + page.Features());  // |vals| + |mins|
+    std::size_t i{0};
+    for (bst_feature_t fidx = 0; fidx < page.Features(); ++fidx) {
+      CHECK_LT(i, data.size());
+      data[i] = mins[fidx];
+      i++;
+      auto beg = ptrs[fidx];
+      auto end = ptrs[fidx + 1];
+      CHECK_LE(end, data.size());
+      std::copy(vals.cbegin() + beg, vals.cbegin() + end, data.begin() + i);
+      i += (end - beg);
+    }
+    break;
+  }
+
+  *out_indptr = indptr.data();
+  *out_data = data.data();
   API_END();
 }
 

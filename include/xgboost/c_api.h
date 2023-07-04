@@ -810,7 +810,7 @@ XGB_DLL int XGDMatrixNumCol(DMatrixHandle handle,
  */
 XGB_DLL int XGDMatrixNumNonMissing(DMatrixHandle handle, bst_ulong *out);
 
-/*!
+/**
  * \brief Get the predictors from DMatrix as CSR matrix for testing.  If this is a
  *        quantized DMatrix, quantized values are returned instead.
  *
@@ -818,6 +818,8 @@ XGB_DLL int XGDMatrixNumNonMissing(DMatrixHandle handle, bst_ulong *out);
  * allocate the memory for return buffer instead of using thread local memory from
  * XGBoost. This is to avoid allocating a huge memory buffer that can not be freed until
  * exiting the thread.
+ *
+ * @since 1.7.0
  *
  * \param handle the handle to the DMatrix
  * \param config Json configuration string. At the moment it should be an empty document,
@@ -830,6 +832,22 @@ XGB_DLL int XGDMatrixNumNonMissing(DMatrixHandle handle, bst_ulong *out);
  */
 XGB_DLL int XGDMatrixGetDataAsCSR(DMatrixHandle const handle, char const *config,
                                   bst_ulong *out_indptr, unsigned *out_indices, float *out_data);
+
+/**
+ * @brief Export the quantile cuts used for training histogram-based models like `hist` and
+ *        `approx`. Useful for model compression.
+ *
+ * @since 2.0.0
+ *
+ * @param handle the handle to the DMatrix
+ * @param config Json configuration string. At the moment it should be an empty document,
+ *               preserved for future use.
+ *
+ * @param out_indptr  indptr of output CSC matrix.
+ * @param out_data    Data value of CSC matrix.
+ */
+XGB_DLL int XGDMatrixSaveQuantileCut(DMatrixHandle const handle, char const *config,
+                                       bst_ulong **out_indptr, float **out_data);
 
 /** @} */  // End of DMatrix
 

@@ -15,6 +15,8 @@
 
 #include "../../../src/c_api/c_api_error.h"
 #include "../../../src/common/io.h"
+#include "../../../src/data/adapter.h"         // for ArrayAdapter
+#include "../../../src/data/gradient_index.h"  // for GHistIndexMatrix
 #include "../helpers.h"
 
 TEST(CAPI, XGDMatrixCreateFromMatDT) {
@@ -403,6 +405,74 @@ TEST(CAPI, JArgs) {
     ASSERT_THROW({ RequiredArg<Integer>(args, "key", __func__); }, dmlc::Error);
     ASSERT_THROW({ RequiredArg<String const>(args, "foo", __func__); }, dmlc::Error);
     ASSERT_THROW({ RequiredArg<String>(args, "null", __func__); }, dmlc::Error);
+  }
+}
+
+TEST(CAPI, XGDMatrixSaveQuantileCut) {
+  bst_row_t n_samples{1024};
+  bst_feature_t n_features{16};
+  HostDeviceVector<float> storage;
+  auto arr_int = RandomDataGenerator{n_samples, n_features, 0.5f}.GenerateArrayInterface(&storage);
+
+  std::vector<float> y(n_samples);
+  for (std::size_t i = 0; i < y.size(); ++i) {
+    y[i] = static_cast<float>(i);
+  }
+
+  data::ArrayAdapter adapter{StringView{arr_int}};
+  std::shared_ptr<DMatrix> Xy{
+      DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), Context{}.Threads())};
+  Xy->Info().labels.Reshape(n_samples);
+  Xy->Info().labels.Data()->HostVector() = y;
+
+  DMatrixHandle p_fmat;
+  {
+    Json config{Object{}};
+    config["ntread"] = Integer{Context{}.Threads()};
+    config["missing"] = Number{std::numeric_limits<float>::quiet_NaN()};
+    std::string s_config;
+    Json::Dump(config, &s_config);
+    ASSERT_EQ(XGDMatrixCreateFromDense(arr_int.c_str(), s_config.c_str(), &p_fmat), 0);
+    auto y_int = GetArrayInterface(Xy->Info().labels.Data(), n_samples, 1);
+    std::string s_y_int;
+    Json::Dump(y_int, &s_y_int);
+    XGDMatrixSetInfoFromInterface(p_fmat, "label", s_y_int.c_str());
+  }
+
+  Json config{Null{}};
+  std::string s_config;
+  Json::Dump(config, &s_config);
+  bst_ulong *out_indptr;
+  float *out_data;
+  ASSERT_EQ(XGDMatrixSaveQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), -1);
+
+  std::array<DMatrixHandle, 1> mats{p_fmat};
+  BoosterHandle booster;
+  ASSERT_EQ(XGBoosterCreate(mats.data(), 1, &booster), 0);
+  ASSERT_EQ(XGBoosterSetParam(booster, "max_bin", "16"), 0);
+  ASSERT_EQ(XGBoosterUpdateOneIter(booster, 0, p_fmat), 0) << XGBGetLastError();
+  ASSERT_EQ(XGBoosterUpdateOneIter(booster, 1, p_fmat), 0);
+  ASSERT_EQ(XGDMatrixSaveQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), 0);
+
+  Context ctx;
+  for (auto const &page : Xy->GetBatches<GHistIndexMatrix>(&ctx, BatchParam{16, 0.2})) {
+    auto const &cut = page.cut;
+    auto const &ptrs = cut.Ptrs();
+    auto const &vals = cut.Values();
+    auto const &mins = cut.MinValues();
+    for (bst_feature_t f = 0; f < Xy->Info().num_col_; ++f) {
+      ASSERT_EQ(mins[f], out_data[0]);
+      ASSERT_EQ(ptrs[f], out_indptr[f]);
+      out_data += 1;
+      auto beg = ptrs[f];
+      auto end = ptrs[f + 1];
+      for (auto i = beg; i < end; ++i) {
+        ASSERT_EQ(vals[i], out_data[0]);
+        out_data += 1;
+      }
+    }
+
+    ASSERT_EQ(ptrs[n_features], out_indptr[n_features]);
   }
 }
 }  // namespace xgboost
