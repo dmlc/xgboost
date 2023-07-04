@@ -4,6 +4,8 @@
 #ifndef XGBOOST_DATA_ELLPACK_PAGE_H_
 #define XGBOOST_DATA_ELLPACK_PAGE_H_
 
+#include <memory>  // for unique_ptr
+
 #include "../common/hist_util.h"  // for HistogramCuts
 #include "xgboost/context.h"      // for Context
 #include "xgboost/data.h"         // for DMatrix, BatchParam

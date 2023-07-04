@@ -4,6 +4,10 @@
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/transform_output_iterator.h>
 
+#include <algorithm>  // for copy
+#include <utility>    // for move
+#include <vector>     // for vector
+
 #include "../common/categorical.h"
 #include "../common/cuda_context.cuh"
 #include "../common/hist_util.cuh"
