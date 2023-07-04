@@ -18,6 +18,7 @@
 #include "../../../src/data/adapter.h"            // for ArrayAdapter
 #include "../../../src/data/gradient_index.h"     // for GHistIndexMatrix
 #include "../../../src/data/iterative_dmatrix.h"  // for IterativeDMatrix
+#include "../../../src/data/sparse_page_dmatrix.h"  // for SparsePageDMatrix
 #include "../helpers.h"
 
 TEST(CAPI, XGDMatrixCreateFromMatDT) {
@@ -409,88 +410,160 @@ TEST(CAPI, JArgs) {
   }
 }
 
-TEST(CAPI, XGDMatrixSaveQuantileCut) {
-  bst_row_t n_samples{1024};
-  bst_feature_t n_features{16};
-  HostDeviceVector<float> storage;
-  auto arr_int = RandomDataGenerator{n_samples, n_features, 0.5f}.GenerateArrayInterface(&storage);
-
+namespace {
+void MakeLabelForTest(std::shared_ptr<DMatrix> Xy, DMatrixHandle cxy) {
+  auto n_samples = Xy->Info().num_row_;
   std::vector<float> y(n_samples);
   for (std::size_t i = 0; i < y.size(); ++i) {
     y[i] = static_cast<float>(i);
   }
 
-  data::ArrayAdapter adapter{StringView{arr_int}};
-  std::shared_ptr<DMatrix> Xy{
-      DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), Context{}.Threads())};
   Xy->Info().labels.Reshape(n_samples);
   Xy->Info().labels.Data()->HostVector() = y;
 
+  auto y_int = GetArrayInterface(Xy->Info().labels.Data(), n_samples, 1);
+  std::string s_y_int;
+  Json::Dump(y_int, &s_y_int);
+
+  XGDMatrixSetInfoFromInterface(cxy, "label", s_y_int.c_str());
+}
+
+auto MakeSimpleDMatrixForTest(bst_row_t n_samples, bst_feature_t n_features, Json dconfig) {
+  HostDeviceVector<float> storage;
+  auto arr_int = RandomDataGenerator{n_samples, n_features, 0.5f}.GenerateArrayInterface(&storage);
+
+  data::ArrayAdapter adapter{StringView{arr_int}};
+  std::shared_ptr<DMatrix> Xy{
+      DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), Context{}.Threads())};
+
   DMatrixHandle p_fmat;
-  {
-    Json config{Object{}};
-    config["ntread"] = Integer{Context{}.Threads()};
-    config["missing"] = Number{std::numeric_limits<float>::quiet_NaN()};
-    std::string s_config;
-    Json::Dump(config, &s_config);
-    ASSERT_EQ(XGDMatrixCreateFromDense(arr_int.c_str(), s_config.c_str(), &p_fmat), 0);
-    auto y_int = GetArrayInterface(Xy->Info().labels.Data(), n_samples, 1);
-    std::string s_y_int;
-    Json::Dump(y_int, &s_y_int);
-    XGDMatrixSetInfoFromInterface(p_fmat, "label", s_y_int.c_str());
-  }
+  std::string s_dconfig;
+  Json::Dump(dconfig, &s_dconfig);
+  CHECK_EQ(XGDMatrixCreateFromDense(arr_int.c_str(), s_dconfig.c_str(), &p_fmat), 0);
+
+  MakeLabelForTest(Xy, p_fmat);
+  return std::pair{p_fmat, Xy};
+}
+
+auto MakeQDMForTest(bst_row_t n_samples, bst_feature_t n_features, Json dconfig) {
+  bst_bin_t n_bins{16};
+  dconfig["max_bin"] = Integer{n_bins};
+
+  std::size_t n_batches{4};
+  NumpyArrayIterForTest iter_0{0.0f, n_samples, n_features, n_batches};
+  auto proxy = iter_0.Proxy();
+  std::string s_dconfig;
+  Json::Dump(dconfig, &s_dconfig);
+  DMatrixHandle p_fmat;
+  CHECK_EQ(XGQuantileDMatrixCreateFromCallback(static_cast<DataIterHandle>(&iter_0), proxy, nullptr,
+                                               Reset, Next, s_dconfig.c_str(), &p_fmat),
+           0);
+
+  NumpyArrayIterForTest iter_1{0.0f, n_samples, n_features, n_batches};
+  auto Xy =
+      std::make_shared<data::IterativeDMatrix>(&iter_1, iter_1.Proxy(), nullptr, Reset, Next,
+                                               std::numeric_limits<float>::quiet_NaN(), 0, n_bins);
+  return std::pair{p_fmat, Xy};
+}
+
+auto MakeExtMemForTest(bst_row_t n_samples, bst_feature_t n_features, Json dconfig) {
+  std::size_t n_batches{4};
+  NumpyArrayIterForTest iter_0{0.0f, n_samples, n_features, n_batches};
+  auto proxy = iter_0.Proxy();
+  std::string s_dconfig;
+  dconfig["cache_prefix"] = String{"cache"};
+  Json::Dump(dconfig, &s_dconfig);
+  DMatrixHandle p_fmat;
+  CHECK_EQ(XGDMatrixCreateFromCallback(static_cast<DataIterHandle>(&iter_0), proxy, Reset, Next,
+                                       s_dconfig.c_str(), &p_fmat),
+           0);
+
+  NumpyArrayIterForTest iter_1{0.0f, n_samples, n_features, n_batches};
+  auto Xy = std::make_shared<data::SparsePageDMatrix>(
+      &iter_1, iter_1.Proxy(), Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0, "");
+  MakeLabelForTest(Xy, p_fmat);
+  return std::pair{p_fmat, Xy};
+}
+}  // namespace
+
+TEST(CAPI, XGDMatrixSaveQuantileCut) {
+  bst_row_t n_samples{1024};
+  bst_feature_t n_features{16};
+
+  Json dconfig{Object{}};
+  dconfig["ntread"] = Integer{Context{}.Threads()};
+  dconfig["missing"] = Number{std::numeric_limits<float>::quiet_NaN()};
+
+  auto check_result = [n_features](std::shared_ptr<DMatrix> Xy, float const *out_data,
+                                   std::uint64_t const *out_indptr) {
+    Context ctx;
+    for (auto const &page : Xy->GetBatches<GHistIndexMatrix>(&ctx, BatchParam{16, 0.2})) {
+      auto const &cut = page.cut;
+      auto const &ptrs = cut.Ptrs();
+      auto const &vals = cut.Values();
+      auto const &mins = cut.MinValues();
+      for (bst_feature_t f = 0; f < Xy->Info().num_col_; ++f) {
+        ASSERT_EQ(mins[f], out_data[0]);
+        ASSERT_EQ(ptrs[f], out_indptr[f]);
+        out_data += 1;
+        auto beg = ptrs[f];
+        auto end = ptrs[f + 1];
+        for (auto i = beg; i < end; ++i) {
+          ASSERT_EQ(vals[i], out_data[0]);
+          out_data += 1;
+        }
+      }
+
+      ASSERT_EQ(ptrs[n_features], out_indptr[n_features]);
+    }
+  };
 
   Json config{Null{}};
   std::string s_config;
   Json::Dump(config, &s_config);
   bst_ulong *out_indptr;
   float *out_data;
-  ASSERT_EQ(XGDMatrixSaveQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), -1);
 
-  std::array<DMatrixHandle, 1> mats{p_fmat};
-  BoosterHandle booster;
-  ASSERT_EQ(XGBoosterCreate(mats.data(), 1, &booster), 0);
-  ASSERT_EQ(XGBoosterSetParam(booster, "max_bin", "16"), 0);
-  ASSERT_EQ(XGBoosterUpdateOneIter(booster, 0, p_fmat), 0) << XGBGetLastError();
-  ASSERT_EQ(XGBoosterUpdateOneIter(booster, 1, p_fmat), 0);
-  ASSERT_EQ(XGDMatrixSaveQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), 0);
+  {
+    // SimpleDMatrix
+    auto [p_fmat, Xy] = MakeSimpleDMatrixForTest(n_samples, n_features, dconfig);
+    // assert fail, we don't have the quantile yet.
+    ASSERT_EQ(XGDMatrixSaveQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), -1);
 
-  Context ctx;
-  for (auto const &page : Xy->GetBatches<GHistIndexMatrix>(&ctx, BatchParam{16, 0.2})) {
-    auto const &cut = page.cut;
-    auto const &ptrs = cut.Ptrs();
-    auto const &vals = cut.Values();
-    auto const &mins = cut.MinValues();
-    for (bst_feature_t f = 0; f < Xy->Info().num_col_; ++f) {
-      ASSERT_EQ(mins[f], out_data[0]);
-      ASSERT_EQ(ptrs[f], out_indptr[f]);
-      out_data += 1;
-      auto beg = ptrs[f];
-      auto end = ptrs[f + 1];
-      for (auto i = beg; i < end; ++i) {
-        ASSERT_EQ(vals[i], out_data[0]);
-        out_data += 1;
-      }
-    }
+    std::array<DMatrixHandle, 1> mats{p_fmat};
+    BoosterHandle booster;
+    ASSERT_EQ(XGBoosterCreate(mats.data(), 1, &booster), 0);
+    ASSERT_EQ(XGBoosterSetParam(booster, "max_bin", "16"), 0);
+    ASSERT_EQ(XGBoosterUpdateOneIter(booster, 0, p_fmat), 0);
+    ASSERT_EQ(XGDMatrixSaveQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), 0);
 
-    ASSERT_EQ(ptrs[n_features], out_indptr[n_features]);
+    check_result(Xy, out_data, out_indptr);
+
+    XGDMatrixFree(p_fmat);
+    XGBoosterFree(booster);
   }
 
-  XGDMatrixFree(p_fmat);
-  XGBoosterFree(booster);
+  {
+    // IterativeDMatrix
+    auto [p_fmat, Xy] = MakeQDMForTest(n_samples, n_features, dconfig);
+    ASSERT_EQ(XGDMatrixSaveQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), 0);
 
-  std::size_t n_batches{4};
-  NumpyArrayIterForTest iter_0{0.0f, n_samples, n_features, n_batches};
-  auto proxy = iter_0.Proxy();
-  ASSERT_EQ(XGDMatrixCreateFromCallback(static_cast<DataIterHandle>(&iter_0), proxy, Reset, Next,
-                                        s_config.c_str(), &p_fmat),
-            0);
+    check_result(Xy, out_data, out_indptr);
+    XGDMatrixFree(p_fmat);
+  }
 
-  bst_bin_t n_bins{16};
-  NumpyArrayIterForTest iter_1{0.0f, n_samples, n_features, n_batches};
-  auto m =
-      std::make_shared<data::IterativeDMatrix>(&iter_1, iter_1.Proxy(), nullptr, Reset, Next,
-                                               std::numeric_limits<float>::quiet_NaN(), 0, n_bins);
-  ASSERT_EQ(XGDMatrixSaveQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), 0);
+  {
+    // SparsePageDMatrix
+    auto [p_fmat, Xy] = MakeExtMemForTest(n_samples, n_features, dconfig);
+    // assert fail, we don't have the quantile yet.
+    ASSERT_EQ(XGDMatrixSaveQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), -1);
+
+    std::array<DMatrixHandle, 1> mats{p_fmat};
+    BoosterHandle booster;
+    ASSERT_EQ(XGBoosterCreate(mats.data(), 1, &booster), 0);
+    ASSERT_EQ(XGBoosterSetParam(booster, "max_bin", "16"), 0);
+    ASSERT_EQ(XGBoosterUpdateOneIter(booster, 0, p_fmat), 0);
+    ASSERT_EQ(XGDMatrixSaveQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), 0);
+  }
 }
 }  // namespace xgboost
