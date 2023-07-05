@@ -21,8 +21,7 @@
 #include "xgboost/c_api.h"
 #include "xgboost/data.h"
 
-namespace xgboost {
-namespace data {
+namespace xgboost::data {
 MetaInfo& SimpleDMatrix::Info() { return info_; }
 
 const MetaInfo& SimpleDMatrix::Info() const { return info_; }
@@ -97,6 +96,10 @@ BatchSet<SparsePage> SimpleDMatrix::GetRowBatches() {
 BatchSet<CSCPage> SimpleDMatrix::GetColumnBatches(Context const* ctx) {
   // column page doesn't exist, generate it
   if (!column_page_) {
+    auto n = std::numeric_limits<decltype(Entry::index)>::max();
+    if (this->sparse_page_->Size() > n) {
+      error::MaxSampleSize(n);
+    }
     column_page_.reset(new CSCPage(sparse_page_->GetTranspose(info_.num_col_, ctx->Threads())));
   }
   auto begin_iter = BatchIterator<CSCPage>(new SimpleBatchIteratorImpl<CSCPage>(column_page_));
@@ -106,6 +109,10 @@ BatchSet<CSCPage> SimpleDMatrix::GetColumnBatches(Context const* ctx) {
 BatchSet<SortedCSCPage> SimpleDMatrix::GetSortedColumnBatches(Context const* ctx) {
   // Sorted column page doesn't exist, generate it
   if (!sorted_column_page_) {
+    auto n = std::numeric_limits<decltype(Entry::index)>::max();
+    if (this->sparse_page_->Size() > n) {
+      error::MaxSampleSize(n);
+    }
     sorted_column_page_.reset(
         new SortedCSCPage(sparse_page_->GetTranspose(info_.num_col_, ctx->Threads())));
     sorted_column_page_->SortRows(ctx->Threads());
@@ -427,5 +434,4 @@ SimpleDMatrix::SimpleDMatrix(RecordBatchesIterAdapter* adapter, float missing, i
 
   fmat_ctx_ = ctx;
 }
-}  // namespace data
-}  // namespace xgboost
+}  // namespace xgboost::data
