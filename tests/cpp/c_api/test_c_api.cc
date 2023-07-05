@@ -520,7 +520,7 @@ void CheckResult(Context const *ctx, bst_feature_t n_features, std::shared_ptr<D
   }
 }
 
-void TestXGDMatrixSaveQuantileCut(Context const *ctx) {
+void TestXGDMatrixGetQuantileCut(Context const *ctx) {
   bst_row_t n_samples{1024};
   bst_feature_t n_features{16};
 
@@ -606,15 +606,15 @@ void TestXGDMatrixSaveQuantileCut(Context const *ctx) {
 }
 }  // namespace
 
-TEST(CAPI, XGDMatrixSaveQuantileCut) {
+TEST(CAPI, XGDMatrixGetQuantileCut) {
   Context ctx;
-  TestXGDMatrixSaveQuantileCut(&ctx);
+  TestXGDMatrixGetQuantileCut(&ctx);
 }
 
 #if defined(XGBOOST_USE_CUDA)
-TEST(CAPI, GPUXGDMatrixSaveQuantileCut) {
+TEST(CAPI, GPUXGDMatrixGetQuantileCut) {
   auto ctx = MakeCUDACtx(0);
-  TestXGDMatrixSaveQuantileCut(&ctx);
+  TestXGDMatrixGetQuantileCut(&ctx);
 }
 #endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost

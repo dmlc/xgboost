@@ -388,8 +388,7 @@ def from_array_interface(interface: dict) -> NumpyOrCupy:
     class Array:  # pylint: disable=too-few-public-methods
         """Wrapper type for communicating with numpy and cupy."""
 
-        def __init__(self) -> None:
-            self._interface: Optional[dict] = None
+        _interface: Optional[dict] = None
 
         @property
         def __array_interface__(self) -> Optional[dict]:
@@ -401,7 +400,7 @@ def from_array_interface(interface: dict) -> NumpyOrCupy:
             # converts some fields to tuple as required by numpy
             self._interface["shape"] = tuple(self._interface["shape"])
             self._interface["data"] = tuple(self._interface["data"])
-            if self._interface.get("strides") is not None:
+            if self._interface.get("strides", None) is not None:
                 self._interface["strides"] = tuple(self._interface["strides"])
 
         @property
@@ -415,6 +414,7 @@ def from_array_interface(interface: dict) -> NumpyOrCupy:
     arr = Array()
 
     if "stream" in interface:
+        # CUDA stream is presented, this is a __cuda_array_interface__.
         spec = importlib.util.find_spec("cupy")
         if spec is None:
             raise ImportError("`cupy` is required for handling CUDA buffer.")
@@ -1127,10 +1127,12 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         i_indptr = json.loads(c_sindptr.value)
         indptr = from_array_interface(i_indptr)
         assert indptr.size == n_features + 1
+        assert indptr.dtype == np.uint64
 
         i_data = json.loads(c_sdata.value)
         data = from_array_interface(i_data)
         assert data.size == indptr[-1]
+        assert data.dtype == np.float32
         return indptr, data
 
     def num_row(self) -> int:
