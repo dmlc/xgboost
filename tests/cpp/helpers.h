@@ -238,14 +238,17 @@ class RandomDataGenerator {
   bst_target_t n_targets_{1};
 
   std::int32_t device_{Context::kCpuId};
+  std::size_t n_batches_{0};
   std::uint64_t seed_{0};
   SimpleLCG lcg_;
 
-  std::size_t bins_{0};
+  bst_bin_t bins_{0};
   std::vector<FeatureType> ft_;
   bst_cat_t max_cat_;
 
   Json ArrayInterfaceImpl(HostDeviceVector<float>* storage, size_t rows, size_t cols) const;
+
+  void GenerateLabels(std::shared_ptr<DMatrix> p_fmat) const;
 
  public:
   RandomDataGenerator(bst_row_t rows, size_t cols, float sparsity)
@@ -263,12 +266,16 @@ class RandomDataGenerator {
     device_ = d;
     return *this;
   }
+  RandomDataGenerator& Batches(std::size_t n_batches) {
+    n_batches_ = n_batches;
+    return *this;
+  }
   RandomDataGenerator& Seed(uint64_t s) {
     seed_ = s;
     lcg_.Seed(seed_);
     return *this;
   }
-  RandomDataGenerator& Bins(size_t b) {
+  RandomDataGenerator& Bins(bst_bin_t b) {
     bins_ = b;
     return *this;
   }
@@ -309,12 +316,17 @@ class RandomDataGenerator {
   void GenerateCSR(HostDeviceVector<float>* value, HostDeviceVector<bst_row_t>* row_ptr,
                    HostDeviceVector<bst_feature_t>* columns) const;
 
-  std::shared_ptr<DMatrix> GenerateDMatrix(bool with_label = false, bool float_label = true,
-                                           size_t classes = 1) const;
+  [[nodiscard]] std::shared_ptr<DMatrix> GenerateDMatrix(bool with_label = false,
+                                                         bool float_label = true,
+                                                         size_t classes = 1) const;
+
+  [[nodiscard]] std::shared_ptr<DMatrix> GenerateSparsePageDMatrix(std::string prefix,
+                                                                   bool with_label) const;
+
 #if defined(XGBOOST_USE_CUDA)
-  std::shared_ptr<DMatrix> GenerateDeviceDMatrix();
+  std::shared_ptr<DMatrix> GenerateDeviceDMatrix(bool with_label);
 #endif
-  std::shared_ptr<DMatrix> GenerateQuantileDMatrix();
+  std::shared_ptr<DMatrix> GenerateQuantileDMatrix(bool with_label);
 };
 
 // Generate an empty DMatrix, mostly for its meta info.
@@ -443,11 +455,11 @@ class ArrayIterForTest {
   size_t static constexpr Cols() { return 13; }
 
  public:
-  std::string AsArray() const { return interface_; }
+  [[nodiscard]] std::string AsArray() const { return interface_; }
 
   virtual int Next() = 0;
   virtual void Reset() { iter_ = 0; }
-  size_t Iter() const { return iter_; }
+  [[nodiscard]] std::size_t Iter() const { return iter_; }
   auto Proxy() -> decltype(proxy_) { return proxy_; }
 
   explicit ArrayIterForTest(float sparsity, size_t rows, size_t cols, size_t batches);

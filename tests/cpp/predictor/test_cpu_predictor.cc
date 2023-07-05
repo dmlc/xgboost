@@ -216,7 +216,7 @@ void TestUpdatePredictionCache(bool use_subsampling) {
 
 TEST(CPUPredictor, GHistIndex) {
   size_t constexpr kRows{128}, kCols{16}, kBins{64};
-  auto p_hist = RandomDataGenerator{kRows, kCols, 0.0}.Bins(kBins).GenerateQuantileDMatrix();
+  auto p_hist = RandomDataGenerator{kRows, kCols, 0.0}.Bins(kBins).GenerateQuantileDMatrix(false);
   HostDeviceVector<float> storage(kRows * kCols);
   auto columnar = RandomDataGenerator{kRows, kCols, 0.0}.GenerateArrayInterface(&storage);
   auto adapter = data::ArrayAdapter(columnar.c_str());

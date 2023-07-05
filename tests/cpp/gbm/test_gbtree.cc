@@ -514,4 +514,86 @@ TEST(GBTree, PredictRange) {
                  dmlc::Error);
   }
 }
+
+TEST(GBTree, InplacePredictionError) {
+  std::size_t n_samples{2048}, n_features{32};
+
+  auto test_ext_err = [&](std::string booster, Context const* ctx) {
+    std::shared_ptr<DMatrix> p_fmat =
+        RandomDataGenerator{n_samples, n_features, 0.5f}.Batches(2).GenerateSparsePageDMatrix(
+            "cache", true);
+    std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
+    learner->SetParam("booster", booster);
+    ConfigLearnerByCtx(ctx, learner.get());
+    learner->Configure();
+    for (std::int32_t i = 0; i < 3; ++i) {
+      learner->UpdateOneIter(i, p_fmat);
+    }
+    HostDeviceVector<float>* out_predt;
+    ASSERT_THROW(
+        {
+          learner->InplacePredict(p_fmat, PredictionType::kValue,
+                                  std::numeric_limits<float>::quiet_NaN(), &out_predt, 0, 0);
+        },
+        dmlc::Error);
+  };
+
+  {
+    Context ctx;
+    test_ext_err("gbtree", &ctx);
+    test_ext_err("dart", &ctx);
+  }
+
+#if defined(XGBOOST_USE_CUDA)
+  {
+    auto ctx = MakeCUDACtx(0);
+    test_ext_err("gbtree", &ctx);
+    test_ext_err("dart", &ctx);
+  }
+#endif  // defined(XGBOOST_USE_CUDA)
+
+  auto test_qdm_err = [&](std::string booster, Context const* ctx) {
+    std::shared_ptr<DMatrix> p_fmat;
+    bst_bin_t max_bins = 16;
+    auto rng = RandomDataGenerator{n_samples, n_features, 0.5f}.Device(ctx->gpu_id).Bins(max_bins);
+    if (ctx->IsCPU()) {
+      p_fmat = rng.GenerateQuantileDMatrix(true);
+    } else {
+#if defined(XGBOOST_USE_CUDA)
+      p_fmat = rng.GenerateDeviceDMatrix(true);
+#else
+      CHECK(p_fmat);
+#endif  // defined(XGBOOST_USE_CUDA)
+    };
+    std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
+    learner->SetParam("booster", booster);
+    learner->SetParam("max_bin", std::to_string(max_bins));
+    ConfigLearnerByCtx(ctx, learner.get());
+    learner->Configure();
+    for (std::int32_t i = 0; i < 3; ++i) {
+      learner->UpdateOneIter(i, p_fmat);
+    }
+    HostDeviceVector<float>* out_predt;
+    ASSERT_THROW(
+        {
+          learner->InplacePredict(p_fmat, PredictionType::kValue,
+                                  std::numeric_limits<float>::quiet_NaN(), &out_predt, 0, 0);
+        },
+        dmlc::Error);
+  };
+
+  {
+    Context ctx;
+    test_qdm_err("gbtree", &ctx);
+    test_qdm_err("dart", &ctx);
+  }
+
+#if defined(XGBOOST_USE_CUDA)
+  {
+    auto ctx = MakeCUDACtx(0);
+    test_qdm_err("gbtree", &ctx);
+    test_qdm_err("dart", &ctx);
+  }
+#endif  // defined(XGBOOST_USE_CUDA)
+}
 }  // namespace xgboost

@@ -24,10 +24,13 @@ int CudaArrayIterForTest::Next() {
   return 1;
 }
 
-std::shared_ptr<DMatrix> RandomDataGenerator::GenerateDeviceDMatrix() {
+std::shared_ptr<DMatrix> RandomDataGenerator::GenerateDeviceDMatrix(bool with_label) {
   CudaArrayIterForTest iter{this->sparsity_, this->rows_, this->cols_, 1};
   auto m = std::make_shared<data::IterativeDMatrix>(
       &iter, iter.Proxy(), nullptr, Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0, bins_);
+  if (with_label) {
+    this->GenerateLabels(m);
+  }
   return m;
 }
 }  // namespace xgboost

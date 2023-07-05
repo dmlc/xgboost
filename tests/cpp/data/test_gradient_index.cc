@@ -27,26 +27,31 @@
 #include "xgboost/host_device_vector.h"         // for HostDeviceVector
 
 namespace xgboost::data {
-TEST(GradientIndex, ExternalMemory) {
+TEST(GradientIndex, ExternalMemoryBaseRowID) {
   Context ctx;
-  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(10000);
+  auto p_fmat = RandomDataGenerator{4096, 256, 0.5}
+                    .Device(ctx.gpu_id)
+                    .Batches(8)
+                    .GenerateSparsePageDMatrix("cache", true);
+
   std::vector<size_t> base_rowids;
-  std::vector<float> hessian(dmat->Info().num_row_, 1);
-  for (auto const &page : dmat->GetBatches<GHistIndexMatrix>(&ctx, {64, hessian, true})) {
+  std::vector<float> hessian(p_fmat->Info().num_row_, 1);
+  for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(&ctx, {64, hessian, true})) {
     base_rowids.push_back(page.base_rowid);
   }
-  size_t i = 0;
-  for (auto const &page : dmat->GetBatches<SparsePage>()) {
+
+  std::size_t i = 0;
+  for (auto const &page : p_fmat->GetBatches<SparsePage>()) {
     ASSERT_EQ(base_rowids[i], page.base_rowid);
     ++i;
   }
 
   base_rowids.clear();
-  for (auto const &page : dmat->GetBatches<GHistIndexMatrix>(&ctx, {64, hessian, false})) {
+  for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(&ctx, {64, hessian, false})) {
     base_rowids.push_back(page.base_rowid);
   }
   i = 0;
-  for (auto const &page : dmat->GetBatches<SparsePage>()) {
+  for (auto const &page : p_fmat->GetBatches<SparsePage>()) {
     ASSERT_EQ(base_rowids[i], page.base_rowid);
     ++i;
   }

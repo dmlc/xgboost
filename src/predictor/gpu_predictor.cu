@@ -15,8 +15,9 @@
 #include "../common/bitfield.h"
 #include "../common/categorical.h"
 #include "../common/common.h"
-#include "../common/cuda_context.cuh"
+#include "../common/cuda_context.cuh"  // for CUDAContext
 #include "../common/device_helpers.cuh"
+#include "../common/error_msg.h"  // for InplacePredictProxy
 #include "../data/device_adapter.cuh"
 #include "../data/ellpack_page.cuh"
 #include "../data/proxy_dmatrix.h"
@@ -989,7 +990,7 @@ class GPUPredictor : public xgboost::Predictor {
                       PredictionCacheEntry* out_preds, uint32_t tree_begin,
                       unsigned tree_end) const override {
     auto proxy = dynamic_cast<data::DMatrixProxy*>(p_m.get());
-    CHECK(proxy)<< "Inplace predict accepts only DMatrixProxy as input.";
+    CHECK(proxy) << error::InplacePredictProxy();
     auto x = proxy->Adapter();
     if (x.type() == typeid(std::shared_ptr<data::CupyAdapter>)) {
       this->DispatchedInplacePredict<data::CupyAdapter,
