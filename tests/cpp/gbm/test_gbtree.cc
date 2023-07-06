@@ -248,11 +248,6 @@ TEST(GBTree, ChooseTreeMethod) {
           {{std::nullopt, std::nullopt}, "grow_quantile_histmaker"},
       };
 
-  auto check_updater = [&](std::string name, Json updater) {
-    auto map = get<Object const>(updater);
-    ASSERT_NE(map.find(name), map.cend());
-  };
-
   auto run_test = [&](auto fn) {
     for (auto const& kv : expectation) {
       auto device = kv.first.second;
@@ -264,12 +259,11 @@ TEST(GBTree, ChooseTreeMethod) {
         continue;
       }
       auto up = fn(device, tm);
-      check_updater(kv.second, up);
-      // auto map = get<Object const>(up);
-      // for (auto const& got : map) {
-      //   ASSERT_EQ(got.first, kv.second)
-      //       << " device:" << device.value_or("NA") << " tm:" << tm.value_or("NA");
-      // }
+      auto map = get<Array const>(up);
+      for (auto const& got : map) {
+        ASSERT_EQ(get<String const>(got["name"]), kv.second)
+            << " device:" << device.value_or("NA") << " tm:" << tm.value_or("NA");
+      }
     }
   };
 
