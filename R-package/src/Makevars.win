@@ -82,6 +82,7 @@ OBJECTS= \
     $(PKGROOT)/src/common/charconv.o \
     $(PKGROOT)/src/common/column_matrix.o \
     $(PKGROOT)/src/common/common.o \
+    $(PKGROOT)/src/common/error_msg.o \
     $(PKGROOT)/src/common/hist_util.o \
     $(PKGROOT)/src/common/host_device_vector.o \
     $(PKGROOT)/src/common/io.o \
