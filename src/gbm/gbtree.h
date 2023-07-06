@@ -59,9 +59,7 @@ struct GBTreeTrainParam : public XGBoostParameter<GBTreeTrainParam> {
   TreeMethod tree_method;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GBTreeTrainParam) {
-    DMLC_DECLARE_FIELD(updater_seq)
-        .set_default("grow_colmaker,prune")
-        .describe("Tree updater sequence.");
+    DMLC_DECLARE_FIELD(updater_seq).describe("Tree updater sequence.").set_default("");
     DMLC_DECLARE_FIELD(process_type)
         .set_default(TreeProcessType::kDefault)
         .add_enum("default", TreeProcessType::kDefault)
@@ -170,7 +168,9 @@ bool SliceTrees(bst_layer_t begin, bst_layer_t end, bst_layer_t step, GBTreeMode
 class GBTree : public GradientBooster {
  public:
   explicit GBTree(LearnerModelParam const* booster_config, Context const* ctx)
-      : GradientBooster{ctx}, model_(booster_config, ctx_) {}
+      : GradientBooster{ctx}, model_(booster_config, ctx_) {
+    monitor_.Init(__func__);
+  }
 
   void Configure(Args const& cfg) override;
   /**

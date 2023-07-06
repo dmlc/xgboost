@@ -72,6 +72,28 @@ std::string MapTreeMethodToUpdaters(Context const* ctx_, TreeMethod tree_method)
   LOG(FATAL) << "unreachable";
   return "";
 }
+
+void CheckUpdaterSeq(std::vector<std::string> const& names,
+                     std::vector<std::unique_ptr<TreeUpdater>> const& updaters) {
+  // Assert we have a valid set of updaters.
+  CHECK_EQ(names.size(), updaters.size());
+  for (auto const& up : updaters) {
+    bool contains = std::any_of(names.cbegin(), names.cend(),
+                                [&up](std::string const& name) { return name == up->Name(); });
+    if (!contains) {
+      std::stringstream ss;
+      ss << "Internal Error: mismatched updater sequence.\n";
+      ss << "Specified updaters: ";
+      std::for_each(names.cbegin(), names.cend(),
+                    [&ss](std::string const& name) { ss << name << " "; });
+      ss << "\nActual updaters: ";
+      std::for_each(
+          updaters.cbegin(), updaters.cend(),
+          [&ss](std::unique_ptr<TreeUpdater> const& updater) { ss << updater->Name() << " "; });
+      LOG(FATAL) << ss.str();
+    }
+  }
+}
 }  // namespace
 
 void GBTree::Configure(Args const& cfg) {
@@ -107,8 +129,6 @@ void GBTree::Configure(Args const& cfg) {
   }
   oneapi_predictor_->Configure(cfg);
 #endif  // defined(XGBOOST_USE_ONEAPI)
-
-  monitor_.Init("GBTree");
 
   // `updater` parameter was manually specified
   specified_updater_ =
@@ -264,30 +284,9 @@ void GBTree::InitUpdater(Args const& cfg) {
   std::string tval = tparam_.updater_seq;
   std::vector<std::string> ups = common::Split(tval, ',');
 
-  if (updaters_.size() != 0) {
-    // Assert we have a valid set of updaters.
-    CHECK_EQ(ups.size(), updaters_.size());
-    for (auto const& up : updaters_) {
-      bool contains = std::any_of(ups.cbegin(), ups.cend(),
-                        [&up](std::string const& name) {
-                          return name == up->Name();
-                        });
-      if (!contains) {
-        std::stringstream ss;
-        ss << "Internal Error: " << " mismatched updater sequence.\n";
-        ss << "Specified updaters: ";
-        std::for_each(ups.cbegin(), ups.cend(),
-                      [&ss](std::string const& name){
-                        ss << name << " ";
-                      });
-        ss << "\n" << "Actual updaters: ";
-        std::for_each(updaters_.cbegin(), updaters_.cend(),
-                      [&ss](std::unique_ptr<TreeUpdater> const& updater){
-                        ss << updater->Name() << " ";
-                      });
-        LOG(FATAL) << ss.str();
-      }
-    }
+  if (!updaters_.empty()) {
+    CHECK_EQ(updaters_.size(), ups.size());
+    CheckUpdaterSeq(ups, updaters_);
     // Do not push new updater in.
     return;
   }
@@ -309,6 +308,7 @@ void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fma
   // create the trees
   for (int i = 0; i < model_.param.num_parallel_tree; ++i) {
     if (tparam_.process_type == TreeProcessType::kDefault) {
+      CHECK(!updaters_.empty());
       CHECK(!updaters_.front()->CanModifyTree())
           << "Updater: `" << updaters_.front()->Name() << "` "
           << "can not be used to create new trees. "

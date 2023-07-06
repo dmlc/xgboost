@@ -239,9 +239,9 @@ TEST(GBTree, ChooseTreeMethod) {
           {{"gpu_hist", "0"}, "grow_gpu_hist"},
           {{"gpu_hist", std::nullopt}, "grow_gpu_hist"},
           // exact
-          {{"exact", "-1"}, "grow_colmaker"},
+          {{"exact", "-1"}, "grow_colmaker,prune"},
           {{"exact", "0"}, "err"},
-          {{"exact", std::nullopt}, "grow_colmaker"},
+          {{"exact", std::nullopt}, "grow_colmaker,prune"},
           // NA
           {{std::nullopt, "-1"}, "grow_quantile_histmaker"},
           {{std::nullopt, "0"}, "grow_gpu_hist"},  // default to hist
@@ -259,9 +259,11 @@ TEST(GBTree, ChooseTreeMethod) {
         continue;
       }
       auto up = fn(device, tm);
-      auto map = get<Array const>(up);
-      for (auto const& got : map) {
-        ASSERT_EQ(get<String const>(got["name"]), kv.second)
+      auto ups = get<Array const>(up);
+      auto exp_names = common::Split(kv.second, ',');
+      ASSERT_EQ(exp_names.size(), ups.size());
+      for (std::size_t i = 0; i < exp_names.size(); ++i) {
+        ASSERT_EQ(get<String const>(ups[i]["name"]), exp_names[i])
             << " device:" << device.value_or("NA") << " tm:" << tm.value_or("NA");
       }
     }
