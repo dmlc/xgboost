@@ -31,7 +31,7 @@ DeviceCommunicator* Communicator::GetDevice(int device_ordinal) {
 #ifdef XGBOOST_USE_NCCL
     switch (type_) {
       case CommunicatorType::kRabit:
-        device_communicator_.reset(new NcclDeviceCommunicator(device_ordinal));
+        device_communicator_.reset(new NcclDeviceCommunicator(device_ordinal, false));
         break;
       case CommunicatorType::kFederated:
         device_communicator_.reset(new DeviceCommunicatorAdapter(device_ordinal));

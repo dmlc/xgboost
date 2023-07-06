@@ -15,12 +15,17 @@ class NcclDeviceCommunicator : public DeviceCommunicator {
   /**
    * @brief Construct a new NCCL communicator.
    * @param device_ordinal The GPU device id.
-   * @param needs_sync Whether extra CUDA stream synchronization is needed. In multi-GPU tests when
-   * multiple NCCL communicators are created in the same process, sometimes a deadlock happens
-   * because NCCL kernels are blocking. The extra CUDA stream synchronization makes sure that the
-   * NCCL kernels are caught up, thus avoiding the deadlock.
+   * @param needs_sync Whether extra CUDA stream synchronization is needed.
+   *
+   * In multi-GPU tests when multiple NCCL communicators are created in the same process, sometimes
+   * a deadlock happens because NCCL kernels are blocking. The extra CUDA stream synchronization
+   * makes sure that the NCCL kernels are caught up, thus avoiding the deadlock.
+   *
+   * The Rabit communicator runs with one process per GPU, so the additional synchronization is not
+   * needed. The in-memory communicator is used in tests with multiple threads, each thread
+   * representing a rank/worker, so the additional synchronization is needed to avoid deadlocks.
    */
-  explicit NcclDeviceCommunicator(int device_ordinal, bool needs_sync = false);
+  explicit NcclDeviceCommunicator(int device_ordinal, bool needs_sync);
   ~NcclDeviceCommunicator() override;
   void AllReduce(void *send_receive_buffer, std::size_t count, DataType data_type,
                  Operation op) override;
