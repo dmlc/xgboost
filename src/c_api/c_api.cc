@@ -466,7 +466,8 @@ XGB_DLL int XGDMatrixCreateFromDense(char const *data,
   xgboost_CHECK_C_ARG_PTR(out);
   auto data_split_mode =
       static_cast<DataSplitMode>(OptionalArg<Integer, int64_t>(config, "data_split_mode", 0));
-  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads, std::string(""), data_split_mode));
+  *out = new std::shared_ptr<DMatrix>(
+      DMatrix::Create(&adapter, missing, n_threads, std::string(""), data_split_mode));
   API_END();
 }
 
