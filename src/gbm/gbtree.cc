@@ -68,6 +68,9 @@ std::string MapTreeMethodToUpdaters(Context const* ctx_, TreeMethod tree_method)
       auto tm = static_cast<std::underlying_type_t<TreeMethod>>(tree_method);
       LOG(FATAL) << "Unknown tree_method: `" << tm << "`.";
   }
+
+  LOG(FATAL) << "unreachable";
+  return "";
 }
 }  // namespace
 
