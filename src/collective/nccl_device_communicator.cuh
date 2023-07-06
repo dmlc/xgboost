@@ -12,7 +12,15 @@ namespace collective {
 
 class NcclDeviceCommunicator : public DeviceCommunicator {
  public:
-  explicit NcclDeviceCommunicator(int device_ordinal);
+  /**
+   * @brief Construct a new NCCL communicator.
+   * @param device_ordinal The GPU device id.
+   * @param needs_sync Whether extra CUDA stream synchronization is needed. In multi-GPU tests when
+   * multiple NCCL communicators are created in the same process, sometimes a deadlock happens
+   * because NCCL kernels are blocking. The extra CUDA stream synchronization makes sure that the
+   * NCCL kernels are caught up, thus avoiding the deadlock.
+   */
+  explicit NcclDeviceCommunicator(int device_ordinal, bool needs_sync = false);
   ~NcclDeviceCommunicator() override;
   void AllReduce(void *send_receive_buffer, std::size_t count, DataType data_type,
                  Operation op) override;
@@ -60,6 +68,7 @@ class NcclDeviceCommunicator : public DeviceCommunicator {
                         Operation op);
 
   int const device_ordinal_;
+  bool const needs_sync_;
   int const world_size_;
   int const rank_;
   ncclComm_t nccl_comm_{};
