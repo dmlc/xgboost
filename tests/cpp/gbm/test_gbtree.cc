@@ -218,8 +218,8 @@ TEST(GBTree, ChooseTreeMethod) {
   // | CUDA:0 | GPU     | GPU (w)  | Err   | GPU | # not yet tested
   // | CPU    | CPU     | Err      | CPU   | CPU | # not yet tested
   // |--------+---------+----------+-------+-----|
-  // | -1     | CPU     | Err      | CPU   | CPU |
-  // | 0      | GPU (w) | GPU (w)  | Err   | GPU |
+  // | -1     | CPU     | GPU (w)  | CPU   | CPU |
+  // | 0      | GPU     | GPU (w)  | Err   | GPU |
   // | NA     | CPU     | GPU (w)  | CPU   | CPU |
   //
   // - (w): warning
@@ -228,6 +228,10 @@ TEST(GBTree, ChooseTreeMethod) {
   // - Err: Not feasible.
   // - NA:  Parameter is not specified.
 
+  // When GPU hist is specified with a CPU context, we should emit error. However, it's
+  // quite difficult to detect whether the CPU context is being used as default or as
+  // specified by the user. We choose not to raise an error and continue on GPU.
+
   std::map<std::pair<std::optional<std::string>, std::optional<std::string>>, std::string>
       expectation{
           // hist
@@ -235,7 +239,7 @@ TEST(GBTree, ChooseTreeMethod) {
           {{"hist", "0"}, "grow_gpu_hist"},
           {{"hist", std::nullopt}, "grow_quantile_histmaker"},
           // gpu_hist
-          // {{"gpu_hist", "-1"}, "err"},
+          {{"gpu_hist", "-1"}, "grow_gpu_hist"},
           {{"gpu_hist", "0"}, "grow_gpu_hist"},
           {{"gpu_hist", std::nullopt}, "grow_gpu_hist"},
           // exact
