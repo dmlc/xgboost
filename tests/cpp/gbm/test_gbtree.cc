@@ -228,9 +228,9 @@ TEST(GBTree, ChooseTreeMethod) {
   // - Err: Not feasible.
   // - NA:  Parameter is not specified.
 
-  // When GPU hist is specified with a CPU context, we should emit error. However, it's
-  // quite difficult to detect whether the CPU context is being used as default or as
-  // specified by the user. We choose not to raise an error and continue on GPU.
+  // When GPU hist is specified with a CPU context, we should emit an error. However, it's
+  // quite difficult to detect whether the CPU context is being used because it's the
+  // default or because it's specified by the user.
 
   std::map<std::pair<std::optional<std::string>, std::optional<std::string>>, std::string>
       expectation{
