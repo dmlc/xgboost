@@ -286,7 +286,6 @@ class GBTree : public GradientBooster {
 
   void PredictInstance(const SparsePage::Inst& inst, std::vector<bst_float>* out_preds,
                        uint32_t layer_begin, uint32_t layer_end) override {
-    CHECK(configured_);
     std::uint32_t _, tree_end;
     std::tie(_, tree_end) = detail::LayerToTree(model_, layer_begin, layer_end);
     cpu_predictor_->PredictInstance(inst, out_preds, model_, tree_end);
@@ -304,7 +303,6 @@ class GBTree : public GradientBooster {
   void PredictContribution(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
                            bst_layer_t layer_begin, bst_layer_t layer_end,
                            bool approximate) override {
-    CHECK(configured_);
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict contribution supports only iteration end: (0, "
                                "n_iteration), using model slicing instead.";
@@ -315,7 +313,6 @@ class GBTree : public GradientBooster {
   void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
                                        bst_layer_t layer_begin, bst_layer_t layer_end,
                                        bool approximate) override {
-    CHECK(configured_);
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict interaction contribution supports only iteration end: (0, "
                                "n_iteration), using model slicing instead.";
@@ -329,9 +326,6 @@ class GBTree : public GradientBooster {
   }
 
  protected:
-  // initialize updater before using them
-  void InitUpdater(Args const& cfg);
-
   void BoostNewTrees(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat, int bst_group,
                      std::vector<HostDeviceVector<bst_node_t>>* out_position,
                      std::vector<std::unique_ptr<RegTree>>* ret);
@@ -349,10 +343,7 @@ class GBTree : public GradientBooster {
   GBTreeTrainParam tparam_;
   // Tree training parameter
   tree::TrainParam tree_param_;
-  // ----training fields----
-  bool showed_updater_warning_ {false};
   bool specified_updater_   {false};
-  bool configured_ {false};
   // the updaters that can be applied to each of tree
   std::vector<std::unique_ptr<TreeUpdater>> updaters_;
   // Predictors

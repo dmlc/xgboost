@@ -89,5 +89,17 @@ inline void WarnDeprecatedGPUHist() {
   LOG(WARNING) << msg;
   logged = true;
 }
+
+inline void WarnManualUpdater() {
+  bool static thread_local logged{false};
+  if (logged) {
+    return;
+  }
+  LOG(WARNING)
+      << "You have manually specified the `updater` parameter. The `tree_method` parameter "
+         "will be ignored. Incorrect sequence of updaters will produce undefined "
+         "behavior. For common uses, we recommend using `tree_method` parameter instead.";
+  logged = true;
+}
 }  // namespace xgboost::error
 #endif  // XGBOOST_COMMON_ERROR_MSG_H_

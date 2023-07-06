@@ -9,7 +9,7 @@
 #include <dmlc/omp.h>
 #include <dmlc/parameter.h>
 
-#include <algorithm>
+#include <algorithm>  // for equal
 #include <cinttypes>  // for uint32_t
 #include <limits>
 #include <memory>
@@ -73,26 +73,16 @@ std::string MapTreeMethodToUpdaters(Context const* ctx_, TreeMethod tree_method)
   return "";
 }
 
-void CheckUpdaterSeq(std::vector<std::string> const& names,
+bool UpdatersMatched(std::vector<std::string> updater_seq,
                      std::vector<std::unique_ptr<TreeUpdater>> const& updaters) {
-  // Assert we have a valid set of updaters.
-  CHECK_EQ(names.size(), updaters.size());
-  for (auto const& up : updaters) {
-    bool contains = std::any_of(names.cbegin(), names.cend(),
-                                [&up](std::string const& name) { return name == up->Name(); });
-    if (!contains) {
-      std::stringstream ss;
-      ss << "Internal Error: mismatched updater sequence.\n";
-      ss << "Specified updaters: ";
-      std::for_each(names.cbegin(), names.cend(),
-                    [&ss](std::string const& name) { ss << name << " "; });
-      ss << "\nActual updaters: ";
-      std::for_each(
-          updaters.cbegin(), updaters.cend(),
-          [&ss](std::unique_ptr<TreeUpdater> const& updater) { ss << updater->Name() << " "; });
-      LOG(FATAL) << ss.str();
-    }
+  if (updater_seq.size() != updaters.size()) {
+    return false;
   }
+
+  return std::equal(updater_seq.cbegin(), updater_seq.cend(), updaters.cbegin(),
+                    [](std::string const& name, std::unique_ptr<TreeUpdater> const& up) {
+                      return name == up->Name();
+                    });
 }
 }  // namespace
 
@@ -124,8 +114,8 @@ void GBTree::Configure(Args const& cfg) {
 
 #if defined(XGBOOST_USE_ONEAPI)
   if (!oneapi_predictor_) {
-    oneapi_predictor_ = std::unique_ptr<Predictor>(
-        Predictor::Create("oneapi_predictor", this->ctx_));
+    oneapi_predictor_ =
+        std::unique_ptr<Predictor>(Predictor::Create("oneapi_predictor", this->ctx_));
   }
   oneapi_predictor_->Configure(cfg);
 #endif  // defined(XGBOOST_USE_ONEAPI)
@@ -133,37 +123,35 @@ void GBTree::Configure(Args const& cfg) {
   // `updater` parameter was manually specified
   specified_updater_ =
       std::any_of(cfg.cbegin(), cfg.cend(), [](auto const& arg) { return arg.first == "updater"; });
-  if (specified_updater_ && !showed_updater_warning_) {
-    LOG(WARNING) << "DANGER AHEAD: You have manually specified `updater` "
-                    "parameter. The `tree_method` parameter will be ignored. "
-                    "Incorrect sequence of updaters will produce undefined "
-                    "behavior. For common uses, we recommend using "
-                    "`tree_method` parameter instead.";
-    // Don't drive users to silent XGBOost.
-    showed_updater_warning_ = true;
+  if (specified_updater_) {
+    error::WarnManualUpdater();
   }
+
   if (model_.learner_model_param->IsVectorLeaf()) {
     CHECK(tparam_.tree_method == TreeMethod::kHist || tparam_.tree_method == TreeMethod::kAuto)
         << "Only the hist tree method is supported for building multi-target trees with vector "
            "leaf.";
   }
+
   LOG(DEBUG) << "Using tree method: " << static_cast<int>(tparam_.tree_method);
 
-  std::string updater_seq = tparam_.updater_seq;
   if (!specified_updater_) {
     this->tparam_.updater_seq = MapTreeMethodToUpdaters(ctx_, tparam_.tree_method);
   }
 
-  if (updater_seq != tparam_.updater_seq) {
+  auto up_names = common::Split(tparam_.updater_seq, ',');
+  if (!UpdatersMatched(up_names, updaters_)) {
     updaters_.clear();
-    this->InitUpdater(cfg);
-  } else {
-    for (auto& up : updaters_) {
-      up->Configure(cfg);
+    for (auto const& name : up_names) {
+      std::unique_ptr<TreeUpdater> up(
+          TreeUpdater::Create(name.c_str(), ctx_, &model_.learner_model_param->task));
+      updaters_.push_back(std::move(up));
     }
   }
 
-  configured_ = true;
+  for (auto& up : updaters_) {
+    up->Configure(cfg);
+  }
 }
 
 void GPUCopyGradient(HostDeviceVector<GradientPair> const*, bst_group_t, bst_group_t,
@@ -278,26 +266,6 @@ void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
 
   monitor_.Stop("BoostNewTrees");
   this->CommitModel(std::move(new_trees));
-}
-
-void GBTree::InitUpdater(Args const& cfg) {
-  std::string tval = tparam_.updater_seq;
-  std::vector<std::string> ups = common::Split(tval, ',');
-
-  if (!updaters_.empty()) {
-    CHECK_EQ(updaters_.size(), ups.size());
-    CheckUpdaterSeq(ups, updaters_);
-    // Do not push new updater in.
-    return;
-  }
-
-  // create new updaters
-  for (const std::string& pstr : ups) {
-    std::unique_ptr<TreeUpdater> up(
-        TreeUpdater::Create(pstr.c_str(), ctx_, &model_.learner_model_param->task));
-    up->Configure(cfg);
-    updaters_.push_back(std::move(up));
-  }
 }
 
 void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat, int bst_group,
@@ -464,7 +432,6 @@ void GBTree::SaveModel(Json* p_out) const {
 
 void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, GradientBooster* out,
                    bool* out_of_bound) const {
-  CHECK(configured_);
   CHECK(out);
 
   auto p_gbtree = dynamic_cast<GBTree*>(out);
@@ -516,7 +483,6 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
 
 void GBTree::PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool is_training,
                               bst_layer_t layer_begin, bst_layer_t layer_end) const {
-  CHECK(configured_);
   if (layer_end == 0) {
     layer_end = this->BoostedRounds();
   }
@@ -576,7 +542,6 @@ void GBTree::PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool
 void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
                             PredictionCacheEntry* out_preds, bst_layer_t layer_begin,
                             bst_layer_t layer_end) const {
-  CHECK(configured_);
   auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
   CHECK_LE(tree_end, model_.trees.size()) << "Invalid number of trees.";
   if (p_m->Ctx()->Device() != this->ctx_->Device()) {
@@ -605,8 +570,6 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
 
 [[nodiscard]] std::unique_ptr<Predictor> const& GBTree::GetPredictor(
     bool is_training, HostDeviceVector<float> const* out_pred, DMatrix* f_dmat) const {
-  CHECK(configured_);
-
   // Data comes from SparsePageDMatrix. Since we are loading data in pages, no need to
   // prevent data copy.
   if (f_dmat && !f_dmat->SingleColBlock()) {
@@ -913,7 +876,6 @@ class Dart : public GBTree {
   void PredictContribution(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_contribs,
                            bst_layer_t layer_begin, bst_layer_t layer_end,
                            bool approximate) override {
-    CHECK(configured_);
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     cpu_predictor_->PredictContribution(p_fmat, out_contribs, model_, tree_end, &weight_drop_,
                                         approximate);
@@ -922,7 +884,6 @@ class Dart : public GBTree {
   void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
                                        bst_layer_t layer_begin, bst_layer_t layer_end,
                                        bool approximate) override {
-    CHECK(configured_);
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     cpu_predictor_->PredictInteractionContributions(p_fmat, out_contribs, model_, tree_end,
                                                     &weight_drop_, approximate);
