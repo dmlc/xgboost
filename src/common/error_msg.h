@@ -79,27 +79,8 @@ inline void WarnOldSerialization() {
   logged = true;
 }
 
-inline void WarnDeprecatedGPUHist() {
-  bool static thread_local logged{false};
-  if (logged) {
-    return;
-  }
-  auto msg =
-      R"(The tree method `gpu_hist` is deprecated since 2.0.0. To use GPU training, set the `device` parameter to CUDA.)";
-  LOG(WARNING) << msg;
-  logged = true;
-}
+void WarnDeprecatedGPUHist();
 
-inline void WarnManualUpdater() {
-  bool static thread_local logged{false};
-  if (logged) {
-    return;
-  }
-  LOG(WARNING)
-      << "You have manually specified the `updater` parameter. The `tree_method` parameter "
-         "will be ignored. Incorrect sequence of updaters will produce undefined "
-         "behavior. For common uses, we recommend using `tree_method` parameter instead.";
-  logged = true;
-}
+void WarnManualUpdater();
 }  // namespace xgboost::error
 #endif  // XGBOOST_COMMON_ERROR_MSG_H_
