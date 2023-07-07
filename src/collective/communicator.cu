@@ -40,7 +40,7 @@ DeviceCommunicator* Communicator::GetDevice(int device_ordinal) {
         device_communicator_.reset(new NcclDeviceCommunicator(device_ordinal, true));
         break;
       default:
-        LOG(FATAL) << "Unknown communicator type";
+        device_communicator_.reset(new NcclDeviceCommunicator(device_ordinal, false));
     }
 #else
     device_communicator_.reset(new DeviceCommunicatorAdapter(device_ordinal));
