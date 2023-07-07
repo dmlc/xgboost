@@ -7,8 +7,11 @@
 namespace xgboost {
 namespace collective {
 
-NcclDeviceCommunicator::NcclDeviceCommunicator(int device_ordinal)
-    : device_ordinal_{device_ordinal}, world_size_{GetWorldSize()}, rank_{GetRank()} {
+NcclDeviceCommunicator::NcclDeviceCommunicator(int device_ordinal, bool needs_sync)
+    : device_ordinal_{device_ordinal},
+      needs_sync_{needs_sync},
+      world_size_{GetWorldSize()},
+      rank_{GetRank()} {
   if (device_ordinal_ < 0) {
     LOG(FATAL) << "Invalid device ordinal: " << device_ordinal_;
   }
@@ -140,6 +143,9 @@ void NcclDeviceCommunicator::BitwiseAllReduce(void *send_receive_buffer, std::si
   // First gather data from all the workers.
   dh::safe_nccl(ncclAllGather(send_receive_buffer, device_buffer, count, GetNcclDataType(data_type),
                               nccl_comm_, cuda_stream_));
+  if (needs_sync_) {
+    dh::safe_cuda(cudaStreamSynchronize(cuda_stream_));
+  }
 
   // Then reduce locally.
   auto *out_buffer = static_cast<char *>(send_receive_buffer);
