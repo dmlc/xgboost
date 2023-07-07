@@ -463,9 +463,9 @@ XGB_DLL int XGDMatrixCreateFromDense(char const *data,
   auto config = Json::Load(StringView{c_json_config});
   float missing = GetMissing(config);
   auto n_threads = OptionalArg<Integer, int64_t>(config, "nthread", 0);
-  xgboost_CHECK_C_ARG_PTR(out);
   auto data_split_mode =
       static_cast<DataSplitMode>(OptionalArg<Integer, int64_t>(config, "data_split_mode", 0));
+  xgboost_CHECK_C_ARG_PTR(out);
   *out = new std::shared_ptr<DMatrix>(
       DMatrix::Create(&adapter, missing, n_threads, std::string(""), data_split_mode));
   API_END();
