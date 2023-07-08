@@ -24,6 +24,8 @@ struct XGBAPIThreadLocalEntry {
   std::vector<const char *> ret_vec_charp;
   /*! \brief returning float vector. */
   std::vector<float> ret_vec_float;
+  /*! \brief returning uint vector. */
+  std::vector<std::uint64_t> ret_vec_u64;
   /*! \brief temp variable of gradient pairs. */
   std::vector<GradientPair> tmp_gpair;
   /*! \brief Temp variable for returning prediction result. */

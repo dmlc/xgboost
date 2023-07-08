@@ -3,6 +3,7 @@
 """Core XGBoost Library."""
 import copy
 import ctypes
+import importlib.util
 import json
 import os
 import re
@@ -379,6 +380,54 @@ def c_array(
     if isinstance(values, np.ndarray) and values.dtype.itemsize == ctypes.sizeof(ctype):
         return values.ctypes.data_as(ctypes.POINTER(ctype))
     return (ctype * len(values))(*values)
+
+
+def from_array_interface(interface: dict) -> NumpyOrCupy:
+    """Convert array interface to numpy or cupy array"""
+
+    class Array:  # pylint: disable=too-few-public-methods
+        """Wrapper type for communicating with numpy and cupy."""
+
+        _interface: Optional[dict] = None
+
+        @property
+        def __array_interface__(self) -> Optional[dict]:
+            return self._interface
+
+        @__array_interface__.setter
+        def __array_interface__(self, interface: dict) -> None:
+            self._interface = copy.copy(interface)
+            # converts some fields to tuple as required by numpy
+            self._interface["shape"] = tuple(self._interface["shape"])
+            self._interface["data"] = tuple(self._interface["data"])
+            if self._interface.get("strides", None) is not None:
+                self._interface["strides"] = tuple(self._interface["strides"])
+
+        @property
+        def __cuda_array_interface__(self) -> Optional[dict]:
+            return self.__array_interface__
+
+        @__cuda_array_interface__.setter
+        def __cuda_array_interface__(self, interface: dict) -> None:
+            self.__array_interface__ = interface
+
+    arr = Array()
+
+    if "stream" in interface:
+        # CUDA stream is presented, this is a __cuda_array_interface__.
+        spec = importlib.util.find_spec("cupy")
+        if spec is None:
+            raise ImportError("`cupy` is required for handling CUDA buffer.")
+
+        import cupy as cp  # pylint: disable=import-error
+
+        arr.__cuda_array_interface__ = interface
+        out = cp.array(arr, copy=True)
+    else:
+        arr.__array_interface__ = interface
+        out = np.array(arr, copy=True)
+
+    return out
 
 
 def _prediction_output(
@@ -1059,6 +1108,32 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             (data, indices, indptr), shape=(self.num_row(), self.num_col())
         )
         return ret
+
+    def get_quantile_cut(self) -> Tuple[np.ndarray, np.ndarray]:
+        """Get quantile cuts for quantization."""
+        n_features = self.num_col()
+
+        c_sindptr = ctypes.c_char_p()
+        c_sdata = ctypes.c_char_p()
+        config = make_jcargs()
+        _check_call(
+            _LIB.XGDMatrixGetQuantileCut(
+                self.handle, config, ctypes.byref(c_sindptr), ctypes.byref(c_sdata)
+            )
+        )
+        assert c_sindptr.value is not None
+        assert c_sdata.value is not None
+
+        i_indptr = json.loads(c_sindptr.value)
+        indptr = from_array_interface(i_indptr)
+        assert indptr.size == n_features + 1
+        assert indptr.dtype == np.uint64
+
+        i_data = json.loads(c_sdata.value)
+        data = from_array_interface(i_data)
+        assert data.size == indptr[-1]
+        assert data.dtype == np.float32
+        return indptr, data
 
     def num_row(self) -> int:
         """Get the number of rows in the DMatrix."""

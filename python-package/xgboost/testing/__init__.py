@@ -265,6 +265,14 @@ def make_batches(
     return X, y, w
 
 
+def make_regression(
+    n_samples: int, n_features: int, use_cupy: bool
+) -> Tuple[ArrayLike, ArrayLike, ArrayLike]:
+    """Make a simple regression dataset."""
+    X, y, w = make_batches(n_samples, n_features, 1, use_cupy)
+    return X[0], y[0], w[0]
+
+
 def make_batches_sparse(
     n_samples_per_batch: int, n_features: int, n_batches: int, sparsity: float
 ) -> Tuple[List[sparse.csr_matrix], List[np.ndarray], List[np.ndarray]]:

@@ -21,6 +21,7 @@
 #include "../common/io.h"
 #include "../common/timer.h"
 #include "../data/ellpack_page.cuh"
+#include "../data/ellpack_page.h"
 #include "constraints.cuh"
 #include "driver.h"
 #include "gpu_hist/evaluate_splits.cuh"

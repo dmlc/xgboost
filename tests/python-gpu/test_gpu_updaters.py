@@ -8,7 +8,11 @@ from hypothesis import assume, given, note, settings, strategies
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.params import cat_parameter_strategy, hist_parameter_strategy
-from xgboost.testing.updater import check_init_estimation, check_quantile_loss
+from xgboost.testing.updater import (
+    check_get_quantile_cut,
+    check_init_estimation,
+    check_quantile_loss,
+)
 
 sys.path.append("tests/python")
 import test_updaters as test_up
@@ -264,3 +268,7 @@ class TestGPUUpdaters:
             },
             num_boost_round=150,
         )
+
+    @pytest.mark.skipif(**tm.no_cudf())
+    def test_get_quantile_cut(self) -> None:
+        check_get_quantile_cut("gpu_hist")

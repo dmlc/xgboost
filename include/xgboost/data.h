@@ -282,7 +282,7 @@ struct BatchParam {
   BatchParam(bst_bin_t max_bin, common::Span<float> hessian, bool regenerate)
       : max_bin{max_bin}, hess{hessian}, regen{regenerate} {}
 
-  bool ParamNotEqual(BatchParam const& other) const {
+  [[nodiscard]] bool ParamNotEqual(BatchParam const& other) const {
     // Check non-floating parameters.
     bool cond = max_bin != other.max_bin;
     // Check sparse thresh.
@@ -293,11 +293,11 @@ struct BatchParam {
 
     return cond;
   }
-  bool Initialized() const { return max_bin != 0; }
+  [[nodiscard]] bool Initialized() const { return max_bin != 0; }
   /**
    * \brief Make a copy of self for DMatrix to describe how its existing index was generated.
    */
-  BatchParam MakeCache() const {
+  [[nodiscard]] BatchParam MakeCache() const {
     auto p = *this;
     // These parameters have nothing to do with how the gradient index was generated in the
     // first place.
@@ -319,7 +319,7 @@ struct HostSparsePageView {
             static_cast<Inst::index_type>(size)};
   }
 
-  size_t Size() const { return offset.size() == 0 ? 0 : offset.size() - 1; }
+  [[nodiscard]] size_t Size() const { return offset.size() == 0 ? 0 : offset.size() - 1; }
 };
 
 /*!
@@ -337,7 +337,7 @@ class SparsePage {
   /*! \brief an instance of sparse vector in the batch */
   using Inst = common::Span<Entry const>;
 
-  HostSparsePageView GetView() const {
+  [[nodiscard]] HostSparsePageView GetView() const {
     return {offset.ConstHostSpan(), data.ConstHostSpan()};
   }
 
@@ -353,12 +353,12 @@ class SparsePage {
   virtual ~SparsePage() = default;
 
   /*! \return Number of instances in the page. */
-  inline size_t Size() const {
+  [[nodiscard]] size_t Size() const {
     return offset.Size() == 0 ? 0 : offset.Size() - 1;
   }
 
   /*! \return estimation of memory cost of this page */
-  inline size_t MemCostBytes() const {
+  [[nodiscard]] size_t MemCostBytes() const {
     return offset.Size() * sizeof(size_t) + data.Size() * sizeof(Entry);
   }
 
@@ -376,7 +376,7 @@ class SparsePage {
     base_rowid = row_id;
   }
 
-  SparsePage GetTranspose(int num_columns, int32_t n_threads) const;
+  [[nodiscard]] SparsePage GetTranspose(int num_columns, int32_t n_threads) const;
 
   /**
    * \brief Sort the column index.
@@ -385,7 +385,7 @@ class SparsePage {
   /**
    * \brief Check wether the column index is sorted.
    */
-  bool IsIndicesSorted(int32_t n_threads) const;
+  [[nodiscard]] bool IsIndicesSorted(int32_t n_threads) const;
   /**
    * \brief Reindex the column index with an offset.
    */
@@ -440,49 +440,7 @@ class SortedCSCPage : public SparsePage {
   explicit SortedCSCPage(SparsePage page) : SparsePage(std::move(page)) {}
 };
 
-class EllpackPageImpl;
-/*!
- * \brief A page stored in ELLPACK format.
- *
- * This class uses the PImpl idiom (https://en.cppreference.com/w/cpp/language/pimpl) to avoid
- * including CUDA-specific implementation details in the header.
- */
-class EllpackPage {
- public:
-  /*!
-   * \brief Default constructor.
-   *
-   * This is used in the external memory case. An empty ELLPACK page is constructed with its content
-   * set later by the reader.
-   */
-  EllpackPage();
-
-  /*!
-   * \brief Constructor from an existing DMatrix.
-   *
-   * This is used in the in-memory case. The ELLPACK page is constructed from an existing DMatrix
-   * in CSR format.
-   */
-  explicit EllpackPage(Context const* ctx, DMatrix* dmat, const BatchParam& param);
-
-  /*! \brief Destructor. */
-  ~EllpackPage();
-
-  EllpackPage(EllpackPage&& that);
-
-  /*! \return Number of instances in the page. */
-  size_t Size() const;
-
-  /*! \brief Set the base row id for this page. */
-  void SetBaseRowId(std::size_t row_id);
-
-  const EllpackPageImpl* Impl() const { return impl_.get(); }
-  EllpackPageImpl* Impl() { return impl_.get(); }
-
- private:
-  std::unique_ptr<EllpackPageImpl> impl_;
-};
-
+class EllpackPage;
 class GHistIndexMatrix;
 
 template<typename T>
@@ -492,7 +450,7 @@ class BatchIteratorImpl {
   virtual ~BatchIteratorImpl() = default;
   virtual const T& operator*() const = 0;
   virtual BatchIteratorImpl& operator++() = 0;
-  virtual bool AtEnd() const = 0;
+  [[nodiscard]] virtual bool AtEnd() const = 0;
   virtual std::shared_ptr<T const> Page() const = 0;
 };
 
@@ -519,12 +477,12 @@ class BatchIterator {
     return !impl_->AtEnd();
   }
 
-  bool AtEnd() const {
+  [[nodiscard]] bool AtEnd() const {
     CHECK(impl_ != nullptr);
     return impl_->AtEnd();
   }
 
-  std::shared_ptr<T const> Page() const {
+  [[nodiscard]] std::shared_ptr<T const> Page() const {
     return impl_->Page();
   }
 
@@ -563,15 +521,15 @@ class DMatrix {
     this->Info().SetInfo(ctx, key, StringView{interface_str});
   }
   /*! \brief meta information of the dataset */
-  virtual const MetaInfo& Info() const = 0;
+  [[nodiscard]] virtual const MetaInfo& Info() const = 0;
 
   /*! \brief Get thread local memory for returning data from DMatrix. */
-  XGBAPIThreadLocalEntry& GetThreadLocal() const;
+  [[nodiscard]] XGBAPIThreadLocalEntry& GetThreadLocal() const;
   /**
    * \brief Get the context object of this DMatrix.  The context is created during construction of
    *        DMatrix with user specified `nthread` parameter.
    */
-  virtual Context const* Ctx() const = 0;
+  [[nodiscard]] virtual Context const* Ctx() const = 0;
 
   /**
    * \brief Gets batches. Use range based for loop over BatchSet to access individual batches.
@@ -583,16 +541,16 @@ class DMatrix {
   template <typename T>
   BatchSet<T> GetBatches(Context const* ctx, const BatchParam& param);
   template <typename T>
-  bool PageExists() const;
+  [[nodiscard]] bool PageExists() const;
 
   // the following are column meta data, should be able to answer them fast.
   /*! \return Whether the data columns single column block. */
-  virtual bool SingleColBlock() const = 0;
+  [[nodiscard]] virtual bool SingleColBlock() const = 0;
   /*! \brief virtual destructor */
   virtual ~DMatrix();
 
   /*! \brief Whether the matrix is dense. */
-  bool IsDense() const {
+  [[nodiscard]] bool IsDense() const {
     return Info().num_nonzero_ == Info().num_row_ * Info().num_col_;
   }
 
@@ -695,9 +653,9 @@ class DMatrix {
                                                       BatchParam const& param) = 0;
   virtual BatchSet<ExtSparsePage> GetExtBatches(Context const* ctx, BatchParam const& param) = 0;
 
-  virtual bool EllpackExists() const = 0;
-  virtual bool GHistIndexExists() const = 0;
-  virtual bool SparsePageExists() const = 0;
+  [[nodiscard]] virtual bool EllpackExists() const = 0;
+  [[nodiscard]] virtual bool GHistIndexExists() const = 0;
+  [[nodiscard]] virtual bool SparsePageExists() const = 0;
 };
 
 template <>

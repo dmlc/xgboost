@@ -5,6 +5,7 @@
 
 #include "../../../src/common/compressed_iterator.h"
 #include "../../../src/data/ellpack_page.cuh"
+#include "../../../src/data/ellpack_page.h"
 #include "../../../src/data/sparse_page_dmatrix.h"
 #include "../../../src/tree/param.h"  // TrainParam
 #include "../filesystem.h"            // dmlc::TemporaryDirectory

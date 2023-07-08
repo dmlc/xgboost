@@ -11,6 +11,8 @@
 #include <vector>
 
 #include "../../../src/common/common.h"
+#include "../../../src/data/ellpack_page.cuh"  // for EllpackPageImpl
+#include "../../../src/data/ellpack_page.h"    // for EllpackPage
 #include "../../../src/data/sparse_page_source.h"
 #include "../../../src/tree/constraints.cuh"
 #include "../../../src/tree/param.h"  // for TrainParam

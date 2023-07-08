@@ -1,3 +1,4 @@
+import json
 import sys
 
 import numpy as np
@@ -9,6 +10,16 @@ sys.path.append("tests/python")
 from test_dmatrix import set_base_margin_info
 
 from xgboost import testing as tm
+
+cupy = pytest.importorskip("cupy")
+
+
+def test_array_interface() -> None:
+    arr = cupy.array([[1, 2, 3, 4], [1, 2, 3, 4]])
+    i_arr = arr.__cuda_array_interface__
+    i_arr = json.loads(json.dumps(i_arr))
+    ret = xgb.core.from_array_interface(i_arr)
+    np.testing.assert_equal(cupy.asnumpy(arr), cupy.asnumpy(ret))
 
 
 def dmatrix_from_cupy(input_type, DMatrixT, missing=np.NAN):

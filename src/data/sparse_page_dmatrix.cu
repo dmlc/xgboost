@@ -1,6 +1,8 @@
 /**
  * Copyright 2021-2023 by XGBoost contributors
  */
+#include <memory>
+
 #include "../common/hist_util.cuh"
 #include "batch_utils.h"  // for CheckEmpty, RegenGHist
 #include "ellpack_page.cuh"
@@ -11,7 +13,9 @@ namespace xgboost::data {
 BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(Context const* ctx,
                                                            const BatchParam& param) {
   CHECK(ctx->IsCUDA());
-  CHECK_GE(param.max_bin, 2);
+  if (param.Initialized()) {
+    CHECK_GE(param.max_bin, 2);
+  }
   detail::CheckEmpty(batch_param_, param);
   auto id = MakeCache(this, ".ellpack.page", cache_prefix_, &cache_info_);
   size_t row_stride = 0;
@@ -21,8 +25,8 @@ BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(Context const* ctx,
     cache_info_.erase(id);
     MakeCache(this, ".ellpack.page", cache_prefix_, &cache_info_);
     std::unique_ptr<common::HistogramCuts> cuts;
-    cuts.reset(
-        new common::HistogramCuts{common::DeviceSketch(ctx->gpu_id, this, param.max_bin, 0)});
+    cuts = std::make_unique<common::HistogramCuts>(
+        common::DeviceSketch(ctx->gpu_id, this, param.max_bin, 0));
     this->InitializeSparsePage(ctx);  // reset after use.
 
     row_stride = GetRowStride(this);

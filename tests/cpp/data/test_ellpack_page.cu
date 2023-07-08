@@ -8,6 +8,7 @@
 #include "../../../src/common/categorical.h"
 #include "../../../src/common/hist_util.h"
 #include "../../../src/data/ellpack_page.cuh"
+#include "../../../src/data/ellpack_page.h"
 #include "../../../src/tree/param.h"  // TrainParam
 #include "../helpers.h"
 #include "../histogram_helpers.h"

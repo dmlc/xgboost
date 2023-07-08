@@ -4,6 +4,10 @@
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/transform_output_iterator.h>
 
+#include <algorithm>  // for copy
+#include <utility>    // for move
+#include <vector>     // for vector
+
 #include "../common/categorical.h"
 #include "../common/cuda_context.cuh"
 #include "../common/hist_util.cuh"
@@ -11,6 +15,7 @@
 #include "../common/transform_iterator.h"  // MakeIndexTransformIter
 #include "./ellpack_page.cuh"
 #include "device_adapter.cuh"  // for HasInfInData
+#include "ellpack_page.h"
 #include "gradient_index.h"
 #include "xgboost/data.h"
 
@@ -28,6 +33,16 @@ EllpackPage::EllpackPage(EllpackPage&& that) { std::swap(impl_, that.impl_); }
 size_t EllpackPage::Size() const { return impl_->Size(); }
 
 void EllpackPage::SetBaseRowId(std::size_t row_id) { impl_->SetBaseRowId(row_id); }
+
+[[nodiscard]] common::HistogramCuts& EllpackPage::Cuts() {
+  CHECK(impl_);
+  return impl_->Cuts();
+}
+
+[[nodiscard]] common::HistogramCuts const& EllpackPage::Cuts() const {
+  CHECK(impl_);
+  return impl_->Cuts();
+}
 
 // Bin each input data entry, store the bin indices in compressed form.
 __global__ void CompressBinEllpackKernel(

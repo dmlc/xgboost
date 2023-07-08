@@ -810,7 +810,7 @@ XGB_DLL int XGDMatrixNumCol(DMatrixHandle handle,
  */
 XGB_DLL int XGDMatrixNumNonMissing(DMatrixHandle handle, bst_ulong *out);
 
-/*!
+/**
  * \brief Get the predictors from DMatrix as CSR matrix for testing.  If this is a
  *        quantized DMatrix, quantized values are returned instead.
  *
@@ -819,8 +819,10 @@ XGB_DLL int XGDMatrixNumNonMissing(DMatrixHandle handle, bst_ulong *out);
  * XGBoost. This is to avoid allocating a huge memory buffer that can not be freed until
  * exiting the thread.
  *
+ * @since 1.7.0
+ *
  * \param handle the handle to the DMatrix
- * \param config Json configuration string. At the moment it should be an empty document,
+ * \param config JSON configuration string. At the moment it should be an empty document,
  *               preserved for future use.
  * \param out_indptr  indptr of output CSR matrix.
  * \param out_indices Column index of output CSR matrix.
@@ -830,6 +832,24 @@ XGB_DLL int XGDMatrixNumNonMissing(DMatrixHandle handle, bst_ulong *out);
  */
 XGB_DLL int XGDMatrixGetDataAsCSR(DMatrixHandle const handle, char const *config,
                                   bst_ulong *out_indptr, unsigned *out_indices, float *out_data);
+
+/**
+ * @brief Export the quantile cuts used for training histogram-based models like `hist` and
+ *        `approx`. Useful for model compression.
+ *
+ * @since 2.0.0
+ *
+ * @param handle the handle to the DMatrix
+ * @param config JSON configuration string. At the moment it should be an empty document,
+ *               preserved for future use.
+ *
+ * @param out_indptr indptr of output CSC matrix represented by a JSON encoded
+ *                   __(cuda_)array_interface__.
+ * @param out_data   Data value of CSC matrix represented by a JSON encoded
+ *                   __(cuda_)array_interface__.
+ */
+XGB_DLL int XGDMatrixGetQuantileCut(DMatrixHandle const handle, char const *config,
+                                     char const **out_indptr, char const **out_data);
 
 /** @} */  // End of DMatrix
 

@@ -16,7 +16,8 @@
 #include "../common/threading_utils.h"
 #include "./simple_batch_iterator.h"
 #include "adapter.h"
-#include "batch_utils.h"  // for CheckEmpty, RegenGHist
+#include "batch_utils.h"   // for CheckEmpty, RegenGHist
+#include "ellpack_page.h"  // for EllpackPage
 #include "gradient_index.h"
 #include "xgboost/c_api.h"
 #include "xgboost/data.h"

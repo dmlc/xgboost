@@ -472,6 +472,18 @@ std::shared_ptr<DMatrix> RandomDataGenerator::GenerateQuantileDMatrix(bool with_
   return m;
 }
 
+#if !defined(XGBOOST_USE_CUDA)
+CudaArrayIterForTest::CudaArrayIterForTest(float sparsity, size_t rows, size_t cols, size_t batches)
+    : ArrayIterForTest{sparsity, rows, cols, batches} {
+  common::AssertGPUSupport();
+}
+
+int CudaArrayIterForTest::Next() {
+  common::AssertGPUSupport();
+  return 0;
+}
+#endif  // !defined(XGBOOST_USE_CUDA)
+
 NumpyArrayIterForTest::NumpyArrayIterForTest(float sparsity, size_t rows, size_t cols,
                                              size_t batches)
     : ArrayIterForTest{sparsity, rows, cols, batches} {
@@ -650,7 +662,7 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs,
 ArrayIterForTest::ArrayIterForTest(float sparsity, size_t rows, size_t cols, size_t batches)
     : rows_{rows}, cols_{cols}, n_batches_{batches} {
   XGProxyDMatrixCreate(&proxy_);
-  rng_.reset(new RandomDataGenerator{rows_, cols_, sparsity});
+  rng_ = std::make_unique<RandomDataGenerator>(rows_, cols_, sparsity);
   std::tie(batches_, interface_) = rng_->GenerateArrayInterfaceBatch(&data_, n_batches_);
 }
 

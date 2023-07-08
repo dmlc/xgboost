@@ -5,6 +5,7 @@
 
 #include "../../../src/data/device_adapter.cuh"
 #include "../../../src/data/ellpack_page.cuh"
+#include "../../../src/data/ellpack_page.h"
 #include "../../../src/data/iterative_dmatrix.h"
 #include "../../../src/tree/param.h"  // TrainParam
 #include "../helpers.h"

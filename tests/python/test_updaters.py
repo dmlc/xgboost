@@ -14,7 +14,11 @@ from xgboost.testing.params import (
     hist_multi_parameter_strategy,
     hist_parameter_strategy,
 )
-from xgboost.testing.updater import check_init_estimation, check_quantile_loss
+from xgboost.testing.updater import (
+    check_get_quantile_cut,
+    check_init_estimation,
+    check_quantile_loss,
+)
 
 
 def train_result(param, dmat, num_rounds):
@@ -537,3 +541,8 @@ class TestTreeMethod:
     @pytest.mark.parametrize("weighted", [True, False])
     def test_quantile_loss(self, weighted: bool) -> None:
         check_quantile_loss("hist", weighted)
+
+    @pytest.mark.skipif(**tm.no_pandas())
+    @pytest.mark.parametrize("tree_method", ["hist"])
+    def test_get_quantile_cut(self, tree_method: str) -> None:
+        check_get_quantile_cut(tree_method)

@@ -8,6 +8,7 @@
 #include <xgboost/learner.h>
 #include <xgboost/version_config.h>
 
+#include <array>    // for array
 #include <cstddef>  // std::size_t
 #include <limits>   // std::numeric_limits
 #include <string>   // std::string
@@ -15,6 +16,11 @@
 
 #include "../../../src/c_api/c_api_error.h"
 #include "../../../src/common/io.h"
+#include "../../../src/data/adapter.h"              // for ArrayAdapter
+#include "../../../src/data/array_interface.h"      // for ArrayInterface
+#include "../../../src/data/gradient_index.h"       // for GHistIndexMatrix
+#include "../../../src/data/iterative_dmatrix.h"    // for IterativeDMatrix
+#include "../../../src/data/sparse_page_dmatrix.h"  // for SparsePageDMatrix
 #include "../helpers.h"
 
 TEST(CAPI, XGDMatrixCreateFromMatDT) {
@@ -137,9 +143,9 @@ TEST(CAPI, ConfigIO) {
   BoosterHandle handle = learner.get();
   learner->UpdateOneIter(0, p_dmat);
 
-  char const* out[1];
+  std::array<char const* , 1> out;
   bst_ulong len {0};
-  XGBoosterSaveJsonConfig(handle, &len, out);
+  XGBoosterSaveJsonConfig(handle, &len, out.data());
 
   std::string config_str_0 { out[0] };
   auto config_0 = Json::Load({config_str_0.c_str(), config_str_0.size()});
@@ -147,7 +153,7 @@ TEST(CAPI, ConfigIO) {
 
   bst_ulong len_1 {0};
   std::string config_str_1 { out[0] };
-  XGBoosterSaveJsonConfig(handle, &len_1, out);
+  XGBoosterSaveJsonConfig(handle, &len_1, out.data());
   auto config_1 = Json::Load({config_str_1.c_str(), config_str_1.size()});
 
   ASSERT_EQ(config_0, config_1);
@@ -266,9 +272,9 @@ TEST(CAPI, DMatrixSetFeatureName) {
     ASSERT_EQ(std::to_string(i), c_out_features[i]);
   }
 
-  char const* feat_types [] {"i", "q"};
+  std::array<char const *, 2> feat_types{"i", "q"};
   static_assert(sizeof(feat_types) / sizeof(feat_types[0]) == kCols);
-  XGDMatrixSetStrFeatureInfo(handle, "feature_type", feat_types, kCols);
+  XGDMatrixSetStrFeatureInfo(handle, "feature_type", feat_types.data(), kCols);
   char const **c_out_types;
   XGDMatrixGetStrFeatureInfo(handle, u8"feature_type", &out_len,
                              &c_out_types);
@@ -405,4 +411,210 @@ TEST(CAPI, JArgs) {
     ASSERT_THROW({ RequiredArg<String>(args, "null", __func__); }, dmlc::Error);
   }
 }
+
+namespace {
+void MakeLabelForTest(std::shared_ptr<DMatrix> Xy, DMatrixHandle cxy) {
+  auto n_samples = Xy->Info().num_row_;
+  std::vector<float> y(n_samples);
+  for (std::size_t i = 0; i < y.size(); ++i) {
+    y[i] = static_cast<float>(i);
+  }
+
+  Xy->Info().labels.Reshape(n_samples);
+  Xy->Info().labels.Data()->HostVector() = y;
+
+  auto y_int = GetArrayInterface(Xy->Info().labels.Data(), n_samples, 1);
+  std::string s_y_int;
+  Json::Dump(y_int, &s_y_int);
+
+  XGDMatrixSetInfoFromInterface(cxy, "label", s_y_int.c_str());
+}
+
+auto MakeSimpleDMatrixForTest(bst_row_t n_samples, bst_feature_t n_features, Json dconfig) {
+  HostDeviceVector<float> storage;
+  auto arr_int = RandomDataGenerator{n_samples, n_features, 0.5f}.GenerateArrayInterface(&storage);
+
+  data::ArrayAdapter adapter{StringView{arr_int}};
+  std::shared_ptr<DMatrix> Xy{
+      DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), Context{}.Threads())};
+
+  DMatrixHandle p_fmat;
+  std::string s_dconfig;
+  Json::Dump(dconfig, &s_dconfig);
+  CHECK_EQ(XGDMatrixCreateFromDense(arr_int.c_str(), s_dconfig.c_str(), &p_fmat), 0);
+
+  MakeLabelForTest(Xy, p_fmat);
+  return std::pair{p_fmat, Xy};
+}
+
+auto MakeQDMForTest(Context const *ctx, bst_row_t n_samples, bst_feature_t n_features,
+                    Json dconfig) {
+  bst_bin_t n_bins{16};
+  dconfig["max_bin"] = Integer{n_bins};
+
+  std::size_t n_batches{4};
+  std::unique_ptr<ArrayIterForTest> iter_0;
+  if (ctx->IsCUDA()) {
+    iter_0 = std::make_unique<CudaArrayIterForTest>(0.0f, n_samples, n_features, n_batches);
+  } else {
+    iter_0 = std::make_unique<NumpyArrayIterForTest>(0.0f, n_samples, n_features, n_batches);
+  }
+  std::string s_dconfig;
+  Json::Dump(dconfig, &s_dconfig);
+  DMatrixHandle p_fmat;
+  CHECK_EQ(XGQuantileDMatrixCreateFromCallback(static_cast<DataIterHandle>(iter_0.get()),
+                                               iter_0->Proxy(), nullptr, Reset, Next,
+                                               s_dconfig.c_str(), &p_fmat),
+           0);
+
+  std::unique_ptr<ArrayIterForTest> iter_1;
+  if (ctx->IsCUDA()) {
+    iter_1 = std::make_unique<CudaArrayIterForTest>(0.0f, n_samples, n_features, n_batches);
+  } else {
+    iter_1 = std::make_unique<NumpyArrayIterForTest>(0.0f, n_samples, n_features, n_batches);
+  }
+  auto Xy =
+      std::make_shared<data::IterativeDMatrix>(iter_1.get(), iter_1->Proxy(), nullptr, Reset, Next,
+                                               std::numeric_limits<float>::quiet_NaN(), 0, n_bins);
+  return std::pair{p_fmat, Xy};
+}
+
+auto MakeExtMemForTest(bst_row_t n_samples, bst_feature_t n_features, Json dconfig) {
+  std::size_t n_batches{4};
+  NumpyArrayIterForTest iter_0{0.0f, n_samples, n_features, n_batches};
+  std::string s_dconfig;
+  dconfig["cache_prefix"] = String{"cache"};
+  Json::Dump(dconfig, &s_dconfig);
+  DMatrixHandle p_fmat;
+  CHECK_EQ(XGDMatrixCreateFromCallback(static_cast<DataIterHandle>(&iter_0), iter_0.Proxy(), Reset,
+                                       Next, s_dconfig.c_str(), &p_fmat),
+           0);
+
+  NumpyArrayIterForTest iter_1{0.0f, n_samples, n_features, n_batches};
+  auto Xy = std::make_shared<data::SparsePageDMatrix>(
+      &iter_1, iter_1.Proxy(), Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0, "");
+  MakeLabelForTest(Xy, p_fmat);
+  return std::pair{p_fmat, Xy};
+}
+
+template <typename Page>
+void CheckResult(Context const *ctx, bst_feature_t n_features, std::shared_ptr<DMatrix> Xy,
+                 float const *out_data, std::uint64_t const *out_indptr) {
+  for (auto const &page : Xy->GetBatches<Page>(ctx, BatchParam{16, 0.2})) {
+    auto const &cut = page.Cuts();
+    auto const &ptrs = cut.Ptrs();
+    auto const &vals = cut.Values();
+    auto const &mins = cut.MinValues();
+    for (bst_feature_t f = 0; f < Xy->Info().num_col_; ++f) {
+      ASSERT_EQ(ptrs[f] + f, out_indptr[f]);
+      ASSERT_EQ(mins[f], out_data[out_indptr[f]]);
+      auto beg = out_indptr[f];
+      auto end = out_indptr[f + 1];
+      auto val_beg = ptrs[f];
+      for (std::uint64_t i = beg + 1, j = val_beg; i < end; ++i, ++j) {
+        ASSERT_EQ(vals[j], out_data[i]);
+      }
+    }
+
+    ASSERT_EQ(ptrs[n_features] + n_features, out_indptr[n_features]);
+  }
+}
+
+void TestXGDMatrixGetQuantileCut(Context const *ctx) {
+  bst_row_t n_samples{1024};
+  bst_feature_t n_features{16};
+
+  Json dconfig{Object{}};
+  dconfig["ntread"] = Integer{Context{}.Threads()};
+  dconfig["missing"] = Number{std::numeric_limits<float>::quiet_NaN()};
+
+  auto check_result = [n_features, &ctx](std::shared_ptr<DMatrix> Xy, StringView s_out_data,
+                                         StringView s_out_indptr) {
+    auto i_out_data = ArrayInterface<1, false>{s_out_data};
+    ASSERT_EQ(i_out_data.type, ArrayInterfaceHandler::kF4);
+    auto out_data = static_cast<float const *>(i_out_data.data);
+    ASSERT_TRUE(out_data);
+
+    auto i_out_indptr = ArrayInterface<1, false>{s_out_indptr};
+    ASSERT_EQ(i_out_indptr.type, ArrayInterfaceHandler::kU8);
+    auto out_indptr = static_cast<std::uint64_t const *>(i_out_indptr.data);
+    ASSERT_TRUE(out_data);
+
+    if (ctx->IsCPU()) {
+      CheckResult<GHistIndexMatrix>(ctx, n_features, Xy, out_data, out_indptr);
+    } else {
+      CheckResult<EllpackPage>(ctx, n_features, Xy, out_data, out_indptr);
+    }
+  };
+
+  Json config{Null{}};
+  std::string s_config;
+  Json::Dump(config, &s_config);
+  char const *out_indptr;
+  char const *out_data;
+
+  {
+    // SimpleDMatrix
+    auto [p_fmat, Xy] = MakeSimpleDMatrixForTest(n_samples, n_features, dconfig);
+    // assert fail, we don't have the quantile yet.
+    ASSERT_EQ(XGDMatrixGetQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), -1);
+
+    std::array<DMatrixHandle, 1> mats{p_fmat};
+    BoosterHandle booster;
+    ASSERT_EQ(XGBoosterCreate(mats.data(), 1, &booster), 0);
+    ASSERT_EQ(XGBoosterSetParam(booster, "max_bin", "16"), 0);
+    if (ctx->IsCUDA()) {
+      ASSERT_EQ(XGBoosterSetParam(booster, "tree_method", "gpu_hist"), 0);
+    }
+    ASSERT_EQ(XGBoosterUpdateOneIter(booster, 0, p_fmat), 0);
+    ASSERT_EQ(XGDMatrixGetQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), 0);
+
+    check_result(Xy, out_data, out_indptr);
+
+    XGDMatrixFree(p_fmat);
+    XGBoosterFree(booster);
+  }
+
+  {
+    // IterativeDMatrix
+    auto [p_fmat, Xy] = MakeQDMForTest(ctx, n_samples, n_features, dconfig);
+    ASSERT_EQ(XGDMatrixGetQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), 0);
+
+    check_result(Xy, out_data, out_indptr);
+    XGDMatrixFree(p_fmat);
+  }
+
+  {
+    // SparsePageDMatrix
+    auto [p_fmat, Xy] = MakeExtMemForTest(n_samples, n_features, dconfig);
+    // assert fail, we don't have the quantile yet.
+    ASSERT_EQ(XGDMatrixGetQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), -1);
+
+    std::array<DMatrixHandle, 1> mats{p_fmat};
+    BoosterHandle booster;
+    ASSERT_EQ(XGBoosterCreate(mats.data(), 1, &booster), 0);
+    ASSERT_EQ(XGBoosterSetParam(booster, "max_bin", "16"), 0);
+    if (ctx->IsCUDA()) {
+      ASSERT_EQ(XGBoosterSetParam(booster, "tree_method", "gpu_hist"), 0);
+    }
+    ASSERT_EQ(XGBoosterUpdateOneIter(booster, 0, p_fmat), 0);
+    ASSERT_EQ(XGDMatrixGetQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), 0);
+
+    XGDMatrixFree(p_fmat);
+    XGBoosterFree(booster);
+  }
+}
+}  // namespace
+
+TEST(CAPI, XGDMatrixGetQuantileCut) {
+  Context ctx;
+  TestXGDMatrixGetQuantileCut(&ctx);
+}
+
+#if defined(XGBOOST_USE_CUDA)
+TEST(CAPI, GPUXGDMatrixGetQuantileCut) {
+  auto ctx = MakeCUDACtx(0);
+  TestXGDMatrixGetQuantileCut(&ctx);
+}
+#endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost
