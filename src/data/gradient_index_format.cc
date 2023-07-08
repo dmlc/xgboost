@@ -68,7 +68,6 @@ class GHistIndexRawFormat : public SparsePageFormat<GHistIndexMatrix> {
   }
 
   std::size_t Write(GHistIndexMatrix const& page, common::AlignedFileWriteStream* fo) override {
-    CHECK_NE(page.index.Size(), 0) << "Empty page is not supported.";
     std::size_t bytes = 0;
     bytes += WriteHistogramCuts(page.cut, fo);
     // indptr
@@ -81,7 +80,9 @@ class GHistIndexRawFormat : public SparsePageFormat<GHistIndexMatrix> {
     // - index buffer
     std::vector<std::uint8_t> data(page.index.begin(), page.index.end());
     bytes += fo->Write(static_cast<std::uint64_t>(data.size()));
-    bytes += fo->Write(data.data(), data.size());
+    if (!data.empty()) {
+      bytes += fo->Write(data.data(), data.size());
+    }
 
     // hit count
     bytes += common::WriteVec(fo, page.hit_count);
