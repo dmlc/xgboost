@@ -197,6 +197,7 @@ def _from_numpy_array(
     nthread: int,
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
+    data_split_mode: DataSplitMode = DataSplitMode.ROW,
 ) -> DispatchedDataBackendReturnType:
     """Initialize data from a 2-D numpy matrix."""
     _check_data_shape(data)
@@ -205,7 +206,11 @@ def _from_numpy_array(
     _check_call(
         _LIB.XGDMatrixCreateFromDense(
             _array_interface(data),
-            make_jcargs(missing=float(missing), nthread=int(nthread)),
+            make_jcargs(
+                missing=float(missing),
+                nthread=int(nthread),
+                data_split_mode=int(data_split_mode),
+            ),
             ctypes.byref(handle),
         )
     )
@@ -1046,7 +1051,9 @@ def dispatch_data_backend(
             data.tocsr(), missing, threads, feature_names, feature_types
         )
     if _is_numpy_array(data):
-        return _from_numpy_array(data, missing, threads, feature_names, feature_types)
+        return _from_numpy_array(
+            data, missing, threads, feature_names, feature_types, data_split_mode
+        )
     if _is_uri(data):
         return _from_uri(data, missing, feature_names, feature_types, data_split_mode)
     if _is_list(data):
