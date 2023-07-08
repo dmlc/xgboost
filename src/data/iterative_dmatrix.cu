@@ -106,7 +106,7 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
     sketch_containers.clear();
     sketch_containers.shrink_to_fit();
 
-    final_sketch.MakeCuts(&cuts);
+    final_sketch.MakeCuts(&cuts, this->info_.IsColumnSplit());
   } else {
     GetCutsFromRef(ctx, ref, Info().num_col_, p, &cuts);
   }
