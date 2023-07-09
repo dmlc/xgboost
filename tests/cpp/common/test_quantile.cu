@@ -429,7 +429,7 @@ namespace {
 void TestColumnSplitBasic() {
   auto const world = collective::GetWorldSize();
   auto const rank = collective::GetRank();
-  auto constexpr kRows = 1000, kCols = 100, kBins = 64;
+  std::size_t constexpr kRows = 1000, kCols = 100, kBins = 64;
 
   auto m = std::unique_ptr<DMatrix>{[=]() {
     auto dmat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
