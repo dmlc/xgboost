@@ -210,6 +210,14 @@ TEST(GpuPredictor, LesserFeatures) {
   TestPredictionWithLesserFeatures(&ctx);
 }
 
+TEST(GpuPredictor, MGPULesserFeaturesColumnSplit) {
+  auto const n_gpus = common::AllVisibleGPUs();
+  if (n_gpus <= 1) {
+    GTEST_SKIP() << "Skipping MGPULesserFeaturesColumnSplit test with # GPUs = " << n_gpus;
+  }
+  TestPredictionWithLesserFeaturesColumnSplit(n_gpus);
+}
+
 // Very basic test of empty model
 TEST(GPUPredictor, ShapStump) {
   cudaSetDevice(0);

@@ -183,15 +183,24 @@ void VerifyPredictionWithLesserFeatures(Learner *learner, bst_row_t kRows,
   ASSERT_THROW({ learner->Predict(m_invalid, false, &prediction, 0, 0); }, dmlc::Error);
 }
 
-void VerifyPredictionWithLesserFeaturesColumnSplit(Learner *learner, size_t rows,
-                                                   std::shared_ptr<DMatrix> m_test,
-                                                   std::shared_ptr<DMatrix> m_invalid) {
+void VerifyPredictionWithLesserFeaturesColumnSplit(bool use_gpu) {
   auto const world_size = collective::GetWorldSize();
   auto const rank = collective::GetRank();
+
+  std::size_t constexpr kRows = 256, kTrainCols = 256, kTestCols = 4, kIters = 4;
+  auto m_train = RandomDataGenerator(kRows, kTrainCols, 0.5).Seed(rank).GenerateDMatrix(true);
+  Context ctx;
+  if (use_gpu) {
+    ctx = MakeCUDACtx(rank);
+  }
+  auto learner = LearnerForTest(&ctx, m_train, kIters);
+  auto m_test = RandomDataGenerator(kRows, kTestCols, 0.5).GenerateDMatrix(false);
+  auto m_invalid = RandomDataGenerator(kRows, kTrainCols + 1, 0.5).GenerateDMatrix(false);
+
   std::shared_ptr<DMatrix> sliced_test{m_test->SliceCol(world_size, rank)};
   std::shared_ptr<DMatrix> sliced_invalid{m_invalid->SliceCol(world_size, rank)};
 
-  VerifyPredictionWithLesserFeatures(learner, rows, sliced_test, sliced_invalid);
+  VerifyPredictionWithLesserFeatures(learner.get(), kRows, sliced_test, sliced_invalid);
 }
 }  // anonymous namespace
 
@@ -240,16 +249,10 @@ void TestPredictionDeviceAccess() {
 #endif  // defined(XGBOOST_USE_CUDA)
 }
 
-void TestPredictionWithLesserFeaturesColumnSplit(Context const *ctx) {
-  size_t constexpr kRows = 256, kTrainCols = 256, kTestCols = 4, kIters = 4;
-  auto m_train = RandomDataGenerator(kRows, kTrainCols, 0.5).GenerateDMatrix(true);
-  auto learner = LearnerForTest(ctx, m_train, kIters);
-  auto m_test = RandomDataGenerator(kRows, kTestCols, 0.5).GenerateDMatrix(false);
-  auto m_invalid = RandomDataGenerator(kRows, kTrainCols + 1, 0.5).GenerateDMatrix(false);
-
-  auto constexpr kWorldSize = 2;
-  RunWithInMemoryCommunicator(kWorldSize, VerifyPredictionWithLesserFeaturesColumnSplit,
-                              learner.get(), kRows, m_test, m_invalid);
+void TestPredictionWithLesserFeaturesColumnSplit(int n_gpus) {
+  auto const use_gpu = n_gpus > 0;
+  auto const world_size = use_gpu ? n_gpus : 2;
+  RunWithInMemoryCommunicator(world_size, VerifyPredictionWithLesserFeaturesColumnSplit, use_gpu);
 }
 
 void GBTreeModelForTest(gbm::GBTreeModel *model, uint32_t split_ind,

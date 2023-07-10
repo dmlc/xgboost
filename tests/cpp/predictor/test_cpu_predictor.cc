@@ -256,8 +256,7 @@ TEST(CpuPredictor, LesserFeatures) {
 }
 
 TEST(CpuPredictor, LesserFeaturesColumnSplit) {
-  Context ctx;
-  TestPredictionWithLesserFeaturesColumnSplit(&ctx);
+  TestPredictionWithLesserFeaturesColumnSplit(0);
 }
 
 TEST(CpuPredictor, Sparse) {

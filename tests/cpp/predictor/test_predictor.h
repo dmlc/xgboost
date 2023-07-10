@@ -99,7 +99,7 @@ void TestCategoricalPrediction(Context const* ctx, bool is_column_split);
 
 void TestCategoricalPredictionColumnSplit(Context const* ctx);
 
-void TestPredictionWithLesserFeaturesColumnSplit(Context const* ctx);
+void TestPredictionWithLesserFeaturesColumnSplit(int n_gpus);
 
 void TestCategoricalPredictLeaf(Context const* ctx, bool is_column_split);
 
