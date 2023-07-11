@@ -75,9 +75,12 @@ inline void WarnOldSerialization() {
   if (logged) {
     return;
   }
-
   LOG(WARNING) << OldSerialization();
   logged = true;
 }
+
+void WarnDeprecatedGPUHist();
+
+void WarnManualUpdater();
 }  // namespace xgboost::error
 #endif  // XGBOOST_COMMON_ERROR_MSG_H_

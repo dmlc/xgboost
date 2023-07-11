@@ -352,7 +352,7 @@ HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
       }
     }
   }
-  sketch_container.MakeCuts(&cuts);
+  sketch_container.MakeCuts(&cuts, dmat->Info().IsColumnSplit());
   return cuts;
 }
 }  // namespace common

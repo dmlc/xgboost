@@ -501,10 +501,10 @@ void SketchContainer::FixError() {
   });
 }
 
-void SketchContainer::AllReduce() {
+void SketchContainer::AllReduce(bool is_column_split) {
   dh::safe_cuda(cudaSetDevice(device_));
   auto world = collective::GetWorldSize();
-  if (world == 1) {
+  if (world == 1 || is_column_split) {
     return;
   }
 
@@ -582,13 +582,13 @@ struct InvalidCatOp {
 };
 }  // anonymous namespace
 
-void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
+void SketchContainer::MakeCuts(HistogramCuts* p_cuts, bool is_column_split) {
   timer_.Start(__func__);
   dh::safe_cuda(cudaSetDevice(device_));
   p_cuts->min_vals_.Resize(num_columns_);
 
   // Sync between workers.
-  this->AllReduce();
+  this->AllReduce(is_column_split);
 
   // Prune to final number of bins.
   this->Prune(num_bins_ + 1);
