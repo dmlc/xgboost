@@ -284,6 +284,14 @@ TEST(GPUPredictor, IterationRange) {
   TestIterationRange(&ctx);
 }
 
+TEST(GPUPredictor, MGPUIterationRangeColumnSplit) {
+  auto const n_gpus = common::AllVisibleGPUs();
+  if (n_gpus <= 1) {
+    GTEST_SKIP() << "Skipping MGPUIterationRangeColumnSplit test with # GPUs = " << n_gpus;
+  }
+  TestIterationRangeColumnSplit(n_gpus);
+}
+
 TEST(GPUPredictor, CategoricalPrediction) {
   auto ctx = MakeCUDACtx(0);
   TestCategoricalPrediction(&ctx, false);

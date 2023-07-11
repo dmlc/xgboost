@@ -107,7 +107,7 @@ void TestCategoricalPredictLeafColumnSplit(Context const* ctx);
 
 void TestIterationRange(Context const* ctx);
 
-void TestIterationRangeColumnSplit(Context const* ctx);
+void TestIterationRangeColumnSplit(int n_gpus);
 
 void TestSparsePrediction(Context const* ctx, float sparsity);
 

@@ -127,8 +127,7 @@ TEST(CpuPredictor, IterationRange) {
 }
 
 TEST(CpuPredictor, IterationRangeColmnSplit) {
-  Context ctx;
-  TestIterationRangeColumnSplit(&ctx);
+  TestIterationRangeColumnSplit(0);
 }
 
 TEST(CpuPredictor, ExternalMemory) {

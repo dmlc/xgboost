@@ -801,8 +801,8 @@ class ColumnSplitHelper {
   }
 
   void ResizeBitVectors(dh::caching_device_vector<BitType>* decision_storage,
-                               dh::caching_device_vector<BitType>* missing_storage,
-                               std::size_t total_bits) const {
+                        dh::caching_device_vector<BitType>* missing_storage,
+                        std::size_t total_bits) const {
     auto const size = BitVector::ComputeStorageSize(total_bits);
     if (decision_storage->size() < size) {
       decision_storage->resize(size);
