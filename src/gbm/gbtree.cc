@@ -523,13 +523,19 @@ void GBTree::PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* out_preds, 
 
 namespace {
 inline void MismatchedDevices(Context const* booster, Context const* data) {
-  LOG(WARNING) << "Falling back to prediction using DMatrix due to mismatched devices. XGBoost "
-               << "is running on: " << booster->DeviceName()
-               << ", while the input data is on: " << data->DeviceName() << ".\n"
+  bool thread_local static logged{false};
+  if (logged) {
+    return;
+  }
+  LOG(WARNING) << "Falling back to prediction using DMatrix due to mismatched devices. This might "
+                  "lead to higher memory usage and slower performance. XGBoost is running on: "
+               << booster->DeviceName() << ", while the input data is on: " << data->DeviceName()
+               << ".\n"
                << R"(Potential solutions:
 - Use a data structure that matches the device ordinal in the booster.
 - Set the device for booster before call to inplace_predict.
 )";
+  logged = true;
 }
 };  // namespace
 

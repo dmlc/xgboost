@@ -131,8 +131,8 @@ class TestGPUPredict:
         X_test, y_test = X[tr_size:, :], y[tr_size:]
 
         params = {
-            "tree_method": "gpu_hist",
-            "gpu_id": "0",
+            "tree_method": "hist",
+            "device": "cuda:0",
             "n_jobs": -1,
             "seed": 123,
         }
@@ -175,7 +175,9 @@ class TestGPUPredict:
         dtrain = xgb.DMatrix(X, y)
 
         booster = xgb.train(
-            {"tree_method": "gpu_hist", "gpu_id": device}, dtrain, num_boost_round=10
+            {"tree_method": "hist", "device": f"cuda:{device}"},
+            dtrain,
+            num_boost_round=10,
         )
 
         test = xgb.DMatrix(X[:10, ...], missing=missing)
@@ -208,13 +210,13 @@ class TestGPUPredict:
         missing_idx = [i for i in range(0, X.shape[1], 16)]
         X[:, missing_idx] = missing
         reg = xgb.XGBRegressor(
-            tree_method="gpu_hist", n_estimators=8, missing=missing, gpu_id=device
+            tree_method="hist", n_estimators=8, missing=missing, device=f"cuda:{device}"
         )
         reg.fit(X, y)
 
-        reg = tm.set_ordinal(device, reg)
+        reg.set_params(device=f"cuda:{device}")
         gpu_predt = reg.predict(X)
-        reg = tm.set_ordinal(-1, reg)
+        reg = reg.set_params(device="cpu")
         cpu_predt = reg.predict(cp.asnumpy(X))
         np.testing.assert_allclose(gpu_predt, cpu_predt, atol=1e-6)
         cp.cuda.runtime.setDevice(0)
