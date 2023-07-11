@@ -1020,6 +1020,9 @@ class GPUPredictor : public xgboost::Predictor {
     if (tree_weights != nullptr) {
       LOG(FATAL) << "Dart booster feature " << not_implemented;
     }
+    CHECK(!p_fmat->Info().IsColumnSplit())
+        << "Predict contribution support for column-wise data split is not yet implemented.";
+
     dh::safe_cuda(cudaSetDevice(ctx_->gpu_id));
     out_contribs->SetDevice(ctx_->gpu_id);
     if (tree_end == 0 || tree_end > model.trees.size()) {
