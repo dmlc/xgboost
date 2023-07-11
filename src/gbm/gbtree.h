@@ -59,9 +59,7 @@ struct GBTreeTrainParam : public XGBoostParameter<GBTreeTrainParam> {
   TreeMethod tree_method;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GBTreeTrainParam) {
-    DMLC_DECLARE_FIELD(updater_seq)
-        .set_default("grow_colmaker,prune")
-        .describe("Tree updater sequence.");
+    DMLC_DECLARE_FIELD(updater_seq).describe("Tree updater sequence.").set_default("");
     DMLC_DECLARE_FIELD(process_type)
         .set_default(TreeProcessType::kDefault)
         .add_enum("default", TreeProcessType::kDefault)
@@ -170,22 +168,21 @@ bool SliceTrees(bst_layer_t begin, bst_layer_t end, bst_layer_t step, GBTreeMode
 class GBTree : public GradientBooster {
  public:
   explicit GBTree(LearnerModelParam const* booster_config, Context const* ctx)
-      : GradientBooster{ctx}, model_(booster_config, ctx_) {}
+      : GradientBooster{ctx}, model_(booster_config, ctx_) {
+    monitor_.Init(__func__);
+  }
 
-  void Configure(const Args& cfg) override;
-  /*! \brief Map `tree_method` parameter to `updater` parameter */
-  void ConfigureUpdaters();
-
+  void Configure(Args const& cfg) override;
   /**
-   * \brief Optionally update the leaf value.
+   * @brief Optionally update the leaf value.
    */
   void UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const& predictions,
-                      ObjFunction const* obj,
-                      std::int32_t group_idx,
+                      ObjFunction const* obj, std::int32_t group_idx,
                       std::vector<HostDeviceVector<bst_node_t>> const& node_position,
                       std::vector<std::unique_ptr<RegTree>>* p_trees);
-
-  /*! \brief Carry out one iteration of boosting */
+  /**
+   * @brief Carry out one iteration of boosting.
+   */
   void DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
                PredictionCacheEntry* predt, ObjFunction const* obj) override;
 
@@ -289,7 +286,6 @@ class GBTree : public GradientBooster {
 
   void PredictInstance(const SparsePage::Inst& inst, std::vector<bst_float>* out_preds,
                        uint32_t layer_begin, uint32_t layer_end) override {
-    CHECK(configured_);
     std::uint32_t _, tree_end;
     std::tie(_, tree_end) = detail::LayerToTree(model_, layer_begin, layer_end);
     cpu_predictor_->PredictInstance(inst, out_preds, model_, tree_end);
@@ -307,7 +303,6 @@ class GBTree : public GradientBooster {
   void PredictContribution(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
                            bst_layer_t layer_begin, bst_layer_t layer_end,
                            bool approximate) override {
-    CHECK(configured_);
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict contribution supports only iteration end: (0, "
                                "n_iteration), using model slicing instead.";
@@ -318,7 +313,6 @@ class GBTree : public GradientBooster {
   void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
                                        bst_layer_t layer_begin, bst_layer_t layer_end,
                                        bool approximate) override {
-    CHECK(configured_);
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict interaction contribution supports only iteration end: (0, "
                                "n_iteration), using model slicing instead.";
@@ -332,9 +326,6 @@ class GBTree : public GradientBooster {
   }
 
  protected:
-  // initialize updater before using them
-  void InitUpdater(Args const& cfg);
-
   void BoostNewTrees(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat, int bst_group,
                      std::vector<HostDeviceVector<bst_node_t>>* out_position,
                      std::vector<std::unique_ptr<RegTree>>* ret);
@@ -352,10 +343,7 @@ class GBTree : public GradientBooster {
   GBTreeTrainParam tparam_;
   // Tree training parameter
   tree::TrainParam tree_param_;
-  // ----training fields----
-  bool showed_updater_warning_ {false};
   bool specified_updater_   {false};
-  bool configured_ {false};
   // the updaters that can be applied to each of tree
   std::vector<std::unique_ptr<TreeUpdater>> updaters_;
   // Predictors
