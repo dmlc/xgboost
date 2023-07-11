@@ -388,7 +388,7 @@ void TestAllReduceBasic(int32_t n_gpus) {
     AdapterDeviceSketch(adapter.Value(), n_bins, info,
                         std::numeric_limits<float>::quiet_NaN(),
                         &sketch_distributed);
-    sketch_distributed.AllReduce();
+    sketch_distributed.AllReduce(false);
     sketch_distributed.Unique();
 
     ASSERT_EQ(sketch_distributed.ColumnsPtr().size(),
@@ -426,6 +426,58 @@ TEST(GPUQuantile, MGPUAllReduceBasic) {
 }
 
 namespace {
+void TestColumnSplitBasic() {
+  auto const world = collective::GetWorldSize();
+  auto const rank = collective::GetRank();
+  std::size_t constexpr kRows = 1000, kCols = 100, kBins = 64;
+
+  auto m = std::unique_ptr<DMatrix>{[=]() {
+    auto dmat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
+    return dmat->SliceCol(world, rank);
+  }()};
+
+  // Generate cuts for distributed environment.
+  auto const device = rank;
+  HistogramCuts distributed_cuts = common::DeviceSketch(device, m.get(), kBins);
+
+  // Generate cuts for single node environment
+  collective::Finalize();
+  CHECK_EQ(collective::GetWorldSize(), 1);
+  HistogramCuts single_node_cuts = common::DeviceSketch(device, m.get(), kBins);
+
+  auto const& sptrs = single_node_cuts.Ptrs();
+  auto const& dptrs = distributed_cuts.Ptrs();
+  auto const& svals = single_node_cuts.Values();
+  auto const& dvals = distributed_cuts.Values();
+  auto const& smins = single_node_cuts.MinValues();
+  auto const& dmins = distributed_cuts.MinValues();
+
+  EXPECT_EQ(sptrs.size(), dptrs.size());
+  for (size_t i = 0; i < sptrs.size(); ++i) {
+    EXPECT_EQ(sptrs[i], dptrs[i]) << "rank: " << rank << ", i: " << i;
+  }
+
+  EXPECT_EQ(svals.size(), dvals.size());
+  for (size_t i = 0; i < svals.size(); ++i) {
+    EXPECT_NEAR(svals[i], dvals[i], 2e-2f) << "rank: " << rank << ", i: " << i;
+  }
+
+  EXPECT_EQ(smins.size(), dmins.size());
+  for (size_t i = 0; i < smins.size(); ++i) {
+    EXPECT_FLOAT_EQ(smins[i], dmins[i]) << "rank: " << rank << ", i: " << i;
+  }
+}
+}  // anonymous namespace
+
+TEST(GPUQuantile, MGPUColumnSplitBasic) {
+  auto const n_gpus = AllVisibleGPUs();
+  if (n_gpus <= 1) {
+    GTEST_SKIP() << "Skipping MGPUColumnSplitBasic test with # GPUs = " << n_gpus;
+  }
+  RunWithInMemoryCommunicator(n_gpus, TestColumnSplitBasic);
+}
+
+namespace {
 void TestSameOnAllWorkers(std::int32_t n_gpus) {
   auto world = collective::GetWorldSize();
   CHECK_EQ(world, n_gpus);
@@ -445,7 +497,7 @@ void TestSameOnAllWorkers(std::int32_t n_gpus) {
     AdapterDeviceSketch(adapter.Value(), n_bins, info,
                         std::numeric_limits<float>::quiet_NaN(),
                         &sketch_distributed);
-    sketch_distributed.AllReduce();
+    sketch_distributed.AllReduce(false);
     sketch_distributed.Unique();
     TestQuantileElemRank(device, sketch_distributed.Data(), sketch_distributed.ColumnsPtr(), true);
 
