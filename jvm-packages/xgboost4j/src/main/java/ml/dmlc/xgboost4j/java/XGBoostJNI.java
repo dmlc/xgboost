@@ -100,6 +100,9 @@ class XGBoostJNI {
                                                             long[] outLength, String[][] outValues);
 
   public final static native int XGDMatrixNumRow(long handle, long[] row);
+
+  public final static native int XGDMatrixNumCol(long handle, long[] col);
+
   public final static native int XGDMatrixNumNonMissing(long handle, long[] nonMissings);
 
   public final static native int XGBoosterCreate(long[] handles, long[] out);
@@ -168,4 +171,6 @@ class XGBoostJNI {
 
   public final static native int XGBoosterGetStrFeatureInfo(long handle, String field, String[] out);
 
+  public final static native int XGDMatrixGetDataAsCSR(long handle, String config, long[] rowOffset,
+    int[] featureIndex, float[] featureValue);
 }
