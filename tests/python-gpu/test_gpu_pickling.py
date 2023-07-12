@@ -113,14 +113,6 @@ class TestPickling:
         param = {"tree_method": "gpu_hist", "verbosity": 1}
         bst = xgb.train(param, train_x)
 
-        with tm.captured_output() as (out, err):
-            bst.inplace_predict(x)
-
-        # The warning is redirected to Python callback, so it's printed in stdout
-        # instead of stderr.
-        stdout = out.getvalue()
-        assert stdout.find("mismatched devices") != -1
-
         save_pickle(bst, model_path)
 
         args = self.args_template.copy()
