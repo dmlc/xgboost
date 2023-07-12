@@ -150,12 +150,12 @@ namespace {
 std::unique_ptr<Learner> LearnerForTest(Context const *ctx, std::shared_ptr<DMatrix> dmat,
                                         size_t iters, size_t forest = 1) {
   std::unique_ptr<Learner> learner{Learner::Create({dmat})};
-  learner->SetParams(Args{{"num_parallel_tree", std::to_string(forest)}});
+  learner->SetParams(
+      Args{{"num_parallel_tree", std::to_string(forest)}, {"device", ctx->DeviceName()}});
   for (size_t i = 0; i < iters; ++i) {
     learner->UpdateOneIter(i, dmat);
   }
 
-  ConfigLearnerByCtx(ctx, learner.get());
   return learner;
 }
 
@@ -204,7 +204,7 @@ void TestPredictionDeviceAccess() {
   {
     ASSERT_EQ(from_cpu.DeviceIdx(), Context::kCpuId);
     Context cpu_ctx;
-    ConfigLearnerByCtx(&cpu_ctx, learner.get());
+    learner->SetParam("device", cpu_ctx.DeviceName());
     learner->Predict(m_test, false, &from_cpu, 0, 0);
     ASSERT_TRUE(from_cpu.HostCanWrite());
     ASSERT_FALSE(from_cpu.DeviceCanRead());
@@ -214,7 +214,7 @@ void TestPredictionDeviceAccess() {
   HostDeviceVector<float> from_cuda;
   {
     Context cuda_ctx = MakeCUDACtx(0);
-    ConfigLearnerByCtx(&cuda_ctx, learner.get());
+    learner->SetParam("device", cuda_ctx.DeviceName());
     learner->Predict(m_test, false, &from_cuda, 0, 0);
     ASSERT_EQ(from_cuda.DeviceIdx(), 0);
     ASSERT_TRUE(from_cuda.DeviceCanWrite());
@@ -454,7 +454,7 @@ void TestIterationRangeColumnSplit(Context const* ctx) {
   auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix(true, true, kClasses);
   auto learner = LearnerForTest(ctx, dmat, kIters, kForest);
 
-  ConfigLearnerByCtx(ctx, learner.get());
+  learner->SetParam("device", ctx->DeviceName());
 
   bool bound = false;
   std::unique_ptr<Learner> sliced{learner->Slice(0, 3, 1, &bound)};
@@ -567,7 +567,7 @@ void TestSparsePredictionColumnSplit(Context const* ctx, float sparsity) {
   learner.reset(Learner::Create({Xy}));
   learner->LoadModel(model);
 
-  ConfigLearnerByCtx(ctx, learner.get());
+  learner->SetParam("device", ctx->DeviceName());
   learner->Predict(Xy, false, &sparse_predt, 0, 0);
 
   auto constexpr kWorldSize = 2;

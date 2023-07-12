@@ -415,8 +415,7 @@ class Dart : public testing::TestWithParam<char const*> {
     for (size_t i = 0; i < 16; ++i) {
       learner->UpdateOneIter(i, p_mat);
     }
-
-    ConfigLearnerByCtx(&ctx, learner.get());
+    learner->SetParam("device", ctx.DeviceName());
 
     HostDeviceVector<float> predts_training;
     learner->Predict(p_mat, false, &predts_training, 0, 0, true);
@@ -677,8 +676,7 @@ TEST(GBTree, InplacePredictionError) {
         RandomDataGenerator{n_samples, n_features, 0.5f}.Batches(2).GenerateSparsePageDMatrix(
             "cache", true);
     std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
-    learner->SetParam("booster", booster);
-    ConfigLearnerByCtx(ctx, learner.get());
+    learner->SetParams(Args{{"booster", booster}, {"device", ctx->DeviceName()}});
     learner->Configure();
     for (std::int32_t i = 0; i < 3; ++i) {
       learner->UpdateOneIter(i, p_fmat);
@@ -720,9 +718,9 @@ TEST(GBTree, InplacePredictionError) {
 #endif  // defined(XGBOOST_USE_CUDA)
     };
     std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
-    learner->SetParam("booster", booster);
-    learner->SetParam("max_bin", std::to_string(max_bins));
-    ConfigLearnerByCtx(ctx, learner.get());
+    learner->SetParams(Args{{"booster", booster},
+                            {"max_bin", std::to_string(max_bins)},
+                            {"device", ctx->DeviceName()}});
     learner->Configure();
     for (std::int32_t i = 0; i < 3; ++i) {
       learner->UpdateOneIter(i, p_fmat);
