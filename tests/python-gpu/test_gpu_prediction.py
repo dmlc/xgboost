@@ -39,7 +39,8 @@ predict_parameter_strategy = strategies.fixed_dictionaries(
     }
 )
 
-pytestmark = tm.timeout(20)
+# cupy nvrtc compilation can take a long time for the first run
+pytestmark = tm.timeout(30)
 
 
 class TestGPUPredict:
@@ -71,8 +72,8 @@ class TestGPUPredict:
                 param = {
                     "objective": "binary:logistic",
                     "eval_metric": "logloss",
-                    "tree_method": "gpu_hist",
-                    "gpu_id": 0,
+                    "tree_method": "hist",
+                    "device": "gpu:0",
                     "max_depth": 1,
                 }
                 bst = xgb.train(
@@ -84,7 +85,7 @@ class TestGPUPredict:
                 gpu_pred_test = bst.predict(dtest, output_margin=True)
                 gpu_pred_val = bst.predict(dval, output_margin=True)
 
-                bst.set_param({"gpu_id": -1, "tree_method": "hist"})
+                bst.set_param({"device": "cpu", "tree_method": "hist"})
                 bst_cpu = copy(bst)
                 cpu_pred_train = bst_cpu.predict(dtrain, output_margin=True)
                 cpu_pred_test = bst_cpu.predict(dtest, output_margin=True)
@@ -107,14 +108,15 @@ class TestGPUPredict:
         dtrain = xgb.DMatrix(X_train, label=y_train)
 
         params = {}
-        params["tree_method"] = "gpu_hist"
+        params["tree_method"] = "hist"
+        params["device"] = "cuda:0"
         bst = xgb.train(params, dtrain)
 
-        tm.set_ordinal(0, bst)
+        bst.set_param({"device": "cuda:0"})
         # Don't reuse the DMatrix for prediction, otherwise the result is cached.
         predict_gpu_0 = bst.predict(xgb.DMatrix(X_test))
         predict_gpu_1 = bst.predict(xgb.DMatrix(X_test))
-        tm.set_ordinal(-1, bst)
+        bst.set_param({"device": "cpu"})
         predict_cpu = bst.predict(xgb.DMatrix(X_test))
 
         assert np.allclose(predict_gpu_0, predict_gpu_1)
@@ -141,7 +143,7 @@ class TestGPUPredict:
         gpu_test_score = m.score(X_test, y_test)
 
         # Now with cpu
-        m = tm.set_ordinal(-1, m)
+        m.set_params(device="cpu")
         cpu_train_score = m.score(X_train, y_train)
         cpu_test_score = m.score(X_test, y_test)
 
@@ -252,7 +254,9 @@ class TestGPUPredict:
 
         dtrain = xgb.DMatrix(X, y)
 
-        booster = xgb.train({"tree_method": "gpu_hist"}, dtrain, num_boost_round=10)
+        booster = xgb.train(
+            {"tree_method": "hist", "device": "cuda:0"}, dtrain, num_boost_round=10
+        )
         test = xgb.DMatrix(X)
         predt_from_array = booster.inplace_predict(X)
         predt_from_dmatrix = booster.predict(test)
@@ -282,12 +286,12 @@ class TestGPUPredict:
     def test_shap(self, num_rounds, dataset, param):
         if dataset.name.endswith("-l1"):  # not supported by the exact tree method
             return
-        param.update({"tree_method": "gpu_hist", "gpu_id": 0})
+        param.update({"tree_method": "hist", "device": "gpu:0"})
         param = dataset.set_params(param)
         dmat = dataset.get_dmat()
         bst = xgb.train(param, dmat, num_rounds)
         test_dmat = xgb.DMatrix(dataset.X, dataset.y, dataset.w, dataset.margin)
-        bst = tm.set_ordinal(0, bst)
+        bst.set_param({"device": "gpu:0"})
         shap = bst.predict(test_dmat, pred_contribs=True)
         margin = bst.predict(test_dmat, output_margin=True)
         assume(len(dataset.y) > 0)
@@ -300,12 +304,12 @@ class TestGPUPredict:
     def test_shap_interactions(self, num_rounds, dataset, param):
         if dataset.name.endswith("-l1"):  # not supported by the exact tree method
             return
-        param.update({"tree_method": "hist", "gpu_id": 0})
+        param.update({"tree_method": "hist", "device": "cuda:0"})
         param = dataset.set_params(param)
         dmat = dataset.get_dmat()
         bst = xgb.train(param, dmat, num_rounds)
         test_dmat = xgb.DMatrix(dataset.X, dataset.y, dataset.w, dataset.margin)
-        bst = tm.set_ordinal(0, bst)
+        bst.set_param({"device": "cuda:0"})
         shap = bst.predict(test_dmat, pred_interactions=True)
         margin = bst.predict(test_dmat, output_margin=True)
         assume(len(dataset.y) > 0)
@@ -319,16 +323,18 @@ class TestGPUPredict:
     def test_shap_categorical(self):
         X, y = tm.make_categorical(100, 20, 7, False)
         Xy = xgb.DMatrix(X, y, enable_categorical=True)
-        booster = xgb.train({"tree_method": "gpu_hist"}, Xy, num_boost_round=10)
+        booster = xgb.train(
+            {"tree_method": "hist", "device": "gpu:0"}, Xy, num_boost_round=10
+        )
 
-        booster = tm.set_ordinal(0, booster)
+        booster.set_param({"device": "cuda:0"})
         shap = booster.predict(Xy, pred_contribs=True)
         margin = booster.predict(Xy, output_margin=True)
         np.testing.assert_allclose(
             np.sum(shap, axis=len(shap.shape) - 1), margin, rtol=1e-3
         )
 
-        booster = tm.set_ordinal(-1, booster)
+        booster.set_param({"device": "cpu"})
         shap = booster.predict(Xy, pred_contribs=True)
         margin = booster.predict(Xy, output_margin=True)
         np.testing.assert_allclose(
@@ -336,8 +342,8 @@ class TestGPUPredict:
         )
 
     def test_predict_leaf_basic(self):
-        gpu_leaf = run_predict_leaf(0)
-        cpu_leaf = run_predict_leaf(-1)
+        gpu_leaf = run_predict_leaf("gpu:0")
+        cpu_leaf = run_predict_leaf("cpu")
         np.testing.assert_equal(gpu_leaf, cpu_leaf)
 
     def run_predict_leaf_booster(self, param, num_rounds, dataset):
@@ -346,23 +352,22 @@ class TestGPUPredict:
         booster = xgb.train(
             param, dtrain=dataset.get_dmat(), num_boost_round=num_rounds
         )
-        booster = tm.set_ordinal(-1, booster)
+        booster.set_param({"device": "cpu"})
         cpu_leaf = booster.predict(m, pred_leaf=True)
 
-        booster = tm.set_ordinal(0, booster)
+        booster.set_param({"device": "cuda:0"})
         gpu_leaf = booster.predict(m, pred_leaf=True)
 
         np.testing.assert_equal(cpu_leaf, gpu_leaf)
 
     @given(predict_parameter_strategy, tm.make_dataset_strategy())
     @settings(deadline=None, max_examples=20, print_blob=True)
-    def test_predict_leaf_gbtree(self, param, dataset):
+    def test_predict_leaf_gbtree(self, param: dict, dataset: tm.TestDataset) -> None:
         # Unsupported for random forest
         if param.get("num_parallel_tree", 1) > 1 and dataset.name.endswith("-l1"):
             return
 
-        param["booster"] = "gbtree"
-        param["tree_method"] = "gpu_hist"
+        param.update({"booster": "gbtree", "tree_method": "hist", "device": "cuda:0"})
         self.run_predict_leaf_booster(param, 10, dataset)
 
     @given(predict_parameter_strategy, tm.make_dataset_strategy())
@@ -372,8 +377,7 @@ class TestGPUPredict:
         if param.get("num_parallel_tree", 1) > 1 and dataset.name.endswith("-l1"):
             return
 
-        param["booster"] = "dart"
-        param["tree_method"] = "gpu_hist"
+        param.update({"booster": "dart", "tree_method": "hist", "device": "cuda:0"})
         self.run_predict_leaf_booster(param, 10, dataset)
 
     @pytest.mark.skipif(**tm.no_sklearn())
@@ -397,12 +401,12 @@ class TestGPUPredict:
         dtrain = xgb.DMatrix(df, label=y, enable_categorical=True)
 
         params = {
-            "tree_method": "gpu_hist",
+            "tree_method": "hist",
             "max_depth": 3,
             "learning_rate": 1.0,
             "base_score": 0.0,
             "eval_metric": "rmse",
-            "gpu_id": "0",
+            "device": "cuda:0",
         }
 
         eval_history = {}
@@ -414,7 +418,7 @@ class TestGPUPredict:
             verbose_eval=False,
             evals_result=eval_history,
         )
-        bst = tm.set_ordinal(0, bst)
+        bst.set_param({"device": "cuda:0"})
         pred = bst.predict(dtrain)
         rmse = mean_squared_error(y_true=y, y_pred=pred, squared=False)
         np.testing.assert_almost_equal(
@@ -436,14 +440,16 @@ class TestGPUPredict:
         Xy = xgb.DMatrix(X, y)
         if n_classes == 2:
             params = {
-                "tree_method": "gpu_hist",
+                "tree_method": "hist",
+                "device": "cuda:0",
                 "booster": "dart",
                 "rate_drop": 0.5,
                 "objective": "binary:logistic",
             }
         else:
             params = {
-                "tree_method": "gpu_hist",
+                "tree_method": "hist",
+                "device": "cuda:0",
                 "booster": "dart",
                 "rate_drop": 0.5,
                 "objective": "multi:softprob",
@@ -457,7 +463,7 @@ class TestGPUPredict:
         copied = booster.predict(Xy)
 
         # CPU
-        booster = tm.set_ordinal(-1, booster)
+        booster.set_param({"device": "cpu"})
         cpu_inplace = booster.inplace_predict(X_)
         cpu_copied = booster.predict(Xy)
 
@@ -467,7 +473,7 @@ class TestGPUPredict:
         cp.testing.assert_allclose(inplace, copied, atol=1e-6)
 
         # GPU
-        booster = tm.set_ordinal(0, booster)
+        booster.set_param({"device": "cuda:0"})
         inplace = booster.inplace_predict(X)
         copied = booster.predict(Xy)
 
@@ -484,7 +490,7 @@ class TestGPUPredict:
         orig = rng.randint(low=0, high=127, size=rows * cols).reshape(rows, cols)
         y = rng.randint(low=0, high=127, size=rows)
         dtrain = xgb.DMatrix(orig, label=y)
-        booster = xgb.train({"tree_method": "gpu_hist"}, dtrain)
+        booster = xgb.train({"tree_method": "hist", "device": "cuda:0"}, dtrain)
 
         predt_orig = booster.inplace_predict(orig)
         # all primitive types in numpy
