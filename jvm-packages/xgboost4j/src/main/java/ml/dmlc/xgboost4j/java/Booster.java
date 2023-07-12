@@ -163,6 +163,51 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   /**
+   * Get feature names from the Booster.
+   * @return
+   * @throws XGBoostError
+   */
+  public final String[] getFeatureNames() throws XGBoostError {
+    int numFeature = (int) getNumFeature();
+    String[] out = new String[numFeature];
+    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterGetStrFeatureInfo(handle, "feature_name", out));
+    return out;
+  }
+
+  /**
+   * Set feature names to the Booster.
+   *
+   * @param featureNames
+   * @throws XGBoostError
+   */
+  public void setFeatureNames(String[] featureNames) throws XGBoostError {
+    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterSetStrFeatureInfo(
+        handle, "feature_name", featureNames));
+  }
+
+  /**
+   * Get feature types from the Booster.
+   * @return
+   * @throws XGBoostError
+   */
+  public final String[] getFeatureTypes() throws XGBoostError {
+    int numFeature = (int) getNumFeature();
+    String[] out = new String[numFeature];
+    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterGetStrFeatureInfo(handle, "feature_type", out));
+    return out;
+  }
+
+  /**
+   * Set feature types to the Booster.
+   * @param featureTypes
+   * @throws XGBoostError
+   */
+  public void setFeatureTypes(String[] featureTypes) throws XGBoostError {
+    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterSetStrFeatureInfo(
+        handle, "feature_type", featureTypes));
+  }
+
+  /**
    * Update the booster for one iteration.
    *
    * @param dtrain training data
@@ -744,7 +789,7 @@ public class Booster implements Serializable, KryoSerializable {
   private void writeObject(java.io.ObjectOutputStream out) throws IOException {
     try {
       out.writeInt(version);
-      out.writeObject(this.toByteArray());
+      out.writeObject(this.toByteArray("ubj"));
     } catch (XGBoostError ex) {
       ex.printStackTrace();
       logger.error(ex.getMessage());
@@ -780,7 +825,7 @@ public class Booster implements Serializable, KryoSerializable {
   @Override
   public void write(Kryo kryo, Output output) {
     try {
-      byte[] serObj = this.toByteArray();
+      byte[] serObj = this.toByteArray("ubj");
       int serObjSize = serObj.length;
       output.writeInt(serObjSize);
       output.writeInt(version);
