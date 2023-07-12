@@ -117,10 +117,7 @@ int InplacePreidctCUDA(BoosterHandle handle, char const *c_array_interface,
                           RequiredArg<Integer>(config, "iteration_begin", __func__),
                           RequiredArg<Integer>(config, "iteration_end", __func__));
   CHECK(p_predt);
-  if (learner->Ctx()->IsCPU()) {
-    // Prediction using DMatrix as fallback.
-    CHECK(p_predt->HostCanRead() && !p_predt->DeviceCanRead());
-  } else {
+  if (learner->Ctx()->IsCUDA()) {
     CHECK(p_predt->DeviceCanRead() && !p_predt->HostCanRead());
   }
   p_predt->SetDevice(proxy->DeviceIdx());

@@ -150,6 +150,47 @@ class TestGPUPredict:
         assert np.allclose(cpu_train_score, gpu_train_score)
         assert np.allclose(cpu_test_score, gpu_test_score)
 
+    @pytest.mark.parametrize("device", ["cpu", "cuda"])
+    @pytest.mark.skipif(**tm.no_cupy())
+    def test_inplace_predict_device_type(self, device: str) -> None:
+        """Test inplace predict with different device and data types.
+
+        The sklearn interface uses inplace predict by default and gbtree fallbacks to
+        DMatrix whenever device doesn't match. This test checks that XGBoost can handle
+        different combinations of device and input data type.
+
+        """
+        import cudf
+        import cupy as cp
+        import pandas as pd
+        from scipy.sparse import csr_matrix
+
+        reg = xgb.XGBRegressor(tree_method="hist", device=device)
+        n_samples = 4096
+        n_features = 13
+        X, y, w = tm.make_regression(n_samples, n_features, use_cupy=True)
+        X[X == 0.0] = 1.0
+
+        reg.fit(X, y, sample_weight=w)
+        predt_0 = reg.predict(X)
+
+        X = cp.asnumpy(X)
+        predt_1 = reg.predict(X)
+
+        df = pd.DataFrame(X)
+        predt_2 = reg.predict(df)
+
+        df = cudf.DataFrame(X)
+        predt_3 = reg.predict(df)
+
+        X_csr = csr_matrix(X)
+        predt_4 = reg.predict(X_csr)
+
+        np.testing.assert_allclose(predt_0, predt_1)
+        np.testing.assert_allclose(predt_0, predt_2)
+        np.testing.assert_allclose(predt_0, predt_3)
+        np.testing.assert_allclose(predt_0, predt_4)
+
     def run_inplace_base_margin(self, booster, dtrain, X, base_margin):
         import cupy as cp
 

@@ -1341,10 +1341,9 @@ class LearnerImpl : public LearnerIO {
   }
 
   void Predict(std::shared_ptr<DMatrix> data, bool output_margin,
-               HostDeviceVector<bst_float> *out_preds, unsigned layer_begin,
-               unsigned layer_end, bool training,
-               bool pred_leaf, bool pred_contribs, bool approx_contribs,
-               bool pred_interactions) override {
+               HostDeviceVector<bst_float>* out_preds, bst_layer_t layer_begin,
+               bst_layer_t layer_end, bool training, bool pred_leaf, bool pred_contribs,
+               bool approx_contribs, bool pred_interactions) override {
     int multiple_predictions = static_cast<int>(pred_leaf) +
                                static_cast<int>(pred_interactions) +
                                static_cast<int>(pred_contribs);
@@ -1392,15 +1391,16 @@ class LearnerImpl : public LearnerIO {
   }
 
   void InplacePredict(std::shared_ptr<DMatrix> p_m, PredictionType type, float missing,
-                      HostDeviceVector<bst_float>** out_preds, uint32_t iteration_begin,
-                      uint32_t iteration_end) override {
+                      HostDeviceVector<float>** out_preds, bst_layer_t iteration_begin,
+                      bst_layer_t iteration_end) override {
     this->Configure();
     this->CheckModelInitialized();
 
     auto& out_predictions = this->GetThreadLocal().prediction_entry;
-    out_predictions.version = 0;
+    out_predictions.Reset();
 
     this->gbm_->InplacePredict(p_m, missing, &out_predictions, iteration_begin, iteration_end);
+
     if (type == PredictionType::kValue) {
       obj_->PredTransform(&out_predictions.predictions);
     } else if (type == PredictionType::kMargin) {
