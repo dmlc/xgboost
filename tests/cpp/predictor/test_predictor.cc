@@ -473,10 +473,10 @@ void VerifyIterationRangeColumnSplit(bool use_gpu) {
     learner->Predict(Xy, true, &out_predt_ranged, 0, 3, false, false, false, false, false);
     auto const &h_sliced = out_predt_sliced.HostVector();
     auto const &h_ranged = out_predt_ranged.HostVector();
-    ASSERT_EQ(h_sliced.size(), margin_sliced.size());
-    ASSERT_EQ(h_sliced, margin_sliced);
-    ASSERT_EQ(h_ranged.size(), margin_ranged.size());
-    ASSERT_EQ(h_ranged, margin_ranged);
+    EXPECT_EQ(h_sliced.size(), margin_sliced.size());
+    EXPECT_EQ(h_sliced, margin_sliced);
+    EXPECT_EQ(h_ranged.size(), margin_ranged.size());
+    EXPECT_EQ(h_ranged, margin_ranged);
   }
 
   // Leaf
@@ -485,10 +485,10 @@ void VerifyIterationRangeColumnSplit(bool use_gpu) {
     learner->Predict(Xy, false, &out_predt_ranged, 0, 3, false, true, false, false, false);
     auto const &h_sliced = out_predt_sliced.HostVector();
     auto const &h_ranged = out_predt_ranged.HostVector();
-    ASSERT_EQ(h_sliced.size(), leaf_sliced.size());
-    ASSERT_EQ(h_sliced, leaf_sliced);
-    ASSERT_EQ(h_ranged.size(), leaf_ranged.size());
-    ASSERT_EQ(h_ranged, leaf_ranged);
+    EXPECT_EQ(h_sliced.size(), leaf_sliced.size());
+    EXPECT_EQ(h_sliced, leaf_sliced);
+    EXPECT_EQ(h_ranged.size(), leaf_ranged.size());
+    EXPECT_EQ(h_ranged, leaf_ranged);
   }
 }
 }  // anonymous namespace
