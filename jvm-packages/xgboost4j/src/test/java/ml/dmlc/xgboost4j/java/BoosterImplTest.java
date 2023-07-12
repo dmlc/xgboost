@@ -17,9 +17,11 @@ package ml.dmlc.xgboost4j.java;
 
 import java.io.*;
 import java.util.*;
+import java.util.stream.Collectors;
 
-import junit.framework.TestCase;
 import org.junit.Test;
+
+import static org.junit.Assert.*;
 
 /**
  * test cases for Booster
@@ -27,8 +29,8 @@ import org.junit.Test;
  * @author hzx
  */
 public class BoosterImplTest {
-  private String train_uri = "../../demo/data/agaricus.txt.train?indexing_mode=1&format=libsvm";
-  private String test_uri = "../../demo/data/agaricus.txt.test?indexing_mode=1&format=libsvm";
+  private final String train_uri = "../../demo/data/agaricus.txt.train?indexing_mode=1&format=libsvm";
+  private final String test_uri = "../../demo/data/agaricus.txt.test?indexing_mode=1&format=libsvm";
 
   public static class EvalError implements IEvaluation {
     @Override
@@ -83,20 +85,21 @@ public class BoosterImplTest {
   }
 
   @Test
-  public void testBoosterBasic() throws XGBoostError, IOException {
+  public void testBoosterBasic() throws XGBoostError {
 
     DMatrix trainMat = new DMatrix(this.train_uri);
     DMatrix testMat = new DMatrix(this.test_uri);
 
-    Booster booster = trainBooster(trainMat, testMat);
+    try (Booster booster = trainBooster(trainMat, testMat)) {
 
-    //predict raw output
-    float[][] predicts = booster.predict(testMat, true, 0);
+      //predict raw output
+      float[][] predicts = booster.predict(testMat, true, 0);
 
-    //eval
-    IEvaluation eval = new EvalError();
-    //error must be less than 0.1
-    TestCase.assertTrue(eval.eval(predicts, testMat) < 0.1f);
+      //eval
+      IEvaluation eval = new EvalError();
+      //error must be less than 0.1
+      assertTrue(eval.eval(predicts, testMat) < 0.1f);
+    }
   }
 
   @Test
@@ -105,22 +108,24 @@ public class BoosterImplTest {
     DMatrix testMat = new DMatrix(this.test_uri);
     IEvaluation eval = new EvalError();
 
-    Booster booster = trainBooster(trainMat, testMat);
-    // save and load
-    File temp = File.createTempFile("temp", "model");
-    temp.deleteOnExit();
-    booster.saveModel(temp.getAbsolutePath());
+    try (Booster booster = trainBooster(trainMat, testMat)) {
+      // save and load
+      File temp = File.createTempFile("temp", "model");
+      temp.deleteOnExit();
+      booster.saveModel(temp.getAbsolutePath());
 
-    Booster bst2 = XGBoost.loadModel(temp.getAbsolutePath());
-    assert (Arrays.equals(bst2.toByteArray("ubj"), booster.toByteArray("ubj")));
-    assert (Arrays.equals(bst2.toByteArray("json"), booster.toByteArray("json")));
-    assert (Arrays.equals(bst2.toByteArray("deprecated"), booster.toByteArray("deprecated")));
-    float[][] predicts2 = bst2.predict(testMat, true, 0);
-    TestCase.assertTrue(eval.eval(predicts2, testMat) < 0.1f);
+      try (Booster bst2 = XGBoost.loadModel(temp.getAbsolutePath())) {
+        for (String format: Arrays.asList("ubj", "json", "deprecated")) {
+          assertArrayEquals(bst2.toByteArray(format), booster.toByteArray(format));
+        }
+        float[][] predicts2 = bst2.predict(testMat, true, 0);
+        assertTrue(eval.eval(predicts2, testMat) < 0.1f);
+      }
+    }
   }
 
   @Test
-  public void saveLoadModelWithFeaturesWithPath() throws XGBoostError, IOException {
+  public void saveLoadModelWithFeaturesWithPath() throws Exception {
     DMatrix trainMat = new DMatrix(this.train_uri);
     DMatrix testMat = new DMatrix(this.test_uri);
     IEvaluation eval = new EvalError();
@@ -136,39 +141,40 @@ public class BoosterImplTest {
     trainMat.setFeatureTypes(featureTypes);
     testMat.setFeatureTypes(featureTypes);
 
-    Booster booster = trainBooster(trainMat, testMat);
-    // save and load, only json format save and load feature_name and feature_type
-    File temp = File.createTempFile("temp", ".json");
-    temp.deleteOnExit();
-    booster.saveModel(temp.getAbsolutePath());
+    try(Booster booster = trainBooster(trainMat, testMat)) {
+      // save and load, only json format save and load feature_name and feature_type
+      File temp = File.createTempFile("temp", ".json");
+      temp.deleteOnExit();
+      booster.saveModel(temp.getAbsolutePath());
 
-    String modelString = new String(booster.toByteArray("json"));
-    System.out.println(modelString);
-
-    Booster bst2 = XGBoost.loadModel(temp.getAbsolutePath());
-    assert (Arrays.equals(bst2.toByteArray("ubj"), booster.toByteArray("ubj")));
-    assert (Arrays.equals(bst2.toByteArray("json"), booster.toByteArray("json")));
-    assert (Arrays.equals(bst2.toByteArray("deprecated"), booster.toByteArray("deprecated")));
-    float[][] predicts2 = bst2.predict(testMat, true, 0);
-    TestCase.assertTrue(eval.eval(predicts2, testMat) < 0.1f);
+      try (Booster bst2 = XGBoost.loadModel(temp.getAbsolutePath())) {
+        for (String format: Arrays.asList("ubj", "json", "deprecated")) {
+          assertArrayEquals(bst2.toByteArray(format), booster.toByteArray(format));
+        }
+        float[][] predicts2 = bst2.predict(testMat, true, 0);
+        assertTrue(eval.eval(predicts2, testMat) < 0.1f);
+      }
+    }
   }
 
   @Test
-  public void saveLoadModelWithStream() throws XGBoostError, IOException {
+  public void saveLoadModelWithStream() throws Exception {
     DMatrix trainMat = new DMatrix(this.train_uri);
     DMatrix testMat = new DMatrix(this.test_uri);
 
-    Booster booster = trainBooster(trainMat, testMat);
+    try (Booster booster = trainBooster(trainMat, testMat)) {
 
-    ByteArrayOutputStream output = new ByteArrayOutputStream();
-    booster.saveModel(output);
-    IEvaluation eval = new EvalError();
-    Booster loadedBooster = XGBoost.loadModel(new ByteArrayInputStream(output.toByteArray()));
-    float originalPredictError = eval.eval(booster.predict(testMat, true), testMat);
-    TestCase.assertTrue("originalPredictErr:" + originalPredictError,
-            originalPredictError < 0.1f);
-    float loadedPredictError = eval.eval(loadedBooster.predict(testMat, true), testMat);
-    TestCase.assertTrue("loadedPredictErr:" + loadedPredictError, loadedPredictError < 0.1f);
+      ByteArrayOutputStream output = new ByteArrayOutputStream();
+      booster.saveModel(output);
+      IEvaluation eval = new EvalError();
+      try (Booster loadedBooster = XGBoost.loadModel(new ByteArrayInputStream(output.toByteArray()))) {
+        float originalPredictError = eval.eval(booster.predict(testMat, true), testMat);
+        assertTrue("originalPredictErr:" + originalPredictError,
+          originalPredictError < 0.1f);
+        float loadedPredictError = eval.eval(loadedBooster.predict(testMat, true), testMat);
+        assertTrue("loadedPredictErr:" + loadedPredictError, loadedPredictError < 0.1f);
+      }
+    }
   }
 
   private static class IncreasingEval implements IEvaluation {
@@ -199,9 +205,9 @@ public class BoosterImplTest {
     for (int itr = 0; itr < totalIterations; itr++) {
       boolean es = XGBoost.shouldEarlyStop(earlyStoppingRound, itr, bestIteration);
       if (itr == totalIterations - 1) {
-        TestCase.assertTrue(es);
+        assertTrue(es);
       } else {
-        TestCase.assertFalse(es);
+        assertFalse(es);
       }
     }
   }
@@ -224,7 +230,7 @@ public class BoosterImplTest {
     for (int i = 0; i < totalIterations; i++) {
       bestIteration = i;
       boolean es = XGBoost.shouldEarlyStop(earlyStoppingRound, i, bestIteration);
-      TestCase.assertFalse(es);
+      assertFalse(es);
     }
 
     // when we have multiple datasets, only the last one was used to determinate early stop
@@ -235,7 +241,7 @@ public class BoosterImplTest {
     for (int i = 0; i < totalIterations; i++) {
       bestIteration = i;
       boolean es = XGBoost.shouldEarlyStop(earlyStoppingRound, i, bestIteration);
-      TestCase.assertFalse(es);
+      assertFalse(es);
     }
 
     // Now assign metric values to the last dataset.
@@ -248,9 +254,9 @@ public class BoosterImplTest {
       // if any metrics off, we need to stop
       boolean es = XGBoost.shouldEarlyStop(earlyStoppingRound, i, bestIteration);
       if (i >= earlyStoppingRound) {
-        TestCase.assertTrue(es);
+        assertTrue(es);
       } else {
-        TestCase.assertFalse(es);
+        assertFalse(es);
       }
     }
   }
@@ -267,14 +273,14 @@ public class BoosterImplTest {
     int bestIteration = 0;
 
     boolean es = XGBoost.shouldEarlyStop(earlyStoppingRounds, totalIterations - 1, bestIteration);
-    TestCase.assertTrue(es);
+    assertTrue(es);
     for (int i = 0; i < totalIterations; i++) {
       metrics[0][i] = totalIterations - i;
     }
     bestIteration = totalIterations - 1;
 
     es = XGBoost.shouldEarlyStop(earlyStoppingRounds, totalIterations - 1, bestIteration);
-    TestCase.assertFalse(es);
+    assertFalse(es);
 
     for (int i = 0; i < totalIterations; i++) {
       metrics[0][i] = totalIterations - i;
@@ -285,7 +291,7 @@ public class BoosterImplTest {
     bestIteration = 4;
 
     es = XGBoost.shouldEarlyStop(earlyStoppingRounds, totalIterations - 1, bestIteration);
-    TestCase.assertTrue(es);
+    assertTrue(es);
   }
 
   @Test
@@ -302,9 +308,9 @@ public class BoosterImplTest {
     for (int itr = 0; itr < totalIterations; itr++) {
       boolean es = XGBoost.shouldEarlyStop(earlyStoppingRounds, itr, bestIteration);
       if (itr == totalIterations - 1) {
-        TestCase.assertTrue(es);
+        assertTrue(es);
       } else {
-        TestCase.assertFalse(es);
+        assertFalse(es);
       }
     }
   }
@@ -321,14 +327,14 @@ public class BoosterImplTest {
     int bestIteration = 0;
 
     boolean es = XGBoost.shouldEarlyStop(earlyStoppingRounds, totalIterations - 1, bestIteration);
-    TestCase.assertTrue(es);
+    assertTrue(es);
     for (int i = 0; i < totalIterations; i++) {
       metrics[0][i] = i;
     }
     bestIteration = totalIterations - 1;
 
     es = XGBoost.shouldEarlyStop(earlyStoppingRounds, totalIterations - 1, bestIteration);
-    TestCase.assertFalse(es);
+    assertFalse(es);
 
     for (int i = 0; i < totalIterations; i++) {
       metrics[0][i] = i;
@@ -339,11 +345,11 @@ public class BoosterImplTest {
     bestIteration = 4;
 
     es = XGBoost.shouldEarlyStop(earlyStoppingRounds, totalIterations - 1, bestIteration);
-    TestCase.assertTrue(es);
+    assertTrue(es);
   }
 
   @Test
-  public void testBoosterEarlyStop() throws XGBoostError, IOException {
+  public void testBoosterEarlyStop() throws XGBoostError {
     DMatrix trainMat = new DMatrix(this.train_uri);
     DMatrix testMat = new DMatrix(this.test_uri);
     Map<String, Object> paramMap = new HashMap<String, Object>() {
@@ -361,25 +367,27 @@ public class BoosterImplTest {
     final int round = 10;
     int earlyStoppingRound = 2;
     float[][] metrics = new float[watches.size()][round];
-    XGBoost.train(trainMat, paramMap, round, watches, metrics, null, new IncreasingEval(),
-            earlyStoppingRound);
+    try (Booster b = XGBoost.train(trainMat, paramMap, round, watches, metrics, null, new IncreasingEval(),
+      earlyStoppingRound)) {
+      // Not needed.
+    }
 
     // Make sure we've stopped early.
     for (int w = 0; w < watches.size(); w++) {
       for (int r = 0; r <= earlyStoppingRound; r++) {
-        TestCase.assertFalse(0.0f == metrics[w][r]);
+        assertNotEquals(0.0f, metrics[w][r], 0.0);
       }
     }
 
     for (int w = 0; w < watches.size(); w++) {
       for (int r = earlyStoppingRound + 1; r < round; r++) {
-        TestCase.assertEquals(0.0f, metrics[w][r]);
+        assertEquals(0.0f, metrics[w][r], 0.0);
       }
     }
   }
 
   @Test
-  public void testEarlyStoppingAttributes() throws XGBoostError, IOException {
+  public void testEarlyStoppingAttributes() throws XGBoostError {
     DMatrix trainMat = new DMatrix(this.train_uri);
     DMatrix testMat = new DMatrix(this.test_uri);
     Map<String, Object> paramMap = new HashMap<String, Object>() {
@@ -397,30 +405,31 @@ public class BoosterImplTest {
     int earlyStoppingRound = 4;
     float[][] metrics = new float[watches.size()][round];
 
-    Booster booster = XGBoost.train(trainMat, paramMap, round,
-				    watches, metrics, null, null, earlyStoppingRound);
-
-    int bestIter = Integer.valueOf(booster.getAttr("best_iteration"));
-    float bestScore = Float.valueOf(booster.getAttr("best_score"));
-    TestCase.assertEquals(bestIter, round - 1);
-    TestCase.assertEquals(bestScore, metrics[watches.size() - 1][round - 1]);
+    try (Booster booster = XGBoost.train(trainMat, paramMap, round,
+				    watches, metrics, null, null, earlyStoppingRound)) {
+      int bestIter = Integer.parseInt(booster.getAttr("best_iteration"));
+      float bestScore = Float.parseFloat(booster.getAttr("best_score"));
+      assertEquals(bestIter, round - 1);
+      assertEquals(bestScore, metrics[watches.size() - 1][round - 1], 0.0);
+    }
   }
 
   private void testWithQuantileHisto(DMatrix trainingSet, Map<String, DMatrix> watches, int round,
                                       Map<String, Object> paramMap, float threshold) throws XGBoostError {
     float[][] metrics = new float[watches.size()][round];
-    Booster booster = XGBoost.train(trainingSet, paramMap, round, watches,
-            metrics, null, null, 0);
-    for (int i = 0; i < metrics.length; i++)
-      for (int j = 1; j < metrics[i].length; j++) {
-        TestCase.assertTrue(metrics[i][j] >= metrics[i][j - 1] ||
-                Math.abs(metrics[i][j] - metrics[i][j - 1]) < 0.1);
+    try(Booster booster = XGBoost.train(trainingSet, paramMap, round, watches,
+            metrics, null, null, 0)) {
+      for (float[] metric : metrics)
+        for (int j = 1; j < metric.length; j++) {
+          assertTrue(metric[j] >= metric[j - 1] ||
+            Math.abs(metric[j] - metric[j - 1]) < 0.1);
+        }
+      for (float[] metric : metrics) {
+        for (float v : metric) {
+          assertTrue(v >= threshold);
+        }
       }
-    for (int i = 0; i < metrics.length; i++)
-      for (int j = 0; j < metrics[i].length; j++) {
-        TestCase.assertTrue(metrics[i][j] >= threshold);
-      }
-    booster.dispose();
+    }
   }
 
   @Test
@@ -490,15 +499,19 @@ public class BoosterImplTest {
     DMatrix trainMat = new DMatrix(this.train_uri);
     DMatrix testMat = new DMatrix(this.test_uri);
 
-    Booster booster = trainBooster(trainMat, testMat);
-    String[] dump = booster.getModelDump("", false, "json");
-    TestCase.assertEquals("  { \"nodeid\":", dump[0].substring(0, 13));
+    String[] dump;
+    try (Booster booster = trainBooster(trainMat, testMat)) {
+      dump = booster.getModelDump("", false, "json");
+      assertEquals("  { \"nodeid\":", dump[0].substring(0, 13));
 
-    // test with specified feature names
-    String[] featureNames = new String[126];
-    for(int i = 0; i < 126; i++) featureNames[i] = "test_feature_name_" + i;
-    dump = booster.getModelDump(featureNames, false, "json");
-    TestCase.assertTrue(dump[0].contains("test_feature_name_"));
+      // test with specified feature names
+      String[] featureNames = new String[126];
+      for (int i = 0; i < 126; i++) {
+        featureNames[i] = "test_feature_name_" + i;
+      }
+      dump = booster.getModelDump(featureNames, false, "json");
+    }
+    assertTrue(dump[0].contains("test_feature_name_"));
   }
 
   @Test
@@ -506,59 +519,39 @@ public class BoosterImplTest {
     DMatrix trainMat = new DMatrix(this.train_uri);
     DMatrix testMat = new DMatrix(this.test_uri);
 
-    Booster booster = trainBooster(trainMat, testMat);
+    Map<String, Integer> scoreMap;
     String[] featureNames = new String[126];
-    for(int i = 0; i < 126; i++) featureNames[i] = "test_feature_name_" + i;
-    Map<String, Integer> scoreMap = booster.getFeatureScore(featureNames);
-    for (String fName: scoreMap.keySet()) TestCase.assertTrue(fName.startsWith("test_feature_name_"));
+    try (Booster booster = trainBooster(trainMat, testMat)) {
+      for (int i = 0; i < 126; i++) {
+        featureNames[i] = "test_feature_name_" + i;
+      }
+      scoreMap = booster.getFeatureScore(featureNames);
+    }
+
+    for (String fName: scoreMap.keySet()) {
+      assertTrue(fName.startsWith("test_feature_name_"));
+      assertTrue(Arrays.stream(featureNames).anyMatch(v -> v.equalsIgnoreCase(fName)));
+    }
   }
 
   @Test
-  public void testGetFeatureImportanceGain() throws XGBoostError {
+  public void testGetFeatureImportance() throws XGBoostError {
     DMatrix trainMat = new DMatrix(this.train_uri);
     DMatrix testMat = new DMatrix(this.test_uri);
 
-    Booster booster = trainBooster(trainMat, testMat);
-    String[] featureNames = new String[126];
-    for(int i = 0; i < 126; i++) featureNames[i] = "test_feature_name_" + i;
-    Map<String, Double> scoreMap = booster.getScore(featureNames, "gain");
-    for (String fName: scoreMap.keySet()) TestCase.assertTrue(fName.startsWith("test_feature_name_"));
-  }
-
-  @Test
-  public void testGetFeatureImportanceTotalGain() throws XGBoostError {
-    DMatrix trainMat = new DMatrix(this.train_uri);
-    DMatrix testMat = new DMatrix(this.test_uri);
-
-    Booster booster = trainBooster(trainMat, testMat);
-    String[] featureNames = new String[126];
-    for(int i = 0; i < 126; i++) featureNames[i] = "test_feature_name_" + i;
-    Map<String, Double> scoreMap = booster.getScore(featureNames, "total_gain");
-    for (String fName: scoreMap.keySet()) TestCase.assertTrue(fName.startsWith("test_feature_name_"));
-  }
-
-  @Test
-  public void testGetFeatureImportanceCover() throws XGBoostError {
-    DMatrix trainMat = new DMatrix(this.train_uri);
-    DMatrix testMat = new DMatrix(this.test_uri);
-
-    Booster booster = trainBooster(trainMat, testMat);
-    String[] featureNames = new String[126];
-    for(int i = 0; i < 126; i++) featureNames[i] = "test_feature_name_" + i;
-    Map<String, Double> scoreMap = booster.getScore(featureNames, "cover");
-    for (String fName: scoreMap.keySet()) TestCase.assertTrue(fName.startsWith("test_feature_name_"));
-  }
-
-  @Test
-  public void testGetFeatureImportanceTotalCover() throws XGBoostError {
-    DMatrix trainMat = new DMatrix(this.train_uri);
-    DMatrix testMat = new DMatrix(this.test_uri);
-
-    Booster booster = trainBooster(trainMat, testMat);
-    String[] featureNames = new String[126];
-    for(int i = 0; i < 126; i++) featureNames[i] = "test_feature_name_" + i;
-    Map<String, Double> scoreMap = booster.getScore(featureNames, "total_cover");
-    for (String fName: scoreMap.keySet()) TestCase.assertTrue(fName.startsWith("test_feature_name_"));
+    try (Booster booster = trainBooster(trainMat, testMat)) {
+      String[] featureNames = new String[126];
+      for (int i = 0; i < 126; i++) {
+        featureNames[i] = "test_feature_name_" + i;
+      }
+      for (String importanceType: Arrays.asList("gain", "total_gain", "cover", "total_cover")) {
+        Map<String, Double> scoreMap = booster.getScore(featureNames, importanceType);
+        for (String fName: scoreMap.keySet()) {
+          assertTrue(fName.startsWith("test_feature_name_"));
+          assertTrue(Arrays.stream(featureNames).anyMatch(v -> v.equalsIgnoreCase(fName)));
+        }
+      }
+    }
   }
 
   @Test
@@ -675,8 +668,8 @@ public class BoosterImplTest {
     round = 4;
     Booster booster2 = XGBoost.train(trainMat, paramMap, round, watches, null, null, null, 0, tempBooster);
     float booster2error = eval.eval(booster2.predict(testMat, true, 0), testMat);
-    TestCase.assertTrue(booster1error == booster2error);
-    TestCase.assertTrue(tempBoosterError > booster2error);
+    assertEquals(booster1error, booster2error, 0.0);
+    assertTrue(tempBoosterError > booster2error);
   }
 
   /**
@@ -689,24 +682,26 @@ public class BoosterImplTest {
     DMatrix trainMat = new DMatrix(this.train_uri);
     DMatrix testMat = new DMatrix(this.test_uri);
 
-    Booster booster = trainBooster(trainMat, testMat);
-    booster.setAttr("testKey1", "testValue1");
-    TestCase.assertEquals(booster.getAttr("testKey1"), "testValue1");
-    booster.setAttr("testKey1", "testValue2");
-    TestCase.assertEquals(booster.getAttr("testKey1"), "testValue2");
+    Map<String, String> attr;
+    try (Booster booster = trainBooster(trainMat, testMat)) {
+      booster.setAttr("testKey1", "testValue1");
+      assertEquals(booster.getAttr("testKey1"), "testValue1");
+      booster.setAttr("testKey1", "testValue2");
+      assertEquals(booster.getAttr("testKey1"), "testValue2");
 
-    booster.setAttrs(new HashMap<String, String>(){{
-      put("aa", "AA");
-      put("bb", "BB");
-      put("cc", "CC");
-    }});
+      booster.setAttrs(new HashMap<String, String>() {{
+        put("aa", "AA");
+        put("bb", "BB");
+        put("cc", "CC");
+      }});
 
-    Map<String, String> attr = booster.getAttrs();
-    TestCase.assertEquals(attr.size(), 6);
-    TestCase.assertEquals(attr.get("testKey1"), "testValue2");
-    TestCase.assertEquals(attr.get("aa"), "AA");
-    TestCase.assertEquals(attr.get("bb"), "BB");
-    TestCase.assertEquals(attr.get("cc"), "CC");
+      attr = booster.getAttrs();
+    }
+    assertEquals(attr.size(), 6);
+    assertEquals(attr.get("testKey1"), "testValue2");
+    assertEquals(attr.get("aa"), "AA");
+    assertEquals(attr.get("bb"), "BB");
+    assertEquals(attr.get("cc"), "CC");
   }
 
   /**
@@ -719,7 +714,8 @@ public class BoosterImplTest {
     DMatrix trainMat = new DMatrix(this.train_uri);
     DMatrix testMat = new DMatrix(this.test_uri);
 
-    Booster booster = trainBooster(trainMat, testMat);
-    TestCase.assertEquals(booster.getNumFeature(), 126);
+    try (Booster booster = trainBooster(trainMat, testMat)) {
+      assertEquals(booster.getNumFeature(), 126);
+    }
   }
 }

@@ -439,14 +439,6 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
     assert(compareTwoFiles(new File(modelPath, "data/XGBoostClassificationModel").getPath,
       nativeJsonModelPath))
 
-    // test default "deprecated"
-    val modelUbjPath = new File(tempDir.toFile, "xgbcUbj").getPath
-    model.write.save(modelUbjPath)
-    val nativeDeprecatedModelPath = new File(tempDir.toFile, "nativeModel").getPath
-    model.nativeBooster.saveModel(nativeDeprecatedModelPath)
-    assert(compareTwoFiles(new File(modelUbjPath, "data/XGBoostClassificationModel").getPath,
-      nativeDeprecatedModelPath))
-
     // json file should be indifferent with ubj file
     val modelJsonPath = new File(tempDir.toFile, "xgbcJson").getPath
     model.write.option("format", "json").save(modelJsonPath)
@@ -454,6 +446,14 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
     model.nativeBooster.saveModel(nativeUbjModelPath)
     assert(!compareTwoFiles(new File(modelJsonPath, "data/XGBoostClassificationModel").getPath,
       nativeUbjModelPath))
+
+    // test default "deprecated"
+    val modelUbjPath = new File(tempDir.toFile, "xgbcUbj").getPath
+    model.write.option("format", "deprecated").save(modelUbjPath)
+    val nativeDeprecatedModelPath = new File(tempDir.toFile, "nativeModel").getPath
+    model.nativeBooster.saveModel(nativeDeprecatedModelPath)
+    assert(compareTwoFiles(new File(modelUbjPath, "data/XGBoostClassificationModel").getPath,
+      nativeDeprecatedModelPath))
   }
 
   test("native json model file should store feature_name and feature_type") {
