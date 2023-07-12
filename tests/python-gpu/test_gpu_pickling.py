@@ -177,7 +177,7 @@ class TestPickling:
 
         # Switch to CPU predictor
         bst = model.get_booster()
-        tm.set_ordinal(-1, bst)
+        bst.set_param({"device": "cpu"})
         cpu_pred = model.predict(x, output_margin=True)
         np.testing.assert_allclose(cpu_pred, gpu_pred, rtol=1e-5)
 
