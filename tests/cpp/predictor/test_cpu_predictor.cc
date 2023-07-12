@@ -214,15 +214,16 @@ void TestUpdatePredictionCache(bool use_subsampling) {
 }
 }  // namespace
 
-TEST(CPUPredictor, GHistIndex) {
+TEST(CPUPredictor, GHistIndexTraining) {
   size_t constexpr kRows{128}, kCols{16}, kBins{64};
+  Context ctx;
   auto p_hist = RandomDataGenerator{kRows, kCols, 0.0}.Bins(kBins).GenerateQuantileDMatrix(false);
   HostDeviceVector<float> storage(kRows * kCols);
   auto columnar = RandomDataGenerator{kRows, kCols, 0.0}.GenerateArrayInterface(&storage);
   auto adapter = data::ArrayAdapter(columnar.c_str());
   std::shared_ptr<DMatrix> p_full{
       DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)};
-  TestTrainingPrediction(kRows, kBins, "hist", p_full, p_hist);
+  TestTrainingPrediction(&ctx, kRows, kBins, p_full, p_hist);
 }
 
 TEST(CPUPredictor, CategoricalPrediction) {

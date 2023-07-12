@@ -131,18 +131,19 @@ TEST(GPUPredictor, EllpackBasic) {
 }
 
 TEST(GPUPredictor, EllpackTraining) {
-  size_t constexpr kRows { 128 }, kCols { 16 }, kBins { 64 };
-  auto p_ellpack =
-      RandomDataGenerator{kRows, kCols, 0.0}.Bins(kBins).Device(0).GenerateDeviceDMatrix(false);
+  auto ctx = MakeCUDACtx(0);
+  size_t constexpr kRows{128}, kCols{16}, kBins{64};
+  auto p_ellpack = RandomDataGenerator{kRows, kCols, 0.0}
+                       .Bins(kBins)
+                       .Device(ctx.Ordinal())
+                       .GenerateDeviceDMatrix(false);
   HostDeviceVector<float> storage(kRows * kCols);
-  auto columnar = RandomDataGenerator{kRows, kCols, 0.0}
-       .Device(0)
-       .GenerateArrayInterface(&storage);
+  auto columnar =
+      RandomDataGenerator{kRows, kCols, 0.0}.Device(ctx.Ordinal()).GenerateArrayInterface(&storage);
   auto adapter = data::CupyAdapter(columnar);
-  std::shared_ptr<DMatrix> p_full {
-    DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)
-  };
-  TestTrainingPrediction(kRows, kBins, "gpu_hist", p_full, p_ellpack);
+  std::shared_ptr<DMatrix> p_full{
+      DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)};
+  TestTrainingPrediction(&ctx, kRows, kBins, p_full, p_ellpack);
 }
 
 TEST(GPUPredictor, ExternalMemoryTest) {

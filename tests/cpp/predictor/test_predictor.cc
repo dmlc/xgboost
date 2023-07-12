@@ -44,60 +44,49 @@ TEST(Predictor, PredictionCache) {
   EXPECT_ANY_THROW(container.Entry(m));
 }
 
-void TestTrainingPrediction(size_t rows, size_t bins,
-                            std::string tree_method,
-                            std::shared_ptr<DMatrix> p_full,
-                            std::shared_ptr<DMatrix> p_hist) {
+void TestTrainingPrediction(Context const *ctx, size_t rows, size_t bins,
+                            std::shared_ptr<DMatrix> p_full, std::shared_ptr<DMatrix> p_hist) {
   size_t constexpr kCols = 16;
   size_t constexpr kClasses = 3;
   size_t constexpr kIters = 3;
 
   std::unique_ptr<Learner> learner;
-  auto train = [&](Context const& ctx) {
-    p_hist->Info().labels.Reshape(rows, 1);
-    auto &h_label = p_hist->Info().labels.Data()->HostVector();
 
-    for (size_t i = 0; i < rows; ++i) {
-      h_label[i] = i % kClasses;
-    }
+  p_hist->Info().labels.Reshape(rows, 1);
+  auto &h_label = p_hist->Info().labels.Data()->HostVector();
 
-    learner.reset(Learner::Create({}));
-    learner->SetParam("tree_method", tree_method);
-    learner->SetParam("objective", "multi:softprob");
-    learner->SetParam("num_feature", std::to_string(kCols));
-    learner->SetParam("num_class", std::to_string(kClasses));
-    learner->SetParam("max_bin", std::to_string(bins));
-    ConfigLearnerByCtx(&ctx, learner.get());
-    learner->Configure();
+  for (size_t i = 0; i < rows; ++i) {
+    h_label[i] = i % kClasses;
+  }
 
-    for (size_t i = 0; i < kIters; ++i) {
-      learner->UpdateOneIter(i, p_hist);
-    }
+  learner.reset(Learner::Create({}));
+  learner->SetParams(Args{{"objective", "multi:softprob"},
+                          {"num_feature", std::to_string(kCols)},
+                          {"num_class", std::to_string(kClasses)},
+                          {"max_bin", std::to_string(bins)},
+                          {"device", ctx->DeviceName()}});
+  learner->Configure();
 
-    Json model{Object{}};
-    learner->SaveModel(&model);
+  for (size_t i = 0; i < kIters; ++i) {
+    learner->UpdateOneIter(i, p_hist);
+  }
 
-    learner.reset(Learner::Create({}));
-    learner->LoadModel(model);
-    ConfigLearnerByCtx(&ctx, learner.get());
-    learner->Configure();
+  Json model{Object{}};
+  learner->SaveModel(&model);
 
-    HostDeviceVector<float> from_full;
-    learner->Predict(p_full, false, &from_full, 0, 0);
+  learner.reset(Learner::Create({}));
+  learner->LoadModel(model);
+  learner->SetParam("device", ctx->DeviceName());
+  learner->Configure();
 
-    HostDeviceVector<float> from_hist;
-    learner->Predict(p_hist, false, &from_hist, 0, 0);
+  HostDeviceVector<float> from_full;
+  learner->Predict(p_full, false, &from_full, 0, 0);
 
-    for (size_t i = 0; i < rows; ++i) {
-      EXPECT_NEAR(from_hist.ConstHostVector()[i],
-                  from_full.ConstHostVector()[i], kRtEps);
-    }
-  };
+  HostDeviceVector<float> from_hist;
+  learner->Predict(p_hist, false, &from_hist, 0, 0);
 
-  if (tree_method == "gpu_hist") {
-    train(MakeCUDACtx(0));
-  } else {
-    train(Context{});
+  for (size_t i = 0; i < rows; ++i) {
+    EXPECT_NEAR(from_hist.ConstHostVector()[i], from_full.ConstHostVector()[i], kRtEps);
   }
 }
 
