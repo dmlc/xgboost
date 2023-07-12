@@ -12,7 +12,7 @@
 #include <cstdint>      // for int16_t, int32_t, int64_t
 #include <memory>       // for shared_ptr
 #include <string>       // for string, to_string
-#include <type_traits>  // for invoke_result_t, is_same_v
+#include <type_traits>  // for invoke_result_t, is_same_v, underlying_type_t
 
 namespace xgboost {
 
@@ -176,7 +176,8 @@ struct Context : public XGBoostParameter<Context> {
       default:
         // Do not use the device name as this is likely an internal error, the name
         // wouldn't be valid.
-        LOG(FATAL) << "Unknown device type:" << static_cast<std::int16_t>(this->Device().device);
+        LOG(FATAL) << "Unknown device type:"
+                   << static_cast<std::underlying_type_t<DeviceOrd::Type>>(this->Device().device);
         break;
     }
     return std::invoke_result_t<CPUFn>();

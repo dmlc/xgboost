@@ -8,6 +8,7 @@
 #include <limits>  // for numeric_limits
 #include <memory>  // for shared_ptr
 #include <string>  // for string
+#include <thread>  // for thread
 
 #include "../../../src/data/adapter.h"           // for ArrayAdapter
 #include "../../../src/data/device_adapter.cuh"  // for CupyAdapter
@@ -58,10 +59,17 @@ void TestInplaceFallback(Context const* ctx) {
   ConsoleLogger::Configure(Args{{"verbosity", "1"}});
   // test whether the warning is raised
   ::testing::internal::CaptureStderr();
-  learner->InplacePredict(p_m, PredictionType::kValue, std::numeric_limits<float>::quiet_NaN(),
-                          &out_predt, 0, 0);
+  std::thread{[&] {
+    // Launch a new thread to ensure a warning is raised as we prevent over-verbose
+    // warning by using thread-local flags.
+    learner->InplacePredict(p_m, PredictionType::kValue, std::numeric_limits<float>::quiet_NaN(),
+                            &out_predt, 0, 0);
+  }}.join();
   auto output = testing::internal::GetCapturedStderr();
   ASSERT_NE(output.find("Falling back"), std::string::npos);
+
+  learner->InplacePredict(p_m, PredictionType::kValue, std::numeric_limits<float>::quiet_NaN(),
+                          &out_predt, 0, 0);
 
   // test when the contexts match
   Context new_ctx = *proxy->Ctx();

@@ -119,7 +119,7 @@ using bst_group_t = std::uint32_t;  // NOLINT
  */
 using bst_target_t = std::uint32_t;  // NOLINT
 /**
- * brief Type for indexing boosted layers.
+ * @brief Type for indexing boosted layers.
  */
 using bst_layer_t = std::int32_t;  // NOLINT
 /**
