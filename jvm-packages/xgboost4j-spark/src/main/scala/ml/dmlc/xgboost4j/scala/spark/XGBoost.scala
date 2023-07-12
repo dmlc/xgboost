@@ -74,7 +74,9 @@ private[scala] case class XGBoostExecutionParams(
     earlyStoppingParams: XGBoostExecutionEarlyStoppingParams,
     cacheTrainingSet: Boolean,
     treeMethod: Option[String],
-    isLocal: Boolean) {
+    isLocal: Boolean,
+    featureNames: Option[Array[String]],
+    featureTypes: Option[Array[String]]) {
 
   private var rawParamMap: Map[String, Any] = _
 
@@ -213,6 +215,13 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
     val cacheTrainingSet = overridedParams.getOrElse("cache_training_set", false)
       .asInstanceOf[Boolean]
 
+    val featureNames = if (overridedParams.contains("feature_names")) {
+      Some(overridedParams("feature_names").asInstanceOf[Array[String]])
+    } else None
+    val featureTypes = if (overridedParams.contains("feature_types")){
+      Some(overridedParams("feature_types").asInstanceOf[Array[String]])
+    } else None
+
     val xgbExecParam = XGBoostExecutionParams(nWorkers, round, useExternalMemory, obj, eval,
       missing, allowNonZeroForMissing, trackerConf,
       checkpointParam,
@@ -220,7 +229,10 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
       xgbExecEarlyStoppingParams,
       cacheTrainingSet,
       treeMethod,
-      isLocal)
+      isLocal,
+      featureNames,
+      featureTypes
+    )
     xgbExecParam.setRawParamMap(overridedParams)
     xgbExecParam
   }
@@ -531,6 +543,16 @@ private object Watches {
     if (trainMargin.isDefined) trainMatrix.setBaseMargin(trainMargin.get)
     if (testMargin.isDefined) testMatrix.setBaseMargin(testMargin.get)
 
+    if (xgbExecutionParams.featureNames.isDefined) {
+      trainMatrix.setFeatureNames(xgbExecutionParams.featureNames.get)
+      testMatrix.setFeatureNames(xgbExecutionParams.featureNames.get)
+    }
+
+    if (xgbExecutionParams.featureTypes.isDefined) {
+      trainMatrix.setFeatureTypes(xgbExecutionParams.featureTypes.get)
+      testMatrix.setFeatureTypes(xgbExecutionParams.featureTypes.get)
+    }
+
     new Watches(Array(trainMatrix, testMatrix), Array("train", "test"), cacheDirName)
   }
 
@@ -642,6 +664,15 @@ private object Watches {
     val testMargin = fromBaseMarginsToArray(testBaseMargins.result().iterator)
     if (trainMargin.isDefined) trainMatrix.setBaseMargin(trainMargin.get)
     if (testMargin.isDefined) testMatrix.setBaseMargin(testMargin.get)
+
+    if (xgbExecutionParams.featureNames.isDefined) {
+      trainMatrix.setFeatureNames(xgbExecutionParams.featureNames.get)
+      testMatrix.setFeatureNames(xgbExecutionParams.featureNames.get)
+    }
+    if (xgbExecutionParams.featureTypes.isDefined) {
+      trainMatrix.setFeatureTypes(xgbExecutionParams.featureTypes.get)
+      testMatrix.setFeatureTypes(xgbExecutionParams.featureTypes.get)
+    }
 
     new Watches(Array(trainMatrix, testMatrix), Array("train", "test"), cacheDirName)
   }

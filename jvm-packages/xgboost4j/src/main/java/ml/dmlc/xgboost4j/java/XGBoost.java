@@ -198,6 +198,8 @@ public class XGBoost {
     if (booster == null) {
       // Start training on a new booster
       booster = new Booster(params, allMats);
+      booster.setFeatureNames(dtrain.getFeatureNames());
+      booster.setFeatureTypes(dtrain.getFeatureTypes());
       booster.loadRabitCheckpoint();
     } else {
       // Start training on an existing booster

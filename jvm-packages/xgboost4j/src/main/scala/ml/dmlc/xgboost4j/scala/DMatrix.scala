@@ -206,6 +206,26 @@ class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
   }
 
   /**
+   * set feature names
+   * @param values feature names
+   * @throws ml.dmlc.xgboost4j.java.XGBoostError
+   */
+  @throws(classOf[XGBoostError])
+  def setFeatureNames(values: Array[String]): Unit = {
+    jDMatrix.setFeatureNames(values)
+  }
+
+  /**
+   * set feature types
+   * @param values feature types
+   * @throws ml.dmlc.xgboost4j.java.XGBoostError
+   */
+  @throws(classOf[XGBoostError])
+  def setFeatureTypes(values: Array[String]): Unit = {
+    jDMatrix.setFeatureTypes(values)
+  }
+
+  /**
    * Get group sizes of DMatrix (used for ranking)
    */
   @throws(classOf[XGBoostError])
@@ -241,6 +261,26 @@ class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
   @throws(classOf[XGBoostError])
   def getBaseMargin: Array[Float] = {
     jDMatrix.getBaseMargin
+  }
+
+  /**
+   * get feature names
+   * @throws ml.dmlc.xgboost4j.java.XGBoostError
+   * @return
+   */
+  @throws(classOf[XGBoostError])
+  def getFeatureNames: Array[String] = {
+    jDMatrix.getFeatureNames
+  }
+
+  /**
+   * get feature types
+   * @throws ml.dmlc.xgboost4j.java.XGBoostError
+   * @return
+   */
+  @throws(classOf[XGBoostError])
+  def getFeatureTypes: Array[String] = {
+    jDMatrix.getFeatureTypes
   }
 
   /**
