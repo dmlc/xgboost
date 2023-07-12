@@ -312,8 +312,10 @@ TEST(Learner, GPUConfiguration) {
     ASSERT_EQ(learner->Ctx()->Device(), DeviceOrd::CUDA(0));
   }
   {
-    std::unique_ptr<Learner> learner {Learner::Create(mat)};
+    std::unique_ptr<Learner> learner{Learner::Create(mat)};
     learner->SetParams({Arg{"tree_method", "gpu_hist"}});
+    learner->Configure();
+    ASSERT_EQ(learner->Ctx()->Device(), DeviceOrd::CUDA(0));
     learner->UpdateOneIter(0, p_dmat);
     ASSERT_EQ(learner->Ctx()->Device(), DeviceOrd::CUDA(0));
   }
