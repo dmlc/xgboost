@@ -59,7 +59,9 @@ General Parameters
 
   - Feature dimension used in boosting, set to maximum dimension of the feature
 
-* ``device`` [default=``cpu``]
+* ``device`` [default= ``cpu``]
+
+  .. versionadded:: 2.0.0
 
   - Device for XGBoost to run. User can set it to one of the following values:
 
@@ -109,7 +111,7 @@ Parameters for Tree Booster
   - ``gradient_based``: the selection probability for each training instance is proportional to the
     *regularized absolute value* of gradients (more specifically, :math:`\sqrt{g^2+\lambda h^2}`).
     ``subsample`` may be set to as low as 0.1 without loss of model accuracy. Note that this
-    sampling method is only supported when ``tree_method`` is set to ``gpu_hist``; other tree
+    sampling method is only supported when ``tree_method`` is set to ``hist`` and the device is ``cuda``; other tree
     methods only support ``uniform`` sampling.
 
 * ``colsample_bytree``, ``colsample_bylevel``, ``colsample_bynode`` [default=1]
@@ -141,26 +143,15 @@ Parameters for Tree Booster
 * ``tree_method`` string [default= ``auto``]
 
   - The tree construction algorithm used in XGBoost. See description in the `reference paper <http://arxiv.org/abs/1603.02754>`_ and :doc:`treemethod`.
-  - XGBoost supports  ``approx``, ``hist`` and ``gpu_hist`` for distributed training.  Experimental support for external memory is available for ``approx`` and ``gpu_hist``.
 
-  - Choices: ``auto``, ``exact``, ``approx``, ``hist``, ``gpu_hist``, this is a
-    combination of commonly used updaters.  For other updaters like ``refresh``, set the
-    parameter ``updater`` directly.
+  - Choices: ``auto``, ``exact``, ``approx``, ``hist``, this is a combination of commonly
+    used updaters.  For other updaters like ``refresh``, set the parameter ``updater``
+    directly.
 
-    - ``auto``: Use heuristic to choose the fastest method.
-
-      - For small dataset, exact greedy (``exact``) will be used.
-      - For larger dataset, approximate algorithm (``approx``) will be chosen.  It's
-        recommended to try ``hist`` and ``gpu_hist`` for higher performance with large
-        dataset.
-        (``gpu_hist``)has support for ``external memory``.
-
-      - Because old behavior is always use exact greedy in single machine, user will get a
-        message when approximate algorithm is chosen to notify this choice.
+    - ``auto``: Same as the ``hist`` tree method.
     - ``exact``: Exact greedy algorithm.  Enumerates all split candidates.
     - ``approx``: Approximate greedy algorithm using quantile sketch and gradient histogram.
     - ``hist``: Faster histogram optimized approximate greedy algorithm.
-    - ``gpu_hist``: GPU implementation of ``hist`` algorithm.
 
 * ``scale_pos_weight`` [default=1]
 
@@ -173,7 +164,7 @@ Parameters for Tree Booster
     - ``grow_colmaker``: non-distributed column-based construction of trees.
     - ``grow_histmaker``: distributed tree construction with row-based data splitting based on global proposal of histogram counting.
     - ``grow_quantile_histmaker``: Grow tree using quantized histogram.
-    - ``grow_gpu_hist``: Grow tree with GPU.
+    - ``grow_gpu_hist``: Grow tree with GPU. Same as setting tree method to ``hist`` and use ``device=cuda``.
     - ``sync``: synchronizes trees in all distributed nodes.
     - ``refresh``: refreshes tree's statistics and/or leaf values based on the current data. Note that no random subsampling of data rows is performed.
     - ``prune``: prunes the splits where loss < min_split_loss (or gamma) and nodes that have depth greater than ``max_depth``.
@@ -193,7 +184,7 @@ Parameters for Tree Booster
 * ``grow_policy`` [default= ``depthwise``]
 
   - Controls a way new nodes are added to the tree.
-  - Currently supported only if ``tree_method`` is set to ``hist``, ``approx`` or ``gpu_hist``.
+  - Currently supported only if ``tree_method`` is set to ``hist`` or ``approx``.
   - Choices: ``depthwise``, ``lossguide``
 
     - ``depthwise``: split at nodes closest to the root.
@@ -205,7 +196,7 @@ Parameters for Tree Booster
 
 * ``max_bin``, [default=256]
 
-  - Only used if ``tree_method`` is set to ``hist``, ``approx`` or ``gpu_hist``.
+  - Only used if ``tree_method`` is set to ``hist`` or ``approx``.
   - Maximum number of discrete bins to bucket continuous features.
   - Increasing this number improves the optimality of splits at the cost of higher computation time.
 
