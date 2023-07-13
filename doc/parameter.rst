@@ -68,8 +68,8 @@ General Parameters
     + ``cpu``: Use CPU.
     + ``cuda``: Use a GPU (CUDA device).
     + ``cuda:<ordinal>``: ``<ordinal>`` is an integer that specifies the ordinal of the GPU (which GPU do you want to use if you have more than one devices).
-    + ``gpu``: Same as ``cuda``.
-    + ``gpu:<ordinal>``: Same as ``cuda:<ordinal>``.
+    + ``gpu``: Default GPU device selection from the list of available and supported devices. Only ``cuda`` devices are supported currently.
+    + ``gpu:<ordinal>``: Default GPU device selection from the list of available and supported devices. Only ``cuda`` devices are supported currently.
 
 Parameters for Tree Booster
 ===========================
