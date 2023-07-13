@@ -6,6 +6,7 @@
 #include "xgboost/context.h"
 
 #include <algorithm>  // for find_if
+#include <charconv>   // for from_chars
 #include <optional>   // for optional
 #include <regex>      // for regex_replace, regex_match
 
@@ -59,14 +60,15 @@ DeviceOrd CUDAOrdinal(DeviceOrd device, bool fail_on_invalid) {
 }
 #endif  //  !defined(XGBOOST_USE_CUDA)
 
-std::optional<std::int32_t> ParseInt(std::string const& ordinal) {
-  // boost::lexical_cast should be used instead, but for now some basic checks will do
+std::optional<std::int32_t> ParseInt(StringView ordinal) {
+  // Some basic checks to ensure valid `gpu_id` and device ordinal instead of directly parsing and
+  // letting go of unknown characters.
   if (ordinal.empty()) {
     return std::nullopt;
   }
 
   std::size_t offset{0};
-  if (ordinal.front() == '-') {
+  if (ordinal[0] == '-') {
     offset = 1;
   }
   if (ordinal.size() <= offset) {
@@ -80,9 +82,8 @@ std::optional<std::int32_t> ParseInt(std::string const& ordinal) {
   }
 
   std::int32_t parsed_id{Context::kCpuId};
-  try {
-    parsed_id = std::stoi(ordinal);
-  } catch (std::exception const& e) {
+  auto res = std::from_chars(ordinal.c_str(), ordinal.c_str() + ordinal.size(), parsed_id);
+  if (res.ec != std::errc()) {
     return std::nullopt;
   }
 
@@ -97,11 +98,18 @@ DeviceOrd MakeDeviceOrd(std::string const& input, bool fail_on_invalid_gpu_id) {
 - gpu
 - gpu:<device ordinal>   # e.g. gpu:0
 )"};
-
+#if defined(__MINGW32__)
+  // mingw hangs on regex using rtools 430. Basic checks only.
+  CHECK_GE(input.size(), 3) << msg;
+  auto substr = input.substr(0, 3);
+  bool valid = substr == "cpu" || substr == "cud" || substr == "gpu";
+  CHECK(valid) << msg;
+#else
   std::regex pattern{"gpu(:[0-9]+)?|cuda(:[0-9]+)?|cpu"};
   if (!std::regex_match(input, pattern)) {
     LOG(FATAL) << msg << "Got:" << input;
   }
+#endif  // defined(__MINGW32__)
   // handle alias
   std::string device_str = std::regex_replace(input, std::regex{"gpu"}, "cuda");
 
@@ -120,10 +128,12 @@ DeviceOrd MakeDeviceOrd(std::string const& input, bool fail_on_invalid_gpu_id) {
     }
   } else {
     // must be CUDA when ordinal is specifed.
-    auto splited = common::Split(device_str, ':');
-    device_str = splited[0];
-    auto ordinal_str = splited[1];
-    auto opt_id = ParseInt(ordinal_str);
+    std::size_t offset = std::distance(device_str.cbegin(), split_it);
+    StringView s_device = {device_str.data(), offset};
+    offset += 1; // colon
+    StringView s_ordinal = { device_str.data() + offset, device_str.size() - offset };
+    CHECK(!s_ordinal.empty()) << msg << "Got: " << input;
+    auto opt_id = ParseInt(s_ordinal);
     if (!opt_id.has_value()) {
       LOG(FATAL) << msg << "Got: " << input;
     }
@@ -159,7 +169,7 @@ void Context::SetDeviceOrdinal(Args const& kwargs) {
   if (has_gpu_id) {
     // Compatible with XGBoost < 2.0.0
     error::WarnDeprecatedGPUId();
-    auto opt_id = ParseInt(gpu_id_it->second);
+    auto opt_id = ParseInt(StringView{ gpu_id_it->second });
     CHECK(opt_id.has_value()) << "Invalid value for `gpu_id`. Got:" << gpu_id_it->second;
     if (opt_id.value() > Context::kCpuId) {
       this->UpdateAllowUnknown(Args{{kDevice, DeviceOrd::CUDA(opt_id.value()).Name()}});
