@@ -1025,6 +1025,7 @@ class XgboostLocalTest(SparkTestCase):
         self.assertTrue(hasattr(py_reg, "n_estimators"))
         self.assertEqual(py_reg.n_estimators.parent, py_reg.uid)
         self.assertFalse(hasattr(py_reg, "gpu_id"))
+        self.assertFalse(hasattr(py_reg, "device"))
         self.assertEqual(py_reg.getOrDefault(py_reg.n_estimators), 100)
         self.assertEqual(py_reg.getOrDefault(py_reg.objective), "reg:squarederror")
         py_reg2 = SparkXGBRegressor(n_estimators=200)
@@ -1038,6 +1039,7 @@ class XgboostLocalTest(SparkTestCase):
         self.assertTrue(hasattr(py_cls, "n_estimators"))
         self.assertEqual(py_cls.n_estimators.parent, py_cls.uid)
         self.assertFalse(hasattr(py_cls, "gpu_id"))
+        self.assertFalse(hasattr(py_cls, "device"))
         self.assertEqual(py_cls.getOrDefault(py_cls.n_estimators), 100)
         self.assertEqual(py_cls.getOrDefault(py_cls.objective), None)
         py_cls2 = SparkXGBClassifier(n_estimators=200)
@@ -1051,6 +1053,7 @@ class XgboostLocalTest(SparkTestCase):
         self.assertTrue(hasattr(py_cls, "n_estimators"))
         self.assertEqual(py_cls.n_estimators.parent, py_cls.uid)
         self.assertFalse(hasattr(py_cls, "gpu_id"))
+        self.assertFalse(hasattr(py_cls, "device"))
         self.assertTrue(hasattr(py_cls, "arbitrary_params_dict"))
         expected_kwargs = {"sketch_eps": 0.03}
         self.assertEqual(

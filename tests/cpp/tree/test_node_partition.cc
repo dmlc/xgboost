@@ -6,7 +6,9 @@
 #include <xgboost/task.h>          // for ObjInfo
 #include <xgboost/tree_updater.h>  // for TreeUpdater
 
-#include <memory>                  // for unique_ptr
+#include <memory>  // for unique_ptr
+
+#include "../helpers.h"
 
 namespace xgboost {
 TEST(Updater, HasNodePosition) {
@@ -19,7 +21,7 @@ TEST(Updater, HasNodePosition) {
   ASSERT_TRUE(up->HasNodePosition());
 
 #if defined(XGBOOST_USE_CUDA)
-  ctx.gpu_id = 0;
+  ctx = MakeCUDACtx(0);
   up.reset(TreeUpdater::Create("grow_gpu_hist", &ctx, &task));
   ASSERT_TRUE(up->HasNodePosition());
 #endif  // defined(XGBOOST_USE_CUDA)

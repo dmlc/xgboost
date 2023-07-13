@@ -203,7 +203,7 @@ class TestQuantileDMatrix:
         np.testing.assert_equal(h_ret.indices, d_ret.indices)
 
         booster = xgb.train(
-            {"tree_method": "gpu_hist", "gpu_id": "0"}, dtrain=d_m
+            {"tree_method": "hist", "device": "cuda:0"}, dtrain=d_m
         )
 
         np.testing.assert_allclose(

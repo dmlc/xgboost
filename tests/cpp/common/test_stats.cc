@@ -7,6 +7,7 @@
 
 #include "../../../src/common/stats.h"
 #include "../../../src/common/transform_iterator.h"  // common::MakeIndexTransformIter
+#include "../helpers.h"
 
 namespace xgboost {
 namespace common {
@@ -71,7 +72,7 @@ TEST(Stats, Median) {
     ASSERT_EQ(m, .5f);
 
 #if defined(XGBOOST_USE_CUDA)
-    ctx.gpu_id = 0;
+    ctx = ctx.MakeCUDA(0);
     ASSERT_FALSE(ctx.IsCPU());
     Median(&ctx, values, weights, &out);
     m = out(0);
@@ -80,7 +81,7 @@ TEST(Stats, Median) {
   }
 
   {
-    ctx.gpu_id = Context::kCpuId;
+    ctx = ctx.MakeCPU();
     // 4x2 matrix
     linalg::Tensor<float, 2> values{{0.f, 0.f, 0.f, 0.f, 1.f, 1.f, 2.f, 2.f}, {4, 2}, ctx.gpu_id};
     HostDeviceVector<float> weights;
@@ -90,7 +91,7 @@ TEST(Stats, Median) {
     ASSERT_EQ(out(1), .5f);
 
 #if defined(XGBOOST_USE_CUDA)
-    ctx.gpu_id = 0;
+    ctx = ctx.MakeCUDA(0);
     Median(&ctx, values, weights, &out);
     ASSERT_EQ(out(0), .5f);
     ASSERT_EQ(out(1), .5f);
@@ -123,8 +124,7 @@ TEST(Stats, Mean) {
 
 #if defined(XGBOOST_USE_CUDA)
 TEST(Stats, GPUMean) {
-  Context ctx;
-  ctx.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
+  auto ctx = MakeCUDACtx(0);
   TestMean(&ctx);
 }
 #endif  // defined(XGBOOST_USE_CUDA)

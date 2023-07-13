@@ -559,16 +559,4 @@ class DeclareUnifiedDistributedTest(MetricTest) : public ::testing::Test {
     }
   }
 };
-
-// A temporary solution before we move away from gpu_id.
-inline void ConfigLearnerByCtx(Context const* ctx, Learner* learner) {
-  if (ctx->IsCPU()) {
-    learner->SetParam("tree_method", "hist");
-  } else {
-    learner->SetParam("tree_method", "gpu_hist");
-  }
-  learner->SetParam("gpu_id", std::to_string(ctx->gpu_id));
-  learner->Configure();
-  ASSERT_EQ(learner->Ctx()->gpu_id, ctx->gpu_id);
-}
 }  // namespace xgboost

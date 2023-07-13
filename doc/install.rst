@@ -3,10 +3,10 @@ Installation Guide
 ##################
 
 XGBoost provides binary packages for some language bindings.  The binary packages support
-the GPU algorithm (``gpu_hist``) on machines with NVIDIA GPUs. Please note that **training
-with multiple GPUs is only supported for Linux platform**. See :doc:`gpu/index`.  Also we
-have both stable releases and nightly builds, see below for how to install them.  For
-building from source, visit :doc:`this page </build>`.
+the GPU algorithm (``device=cuda:0``) on machines with NVIDIA GPUs. Please note that
+**training with multiple GPUs is only supported for Linux platform**. See
+:doc:`gpu/index`.  Also we have both stable releases and nightly builds, see below for how
+to install them.  For building from source, visit :doc:`this page </build>`.
 
 .. contents:: Contents
 

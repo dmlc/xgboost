@@ -39,9 +39,8 @@ struct PredictionCacheEntry {
    *
    * \param v Added versions.
    */
-  void Update(std::uint32_t v) {
-    version += v;
-  }
+  void Update(std::uint32_t v) { version += v; }
+  void Reset() { version = 0; }
 };
 
 /**
