@@ -92,5 +92,8 @@ TEST(Context, GPUId) {
   ctx.UpdateAllowUnknown(Args{{"device", device}});
   ord = 1001 % n_vis;
   TestCUDA(ctx, ord);
+
+  ctx.UpdateAllowUnknown(Args{{"gpu_id", "-1"}});
+  ASSERT_EQ(ctx.Device(), DeviceOrd::CPU());
 }
 }  // namespace xgboost

@@ -35,7 +35,7 @@ DeviceOrd CUDAOrdinal(DeviceOrd device, bool) {
 }
 #else
 // Check CUDA on the current device, wrap the ordinal if necessary.
-DeviceOrd CUDAOrdinal(DeviceOrd device, bool fail_on_invalid) {
+[[nodiscard]] DeviceOrd CUDAOrdinal(DeviceOrd device, bool fail_on_invalid) {
   // When booster is loaded from a memory image (Python pickle or R raw model), number of
   // available GPUs could be different.  Wrap around it.
   std::int32_t n_visible = common::AllVisibleGPUs();
@@ -61,7 +61,7 @@ DeviceOrd CUDAOrdinal(DeviceOrd device, bool fail_on_invalid) {
 }
 #endif  //  !defined(XGBOOST_USE_CUDA)
 
-std::optional<std::int32_t> ParseInt(StringView ordinal) {
+[[nodiscard]] std::optional<std::int32_t> ParseInt(StringView ordinal) {
   // Some basic checks to ensure valid `gpu_id` and device ordinal instead of directly parsing and
   // letting go of unknown characters.
   if (ordinal.empty()) {
@@ -91,7 +91,7 @@ std::optional<std::int32_t> ParseInt(StringView ordinal) {
   return parsed_id;
 }
 
-DeviceOrd MakeDeviceOrd(std::string const& input, bool fail_on_invalid_gpu_id) {
+[[nodiscard]] DeviceOrd MakeDeviceOrd(std::string const& input, bool fail_on_invalid_gpu_id) {
   StringView msg{R"(Invalid argument for `device`. Expected to be one of the following:
 - cpu
 - cuda
@@ -99,6 +99,8 @@ DeviceOrd MakeDeviceOrd(std::string const& input, bool fail_on_invalid_gpu_id) {
 - gpu
 - gpu:<device ordinal>   # e.g. gpu:0
 )"};
+  auto fatal = [&] { LOG(FATAL) << msg << "Got: `" << input << "`."; };
+
 #if defined(__MINGW32__)
   // mingw hangs on regex using rtools 430. Basic checks only.
   CHECK_GE(input.size(), 3) << msg;
@@ -108,42 +110,46 @@ DeviceOrd MakeDeviceOrd(std::string const& input, bool fail_on_invalid_gpu_id) {
 #else
   std::regex pattern{"gpu(:[0-9]+)?|cuda(:[0-9]+)?|cpu"};
   if (!std::regex_match(input, pattern)) {
-    LOG(FATAL) << msg << "Got:" << input;
+    fatal();
   }
 #endif  // defined(__MINGW32__)
+
   // handle alias
-  std::string device_str = std::regex_replace(input, std::regex{"gpu"}, "cuda");
+  std::string s_device = std::regex_replace(input, std::regex{"gpu"}, DeviceSym::CUDA());
 
-  auto split_it = std::find(device_str.cbegin(), device_str.cend(), ':');
-
+  auto split_it = std::find(s_device.cbegin(), s_device.cend(), ':');
   DeviceOrd device;
-  device.ordinal = -2;  // mark it invalid for check.
-  if (split_it == device_str.cend()) {
+  device.ordinal = Context::InvalidOrdinal();  // mark it invalid for check.
+  if (split_it == s_device.cend()) {
     // no ordinal.
-    if (device_str == "cpu") {
+    if (s_device == DeviceSym::CPU()) {
       device = DeviceOrd::CPU();
-    } else if (device_str == "cuda") {
+    } else if (s_device == DeviceSym::CUDA()) {
       device = DeviceOrd::CUDA(0);  // use 0 as default;
     } else {
-      LOG(FATAL) << msg << "Got: " << input;
+      fatal();
     }
   } else {
     // must be CUDA when ordinal is specifed.
     // +1 for colon
-    std::size_t offset = std::distance(device_str.cbegin(), split_it) + 1;
+    std::size_t offset = std::distance(s_device.cbegin(), split_it) + 1;
     // substr
-    StringView s_ordinal = {device_str.data() + offset, device_str.size() - offset};
-    CHECK(!s_ordinal.empty()) << msg << "Got: " << input;
+    StringView s_ordinal = {s_device.data() + offset, s_device.size() - offset};
+    if (s_ordinal.empty()) {
+      fatal();
+    }
     auto opt_id = ParseInt(s_ordinal);
     if (!opt_id.has_value()) {
-      LOG(FATAL) << msg << "Got: " << input;
+      fatal();
     }
     CHECK_LE(opt_id.value(), std::numeric_limits<bst_d_ordinal_t>::max())
         << "Ordinal value too large.";
     device = DeviceOrd::CUDA(opt_id.value());
   }
-  CHECK_GE(device.ordinal, Context::kCpuId) << msg;
 
+  if (device.ordinal < Context::kCpuId) {
+    fatal();
+  }
   device = CUDAOrdinal(device, fail_on_invalid_gpu_id);
 
   return device;
@@ -152,7 +158,7 @@ DeviceOrd MakeDeviceOrd(std::string const& input, bool fail_on_invalid_gpu_id) {
 
 void Context::ConfigureGpuId(bool require_gpu) {
   if (this->IsCPU() && require_gpu) {
-    this->UpdateAllowUnknown(Args{{kDevice, "cuda"}});
+    this->UpdateAllowUnknown(Args{{kDevice, DeviceSym::CUDA()}});
   }
 }
 

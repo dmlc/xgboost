@@ -18,6 +18,12 @@ namespace xgboost {
 
 struct CUDAContext;
 
+// symbolic names
+struct DeviceSym {
+  static auto constexpr CPU() { return "cpu"; }
+  static auto constexpr CUDA() { return "cuda"; }
+};
+
 /**
  * @brief A type for device ordinal. The type is packed into 32-bit for efficient use in
  *        viewing types like `linalg::TensorView`.
@@ -59,9 +65,9 @@ struct DeviceOrd {
   [[nodiscard]] std::string Name() const {
     switch (device) {
       case DeviceOrd::kCPU:
-        return "cpu";
+        return DeviceSym::CPU();
       case DeviceOrd::kCUDA:
-        return "cuda:" + std::to_string(ordinal);
+        return DeviceSym::CUDA() + (':' + std::to_string(ordinal));
       default: {
         LOG(FATAL) << "Unknown device.";
         return "";
@@ -77,15 +83,15 @@ static_assert(sizeof(DeviceOrd) == sizeof(std::int32_t));
  */
 struct Context : public XGBoostParameter<Context> {
  private:
-  std::string device;  // NOLINT
-  // The device object for the current context. NOT used yet, we are in the middle of
-  // replacing the `gpu_id` with this device field.
+  std::string device{DeviceSym::CPU()};  // NOLINT
+  // The device object for the current context. We are in the middle of replacing the
+  // `gpu_id` with this device field.
   DeviceOrd device_{DeviceOrd::CPU()};
 
  public:
   // Constant representing the device ID of CPU.
   static bst_d_ordinal_t constexpr kCpuId = -1;
-  bst_d_ordinal_t constexpr InvalidOrdinal() { return -2; }
+  static bst_d_ordinal_t constexpr InvalidOrdinal() { return -2; }
   static std::int64_t constexpr kDefaultSeed = 0;
 
  public:
@@ -147,17 +153,17 @@ struct Context : public XGBoostParameter<Context> {
   [[nodiscard]] CUDAContext const* CUDACtx() const;
 
   /**
-    * @brief Make a CUDA context based on the current context.
-    *
-    * @param ordinal The CUDA device ordinal.
-    */
+   * @brief Make a CUDA context based on the current context.
+   *
+   * @param ordinal The CUDA device ordinal.
+   */
   [[nodiscard]] Context MakeCUDA(bst_d_ordinal_t ordinal = 0) const {
     Context ctx = *this;
     return ctx.SetDevice(DeviceOrd::CUDA(ordinal));
   }
   /**
-    * @brief Make a CPU context based on the current context.
-    */
+   * @brief Make a CPU context based on the current context.
+   */
   [[nodiscard]] Context MakeCPU() const {
     Context ctx = *this;
     return ctx.SetDevice(DeviceOrd::CPU());
@@ -192,7 +198,7 @@ struct Context : public XGBoostParameter<Context> {
     DMLC_DECLARE_FIELD(seed_per_iteration)
         .set_default(false)
         .describe("Seed PRNG determnisticly via iterator number.");
-    DMLC_DECLARE_FIELD(device).set_default("cpu").describe("Device ordinal.");
+    DMLC_DECLARE_FIELD(device).set_default(DeviceSym::CPU()).describe("Device ordinal.");
     DMLC_DECLARE_FIELD(nthread).set_default(0).describe("Number of threads to use.");
     DMLC_DECLARE_ALIAS(nthread, n_jobs);
     DMLC_DECLARE_FIELD(fail_on_invalid_gpu_id)
