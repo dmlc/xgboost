@@ -355,4 +355,4 @@ HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
   sketch_container.MakeCuts(&cuts);
   return cuts;
 }
-} // namespace xgboost::common
+}  // namespace xgboost::common
