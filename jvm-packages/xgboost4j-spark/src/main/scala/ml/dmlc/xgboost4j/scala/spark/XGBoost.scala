@@ -314,7 +314,7 @@ object XGBoost extends Serializable {
           getGPUAddrFromResources
         }
         logger.info("Leveraging gpu device " + gpuId + " to train")
-        params = params + ("device" -> gpuId.formatted("cuda:%d"))
+        params = params + ("device" -> s"cuda:$gpuId")
       }
       val booster = if (makeCheckpoint) {
         SXGBoost.trainAndSaveCheckpoint(
