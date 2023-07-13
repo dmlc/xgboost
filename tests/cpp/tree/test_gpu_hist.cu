@@ -423,4 +423,67 @@ TEST(GpuHist, MaxDepth) {
 
   ASSERT_THROW({learner->UpdateOneIter(0, p_mat);}, dmlc::Error);
 }
+
+namespace {
+void VerifyColumnSplit(bst_row_t rows, bst_feature_t cols, bst_target_t n_targets,
+                       RegTree const& expected_tree) {
+  auto const world_size = collective::GetWorldSize();
+  auto const rank = collective::GetRank();
+  auto Xy = RandomDataGenerator{rows, cols, 0}.GenerateDMatrix(true);
+  auto p_gradients = GenerateGradients(rows, n_targets);
+  Context ctx = MakeCUDACtx(rank);
+  ObjInfo task{ObjInfo::kRegression};
+  std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create("grow_gpu_hist", &ctx, &task)};
+  std::vector<HostDeviceVector<bst_node_t>> position(1);
+
+  std::unique_ptr<DMatrix> sliced{Xy->SliceCol(world_size, rank)};
+
+  RegTree tree{n_targets, cols};
+  TrainParam param;
+  param.Init(Args{});
+  updater->Update(&param, p_gradients.get(), sliced.get(), position, {&tree});
+
+  Json json{Object{}};
+  tree.SaveModel(&json);
+  Json expected_json{Object{}};
+  expected_tree.SaveModel(&expected_json);
+  ASSERT_EQ(json, expected_json);
+}
+
+void TestColumnSplit(int n_gpus, bst_target_t n_targets) {
+  auto constexpr kRows = 32;
+  auto constexpr kCols = 16;
+
+  RegTree expected_tree{n_targets, kCols};
+  ObjInfo task{ObjInfo::kRegression};
+  {
+    auto Xy = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
+    auto p_gradients = GenerateGradients(kRows, n_targets);
+    Context ctx = MakeCUDACtx(0);
+    std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create("grow_gpu_hist", &ctx, &task)};
+    std::vector<HostDeviceVector<bst_node_t>> position(1);
+    TrainParam param;
+    param.Init(Args{});
+    updater->Update(&param, p_gradients.get(), Xy.get(), position, {&expected_tree});
+  }
+
+  RunWithInMemoryCommunicator(n_gpus, VerifyColumnSplit, kRows, kCols, n_targets, expected_tree);
+}
+}  // anonymous namespace
+
+TEST(GpuHist, MGPUColumnSplit) {
+  auto const n_gpus = common::AllVisibleGPUs();
+  if (n_gpus <= 1) {
+    GTEST_SKIP() << "Skipping MGPUColumnSplit test with # GPUs = " << n_gpus;
+  }
+  TestColumnSplit(n_gpus, 1);
+}
+
+TEST(GpuHist, MGPUColumnSplitMultiTarget) {
+  auto const n_gpus = common::AllVisibleGPUs();
+  if (n_gpus <= 1) {
+    GTEST_SKIP() << "Skipping MGPUColumnSplitMultiTarget test with # GPUs = " << n_gpus;
+  }
+  TestColumnSplit(n_gpus, 3);
+}
 }  // namespace xgboost::tree
