@@ -180,7 +180,12 @@ TEST(GBTree, ChooseTreeMethod) {
       learner->SetParam("tree_method", tree_method.value());
     }
     if (device.has_value()) {
-      learner->SetParam("gpu_id", device.value());
+      auto const& d = device.value();
+      if (std::isdigit(d.front()) || d.front() == '-') {
+        learner->SetParam("gpu_id", d);
+      } else {
+        learner->SetParam("device", d);
+      }
     }
     learner->Configure();
     for (std::int32_t i = 0; i < 3; ++i) {
@@ -199,7 +204,12 @@ TEST(GBTree, ChooseTreeMethod) {
       learner->SetParam("tree_method", tree_method.value());
     }
     if (device.has_value()) {
-      learner->SetParam("gpu_id", device.value());
+      auto const& d = device.value();
+      if (std::isdigit(d.front()) || d.front() == '-') {
+        learner->SetParam("gpu_id", d);
+      } else {
+        learner->SetParam("device", d);
+      }
     }
     learner->Configure();
     for (std::int32_t i = 0; i < 3; ++i) {
@@ -215,11 +225,12 @@ TEST(GBTree, ChooseTreeMethod) {
 
   // |        | hist    | gpu_hist | exact | NA  |
   // |--------+---------+----------+-------+-----|
-  // | CUDA:0 | GPU     | GPU (w)  | Err   | GPU | # not yet tested
-  // | CPU    | CPU     | Err      | CPU   | CPU | # not yet tested
+  // | CUDA:0 | GPU     | GPU (w)  | Err   | GPU |
+  // | CPU    | CPU     | GPU (w)  | CPU   | CPU |
   // |--------+---------+----------+-------+-----|
   // | -1     | CPU     | GPU (w)  | CPU   | CPU |
   // | 0      | GPU     | GPU (w)  | Err   | GPU |
+  // |--------+---------+----------+-------+-----|
   // | NA     | CPU     | GPU (w)  | CPU   | CPU |
   //
   // - (w): warning
@@ -237,18 +248,30 @@ TEST(GBTree, ChooseTreeMethod) {
           // hist
           {{"hist", "-1"}, "grow_quantile_histmaker"},
           {{"hist", "0"}, "grow_gpu_hist"},
+          {{"hist", "cpu"}, "grow_quantile_histmaker"},
+          {{"hist", "cuda"}, "grow_gpu_hist"},
+          {{"hist", "cuda:0"}, "grow_gpu_hist"},
           {{"hist", std::nullopt}, "grow_quantile_histmaker"},
           // gpu_hist
           {{"gpu_hist", "-1"}, "grow_gpu_hist"},
           {{"gpu_hist", "0"}, "grow_gpu_hist"},
+          {{"gpu_hist", "cpu"}, "grow_gpu_hist"},
+          {{"gpu_hist", "cuda"}, "grow_gpu_hist"},
+          {{"gpu_hist", "cuda:0"}, "grow_gpu_hist"},
           {{"gpu_hist", std::nullopt}, "grow_gpu_hist"},
           // exact
           {{"exact", "-1"}, "grow_colmaker,prune"},
           {{"exact", "0"}, "err"},
+          {{"exact", "cpu"}, "grow_colmaker,prune"},
+          {{"exact", "cuda"}, "err"},
+          {{"exact", "cuda:0"}, "err"},
           {{"exact", std::nullopt}, "grow_colmaker,prune"},
           // NA
           {{std::nullopt, "-1"}, "grow_quantile_histmaker"},
           {{std::nullopt, "0"}, "grow_gpu_hist"},  // default to hist
+          {{std::nullopt, "cpu"}, "grow_quantile_histmaker"},
+          {{std::nullopt, "cuda"}, "grow_gpu_hist"},
+          {{std::nullopt, "cuda:0"}, "grow_gpu_hist"},
           {{std::nullopt, std::nullopt}, "grow_quantile_histmaker"},
       };
 
@@ -392,8 +415,7 @@ class Dart : public testing::TestWithParam<char const*> {
     for (size_t i = 0; i < 16; ++i) {
       learner->UpdateOneIter(i, p_mat);
     }
-
-    ConfigLearnerByCtx(&ctx, learner.get());
+    learner->SetParam("device", ctx.DeviceName());
 
     HostDeviceVector<float> predts_training;
     learner->Predict(p_mat, false, &predts_training, 0, 0, true);
@@ -654,8 +676,7 @@ TEST(GBTree, InplacePredictionError) {
         RandomDataGenerator{n_samples, n_features, 0.5f}.Batches(2).GenerateSparsePageDMatrix(
             "cache", true);
     std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
-    learner->SetParam("booster", booster);
-    ConfigLearnerByCtx(ctx, learner.get());
+    learner->SetParams(Args{{"booster", booster}, {"device", ctx->DeviceName()}});
     learner->Configure();
     for (std::int32_t i = 0; i < 3; ++i) {
       learner->UpdateOneIter(i, p_fmat);
@@ -697,9 +718,9 @@ TEST(GBTree, InplacePredictionError) {
 #endif  // defined(XGBOOST_USE_CUDA)
     };
     std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
-    learner->SetParam("booster", booster);
-    learner->SetParam("max_bin", std::to_string(max_bins));
-    ConfigLearnerByCtx(ctx, learner.get());
+    learner->SetParams(Args{{"booster", booster},
+                            {"max_bin", std::to_string(max_bins)},
+                            {"device", ctx->DeviceName()}});
     learner->Configure();
     for (std::int32_t i = 0; i < 3; ++i) {
       learner->UpdateOneIter(i, p_fmat);

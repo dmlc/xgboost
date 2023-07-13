@@ -273,7 +273,7 @@ __model_doc = f"""
         * For linear model, only "weight" is defined and it's the normalized coefficients
           without bias.
 
-    gpu_id : Optional[int]
+    device : Optional[str]
         Device ordinal.
     validate_parameters : Optional[bool]
         Give warnings for unknown parameter.
@@ -647,7 +647,7 @@ class XGBModel(XGBModelBase):
         monotone_constraints: Optional[Union[Dict[str, int], str]] = None,
         interaction_constraints: Optional[Union[str, Sequence[Sequence[str]]]] = None,
         importance_type: Optional[str] = None,
-        gpu_id: Optional[int] = None,
+        device: Optional[str] = None,
         validate_parameters: Optional[bool] = None,
         enable_categorical: bool = False,
         feature_types: Optional[FeatureTypes] = None,
@@ -693,7 +693,7 @@ class XGBModel(XGBModelBase):
         self.monotone_constraints = monotone_constraints
         self.interaction_constraints = interaction_constraints
         self.importance_type = importance_type
-        self.gpu_id = gpu_id
+        self.device = device
         self.validate_parameters = validate_parameters
         self.enable_categorical = enable_categorical
         self.feature_types = feature_types

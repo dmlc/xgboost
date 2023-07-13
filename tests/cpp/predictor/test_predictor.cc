@@ -44,60 +44,49 @@ TEST(Predictor, PredictionCache) {
   EXPECT_ANY_THROW(container.Entry(m));
 }
 
-void TestTrainingPrediction(size_t rows, size_t bins,
-                            std::string tree_method,
-                            std::shared_ptr<DMatrix> p_full,
-                            std::shared_ptr<DMatrix> p_hist) {
+void TestTrainingPrediction(Context const *ctx, size_t rows, size_t bins,
+                            std::shared_ptr<DMatrix> p_full, std::shared_ptr<DMatrix> p_hist) {
   size_t constexpr kCols = 16;
   size_t constexpr kClasses = 3;
   size_t constexpr kIters = 3;
 
   std::unique_ptr<Learner> learner;
-  auto train = [&](Context const& ctx) {
-    p_hist->Info().labels.Reshape(rows, 1);
-    auto &h_label = p_hist->Info().labels.Data()->HostVector();
 
-    for (size_t i = 0; i < rows; ++i) {
-      h_label[i] = i % kClasses;
-    }
+  p_hist->Info().labels.Reshape(rows, 1);
+  auto &h_label = p_hist->Info().labels.Data()->HostVector();
 
-    learner.reset(Learner::Create({}));
-    learner->SetParam("tree_method", tree_method);
-    learner->SetParam("objective", "multi:softprob");
-    learner->SetParam("num_feature", std::to_string(kCols));
-    learner->SetParam("num_class", std::to_string(kClasses));
-    learner->SetParam("max_bin", std::to_string(bins));
-    ConfigLearnerByCtx(&ctx, learner.get());
-    learner->Configure();
+  for (size_t i = 0; i < rows; ++i) {
+    h_label[i] = i % kClasses;
+  }
 
-    for (size_t i = 0; i < kIters; ++i) {
-      learner->UpdateOneIter(i, p_hist);
-    }
+  learner.reset(Learner::Create({}));
+  learner->SetParams(Args{{"objective", "multi:softprob"},
+                          {"num_feature", std::to_string(kCols)},
+                          {"num_class", std::to_string(kClasses)},
+                          {"max_bin", std::to_string(bins)},
+                          {"device", ctx->DeviceName()}});
+  learner->Configure();
 
-    Json model{Object{}};
-    learner->SaveModel(&model);
+  for (size_t i = 0; i < kIters; ++i) {
+    learner->UpdateOneIter(i, p_hist);
+  }
 
-    learner.reset(Learner::Create({}));
-    learner->LoadModel(model);
-    ConfigLearnerByCtx(&ctx, learner.get());
-    learner->Configure();
+  Json model{Object{}};
+  learner->SaveModel(&model);
 
-    HostDeviceVector<float> from_full;
-    learner->Predict(p_full, false, &from_full, 0, 0);
+  learner.reset(Learner::Create({}));
+  learner->LoadModel(model);
+  learner->SetParam("device", ctx->DeviceName());
+  learner->Configure();
 
-    HostDeviceVector<float> from_hist;
-    learner->Predict(p_hist, false, &from_hist, 0, 0);
+  HostDeviceVector<float> from_full;
+  learner->Predict(p_full, false, &from_full, 0, 0);
 
-    for (size_t i = 0; i < rows; ++i) {
-      EXPECT_NEAR(from_hist.ConstHostVector()[i],
-                  from_full.ConstHostVector()[i], kRtEps);
-    }
-  };
+  HostDeviceVector<float> from_hist;
+  learner->Predict(p_hist, false, &from_hist, 0, 0);
 
-  if (tree_method == "gpu_hist") {
-    train(MakeCUDACtx(0));
-  } else {
-    train(Context{});
+  for (size_t i = 0; i < rows; ++i) {
+    EXPECT_NEAR(from_hist.ConstHostVector()[i], from_full.ConstHostVector()[i], kRtEps);
   }
 }
 
@@ -120,7 +109,7 @@ void TestInplacePrediction(Context const *ctx, std::shared_ptr<DMatrix> x, bst_r
     learner->UpdateOneIter(it, m);
   }
 
-  learner->SetParam("gpu_id", std::to_string(ctx->gpu_id));
+  learner->SetParam("device", ctx->DeviceName());
   learner->Configure();
 
   HostDeviceVector<float> *p_out_predictions_0{nullptr};
@@ -153,7 +142,7 @@ void TestInplacePrediction(Context const *ctx, std::shared_ptr<DMatrix> x, bst_r
     ASSERT_NEAR(h_pred[i], h_pred_0[i] + h_pred_1[i] - 0.5f, kRtEps);
   }
 
-  learner->SetParam("gpu_id", "-1");
+  learner->SetParam("device", "cpu");
   learner->Configure();
 }
 
@@ -161,12 +150,12 @@ namespace {
 std::unique_ptr<Learner> LearnerForTest(Context const *ctx, std::shared_ptr<DMatrix> dmat,
                                         size_t iters, size_t forest = 1) {
   std::unique_ptr<Learner> learner{Learner::Create({dmat})};
-  learner->SetParams(Args{{"num_parallel_tree", std::to_string(forest)}});
+  learner->SetParams(
+      Args{{"num_parallel_tree", std::to_string(forest)}, {"device", ctx->DeviceName()}});
   for (size_t i = 0; i < iters; ++i) {
     learner->UpdateOneIter(i, dmat);
   }
 
-  ConfigLearnerByCtx(ctx, learner.get());
   return learner;
 }
 
@@ -215,7 +204,7 @@ void TestPredictionDeviceAccess() {
   {
     ASSERT_EQ(from_cpu.DeviceIdx(), Context::kCpuId);
     Context cpu_ctx;
-    ConfigLearnerByCtx(&cpu_ctx, learner.get());
+    learner->SetParam("device", cpu_ctx.DeviceName());
     learner->Predict(m_test, false, &from_cpu, 0, 0);
     ASSERT_TRUE(from_cpu.HostCanWrite());
     ASSERT_FALSE(from_cpu.DeviceCanRead());
@@ -225,7 +214,7 @@ void TestPredictionDeviceAccess() {
   HostDeviceVector<float> from_cuda;
   {
     Context cuda_ctx = MakeCUDACtx(0);
-    ConfigLearnerByCtx(&cuda_ctx, learner.get());
+    learner->SetParam("device", cuda_ctx.DeviceName());
     learner->Predict(m_test, false, &from_cuda, 0, 0);
     ASSERT_EQ(from_cuda.DeviceIdx(), 0);
     ASSERT_TRUE(from_cuda.DeviceCanWrite());
@@ -465,11 +454,7 @@ void TestIterationRangeColumnSplit(Context const* ctx) {
   auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix(true, true, kClasses);
   auto learner = LearnerForTest(ctx, dmat, kIters, kForest);
 
-  if (ctx->IsCPU()) {
-    learner->SetParams(Args{{"gpu_id", std::to_string(-1)}});
-  } else {
-    learner->SetParams(Args{{"gpu_id", std::to_string(0)}});
-  }
+  learner->SetParam("device", ctx->DeviceName());
 
   bool bound = false;
   std::unique_ptr<Learner> sliced{learner->Slice(0, 3, 1, &bound)};
@@ -582,7 +567,7 @@ void TestSparsePredictionColumnSplit(Context const* ctx, float sparsity) {
   learner.reset(Learner::Create({Xy}));
   learner->LoadModel(model);
 
-  ConfigLearnerByCtx(ctx, learner.get());
+  learner->SetParam("device", ctx->DeviceName());
   learner->Predict(Xy, false, &sparse_predt, 0, 0);
 
   auto constexpr kWorldSize = 2;

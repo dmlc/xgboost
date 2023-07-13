@@ -33,9 +33,8 @@ TEST(GPUPredictor, Basic) {
     int n_row = i, n_col = i;
     auto dmat = RandomDataGenerator(n_row, n_col, 0).GenerateDMatrix();
 
-    Context ctx;
-    ctx.gpu_id = 0;
-    LearnerModelParam mparam{MakeMP(n_col, .5, 1, ctx.gpu_id)};
+    auto ctx = MakeCUDACtx(0);
+    LearnerModelParam mparam{MakeMP(n_col, .5, 1, ctx.Ordinal())};
     gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx);
 
     // Test predict batch
@@ -71,7 +70,7 @@ void VerifyBasicColumnSplit(std::array<std::vector<float>, 32> const& expected_r
     auto dmat = RandomDataGenerator(n_row, n_col, 0).GenerateDMatrix();
     std::unique_ptr<DMatrix> sliced{dmat->SliceCol(world_size, rank)};
 
-    LearnerModelParam mparam{MakeMP(n_col, .5, 1, ctx.gpu_id)};
+    LearnerModelParam mparam{MakeMP(n_col, .5, 1, ctx.Ordinal())};
     gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx);
 
     // Test predict batch
@@ -102,7 +101,7 @@ TEST(GPUPredictor, MGPUBasicColumnSplit) {
     size_t n_row = i, n_col = i;
     auto dmat = RandomDataGenerator(n_row, n_col, 0).GenerateDMatrix();
 
-    LearnerModelParam mparam{MakeMP(n_col, .5, 1, ctx.gpu_id)};
+    LearnerModelParam mparam{MakeMP(n_col, .5, 1, ctx.Ordinal())};
     gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx);
 
     // Test predict batch
@@ -132,18 +131,19 @@ TEST(GPUPredictor, EllpackBasic) {
 }
 
 TEST(GPUPredictor, EllpackTraining) {
-  size_t constexpr kRows { 128 }, kCols { 16 }, kBins { 64 };
-  auto p_ellpack =
-      RandomDataGenerator{kRows, kCols, 0.0}.Bins(kBins).Device(0).GenerateDeviceDMatrix(false);
+  auto ctx = MakeCUDACtx(0);
+  size_t constexpr kRows{128}, kCols{16}, kBins{64};
+  auto p_ellpack = RandomDataGenerator{kRows, kCols, 0.0}
+                       .Bins(kBins)
+                       .Device(ctx.Ordinal())
+                       .GenerateDeviceDMatrix(false);
   HostDeviceVector<float> storage(kRows * kCols);
-  auto columnar = RandomDataGenerator{kRows, kCols, 0.0}
-       .Device(0)
-       .GenerateArrayInterface(&storage);
+  auto columnar =
+      RandomDataGenerator{kRows, kCols, 0.0}.Device(ctx.Ordinal()).GenerateArrayInterface(&storage);
   auto adapter = data::CupyAdapter(columnar);
-  std::shared_ptr<DMatrix> p_full {
-    DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)
-  };
-  TestTrainingPrediction(kRows, kBins, "gpu_hist", p_full, p_ellpack);
+  std::shared_ptr<DMatrix> p_full{
+      DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)};
+  TestTrainingPrediction(&ctx, kRows, kBins, p_full, p_ellpack);
 }
 
 TEST(GPUPredictor, ExternalMemoryTest) {
@@ -153,9 +153,8 @@ TEST(GPUPredictor, ExternalMemoryTest) {
   gpu_predictor->Configure({});
 
   const int n_classes = 3;
-  Context ctx;
-  ctx.gpu_id = 0;
-  LearnerModelParam mparam{MakeMP(5, .5, n_classes, ctx.gpu_id)};
+  Context ctx = MakeCUDACtx(0);
+  LearnerModelParam mparam{MakeMP(5, .5, n_classes, ctx.Ordinal())};
 
   gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx, n_classes);
   std::vector<std::unique_ptr<DMatrix>> dmats;
@@ -185,7 +184,7 @@ TEST(GPUPredictor, InplacePredictCupy) {
   auto ctx = MakeCUDACtx(0);
   size_t constexpr kRows{128}, kCols{64};
   RandomDataGenerator gen(kRows, kCols, 0.5);
-  gen.Device(ctx.gpu_id);
+  gen.Device(ctx.Ordinal());
   HostDeviceVector<float> data;
   std::string interface_str = gen.GenerateArrayInterface(&data);
   std::shared_ptr<DMatrix> p_fmat{new data::DMatrixProxy};
@@ -197,7 +196,7 @@ TEST(GPUPredictor, InplacePredictCuDF) {
   auto ctx = MakeCUDACtx(0);
   size_t constexpr kRows{128}, kCols{64};
   RandomDataGenerator gen(kRows, kCols, 0.5);
-  gen.Device(ctx.gpu_id);
+  gen.Device(ctx.Ordinal());
   std::vector<HostDeviceVector<float>> storage(kCols);
   auto interface_str = gen.GenerateColumnarArrayInterface(&storage);
   std::shared_ptr<DMatrix> p_fmat{new data::DMatrixProxy};
@@ -214,9 +213,8 @@ TEST(GpuPredictor, LesserFeatures) {
 TEST(GPUPredictor, ShapStump) {
   cudaSetDevice(0);
 
-  Context ctx;
-  ctx.gpu_id = 0;
-  LearnerModelParam mparam{MakeMP(1, .5, 1, ctx.gpu_id)};
+  auto ctx = MakeCUDACtx(0);
+  LearnerModelParam mparam{MakeMP(1, .5, 1, ctx.Ordinal())};
   gbm::GBTreeModel model(&mparam, &ctx);
 
   std::vector<std::unique_ptr<RegTree>> trees;
@@ -241,9 +239,8 @@ TEST(GPUPredictor, ShapStump) {
 }
 
 TEST(GPUPredictor, Shap) {
-  Context ctx;
-  ctx.gpu_id = 0;
-  LearnerModelParam mparam{MakeMP(1, .5, 1, ctx.gpu_id)};
+  auto ctx = MakeCUDACtx(0);
+  LearnerModelParam mparam{MakeMP(1, .5, 1, ctx.Ordinal())};
   gbm::GBTreeModel model(&mparam, &ctx);
 
   std::vector<std::unique_ptr<RegTree>> trees;

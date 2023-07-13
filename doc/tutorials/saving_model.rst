@@ -163,7 +163,7 @@ Will print out something similar to (not actual output as it's too long for demo
     {
       "Learner": {
         "generic_parameter": {
-          "gpu_id": "0",
+          "device": "cuda:0",
           "gpu_page_size": "0",
           "n_jobs": "0",
           "random_state": "0",

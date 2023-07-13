@@ -110,15 +110,10 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \param approx_contribs whether to approximate the feature contributions for speed
    * \param pred_interactions whether to compute the feature pair contributions
    */
-  virtual void Predict(std::shared_ptr<DMatrix> data,
-                       bool output_margin,
-                       HostDeviceVector<bst_float> *out_preds,
-                       unsigned layer_begin,
-                       unsigned layer_end,
-                       bool training = false,
-                       bool pred_leaf = false,
-                       bool pred_contribs = false,
-                       bool approx_contribs = false,
+  virtual void Predict(std::shared_ptr<DMatrix> data, bool output_margin,
+                       HostDeviceVector<bst_float>* out_preds, bst_layer_t layer_begin,
+                       bst_layer_t layer_end, bool training = false, bool pred_leaf = false,
+                       bool pred_contribs = false, bool approx_contribs = false,
                        bool pred_interactions = false) = 0;
 
   /*!
@@ -132,8 +127,8 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \param          layer_end   End of booster layer. 0 means do not limit trees.
    */
   virtual void InplacePredict(std::shared_ptr<DMatrix> p_m, PredictionType type, float missing,
-                              HostDeviceVector<bst_float>** out_preds, uint32_t layer_begin,
-                              uint32_t layer_end) = 0;
+                              HostDeviceVector<float>** out_preds, bst_layer_t layer_begin,
+                              bst_layer_t layer_end) = 0;
 
   /*!
    * \brief Calculate feature score.  See doc in C API for outputs.

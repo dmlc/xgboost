@@ -227,7 +227,7 @@ TEST(HistUtil, RemoveDuplicatedCategories) {
   }
   // check categorical
   beg = n_samples;
-  for (std::size_t i = 0; i < n_categories; ++i) {
+  for (bst_cat_t i = 0; i < n_categories; ++i) {
     // all from the second column
     ASSERT_EQ(static_cast<bst_feature_t>(weight[i + beg]) % n_features, 1);
   }

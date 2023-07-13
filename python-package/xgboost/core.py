@@ -1393,13 +1393,13 @@ class _ProxyDMatrix(DMatrix):
 
 
 class QuantileDMatrix(DMatrix):
-    """A DMatrix variant that generates quantilized data directly from input for
-    ``hist`` and ``gpu_hist`` tree methods. This DMatrix is primarily designed to save
-    memory in training by avoiding intermediate storage. Set ``max_bin`` to control the
-    number of bins during quantisation, which should be consistent with the training
-    parameter ``max_bin``. When ``QuantileDMatrix`` is used for validation/test dataset,
-    ``ref`` should be another ``QuantileDMatrix``(or ``DMatrix``, but not recommended as
-    it defeats the purpose of saving memory) constructed from training dataset.  See
+    """A DMatrix variant that generates quantilized data directly from input for the
+    ``hist`` tree method. This DMatrix is primarily designed to save memory in training
+    by avoiding intermediate storage. Set ``max_bin`` to control the number of bins
+    during quantisation, which should be consistent with the training parameter
+    ``max_bin``. When ``QuantileDMatrix`` is used for validation/test dataset, ``ref``
+    should be another ``QuantileDMatrix``(or ``DMatrix``, but not recommended as it
+    defeats the purpose of saving memory) constructed from training dataset.  See
     :py:obj:`xgboost.DMatrix` for documents on meta info.
 
     .. note::
@@ -2277,10 +2277,10 @@ class Booster:
 
         .. code-block:: python
 
-            booster.set_param({"gpu_id": "0", "tree_method": "gpu_hist"})
+            booster.set_param({"device": "cuda:0"})
             booster.inplace_predict(cupy_array)
 
-            booster.set_param({"gpu_id": "-1", "tree_method": "hist"})
+            booster.set_param({"device": "cpu"})
             booster.inplace_predict(numpy_array)
 
         .. versionadded:: 1.1.0
@@ -2311,8 +2311,8 @@ class Booster:
         Returns
         -------
         prediction : numpy.ndarray/cupy.ndarray
-            The prediction result.  When input data is on GPU, prediction
-            result is stored in a cupy array.
+            The prediction result.  When input data is on GPU, prediction result is
+            stored in a cupy array.
 
         """
         preds = ctypes.POINTER(ctypes.c_float)()
