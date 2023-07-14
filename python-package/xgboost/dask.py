@@ -618,14 +618,7 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
         if self._iter == len(self._data):
             # Return 0 when there's no more batch.
             return 0
-        feature_names: Optional[FeatureNames] = None
-        if self._feature_names:
-            feature_names = self._feature_names
-        else:
-            if hasattr(self.data(), "columns"):
-                feature_names = self.data().columns.format()
-            else:
-                feature_names = None
+
         input_data(
             data=self.data(),
             label=self._get("_label"),
@@ -635,7 +628,7 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
             base_margin=self._get("_base_margin"),
             label_lower_bound=self._get("_label_lower_bound"),
             label_upper_bound=self._get("_label_upper_bound"),
-            feature_names=feature_names,
+            feature_names=self._feature_names,
             feature_types=self._feature_types,
             feature_weights=self._feature_weights,
         )
