@@ -21,6 +21,7 @@ def main(client):
     y = da.random.random(m, partition_size)
 
     regressor = xgboost.dask.DaskXGBRegressor(verbosity=1)
+    # set the device to CUDA
     regressor.set_params(tree_method="hist", device="cuda")
     # assigning client here is optional
     regressor.client = client

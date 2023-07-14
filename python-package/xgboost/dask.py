@@ -929,7 +929,7 @@ async def _train_async(
         raise NotImplementedError(
             f"booster `{params['booster']}` is not yet supported for dask."
         )
-    device = params.get("device")
+    device = params.get("device", None)
     if device and device.find(":") != -1:
         raise ValueError(
             "The dask interface for XGBoost doesn't support selecting specific device"

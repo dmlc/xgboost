@@ -25,6 +25,7 @@ def using_dask_matrix(client: Client, X: da.Array, y: da.Array) -> da.Array:
         client,
         {
             "verbosity": 2,
+            "tree_method": "hist",
             # Golden line for GPU training
             "device": "cuda",
         },
