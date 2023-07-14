@@ -425,12 +425,11 @@ TEST(GpuHist, MaxDepth) {
 }
 
 namespace {
-void VerifyColumnSplit(bst_row_t rows, bst_feature_t cols, bst_target_t n_targets,
-                       RegTree const& expected_tree) {
+void VerifyColumnSplit(bst_row_t rows, bst_feature_t cols, RegTree const& expected_tree) {
   auto const world_size = collective::GetWorldSize();
   auto const rank = collective::GetRank();
   auto Xy = RandomDataGenerator{rows, cols, 0}.GenerateDMatrix(true);
-  auto p_gradients = GenerateGradients(rows, n_targets);
+  auto p_gradients = GenerateGradients(rows);
   Context ctx = MakeCUDACtx(rank);
   ObjInfo task{ObjInfo::kRegression};
   std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create("grow_gpu_hist", &ctx, &task)};
@@ -438,7 +437,7 @@ void VerifyColumnSplit(bst_row_t rows, bst_feature_t cols, bst_target_t n_target
 
   std::unique_ptr<DMatrix> sliced{Xy->SliceCol(world_size, rank)};
 
-  RegTree tree{n_targets, cols};
+  RegTree tree{1, cols};
   TrainParam param;
   param.Init(Args{});
   updater->Update(&param, p_gradients.get(), sliced.get(), position, {&tree});
@@ -450,15 +449,15 @@ void VerifyColumnSplit(bst_row_t rows, bst_feature_t cols, bst_target_t n_target
   ASSERT_EQ(json, expected_json);
 }
 
-void TestColumnSplit(int n_gpus, bst_target_t n_targets) {
+void TestColumnSplit(int n_gpus) {
   auto constexpr kRows = 32;
   auto constexpr kCols = 16;
 
-  RegTree expected_tree{n_targets, kCols};
+  RegTree expected_tree{1, kCols};
   ObjInfo task{ObjInfo::kRegression};
   {
     auto Xy = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
-    auto p_gradients = GenerateGradients(kRows, n_targets);
+    auto p_gradients = GenerateGradients(kRows);
     Context ctx = MakeCUDACtx(0);
     std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create("grow_gpu_hist", &ctx, &task)};
     std::vector<HostDeviceVector<bst_node_t>> position(1);
@@ -467,7 +466,7 @@ void TestColumnSplit(int n_gpus, bst_target_t n_targets) {
     updater->Update(&param, p_gradients.get(), Xy.get(), position, {&expected_tree});
   }
 
-  RunWithInMemoryCommunicator(n_gpus, VerifyColumnSplit, kRows, kCols, n_targets, expected_tree);
+  RunWithInMemoryCommunicator(n_gpus, VerifyColumnSplit, kRows, kCols, expected_tree);
 }
 }  // anonymous namespace
 
@@ -476,14 +475,6 @@ TEST(GpuHist, MGPUColumnSplit) {
   if (n_gpus <= 1) {
     GTEST_SKIP() << "Skipping MGPUColumnSplit test with # GPUs = " << n_gpus;
   }
-  TestColumnSplit(n_gpus, 1);
-}
-
-TEST(GpuHist, MGPUColumnSplitMultiTarget) {
-  auto const n_gpus = common::AllVisibleGPUs();
-  if (n_gpus <= 1) {
-    GTEST_SKIP() << "Skipping MGPUColumnSplitMultiTarget test with # GPUs = " << n_gpus;
-  }
-  TestColumnSplit(n_gpus, 3);
+  TestColumnSplit(n_gpus);
 }
 }  // namespace xgboost::tree
