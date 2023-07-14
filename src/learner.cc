@@ -690,19 +690,20 @@ class LearnerConfiguration : public Learner {
       stack.pop();
       auto const &obj = get<Object const>(j_obj);
 
-      for (auto const &kv : obj) {
+      for (auto const& kv : obj) {
         if (is_parameter(kv.first)) {
           auto parameter = get<Object const>(kv.second);
-          std::transform(parameter.begin(), parameter.end(), std::back_inserter(keys),
-                         [](std::pair<std::string const&, Json const&> const& kv) {
-                           return kv.first;
-                         });
+          std::transform(
+              parameter.begin(), parameter.end(), std::back_inserter(keys),
+              [](std::pair<std::string const&, Json const&> const& kv) { return kv.first; });
         } else if (IsA<Object>(kv.second)) {
           stack.push(kv.second);
-        } else if (kv.first == "metrics") {
+        } else if (IsA<Array>(kv.second)) {
           auto const& array = get<Array const>(kv.second);
           for (auto const& v : array) {
-            stack.push(v);
+            if (IsA<Object>(v) || IsA<Array>(v)) {
+              stack.push(v);
+            }
           }
         }
       }

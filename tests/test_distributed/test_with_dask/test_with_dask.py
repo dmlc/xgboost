@@ -1913,7 +1913,7 @@ def test_parallel_submits(client: "Client") -> None:
         assert cls.get_booster().num_boosted_rounds() == i + 1
 
 
-def run_tree_stats(client: Client, tree_method: str) -> str:
+def run_tree_stats(client: Client, tree_method: str, device: str) -> str:
     """assert that different workers count dosn't affect summ statistic's on root"""
 
     def dask_train(X, y, num_obs, num_features):
@@ -1927,6 +1927,7 @@ def run_tree_stats(client: Client, tree_method: str) -> str:
             {
                 "verbosity": 0,
                 "tree_method": tree_method,
+                "device": device,
                 "objective": "reg:squarederror",
                 "max_depth": 3,
             },
@@ -1960,10 +1961,10 @@ def run_tree_stats(client: Client, tree_method: str) -> str:
 def test_tree_stats(tree_method: str) -> None:
     with LocalCluster(n_workers=1, dashboard_address=":0") as cluster:
         with Client(cluster) as client:
-            local = run_tree_stats(client, tree_method)
+            local = run_tree_stats(client, tree_method, "cpu")
     with LocalCluster(n_workers=2, dashboard_address=":0") as cluster:
         with Client(cluster) as client:
-            distributed = run_tree_stats(client, tree_method)
+            distributed = run_tree_stats(client, tree_method, "cpu")
 
     assert local == distributed
 

@@ -124,7 +124,7 @@ def run_with_dask_array(DMatrixT: Type, client: Client) -> None:
     assert (
         json.loads(out["booster"].save_config())["learner"]["gradient_booster"][
             "updater"
-        ]["name"]
+        ][0]["name"]
         == "grow_gpu_hist"
     )
     inplace_predictions = dxgb.inplace_predict(client, out, X).compute()
@@ -202,11 +202,11 @@ def run_gpu_hist(
 def test_tree_stats() -> None:
     with LocalCUDACluster(n_workers=1) as cluster:
         with Client(cluster) as client:
-            local = run_tree_stats(client, "gpu_hist")
+            local = run_tree_stats(client, "hist", "cuda")
 
     with LocalCUDACluster(n_workers=2) as cluster:
         with Client(cluster) as client:
-            distributed = run_tree_stats(client, "gpu_hist")
+            distributed = run_tree_stats(client, "hist", "cuda")
 
     assert local == distributed
 
