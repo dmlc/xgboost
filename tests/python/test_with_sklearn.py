@@ -1351,10 +1351,11 @@ def test_multilabel_classification() -> None:
     np.testing.assert_allclose(clf.predict(X), predt)
 
 
-def test_data_initialization():
+def test_data_initialization() -> None:
     from sklearn.datasets import load_digits
+
     X, y = load_digits(return_X_y=True)
-    validate_data_initialization(xgb.DMatrix, xgb.XGBClassifier, X, y)
+    validate_data_initialization(xgb.QuantileDMatrix, xgb.XGBClassifier, X, y)
 
 
 @parametrize_with_checks([xgb.XGBRegressor()])

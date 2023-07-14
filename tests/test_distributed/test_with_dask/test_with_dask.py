@@ -1719,13 +1719,16 @@ class TestWithDask:
     def test_data_initialization(self, client: "Client") -> None:
         """assert that we don't create duplicated DMatrix"""
         from sklearn.datasets import load_digits
+
         X, y = load_digits(return_X_y=True)
         X, y = dd.from_array(X, chunksize=32), dd.from_array(y, chunksize=32)
         validate_data_initialization(
-            xgb.dask.DaskDMatrix, xgb.dask.DaskXGBClassifier, X, y
+            xgb.dask.DaskQuantileDMatrix, xgb.dask.DaskXGBClassifier, X, y
         )
 
-    def run_shap(self, X: Any, y: Any, params: Dict[str, Any], client: "Client") -> None:
+    def run_shap(
+        self, X: Any, y: Any, params: Dict[str, Any], client: "Client"
+    ) -> None:
         rows = X.shape[0]
         cols = X.shape[1]
 
