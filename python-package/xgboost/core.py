@@ -153,6 +153,10 @@ def _expect(expectations: Sequence[Type], got: Type) -> str:
 
 def _log_callback(msg: bytes) -> None:
     """Redirect logs from native library into Python console"""
+    smsg = py_str(msg)
+    if smsg.find("WARNING:") != -1:
+        warnings.warn(smsg, UserWarning)
+        return
     print(py_str(msg))
 
 
