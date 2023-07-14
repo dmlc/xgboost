@@ -115,12 +115,18 @@ def run_with_dask_array(DMatrixT: Type, client: Client) -> None:
     dtrain = DMatrixT(client, X, y)
     out = dxgb.train(
         client,
-        {"tree_method": "gpu_hist", "debug_synchronize": True},
+        {"tree_method": "hist", "debug_synchronize": True, "device": "cuda"},
         dtrain=dtrain,
         evals=[(dtrain, "X")],
         num_boost_round=2,
     )
     from_dmatrix = dxgb.predict(client, out, dtrain).compute()
+    assert (
+        json.loads(out["booster"].save_config())["learner"]["gradient_booster"][
+            "updater"
+        ]
+        == "grow_gpu_hist"
+    )
     inplace_predictions = dxgb.inplace_predict(client, out, X).compute()
     single_node = out["booster"].predict(xgb.DMatrix(X.compute()))
     np.testing.assert_allclose(single_node, from_dmatrix)

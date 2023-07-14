@@ -888,7 +888,7 @@ def run_empty_dmatrix_auc(client: "Client", device: str, n_workers: int) -> None
     valid_X = dd.from_array(valid_X_, chunksize=n_samples)
     valid_y = dd.from_array(valid_y_, chunksize=n_samples)
 
-    cls = xgb.dask.DaskXGBClassifier(tree_method=device, n_estimators=2)
+    cls = xgb.dask.DaskXGBClassifier(device=device, n_estimators=2)
     cls.fit(X, y, eval_metric=["auc", "aucpr"], eval_set=[(valid_X, valid_y)])
 
     # multiclass
@@ -917,7 +917,7 @@ def run_empty_dmatrix_auc(client: "Client", device: str, n_workers: int) -> None
     valid_X = dd.from_array(valid_X_, chunksize=n_samples)
     valid_y = dd.from_array(valid_y_, chunksize=n_samples)
 
-    cls = xgb.dask.DaskXGBClassifier(tree_method=device, n_estimators=2)
+    cls = xgb.dask.DaskXGBClassifier(device=device, n_estimators=2)
     cls.fit(X, y, eval_metric=["auc", "aucpr"], eval_set=[(valid_X, valid_y)])
 
 
