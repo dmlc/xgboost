@@ -220,12 +220,12 @@ class TestDistributedGPU:
         X_, y_ = load_breast_cancer(return_X_y=True)
         X = dd.from_array(X_, chunksize=100).map_partitions(cudf.from_pandas)
         y = dd.from_array(y_, chunksize=100).map_partitions(cudf.from_pandas)
-        run_boost_from_prediction(X, y, "gpu_hist", local_cuda_client)
+        run_boost_from_prediction(X, y, "hist", "cuda", local_cuda_client)
 
         X_, y_ = load_iris(return_X_y=True)
         X = dd.from_array(X_, chunksize=50).map_partitions(cudf.from_pandas)
         y = dd.from_array(y_, chunksize=50).map_partitions(cudf.from_pandas)
-        run_boost_from_prediction_multi_class(X, y, "gpu_hist", local_cuda_client)
+        run_boost_from_prediction_multi_class(X, y, "hist", "cuda", local_cuda_client)
 
     def test_init_estimation(self, local_cuda_client: Client) -> None:
         check_init_estimation("gpu_hist", local_cuda_client)
@@ -288,7 +288,7 @@ class TestDistributedGPU:
         )
         result = xgb.dask.train(
             client,
-            {"tree_method": "gpu_hist"},
+            {"tree_method": "hist", "device": "cuda", "debug_synchronize": True},
             Xy,
             num_boost_round=10,
             evals=[(Xy_valid, "Valid")],
@@ -319,7 +319,8 @@ class TestDistributedGPU:
             {
                 "objective": "binary:logistic",
                 "eval_metric": "error",
-                "tree_method": "gpu_hist",
+                "tree_method": "hist",
+                "device": "cuda",
             },
             m,
             evals=[(valid, "Valid")],
@@ -334,7 +335,8 @@ class TestDistributedGPU:
         valid_y = y
         cls = dxgb.DaskXGBClassifier(
             objective="binary:logistic",
-            tree_method="gpu_hist",
+            tree_method="hist",
+            device="cuda",
             eval_metric="error",
             n_estimators=100,
         )
@@ -362,7 +364,11 @@ class TestDistributedGPU:
         run_dask_classifier(X, y, w, model, "gpu_hist", local_cuda_client, 10)
 
     def test_empty_dmatrix(self, local_cuda_client: Client) -> None:
-        parameters = {"tree_method": "gpu_hist", "debug_synchronize": True}
+        parameters = {
+            "tree_method": "hist",
+            "debug_synchronize": True,
+            "device": "cuda",
+        }
         run_empty_dmatrix_reg(local_cuda_client, parameters)
         run_empty_dmatrix_cls(local_cuda_client, parameters)
 
