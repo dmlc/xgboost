@@ -40,7 +40,7 @@ class GpuXGBoostRegressorSuite extends GpuTestSuite {
   test("The transform result should be same for several runs on same model") {
     withGpuSparkSession(enableCsvConf()) { spark =>
       val xgbParam = Map("eta" -> 0.1f, "max_depth" -> 2, "objective" -> "reg:squarederror",
-        "num_round" -> 10, "num_workers" -> 1, "tree_method" -> "gpu_hist",
+        "num_round" -> 10, "num_workers" -> 1, "tree_method" -> "hist", "device" -> "cuda",
         "features_cols" -> featureNames, "label_col" -> labelName)
       val Array(originalDf, testDf) = spark.read.option("header", "true").schema(schema)
         .csv(getResourcePath("/rank.train.csv")).randomSplit(Array(0.7, 0.3), seed = 1)
@@ -57,7 +57,7 @@ class GpuXGBoostRegressorSuite extends GpuTestSuite {
   test("use weight") {
     withGpuSparkSession(enableCsvConf()) { spark =>
       val xgbParam = Map("eta" -> 0.1f, "max_depth" -> 2, "objective" -> "reg:squarederror",
-        "num_round" -> 10, "num_workers" -> 1, "tree_method" -> "gpu_hist",
+        "num_round" -> 10, "num_workers" -> 1, "tree_method" -> "hist", "device" -> "cuda",
         "features_cols" -> featureNames, "label_col" -> labelName)
       val Array(originalDf, testDf) = spark.read.option("header", "true").schema(schema)
         .csv(getResourcePath("/rank.train.csv")).randomSplit(Array(0.7, 0.3), seed = 1)
@@ -88,7 +88,8 @@ class GpuXGBoostRegressorSuite extends GpuTestSuite {
       val classifier = new XGBoostRegressor(xgbParam)
         .setFeaturesCol(featureNames)
         .setLabelCol(labelName)
-        .setTreeMethod("gpu_hist")
+        .setTreeMethod("hist")
+        .setDevice("cuda")
       (classifier.fit(rawInput), testDf)
     }
 

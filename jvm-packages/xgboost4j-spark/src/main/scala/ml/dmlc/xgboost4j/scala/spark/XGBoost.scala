@@ -73,7 +73,7 @@ private[scala] case class XGBoostExecutionParams(
     xgbInputParams: XGBoostExecutionInputParams,
     earlyStoppingParams: XGBoostExecutionEarlyStoppingParams,
     cacheTrainingSet: Boolean,
-    treeMethod: Option[String],
+    device: Option[String],
     isLocal: Boolean,
     featureNames: Option[Array[String]],
     featureTypes: Option[Array[String]]) {
@@ -180,6 +180,11 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
         " as 'hist', 'approx', 'gpu_hist', and 'auto'")
       treeMethod = Some(overridedParams("tree_method").asInstanceOf[String])
     }
+    val device: Option[String] = overridedParams.get("device") match {
+      case None => None
+      case Some(dev: String) => if (treeMethod == "gpu_hist") Some("cuda") else Some(dev)
+    }
+
     if (overridedParams.contains("train_test_ratio")) {
       logger.warn("train_test_ratio is deprecated since XGBoost 0.82, we recommend to explicitly" +
         " pass a training and multiple evaluation datasets by passing 'eval_sets' and " +
@@ -228,7 +233,7 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
       inputParams,
       xgbExecEarlyStoppingParams,
       cacheTrainingSet,
-      treeMethod,
+      device,
       isLocal,
       featureNames,
       featureTypes
@@ -318,7 +323,7 @@ object XGBoost extends Serializable {
       val externalCheckpointParams = xgbExecutionParam.checkpointParam
 
       var params = xgbExecutionParam.toMap
-      if (xgbExecutionParam.treeMethod.exists(m => m == "gpu_hist")) {
+      if (xgbExecutionParam.device.exists(m => (m == "cuda" || m == "gpu"))) {
         val gpuId = if (xgbExecutionParam.isLocal) {
           // For local mode, force gpu id to primary device
           0
@@ -328,6 +333,7 @@ object XGBoost extends Serializable {
         logger.info("Leveraging gpu device " + gpuId + " to train")
         params = params + ("device" -> s"cuda:$gpuId")
       }
+
       val booster = if (makeCheckpoint) {
         SXGBoost.trainAndSaveCheckpoint(
           watches.toMap("train"), params, numRounds,

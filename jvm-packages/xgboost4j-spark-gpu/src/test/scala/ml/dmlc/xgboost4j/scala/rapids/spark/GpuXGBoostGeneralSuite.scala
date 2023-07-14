@@ -50,9 +50,12 @@ class GpuXGBoostGeneralSuite extends GpuTestSuite {
     withGpuSparkSession() { spark =>
       import spark.implicits._
       val trainingDf = trainingData.toDF(allColumnNames: _*)
-      val xgbParam = Map("eta" -> 0.1f, "max_depth" -> 2, "objective" -> "multi:softprob",
-        "num_class" -> 3, "num_round" -> 5, "num_workers" -> 1, "tree_method" -> "gpu_hist",
-        "features_cols" -> featureNames, "label_col" -> labelName)
+      val xgbParam = Map(
+        "eta" -> 0.1f, "max_depth" -> 2, "objective" -> "multi:softprob",
+        "num_class" -> 3, "num_round" -> 5, "num_workers" -> 1,
+        "tree_method" -> "hist", "device" -> "cuda",
+        "features_cols" -> featureNames, "label_col" -> labelName
+      )
       new XGBoostClassifier(xgbParam)
         .fit(trainingDf)
     }
@@ -65,8 +68,11 @@ class GpuXGBoostGeneralSuite extends GpuTestSuite {
 
       trainingDf = trainingDf.select(labelName, "f2", weightName, "f3", baseMarginName, "f1")
 
-      val xgbParam = Map("eta" -> 0.1f, "max_depth" -> 2, "objective" -> "multi:softprob",
-        "num_class" -> 3, "num_round" -> 5, "num_workers" -> 1, "tree_method" -> "gpu_hist")
+      val xgbParam = Map(
+        "eta" -> 0.1f, "max_depth" -> 2, "objective" -> "multi:softprob",
+        "num_class" -> 3, "num_round" -> 5, "num_workers" -> 1,
+        "tree_method" -> "hist", "device" -> "cuda"
+      )
       new XGBoostClassifier(xgbParam)
         .setFeaturesCol(featureNames)
         .setLabelCol(labelName)
@@ -127,7 +133,7 @@ class GpuXGBoostGeneralSuite extends GpuTestSuite {
     }
   }
 
-  test("Throw exception when tree method is not set to gpu_hist") {
+  test("Throw exception when device is not set to cuda") {
     withGpuSparkSession() { spark =>
       import spark.implicits._
       val trainingDf = trainingData.toDF(allColumnNames: _*)
@@ -139,7 +145,7 @@ class GpuXGBoostGeneralSuite extends GpuTestSuite {
           .setLabelCol(labelName)
           .fit(trainingDf)
       }
-      assert(thrown.getMessage.contains("GPU train requires tree_method set to gpu_hist"))
+      assert(thrown.getMessage.contains("GPU train requires `device` set to `cuda`"))
     }
   }
 
