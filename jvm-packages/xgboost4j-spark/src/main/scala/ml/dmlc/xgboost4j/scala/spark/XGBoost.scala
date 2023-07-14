@@ -186,7 +186,7 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
     }
     if (!device.isEmpty) {
       require(
-        !device.exists(":"),
+        !device.contains(":"),
         "Please don't specify the device ordinal as GPUs are managed by Spark."
       )
     }
