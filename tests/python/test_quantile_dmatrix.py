@@ -322,3 +322,15 @@ class TestQuantileDMatrix:
             X: np.ndarray = np.array(orig, dtype=dtype)
             with pytest.raises(ValueError):
                 xgb.QuantileDMatrix(X)
+
+    def test_changed_max_bin(self) -> None:
+        n_samples = 128
+        n_features = 16
+        csr, y = make_sparse_regression(n_samples, n_features, 0.5, False)
+        Xy = xgb.QuantileDMatrix(csr, y, max_bin=9)
+        booster = xgb.train({"max_bin": 9}, Xy, num_boost_round=2)
+
+        Xy = xgb.QuantileDMatrix(csr, y, max_bin=11)
+
+        with pytest.raises(ValueError, match="consistent"):
+            xgb.train({}, Xy, num_boost_round=2, xgb_model=booster)

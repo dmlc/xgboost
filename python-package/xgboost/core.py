@@ -1447,7 +1447,7 @@ class QuantileDMatrix(DMatrix):
         enable_categorical: bool = False,
         data_split_mode: DataSplitMode = DataSplitMode.ROW,
     ) -> None:
-        self.max_bin: int = max_bin if max_bin is not None else 256
+        self.max_bin = max_bin
         self.missing = missing if missing is not None else np.nan
         self.nthread = nthread if nthread is not None else -1
         self._silent = silent  # unused, kept for compatibility
