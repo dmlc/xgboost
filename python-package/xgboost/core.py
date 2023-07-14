@@ -157,7 +157,7 @@ def _log_callback(msg: bytes) -> None:
     if smsg.find("WARNING:") != -1:
         warnings.warn(smsg, UserWarning)
         return
-    print(py_str(msg))
+    print(smsg)
 
 
 def _get_log_callback_func() -> Callable:
