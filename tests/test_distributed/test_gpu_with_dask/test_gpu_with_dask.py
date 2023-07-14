@@ -124,7 +124,7 @@ def run_with_dask_array(DMatrixT: Type, client: Client) -> None:
     assert (
         json.loads(out["booster"].save_config())["learner"]["gradient_booster"][
             "updater"
-        ]
+        ]["name"]
         == "grow_gpu_hist"
     )
     inplace_predictions = dxgb.inplace_predict(client, out, X).compute()
@@ -154,7 +154,8 @@ def run_gpu_hist(
     DMatrixT: Type,
     client: Client,
 ) -> None:
-    params["tree_method"] = "gpu_hist"
+    params["tree_method"] = "hist"
+    params["device"] = "cuda"
     params = dataset.set_params(params)
     # It doesn't make sense to distribute a completely
     # empty dataset.
