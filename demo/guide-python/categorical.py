@@ -58,13 +58,13 @@ def main() -> None:
     # Specify `enable_categorical` to True, also we use onehot encoding based split
     # here for demonstration. For details see the document of `max_cat_to_onehot`.
     reg = xgb.XGBRegressor(
-        tree_method="gpu_hist", enable_categorical=True, max_cat_to_onehot=5
+        tree_method="hist", enable_categorical=True, max_cat_to_onehot=5, device="cuda"
     )
     reg.fit(X, y, eval_set=[(X, y)])
 
     # Pass in already encoded data
     X_enc, y_enc = make_categorical(100, 10, 4, True)
-    reg_enc = xgb.XGBRegressor(tree_method="gpu_hist")
+    reg_enc = xgb.XGBRegressor(tree_method="hist", device="cuda")
     reg_enc.fit(X_enc, y_enc, eval_set=[(X_enc, y_enc)])
 
     reg_results = np.array(reg.evals_result()["validation_0"]["rmse"])

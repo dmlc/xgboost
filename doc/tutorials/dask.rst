@@ -56,7 +56,6 @@ on a dask cluster:
         dtrain = xgb.dask.DaskDMatrix(client, X, y)
         # or
         # dtrain = xgb.dask.DaskQuantileDMatrix(client, X, y)
-        # `DaskQuantileDMatrix` is available for the `hist` and `gpu_hist` tree method.
 
         output = xgb.dask.train(
             client,
@@ -149,7 +148,7 @@ Also for inplace prediction:
 .. code-block:: python
 
   # where X is a dask DataFrame or dask Array backed by cupy or cuDF.
-  booster.set_param({"device": "cuda:0"})
+  booster.set_param({"device": "cuda"})
   prediction = xgb.dask.inplace_predict(client, booster, X)
 
 When input is ``da.Array`` object, output is always ``da.Array``.  However, if the input
@@ -225,6 +224,12 @@ collection.
                 main(client)
 
 
+****************
+GPU acceleration
+****************
+
+For most of the use cases with GPUs, the `Dask-CUDA <https://docs.rapids.ai/api/dask-cuda/stable/quickstart.html>`__ project should be used to create the cluster, which automatically configures the correct device ordinal for worker processes. As a result, users should NOT specify the ordinal. (good: ``device=cuda``, bad: ``device=cuda:1``)
+
 ***************************
 Working with other clusters
 ***************************
@@ -262,7 +267,7 @@ In the example below, a ``KubeCluster`` is used for `deploying Dask on Kubernete
 
           regressor = xgb.dask.DaskXGBRegressor(n_estimators=10, missing=0.0)
           regressor.client = client
-          regressor.set_params(tree_method='gpu_hist')
+          regressor.set_params(tree_method='hist', device="cuda")
           regressor.fit(X, y, eval_set=[(X, y)])
 
 

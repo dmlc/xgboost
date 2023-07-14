@@ -1,10 +1,9 @@
 """Copyright 2019-2022 XGBoost contributors"""
 import asyncio
-import os
-import subprocess
+import json
 from collections import OrderedDict
 from inspect import signature
-from typing import Any, Dict, Type, TypeVar, Union
+from typing import Any, Dict, Type, TypeVar
 
 import numpy as np
 import pytest
@@ -64,7 +63,7 @@ def run_with_dask_dataframe(DMatrixT: Type, client: Client) -> None:
     dtrain = DMatrixT(client, X, y)
     out = dxgb.train(
         client,
-        {"tree_method": "gpu_hist", "debug_synchronize": True},
+        {"tree_method": "hist", "debug_synchronize": True, "device": "cuda"},
         dtrain=dtrain,
         evals=[(dtrain, "X")],
         num_boost_round=4,
@@ -374,7 +373,11 @@ class TestDistributedGPU:
                 "y": [10, 20, 30, 40.0, 50] * mult,
             }
         )
-        parameters = {"tree_method": "gpu_hist", "debug_synchronize": True}
+        parameters = {
+            "tree_method": "hist",
+            "debug_synchronize": True,
+            "device": "cuda",
+        }
 
         empty = df.iloc[:0]
         ddf = dask_cudf.concat(
@@ -432,13 +435,25 @@ class TestDistributedGPU:
 
     def test_empty_dmatrix_auc(self, local_cuda_client: Client) -> None:
         n_workers = len(tm.get_client_workers(local_cuda_client))
-        run_empty_dmatrix_auc(local_cuda_client, "gpu_hist", n_workers)
+        run_empty_dmatrix_auc(local_cuda_client, "cuda", n_workers)
 
     def test_auc(self, local_cuda_client: Client) -> None:
-        run_auc(local_cuda_client, "gpu_hist")
+        run_auc(local_cuda_client, "cuda")
+
+    def test_invalid_ordinal(self, local_cuda_client: Client) -> None:
+        """One should not specify the device ordinal with dask."""
+        with pytest.raises(ValueError, match="device=cuda"):
+            X, y, _ = generate_array()
+            m = dxgb.DaskDMatrix(local_cuda_client, X, y)
+            dxgb.train(local_cuda_client, {"device": "cuda:0"}, m)
+
+        booster = dxgb.train(local_cuda_client, {"device": "cuda"}, m)["booster"]
+        assert (
+            json.loads(booster.save_config())["learner"]["generic_param"]["device"]
+            == "cuda:0"
+        )
 
     def test_data_initialization(self, local_cuda_client: Client) -> None:
-
         X, y, _ = generate_array()
         fw = da.random.random((random_cols,))
         fw = fw - fw.min()
@@ -531,7 +546,9 @@ async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainRetur
         y = y.map_blocks(cp.array)
 
         m = await xgb.dask.DaskQuantileDMatrix(client, X, y)
-        output = await xgb.dask.train(client, {"tree_method": "gpu_hist"}, dtrain=m)
+        output = await xgb.dask.train(
+            client, {"tree_method": "hist", "device": "cuda"}, dtrain=m
+        )
 
         with_m = await xgb.dask.predict(client, output, m)
         with_X = await xgb.dask.predict(client, output, X)

@@ -14,30 +14,24 @@ Most of the algorithms in XGBoost including training, prediction and evaluation 
 
 Usage
 =====
-Specify the ``tree_method`` parameter as ``gpu_hist``. For details around the ``tree_method`` parameter, see :doc:`tree method </treemethod>`.
 
-Supported parameters
---------------------
-
-GPU accelerated prediction is enabled by default for the above mentioned ``tree_method`` parameters but can be switched to CPU prediction by setting ``predictor`` to ``cpu_predictor``. This could be useful if you want to conserve GPU memory. Likewise when using CPU algorithms, GPU accelerated prediction can be enabled by setting ``predictor`` to ``gpu_predictor``.
-
-The device ordinal (which GPU to use if you have many of them) can be selected using the
-``device`` parameter, which defaults to 0 when "CUDA" is specified(the first device reported by CUDA
-runtime).
-
+To enable GPU acceleration, specify the ``device`` parameter as ``cuda``. In addition, the device ordinal (which GPU to use if you have multiple devices in the same node) can be specified using the ``cuda:<ordinal>`` syntax, where ``<ordinal>`` is an integer that represents the device ordinal. XGBoost defaults to 0 (the first device reported by CUDA runtime).
 
 The GPU algorithms currently work with CLI, Python, R, and JVM packages. See :doc:`/install` for details.
 
 .. code-block:: python
   :caption: Python example
 
-  param["device"] = "cuda:0"
-  param['tree_method'] = 'gpu_hist'
+  params = dict()
+  params["device"] = "cuda:0"
+  params["tree_method"] = "hist"
+  Xy = xgboost.QuantileDMatrix(X, y)
+  xgboost.train(params, Xy)
 
 .. code-block:: python
   :caption: With Scikit-Learn interface
 
-  XGBRegressor(tree_method='gpu_hist', device="cuda")
+  XGBRegressor(tree_method="hist", device="cuda")
 
 
 GPU-Accelerated SHAP values
@@ -46,12 +40,11 @@ XGBoost makes use of `GPUTreeShap <https://github.com/rapidsai/gputreeshap>`_ as
 
 .. code-block:: python
 
-  model.set_param({"device": "cuda:0", "tree_method": "gpu_hist"})
-  shap_values = model.predict(dtrain, pred_contribs=True)
+  booster.set_param({"device": "cuda:0"})
+  shap_values = booster.predict(dtrain, pred_contribs=True)
   shap_interaction_values = model.predict(dtrain, pred_interactions=True)
 
-See examples `here
-<https://github.com/dmlc/xgboost/tree/master/demo/gpu_acceleration>`__.
+See examples `here <https://github.com/dmlc/xgboost/tree/master/demo/gpu_acceleration>`__.
 
 Multi-node Multi-GPU Training
 =============================
@@ -61,7 +54,7 @@ XGBoost supports fully distributed GPU training using `Dask <https://dask.org/>`
 
 Memory usage
 ============
-The following are some guidelines on the device memory usage of the `gpu_hist` tree method.
+The following are some guidelines on the device memory usage of the ``hist`` tree method on GPU.
 
 Memory inside xgboost training is generally allocated for two reasons - storing the dataset and working memory.
 
@@ -79,7 +72,7 @@ XGBoost models trained on GPUs can be used on CPU-only systems to generate predi
 
 Developer notes
 ===============
-The application may be profiled with annotations by specifying USE_NTVX to cmake. Regions covered by the 'Monitor' class in CUDA code will automatically appear in the nsight profiler when `verbosity` is set to 3.
+The application may be profiled with annotations by specifying ``USE_NTVX`` to cmake. Regions covered by the 'Monitor' class in CUDA code will automatically appear in the nsight profiler when `verbosity` is set to 3.
 
 **********
 References

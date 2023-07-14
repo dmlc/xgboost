@@ -866,7 +866,7 @@ def run_empty_dmatrix_cls(client: "Client", parameters: dict) -> None:
     _check_outputs(out, predictions)
 
 
-def run_empty_dmatrix_auc(client: "Client", tree_method: str, n_workers: int) -> None:
+def run_empty_dmatrix_auc(client: "Client", device: str, n_workers: int) -> None:
     from sklearn import datasets
     n_samples = 100
     n_features = 7
@@ -888,7 +888,7 @@ def run_empty_dmatrix_auc(client: "Client", tree_method: str, n_workers: int) ->
     valid_X = dd.from_array(valid_X_, chunksize=n_samples)
     valid_y = dd.from_array(valid_y_, chunksize=n_samples)
 
-    cls = xgb.dask.DaskXGBClassifier(tree_method=tree_method, n_estimators=2)
+    cls = xgb.dask.DaskXGBClassifier(tree_method=device, n_estimators=2)
     cls.fit(X, y, eval_metric=["auc", "aucpr"], eval_set=[(valid_X, valid_y)])
 
     # multiclass
@@ -917,17 +917,17 @@ def run_empty_dmatrix_auc(client: "Client", tree_method: str, n_workers: int) ->
     valid_X = dd.from_array(valid_X_, chunksize=n_samples)
     valid_y = dd.from_array(valid_y_, chunksize=n_samples)
 
-    cls = xgb.dask.DaskXGBClassifier(tree_method=tree_method, n_estimators=2)
+    cls = xgb.dask.DaskXGBClassifier(tree_method=device, n_estimators=2)
     cls.fit(X, y, eval_metric=["auc", "aucpr"], eval_set=[(valid_X, valid_y)])
 
 
 def test_empty_dmatrix_auc() -> None:
     with LocalCluster(n_workers=4, dashboard_address=":0") as cluster:
         with Client(cluster) as client:
-            run_empty_dmatrix_auc(client, "hist", 4)
+            run_empty_dmatrix_auc(client, "cpu", 4)
 
 
-def run_auc(client: "Client", tree_method: str) -> None:
+def run_auc(client: "Client", device: str) -> None:
     from sklearn import datasets
     n_samples = 100
     n_features = 97
@@ -944,10 +944,10 @@ def run_auc(client: "Client", tree_method: str) -> None:
     valid_X = dd.from_array(valid_X_, chunksize=10)
     valid_y = dd.from_array(valid_y_, chunksize=10)
 
-    cls = xgb.XGBClassifier(tree_method=tree_method, n_estimators=2)
+    cls = xgb.XGBClassifier(device=device, n_estimators=2)
     cls.fit(X_, y_, eval_metric="auc", eval_set=[(valid_X_, valid_y_)])
 
-    dcls = xgb.dask.DaskXGBClassifier(tree_method=tree_method, n_estimators=2)
+    dcls = xgb.dask.DaskXGBClassifier(device=device, n_estimators=2)
     dcls.fit(X, y, eval_metric="auc", eval_set=[(valid_X, valid_y)])
 
     approx = dcls.evals_result()["validation_0"]["auc"]
@@ -958,7 +958,7 @@ def run_auc(client: "Client", tree_method: str) -> None:
 
 
 def test_auc(client: "Client") -> None:
-    run_auc(client, "hist")
+    run_auc(client, "cpu")
 
 
 # No test for Exact, as empty DMatrix handling are mostly for distributed

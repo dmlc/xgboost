@@ -82,6 +82,7 @@ from .sklearn import (
     XGBRanker,
     XGBRankerMixIn,
     XGBRegressorBase,
+    _can_use_qdm,
     _check_rf_callback,
     _cls_predict_proba,
     _objective_decorator,
@@ -935,6 +936,11 @@ async def _train_async(
         raise NotImplementedError(
             f"booster `{params['booster']}` is not yet supported for dask."
         )
+    if params.get("device", "").find(":") != -1:
+        raise ValueError(
+            "The dask interface for XGBoost doesn't support selecting specific device"
+            " ordinal. Use `device=cpu` or `device=cuda` instead."
+        )
 
     def dispatched_train(
         parameters: Dict,
@@ -1574,7 +1580,7 @@ async def _async_wrap_evaluation_matrices(
     """A switch function for async environment."""
 
     def _dispatch(ref: Optional[DaskDMatrix], **kwargs: Any) -> DaskDMatrix:
-        if tree_method in ("hist", "gpu_hist"):
+        if _can_use_qdm(tree_method):
             return DaskQuantileDMatrix(
                 client=client, ref=ref, max_bin=max_bin, **kwargs
             )
