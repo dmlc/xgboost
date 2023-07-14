@@ -33,7 +33,7 @@ object SparkTraining {
 
     val (device, numWorkers) = if (args.length == 2 && args(1) == "gpu") {
       ("cuda", 1)
-    } else ("auto", 2)
+    } else ("cpu", 2)
 
     val spark = SparkSession.builder().getOrCreate()
     val inputPath = args(0)
