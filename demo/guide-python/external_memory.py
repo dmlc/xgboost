@@ -82,8 +82,9 @@ def main(tmpdir: str) -> xgboost.Booster:
     missing = np.NaN
     Xy = xgboost.DMatrix(it, missing=missing, enable_categorical=False)
 
-    # Other tree methods including ``approx``, and ``gpu_hist`` are supported. GPU
-    # behaves differently than CPU tree methods. See tutorial in doc for details.
+    # ``approx`` is also supported, but less efficient due to sketching. GPU behaves
+    # differently than CPU tree methods as it uses a hybrid approach. See tutorial in
+    # doc for details.
     booster = xgboost.train(
         {"tree_method": "hist", "max_depth": 4},
         Xy,

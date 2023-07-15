@@ -310,8 +310,8 @@ for more info.
 
 .. code-block:: python
 
-  # Use "gpu_hist" for training the model.
-  reg = xgb.XGBRegressor(tree_method="gpu_hist")
+  # Use "hist" for training the model.
+  reg = xgb.XGBRegressor(tree_method="hist", device="cuda")
   # Fit the model using predictor X and response y.
   reg.fit(X, y)
   # Save model into JSON format.

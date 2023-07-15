@@ -63,7 +63,8 @@ def load_cat_in_the_dat() -> tuple[pd.DataFrame, pd.Series]:
 
 
 params = {
-    "tree_method": "gpu_hist",
+    "tree_method": "hist",
+    "device": "cuda",
     "n_estimators": 32,
     "colsample_bylevel": 0.7,
 }

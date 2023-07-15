@@ -478,7 +478,7 @@ XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy
  * \param config   JSON encoded parameters for DMatrix construction.  Accepted fields are:
  *   - missing:      Which value to represent missing value
  *   - nthread (optional): Number of threads used for initializing DMatrix.
- *   - max_bin (optional):  Maximum number of bins for building histogram.
+ *   - max_bin (optional): Maximum number of bins for building histogram.
  * \param out      The created Device Quantile DMatrix
  *
  * \return 0 when success, -1 when failure happens

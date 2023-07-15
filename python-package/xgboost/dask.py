@@ -82,6 +82,7 @@ from .sklearn import (
     XGBRanker,
     XGBRankerMixIn,
     XGBRegressorBase,
+    _can_use_qdm,
     _check_rf_callback,
     _cls_predict_proba,
     _objective_decorator,
@@ -617,14 +618,7 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
         if self._iter == len(self._data):
             # Return 0 when there's no more batch.
             return 0
-        feature_names: Optional[FeatureNames] = None
-        if self._feature_names:
-            feature_names = self._feature_names
-        else:
-            if hasattr(self.data(), "columns"):
-                feature_names = self.data().columns.format()
-            else:
-                feature_names = None
+
         input_data(
             data=self.data(),
             label=self._get("_label"),
@@ -634,7 +628,7 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
             base_margin=self._get("_base_margin"),
             label_lower_bound=self._get("_label_lower_bound"),
             label_upper_bound=self._get("_label_upper_bound"),
-            feature_names=feature_names,
+            feature_names=self._feature_names,
             feature_types=self._feature_types,
             feature_weights=self._feature_weights,
         )
@@ -934,6 +928,12 @@ async def _train_async(
     if params.get("booster", None) == "gblinear":
         raise NotImplementedError(
             f"booster `{params['booster']}` is not yet supported for dask."
+        )
+    device = params.get("device", None)
+    if device and device.find(":") != -1:
+        raise ValueError(
+            "The dask interface for XGBoost doesn't support selecting specific device"
+            " ordinal. Use `device=cpu` or `device=cuda` instead."
         )
 
     def dispatched_train(
@@ -1574,7 +1574,7 @@ async def _async_wrap_evaluation_matrices(
     """A switch function for async environment."""
 
     def _dispatch(ref: Optional[DaskDMatrix], **kwargs: Any) -> DaskDMatrix:
-        if tree_method in ("hist", "gpu_hist"):
+        if _can_use_qdm(tree_method):
             return DaskQuantileDMatrix(
                 client=client, ref=ref, max_bin=max_bin, **kwargs
             )

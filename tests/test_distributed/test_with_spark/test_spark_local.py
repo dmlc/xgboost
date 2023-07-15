@@ -1120,7 +1120,9 @@ class XgboostLocalTest(SparkTestCase):
         reg1 = SparkXGBRegressor(**self.reg_params)
         model = reg1.fit(self.reg_df_train)
         init_booster = model.get_booster()
-        reg2 = SparkXGBRegressor(max_depth=2, n_estimators=2, xgb_model=init_booster)
+        reg2 = SparkXGBRegressor(
+            max_depth=2, n_estimators=2, xgb_model=init_booster, max_bin=21
+        )
         model21 = reg2.fit(self.reg_df_train)
         pred_res21 = model21.transform(self.reg_df_test).collect()
         reg2.save(path)

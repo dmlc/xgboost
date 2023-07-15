@@ -55,10 +55,6 @@ General Parameters
 
   - Flag to disable default metric. Set to 1 or ``true`` to disable.
 
-* ``num_feature`` [set automatically by XGBoost, no need to be set by user]
-
-  - Feature dimension used in boosting, set to maximum dimension of the feature
-
 * ``device`` [default= ``cpu``]
 
   .. versionadded:: 2.0.0
@@ -164,7 +160,7 @@ Parameters for Tree Booster
     - ``grow_colmaker``: non-distributed column-based construction of trees.
     - ``grow_histmaker``: distributed tree construction with row-based data splitting based on global proposal of histogram counting.
     - ``grow_quantile_histmaker``: Grow tree using quantized histogram.
-    - ``grow_gpu_hist``: Grow tree with GPU. Same as setting tree method to ``hist`` and use ``device=cuda``.
+    - ``grow_gpu_hist``: Grow tree with GPU. Same as setting ``tree_method`` to ``hist`` and use ``device=cuda``.
     - ``sync``: synchronizes trees in all distributed nodes.
     - ``refresh``: refreshes tree's statistics and/or leaf values based on the current data. Note that no random subsampling of data rows is performed.
     - ``prune``: prunes the splits where loss < min_split_loss (or gamma) and nodes that have depth greater than ``max_depth``.
@@ -421,7 +417,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
       .. math::
 
-	 AP@l = \frac{1}{min{(l, N)}}\sum^l_{k=1}P@k \cdot I_{(k)}
+         AP@l = \frac{1}{min{(l, N)}}\sum^l_{k=1}P@k \cdot I_{(k)}
 
       where :math:`I_{(k)}` is an indicator function that equals to :math:`1` when the document at :math:`k` is relevant and :math:`0` otherwise. The :math:`P@k` is the precision at :math:`k`, and :math:`N` is the total number of relevant documents. Lastly, the `mean average precision` is defined as the weighted average across all queries.
 
