@@ -8,6 +8,9 @@ steps:
     agents:
       queue: pipeline-loader
   - wait
+  - label: "Test"
+    commands:
+      - "echo $BUILDKITE_PULL_REQUEST"
   - block: ":rocket: Run this test job"
     if: build.pull_request.id != null
   #### -------- CONTAINER BUILD --------
