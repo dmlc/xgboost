@@ -163,6 +163,7 @@ using a list of feature names and the additional parameter ``device``:
   predict_df = model.transform(test_df)
   predict_df.show()
 
+Like other distributed interfaces, the ```device`` parameter doesn't support specifying ordinal as GPUs are managed by Spark instead of XGBoost (good: ``device=cuda``, bad: ``device=cuda:0``).
 
 Submit the PySpark application
 ==============================

@@ -77,6 +77,12 @@ def _set_pyspark_xgb_cls_param_attrs(
         set_param_attrs(name, param_obj)
 
 
+def _deprecated_use_gpu() -> None:
+    warnings.warn(
+        "`use_gpu` is deprecated since 2.0.0, use `device` instead", FutureWarning
+    )
+
+
 class SparkXGBRegressor(_SparkXGBEstimator):
     """SparkXGBRegressor is a PySpark ML estimator. It implements the XGBoost regression
     algorithm based on XGBoost python library, and it can be used in PySpark Pipeline
@@ -208,9 +214,7 @@ class SparkXGBRegressor(_SparkXGBEstimator):
         super().__init__()
         input_kwargs = self._input_kwargs
         if use_gpu:
-            warnings.warn(
-                "`use_gpu` is deprecated, use `device` instead", FutureWarning
-            )
+            _deprecated_use_gpu()
         self.setParams(**input_kwargs)
 
     @classmethod
@@ -389,9 +393,7 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
         # param value as well to avoid causing ambiguity.
         input_kwargs = self._input_kwargs
         if use_gpu:
-            warnings.warn(
-                "`use_gpu` is deprecated, use `device` instead", FutureWarning
-            )
+            _deprecated_use_gpu()
         self.setParams(**input_kwargs)
         self._setDefault(objective=None)
 
@@ -571,9 +573,7 @@ class SparkXGBRanker(_SparkXGBEstimator):
         super().__init__()
         input_kwargs = self._input_kwargs
         if use_gpu:
-            warnings.warn(
-                "`use_gpu` is deprecated, use `device` instead", FutureWarning
-            )
+            _deprecated_use_gpu()
         self.setParams(**input_kwargs)
 
     @classmethod
