@@ -135,12 +135,12 @@ void LaunchGetColumnSizeKernel(std::int32_t device, IterSpan<BatchIt> batch_iter
       CHECK(!force_use_u64);
       auto kernel = GetColumnSizeSharedMemKernel<kBlockThreads, std::uint32_t, BatchIt>;
       auto grid_size = EstimateGridSize<kBlockThreads>(device, kernel, required_shared_memory);
-      dh::LaunchKernel{grid_size, kBlockThreads, required_shared_memory, dh::DefaultStream()}(
+      dh::LaunchKernel{grid_size, kBlockThreads, required_shared_memory}(
           kernel, batch_iter, is_valid, out_column_size);
     } else {
       auto kernel = GetColumnSizeSharedMemKernel<kBlockThreads, std::size_t, BatchIt>;
       auto grid_size = EstimateGridSize<kBlockThreads>(device, kernel, required_shared_memory);
-      dh::LaunchKernel{grid_size, kBlockThreads, required_shared_memory, dh::DefaultStream()}(
+      dh::LaunchKernel{grid_size, kBlockThreads, required_shared_memory}(
           kernel, batch_iter, is_valid, out_column_size);
     }
   } else {
