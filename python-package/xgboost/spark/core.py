@@ -200,13 +200,21 @@ class _SparkXGBParams(
     device = Param(
         Params._dummy(),
         "device",
-        "The device type for XGBoost workers. Available options are cpu,cuda and gpu.",
+        (
+            "The device type for XGBoost executors. Available options are `cpu`,`cuda`"
+            " and `gpu`. Set `device` to `cuda` or `gpu` if the executors are running "
+            "on GPU instances. Currently, only one GPU per task is supported."
+        ),
         TypeConverters.toString,
     )
     use_gpu = Param(
         Params._dummy(),
         "use_gpu",
-        "Deprecated, use `device` instead.",
+        (
+            "Deprecated, use `device` instead. A boolean variable. Set use_gpu=true "
+            "if the executors are running on GPU instances. Currently, only one GPU per"
+            " task is supported."
+        ),
         TypeConverters.toBoolean,
     )
     force_repartition = Param(
