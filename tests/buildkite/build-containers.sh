@@ -20,13 +20,9 @@ case "${container}" in
   cpu)
     ;;
 
-  gpu|rmm)
+  gpu)
     BUILD_ARGS="$BUILD_ARGS --build-arg CUDA_VERSION_ARG=$CUDA_VERSION"
     BUILD_ARGS="$BUILD_ARGS --build-arg RAPIDS_VERSION_ARG=$RAPIDS_VERSION"
-    if [[ $container == "rmm" ]]
-    then
-      BUILD_ARGS="$BUILD_ARGS --build-arg NCCL_VERSION_ARG=$NCCL_VERSION"
-    fi
     ;;
 
   gpu_build_centos7|jvm_gpu_build)
