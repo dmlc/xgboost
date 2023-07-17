@@ -184,13 +184,6 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
       case None => None
       case Some(dev: String) => if (treeMethod == "gpu_hist") Some("cuda") else Some(dev)
     }
-    if (!device.isEmpty) {
-      require(
-        !device.contains(":"),
-        "Please don't specify the device ordinal as GPUs are managed by Spark."
-      )
-    }
-
     if (overridedParams.contains("train_test_ratio")) {
       logger.warn("train_test_ratio is deprecated since XGBoost 0.82, we recommend to explicitly" +
         " pass a training and multiple evaluation datasets by passing 'eval_sets' and " +

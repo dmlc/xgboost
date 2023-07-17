@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2021-2022 by Contributors
+ Copyright (c) 2021-2023 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -150,7 +150,6 @@ class GpuXGBoostGeneralSuite extends GpuTestSuite {
   }
 
   test("Train with eval") {
-
     withGpuSparkSession() { spark =>
       import spark.implicits._
       val Array(trainingDf, eval1, eval2) = trainingData.toDF(allColumnNames: _*)
@@ -190,4 +189,24 @@ class GpuXGBoostGeneralSuite extends GpuTestSuite {
     }
   }
 
+  test("device ordinal should not be specified") {
+    withGpuSparkSession() { spark =>
+      import spark.implicits._
+      val trainingDf = trainingData.toDF(allColumnNames: _*)
+      val params = Map(
+        "objective" -> "multi:softprob",
+        "num_class" -> 3,
+        "num_round" -> 5,
+        "num_workers" -> 1
+      )
+      val thrown = intercept[IllegalArgumentException] {
+        new XGBoostClassifier(params)
+        .setFeaturesCol(featureNames)
+        .setLabelCol(labelName)
+        .setDevice("cuda:1")
+        .fit(trainingDf)
+      }
+      assert(thrown.getMessage.contains("`cuda` or `gpu`"))
+    }
+  }
 }
