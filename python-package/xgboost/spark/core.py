@@ -340,8 +340,18 @@ class _SparkXGBParams(
                 f"It cannot be less than 1 [Default is 1]"
             )
 
+        tree_method = self.getOrDefault(self.getParam("tree_method"))
+        if (
+            self.getOrDefault(self.use_gpu) or use_cuda(self.getOrDefault(self.device))
+        ) and not _can_use_qdm(tree_method):
+            raise ValueError(
+                f"The `{tree_method}` tree method is not supported on GPU."
+            )
+
         if self.getOrDefault(self.features_cols):
-            if not use_cuda(self.getOrDefault(self.device)):
+            if not use_cuda(self.getOrDefault(self.device)) and not self.getOrDefault(
+                self.use_gpu
+            ):
                 raise ValueError(
                     "features_col param with list value requires `device=cuda`."
                 )
@@ -396,7 +406,7 @@ class _SparkXGBParams(
                     "`pyspark.ml.linalg.Vector` type."
                 )
 
-        if use_cuda(self.getOrDefault(self.device)):
+        if use_cuda(self.getOrDefault(self.device)) or self.getOrDefault(self.use_gpu):
             gpu_per_task = (
                 _get_spark_session()
                 .sparkContext.getConf()
@@ -553,6 +563,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         self._setDefault(
             num_workers=1,
             device="cpu",
+            use_gpu=False,
             force_repartition=False,
             repartition_random_shuffle=False,
             feature_names=None,
@@ -874,20 +885,9 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             dmatrix_kwargs,
         ) = self._get_xgb_parameters(dataset)
 
-        run_on_gpu = use_cuda(self.getOrDefault(self.device))
-        tree_method = self.getParam("tree_method")
-        # Validation before submitting function to worker.
-        if (
-            run_on_gpu
-            and self.getOrDefault(tree_method)
-            and self.getOrDefault(tree_method) != "hist"
-        ):
-            raise ValueError(
-                f"The `{self.getOrDefault(tree_method)}` tree method is"
-                " not supported"
-                " on GPU."
-            )
-
+        run_on_gpu = use_cuda(self.getOrDefault(self.device)) or self.getOrDefault(
+            self.use_gpu
+        )
         is_local = _is_local(_get_spark_session().sparkContext)
 
         num_workers = self.getOrDefault(self.num_workers)

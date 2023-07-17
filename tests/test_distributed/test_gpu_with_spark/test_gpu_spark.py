@@ -197,6 +197,19 @@ def test_cv_sparkxgb_classifier_feature_cols_with_gpu(spark_iris_dataset_feature
     f1 = evaluator.evaluate(pred_result_df)
     assert f1 >= 0.97
 
+    clf = SparkXGBClassifier(
+        features_col=feature_names, use_gpu=True, num_workers=num_workers
+    )
+    grid = ParamGridBuilder().addGrid(clf.max_depth, [6, 8]).build()
+    evaluator = MulticlassClassificationEvaluator(metricName="f1")
+    cv = CrossValidator(
+        estimator=clf, evaluator=evaluator, estimatorParamMaps=grid, numFolds=3
+    )
+    cvModel = cv.fit(train_df)
+    pred_result_df = cvModel.transform(test_df)
+    f1 = evaluator.evaluate(pred_result_df)
+    assert f1 >= 0.97
+
 
 def test_sparkxgb_regressor_with_gpu(spark_diabetes_dataset):
     from pyspark.ml.evaluation import RegressionEvaluator

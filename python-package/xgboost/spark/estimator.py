@@ -3,7 +3,7 @@
 # pylint: disable=fixme, too-many-ancestors, protected-access, no-member, invalid-name
 # pylint: disable=unused-argument, too-many-locals
 
-
+import warnings
 from typing import Any, List, Optional, Type, Union
 
 import numpy as np
@@ -134,6 +134,10 @@ class SparkXGBRegressor(_SparkXGBEstimator):
     num_workers:
         How many XGBoost workers to be used to train.
         Each XGBoost worker corresponds to one spark task.
+    use_gpu:
+        .. deprecated:: 2.0.0
+
+        Use `device` instead.
     device:
         Device for XGBoost workers, available options are `cpu`, `cuda`, and `gpu`.
     force_repartition:
@@ -194,6 +198,7 @@ class SparkXGBRegressor(_SparkXGBEstimator):
         weight_col: Optional[str] = None,
         base_margin_col: Optional[str] = None,
         num_workers: int = 1,
+        use_gpu: Optional[bool] = None,
         device: Optional[str] = None,
         force_repartition: bool = False,
         repartition_random_shuffle: bool = False,
@@ -202,6 +207,10 @@ class SparkXGBRegressor(_SparkXGBEstimator):
     ) -> None:
         super().__init__()
         input_kwargs = self._input_kwargs
+        if use_gpu:
+            warnings.warn(
+                "`use_gpu` is deprecated, use `device` instead", FutureWarning
+            )
         self.setParams(**input_kwargs)
 
     @classmethod
@@ -302,6 +311,10 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
     num_workers:
         How many XGBoost workers to be used to train.
         Each XGBoost worker corresponds to one spark task.
+    use_gpu:
+        .. deprecated:: 2.0.0
+
+        Use `device` instead.
     device:
         Device for XGBoost workers, available options are `cpu`, `cuda`, and `gpu`.
     force_repartition:
@@ -362,6 +375,7 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
         weight_col: Optional[str] = None,
         base_margin_col: Optional[str] = None,
         num_workers: int = 1,
+        use_gpu: Optional[bool] = None,
         device: Optional[str] = None,
         force_repartition: bool = False,
         repartition_random_shuffle: bool = False,
@@ -374,6 +388,10 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
         # binary or multinomial input dataset, and we need to remove the fixed default
         # param value as well to avoid causing ambiguity.
         input_kwargs = self._input_kwargs
+        if use_gpu:
+            warnings.warn(
+                "`use_gpu` is deprecated, use `device` instead", FutureWarning
+            )
         self.setParams(**input_kwargs)
         self._setDefault(objective=None)
 
@@ -473,6 +491,10 @@ class SparkXGBRanker(_SparkXGBEstimator):
     num_workers:
         How many XGBoost workers to be used to train.
         Each XGBoost worker corresponds to one spark task.
+    use_gpu:
+        .. deprecated:: 2.0.0
+
+        Use `device` instead.
     device:
         Device for XGBoost workers, available options are `cpu`, `cuda`, and `gpu`.
     force_repartition:
@@ -539,6 +561,7 @@ class SparkXGBRanker(_SparkXGBEstimator):
         base_margin_col: Optional[str] = None,
         qid_col: Optional[str] = None,
         num_workers: int = 1,
+        use_gpu: Optional[bool] = None,
         device: Optional[str] = None,
         force_repartition: bool = False,
         repartition_random_shuffle: bool = False,
@@ -547,6 +570,10 @@ class SparkXGBRanker(_SparkXGBEstimator):
     ) -> None:
         super().__init__()
         input_kwargs = self._input_kwargs
+        if use_gpu:
+            warnings.warn(
+                "`use_gpu` is deprecated, use `device` instead", FutureWarning
+            )
         self.setParams(**input_kwargs)
 
     @classmethod
