@@ -60,7 +60,7 @@ from scipy.special import expit, softmax  # pylint: disable=no-name-in-module
 import xgboost
 from xgboost import XGBClassifier
 from xgboost.compat import is_cudf_available
-from xgboost.core import Booster
+from xgboost.core import Booster, _check_distributed_params
 from xgboost.sklearn import DEFAULT_N_ESTIMATORS, XGBModel, _can_use_qdm
 from xgboost.training import train as worker_train
 
@@ -92,6 +92,7 @@ from .utils import (
     get_class_name,
     get_logger,
     serialize_booster,
+    use_cuda,
 )
 
 # Put pyspark specific params here, they won't be passed to XGBoost.
@@ -108,7 +109,6 @@ _pyspark_specific_params = [
     "arbitrary_params_dict",
     "force_repartition",
     "num_workers",
-    "use_gpu",
     "feature_names",
     "features_cols",
     "enable_sparse_data_optim",
@@ -132,8 +132,7 @@ _pyspark_param_alias_map = {
 _inverse_pyspark_param_alias_map = {v: k for k, v in _pyspark_param_alias_map.items()}
 
 _unsupported_xgb_params = [
-    "gpu_id",  # we have "use_gpu" pyspark param instead.
-    "device",  # we have "use_gpu" pyspark param instead.
+    "gpu_id",  # we have "device" pyspark param instead.
     "enable_categorical",  # Use feature_types param to specify categorical feature instead
     "use_label_encoder",
     "n_jobs",  # Do not allow user to set it, will use `spark.task.cpus` value instead.
@@ -198,12 +197,11 @@ class _SparkXGBParams(
         "The number of XGBoost workers. Each XGBoost worker corresponds to one spark task.",
         TypeConverters.toInt,
     )
-    use_gpu = Param(
+    device = Param(
         Params._dummy(),
-        "use_gpu",
-        "A boolean variable. Set use_gpu=true if the executors "
-        + "are running on GPU instances. Currently, only one GPU per task is supported.",
-        TypeConverters.toBoolean,
+        "device",
+        "The device type for XGBoost workers. Available options are cpu,cuda and gpu.",
+        TypeConverters.toString,
     )
     force_repartition = Param(
         Params._dummy(),
@@ -337,9 +335,9 @@ class _SparkXGBParams(
             )
 
         if self.getOrDefault(self.features_cols):
-            if not self.getOrDefault(self.use_gpu):
+            if not use_cuda(self.getOrDefault(self.device)):
                 raise ValueError(
-                    "features_col param with list value requires enabling use_gpu."
+                    "features_col param with list value requires `device=cuda`."
                 )
 
         if self.getOrDefault("objective") is not None:
@@ -392,17 +390,7 @@ class _SparkXGBParams(
                     "`pyspark.ml.linalg.Vector` type."
                 )
 
-        if self.getOrDefault(self.use_gpu):
-            tree_method = self.getParam("tree_method")
-            if (
-                self.getOrDefault(tree_method) is not None
-                and self.getOrDefault(tree_method) != "gpu_hist"
-            ):
-                raise ValueError(
-                    f"tree_method should be 'gpu_hist' or None when use_gpu is True,"
-                    f"found {self.getOrDefault(tree_method)}."
-                )
-
+        if use_cuda(self.getOrDefault(self.device)):
             gpu_per_task = (
                 _get_spark_session()
                 .sparkContext.getConf()
@@ -424,8 +412,8 @@ class _SparkXGBParams(
                 # so it's okay for printing the below warning instead of checking the real
                 # gpu numbers and raising the exception.
                 get_logger(self.__class__.__name__).warning(
-                    "You enabled use_gpu in spark local mode. Please make sure your local node "
-                    "has at least %d GPUs",
+                    "You enabled GPU in spark local mode. Please make sure your local "
+                    "node has at least %d GPUs",
                     self.getOrDefault(self.num_workers),
                 )
             else:
@@ -558,7 +546,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         #  they are added in `setParams`.
         self._setDefault(
             num_workers=1,
-            use_gpu=False,
+            device="cpu",
             force_repartition=False,
             repartition_random_shuffle=False,
             feature_names=None,
@@ -566,9 +554,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             arbitrary_params_dict={},
         )
 
-    def setParams(
-        self, **kwargs: Dict[str, Any]
-    ) -> None:  # pylint: disable=invalid-name
+    def setParams(self, **kwargs: Any) -> None:  # pylint: disable=invalid-name
         """
         Set params for the estimator.
         """
@@ -613,6 +599,8 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                     )
                     raise ValueError(err_msg)
                 _extra_params[k] = v
+
+        _check_distributed_params(kwargs)
         _existing_extra_params = self.getOrDefault(self.arbitrary_params_dict)
         self._set(arbitrary_params_dict={**_existing_extra_params, **_extra_params})
 
@@ -708,9 +696,6 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
         # TODO: support "num_parallel_tree" for random forest
         params["num_boost_round"] = self.getOrDefault("n_estimators")
-
-        if self.getOrDefault(self.use_gpu):
-            params["tree_method"] = "gpu_hist"
 
         return params
 
@@ -883,7 +868,19 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             dmatrix_kwargs,
         ) = self._get_xgb_parameters(dataset)
 
-        use_gpu = self.getOrDefault(self.use_gpu)
+        run_on_gpu = use_cuda(self.getOrDefault(self.device))
+        tree_method = self.getParam("tree_method")
+        # Validation before submitting function to worker.
+        if (
+            run_on_gpu
+            and self.getOrDefault(tree_method)
+            and self.getOrDefault(tree_method) != "hist"
+        ):
+            raise ValueError(
+                f"The `{self.getOrDefault(tree_method)}` tree method is"
+                " not supported"
+                " on GPU."
+            )
 
         is_local = _is_local(_get_spark_session().sparkContext)
 
@@ -903,7 +900,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             dev_ordinal = None
             use_qdm = _can_use_qdm(booster_params.get("tree_method", None))
 
-            if use_gpu:
+            if run_on_gpu:
                 dev_ordinal = (
                     context.partitionId() if is_local else _get_gpu_id(context)
                 )
