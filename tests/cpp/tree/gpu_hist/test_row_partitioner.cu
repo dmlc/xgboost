@@ -73,7 +73,7 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
   dh::device_vector<int8_t> tmp;
   SortPositionBatch<uint32_t, decltype(op), int>(dh::ToSpan(d_batch_info), dh::ToSpan(ridx),
                                                  dh::ToSpan(ridx_tmp), dh::ToSpan(counts),
-                                                 total_rows, op, &tmp, nullptr);
+                                                 total_rows, op, &tmp);
 
   auto op_without_data = [=] __device__(auto ridx) { return ridx % 2 == 0; };
   for (size_t i = 0; i < segments.size(); i++) {

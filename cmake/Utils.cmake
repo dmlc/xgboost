@@ -127,6 +127,7 @@ endfunction(format_gencode_flags flags)
 # Set CUDA related flags to target.  Must be used after code `format_gencode_flags`.
 function(xgboost_set_cuda_flags target)
   target_compile_options(${target} PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--default-stream per-thread>
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
     $<$<COMPILE_LANGUAGE:CUDA>:${GEN_CODE}>
