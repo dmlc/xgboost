@@ -203,6 +203,12 @@ class _SparkXGBParams(
         "The device type for XGBoost workers. Available options are cpu,cuda and gpu.",
         TypeConverters.toString,
     )
+    use_gpu = Param(
+        Params._dummy(),
+        "use_gpu",
+        "Deprecated, use `device` instead.",
+        TypeConverters.toBoolean,
+    )
     force_repartition = Param(
         Params._dummy(),
         "force_repartition",
