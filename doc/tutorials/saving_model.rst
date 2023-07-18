@@ -174,7 +174,7 @@ Will print out something similar to (not actual output as it's too long for demo
           "gbtree_train_param": {
             "num_parallel_tree": "1",
             "process_type": "default",
-            "tree_method": "gpu_hist",
+            "tree_method": "hist",
             "updater": "grow_gpu_hist",
             "updater_seq": "grow_gpu_hist"
           },

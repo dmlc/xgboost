@@ -278,9 +278,15 @@ __model_doc = f"""
           without bias.
 
     device : Optional[str]
-        Device ordinal.
+
+        .. versionadded:: 2.0.0
+
+        Device ordinal, available options are `cpu`, `cuda`, and `gpu`.
+
     validate_parameters : Optional[bool]
+
         Give warnings for unknown parameter.
+
     enable_categorical : bool
 
         .. versionadded:: 1.5.0

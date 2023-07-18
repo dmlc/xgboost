@@ -23,16 +23,15 @@ The GPU algorithms currently work with CLI, Python, R, and JVM packages. See :do
   :caption: Python example
 
   params = dict()
-  params["device"] = "cuda:0"
+  params["device"] = "cuda"
   params["tree_method"] = "hist"
   Xy = xgboost.QuantileDMatrix(X, y)
   xgboost.train(params, Xy)
 
 .. code-block:: python
-  :caption: With Scikit-Learn interface
+  :caption: With the Scikit-Learn interface
 
   XGBRegressor(tree_method="hist", device="cuda")
-
 
 GPU-Accelerated SHAP values
 =============================
@@ -67,7 +66,8 @@ If you are getting out-of-memory errors on a big dataset, try the or :py:class:`
 
 CPU-GPU Interoperability
 ========================
-XGBoost models trained on GPUs can be used on CPU-only systems to generate predictions. For information about how to save and load an XGBoost model, see :doc:`/tutorials/saving_model`.
+
+The model can be used on any device regardless of the one used to train it. For instance, a model trained using GPU can still work on a CPU-only machine and vice versa. For more information about model serialization, see :doc:`/tutorials/saving_model`.
 
 
 Developer notes
