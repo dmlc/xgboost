@@ -42,22 +42,22 @@ DMLC_REGISTRY_FILE_TAG(gbtree);
 
 namespace {
 /** @brief Map the `tree_method` parameter to the `updater` parameter. */
-std::string MapTreeMethodToUpdaters(Context const* ctx_, TreeMethod tree_method) {
+std::string MapTreeMethodToUpdaters(Context const* ctx, TreeMethod tree_method) {
   // Choose updaters according to tree_method parameters
+  if (ctx->IsCUDA()) {
+    common::AssertGPUSupport();
+  }
   switch (tree_method) {
     case TreeMethod::kAuto:  // Use hist as default in 2.0
     case TreeMethod::kHist: {
-      return ctx_->DispatchDevice([] { return "grow_quantile_histmaker"; },
-                                  [] {
-                                    common::AssertGPUSupport();
-                                    return "grow_gpu_hist";
-                                  });
+      return ctx->DispatchDevice([] { return "grow_quantile_histmaker"; },
+                                 [] { return "grow_gpu_hist"; });
     }
     case TreeMethod::kApprox:
-      CHECK(ctx_->IsCPU()) << "The `approx` tree method is not supported on GPU.";
+      CHECK(ctx->IsCPU()) << "The `approx` tree method is not supported on GPU.";
       return "grow_histmaker";
     case TreeMethod::kExact:
-      CHECK(ctx_->IsCPU()) << "The `exact` tree method is not supported on GPU.";
+      CHECK(ctx->IsCPU()) << "The `exact` tree method is not supported on GPU.";
       return "grow_colmaker,prune";
     case TreeMethod::kGPUHist: {
       common::AssertGPUSupport();
@@ -150,6 +150,7 @@ void GBTree::Configure(Args const& cfg) {
     CHECK(tparam_.tree_method == TreeMethod::kHist || tparam_.tree_method == TreeMethod::kAuto)
         << "Only the hist tree method is supported for building multi-target trees with vector "
            "leaf.";
+    CHECK(ctx_->IsCPU()) << "GPU is not yet supported for vector leaf.";
   }
 
   LOG(DEBUG) << "Using tree method: " << static_cast<int>(tparam_.tree_method);
