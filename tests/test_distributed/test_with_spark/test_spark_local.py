@@ -741,11 +741,6 @@ class TestPySparkLocal:
         with pytest.raises(ValueError, match="early_stopping_rounds"):
             classifier.fit(clf_data.cls_df_train)
 
-    def test_gpu_param_setting(self, clf_data: ClfData) -> None:
-        py_cls = SparkXGBClassifier(use_gpu=True)
-        train_params = py_cls._get_distributed_train_params(clf_data.cls_df_train)
-        assert train_params["tree_method"] == "gpu_hist"
-
     def test_classifier_with_list_eval_metric(self, clf_data: ClfData) -> None:
         classifier = SparkXGBClassifier(eval_metric=["auc", "rmse"])
         model = classifier.fit(clf_data.cls_df_train)
@@ -755,6 +750,53 @@ class TestPySparkLocal:
         classifier = SparkXGBClassifier(eval_metric="auc")
         model = classifier.fit(clf_data.cls_df_train)
         model.transform(clf_data.cls_df_test).collect()
+
+    def test_regressor_params_basic(self) -> None:
+        py_reg = SparkXGBRegressor()
+        assert hasattr(py_reg, "n_estimators")
+        assert py_reg.n_estimators.parent == py_reg.uid
+        assert not hasattr(py_reg, "gpu_id")
+        assert hasattr(py_reg, "device")
+        assert py_reg.getOrDefault(py_reg.n_estimators) == 100
+        assert py_reg.getOrDefault(getattr(py_reg, "objective")), "reg:squarederror"
+        py_reg2 = SparkXGBRegressor(n_estimators=200)
+        assert py_reg2.getOrDefault(getattr(py_reg2, "n_estimators")), 200
+        py_reg3 = py_reg2.copy({getattr(py_reg2, "max_depth"): 10})
+        assert py_reg3.getOrDefault(getattr(py_reg3, "n_estimators")), 200
+        assert py_reg3.getOrDefault(getattr(py_reg3, "max_depth")), 10
+
+    def test_classifier_params_basic(self) -> None:
+        py_clf = SparkXGBClassifier()
+        assert hasattr(py_clf, "n_estimators")
+        assert py_clf.n_estimators.parent == py_clf.uid
+        assert not hasattr(py_clf, "gpu_id")
+        assert hasattr(py_clf, "device")
+
+        assert py_clf.getOrDefault(py_clf.n_estimators) == 100
+        assert py_clf.getOrDefault(getattr(py_clf, "objective")) is None
+        py_clf2 = SparkXGBClassifier(n_estimators=200)
+        assert py_clf2.getOrDefault(getattr(py_clf2, "n_estimators")) == 200
+        py_clf3 = py_clf2.copy({getattr(py_clf2, "max_depth"): 10})
+        assert py_clf3.getOrDefault(getattr(py_clf3, "n_estimators")) == 200
+        assert py_clf3.getOrDefault(getattr(py_clf3, "max_depth")), 10
+
+    def test_classifier_kwargs_basic(self, clf_data: ClfData) -> None:
+        py_clf = SparkXGBClassifier(**clf_data.cls_params)
+        assert hasattr(py_clf, "n_estimators")
+        assert py_clf.n_estimators.parent == py_clf.uid
+        assert not hasattr(py_clf, "gpu_id")
+        assert hasattr(py_clf, "device")
+        assert hasattr(py_clf, "arbitrary_params_dict")
+        assert py_clf.getOrDefault(py_clf.arbitrary_params_dict) == {}
+
+        # Testing overwritten params
+        py_clf = SparkXGBClassifier()
+        py_clf.setParams(x=1, y=2)
+        py_clf.setParams(y=3, z=4)
+        xgb_params = py_clf._gen_xgb_params_dict()
+        assert xgb_params["x"] == 1
+        assert xgb_params["y"] == 3
+        assert xgb_params["z"] == 4
 
     def test_regressor_model_save_load(self, reg_data: RegData) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -825,6 +867,24 @@ class TestPySparkLocal:
                     row.prediction, row.expected_prediction_with_params, atol=1e-3
                 )
             assert_model_compatible(model.stages[0], tmpdir)
+
+    def test_device_param(self, reg_data: RegData, clf_data: ClfData) -> None:
+        clf = SparkXGBClassifier(device="cuda", tree_method="exact")
+        with pytest.raises(ValueError, match="not supported on GPU"):
+            clf.fit(clf_data.cls_df_train)
+        regressor = SparkXGBRegressor(device="cuda", tree_method="exact")
+        with pytest.raises(ValueError, match="not supported on GPU"):
+            regressor.fit(reg_data.reg_df_train)
+
+        reg = SparkXGBRegressor(device="cuda", tree_method="gpu_hist")
+        reg._validate_params()
+        reg = SparkXGBRegressor(device="cuda")
+        reg._validate_params()
+
+        clf = SparkXGBClassifier(device="cuda", tree_method="gpu_hist")
+        clf._validate_params()
+        clf = SparkXGBClassifier(device="cuda")
+        clf._validate_params()
 
 
 class XgboostLocalTest(SparkTestCase):
@@ -1020,55 +1080,6 @@ class XgboostLocalTest(SparkTestCase):
         assert sklearn_regressor.max_depth == 3
         assert sklearn_regressor.get_params()["sketch_eps"] == 0.5
 
-    def test_regressor_params_basic(self):
-        py_reg = SparkXGBRegressor()
-        self.assertTrue(hasattr(py_reg, "n_estimators"))
-        self.assertEqual(py_reg.n_estimators.parent, py_reg.uid)
-        self.assertFalse(hasattr(py_reg, "gpu_id"))
-        self.assertFalse(hasattr(py_reg, "device"))
-        self.assertEqual(py_reg.getOrDefault(py_reg.n_estimators), 100)
-        self.assertEqual(py_reg.getOrDefault(py_reg.objective), "reg:squarederror")
-        py_reg2 = SparkXGBRegressor(n_estimators=200)
-        self.assertEqual(py_reg2.getOrDefault(py_reg2.n_estimators), 200)
-        py_reg3 = py_reg2.copy({py_reg2.max_depth: 10})
-        self.assertEqual(py_reg3.getOrDefault(py_reg3.n_estimators), 200)
-        self.assertEqual(py_reg3.getOrDefault(py_reg3.max_depth), 10)
-
-    def test_classifier_params_basic(self):
-        py_cls = SparkXGBClassifier()
-        self.assertTrue(hasattr(py_cls, "n_estimators"))
-        self.assertEqual(py_cls.n_estimators.parent, py_cls.uid)
-        self.assertFalse(hasattr(py_cls, "gpu_id"))
-        self.assertFalse(hasattr(py_cls, "device"))
-        self.assertEqual(py_cls.getOrDefault(py_cls.n_estimators), 100)
-        self.assertEqual(py_cls.getOrDefault(py_cls.objective), None)
-        py_cls2 = SparkXGBClassifier(n_estimators=200)
-        self.assertEqual(py_cls2.getOrDefault(py_cls2.n_estimators), 200)
-        py_cls3 = py_cls2.copy({py_cls2.max_depth: 10})
-        self.assertEqual(py_cls3.getOrDefault(py_cls3.n_estimators), 200)
-        self.assertEqual(py_cls3.getOrDefault(py_cls3.max_depth), 10)
-
-    def test_classifier_kwargs_basic(self):
-        py_cls = SparkXGBClassifier(**self.cls_params_kwargs)
-        self.assertTrue(hasattr(py_cls, "n_estimators"))
-        self.assertEqual(py_cls.n_estimators.parent, py_cls.uid)
-        self.assertFalse(hasattr(py_cls, "gpu_id"))
-        self.assertFalse(hasattr(py_cls, "device"))
-        self.assertTrue(hasattr(py_cls, "arbitrary_params_dict"))
-        expected_kwargs = {"sketch_eps": 0.03}
-        self.assertEqual(
-            py_cls.getOrDefault(py_cls.arbitrary_params_dict), expected_kwargs
-        )
-
-        # Testing overwritten params
-        py_cls = SparkXGBClassifier()
-        py_cls.setParams(x=1, y=2)
-        py_cls.setParams(y=3, z=4)
-        xgb_params = py_cls._gen_xgb_params_dict()
-        assert xgb_params["x"] == 1
-        assert xgb_params["y"] == 3
-        assert xgb_params["z"] == 4
-
     def test_param_alias(self):
         py_cls = SparkXGBClassifier(features_col="f1", label_col="l1")
         self.assertEqual(py_cls.getOrDefault(py_cls.featuresCol), "f1")
@@ -1199,16 +1210,6 @@ class XgboostLocalTest(SparkTestCase):
         self.assertRaises(ValueError, regressor._validate_params)
         classifier = SparkXGBClassifier(num_workers=0)
         self.assertRaises(ValueError, classifier._validate_params)
-
-    def test_use_gpu_param(self):
-        classifier = SparkXGBClassifier(use_gpu=True, tree_method="exact")
-        self.assertRaises(ValueError, classifier._validate_params)
-        regressor = SparkXGBRegressor(use_gpu=True, tree_method="exact")
-        self.assertRaises(ValueError, regressor._validate_params)
-        regressor = SparkXGBRegressor(use_gpu=True, tree_method="gpu_hist")
-        regressor = SparkXGBRegressor(use_gpu=True)
-        classifier = SparkXGBClassifier(use_gpu=True, tree_method="gpu_hist")
-        classifier = SparkXGBClassifier(use_gpu=True)
 
     def test_feature_importances(self):
         reg1 = SparkXGBRegressor(**self.reg_params)

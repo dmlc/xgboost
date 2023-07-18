@@ -70,6 +70,7 @@ from .core import (
     Metric,
     Objective,
     QuantileDMatrix,
+    _check_distributed_params,
     _deprecate_positional_args,
     _expect,
 )
@@ -924,17 +925,7 @@ async def _train_async(
 ) -> Optional[TrainReturnT]:
     workers = _get_workers_from_data(dtrain, evals)
     _rabit_args = await _get_rabit_args(len(workers), dconfig, client)
-
-    if params.get("booster", None) == "gblinear":
-        raise NotImplementedError(
-            f"booster `{params['booster']}` is not yet supported for dask."
-        )
-    device = params.get("device", None)
-    if device and device.find(":") != -1:
-        raise ValueError(
-            "The dask interface for XGBoost doesn't support selecting specific device"
-            " ordinal. Use `device=cpu` or `device=cuda` instead."
-        )
+    _check_distributed_params(params)
 
     def dispatched_train(
         parameters: Dict,
