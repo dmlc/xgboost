@@ -17,7 +17,8 @@ fi
 
 command_wrapper="tests/ci_build/ci_build.sh gpu_build_centos7 docker --build-arg "`
                 `"CUDA_VERSION_ARG=$CUDA_VERSION --build-arg "`
-                `"NCCL_VERSION_ARG=$NCCL_VERSION"
+                `"NCCL_VERSION_ARG=$NCCL_VERSION --build-arg "`
+                `"RAPIDS_VERSION_ARG=$RAPIDS_VERSION"
 
 echo "--- Build libxgboost from the source"
 $command_wrapper tests/ci_build/prune_libnccl.sh

@@ -2,6 +2,7 @@ ARG CUDA_VERSION_ARG
 FROM nvidia/cuda:$CUDA_VERSION_ARG-devel-centos7
 ARG CUDA_VERSION_ARG
 ARG NCCL_VERSION_ARG
+ARG RAPIDS_VERSION_ARG
 
 # Install all basic requirements
 RUN \
@@ -38,7 +39,7 @@ ENV CUDAHOSTCXX=/opt/rh/devtoolset-9/root/usr/bin/c++
 ENV GOSU_VERSION 1.10
 
 # Install RMM
-RUN git clone -b v23.04.00 https://github.com/rapidsai/rmm.git --recurse-submodules --depth 1 && \
+RUN git clone -b v${RAPIDS_VERSION}.00 https://github.com/rapidsai/rmm.git --recurse-submodules --depth 1 && \
     pushd rmm && \
     mkdir build && \
     pushd build && \
