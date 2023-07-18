@@ -276,6 +276,27 @@ def _check_call(ret: int) -> None:
         raise XGBoostError(py_str(_LIB.XGBGetLastError()))
 
 
+def _check_distributed_params(kwargs: Dict[str, Any]) -> None:
+    """Validate parameters in distributed environments."""
+    device = kwargs.get("device", None)
+    if device and not isinstance(device, str):
+        msg = "Invalid type for the `device` parameter"
+        msg += _expect((str,), type(device))
+        raise TypeError(msg)
+
+    if device and device.find(":") != -1:
+        raise ValueError(
+            "Distributed training doesn't support selecting device ordinal as GPUs are"
+            " managed by the distributed framework. use `device=cuda` or `device=gpu`"
+            " instead."
+        )
+
+    if kwargs.get("booster", None) == "gblinear":
+        raise NotImplementedError(
+            f"booster `{kwargs['booster']}` is not supported for distributed training."
+        )
+
+
 def build_info() -> dict:
     """Build information of XGBoost.  The returned value format is not stable. Also,
     please note that build time dependency is not the same as runtime dependency. For

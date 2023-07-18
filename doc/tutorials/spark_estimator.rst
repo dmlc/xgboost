@@ -35,13 +35,13 @@ We can create a ``SparkXGBRegressor`` estimator like:
   )
 
 
-The above snippet creates a spark estimator which can fit on a spark dataset,
-and return a spark model that can transform a spark dataset and generate dataset
-with prediction column. We can set almost all of xgboost sklearn estimator parameters
-as ``SparkXGBRegressor`` parameters, but some parameter such as ``nthread`` is forbidden
-in spark estimator, and some parameters are replaced with pyspark specific parameters
-such as ``weight_col``, ``validation_indicator_col``, ``use_gpu``, for details please see
-``SparkXGBRegressor`` doc.
+The above snippet creates a spark estimator which can fit on a spark dataset, and return a
+spark model that can transform a spark dataset and generate dataset with prediction
+column. We can set almost all of xgboost sklearn estimator parameters as
+``SparkXGBRegressor`` parameters, but some parameter such as ``nthread`` is forbidden in
+spark estimator, and some parameters are replaced with pyspark specific parameters such as
+``weight_col``, ``validation_indicator_col``, for details please see ``SparkXGBRegressor``
+doc.
 
 The following code snippet shows how to train a spark xgboost regressor model,
 first we need to prepare a training dataset as a spark dataframe contains
@@ -88,7 +88,7 @@ XGBoost PySpark fully supports GPU acceleration. Users are not only able to enab
 efficient training but also utilize their GPUs for the whole PySpark pipeline including
 ETL and inference. In below sections, we will walk through an example of training on a
 PySpark standalone GPU cluster. To get started, first we need to install some additional
-packages, then we can set the ``use_gpu`` parameter to ``True``.
+packages, then we can set the ``device`` parameter to ``cuda`` or ``gpu``.
 
 Prepare the necessary packages
 ==============================
@@ -128,7 +128,7 @@ Write your PySpark application
 ==============================
 
 Below snippet is a small example for training xgboost model with PySpark. Notice that we are
-using a list of feature names and the additional parameter ``use_gpu``:
+using a list of feature names and the additional parameter ``device``:
 
 .. code-block:: python
 
@@ -148,12 +148,12 @@ using a list of feature names and the additional parameter ``use_gpu``:
   # get a list with feature column names
   feature_names = [x.name for x in train_df.schema if x.name != label_name]
 
-  # create a xgboost pyspark regressor estimator and set use_gpu=True
+  # create a xgboost pyspark regressor estimator and set device="cuda"
   regressor = SparkXGBRegressor(
     features_col=feature_names,
     label_col=label_name,
     num_workers=2,
-    use_gpu=True,
+    device="cuda",
   )
 
   # train and return the model
@@ -163,6 +163,7 @@ using a list of feature names and the additional parameter ``use_gpu``:
   predict_df = model.transform(test_df)
   predict_df.show()
 
+Like other distributed interfaces, the ```device`` parameter doesn't support specifying ordinal as GPUs are managed by Spark instead of XGBoost (good: ``device=cuda``, bad: ``device=cuda:0``).
 
 Submit the PySpark application
 ==============================
