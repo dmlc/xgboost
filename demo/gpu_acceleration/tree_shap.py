@@ -26,8 +26,7 @@ param = {
 dtrain = xgb.DMatrix(X, label=y, feature_names=data.feature_names)
 model = xgb.train(param, dtrain, num_round)
 
-# Compute shap values using GPU with xgboost\n# We have already set the device in the
-# previous cell, only for demonstration.
+# Compute shap values using GPU with xgboost
 model.set_param({"device": "cuda"})
 shap_values = model.predict(dtrain, pred_contribs=True)
 
