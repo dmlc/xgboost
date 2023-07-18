@@ -1,3 +1,10 @@
+"""
+Using xgboost on GPU devices
+============================
+
+The demo showcases using GPU on a GPU with other GPU-related libraries including cupy
+and cuml. These libraries are not strictly required.
+"""
 import time
 
 import cupy as cp
@@ -10,6 +17,7 @@ import xgboost as xgb
 X, y = fetch_covtype(return_X_y=True)
 X = cp.array(X)
 y = cp.array(y)
+y -= y.min()
 
 # Create 0.75/0.25 train/test split
 X_train, X_test, y_train, y_test = train_test_split(
