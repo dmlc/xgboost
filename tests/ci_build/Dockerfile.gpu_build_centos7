@@ -39,7 +39,7 @@ ENV CUDAHOSTCXX=/opt/rh/devtoolset-9/root/usr/bin/c++
 ENV GOSU_VERSION 1.10
 
 # Install RMM
-RUN git clone -b v${RAPIDS_VERSION}.00 https://github.com/rapidsai/rmm.git --recurse-submodules --depth 1 && \
+RUN git clone -b v${RAPIDS_VERSION_ARG}.00 https://github.com/rapidsai/rmm.git --recurse-submodules --depth 1 && \
     pushd rmm && \
     mkdir build && \
     pushd build && \
