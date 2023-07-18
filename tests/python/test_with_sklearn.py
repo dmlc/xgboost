@@ -3,6 +3,7 @@ import os
 import pickle
 import random
 import tempfile
+import warnings
 from typing import Callable, Optional
 
 import numpy as np
@@ -1091,25 +1092,22 @@ def test_constraint_parameters():
     )
 
 
+@pytest.mark.filterwarnings("error")
 def test_parameter_validation():
-    reg = xgb.XGBRegressor(foo='bar', verbosity=1)
+    reg = xgb.XGBRegressor(foo="bar", verbosity=1)
     X = np.random.randn(10, 10)
     y = np.random.randn(10)
-    with tm.captured_output() as (out, err):
+    with pytest.warns(Warning, match="foo"):
         reg.fit(X, y)
-        output = out.getvalue().strip()
 
-    assert output.find('foo') != -1
-
-    reg = xgb.XGBRegressor(n_estimators=2, missing=3,
-                           importance_type='gain', verbosity=1)
+    reg = xgb.XGBRegressor(
+        n_estimators=2, missing=3, importance_type="gain", verbosity=1
+    )
     X = np.random.randn(10, 10)
     y = np.random.randn(10)
-    with tm.captured_output() as (out, err):
-        reg.fit(X, y)
-        output = out.getvalue().strip()
 
-    assert len(output) == 0
+    with warnings.catch_warnings():
+        reg.fit(X, y)
 
 
 def test_deprecate_position_arg():
@@ -1351,10 +1349,11 @@ def test_multilabel_classification() -> None:
     np.testing.assert_allclose(clf.predict(X), predt)
 
 
-def test_data_initialization():
+def test_data_initialization() -> None:
     from sklearn.datasets import load_digits
+
     X, y = load_digits(return_X_y=True)
-    validate_data_initialization(xgb.DMatrix, xgb.XGBClassifier, X, y)
+    validate_data_initialization(xgb.QuantileDMatrix, xgb.XGBClassifier, X, y)
 
 
 @parametrize_with_checks([xgb.XGBRegressor()])

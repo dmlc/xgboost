@@ -7,7 +7,7 @@ import os
 import sys
 import uuid
 from threading import Thread
-from typing import Any, Callable, Dict, Set, Type
+from typing import Any, Callable, Dict, Optional, Set, Type
 
 import pyspark
 from pyspark import BarrierTaskContext, SparkContext, SparkFiles
@@ -186,3 +186,8 @@ def deserialize_booster(model: str) -> Booster:
         f.write(model)
     booster.load_model(tmp_file_name)
     return booster
+
+
+def use_cuda(device: Optional[str]) -> bool:
+    """Whether xgboost is using CUDA workers."""
+    return device in ("cuda", "gpu")

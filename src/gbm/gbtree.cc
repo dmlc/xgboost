@@ -98,8 +98,8 @@ void MismatchedDevices(Context const* booster, Context const* data) {
 - Use a data structure that matches the device ordinal in the booster.
 - Set the device for booster before call to inplace_predict.
 
-This warning will only be shown once, and subsequent warnings made by the current thread will be
-suppressed.
+This warning will only be shown once for each thread. Subsequent warnings made by the
+current thread will be suppressed.
 )";
   logged = true;
 }

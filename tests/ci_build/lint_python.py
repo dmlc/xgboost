@@ -32,6 +32,7 @@ class LintersPaths:
         "tests/test_distributed/test_with_spark/",
         "tests/test_distributed/test_gpu_with_spark/",
         # demo
+        "demo/dask/",
         "demo/json-model/json_parser.py",
         "demo/guide-python/cat_in_the_dat.py",
         "demo/guide-python/categorical.py",
@@ -42,6 +43,8 @@ class LintersPaths:
         "demo/guide-python/quantile_regression.py",
         "demo/guide-python/multioutput_regression.py",
         "demo/guide-python/learning_to_rank.py",
+        "demo/guide-python/quantile_data_iterator.py",
+        "demo/guide-python/update_process.py",
         "demo/aft_survival/aft_survival_viz_demo.py",
         # CI
         "tests/ci_build/lint_python.py",

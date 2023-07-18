@@ -27,7 +27,7 @@ def train_result(param, dmat, num_rounds):
         param,
         dmat,
         num_rounds,
-        [(dmat, "train")],
+        evals=[(dmat, "train")],
         verbose_eval=False,
         evals_result=result,
     )
@@ -169,13 +169,21 @@ class TestTreeMethod:
         hist_res = {}
         exact_res = {}
 
-        xgb.train(ag_param, ag_dtrain, 10,
-                  [(ag_dtrain, 'train'), (ag_dtest, 'test')],
-                  evals_result=hist_res)
+        xgb.train(
+            ag_param,
+            ag_dtrain,
+            10,
+            evals=[(ag_dtrain, "train"), (ag_dtest, "test")],
+            evals_result=hist_res
+        )
         ag_param["tree_method"] = "exact"
-        xgb.train(ag_param, ag_dtrain, 10,
-                  [(ag_dtrain, 'train'), (ag_dtest, 'test')],
-                  evals_result=exact_res)
+        xgb.train(
+            ag_param,
+            ag_dtrain,
+            10,
+            evals=[(ag_dtrain, "train"), (ag_dtest, "test")],
+            evals_result=exact_res
+        )
         assert hist_res['train']['auc'] == exact_res['train']['auc']
         assert hist_res['test']['auc'] == exact_res['test']['auc']
 

@@ -9,14 +9,13 @@ steps:
       queue: pipeline-loader
   - wait
   - block: ":rocket: Run this test job"
-    if: build.pull_request.id != null
+    if: build.pull_request.id != null || build.branch =~ /^dependabot\//
   #### -------- CONTAINER BUILD --------
   - label: ":docker: Build containers"
     commands:
       - "tests/buildkite/build-containers.sh cpu"
       - "tests/buildkite/build-containers.sh gpu"
       - "tests/buildkite/build-containers.sh gpu_build_centos7"
-      - "tests/buildkite/build-containers.sh rmm"
     key: build-containers
     agents:
       queue: linux-amd64-cpu

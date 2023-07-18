@@ -81,13 +81,6 @@ void XGBBuildInfoDevice(Json *p_info) {
 }  // namespace xgboost
 #endif
 
-namespace {
-void DeprecatedFunc(StringView old, StringView since, StringView replacement) {
-  LOG(WARNING) << "`" << old << "` is deprecated since" << since << ", use `" << replacement
-               << "` instead.";
-}
-}  // anonymous namespace
-
 XGB_DLL int XGBuildInfo(char const **out) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(out);
@@ -328,7 +321,7 @@ XGB_DLL int XGDeviceQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatr
                                                       int nthread, int max_bin,
                                                       DMatrixHandle *out) {
   API_BEGIN();
-  DeprecatedFunc(__func__, "1.7.0", "XGQuantileDMatrixCreateFromCallback");
+  LOG(WARNING) << error::DeprecatedFunc(__func__, "1.7.0", "XGQuantileDMatrixCreateFromCallback");
   *out = new std::shared_ptr<xgboost::DMatrix>{
       xgboost::DMatrix::Create(iter, proxy, nullptr, reset, next, missing, nthread, max_bin)};
   API_END();
@@ -432,7 +425,7 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t *indptr, const unsigned *indic
                                      const bst_float *data, size_t nindptr, size_t nelem,
                                      size_t num_col, DMatrixHandle *out) {
   API_BEGIN();
-  DeprecatedFunc(__func__, "2.0.0", "XGDMatrixCreateFromCSR");
+  LOG(WARNING) << error::DeprecatedFunc(__func__, "2.0.0", "XGDMatrixCreateFromCSR");
   data::CSRAdapter adapter(indptr, indices, data, nindptr - 1, nelem, num_col);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, std::nan(""), 1));
   API_END();
@@ -496,7 +489,7 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t *col_ptr, const unsigned *indi
                                      const bst_float *data, size_t nindptr, size_t, size_t num_row,
                                      DMatrixHandle *out) {
   API_BEGIN();
-  DeprecatedFunc(__func__, "2.0.0", "XGDMatrixCreateFromCSC");
+  LOG(WARNING) << error::DeprecatedFunc(__func__, "2.0.0", "XGDMatrixCreateFromCSC");
   data::CSCAdapter adapter(col_ptr, indices, data, nindptr - 1, num_row);
   xgboost_CHECK_C_ARG_PTR(out);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, std::nan(""), 1));
@@ -1347,7 +1340,7 @@ XGB_DLL int XGBoosterGetModelRaw(BoosterHandle handle, xgboost::bst_ulong *out_l
   raw_str.resize(0);
 
   common::MemoryBufferStream fo(&raw_str);
-  DeprecatedFunc(__func__, "1.6.0", "XGBoosterSaveModelToBuffer");
+  LOG(WARNING) << error::DeprecatedFunc(__func__, "1.6.0", "XGBoosterSaveModelToBuffer");
 
   learner->Configure();
   learner->SaveModel(&fo);

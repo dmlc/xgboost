@@ -154,6 +154,14 @@ private[spark] trait BoosterParams extends Params {
     (value: String) => BoosterParams.supportedTreeMethods.contains(value))
 
   final def getTreeMethod: String = $(treeMethod)
+  /**
+    *  The device for running XGBoost algorithms, options: cpu, cuda
+    */
+  final val device = new Param[String](
+    this, "device", "The device for running XGBoost algorithms, options: cpu, cuda"
+  )
+
+  final def getDevice: String = $(device)
 
   /**
    * growth policy for fast histogram algorithm

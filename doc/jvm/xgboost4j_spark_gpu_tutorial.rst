@@ -121,7 +121,7 @@ To train a XGBoost model for classification, we need to claim a XGBoostClassifie
       "objective" -> "multi:softprob",
       "num_class" -> 3,
       "num_round" -> 100,
-      "tree_method" -> "gpu_hist",
+      "device" -> "cuda",
       "num_workers" -> 1)
 
   val featuresNames = schema.fieldNames.filter(name => name != labelName)
@@ -130,15 +130,14 @@ To train a XGBoost model for classification, we need to claim a XGBoostClassifie
       .setFeaturesCol(featuresNames)
       .setLabelCol(labelName)
 
-The available parameters for training a XGBoost model can be found in :doc:`here </parameter>`.
-Similar to the XGBoost4J-Spark package, in addition to the default set of parameters,
-XGBoost4J-Spark-GPU also supports the camel-case variant of these parameters to be
-consistent with Spark's MLlib naming convention.
+The ``device`` parameter is for informing XGBoost that CUDA devices should be used instead of CPU. Unlike the single-node mode, GPUs are managed by spark instead of by XGBoost. Therefore, explicitly specified device ordinal like ``cuda:1`` is not support.
+
+The available parameters for training a XGBoost model can be found in :doc:`here </parameter>`. Similar to the XGBoost4J-Spark package, in addition to the default set of parameters, XGBoost4J-Spark-GPU also supports the camel-case variant of these parameters to be consistent with Spark's MLlib naming convention.
 
 Specifically, each parameter in :doc:`this page </parameter>` has its equivalent form in
-XGBoost4J-Spark-GPU with camel case. For example, to set ``max_depth`` for each tree, you can pass
-parameter just like what we did in the above code snippet (as ``max_depth`` wrapped in a Map), or
-you can do it through setters in XGBoostClassifer:
+XGBoost4J-Spark-GPU with camel case. For example, to set ``max_depth`` for each tree, you
+can pass parameter just like what we did in the above code snippet (as ``max_depth``
+wrapped in a Map), or you can do it through setters in XGBoostClassifer:
 
 .. code-block:: scala
 

@@ -61,9 +61,7 @@ class TestLoadPickle:
         rng = np.random.RandomState(1994)
         X = rng.randn(10, 10)
         y = rng.randn(10)
-        with tm.captured_output() as (out, err):
+        with pytest.warns(UserWarning, match="No visible GPU is found"):
             # Test no thrust exception is thrown
-            with pytest.raises(xgb.core.XGBoostError):
+            with pytest.raises(xgb.core.XGBoostError, match="have at least one device"):
                 xgb.train({"tree_method": "gpu_hist"}, xgb.DMatrix(X, y))
-
-            assert out.getvalue().find("No visible GPU is found") != -1

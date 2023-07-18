@@ -71,7 +71,8 @@ def custom_callback():
         {
             'objective': 'binary:logistic',
             'eval_metric': ['error', 'rmse'],
-            'tree_method': 'gpu_hist'
+            'tree_method': 'hist',
+            "device": "cuda",
         },
         D_train,
         evals=[(D_train, 'Train'), (D_valid, 'Valid')],

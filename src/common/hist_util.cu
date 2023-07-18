@@ -26,9 +26,8 @@
 #include "quantile.h"
 #include "xgboost/host_device_vector.h"
 
-namespace xgboost {
-namespace common {
 
+namespace xgboost::common {
 constexpr float SketchContainer::kFactor;
 
 namespace detail {
@@ -87,13 +86,13 @@ size_t RequiredMemory(bst_row_t num_rows, bst_feature_t num_columns, size_t nnz,
   return peak;
 }
 
-size_t SketchBatchNumElements(size_t sketch_batch_num_elements,
-                              bst_row_t num_rows, bst_feature_t columns,
-                              size_t nnz, int device,
-                              size_t num_cuts, bool has_weight) {
+size_t SketchBatchNumElements(size_t sketch_batch_num_elements, bst_row_t num_rows,
+                              bst_feature_t columns, size_t nnz, int device, size_t num_cuts,
+                              bool has_weight) {
+  auto constexpr kIntMax = static_cast<std::size_t>(std::numeric_limits<std::int32_t>::max());
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
   // device available memory is not accurate when rmm is used.
-  return nnz;
+  return std::min(nnz, kIntMax);
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
   if (sketch_batch_num_elements == 0) {
@@ -106,7 +105,8 @@ size_t SketchBatchNumElements(size_t sketch_batch_num_elements,
       sketch_batch_num_elements = std::min(num_rows * static_cast<size_t>(columns), nnz);
     }
   }
-  return sketch_batch_num_elements;
+
+  return std::min(sketch_batch_num_elements, kIntMax);
 }
 
 void SortByWeight(dh::device_vector<float>* weights,
@@ -355,5 +355,4 @@ HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
   sketch_container.MakeCuts(&cuts, dmat->Info().IsColumnSplit());
   return cuts;
 }
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common

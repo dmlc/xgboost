@@ -8,6 +8,7 @@
 
 #include <cinttypes>  // for uint64_t
 #include <limits>     // for numeric_limits
+#include <string>     // for string
 
 #include "xgboost/base.h"  // for bst_feature_t
 #include "xgboost/logging.h"
@@ -86,5 +87,7 @@ void WarnManualUpdater();
 void WarnDeprecatedGPUId();
 
 void WarnEmptyDataset();
+
+std::string DeprecatedFunc(StringView old, StringView since, StringView replacement);
 }  // namespace xgboost::error
 #endif  // XGBOOST_COMMON_ERROR_MSG_H_

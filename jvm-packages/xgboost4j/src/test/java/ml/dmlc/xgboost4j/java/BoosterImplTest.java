@@ -143,7 +143,6 @@ public class BoosterImplTest {
     booster.saveModel(temp.getAbsolutePath());
 
     String modelString = new String(booster.toByteArray("json"));
-    System.out.println(modelString);
 
     Booster bst2 = XGBoost.loadModel(temp.getAbsolutePath());
     assert (Arrays.equals(bst2.toByteArray("ubj"), booster.toByteArray("ubj")));
