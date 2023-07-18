@@ -1,3 +1,7 @@
+"""
+Use GPU to speedup SHAP value computation
+=========================================
+"""
 import shap
 from sklearn.datasets import fetch_california_housing
 
