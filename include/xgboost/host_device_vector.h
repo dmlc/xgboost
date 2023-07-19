@@ -49,11 +49,12 @@
 #ifndef XGBOOST_HOST_DEVICE_VECTOR_H_
 #define XGBOOST_HOST_DEVICE_VECTOR_H_
 
-#include <initializer_list>
-#include <vector>
-#include <type_traits>
+#include <xgboost/context.h>  // for DeviceOrd
+#include <xgboost/span.h>     // for Span
 
-#include "span.h"
+#include <initializer_list>
+#include <type_traits>
+#include <vector>
 
 namespace xgboost {
 
@@ -133,6 +134,7 @@ class HostDeviceVector {
   GPUAccess DeviceAccess() const;
 
   void SetDevice(int device) const;
+  void SetDevice(DeviceOrd device) const;
 
   void Resize(size_t new_size, T v = T());
 

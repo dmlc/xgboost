@@ -395,6 +395,11 @@ void HostDeviceVector<T>::SetDevice(int device) const {
 }
 
 template <typename T>
+void HostDeviceVector<T>::SetDevice(DeviceOrd device) const {
+  impl_->SetDevice(device.ordinal);
+}
+
+template <typename T>
 void HostDeviceVector<T>::Resize(size_t new_size, T v) {
   impl_->Resize(new_size, v);
 }

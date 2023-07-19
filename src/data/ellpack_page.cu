@@ -131,7 +131,7 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, DMatrix* dmat, const BatchP
   monitor_.Start("Quantiles");
   // Create the quantile sketches for the dmatrix and initialize HistogramCuts.
   row_stride = GetRowStride(dmat);
-  cuts_ = common::DeviceSketch(ctx->gpu_id, dmat, param.max_bin);
+  cuts_ = common::DeviceSketch(ctx, dmat, param.max_bin);
   monitor_.Stop("Quantiles");
 
   monitor_.Start("InitCompressedData");

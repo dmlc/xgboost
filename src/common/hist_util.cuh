@@ -11,14 +11,13 @@
 
 #include <cstddef>  // for size_t
 
-#include "../data/device_adapter.cuh"
+#include "../data/adapter.h"  // for IsValidFunctor
 #include "device_helpers.cuh"
 #include "hist_util.h"
 #include "quantile.cuh"
-#include "timer.h"
+#include "xgboost/span.h"  // for IterSpan
 
-namespace xgboost {
-namespace common {
+namespace xgboost::common {
 namespace cuda {
 /**
  * copy and paste of the host version, we can't make it a __host__ __device__ function as
@@ -246,10 +245,35 @@ void RemoveDuplicatedCategories(int32_t device, MetaInfo const& info, Span<bst_r
                                 dh::caching_device_vector<size_t>* p_column_sizes_scan);
 }  // namespace detail
 
-// Compute sketch on DMatrix.
-// sketch_batch_num_elements 0 means autodetect. Only modify this for testing.
-HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
-                           size_t sketch_batch_num_elements = 0);
+/**
+ * @brief Compute sketch on DMatrix with GPU and Hessian as weight.
+ *
+ * @param ctx     Runtime context
+ * @param p_fmat  Training feature matrix
+ * @param max_bin Maximum number of bins for each feature
+ * @param hessian Hessian vector.
+ * @param sketch_batch_num_elements 0 means autodetect. Only modify this for testing.
+ *
+ * @return Quantile cuts
+ */
+HistogramCuts DeviceSketchWithHessian(Context const* ctx, DMatrix* p_fmat, bst_bin_t max_bin,
+                                      Span<float const> hessian,
+                                      std::size_t sketch_batch_num_elements = 0);
+
+/**
+ * @brief Compute sketch on DMatrix with GPU.
+ *
+ * @param ctx     Runtime context
+ * @param p_fmat  Training feature matrix
+ * @param max_bin Maximum number of bins for each feature
+ * @param sketch_batch_num_elements 0 means autodetect. Only modify this for testing.
+ *
+ * @return Quantile cuts
+ */
+inline HistogramCuts DeviceSketch(Context const* ctx, DMatrix* p_fmat, bst_bin_t max_bin,
+                                  std::size_t sketch_batch_num_elements = 0) {
+  return DeviceSketchWithHessian(ctx, p_fmat, max_bin, {}, sketch_batch_num_elements);
+}
 
 template <typename AdapterBatch>
 void ProcessSlidingWindow(AdapterBatch const &batch, MetaInfo const &info,
@@ -417,7 +441,5 @@ void AdapterDeviceSketch(Batch batch, int num_bins,
     }
   }
 }
-}      // namespace common
-}      // namespace xgboost
-
+}  // namespace xgboost::common
 #endif  // COMMON_HIST_UTIL_CUH_
