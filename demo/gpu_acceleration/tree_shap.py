@@ -1,6 +1,9 @@
 """
 Use GPU to speedup SHAP value computation
 =========================================
+
+Demonstrates using GPU acceleration to compute SHAP values for feature importance.
+
 """
 import shap
 from sklearn.datasets import fetch_california_housing

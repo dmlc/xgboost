@@ -158,6 +158,7 @@ sphinx_gallery_conf = {
         "python/examples",
         "python/dask-examples",
         "python/survival-examples",
+        "python/gpu-examples",
     ],
     "matplotlib_animations": True,
 }

@@ -2,8 +2,15 @@
 Using xgboost on GPU devices
 ============================
 
-The demo showcases using GPU on a GPU with other GPU-related libraries including cupy
-and cuml. These libraries are not strictly required.
+Shows how to train a model on the `forest cover type
+<https://archive.ics.uci.edu/ml/datasets/covertype>`_ dataset using GPU
+acceleration. The forest cover type dataset has 581,012 rows and 54 features, making it
+time consuming to process. We compare the run-time and accuracy of the GPU and CPU
+histogram algorithms.
+
+In addition, The demo showcases using GPU with other GPU-related libraries including
+cupy and cuml. These libraries are not strictly required.
+
 """
 import time
 
