@@ -152,6 +152,7 @@ sphinx_gallery_conf = {
         "../demo/dask",
         "../demo/aft_survival",
         "../demo/gpu_acceleration",
+        "../demo/rmm_plugin"
     ],
     # path to where to save gallery generated output
     "gallery_dirs": [
@@ -159,6 +160,7 @@ sphinx_gallery_conf = {
         "python/dask-examples",
         "python/survival-examples",
         "python/gpu-examples",
+        "python/rmm-examples",
     ],
     "matplotlib_animations": True,
 }

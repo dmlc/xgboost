@@ -1,3 +1,7 @@
+"""
+Using rmm on a single node device
+=================================
+"""
 import rmm
 from sklearn.datasets import make_classification
 
