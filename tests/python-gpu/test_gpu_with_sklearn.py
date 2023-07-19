@@ -2,6 +2,7 @@ import json
 import os
 import sys
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import pytest
@@ -133,7 +134,7 @@ def test_classififer():
     X, y = load_digits(return_X_y=True)
     y *= 10
 
-    clf = xgb.XGBClassifier(tree_method="gpu_hist", n_estimators=1)
+    clf = xgb.XGBClassifier(tree_method="hist", n_estimators=1, device="cuda")
 
     # numpy
     with pytest.raises(ValueError, match=r"Invalid classes.*"):
@@ -161,3 +162,39 @@ def test_ranking_qid_df():
     import cudf
 
     run_ranking_qid_df(cudf, "gpu_hist")
+
+
+@pytest.mark.mgpu
+def test_device() -> None:
+    import cupy as cp
+
+    def worker(ordinal: int, correct_ordinal: bool) -> None:
+        if correct_ordinal:
+            cp.cuda.runtime.setDevice(ordinal)
+        else:
+            cp.cuda.runtime.setDevice((ordinal + 1) % 2)
+
+        X, y, w = tm.make_regression(4096, 12, use_cupy=True)
+        reg = xgb.XGBRegressor(device=f"cuda:{ordinal}", tree_method="hist")
+
+        if correct_ordinal:
+            reg.fit(
+                X, y, sample_weight=w, eval_set=[(X, y)], sample_weight_eval_set=[w]
+            )
+            assert tm.non_increasing(reg.evals_result()["validation_0"]["rmse"])
+            return
+
+        with pytest.raises(ValueError, match="Invalid data ordinal"):
+            reg.fit(
+                X, y, sample_weight=w, eval_set=[(X, y)], sample_weight_eval_set=[w]
+            )
+
+    with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
+        futures = []
+        n_trials = 32
+        for i in range(n_trials):
+            fut = executor.submit(worker, ordinal=i % 2, correct_ordinal=i % 3 != 0)
+            futures.append(fut)
+
+        for fut in futures:
+            fut.result()
