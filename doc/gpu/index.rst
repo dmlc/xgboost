@@ -35,7 +35,7 @@ The GPU algorithms currently work with CLI, Python, R, and JVM packages. See :do
 
 GPU-Accelerated SHAP values
 =============================
-XGBoost makes use of `GPUTreeShap <https://github.com/rapidsai/gputreeshap>`_ as a backend for computing shap values when the GPU predictor is selected.
+XGBoost makes use of `GPUTreeShap <https://github.com/rapidsai/gputreeshap>`_ as a backend for computing shap values when the GPU is used.
 
 .. code-block:: python
 
@@ -43,12 +43,12 @@ XGBoost makes use of `GPUTreeShap <https://github.com/rapidsai/gputreeshap>`_ as
   shap_values = booster.predict(dtrain, pred_contribs=True)
   shap_interaction_values = model.predict(dtrain, pred_interactions=True)
 
-See examples `here <https://github.com/dmlc/xgboost/tree/master/demo/gpu_acceleration>`__.
+See :ref:`sphx_glr_python_gpu-examples_tree_shap.py` for a worked example.
 
 Multi-node Multi-GPU Training
 =============================
 
-XGBoost supports fully distributed GPU training using `Dask <https://dask.org/>`_, ``Spark`` and ``PySpark``. For getting started with Dask see our tutorial :doc:`/tutorials/dask` and worked examples `here <https://github.com/dmlc/xgboost/tree/master/demo/dask>`__, also Python documentation :ref:`dask_api` for complete reference. For usage with ``Spark`` using Scala see :doc:`/jvm/xgboost4j_spark_gpu_tutorial`. Lastly for distributed GPU training with ``PySpark``, see :doc:`/tutorials/spark_estimator`.
+XGBoost supports fully distributed GPU training using `Dask <https://dask.org/>`_, ``Spark`` and ``PySpark``. For getting started with Dask see our tutorial :doc:`/tutorials/dask` and worked examples :doc:`/python/dask-examples/index`, also Python documentation :ref:`dask_api` for complete reference. For usage with ``Spark`` using Scala see :doc:`/jvm/xgboost4j_spark_gpu_tutorial`. Lastly for distributed GPU training with ``PySpark``, see :doc:`/tutorials/spark_estimator`.
 
 
 Memory usage
