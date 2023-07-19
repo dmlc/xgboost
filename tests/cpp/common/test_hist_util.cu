@@ -798,8 +798,9 @@ class DeviceSketchWithHessianTest
     return hessian;
   }
 
-  void Check(Context const* ctx, std::shared_ptr<DMatrix> p_fmat, bst_bin_t n_bins,
-             HostDeviceVector<float> const& hessian, std::vector<float> const& w) const {
+  void CheckReg(Context const* ctx, std::shared_ptr<DMatrix> p_fmat, bst_bin_t n_bins,
+                HostDeviceVector<float> const& hessian, std::vector<float> const& w,
+                std::size_t n_elements) const {
     auto const& h_hess = hessian.ConstHostVector();
     {
       auto& h_weight = p_fmat->Info().weights_.HostVector();
@@ -807,7 +808,7 @@ class DeviceSketchWithHessianTest
     }
 
     HistogramCuts cuts_hess =
-        DeviceSketchWithHessian(ctx, p_fmat.get(), n_bins, hessian.ConstDeviceSpan());
+        DeviceSketchWithHessian(ctx, p_fmat.get(), n_bins, hessian.ConstDeviceSpan(), n_elements);
     ValidateCuts(cuts_hess, p_fmat.get(), n_bins);
 
     // merge hessian
@@ -819,7 +820,7 @@ class DeviceSketchWithHessianTest
       }
     }
 
-    HistogramCuts cuts_wh = DeviceSketch(ctx, p_fmat.get(), n_bins);
+    HistogramCuts cuts_wh = DeviceSketch(ctx, p_fmat.get(), n_bins, n_elements);
     ValidateCuts(cuts_wh, p_fmat.get(), n_bins);
     ASSERT_EQ(cuts_hess.Values().size(), cuts_wh.Values().size());
     for (std::size_t i = 0; i < cuts_hess.Values().size(); ++i) {
@@ -832,7 +833,8 @@ class DeviceSketchWithHessianTest
  protected:
   Context ctx_ = MakeCUDACtx(0);
 
-  void TestLTR(Context const* ctx, bst_row_t n_samples, bst_bin_t n_bins) const {
+  void TestLTR(Context const* ctx, bst_row_t n_samples, bst_bin_t n_bins,
+               std::size_t n_elements) const {
     auto x = GenerateRandom(n_samples, n_features_);
 
     std::vector<bst_group_t> gptr;
@@ -850,7 +852,7 @@ class DeviceSketchWithHessianTest
     std::vector<float> w(n_groups_, 1.0f);
     p_fmat->Info().weights_.HostVector() = w;
     HistogramCuts cuts_hess =
-        DeviceSketchWithHessian(ctx, p_fmat.get(), n_bins, hessian.ConstDeviceSpan());
+        DeviceSketchWithHessian(ctx, p_fmat.get(), n_bins, hessian.ConstDeviceSpan(), n_elements);
     // make validation easier by converting it into sample weight.
     p_fmat->Info().weights_.HostVector() = h_hess;
     p_fmat->Info().group_ptr_.clear();
@@ -862,7 +864,8 @@ class DeviceSketchWithHessianTest
     // test with random group weight
     w = GenerateRandomWeights(n_groups_);
     p_fmat->Info().weights_.HostVector() = w;
-    cuts_hess = DeviceSketchWithHessian(ctx, p_fmat.get(), n_bins, hessian.ConstDeviceSpan());
+    cuts_hess =
+        DeviceSketchWithHessian(ctx, p_fmat.get(), n_bins, hessian.ConstDeviceSpan(), n_elements);
     // make validation easier by converting it into sample weight.
     p_fmat->Info().weights_.HostVector() = h_hess;
     p_fmat->Info().group_ptr_.clear();
@@ -875,7 +878,7 @@ class DeviceSketchWithHessianTest
       auto gidx = dh::SegmentId(Span{gptr.data(), gptr.size()}, i);
       p_fmat->Info().weights_.HostVector()[i] = w[gidx] * h_hess[i];
     }
-    auto cuts = DeviceSketch(ctx, p_fmat.get(), n_bins);
+    auto cuts = DeviceSketch(ctx, p_fmat.get(), n_bins, n_elements);
     ValidateCuts(cuts, p_fmat.get(), n_bins);
     ASSERT_EQ(cuts.Values().size(), cuts_hess.Values().size());
     for (std::size_t i = 0; i < cuts.Values().size(); ++i) {
@@ -883,14 +886,15 @@ class DeviceSketchWithHessianTest
     }
   }
 
-  void TestRegression(Context const* ctx, bst_row_t n_samples, bst_bin_t n_bins) const {
+  void TestRegression(Context const* ctx, bst_row_t n_samples, bst_bin_t n_bins,
+                      std::size_t n_elements) const {
     auto x = GenerateRandom(n_samples, n_features_);
     auto p_fmat = GetDMatrixFromData(x, n_samples, n_features_);
     std::vector<float> w = GenerateRandomWeights(n_samples);
 
     auto hessian = this->GenerateHessian(ctx, n_samples);
 
-    this->Check(ctx, p_fmat, n_bins, hessian, w);
+    this->CheckReg(ctx, p_fmat, n_bins, hessian, w, n_elements);
   }
 };
 
@@ -913,9 +917,11 @@ TEST_P(DeviceSketchWithHessianTest, DeviceSketchWithHessian) {
   auto n_samples = std::get<1>(param);
   auto n_bins = std::get<2>(param);
   if (std::get<0>(param)) {
-    this->TestLTR(&ctx_, n_samples, n_bins);
+    this->TestLTR(&ctx_, n_samples, n_bins, 0);
+    this->TestLTR(&ctx_, n_samples, n_bins, 512);
   } else {
-    this->TestRegression(&ctx_, n_samples, n_bins);
+    this->TestRegression(&ctx_, n_samples, n_bins, 0);
+    this->TestRegression(&ctx_, n_samples, n_bins, 512);
   }
 }
 
