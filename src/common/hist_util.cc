@@ -8,8 +8,8 @@
 
 #include <vector>
 
-#include "../common/common.h"
-#include "column_matrix.h"
+#include "../data/adapter.h"         // for SparsePageAdapterBatch
+#include "../data/gradient_index.h"  // for GHistIndexMatrix
 #include "quantile.h"
 #include "xgboost/base.h"
 #include "xgboost/context.h"  // Context
@@ -24,9 +24,7 @@
   #define PREFETCH_READ_T0(addr) do {} while (0)
 #endif  // defined(XGBOOST_MM_PREFETCH_PRESENT)
 
-namespace xgboost {
-namespace common {
-
+namespace xgboost::common {
 HistogramCuts::HistogramCuts() {
   cut_ptrs_.HostVector().emplace_back(0);
 }
@@ -350,9 +348,8 @@ void BuildHistDispatch(Span<GradientPair const> gpair, const RowSetCollection::E
 }
 
 template <bool any_missing>
-void GHistBuilder::BuildHist(Span<GradientPair const> gpair,
-                             const RowSetCollection::Elem row_indices, const GHistIndexMatrix &gmat,
-                             GHistRow hist, bool force_read_by_column) const {
+void BuildHist(Span<GradientPair const> gpair, const RowSetCollection::Elem row_indices,
+               const GHistIndexMatrix &gmat, GHistRow hist, bool force_read_by_column) {
   /* force_read_by_column is used for testing the columnwise building of histograms.
    * default force_read_by_column = false
    */
@@ -369,14 +366,13 @@ void GHistBuilder::BuildHist(Span<GradientPair const> gpair,
       });
 }
 
-template void GHistBuilder::BuildHist<true>(Span<GradientPair const> gpair,
-                                            const RowSetCollection::Elem row_indices,
-                                            const GHistIndexMatrix &gmat, GHistRow hist,
-                                            bool force_read_by_column) const;
+template void BuildHist<true>(Span<GradientPair const> gpair,
+                              const RowSetCollection::Elem row_indices,
+                              const GHistIndexMatrix &gmat, GHistRow hist,
+                              bool force_read_by_column);
 
-template void GHistBuilder::BuildHist<false>(Span<GradientPair const> gpair,
-                                             const RowSetCollection::Elem row_indices,
-                                             const GHistIndexMatrix &gmat, GHistRow hist,
-                                             bool force_read_by_column) const;
-}  // namespace common
-}  // namespace xgboost
+template void BuildHist<false>(Span<GradientPair const> gpair,
+                               const RowSetCollection::Elem row_indices,
+                               const GHistIndexMatrix &gmat, GHistRow hist,
+                               bool force_read_by_column);
+}  // namespace xgboost::common

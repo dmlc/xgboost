@@ -16,11 +16,9 @@
 #include <vector>
 
 #include "categorical.h"
-#include "common.h"
 #include "quantile.h"
 #include "row_set.h"
 #include "threading_utils.h"
-#include "timer.h"
 #include "xgboost/base.h"  // for bst_feature_t, bst_bin_t
 #include "xgboost/data.h"
 
@@ -598,6 +596,8 @@ class ParallelGHistBuilder {
     }
   }
 
+  [[nodiscard]] bst_bin_t TotalBins() const { return nbins_; }
+
  private:
   void MatchNodeNidPairToHist() {
     size_t hist_allocated_additionally = 0;
@@ -643,27 +643,10 @@ class ParallelGHistBuilder {
   std::map<std::pair<size_t, size_t>, int> tid_nid_to_hist_;
 };
 
-/*!
- * \brief builder for histograms of gradient statistics
- */
-class GHistBuilder {
- public:
-  GHistBuilder() = default;
-  explicit GHistBuilder(uint32_t nbins): nbins_{nbins} {}
-
-  // construct a histogram via histogram aggregation
-  template <bool any_missing>
-  void BuildHist(Span<GradientPair const> gpair, const RowSetCollection::Elem row_indices,
-                 const GHistIndexMatrix& gmat, GHistRow hist,
-                 bool force_read_by_column = false) const;
-  uint32_t GetNumBins() const {
-      return nbins_;
-  }
-
- private:
-  /*! \brief number of all bins over all features */
-  uint32_t nbins_ { 0 };
-};
+// construct a histogram via histogram aggregation
+template <bool any_missing>
+void BuildHist(Span<GradientPair const> gpair, const RowSetCollection::Elem row_indices,
+               const GHistIndexMatrix& gmat, GHistRow hist, bool force_read_by_column = false);
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_HIST_UTIL_H_
