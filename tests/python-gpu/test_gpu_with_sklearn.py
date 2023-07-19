@@ -24,18 +24,19 @@ def test_gpu_binary_classification():
     from sklearn.model_selection import KFold
 
     digits = load_digits(n_class=2)
-    y = digits['target']
-    X = digits['data']
+    y = digits["target"]
+    X = digits["data"]
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for cls in (xgb.XGBClassifier, xgb.XGBRFClassifier):
         for train_index, test_index in kf.split(X, y):
             xgb_model = cls(
-                random_state=42, tree_method='gpu_hist',
-                n_estimators=4, gpu_id='0').fit(X[train_index], y[train_index])
+                random_state=42, tree_method="gpu_hist", n_estimators=4, gpu_id="0"
+            ).fit(X[train_index], y[train_index])
             preds = xgb_model.predict(X[test_index])
             labels = y[test_index]
-            err = sum(1 for i in range(len(preds))
-                      if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
+            err = sum(
+                1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]
+            ) / float(len(preds))
             assert err < 0.1
 
 
@@ -164,6 +165,7 @@ def test_ranking_qid_df():
     run_ranking_qid_df(cudf, "gpu_hist")
 
 
+@pytest.mark.skipif(**tm.no_cupy())
 @pytest.mark.mgpu
 def test_device() -> None:
     import cupy as cp
