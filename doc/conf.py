@@ -19,7 +19,6 @@ import sys
 import tarfile
 import urllib.request
 import warnings
-from subprocess import call
 from urllib.error import HTTPError
 
 from sh.contrib import git
@@ -148,7 +147,12 @@ extensions = [
 
 sphinx_gallery_conf = {
     # path to your example scripts
-    "examples_dirs": ["../demo/guide-python", "../demo/dask", "../demo/aft_survival"],
+    "examples_dirs": [
+        "../demo/guide-python",
+        "../demo/dask",
+        "../demo/aft_survival",
+        "../demo/gpu_acceleration",
+    ],
     # path to where to save gallery generated output
     "gallery_dirs": [
         "python/examples",
