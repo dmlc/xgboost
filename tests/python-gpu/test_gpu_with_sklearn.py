@@ -167,7 +167,7 @@ def test_ranking_qid_df():
 
 @pytest.mark.skipif(**tm.no_cupy())
 @pytest.mark.mgpu
-def test_device() -> None:
+def test_device_ordinal() -> None:
     import cupy as cp
 
     def worker(ordinal: int, correct_ordinal: bool) -> None:
