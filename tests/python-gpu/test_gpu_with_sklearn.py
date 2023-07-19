@@ -170,11 +170,13 @@ def test_ranking_qid_df():
 def test_device_ordinal() -> None:
     import cupy as cp
 
+    n_devices = 2
+
     def worker(ordinal: int, correct_ordinal: bool) -> None:
         if correct_ordinal:
             cp.cuda.runtime.setDevice(ordinal)
         else:
-            cp.cuda.runtime.setDevice((ordinal + 1) % 2)
+            cp.cuda.runtime.setDevice((ordinal + 1) % n_devices)
 
         X, y, w = tm.make_regression(4096, 12, use_cupy=True)
         reg = xgb.XGBRegressor(device=f"cuda:{ordinal}", tree_method="hist")
@@ -195,8 +197,12 @@ def test_device_ordinal() -> None:
         futures = []
         n_trials = 32
         for i in range(n_trials):
-            fut = executor.submit(worker, ordinal=i % 2, correct_ordinal=i % 3 != 0)
+            fut = executor.submit(
+                worker, ordinal=i % n_devices, correct_ordinal=i % 3 != 0
+            )
             futures.append(fut)
 
         for fut in futures:
             fut.result()
+
+    cp.cuda.runtime.setDevice(0)
