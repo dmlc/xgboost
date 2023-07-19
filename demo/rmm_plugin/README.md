@@ -37,7 +37,7 @@ the global configuration ``use_rmm``:
 
 ``` python
 with xgb.config_context(use_rmm=True):
-    clf = xgb.XGBClassifier(tree_method="gpu_hist")
+    clf = xgb.XGBClassifier(tree_method="hist", device="cuda")
 ```
 
 Depending on the choice of memory pool size or type of allocator, this may have negative

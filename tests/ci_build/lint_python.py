@@ -34,6 +34,7 @@ class LintersPaths:
         "tests/test_distributed/test_gpu_with_spark/",
         # demo
         "demo/dask/",
+        "demo/rmm_plugin",
         "demo/json-model/json_parser.py",
         "demo/guide-python/cat_in_the_dat.py",
         "demo/guide-python/categorical.py",

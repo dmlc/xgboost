@@ -16,7 +16,8 @@ params = {
     "eta": 0.01,
     "objective": "multi:softprob",
     "num_class": 3,
-    "tree_method": "gpu_hist",
+    "tree_method": "hist",
+    "device": "cuda",
 }
 # XGBoost will automatically use the RMM pool allocator
 bst = xgb.train(params, dtrain, num_boost_round=100, evals=[(dtrain, "train")])
