@@ -678,3 +678,6 @@ class TestModels:
 
             assert booster.feature_names == Xy.feature_names
             assert booster.feature_types == Xy.feature_types
+
+        with pytest.raises(ValueError, match=r"Duplicates found: \['bar'\]"):
+            Xy.feature_names = ["bar"] * (cols - 2) + ["a", "b"]
