@@ -1285,7 +1285,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             )
             duplicates = [name for name, cnt in zip(values, counts) if cnt > 1]
             raise ValueError(
-                "feature_names must be unique. Duplicates found: {}".format(duplicates)
+                f"feature_names must be unique. Duplicates found: {duplicates}"
             )
 
         # prohibit the use symbols that may affect parsing. e.g. []<
