@@ -20,7 +20,7 @@ void WarnDeprecatedGPUHist() {
       "The tree method `gpu_hist` is deprecated since 2.0.0. To use GPU training, set the `device` "
       R"(parameter to CUDA instead.
 
-    E.g. tree_method = "hist", device = "CUDA"
+    E.g. tree_method = "hist", device = "cuda"
 )";
   LOG(WARNING) << msg;
 }
