@@ -175,6 +175,7 @@ struct GPUHistMakerDevice {
  private:
   GPUHistEvaluator evaluator_;
   Context const* ctx_;
+  bool is_column_split_;
 
  public:
   EllpackPageImpl const* page{nullptr};
@@ -209,14 +210,15 @@ struct GPUHistMakerDevice {
   GPUHistMakerDevice(Context const* ctx, bool is_external_memory,
                      common::Span<FeatureType const> _feature_types, bst_row_t _n_rows,
                      TrainParam _param, uint32_t column_sampler_seed, uint32_t n_features,
-                     BatchParam _batch_param)
+                     BatchParam _batch_param, bool is_column_split)
       : evaluator_{_param, n_features, ctx->gpu_id},
         ctx_(ctx),
         feature_types{_feature_types},
         param(std::move(_param)),
         column_sampler(column_sampler_seed),
         interaction_constraints(param, n_features),
-        batch_param(std::move(_batch_param)) {
+        batch_param(std::move(_batch_param)),
+        is_column_split_{is_column_split} {
     sampler.reset(new GradientBasedSampler(ctx, _n_rows, batch_param, param.subsample,
                                            param.sampling_method, is_external_memory));
     if (!param.monotone_constraints.empty()) {
@@ -550,6 +552,9 @@ struct GPUHistMakerDevice {
 
   // num histograms is the number of contiguous histograms in memory to reduce over
   void AllReduceHist(int nidx, int num_histograms) {
+    if (is_column_split_) {
+      return;
+    }
     monitor.Start("AllReduce");
     auto d_node_hist = hist.GetNodeHistogram(nidx).data();
     using ReduceT = typename std::remove_pointer<decltype(d_node_hist)>::type::ValueT;
@@ -815,7 +820,7 @@ class GPUHistMaker : public TreeUpdater {
     info_->feature_types.SetDevice(ctx_->gpu_id);
     maker.reset(new GPUHistMakerDevice<GradientSumT>(
         ctx_, !dmat->SingleColBlock(), info_->feature_types.ConstDeviceSpan(), info_->num_row_,
-        *param, column_sampling_seed, info_->num_col_, batch_param));
+        *param, column_sampling_seed, info_->num_col_, batch_param, info_->IsColumnSplit()));
 
     p_last_fmat_ = dmat;
     initialised_ = true;

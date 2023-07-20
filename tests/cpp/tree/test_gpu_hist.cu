@@ -95,7 +95,7 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   BatchParam batch_param{};
   Context ctx{MakeCUDACtx(0)};
   GPUHistMakerDevice<GradientSumT> maker(&ctx, /*is_external_memory=*/false, {}, kNRows, param,
-                                         kNCols, kNCols, batch_param);
+                                         kNCols, kNCols, batch_param, /*is_column_split=*/false);
   xgboost::SimpleLCG gen;
   xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
   HostDeviceVector<GradientPair> gpair(kNRows);
