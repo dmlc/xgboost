@@ -679,8 +679,10 @@ struct GPUHistMakerDevice {
         dh::Reduce(ctx_->CUDACtx()->CTP(), gpair_it, gpair_it + gpair.size(),
                    GradientPairInt64{}, thrust::plus<GradientPairInt64>{});
     using ReduceT = typename decltype(root_sum_quantised)::ValueT;
-    collective::Allreduce<collective::Operation::kSum>(
-        reinterpret_cast<ReduceT *>(&root_sum_quantised), 2);
+    if (!is_column_split_) {
+      collective::Allreduce<collective::Operation::kSum>(
+          reinterpret_cast<ReduceT*>(&root_sum_quantised), 2);
+    }
 
     hist.AllocateHistograms({kRootNIdx});
     this->BuildHist(kRootNIdx);
