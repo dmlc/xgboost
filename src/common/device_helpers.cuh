@@ -1176,7 +1176,7 @@ inline void CUDAEvent::Record(CUDAStreamView stream) {  // NOLINT
   dh::safe_cuda(cudaEventRecord(event_, cudaStream_t{stream}));
 }
 
-inline CUDAStreamView DefaultStream() { return CUDAStreamView{cudaStreamLegacy}; }
+inline CUDAStreamView DefaultStream() { return CUDAStreamView{cudaStreamPerThread}; }
 
 class CUDAStream {
   cudaStream_t stream_;
