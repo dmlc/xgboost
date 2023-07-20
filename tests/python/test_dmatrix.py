@@ -219,8 +219,8 @@ class TestDMatrix:
         assert dm.slice([0, 1]).num_col() == dm.num_col()
         assert dm.slice([0, 1]).feature_names == dm.feature_names
 
-        dm.feature_types = 'q'
-        assert dm.feature_types == list('qqqqq')
+        with pytest.raises(ValueError, match=r"Duplicates found: \['bar'\]"):
+            dm.feature_names = ["bar"] * (data.shape[1] - 2) + ["a", "b"]
 
         dm.feature_types = list('qiqiq')
         assert dm.feature_types == list('qiqiq')
@@ -230,6 +230,7 @@ class TestDMatrix:
 
         # reset
         dm.feature_names = None
+        dm.feature_types = None
         assert dm.feature_names is None
         assert dm.feature_types is None
 
