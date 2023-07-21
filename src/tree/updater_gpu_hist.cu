@@ -12,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#include "../collective/aggregator.h"
 #include "../collective/communicator-inl.cuh"
 #include "../common/bitfield.h"
 #include "../common/categorical.h"
@@ -175,7 +176,7 @@ struct GPUHistMakerDevice {
  private:
   GPUHistEvaluator evaluator_;
   Context const* ctx_;
-  bool is_column_split_;
+  MetaInfo const& info_;
 
  public:
   EllpackPageImpl const* page{nullptr};
@@ -210,7 +211,7 @@ struct GPUHistMakerDevice {
   GPUHistMakerDevice(Context const* ctx, bool is_external_memory,
                      common::Span<FeatureType const> _feature_types, bst_row_t _n_rows,
                      TrainParam _param, uint32_t column_sampler_seed, uint32_t n_features,
-                     BatchParam _batch_param, bool is_column_split)
+                     BatchParam _batch_param, MetaInfo const& info)
       : evaluator_{_param, n_features, ctx->gpu_id},
         ctx_(ctx),
         feature_types{_feature_types},
@@ -218,7 +219,7 @@ struct GPUHistMakerDevice {
         column_sampler(column_sampler_seed),
         interaction_constraints(param, n_features),
         batch_param(std::move(_batch_param)),
-        is_column_split_{is_column_split} {
+        info_{info} {
     sampler.reset(new GradientBasedSampler(ctx, _n_rows, batch_param, param.subsample,
                                            param.sampling_method, is_external_memory));
     if (!param.monotone_constraints.empty()) {
@@ -262,7 +263,7 @@ struct GPUHistMakerDevice {
 
     this->evaluator_.Reset(page->Cuts(), feature_types, dmat->Info().num_col_, param, ctx_->gpu_id);
 
-    quantiser.reset(new GradientQuantiser(this->gpair));
+    quantiser.reset(new GradientQuantiser(this->gpair, dmat->Info()));
 
     row_partitioner.reset();  // Release the device memory first before reallocating
     row_partitioner.reset(new RowPartitioner(ctx_->gpu_id, sample.sample_rows));
@@ -552,7 +553,7 @@ struct GPUHistMakerDevice {
 
   // num histograms is the number of contiguous histograms in memory to reduce over
   void AllReduceHist(int nidx, int num_histograms) {
-    if (is_column_split_) {
+    if (info_.IsColumnSplit()) {
       return;
     }
     monitor.Start("AllReduce");
@@ -679,10 +680,7 @@ struct GPUHistMakerDevice {
         dh::Reduce(ctx_->CUDACtx()->CTP(), gpair_it, gpair_it + gpair.size(),
                    GradientPairInt64{}, thrust::plus<GradientPairInt64>{});
     using ReduceT = typename decltype(root_sum_quantised)::ValueT;
-    if (!is_column_split_) {
-      collective::Allreduce<collective::Operation::kSum>(
-          reinterpret_cast<ReduceT*>(&root_sum_quantised), 2);
-    }
+    collective::GlobalSum(info_, reinterpret_cast<ReduceT*>(&root_sum_quantised), 2);
 
     hist.AllocateHistograms({kRootNIdx});
     this->BuildHist(kRootNIdx);
@@ -822,7 +820,7 @@ class GPUHistMaker : public TreeUpdater {
     info_->feature_types.SetDevice(ctx_->gpu_id);
     maker.reset(new GPUHistMakerDevice<GradientSumT>(
         ctx_, !dmat->SingleColBlock(), info_->feature_types.ConstDeviceSpan(), info_->num_row_,
-        *param, column_sampling_seed, info_->num_col_, batch_param, info_->IsColumnSplit()));
+        *param, column_sampling_seed, info_->num_col_, batch_param, *info_));
 
     p_last_fmat_ = dmat;
     initialised_ = true;

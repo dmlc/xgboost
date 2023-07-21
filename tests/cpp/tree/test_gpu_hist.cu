@@ -95,7 +95,7 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   BatchParam batch_param{};
   Context ctx{MakeCUDACtx(0)};
   GPUHistMakerDevice<GradientSumT> maker(&ctx, /*is_external_memory=*/false, {}, kNRows, param,
-                                         kNCols, kNCols, batch_param, /*is_column_split=*/false);
+                                         kNCols, kNCols, batch_param, MetaInfo());
   xgboost::SimpleLCG gen;
   xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
   HostDeviceVector<GradientPair> gpair(kNRows);
@@ -113,7 +113,7 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   maker.hist.AllocateHistograms({0});
 
   maker.gpair = gpair.DeviceSpan();
-  maker.quantiser.reset(new GradientQuantiser(maker.gpair));
+  maker.quantiser.reset(new GradientQuantiser(maker.gpair, MetaInfo()));
   maker.page = page.get();
 
   maker.InitFeatureGroupsOnce();
@@ -167,7 +167,7 @@ HistogramCutsWrapper GetHostCutMatrix () {
 inline GradientQuantiser DummyRoundingFactor() {
   thrust::device_vector<GradientPair> gpair(1);
   gpair[0] = {1000.f, 1000.f};  // Tests should not exceed sum of 1000
-  return GradientQuantiser(dh::ToSpan(gpair));
+  return GradientQuantiser(dh::ToSpan(gpair), MetaInfo());
 }
 
 void TestHistogramIndexImpl() {
