@@ -13,7 +13,7 @@
 #include <vector>
 
 #include "../collective/aggregator.h"
-#include "../collective/communicator-inl.cuh"
+#include "../collective/aggregator.cuh"
 #include "../common/bitfield.h"
 #include "../common/categorical.h"
 #include "../common/cuda_context.cuh"  // CUDAContext
@@ -553,15 +553,11 @@ struct GPUHistMakerDevice {
 
   // num histograms is the number of contiguous histograms in memory to reduce over
   void AllReduceHist(int nidx, int num_histograms) {
-    if (info_.IsColumnSplit()) {
-      return;
-    }
     monitor.Start("AllReduce");
     auto d_node_hist = hist.GetNodeHistogram(nidx).data();
     using ReduceT = typename std::remove_pointer<decltype(d_node_hist)>::type::ValueT;
-    collective::AllReduce<collective::Operation::kSum>(
-        ctx_->gpu_id, reinterpret_cast<ReduceT*>(d_node_hist),
-        page->Cuts().TotalBins() * 2 * num_histograms);
+    collective::GlobalSum(info_, ctx_->gpu_id, reinterpret_cast<ReduceT*>(d_node_hist),
+                          page->Cuts().TotalBins() * 2 * num_histograms);
 
     monitor.Stop("AllReduce");
   }
