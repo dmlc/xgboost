@@ -1,20 +1,20 @@
 Using XGBoost with RAPIDS Memory Manager (RMM) plugin (EXPERIMENTAL)
 ====================================================================
 
-[RAPIDS Memory Manager `RMM <https://github.com/rapidsai/rmm>`__ library provides a
+`RAPIDS Memory Manager (RMM) <https://github.com/rapidsai/rmm>`__ library provides a
 collection of efficient memory allocators for NVIDIA GPUs. It is now possible to use
 XGBoost with memory allocators provided by RMM, by enabling the RMM integration plugin.
 
 The demos in this directory highlights one RMM allocator in particular: **the pool
-sub-allocator**.  This allocator addresses the slow speed of `cudaMalloc()` by allocating
-a large chunk of memory upfront. Subsequent allocations will draw from the pool of already
-allocated memory and thus avoid the overhead of calling `cudaMalloc()` directly. See `this
-GTC talk slides
+sub-allocator**.  This allocator addresses the slow speed of ``cudaMalloc()`` by
+allocating a large chunk of memory upfront. Subsequent allocations will draw from the pool
+of already allocated memory and thus avoid the overhead of calling ``cudaMalloc()``
+directly. See `this GTC talk slides
 <https://on-demand.gputechconf.com/gtc/2015/presentation/S5530-Stephen-Jones.pdf>`_ for
 more details.
 
 Before running the demos, ensure that XGBoost is compiled with the RMM plugin enabled. To do this,
-run CMake with option `-DPLUGIN_RMM=ON` (`-DUSE_CUDA=ON` also required):
+run CMake with option ``-DPLUGIN_RMM=ON`` (``-DUSE_CUDA=ON`` also required):
 
 .. code-block:: sh
 

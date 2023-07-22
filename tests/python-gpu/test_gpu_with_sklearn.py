@@ -188,7 +188,7 @@ def test_device_ordinal() -> None:
             assert tm.non_increasing(reg.evals_result()["validation_0"]["rmse"])
             return
 
-        with pytest.raises(ValueError, match="Invalid data ordinal"):
+        with pytest.raises(ValueError, match="Invalid device ordinal"):
             reg.fit(
                 X, y, sample_weight=w, eval_set=[(X, y)], sample_weight_eval_set=[w]
             )

@@ -727,9 +727,9 @@ void CheckDevice(std::int32_t device, HostDeviceVector<T> const& v) {
   bool valid =
       v.DeviceIdx() == Context::kCpuId || device == Context::kCpuId || v.DeviceIdx() == device;
   if (!valid) {
-    LOG(FATAL) << "Invalid data ordinal, data is resided on a different device than the ordinal of "
-                  "the booster. The ordinal of the data is: "
-               << v.DeviceIdx() << ", the ordinal for XGBoost is: " << device;
+    LOG(FATAL) << "Invalid device ordinal. Data is associated with a different device ordinal than "
+                  "the booster. The device ordinal of the data is: "
+               << v.DeviceIdx() << "; the device ordinal of the Booster is: " << device;
   }
 }
 
