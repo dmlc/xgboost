@@ -48,12 +48,10 @@ void TestEvaluateSplits(bool force_read_by_column) {
   std::iota(row_indices.begin(), row_indices.end(), 0);
   row_set_collection.Init();
 
-  auto hist_builder = common::GHistBuilder(gmat.cut.Ptrs().back());
   hist.Init(gmat.cut.Ptrs().back());
   hist.AddHistRow(0);
   hist.AllocateAllData();
-  hist_builder.template BuildHist<false>(row_gpairs, row_set_collection[0],
-                                         gmat, hist[0], force_read_by_column);
+  common::BuildHist<false>(row_gpairs, row_set_collection[0], gmat, hist[0], force_read_by_column);
 
   // Compute total gradient for all data points
   GradientPairPrecise total_gpair;

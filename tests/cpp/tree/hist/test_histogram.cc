@@ -13,8 +13,7 @@
 #include "../../categorical_helpers.h"
 #include "../../helpers.h"
 
-namespace xgboost {
-namespace tree {
+namespace xgboost::tree {
 namespace {
 void InitRowPartitionForTest(common::RowSetCollection *row_set, size_t n_samples, size_t base_rowid = 0) {
   auto &row_indices = *row_set->Data();
@@ -487,5 +486,5 @@ TEST(CPUHistogram, ExternalMemory) {
   TestHistogramExternalMemory(&ctx, {kBins, sparse_thresh}, false, false);
   TestHistogramExternalMemory(&ctx, {kBins, sparse_thresh}, false, true);
 }
-}  // namespace tree
-}  // namespace xgboost
+}  // namespace xgboost::tree
+
