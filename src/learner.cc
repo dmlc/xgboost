@@ -583,8 +583,9 @@ class LearnerConfiguration : public Learner {
     auto& objective_fn = learner_parameters["objective"];
     obj_->SaveConfig(&objective_fn);
 
-    std::vector<Json> metrics(metrics_.size(), Json{Object{}});
+    std::vector<Json> metrics(metrics_.size());
     for (size_t i = 0; i < metrics_.size(); ++i) {
+      metrics[i] = Object{};
       metrics_[i]->SaveConfig(&metrics[i]);
     }
     learner_parameters["metrics"] = Array(std::move(metrics));
@@ -807,14 +808,13 @@ class LearnerConfiguration : public Learner {
 
   void ConfigureMetrics(Args const& args) {
     for (auto const& name : metric_names_) {
-      auto DupCheck = [&name](std::unique_ptr<Metric> const& m) {
-                        return m->Name() != name;
-                      };
+      auto DupCheck = [&name](std::unique_ptr<Metric> const& m) { return m->Name() != name; };
       if (std::all_of(metrics_.begin(), metrics_.end(), DupCheck)) {
         metrics_.emplace_back(std::unique_ptr<Metric>(Metric::Create(name, &ctx_)));
         mparam_.contain_eval_metrics = 1;
       }
     }
+
     for (auto& p_metric : metrics_) {
       p_metric->Configure(args);
     }
