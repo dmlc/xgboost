@@ -144,8 +144,13 @@ class SparkXGBRegressor(_SparkXGBEstimator):
         .. deprecated:: 2.0.0
 
         Use `device` instead.
+
     device:
+
+        .. versionadded:: 2.0.0
+
         Device for XGBoost workers, available options are `cpu`, `cuda`, and `gpu`.
+
     force_repartition:
         Boolean value to specify if forcing the input dataset to be repartitioned
         before XGBoost training.
@@ -319,8 +324,13 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
         .. deprecated:: 2.0.0
 
         Use `device` instead.
+
     device:
+
+        .. versionadded:: 2.0.0
+
         Device for XGBoost workers, available options are `cpu`, `cuda`, and `gpu`.
+
     force_repartition:
         Boolean value to specify if forcing the input dataset to be repartitioned
         before XGBoost training.
@@ -497,8 +507,13 @@ class SparkXGBRanker(_SparkXGBEstimator):
         .. deprecated:: 2.0.0
 
         Use `device` instead.
+
     device:
+
+        .. versionadded:: 2.0.0
+
         Device for XGBoost workers, available options are `cpu`, `cuda`, and `gpu`.
+
     force_repartition:
         Boolean value to specify if forcing the input dataset to be repartitioned
         before XGBoost training.

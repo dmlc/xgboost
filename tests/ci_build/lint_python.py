@@ -29,10 +29,12 @@ class LintersPaths:
         "tests/python-gpu/load_pickle.py",
         "tests/python-gpu/test_gpu_pickling.py",
         "tests/python-gpu/test_gpu_eval_metrics.py",
+        "tests/python-gpu/test_gpu_with_sklearn.py",
         "tests/test_distributed/test_with_spark/",
         "tests/test_distributed/test_gpu_with_spark/",
         # demo
         "demo/dask/",
+        "demo/rmm_plugin",
         "demo/json-model/json_parser.py",
         "demo/guide-python/cat_in_the_dat.py",
         "demo/guide-python/categorical.py",

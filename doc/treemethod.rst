@@ -124,7 +124,7 @@ Following table summarizes some differences in supported features between 4 tree
 `T` means supported while `F` means unsupported.
 
 +------------------+-----------+---------------------+---------------------+------------------------+
-|                  | Exact     | Approx              | Hist                | GPU Hist               |
+|                  | Exact     | Approx              | Hist                | Hist (GPU)             |
 +==================+===========+=====================+=====================+========================+
 | grow_policy      | Depthwise | depthwise/lossguide | depthwise/lossguide | depthwise/lossguide    |
 +------------------+-----------+---------------------+---------------------+------------------------+
@@ -141,5 +141,5 @@ Following table summarizes some differences in supported features between 4 tree
 
 Features/parameters that are not mentioned here are universally supported for all 4 tree
 methods (for instance, column sampling and constraints).  The `P` in external memory means
-partially supported.  Please note that both categorical data and external memory are
+special handling.  Please note that both categorical data and external memory are
 experimental.

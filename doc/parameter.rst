@@ -34,27 +34,6 @@ General Parameters
 
   - Which booster to use. Can be ``gbtree``, ``gblinear`` or ``dart``; ``gbtree`` and ``dart`` use tree based models while ``gblinear`` uses linear functions.
 
-* ``verbosity`` [default=1]
-
-  - Verbosity of printing messages.  Valid values are 0 (silent), 1 (warning), 2 (info), 3
-    (debug).  Sometimes XGBoost tries to change configurations based on heuristics, which
-    is displayed as warning message.  If there's unexpected behaviour, please try to
-    increase value of verbosity.
-
-* ``validate_parameters`` [default to ``false``, except for Python, R and CLI interface]
-
-  - When set to True, XGBoost will perform validation of input parameters to check whether
-    a parameter is used or not.
-
-* ``nthread`` [default to maximum number of threads available if not set]
-
-  - Number of parallel threads used to run XGBoost.  When choosing it, please keep thread
-    contention and hyperthreading in mind.
-
-* ``disable_default_eval_metric`` [default= ``false``]
-
-  - Flag to disable default metric. Set to 1 or ``true`` to disable.
-
 * ``device`` [default= ``cpu``]
 
   .. versionadded:: 2.0.0
@@ -66,6 +45,29 @@ General Parameters
     + ``cuda:<ordinal>``: ``<ordinal>`` is an integer that specifies the ordinal of the GPU (which GPU do you want to use if you have more than one devices).
     + ``gpu``: Default GPU device selection from the list of available and supported devices. Only ``cuda`` devices are supported currently.
     + ``gpu:<ordinal>``: Default GPU device selection from the list of available and supported devices. Only ``cuda`` devices are supported currently.
+
+    For more information about GPU acceleration, see :doc:`/gpu/index`.
+
+* ``verbosity`` [default=1]
+
+  - Verbosity of printing messages.  Valid values are 0 (silent), 1 (warning), 2 (info), 3
+    (debug).  Sometimes XGBoost tries to change configurations based on heuristics, which
+    is displayed as warning message.  If there's unexpected behaviour, please try to
+    increase value of verbosity.
+
+* ``validate_parameters`` [default to ``false``, except for Python, R and CLI interface]
+
+  - When set to True, XGBoost will perform validation of input parameters to check whether
+    a parameter is used or not. A warning is emitted when there's unknown parameter.
+
+* ``nthread`` [default to maximum number of threads available if not set]
+
+  - Number of parallel threads used to run XGBoost.  When choosing it, please keep thread
+    contention and hyperthreading in mind.
+
+* ``disable_default_eval_metric`` [default= ``false``]
+
+  - Flag to disable default metric. Set to 1 or ``true`` to disable.
 
 Parameters for Tree Booster
 ===========================
@@ -160,7 +162,7 @@ Parameters for Tree Booster
     - ``grow_colmaker``: non-distributed column-based construction of trees.
     - ``grow_histmaker``: distributed tree construction with row-based data splitting based on global proposal of histogram counting.
     - ``grow_quantile_histmaker``: Grow tree using quantized histogram.
-    - ``grow_gpu_hist``: Grow tree with GPU. Same as setting ``tree_method`` to ``hist`` and use ``device=cuda``.
+    - ``grow_gpu_hist``: Grow tree with GPU. Enabled when ``tree_method`` is set to ``hist`` along with ``device=cuda``.
     - ``sync``: synchronizes trees in all distributed nodes.
     - ``refresh``: refreshes tree's statistics and/or leaf values based on the current data. Note that no random subsampling of data rows is performed.
     - ``prune``: prunes the splits where loss < min_split_loss (or gamma) and nodes that have depth greater than ``max_depth``.

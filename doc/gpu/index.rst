@@ -23,20 +23,19 @@ The GPU algorithms currently work with CLI, Python, R, and JVM packages. See :do
   :caption: Python example
 
   params = dict()
-  params["device"] = "cuda:0"
+  params["device"] = "cuda"
   params["tree_method"] = "hist"
   Xy = xgboost.QuantileDMatrix(X, y)
   xgboost.train(params, Xy)
 
 .. code-block:: python
-  :caption: With Scikit-Learn interface
+  :caption: With the Scikit-Learn interface
 
   XGBRegressor(tree_method="hist", device="cuda")
 
-
 GPU-Accelerated SHAP values
 =============================
-XGBoost makes use of `GPUTreeShap <https://github.com/rapidsai/gputreeshap>`_ as a backend for computing shap values when the GPU predictor is selected.
+XGBoost makes use of `GPUTreeShap <https://github.com/rapidsai/gputreeshap>`_ as a backend for computing shap values when the GPU is used.
 
 .. code-block:: python
 
@@ -44,12 +43,12 @@ XGBoost makes use of `GPUTreeShap <https://github.com/rapidsai/gputreeshap>`_ as
   shap_values = booster.predict(dtrain, pred_contribs=True)
   shap_interaction_values = model.predict(dtrain, pred_interactions=True)
 
-See examples `here <https://github.com/dmlc/xgboost/tree/master/demo/gpu_acceleration>`__.
+See :ref:`sphx_glr_python_gpu-examples_tree_shap.py` for a worked example.
 
 Multi-node Multi-GPU Training
 =============================
 
-XGBoost supports fully distributed GPU training using `Dask <https://dask.org/>`_, ``Spark`` and ``PySpark``. For getting started with Dask see our tutorial :doc:`/tutorials/dask` and worked examples `here <https://github.com/dmlc/xgboost/tree/master/demo/dask>`__, also Python documentation :ref:`dask_api` for complete reference. For usage with ``Spark`` using Scala see :doc:`/jvm/xgboost4j_spark_gpu_tutorial`. Lastly for distributed GPU training with ``PySpark``, see :doc:`/tutorials/spark_estimator`.
+XGBoost supports fully distributed GPU training using `Dask <https://dask.org/>`_, ``Spark`` and ``PySpark``. For getting started with Dask see our tutorial :doc:`/tutorials/dask` and worked examples :doc:`/python/dask-examples/index`, also Python documentation :ref:`dask_api` for complete reference. For usage with ``Spark`` using Scala see :doc:`/jvm/xgboost4j_spark_gpu_tutorial`. Lastly for distributed GPU training with ``PySpark``, see :doc:`/tutorials/spark_estimator`.
 
 
 Memory usage
@@ -67,7 +66,8 @@ If you are getting out-of-memory errors on a big dataset, try the or :py:class:`
 
 CPU-GPU Interoperability
 ========================
-XGBoost models trained on GPUs can be used on CPU-only systems to generate predictions. For information about how to save and load an XGBoost model, see :doc:`/tutorials/saving_model`.
+
+The model can be used on any device regardless of the one used to train it. For instance, a model trained using GPU can still work on a CPU-only machine and vice versa. For more information about model serialization, see :doc:`/tutorials/saving_model`.
 
 
 Developer notes

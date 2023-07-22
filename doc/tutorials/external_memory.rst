@@ -81,7 +81,7 @@ constructor.
   it = Iterator(["file_0.svm", "file_1.svm", "file_2.svm"])
   Xy = xgboost.DMatrix(it)
 
-  # Other tree methods including ``hist`` and ``gpu_hist`` also work, but has some caveats
+  # The ``approx`` also work, but with low performance. GPU implementation is different from CPU.
   # as noted in following sections.
   booster = xgboost.train({"tree_method": "hist"}, Xy)
 
@@ -118,15 +118,15 @@ to reduce the overhead of file reading.
 GPU Version (GPU Hist tree method)
 **********************************
 
-External memory is supported by GPU algorithms (i.e. when ``tree_method`` is set to
-``gpu_hist``). However, the algorithm used for GPU is different from the one used for
+External memory is supported by GPU algorithms (i.e. when ``device`` is set to
+``cuda``). However, the algorithm used for GPU is different from the one used for
 CPU. When training on a CPU, the tree method iterates through all batches from external
 memory for each step of the tree construction algorithm. On the other hand, the GPU
 algorithm uses a hybrid approach. It iterates through the data during the beginning of
-each iteration and concatenates all batches into one in GPU memory. To reduce overall
-memory usage, users can utilize subsampling. The GPU hist tree method supports
-`gradient-based sampling`, enabling users to set a low sampling rate without compromising
-accuracy.
+each iteration and concatenates all batches into one in GPU memory for performance
+reasons. To reduce overall memory usage, users can utilize subsampling. The GPU hist tree
+method supports `gradient-based sampling`, enabling users to set a low sampling rate
+without compromising accuracy.
 
 .. code-block:: python
 
