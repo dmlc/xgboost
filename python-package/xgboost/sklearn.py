@@ -230,9 +230,9 @@ __model_doc = f"""
     subsample : Optional[float]
         Subsample ratio of the training instance.
     sampling_method :
-        Sampling method. Used only by the GPU version of `hist` tree method.
-          - `uniform`: select random training instances uniformly.
-          - `gradient_based` select random training instances with higher probability
+        Sampling method. Used only by the GPU version of ``hist`` tree method.
+          - ``uniform``: select random training instances uniformly.
+          - ``gradient_based`` select random training instances with higher probability
             when the gradient and hessian are larger. (cf. CatBoost)
     colsample_bytree : Optional[float]
         Subsample ratio of columns when constructing each tree.

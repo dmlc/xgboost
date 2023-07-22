@@ -223,7 +223,7 @@ class TestCallbacks:
         early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
                                                 save_best=False)
         xgb.XGBClassifier(
-            booster='gblinear',
+            booster="gblinear",
             n_estimators=10,
             eval_metric=tm.eval_error_metric_skl,
             callbacks=[early_stop],
