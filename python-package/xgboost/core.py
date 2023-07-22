@@ -1234,11 +1234,10 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
 
     @property
     def feature_names(self) -> Optional[FeatureNames]:
-        """Get feature names (column labels).
+        """Labels for features (column labels).
 
-        Returns
-        -------
-        feature_names : list or None
+        Setting it to ``None`` resets existing feature names.
+
         """
         length = c_bst_ulong()
         sarr = ctypes.POINTER(ctypes.c_char_p)()
@@ -1257,13 +1256,6 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
 
     @feature_names.setter
     def feature_names(self, feature_names: Optional[FeatureNames]) -> None:
-        """Set feature names (column labels).
-
-        Parameters
-        ----------
-        feature_names :
-            Labels for features. None will reset existing feature names.
-        """
         if feature_names is None:
             _check_call(
                 _LIB.XGDMatrixSetStrFeatureInfo(
@@ -1312,11 +1304,13 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
 
     @property
     def feature_types(self) -> Optional[FeatureTypes]:
-        """Get feature types (column types).
+        """Type of features (column types).
 
-        Returns
-        -------
-        feature_types : list or None
+        This is for displaying the results and categorical data support. See
+        :py:class:`DMatrix` for details.
+
+        Setting it to ``None`` resets existing feature types.
+
         """
         length = c_bst_ulong()
         sarr = ctypes.POINTER(ctypes.c_char_p)()
@@ -1335,17 +1329,6 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
 
     @feature_types.setter
     def feature_types(self, feature_types: Optional[FeatureTypes]) -> None:
-        """Set feature types (column types).
-
-        This is for displaying the results and categorical data support. See
-        :py:class:`DMatrix` for details.
-
-        Parameters
-        ----------
-        feature_types :
-            Labels for features. None will reset existing feature names
-
-        """
         if feature_types is None:
             # Reset
             _check_call(
