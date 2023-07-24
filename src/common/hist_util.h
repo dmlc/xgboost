@@ -172,7 +172,7 @@ class HistogramCuts {
  *                   but consumes more memory.
  */
 HistogramCuts SketchOnDMatrix(Context const* ctx, DMatrix* m, bst_bin_t max_bins,
-                              bool use_sorted = false, Span<float> const hessian = {});
+                              bool use_sorted = false, Span<float const> hessian = {});
 
 enum BinTypeSize : uint8_t {
   kUint8BinsTypeSize = 1,

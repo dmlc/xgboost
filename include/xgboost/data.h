@@ -185,10 +185,10 @@ class MetaInfo {
     return data_split_mode == DataSplitMode::kRow;
   }
 
-  /*! \brief Whether the data is split column-wise. */
-  bool IsColumnSplit() const {
-    return data_split_mode == DataSplitMode::kCol;
-  }
+  /** @brief Whether the data is split column-wise. */
+  bool IsColumnSplit() const { return data_split_mode == DataSplitMode::kCol; }
+  /** @brief Whether this is a learning to rank data. */
+  bool IsRanking() const { return !group_ptr_.empty(); }
 
   /*!
    * \brief A convenient method to check if we are doing vertical federated learning, which requires
@@ -249,7 +249,7 @@ struct BatchParam {
   /**
    * \brief Hessian, used for sketching with future approx implementation.
    */
-  common::Span<float> hess;
+  common::Span<float const> hess;
   /**
    * \brief Whether should we force DMatrix to regenerate the batch.  Only used for
    *        GHistIndex.
@@ -279,7 +279,7 @@ struct BatchParam {
    *   Get batch with sketch weighted by hessian.  The batch will be regenerated if the
    *   span is changed, so caller should keep the span for each iteration.
    */
-  BatchParam(bst_bin_t max_bin, common::Span<float> hessian, bool regenerate)
+  BatchParam(bst_bin_t max_bin, common::Span<float const> hessian, bool regenerate)
       : max_bin{max_bin}, hess{hessian}, regen{regenerate} {}
 
   [[nodiscard]] bool ParamNotEqual(BatchParam const& other) const {

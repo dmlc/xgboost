@@ -12,8 +12,8 @@
 #include "../data/gradient_index.h"  // for GHistIndexMatrix
 #include "quantile.h"
 #include "xgboost/base.h"
-#include "xgboost/context.h"  // Context
-#include "xgboost/data.h"     // SparsePage, SortedCSCPage
+#include "xgboost/context.h"  // for Context
+#include "xgboost/data.h"     // for SparsePage, SortedCSCPage
 
 #if defined(XGBOOST_MM_PREFETCH_PRESENT)
   #include <xmmintrin.h>
@@ -30,7 +30,7 @@ HistogramCuts::HistogramCuts() {
 }
 
 HistogramCuts SketchOnDMatrix(Context const *ctx, DMatrix *m, bst_bin_t max_bins, bool use_sorted,
-                              Span<float> const hessian) {
+                              Span<float const> hessian) {
   HistogramCuts out;
   auto const &info = m->Info();
   auto n_threads = ctx->Threads();
