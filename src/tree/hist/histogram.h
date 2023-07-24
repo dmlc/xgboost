@@ -22,7 +22,6 @@ class HistogramBuilder {
   common::HistCollection hist_;
   /*! \brief culmulative local parent histogram of gradients. */
   common::HistCollection hist_local_worker_;
-  common::GHistBuilder builder_;
   common::ParallelGHistBuilder buffer_;
   BatchParam param_;
   int32_t n_threads_{-1};
@@ -49,7 +48,6 @@ class HistogramBuilder {
     hist_.Init(total_bins);
     hist_local_worker_.Init(total_bins);
     buffer_.Init(total_bins);
-    builder_ = common::GHistBuilder(total_bins);
     is_distributed_ = is_distributed;
     is_col_split_ = is_col_split;
     // Workaround s390x gcc 7.5.0
@@ -88,8 +86,7 @@ class HistogramBuilder {
                                                     elem.begin + end_of_row_set, nid);
       auto hist = buffer_.GetInitializedHist(tid, nid_in_set);
       if (rid_set.Size() != 0) {
-        builder_.template BuildHist<any_missing>(gpair_h, rid_set, gidx, hist,
-                                                 force_read_by_column);
+        common::BuildHist<any_missing>(gpair_h, rid_set, gidx, hist, force_read_by_column);
       }
     });
   }
@@ -163,9 +160,9 @@ class HistogramBuilder {
                                 std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
                                 std::vector<ExpandEntry> const &nodes_for_subtraction_trick,
                                 int starting_index, int sync_count) {
-    const size_t nbins = builder_.GetNumBins();
+    auto n_bins = buffer_.TotalBins();
     common::BlockedSpace2d space(
-        nodes_for_explicit_hist_build.size(), [&](size_t) { return nbins; }, 1024);
+        nodes_for_explicit_hist_build.size(), [&](size_t) { return n_bins; }, 1024);
     common::ParallelFor2d(space, n_threads_, [&](size_t node, common::Range1d r) {
       const auto &entry = nodes_for_explicit_hist_build[node];
       auto this_hist = this->hist_[entry.nid];
@@ -188,14 +185,13 @@ class HistogramBuilder {
     });
 
     collective::Allreduce<collective::Operation::kSum>(
-        reinterpret_cast<double *>(this->hist_[starting_index].data()),
-        builder_.GetNumBins() * sync_count * 2);
+        reinterpret_cast<double *>(this->hist_[starting_index].data()), n_bins * sync_count * 2);
 
     ParallelSubtractionHist(space, nodes_for_explicit_hist_build, nodes_for_subtraction_trick,
                             p_tree);
 
     common::BlockedSpace2d space2(
-        nodes_for_subtraction_trick.size(), [&](size_t) { return nbins; }, 1024);
+        nodes_for_subtraction_trick.size(), [&](size_t) { return n_bins; }, 1024);
     ParallelSubtractionHist(space2, nodes_for_subtraction_trick, nodes_for_explicit_hist_build,
                             p_tree);
   }
@@ -203,7 +199,7 @@ class HistogramBuilder {
   void SyncHistogramLocal(RegTree const *p_tree,
                           std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
                           std::vector<ExpandEntry> const &nodes_for_subtraction_trick) {
-    const size_t nbins = this->builder_.GetNumBins();
+    const size_t nbins = this->buffer_.TotalBins();
     common::BlockedSpace2d space(
         nodes_for_explicit_hist_build.size(), [&](size_t) { return nbins; }, 1024);
 

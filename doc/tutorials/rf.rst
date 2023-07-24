@@ -50,13 +50,14 @@ Here is a sample parameter dictionary for training a random forest on a GPU usin
 xgboost::
 
   params = {
-    'colsample_bynode': 0.8,
-    'learning_rate': 1,
-    'max_depth': 5,
-    'num_parallel_tree': 100,
-    'objective': 'binary:logistic',
-    'subsample': 0.8,
-    'tree_method': 'gpu_hist'
+    "colsample_bynode": 0.8,
+    "learning_rate": 1,
+    "max_depth": 5,
+    "num_parallel_tree": 100,
+    "objective": "binary:logistic",
+    "subsample": 0.8,
+    "tree_method": "hist",
+    "device": "cuda",
   }
 
 A random forest model can then be trained as follows::

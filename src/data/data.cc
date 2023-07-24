@@ -724,11 +724,15 @@ void MetaInfo::SynchronizeNumberOfColumns() {
 namespace {
 template <typename T>
 void CheckDevice(std::int32_t device, HostDeviceVector<T> const& v) {
-  CHECK(v.DeviceIdx() == Context::kCpuId || device == Context::kCpuId || v.DeviceIdx() == device)
-      << "Data is resided on a different device than `gpu_id`. "
-      << "Device that data is on: " << v.DeviceIdx() << ", "
-      << "`gpu_id` for XGBoost: " << device;
+  bool valid =
+      v.DeviceIdx() == Context::kCpuId || device == Context::kCpuId || v.DeviceIdx() == device;
+  if (!valid) {
+    LOG(FATAL) << "Invalid device ordinal. Data is associated with a different device ordinal than "
+                  "the booster. The device ordinal of the data is: "
+               << v.DeviceIdx() << "; the device ordinal of the Booster is: " << device;
+  }
 }
+
 template <typename T, std::int32_t D>
 void CheckDevice(std::int32_t device, linalg::Tensor<T, D> const& v) {
   CheckDevice(device, *v.Data());

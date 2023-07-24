@@ -28,17 +28,6 @@ from .core import (
 _CVFolds = Sequence["CVPack"]
 
 
-def _assert_new_callback(callbacks: Optional[Sequence[TrainingCallback]]) -> None:
-    is_new_callback: bool = not callbacks or all(
-        isinstance(c, TrainingCallback) for c in callbacks
-    )
-    if not is_new_callback:
-        link = "https://xgboost.readthedocs.io/en/latest/python/callbacks.html"
-        raise ValueError(
-            f"Old style callback was removed in version 1.6.  See: {link}."
-        )
-
-
 def _configure_custom_metric(
     feval: Optional[Metric], custom_metric: Optional[Metric]
 ) -> Optional[Metric]:
@@ -170,7 +159,6 @@ def train(
     bst = Booster(params, [dtrain] + [d[0] for d in evals], model_file=xgb_model)
     start_iteration = 0
 
-    _assert_new_callback(callbacks)
     if verbose_eval:
         verbose_eval = 1 if verbose_eval is True else verbose_eval
         callbacks.append(EvaluationMonitor(period=verbose_eval))
@@ -247,7 +235,7 @@ class _PackedBooster:
         result = [f.eval(iteration, feval, output_margin) for f in self.cvfolds]
         return result
 
-    def set_attr(self, **kwargs: Optional[str]) -> Any:
+    def set_attr(self, **kwargs: Optional[Any]) -> Any:
         """Iterate through folds for setting attributes"""
         for f in self.cvfolds:
             f.bst.set_attr(**kwargs)
@@ -274,10 +262,19 @@ class _PackedBooster:
         """Get best_iteration"""
         return int(cast(int, self.cvfolds[0].bst.attr("best_iteration")))
 
+    @best_iteration.setter
+    def best_iteration(self, iteration: int) -> None:
+        """Get best_iteration"""
+        self.set_attr(best_iteration=iteration)
+
     @property
     def best_score(self) -> float:
         """Get best_score."""
         return float(cast(float, self.cvfolds[0].bst.attr("best_score")))
+
+    @best_score.setter
+    def best_score(self, score: float) -> None:
+        self.set_attr(best_score=score)
 
 
 def groups_to_rows(groups: List[np.ndarray], boundaries: np.ndarray) -> np.ndarray:
@@ -551,7 +548,6 @@ def cv(
 
     # setup callbacks
     callbacks = [] if callbacks is None else copy.copy(list(callbacks))
-    _assert_new_callback(callbacks)
 
     if verbose_eval:
         verbose_eval = 1 if verbose_eval is True else verbose_eval

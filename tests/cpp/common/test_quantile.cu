@@ -1,9 +1,14 @@
+/**
+ * Copyright 2020-2023, XGBoost contributors
+ */
 #include <gtest/gtest.h>
-#include "test_quantile.h"
-#include "../helpers.h"
+
 #include "../../../src/collective/communicator-inl.cuh"
 #include "../../../src/common/hist_util.cuh"
 #include "../../../src/common/quantile.cuh"
+#include "../../../src/data/device_adapter.cuh"  // CupyAdapter
+#include "../helpers.h"
+#include "test_quantile.h"
 
 namespace xgboost {
 namespace {
@@ -437,13 +442,13 @@ void TestColumnSplitBasic() {
   }()};
 
   // Generate cuts for distributed environment.
-  auto const device = rank;
-  HistogramCuts distributed_cuts = common::DeviceSketch(device, m.get(), kBins);
+  auto ctx = MakeCUDACtx(rank);
+  HistogramCuts distributed_cuts = common::DeviceSketch(&ctx, m.get(), kBins);
 
   // Generate cuts for single node environment
   collective::Finalize();
   CHECK_EQ(collective::GetWorldSize(), 1);
-  HistogramCuts single_node_cuts = common::DeviceSketch(device, m.get(), kBins);
+  HistogramCuts single_node_cuts = common::DeviceSketch(&ctx, m.get(), kBins);
 
   auto const& sptrs = single_node_cuts.Ptrs();
   auto const& dptrs = distributed_cuts.Ptrs();

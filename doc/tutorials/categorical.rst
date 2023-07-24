@@ -35,8 +35,8 @@ parameter ``enable_categorical``:
 
 .. code:: python
 
-  # Supported tree methods are `gpu_hist`, `approx`, and `hist`.
-  clf = xgb.XGBClassifier(tree_method="gpu_hist", enable_categorical=True)
+  # Supported tree methods are `approx` and `hist`.
+  clf = xgb.XGBClassifier(tree_method="hist", enable_categorical=True, device="cuda")
   # X is the dataframe we created in previous snippet
   clf.fit(X, y)
   # Must use JSON/UBJSON for serialization, otherwise the information is lost.

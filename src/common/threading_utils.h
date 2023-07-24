@@ -30,9 +30,7 @@ inline int32_t omp_get_thread_limit() { return std::numeric_limits<int32_t>::max
 }
 #endif  // defined(_MSC_VER)
 
-namespace xgboost {
-namespace common {
-
+namespace xgboost::common {
 // Represent simple range of indexes [begin, end)
 // Inspired by tbb::blocked_range
 class Range1d {
@@ -69,7 +67,7 @@ class Range1d {
 // [1,2], [3,4], [5,6], [7,8], [9]
 // The class helps to process data in several tree nodes (non-balanced usually) in parallel
 // Using nested parallelism (by nodes and by data in each node)
-// it helps  to improve CPU resources utilization
+// it helps to improve CPU resources utilization
 class BlockedSpace2d {
  public:
   // Example of space:
@@ -86,39 +84,47 @@ class BlockedSpace2d {
   // dim1 - size of the first dimension in the space
   // getter_size_dim2 - functor to get the second dimensions for each 'row' by row-index
   // grain_size - max size of produced blocks
-  template<typename Func>
-  BlockedSpace2d(size_t dim1, Func getter_size_dim2, size_t grain_size) {
-    for (size_t i = 0; i < dim1; ++i) {
-      const size_t size = getter_size_dim2(i);
-      const size_t n_blocks = size/grain_size + !!(size % grain_size);
-      for (size_t iblock = 0; iblock < n_blocks; ++iblock) {
-        const size_t begin = iblock * grain_size;
-        const size_t end   = std::min(begin + grain_size, size);
+  template <typename Func>
+  BlockedSpace2d(std::size_t dim1, Func getter_size_dim2, std::size_t grain_size) {
+    for (std::size_t i = 0; i < dim1; ++i) {
+      std::size_t size = getter_size_dim2(i);
+      // Each row (second dim) is divided into n_blocks
+      std::size_t n_blocks = size / grain_size + !!(size % grain_size);
+      for (std::size_t iblock = 0; iblock < n_blocks; ++iblock) {
+        std::size_t begin = iblock * grain_size;
+        std::size_t end = std::min(begin + grain_size, size);
         AddBlock(i, begin, end);
       }
     }
   }
 
   // Amount of blocks(tasks) in a space
-  size_t Size() const {
+  [[nodiscard]] std::size_t Size() const {
     return ranges_.size();
   }
 
   // get index of the first dimension of i-th block(task)
-  size_t GetFirstDimension(size_t i) const {
+  [[nodiscard]] std::size_t GetFirstDimension(size_t i) const {
     CHECK_LT(i, first_dimension_.size());
     return first_dimension_[i];
   }
 
   // get a range of indexes for the second dimension of i-th block(task)
-  Range1d GetRange(size_t i) const {
+  [[nodiscard]] Range1d GetRange(size_t i) const {
     CHECK_LT(i, ranges_.size());
     return ranges_[i];
   }
 
  private:
-  void AddBlock(size_t first_dimension, size_t begin, size_t end) {
-    first_dimension_.push_back(first_dimension);
+  /**
+   * @brief Add a parallel block.
+   *
+   * @param first_dim The row index.
+   * @param begin     The begin of the second dimension.
+   * @param end       The end of the second dimension.
+   */
+  void AddBlock(std::size_t first_dim, std::size_t begin, std::size_t end) {
+    first_dimension_.push_back(first_dim);
     ranges_.emplace_back(begin, end);
   }
 
@@ -303,7 +309,6 @@ class MemStackAllocator {
  * \brief Constant that can be used for initializing static thread local memory.
  */
 std::int32_t constexpr DefaultMaxThreads() { return 128; }
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common
 
 #endif  // XGBOOST_COMMON_THREADING_UTILS_H_
