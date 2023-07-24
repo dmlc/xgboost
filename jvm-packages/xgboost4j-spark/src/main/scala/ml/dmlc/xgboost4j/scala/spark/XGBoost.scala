@@ -17,11 +17,9 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import java.io.File
-
 import scala.collection.mutable
 import scala.util.Random
 import scala.collection.JavaConverters._
-
 import ml.dmlc.xgboost4j.java.{Communicator, IRabitTracker, XGBoostError, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.spark.params.LearningTaskParams
 import ml.dmlc.xgboost4j.scala.ExternalCheckpointManager
@@ -30,7 +28,6 @@ import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import org.apache.commons.io.FileUtils
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.FileSystem
-
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkContext, TaskContext}
 import org.apache.spark.sql.SparkSession
@@ -180,10 +177,12 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
         " as 'hist', 'approx', 'gpu_hist', and 'auto'")
       treeMethod = Some(overridedParams("tree_method").asInstanceOf[String])
     }
-    val device: Option[String] = overridedParams.get("device") match {
-      case None => None
-      case Some(dev: String) => if (treeMethod == "gpu_hist") Some("cuda") else Some(dev)
-    }
+
+    // back-compatible with "gpu_hist"
+    val device: Option[String] = if (treeMethod.exists(_ == "gpu_hist")) {
+      Some("cuda")
+    } else overridedParams.get("device").map(_.toString)
+
     if (overridedParams.contains("train_test_ratio")) {
       logger.warn("train_test_ratio is deprecated since XGBoost 0.82, we recommend to explicitly" +
         " pass a training and multiple evaluation datasets by passing 'eval_sets' and " +
