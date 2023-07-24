@@ -261,6 +261,7 @@ def check_get_quantile_cut(tree_method: str) -> None:
 def train_result(
     param: Dict[str, Any], dmat: xgb.DMatrix, num_rounds: int
 ) -> Dict[str, Any]:
+    """Get training result from parameters and data."""
     result: Dict[str, Any] = {}
     booster = xgb.train(
         param,
