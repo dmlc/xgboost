@@ -17,9 +17,11 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import java.io.File
+
 import scala.collection.mutable
 import scala.util.Random
 import scala.collection.JavaConverters._
+
 import ml.dmlc.xgboost4j.java.{Communicator, IRabitTracker, XGBoostError, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.spark.params.LearningTaskParams
 import ml.dmlc.xgboost4j.scala.ExternalCheckpointManager
@@ -28,6 +30,7 @@ import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import org.apache.commons.io.FileUtils
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.FileSystem
+
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkContext, TaskContext}
 import org.apache.spark.sql.SparkSession
