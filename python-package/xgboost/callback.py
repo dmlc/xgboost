@@ -134,13 +134,17 @@ class CallbackContainer:
         is_cv: bool = False,
     ) -> None:
         self.callbacks = set(callbacks)
-        if metric is not None:
-            msg = (
-                "metric must be callable object for monitoring.  For "
-                + "builtin metrics, passing them in training parameter"
-                + " will invoke monitor automatically."
-            )
-            assert callable(metric), msg
+        for cb in callbacks:
+            if not isinstance(cb, TrainingCallback):
+                raise TypeError("callback must be an instance of `TrainingCallback`.")
+
+        msg = (
+            "metric must be callable object for monitoring.  For builtin metrics"
+            ", passing them in training parameter invokes monitor automatically."
+        )
+        if metric is not None and not callable(metric):
+            raise TypeError(msg)
+
         self.metric = metric
         self.history: TrainingCallback.EvalsLog = collections.OrderedDict()
         self._output_margin = output_margin
@@ -169,16 +173,6 @@ class CallbackContainer:
                 assert isinstance(model.cvfolds, list), msg
             else:
                 assert isinstance(model, Booster), msg
-
-        if not self.is_cv:
-            if model.attr("best_score") is not None:
-                model.best_score = float(cast(str, model.attr("best_score")))
-                model.best_iteration = int(cast(str, model.attr("best_iteration")))
-            else:
-                # Due to compatibility with version older than 1.4, these attributes are
-                # added to Python object even if early stopping is not used.
-                model.best_iteration = model.num_boosted_rounds() - 1
-                model.set_attr(best_iteration=str(model.best_iteration))
 
         return model
 
@@ -267,9 +261,14 @@ class LearningRateScheduler(TrainingCallback):
     def __init__(
         self, learning_rates: Union[Callable[[int], float], Sequence[float]]
     ) -> None:
-        assert callable(learning_rates) or isinstance(
+        if not callable(learning_rates) and not isinstance(
             learning_rates, collections.abc.Sequence
-        )
+        ):
+            raise TypeError(
+                "Invalid learning rates, expecting callable or sequence, got: "
+                f"{type(learning_rates)}"
+            )
+
         if callable(learning_rates):
             self.learning_rates = learning_rates
         else:
@@ -302,24 +301,28 @@ class EarlyStopping(TrainingCallback):
     save_best :
         Whether training should return the best model or the last model.
     min_delta :
-        Minimum absolute change in score to be qualified as an improvement.
 
         .. versionadded:: 1.5.0
 
-        .. code-block:: python
+        Minimum absolute change in score to be qualified as an improvement.
 
-            es = xgboost.callback.EarlyStopping(
-                rounds=2,
-                min_delta=1e-3,
-                save_best=True,
-                maximize=False,
-                data_name="validation_0",
-                metric_name="mlogloss",
-            )
-            clf = xgboost.XGBClassifier(tree_method="gpu_hist", callbacks=[es])
+    Examples
+    --------
 
-            X, y = load_digits(return_X_y=True)
-            clf.fit(X, y, eval_set=[(X, y)])
+    .. code-block:: python
+
+        es = xgboost.callback.EarlyStopping(
+            rounds=2,
+            min_delta=1e-3,
+            save_best=True,
+            maximize=False,
+            data_name="validation_0",
+            metric_name="mlogloss",
+        )
+        clf = xgboost.XGBClassifier(tree_method="hist", device="cuda", callbacks=[es])
+
+        X, y = load_digits(return_X_y=True)
+        clf.fit(X, y, eval_set=[(X, y)])
     """
 
     # pylint: disable=too-many-arguments
@@ -363,7 +366,7 @@ class EarlyStopping(TrainingCallback):
             return numpy.greater(get_s(new) - self._min_delta, get_s(best))
 
         def minimize(new: _Score, best: _Score) -> bool:
-            """New score should be smaller than the old one."""
+            """New score should be lesser than the old one."""
             return numpy.greater(get_s(best) - self._min_delta, get_s(new))
 
         if self.maximize is None:
@@ -419,38 +422,53 @@ class EarlyStopping(TrainingCallback):
     ) -> bool:
         epoch += self.starting_round  # training continuation
         msg = "Must have at least 1 validation dataset for early stopping."
-        assert len(evals_log.keys()) >= 1, msg
-        data_name = ""
+        if len(evals_log.keys()) < 1:
+            raise ValueError(msg)
+
+        # Get data name
         if self.data:
-            for d, _ in evals_log.items():
-                if d == self.data:
-                    data_name = d
-            if not data_name:
-                raise ValueError("No dataset named:", self.data)
+            data_name = self.data
         else:
             # Use the last one as default.
             data_name = list(evals_log.keys())[-1]
-        assert isinstance(data_name, str) and data_name
+        if data_name not in evals_log:
+            raise ValueError(f"No dataset named: {data_name}")
+
+        if not isinstance(data_name, str):
+            raise TypeError(
+                f"The name of the dataset should be a string. Got: {type(data_name)}"
+            )
         data_log = evals_log[data_name]
 
-        # Filter out scores that can not be used for early stopping.
+        # Get metric name
         if self.metric_name:
             metric_name = self.metric_name
         else:
             # Use last metric by default.
-            assert isinstance(data_log, collections.OrderedDict)
             metric_name = list(data_log.keys())[-1]
+        if metric_name not in data_log:
+            raise ValueError(f"No metric named: {metric_name}")
+
+        # The latest score
         score = data_log[metric_name][-1]
         return self._update_rounds(score, data_name, metric_name, model, epoch)
 
     def after_training(self, model: _Model) -> _Model:
+        if not self.save_best:
+            return model
+
         try:
-            if self.save_best:
-                model = model[: int(model.attr("best_iteration")) + 1]
+            best_iteration = model.best_iteration
+            best_score = model.best_score
+            assert best_iteration is not None and best_score is not None
+            model = model[: best_iteration + 1]
+            model.best_iteration = best_iteration
+            model.best_score = best_score
         except XGBoostError as e:
             raise XGBoostError(
-                "`save_best` is not applicable to current booster"
+                "`save_best` is not applicable to the current booster"
             ) from e
+
         return model
 
 
@@ -462,8 +480,6 @@ class EvaluationMonitor(TrainingCallback):
     Parameters
     ----------
 
-    metric :
-        Extra user defined metric.
     rank :
         Which worker should be used for printing the result.
     period :

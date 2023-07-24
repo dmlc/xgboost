@@ -1890,7 +1890,7 @@ class Booster:
         attr_names = from_cstr_to_pystr(sarr, length)
         return {n: self.attr(n) for n in attr_names}
 
-    def set_attr(self, **kwargs: Optional[str]) -> None:
+    def set_attr(self, **kwargs: Optional[Any]) -> None:
         """Set the attribute of the Booster.
 
         Parameters
@@ -2559,10 +2559,35 @@ class Booster:
         else:
             raise TypeError("Unknown file type: ", fname)
 
-        if self.attr("best_iteration") is not None:
-            self.best_iteration = int(cast(int, self.attr("best_iteration")))
-        if self.attr("best_score") is not None:
-            self.best_score = float(cast(float, self.attr("best_score")))
+    @property
+    def best_iteration(self) -> int:
+        """The best iteration during training."""
+        best = self.attr("best_iteration")
+        if best is not None:
+            return int(best)
+
+        raise AttributeError(
+            "`best_iteration` is only defined when early stopping is used."
+        )
+
+    @best_iteration.setter
+    def best_iteration(self, iteration: int) -> None:
+        self.set_attr(best_iteration=iteration)
+
+    @property
+    def best_score(self) -> float:
+        """The best evaluation score during training."""
+        best = self.attr("best_score")
+        if best is not None:
+            return float(best)
+
+        raise AttributeError(
+            "`best_score` is only defined when early stopping is used."
+        )
+
+    @best_score.setter
+    def best_score(self, score: int) -> None:
+        self.set_attr(best_score=score)
 
     def num_boosted_rounds(self) -> int:
         """Get number of boosted rounds.  For gblinear this is reset to 0 after

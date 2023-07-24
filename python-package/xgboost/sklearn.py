@@ -230,10 +230,10 @@ __model_doc = f"""
     subsample : Optional[float]
         Subsample ratio of the training instance.
     sampling_method :
-        Sampling method. Used only by `gpu_hist` tree method.
-          - `uniform`: select random training instances uniformly.
-          - `gradient_based` select random training instances with higher probability when
-            the gradient and hessian are larger. (cf. CatBoost)
+        Sampling method. Used only by the GPU version of ``hist`` tree method.
+          - ``uniform``: select random training instances uniformly.
+          - ``gradient_based`` select random training instances with higher probability
+            when the gradient and hessian are larger. (cf. CatBoost)
     colsample_bytree : Optional[float]
         Subsample ratio of columns when constructing each tree.
     colsample_bylevel : Optional[float]
@@ -992,12 +992,12 @@ class XGBModel(XGBModelBase):
         X :
             Feature matrix. See :ref:`py-data` for a list of supported types.
 
-            When the ``tree_method`` is set to ``hist`` or ``gpu_hist``, internally, the
+            When the ``tree_method`` is set to ``hist``, internally, the
             :py:class:`QuantileDMatrix` will be used instead of the :py:class:`DMatrix`
             for conserving memory. However, this has performance implications when the
             device of input data is not matched with algorithm. For instance, if the
-            input is a numpy array on CPU but ``gpu_hist`` is used for training, then
-            the data is first processed on CPU then transferred to GPU.
+            input is a numpy array on CPU but ``cuda`` is used for training, then the
+            data is first processed on CPU then transferred to GPU.
         y :
             Labels
         sample_weight :
@@ -1279,19 +1279,10 @@ class XGBModel(XGBModelBase):
             )
         return np.array(feature_names)
 
-    def _early_stopping_attr(self, attr: str) -> Union[float, int]:
-        booster = self.get_booster()
-        try:
-            return getattr(booster, attr)
-        except AttributeError as e:
-            raise AttributeError(
-                f"`{attr}` in only defined when early stopping is used."
-            ) from e
-
     @property
     def best_score(self) -> float:
         """The best score obtained by early stopping."""
-        return float(self._early_stopping_attr("best_score"))
+        return self.get_booster().best_score
 
     @property
     def best_iteration(self) -> int:
@@ -1299,7 +1290,7 @@ class XGBModel(XGBModelBase):
         for instance if the best iteration is the first round, then best_iteration is 0.
 
         """
-        return int(self._early_stopping_attr("best_iteration"))
+        return self.get_booster().best_iteration
 
     @property
     def feature_importances_(self) -> np.ndarray:
@@ -1926,12 +1917,12 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
             | 1   | :math:`x_{20}` | :math:`x_{21}` |
             +-----+----------------+----------------+
 
-            When the ``tree_method`` is set to ``hist`` or ``gpu_hist``, internally, the
+            When the ``tree_method`` is set to ``hist``, internally, the
             :py:class:`QuantileDMatrix` will be used instead of the :py:class:`DMatrix`
             for conserving memory. However, this has performance implications when the
             device of input data is not matched with algorithm. For instance, if the
-            input is a numpy array on CPU but ``gpu_hist`` is used for training, then
-            the data is first processed on CPU then transferred to GPU.
+            input is a numpy array on CPU but ``cuda`` is used for training, then the
+            data is first processed on CPU then transferred to GPU.
         y :
             Labels
         group :

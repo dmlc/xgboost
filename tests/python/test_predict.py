@@ -173,7 +173,7 @@ class TestInplacePredict:
         np.testing.assert_allclose(predt_from_dmatrix, predt_from_array)
 
         with pytest.raises(ValueError):
-            booster.predict(test, iteration_range=(0, booster.best_iteration + 2))
+            booster.predict(test, iteration_range=(0, booster.num_boosted_rounds() + 2))
 
         default = booster.predict(test)
 
@@ -181,7 +181,7 @@ class TestInplacePredict:
         np.testing.assert_allclose(range_full, default)
 
         range_full = booster.predict(
-            test, iteration_range=(0, booster.best_iteration + 1)
+            test, iteration_range=(0, booster.num_boosted_rounds())
         )
         np.testing.assert_allclose(range_full, default)
 
