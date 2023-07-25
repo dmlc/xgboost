@@ -522,11 +522,15 @@ inline LearnerModelParam MakeMP(bst_feature_t n_features, float base_score, uint
 
 inline std::int32_t AllThreadsForTest() { return Context{}.Threads(); }
 
-template <typename Function, typename... Args>
+template <bool use_nccl = false, typename Function, typename... Args>
 void RunWithInMemoryCommunicator(int32_t world_size, Function&& function, Args&&... args) {
   auto run = [&](auto rank) {
     Json config{JsonObject()};
-    config["xgboost_communicator"] = String("in-memory");
+    if constexpr (use_nccl) {
+      config["xgboost_communicator"] = String("in-memory-nccl");
+    } else {
+      config["xgboost_communicator"] = String("in-memory");
+    }
     config["in_memory_world_size"] = world_size;
     config["in_memory_rank"] = rank;
     xgboost::collective::Init(config);
