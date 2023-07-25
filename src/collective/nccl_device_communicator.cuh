@@ -77,7 +77,6 @@ class NcclDeviceCommunicator : public DeviceCommunicator {
   int const world_size_;
   int const rank_;
   ncclComm_t nccl_comm_{};
-  cudaStream_t cuda_stream_{};
   ncclUniqueId nccl_unique_id_{};
   size_t allreduce_bytes_{0};  // Keep statistics of the number of bytes communicated.
   size_t allreduce_calls_{0};  // Keep statistics of the number of reduce calls.
