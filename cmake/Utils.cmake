@@ -133,6 +133,11 @@ function(xgboost_set_cuda_flags target)
     $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>
     $<$<COMPILE_LANGUAGE:CUDA>:-Xfatbin=-compress-all>)
 
+  if (USE_PER_THREAD_DEFAULT_STREAM)
+    target_compile_options(${target} PRIVATE
+            $<$<COMPILE_LANGUAGE:CUDA>:--default-stream per-thread>)
+  endif (USE_PER_THREAD_DEFAULT_STREAM)
+
   if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
     set_property(TARGET ${target} PROPERTY CUDA_ARCHITECTURES ${CMAKE_CUDA_ARCHITECTURES})
   endif (CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")

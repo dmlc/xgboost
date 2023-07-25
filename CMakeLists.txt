@@ -50,6 +50,7 @@ option(HIDE_CXX_SYMBOLS "Build shared library and hide all C++ symbols" OFF)
 option(KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR "Output build artifacts in CMake binary dir" OFF)
 ## CUDA
 option(USE_CUDA  "Build with GPU acceleration" OFF)
+option(USE_PER_THREAD_DEFAULT_STREAM "Build with per-thread default stream" ON)
 option(USE_NCCL  "Build with NCCL to enable distributed GPU support." OFF)
 option(BUILD_WITH_SHARED_NCCL "Build with shared NCCL library." OFF)
 set(GPU_COMPUTE_VER "" CACHE STRING
