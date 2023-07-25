@@ -669,7 +669,6 @@ struct GPUHistMakerDevice {
     evaluator_.ApplyTreeSplit(candidate, p_tree);
 
     const auto& parent = tree[candidate.nid];
-    std::size_t max_nidx = std::max(parent.LeftChild(), parent.RightChild());
     interaction_constraints.Split(candidate.nid, parent.SplitIndex(), parent.LeftChild(),
                                   parent.RightChild());
   }
