@@ -904,11 +904,13 @@ def _filter_empty(
 
     raise ValueError("None of the workers can provide a valid result.")
 
+
 def _check_workers_are_alive(workers: List[str], client: "distributed.Client"):
     current_workers = client.scheduler_info()["workers"].keys()
     missing_workers = set(workers) - current_workers
     if missing_workers:
         raise RuntimeError(f"Missing required workers: {missing_workers}")
+
 
 async def _train_async(
     client: "distributed.Client",
