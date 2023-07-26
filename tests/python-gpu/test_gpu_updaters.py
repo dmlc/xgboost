@@ -120,7 +120,7 @@ class TestGPUUpdaters:
     )
     @settings(deadline=None, max_examples=20, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
-    def test_categorical(
+    def test_categorical_hist(
         self,
         dataset: tm.TestDataset,
         hist_parameters: Dict[str, Any],
@@ -128,7 +128,30 @@ class TestGPUUpdaters:
         n_rounds: int,
     ) -> None:
         cat_parameters.update(hist_parameters)
-        cat_parameters["tree_method"] = "gpu_hist"
+        cat_parameters["tree_method"] = "hist"
+        cat_parameters["device"] = "cuda"
+
+        results = train_result(cat_parameters, dataset.get_dmat(), n_rounds)
+        tm.non_increasing(results["train"]["rmse"])
+
+    @given(
+        tm.categorical_dataset_strategy,
+        hist_parameter_strategy,
+        cat_parameter_strategy,
+        strategies.integers(4, 32),
+    )
+    @settings(deadline=None, max_examples=20, print_blob=True)
+    @pytest.mark.skipif(**tm.no_pandas())
+    def test_categorical_approx(
+        self,
+        dataset: tm.TestDataset,
+        hist_parameters: Dict[str, Any],
+        cat_parameters: Dict[str, Any],
+        n_rounds: int,
+    ) -> None:
+        cat_parameters.update(hist_parameters)
+        cat_parameters["tree_method"] = "approx"
+        cat_parameters["device"] = "cuda"
 
         results = train_result(cat_parameters, dataset.get_dmat(), n_rounds)
         tm.non_increasing(results["train"]["rmse"])
@@ -171,7 +194,7 @@ class TestGPUUpdaters:
         cols = 10
         cats = 32
         rounds = 4
-        self.cputest.run_categorical_ohe(rows, cols, rounds, cats, "gpu_hist")
+        check_categorical_ohe(rows, cols, rounds, cats, "cuda", "hist")
 
     @pytest.mark.skipif(**tm.no_cupy())
     def test_invalid_category(self):
