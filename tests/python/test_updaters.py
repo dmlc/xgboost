@@ -1,6 +1,6 @@
 import json
 from string import ascii_lowercase
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import numpy as np
 import pytest
