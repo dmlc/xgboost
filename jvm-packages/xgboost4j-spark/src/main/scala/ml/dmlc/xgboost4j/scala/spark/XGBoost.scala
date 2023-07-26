@@ -423,8 +423,8 @@ object XGBoost extends Serializable {
         }}
 
         // The repartition step is to make training stage as ShuffleMapStage, so that when one
-        // of the training task fails the training stage can retry. ResultStage won't retry
-        // when it fails.
+        // of the training task fails the training stage can retry. ResultStage won't retry when
+        // it fails.
         val (booster, metrics) = boostersAndMetrics.repartition(1).collect()(0)
         val trackerReturnVal = tracker.waitFor(0L)
         logger.info(s"Rabit returns with exit code $trackerReturnVal")
