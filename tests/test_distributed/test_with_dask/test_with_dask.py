@@ -37,7 +37,7 @@ import dask
 import dask.array as da
 import dask.dataframe as dd
 from distributed import Client, LocalCluster, Nanny, Worker
-from distributed.utils_test import gen_cluster, async_poll_for
+from distributed.utils_test import async_poll_for, gen_cluster
 from toolz import sliding_window  # dependency of dask
 
 from xgboost.dask import DaskDMatrix
