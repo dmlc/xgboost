@@ -15,6 +15,7 @@ from xgboost.testing.params import (
     hist_parameter_strategy,
 )
 from xgboost.testing.updater import (
+    check_categorical_missing,
     check_categorical_ohe,
     check_get_quantile_cut,
     check_init_estimation,
@@ -265,41 +266,6 @@ class TestTreeMethod:
     def test_max_cat(self, tree_method) -> None:
         self.run_max_cat(tree_method)
 
-    def run_categorical_missing(
-        self, rows: int, cols: int, cats: int, tree_method: str
-    ) -> None:
-        parameters: Dict[str, Any] = {"tree_method": tree_method}
-        cat, label = tm.make_categorical(
-            rows, n_features=cols, n_categories=cats, onehot=False, sparsity=0.5
-        )
-        Xy = xgb.DMatrix(cat, label, enable_categorical=True)
-
-        def run(max_cat_to_onehot: int):
-            # Test with onehot splits
-            parameters["max_cat_to_onehot"] = max_cat_to_onehot
-
-            evals_result: Dict[str, Dict] = {}
-            booster = xgb.train(
-                parameters,
-                Xy,
-                num_boost_round=16,
-                evals=[(Xy, "Train")],
-                evals_result=evals_result
-            )
-            assert tm.non_increasing(evals_result["Train"]["rmse"])
-            y_predt = booster.predict(Xy)
-
-            rmse = tm.root_mean_square(label, y_predt)
-            np.testing.assert_allclose(
-                rmse, evals_result["Train"]["rmse"][-1], rtol=2e-5
-            )
-
-        # Test with OHE split
-        run(self.USE_ONEHOT)
-
-        # Test with partition-based split
-        run(self.USE_PART)
-
     @given(strategies.integers(10, 400), strategies.integers(3, 8),
            strategies.integers(1, 2), strategies.integers(4, 7))
     @settings(deadline=None, print_blob=True)
@@ -364,8 +330,8 @@ class TestTreeMethod:
     @settings(deadline=None, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical_missing(self, rows, cols, cats):
-        self.run_categorical_missing(rows, cols, cats, "approx")
-        self.run_categorical_missing(rows, cols, cats, "hist")
+        check_categorical_missing(rows, cols, cats, "cpu", "approx")
+        check_categorical_missing(rows, cols, cats, "cpu", "hist")
 
     def run_adaptive(self, tree_method, weighted) -> None:
         rng = np.random.RandomState(1994)

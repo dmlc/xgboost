@@ -13,6 +13,7 @@ from xgboost.testing.params import (
     hist_parameter_strategy,
 )
 from xgboost.testing.updater import (
+    check_categorical_missing,
     check_categorical_ohe,
     check_get_quantile_cut,
     check_init_estimation,
@@ -182,7 +183,8 @@ class TestGPUUpdaters:
     @settings(deadline=None, max_examples=20, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical_missing(self, rows, cols, cats):
-        self.cputest.run_categorical_missing(rows, cols, cats, "gpu_hist")
+        check_categorical_missing(rows, cols, cats, "cuda", "approx")
+        check_categorical_missing(rows, cols, cats, "cuda", "hist")
 
     @pytest.mark.skipif(**tm.no_pandas())
     def test_max_cat(self) -> None:
