@@ -15,6 +15,7 @@ from xgboost.testing.params import (
     hist_parameter_strategy,
 )
 from xgboost.testing.updater import (
+    check_categorical_ohe,
     check_get_quantile_cut,
     check_init_estimation,
     check_quantile_loss,
@@ -299,80 +300,6 @@ class TestTreeMethod:
         # Test with partition-based split
         run(self.USE_PART)
 
-    def run_categorical_ohe(
-        self, rows: int, cols: int, rounds: int, cats: int, tree_method: str
-    ) -> None:
-        onehot, label = tm.make_categorical(rows, cols, cats, True)
-        cat, _ = tm.make_categorical(rows, cols, cats, False)
-
-        by_etl_results: Dict[str, Dict[str, List[float]]] = {}
-        by_builtin_results: Dict[str, Dict[str, List[float]]] = {}
-
-        parameters: Dict[str, Any] = {
-            "tree_method": tree_method,
-            # Use one-hot exclusively
-            "max_cat_to_onehot": self.USE_ONEHOT
-        }
-
-        m = xgb.DMatrix(onehot, label, enable_categorical=False)
-        xgb.train(
-            parameters,
-            m,
-            num_boost_round=rounds,
-            evals=[(m, "Train")],
-            evals_result=by_etl_results,
-        )
-
-        m = xgb.DMatrix(cat, label, enable_categorical=True)
-        xgb.train(
-            parameters,
-            m,
-            num_boost_round=rounds,
-            evals=[(m, "Train")],
-            evals_result=by_builtin_results,
-        )
-
-        # There are guidelines on how to specify tolerance based on considering output
-        # as random variables. But in here the tree construction is extremely sensitive
-        # to floating point errors. An 1e-5 error in a histogram bin can lead to an
-        # entirely different tree. So even though the test is quite lenient, hypothesis
-        # can still pick up falsifying examples from time to time.
-        np.testing.assert_allclose(
-            np.array(by_etl_results["Train"]["rmse"]),
-            np.array(by_builtin_results["Train"]["rmse"]),
-            rtol=1e-3,
-        )
-        assert tm.non_increasing(by_builtin_results["Train"]["rmse"])
-
-        by_grouping: Dict[str, Dict[str, List[float]]] = {}
-        # switch to partition-based splits
-        parameters["max_cat_to_onehot"] = self.USE_PART
-        parameters["reg_lambda"] = 0
-        m = xgb.DMatrix(cat, label, enable_categorical=True)
-        xgb.train(
-            parameters,
-            m,
-            num_boost_round=rounds,
-            evals=[(m, "Train")],
-            evals_result=by_grouping,
-        )
-        rmse_oh = by_builtin_results["Train"]["rmse"]
-        rmse_group = by_grouping["Train"]["rmse"]
-        # always better or equal to onehot when there's no regularization.
-        for a, b in zip(rmse_oh, rmse_group):
-            assert a >= b
-
-        parameters["reg_lambda"] = 1.0
-        by_grouping = {}
-        xgb.train(
-            parameters,
-            m,
-            num_boost_round=32,
-            evals=[(m, "Train")],
-            evals_result=by_grouping,
-        )
-        assert tm.non_increasing(by_grouping["Train"]["rmse"]), by_grouping
-
     @given(strategies.integers(10, 400), strategies.integers(3, 8),
            strategies.integers(1, 2), strategies.integers(4, 7))
     @settings(deadline=None, print_blob=True)
@@ -380,8 +307,8 @@ class TestTreeMethod:
     def test_categorical_ohe(
         self, rows: int, cols: int, rounds: int, cats: int
     ) -> None:
-        self.run_categorical_ohe(rows, cols, rounds, cats, "approx")
-        self.run_categorical_ohe(rows, cols, rounds, cats, "hist")
+        check_categorical_ohe(rows, cols, rounds, cats, "cpu", "approx")
+        check_categorical_ohe(rows, cols, rounds, cats, "cpu", "hist")
 
     @given(
         tm.categorical_dataset_strategy,

@@ -13,6 +13,7 @@ from xgboost.testing.params import (
     hist_parameter_strategy,
 )
 from xgboost.testing.updater import (
+    check_categorical_ohe,
     check_get_quantile_cut,
     check_init_estimation,
     check_quantile_loss,
@@ -109,7 +110,7 @@ class TestGPUUpdaters:
     @settings(deadline=None, max_examples=20, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical_ohe(self, rows, cols, rounds, cats):
-        self.cputest.run_categorical_ohe(rows, cols, rounds, cats, "gpu_hist")
+        check_categorical_ohe(rows, cols, rounds, cats, "cuda", "hist")
 
     @given(
         tm.categorical_dataset_strategy,
