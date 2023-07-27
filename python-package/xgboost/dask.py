@@ -930,7 +930,7 @@ async def _train_async(
     custom_metric: Optional[Metric],
 ) -> Optional[TrainReturnT]:
     workers = _get_workers_from_data(dtrain, evals)
-    _check_workers_are_alive(workers, client)
+    await _check_workers_are_alive(workers, client)
     _rabit_args = await _get_rabit_args(len(workers), dconfig, client)
     _check_distributed_params(params)
 
