@@ -112,8 +112,4 @@ private[spark] object LearningTaskParams {
 
   val supportedObjectiveType = HashSet("regression", "classification")
 
-  val evalMetricsToMaximize = HashSet("auc", "aucpr", "ndcg", "map")
-
-  val evalMetricsToMinimize = HashSet("rmse", "rmsle", "mae", "mape", "logloss", "error", "merror",
-    "mlogloss", "gamma-deviance")
 }
