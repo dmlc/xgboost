@@ -906,7 +906,7 @@ def _filter_empty(
 
 
 async def _check_workers_are_alive(workers: List[str], client: "distributed.Client") -> None:
-    info = await self.scheduler.identity()
+    info = await client.scheduler.identity()
     current_workers = info["workers"].keys()
     missing_workers = set(workers) - current_workers
     if missing_workers:
