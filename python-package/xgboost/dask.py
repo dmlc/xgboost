@@ -905,7 +905,9 @@ def _filter_empty(
     raise ValueError("None of the workers can provide a valid result.")
 
 
-async def _check_workers_are_alive(workers: List[str], client: "distributed.Client") -> None:
+async def _check_workers_are_alive(
+    workers: List[str], client: "distributed.Client"
+) -> None:
     info = await client.scheduler.identity()
     current_workers = info["workers"].keys()
     missing_workers = set(workers) - current_workers
