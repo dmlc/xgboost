@@ -123,23 +123,23 @@ Feature Matrix
 Following table summarizes some differences in supported features between 4 tree methods,
 `T` means supported while `F` means unsupported.
 
-+------------------+-----------+---------------------+---------------------+------------------------+
-|                  | Exact     | Approx              | Hist                | Hist (GPU)             |
-+==================+===========+=====================+=====================+========================+
-| grow_policy      | Depthwise | depthwise/lossguide | depthwise/lossguide | depthwise/lossguide    |
-+------------------+-----------+---------------------+---------------------+------------------------+
-| max_leaves       | F         | T                   | T                   | T                      |
-+------------------+-----------+---------------------+---------------------+------------------------+
-| sampling method  | uniform   | uniform             | uniform             | gradient_based/uniform |
-+------------------+-----------+---------------------+---------------------+------------------------+
-| categorical data | F         | T                   | T                   | T                      |
-+------------------+-----------+---------------------+---------------------+------------------------+
-| External memory  | F         | T                   | T                   | P                      |
-+------------------+-----------+---------------------+---------------------+------------------------+
-| Distributed      | F         | T                   | T                   | T                      |
-+------------------+-----------+---------------------+---------------------+------------------------+
++------------------+-----------+---------------------+------------------------+---------------------+------------------------+
+|                  | Exact     | Approx              | Approx (GPU)           | Hist                | Hist (GPU)             |
++==================+===========+=====================+========================+=====================+========================+
+| grow_policy      | Depthwise | depthwise/lossguide | depthwise/lossguide    | depthwise/lossguide | depthwise/lossguide    |
++------------------+-----------+---------------------+------------------------+---------------------+------------------------+
+| max_leaves       | F         | T                   | T                      | T                   | T                      |
++------------------+-----------+---------------------+------------------------+---------------------+------------------------+
+| sampling method  | uniform   | uniform             | gradient_based/uniform | uniform             | gradient_based/uniform |
++------------------+-----------+---------------------+------------------------+---------------------+------------------------+
+| categorical data | F         | T                   | T                      | T                   | T                      |
++------------------+-----------+---------------------+------------------------+---------------------+------------------------+
+| External memory  | F         | T                   | P                      | T                   | P                      |
++------------------+-----------+---------------------+------------------------+---------------------+------------------------+
+| Distributed      | F         | T                   | T                      | T                   | T                      |
++------------------+-----------+---------------------+------------------------+---------------------+------------------------+
 
-Features/parameters that are not mentioned here are universally supported for all 4 tree
+Features/parameters that are not mentioned here are universally supported for all 3 tree
 methods (for instance, column sampling and constraints).  The `P` in external memory means
 special handling.  Please note that both categorical data and external memory are
 experimental.

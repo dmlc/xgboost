@@ -154,7 +154,6 @@ def run_gpu_hist(
     DMatrixT: Type,
     client: Client,
 ) -> None:
-    params["tree_method"] = "hist"
     params["device"] = "cuda"
     params = dataset.set_params(params)
     # It doesn't make sense to distribute a completely
@@ -275,7 +274,30 @@ class TestDistributedGPU:
         dmatrix_type: type,
         local_cuda_client: Client,
     ) -> None:
+        params["tree_method"] = "hist"
         run_gpu_hist(params, num_rounds, dataset, dmatrix_type, local_cuda_client)
+
+    @given(
+        params=hist_parameter_strategy,
+        num_rounds=strategies.integers(1, 20),
+        dataset=tm.make_dataset_strategy(),
+    )
+    @settings(
+        deadline=duration(seconds=120),
+        max_examples=20,
+        suppress_health_check=suppress,
+        print_blob=True,
+    )
+    @pytest.mark.skipif(**tm.no_cupy())
+    def test_gpu_approx(
+        self,
+        params: Dict,
+        num_rounds: int,
+        dataset: tm.TestDataset,
+        local_cuda_client: Client,
+    ) -> None:
+        params["tree_method"] = "approx"
+        run_gpu_hist(params, num_rounds, dataset, dxgb.DaskDMatrix, local_cuda_client)
 
     def test_empty_quantile_dmatrix(self, local_cuda_client: Client) -> None:
         client = local_cuda_client

@@ -8,10 +8,10 @@
 #include <xgboost/logging.h>
 
 #include <algorithm>
+#include <cstddef>  // for size_t
 #include <limits>
 #include <utility>
 
-#include "../../common/compressed_iterator.h"
 #include "../../common/cuda_context.cuh"  // for CUDAContext
 #include "../../common/random.h"
 #include "../param.h"
@@ -202,27 +202,27 @@ ExternalMemoryUniformSampling::ExternalMemoryUniformSampling(size_t n_rows,
 GradientBasedSample ExternalMemoryUniformSampling::Sample(Context const* ctx,
                                                           common::Span<GradientPair> gpair,
                                                           DMatrix* dmat) {
+  auto cuctx = ctx->CUDACtx();
   // Set gradient pair to 0 with p = 1 - subsample
-  thrust::replace_if(dh::tbegin(gpair), dh::tend(gpair),
-                     thrust::counting_iterator<size_t>(0),
-                     BernoulliTrial(common::GlobalRandom()(), subsample_),
-                     GradientPair());
+  thrust::replace_if(cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair),
+                     thrust::counting_iterator<std::size_t>(0),
+                     BernoulliTrial(common::GlobalRandom()(), subsample_), GradientPair{});
 
   // Count the sampled rows.
-  size_t sample_rows = thrust::count_if(dh::tbegin(gpair), dh::tend(gpair), IsNonZero());
+  size_t sample_rows =
+      thrust::count_if(cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair), IsNonZero{});
 
   // Compact gradient pairs.
   gpair_.resize(sample_rows);
-  thrust::copy_if(dh::tbegin(gpair), dh::tend(gpair), gpair_.begin(), IsNonZero());
+  thrust::copy_if(cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair), gpair_.begin(), IsNonZero{});
 
   // Index the sample rows.
-  thrust::transform(dh::tbegin(gpair), dh::tend(gpair), sample_row_index_.begin(), IsNonZero());
-  thrust::exclusive_scan(sample_row_index_.begin(), sample_row_index_.end(),
+  thrust::transform(cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair), sample_row_index_.begin(),
+                    IsNonZero());
+  thrust::exclusive_scan(cuctx->CTP(), sample_row_index_.begin(), sample_row_index_.end(),
                          sample_row_index_.begin());
-  thrust::transform(dh::tbegin(gpair), dh::tend(gpair),
-                    sample_row_index_.begin(),
-                    sample_row_index_.begin(),
-                    ClearEmptyRows());
+  thrust::transform(cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair), sample_row_index_.begin(),
+                    sample_row_index_.begin(), ClearEmptyRows());
 
   auto batch_iterator = dmat->GetBatches<EllpackPage>(ctx, batch_param_);
   auto first_page = (*batch_iterator.begin()).Impl();
@@ -232,7 +232,7 @@ GradientBasedSample ExternalMemoryUniformSampling::Sample(Context const* ctx,
                                   first_page->row_stride, sample_rows));
 
   // Compact the ELLPACK pages into the single sample page.
-  thrust::fill(dh::tbegin(page_->gidx_buffer), dh::tend(page_->gidx_buffer), 0);
+  thrust::fill(cuctx->CTP(), dh::tbegin(page_->gidx_buffer), dh::tend(page_->gidx_buffer), 0);
   for (auto& batch : batch_iterator) {
     page_->Compact(ctx->gpu_id, batch.Impl(), dh::ToSpan(sample_row_index_));
   }

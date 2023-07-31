@@ -47,15 +47,16 @@ std::string MapTreeMethodToUpdaters(Context const* ctx, TreeMethod tree_method) 
   if (ctx->IsCUDA()) {
     common::AssertGPUSupport();
   }
+
   switch (tree_method) {
     case TreeMethod::kAuto:  // Use hist as default in 2.0
     case TreeMethod::kHist: {
       return ctx->DispatchDevice([] { return "grow_quantile_histmaker"; },
                                  [] { return "grow_gpu_hist"; });
     }
-    case TreeMethod::kApprox:
-      CHECK(ctx->IsCPU()) << "The `approx` tree method is not supported on GPU.";
-      return "grow_histmaker";
+    case TreeMethod::kApprox: {
+      return ctx->DispatchDevice([] { return "grow_histmaker"; }, [] { return "grow_gpu_approx"; });
+    }
     case TreeMethod::kExact:
       CHECK(ctx->IsCPU()) << "The `exact` tree method is not supported on GPU.";
       return "grow_colmaker,prune";
