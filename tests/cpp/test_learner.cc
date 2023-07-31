@@ -504,7 +504,7 @@ class InitBaseScore : public ::testing::Test {
   std::size_t static constexpr Cols() { return 10; }
   std::shared_ptr<DMatrix> Xy_;
 
-  void SetUp() override { Xy_ = RandomDataGenerator{10, Cols(), 0}.GenerateDMatrix(true); }
+  void SetUp() override { Xy_ = RandomDataGenerator{512, Cols(), 0}.GenerateDMatrix(true); }
 
  public:
   void TestUpdateConfig() {
@@ -517,7 +517,7 @@ class InitBaseScore : public ::testing::Test {
     ASSERT_NE(base_score, ObjFunction::DefaultBaseScore());
 
     // already initialized
-    auto Xy1 = RandomDataGenerator{100, Cols(), 0}.Seed(321).GenerateDMatrix(true);
+    auto Xy1 = RandomDataGenerator{384, Cols(), 0}.Seed(321).GenerateDMatrix(true);
     learner->UpdateOneIter(1, Xy1);
     learner->SaveConfig(&config);
     auto base_score1 = GetBaseScore(config);

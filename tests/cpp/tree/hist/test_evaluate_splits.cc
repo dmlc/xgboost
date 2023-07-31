@@ -50,7 +50,7 @@ void TestEvaluateSplits(bool force_read_by_column) {
 
   hist.Init(gmat.cut.Ptrs().back());
   hist.AddHistRow(0);
-  hist.AllocateAllData();
+  hist.AllocateData(0);
   common::BuildHist<false>(row_gpairs, row_set_collection[0], gmat, hist[0], force_read_by_column);
 
   // Compute total gradient for all data points
@@ -117,7 +117,7 @@ TEST(HistMultiEvaluator, Evaluate) {
     auto &hist = histogram[t];
     hist.Init(n_bins * n_features);
     hist.AddHistRow(0);
-    hist.AllocateAllData();
+    hist.AllocateData(0);
     auto node_hist = hist[0];
     node_hist[0] = {-0.5, 0.5};
     node_hist[1] = {2.0, 0.5};
@@ -147,7 +147,7 @@ TEST(HistMultiEvaluator, Evaluate) {
   std::transform(histogram.cbegin(), histogram.cend(), std::back_inserter(ptrs),
                  [](auto const &h) { return std::addressof(h); });
 
-  evaluator.EvaluateSplits(tree, ptrs, cuts, &entries);
+  evaluator.EvaluateSplits(tree, common::Span{ptrs.data(), ptrs.size()}, cuts, &entries);
 
   ASSERT_EQ(entries.front().split.loss_chg, 12.5);
   ASSERT_EQ(entries.front().split.split_value, 0.5);
@@ -234,7 +234,7 @@ auto CompareOneHotAndPartition(bool onehot) {
 
     hist.Init(gmat.cut.TotalBins());
     hist.AddHistRow(0);
-    hist.AllocateAllData();
+    hist.AllocateData(0);
     auto node_hist = hist[0];
 
     CHECK_EQ(node_hist.size(), n_cats);
@@ -264,7 +264,7 @@ TEST_F(TestCategoricalSplitWithMissing, HistEvaluator) {
   common::HistCollection hist;
   hist.Init(cuts_.TotalBins());
   hist.AddHistRow(0);
-  hist.AllocateAllData();
+  hist.AllocateData(0);
   auto node_hist = hist[0];
   ASSERT_EQ(node_hist.size(), feature_histogram_.size());
   std::copy(feature_histogram_.cbegin(), feature_histogram_.cend(), node_hist.begin());

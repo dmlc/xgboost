@@ -209,6 +209,7 @@ void VerifyColumnSplit(bst_row_t rows, bst_feature_t cols, bst_target_t n_target
   Context ctx;
   ObjInfo task{ObjInfo::kRegression};
   std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create("grow_quantile_histmaker", &ctx, &task)};
+    updater->Configure(Args{});
   std::vector<HostDeviceVector<bst_node_t>> position(1);
 
   std::unique_ptr<DMatrix> sliced{Xy->SliceCol(collective::GetWorldSize(), collective::GetRank())};
@@ -238,6 +239,7 @@ void TestColumnSplit(bst_target_t n_targets) {
     Context ctx;
     std::unique_ptr<TreeUpdater> updater{
         TreeUpdater::Create("grow_quantile_histmaker", &ctx, &task)};
+    updater->Configure(Args{});
     std::vector<HostDeviceVector<bst_node_t>> position(1);
     TrainParam param;
     param.Init(Args{});

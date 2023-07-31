@@ -85,8 +85,8 @@ void GHistIndexMatrix::PushBatch(SparsePage const &batch, common::Span<FeatureTy
 }
 
 GHistIndexMatrix::GHistIndexMatrix(SparsePage const &batch, common::Span<FeatureType const> ft,
-                                   common::HistogramCuts cuts, int32_t max_bins_per_feat,
-                                   bool isDense, double sparse_thresh, int32_t n_threads)
+                                   common::HistogramCuts cuts, bst_bin_t max_bins_per_feat,
+                                   bool isDense, double sparse_thresh, std::int32_t n_threads)
     : cut{std::move(cuts)},
       max_numeric_bins_per_feat{max_bins_per_feat},
       base_rowid{batch.base_rowid},

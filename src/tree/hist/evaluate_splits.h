@@ -317,7 +317,8 @@ class HistEvaluator {
   }
 
  public:
-  void EvaluateSplits(const common::HistCollection &hist, common::HistogramCuts const &cut,
+  template <typename HistCollection>
+  void EvaluateSplits(HistCollection const &hist, common::HistogramCuts const &cut,
                       common::Span<FeatureType const> feature_types, const RegTree &tree,
                       std::vector<CPUExpandEntry> *p_entries) {
     auto n_threads = ctx_->Threads();
@@ -623,7 +624,8 @@ class HistMultiEvaluator {
   }
 
  public:
-  void EvaluateSplits(RegTree const &tree, common::Span<const common::HistCollection *> hist,
+  template <typename HistCollection>
+  void EvaluateSplits(RegTree const &tree, common::Span<const HistCollection *> hist,
                       common::HistogramCuts const &cut, std::vector<MultiExpandEntry> *p_entries) {
     auto &entries = *p_entries;
     std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> features(entries.size());

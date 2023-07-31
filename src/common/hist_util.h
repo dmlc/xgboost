@@ -385,22 +385,18 @@ void CopyHist(GHistRow dst, const GHistRow src, size_t begin, size_t end);
 void SubtractionHist(GHistRow dst, const GHistRow src1, const GHistRow src2, size_t begin,
                      size_t end);
 
-/*!
- * \brief histogram of gradient statistics for multiple nodes
+/**
+ * @brief Runtime buffer for building histogram.
  */
 class HistCollection {
  public:
   // access histogram for i-th node
-  GHistRow operator[](bst_uint nid) const {
+  GHistRow operator[](bst_node_t nidx) const {
     constexpr uint32_t kMax = std::numeric_limits<uint32_t>::max();
-    const size_t id = row_ptr_.at(nid);
+    const size_t id = row_ptr_.at(nidx);
     CHECK_NE(id, kMax);
     GradientPairPrecise* ptr = nullptr;
-    if (contiguous_allocation_) {
-      ptr = const_cast<GradientPairPrecise*>(data_[0].data() + nbins_*id);
-    } else {
-      ptr = const_cast<GradientPairPrecise*>(data_[id].data());
-    }
+    ptr = const_cast<GradientPairPrecise*>(data_[id].data());
     return {ptr, nbins_};
   }
 
@@ -445,22 +441,12 @@ class HistCollection {
       data_[row_ptr_[nid]].resize(nbins_, {0, 0});
     }
   }
-  // allocate common buffer contiguously for all nodes, need for single Allreduce call
-  void AllocateAllData() {
-    const size_t new_size = nbins_*data_.size();
-    contiguous_allocation_ = true;
-    if (data_[0].size() != new_size) {
-      data_[0].resize(new_size);
-    }
-  }
 
  private:
   /*! \brief number of all bins over all features */
   uint32_t nbins_ = 0;
   /*! \brief amount of active nodes in hist collection */
   uint32_t n_nodes_added_ = 0;
-  /*! \brief flag to identify contiguous memory allocation */
-  bool contiguous_allocation_ = false;
 
   std::vector<std::vector<GradientPairPrecise>> data_;
 

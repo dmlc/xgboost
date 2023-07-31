@@ -58,7 +58,7 @@ class TestPartitionBasedSplit : public ::testing::Test {
 
     hist_.Init(cuts_.TotalBins());
     hist_.AddHistRow(0);
-    hist_.AllocateAllData();
+    hist_.AllocateData(0);
     auto node_hist = hist_[0];
 
     SimpleLCG lcg;

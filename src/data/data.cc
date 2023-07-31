@@ -6,9 +6,10 @@
 
 #include <dmlc/registry.h>
 
-#include <array>
 #include <cstddef>
-#include <cstring>
+#include <cstring>  // for memcpy
+#include <string>   // for string
+#include <utility>  // for pair
 
 #include "../collective/communicator-inl.h"
 #include "../collective/communicator.h"
@@ -27,11 +28,12 @@
 #include "../data/iterative_dmatrix.h"
 #include "./sparse_page_dmatrix.h"
 #include "./sparse_page_source.h"
+#include "array_interface.h"  // for ArrayInterface
 #include "dmlc/io.h"
 #include "file_iterator.h"
 #include "simple_dmatrix.h"
 #include "sparse_page_writer.h"
-#include "validation.h"
+#include "validation.h"  // for ValidateQueryGroup, WeightsCheck, LabelsCheck
 #include "xgboost/c_api.h"
 #include "xgboost/context.h"
 #include "xgboost/host_device_vector.h"
