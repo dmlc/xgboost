@@ -8,7 +8,6 @@
 #include "./sparse_page_dmatrix.h"
 
 #include "../collective/communicator-inl.h"
-#include "./simple_batch_iterator.h"
 #include "batch_utils.h"  // for RegenGHist
 #include "gradient_index.h"
 

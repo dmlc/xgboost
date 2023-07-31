@@ -1,6 +1,6 @@
 import json
 from string import ascii_lowercase
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import numpy as np
 import pytest
@@ -15,28 +15,13 @@ from xgboost.testing.params import (
     hist_parameter_strategy,
 )
 from xgboost.testing.updater import (
+    check_categorical_missing,
+    check_categorical_ohe,
     check_get_quantile_cut,
     check_init_estimation,
     check_quantile_loss,
+    train_result,
 )
-
-
-def train_result(param, dmat, num_rounds):
-    result = {}
-    booster = xgb.train(
-        param,
-        dmat,
-        num_rounds,
-        evals=[(dmat, "train")],
-        verbose_eval=False,
-        evals_result=result,
-    )
-    assert booster.num_features() == dmat.num_col()
-    assert booster.num_boosted_rounds() == num_rounds
-    assert booster.feature_names == dmat.feature_names
-    assert booster.feature_types == dmat.feature_types
-
-    return result
 
 
 class TestTreeMethodMulti:
@@ -281,115 +266,6 @@ class TestTreeMethod:
     def test_max_cat(self, tree_method) -> None:
         self.run_max_cat(tree_method)
 
-    def run_categorical_missing(
-        self, rows: int, cols: int, cats: int, tree_method: str
-    ) -> None:
-        parameters: Dict[str, Any] = {"tree_method": tree_method}
-        cat, label = tm.make_categorical(
-            rows, n_features=cols, n_categories=cats, onehot=False, sparsity=0.5
-        )
-        Xy = xgb.DMatrix(cat, label, enable_categorical=True)
-
-        def run(max_cat_to_onehot: int):
-            # Test with onehot splits
-            parameters["max_cat_to_onehot"] = max_cat_to_onehot
-
-            evals_result: Dict[str, Dict] = {}
-            booster = xgb.train(
-                parameters,
-                Xy,
-                num_boost_round=16,
-                evals=[(Xy, "Train")],
-                evals_result=evals_result
-            )
-            assert tm.non_increasing(evals_result["Train"]["rmse"])
-            y_predt = booster.predict(Xy)
-
-            rmse = tm.root_mean_square(label, y_predt)
-            np.testing.assert_allclose(
-                rmse, evals_result["Train"]["rmse"][-1], rtol=2e-5
-            )
-
-        # Test with OHE split
-        run(self.USE_ONEHOT)
-
-        # Test with partition-based split
-        run(self.USE_PART)
-
-    def run_categorical_ohe(
-        self, rows: int, cols: int, rounds: int, cats: int, tree_method: str
-    ) -> None:
-        onehot, label = tm.make_categorical(rows, cols, cats, True)
-        cat, _ = tm.make_categorical(rows, cols, cats, False)
-
-        by_etl_results: Dict[str, Dict[str, List[float]]] = {}
-        by_builtin_results: Dict[str, Dict[str, List[float]]] = {}
-
-        parameters: Dict[str, Any] = {
-            "tree_method": tree_method,
-            # Use one-hot exclusively
-            "max_cat_to_onehot": self.USE_ONEHOT
-        }
-
-        m = xgb.DMatrix(onehot, label, enable_categorical=False)
-        xgb.train(
-            parameters,
-            m,
-            num_boost_round=rounds,
-            evals=[(m, "Train")],
-            evals_result=by_etl_results,
-        )
-
-        m = xgb.DMatrix(cat, label, enable_categorical=True)
-        xgb.train(
-            parameters,
-            m,
-            num_boost_round=rounds,
-            evals=[(m, "Train")],
-            evals_result=by_builtin_results,
-        )
-
-        # There are guidelines on how to specify tolerance based on considering output
-        # as random variables. But in here the tree construction is extremely sensitive
-        # to floating point errors. An 1e-5 error in a histogram bin can lead to an
-        # entirely different tree. So even though the test is quite lenient, hypothesis
-        # can still pick up falsifying examples from time to time.
-        np.testing.assert_allclose(
-            np.array(by_etl_results["Train"]["rmse"]),
-            np.array(by_builtin_results["Train"]["rmse"]),
-            rtol=1e-3,
-        )
-        assert tm.non_increasing(by_builtin_results["Train"]["rmse"])
-
-        by_grouping: Dict[str, Dict[str, List[float]]] = {}
-        # switch to partition-based splits
-        parameters["max_cat_to_onehot"] = self.USE_PART
-        parameters["reg_lambda"] = 0
-        m = xgb.DMatrix(cat, label, enable_categorical=True)
-        xgb.train(
-            parameters,
-            m,
-            num_boost_round=rounds,
-            evals=[(m, "Train")],
-            evals_result=by_grouping,
-        )
-        rmse_oh = by_builtin_results["Train"]["rmse"]
-        rmse_group = by_grouping["Train"]["rmse"]
-        # always better or equal to onehot when there's no regularization.
-        for a, b in zip(rmse_oh, rmse_group):
-            assert a >= b
-
-        parameters["reg_lambda"] = 1.0
-        by_grouping = {}
-        xgb.train(
-            parameters,
-            m,
-            num_boost_round=32,
-            evals=[(m, "Train")],
-            evals_result=by_grouping,
-        )
-        assert tm.non_increasing(by_grouping["Train"]["rmse"]), by_grouping
-
     @given(strategies.integers(10, 400), strategies.integers(3, 8),
            strategies.integers(1, 2), strategies.integers(4, 7))
     @settings(deadline=None, print_blob=True)
@@ -397,8 +273,8 @@ class TestTreeMethod:
     def test_categorical_ohe(
         self, rows: int, cols: int, rounds: int, cats: int
     ) -> None:
-        self.run_categorical_ohe(rows, cols, rounds, cats, "approx")
-        self.run_categorical_ohe(rows, cols, rounds, cats, "hist")
+        check_categorical_ohe(rows, cols, rounds, cats, "cpu", "approx")
+        check_categorical_ohe(rows, cols, rounds, cats, "cpu", "hist")
 
     @given(
         tm.categorical_dataset_strategy,
@@ -454,8 +330,8 @@ class TestTreeMethod:
     @settings(deadline=None, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical_missing(self, rows, cols, cats):
-        self.run_categorical_missing(rows, cols, cats, "approx")
-        self.run_categorical_missing(rows, cols, cats, "hist")
+        check_categorical_missing(rows, cols, cats, "cpu", "approx")
+        check_categorical_missing(rows, cols, cats, "cpu", "hist")
 
     def run_adaptive(self, tree_method, weighted) -> None:
         rng = np.random.RandomState(1994)

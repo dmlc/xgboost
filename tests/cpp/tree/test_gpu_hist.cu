@@ -13,10 +13,7 @@
 #include "../../../src/common/common.h"
 #include "../../../src/data/ellpack_page.cuh"  // for EllpackPageImpl
 #include "../../../src/data/ellpack_page.h"    // for EllpackPage
-#include "../../../src/data/sparse_page_source.h"
-#include "../../../src/tree/constraints.cuh"
 #include "../../../src/tree/param.h"  // for TrainParam
-#include "../../../src/tree/updater_gpu_common.cuh"
 #include "../../../src/tree/updater_gpu_hist.cu"
 #include "../filesystem.h"  // dmlc::TemporaryDirectory
 #include "../helpers.h"
@@ -94,8 +91,9 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   auto page = BuildEllpackPage(kNRows, kNCols);
   BatchParam batch_param{};
   Context ctx{MakeCUDACtx(0)};
-  GPUHistMakerDevice<GradientSumT> maker(&ctx, /*is_external_memory=*/false, {}, kNRows, param,
-                                         kNCols, kNCols, batch_param);
+  auto cs = std::make_shared<common::ColumnSampler>(0);
+  GPUHistMakerDevice maker(&ctx, /*is_external_memory=*/false, {}, kNRows, param, cs, kNCols,
+                           batch_param);
   xgboost::SimpleLCG gen;
   xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
   HostDeviceVector<GradientPair> gpair(kNRows);

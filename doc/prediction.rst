@@ -35,14 +35,14 @@ After 1.4 release, we added a new parameter called ``strict_shape``, one can set
   has equivalent output shape of ``multi:softprob`` due to dropped transformation.  If
   strict shape is set to False then output can have 1 or 2 dim depending on used model.
 
-- When using ``preds_contribs`` with ``strict_shape`` set to ``True``:
+- When using ``pred_contribs`` with ``strict_shape`` set to ``True``:
 
   Output is a 3-dim array, with ``(rows, groups, columns + 1)`` as shape.  Whether
   ``approx_contribs`` is used does not change the output shape. If the strict shape
   parameter is not set, it can be a 2 or 3 dimension array depending on whether
   multi-class model is being used.
 
-- When using ``preds_interactions`` with ``strict_shape`` set to ``True``:
+- When using ``pred_interactions`` with ``strict_shape`` set to ``True``:
 
   Output is a 4-dim array, with ``(rows, groups, columns + 1, columns + 1)`` as shape.
   Like the predict contribution case, whether ``approx_contribs`` is used does not change

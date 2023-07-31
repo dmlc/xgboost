@@ -7,13 +7,12 @@
 #include <algorithm>
 #include <limits>
 #include <memory>
-#include <utility>  // std::forward
+#include <utility>  // for forward
 
 #include "../common/column_matrix.h"
 #include "../common/hist_util.h"
 #include "../common/numeric.h"
-#include "../common/threading_utils.h"
-#include "../common/transform_iterator.h"  // MakeIndexTransformIter
+#include "../common/transform_iterator.h"  // for MakeIndexTransformIter
 
 namespace xgboost {
 
