@@ -574,7 +574,9 @@ template <typename Container, typename... S,
           std::enable_if_t<!common::detail::IsSpan<Container>::value &&
                            !std::is_pointer_v<Container>> * = nullptr>
 auto MakeTensorView(Context const *ctx, Container &data, S &&...shape) {  // NOLINT
-  using T = typename Container::value_type;
+  using T = std::conditional_t<std::is_const_v<Container>,
+                               std::add_const_t<typename Container::value_type>,
+                               typename Container::value_type>;
   std::size_t in_shape[sizeof...(S)];
   detail::IndexToArr(in_shape, std::forward<S>(shape)...);
   return TensorView<T, sizeof...(S)>{data, in_shape, ctx->gpu_id};

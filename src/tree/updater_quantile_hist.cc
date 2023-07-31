@@ -4,18 +4,17 @@
  * \brief use quantized feature values to construct a tree
  * \author Philip Cho, Tianqi Checn, Egor Smirnov
  */
-#include <algorithm>                         // for max, copy, transform
-#include <cstddef>                           // for size_t
-#include <cstdint>                           // for uint32_t, int32_t
-#include <memory>                            // for unique_ptr, allocator, make_unique, shared_ptr
-#include <numeric>                           // for accumulate
-#include <ostream>                           // for basic_ostream, char_traits, operator<<
-#include <utility>                           // for move, swap
-#include <vector>                            // for vector
+#include <algorithm>  // for max, copy, transform
+#include <cstddef>    // for size_t
+#include <cstdint>    // for uint32_t, int32_t
+#include <memory>     // for unique_ptr, allocator, make_unique, shared_ptr
+#include <numeric>    // for accumulate
+#include <ostream>    // for basic_ostream, char_traits, operator<<
+#include <utility>    // for move, swap
+#include <vector>     // for vector
 
 #include "../collective/aggregator.h"        // for GlobalSum
 #include "../collective/communicator-inl.h"  // for Allreduce, IsDistributed
-#include "../collective/communicator.h"      // for Operation
 #include "../common/hist_util.h"             // for HistogramCuts, HistCollection
 #include "../common/linalg_op.h"             // for begin, cbegin, cend
 #include "../common/random.h"                // for ColumnSampler
@@ -24,12 +23,12 @@
 #include "../common/transform_iterator.h"    // for IndexTransformIter, MakeIndexTransformIter
 #include "../data/gradient_index.h"          // for GHistIndexMatrix
 #include "common_row_partitioner.h"          // for CommonRowPartitioner
-#include "dmlc/omp.h"                        // for omp_get_thread_num
 #include "dmlc/registry.h"                   // for DMLC_REGISTRY_FILE_TAG
 #include "driver.h"                          // for Driver
 #include "hist/evaluate_splits.h"            // for HistEvaluator, HistMultiEvaluator, UpdatePre...
 #include "hist/expand_entry.h"               // for MultiExpandEntry, CPUExpandEntry
 #include "hist/histogram.h"                  // for HistogramBuilder, ConstructHistSpace
+#include "hist/param.h"                      // for HistMakerTrainParam
 #include "hist/sampler.h"                    // for SampleGradient
 #include "param.h"                           // for TrainParam, SplitEntryContainer, GradStats
 #include "xgboost/base.h"                    // for GradientPairInternal, GradientPair, bst_targ...
@@ -117,6 +116,7 @@ class MultiTargetHistBuilder {
  private:
   common::Monitor *monitor_{nullptr};
   TrainParam const *param_{nullptr};
+  HistMakerTrainParam const *hist_param_{nullptr};
   std::shared_ptr<common::ColumnSampler> col_sampler_;
   std::unique_ptr<HistMultiEvaluator> evaluator_;
   // Histogram builder for each target.
@@ -306,10 +306,12 @@ class MultiTargetHistBuilder {
 
  public:
   explicit MultiTargetHistBuilder(Context const *ctx, MetaInfo const &info, TrainParam const *param,
+                                  HistMakerTrainParam const *hist_param,
                                   std::shared_ptr<common::ColumnSampler> column_sampler,
                                   ObjInfo const *task, common::Monitor *monitor)
       : monitor_{monitor},
         param_{param},
+        hist_param_{hist_param},
         col_sampler_{std::move(column_sampler)},
         evaluator_{std::make_unique<HistMultiEvaluator>(ctx, info, param, col_sampler_)},
         ctx_{ctx},
@@ -331,10 +333,14 @@ class MultiTargetHistBuilder {
   }
 };
 
-class HistBuilder {
+/**
+ * @brief Tree updater for single-target trees.
+ */
+class HistUpdater {
  private:
   common::Monitor *monitor_;
   TrainParam const *param_;
+  HistMakerTrainParam const *hist_param_{nullptr};
   std::shared_ptr<common::ColumnSampler> col_sampler_;
   std::unique_ptr<HistEvaluator> evaluator_;
   std::vector<CommonRowPartitioner> partitioner_;
@@ -349,14 +355,14 @@ class HistBuilder {
   Context const *ctx_{nullptr};
 
  public:
-  explicit HistBuilder(Context const *ctx, std::shared_ptr<common::ColumnSampler> column_sampler,
-                       TrainParam const *param, DMatrix const *fmat, ObjInfo const *task,
-                       common::Monitor *monitor)
+  explicit HistUpdater(Context const *ctx, std::shared_ptr<common::ColumnSampler> column_sampler,
+                       TrainParam const *param, HistMakerTrainParam const *hist_param,
+                       DMatrix const *fmat, ObjInfo const *task, common::Monitor *monitor)
       : monitor_{monitor},
         param_{param},
+        hist_param_{hist_param},
         col_sampler_{std::move(column_sampler)},
-        evaluator_{std::make_unique<HistEvaluator>(ctx, param, fmat->Info(),
-                                                                   col_sampler_)},
+        evaluator_{std::make_unique<HistEvaluator>(ctx, param, fmat->Info(), col_sampler_)},
         p_last_fmat_(fmat),
         histogram_builder_{new HistogramBuilder<CPUExpandEntry>},
         task_{task},
@@ -529,7 +535,7 @@ class HistBuilder {
                      std::vector<bst_node_t> *p_out_position) {
     monitor_->Start(__func__);
     if (!task_->UpdateTreeLeaf()) {
-    monitor_->Stop(__func__);
+      monitor_->Stop(__func__);
       return;
     }
     for (auto const &part : partitioner_) {
@@ -541,20 +547,27 @@ class HistBuilder {
 
 /*! \brief construct a tree using quantized feature values */
 class QuantileHistMaker : public TreeUpdater {
-  std::unique_ptr<HistBuilder> p_impl_{nullptr};
+  std::unique_ptr<HistUpdater> p_impl_{nullptr};
   std::unique_ptr<MultiTargetHistBuilder> p_mtimpl_{nullptr};
   std::shared_ptr<common::ColumnSampler> column_sampler_ =
       std::make_shared<common::ColumnSampler>();
   common::Monitor monitor_;
   ObjInfo const *task_{nullptr};
+  HistMakerTrainParam hist_param_;
 
  public:
   explicit QuantileHistMaker(Context const *ctx, ObjInfo const *task)
       : TreeUpdater{ctx}, task_{task} {}
-  void Configure(const Args &) override {}
 
-  void LoadConfig(Json const &) override {}
-  void SaveConfig(Json *) const override {}
+  void Configure(Args const &args) override { hist_param_.UpdateAllowUnknown(args); }
+  void LoadConfig(Json const &in) override {
+    auto const &config = get<Object const>(in);
+    FromJson(config.at("hist_train_param"), &hist_param_);
+  }
+  void SaveConfig(Json *p_out) const override {
+    auto &out = *p_out;
+    out["hist_train_param"] = ToJson(hist_param_);
+  }
 
   [[nodiscard]] char const *Name() const override { return "grow_quantile_histmaker"; }
 
@@ -562,15 +575,17 @@ class QuantileHistMaker : public TreeUpdater {
               common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree *> &trees) override {
     if (trees.front()->IsMultiTarget()) {
+      CHECK(hist_param_.GetInitialised());
       CHECK(param->monotone_constraints.empty()) << "monotone constraint" << MTNotImplemented();
       if (!p_mtimpl_) {
         this->p_mtimpl_ = std::make_unique<MultiTargetHistBuilder>(
-            ctx_, p_fmat->Info(), param, column_sampler_, task_, &monitor_);
+            ctx_, p_fmat->Info(), param, &hist_param_, column_sampler_, task_, &monitor_);
       }
     } else {
+      CHECK(hist_param_.GetInitialised());
       if (!p_impl_) {
-        p_impl_ =
-            std::make_unique<HistBuilder>(ctx_, column_sampler_, param, p_fmat, task_, &monitor_);
+        p_impl_ = std::make_unique<HistUpdater>(ctx_, column_sampler_, param, &hist_param_, p_fmat,
+                                                task_, &monitor_);
       }
     }
 
@@ -601,6 +616,8 @@ class QuantileHistMaker : public TreeUpdater {
         UpdateTree<CPUExpandEntry>(&monitor_, h_sample_out, p_impl_.get(), p_fmat, param,
                                    h_out_position, *tree_it);
       }
+
+      hist_param_.CheckTreesSynchronized(*tree_it);
     }
   }
 
