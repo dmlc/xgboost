@@ -556,7 +556,7 @@ class BaseMGPUTest : public ::testing::Test {
 
   void SetUp() override {
     auto const n_gpus = common::AllVisibleGPUs();
-    if (n_gpus == 1) {
+    if (n_gpus <= 1) {
       // Use a single GPU to simulate distributed environment.
       world_size_ = 3;
       // NCCL doesn't like sharing a single GPU, so we use the adapter instead.
