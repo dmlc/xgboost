@@ -35,21 +35,9 @@
 #endif
 
 #if defined(__CUDACC__)
-#define GPUIDX 0
-#else
-#define GPUIDX -1
-#endif
-
-#if defined(__CUDACC__)
 #define DeclareUnifiedDistributedTest(name) MGPU ## name
 #else
 #define DeclareUnifiedDistributedTest(name) name
-#endif
-
-#if defined(__CUDACC__)
-#define WORLD_SIZE_FOR_TEST (xgboost::common::AllVisibleGPUs())
-#else
-#define WORLD_SIZE_FOR_TEST (3)
 #endif
 
 namespace xgboost {
@@ -552,15 +540,44 @@ void RunWithInMemoryCommunicator(int32_t world_size, Function&& function, Args&&
 #endif
 }
 
-class DeclareUnifiedDistributedTest(MetricTest) : public ::testing::Test {
+inline int GetGPUId() {
+#if defined(__CUDACC__)
+  auto const n_gpus = common::AllVisibleGPUs();
+  return n_gpus == 1 ? 0 : collective::GetRank();
+#else
+  return -1;
+#endif
+}
+
+class BaseMGPUTest : public ::testing::Test {
  protected:
   int world_size_;
+  bool use_nccl_{false};
 
   void SetUp() override {
-    world_size_ = WORLD_SIZE_FOR_TEST;
-    if (world_size_ <= 1) {
-      GTEST_SKIP() << "Skipping MGPU test with # GPUs = " << world_size_;
+    auto const n_gpus = common::AllVisibleGPUs();
+    if (n_gpus == 1) {
+      // Use a single GPU to simulate distributed environment.
+      world_size_ = 3;
+      // NCCL doesn't like sharing a single GPU, so we use the adapter instead.
+      use_nccl_ = false;
+    } else {
+      // Use multiple GPUs for real.
+      world_size_ = common::AllVisibleGPUs();
+      use_nccl_ = true;
+    }
+  }
+
+  template <typename Function, typename... Args>
+  void DoTest(Function&& function, Args&&... args) {
+    if (use_nccl_) {
+      RunWithInMemoryCommunicator<true>(world_size_, function, args...);
+    } else {
+      RunWithInMemoryCommunicator<false>(world_size_, function, args...);
     }
   }
 };
+
+class DeclareUnifiedDistributedTest(MetricTest) : public BaseMGPUTest{};
+
 }  // namespace xgboost

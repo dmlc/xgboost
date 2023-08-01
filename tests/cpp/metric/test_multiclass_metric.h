@@ -60,8 +60,8 @@ inline void TestMultiClassError(int device, DataSplitMode data_split_mode) {
 }
 
 inline void VerifyMultiClassError(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  TestMultiClassError(GPUIDX, data_split_mode);
-  CheckDeterministicMetricMultiClass(StringView{"merror"}, GPUIDX);
+  TestMultiClassError(GetGPUId(), data_split_mode);
+  CheckDeterministicMetricMultiClass(StringView{"merror"}, GetGPUId());
 }
 
 inline void TestMultiClassLogLoss(int device, DataSplitMode data_split_mode) {
@@ -81,8 +81,8 @@ inline void TestMultiClassLogLoss(int device, DataSplitMode data_split_mode) {
 }
 
 inline void VerifyMultiClassLogLoss(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  TestMultiClassLogLoss(GPUIDX, data_split_mode);
-  CheckDeterministicMetricMultiClass(StringView{"mlogloss"}, GPUIDX);
+  TestMultiClassLogLoss(GetGPUId(), data_split_mode);
+  CheckDeterministicMetricMultiClass(StringView{"mlogloss"}, GetGPUId());
 }
 
 }  // namespace metric

@@ -44,7 +44,6 @@ DeviceCommunicator* Communicator::GetDevice(int device_ordinal) {
         device_communicator_.reset(new NcclDeviceCommunicator(device_ordinal, false));
     }
 #else
-    CHECK(type_ != CommunicatorType::kInMemoryNccl) << "NCCL is not enabled";
     device_communicator_.reset(new DeviceCommunicatorAdapter(device_ordinal));
 #endif
   }

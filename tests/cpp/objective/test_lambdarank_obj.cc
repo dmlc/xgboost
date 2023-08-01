@@ -71,7 +71,7 @@ void TestNDCGGPair(Context const* ctx) {
 
   HostDeviceVector<float> predts{0, 1, 0, 1};
   MetaInfo info;
-  info.labels = linalg::Tensor<float, 2>{{0, 1, 0, 1}, {4, 1}, GPUIDX};
+  info.labels = linalg::Tensor<float, 2>{{0, 1, 0, 1}, {4, 1}, GetGPUId()};
   info.group_ptr_ = {0, 2, 4};
   info.num_row_ = 4;
   HostDeviceVector<GradientPair> gpairs;
