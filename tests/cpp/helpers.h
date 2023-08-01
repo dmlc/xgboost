@@ -563,7 +563,7 @@ class BaseMGPUTest : public ::testing::Test {
       use_nccl_ = false;
     } else {
       // Use multiple GPUs for real.
-      world_size_ = common::AllVisibleGPUs();
+      world_size_ = n_gpus;
       use_nccl_ = true;
     }
   }
