@@ -873,12 +873,12 @@ class GPUGlobalApproxMaker : public TreeUpdater {
 
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
-    FromJson(config.at("approx_train_param"), &this->hist_maker_param_);
+    FromJson(config.at("hist_train_param"), &this->hist_maker_param_);
     initialised_ = false;
   }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
-    out["approx_train_param"] = ToJson(hist_maker_param_);
+    out["hist_train_param"] = ToJson(hist_maker_param_);
   }
   ~GPUGlobalApproxMaker() override { dh::GlobalMemoryLogger().Log(); }
 
@@ -964,7 +964,7 @@ class GPUGlobalApproxMaker : public TreeUpdater {
  private:
   bool initialised_{false};
 
-  GPUHistMakerTrainParam hist_maker_param_;
+  HistMakerTrainParam hist_maker_param_;
   dh::device_vector<float> hess_;
   std::shared_ptr<common::ColumnSampler> column_sampler_;
   std::unique_ptr<GPUHistMakerDevice> maker_;
