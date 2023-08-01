@@ -12,26 +12,11 @@
 #include "../../../src/collective/communicator-inl.cuh"
 #include "../../../src/collective/device_communicator_adapter.cuh"
 #include "./helpers.h"
+#include "../helpers.h"
 
 namespace xgboost::collective {
 
-class FederatedAdapterTest : public BaseFederatedTest {
- protected:
-  bool simulate_mgpu_;
-
-  void SetUp() override {
-    BaseFederatedTest::SetUp();
-
-    auto const n_gpus = xgboost::common::AllVisibleGPUs();
-    if (n_gpus == 1) {
-      // Use a single GPU to simulate distributed environment.
-      simulate_mgpu_ = true;
-    } else {
-      // Use multiple GPUs for real.
-      simulate_mgpu_ = false;
-    }
-  }
-};
+class FederatedAdapterTest : public BaseFederatedTest {};
 
 TEST(FederatedAdapterSimpleTest, ThrowOnInvalidDeviceOrdinal) {
   auto construct = []() { DeviceCommunicatorAdapter adapter{-1}; };
@@ -39,10 +24,10 @@ TEST(FederatedAdapterSimpleTest, ThrowOnInvalidDeviceOrdinal) {
 }
 
 namespace {
-void VerifyAllReduceSum(bool simulate_mgpu) {
+void VerifyAllReduceSum() {
   auto const world_size = collective::GetWorldSize();
   auto const rank = collective::GetRank();
-  auto const device = simulate_mgpu ? 0 : rank;
+  auto const device = GetGPUId();
   int count = 3;
   common::SetDevice(device);
   thrust::device_vector<double> buffer(count, 0);
@@ -57,14 +42,14 @@ void VerifyAllReduceSum(bool simulate_mgpu) {
 }  // anonymous namespace
 
 TEST_F(FederatedAdapterTest, MGPUAllReduceSum) {
-  RunWithFederatedCommunicator(kWorldSize, server_->Address(), &VerifyAllReduceSum, simulate_mgpu_);
+  RunWithFederatedCommunicator(kWorldSize, server_->Address(), &VerifyAllReduceSum);
 }
 
 namespace {
-void VerifyAllGatherV(bool simulate_mgpu) {
+void VerifyAllGatherV() {
   auto const world_size = collective::GetWorldSize();
   auto const rank = collective::GetRank();
-  auto const device = simulate_mgpu ? 0 : rank;
+  auto const device = GetGPUId();
   int const count = rank + 2;
   common::SetDevice(device);
   thrust::device_vector<char> buffer(count, 0);
@@ -86,6 +71,6 @@ void VerifyAllGatherV(bool simulate_mgpu) {
 }  // anonymous namespace
 
 TEST_F(FederatedAdapterTest, MGPUAllGatherV) {
-  RunWithFederatedCommunicator(kWorldSize, server_->Address(), &VerifyAllGatherV, simulate_mgpu_);
+  RunWithFederatedCommunicator(kWorldSize, server_->Address(), &VerifyAllGatherV);
 }
 }  // namespace xgboost::collective
