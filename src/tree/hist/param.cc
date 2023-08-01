@@ -27,7 +27,7 @@ void HistMakerTrainParam::CheckTreesSynchronized(RegTree const* local_tree) cons
   collective::Broadcast(&s_model, 0);
 
   RegTree ref_tree{};  // rank 0 tree
-  auto j_ref_tree = Json::Load(StringView{s_model});
+  auto j_ref_tree = Json::Load(StringView{s_model}, std::ios::binary);
   ref_tree.LoadModel(j_ref_tree);
   CHECK(*local_tree == ref_tree);
 }
