@@ -360,4 +360,112 @@ TEST(CPUHistogram, ExternalMemory) {
   TestHistogramExternalMemory(&ctx, {kBins, sparse_thresh}, false, false);
   TestHistogramExternalMemory(&ctx, {kBins, sparse_thresh}, false, true);
 }
+
+void ParallelGHistBuilderReset() {
+  constexpr size_t kBins = 10;
+  constexpr size_t kNodes = 5;
+  constexpr size_t kNodesExtended = 10;
+  constexpr size_t kTasksPerNode = 10;
+  constexpr double kValue = 1.0;
+  Context ctx;
+
+  common::HistCollection collection;
+  collection.Init(kBins);
+
+  for(size_t inode = 0; inode < kNodesExtended; inode++) {
+    collection.AddHistRow(inode);
+    collection.AllocateData(inode);
+  }
+  ParallelGHistCollection hist_builder;
+  hist_builder.Init(kBins);
+  std::vector<common::GHistRow> target_hist(kNodes);
+  for(size_t i = 0; i < target_hist.size(); ++i) {
+    target_hist[i] = collection[i];
+  }
+
+  common::BlockedSpace2d space(
+      kNodes, [&](size_t /* node*/) { return kTasksPerNode; }, 1);
+  hist_builder.Reset(&ctx, kNodes, space, target_hist);
+
+  common::ParallelFor2d(space, ctx.Threads(), [&](size_t inode, common::Range1d) {
+    const size_t tid = omp_get_thread_num();
+
+    common::GHistRow hist = hist_builder.GetInitializedHist(tid, inode);
+    // fill hist by some non-null values
+    for (size_t j = 0; j < kBins; ++j) {
+      hist[j].Add(kValue, kValue);
+    }
+  });
+
+  // reset and extend buffer
+  target_hist.resize(kNodesExtended);
+  for(size_t i = 0; i < target_hist.size(); ++i) {
+    target_hist[i] = collection[i];
+  }
+  common::BlockedSpace2d space2(
+      kNodesExtended, [&](size_t /*node*/) { return kTasksPerNode; }, 1);
+  hist_builder.Reset(&ctx, kNodesExtended, space2, target_hist);
+
+  common::ParallelFor2d(space2, ctx.Threads(), [&](size_t inode, common::Range1d) {
+    const size_t tid = omp_get_thread_num();
+
+    common::GHistRow hist = hist_builder.GetInitializedHist(tid, inode);
+    // fill hist by some non-null values
+    for (size_t j = 0; j < kBins; ++j) {
+      ASSERT_EQ(0.0, hist[j].GetGrad());
+      ASSERT_EQ(0.0, hist[j].GetHess());
+    }
+  });
+}
+
+void ParallelGHistBuilderReduceHist(){
+  constexpr size_t kBins = 10;
+  constexpr size_t kNodes = 5;
+  constexpr size_t kTasksPerNode = 10;
+  constexpr double kValue = 1.0;
+  Context ctx;
+
+  common::HistCollection collection;
+  collection.Init(kBins);
+
+  for(size_t inode = 0; inode < kNodes; inode++) {
+    collection.AddHistRow(inode);
+    collection.AllocateData(inode);
+  }
+  ParallelGHistCollection hist_builder;
+  hist_builder.Init(kBins);
+  std::vector<common::GHistRow> target_hist(kNodes);
+  for(size_t i = 0; i < target_hist.size(); ++i) {
+    target_hist[i] = collection[i];
+  }
+
+  common::BlockedSpace2d space(
+      kNodes, [&](size_t /*node*/) { return kTasksPerNode; }, 1);
+  hist_builder.Reset(&ctx, kNodes, space, target_hist);
+
+  // Simple analog of BuildHist function, works in parallel for both tree-nodes and data in node
+  common::ParallelFor2d(space, ctx.Threads(), [&](size_t inode, common::Range1d) {
+    const size_t tid = omp_get_thread_num();
+
+    common::GHistRow hist = hist_builder.GetInitializedHist(tid, inode);
+    for (size_t i = 0; i < kBins; ++i) {
+      hist[i].Add(kValue, kValue);
+    }
+  });
+
+  for(size_t inode = 0; inode < kNodes; inode++) {
+    hist_builder.ReduceHist(inode, 0, kBins);
+
+    // We had kTasksPerNode tasks to add kValue to each bin for each node
+    // So, after reducing we expect to have (kValue * kTasksPerNode) in each node
+    for(size_t i = 0; i < kBins; ++i) {
+      ASSERT_EQ(kValue * kTasksPerNode, collection[inode][i].GetGrad());
+      ASSERT_EQ(kValue * kTasksPerNode, collection[inode][i].GetHess());
+    }
+  }
+}
+
+TEST(ParallelGHistBuilder, Reset) { ParallelGHistBuilderReset(); }
+
+TEST(ParallelGHistBuilder, ReduceHist) { ParallelGHistBuilderReduceHist(); }
 }  // namespace xgboost::tree
