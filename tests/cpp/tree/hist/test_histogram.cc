@@ -30,7 +30,8 @@ TEST(CPUHistogram, HistCollection) {
   bst_feature_t n_features = 12;
   bst_bin_t n_bins = 13;
   bst_bin_t n_total_bins = n_features * n_bins;
-  HistogramStorage hist{n_total_bins};
+  HistMakerTrainParam hist_param;
+  HistogramStorage hist{n_total_bins, &hist_param};
   hist.AllocateHistograms({0});
   ASSERT_TRUE(hist.HistogramExist(0));
   ASSERT_EQ(hist.NodeCapacity(), 1);
@@ -56,7 +57,8 @@ TEST(CPUHistogram, HistCollection) {
    * Reuse
    */
   {
-    HistogramStorage collection{n_total_bins};
+    HistMakerTrainParam hist_param;
+    HistogramStorage collection{n_total_bins, &hist_param};
     collection.AllocateHistograms({0});
     collection.AllocateHistograms({1, 2});
     collection.MarkFree(0);
@@ -95,7 +97,8 @@ void TestBuildHistogram(bool is_distributed, bool force_read_by_column, bool is_
 
   bst_node_t nidx = RegTree::kRoot;
   HistogramBuilder<CPUExpandEntry> histogram;
-  histogram.Reset(&ctx, total_bins, {kMaxBins, 0.5}, is_distributed, is_col_split);
+  HistMakerTrainParam hist_param;
+  histogram.Reset(&ctx, total_bins, {kMaxBins, 0.5}, is_distributed, is_col_split, &hist_param);
 
   RegTree tree;
 
@@ -203,9 +206,10 @@ void TestHistogramCategorical(size_t n_categories, bool force_read_by_column) {
    * Generate hist with cat data.
    */
   HistogramBuilder<CPUExpandEntry> cat_hist;
+  HistMakerTrainParam hist_param;
   for (auto const &gidx : cat_m->GetBatches<GHistIndexMatrix>(&ctx, {kBins, 0.5})) {
     auto n_total_bins = gidx.cut.TotalBins();
-    cat_hist.Reset(&ctx, n_total_bins, {kBins, 0.5}, false, false);
+    cat_hist.Reset(&ctx, n_total_bins, {kBins, 0.5}, false, false, &hist_param);
     cat_hist.BuildRootHist<false>(
         &ctx, 0, space, gidx, linalg::MakeTensorView(&ctx, gpair.ConstHostSpan(), gpair.Size()),
         row_set_collection, nodes_for_explicit_hist_build, force_read_by_column);
@@ -220,7 +224,7 @@ void TestHistogramCategorical(size_t n_categories, bool force_read_by_column) {
   HistogramBuilder<CPUExpandEntry> onehot_hist;
   for (auto const &gidx : encode_m->GetBatches<GHistIndexMatrix>(&ctx, {kBins, 0.5})) {
     auto n_total_bins = gidx.cut.TotalBins();
-    onehot_hist.Reset(&ctx, n_total_bins, {kBins, 0.5}, false, false);
+    onehot_hist.Reset(&ctx, n_total_bins, {kBins, 0.5}, false, false, &hist_param);
     onehot_hist.BuildRootHist<false>(
         &ctx, 0, space, gidx, linalg::MakeTensorView(&ctx, gpair.ConstHostSpan(), gpair.Size()),
         row_set_collection, nodes_for_explicit_hist_build, force_read_by_column);
@@ -263,6 +267,7 @@ void TestHistogramExternalMemory(Context const *ctx, BatchParam batch_param, boo
 
   common::GHistRow multi_page;
   HistogramBuilder<CPUExpandEntry> multi_build;
+  HistMakerTrainParam hist_param;
   {
     /**
      * Multiple pages
@@ -283,7 +288,7 @@ void TestHistogramExternalMemory(Context const *ctx, BatchParam batch_param, boo
     }
     ASSERT_EQ(n_samples, m->Info().num_row_);
 
-    multi_build.Reset(ctx, n_total_bins, batch_param, false, false);
+    multi_build.Reset(ctx, n_total_bins, batch_param, false, false, &hist_param);
     common::BlockedSpace2d space{1, [&](std::size_t) { return partition_size; },
                                  DefaultHistSpaceGran()};
     std::size_t page_idx{0};
@@ -325,7 +330,7 @@ void TestHistogramExternalMemory(Context const *ctx, BatchParam batch_param, boo
         DefaultHistSpaceGran()};
     ASSERT_EQ(gmat.Size(), n_samples);
 
-    single_build.Reset(ctx, n_total_bins, batch_param, false, false);
+    single_build.Reset(ctx, n_total_bins, batch_param, false, false, &hist_param);
     single_build.BuildRootHist<false>(
         ctx, /*page_idx=*/0, space, gmat,
         linalg::MakeTensorView(ctx, gpair.ConstHostSpan(), gpair.Size()), row_set_collection, nodes,

@@ -162,7 +162,8 @@ class MultiTargetHistUpdater {
     }
 
     histogram_builder_.Reset(ctx_, n_total_bins, p_tree->NumTargets(), HistBatch(param_),
-                             collective::IsDistributed(), p_fmat->Info().IsColumnSplit());
+                             collective::IsDistributed(), p_fmat->Info().IsColumnSplit(),
+                             hist_param_);
 
     evaluator_ = std::make_unique<HistMultiEvaluator>(ctx_, p_fmat->Info(), param_, col_sampler_);
     p_last_tree_ = p_tree;
@@ -353,7 +354,8 @@ class HistUpdater {
                                 fmat->Info().IsColumnSplit());
     }
     histogram_builder_->Reset(ctx_, n_total_bins, p_tree->NumTargets(), HistBatch(param_),
-                              collective::IsDistributed(), fmat->Info().IsColumnSplit());
+                              collective::IsDistributed(), fmat->Info().IsColumnSplit(),
+                              hist_param_);
     evaluator_ = std::make_unique<HistEvaluator>(ctx_, this->param_, fmat->Info(), col_sampler_);
     p_last_tree_ = p_tree;
     monitor_->Stop(__func__);

@@ -33,6 +33,7 @@ class HistogramStorage {
   std::map<bst_node_t, std::size_t> nidx_map_;
   bst_bin_t n_bins_{0};
   std::size_t size_{0};
+  std::int64_t cached_n_nodes_{0};
 
   std::queue<std::size_t> free_slots_;
 
@@ -54,29 +55,36 @@ class HistogramStorage {
     }
   }
 
+  void FreeAll() {
+    while (!nidx_map_.empty()) {
+      this->MarkFree(nidx_map_.cbegin());
+    }
+  }
+
  public:
   HistogramStorage() = default;
-  explicit HistogramStorage(bst_bin_t n_total_bins) { this->Reset(n_total_bins); }
+  explicit HistogramStorage(bst_bin_t n_total_bins, HistMakerTrainParam const *param) {
+    this->Reset(n_total_bins, param);
+  }
   [[nodiscard]] std::size_t Bytes() const {
     return common::Span{data_.data(), data_.size()}.size_bytes();
   }
-  void Reset(bst_bin_t n_total_bins) {
+  void Reset(bst_bin_t n_total_bins, HistMakerTrainParam const *param) {
     if (n_bins_ != 0) {
       CHECK_EQ(n_bins_, n_total_bins);
     }
     n_bins_ = n_total_bins;
 
-    while (!nidx_map_.empty()) {
-      this->MarkFree(nidx_map_.cbegin());
-    }
+    FreeAll();
     CHECK_EQ(this->size_, 0);
+    cached_n_nodes_ = param->max_cached_n_nodes;
   }
   [[nodiscard]] bst_bin_t TotalBins() const { return n_bins_; }
 
   void AllocateHistograms(common::Span<bst_node_t const> nodes) {
     bst_node_t n_nodes = nodes.size();
-    if (n_nodes > 16) {  // fixme: for testing only
-      this->Reset(n_bins_);
+    if (n_nodes > cached_n_nodes_) {
+      FreeAll();
     }
 
     std::cout << "n_nodes: " << n_nodes << std::endl;
@@ -468,10 +476,10 @@ class HistogramBuilder {
    *                         of using global rabit variable.
    */
   void Reset(Context const *ctx, bst_bin_t total_bins, BatchParam p, bool is_distributed,
-             bool is_col_split) {
+             bool is_col_split, HistMakerTrainParam const* param) {
     n_threads_ = ctx->Threads();
     param_ = p;
-    hist_collection_.Reset(total_bins);
+    hist_collection_.Reset(total_bins, param);
     hist_buffer_.Init(total_bins);
 
     is_distributed_ = is_distributed;
@@ -710,12 +718,12 @@ class MultiHistogramBuilder {
   [[nodiscard]] auto &Histogram(bst_target_t t) { return target_builders_[t].Histogram(); }
 
   void Reset(Context const *ctx, bst_bin_t total_bins, bst_target_t n_targets, BatchParam const &p,
-             bool is_distributed, bool is_col_split) {
+             bool is_distributed, bool is_col_split, HistMakerTrainParam const *param) {
     ctx_ = ctx;
     is_distributed_ = is_distributed;
     target_builders_.resize(n_targets);
     for (auto &v : target_builders_) {
-      v.Reset(ctx, total_bins, p, is_distributed, is_col_split);
+      v.Reset(ctx, total_bins, p, is_distributed, is_col_split, param);
     }
   }
 };

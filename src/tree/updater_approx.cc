@@ -77,7 +77,8 @@ class GloablApproxBuilder {
     }
 
     histogram_builder_.Reset(ctx_, n_total_bins, p_tree->NumTargets(), BatchSpec(*param_, hess),
-                             collective::IsDistributed(), p_fmat->Info().IsColumnSplit());
+                             collective::IsDistributed(), p_fmat->Info().IsColumnSplit(),
+                             hist_param_);
     monitor_->Stop(__func__);
   }
 
