@@ -212,7 +212,7 @@ class IteratorForTest(xgb.core.DataIter):
         if self.it == len(self.X):
             return 0
 
-        with pytest.raises(TypeError, match="keyword args"):
+        with pytest.raises(TypeError, match="Keyword argument"):
             input_data(self.X[self.it], self.y[self.it], None)
 
         # Use copy to make sure the iterator doesn't hold a reference to the data.
