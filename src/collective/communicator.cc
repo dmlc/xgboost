@@ -41,7 +41,8 @@ void Communicator::Init(Json const& config) {
 #endif
       break;
     }
-    case CommunicatorType::kInMemory: {
+    case CommunicatorType::kInMemory:
+    case CommunicatorType::kInMemoryNccl: {
       communicator_.reset(InMemoryCommunicator::Create(config));
       break;
     }

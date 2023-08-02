@@ -46,7 +46,8 @@ TEST(NcclDeviceCommunicator, MGPUAllReduceBitwiseAND) {
   if (n_gpus <= 1) {
     GTEST_SKIP() << "Skipping MGPUAllReduceBitwiseAND test with # GPUs = " << n_gpus;
   }
-  RunWithInMemoryCommunicator(n_gpus, VerifyAllReduceBitwiseAND);
+  auto constexpr kUseNccl = true;
+  RunWithInMemoryCommunicator<kUseNccl>(n_gpus, VerifyAllReduceBitwiseAND);
 }
 
 namespace {
@@ -67,7 +68,8 @@ TEST(NcclDeviceCommunicator, MGPUAllReduceBitwiseOR) {
   if (n_gpus <= 1) {
     GTEST_SKIP() << "Skipping MGPUAllReduceBitwiseOR test with # GPUs = " << n_gpus;
   }
-  RunWithInMemoryCommunicator(n_gpus, VerifyAllReduceBitwiseOR);
+  auto constexpr kUseNccl = true;
+  RunWithInMemoryCommunicator<kUseNccl>(n_gpus, VerifyAllReduceBitwiseOR);
 }
 
 namespace {
@@ -88,7 +90,8 @@ TEST(NcclDeviceCommunicator, MGPUAllReduceBitwiseXOR) {
   if (n_gpus <= 1) {
     GTEST_SKIP() << "Skipping MGPUAllReduceBitwiseXOR test with # GPUs = " << n_gpus;
   }
-  RunWithInMemoryCommunicator(n_gpus, VerifyAllReduceBitwiseXOR);
+  auto constexpr kUseNccl = true;
+  RunWithInMemoryCommunicator<kUseNccl>(n_gpus, VerifyAllReduceBitwiseXOR);
 }
 
 }  // namespace collective
