@@ -1459,6 +1459,7 @@ class TestWithDask:
         tree_method: str,
     ) -> None:
         params["tree_method"] = tree_method
+        params["debug_synchronize"] = True
         params = dataset.set_params(params)
         # It doesn't make sense to distribute a completely
         # empty dataset.

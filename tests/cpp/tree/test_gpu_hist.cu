@@ -105,13 +105,13 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   gpair.SetDevice(0);
 
   thrust::host_vector<common::CompressedByteT> h_gidx_buffer (page->gidx_buffer.HostVector());
-  maker.row_partitioner.reset(new RowPartitioner(0, kNRows));
+  maker.row_partitioner = std::make_unique<RowPartitioner>(0, kNRows);
 
   maker.hist.Init(0, page->Cuts().TotalBins());
   maker.hist.AllocateHistograms({0});
 
   maker.gpair = gpair.DeviceSpan();
-  maker.quantiser.reset(new GradientQuantiser(maker.gpair));
+  maker.quantiser = std::make_unique<GradientQuantiser>(maker.gpair);
   maker.page = page.get();
 
   maker.InitFeatureGroupsOnce();
@@ -246,6 +246,7 @@ void UpdateTree(Context const* ctx, HostDeviceVector<GradientPair>* gpair, DMatr
 
   ObjInfo task{ObjInfo::kRegression};
   tree::GPUHistMaker hist_maker{ctx, &task};
+  hist_maker.Configure(Args{});
 
   std::vector<HostDeviceVector<bst_node_t>> position(1);
   hist_maker.Update(&param, gpair, dmat, common::Span<HostDeviceVector<bst_node_t>>{position},
@@ -397,14 +398,14 @@ TEST(GpuHist, ConfigIO) {
   std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create("grow_gpu_hist", &ctx, &task)};
   updater->Configure(Args{});
 
-  Json j_updater { Object() };
+  Json j_updater{Object{}};
   updater->SaveConfig(&j_updater);
-  ASSERT_TRUE(IsA<Object>(j_updater["gpu_hist_train_param"]));
+  ASSERT_TRUE(IsA<Object>(j_updater["hist_train_param"]));
   updater->LoadConfig(j_updater);
 
-  Json j_updater_roundtrip { Object() };
+  Json j_updater_roundtrip{Object{}};
   updater->SaveConfig(&j_updater_roundtrip);
-  ASSERT_TRUE(IsA<Object>(j_updater_roundtrip["gpu_hist_train_param"]));
+  ASSERT_TRUE(IsA<Object>(j_updater_roundtrip["hist_train_param"]));
 
   ASSERT_EQ(j_updater, j_updater_roundtrip);
 }

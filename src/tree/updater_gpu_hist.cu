@@ -30,6 +30,7 @@
 #include "gpu_hist/gradient_based_sampler.cuh"
 #include "gpu_hist/histogram.cuh"
 #include "gpu_hist/row_partitioner.cuh"
+#include "hist/param.h"
 #include "param.h"
 #include "updater_gpu_common.cuh"
 #include "xgboost/base.h"
@@ -45,37 +46,6 @@
 namespace xgboost::tree {
 #if !defined(GTEST_TEST)
 DMLC_REGISTRY_FILE_TAG(updater_gpu_hist);
-#endif  // !defined(GTEST_TEST)
-
-// training parameters specific to this algorithm
-struct GPUHistMakerTrainParam : public XGBoostParameter<GPUHistMakerTrainParam> {
-  bool debug_synchronize;
-  // declare parameters
-  DMLC_DECLARE_PARAMETER(GPUHistMakerTrainParam) {
-    DMLC_DECLARE_FIELD(debug_synchronize)
-        .set_default(false)
-        .describe("Check if all distributed tree are identical after tree construction.");
-  }
-
-  // Only call this method for testing
-  void CheckTreesSynchronized(RegTree const* local_tree) const {
-    if (this->debug_synchronize) {
-      std::string s_model;
-      common::MemoryBufferStream fs(&s_model);
-      int rank = collective::GetRank();
-      if (rank == 0) {
-        local_tree->Save(&fs);
-      }
-      fs.Seek(0);
-      collective::Broadcast(&s_model, 0);
-      RegTree reference_tree{};  // rank 0 tree
-      reference_tree.Load(&fs);
-      CHECK(*local_tree == reference_tree);
-    }
-  }
-};
-#if !defined(GTEST_TEST)
-DMLC_REGISTER_PARAMETER(GPUHistMakerTrainParam);
 #endif  // !defined(GTEST_TEST)
 
 /**
@@ -777,12 +747,12 @@ class GPUHistMaker : public TreeUpdater {
 
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
-    FromJson(config.at("gpu_hist_train_param"), &this->hist_maker_param_);
+    FromJson(config.at("hist_train_param"), &this->hist_maker_param_);
     initialised_ = false;
   }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
-    out["gpu_hist_train_param"] = ToJson(hist_maker_param_);
+    out["hist_train_param"] = ToJson(hist_maker_param_);
   }
 
   ~GPUHistMaker() {  // NOLINT
@@ -836,6 +806,7 @@ class GPUHistMaker : public TreeUpdater {
       monitor_.Stop("InitDataOnce");
     }
     p_last_tree_ = p_tree;
+    CHECK(hist_maker_param_.GetInitialised());
   }
 
   void UpdateTree(TrainParam const* param, HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat,
@@ -869,7 +840,7 @@ class GPUHistMaker : public TreeUpdater {
  private:
   bool initialised_{false};
 
-  GPUHistMakerTrainParam hist_maker_param_;
+  HistMakerTrainParam hist_maker_param_;
 
   DMatrix* p_last_fmat_{nullptr};
   RegTree const* p_last_tree_{nullptr};
@@ -903,12 +874,12 @@ class GPUGlobalApproxMaker : public TreeUpdater {
 
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
-    FromJson(config.at("approx_train_param"), &this->hist_maker_param_);
+    FromJson(config.at("hist_train_param"), &this->hist_maker_param_);
     initialised_ = false;
   }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
-    out["approx_train_param"] = ToJson(hist_maker_param_);
+    out["hist_train_param"] = ToJson(hist_maker_param_);
   }
   ~GPUGlobalApproxMaker() override { dh::GlobalMemoryLogger().Log(); }
 
@@ -965,6 +936,7 @@ class GPUGlobalApproxMaker : public TreeUpdater {
   void InitData(DMatrix* p_fmat, RegTree const* p_tree) {
     this->InitDataOnce(p_fmat);
     p_last_tree_ = p_tree;
+    CHECK(hist_maker_param_.GetInitialised());
   }
 
   void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat, RegTree* p_tree,
@@ -994,7 +966,7 @@ class GPUGlobalApproxMaker : public TreeUpdater {
  private:
   bool initialised_{false};
 
-  GPUHistMakerTrainParam hist_maker_param_;
+  HistMakerTrainParam hist_maker_param_;
   dh::device_vector<float> hess_;
   std::shared_ptr<common::ColumnSampler> column_sampler_;
   std::unique_ptr<GPUHistMakerDevice> maker_;

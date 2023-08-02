@@ -14,13 +14,14 @@
 #include "driver.h"
 #include "hist/evaluate_splits.h"
 #include "hist/histogram.h"
+#include "hist/param.h"
 #include "hist/sampler.h"  // for SampleGradient
-#include "param.h"
+#include "param.h"         // for HistMakerTrainParam
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 #include "xgboost/json.h"
 #include "xgboost/linalg.h"
-#include "xgboost/task.h"          // for ObjInfo
+#include "xgboost/task.h"  // for ObjInfo
 #include "xgboost/tree_model.h"
 #include "xgboost/tree_updater.h"  // for TreeUpdater
 
@@ -42,6 +43,7 @@ auto BatchSpec(TrainParam const &p, common::Span<float> hess) {
 class GloablApproxBuilder {
  protected:
   TrainParam const *param_;
+  HistMakerTrainParam const *hist_param_{nullptr};
   std::shared_ptr<common::ColumnSampler> col_sampler_;
   HistEvaluator evaluator_;
   HistogramBuilder<CPUExpandEntry> histogram_builder_;
@@ -168,10 +170,12 @@ class GloablApproxBuilder {
   }
 
  public:
-  explicit GloablApproxBuilder(TrainParam const *param, MetaInfo const &info, Context const *ctx,
+  explicit GloablApproxBuilder(TrainParam const *param, HistMakerTrainParam const *hist_param,
+                               MetaInfo const &info, Context const *ctx,
                                std::shared_ptr<common::ColumnSampler> column_sampler,
                                ObjInfo const *task, common::Monitor *monitor)
       : param_{param},
+        hist_param_{hist_param},
         col_sampler_{std::move(column_sampler)},
         evaluator_{ctx, param_, info, col_sampler_},
         ctx_{ctx},
@@ -259,6 +263,7 @@ class GlobalApproxUpdater : public TreeUpdater {
   std::shared_ptr<common::ColumnSampler> column_sampler_ =
       std::make_shared<common::ColumnSampler>();
   ObjInfo const *task_;
+  HistMakerTrainParam hist_param_;
 
  public:
   explicit GlobalApproxUpdater(Context const *ctx, ObjInfo const *task)
@@ -266,9 +271,15 @@ class GlobalApproxUpdater : public TreeUpdater {
     monitor_.Init(__func__);
   }
 
-  void Configure(Args const &) override {}
-  void LoadConfig(Json const &) override {}
-  void SaveConfig(Json *) const override {}
+  void Configure(Args const &args) override { hist_param_.UpdateAllowUnknown(args); }
+  void LoadConfig(Json const &in) override {
+    auto const &config = get<Object const>(in);
+    FromJson(config.at("hist_train_param"), &hist_param_);
+  }
+  void SaveConfig(Json *p_out) const override {
+    auto &out = *p_out;
+    out["hist_train_param"] = ToJson(hist_param_);
+  }
 
   void InitData(TrainParam const &param, HostDeviceVector<GradientPair> const *gpair,
                 linalg::Matrix<GradientPair> *sampled) {
@@ -283,8 +294,9 @@ class GlobalApproxUpdater : public TreeUpdater {
   void Update(TrainParam const *param, HostDeviceVector<GradientPair> *gpair, DMatrix *m,
               common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree *> &trees) override {
-    pimpl_ = std::make_unique<GloablApproxBuilder>(param, m->Info(), ctx_, column_sampler_, task_,
-                                                   &monitor_);
+    CHECK(hist_param_.GetInitialised());
+    pimpl_ = std::make_unique<GloablApproxBuilder>(param, &hist_param_, m->Info(), ctx_,
+                                                   column_sampler_, task_, &monitor_);
 
     linalg::Matrix<GradientPair> h_gpair;
     // Obtain the hessian values for weighted sketching
@@ -299,6 +311,7 @@ class GlobalApproxUpdater : public TreeUpdater {
     std::size_t t_idx = 0;
     for (auto p_tree : trees) {
       this->pimpl_->UpdateTree(m, s_gpair, hess, p_tree, &out_position[t_idx]);
+      hist_param_.CheckTreesSynchronized(p_tree);
       ++t_idx;
     }
   }

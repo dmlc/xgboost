@@ -65,7 +65,7 @@ class HistEvaluator {
    *        pseudo-category for missing value but here we just do a complete scan to avoid
    *        making specialized histogram bin.
    */
-  void EnumerateOneHot(common::HistogramCuts const &cut, const common::GHistRow &hist,
+  void EnumerateOneHot(common::HistogramCuts const &cut, common::ConstGHistRow hist,
                        bst_feature_t fidx, bst_node_t nidx,
                        TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator,
                        SplitEntry *p_best) const {
@@ -143,7 +143,7 @@ class HistEvaluator {
    */
   template <int d_step>
   void EnumeratePart(common::HistogramCuts const &cut, common::Span<size_t const> sorted_idx,
-                     common::GHistRow const &hist, bst_feature_t fidx, bst_node_t nidx,
+                     common::ConstGHistRow hist, bst_feature_t fidx, bst_node_t nidx,
                      TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator,
                      SplitEntry *p_best) {
     static_assert(d_step == +1 || d_step == -1, "Invalid step.");
@@ -214,7 +214,7 @@ class HistEvaluator {
   // Returns the sum of gradients corresponding to the data points that contains
   // a non-missing value for the particular feature fid.
   template <int d_step>
-  GradStats EnumerateSplit(common::HistogramCuts const &cut, const common::GHistRow &hist,
+  GradStats EnumerateSplit(common::HistogramCuts const &cut, common::ConstGHistRow hist,
                            bst_feature_t fidx, bst_node_t nidx,
                            TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator,
                            SplitEntry *p_best) const {
@@ -454,8 +454,8 @@ class HistEvaluator {
                                    right_child);
   }
 
-  auto Evaluator() const { return tree_evaluator_.GetEvaluator(); }
-  auto const& Stats() const { return snode_; }
+  [[nodiscard]] auto Evaluator() const { return tree_evaluator_.GetEvaluator(); }
+  [[nodiscard]] auto const &Stats() const { return snode_; }
 
   float InitRoot(GradStats const &root_sum) {
     snode_.resize(1);
@@ -510,7 +510,7 @@ class HistMultiEvaluator {
 
   template <bst_bin_t d_step>
   bool EnumerateSplit(common::HistogramCuts const &cut, bst_feature_t fidx,
-                      common::Span<common::GHistRow const> hist,
+                      common::Span<common::ConstGHistRow> hist,
                       linalg::VectorView<GradientPairPrecise const> parent_sum, double parent_gain,
                       SplitEntryContainer<std::vector<GradientPairPrecise>> *p_best) const {
     auto const &cut_ptr = cut.Ptrs();
@@ -651,9 +651,9 @@ class HistMultiEvaluator {
       auto entry = &tloc_candidates[n_threads * nidx_in_set + tidx];
       auto best = &entry->split;
       auto parent_sum = stats_.Slice(entry->nid, linalg::All());
-      std::vector<common::GHistRow> node_hist;
+      std::vector<common::ConstGHistRow> node_hist;
       for (auto t_hist : hist) {
-        node_hist.push_back((*t_hist)[entry->nid]);
+        node_hist.emplace_back((*t_hist)[entry->nid]);
       }
       auto features_set = features[nidx_in_set]->ConstHostSpan();
 

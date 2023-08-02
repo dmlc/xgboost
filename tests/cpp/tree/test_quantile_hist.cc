@@ -13,7 +13,6 @@
 #include "../../../src/tree/common_row_partitioner.h"
 #include "../../../src/tree/hist/expand_entry.h"  // for MultiExpandEntry, CPUExpandEntry
 #include "../../../src/tree/param.h"
-#include "../../../src/tree/split_evaluator.h"
 #include "../helpers.h"
 #include "test_partitioner.h"
 #include "xgboost/data.h"
@@ -49,7 +48,7 @@ void TestPartitioner(bst_target_t n_targets) {
       auto min_value = gmat.cut.MinValues()[split_ind];
       RegTree tree{n_targets, n_features};
       CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid, false};
-      if constexpr (std::is_same<ExpandEntry, CPUExpandEntry>::value) {
+      if constexpr (std::is_same_v<ExpandEntry, CPUExpandEntry>) {
         GetSplit(&tree, min_value, &candidates);
       } else {
         GetMultiSplitForTest(&tree, min_value, &candidates);
@@ -217,6 +216,7 @@ void VerifyColumnSplit(bst_row_t rows, bst_feature_t cols, bst_target_t n_target
   RegTree tree{n_targets, cols};
   TrainParam param;
   param.Init(Args{});
+  updater->Configure(Args{});
   updater->Update(&param, p_gradients.get(), sliced.get(), position, {&tree});
 
   Json json{Object{}};
@@ -241,6 +241,7 @@ void TestColumnSplit(bst_target_t n_targets) {
     std::vector<HostDeviceVector<bst_node_t>> position(1);
     TrainParam param;
     param.Init(Args{});
+    updater->Configure(Args{});
     updater->Update(&param, p_gradients.get(), Xy.get(), position, {&expected_tree});
   }
 

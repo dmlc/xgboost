@@ -73,6 +73,7 @@ class TestPredictionCache : public ::testing::Test {
       tree::TrainParam param;
       param.UpdateAllowUnknown(Args{{"max_bin", "64"}});
 
+      updater->Configure(Args{});
       std::vector<HostDeviceVector<bst_node_t>> position(1);
       updater->Update(&param, &gpair, Xy_.get(), position, trees);
       HostDeviceVector<float> out_prediction_cached;

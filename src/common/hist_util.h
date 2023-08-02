@@ -362,6 +362,7 @@ bst_bin_t XGBOOST_HOST_DEV_INLINE BinarySearchBin(std::size_t begin, std::size_t
 }
 
 using GHistRow = Span<xgboost::GradientPairPrecise>;
+using ConstGHistRow = Span<xgboost::GradientPairPrecise const>;
 
 /*!
  * \brief fill a histogram by zeros
@@ -371,7 +372,7 @@ void InitilizeHistByZeroes(GHistRow hist, size_t begin, size_t end);
 /*!
  * \brief Increment hist as dst += add in range [begin, end)
  */
-void IncrementHist(GHistRow dst, const GHistRow add, size_t begin, size_t end);
+void IncrementHist(GHistRow dst, ConstGHistRow add, std::size_t begin, std::size_t end);
 
 /*!
  * \brief Copy hist from src to dst in range [begin, end)
