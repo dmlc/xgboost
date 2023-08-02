@@ -2231,8 +2231,8 @@ class TestDaskCallbacks:
 @gen_cluster(client=True, clean_kwargs={"processes": False, "threads": False}, allow_unclosed=True)
 async def test_worker_left(c, s, a, b):
     async with Worker(s.address):
-        dx = da.random.random((100, 10)).rechunk(chunks=(10, None))
-        dy = da.random.random((100,)).rechunk(chunks=(10,))
+        dx = da.random.random((1000, 10)).rechunk(chunks=(10, None))
+        dy = da.random.random((1000,)).rechunk(chunks=(10,))
         d_train = await xgb.dask.DaskDMatrix(
             c, dx, dy,
         )
@@ -2248,8 +2248,8 @@ async def test_worker_left(c, s, a, b):
 
 @gen_cluster(client=True, Worker=Nanny, clean_kwargs={"processes": False, "threads": False}, allow_unclosed=True)
 async def test_worker_restarted(c, s, a, b):
-    dx = da.random.random((100, 10)).rechunk(chunks=(10, None))
-    dy = da.random.random((100,)).rechunk(chunks=(10,))
+    dx = da.random.random((1000, 10)).rechunk(chunks=(10, None))
+    dy = da.random.random((1000,)).rechunk(chunks=(10,))
     d_train = await xgb.dask.DaskDMatrix(
         c, dx, dy,
     )
