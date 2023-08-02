@@ -67,7 +67,6 @@ class TestPredictionCache : public ::testing::Test {
 
       ObjInfo task{ObjInfo::kRegression};
       std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create(updater_name, ctx, &task)};
-      updater->Configure(Args{});
       RegTree tree;
       std::vector<RegTree*> trees{&tree};
       auto gpair = GenerateRandomGradients(n_samples_);
