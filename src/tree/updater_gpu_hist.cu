@@ -806,6 +806,7 @@ class GPUHistMaker : public TreeUpdater {
       monitor_.Stop("InitDataOnce");
     }
     p_last_tree_ = p_tree;
+    CHECK(hist_maker_param_.GetInitialised());
   }
 
   void UpdateTree(TrainParam const* param, HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat,
@@ -935,6 +936,7 @@ class GPUGlobalApproxMaker : public TreeUpdater {
   void InitData(DMatrix* p_fmat, RegTree const* p_tree) {
     this->InitDataOnce(p_fmat);
     p_last_tree_ = p_tree;
+    CHECK(hist_maker_param_.GetInitialised());
   }
 
   void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat, RegTree* p_tree,

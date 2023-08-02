@@ -246,6 +246,7 @@ void UpdateTree(Context const* ctx, HostDeviceVector<GradientPair>* gpair, DMatr
 
   ObjInfo task{ObjInfo::kRegression};
   tree::GPUHistMaker hist_maker{ctx, &task};
+  hist_maker.Configure(Args{});
 
   std::vector<HostDeviceVector<bst_node_t>> position(1);
   hist_maker.Update(&param, gpair, dmat, common::Span<HostDeviceVector<bst_node_t>>{position},

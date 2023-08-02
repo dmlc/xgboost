@@ -294,6 +294,7 @@ class GlobalApproxUpdater : public TreeUpdater {
   void Update(TrainParam const *param, HostDeviceVector<GradientPair> *gpair, DMatrix *m,
               common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree *> &trees) override {
+    CHECK(hist_param_.GetInitialised());
     pimpl_ = std::make_unique<GloablApproxBuilder>(param, &hist_param_, m->Info(), ctx_,
                                                    column_sampler_, task_, &monitor_);
 
