@@ -454,8 +454,8 @@ class HistEvaluator {
                                    right_child);
   }
 
-  auto Evaluator() const { return tree_evaluator_.GetEvaluator(); }
-  auto const& Stats() const { return snode_; }
+  [[nodiscard]] auto Evaluator() const { return tree_evaluator_.GetEvaluator(); }
+  [[nodiscard]] auto const &Stats() const { return snode_; }
 
   float InitRoot(GradStats const &root_sum) {
     snode_.resize(1);
@@ -653,7 +653,7 @@ class HistMultiEvaluator {
       auto parent_sum = stats_.Slice(entry->nid, linalg::All());
       std::vector<common::ConstGHistRow> node_hist;
       for (auto t_hist : hist) {
-        node_hist.push_back((*t_hist)[entry->nid]);
+        node_hist.emplace_back((*t_hist)[entry->nid]);
       }
       auto features_set = features[nidx_in_set]->ConstHostSpan();
 
