@@ -87,7 +87,6 @@ class HistogramStorage {
       FreeAll();
     }
 
-    std::cout << "n_nodes: " << n_nodes << std::endl;
     bst_node_t nidx_in_set = 0;
     // reuse previously allocated histograms
     while (!this->free_slots_.empty() && nidx_in_set < n_nodes) {
@@ -116,9 +115,6 @@ class HistogramStorage {
       this->AllocNode(nidx, prev);
       prev += this->n_bins_;
     }
-    std::cout << "data.size:" << data_.size()
-              << " kbytes:" << common::Span{data_.data(), data_.size()}.size_bytes() / 1024
-              << std::endl;
     // At this point, the number of nodes can exceed the maximum number of nodes specified
     // as we need to guarantee all histogram buffers are available.
   }
