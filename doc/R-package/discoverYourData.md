@@ -318,9 +318,9 @@ to predict if the treatment will work are :
 
 -   An individual’s age;
 -   Having received a placebo or not;
+-   Gender;
 -   Our generated feature AgeDiscret. We can see that its contribution
     is very low.
--   Gender is fourth with a very low importance.
 
 ### Do these results make sense?
 
@@ -449,7 +449,7 @@ sampling rows and columns:
         , objective = "binary:logistic"
     )
 
-    ## [1]  train-logloss:0.456256
+    ## [1]  train-logloss:0.456324
 
     #Boosting - 3 rounds
     bst <- xgboost(
