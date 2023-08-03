@@ -91,8 +91,6 @@ namespace xgboost {
 
 /*! \brief unsigned integer type used for feature index. */
 using bst_uint = uint32_t;  // NOLINT
-/*! \brief integer type. */
-using bst_int = int32_t;    // NOLINT
 /*! \brief unsigned long integers */
 using bst_ulong = uint64_t;  // NOLINT
 /*! \brief float type, used for storing statistics */

@@ -69,6 +69,7 @@ OBJECTS= \
     $(PKGROOT)/src/tree/updater_refresh.o \
     $(PKGROOT)/src/tree/updater_sync.o \
     $(PKGROOT)/src/tree/hist/param.o \
+    $(PKGROOT)/src/tree/hist/histogram.o \
     $(PKGROOT)/src/linear/linear_updater.o \
     $(PKGROOT)/src/linear/updater_coordinate.o \
     $(PKGROOT)/src/linear/updater_shotgun.o \

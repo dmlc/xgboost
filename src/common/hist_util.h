@@ -395,12 +395,7 @@ class HistCollection {
     constexpr uint32_t kMax = std::numeric_limits<uint32_t>::max();
     const size_t id = row_ptr_.at(nid);
     CHECK_NE(id, kMax);
-    GradientPairPrecise* ptr = nullptr;
-    if (contiguous_allocation_) {
-      ptr = const_cast<GradientPairPrecise*>(data_[0].data() + nbins_*id);
-    } else {
-      ptr = const_cast<GradientPairPrecise*>(data_[id].data());
-    }
+    GradientPairPrecise* ptr = const_cast<GradientPairPrecise*>(data_[id].data());
     return {ptr, nbins_};
   }
 
@@ -445,24 +440,12 @@ class HistCollection {
       data_[row_ptr_[nid]].resize(nbins_, {0, 0});
     }
   }
-  // allocate common buffer contiguously for all nodes, need for single Allreduce call
-  void AllocateAllData() {
-    const size_t new_size = nbins_*data_.size();
-    contiguous_allocation_ = true;
-    if (data_[0].size() != new_size) {
-      data_[0].resize(new_size);
-    }
-  }
-  [[nodiscard]] bool IsContiguous() const { return contiguous_allocation_; }
 
  private:
   /*! \brief number of all bins over all features */
   uint32_t nbins_ = 0;
   /*! \brief amount of active nodes in hist collection */
   uint32_t n_nodes_added_ = 0;
-  /*! \brief flag to identify contiguous memory allocation */
-  bool contiguous_allocation_ = false;
-
   std::vector<std::vector<GradientPairPrecise>> data_;
 
   /*! \brief row_ptr_[nid] locates bin for histogram of node nid */
