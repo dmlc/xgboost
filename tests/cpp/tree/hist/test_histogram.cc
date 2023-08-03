@@ -168,13 +168,8 @@ void TestSyncHist(bool is_distributed) {
 
   histogram.Buffer().Reset(1, n_nodes, space, target_hists);
   // sync hist
-  if (is_distributed) {
-    histogram.SyncHistogramDistributed(&tree, nodes_for_explicit_hist_build_,
-                                       nodes_for_subtraction_trick_, starting_index);
-  } else {
-    histogram.SyncHistogramLocal(&tree, nodes_for_explicit_hist_build_,
-                                 nodes_for_subtraction_trick_);
-  }
+  histogram.SyncHistogram(&tree, nodes_for_explicit_hist_build_,
+                                     nodes_for_subtraction_trick_, starting_index);
 
   using GHistRowT = common::GHistRow;
   auto check_hist = [](const GHistRowT parent, const GHistRowT left, const GHistRowT right,
@@ -479,4 +474,3 @@ TEST(CPUHistogram, ExternalMemory) {
   TestHistogramExternalMemory(&ctx, {kBins, sparse_thresh}, false, true);
 }
 }  // namespace xgboost::tree
-

@@ -19,8 +19,6 @@ template <typename ExpandEntry>
 class HistogramBuilder {
   /*! \brief culmulative histogram of gradients. */
   common::HistCollection hist_;
-  /*! \brief culmulative local parent histogram of gradients. */
-  common::HistCollection hist_local_worker_;
   common::ParallelGHistBuilder buffer_;
   BatchParam param_;
   int32_t n_threads_{-1};
@@ -45,12 +43,9 @@ class HistogramBuilder {
     n_batches_ = n_batches;
     param_ = p;
     hist_.Init(total_bins);
-    hist_local_worker_.Init(total_bins);
     buffer_.Init(total_bins);
     is_distributed_ = is_distributed;
     is_col_split_ = is_col_split;
-    // Workaround s390x gcc 7.5.0
-    auto DMLC_ATTRIBUTE_UNUSED __force_instantiation = &GradientPairPrecise::Reduce;
   }
 
   template <bool any_missing>
@@ -129,7 +124,7 @@ class HistogramBuilder {
       return;
     }
 
-    this->SyncHistogramDistributed(p_tree, nodes_for_explicit_hist_build,
+    this->SyncHistogram(p_tree, nodes_for_explicit_hist_build,
                                    nodes_for_subtraction_trick, starting_index);
   }
   /** same as the other build hist but handles only single batch data (in-core) */
@@ -151,10 +146,10 @@ class HistogramBuilder {
                     nodes_for_subtraction_trick, gpair, force_read_by_column);
   }
 
-  void SyncHistogramDistributed(RegTree const *p_tree,
-                                std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
-                                std::vector<ExpandEntry> const &nodes_for_subtraction_trick,
-                                int starting_index) {
+  void SyncHistogram(RegTree const *p_tree,
+                     std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
+                     std::vector<ExpandEntry> const &nodes_for_subtraction_trick,
+                     int starting_index) {
     auto n_bins = buffer_.TotalBins();
     common::BlockedSpace2d space(
         nodes_for_explicit_hist_build.size(), [&](size_t) { return n_bins; }, 1024);
@@ -171,6 +166,7 @@ class HistogramBuilder {
           reinterpret_cast<double *>(this->hist_[starting_index].data()),
           n_bins * nodes_for_explicit_hist_build.size() * 2);
     }
+
     common::ParallelFor2d(space, this->n_threads_, [&](std::size_t nidx_in_set, common::Range1d r) {
       const auto &entry = nodes_for_explicit_hist_build[nidx_in_set];
       auto this_hist = this->hist_[entry.nid];
@@ -184,51 +180,10 @@ class HistogramBuilder {
     });
   }
 
-  void SyncHistogramLocal(RegTree const *p_tree,
-                          std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
-                          std::vector<ExpandEntry> const &nodes_for_subtraction_trick) {
-    const size_t nbins = this->buffer_.TotalBins();
-    common::BlockedSpace2d space(
-        nodes_for_explicit_hist_build.size(), [&](size_t) { return nbins; }, 1024);
-
-    common::ParallelFor2d(space, this->n_threads_, [&](size_t node, common::Range1d r) {
-      const auto &entry = nodes_for_explicit_hist_build[node];
-      auto this_hist = this->hist_[entry.nid];
-      // Merging histograms from each thread into once
-      this->buffer_.ReduceHist(node, r.begin(), r.end());
-
-      if (!p_tree->IsRoot(entry.nid)) {
-        auto const parent_id = p_tree->Parent(entry.nid);
-        auto const subtraction_node_id = nodes_for_subtraction_trick[node].nid;
-        auto parent_hist = this->hist_[parent_id];
-        auto sibling_hist = this->hist_[subtraction_node_id];
-        common::SubtractionHist(sibling_hist, parent_hist, this_hist, r.begin(), r.end());
-      }
-    });
-  }
-
  public:
   /* Getters for tests. */
   common::HistCollection const &Histogram() { return hist_; }
   auto &Buffer() { return buffer_; }
-
- private:
-  // Add a tree node to histogram buffer in local training environment.
-  void AddHistRowsLocal(int *starting_index, int *sync_count,
-                        std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
-                        std::vector<ExpandEntry> const &nodes_for_subtraction_trick) {
-    for (auto const &entry : nodes_for_explicit_hist_build) {
-      int nid = entry.nid;
-      this->hist_.AddHistRow(nid);
-      (*starting_index) = std::min(nid, (*starting_index));
-    }
-    (*sync_count) = nodes_for_explicit_hist_build.size();
-
-    for (auto const &node : nodes_for_subtraction_trick) {
-      this->hist_.AddHistRow(node.nid);
-    }
-    this->hist_.AllocateAllData();
-  }
 };
 
 // Construct a work space for building histogram.  Eventually we should move this
