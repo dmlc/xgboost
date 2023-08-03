@@ -453,6 +453,7 @@ class HistCollection {
       data_[0].resize(new_size);
     }
   }
+  [[nodiscard]] bool IsContiguous() const { return contiguous_allocation_; }
 
  private:
   /*! \brief number of all bins over all features */
