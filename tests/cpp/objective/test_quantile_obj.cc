@@ -14,7 +14,7 @@
 
 namespace xgboost {
 TEST(Objective, DeclareUnifiedTest(Quantile)) {
-  Context ctx = MakeCUDACtx(GetGPUId());
+  Context ctx = MakeCUDACtx(GPUIDX);
 
   {
     Args args{{"quantile_alpha", "[0.6, 0.8]"}};
@@ -37,7 +37,7 @@ TEST(Objective, DeclareUnifiedTest(Quantile)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(QuantileIntercept)) {
-  Context ctx = MakeCUDACtx(GetGPUId());
+  Context ctx = MakeCUDACtx(GPUIDX);
   Args args{{"quantile_alpha", "[0.6, 0.8]"}};
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:quantileerror", &ctx)};
   obj->Configure(args);

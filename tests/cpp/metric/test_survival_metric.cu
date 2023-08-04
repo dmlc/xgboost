@@ -31,7 +31,7 @@ TEST_F(DeclareUnifiedDistributedTest(MetricTest), IntervalRegressionAccuracyColu
 
 // Test configuration of AFT metric
 TEST(AFTNegLogLikMetric, DeclareUnifiedTest(Configuration)) {
-  auto ctx = MakeCUDACtx(GetGPUId());
+  auto ctx = MakeCUDACtx(GPUIDX);
   std::unique_ptr<Metric> metric(Metric::Create("aft-nloglik", &ctx));
   metric->Configure({{"aft_loss_distribution", "normal"}, {"aft_loss_distribution_scale", "10"}});
 
@@ -42,7 +42,7 @@ TEST(AFTNegLogLikMetric, DeclareUnifiedTest(Configuration)) {
   EXPECT_EQ(get<String>(aft_param_json["aft_loss_distribution"]), "normal");
   EXPECT_EQ(get<String>(aft_param_json["aft_loss_distribution_scale"]), "10");
 
-  CheckDeterministicMetricElementWise(StringView{"aft-nloglik"}, GetGPUId());
+  CheckDeterministicMetricElementWise(StringView{"aft-nloglik"}, GPUIDX);
 }
 }  // namespace common
 }  // namespace xgboost

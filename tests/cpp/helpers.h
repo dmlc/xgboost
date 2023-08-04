@@ -35,6 +35,12 @@
 #endif
 
 #if defined(__CUDACC__)
+#define GPUIDX (common::AllVisibleGPUs() == 1 ? 0 : collective::GetRank())
+#else
+#define GPUIDX (-1)
+#endif
+
+#if defined(__CUDACC__)
 #define DeclareUnifiedDistributedTest(name) MGPU ## name
 #else
 #define DeclareUnifiedDistributedTest(name) name
@@ -537,15 +543,6 @@ void RunWithInMemoryCommunicator(int32_t world_size, Function&& function, Args&&
   for (auto& thread : threads) {
     thread.join();
   }
-#endif
-}
-
-inline int GetGPUId() {
-#if defined(__CUDACC__)
-  auto const n_gpus = common::AllVisibleGPUs();
-  return n_gpus == 1 ? 0 : collective::GetRank();
-#else
-  return -1;
 #endif
 }
 

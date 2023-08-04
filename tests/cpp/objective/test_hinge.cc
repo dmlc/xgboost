@@ -6,7 +6,7 @@
 #include "../helpers.h"
 namespace xgboost {
 TEST(Objective, DeclareUnifiedTest(HingeObj)) {
-  Context ctx = MakeCUDACtx(GetGPUId());
+  Context ctx = MakeCUDACtx(GPUIDX);
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("binary:hinge", &ctx)};
 
   float eps = std::numeric_limits<xgboost::bst_float>::min();
