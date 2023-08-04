@@ -4,7 +4,7 @@
 #include "../helpers.h"
 namespace xgboost {
 TEST(Metric, UnknownMetric) {
-  auto ctx = MakeCUDACtx(GetGPUId());
+  auto ctx = MakeCUDACtx(GPUIDX);
   xgboost::Metric* metric = nullptr;
   EXPECT_ANY_THROW(metric = xgboost::Metric::Create("unknown_name", &ctx));
   EXPECT_NO_THROW(metric = xgboost::Metric::Create("rmse", &ctx));

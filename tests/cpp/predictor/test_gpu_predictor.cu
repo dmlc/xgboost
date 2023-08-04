@@ -60,7 +60,7 @@ void VerifyBasicColumnSplit(std::array<std::vector<float>, 32> const& expected_r
   auto const world_size = collective::GetWorldSize();
   auto const rank = collective::GetRank();
 
-  auto ctx = MakeCUDACtx(GetGPUId());
+  auto ctx = MakeCUDACtx(GPUIDX);
   std::unique_ptr<Predictor> predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &ctx));
   predictor->Configure({});
@@ -283,7 +283,7 @@ TEST(GPUPredictor, CategoricalPredictLeaf) {
 TEST(GPUPredictor, PredictLeafBasic) {
   size_t constexpr kRows = 5, kCols = 5;
   auto dmat = RandomDataGenerator(kRows, kCols, 0).Device(0).GenerateDMatrix();
-  auto lparam = MakeCUDACtx(GetGPUId());
+  auto lparam = MakeCUDACtx(GPUIDX);
   std::unique_ptr<Predictor> gpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &lparam));
   gpu_predictor->Configure({});
