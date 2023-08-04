@@ -27,7 +27,7 @@ namespace {
 void VerifyAllReduceSum() {
   auto const world_size = collective::GetWorldSize();
   auto const rank = collective::GetRank();
-  auto const device = GetGPUId();
+  auto const device = GPUIDX;
   int count = 3;
   common::SetDevice(device);
   thrust::device_vector<double> buffer(count, 0);
@@ -49,7 +49,7 @@ namespace {
 void VerifyAllGatherV() {
   auto const world_size = collective::GetWorldSize();
   auto const rank = collective::GetRank();
-  auto const device = GetGPUId();
+  auto const device = GPUIDX;
   int const count = rank + 2;
   common::SetDevice(device);
   thrust::device_vector<char> buffer(count, 0);

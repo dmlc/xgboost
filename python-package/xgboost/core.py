@@ -582,8 +582,8 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
 
         @require_keyword_args(True)
         def input_data(
-            data: Any,
             *,
+            data: Any,
             feature_names: Optional[FeatureNames] = None,
             feature_types: Optional[FeatureTypes] = None,
             **kwargs: Any,
@@ -684,6 +684,9 @@ def require_keyword_args(
         @wraps(func)
         def inner_f(*args: Any, **kwargs: Any) -> _T:
             extra_args = len(args) - len(all_args)
+            if not all_args and extra_args > 0:  # keyword argument only
+                raise TypeError("Keyword argument is required.")
+
             if extra_args > 0:
                 # ignore first 'self' argument for instance methods
                 args_msg = [

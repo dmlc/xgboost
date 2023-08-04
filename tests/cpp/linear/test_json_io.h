@@ -12,7 +12,7 @@
 
 namespace xgboost {
 inline void TestUpdaterJsonIO(std::string updater_str) {
-  Context ctx{MakeCUDACtx(GetGPUId())};
+  Context ctx{MakeCUDACtx(GPUIDX)};
   Json config_0 {Object() };
 
   {

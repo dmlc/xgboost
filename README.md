@@ -48,7 +48,6 @@ Become a sponsor and get a logo here. See details at [Sponsoring the XGBoost Pro
 
 <a href="https://www.nvidia.com/en-us/" target="_blank"><img src="https://raw.githubusercontent.com/xgboost-ai/xgboost-ai.github.io/master/images/sponsors/nvidia.jpg" alt="NVIDIA" width="72" height="72"></a>
 <a href="https://www.intel.com/" target="_blank"><img src="https://images.opencollective.com/intel-corporation/2fa85c1/logo/256.png" width="72" height="72"></a>
-<a href="https://getkoffie.com/?utm_source=opencollective&utm_medium=github&utm_campaign=xgboost" target="_blank"><img src="https://images.opencollective.com/koffielabs/f391ab8/logo/256.png" width="72" height="72"></a>
 
 ### Backers
 [[Become a backer](https://opencollective.com/xgboost#backer)]
