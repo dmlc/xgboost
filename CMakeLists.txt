@@ -232,6 +232,15 @@ add_subdirectory(${xgboost_SOURCE_DIR}/plugin)
 
 if (PLUGIN_RMM)
   find_package(rmm REQUIRED)
+
+  # Patch the rmm targets so they reference the static cudart
+  # Remove this patch once RMM stops specifying cudart requirement
+  # (since RMM is a header-only library, it should not specify cudart in its CMake config)
+  get_target_property(rmm_link_libs rmm::rmm INTERFACE_LINK_LIBRARIES)
+  list(REMOVE_ITEM rmm_link_libs CUDA::cudart)
+  list(APPEND rmm_link_libs CUDA::cudart_static)
+  set_target_properties(rmm::rmm PROPERTIES INTERFACE_LINK_LIBRARIES "${rmm_link_libs}")
+  get_target_property(rmm_link_libs rmm::rmm INTERFACE_LINK_LIBRARIES)
 endif (PLUGIN_RMM)
 
 #-- library

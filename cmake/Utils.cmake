@@ -177,7 +177,8 @@ function(xgboost_set_cuda_flags target)
   set_target_properties(${target} PROPERTIES
     CUDA_STANDARD 17
     CUDA_STANDARD_REQUIRED ON
-    CUDA_SEPARABLE_COMPILATION OFF)
+    CUDA_SEPARABLE_COMPILATION OFF
+    CUDA_RUNTIME_LIBRARY Static)
 endfunction(xgboost_set_cuda_flags)
 
 macro(xgboost_link_nccl target)
@@ -279,6 +280,7 @@ macro(xgboost_target_link_libraries target)
 
   if (USE_CUDA)
     xgboost_set_cuda_flags(${target})
+    target_link_libraries(${target} PUBLIC CUDA::cudart_static)
   endif (USE_CUDA)
 
   if (PLUGIN_RMM)
