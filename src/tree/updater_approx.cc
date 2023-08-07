@@ -3,10 +3,10 @@
  *
  * \brief Implementation for the approx tree method.
  */
-#include <algorithm>  // for max, transform
+#include <algorithm>  // for max, transform, fill_n
 #include <cstddef>    // for size_t
 #include <map>        // for map
-#include <memory>     // for allocator, unique_ptr
+#include <memory>     // for allocator, unique_ptr, make_shared, make_unique
 #include <utility>    // for move
 #include <vector>     // for vector
 
@@ -19,23 +19,23 @@
 #include "common_row_partitioner.h"          // for CommonRowPartitioner
 #include "dmlc/registry.h"                   // for DMLC_REGISTRY_FILE_TAG
 #include "driver.h"                          // for Driver
-#include "hist/evaluate_splits.h"            // for HistEvaluator, UpdatePre...
+#include "hist/evaluate_splits.h"            // for HistEvaluator, UpdatePredictionCacheImpl
 #include "hist/expand_entry.h"               // for CPUExpandEntry
 #include "hist/histogram.h"                  // for MultiHistogramBuilder
 #include "hist/param.h"                      // for HistMakerTrainParam
 #include "hist/sampler.h"                    // for SampleGradient
 #include "param.h"                           // for GradStats, TrainParam
-#include "xgboost/base.h"                    // for Args, GradientPair, bst_...
+#include "xgboost/base.h"                    // for Args, GradientPair, bst_node_t, bst_bin_t
 #include "xgboost/context.h"                 // for Context
-#include "xgboost/data.h"                    // for DMatrix, BatchSet, Batch...
+#include "xgboost/data.h"                    // for DMatrix, BatchSet, BatchIterator, MetaInfo
 #include "xgboost/host_device_vector.h"      // for HostDeviceVector
-#include "xgboost/json.h"                    // for Object, Json, FromJson
-#include "xgboost/linalg.h"                  // for Matrix, MakeTensorView
-#include "xgboost/logging.h"                 // for LogCheck_EQ, CHECK_EQ
+#include "xgboost/json.h"                    // for Object, Json, FromJson, ToJson, get
+#include "xgboost/linalg.h"                  // for Matrix, MakeTensorView, Empty, MatrixView
+#include "xgboost/logging.h"                 // for LogCheck_EQ, CHECK_EQ, CHECK
 #include "xgboost/span.h"                    // for Span
 #include "xgboost/task.h"                    // for ObjInfo
 #include "xgboost/tree_model.h"              // for RegTree, RTreeNodeStat
-#include "xgboost/tree_updater.h"            // for TreeUpdater, TreeUpdaterReg
+#include "xgboost/tree_updater.h"            // for TreeUpdater, TreeUpdaterReg, XGBOOST_REGISTE...
 
 namespace xgboost::tree {
 

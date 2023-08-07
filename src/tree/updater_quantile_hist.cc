@@ -7,35 +7,37 @@
 #include <algorithm>  // for max, copy, transform
 #include <cstddef>    // for size_t
 #include <cstdint>    // for uint32_t, int32_t
-#include <memory>     // for unique_ptr, allocator, make_unique, shared_ptr
-#include <ostream>    // for basic_ostream, char_traits, operator<<
+#include <exception>  // for exception
+#include <memory>     // for allocator, unique_ptr, make_unique, shared_ptr
+#include <ostream>    // for operator<<, basic_ostream, char_traits
 #include <utility>    // for move
 #include <vector>     // for vector
 
 #include "../collective/aggregator.h"        // for GlobalSum
-#include "../collective/communicator-inl.h"  // for Allreduce, IsDistributed
-#include "../common/hist_util.h"             // for HistogramCuts, HistCollection
+#include "../collective/communicator-inl.h"  // for IsDistributed
+#include "../common/hist_util.h"             // for HistogramCuts, GHistRow
 #include "../common/linalg_op.h"             // for begin, cbegin, cend
 #include "../common/random.h"                // for ColumnSampler
 #include "../common/threading_utils.h"       // for ParallelFor
 #include "../common/timer.h"                 // for Monitor
-#include "../common/transform_iterator.h"    // for IndexTransformIter, MakeIndexTransformIter
+#include "../common/transform_iterator.h"    // for IndexTransformIter
 #include "../data/gradient_index.h"          // for GHistIndexMatrix
 #include "common_row_partitioner.h"          // for CommonRowPartitioner
 #include "dmlc/registry.h"                   // for DMLC_REGISTRY_FILE_TAG
 #include "driver.h"                          // for Driver
 #include "hist/evaluate_splits.h"            // for HistEvaluator, HistMultiEvaluator, UpdatePre...
 #include "hist/expand_entry.h"               // for MultiExpandEntry, CPUExpandEntry
-#include "hist/hist_cache.h"                 // for HistogramCollection
-#include "hist/histogram.h"                  // for HistogramBuilder, ConstructHistSpace
+#include "hist/hist_cache.h"                 // for BoundedHistCollection
+#include "hist/histogram.h"                  // for MultiHistogramBuilder
 #include "hist/param.h"                      // for HistMakerTrainParam
 #include "hist/sampler.h"                    // for SampleGradient
-#include "param.h"                           // for TrainParam, SplitEntryContainer, GradStats
-#include "xgboost/base.h"                    // for GradientPairInternal, GradientPair, bst_targ...
+#include "param.h"                           // for TrainParam, GradStats
+#include "xgboost/base.h"                    // for Args, GradientPairPrecise, GradientPair, Gra...
 #include "xgboost/context.h"                 // for Context
-#include "xgboost/data.h"                    // for BatchIterator, BatchSet, DMatrix, MetaInfo
+#include "xgboost/data.h"                    // for BatchSet, DMatrix, BatchIterator, MetaInfo
 #include "xgboost/host_device_vector.h"      // for HostDeviceVector
-#include "xgboost/linalg.h"                  // for All, MatrixView, TensorView, Matrix, Empty
+#include "xgboost/json.h"                    // for Object, Json, FromJson, ToJson, get
+#include "xgboost/linalg.h"                  // for MatrixView, TensorView, All, Matrix, Empty
 #include "xgboost/logging.h"                 // for LogCheck_EQ, CHECK_EQ, CHECK, LogCheck_GE
 #include "xgboost/span.h"                    // for Span, operator!=, SpanIterator
 #include "xgboost/string_view.h"             // for operator<<
