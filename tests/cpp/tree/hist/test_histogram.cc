@@ -522,8 +522,6 @@ class OverflowTest : public ::testing::TestWithParam<std::tuple<bool, bool>> {
     std::shared_ptr<DMatrix> Xy =
         is_col_split ? RandomDataGenerator{8192, 16, 0.5}.GenerateDMatrix(true)
                      : RandomDataGenerator{8192, 16, 0.5}.Bins(kBins).GenerateQuantileDMatrix(true);
-    ;
-
     if (is_col_split) {
       Xy =
           std::shared_ptr<DMatrix>{Xy->SliceCol(collective::GetWorldSize(), collective::GetRank())};
@@ -568,23 +566,23 @@ class OverflowTest : public ::testing::TestWithParam<std::tuple<bool, bool>> {
     for (auto const &page : Xy->GetBatches<GHistIndexMatrix>(&ctx, batch)) {
       partitioners.front().UpdatePosition(&ctx, page, valid_candidates, &tree);
     }
-    CHECK_NE(partitioners.front()[1].Size(), 0);
-    CHECK_NE(partitioners.front()[2].Size(), 0);
+    CHECK_NE(partitioners.front()[tree.LeftChild(best.nid)].Size(), 0);
+    CHECK_NE(partitioners.front()[tree.RightChild(best.nid)].Size(), 0);
 
     hist_builder.BuildHistLeftRight(
         Xy.get(), &tree, partitioners, valid_candidates,
         linalg::MakeTensorView(&ctx, gpair.ConstHostSpan(), gpair.Size(), 1), batch);
 
     if (limit) {
-      CHECK(!hist_builder.Histogram(0).HistogramExists(0));
+      CHECK(!hist_builder.Histogram(0).HistogramExists(best.nid));
     } else {
-      CHECK(hist_builder.Histogram(0).HistogramExists(0));
+      CHECK(hist_builder.Histogram(0).HistogramExists(best.nid));
     }
 
     std::vector<GradientPairPrecise> result;
-    auto hist = hist_builder.Histogram(0)[1];
+    auto hist = hist_builder.Histogram(0)[tree.LeftChild(best.nid)];
     std::copy(hist.cbegin(), hist.cend(), std::back_inserter(result));
-    hist = hist_builder.Histogram(0)[1];
+    hist = hist_builder.Histogram(0)[tree.RightChild(best.nid)];
     std::copy(hist.cbegin(), hist.cend(), std::back_inserter(result));
 
     return result;

@@ -53,8 +53,10 @@ class HistogramBuilder {
 
  public:
   /**
-   * \param total_bins       Total number of bins across all features
-   * \param is_distributed   Mostly used for testing to allow injecting parameters instead
+   * @brief Reset the builder, should be called before growing a new tree.
+   *
+   * @param total_bins       Total number of bins across all features
+   * @param is_distributed   Mostly used for testing to allow injecting parameters instead
    *                         of using global rabit variable.
    */
   void Reset(Context const *ctx, bst_bin_t total_bins, BatchParam const &p, bool is_distributed,

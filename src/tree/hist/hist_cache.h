@@ -23,12 +23,12 @@ namespace xgboost::tree {
  *
  *   The caller is responsible for clearing up the cache as it needs to rearrange the
  *   nodes before making overflowed allocations. The strcut only reports whether the size
- *   limit is reached.
+ *   limit has benn reached.
  */
 class BoundedHistCollection {
   // maps node index to offset in `data_`.
   std::map<bst_node_t, std::size_t> node_map_;
-  // currently allocated bins, used for tracking the consistentcy.
+  // currently allocated bins, used for tracking consistentcy.
   std::size_t current_size_{0};
 
   // stores the histograms in a contiguous buffer

@@ -23,8 +23,6 @@ void AssignNodes(RegTree const *p_tree, std::vector<MultiExpandEntry> const &val
   for (auto const &c : valid_candidates) {
     auto left_nidx = p_tree->LeftChild(c.nid);
     auto right_nidx = p_tree->RightChild(c.nid);
-    CHECK_NE(left_nidx, c.nid);
-    CHECK_NE(right_nidx, c.nid);
 
     auto build_nidx = left_nidx;
     auto subtract_nidx = right_nidx;
