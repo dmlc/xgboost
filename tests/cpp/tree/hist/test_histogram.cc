@@ -2,21 +2,36 @@
  * Copyright 2018-2023 by Contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/context.h>  // Context
+#include <xgboost/base.h>                // for bst_node_t, bst_bin_t, Gradient...
+#include <xgboost/context.h>             // for Context
+#include <xgboost/data.h>                // for BatchIterator, BatchSet, DMatrix
+#include <xgboost/host_device_vector.h>  // for HostDeviceVector
+#include <xgboost/linalg.h>              // for MakeTensorView
+#include <xgboost/logging.h>             // for Error, LogCheck_EQ, LogCheck_LT
+#include <xgboost/span.h>                // for Span, operator!=
+#include <xgboost/tree_model.h>          // for RegTree
 
-#include <limits>
+#include <algorithm>   // for max
+#include <cstddef>     // for size_t
+#include <cstdint>     // for int32_t, uint32_t
+#include <functional>  // for function
+#include <limits>      // for numeric_limits
+#include <memory>      // for shared_ptr, allocator, unique_ptr
+#include <numeric>     // for iota, accumulate
+#include <vector>      // for vector
 
-#include "../../../../src/collective/communicator-inl.h"
-#include "../../../../src/common/categorical.h"
-#include "../../../../src/common/row_set.h"
-#include "../../../../src/common/threading_utils.h"
-#include "../../../../src/data/gradient_index.h"
-#include "../../../../src/tree/hist/expand_entry.h"
-#include "../../../../src/tree/hist/hist_cache.h"
-#include "../../../../src/tree/hist/histogram.h"
-#include "../../../../src/tree/hist/param.h"
-#include "../../categorical_helpers.h"
-#include "../../helpers.h"
+#include "../../../../src/collective/communicator-inl.h"  // for GetRank, GetWorldSize
+#include "../../../../src/common/hist_util.h"             // for GHistRow, HistogramCuts, Sketch...
+#include "../../../../src/common/ref_resource_view.h"     // for RefResourceView
+#include "../../../../src/common/row_set.h"               // for RowSetCollection
+#include "../../../../src/common/threading_utils.h"       // for BlockedSpace2d
+#include "../../../../src/data/gradient_index.h"          // for GHistIndexMatrix
+#include "../../../../src/tree/hist/expand_entry.h"       // for CPUExpandEntry
+#include "../../../../src/tree/hist/hist_cache.h"         // for BoundedHistCollection
+#include "../../../../src/tree/hist/histogram.h"          // for HistogramBuilder
+#include "../../../../src/tree/hist/param.h"              // for HistMakerTrainParam
+#include "../../categorical_helpers.h"                    // for OneHotEncodeFeature
+#include "../../helpers.h"                                // for RandomDataGenerator, GenerateRa...
 
 namespace xgboost::tree {
 namespace {

@@ -68,17 +68,6 @@ HistogramCuts SketchOnDMatrix(Context const *ctx, DMatrix *m, bst_bin_t max_bins
 }
 
 /*!
- * \brief fill a histogram by zeros in range [begin, end)
- */
-void InitilizeHistByZeroes(GHistRow hist, size_t begin, size_t end) {
-#if defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1
-  std::fill(hist.begin() + begin, hist.begin() + end, xgboost::GradientPairPrecise());
-#else  // defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1
-  memset(hist.data() + begin, '\0', (end - begin) * sizeof(xgboost::GradientPairPrecise));
-#endif  // defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1
-}
-
-/*!
  * \brief Increment hist as dst += add in range [begin, end)
  */
 void IncrementHist(GHistRow dst, ConstGHistRow add, std::size_t begin, std::size_t end) {

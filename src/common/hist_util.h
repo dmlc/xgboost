@@ -365,11 +365,6 @@ using GHistRow = Span<xgboost::GradientPairPrecise>;
 using ConstGHistRow = Span<xgboost::GradientPairPrecise const>;
 
 /*!
- * \brief fill a histogram by zeros
- */
-void InitilizeHistByZeroes(GHistRow hist, size_t begin, size_t end);
-
-/*!
  * \brief Increment hist as dst += add in range [begin, end)
  */
 void IncrementHist(GHistRow dst, ConstGHistRow add, std::size_t begin, std::size_t end);
@@ -501,7 +496,7 @@ class ParallelGHistBuilder {
     GHistRow hist = idx == -1 ? targeted_hists_[nid] : hist_buffer_[idx];
 
     if (!hist_was_used_[tid * nodes_ + nid]) {
-      InitilizeHistByZeroes(hist, 0, hist.size());
+      std::fill_n(hist.data(), hist.size(), GradientPairPrecise{});
       hist_was_used_[tid * nodes_ + nid] = static_cast<int>(true);
     }
 
@@ -531,7 +526,7 @@ class ParallelGHistBuilder {
     if (!is_updated) {
       // In distributed mode - some tree nodes can be empty on local machines,
       // So we need just set local hist by zeros in this case
-      InitilizeHistByZeroes(dst, begin, end);
+      std::fill(dst.data() + begin, dst.data() + end, GradientPairPrecise{});
     }
   }
 
