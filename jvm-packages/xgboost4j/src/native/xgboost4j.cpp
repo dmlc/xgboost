@@ -691,11 +691,11 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredictFr
    * Create configuration object.
    */
   xgboost::Json config{xgboost::Object{}};
-  config["cache_id"] = xgboost::Integer{0};
-  config["type"] = xgboost::Integer{predict_type};
-  config["iteration_begin"] = xgboost::Integer{iteration_begin};
-  config["iteration_end"] = xgboost::Integer{iteration_end};
-  config["missing"] = xgboost::Number{missing};
+  config["cache_id"] = xgboost::Integer{};
+  config["type"] = xgboost::Integer{static_cast<std::int32_t>(predict_type)};
+  config["iteration_begin"] = xgboost::Integer{static_cast<xgboost::bst_layer_t>(iteration_begin)};
+  config["iteration_end"] = xgboost::Integer{static_cast<xgboost::bst_layer_t>(iteration_end)};
+  config["missing"] = xgboost::Number{static_cast<float>(missing)};
   config["strict_shape"] = xgboost::Boolean{true};
   std::string s_config;
   xgboost::Json::Dump(config, &s_config);
@@ -718,8 +718,8 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredictFr
   float const *result;
   auto ret = XGBoosterPredictFromDense(handle, s_array.c_str(), s_config.c_str(), proxy, &out_shape,
                                        &out_dim, &result);
-  jenv->ReleaseFloatArrayElements(jdata, data, 0);
 
+  jenv->ReleaseFloatArrayElements(jdata, data, 0);
   if (proxy) {
     XGDMatrixFree(proxy);
     jenv->ReleaseFloatArrayElements(jmargin, margin, 0);
@@ -739,7 +739,6 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredictFr
   jenv->SetFloatArrayRegion(jarray, 0, n, result);
   jenv->SetObjectArrayElement(jout, 0, jarray);
 
-  return ret;
   API_END();
 }
 
