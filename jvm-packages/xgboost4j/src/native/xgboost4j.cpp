@@ -690,6 +690,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredictFr
   config["type"] = xgboost::Integer{predict_type};
   config["iteration_begin"] = xgboost::Integer{iteration_begin};
   config["iteration_end"] = xgboost::Integer{iteration_end};
+  config["missing"] = xgboost::Number{missing};
   std::string s_config;
   xgboost::Json::Dump(config, &s_config);
 

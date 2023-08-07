@@ -334,14 +334,25 @@ public class Booster implements Serializable, KryoSerializable {
     return predicts;
   }
 
+  public float[][] inplace_predict(float[] data,
+      int nrow,
+      int ncol,
+      float missing) throws XGBoostError {
+    int[] iteration_range = new int[2];
+    iteration_range[0] = 0;
+    iteration_range[1] = 0;
+    return this.inplace_predict(data, nrow, ncol,
+        missing, iteration_range, PredictionType.kValue, null);
+  }
+
   /**
    * Perform thread-safe prediction. Calls
    * <code>inplace_predict(data, num_rows, num_features, missing, false, 0, false, false)</code>.
    *
-   * @param data           Flattened input matrix of features for prediction
-   * @param num_rows       The number of preditions to make (count of input matrix rows)
-   * @param num_features   The number of features in the model (count of input matrix columns)
-   * @param missing        Value indicating missing element in the <code>data</code> input matrix
+   * @param data      Flattened input matrix of features for prediction
+   * @param nrow      The number of preditions to make (count of input matrix rows)
+   * @param ncol      The number of features in the model (count of input matrix columns)
+   * @param missing   Value indicating missing element in the <code>data</code> input matrix
    *
    * @return predict       Result matrix
    *
@@ -350,11 +361,10 @@ public class Booster implements Serializable, KryoSerializable {
    *                       boolean predContribs)
    */
   public float[][] inplace_predict(float[] data,
-                                   int num_rows,
-                                   int num_features,
-                                   int[] iteration_range,
-                                   float missing) throws XGBoostError {
-    return this.inplace_predict(data, num_rows, num_features,
+      int nrow,
+      int ncol,
+      float missing, int[] iteration_range) throws XGBoostError {
+    return this.inplace_predict(data, nrow, ncol,
         missing, iteration_range, PredictionType.kValue, null);
   }
 
@@ -363,37 +373,34 @@ public class Booster implements Serializable, KryoSerializable {
    * Perform thread-safe prediction.
    *
    * @param data           Flattened input matrix of features for prediction
-   * @param num_rows       The number of preditions to make (count of input matrix rows)
-   * @param num_features   The number of features in the model (count of input matrix columns)
-   * @param d_matrix_h     The handle for a dmatrix
+   * @param nrow       The number of preditions to make (count of input matrix rows)
+   * @param ncol   The number of features in the model (count of input matrix columns)
    * @param missing        Value indicating missing element in the <code>data</code> input matrix
-   * @param outputMargin   Whether to only predict margin value instead of transformed prediction
-   * @param treeLimit      limit number of trees, 0 means all trees.
-   * @param predLeaf       prediction minimum to keep leafs
-   * @param predContribs   prediction feature contributions
    *
    * @return predict       Result matrix
    */
   public float[][] inplace_predict(float[] data,
-      int num_rows,
-      int num_features,
+      int nrow,
+      int ncol,
       float missing,
       int[] iteration_range,
       PredictionType predict_type,
       float[] base_margin) throws XGBoostError {
+    if (iteration_range.length != 2) {
+      throw new XGBoostError(new String("Iteration range is expected to be [begin, end)."));
+    }
     int ptype = predict_type.getPType();
 
     int begin = iteration_range[0];
     int end = iteration_range[1];
 
     float[][] rawPredicts = new float[1][];
-    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterPredictFromDense(handle, data, num_rows, num_features,
+    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterPredictFromDense(handle, data, nrow, ncol,
         missing,
         begin, end, ptype, base_margin, rawPredicts));
 
-    int row = num_rows;
-    int col = rawPredicts[0].length / row;
-    float[][] predicts = new float[row][col];
+    int col = rawPredicts[0].length / nrow;
+    float[][] predicts = new float[nrow][col];
     int r, c;
     for (int i = 0; i < rawPredicts[0].length; i++) {
       r = i / col;
