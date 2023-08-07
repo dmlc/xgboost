@@ -15,6 +15,7 @@
 #include <cstddef>     // for size_t
 #include <cstdint>     // for int32_t, uint32_t
 #include <functional>  // for function
+#include <iterator>    // for back_inserter
 #include <limits>      // for numeric_limits
 #include <memory>      // for shared_ptr, allocator, unique_ptr
 #include <numeric>     // for iota, accumulate
@@ -26,6 +27,7 @@
 #include "../../../../src/common/row_set.h"               // for RowSetCollection
 #include "../../../../src/common/threading_utils.h"       // for BlockedSpace2d
 #include "../../../../src/data/gradient_index.h"          // for GHistIndexMatrix
+#include "../../../../src/tree/common_row_partitioner.h"  // for CommonRowPartitioner
 #include "../../../../src/tree/hist/expand_entry.h"       // for CPUExpandEntry
 #include "../../../../src/tree/hist/hist_cache.h"         // for BoundedHistCollection
 #include "../../../../src/tree/hist/histogram.h"          // for HistogramBuilder
@@ -504,4 +506,110 @@ TEST(CPUHistogram, ExternalMemory) {
   TestHistogramExternalMemory(&ctx, {kBins, sparse_thresh}, false, false);
   TestHistogramExternalMemory(&ctx, {kBins, sparse_thresh}, false, true);
 }
+
+namespace {
+class OverflowTest : public ::testing::TestWithParam<std::tuple<bool, bool>> {
+ public:
+  std::vector<GradientPairPrecise> TestOverflow(bool limit, bool is_distributed,
+                                                bool is_col_split) {
+    bst_bin_t constexpr kBins = 256;
+    Context ctx;
+    HistMakerTrainParam hist_param;
+    if (limit) {
+      hist_param.Init(Args{{"internal_max_cached_hist_node", "1"}});
+    }
+
+    std::shared_ptr<DMatrix> Xy =
+        is_col_split ? RandomDataGenerator{8192, 16, 0.5}.GenerateDMatrix(true)
+                     : RandomDataGenerator{8192, 16, 0.5}.Bins(kBins).GenerateQuantileDMatrix(true);
+    ;
+
+    if (is_col_split) {
+      Xy =
+          std::shared_ptr<DMatrix>{Xy->SliceCol(collective::GetWorldSize(), collective::GetRank())};
+    }
+
+    double sparse_thresh{TrainParam::DftSparseThreshold()};
+    auto batch = BatchParam{kBins, sparse_thresh};
+    bst_bin_t n_total_bins{0};
+    float split_cond{0};
+    for (auto const &page : Xy->GetBatches<GHistIndexMatrix>(&ctx, batch)) {
+      n_total_bins = page.cut.TotalBins();
+      // use a cut point in the second column for split
+      split_cond = page.cut.Values()[kBins + kBins / 2];
+    }
+
+    RegTree tree;
+    MultiHistogramBuilder hist_builder;
+    CHECK_EQ(Xy->Info().IsColumnSplit(), is_col_split);
+
+    hist_builder.Reset(&ctx, n_total_bins, tree.NumTargets(), batch, is_distributed,
+                       Xy->Info().IsColumnSplit(), &hist_param);
+
+    std::vector<CommonRowPartitioner> partitioners;
+    partitioners.emplace_back(&ctx, Xy->Info().num_row_, /*base_rowid=*/0,
+                              Xy->Info().IsColumnSplit());
+
+    auto gpair = GenerateRandomGradients(Xy->Info().num_row_, 0.0, 1.0);
+
+    CPUExpandEntry best;
+    hist_builder.BuildRootHist(Xy.get(), &tree, partitioners,
+                               linalg::MakeTensorView(&ctx, gpair.ConstHostSpan(), gpair.Size(), 1),
+                               best, batch);
+
+    best.split.Update(1.0f, 1, split_cond, false, false, GradStats{1.0, 1.0}, GradStats{1.0, 1.0});
+    tree.ExpandNode(best.nid, best.split.SplitIndex(), best.split.split_value, false,
+                    /*base_weight=*/2.0f,
+                    /*left_leaf_weight=*/1.0f, /*right_leaf_weight=*/1.0f, best.GetLossChange(),
+                    /*sum_hess=*/2.0f, best.split.left_sum.GetHess(),
+                    best.split.right_sum.GetHess());
+
+    std::vector<CPUExpandEntry> valid_candidates{best};
+    for (auto const &page : Xy->GetBatches<GHistIndexMatrix>(&ctx, batch)) {
+      partitioners.front().UpdatePosition(&ctx, page, valid_candidates, &tree);
+    }
+    CHECK_NE(partitioners.front()[1].Size(), 0);
+    CHECK_NE(partitioners.front()[2].Size(), 0);
+
+    hist_builder.BuildHistLeftRight(
+        Xy.get(), &tree, partitioners, valid_candidates,
+        linalg::MakeTensorView(&ctx, gpair.ConstHostSpan(), gpair.Size(), 1), batch);
+
+    if (limit) {
+      CHECK(!hist_builder.Histogram(0).HistogramExists(0));
+    } else {
+      CHECK(hist_builder.Histogram(0).HistogramExists(0));
+    }
+
+    std::vector<GradientPairPrecise> result;
+    auto hist = hist_builder.Histogram(0)[1];
+    std::copy(hist.cbegin(), hist.cend(), std::back_inserter(result));
+    hist = hist_builder.Histogram(0)[1];
+    std::copy(hist.cbegin(), hist.cend(), std::back_inserter(result));
+
+    return result;
+  }
+
+  void RunTest() {
+    auto param = GetParam();
+    auto res0 = this->TestOverflow(false, std::get<0>(param), std::get<1>(param));
+    auto res1 = this->TestOverflow(true, std::get<0>(param), std::get<1>(param));
+    ASSERT_EQ(res0, res1);
+  }
+};
+
+auto MakeParamsForTest() {
+  std::vector<std::tuple<bool, bool>> configs;
+  for (auto i : {true, false}) {
+    for (auto j : {true, false}) {
+      configs.emplace_back(i, j);
+    }
+  }
+  return configs;
+}
+}  // anonymous namespace
+
+TEST_P(OverflowTest, Overflow) { this->RunTest(); }
+
+INSTANTIATE_TEST_SUITE_P(CPUHistogram, OverflowTest, ::testing::ValuesIn(MakeParamsForTest()));
 }  // namespace xgboost::tree

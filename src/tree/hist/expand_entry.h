@@ -18,8 +18,8 @@ namespace xgboost::tree {
  */
 template <typename Impl>
 struct ExpandEntryImpl {
-  bst_node_t nid;
-  bst_node_t depth;
+  bst_node_t nid{0};
+  bst_node_t depth{0};
 
   [[nodiscard]] float GetLossChange() const {
     return static_cast<Impl const*>(this)->split.loss_chg;
