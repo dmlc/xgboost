@@ -87,7 +87,7 @@ class InplacePredictThread extends Thread {
         int r = this.rng.nextInt(this.test_rows);
 
         // In-place predict a single random row
-        float[][] predictions = booster.inplace_predict(this.testX[r], 1, this.features);
+        float[][] predictions = booster.inplace_predict(this.testX[r], 1, this.features, Float.NaN);
 
         // Confirm results as expected
         if (predictions[0][0] != this.true_predicts[r][0]) {

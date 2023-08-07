@@ -19,6 +19,7 @@
 #include <xgboost/c_api.h>
 #include <xgboost/json.h>
 #include <xgboost/logging.h>
+#include <fstream>
 
 #include <cstddef>
 #include <cstdint>
@@ -662,8 +663,13 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredict
   return ret;
 }
 
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGBoosterPredictFromDense
+ * Signature: (J[FJJFIII[F[[F)I
+ */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredictFromDense(
-    JNIEnv *jenv, jclass jcls, jlong jhandle, jfloatArray jdata, jint num_rows, jint num_features,
+    JNIEnv *jenv, jclass jcls, jlong jhandle, jfloatArray jdata, jlong num_rows, jlong num_features,
     jfloat missing, jint iteration_begin, jint iteration_end, jint predict_type,
     jfloatArray jmargin, jobjectArray jout) {
   API_BEGIN();
@@ -691,16 +697,18 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredictFr
   config["iteration_begin"] = xgboost::Integer{iteration_begin};
   config["iteration_end"] = xgboost::Integer{iteration_end};
   config["missing"] = xgboost::Number{missing};
+  config["strict_shape"] = xgboost::Boolean{true};
   std::string s_config;
   xgboost::Json::Dump(config, &s_config);
 
   /**
    * Handle base margin
    */
-  jfloat *margin = jenv->GetFloatArrayElements(jmargin, nullptr);
   BoosterHandle proxy{nullptr};
 
-  if (margin) {
+  float *margin{nullptr};
+  if (jmargin) {
+    margin = jenv->GetFloatArrayElements(jmargin, nullptr);
     JVM_CHECK_CALL(XGProxyDMatrixCreate(&proxy));
     JVM_CHECK_CALL(
         XGDMatrixSetFloatInfo(proxy, "base_margin", margin, jenv->GetArrayLength(jmargin)));
@@ -716,6 +724,10 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredictFr
   if (proxy) {
     XGDMatrixFree(proxy);
     jenv->ReleaseFloatArrayElements(jmargin, margin, 0);
+  }
+
+  if (ret != 0) {
+    return ret;
   }
 
   std::size_t n{1};
