@@ -178,7 +178,7 @@ TEST(CAPI, JsonModelIO) {
   learner->UpdateOneIter(0, p_dmat);
   BoosterHandle handle = learner.get();
 
-  std::string modelfile_0 = tempdir.path + "/model_0.json";
+  std::string modelfile_0 = tempdir.path + "/모델_0.json";
   XGBoosterSaveModel(handle, modelfile_0.c_str());
   XGBoosterLoadModel(handle, modelfile_0.c_str());
 
