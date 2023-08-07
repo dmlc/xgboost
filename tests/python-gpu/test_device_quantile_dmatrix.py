@@ -7,6 +7,7 @@ from hypothesis import given, settings, strategies
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.data import check_inf
+from xgboost.testing.data_iter import run_mixed_sparsity
 
 sys.path.append("tests/python")
 import test_quantile_dmatrix as tqd
@@ -232,3 +233,6 @@ class TestQuantileDMatrix:
 
         rng = cp.random.default_rng(1994)
         check_inf(rng)
+
+    def test_mixed_sparsity(self) -> None:
+        run_mixed_sparsity("cuda")

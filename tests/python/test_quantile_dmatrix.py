@@ -16,6 +16,7 @@ from xgboost.testing import (
     predictor_equal,
 )
 from xgboost.testing.data import check_inf, np_dtypes
+from xgboost.testing.data_iter import run_mixed_sparsity
 
 
 class TestQuantileDMatrix:
@@ -334,3 +335,6 @@ class TestQuantileDMatrix:
 
         with pytest.raises(ValueError, match="consistent"):
             xgb.train({}, Xy, num_boost_round=2, xgb_model=booster)
+
+    def test_mixed_sparsity(self) -> None:
+        run_mixed_sparsity("cpu")
