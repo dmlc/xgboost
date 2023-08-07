@@ -119,9 +119,8 @@ class XGBoostJNI {
   public final static native int XGBoosterPredict(long handle, long dmat, int option_mask,
                                                   int ntree_limit, float[][] predicts);
 
-  public final static native int XGBoosterInplacePredict(long handle, float[] data, int num_rows, int num_features, long d_matrix_handle,
-                                                         float missing, int option_mask, int ntree_limit,
-                                                         float[][] predicts);
+  public final static native int XGBoosterInplacePredict(long handle, long d_matrix_handle,
+                                                        float missing, int predict_type);
 
   public final static native int XGBoosterLoadModel(long handle, String fname);
 
@@ -157,10 +156,6 @@ class XGBoostJNI {
 
   public final static native int XGDMatrixSetInfoFromInterface(
     long handle, String field, String json);
-
-  @Deprecated
-  public final static native int XGDeviceQuantileDMatrixCreateFromCallback(
-    java.util.Iterator<ColumnBatch> iter, float missing, int nthread, int maxBin, long[] out);
 
   public final static native int XGQuantileDMatrixCreateFromCallback(
     java.util.Iterator<ColumnBatch> iter, java.util.Iterator<ColumnBatch> ref, String config, long[] out);
