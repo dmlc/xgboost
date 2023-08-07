@@ -41,6 +41,10 @@ hist_parameter_strategy = strategies.fixed_dictionaries(
     and (cast(int, x["max_depth"]) > 0 or x["grow_policy"] == "lossguide")
 )
 
+hist_cache_strategy = strategies.fixed_dictionaries(
+    {"internal_max_cached_hist_node": strategies.sampled_from([1, 4, 1024, 2**31])}
+)
+
 hist_multi_parameter_strategy = strategies.fixed_dictionaries(
     {
         "max_depth": strategies.integers(1, 11),

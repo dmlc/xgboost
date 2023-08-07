@@ -91,8 +91,6 @@ namespace xgboost {
 
 /*! \brief unsigned integer type used for feature index. */
 using bst_uint = uint32_t;  // NOLINT
-/*! \brief integer type. */
-using bst_int = int32_t;    // NOLINT
 /*! \brief unsigned long integers */
 using bst_ulong = uint64_t;  // NOLINT
 /*! \brief float type, used for storing statistics */
@@ -138,9 +136,9 @@ namespace detail {
 template <typename T>
 class GradientPairInternal {
   /*! \brief gradient statistics */
-  T grad_;
+  T grad_{0};
   /*! \brief second order gradient statistics */
-  T hess_;
+  T hess_{0};
 
   XGBOOST_DEVICE void SetGrad(T g) { grad_ = g; }
   XGBOOST_DEVICE void SetHess(T h) { hess_ = h; }
@@ -157,7 +155,7 @@ class GradientPairInternal {
     a += b;
   }
 
-  XGBOOST_DEVICE GradientPairInternal() : grad_(0), hess_(0) {}
+  GradientPairInternal() = default;
 
   XGBOOST_DEVICE GradientPairInternal(T grad, T hess) {
     SetGrad(grad);
