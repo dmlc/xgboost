@@ -40,15 +40,23 @@ public class Booster implements Serializable, KryoSerializable {
   private long handle = 0;
   private int version = 0;
 
-    public enum PredictionType {
-	kValue (0),
-	kMargin (1),
-	kContribution (2),
-	kApproxContribution(3),
-	kInteraction (4),
-	kApproxInteraction (5),
-	kLeaf (6)
+  public enum PredictionType {
+    kValue(0),
+    kMargin(1),
+    kContribution(2),
+    kApproxContribution(3),
+    kInteraction(4),
+    kApproxInteraction(5),
+    kLeaf(6);
+
+    private Integer ptype;
+    private PredictionType(final Integer ptype) {
+      this.ptype = ptype;
     }
+    public Integer getPType() {
+      return ptype;
+    }
+  }
 
   /**
    * Create a new Booster with empty stage.
@@ -328,27 +336,6 @@ public class Booster implements Serializable, KryoSerializable {
 
   /**
    * Perform thread-safe prediction. Calls
-   * <code>inplace_predict(data, num_rows, num_features, Float.NaN, false, 0, false, false)</code>.
-   *
-   * @param data           Flattened input matrix of features for prediction
-   * @param num_rows       The number of preditions to make (count of input matrix rows)
-   * @param num_features   The number of features in the model (count of input matrix columns)
-   *
-   * @return predict       Result matrix
-   *
-   * @see #inplace_predict(float[] data, int num_rows, int num_features, float missing,
-   *                       boolean outputMargin, int treeLimit, boolean predLeaf,
-   *                       boolean predContribs)
-   */
-  public float[][] inplace_predict(float[] data,
-                                   int num_rows,
-                                   int num_features) throws XGBoostError {
-    return this.inplace_predict(data, num_rows, num_features,
-                Float.NaN, false, 0, false, false);
-  }
-
-  /**
-   * Perform thread-safe prediction. Calls
    * <code>inplace_predict(data, num_rows, num_features, missing, false, 0, false, false)</code>.
    *
    * @param data           Flattened input matrix of features for prediction
@@ -365,9 +352,10 @@ public class Booster implements Serializable, KryoSerializable {
   public float[][] inplace_predict(float[] data,
                                    int num_rows,
                                    int num_features,
+                                   int[] iteration_range,
                                    float missing) throws XGBoostError {
     return this.inplace_predict(data, num_rows, num_features,
-                missing, false, 0, false, false);
+        missing, iteration_range, PredictionType.kValue, null);
   }
 
 
@@ -387,15 +375,21 @@ public class Booster implements Serializable, KryoSerializable {
    * @return predict       Result matrix
    */
   public float[][] inplace_predict(float[] data,
-                                   int num_rows,
-                                   int num_features,
-                                   float missing
-				   PredictionType predict_type) throws XGBoostError {
-    DMatrix d_mat = new DMatrix(data, num_rows, num_features, missing);
+      int num_rows,
+      int num_features,
+      float missing,
+      int[] iteration_range,
+      PredictionType predict_type,
+      float[] base_margin) throws XGBoostError {
+    int ptype = predict_type.getPType();
+
+    int begin = iteration_range[0];
+    int end = iteration_range[1];
+
     float[][] rawPredicts = new float[1][];
-    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterInplacePredict(handle, data, num_rows, num_features,
-        d_mat.getHandle(), missing,
-        optionMask, treeLimit, rawPredicts));  // pass missing and treelimit here?
+    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterPredictFromDense(handle, data, num_rows, num_features,
+        missing,
+        begin, end, ptype, base_margin, rawPredicts));
 
     int row = num_rows;
     int col = rawPredicts[0].length / row;
