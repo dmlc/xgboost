@@ -19,7 +19,6 @@
 #include <xgboost/c_api.h>
 #include <xgboost/json.h>
 #include <xgboost/logging.h>
-#include <fstream>
 
 #include <cstddef>
 #include <cstdint>

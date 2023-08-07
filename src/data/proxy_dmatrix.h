@@ -63,11 +63,8 @@ class DMatrixProxy : public DMatrix {
   }
 
   void SetArrayData(char const* c_interface);
-  void SetDenseData(const float *data, size_t num_rows,
-                    size_t num_features);
-  void SetCSRData(char const *c_indptr, char const *c_indices,
-                  char const *c_values, bst_feature_t n_features,
-                  bool on_host);
+  void SetCSRData(char const* c_indptr, char const* c_indices, char const* c_values,
+                  bst_feature_t n_features, bool on_host);
 
   MetaInfo& Info() override { return info_; }
   MetaInfo const& Info() const override { return info_; }

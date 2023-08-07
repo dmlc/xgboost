@@ -1018,26 +1018,6 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
   API_END();
 }
 
-void InplacePredictImplCore(std::shared_ptr<DMatrix> p_m,
-                            Learner *learner,
-                            xgboost::PredictionType type,
-                            float missing,
-                            size_t n_rows, size_t n_cols,
-                            size_t iteration_begin, size_t iteration_end,
-                            bool strict_shape,
-                            xgboost::bst_ulong const **out_shape,
-                            xgboost::bst_ulong *out_dim, const float **out_result) {
-  HostDeviceVector<float>* p_predt { nullptr };
-  learner->InplacePredict(p_m, type, missing, &p_predt, iteration_begin, iteration_end);
-  CHECK(p_predt);
-  auto &shape = learner->GetThreadLocal().prediction_shape;
-  auto chunksize = n_rows == 0 ? 0 : p_predt->Size() / n_rows;
-  CalcPredictShape(strict_shape, type, n_rows, n_cols, chunksize, learner->Groups(),
-                   learner->BoostedRounds(), &shape, out_dim);
-  *out_result = dmlc::BeginPtr(p_predt->HostVector());
-  *out_shape = dmlc::BeginPtr(shape);
-}
-
 void InplacePredictImpl(std::shared_ptr<DMatrix> p_m, char const *c_json_config, Learner *learner,
                         xgboost::bst_ulong const **out_shape, xgboost::bst_ulong *out_dim,
                         const float **out_result) {
@@ -1045,23 +1025,29 @@ void InplacePredictImpl(std::shared_ptr<DMatrix> p_m, char const *c_json_config,
   auto config = Json::Load(StringView{c_json_config});
   CHECK_EQ(get<Integer const>(config["cache_id"]), 0) << "Cache ID is not supported yet";
 
+  HostDeviceVector<float> *p_predt{nullptr};
   auto type = PredictionType(RequiredArg<Integer>(config, "type", __func__));
   float missing = GetMissing(config);
+  learner->InplacePredict(p_m, type, missing, &p_predt,
+                          RequiredArg<Integer>(config, "iteration_begin", __func__),
+                          RequiredArg<Integer>(config, "iteration_end", __func__));
+  CHECK(p_predt);
+  auto &shape = learner->GetThreadLocal().prediction_shape;
   auto const &info = p_m->Info();
   auto n_samples = info.num_row_;
   auto n_features = info.num_col_;
-  int iteration_begin = get<Integer const>(config["iteration_begin"]);
-  int iteration_end   = get<Integer const>(config["iteration_end"]);
+  auto chunksize = n_samples == 0 ? 0 : p_predt->Size() / n_samples;
   bool strict_shape = RequiredArg<Boolean>(config, "strict_shape", __func__);
 
   xgboost_CHECK_C_ARG_PTR(out_dim);
+  CalcPredictShape(strict_shape, type, n_samples, n_features, chunksize, learner->Groups(),
+                   learner->BoostedRounds(), &shape, out_dim);
 
   xgboost_CHECK_C_ARG_PTR(out_result);
   xgboost_CHECK_C_ARG_PTR(out_shape);
 
-  InplacePredictImplCore(p_m, learner, type, missing, n_samples, n_features,
-                         iteration_begin, iteration_end, strict_shape, out_shape,
-                         out_dim, out_result);
+  *out_result = dmlc::BeginPtr(p_predt->HostVector());
+  *out_shape = dmlc::BeginPtr(shape);
 }
 
 XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, char const *array_interface,
