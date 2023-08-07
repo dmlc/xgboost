@@ -61,7 +61,7 @@ with the `data.table` package.
 
 > `data.table` is 100% compliant with **R** `data.frame` but its syntax
 > is more consistent and its performance for large dataset is [best in
-> class](http://stackoverflow.com/questions/21435339/data-table-vs-dplyr-can-one-do-something-well-the-other-cant-or-does-poorly)
+> class](https://stackoverflow.com/questions/21435339/data-table-vs-dplyr-can-one-do-something-well-the-other-cant-or-does-poorly)
 > (`dplyr` from **R** and `Pandas` from **Python**
 > [included](https://github.com/Rdatatable/data.table/wiki/Benchmarks-%3A-Grouping)).
 > Some parts of **XGBoost’s** **R** package use `data.table`.
@@ -287,8 +287,10 @@ each of these branches is more accurate (one branch saying if your
 observation is on this branch then it should be classified as `1`, and
 the other branch saying the exact opposite).
 
-`Cover` measures the relative percent of observations concerned by a
-feature.
+`Cover` is related to the second order derivative (or Hessian) of the
+loss function with respect to a particular variable; thus, a large value
+indicates a variable has a large potential impact on the loss function
+and so is important.
 
 `Frequency` is a simpler way to measure the `Gain`. It just counts the
 number of times a feature is used in all generated trees. You should not
@@ -379,7 +381,7 @@ But in more complex cases, creating a new feature from an existing one
 may help the algorithm and improve the model.
 
 +The case studied here is not complex enough to show that. Check [Kaggle
-website](http://www.kaggle.com/) for some challenging datasets.
+website](https://www.kaggle.com/) for some challenging datasets.
 
 Moreover, you can see that even if we have added some new features which
 are not very useful/highly correlated with other features, the boosting
@@ -391,9 +393,9 @@ Linear models may not perform as well.
 ## Special Note: What about Random Forests™?
 
 As you may know, the [Random
-Forests](http://en.wikipedia.org/wiki/Random_forest) algorithm is cousin
-with boosting and both are part of the [ensemble
-learning](http://en.wikipedia.org/wiki/Ensemble_learning) family.
+Forests](https://en.wikipedia.org/wiki/Random_forest) algorithm is
+cousin with boosting and both are part of the [ensemble
+learning](https://en.wikipedia.org/wiki/Ensemble_learning) family.
 
 Both train several decision trees for one dataset. The *main* difference
 is that in Random Forests, trees are independent and in boosting, the
@@ -449,7 +451,7 @@ sampling rows and columns:
         , objective = "binary:logistic"
     )
 
-    ## [1]  train-logloss:0.456324
+    ## [1]  train-logloss:0.456201
 
     #Boosting - 3 rounds
     bst <- xgboost(
