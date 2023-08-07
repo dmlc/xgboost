@@ -14,8 +14,24 @@ endif ((${CMAKE_VERSION} VERSION_GREATER 3.13) OR (${CMAKE_VERSION} VERSION_EQUA
 
 message(STATUS "CMake version ${CMAKE_VERSION}")
 
-if (CMAKE_COMPILER_IS_GNUCC AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.0)
-  message(FATAL_ERROR "GCC version must be at least 5.0!")
+# Check compiler versions
+# Use recent compilers to ensure that std::filesystem is available
+if(MSVC)
+  if(MSVC_VERSION LESS 1920)
+    message(FATAL_ERROR "Need Visual Studio 2019 or newer to build XGBoost")
+  endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "8.1")
+    message(FATAL_ERROR "Need GCC 8.1 or newer to build XGBoost")
+  endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "11.0")
+    message(FATAL_ERROR "Need Xcode 11.0 (AppleClang 11.0) or newer to build XGBoost")
+  endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "9.0")
+    message(FATAL_ERROR "Need Clang 9.0 or newer to build XGBoost")
+  endif()
 endif()
 
 include(${xgboost_SOURCE_DIR}/cmake/FindPrefetchIntrinsics.cmake)
