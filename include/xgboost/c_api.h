@@ -1221,7 +1221,7 @@ XGB_DLL int XGBoosterPredictFromCudaColumnar(BoosterHandle handle, char const *v
  * \brief Load model from existing file
  *
  * \param handle handle
- * \param fname File URI or file name.
+ * \param fname File URI or file name. The string must be UTF-8 encoded.
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGBoosterLoadModel(BoosterHandle handle,
@@ -1230,7 +1230,7 @@ XGB_DLL int XGBoosterLoadModel(BoosterHandle handle,
  * \brief Save model into existing file
  *
  * \param handle handle
- * \param fname File URI or file name.
+ * \param fname File URI or file name. The string must be UTF-8 encoded.
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGBoosterSaveModel(BoosterHandle handle,

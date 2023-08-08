@@ -28,6 +28,7 @@
 #include <cstddef>       // for size_t
 #include <cstdint>       // for int32_t, uint32_t
 #include <cstring>       // for memcpy
+#include <filesystem>    // for filesystem
 #include <fstream>       // for ifstream
 #include <iterator>      // for distance
 #include <limits>        // for numeric_limits
@@ -153,7 +154,7 @@ std::string LoadSequentialFile(std::string uri, bool stream) {
     // Open in binary mode so that correct file size can be computed with
     // seekg(). This accommodates Windows platform:
     // https://docs.microsoft.com/en-us/cpp/standard-library/basic-istream-class?view=vs-2019#seekg
-    std::ifstream ifs(uri, std::ios_base::binary | std::ios_base::in);
+    std::ifstream ifs(std::filesystem::u8path(uri), std::ios_base::binary | std::ios_base::in);
     if (!ifs) {
       // https://stackoverflow.com/a/17338934
       OpenErr();
