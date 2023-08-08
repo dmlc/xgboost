@@ -134,12 +134,6 @@ inline float LogSum(Iterator begin, Iterator end) {
   return mx + std::log(sum);
 }
 
-// comparator functions for sorting pairs in descending order
-inline static bool CmpFirst(const std::pair<float, unsigned> &a,
-                            const std::pair<float, unsigned> &b) {
-  return a.first > b.first;
-}
-
 // Redefined here to workaround a VC bug that doesn't support overloading for integer
 // types.
 template <typename T>

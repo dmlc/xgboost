@@ -114,7 +114,7 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
   this->info_.num_row_ = accumulated_rows;
   this->info_.num_nonzero_ = nnz;
 
-  auto init_page = [this, &proxy, &cuts, row_stride, accumulated_rows, get_device]() {
+  auto init_page = [this, &cuts, row_stride, accumulated_rows, get_device]() {
     if (!ellpack_) {
       // Should be put inside the while loop to protect against empty batch.  In
       // that case device id is invalid.
