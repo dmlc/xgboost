@@ -6,11 +6,8 @@
 #include "../../../src/common/column_matrix.h"
 #include "../helpers.h"
 
-
-namespace xgboost {
-namespace common {
-
-TEST(DenseColumn, Test) {
+namespace xgboost::common {
+TEST(ColumnMatrix, Basic) {
   int32_t max_num_bins[] = {static_cast<int32_t>(std::numeric_limits<uint8_t>::max()) + 1,
                             static_cast<int32_t>(std::numeric_limits<uint16_t>::max()) + 1,
                             static_cast<int32_t>(std::numeric_limits<uint16_t>::max()) + 2};
@@ -22,7 +19,7 @@ TEST(DenseColumn, Test) {
     GHistIndexMatrix gmat{&ctx, dmat.get(), max_num_bin, sparse_thresh, false};
     ColumnMatrix column_matrix;
     for (auto const& page : dmat->GetBatches<SparsePage>()) {
-      column_matrix.InitFromSparse(page, gmat, sparse_thresh, AllThreadsForTest());
+      column_matrix.InitFromSparse(page, gmat, sparse_thresh, ctx.Threads());
     }
     ASSERT_GE(column_matrix.GetTypeSize(), last);
     ASSERT_LE(column_matrix.GetTypeSize(), kUint32BinsTypeSize);
@@ -59,7 +56,7 @@ void CheckSparseColumn(SparseColumnIter<BinIdxType>* p_col, const GHistIndexMatr
   }
 }
 
-TEST(SparseColumn, Test) {
+TEST(ColumnMatrix, SparseColumn) {
   int32_t max_num_bins[] = {static_cast<int32_t>(std::numeric_limits<uint8_t>::max()) + 1,
                             static_cast<int32_t>(std::numeric_limits<uint16_t>::max()) + 1,
                             static_cast<int32_t>(std::numeric_limits<uint16_t>::max()) + 2};
@@ -69,7 +66,7 @@ TEST(SparseColumn, Test) {
     GHistIndexMatrix gmat{&ctx, dmat.get(), max_num_bin, 0.5f, false};
     ColumnMatrix column_matrix;
     for (auto const& page : dmat->GetBatches<SparsePage>()) {
-      column_matrix.InitFromSparse(page, gmat, 1.0, AllThreadsForTest());
+      column_matrix.InitFromSparse(page, gmat, 1.0, ctx.Threads());
     }
     common::DispatchBinType(column_matrix.GetTypeSize(), [&](auto dtype) {
       using T = decltype(dtype);
@@ -90,7 +87,7 @@ void CheckColumWithMissingValue(const DenseColumnIter<BinIdxType, true>& col,
   }
 }
 
-TEST(DenseColumnWithMissing, Test) {
+TEST(ColumnMatrix, DenseColumnWithMissing) {
   int32_t max_num_bins[] = {static_cast<int32_t>(std::numeric_limits<uint8_t>::max()) + 1,
                             static_cast<int32_t>(std::numeric_limits<uint16_t>::max()) + 1,
                             static_cast<int32_t>(std::numeric_limits<uint16_t>::max()) + 2};
@@ -100,7 +97,7 @@ TEST(DenseColumnWithMissing, Test) {
     GHistIndexMatrix gmat(&ctx, dmat.get(), max_num_bin, 0.2, false);
     ColumnMatrix column_matrix;
     for (auto const& page : dmat->GetBatches<SparsePage>()) {
-      column_matrix.InitFromSparse(page, gmat, 0.2, AllThreadsForTest());
+      column_matrix.InitFromSparse(page, gmat, 0.2, ctx.Threads());
     }
     ASSERT_TRUE(column_matrix.AnyMissing());
     DispatchBinType(column_matrix.GetTypeSize(), [&](auto dtype) {
@@ -110,5 +107,13 @@ TEST(DenseColumnWithMissing, Test) {
     });
   }
 }
-}  // namespace common
-}  // namespace xgboost
+
+TEST(ColumnMatrix, PushBatch) {
+  Context ctx;
+  BatchParam param{16, 0.5};
+  auto m = CreateSparsePageDMatrix(4096, 12, 2);
+  for (auto const& gidx : m->GetBatches<GHistIndexMatrix>(&ctx, param)) {
+    
+  }
+}
+}  // namespace xgboost::common
