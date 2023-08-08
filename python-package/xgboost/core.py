@@ -596,7 +596,10 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
             from .data import _proxy_transform, dispatch_proxy_set_data
 
             # Reduce the amount of transformation that's needed for QuantileDMatrix.
-            ref = weakref.ref(data)
+            try:
+                ref = weakref.ref(data)
+            except TypeError:
+                ref = None
             if self._temporary_data is not None and ref is self._data_ref:
                 new, cat_codes, feature_names, feature_types = self._temporary_data
             else:
