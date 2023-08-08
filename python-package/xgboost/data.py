@@ -5,7 +5,7 @@ import ctypes
 import json
 import os
 import warnings
-from typing import Any, Callable, Iterator, List, Optional, Sequence, Tuple, Union, cast
+from typing import Any, Callable, Iterator, List, Optional, Sequence, Tuple, cast
 
 import numpy as np
 
