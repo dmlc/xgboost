@@ -9,12 +9,12 @@
 #define XGBOOST_COMMON_COLUMN_MATRIX_H_
 
 #include <algorithm>
-#include <cstddef>  // for size_t
+#include <cstddef>  // for size_t, byte
 #include <cstdint>  // for uint8_t
 #include <limits>
 #include <memory>
-#include <utility>  // for move
-#include <vector>
+#include <type_traits>  // for enable_if_t, is_same_v, is_signed_v
+#include <utility>      // for move
 
 #include "../data/adapter.h"
 #include "../data/gradient_index.h"
@@ -154,7 +154,14 @@ class ColumnMatrix {
    */
   struct MissingIndicator {
     LBitField32 missing;
-    RefResourceView<std::uint32_t> storage;
+    using T = typename LBitField32::value_type;
+    RefResourceView<T> storage;
+    static_assert(std::is_same_v<T, std::uint32_t>);
+
+    template <typename U>
+    [[nodiscard]] std::enable_if_t<!std::is_signed_v<U>, U> static InitValue(bool init) {
+      return init ? ~U{0} : U{0};
+    }
 
     MissingIndicator() = default;
     /**
@@ -163,7 +170,7 @@ class ColumnMatrix {
      */
     MissingIndicator(std::size_t n_elements, bool init) {
       auto m_size = missing.ComputeStorageSize(n_elements);
-      storage = common::MakeFixedVecWithMalloc(m_size, init ? ~std::uint32_t{0} : std::uint32_t{0});
+      storage = common::MakeFixedVecWithMalloc(m_size, InitValue<T>(init));
       this->InitView();
     }
     /** @brief Set the i^th element to be a valid element (instead of missing). */
@@ -181,11 +188,12 @@ class ColumnMatrix {
       if (m_size == storage.size()) {
         return;
       }
+      // grow the storage
+      auto resource = std::dynamic_pointer_cast<common::MallocResource>(storage.Resource());
+      CHECK(resource);
+      resource->Resize(m_size * sizeof(T), InitValue<std::byte>(init));
+      storage = RefResourceView<T>{resource->DataAs<T>(), m_size, resource};
 
-      auto new_storage =
-          common::MakeFixedVecWithMalloc(m_size, init ? ~std::uint32_t{0} : std::uint32_t{0});
-      std::copy_n(storage.cbegin(), storage.size(), new_storage.begin());
-      storage = std::move(new_storage);
       this->InitView();
     }
   };

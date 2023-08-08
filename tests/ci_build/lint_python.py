@@ -42,6 +42,7 @@ class LintersPaths:
         "demo/guide-python/feature_weights.py",
         "demo/guide-python/sklearn_parallel.py",
         "demo/guide-python/spark_estimator_examples.py",
+        "demo/guide-python/external_memory.py",
         "demo/guide-python/individual_trees.py",
         "demo/guide-python/quantile_regression.py",
         "demo/guide-python/multioutput_regression.py",
