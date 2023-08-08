@@ -12,7 +12,7 @@ xgb.Booster.handle <- function(params = list(), cachelist = list(),
       ## A filename
       handle <- .Call(XGBoosterCreate_R, cachelist)
       modelfile <- path.expand(modelfile)
-      .Call(XGBoosterLoadModel_R, handle, modelfile[1])
+      .Call(XGBoosterLoadModel_R, handle, enc2utf8(modelfile[1]))
       class(handle) <- "xgb.Booster.handle"
       if (length(params) > 0) {
         xgb.parameters(handle) <- params
