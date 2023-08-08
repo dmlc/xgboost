@@ -1,5 +1,5 @@
 import weakref
-from typing import Callable, Dict, List
+from typing import Any, Callable, Dict, List
 
 import numpy as np
 import pytest
@@ -184,7 +184,7 @@ def test_data_cache() -> None:
 
     called = 0
 
-    def mock(*args, **kwargs):
+    def mock(*args: Any, **kwargs: Any) -> Any:
         nonlocal called
         called += 1
         return transform(*args, **kwargs)
