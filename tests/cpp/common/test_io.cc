@@ -122,7 +122,11 @@ TEST(IO, Resource) {
 
     ptr = malloc_resource->DataAs<std::uint8_t>();
     std::fill_n(ptr, malloc_resource->Size(), 7);
-    malloc_resource->Resize<false>(n * 3, std::byte{3});
+    if (force_malloc) {
+      malloc_resource->Resize<true>(n * 3, std::byte{3});
+    } else {
+      malloc_resource->Resize<false>(n * 3, std::byte{3});
+    }
     for (std::size_t i = 0; i < n * 2; ++i) {
       ASSERT_EQ(malloc_resource->DataAs<std::uint8_t>()[i], 7);
     }
