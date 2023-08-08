@@ -9,6 +9,7 @@ import os
 import re
 import sys
 import warnings
+import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from enum import IntEnum, unique
@@ -510,8 +511,12 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
         self._allow_host = True
         self._release = release_data
         # Stage data in Python until reset or next is called to avoid data being free.
-        self._temporary_data: Optional[Tuple[Any, Any, Any, Any]] = None
-        self._input_id: int = 0
+        self._temporary_data: Optional[
+            Tuple[
+                DataType, Optional[list], Optional[FeatureNames], Optional[FeatureTypes]
+            ]
+        ] = None
+        self._data_ref: Optional[weakref.ReferenceType] = None
 
     def get_callbacks(
         self, allow_host: bool, enable_categorical: bool
@@ -591,7 +596,8 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
             from .data import _proxy_transform, dispatch_proxy_set_data
 
             # Reduce the amount of transformation that's needed for QuantileDMatrix.
-            if self._temporary_data is not None and id(data) == self._input_id:
+            ref = weakref.ref(data)
+            if self._temporary_data is not None and ref is self._data_ref:
                 new, cat_codes, feature_names, feature_types = self._temporary_data
             else:
                 new, cat_codes, feature_names, feature_types = _proxy_transform(
@@ -608,7 +614,7 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
                 feature_types=feature_types,
                 **kwargs,
             )
-            self._input_id = id(data)
+            self._data_ref = ref
 
         # pylint: disable=not-callable
         return self._handle_exception(lambda: self.next(input_data), 0)

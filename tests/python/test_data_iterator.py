@@ -1,3 +1,4 @@
+import weakref
 from typing import Callable, Dict, List
 
 import numpy as np
@@ -180,4 +181,4 @@ def test_data_cache() -> None:
     batches = [v[0] for v in data]
     it = IterForCacheTest(*batches)
     xgb.QuantileDMatrix(it)
-    assert it._input_id == id(batches[0])
+    assert it._data_ref is weakref.ref(batches[0])
