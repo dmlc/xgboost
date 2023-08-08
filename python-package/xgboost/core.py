@@ -1147,7 +1147,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         testing purposes. If this is a quantized DMatrix then quantized values are
         returned instead of input values.
 
-            .. versionadded:: 1.7.0
+        .. versionadded:: 1.7.0
 
         """
         indptr = np.empty(self.num_row() + 1, dtype=np.uint64)
@@ -1168,7 +1168,11 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         return ret
 
     def get_quantile_cut(self) -> Tuple[np.ndarray, np.ndarray]:
-        """Get quantile cuts for quantization."""
+        """Get quantile cuts for quantization.
+
+        .. versionadded:: 2.0.0
+
+        """
         n_features = self.num_col()
 
         c_sindptr = ctypes.c_char_p()
