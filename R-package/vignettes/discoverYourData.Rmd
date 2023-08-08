@@ -1,7 +1,10 @@
 ---
 title: "Understand your dataset with XGBoost"
 output:
-  md_document
+  rmarkdown::html_vignette:
+    css: vignette.css
+    number_sections: yes
+    toc: yes
 author: Tianqi Chen, Tong He, Michaël Benesty, Yuan Tang
 vignette: >
   %\VignetteIndexEntry{Discover your data}
