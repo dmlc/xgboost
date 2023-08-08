@@ -153,8 +153,10 @@ class ColumnMatrix {
    * @brief A bit set for indicating whether an element in a dense column is missing.
    */
   struct MissingIndicator {
-    LBitField32 missing;
-    using T = typename LBitField32::value_type;
+    using BitFieldT = LBitField32;
+    using T = typename BitFieldT::value_type;
+
+    BitFieldT missing;
     RefResourceView<T> storage;
     static_assert(std::is_same_v<T, std::uint32_t>);
 
@@ -416,6 +418,7 @@ class ColumnMatrix {
   // IO procedures for external memory.
   [[nodiscard]] bool Read(AlignedResourceReadStream* fi, uint32_t const* index_base);
   [[nodiscard]] std::size_t Write(AlignedFileWriteStream* fo) const;
+  [[nodiscard]] MissingIndicator const& Missing() const { return missing_; }
 
  private:
   RefResourceView<std::uint8_t> index_;

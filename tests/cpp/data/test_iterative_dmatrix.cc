@@ -12,8 +12,7 @@
 #include "../helpers.h"
 #include "xgboost/data.h"  // DMatrix
 
-namespace xgboost {
-namespace data {
+namespace xgboost::data {
 TEST(IterativeDMatrix, Ref) {
   Context ctx;
   TestRefDMatrix<GHistIndexMatrix, NumpyArrayIterForTest>(
@@ -21,7 +20,7 @@ TEST(IterativeDMatrix, Ref) {
 }
 
 TEST(IterativeDMatrix, IsDense) {
-  int n_bins = 16;
+  bst_bin_t n_bins = 16;
   auto test = [n_bins](float sparsity) {
     NumpyArrayIterForTest iter(sparsity);
     auto n_threads = 0;
@@ -38,5 +37,4 @@ TEST(IterativeDMatrix, IsDense) {
   test(0.1);
   test(1.0);
 }
-}  // namespace data
-}  // namespace xgboost
+}  // namespace xgboost::data
