@@ -43,6 +43,6 @@ xgb.save <- function(model, fname) {
   }
   model <- xgb.Booster.complete(model, saveraw = FALSE)
   fname <- path.expand(fname)
-  .Call(XGBoosterSaveModel_R, model$handle, fname[1])
+  .Call(XGBoosterSaveModel_R, model$handle, enc2utf8(fname[1]))
   return(TRUE)
 }
