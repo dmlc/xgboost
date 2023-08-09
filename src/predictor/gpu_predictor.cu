@@ -344,7 +344,7 @@ class DeviceModel {
     dh::safe_cuda(cudaSetDevice(gpu_id));
 
     // Copy decision trees to device
-    tree_segments = std::move(HostDeviceVector<size_t>({}, gpu_id));
+    tree_segments = HostDeviceVector<size_t>({}, gpu_id);
     auto& h_tree_segments = tree_segments.HostVector();
     h_tree_segments.reserve((tree_end - tree_begin) + 1);
     size_t sum = 0;
@@ -354,10 +354,8 @@ class DeviceModel {
       h_tree_segments.push_back(sum);
     }
 
-    nodes = std::move(HostDeviceVector<RegTree::Node>(h_tree_segments.back(), RegTree::Node(),
-                                                      gpu_id));
-    stats = std::move(HostDeviceVector<RTreeNodeStat>(h_tree_segments.back(),
-                                                      RTreeNodeStat(), gpu_id));
+    nodes = HostDeviceVector<RegTree::Node>(h_tree_segments.back(), RegTree::Node(), gpu_id);
+    stats = HostDeviceVector<RTreeNodeStat>(h_tree_segments.back(), RTreeNodeStat(), gpu_id);
     auto d_nodes = nodes.DevicePointer();
     auto d_stats = stats.DevicePointer();
     for (auto tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
@@ -371,7 +369,7 @@ class DeviceModel {
           sizeof(RTreeNodeStat) * src_stats.size(), cudaMemcpyDefault));
     }
 
-    tree_group = std::move(HostDeviceVector<int>(model.tree_info.size(), 0, gpu_id));
+    tree_group = HostDeviceVector<int>(model.tree_info.size(), 0, gpu_id);
     auto& h_tree_group = tree_group.HostVector();
     std::memcpy(h_tree_group.data(), model.tree_info.data(), sizeof(int) * model.tree_info.size());
 
@@ -435,7 +433,7 @@ struct ShapSplitCondition {
   bool is_missing_branch;
 
   // Does this instance flow down this path?
-  XGBOOST_DEVICE bool EvaluateSplit(float x) const {
+  [[nodiscard]] XGBOOST_DEVICE bool EvaluateSplit(float x) const {
     // is nan
     if (isnan(x)) {
       return is_missing_branch;

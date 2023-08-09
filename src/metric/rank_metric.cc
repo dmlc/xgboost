@@ -68,7 +68,8 @@ struct EvalAMS : public MetricNoCache {
     const auto &h_preds = preds.ConstHostVector();
     common::ParallelFor(ndata, ctx_->Threads(),
                         [&](bst_omp_uint i) { rec[i] = std::make_pair(h_preds[i], i); });
-    common::Sort(ctx_, rec.begin(), rec.end(), common::CmpFirst);
+    common::Sort(ctx_, rec.begin(), rec.end(),
+                 [](auto const& l, auto const& r) { return l.first > r.first; });
     auto ntop = static_cast<unsigned>(ratio_ * ndata);
     if (ntop == 0) ntop = ndata;
     const double br = 10.0;

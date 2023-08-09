@@ -271,10 +271,11 @@ class GradientPairInt64 {
   GradientPairInt64() = default;
 
   // Copy constructor if of same value type, marked as default to be trivially_copyable
-  GradientPairInt64(const GradientPairInt64 &g) = default;
+  GradientPairInt64(GradientPairInt64 const &g) = default;
+  GradientPairInt64 &operator=(GradientPairInt64 const &g) = default;
 
-  XGBOOST_DEVICE T GetQuantisedGrad() const { return grad_; }
-  XGBOOST_DEVICE T GetQuantisedHess() const { return hess_; }
+  XGBOOST_DEVICE [[nodiscard]] T GetQuantisedGrad() const { return grad_; }
+  XGBOOST_DEVICE [[nodiscard]] T GetQuantisedHess() const { return hess_; }
 
   XGBOOST_DEVICE GradientPairInt64 &operator+=(const GradientPairInt64 &rhs) {
     grad_ += rhs.grad_;
@@ -323,17 +324,6 @@ using omp_ulong = dmlc::omp_ulong;  // NOLINT
 using bst_omp_uint = dmlc::omp_uint;  // NOLINT
 /*! \brief Type used for representing version number in binary form.*/
 using XGBoostVersionT = int32_t;
-
-/*!
- * \brief define compatible keywords in g++
- *  Used to support g++-4.6 and g++4.7
- */
-#if DMLC_USE_CXX11 && defined(__GNUC__) && !defined(__clang_version__)
-#if __GNUC__ == 4 && __GNUC_MINOR__ < 8
-#define override
-#define final
-#endif  // __GNUC__ == 4 && __GNUC_MINOR__ < 8
-#endif  // DMLC_USE_CXX11 && defined(__GNUC__) && !defined(__clang_version__)
 }  // namespace xgboost
 
 #endif  // XGBOOST_BASE_H_
