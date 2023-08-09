@@ -193,7 +193,7 @@ xgb.plot.shap <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
 #' hence allows us to see which features have a negative / positive contribution
 #' on the model prediction, and whether the contribution is different for larger
 #' or smaller values of the feature. We effectively try to replicate the
-#' \code{summary_plot} function from https://github.com/slundberg/shap.
+#' \code{summary_plot} function from https://github.com/shap/shap.
 #'
 #' @inheritParams xgb.plot.shap
 #'
@@ -202,7 +202,7 @@ xgb.plot.shap <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
 #'
 #' @examples # See \code{\link{xgb.plot.shap}}.
 #' @seealso \code{\link{xgb.plot.shap}}, \code{\link{xgb.ggplot.shap.summary}},
-#'   \url{https://github.com/slundberg/shap}
+#'   \url{https://github.com/shap/shap}
 xgb.plot.shap.summary <- function(data, shap_contrib = NULL, features = NULL, top_n = 10, model = NULL,
                                   trees = NULL, target_class = NULL, approxcontrib = FALSE, subsample = NULL) {
   # Only ggplot implementation is available.
