@@ -683,9 +683,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredictFr
       xgboost::Context::kCpuId,
       xgboost::common::Span{data, static_cast<std::size_t>(num_rows * num_features)}, num_rows,
       num_features);
-  auto array = linalg::ArrayInterface(t_data);
-  std::string s_array;
-  xgboost::Json::Dump(array, &s_array);
+  auto s_array = linalg::ArrayInterfaceStr(t_data);
 
   /**
    * Create configuration object.

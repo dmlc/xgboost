@@ -39,15 +39,12 @@ public class Booster implements Serializable, KryoSerializable {
   // handle to the booster.
   private long handle = 0;
   private int version = 0;
-
+  /**
+   * Type of prediction, used for inplace_predict.
+   */
   public enum PredictionType {
     kValue(0),
-    kMargin(1),
-    kContribution(2),
-    kApproxContribution(3),
-    kInteraction(4),
-    kApproxInteraction(5),
-    kLeaf(6);
+    kMargin(1);
 
     private Integer ptype;
     private PredictionType(final Integer ptype) {
@@ -334,10 +331,20 @@ public class Booster implements Serializable, KryoSerializable {
     return predicts;
   }
 
+  /**
+   * Perform thread-safe prediction.
+   *
+   * @param data      Flattened input matrix of features for prediction
+   * @param nrow      The number of preditions to make (count of input matrix rows)
+   * @param ncol      The number of features in the model (count of input matrix columns)
+   * @param missing   Value indicating missing element in the <code>data</code> input matrix
+   *
+   * @return predict  Result matrix
+   */
   public float[][] inplace_predict(float[] data,
-      int nrow,
-      int ncol,
-      float missing) throws XGBoostError {
+                                   int nrow,
+                                   int ncol,
+                                   float missing) throws XGBoostError {
     int[] iteration_range = new int[2];
     iteration_range[0] = 0;
     iteration_range[1] = 0;
@@ -346,24 +353,24 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   /**
-   * Perform thread-safe prediction. Calls
-   * <code>inplace_predict(data, num_rows, num_features, missing, false, 0, false, false)</code>.
+   * Perform thread-safe prediction.
    *
    * @param data      Flattened input matrix of features for prediction
    * @param nrow      The number of preditions to make (count of input matrix rows)
    * @param ncol      The number of features in the model (count of input matrix columns)
    * @param missing   Value indicating missing element in the <code>data</code> input matrix
+   * @param iteration_range Specifies which layer of trees are used in prediction.  For
+   *                        example, if a random forest is trained with 100 rounds.
+   *                        Specifying `iteration_range=[10, 20)`, then only the forests
+   *                        built during [10, 20) (half open set) rounds are used in this
+   *                        prediction.
    *
-   * @return predict       Result matrix
-   *
-   * @see #inplace_predict(float[] data, int num_rows, int num_features, float missing,
-   *                       boolean outputMargin, int treeLimit, boolean predLeaf,
-   *                       boolean predContribs)
+   * @return predict  Result matrix
    */
   public float[][] inplace_predict(float[] data,
-      int nrow,
-      int ncol,
-      float missing, int[] iteration_range) throws XGBoostError {
+                                   int nrow,
+                                   int ncol,
+                                   float missing, int[] iteration_range) throws XGBoostError {
     return this.inplace_predict(data, nrow, ncol,
         missing, iteration_range, PredictionType.kValue, null);
   }
@@ -372,20 +379,25 @@ public class Booster implements Serializable, KryoSerializable {
   /**
    * Perform thread-safe prediction.
    *
-   * @param data           Flattened input matrix of features for prediction
-   * @param nrow       The number of preditions to make (count of input matrix rows)
-   * @param ncol   The number of features in the model (count of input matrix columns)
-   * @param missing        Value indicating missing element in the <code>data</code> input matrix
-   *
+   * @param data            Flattened input matrix of features for prediction
+   * @param nrow            The number of preditions to make (count of input matrix rows)
+   * @param ncol            The number of features in the model (count of input matrix columns)
+   * @param missing         Value indicating missing element in the <code>data</code> input matrix
+   * @param iteration_range Specifies which layer of trees are used in prediction.  For
+   *                        example, if a random forest is trained with 100 rounds.
+   *                        Specifying `iteration_range=[10, 20)`, then only the forests
+   *                        built during [10, 20) (half open set) rounds are used in this
+   *                        prediction.
+   * @param predict_type    What kind of prediction to run.
    * @return predict       Result matrix
    */
   public float[][] inplace_predict(float[] data,
-      int nrow,
-      int ncol,
-      float missing,
-      int[] iteration_range,
-      PredictionType predict_type,
-      float[] base_margin) throws XGBoostError {
+                                   int nrow,
+                                   int ncol,
+                                   float missing,
+                                   int[] iteration_range,
+                                   PredictionType predict_type,
+                                   float[] base_margin) throws XGBoostError {
     if (iteration_range.length != 2) {
       throw new XGBoostError(new String("Iteration range is expected to be [begin, end)."));
     }
