@@ -5,7 +5,7 @@ import ctypes
 import json
 import os
 import warnings
-from typing import Any, Callable, Iterator, List, Optional, Sequence, Tuple, Union, cast
+from typing import Any, Callable, Iterator, List, Optional, Sequence, Tuple, cast
 
 import numpy as np
 
@@ -17,6 +17,7 @@ from ._typing import (
     FloatCompatible,
     NumpyDType,
     PandasDType,
+    TransformedData,
     c_bst_ulong,
 )
 from .compat import DataFrame, lazy_isinstance
@@ -1268,12 +1269,7 @@ def _proxy_transform(
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
     enable_categorical: bool,
-) -> Tuple[
-    Union[bool, ctypes.c_void_p, np.ndarray],
-    Optional[list],
-    Optional[FeatureNames],
-    Optional[FeatureTypes],
-]:
+) -> TransformedData:
     if _is_cudf_df(data) or _is_cudf_ser(data):
         return _transform_cudf_df(
             data, feature_names, feature_types, enable_categorical

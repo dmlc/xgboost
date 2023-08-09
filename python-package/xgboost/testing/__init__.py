@@ -230,7 +230,7 @@ class IteratorForTest(xgb.core.DataIter):
 
     def as_arrays(
         self,
-    ) -> Tuple[Union[np.ndarray, sparse.csr_matrix], ArrayLike, ArrayLike]:
+    ) -> Tuple[Union[np.ndarray, sparse.csr_matrix], ArrayLike, Optional[ArrayLike]]:
         if isinstance(self.X[0], sparse.csr_matrix):
             X = sparse.vstack(self.X, format="csr")
         else:
@@ -244,7 +244,12 @@ class IteratorForTest(xgb.core.DataIter):
 
 
 def make_batches(
-    n_samples_per_batch: int, n_features: int, n_batches: int, use_cupy: bool = False
+    n_samples_per_batch: int,
+    n_features: int,
+    n_batches: int,
+    use_cupy: bool = False,
+    *,
+    vary_size: bool = False,
 ) -> Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
     X = []
     y = []
@@ -255,10 +260,11 @@ def make_batches(
         rng = cupy.random.RandomState(1994)
     else:
         rng = np.random.RandomState(1994)
-    for _ in range(n_batches):
-        _X = rng.randn(n_samples_per_batch, n_features)
-        _y = rng.randn(n_samples_per_batch)
-        _w = rng.uniform(low=0, high=1, size=n_samples_per_batch)
+    for i in range(n_batches):
+        n_samples = n_samples_per_batch + i * 10 if vary_size else n_samples_per_batch
+        _X = rng.randn(n_samples, n_features)
+        _y = rng.randn(n_samples)
+        _w = rng.uniform(low=0, high=1, size=n_samples)
         X.append(_X)
         y.append(_y)
         w.append(_w)

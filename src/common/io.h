@@ -10,7 +10,7 @@
 #include <dmlc/io.h>
 #include <rabit/rabit.h>
 
-#include <algorithm>    // for min
+#include <algorithm>    // for min, fill_n, copy_n
 #include <array>        // for array
 #include <cstddef>      // for byte, size_t
 #include <cstdlib>      // for malloc, realloc, free
@@ -207,7 +207,7 @@ class MallocResource : public ResourceHandler {
    * @param n_bytes The new size.
    */
   template <bool force_malloc = false>
-  void Resize(std::size_t n_bytes) {
+  void Resize(std::size_t n_bytes, std::byte init = std::byte{0}) {
     // realloc(ptr, 0) works, but is deprecated.
     if (n_bytes == 0) {
       this->Clear();
@@ -236,7 +236,7 @@ class MallocResource : public ResourceHandler {
       std::copy_n(reinterpret_cast<std::byte*>(ptr_), n_, reinterpret_cast<std::byte*>(new_ptr));
     }
     // default initialize
-    std::memset(reinterpret_cast<std::byte*>(new_ptr) + n_, '\0', n_bytes - n_);
+    std::fill_n(reinterpret_cast<std::byte*>(new_ptr) + n_, n_bytes - n_, init);
     // free the old ptr if malloc is used.
     if (need_copy) {
       this->Clear();
