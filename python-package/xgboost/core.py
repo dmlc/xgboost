@@ -52,6 +52,7 @@ from ._typing import (
     FeatureTypes,
     ModelIn,
     NumpyOrCupy,
+    TransformedData,
     c_bst_ulong,
 )
 from .compat import PANDAS_INSTALLED, DataFrame, py_str
@@ -487,7 +488,16 @@ def _prediction_output(
 
 
 class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
-    """The interface for user defined data iterator.
+    """The interface for user defined data iterator. The iterator facilitates
+    distributed training, :py:class:`QuantileDMatrix`, and external memory support using
+    :py:class:`DMatrix`. Most of time, users don't need to interact with this class
+    directly.
+
+    .. note::
+
+        The class caches some intermediate results using the `data` input (predictor
+        `X`) as key. Don't repeat the `X` for multiple batches with different meta data
+        (like `label`), make a copy if necessary.
 
     Parameters
     ----------
@@ -511,17 +521,13 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
         self._allow_host = True
         self._release = release_data
         # Stage data in Python until reset or next is called to avoid data being free.
-        self._temporary_data: Optional[
-            Tuple[
-                DataType, Optional[list], Optional[FeatureNames], Optional[FeatureTypes]
-            ]
-        ] = None
+        self._temporary_data: Optional[TransformedData] = None
         self._data_ref: Optional[weakref.ReferenceType] = None
 
     def get_callbacks(
         self, allow_host: bool, enable_categorical: bool
     ) -> Tuple[Callable, Callable]:
-        """Get callback functions for iterating in C."""
+        """Get callback functions for iterating in C. This is an internal function."""
         assert hasattr(self, "cache_prefix"), "__init__ is not called."
         self._reset_callback = ctypes.CFUNCTYPE(None, ctypes.c_void_p)(
             self._reset_wrapper
@@ -596,6 +602,10 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
             from .data import _proxy_transform, dispatch_proxy_set_data
 
             # Reduce the amount of transformation that's needed for QuantileDMatrix.
+            #
+            # To construct the QDM, one needs 4 iterations on CPU, or 2 iterations on
+            # GPU. If the QDM has only one batch of input (most of the cases), we can
+            # avoid transforming the data repeatly.
             try:
                 ref = weakref.ref(data)
             except TypeError:
