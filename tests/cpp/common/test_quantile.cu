@@ -36,7 +36,7 @@ TEST(GPUQuantile, Basic) {
 
 void TestSketchUnique(float sparsity) {
   constexpr size_t kRows = 1000, kCols = 100;
-  RunWithSeedsAndBins(kRows, [sparsity](int32_t seed, size_t n_bins, MetaInfo const& info) {
+  RunWithSeedsAndBins(kRows, [kRows, kCols, sparsity](int32_t seed, size_t n_bins, MetaInfo const& info) {
     HostDeviceVector<FeatureType> ft;
     SketchContainer sketch(ft, n_bins, kCols, kRows, 0);
 
