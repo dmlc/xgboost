@@ -202,7 +202,12 @@ xgb.cv <- function(params = list(), data, nrounds, nfold, label = NULL, missing 
        dtrain <- slice(dall, unlist(folds[-k]))
     else
        dtrain <- slice(dall, train_folds[[k]])
-    handle <- xgb.Booster.handle(params, list(dtrain, dtest))
+    handle <- xgb.Booster.handle(
+      params = params,
+      cachelist = list(dtrain, dtest),
+      modelfile = NULL,
+      handle = NULL
+    )
     list(dtrain = dtrain, bst = handle, watchlist = list(train = dtrain, test = dtest), index = folds[[k]])
   })
   rm(dall)
