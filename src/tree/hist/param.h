@@ -13,7 +13,7 @@ struct HistMakerTrainParam : public XGBoostParameter<HistMakerTrainParam> {
   constexpr static std::size_t DefaultNodes() { return static_cast<std::size_t>(1) << 16; }
 
   bool debug_synchronize{false};
-  std::size_t internal_max_cached_hist_node{DefaultNodes()};
+  std::size_t max_cached_hist_node{DefaultNodes()};
 
   void CheckTreesSynchronized(RegTree const* local_tree) const;
 
@@ -22,7 +22,7 @@ struct HistMakerTrainParam : public XGBoostParameter<HistMakerTrainParam> {
     DMLC_DECLARE_FIELD(debug_synchronize)
         .set_default(false)
         .describe("Check if all distributed tree are identical after tree construction.");
-    DMLC_DECLARE_FIELD(internal_max_cached_hist_node)
+    DMLC_DECLARE_FIELD(max_cached_hist_node)
         .set_default(DefaultNodes())
         .set_lower_bound(1)
         .describe("Maximum number of nodes in CPU histogram cache. Only for internal usage.");

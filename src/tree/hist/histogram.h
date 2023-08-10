@@ -63,7 +63,7 @@ class HistogramBuilder {
              bool is_col_split, HistMakerTrainParam const *param) {
     n_threads_ = ctx->Threads();
     param_ = p;
-    hist_.Reset(total_bins, param->internal_max_cached_hist_node);
+    hist_.Reset(total_bins, param->max_cached_hist_node);
     buffer_.Init(total_bins);
     is_distributed_ = is_distributed;
     is_col_split_ = is_col_split;

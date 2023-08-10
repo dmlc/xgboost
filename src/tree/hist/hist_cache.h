@@ -5,12 +5,14 @@
 #define XGBOOST_TREE_HIST_HIST_CACHE_H_
 #include <cstddef>  // for size_t
 #include <map>      // for map
+#include <memory>   // for unique_ptr
 #include <vector>   // for vector
 
-#include "../../common/hist_util.h"  // for GHistRow, ConstGHistRow
-#include "xgboost/base.h"            // for bst_node_t, bst_bin_t
-#include "xgboost/logging.h"         // for CHECK_GT
-#include "xgboost/span.h"            // for Span
+#include "../../common/hist_util.h"          // for GHistRow, ConstGHistRow
+#include "../../common/ref_resource_view.h"  // for ReallocVector
+#include "xgboost/base.h"                    // for bst_node_t, bst_bin_t
+#include "xgboost/logging.h"                 // for CHECK_GT
+#include "xgboost/span.h"                    // for Span
 
 namespace xgboost::tree {
 /**
@@ -32,7 +34,8 @@ class BoundedHistCollection {
   std::size_t current_size_{0};
 
   // stores the histograms in a contiguous buffer
-  std::vector<GradientPairPrecise> data_;
+  using Vec = common::ReallocVector<GradientPairPrecise>;
+  std::unique_ptr<Vec> data_{new Vec{}};  // nvcc 12.1 trips over std::make_unique
 
   // number of histogram bins across all features
   bst_bin_t n_total_bins_{0};
@@ -42,13 +45,14 @@ class BoundedHistCollection {
   bool has_exceeded_{false};
 
  public:
+  BoundedHistCollection() = default;
   common::GHistRow operator[](std::size_t idx) {
     auto offset = node_map_.at(idx);
-    return common::Span{data_.data(), data_.size()}.subspan(offset, n_total_bins_);
+    return common::Span{data_->data(), data_->size()}.subspan(offset, n_total_bins_);
   }
   common::ConstGHistRow operator[](std::size_t idx) const {
     auto offset = node_map_.at(idx);
-    return common::Span{data_.data(), data_.size()}.subspan(offset, n_total_bins_);
+    return common::Span{data_->data(), data_->size()}.subspan(offset, n_total_bins_);
   }
   void Reset(bst_bin_t n_total_bins, std::size_t n_cached_nodes) {
     n_total_bins_ = n_total_bins;
@@ -81,8 +85,8 @@ class BoundedHistCollection {
     auto n_new_nodes = nodes_to_build.size() + nodes_to_sub.size();
     auto alloc_size = n_new_nodes * n_total_bins_;
     auto new_size = alloc_size + current_size_;
-    if (new_size > data_.size()) {
-      data_.resize(new_size);
+    if (new_size > data_->size()) {
+      data_->Resize(new_size);
     }
     for (auto nidx : nodes_to_build) {
       node_map_[nidx] = current_size_;

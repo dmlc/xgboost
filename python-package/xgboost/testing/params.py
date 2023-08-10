@@ -42,7 +42,7 @@ hist_parameter_strategy = strategies.fixed_dictionaries(
 )
 
 hist_cache_strategy = strategies.fixed_dictionaries(
-    {"internal_max_cached_hist_node": strategies.sampled_from([1, 4, 1024, 2**31])}
+    {"max_cached_hist_node": strategies.sampled_from([1, 4, 1024, 2**31])}
 )
 
 hist_multi_parameter_strategy = strategies.fixed_dictionaries(

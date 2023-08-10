@@ -516,7 +516,7 @@ class OverflowTest : public ::testing::TestWithParam<std::tuple<bool, bool>> {
     Context ctx;
     HistMakerTrainParam hist_param;
     if (limit) {
-      hist_param.Init(Args{{"internal_max_cached_hist_node", "1"}});
+      hist_param.Init(Args{{"max_cached_hist_node", "1"}});
     }
 
     std::shared_ptr<DMatrix> Xy =
