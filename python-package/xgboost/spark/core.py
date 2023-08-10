@@ -350,9 +350,7 @@ class _SparkXGBParams(
             )
 
         tree_method = self.getOrDefault(self.getParam("tree_method"))
-        if (
-            self.getOrDefault(self.use_gpu) or use_cuda(self.getOrDefault(self.device))
-        ) and not _can_use_qdm(tree_method):
+        if tree_method == "exact":
             raise ValueError(
                 f"The `{tree_method}` tree method is not supported on GPU."
             )
