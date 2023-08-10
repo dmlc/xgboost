@@ -40,7 +40,7 @@ std::string ValidateFileFormat(std::string const& uri) {
 
   auto path = common::Split(uri, '?')[0];
   namespace fs = std::filesystem;
-  name_args[0] = fs::weakly_canonical(path);
+  name_args[0] = fs::weakly_canonical(path).string();
   if (name_args_cache.size() == 1) {
     return name_args[0] + "?" + name_args[1];
   } else {
