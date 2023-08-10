@@ -928,6 +928,25 @@ def save_load_model(model_path):
             xgb_model = xgb.XGBModel()
             xgb_model.load_model(model_path)
 
+    clf = xgb.XGBClassifier(booster="gblinear", early_stopping_rounds=1)
+    clf.fit(X, y, eval_set=[(X, y)])
+    best_iteration = clf.best_iteration
+    best_score = clf.best_score
+    predt_0 = clf.predict(X)
+    clf.save_model(model_path)
+    clf.load_model(model_path)
+    predt_1 = clf.predict(X)
+    np.testing.assert_allclose(predt_0, predt_1)
+    assert clf.best_iteration == best_iteration
+    assert clf.best_score == best_score
+
+    clfpkl = pickle.dumps(clf)
+    clf = pickle.loads(clfpkl)
+    predt_2 = clf.predict(X)
+    np.testing.assert_allclose(predt_0, predt_2)
+    assert clf.best_iteration == best_iteration
+    assert clf.best_score == best_score
+
 
 def test_save_load_model():
     with tempfile.TemporaryDirectory() as tempdir:
