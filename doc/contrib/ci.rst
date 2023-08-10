@@ -32,7 +32,7 @@ GitHub Actions is also used to build Python wheels targeting MacOS Intel and App
 ``python_wheels`` pipeline sets up environment variables prefixed ``CIBW_*`` to indicate the target
 OS and processor. The pipeline then invokes the script ``build_python_wheels.sh``, which in turns
 calls ``cibuildwheel`` to build the wheel. The ``cibuildwheel`` is a library that sets up a
-suitable Python environment for each OS and processor target. Since we don't have Apple Silion
+suitable Python environment for each OS and processor target. Since we don't have Apple Silicon
 machine in GitHub Actions, cross-compilation is needed; ``cibuildwheel`` takes care of the complex
 task of cross-compiling a Python wheel. (Note that ``cibuildwheel`` will call
 ``pip wheel``. Since XGBoost has a native library component, we created a customized build
@@ -131,7 +131,7 @@ set up a credential pair in order to provision resources on AWS. See
 Worker Image Pipeline
 =====================
 Building images for worker machines used to be a chore: you'd provision an EC2 machine, SSH into it, and
-manually install the necessary packages. This process is not only laborous but also error-prone. You may
+manually install the necessary packages. This process is not only laborious but also error-prone. You may
 forget to install a package or change a system configuration.
 
 No more. Now we have an automated pipeline for building images for worker machines.

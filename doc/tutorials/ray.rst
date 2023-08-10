@@ -138,7 +138,7 @@ This will train on four GPUs in parallel.
 
 Note that it usually does not make sense to allocate more than one GPU per actor,
 as XGBoost relies on distributed libraries such as Dask or Ray to utilize multi
-GPU taining.
+GPU training.
 
 Setting the number of CPUs per actor
 ====================================
