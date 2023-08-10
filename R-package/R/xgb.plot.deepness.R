@@ -136,7 +136,7 @@ get.leaf.depth <- function(dt_tree) {
     # list of paths to each leaf in a tree
     paths <- lapply(paths_tmp$vpath, names)
     # combine into a resulting path lengths table for a tree
-    data.table(Depth = sapply(paths, length), ID = To[Leaf == TRUE])
+    data.table(Depth = lengths(paths), ID = To[Leaf == TRUE])
   }, by = Tree]
 }
 
