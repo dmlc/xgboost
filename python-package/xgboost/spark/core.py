@@ -115,6 +115,7 @@ _pyspark_specific_params = [
     "qid_col",
     "repartition_random_shuffle",
     "pred_contrib_col",
+    "use_gpu",
 ]
 
 _non_booster_params = ["missing", "n_estimators", "feature_types", "feature_weights"]
