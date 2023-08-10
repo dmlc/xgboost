@@ -68,7 +68,7 @@ Other Updaters
 1. ``Prune``: It prunes the existing trees.  ``prune`` is usually used as part of other
    tree methods.  To use pruner independently, one needs to set the process type to update
    by: ``{"process_type": "update", "updater": "prune"}``.  With this set of parameters,
-   during trianing, XGBOost will prune the existing trees according to 2 parameters
+   during training, XGBoost will prune the existing trees according to 2 parameters
    ``min_split_loss (gamma)`` and ``max_depth``.
 
 2. ``Refresh``: Refresh the statistic of built trees on a new training dataset.  Like the

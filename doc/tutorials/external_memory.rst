@@ -7,7 +7,7 @@ dataset needs to be loaded into memory. This can be costly and sometimes
 infeasible. Staring from 1.5, users can define a custom iterator to load data in chunks
 for running XGBoost algorithms. External memory can be used for both training and
 prediction, but training is the primary use case and it will be our focus in this
-tutorial. For prediction and evaluation, users can iterate through the data themseleves
+tutorial. For prediction and evaluation, users can iterate through the data themselves
 while training requires the full dataset to be loaded into the memory.
 
 During training, there are two different modes for external memory support available in
@@ -142,7 +142,7 @@ see `this paper <https://arxiv.org/abs/2005.09148>`_.
 .. warning::
 
    When GPU is running out of memory during iteration on external memory, user might
-   recieve a segfault instead of an OOM exception.
+   receive a segfault instead of an OOM exception.
 
 .. _ext_remarks:
 
@@ -150,7 +150,7 @@ see `this paper <https://arxiv.org/abs/2005.09148>`_.
 Remarks
 *******
 
-When using external memory with XBGoost, data is divided into smaller chunks so that only
+When using external memory with XGBoost, data is divided into smaller chunks so that only
 a fraction of it needs to be stored in memory at any given time. It's important to note
 that this method only applies to the predictor data (``X``), while other data, like labels
 and internal runtime structures are concatenated. This means that memory reduction is most
@@ -211,7 +211,7 @@ construction of `QuantileDmatrix` with data chunks. On the other hand, if it's p
 doesn't fetch data during training. On the other hand, the external memory `DMatrix`
 fetches data batches from external memory on-demand.  Use the `QuantileDMatrix` (with
 iterator if necessary) when you can fit most of your data in memory. The training would be
-an order of magnitute faster than using external memory.
+an order of magnitude faster than using external memory.
 
 ****************
 Text File Inputs

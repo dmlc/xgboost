@@ -256,7 +256,7 @@ In the example below, a ``KubeCluster`` is used for `deploying Dask on Kubernete
       m = 1000
       n = 10
       kWorkers = 2                # assuming you have 2 GPU nodes on that cluster.
-      # You need to work out the worker-spec youself.  See document in dask_kubernetes for
+      # You need to work out the worker-spec yourself.  See document in dask_kubernetes for
       # its usage.  Here we just want to show that XGBoost works on various clusters.
       cluster = KubeCluster.from_yaml('worker-spec.yaml', deploy_mode='remote')
       cluster.scale(kWorkers)     # scale to use all GPUs
@@ -648,7 +648,7 @@ environment than training the model using a single node due to aforementioned cr
 Memory Usage
 ************
 
-Here are some pratices on reducing memory usage with dask and xgboost.
+Here are some practices on reducing memory usage with dask and xgboost.
 
 - In a distributed work flow, data is best loaded by dask collections directly instead of
   loaded by client process.  When loading with client process is unavoidable, use

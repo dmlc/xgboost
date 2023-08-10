@@ -48,6 +48,7 @@ Debug
 *.Rproj
 ./xgboost.mpi
 ./xgboost.mock
+*.bak
 #.Rbuildignore
 R-package.Rproj
 *.cache*

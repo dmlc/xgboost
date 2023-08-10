@@ -54,7 +54,7 @@ After 1.4 release, we added a new parameter called ``strict_shape``, one can set
   Output is a 4-dim array with ``(n_samples, n_iterations, n_classes, n_trees_in_forest)``
   as shape.  ``n_trees_in_forest`` is specified by the ``numb_parallel_tree`` during
   training.  When strict shape is set to False, output is a 2-dim array with last 3 dims
-  concatenated into 1.  Also the last dimension is dropped if it eqauls to 1. When using
+  concatenated into 1.  Also the last dimension is dropped if it equals to 1. When using
   ``apply`` method in scikit learn interface, this is set to False by default.
 
 
@@ -68,7 +68,7 @@ n_classes, n_trees_in_forest)``, while R with ``strict_shape=TRUE`` outputs
 Other than these prediction types, there's also a parameter called ``iteration_range``,
 which is similar to model slicing.  But instead of actually splitting up the model into
 multiple stacks, it simply returns the prediction formed by the trees within range.
-Number of trees created in each iteration eqauls to :math:`trees_i = num\_class \times
+Number of trees created in each iteration equals to :math:`trees_i = num\_class \times
 num\_parallel\_tree`.  So if you are training a boosted random forest with size of 4, on
 the 3-class classification dataset, and want to use the first 2 iterations of trees for
 prediction, you need to provide ``iteration_range=(0, 2)``.  Then the first :math:`2
