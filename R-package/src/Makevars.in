@@ -47,6 +47,7 @@ OBJECTS= \
     $(PKGROOT)/src/data/data.o \
     $(PKGROOT)/src/data/sparse_page_raw_format.o \
     $(PKGROOT)/src/data/ellpack_page.o \
+    $(PKGROOT)/src/data/file_iterator.o \
     $(PKGROOT)/src/data/gradient_index.o \
     $(PKGROOT)/src/data/gradient_index_page_source.o \
     $(PKGROOT)/src/data/gradient_index_format.o \
