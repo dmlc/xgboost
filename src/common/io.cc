@@ -28,8 +28,7 @@
 #include <cstddef>       // for size_t
 #include <cstdint>       // for int32_t, uint32_t
 #include <cstring>       // for memcpy
-#include <filesystem>    // for weakly_canonical
-#include <filesystem>    // for filesystem
+#include <filesystem>    // for filesystem, weakly_canonical
 #include <fstream>       // for ifstream
 #include <iterator>      // for distance
 #include <limits>        // for numeric_limits
