@@ -363,8 +363,13 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   is_update <- NVL(params[['process_type']], '.') == 'update'
 
   # Construct a booster (either a new one or load from xgb_model)
-  handle <- xgb.Booster.handle(params, append(watchlist, dtrain), xgb_model)
-  bst <- xgb.handleToBooster(handle)
+  handle <- xgb.Booster.handle(
+    params = params,
+    cachelist = append(watchlist, dtrain),
+    modelfile = xgb_model,
+    handle = NULL
+  )
+  bst <- xgb.handleToBooster(handle = handle, raw = NULL)
 
   # extract parameters that can affect the relationship b/w #trees and #iterations
   num_class <- max(as.numeric(NVL(params[['num_class']], 1)), 1)
