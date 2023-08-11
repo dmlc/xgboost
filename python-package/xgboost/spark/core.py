@@ -115,6 +115,7 @@ _pyspark_specific_params = [
     "qid_col",
     "repartition_random_shuffle",
     "pred_contrib_col",
+    "use_gpu",
 ]
 
 _non_booster_params = ["missing", "n_estimators", "feature_types", "feature_weights"]
@@ -349,11 +350,9 @@ class _SparkXGBParams(
             )
 
         tree_method = self.getOrDefault(self.getParam("tree_method"))
-        if (
-            self.getOrDefault(self.use_gpu) or use_cuda(self.getOrDefault(self.device))
-        ) and not _can_use_qdm(tree_method):
+        if tree_method == "exact":
             raise ValueError(
-                f"The `{tree_method}` tree method is not supported on GPU."
+                "The `exact` tree method is not supported for distributed systems."
             )
 
         if self.getOrDefault(self.features_cols):
