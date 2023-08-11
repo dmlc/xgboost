@@ -4,42 +4,57 @@
  */
 #include "xgboost/data.h"
 
-#include <dmlc/registry.h>
+#include <dmlc/registry.h>  // for DMLC_REGISTRY_ENABLE, DMLC_REGISTRY_LINK_TAG
 
-#include <array>
-#include <cstddef>
-#include <cstring>
+#include <algorithm>    // for copy, max, none_of, min
+#include <atomic>       // for atomic
+#include <cmath>        // for abs
+#include <cstdint>      // for uint64_t, int32_t, uint8_t, uint32_t
+#include <cstring>      // for size_t, strcmp, memcpy
+#include <exception>    // for exception
+#include <iostream>     // for operator<<, basic_ostream, basic_ostream::op...
+#include <map>          // for map, operator!=
+#include <numeric>      // for accumulate, partial_sum
+#include <tuple>        // for get, apply
+#include <type_traits>  // for remove_pointer_t, remove_reference
 
-#include "../collective/communicator-inl.h"
-#include "../collective/communicator.h"
-#include "../common/algorithm.h"  // for StableSort
-#include "../common/api_entry.h"  // for XGBAPIThreadLocalEntry
-#include "../common/common.h"
-#include "../common/error_msg.h"  // for InfInData, GroupWeight, GroupSize
-#include "../common/group_data.h"
-#include "../common/io.h"
-#include "../common/linalg_op.h"
-#include "../common/math.h"
-#include "../common/numeric.h"  // for Iota
-#include "../common/threading_utils.h"
-#include "../common/version.h"
-#include "../data/adapter.h"
-#include "../data/iterative_dmatrix.h"
-#include "./sparse_page_dmatrix.h"
-#include "./sparse_page_source.h"
-#include "dmlc/io.h"
-#include "file_iterator.h"
-#include "simple_dmatrix.h"
-#include "sparse_page_writer.h"
-#include "validation.h"
-#include "xgboost/c_api.h"
-#include "xgboost/context.h"
-#include "xgboost/host_device_vector.h"
-#include "xgboost/learner.h"
-#include "xgboost/linalg.h"  // Vector
-#include "xgboost/logging.h"
-#include "xgboost/string_view.h"
-#include "xgboost/version_config.h"
+#include "../collective/communicator-inl.h"  // for GetRank, GetWorldSize, Allreduce, IsFederated
+#include "../collective/communicator.h"      // for Operation
+#include "../common/algorithm.h"             // for StableSort
+#include "../common/api_entry.h"             // for XGBAPIThreadLocalEntry
+#include "../common/common.h"                // for Split
+#include "../common/error_msg.h"             // for GroupSize, GroupWeight, InfInData
+#include "../common/group_data.h"            // for ParallelGroupBuilder
+#include "../common/io.h"                    // for PeekableInStream
+#include "../common/linalg_op.h"             // for ElementWiseTransformHost
+#include "../common/math.h"                  // for CheckNAN
+#include "../common/numeric.h"               // for Iota, RunLengthEncode
+#include "../common/threading_utils.h"       // for ParallelFor
+#include "../common/version.h"               // for Version
+#include "../data/adapter.h"                 // for COOTuple, FileAdapter, IsValidFunctor
+#include "../data/iterative_dmatrix.h"       // for IterativeDMatrix
+#include "./sparse_page_dmatrix.h"           // for SparsePageDMatrix
+#include "array_interface.h"                 // for ArrayInterfaceHandler, ArrayInterface, Dispa...
+#include "dmlc/base.h"                       // for BeginPtr
+#include "dmlc/common.h"                     // for OMPException
+#include "dmlc/data.h"                       // for Parser
+#include "dmlc/endian.h"                     // for ByteSwap, DMLC_IO_NO_ENDIAN_SWAP
+#include "dmlc/io.h"                         // for Stream
+#include "dmlc/thread_local.h"               // for ThreadLocalStore
+#include "ellpack_page.h"                    // for EllpackPage
+#include "file_iterator.h"                   // for ValidateFileFormat, FileIterator, Next, Reset
+#include "gradient_index.h"                  // for GHistIndexMatrix
+#include "simple_dmatrix.h"                  // for SimpleDMatrix
+#include "sparse_page_writer.h"              // for SparsePageFormatReg
+#include "validation.h"                      // for LabelsCheck, WeightsCheck, ValidateQueryGroup
+#include "xgboost/base.h"                    // for bst_group_t, bst_row_t, bst_float, bst_ulong
+#include "xgboost/context.h"                 // for Context
+#include "xgboost/host_device_vector.h"      // for HostDeviceVector
+#include "xgboost/learner.h"                 // for HostDeviceVector
+#include "xgboost/linalg.h"                  // for Tensor, Stack, TensorView, Vector, ArrayInte...
+#include "xgboost/logging.h"                 // for Error, LogCheck_EQ, CHECK, CHECK_EQ, LOG
+#include "xgboost/span.h"                    // for Span, operator!=, SpanIterator
+#include "xgboost/string_view.h"             // for operator==, operator<<, StringView
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::data::SparsePageFormatReg<::xgboost::SparsePage>);
@@ -811,10 +826,10 @@ DMatrix::~DMatrix() {
   }
 }
 
-DMatrix *TryLoadBinary(std::string fname, bool silent) {
-  int magic;
-  std::unique_ptr<dmlc::Stream> fi(
-      dmlc::Stream::Create(fname.c_str(), "r", true));
+namespace {
+DMatrix* TryLoadBinary(std::string fname, bool silent) {
+  std::int32_t magic;
+  std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r", true));
   if (fi != nullptr) {
     common::PeekableInStream is(fi.get());
     if (is.PeekRead(&magic, sizeof(magic)) == sizeof(magic)) {
@@ -822,11 +837,10 @@ DMatrix *TryLoadBinary(std::string fname, bool silent) {
         dmlc::ByteSwap(&magic, sizeof(magic), 1);
       }
       if (magic == data::SimpleDMatrix::kMagic) {
-        DMatrix *dmat = new data::SimpleDMatrix(&is);
+        DMatrix* dmat = new data::SimpleDMatrix(&is);
         if (!silent) {
-          LOG(CONSOLE) << dmat->Info().num_row_ << 'x' << dmat->Info().num_col_
-                       << " matrix with " << dmat->Info().num_nonzero_
-                       << " entries loaded from " << fname;
+          LOG(CONSOLE) << dmat->Info().num_row_ << 'x' << dmat->Info().num_col_ << " matrix with "
+                       << dmat->Info().num_nonzero_ << " entries loaded from " << fname;
         }
         return dmat;
       }
@@ -834,6 +848,7 @@ DMatrix *TryLoadBinary(std::string fname, bool silent) {
   }
   return nullptr;
 }
+}  // namespace
 
 DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_split_mode) {
   auto need_split = false;
@@ -845,7 +860,7 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
   }
 
   std::string fname, cache_file;
-  size_t dlm_pos = uri.find('#');
+  auto dlm_pos = uri.find('#');
   if (dlm_pos != std::string::npos) {
     cache_file = uri.substr(dlm_pos + 1, uri.length());
     fname = uri.substr(0, dlm_pos);
@@ -857,14 +872,11 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
       for (size_t i = 0; i < cache_shards.size(); ++i) {
         size_t pos = cache_shards[i].rfind('.');
         if (pos == std::string::npos) {
-          os << cache_shards[i]
-             << ".r" << collective::GetRank()
-             << "-" <<  collective::GetWorldSize();
+          os << cache_shards[i] << ".r" << collective::GetRank() << "-"
+             << collective::GetWorldSize();
         } else {
-          os << cache_shards[i].substr(0, pos)
-             << ".r" << collective::GetRank()
-             << "-" <<  collective::GetWorldSize()
-             << cache_shards[i].substr(pos, cache_shards[i].length());
+          os << cache_shards[i].substr(0, pos) << ".r" << collective::GetRank() << "-"
+             << collective::GetWorldSize() << cache_shards[i].substr(pos, cache_shards[i].length());
         }
         if (i + 1 != cache_shards.size()) {
           os << ':';
@@ -895,12 +907,12 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
     LOG(CONSOLE) << "Load part of data " << partid << " of " << npart << " parts";
   }
 
-  data::ValidateFileFormat(fname);
-  DMatrix* dmat {nullptr};
+  DMatrix* dmat{nullptr};
 
   if (cache_file.empty()) {
-    std::unique_ptr<dmlc::Parser<uint32_t>> parser(
-        dmlc::Parser<uint32_t>::Create(fname.c_str(), partid, npart, "auto"));
+    fname = data::ValidateFileFormat(fname);
+    std::unique_ptr<dmlc::Parser<std::uint32_t>> parser(
+        dmlc::Parser<std::uint32_t>::Create(fname.c_str(), partid, npart, "auto"));
     data::FileAdapter adapter(parser.get());
     dmat = DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), Context{}.Threads(),
                            cache_file, data_split_mode);
