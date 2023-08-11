@@ -1,23 +1,29 @@
-/*!
- * Copyright (c) by Contributors 2019-2022
+/**
+ * Copyright 2019-2023, XGBoost Contributors
  */
 #include "xgboost/json.h"
 
-#include <dmlc/endian.h>
+#include <array>             // for array
+#include <cctype>            // for isdigit
+#include <cmath>             // for isinf, isnan
+#include <cstdio>            // for EOF
+#include <cstdlib>           // for size_t, strtof
+#include <cstring>           // for memcpy
+#include <initializer_list>  // for initializer_list
+#include <iterator>          // for distance
+#include <limits>            // for numeric_limits
+#include <memory>            // for allocator
+#include <sstream>           // for operator<<, basic_ostream, operator&, ios, stringstream
+#include <system_error>      // for errc
 
-#include <cctype>
-#include <cmath>
-#include <cstddef>
-#include <iterator>
-#include <limits>
-#include <sstream>
-
-#include "./math.h"
-#include "charconv.h"
-#include "xgboost/base.h"
-#include "xgboost/json_io.h"
-#include "xgboost/logging.h"
-#include "xgboost/string_view.h"
+#include "./math.h"                 // for CheckNAN
+#include "charconv.h"               // for to_chars, NumericLimits, from_chars, to_chars_result
+#include "common.h"                 // for EscapeU8
+#include "xgboost/base.h"           // for XGBOOST_EXPECT
+#include "xgboost/intrusive_ptr.h"  // for IntrusivePtr
+#include "xgboost/json_io.h"        // for JsonReader, UBJReader, UBJWriter, JsonWriter, ToBigEn...
+#include "xgboost/logging.h"        // for LOG, LOG_FATAL, LogMessageFatal, LogCheck_NE, CHECK
+#include "xgboost/string_view.h"    // for StringView, operator<<
 
 namespace xgboost {
 
@@ -57,12 +63,12 @@ void JsonWriter::Visit(JsonObject const* obj) {
 }
 
 void JsonWriter::Visit(JsonNumber const* num) {
-  char number[NumericLimits<float>::kToCharsSize];
-  auto res = to_chars(number, number + sizeof(number), num->GetNumber());
+  std::array<char, NumericLimits<float>::kToCharsSize> number;
+  auto res = to_chars(number.data(), number.data() + number.size(), num->GetNumber());
   auto end = res.ptr;
   auto ori_size = stream_->size();
-  stream_->resize(stream_->size() + end - number);
-  std::memcpy(stream_->data() + ori_size, number, end - number);
+  stream_->resize(stream_->size() + end - number.data());
+  std::memcpy(stream_->data() + ori_size, number.data(), end - number.data());
 }
 
 void JsonWriter::Visit(JsonInteger const* num) {
@@ -88,43 +94,15 @@ void JsonWriter::Visit(JsonNull const* ) {
 }
 
 void JsonWriter::Visit(JsonString const* str) {
-  std::string buffer;
-  buffer += '"';
-  auto const& string = str->GetString();
-  for (size_t i = 0; i < string.length(); i++) {
-    const char ch = string[i];
-    if (ch == '\\') {
-      if (i < string.size() && string[i+1] == 'u') {
-        buffer += "\\";
-      } else {
-        buffer += "\\\\";
-      }
-    } else if (ch == '"') {
-      buffer += "\\\"";
-    } else if (ch == '\b') {
-      buffer += "\\b";
-    } else if (ch == '\f') {
-      buffer += "\\f";
-    } else if (ch == '\n') {
-      buffer += "\\n";
-    } else if (ch == '\r') {
-      buffer += "\\r";
-    } else if (ch == '\t') {
-      buffer += "\\t";
-    } else if (static_cast<uint8_t>(ch) <= 0x1f) {
-      // Unit separator
-      char buf[8];
-      snprintf(buf, sizeof buf, "\\u%04x", ch);
-      buffer += buf;
-    } else {
-      buffer += ch;
-    }
-  }
-  buffer += '"';
+    std::string buffer;
+    buffer += '"';
+    auto const& string = str->GetString();
+    common::EscapeU8(string, &buffer);
+    buffer += '"';
 
-  auto s = stream_->size();
-  stream_->resize(s + buffer.size());
-  std::memcpy(stream_->data() + s, buffer.data(), buffer.size());
+    auto s = stream_->size();
+    stream_->resize(s + buffer.size());
+    std::memcpy(stream_->data() + s, buffer.data(), buffer.size());
 }
 
 void JsonWriter::Visit(JsonBoolean const* boolean) {
