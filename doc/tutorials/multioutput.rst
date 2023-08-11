@@ -11,6 +11,11 @@ can be simultaneously classified as both sci-fi and comedy.  For detailed explan
 terminologies related to different multi-output models please refer to the
 :doc:`scikit-learn user guide <sklearn:modules/multiclass>`.
 
+.. note::
+
+   As of XGBoost 2.0, the feature is experimental and has limited features. Only the
+   Python package is tested.
+
 **********************************
 Training with One-Model-Per-Target
 **********************************
@@ -49,7 +54,7 @@ Training with Vector Leaf
 
 .. note::
 
-   This is still working-in-progress, and many features are missing.
+   This is still working-in-progress, and most features are missing.
 
 XGBoost can optionally build multi-output trees with the size of leaf equals to the number
 of targets when the tree method `hist` is used. The behavior can be controlled by the
