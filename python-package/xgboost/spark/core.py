@@ -352,7 +352,7 @@ class _SparkXGBParams(
         tree_method = self.getOrDefault(self.getParam("tree_method"))
         if tree_method == "exact":
             raise ValueError(
-                f"The `{tree_method}` tree method is not supported on GPU."
+                "The `exact` tree method is not supported for distributed systems."
             )
 
         if self.getOrDefault(self.features_cols):
