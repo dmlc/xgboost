@@ -4,16 +4,17 @@ Categorical Data
 
 .. note::
 
-   As of XGBoost 1.6, the feature is experimental and has limited features
+   As of XGBoost 1.6, the feature is experimental and has limited features. Only the
+   Python package is fully supported.
 
-Starting from version 1.5, XGBoost has experimental support for categorical data available
-for public testing. For numerical data, the split condition is defined as :math:`value <
-threshold`, while for categorical data the split is defined depending on whether
-partitioning or onehot encoding is used. For partition-based splits, the splits are
-specified as :math:`value \in categories`, where ``categories`` is the set of categories
-in one feature.  If onehot encoding is used instead, then the split is defined as
-:math:`value == category`. More advanced categorical split strategy is planned for future
-releases and this tutorial details how to inform XGBoost about the data type.
+Starting from version 1.5, the XGBoost Python package has experimental support for
+categorical data available for public testing. For numerical data, the split condition is
+defined as :math:`value < threshold`, while for categorical data the split is defined
+depending on whether partitioning or onehot encoding is used. For partition-based splits,
+the splits are specified as :math:`value \in categories`, where ``categories`` is the set
+of categories in one feature.  If onehot encoding is used instead, then the split is
+defined as :math:`value == category`. More advanced categorical split strategy is planned
+for future releases and this tutorial details how to inform XGBoost about the data type.
 
 ************************************
 Training with scikit-learn Interface
