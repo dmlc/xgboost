@@ -92,4 +92,14 @@ class ParameterSuite extends AnyFunSuite with PerTest with BeforeAndAfterAll {
       classifier.getBaseScore
     }
   }
+
+  test("approx can't be used for gpu train") {
+    val paramMap = Map("tree_method" -> "approx", "device" -> "cuda")
+    val trainingDF = buildDataFrame(MultiClassification.train)
+    val xgb = new XGBoostClassifier(paramMap)
+    val thrown = intercept[IllegalArgumentException] {
+      xgb.fit(trainingDF)
+    }
+    assert(thrown.getMessage.contains("Tree method \"approx\" can't be used for GPU train"))
+  }
 }

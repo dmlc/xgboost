@@ -68,11 +68,13 @@ private[spark] trait LearningTaskParams extends Params {
   /**
    * Fraction of training points to use for testing.
    */
+  @Deprecated
   final val trainTestRatio = new DoubleParam(this, "trainTestRatio",
     "fraction of training points to use for testing",
     ParamValidators.inRange(0, 1))
   setDefault(trainTestRatio, 1.0)
 
+  @Deprecated
   final def getTrainTestRatio: Double = $(trainTestRatio)
 
   /**
