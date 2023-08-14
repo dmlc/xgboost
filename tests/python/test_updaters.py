@@ -58,7 +58,7 @@ class TestTreeMethodMulti:
         param.update(hist_param)
         param.update(cache_param)
         result = train_result(param, dataset.get_dmat(), num_rounds)
-        note(result)
+        note(str(result))
         assert tm.non_increasing(result["train"][dataset.metric])
 
     @given(
@@ -84,7 +84,7 @@ class TestTreeMethodMulti:
         param.update(hist_param)
         param.update(cache_param)
         result = train_result(param, dataset.get_dmat(), num_rounds)
-        note(result)
+        note(str(result))
         assert tm.non_increasing(result["train"][dataset.metric])
 
 
@@ -125,7 +125,7 @@ class TestTreeMethod:
         param.update(hist_param)
         param.update(cache_param)
         result = train_result(param, dataset.get_dmat(), num_rounds)
-        note(result)
+        note(str(result))
         assert tm.non_increasing(result["train"][dataset.metric])
 
     @pytest.mark.skipif(**tm.no_sklearn())
@@ -172,7 +172,7 @@ class TestTreeMethod:
         param.update(hist_param)
         param.update(cache_param)
         result = train_result(param, dataset.get_dmat(), num_rounds)
-        note(result)
+        note(str(result))
         assert tm.non_increasing(result["train"][dataset.metric])
 
     def test_hist_categorical(self):
@@ -224,12 +224,12 @@ class TestTreeMethod:
     def test_sparse(self, dataset):
         param = {"tree_method": "hist", "max_bin": 64}
         hist_result = train_result(param, dataset.get_dmat(), 16)
-        note(hist_result)
+        note(str(hist_result))
         assert tm.non_increasing(hist_result['train'][dataset.metric])
 
         param = {"tree_method": "approx", "max_bin": 64}
         approx_result = train_result(param, dataset.get_dmat(), 16)
-        note(approx_result)
+        note(str(approx_result))
         assert tm.non_increasing(approx_result['train'][dataset.metric])
 
         np.testing.assert_allclose(

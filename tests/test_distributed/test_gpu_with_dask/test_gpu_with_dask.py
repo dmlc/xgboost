@@ -187,7 +187,7 @@ def run_gpu_hist(
         num_boost_round=num_rounds,
         evals=[(m, "train")],
     )["history"]["train"][dataset.metric]
-    note(history)
+    note(str(history))
 
     # See note on `ObjFunction::UpdateTreeLeaf`.
     update_leaf = dataset.name.endswith("-l1")
