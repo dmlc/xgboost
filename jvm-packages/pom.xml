@@ -78,7 +78,7 @@
             <id>scala-2.13</id>
             <properties>
                 <scala.binary.version>2.13</scala.binary.version>
-                <scala.version>2.13.10</scala.version>
+                <scala.version>2.13.11</scala.version>
             </properties>
         </profile>
 
@@ -473,27 +473,10 @@
         </plugins>
     </reporting>
     <dependencies>
-
         <dependency>
             <groupId>com.esotericsoftware</groupId>
             <artifactId>kryo</artifactId>
             <version>5.5.0</version>
-        </dependency>
-        <dependency>
-            <groupId>org.scala-lang</groupId>
-            <artifactId>scala-compiler</artifactId>
-            <version>${scala.version}</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.scala-lang</groupId>
-            <artifactId>scala-library</artifactId>
-            <version>${scala.version}</version>
-        </dependency>
-        <dependency>
-          <groupId>org.scala-lang.modules</groupId>
-          <artifactId>scala-collection-compat_${scala.binary.version}</artifactId>
-          <version>${scala-collection-compat.version}</version>
         </dependency>
         <dependency>
             <groupId>commons-logging</groupId>
