@@ -194,7 +194,13 @@ xgb.cv <- function(params = list(), data, nrounds, nfold, label = NULL, missing 
 
   # create the booster-folds
   # train_folds
-  dall <- xgb.get.DMatrix(data, label, missing, nthread = params$nthread)
+  dall <- xgb.get.DMatrix(
+    data = data,
+    label = label,
+    missing = missing,
+    weight = NULL,
+    nthread = params$nthread
+  )
   bst_folds <- lapply(seq_along(folds), function(k) {
     dtest  <- slice(dall, folds[[k]])
     # code originally contributed by @RolandASc on stackoverflow

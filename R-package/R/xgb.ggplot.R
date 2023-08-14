@@ -183,7 +183,7 @@ normalize <- function(x) {
 # ... the plots
 # cols number of columns
 # internal utility function
-multiplot <- function(..., cols = 1) {
+multiplot <- function(..., cols) {
   plots <- list(...)
   num_plots <- length(plots)
 
