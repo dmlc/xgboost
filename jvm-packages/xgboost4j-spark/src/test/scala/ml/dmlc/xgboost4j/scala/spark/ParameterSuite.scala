@@ -100,6 +100,7 @@ class ParameterSuite extends AnyFunSuite with PerTest with BeforeAndAfterAll {
     val thrown = intercept[IllegalArgumentException] {
       xgb.fit(trainingDF)
     }
-    assert(thrown.getMessage.contains("Tree method \"approx\" can't be used for GPU train"))
+    assert(thrown.getMessage.contains("The tree method \"approx\" is not yet supported " +
+      "for Spark GPU cluster"))
   }
 }
