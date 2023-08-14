@@ -1484,7 +1484,7 @@ class TestWithDask:
             num_boost_round=num_rounds,
             evals=[(m, "train")],
         )["history"]
-        note(history)
+        note(str(history))
         history = history["train"][dataset.metric]
 
         def is_stump():
