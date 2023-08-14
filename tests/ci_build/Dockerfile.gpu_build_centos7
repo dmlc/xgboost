@@ -17,8 +17,8 @@ RUN \
     bash conda.sh -b -p /opt/mambaforge && \
     /opt/mambaforge/bin/python -m pip install awscli && \
     # CMake
-    wget -nv -nc https://cmake.org/files/v3.24/cmake-3.24.0-linux-x86_64.sh --no-check-certificate && \
-    bash cmake-3.24.0-linux-x86_64.sh --skip-license --prefix=/usr
+    wget -nv -nc https://cmake.org/files/v3.26/cmake-3.26.4-linux-x86_64.sh --no-check-certificate && \
+    bash cmake-3.26.4-linux-x86_64.sh --skip-license --prefix=/usr
 
 # NCCL2 (License: https://docs.nvidia.com/deeplearning/sdk/nccl-sla/index.html)
 RUN \
