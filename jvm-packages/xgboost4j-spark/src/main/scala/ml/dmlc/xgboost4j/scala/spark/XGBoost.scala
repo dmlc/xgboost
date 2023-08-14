@@ -192,7 +192,7 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
     } else overridedParams.get("device").map(_.toString)
 
     require(!(treeMethod.exists(_ == "approx") && device.exists(_ == "cuda")),
-      "Tree method \"approx\" can't be used for GPU train")
+      "The tree method \"approx\" is not yet supported for Spark GPU cluster")
 
     val trackerConf = overridedParams.get("tracker_conf") match {
       case None => TrackerConf()
