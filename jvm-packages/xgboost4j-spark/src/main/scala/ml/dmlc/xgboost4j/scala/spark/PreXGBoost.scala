@@ -379,7 +379,7 @@ object PreXGBoost extends PreXGBoostProvider {
             xgbExecutionParam.allowNonZeroForMissing),
           getCacheDirName(xgbExecutionParam.useExternalMemory))
         Iterator.single(buildWatches)
-      }).cache()
+      })
     } else {
       coPartitionGroupSets(trainingData, evalSetsMap, xgbExecutionParam.numWorkers).mapPartitions(
         labeledPointGroupSets => {
@@ -390,7 +390,7 @@ object PreXGBoost extends PreXGBoostProvider {
             },
             getCacheDirName(xgbExecutionParam.useExternalMemory))
           Iterator.single(buildWatches)
-        }).cache()
+        })
     }
   }
 
@@ -467,7 +467,7 @@ object PreXGBoost extends PreXGBoostProvider {
             xgbExecutionParams.allowNonZeroForMissing),
           getCacheDirName(xgbExecutionParams.useExternalMemory))
         Iterator.single(buildWatches)
-      }}.cache()
+      }}
     } else {
       coPartitionNoGroupSets(trainingData, evalSetsMap, xgbExecutionParams.numWorkers).
         mapPartitions {
@@ -479,7 +479,7 @@ object PreXGBoost extends PreXGBoostProvider {
               },
               getCacheDirName(xgbExecutionParams.useExternalMemory))
             Iterator.single(buildWatches)
-        }.cache()
+        }
     }
   }
 
