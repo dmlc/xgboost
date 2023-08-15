@@ -19,7 +19,7 @@ A new `device` parameter is set to replace the existing `gpu_id`, `gpu_hist`, `g
 Starting from 2.0, the `hist` tree method will be the default. In previous versions, XGBoost chooses `approx` or `exact` depending on the input data and training environment. The new default can help XGBoost train models more efficiently and be more consistent. (#9320, #9353)
 
 ### GPU-based approx tree method
-There's initial support for using the `approx` tree method on GPU. The performance of the `approx` is not yet well optimized but is feature complete. It can be accessed through the use of parameter combination `device="cuda", tree_method="approx"`. (#9414, #9399)
+There's initial support for using the `approx` tree method on GPU. The performance of the `approx` is not yet well optimized but is feature complete. It can be accessed through the use of parameter combination `device="cuda", tree_method="approx"`. (#9414, #9399, #9478). Please note that Scala-based Spark interface is not yet supported.
 
 ### Optimize and bound the size of the histogram on CPU
 
@@ -107,7 +107,7 @@ Some noteworthy bug fixes that are not related to specific language binding are 
 - Fix weighted sketching on GPU with categorical feature. (#9341)
 - Fix metric serialization. This might cause some of the metrics being dropped during evaluation. (#9405)
 - Fixes compilation errors on MSVC x86 targets (#8823)
-- Pick up dmlc-core fix for CSV parser (#8897)
+- Pick up dmlc-core fix for CSV parser. (#8897)
 
 
 ### Documentation
@@ -158,7 +158,7 @@ Aside from documents for new features, we have many smaller updates to improve u
 - More consistent use of `black` and `isort` for code formatting (#8420, #8748, #8867)
 - Improved type support. Most of the type changes happen in the PySpark module, here we list the remaining changes. (#8444, #8617, #9197, #9005)
 - Set `enable_categorical` to True in predict. (#8592)
-- Some refactoring and updates for tests (#8395, #8372, #8557, #8379, #8702, #9459, #9316, #8446, #8695, #8409, #8993)
+- Some refactoring and updates for tests (#8395, #8372, #8557, #8379, #8702, #9459, #9316, #8446, #8695, #8409, #8993, #9480)
 
 * doc
 - Add introduction and notes for the sklearn interface. (#8948)
@@ -170,7 +170,7 @@ Aside from documents for new features, we have many smaller updates to improve u
 - Use the new data consumption interface for CSR and CSC. This provides better control for number of threads and improves performance. (#8455, #8673)
 - Accept multiple evaluation metrics during training. (#8657)
 
-- Some refactoring for the R package (#8545, #8430, #8614, #8624, #8613, #9457, #8689, #8563, #9461, #8647, #8564, #8565, #8736, #8610, #8609, #8599, #8704, #9456, #9450). Special thanks to @jameslamb.
+- Some refactoring for the R package (#8545, #8430, #8614, #8624, #8613, #9457, #8689, #8563, #9461, #8647, #8564, #8565, #8736, #8610, #8609, #8599, #8704, #9456, #9450, #9476, #9477, #9481). Special thanks to @jameslamb.
 - Document updates (#8886, #9323, #9437, #8998)
 
 ### JVM packages
@@ -187,7 +187,7 @@ Following are changes specific to various JVM-based packages.
 - Scala-based tracker is removed. (#9078, #9045)
 - Change `DeviceQuantileDmatrix` into `QuantileDMatrix` (#8461)
 
-* Maintenance (#9253, #9166, #9395, #9389, #9224, #9233, #9351)
+* Maintenance (#9253, #9166, #9395, #9389, #9224, #9233, #9351, #9479)
 
 * CI bot PRs
 We employed GitHub dependent bot to help us keep the dependencies up-to-date for JVM packages. With the help from the bot, we have cleared up all the dependencies that are lagging behind (#8501, #8507).
