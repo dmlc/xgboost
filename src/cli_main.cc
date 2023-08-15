@@ -514,7 +514,9 @@ class CLI {
 };
 }  // namespace xgboost
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
+  LOG(WARNING)
+      << "The command line interface is deprecated and will be removed in future releases.";
   try {
     xgboost::CLI cli(argc, argv);
     return cli.Run();
