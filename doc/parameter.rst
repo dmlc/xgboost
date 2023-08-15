@@ -46,7 +46,7 @@ General Parameters
     + ``gpu``: Default GPU device selection from the list of available and supported devices. Only ``cuda`` devices are supported currently.
     + ``gpu:<ordinal>``: Default GPU device selection from the list of available and supported devices. Only ``cuda`` devices are supported currently.
 
-    For more information about GPU acceleration, see :doc:`/gpu/index`.
+    For more information about GPU acceleration, see :doc:`/gpu/index`. In distributed environments, ordinal selection is handled by distributed frameworks instead of XGBoost. As a result, using ``cuda:<ordinal>`` will result in an error. Use ``cuda`` instead.
 
 * ``verbosity`` [default=1]
 
