@@ -1555,7 +1555,7 @@ def test_intercept() -> None:
     assert result.dtype == np.float32
     assert result[0] < 0.5
 
-    reg = xgb.XGBRegressor()
+    reg = xgb.XGBRegressor(booster="gblinear")
     reg.fit(X, y, sample_weight=w)
     result = reg.intercept_
     assert result.dtype == np.float32

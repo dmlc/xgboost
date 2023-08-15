@@ -1373,7 +1373,7 @@ class XGBModel(XGBModelBase):
         if booster_config != "gblinear":  # gbtree, dart
             config = json.loads(b.save_config())
             intercept = config["learner"]["learner_model_param"]["base_score"]
-            return np.array([intercept], dtype=np.float32)
+            return np.array([float(intercept)], dtype=np.float32)
 
         return np.array(
             json.loads(b.get_dump(dump_format="json")[0])["bias"], dtype=np.float32
