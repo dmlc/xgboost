@@ -135,9 +135,6 @@ xgb.cv <- function(params = list(), data, nrounds, nfold, label = NULL, missing 
   check.custom.obj()
   check.custom.eval()
 
-  #if (is.null(params[['eval_metric']]) && is.null(feval))
-  #  stop("Either 'eval_metric' or 'feval' must be provided for CV")
-
   # Check the labels
   if ((inherits(data, 'xgb.DMatrix') && is.null(getinfo(data, 'label'))) ||
       (!inherits(data, 'xgb.DMatrix') && is.null(label))) {
@@ -160,10 +157,6 @@ xgb.cv <- function(params = list(), data, nrounds, nfold, label = NULL, missing 
       stop("'nfold' must be > 1")
     folds <- generate.cv.folds(nfold, nrow(data), stratified, cv_label, params)
   }
-
-  # Potential TODO: sequential CV
-  #if (strategy == 'sequential')
-  #  stop('Sequential CV strategy is not yet implemented')
 
   # verbosity & evaluation printing callback:
   params <- c(params, list(silent = 1))
