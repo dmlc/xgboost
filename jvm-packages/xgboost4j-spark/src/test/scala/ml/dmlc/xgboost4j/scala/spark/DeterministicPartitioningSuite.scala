@@ -25,26 +25,6 @@ import org.apache.spark.sql.functions._
 
 class DeterministicPartitioningSuite extends AnyFunSuite with TmpFolderPerSuite with PerTest {
 
-  test("perform deterministic partitioning when checkpointInternal and" +
-    " checkpointPath is set (Classifier)") {
-    val tmpPath = createTmpFolder("model1").toAbsolutePath.toString
-    val paramMap = Map("eta" -> "1", "max_depth" -> 2,
-      "objective" -> "binary:logistic", "checkpoint_path" -> tmpPath,
-      "checkpoint_interval" -> 2, "num_workers" -> numWorkers)
-    val xgbClassifier = new XGBoostClassifier(paramMap)
-    assert(xgbClassifier.needDeterministicRepartitioning)
-  }
-
-  test("perform deterministic partitioning when checkpointInternal and" +
-    " checkpointPath is set (Regressor)") {
-    val tmpPath = createTmpFolder("model1").toAbsolutePath.toString
-    val paramMap = Map("eta" -> "1", "max_depth" -> 2,
-      "objective" -> "binary:logistic", "checkpoint_path" -> tmpPath,
-      "checkpoint_interval" -> 2, "num_workers" -> numWorkers)
-    val xgbRegressor = new XGBoostRegressor(paramMap)
-    assert(xgbRegressor.needDeterministicRepartitioning)
-  }
-
   test("deterministic partitioning takes effect with various parts of data") {
     val trainingDF = buildDataFrame(Classification.train)
     // the test idea is that, we apply a chain of repartitions over trainingDFs but they
@@ -62,8 +42,7 @@ class DeterministicPartitioningSuite extends AnyFunSuite with TmpFolderPerSuite 
         lit(1.0),
         lit(Float.NaN),
         None,
-        numWorkers,
-        deterministicPartition = true),
+        numWorkers),
       df
     ).head)
     val resultsMaps = transformedRDDs.map(rdd => rdd.mapPartitionsWithIndex {
@@ -97,8 +76,7 @@ class DeterministicPartitioningSuite extends AnyFunSuite with TmpFolderPerSuite 
         lit(1.0),
         lit(Float.NaN),
         None,
-        10,
-        deterministicPartition = true), df
+        10), df
     ).head
 
     val partitionsSizes = dfRepartitioned

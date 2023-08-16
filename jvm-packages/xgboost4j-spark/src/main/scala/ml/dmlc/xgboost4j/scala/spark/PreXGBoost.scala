@@ -127,11 +127,9 @@ object PreXGBoost extends PreXGBoostProvider {
         val group = est match {
           case regressor: XGBoostRegressor =>
             // get group column, if group is not defined, default to lit(-1)
-            Some(
-              if (!regressor.isDefined(regressor.groupCol) || regressor.getGroupCol.isEmpty) {
-                defaultGroupColumn
-              } else col(regressor.getGroupCol)
-            )
+            if (!regressor.isDefined(regressor.groupCol) || regressor.getGroupCol.isEmpty) {
+                None
+            } else Some(col(regressor.getGroupCol))
           case _ => None
 
         }
@@ -144,7 +142,7 @@ object PreXGBoost extends PreXGBoostProvider {
         })
 
         (PackedParams(col(est.getLabelCol), col(featuresName), weight, baseMargin, group,
-          est.getNumWorkers, est.needDeterministicRepartitioning), evalSets, xgbInput)
+          est.getNumWorkers), evalSets, xgbInput)
 
       case _ => throw new RuntimeException("Unsupporting " + estimator)
     }
@@ -379,7 +377,7 @@ object PreXGBoost extends PreXGBoostProvider {
             xgbExecutionParam.allowNonZeroForMissing),
           getCacheDirName(xgbExecutionParam.useExternalMemory))
         Iterator.single(buildWatches)
-      })
+      }).cache()
     } else {
       coPartitionGroupSets(trainingData, evalSetsMap, xgbExecutionParam.numWorkers).mapPartitions(
         labeledPointGroupSets => {
@@ -390,7 +388,7 @@ object PreXGBoost extends PreXGBoostProvider {
             },
             getCacheDirName(xgbExecutionParam.useExternalMemory))
           Iterator.single(buildWatches)
-        })
+        }).cache()
     }
   }
 
@@ -467,7 +465,7 @@ object PreXGBoost extends PreXGBoostProvider {
             xgbExecutionParams.allowNonZeroForMissing),
           getCacheDirName(xgbExecutionParams.useExternalMemory))
         Iterator.single(buildWatches)
-      }}
+      }}.cache()
     } else {
       coPartitionNoGroupSets(trainingData, evalSetsMap, xgbExecutionParams.numWorkers).
         mapPartitions {
@@ -479,7 +477,7 @@ object PreXGBoost extends PreXGBoostProvider {
               },
               getCacheDirName(xgbExecutionParams.useExternalMemory))
             Iterator.single(buildWatches)
-        }
+        }.cache()
     }
   }
 
