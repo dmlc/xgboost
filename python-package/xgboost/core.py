@@ -235,8 +235,11 @@ Error message(s): {os_error_list}
 
     def parse(ver: str) -> Tuple[int, int, int]:
         """Avoid dependency on packaging (PEP 440)."""
-        # 2.0.0-dev or 2.0.0
+        # 2.0.0-dev, 2.0.0, or 2.0.0rc1
         major, minor, patch = ver.split("-")[0].split(".")
+        rc = patch.find("rc")
+        if rc != -1:
+            patch = patch[:rc]
         return int(major), int(minor), int(patch)
 
     libver = _lib_version(lib)
