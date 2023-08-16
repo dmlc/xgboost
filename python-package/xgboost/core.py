@@ -239,7 +239,7 @@ Error message(s): {os_error_list}
         major, minor, patch = ver.split("-")[0].split(".")
         rc = patch.find("rc")
         if rc != -1:
-            patch = patch[: rc]
+            patch = patch[:rc]
         return int(major), int(minor), int(patch)
 
     libver = _lib_version(lib)
