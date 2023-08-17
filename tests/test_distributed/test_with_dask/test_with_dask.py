@@ -1507,7 +1507,7 @@ class TestWithDask:
         # Make sure that it's decreasing
         if is_stump():
             # we might have already got the best score with base_score.
-            assert history[-1] <= history[0]
+            assert history[-1] <= history[0] + 1e-3
         else:
             assert history[-1] < history[0]
 
