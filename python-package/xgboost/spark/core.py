@@ -424,10 +424,10 @@ class _SparkXGBParams(
 
             if is_local:
                 # checking spark local mode.
-                if gpu_per_task:
+                if gpu_per_task is not None:
                     raise RuntimeError(
-                        "The spark cluster does not support gpu configuration for local mode. "
-                        "Please delete spark.executor.resource.gpu.amount and "
+                        "The spark local mode does not support gpu configuration."
+                        "Please remove spark.executor.resource.gpu.amount and "
                         "spark.task.resource.gpu.amount"
                     )
 
@@ -441,18 +441,23 @@ class _SparkXGBParams(
                 )
             else:
                 # checking spark non-local mode.
-                if not gpu_per_task or int(gpu_per_task) < 1:
-                    raise RuntimeError(
-                        "The spark cluster does not have the necessary GPU"
-                        + "configuration for the spark task. Therefore, we cannot"
-                        + "run xgboost training using GPU."
-                    )
+                if gpu_per_task is not None:
+                    if float(gpu_per_task) < 1.0:
+                        raise ValueError(
+                            "The XGBoost doesn't support GPU fractional configurations, please set "
+                            "spark.task.resource.gpu.amount=spark.executor.resource.gpu.amount"
+                        )
 
-                if int(gpu_per_task) > 1:
-                    get_logger(self.__class__.__name__).warning(
-                        "You configured %s GPU cores for each spark task, but in "
-                        "XGBoost training, every Spark task will only use one GPU core.",
-                        gpu_per_task,
+                    if float(gpu_per_task) > 1.0:
+                        get_logger(self.__class__.__name__).warning(
+                            "%s GPUs for each spark task is configured, but every xgboost training"
+                            "task takes only 1 GPU which result in wasted resources.",
+                            gpu_per_task,
+                        )
+                else:
+                    raise ValueError(
+                        "The spark.task.resource.gpu.amount is not set which will result in "
+                        "xgboost training task can't grab a GPU."
                     )
 
 
