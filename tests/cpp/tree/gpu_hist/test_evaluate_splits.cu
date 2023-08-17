@@ -528,13 +528,15 @@ class MGPUHistTest : public BaseMGPUTest {};
 
 namespace {
 void VerifyColumnSplitEvaluateSingleSplit(bool is_categorical) {
+  auto rank = collective::GetRank();
   auto quantiser = DummyRoundingFactor();
   auto parent_sum = quantiser.ToFixedPoint(GradientPairPrecise{0.0, 1.0});
   TrainParam tparam = ZeroParam();
   GPUTrainingParam param{tparam};
 
-  common::HistogramCuts cuts{
-      MakeCutsForTest({1.0, 2.0, 11.0, 12.0}, {0, 2, 4}, {0.0, 0.0}, GPUIDX)};
+  common::HistogramCuts cuts{rank == 0
+                                 ? MakeCutsForTest({1.0, 2.0}, {0, 2, 2}, {0.0, 0.0}, GPUIDX)
+                                 : MakeCutsForTest({11.0, 12.0}, {0, 0, 2}, {0.0, 0.0}, GPUIDX)};
   thrust::device_vector<bst_feature_t> feature_set = std::vector<bst_feature_t>{0, 1};
 
   // Setup gradients so that second feature gets higher gain
@@ -563,13 +565,13 @@ void VerifyColumnSplitEvaluateSingleSplit(bool is_categorical) {
   evaluator.Reset(cuts, dh::ToSpan(feature_types), feature_set.size(), tparam, 0);
   DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(input, shared_inputs).split;
 
-  EXPECT_EQ(result.findex, 1);
+  EXPECT_EQ(result.findex, 1) << "rank: " << rank;
   if (is_categorical) {
     ASSERT_TRUE(std::isnan(result.fvalue));
   } else {
-    EXPECT_EQ(result.fvalue, 11.0);
+    EXPECT_EQ(result.fvalue, 11.0) << "rank: " << rank;
   }
-  EXPECT_EQ(result.left_sum + result.right_sum, parent_sum);
+  EXPECT_EQ(result.left_sum + result.right_sum, parent_sum) << "rank: " << rank;
 }
 }  // anonymous namespace
 
