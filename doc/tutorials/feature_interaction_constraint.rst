@@ -233,7 +233,7 @@ This has lead to some interesting implications of feature interaction constraint
 ``[[0, 1], [0, 1, 2], [1, 2]]`` as another example.  Assuming we have only 3 available
 features in our training datasets for presentation purpose, careful readers might have
 found out that the above constraint is the same as simply ``[[0, 1, 2]]``.  Since no matter which
-feature is chosen for split in the root node, all its descendants are allowd to include every
+feature is chosen for split in the root node, all its descendants are allowed to include every
 feature as legitimate split candidates without violating interaction constraints.
 
 For one last example, we use ``[[0, 1], [1, 3, 4]]`` and choose feature ``0`` as split for

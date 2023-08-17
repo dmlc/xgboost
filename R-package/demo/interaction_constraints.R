@@ -44,7 +44,7 @@ treeInteractions <- function(input_tree, input_max_depth) {
 
   # Remove non-interactions (same variable)
   interaction_list <- lapply(interaction_list, unique)  # remove same variables
-  interaction_length <- sapply(interaction_list, length)
+  interaction_length <- lengths(interaction_list)
   interaction_list <- interaction_list[interaction_length > 1]
   interaction_list <- unique(lapply(interaction_list, sort))
   return(interaction_list)

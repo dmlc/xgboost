@@ -363,8 +363,13 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   is_update <- NVL(params[['process_type']], '.') == 'update'
 
   # Construct a booster (either a new one or load from xgb_model)
-  handle <- xgb.Booster.handle(params, append(watchlist, dtrain), xgb_model)
-  bst <- xgb.handleToBooster(handle)
+  handle <- xgb.Booster.handle(
+    params = params,
+    cachelist = append(watchlist, dtrain),
+    modelfile = xgb_model,
+    handle = NULL
+  )
+  bst <- xgb.handleToBooster(handle = handle, raw = NULL)
 
   # extract parameters that can affect the relationship b/w #trees and #iterations
   num_class <- max(as.numeric(NVL(params[['num_class']], 1)), 1)
@@ -390,10 +395,21 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
 
     for (f in cb$pre_iter) f()
 
-    xgb.iter.update(bst$handle, dtrain, iteration - 1, obj)
+    xgb.iter.update(
+        booster_handle = bst$handle,
+        dtrain = dtrain,
+        iter = iteration - 1,
+        obj = obj
+    )
 
-    if (length(watchlist) > 0)
-      bst_evaluation <- xgb.iter.eval(bst$handle, watchlist, iteration - 1, feval)  # nolint: object_usage_linter
+    if (length(watchlist) > 0) {
+      bst_evaluation <- xgb.iter.eval(  # nolint: object_usage_linter
+        booster_handle = bst$handle,
+        watchlist = watchlist,
+        iter = iteration - 1,
+        feval = feval
+      )
+    }
 
     xgb.attr(bst$handle, 'niter') <- iteration - 1
 

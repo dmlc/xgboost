@@ -1,4 +1,5 @@
-from typing import Callable, Dict, List
+import weakref
+from typing import Any, Callable, Dict, List
 
 import numpy as np
 import pytest
@@ -179,5 +180,18 @@ def test_data_cache() -> None:
     data = make_batches(n_samples_per_batch, n_features, n_batches, False)
     batches = [v[0] for v in data]
     it = IterForCacheTest(*batches)
+    transform = xgb.data._proxy_transform
+
+    called = 0
+
+    def mock(*args: Any, **kwargs: Any) -> Any:
+        nonlocal called
+        called += 1
+        return transform(*args, **kwargs)
+
+    xgb.data._proxy_transform = mock
     xgb.QuantileDMatrix(it)
-    assert it._input_id == id(batches[0])
+    assert it._data_ref is weakref.ref(batches[0])
+    assert called == 1
+
+    xgb.data._proxy_transform = transform

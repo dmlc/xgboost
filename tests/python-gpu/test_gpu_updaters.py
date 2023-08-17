@@ -36,7 +36,7 @@ class TestGPUUpdatersMulti:
         param["tree_method"] = "gpu_hist"
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), num_rounds)
-        note(result)
+        note(str(result))
         assert tm.non_increasing(result["train"][dataset.metric])
 
 
@@ -90,12 +90,12 @@ class TestGPUUpdaters:
     def test_sparse(self, dataset):
         param = {"tree_method": "hist", "max_bin": 64}
         hist_result = train_result(param, dataset.get_dmat(), 16)
-        note(hist_result)
+        note(str(hist_result))
         assert tm.non_increasing(hist_result["train"][dataset.metric])
 
         param = {"tree_method": "gpu_hist", "max_bin": 64}
         gpu_hist_result = train_result(param, dataset.get_dmat(), 16)
-        note(gpu_hist_result)
+        note(str(gpu_hist_result))
         assert tm.non_increasing(gpu_hist_result["train"][dataset.metric])
 
         np.testing.assert_allclose(
@@ -221,7 +221,7 @@ class TestGPUUpdaters:
             dataset.get_device_dmat(max_bin=param.get("max_bin", None)),
             num_rounds,
         )
-        note(result)
+        note(str(result))
         assert tm.non_increasing(result["train"][dataset.metric], tolerance=1e-3)
 
     @given(

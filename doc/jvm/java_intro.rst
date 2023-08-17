@@ -129,7 +129,7 @@ With parameters and data, you are able to train a booster model.
 
     booster.saveModel("model.bin");
 
-* Generaing model dump with feature map
+* Generating model dump with feature map
 
   .. code-block:: java
 

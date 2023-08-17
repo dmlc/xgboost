@@ -7,13 +7,14 @@
 #include <dmlc/common.h>
 #include <dmlc/omp.h>
 
-#include <algorithm>
-#include <cstdint>  // for int32_t
-#include <cstdlib>  // for malloc, free
-#include <limits>
+#include <algorithm>    // for min
+#include <cstddef>      // for size_t
+#include <cstdint>      // for int32_t
+#include <cstdlib>      // for malloc, free
+#include <functional>   // for function
 #include <new>          // for bad_alloc
-#include <type_traits>  // for is_signed
-#include <vector>
+#include <type_traits>  // for is_signed, conditional_t, is_integral_v, invoke_result_t
+#include <vector>       // for vector
 
 #include "xgboost/logging.h"
 
@@ -25,6 +26,8 @@ inline int32_t omp_get_thread_limit() __GOMP_NOTHROW { return 1; }  // NOLINT
 
 // MSVC doesn't implement the thread limit.
 #if defined(_OPENMP) && defined(_MSC_VER)
+#include <limits>
+
 extern "C" {
 inline int32_t omp_get_thread_limit() { return std::numeric_limits<int32_t>::max(); }  // NOLINT
 }
@@ -84,8 +87,9 @@ class BlockedSpace2d {
   // dim1 - size of the first dimension in the space
   // getter_size_dim2 - functor to get the second dimensions for each 'row' by row-index
   // grain_size - max size of produced blocks
-  template <typename Func>
-  BlockedSpace2d(std::size_t dim1, Func getter_size_dim2, std::size_t grain_size) {
+  template <typename Getter>
+  BlockedSpace2d(std::size_t dim1, Getter&& getter_size_dim2, std::size_t grain_size) {
+    static_assert(std::is_integral_v<std::invoke_result_t<Getter, std::size_t>>);
     for (std::size_t i = 0; i < dim1; ++i) {
       std::size_t size = getter_size_dim2(i);
       // Each row (second dim) is divided into n_blocks
@@ -104,13 +108,13 @@ class BlockedSpace2d {
   }
 
   // get index of the first dimension of i-th block(task)
-  [[nodiscard]] std::size_t GetFirstDimension(size_t i) const {
+  [[nodiscard]] std::size_t GetFirstDimension(std::size_t i) const {
     CHECK_LT(i, first_dimension_.size());
     return first_dimension_[i];
   }
 
   // get a range of indexes for the second dimension of i-th block(task)
-  [[nodiscard]] Range1d GetRange(size_t i) const {
+  [[nodiscard]] Range1d GetRange(std::size_t i) const {
     CHECK_LT(i, ranges_.size());
     return ranges_[i];
   }
@@ -129,22 +133,23 @@ class BlockedSpace2d {
   }
 
   std::vector<Range1d> ranges_;
-  std::vector<size_t> first_dimension_;
+  std::vector<std::size_t> first_dimension_;
 };
 
 
 // Wrapper to implement nested parallelism with simple omp parallel for
 template <typename Func>
-void ParallelFor2d(const BlockedSpace2d& space, int nthreads, Func func) {
+void ParallelFor2d(const BlockedSpace2d& space, int n_threads, Func&& func) {
+  static_assert(std::is_void_v<std::invoke_result_t<Func, std::size_t, Range1d>>);
   std::size_t n_blocks_in_space = space.Size();
-  CHECK_GE(nthreads, 1);
+  CHECK_GE(n_threads, 1);
 
   dmlc::OMPException exc;
-#pragma omp parallel num_threads(nthreads)
+#pragma omp parallel num_threads(n_threads)
   {
     exc.Run([&]() {
-      size_t tid = omp_get_thread_num();
-      size_t chunck_size = n_blocks_in_space / nthreads + !!(n_blocks_in_space % nthreads);
+      std::size_t tid = omp_get_thread_num();
+      std::size_t chunck_size = n_blocks_in_space / n_threads + !!(n_blocks_in_space % n_threads);
 
       std::size_t begin = chunck_size * tid;
       std::size_t end = std::min(begin + chunck_size, n_blocks_in_space);

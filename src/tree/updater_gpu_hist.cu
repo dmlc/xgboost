@@ -866,6 +866,9 @@ class GPUGlobalApproxMaker : public TreeUpdater {
     // Used in test to count how many configurations are performed
     LOG(DEBUG) << "[GPU Approx]: Configure";
     hist_maker_param_.UpdateAllowUnknown(args);
+    if (hist_maker_param_.max_cached_hist_node != HistMakerTrainParam::DefaultNodes()) {
+      LOG(WARNING) << "The `max_cached_hist_node` is ignored in GPU.";
+    }
     dh::CheckComputeCapability();
     initialised_ = false;
 

@@ -16,6 +16,7 @@ from xgboost.testing import (
     predictor_equal,
 )
 from xgboost.testing.data import check_inf, np_dtypes
+from xgboost.testing.data_iter import run_mixed_sparsity
 
 
 class TestQuantileDMatrix:
@@ -102,11 +103,28 @@ class TestQuantileDMatrix:
                 *make_batches_sparse(
                     n_samples_per_batch, n_features, n_batches, sparsity
                 ),
-                None
+                None,
             )
         Xy = xgb.QuantileDMatrix(it)
         assert Xy.num_row() == n_samples_per_batch * n_batches
         assert Xy.num_col() == n_features
+
+    def test_different_size(self) -> None:
+        n_samples_per_batch = 317
+        n_features = 8
+        n_batches = 7
+
+        it = IteratorForTest(
+            *make_batches(
+                n_samples_per_batch, n_features, n_batches, False, vary_size=True
+            ),
+            cache=None,
+        )
+        Xy = xgb.QuantileDMatrix(it)
+        assert Xy.num_row() == 2429
+        X, y, w = it.as_arrays()
+        Xy1 = xgb.QuantileDMatrix(X, y, weight=w)
+        assert predictor_equal(Xy, Xy1)
 
     @pytest.mark.parametrize("sparsity", [0.0, 0.1, 0.5, 0.8, 0.9])
     def test_training(self, sparsity: float) -> None:
@@ -122,7 +140,7 @@ class TestQuantileDMatrix:
                 *make_batches_sparse(
                     n_samples_per_batch, n_features, n_batches, sparsity
                 ),
-                None
+                None,
             )
 
         parameters = {"tree_method": "hist", "max_bin": 256}
@@ -334,3 +352,6 @@ class TestQuantileDMatrix:
 
         with pytest.raises(ValueError, match="consistent"):
             xgb.train({}, Xy, num_boost_round=2, xgb_model=booster)
+
+    def test_mixed_sparsity(self) -> None:
+        run_mixed_sparsity("cpu")

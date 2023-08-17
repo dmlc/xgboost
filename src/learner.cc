@@ -797,7 +797,7 @@ class LearnerConfiguration : public Learner {
     bool has_nc {cfg_.find("num_class") != cfg_.cend()};
     // Inject num_class into configuration.
     // FIXME(jiamingy): Remove the duplicated parameter in softmax
-    cfg_["num_class"] = common::ToString(mparam_.num_class);
+    cfg_["num_class"] = std::to_string(mparam_.num_class);
     auto& args = *p_args;
     args = {cfg_.cbegin(), cfg_.cend()};  // renew
     obj_->Configure(args);
@@ -1076,7 +1076,7 @@ class LearnerIO : public LearnerConfiguration {
     mparam_.major_version = std::get<0>(Version::Self());
     mparam_.minor_version = std::get<1>(Version::Self());
 
-    cfg_["num_feature"] = common::ToString(mparam_.num_feature);
+    cfg_["num_feature"] = std::to_string(mparam_.num_feature);
 
     auto n = tparam_.__DICT__();
     cfg_.insert(n.cbegin(), n.cend());

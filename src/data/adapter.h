@@ -477,7 +477,6 @@ class CSCArrayAdapterBatch : public detail::NoMetaInfo {
   ArrayInterface<1> indptr_;
   ArrayInterface<1> indices_;
   ArrayInterface<1> values_;
-  bst_row_t n_rows_;
 
   class Line {
     std::size_t column_idx_;
@@ -503,11 +502,8 @@ class CSCArrayAdapterBatch : public detail::NoMetaInfo {
   static constexpr bool kIsRowMajor = false;
 
   CSCArrayAdapterBatch(ArrayInterface<1> indptr, ArrayInterface<1> indices,
-                       ArrayInterface<1> values, bst_row_t n_rows)
-      : indptr_{std::move(indptr)},
-        indices_{std::move(indices)},
-        values_{std::move(values)},
-        n_rows_{n_rows} {}
+                       ArrayInterface<1> values)
+      : indptr_{std::move(indptr)}, indices_{std::move(indices)}, values_{std::move(values)} {}
 
   std::size_t Size() const { return indptr_.n - 1; }
   Line GetLine(std::size_t idx) const {
@@ -542,8 +538,7 @@ class CSCArrayAdapter : public detail::SingleBatchDataIter<CSCArrayAdapterBatch>
         indices_{indices},
         values_{values},
         num_rows_{num_rows},
-        batch_{
-            CSCArrayAdapterBatch{indptr_, indices_, values_, static_cast<bst_row_t>(num_rows_)}} {}
+        batch_{CSCArrayAdapterBatch{indptr_, indices_, values_}} {}
 
   // JVM package sends 0 as unknown
   size_t NumRows() const { return num_rows_ == 0 ? kAdapterUnknownSize : num_rows_; }

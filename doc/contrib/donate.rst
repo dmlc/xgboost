@@ -29,7 +29,7 @@ The Project Management Committee (PMC) of the XGBoost project appointed `Open So
 
 All expenses incurred for hosting CI will be submitted to the fiscal host with receipts. Only the expenses in the following categories will be approved for reimbursement:
 
-* Cloud exprenses for the cloud test farm (https://buildkite.com/xgboost)
+* Cloud expenses for the cloud test farm (https://buildkite.com/xgboost)
 * Cost of domain https://xgboost-ci.net
 * Monthly cost of using BuildKite
 * Hosting cost of the User Forum (https://discuss.xgboost.ai)

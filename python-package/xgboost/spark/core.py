@@ -115,6 +115,7 @@ _pyspark_specific_params = [
     "qid_col",
     "repartition_random_shuffle",
     "pred_contrib_col",
+    "use_gpu",
 ]
 
 _non_booster_params = ["missing", "n_estimators", "feature_types", "feature_weights"]
@@ -349,11 +350,9 @@ class _SparkXGBParams(
             )
 
         tree_method = self.getOrDefault(self.getParam("tree_method"))
-        if (
-            self.getOrDefault(self.use_gpu) or use_cuda(self.getOrDefault(self.device))
-        ) and not _can_use_qdm(tree_method):
+        if tree_method == "exact":
             raise ValueError(
-                f"The `{tree_method}` tree method is not supported on GPU."
+                "The `exact` tree method is not supported for distributed systems."
             )
 
         if self.getOrDefault(self.features_cols):
@@ -425,35 +424,41 @@ class _SparkXGBParams(
 
             if is_local:
                 # checking spark local mode.
-                if gpu_per_task:
+                if gpu_per_task is not None:
                     raise RuntimeError(
-                        "The spark cluster does not support gpu configuration for local mode. "
-                        "Please delete spark.executor.resource.gpu.amount and "
+                        "The spark local mode does not support gpu configuration."
+                        "Please remove spark.executor.resource.gpu.amount and "
                         "spark.task.resource.gpu.amount"
                     )
 
-                # Support GPU training in Spark local mode is just for debugging purposes,
-                # so it's okay for printing the below warning instead of checking the real
-                # gpu numbers and raising the exception.
+                # Support GPU training in Spark local mode is just for debugging
+                # purposes, so it's okay for printing the below warning instead of
+                # checking the real gpu numbers and raising the exception.
                 get_logger(self.__class__.__name__).warning(
-                    "You enabled GPU in spark local mode. Please make sure your local "
-                    "node has at least %d GPUs",
+                    "You have enabled GPU in spark local mode. Please make sure your"
+                    " local node has at least %d GPUs",
                     self.getOrDefault(self.num_workers),
                 )
             else:
                 # checking spark non-local mode.
-                if not gpu_per_task or int(gpu_per_task) < 1:
-                    raise RuntimeError(
-                        "The spark cluster does not have the necessary GPU"
-                        + "configuration for the spark task. Therefore, we cannot"
-                        + "run xgboost training using GPU."
-                    )
+                if gpu_per_task is not None:
+                    if float(gpu_per_task) < 1.0:
+                        raise ValueError(
+                            "XGBoost doesn't support GPU fractional configurations. "
+                            "Please set `spark.task.resource.gpu.amount=spark.executor"
+                            ".resource.gpu.amount`"
+                        )
 
-                if int(gpu_per_task) > 1:
-                    get_logger(self.__class__.__name__).warning(
-                        "You configured %s GPU cores for each spark task, but in "
-                        "XGBoost training, every Spark task will only use one GPU core.",
-                        gpu_per_task,
+                    if float(gpu_per_task) > 1.0:
+                        get_logger(self.__class__.__name__).warning(
+                            "%s GPUs for each Spark task is configured, but each "
+                            "XGBoost training task uses only 1 GPU.",
+                            gpu_per_task,
+                        )
+                else:
+                    raise ValueError(
+                        "The `spark.task.resource.gpu.amount` is required for training"
+                        " on GPU."
                     )
 
 
@@ -924,21 +929,17 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 # Note: Checking `is_cudf_available` in spark worker side because
                 # spark worker might has different python environment with driver side.
                 use_qdm = use_qdm and is_cudf_available()
+                get_logger("XGBoost-PySpark").info(
+                    "Leveraging %s to train with QDM: %s",
+                    booster_params["device"],
+                    "on" if use_qdm else "off",
+                )
 
             if use_qdm and (booster_params.get("max_bin", None) is not None):
                 dmatrix_kwargs["max_bin"] = booster_params["max_bin"]
 
             _rabit_args = {}
             if context.partitionId() == 0:
-                get_logger("XGBoostPySpark").debug(
-                    "booster params: %s\n"
-                    "train_call_kwargs_params: %s\n"
-                    "dmatrix_kwargs: %s",
-                    booster_params,
-                    train_call_kwargs_params,
-                    dmatrix_kwargs,
-                )
-
                 _rabit_args = _get_rabit_args(context, num_workers)
 
             worker_message = {
@@ -995,7 +996,19 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             )
             return ret[0], ret[1]
 
+        get_logger("XGBoost-PySpark").info(
+            "Running xgboost-%s on %s workers with"
+            "\n\tbooster params: %s"
+            "\n\ttrain_call_kwargs_params: %s"
+            "\n\tdmatrix_kwargs: %s",
+            xgboost._py_version(),
+            num_workers,
+            booster_params,
+            train_call_kwargs_params,
+            dmatrix_kwargs,
+        )
         (config, booster) = _run_job()
+        get_logger("XGBoost-PySpark").info("Finished xgboost training!")
 
         result_xgb_model = self._convert_to_sklearn_model(
             bytearray(booster, "utf-8"), config

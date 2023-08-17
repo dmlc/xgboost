@@ -55,7 +55,7 @@ To ensure that CMake can locate the XGBoost library, supply ``-DCMAKE_PREFIX_PAT
 
 .. code-block:: bash
 
-  # Nagivate to the build directory for your application
+  # Navigate to the build directory for your application
   cd build
   # Activate the Conda environment where we previously installed XGBoost
   conda activate [env_name]
@@ -65,7 +65,7 @@ To ensure that CMake can locate the XGBoost library, supply ``-DCMAKE_PREFIX_PAT
   make
 
 ************************
-Usefull Tips To Remember
+Useful Tips To Remember
 ************************
 
 Below are some useful tips while using C API:
@@ -151,7 +151,7 @@ c. Assertion technique: It works both in C/ C++. If expression evaluates to 0 (f
    Example if we our training data is in ``dense matrix`` format then your prediction dataset should also be a ``dense matrix`` or if training in ``libsvm`` format then dataset for prediction should also be in ``libsvm`` format.
 
 
-4. Always use strings for setting values to the parameters in booster handle object. The paramter value can be of any data type (e.g. int, char, float, double, etc), but they should always be encoded as strings.
+4. Always use strings for setting values to the parameters in booster handle object. The parameter value can be of any data type (e.g. int, char, float, double, etc), but they should always be encoded as strings.
 
 .. code-block:: c
 
@@ -168,7 +168,7 @@ Sample examples along with Code snippet to use C API functions
 .. code-block:: c
 
   DMatrixHandle data; // handle to DMatrix
-  // Load the dat from file & store it in data variable of DMatrixHandle datatype
+  // Load the data from file & store it in data variable of DMatrixHandle datatype
   safe_xgboost(XGDMatrixCreateFromFile("/path/to/file/filename", silent, &data));
 
 
@@ -278,7 +278,7 @@ Sample examples along with Code snippet to use C API functions
     uint64_t const* out_shape;
     /* Dimension of output prediction */
     uint64_t out_dim;
-    /* Pointer to a thread local contigious array, assigned in prediction function. */
+    /* Pointer to a thread local contiguous array, assigned in prediction function. */
     float const* out_result = NULL;
     safe_xgboost(
         XGBoosterPredictFromDMatrix(booster, dmatrix, config, &out_shape, &out_dim, &out_result));

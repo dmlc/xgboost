@@ -4,13 +4,13 @@
 #ifndef XGBOOST_TREE_HIST_EVALUATE_SPLITS_H_
 #define XGBOOST_TREE_HIST_EVALUATE_SPLITS_H_
 
-#include <algorithm>                   // for copy
-#include <cstddef>                     // for size_t
-#include <limits>                      // for numeric_limits
-#include <memory>                      // for shared_ptr
-#include <numeric>                     // for accumulate
-#include <utility>                     // for move
-#include <vector>                      // for vector
+#include <algorithm>  // for copy
+#include <cstddef>    // for size_t
+#include <limits>     // for numeric_limits
+#include <memory>     // for shared_ptr
+#include <numeric>    // for accumulate
+#include <utility>    // for move
+#include <vector>     // for vector
 
 #include "../../common/categorical.h"  // for CatBitField
 #include "../../common/hist_util.h"    // for GHistRow, HistogramCuts
@@ -20,6 +20,7 @@
 #include "../param.h"                  // for TrainParam
 #include "../split_evaluator.h"        // for TreeEvaluator
 #include "expand_entry.h"              // for MultiExpandEntry
+#include "hist_cache.h"                // for BoundedHistCollection
 #include "xgboost/base.h"              // for bst_node_t, bst_target_t, bst_feature_t
 #include "xgboost/context.h"           // for COntext
 #include "xgboost/linalg.h"            // for Constants, Vector
@@ -317,7 +318,7 @@ class HistEvaluator {
   }
 
  public:
-  void EvaluateSplits(const common::HistCollection &hist, common::HistogramCuts const &cut,
+  void EvaluateSplits(const BoundedHistCollection &hist, common::HistogramCuts const &cut,
                       common::Span<FeatureType const> feature_types, const RegTree &tree,
                       std::vector<CPUExpandEntry> *p_entries) {
     auto n_threads = ctx_->Threads();
@@ -623,7 +624,7 @@ class HistMultiEvaluator {
   }
 
  public:
-  void EvaluateSplits(RegTree const &tree, common::Span<const common::HistCollection *> hist,
+  void EvaluateSplits(RegTree const &tree, common::Span<const BoundedHistCollection *> hist,
                       common::HistogramCuts const &cut, std::vector<MultiExpandEntry> *p_entries) {
     auto &entries = *p_entries;
     std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> features(entries.size());

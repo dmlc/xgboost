@@ -104,6 +104,10 @@ def get_logger(name: str, level: str = "INFO") -> logging.Logger:
     # If the logger is configured, skip the configure
     if not logger.handlers and not logging.getLogger().handlers:
         handler = logging.StreamHandler(sys.stderr)
+        formatter = logging.Formatter(
+            "%(asctime)s %(levelname)s %(name)s: %(funcName)s %(message)s"
+        )
+        handler.setFormatter(formatter)
         logger.addHandler(handler)
     return logger
 

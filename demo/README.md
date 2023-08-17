@@ -106,7 +106,7 @@ Please send pull requests if you find ones that are missing here.
 - Prarthana Bhat, 2nd place winner in [DYD Competition](https://datahack.analyticsvidhya.com/contest/date-your-data/). Link to [Solution](https://github.com/analyticsvidhya/DateYourData/blob/master/Prathna_Bhat_Model.R).
 
 ## Talks
-- [XGBoost: A Scalable Tree Boosting System](http://datascience.la/xgboost-workshop-and-meetup-talk-with-tianqi-chen/) (video+slides) by Tianqi Chen at the Los Angeles Data Science meetup
+- XGBoost: A Scalable Tree Boosting System ([video] (https://www.youtube.com/watch?v=Vly8xGnNiWs) + [slides](https://speakerdeck.com/datasciencela/tianqi-chen-xgboost-overview-and-latest-news-la-meetup-talk)) by Tianqi Chen at the Los Angeles Data Science meetup
 
 ## Tutorials
 

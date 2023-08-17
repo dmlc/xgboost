@@ -365,11 +365,6 @@ using GHistRow = Span<xgboost::GradientPairPrecise>;
 using ConstGHistRow = Span<xgboost::GradientPairPrecise const>;
 
 /*!
- * \brief fill a histogram by zeros
- */
-void InitilizeHistByZeroes(GHistRow hist, size_t begin, size_t end);
-
-/*!
  * \brief Increment hist as dst += add in range [begin, end)
  */
 void IncrementHist(GHistRow dst, ConstGHistRow add, std::size_t begin, std::size_t end);
@@ -395,12 +390,7 @@ class HistCollection {
     constexpr uint32_t kMax = std::numeric_limits<uint32_t>::max();
     const size_t id = row_ptr_.at(nid);
     CHECK_NE(id, kMax);
-    GradientPairPrecise* ptr = nullptr;
-    if (contiguous_allocation_) {
-      ptr = const_cast<GradientPairPrecise*>(data_[0].data() + nbins_*id);
-    } else {
-      ptr = const_cast<GradientPairPrecise*>(data_[id].data());
-    }
+    GradientPairPrecise* ptr = const_cast<GradientPairPrecise*>(data_[id].data());
     return {ptr, nbins_};
   }
 
@@ -445,24 +435,12 @@ class HistCollection {
       data_[row_ptr_[nid]].resize(nbins_, {0, 0});
     }
   }
-  // allocate common buffer contiguously for all nodes, need for single Allreduce call
-  void AllocateAllData() {
-    const size_t new_size = nbins_*data_.size();
-    contiguous_allocation_ = true;
-    if (data_[0].size() != new_size) {
-      data_[0].resize(new_size);
-    }
-  }
-  [[nodiscard]] bool IsContiguous() const { return contiguous_allocation_; }
 
  private:
   /*! \brief number of all bins over all features */
   uint32_t nbins_ = 0;
   /*! \brief amount of active nodes in hist collection */
   uint32_t n_nodes_added_ = 0;
-  /*! \brief flag to identify contiguous memory allocation */
-  bool contiguous_allocation_ = false;
-
   std::vector<std::vector<GradientPairPrecise>> data_;
 
   /*! \brief row_ptr_[nid] locates bin for histogram of node nid */
@@ -518,7 +496,7 @@ class ParallelGHistBuilder {
     GHistRow hist = idx == -1 ? targeted_hists_[nid] : hist_buffer_[idx];
 
     if (!hist_was_used_[tid * nodes_ + nid]) {
-      InitilizeHistByZeroes(hist, 0, hist.size());
+      std::fill_n(hist.data(), hist.size(), GradientPairPrecise{});
       hist_was_used_[tid * nodes_ + nid] = static_cast<int>(true);
     }
 
@@ -548,7 +526,7 @@ class ParallelGHistBuilder {
     if (!is_updated) {
       // In distributed mode - some tree nodes can be empty on local machines,
       // So we need just set local hist by zeros in this case
-      InitilizeHistByZeroes(dst, begin, end);
+      std::fill(dst.data() + begin, dst.data() + end, GradientPairPrecise{});
     }
   }
 

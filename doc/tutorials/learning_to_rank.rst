@@ -11,12 +11,12 @@ Learning to Rank
 ********
 Overview
 ********
-Often in the context of information retrieval, learning-to-rank aims to train a model that arranges a set of query results into an ordered list `[1] <#references>`__. For surprivised learning-to-rank, the predictors are sample documents encoded as feature matrix, and the labels are relevance degree for each sample. Relevance degree can be multi-level (graded) or binary (relevant or not). The training samples are often grouped by their query index with each query group containing multiple query results.
+Often in the context of information retrieval, learning-to-rank aims to train a model that arranges a set of query results into an ordered list `[1] <#references>`__. For supervised learning-to-rank, the predictors are sample documents encoded as feature matrix, and the labels are relevance degree for each sample. Relevance degree can be multi-level (graded) or binary (relevant or not). The training samples are often grouped by their query index with each query group containing multiple query results.
 
 XGBoost implements learning to rank through a set of objective functions and performance metrics. The default objective is ``rank:ndcg`` based on the ``LambdaMART`` `[2] <#references>`__ algorithm, which in turn is an adaptation of the ``LambdaRank`` `[3] <#references>`__ framework to gradient boosting trees. For a history and a summary of the algorithm, see `[5] <#references>`__. The implementation in XGBoost features deterministic GPU computation, distributed training, position debiasing and two different pair construction strategies.
 
 ************************************
-Training with the Pariwise Objective
+Training with the Pairwise Objective
 ************************************
 ``LambdaMART`` is a pairwise ranking model, meaning that it compares the relevance degree for every pair of samples in a query group and calculate a proxy gradient for each pair. The default objective ``rank:ndcg`` is using the surrogate gradient derived from the ``ndcg`` metric. To train a XGBoost model, we need an additional sorted array called ``qid`` for specifying the query group of input samples. An example input would look like this:
 
@@ -59,7 +59,7 @@ Notice that the samples are sorted based on their query index in a non-decreasin
   X = X[sorted_idx, :]
   y = y[sorted_idx]
 
-The simpliest way to train a ranking model is by using the scikit-learn estimator interface. Continuing the previous snippet, we can train a simple ranking model without tuning:
+The simplest way to train a ranking model is by using the scikit-learn estimator interface. Continuing the previous snippet, we can train a simple ranking model without tuning:
 
 .. code-block:: python
 

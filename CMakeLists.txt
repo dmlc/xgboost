@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
-project(xgboost LANGUAGES CXX C VERSION 2.0.0)
+project(xgboost LANGUAGES CXX C VERSION 2.1.0)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${xgboost_SOURCE_DIR}/cmake/modules")
 cmake_policy(SET CMP0022 NEW)
@@ -14,8 +14,24 @@ endif ((${CMAKE_VERSION} VERSION_GREATER 3.13) OR (${CMAKE_VERSION} VERSION_EQUA
 
 message(STATUS "CMake version ${CMAKE_VERSION}")
 
-if (CMAKE_COMPILER_IS_GNUCC AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.0)
-  message(FATAL_ERROR "GCC version must be at least 5.0!")
+# Check compiler versions
+# Use recent compilers to ensure that std::filesystem is available
+if(MSVC)
+  if(MSVC_VERSION LESS 1920)
+    message(FATAL_ERROR "Need Visual Studio 2019 or newer to build XGBoost")
+  endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "8.1")
+    message(FATAL_ERROR "Need GCC 8.1 or newer to build XGBoost")
+  endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "11.0")
+    message(FATAL_ERROR "Need Xcode 11.0 (AppleClang 11.0) or newer to build XGBoost")
+  endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "9.0")
+    message(FATAL_ERROR "Need Clang 9.0 or newer to build XGBoost")
+  endif()
 endif()
 
 include(${xgboost_SOURCE_DIR}/cmake/FindPrefetchIntrinsics.cmake)
@@ -232,6 +248,15 @@ add_subdirectory(${xgboost_SOURCE_DIR}/plugin)
 
 if (PLUGIN_RMM)
   find_package(rmm REQUIRED)
+
+  # Patch the rmm targets so they reference the static cudart
+  # Remove this patch once RMM stops specifying cudart requirement
+  # (since RMM is a header-only library, it should not specify cudart in its CMake config)
+  get_target_property(rmm_link_libs rmm::rmm INTERFACE_LINK_LIBRARIES)
+  list(REMOVE_ITEM rmm_link_libs CUDA::cudart)
+  list(APPEND rmm_link_libs CUDA::cudart_static)
+  set_target_properties(rmm::rmm PROPERTIES INTERFACE_LINK_LIBRARIES "${rmm_link_libs}")
+  get_target_property(rmm_link_libs rmm::rmm INTERFACE_LINK_LIBRARIES)
 endif (PLUGIN_RMM)
 
 #-- library

@@ -46,7 +46,7 @@ General Parameters
     + ``gpu``: Default GPU device selection from the list of available and supported devices. Only ``cuda`` devices are supported currently.
     + ``gpu:<ordinal>``: Default GPU device selection from the list of available and supported devices. Only ``cuda`` devices are supported currently.
 
-    For more information about GPU acceleration, see :doc:`/gpu/index`.
+    For more information about GPU acceleration, see :doc:`/gpu/index`. In distributed environments, ordinal selection is handled by distributed frameworks instead of XGBoost. As a result, using ``cuda:<ordinal>`` will result in an error. Use ``cuda`` instead.
 
 * ``verbosity`` [default=1]
 
@@ -225,6 +225,15 @@ Parameters for Tree Booster
 
     - ``one_output_per_tree``: One model for each target.
     - ``multi_output_tree``:  Use multi-target trees.
+
+* ``max_cached_hist_node``, [default = 65536]
+
+  Maximum number of cached nodes for CPU histogram.
+
+  .. versionadded:: 2.0.0
+
+  - For most of the cases this parameter should not be set except for growing deep trees
+    on CPU.
 
 .. _cat-param:
 

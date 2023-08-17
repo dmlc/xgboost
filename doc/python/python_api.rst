@@ -23,12 +23,16 @@ Core Data Structure
     :show-inheritance:
 
 .. autoclass:: xgboost.QuantileDMatrix
+    :members:
     :show-inheritance:
 
 .. autoclass:: xgboost.Booster
     :members:
     :show-inheritance:
 
+.. autoclass:: xgboost.DataIter
+    :members:
+    :show-inheritance:
 
 Learning API
 ------------

@@ -92,7 +92,7 @@ TEST(Learner, CheckGroup) {
 
   std::shared_ptr<DMatrix> p_mat{RandomDataGenerator{kNumRows, kNumCols, 0.0f}.GenerateDMatrix()};
   std::vector<bst_float> weight(kNumGroups, 1);
-  std::vector<bst_int> group(kNumGroups);
+  std::vector<bst_group_t> group(kNumGroups);
   group[0] = 2;
   group[1] = 3;
   group[2] = 7;

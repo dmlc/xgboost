@@ -52,11 +52,11 @@ endif (BUILD_WITH_SHARED_NCCL)
 
 find_path(NCCL_INCLUDE_DIR
   NAMES nccl.h
-  PATHS $ENV{NCCL_ROOT}/include ${NCCL_ROOT}/include)
+  HINTS  ${NCCL_ROOT}/include $ENV{NCCL_ROOT}/include)
 
 find_library(NCCL_LIBRARY
   NAMES ${NCCL_LIB_NAME}
-  PATHS $ENV{NCCL_ROOT}/lib/ ${NCCL_ROOT}/lib)
+  HINTS ${NCCL_ROOT}/lib $ENV{NCCL_ROOT}/lib/)
 
 message(STATUS "Using nccl library: ${NCCL_LIBRARY}")
 
