@@ -431,12 +431,12 @@ class _SparkXGBParams(
                         "spark.task.resource.gpu.amount"
                     )
 
-                # Support GPU training in Spark local mode is just for debugging purposes,
-                # so it's okay for printing the below warning instead of checking the real
-                # gpu numbers and raising the exception.
+                # Support GPU training in Spark local mode is just for debugging
+                # purposes, so it's okay for printing the below warning instead of
+                # checking the real gpu numbers and raising the exception.
                 get_logger(self.__class__.__name__).warning(
-                    "You enabled GPU in spark local mode. Please make sure your local "
-                    "node has at least %d GPUs",
+                    "You have enabled GPU in spark local mode. Please make sure your"
+                    " local node has at least %d GPUs",
                     self.getOrDefault(self.num_workers),
                 )
             else:
@@ -444,20 +444,21 @@ class _SparkXGBParams(
                 if gpu_per_task is not None:
                     if float(gpu_per_task) < 1.0:
                         raise ValueError(
-                            "The XGBoost doesn't support GPU fractional configurations, please set "
-                            "spark.task.resource.gpu.amount=spark.executor.resource.gpu.amount"
+                            "XGBoost doesn't support GPU fractional configurations. "
+                            "Please set `spark.task.resource.gpu.amount=spark.executor"
+                            ".resource.gpu.amount`"
                         )
 
                     if float(gpu_per_task) > 1.0:
                         get_logger(self.__class__.__name__).warning(
-                            "%s GPUs for each spark task is configured, but every xgboost training"
-                            "task takes only 1 GPU which result in wasted resources.",
+                            "%s GPUs for each Spark task is configured, but each "
+                            "XGBoost training task uses only 1 GPU.",
                             gpu_per_task,
                         )
                 else:
                     raise ValueError(
-                        "The spark.task.resource.gpu.amount is not set which will result in "
-                        "xgboost training task can't grab a GPU."
+                        "The `spark.task.resource.gpu.amount` is required for training"
+                        " on GPU."
                     )
 
 
