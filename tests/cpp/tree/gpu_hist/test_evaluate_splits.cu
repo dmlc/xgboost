@@ -528,16 +528,13 @@ class MGPUHistTest : public BaseMGPUTest {};
 
 namespace {
 void VerifyColumnSplitEvaluateSingleSplit(bool is_categorical) {
-//  auto const world_size = collective::GetWorldSize();
-//  auto const rank = collective::GetRank();
-
   auto quantiser = DummyRoundingFactor();
   auto parent_sum = quantiser.ToFixedPoint(GradientPairPrecise{0.0, 1.0});
   TrainParam tparam = ZeroParam();
   GPUTrainingParam param{tparam};
 
   common::HistogramCuts cuts{
-      MakeCutsForTest({1.0, 2.0, 11.0, 12.0}, {0, 2, 4}, {0.0, 0.0}, GetGPUId())};
+      MakeCutsForTest({1.0, 2.0, 11.0, 12.0}, {0, 2, 4}, {0.0, 0.0}, GPUIDX)};
   thrust::device_vector<bst_feature_t> feature_set = std::vector<bst_feature_t>{0, 1};
 
   // Setup gradients so that second feature gets higher gain
@@ -572,14 +569,12 @@ void VerifyColumnSplitEvaluateSingleSplit(bool is_categorical) {
   } else {
     EXPECT_EQ(result.fvalue, 11.0);
   }
-//  EXPECT_EQ(result.loss_chg, -1.0);
   EXPECT_EQ(result.left_sum + result.right_sum, parent_sum);
 }
 }  // anonymous namespace
 
 TEST_F(MGPUHistTest, ColumnSplitEvaluateSingleSplit) {
-//  DoTest(VerifyColumnSplitEvaluateSingleSplit, false);
-  VerifyColumnSplitEvaluateSingleSplit(false);
+  DoTest(VerifyColumnSplitEvaluateSingleSplit, false);
 }
 }  // namespace tree
 }  // namespace xgboost
