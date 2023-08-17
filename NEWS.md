@@ -5,33 +5,33 @@ This file records the changes in xgboost library in reverse chronological order.
 
 ## 2.0.0 (2023 Aug 16)
 
-We are excited to announce the 2.0 release for XGBoost. In this release note, we will first walk through some of the general changes then introduce package-specific updates.
+We are excited to announce the release of XGBoost 2.0. This note will begin by covering some overall changes and then highlight specific updates to the package.
 
 ### Initial work on multi-target tree
-In 2.0, we started initial work on vector-leaf tree models for multi-target regression, multi-label classification, and multi-class classification. Previously, XGBoost builds one model for each target, now with this working-in-progress feature, XGBoost can build one tree for all targets. The feature has multiple benefits and trade-offs compared to the existing method, it can help prevent overfitting, produce smaller models, and build trees that in theory consider the correlation between targets. In addition, users can mix two types of trees (vector leaf and scalar leaf) in a training session with a callback. Please note that the feature is still working in progress and most features are missing. See #9043 for current status. Related PRs: (#8538, #8697, #8902, #8884, #8895, #8898, #8612, #8652, #8698, #8908, #8928, #8968, #8616, #8922, #8890, #8872, #8889) Please note that, only the `hist` (default) tree method on CPU can be used for building vector leaf trees at the moment.
+We have been working on vector-leaf tree models for multi-target regression, multi-label classification, and multi-class classification in version 2.0. Previously, XGBoost would build a separate model for each target. However, with this new feature that's still being developed, XGBoost can create one tree for all targets. This method has various benefits and trade-offs compared to the current approach. It can help prevent overfitting, result in smaller models, and build trees that consider the correlation between targets. Additionally, users can combine vector leaf and scalar leaf trees during a training session using a callback. Please note that this feature is still a work in progress, and many parts are not yet available. See #9043 for the current status. Related PRs: (#8538, #8697, #8902, #8884, #8895, #8898, #8612, #8652, #8698, #8908, #8928, #8968, #8616, #8922, #8890, #8872, #8889) Please note that only the `hist` (default) tree method on CPU can be used for building vector leaf trees at the moment.
 
 ### New `device` parameter.
 
-A new `device` parameter is set to replace the existing `gpu_id`, `gpu_hist`, `gpu_predictor`, and the PySpark specific parameter `use_gpu`. Onward, users need only the `device` parameter to select which device to run along with the ordinal of the device. For more information, please see our document page (https://xgboost.readthedocs.io/en/stable/parameter.html#general-parameters) . For example, with  `device="cuda", tree_method="hist"`, XGBoost will run the `hist` tree method on GPU. (#9363, #8528, #8604, #9354, #9274, #9243, #8896, #9129, #9362, #9402, #9385, #9398, #9390, #9386, #9412). The old behavior of ``gpu_hist``  is preserved but deprecated. In addition, the `predictor` parameter is removed.
+A new `device` parameter is set to replace the existing `gpu_id`, `gpu_hist`, `gpu_predictor`, and the PySpark-specific parameter `use_gpu`. Onward, users need only the `device` parameter to select which device to run along with the ordinal of the device. For more information, please see our document page (https://xgboost.readthedocs.io/en/stable/parameter.html#general-parameters) . For example, with  `device="cuda", tree_method="hist"`, XGBoost will run the `hist` tree method on GPU. (#9363, #8528, #8604, #9354, #9274, #9243, #8896, #9129, #9362, #9402, #9385, #9398, #9390, #9386, #9412). The old behavior of ``gpu_hist``  is preserved but deprecated. In addition, the `predictor` parameter is removed.
 
 
 ### `hist` is now the default tree method
-Starting from 2.0, the `hist` tree method will be the default. In previous versions, XGBoost chooses `approx` or `exact` depending on the input data and training environment. The new default can help XGBoost train models more efficiently and be more consistent. (#9320, #9353)
+Starting from 2.0, the `hist` tree method will be the default. In previous versions, XGBoost chooses `approx` or `exact` depending on the input data and training environment. The new default can help XGBoost train models more efficiently and consistently. (#9320, #9353)
 
 ### GPU-based approx tree method
-There's initial support for using the `approx` tree method on GPU. The performance of the `approx` is not yet well optimized but is feature complete. It can be accessed through the use of parameter combination `device="cuda", tree_method="approx"`. (#9414, #9399, #9478). Please note that Scala-based Spark interface is not yet supported.
+XGBoost gained the initial support for using the `approx` tree method on GPU. The performance of the `approx` is not yet well optimized but is mostly feature complete except for the Spark interface. It can be accessed using the parameter combination `device="cuda", tree_method="approx"`. (#9414, #9399, #9478). Please note that the Scala-based Spark interface still needs to be supported.
 
 ### Optimize and bound the size of the histogram on CPU
 
-A new parameter `max_cached_hist_node` for users to limit the size of CPU cache for histogram. It can help prevent XGBoost caching histograms too aggressively and OOM error. Without the cache, performance is likely to drop. However, the size of the cache grows exponentially with the depth of tree, the limit can be crucial when growing deep trees. For most of the cases, users need not to configure this parameter as it has no implication on accuracy of the model. (#9455, #9441, #9440, #9427, #9400).
+XGBoost has a new parameter `max_cached_hist_node` for users to limit the CPU cache size for histograms. It can help prevent XGBoost caching histograms too aggressively and OOM errors. Without the cache, performance is likely to decrease. However, the size of the cache grows exponentially with the depth of the tree. The limit can be crucial when growing deep trees. In most cases, users need not configure this parameter as it does not affect the model's accuracy. (#9455, #9441, #9440, #9427, #9400).
 
 Along with the cache limit, XGBoost also reduces the memory usage of the `hist` and `approx` tree method on distributed systems by cutting the size of the cache by half. (#9433)
 
 ### Improved external memory support
-There are some exciting development around external memory support in XGBoost. It's currently still an experimental feature, but the performance has been significantly improved with the default `hist` tree method. We replaced the old file IO logic with memory map. In addition to performance, we have also reduced the CPU memory usage and added extensive documentation. (#9361, #9317, #9282, #9315, #8457)
+There is some exciting development around external memory support in XGBoost. It's still an experimental feature, but the performance has been significantly improved with the default `hist` tree method. We replaced the old file IO logic with memory map. In addition to performance, we have reduced CPU memory usage and added extensive documentation. (#9361, #9317, #9282, #9315, #8457)
 
 ### Learning to rank
-We have reworked the learning to rank implementation. With the latest version, XGBoost gained a set of new features for ranking task including:
+We have reworked the learning to rank implementation. With the latest version, XGBoost gained a set of new features for ranking tasks, including:
 
 - A new parameter `lambdarank_pair_method` for choosing the pair construction strategy.
 - A new parameter `lambdarank_num_pair_per_sample` for controlling the number of samples for each group.
@@ -47,20 +47,20 @@ For more information, please see the [tutorial](https://xgboost.readthedocs.io/e
 
 ### Automatically estimated intercept
 
-In previous version, `base_score` was a constant that can be set as a training parameter. In the new version, XGBoost can automatically estimate this parameter based on input labels for optimal accuracy. (#8539, #8498, #8272, #8793, #8607)
+In the previous version, `base_score` was a constant that could be set as a training parameter. In the new version, XGBoost can automatically estimate this parameter based on input labels for optimal accuracy. (#8539, #8498, #8272, #8793, #8607)
 
 ### Quantile regression
-XGBoost gains an initial support for quantile regression. The quantile loss is also known as `pinball loss`. In addition, XGBoost supports training with multiple target quantiles at the same time. (#8775, #8761, #8760, #8758, #8750)
+The XGBoost algorithm now supports quantile regression, which involves minimizing the quantile loss (also called "pinball loss"). Furthermore, XGBoost allows for training with multiple target quantiles simultaneously. (#8775, #8761, #8760, #8758, #8750)
 
 ### L1 and Quantile regression now supports learning rate
-Both objectives use adaptive trees due to the lack of proper Hessian values. In the new version, XGBoost can scale the leaf value with learning rate accordingly. (#8866)
+Both objectives use adaptive trees due to the lack of proper Hessian values. In the new version, XGBoost can scale the leaf value with the learning rate accordingly. (#8866)
 
 ### Export cut value
 
-Using the Python or the C package, users can export the quantile values used for `hist` tree method. (#9356)
+Users can export the quantile values used for the `hist` tree method using Python or the C package. (#9356)
 
-### column-based split and federated learning
-We have advanced work on column-based split for federated learning. In 2.0, both `approx`, `hist`, and `hist` with vector leaf can work with column-based data split. Work on GPU support is still on-going, stay tuned. (#8576, #8468, #8442, #8847, #8811, #8985, #8623, #8568, #8828, #8932, #9081, #9102, #9103, #9124, #9120, #9367, #9370, #9343, #9171, #9346, #9270, #9244, #8494, #8434, #8742, #8804, #8710, #8676, #9020, #9002, #9058, #9037, #9018, #9295, #9006, #9300, #8765, #9365, #9060)
+### Column-based split and federated learning
+We have advanced work on column-based split for federated learning. In 2.0, both `approx`, `hist`, and `hist` with vector leaf can work with column-based data split. Work on GPU support is still ongoing. Stay tuned. (#8576, #8468, #8442, #8847, #8811, #8985, #8623, #8568, #8828, #8932, #9081, #9102, #9103, #9124, #9120, #9367, #9370, #9343, #9171, #9346, #9270, #9244, #8494, #8434, #8742, #8804, #8710, #8676, #9020, #9002, #9058, #9037, #9018, #9295, #9006, #9300, #8765, #9365, #9060)
 
 ### PySpark
 After the initial introduction of the PySpark interface, it has gained some new features and optimizations in 2.0.
@@ -68,7 +68,7 @@ After the initial introduction of the PySpark interface, it has gained some new 
 - Optimization for data initialization by avoiding the stack operation. (#9088)
 - Support predict feature contribution. (#8633)
 - Python typing support. (#9156, #9172, #9079, #8375)
-- `use_gpu` is deprecated, the `device` parameter is preferred.
+- `use_gpu` is deprecated. The `device` parameter is preferred.
 - Update eval_metric validation to support list of strings (#8826)
 - Improved logs for training (#9449)
 - Maintenance including refactoring and document updates (#8324, #8465, #8605, #9202, #9460, #9302, #8385, #8630, #8525, #8496)
@@ -76,48 +76,48 @@ After the initial introduction of the PySpark interface, it has gained some new 
 ### Other General New Features
 Here's a list of new features that don't have their own section and general to all language bindings.
 
-- Use array interface for CSC matrix. This helps XGBoost to use consistent number of threads and align the interface of CSC matrix with other interfaces (#8672)
+- Use array interface for CSC matrix. This helps XGBoost to use a consistent number of threads and align the interface of the CSC matrix with other interfaces (#8672)
 - CUDA compute 90 is now supported. (#9397)
 
 ### Other General Optimization
-These optimization are general to all language bindings. For language-specific optimization, please visit the corresponding sections.
+These optimizations are general to all language bindings. For language-specific optimization, please visit the corresponding sections.
 
 - Performance for input with `array_interface` on CPU (like `numpy`) is significantly improved. (#9090)
 - Some optimization with CUDA for data initialization. (#9199, #9209, #9144)
-- Use latest thrust policy to prevent synchronizing GPU devices. (#9212)
-- XGBoost now uses per-thread CUDA stream, which prevents synchronization with other streams. (#9416, #9396, #9413)
+- Use the latest thrust policy to prevent synchronizing GPU devices. (#9212)
+- XGBoost now uses a per-thread CUDA stream, which prevents synchronization with other streams. (#9416, #9396, #9413)
 
 ### Notable breaking change
 
-Other than aforementioned change with the `device` parameter, here's a list of breaking change that affects all packages.
+Other than the aforementioned change with the `device` parameter, here's a list of breaking changes affecting all packages.
 
-- Text input requires the format to be specified by the users (#9077). Onward, we recommend users to use third-party data structures like `numpy.ndarray` instead of text inputs. See https://github.com/dmlc/xgboost/issues/9472 for more info.
+- Users must specify the format for text input (#9077). However, we suggest using third-party data structures such as `numpy.ndarray` instead of relying on text inputs. See https://github.com/dmlc/xgboost/issues/9472 for more info.
 
 ### Notable bug fixes
 
 Some noteworthy bug fixes that are not related to specific language binding are listed in this section.
 
-- Some language environment uses a different thread to perform garbage collection, which violates the thread-local cache used in XGBoost. In 2.0, a light weight lock is used to fix the thread-local cache. (#8851)
+- Some language environment uses a different thread to perform garbage collection, which violates the thread-local cache used in XGBoost. In 2.0, a lightweight lock is used to fix the thread-local cache. (#8851)
 - Fix model IO by clearing the prediction cache. (#8904)
 - `inf` is checked during data construction. (#8911)
-- Preserve order of saved updaters configuration. Normally, this is not an issue unless the `updater` parameter is used instead of the `tree_method` parameter (#9355)
+- Preserve order of saved updaters configuration. Usually, this is not an issue unless the `updater` parameter is used instead of the `tree_method` parameter (#9355)
 - Handle escape sequence like `\t\n` in feature names for JSON model dump. (#9474)
-- Normalize file path for model IO and text input. This handles short path on Windows and paths that contain `~` on Unix (#9463). In addition, all path inputs are required to be encoded in UTF-8 (#9448, #9443)
+- Normalize file path for model IO and text input. This handles short paths on Windows and paths that contain `~` on Unix (#9463). In addition, all path inputs are required to be encoded in UTF-8 (#9448, #9443)
 - Fix integer overflow on H100. (#9380)
-- Fix weighted sketching on GPU with categorical feature. (#9341)
-- Fix metric serialization. This might cause some of the metrics being dropped during evaluation. (#9405)
+- Fix weighted sketching on GPU with categorical features. (#9341)
+- Fix metric serialization. The bug might cause some of the metrics to be dropped during evaluation. (#9405)
 - Fixes compilation errors on MSVC x86 targets (#8823)
-- Pick up dmlc-core fix for CSV parser. (#8897)
+- Pick up the dmlc-core fix for the CSV parser. (#8897)
 
 
 ### Documentation
-Aside from documents for new features, we have many smaller updates to improve user experience from troubleshooting guide to typo fixes.
+Aside from documents for new features, we have many smaller updates to improve user experience, from troubleshooting guides to typo fixes.
 
 - Explain CPU/GPU interop. (#8450)
 - Guide to troubleshoot NCCL errors. (#8943, #9206)
-- Add note for rabit port selection. (#8879)
+- Add a note for rabit port selection. (#8879)
 - How to build the docs using conda (#9276)
-- Explain how to obtain reproducible result on distributed system. (#8903)
+- Explain how to obtain reproducible results on distributed systems. (#8903)
 
 * Fixes and small updates to document and demonstration scripts. (#8626, #8436, #8995, #8907, #8923, #8926, #9358, #9232, #9201, #9469, #9462, #9458, #8543, #8597, #8401, #8784, #9213, #9098, #9008, #9223, #9333, #9434, #9435, #9415, #8773, #8752, #9291)
 
@@ -126,20 +126,20 @@ Aside from documents for new features, we have many smaller updates to improve u
 - Support primitive types of pyarrow-backed pandas dataframe. (#8653)
 - Warning messages emitted by XGBoost are now emitted using Python warnings. (#9387)
 - User can now format the value printed near the bars on the `plot_importance` plot (#8540)
-- XGBoost now has improved support for half type (float16) with pandas, cupy, and cuDF. With GPU input, the handling is through CUDA `__half` type and no data copy is made. (#8487, #9207, #8481)
+- XGBoost has improved half-type support (float16) with pandas, cupy, and cuDF. With GPU input, the handling is through CUDA `__half` type, and no data copy is made. (#8487, #9207, #8481)
 - Support `Series` and Python primitive types in `inplace_predict` and `QuantileDMatrix` (#8547, #8542)
-- Support all pandas nullable integer types. (#8480)
+- Support all pandas' nullable integer types. (#8480)
 - Custom metric with the scikit-learn interface now supports `sample_weight`. (#8706)
 - Enable Installation of Python Package with System lib in a Virtual Environment (#9349)
 - Raise if expected workers are not alive in `xgboost.dask.train` (#9421)
 
 * Optimization
 - Cache transformed data in `QuantileDMatrix` for efficiency. (#8666, #9445)
-- Take datatable as row major input. (#8472)
+- Take datatable as row-major input. (#8472)
 - Remove unnecessary conversions between data structures (#8546)
 
 * Support for toml project
-- The old project entry `setup.py` is now replaced with the latest toml project first introduced in pep 518. Along with which, Python 3.11 is now supported. (#9021, #9112, #9114, #9115)
+- The old project entry `setup.py` is now replaced with the latest toml project introduced in pep 518. Along with this, XGBoost now supports Python 3.11. (#9021, #9112, #9114, #9115)
 
 * Fixes
 - `DataIter` now accepts only keyword arguments. (#9431)
@@ -149,25 +149,25 @@ Aside from documents for new features, we have many smaller updates to improve u
 - Make feature validation immutable. (#9388)
 
 * breaking
-- Discussed in the new `device` parameter,  the `predictor` parameter is now removed. (#9129)
-- Remove support for single string feature info. Feature type and names should be a sequence of strings (#9401)
-- Remove parameters in `save_model` call for the scikit-learn interface. (#8963)
-- Remove ntree limit in python package. This has been deprecated in previous versions. (#8345)
+- Discussed in the new `device` parameter section. The `predictor` parameter is now removed. (#9129)
+- Remove support for single-string feature info. Feature type and names should be a sequence of strings (#9401)
+- Remove parameters in the `save_model` call for the scikit-learn interface. (#8963)
+- Remove the `ntree_limit` in the Python package. It has been deprecated in previous versions. (#8345)
 
 * Maintenance including formatting and refactoring along with type hints.
 - More consistent use of `black` and `isort` for code formatting (#8420, #8748, #8867)
-- Improved type support. Most of the type changes happen in the PySpark module, here we list the remaining changes. (#8444, #8617, #9197, #9005)
+- Improved type support. Most of the type changes happen in the PySpark module; here, we list the remaining changes. (#8444, #8617, #9197, #9005)
 - Set `enable_categorical` to True in predict. (#8592)
 - Some refactoring and updates for tests (#8395, #8372, #8557, #8379, #8702, #9459, #9316, #8446, #8695, #8409, #8993, #9480)
 
 * doc
 - Add introduction and notes for the sklearn interface. (#8948)
 - Demo for using dask with HPO. (#8891)
-- Document supported Python inputs. (#8643)
+- Document all supported Python inputs. (#8643)
 - Other document updates (#8944, #9304)
 
 ### R package
-- Use the new data consumption interface for CSR and CSC. This provides better control for number of threads and improves performance. (#8455, #8673)
+- Use the new data consumption interface for CSR and CSC. This provides better control for the number of threads and improves performance. (#8455, #8673)
 - Accept multiple evaluation metrics during training. (#8657)
 
 - Some refactoring for the R package (#8545, #8430, #8614, #8624, #8613, #9457, #8689, #8563, #9461, #8647, #8564, #8565, #8736, #8610, #8609, #8599, #8704, #9456, #9450, #9476, #9477, #9481). Special thanks to @jameslamb.
@@ -180,7 +180,7 @@ Following are changes specific to various JVM-based packages.
 - Set feature_names and feature_types in jvm-packages. This is to prepare support for categorical features (#9364)
 - Scala 2.13 support. (#9099)
 - Change training stage from `ResultStage` to `ShuffleMapStage` (#9423)
-- Automatically set the max/min direction for best score during early stopping. (#9404)
+- Automatically set the max/min direction for the best score during early stopping. (#9404)
 * Revised support for `flink` (#9046)
 
 * Breaking
