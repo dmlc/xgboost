@@ -46,6 +46,27 @@ TEST_F(FederatedAdapterTest, MGPUAllReduceSum) {
 }
 
 namespace {
+void VerifyAllGather() {
+  auto const world_size = collective::GetWorldSize();
+  auto const rank = collective::GetRank();
+  auto const device = GPUIDX;
+  common::SetDevice(device);
+  thrust::device_vector<double> buffer(world_size, 0);
+  buffer[rank] = rank;
+  collective::AllGather(device, buffer.data().get(), world_size * sizeof(double));
+  thrust::host_vector<double> host_buffer = buffer;
+  EXPECT_EQ(host_buffer.size(), world_size);
+  for (auto i = 0; i < world_size; i++) {
+    EXPECT_EQ(host_buffer[i], i);
+  }
+}
+}  // anonymous namespace
+
+TEST_F(FederatedAdapterTest, MGPUAllGather) {
+  RunWithFederatedCommunicator(kWorldSize, server_->Address(), &VerifyAllGather);
+}
+
+namespace {
 void VerifyAllGatherV() {
   auto const world_size = collective::GetWorldSize();
   auto const rank = collective::GetRank();

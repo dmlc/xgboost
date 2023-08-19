@@ -242,7 +242,8 @@ struct GPUHistMakerDevice {
     page = sample.page;
     gpair = sample.gpair;
 
-    this->evaluator_.Reset(page->Cuts(), feature_types, dmat->Info().num_col_, param, ctx_->gpu_id);
+    this->evaluator_.Reset(page->Cuts(), feature_types, dmat->Info().num_col_, param,
+                           dmat->Info().IsColumnSplit(), ctx_->gpu_id);
 
     quantiser.reset(new GradientQuantiser(this->gpair));
 

@@ -58,6 +58,19 @@ inline void AllReduce(int device, double *send_receive_buffer, size_t count) {
 }
 
 /**
+ * @brief Gather values from all all processes.
+ *
+ * This assumes all ranks have the same size, and input data has been sliced into the
+ * corresponding position.
+ *
+ * @param send_receive_buffer Buffer storing the data.
+ * @param size                Size of the data in bytes.
+ */
+inline void AllGather(int device, void *send_receive_buffer, std::size_t size) {
+  Communicator::GetDevice(device)->AllGather(send_receive_buffer, size);
+}
+
+/**
  * @brief Gather variable-length values from all processes.
  * @param device         ID of the device.
  * @param send_buffer    Buffer storing the input data.

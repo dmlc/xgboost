@@ -34,6 +34,18 @@ class DeviceCommunicatorAdapter : public DeviceCommunicator {
     dh::safe_cuda(cudaMemcpy(send_receive_buffer, host_buffer_.data(), size, cudaMemcpyDefault));
   }
 
+  void AllGather(void *send_receive_buffer, std::size_t size) override {
+    if (world_size_ == 1) {
+      return;
+    }
+
+    dh::safe_cuda(cudaSetDevice(device_ordinal_));
+    host_buffer_.reserve(size);
+    dh::safe_cuda(cudaMemcpy(host_buffer_.data(), send_receive_buffer, size, cudaMemcpyDefault));
+    Allgather(host_buffer_.data(), size);
+    dh::safe_cuda(cudaMemcpy(send_receive_buffer, host_buffer_.data(), size, cudaMemcpyDefault));
+  }
+
   void AllGatherV(void const *send_buffer, size_t length_bytes, std::vector<std::size_t> *segments,
                   dh::caching_device_vector<char> *receive_buffer) override {
     if (world_size_ == 1) {

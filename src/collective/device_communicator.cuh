@@ -28,6 +28,17 @@ class DeviceCommunicator {
                          Operation op) = 0;
 
   /**
+   * @brief Gather values from all all processes.
+   *
+   * This assumes all ranks have the same size, and input data has been sliced into the
+   * corresponding position.
+   *
+   * @param send_receive_buffer Buffer storing the data.
+   * @param size                Size of the data in bytes.
+   */
+  virtual void AllGather(void *send_receive_buffer, std::size_t size) = 0;
+
+  /**
    * @brief Gather variable-length values from all processes.
    * @param send_buffer Buffer storing the input data.
    * @param length_bytes Length in bytes of the input data.
