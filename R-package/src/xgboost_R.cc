@@ -48,13 +48,6 @@
 
 using dmlc::BeginPtr;
 
-xgboost::Context const *BoosterCtx(BoosterHandle handle) {
-  CHECK_HANDLE();
-  auto *learner = static_cast<xgboost::Learner *>(handle);
-  CHECK(learner);
-  return learner->Ctx();
-}
-
 xgboost::Context const *DMatrixCtx(DMatrixHandle handle) {
   CHECK_HANDLE();
   auto p_m = static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
@@ -394,21 +387,25 @@ XGB_DLL SEXP XGBoosterUpdateOneIter_R(SEXP handle, SEXP iter, SEXP dtrain) {
   return R_NilValue;
 }
 
-XGB_DLL SEXP XGBoosterBoostOneIter_R(SEXP handle, SEXP dtrain, SEXP grad, SEXP hess) {
+XGB_DLL SEXP XGBoosterTrainOneIter_R(SEXP handle, SEXP dtrain, SEXP iter, SEXP grad, SEXP hess) {
   R_API_BEGIN();
-  CHECK_EQ(length(grad), length(hess))
-      << "gradient and hess must have same length";
-  int len = length(grad);
-  std::vector<float> tgrad(len), thess(len);
-  auto ctx = BoosterCtx(R_ExternalPtrAddr(handle));
-  xgboost::common::ParallelFor(len, ctx->Threads(), [&](xgboost::omp_ulong j) {
-    tgrad[j] = REAL(grad)[j];
-    thess[j] = REAL(hess)[j];
-  });
-  CHECK_CALL(XGBoosterBoostOneIter(R_ExternalPtrAddr(handle),
-                                 R_ExternalPtrAddr(dtrain),
-                                 BeginPtr(tgrad), BeginPtr(thess),
-                                 len));
+  CHECK_EQ(length(grad), length(hess)) << "gradient and hess must have same length";
+  SEXP gdim = getAttrib(grad, R_DimSymbol);
+  auto n_samples = static_cast<std::size_t>(INTEGER(gdim)[0]);
+  auto n_targets = static_cast<std::size_t>(INTEGER(gdim)[1]);
+
+  SEXP hdim = getAttrib(hess, R_DimSymbol);
+  CHECK_EQ(INTEGER(hdim)[0], n_samples) << "mismatched size between gradient and hessian";
+  CHECK_EQ(INTEGER(hdim)[1], n_targets) << "mismatched size between gradient and hessian";
+  double const *d_grad = REAL(grad);
+  double const *d_hess = REAL(hess);
+
+  auto ctx = xgboost::detail::BoosterCtx(R_ExternalPtrAddr(handle));
+  auto [s_grad, s_hess] =
+      xgboost::detail::MakeGradientInterface(ctx, d_grad, d_hess, n_samples, n_targets);
+  CHECK_CALL(XGBoosterTrainOneIter(R_ExternalPtrAddr(handle), R_ExternalPtrAddr(dtrain),
+                                   asInteger(iter), s_grad.c_str(), s_hess.c_str()));
+
   R_API_END();
   return R_NilValue;
 }
@@ -460,7 +457,7 @@ XGB_DLL SEXP XGBoosterPredictFromDMatrix_R(SEXP handle, SEXP dmat, SEXP json_con
     len *= out_shape[i];
   }
   r_out_result = PROTECT(allocVector(REALSXP, len));
-  auto ctx = BoosterCtx(R_ExternalPtrAddr(handle));
+  auto ctx = xgboost::detail::BoosterCtx(R_ExternalPtrAddr(handle));
   xgboost::common::ParallelFor(len, ctx->Threads(), [&](xgboost::omp_ulong i) {
     REAL(r_out_result)[i] = out_result[i];
   });
@@ -669,7 +666,7 @@ XGB_DLL SEXP XGBoosterFeatureScore_R(SEXP handle, SEXP json_config) {
   }
 
   out_scores_sexp = PROTECT(allocVector(REALSXP, len));
-  auto ctx = BoosterCtx(R_ExternalPtrAddr(handle));
+  auto ctx = xgboost::detail::BoosterCtx(R_ExternalPtrAddr(handle));
   xgboost::common::ParallelFor(len, ctx->Threads(), [&](xgboost::omp_ulong i) {
     REAL(out_scores_sexp)[i] = out_scores[i];
   });

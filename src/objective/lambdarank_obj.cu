@@ -93,7 +93,7 @@ struct GetGradOp {
     // obtain group segment data.
     auto g_label = args.labels.Slice(linalg::Range(data_group_begin, data_group_begin + n_data), 0);
     auto g_predt = args.predts.subspan(data_group_begin, n_data);
-    auto g_gpair = args.gpairs.subspan(data_group_begin, n_data).data();
+    auto g_gpair = args.gpairs.Slice(linalg::Range(data_group_begin, data_group_begin + n_data));
     auto g_rank = args.d_sorted_idx.subspan(data_group_begin, n_data);
 
     auto [i, j] = make_pair(idx, g);
@@ -128,8 +128,8 @@ struct GetGradOp {
       auto ngt = GradientPair{common::TruncateWithRounding(gr.GetGrad(), ng.GetGrad()),
                               common::TruncateWithRounding(gr.GetHess(), ng.GetHess())};
 
-      dh::AtomicAddGpair(g_gpair + idx_high, pgt);
-      dh::AtomicAddGpair(g_gpair + idx_low, ngt);
+      dh::AtomicAddGpair(&g_gpair(idx_high), pgt);
+      dh::AtomicAddGpair(&g_gpair(idx_low), ngt);
     }
 
     if (unbiased && need_update) {
@@ -266,16 +266,16 @@ void CalcGrad(Context const* ctx, MetaInfo const& info, std::shared_ptr<ltr::Ran
    */
   auto d_weights = common::MakeOptionalWeights(ctx, info.weights_);
   auto w_norm = p_cache->WeightNorm();
-  thrust::for_each_n(ctx->CUDACtx()->CTP(), thrust::make_counting_iterator(0ul), d_gpair.size(),
-                     [=] XGBOOST_DEVICE(std::size_t i) {
+  thrust::for_each_n(ctx->CUDACtx()->CTP(), thrust::make_counting_iterator(0ul), d_gpair.Size(),
+                     [=] XGBOOST_DEVICE(std::size_t i) mutable {
                        auto g = dh::SegmentId(d_gptr, i);
                        auto sum_lambda = thrust::get<2>(d_max_lambdas[g]);
                        // Normalization
                        if (sum_lambda > 0.0) {
                          double norm = std::log2(1.0 + sum_lambda) / sum_lambda;
-                         d_gpair[i] *= norm;
+                         d_gpair(i, 0) *= norm;
                        }
-                       d_gpair[i] *= (d_weights[g] * w_norm);
+                       d_gpair(i, 0) *= (d_weights[g] * w_norm);
                      });
 }
 
@@ -288,7 +288,7 @@ void Launch(Context const* ctx, std::int32_t iter, HostDeviceVector<float> const
             linalg::VectorView<double const> ti_plus,   // input bias ratio
             linalg::VectorView<double const> tj_minus,  // input bias ratio
             linalg::VectorView<double> li, linalg::VectorView<double> lj,
-            HostDeviceVector<GradientPair>* out_gpair) {
+            linalg::Matrix<GradientPair>* out_gpair) {
   // boilerplate
   std::int32_t device_id = ctx->gpu_id;
   dh::safe_cuda(cudaSetDevice(device_id));
@@ -296,8 +296,8 @@ void Launch(Context const* ctx, std::int32_t iter, HostDeviceVector<float> const
 
   info.labels.SetDevice(device_id);
   preds.SetDevice(device_id);
-  out_gpair->SetDevice(device_id);
-  out_gpair->Resize(preds.Size());
+  out_gpair->SetDevice(ctx->Device());
+  out_gpair->Reshape(preds.Size(), 1);
 
   CHECK(p_cache);
 
@@ -308,8 +308,9 @@ void Launch(Context const* ctx, std::int32_t iter, HostDeviceVector<float> const
 
   auto label = info.labels.View(ctx->gpu_id);
   auto predts = preds.ConstDeviceSpan();
-  auto gpairs = out_gpair->DeviceSpan();
-  thrust::fill_n(ctx->CUDACtx()->CTP(), gpairs.data(), gpairs.size(), GradientPair{0.0f, 0.0f});
+  auto gpairs = out_gpair->View(ctx->Device());
+  thrust::fill_n(ctx->CUDACtx()->CTP(), gpairs.Values().data(), gpairs.Size(),
+                 GradientPair{0.0f, 0.0f});
 
   auto const d_threads_group_ptr = p_cache->CUDAThreadsGroupPtr();
   auto const d_gptr = p_cache->DataGroupPtr(ctx);
@@ -371,7 +372,7 @@ void LambdaRankGetGradientNDCG(Context const* ctx, std::int32_t iter,
                                linalg::VectorView<double const> ti_plus,   // input bias ratio
                                linalg::VectorView<double const> tj_minus,  // input bias ratio
                                linalg::VectorView<double> li, linalg::VectorView<double> lj,
-                               HostDeviceVector<GradientPair>* out_gpair) {
+                               linalg::Matrix<GradientPair>* out_gpair) {
   // boilerplate
   std::int32_t device_id = ctx->gpu_id;
   dh::safe_cuda(cudaSetDevice(device_id));
@@ -440,7 +441,7 @@ void LambdaRankGetGradientMAP(Context const* ctx, std::int32_t iter,
                               linalg::VectorView<double const> ti_plus,   // input bias ratio
                               linalg::VectorView<double const> tj_minus,  // input bias ratio
                               linalg::VectorView<double> li, linalg::VectorView<double> lj,
-                              HostDeviceVector<GradientPair>* out_gpair) {
+                              linalg::Matrix<GradientPair>* out_gpair) {
   std::int32_t device_id = ctx->gpu_id;
   dh::safe_cuda(cudaSetDevice(device_id));
 
@@ -479,7 +480,7 @@ void LambdaRankGetGradientPairwise(Context const* ctx, std::int32_t iter,
                                    linalg::VectorView<double const> ti_plus,   // input bias ratio
                                    linalg::VectorView<double const> tj_minus,  // input bias ratio
                                    linalg::VectorView<double> li, linalg::VectorView<double> lj,
-                                   HostDeviceVector<GradientPair>* out_gpair) {
+                                   linalg::Matrix<GradientPair>* out_gpair) {
   std::int32_t device_id = ctx->gpu_id;
   dh::safe_cuda(cudaSetDevice(device_id));
 

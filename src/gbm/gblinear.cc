@@ -29,7 +29,6 @@
 #include "../common/error_msg.h"
 
 namespace xgboost::gbm {
-
 DMLC_REGISTRY_FILE_TAG(gblinear);
 
 // training parameters
@@ -142,7 +141,7 @@ class GBLinear : public GradientBooster {
     this->updater_->SaveConfig(&j_updater);
   }
 
-  void DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair, PredictionCacheEntry*,
+  void DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair, PredictionCacheEntry*,
                ObjFunction const*) override {
     monitor_.Start("DoBoost");
 
@@ -232,9 +231,8 @@ class GBLinear : public GradientBooster {
     std::fill(contribs.begin(), contribs.end(), 0);
   }
 
-  std::vector<std::string> DumpModel(const FeatureMap& fmap,
-                                     bool with_stats,
-                                     std::string format) const override {
+  [[nodiscard]] std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,
+                                                   std::string format) const override {
     return model_.DumpModel(fmap, with_stats, format);
   }
 
@@ -263,7 +261,7 @@ class GBLinear : public GradientBooster {
     }
   }
 
-  bool UseGPU() const override {
+  [[nodiscard]] bool UseGPU() const override {
     if (param_.updater == "gpu_coord_descent") {
       return true;
     } else {

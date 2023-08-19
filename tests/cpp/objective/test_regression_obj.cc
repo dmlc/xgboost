@@ -122,8 +122,8 @@ TEST(Objective, DeclareUnifiedTest(LogisticRegressionBasic)) {
   EXPECT_NEAR(obj->ProbToMargin(0.1f), -2.197f, 0.01f);
   EXPECT_NEAR(obj->ProbToMargin(0.5f), 0, 0.01f);
   EXPECT_NEAR(obj->ProbToMargin(0.9f), 2.197f, 0.01f);
-  EXPECT_ANY_THROW(obj->ProbToMargin(10))
-    << "Expected error when base_score not in range [0,1f] for LogisticRegression";
+  EXPECT_ANY_THROW((void)obj->ProbToMargin(10))
+      << "Expected error when base_score not in range [0,1f] for LogisticRegression";
 
   // test PredTransform
   HostDeviceVector<bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
@@ -282,9 +282,9 @@ TEST(Objective, DeclareUnifiedTest(TweedieRegressionGPair)) {
 TEST(Objective, CPU_vs_CUDA) {
   Context ctx = MakeCUDACtx(GPUIDX);
 
-  ObjFunction* obj = ObjFunction::Create("reg:squarederror", &ctx);
-  HostDeviceVector<GradientPair> cpu_out_preds;
-  HostDeviceVector<GradientPair> cuda_out_preds;
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:squarederror", &ctx)};
+  linalg::Matrix<GradientPair> cpu_out_preds;
+  linalg::Matrix<GradientPair> cuda_out_preds;
 
   constexpr size_t kRows = 400;
   constexpr size_t kCols = 100;
@@ -300,7 +300,7 @@ TEST(Objective, CPU_vs_CUDA) {
   info.labels.Reshape(kRows);
   auto& h_labels = info.labels.Data()->HostVector();
   for (size_t i = 0; i < h_labels.size(); ++i) {
-    h_labels[i] = 1 / (float)(i+1);
+    h_labels[i] = 1 / static_cast<float>(i+1);
   }
 
   {
@@ -314,19 +314,17 @@ TEST(Objective, CPU_vs_CUDA) {
     obj->GetGradient(preds, info, 0, &cuda_out_preds);
   }
 
-  auto& h_cpu_out = cpu_out_preds.HostVector();
-  auto& h_cuda_out = cuda_out_preds.HostVector();
+  auto h_cpu_out = cpu_out_preds.HostView();
+  auto h_cuda_out = cuda_out_preds.HostView();
 
   float sgrad = 0;
   float shess = 0;
   for (size_t i = 0; i < kRows; ++i) {
-    sgrad += std::pow(h_cpu_out[i].GetGrad() - h_cuda_out[i].GetGrad(), 2);
-    shess += std::pow(h_cpu_out[i].GetHess() - h_cuda_out[i].GetHess(), 2);
+    sgrad += std::pow(h_cpu_out(i).GetGrad() - h_cuda_out(i).GetGrad(), 2);
+    shess += std::pow(h_cpu_out(i).GetHess() - h_cuda_out(i).GetHess(), 2);
   }
   ASSERT_NEAR(sgrad, 0.0f, kRtEps);
   ASSERT_NEAR(shess, 0.0f, kRtEps);
-
-  delete obj;
 }
 #endif
 

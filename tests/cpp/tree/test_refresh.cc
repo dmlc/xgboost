@@ -17,10 +17,11 @@ namespace xgboost::tree {
 TEST(Updater, Refresh) {
   bst_row_t constexpr kRows = 8;
   bst_feature_t constexpr kCols = 16;
+  Context ctx;
 
-  HostDeviceVector<GradientPair> gpair =
-      { {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f},
-        {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f} };
+  linalg::Matrix<GradientPair> gpair
+      {{ {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f},
+         {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f} }, {8, 1}, ctx.Device()};
   std::shared_ptr<DMatrix> p_dmat{
     RandomDataGenerator{kRows, kCols, 0.4f}.Seed(3).GenerateDMatrix()};
   std::vector<std::pair<std::string, std::string>> cfg{
@@ -29,7 +30,6 @@ TEST(Updater, Refresh) {
       {"reg_lambda", "1"}};
 
   RegTree tree = RegTree{1u, kCols};
-  Context ctx;
   std::vector<RegTree*> trees{&tree};
 
   ObjInfo task{ObjInfo::kRegression};

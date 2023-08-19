@@ -154,7 +154,12 @@ xgb.iter.update <- function(booster_handle, dtrain, iter, obj) {
     pred <- predict(booster_handle, dtrain, outputmargin = TRUE, training = TRUE,
                     ntreelimit = 0)
     gpair <- obj(pred, dtrain)
-    .Call(XGBoosterBoostOneIter_R, booster_handle, dtrain, gpair$grad, gpair$hess)
+    n_samples <- dim(dtrain)[1]
+    gpair$grad <- matrix(gpair$grad, nrow = n_samples, byrow = TRUE)
+    gpair$hess <- matrix(gpair$hess, nrow = n_samples, byrow = TRUE)
+    .Call(
+      XGBoosterBoostOneIter_R, booster_handle, dtrain, iter, gpair$grad, gpair$hess
+    )
   }
   return(TRUE)
 }
