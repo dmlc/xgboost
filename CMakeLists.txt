@@ -419,10 +419,10 @@ if (GOOGLE_TEST)
       NAME TestXGBoostCLI
       COMMAND runxgboost ${xgboost_BINARY_DIR}/tests/cli/machine.conf
       WORKING_DIRECTORY ${xgboost_BINARY_DIR})
+    set_tests_properties(TestXGBoostCLI
+      PROPERTIES
+      PASS_REGULAR_EXPRESSION ".*test-rmse:0.087.*")
   endif (BUILD_DEPRECATED_CLI)
-  set_tests_properties(TestXGBoostCLI
-    PROPERTIES
-    PASS_REGULAR_EXPRESSION ".*test-rmse:0.087.*")
 endif (GOOGLE_TEST)
 
 # For MSVC: Call msvc_use_static_runtime() once again to completely
