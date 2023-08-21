@@ -7,7 +7,6 @@
 
 #include "../../collective/communicator-inl.cuh"
 #include "../../common/categorical.h"
-#include "../../common/device_helpers.cuh"
 #include "../../data/ellpack_page.cuh"
 #include "evaluate_splits.cuh"
 #include "expand_entry.cuh"
@@ -414,11 +413,17 @@ void GPUHistEvaluator::EvaluateSplits(
     // With column-wise data split, we gather the split candidates from all the workers and find the
     // global best candidates.
     auto const world_size = collective::GetWorldSize();
-    auto const num_candidates = out_splits.size();
-    dh::TemporaryArray<DeviceSplitCandidate> all_candidate_storage(num_candidates * world_size);
+    dh::TemporaryArray<DeviceSplitCandidate> all_candidate_storage(out_splits.size() * world_size);
     auto all_candidates = dh::ToSpan(all_candidate_storage);
     collective::AllGather(device_, out_splits.data(), all_candidates.data(),
-                          num_candidates * sizeof(DeviceSplitCandidate));
+                          out_splits.size() * sizeof(DeviceSplitCandidate));
+
+    // Reduce to get the best candidate from all workers.
+    dh::LaunchN(out_splits.size(), [world_size, all_candidates, out_splits] __device__(size_t i) {
+      for (auto rank = 0; rank < world_size; rank++) {
+        out_splits[i] = out_splits[i] + all_candidates[rank * out_splits.size() + i];
+      }
+    });
   }
 
   auto d_sorted_idx = this->SortedIdx(d_inputs.size(), shared_inputs.feature_values.size());
