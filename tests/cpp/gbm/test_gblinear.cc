@@ -1,10 +1,10 @@
-/**
- * Copyright 2019-2023, XGBoost Contributors
+/*!
+ * Copyright 2019 by Contributors
  */
 #include <gtest/gtest.h>
 
 #include <memory>
-#include <utility>  // for swap
+#include <sstream>
 
 #include "../helpers.h"
 #include "xgboost/context.h"
@@ -13,7 +13,9 @@
 #include "xgboost/learner.h"
 #include "xgboost/logging.h"
 
-namespace xgboost::gbm {
+namespace xgboost {
+namespace gbm {
+
 TEST(GBLinear, JsonIO) {
   size_t constexpr kRows = 16, kCols = 16;
 
@@ -38,31 +40,5 @@ TEST(GBLinear, JsonIO) {
     ASSERT_EQ(weights.size(), 17);
   }
 }
-
-TEST(GBlinear, DispatchUpdater) {
-  auto verbosity = 2;
-  std::swap(GlobalConfigThreadLocalStore::Get()->verbosity, verbosity);
-
-  auto test = [](std::string device) {
-    auto p_fmat = RandomDataGenerator{10, 10, 0.0f}.GenerateDMatrix(true);
-    std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
-    learner->SetParams(
-        Args{{"booster", "gblinear"}, {"updater", "coord_descent"}, {"device", device}});
-    learner->Configure();
-    for (std::int32_t iter = 0; iter < 3; ++iter) {
-      learner->UpdateOneIter(iter, p_fmat);
-    }
-    Json config{Object{}};
-    ::testing::internal::CaptureStderr();
-    learner->SaveConfig(&config);
-    auto str = ::testing::internal::GetCapturedStderr();
-    std::transform(device.cbegin(), device.cend(), device.begin(),
-                   [](char c) { return std::toupper(c); });
-    ASSERT_NE(str.find(device), std::string::npos);
-  };
-  test("cpu");
-  test("gpu");
-
-  std::swap(GlobalConfigThreadLocalStore::Get()->verbosity, verbosity);
-}
-}  // namespace xgboost::gbm
+}  // namespace gbm
+}  // namespace xgboost

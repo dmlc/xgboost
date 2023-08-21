@@ -1,5 +1,5 @@
-/*!
- * Copyright 2020 by Contributors
+/**
+ * Copyright 2020-2023, XGBoost Contributors
  * \file global_config.h
  * \brief Global configuration for XGBoost
  * \author Hyunsu Cho
@@ -10,10 +10,9 @@
 #include <xgboost/parameter.h>
 #include <vector>
 #include <string>
+#include <dmlc/thread_local.h>  // for ThreadLocalStore
 
 namespace xgboost {
-class Json;
-
 struct GlobalConfiguration : public XGBoostParameter<GlobalConfiguration> {
   int verbosity { 1 };
   bool use_rmm { false };
