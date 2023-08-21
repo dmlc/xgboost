@@ -161,9 +161,7 @@ std::vector<char> LoadSequentialFile(std::string uri) {
     OpenErr();
   }
 
-  ifs.seekg(0, std::ios_base::end);
-  const size_t file_size = static_cast<size_t>(ifs.tellg());
-  ifs.seekg(0, std::ios_base::beg);
+  auto file_size = std::filesystem::file_size(path);
   std::vector<char> buffer(file_size);
   ifs.read(&buffer[0], file_size);
 
