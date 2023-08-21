@@ -1359,25 +1359,25 @@ class XGBModel(XGBModelBase):
 
     @property
     def intercept_(self) -> np.ndarray:
-        """
-        Intercept (bias) property
+        """Intercept (bias) property
 
-        .. note:: Intercept is defined only for linear learners
-
-            Intercept (bias) is only defined when the linear model is chosen as base
-            learner (`booster=gblinear`). It is not defined for other base learner types,
-            such as tree learners (`booster=gbtree`).
+        For tree-based model, the returned value is the `base_score`.
 
         Returns
         -------
         intercept_ : array of shape ``(1,)`` or ``[n_classes]``
+
         """
-        if self.get_xgb_params()["booster"] != "gblinear":
-            raise AttributeError(
-                f"Intercept (bias) is not defined for Booster type {self.booster}"
-            )
+        booster_config = self.get_xgb_params()["booster"]
         b = self.get_booster()
-        return np.array(json.loads(b.get_dump(dump_format="json")[0])["bias"])
+        if booster_config != "gblinear":  # gbtree, dart
+            config = json.loads(b.save_config())
+            intercept = config["learner"]["learner_model_param"]["base_score"]
+            return np.array([float(intercept)], dtype=np.float32)
+
+        return np.array(
+            json.loads(b.get_dump(dump_format="json")[0])["bias"], dtype=np.float32
+        )
 
 
 PredtT = TypeVar("PredtT", bound=np.ndarray)

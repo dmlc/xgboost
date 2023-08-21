@@ -45,6 +45,7 @@ set_default_configuration_release()
 option(BUILD_C_DOC "Build documentation for C APIs using Doxygen." OFF)
 option(USE_OPENMP "Build with OpenMP support." ON)
 option(BUILD_STATIC_LIB "Build static library" OFF)
+option(BUILD_DEPRECATED_CLI "Build the deprecated command line interface" OFF)
 option(FORCE_SHARED_CRT "Build with dynamic CRT on Windows (/MD)" OFF)
 option(RABIT_BUILD_MPI "Build MPI" OFF)
 ## Bindings
@@ -71,10 +72,6 @@ option(USE_NCCL  "Build with NCCL to enable distributed GPU support." OFF)
 option(BUILD_WITH_SHARED_NCCL "Build with shared NCCL library." OFF)
 set(GPU_COMPUTE_VER "" CACHE STRING
   "Semicolon separated list of compute versions to be built against, e.g. '35;61'")
-## Copied From dmlc
-option(USE_HDFS "Build with HDFS support" OFF)
-option(USE_AZURE "Build with AZURE support" OFF)
-option(USE_S3 "Build with S3 support" OFF)
 ## Sanitizers
 option(USE_SANITIZER "Use santizer flags" OFF)
 option(SANITIZER_PATH "Path to sanitizes.")
@@ -273,19 +270,30 @@ target_include_directories(xgboost
 #-- End shared library
 
 #-- CLI for xgboost
-add_executable(runxgboost ${xgboost_SOURCE_DIR}/src/cli_main.cc)
-target_link_libraries(runxgboost PRIVATE objxgboost)
-target_include_directories(runxgboost
-  PRIVATE
-  ${xgboost_SOURCE_DIR}/include
-  ${xgboost_SOURCE_DIR}/dmlc-core/include
-  ${xgboost_SOURCE_DIR}/rabit/include
-)
-set_target_properties(runxgboost PROPERTIES OUTPUT_NAME xgboost)
+if (BUILD_DEPRECATED_CLI)
+  add_executable(runxgboost ${xgboost_SOURCE_DIR}/src/cli_main.cc)
+  target_link_libraries(runxgboost PRIVATE objxgboost)
+  target_include_directories(runxgboost
+    PRIVATE
+    ${xgboost_SOURCE_DIR}/include
+    ${xgboost_SOURCE_DIR}/dmlc-core/include
+    ${xgboost_SOURCE_DIR}/rabit/include
+  )
+  set_target_properties(runxgboost PROPERTIES OUTPUT_NAME xgboost)
+  xgboost_target_properties(runxgboost)
+  xgboost_target_link_libraries(runxgboost)
+  xgboost_target_defs(runxgboost)
+
+  if (KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR)
+    set_output_directory(runxgboost ${xgboost_BINARY_DIR})
+  else ()
+    set_output_directory(runxgboost ${xgboost_SOURCE_DIR})
+  endif (KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR)
+endif (BUILD_DEPRECATED_CLI)
 #-- End CLI for xgboost
 
 # Common setup for all targets
-foreach(target xgboost objxgboost dmlc runxgboost)
+foreach(target xgboost objxgboost dmlc)
   xgboost_target_properties(${target})
   xgboost_target_link_libraries(${target})
   xgboost_target_defs(${target})
@@ -298,14 +306,15 @@ if (JVM_BINDINGS)
 endif (JVM_BINDINGS)
 
 if (KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR)
-  set_output_directory(runxgboost ${xgboost_BINARY_DIR})
   set_output_directory(xgboost ${xgboost_BINARY_DIR}/lib)
 else ()
-  set_output_directory(runxgboost ${xgboost_SOURCE_DIR})
   set_output_directory(xgboost ${xgboost_SOURCE_DIR}/lib)
 endif ()
+
 # Ensure these two targets do not build simultaneously, as they produce outputs with conflicting names
-add_dependencies(xgboost runxgboost)
+if (BUILD_DEPRECATED_CLI)
+  add_dependencies(xgboost runxgboost)
+endif (BUILD_DEPRECATED_CLI)
 
 #-- Installing XGBoost
 if (R_LIB)
@@ -341,9 +350,17 @@ install(DIRECTORY ${xgboost_SOURCE_DIR}/include/xgboost
 #
 # https://github.com/dmlc/xgboost/issues/6085
 if (BUILD_STATIC_LIB)
-  set(INSTALL_TARGETS xgboost runxgboost objxgboost dmlc)
+  if (BUILD_DEPRECATED_CLI)
+    set(INSTALL_TARGETS xgboost runxgboost objxgboost dmlc)
+  else()
+    set(INSTALL_TARGETS xgboost objxgboost dmlc)
+  endif (BUILD_DEPRECATED_CLI)
 else (BUILD_STATIC_LIB)
-  set(INSTALL_TARGETS xgboost runxgboost)
+  if (BUILD_DEPRECATED_CLI)
+    set(INSTALL_TARGETS xgboost runxgboost)
+  else(BUILD_DEPRECATED_CLI)
+    set(INSTALL_TARGETS xgboost)
+  endif (BUILD_DEPRECATED_CLI)
 endif (BUILD_STATIC_LIB)
 
 install(TARGETS ${INSTALL_TARGETS}
@@ -393,13 +410,15 @@ if (GOOGLE_TEST)
     ${xgboost_SOURCE_DIR}/tests/cli/machine.conf.in
     ${xgboost_BINARY_DIR}/tests/cli/machine.conf
     @ONLY)
-  add_test(
-    NAME TestXGBoostCLI
-    COMMAND runxgboost ${xgboost_BINARY_DIR}/tests/cli/machine.conf
-    WORKING_DIRECTORY ${xgboost_BINARY_DIR})
-  set_tests_properties(TestXGBoostCLI
-    PROPERTIES
-    PASS_REGULAR_EXPRESSION ".*test-rmse:0.087.*")
+  if (BUILD_DEPRECATED_CLI)
+    add_test(
+      NAME TestXGBoostCLI
+      COMMAND runxgboost ${xgboost_BINARY_DIR}/tests/cli/machine.conf
+      WORKING_DIRECTORY ${xgboost_BINARY_DIR})
+    set_tests_properties(TestXGBoostCLI
+      PROPERTIES
+      PASS_REGULAR_EXPRESSION ".*test-rmse:0.087.*")
+  endif (BUILD_DEPRECATED_CLI)
 endif (GOOGLE_TEST)
 
 # For MSVC: Call msvc_use_static_runtime() once again to completely

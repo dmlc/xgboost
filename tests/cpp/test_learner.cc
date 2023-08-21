@@ -184,7 +184,7 @@ TEST(Learner, JsonModelIO) {
     fout.close();
 
     auto loaded_str = common::LoadSequentialFile(tmpdir.path + "/model.json");
-    Json loaded = Json::Load(StringView{loaded_str.c_str(), loaded_str.size()});
+    Json loaded = Json::Load(StringView{loaded_str.data(), loaded_str.size()});
 
     learner->LoadModel(loaded);
     learner->Configure();

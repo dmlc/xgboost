@@ -19,7 +19,6 @@ cmake .. -GNinja -DUSE_CUDA=ON -DR_LIB=ON
 ninja
 cd ..
 
-rm xgboost
 # This super wacky hack is found in cmake/RPackageInstall.cmake.in and
 # cmake/RPackageInstallTargetSetup.cmake. This hack lets us bypass the normal build process of R
 # and have R use xgboost.so that we've already built.

@@ -1220,12 +1220,12 @@ XGB_DLL int XGBoosterLoadModel(BoosterHandle handle, const char* fname) {
     return str;
   };
   if (common::FileExtension(fname) == "json") {
-    auto str = read_file();
-    Json in{Json::Load(StringView{str})};
+    auto buffer = read_file();
+    Json in{Json::Load(StringView{buffer.data(), buffer.size()})};
     static_cast<Learner*>(handle)->LoadModel(in);
   } else if (common::FileExtension(fname) == "ubj") {
-    auto str = read_file();
-    Json in = Json::Load(StringView{str}, std::ios::binary);
+    auto buffer = read_file();
+    Json in = Json::Load(StringView{buffer.data(), buffer.size()}, std::ios::binary);
     static_cast<Learner *>(handle)->LoadModel(in);
   } else {
     std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname, "r"));
