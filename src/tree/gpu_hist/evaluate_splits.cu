@@ -410,6 +410,17 @@ void GPUHistEvaluator::EvaluateSplits(
   this->LaunchEvaluateSplits(max_active_features, d_inputs, shared_inputs,
                              evaluator, out_splits);
 
+  if (is_column_split_) {
+    // With column-wise data split, we gather the split candidates from all the workers and find the
+    // global best candidates.
+    auto const world_size = collective::GetWorldSize();
+    auto const num_candidates = out_splits.size();
+    dh::TemporaryArray<DeviceSplitCandidate> all_candidate_storage(num_candidates * world_size);
+    auto all_candidates = dh::ToSpan(all_candidate_storage);
+    collective::AllGather(device_, out_splits.data(), all_candidates.data(),
+                          num_candidates * sizeof(DeviceSplitCandidate));
+  }
+
   auto d_sorted_idx = this->SortedIdx(d_inputs.size(), shared_inputs.feature_values.size());
   auto d_entries = out_entries;
   auto device_cats_accessor = this->DeviceCatStorage(nidx);
