@@ -83,7 +83,15 @@ class GBLinear : public GradientBooster {
     }
     param_.UpdateAllowUnknown(cfg);
     param_.CheckGPUSupport();
-    updater_.reset(LinearUpdater::Create(param_.updater, ctx_));
+    if (param_.updater == "gpu_coord_descent") {
+      LOG(WARNING) << "`gpu_coord_descent` is deprecated, use `device=cuda` instead.";
+    }
+
+    if (param_.updater == "coord_descent" && ctx_->IsCUDA()) {
+      updater_.reset(LinearUpdater::Create("gpu_coord_descent", ctx_));
+    } else {
+      updater_.reset(LinearUpdater::Create(param_.updater, ctx_));
+    }
     updater_->Configure(cfg);
     monitor_.Init("GBLinear");
   }
