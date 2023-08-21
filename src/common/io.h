@@ -91,7 +91,7 @@ class FixedSizeStream : public PeekableInStream {
  *
  * @return File content.
  */
-std::string LoadSequentialFile(std::string uri);
+std::vector<char> LoadSequentialFile(std::string uri);
 
 /**
  * \brief Get file extension from file name.

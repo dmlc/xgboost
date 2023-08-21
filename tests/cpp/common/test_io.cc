@@ -73,13 +73,13 @@ TEST(IO, LoadSequentialFile) {
   }
   Json out{Object()};
   learner->SaveModel(&out);
-  std::string str;
+  std::vector<char> str;
   Json::Dump(out, &str);
 
   std::string tmpfile = tempdir.path + "/model.json";
   {
     std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(tmpfile.c_str(), "w"));
-    fo->Write(str.c_str(), str.size());
+    fo->Write(str.data(), str.size());
   }
 
   auto loaded = LoadSequentialFile(tmpfile);

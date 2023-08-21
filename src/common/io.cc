@@ -139,7 +139,7 @@ auto SystemErrorMsg() {
 }
 }  // anonymous namespace
 
-std::string LoadSequentialFile(std::string uri) {
+std::vector<char> LoadSequentialFile(std::string uri) {
   auto OpenErr = [&uri]() {
     std::string msg;
     msg = "Opening " + uri + " failed: ";
@@ -151,7 +151,6 @@ std::string LoadSequentialFile(std::string uri) {
   CHECK((parsed.protocol == "file://" || parsed.protocol.length() == 0))
       << "Only local file is supported.";
   // Read from file.
-  std::string buffer;
   // Open in binary mode so that correct file size can be computed with
   // seekg(). This accommodates Windows platform:
   // https://docs.microsoft.com/en-us/cpp/standard-library/basic-istream-class?view=vs-2019#seekg
@@ -165,9 +164,8 @@ std::string LoadSequentialFile(std::string uri) {
   ifs.seekg(0, std::ios_base::end);
   const size_t file_size = static_cast<size_t>(ifs.tellg());
   ifs.seekg(0, std::ios_base::beg);
-  buffer.resize(file_size + 1);
+  std::vector<char> buffer(file_size);
   ifs.read(&buffer[0], file_size);
-  buffer.back() = '\0';
 
   return buffer;
 }

@@ -250,7 +250,7 @@ auto TestSparsePageDMatrixDeterminism(int32_t threads) {
 
   auto cache_name =
       data::MakeId(filename, dynamic_cast<data::SparsePageDMatrix *>(sparse.get())) + ".row.page";
-  std::string cache = common::LoadSequentialFile(cache_name);
+  auto cache = common::LoadSequentialFile(cache_name);
   return cache;
 }
 
@@ -258,7 +258,7 @@ TEST(SparsePageDMatrix, Determinism) {
 #if defined(_MSC_VER)
   return;
 #endif  // defined(_MSC_VER)
-  std::vector<std::string> caches;
+  std::vector<std::vector<char>> caches;
   for (size_t i = 1; i < 18; i += 2) {
     caches.emplace_back(TestSparsePageDMatrixDeterminism(i));
   }
