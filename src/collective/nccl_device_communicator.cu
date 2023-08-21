@@ -178,16 +178,14 @@ void NcclDeviceCommunicator::AllReduce(void *send_receive_buffer, std::size_t co
   allreduce_calls_ += 1;
 }
 
-void NcclDeviceCommunicator::AllGather(void *send_receive_buffer, std::size_t size) {
+void NcclDeviceCommunicator::AllGather(void const *send_buffer, void *receive_buffer,
+                                       std::size_t send_size) {
   if (world_size_ == 1) {
     return;
   }
 
   dh::safe_cuda(cudaSetDevice(device_ordinal_));
-  auto const send_count = size / world_size_;
-  auto const *send_buffer =
-      reinterpret_cast<std::int8_t *>(send_receive_buffer) + rank_ * send_count;
-  dh::safe_nccl(ncclAllGather(send_buffer, send_receive_buffer, send_count, ncclInt8, nccl_comm_,
+  dh::safe_nccl(ncclAllGather(send_buffer, receive_buffer, send_size, ncclInt8, nccl_comm_,
                               dh::DefaultStream()));
 }
 

@@ -65,6 +65,7 @@ void GPUHistEvaluator::Reset(common::HistogramCuts const &cuts, common::Span<Fea
                       });
   }
   is_column_split_ = is_column_split;
+  device_ = device;
 }
 
 common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(

@@ -11,8 +11,8 @@
 #include "../../../plugin/federated/federated_communicator.h"
 #include "../../../src/collective/communicator-inl.cuh"
 #include "../../../src/collective/device_communicator_adapter.cuh"
-#include "./helpers.h"
 #include "../helpers.h"
+#include "./helpers.h"
 
 namespace xgboost::collective {
 
@@ -51,10 +51,11 @@ void VerifyAllGather() {
   auto const rank = collective::GetRank();
   auto const device = GPUIDX;
   common::SetDevice(device);
-  thrust::device_vector<double> buffer(world_size, 0);
-  buffer[rank] = rank;
-  collective::AllGather(device, buffer.data().get(), world_size * sizeof(double));
-  thrust::host_vector<double> host_buffer = buffer;
+  thrust::device_vector<double> send_buffer(1, rank);
+  thrust::device_vector<double> receive_buffer(world_size, 0);
+  collective::AllGather(device, send_buffer.data().get(), receive_buffer.data().get(),
+                        sizeof(double));
+  thrust::host_vector<double> host_buffer = receive_buffer;
   EXPECT_EQ(host_buffer.size(), world_size);
   for (auto i = 0; i < world_size; i++) {
     EXPECT_EQ(host_buffer[i], i);

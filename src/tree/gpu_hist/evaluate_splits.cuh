@@ -85,6 +85,7 @@ class GPUHistEvaluator {
   std::size_t node_categorical_storage_size_ = 0;
   // Is the data split column-wise?
   bool is_column_split_ = false;
+  int32_t device_;
 
   // Copy the categories from device to host asynchronously.
   void CopyToHost( const std::vector<bst_node_t>& nidx);

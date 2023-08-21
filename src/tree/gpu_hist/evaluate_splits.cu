@@ -5,6 +5,7 @@
 #include <vector>
 #include <limits>
 
+#include "../../collective/communicator-inl.cuh"
 #include "../../common/categorical.h"
 #include "../../common/device_helpers.cuh"
 #include "../../data/ellpack_page.cuh"
