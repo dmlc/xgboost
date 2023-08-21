@@ -216,8 +216,8 @@ TEST(CAPI, JsonModelIO) {
 
   std::string buffer;
   Json::Dump(Json::Load(l, std::ios::binary), &buffer);
-  ASSERT_EQ(model_str_0.size() - 1, buffer.size());
-  ASSERT_EQ(model_str_0.back(), '\0');
+  ASSERT_EQ(model_str_0.size(), buffer.size());
+  ASSERT_EQ(model_str_0.back(), '}');
   ASSERT_TRUE(std::equal(model_str_0.begin(), model_str_0.end() - 1, buffer.begin()));
 
   ASSERT_EQ(XGBoosterSaveModelToBuffer(handle, R"({})", &len, &data), -1);
