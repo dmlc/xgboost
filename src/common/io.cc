@@ -151,9 +151,6 @@ std::vector<char> LoadSequentialFile(std::string uri) {
   CHECK((parsed.protocol == "file://" || parsed.protocol.length() == 0))
       << "Only local file is supported.";
   // Read from file.
-  // Open in binary mode so that correct file size can be computed with
-  // seekg(). This accommodates Windows platform:
-  // https://docs.microsoft.com/en-us/cpp/standard-library/basic-istream-class?view=vs-2019#seekg
   auto path = std::filesystem::weakly_canonical(std::filesystem::u8path(uri));
   std::ifstream ifs(path, std::ios_base::binary | std::ios_base::in);
   if (!ifs) {
