@@ -139,7 +139,7 @@ auto SystemErrorMsg() {
 }
 }  // anonymous namespace
 
-std::string LoadSequentialFile(std::string uri, bool stream) {
+std::vector<char> LoadSequentialFile(std::string uri) {
   auto OpenErr = [&uri]() {
     std::string msg;
     msg = "Opening " + uri + " failed: ";
@@ -148,44 +148,20 @@ std::string LoadSequentialFile(std::string uri, bool stream) {
   };
 
   auto parsed = dmlc::io::URI(uri.c_str());
+  CHECK((parsed.protocol == "file://" || parsed.protocol.length() == 0))
+      << "Only local file is supported.";
   // Read from file.
-  if ((parsed.protocol == "file://" || parsed.protocol.length() == 0) && !stream) {
-    std::string buffer;
-    // Open in binary mode so that correct file size can be computed with
-    // seekg(). This accommodates Windows platform:
-    // https://docs.microsoft.com/en-us/cpp/standard-library/basic-istream-class?view=vs-2019#seekg
-    auto path = std::filesystem::weakly_canonical(std::filesystem::u8path(uri));
-    std::ifstream ifs(path, std::ios_base::binary | std::ios_base::in);
-    if (!ifs) {
-      // https://stackoverflow.com/a/17338934
-      OpenErr();
-    }
-
-    ifs.seekg(0, std::ios_base::end);
-    const size_t file_size = static_cast<size_t>(ifs.tellg());
-    ifs.seekg(0, std::ios_base::beg);
-    buffer.resize(file_size + 1);
-    ifs.read(&buffer[0], file_size);
-    buffer.back() = '\0';
-
-    return buffer;
+  auto path = std::filesystem::weakly_canonical(std::filesystem::u8path(uri));
+  std::ifstream ifs(path, std::ios_base::binary | std::ios_base::in);
+  if (!ifs) {
+    // https://stackoverflow.com/a/17338934
+    OpenErr();
   }
 
-  // Read from remote.
-  std::unique_ptr<dmlc::Stream> fs{dmlc::Stream::Create(uri.c_str(), "r")};
-  std::string buffer;
-  size_t constexpr kInitialSize = 4096;
-  size_t size {kInitialSize}, total {0};
-  while (true) {
-    buffer.resize(total + size);
-    size_t read = fs->Read(&buffer[total], size);
-    total += read;
-    if (read < size) {
-      break;
-    }
-    size *= 2;
-  }
-  buffer.resize(total);
+  auto file_size = std::filesystem::file_size(path);
+  std::vector<char> buffer(file_size);
+  ifs.read(&buffer[0], file_size);
+
   return buffer;
 }
 

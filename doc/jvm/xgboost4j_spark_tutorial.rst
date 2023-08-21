@@ -390,39 +390,6 @@ Then we can load this model with single node Python XGBoost:
   bst = xgb.Booster({'nthread': 4})
   bst.load_model(nativeModelPath)
 
-.. note:: Using HDFS and S3 for exporting the models with nativeBooster.saveModel()
-
-  When interacting with other language bindings, XGBoost also supports saving-models-to and loading-models-from file systems other than the local one. You can use HDFS and S3 by prefixing the path with ``hdfs://`` and ``s3://`` respectively. However, for this capability, you must do **one** of the following:
-
-  1. Build XGBoost4J-Spark with the steps described in :ref:`here <install_jvm_packages>`, but turning `USE_HDFS <https://github.com/dmlc/xgboost/blob/e939192978a0c152ad7b49b744630e99d54cffa8/jvm-packages/create_jni.py#L18>`_ (or USE_S3, etc. in the same place) switch on. With this approach, you can reuse the above code example by replacing "nativeModelPath" with a HDFS path.
-
-     - However, if you build with USE_HDFS, etc. you have to ensure that the involved shared object file, e.g. libhdfs.so, is put in the LIBRARY_PATH of your cluster. To avoid the complicated cluster environment configuration, choose the other option.
-
-  2. Use bindings of HDFS, S3, etc. to pass model files around. Here are the steps (taking HDFS as an example):
-
-     - Create a new file with
-
-       .. code-block:: scala
-
-         val outputStream = fs.create("hdfs_path")
-
-       where "fs" is an instance of `org.apache.hadoop.fs.FileSystem <https://hadoop.apache.org/docs/stable/api/org/apache/hadoop/fs/FileSystem.html>`_ class in Hadoop.
-
-     - Pass the returned OutputStream in the first step to nativeBooster.saveModel():
-
-       .. code-block:: scala
-
-         xgbClassificationModel.nativeBooster.saveModel(outputStream)
-
-     - Download file in other languages from HDFS and load with the pre-built (without the requirement of libhdfs.so) version of XGBoost. (The function "download_from_hdfs" is a helper function to be implemented by the user)
-
-       .. code-block:: python
-
-         import xgboost as xgb
-         bst = xgb.Booster({'nthread': 4})
-         local_path = download_from_hdfs("hdfs_path")
-         bst.load_model(local_path)
-
 .. note:: Consistency issue between XGBoost4J-Spark and other bindings
 
   There is a consistency issue between XGBoost4J-Spark and other language bindings of XGBoost.

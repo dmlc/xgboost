@@ -505,8 +505,7 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
     Parameters
     ----------
     cache_prefix :
-        Prefix to the cache files, only used in external memory.  It can be either an
-        URI or a file path.
+        Prefix to the cache files, only used in external memory.
     release_data :
         Whether the iterator should release the data during reset. Set it to True if the
         data transformation (converting data to np.float32 type) is expensive.
@@ -2558,8 +2557,7 @@ class Booster:
         return ctypes2buffer(cptr, length.value)
 
     def load_model(self, fname: ModelIn) -> None:
-        """Load the model from a file or bytearray. Path to file can be local
-        or as an URI.
+        """Load the model from a file or a bytearray.
 
         The model is loaded from XGBoost format which is universal among the various
         XGBoost interfaces. Auxiliary attributes of the Python Booster object (such as

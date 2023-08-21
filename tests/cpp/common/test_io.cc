@@ -63,31 +63,27 @@ TEST(IO, LoadSequentialFile) {
 
   // Generate a JSON file.
   size_t constexpr kRows = 1000, kCols = 100;
-  std::shared_ptr<DMatrix> p_dmat{
-    RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true)};
-  std::unique_ptr<Learner> learner { Learner::Create({p_dmat}) };
+  std::shared_ptr<DMatrix> p_dmat{RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true)};
+  std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
   learner->SetParam("tree_method", "hist");
   learner->Configure();
 
   for (int32_t iter = 0; iter < 10; ++iter) {
     learner->UpdateOneIter(iter, p_dmat);
   }
-  Json out { Object() };
+  Json out{Object()};
   learner->SaveModel(&out);
-  std::string str;
+  std::vector<char> str;
   Json::Dump(out, &str);
 
   std::string tmpfile = tempdir.path + "/model.json";
   {
-    std::unique_ptr<dmlc::Stream> fo(
-        dmlc::Stream::Create(tmpfile.c_str(), "w"));
-    fo->Write(str.c_str(), str.size());
+    std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(tmpfile.c_str(), "w"));
+    fo->Write(str.data(), str.size());
   }
 
-  auto loaded = LoadSequentialFile(tmpfile, true);
+  auto loaded = LoadSequentialFile(tmpfile);
   ASSERT_EQ(loaded, str);
-
-  ASSERT_THROW(LoadSequentialFile("non-exist", true), dmlc::Error);
 }
 
 TEST(IO, Resource) {

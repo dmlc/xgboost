@@ -72,10 +72,6 @@ option(USE_NCCL  "Build with NCCL to enable distributed GPU support." OFF)
 option(BUILD_WITH_SHARED_NCCL "Build with shared NCCL library." OFF)
 set(GPU_COMPUTE_VER "" CACHE STRING
   "Semicolon separated list of compute versions to be built against, e.g. '35;61'")
-## Copied From dmlc
-option(USE_HDFS "Build with HDFS support" OFF)
-option(USE_AZURE "Build with AZURE support" OFF)
-option(USE_S3 "Build with S3 support" OFF)
 ## Sanitizers
 option(USE_SANITIZER "Use santizer flags" OFF)
 option(SANITIZER_PATH "Path to sanitizes.")
