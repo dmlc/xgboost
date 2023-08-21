@@ -28,6 +28,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "../../../src/c_api/c_api_error.h"
 #include "../../../src/c_api/c_api_utils.h"
 
 #define JVM_CHECK_CALL(__expr)                                                 \
@@ -663,28 +664,80 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredict
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    XGBoosterInplacePredict
- * Signature: (J[FIII[[F)I
+ * Method:    XGBoosterPredictFromDense
+ * Signature: (J[FJJFIII[F[[F)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterInplacePredict
-  (JNIEnv *jenv, jclass jcls, jlong jhandle, jfloatArray jdata, jint num_rows, jint num_features, jlong d_matrix_handle,
-                                             jfloat missing, jint option_mask, jint treeLimit, jobjectArray jout) {
-  BoosterHandle handle = (BoosterHandle) jhandle;
-  DMatrixHandle dmat = (DMatrixHandle) d_matrix_handle;
-  jfloat* data = jenv->GetFloatArrayElements(jdata, 0);
-  const bst_ulong *len;
-  float *result;
-  int ret = XGBoosterInplacePredict(handle, data, num_rows, num_features, dmat, missing, option_mask, treeLimit,
-            &len, (const float **) &result);
-  JVM_CHECK_CALL(ret);
-  jenv->ReleaseFloatArrayElements(jdata, data, 0);
-  if (*len) {
-    jsize jlen = (jsize) *len;
-    jfloatArray jarray = jenv->NewFloatArray(jlen);
-    jenv->SetFloatArrayRegion(jarray, 0, jlen, (jfloat *) result);
-    jenv->SetObjectArrayElement(jout, 0, jarray);
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredictFromDense(
+    JNIEnv *jenv, jclass jcls, jlong jhandle, jfloatArray jdata, jlong num_rows, jlong num_features,
+    jfloat missing, jint iteration_begin, jint iteration_end, jint predict_type,
+    jfloatArray jmargin, jobjectArray jout) {
+  API_BEGIN();
+  BoosterHandle handle = reinterpret_cast<BoosterHandle>(jhandle);
+
+  /**
+   * Create array interface.
+   */
+  namespace linalg = xgboost::linalg;
+  jfloat *data = jenv->GetFloatArrayElements(jdata, nullptr);
+  auto t_data = linalg::MakeTensorView(
+      xgboost::Context::kCpuId,
+      xgboost::common::Span{data, static_cast<std::size_t>(num_rows * num_features)}, num_rows,
+      num_features);
+  auto s_array = linalg::ArrayInterfaceStr(t_data);
+
+  /**
+   * Create configuration object.
+   */
+  xgboost::Json config{xgboost::Object{}};
+  config["cache_id"] = xgboost::Integer{};
+  config["type"] = xgboost::Integer{static_cast<std::int32_t>(predict_type)};
+  config["iteration_begin"] = xgboost::Integer{static_cast<xgboost::bst_layer_t>(iteration_begin)};
+  config["iteration_end"] = xgboost::Integer{static_cast<xgboost::bst_layer_t>(iteration_end)};
+  config["missing"] = xgboost::Number{static_cast<float>(missing)};
+  config["strict_shape"] = xgboost::Boolean{true};
+  std::string s_config;
+  xgboost::Json::Dump(config, &s_config);
+
+  /**
+   * Handle base margin
+   */
+  BoosterHandle proxy{nullptr};
+
+  float *margin{nullptr};
+  if (jmargin) {
+    margin = jenv->GetFloatArrayElements(jmargin, nullptr);
+    JVM_CHECK_CALL(XGProxyDMatrixCreate(&proxy));
+    JVM_CHECK_CALL(
+        XGDMatrixSetFloatInfo(proxy, "base_margin", margin, jenv->GetArrayLength(jmargin)));
   }
-  return ret;
+
+  bst_ulong const *out_shape;
+  bst_ulong out_dim;
+  float const *result;
+  auto ret = XGBoosterPredictFromDense(handle, s_array.c_str(), s_config.c_str(), proxy, &out_shape,
+                                       &out_dim, &result);
+
+  jenv->ReleaseFloatArrayElements(jdata, data, 0);
+  if (proxy) {
+    XGDMatrixFree(proxy);
+    jenv->ReleaseFloatArrayElements(jmargin, margin, 0);
+  }
+
+  if (ret != 0) {
+    return ret;
+  }
+
+  std::size_t n{1};
+  for (std::size_t i = 0; i < out_dim; ++i) {
+    n *= out_shape[i];
+  }
+
+  jfloatArray jarray = jenv->NewFloatArray(n);
+
+  jenv->SetFloatArrayRegion(jarray, 0, n, result);
+  jenv->SetObjectArrayElement(jout, 0, jarray);
+
+  API_END();
 }
 
 /*

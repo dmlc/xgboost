@@ -15,16 +15,6 @@ void DMatrixProxy::SetArrayData(char const *c_interface) {
   this->ctx_.gpu_id = Context::kCpuId;
 }
 
-void DMatrixProxy::SetDenseData(const float *data, size_t num_rows,
-                                size_t num_features) {
-  std::shared_ptr<xgboost::data::DenseAdapter> adapter{new xgboost::data::DenseAdapter(
-      data, num_rows, num_features)};
-  this->batch_ = adapter;
-  this->Info().num_col_ = adapter->NumColumns();
-  this->Info().num_row_ = adapter->NumRows();
-  this->ctx_.gpu_id = Context::kCpuId;
-}
-
 void DMatrixProxy::SetCSRData(char const *c_indptr, char const *c_indices,
                               char const *c_values, bst_feature_t n_features, bool on_host) {
   CHECK(on_host) << "Not implemented on device.";
