@@ -11,8 +11,8 @@
 #include "../../../plugin/federated/federated_communicator.h"
 #include "../../../src/collective/communicator-inl.cuh"
 #include "../../../src/collective/device_communicator_adapter.cuh"
-#include "./helpers.h"
 #include "../helpers.h"
+#include "./helpers.h"
 
 namespace xgboost::collective {
 
@@ -43,6 +43,28 @@ void VerifyAllReduceSum() {
 
 TEST_F(FederatedAdapterTest, MGPUAllReduceSum) {
   RunWithFederatedCommunicator(kWorldSize, server_->Address(), &VerifyAllReduceSum);
+}
+
+namespace {
+void VerifyAllGather() {
+  auto const world_size = collective::GetWorldSize();
+  auto const rank = collective::GetRank();
+  auto const device = GPUIDX;
+  common::SetDevice(device);
+  thrust::device_vector<double> send_buffer(1, rank);
+  thrust::device_vector<double> receive_buffer(world_size, 0);
+  collective::AllGather(device, send_buffer.data().get(), receive_buffer.data().get(),
+                        sizeof(double));
+  thrust::host_vector<double> host_buffer = receive_buffer;
+  EXPECT_EQ(host_buffer.size(), world_size);
+  for (auto i = 0; i < world_size; i++) {
+    EXPECT_EQ(host_buffer[i], i);
+  }
+}
+}  // anonymous namespace
+
+TEST_F(FederatedAdapterTest, MGPUAllGather) {
+  RunWithFederatedCommunicator(kWorldSize, server_->Address(), &VerifyAllGather);
 }
 
 namespace {
