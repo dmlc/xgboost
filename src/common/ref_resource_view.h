@@ -35,6 +35,13 @@ class RefResourceView {
   size_type size_{0};
   std::shared_ptr<common::ResourceHandler> mem_{nullptr};
 
+ protected:
+  void Init(value_type* ptr, size_type size, std::shared_ptr<common::ResourceHandler> mem) {
+    ptr_ = ptr;
+    size_ = size;
+    mem_ = std::move(mem);
+  }
+
  public:
   RefResourceView(value_type* ptr, size_type n, std::shared_ptr<common::ResourceHandler> mem)
       : ptr_{ptr}, size_{n}, mem_{std::move(mem)} {
@@ -60,11 +67,11 @@ class RefResourceView {
 
   RefResourceView() = default;
   RefResourceView(RefResourceView const& that) = delete;
-  RefResourceView(RefResourceView&& that) = delete;
   RefResourceView& operator=(RefResourceView const& that) = delete;
   /**
    * @brief We allow move assignment for lazy initialization.
    */
+  RefResourceView(RefResourceView&& that) = default;
   RefResourceView& operator=(RefResourceView&& that) = default;
 
   [[nodiscard]] size_type size() const { return size_; }  // NOLINT
@@ -154,5 +161,33 @@ template <typename T>
   auto resource = std::make_shared<common::MallocResource>(n_elements * sizeof(T));
   return RefResourceView{resource->DataAs<T>(), n_elements, resource, init};
 }
+
+template <typename T>
+class ReallocVector : public RefResourceView<T> {
+  static_assert(!std::is_reference_v<T>);
+  static_assert(!std::is_const_v<T>);
+  static_assert(std::is_trivially_copyable_v<T>);
+
+  using Upper = RefResourceView<T>;
+  using size_type = typename Upper::size_type;    // NOLINT
+  using value_type = typename Upper::value_type;  // NOLINT
+
+ public:
+  ReallocVector() : RefResourceView<T>{MakeFixedVecWithMalloc(0, T{})} {}
+
+  ReallocVector(size_type n, value_type const& init)
+      : RefResourceView<T>{MakeFixedVecWithMalloc(n, init)} {}
+  ReallocVector(ReallocVector const& that) = delete;
+  ReallocVector(ReallocVector&& that) = delete;
+  ReallocVector& operator=(ReallocVector const& that) = delete;
+  ReallocVector& operator=(ReallocVector&& that) = delete;
+
+  void Resize(typename Upper::size_type new_size) {
+    auto resource = std::dynamic_pointer_cast<common::MallocResource>(this->Resource());
+    CHECK(resource);
+    resource->Resize(new_size * sizeof(T));
+    this->Init(resource->template DataAs<T>(), new_size, resource);
+  }
+};
 }  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_REF_RESOURCE_VIEW_H_

@@ -38,7 +38,7 @@ Although XGBoost has native support for said functions, using it for demonstrati
 provides us the opportunity of comparing the result from our own implementation and the
 one from XGBoost internal for learning purposes.  After finishing this tutorial, we should
 be able to provide our own functions for rapid experiments.  And at the end, we will
-provide some notes on non-identy link function along with examples of using custom metric
+provide some notes on non-identity link function along with examples of using custom metric
 and objective with the `scikit-learn` interface.
 
 If we compute the gradient of said objective function:
@@ -165,7 +165,7 @@ Reverse Link Function
 When using builtin objective, the raw prediction is transformed according to the objective
 function.  When a custom objective is provided XGBoost doesn't know its link function so the
 user is responsible for making the transformation for both objective and custom evaluation
-metric.  For objective with identiy link like ``squared error`` this is trivial, but for
+metric.  For objective with identity link like ``squared error`` this is trivial, but for
 other link functions like log link or inverse link the difference is significant.
 
 For the Python package, the behaviour of prediction can be controlled by the
@@ -173,7 +173,7 @@ For the Python package, the behaviour of prediction can be controlled by the
 parameter without a custom objective, the metric function will receive transformed
 prediction since the objective is defined by XGBoost. However, when the custom objective is
 also provided along with that metric, then both the objective and custom metric will
-recieve raw prediction.  The following example provides a comparison between two different
+receive raw prediction.  The following example provides a comparison between two different
 behavior with a multi-class classification model. Firstly we define 2 different Python
 metric functions implementing the same underlying metric for comparison,
 `merror_with_transform` is used when custom objective is also used, otherwise the simpler

@@ -143,7 +143,7 @@ jobs:
         # Set prefix, to use OpenMP library from Conda env
         # See https://github.com/dmlc/xgboost/issues/7039#issuecomment-1025038228
         # to learn why we don't use libomp from Homebrew.
-        cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
+        cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX -DBUILD_DEPRECATED_CLI=ON
         ninja
 
     - name: Install Python package
@@ -190,7 +190,7 @@ jobs:
       run: |
         mkdir build_msvc
         cd build_msvc
-        cmake .. -G"Visual Studio 17 2022" -DCMAKE_CONFIGURATION_TYPES="Release" -A x64 -DGOOGLE_TEST=ON  -DUSE_DMLC_GTEST=ON
+        cmake .. -G"Visual Studio 17 2022" -DCMAKE_CONFIGURATION_TYPES="Release" -A x64 -DGOOGLE_TEST=ON  -DUSE_DMLC_GTEST=ON -DBUILD_DEPRECATED_CLI=ON
         cmake --build . --config Release --parallel $(nproc)
 
     - name: Install Python package
@@ -234,7 +234,7 @@ jobs:
       run: |
         mkdir build
         cd build
-        cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
+        cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX -DBUILD_DEPRECATED_CLI=ON
         ninja
 
     - name: Install Python package

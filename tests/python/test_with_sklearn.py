@@ -792,19 +792,19 @@ def test_kwargs_grid_search():
     from sklearn import datasets
     from sklearn.model_selection import GridSearchCV
 
-    params = {'tree_method': 'hist'}
-    clf = xgb.XGBClassifier(n_estimators=1, learning_rate=1.0, **params)
-    assert clf.get_params()['tree_method'] == 'hist'
-    # 'max_leaves' is not a default argument of XGBClassifier
+    params = {"tree_method": "hist"}
+    clf = xgb.XGBClassifier(n_estimators=3, **params)
+    assert clf.get_params()["tree_method"] == "hist"
+    # 'eta' is not a default argument of XGBClassifier
     # Check we can still do grid search over this parameter
-    search_params = {'max_leaves': range(2, 5)}
+    search_params = {"eta": [0, 0.2, 0.4]}
     grid_cv = GridSearchCV(clf, search_params, cv=5)
     iris = datasets.load_iris()
     grid_cv.fit(iris.data, iris.target)
 
     # Expect unique results for each parameter value
     # This confirms sklearn is able to successfully update the parameter
-    means = grid_cv.cv_results_['mean_test_score']
+    means = grid_cv.cv_results_["mean_test_score"]
     assert len(means) == len(set(means))
 
 
@@ -927,6 +927,25 @@ def save_load_model(model_path):
         with pytest.raises(TypeError):
             xgb_model = xgb.XGBModel()
             xgb_model.load_model(model_path)
+
+    clf = xgb.XGBClassifier(booster="gblinear", early_stopping_rounds=1)
+    clf.fit(X, y, eval_set=[(X, y)])
+    best_iteration = clf.best_iteration
+    best_score = clf.best_score
+    predt_0 = clf.predict(X)
+    clf.save_model(model_path)
+    clf.load_model(model_path)
+    predt_1 = clf.predict(X)
+    np.testing.assert_allclose(predt_0, predt_1)
+    assert clf.best_iteration == best_iteration
+    assert clf.best_score == best_score
+
+    clfpkl = pickle.dumps(clf)
+    clf = pickle.loads(clfpkl)
+    predt_2 = clf.predict(X)
+    np.testing.assert_allclose(predt_0, predt_2)
+    assert clf.best_iteration == best_iteration
+    assert clf.best_score == best_score
 
 
 def test_save_load_model():
@@ -1488,6 +1507,7 @@ def test_evaluation_metric():
         # shape check inside the `merror` function
         clf.fit(X, y, eval_set=[(X, y)])
 
+
 def test_weighted_evaluation_metric():
     from sklearn.datasets import make_hastie_10_2
     from sklearn.metrics import log_loss
@@ -1525,3 +1545,18 @@ def test_weighted_evaluation_metric():
         internal["validation_0"]["logloss"],
         atol=1e-6
     )
+
+
+def test_intercept() -> None:
+    X, y, w = tm.make_regression(256, 3, use_cupy=False)
+    reg = xgb.XGBRegressor()
+    reg.fit(X, y, sample_weight=w)
+    result = reg.intercept_
+    assert result.dtype == np.float32
+    assert result[0] < 0.5
+
+    reg = xgb.XGBRegressor(booster="gblinear")
+    reg.fit(X, y, sample_weight=w)
+    result = reg.intercept_
+    assert result.dtype == np.float32
+    assert result[0] < 0.5

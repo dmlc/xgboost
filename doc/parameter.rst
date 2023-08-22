@@ -46,7 +46,7 @@ General Parameters
     + ``gpu``: Default GPU device selection from the list of available and supported devices. Only ``cuda`` devices are supported currently.
     + ``gpu:<ordinal>``: Default GPU device selection from the list of available and supported devices. Only ``cuda`` devices are supported currently.
 
-    For more information about GPU acceleration, see :doc:`/gpu/index`.
+    For more information about GPU acceleration, see :doc:`/gpu/index`. In distributed environments, ordinal selection is handled by distributed frameworks instead of XGBoost. As a result, using ``cuda:<ordinal>`` will result in an error. Use ``cuda`` instead.
 
 * ``verbosity`` [default=1]
 
@@ -162,7 +162,8 @@ Parameters for Tree Booster
     - ``grow_colmaker``: non-distributed column-based construction of trees.
     - ``grow_histmaker``: distributed tree construction with row-based data splitting based on global proposal of histogram counting.
     - ``grow_quantile_histmaker``: Grow tree using quantized histogram.
-    - ``grow_gpu_hist``: Grow tree with GPU. Enabled when ``tree_method`` is set to ``hist`` along with ``device=cuda``.
+    - ``grow_gpu_hist``:  Enabled when ``tree_method`` is set to ``hist`` along with ``device=cuda``.
+    - ``grow_gpu_approx``: Enabled when ``tree_method`` is set to ``approx`` along with ``device=cuda``.
     - ``sync``: synchronizes trees in all distributed nodes.
     - ``refresh``: refreshes tree's statistics and/or leaf values based on the current data. Note that no random subsampling of data rows is performed.
     - ``prune``: prunes the splits where loss < min_split_loss (or gamma) and nodes that have depth greater than ``max_depth``.
@@ -224,6 +225,15 @@ Parameters for Tree Booster
 
     - ``one_output_per_tree``: One model for each target.
     - ``multi_output_tree``:  Use multi-target trees.
+
+* ``max_cached_hist_node``, [default = 65536]
+
+  Maximum number of cached nodes for CPU histogram.
+
+  .. versionadded:: 2.0.0
+
+  - For most of the cases this parameter should not be set except for growing deep trees
+    on CPU.
 
 .. _cat-param:
 
@@ -319,7 +329,7 @@ Parameters for Linear Booster (``booster=gblinear``)
   - Choice of algorithm to fit linear model
 
     - ``shotgun``: Parallel coordinate descent algorithm based on shotgun algorithm. Uses 'hogwild' parallelism and therefore produces a nondeterministic solution on each run.
-    - ``coord_descent``: Ordinary coordinate descent algorithm. Also multithreaded but still produces a deterministic solution.
+    - ``coord_descent``: Ordinary coordinate descent algorithm. Also multithreaded but still produces a deterministic solution. When the ``device`` parameter is set to ``cuda`` or ``gpu``, a GPU variant would be used.
 
 * ``feature_selector`` [default= ``cyclic``]
 
@@ -344,7 +354,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
   - ``reg:squarederror``: regression with squared loss.
   - ``reg:squaredlogerror``: regression with squared log loss :math:`\frac{1}{2}[log(pred + 1) - log(label + 1)]^2`.  All input labels are required to be greater than -1.  Also, see metric ``rmsle`` for possible issue  with this objective.
-  - ``reg:logistic``: logistic regression.
+  - ``reg:logistic``: logistic regression, output probability
   - ``reg:pseudohubererror``: regression with Pseudo Huber loss, a twice differentiable alternative to absolute loss.
   - ``reg:absoluteerror``: Regression with L1 error. When tree model is used, leaf value is refreshed after tree construction. If used in distributed training, the leaf value is calculated as the mean value from all workers, which is not guaranteed to be optimal.
 

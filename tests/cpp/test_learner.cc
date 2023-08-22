@@ -92,7 +92,7 @@ TEST(Learner, CheckGroup) {
 
   std::shared_ptr<DMatrix> p_mat{RandomDataGenerator{kNumRows, kNumCols, 0.0f}.GenerateDMatrix()};
   std::vector<bst_float> weight(kNumGroups, 1);
-  std::vector<bst_int> group(kNumGroups);
+  std::vector<bst_group_t> group(kNumGroups);
   group[0] = 2;
   group[1] = 3;
   group[2] = 7;
@@ -184,7 +184,7 @@ TEST(Learner, JsonModelIO) {
     fout.close();
 
     auto loaded_str = common::LoadSequentialFile(tmpdir.path + "/model.json");
-    Json loaded = Json::Load(StringView{loaded_str.c_str(), loaded_str.size()});
+    Json loaded = Json::Load(StringView{loaded_str.data(), loaded_str.size()});
 
     learner->LoadModel(loaded);
     learner->Configure();

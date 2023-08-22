@@ -6,20 +6,19 @@
 #ifndef XGBOOST_COMMON_COMMON_H_
 #define XGBOOST_COMMON_COMMON_H_
 
-#include <xgboost/base.h>
-#include <xgboost/logging.h>
-#include <xgboost/span.h>
+#include <algorithm>  // for max
+#include <array>      // for array
+#include <cmath>      // for ceil
+#include <cstddef>    // for size_t
+#include <cstdint>    // for int32_t, int64_t
+#include <sstream>    // for basic_istream, operator<<, istringstream
+#include <string>     // for string, basic_string, getline, char_traits
+#include <tuple>      // for make_tuple
+#include <utility>    // for forward, index_sequence, make_index_sequence
+#include <vector>     // for vector
 
-#include <algorithm>
-#include <exception>
-#include <functional>
-#include <limits>
-#include <numeric>
-#include <sstream>
-#include <string>
-#include <type_traits>
-#include <utility>
-#include <vector>
+#include "xgboost/base.h"     // for XGBOOST_DEVICE
+#include "xgboost/logging.h"  // for LOG, LOG_FATAL, LogMessageFatal
 
 #if defined(__CUDACC__)
 #include <thrust/system/cuda/error.h>
@@ -52,8 +51,7 @@ inline cudaError_t ThrowOnCudaError(cudaError_t code, const char *file,
 #endif  // defined(__CUDACC__)
 }  // namespace dh
 
-namespace xgboost {
-namespace common {
+namespace xgboost::common {
 /*!
  * \brief Split a string by delimiter
  * \param s String to be split.
@@ -69,17 +67,11 @@ inline std::vector<std::string> Split(const std::string& s, char delim) {
   return ret;
 }
 
+void EscapeU8(std::string const &string, std::string *p_buffer);
+
 template <typename T>
 XGBOOST_DEVICE T Max(T a, T b) {
   return a < b ? b : a;
-}
-
-// simple routine to convert any data to string
-template<typename T>
-inline std::string ToString(const T& data) {
-  std::ostringstream os;
-  os << data;
-  return os.str();
 }
 
 template <typename T1, typename T2>
@@ -195,6 +187,5 @@ template <typename Indexable>
 XGBOOST_DEVICE size_t LastOf(size_t group, Indexable const &indptr) {
   return indptr[group + 1] - 1;
 }
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_COMMON_H_

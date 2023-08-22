@@ -34,9 +34,10 @@ DeviceCommunicator* Communicator::GetDevice(int device_ordinal) {
         device_communicator_.reset(new NcclDeviceCommunicator(device_ordinal, false));
         break;
       case CommunicatorType::kFederated:
+      case CommunicatorType::kInMemory:
         device_communicator_.reset(new DeviceCommunicatorAdapter(device_ordinal));
         break;
-      case CommunicatorType::kInMemory:
+      case CommunicatorType::kInMemoryNccl:
         device_communicator_.reset(new NcclDeviceCommunicator(device_ordinal, true));
         break;
       default:

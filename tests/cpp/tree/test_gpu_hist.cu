@@ -13,10 +13,7 @@
 #include "../../../src/common/common.h"
 #include "../../../src/data/ellpack_page.cuh"  // for EllpackPageImpl
 #include "../../../src/data/ellpack_page.h"    // for EllpackPage
-#include "../../../src/data/sparse_page_source.h"
-#include "../../../src/tree/constraints.cuh"
 #include "../../../src/tree/param.h"  // for TrainParam
-#include "../../../src/tree/updater_gpu_common.cuh"
 #include "../../../src/tree/updater_gpu_hist.cu"
 #include "../filesystem.h"  // dmlc::TemporaryDirectory
 #include "../helpers.h"
@@ -94,8 +91,9 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   auto page = BuildEllpackPage(kNRows, kNCols);
   BatchParam batch_param{};
   Context ctx{MakeCUDACtx(0)};
-  GPUHistMakerDevice<GradientSumT> maker(&ctx, /*is_external_memory=*/false, {}, kNRows, param,
-                                         kNCols, kNCols, batch_param, MetaInfo());
+  auto cs = std::make_shared<common::ColumnSampler>(0);
+  GPUHistMakerDevice maker(&ctx, /*is_external_memory=*/false, {}, kNRows, param, cs, kNCols,
+                           batch_param, MetaInfo());
   xgboost::SimpleLCG gen;
   xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
   HostDeviceVector<GradientPair> gpair(kNRows);
@@ -107,13 +105,13 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   gpair.SetDevice(0);
 
   thrust::host_vector<common::CompressedByteT> h_gidx_buffer (page->gidx_buffer.HostVector());
-  maker.row_partitioner.reset(new RowPartitioner(0, kNRows));
+  maker.row_partitioner = std::make_unique<RowPartitioner>(0, kNRows);
 
   maker.hist.Init(0, page->Cuts().TotalBins());
   maker.hist.AllocateHistograms({0});
 
   maker.gpair = gpair.DeviceSpan();
-  maker.quantiser.reset(new GradientQuantiser(maker.gpair, MetaInfo()));
+  maker.quantiser = std::make_unique<GradientQuantiser>(maker.gpair, MetaInfo());
   maker.page = page.get();
 
   maker.InitFeatureGroupsOnce();
@@ -248,6 +246,7 @@ void UpdateTree(Context const* ctx, HostDeviceVector<GradientPair>* gpair, DMatr
 
   ObjInfo task{ObjInfo::kRegression};
   tree::GPUHistMaker hist_maker{ctx, &task};
+  hist_maker.Configure(Args{});
 
   std::vector<HostDeviceVector<bst_node_t>> position(1);
   hist_maker.Update(&param, gpair, dmat, common::Span<HostDeviceVector<bst_node_t>>{position},
@@ -399,14 +398,14 @@ TEST(GpuHist, ConfigIO) {
   std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create("grow_gpu_hist", &ctx, &task)};
   updater->Configure(Args{});
 
-  Json j_updater { Object() };
+  Json j_updater{Object{}};
   updater->SaveConfig(&j_updater);
-  ASSERT_TRUE(IsA<Object>(j_updater["gpu_hist_train_param"]));
+  ASSERT_TRUE(IsA<Object>(j_updater["hist_train_param"]));
   updater->LoadConfig(j_updater);
 
-  Json j_updater_roundtrip { Object() };
+  Json j_updater_roundtrip{Object{}};
   updater->SaveConfig(&j_updater_roundtrip);
-  ASSERT_TRUE(IsA<Object>(j_updater_roundtrip["gpu_hist_train_param"]));
+  ASSERT_TRUE(IsA<Object>(j_updater_roundtrip["hist_train_param"]));
 
   ASSERT_EQ(j_updater, j_updater_roundtrip);
 }
@@ -448,8 +447,11 @@ void VerifyColumnSplit(bst_row_t rows, bst_feature_t cols, RegTree const& expect
   expected_tree.SaveModel(&expected_json);
   ASSERT_EQ(json, expected_json);
 }
+}  // anonymous namespace
 
-void TestColumnSplit(int n_gpus) {
+class MGPUHistTest : public BaseMGPUTest {};
+
+TEST_F(MGPUHistTest, GPUHistColumnSplit) {
   auto constexpr kRows = 32;
   auto constexpr kCols = 16;
 
@@ -466,15 +468,6 @@ void TestColumnSplit(int n_gpus) {
     updater->Update(&param, p_gradients.get(), Xy.get(), position, {&expected_tree});
   }
 
-  RunWithInMemoryCommunicator(n_gpus, VerifyColumnSplit, kRows, kCols, expected_tree);
-}
-}  // anonymous namespace
-
-TEST(GpuHist, MGPUColumnSplit) {
-  auto const n_gpus = common::AllVisibleGPUs();
-  if (n_gpus <= 1) {
-    GTEST_SKIP() << "Skipping MGPUColumnSplit test with # GPUs = " << n_gpus;
-  }
-  TestColumnSplit(n_gpus);
+  DoTest(VerifyColumnSplit, kRows, kCols, expected_tree);
 }
 }  // namespace xgboost::tree

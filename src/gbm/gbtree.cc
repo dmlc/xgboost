@@ -47,15 +47,16 @@ std::string MapTreeMethodToUpdaters(Context const* ctx, TreeMethod tree_method) 
   if (ctx->IsCUDA()) {
     common::AssertGPUSupport();
   }
+
   switch (tree_method) {
     case TreeMethod::kAuto:  // Use hist as default in 2.0
     case TreeMethod::kHist: {
       return ctx->DispatchDevice([] { return "grow_quantile_histmaker"; },
                                  [] { return "grow_gpu_hist"; });
     }
-    case TreeMethod::kApprox:
-      CHECK(ctx->IsCPU()) << "The `approx` tree method is not supported on GPU.";
-      return "grow_histmaker";
+    case TreeMethod::kApprox: {
+      return ctx->DispatchDevice([] { return "grow_histmaker"; }, [] { return "grow_gpu_approx"; });
+    }
     case TreeMethod::kExact:
       CHECK(ctx->IsCPU()) << "The `exact` tree method is not supported on GPU.";
       return "grow_colmaker,prune";
@@ -145,14 +146,6 @@ void GBTree::Configure(Args const& cfg) {
   if (specified_updater_) {
     error::WarnManualUpdater();
   }
-
-  if (model_.learner_model_param->IsVectorLeaf()) {
-    CHECK(tparam_.tree_method == TreeMethod::kHist || tparam_.tree_method == TreeMethod::kAuto)
-        << "Only the hist tree method is supported for building multi-target trees with vector "
-           "leaf.";
-    CHECK(ctx_->IsCPU()) << "GPU is not yet supported for vector leaf.";
-  }
-
   LOG(DEBUG) << "Using tree method: " << static_cast<int>(tparam_.tree_method);
 
   if (!specified_updater_) {
@@ -224,6 +217,13 @@ void GBTree::UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const
 
 void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
                      PredictionCacheEntry* predt, ObjFunction const* obj) {
+  if (model_.learner_model_param->IsVectorLeaf()) {
+    CHECK(tparam_.tree_method == TreeMethod::kHist || tparam_.tree_method == TreeMethod::kAuto)
+        << "Only the hist tree method is supported for building multi-target trees with vector "
+           "leaf.";
+    CHECK(ctx_->IsCPU()) << "GPU is not yet supported for vector leaf.";
+  }
+
   TreesOneIter new_trees;
   bst_target_t const n_groups = model_.learner_model_param->OutputLength();
   monitor_.Start("BoostNewTrees");

@@ -67,12 +67,12 @@ Each point (observation) is coloured based on its feature value. The plot
 hence allows us to see which features have a negative / positive contribution
 on the model prediction, and whether the contribution is different for larger
 or smaller values of the feature. We effectively try to replicate the
-\code{summary_plot} function from https://github.com/slundberg/shap.
+\code{summary_plot} function from https://github.com/shap/shap.
 }
 \examples{
 # See \code{\link{xgb.plot.shap}}.
 }
 \seealso{
 \code{\link{xgb.plot.shap}}, \code{\link{xgb.ggplot.shap.summary}},
-  \url{https://github.com/slundberg/shap}
+  \url{https://github.com/shap/shap}
 }

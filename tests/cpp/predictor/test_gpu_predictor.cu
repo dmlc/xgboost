@@ -60,7 +60,7 @@ void VerifyBasicColumnSplit(std::array<std::vector<float>, 32> const& expected_r
   auto const world_size = collective::GetWorldSize();
   auto const rank = collective::GetRank();
 
-  auto ctx = MakeCUDACtx(rank);
+  auto ctx = MakeCUDACtx(GPUIDX);
   std::unique_ptr<Predictor> predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &ctx));
   predictor->Configure({});
@@ -85,12 +85,9 @@ void VerifyBasicColumnSplit(std::array<std::vector<float>, 32> const& expected_r
 }
 }  // anonymous namespace
 
-TEST(GPUPredictor, MGPUBasicColumnSplit) {
-  auto const n_gpus = common::AllVisibleGPUs();
-  if (n_gpus <= 1) {
-    GTEST_SKIP() << "Skipping MGPUIBasicColumnSplit test with # GPUs = " << n_gpus;
-  }
+class MGPUPredictorTest : public BaseMGPUTest {};
 
+TEST_F(MGPUPredictorTest, BasicColumnSplit) {
   auto ctx = MakeCUDACtx(0);
   std::unique_ptr<Predictor> predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &ctx));
@@ -114,7 +111,7 @@ TEST(GPUPredictor, MGPUBasicColumnSplit) {
     result[i - 1] = out_predictions_h;
   }
 
-  RunWithInMemoryCommunicator(n_gpus, VerifyBasicColumnSplit, result);
+  DoTest(VerifyBasicColumnSplit, result);
 }
 
 TEST(GPUPredictor, EllpackBasic) {

@@ -18,13 +18,13 @@ import numpy as np
 import pytest
 import scipy
 import sklearn
-from hypothesis import HealthCheck, given, note, settings
+from hypothesis import HealthCheck, assume, given, note, settings
 from sklearn.datasets import make_classification, make_regression
 
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.data import _is_cudf_df
-from xgboost.testing.params import hist_parameter_strategy
+from xgboost.testing.params import hist_cache_strategy, hist_parameter_strategy
 from xgboost.testing.shared import (
     get_feature_weights,
     validate_data_initialization,
@@ -36,7 +36,8 @@ pytestmark = [tm.timeout(60), pytest.mark.skipif(**tm.no_dask())]
 import dask
 import dask.array as da
 import dask.dataframe as dd
-from distributed import Client, LocalCluster
+from distributed import Client, LocalCluster, Nanny, Worker
+from distributed.utils_test import async_poll_for, gen_cluster
 from toolz import sliding_window  # dependency of dask
 
 from xgboost.dask import DaskDMatrix
@@ -1459,11 +1460,11 @@ class TestWithDask:
         tree_method: str,
     ) -> None:
         params["tree_method"] = tree_method
+        params["debug_synchronize"] = True
         params = dataset.set_params(params)
-        # It doesn't make sense to distribute a completely
-        # empty dataset.
-        if dataset.X.shape[0] == 0:
-            return
+
+        # It doesn't make sense to distribute a completely empty dataset.
+        assume(dataset.X.shape[0] != 0)
 
         chunk = 128
         y_chunk = chunk if len(dataset.y.shape) == 1 else (chunk, dataset.y.shape[1])
@@ -1482,7 +1483,7 @@ class TestWithDask:
             num_boost_round=num_rounds,
             evals=[(m, "train")],
         )["history"]
-        note(history)
+        note(str(history))
         history = history["train"][dataset.metric]
 
         def is_stump():
@@ -1496,8 +1497,8 @@ class TestWithDask:
 
         # See note on `ObjFunction::UpdateTreeLeaf`.
         update_leaf = dataset.name.endswith("-l1")
-        if update_leaf and len(history) >= 2:
-            assert history[0] >= history[-1]
+        if update_leaf and (is_stump() or minimum_bin()):
+            assert tm.non_increasing(history, tolerance=1e-2)
             return
         elif minimum_bin() and is_stump():
             assert tm.non_increasing(history, tolerance=1e-3)
@@ -1506,18 +1507,27 @@ class TestWithDask:
         # Make sure that it's decreasing
         if is_stump():
             # we might have already got the best score with base_score.
-            assert history[-1] <= history[0]
+            assert history[-1] <= history[0] + 1e-3
         else:
             assert history[-1] < history[0]
 
-    @given(params=hist_parameter_strategy, dataset=tm.make_dataset_strategy())
+    @given(
+        params=hist_parameter_strategy,
+        cache_param=hist_cache_strategy,
+        dataset=tm.make_dataset_strategy(),
+    )
     @settings(
         deadline=None, max_examples=10, suppress_health_check=suppress, print_blob=True
     )
     def test_hist(
-        self, params: Dict, dataset: tm.TestDataset, client: "Client"
+        self,
+        params: Dict[str, Any],
+        cache_param: Dict[str, Any],
+        dataset: tm.TestDataset,
+        client: "Client",
     ) -> None:
         num_rounds = 10
+        params.update(cache_param)
         self.run_updater_test(client, params, num_rounds, dataset, "hist")
 
     def test_quantile_dmatrix(self, client: Client) -> None:
@@ -1577,14 +1587,23 @@ class TestWithDask:
         rmse = result["history"]["Valid"]["rmse"][-1]
         assert rmse < 32.0
 
-    @given(params=hist_parameter_strategy, dataset=tm.make_dataset_strategy())
+    @given(
+        params=hist_parameter_strategy,
+        cache_param=hist_cache_strategy,
+        dataset=tm.make_dataset_strategy()
+    )
     @settings(
         deadline=None, max_examples=10, suppress_health_check=suppress, print_blob=True
     )
     def test_approx(
-        self, client: "Client", params: Dict, dataset: tm.TestDataset
+        self,
+        client: "Client",
+        params: Dict,
+        cache_param: Dict[str, Any],
+        dataset: tm.TestDataset,
     ) -> None:
         num_rounds = 10
+        params.update(cache_param)
         self.run_updater_test(client, params, num_rounds, dataset, "approx")
 
     def test_adaptive(self) -> None:
@@ -2225,3 +2244,38 @@ class TestDaskCallbacks:
             )
             for i in range(1, 10):
                 assert os.path.exists(os.path.join(tmpdir, "model_" + str(i) + ".json"))
+
+
+@gen_cluster(client=True, clean_kwargs={"processes": False, "threads": False}, allow_unclosed=True)
+async def test_worker_left(c, s, a, b):
+    async with Worker(s.address):
+        dx = da.random.random((1000, 10)).rechunk(chunks=(10, None))
+        dy = da.random.random((1000,)).rechunk(chunks=(10,))
+        d_train = await xgb.dask.DaskDMatrix(
+            c, dx, dy,
+        )
+    await async_poll_for(lambda: len(s.workers) == 2, timeout=5)
+    with pytest.raises(RuntimeError, match="Missing"):
+        await xgb.dask.train(
+            c,
+            {},
+            d_train,
+            evals=[(d_train, "train")],
+        )
+
+
+@gen_cluster(client=True, Worker=Nanny, clean_kwargs={"processes": False, "threads": False}, allow_unclosed=True)
+async def test_worker_restarted(c, s, a, b):
+    dx = da.random.random((1000, 10)).rechunk(chunks=(10, None))
+    dy = da.random.random((1000,)).rechunk(chunks=(10,))
+    d_train = await xgb.dask.DaskDMatrix(
+        c, dx, dy,
+    )
+    await c.restart_workers([a.worker_address])
+    with pytest.raises(RuntimeError, match="Missing"):
+        await xgb.dask.train(
+            c,
+            {},
+            d_train,
+            evals=[(d_train, "train")],
+        )

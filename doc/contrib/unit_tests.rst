@@ -169,7 +169,7 @@ supply a specified SANITIZER_PATH.
 
 How to use sanitizers with CUDA support
 =======================================
-Runing XGBoost on CUDA with address sanitizer (asan) will raise memory error.
+Running XGBoost on CUDA with address sanitizer (asan) will raise memory error.
 To use asan with CUDA correctly, you need to configure asan via ASAN_OPTIONS
 environment variable:
 

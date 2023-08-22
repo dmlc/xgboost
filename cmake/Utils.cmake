@@ -127,12 +127,16 @@ endfunction(format_gencode_flags flags)
 # Set CUDA related flags to target.  Must be used after code `format_gencode_flags`.
 function(xgboost_set_cuda_flags target)
   target_compile_options(${target} PRIVATE
-    $<$<COMPILE_LANGUAGE:CUDA>:--default-stream per-thread>
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
     $<$<COMPILE_LANGUAGE:CUDA>:${GEN_CODE}>
     $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>
     $<$<COMPILE_LANGUAGE:CUDA>:-Xfatbin=-compress-all>)
+
+  if (USE_PER_THREAD_DEFAULT_STREAM)
+    target_compile_options(${target} PRIVATE
+            $<$<COMPILE_LANGUAGE:CUDA>:--default-stream per-thread>)
+  endif (USE_PER_THREAD_DEFAULT_STREAM)
 
   if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
     set_property(TARGET ${target} PROPERTY CUDA_ARCHITECTURES ${CMAKE_CUDA_ARCHITECTURES})
@@ -173,7 +177,8 @@ function(xgboost_set_cuda_flags target)
   set_target_properties(${target} PROPERTIES
     CUDA_STANDARD 17
     CUDA_STANDARD_REQUIRED ON
-    CUDA_SEPARABLE_COMPILATION OFF)
+    CUDA_SEPARABLE_COMPILATION OFF
+    CUDA_RUNTIME_LIBRARY Static)
 endfunction(xgboost_set_cuda_flags)
 
 macro(xgboost_link_nccl target)
@@ -275,6 +280,7 @@ macro(xgboost_target_link_libraries target)
 
   if (USE_CUDA)
     xgboost_set_cuda_flags(${target})
+    target_link_libraries(${target} PUBLIC CUDA::cudart_static)
   endif (USE_CUDA)
 
   if (PLUGIN_RMM)
