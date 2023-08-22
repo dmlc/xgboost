@@ -2096,7 +2096,7 @@ class Booster:
             if array.shape[0] != n_samples and is_flatten(array):
                 warnings.warn(
                     "Since 2.1.0, the shape of the gradient and hessian is required to"
-                    " be (n_samples, n_targets) or (n_samples, n_targets).",
+                    " be (n_samples, n_targets) or (n_samples, n_classes).",
                     FutureWarning,
                 )
                 array = array.reshape(n_samples, array.size // n_samples)
