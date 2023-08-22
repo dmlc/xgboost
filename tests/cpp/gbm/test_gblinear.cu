@@ -1,4 +1,4 @@
-/*!
+/**
  * Copyright 2023, XGBoost Contributors
  */
 #include <gtest/gtest.h>
@@ -14,7 +14,7 @@
 
 namespace xgboost {
 TEST(GBlinear, DispatchUpdater) {
-  auto verbosity = 2;
+  auto verbosity = 3;
   std::swap(GlobalConfigThreadLocalStore::Get()->verbosity, verbosity);
 
   auto test = [](std::string device) {

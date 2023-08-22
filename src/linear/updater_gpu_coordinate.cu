@@ -40,9 +40,9 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     FromJson(config.at("linear_train_param"), &tparam_);
     FromJson(config.at("coordinate_param"), &coord_param_);
   }
-  void SaveConfig(Json* p_out) const override {
-    LOG(INFO) << "Save config for GPU updater.";
-    auto& out = *p_out;
+  void SaveConfig(Json *p_out) const override {
+    LOG(DEBUG) << "Save config for GPU updater.";
+    auto &out = *p_out;
     out["linear_train_param"] = ToJson(tparam_);
     out["coordinate_param"] = ToJson(coord_param_);
   }
