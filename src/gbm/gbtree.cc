@@ -146,14 +146,6 @@ void GBTree::Configure(Args const& cfg) {
   if (specified_updater_) {
     error::WarnManualUpdater();
   }
-
-  if (model_.learner_model_param->IsVectorLeaf()) {
-    CHECK(tparam_.tree_method == TreeMethod::kHist || tparam_.tree_method == TreeMethod::kAuto)
-        << "Only the hist tree method is supported for building multi-target trees with vector "
-           "leaf.";
-    CHECK(ctx_->IsCPU()) << "GPU is not yet supported for vector leaf.";
-  }
-
   LOG(DEBUG) << "Using tree method: " << static_cast<int>(tparam_.tree_method);
 
   if (!specified_updater_) {
@@ -225,6 +217,13 @@ void GBTree::UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const
 
 void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
                      PredictionCacheEntry* predt, ObjFunction const* obj) {
+  if (model_.learner_model_param->IsVectorLeaf()) {
+    CHECK(tparam_.tree_method == TreeMethod::kHist || tparam_.tree_method == TreeMethod::kAuto)
+        << "Only the hist tree method is supported for building multi-target trees with vector "
+           "leaf.";
+    CHECK(ctx_->IsCPU()) << "GPU is not yet supported for vector leaf.";
+  }
+
   TreesOneIter new_trees;
   bst_target_t const n_groups = model_.learner_model_param->OutputLength();
   monitor_.Start("BoostNewTrees");
