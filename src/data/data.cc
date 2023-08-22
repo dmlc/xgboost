@@ -4,40 +4,57 @@
  */
 #include "xgboost/data.h"
 
-#include <dmlc/registry.h>
+#include <dmlc/registry.h>  // for DMLC_REGISTRY_ENABLE, DMLC_REGISTRY_LINK_TAG
 
-#include <array>
-#include <cstring>
+#include <algorithm>    // for copy, max, none_of, min
+#include <atomic>       // for atomic
+#include <cmath>        // for abs
+#include <cstdint>      // for uint64_t, int32_t, uint8_t, uint32_t
+#include <cstring>      // for size_t, strcmp, memcpy
+#include <exception>    // for exception
+#include <iostream>     // for operator<<, basic_ostream, basic_ostream::op...
+#include <map>          // for map, operator!=
+#include <numeric>      // for accumulate, partial_sum
+#include <tuple>        // for get, apply
+#include <type_traits>  // for remove_pointer_t, remove_reference
 
-#include "../collective/communicator-inl.h"
-#include "../collective/communicator.h"
-#include "../common/common.h"
-#include "../common/algorithm.h"  // for StableSort
-#include "../common/api_entry.h"  // for XGBAPIThreadLocalEntry
-#include "../common/error_msg.h"  // for InfInData
-#include "../common/group_data.h"
-#include "../common/io.h"
-#include "../common/linalg_op.h"
-#include "../common/math.h"
-#include "../common/numeric.h"  // for Iota
-#include "../common/threading_utils.h"
-#include "../common/version.h"
-#include "../data/adapter.h"
-#include "../data/iterative_dmatrix.h"
-#include "./sparse_page_dmatrix.h"
-#include "./sparse_page_source.h"
-#include "dmlc/io.h"
-#include "file_iterator.h"
-#include "simple_dmatrix.h"
-#include "sparse_page_writer.h"
-#include "validation.h"
-#include "xgboost/c_api.h"
-#include "xgboost/context.h"
-#include "xgboost/host_device_vector.h"
-#include "xgboost/learner.h"
-#include "xgboost/logging.h"
-#include "xgboost/string_view.h"
-#include "xgboost/version_config.h"
+#include "../collective/communicator-inl.h"  // for GetRank, GetWorldSize, Allreduce, IsFederated
+#include "../collective/communicator.h"      // for Operation
+#include "../common/algorithm.h"             // for StableSort
+#include "../common/api_entry.h"             // for XGBAPIThreadLocalEntry
+#include "../common/common.h"                // for Split
+#include "../common/error_msg.h"             // for GroupSize, GroupWeight, InfInData
+#include "../common/group_data.h"            // for ParallelGroupBuilder
+#include "../common/io.h"                    // for PeekableInStream
+#include "../common/linalg_op.h"             // for ElementWiseTransformHost
+#include "../common/math.h"                  // for CheckNAN
+#include "../common/numeric.h"               // for Iota, RunLengthEncode
+#include "../common/threading_utils.h"       // for ParallelFor
+#include "../common/version.h"               // for Version
+#include "../data/adapter.h"                 // for COOTuple, FileAdapter, IsValidFunctor
+#include "../data/iterative_dmatrix.h"       // for IterativeDMatrix
+#include "./sparse_page_dmatrix.h"           // for SparsePageDMatrix
+#include "array_interface.h"                 // for ArrayInterfaceHandler, ArrayInterface, Dispa...
+#include "dmlc/base.h"                       // for BeginPtr
+#include "dmlc/common.h"                     // for OMPException
+#include "dmlc/data.h"                       // for Parser
+#include "dmlc/endian.h"                     // for ByteSwap, DMLC_IO_NO_ENDIAN_SWAP
+#include "dmlc/io.h"                         // for Stream
+#include "dmlc/thread_local.h"               // for ThreadLocalStore
+#include "ellpack_page.h"                    // for EllpackPage
+#include "file_iterator.h"                   // for ValidateFileFormat, FileIterator, Next, Reset
+#include "gradient_index.h"                  // for GHistIndexMatrix
+#include "simple_dmatrix.h"                  // for SimpleDMatrix
+#include "sparse_page_writer.h"              // for SparsePageFormatReg
+#include "validation.h"                      // for LabelsCheck, WeightsCheck, ValidateQueryGroup
+#include "xgboost/base.h"                    // for bst_group_t, bst_row_t, bst_float, bst_ulong
+#include "xgboost/context.h"                 // for Context
+#include "xgboost/host_device_vector.h"      // for HostDeviceVector
+#include "xgboost/learner.h"                 // for HostDeviceVector
+#include "xgboost/linalg.h"                  // for Tensor, Stack, TensorView, Vector, ArrayInte...
+#include "xgboost/logging.h"                 // for Error, LogCheck_EQ, CHECK, CHECK_EQ, LOG
+#include "xgboost/span.h"                    // for Span, operator!=, SpanIterator
+#include "xgboost/string_view.h"             // for operator==, operator<<, StringView
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::data::SparsePageFormatReg<::xgboost::SparsePage>);
@@ -414,7 +431,8 @@ void CopyTensorInfoImpl(Context const& ctx, Json arr_interface, linalg::Tensor<T
     p_out->Reshape(array.shape);
     return;
   }
-  CHECK(array.valid.Size() == 0) << "Meta info like label or weight can not have missing value.";
+  CHECK_EQ(array.valid.Capacity(), 0)
+      << "Meta info like label or weight can not have missing value.";
   if (array.is_contiguous && array.type == ToDType<T>::kType) {
     // Handle contigious
     p_out->ModifyInplace([&](HostDeviceVector<T>* data, common::Span<size_t, D> shape) {
@@ -491,7 +509,7 @@ void MetaInfo::SetInfoFromHost(Context const& ctx, StringView key, Json arr) {
   }
   // uint info
   if (key == "group") {
-    linalg::Tensor<bst_group_t, 1> t;
+    linalg::Vector<bst_group_t> t;
     CopyTensorInfoImpl(ctx, arr, &t);
     auto const& h_groups = t.Data()->HostVector();
     group_ptr_.clear();
@@ -516,6 +534,7 @@ void MetaInfo::SetInfoFromHost(Context const& ctx, StringView key, Json arr) {
     data::ValidateQueryGroup(group_ptr_);
     return;
   }
+
   // float info
   linalg::Tensor<float, 1> t;
   CopyTensorInfoImpl<1>(ctx, arr, &t);
@@ -698,6 +717,9 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_col
     this->feature_type_names = that.feature_type_names;
     auto &h_feature_types = feature_types.HostVector();
     LoadFeatureType(this->feature_type_names, &h_feature_types);
+  } else if (!that.feature_types.Empty()) {
+    this->feature_types.Resize(that.feature_types.Size());
+    this->feature_types.Copy(that.feature_types);
   }
   if (!that.feature_weights.Empty()) {
     this->feature_weights.Resize(that.feature_weights.Size());
@@ -714,58 +736,67 @@ void MetaInfo::SynchronizeNumberOfColumns() {
   }
 }
 
+namespace {
+template <typename T>
+void CheckDevice(std::int32_t device, HostDeviceVector<T> const& v) {
+  bool valid =
+      v.DeviceIdx() == Context::kCpuId || device == Context::kCpuId || v.DeviceIdx() == device;
+  if (!valid) {
+    LOG(FATAL) << "Invalid device ordinal. Data is associated with a different device ordinal than "
+                  "the booster. The device ordinal of the data is: "
+               << v.DeviceIdx() << "; the device ordinal of the Booster is: " << device;
+  }
+}
+
+template <typename T, std::int32_t D>
+void CheckDevice(std::int32_t device, linalg::Tensor<T, D> const& v) {
+  CheckDevice(device, *v.Data());
+}
+}  // anonymous namespace
+
 void MetaInfo::Validate(std::int32_t device) const {
   if (group_ptr_.size() != 0 && weights_.Size() != 0) {
-    CHECK_EQ(group_ptr_.size(), weights_.Size() + 1)
-        << "Size of weights must equal to number of groups when ranking "
-           "group is used.";
+    CHECK_EQ(group_ptr_.size(), weights_.Size() + 1) << error::GroupWeight();
     return;
   }
   if (group_ptr_.size() != 0) {
     CHECK_EQ(group_ptr_.back(), num_row_)
-        << "Invalid group structure.  Number of rows obtained from groups "
-           "doesn't equal to actual number of rows given by data.";
+        << error::GroupSize() << "the actual number of rows given by data.";
   }
-  auto check_device = [device](HostDeviceVector<float> const& v) {
-    CHECK(v.DeviceIdx() == Context::kCpuId || device == Context::kCpuId || v.DeviceIdx() == device)
-        << "Data is resided on a different device than `gpu_id`. "
-        << "Device that data is on: " << v.DeviceIdx() << ", "
-        << "`gpu_id` for XGBoost: " << device;
-  };
 
   if (weights_.Size() != 0) {
     CHECK_EQ(weights_.Size(), num_row_)
         << "Size of weights must equal to number of rows.";
-    check_device(weights_);
+    CheckDevice(device, weights_);
     return;
   }
   if (labels.Size() != 0) {
     CHECK_EQ(labels.Shape(0), num_row_) << "Size of labels must equal to number of rows.";
-    check_device(*labels.Data());
+    CheckDevice(device, labels);
     return;
   }
   if (labels_lower_bound_.Size() != 0) {
     CHECK_EQ(labels_lower_bound_.Size(), num_row_)
         << "Size of label_lower_bound must equal to number of rows.";
-    check_device(labels_lower_bound_);
+    CheckDevice(device, labels_lower_bound_);
     return;
   }
   if (feature_weights.Size() != 0) {
     CHECK_EQ(feature_weights.Size(), num_col_)
         << "Size of feature_weights must equal to number of columns.";
-    check_device(feature_weights);
+    CheckDevice(device, feature_weights);
   }
   if (labels_upper_bound_.Size() != 0) {
     CHECK_EQ(labels_upper_bound_.Size(), num_row_)
         << "Size of label_upper_bound must equal to number of rows.";
-    check_device(labels_upper_bound_);
+    CheckDevice(device, labels_upper_bound_);
     return;
   }
   CHECK_LE(num_nonzero_, num_col_ * num_row_);
   if (base_margin_.Size() != 0) {
     CHECK_EQ(base_margin_.Size() % num_row_, 0)
         << "Size of base margin must be a multiple of number of rows.";
-    check_device(*base_margin_.Data());
+    CheckDevice(device, base_margin_);
   }
 }
 
@@ -795,10 +826,10 @@ DMatrix::~DMatrix() {
   }
 }
 
-DMatrix *TryLoadBinary(std::string fname, bool silent) {
-  int magic;
-  std::unique_ptr<dmlc::Stream> fi(
-      dmlc::Stream::Create(fname.c_str(), "r", true));
+namespace {
+DMatrix* TryLoadBinary(std::string fname, bool silent) {
+  std::int32_t magic;
+  std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r", true));
   if (fi != nullptr) {
     common::PeekableInStream is(fi.get());
     if (is.PeekRead(&magic, sizeof(magic)) == sizeof(magic)) {
@@ -806,11 +837,10 @@ DMatrix *TryLoadBinary(std::string fname, bool silent) {
         dmlc::ByteSwap(&magic, sizeof(magic), 1);
       }
       if (magic == data::SimpleDMatrix::kMagic) {
-        DMatrix *dmat = new data::SimpleDMatrix(&is);
+        DMatrix* dmat = new data::SimpleDMatrix(&is);
         if (!silent) {
-          LOG(CONSOLE) << dmat->Info().num_row_ << 'x' << dmat->Info().num_col_
-                       << " matrix with " << dmat->Info().num_nonzero_
-                       << " entries loaded from " << fname;
+          LOG(CONSOLE) << dmat->Info().num_row_ << 'x' << dmat->Info().num_col_ << " matrix with "
+                       << dmat->Info().num_nonzero_ << " entries loaded from " << fname;
         }
         return dmat;
       }
@@ -818,6 +848,7 @@ DMatrix *TryLoadBinary(std::string fname, bool silent) {
   }
   return nullptr;
 }
+}  // namespace
 
 DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_split_mode) {
   auto need_split = false;
@@ -829,7 +860,7 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
   }
 
   std::string fname, cache_file;
-  size_t dlm_pos = uri.find('#');
+  auto dlm_pos = uri.find('#');
   if (dlm_pos != std::string::npos) {
     cache_file = uri.substr(dlm_pos + 1, uri.length());
     fname = uri.substr(0, dlm_pos);
@@ -841,14 +872,11 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
       for (size_t i = 0; i < cache_shards.size(); ++i) {
         size_t pos = cache_shards[i].rfind('.');
         if (pos == std::string::npos) {
-          os << cache_shards[i]
-             << ".r" << collective::GetRank()
-             << "-" <<  collective::GetWorldSize();
+          os << cache_shards[i] << ".r" << collective::GetRank() << "-"
+             << collective::GetWorldSize();
         } else {
-          os << cache_shards[i].substr(0, pos)
-             << ".r" << collective::GetRank()
-             << "-" <<  collective::GetWorldSize()
-             << cache_shards[i].substr(pos, cache_shards[i].length());
+          os << cache_shards[i].substr(0, pos) << ".r" << collective::GetRank() << "-"
+             << collective::GetWorldSize() << cache_shards[i].substr(pos, cache_shards[i].length());
         }
         if (i + 1 != cache_shards.size()) {
           os << ':';
@@ -879,12 +907,12 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
     LOG(CONSOLE) << "Load part of data " << partid << " of " << npart << " parts";
   }
 
-  data::ValidateFileFormat(fname);
-  DMatrix* dmat {nullptr};
+  DMatrix* dmat{nullptr};
 
   if (cache_file.empty()) {
-    std::unique_ptr<dmlc::Parser<uint32_t>> parser(
-        dmlc::Parser<uint32_t>::Create(fname.c_str(), partid, npart, "auto"));
+    fname = data::ValidateFileFormat(fname);
+    std::unique_ptr<dmlc::Parser<std::uint32_t>> parser(
+        dmlc::Parser<std::uint32_t>::Create(fname.c_str(), partid, npart, "auto"));
     data::FileAdapter adapter(parser.get());
     dmat = DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), Context{}.Threads(),
                            cache_file, data_split_mode);
@@ -1025,6 +1053,8 @@ SparsePage SparsePage::GetTranspose(int num_columns, int32_t n_threads) const {
 bool SparsePage::IsIndicesSorted(int32_t n_threads) const {
   auto& h_offset = this->offset.HostVector();
   auto& h_data = this->data.HostVector();
+  n_threads = std::max(std::min(static_cast<std::size_t>(n_threads), this->Size()),
+                       static_cast<std::size_t>(1));
   std::vector<int32_t> is_sorted_tloc(n_threads, 0);
   common::ParallelFor(this->Size(), n_threads, [&](auto i) {
     auto beg = h_offset[i];

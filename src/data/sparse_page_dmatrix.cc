@@ -8,7 +8,6 @@
 #include "./sparse_page_dmatrix.h"
 
 #include "../collective/communicator-inl.h"
-#include "./simple_batch_iterator.h"
 #include "batch_utils.h"  // for RegenGHist
 #include "gradient_index.h"
 
@@ -165,7 +164,10 @@ BatchSet<SortedCSCPage> SparsePageDMatrix::GetSortedColumnBatches(Context const 
 
 BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(Context const *ctx,
                                                                const BatchParam &param) {
-  CHECK_GE(param.max_bin, 2);
+  if (param.Initialized()) {
+    CHECK_GE(param.max_bin, 2);
+  }
+  detail::CheckEmpty(batch_param_, param);
   auto id = MakeCache(this, ".gradient_index.page", cache_prefix_, &cache_info_);
   this->InitializeSparsePage(ctx);
   if (!cache_info_.at(id)->written || detail::RegenGHist(batch_param_, param)) {

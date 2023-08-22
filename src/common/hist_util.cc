@@ -8,12 +8,12 @@
 
 #include <vector>
 
-#include "../common/common.h"
-#include "column_matrix.h"
+#include "../data/adapter.h"         // for SparsePageAdapterBatch
+#include "../data/gradient_index.h"  // for GHistIndexMatrix
 #include "quantile.h"
 #include "xgboost/base.h"
-#include "xgboost/context.h"  // Context
-#include "xgboost/data.h"     // SparsePage, SortedCSCPage
+#include "xgboost/context.h"  // for Context
+#include "xgboost/data.h"     // for SparsePage, SortedCSCPage
 
 #if defined(XGBOOST_MM_PREFETCH_PRESENT)
   #include <xmmintrin.h>
@@ -24,15 +24,13 @@
   #define PREFETCH_READ_T0(addr) do {} while (0)
 #endif  // defined(XGBOOST_MM_PREFETCH_PRESENT)
 
-namespace xgboost {
-namespace common {
-
+namespace xgboost::common {
 HistogramCuts::HistogramCuts() {
   cut_ptrs_.HostVector().emplace_back(0);
 }
 
 HistogramCuts SketchOnDMatrix(Context const *ctx, DMatrix *m, bst_bin_t max_bins, bool use_sorted,
-                              Span<float> const hessian) {
+                              Span<float const> hessian) {
   HistogramCuts out;
   auto const &info = m->Info();
   auto n_threads = ctx->Threads();
@@ -70,24 +68,13 @@ HistogramCuts SketchOnDMatrix(Context const *ctx, DMatrix *m, bst_bin_t max_bins
 }
 
 /*!
- * \brief fill a histogram by zeros in range [begin, end)
- */
-void InitilizeHistByZeroes(GHistRow hist, size_t begin, size_t end) {
-#if defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1
-  std::fill(hist.begin() + begin, hist.begin() + end, xgboost::GradientPairPrecise());
-#else  // defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1
-  memset(hist.data() + begin, '\0', (end - begin) * sizeof(xgboost::GradientPairPrecise));
-#endif  // defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1
-}
-
-/*!
  * \brief Increment hist as dst += add in range [begin, end)
  */
-void IncrementHist(GHistRow dst, const GHistRow add, size_t begin, size_t end) {
-  double* pdst = reinterpret_cast<double*>(dst.data());
+void IncrementHist(GHistRow dst, ConstGHistRow add, std::size_t begin, std::size_t end) {
+  double *pdst = reinterpret_cast<double *>(dst.data());
   const double *padd = reinterpret_cast<const double *>(add.data());
 
-  for (size_t i = 2 * begin; i < 2 * end; ++i) {
+  for (std::size_t i = 2 * begin; i < 2 * end; ++i) {
     pdst[i] += padd[i];
   }
 }
@@ -209,18 +196,23 @@ void RowsWiseBuildHistKernel(Span<GradientPair const> gpair,
 
   const size_t size = row_indices.Size();
   const size_t *rid = row_indices.begin;
-  auto const *pgh = reinterpret_cast<const float *>(gpair.data());
+  auto const *p_gpair = reinterpret_cast<const float *>(gpair.data());
   const BinIdxType *gradient_index = gmat.index.data<BinIdxType>();
 
   auto const &row_ptr = gmat.row_ptr.data();
   auto base_rowid = gmat.base_rowid;
-  const uint32_t *offsets = gmat.index.Offset();
-  auto get_row_ptr = [&](size_t ridx) {
+  uint32_t const *offsets = gmat.index.Offset();
+  // There's no feature-based compression if missing value is present.
+  if (kAnyMissing) {
+    CHECK(!offsets);
+  } else {
+    CHECK(offsets);
+  }
+
+  auto get_row_ptr = [&](bst_row_t ridx) {
     return kFirstPage ? row_ptr[ridx] : row_ptr[ridx - base_rowid];
   };
-  auto get_rid = [&](size_t ridx) {
-    return kFirstPage ? ridx : (ridx - base_rowid);
-  };
+  auto get_rid = [&](bst_row_t ridx) { return kFirstPage ? ridx : (ridx - base_rowid); };
 
   const size_t n_features =
       get_row_ptr(row_indices.begin[0] + 1) - get_row_ptr(row_indices.begin[0]);
@@ -230,7 +222,7 @@ void RowsWiseBuildHistKernel(Span<GradientPair const> gpair,
                           // So we need to multiply each row-index/bin-index by 2
                           // to work with gradient pairs as a singe row FP array
 
-  for (size_t i = 0; i < size; ++i) {
+  for (std::size_t i = 0; i < size; ++i) {
     const size_t icol_start =
         kAnyMissing ? get_row_ptr(rid[i]) : get_rid(rid[i]) * n_features;
     const size_t icol_end =
@@ -248,7 +240,7 @@ void RowsWiseBuildHistKernel(Span<GradientPair const> gpair,
           kAnyMissing ? get_row_ptr(rid[i + Prefetch::kPrefetchOffset] + 1)
                       : icol_start_prefetch + n_features;
 
-      PREFETCH_READ_T0(pgh + two * rid[i + Prefetch::kPrefetchOffset]);
+      PREFETCH_READ_T0(p_gpair + two * rid[i + Prefetch::kPrefetchOffset]);
       for (size_t j = icol_start_prefetch; j < icol_end_prefetch;
            j += Prefetch::GetPrefetchStep<uint32_t>()) {
         PREFETCH_READ_T0(gradient_index + j);
@@ -257,12 +249,12 @@ void RowsWiseBuildHistKernel(Span<GradientPair const> gpair,
     const BinIdxType *gr_index_local = gradient_index + icol_start;
 
     // The trick with pgh_t buffer helps the compiler to generate faster binary.
-    const float pgh_t[] = {pgh[idx_gh], pgh[idx_gh + 1]};
+    const float pgh_t[] = {p_gpair[idx_gh], p_gpair[idx_gh + 1]};
     for (size_t j = 0; j < row_size; ++j) {
-      const uint32_t idx_bin = two * (static_cast<uint32_t>(gr_index_local[j]) +
-                                      (kAnyMissing ? 0 : offsets[j]));
+      const uint32_t idx_bin =
+          two * (static_cast<uint32_t>(gr_index_local[j]) + (kAnyMissing ? 0 : offsets[j]));
       auto hist_local = hist_data + idx_bin;
-      *(hist_local)     += pgh_t[0];
+      *(hist_local) += pgh_t[0];
       *(hist_local + 1) += pgh_t[1];
     }
   }
@@ -283,12 +275,10 @@ void ColsWiseBuildHistKernel(Span<GradientPair const> gpair,
   auto const &row_ptr = gmat.row_ptr.data();
   auto base_rowid = gmat.base_rowid;
   const uint32_t *offsets = gmat.index.Offset();
-  auto get_row_ptr = [&](size_t ridx) {
+  auto get_row_ptr = [&](bst_row_t ridx) {
     return kFirstPage ? row_ptr[ridx] : row_ptr[ridx - base_rowid];
   };
-  auto get_rid = [&](size_t ridx) {
-    return kFirstPage ? ridx : (ridx - base_rowid);
-  };
+  auto get_rid = [&](bst_row_t ridx) { return kFirstPage ? ridx : (ridx - base_rowid); };
 
   const size_t n_features = gmat.cut.Ptrs().size() - 1;
   const size_t n_columns = n_features;
@@ -350,9 +340,8 @@ void BuildHistDispatch(Span<GradientPair const> gpair, const RowSetCollection::E
 }
 
 template <bool any_missing>
-void GHistBuilder::BuildHist(Span<GradientPair const> gpair,
-                             const RowSetCollection::Elem row_indices, const GHistIndexMatrix &gmat,
-                             GHistRow hist, bool force_read_by_column) const {
+void BuildHist(Span<GradientPair const> gpair, const RowSetCollection::Elem row_indices,
+               const GHistIndexMatrix &gmat, GHistRow hist, bool force_read_by_column) {
   /* force_read_by_column is used for testing the columnwise building of histograms.
    * default force_read_by_column = false
    */
@@ -369,14 +358,13 @@ void GHistBuilder::BuildHist(Span<GradientPair const> gpair,
       });
 }
 
-template void GHistBuilder::BuildHist<true>(Span<GradientPair const> gpair,
-                                            const RowSetCollection::Elem row_indices,
-                                            const GHistIndexMatrix &gmat, GHistRow hist,
-                                            bool force_read_by_column) const;
+template void BuildHist<true>(Span<GradientPair const> gpair,
+                              const RowSetCollection::Elem row_indices,
+                              const GHistIndexMatrix &gmat, GHistRow hist,
+                              bool force_read_by_column);
 
-template void GHistBuilder::BuildHist<false>(Span<GradientPair const> gpair,
-                                             const RowSetCollection::Elem row_indices,
-                                             const GHistIndexMatrix &gmat, GHistRow hist,
-                                             bool force_read_by_column) const;
-}  // namespace common
-}  // namespace xgboost
+template void BuildHist<false>(Span<GradientPair const> gpair,
+                               const RowSetCollection::Elem row_indices,
+                               const GHistIndexMatrix &gmat, GHistRow hist,
+                               bool force_read_by_column);
+}  // namespace xgboost::common

@@ -37,3 +37,7 @@ The sliced model is a copy of selected trees, that means the model itself is imm
 during slicing.  This feature is the basis of `save_best` option in early stopping
 callback. See :ref:`sphx_glr_python_examples_individual_trees.py` for a worked example on
 how to combine prediction with sliced trees.
+
+.. note::
+
+   The returned model slice doesn't contain attributes like :py:class:`~xgboost.Booster.best_iteration` and :py:class:`~xgboost.Booster.best_score`.

@@ -6,6 +6,7 @@ set -x
 spark_version=$1
 use_cuda=$2
 gpu_arch=$3
+use_scala213=$4
 
 gpu_options=""
 if [ "x$use_cuda" == "x-Duse.cuda=ON" ]; then
@@ -22,7 +23,13 @@ export RABIT_MOCK=ON
 if [ "x$gpu_arch" != "x" ]; then
   export GPU_ARCH_FLAG=$gpu_arch
 fi
-mvn --no-transfer-progress package -Dspark.version=${spark_version} $gpu_options
+
+mvn_profile_string=""
+if [ "x$use_scala213" != "x" ]; then
+  export mvn_profile_string="-Pdefault,scala-2.13"
+fi
+
+mvn --no-transfer-progress package $mvn_profile_string -Dspark.version=${spark_version} $gpu_options
 
 set +x
 set +e

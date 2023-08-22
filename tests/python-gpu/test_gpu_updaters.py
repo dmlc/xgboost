@@ -7,29 +7,24 @@ from hypothesis import assume, given, note, settings, strategies
 
 import xgboost as xgb
 from xgboost import testing as tm
-from xgboost.testing.params import cat_parameter_strategy, hist_parameter_strategy
-from xgboost.testing.updater import check_init_estimation, check_quantile_loss
+from xgboost.testing.params import (
+    cat_parameter_strategy,
+    exact_parameter_strategy,
+    hist_parameter_strategy,
+)
+from xgboost.testing.updater import (
+    check_categorical_missing,
+    check_categorical_ohe,
+    check_get_quantile_cut,
+    check_init_estimation,
+    check_quantile_loss,
+    train_result,
+)
 
 sys.path.append("tests/python")
 import test_updaters as test_up
 
 pytestmark = tm.timeout(30)
-
-
-def train_result(param, dmat: xgb.DMatrix, num_rounds: int) -> dict:
-    result: xgb.callback.TrainingCallback.EvalsLog = {}
-    booster = xgb.train(
-        param,
-        dmat,
-        num_rounds,
-        [(dmat, "train")],
-        verbose_eval=False,
-        evals_result=result,
-    )
-    assert booster.num_features() == dmat.num_col()
-    assert booster.num_boosted_rounds() == num_rounds
-
-    return result
 
 
 class TestGPUUpdatersMulti:
@@ -41,20 +36,53 @@ class TestGPUUpdatersMulti:
         param["tree_method"] = "gpu_hist"
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), num_rounds)
-        note(result)
+        note(str(result))
         assert tm.non_increasing(result["train"][dataset.metric])
 
 
 class TestGPUUpdaters:
     cputest = test_up.TestTreeMethod()
 
-    @given(hist_parameter_strategy, strategies.integers(1, 20), tm.dataset_strategy)
+    @given(
+        exact_parameter_strategy,
+        hist_parameter_strategy,
+        strategies.integers(1, 20),
+        tm.make_dataset_strategy(),
+    )
     @settings(deadline=None, max_examples=50, print_blob=True)
-    def test_gpu_hist(self, param, num_rounds, dataset):
-        param["tree_method"] = "gpu_hist"
+    def test_gpu_hist(
+        self,
+        param: Dict[str, Any],
+        hist_param: Dict[str, Any],
+        num_rounds: int,
+        dataset: tm.TestDataset,
+    ) -> None:
+        param.update({"tree_method": "hist", "device": "cuda"})
+        param.update(hist_param)
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), num_rounds)
-        note(result)
+        note(str(result))
+        assert tm.non_increasing(result["train"][dataset.metric])
+
+    @given(
+        exact_parameter_strategy,
+        hist_parameter_strategy,
+        strategies.integers(1, 20),
+        tm.make_dataset_strategy(),
+    )
+    @settings(deadline=None, print_blob=True)
+    def test_gpu_approx(
+        self,
+        param: Dict[str, Any],
+        hist_param: Dict[str, Any],
+        num_rounds: int,
+        dataset: tm.TestDataset,
+    ) -> None:
+        param.update({"tree_method": "approx", "device": "cuda"})
+        param.update(hist_param)
+        param = dataset.set_params(param)
+        result = train_result(param, dataset.get_dmat(), num_rounds)
+        note(str(result))
         assert tm.non_increasing(result["train"][dataset.metric])
 
     @given(tm.sparse_datasets_strategy)
@@ -62,24 +90,28 @@ class TestGPUUpdaters:
     def test_sparse(self, dataset):
         param = {"tree_method": "hist", "max_bin": 64}
         hist_result = train_result(param, dataset.get_dmat(), 16)
-        note(hist_result)
-        assert tm.non_increasing(hist_result['train'][dataset.metric])
+        note(str(hist_result))
+        assert tm.non_increasing(hist_result["train"][dataset.metric])
 
         param = {"tree_method": "gpu_hist", "max_bin": 64}
         gpu_hist_result = train_result(param, dataset.get_dmat(), 16)
-        note(gpu_hist_result)
-        assert tm.non_increasing(gpu_hist_result['train'][dataset.metric])
+        note(str(gpu_hist_result))
+        assert tm.non_increasing(gpu_hist_result["train"][dataset.metric])
 
         np.testing.assert_allclose(
             hist_result["train"]["rmse"], gpu_hist_result["train"]["rmse"], rtol=1e-2
         )
 
-    @given(strategies.integers(10, 400), strategies.integers(3, 8),
-           strategies.integers(1, 2), strategies.integers(4, 7))
+    @given(
+        strategies.integers(10, 400),
+        strategies.integers(3, 8),
+        strategies.integers(1, 2),
+        strategies.integers(4, 7),
+    )
     @settings(deadline=None, max_examples=20, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical_ohe(self, rows, cols, rounds, cats):
-        self.cputest.run_categorical_ohe(rows, cols, rounds, cats, "gpu_hist")
+        check_categorical_ohe(rows, cols, rounds, cats, "cuda", "hist")
 
     @given(
         tm.categorical_dataset_strategy,
@@ -89,7 +121,7 @@ class TestGPUUpdaters:
     )
     @settings(deadline=None, max_examples=20, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
-    def test_categorical(
+    def test_categorical_hist(
         self,
         dataset: tm.TestDataset,
         hist_parameters: Dict[str, Any],
@@ -97,7 +129,30 @@ class TestGPUUpdaters:
         n_rounds: int,
     ) -> None:
         cat_parameters.update(hist_parameters)
-        cat_parameters["tree_method"] = "gpu_hist"
+        cat_parameters["tree_method"] = "hist"
+        cat_parameters["device"] = "cuda"
+
+        results = train_result(cat_parameters, dataset.get_dmat(), n_rounds)
+        tm.non_increasing(results["train"]["rmse"])
+
+    @given(
+        tm.categorical_dataset_strategy,
+        hist_parameter_strategy,
+        cat_parameter_strategy,
+        strategies.integers(4, 32),
+    )
+    @settings(deadline=None, max_examples=20, print_blob=True)
+    @pytest.mark.skipif(**tm.no_pandas())
+    def test_categorical_approx(
+        self,
+        dataset: tm.TestDataset,
+        hist_parameters: Dict[str, Any],
+        cat_parameters: Dict[str, Any],
+        n_rounds: int,
+    ) -> None:
+        cat_parameters.update(hist_parameters)
+        cat_parameters["tree_method"] = "approx"
+        cat_parameters["device"] = "cuda"
 
         results = train_result(cat_parameters, dataset.get_dmat(), n_rounds)
         tm.non_increasing(results["train"]["rmse"])
@@ -123,24 +178,25 @@ class TestGPUUpdaters:
     @given(
         strategies.integers(10, 400),
         strategies.integers(3, 8),
-        strategies.integers(4, 7)
+        strategies.integers(4, 7),
     )
     @settings(deadline=None, max_examples=20, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical_missing(self, rows, cols, cats):
-        self.cputest.run_categorical_missing(rows, cols, cats, "gpu_hist")
+        check_categorical_missing(rows, cols, cats, "cuda", "approx")
+        check_categorical_missing(rows, cols, cats, "cuda", "hist")
 
     @pytest.mark.skipif(**tm.no_pandas())
     def test_max_cat(self) -> None:
         self.cputest.run_max_cat("gpu_hist")
 
     def test_categorical_32_cat(self):
-        '''32 hits the bound of integer bitset, so special test'''
+        """32 hits the bound of integer bitset, so special test"""
         rows = 1000
         cols = 10
         cats = 32
         rounds = 4
-        self.cputest.run_categorical_ohe(rows, cols, rounds, cats, "gpu_hist")
+        check_categorical_ohe(rows, cols, rounds, cats, "cuda", "hist")
 
     @pytest.mark.skipif(**tm.no_cupy())
     def test_invalid_category(self):
@@ -150,7 +206,7 @@ class TestGPUUpdaters:
     @given(
         hist_parameter_strategy,
         strategies.integers(1, 20),
-        tm.dataset_strategy
+        tm.make_dataset_strategy(),
     )
     @settings(deadline=None, max_examples=20, print_blob=True)
     def test_gpu_hist_device_dmatrix(
@@ -158,20 +214,20 @@ class TestGPUUpdaters:
     ) -> None:
         # We cannot handle empty dataset yet
         assume(len(dataset.y) > 0)
-        param['tree_method'] = 'gpu_hist'
+        param["tree_method"] = "gpu_hist"
         param = dataset.set_params(param)
         result = train_result(
             param,
             dataset.get_device_dmat(max_bin=param.get("max_bin", None)),
-            num_rounds
+            num_rounds,
         )
-        note(result)
-        assert tm.non_increasing(result['train'][dataset.metric], tolerance=1e-3)
+        note(str(result))
+        assert tm.non_increasing(result["train"][dataset.metric], tolerance=1e-3)
 
     @given(
         hist_parameter_strategy,
         strategies.integers(1, 3),
-        tm.dataset_strategy
+        tm.make_dataset_strategy(),
     )
     @settings(deadline=None, max_examples=10, print_blob=True)
     def test_external_memory(self, param, num_rounds, dataset):
@@ -179,12 +235,12 @@ class TestGPUUpdaters:
             return
         # We cannot handle empty dataset yet
         assume(len(dataset.y) > 0)
-        param['tree_method'] = 'gpu_hist'
+        param["tree_method"] = "gpu_hist"
         param = dataset.set_params(param)
         m = dataset.get_external_dmat()
         external_result = train_result(param, m, num_rounds)
         del m
-        assert tm.non_increasing(external_result['train'][dataset.metric])
+        assert tm.non_increasing(external_result["train"][dataset.metric])
 
     def test_empty_dmatrix_prediction(self):
         # FIXME(trivialfis): This should be done with all updaters
@@ -201,7 +257,7 @@ class TestGPUUpdaters:
             dtrain,
             verbose_eval=True,
             num_boost_round=6,
-            evals=[(dtrain, 'Train')]
+            evals=[(dtrain, "Train")],
         )
 
         kRows = 100
@@ -213,13 +269,13 @@ class TestGPUUpdaters:
         np.testing.assert_allclose(predictions, 0.0, 1e-6)
 
     @pytest.mark.mgpu
-    @given(tm.dataset_strategy, strategies.integers(0, 10))
+    @given(tm.make_dataset_strategy(), strategies.integers(0, 10))
     @settings(deadline=None, max_examples=10, print_blob=True)
     def test_specified_gpu_id_gpu_update(self, dataset, gpu_id):
-        param = {'tree_method': 'gpu_hist', 'gpu_id': gpu_id}
+        param = {"tree_method": "gpu_hist", "gpu_id": gpu_id}
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), 10)
-        assert tm.non_increasing(result['train'][dataset.metric])
+        assert tm.non_increasing(result["train"][dataset.metric])
 
     @pytest.mark.skipif(**tm.no_sklearn())
     @pytest.mark.parametrize("weighted", [True, False])
@@ -258,8 +314,11 @@ class TestGPUUpdaters:
                 "seed": 66,
                 "subsample": 0.5,
                 "gamma": 0.2,
-                "predictor": "auto",
                 "eval_metric": "auc",
             },
             num_boost_round=150,
         )
+
+    @pytest.mark.skipif(**tm.no_cudf())
+    def test_get_quantile_cut(self) -> None:
+        check_get_quantile_cut("gpu_hist")

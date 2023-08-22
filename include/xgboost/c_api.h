@@ -478,7 +478,7 @@ XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy
  * \param config   JSON encoded parameters for DMatrix construction.  Accepted fields are:
  *   - missing:      Which value to represent missing value
  *   - nthread (optional): Number of threads used for initializing DMatrix.
- *   - max_bin (optional):  Maximum number of bins for building histogram.
+ *   - max_bin (optional): Maximum number of bins for building histogram.
  * \param out      The created Device Quantile DMatrix
  *
  * \return 0 when success, -1 when failure happens
@@ -810,7 +810,7 @@ XGB_DLL int XGDMatrixNumCol(DMatrixHandle handle,
  */
 XGB_DLL int XGDMatrixNumNonMissing(DMatrixHandle handle, bst_ulong *out);
 
-/*!
+/**
  * \brief Get the predictors from DMatrix as CSR matrix for testing.  If this is a
  *        quantized DMatrix, quantized values are returned instead.
  *
@@ -819,8 +819,10 @@ XGB_DLL int XGDMatrixNumNonMissing(DMatrixHandle handle, bst_ulong *out);
  * XGBoost. This is to avoid allocating a huge memory buffer that can not be freed until
  * exiting the thread.
  *
+ * @since 1.7.0
+ *
  * \param handle the handle to the DMatrix
- * \param config Json configuration string. At the moment it should be an empty document,
+ * \param config JSON configuration string. At the moment it should be an empty document,
  *               preserved for future use.
  * \param out_indptr  indptr of output CSR matrix.
  * \param out_indices Column index of output CSR matrix.
@@ -830,6 +832,24 @@ XGB_DLL int XGDMatrixNumNonMissing(DMatrixHandle handle, bst_ulong *out);
  */
 XGB_DLL int XGDMatrixGetDataAsCSR(DMatrixHandle const handle, char const *config,
                                   bst_ulong *out_indptr, unsigned *out_indices, float *out_data);
+
+/**
+ * @brief Export the quantile cuts used for training histogram-based models like `hist` and
+ *        `approx`. Useful for model compression.
+ *
+ * @since 2.0.0
+ *
+ * @param handle the handle to the DMatrix
+ * @param config JSON configuration string. At the moment it should be an empty document,
+ *               preserved for future use.
+ *
+ * @param out_indptr indptr of output CSC matrix represented by a JSON encoded
+ *                   __(cuda_)array_interface__.
+ * @param out_data   Data value of CSC matrix represented by a JSON encoded
+ *                   __(cuda_)array_interface__.
+ */
+XGB_DLL int XGDMatrixGetQuantileCut(DMatrixHandle const handle, char const *config,
+                                     char const **out_indptr, char const **out_data);
 
 /** @} */  // End of DMatrix
 
@@ -1067,6 +1087,9 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle, DMatrixHandle dmat
 /**
  * \brief Inplace prediction from CPU dense matrix.
  *
+ * \note If the booster is configured to run on a CUDA device, XGBoost falls back to run
+ *       prediction with DMatrix with a performance warning.
+ *
  * \param handle        Booster handle.
  * \param values        JSON encoded __array_interface__ to values.
  * \param config        See \ref XGBoosterPredictFromDMatrix for more info.
@@ -1090,6 +1113,9 @@ XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, char const *values, 
 
 /**
  * \brief Inplace prediction from CPU CSR matrix.
+ *
+ * \note If the booster is configured to run on a CUDA device, XGBoost falls back to run
+ *       prediction with DMatrix with a performance warning.
  *
  * \param handle        Booster handle.
  * \param indptr        JSON encoded __array_interface__ to row pointer in CSR.
@@ -1116,6 +1142,9 @@ XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle, char const *indptr, ch
 /**
  * \brief Inplace prediction from CUDA Dense matrix (cupy in Python).
  *
+ * \note If the booster is configured to run on a CPU, XGBoost falls back to run
+ *       prediction with DMatrix with a performance warning.
+ *
  * \param handle        Booster handle
  * \param values        JSON encoded __cuda_array_interface__ to values.
  * \param config        See \ref XGBoosterPredictFromDMatrix for more info.
@@ -1136,6 +1165,9 @@ XGB_DLL int XGBoosterPredictFromCudaArray(BoosterHandle handle, char const *valu
 
 /**
  * \brief Inplace prediction from CUDA dense dataframe (cuDF in Python).
+ *
+ * \note If the booster is configured to run on a CPU, XGBoost falls back to run
+ *       prediction with DMatrix with a performance warning.
  *
  * \param handle        Booster handle
  * \param values        List of __cuda_array_interface__ for all columns encoded in JSON list.
@@ -1189,7 +1221,7 @@ XGB_DLL int XGBoosterPredictFromCudaColumnar(BoosterHandle handle, char const *v
  * \brief Load model from existing file
  *
  * \param handle handle
- * \param fname File URI or file name.
+ * \param fname File URI or file name. The string must be UTF-8 encoded.
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGBoosterLoadModel(BoosterHandle handle,
@@ -1198,7 +1230,7 @@ XGB_DLL int XGBoosterLoadModel(BoosterHandle handle,
  * \brief Save model into existing file
  *
  * \param handle handle
- * \param fname File URI or file name.
+ * \param fname File URI or file name. The string must be UTF-8 encoded.
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGBoosterSaveModel(BoosterHandle handle,

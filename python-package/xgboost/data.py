@@ -5,7 +5,7 @@ import ctypes
 import json
 import os
 import warnings
-from typing import Any, Callable, Iterator, List, Optional, Sequence, Tuple, Union, cast
+from typing import Any, Callable, Iterator, List, Optional, Sequence, Tuple, cast
 
 import numpy as np
 
@@ -17,6 +17,7 @@ from ._typing import (
     FloatCompatible,
     NumpyDType,
     PandasDType,
+    TransformedData,
     c_bst_ulong,
 )
 from .compat import DataFrame, lazy_isinstance
@@ -197,6 +198,7 @@ def _from_numpy_array(
     nthread: int,
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
+    data_split_mode: DataSplitMode = DataSplitMode.ROW,
 ) -> DispatchedDataBackendReturnType:
     """Initialize data from a 2-D numpy matrix."""
     _check_data_shape(data)
@@ -205,7 +207,11 @@ def _from_numpy_array(
     _check_call(
         _LIB.XGDMatrixCreateFromDense(
             _array_interface(data),
-            make_jcargs(missing=float(missing), nthread=int(nthread)),
+            make_jcargs(
+                missing=float(missing),
+                nthread=int(nthread),
+                data_split_mode=int(data_split_mode),
+            ),
             ctypes.byref(handle),
         )
     )
@@ -882,7 +888,7 @@ def _transform_cupy_array(data: DataType) -> CupyT:
 
     if not hasattr(data, "__cuda_array_interface__") and hasattr(data, "__array__"):
         data = cupy.array(data, copy=False)
-    if data.dtype.hasobject or data.dtype in [cupy.float16, cupy.bool_]:
+    if data.dtype.hasobject or data.dtype in [cupy.bool_]:
         data = data.astype(cupy.float32, copy=False)
     return data
 
@@ -1046,7 +1052,9 @@ def dispatch_data_backend(
             data.tocsr(), missing, threads, feature_names, feature_types
         )
     if _is_numpy_array(data):
-        return _from_numpy_array(data, missing, threads, feature_names, feature_types)
+        return _from_numpy_array(
+            data, missing, threads, feature_names, feature_types, data_split_mode
+        )
     if _is_uri(data):
         return _from_uri(data, missing, feature_names, feature_types, data_split_mode)
     if _is_list(data):
@@ -1261,12 +1269,7 @@ def _proxy_transform(
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
     enable_categorical: bool,
-) -> Tuple[
-    Union[bool, ctypes.c_void_p, np.ndarray],
-    Optional[list],
-    Optional[FeatureNames],
-    Optional[FeatureTypes],
-]:
+) -> TransformedData:
     if _is_cudf_df(data) or _is_cudf_ser(data):
         return _transform_cudf_df(
             data, feature_names, feature_types, enable_categorical

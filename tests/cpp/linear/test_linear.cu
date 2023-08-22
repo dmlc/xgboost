@@ -13,7 +13,7 @@ TEST(Linear, GPUCoordinate) {
   size_t constexpr kCols = 10;
 
   auto mat = xgboost::RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
-  auto ctx = CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(0);
 
   LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
   auto updater = std::unique_ptr<xgboost::LinearUpdater>(

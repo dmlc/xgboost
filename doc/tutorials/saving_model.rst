@@ -163,7 +163,7 @@ Will print out something similar to (not actual output as it's too long for demo
     {
       "Learner": {
         "generic_parameter": {
-          "gpu_id": "0",
+          "device": "cuda:0",
           "gpu_page_size": "0",
           "n_jobs": "0",
           "random_state": "0",
@@ -173,9 +173,8 @@ Will print out something similar to (not actual output as it's too long for demo
         "gradient_booster": {
           "gbtree_train_param": {
             "num_parallel_tree": "1",
-            "predictor": "gpu_predictor",
             "process_type": "default",
-            "tree_method": "gpu_hist",
+            "tree_method": "hist",
             "updater": "grow_gpu_hist",
             "updater_seq": "grow_gpu_hist"
           },

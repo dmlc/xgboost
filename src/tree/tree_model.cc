@@ -213,7 +213,7 @@ std::vector<bst_cat_t> GetSplitCategories(RegTree const &tree, int32_t nidx) {
   auto split = common::KCatBitField{csr.categories.subspan(seg.beg, seg.size)};
 
   std::vector<bst_cat_t> cats;
-  for (size_t i = 0; i < split.Size(); ++i) {
+  for (size_t i = 0; i < split.Capacity(); ++i) {
     if (split.Check(i)) {
       cats.push_back(static_cast<bst_cat_t>(i));
     }
@@ -398,11 +398,14 @@ class JsonGenerator : public TreeGenerator {
     static std::string const kIndicatorTemplate =
         R"ID( "nodeid": {nid}, "depth": {depth}, "split": "{fname}", "yes": {yes}, "no": {no})ID";
     auto split_index = tree[nid].SplitIndex();
+    auto fname = fmap_.Name(split_index);
+    std::string qfname;  // quoted
+    common::EscapeU8(fname, &qfname);
     auto result = SuperT::Match(
         kIndicatorTemplate,
         {{"{nid}",   std::to_string(nid)},
          {"{depth}", std::to_string(depth)},
-         {"{fname}", fmap_.Name(split_index)},
+         {"{fname}", qfname},
          {"{yes}",   std::to_string(nyes)},
          {"{no}",    std::to_string(tree[nid].DefaultChild())}});
     return result;
@@ -430,12 +433,14 @@ class JsonGenerator : public TreeGenerator {
                             std::string const &template_str, std::string cond,
                             uint32_t depth) const {
     auto split_index = tree[nid].SplitIndex();
+    auto fname = split_index < fmap_.Size() ? fmap_.Name(split_index) : std::to_string(split_index);
+    std::string qfname;  // quoted
+    common::EscapeU8(fname, &qfname);
     std::string const result = SuperT::Match(
         template_str,
         {{"{nid}",     std::to_string(nid)},
          {"{depth}",   std::to_string(depth)},
-         {"{fname}",   split_index < fmap_.Size() ? fmap_.Name(split_index) :
-                                                    std::to_string(split_index)},
+         {"{fname}",   qfname},
          {"{cond}",    cond},
          {"{left}",    std::to_string(tree[nid].LeftChild())},
          {"{right}",   std::to_string(tree[nid].RightChild())},
@@ -1004,7 +1009,7 @@ void RegTree::SaveCategoricalSplit(Json* p_out) const {
       auto segment = split_categories_segments_[i];
       auto node_categories = this->GetSplitCategories().subspan(segment.beg, segment.size);
       common::KCatBitField const cat_bits(node_categories);
-      for (size_t i = 0; i < cat_bits.Size(); ++i) {
+      for (size_t i = 0; i < cat_bits.Capacity(); ++i) {
         if (cat_bits.Check(i)) {
           categories.GetArray().emplace_back(i);
         }

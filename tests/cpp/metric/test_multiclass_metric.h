@@ -8,7 +8,7 @@ namespace xgboost {
 namespace metric {
 
 inline void CheckDeterministicMetricMultiClass(StringView name, int32_t device) {
-  auto ctx = CreateEmptyGenericParam(device);
+  auto ctx = MakeCUDACtx(device);
   std::unique_ptr<Metric> metric{Metric::Create(name.c_str(), &ctx)};
 
   HostDeviceVector<float> predts;
@@ -45,8 +45,7 @@ inline void CheckDeterministicMetricMultiClass(StringView name, int32_t device) 
 }
 
 inline void TestMultiClassError(int device, DataSplitMode data_split_mode) {
-  auto ctx = xgboost::CreateEmptyGenericParam(device);
-  ctx.gpu_id = device;
+  auto ctx = MakeCUDACtx(device);
   xgboost::Metric * metric = xgboost::Metric::Create("merror", &ctx);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "merror");
@@ -66,8 +65,7 @@ inline void VerifyMultiClassError(DataSplitMode data_split_mode = DataSplitMode:
 }
 
 inline void TestMultiClassLogLoss(int device, DataSplitMode data_split_mode) {
-  auto ctx = xgboost::CreateEmptyGenericParam(device);
-  ctx.gpu_id = device;
+  auto ctx = MakeCUDACtx(device);
   xgboost::Metric * metric = xgboost::Metric::Create("mlogloss", &ctx);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "mlogloss");

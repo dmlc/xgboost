@@ -47,6 +47,7 @@ OBJECTS= \
     $(PKGROOT)/src/data/data.o \
     $(PKGROOT)/src/data/sparse_page_raw_format.o \
     $(PKGROOT)/src/data/ellpack_page.o \
+    $(PKGROOT)/src/data/file_iterator.o \
     $(PKGROOT)/src/data/gradient_index.o \
     $(PKGROOT)/src/data/gradient_index_page_source.o \
     $(PKGROOT)/src/data/gradient_index_format.o \
@@ -68,6 +69,8 @@ OBJECTS= \
     $(PKGROOT)/src/tree/updater_quantile_hist.o \
     $(PKGROOT)/src/tree/updater_refresh.o \
     $(PKGROOT)/src/tree/updater_sync.o \
+    $(PKGROOT)/src/tree/hist/param.o \
+    $(PKGROOT)/src/tree/hist/histogram.o \
     $(PKGROOT)/src/linear/linear_updater.o \
     $(PKGROOT)/src/linear/updater_coordinate.o \
     $(PKGROOT)/src/linear/updater_shotgun.o \
@@ -82,6 +85,7 @@ OBJECTS= \
     $(PKGROOT)/src/common/charconv.o \
     $(PKGROOT)/src/common/column_matrix.o \
     $(PKGROOT)/src/common/common.o \
+    $(PKGROOT)/src/common/error_msg.o \
     $(PKGROOT)/src/common/hist_util.o \
     $(PKGROOT)/src/common/host_device_vector.o \
     $(PKGROOT)/src/common/io.o \

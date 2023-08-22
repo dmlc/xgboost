@@ -12,8 +12,7 @@
 #include <memory>
 #include <utility>
 
-#include "../collective/communicator.h"
-#include "../collective/device_communicator.cuh"
+#include "../collective/communicator-inl.cuh"
 #include "categorical.h"
 #include "common.h"
 #include "device_helpers.cuh"
@@ -502,15 +501,14 @@ void SketchContainer::FixError() {
   });
 }
 
-void SketchContainer::AllReduce() {
+void SketchContainer::AllReduce(bool is_column_split) {
   dh::safe_cuda(cudaSetDevice(device_));
   auto world = collective::GetWorldSize();
-  if (world == 1) {
+  if (world == 1 || is_column_split) {
     return;
   }
 
   timer_.Start(__func__);
-  auto* communicator = collective::Communicator::GetDevice(device_);
   // Reduce the overhead on syncing.
   size_t global_sum_rows = num_rows_;
   collective::Allreduce<collective::Operation::kSum>(&global_sum_rows, 1);
@@ -531,14 +529,15 @@ void SketchContainer::AllReduce() {
   auto offset = rank * d_columns_ptr.size();
   thrust::copy(thrust::device, d_columns_ptr.data(), d_columns_ptr.data() + d_columns_ptr.size(),
                gathered_ptrs.begin() + offset);
-  communicator->AllReduceSum(gathered_ptrs.data().get(), gathered_ptrs.size());
+  collective::AllReduce<collective::Operation::kSum>(device_, gathered_ptrs.data().get(),
+                                                     gathered_ptrs.size());
 
   // Get the data from all workers.
   std::vector<size_t> recv_lengths;
   dh::caching_device_vector<char> recvbuf;
-  communicator->AllGatherV(this->Current().data().get(), dh::ToSpan(this->Current()).size_bytes(),
-                            &recv_lengths, &recvbuf);
-  communicator->Synchronize();
+  collective::AllGatherV(device_, this->Current().data().get(),
+                         dh::ToSpan(this->Current()).size_bytes(), &recv_lengths, &recvbuf);
+  collective::Synchronize(device_);
 
   // Segment the received data.
   auto s_recvbuf = dh::ToSpan(recvbuf);
@@ -583,13 +582,13 @@ struct InvalidCatOp {
 };
 }  // anonymous namespace
 
-void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
+void SketchContainer::MakeCuts(HistogramCuts* p_cuts, bool is_column_split) {
   timer_.Start(__func__);
   dh::safe_cuda(cudaSetDevice(device_));
   p_cuts->min_vals_.Resize(num_columns_);
 
   // Sync between workers.
-  this->AllReduce();
+  this->AllReduce(is_column_split);
 
   // Prune to final number of bins.
   this->Prune(num_bins_ + 1);

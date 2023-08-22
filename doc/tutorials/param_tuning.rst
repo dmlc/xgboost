@@ -38,10 +38,6 @@ There are in general two ways that you can control overfitting in XGBoost:
   - This includes ``subsample`` and ``colsample_bytree``.
   - You can also reduce stepsize ``eta``. Remember to increase ``num_round`` when you do so.
 
-***************************
-Faster training performance
-***************************
-There's a parameter called ``tree_method``, set it to ``hist`` or ``gpu_hist`` for faster computation.
 
 *************************
 Handle Imbalanced Dataset
@@ -58,3 +54,45 @@ This can affect the training of XGBoost model, and there are two ways to improve
 
   - In such a case, you cannot re-balance the dataset
   - Set parameter ``max_delta_step`` to a finite number (say 1) to help convergence
+
+
+*********************
+Reducing Memory Usage
+*********************
+
+If you are using a HPO library like :py:class:`sklearn.model_selection.GridSearchCV`,
+please control the number of threads it can use. It's best to let XGBoost to run in
+parallel instead of asking `GridSearchCV` to run multiple experiments at the same
+time. For instance, creating a fold of data for cross validation can consume a significant
+amount of memory:
+
+.. code-block:: python
+
+    # This creates a copy of dataset. X and X_train are both in memory at the same time.
+
+    # This happens for every thread at the same time if you run `GridSearchCV` with
+    # `n_jobs` larger than 1
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y)
+
+.. code-block:: python
+
+    df = pd.DataFrame()
+    # This creates a new copy of the dataframe, even if you specify the inplace parameter
+    new_df = df.drop(...)
+
+.. code-block:: python
+
+    array = np.array(...)
+    # This may or may not make a copy of the data, depending on the type of the data
+    array.astype(np.float32)
+
+.. code-block::
+
+    # np by default uses double, do you actually need it?
+    array = np.array(...)
+
+You can find some more specific memory reduction practices scattered through the documents
+For instances: :doc:`/tutorials/dask`, :doc:`/gpu/index`. However, before going into
+these, being conscious about making data copies is a good starting point. It usually
+consumes a lot more memory than people expect.

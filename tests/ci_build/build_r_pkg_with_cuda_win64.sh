@@ -22,7 +22,6 @@ cmake .. -G"Visual Studio 17 2022" -A x64 -DUSE_CUDA=ON -DR_LIB=ON -DLIBR_HOME="
 cmake --build . --config Release --parallel
 cd ..
 
-rm xgboost
 # This super wacky hack is found in cmake/RPackageInstall.cmake.in and
 # cmake/RPackageInstallTargetSetup.cmake. This hack lets us bypass the normal build process of R
 # and have R use xgboost.dll that we've already built.

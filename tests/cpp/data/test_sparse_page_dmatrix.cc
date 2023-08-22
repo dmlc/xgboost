@@ -67,7 +67,7 @@ void TestSparseDMatrixLoadFile(Context const* ctx) {
 }
 
 TEST(SparsePageDMatrix, LoadFile) {
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
+  Context ctx;
   TestSparseDMatrixLoadFile<SparsePage>(&ctx);
   TestSparseDMatrixLoadFile<CSCPage>(&ctx);
   TestSparseDMatrixLoadFile<SortedCSCPage>(&ctx);
@@ -76,9 +76,11 @@ TEST(SparsePageDMatrix, LoadFile) {
 // allow caller to retain pages so they can process multiple pages at the same time.
 template <typename Page>
 void TestRetainPage() {
-  auto m = CreateSparsePageDMatrix(10000);
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
-  auto batches = m->GetBatches<Page>(&ctx);
+  std::size_t n_batches = 4;
+  auto p_fmat = RandomDataGenerator{1024, 128, 0.5f}.Batches(n_batches).GenerateSparsePageDMatrix(
+      "cache", true);
+  Context ctx;
+  auto batches = p_fmat->GetBatches<Page>(&ctx);
   auto begin = batches.begin();
   auto end = batches.end();
 
@@ -94,7 +96,7 @@ void TestRetainPage() {
     }
     ASSERT_EQ(pages.back().Size(), (*it).Size());
   }
-  ASSERT_GE(iterators.size(), 2);
+  ASSERT_GE(iterators.size(), n_batches);
 
   for (size_t i = 0; i < iterators.size(); ++i) {
     ASSERT_EQ((*iterators[i]).Size(), pages.at(i).Size());
@@ -102,7 +104,7 @@ void TestRetainPage() {
   }
 
   // make sure it's const and the caller can not modify the content of page.
-  for (auto &page : m->GetBatches<Page>({&ctx})) {
+  for (auto &page : p_fmat->GetBatches<Page>({&ctx})) {
     static_assert(std::is_const<std::remove_reference_t<decltype(page)>>::value);
   }
 }
@@ -145,7 +147,7 @@ TEST(SparsePageDMatrix, ColAccess) {
   const std::string tmp_file = tempdir.path + "/simple.libsvm";
   CreateSimpleTestData(tmp_file);
   xgboost::DMatrix *dmat = xgboost::DMatrix::Load(UriSVM(tmp_file, tmp_file));
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
+  Context ctx;
 
   // Loop over the batches and assert the data is as expected
   size_t iter = 0;
@@ -224,7 +226,7 @@ TEST(SparsePageDMatrix, ColAccessBatches) {
   // Create multiple sparse pages
   std::unique_ptr<xgboost::DMatrix> dmat{xgboost::CreateSparsePageDMatrix(kEntries)};
   ASSERT_EQ(dmat->Ctx()->Threads(), AllThreadsForTest());
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
+  Context ctx;
   for (auto const &page : dmat->GetBatches<xgboost::CSCPage>(&ctx)) {
     ASSERT_EQ(dmat->Info().num_col_, page.Size());
   }
@@ -248,7 +250,7 @@ auto TestSparsePageDMatrixDeterminism(int32_t threads) {
 
   auto cache_name =
       data::MakeId(filename, dynamic_cast<data::SparsePageDMatrix *>(sparse.get())) + ".row.page";
-  std::string cache = common::LoadSequentialFile(cache_name);
+  auto cache = common::LoadSequentialFile(cache_name);
   return cache;
 }
 
@@ -256,7 +258,7 @@ TEST(SparsePageDMatrix, Determinism) {
 #if defined(_MSC_VER)
   return;
 #endif  // defined(_MSC_VER)
-  std::vector<std::string> caches;
+  std::vector<std::vector<char>> caches;
   for (size_t i = 1; i < 18; i += 2) {
     caches.emplace_back(TestSparsePageDMatrixDeterminism(i));
   }

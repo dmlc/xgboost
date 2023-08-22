@@ -12,7 +12,7 @@
 #include <vector>                        // for vector
 
 #include "dmlc/parameter.h"              // for FieldEntry, DMLC_DECLARE_FIELD
-#include "error_msg.h"                   // for GroupWeight, GroupSize
+#include "error_msg.h"                   // for GroupWeight, GroupSize, InvalidCUDAOrdinal
 #include "xgboost/base.h"                // for XGBOOST_DEVICE, bst_group_t
 #include "xgboost/context.h"             // for Context
 #include "xgboost/data.h"                // for MetaInfo
@@ -240,7 +240,7 @@ class RankingCache {
   // The function simply returns a uninitialized buffer as this is only used by the
   // objective for creating pairs.
   common::Span<std::size_t> SortedIdxY(Context const* ctx, std::size_t n_samples) {
-    CHECK(ctx->IsCUDA());
+    CHECK(ctx->IsCUDA()) << error::InvalidCUDAOrdinal();
     if (y_sorted_idx_cache_.Empty()) {
       y_sorted_idx_cache_.SetDevice(ctx->gpu_id);
       y_sorted_idx_cache_.Resize(n_samples);
@@ -248,7 +248,7 @@ class RankingCache {
     return y_sorted_idx_cache_.DeviceSpan();
   }
   common::Span<float> RankedY(Context const* ctx, std::size_t n_samples) {
-    CHECK(ctx->IsCUDA());
+    CHECK(ctx->IsCUDA()) << error::InvalidCUDAOrdinal();
     if (y_ranked_by_model_.Empty()) {
       y_ranked_by_model_.SetDevice(ctx->gpu_id);
       y_ranked_by_model_.Resize(n_samples);
@@ -366,17 +366,42 @@ bool IsBinaryRel(linalg::VectorView<float const> label, AllOf all_of) {
   });
 }
 /**
- * \brief Validate label for MAP
+ * \brief Validate label for precision-based metric.
  *
  * \tparam Implementation of std::all_of. Specified as a parameter to reuse the check for
  *         both CPU and GPU.
  */
 template <typename AllOf>
-void CheckMapLabels(linalg::VectorView<float const> label, AllOf all_of) {
+void CheckPreLabels(StringView name, linalg::VectorView<float const> label, AllOf all_of) {
   auto s_label = label.Values();
   auto is_binary = IsBinaryRel(label, all_of);
-  CHECK(is_binary) << "MAP can only be used with binary labels.";
+  CHECK(is_binary) << name << " can only be used with binary labels.";
 }
+
+class PreCache : public RankingCache {
+  HostDeviceVector<double> pre_;
+
+  void InitOnCPU(Context const* ctx, MetaInfo const& info);
+  void InitOnCUDA(Context const* ctx, MetaInfo const& info);
+
+ public:
+  PreCache(Context const* ctx, MetaInfo const& info, LambdaRankParam const& p)
+      : RankingCache{ctx, info, p} {
+    if (ctx->IsCPU()) {
+      this->InitOnCPU(ctx, info);
+    } else {
+      this->InitOnCUDA(ctx, info);
+    }
+  }
+
+  common::Span<double> Pre(Context const* ctx) {
+    if (pre_.Empty()) {
+      pre_.SetDevice(ctx->gpu_id);
+      pre_.Resize(this->Groups());
+    }
+    return ctx->IsCPU() ? pre_.HostSpan() : pre_.DeviceSpan();
+  }
+};
 
 class MAPCache : public RankingCache {
   // Total number of relevant documents for each group

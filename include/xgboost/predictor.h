@@ -6,24 +6,22 @@
  */
 #pragma once
 #include <xgboost/base.h>
-#include <xgboost/cache.h>  // DMatrixCache
+#include <xgboost/cache.h>    // for DMatrixCache
+#include <xgboost/context.h>  // for Context
 #include <xgboost/context.h>
 #include <xgboost/data.h>
 #include <xgboost/host_device_vector.h>
 
-#include <functional>  // std::function
-#include <memory>
+#include <functional>  // for function
+#include <memory>      // for shared_ptr
 #include <string>
-#include <thread>   // for get_id
 #include <utility>  // for make_pair
 #include <vector>
 
 // Forward declarations
-namespace xgboost {
-namespace gbm {
+namespace xgboost::gbm {
 struct GBTreeModel;
-}  // namespace gbm
-}  // namespace xgboost
+}  // namespace xgboost::gbm
 
 namespace xgboost {
 /**
@@ -41,9 +39,8 @@ struct PredictionCacheEntry {
    *
    * \param v Added versions.
    */
-  void Update(std::uint32_t v) {
-    version += v;
-  }
+  void Update(std::uint32_t v) { version += v; }
+  void Reset() { version = 0; }
 };
 
 /**
@@ -134,16 +131,18 @@ class Predictor {
    * usually more efficient than online prediction This function is NOT
    * threadsafe, make sure you only call from one thread.
    *
-   * \param           inst        The instance to predict.
-   * \param [in,out]  out_preds   The output preds.
-   * \param           model       The model to predict from
-   * \param           tree_end    (Optional) The tree end index.
+   * \param           inst            The instance to predict.
+   * \param [in,out]  out_preds       The output preds.
+   * \param           model           The model to predict from
+   * \param           tree_end        (Optional) The tree end index.
+   * \param           is_column_split (Optional) If the data is split column-wise.
    */
 
   virtual void PredictInstance(const SparsePage::Inst& inst,
                                std::vector<bst_float>* out_preds,
                                const gbm::GBTreeModel& model,
-                               unsigned tree_end = 0) const = 0;
+                               unsigned tree_end = 0,
+                               bool is_column_split = false) const = 0;
 
   /**
    * \brief predict the leaf index of each tree, the output will be nsample *

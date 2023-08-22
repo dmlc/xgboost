@@ -88,7 +88,7 @@ xgb.DMatrix <- function(data, info = list(), missing = NA, silent = FALSE, nthre
 
 # get dmatrix from data, label
 # internal helper method
-xgb.get.DMatrix <- function(data, label = NULL, missing = NA, weight = NULL, nthread = NULL) {
+xgb.get.DMatrix <- function(data, label, missing, weight, nthread) {
   if (inherits(data, "dgCMatrix") || is.matrix(data)) {
     if (is.null(label)) {
       stop("label must be provided when data is a matrix")

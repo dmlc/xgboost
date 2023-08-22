@@ -3,7 +3,7 @@ import pytest
 
 import xgboost as xgb
 from xgboost import testing as tm
-from xgboost.testing.metrics import check_quantile_error
+from xgboost.testing.metrics import check_precision_score, check_quantile_error
 
 rng = np.random.RandomState(1337)
 
@@ -299,7 +299,9 @@ class TestEvalMetrics:
     def run_pr_auc_ltr(self, tree_method):
         from sklearn.datasets import make_classification
         X, y = make_classification(128, 4, n_classes=2, random_state=1994)
-        ltr = xgb.XGBRanker(tree_method=tree_method, n_estimators=16)
+        ltr = xgb.XGBRanker(
+            tree_method=tree_method, n_estimators=16, objective="rank:pairwise"
+        )
         groups = np.array([32, 32, 64])
         ltr.fit(
             X,
@@ -314,6 +316,9 @@ class TestEvalMetrics:
 
     def test_pr_auc_ltr(self):
         self.run_pr_auc_ltr("hist")
+
+    def test_precision_score(self):
+        check_precision_score("hist")
 
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_quantile_error(self) -> None:

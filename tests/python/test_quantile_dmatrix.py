@@ -16,6 +16,7 @@ from xgboost.testing import (
     predictor_equal,
 )
 from xgboost.testing.data import check_inf, np_dtypes
+from xgboost.testing.data_iter import run_mixed_sparsity
 
 
 class TestQuantileDMatrix:
@@ -55,6 +56,38 @@ class TestQuantileDMatrix:
         r = np.arange(1.0, n_samples)
         np.testing.assert_allclose(Xy.get_data().toarray()[1:, 0], r)
 
+    def test_error(self):
+        from sklearn.model_selection import train_test_split
+
+        rng = np.random.default_rng(1994)
+        X, y = make_categorical(
+            n_samples=128, n_features=2, n_categories=3, onehot=False
+        )
+        reg = xgb.XGBRegressor(tree_method="hist", enable_categorical=True)
+        w = rng.uniform(0, 1, size=y.shape[0])
+
+        X_train, X_test, y_train, y_test, w_train, w_test = train_test_split(
+            X, y, w, random_state=1994
+        )
+
+        with pytest.raises(ValueError, match="sample weight"):
+            reg.fit(
+                X,
+                y,
+                sample_weight=w_train,
+                eval_set=[(X_test, y_test)],
+                sample_weight_eval_set=[w_test],
+            )
+
+        with pytest.raises(ValueError, match="sample weight"):
+            reg.fit(
+                X_train,
+                y_train,
+                sample_weight=w,
+                eval_set=[(X_test, y_test)],
+                sample_weight_eval_set=[w_test],
+            )
+
     @pytest.mark.parametrize("sparsity", [0.0, 0.1, 0.8, 0.9])
     def test_with_iterator(self, sparsity: float) -> None:
         n_samples_per_batch = 317
@@ -70,11 +103,28 @@ class TestQuantileDMatrix:
                 *make_batches_sparse(
                     n_samples_per_batch, n_features, n_batches, sparsity
                 ),
-                None
+                None,
             )
         Xy = xgb.QuantileDMatrix(it)
         assert Xy.num_row() == n_samples_per_batch * n_batches
         assert Xy.num_col() == n_features
+
+    def test_different_size(self) -> None:
+        n_samples_per_batch = 317
+        n_features = 8
+        n_batches = 7
+
+        it = IteratorForTest(
+            *make_batches(
+                n_samples_per_batch, n_features, n_batches, False, vary_size=True
+            ),
+            cache=None,
+        )
+        Xy = xgb.QuantileDMatrix(it)
+        assert Xy.num_row() == 2429
+        X, y, w = it.as_arrays()
+        Xy1 = xgb.QuantileDMatrix(X, y, weight=w)
+        assert predictor_equal(Xy, Xy1)
 
     @pytest.mark.parametrize("sparsity", [0.0, 0.1, 0.5, 0.8, 0.9])
     def test_training(self, sparsity: float) -> None:
@@ -90,7 +140,7 @@ class TestQuantileDMatrix:
                 *make_batches_sparse(
                     n_samples_per_batch, n_features, n_batches, sparsity
                 ),
-                None
+                None,
             )
 
         parameters = {"tree_method": "hist", "max_bin": 256}
@@ -221,9 +271,12 @@ class TestQuantileDMatrix:
         self.run_ref_dmatrix(rng, "hist", True)
         self.run_ref_dmatrix(rng, "hist", False)
 
-    def test_predict(self) -> None:
-        n_samples, n_features = 16, 2
-        X, y = make_categorical(n_samples, n_features, n_categories=13, onehot=False)
+    @pytest.mark.parametrize("sparsity", [0.0, 0.5])
+    def test_predict(self, sparsity: float) -> None:
+        n_samples, n_features = 256, 4
+        X, y = make_categorical(
+            n_samples, n_features, n_categories=13, onehot=False, sparsity=sparsity
+        )
         Xy = xgb.DMatrix(X, y, enable_categorical=True)
 
         booster = xgb.train({"tree_method": "hist"}, Xy)
@@ -287,3 +340,18 @@ class TestQuantileDMatrix:
             X: np.ndarray = np.array(orig, dtype=dtype)
             with pytest.raises(ValueError):
                 xgb.QuantileDMatrix(X)
+
+    def test_changed_max_bin(self) -> None:
+        n_samples = 128
+        n_features = 16
+        csr, y = make_sparse_regression(n_samples, n_features, 0.5, False)
+        Xy = xgb.QuantileDMatrix(csr, y, max_bin=9)
+        booster = xgb.train({"max_bin": 9}, Xy, num_boost_round=2)
+
+        Xy = xgb.QuantileDMatrix(csr, y, max_bin=11)
+
+        with pytest.raises(ValueError, match="consistent"):
+            xgb.train({}, Xy, num_boost_round=2, xgb_model=booster)
+
+    def test_mixed_sparsity(self) -> None:
+        run_mixed_sparsity("cpu")

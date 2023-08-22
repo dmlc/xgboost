@@ -1,6 +1,6 @@
 import json
 from string import ascii_lowercase
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import numpy as np
 import pytest
@@ -11,28 +11,18 @@ from xgboost import testing as tm
 from xgboost.testing.params import (
     cat_parameter_strategy,
     exact_parameter_strategy,
+    hist_cache_strategy,
     hist_multi_parameter_strategy,
     hist_parameter_strategy,
 )
-from xgboost.testing.updater import check_init_estimation, check_quantile_loss
-
-
-def train_result(param, dmat, num_rounds):
-    result = {}
-    booster = xgb.train(
-        param,
-        dmat,
-        num_rounds,
-        [(dmat, "train")],
-        verbose_eval=False,
-        evals_result=result,
-    )
-    assert booster.num_features() == dmat.num_col()
-    assert booster.num_boosted_rounds() == num_rounds
-    assert booster.feature_names == dmat.feature_names
-    assert booster.feature_types == dmat.feature_types
-
-    return result
+from xgboost.testing.updater import (
+    check_categorical_missing,
+    check_categorical_ohe,
+    check_get_quantile_cut,
+    check_init_estimation,
+    check_quantile_loss,
+    train_result,
+)
 
 
 class TestTreeMethodMulti:
@@ -51,35 +41,50 @@ class TestTreeMethodMulti:
     @given(
         exact_parameter_strategy,
         hist_parameter_strategy,
+        hist_cache_strategy,
         strategies.integers(1, 20),
         tm.multi_dataset_strategy,
     )
     @settings(deadline=None, print_blob=True)
-    def test_approx(self, param, hist_param, num_rounds, dataset):
+    def test_approx(
+        self, param: Dict[str, Any],
+        hist_param: Dict[str, Any],
+        cache_param: Dict[str, Any],
+        num_rounds: int,
+        dataset: tm.TestDataset,
+    ) -> None:
         param["tree_method"] = "approx"
         param = dataset.set_params(param)
         param.update(hist_param)
+        param.update(cache_param)
         result = train_result(param, dataset.get_dmat(), num_rounds)
-        note(result)
+        note(str(result))
         assert tm.non_increasing(result["train"][dataset.metric])
 
     @given(
         exact_parameter_strategy,
         hist_multi_parameter_strategy,
+        hist_cache_strategy,
         strategies.integers(1, 20),
         tm.multi_dataset_strategy,
     )
     @settings(deadline=None, print_blob=True)
     def test_hist(
-        self, param: dict, hist_param: dict, num_rounds: int, dataset: tm.TestDataset
+        self,
+        param: Dict[str, Any],
+        hist_param: Dict[str, Any],
+        cache_param: Dict[str, Any],
+        num_rounds: int,
+        dataset: tm.TestDataset,
     ) -> None:
         if dataset.name.endswith("-l1"):
             return
         param["tree_method"] = "hist"
         param = dataset.set_params(param)
         param.update(hist_param)
+        param.update(cache_param)
         result = train_result(param, dataset.get_dmat(), num_rounds)
-        note(result)
+        note(str(result))
         assert tm.non_increasing(result["train"][dataset.metric])
 
 
@@ -87,8 +92,9 @@ class TestTreeMethod:
     USE_ONEHOT = np.iinfo(np.int32).max
     USE_PART = 1
 
-    @given(exact_parameter_strategy, strategies.integers(1, 20),
-           tm.dataset_strategy)
+    @given(
+        exact_parameter_strategy, strategies.integers(1, 20), tm.make_dataset_strategy()
+    )
     @settings(deadline=None, print_blob=True)
     def test_exact(self, param, num_rounds, dataset):
         if dataset.name.endswith("-l1"):
@@ -101,16 +107,25 @@ class TestTreeMethod:
     @given(
         exact_parameter_strategy,
         hist_parameter_strategy,
+        hist_cache_strategy,
         strategies.integers(1, 20),
-        tm.dataset_strategy,
+        tm.make_dataset_strategy(),
     )
     @settings(deadline=None, print_blob=True)
-    def test_approx(self, param, hist_param, num_rounds, dataset):
+    def test_approx(
+        self,
+        param: Dict[str, Any],
+        hist_param: Dict[str, Any],
+        cache_param: Dict[str, Any],
+        num_rounds: int,
+        dataset: tm.TestDataset,
+    ) -> None:
         param["tree_method"] = "approx"
         param = dataset.set_params(param)
         param.update(hist_param)
+        param.update(cache_param)
         result = train_result(param, dataset.get_dmat(), num_rounds)
-        note(result)
+        note(str(result))
         assert tm.non_increasing(result["train"][dataset.metric])
 
     @pytest.mark.skipif(**tm.no_sklearn())
@@ -140,17 +155,25 @@ class TestTreeMethod:
     @given(
         exact_parameter_strategy,
         hist_parameter_strategy,
+        hist_cache_strategy,
         strategies.integers(1, 20),
-        tm.dataset_strategy
+        tm.make_dataset_strategy()
     )
     @settings(deadline=None, print_blob=True)
-    def test_hist(self, param: dict, hist_param: dict, num_rounds: int, dataset: tm.TestDataset) -> None:
-        param['tree_method'] = 'hist'
+    def test_hist(
+        self, param: Dict[str, Any],
+        hist_param: Dict[str, Any],
+        cache_param: Dict[str, Any],
+        num_rounds: int,
+        dataset: tm.TestDataset,
+    ) -> None:
+        param["tree_method"] = "hist"
         param = dataset.set_params(param)
         param.update(hist_param)
+        param.update(cache_param)
         result = train_result(param, dataset.get_dmat(), num_rounds)
-        note(result)
-        assert tm.non_increasing(result['train'][dataset.metric])
+        note(str(result))
+        assert tm.non_increasing(result["train"][dataset.metric])
 
     def test_hist_categorical(self):
         # hist must be same as exact on all-categorial data
@@ -164,13 +187,21 @@ class TestTreeMethod:
         hist_res = {}
         exact_res = {}
 
-        xgb.train(ag_param, ag_dtrain, 10,
-                  [(ag_dtrain, 'train'), (ag_dtest, 'test')],
-                  evals_result=hist_res)
+        xgb.train(
+            ag_param,
+            ag_dtrain,
+            10,
+            evals=[(ag_dtrain, "train"), (ag_dtest, "test")],
+            evals_result=hist_res
+        )
         ag_param["tree_method"] = "exact"
-        xgb.train(ag_param, ag_dtrain, 10,
-                  [(ag_dtrain, 'train'), (ag_dtest, 'test')],
-                  evals_result=exact_res)
+        xgb.train(
+            ag_param,
+            ag_dtrain,
+            10,
+            evals=[(ag_dtrain, "train"), (ag_dtest, "test")],
+            evals_result=exact_res
+        )
         assert hist_res['train']['auc'] == exact_res['train']['auc']
         assert hist_res['test']['auc'] == exact_res['test']['auc']
 
@@ -193,12 +224,12 @@ class TestTreeMethod:
     def test_sparse(self, dataset):
         param = {"tree_method": "hist", "max_bin": 64}
         hist_result = train_result(param, dataset.get_dmat(), 16)
-        note(hist_result)
+        note(str(hist_result))
         assert tm.non_increasing(hist_result['train'][dataset.metric])
 
         param = {"tree_method": "approx", "max_bin": 64}
         approx_result = train_result(param, dataset.get_dmat(), 16)
-        note(approx_result)
+        note(str(approx_result))
         assert tm.non_increasing(approx_result['train'][dataset.metric])
 
         np.testing.assert_allclose(
@@ -268,115 +299,6 @@ class TestTreeMethod:
     def test_max_cat(self, tree_method) -> None:
         self.run_max_cat(tree_method)
 
-    def run_categorical_missing(
-        self, rows: int, cols: int, cats: int, tree_method: str
-    ) -> None:
-        parameters: Dict[str, Any] = {"tree_method": tree_method}
-        cat, label = tm.make_categorical(
-            n_samples=rows, n_features=cols, n_categories=cats, onehot=False, sparsity=0.5
-        )
-        Xy = xgb.DMatrix(cat, label, enable_categorical=True)
-
-        def run(max_cat_to_onehot: int):
-            # Test with onehot splits
-            parameters["max_cat_to_onehot"] = max_cat_to_onehot
-
-            evals_result: Dict[str, Dict] = {}
-            booster = xgb.train(
-                parameters,
-                Xy,
-                num_boost_round=16,
-                evals=[(Xy, "Train")],
-                evals_result=evals_result
-            )
-            assert tm.non_increasing(evals_result["Train"]["rmse"])
-            y_predt = booster.predict(Xy)
-
-            rmse = tm.root_mean_square(label, y_predt)
-            np.testing.assert_allclose(rmse, evals_result["Train"]["rmse"][-1])
-
-        # Test with OHE split
-        run(self.USE_ONEHOT)
-
-        # Test with partition-based split
-        run(self.USE_PART)
-
-    def run_categorical_ohe(
-        self, rows: int, cols: int, rounds: int, cats: int, tree_method: str
-    ) -> None:
-        onehot, label = tm.make_categorical(rows, cols, cats, True)
-        cat, _ = tm.make_categorical(rows, cols, cats, False)
-
-        by_etl_results: Dict[str, Dict[str, List[float]]] = {}
-        by_builtin_results: Dict[str, Dict[str, List[float]]] = {}
-
-        predictor = "gpu_predictor" if tree_method == "gpu_hist" else None
-        parameters: Dict[str, Any] = {
-            "tree_method": tree_method,
-            "predictor": predictor,
-            # Use one-hot exclusively
-            "max_cat_to_onehot": self.USE_ONEHOT
-        }
-
-        m = xgb.DMatrix(onehot, label, enable_categorical=False)
-        xgb.train(
-            parameters,
-            m,
-            num_boost_round=rounds,
-            evals=[(m, "Train")],
-            evals_result=by_etl_results,
-        )
-
-        m = xgb.DMatrix(cat, label, enable_categorical=True)
-        xgb.train(
-            parameters,
-            m,
-            num_boost_round=rounds,
-            evals=[(m, "Train")],
-            evals_result=by_builtin_results,
-        )
-
-        # There are guidelines on how to specify tolerance based on considering output
-        # as random variables. But in here the tree construction is extremely sensitive
-        # to floating point errors. An 1e-5 error in a histogram bin can lead to an
-        # entirely different tree. So even though the test is quite lenient, hypothesis
-        # can still pick up falsifying examples from time to time.
-        np.testing.assert_allclose(
-            np.array(by_etl_results["Train"]["rmse"]),
-            np.array(by_builtin_results["Train"]["rmse"]),
-            rtol=1e-3,
-        )
-        assert tm.non_increasing(by_builtin_results["Train"]["rmse"])
-
-        by_grouping: Dict[str, Dict[str, List[float]]] = {}
-        # switch to partition-based splits
-        parameters["max_cat_to_onehot"] = self.USE_PART
-        parameters["reg_lambda"] = 0
-        m = xgb.DMatrix(cat, label, enable_categorical=True)
-        xgb.train(
-            parameters,
-            m,
-            num_boost_round=rounds,
-            evals=[(m, "Train")],
-            evals_result=by_grouping,
-        )
-        rmse_oh = by_builtin_results["Train"]["rmse"]
-        rmse_group = by_grouping["Train"]["rmse"]
-        # always better or equal to onehot when there's no regularization.
-        for a, b in zip(rmse_oh, rmse_group):
-            assert a >= b
-
-        parameters["reg_lambda"] = 1.0
-        by_grouping = {}
-        xgb.train(
-            parameters,
-            m,
-            num_boost_round=32,
-            evals=[(m, "Train")],
-            evals_result=by_grouping,
-        )
-        assert tm.non_increasing(by_grouping["Train"]["rmse"]), by_grouping
-
     @given(strategies.integers(10, 400), strategies.integers(3, 8),
            strategies.integers(1, 2), strategies.integers(4, 7))
     @settings(deadline=None, print_blob=True)
@@ -384,8 +306,8 @@ class TestTreeMethod:
     def test_categorical_ohe(
         self, rows: int, cols: int, rounds: int, cats: int
     ) -> None:
-        self.run_categorical_ohe(rows, cols, rounds, cats, "approx")
-        self.run_categorical_ohe(rows, cols, rounds, cats, "hist")
+        check_categorical_ohe(rows, cols, rounds, cats, "cpu", "approx")
+        check_categorical_ohe(rows, cols, rounds, cats, "cpu", "hist")
 
     @given(
         tm.categorical_dataset_strategy,
@@ -441,8 +363,8 @@ class TestTreeMethod:
     @settings(deadline=None, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical_missing(self, rows, cols, cats):
-        self.run_categorical_missing(rows, cols, cats, "approx")
-        self.run_categorical_missing(rows, cols, cats, "hist")
+        check_categorical_missing(rows, cols, cats, "cpu", "approx")
+        check_categorical_missing(rows, cols, cats, "cpu", "hist")
 
     def run_adaptive(self, tree_method, weighted) -> None:
         rng = np.random.RandomState(1994)
@@ -536,3 +458,8 @@ class TestTreeMethod:
     @pytest.mark.parametrize("weighted", [True, False])
     def test_quantile_loss(self, weighted: bool) -> None:
         check_quantile_loss("hist", weighted)
+
+    @pytest.mark.skipif(**tm.no_pandas())
+    @pytest.mark.parametrize("tree_method", ["hist"])
+    def test_get_quantile_cut(self, tree_method: str) -> None:
+        check_get_quantile_cut(tree_method)

@@ -22,7 +22,7 @@ namespace metric {
 
 #if !defined(__CUDACC__)
 TEST(Metric, AMS) {
-  auto ctx = CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
   EXPECT_ANY_THROW(Metric::Create("ams", &ctx));
   Metric* metric = Metric::Create("ams@0.5f", &ctx);
   ASSERT_STREQ(metric->Name(), "ams@0.5");
@@ -50,35 +50,35 @@ TEST(Metric, DeclareUnifiedTest(MAP)) { VerifyMAP(); }
 TEST(Metric, DeclareUnifiedTest(NDCGExpGain)) { VerifyNDCGExpGain(); }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), PrecisionRowSplit) {
-  RunWithInMemoryCommunicator(world_size_, &VerifyPrecision, DataSplitMode::kRow);
+  DoTest(VerifyPrecision, DataSplitMode::kRow);
 }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), PrecisionColumnSplit) {
-  RunWithInMemoryCommunicator(world_size_, &VerifyPrecision, DataSplitMode::kCol);
+  DoTest(VerifyPrecision, DataSplitMode::kCol);
 }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), NDCGRowSplit) {
-  RunWithInMemoryCommunicator(world_size_, &VerifyNDCG, DataSplitMode::kRow);
+  DoTest(VerifyNDCG, DataSplitMode::kRow);
 }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), NDCGColumnSplit) {
-  RunWithInMemoryCommunicator(world_size_, &VerifyNDCG, DataSplitMode::kCol);
+  DoTest(VerifyNDCG, DataSplitMode::kCol);
 }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), MAPRowSplit) {
-  RunWithInMemoryCommunicator(world_size_, &VerifyMAP, DataSplitMode::kRow);
+  DoTest(VerifyMAP, DataSplitMode::kRow);
 }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), MAPColumnSplit) {
-  RunWithInMemoryCommunicator(world_size_, &VerifyMAP, DataSplitMode::kCol);
+  DoTest(VerifyMAP, DataSplitMode::kCol);
 }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), NDCGExpGainRowSplit) {
-  RunWithInMemoryCommunicator(world_size_, &VerifyNDCGExpGain, DataSplitMode::kRow);
+  DoTest(VerifyNDCGExpGain, DataSplitMode::kRow);
 }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), NDCGExpGainColumnSplit) {
-  RunWithInMemoryCommunicator(world_size_, &VerifyNDCGExpGain, DataSplitMode::kCol);
+  DoTest(VerifyNDCGExpGain, DataSplitMode::kCol);
 }
 }  // namespace metric
 }  // namespace xgboost

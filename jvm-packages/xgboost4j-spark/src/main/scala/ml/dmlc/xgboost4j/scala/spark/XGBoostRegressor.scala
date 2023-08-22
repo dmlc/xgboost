@@ -95,6 +95,8 @@ class XGBoostRegressor (
 
   def setTreeMethod(value: String): this.type = set(treeMethod, value)
 
+  def setDevice(value: String): this.type = set(device, value)
+
   def setGrowPolicy(value: String): this.type = set(growPolicy, value)
 
   def setMaxBins(value: Int): this.type = set(maxBins, value)
@@ -140,6 +142,12 @@ class XGBoostRegressor (
 
   def setSinglePrecisionHistogram(value: Boolean): this.type =
     set(singlePrecisionHistogram, value)
+
+  def setFeatureNames(value: Array[String]): this.type =
+    set(featureNames, value)
+
+  def setFeatureTypes(value: Array[String]): this.type =
+    set(featureTypes, value)
 
   // called at the start of fit/train when 'eval_metric' is not defined
   private def setupDefaultEvalMetric(): String = {

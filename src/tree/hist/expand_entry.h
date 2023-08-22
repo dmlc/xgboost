@@ -18,19 +18,13 @@ namespace xgboost::tree {
  */
 template <typename Impl>
 struct ExpandEntryImpl {
-  bst_node_t nid;
-  bst_node_t depth;
+  bst_node_t nid{0};
+  bst_node_t depth{0};
 
   [[nodiscard]] float GetLossChange() const {
     return static_cast<Impl const*>(this)->split.loss_chg;
   }
   [[nodiscard]] bst_node_t GetNodeId() const { return nid; }
-
-  static bool ChildIsValid(TrainParam const& param, bst_node_t depth, bst_node_t num_leaves) {
-    if (param.max_depth > 0 && depth >= param.max_depth) return false;
-    if (param.max_leaves > 0 && num_leaves >= param.max_leaves) return false;
-    return true;
-  }
 
   [[nodiscard]] bool IsValid(TrainParam const& param, bst_node_t num_leaves) const {
     return static_cast<Impl const*>(this)->IsValidImpl(param, num_leaves);
@@ -69,6 +63,22 @@ struct CPUExpandEntry : public ExpandEntryImpl<CPUExpandEntry> {
     os << "loss: " << e.split.loss_chg << "\n";
     os << "split:\n" << e.split << std::endl;
     return os;
+  }
+
+  /**
+   * @brief Copy primitive fields into this, and collect cat_bits into a vector.
+   *
+   * This is used for allgather.
+   *
+   * @param that The other entry to copy from
+   * @param collected_cat_bits The vector to collect cat_bits
+   * @param cat_bits_sizes The sizes of the collected cat_bits
+   */
+  void CopyAndCollect(CPUExpandEntry const& that, std::vector<uint32_t>* collected_cat_bits,
+                      std::vector<std::size_t>* cat_bits_sizes) {
+    nid = that.nid;
+    depth = that.depth;
+    split.CopyAndCollect(that.split, collected_cat_bits, cat_bits_sizes);
   }
 };
 
@@ -118,6 +128,24 @@ struct MultiExpandEntry : public ExpandEntryImpl<MultiExpandEntry> {
     }
     os << "]\n";
     return os;
+  }
+
+  /**
+   * @brief Copy primitive fields into this, and collect cat_bits and gradients into vectors.
+   *
+   * This is used for allgather.
+   *
+   * @param that The other entry to copy from
+   * @param collected_cat_bits The vector to collect cat_bits
+   * @param cat_bits_sizes The sizes of the collected cat_bits
+   * @param collected_gradients The vector to collect gradients
+   */
+  void CopyAndCollect(MultiExpandEntry const& that, std::vector<uint32_t>* collected_cat_bits,
+                      std::vector<std::size_t>* cat_bits_sizes,
+                      std::vector<GradientPairPrecise>* collected_gradients) {
+    nid = that.nid;
+    depth = that.depth;
+    split.CopyAndCollect(that.split, collected_cat_bits, cat_bits_sizes, collected_gradients);
   }
 };
 }  // namespace xgboost::tree

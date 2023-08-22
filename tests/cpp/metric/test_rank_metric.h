@@ -17,38 +17,34 @@
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
 #include "xgboost/json.h"                // for Json, String, Object
 
-namespace xgboost {
-namespace metric {
+namespace xgboost::metric {
 
 inline void VerifyPrecision(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  // When the limit for precision is not given, it takes the limit at
-  // std::numeric_limits<unsigned>::max(); hence all values are very small
-  // NOTE(AbdealiJK): Maybe this should be fixed to be num_row by default.
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
-  xgboost::Metric * metric = xgboost::Metric::Create("pre", &ctx);
+  auto ctx = MakeCUDACtx(GPUIDX);
+  std::unique_ptr<xgboost::Metric> metric{Metric::Create("pre", &ctx)};
   ASSERT_STREQ(metric->Name(), "pre");
-  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}, data_split_mode), 0, 1e-7);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}, {}, {}, data_split_mode),
-              0, 1e-7);
+  EXPECT_NEAR(GetMetricEval(metric.get(), {0, 1}, {0, 1}, {}, {}, data_split_mode), 0.5, 1e-7);
+  EXPECT_NEAR(
+      GetMetricEval(metric.get(), {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {}, {}, data_split_mode),
+      0.5, 1e-7);
 
-  delete metric;
-  metric = xgboost::Metric::Create("pre@2", &ctx);
+  metric.reset(xgboost::Metric::Create("pre@2", &ctx));
   ASSERT_STREQ(metric->Name(), "pre@2");
-  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}, data_split_mode), 0.5f, 1e-7);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}, {}, {}, data_split_mode),
-              0.5f, 0.001f);
+  EXPECT_NEAR(GetMetricEval(metric.get(), {0, 1}, {0, 1}, {}, {}, data_split_mode), 0.5f, 1e-7);
+  EXPECT_NEAR(
+      GetMetricEval(metric.get(), {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {}, {}, data_split_mode),
+      0.5f, 0.001f);
 
-  EXPECT_ANY_THROW(GetMetricEval(metric, {0, 1}, {}, {}, {}, data_split_mode));
+  EXPECT_ANY_THROW(GetMetricEval(metric.get(), {0, 1}, {}, {}, {}, data_split_mode));
 
-  delete metric;
+  metric.reset(xgboost::Metric::Create("pre@4", &ctx));
+  EXPECT_NEAR(GetMetricEval(metric.get(), {0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f},
+                            {0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f}, {}, {}, data_split_mode),
+              0.5f, 1e-7);
 }
 
 inline void VerifyNDCG(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  auto ctx = CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
   Metric * metric = xgboost::Metric::Create("ndcg", &ctx);
   ASSERT_STREQ(metric->Name(), "ndcg");
   EXPECT_ANY_THROW(GetMetricEval(metric, {0, 1}, {}, {}, {}, data_split_mode));
@@ -106,7 +102,7 @@ inline void VerifyNDCG(DataSplitMode data_split_mode = DataSplitMode::kRow) {
 }
 
 inline void VerifyMAP(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+  auto ctx = MakeCUDACtx(GPUIDX);
   Metric * metric = xgboost::Metric::Create("map", &ctx);
   ASSERT_STREQ(metric->Name(), "map");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}, data_split_mode), 1, kRtEps);
@@ -154,7 +150,7 @@ inline void VerifyMAP(DataSplitMode data_split_mode = DataSplitMode::kRow) {
 }
 
 inline void VerifyNDCGExpGain(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  Context ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+  Context ctx = MakeCUDACtx(GPUIDX);
 
   auto p_fmat = xgboost::RandomDataGenerator{0, 0, 0}.GenerateDMatrix();
   MetaInfo& info = p_fmat->Info();
@@ -187,5 +183,4 @@ inline void VerifyNDCGExpGain(DataSplitMode data_split_mode = DataSplitMode::kRo
   ndcg = metric->Evaluate(predt, p_fmat);
   ASSERT_NEAR(ndcg, 1.0, kRtEps);
 }
-}  // namespace metric
-}  // namespace xgboost
+}  // namespace xgboost::metric

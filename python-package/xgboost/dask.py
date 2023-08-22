@@ -70,6 +70,7 @@ from .core import (
     Metric,
     Objective,
     QuantileDMatrix,
+    _check_distributed_params,
     _deprecate_positional_args,
     _expect,
 )
@@ -82,6 +83,7 @@ from .sklearn import (
     XGBRanker,
     XGBRankerMixIn,
     XGBRegressorBase,
+    _can_use_qdm,
     _check_rf_callback,
     _cls_predict_proba,
     _objective_decorator,
@@ -617,14 +619,7 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
         if self._iter == len(self._data):
             # Return 0 when there's no more batch.
             return 0
-        feature_names: Optional[FeatureNames] = None
-        if self._feature_names:
-            feature_names = self._feature_names
-        else:
-            if hasattr(self.data(), "columns"):
-                feature_names = self.data().columns.format()
-            else:
-                feature_names = None
+
         input_data(
             data=self.data(),
             label=self._get("_label"),
@@ -634,7 +629,7 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
             base_margin=self._get("_base_margin"),
             label_lower_bound=self._get("_label_lower_bound"),
             label_upper_bound=self._get("_label_upper_bound"),
-            feature_names=feature_names,
+            feature_names=self._feature_names,
             feature_types=self._feature_types,
             feature_weights=self._feature_weights,
         )
@@ -855,8 +850,6 @@ async def _get_rabit_args(
     except Exception:  # pylint: disable=broad-except
         sched_addr = None
 
-    # make sure all workers are online so that we can obtain reliable scheduler_info
-    await client.wait_for_workers(n_workers)  # type: ignore
     env = await client.run_on_scheduler(
         _start_tracker, n_workers, sched_addr, user_addr
     )
@@ -912,6 +905,16 @@ def _filter_empty(
     raise ValueError("None of the workers can provide a valid result.")
 
 
+async def _check_workers_are_alive(
+    workers: List[str], client: "distributed.Client"
+) -> None:
+    info = await client.scheduler.identity()
+    current_workers = info["workers"].keys()
+    missing_workers = set(workers) - current_workers
+    if missing_workers:
+        raise RuntimeError(f"Missing required workers: {missing_workers}")
+
+
 async def _train_async(
     client: "distributed.Client",
     global_config: Dict[str, Any],
@@ -929,12 +932,9 @@ async def _train_async(
     custom_metric: Optional[Metric],
 ) -> Optional[TrainReturnT]:
     workers = _get_workers_from_data(dtrain, evals)
+    await _check_workers_are_alive(workers, client)
     _rabit_args = await _get_rabit_args(len(workers), dconfig, client)
-
-    if params.get("booster", None) == "gblinear":
-        raise NotImplementedError(
-            f"booster `{params['booster']}` is not yet supported for dask."
-        )
+    _check_distributed_params(params)
 
     def dispatched_train(
         parameters: Dict,
@@ -1574,7 +1574,7 @@ async def _async_wrap_evaluation_matrices(
     """A switch function for async environment."""
 
     def _dispatch(ref: Optional[DaskDMatrix], **kwargs: Any) -> DaskDMatrix:
-        if tree_method in ("hist", "gpu_hist"):
+        if _can_use_qdm(tree_method):
             return DaskQuantileDMatrix(
                 client=client, ref=ref, max_bin=max_bin, **kwargs
             )

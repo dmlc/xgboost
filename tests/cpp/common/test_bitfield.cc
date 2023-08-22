@@ -1,5 +1,5 @@
-/*!
- * Copyright 2019 XGBoost contributors
+/**
+ * Copyright 2019-2023, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include "../../../src/common/bitfield.h"
@@ -14,7 +14,7 @@ TEST(BitField, Check) {
                 static_cast<typename common::Span<LBitField64::value_type>::index_type>(
                     storage.size())});
     size_t true_bit = 190;
-    for (size_t i = true_bit + 1; i < bits.Size(); ++i) {
+    for (size_t i = true_bit + 1; i < bits.Capacity(); ++i) {
       ASSERT_FALSE(bits.Check(i));
     }
     ASSERT_TRUE(bits.Check(true_bit));
@@ -34,7 +34,7 @@ TEST(BitField, Check) {
       ASSERT_FALSE(bits.Check(i));
     }
     ASSERT_TRUE(bits.Check(true_bit));
-    for (size_t i = true_bit + 1; i < bits.Size(); ++i) {
+    for (size_t i = true_bit + 1; i < bits.Capacity(); ++i) {
       ASSERT_FALSE(bits.Check(i));
     }
   }

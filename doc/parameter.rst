@@ -34,6 +34,20 @@ General Parameters
 
   - Which booster to use. Can be ``gbtree``, ``gblinear`` or ``dart``; ``gbtree`` and ``dart`` use tree based models while ``gblinear`` uses linear functions.
 
+* ``device`` [default= ``cpu``]
+
+  .. versionadded:: 2.0.0
+
+  - Device for XGBoost to run. User can set it to one of the following values:
+
+    + ``cpu``: Use CPU.
+    + ``cuda``: Use a GPU (CUDA device).
+    + ``cuda:<ordinal>``: ``<ordinal>`` is an integer that specifies the ordinal of the GPU (which GPU do you want to use if you have more than one devices).
+    + ``gpu``: Default GPU device selection from the list of available and supported devices. Only ``cuda`` devices are supported currently.
+    + ``gpu:<ordinal>``: Default GPU device selection from the list of available and supported devices. Only ``cuda`` devices are supported currently.
+
+    For more information about GPU acceleration, see :doc:`/gpu/index`. In distributed environments, ordinal selection is handled by distributed frameworks instead of XGBoost. As a result, using ``cuda:<ordinal>`` will result in an error. Use ``cuda`` instead.
+
 * ``verbosity`` [default=1]
 
   - Verbosity of printing messages.  Valid values are 0 (silent), 1 (warning), 2 (info), 3
@@ -44,7 +58,7 @@ General Parameters
 * ``validate_parameters`` [default to ``false``, except for Python, R and CLI interface]
 
   - When set to True, XGBoost will perform validation of input parameters to check whether
-    a parameter is used or not.
+    a parameter is used or not. A warning is emitted when there's unknown parameter.
 
 * ``nthread`` [default to maximum number of threads available if not set]
 
@@ -54,10 +68,6 @@ General Parameters
 * ``disable_default_eval_metric`` [default= ``false``]
 
   - Flag to disable default metric. Set to 1 or ``true`` to disable.
-
-* ``num_feature`` [set automatically by XGBoost, no need to be set by user]
-
-  - Feature dimension used in boosting, set to maximum dimension of the feature
 
 Parameters for Tree Booster
 ===========================
@@ -99,7 +109,7 @@ Parameters for Tree Booster
   - ``gradient_based``: the selection probability for each training instance is proportional to the
     *regularized absolute value* of gradients (more specifically, :math:`\sqrt{g^2+\lambda h^2}`).
     ``subsample`` may be set to as low as 0.1 without loss of model accuracy. Note that this
-    sampling method is only supported when ``tree_method`` is set to ``gpu_hist``; other tree
+    sampling method is only supported when ``tree_method`` is set to ``hist`` and the device is ``cuda``; other tree
     methods only support ``uniform`` sampling.
 
 * ``colsample_bytree``, ``colsample_bylevel``, ``colsample_bynode`` [default=1]
@@ -131,26 +141,15 @@ Parameters for Tree Booster
 * ``tree_method`` string [default= ``auto``]
 
   - The tree construction algorithm used in XGBoost. See description in the `reference paper <http://arxiv.org/abs/1603.02754>`_ and :doc:`treemethod`.
-  - XGBoost supports  ``approx``, ``hist`` and ``gpu_hist`` for distributed training.  Experimental support for external memory is available for ``approx`` and ``gpu_hist``.
 
-  - Choices: ``auto``, ``exact``, ``approx``, ``hist``, ``gpu_hist``, this is a
-    combination of commonly used updaters.  For other updaters like ``refresh``, set the
-    parameter ``updater`` directly.
+  - Choices: ``auto``, ``exact``, ``approx``, ``hist``, this is a combination of commonly
+    used updaters.  For other updaters like ``refresh``, set the parameter ``updater``
+    directly.
 
-    - ``auto``: Use heuristic to choose the fastest method.
-
-      - For small dataset, exact greedy (``exact``) will be used.
-      - For larger dataset, approximate algorithm (``approx``) will be chosen.  It's
-        recommended to try ``hist`` and ``gpu_hist`` for higher performance with large
-        dataset.
-        (``gpu_hist``)has support for ``external memory``.
-
-      - Because old behavior is always use exact greedy in single machine, user will get a
-        message when approximate algorithm is chosen to notify this choice.
+    - ``auto``: Same as the ``hist`` tree method.
     - ``exact``: Exact greedy algorithm.  Enumerates all split candidates.
     - ``approx``: Approximate greedy algorithm using quantile sketch and gradient histogram.
     - ``hist``: Faster histogram optimized approximate greedy algorithm.
-    - ``gpu_hist``: GPU implementation of ``hist`` algorithm.
 
 * ``scale_pos_weight`` [default=1]
 
@@ -163,7 +162,8 @@ Parameters for Tree Booster
     - ``grow_colmaker``: non-distributed column-based construction of trees.
     - ``grow_histmaker``: distributed tree construction with row-based data splitting based on global proposal of histogram counting.
     - ``grow_quantile_histmaker``: Grow tree using quantized histogram.
-    - ``grow_gpu_hist``: Grow tree with GPU.
+    - ``grow_gpu_hist``:  Enabled when ``tree_method`` is set to ``hist`` along with ``device=cuda``.
+    - ``grow_gpu_approx``: Enabled when ``tree_method`` is set to ``approx`` along with ``device=cuda``.
     - ``sync``: synchronizes trees in all distributed nodes.
     - ``refresh``: refreshes tree's statistics and/or leaf values based on the current data. Note that no random subsampling of data rows is performed.
     - ``prune``: prunes the splits where loss < min_split_loss (or gamma) and nodes that have depth greater than ``max_depth``.
@@ -183,7 +183,7 @@ Parameters for Tree Booster
 * ``grow_policy`` [default= ``depthwise``]
 
   - Controls a way new nodes are added to the tree.
-  - Currently supported only if ``tree_method`` is set to ``hist``, ``approx`` or ``gpu_hist``.
+  - Currently supported only if ``tree_method`` is set to ``hist`` or ``approx``.
   - Choices: ``depthwise``, ``lossguide``
 
     - ``depthwise``: split at nodes closest to the root.
@@ -195,21 +195,9 @@ Parameters for Tree Booster
 
 * ``max_bin``, [default=256]
 
-  - Only used if ``tree_method`` is set to ``hist``, ``approx`` or ``gpu_hist``.
+  - Only used if ``tree_method`` is set to ``hist`` or ``approx``.
   - Maximum number of discrete bins to bucket continuous features.
   - Increasing this number improves the optimality of splits at the cost of higher computation time.
-
-* ``predictor``, [default= ``auto``]
-
-  - The type of predictor algorithm to use. Provides the same results but allows the use of GPU or CPU.
-
-    - ``auto``: Configure predictor based on heuristics.
-    - ``cpu_predictor``: Multicore CPU prediction algorithm.
-    - ``gpu_predictor``: Prediction using GPU.  Used when ``tree_method`` is ``gpu_hist``.
-      When ``predictor`` is set to default value ``auto``, the ``gpu_hist`` tree method is
-      able to provide GPU based prediction without copying training data to GPU memory.
-      If ``gpu_predictor`` is explicitly specified, then all data is copied into GPU, only
-      recommended for performing prediction tasks.
 
 * ``num_parallel_tree``, [default=1]
 
@@ -237,6 +225,15 @@ Parameters for Tree Booster
 
     - ``one_output_per_tree``: One model for each target.
     - ``multi_output_tree``:  Use multi-target trees.
+
+* ``max_cached_hist_node``, [default = 65536]
+
+  Maximum number of cached nodes for CPU histogram.
+
+  .. versionadded:: 2.0.0
+
+  - For most of the cases this parameter should not be set except for growing deep trees
+    on CPU.
 
 .. _cat-param:
 
@@ -332,7 +329,7 @@ Parameters for Linear Booster (``booster=gblinear``)
   - Choice of algorithm to fit linear model
 
     - ``shotgun``: Parallel coordinate descent algorithm based on shotgun algorithm. Uses 'hogwild' parallelism and therefore produces a nondeterministic solution on each run.
-    - ``coord_descent``: Ordinary coordinate descent algorithm. Also multithreaded but still produces a deterministic solution.
+    - ``coord_descent``: Ordinary coordinate descent algorithm. Also multithreaded but still produces a deterministic solution. When the ``device`` parameter is set to ``cuda`` or ``gpu``, a GPU variant would be used.
 
 * ``feature_selector`` [default= ``cyclic``]
 
@@ -357,7 +354,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
   - ``reg:squarederror``: regression with squared loss.
   - ``reg:squaredlogerror``: regression with squared log loss :math:`\frac{1}{2}[log(pred + 1) - log(label + 1)]^2`.  All input labels are required to be greater than -1.  Also, see metric ``rmsle`` for possible issue  with this objective.
-  - ``reg:logistic``: logistic regression.
+  - ``reg:logistic``: logistic regression, output probability
   - ``reg:pseudohubererror``: regression with Pseudo Huber loss, a twice differentiable alternative to absolute loss.
   - ``reg:absoluteerror``: Regression with L1 error. When tree model is used, leaf value is refreshed after tree construction. If used in distributed training, the leaf value is calculated as the mean value from all workers, which is not guaranteed to be optimal.
 
@@ -424,6 +421,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
       After XGBoost 1.6, both of the requirements and restrictions for using ``aucpr`` in classification problem are similar to ``auc``.  For ranking task, only binary relevance label :math:`y \in [0, 1]` is supported.  Different from ``map (mean average precision)``, ``aucpr`` calculates the *interpolated* area under precision recall curve using continuous interpolation.
 
+    - ``pre``: Precision at :math:`k`. Supports only learning to rank task.
     - ``ndcg``: `Normalized Discounted Cumulative Gain <http://en.wikipedia.org/wiki/NDCG>`_
     - ``map``: `Mean Average Precision <http://en.wikipedia.org/wiki/Mean_average_precision#Mean_average_precision>`_
 
@@ -431,11 +429,11 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
       .. math::
 
-	 AP@l = \frac{1}{min{(l, N)}}\sum^l_{k=1}P@k \cdot I_{(k)}
+         AP@l = \frac{1}{min{(l, N)}}\sum^l_{k=1}P@k \cdot I_{(k)}
 
       where :math:`I_{(k)}` is an indicator function that equals to :math:`1` when the document at :math:`k` is relevant and :math:`0` otherwise. The :math:`P@k` is the precision at :math:`k`, and :math:`N` is the total number of relevant documents. Lastly, the `mean average precision` is defined as the weighted average across all queries.
 
-    - ``ndcg@n``, ``map@n``: :math:`n` can be assigned as an integer to cut off the top positions in the lists for evaluation.
+    - ``ndcg@n``, ``map@n``, ``pre@n``: :math:`n` can be assigned as an integer to cut off the top positions in the lists for evaluation.
     - ``ndcg-``, ``map-``, ``ndcg@n-``, ``map@n-``: In XGBoost, the NDCG and MAP evaluate the score of a list without any positive samples as :math:`1`. By appending "-" to the evaluation metric name, we can ask XGBoost to evaluate these scores as :math:`0` to be consistent under some conditions.
     - ``poisson-nloglik``: negative log-likelihood for Poisson regression
     - ``gamma-nloglik``: negative log-likelihood for gamma regression

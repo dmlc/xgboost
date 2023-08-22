@@ -11,13 +11,12 @@
 
 #include "../../../src/common/algorithm.cuh"
 #include "../../../src/common/device_helpers.cuh"
-#include "../helpers.h"  // CreateEmptyGenericParam
+#include "../helpers.h"  // MakeCUDACtx
 
 namespace xgboost {
 namespace common {
 void TestSegmentedArgSort() {
-  Context ctx;
-  ctx.gpu_id = 0;
+  auto ctx = MakeCUDACtx(0);
 
   size_t constexpr kElements = 100, kGroups = 3;
   dh::device_vector<size_t> sorted_idx(kElements, 0);
@@ -55,8 +54,7 @@ void TestSegmentedArgSort() {
 TEST(Algorithm, SegmentedArgSort) { TestSegmentedArgSort(); }
 
 TEST(Algorithm, GpuArgSort) {
-  Context ctx;
-  ctx.gpu_id = 0;
+  auto ctx = MakeCUDACtx(0);
 
   dh::device_vector<float> values(20);
   dh::Iota(dh::ToSpan(values));                                    // accending
@@ -83,7 +81,7 @@ TEST(Algorithm, GpuArgSort) {
 TEST(Algorithm, SegmentedSequence) {
   dh::device_vector<std::size_t> idx(16);
   dh::device_vector<std::size_t> ptr(3);
-  Context ctx = CreateEmptyGenericParam(0);
+  Context ctx = MakeCUDACtx(0);
   ptr[0] = 0;
   ptr[1] = 4;
   ptr[2] = idx.size();

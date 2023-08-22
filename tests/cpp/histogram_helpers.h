@@ -2,6 +2,10 @@
 #include "../../src/data/ellpack_page.cuh"
 #endif
 
+#include <xgboost/data.h>  // for SparsePage
+
+#include "./helpers.h"  // for RandomDataGenerator
+
 namespace xgboost {
 #if defined(__CUDACC__)
 namespace {

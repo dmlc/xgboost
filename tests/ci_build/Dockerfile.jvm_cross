@@ -20,10 +20,14 @@ RUN \
     wget -nv https://archive.apache.org/dist/maven/maven-3/3.6.1/binaries/apache-maven-3.6.1-bin.tar.gz && \
     tar xvf apache-maven-3.6.1-bin.tar.gz -C /opt && \
     ln -s /opt/apache-maven-3.6.1/ /opt/maven && \
-    # Spark
-    wget -nv https://archive.apache.org/dist/spark/spark-$SPARK_VERSION/spark-$SPARK_VERSION-bin-hadoop2.7.tgz && \
-    tar xvf spark-$SPARK_VERSION-bin-hadoop2.7.tgz -C /opt && \
-    ln -s /opt/spark-$SPARK_VERSION-bin-hadoop2.7 /opt/spark
+    # Spark with scala 2.12
+    mkdir -p /opt/spark-scala-2.12 && \
+    wget -nv https://archive.apache.org/dist/spark/spark-$SPARK_VERSION/spark-$SPARK_VERSION-bin-hadoop3.tgz && \
+    tar xvf spark-$SPARK_VERSION-bin-hadoop3.tgz --strip-components=1 -C /opt/spark-scala-2.12 && \
+    # Spark with scala 2.13
+    mkdir -p /opt/spark-scala-2.13 && \
+    wget -nv https://archive.apache.org/dist/spark/spark-$SPARK_VERSION/spark-$SPARK_VERSION-bin-hadoop3-scala2.13.tgz && \
+    tar xvf spark-$SPARK_VERSION-bin-hadoop3-scala2.13.tgz --strip-components=1 -C /opt/spark-scala-2.13
 
 ENV PATH=/opt/mambaforge/bin:/opt/spark/bin:/opt/maven/bin:$PATH
 

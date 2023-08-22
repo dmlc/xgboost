@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2021-2022 by Contributors
+ Copyright (c) 2021-2023 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -50,9 +50,12 @@ class GpuXGBoostGeneralSuite extends GpuTestSuite {
     withGpuSparkSession() { spark =>
       import spark.implicits._
       val trainingDf = trainingData.toDF(allColumnNames: _*)
-      val xgbParam = Map("eta" -> 0.1f, "max_depth" -> 2, "objective" -> "multi:softprob",
-        "num_class" -> 3, "num_round" -> 5, "num_workers" -> 1, "tree_method" -> "gpu_hist",
-        "features_cols" -> featureNames, "label_col" -> labelName)
+      val xgbParam = Map(
+        "eta" -> 0.1f, "max_depth" -> 2, "objective" -> "multi:softprob",
+        "num_class" -> 3, "num_round" -> 5, "num_workers" -> 1,
+        "tree_method" -> "hist", "device" -> "cuda",
+        "features_cols" -> featureNames, "label_col" -> labelName
+      )
       new XGBoostClassifier(xgbParam)
         .fit(trainingDf)
     }
@@ -65,8 +68,11 @@ class GpuXGBoostGeneralSuite extends GpuTestSuite {
 
       trainingDf = trainingDf.select(labelName, "f2", weightName, "f3", baseMarginName, "f1")
 
-      val xgbParam = Map("eta" -> 0.1f, "max_depth" -> 2, "objective" -> "multi:softprob",
-        "num_class" -> 3, "num_round" -> 5, "num_workers" -> 1, "tree_method" -> "gpu_hist")
+      val xgbParam = Map(
+        "eta" -> 0.1f, "max_depth" -> 2, "objective" -> "multi:softprob",
+        "num_class" -> 3, "num_round" -> 5, "num_workers" -> 1,
+        "tree_method" -> "hist", "device" -> "cuda"
+      )
       new XGBoostClassifier(xgbParam)
         .setFeaturesCol(featureNames)
         .setLabelCol(labelName)
@@ -127,7 +133,7 @@ class GpuXGBoostGeneralSuite extends GpuTestSuite {
     }
   }
 
-  test("Throw exception when tree method is not set to gpu_hist") {
+  test("Throw exception when device is not set to cuda") {
     withGpuSparkSession() { spark =>
       import spark.implicits._
       val trainingDf = trainingData.toDF(allColumnNames: _*)
@@ -139,12 +145,11 @@ class GpuXGBoostGeneralSuite extends GpuTestSuite {
           .setLabelCol(labelName)
           .fit(trainingDf)
       }
-      assert(thrown.getMessage.contains("GPU train requires tree_method set to gpu_hist"))
+      assert(thrown.getMessage.contains("GPU train requires `device` set to `cuda`"))
     }
   }
 
   test("Train with eval") {
-
     withGpuSparkSession() { spark =>
       import spark.implicits._
       val Array(trainingDf, eval1, eval2) = trainingData.toDF(allColumnNames: _*)
@@ -184,4 +189,24 @@ class GpuXGBoostGeneralSuite extends GpuTestSuite {
     }
   }
 
+  test("device ordinal should not be specified") {
+    withGpuSparkSession() { spark =>
+      import spark.implicits._
+      val trainingDf = trainingData.toDF(allColumnNames: _*)
+      val params = Map(
+        "objective" -> "multi:softprob",
+        "num_class" -> 3,
+        "num_round" -> 5,
+        "num_workers" -> 1
+      )
+      val thrown = intercept[IllegalArgumentException] {
+        new XGBoostClassifier(params)
+        .setFeaturesCol(featureNames)
+        .setLabelCol(labelName)
+        .setDevice("cuda:1")
+        .fit(trainingDf)
+      }
+      assert(thrown.getMessage.contains("`cuda` or `gpu`"))
+    }
+  }
 }

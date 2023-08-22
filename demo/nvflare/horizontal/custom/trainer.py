@@ -70,8 +70,7 @@ class XGBoostTrainer(Executor):
             param = {'max_depth': 2, 'eta': 1, 'objective': 'binary:logistic'}
             if self._use_gpus:
                 self.log_info(fl_ctx, f'Training with GPU {rank}')
-                param['tree_method'] = 'gpu_hist'
-                param['gpu_id'] = rank
+                param['device'] = f"cuda:{rank}"
 
             # Specify validations set to watch performance
             watchlist = [(dtest, 'eval'), (dtrain, 'train')]

@@ -4,14 +4,12 @@
 #include <limits>
 
 #include "../helpers.h"
-
+namespace xgboost {
 TEST(Objective, DeclareUnifiedTest(HingeObj)) {
-  xgboost::Context ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
-  std::unique_ptr<xgboost::ObjFunction> obj {
-    xgboost::ObjFunction::Create("binary:hinge", &ctx)
-  };
+  Context ctx = MakeCUDACtx(GPUIDX);
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("binary:hinge", &ctx)};
 
-  xgboost::bst_float eps = std::numeric_limits<xgboost::bst_float>::min();
+  float eps = std::numeric_limits<xgboost::bst_float>::min();
   CheckObjFunction(obj,
                    {-1.0f, -0.5f, 0.5f, 1.0f, -1.0f, -0.5f,  0.5f, 1.0f},
                    { 0.0f,  0.0f, 0.0f, 0.0f,  1.0f,  1.0f,  1.0f, 1.0f},
@@ -27,3 +25,4 @@ TEST(Objective, DeclareUnifiedTest(HingeObj)) {
 
   ASSERT_NO_THROW(obj->DefaultEvalMetric());
 }
+}  // namespace xgboost

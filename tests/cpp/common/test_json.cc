@@ -41,7 +41,6 @@ std::string GetModelStr() {
     "num_class": "0",
     "num_feature": "10",
     "objective": "reg:linear",
-    "predictor": "gpu_predictor",
     "tree_method": "gpu_hist",
     "updater": "grow_gpu_hist"
   },
@@ -419,7 +418,7 @@ TEST(Json, AssigningString) {
 
 TEST(Json, LoadDump) {
   std::string ori_buffer = GetModelStr();
-  Json origin {Json::Load(StringView{ori_buffer.c_str(), ori_buffer.size()})};
+  Json origin{Json::Load(StringView{ori_buffer.c_str(), ori_buffer.size()})};
 
   dmlc::TemporaryDirectory tempdir;
   auto const& path = tempdir.path + "test_model_dump";
@@ -431,9 +430,9 @@ TEST(Json, LoadDump) {
   ASSERT_TRUE(fout);
   fout << out << std::flush;
 
-  std::string new_buffer = common::LoadSequentialFile(path);
+  std::vector<char> new_buffer = common::LoadSequentialFile(path);
 
-  Json load_back {Json::Load(StringView(new_buffer.c_str(), new_buffer.size()))};
+  Json load_back{Json::Load(StringView(new_buffer.data(), new_buffer.size()))};
   ASSERT_EQ(load_back, origin);
 }
 
@@ -652,7 +651,7 @@ TEST(UBJson, Basic) {
     }
 
     auto data = common::LoadSequentialFile("test.ubj");
-    UBJReader reader{StringView{data}};
+    UBJReader reader{StringView{data.data(), data.size()}};
     json = reader.Load();
     return json;
   };

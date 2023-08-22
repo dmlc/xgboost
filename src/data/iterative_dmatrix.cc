@@ -33,10 +33,11 @@ IterativeDMatrix::IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle pro
   bool valid = iter.Next();
   CHECK(valid) << "Iterative DMatrix must have at least 1 batch.";
 
-  auto d = MakeProxy(proxy_)->DeviceIdx();
+  auto pctx = MakeProxy(proxy_)->Ctx();
 
   Context ctx;
-  ctx.UpdateAllowUnknown(Args{{"nthread", std::to_string(nthread)}, {"gpu_id", std::to_string(d)}});
+  ctx.UpdateAllowUnknown(
+      Args{{"nthread", std::to_string(nthread)}, {"device", pctx->DeviceName()}});
   // hardcoded parameter.
   BatchParam p{max_bin, tree::TrainParam::DftSparseThreshold()};
 
@@ -240,9 +241,9 @@ void IterativeDMatrix::InitFromCPU(Context const* ctx, BatchParam const& p,
    * Generate gradient index.
    */
   this->ghist_ = std::make_unique<GHistIndexMatrix>(Info(), std::move(cuts), p.max_bin);
-  size_t rbegin = 0;
-  size_t prev_sum = 0;
-  size_t i = 0;
+  std::size_t rbegin = 0;
+  std::size_t prev_sum = 0;
+  std::size_t i = 0;
   while (iter.Next()) {
     HostAdapterDispatch(proxy, [&](auto const& batch) {
       proxy->Info().num_nonzero_ = batch_nnz[i];
@@ -366,8 +367,8 @@ inline void IterativeDMatrix::InitFromCUDA(Context const*, BatchParam const&, Da
   common::AssertGPUSupport();
 }
 
-inline BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(Context const* ctx,
-                                                                 BatchParam const& param) {
+inline BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(Context const*,
+                                                                 BatchParam const&) {
   common::AssertGPUSupport();
   auto begin_iter = BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(ellpack_));
   return BatchSet<EllpackPage>(BatchIterator<EllpackPage>(begin_iter));

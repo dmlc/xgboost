@@ -7,7 +7,7 @@
 #include <dmlc/data.h>
 
 #include <algorithm>
-#include <cstddef>  // std::size_t
+#include <cstddef>  // for size_t
 #include <functional>
 #include <limits>
 #include <map>
@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "../c_api/c_api_error.h"
+#include "../common/error_msg.h"  // for MaxFeatureSize
 #include "../common/math.h"
 #include "array_interface.h"
 #include "arrow-cdi.h"
@@ -300,9 +301,9 @@ class ArrayAdapter : public detail::SingleBatchDataIter<ArrayAdapterBatch> {
     array_interface_ = ArrayInterface<2>(get<Object const>(j));
     batch_ = ArrayAdapterBatch{array_interface_};
   }
-  ArrayAdapterBatch const& Value() const override { return batch_; }
-  size_t NumRows() const { return array_interface_.Shape(0); }
-  size_t NumColumns() const { return array_interface_.Shape(1); }
+  [[nodiscard]] ArrayAdapterBatch const& Value() const override { return batch_; }
+  [[nodiscard]] std::size_t NumRows() const { return array_interface_.Shape(0); }
+  [[nodiscard]] std::size_t NumColumns() const { return array_interface_.Shape(1); }
 
  private:
   ArrayAdapterBatch batch_;
@@ -476,7 +477,6 @@ class CSCArrayAdapterBatch : public detail::NoMetaInfo {
   ArrayInterface<1> indptr_;
   ArrayInterface<1> indices_;
   ArrayInterface<1> values_;
-  bst_row_t n_rows_;
 
   class Line {
     std::size_t column_idx_;
@@ -502,11 +502,8 @@ class CSCArrayAdapterBatch : public detail::NoMetaInfo {
   static constexpr bool kIsRowMajor = false;
 
   CSCArrayAdapterBatch(ArrayInterface<1> indptr, ArrayInterface<1> indices,
-                       ArrayInterface<1> values, bst_row_t n_rows)
-      : indptr_{std::move(indptr)},
-        indices_{std::move(indices)},
-        values_{std::move(values)},
-        n_rows_{n_rows} {}
+                       ArrayInterface<1> values)
+      : indptr_{std::move(indptr)}, indices_{std::move(indices)}, values_{std::move(values)} {}
 
   std::size_t Size() const { return indptr_.n - 1; }
   Line GetLine(std::size_t idx) const {
@@ -541,8 +538,7 @@ class CSCArrayAdapter : public detail::SingleBatchDataIter<CSCArrayAdapterBatch>
         indices_{indices},
         values_{values},
         num_rows_{num_rows},
-        batch_{
-            CSCArrayAdapterBatch{indptr_, indices_, values_, static_cast<bst_row_t>(num_rows_)}} {}
+        batch_{CSCArrayAdapterBatch{indptr_, indices_, values_}} {}
 
   // JVM package sends 0 as unknown
   size_t NumRows() const { return num_rows_ == 0 ? kAdapterUnknownSize : num_rows_; }

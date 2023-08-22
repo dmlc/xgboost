@@ -5,6 +5,7 @@
 
 #include "../../../src/common/compressed_iterator.h"
 #include "../../../src/data/ellpack_page.cuh"
+#include "../../../src/data/ellpack_page.h"
 #include "../../../src/data/sparse_page_dmatrix.h"
 #include "../../../src/tree/param.h"  // TrainParam
 #include "../filesystem.h"            // dmlc::TemporaryDirectory
@@ -108,7 +109,7 @@ TEST(SparsePageDMatrix, RetainEllpackPage) {
 }
 
 TEST(SparsePageDMatrix, EllpackPageContent) {
-  auto ctx = CreateEmptyGenericParam(0);
+  auto ctx = MakeCUDACtx(0);
   constexpr size_t kRows = 6;
   constexpr size_t kCols = 2;
   constexpr size_t kPageSize = 1;

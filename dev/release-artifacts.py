@@ -98,17 +98,24 @@ def download_wheels(
     return filenames
 
 
-def make_pysrc_wheel(release: str, outdir: str) -> None:
+def make_pysrc_wheel(
+    release: str, rc: Optional[str], rc_ver: Optional[int], outdir: str
+) -> None:
     """Make Python source distribution."""
-    dist = os.path.join(outdir, "dist")
+    dist = os.path.abspath(os.path.normpath(os.path.join(outdir, "dist")))
     if not os.path.exists(dist):
         os.mkdir(dist)
 
     with DirectoryExcursion(os.path.join(ROOT, "python-package")):
         subprocess.check_call(["python", "-m", "build", "--sdist"])
-        src = os.path.join(DIST, f"xgboost-{release}.tar.gz")
+        if rc is not None:
+            name = f"xgboost-{release}{rc}{rc_ver}.tar.gz"
+        else:
+            name = f"xgboost-{release}.tar.gz"
+        src = os.path.join(DIST, name)
         subprocess.check_call(["twine", "check", src])
-        shutil.move(src, os.path.join(dist, f"xgboost-{release}.tar.gz"))
+        target = os.path.join(dist, name)
+        shutil.move(src, target)
 
 
 def download_py_packages(
@@ -172,7 +179,9 @@ def download_r_packages(
     hashes = []
     with DirectoryExcursion(os.path.join(outdir, "r-packages")):
         for f in filenames:
-            ret = subprocess.run(["sha256sum", os.path.basename(f)], capture_output=True)
+            ret = subprocess.run(
+                ["sha256sum", os.path.basename(f)], capture_output=True
+            )
             h = ret.stdout.decode().strip()
             hashes.append(h)
     return urls, hashes
@@ -306,7 +315,7 @@ def main(args: argparse.Namespace) -> None:
     hashes.extend(hr)
 
     # Python source wheel
-    make_pysrc_wheel(release, args.outdir)
+    make_pysrc_wheel(release, rc, rc_ver, args.outdir)
 
     # Python binary wheels
     download_py_packages(branch, major, minor, commit_hash, args.outdir)

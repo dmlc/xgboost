@@ -15,9 +15,9 @@
 
 namespace xgboost {
 namespace {
-auto MakeModel(std::string objective, std::shared_ptr<DMatrix> dmat) {
+auto MakeModel(std::string tree_method, std::string objective, std::shared_ptr<DMatrix> dmat) {
   std::unique_ptr<Learner> learner{Learner::Create({dmat})};
-  learner->SetParam("tree_method", "approx");
+  learner->SetParam("tree_method", tree_method);
   learner->SetParam("objective", objective);
   if (objective.find("quantile") != std::string::npos) {
     learner->SetParam("quantile_alpha", "0.5");
@@ -35,7 +35,7 @@ auto MakeModel(std::string objective, std::shared_ptr<DMatrix> dmat) {
 }
 
 void VerifyObjective(size_t rows, size_t cols, float expected_base_score, Json expected_model,
-                     std::string objective) {
+                     std::string tree_method, std::string objective) {
   auto const world_size = collective::GetWorldSize();
   auto const rank = collective::GetRank();
   std::shared_ptr<DMatrix> dmat{RandomDataGenerator{rows, cols, 0}.GenerateDMatrix(rank == 0)};
@@ -61,7 +61,7 @@ void VerifyObjective(size_t rows, size_t cols, float expected_base_score, Json e
   }
   std::shared_ptr<DMatrix> sliced{dmat->SliceCol(world_size, rank)};
 
-  auto model = MakeModel(objective, sliced);
+  auto model = MakeModel(tree_method, objective, sliced);
   auto base_score = GetBaseScore(model);
   ASSERT_EQ(base_score, expected_base_score);
   ASSERT_EQ(model, expected_model);
@@ -76,7 +76,7 @@ class FederatedLearnerTest : public ::testing::TestWithParam<std::string> {
   void SetUp() override { server_ = std::make_unique<ServerForTest>(kWorldSize); }
   void TearDown() override { server_.reset(nullptr); }
 
-  void Run(std::string objective) {
+  void Run(std::string tree_method, std::string objective) {
     static auto constexpr kRows{16};
     static auto constexpr kCols{16};
 
@@ -99,17 +99,22 @@ class FederatedLearnerTest : public ::testing::TestWithParam<std::string> {
       }
     }
 
-    auto model = MakeModel(objective, dmat);
+    auto model = MakeModel(tree_method, objective, dmat);
     auto score = GetBaseScore(model);
 
     RunWithFederatedCommunicator(kWorldSize, server_->Address(), &VerifyObjective, kRows, kCols,
-                                 score, model, objective);
+                                 score, model, tree_method, objective);
   }
 };
 
-TEST_P(FederatedLearnerTest, Objective) {
+TEST_P(FederatedLearnerTest, Approx) {
   std::string objective = GetParam();
-  this->Run(objective);
+  this->Run("approx", objective);
+}
+
+TEST_P(FederatedLearnerTest, Hist) {
+  std::string objective = GetParam();
+  this->Run("hist", objective);
 }
 
 INSTANTIATE_TEST_SUITE_P(FederatedLearnerObjective, FederatedLearnerTest,

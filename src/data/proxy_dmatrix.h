@@ -62,7 +62,7 @@ class DMatrixProxy : public DMatrix {
 #endif  // defined(XGBOOST_USE_CUDA)
   }
 
-  void SetArrayData(char const* c_interface);
+  void SetArrayData(StringView interface_str);
   void SetCSRData(char const* c_indptr, char const* c_indices, char const* c_values,
                   bst_feature_t n_features, bool on_host);
 
@@ -114,28 +114,62 @@ inline DMatrixProxy* MakeProxy(DMatrixHandle proxy) {
   return typed;
 }
 
-template <typename Fn>
+/**
+ * @brief Dispatch function call based on input type.
+ *
+ * @tparam get_value Whether the funciton Fn accept an adapter batch or the adapter itself.
+ * @tparam Fn        The type of the function to be dispatched.
+ *
+ * @param proxy The proxy object holding the reference to the input.
+ * @param fn    The function to be dispatched.
+ * @param type_error[out] Set to ture if it's not null and the input data is not recognized by
+ *                        the host.
+ *
+ * @return The return value of the function being dispatched.
+ */
+template <bool get_value = true, typename Fn>
 decltype(auto) HostAdapterDispatch(DMatrixProxy const* proxy, Fn fn, bool* type_error = nullptr) {
   if (proxy->Adapter().type() == typeid(std::shared_ptr<CSRArrayAdapter>)) {
-    auto value = std::any_cast<std::shared_ptr<CSRArrayAdapter>>(proxy->Adapter())->Value();
+    if constexpr (get_value) {
+      auto value = std::any_cast<std::shared_ptr<CSRArrayAdapter>>(proxy->Adapter())->Value();
+      return fn(value);
+    } else {
+      auto value = std::any_cast<std::shared_ptr<CSRArrayAdapter>>(proxy->Adapter());
+      return fn(value);
+    }
     if (type_error) {
       *type_error = false;
     }
-    return fn(value);
   } else if (proxy->Adapter().type() == typeid(std::shared_ptr<ArrayAdapter>)) {
-    auto value = std::any_cast<std::shared_ptr<ArrayAdapter>>(proxy->Adapter())->Value();
+    if constexpr (get_value) {
+      auto value = std::any_cast<std::shared_ptr<ArrayAdapter>>(proxy->Adapter())->Value();
+      return fn(value);
+    } else {
+      auto value = std::any_cast<std::shared_ptr<ArrayAdapter>>(proxy->Adapter());
+      return fn(value);
+    }
     if (type_error) {
       *type_error = false;
     }
-    return fn(value);
   } else {
     if (type_error) {
       *type_error = true;
     } else {
       LOG(FATAL) << "Unknown type: " << proxy->Adapter().type().name();
     }
-    return std::result_of_t<Fn(decltype(std::declval<std::shared_ptr<ArrayAdapter>>()->Value()))>();
+    if constexpr (get_value) {
+      return std::result_of_t<Fn(
+          decltype(std::declval<std::shared_ptr<ArrayAdapter>>()->Value()))>();
+    } else {
+      return std::result_of_t<Fn(decltype(std::declval<std::shared_ptr<ArrayAdapter>>()))>();
+    }
   }
 }
+
+/**
+ * @brief Create a `SimpleDMatrix` instance from a `DMatrixProxy`.
+ */
+std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const* ctx,
+                                                std::shared_ptr<DMatrixProxy> proxy, float missing);
 }  // namespace xgboost::data
 #endif  // XGBOOST_DATA_PROXY_DMATRIX_H_

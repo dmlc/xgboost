@@ -319,7 +319,7 @@ cb.early.stop <- function(stopping_rounds, maximize = FALSE,
 
     # maximize is usually NULL when not set in xgb.train and built-in metrics
     if (is.null(maximize))
-      maximize <<- grepl('(_auc|_map|_ndcg)', metric_name)
+      maximize <<- grepl('(_auc|_map|_ndcg|_pre)', metric_name)
 
     if (verbose && NVL(env$rank, 0) == 0)
       cat("Will train until ", metric_name, " hasn't improved in ",
@@ -511,7 +511,7 @@ cb.cv.predict <- function(save_models = FALSE) {
     if (save_models) {
       env$basket$models <- lapply(env$bst_folds, function(fd) {
         xgb.attr(fd$bst, 'niter') <- env$end_iteration - 1
-        xgb.Booster.complete(xgb.handleToBooster(fd$bst), saveraw = TRUE)
+        xgb.Booster.complete(xgb.handleToBooster(handle = fd$bst, raw = NULL), saveraw = TRUE)
       })
     }
   }
@@ -659,7 +659,7 @@ cb.gblinear.history <- function(sparse = FALSE) {
     } else { # xgb.cv:
       cf <- vector("list", length(env$bst_folds))
       for (i in seq_along(env$bst_folds)) {
-        dmp <- xgb.dump(xgb.handleToBooster(env$bst_folds[[i]]$bst))
+        dmp <- xgb.dump(xgb.handleToBooster(handle = env$bst_folds[[i]]$bst, raw = NULL))
         cf[[i]] <- as.numeric(grep('(booster|bias|weigh)', dmp, invert = TRUE, value = TRUE))
         if (sparse) cf[[i]] <- as(cf[[i]], "sparseVector")
       }

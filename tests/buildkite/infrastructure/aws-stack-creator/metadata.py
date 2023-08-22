@@ -80,8 +80,8 @@ STACK_PARAMS = {
         "InstanceOperatingSystem": "linux",
         "InstanceType": "t3a.micro",
         "AgentsPerInstance": "1",
-        "MinSize": "1",
-        "MaxSize": "1",
+        "MinSize": "2",
+        "MaxSize": "2",
         "OnDemandPercentage": "100",
         "ScaleOutFactor": "1.0",
         "ScaleInIdlePeriod": "60",  # in seconds

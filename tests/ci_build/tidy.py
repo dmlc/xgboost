@@ -41,7 +41,7 @@ class ClangTidy(object):
     def __init__(self, args):
         self.cpp_lint = args.cpp
         self.cuda_lint = args.cuda
-        self.use_dmlc_gtest = args.use_dmlc_gtest
+        self.use_dmlc_gtest: bool = args.use_dmlc_gtest
         self.cuda_archs = args.cuda_archs.copy() if args.cuda_archs else []
 
         if args.tidy_version:
@@ -202,6 +202,7 @@ class ClangTidy(object):
         cdb_file = os.path.join(self.cdb_path, 'compile_commands.json')
         with open(cdb_file, 'r') as fd:
             self.compile_commands = json.load(fd)
+
         tidy_file = os.path.join(self.root_path, '.clang-tidy')
         with open(tidy_file) as fd:
             self.clang_tidy = yaml.safe_load(fd)
@@ -276,16 +277,24 @@ right keywords?
     print('clang-tidy is working.')
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Run clang-tidy.')
-    parser.add_argument('--cpp', type=int, default=1)
-    parser.add_argument('--tidy-version', type=int, default=None,
-                        help='Specify the version of preferred clang-tidy.')
-    parser.add_argument('--cuda', type=int, default=1)
-    parser.add_argument('--use-dmlc-gtest', type=int, default=1,
-                        help='Whether to use gtest bundled in dmlc-core.')
-    parser.add_argument('--cuda-archs', action='append',
-                        help='List of CUDA archs to build')
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Run clang-tidy.")
+    parser.add_argument("--cpp", type=int, default=1)
+    parser.add_argument(
+        "--tidy-version",
+        type=int,
+        default=None,
+        help="Specify the version of preferred clang-tidy.",
+    )
+    parser.add_argument("--cuda", type=int, default=1)
+    parser.add_argument(
+        "--use-dmlc-gtest",
+        action="store_true",
+        help="Whether to use gtest bundled in dmlc-core.",
+    )
+    parser.add_argument(
+        "--cuda-archs", action="append", help="List of CUDA archs to build"
+    )
     args = parser.parse_args()
 
     test_tidy(args)

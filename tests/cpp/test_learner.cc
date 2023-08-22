@@ -27,7 +27,6 @@
 #include "../../src/common/io.h"                    // for LoadSequentialFile
 #include "../../src/common/linalg_op.h"             // for ElementWiseTransformHost, begin, end
 #include "../../src/common/random.h"                // for GlobalRandom
-#include "../../src/common/transform_iterator.h"    // for IndexTransformIter
 #include "dmlc/io.h"                                // for Stream
 #include "dmlc/omp.h"                               // for omp_get_max_threads
 #include "dmlc/registry.h"                          // for Registry
@@ -35,14 +34,13 @@
 #include "helpers.h"                                // for GetBaseScore, RandomDataGenerator
 #include "objective_helpers.h"                      // for MakeObjNamesForTest, ObjTestNameGenerator
 #include "xgboost/base.h"                           // for bst_float, Args, bst_feature_t, bst_int
-#include "xgboost/context.h"                        // for Context
+#include "xgboost/context.h"                        // for Context, DeviceOrd
 #include "xgboost/data.h"                           // for DMatrix, MetaInfo, DataType
 #include "xgboost/host_device_vector.h"             // for HostDeviceVector
 #include "xgboost/json.h"                           // for Json, Object, get, String, IsA, opera...
 #include "xgboost/linalg.h"                         // for Tensor, TensorView
 #include "xgboost/logging.h"                        // for ConsoleLogger
 #include "xgboost/predictor.h"                      // for PredictionCacheEntry
-#include "xgboost/span.h"                           // for Span, operator!=, SpanIterator
 #include "xgboost/string_view.h"                    // for StringView
 
 namespace xgboost {
@@ -58,9 +56,9 @@ TEST(Learner, Basic) {
   auto minor = XGBOOST_VER_MINOR;
   auto patch = XGBOOST_VER_PATCH;
 
-  static_assert(std::is_integral<decltype(major)>::value, "Wrong major version type");
-  static_assert(std::is_integral<decltype(minor)>::value, "Wrong minor version type");
-  static_assert(std::is_integral<decltype(patch)>::value, "Wrong patch version type");
+  static_assert(std::is_integral_v<decltype(major)>, "Wrong major version type");
+  static_assert(std::is_integral_v<decltype(minor)>, "Wrong minor version type");
+  static_assert(std::is_integral_v<decltype(patch)>, "Wrong patch version type");
 }
 
 TEST(Learner, ParameterValidation) {
@@ -92,10 +90,9 @@ TEST(Learner, CheckGroup) {
   size_t constexpr kNumRows = 17;
   bst_feature_t constexpr kNumCols = 15;
 
-  std::shared_ptr<DMatrix> p_mat{
-      RandomDataGenerator{kNumRows, kNumCols, 0.0f}.GenerateDMatrix()};
+  std::shared_ptr<DMatrix> p_mat{RandomDataGenerator{kNumRows, kNumCols, 0.0f}.GenerateDMatrix()};
   std::vector<bst_float> weight(kNumGroups, 1);
-  std::vector<bst_int> group(kNumGroups);
+  std::vector<bst_group_t> group(kNumGroups);
   group[0] = 2;
   group[1] = 3;
   group[2] = 7;
@@ -187,7 +184,7 @@ TEST(Learner, JsonModelIO) {
     fout.close();
 
     auto loaded_str = common::LoadSequentialFile(tmpdir.path + "/model.json");
-    Json loaded = Json::Load(StringView{loaded_str.c_str(), loaded_str.size()});
+    Json loaded = Json::Load(StringView{loaded_str.data(), loaded_str.size()});
 
     learner->LoadModel(loaded);
     learner->Configure();
@@ -216,6 +213,34 @@ TEST(Learner, JsonModelIO) {
     ASSERT_EQ(get<Object>(out["learner"]["attributes"]).size(), 1ul);
     ASSERT_EQ(out, new_in);
   }
+}
+
+TEST(Learner, ConfigIO) {
+  bst_row_t n_samples = 128;
+  bst_feature_t n_features = 12;
+  std::shared_ptr<DMatrix> p_fmat{
+      RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true, false, 2)};
+
+  auto serialised_model_tmp = std::string{};
+  std::string eval_res_0;
+  std::string eval_res_1;
+  {
+    std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
+    learner->SetParams(Args{{"eval_metric", "ndcg"}, {"eval_metric", "map"}});
+    learner->Configure();
+    learner->UpdateOneIter(0, p_fmat);
+    eval_res_0 = learner->EvalOneIter(0, {p_fmat}, {"Train"});
+    common::MemoryBufferStream fo(&serialised_model_tmp);
+    learner->Save(&fo);
+  }
+
+  {
+    common::MemoryBufferStream fi(&serialised_model_tmp);
+    std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
+    learner->Load(&fi);
+    eval_res_1 = learner->EvalOneIter(0, {p_fmat}, {"Train"});
+  }
+  ASSERT_EQ(eval_res_0, eval_res_1);
 }
 
 // Crashes the test runner if there are race condiditions.
@@ -312,45 +337,36 @@ TEST(Learner, GPUConfiguration) {
     learner->SetParams({Arg{"booster", "gblinear"},
                         Arg{"updater", "gpu_coord_descent"}});
     learner->UpdateOneIter(0, p_dmat);
-    ASSERT_EQ(learner->Ctx()->gpu_id, 0);
+    ASSERT_EQ(learner->Ctx()->Device(), DeviceOrd::CUDA(0));
   }
   {
-    std::unique_ptr<Learner> learner {Learner::Create(mat)};
+    std::unique_ptr<Learner> learner{Learner::Create(mat)};
     learner->SetParams({Arg{"tree_method", "gpu_hist"}});
+    learner->Configure();
+    ASSERT_EQ(learner->Ctx()->Device(), DeviceOrd::CUDA(0));
     learner->UpdateOneIter(0, p_dmat);
-    ASSERT_EQ(learner->Ctx()->gpu_id, 0);
+    ASSERT_EQ(learner->Ctx()->Device(), DeviceOrd::CUDA(0));
   }
   {
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->SetParams({Arg{"tree_method", "gpu_hist"},
                         Arg{"gpu_id", "-1"}});
     learner->UpdateOneIter(0, p_dmat);
-    ASSERT_EQ(learner->Ctx()->gpu_id, 0);
+    ASSERT_EQ(learner->Ctx()->Device(), DeviceOrd::CUDA(0));
   }
   {
     // with CPU algorithm
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->SetParams({Arg{"tree_method", "hist"}});
     learner->UpdateOneIter(0, p_dmat);
-    ASSERT_EQ(learner->Ctx()->gpu_id, -1);
+    ASSERT_EQ(learner->Ctx()->Device(), DeviceOrd::CPU());
   }
   {
     // with CPU algorithm, but `gpu_id` takes priority
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
-    learner->SetParams({Arg{"tree_method", "hist"},
-                        Arg{"gpu_id", "0"}});
+    learner->SetParams({Arg{"tree_method", "hist"}, Arg{"gpu_id", "0"}});
     learner->UpdateOneIter(0, p_dmat);
-    ASSERT_EQ(learner->Ctx()->gpu_id, 0);
-  }
-  {
-    // With CPU algorithm but GPU Predictor, this is to simulate when
-    // XGBoost is only used for prediction, so tree method is not
-    // specified.
-    std::unique_ptr<Learner> learner {Learner::Create(mat)};
-    learner->SetParams({Arg{"tree_method", "hist"},
-                        Arg{"predictor", "gpu_predictor"}});
-    learner->UpdateOneIter(0, p_dmat);
-    ASSERT_EQ(learner->Ctx()->gpu_id, 0);
+    ASSERT_EQ(learner->Ctx()->Device(), DeviceOrd::CUDA(0));
   }
 }
 #endif  // defined(XGBOOST_USE_CUDA)
@@ -379,6 +395,8 @@ TEST(Learner, Seed) {
 TEST(Learner, ConstantSeed) {
   auto m = RandomDataGenerator{10, 10, 0}.GenerateDMatrix(true);
   std::unique_ptr<Learner> learner{Learner::Create({m})};
+  // Use exact as it doesn't initialize column sampler at construction, which alters the rng.
+  learner->SetParam("tree_method", "exact");
   learner->Configure();  // seed the global random
 
   std::uniform_real_distribution<float> dist;

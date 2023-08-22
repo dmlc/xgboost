@@ -22,7 +22,10 @@ import xgboost
 
 
 def make_batches(
-    n_samples_per_batch: int, n_features: int, n_batches: int, tmpdir: str,
+    n_samples_per_batch: int,
+    n_features: int,
+    n_batches: int,
+    tmpdir: str,
 ) -> List[Tuple[str, str]]:
     files: List[Tuple[str, str]] = []
     rng = np.random.RandomState(1994)
@@ -38,6 +41,7 @@ def make_batches(
 
 class Iterator(xgboost.DataIter):
     """A custom iterator for loading files in batches."""
+
     def __init__(self, file_paths: List[Tuple[str, str]]):
         self._file_paths = file_paths
         self._it = 0
@@ -82,10 +86,11 @@ def main(tmpdir: str) -> xgboost.Booster:
     missing = np.NaN
     Xy = xgboost.DMatrix(it, missing=missing, enable_categorical=False)
 
-    # Other tree methods including ``hist`` and ``gpu_hist`` also work, see tutorial in
+    # ``approx`` is also supported, but less efficient due to sketching. GPU behaves
+    # differently than CPU tree methods as it uses a hybrid approach. See tutorial in
     # doc for details.
     booster = xgboost.train(
-        {"tree_method": "approx", "max_depth": 2},
+        {"tree_method": "hist", "max_depth": 4},
         Xy,
         evals=[(Xy, "Train")],
         num_boost_round=10,

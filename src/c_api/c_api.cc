@@ -3,7 +3,7 @@
  */
 #include "xgboost/c_api.h"
 
-#include <algorithm>                         // for copy
+#include <algorithm>                         // for copy, transform
 #include <cinttypes>                         // for strtoimax
 #include <cmath>                             // for nan
 #include <cstring>                           // for strcmp
@@ -20,9 +20,11 @@
 #include "../collective/communicator-inl.h"  // for Allreduce, Broadcast, Finalize, GetProcessor...
 #include "../common/api_entry.h"             // for XGBAPIThreadLocalEntry
 #include "../common/charconv.h"              // for from_chars, to_chars, NumericLimits, from_ch...
+#include "../common/hist_util.h"             // for HistogramCuts
 #include "../common/io.h"                    // for FileExtension, LoadSequentialFile, MemoryBuf...
 #include "../common/threading_utils.h"       // for OmpGetNumThreads, ParallelFor
 #include "../data/adapter.h"                 // for ArrayAdapter, DenseAdapter, RecordBatchesIte...
+#include "../data/ellpack_page.h"            // for EllpackPage
 #include "../data/proxy_dmatrix.h"           // for DMatrixProxy
 #include "../data/simple_dmatrix.h"          // for SimpleDMatrix
 #include "c_api_error.h"                     // for xgboost_CHECK_C_ARG_PTR, API_END, API_BEGIN
@@ -78,13 +80,6 @@ void XGBBuildInfoDevice(Json *p_info) {
 }
 }  // namespace xgboost
 #endif
-
-namespace {
-void DeprecatedFunc(StringView old, StringView since, StringView replacement) {
-  LOG(WARNING) << "`" << old << "` is deprecated since" << since << ", use `" << replacement
-               << "` instead.";
-}
-}  // anonymous namespace
 
 XGB_DLL int XGBuildInfo(char const **out) {
   API_BEGIN();
@@ -326,7 +321,7 @@ XGB_DLL int XGDeviceQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatr
                                                       int nthread, int max_bin,
                                                       DMatrixHandle *out) {
   API_BEGIN();
-  DeprecatedFunc(__func__, "1.7.0", "XGQuantileDMatrixCreateFromCallback");
+  LOG(WARNING) << error::DeprecatedFunc(__func__, "1.7.0", "XGQuantileDMatrixCreateFromCallback");
   *out = new std::shared_ptr<xgboost::DMatrix>{
       xgboost::DMatrix::Create(iter, proxy, nullptr, reset, next, missing, nthread, max_bin)};
   API_END();
@@ -430,7 +425,7 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t *indptr, const unsigned *indic
                                      const bst_float *data, size_t nindptr, size_t nelem,
                                      size_t num_col, DMatrixHandle *out) {
   API_BEGIN();
-  DeprecatedFunc(__func__, "2.0.0", "XGDMatrixCreateFromCSR");
+  LOG(WARNING) << error::DeprecatedFunc(__func__, "2.0.0", "XGDMatrixCreateFromCSR");
   data::CSRAdapter adapter(indptr, indices, data, nindptr - 1, nelem, num_col);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, std::nan(""), 1));
   API_END();
@@ -463,8 +458,11 @@ XGB_DLL int XGDMatrixCreateFromDense(char const *data,
   auto config = Json::Load(StringView{c_json_config});
   float missing = GetMissing(config);
   auto n_threads = OptionalArg<Integer, int64_t>(config, "nthread", 0);
+  auto data_split_mode =
+      static_cast<DataSplitMode>(OptionalArg<Integer, int64_t>(config, "data_split_mode", 0));
   xgboost_CHECK_C_ARG_PTR(out);
-  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
+  *out = new std::shared_ptr<DMatrix>(
+      DMatrix::Create(&adapter, missing, n_threads, "", data_split_mode));
   API_END();
 }
 
@@ -491,7 +489,7 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t *col_ptr, const unsigned *indi
                                      const bst_float *data, size_t nindptr, size_t, size_t num_row,
                                      DMatrixHandle *out) {
   API_BEGIN();
-  DeprecatedFunc(__func__, "2.0.0", "XGDMatrixCreateFromCSC");
+  LOG(WARNING) << error::DeprecatedFunc(__func__, "2.0.0", "XGDMatrixCreateFromCSC");
   data::CSCAdapter adapter(col_ptr, indices, data, nindptr - 1, num_row);
   xgboost_CHECK_C_ARG_PTR(out);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, std::nan(""), 1));
@@ -782,6 +780,104 @@ XGB_DLL int XGDMatrixGetDataAsCSR(DMatrixHandle const handle, char const *config
   API_END();
 }
 
+namespace {
+template <typename Page>
+void GetCutImpl(Context const *ctx, std::shared_ptr<DMatrix> p_m,
+                std::vector<std::uint64_t> *p_indptr, std::vector<float> *p_data) {
+  auto &indptr = *p_indptr;
+  auto &data = *p_data;
+  for (auto const &page : p_m->GetBatches<Page>(ctx, {})) {
+    auto const &cut = page.Cuts();
+
+    auto const &ptrs = cut.Ptrs();
+    indptr.resize(ptrs.size());
+
+    auto const &vals = cut.Values();
+    auto const &mins = cut.MinValues();
+
+    bst_feature_t n_features = p_m->Info().num_col_;
+    auto ft = p_m->Info().feature_types.ConstHostSpan();
+    std::size_t n_categories = std::count_if(ft.cbegin(), ft.cend(),
+                                             [](auto t) { return t == FeatureType::kCategorical; });
+    data.resize(vals.size() + n_features - n_categories);  // |vals| + |mins|
+    std::size_t i{0}, n_numeric{0};
+    for (bst_feature_t fidx = 0; fidx < n_features; ++fidx) {
+      CHECK_LT(i, data.size());
+      bool is_numeric = !common::IsCat(ft, fidx);
+      if (is_numeric) {
+        data[i] = mins[fidx];
+        i++;
+      }
+      auto beg = ptrs[fidx];
+      auto end = ptrs[fidx + 1];
+      CHECK_LE(end, data.size());
+      std::copy(vals.cbegin() + beg, vals.cbegin() + end, data.begin() + i);
+      i += (end - beg);
+      // shift by min values.
+      indptr[fidx] = ptrs[fidx] + n_numeric;
+      if (is_numeric) {
+        n_numeric++;
+      }
+    }
+    CHECK_EQ(n_numeric, n_features - n_categories);
+
+    indptr.back() = data.size();
+    CHECK_EQ(indptr.back(), vals.size() + mins.size() - n_categories);
+    break;
+  }
+}
+}  // namespace
+
+XGB_DLL int XGDMatrixGetQuantileCut(DMatrixHandle const handle, char const *config,
+                                    char const **out_indptr, char const **out_data) {
+  API_BEGIN();
+  CHECK_HANDLE();
+
+  auto p_m = CastDMatrixHandle(handle);
+
+  xgboost_CHECK_C_ARG_PTR(config);
+  xgboost_CHECK_C_ARG_PTR(out_indptr);
+  xgboost_CHECK_C_ARG_PTR(out_data);
+
+  auto jconfig = Json::Load(StringView{config});
+
+  if (!p_m->PageExists<GHistIndexMatrix>() && !p_m->PageExists<EllpackPage>()) {
+    LOG(FATAL) << "The quantile cut hasn't been generated yet. Unless this is a `QuantileDMatrix`, "
+                  "quantile cut is generated during training.";
+  }
+  // Get return buffer
+  auto &data = p_m->GetThreadLocal().ret_vec_float;
+  auto &indptr = p_m->GetThreadLocal().ret_vec_u64;
+
+  if (p_m->PageExists<GHistIndexMatrix>()) {
+    auto ctx = p_m->Ctx()->IsCPU() ? *p_m->Ctx() : p_m->Ctx()->MakeCPU();
+    GetCutImpl<GHistIndexMatrix>(&ctx, p_m, &indptr, &data);
+  } else {
+    auto ctx = p_m->Ctx()->IsCUDA() ? *p_m->Ctx() : p_m->Ctx()->MakeCUDA(0);
+    GetCutImpl<EllpackPage>(&ctx, p_m, &indptr, &data);
+  }
+
+  // Create a CPU context
+  Context ctx;
+  // Get return buffer
+  auto &ret_vec_str = p_m->GetThreadLocal().ret_vec_str;
+  ret_vec_str.clear();
+
+  ret_vec_str.emplace_back(linalg::ArrayInterfaceStr(
+      linalg::MakeTensorView(&ctx, common::Span{indptr.data(), indptr.size()}, indptr.size())));
+  ret_vec_str.emplace_back(linalg::ArrayInterfaceStr(
+      linalg::MakeTensorView(&ctx, common::Span{data.data(), data.size()}, data.size())));
+
+  auto &charp_vecs = p_m->GetThreadLocal().ret_vec_charp;
+  charp_vecs.resize(ret_vec_str.size());
+  std::transform(ret_vec_str.cbegin(), ret_vec_str.cend(), charp_vecs.begin(),
+                 [](auto const &str) { return str.c_str(); });
+
+  *out_indptr = charp_vecs[0];
+  *out_data = charp_vecs[1];
+  API_END();
+}
+
 // xgboost implementation
 XGB_DLL int XGBoosterCreate(const DMatrixHandle dmats[],
                             xgboost::bst_ulong len,
@@ -1023,7 +1119,6 @@ void InplacePredictImpl(std::shared_ptr<DMatrix> p_m, char const *c_json_config,
                         const float **out_result) {
   xgboost_CHECK_C_ARG_PTR(c_json_config);
   auto config = Json::Load(StringView{c_json_config});
-  CHECK_EQ(get<Integer const>(config["cache_id"]), 0) << "Cache ID is not supported yet";
 
   HostDeviceVector<float> *p_predt{nullptr};
   auto type = PredictionType(RequiredArg<Integer>(config, "type", __func__));
@@ -1042,6 +1137,7 @@ void InplacePredictImpl(std::shared_ptr<DMatrix> p_m, char const *c_json_config,
   xgboost_CHECK_C_ARG_PTR(out_dim);
   CalcPredictShape(strict_shape, type, n_samples, n_features, chunksize, learner->Groups(),
                    learner->BoostedRounds(), &shape, out_dim);
+  CHECK_GE(p_predt->Size(), n_samples);
 
   xgboost_CHECK_C_ARG_PTR(out_result);
   xgboost_CHECK_C_ARG_PTR(out_shape);
@@ -1124,12 +1220,12 @@ XGB_DLL int XGBoosterLoadModel(BoosterHandle handle, const char* fname) {
     return str;
   };
   if (common::FileExtension(fname) == "json") {
-    auto str = read_file();
-    Json in{Json::Load(StringView{str})};
+    auto buffer = read_file();
+    Json in{Json::Load(StringView{buffer.data(), buffer.size()})};
     static_cast<Learner*>(handle)->LoadModel(in);
   } else if (common::FileExtension(fname) == "ubj") {
-    auto str = read_file();
-    Json in = Json::Load(StringView{str}, std::ios::binary);
+    auto buffer = read_file();
+    Json in = Json::Load(StringView{buffer.data(), buffer.size()}, std::ios::binary);
     static_cast<Learner *>(handle)->LoadModel(in);
   } else {
     std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname, "r"));
@@ -1244,7 +1340,7 @@ XGB_DLL int XGBoosterGetModelRaw(BoosterHandle handle, xgboost::bst_ulong *out_l
   raw_str.resize(0);
 
   common::MemoryBufferStream fo(&raw_str);
-  DeprecatedFunc(__func__, "1.6.0", "XGBoosterSaveModelToBuffer");
+  LOG(WARNING) << error::DeprecatedFunc(__func__, "1.6.0", "XGBoosterSaveModelToBuffer");
 
   learner->Configure();
   learner->SaveModel(&fo);

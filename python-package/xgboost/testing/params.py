@@ -41,6 +41,10 @@ hist_parameter_strategy = strategies.fixed_dictionaries(
     and (cast(int, x["max_depth"]) > 0 or x["grow_policy"] == "lossguide")
 )
 
+hist_cache_strategy = strategies.fixed_dictionaries(
+    {"max_cached_hist_node": strategies.sampled_from([1, 4, 1024, 2**31])}
+)
+
 hist_multi_parameter_strategy = strategies.fixed_dictionaries(
     {
         "max_depth": strategies.integers(1, 11),
@@ -66,4 +70,18 @@ cat_parameter_strategy = strategies.fixed_dictionaries(
         "max_cat_to_onehot": strategies.integers(1, 128),
         "max_cat_threshold": strategies.integers(1, 128),
     }
+)
+
+lambdarank_parameter_strategy = strategies.fixed_dictionaries(
+    {
+        "lambdarank_unbiased": strategies.sampled_from([True, False]),
+        "lambdarank_pair_method": strategies.sampled_from(["topk", "mean"]),
+        "lambdarank_num_pair_per_sample": strategies.integers(1, 8),
+        "lambdarank_bias_norm": strategies.floats(0.5, 2.0),
+        "objective": strategies.sampled_from(
+            ["rank:ndcg", "rank:map", "rank:pairwise"]
+        ),
+    }
+).filter(
+    lambda x: not (x["lambdarank_unbiased"] and x["lambdarank_pair_method"] == "mean")
 )

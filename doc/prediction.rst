@@ -35,14 +35,14 @@ After 1.4 release, we added a new parameter called ``strict_shape``, one can set
   has equivalent output shape of ``multi:softprob`` due to dropped transformation.  If
   strict shape is set to False then output can have 1 or 2 dim depending on used model.
 
-- When using ``preds_contribs`` with ``strict_shape`` set to ``True``:
+- When using ``pred_contribs`` with ``strict_shape`` set to ``True``:
 
   Output is a 3-dim array, with ``(rows, groups, columns + 1)`` as shape.  Whether
   ``approx_contribs`` is used does not change the output shape. If the strict shape
   parameter is not set, it can be a 2 or 3 dimension array depending on whether
   multi-class model is being used.
 
-- When using ``preds_interactions`` with ``strict_shape`` set to ``True``:
+- When using ``pred_interactions`` with ``strict_shape`` set to ``True``:
 
   Output is a 4-dim array, with ``(rows, groups, columns + 1, columns + 1)`` as shape.
   Like the predict contribution case, whether ``approx_contribs`` is used does not change
@@ -54,7 +54,7 @@ After 1.4 release, we added a new parameter called ``strict_shape``, one can set
   Output is a 4-dim array with ``(n_samples, n_iterations, n_classes, n_trees_in_forest)``
   as shape.  ``n_trees_in_forest`` is specified by the ``numb_parallel_tree`` during
   training.  When strict shape is set to False, output is a 2-dim array with last 3 dims
-  concatenated into 1.  Also the last dimension is dropped if it eqauls to 1. When using
+  concatenated into 1.  Also the last dimension is dropped if it equals to 1. When using
   ``apply`` method in scikit learn interface, this is set to False by default.
 
 
@@ -68,7 +68,7 @@ n_classes, n_trees_in_forest)``, while R with ``strict_shape=TRUE`` outputs
 Other than these prediction types, there's also a parameter called ``iteration_range``,
 which is similar to model slicing.  But instead of actually splitting up the model into
 multiple stacks, it simply returns the prediction formed by the trees within range.
-Number of trees created in each iteration eqauls to :math:`trees_i = num\_class \times
+Number of trees created in each iteration equals to :math:`trees_i = num\_class \times
 num\_parallel\_tree`.  So if you are training a boosted random forest with size of 4, on
 the 3-class classification dataset, and want to use the first 2 iterations of trees for
 prediction, you need to provide ``iteration_range=(0, 2)``.  Then the first :math:`2
@@ -86,15 +86,6 @@ with the native Python interface :py:meth:`xgboost.Booster.predict` and
 ``best_iteration`` attribute with ``iteration_range`` parameter to achieve the same
 behavior.  Also the ``save_best`` parameter from :py:obj:`xgboost.callback.EarlyStopping`
 might be useful.
-
-*********
-Predictor
-*********
-
-There are 2 predictors in XGBoost (3 if you have the one-api plugin enabled), namely
-``cpu_predictor`` and ``gpu_predictor``.  The default option is ``auto`` so that XGBoost
-can employ some heuristics for saving GPU memory during training.  They might have slight
-different outputs due to floating point errors.
 
 
 ***********
@@ -134,15 +125,6 @@ it.  Be aware that the output of in-place prediction depends on input data type,
 input is on GPU data output is :py:obj:`cupy.ndarray`, otherwise a :py:obj:`numpy.ndarray`
 is returned.
 
-****************
-Categorical Data
-****************
-
-Other than users performing encoding, XGBoost has experimental support for categorical
-data using ``gpu_hist`` and ``gpu_predictor``.  No special operation needs to be done on
-input test data since the information about categories is encoded into the model during
-training.
-
 *************
 Thread Safety
 *************
@@ -159,7 +141,6 @@ instance we might accidentally call ``clf.set_params()`` inside a predict functi
 
     def predict_fn(clf: xgb.XGBClassifier, X):
         X = preprocess(X)
-        clf.set_params(predictor="gpu_predictor")  # NOT safe!
         clf.set_params(n_jobs=1)  # NOT safe!
         return clf.predict_proba(X, iteration_range=(0, 10))
 

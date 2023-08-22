@@ -302,7 +302,7 @@ namespace {
 void TestSameOnAllWorkers() {
   auto const world = collective::GetWorldSize();
   constexpr size_t kRows = 1000, kCols = 100;
-  auto ctx = CreateEmptyGenericParam(Context::kCpuId);
+  Context ctx;
 
   RunWithSeedsAndBins(
       kRows, [=, &ctx](int32_t seed, size_t n_bins, MetaInfo const&) {

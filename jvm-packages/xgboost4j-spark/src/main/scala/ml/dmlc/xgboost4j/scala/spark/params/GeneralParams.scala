@@ -177,6 +177,21 @@ private[spark] trait GeneralParams extends Params {
 
   final def getSeed: Long = $(seed)
 
+  /** Feature's name, it will be set to DMatrix and Booster, and in the final native json model.
+   * In native code, the parameter name is feature_name.
+   * */
+  final val featureNames = new StringArrayParam(this, "feature_names",
+  "an array of feature names")
+
+  final def getFeatureNames: Array[String] = $(featureNames)
+
+  /** Feature types, q is numeric and c is categorical.
+   * In native code, the parameter name is feature_type
+   * */
+  final val featureTypes = new StringArrayParam(this, "feature_types",
+  "an array of feature types")
+
+  final def getFeatureTypes: Array[String] = $(featureTypes)
 }
 
 trait HasLeafPredictionCol extends Params {
@@ -269,7 +284,7 @@ private[spark] trait ParamMapFuncs extends Params {
         (paramName == "updater" && paramValue != "grow_histmaker,prune" &&
           paramValue != "grow_quantile_histmaker" && paramValue != "grow_gpu_hist")) {
         throw new IllegalArgumentException(s"you specified $paramName as $paramValue," +
-          s" XGBoost-Spark only supports gbtree as booster type and grow_histmaker,prune or" +
+          s" XGBoost-Spark only supports gbtree as booster type and grow_histmaker or" +
           s" grow_quantile_histmaker or grow_gpu_hist as the updater type")
       }
       val name = CaseFormat.LOWER_UNDERSCORE.to(CaseFormat.LOWER_CAMEL, paramName)

@@ -142,6 +142,7 @@ xgb.ggplot.shap.summary <- function(data, shap_contrib = NULL, features = NULL, 
 #'
 #' @return A data.table containing the observation ID, the feature name, the
 #'   feature value (normalized if specified), and the SHAP contribution value.
+#' @noRd
 prepare.ggplot.shap.data <- function(data_list, normalize = FALSE) {
   data <- data_list[["data"]]
   shap_contrib <- data_list[["shap_contrib"]]
@@ -170,6 +171,7 @@ prepare.ggplot.shap.data <- function(data_list, normalize = FALSE) {
 #' @param x Numeric vector
 #'
 #' @return Numeric vector with mean 0 and sd 1.
+#' @noRd
 normalize <- function(x) {
   loc <- mean(x, na.rm = TRUE)
   scale <- stats::sd(x, na.rm = TRUE)
@@ -181,7 +183,7 @@ normalize <- function(x) {
 # ... the plots
 # cols number of columns
 # internal utility function
-multiplot <- function(..., cols = 1) {
+multiplot <- function(..., cols) {
   plots <- list(...)
   num_plots <- length(plots)
 

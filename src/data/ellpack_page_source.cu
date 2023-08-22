@@ -5,10 +5,10 @@
 #include <utility>
 
 #include "ellpack_page.cuh"
+#include "ellpack_page.h"  // for EllpackPage
 #include "ellpack_page_source.h"
 
-namespace xgboost {
-namespace data {
+namespace xgboost::data {
 void EllpackPageSource::Fetch() {
   dh::safe_cuda(cudaSetDevice(device_));
   if (!this->ReadCache()) {
@@ -27,5 +27,4 @@ void EllpackPageSource::Fetch() {
     this->WriteCache();
   }
 }
-}  // namespace data
-}  // namespace xgboost
+}  // namespace xgboost::data

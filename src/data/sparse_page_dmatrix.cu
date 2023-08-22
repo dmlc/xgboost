@@ -1,17 +1,23 @@
 /**
  * Copyright 2021-2023 by XGBoost contributors
  */
+#include <memory>  // for unique_ptr
+
 #include "../common/hist_util.cuh"
-#include "batch_utils.h"  // for CheckEmpty, RegenGHist
+#include "../common/hist_util.h"  // for HistogramCuts
+#include "batch_utils.h"          // for CheckEmpty, RegenGHist
 #include "ellpack_page.cuh"
 #include "sparse_page_dmatrix.h"
-#include "sparse_page_source.h"
+#include "xgboost/context.h"  // for Context
+#include "xgboost/data.h"     // for BatchParam
 
 namespace xgboost::data {
 BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(Context const* ctx,
                                                            const BatchParam& param) {
   CHECK(ctx->IsCUDA());
-  CHECK_GE(param.max_bin, 2);
+  if (param.Initialized()) {
+    CHECK_GE(param.max_bin, 2);
+  }
   detail::CheckEmpty(batch_param_, param);
   auto id = MakeCache(this, ".ellpack.page", cache_prefix_, &cache_info_);
   size_t row_stride = 0;
@@ -21,8 +27,13 @@ BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(Context const* ctx,
     cache_info_.erase(id);
     MakeCache(this, ".ellpack.page", cache_prefix_, &cache_info_);
     std::unique_ptr<common::HistogramCuts> cuts;
-    cuts.reset(
-        new common::HistogramCuts{common::DeviceSketch(ctx->gpu_id, this, param.max_bin, 0)});
+    if (!param.hess.empty()) {
+      cuts = std::make_unique<common::HistogramCuts>(
+          common::DeviceSketchWithHessian(ctx, this, param.max_bin, param.hess));
+    } else {
+      cuts =
+          std::make_unique<common::HistogramCuts>(common::DeviceSketch(ctx, this, param.max_bin));
+    }
     this->InitializeSparsePage(ctx);  // reset after use.
 
     row_stride = GetRowStride(this);
@@ -31,10 +42,10 @@ BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(Context const* ctx,
     batch_param_ = param;
 
     auto ft = this->info_.feature_types.ConstDeviceSpan();
-    ellpack_page_source_.reset();  // release resources.
-    ellpack_page_source_.reset(new EllpackPageSource(
+    ellpack_page_source_.reset();  // make sure resource is released before making new ones.
+    ellpack_page_source_ = std::make_shared<EllpackPageSource>(
         this->missing_, ctx->Threads(), this->Info().num_col_, this->n_batches_, cache_info_.at(id),
-        param, std::move(cuts), this->IsDense(), row_stride, ft, sparse_page_source_, ctx->gpu_id));
+        param, std::move(cuts), this->IsDense(), row_stride, ft, sparse_page_source_, ctx->gpu_id);
   } else {
     CHECK(sparse_page_source_);
     ellpack_page_source_->Reset();

@@ -8,21 +8,21 @@
 
 #include <algorithm>
 #include <limits>
+#include <numeric>  // for accumulate
 #include <type_traits>
 #include <vector>
 
-#include "../common/error_msg.h"  // for InconsistentMaxBin
-#include "../common/random.h"
-#include "../common/threading_utils.h"
+#include "../collective/communicator-inl.h"  // for GetWorldSize, GetRank, Allgather
+#include "../common/error_msg.h"             // for InconsistentMaxBin
 #include "./simple_batch_iterator.h"
 #include "adapter.h"
-#include "batch_utils.h"  // for CheckEmpty, RegenGHist
+#include "batch_utils.h"   // for CheckEmpty, RegenGHist
+#include "ellpack_page.h"  // for EllpackPage
 #include "gradient_index.h"
 #include "xgboost/c_api.h"
 #include "xgboost/data.h"
 
-namespace xgboost {
-namespace data {
+namespace xgboost::data {
 MetaInfo& SimpleDMatrix::Info() { return info_; }
 
 const MetaInfo& SimpleDMatrix::Info() const { return info_; }
@@ -97,6 +97,10 @@ BatchSet<SparsePage> SimpleDMatrix::GetRowBatches() {
 BatchSet<CSCPage> SimpleDMatrix::GetColumnBatches(Context const* ctx) {
   // column page doesn't exist, generate it
   if (!column_page_) {
+    auto n = std::numeric_limits<decltype(Entry::index)>::max();
+    if (this->sparse_page_->Size() > n) {
+      error::MaxSampleSize(n);
+    }
     column_page_.reset(new CSCPage(sparse_page_->GetTranspose(info_.num_col_, ctx->Threads())));
   }
   auto begin_iter = BatchIterator<CSCPage>(new SimpleBatchIteratorImpl<CSCPage>(column_page_));
@@ -106,6 +110,10 @@ BatchSet<CSCPage> SimpleDMatrix::GetColumnBatches(Context const* ctx) {
 BatchSet<SortedCSCPage> SimpleDMatrix::GetSortedColumnBatches(Context const* ctx) {
   // Sorted column page doesn't exist, generate it
   if (!sorted_column_page_) {
+    auto n = std::numeric_limits<decltype(Entry::index)>::max();
+    if (this->sparse_page_->Size() > n) {
+      error::MaxSampleSize(n);
+    }
     sorted_column_page_.reset(
         new SortedCSCPage(sparse_page_->GetTranspose(info_.num_col_, ctx->Threads())));
     sorted_column_page_->SortRows(ctx->Threads());
@@ -427,5 +435,4 @@ SimpleDMatrix::SimpleDMatrix(RecordBatchesIterAdapter* adapter, float missing, i
 
   fmat_ctx_ = ctx;
 }
-}  // namespace data
-}  // namespace xgboost
+}  // namespace xgboost::data

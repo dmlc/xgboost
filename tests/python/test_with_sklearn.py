@@ -3,6 +3,7 @@ import os
 import pickle
 import random
 import tempfile
+import warnings
 from typing import Callable, Optional
 
 import numpy as np
@@ -130,11 +131,11 @@ def test_ranking():
 
     params = {
         "tree_method": "exact",
+        "objective": "rank:pairwise",
         "learning_rate": 0.1,
         "gamma": 1.0,
         "min_child_weight": 0.1,
         "max_depth": 6,
-        "eval_metric": "ndcg",
         "n_estimators": 4,
     }
     model = xgb.sklearn.XGBRanker(**params)
@@ -163,7 +164,6 @@ def test_ranking():
         "gamma": 1.0,
         "min_child_weight": 0.1,
         "max_depth": 6,
-        "eval_metric": "ndcg",
     }
     xgb_model_orig = xgb.train(
         params_orig, train_data, num_boost_round=4, evals=[(valid_data, "validation")]
@@ -476,18 +476,22 @@ def test_rf_regression():
     run_housing_rf_regression("hist")
 
 
-def test_parameter_tuning():
+@pytest.mark.parametrize("tree_method", ["exact", "hist", "approx"])
+def test_parameter_tuning(tree_method: str) -> None:
     from sklearn.datasets import fetch_california_housing
     from sklearn.model_selection import GridSearchCV
 
     X, y = fetch_california_housing(return_X_y=True)
-    xgb_model = xgb.XGBRegressor(learning_rate=0.1)
-    clf = GridSearchCV(xgb_model, {'max_depth': [2, 4],
-                                   'n_estimators': [50, 200]},
-                       cv=2, verbose=1)
-    clf.fit(X, y)
-    assert clf.best_score_ < 0.7
-    assert clf.best_params_ == {'n_estimators': 200, 'max_depth': 4}
+    reg = xgb.XGBRegressor(learning_rate=0.1, tree_method=tree_method)
+    grid_cv = GridSearchCV(
+        reg, {"max_depth": [2, 4], "n_estimators": [50, 200]}, cv=2, verbose=1
+    )
+    grid_cv.fit(X, y)
+    assert grid_cv.best_score_ < 0.7
+    assert grid_cv.best_params_ == {
+        "n_estimators": 200,
+        "max_depth": 4 if tree_method == "exact" else 2,
+    }
 
 
 def test_regression_with_custom_objective():
@@ -751,7 +755,7 @@ def test_parameters_access():
         ]["tree_method"]
         return tm
 
-    assert get_tm(clf) == "exact"
+    assert get_tm(clf) == "auto"  # Kept as auto, immutable since 2.0
 
     clf = pickle.loads(pickle.dumps(clf))
 
@@ -759,7 +763,7 @@ def test_parameters_access():
     assert clf.n_estimators == 2
     assert clf.get_params()["tree_method"] is None
     assert clf.get_params()["n_estimators"] == 2
-    assert get_tm(clf) == "exact"  # preserved for pickle
+    assert get_tm(clf) == "auto"  # preserved for pickle
 
     clf = save_load(clf)
 
@@ -788,19 +792,19 @@ def test_kwargs_grid_search():
     from sklearn import datasets
     from sklearn.model_selection import GridSearchCV
 
-    params = {'tree_method': 'hist'}
-    clf = xgb.XGBClassifier(n_estimators=1, learning_rate=1.0, **params)
-    assert clf.get_params()['tree_method'] == 'hist'
-    # 'max_leaves' is not a default argument of XGBClassifier
+    params = {"tree_method": "hist"}
+    clf = xgb.XGBClassifier(n_estimators=3, **params)
+    assert clf.get_params()["tree_method"] == "hist"
+    # 'eta' is not a default argument of XGBClassifier
     # Check we can still do grid search over this parameter
-    search_params = {'max_leaves': range(2, 5)}
+    search_params = {"eta": [0, 0.2, 0.4]}
     grid_cv = GridSearchCV(clf, search_params, cv=5)
     iris = datasets.load_iris()
     grid_cv.fit(iris.data, iris.target)
 
     # Expect unique results for each parameter value
     # This confirms sklearn is able to successfully update the parameter
-    means = grid_cv.cv_results_['mean_test_score']
+    means = grid_cv.cv_results_["mean_test_score"]
     assert len(means) == len(set(means))
 
 
@@ -923,6 +927,25 @@ def save_load_model(model_path):
         with pytest.raises(TypeError):
             xgb_model = xgb.XGBModel()
             xgb_model.load_model(model_path)
+
+    clf = xgb.XGBClassifier(booster="gblinear", early_stopping_rounds=1)
+    clf.fit(X, y, eval_set=[(X, y)])
+    best_iteration = clf.best_iteration
+    best_score = clf.best_score
+    predt_0 = clf.predict(X)
+    clf.save_model(model_path)
+    clf.load_model(model_path)
+    predt_1 = clf.predict(X)
+    np.testing.assert_allclose(predt_0, predt_1)
+    assert clf.best_iteration == best_iteration
+    assert clf.best_score == best_score
+
+    clfpkl = pickle.dumps(clf)
+    clf = pickle.loads(clfpkl)
+    predt_2 = clf.predict(X)
+    np.testing.assert_allclose(predt_0, predt_2)
+    assert clf.best_iteration == best_iteration
+    assert clf.best_score == best_score
 
 
 def test_save_load_model():
@@ -1088,25 +1111,22 @@ def test_constraint_parameters():
     )
 
 
+@pytest.mark.filterwarnings("error")
 def test_parameter_validation():
-    reg = xgb.XGBRegressor(foo='bar', verbosity=1)
+    reg = xgb.XGBRegressor(foo="bar", verbosity=1)
     X = np.random.randn(10, 10)
     y = np.random.randn(10)
-    with tm.captured_output() as (out, err):
+    with pytest.warns(Warning, match="foo"):
         reg.fit(X, y)
-        output = out.getvalue().strip()
 
-    assert output.find('foo') != -1
-
-    reg = xgb.XGBRegressor(n_estimators=2, missing=3,
-                           importance_type='gain', verbosity=1)
+    reg = xgb.XGBRegressor(
+        n_estimators=2, missing=3, importance_type="gain", verbosity=1
+    )
     X = np.random.randn(10, 10)
     y = np.random.randn(10)
-    with tm.captured_output() as (out, err):
-        reg.fit(X, y)
-        output = out.getvalue().strip()
 
-    assert len(output) == 0
+    with warnings.catch_warnings():
+        reg.fit(X, y)
 
 
 def test_deprecate_position_arg():
@@ -1348,10 +1368,11 @@ def test_multilabel_classification() -> None:
     np.testing.assert_allclose(clf.predict(X), predt)
 
 
-def test_data_initialization():
+def test_data_initialization() -> None:
     from sklearn.datasets import load_digits
+
     X, y = load_digits(return_X_y=True)
-    validate_data_initialization(xgb.DMatrix, xgb.XGBClassifier, X, y)
+    validate_data_initialization(xgb.QuantileDMatrix, xgb.XGBClassifier, X, y)
 
 
 @parametrize_with_checks([xgb.XGBRegressor()])
@@ -1387,7 +1408,6 @@ def test_categorical():
     X, y = tm.make_categorical(n_samples=32, n_features=2, n_categories=3, onehot=False)
     ft = ["c"] * X.shape[1]
     reg = xgb.XGBRegressor(
-        tree_method="hist",
         feature_types=ft,
         max_cat_to_onehot=1,
         enable_categorical=True,
@@ -1406,30 +1426,13 @@ def test_categorical():
     onehot, y = tm.make_categorical(
         n_samples=32, n_features=2, n_categories=3, onehot=True
     )
-    reg = xgb.XGBRegressor(tree_method="hist")
+    reg = xgb.XGBRegressor()
     reg.fit(onehot, y, eval_set=[(onehot, y)])
     from_enc = reg.evals_result()["validation_0"]["rmse"]
     predt_enc = reg.predict(onehot)
 
     np.testing.assert_allclose(from_cat, from_enc)
     np.testing.assert_allclose(predt_cat, predt_enc)
-
-
-def test_prediction_config():
-    reg = xgb.XGBRegressor()
-    assert reg._can_use_inplace_predict() is True
-
-    reg.set_params(predictor="cpu_predictor")
-    assert reg._can_use_inplace_predict() is False
-
-    reg.set_params(predictor="auto")
-    assert reg._can_use_inplace_predict() is True
-
-    reg.set_params(predictor=None)
-    assert reg._can_use_inplace_predict() is True
-
-    reg.set_params(booster="gblinear")
-    assert reg._can_use_inplace_predict() is False
 
 
 def test_evaluation_metric():
@@ -1504,6 +1507,7 @@ def test_evaluation_metric():
         # shape check inside the `merror` function
         clf.fit(X, y, eval_set=[(X, y)])
 
+
 def test_weighted_evaluation_metric():
     from sklearn.datasets import make_hastie_10_2
     from sklearn.metrics import log_loss
@@ -1541,3 +1545,18 @@ def test_weighted_evaluation_metric():
         internal["validation_0"]["logloss"],
         atol=1e-6
     )
+
+
+def test_intercept() -> None:
+    X, y, w = tm.make_regression(256, 3, use_cupy=False)
+    reg = xgb.XGBRegressor()
+    reg.fit(X, y, sample_weight=w)
+    result = reg.intercept_
+    assert result.dtype == np.float32
+    assert result[0] < 0.5
+
+    reg = xgb.XGBRegressor(booster="gblinear")
+    reg.fit(X, y, sample_weight=w)
+    result = reg.intercept_
+    assert result.dtype == np.float32
+    assert result[0] < 0.5

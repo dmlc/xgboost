@@ -54,6 +54,8 @@ on a dask cluster:
         y = da.random.random(size=(num_obs, 1), chunks=(1000, 1))
 
         dtrain = xgb.dask.DaskDMatrix(client, X, y)
+        # or
+        # dtrain = xgb.dask.DaskQuantileDMatrix(client, X, y)
 
         output = xgb.dask.train(
             client,
@@ -145,8 +147,8 @@ Also for inplace prediction:
 
 .. code-block:: python
 
-  booster.set_param({'predictor': 'gpu_predictor'})
-  # where X is a dask DataFrame or dask Array containing cupy or cuDF backed data.
+  # where X is a dask DataFrame or dask Array backed by cupy or cuDF.
+  booster.set_param({"device": "cuda"})
   prediction = xgb.dask.inplace_predict(client, booster, X)
 
 When input is ``da.Array`` object, output is always ``da.Array``.  However, if the input
@@ -222,6 +224,12 @@ collection.
                 main(client)
 
 
+****************
+GPU acceleration
+****************
+
+For most of the use cases with GPUs, the `Dask-CUDA <https://docs.rapids.ai/api/dask-cuda/stable/quickstart.html>`__ project should be used to create the cluster, which automatically configures the correct device ordinal for worker processes. As a result, users should NOT specify the ordinal (good: ``device=cuda``, bad: ``device=cuda:1``). See :ref:`sphx_glr_python_dask-examples_gpu_training.py` and :ref:`sphx_glr_python_dask-examples_sklearn_gpu_training.py` for worked examples.
+
 ***************************
 Working with other clusters
 ***************************
@@ -248,7 +256,7 @@ In the example below, a ``KubeCluster`` is used for `deploying Dask on Kubernete
       m = 1000
       n = 10
       kWorkers = 2                # assuming you have 2 GPU nodes on that cluster.
-      # You need to work out the worker-spec youself.  See document in dask_kubernetes for
+      # You need to work out the worker-spec yourself.  See document in dask_kubernetes for
       # its usage.  Here we just want to show that XGBoost works on various clusters.
       cluster = KubeCluster.from_yaml('worker-spec.yaml', deploy_mode='remote')
       cluster.scale(kWorkers)     # scale to use all GPUs
@@ -259,7 +267,7 @@ In the example below, a ``KubeCluster`` is used for `deploying Dask on Kubernete
 
           regressor = xgb.dask.DaskXGBRegressor(n_estimators=10, missing=0.0)
           regressor.client = client
-          regressor.set_params(tree_method='gpu_hist')
+          regressor.set_params(tree_method='hist', device="cuda")
           regressor.fit(X, y, eval_set=[(X, y)])
 
 
@@ -519,6 +527,9 @@ Troubleshooting
   the ``NCCL_SOCKET_IFNAME``. In addition, you can use ``NCCL_DEBUG`` to obtain debug
   logs.
 
+- If NCCL fails to initialize in a container environment, it might be caused by limited
+  system shared memory. With docker, one can try the flag: `--shm-size=4g`.
+
 - MIG (Multi-Instance GPU) is not yet supported by NCCL. You will receive an error message
   that includes `Multiple processes within a communication group ...` upon initialization.
 
@@ -637,7 +648,7 @@ environment than training the model using a single node due to aforementioned cr
 Memory Usage
 ************
 
-Here are some pratices on reducing memory usage with dask and xgboost.
+Here are some practices on reducing memory usage with dask and xgboost.
 
 - In a distributed work flow, data is best loaded by dask collections directly instead of
   loaded by client process.  When loading with client process is unavoidable, use

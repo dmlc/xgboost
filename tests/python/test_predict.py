@@ -28,7 +28,7 @@ def run_threaded_predict(X, rows, predict_func):
         assert f.result()
 
 
-def run_predict_leaf(predictor):
+def run_predict_leaf(device: str) -> np.ndarray:
     rows = 100
     cols = 4
     classes = 5
@@ -42,13 +42,13 @@ def run_predict_leaf(predictor):
         {
             "num_parallel_tree": num_parallel_tree,
             "num_class": classes,
-            "predictor": predictor,
             "tree_method": "hist",
         },
         m,
         num_boost_round=num_boost_round,
     )
 
+    booster.set_param({"device": device})
     empty = xgb.DMatrix(np.ones(shape=(0, cols)))
     empty_leaf = booster.predict(empty, pred_leaf=True)
     assert empty_leaf.shape[0] == 0
@@ -74,13 +74,14 @@ def run_predict_leaf(predictor):
 
     # When there's only 1 tree, the output is a 1 dim vector
     booster = xgb.train({"tree_method": "hist"}, num_boost_round=1, dtrain=m)
+    booster.set_param({"device": device})
     assert booster.predict(m, pred_leaf=True).shape == (rows,)
 
     return leaf
 
 
-def test_predict_leaf():
-    run_predict_leaf("cpu_predictor")
+def test_predict_leaf() -> None:
+    run_predict_leaf("cpu")
 
 
 def test_predict_shape():
@@ -172,7 +173,7 @@ class TestInplacePredict:
         np.testing.assert_allclose(predt_from_dmatrix, predt_from_array)
 
         with pytest.raises(ValueError):
-            booster.predict(test, iteration_range=(0, booster.best_iteration + 2))
+            booster.predict(test, iteration_range=(0, booster.num_boosted_rounds() + 2))
 
         default = booster.predict(test)
 
@@ -180,7 +181,7 @@ class TestInplacePredict:
         np.testing.assert_allclose(range_full, default)
 
         range_full = booster.predict(
-            test, iteration_range=(0, booster.best_iteration + 1)
+            test, iteration_range=(0, booster.num_boosted_rounds())
         )
         np.testing.assert_allclose(range_full, default)
 

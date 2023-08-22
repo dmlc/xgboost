@@ -9,15 +9,16 @@ import xgboost as xgb
 def test_large_input():
     available_bytes, _ = cp.cuda.runtime.memGetInfo()
     # 15 GB
-    required_bytes = 1.5e+10
+    required_bytes = 1.5e10
     if available_bytes < required_bytes:
         pytest.skip("Not enough memory on this device")
     n = 1000
     m = ((1 << 31) + n - 1) // n
-    assert (np.log2(m * n) > 31)
+    assert np.log2(m * n) > 31
     X = cp.ones((m, n), dtype=np.float32)
     y = cp.ones(m)
-    dmat = xgb.QuantileDMatrix(X, y)
+    w = cp.ones(m)
+    dmat = xgb.QuantileDMatrix(X, y, weight=w)
     booster = xgb.train({"tree_method": "gpu_hist", "max_depth": 1}, dmat, 1)
     del y
     booster.inplace_predict(X)

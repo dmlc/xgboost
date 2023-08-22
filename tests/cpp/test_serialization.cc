@@ -698,10 +698,6 @@ TEST_F(MultiClassesSerializationTest, GpuHist) {
                             {"seed", "0"},
                             {"nthread", "1"},
                             {"max_depth", std::to_string(kClasses)},
-                            // Somehow rebuilding the cache can generate slightly
-                            // different result (1e-7) with CPU predictor for some
-                            // entries.
-                            {"predictor", "gpu_predictor"},
                             // Mitigate the difference caused by hardware fused multiply
                             // add to tree weight during update prediction cache.
                             {"learning_rate", "1.0"},

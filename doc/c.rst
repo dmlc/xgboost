@@ -33,6 +33,8 @@ DMatrix
 .. doxygengroup:: DMatrix
    :project: xgboost
 
+.. _c_streaming:
+
 Streaming
 ---------
 

@@ -69,7 +69,7 @@ enum class Operation {
 
 class DeviceCommunicator;
 
-enum class CommunicatorType { kUnknown, kRabit, kFederated, kInMemory };
+enum class CommunicatorType { kUnknown, kRabit, kFederated, kInMemory, kInMemoryNccl };
 
 /** \brief Case-insensitive string comparison. */
 inline int CompareStringsCaseInsensitive(const char *s1, const char *s2) {
@@ -220,6 +220,8 @@ class Communicator {
       result = CommunicatorType::kFederated;
     } else if (!CompareStringsCaseInsensitive("in-memory", str)) {
       result = CommunicatorType::kInMemory;
+    } else if (!CompareStringsCaseInsensitive("in-memory-nccl", str)) {
+      result = CommunicatorType::kInMemoryNccl;
     } else {
       LOG(FATAL) << "Unknown communicator type " << str;
     }
@@ -229,7 +231,6 @@ class Communicator {
   static thread_local std::unique_ptr<Communicator> communicator_;
   static thread_local CommunicatorType type_;
 #if defined(XGBOOST_USE_CUDA)
-  static thread_local int device_ordinal_;
   static thread_local std::unique_ptr<DeviceCommunicator> device_communicator_;
 #endif
 

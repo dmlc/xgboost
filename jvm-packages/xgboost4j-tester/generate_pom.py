@@ -8,25 +8,28 @@ pom_template = """
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>ml.dmlc</groupId>
-  <artifactId>xgboost4j-tester_2.12</artifactId>
+  <artifactId>xgboost4j-tester_{scala_binary_version}</artifactId>
   <version>1.0-SNAPSHOT</version>
 
-  <name>xgboost4j-tester_2.12</name>
+  <name>xgboost4j-tester</name>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.source>{maven_compiler_source}</maven.compiler.source>
     <maven.compiler.target>{maven_compiler_target}</maven.compiler.target>
+    <junit.version>4.13.2</junit.version>
     <spark.version>{spark_version}</spark.version>
     <scala.version>{scala_version}</scala.version>
+    <scalatest.version>3.2.15</scalatest.version>
     <scala.binary.version>{scala_binary_version}</scala.binary.version>
+    <kryo.version>5.5.0</kryo.version>
   </properties>
 
   <dependencies>
-    <dependency>
+   <dependency>
       <groupId>com.esotericsoftware</groupId>
       <artifactId>kryo</artifactId>
-      <version>4.0.2</version>
+      <version>${{kryo.version}}</version>
     </dependency>
     <dependency>
       <groupId>org.scala-lang</groupId>
@@ -49,27 +52,10 @@ pom_template = """
       <version>1.2</version>
     </dependency>
     <dependency>
-      <groupId>com.typesafe.akka</groupId>
-      <artifactId>akka-testkit_${{scala.binary.version}}</artifactId>
-      <version>2.6.20</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
       <groupId>org.scalatest</groupId>
       <artifactId>scalatest_${{scala.binary.version}}</artifactId>
-      <version>3.0.8</version>
+      <version>${{scalatest.version}}</version>
       <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.scalactic</groupId>
-      <artifactId>scalactic_${{scala.binary.version}}</artifactId>
-      <version>3.2.15</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.commons</groupId>
-      <artifactId>commons-lang3</artifactId>
-      <version>3.9</version>
     </dependency>
     <dependency>
       <groupId>org.apache.spark</groupId>
@@ -92,7 +78,7 @@ pom_template = """
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
-      <version>4.13.2</version>
+      <version>${{junit.version}}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -122,36 +108,9 @@ pom_template = """
 
   <build>
     <plugins>
-      <!-- clean lifecycle, see https://maven.apache.org/ref/current/maven-core/lifecycles.html#clean_Lifecycle -->
-      <plugin>
-        <artifactId>maven-clean-plugin</artifactId>
-        <version>3.1.0</version>
-      </plugin>
-      <!-- default lifecycle, jar packaging: see https://maven.apache.org/ref/current/maven-core/default-bindings.html#Plugin_bindings_for_jar_packaging -->
-      <plugin>
-        <artifactId>maven-resources-plugin</artifactId>
-        <version>3.0.2</version>
-      </plugin>
-      <plugin>
-        <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.8.0</version>
-      </plugin>
-      <plugin>
-        <artifactId>maven-jar-plugin</artifactId>
-        <version>3.0.2</version>
-      </plugin>
-      <plugin>
-        <artifactId>maven-install-plugin</artifactId>
-        <version>2.5.2</version>
-      </plugin>
-      <plugin>
-        <artifactId>maven-deploy-plugin</artifactId>
-        <version>2.8.2</version>
-      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-assembly-plugin</artifactId>
-        <version>2.4</version>
         <configuration>
           <descriptorRefs>
             <descriptorRef>jar-with-dependencies</descriptorRef>
@@ -171,22 +130,12 @@ pom_template = """
           </execution>
         </executions>
       </plugin>
-      <!-- site lifecycle, see https://maven.apache.org/ref/current/maven-core/lifecycles.html#site_Lifecycle -->
-      <plugin>
-        <artifactId>maven-site-plugin</artifactId>
-        <version>3.7.1</version>
-      </plugin>
-      <plugin>
-        <artifactId>maven-project-info-reports-plugin</artifactId>
-        <version>3.0.0</version>
-      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
-        <version>2.22.1</version>
         <configuration>
           <dependenciesToScan>
-            <dependency>ml.dmlc:xgboost4j_2.12</dependency>
+            <dependency>ml.dmlc:xgboost4j_${{scala.binary.version}}</dependency>
           </dependenciesToScan>
         </configuration>
       </plugin>

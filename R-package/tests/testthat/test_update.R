@@ -13,7 +13,10 @@ test_that("updating the model works", {
   watchlist <- list(train = dtrain, test = dtest)
 
   # no-subsampling
-  p1 <- list(objective = "binary:logistic", max_depth = 2, eta = 0.05, nthread = 2)
+  p1 <- list(
+    objective = "binary:logistic", max_depth = 2, eta = 0.05, nthread = 2,
+    updater = "grow_colmaker,prune"
+  )
   set.seed(11)
   bst1 <- xgb.train(p1, dtrain, nrounds = 10, watchlist, verbose = 0)
   tr1 <- xgb.model.dt.tree(model = bst1)

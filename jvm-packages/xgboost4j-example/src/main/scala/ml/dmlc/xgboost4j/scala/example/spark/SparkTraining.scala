@@ -17,9 +17,8 @@
 package ml.dmlc.xgboost4j.scala.example.spark
 
 import ml.dmlc.xgboost4j.scala.spark.XGBoostClassifier
-
 import org.apache.spark.ml.feature.{StringIndexer, VectorAssembler}
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.types.{DoubleType, StringType, StructField, StructType}
 
 // this example works with Iris dataset (https://archive.ics.uci.edu/ml/datasets/iris)
@@ -32,12 +31,18 @@ object SparkTraining {
       sys.exit(1)
     }
 
-    val (treeMethod, numWorkers) = if (args.length == 2 && args(1) == "gpu") {
-      ("gpu_hist", 1)
-    } else ("auto", 2)
+    val (device, numWorkers) = if (args.length == 2 && args(1) == "gpu") {
+      ("cuda", 1)
+    } else ("cpu", 2)
 
     val spark = SparkSession.builder().getOrCreate()
     val inputPath = args(0)
+    val results: DataFrame = run(spark, inputPath, device, numWorkers)
+    results.show()
+  }
+
+private[spark] def run(spark: SparkSession, inputPath: String,
+                       device: String, numWorkers: Int): DataFrame =  {
     val schema = new StructType(Array(
       StructField("sepal length", DoubleType, true),
       StructField("sepal width", DoubleType, true),
@@ -75,13 +80,12 @@ object SparkTraining {
       "num_class" -> 3,
       "num_round" -> 100,
       "num_workers" -> numWorkers,
-      "tree_method" -> treeMethod,
+      "device" -> device,
       "eval_sets" -> Map("eval1" -> eval1, "eval2" -> eval2))
     val xgbClassifier = new XGBoostClassifier(xgbParam).
       setFeaturesCol("features").
       setLabelCol("classIndex")
     val xgbClassificationModel = xgbClassifier.fit(train)
-    val results = xgbClassificationModel.transform(test)
-    results.show()
+    xgbClassificationModel.transform(test)
   }
 }
