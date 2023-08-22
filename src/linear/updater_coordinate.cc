@@ -9,8 +9,7 @@
 #include "coordinate_common.h"
 #include "xgboost/json.h"
 
-namespace xgboost {
-namespace linear {
+namespace xgboost::linear {
 
 DMLC_REGISTER_PARAMETER(CoordinateParam);
 DMLC_REGISTRY_FILE_TAG(updater_coordinate);
@@ -39,8 +38,9 @@ class CoordinateUpdater : public LinearUpdater {
     FromJson(config.at("linear_train_param"), &tparam_);
     FromJson(config.at("coordinate_param"), &cparam_);
   }
-  void SaveConfig(Json* p_out) const override {
-    auto& out = *p_out;
+  void SaveConfig(Json *p_out) const override {
+    LOG(DEBUG) << "Save config for CPU updater.";
+    auto &out = *p_out;
     out["linear_train_param"] = ToJson(tparam_);
     out["coordinate_param"] = ToJson(cparam_);
   }
@@ -99,5 +99,4 @@ class CoordinateUpdater : public LinearUpdater {
 XGBOOST_REGISTER_LINEAR_UPDATER(CoordinateUpdater, "coord_descent")
     .describe("Update linear model according to coordinate descent algorithm.")
     .set_body([]() { return new CoordinateUpdater(); });
-}  // namespace linear
-}  // namespace xgboost
+}  // namespace xgboost::linear
