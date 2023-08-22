@@ -162,11 +162,6 @@ class RegLossObj : public FitIntercept {
         common::Range{0, static_cast<int64_t>(n_data_blocks)}, nthreads, device)
         .Eval(&additional_input_, out_gpair->Data(), &preds, info.labels.Data(),
               &info.weights_);
-
-    auto const flag = additional_input_.HostVector().begin()[0];
-    if (flag == 0) {
-      LOG(FATAL) << Loss::LabelErrorMsg();
-    }
   }
 
  public:
