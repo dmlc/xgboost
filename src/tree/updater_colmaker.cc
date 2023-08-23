@@ -91,7 +91,7 @@ class ColMaker: public TreeUpdater {
     }
   }
 
-  void Update(TrainParam const *param, HostDeviceVector<GradientPair> *gpair, DMatrix *dmat,
+  void Update(TrainParam const *param, linalg::Matrix<GradientPair> *gpair, DMatrix *dmat,
               common::Span<HostDeviceVector<bst_node_t>> /*out_position*/,
               const std::vector<RegTree *> &trees) override {
     if (collective::IsDistributed()) {
@@ -106,10 +106,11 @@ class ColMaker: public TreeUpdater {
     // rescale learning rate according to size of trees
     interaction_constraints_.Configure(*param, dmat->Info().num_row_);
     // build tree
+    CHECK_EQ(gpair->Shape(1), 1) << MTNotImplemented();
     for (auto tree : trees) {
       CHECK(ctx_);
       Builder builder(*param, colmaker_param_, interaction_constraints_, ctx_, column_densities_);
-      builder.Update(gpair->ConstHostVector(), dmat, tree);
+      builder.Update(gpair->Data()->ConstHostVector(), dmat, tree);
     }
   }
 

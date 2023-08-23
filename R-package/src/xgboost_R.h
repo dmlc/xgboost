@@ -161,12 +161,13 @@ XGB_DLL SEXP XGBoosterUpdateOneIter_R(SEXP ext, SEXP iter, SEXP dtrain);
  * \brief update the model, by directly specify gradient and second order gradient,
  *        this can be used to replace UpdateOneIter, to support customized loss function
  * \param handle handle
+ * \param iter The current training iteration.
  * \param dtrain training data
  * \param grad gradient statistics
  * \param hess second order gradient statistics
  * \return R_NilValue
  */
-XGB_DLL SEXP XGBoosterBoostOneIter_R(SEXP handle, SEXP dtrain, SEXP grad, SEXP hess);
+XGB_DLL SEXP XGBoosterTrainOneIter_R(SEXP handle, SEXP dtrain, SEXP iter, SEXP grad, SEXP hess);
 
 /*!
  * \brief get evaluation statistics for xgboost

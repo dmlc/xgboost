@@ -74,35 +74,35 @@ void TestNDCGGPair(Context const* ctx) {
   info.labels = linalg::Tensor<float, 2>{{0, 1, 0, 1}, {4, 1}, GPUIDX};
   info.group_ptr_ = {0, 2, 4};
   info.num_row_ = 4;
-  HostDeviceVector<GradientPair> gpairs;
+  linalg::Matrix<GradientPair> gpairs;
   obj->GetGradient(predts, info, 0, &gpairs);
   ASSERT_EQ(gpairs.Size(), predts.Size());
 
   {
     predts = {1, 0, 1, 0};
-    HostDeviceVector<GradientPair> gpairs;
+    linalg::Matrix<GradientPair> gpairs;
     obj->GetGradient(predts, info, 0, &gpairs);
-    for (size_t i = 0; i < gpairs.Size(); ++i) {
-      ASSERT_GT(gpairs.HostSpan()[i].GetHess(), 0);
+    for (std::size_t i = 0; i < gpairs.Size(); ++i) {
+      ASSERT_GT(gpairs.HostView()(i).GetHess(), 0);
     }
-    ASSERT_LT(gpairs.HostSpan()[1].GetGrad(), 0);
-    ASSERT_LT(gpairs.HostSpan()[3].GetGrad(), 0);
+    ASSERT_LT(gpairs.HostView()(1).GetGrad(), 0);
+    ASSERT_LT(gpairs.HostView()(3).GetGrad(), 0);
 
-    ASSERT_GT(gpairs.HostSpan()[0].GetGrad(), 0);
-    ASSERT_GT(gpairs.HostSpan()[2].GetGrad(), 0);
+    ASSERT_GT(gpairs.HostView()(0).GetGrad(), 0);
+    ASSERT_GT(gpairs.HostView()(2).GetGrad(), 0);
 
     info.weights_ = {2, 3};
-    HostDeviceVector<GradientPair> weighted_gpairs;
+    linalg::Matrix<GradientPair> weighted_gpairs;
     obj->GetGradient(predts, info, 0, &weighted_gpairs);
-    auto const& h_gpairs = gpairs.ConstHostSpan();
-    auto const& h_weighted_gpairs = weighted_gpairs.ConstHostSpan();
+    auto const& h_gpairs = gpairs.HostView();
+    auto const& h_weighted_gpairs = weighted_gpairs.HostView();
     for (size_t i : {0ul, 1ul}) {
-      ASSERT_FLOAT_EQ(h_weighted_gpairs[i].GetGrad(), h_gpairs[i].GetGrad() * 2.0f);
-      ASSERT_FLOAT_EQ(h_weighted_gpairs[i].GetHess(), h_gpairs[i].GetHess() * 2.0f);
+      ASSERT_FLOAT_EQ(h_weighted_gpairs(i).GetGrad(), h_gpairs(i).GetGrad() * 2.0f);
+      ASSERT_FLOAT_EQ(h_weighted_gpairs(i).GetHess(), h_gpairs(i).GetHess() * 2.0f);
     }
     for (size_t i : {2ul, 3ul}) {
-      ASSERT_FLOAT_EQ(h_weighted_gpairs[i].GetGrad(), h_gpairs[i].GetGrad() * 3.0f);
-      ASSERT_FLOAT_EQ(h_weighted_gpairs[i].GetHess(), h_gpairs[i].GetHess() * 3.0f);
+      ASSERT_FLOAT_EQ(h_weighted_gpairs(i).GetGrad(), h_gpairs(i).GetGrad() * 3.0f);
+      ASSERT_FLOAT_EQ(h_weighted_gpairs(i).GetHess(), h_gpairs(i).GetHess() * 3.0f);
     }
   }
 
@@ -125,7 +125,7 @@ void TestUnbiasedNDCG(Context const* ctx) {
   std::sort(h_label.begin(), h_label.end(), std::greater<>{});
   HostDeviceVector<float> predt(p_fmat->Info().num_row_, 1.0f);
 
-  HostDeviceVector<GradientPair> out_gpair;
+  linalg::Matrix<GradientPair> out_gpair;
   obj->GetGradient(predt, p_fmat->Info(), 0, &out_gpair);
 
   Json config{Object{}};

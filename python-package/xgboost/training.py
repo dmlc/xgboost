@@ -178,7 +178,7 @@ def train(
     for i in range(start_iteration, num_boost_round):
         if cb_container.before_iteration(bst, i, dtrain, evals):
             break
-        bst.update(dtrain, i, obj)
+        bst.update(dtrain, iteration=i, fobj=obj)
         if cb_container.after_iteration(bst, i, dtrain, evals):
             break
 

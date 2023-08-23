@@ -61,7 +61,7 @@ struct KernelInputs {
 
   linalg::MatrixView<float const> labels;
   common::Span<float const> predts;
-  common::Span<GradientPair> gpairs;
+  linalg::MatrixView<GradientPair> gpairs;
 
   linalg::VectorView<GradientPair const> d_roundings;
   double const *d_cost_rounding;
@@ -79,8 +79,8 @@ struct MakePairsOp {
   /**
    * \brief Make pair for the topk pair method.
    */
-  XGBOOST_DEVICE std::tuple<std::size_t, std::size_t> WithTruncation(std::size_t idx,
-                                                                     bst_group_t g) const {
+  [[nodiscard]] XGBOOST_DEVICE std::tuple<std::size_t, std::size_t> WithTruncation(
+      std::size_t idx, bst_group_t g) const {
     auto thread_group_begin = args.d_threads_group_ptr[g];
     auto idx_in_thread_group = idx - thread_group_begin;
 

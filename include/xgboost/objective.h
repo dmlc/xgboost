@@ -41,17 +41,16 @@ class ObjFunction : public Configurable {
    * \param args arguments to the objective function.
    */
   virtual void Configure(const std::vector<std::pair<std::string, std::string> >& args) = 0;
-  /*!
-   * \brief Get gradient over each of predictions, given existing information.
-   * \param preds prediction of current round
-   * \param info information about labels, weights, groups in rank
-   * \param iteration current iteration number.
-   * \param out_gpair output of get gradient, saves gradient and second order gradient in
+  /**
+   * @brief Get gradient over each of predictions, given existing information.
+   *
+   * @param preds prediction of current round
+   * @param info information about labels, weights, groups in rank
+   * @param iteration current iteration number.
+   * @param out_gpair output of get gradient, saves gradient and second order gradient in
    */
-  virtual void GetGradient(const HostDeviceVector<bst_float>& preds,
-                           const MetaInfo& info,
-                           int iteration,
-                           HostDeviceVector<GradientPair>* out_gpair) = 0;
+  virtual void GetGradient(const HostDeviceVector<bst_float>& preds, const MetaInfo& info,
+                           std::int32_t iter, linalg::Matrix<GradientPair>* out_gpair) = 0;
 
   /*! \return the default evaluation metric for the objective */
   virtual const char* DefaultEvalMetric() const = 0;
@@ -81,9 +80,7 @@ class ObjFunction : public Configurable {
    * used by gradient boosting
    * \return transformed value
    */
-  virtual bst_float ProbToMargin(bst_float base_score) const {
-    return base_score;
-  }
+  [[nodiscard]] virtual bst_float ProbToMargin(bst_float base_score) const { return base_score; }
   /**
    * \brief Make initialize estimation of prediction.
    *
@@ -94,14 +91,14 @@ class ObjFunction : public Configurable {
   /*!
    * \brief Return task of this objective.
    */
-  virtual struct ObjInfo Task() const = 0;
+  [[nodiscard]] virtual struct ObjInfo Task() const = 0;
   /**
-   * \brief Return number of targets for input matrix.  Right now XGBoost supports only
+   * @brief Return number of targets for input matrix.  Right now XGBoost supports only
    *        multi-target regression.
    */
-  virtual bst_target_t Targets(MetaInfo const& info) const {
+  [[nodiscard]] virtual bst_target_t Targets(MetaInfo const& info) const {
     if (info.labels.Shape(1) > 1) {
-      LOG(FATAL) << "multioutput is not supported by current objective function";
+      LOG(FATAL) << "multioutput is not supported by the current objective function";
     }
     return 1;
   }

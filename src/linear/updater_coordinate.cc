@@ -45,30 +45,31 @@ class CoordinateUpdater : public LinearUpdater {
     out["coordinate_param"] = ToJson(cparam_);
   }
 
-  void Update(HostDeviceVector<GradientPair> *in_gpair, DMatrix *p_fmat,
-              gbm::GBLinearModel *model, double sum_instance_weight) override {
+  void Update(linalg::Matrix<GradientPair> *in_gpair, DMatrix *p_fmat, gbm::GBLinearModel *model,
+              double sum_instance_weight) override {
+    auto gpair = in_gpair->Data();
     tparam_.DenormalizePenalties(sum_instance_weight);
     const int ngroup = model->learner_model_param->num_output_group;
     // update bias
     for (int group_idx = 0; group_idx < ngroup; ++group_idx) {
-      auto grad = GetBiasGradientParallel(group_idx, ngroup, in_gpair->ConstHostVector(), p_fmat,
+      auto grad = GetBiasGradientParallel(group_idx, ngroup, gpair->ConstHostVector(), p_fmat,
                                           ctx_->Threads());
       auto dbias = static_cast<float>(tparam_.learning_rate *
                                       CoordinateDeltaBias(grad.first, grad.second));
       model->Bias()[group_idx] += dbias;
-      UpdateBiasResidualParallel(ctx_, group_idx, ngroup, dbias, &in_gpair->HostVector(), p_fmat);
+      UpdateBiasResidualParallel(ctx_, group_idx, ngroup, dbias, &gpair->HostVector(), p_fmat);
     }
     // prepare for updating the weights
-    selector_->Setup(ctx_, *model, in_gpair->ConstHostVector(), p_fmat, tparam_.reg_alpha_denorm,
+    selector_->Setup(ctx_, *model, gpair->ConstHostVector(), p_fmat, tparam_.reg_alpha_denorm,
                      tparam_.reg_lambda_denorm, cparam_.top_k);
     // update weights
     for (int group_idx = 0; group_idx < ngroup; ++group_idx) {
       for (unsigned i = 0U; i < model->learner_model_param->num_feature; i++) {
         int fidx =
-            selector_->NextFeature(ctx_, i, *model, group_idx, in_gpair->ConstHostVector(), p_fmat,
+            selector_->NextFeature(ctx_, i, *model, group_idx, gpair->ConstHostVector(), p_fmat,
                                    tparam_.reg_alpha_denorm, tparam_.reg_lambda_denorm);
         if (fidx < 0) break;
-        this->UpdateFeature(fidx, group_idx, &in_gpair->HostVector(), p_fmat, model);
+        this->UpdateFeature(fidx, group_idx, &gpair->HostVector(), p_fmat, model);
       }
     }
     monitor_.Stop("UpdateFeature");

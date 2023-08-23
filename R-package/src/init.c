@@ -16,7 +16,7 @@ Check these declarations against the C/Fortran source code.
 */
 
 /* .Call calls */
-extern SEXP XGBoosterBoostOneIter_R(SEXP, SEXP, SEXP, SEXP);
+extern SEXP XGBoosterTrainOneIter_R(SEXP, SEXP, SEXP, SEXP, SEXP);
 extern SEXP XGBoosterCreate_R(SEXP);
 extern SEXP XGBoosterCreateInEmptyObj_R(SEXP, SEXP);
 extern SEXP XGBoosterDumpModel_R(SEXP, SEXP, SEXP, SEXP);
@@ -53,7 +53,7 @@ extern SEXP XGBGetGlobalConfig_R(void);
 extern SEXP XGBoosterFeatureScore_R(SEXP, SEXP);
 
 static const R_CallMethodDef CallEntries[] = {
-  {"XGBoosterBoostOneIter_R",     (DL_FUNC) &XGBoosterBoostOneIter_R,     4},
+  {"XGBoosterBoostOneIter_R",     (DL_FUNC) &XGBoosterTrainOneIter_R,     5},
   {"XGBoosterCreate_R",           (DL_FUNC) &XGBoosterCreate_R,           1},
   {"XGBoosterCreateInEmptyObj_R", (DL_FUNC) &XGBoosterCreateInEmptyObj_R, 2},
   {"XGBoosterDumpModel_R",        (DL_FUNC) &XGBoosterDumpModel_R,        4},

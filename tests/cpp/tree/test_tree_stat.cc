@@ -16,7 +16,7 @@ namespace xgboost {
 class UpdaterTreeStatTest : public ::testing::Test {
  protected:
   std::shared_ptr<DMatrix> p_dmat_;
-  HostDeviceVector<GradientPair> gpairs_;
+  linalg::Matrix<GradientPair> gpairs_;
   size_t constexpr static kRows = 10;
   size_t constexpr static kCols = 10;
 
@@ -24,8 +24,8 @@ class UpdaterTreeStatTest : public ::testing::Test {
   void SetUp() override {
     p_dmat_ = RandomDataGenerator(kRows, kCols, .5f).GenerateDMatrix(true);
     auto g = GenerateRandomGradients(kRows);
-    gpairs_.Resize(kRows);
-    gpairs_.Copy(g);
+    gpairs_.Reshape(kRows, 1);
+    gpairs_.Data()->Copy(g);
   }
 
   void RunTest(std::string updater) {
@@ -63,7 +63,7 @@ TEST_F(UpdaterTreeStatTest, Approx) { this->RunTest("grow_histmaker"); }
 class UpdaterEtaTest : public ::testing::Test {
  protected:
   std::shared_ptr<DMatrix> p_dmat_;
-  HostDeviceVector<GradientPair> gpairs_;
+  linalg::Matrix<GradientPair> gpairs_;
   size_t constexpr static kRows = 10;
   size_t constexpr static kCols = 10;
   size_t constexpr static kClasses = 10;
@@ -71,8 +71,8 @@ class UpdaterEtaTest : public ::testing::Test {
   void SetUp() override {
     p_dmat_ = RandomDataGenerator(kRows, kCols, .5f).GenerateDMatrix(true, false, kClasses);
     auto g = GenerateRandomGradients(kRows);
-    gpairs_.Resize(kRows);
-    gpairs_.Copy(g);
+    gpairs_.Reshape(kRows, 1);
+    gpairs_.Data()->Copy(g);
   }
 
   void RunTest(std::string updater) {
@@ -125,14 +125,15 @@ TEST_F(UpdaterEtaTest, GpuHist) { this->RunTest("grow_gpu_hist"); }
 
 class TestMinSplitLoss : public ::testing::Test {
   std::shared_ptr<DMatrix> dmat_;
-  HostDeviceVector<GradientPair> gpair_;
+  linalg::Matrix<GradientPair> gpair_;
 
   void SetUp() override {
     constexpr size_t kRows = 32;
     constexpr size_t kCols = 16;
     constexpr float kSparsity = 0.6;
     dmat_ = RandomDataGenerator(kRows, kCols, kSparsity).Seed(3).GenerateDMatrix();
-    gpair_ = GenerateRandomGradients(kRows);
+    gpair_.Reshape(kRows, 1);
+    gpair_.Data()->Copy(GenerateRandomGradients(kRows));
   }
 
   std::int32_t Update(Context const* ctx, std::string updater, float gamma) {

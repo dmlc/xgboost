@@ -218,34 +218,48 @@ public class Booster implements Serializable, KryoSerializable {
     XGBoostJNI.checkCall(XGBoostJNI.XGBoosterUpdateOneIter(handle, iter, dtrain.getHandle()));
   }
 
+  @Deprecated
+  public void update(DMatrix dtrain, IObjective obj) throws XGBoostError {
+    float[][] predicts = this.predict(dtrain, true, 0, false, false);
+    List<float[]> gradients = obj.getGradient(predicts, dtrain);
+    this.boost(dtrain, gradients.get(0), gradients.get(1));
+  }
+
   /**
    * Update with customize obj func
    *
    * @param dtrain training data
+   * @param iter   The current training iteration.
    * @param obj    customized objective class
    * @throws XGBoostError native error
    */
-  public void update(DMatrix dtrain, IObjective obj) throws XGBoostError {
+  public void update(DMatrix dtrain, int iter, IObjective obj) throws XGBoostError {
     float[][] predicts = this.predict(dtrain, true, 0, false, false);
     List<float[]> gradients = obj.getGradient(predicts, dtrain);
-    boost(dtrain, gradients.get(0), gradients.get(1));
+    this.boost(dtrain, iter, gradients.get(0), gradients.get(1));
+  }
+
+  @Deprecated
+  public void boost(DMatrix dtrain, float[] grad, float[] hess) throws XGBoostError {
+    this.boost(dtrain, 0, grad, hess);
   }
 
   /**
-   * update with give grad and hess
+   * Update with give grad and hess
    *
    * @param dtrain training data
+   * @param iter   The current training iteration.
    * @param grad   first order of gradient
    * @param hess   seconde order of gradient
    * @throws XGBoostError native error
    */
-  public void boost(DMatrix dtrain, float[] grad, float[] hess) throws XGBoostError {
+  public void boost(DMatrix dtrain, int iter, float[] grad, float[] hess) throws XGBoostError {
     if (grad.length != hess.length) {
       throw new AssertionError(String.format("grad/hess length mismatch %s / %s", grad.length,
               hess.length));
     }
-    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterBoostOneIter(handle,
-            dtrain.getHandle(), grad, hess));
+    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterTrainOneIter(handle,
+                                                          dtrain.getHandle(), iter, grad, hess));
   }
 
   /**

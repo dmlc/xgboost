@@ -1,3 +1,4 @@
+import itertools
 import json
 import os
 import sys
@@ -155,6 +156,96 @@ def test_classififer():
     X, y = load_digits(return_X_y=True, as_frame=True)
     y *= 10
     with pytest.raises(ValueError, match=r"Invalid classes.*"):
+        clf.fit(X, y)
+
+
+@pytest.mark.parametrize(
+    "use_cupy,tree_method,device,order,gdtype,strategy",
+    [
+        c
+        for c in itertools.product(
+            (True, False),
+            ("hist", "approx"),
+            ("cpu", "cuda"),
+            ("C", "F"),
+            ("float64", "float32"),
+            ("one_output_per_tree", "multi_output_tree"),
+        )
+    ],
+)
+def test_custom_objective(
+    use_cupy: bool,
+    tree_method: str,
+    device: str,
+    order: str,
+    gdtype: str,
+    strategy: str,
+) -> None:
+    from sklearn.datasets import load_iris
+
+    X, y = load_iris(return_X_y=True)
+
+    params = {
+        "tree_method": tree_method,
+        "device": device,
+        "n_estimators": 8,
+        "multi_strategy": strategy,
+    }
+
+    obj = tm.softprob_obj(y.max() + 1, use_cupy=use_cupy, order=order, gdtype=gdtype)
+
+    clf = xgb.XGBClassifier(objective=obj, **params)
+
+    if strategy == "multi_output_tree" and tree_method == "approx":
+        with pytest.raises(ValueError, match=r"Only the hist"):
+            clf.fit(X, y)
+        return
+    if strategy == "multi_output_tree" and device == "cuda":
+        with pytest.raises(ValueError, match=r"GPU is not yet"):
+            clf.fit(X, y)
+        return
+
+    clf.fit(X, y)
+
+    clf_1 = xgb.XGBClassifier(**params)
+    clf_1.fit(X, y)
+
+    np.testing.assert_allclose(clf.predict_proba(X), clf_1.predict_proba(X), rtol=1e-4)
+
+    params["n_estimators"] = 2
+
+    def wrong_shape(labels, predt):
+        grad, hess = obj(labels, predt)
+        return grad[:, :-1], hess[:, :-1]
+
+    with pytest.raises(ValueError, match="should be equal to the number of"):
+        clf = xgb.XGBClassifier(objective=wrong_shape, **params)
+        clf.fit(X, y)
+
+    def wrong_shape_1(labels, predt):
+        grad, hess = obj(labels, predt)
+        return grad[:-1, :], hess[:-1, :]
+
+    with pytest.raises(ValueError, match="Mismatched size between the gradient"):
+        clf = xgb.XGBClassifier(objective=wrong_shape_1, **params)
+        clf.fit(X, y)
+
+    def wrong_shape_2(labels, predt):
+        grad, hess = obj(labels, predt)
+        return grad[:, :], hess[:-1, :]
+
+    with pytest.raises(ValueError, match="Mismatched shape between the gradient"):
+        clf = xgb.XGBClassifier(objective=wrong_shape_2, **params)
+        clf.fit(X, y)
+
+    def wrong_shape_3(labels, predt):
+        grad, hess = obj(labels, predt)
+        grad = grad.reshape(grad.size)
+        hess = hess.reshape(hess.size)
+        return grad, hess
+
+    with pytest.warns(FutureWarning, match="required to be"):
+        clf = xgb.XGBClassifier(objective=wrong_shape_3, **params)
         clf.fit(X, y)
 
 

@@ -292,7 +292,7 @@ enum Order : std::uint8_t {
 template <typename T, int32_t kDim>
 class TensorView {
  public:
-  using ShapeT = size_t[kDim];
+  using ShapeT = std::size_t[kDim];
   using StrideT = ShapeT;
 
  private:
@@ -400,9 +400,13 @@ class TensorView {
    * \param shape  shape of the tensor
    * \param device Device ordinal
    */
-  template <typename I, int32_t D>
+  template <typename I, std::int32_t D>
   LINALG_HD TensorView(common::Span<T> data, I const (&shape)[D], std::int32_t device)
       : TensorView{data, shape, device, Order::kC} {}
+
+  template <typename I, std::int32_t D>
+  LINALG_HD TensorView(common::Span<T> data, I const (&shape)[D], DeviceOrd device)
+      : TensorView{data, shape, device.ordinal, Order::kC} {}
 
   template <typename I, int32_t D>
   LINALG_HD TensorView(common::Span<T> data, I const (&shape)[D], std::int32_t device, Order order)
@@ -446,6 +450,10 @@ class TensorView {
     });
     this->CalcSize();
   }
+  template <typename I, std::int32_t D>
+  LINALG_HD TensorView(common::Span<T> data, I const (&shape)[D], I const (&stride)[D],
+                       DeviceOrd device)
+      : TensorView{data, shape, stride, device.ordinal} {}
 
   template <
       typename U,
@@ -741,7 +749,7 @@ auto ArrayInterfaceStr(TensorView<T, D> const &t) {
 template <typename T, int32_t kDim = 5>
 class Tensor {
  public:
-  using ShapeT = size_t[kDim];
+  using ShapeT = std::size_t[kDim];
   using StrideT = ShapeT;
 
  private:
@@ -775,6 +783,9 @@ class Tensor {
   template <typename I, int32_t D>
   explicit Tensor(I const (&shape)[D], std::int32_t device, Order order = kC)
       : Tensor{common::Span<I const, D>{shape}, device, order} {}
+  template <typename I, int32_t D>
+  explicit Tensor(I const (&shape)[D], DeviceOrd device, Order order = kC)
+      : Tensor{common::Span<I const, D>{shape}, device.ordinal, order} {}
 
   template <typename I, size_t D>
   explicit Tensor(common::Span<I const, D> shape, std::int32_t device, Order order = kC)
@@ -814,6 +825,10 @@ class Tensor {
     // shape
     this->Initialize(shape, device);
   }
+  template <typename I, int32_t D>
+  explicit Tensor(std::initializer_list<T> data, I const (&shape)[D], DeviceOrd device,
+                  Order order = kC)
+      : Tensor{data, shape, device.ordinal, order} {}
   /**
    * \brief Index operator. Not thread safe, should not be used in performance critical
    *        region. For more efficient indexing, consider getting a view first.
@@ -832,9 +847,9 @@ class Tensor {
   }
 
   /**
-   * \brief Get a \ref TensorView for this tensor.
+   * @brief Get a @ref TensorView for this tensor.
    */
-  TensorView<T, kDim> View(int32_t device) {
+  TensorView<T, kDim> View(std::int32_t device) {
     if (device >= 0) {
       data_.SetDevice(device);
       auto span = data_.DeviceSpan();
@@ -844,7 +859,7 @@ class Tensor {
       return {span, shape_, device, order_};
     }
   }
-  TensorView<T const, kDim> View(int32_t device) const {
+  TensorView<T const, kDim> View(std::int32_t device) const {
     if (device >= 0) {
       data_.SetDevice(device);
       auto span = data_.ConstDeviceSpan();
@@ -852,6 +867,26 @@ class Tensor {
     } else {
       auto span = data_.ConstHostSpan();
       return {span, shape_, device, order_};
+    }
+  }
+  auto View(DeviceOrd device) {
+    if (device.IsCUDA()) {
+      data_.SetDevice(device);
+      auto span = data_.DeviceSpan();
+      return TensorView<T, kDim>{span, shape_, device.ordinal, order_};
+    } else {
+      auto span = data_.HostSpan();
+      return TensorView<T, kDim>{span, shape_, device.ordinal, order_};
+    }
+  }
+  auto View(DeviceOrd device) const {
+    if (device.IsCUDA()) {
+      data_.SetDevice(device);
+      auto span = data_.ConstDeviceSpan();
+      return TensorView<T const, kDim>{span, shape_, device.ordinal, order_};
+    } else {
+      auto span = data_.ConstHostSpan();
+      return TensorView<T const, kDim>{span, shape_, device.ordinal, order_};
     }
   }
 
@@ -931,6 +966,7 @@ class Tensor {
    * \brief Set device ordinal for this tensor.
    */
   void SetDevice(int32_t device) const { data_.SetDevice(device); }
+  void SetDevice(DeviceOrd device) const { data_.SetDevice(device); }
   [[nodiscard]] int32_t DeviceIdx() const { return data_.DeviceIdx(); }
 };
 
