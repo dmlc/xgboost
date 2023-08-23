@@ -29,6 +29,7 @@ class NcclDeviceCommunicator : public DeviceCommunicator {
   ~NcclDeviceCommunicator() override;
   void AllReduce(void *send_receive_buffer, std::size_t count, DataType data_type,
                  Operation op) override;
+  void AllGather(void const *send_buffer, void *receive_buffer, std::size_t send_size) override;
   void AllGatherV(void const *send_buffer, size_t length_bytes, std::vector<std::size_t> *segments,
                   dh::caching_device_vector<char> *receive_buffer) override;
   void Synchronize() override;
