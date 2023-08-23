@@ -82,6 +82,7 @@ def custom_rmse_model(plot_result: bool, strategy: str) -> None:
     ) -> Tuple[np.ndarray, np.ndarray]:
         grad = gradient(predt, dtrain)
         hess = hessian(predt, dtrain)
+        # both numpy.ndarray and cupy.ndarray works.
         return grad, hess
 
     def rmse(predt: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[str, float]:

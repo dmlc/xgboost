@@ -73,7 +73,7 @@ class GradientBooster : public Model, public Configurable {
   /**
    * @brief Return number of boosted rounds.
    */
-  [[nodiscard]] virtual int32_t BoostedRounds() const = 0;
+  [[nodiscard]] virtual std::int32_t BoostedRounds() const = 0;
   /**
    * \brief Whether the model has already been trained. When tree booster is chosen, then
    *        returns true when there are existing trees.
@@ -86,6 +86,7 @@ class GradientBooster : public Model, public Configurable {
    * @param in_gpair address of the gradient pair statistics of the data
    * @param prediction The output prediction cache entry that needs to be updated.
    *                   the booster may change content of gpair
+   * @param obj The objective function used for boosting.
    */
   virtual void DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair,
                        PredictionCacheEntry*, ObjFunction const* obj) = 0;

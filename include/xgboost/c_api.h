@@ -950,16 +950,17 @@ XGB_DLL int XGBoosterBoostOneIter(BoosterHandle handle, DMatrixHandle dtrain, fl
                                   float *hess, bst_ulong len);
 
 /**
- * @brief Update a multi-target model with gradient and Hessian. This is used for training
- *        with a custom objective function.
+ * @brief Update a model with gradient and Hessian. This is used for training with a
+ *        custom objective function.
  *
  * @since 2.0.0
  *
  * @param handle handle
- * @param dtrain training data
- * @param iter The current iteration number.
- * @param grad Json encoded __(cuda)_array_interface__ for gradient.
- * @param hess Json encoded __(cuda)_array_interface__ for Hessian.
+ * @param dtrain The training data.
+ * @param iter   The current iteration round. When training continuation is used, the count
+ *               should restart.
+ * @param grad   Json encoded __(cuda)_array_interface__ for gradient.
+ * @param hess   Json encoded __(cuda)_array_interface__ for Hessian.
  *
  * @return 0 when success, -1 when failure happens
  */

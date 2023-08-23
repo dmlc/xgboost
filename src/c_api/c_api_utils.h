@@ -350,6 +350,9 @@ void MakeSparseFromPtr(PtrT const *p_indptr, I const *p_indices, T const *p_data
   Json::Dump(jdata, data_str);
 }
 
+/**
+ * @brief Make array interface for other language bindings.
+ */
 template <typename G, typename H>
 auto MakeGradientInterface(Context const *ctx, G const *grad, H const *hess, std::size_t n_samples,
                            std::size_t n_targets) {
@@ -362,13 +365,13 @@ auto MakeGradientInterface(Context const *ctx, G const *grad, H const *hess, std
   return std::make_tuple(s_grad, s_hess);
 }
 
-template <typename GT, typename HT>
+template <typename G, typename H>
 struct CustomGradHessOp {
-  linalg::MatrixView<GT> t_grad;
-  linalg::MatrixView<HT> t_hess;
+  linalg::MatrixView<G> t_grad;
+  linalg::MatrixView<H> t_hess;
   linalg::MatrixView<GradientPair> d_gpair;
 
-  CustomGradHessOp(linalg::MatrixView<GT> t_grad, linalg::MatrixView<HT> t_hess,
+  CustomGradHessOp(linalg::MatrixView<G> t_grad, linalg::MatrixView<H> t_hess,
                    linalg::MatrixView<GradientPair> d_gpair)
       : t_grad{std::move(t_grad)}, t_hess{std::move(t_hess)}, d_gpair{std::move(d_gpair)} {}
 
@@ -376,6 +379,7 @@ struct CustomGradHessOp {
     auto [m, n] = linalg::UnravelIndex(i, t_grad.Shape(0), t_grad.Shape(1));
     auto g = t_grad(m, n);
     auto h = t_hess(m, n);
+    // from struct of arrays to array of structs.
     d_gpair(m, n) = GradientPair{static_cast<float>(g), static_cast<float>(h)};
   }
 };

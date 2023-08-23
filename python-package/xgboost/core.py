@@ -2085,6 +2085,7 @@ class Booster:
             return len(array.shape) == 1 or array.shape[1] == 1
 
         def array_interface(array: NumpyOrCupy) -> bytes:
+            # Can we check for __array_interface__ instead of a specific type instead?
             msg = (
                 "Expecting `np.ndarray` or `cupy.ndarray` for gradient and hessian."
                 f" Got: {type(array)}"

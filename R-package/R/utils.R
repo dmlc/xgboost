@@ -155,6 +155,8 @@ xgb.iter.update <- function(booster_handle, dtrain, iter, obj) {
                     ntreelimit = 0)
     gpair <- obj(pred, dtrain)
     n_samples <- dim(dtrain)[1]
+    # We still require row-major in R as I'm not quite sure sure how to get the stride of
+    # the matrix in C.
     gpair$grad <- matrix(gpair$grad, nrow = n_samples, byrow = TRUE)
     gpair$hess <- matrix(gpair$hess, nrow = n_samples, byrow = TRUE)
     .Call(
