@@ -284,31 +284,13 @@ class RabitTracker:
         return ring_map
 
     def get_link_map(self, n_workers: int) -> Tuple[_TreeMap, Dict[int, int], _RingMap]:
-        """
-        get the link map, this is a bit hacky, call for better algorithm
-        to place similar nodes together
+        """get the link map, this is a bit hacky, call for better algorithm to place
+        similar nodes together.
+
         """
         tree_map, parent_map = self._get_tree(n_workers)
         ring_map = self.get_ring(tree_map, parent_map)
-        rmap = {0: 0}
-        k = 0
-        for i in range(n_workers - 1):
-            k = ring_map[k][1]
-            rmap[k] = i + 1
-
-        ring_map_: _RingMap = {}
-        tree_map_: _TreeMap = {}
-        parent_map_: Dict[int, int] = {}
-        for k, v in ring_map.items():
-            ring_map_[rmap[k]] = (rmap[v[0]], rmap[v[1]])
-        for k, tree_nodes in tree_map.items():
-            tree_map_[rmap[k]] = [rmap[x] for x in tree_nodes]
-        for k, parent in parent_map.items():
-            if k != 0:
-                parent_map_[rmap[k]] = rmap[parent]
-            else:
-                parent_map_[rmap[k]] = -1
-        return tree_map_, parent_map_, ring_map_
+        return tree_map, parent_map, ring_map
 
     def _sort_pending(self, pending: List[WorkerEntry]) -> List[WorkerEntry]:
         if self._sortby == "host":
