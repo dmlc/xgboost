@@ -509,7 +509,7 @@ async def map_worker_partitions(
     func: Callable[..., _MapRetT],
     *refs: Any,
     workers: Sequence[str],
-) -> List[_MapRetT]:
+) -> _MapRetT:
     """Map a function onto partitions of each worker."""
     # Note for function purity:
     # XGBoost is deterministic in most of the cases, which means train function is
@@ -529,8 +529,13 @@ async def map_worker_partitions(
             func, *args, pure=False, workers=[addr], allow_other_workers=False
         )
         futures.append(fut)
-    results = await client.gather(futures)
-    return results
+
+    def first_valid(*results: TrainReturnT) -> TrainReturnT:
+        return list(filter(lambda ret: ret is not None, results))[0]
+
+    fut = client.submit(first_valid, *futures)
+    result = await fut
+    return result
 
 
 _DataParts = List[Dict[str, Any]]
@@ -882,29 +887,6 @@ def _get_workers_from_data(
     return list(X_worker_map)
 
 
-def _filter_empty(
-    booster: Booster, local_history: TrainingCallback.EvalsLog, is_valid: bool
-) -> Optional[TrainReturnT]:
-    n_workers = collective.get_world_size()
-    non_empty = numpy.zeros(shape=(n_workers,), dtype=numpy.int32)
-    rank = collective.get_rank()
-    non_empty[rank] = int(is_valid)
-    non_empty = collective.allreduce(non_empty, collective.Op.SUM)
-    non_empty = non_empty.astype(bool)
-    ret: Optional[TrainReturnT] = {
-        "booster": booster,
-        "history": local_history,
-    }
-    for i in range(non_empty.size):
-        # This is the first valid worker
-        if non_empty[i] and i == rank:
-            return ret
-        if non_empty[i]:
-            return None
-
-    raise ValueError("None of the workers can provide a valid result.")
-
-
 async def _check_workers_are_alive(
     workers: List[str], client: "distributed.Client"
 ) -> None:
@@ -997,10 +979,17 @@ async def _train_async(
                 xgb_model=xgb_model,
                 callbacks=callbacks,
             )
-            # Don't return the boosters from empty workers. It's quite difficult to
-            # guarantee everything is in sync in the present of empty workers,
-            # especially with complex objectives like quantile.
-            return _filter_empty(booster, local_history, Xy.num_row() != 0)
+        # Don't return the boosters from empty workers. It's quite difficult to
+        # guarantee everything is in sync in the present of empty workers, especially
+        # with complex objectives like quantile.
+        if Xy.num_row() != 0:
+            ret: Optional[TrainReturnT] = {
+                "booster": booster,
+                "history": local_history,
+            }
+        else:
+            ret = None
+        return ret
 
     async with distributed.MultiLock(workers, client):
         if evals is not None:
@@ -1012,7 +1001,7 @@ async def _train_async(
             evals_name = []
             evals_id = []
 
-        results = await map_worker_partitions(
+        result = await map_worker_partitions(
             client,
             dispatched_train,
             # extra function parameters
@@ -1025,7 +1014,7 @@ async def _train_async(
             # workers to be used for training
             workers=workers,
         )
-        return list(filter(lambda ret: ret is not None, results))[0]
+        return result
 
 
 @_deprecate_positional_args
