@@ -42,20 +42,21 @@ void TestGPUMakePair() {
     auto d = dummy.View(ctx.gpu_id);
     linalg::Vector<GradientPair> dgpair;
     auto dg = dgpair.View(ctx.gpu_id);
-    cuda_impl::KernelInputs args{d,
-                                 d,
-                                 d,
-                                 d,
-                                 p_cache->DataGroupPtr(&ctx),
-                                 p_cache->CUDAThreadsGroupPtr(),
-                                 rank_idx,
-                                 info.labels.View(ctx.gpu_id),
-                                 predt.ConstDeviceSpan(),
-                                 {},
-                                 dg,
-                                 nullptr,
-                                 y_sorted_idx,
-                                 0};
+    cuda_impl::KernelInputs args{
+        d,
+        d,
+        d,
+        d,
+        p_cache->DataGroupPtr(&ctx),
+        p_cache->CUDAThreadsGroupPtr(),
+        rank_idx,
+        info.labels.View(ctx.gpu_id),
+        predt.ConstDeviceSpan(),
+        linalg::MatrixView<GradientPair>{common::Span<GradientPair>{}, {0}, 0},
+        dg,
+        nullptr,
+        y_sorted_idx,
+        0};
     return args;
   };
 

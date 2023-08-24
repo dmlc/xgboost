@@ -22,6 +22,7 @@
 #include "../common/charconv.h"              // for from_chars, to_chars, NumericLimits, from_ch...
 #include "../common/hist_util.h"             // for HistogramCuts
 #include "../common/io.h"                    // for FileExtension, LoadSequentialFile, MemoryBuf...
+#include "../common/linalg_op.h"             // for ElementWiseTransformHost
 #include "../common/threading_utils.h"       // for OmpGetNumThreads, ParallelFor
 #include "../data/adapter.h"                 // for ArrayAdapter, DenseAdapter, RecordBatchesIte...
 #include "../data/ellpack_page.h"            // for EllpackPage
@@ -68,6 +69,7 @@ XGB_DLL void XGBoostVersion(int* major, int* minor, int* patch) {
   }
 }
 
+static_assert(DMLC_CXX11_THREAD_LOCAL, "XGBoost depends on thread-local storage.");
 using GlobalConfigAPIThreadLocalStore = dmlc::ThreadLocalStore<XGBAPIThreadLocalEntry>;
 
 #if !defined(XGBOOST_USE_CUDA)
@@ -717,8 +719,7 @@ XGB_DLL int XGDMatrixGetUIntInfo(const DMatrixHandle handle,
   API_END();
 }
 
-XGB_DLL int XGDMatrixNumRow(const DMatrixHandle handle,
-                            xgboost::bst_ulong *out) {
+XGB_DLL int XGDMatrixNumRow(DMatrixHandle handle, xgboost::bst_ulong *out) {
   API_BEGIN();
   CHECK_HANDLE();
   auto p_m = CastDMatrixHandle(handle);
@@ -727,8 +728,7 @@ XGB_DLL int XGDMatrixNumRow(const DMatrixHandle handle,
   API_END();
 }
 
-XGB_DLL int XGDMatrixNumCol(const DMatrixHandle handle,
-                            xgboost::bst_ulong *out) {
+XGB_DLL int XGDMatrixNumCol(DMatrixHandle handle, xgboost::bst_ulong *out) {
   API_BEGIN();
   CHECK_HANDLE();
   auto p_m = CastDMatrixHandle(handle);
@@ -970,28 +970,71 @@ XGB_DLL int XGBoosterUpdateOneIter(BoosterHandle handle,
   API_END();
 }
 
-XGB_DLL int XGBoosterBoostOneIter(BoosterHandle handle,
-                                  DMatrixHandle dtrain,
-                                  bst_float *grad,
-                                  bst_float *hess,
-                                  xgboost::bst_ulong len) {
+XGB_DLL int XGBoosterBoostOneIter(BoosterHandle handle, DMatrixHandle dtrain, bst_float *grad,
+                                  bst_float *hess, xgboost::bst_ulong len) {
   API_BEGIN();
   CHECK_HANDLE();
-  HostDeviceVector<GradientPair> tmp_gpair;
-  auto* bst = static_cast<Learner*>(handle);
-  auto* dtr =
-      static_cast<std::shared_ptr<DMatrix>*>(dtrain);
-  tmp_gpair.Resize(len);
-  std::vector<GradientPair>& tmp_gpair_h = tmp_gpair.HostVector();
-  if (len > 0) {
-    xgboost_CHECK_C_ARG_PTR(grad);
-    xgboost_CHECK_C_ARG_PTR(hess);
-  }
-  for (xgboost::bst_ulong i = 0; i < len; ++i) {
-    tmp_gpair_h[i] = GradientPair(grad[i], hess[i]);
-  }
+  error::DeprecatedFunc(__func__, "2.1.0", "XGBoosterTrainOneIter");
+  auto *learner = static_cast<Learner *>(handle);
+  auto ctx = learner->Ctx()->MakeCPU();
 
-  bst->BoostOneIter(0, *dtr, &tmp_gpair);
+  auto t_grad = linalg::MakeTensorView(&ctx, common::Span{grad, len}, len);
+  auto t_hess = linalg::MakeTensorView(&ctx, common::Span{hess, len}, len);
+
+  auto s_grad = linalg::ArrayInterfaceStr(t_grad);
+  auto s_hess = linalg::ArrayInterfaceStr(t_hess);
+
+  return XGBoosterTrainOneIter(handle, dtrain, 0, s_grad.c_str(), s_hess.c_str());
+  API_END();
+}
+
+namespace xgboost {
+// copy user-supplied CUDA gradient arrays
+void CopyGradientFromCUDAArrays(Context const *, ArrayInterface<2, false> const &,
+                                ArrayInterface<2, false> const &, linalg::Matrix<GradientPair> *)
+#if !defined(XGBOOST_USE_CUDA)
+{
+  common::AssertGPUSupport();
+}
+#else
+;  // NOLINT
+#endif
+}  // namespace xgboost
+
+XGB_DLL int XGBoosterTrainOneIter(BoosterHandle handle, DMatrixHandle dtrain, int iter,
+                                  char const *grad, char const *hess) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  xgboost_CHECK_C_ARG_PTR(grad);
+  xgboost_CHECK_C_ARG_PTR(hess);
+  auto p_fmat = CastDMatrixHandle(dtrain);
+  ArrayInterface<2, false> i_grad{StringView{grad}};
+  ArrayInterface<2, false> i_hess{StringView{hess}};
+  StringView msg{"Mismatched shape between the gradient and hessian."};
+  CHECK_EQ(i_grad.Shape(0), i_hess.Shape(0)) << msg;
+  CHECK_EQ(i_grad.Shape(1), i_hess.Shape(1)) << msg;
+  linalg::Matrix<GradientPair> gpair;
+  auto grad_is_cuda = ArrayInterfaceHandler::IsCudaPtr(i_grad.data);
+  auto hess_is_cuda = ArrayInterfaceHandler::IsCudaPtr(i_hess.data);
+  CHECK_EQ(i_grad.Shape(0), p_fmat->Info().num_row_)
+      << "Mismatched size between the gradient and training data.";
+  CHECK_EQ(grad_is_cuda, hess_is_cuda) << "gradient and hessian should be on the same device.";
+  auto *learner = static_cast<Learner *>(handle);
+  auto ctx = learner->Ctx();
+  if (!grad_is_cuda) {
+    gpair.Reshape(i_grad.Shape(0), i_grad.Shape(1));
+    auto const shape = gpair.Shape();
+    auto h_gpair = gpair.HostView();
+    DispatchDType(i_grad, DeviceOrd::CPU(), [&](auto &&t_grad) {
+      DispatchDType(i_hess, DeviceOrd::CPU(), [&](auto &&t_hess) {
+        common::ParallelFor(h_gpair.Size(), ctx->Threads(),
+                            detail::CustomGradHessOp{t_grad, t_hess, h_gpair});
+      });
+    });
+  } else {
+    CopyGradientFromCUDAArrays(ctx, i_grad, i_hess, &gpair);
+  }
+  learner->BoostOneIter(iter, p_fmat, &gpair);
   API_END();
 }
 

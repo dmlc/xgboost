@@ -69,7 +69,7 @@ class TestPredictionCache : public ::testing::Test {
       std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create(updater_name, ctx, &task)};
       RegTree tree;
       std::vector<RegTree*> trees{&tree};
-      auto gpair = GenerateRandomGradients(n_samples_);
+      auto gpair = GenerateRandomGradients(ctx, n_samples_, 1);
       tree::TrainParam param;
       param.UpdateAllowUnknown(Args{{"max_bin", "64"}});
 

@@ -189,11 +189,10 @@ void TestUpdatePredictionCache(bool use_subsampling) {
 
   auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix(true, true, kClasses);
 
-  HostDeviceVector<GradientPair> gpair;
-  auto& h_gpair = gpair.HostVector();
-  h_gpair.resize(kRows * kClasses);
+  linalg::Matrix<GradientPair> gpair({kRows, kClasses}, ctx.Device());
+  auto h_gpair = gpair.HostView();
   for (size_t i = 0; i < kRows * kClasses; ++i) {
-    h_gpair[i] = {static_cast<float>(i), 1};
+    std::apply(h_gpair, linalg::UnravelIndex(i, kRows, kClasses)) = {static_cast<float>(i), 1};
   }
 
   PredictionCacheEntry predtion_cache;

@@ -761,16 +761,18 @@ class GPUHistMaker : public TreeUpdater {
     dh::GlobalMemoryLogger().Log();
   }
 
-  void Update(TrainParam const* param, HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
+  void Update(TrainParam const* param, linalg::Matrix<GradientPair>* gpair, DMatrix* dmat,
               common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree*>& trees) override {
     monitor_.Start("Update");
 
+    CHECK_EQ(gpair->Shape(1), 1) << MTNotImplemented();
+    auto gpair_hdv = gpair->Data();
     // build tree
     try {
       std::size_t t_idx{0};
       for (xgboost::RegTree* tree : trees) {
-        this->UpdateTree(param, gpair, dmat, tree, &out_position[t_idx]);
+        this->UpdateTree(param, gpair_hdv, dmat, tree, &out_position[t_idx]);
         this->hist_maker_param_.CheckTreesSynchronized(tree);
         ++t_idx;
       }
@@ -888,7 +890,7 @@ class GPUGlobalApproxMaker : public TreeUpdater {
   }
   ~GPUGlobalApproxMaker() override { dh::GlobalMemoryLogger().Log(); }
 
-  void Update(TrainParam const* param, HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat,
+  void Update(TrainParam const* param, linalg::Matrix<GradientPair>* gpair, DMatrix* p_fmat,
               common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree*>& trees) override {
     monitor_.Start("Update");
@@ -899,7 +901,7 @@ class GPUGlobalApproxMaker : public TreeUpdater {
     auto hess = dh::ToSpan(hess_);
 
     gpair->SetDevice(ctx_->Device());
-    auto d_gpair = gpair->ConstDeviceSpan();
+    auto d_gpair = gpair->Data()->ConstDeviceSpan();
     auto cuctx = ctx_->CUDACtx();
     thrust::transform(cuctx->CTP(), dh::tcbegin(d_gpair), dh::tcend(d_gpair), dh::tbegin(hess),
                       [=] XGBOOST_DEVICE(GradientPair const& g) { return g.GetHess(); });
@@ -913,7 +915,7 @@ class GPUGlobalApproxMaker : public TreeUpdater {
 
     std::size_t t_idx{0};
     for (xgboost::RegTree* tree : trees) {
-      this->UpdateTree(gpair, p_fmat, tree, &out_position[t_idx]);
+      this->UpdateTree(gpair->Data(), p_fmat, tree, &out_position[t_idx]);
       this->hist_maker_param_.CheckTreesSynchronized(tree);
       ++t_idx;
     }

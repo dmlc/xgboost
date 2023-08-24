@@ -214,7 +214,7 @@ TEST(GpuHist, TestHistogramIndex) {
   TestHistogramIndexImpl();
 }
 
-void UpdateTree(Context const* ctx, HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
+void UpdateTree(Context const* ctx, linalg::Matrix<GradientPair>* gpair, DMatrix* dmat,
                 size_t gpu_page_size, RegTree* tree, HostDeviceVector<bst_float>* preds,
                 float subsample = 1.0f, const std::string& sampling_method = "uniform",
                 int max_bin = 2) {
@@ -264,7 +264,8 @@ TEST(GpuHist, UniformSampling) {
   // Create an in-memory DMatrix.
   std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
 
-  auto gpair = GenerateRandomGradients(kRows);
+  linalg::Matrix<GradientPair> gpair({kRows}, Context{}.MakeCUDA().Ordinal());
+  gpair.Data()->Copy(GenerateRandomGradients(kRows));
 
   // Build a tree using the in-memory DMatrix.
   RegTree tree;
@@ -294,7 +295,8 @@ TEST(GpuHist, GradientBasedSampling) {
   // Create an in-memory DMatrix.
   std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
 
-  auto gpair = GenerateRandomGradients(kRows);
+  linalg::Matrix<GradientPair> gpair({kRows}, MakeCUDACtx(0).Ordinal());
+  gpair.Data()->Copy(GenerateRandomGradients(kRows));
 
   // Build a tree using the in-memory DMatrix.
   RegTree tree;
@@ -330,11 +332,12 @@ TEST(GpuHist, ExternalMemory) {
   // Create a single batch DMatrix.
   std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrix(kRows, kCols, 1, tmpdir.path + "/cache"));
 
-  auto gpair = GenerateRandomGradients(kRows);
+  Context ctx(MakeCUDACtx(0));
+  linalg::Matrix<GradientPair> gpair({kRows}, ctx.Ordinal());
+  gpair.Data()->Copy(GenerateRandomGradients(kRows));
 
   // Build a tree using the in-memory DMatrix.
   RegTree tree;
-  Context ctx(MakeCUDACtx(0));
   HostDeviceVector<bst_float> preds(kRows, 0.0, 0);
   UpdateTree(&ctx, &gpair, dmat.get(), 0, &tree, &preds, 1.0, "uniform", kRows);
   // Build another tree using multiple ELLPACK pages.
@@ -367,12 +370,13 @@ TEST(GpuHist, ExternalMemoryWithSampling) {
   std::unique_ptr<DMatrix> dmat_ext(
       CreateSparsePageDMatrix(kRows, kCols, kRows / kPageSize, tmpdir.path + "/cache"));
 
-  auto gpair = GenerateRandomGradients(kRows);
+  Context ctx(MakeCUDACtx(0));
+  linalg::Matrix<GradientPair> gpair({kRows}, ctx.Ordinal());
+  gpair.Data()->Copy(GenerateRandomGradients(kRows));
 
   // Build a tree using the in-memory DMatrix.
   auto rng = common::GlobalRandom();
 
-  Context ctx(MakeCUDACtx(0));
   RegTree tree;
   HostDeviceVector<bst_float> preds(kRows, 0.0, 0);
   UpdateTree(&ctx, &gpair, dmat.get(), 0, &tree, &preds, kSubsample, kSamplingMethod, kRows);

@@ -106,27 +106,41 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
     booster.update(dtrain.jDMatrix, iter)
   }
 
+  @throws(classOf[XGBoostError])
+  @deprecated
+  def update(dtrain: DMatrix, obj: ObjectiveTrait): Unit = {
+    booster.update(dtrain.jDMatrix, obj)
+  }
+
   /**
    * update with customize obj func
    *
    * @param dtrain training data
+   * @param iter   The current training iteration
    * @param obj    customized objective class
    */
   @throws(classOf[XGBoostError])
-  def update(dtrain: DMatrix, obj: ObjectiveTrait): Unit = {
-    booster.update(dtrain.jDMatrix, obj)
+  def update(dtrain: DMatrix, iter: Int, obj: ObjectiveTrait): Unit = {
+    booster.update(dtrain.jDMatrix, iter, obj)
+  }
+
+  @throws(classOf[XGBoostError])
+  @deprecated
+  def boost(dtrain: DMatrix, grad: Array[Float], hess: Array[Float]): Unit = {
+    booster.boost(dtrain.jDMatrix, grad, hess)
   }
 
   /**
    * update with give grad and hess
    *
    * @param dtrain training data
+   * @param iter   The current training iteration
    * @param grad   first order of gradient
    * @param hess   seconde order of gradient
    */
   @throws(classOf[XGBoostError])
-  def boost(dtrain: DMatrix, grad: Array[Float], hess: Array[Float]): Unit = {
-    booster.boost(dtrain.jDMatrix, grad, hess)
+  def boost(dtrain: DMatrix, iter: Int, grad: Array[Float], hess: Array[Float]): Unit = {
+    booster.boost(dtrain.jDMatrix, iter, grad, hess)
   }
 
   /**

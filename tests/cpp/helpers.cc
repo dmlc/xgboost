@@ -96,9 +96,9 @@ void CheckObjFunctionImpl(std::unique_ptr<xgboost::ObjFunction> const& obj,
                           std::vector<xgboost::bst_float> out_grad,
                           std::vector<xgboost::bst_float> out_hess) {
   xgboost::HostDeviceVector<xgboost::bst_float> in_preds(preds);
-  xgboost::HostDeviceVector<xgboost::GradientPair> out_gpair;
-  obj->GetGradient(in_preds, info, 1, &out_gpair);
-  std::vector<xgboost::GradientPair>& gpair = out_gpair.HostVector();
+  xgboost::linalg::Matrix<xgboost::GradientPair> out_gpair;
+  obj->GetGradient(in_preds, info, 0, &out_gpair);
+  std::vector<xgboost::GradientPair>& gpair = out_gpair.Data()->HostVector();
 
   ASSERT_EQ(gpair.size(), in_preds.Size());
   for (int i = 0; i < static_cast<int>(gpair.size()); ++i) {
@@ -119,8 +119,8 @@ void CheckObjFunction(std::unique_ptr<xgboost::ObjFunction> const& obj,
                       std::vector<xgboost::bst_float> out_hess) {
   xgboost::MetaInfo info;
   info.num_row_ = labels.size();
-  info.labels =
-      xgboost::linalg::Tensor<float, 2>{labels.cbegin(), labels.cend(), {labels.size()}, -1};
+  info.labels = xgboost::linalg::Tensor<float, 2>{
+      labels.cbegin(), labels.cend(), {labels.size(), static_cast<std::size_t>(1)}, -1};
   info.weights_.HostVector() = weights;
 
   CheckObjFunctionImpl(obj, preds, labels, weights, info, out_grad, out_hess);
@@ -155,8 +155,8 @@ void CheckRankingObjFunction(std::unique_ptr<xgboost::ObjFunction> const& obj,
                              std::vector<xgboost::bst_float> out_hess) {
   xgboost::MetaInfo info;
   info.num_row_ = labels.size();
-  info.labels = xgboost::linalg::Tensor<float, 2>{
-      labels.cbegin(), labels.cend(), {labels.size(), static_cast<size_t>(1)}, -1};
+  info.labels = xgboost::linalg::Matrix<float>{
+      labels.cbegin(), labels.cend(), {labels.size(), static_cast<std::size_t>(1)}, -1};
   info.weights_.HostVector() = weights;
   info.group_ptr_ = groups;
 
@@ -645,11 +645,10 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs,
   }
   p_dmat->Info().labels =
       linalg::Tensor<float, 2>{labels.cbegin(), labels.cend(), {labels.size()}, -1};
-  HostDeviceVector<GradientPair> gpair;
-  auto& h_gpair = gpair.HostVector();
-  h_gpair.resize(kRows);
+  linalg::Matrix<GradientPair> gpair({kRows}, ctx->Ordinal());
+  auto h_gpair = gpair.HostView();
   for (size_t i = 0; i < kRows; ++i) {
-    h_gpair[i] = GradientPair{static_cast<float>(i), 1};
+    h_gpair(i) = GradientPair{static_cast<float>(i), 1};
   }
 
   PredictionCacheEntry predts;

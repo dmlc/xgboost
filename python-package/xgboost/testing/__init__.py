@@ -763,13 +763,31 @@ def softmax(x: np.ndarray) -> np.ndarray:
     return e / np.sum(e)
 
 
-def softprob_obj(classes: int) -> SklObjective:
+def softprob_obj(
+    classes: int, use_cupy: bool = False, order: str = "C", gdtype: str = "float32"
+) -> SklObjective:
+    """Custom softprob objective for testing.
+
+    Parameters
+    ----------
+    use_cupy :
+        Whether the objective should return cupy arrays.
+    order :
+        The order of gradient matrices. "C" or "F".
+    gdtype :
+        DType for gradient. Hessian is not set. This is for testing asymmetric types.
+    """
+    if use_cupy:
+        import cupy as backend
+    else:
+        backend = np
+
     def objective(
-        labels: np.ndarray, predt: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray]:
+        labels: backend.ndarray, predt: backend.ndarray
+    ) -> Tuple[backend.ndarray, backend.ndarray]:
         rows = labels.shape[0]
-        grad = np.zeros((rows, classes), dtype=float)
-        hess = np.zeros((rows, classes), dtype=float)
+        grad = backend.zeros((rows, classes), dtype=np.float32)
+        hess = backend.zeros((rows, classes), dtype=np.float32)
         eps = 1e-6
         for r in range(predt.shape[0]):
             target = labels[r]
@@ -781,8 +799,10 @@ def softprob_obj(classes: int) -> SklObjective:
                 grad[r, c] = g
                 hess[r, c] = h
 
-        grad = grad.reshape((rows * classes, 1))
-        hess = hess.reshape((rows * classes, 1))
+        grad = grad.reshape((rows, classes))
+        hess = hess.reshape((rows, classes))
+        grad = backend.require(grad, requirements=order, dtype=gdtype)
+        hess = backend.require(hess, requirements=order)
         return grad, hess
 
     return objective

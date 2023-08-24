@@ -1,5 +1,5 @@
-/*!
- *  Copyright (c) 2015-2022 by Contributors
+/**
+ *  Copyright 2015-2023, XGBoost Contributors
  * \file c_api_error.h
  * \brief Error handling for C API.
  */
@@ -35,8 +35,8 @@
   }                                                                            \
   return 0; // NOLINT(*)
 
-#define CHECK_HANDLE() if (handle == nullptr) \
-  LOG(FATAL) << "DMatrix/Booster has not been initialized or has already been disposed.";
+#define CHECK_HANDLE() \
+  if (handle == nullptr) ::xgboost::detail::EmptyHandle();
 
 /*!
  * \brief Set the last error message needed by C API

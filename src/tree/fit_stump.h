@@ -31,7 +31,7 @@ XGBOOST_DEVICE inline double CalcUnregularizedWeight(T sum_grad, T sum_hess) {
 /**
  * @brief Fit a tree stump as an estimation of base_score.
  */
-void FitStump(Context const* ctx, MetaInfo const& info, HostDeviceVector<GradientPair> const& gpair,
+void FitStump(Context const* ctx, MetaInfo const& info, linalg::Matrix<GradientPair> const& gpair,
               bst_target_t n_targets, linalg::Vector<float>* out);
 }  // namespace tree
 }  // namespace xgboost

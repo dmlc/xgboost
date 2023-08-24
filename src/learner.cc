@@ -1282,14 +1282,14 @@ class LearnerImpl : public LearnerIO {
     monitor_.Start("GetGradient");
     GetGradient(predt.predictions, train->Info(), iter, &gpair_);
     monitor_.Stop("GetGradient");
-    TrainingObserver::Instance().Observe(gpair_, "Gradients");
+    TrainingObserver::Instance().Observe(*gpair_.Data(), "Gradients");
 
     gbm_->DoBoost(train.get(), &gpair_, &predt, obj_.get());
     monitor_.Stop("UpdateOneIter");
   }
 
   void BoostOneIter(int iter, std::shared_ptr<DMatrix> train,
-                    HostDeviceVector<GradientPair>* in_gpair) override {
+                    linalg::Matrix<GradientPair>* in_gpair) override {
     monitor_.Start("BoostOneIter");
     this->Configure();
 
@@ -1299,6 +1299,9 @@ class LearnerImpl : public LearnerIO {
 
     this->ValidateDMatrix(train.get(), true);
 
+    CHECK_EQ(this->learner_model_param_.OutputLength(), in_gpair->Shape(1))
+        << "The number of columns in gradient should be equal to the number of targets/classes in "
+           "the model.";
     auto& predt = prediction_container_.Cache(train, ctx_.gpu_id);
     gbm_->DoBoost(train.get(), in_gpair, &predt, obj_.get());
     monitor_.Stop("BoostOneIter");
@@ -1461,18 +1464,18 @@ class LearnerImpl : public LearnerIO {
   }
 
  private:
-  void GetGradient(HostDeviceVector<bst_float> const& preds, MetaInfo const& info, int iteration,
-                   HostDeviceVector<GradientPair>* out_gpair) {
-    out_gpair->Resize(preds.Size());
-    collective::ApplyWithLabels(info, out_gpair->HostPointer(),
+  void GetGradient(HostDeviceVector<bst_float> const& preds, MetaInfo const& info,
+                   std::int32_t iter, linalg::Matrix<GradientPair>* out_gpair) {
+    out_gpair->Reshape(info.num_row_, this->learner_model_param_.OutputLength());
+    collective::ApplyWithLabels(info, out_gpair->Data()->HostPointer(),
                                 out_gpair->Size() * sizeof(GradientPair),
-                                [&] { obj_->GetGradient(preds, info, iteration, out_gpair); });
+                                [&] { obj_->GetGradient(preds, info, iter, out_gpair); });
   }
 
   /*! \brief random number transformation seed. */
   static int32_t constexpr kRandSeedMagic = 127;
   // gradient pairs
-  HostDeviceVector<GradientPair> gpair_;
+  linalg::Matrix<GradientPair> gpair_;
   /*! \brief Temporary storage to prediction.  Useful for storing data transformed by
    *  objective function */
   PredictionContainer output_predictions_;
