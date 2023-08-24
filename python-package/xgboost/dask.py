@@ -536,7 +536,7 @@ async def map_worker_partitions(
         )
         futures.append(fut)
 
-    def first_valid(results: Iterable[TrainReturnT]) -> Optional[TrainReturnT]:
+    def first_valid(results: Iterable[Optional[_MapRetT]]) -> Optional[_MapRetT]:
         for v in results:
             if v is not None:
                 return v
