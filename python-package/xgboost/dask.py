@@ -47,6 +47,7 @@ from typing import (
     Callable,
     Dict,
     Generator,
+    Iterable,
     List,
     Optional,
     Sequence,
@@ -97,10 +98,12 @@ if TYPE_CHECKING:
     import dask
     import distributed
     from dask import array as da
+    from dask import bag as db
     from dask import dataframe as dd
 else:
     dd = LazyLoader("dd", globals(), "dask.dataframe")
     da = LazyLoader("da", globals(), "dask.array")
+    db = LazyLoader("db", globals(), "dask.bag")
     dask = LazyLoader("dask", globals(), "dask")
     distributed = LazyLoader("distributed", globals(), "dask.distributed")
 
@@ -512,9 +515,7 @@ async def map_worker_partitions(
 ) -> _MapRetT:
     """Map a function onto partitions of each worker."""
     # Note for function purity:
-    # XGBoost is deterministic in most of the cases, which means train function is
-    # supposed to be idempotent.  One known exception is gblinear with shotgun updater.
-    # We haven't been able to do a full verification so here we keep pure to be False.
+    # XGBoost is sensitive to data partition and uses random number generator.
     client = _xgb_get_client(client)
     futures = []
     for addr in workers:
@@ -526,15 +527,25 @@ async def map_worker_partitions(
             else:
                 args.append(ref)
         fut = client.submit(
-            func, *args, pure=False, workers=[addr], allow_other_workers=False
+            # turn result into a list for bag construction
+            lambda *args, **kwargs: [func(*args, **kwargs)],
+            *args,
+            pure=False,
+            workers=[addr],
+            allow_other_workers=False,
         )
         futures.append(fut)
 
-    def first_valid(*results: TrainReturnT) -> TrainReturnT:
-        return list(filter(lambda ret: ret is not None, results))[0]
+    def first_valid(results: Iterable[TrainReturnT]) -> Optional[TrainReturnT]:
+        for v in results:
+            if v is not None:
+                return v
+        return None
 
-    fut = client.submit(first_valid, *futures)
-    result = await fut
+    bag = db.from_delayed(futures)
+    fut = await bag.reduction(first_valid, first_valid)
+    result = await client.compute(fut).result()
+
     return result
 
 
