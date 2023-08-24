@@ -429,22 +429,18 @@ TEST(GpuHist, MaxDepth) {
 
 namespace {
 void VerifyColumnSplit(bst_row_t rows, bst_feature_t cols, RegTree const& expected_tree) {
-  auto const world_size = collective::GetWorldSize();
-  auto const rank = collective::GetRank();
   auto Xy = RandomDataGenerator{rows, cols, 0}.GenerateDMatrix(true);
-  Context ctx(MakeCUDACtx(0));
+  Context ctx(MakeCUDACtx(GPUIDX));
   linalg::Matrix<GradientPair> gpair({rows}, ctx.Ordinal());
   gpair.Data()->Copy(GenerateRandomGradients(rows));
-  ObjInfo task{ObjInfo::kRegression};
-  std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create("grow_gpu_hist", &ctx, &task)};
-  std::vector<HostDeviceVector<bst_node_t>> position(1);
 
+  auto const world_size = collective::GetWorldSize();
+  auto const rank = collective::GetRank();
   std::unique_ptr<DMatrix> sliced{Xy->SliceCol(world_size, rank)};
 
-  RegTree tree{1, cols};
-  TrainParam param;
-  param.Init(Args{});
-  updater->Update(&param, &gpair, sliced.get(), position, {&tree});
+  RegTree tree;
+  HostDeviceVector<bst_float> preds(rows, 0.0, 0);
+  UpdateTree(&ctx, &gpair, sliced.get(), 0, &tree, &preds, 1.0, "uniform", rows);
 
   Json json{Object{}};
   tree.SaveModel(&json);
@@ -460,18 +456,14 @@ TEST_F(MGPUHistTest, GPUHistColumnSplit) {
   auto constexpr kRows = 32;
   auto constexpr kCols = 16;
 
-  RegTree expected_tree{1, kCols};
-  ObjInfo task{ObjInfo::kRegression};
+  RegTree expected_tree;
   {
-    auto Xy = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
+    auto dmat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
     Context ctx(MakeCUDACtx(0));
     linalg::Matrix<GradientPair> gpair({kRows}, ctx.Ordinal());
     gpair.Data()->Copy(GenerateRandomGradients(kRows));
-    std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create("grow_gpu_hist", &ctx, &task)};
-    std::vector<HostDeviceVector<bst_node_t>> position(1);
-    TrainParam param;
-    param.Init(Args{});
-    updater->Update(&param, &gpair, Xy.get(), position, {&expected_tree});
+    HostDeviceVector<bst_float> preds(kRows, 0.0, 0);
+    UpdateTree(&ctx, &gpair, dmat.get(), 0, &expected_tree, &preds, 1.0, "uniform", kRows);
   }
 
   DoTest(VerifyColumnSplit, kRows, kCols, expected_tree);
