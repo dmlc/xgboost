@@ -432,8 +432,9 @@ void VerifyColumnSplit(bst_row_t rows, bst_feature_t cols, RegTree const& expect
   auto const world_size = collective::GetWorldSize();
   auto const rank = collective::GetRank();
   auto Xy = RandomDataGenerator{rows, cols, 0}.GenerateDMatrix(true);
-  auto p_gradients = GenerateGradients(rows);
-  Context ctx = MakeCUDACtx(rank);
+  Context ctx(MakeCUDACtx(0));
+  linalg::Matrix<GradientPair> gpair({rows}, ctx.Ordinal());
+  gpair.Data()->Copy(GenerateRandomGradients(rows));
   ObjInfo task{ObjInfo::kRegression};
   std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create("grow_gpu_hist", &ctx, &task)};
   std::vector<HostDeviceVector<bst_node_t>> position(1);
@@ -443,7 +444,7 @@ void VerifyColumnSplit(bst_row_t rows, bst_feature_t cols, RegTree const& expect
   RegTree tree{1, cols};
   TrainParam param;
   param.Init(Args{});
-  updater->Update(&param, p_gradients.get(), sliced.get(), position, {&tree});
+  updater->Update(&param, &gpair, sliced.get(), position, {&tree});
 
   Json json{Object{}};
   tree.SaveModel(&json);
@@ -463,13 +464,14 @@ TEST_F(MGPUHistTest, GPUHistColumnSplit) {
   ObjInfo task{ObjInfo::kRegression};
   {
     auto Xy = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
-    auto p_gradients = GenerateGradients(kRows);
-    Context ctx = MakeCUDACtx(0);
+    Context ctx(MakeCUDACtx(0));
+    linalg::Matrix<GradientPair> gpair({kRows}, ctx.Ordinal());
+    gpair.Data()->Copy(GenerateRandomGradients(kRows));
     std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create("grow_gpu_hist", &ctx, &task)};
     std::vector<HostDeviceVector<bst_node_t>> position(1);
     TrainParam param;
     param.Init(Args{});
-    updater->Update(&param, p_gradients.get(), Xy.get(), position, {&expected_tree});
+    updater->Update(&param, &gpair, Xy.get(), position, {&expected_tree});
   }
 
   DoTest(VerifyColumnSplit, kRows, kCols, expected_tree);
