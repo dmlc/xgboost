@@ -4,7 +4,7 @@ Contributors: https://github.com/dmlc/xgboost/blob/master/CONTRIBUTORS.md
 """
 
 from . import tracker  # noqa
-from . import collective, dask, rabit
+from . import collective, dask
 from .core import (
     Booster,
     DataIter,
