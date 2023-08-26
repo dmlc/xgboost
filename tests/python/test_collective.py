@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 import xgboost as xgb
-from xgboost import RabitTracker, build_info
+from xgboost import RabitTracker, build_info, federated
 
 if sys.platform.startswith("win"):
     pytest.skip("Skipping collective tests on Windows", allow_module_level=True)
