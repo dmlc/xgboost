@@ -47,7 +47,6 @@ option(USE_OPENMP "Build with OpenMP support." ON)
 option(BUILD_STATIC_LIB "Build static library" OFF)
 option(BUILD_DEPRECATED_CLI "Build the deprecated command line interface" OFF)
 option(FORCE_SHARED_CRT "Build with dynamic CRT on Windows (/MD)" OFF)
-option(RABIT_BUILD_MPI "Build MPI" OFF)
 ## Bindings
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(R_LIB "Build shared library for R package" OFF)
@@ -222,9 +221,6 @@ endif (MSVC)
 
 # rabit
 add_subdirectory(rabit)
-if (RABIT_BUILD_MPI)
-  find_package(MPI REQUIRED)
-endif (RABIT_BUILD_MPI)
 
 # core xgboost
 add_subdirectory(${xgboost_SOURCE_DIR}/src)
