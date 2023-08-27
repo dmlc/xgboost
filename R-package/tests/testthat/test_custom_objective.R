@@ -64,7 +64,7 @@ test_that("custom objective using DMatrix attr works", {
   expect_equal(class(bst), "xgb.Booster")
 })
 
-test_that("custom objective with multi-class works", {
+test_that("custom objective with multi-class shape", {
   data <- as.matrix(iris[, -5])
   label <-  as.numeric(iris$Species) - 1
   dtrain <- xgb.DMatrix(data = data, label = label)
@@ -83,4 +83,47 @@ test_that("custom objective with multi-class works", {
   param$objective <- fake_softprob
   param$eval_metric <- fake_merror
   bst <- xgb.train(param, dtrain, 1, num_class = nclasses)
+})
+
+softmax <- function(proba) {
+  proba <- as.numeric(proba)
+  exps <- exp(proba)
+  den <- sum(exps)
+  return (exps / den)
+}
+
+softprob <- function(predt, dtrain) {
+  y <- getinfo(dtrain, "label")
+
+  n_samples <- dim(predt)[1]
+  n_classes <- dim(predt)[2]
+
+  grad <- matrix(nrow = n_samples, ncol = n_classes)
+  hess <- matrix(nrow = n_samples, ncol = n_classes)
+
+  for (i in seq_len(n_samples)) {
+    t <- y[i]
+    p <- softmax(predt[i, ])
+    for (c in seq_len(n_classes)) {
+      g <- if (c == t) {
+        p[c] - 1.0
+      } else {
+        p[c]
+      }
+      h <- max((2.0 * p[c] * (1.0 - p[c])), 1e-6)
+      grad[i, c] <- g
+      hess[i, c] <- h
+    }
+  }
+
+  return(list(grad = grad, hess = hess))
+}
+
+test_that("custom objective with multi-class works", {
+  param$objective <- softprob
+  param$eval_metric <- "merror"
+  custom_bst <- xgb.train(param, dtrain, 4)
+
+  param$objective <- "multi:softmax"
+  builtin_bst <- xgb.train(param, dtrain, 4)
 })

@@ -151,14 +151,18 @@ xgb.iter.update <- function(booster_handle, dtrain, iter, obj) {
   if (is.null(obj)) {
     .Call(XGBoosterUpdateOneIter_R, booster_handle, as.integer(iter), dtrain)
   } else {
-    pred <- predict(booster_handle, dtrain, outputmargin = TRUE, training = TRUE,
-                    ntreelimit = 0)
+    pred <- predict(
+      booster_handle,
+      dtrain,
+      outputmargin = TRUE,
+      training = TRUE,
+      ntreelimit = 0,
+      reshape = TRUE
+    )
     gpair <- obj(pred, dtrain)
     n_samples <- dim(dtrain)[1]
-    # We still require row-major in R as I'm not quite sure sure how to get the stride of
-    # the matrix in C.
-    gpair$grad <- matrix(gpair$grad, nrow = n_samples, byrow = TRUE)
-    gpair$hess <- matrix(gpair$hess, nrow = n_samples, byrow = TRUE)
+    gpair$grad <- matrix(gpair$grad, nrow = n_samples)
+    gpair$hess <- matrix(gpair$hess, nrow = n_samples)
     .Call(
       XGBoosterBoostOneIter_R, booster_handle, dtrain, iter, gpair$grad, gpair$hess
     )
