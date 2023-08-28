@@ -302,7 +302,7 @@ class TensorView {
   T *ptr_{nullptr};  // pointer of data_ to avoid bound check.
 
   size_t size_{0};
-  int32_t device_{-1};
+  DeviceOrd device_;
 
   // Unlike `Tensor`, the data_ can have arbitrary size since this is just a view.
   LINALG_HD void CalcSize() {
@@ -401,15 +401,11 @@ class TensorView {
    * \param device Device ordinal
    */
   template <typename I, std::int32_t D>
-  LINALG_HD TensorView(common::Span<T> data, I const (&shape)[D], std::int32_t device)
+  LINALG_HD TensorView(common::Span<T> data, I const (&shape)[D], DeviceOrd device)
       : TensorView{data, shape, device, Order::kC} {}
 
-  template <typename I, std::int32_t D>
-  LINALG_HD TensorView(common::Span<T> data, I const (&shape)[D], DeviceOrd device)
-      : TensorView{data, shape, device.ordinal, Order::kC} {}
-
   template <typename I, int32_t D>
-  LINALG_HD TensorView(common::Span<T> data, I const (&shape)[D], std::int32_t device, Order order)
+  LINALG_HD TensorView(common::Span<T> data, I const (&shape)[D], DeviceOrd device, Order order)
       : data_{data}, ptr_{data_.data()}, device_{device} {
     static_assert(D > 0 && D <= kDim, "Invalid shape.");
     // shape
@@ -441,7 +437,7 @@ class TensorView {
    */
   template <typename I, std::int32_t D>
   LINALG_HD TensorView(common::Span<T> data, I const (&shape)[D], I const (&stride)[D],
-                       std::int32_t device)
+                       DeviceOrd device)
       : data_{data}, ptr_{data_.data()}, device_{device} {
     static_assert(D == kDim, "Invalid shape & stride.");
     detail::UnrollLoop<D>([&](auto i) {
@@ -450,16 +446,12 @@ class TensorView {
     });
     this->CalcSize();
   }
-  template <typename I, std::int32_t D>
-  LINALG_HD TensorView(common::Span<T> data, I const (&shape)[D], I const (&stride)[D],
-                       DeviceOrd device)
-      : TensorView{data, shape, stride, device.ordinal} {}
 
   template <
       typename U,
       std::enable_if_t<common::detail::IsAllowedElementTypeConversion<U, T>::value> * = nullptr>
   LINALG_HD TensorView(TensorView<U, kDim> const &that)  // NOLINT
-      : data_{that.Values()}, ptr_{data_.data()}, size_{that.Size()}, device_{that.DeviceIdx()} {
+      : data_{that.Values()}, ptr_{data_.data()}, size_{that.Size()}, device_{that.Device()} {
     detail::UnrollLoop<kDim>([&](auto i) {
       stride_[i] = that.Stride(i);
       shape_[i] = that.Shape(i);
@@ -572,7 +564,7 @@ class TensorView {
   /**
    * \brief Obtain the CUDA device ordinal.
    */
-  LINALG_HD auto DeviceIdx() const { return device_; }
+  LINALG_HD auto Device() const { return device_; }
 };
 
 /**
@@ -587,11 +579,11 @@ auto MakeTensorView(Context const *ctx, Container &data, S &&...shape) {  // NOL
                                typename Container::value_type>;
   std::size_t in_shape[sizeof...(S)];
   detail::IndexToArr(in_shape, std::forward<S>(shape)...);
-  return TensorView<T, sizeof...(S)>{data, in_shape, ctx->gpu_id};
+  return TensorView<T, sizeof...(S)>{data, in_shape, ctx->Device()};
 }
 
 template <typename T, typename... S>
-LINALG_HD auto MakeTensorView(std::int32_t device, common::Span<T> data, S &&...shape) {
+LINALG_HD auto MakeTensorView(DeviceOrd device, common::Span<T> data, S &&...shape) {
   std::size_t in_shape[sizeof...(S)];
   detail::IndexToArr(in_shape, std::forward<S>(shape)...);
   return TensorView<T, sizeof...(S)>{data, in_shape, device};
@@ -599,7 +591,7 @@ LINALG_HD auto MakeTensorView(std::int32_t device, common::Span<T> data, S &&...
 
 template <typename T, typename... S>
 auto MakeTensorView(Context const *ctx, common::Span<T> data, S &&...shape) {
-  return MakeTensorView(ctx->gpu_id, data, std::forward<S>(shape)...);
+  return MakeTensorView(ctx->Device(), data, std::forward<S>(shape)...);
 }
 
 template <typename T, typename... S>
@@ -612,13 +604,13 @@ auto MakeTensorView(Context const *ctx, Order order, common::Span<T> data, S &&.
 template <typename T, typename... S>
 auto MakeTensorView(Context const *ctx, HostDeviceVector<T> *data, S &&...shape) {
   auto span = ctx->IsCPU() ? data->HostSpan() : data->DeviceSpan();
-  return MakeTensorView(ctx->gpu_id, span, std::forward<S>(shape)...);
+  return MakeTensorView(ctx->Device(), span, std::forward<S>(shape)...);
 }
 
 template <typename T, typename... S>
 auto MakeTensorView(Context const *ctx, HostDeviceVector<T> const *data, S &&...shape) {
   auto span = ctx->IsCPU() ? data->ConstHostSpan() : data->ConstDeviceSpan();
-  return MakeTensorView(ctx->gpu_id, span, std::forward<S>(shape)...);
+  return MakeTensorView(ctx->Device(), span, std::forward<S>(shape)...);
 }
 
 /**
@@ -661,20 +653,20 @@ using VectorView = TensorView<T, 1>;
  * \param device (optional) Device ordinal, default to be host.
  */
 template <typename T>
-auto MakeVec(T *ptr, size_t s, int32_t device = -1) {
+auto MakeVec(T *ptr, size_t s, DeviceOrd device = DeviceOrd::CPU()) {
   return linalg::TensorView<T, 1>{{ptr, s}, {s}, device};
 }
 
 template <typename T>
 auto MakeVec(HostDeviceVector<T> *data) {
   return MakeVec(data->DeviceIdx() == -1 ? data->HostPointer() : data->DevicePointer(),
-                 data->Size(), data->DeviceIdx());
+                 data->Size(), data->Device());
 }
 
 template <typename T>
 auto MakeVec(HostDeviceVector<T> const *data) {
   return MakeVec(data->DeviceIdx() == -1 ? data->ConstHostPointer() : data->ConstDevicePointer(),
-                 data->Size(), data->DeviceIdx());
+                 data->Size(), data->Device());
 }
 
 /**
@@ -697,7 +689,7 @@ Json ArrayInterface(TensorView<T const, D> const &t) {
   array_interface["data"] = std::vector<Json>(2);
   array_interface["data"][0] = Integer{reinterpret_cast<int64_t>(t.Values().data())};
   array_interface["data"][1] = Boolean{true};
-  if (t.DeviceIdx() >= 0) {
+  if (t.Device().IsCUDA()) {
     // Change this once we have different CUDA stream.
     array_interface["stream"] = Null{};
   }
@@ -856,49 +848,29 @@ class Tensor {
   /**
    * @brief Get a @ref TensorView for this tensor.
    */
-  TensorView<T, kDim> View(std::int32_t device) {
-    if (device >= 0) {
-      data_.SetDevice(device);
-      auto span = data_.DeviceSpan();
-      return {span, shape_, device, order_};
-    } else {
-      auto span = data_.HostSpan();
-      return {span, shape_, device, order_};
-    }
-  }
-  TensorView<T const, kDim> View(std::int32_t device) const {
-    if (device >= 0) {
-      data_.SetDevice(device);
-      auto span = data_.ConstDeviceSpan();
-      return {span, shape_, device, order_};
-    } else {
-      auto span = data_.ConstHostSpan();
-      return {span, shape_, device, order_};
-    }
-  }
   auto View(DeviceOrd device) {
     if (device.IsCUDA()) {
       data_.SetDevice(device);
       auto span = data_.DeviceSpan();
-      return TensorView<T, kDim>{span, shape_, device.ordinal, order_};
+      return TensorView<T, kDim>{span, shape_, device, order_};
     } else {
       auto span = data_.HostSpan();
-      return TensorView<T, kDim>{span, shape_, device.ordinal, order_};
+      return TensorView<T, kDim>{span, shape_, device, order_};
     }
   }
   auto View(DeviceOrd device) const {
     if (device.IsCUDA()) {
       data_.SetDevice(device);
       auto span = data_.ConstDeviceSpan();
-      return TensorView<T const, kDim>{span, shape_, device.ordinal, order_};
+      return TensorView<T const, kDim>{span, shape_, device, order_};
     } else {
       auto span = data_.ConstHostSpan();
-      return TensorView<T const, kDim>{span, shape_, device.ordinal, order_};
+      return TensorView<T const, kDim>{span, shape_, device, order_};
     }
   }
 
-  auto HostView() const { return this->View(-1); }
-  auto HostView() { return this->View(-1); }
+  auto HostView() { return this->View(DeviceOrd::CPU()); }
+  auto HostView() const { return this->View(DeviceOrd::CPU()); }
 
   [[nodiscard]] size_t Size() const { return data_.Size(); }
   auto Shape() const { return common::Span<size_t const, kDim>{shape_}; }
@@ -975,6 +947,7 @@ class Tensor {
   void SetDevice(int32_t device) const { data_.SetDevice(device); }
   void SetDevice(DeviceOrd device) const { data_.SetDevice(device); }
   [[nodiscard]] int32_t DeviceIdx() const { return data_.DeviceIdx(); }
+  [[nodiscard]] DeviceOrd Device() const { return data_.Device(); }
 };
 
 template <typename T>

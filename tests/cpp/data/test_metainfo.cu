@@ -65,7 +65,7 @@ TEST(MetaInfo, FromInterface) {
   }
 
   info.SetInfo(ctx, "base_margin", str.c_str());
-  auto const h_base_margin = info.base_margin_.View(Context::kCpuId);
+  auto const h_base_margin = info.base_margin_.View(DeviceOrd::CPU());
   ASSERT_EQ(h_base_margin.Size(), d_data.size());
   for (size_t i = 0; i < d_data.size(); ++i) {
     ASSERT_EQ(h_base_margin(i), d_data[i]);
@@ -83,7 +83,7 @@ TEST(MetaInfo, FromInterface) {
 }
 
 TEST(MetaInfo, GPUStridedData) {
-  TestMetaInfoStridedData(0);
+  TestMetaInfoStridedData(DeviceOrd::CUDA(0));
 }
 
 TEST(MetaInfo, Group) {

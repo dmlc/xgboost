@@ -754,7 +754,7 @@ class Dart : public GBTree {
     auto n_groups = model_.learner_model_param->num_output_group;
 
     PredictionCacheEntry predts;  // temporary storage for prediction
-    if (ctx_->gpu_id != Context::kCpuId) {
+    if (ctx_->IsCUDA()) {
       predts.predictions.SetDevice(ctx_->gpu_id);
     }
     predts.predictions.Resize(p_fmat->Info().num_row_ * n_groups, 0);
@@ -859,12 +859,12 @@ class Dart : public GBTree {
       size_t n_rows = p_fmat->Info().num_row_;
       if (predts.predictions.DeviceIdx() != Context::kCpuId) {
         p_out_preds->predictions.SetDevice(predts.predictions.DeviceIdx());
-        auto base_score = model_.learner_model_param->BaseScore(predts.predictions.DeviceIdx());
+        auto base_score = model_.learner_model_param->BaseScore(predts.predictions.Device());
         GPUDartInplacePredictInc(p_out_preds->predictions.DeviceSpan(),
                                  predts.predictions.DeviceSpan(), w, n_rows, base_score, n_groups,
                                  group);
       } else {
-        auto base_score = model_.learner_model_param->BaseScore(Context::kCpuId);
+        auto base_score = model_.learner_model_param->BaseScore(DeviceOrd::CPU());
         auto& h_predts = predts.predictions.HostVector();
         auto& h_out_predts = p_out_preds->predictions.HostVector();
         common::ParallelFor(n_rows, ctx_->Threads(), [&](auto ridx) {

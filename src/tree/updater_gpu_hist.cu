@@ -511,8 +511,8 @@ struct GPUHistMakerDevice {
     }
 
     CHECK(p_tree);
-    dh::safe_cuda(cudaSetDevice(ctx_->gpu_id));
-    CHECK_EQ(out_preds_d.DeviceIdx(), ctx_->gpu_id);
+    dh::safe_cuda(cudaSetDevice(ctx_->Ordinal()));
+    CHECK(out_preds_d.Device().IsCUDA());
 
     auto d_position = dh::ToSpan(positions);
     CHECK_EQ(out_preds_d.Size(), d_position.size());

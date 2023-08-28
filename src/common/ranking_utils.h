@@ -217,7 +217,7 @@ class RankingCache {
   }
   // Constructed as [1, n_samples] if group ptr is not supplied by the user
   common::Span<bst_group_t const> DataGroupPtr(Context const* ctx) const {
-    group_ptr_.SetDevice(ctx->gpu_id);
+    group_ptr_.SetDevice(ctx->Device());
     return ctx->IsCPU() ? group_ptr_.ConstHostSpan() : group_ptr_.ConstDeviceSpan();
   }
 
@@ -228,7 +228,7 @@ class RankingCache {
   // Create a rank list by model prediction
   common::Span<std::size_t const> SortedIdx(Context const* ctx, common::Span<float const> predt) {
     if (sorted_idx_cache_.Empty()) {
-      sorted_idx_cache_.SetDevice(ctx->gpu_id);
+      sorted_idx_cache_.SetDevice(ctx->Device());
       sorted_idx_cache_.Resize(predt.size());
     }
     if (ctx->IsCPU()) {
@@ -242,7 +242,7 @@ class RankingCache {
   common::Span<std::size_t> SortedIdxY(Context const* ctx, std::size_t n_samples) {
     CHECK(ctx->IsCUDA()) << error::InvalidCUDAOrdinal();
     if (y_sorted_idx_cache_.Empty()) {
-      y_sorted_idx_cache_.SetDevice(ctx->gpu_id);
+      y_sorted_idx_cache_.SetDevice(ctx->Device());
       y_sorted_idx_cache_.Resize(n_samples);
     }
     return y_sorted_idx_cache_.DeviceSpan();
@@ -250,7 +250,7 @@ class RankingCache {
   common::Span<float> RankedY(Context const* ctx, std::size_t n_samples) {
     CHECK(ctx->IsCUDA()) << error::InvalidCUDAOrdinal();
     if (y_ranked_by_model_.Empty()) {
-      y_ranked_by_model_.SetDevice(ctx->gpu_id);
+      y_ranked_by_model_.SetDevice(ctx->Device());
       y_ranked_by_model_.Resize(n_samples);
     }
     return y_ranked_by_model_.DeviceSpan();
@@ -266,21 +266,21 @@ class RankingCache {
 
   linalg::VectorView<GradientPair> CUDARounding(Context const* ctx) {
     if (roundings_.Size() == 0) {
-      roundings_.SetDevice(ctx->gpu_id);
+      roundings_.SetDevice(ctx->Device());
       roundings_.Reshape(Groups());
     }
-    return roundings_.View(ctx->gpu_id);
+    return roundings_.View(ctx->Device());
   }
   common::Span<double> CUDACostRounding(Context const* ctx) {
     if (cost_rounding_.Size() == 0) {
-      cost_rounding_.SetDevice(ctx->gpu_id);
+      cost_rounding_.SetDevice(ctx->Device());
       cost_rounding_.Resize(1);
     }
     return cost_rounding_.DeviceSpan();
   }
   template <typename Type>
   common::Span<Type> MaxLambdas(Context const* ctx, std::size_t n) {
-    max_lambdas_.SetDevice(ctx->gpu_id);
+    max_lambdas_.SetDevice(ctx->Device());
     std::size_t bytes = n * sizeof(Type);
     if (bytes != max_lambdas_.Size()) {
       max_lambdas_.Resize(bytes);
@@ -315,17 +315,17 @@ class NDCGCache : public RankingCache {
   }
 
   linalg::VectorView<double const> InvIDCG(Context const* ctx) const {
-    return inv_idcg_.View(ctx->gpu_id);
+    return inv_idcg_.View(ctx->Device());
   }
   common::Span<double const> Discount(Context const* ctx) const {
     return ctx->IsCPU() ? discounts_.ConstHostSpan() : discounts_.ConstDeviceSpan();
   }
   linalg::VectorView<double> Dcg(Context const* ctx) {
     if (dcg_.Size() == 0) {
-      dcg_.SetDevice(ctx->gpu_id);
+      dcg_.SetDevice(ctx->Device());
       dcg_.Reshape(this->Groups());
     }
-    return dcg_.View(ctx->gpu_id);
+    return dcg_.View(ctx->Device());
   }
 };
 
@@ -396,7 +396,7 @@ class PreCache : public RankingCache {
 
   common::Span<double> Pre(Context const* ctx) {
     if (pre_.Empty()) {
-      pre_.SetDevice(ctx->gpu_id);
+      pre_.SetDevice(ctx->Device());
       pre_.Resize(this->Groups());
     }
     return ctx->IsCPU() ? pre_.HostSpan() : pre_.DeviceSpan();
@@ -427,21 +427,21 @@ class MAPCache : public RankingCache {
 
   common::Span<double> NumRelevant(Context const* ctx) {
     if (n_rel_.Empty()) {
-      n_rel_.SetDevice(ctx->gpu_id);
+      n_rel_.SetDevice(ctx->Device());
       n_rel_.Resize(n_samples_);
     }
     return ctx->IsCPU() ? n_rel_.HostSpan() : n_rel_.DeviceSpan();
   }
   common::Span<double> Acc(Context const* ctx) {
     if (acc_.Empty()) {
-      acc_.SetDevice(ctx->gpu_id);
+      acc_.SetDevice(ctx->Device());
       acc_.Resize(n_samples_);
     }
     return ctx->IsCPU() ? acc_.HostSpan() : acc_.DeviceSpan();
   }
   common::Span<double> Map(Context const* ctx) {
     if (map_.Empty()) {
-      map_.SetDevice(ctx->gpu_id);
+      map_.SetDevice(ctx->Device());
       map_.Resize(this->Groups());
     }
     return ctx->IsCPU() ? map_.HostSpan() : map_.DeviceSpan();
