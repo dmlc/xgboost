@@ -378,8 +378,7 @@ XGBOOST_REGISTER_METRIC(EvalAUC, "auc")
 
 #if !defined(XGBOOST_USE_CUDA)
 std::tuple<double, double, double> GPUBinaryROCAUC(common::Span<float const>, MetaInfo const &,
-                                                   std::int32_t,
-                                                   std::shared_ptr<DeviceAUCCache> *) {
+                                                   DeviceOrd, std::shared_ptr<DeviceAUCCache> *) {
   common::AssertGPUSupport();
   return {};
 }
@@ -456,7 +455,7 @@ XGBOOST_REGISTER_METRIC(AUCPR, "aucpr")
 
 #if !defined(XGBOOST_USE_CUDA)
 std::tuple<double, double, double> GPUBinaryPRAUC(common::Span<float const>, MetaInfo const &,
-                                                  std::int32_t, std::shared_ptr<DeviceAUCCache> *) {
+                                                  DeviceOrd, std::shared_ptr<DeviceAUCCache> *) {
   common::AssertGPUSupport();
   return {};
 }
