@@ -318,21 +318,10 @@ bool AllreduceBase::ReConnectLinks(const char *cmd) {
     // get number of to connect and number of to accept nodes from tracker
     int num_conn, num_accept, num_error = 1;
     do {
-      // send over good links
-      std::vector<int> good_link;
       for (auto & all_link : all_links) {
-        if (!all_link.sock.BadSocket()) {
-          good_link.push_back(static_cast<int>(all_link.rank));
-        } else {
-          if (!all_link.sock.IsClosed()) all_link.sock.Close();
-        }
+        all_link.sock.Close();
       }
-      int ngood = static_cast<int>(good_link.size());
       // tracker construct goodset
-      Assert(tracker.SendAll(&ngood, sizeof(ngood)) == sizeof(ngood), "ReConnectLink failure 5");
-      for (int &i : good_link) {
-        Assert(tracker.SendAll(&i, sizeof(i)) == sizeof(i), "ReConnectLink failure 6");
-      }
       Assert(tracker.RecvAll(&num_conn, sizeof(num_conn)) == sizeof(num_conn),
              "ReConnectLink failure 7");
       Assert(tracker.RecvAll(&num_accept, sizeof(num_accept)) == sizeof(num_accept),
