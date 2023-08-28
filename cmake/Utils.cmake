@@ -295,10 +295,6 @@ macro(xgboost_target_link_libraries target)
     target_link_libraries(${target} PRIVATE CUDA::nvToolsExt)
   endif (USE_NVTX)
 
-  if (RABIT_BUILD_MPI)
-    target_link_libraries(${target} PRIVATE MPI::MPI_CXX)
-  endif (RABIT_BUILD_MPI)
-
   if (MINGW)
     target_link_libraries(${target} PRIVATE wsock32 ws2_32)
   endif (MINGW)
