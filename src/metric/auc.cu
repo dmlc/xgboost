@@ -309,8 +309,9 @@ void SegmentedReduceAUC(common::Span<size_t const> d_unique_idx,
  * up each class in all kernels.
  */
 template <bool scale, typename Fn>
-double GPUMultiClassAUCOVR(MetaInfo const &info, DeviceOrd device, common::Span<uint32_t> d_class_ptr,
-                           size_t n_classes, std::shared_ptr<DeviceAUCCache> cache, Fn area_fn) {
+double GPUMultiClassAUCOVR(MetaInfo const &info, DeviceOrd device,
+                           common::Span<uint32_t> d_class_ptr, size_t n_classes,
+                           std::shared_ptr<DeviceAUCCache> cache, Fn area_fn) {
   dh::safe_cuda(cudaSetDevice(device.ordinal));
   /**
    * Sorted idx
