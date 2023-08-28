@@ -164,7 +164,7 @@ xgb.iter.update <- function(booster_handle, dtrain, iter, obj) {
     msg <- paste(
       "Since 2.1.0, the shape of the gradient and hessian is required to be ",
       "(n_samples, n_targets) or (n_samples, n_classes).",
-      sep=""
+      sep = ""
     )
     if (is.matrix(gpair$grad) && dim(gpair$grad)[1] != n_samples) {
       warning(msg)
