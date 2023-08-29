@@ -74,8 +74,9 @@ std::size_t TCPSocket::Recv(std::string *p_str) {
   return bytes;
 }
 
-Result Connect(xgboost::StringView host, std::int32_t port, std::int32_t retry,
-               std::chrono::seconds timeout, xgboost::collective::TCPSocket *out_conn) {
+[[nodiscard]] Result Connect(xgboost::StringView host, std::int32_t port, std::int32_t retry,
+                             std::chrono::seconds timeout,
+                             xgboost::collective::TCPSocket *out_conn) {
   auto addr = MakeSockAddress(xgboost::StringView{host}, port);
   auto &conn = *out_conn;
 
@@ -114,9 +115,9 @@ Result Connect(xgboost::StringView host, std::int32_t port, std::int32_t retry,
 
     auto rc = connect(conn.Handle(), addr_handle, addr_len);
     if (rc != 0) {
-      errcode = errno;
+      errcode = system::LastError();
       if (errcode != EINPROGRESS) {
-        log_failure(errno, __FILE__, __LINE__);
+        log_failure(errcode, __FILE__, __LINE__);
         continue;
       }
 
@@ -125,19 +126,13 @@ Result Connect(xgboost::StringView host, std::int32_t port, std::int32_t retry,
       poll.WatchException(conn);
       poll.Poll(timeout);
       if (!poll.CheckWrite(conn)) {
-        log_failure(errno, __FILE__, __LINE__);
+        log_failure(system::LastError(), __FILE__, __LINE__);
         continue;
       }
 
-      std::int32_t optval{0};
-      socklen_t len = sizeof(optval);
-      int retval = getsockopt(conn.Handle(), SOL_SOCKET, SO_ERROR, &optval, &len);
-      if (retval != 0) {
-        log_failure(errno, __FILE__, __LINE__);
-        continue;
-      }
-      if (optval != 0) {
-        log_failure(optval, __FILE__, __LINE__);
+      auto sock_err = conn.GetSockError();
+      if (!sock_err.OK()) {
+        log_failure(sock_err.Code().value(), __FILE__, __LINE__);
         continue;
       }
 
@@ -152,6 +147,7 @@ Result Connect(xgboost::StringView host, std::int32_t port, std::int32_t retry,
 
   std::stringstream ss;
   ss << "Failed to connect to " << host << ".";
+  conn.Close();
   return Fail(ss.str(), std::error_code{errcode, std::system_category()});
 }
-}  // Namespace xgboost::collective
+}  // namespace xgboost::collective

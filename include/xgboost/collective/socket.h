@@ -316,18 +316,31 @@ class TCPSocket {
   bool IsClosed() const { return handle_ == InvalidSocket(); }
 
   /** \brief get last error code if any */
-  std::int32_t GetSockError() const {
-    std::int32_t error = 0;
-    socklen_t len = sizeof(error);
-    xgboost_CHECK_SYS_CALL(
-        getsockopt(handle_, SOL_SOCKET, SO_ERROR, reinterpret_cast<char *>(&error), &len), 0);
-    return error;
+  Result GetSockError() const {
+    std::int32_t optval = 0;
+    socklen_t len = sizeof(optval);
+    auto ret = getsockopt(handle_, SOL_SOCKET, SO_ERROR, reinterpret_cast<char *>(&optval), &len);
+    if (ret != 0) {
+      auto errc = std::error_code{system::LastError(), std::system_category()};
+      return Fail("Failed to retrieve socket error.", std::move(errc));
+    }
+    if (optval != 0) {
+      auto errc = std::error_code{optval, std::system_category()};
+      return Fail("Socket error.", std::move(errc));
+    }
+    return Success();
   }
+
   /** \brief check if anything bad happens */
   bool BadSocket() const {
-    if (IsClosed()) return true;
-    std::int32_t err = GetSockError();
-    if (err == EBADF || err == EINTR) return true;
+    if (IsClosed()) {
+      return true;
+    }
+    auto err = GetSockError();
+    if (err.Code() == std::error_code{EBADF, std::system_category()} ||
+        err.Code() == std::error_code{EINTR, std::system_category()}) {
+      return true;
+    }
     return false;
   }
 
@@ -530,11 +543,20 @@ class TCPSocket {
 };
 
 /**
- * \brief Connect to remote address, returns the error code if failed (no exception is
- *        raised so that we can retry).
+ * @brief Connect to remote address, returns the error code if failed.
+ *
+ * @param host   Host IP address.
+ * @param port   Connection port.
+ * @param retry  Number of retries to attempt.
+ * @param timeout  Timeout of each connection attempt.
+ * @param out_conn Output socket if the connection is successful. Value is invalid and undefined if
+ *                 the connection failed.
+ *
+ * @return Connection status.
  */
-Result Connect(xgboost::StringView host, std::int32_t port, std::int32_t retry,
-               std::chrono::seconds timeout, xgboost::collective::TCPSocket *out_conn);
+[[nodiscard]] Result Connect(xgboost::StringView host, std::int32_t port, std::int32_t retry,
+                             std::chrono::seconds timeout,
+                             xgboost::collective::TCPSocket *out_conn);
 
 /**
  * \brief Get the local host name.
