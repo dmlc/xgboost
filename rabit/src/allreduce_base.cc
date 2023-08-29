@@ -546,7 +546,7 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
     }
     // select must return
     auto poll_res = watcher.Poll(timeout_sec);
-    if (poll_res.OK()) {
+    if (!poll_res.OK()) {
       LOG(FATAL) << poll_res.Report();
     }
 
