@@ -607,8 +607,8 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterTrainOneI
   }
 
   auto ctx = xgboost::detail::BoosterCtx(handle);
-  auto [s_grad, s_hess] =
-      xgboost::detail::MakeGradientInterface(ctx, grad, hess, n_samples, n_targets);
+  auto [s_grad, s_hess] = xgboost::detail::MakeGradientInterface(
+      ctx, grad, hess, xgboost::linalg::kC, n_samples, n_targets);
   int ret = XGBoosterTrainOneIter(handle, dtrain, static_cast<std::int32_t>(jiter), s_grad.c_str(),
                                   s_hess.c_str());
 

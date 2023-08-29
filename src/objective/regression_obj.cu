@@ -69,7 +69,7 @@ class RegLossObj : public FitIntercept {
 
  public:
   void ValidateLabel(MetaInfo const& info) {
-    auto label = info.labels.View(ctx_->Ordinal());
+    auto label = info.labels.View(ctx_->Device());
     auto valid = ctx_->DispatchDevice(
         [&] {
           return std::all_of(linalg::cbegin(label), linalg::cend(label),
@@ -244,7 +244,7 @@ class PseudoHuberRegression : public FitIntercept {
     CheckRegInputs(info, preds);
     auto slope = param_.huber_slope;
     CHECK_NE(slope, 0.0) << "slope for pseudo huber cannot be 0.";
-    auto labels = info.labels.View(ctx_->gpu_id);
+    auto labels = info.labels.View(ctx_->Device());
 
     out_gpair->SetDevice(ctx_->gpu_id);
     out_gpair->Reshape(info.num_row_, this->Targets(info));
@@ -698,7 +698,7 @@ class MeanAbsoluteError : public ObjFunction {
   void GetGradient(HostDeviceVector<float> const& preds, const MetaInfo& info,
                    std::int32_t /*iter*/, linalg::Matrix<GradientPair>* out_gpair) override {
     CheckRegInputs(info, preds);
-    auto labels = info.labels.View(ctx_->gpu_id);
+    auto labels = info.labels.View(ctx_->Device());
 
     out_gpair->SetDevice(ctx_->Device());
     out_gpair->Reshape(info.num_row_, this->Targets(info));

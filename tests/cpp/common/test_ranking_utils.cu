@@ -41,7 +41,7 @@ void TestCalcQueriesInvIDCG() {
   p.UpdateAllowUnknown(Args{{"ndcg_exp_gain", "false"}});
 
   cuda_impl::CalcQueriesInvIDCG(&ctx, linalg::MakeTensorView(&ctx, d_scores, d_scores.size()),
-                                dh::ToSpan(group_ptr), inv_IDCG.View(ctx.gpu_id), p);
+                                dh::ToSpan(group_ptr), inv_IDCG.View(ctx.Device()), p);
   for (std::size_t i = 0; i < n_groups; ++i) {
     double inv_idcg = inv_IDCG(i);
     ASSERT_NEAR(inv_idcg, 0.00551782, kRtEps);

@@ -287,7 +287,7 @@ void TestCategoricalPrediction(Context const* ctx, bool is_column_split) {
 
   predictor->InitOutPredictions(m->Info(), &out_predictions.predictions, model);
   predictor->PredictBatch(m.get(), &out_predictions, model, 0);
-  auto score = mparam.BaseScore(Context::kCpuId)(0);
+  auto score = mparam.BaseScore(DeviceOrd::CPU())(0);
   ASSERT_EQ(out_predictions.predictions.Size(), 1ul);
   ASSERT_EQ(out_predictions.predictions.HostVector()[0],
             right_weight + score);  // go to right for matching cat
