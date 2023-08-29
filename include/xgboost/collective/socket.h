@@ -56,9 +56,10 @@ using ssize_t = int;
 
 #endif                            // defined(_WIN32)
 
-#include "xgboost/base.h"         // XGBOOST_EXPECT
-#include "xgboost/logging.h"      // LOG
-#include "xgboost/string_view.h"  // StringView
+#include "xgboost/base.h"               // XGBOOST_EXPECT
+#include "xgboost/collective/result.h"  // for Result
+#include "xgboost/logging.h"            // LOG
+#include "xgboost/string_view.h"        // StringView
 
 #if !defined(HOST_NAME_MAX)
 #define HOST_NAME_MAX 256  // macos
@@ -330,8 +331,7 @@ class TCPSocket {
     return false;
   }
 
-  void SetNonBlock() {
-    bool non_block{true};
+  void SetNonBlock(bool non_block) {
 #if defined(_WIN32)
     u_long mode = non_block ? 1 : 0;
     xgboost_CHECK_SYS_CALL(ioctlsocket(handle_, FIONBIO, &mode), NO_ERROR);
@@ -533,7 +533,8 @@ class TCPSocket {
  * \brief Connect to remote address, returns the error code if failed (no exception is
  *        raised so that we can retry).
  */
-std::error_code Connect(SockAddress const &addr, TCPSocket *out);
+Result Connect(xgboost::StringView host, std::int32_t port, std::int32_t retry,
+               std::chrono::seconds timeout, xgboost::collective::TCPSocket *out_conn);
 
 /**
  * \brief Get the local host name.

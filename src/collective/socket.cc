@@ -1,19 +1,22 @@
-/*!
- * Copyright (c) 2022 by XGBoost Contributors
+/**
+ * Copyright 2022-2023 by XGBoost Contributors
  */
 #include "xgboost/collective/socket.h"
 
 #include <cstddef>       // std::size_t
 #include <cstdint>       // std::int32_t
 #include <cstring>       // std::memcpy, std::memset
+#include <filesystem>    // for path
 #include <system_error>  // std::error_code, std::system_category
+
+#include "rabit/internal/socket.h"      // for PollHelper
+#include "xgboost/collective/result.h"  // for Result
 
 #if defined(__unix__) || defined(__APPLE__)
 #include <netdb.h>  // getaddrinfo, freeaddrinfo
 #endif              // defined(__unix__) || defined(__APPLE__)
 
-namespace xgboost {
-namespace collective {
+namespace xgboost::collective {
 SockAddress MakeSockAddress(StringView host, in_port_t port) {
   struct addrinfo hints;
   std::memset(&hints, 0, sizeof(hints));
@@ -71,7 +74,11 @@ std::size_t TCPSocket::Recv(std::string *p_str) {
   return bytes;
 }
 
-std::error_code Connect(SockAddress const &addr, TCPSocket *out) {
+Result Connect(xgboost::StringView host, std::int32_t port, std::int32_t retry,
+               std::chrono::seconds timeout, xgboost::collective::TCPSocket *out_conn) {
+  auto addr = MakeSockAddress(xgboost::StringView{host}, port);
+  auto &conn = *out_conn;
+
   sockaddr const *addr_handle{nullptr};
   socklen_t addr_len{0};
   if (addr.IsV4()) {
@@ -81,14 +88,70 @@ std::error_code Connect(SockAddress const &addr, TCPSocket *out) {
     addr_handle = reinterpret_cast<const sockaddr *>(&addr.V6().Handle());
     addr_len = sizeof(addr.V6().Handle());
   }
-  auto socket = TCPSocket::Create(addr.Domain());
-  CHECK_EQ(static_cast<std::int32_t>(socket.Domain()), static_cast<std::int32_t>(addr.Domain()));
-  auto rc = connect(socket.Handle(), addr_handle, addr_len);
-  if (rc != 0) {
-    return std::error_code{errno, std::system_category()};
+
+  conn = TCPSocket::Create(addr.Domain());
+  CHECK_EQ(static_cast<std::int32_t>(conn.Domain()), static_cast<std::int32_t>(addr.Domain()));
+  conn.SetNonBlock(true);
+
+  std::int32_t errcode{0};
+  auto log_failure = [&errcode, &host](std::int32_t err, char const *file, std::int32_t line) {
+    errcode = err;
+    auto stderr_code = std::error_code{errcode, std::system_category()};
+    namespace fs = std::filesystem;
+    LOG(WARNING) << fs::path{file}.filename().string() << "(" << line
+                 << "): Failed to connect to:" << host << " Error:" << stderr_code.message();
+  };
+
+  for (std::int32_t attempt = 0; attempt < retry; ++attempt) {
+    if (attempt > 0) {
+      LOG(WARNING) << "Retrying connection to " << host << " for the " << attempt << " time.";
+#if defined(_MSC_VER) || defined(__MINGW32__)
+      Sleep(attempt << 1);
+#else
+      sleep(attempt << 1);
+#endif
+    }
+
+    auto rc = connect(conn.Handle(), addr_handle, addr_len);
+    if (rc != 0) {
+      errcode = errno;
+      if (errcode != EINPROGRESS) {
+        log_failure(errno, __FILE__, __LINE__);
+        continue;
+      }
+
+      rabit::utils::PollHelper poll;
+      poll.WatchWrite(conn);
+      poll.WatchException(conn);
+      poll.Poll(timeout);
+      if (!poll.CheckWrite(conn)) {
+        log_failure(errno, __FILE__, __LINE__);
+        continue;
+      }
+
+      std::int32_t optval{0};
+      socklen_t len = sizeof(optval);
+      int retval = getsockopt(conn.Handle(), SOL_SOCKET, SO_ERROR, &optval, &len);
+      if (retval != 0) {
+        log_failure(errno, __FILE__, __LINE__);
+        continue;
+      }
+      if (optval != 0) {
+        log_failure(optval, __FILE__, __LINE__);
+        continue;
+      }
+
+      conn.SetNonBlock(false);
+      return Success();
+
+    } else {
+      conn.SetNonBlock(false);
+      return Success();
+    }
   }
-  *out = std::move(socket);
-  return std::make_error_code(std::errc{});
+
+  std::stringstream ss;
+  ss << "Failed to connect to " << host << ".";
+  return Fail(ss.str(), std::error_code{errcode, std::system_category()});
 }
-}  // namespace collective
-}  // namespace xgboost
+}  // Namespace xgboost::collective
