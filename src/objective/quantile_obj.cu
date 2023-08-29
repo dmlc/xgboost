@@ -62,7 +62,7 @@ class QuantileRegression : public ObjFunction {
     CHECK_GE(n_targets, n_alphas);
     CHECK_EQ(preds.Size(), info.num_row_ * n_targets);
 
-    auto labels = info.labels.View(ctx_->gpu_id);
+    auto labels = info.labels.View(ctx_->Device());
 
     out_gpair->SetDevice(ctx_->Device());
     CHECK_EQ(info.labels.Shape(1), 1)
@@ -131,7 +131,7 @@ class QuantileRegression : public ObjFunction {
 #if defined(XGBOOST_USE_CUDA)
       alpha_.SetDevice(ctx_->gpu_id);
       auto d_alpha = alpha_.ConstDeviceSpan();
-      auto d_labels = info.labels.View(ctx_->gpu_id);
+      auto d_labels = info.labels.View(ctx_->Device());
       auto seg_it = dh::MakeTransformIterator<std::size_t>(
           thrust::make_counting_iterator(0ul),
           [=] XGBOOST_DEVICE(std::size_t i) { return i * d_labels.Shape(0); });

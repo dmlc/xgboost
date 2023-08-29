@@ -19,7 +19,7 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
                           dh::device_vector<size_t>* p_ridx, HostDeviceVector<size_t>* p_nptr,
                           HostDeviceVector<bst_node_t>* p_nidx, RegTree const& tree) {
   // copy position to buffer
-  dh::safe_cuda(cudaSetDevice(ctx->gpu_id));
+  dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
   auto cuctx = ctx->CUDACtx();
   size_t n_samples = position.size();
   dh::device_vector<bst_node_t> sorted_position(position.size());
@@ -86,11 +86,11 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
    */
   auto& nidx = *p_nidx;
   auto& nptr = *p_nptr;
-  nidx.SetDevice(ctx->gpu_id);
+  nidx.SetDevice(ctx->Device());
   nidx.Resize(n_leaf);
   auto d_node_idx = nidx.DeviceSpan();
 
-  nptr.SetDevice(ctx->gpu_id);
+  nptr.SetDevice(ctx->Device());
   nptr.Resize(n_leaf + 1, 0);
   auto d_node_ptr = nptr.DeviceSpan();
 
@@ -142,7 +142,7 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
 void UpdateTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> position,
                           std::int32_t group_idx, MetaInfo const& info, float learning_rate,
                           HostDeviceVector<float> const& predt, float alpha, RegTree* p_tree) {
-  dh::safe_cuda(cudaSetDevice(ctx->gpu_id));
+  dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
   dh::device_vector<size_t> ridx;
   HostDeviceVector<size_t> nptr;
   HostDeviceVector<bst_node_t> nidx;
@@ -155,13 +155,13 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
   }
 
   HostDeviceVector<float> quantiles;
-  predt.SetDevice(ctx->gpu_id);
+  predt.SetDevice(ctx->Device());
 
   auto d_predt = linalg::MakeTensorView(ctx, predt.ConstDeviceSpan(), info.num_row_,
                                         predt.Size() / info.num_row_);
   CHECK_LT(group_idx, d_predt.Shape(1));
   auto t_predt = d_predt.Slice(linalg::All(), group_idx);
-  auto d_labels = info.labels.View(ctx->gpu_id).Slice(linalg::All(), IdxY(info, group_idx));
+  auto d_labels = info.labels.View(ctx->Device()).Slice(linalg::All(), IdxY(info, group_idx));
 
   auto d_row_index = dh::ToSpan(ridx);
   auto seg_beg = nptr.DevicePointer();
@@ -178,7 +178,7 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
   if (info.weights_.Empty()) {
     common::SegmentedQuantile(ctx, alpha, seg_beg, seg_end, val_beg, val_end, &quantiles);
   } else {
-    info.weights_.SetDevice(ctx->gpu_id);
+    info.weights_.SetDevice(ctx->Device());
     auto d_weights = info.weights_.ConstDeviceSpan();
     CHECK_EQ(d_weights.size(), d_row_index.size());
     auto w_it = thrust::make_permutation_iterator(dh::tcbegin(d_weights), dh::tcbegin(d_row_index));

@@ -279,15 +279,15 @@ LearnerModelParam::LearnerModelParam(Context const* ctx, LearnerModelParamLegacy
   // Make sure read access everywhere for thread-safe prediction.
   std::as_const(base_score_).HostView();
   if (!ctx->IsCPU()) {
-    std::as_const(base_score_).View(ctx->gpu_id);
+    std::as_const(base_score_).View(ctx->Device());
   }
   CHECK(std::as_const(base_score_).Data()->HostCanRead());
 }
 
-linalg::TensorView<float const, 1> LearnerModelParam::BaseScore(int32_t device) const {
+linalg::TensorView<float const, 1> LearnerModelParam::BaseScore(DeviceOrd device) const {
   // multi-class is not yet supported.
   CHECK_EQ(base_score_.Size(), 1) << ModelNotFitted();
-  if (device == Context::kCpuId) {
+  if (device.IsCPU()) {
     // Make sure that we won't run into race condition.
     CHECK(base_score_.Data()->HostCanRead());
     return base_score_.HostView();
@@ -300,7 +300,7 @@ linalg::TensorView<float const, 1> LearnerModelParam::BaseScore(int32_t device) 
 }
 
 linalg::TensorView<float const, 1> LearnerModelParam::BaseScore(Context const* ctx) const {
-  return this->BaseScore(ctx->gpu_id);
+  return this->BaseScore(ctx->Device());
 }
 
 void LearnerModelParam::Copy(LearnerModelParam const& that) {
@@ -309,7 +309,7 @@ void LearnerModelParam::Copy(LearnerModelParam const& that) {
   base_score_.Data()->Copy(*that.base_score_.Data());
   std::as_const(base_score_).HostView();
   if (that.base_score_.DeviceIdx() != Context::kCpuId) {
-    std::as_const(base_score_).View(that.base_score_.DeviceIdx());
+    std::as_const(base_score_).View(that.base_score_.Device());
   }
   CHECK_EQ(base_score_.Data()->DeviceCanRead(), that.base_score_.Data()->DeviceCanRead());
   CHECK(base_score_.Data()->HostCanRead());
@@ -388,7 +388,7 @@ class LearnerConfiguration : public Learner {
     this->ConfigureTargets();
 
     auto task = UsePtr(obj_)->Task();
-    linalg::Tensor<float, 1> base_score({1}, Ctx()->gpu_id);
+    linalg::Tensor<float, 1> base_score({1}, Ctx()->Device());
     auto h_base_score = base_score.HostView();
 
     // transform to margin
@@ -424,7 +424,7 @@ class LearnerConfiguration : public Learner {
     if (mparam_.boost_from_average && !UsePtr(gbm_)->ModelFitted()) {
       if (p_fmat) {
         auto const& info = p_fmat->Info();
-        info.Validate(Ctx()->gpu_id);
+        info.Validate(Ctx()->Ordinal());
         // We estimate it from input data.
         linalg::Tensor<float, 1> base_score;
         InitEstimation(info, &base_score);
@@ -1369,7 +1369,7 @@ class LearnerImpl : public LearnerIO {
       auto& prediction = prediction_container_.Cache(data, ctx_.gpu_id);
       this->PredictRaw(data.get(), &prediction, training, layer_begin, layer_end);
       // Copy the prediction cache to output prediction. out_preds comes from C API
-      out_preds->SetDevice(ctx_.gpu_id);
+      out_preds->SetDevice(ctx_.Device());
       out_preds->Resize(prediction.predictions.Size());
       out_preds->Copy(prediction.predictions);
       if (!output_margin) {

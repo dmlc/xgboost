@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 by XGBoost Contributors
+ * Copyright 2022-2023 by XGBoost Contributors
  *
  * \brief Utilities for estimating initial score.
  */
@@ -41,7 +41,7 @@ void FitStump(Context const* ctx, linalg::TensorView<GradientPair const, 2> gpai
         auto sample = i % gpair.Shape(0);
         return GradientPairPrecise{gpair(sample, target)};
       });
-  auto d_sum = sum.View(ctx->gpu_id);
+  auto d_sum = sum.View(ctx->Device());
   CHECK(d_sum.CContiguous());
 
   dh::XGBCachingDeviceAllocator<char> alloc;

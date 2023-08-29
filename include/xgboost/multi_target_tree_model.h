@@ -37,12 +37,12 @@ class MultiTargetTree : public Model {
   [[nodiscard]] linalg::VectorView<float const> NodeWeight(bst_node_t nidx) const {
     auto beg = nidx * this->NumTarget();
     auto v = common::Span<float const>{weights_}.subspan(beg, this->NumTarget());
-    return linalg::MakeTensorView(Context::kCpuId, v, v.size());
+    return linalg::MakeTensorView(DeviceOrd::CPU(), v, v.size());
   }
   [[nodiscard]] linalg::VectorView<float> NodeWeight(bst_node_t nidx) {
     auto beg = nidx * this->NumTarget();
     auto v = common::Span<float>{weights_}.subspan(beg, this->NumTarget());
-    return linalg::MakeTensorView(Context::kCpuId, v, v.size());
+    return linalg::MakeTensorView(DeviceOrd::CPU(), v, v.size());
   }
 
  public:
