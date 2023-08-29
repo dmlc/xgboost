@@ -7,9 +7,9 @@
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
-#include <memory>
-#include <utility>
+#include <cstddef>  // for size_t
+#include <memory>   // for unique_ptr, make_unique
+#include <utility>  // for move
 #include <vector>
 
 #include "../collective/communicator-inl.cuh"
@@ -216,9 +216,9 @@ struct GPUHistMakerDevice {
   void InitFeatureGroupsOnce() {
     if (!feature_groups) {
       CHECK(page);
-      feature_groups.reset(new FeatureGroups(page->Cuts(), page->is_dense,
-                                             dh::MaxSharedMemoryOptin(ctx_->gpu_id),
-                                             sizeof(GradientPairPrecise)));
+      feature_groups = std::make_unique<FeatureGroups>(page->Cuts(), page->is_dense,
+                                                       dh::MaxSharedMemoryOptin(ctx_->gpu_id),
+                                                       sizeof(GradientPairPrecise));
     }
   }
 
@@ -244,10 +244,10 @@ struct GPUHistMakerDevice {
 
     this->evaluator_.Reset(page->Cuts(), feature_types, dmat->Info().num_col_, param, ctx_->gpu_id);
 
-    quantiser.reset(new GradientQuantiser(this->gpair));
+    quantiser = std::make_unique<GradientQuantiser>(this->gpair);
 
     row_partitioner.reset();  // Release the device memory first before reallocating
-    row_partitioner.reset(new RowPartitioner(ctx_->gpu_id, sample.sample_rows));
+    row_partitioner = std::make_unique<RowPartitioner>(ctx_->gpu_id, sample.sample_rows);
 
     // Init histogram
     hist.Init(ctx_->gpu_id, page->Cuts().TotalBins());
@@ -294,7 +294,7 @@ struct GPUHistMakerDevice {
     dh::TemporaryArray<GPUExpandEntry> entries(2 * candidates.size());
     // Store the feature set ptrs so they dont go out of scope before the kernel is called
     std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> feature_sets;
-    for (size_t i = 0; i < candidates.size(); i++) {
+    for (std::size_t i = 0; i < candidates.size(); i++) {
       auto candidate = candidates.at(i);
       int left_nidx = tree[candidate.nid].LeftChild();
       int right_nidx = tree[candidate.nid].RightChild();
@@ -327,14 +327,13 @@ struct GPUHistMakerDevice {
         d_node_inputs.data().get(), h_node_inputs.data(),
         h_node_inputs.size() * sizeof(EvaluateSplitInputs), cudaMemcpyDefault));
 
-    this->evaluator_.EvaluateSplits(nidx, max_active_features,
-                                    dh::ToSpan(d_node_inputs), shared_inputs,
-                                    dh::ToSpan(entries));
+    this->evaluator_.EvaluateSplits(nidx, max_active_features, dh::ToSpan(d_node_inputs),
+                                    shared_inputs, dh::ToSpan(entries));
     dh::safe_cuda(cudaMemcpyAsync(pinned_candidates_out.data(),
                                   entries.data().get(), sizeof(GPUExpandEntry) * entries.size(),
                                   cudaMemcpyDeviceToHost));
     dh::DefaultStream().Sync();
-    }
+  }
 
   void BuildHist(int nidx) {
     auto d_node_hist = hist.GetNodeHistogram(nidx);
@@ -366,23 +365,29 @@ struct GPUHistMakerDevice {
   struct NodeSplitData {
     RegTree::Node split_node;
     FeatureType split_type;
-    common::CatBitField node_cats;
+    common::KCatBitField node_cats;
   };
 
-  void UpdatePosition(const std::vector<GPUExpandEntry>& candidates, RegTree* p_tree) {
-    if (candidates.empty()) return;
-    std::vector<int> nidx(candidates.size());
-    std::vector<int> left_nidx(candidates.size());
-    std::vector<int> right_nidx(candidates.size());
+  void UpdatePosition(std::vector<GPUExpandEntry> const& candidates, RegTree* p_tree) {
+    if (candidates.empty()) {
+      return;
+    }
+
+    std::vector<bst_node_t> nidx(candidates.size());
+    std::vector<bst_node_t> left_nidx(candidates.size());
+    std::vector<bst_node_t> right_nidx(candidates.size());
     std::vector<NodeSplitData> split_data(candidates.size());
+
     for (size_t i = 0; i < candidates.size(); i++) {
-      auto& e = candidates[i];
+      auto const& e = candidates[i];
       RegTree::Node split_node = (*p_tree)[e.nid];
       auto split_type = p_tree->NodeSplitType(e.nid);
       nidx.at(i) = e.nid;
       left_nidx.at(i) = split_node.LeftChild();
       right_nidx.at(i) = split_node.RightChild();
-      split_data.at(i) = NodeSplitData{split_node, split_type, e.split.split_cats};
+      split_data.at(i) = NodeSplitData{split_node, split_type, evaluator_.GetDeviceNodeCats(e.nid)};
+
+      CHECK_EQ(split_type == FeatureType::kCategorical, e.split.is_cat);
     }
 
     auto d_matrix = page->GetDeviceAccessor(ctx_->gpu_id);
@@ -390,7 +395,7 @@ struct GPUHistMakerDevice {
         nidx, left_nidx, right_nidx, split_data,
         [=] __device__(bst_uint ridx, const NodeSplitData& data) {
           // given a row index, returns the node id it belongs to
-          bst_float cut_value = d_matrix.GetFvalue(ridx, data.split_node.SplitIndex());
+          float cut_value = d_matrix.GetFvalue(ridx, data.split_node.SplitIndex());
           // Missing value
           bool go_left = true;
           if (isnan(cut_value)) {
@@ -620,7 +625,6 @@ struct GPUHistMakerDevice {
       CHECK(common::CheckNAN(candidate.split.fvalue));
       std::vector<common::CatBitField::value_type> split_cats;
 
-      CHECK_GT(candidate.split.split_cats.Bits().size(), 0);
       auto h_cats = this->evaluator_.GetHostNodeCats(candidate.nid);
       auto n_bins_feature = page->Cuts().FeatureBins(candidate.split.findex);
       split_cats.resize(common::CatBitField::ComputeStorageSize(n_bins_feature), 0);
