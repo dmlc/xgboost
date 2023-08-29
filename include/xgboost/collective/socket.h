@@ -82,6 +82,10 @@ inline std::int32_t LastError() {
 #endif
 }
 
+[[nodiscard]] inline collective::Result FailWithCode(std::string msg) {
+  return collective::Fail(std::move(msg), std::error_code{LastError(), std::system_category()});
+}
+
 #if defined(__GLIBC__)
 inline auto ThrowAtError(StringView fn_name, std::int32_t errsv = LastError(),
                          std::int32_t line = __builtin_LINE(),

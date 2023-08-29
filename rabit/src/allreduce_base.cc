@@ -1,5 +1,5 @@
-/*!
- *  Copyright (c) 2014 by Contributors
+/**
+ *  Copyright 2014-2023, XGBoost Contributors
  * \file allreduce_base.cc
  * \brief Basic implementation of AllReduce
  *
@@ -541,9 +541,15 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
       }
     }
     // finish running allreduce
-    if (finished) break;
+    if (finished) {
+      break;
+    }
     // select must return
-    watcher.Poll(timeout_sec);
+    auto poll_res = watcher.Poll(timeout_sec);
+    if (poll_res.OK()) {
+      LOG(FATAL) << poll_res.Report();
+    }
+
     // read data from childs
     for (int i = 0; i < nlink; ++i) {
       if (i != parent_index && watcher.CheckRead(links[i].sock)) {
@@ -716,7 +722,10 @@ AllreduceBase::TryBroadcast(void *sendrecvbuf_, size_t total_size, int root) {
     // finish running
     if (finished) break;
     // select
-    watcher.Poll(timeout_sec);
+    auto poll_res = watcher.Poll(timeout_sec);
+    if (!poll_res.OK()) {
+      LOG(FATAL) << poll_res.Report();
+    }
     if (in_link == -2) {
       // probe in-link
       for (int i = 0; i < nlink; ++i) {
@@ -798,8 +807,14 @@ AllreduceBase::TryAllgatherRing(void *sendrecvbuf_, size_t total_size,
       }
       finished  = false;
     }
-    if (finished) break;
-    watcher.Poll(timeout_sec);
+    if (finished) {
+      break;
+    }
+
+    auto poll_res = watcher.Poll(timeout_sec);
+    if (!poll_res.OK()) {
+      LOG(FATAL) << poll_res.Report();
+    }
     if (read_ptr != stop_read && watcher.CheckRead(next.sock)) {
       size_t size = stop_read - read_ptr;
       size_t start = read_ptr % total_size;
@@ -898,8 +913,13 @@ AllreduceBase::TryReduceScatterRing(void *sendrecvbuf_,
       }
       finished = false;
     }
-    if (finished) break;
-    watcher.Poll(timeout_sec);
+    if (finished) {
+      break;
+    }
+    auto poll_res = watcher.Poll(timeout_sec);
+    if (!poll_res.OK()) {
+      LOG(FATAL) << poll_res.Report();
+    }
     if (read_ptr != stop_read && watcher.CheckRead(next.sock)) {
       ReturnType ret = next.ReadToRingBuffer(reduce_ptr, stop_read);
       if (ret != kSuccess) {

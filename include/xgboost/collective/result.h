@@ -90,7 +90,7 @@ struct Result {
   Result(Result const& that) = delete;
   Result& operator=(Result const& that) = delete;
   Result(Result&& that) = default;
-  Result& operator=(Result&& that) = delete;
+  Result& operator=(Result&& that) = default;
 
   [[nodiscard]] bool OK() const { return !impl_; }
   [[nodiscard]] std::string Report() const { return OK() ? "" : impl_->Report(); }

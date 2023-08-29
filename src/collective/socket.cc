@@ -124,15 +124,18 @@ std::size_t TCPSocket::Recv(std::string *p_str) {
       rabit::utils::PollHelper poll;
       poll.WatchWrite(conn);
       poll.WatchException(conn);
-      poll.Poll(timeout);
+      auto result = poll.Poll(timeout);
+      if (!result.OK()) {
+        LOG(WARNING) << result.Report();
+        continue;
+      }
       if (!poll.CheckWrite(conn)) {
         log_failure(system::LastError(), __FILE__, __LINE__);
         continue;
       }
-
-      auto sock_err = conn.GetSockError();
-      if (!sock_err.OK()) {
-        log_failure(sock_err.Code().value(), __FILE__, __LINE__);
+      result = conn.GetSockError();
+      if (!result.OK()) {
+        log_failure(result.Code().value(), __FILE__, __LINE__);
         continue;
       }
 
