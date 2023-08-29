@@ -603,6 +603,13 @@ auto MakeTensorView(Context const *ctx, common::Span<T> data, S &&...shape) {
 }
 
 template <typename T, typename... S>
+auto MakeTensorView(Context const *ctx, Order order, common::Span<T> data, S &&...shape) {
+  std::size_t in_shape[sizeof...(S)];
+  detail::IndexToArr(in_shape, std::forward<S>(shape)...);
+  return TensorView<T, sizeof...(S)>{data, in_shape, ctx->Ordinal(), order};
+}
+
+template <typename T, typename... S>
 auto MakeTensorView(Context const *ctx, HostDeviceVector<T> *data, S &&...shape) {
   auto span = ctx->IsCPU() ? data->HostSpan() : data->DeviceSpan();
   return MakeTensorView(ctx->gpu_id, span, std::forward<S>(shape)...);
