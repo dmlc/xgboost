@@ -27,7 +27,7 @@ def test_socket_error():
     env = tracker.worker_envs()
     env["DMLC_TRACKER_PORT"] = 0
     env["DMLC_WORKER_CONNECT_RETRY"] = 1
-    with pytest.raises(ValueError, match="refused"):
+    with pytest.raises(ValueError, match="127.0.0.1:0.*refused"):
         with xgb.collective.CommunicatorContext(**env):
             pass
 

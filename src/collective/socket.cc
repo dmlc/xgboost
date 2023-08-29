@@ -149,7 +149,7 @@ std::size_t TCPSocket::Recv(std::string *p_str) {
   }
 
   std::stringstream ss;
-  ss << "Failed to connect to " << host << ".";
+  ss << "Failed to connect to " << host << ":" << port << ":";
   conn.Close();
   return Fail(ss.str(), std::error_code{errcode, std::system_category()});
 }
