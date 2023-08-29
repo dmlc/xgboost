@@ -390,9 +390,67 @@ struct GPUHistMakerDevice {
     }
 
     auto d_matrix = page->GetDeviceAccessor(ctx_->gpu_id);
+
+    if (info_.IsColumnSplit()) {
+      using BitVector = LBitField64;
+      using BitType = BitVector::value_type;
+      auto const size = BitVector::ComputeStorageSize(d_matrix.n_rows * split_data.size());
+      dh::TemporaryArray<BitType> decision_storage(size, 0);
+      dh::TemporaryArray<BitType> missing_storage(size, 0);
+      BitVector decision_bits{dh::ToSpan(decision_storage)};
+      BitVector missing_bits{dh::ToSpan(missing_storage)};
+
+      dh::TemporaryArray<NodeSplitData> split_data_storage(split_data.size());
+      dh::safe_cuda(cudaMemcpyAsync(split_data_storage.data().get(), split_data.data(),
+                                    split_data.size() * sizeof(NodeSplitData), cudaMemcpyDefault));
+      auto d_split_data = dh::ToSpan(split_data_storage);
+
+      dh::LaunchN(d_matrix.n_rows, [=] __device__(std::size_t ridx) mutable {
+        auto const num_candidates = d_split_data.size();
+        for (auto i = 0; i < num_candidates; i++) {
+          auto const& data = d_split_data[i];
+          auto const cut_value = d_matrix.GetFvalue(ridx, data.split_node.SplitIndex());
+          if (isnan(cut_value)) {
+            missing_bits.Set(ridx * num_candidates + i);
+          } else {
+            bool go_left;
+            if (data.split_type == FeatureType::kCategorical) {
+              go_left = common::Decision(data.node_cats.Bits(), cut_value);
+            } else {
+              go_left = cut_value <= data.split_node.SplitCond();
+            }
+            if (go_left) {
+              decision_bits.Set(ridx * num_candidates + i);
+            }
+          }
+        }
+      });
+
+      collective::AllReduce<collective::Operation::kBitwiseOR>(
+          ctx_->gpu_id, decision_storage.data().get(), decision_storage.size());
+      collective::AllReduce<collective::Operation::kBitwiseAND>(
+          ctx_->gpu_id, missing_storage.data().get(), missing_storage.size());
+      collective::Synchronize(ctx_->gpu_id);
+
+      row_partitioner->UpdatePositionBatch(
+          nidx, left_nidx, right_nidx, split_data,
+          [=] __device__(bst_uint ridx, int split_index, NodeSplitData const& data) {
+            auto const index = ridx * d_split_data.size() + split_index;
+            bool go_left;
+            if (missing_bits.Check(index)) {
+              go_left = data.split_node.DefaultLeft();
+            } else {
+              go_left = decision_bits.Check(index);
+            }
+            return go_left;
+          });
+
+      return;
+    }
+
     row_partitioner->UpdatePositionBatch(
         nidx, left_nidx, right_nidx, split_data,
-        [=] __device__(bst_uint ridx, const NodeSplitData& data) {
+        [=] __device__(bst_uint ridx, int split_index, NodeSplitData const& data) {
           // given a row index, returns the node id it belongs to
           bst_float cut_value = d_matrix.GetFvalue(ridx, data.split_node.SplitIndex());
           // Missing value
