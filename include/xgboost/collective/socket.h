@@ -341,8 +341,8 @@ class TCPSocket {
       return true;
     }
     auto err = GetSockError();
-    if (err.Code() == std::error_code{EBADF, std::system_category()} ||
-        err.Code() == std::error_code{EINTR, std::system_category()}) {
+    if (err.Code() == std::error_code{EBADF, std::system_category()} ||  // NOLINT
+        err.Code() == std::error_code{EINTR, std::system_category()}) {  // NOLINT
       return true;
     }
     return false;
