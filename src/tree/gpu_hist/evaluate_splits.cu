@@ -1,5 +1,5 @@
-/*!
- * Copyright 2020-2022 by XGBoost Contributors
+/**
+ * Copyright 2020-2023, XGBoost Contributors
  */
 #include <algorithm>  // std::max
 #include <vector>
@@ -11,9 +11,7 @@
 #include "evaluate_splits.cuh"
 #include "expand_entry.cuh"
 
-namespace xgboost {
-namespace tree {
-
+namespace xgboost::tree {
 // With constraints
 XGBOOST_DEVICE float LossChangeMissing(const GradientPairInt64 &scan,
                                        const GradientPairInt64 &missing,
@@ -315,11 +313,11 @@ __device__ void SetCategoricalSplit(const EvaluateSplitSharedInputs &shared_inpu
                                     common::Span<common::CatBitField::value_type> out,
                                     DeviceSplitCandidate *p_out_split) {
   auto &out_split = *p_out_split;
-  out_split.split_cats = common::CatBitField{out};
+  auto out_cats = common::CatBitField{out};
 
   // Simple case for one hot split
   if (common::UseOneHot(shared_inputs.FeatureBins(fidx), shared_inputs.param.max_cat_to_onehot)) {
-    out_split.split_cats.Set(common::AsCat(out_split.thresh));
+    out_cats.Set(common::AsCat(out_split.thresh));
     return;
   }
 
@@ -339,7 +337,7 @@ __device__ void SetCategoricalSplit(const EvaluateSplitSharedInputs &shared_inpu
   assert(partition > 0 && "Invalid partition.");
   thrust::for_each(thrust::seq, beg, beg + partition, [&](size_t c) {
     auto cat = shared_inputs.feature_values[c - node_offset];
-    out_split.SetCat(cat);
+    out_cats.Set(common::AsCat(cat));
   });
 }
 
@@ -444,8 +442,7 @@ void GPUHistEvaluator::EvaluateSplits(
 
     if (split.is_cat) {
       SetCategoricalSplit(shared_inputs, d_sorted_idx, fidx, i,
-                          device_cats_accessor.GetNodeCatStorage(input.nidx),
-                          &out_splits[i]);
+                          device_cats_accessor.GetNodeCatStorage(input.nidx), &out_splits[i]);
     }
 
     float base_weight =
@@ -477,6 +474,4 @@ GPUExpandEntry GPUHistEvaluator::EvaluateSingleSplit(
                                 cudaMemcpyDeviceToHost));
   return root_entry;
 }
-
-}  // namespace tree
-}  // namespace xgboost
+}  // namespace xgboost::tree

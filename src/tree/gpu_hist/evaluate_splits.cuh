@@ -37,8 +37,8 @@ struct EvaluateSplitSharedInputs {
   common::Span<const float> feature_values;
   common::Span<const float> min_fvalue;
   bool is_dense;
-  XGBOOST_DEVICE auto Features() const { return feature_segments.size() - 1; }
-  __device__ auto FeatureBins(bst_feature_t fidx) const {
+  [[nodiscard]] XGBOOST_DEVICE auto Features() const { return feature_segments.size() - 1; }
+  [[nodiscard]] __device__ std::uint32_t FeatureBins(bst_feature_t fidx) const {
     return feature_segments[fidx + 1] - feature_segments[fidx];
   }
 };
@@ -105,7 +105,7 @@ class GPUHistEvaluator {
   }
 
   /**
-   * \brief Get device category storage of nidx for internal calculation.
+   * @brief Get device category storage of nidx for internal calculation.
    */
   auto DeviceCatStorage(const std::vector<bst_node_t> &nidx) {
     if (!has_categoricals_) return CatAccessor{};
@@ -120,8 +120,8 @@ class GPUHistEvaluator {
   /**
    * \brief Get sorted index storage based on the left node of inputs.
    */
-  auto SortedIdx(int num_nodes, bst_feature_t total_bins) {
-    if(!need_sort_histogram_) return common::Span<bst_feature_t>();
+  auto SortedIdx(int num_nodes, bst_bin_t total_bins) {
+    if (!need_sort_histogram_) return common::Span<bst_feature_t>{};
     cat_sorted_idx_.resize(num_nodes * total_bins);
     return dh::ToSpan(cat_sorted_idx_);
   }
@@ -146,11 +146,21 @@ class GPUHistEvaluator {
    * \brief Get host category storage for nidx.  Different from the internal version, this
    *        returns strictly 1 node.
    */
-  common::Span<CatST const> GetHostNodeCats(bst_node_t nidx) const {
+  [[nodiscard]] common::Span<CatST const> GetHostNodeCats(bst_node_t nidx) const {
     copy_stream_.View().Sync();
     auto cats_out = common::Span<CatST const>{h_split_cats_}.subspan(
         nidx * node_categorical_storage_size_, node_categorical_storage_size_);
     return cats_out;
+  }
+
+  [[nodiscard]] auto GetDeviceNodeCats(bst_node_t nidx) {
+    copy_stream_.View().Sync();
+    if (has_categoricals_) {
+      CatAccessor accessor = {dh::ToSpan(split_cats_), node_categorical_storage_size_};
+      return common::KCatBitField{accessor.GetNodeCatStorage(nidx)};
+    } else {
+      return common::KCatBitField{};
+    }
   }
   /**
    * \brief Add a split to the internal tree evaluator.
