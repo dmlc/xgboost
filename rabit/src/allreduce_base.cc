@@ -353,8 +353,8 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
         Assert(tracker.RecvAll(&hport, sizeof(hport)) == sizeof(hport), "ReConnectLink failure 9");
         Assert(tracker.RecvAll(&hrank, sizeof(hrank)) == sizeof(hrank), "ReConnectLink failure 10");
         // connect to peer
-        if (!xgboost::collective::Connect(xgboost::StringView{hname}, hport, 1, timeout_sec,
-                                          &r.sock)
+        if (!xgboost::collective::Connect(xgboost::StringView{hname}, hport, connect_retry,
+                                          timeout_sec, &r.sock)
                  .OK()) {
           num_error += 1;
           r.sock.Close();
