@@ -428,19 +428,33 @@ TEST(GpuHist, MaxDepth) {
 }
 
 namespace {
-void VerifyColumnSplit(bst_row_t rows, bst_feature_t cols, RegTree const& expected_tree) {
-  auto Xy = RandomDataGenerator{rows, cols, 0}.GenerateDMatrix(true);
-  Context ctx(MakeCUDACtx(GPUIDX));
-  linalg::Matrix<GradientPair> gpair({rows}, ctx.Ordinal());
-  gpair.Data()->Copy(GenerateRandomGradients(rows));
+RegTree GetUpdatedTree(Context const* ctx, DMatrix* dmat) {
+  ObjInfo task{ObjInfo::kRegression};
+  GPUHistMaker hist_maker{ctx, &task};
+  hist_maker.Configure(Args{});
 
+  TrainParam param;
+  param.UpdateAllowUnknown(Args{});
+
+  linalg::Matrix<GradientPair> gpair({dmat->Info().num_row_}, ctx->Ordinal());
+  gpair.Data()->Copy(GenerateRandomGradients(dmat->Info().num_row_));
+
+  std::vector<HostDeviceVector<bst_node_t>> position(1);
+  RegTree tree;
+  hist_maker.Update(&param, &gpair, dmat, common::Span<HostDeviceVector<bst_node_t>>{position},
+                    {&tree});
+  return tree;
+}
+
+void VerifyColumnSplit(bst_row_t rows, bst_feature_t cols, RegTree const& expected_tree) {
+  Context ctx(MakeCUDACtx(GPUIDX));
+
+  auto Xy = RandomDataGenerator{rows, cols, 0}.GenerateDMatrix(true);
   auto const world_size = collective::GetWorldSize();
   auto const rank = collective::GetRank();
   std::unique_ptr<DMatrix> sliced{Xy->SliceCol(world_size, rank)};
 
-  RegTree tree;
-  HostDeviceVector<bst_float> preds(rows, 0.0, 0);
-  UpdateTree(&ctx, &gpair, sliced.get(), 0, &tree, &preds, 1.0, "uniform", rows);
+  RegTree tree = GetUpdatedTree(&ctx, sliced.get());
 
   Json json{Object{}};
   tree.SaveModel(&json);
@@ -456,15 +470,9 @@ TEST_F(MGPUHistTest, GPUHistColumnSplit) {
   auto constexpr kRows = 32;
   auto constexpr kCols = 16;
 
-  RegTree expected_tree;
-  {
-    auto dmat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
-    Context ctx(MakeCUDACtx(0));
-    linalg::Matrix<GradientPair> gpair({kRows}, ctx.Ordinal());
-    gpair.Data()->Copy(GenerateRandomGradients(kRows));
-    HostDeviceVector<bst_float> preds(kRows, 0.0, 0);
-    UpdateTree(&ctx, &gpair, dmat.get(), 0, &expected_tree, &preds, 1.0, "uniform", kRows);
-  }
+  Context ctx(MakeCUDACtx(0));
+  auto dmat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
+  RegTree expected_tree = GetUpdatedTree(&ctx, dmat.get());
 
   DoTest(VerifyColumnSplit, kRows, kCols, expected_tree);
 }
