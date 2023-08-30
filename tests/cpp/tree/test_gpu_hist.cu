@@ -165,7 +165,7 @@ HistogramCutsWrapper GetHostCutMatrix () {
 inline GradientQuantiser DummyRoundingFactor() {
   thrust::device_vector<GradientPair> gpair(1);
   gpair[0] = {1000.f, 1000.f};  // Tests should not exceed sum of 1000
-  return GradientQuantiser(dh::ToSpan(gpair), MetaInfo());
+  return {dh::ToSpan(gpair), MetaInfo()};
 }
 
 void TestHistogramIndexImpl() {
