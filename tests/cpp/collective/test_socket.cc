@@ -30,7 +30,8 @@ TEST(Socket, Basic) {
     TCPSocket client;
     if (domain == SockDomain::kV4) {
       auto const& addr = SockAddrV4::Loopback().Addr();
-      ASSERT_TRUE(Connect(StringView{addr}, port, 1, std::chrono::seconds{3}, &client).OK());
+      auto rc = Connect(StringView{addr}, port, 1, std::chrono::seconds{3}, &client);
+      ASSERT_TRUE(rc.OK()) << rc.Report();
     } else {
       auto const& addr = SockAddrV6::Loopback().Addr();
       auto rc = Connect(StringView{addr}, port, 1, std::chrono::seconds{3}, &client);
@@ -38,7 +39,7 @@ TEST(Socket, Basic) {
       if (!rc.OK() && rc.Code() == std::error_code{EADDRNOTAVAIL, std::system_category()}) {
         GTEST_SKIP_(msg.c_str());
       }
-      ASSERT_EQ(rc, Success());
+      ASSERT_EQ(rc, Success()) << rc.Report();
     }
     ASSERT_EQ(client.Domain(), domain);
 

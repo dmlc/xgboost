@@ -5,6 +5,7 @@
 
 #include <memory>   // for unique_ptr
 #include <sstream>  // for stringstream
+#include <stack>    // for stack
 #include <string>   // for string
 #include <utility>  // for move
 
@@ -30,7 +31,7 @@ struct ResultImpl {
   explicit ResultImpl(std::string msg, std::error_code errc, std::unique_ptr<ResultImpl> prev)
       : message{std::move(msg)}, errc{std::move(errc)}, prev{std::move(prev)} {}
 
-  [[nodiscard]] bool operator==(ResultImpl const& that) const {
+  [[nodiscard]] bool operator==(ResultImpl const& that) const noexcept(true) {
     if ((prev && !that.prev) || (!prev && that.prev)) {
       // one of them doesn't have prev
       return false;
@@ -65,6 +66,27 @@ struct ResultImpl {
 
     return ss.str();
   }
+  [[nodiscard]] auto Code() const {
+    // Find the root error.
+    std::stack<ResultImpl const*> stack;
+    auto ptr = this;
+    while (ptr) {
+      stack.push(ptr);
+      if (ptr->prev) {
+        ptr = ptr->prev.get();
+      } else {
+        break;
+      }
+    }
+    while (!stack.empty()) {
+      auto frame = stack.top();
+      stack.pop();
+      if (frame->errc != std::error_code{}) {
+        return frame->errc;
+      }
+    }
+    return std::error_code{};
+  }
 };
 }  // namespace detail
 
@@ -77,7 +99,7 @@ struct Result {
   std::unique_ptr<detail::ResultImpl> impl_{nullptr};
 
  public:
-  Result() = default;
+  Result() noexcept(true) = default;
   explicit Result(std::string msg) : impl_{std::make_unique<detail::ResultImpl>(std::move(msg))} {}
   explicit Result(std::string msg, std::error_code errc)
       : impl_{std::make_unique<detail::ResultImpl>(std::move(msg), std::move(errc))} {}
@@ -92,10 +114,13 @@ struct Result {
   Result(Result&& that) = default;
   Result& operator=(Result&& that) = default;
 
-  [[nodiscard]] bool OK() const { return !impl_; }
+  [[nodiscard]] bool OK() const noexcept(true) { return !impl_; }
   [[nodiscard]] std::string Report() const { return OK() ? "" : impl_->Report(); }
-  [[nodiscard]] auto Code() const { return OK() ? std::error_code{} : impl_->errc; }
-  [[nodiscard]] bool operator==(Result const& that) const {
+  /**
+   * @brief Return the root system error. This might return success if there's no system error.
+   */
+  [[nodiscard]] auto Code() const { return OK() ? std::error_code{} : impl_->Code(); }
+  [[nodiscard]] bool operator==(Result const& that) const noexcept(true) {
     if (OK() && that.OK()) {
       return true;
     }
@@ -109,7 +134,7 @@ struct Result {
 /**
  * @brief Return success.
  */
-[[nodiscard]] inline auto Success() { return Result{}; }
+[[nodiscard]] inline auto Success() noexcept(true) { return Result{}; }
 /**
  * @brief Return failure.
  */
