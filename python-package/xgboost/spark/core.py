@@ -44,7 +44,6 @@ from pyspark.ml.util import (
     MLWritable,
     MLWriter,
 )
-from pyspark.resource import ResourceProfileBuilder, TaskResourceRequests
 from pyspark.sql import Column, DataFrame
 from pyspark.sql.functions import col, countDistinct, pandas_udf, rand, struct
 from pyspark.sql.types import (
@@ -89,6 +88,7 @@ from .utils import (
     _get_rabit_args,
     _get_spark_session,
     _is_local,
+    _is_standalone_or_localcluster,
     deserialize_booster,
     deserialize_xgb_model,
     get_class_name,
@@ -367,7 +367,7 @@ class _SparkXGBParams(
                         " on GPU."
                     )
 
-                if ss.version < "3.4.0":
+                if not (ss.version >= "3.4.0" and _is_standalone_or_localcluster(sc)):
                     # We will enable stage-level scheduling in spark 3.4.0+ which doesn't
                     # require spark.task.resource.gpu.amount to be set explicitly
                     gpu_per_task = sc.getConf().get("spark.task.resource.gpu.amount")
@@ -914,8 +914,11 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 )
                 return True
 
-            if _is_local(sc):
-                # Local mode doesn't support stage-level scheduling
+            if not _is_standalone_or_localcluster(sc):
+                self.logger.warning(
+                    "Stage-level scheduling in xgboost requires spark standalone or "
+                    "local-cluster mode"
+                )
                 return True
 
             executor_cores = sc.getConf().get("spark.executor.cores")
@@ -991,13 +994,13 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         # ETL gpu tasks running alongside training tasks to avoid OOM
         spark_plugins = ss.conf.get("spark.plugins", " ")
         assert spark_plugins is not None
-        spark_rapids_sql_enabled = ss.conf.get(
-            "spark.rapids.sql.enabled", "true"
-        ).lower()
+        spark_rapids_sql_enabled = ss.conf.get("spark.rapids.sql.enabled", "true")
+        assert spark_rapids_sql_enabled is not None
+
         task_cores = (
             int(executor_cores)
             if "com.nvidia.spark.SQLPlugin" in spark_plugins
-            and "true" == spark_rapids_sql_enabled
+            and "true" == spark_rapids_sql_enabled.lower()
             else (int(executor_cores) // 2) + 1
         )
 
