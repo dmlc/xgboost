@@ -122,7 +122,6 @@ std::size_t TCPSocket::Recv(std::string *p_str) {
 
       rabit::utils::PollHelper poll;
       poll.WatchWrite(conn);
-      poll.WatchException(conn);
       auto result = poll.Poll(timeout);
       if (!result.OK()) {
         log_failure(std::move(result), __FILE__, __LINE__);
