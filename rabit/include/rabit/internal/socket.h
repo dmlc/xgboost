@@ -1,10 +1,11 @@
-/*!
- *  Copyright (c) 2014-2022 by XGBoost Contributors
+/**
+ *  Copyright 2014-2023, XGBoost Contributors
  * \file socket.h
  * \author Tianqi Chen
  */
 #ifndef RABIT_INTERNAL_SOCKET_H_
 #define RABIT_INTERNAL_SOCKET_H_
+#include "xgboost/collective/result.h"
 #include "xgboost/collective/socket.h"
 
 #if defined(_WIN32)
@@ -77,7 +78,7 @@ namespace rabit {
 namespace utils {
 
 template <typename PollFD>
-int PollImpl(PollFD *pfd, int nfds, std::chrono::seconds timeout) {
+int PollImpl(PollFD* pfd, int nfds, std::chrono::seconds timeout) noexcept(true) {
 #if defined(_WIN32)
 
 #if IS_MINGW()
@@ -135,11 +136,11 @@ struct PollHelper {
    * \brief Check if the descriptor is ready for read
    * \param fd file descriptor to check status
    */
-  inline bool CheckRead(SOCKET fd) const {
+  [[nodiscard]] bool CheckRead(SOCKET fd) const {
     const auto& pfd = fds.find(fd);
     return pfd != fds.end() && ((pfd->second.events & POLLIN) != 0);
   }
-  bool CheckRead(xgboost::collective::TCPSocket const &socket) const {
+  [[nodiscard]] bool CheckRead(xgboost::collective::TCPSocket const& socket) const {
     return this->CheckRead(socket.Handle());
   }
 
@@ -147,19 +148,19 @@ struct PollHelper {
    * \brief Check if the descriptor is ready for write
    * \param fd file descriptor to check status
    */
-  inline bool CheckWrite(SOCKET fd) const {
+  [[nodiscard]] bool CheckWrite(SOCKET fd) const {
     const auto& pfd = fds.find(fd);
     return pfd != fds.end() && ((pfd->second.events & POLLOUT) != 0);
   }
-  bool CheckWrite(xgboost::collective::TCPSocket const &socket) const {
+  [[nodiscard]] bool CheckWrite(xgboost::collective::TCPSocket const& socket) const {
     return this->CheckWrite(socket.Handle());
   }
-  /*!
-   * \brief perform poll on the set defined, read, write, exception
-   * \param timeout specify timeout in milliseconds(ms) if negative, means poll will block
-   * \return
+  /**
+   * @brief perform poll on the set defined, read, write, exception
+   *
+   * @param timeout specify timeout in seconds. Block if negative.
    */
-  inline void Poll(std::chrono::seconds timeout) {  // NOLINT(*)
+  [[nodiscard]] xgboost::collective::Result Poll(std::chrono::seconds timeout) {
     std::vector<pollfd> fdset;
     fdset.reserve(fds.size());
     for (auto kv : fds) {
@@ -167,9 +168,9 @@ struct PollHelper {
     }
     int ret = PollImpl(fdset.data(), fdset.size(), timeout);
     if (ret == 0) {
-      LOG(FATAL) << "Poll timeout";
+      return xgboost::collective::Fail("Poll timeout.");
     } else if (ret < 0) {
-      LOG(FATAL) << "Failed to poll.";
+      return xgboost::system::FailWithCode("Poll failed.");
     } else {
       for (auto& pfd : fdset) {
         auto revents = pfd.revents & pfd.events;
@@ -180,6 +181,7 @@ struct PollHelper {
         }
       }
     }
+    return xgboost::collective::Success();
   }
 
   std::unordered_map<SOCKET, pollfd> fds;
