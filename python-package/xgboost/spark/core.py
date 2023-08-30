@@ -929,7 +929,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
             if int(executor_cores) == 1:
                 # there will be only 1 task running at any time.
-                self.logger.warning(
+                self.logger.info(
                     "Stage-level scheduling in xgboost requires spark.executor.cores > 1 "
                 )
                 return True
@@ -991,7 +991,9 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         # ETL gpu tasks running alongside training tasks to avoid OOM
         spark_plugins = ss.conf.get("spark.plugins", " ")
         assert spark_plugins is not None
-        spark_rapids_sql_enabled = ss.conf.get("spark.rapids.sql.enabled", "true")
+        spark_rapids_sql_enabled = ss.conf.get(
+            "spark.rapids.sql.enabled", "true"
+        ).lower()
         task_cores = (
             int(executor_cores)
             if "com.nvidia.spark.SQLPlugin" in spark_plugins
@@ -1004,15 +1006,16 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         # can set it to any value of (0, 0.5] or 1.
         task_gpus = 1.0
 
-        treqs = TaskResourceRequests().cpus(task_cores).resource("gpu", task_gpus)
-        rp = ResourceProfileBuilder().require(treqs).build
+        # treqs = TaskResourceRequests().cpus(task_cores).resource("gpu", task_gpus)
+        # rp = ResourceProfileBuilder().require(treqs).build
 
         self.logger.info(
             "XGBoost training tasks require the resource(cores=%s, gpu=%s).",
             task_cores,
             task_gpus,
         )
-        return rdd.withResources(rp)
+        # return rdd.withResources(rp)
+        return rdd
 
     def _fit(self, dataset: DataFrame) -> "_SparkXGBModel":
         # pylint: disable=too-many-statements, too-many-locals
