@@ -246,7 +246,7 @@ public class BoosterImplTest {
                                                                       testRows,
                                                                       features,
                                                                       Float.NaN,
-                                                                      new int[] {0, 100},
+                                                                      new int[] {0, 10},
                                                                       Booster.PredictionType.kValue,
                                                                       margin);
     float[][] inplacePredictionsWithoutMargin = booster.inplace_predict(testX, testRows, features, Float.NaN);
