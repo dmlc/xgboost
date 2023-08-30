@@ -125,13 +125,17 @@ inline std::int32_t CloseSocket(SocketT fd) {
 #endif
 }
 
-inline bool LastErrorWouldBlock() {
-  int errsv = LastError();
+inline bool ErrorWouldBlock(std::int32_t errsv) noexcept(true) {
 #ifdef _WIN32
   return errsv == WSAEWOULDBLOCK;
 #else
-  return errsv == EAGAIN || errsv == EWOULDBLOCK;
+  return errsv == EAGAIN || errsv == EWOULDBLOCK || errsv == EINPROGRESS;
 #endif  // _WIN32
+}
+
+inline bool LastErrorWouldBlock() {
+  int errsv = LastError();
+  return ErrorWouldBlock(errsv);
 }
 
 inline void SocketStartup() {

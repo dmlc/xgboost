@@ -94,16 +94,14 @@ std::size_t TCPSocket::Recv(std::string *p_str) {
   CHECK_EQ(static_cast<std::int32_t>(conn.Domain()), static_cast<std::int32_t>(addr.Domain()));
   conn.SetNonBlock(true);
 
-  std::int32_t errcode{0};
-  auto log_failure = [&errcode, &host](std::int32_t err, char const *file, std::int32_t line) {
-    errcode = err;
-    auto stderr_code = std::error_code{errcode, std::system_category()};
-    namespace fs = std::filesystem;
-    LOG(WARNING) << fs::path{file}.filename().string() << "(" << line
-                 << "): Failed to connect to:" << host << " Error:" << stderr_code.message();
+  Result last_error;
+  auto log_failure = [&host, &last_error](Result err, char const *file, std::int32_t line) {
+    last_error = std::move(err);
+    LOG(WARNING) << std::filesystem::path{file}.filename().string() << "(" << line
+                 << "): Failed to connect to:" << host << " Error:" << last_error.Report();
   };
 
-  for (std::int32_t attempt = 0; attempt < retry; ++attempt) {
+  for (std::int32_t attempt = 0; attempt < std::max(retry, 1); ++attempt) {
     if (attempt > 0) {
       LOG(WARNING) << "Retrying connection to " << host << " for the " << attempt << " time.";
 #if defined(_MSC_VER) || defined(__MINGW32__)
@@ -115,9 +113,10 @@ std::size_t TCPSocket::Recv(std::string *p_str) {
 
     auto rc = connect(conn.Handle(), addr_handle, addr_len);
     if (rc != 0) {
-      errcode = system::LastError();
-      if (errcode != EINPROGRESS) {
-        log_failure(errcode, __FILE__, __LINE__);
+      auto errcode = system::LastError();
+      if (!system::ErrorWouldBlock(errcode)) {
+        log_failure(Fail("connect failed.", std::error_code{errcode, std::system_category()}),
+                    __FILE__, __LINE__);
         continue;
       }
 
@@ -126,16 +125,17 @@ std::size_t TCPSocket::Recv(std::string *p_str) {
       poll.WatchException(conn);
       auto result = poll.Poll(timeout);
       if (!result.OK()) {
-        LOG(WARNING) << result.Report();
+        log_failure(std::move(result), __FILE__, __LINE__);
         continue;
       }
       if (!poll.CheckWrite(conn)) {
-        log_failure(system::LastError(), __FILE__, __LINE__);
+        log_failure(Fail("poll failed.", std::error_code{errcode, std::system_category()}),
+                    __FILE__, __LINE__);
         continue;
       }
       result = conn.GetSockError();
       if (!result.OK()) {
-        log_failure(result.Code().value(), __FILE__, __LINE__);
+        log_failure(std::move(result), __FILE__, __LINE__);
         continue;
       }
 
@@ -149,8 +149,8 @@ std::size_t TCPSocket::Recv(std::string *p_str) {
   }
 
   std::stringstream ss;
-  ss << "Failed to connect to " << host << ":" << port << ":";
+  ss << "Failed to connect to " << host << ":" << port;
   conn.Close();
-  return Fail(ss.str(), std::error_code{errcode, std::system_category()});
+  return Fail(ss.str(), std::move(last_error));
 }
 }  // namespace xgboost::collective
