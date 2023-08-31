@@ -12,7 +12,8 @@
 #include <utility>  // for move
 #include <vector>
 
-#include "../collective/communicator-inl.cuh"
+#include "../collective/aggregator.h"
+#include "../collective/aggregator.cuh"
 #include "../common/bitfield.h"
 #include "../common/categorical.h"
 #include "../common/cuda_context.cuh"  // CUDAContext
@@ -161,6 +162,7 @@ struct GPUHistMakerDevice {
   GPUHistEvaluator evaluator_;
   Context const* ctx_;
   std::shared_ptr<common::ColumnSampler> column_sampler_;
+  MetaInfo const& info_;
 
  public:
   EllpackPageImpl const* page{nullptr};
@@ -193,13 +195,14 @@ struct GPUHistMakerDevice {
   GPUHistMakerDevice(Context const* ctx, bool is_external_memory,
                      common::Span<FeatureType const> _feature_types, bst_row_t _n_rows,
                      TrainParam _param, std::shared_ptr<common::ColumnSampler> column_sampler,
-                     uint32_t n_features, BatchParam batch_param)
+                     uint32_t n_features, BatchParam batch_param, MetaInfo const& info)
       : evaluator_{_param, n_features, ctx->gpu_id},
         ctx_(ctx),
         feature_types{_feature_types},
         param(std::move(_param)),
         column_sampler_(std::move(column_sampler)),
-        interaction_constraints(param, n_features) {
+        interaction_constraints(param, n_features),
+        info_{info} {
     sampler = std::make_unique<GradientBasedSampler>(ctx, _n_rows, batch_param, param.subsample,
                                                      param.sampling_method, is_external_memory);
     if (!param.monotone_constraints.empty()) {
@@ -245,7 +248,7 @@ struct GPUHistMakerDevice {
     this->evaluator_.Reset(page->Cuts(), feature_types, dmat->Info().num_col_, param,
                            dmat->Info().IsColumnSplit(), ctx_->gpu_id);
 
-    quantiser = std::make_unique<GradientQuantiser>(this->gpair);
+    quantiser = std::make_unique<GradientQuantiser>(this->gpair, dmat->Info());
 
     row_partitioner.reset();  // Release the device memory first before reallocating
     row_partitioner = std::make_unique<RowPartitioner>(ctx_->gpu_id, sample.sample_rows);
@@ -369,6 +372,66 @@ struct GPUHistMakerDevice {
     common::KCatBitField node_cats;
   };
 
+  void UpdatePositionColumnSplit(EllpackDeviceAccessor d_matrix,
+                                 std::vector<NodeSplitData> const& split_data,
+                                 std::vector<bst_node_t> const& nidx,
+                                 std::vector<bst_node_t> const& left_nidx,
+                                 std::vector<bst_node_t> const& right_nidx) {
+    auto const num_candidates = split_data.size();
+
+    using BitVector = LBitField64;
+    using BitType = BitVector::value_type;
+    auto const size = BitVector::ComputeStorageSize(d_matrix.n_rows * num_candidates);
+    dh::TemporaryArray<BitType> decision_storage(size, 0);
+    dh::TemporaryArray<BitType> missing_storage(size, 0);
+    BitVector decision_bits{dh::ToSpan(decision_storage)};
+    BitVector missing_bits{dh::ToSpan(missing_storage)};
+
+    dh::TemporaryArray<NodeSplitData> split_data_storage(num_candidates);
+    dh::safe_cuda(cudaMemcpyAsync(split_data_storage.data().get(), split_data.data(),
+                                  num_candidates * sizeof(NodeSplitData), cudaMemcpyDefault));
+    auto d_split_data = dh::ToSpan(split_data_storage);
+
+    dh::LaunchN(d_matrix.n_rows, [=] __device__(std::size_t ridx) mutable {
+      for (auto i = 0; i < num_candidates; i++) {
+        auto const& data = d_split_data[i];
+        auto const cut_value = d_matrix.GetFvalue(ridx, data.split_node.SplitIndex());
+        if (isnan(cut_value)) {
+          missing_bits.Set(ridx * num_candidates + i);
+        } else {
+          bool go_left;
+          if (data.split_type == FeatureType::kCategorical) {
+            go_left = common::Decision(data.node_cats.Bits(), cut_value);
+          } else {
+            go_left = cut_value <= data.split_node.SplitCond();
+          }
+          if (go_left) {
+            decision_bits.Set(ridx * num_candidates + i);
+          }
+        }
+      }
+    });
+
+    collective::AllReduce<collective::Operation::kBitwiseOR>(
+        ctx_->gpu_id, decision_storage.data().get(), decision_storage.size());
+    collective::AllReduce<collective::Operation::kBitwiseAND>(
+        ctx_->gpu_id, missing_storage.data().get(), missing_storage.size());
+    collective::Synchronize(ctx_->gpu_id);
+
+    row_partitioner->UpdatePositionBatch(
+        nidx, left_nidx, right_nidx, split_data,
+        [=] __device__(bst_uint ridx, int split_index, NodeSplitData const& data) {
+          auto const index = ridx * num_candidates + split_index;
+          bool go_left;
+          if (missing_bits.Check(index)) {
+            go_left = data.split_node.DefaultLeft();
+          } else {
+            go_left = decision_bits.Check(index);
+          }
+          return go_left;
+        });
+  }
+
   void UpdatePosition(std::vector<GPUExpandEntry> const& candidates, RegTree* p_tree) {
     if (candidates.empty()) {
       return;
@@ -392,9 +455,15 @@ struct GPUHistMakerDevice {
     }
 
     auto d_matrix = page->GetDeviceAccessor(ctx_->gpu_id);
+
+    if (info_.IsColumnSplit()) {
+      UpdatePositionColumnSplit(d_matrix, split_data, nidx, left_nidx, right_nidx);
+      return;
+    }
+
     row_partitioner->UpdatePositionBatch(
         nidx, left_nidx, right_nidx, split_data,
-        [=] __device__(bst_uint ridx, const NodeSplitData& data) {
+        [=] __device__(bst_uint ridx, int split_index, const NodeSplitData& data) {
           // given a row index, returns the node id it belongs to
           float cut_value = d_matrix.GetFvalue(ridx, data.split_node.SplitIndex());
           // Missing value
@@ -544,9 +613,8 @@ struct GPUHistMakerDevice {
     monitor.Start("AllReduce");
     auto d_node_hist = hist.GetNodeHistogram(nidx).data();
     using ReduceT = typename std::remove_pointer<decltype(d_node_hist)>::type::ValueT;
-    collective::AllReduce<collective::Operation::kSum>(
-        ctx_->gpu_id, reinterpret_cast<ReduceT*>(d_node_hist),
-        page->Cuts().TotalBins() * 2 * num_histograms);
+    collective::GlobalSum(info_, ctx_->gpu_id, reinterpret_cast<ReduceT*>(d_node_hist),
+                          page->Cuts().TotalBins() * 2 * num_histograms);
 
     monitor.Stop("AllReduce");
   }
@@ -663,8 +731,7 @@ struct GPUHistMakerDevice {
         dh::Reduce(ctx_->CUDACtx()->CTP(), gpair_it, gpair_it + gpair.size(),
                    GradientPairInt64{}, thrust::plus<GradientPairInt64>{});
     using ReduceT = typename decltype(root_sum_quantised)::ValueT;
-    collective::Allreduce<collective::Operation::kSum>(
-        reinterpret_cast<ReduceT *>(&root_sum_quantised), 2);
+    collective::GlobalSum(info_, reinterpret_cast<ReduceT*>(&root_sum_quantised), 2);
 
     hist.AllocateHistograms({kRootNIdx});
     this->BuildHist(kRootNIdx);
@@ -801,7 +868,7 @@ class GPUHistMaker : public TreeUpdater {
     info_->feature_types.SetDevice(ctx_->gpu_id);
     maker = std::make_unique<GPUHistMakerDevice>(
         ctx_, !dmat->SingleColBlock(), info_->feature_types.ConstDeviceSpan(), info_->num_row_,
-        *param, column_sampler_, info_->num_col_, batch_param);
+        *param, column_sampler_, info_->num_col_, batch_param, dmat->Info());
 
     p_last_fmat_ = dmat;
     initialised_ = true;
@@ -915,7 +982,7 @@ class GPUGlobalApproxMaker : public TreeUpdater {
     auto batch = BatchParam{param->max_bin, hess, !task_->const_hess};
     maker_ = std::make_unique<GPUHistMakerDevice>(
         ctx_, !p_fmat->SingleColBlock(), info.feature_types.ConstDeviceSpan(), info.num_row_,
-        *param, column_sampler_, info.num_col_, batch);
+        *param, column_sampler_, info.num_col_, batch, p_fmat->Info());
 
     std::size_t t_idx{0};
     for (xgboost::RegTree* tree : trees) {

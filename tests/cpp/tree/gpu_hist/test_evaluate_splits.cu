@@ -24,7 +24,7 @@ auto ZeroParam() {
 inline GradientQuantiser DummyRoundingFactor() {
   thrust::device_vector<GradientPair> gpair(1);
   gpair[0] = {1000.f, 1000.f};  // Tests should not exceed sum of 1000
-  return GradientQuantiser(dh::ToSpan(gpair));
+  return {dh::ToSpan(gpair), MetaInfo()};
 }
 
 thrust::device_vector<GradientPairInt64> ConvertToInteger(std::vector<GradientPairPrecise> x) {

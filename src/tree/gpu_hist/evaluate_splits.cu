@@ -418,7 +418,8 @@ void GPUHistEvaluator::EvaluateSplits(
 
     // Reduce to get the best candidate from all workers.
     dh::LaunchN(out_splits.size(), [world_size, all_candidates, out_splits] __device__(size_t i) {
-      for (auto rank = 0; rank < world_size; rank++) {
+      out_splits[i] = all_candidates[i];
+      for (auto rank = 1; rank < world_size; rank++) {
         out_splits[i] = out_splits[i] + all_candidates[rank * out_splits.size() + i];
       }
     });
