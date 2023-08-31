@@ -194,10 +194,25 @@ class TestGPUPredict:
     def run_inplace_base_margin(self, booster, dtrain, X, base_margin):
         import cupy as cp
 
+        booster.set_param({"device": "cuda"})
         dtrain.set_info(base_margin=base_margin)
         from_inplace = booster.inplace_predict(data=X, base_margin=base_margin)
         from_dmatrix = booster.predict(dtrain)
         cp.testing.assert_allclose(from_inplace, from_dmatrix)
+
+        booster = booster.copy()  # clear prediction cache.
+        booster.set_param({"device": "cpu"})
+        from_inplace = booster.inplace_predict(data=X, base_margin=base_margin)
+        from_dmatrix = booster.predict(dtrain)
+        cp.testing.assert_allclose(from_inplace, from_dmatrix)
+
+        booster = booster.copy()  # clear prediction cache.
+        base_margin = cp.asnumpy(base_margin)
+        X = cp.asnumpy(X)
+        booster.set_param({"device": "cuda"})
+        from_inplace = booster.inplace_predict(data=X, base_margin=base_margin)
+        from_dmatrix = booster.predict(dtrain)
+        np.testing.assert_allclose(from_inplace, from_dmatrix, rtol=1e-6)
 
     def run_inplace_predict_cupy(self, device: int) -> None:
         import cupy as cp
@@ -218,7 +233,7 @@ class TestGPUPredict:
         dtrain = xgb.DMatrix(X, y)
 
         booster = xgb.train(
-            {"tree_method": "hist", "device": f"cuda:{device}"},
+            {"tree_method": "hist", "device": f"cpu"},
             dtrain,
             num_boost_round=10,
         )
