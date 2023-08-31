@@ -48,8 +48,7 @@ import org.apache.spark.sql.SparkSession
  * @param pythonExec The python executed path for Rabit Tracker,
  *                   which is only used for python implementation.
  */
-case class TrackerConf(workerConnectionTimeout: Long,
-  hostIp: String = "", pythonExec: String = "")
+case class TrackerConf(workerConnectionTimeout: Long, hostIp: String = "")
 
 object TrackerConf {
   def apply(): TrackerConf = TrackerConf(0L)
@@ -421,7 +420,7 @@ object XGBoost extends XGBoostStageLevel {
   private def buildDistributedBooster(
       buildWatches: () => Watches,
       xgbExecutionParam: XGBoostExecutionParams,
-      rabitEnv: java.util.Map[String, String],
+      rabitEnv: java.util.Map[String, Object],
       obj: ObjectiveTrait,
       eval: EvalTrait,
       prevBooster: Booster): Iterator[(Booster, Map[String, Array[Float]])] = {
@@ -430,7 +429,6 @@ object XGBoost extends XGBoostStageLevel {
     val taskId = TaskContext.getPartitionId().toString
     val attempt = TaskContext.get().attemptNumber.toString
     rabitEnv.put("DMLC_TASK_ID", taskId)
-    rabitEnv.put("DMLC_NUM_ATTEMPT", attempt)
     val numRounds = xgbExecutionParam.numRounds
     val makeCheckpoint = xgbExecutionParam.checkpointParam.isDefined && taskId.toInt == 0
 
@@ -482,15 +480,13 @@ object XGBoost extends XGBoostStageLevel {
 
   /** visiable for testing */
   private[scala] def getTracker(nWorkers: Int, trackerConf: TrackerConf): IRabitTracker = {
-    val tracker: IRabitTracker = new PyRabitTracker(
-      nWorkers, trackerConf.hostIp, trackerConf.pythonExec
-    )
+    val tracker: IRabitTracker = new PyRabitTracker(nWorkers, trackerConf.hostIp)
     tracker
   }
 
   private def startTracker(nWorkers: Int, trackerConf: TrackerConf): IRabitTracker = {
     val tracker = getTracker(nWorkers, trackerConf)
-    require(tracker.start(trackerConf.workerConnectionTimeout), "FAULT: Failed to start tracker")
+    require(tracker.start(), "FAULT: Failed to start tracker")
     tracker
   }
 
@@ -548,11 +544,6 @@ object XGBoost extends XGBoostStageLevel {
         // of the training task fails the training stage can retry. ResultStage won't retry when
         // it fails.
         val (booster, metrics) = boostersAndMetricsWithRes.repartition(1).collect()(0)
-        val trackerReturnVal = tracker.waitFor(0L)
-        logger.info(s"Rabit returns with exit code $trackerReturnVal")
-        if (trackerReturnVal != 0) {
-          throw new XGBoostError("XGBoostModel training failed.")
-        }
         (booster, metrics)
       } finally {
         tracker.stop()

@@ -7,6 +7,9 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 /**
  * Collective communicator global class for synchronization.
  *
@@ -56,30 +59,20 @@ public class Communicator {
     }
   }
 
-  // used as way to test/debug passed communicator init parameters
-  public static Map<String, String> communicatorEnvs;
-  public static List<String> mockList = new LinkedList<>();
-
   /**
    * Initialize the collective communicator on current working thread.
    *
    * @param envs The additional environment variables to pass to the communicator.
    * @throws XGBoostError
    */
-  public static void init(Map<String, String> envs) throws XGBoostError {
-    communicatorEnvs = envs;
-    String[] args = new String[envs.size() * 2 + mockList.size() * 2];
-    int idx = 0;
-    for (java.util.Map.Entry<String, String> e : envs.entrySet()) {
-      args[idx++] = e.getKey();
-      args[idx++] = e.getValue();
+  public static void init(Map<String, Object> envs) throws XGBoostError {
+    ObjectMapper mapper = new ObjectMapper();
+    try {
+      String jconfig = mapper.writeValueAsString(envs);
+      checkCall(XGBoostJNI.CommunicatorInit(jconfig));
+    } catch (JsonProcessingException ex) {
+      throw new XGBoostError("Failed to read arguments for the communicator.", ex);
     }
-    // pass list of rabit mock strings eg mock=0,1,0,0
-    for (String mock : mockList) {
-      args[idx++] = "mock";
-      args[idx++] = mock;
-    }
-    checkCall(XGBoostJNI.CommunicatorInit(args));
   }
 
   /**

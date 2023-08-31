@@ -12,6 +12,7 @@
 #include "../../../src/data/proxy_dmatrix.h"
 #include "../../../src/gbm/gbtree.h"
 #include "../../../src/gbm/gbtree_model.h"
+#include "../collective/test_worker.h"  // for TestDistributedGlobal
 #include "../filesystem.h"  // dmlc::TemporaryDirectory
 #include "../helpers.h"
 #include "test_predictor.h"
@@ -43,7 +44,7 @@ void TestColumnSplit() {
 
 TEST(CpuPredictor, BasicColumnSplit) {
   auto constexpr kWorldSize = 2;
-  RunWithInMemoryCommunicator(kWorldSize, TestColumnSplit);
+  collective::TestDistributedGlobal(kWorldSize, TestColumnSplit);
 }
 
 TEST(CpuPredictor, IterationRange) {
@@ -157,7 +158,7 @@ TEST(CPUPredictor, CategoricalPrediction) {
 
 TEST(CPUPredictor, CategoricalPredictionColumnSplit) {
   auto constexpr kWorldSize = 2;
-  RunWithInMemoryCommunicator(kWorldSize, TestCategoricalPrediction, false, true);
+  collective::TestDistributedGlobal(kWorldSize, [] { TestCategoricalPrediction(false, true); });
 }
 
 TEST(CPUPredictor, CategoricalPredictLeaf) {
@@ -168,7 +169,7 @@ TEST(CPUPredictor, CategoricalPredictLeaf) {
 TEST(CPUPredictor, CategoricalPredictLeafColumnSplit) {
   auto constexpr kWorldSize = 2;
   Context ctx;
-  RunWithInMemoryCommunicator(kWorldSize, TestCategoricalPredictLeaf, &ctx, true);
+  collective::TestDistributedGlobal(kWorldSize, [&] { TestCategoricalPredictLeaf(&ctx, true); });
 }
 
 TEST(CpuPredictor, UpdatePredictionCache) {
@@ -183,7 +184,8 @@ TEST(CpuPredictor, LesserFeatures) {
 
 TEST(CpuPredictor, LesserFeaturesColumnSplit) {
   auto constexpr kWorldSize = 2;
-  RunWithInMemoryCommunicator(kWorldSize, TestPredictionWithLesserFeaturesColumnSplit, false);
+  collective::TestDistributedGlobal(kWorldSize,
+                                    [] { TestPredictionWithLesserFeaturesColumnSplit(false); });
 }
 
 TEST(CpuPredictor, Sparse) {

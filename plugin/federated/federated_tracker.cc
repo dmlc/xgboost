@@ -36,8 +36,8 @@ grpc::Status FederatedService::Allreduce(grpc::ServerContext*, AllreduceRequest 
                                          AllreduceReply* reply) {
   handler_.Allreduce(request->send_buffer().data(), request->send_buffer().size(),
                      reply->mutable_receive_buffer(), request->sequence_number(), request->rank(),
-                     static_cast<xgboost::collective::DataType>(request->data_type()),
-                     static_cast<xgboost::collective::Operation>(request->reduce_operation()));
+                     static_cast<xgboost::ArrayInterfaceHandler::Type>(request->data_type()),
+                     static_cast<xgboost::collective::Op>(request->reduce_operation()));
   return grpc::Status::OK;
 }
 

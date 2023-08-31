@@ -95,4 +95,36 @@ TEST_F(AllreduceTest, BitOr) {
     worker.BitOr();
   });
 }
+
+TEST(AllreduceGlobal, Basic) {
+  auto n_workers = 3;
+  TestDistributedGlobal(n_workers, [&]() {
+    std::vector<float> values(n_workers * 2, 0);
+    auto rank = GetRank();
+    auto s_values = common::Span{values.data(), values.size()};
+    auto self = s_values.subspan(rank * 2, 2);
+    for (auto& v : self) {
+      v = 1.0f;
+    }
+    Context ctx;
+    auto rc =
+        Allreduce(&ctx, linalg::MakeVec(s_values.data(), s_values.size()), collective::Op::kSum);
+    SafeColl(rc);
+    for (auto v : s_values) {
+      ASSERT_EQ(v, 1);
+    }
+  });
+}
+
+TEST(AllreduceGlobal, Small) {
+  // Test when the data is not large enougth to be divided by the number of workers
+  auto n_workers = 8;
+  TestDistributedGlobal(n_workers, [&]() {
+    std::uint64_t value{1};
+    Context ctx;
+    auto rc = Allreduce(&ctx, linalg::MakeVec(&value, 1), collective::Op::kSum);
+    SafeColl(rc);
+    ASSERT_EQ(value, n_workers);
+  });
+}
 }  // namespace xgboost::collective

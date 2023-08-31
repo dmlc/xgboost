@@ -11,6 +11,7 @@
 #include <future>     // for async
 #include <memory>     // for unique_ptr
 #include <mutex>      // for mutex
+#include <numeric>    // for partial_sum
 #include <string>     // for string
 #include <utility>    // for pair, move
 #include <vector>     // for vector

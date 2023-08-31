@@ -211,12 +211,7 @@ struct PollHelper {
       }
 
       auto revents = pfd.revents & pfd.events;
-      if (!revents) {
-        // FIXME(jiamingy): remove this once rabit is replaced.
-        fds.erase(pfd.fd);
-      } else {
-        fds[pfd.fd].events = revents;
-      }
+      fds[pfd.fd].events = revents;
     }
     return xgboost::collective::Success();
   }

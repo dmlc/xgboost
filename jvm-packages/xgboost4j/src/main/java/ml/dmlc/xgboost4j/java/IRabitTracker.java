@@ -1,7 +1,6 @@
 package ml.dmlc.xgboost4j.java;
 
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Interface for Rabit tracker implementations with three public methods:
@@ -36,9 +35,11 @@ public interface IRabitTracker extends Thread.UncaughtExceptionHandler {
     }
   }
 
-  Map<String, String> getWorkerEnvs();
-  boolean start(long workerConnectionTimeout);
-  void stop();
-  // taskExecutionTimeout has no effect in current version of XGBoost.
-  int waitFor(long taskExecutionTimeout);
+  Map<String, Object> getWorkerEnvs() throws XGBoostError;
+
+  boolean start() throws XGBoostError;
+
+  void stop() throws XGBoostError;
+
+  void waitFor(long taskExecutionTimeout) throws XGBoostError;
 }

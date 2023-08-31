@@ -52,6 +52,11 @@ pom_template = """
       <version>1.2</version>
     </dependency>
     <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>2.14.2</version>
+    </dependency>
+    <dependency>
       <groupId>org.scalatest</groupId>
       <artifactId>scalatest_${{scala.binary.version}}</artifactId>
       <version>${{scalatest.version}}</version>

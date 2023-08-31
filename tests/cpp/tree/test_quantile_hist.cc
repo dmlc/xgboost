@@ -13,6 +13,7 @@
 #include "../../../src/tree/common_row_partitioner.h"
 #include "../../../src/tree/hist/expand_entry.h"  // for MultiExpandEntry, CPUExpandEntry
 #include "../../../src/tree/param.h"
+#include "../collective/test_worker.h"  // for TestDistributedGlobal
 #include "../helpers.h"
 #include "test_partitioner.h"
 #include "xgboost/data.h"
@@ -190,9 +191,10 @@ void TestColumnSplitPartitioner(bst_target_t n_targets) {
   }
 
   auto constexpr kWorkers = 4;
-  RunWithInMemoryCommunicator(kWorkers, VerifyColumnSplitPartitioner<ExpandEntry>, n_targets,
-                              n_samples, n_features, base_rowid, Xy, min_value, mid_value,
-                              mid_partitioner);
+  collective::TestDistributedGlobal(kWorkers, [&] {
+    VerifyColumnSplitPartitioner<ExpandEntry>(n_targets, n_samples, n_features, base_rowid, Xy,
+                                              min_value, mid_value, mid_partitioner);
+  });
 }
 }  // anonymous namespace
 
@@ -245,8 +247,9 @@ void TestColumnSplit(bst_target_t n_targets) {
   }
 
   auto constexpr kWorldSize = 2;
-  RunWithInMemoryCommunicator(kWorldSize, VerifyColumnSplit, &ctx, kRows, kCols, n_targets,
-                              std::cref(expected_tree));
+  collective::TestDistributedGlobal(kWorldSize, [&] {
+    VerifyColumnSplit(&ctx, kRows, kCols, n_targets, std::cref(expected_tree));
+  });
 }
 }  // anonymous namespace
 

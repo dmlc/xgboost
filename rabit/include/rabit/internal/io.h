@@ -12,9 +12,7 @@
 #include <cstdio>
 #include <cstring>  // for memcpy
 #include <limits>
-#include <numeric>
 #include <string>
-#include <vector>
 
 #include "dmlc/io.h"
 #include "xgboost/logging.h"

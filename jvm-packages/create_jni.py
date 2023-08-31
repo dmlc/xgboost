@@ -23,6 +23,7 @@ CONFIG = {
     "USE_NCCL": "OFF",
     "JVM_BINDINGS": "ON",
     "LOG_CAPI_INVOCATION": "OFF",
+    "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
 }
 
 

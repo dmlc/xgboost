@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2023 by XGBoost Contributors
+ * Copyright 2017-2024, XGBoost Contributors
  */
 #include <algorithm>  // for max, fill, min
 #include <any>        // for any, any_cast
@@ -12,7 +12,7 @@
 #include <vector>     // for vector
 
 #include "../collective/communicator-inl.h"   // for Allreduce, IsDistributed
-#include "../collective/communicator.h"       // for Operation
+#include "../collective/allreduce.h"
 #include "../common/bitfield.h"               // for RBitField8
 #include "../common/categorical.h"            // for IsCat, Decision
 #include "../common/common.h"                 // for DivRoundUp
@@ -461,11 +461,17 @@ class ColumnSplitHelper {
     return tree_offsets_[tree_index] * n_rows_ + row_id * tree_sizes_[tree_index] + node_id;
   }
 
-  void AllreduceBitVectors(Context const*) {
-    collective::Allreduce<collective::Operation::kBitwiseOR>(decision_storage_.data(),
-                                                             decision_storage_.size());
-    collective::Allreduce<collective::Operation::kBitwiseAND>(missing_storage_.data(),
-                                                              missing_storage_.size());
+  void AllreduceBitVectors(Context const *ctx) {
+    auto rc = collective::Success() << [&] {
+      return collective::Allreduce(
+          ctx, linalg::MakeVec(decision_storage_.data(), decision_storage_.size()),
+          collective::Op::kBitwiseOR);
+    } << [&] {
+      return collective::Allreduce(
+          ctx, linalg::MakeVec(missing_storage_.data(), missing_storage_.size()),
+          collective::Op::kBitwiseAND);
+    };
+    collective::SafeColl(rc);
   }
 
   void MaskOneTree(RegTree::FVec const &feat, std::size_t tree_id, std::size_t row_id) {

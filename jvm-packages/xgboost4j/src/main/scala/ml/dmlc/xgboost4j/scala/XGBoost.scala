@@ -196,5 +196,3 @@ private[scala] object ExternalCheckpointParams {
     }
   }
 }
-
-

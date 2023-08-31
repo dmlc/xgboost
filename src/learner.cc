@@ -35,7 +35,6 @@
 
 #include "collective/aggregator.h"        // for ApplyWithLabels
 #include "collective/communicator-inl.h"  // for Allreduce, Broadcast, GetRank, IsDistributed
-#include "collective/communicator.h"      // for Operation
 #include "common/api_entry.h"             // for XGBAPIThreadLocalEntry
 #include "common/charconv.h"              // for to_chars, to_chars_result, NumericLimits, from_...
 #include "common/common.h"                // for ToString, Split
@@ -208,7 +207,7 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     return dmlc::Parameter<LearnerModelParamLegacy>::UpdateAllowUnknown(kwargs);
   }
   // sanity check
-  void Validate(Context const*) {
+  void Validate(Context const* ctx) {
     if (!collective::IsDistributed()) {
       return;
     }
@@ -229,7 +228,8 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
 
     std::array<std::int32_t, 6> sync;
     std::copy(data.cbegin(), data.cend(), sync.begin());
-    collective::Broadcast(sync.data(), sync.size(), 0);
+    auto rc = collective::Broadcast(ctx, linalg::MakeVec(sync.data(), sync.size()), 0);
+    collective::SafeColl(rc);
     CHECK(std::equal(data.cbegin(), data.cend(), sync.cbegin()))
         << "Different model parameter across workers.";
   }
@@ -754,7 +754,9 @@ class LearnerConfiguration : public Learner {
         num_feature = std::max(num_feature, static_cast<uint32_t>(num_col));
       }
 
-      collective::Allreduce<collective::Operation::kMax>(&num_feature, 1);
+      auto rc =
+          collective::Allreduce(&ctx_, linalg::MakeVec(&num_feature, 1), collective::Op::kMax);
+      collective::SafeColl(rc);
       if (num_feature > mparam_.num_feature) {
         mparam_.num_feature = num_feature;
       }

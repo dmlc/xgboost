@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2023 by XGBoost Contributors
+ * Copyright 2022-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/base.h>                // for GradientPairInternal, GradientPairPrecise
@@ -14,7 +14,6 @@
 #include <limits>     // for numeric_limits
 #include <numeric>    // for iota
 #include <tuple>      // for make_tuple, tie, tuple
-#include <utility>    // for pair
 #include <vector>     // for vector
 
 #include "../../../src/common/hist_util.h"      // for HistogramCuts, HistCollection, GHistRow
@@ -23,7 +22,6 @@
 #include "../../../src/tree/param.h"            // for TrainParam, GradStats
 #include "../../../src/tree/split_evaluator.h"  // for TreeEvaluator
 #include "../helpers.h"                         // for SimpleLCG, SimpleRealUniformDistribution
-#include "gtest/gtest_pred_impl.h"              // for AssertionResult, ASSERT_EQ, ASSERT_TRUE
 
 namespace xgboost::tree {
 /**
@@ -96,13 +94,11 @@ class TestPartitionBasedSplit : public ::testing::Test {
 
     // enumerate all possible partitions to find the optimal split
     do {
-      int32_t thresh;
-      float score;
       std::vector<GradientPairPrecise> sorted_hist(node_hist.size());
       for (size_t i = 0; i < sorted_hist.size(); ++i) {
         sorted_hist[i] = node_hist[sorted_idx_[i]];
       }
-      std::tie(thresh, score) = enumerate({sorted_hist}, total_gpair_);
+      auto [thresh, score] = enumerate({sorted_hist}, total_gpair_);
       if (score > best_score_) {
         best_score_ = score;
       }

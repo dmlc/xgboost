@@ -527,7 +527,8 @@ def _validate_and_convert_feature_col_as_array_col(
             (DoubleType, FloatType, LongType, IntegerType, ShortType),
         ):
             raise ValueError(
-                "If feature column is array type, its elements must be number type."
+                "If feature column is array type, its elements must be number type, "
+                f"got {features_col_datatype.elementType}."
             )
         features_array_col = features_col.cast(ArrayType(FloatType())).alias(alias.data)
     elif isinstance(features_col_datatype, VectorUDT):

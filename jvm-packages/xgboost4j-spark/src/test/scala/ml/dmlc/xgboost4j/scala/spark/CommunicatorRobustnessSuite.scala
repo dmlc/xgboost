@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2022 by Contributors
+ Copyright (c) 2014-2024 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -33,50 +33,6 @@ class CommunicatorRobustnessSuite extends AnyFunSuite with PerTest {
     xgbParamsFactory.buildXGBRuntimeParams
   }
 
-  test("Customize host ip and python exec for Rabit tracker") {
-    val hostIp = "192.168.22.111"
-    val pythonExec = "/usr/bin/python3"
-
-    val paramMap = Map(
-      "num_workers" -> numWorkers,
-      "tracker_conf" -> TrackerConf(0L, hostIp))
-    val xgbExecParams = getXGBoostExecutionParams(paramMap)
-    val tracker = XGBoost.getTracker(xgbExecParams.numWorkers, xgbExecParams.trackerConf)
-    tracker match {
-      case pyTracker: PyRabitTracker =>
-        val cmd = pyTracker.getRabitTrackerCommand
-        assert(cmd.contains(hostIp))
-        assert(cmd.startsWith("python"))
-      case _ => assert(false, "expected python tracker implementation")
-    }
-
-    val paramMap1 = Map(
-      "num_workers" -> numWorkers,
-      "tracker_conf" -> TrackerConf(0L, "", pythonExec))
-    val xgbExecParams1 = getXGBoostExecutionParams(paramMap1)
-    val tracker1 = XGBoost.getTracker(xgbExecParams1.numWorkers, xgbExecParams1.trackerConf)
-    tracker1 match {
-      case pyTracker: PyRabitTracker =>
-        val cmd = pyTracker.getRabitTrackerCommand
-        assert(cmd.startsWith(pythonExec))
-        assert(!cmd.contains(hostIp))
-      case _ => assert(false, "expected python tracker implementation")
-    }
-
-    val paramMap2 = Map(
-      "num_workers" -> numWorkers,
-      "tracker_conf" -> TrackerConf(0L, hostIp, pythonExec))
-    val xgbExecParams2 = getXGBoostExecutionParams(paramMap2)
-    val tracker2 = XGBoost.getTracker(xgbExecParams2.numWorkers, xgbExecParams2.trackerConf)
-    tracker2 match {
-      case pyTracker: PyRabitTracker =>
-        val cmd = pyTracker.getRabitTrackerCommand
-        assert(cmd.startsWith(pythonExec))
-        assert(cmd.contains(s" --host-ip=${hostIp}"))
-      case _ => assert(false, "expected python tracker implementation")
-    }
-  }
-
   test("test Java RabitTracker wrapper's exception handling: it should not hang forever.") {
     /*
       Deliberately create new instances of SparkContext in each unit test to avoid reusing the
@@ -89,8 +45,8 @@ class CommunicatorRobustnessSuite extends AnyFunSuite with PerTest {
     val rdd = sc.parallelize(1 to numWorkers, numWorkers).cache()
 
     val tracker = new PyRabitTracker(numWorkers)
-    tracker.start(0)
-    val trackerEnvs = tracker.getWorkerEnvs
+    tracker.start()
+    val trackerEnvs = tracker. getWorkerEnvs
 
     val workerCount: Int = numWorkers
     /*
@@ -137,7 +93,32 @@ class CommunicatorRobustnessSuite extends AnyFunSuite with PerTest {
 
     sparkThread.setUncaughtExceptionHandler(tracker)
     sparkThread.start()
-    assert(tracker.waitFor(0) != 0)
+  }
+
+  test("Communicator allreduce works.") {
+    val rdd = sc.parallelize(1 to numWorkers, numWorkers).cache()
+    val tracker = new PyRabitTracker(numWorkers)
+    tracker.start()
+    val trackerEnvs = tracker. getWorkerEnvs
+
+    val workerCount: Int = numWorkers
+
+    val dummyTasks = rdd.mapPartitions { iter =>
+      val index = iter.next()
+      Communicator.init(trackerEnvs)
+      Communicator.shutdown()
+      Iterator(index)
+    }.cache()
+
+    val sparkThread = new Thread() {
+      override def run(): Unit = {
+        // forces a Spark job.
+        dummyTasks.foreachPartition(() => _)
+      }
+    }
+
+    sparkThread.setUncaughtExceptionHandler(tracker)
+    sparkThread.start()
   }
 
   test("should allow the dataframe containing communicator calls to be partially evaluated for" +
