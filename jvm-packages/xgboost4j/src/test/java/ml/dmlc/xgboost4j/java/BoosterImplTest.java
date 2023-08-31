@@ -204,12 +204,13 @@ public class BoosterImplTest {
       });
     }
     executorService.shutdown();
-    if(!executorService.awaitTermination(5, TimeUnit.MINUTES))
+    if(!executorService.awaitTermination(1, TimeUnit.MINUTES))
       executorService.shutdownNow();
   }
 
   @Test
   public void inplacePredictWithMarginTest() throws XGBoostError {
+    //Generate a training set
     int trainRows = 1000;
     int features = 10;
     int trainSize = trainRows * features;
@@ -228,6 +229,7 @@ public class BoosterImplTest {
     DMatrix testingMatrix = new DMatrix(testX, testRows, features, Float.NaN);
     testingMatrix.setLabel(testY);
 
+    //Set booster parameters
     Map<String, Object> params = new HashMap<>();
     params.put("eta", 1.0);
     params.put("max_depth",2);
@@ -238,15 +240,22 @@ public class BoosterImplTest {
     watches.put("train", trainingMatrix);
     watches.put("test", testingMatrix);
 
+    //Train booster on training matrix.
     Booster booster = XGBoost.train(trainingMatrix, params, 10, watches, null, null);
-    float[] margin = new float[testX.length];
+
+    //Create a margin
+    float[] margin = new float[testRows];
     Arrays.fill(margin, 0.5f);
+
+    //Define an iteration range to use all training iterations, this should match the without margin call
+    //which defines an iteration range of [0,0)
+    int[] iterationRange = new int[] {0, 0};
 
     float[][] inplacePredictionsWithMargin = booster.inplace_predict(testX,
                                                                       testRows,
                                                                       features,
                                                                       Float.NaN,
-                                                                      new int[] {0, 10},
+                                                                      iterationRange,
                                                                       Booster.PredictionType.kValue,
                                                                       margin);
     float[][] inplacePredictionsWithoutMargin = booster.inplace_predict(testX, testRows, features, Float.NaN);
