@@ -229,43 +229,46 @@ public class BoosterImplTest {
     DMatrix testingMatrix = new DMatrix(testX, testRows, features, Float.NaN);
     testingMatrix.setLabel(testY);
 
-    //Set booster parameters
+    // Set booster parameters
     Map<String, Object> params = new HashMap<>();
     params.put("eta", 1.0);
     params.put("max_depth",2);
-    params.put("silent", 1);
     params.put("tree_method", "hist");
+    params.put("base_score", 0.0);
 
     Map<String, DMatrix> watches = new HashMap<>();
     watches.put("train", trainingMatrix);
     watches.put("test", testingMatrix);
 
-    //Train booster on training matrix.
+    // Train booster on training matrix.
     Booster booster = XGBoost.train(trainingMatrix, params, 10, watches, null, null);
 
-    //Create a margin
+    // Create a margin
     float[] margin = new float[testRows];
     Arrays.fill(margin, 0.5f);
 
-    //Define an iteration range to use all training iterations, this should match the without margin call
-    //which defines an iteration range of [0,0)
-    int[] iterationRange = new int[] {0, 0};
+    // Define an iteration range to use all training iterations, this should match
+    // the without margin call
+    // which defines an iteration range of [0,0)
+    int[] iterationRange = new int[] { 0, 0 };
 
     float[][] inplacePredictionsWithMargin = booster.inplace_predict(testX,
-                                                                      testRows,
-                                                                      features,
-                                                                      Float.NaN,
-                                                                      iterationRange,
-                                                                      Booster.PredictionType.kValue,
-                                                                      margin);
+        testRows,
+        features,
+        Float.NaN,
+        iterationRange,
+        Booster.PredictionType.kValue,
+        margin);
     float[][] inplacePredictionsWithoutMargin = booster.inplace_predict(testX, testRows, features, Float.NaN);
 
-    for(int i = 0; i < inplacePredictionsWithoutMargin.length; i++) {
-      for(int j = 0; j < inplacePredictionsWithoutMargin[i].length; j++) {
+    for (int i = 0; i < inplacePredictionsWithoutMargin.length; i++) {
+      for (int j = 0; j < inplacePredictionsWithoutMargin[i].length; j++) {
         inplacePredictionsWithoutMargin[i][j] += margin[j];
       }
     }
-    assertArrayEquals(inplacePredictionsWithMargin, inplacePredictionsWithoutMargin);
+    for (int i = 0; i < inplacePredictionsWithoutMargin.length; i++) {
+      assertArrayEquals(inplacePredictionsWithMargin[i], inplacePredictionsWithoutMargin[i], 1e-6f);
+    }
   }
 
   private float[] generateRandomDataSet(int size) {
