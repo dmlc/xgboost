@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "../collective/broadcast.h"
 #include "../collective/communicator-inl.h"
 #include "../common/io.h"
 #include "xgboost/json.h"
@@ -44,7 +45,8 @@ class TreeSyncher : public TreeUpdater {
       }
     }
     fs.Seek(0);
-    collective::Broadcast(&s_model, 0);
+    auto rc = collective::Broadcast(ctx_, linalg::MakeVec(s_model.data(), s_model.size()), 0);
+    CHECK(rc.OK()) << rc.Report();
     for (auto tree : trees) {
       tree->Load(&fs);
     }

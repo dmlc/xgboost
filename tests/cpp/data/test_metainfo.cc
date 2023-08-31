@@ -3,15 +3,16 @@
  */
 #include "test_metainfo.h"
 
-#include <gmock/gmock.h>
 #include <dmlc/io.h>
+#include <gmock/gmock.h>
 #include <xgboost/data.h>
 
 #include <memory>
 #include <string>
 
-#include "../filesystem.h"  // dmlc::TemporaryDirectory
-#include "../helpers.h"     // for GMockTHrow
+#include "../collective/test_worker.h"  // for TestDistributedGlobal
+#include "../filesystem.h"              // dmlc::TemporaryDirectory
+#include "../helpers.h"                 // for GMockTHrow
 #include "xgboost/base.h"
 
 namespace xgboost {
@@ -118,8 +119,8 @@ void VerifyGetSetFeatureColumnSplit() {
 }  // anonymous namespace
 
 TEST(MetaInfo, GetSetFeatureColumnSplit) {
-  auto constexpr kWorldSize{3};
-  RunWithInMemoryCommunicator(kWorldSize, VerifyGetSetFeatureColumnSplit);
+  auto constexpr kWorkers{3};
+  collective::TestDistributedGlobal(kWorkers, VerifyGetSetFeatureColumnSplit);
 }
 
 TEST(MetaInfo, SaveLoadBinary) {

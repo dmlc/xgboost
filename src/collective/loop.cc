@@ -243,6 +243,16 @@ Result Loop::Stop() {
   }
 }
 
+void Loop::Submit(Op op) {
+  std::unique_lock lock{mu_};
+  if (op.code != Op::kBlock) {
+    CHECK_NE(op.n, 0);
+  }
+  queue_.push(op);
+  lock.unlock();
+  cv_.notify_one();
+}
+
 Loop::Loop(std::chrono::seconds timeout) : timeout_{timeout} {
   timer_.Init(__func__);
   worker_ = std::thread{[this] { this->Process(); }};

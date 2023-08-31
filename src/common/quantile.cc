@@ -116,19 +116,19 @@ INSTANTIATE(ColumnarAdapterBatch)
 
 namespace {
 /**
- * \brief A view over gathered sketch values.
+ * @brief A view over gathered sketch values.
  */
 template <typename T>
 struct QuantileAllreduce {
   common::Span<T> global_values;
   common::Span<bst_idx_t> worker_indptr;
   common::Span<bst_idx_t> feature_indptr;
-  size_t n_features{0};
+  bst_feature_t n_features{0};
   /**
-   * \brief Get sketch values of the a feature from a worker.
+   * @brief Get sketch values of the a feature from a worker.
    *
-   * \param rank rank of target worker
-   * \param fidx feature idx
+   * @param rank rank of target worker
+   * @param fidx feature idx
    */
   [[nodiscard]] auto Values(int32_t rank, bst_feature_t fidx) const {
     // get span for worker
@@ -154,7 +154,7 @@ void SketchContainerImpl<WQSketch>::GatherSketchInfo(
   worker_segments.resize(1, 0);
   auto world = collective::GetWorldSize();
   auto rank = collective::GetRank();
-  auto n_columns = sketches_.size();
+  bst_feature_t n_columns = sketches_.size();
 
   // get the size of each feature.
   std::vector<bst_idx_t> sketch_size;
@@ -165,7 +165,7 @@ void SketchContainerImpl<WQSketch>::GatherSketchInfo(
       sketch_size.push_back(reduced[i].size);
     }
   }
-  // turn the size into CSC indptr
+  // Turn the size into CSC indptr
   std::vector<bst_idx_t> &sketches_scan = *p_sketches_scan;
   sketches_scan.resize((n_columns + 1) * world, 0);
   size_t beg_scan = rank * (n_columns + 1);  // starting storage for current worker.
@@ -244,6 +244,9 @@ void SketchContainerImpl<WQSketch>::AllreduceCategories(Context const* ctx, Meta
   // indptr for indexing workers
   std::vector<bst_idx_t> global_worker_ptr(world_size + 1, 0);
   global_worker_ptr[rank + 1] = total;  // shift 1 to right for constructing the indptr
+  if (collective::GetRank() == 0) {
+    std::cout << "ws:" << world_size << " ptr:" << global_worker_ptr.size() << std::endl;
+  }
   rc = collective::GlobalSum(ctx, info,
                              linalg::MakeVec(global_worker_ptr.data(), global_worker_ptr.size()));
   std::partial_sum(global_worker_ptr.cbegin(), global_worker_ptr.cend(), global_worker_ptr.begin());
@@ -260,7 +263,7 @@ void SketchContainerImpl<WQSketch>::AllreduceCategories(Context const* ctx, Meta
   rc = collective::GlobalSum(ctx, info,
                              linalg::MakeVec(global_categories.data(), global_categories.size()));
   QuantileAllreduce<float> allreduce_result{global_categories, global_worker_ptr, global_feat_ptrs,
-                                            categories_.size()};
+                                            static_cast<bst_feature_t>(categories_.size())};
   ParallelFor(categories_.size(), n_threads_, [&](auto fidx) {
     if (!IsCat(feature_types_, fidx)) {
       return;
@@ -285,8 +288,9 @@ void SketchContainerImpl<WQSketch>::AllReduce(
     std::vector<typename WQSketch::SummaryContainer> *p_reduced, std::vector<int32_t> *p_num_cuts) {
   monitor_.Start(__func__);
 
-  size_t n_columns = sketches_.size();
-  collective::Allreduce<collective::Operation::kMax>(&n_columns, 1);
+  bst_feature_t n_columns = sketches_.size();
+  auto rc = collective::Allreduce(ctx, &n_columns, collective::Op::kMax);
+  collective::SafeColl(rc);
   CHECK_EQ(n_columns, sketches_.size()) << "Number of columns differs across workers";
 
   AllreduceCategories(ctx, info);
@@ -300,8 +304,8 @@ void SketchContainerImpl<WQSketch>::AllReduce(
 
   // Prune the intermediate num cuts for synchronization.
   std::vector<bst_idx_t> global_column_size(columns_size_);
-  auto rc = collective::GlobalSum(
-      ctx, info, linalg::MakeVec(global_column_size.data(), global_column_size.size()));
+  rc = collective::GlobalSum(ctx, info,
+                             linalg::MakeVec(global_column_size.data(), global_column_size.size()));
   collective::SafeColl(rc);
 
   ParallelFor(sketches_.size(), n_threads_, [&](size_t i) {

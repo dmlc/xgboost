@@ -13,13 +13,18 @@
 #include "../../../src/common/common.h"
 #include "../../../src/data/ellpack_page.cuh"  // for EllpackPageImpl
 #include "../../../src/data/ellpack_page.h"    // for EllpackPage
-#include "../../../src/tree/param.h"  // for TrainParam
+#include "../../../src/tree/param.h"           // for TrainParam
 #include "../../../src/tree/updater_gpu_hist.cu"
-#include "../filesystem.h"  // dmlc::TemporaryDirectory
+#include "../collective/test_worker.h"  // for BaseMGPUTest
+#include "../filesystem.h"              // dmlc::TemporaryDirectory
 #include "../helpers.h"
 #include "../histogram_helpers.h"
 #include "xgboost/context.h"
 #include "xgboost/json.h"
+
+#if defined(XGBOOST_USE_FEDERATED)
+#include "../plugin/federated/test_worker.h"  // for TestFederatedGlobal
+#endif  // defined(XGBOOST_USE_FEDERATED)
 
 namespace xgboost::tree {
 TEST(GpuHist, DeviceHistogram) {
@@ -458,9 +463,9 @@ void VerifyHistColumnSplit(bst_idx_t rows, bst_feature_t cols, RegTree const& ex
 }
 }  // anonymous namespace
 
-class MGPUHistTest : public BaseMGPUTest {};
+class MGPUHistTest : public collective::BaseMGPUTest {};
 
-TEST_F(MGPUHistTest, GPUHistColumnSplit) {
+TEST_F(MGPUHistTest, HistColumnSplit) {
   auto constexpr kRows = 32;
   auto constexpr kCols = 16;
 
@@ -468,7 +473,8 @@ TEST_F(MGPUHistTest, GPUHistColumnSplit) {
   auto dmat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
   RegTree expected_tree = GetHistTree(&ctx, dmat.get());
 
-  DoTest(VerifyHistColumnSplit, kRows, kCols, expected_tree);
+  this->DoTest([&] { VerifyHistColumnSplit(kRows, kCols, expected_tree); }, true);
+  this->DoTest([&] { VerifyHistColumnSplit(kRows, kCols, expected_tree); }, false);
 }
 
 namespace {
@@ -508,7 +514,7 @@ void VerifyApproxColumnSplit(bst_idx_t rows, bst_feature_t cols, RegTree const& 
 }
 }  // anonymous namespace
 
-class MGPUApproxTest : public BaseMGPUTest {};
+class MGPUApproxTest : public collective::BaseMGPUTest {};
 
 TEST_F(MGPUApproxTest, GPUApproxColumnSplit) {
   auto constexpr kRows = 32;
@@ -518,6 +524,7 @@ TEST_F(MGPUApproxTest, GPUApproxColumnSplit) {
   auto dmat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
   RegTree expected_tree = GetApproxTree(&ctx, dmat.get());
 
-  DoTest(VerifyApproxColumnSplit, kRows, kCols, expected_tree);
+  this->DoTest([&] { VerifyApproxColumnSplit(kRows, kCols, expected_tree); }, true);
+  this->DoTest([&] { VerifyApproxColumnSplit(kRows, kCols, expected_tree); }, false);
 }
 }  // namespace xgboost::tree

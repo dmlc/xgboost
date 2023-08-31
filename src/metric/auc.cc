@@ -264,9 +264,14 @@ class EvalAUC : public MetricNoCache {
       info.weights_.SetDevice(ctx_->Device());
     }
     //  We use the global size to handle empty dataset.
-    std::array<size_t, 2> meta{info.labels.Size(), preds.Size()};
+    std::array<bst_idx_t, 2> meta{info.labels.Size(), preds.Size()};
     if (!info.IsVerticalFederated()) {
-      collective::Allreduce<collective::Operation::kMax>(meta.data(), meta.size());
+      auto rc = collective::Allreduce(
+          ctx_,
+          linalg::MakeTensorView(DeviceOrd::CPU(), common::Span{meta.data(), meta.size()},
+                                 meta.size()),
+          collective::Op::kMax);
+      collective::SafeColl(rc);
     }
     if (meta[0] == 0) {
       // Empty across all workers, which is not supported.

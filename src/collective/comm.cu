@@ -80,7 +80,7 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
   auto s_this_uuid = s_uuid.subspan(root.Rank() * kUuidLength, kUuidLength);
   GetCudaUUID(s_this_uuid, ctx->Device());
 
-  auto rc = pimpl->Allgather(root, common::EraseType(s_uuid), s_this_uuid.size_bytes());
+  auto rc = pimpl->Allgather(root, common::EraseType(s_uuid));
 
   CHECK(rc.OK()) << rc.Report();
 

@@ -162,7 +162,7 @@ struct Result {
 
 // We don't have monad, a simple helper would do.
 template <typename Fn>
-[[nodiscard]] Result operator<<(Result&& r, Fn&& fn) {
+[[nodiscard]] std::enable_if_t<std::is_invocable_v<Fn>, Result> operator<<(Result&& r, Fn&& fn) {
   if (!r.OK()) {
     return std::forward<Result>(r);
   }

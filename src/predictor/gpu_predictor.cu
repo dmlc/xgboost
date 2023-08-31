@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2023 by XGBoost Contributors
+ * Copyright 2017-2024, XGBoost Contributors
  */
 #include <GPUTreeShap/gpu_treeshap.h>
 #include <thrust/copy.h>
@@ -11,7 +11,7 @@
 #include <any>  // for any, any_cast
 #include <memory>
 
-#include "../collective/communicator-inl.cuh"
+#include "../collective/allreduce.h"
 #include "../common/bitfield.h"
 #include "../common/categorical.h"
 #include "../common/common.h"
@@ -817,10 +817,18 @@ class ColumnSplitHelper {
 
   void AllReduceBitVectors(dh::caching_device_vector<BitType>* decision_storage,
                            dh::caching_device_vector<BitType>* missing_storage) const {
-    collective::AllReduce<collective::Operation::kBitwiseOR>(
-        ctx_->Ordinal(), decision_storage->data().get(), decision_storage->size());
-    collective::AllReduce<collective::Operation::kBitwiseAND>(
-        ctx_->Ordinal(), missing_storage->data().get(), missing_storage->size());
+    auto rc = collective::Success() << [&] {
+      return collective::Allreduce(
+          ctx_,
+          linalg::MakeVec(decision_storage->data().get(), decision_storage->size(), ctx_->Device()),
+          collective::Op::kBitwiseOR);
+    } << [&] {
+      return collective::Allreduce(
+          ctx_,
+          linalg::MakeVec(missing_storage->data().get(), missing_storage->size(), ctx_->Device()),
+          collective::Op::kBitwiseAND);
+    };
+    collective::SafeColl(rc);
   }
 
   void ResizeBitVectors(dh::caching_device_vector<BitType>* decision_storage,

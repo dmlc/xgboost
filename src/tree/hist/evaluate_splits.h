@@ -12,6 +12,7 @@
 #include <utility>    // for move
 #include <vector>     // for vector
 
+#include "../../collective/allgather.h"
 #include "../../common/categorical.h"  // for CatBitField
 #include "../../common/hist_util.h"    // for GHistRow, HistogramCuts
 #include "../../common/linalg_op.h"    // for cbegin, cend, begin
@@ -35,7 +36,7 @@ template <typename ExpandEntry>
 std::enable_if_t<std::is_same_v<ExpandEntry, CPUExpandEntry> ||
                      std::is_same_v<ExpandEntry, MultiExpandEntry>,
                  std::vector<ExpandEntry>>
-AllgatherColumnSplit(std::vector<ExpandEntry> const &entries) {
+AllgatherColumnSplit(Context const *ctx, std::vector<ExpandEntry> const &entries) {
   auto const n_entries = entries.size();
 
   // First, gather all the primitive fields.
@@ -52,7 +53,7 @@ AllgatherColumnSplit(std::vector<ExpandEntry> const &entries) {
 
     serialized_entries.emplace_back(std::move(out));
   }
-  auto all_serialized = collective::VectorAllgatherV(serialized_entries);
+  auto all_serialized = collective::VectorAllgatherV(ctx, serialized_entries);
   CHECK_GE(all_serialized.size(), local_entries.size());
 
   std::vector<ExpandEntry> all_entries(all_serialized.size());
@@ -401,7 +402,7 @@ class HistEvaluator {
     if (is_col_split_) {
       // With column-wise data split, we gather the best splits from all the workers and update the
       // expand entries accordingly.
-      auto all_entries = AllgatherColumnSplit(entries);
+      auto all_entries = AllgatherColumnSplit(ctx_, entries);
       for (auto worker = 0; worker < collective::GetWorldSize(); ++worker) {
         for (std::size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
           entries[nidx_in_set].split.Update(
@@ -632,7 +633,7 @@ class HistMultiEvaluator {
     if (is_col_split_) {
       // With column-wise data split, we gather the best splits from all the workers and update the
       // expand entries accordingly.
-      auto all_entries = AllgatherColumnSplit(entries);
+      auto all_entries = AllgatherColumnSplit(ctx_, entries);
       for (auto worker = 0; worker < collective::GetWorldSize(); ++worker) {
         for (std::size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
           entries[nidx_in_set].split.Update(

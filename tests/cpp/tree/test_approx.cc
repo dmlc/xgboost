@@ -1,15 +1,15 @@
 /**
- * Copyright 2021-2023 by XGBoost contributors.
+ * Copyright 2021-2024, XGBoost contributors.
  */
 #include <gtest/gtest.h>
 
 #include "../../../src/common/numeric.h"
 #include "../../../src/tree/common_row_partitioner.h"
+#include "../collective/test_worker.h"  // for TestDistributedGlobal
 #include "../helpers.h"
 #include "test_partitioner.h"
 
-namespace xgboost {
-namespace tree {
+namespace xgboost::tree {
 namespace {
 std::vector<float> GenerateHess(size_t n_samples) {
   auto grad = GenerateRandomGradients(n_samples);
@@ -145,8 +145,9 @@ TEST(Approx, PartitionerColSplit) {
   }
 
   auto constexpr kWorkers = 4;
-  RunWithInMemoryCommunicator(kWorkers, TestColumnSplitPartitioner, n_samples, base_rowid, Xy,
-                              &hess, min_value, mid_value, mid_partitioner);
+  collective::TestDistributedGlobal(kWorkers, [&] {
+    TestColumnSplitPartitioner(n_samples, base_rowid, Xy, &hess, min_value, mid_value,
+                               mid_partitioner);
+  });
 }
-}  // namespace tree
-}  // namespace xgboost
+}  // namespace xgboost::tree

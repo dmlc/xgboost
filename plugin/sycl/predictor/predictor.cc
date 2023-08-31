@@ -4,7 +4,6 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"
 #pragma GCC diagnostic ignored "-W#pragma-messages"
-#include <rabit/rabit.h>
 #pragma GCC diagnostic pop
 
 #include <cstddef>

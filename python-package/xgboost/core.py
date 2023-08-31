@@ -295,7 +295,7 @@ def _check_distributed_params(kwargs: Dict[str, Any]) -> None:
     if device and device.find(":") != -1:
         raise ValueError(
             "Distributed training doesn't support selecting device ordinal as GPUs are"
-            " managed by the distributed framework. use `device=cuda` or `device=gpu`"
+            " managed by the distributed frameworks. use `device=cuda` or `device=gpu`"
             " instead."
         )
 

@@ -298,6 +298,7 @@ double Finalize(Context const* ctx, MetaInfo const& info, double score, double s
   std::array<double, 2> dat{score, sw};
   auto rc = collective::GlobalSum(ctx, info, linalg::MakeVec(dat.data(), 2));
   collective::SafeColl(rc);
+
   std::tie(score, sw) = std::tuple_cat(dat);
   if (sw > 0.0) {
     score = score / sw;

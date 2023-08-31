@@ -520,67 +520,6 @@ inline LearnerModelParam MakeMP(bst_feature_t n_features, float base_score, uint
 
 inline std::int32_t AllThreadsForTest() { return Context{}.Threads(); }
 
-template <bool use_nccl = false, typename Function, typename... Args>
-void RunWithInMemoryCommunicator(int32_t world_size, Function&& function, Args&&... args) {
-  auto run = [&](auto rank) {
-    Json config{JsonObject()};
-    if constexpr (use_nccl) {
-      config["xgboost_communicator"] = String("in-memory-nccl");
-    } else {
-      config["xgboost_communicator"] = String("in-memory");
-    }
-    config["in_memory_world_size"] = world_size;
-    config["in_memory_rank"] = rank;
-    xgboost::collective::Init(config);
-
-    std::forward<Function>(function)(std::forward<Args>(args)...);
-
-    xgboost::collective::Finalize();
-  };
-#if defined(_OPENMP)
-  common::ParallelFor(world_size, world_size, run);
-#else
-  std::vector<std::thread> threads;
-  for (auto rank = 0; rank < world_size; rank++) {
-    threads.emplace_back(run, rank);
-  }
-  for (auto& thread : threads) {
-    thread.join();
-  }
-#endif
-}
-
-class BaseMGPUTest : public ::testing::Test {
- protected:
-  int world_size_;
-  bool use_nccl_{false};
-
-  void SetUp() override {
-    auto const n_gpus = common::AllVisibleGPUs();
-    if (n_gpus <= 1) {
-      // Use a single GPU to simulate distributed environment.
-      world_size_ = 3;
-      // NCCL doesn't like sharing a single GPU, so we use the adapter instead.
-      use_nccl_ = false;
-    } else {
-      // Use multiple GPUs for real.
-      world_size_ = n_gpus;
-      use_nccl_ = true;
-    }
-  }
-
-  template <typename Function, typename... Args>
-  void DoTest(Function&& function, Args&&... args) {
-    if (use_nccl_) {
-      RunWithInMemoryCommunicator<true>(world_size_, function, args...);
-    } else {
-      RunWithInMemoryCommunicator<false>(world_size_, function, args...);
-    }
-  }
-};
-
-class DeclareUnifiedDistributedTest(MetricTest) : public BaseMGPUTest{};
-
 inline DeviceOrd FstCU() { return DeviceOrd::CUDA(0); }
 
 inline auto GMockThrow(StringView msg) {

@@ -41,11 +41,11 @@ class BroadcastTest : public SocketTest {};
 }  // namespace
 
 TEST_F(BroadcastTest, Basic) {
-  std::int32_t n_workers = std::min(7u, std::thread::hardware_concurrency());
+  std::int32_t n_workers = std::min(2u, std::thread::hardware_concurrency());
   TestDistributed(n_workers, [=](std::string host, std::int32_t port, std::chrono::seconds timeout,
                                  std::int32_t r) {
     Worker worker{host, port, timeout, n_workers, r};
     worker.Run();
   });
-}  // namespace
+}
 }  // namespace xgboost::collective

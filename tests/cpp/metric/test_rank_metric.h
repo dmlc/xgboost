@@ -19,8 +19,8 @@
 
 namespace xgboost::metric {
 
-inline void VerifyPrecision(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  auto ctx = MakeCUDACtx(GPUIDX);
+inline void VerifyPrecision(DataSplitMode data_split_mode, DeviceOrd device) {
+  auto ctx = MakeCUDACtx(device.ordinal);
   std::unique_ptr<xgboost::Metric> metric{Metric::Create("pre", &ctx)};
   ASSERT_STREQ(metric->Name(), "pre");
   EXPECT_NEAR(GetMetricEval(metric.get(), {0, 1}, {0, 1}, {}, {}, data_split_mode), 0.5, 1e-7);
@@ -43,8 +43,8 @@ inline void VerifyPrecision(DataSplitMode data_split_mode = DataSplitMode::kRow)
               0.5f, 1e-7);
 }
 
-inline void VerifyNDCG(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  auto ctx = MakeCUDACtx(GPUIDX);
+inline void VerifyNDCG(DataSplitMode data_split_mode, DeviceOrd device) {
+  auto ctx = MakeCUDACtx(device.ordinal);
   Metric * metric = xgboost::Metric::Create("ndcg", &ctx);
   ASSERT_STREQ(metric->Name(), "ndcg");
   EXPECT_ANY_THROW(GetMetricEval(metric, {0, 1}, {}, {}, {}, data_split_mode));
@@ -101,8 +101,8 @@ inline void VerifyNDCG(DataSplitMode data_split_mode = DataSplitMode::kRow) {
   delete metric;
 }
 
-inline void VerifyMAP(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  auto ctx = MakeCUDACtx(GPUIDX);
+inline void VerifyMAP(DataSplitMode data_split_mode, DeviceOrd device) {
+  auto ctx = MakeCUDACtx(device.ordinal);
   Metric * metric = xgboost::Metric::Create("map", &ctx);
   ASSERT_STREQ(metric->Name(), "map");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}, data_split_mode), 1, kRtEps);
@@ -149,8 +149,8 @@ inline void VerifyMAP(DataSplitMode data_split_mode = DataSplitMode::kRow) {
   delete metric;
 }
 
-inline void VerifyNDCGExpGain(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  Context ctx = MakeCUDACtx(GPUIDX);
+inline void VerifyNDCGExpGain(DataSplitMode data_split_mode, DeviceOrd device) {
+  Context ctx = MakeCUDACtx(device.ordinal);
 
   auto p_fmat = xgboost::RandomDataGenerator{0, 0, 0}.GenerateDMatrix();
   MetaInfo& info = p_fmat->Info();

@@ -1,15 +1,14 @@
 /**
  * Copyright 2017-2024, XGBoost contributors
  */
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
-#include <xgboost/learner.h>                        // for Learner
-#include <xgboost/logging.h>                        // for LogCheck_NE, CHECK_NE, LogCheck_EQ
-#include <xgboost/objective.h>                      // for ObjFunction
-#include <xgboost/version_config.h>                 // for XGBOOST_VER_MAJOR, XGBOOST_VER_MINOR
+#include <gtest/gtest.h>
+#include <xgboost/learner.h>         // for Learner
+#include <xgboost/logging.h>         // for LogCheck_NE, CHECK_NE, LogCheck_EQ
+#include <xgboost/objective.h>       // for ObjFunction
+#include <xgboost/version_config.h>  // for XGBOOST_VER_MAJOR, XGBOOST_VER_MINOR
 
 #include <algorithm>                                // for equal, transform
-#include <cinttypes>                                // for int32_t, int64_t, uint32_t
 #include <cstddef>                                  // for size_t
 #include <iosfwd>                                   // for ofstream
 #include <limits>                                   // for numeric_limits
@@ -27,6 +26,7 @@
 #include "../../src/common/io.h"                    // for LoadSequentialFile
 #include "../../src/common/linalg_op.h"             // for ElementWiseTransformHost, begin, end
 #include "../../src/common/random.h"                // for GlobalRandom
+#include "./collective/test_worker.h"               // for TestDistributedGlobal
 #include "dmlc/io.h"                                // for Stream
 #include "dmlc/omp.h"                               // for omp_get_max_threads
 #include "filesystem.h"                             // for TemporaryDirectory
@@ -703,7 +703,9 @@ class TestColumnSplit : public ::testing::TestWithParam<std::string> {
     auto constexpr kWorldSize{3};
     auto call = [this, &objective](auto&... args) { TestBaseScore(objective, args...); };
     auto score = GetBaseScore(config);
-    RunWithInMemoryCommunicator(kWorldSize, call, score, model);
+    collective::TestDistributedGlobal(kWorldSize, [&] {
+      call(score, model);
+    });
   }
 };
 
@@ -760,8 +762,8 @@ void TestColumnSplitWithArgs(std::string const& tree_method, bool use_gpu, Args 
       world_size = 3;
     }
   }
-  RunWithInMemoryCommunicator(world_size, VerifyColumnSplitWithArgs, tree_method, use_gpu, args,
-                              model);
+  collective::TestDistributedGlobal(
+      world_size, [&] { VerifyColumnSplitWithArgs(tree_method, use_gpu, args, model); });
 }
 
 void TestColumnSplitColumnSampler(std::string const& tree_method, bool use_gpu) {

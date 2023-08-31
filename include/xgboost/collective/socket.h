@@ -631,9 +631,9 @@ class TCPSocket {
    */
   std::size_t Send(StringView str);
   /**
-   * \brief Receive string, format is matched with the Python socket wrapper in RABIT.
+   * @brief Receive string, format is matched with the Python socket wrapper in RABIT.
    */
-  std::size_t Recv(std::string *p_str);
+  [[nodiscard]] Result Recv(std::string *p_str);
   /**
    * \brief Close the socket, called automatically in destructor if the socket is not closed.
    */

@@ -169,20 +169,22 @@ def _try_start_tracker(
                 host_ip=get_host_ip(host_ip),
                 n_workers=n_workers,
                 port=port,
-                use_logger=False,
+                sortby="task",
             )
         else:
             addr = addrs[0]
             assert isinstance(addr, str) or addr is None
             host_ip = get_host_ip(addr)
             rabit_tracker = RabitTracker(
-                host_ip=host_ip, n_workers=n_workers, use_logger=False, sortby="task"
+                host_ip=host_ip, n_workers=n_workers, sortby="task"
             )
-        env.update(rabit_tracker.worker_envs())
-        rabit_tracker.start(n_workers)
+
+        rabit_tracker.start()
         thread = Thread(target=rabit_tracker.join)
         thread.daemon = True
         thread.start()
+        env.update(rabit_tracker.worker_envs())
+
     except socket.error as e:
         if len(addrs) < 2 or e.errno != 99:
             raise

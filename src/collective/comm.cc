@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright 2023-2024, XGBoost Contributors
  */
 #include "comm.h"
 
@@ -9,8 +9,9 @@
 #include <memory>     // for shared_ptr
 #include <string>     // for string
 #include <utility>    // for move, forward
-
-#include "../common/common.h"           // for AssertGPUSupport
+#if !defined(XGBOOST_USE_NCCL)
+#include "../common/common.h"           // for AssertNCCLSupport
+#endif                                  // !defined(XGBOOST_USE_NCCL)
 #include "allgather.h"                  // for RingAllgather
 #include "protocol.h"                   // for kMagic
 #include "xgboost/base.h"               // for XGBOOST_STRICT_R_MODE
@@ -21,11 +22,7 @@
 namespace xgboost::collective {
 Comm::Comm(std::string const& host, std::int32_t port, std::chrono::seconds timeout,
            std::int32_t retry, std::string task_id)
-    : timeout_{timeout},
-      retry_{retry},
-      tracker_{host, port, -1},
-      task_id_{std::move(task_id)},
-      loop_{std::shared_ptr<Loop>{new Loop{timeout}}} {}
+    : timeout_{timeout}, retry_{retry}, tracker_{host, port, -1}, task_id_{std::move(task_id)} {}
 
 Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, std::int32_t retry,
                           std::string const& task_id, TCPSocket* out, std::int32_t rank,
@@ -191,6 +188,7 @@ RabitComm::RabitComm(std::string const& host, std::int32_t port, std::chrono::se
                      std::int32_t retry, std::string task_id, StringView nccl_path)
     : HostComm{std::move(host), port, timeout, retry, std::move(task_id)},
       nccl_path_{std::move(nccl_path)} {
+  loop_.reset(new Loop{std::chrono::seconds{timeout_}});  // NOLINT
   auto rc = this->Bootstrap(timeout_, retry_, task_id_);
   if (!rc.OK()) {
     SafeColl(Fail("Failed to bootstrap the communication group.", std::move(rc)));
@@ -253,7 +251,7 @@ Comm* RabitComm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
 
   // get ring neighbors
   std::string snext;
-  tracker.Recv(&snext);
+  rc = tracker.Recv(&snext);
   if (!rc.OK()) {
     return Fail("Failed to receive the rank for the next worker.", std::move(rc));
   }
@@ -288,6 +286,7 @@ RabitComm::~RabitComm() noexcept(false) {
   if (!this->IsDistributed()) {
     return;
   }
+  LOG(WARNING) << "Missing call to `Finalize`." << std::endl;
   auto rc = this->Shutdown();
   if (!rc.OK()) {
     LOG(WARNING) << rc.Report();
@@ -295,6 +294,10 @@ RabitComm::~RabitComm() noexcept(false) {
 }
 
 [[nodiscard]] Result RabitComm::Shutdown() {
+  if (!this->IsDistributed()) {
+    return Success();
+  }
+
   TCPSocket tracker;
   return Success() << [&] {
     return ConnectTrackerImpl(tracker_, timeout_, retry_, task_id_, &tracker, Rank(), World());
@@ -308,6 +311,11 @@ RabitComm::~RabitComm() noexcept(false) {
     if (n_bytes != scmd.size()) {
       return Fail("Faled to send cmd.");
     }
+
+    this->ResetState();
+    return Success();
+  } << [&] {
+    this->channels_.clear();
     return Success();
   };
 }
@@ -323,5 +331,31 @@ RabitComm::~RabitComm() noexcept(false) {
   TCPSocket out;
   return Success() << [&] { return this->ConnectTracker(&out); }
                    << [&] { return proto::ErrorCMD{}.WorkerSend(&out, res); };
+}
+
+void Init(Json const& config) { GlobalCommGroupInit(config); }
+
+void Finalize() { GlobalCommGroupFinalize(); }
+
+std::int32_t GetRank() { return GlobalCommGroup()->Rank(); }
+
+std::int32_t GetWorldSize() { return GlobalCommGroup()->World(); }
+
+bool IsDistributed() { return GlobalCommGroup()->IsDistributed(); }
+
+[[nodiscard]] bool IsFederated() {
+  return GlobalCommGroup()->Ctx(nullptr, DeviceOrd::CPU()).IsFederated();
+}
+
+void Print(std::string const& message) {
+  auto rc = GlobalCommGroup()->Ctx(nullptr, DeviceOrd::CPU()).LogTracker(message);
+  CHECK(rc.OK()) << rc.Report();
+}
+
+std::string GetProcessorName() {
+  std::string out;
+  auto rc = GlobalCommGroup()->ProcessorName(&out);
+  CHECK(rc.OK()) << rc.Report();
+  return out;
 }
 }  // namespace xgboost::collective
