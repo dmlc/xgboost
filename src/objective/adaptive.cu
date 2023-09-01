@@ -172,7 +172,9 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
                                                     auto y = d_labels(d_row_index[i]);
                                                     return y - p;
                                                   });
-  CHECK_EQ(d_labels.Shape(0), position.size());
+  if (!info.IsVerticalFederated() || collective::GetRank() == 0) {
+    CHECK_EQ(d_labels.Shape(0), position.size());
+  }
   auto val_end = val_beg + d_labels.Shape(0);
   CHECK_EQ(nidx.Size() + 1, nptr.Size());
   if (info.weights_.Empty()) {

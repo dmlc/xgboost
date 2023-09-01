@@ -848,8 +848,11 @@ class LearnerConfiguration : public Learner {
   void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_score) {
     base_score->Reshape(1);
     collective::ApplyWithLabels(info, base_score->Data()->HostPointer(),
-                                sizeof(bst_float) * base_score->Size(),
-                                [&] { UsePtr(obj_)->InitEstimation(info, base_score); });
+                                sizeof(bst_float) * base_score->Size(), [&] {
+                                  UsePtr(obj_)->InitEstimation(info, base_score);
+                                  // Ensure the base score is on host.
+                                  auto view = base_score->HostView();
+                                });
   }
 };
 
@@ -1468,8 +1471,11 @@ class LearnerImpl : public LearnerIO {
                    std::int32_t iter, linalg::Matrix<GradientPair>* out_gpair) {
     out_gpair->Reshape(info.num_row_, this->learner_model_param_.OutputLength());
     collective::ApplyWithLabels(info, out_gpair->Data()->HostPointer(),
-                                out_gpair->Size() * sizeof(GradientPair),
-                                [&] { obj_->GetGradient(preds, info, iter, out_gpair); });
+                                out_gpair->Size() * sizeof(GradientPair), [&] {
+                                  obj_->GetGradient(preds, info, iter, out_gpair);
+                                  // Ensure the gradients are on host.
+                                  auto view = out_gpair->HostView();
+                                });
   }
 
   /*! \brief random number transformation seed. */

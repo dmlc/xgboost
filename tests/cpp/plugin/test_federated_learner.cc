@@ -65,8 +65,8 @@ void VerifyObjective(size_t rows, size_t cols, float expected_base_score, Json e
 
   auto model = MakeModel(tree_method, device, objective, sliced);
   auto base_score = GetBaseScore(model);
-  ASSERT_EQ(base_score, expected_base_score);
-  ASSERT_EQ(model, expected_model);
+  ASSERT_EQ(base_score, expected_base_score) << " rank " << rank;
+  ASSERT_EQ(model, expected_model) << " rank " << rank;
 }
 }  // namespace
 
@@ -118,6 +118,13 @@ TEST_P(VerticalFederatedLearnerTest, Hist) {
   std::string objective = GetParam();
   this->Run("hist", "cpu", objective);
 }
+
+#if defined(XGBOOST_USE_CUDA)
+TEST_P(VerticalFederatedLearnerTest, GPUHist) {
+  std::string objective = GetParam();
+  this->Run("hist", "cuda:0", objective);
+}
+#endif  // defined(XGBOOST_USE_CUDA)
 
 INSTANTIATE_TEST_SUITE_P(
     FederatedLearnerObjective, VerticalFederatedLearnerTest,
