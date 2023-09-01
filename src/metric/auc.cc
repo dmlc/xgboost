@@ -82,22 +82,19 @@ template <typename BinaryAUC>
 double MultiClassOVR(Context const *ctx, common::Span<float const> predts, MetaInfo const &info,
                      size_t n_classes, int32_t n_threads, BinaryAUC &&binary_auc) {
   CHECK_NE(n_classes, 0);
-  auto const labels = info.labels.View(Context::kCpuId);
+  auto const labels = info.labels.HostView();
   if (labels.Shape(0) != 0) {
     CHECK_EQ(labels.Shape(1), 1) << "AUC doesn't support multi-target model.";
   }
 
   std::vector<double> results_storage(n_classes * 3, 0);
-  linalg::TensorView<double, 2> results(results_storage, {n_classes, static_cast<size_t>(3)},
-                                        Context::kCpuId);
+  auto results = linalg::MakeTensorView(ctx, results_storage, n_classes, 3);
   auto local_area = results.Slice(linalg::All(), 0);
   auto tp = results.Slice(linalg::All(), 1);
   auto auc = results.Slice(linalg::All(), 2);
 
   auto weights = common::OptionalWeights{info.weights_.ConstHostSpan()};
-  auto predts_t = linalg::TensorView<float const, 2>(
-      predts, {static_cast<size_t>(info.num_row_), n_classes},
-      Context::kCpuId);
+  auto predts_t = linalg::MakeTensorView(ctx, predts, info.num_row_, n_classes);
 
   if (info.labels.Size() != 0) {
     common::ParallelFor(n_classes, n_threads, [&](auto c) {
@@ -108,8 +105,8 @@ double MultiClassOVR(Context const *ctx, common::Span<float const> predts, MetaI
         response[i] = labels(i) == c ? 1.0f : 0.0;
       }
       double fp;
-      std::tie(fp, tp(c), auc(c)) =
-          binary_auc(ctx, proba, linalg::MakeVec(response.data(), response.size(), -1), weights);
+      std::tie(fp, tp(c), auc(c)) = binary_auc(
+          ctx, proba, linalg::MakeVec(response.data(), response.size(), ctx->Device()), weights);
       local_area(c) = fp * tp(c);
     });
   }
@@ -220,7 +217,7 @@ std::pair<double, uint32_t> RankingAUC(Context const *ctx, std::vector<float> co
   CHECK_GE(info.group_ptr_.size(), 2);
   uint32_t n_groups = info.group_ptr_.size() - 1;
   auto s_predts = common::Span<float const>{predts};
-  auto labels = info.labels.View(Context::kCpuId);
+  auto labels = info.labels.View(ctx->Device());
   auto s_weights = info.weights_.ConstHostSpan();
 
   std::atomic<uint32_t> invalid_groups{0};
@@ -363,8 +360,8 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
                                            info.labels.HostView().Slice(linalg::All(), 0),
                                            common::OptionalWeights{info.weights_.ConstHostSpan()});
     } else {
-      std::tie(fp, tp, auc) = GPUBinaryROCAUC(predts.ConstDeviceSpan(), info,
-                                              ctx_->gpu_id, &this->d_cache_);
+      std::tie(fp, tp, auc) =
+          GPUBinaryROCAUC(predts.ConstDeviceSpan(), info, ctx_->Device(), &this->d_cache_);
     }
     return std::make_tuple(fp, tp, auc);
   }
@@ -381,8 +378,7 @@ XGBOOST_REGISTER_METRIC(EvalAUC, "auc")
 
 #if !defined(XGBOOST_USE_CUDA)
 std::tuple<double, double, double> GPUBinaryROCAUC(common::Span<float const>, MetaInfo const &,
-                                                   std::int32_t,
-                                                   std::shared_ptr<DeviceAUCCache> *) {
+                                                   DeviceOrd, std::shared_ptr<DeviceAUCCache> *) {
   common::AssertGPUSupport();
   return {};
 }
@@ -414,8 +410,8 @@ class EvalPRAUC : public EvalAUC<EvalPRAUC> {
           BinaryPRAUC(ctx_, predts.ConstHostSpan(), info.labels.HostView().Slice(linalg::All(), 0),
                       common::OptionalWeights{info.weights_.ConstHostSpan()});
     } else {
-      std::tie(pr, re, auc) = GPUBinaryPRAUC(predts.ConstDeviceSpan(), info,
-                                             ctx_->gpu_id, &this->d_cache_);
+      std::tie(pr, re, auc) =
+          GPUBinaryPRAUC(predts.ConstDeviceSpan(), info, ctx_->Device(), &this->d_cache_);
     }
     return std::make_tuple(pr, re, auc);
   }
@@ -459,7 +455,7 @@ XGBOOST_REGISTER_METRIC(AUCPR, "aucpr")
 
 #if !defined(XGBOOST_USE_CUDA)
 std::tuple<double, double, double> GPUBinaryPRAUC(common::Span<float const>, MetaInfo const &,
-                                                  std::int32_t, std::shared_ptr<DeviceAUCCache> *) {
+                                                  DeviceOrd, std::shared_ptr<DeviceAUCCache> *) {
   common::AssertGPUSupport();
   return {};
 }

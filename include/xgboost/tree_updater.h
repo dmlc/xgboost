@@ -71,7 +71,7 @@ class TreeUpdater : public Configurable {
    *         but maybe different random seeds, usually one tree is passed in at a time,
    *         there can be multiple trees when we train random forest style model
    */
-  virtual void Update(tree::TrainParam const* param, HostDeviceVector<GradientPair>* gpair,
+  virtual void Update(tree::TrainParam const* param, linalg::Matrix<GradientPair>* gpair,
                       DMatrix* data, common::Span<HostDeviceVector<bst_node_t>> out_position,
                       const std::vector<RegTree*>& out_trees) = 0;
 

@@ -45,7 +45,7 @@ namespace {
 template <typename Fn>
 PackedReduceResult Reduce(Context const* ctx, MetaInfo const& info, Fn&& loss) {
   PackedReduceResult result;
-  auto labels = info.labels.View(ctx->gpu_id);
+  auto labels = info.labels.View(ctx->Device());
   if (ctx->IsCPU()) {
     auto n_threads = ctx->Threads();
     std::vector<double> score_tloc(n_threads, 0.0);
@@ -183,10 +183,10 @@ class PseudoErrorLoss : public MetricNoCache {
 
   double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info) override {
     CHECK_EQ(info.labels.Shape(0), info.num_row_);
-    auto labels = info.labels.View(ctx_->gpu_id);
-    preds.SetDevice(ctx_->gpu_id);
+    auto labels = info.labels.View(ctx_->Device());
+    preds.SetDevice(ctx_->Device());
     auto predts = ctx_->IsCPU() ? preds.ConstHostSpan() : preds.ConstDeviceSpan();
-    info.weights_.SetDevice(ctx_->gpu_id);
+    info.weights_.SetDevice(ctx_->Device());
     common::OptionalWeights weights(ctx_->IsCPU() ? info.weights_.ConstHostSpan()
                                                      : info.weights_.ConstDeviceSpan());
     float slope = this->param_.huber_slope;
@@ -349,11 +349,11 @@ struct EvalEWiseBase : public MetricNoCache {
     if (info.labels.Size() != 0) {
       CHECK_NE(info.labels.Shape(1), 0);
     }
-    auto labels = info.labels.View(ctx_->gpu_id);
-    info.weights_.SetDevice(ctx_->gpu_id);
+    auto labels = info.labels.View(ctx_->Device());
+    info.weights_.SetDevice(ctx_->Device());
     common::OptionalWeights weights(ctx_->IsCPU() ? info.weights_.ConstHostSpan()
                                                      : info.weights_.ConstDeviceSpan());
-    preds.SetDevice(ctx_->gpu_id);
+    preds.SetDevice(ctx_->Device());
     auto predts = ctx_->IsCPU() ? preds.ConstHostSpan() : preds.ConstDeviceSpan();
 
     auto d_policy = policy_;
@@ -444,16 +444,16 @@ class QuantileError : public MetricNoCache {
     }
 
     auto const* ctx = ctx_;
-    auto y_true = info.labels.View(ctx->gpu_id);
-    preds.SetDevice(ctx->gpu_id);
-    alpha_.SetDevice(ctx->gpu_id);
+    auto y_true = info.labels.View(ctx->Device());
+    preds.SetDevice(ctx->Device());
+    alpha_.SetDevice(ctx->Device());
     auto alpha = ctx->IsCPU() ? alpha_.ConstHostSpan() : alpha_.ConstDeviceSpan();
     std::size_t n_targets = preds.Size() / info.num_row_ / alpha_.Size();
     CHECK_NE(n_targets, 0);
     auto y_predt = linalg::MakeTensorView(ctx, &preds, static_cast<std::size_t>(info.num_row_),
                                           alpha_.Size(), n_targets);
 
-    info.weights_.SetDevice(ctx->gpu_id);
+    info.weights_.SetDevice(ctx->Device());
     common::OptionalWeights weight{ctx->IsCPU() ? info.weights_.ConstHostSpan()
                                                 : info.weights_.ConstDeviceSpan()};
 

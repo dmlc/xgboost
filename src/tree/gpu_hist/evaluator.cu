@@ -14,10 +14,9 @@
 
 namespace xgboost {
 namespace tree {
-void GPUHistEvaluator::Reset(common::HistogramCuts const &cuts,
-                                           common::Span<FeatureType const> ft,
-                                           bst_feature_t n_features, TrainParam const &param,
-                                           int32_t device) {
+void GPUHistEvaluator::Reset(common::HistogramCuts const &cuts, common::Span<FeatureType const> ft,
+                             bst_feature_t n_features, TrainParam const &param,
+                             bool is_column_split, int32_t device) {
   param_ = param;
   tree_evaluator_ = TreeEvaluator{param, n_features, device};
   has_categoricals_ = cuts.HasCategorical();
@@ -65,6 +64,8 @@ void GPUHistEvaluator::Reset(common::HistogramCuts const &cuts,
                         return fidx;
                       });
   }
+  is_column_split_ = is_column_split;
+  device_ = device;
 }
 
 common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(

@@ -154,7 +154,7 @@ void LambdaRankGetGradientNDCG(Context const* ctx, std::int32_t iter,
                                linalg::VectorView<double const> t_plus,   // input bias ratio
                                linalg::VectorView<double const> t_minus,  // input bias ratio
                                linalg::VectorView<double> li, linalg::VectorView<double> lj,
-                               HostDeviceVector<GradientPair>* out_gpair);
+                               linalg::Matrix<GradientPair>* out_gpair);
 
 /**
  * \brief Generate statistic for MAP used for calculating \Delta Z in lambda mart.
@@ -168,7 +168,7 @@ void LambdaRankGetGradientMAP(Context const* ctx, std::int32_t iter,
                               linalg::VectorView<double const> t_plus,   // input bias ratio
                               linalg::VectorView<double const> t_minus,  // input bias ratio
                               linalg::VectorView<double> li, linalg::VectorView<double> lj,
-                              HostDeviceVector<GradientPair>* out_gpair);
+                              linalg::Matrix<GradientPair>* out_gpair);
 
 void LambdaRankGetGradientPairwise(Context const* ctx, std::int32_t iter,
                                    HostDeviceVector<float> const& predt, const MetaInfo& info,
@@ -176,7 +176,7 @@ void LambdaRankGetGradientPairwise(Context const* ctx, std::int32_t iter,
                                    linalg::VectorView<double const> ti_plus,   // input bias ratio
                                    linalg::VectorView<double const> tj_minus,  // input bias ratio
                                    linalg::VectorView<double> li, linalg::VectorView<double> lj,
-                                   HostDeviceVector<GradientPair>* out_gpair);
+                                   linalg::Matrix<GradientPair>* out_gpair);
 
 void LambdaRankUpdatePositionBias(Context const* ctx, linalg::VectorView<double const> li_full,
                                   linalg::VectorView<double const> lj_full,

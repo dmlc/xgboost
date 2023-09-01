@@ -56,9 +56,10 @@ using ssize_t = int;
 
 #endif                            // defined(_WIN32)
 
-#include "xgboost/base.h"         // XGBOOST_EXPECT
-#include "xgboost/logging.h"      // LOG
-#include "xgboost/string_view.h"  // StringView
+#include "xgboost/base.h"               // XGBOOST_EXPECT
+#include "xgboost/collective/result.h"  // for Result
+#include "xgboost/logging.h"            // LOG
+#include "xgboost/string_view.h"        // StringView
 
 #if !defined(HOST_NAME_MAX)
 #define HOST_NAME_MAX 256  // macos
@@ -79,6 +80,10 @@ inline std::int32_t LastError() {
   int errsv = errno;
   return errsv;
 #endif
+}
+
+[[nodiscard]] inline collective::Result FailWithCode(std::string msg) {
+  return collective::Fail(std::move(msg), std::error_code{LastError(), std::system_category()});
 }
 
 #if defined(__GLIBC__)
@@ -120,13 +125,17 @@ inline std::int32_t CloseSocket(SocketT fd) {
 #endif
 }
 
-inline bool LastErrorWouldBlock() {
-  int errsv = LastError();
+inline bool ErrorWouldBlock(std::int32_t errsv) noexcept(true) {
 #ifdef _WIN32
   return errsv == WSAEWOULDBLOCK;
 #else
-  return errsv == EAGAIN || errsv == EWOULDBLOCK;
+  return errsv == EAGAIN || errsv == EWOULDBLOCK || errsv == EINPROGRESS;
 #endif  // _WIN32
+}
+
+inline bool LastErrorWouldBlock() {
+  int errsv = LastError();
+  return ErrorWouldBlock(errsv);
 }
 
 inline void SocketStartup() {
@@ -315,23 +324,35 @@ class TCPSocket {
   bool IsClosed() const { return handle_ == InvalidSocket(); }
 
   /** \brief get last error code if any */
-  std::int32_t GetSockError() const {
-    std::int32_t error = 0;
-    socklen_t len = sizeof(error);
-    xgboost_CHECK_SYS_CALL(
-        getsockopt(handle_, SOL_SOCKET, SO_ERROR, reinterpret_cast<char *>(&error), &len), 0);
-    return error;
+  Result GetSockError() const {
+    std::int32_t optval = 0;
+    socklen_t len = sizeof(optval);
+    auto ret = getsockopt(handle_, SOL_SOCKET, SO_ERROR, reinterpret_cast<char *>(&optval), &len);
+    if (ret != 0) {
+      auto errc = std::error_code{system::LastError(), std::system_category()};
+      return Fail("Failed to retrieve socket error.", std::move(errc));
+    }
+    if (optval != 0) {
+      auto errc = std::error_code{optval, std::system_category()};
+      return Fail("Socket error.", std::move(errc));
+    }
+    return Success();
   }
+
   /** \brief check if anything bad happens */
   bool BadSocket() const {
-    if (IsClosed()) return true;
-    std::int32_t err = GetSockError();
-    if (err == EBADF || err == EINTR) return true;
+    if (IsClosed()) {
+      return true;
+    }
+    auto err = GetSockError();
+    if (err.Code() == std::error_code{EBADF, std::system_category()} ||  // NOLINT
+        err.Code() == std::error_code{EINTR, std::system_category()}) {  // NOLINT
+      return true;
+    }
     return false;
   }
 
-  void SetNonBlock() {
-    bool non_block{true};
+  void SetNonBlock(bool non_block) {
 #if defined(_WIN32)
     u_long mode = non_block ? 1 : 0;
     xgboost_CHECK_SYS_CALL(ioctlsocket(handle_, FIONBIO, &mode), NO_ERROR);
@@ -530,10 +551,20 @@ class TCPSocket {
 };
 
 /**
- * \brief Connect to remote address, returns the error code if failed (no exception is
- *        raised so that we can retry).
+ * @brief Connect to remote address, returns the error code if failed.
+ *
+ * @param host   Host IP address.
+ * @param port   Connection port.
+ * @param retry  Number of retries to attempt.
+ * @param timeout  Timeout of each connection attempt.
+ * @param out_conn Output socket if the connection is successful. Value is invalid and undefined if
+ *                 the connection failed.
+ *
+ * @return Connection status.
  */
-std::error_code Connect(SockAddress const &addr, TCPSocket *out);
+[[nodiscard]] Result Connect(xgboost::StringView host, std::int32_t port, std::int32_t retry,
+                             std::chrono::seconds timeout,
+                             xgboost::collective::TCPSocket *out_conn);
 
 /**
  * \brief Get the local host name.

@@ -3,7 +3,7 @@
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>
-#include <xgboost/host_device_vector.h>
+#include <xgboost/host_device_vector.h>  // for HostDeviceVector
 #include <xgboost/linalg.h>
 
 #include <cstddef>  // size_t
@@ -14,8 +14,8 @@
 
 namespace xgboost::linalg {
 namespace {
-auto kCpuId = Context::kCpuId;
-}
+DeviceOrd CPU() { return DeviceOrd::CPU(); }
+}  // namespace
 
 auto MakeMatrixFromTest(HostDeviceVector<float> *storage, std::size_t n_rows, std::size_t n_cols) {
   storage->Resize(n_rows * n_cols);
@@ -23,7 +23,7 @@ auto MakeMatrixFromTest(HostDeviceVector<float> *storage, std::size_t n_rows, st
 
   std::iota(h_storage.begin(), h_storage.end(), 0);
 
-  auto m = linalg::TensorView<float, 2>{h_storage, {n_rows, static_cast<size_t>(n_cols)}, -1};
+  auto m = linalg::TensorView<float, 2>{h_storage, {n_rows, static_cast<size_t>(n_cols)}, CPU()};
   return m;
 }
 
@@ -31,7 +31,7 @@ TEST(Linalg, MatrixView) {
   size_t kRows = 31, kCols = 77;
   HostDeviceVector<float> storage;
   auto m = MakeMatrixFromTest(&storage, kRows, kCols);
-  ASSERT_EQ(m.DeviceIdx(), kCpuId);
+  ASSERT_EQ(m.Device(), CPU());
   ASSERT_EQ(m(0, 0), 0);
   ASSERT_EQ(m(kRows - 1, kCols - 1), storage.Size() - 1);
 }
@@ -76,7 +76,7 @@ TEST(Linalg, TensorView) {
 
   {
     // as vector
-    TensorView<double, 1> vec{data, {data.size()}, -1};
+    TensorView<double, 1> vec{data, {data.size()}, CPU()};
     ASSERT_EQ(vec.Size(), data.size());
     ASSERT_EQ(vec.Shape(0), data.size());
     ASSERT_EQ(vec.Shape().size(), 1);
@@ -87,7 +87,7 @@ TEST(Linalg, TensorView) {
 
   {
     // as matrix
-    TensorView<double, 2> mat(data, {6, 4}, -1);
+    TensorView<double, 2> mat(data, {6, 4}, CPU());
     auto s = mat.Slice(2, All());
     ASSERT_EQ(s.Shape().size(), 1);
     s = mat.Slice(All(), 1);
@@ -96,7 +96,7 @@ TEST(Linalg, TensorView) {
 
   {
     // assignment
-    TensorView<double, 3> t{data, {2, 3, 4}, 0};
+    TensorView<double, 3> t{data, {2, 3, 4}, CPU()};
     double pi = 3.14159;
     auto old = t(1, 2, 3);
     t(1, 2, 3) = pi;
@@ -201,7 +201,7 @@ TEST(Linalg, TensorView) {
   }
   {
     // f-contiguous
-    TensorView<double, 3> t{data, {4, 3, 2}, {1, 4, 12}, kCpuId};
+    TensorView<double, 3> t{data, {4, 3, 2}, {1, 4, 12}, CPU()};
     ASSERT_TRUE(t.Contiguous());
     ASSERT_TRUE(t.FContiguous());
     ASSERT_FALSE(t.CContiguous());
@@ -210,11 +210,11 @@ TEST(Linalg, TensorView) {
 
 TEST(Linalg, Tensor) {
   {
-    Tensor<float, 3> t{{2, 3, 4}, kCpuId, Order::kC};
-    auto view = t.View(kCpuId);
+    Tensor<float, 3> t{{2, 3, 4}, CPU(), Order::kC};
+    auto view = t.View(CPU());
 
     auto const &as_const = t;
-    auto k_view = as_const.View(kCpuId);
+    auto k_view = as_const.View(CPU());
 
     size_t n = 2 * 3 * 4;
     ASSERT_EQ(t.Size(), n);
@@ -229,7 +229,7 @@ TEST(Linalg, Tensor) {
   }
   {
     // Reshape
-    Tensor<float, 3> t{{2, 3, 4}, kCpuId, Order::kC};
+    Tensor<float, 3> t{{2, 3, 4}, CPU(), Order::kC};
     t.Reshape(4, 3, 2);
     ASSERT_EQ(t.Size(), 24);
     ASSERT_EQ(t.Shape(2), 2);
@@ -247,7 +247,7 @@ TEST(Linalg, Tensor) {
 
 TEST(Linalg, Empty) {
   {
-    auto t = TensorView<double, 2>{{}, {0, 3}, kCpuId, Order::kC};
+    auto t = TensorView<double, 2>{{}, {0, 3}, CPU(), Order::kC};
     for (int32_t i : {0, 1, 2}) {
       auto s = t.Slice(All(), i);
       ASSERT_EQ(s.Size(), 0);
@@ -256,9 +256,9 @@ TEST(Linalg, Empty) {
     }
   }
   {
-    auto t = Tensor<double, 2>{{0, 3}, kCpuId, Order::kC};
+    auto t = Tensor<double, 2>{{0, 3}, CPU(), Order::kC};
     ASSERT_EQ(t.Size(), 0);
-    auto view = t.View(kCpuId);
+    auto view = t.View(CPU());
 
     for (int32_t i : {0, 1, 2}) {
       auto s = view.Slice(All(), i);
@@ -270,7 +270,7 @@ TEST(Linalg, Empty) {
 }
 
 TEST(Linalg, ArrayInterface) {
-  auto cpu = kCpuId;
+  auto cpu = CPU();
   auto t = Tensor<double, 2>{{3, 3}, cpu, Order::kC};
   auto v = t.View(cpu);
   std::iota(v.Values().begin(), v.Values().end(), 0);
@@ -315,16 +315,16 @@ TEST(Linalg, Popc) {
 }
 
 TEST(Linalg, Stack) {
-  Tensor<float, 3> l{{2, 3, 4}, kCpuId, Order::kC};
-  ElementWiseTransformHost(l.View(kCpuId), omp_get_max_threads(),
+  Tensor<float, 3> l{{2, 3, 4}, CPU(), Order::kC};
+  ElementWiseTransformHost(l.View(CPU()), omp_get_max_threads(),
                            [=](size_t i, float) { return i; });
-  Tensor<float, 3> r_0{{2, 3, 4}, kCpuId, Order::kC};
-  ElementWiseTransformHost(r_0.View(kCpuId), omp_get_max_threads(),
+  Tensor<float, 3> r_0{{2, 3, 4}, CPU(), Order::kC};
+  ElementWiseTransformHost(r_0.View(CPU()), omp_get_max_threads(),
                            [=](size_t i, float) { return i; });
 
   Stack(&l, r_0);
 
-  Tensor<float, 3> r_1{{0, 3, 4}, kCpuId, Order::kC};
+  Tensor<float, 3> r_1{{0, 3, 4}, CPU(), Order::kC};
   Stack(&l, r_1);
   ASSERT_EQ(l.Shape(0), 4);
 
@@ -335,7 +335,7 @@ TEST(Linalg, Stack) {
 TEST(Linalg, FOrder) {
   std::size_t constexpr kRows = 16, kCols = 3;
   std::vector<float> data(kRows * kCols);
-  MatrixView<float> mat{data, {kRows, kCols}, Context::kCpuId, Order::kF};
+  MatrixView<float> mat{data, {kRows, kCols}, CPU(), Order::kF};
   float k{0};
   for (std::size_t i = 0; i < kRows; ++i) {
     for (std::size_t j = 0; j < kCols; ++j) {

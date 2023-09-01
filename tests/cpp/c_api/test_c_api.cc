@@ -565,7 +565,7 @@ void TestXGDMatrixGetQuantileCut(Context const *ctx) {
     ASSERT_EQ(XGBoosterCreate(mats.data(), 1, &booster), 0);
     ASSERT_EQ(XGBoosterSetParam(booster, "max_bin", "16"), 0);
     if (ctx->IsCUDA()) {
-      ASSERT_EQ(XGBoosterSetParam(booster, "tree_method", "gpu_hist"), 0);
+      ASSERT_EQ(XGBoosterSetParam(booster, "device", ctx->DeviceName().c_str()), 0);
     }
     ASSERT_EQ(XGBoosterUpdateOneIter(booster, 0, p_fmat), 0);
     ASSERT_EQ(XGDMatrixGetQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), 0);
@@ -596,7 +596,7 @@ void TestXGDMatrixGetQuantileCut(Context const *ctx) {
     ASSERT_EQ(XGBoosterCreate(mats.data(), 1, &booster), 0);
     ASSERT_EQ(XGBoosterSetParam(booster, "max_bin", "16"), 0);
     if (ctx->IsCUDA()) {
-      ASSERT_EQ(XGBoosterSetParam(booster, "tree_method", "gpu_hist"), 0);
+      ASSERT_EQ(XGBoosterSetParam(booster, "device", ctx->DeviceName().c_str()), 0);
     }
     ASSERT_EQ(XGBoosterUpdateOneIter(booster, 0, p_fmat), 0);
     ASSERT_EQ(XGDMatrixGetQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), 0);

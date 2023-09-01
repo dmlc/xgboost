@@ -110,7 +110,7 @@ class XGBoostJNI {
 
   public final static native int XGBoosterUpdateOneIter(long handle, int iter, long dtrain);
 
-  public final static native int XGBoosterBoostOneIter(long handle, long dtrain, float[] grad,
+  public final static native int XGBoosterTrainOneIter(long handle, long dtrain, int iter, float[] grad,
                                                        float[] hess);
 
   public final static native int XGBoosterEvalOneIter(long handle, int iter, long[] dmats,

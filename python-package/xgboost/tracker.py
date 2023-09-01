@@ -137,15 +137,9 @@ class WorkerEntry:
         return self._get_remote(wait_conn, nnset)
 
     def _get_remote(
-        self, wait_conn: Dict[int, "WorkerEntry"], nnset: Set[int]
+        self, wait_conn: Dict[int, "WorkerEntry"], badset: Set[int]
     ) -> List[int]:
         while True:
-            ngood = self.sock.recvint()
-            goodset = set()
-            for _ in range(ngood):
-                goodset.add(self.sock.recvint())
-            assert goodset.issubset(nnset)
-            badset = nnset - goodset
             conset = []
             for r in badset:
                 if r in wait_conn:
@@ -343,7 +337,7 @@ class RabitTracker:
                 shutdown[s.rank] = s
                 logging.debug("Received %s signal from %d", s.cmd, s.rank)
                 continue
-            assert s.cmd in ("start", "recover")
+            assert s.cmd == "start"
             # lazily initialize the workers
             if tree_map is None:
                 assert s.cmd == "start"

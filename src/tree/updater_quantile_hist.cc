@@ -492,7 +492,7 @@ class QuantileHistMaker : public TreeUpdater {
 
   [[nodiscard]] char const *Name() const override { return "grow_quantile_histmaker"; }
 
-  void Update(TrainParam const *param, HostDeviceVector<GradientPair> *gpair, DMatrix *p_fmat,
+  void Update(TrainParam const *param, linalg::Matrix<GradientPair> *gpair, DMatrix *p_fmat,
               common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree *> &trees) override {
     if (trees.front()->IsMultiTarget()) {
@@ -511,8 +511,7 @@ class QuantileHistMaker : public TreeUpdater {
     }
 
     bst_target_t n_targets = trees.front()->NumTargets();
-    auto h_gpair =
-        linalg::MakeTensorView(ctx_, gpair->HostSpan(), p_fmat->Info().num_row_, n_targets);
+    auto h_gpair = gpair->HostView();
 
     linalg::Matrix<GradientPair> sample_out;
     auto h_sample_out = h_gpair;

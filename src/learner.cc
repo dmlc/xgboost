@@ -279,15 +279,15 @@ LearnerModelParam::LearnerModelParam(Context const* ctx, LearnerModelParamLegacy
   // Make sure read access everywhere for thread-safe prediction.
   std::as_const(base_score_).HostView();
   if (!ctx->IsCPU()) {
-    std::as_const(base_score_).View(ctx->gpu_id);
+    std::as_const(base_score_).View(ctx->Device());
   }
   CHECK(std::as_const(base_score_).Data()->HostCanRead());
 }
 
-linalg::TensorView<float const, 1> LearnerModelParam::BaseScore(int32_t device) const {
+linalg::TensorView<float const, 1> LearnerModelParam::BaseScore(DeviceOrd device) const {
   // multi-class is not yet supported.
   CHECK_EQ(base_score_.Size(), 1) << ModelNotFitted();
-  if (device == Context::kCpuId) {
+  if (device.IsCPU()) {
     // Make sure that we won't run into race condition.
     CHECK(base_score_.Data()->HostCanRead());
     return base_score_.HostView();
@@ -300,7 +300,7 @@ linalg::TensorView<float const, 1> LearnerModelParam::BaseScore(int32_t device) 
 }
 
 linalg::TensorView<float const, 1> LearnerModelParam::BaseScore(Context const* ctx) const {
-  return this->BaseScore(ctx->gpu_id);
+  return this->BaseScore(ctx->Device());
 }
 
 void LearnerModelParam::Copy(LearnerModelParam const& that) {
@@ -309,7 +309,7 @@ void LearnerModelParam::Copy(LearnerModelParam const& that) {
   base_score_.Data()->Copy(*that.base_score_.Data());
   std::as_const(base_score_).HostView();
   if (that.base_score_.DeviceIdx() != Context::kCpuId) {
-    std::as_const(base_score_).View(that.base_score_.DeviceIdx());
+    std::as_const(base_score_).View(that.base_score_.Device());
   }
   CHECK_EQ(base_score_.Data()->DeviceCanRead(), that.base_score_.Data()->DeviceCanRead());
   CHECK(base_score_.Data()->HostCanRead());
@@ -388,7 +388,7 @@ class LearnerConfiguration : public Learner {
     this->ConfigureTargets();
 
     auto task = UsePtr(obj_)->Task();
-    linalg::Tensor<float, 1> base_score({1}, Ctx()->gpu_id);
+    linalg::Tensor<float, 1> base_score({1}, Ctx()->Device());
     auto h_base_score = base_score.HostView();
 
     // transform to margin
@@ -424,7 +424,7 @@ class LearnerConfiguration : public Learner {
     if (mparam_.boost_from_average && !UsePtr(gbm_)->ModelFitted()) {
       if (p_fmat) {
         auto const& info = p_fmat->Info();
-        info.Validate(Ctx()->gpu_id);
+        info.Validate(Ctx()->Ordinal());
         // We estimate it from input data.
         linalg::Tensor<float, 1> base_score;
         InitEstimation(info, &base_score);
@@ -1282,14 +1282,14 @@ class LearnerImpl : public LearnerIO {
     monitor_.Start("GetGradient");
     GetGradient(predt.predictions, train->Info(), iter, &gpair_);
     monitor_.Stop("GetGradient");
-    TrainingObserver::Instance().Observe(gpair_, "Gradients");
+    TrainingObserver::Instance().Observe(*gpair_.Data(), "Gradients");
 
     gbm_->DoBoost(train.get(), &gpair_, &predt, obj_.get());
     monitor_.Stop("UpdateOneIter");
   }
 
   void BoostOneIter(int iter, std::shared_ptr<DMatrix> train,
-                    HostDeviceVector<GradientPair>* in_gpair) override {
+                    linalg::Matrix<GradientPair>* in_gpair) override {
     monitor_.Start("BoostOneIter");
     this->Configure();
 
@@ -1299,6 +1299,9 @@ class LearnerImpl : public LearnerIO {
 
     this->ValidateDMatrix(train.get(), true);
 
+    CHECK_EQ(this->learner_model_param_.OutputLength(), in_gpair->Shape(1))
+        << "The number of columns in gradient should be equal to the number of targets/classes in "
+           "the model.";
     auto& predt = prediction_container_.Cache(train, ctx_.gpu_id);
     gbm_->DoBoost(train.get(), in_gpair, &predt, obj_.get());
     monitor_.Stop("BoostOneIter");
@@ -1366,7 +1369,7 @@ class LearnerImpl : public LearnerIO {
       auto& prediction = prediction_container_.Cache(data, ctx_.gpu_id);
       this->PredictRaw(data.get(), &prediction, training, layer_begin, layer_end);
       // Copy the prediction cache to output prediction. out_preds comes from C API
-      out_preds->SetDevice(ctx_.gpu_id);
+      out_preds->SetDevice(ctx_.Device());
       out_preds->Resize(prediction.predictions.Size());
       out_preds->Copy(prediction.predictions);
       if (!output_margin) {
@@ -1461,18 +1464,18 @@ class LearnerImpl : public LearnerIO {
   }
 
  private:
-  void GetGradient(HostDeviceVector<bst_float> const& preds, MetaInfo const& info, int iteration,
-                   HostDeviceVector<GradientPair>* out_gpair) {
-    out_gpair->Resize(preds.Size());
-    collective::ApplyWithLabels(info, out_gpair->HostPointer(),
+  void GetGradient(HostDeviceVector<bst_float> const& preds, MetaInfo const& info,
+                   std::int32_t iter, linalg::Matrix<GradientPair>* out_gpair) {
+    out_gpair->Reshape(info.num_row_, this->learner_model_param_.OutputLength());
+    collective::ApplyWithLabels(info, out_gpair->Data()->HostPointer(),
                                 out_gpair->Size() * sizeof(GradientPair),
-                                [&] { obj_->GetGradient(preds, info, iteration, out_gpair); });
+                                [&] { obj_->GetGradient(preds, info, iter, out_gpair); });
   }
 
   /*! \brief random number transformation seed. */
   static int32_t constexpr kRandSeedMagic = 127;
   // gradient pairs
-  HostDeviceVector<GradientPair> gpair_;
+  linalg::Matrix<GradientPair> gpair_;
   /*! \brief Temporary storage to prediction.  Useful for storing data transformed by
    *  objective function */
   PredictionContainer output_predictions_;

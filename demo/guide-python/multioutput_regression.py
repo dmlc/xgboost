@@ -68,22 +68,21 @@ def rmse_model(plot_result: bool, strategy: str) -> None:
 def custom_rmse_model(plot_result: bool, strategy: str) -> None:
     """Train using Python implementation of Squared Error."""
 
-    # As the experimental support status, custom objective doesn't support matrix as
-    # gradient and hessian, which will be changed in future release.
     def gradient(predt: np.ndarray, dtrain: xgb.DMatrix) -> np.ndarray:
         """Compute the gradient squared error."""
         y = dtrain.get_label().reshape(predt.shape)
-        return (predt - y).reshape(y.size)
+        return predt - y
 
     def hessian(predt: np.ndarray, dtrain: xgb.DMatrix) -> np.ndarray:
         """Compute the hessian for squared error."""
-        return np.ones(predt.shape).reshape(predt.size)
+        return np.ones(predt.shape)
 
     def squared_log(
         predt: np.ndarray, dtrain: xgb.DMatrix
     ) -> Tuple[np.ndarray, np.ndarray]:
         grad = gradient(predt, dtrain)
         hess = hessian(predt, dtrain)
+        # both numpy.ndarray and cupy.ndarray works.
         return grad, hess
 
     def rmse(predt: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[str, float]:

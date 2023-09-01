@@ -21,15 +21,13 @@ TEST(Updater, Prune) {
   std::vector<std::pair<std::string, std::string>> cfg;
   cfg.emplace_back("num_feature", std::to_string(kCols));
   cfg.emplace_back("min_split_loss", "10");
+  Context ctx;
 
   // These data are just place holders.
-  HostDeviceVector<GradientPair> gpair =
-      { {0.50f, 0.25f}, {0.50f, 0.25f}, {0.50f, 0.25f}, {0.50f, 0.25f},
-        {0.25f, 0.24f}, {0.25f, 0.24f}, {0.25f, 0.24f}, {0.25f, 0.24f} };
-  std::shared_ptr<DMatrix> p_dmat {
-    RandomDataGenerator{32, 10, 0}.GenerateDMatrix() };
-
-  Context ctx;
+  linalg::Matrix<GradientPair> gpair
+      {{ {0.50f, 0.25f}, {0.50f, 0.25f}, {0.50f, 0.25f}, {0.50f, 0.25f},
+         {0.25f, 0.24f}, {0.25f, 0.24f}, {0.25f, 0.24f}, {0.25f, 0.24f} }, {8, 1}, ctx.Device()};
+  std::shared_ptr<DMatrix> p_dmat{RandomDataGenerator{32, 10, 0}.GenerateDMatrix()};
 
   // prepare tree
   RegTree tree = RegTree{1u, kCols};

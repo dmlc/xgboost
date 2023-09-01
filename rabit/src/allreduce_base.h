@@ -12,14 +12,16 @@
 #ifndef RABIT_ALLREDUCE_BASE_H_
 #define RABIT_ALLREDUCE_BASE_H_
 
+#include <algorithm>
 #include <functional>
 #include <future>
-#include <vector>
 #include <string>
-#include <algorithm>
-#include "rabit/internal/utils.h"
+#include <vector>
+
 #include "rabit/internal/engine.h"
 #include "rabit/internal/socket.h"
+#include "rabit/internal/utils.h"
+#include "xgboost/collective/result.h"
 
 #ifdef RABIT_CXXTESTDEFS_H
 #define private   public
@@ -329,13 +331,13 @@ class AllreduceBase : public IEngine {
    * \brief initialize connection to the tracker
    * \return a socket that initializes the connection
    */
-  xgboost::collective::TCPSocket ConnectTracker() const;
+  [[nodiscard]] xgboost::collective::Result ConnectTracker(xgboost::collective::TCPSocket *out) const;
   /*!
    * \brief connect to the tracker to fix the the missing links
    *   this function is also used when the engine start up
    * \param cmd possible command to sent to tracker
    */
-  bool ReConnectLinks(const char *cmd = "start");
+  [[nodiscard]] xgboost::collective::Result ReConnectLinks(const char *cmd = "start");
   /*!
    * \brief perform in-place allreduce, on sendrecvbuf, this function can fail, and will return the cause of failure
    *

@@ -183,8 +183,8 @@ class GBTree : public GradientBooster {
   /**
    * @brief Carry out one iteration of boosting.
    */
-  void DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
-               PredictionCacheEntry* predt, ObjFunction const* obj) override;
+  void DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair, PredictionCacheEntry* predt,
+               ObjFunction const* obj) override;
 
   [[nodiscard]] bool UseGPU() const override { return tparam_.tree_method == TreeMethod::kGPUHist; }
 
@@ -326,7 +326,7 @@ class GBTree : public GradientBooster {
   }
 
  protected:
-  void BoostNewTrees(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat, int bst_group,
+  void BoostNewTrees(linalg::Matrix<GradientPair>* gpair, DMatrix* p_fmat, int bst_group,
                      std::vector<HostDeviceVector<bst_node_t>>* out_position,
                      std::vector<std::unique_ptr<RegTree>>* ret);
 

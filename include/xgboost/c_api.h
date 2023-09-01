@@ -789,16 +789,14 @@ XGB_DLL int XGDMatrixGetUIntInfo(const DMatrixHandle handle,
  * \param out The address to hold number of rows.
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGDMatrixNumRow(DMatrixHandle handle,
-                            bst_ulong *out);
+XGB_DLL int XGDMatrixNumRow(DMatrixHandle handle, bst_ulong *out);
 /*!
  * \brief get number of columns
  * \param handle the handle to the DMatrix
  * \param out The output of number of columns
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGDMatrixNumCol(DMatrixHandle handle,
-                            bst_ulong *out);
+XGB_DLL int XGDMatrixNumCol(DMatrixHandle handle, bst_ulong *out);
 
 /*!
  * \brief Get number of valid values from DMatrix.
@@ -945,21 +943,30 @@ XGB_DLL int XGBoosterUpdateOneIter(BoosterHandle handle, int iter, DMatrixHandle
  * @example c-api-demo.c
  */
 
-/*!
- * \brief update the model, by directly specify gradient and second order gradient,
- *        this can be used to replace UpdateOneIter, to support customized loss function
- * \param handle handle
- * \param dtrain training data
- * \param grad gradient statistics
- * \param hess second order gradient statistics
- * \param len length of grad/hess array
- * \return 0 when success, -1 when failure happens
+/**
+ * @deprecated since 2.1.0
  */
-XGB_DLL int XGBoosterBoostOneIter(BoosterHandle handle,
-                                  DMatrixHandle dtrain,
-                                  float *grad,
-                                  float *hess,
-                                  bst_ulong len);
+XGB_DLL int XGBoosterBoostOneIter(BoosterHandle handle, DMatrixHandle dtrain, float *grad,
+                                  float *hess, bst_ulong len);
+
+/**
+ * @brief Update a model with gradient and Hessian. This is used for training with a
+ *        custom objective function.
+ *
+ * @since 2.0.0
+ *
+ * @param handle handle
+ * @param dtrain The training data.
+ * @param iter   The current iteration round. When training continuation is used, the count
+ *               should restart.
+ * @param grad   Json encoded __(cuda)_array_interface__ for gradient.
+ * @param hess   Json encoded __(cuda)_array_interface__ for Hessian.
+ *
+ * @return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterTrainOneIter(BoosterHandle handle, DMatrixHandle dtrain, int iter,
+                                  char const *grad, char const *hess);
+
 /*!
  * \brief get evaluation statistics for xgboost
  * \param handle handle

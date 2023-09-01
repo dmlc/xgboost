@@ -39,7 +39,7 @@ private:
   GradientPairPrecise to_floating_point_;
 
  public:
-  explicit GradientQuantiser(common::Span<GradientPair const> gpair);
+  GradientQuantiser(common::Span<GradientPair const> gpair, MetaInfo const& info);
   XGBOOST_DEVICE GradientPairInt64 ToFixedPoint(GradientPair const& gpair) const {
     auto adjusted = GradientPairInt64(gpair.GetGrad() * to_fixed_point_.GetGrad(),
                                gpair.GetHess() * to_fixed_point_.GetHess());

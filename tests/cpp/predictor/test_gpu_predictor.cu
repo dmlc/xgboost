@@ -226,7 +226,7 @@ TEST(GPUPredictor, ShapStump) {
   auto dmat = RandomDataGenerator(3, 1, 0).GenerateDMatrix();
   gpu_predictor->PredictContribution(dmat.get(), &predictions, model);
   auto& phis = predictions.HostVector();
-  auto base_score = mparam.BaseScore(Context::kCpuId)(0);
+  auto base_score = mparam.BaseScore(DeviceOrd::CPU())(0);
   EXPECT_EQ(phis[0], 0.0);
   EXPECT_EQ(phis[1], base_score);
   EXPECT_EQ(phis[2], 0.0);

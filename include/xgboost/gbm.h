@@ -70,22 +70,25 @@ class GradientBooster : public Model, public Configurable {
                      GradientBooster* /*out*/, bool* /*out_of_bound*/) const {
     LOG(FATAL) << "Slice is not supported by the current booster.";
   }
-  /*! \brief Return number of boosted rounds.
+  /**
+   * @brief Return number of boosted rounds.
    */
-  virtual int32_t BoostedRounds() const = 0;
+  [[nodiscard]] virtual std::int32_t BoostedRounds() const = 0;
   /**
    * \brief Whether the model has already been trained. When tree booster is chosen, then
    *        returns true when there are existing trees.
    */
-  virtual bool ModelFitted() const = 0;
-  /*!
-   * \brief perform update to the model(boosting)
-   * \param p_fmat feature matrix that provide access to features
-   * \param in_gpair address of the gradient pair statistics of the data
-   * \param prediction The output prediction cache entry that needs to be updated.
-   * the booster may change content of gpair
+  [[nodiscard]] virtual bool ModelFitted() const = 0;
+  /**
+   * @brief perform update to the model(boosting)
+   *
+   * @param p_fmat feature matrix that provide access to features
+   * @param in_gpair address of the gradient pair statistics of the data
+   * @param prediction The output prediction cache entry that needs to be updated.
+   *                   the booster may change content of gpair
+   * @param obj The objective function used for boosting.
    */
-  virtual void DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
+  virtual void DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair,
                        PredictionCacheEntry*, ObjFunction const* obj) = 0;
 
   /**
@@ -165,18 +168,17 @@ class GradientBooster : public Model, public Configurable {
    * \param format the format to dump the model in
    * \return a vector of dump for boosters.
    */
-  virtual std::vector<std::string> DumpModel(const FeatureMap& fmap,
-                                             bool with_stats,
-                                             std::string format) const = 0;
+  [[nodiscard]] virtual std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,
+                                                           std::string format) const = 0;
 
   virtual void FeatureScore(std::string const& importance_type,
                             common::Span<int32_t const> trees,
                             std::vector<bst_feature_t>* features,
                             std::vector<float>* scores) const = 0;
-  /*!
-   * \brief Whether the current booster uses GPU.
+  /**
+   * @brief Whether the current booster uses GPU.
    */
-  virtual bool UseGPU() const = 0;
+  [[nodiscard]] virtual bool UseGPU() const = 0;
   /*!
    * \brief create a gradient booster from given name
    * \param name name of gradient booster

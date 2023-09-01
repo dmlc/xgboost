@@ -66,16 +66,15 @@ inline void FitStump(Context const*, linalg::TensorView<GradientPair const, 2>,
 #endif  // !defined(XGBOOST_USE_CUDA)
 }  // namespace cuda_impl
 
-void FitStump(Context const* ctx, MetaInfo const& info, HostDeviceVector<GradientPair> const& gpair,
+void FitStump(Context const* ctx, MetaInfo const& info, linalg::Matrix<GradientPair> const& gpair,
               bst_target_t n_targets, linalg::Vector<float>* out) {
   out->SetDevice(ctx->gpu_id);
   out->Reshape(n_targets);
-  auto n_samples = gpair.Size() / n_targets;
 
-  gpair.SetDevice(ctx->gpu_id);
-  auto gpair_t = linalg::MakeTensorView(ctx, &gpair, n_samples, n_targets);
+  gpair.SetDevice(ctx->Device());
+  auto gpair_t = gpair.View(ctx->Device());
   ctx->IsCPU() ? cpu_impl::FitStump(ctx, info, gpair_t, out->HostView())
-               : cuda_impl::FitStump(ctx, gpair_t, out->View(ctx->gpu_id));
+      : cuda_impl::FitStump(ctx, gpair_t, out->View(ctx->Device()));
 }
 }  // namespace tree
 }  // namespace xgboost

@@ -93,7 +93,7 @@ struct GetGradOp {
     // obtain group segment data.
     auto g_label = args.labels.Slice(linalg::Range(data_group_begin, data_group_begin + n_data), 0);
     auto g_predt = args.predts.subspan(data_group_begin, n_data);
-    auto g_gpair = args.gpairs.subspan(data_group_begin, n_data).data();
+    auto g_gpair = args.gpairs.Slice(linalg::Range(data_group_begin, data_group_begin + n_data));
     auto g_rank = args.d_sorted_idx.subspan(data_group_begin, n_data);
 
     auto [i, j] = make_pair(idx, g);
@@ -128,8 +128,8 @@ struct GetGradOp {
       auto ngt = GradientPair{common::TruncateWithRounding(gr.GetGrad(), ng.GetGrad()),
                               common::TruncateWithRounding(gr.GetHess(), ng.GetHess())};
 
-      dh::AtomicAddGpair(g_gpair + idx_high, pgt);
-      dh::AtomicAddGpair(g_gpair + idx_low, ngt);
+      dh::AtomicAddGpair(&g_gpair(idx_high), pgt);
+      dh::AtomicAddGpair(&g_gpair(idx_low), ngt);
     }
 
     if (unbiased && need_update) {
@@ -266,16 +266,16 @@ void CalcGrad(Context const* ctx, MetaInfo const& info, std::shared_ptr<ltr::Ran
    */
   auto d_weights = common::MakeOptionalWeights(ctx, info.weights_);
   auto w_norm = p_cache->WeightNorm();
-  thrust::for_each_n(ctx->CUDACtx()->CTP(), thrust::make_counting_iterator(0ul), d_gpair.size(),
-                     [=] XGBOOST_DEVICE(std::size_t i) {
+  thrust::for_each_n(ctx->CUDACtx()->CTP(), thrust::make_counting_iterator(0ul), d_gpair.Size(),
+                     [=] XGBOOST_DEVICE(std::size_t i) mutable {
                        auto g = dh::SegmentId(d_gptr, i);
                        auto sum_lambda = thrust::get<2>(d_max_lambdas[g]);
                        // Normalization
                        if (sum_lambda > 0.0) {
                          double norm = std::log2(1.0 + sum_lambda) / sum_lambda;
-                         d_gpair[i] *= norm;
+                         d_gpair(i, 0) *= norm;
                        }
-                       d_gpair[i] *= (d_weights[g] * w_norm);
+                       d_gpair(i, 0) *= (d_weights[g] * w_norm);
                      });
 }
 
@@ -288,7 +288,7 @@ void Launch(Context const* ctx, std::int32_t iter, HostDeviceVector<float> const
             linalg::VectorView<double const> ti_plus,   // input bias ratio
             linalg::VectorView<double const> tj_minus,  // input bias ratio
             linalg::VectorView<double> li, linalg::VectorView<double> lj,
-            HostDeviceVector<GradientPair>* out_gpair) {
+            linalg::Matrix<GradientPair>* out_gpair) {
   // boilerplate
   std::int32_t device_id = ctx->gpu_id;
   dh::safe_cuda(cudaSetDevice(device_id));
@@ -296,8 +296,8 @@ void Launch(Context const* ctx, std::int32_t iter, HostDeviceVector<float> const
 
   info.labels.SetDevice(device_id);
   preds.SetDevice(device_id);
-  out_gpair->SetDevice(device_id);
-  out_gpair->Resize(preds.Size());
+  out_gpair->SetDevice(ctx->Device());
+  out_gpair->Reshape(preds.Size(), 1);
 
   CHECK(p_cache);
 
@@ -306,10 +306,11 @@ void Launch(Context const* ctx, std::int32_t iter, HostDeviceVector<float> const
 
   CHECK_NE(d_rounding.Size(), 0);
 
-  auto label = info.labels.View(ctx->gpu_id);
+  auto label = info.labels.View(ctx->Device());
   auto predts = preds.ConstDeviceSpan();
-  auto gpairs = out_gpair->DeviceSpan();
-  thrust::fill_n(ctx->CUDACtx()->CTP(), gpairs.data(), gpairs.size(), GradientPair{0.0f, 0.0f});
+  auto gpairs = out_gpair->View(ctx->Device());
+  thrust::fill_n(ctx->CUDACtx()->CTP(), gpairs.Values().data(), gpairs.Size(),
+                 GradientPair{0.0f, 0.0f});
 
   auto const d_threads_group_ptr = p_cache->CUDAThreadsGroupPtr();
   auto const d_gptr = p_cache->DataGroupPtr(ctx);
@@ -347,7 +348,7 @@ common::Span<std::size_t const> SortY(Context const* ctx, MetaInfo const& info,
                                       common::Span<std::size_t const> d_rank,
                                       std::shared_ptr<ltr::RankingCache> p_cache) {
   auto const d_group_ptr = p_cache->DataGroupPtr(ctx);
-  auto label = info.labels.View(ctx->gpu_id);
+  auto label = info.labels.View(ctx->Device());
   // The buffer for ranked y is necessary as cub segmented sort accepts only pointer.
   auto d_y_ranked = p_cache->RankedY(ctx, info.num_row_);
   thrust::for_each_n(ctx->CUDACtx()->CTP(), thrust::make_counting_iterator(0ul), d_y_ranked.size(),
@@ -371,15 +372,15 @@ void LambdaRankGetGradientNDCG(Context const* ctx, std::int32_t iter,
                                linalg::VectorView<double const> ti_plus,   // input bias ratio
                                linalg::VectorView<double const> tj_minus,  // input bias ratio
                                linalg::VectorView<double> li, linalg::VectorView<double> lj,
-                               HostDeviceVector<GradientPair>* out_gpair) {
+                               linalg::Matrix<GradientPair>* out_gpair) {
   // boilerplate
-  std::int32_t device_id = ctx->gpu_id;
-  dh::safe_cuda(cudaSetDevice(device_id));
+  auto device = ctx->Device();
+  dh::safe_cuda(cudaSetDevice(device.ordinal));
   auto const d_inv_IDCG = p_cache->InvIDCG(ctx);
   auto const discount = p_cache->Discount(ctx);
 
-  info.labels.SetDevice(device_id);
-  preds.SetDevice(device_id);
+  info.labels.SetDevice(device);
+  preds.SetDevice(device);
 
   auto const exp_gain = p_cache->Param().ndcg_exp_gain;
   auto delta_ndcg = [=] XGBOOST_DEVICE(float y_high, float y_low, std::size_t rank_high,
@@ -402,7 +403,7 @@ void MAPStat(Context const* ctx, MetaInfo const& info, common::Span<std::size_t 
   auto key_it = dh::MakeTransformIterator<std::size_t>(
       thrust::make_counting_iterator(0ul),
       [=] XGBOOST_DEVICE(std::size_t i) -> std::size_t { return dh::SegmentId(group_ptr, i); });
-  auto label = info.labels.View(ctx->gpu_id).Slice(linalg::All(), 0);
+  auto label = info.labels.View(ctx->Device()).Slice(linalg::All(), 0);
   auto const* cuctx = ctx->CUDACtx();
 
   {
@@ -440,12 +441,12 @@ void LambdaRankGetGradientMAP(Context const* ctx, std::int32_t iter,
                               linalg::VectorView<double const> ti_plus,   // input bias ratio
                               linalg::VectorView<double const> tj_minus,  // input bias ratio
                               linalg::VectorView<double> li, linalg::VectorView<double> lj,
-                              HostDeviceVector<GradientPair>* out_gpair) {
-  std::int32_t device_id = ctx->gpu_id;
-  dh::safe_cuda(cudaSetDevice(device_id));
+                              linalg::Matrix<GradientPair>* out_gpair) {
+  auto device = ctx->Device();
+  dh::safe_cuda(cudaSetDevice(device.ordinal));
 
-  info.labels.SetDevice(device_id);
-  predt.SetDevice(device_id);
+  info.labels.SetDevice(device);
+  predt.SetDevice(device);
 
   CHECK(p_cache);
 
@@ -479,12 +480,12 @@ void LambdaRankGetGradientPairwise(Context const* ctx, std::int32_t iter,
                                    linalg::VectorView<double const> ti_plus,   // input bias ratio
                                    linalg::VectorView<double const> tj_minus,  // input bias ratio
                                    linalg::VectorView<double> li, linalg::VectorView<double> lj,
-                                   HostDeviceVector<GradientPair>* out_gpair) {
-  std::int32_t device_id = ctx->gpu_id;
-  dh::safe_cuda(cudaSetDevice(device_id));
+                                   linalg::Matrix<GradientPair>* out_gpair) {
+  auto device = ctx->Device();
+  dh::safe_cuda(cudaSetDevice(device.ordinal));
 
-  info.labels.SetDevice(device_id);
-  predt.SetDevice(device_id);
+  info.labels.SetDevice(device);
+  predt.SetDevice(device);
 
   auto d_predt = predt.ConstDeviceSpan();
   auto const d_sorted_idx = p_cache->SortedIdx(ctx, d_predt);
@@ -516,11 +517,11 @@ void LambdaRankUpdatePositionBias(Context const* ctx, linalg::VectorView<double 
   auto const d_group_ptr = p_cache->DataGroupPtr(ctx);
   auto n_groups = d_group_ptr.size() - 1;
 
-  auto ti_plus = p_ti_plus->View(ctx->gpu_id);
-  auto tj_minus = p_tj_minus->View(ctx->gpu_id);
+  auto ti_plus = p_ti_plus->View(ctx->Device());
+  auto tj_minus = p_tj_minus->View(ctx->Device());
 
-  auto li = p_li->View(ctx->gpu_id);
-  auto lj = p_lj->View(ctx->gpu_id);
+  auto li = p_li->View(ctx->Device());
+  auto lj = p_lj->View(ctx->Device());
   CHECK_EQ(li.Size(), ti_plus.Size());
 
   auto const& param = p_cache->Param();
