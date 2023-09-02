@@ -1129,15 +1129,15 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
 
         return pred_contrib_col_name
 
-    def _out_schema(self) -> str:
-        """The returned type of the user-defined function. The value must
+    def _out_schema(self) -> Tuple[bool, str]:
+        """Return the bool to indicate if it's a single prediction, true is single prediction,
+        and the returned type of the user-defined function. The value must
         be a DDL-formatted type string."""
 
-        return (
-            f"{pred.prediction} double, {pred.pred_contrib} array<double>"
-            if self._get_pred_contrib_col_name() is not None
-            else "double"
-        )
+        if self._get_pred_contrib_col_name() is not None:
+            return False, f"{pred.prediction} double, {pred.pred_contrib} array<double>"
+
+        return True, "double"
 
     def _get_predict_func(self) -> Callable:
         """Return the true prediction function which will be running on the executor side"""
@@ -1146,7 +1146,7 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
         pred_contrib_col_name = self._get_pred_contrib_col_name()
 
         def _predict(
-            model: XGBModel, X: ArrayLike, base_margin: Optional[np.ndarray]
+            model: XGBModel, X: ArrayLike, base_margin: Optional[ArrayLike]
         ) -> Union[pd.DataFrame, pd.Series]:
             data = {}
             preds = model.predict(
@@ -1169,7 +1169,7 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
     def _post_transform(self, dataset: DataFrame, pred_col: Column) -> DataFrame:
         """Post process of transform"""
         prediction_col_name = self.getOrDefault(self.predictionCol)
-        single_pred = "," not in self._out_schema()
+        single_pred, _ = self._out_schema()
 
         if single_pred:
             if prediction_col_name:
@@ -1214,7 +1214,9 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
 
         predict_func = self._get_predict_func()
 
-        @pandas_udf(self._out_schema())  # type: ignore
+        _, schema = self._out_schema()
+
+        @pandas_udf(schema)  # type: ignore
         def predict_udf(iterator: Iterator[pd.DataFrame]) -> Iterator[pd.Series]:
             assert xgb_sklearn_model is not None
             model = xgb_sklearn_model
@@ -1251,7 +1253,7 @@ class _ClassificationModel(  # pylint: disable=abstract-method
     .. Note:: This API is experimental.
     """
 
-    def _out_schema(self) -> str:
+    def _out_schema(self) -> Tuple[bool, str]:
         schema = (
             f"{pred.raw_prediction} array<double>, {pred.prediction} double,"
             f" {pred.probability} array<double>"
@@ -1261,7 +1263,7 @@ class _ClassificationModel(  # pylint: disable=abstract-method
             # So, it will also output 3-D shape result.
             schema = f"{schema}, {pred.pred_contrib} array<array<double>>"
 
-        return schema
+        return False, schema
 
     def _get_predict_func(self) -> Callable:
         predict_params = self._gen_predict_params_dict()
