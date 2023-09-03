@@ -15,9 +15,11 @@
 
 namespace xgboost {
 namespace {
-auto MakeModel(std::string tree_method, std::string objective, std::shared_ptr<DMatrix> dmat) {
+auto MakeModel(std::string tree_method, std::string device, std::string objective,
+               std::shared_ptr<DMatrix> dmat) {
   std::unique_ptr<Learner> learner{Learner::Create({dmat})};
   learner->SetParam("tree_method", tree_method);
+  learner->SetParam("device", device);
   learner->SetParam("objective", objective);
   if (objective.find("quantile") != std::string::npos) {
     learner->SetParam("quantile_alpha", "0.5");
@@ -35,7 +37,7 @@ auto MakeModel(std::string tree_method, std::string objective, std::shared_ptr<D
 }
 
 void VerifyObjective(size_t rows, size_t cols, float expected_base_score, Json expected_model,
-                     std::string tree_method, std::string objective) {
+                     std::string tree_method, std::string device, std::string objective) {
   auto const world_size = collective::GetWorldSize();
   auto const rank = collective::GetRank();
   std::shared_ptr<DMatrix> dmat{RandomDataGenerator{rows, cols, 0}.GenerateDMatrix(rank == 0)};
@@ -61,14 +63,14 @@ void VerifyObjective(size_t rows, size_t cols, float expected_base_score, Json e
   }
   std::shared_ptr<DMatrix> sliced{dmat->SliceCol(world_size, rank)};
 
-  auto model = MakeModel(tree_method, objective, sliced);
+  auto model = MakeModel(tree_method, device, objective, sliced);
   auto base_score = GetBaseScore(model);
-  ASSERT_EQ(base_score, expected_base_score);
-  ASSERT_EQ(model, expected_model);
+  ASSERT_EQ(base_score, expected_base_score) << " rank " << rank;
+  ASSERT_EQ(model, expected_model) << " rank " << rank;
 }
 }  // namespace
 
-class FederatedLearnerTest : public ::testing::TestWithParam<std::string> {
+class VerticalFederatedLearnerTest : public ::testing::TestWithParam<std::string> {
   std::unique_ptr<ServerForTest> server_;
   static int constexpr kWorldSize{3};
 
@@ -76,7 +78,7 @@ class FederatedLearnerTest : public ::testing::TestWithParam<std::string> {
   void SetUp() override { server_ = std::make_unique<ServerForTest>(kWorldSize); }
   void TearDown() override { server_.reset(nullptr); }
 
-  void Run(std::string tree_method, std::string objective) {
+  void Run(std::string tree_method, std::string device, std::string objective) {
     static auto constexpr kRows{16};
     static auto constexpr kCols{16};
 
@@ -99,27 +101,35 @@ class FederatedLearnerTest : public ::testing::TestWithParam<std::string> {
       }
     }
 
-    auto model = MakeModel(tree_method, objective, dmat);
+    auto model = MakeModel(tree_method, device, objective, dmat);
     auto score = GetBaseScore(model);
 
     RunWithFederatedCommunicator(kWorldSize, server_->Address(), &VerifyObjective, kRows, kCols,
-                                 score, model, tree_method, objective);
+                                 score, model, tree_method, device, objective);
   }
 };
 
-TEST_P(FederatedLearnerTest, Approx) {
+TEST_P(VerticalFederatedLearnerTest, Approx) {
   std::string objective = GetParam();
-  this->Run("approx", objective);
+  this->Run("approx", "cpu", objective);
 }
 
-TEST_P(FederatedLearnerTest, Hist) {
+TEST_P(VerticalFederatedLearnerTest, Hist) {
   std::string objective = GetParam();
-  this->Run("hist", objective);
+  this->Run("hist", "cpu", objective);
 }
 
-INSTANTIATE_TEST_SUITE_P(FederatedLearnerObjective, FederatedLearnerTest,
-                         ::testing::ValuesIn(MakeObjNamesForTest()),
-                         [](const ::testing::TestParamInfo<FederatedLearnerTest::ParamType> &info) {
-                           return ObjTestNameGenerator(info);
-                         });
+#if defined(XGBOOST_USE_CUDA)
+TEST_P(VerticalFederatedLearnerTest, GPUHist) {
+  std::string objective = GetParam();
+  this->Run("hist", "cuda:0", objective);
+}
+#endif  // defined(XGBOOST_USE_CUDA)
+
+INSTANTIATE_TEST_SUITE_P(
+    FederatedLearnerObjective, VerticalFederatedLearnerTest,
+    ::testing::ValuesIn(MakeObjNamesForTest()),
+    [](const ::testing::TestParamInfo<VerticalFederatedLearnerTest::ParamType> &info) {
+      return ObjTestNameGenerator(info);
+    });
 }  // namespace xgboost
