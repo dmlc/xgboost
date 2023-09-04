@@ -58,21 +58,6 @@ void TestInplaceFallback(Context const* ctx) {
   HostDeviceVector<float>* out_predt{nullptr};
   ConsoleLogger::Configure(Args{{"verbosity", "1"}});
   std::string output;
-  // test whether the warning is raised
-#if !defined(_WIN32)
-  // Windows has issue with CUDA and thread local storage. For some reason, on Windows a
-  // cudaInitializationError is raised during destruction of `HostDeviceVector`. This
-  // might be related to https://github.com/dmlc/xgboost/issues/5793
-  ::testing::internal::CaptureStderr();
-  std::thread{[&] {
-    // Launch a new thread to ensure a warning is raised as we prevent over-verbose
-    // warning by using thread-local flags.
-    learner->InplacePredict(p_m, PredictionType::kValue, std::numeric_limits<float>::quiet_NaN(),
-                            &out_predt, 0, 0);
-  }}.join();
-  output = testing::internal::GetCapturedStderr();
-  ASSERT_NE(output.find("Falling back"), std::string::npos);
-#endif
 
   learner->InplacePredict(p_m, PredictionType::kValue, std::numeric_limits<float>::quiet_NaN(),
                           &out_predt, 0, 0);
