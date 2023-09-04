@@ -10,7 +10,8 @@
 #include <limits>     // for numeric_limits
 #include <string>     // for string
 
-#include "xgboost/base.h"  // for bst_feature_t
+#include "xgboost/base.h"     // for bst_feature_t
+#include "xgboost/context.h"  // for Context
 #include "xgboost/logging.h"
 #include "xgboost/string_view.h"  // for StringView
 
@@ -94,5 +95,7 @@ constexpr StringView InvalidCUDAOrdinal() {
   return "Invalid device. `device` is required to be CUDA and there must be at least one GPU "
          "available for using GPU.";
 }
+
+void MismatchedDevices(Context const* booster, Context const* data);
 }  // namespace xgboost::error
 #endif  // XGBOOST_COMMON_ERROR_MSG_H_
