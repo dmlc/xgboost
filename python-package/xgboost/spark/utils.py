@@ -10,7 +10,7 @@ from threading import Thread
 from typing import Any, Callable, Dict, Optional, Set, Type
 
 import pyspark
-from pyspark import BarrierTaskContext, SparkContext, SparkFiles
+from pyspark import BarrierTaskContext, SparkContext, SparkFiles, TaskContext
 from pyspark.sql.session import SparkSession
 
 from xgboost import Booster, XGBModel, collective
@@ -129,7 +129,7 @@ def _is_local(spark_context: SparkContext) -> bool:
     return spark_context._jsc.sc().isLocal()
 
 
-def _get_gpu_id(task_context: BarrierTaskContext) -> int:
+def _get_gpu_id(task_context: TaskContext) -> int:
     """Get the gpu id from the task resources"""
     if task_context is None:
         # This is a safety check.
