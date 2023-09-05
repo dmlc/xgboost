@@ -191,13 +191,31 @@ class TestGPUPredict:
         np.testing.assert_allclose(predt_0, predt_3)
         np.testing.assert_allclose(predt_0, predt_4)
 
-    def run_inplace_base_margin(self, booster, dtrain, X, base_margin):
+    def run_inplace_base_margin(
+        self, device: int, booster: xgb.Booster, dtrain: xgb.DMatrix, X, base_margin
+    ) -> None:
         import cupy as cp
 
+        booster.set_param({"device": f"cuda:{device}"})
         dtrain.set_info(base_margin=base_margin)
         from_inplace = booster.inplace_predict(data=X, base_margin=base_margin)
         from_dmatrix = booster.predict(dtrain)
         cp.testing.assert_allclose(from_inplace, from_dmatrix)
+
+        booster = booster.copy()  # clear prediction cache.
+        booster.set_param({"device": "cpu"})
+        from_inplace = booster.inplace_predict(data=X, base_margin=base_margin)
+        from_dmatrix = booster.predict(dtrain)
+        cp.testing.assert_allclose(from_inplace, from_dmatrix)
+
+        booster = booster.copy()  # clear prediction cache.
+        base_margin = cp.asnumpy(base_margin)
+        if hasattr(X, "values"):
+            X = cp.asnumpy(X.values)
+        booster.set_param({"device": f"cuda:{device}"})
+        from_inplace = booster.inplace_predict(data=X, base_margin=base_margin)
+        from_dmatrix = booster.predict(dtrain)
+        cp.testing.assert_allclose(from_inplace, from_dmatrix, rtol=1e-6)
 
     def run_inplace_predict_cupy(self, device: int) -> None:
         import cupy as cp
@@ -244,7 +262,7 @@ class TestGPUPredict:
             run_threaded_predict(X, rows, predict_dense)
 
         base_margin = cp_rng.randn(rows)
-        self.run_inplace_base_margin(booster, dtrain, X, base_margin)
+        self.run_inplace_base_margin(device, booster, dtrain, X, base_margin)
 
         # Create a wide dataset
         X = cp_rng.randn(100, 10000)
@@ -318,7 +336,7 @@ class TestGPUPredict:
             run_threaded_predict(X, rows, predict_df)
 
         base_margin = cudf.Series(rng.randn(rows))
-        self.run_inplace_base_margin(booster, dtrain, X, base_margin)
+        self.run_inplace_base_margin(0, booster, dtrain, X, base_margin)
 
     @given(
         strategies.integers(1, 10), tm.make_dataset_strategy(), shap_parameter_strategy
