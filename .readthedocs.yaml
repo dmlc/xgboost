@@ -32,4 +32,3 @@ formats:
 python:
   install:
    - requirements: doc/requirements.txt
-  system_packages: true
