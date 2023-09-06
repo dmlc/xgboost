@@ -243,7 +243,8 @@ class _SparkXGBParams(
     )
 
     def set_device(self, value: str) -> "_SparkXGBParams":
-        """Set device (cpu, cuda, gpu)"""
+        """Set device, optional value: cpu, cuda, gpu"""
+        _check_distributed_params({"device": value})
         assert value in ("cpu", "cuda", "gpu")
         self.set(self.device, value)
         return self
@@ -1261,26 +1262,36 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
             assert context is not None
 
             dev_ordinal = -1
-            if is_local:
-                if run_on_gpu and is_cupy_available():
-                    import cupy as cp  # pylint: disable=import-error
 
-                    total_gpus = cp.cuda.runtime.getDeviceCount()
-                    if total_gpus > 0:
-                        partition_id = context.partitionId()
-                        # For transform local mode, default the gpu_id to (partition id) % gpus.
-                        dev_ordinal = partition_id % total_gpus
-            elif run_on_gpu:
-                dev_ordinal = _get_gpu_id(context)
+            if is_cudf_available():
+                if is_local:
+                    if run_on_gpu and is_cupy_available():
+                        import cupy as cp  # pylint: disable=import-error
 
-            if dev_ordinal >= 0:
-                device = "cuda:" + str(dev_ordinal)
-                get_logger("XGBoost-PySpark").info(
-                    "Do the inference with device: %s", device
-                )
-                model.set_params(device=device)
+                        total_gpus = cp.cuda.runtime.getDeviceCount()
+                        if total_gpus > 0:
+                            partition_id = context.partitionId()
+                            # For transform local mode, default the dev_ordinal to
+                            # (partition id) % gpus.
+                            dev_ordinal = partition_id % total_gpus
+                elif run_on_gpu:
+                    dev_ordinal = _get_gpu_id(context)
+
+                if dev_ordinal >= 0:
+                    device = "cuda:" + str(dev_ordinal)
+                    get_logger("XGBoost-PySpark").info(
+                        "Do the inference with device: %s", device
+                    )
+                    model.set_params(device=device)
+                else:
+                    get_logger("XGBoost-PySpark").info("Do the inference on the CPUs")
             else:
-                get_logger("XGBoost-PySpark").info("Do the inference on the CPUs")
+                msg = (
+                    "CUDF is unavailable, fallback the inference on the CPUs"
+                    if run_on_gpu
+                    else "Do the inference on the CPUs"
+                )
+                get_logger("XGBoost-PySpark").info(msg)
 
             def to_gpu_if_possible(data: ArrayLike) -> ArrayLike:
                 """Move the data to gpu if possible"""
@@ -1307,7 +1318,7 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
                     X = to_gpu_if_possible(tmp)
 
                 if has_base_margin:
-                    base_margin = to_gpu_if_possible(data[alias.margin].to_numpy())
+                    base_margin = to_gpu_if_possible(data[alias.margin])
                 else:
                     base_margin = None
 
