@@ -248,7 +248,7 @@ def test_sparkxgb_regressor_feature_cols_with_gpu(spark_diabetes_dataset_feature
 def test_gpu_transform(spark_diabetes_dataset) -> None:
     regressor = SparkXGBRegressor(device="cuda", num_workers=num_workers)
     train_df, test_df = spark_diabetes_dataset
-    model = regressor.fit(train_df)
+    model: SparkXGBRegressorModel = regressor.fit(train_df)
 
     # The model trained with GPUs, and transform with GPU configurations.
     assert model._gpu_transform()
@@ -259,7 +259,7 @@ def test_gpu_transform(spark_diabetes_dataset) -> None:
     cpu_rows = model.transform(test_df).select("prediction").collect()
 
     regressor = SparkXGBRegressor(device="cpu", num_workers=num_workers)
-    model: SparkXGBRegressorModel = regressor.fit(train_df)
+    model = regressor.fit(train_df)
 
     # The model trained with CPUs. Even with GPU configurations,
     # still prefer transforming with CPUs
@@ -272,5 +272,4 @@ def test_gpu_transform(spark_diabetes_dataset) -> None:
     gpu_rows = model.transform(test_df).select("prediction").collect()
 
     for cpu, gpu in zip(cpu_rows, gpu_rows):
-        print("cpu ", cpu, " gpu:", gpu)
         np.testing.assert_allclose(cpu.prediction, gpu.prediction, atol=1e-3)
