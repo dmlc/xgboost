@@ -29,7 +29,7 @@ jobs:
       run: |
         mkdir build
         cd build
-        cmake .. -DGOOGLE_TEST=ON -DUSE_OPENMP=ON -DUSE_DMLC_GTEST=ON -DPLUGIN_DENSE_PARSER=ON -GNinja
+        cmake .. -DGOOGLE_TEST=ON -DUSE_OPENMP=ON -DUSE_DMLC_GTEST=ON -DPLUGIN_DENSE_PARSER=ON -GNinja -DBUILD_DEPRECATED_CLI=ON
         ninja -v
     - name: Run gtest binary
       run: |
@@ -56,7 +56,7 @@ jobs:
       run: |
         mkdir build
         cd build
-        cmake .. -GNinja -DGOOGLE_TEST=ON  -DUSE_DMLC_GTEST=ON -DUSE_OPENMP=OFF
+        cmake .. -GNinja -DGOOGLE_TEST=ON  -DUSE_DMLC_GTEST=ON -DUSE_OPENMP=OFF -DBUILD_DEPRECATED_CLI=ON
         ninja -v
     - name: Run gtest binary
       run: |

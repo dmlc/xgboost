@@ -663,7 +663,7 @@ class CPUPredictor : public Predictor {
     std::size_t n_samples = p_fmat->Info().num_row_;
     std::size_t n_groups = model.learner_model_param->OutputLength();
     CHECK_EQ(out_preds->size(), n_samples * n_groups);
-    linalg::TensorView<float, 2> out_predt{*out_preds, {n_samples, n_groups}, ctx_->gpu_id};
+    auto out_predt = linalg::MakeTensorView(ctx_, *out_preds, n_samples, n_groups);
 
     if (!p_fmat->PageExists<SparsePage>()) {
       std::vector<Entry> workspace(p_fmat->Info().num_col_ * kUnroll * n_threads);
@@ -732,7 +732,7 @@ class CPUPredictor : public Predictor {
     std::vector<RegTree::FVec> thread_temp;
     InitThreadTemp(n_threads * kBlockSize, &thread_temp);
     std::size_t n_groups = model.learner_model_param->OutputLength();
-    linalg::TensorView<float, 2> out_predt{predictions, {m->NumRows(), n_groups}, Context::kCpuId};
+    auto out_predt = linalg::MakeTensorView(ctx_, predictions, m->NumRows(), n_groups);
     PredictBatchByBlockOfRowsKernel<AdapterView<Adapter>, kBlockSize>(
         AdapterView<Adapter>(m.get(), missing, common::Span<Entry>{workspace}, n_threads), model,
         tree_begin, tree_end, &thread_temp, n_threads, out_predt);
@@ -878,8 +878,8 @@ class CPUPredictor : public Predictor {
     common::ParallelFor(ntree_limit, n_threads, [&](bst_omp_uint i) {
       FillNodeMeanValues(model.trees[i].get(), &(mean_values[i]));
     });
-    auto base_margin = info.base_margin_.View(Context::kCpuId);
-    auto base_score = model.learner_model_param->BaseScore(Context::kCpuId)(0);
+    auto base_margin = info.base_margin_.View(ctx_->Device());
+    auto base_score = model.learner_model_param->BaseScore(ctx_->Device())(0);
     // start collecting the contributions
     for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
       auto page = batch.GetView();

@@ -31,7 +31,7 @@ class TreePruner : public TreeUpdater {
   [[nodiscard]] bool CanModifyTree() const override { return true; }
 
   // update the tree, do pruning
-  void Update(TrainParam const* param, HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat,
+  void Update(TrainParam const* param, linalg::Matrix<GradientPair>* gpair, DMatrix* p_fmat,
               common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree*>& trees) override {
     pruner_monitor_.Start("PrunerUpdate");

@@ -27,8 +27,8 @@ void ParallelGHistBuilderReset() {
 
   for(size_t inode = 0; inode < kNodesExtended; inode++) {
     collection.AddHistRow(inode);
+    collection.AllocateData(inode);
   }
-  collection.AllocateAllData();
   ParallelGHistBuilder hist_builder;
   hist_builder.Init(kBins);
   std::vector<GHistRow> target_hist(kNodes);
@@ -83,8 +83,8 @@ void ParallelGHistBuilderReduceHist(){
 
   for(size_t inode = 0; inode < kNodes; inode++) {
     collection.AddHistRow(inode);
+    collection.AllocateData(inode);
   }
-  collection.AllocateAllData();
   ParallelGHistBuilder hist_builder;
   hist_builder.Init(kBins);
   std::vector<GHistRow> target_hist(kNodes);
@@ -129,7 +129,7 @@ TEST(CutsBuilder, SearchGroupInd) {
 
   auto p_mat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
-  std::vector<bst_int> group(kNumGroups);
+  std::vector<bst_group_t> group(kNumGroups);
   group[0] = 2;
   group[1] = 3;
   group[2] = 7;

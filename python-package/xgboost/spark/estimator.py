@@ -3,8 +3,8 @@
 # pylint: disable=fixme, too-many-ancestors, protected-access, no-member, invalid-name
 # pylint: disable=unused-argument, too-many-locals
 
-
-from typing import Any, Dict, List, Optional, Type, Union
+import warnings
+from typing import Any, List, Optional, Type, Union
 
 import numpy as np
 from pyspark import keyword_only
@@ -77,28 +77,35 @@ def _set_pyspark_xgb_cls_param_attrs(
         set_param_attrs(name, param_obj)
 
 
+def _deprecated_use_gpu() -> None:
+    warnings.warn(
+        "`use_gpu` is deprecated since 2.0.0, use `device` instead", FutureWarning
+    )
+
+
 class SparkXGBRegressor(_SparkXGBEstimator):
-    """
-    SparkXGBRegressor is a PySpark ML estimator. It implements the XGBoost regression
+    """SparkXGBRegressor is a PySpark ML estimator. It implements the XGBoost regression
     algorithm based on XGBoost python library, and it can be used in PySpark Pipeline
-    and PySpark ML meta algorithms like :py:class:`~pyspark.ml.tuning.CrossValidator`/
-    :py:class:`~pyspark.ml.tuning.TrainValidationSplit`/
-    :py:class:`~pyspark.ml.classification.OneVsRest`
+    and PySpark ML meta algorithms like
+    - :py:class:`~pyspark.ml.tuning.CrossValidator`/
+    - :py:class:`~pyspark.ml.tuning.TrainValidationSplit`/
+    - :py:class:`~pyspark.ml.classification.OneVsRest`
 
     SparkXGBRegressor automatically supports most of the parameters in
     :py:class:`xgboost.XGBRegressor` constructor and most of the parameters used in
-    :py:meth:`xgboost.XGBRegressor.fit` and :py:meth:`xgboost.XGBRegressor.predict` method.
+    :py:meth:`xgboost.XGBRegressor.fit` and :py:meth:`xgboost.XGBRegressor.predict`
+    method.
 
-    SparkXGBRegressor doesn't support setting `gpu_id` but support another param `use_gpu`,
-    see doc below for more details.
+    To enable GPU support, set `device` to `cuda` or `gpu`.
 
-    SparkXGBRegressor doesn't support setting `base_margin` explicitly as well, but support
-    another param called `base_margin_col`. see doc below for more details.
+    SparkXGBRegressor doesn't support setting `base_margin` explicitly as well, but
+    support another param called `base_margin_col`. see doc below for more details.
 
     SparkXGBRegressor doesn't support `validate_features` and `output_margin` param.
 
-    SparkXGBRegressor doesn't support setting `nthread` xgboost param, instead, the `nthread`
-    param for each xgboost worker will be set equal to `spark.task.cpus` config value.
+    SparkXGBRegressor doesn't support setting `nthread` xgboost param, instead, the
+    `nthread` param for each xgboost worker will be set equal to `spark.task.cpus`
+    config value.
 
 
     Parameters
@@ -134,8 +141,16 @@ class SparkXGBRegressor(_SparkXGBEstimator):
         How many XGBoost workers to be used to train.
         Each XGBoost worker corresponds to one spark task.
     use_gpu:
-        Boolean value to specify whether the executors are running on GPU
-        instances.
+        .. deprecated:: 2.0.0
+
+        Use `device` instead.
+
+    device:
+
+        .. versionadded:: 2.0.0
+
+        Device for XGBoost workers, available options are `cpu`, `cuda`, and `gpu`.
+
     force_repartition:
         Boolean value to specify if forcing the input dataset to be repartitioned
         before XGBoost training.
@@ -194,14 +209,17 @@ class SparkXGBRegressor(_SparkXGBEstimator):
         weight_col: Optional[str] = None,
         base_margin_col: Optional[str] = None,
         num_workers: int = 1,
-        use_gpu: bool = False,
+        use_gpu: Optional[bool] = None,
+        device: Optional[str] = None,
         force_repartition: bool = False,
         repartition_random_shuffle: bool = False,
         enable_sparse_data_optim: bool = False,
-        **kwargs: Dict[str, Any],
+        **kwargs: Any,
     ) -> None:
         super().__init__()
         input_kwargs = self._input_kwargs
+        if use_gpu:
+            _deprecated_use_gpu()
         self.setParams(**input_kwargs)
 
     @classmethod
@@ -239,27 +257,29 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
     """SparkXGBClassifier is a PySpark ML estimator. It implements the XGBoost
     classification algorithm based on XGBoost python library, and it can be used in
     PySpark Pipeline and PySpark ML meta algorithms like
-    :py:class:`~pyspark.ml.tuning.CrossValidator`/
-    :py:class:`~pyspark.ml.tuning.TrainValidationSplit`/
-    :py:class:`~pyspark.ml.classification.OneVsRest`
+    - :py:class:`~pyspark.ml.tuning.CrossValidator`/
+    - :py:class:`~pyspark.ml.tuning.TrainValidationSplit`/
+    - :py:class:`~pyspark.ml.classification.OneVsRest`
 
     SparkXGBClassifier automatically supports most of the parameters in
     :py:class:`xgboost.XGBClassifier` constructor and most of the parameters used in
-    :py:meth:`xgboost.XGBClassifier.fit` and :py:meth:`xgboost.XGBClassifier.predict` method.
+    :py:meth:`xgboost.XGBClassifier.fit` and :py:meth:`xgboost.XGBClassifier.predict`
+    method.
 
-    SparkXGBClassifier doesn't support setting `gpu_id` but support another param `use_gpu`,
-    see doc below for more details.
+    To enable GPU support, set `device` to `cuda` or `gpu`.
 
-    SparkXGBClassifier doesn't support setting `base_margin` explicitly as well, but support
-    another param called `base_margin_col`. see doc below for more details.
+    SparkXGBClassifier doesn't support setting `base_margin` explicitly as well, but
+    support another param called `base_margin_col`. see doc below for more details.
 
-    SparkXGBClassifier doesn't support setting `output_margin`, but we can get output margin
-    from the raw prediction column. See `raw_prediction_col` param doc below for more details.
+    SparkXGBClassifier doesn't support setting `output_margin`, but we can get output
+    margin from the raw prediction column. See `raw_prediction_col` param doc below for
+    more details.
 
     SparkXGBClassifier doesn't support `validate_features` and `output_margin` param.
 
-    SparkXGBClassifier doesn't support setting `nthread` xgboost param, instead, the `nthread`
-    param for each xgboost worker will be set equal to `spark.task.cpus` config value.
+    SparkXGBClassifier doesn't support setting `nthread` xgboost param, instead, the
+    `nthread` param for each xgboost worker will be set equal to `spark.task.cpus`
+    config value.
 
 
     Parameters
@@ -301,8 +321,16 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
         How many XGBoost workers to be used to train.
         Each XGBoost worker corresponds to one spark task.
     use_gpu:
-        Boolean value to specify whether the executors are running on GPU
-        instances.
+        .. deprecated:: 2.0.0
+
+        Use `device` instead.
+
+    device:
+
+        .. versionadded:: 2.0.0
+
+        Device for XGBoost workers, available options are `cpu`, `cuda`, and `gpu`.
+
     force_repartition:
         Boolean value to specify if forcing the input dataset to be repartitioned
         before XGBoost training.
@@ -361,11 +389,12 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
         weight_col: Optional[str] = None,
         base_margin_col: Optional[str] = None,
         num_workers: int = 1,
-        use_gpu: bool = False,
+        use_gpu: Optional[bool] = None,
+        device: Optional[str] = None,
         force_repartition: bool = False,
         repartition_random_shuffle: bool = False,
         enable_sparse_data_optim: bool = False,
-        **kwargs: Dict[str, Any],
+        **kwargs: Any,
     ) -> None:
         super().__init__()
         # The default 'objective' param value comes from sklearn `XGBClassifier` ctor,
@@ -373,6 +402,8 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
         # binary or multinomial input dataset, and we need to remove the fixed default
         # param value as well to avoid causing ambiguity.
         input_kwargs = self._input_kwargs
+        if use_gpu:
+            _deprecated_use_gpu()
         self.setParams(**input_kwargs)
         self._setDefault(objective=None)
 
@@ -423,19 +454,20 @@ class SparkXGBRanker(_SparkXGBEstimator):
     :py:class:`xgboost.XGBRanker` constructor and most of the parameters used in
     :py:meth:`xgboost.XGBRanker.fit` and :py:meth:`xgboost.XGBRanker.predict` method.
 
-    SparkXGBRanker doesn't support setting `gpu_id` but support another param `use_gpu`,
-    see doc below for more details.
+    To enable GPU support, set `device` to `cuda` or `gpu`.
 
     SparkXGBRanker doesn't support setting `base_margin` explicitly as well, but support
     another param called `base_margin_col`. see doc below for more details.
 
     SparkXGBRanker doesn't support setting `output_margin`, but we can get output margin
-    from the raw prediction column. See `raw_prediction_col` param doc below for more details.
+    from the raw prediction column. See `raw_prediction_col` param doc below for more
+    details.
 
     SparkXGBRanker doesn't support `validate_features` and `output_margin` param.
 
-    SparkXGBRanker doesn't support setting `nthread` xgboost param, instead, the `nthread`
-    param for each xgboost worker will be set equal to `spark.task.cpus` config value.
+    SparkXGBRanker doesn't support setting `nthread` xgboost param, instead, the
+    `nthread` param for each xgboost worker will be set equal to `spark.task.cpus`
+    config value.
 
 
     Parameters
@@ -468,13 +500,20 @@ class SparkXGBRanker(_SparkXGBEstimator):
         :py:class:`xgboost.XGBRanker` fit method.
     qid_col:
         Query id column name.
-
     num_workers:
         How many XGBoost workers to be used to train.
         Each XGBoost worker corresponds to one spark task.
     use_gpu:
-        Boolean value to specify whether the executors are running on GPU
-        instances.
+        .. deprecated:: 2.0.0
+
+        Use `device` instead.
+
+    device:
+
+        .. versionadded:: 2.0.0
+
+        Device for XGBoost workers, available options are `cpu`, `cuda`, and `gpu`.
+
     force_repartition:
         Boolean value to specify if forcing the input dataset to be repartitioned
         before XGBoost training.
@@ -539,14 +578,17 @@ class SparkXGBRanker(_SparkXGBEstimator):
         base_margin_col: Optional[str] = None,
         qid_col: Optional[str] = None,
         num_workers: int = 1,
-        use_gpu: bool = False,
+        use_gpu: Optional[bool] = None,
+        device: Optional[str] = None,
         force_repartition: bool = False,
         repartition_random_shuffle: bool = False,
         enable_sparse_data_optim: bool = False,
-        **kwargs: Dict[str, Any],
+        **kwargs: Any,
     ) -> None:
         super().__init__()
         input_kwargs = self._input_kwargs
+        if use_gpu:
+            _deprecated_use_gpu()
         self.setParams(**input_kwargs)
 
     @classmethod

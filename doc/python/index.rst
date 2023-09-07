@@ -17,3 +17,5 @@ Contents
   examples/index
   dask-examples/index
   survival-examples/index
+  gpu-examples/index
+  rmm-examples/index

@@ -282,7 +282,7 @@ object SparkSessionHolder extends Logging {
     logDebug(s"SETTING  CONF: ${conf.getAll.toMap}")
     setAllConfs(conf.getAll)
     logDebug(s"RUN WITH CONF: ${spark.conf.getAll}\n")
+    spark.sparkContext.setLogLevel("WARN")
     f(spark)
   }
-
 }

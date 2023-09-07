@@ -5,9 +5,12 @@ ENABLE_STD_THREAD=0
 
 CXX_STD = CXX17
 
-XGB_RFLAGS = -DXGBOOST_STRICT_R_MODE=1 -DDMLC_LOG_BEFORE_THROW=0\
-           -DDMLC_ENABLE_STD_THREAD=$(ENABLE_STD_THREAD) -DDMLC_DISABLE_STDIN=1\
-           -DDMLC_LOG_CUSTOMIZE=1
+XGB_RFLAGS = \
+    -DXGBOOST_STRICT_R_MODE=1 \
+    -DDMLC_LOG_BEFORE_THROW=0 \
+    -DDMLC_ENABLE_STD_THREAD=$(ENABLE_STD_THREAD) \
+    -DDMLC_DISABLE_STDIN=1 \
+    -DDMLC_LOG_CUSTOMIZE=1
 
 # disable the use of thread_local for 32 bit windows:
 ifeq ($(R_OSTYPE)$(WIN),windows)
@@ -15,9 +18,25 @@ ifeq ($(R_OSTYPE)$(WIN),windows)
 endif
 $(foreach v, $(XGB_RFLAGS), $(warning $(v)))
 
-PKG_CPPFLAGS=  -I$(PKGROOT)/include -I$(PKGROOT)/dmlc-core/include -I$(PKGROOT)/rabit/include -I$(PKGROOT) $(XGB_RFLAGS)
-PKG_CXXFLAGS= $(SHLIB_OPENMP_CXXFLAGS) -DDMLC_CMAKE_LITTLE_ENDIAN=1 $(SHLIB_PTHREAD_FLAGS) $(CXX_VISIBILITY)
-PKG_LIBS = $(SHLIB_OPENMP_CXXFLAGS)  -DDMLC_CMAKE_LITTLE_ENDIAN=1  $(SHLIB_PTHREAD_FLAGS) -lwsock32 -lws2_32
+PKG_CPPFLAGS = \
+    -I$(PKGROOT)/include \
+    -I$(PKGROOT)/dmlc-core/include \
+    -I$(PKGROOT)/rabit/include \
+    -I$(PKGROOT) \
+    $(XGB_RFLAGS)
+
+PKG_CXXFLAGS = \
+    $(SHLIB_OPENMP_CXXFLAGS) \
+    -DDMLC_CMAKE_LITTLE_ENDIAN=1 \
+    $(SHLIB_PTHREAD_FLAGS) \
+    $(CXX_VISIBILITY)
+
+PKG_LIBS = \
+    $(SHLIB_OPENMP_CXXFLAGS) \
+    -DDMLC_CMAKE_LITTLE_ENDIAN=1 \
+    $(SHLIB_PTHREAD_FLAGS) \
+    -lwsock32 \
+    -lws2_32
 
 OBJECTS= \
     ./xgboost_R.o \
@@ -47,6 +66,7 @@ OBJECTS= \
     $(PKGROOT)/src/data/data.o \
     $(PKGROOT)/src/data/sparse_page_raw_format.o \
     $(PKGROOT)/src/data/ellpack_page.o \
+    $(PKGROOT)/src/data/file_iterator.o \
     $(PKGROOT)/src/data/gradient_index.o \
     $(PKGROOT)/src/data/gradient_index_page_source.o \
     $(PKGROOT)/src/data/gradient_index_format.o \
@@ -68,6 +88,8 @@ OBJECTS= \
     $(PKGROOT)/src/tree/updater_quantile_hist.o \
     $(PKGROOT)/src/tree/updater_refresh.o \
     $(PKGROOT)/src/tree/updater_sync.o \
+    $(PKGROOT)/src/tree/hist/param.o \
+    $(PKGROOT)/src/tree/hist/histogram.o \
     $(PKGROOT)/src/linear/linear_updater.o \
     $(PKGROOT)/src/linear/updater_coordinate.o \
     $(PKGROOT)/src/linear/updater_shotgun.o \

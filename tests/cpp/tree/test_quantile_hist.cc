@@ -13,7 +13,6 @@
 #include "../../../src/tree/common_row_partitioner.h"
 #include "../../../src/tree/hist/expand_entry.h"  // for MultiExpandEntry, CPUExpandEntry
 #include "../../../src/tree/param.h"
-#include "../../../src/tree/split_evaluator.h"
 #include "../helpers.h"
 #include "test_partitioner.h"
 #include "xgboost/data.h"
@@ -49,7 +48,7 @@ void TestPartitioner(bst_target_t n_targets) {
       auto min_value = gmat.cut.MinValues()[split_ind];
       RegTree tree{n_targets, n_features};
       CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid, false};
-      if constexpr (std::is_same<ExpandEntry, CPUExpandEntry>::value) {
+      if constexpr (std::is_same_v<ExpandEntry, CPUExpandEntry>) {
         GetSplit(&tree, min_value, &candidates);
       } else {
         GetMultiSplitForTest(&tree, min_value, &candidates);
@@ -203,13 +202,13 @@ TEST(QuantileHist, PartitionerColSplit) { TestColumnSplitPartitioner<CPUExpandEn
 TEST(QuantileHist, MultiPartitionerColSplit) { TestColumnSplitPartitioner<MultiExpandEntry>(3); }
 
 namespace {
-void VerifyColumnSplit(bst_row_t rows, bst_feature_t cols, bst_target_t n_targets,
+void VerifyColumnSplit(Context const* ctx, bst_row_t rows, bst_feature_t cols, bst_target_t n_targets,
                        RegTree const& expected_tree) {
   auto Xy = RandomDataGenerator{rows, cols, 0}.GenerateDMatrix(true);
-  auto p_gradients = GenerateGradients(rows, n_targets);
-  Context ctx;
+  linalg::Matrix<GradientPair> gpair = GenerateRandomGradients(ctx, rows, n_targets);
+
   ObjInfo task{ObjInfo::kRegression};
-  std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create("grow_quantile_histmaker", &ctx, &task)};
+  std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create("grow_quantile_histmaker", ctx, &task)};
   std::vector<HostDeviceVector<bst_node_t>> position(1);
 
   std::unique_ptr<DMatrix> sliced{Xy->SliceCol(collective::GetWorldSize(), collective::GetRank())};
@@ -217,7 +216,8 @@ void VerifyColumnSplit(bst_row_t rows, bst_feature_t cols, bst_target_t n_target
   RegTree tree{n_targets, cols};
   TrainParam param;
   param.Init(Args{});
-  updater->Update(&param, p_gradients.get(), sliced.get(), position, {&tree});
+  updater->Configure(Args{});
+  updater->Update(&param, &gpair, sliced.get(), position, {&tree});
 
   Json json{Object{}};
   tree.SaveModel(&json);
@@ -232,20 +232,21 @@ void TestColumnSplit(bst_target_t n_targets) {
 
   RegTree expected_tree{n_targets, kCols};
   ObjInfo task{ObjInfo::kRegression};
+  Context ctx;
   {
     auto Xy = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
-    auto p_gradients = GenerateGradients(kRows, n_targets);
-    Context ctx;
+    auto gpair = GenerateRandomGradients(&ctx, kRows, n_targets);
     std::unique_ptr<TreeUpdater> updater{
         TreeUpdater::Create("grow_quantile_histmaker", &ctx, &task)};
     std::vector<HostDeviceVector<bst_node_t>> position(1);
     TrainParam param;
     param.Init(Args{});
-    updater->Update(&param, p_gradients.get(), Xy.get(), position, {&expected_tree});
+    updater->Configure(Args{});
+    updater->Update(&param, &gpair, Xy.get(), position, {&expected_tree});
   }
 
   auto constexpr kWorldSize = 2;
-  RunWithInMemoryCommunicator(kWorldSize, VerifyColumnSplit, kRows, kCols, n_targets,
+  RunWithInMemoryCommunicator(kWorldSize, VerifyColumnSplit, &ctx, kRows, kCols, n_targets,
                               std::cref(expected_tree));
 }
 }  // anonymous namespace

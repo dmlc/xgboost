@@ -284,7 +284,7 @@ private[spark] trait ParamMapFuncs extends Params {
         (paramName == "updater" && paramValue != "grow_histmaker,prune" &&
           paramValue != "grow_quantile_histmaker" && paramValue != "grow_gpu_hist")) {
         throw new IllegalArgumentException(s"you specified $paramName as $paramValue," +
-          s" XGBoost-Spark only supports gbtree as booster type and grow_histmaker,prune or" +
+          s" XGBoost-Spark only supports gbtree as booster type and grow_histmaker or" +
           s" grow_quantile_histmaker or grow_gpu_hist as the updater type")
       }
       val name = CaseFormat.LOWER_UNDERSCORE.to(CaseFormat.LOWER_CAMEL, paramName)

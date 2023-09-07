@@ -12,21 +12,21 @@ namespace common {
 TEST(Metric, DeclareUnifiedTest(AFTNegLogLik)) { VerifyAFTNegLogLik(); }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), AFTNegLogLikRowSplit) {
-  RunWithInMemoryCommunicator(world_size_, &VerifyAFTNegLogLik, DataSplitMode::kRow);
+  DoTest(VerifyAFTNegLogLik, DataSplitMode::kRow);
 }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), AFTNegLogLikColumnSplit) {
-  RunWithInMemoryCommunicator(world_size_, &VerifyAFTNegLogLik, DataSplitMode::kCol);
+  DoTest(VerifyAFTNegLogLik, DataSplitMode::kCol);
 }
 
 TEST(Metric, DeclareUnifiedTest(IntervalRegressionAccuracy)) { VerifyIntervalRegressionAccuracy(); }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), IntervalRegressionAccuracyRowSplit) {
-  RunWithInMemoryCommunicator(world_size_, &VerifyIntervalRegressionAccuracy, DataSplitMode::kRow);
+  DoTest(VerifyIntervalRegressionAccuracy, DataSplitMode::kRow);
 }
 
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), IntervalRegressionAccuracyColumnSplit) {
-  RunWithInMemoryCommunicator(world_size_, &VerifyIntervalRegressionAccuracy, DataSplitMode::kCol);
+  DoTest(VerifyIntervalRegressionAccuracy, DataSplitMode::kCol);
 }
 
 // Test configuration of AFT metric

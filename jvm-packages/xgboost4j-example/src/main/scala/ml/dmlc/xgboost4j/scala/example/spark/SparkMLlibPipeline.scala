@@ -40,20 +40,20 @@ object SparkMLlibPipeline {
     val nativeModelPath = args(1)
     val pipelineModelPath = args(2)
 
-    val (treeMethod, numWorkers) = if (args.length == 4 && args(3) == "gpu") {
-      ("gpu_hist", 1)
-    } else ("auto", 2)
+    val (device, numWorkers) = if (args.length == 4 && args(3) == "gpu") {
+      ("cuda", 1)
+    } else ("cpu", 2)
 
     val spark = SparkSession
       .builder()
       .appName("XGBoost4J-Spark Pipeline Example")
       .getOrCreate()
 
-    run(spark, inputPath, nativeModelPath, pipelineModelPath, treeMethod, numWorkers)
+    run(spark, inputPath, nativeModelPath, pipelineModelPath, device, numWorkers)
       .show(false)
   }
   private[spark] def run(spark: SparkSession, inputPath: String, nativeModelPath: String,
-                         pipelineModelPath: String, treeMethod: String,
+                         pipelineModelPath: String, device: String,
                          numWorkers: Int): DataFrame = {
 
     // Load dataset
@@ -82,13 +82,14 @@ object SparkMLlibPipeline {
       .setOutputCol("classIndex")
       .fit(training)
     val booster = new XGBoostClassifier(
-      Map("eta" -> 0.1f,
+      Map(
+        "eta" -> 0.1f,
         "max_depth" -> 2,
         "objective" -> "multi:softprob",
         "num_class" -> 3,
         "num_round" -> 100,
         "num_workers" -> numWorkers,
-        "tree_method" -> treeMethod
+        "device" -> device
       )
     )
     booster.setFeaturesCol("features")

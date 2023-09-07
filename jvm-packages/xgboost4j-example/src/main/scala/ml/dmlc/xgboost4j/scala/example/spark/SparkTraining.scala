@@ -31,18 +31,18 @@ object SparkTraining {
       sys.exit(1)
     }
 
-    val (treeMethod, numWorkers) = if (args.length == 2 && args(1) == "gpu") {
-      ("gpu_hist", 1)
-    } else ("auto", 2)
+    val (device, numWorkers) = if (args.length == 2 && args(1) == "gpu") {
+      ("cuda", 1)
+    } else ("cpu", 2)
 
     val spark = SparkSession.builder().getOrCreate()
     val inputPath = args(0)
-    val results: DataFrame = run(spark, inputPath, treeMethod, numWorkers)
+    val results: DataFrame = run(spark, inputPath, device, numWorkers)
     results.show()
   }
 
 private[spark] def run(spark: SparkSession, inputPath: String,
-                       treeMethod: String, numWorkers: Int): DataFrame =  {
+                       device: String, numWorkers: Int): DataFrame =  {
     val schema = new StructType(Array(
       StructField("sepal length", DoubleType, true),
       StructField("sepal width", DoubleType, true),
@@ -80,7 +80,7 @@ private[spark] def run(spark: SparkSession, inputPath: String,
       "num_class" -> 3,
       "num_round" -> 100,
       "num_workers" -> numWorkers,
-      "tree_method" -> treeMethod,
+      "device" -> device,
       "eval_sets" -> Map("eval1" -> eval1, "eval2" -> eval2))
     val xgbClassifier = new XGBoostClassifier(xgbParam).
       setFeaturesCol("features").

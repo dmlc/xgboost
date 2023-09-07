@@ -76,6 +76,10 @@ def _check_rf_callback(
         )
 
 
+def _can_use_qdm(tree_method: Optional[str]) -> bool:
+    return tree_method in ("hist", "gpu_hist", None, "auto")
+
+
 SklObjective = Optional[
     Union[str, Callable[[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]]]
 ]
@@ -226,10 +230,10 @@ __model_doc = f"""
     subsample : Optional[float]
         Subsample ratio of the training instance.
     sampling_method :
-        Sampling method. Used only by `gpu_hist` tree method.
-          - `uniform`: select random training instances uniformly.
-          - `gradient_based` select random training instances with higher probability when
-            the gradient and hessian are larger. (cf. CatBoost)
+        Sampling method. Used only by the GPU version of ``hist`` tree method.
+          - ``uniform``: select random training instances uniformly.
+          - ``gradient_based`` select random training instances with higher probability
+            when the gradient and hessian are larger. (cf. CatBoost)
     colsample_bytree : Optional[float]
         Subsample ratio of columns when constructing each tree.
     colsample_bylevel : Optional[float]
@@ -273,10 +277,16 @@ __model_doc = f"""
         * For linear model, only "weight" is defined and it's the normalized coefficients
           without bias.
 
-    gpu_id : Optional[int]
-        Device ordinal.
+    device : Optional[str]
+
+        .. versionadded:: 2.0.0
+
+        Device ordinal, available options are `cpu`, `cuda`, and `gpu`.
+
     validate_parameters : Optional[bool]
+
         Give warnings for unknown parameter.
+
     enable_categorical : bool
 
         .. versionadded:: 1.5.0
@@ -647,7 +657,7 @@ class XGBModel(XGBModelBase):
         monotone_constraints: Optional[Union[Dict[str, int], str]] = None,
         interaction_constraints: Optional[Union[str, Sequence[Sequence[str]]]] = None,
         importance_type: Optional[str] = None,
-        gpu_id: Optional[int] = None,
+        device: Optional[str] = None,
         validate_parameters: Optional[bool] = None,
         enable_categorical: bool = False,
         feature_types: Optional[FeatureTypes] = None,
@@ -693,7 +703,7 @@ class XGBModel(XGBModelBase):
         self.monotone_constraints = monotone_constraints
         self.interaction_constraints = interaction_constraints
         self.importance_type = importance_type
-        self.gpu_id = gpu_id
+        self.device = device
         self.validate_parameters = validate_parameters
         self.enable_categorical = enable_categorical
         self.feature_types = feature_types
@@ -939,7 +949,7 @@ class XGBModel(XGBModelBase):
 
     def _create_dmatrix(self, ref: Optional[DMatrix], **kwargs: Any) -> DMatrix:
         # Use `QuantileDMatrix` to save memory.
-        if self.tree_method in ("hist", "gpu_hist"):
+        if _can_use_qdm(self.tree_method) and self.booster != "gblinear":
             try:
                 return QuantileDMatrix(
                     **kwargs, ref=ref, nthread=self.n_jobs, max_bin=self.max_bin
@@ -982,12 +992,12 @@ class XGBModel(XGBModelBase):
         X :
             Feature matrix. See :ref:`py-data` for a list of supported types.
 
-            When the ``tree_method`` is set to ``hist`` or ``gpu_hist``, internally, the
+            When the ``tree_method`` is set to ``hist``, internally, the
             :py:class:`QuantileDMatrix` will be used instead of the :py:class:`DMatrix`
             for conserving memory. However, this has performance implications when the
             device of input data is not matched with algorithm. For instance, if the
-            input is a numpy array on CPU but ``gpu_hist`` is used for training, then
-            the data is first processed on CPU then transferred to GPU.
+            input is a numpy array on CPU but ``cuda`` is used for training, then the
+            data is first processed on CPU then transferred to GPU.
         y :
             Labels
         sample_weight :
@@ -1000,13 +1010,17 @@ class XGBModel(XGBModelBase):
             Validation metrics will help us track the performance of the model.
 
         eval_metric : str, list of str, or callable, optional
+
             .. deprecated:: 1.6.0
-                Use `eval_metric` in :py:meth:`__init__` or :py:meth:`set_params` instead.
+
+            Use `eval_metric` in :py:meth:`__init__` or :py:meth:`set_params` instead.
 
         early_stopping_rounds : int
+
             .. deprecated:: 1.6.0
-                Use `early_stopping_rounds` in :py:meth:`__init__` or
-                :py:meth:`set_params` instead.
+
+            Use `early_stopping_rounds` in :py:meth:`__init__` or :py:meth:`set_params`
+            instead.
         verbose :
             If `verbose` is True and an evaluation set is used, the evaluation metric
             measured on the validation set is printed to stdout at each boosting stage.
@@ -1265,19 +1279,10 @@ class XGBModel(XGBModelBase):
             )
         return np.array(feature_names)
 
-    def _early_stopping_attr(self, attr: str) -> Union[float, int]:
-        booster = self.get_booster()
-        try:
-            return getattr(booster, attr)
-        except AttributeError as e:
-            raise AttributeError(
-                f"`{attr}` in only defined when early stopping is used."
-            ) from e
-
     @property
     def best_score(self) -> float:
         """The best score obtained by early stopping."""
-        return float(self._early_stopping_attr("best_score"))
+        return self.get_booster().best_score
 
     @property
     def best_iteration(self) -> int:
@@ -1285,7 +1290,7 @@ class XGBModel(XGBModelBase):
         for instance if the best iteration is the first round, then best_iteration is 0.
 
         """
-        return int(self._early_stopping_attr("best_iteration"))
+        return self.get_booster().best_iteration
 
     @property
     def feature_importances_(self) -> np.ndarray:
@@ -1354,25 +1359,25 @@ class XGBModel(XGBModelBase):
 
     @property
     def intercept_(self) -> np.ndarray:
-        """
-        Intercept (bias) property
+        """Intercept (bias) property
 
-        .. note:: Intercept is defined only for linear learners
-
-            Intercept (bias) is only defined when the linear model is chosen as base
-            learner (`booster=gblinear`). It is not defined for other base learner types,
-            such as tree learners (`booster=gbtree`).
+        For tree-based model, the returned value is the `base_score`.
 
         Returns
         -------
         intercept_ : array of shape ``(1,)`` or ``[n_classes]``
+
         """
-        if self.get_xgb_params()["booster"] != "gblinear":
-            raise AttributeError(
-                f"Intercept (bias) is not defined for Booster type {self.booster}"
-            )
+        booster_config = self.get_xgb_params()["booster"]
         b = self.get_booster()
-        return np.array(json.loads(b.get_dump(dump_format="json")[0])["bias"])
+        if booster_config != "gblinear":  # gbtree, dart
+            config = json.loads(b.save_config())
+            intercept = config["learner"]["learner_model_param"]["base_score"]
+            return np.array([float(intercept)], dtype=np.float32)
+
+        return np.array(
+            json.loads(b.get_dump(dump_format="json")[0])["bias"], dtype=np.float32
+        )
 
 
 PredtT = TypeVar("PredtT", bound=np.ndarray)
@@ -1912,12 +1917,12 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
             | 1   | :math:`x_{20}` | :math:`x_{21}` |
             +-----+----------------+----------------+
 
-            When the ``tree_method`` is set to ``hist`` or ``gpu_hist``, internally, the
+            When the ``tree_method`` is set to ``hist``, internally, the
             :py:class:`QuantileDMatrix` will be used instead of the :py:class:`DMatrix`
             for conserving memory. However, this has performance implications when the
             device of input data is not matched with algorithm. For instance, if the
-            input is a numpy array on CPU but ``gpu_hist`` is used for training, then
-            the data is first processed on CPU then transferred to GPU.
+            input is a numpy array on CPU but ``cuda`` is used for training, then the
+            data is first processed on CPU then transferred to GPU.
         y :
             Labels
         group :

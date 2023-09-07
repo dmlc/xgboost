@@ -28,10 +28,24 @@ class DeviceCommunicatorAdapter : public DeviceCommunicator {
 
     dh::safe_cuda(cudaSetDevice(device_ordinal_));
     auto size = count * GetTypeSize(data_type);
-    host_buffer_.reserve(size);
+    host_buffer_.resize(size);
     dh::safe_cuda(cudaMemcpy(host_buffer_.data(), send_receive_buffer, size, cudaMemcpyDefault));
     Allreduce(host_buffer_.data(), count, data_type, op);
     dh::safe_cuda(cudaMemcpy(send_receive_buffer, host_buffer_.data(), size, cudaMemcpyDefault));
+  }
+
+  void AllGather(void const *send_buffer, void *receive_buffer, std::size_t send_size) override {
+    if (world_size_ == 1) {
+      return;
+    }
+
+    dh::safe_cuda(cudaSetDevice(device_ordinal_));
+    host_buffer_.resize(send_size * world_size_);
+    dh::safe_cuda(cudaMemcpy(host_buffer_.data() + rank_ * send_size, send_buffer, send_size,
+                             cudaMemcpyDefault));
+    Allgather(host_buffer_.data(), host_buffer_.size());
+    dh::safe_cuda(
+        cudaMemcpy(receive_buffer, host_buffer_.data(), host_buffer_.size(), cudaMemcpyDefault));
   }
 
   void AllGatherV(void const *send_buffer, size_t length_bytes, std::vector<std::size_t> *segments,
@@ -49,7 +63,7 @@ class DeviceCommunicatorAdapter : public DeviceCommunicator {
     auto total_bytes = std::accumulate(segments->cbegin(), segments->cend(), 0UL);
     receive_buffer->resize(total_bytes);
 
-    host_buffer_.reserve(total_bytes);
+    host_buffer_.resize(total_bytes);
     size_t offset = 0;
     for (int32_t i = 0; i < world_size_; ++i) {
       size_t as_bytes = segments->at(i);

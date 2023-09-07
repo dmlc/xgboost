@@ -8,12 +8,12 @@
 
 #include <algorithm>
 #include <limits>
+#include <numeric>  // for accumulate
 #include <type_traits>
 #include <vector>
 
-#include "../common/error_msg.h"  // for InconsistentMaxBin
-#include "../common/random.h"
-#include "../common/threading_utils.h"
+#include "../collective/communicator-inl.h"  // for GetWorldSize, GetRank, Allgather
+#include "../common/error_msg.h"             // for InconsistentMaxBin
 #include "./simple_batch_iterator.h"
 #include "adapter.h"
 #include "batch_utils.h"   // for CheckEmpty, RegenGHist

@@ -76,17 +76,18 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \param iter current iteration number
    * \param train reference to the data matrix.
    */
-  virtual void UpdateOneIter(int iter, std::shared_ptr<DMatrix> train) = 0;
-  /*!
-   * \brief Do customized gradient boosting with in_gpair.
-   *  in_gair can be mutated after this call.
-   * \param iter current iteration number
-   * \param train reference to the data matrix.
-   * \param in_gpair The input gradient statistics.
+  virtual void UpdateOneIter(std::int32_t iter, std::shared_ptr<DMatrix> train) = 0;
+  /**
+   * @brief Do customized gradient boosting with in_gpair.
+   *
+   * @note in_gpair can be mutated after this call.
+   *
+   * @param iter current iteration number
+   * @param train reference to the data matrix.
+   * @param in_gpair The input gradient statistics.
    */
-  virtual void BoostOneIter(int iter,
-                            std::shared_ptr<DMatrix> train,
-                            HostDeviceVector<GradientPair>* in_gpair) = 0;
+  virtual void BoostOneIter(std::int32_t iter, std::shared_ptr<DMatrix> train,
+                            linalg::Matrix<GradientPair>* in_gpair) = 0;
   /*!
    * \brief evaluate the model for specific iteration using the configured metrics.
    * \param iter iteration number
@@ -110,15 +111,10 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \param approx_contribs whether to approximate the feature contributions for speed
    * \param pred_interactions whether to compute the feature pair contributions
    */
-  virtual void Predict(std::shared_ptr<DMatrix> data,
-                       bool output_margin,
-                       HostDeviceVector<bst_float> *out_preds,
-                       unsigned layer_begin,
-                       unsigned layer_end,
-                       bool training = false,
-                       bool pred_leaf = false,
-                       bool pred_contribs = false,
-                       bool approx_contribs = false,
+  virtual void Predict(std::shared_ptr<DMatrix> data, bool output_margin,
+                       HostDeviceVector<bst_float>* out_preds, bst_layer_t layer_begin,
+                       bst_layer_t layer_end, bool training = false, bool pred_leaf = false,
+                       bool pred_contribs = false, bool approx_contribs = false,
                        bool pred_interactions = false) = 0;
 
   /*!
@@ -132,8 +128,8 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \param          layer_end   End of booster layer. 0 means do not limit trees.
    */
   virtual void InplacePredict(std::shared_ptr<DMatrix> p_m, PredictionType type, float missing,
-                              HostDeviceVector<bst_float>** out_preds, uint32_t layer_begin,
-                              uint32_t layer_end) = 0;
+                              HostDeviceVector<float>** out_preds, bst_layer_t layer_begin,
+                              bst_layer_t layer_end) = 0;
 
   /*!
    * \brief Calculate feature score.  See doc in C API for outputs.
@@ -334,7 +330,7 @@ struct LearnerModelParam {
         multi_strategy{multi_strategy} {}
 
   linalg::TensorView<float const, 1> BaseScore(Context const* ctx) const;
-  [[nodiscard]] linalg::TensorView<float const, 1> BaseScore(std::int32_t device) const;
+  [[nodiscard]] linalg::TensorView<float const, 1> BaseScore(DeviceOrd device) const;
 
   void Copy(LearnerModelParam const& that);
   [[nodiscard]] bool IsVectorLeaf() const noexcept {

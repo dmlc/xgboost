@@ -1,19 +1,17 @@
-/*!
- * Copyright 2020-2022 by XGBoost Contributors
+/**
+ * Copyright 2020-2023, XGBoost Contributors
  */
 #include <algorithm>  // std::max
 #include <vector>
 #include <limits>
 
+#include "../../collective/communicator-inl.cuh"
 #include "../../common/categorical.h"
-#include "../../common/device_helpers.cuh"
 #include "../../data/ellpack_page.cuh"
 #include "evaluate_splits.cuh"
 #include "expand_entry.cuh"
 
-namespace xgboost {
-namespace tree {
-
+namespace xgboost::tree {
 // With constraints
 XGBOOST_DEVICE float LossChangeMissing(const GradientPairInt64 &scan,
                                        const GradientPairInt64 &missing,
@@ -315,11 +313,11 @@ __device__ void SetCategoricalSplit(const EvaluateSplitSharedInputs &shared_inpu
                                     common::Span<common::CatBitField::value_type> out,
                                     DeviceSplitCandidate *p_out_split) {
   auto &out_split = *p_out_split;
-  out_split.split_cats = common::CatBitField{out};
+  auto out_cats = common::CatBitField{out};
 
   // Simple case for one hot split
   if (common::UseOneHot(shared_inputs.FeatureBins(fidx), shared_inputs.param.max_cat_to_onehot)) {
-    out_split.split_cats.Set(common::AsCat(out_split.thresh));
+    out_cats.Set(common::AsCat(out_split.thresh));
     return;
   }
 
@@ -339,7 +337,7 @@ __device__ void SetCategoricalSplit(const EvaluateSplitSharedInputs &shared_inpu
   assert(partition > 0 && "Invalid partition.");
   thrust::for_each(thrust::seq, beg, beg + partition, [&](size_t c) {
     auto cat = shared_inputs.feature_values[c - node_offset];
-    out_split.SetCat(cat);
+    out_cats.Set(common::AsCat(cat));
   });
 }
 
@@ -409,6 +407,24 @@ void GPUHistEvaluator::EvaluateSplits(
   this->LaunchEvaluateSplits(max_active_features, d_inputs, shared_inputs,
                              evaluator, out_splits);
 
+  if (is_column_split_) {
+    // With column-wise data split, we gather the split candidates from all the workers and find the
+    // global best candidates.
+    auto const world_size = collective::GetWorldSize();
+    dh::TemporaryArray<DeviceSplitCandidate> all_candidate_storage(out_splits.size() * world_size);
+    auto all_candidates = dh::ToSpan(all_candidate_storage);
+    collective::AllGather(device_, out_splits.data(), all_candidates.data(),
+                          out_splits.size() * sizeof(DeviceSplitCandidate));
+
+    // Reduce to get the best candidate from all workers.
+    dh::LaunchN(out_splits.size(), [world_size, all_candidates, out_splits] __device__(size_t i) {
+      out_splits[i] = all_candidates[i];
+      for (auto rank = 1; rank < world_size; rank++) {
+        out_splits[i] = out_splits[i] + all_candidates[rank * out_splits.size() + i];
+      }
+    });
+  }
+
   auto d_sorted_idx = this->SortedIdx(d_inputs.size(), shared_inputs.feature_values.size());
   auto d_entries = out_entries;
   auto device_cats_accessor = this->DeviceCatStorage(nidx);
@@ -427,8 +443,7 @@ void GPUHistEvaluator::EvaluateSplits(
 
     if (split.is_cat) {
       SetCategoricalSplit(shared_inputs, d_sorted_idx, fidx, i,
-                          device_cats_accessor.GetNodeCatStorage(input.nidx),
-                          &out_splits[i]);
+                          device_cats_accessor.GetNodeCatStorage(input.nidx), &out_splits[i]);
     }
 
     float base_weight =
@@ -460,6 +475,4 @@ GPUExpandEntry GPUHistEvaluator::EvaluateSingleSplit(
                                 cudaMemcpyDeviceToHost));
   return root_entry;
 }
-
-}  // namespace tree
-}  // namespace xgboost
+}  // namespace xgboost::tree

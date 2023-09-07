@@ -20,7 +20,7 @@ sklearn estimator interface is still working in progress.
 
 You can find some some quick start examples at
 :ref:`sphx_glr_python_examples_sklearn_examples.py`. The main advantage of using sklearn
-interface is that it works with most of the utilites provided by sklearn like
+interface is that it works with most of the utilities provided by sklearn like
 :py:func:`sklearn.model_selection.cross_validate`. Also, many other libraries recognize
 the sklearn estimator interface thanks to its popularity.
 

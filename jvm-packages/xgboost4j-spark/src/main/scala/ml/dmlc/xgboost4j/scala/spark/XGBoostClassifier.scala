@@ -93,6 +93,8 @@ class XGBoostClassifier (
 
   def setTreeMethod(value: String): this.type = set(treeMethod, value)
 
+  def setDevice(value: String): this.type = set(device, value)
+
   def setGrowPolicy(value: String): this.type = set(growPolicy, value)
 
   def setMaxBins(value: Int): this.type = set(maxBins, value)

@@ -664,11 +664,11 @@ Object ToJson(Parameter const& param) {
 template <typename Parameter>
 Args FromJson(Json const& obj, Parameter* param) {
   auto const& j_param = get<Object const>(obj);
-  std::map<std::string, std::string> m;
+  Args args;
   for (auto const& kv : j_param) {
-    m[kv.first] = get<String const>(kv.second);
+    args.emplace_back(kv.first, get<String const>(kv.second));
   }
-  return param->UpdateAllowUnknown(m);
+  return param->UpdateAllowUnknown(args);
 }
 }  // namespace xgboost
 #endif  // XGBOOST_JSON_H_

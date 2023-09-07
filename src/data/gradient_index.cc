@@ -7,13 +7,12 @@
 #include <algorithm>
 #include <limits>
 #include <memory>
-#include <utility>  // std::forward
+#include <utility>  // for forward
 
 #include "../common/column_matrix.h"
 #include "../common/hist_util.h"
 #include "../common/numeric.h"
-#include "../common/threading_utils.h"
-#include "../common/transform_iterator.h"  // MakeIndexTransformIter
+#include "../common/transform_iterator.h"  // for MakeIndexTransformIter
 
 namespace xgboost {
 
@@ -21,7 +20,7 @@ GHistIndexMatrix::GHistIndexMatrix() : columns_{std::make_unique<common::ColumnM
 
 GHistIndexMatrix::GHistIndexMatrix(Context const *ctx, DMatrix *p_fmat, bst_bin_t max_bins_per_feat,
                                    double sparse_thresh, bool sorted_sketch,
-                                   common::Span<float> hess)
+                                   common::Span<float const> hess)
     : max_numeric_bins_per_feat{max_bins_per_feat} {
   CHECK(p_fmat->SingleColBlock());
   // We use sorted sketching for approx tree method since it's more efficient in

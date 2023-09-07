@@ -384,7 +384,7 @@ inline bool ArrayInterfaceHandler::IsCudaPtr(void const *) { return false; }
  *   numpy has the proper support even though it's in the __cuda_array_interface__
  *   protocol defined by numba.
  */
-template <int32_t D, bool allow_mask = (D == 1)>
+template <std::int32_t D, bool allow_mask = (D == 1)>
 class ArrayInterface {
   static_assert(D > 0, "Invalid dimension for array interface.");
 
@@ -588,7 +588,7 @@ class ArrayInterface {
 };
 
 template <std::int32_t D, typename Fn>
-void DispatchDType(ArrayInterface<D> const array, std::int32_t device, Fn fn) {
+void DispatchDType(ArrayInterface<D> const array, DeviceOrd device, Fn fn) {
   // Only used for cuDF at the moment.
   CHECK_EQ(array.valid.Capacity(), 0);
   auto dispatch = [&](auto t) {

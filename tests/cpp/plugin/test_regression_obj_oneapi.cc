@@ -148,7 +148,7 @@ TEST(Plugin, CPUvsOneAPI) {
 
   {
     // CPU
-    ctx.gpu_id = -1;
+    ctx = ctx.MakeCPU();
     obj_cpu->GetGradient(preds, info, 0, &cpu_out_preds);
   }
   {

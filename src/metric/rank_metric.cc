@@ -68,13 +68,14 @@ struct EvalAMS : public MetricNoCache {
     const auto &h_preds = preds.ConstHostVector();
     common::ParallelFor(ndata, ctx_->Threads(),
                         [&](bst_omp_uint i) { rec[i] = std::make_pair(h_preds[i], i); });
-    common::Sort(ctx_, rec.begin(), rec.end(), common::CmpFirst);
+    common::Sort(ctx_, rec.begin(), rec.end(),
+                 [](auto const& l, auto const& r) { return l.first > r.first; });
     auto ntop = static_cast<unsigned>(ratio_ * ndata);
     if (ntop == 0) ntop = ndata;
     const double br = 10.0;
     unsigned thresindex = 0;
     double s_tp = 0.0, b_fp = 0.0, tams = 0.0;
-    const auto& labels = info.labels.View(Context::kCpuId);
+    const auto& labels = info.labels.View(DeviceOrd::CPU());
     for (unsigned i = 0; i < static_cast<unsigned>(ndata-1) && i < ntop; ++i) {
       const unsigned ridx = rec[i].second;
       const bst_float wt = info.GetWeight(ridx);
@@ -133,7 +134,7 @@ struct EvalRank : public MetricNoCache, public EvalRankConfig {
     std::vector<double> sum_tloc(ctx_->Threads(), 0.0);
 
     {
-      const auto& labels = info.labels.View(Context::kCpuId);
+      const auto& labels = info.labels.HostView();
       const auto &h_preds = preds.ConstHostVector();
 
       dmlc::OMPException exc;

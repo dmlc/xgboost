@@ -1,5 +1,6 @@
 import json
 import os
+import pathlib
 import tempfile
 from pathlib import Path
 
@@ -166,6 +167,17 @@ class TestBasic:
 
         with pytest.raises(xgb.core.XGBoostError):
             xgb.Booster(model_file=u'不正なパス')
+
+    @pytest.mark.parametrize("path", ["모델.ubj", "がうる・ぐら.json"], ids=["path-0", "path-1"])
+    def test_unicode_path(self, tmpdir, path):
+        model_path = pathlib.Path(tmpdir) / path
+        dtrain, _ = tm.load_agaricus(__file__)
+        param = {"max_depth": 2, "eta": 1, "objective": "binary:logistic"}
+        bst = xgb.train(param, dtrain, num_boost_round=2)
+        bst.save_model(model_path)
+
+        bst2 = xgb.Booster(model_file=model_path)
+        assert bst.get_dump(dump_format="text") == bst2.get_dump(dump_format="text")
 
     def test_dmatrix_numpy_init_omp(self):
 

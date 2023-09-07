@@ -47,6 +47,7 @@ from typing import (
     Callable,
     Dict,
     Generator,
+    Iterable,
     List,
     Optional,
     Sequence,
@@ -70,6 +71,7 @@ from .core import (
     Metric,
     Objective,
     QuantileDMatrix,
+    _check_distributed_params,
     _deprecate_positional_args,
     _expect,
 )
@@ -82,6 +84,7 @@ from .sklearn import (
     XGBRanker,
     XGBRankerMixIn,
     XGBRegressorBase,
+    _can_use_qdm,
     _check_rf_callback,
     _cls_predict_proba,
     _objective_decorator,
@@ -95,10 +98,12 @@ if TYPE_CHECKING:
     import dask
     import distributed
     from dask import array as da
+    from dask import bag as db
     from dask import dataframe as dd
 else:
     dd = LazyLoader("dd", globals(), "dask.dataframe")
     da = LazyLoader("da", globals(), "dask.array")
+    db = LazyLoader("db", globals(), "dask.bag")
     dask = LazyLoader("dask", globals(), "dask")
     distributed = LazyLoader("distributed", globals(), "dask.distributed")
 
@@ -507,12 +512,10 @@ async def map_worker_partitions(
     func: Callable[..., _MapRetT],
     *refs: Any,
     workers: Sequence[str],
-) -> List[_MapRetT]:
+) -> _MapRetT:
     """Map a function onto partitions of each worker."""
     # Note for function purity:
-    # XGBoost is deterministic in most of the cases, which means train function is
-    # supposed to be idempotent.  One known exception is gblinear with shotgun updater.
-    # We haven't been able to do a full verification so here we keep pure to be False.
+    # XGBoost is sensitive to data partition and uses random number generator.
     client = _xgb_get_client(client)
     futures = []
     for addr in workers:
@@ -524,11 +527,26 @@ async def map_worker_partitions(
             else:
                 args.append(ref)
         fut = client.submit(
-            func, *args, pure=False, workers=[addr], allow_other_workers=False
+            # turn result into a list for bag construction
+            lambda *args, **kwargs: [func(*args, **kwargs)],
+            *args,
+            pure=False,
+            workers=[addr],
+            allow_other_workers=False,
         )
         futures.append(fut)
-    results = await client.gather(futures)
-    return results
+
+    def first_valid(results: Iterable[Optional[_MapRetT]]) -> Optional[_MapRetT]:
+        for v in results:
+            if v is not None:
+                return v
+        return None
+
+    bag = db.from_delayed(futures)
+    fut = await bag.reduction(first_valid, first_valid)
+    result = await client.compute(fut).result()
+
+    return result
 
 
 _DataParts = List[Dict[str, Any]]
@@ -617,14 +635,7 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
         if self._iter == len(self._data):
             # Return 0 when there's no more batch.
             return 0
-        feature_names: Optional[FeatureNames] = None
-        if self._feature_names:
-            feature_names = self._feature_names
-        else:
-            if hasattr(self.data(), "columns"):
-                feature_names = self.data().columns.format()
-            else:
-                feature_names = None
+
         input_data(
             data=self.data(),
             label=self._get("_label"),
@@ -634,7 +645,7 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
             base_margin=self._get("_base_margin"),
             label_lower_bound=self._get("_label_lower_bound"),
             label_upper_bound=self._get("_label_upper_bound"),
-            feature_names=feature_names,
+            feature_names=self._feature_names,
             feature_types=self._feature_types,
             feature_weights=self._feature_weights,
         )
@@ -855,8 +866,6 @@ async def _get_rabit_args(
     except Exception:  # pylint: disable=broad-except
         sched_addr = None
 
-    # make sure all workers are online so that we can obtain reliable scheduler_info
-    await client.wait_for_workers(n_workers)  # type: ignore
     env = await client.run_on_scheduler(
         _start_tracker, n_workers, sched_addr, user_addr
     )
@@ -889,27 +898,14 @@ def _get_workers_from_data(
     return list(X_worker_map)
 
 
-def _filter_empty(
-    booster: Booster, local_history: TrainingCallback.EvalsLog, is_valid: bool
-) -> Optional[TrainReturnT]:
-    n_workers = collective.get_world_size()
-    non_empty = numpy.zeros(shape=(n_workers,), dtype=numpy.int32)
-    rank = collective.get_rank()
-    non_empty[rank] = int(is_valid)
-    non_empty = collective.allreduce(non_empty, collective.Op.SUM)
-    non_empty = non_empty.astype(bool)
-    ret: Optional[TrainReturnT] = {
-        "booster": booster,
-        "history": local_history,
-    }
-    for i in range(non_empty.size):
-        # This is the first valid worker
-        if non_empty[i] and i == rank:
-            return ret
-        if non_empty[i]:
-            return None
-
-    raise ValueError("None of the workers can provide a valid result.")
+async def _check_workers_are_alive(
+    workers: List[str], client: "distributed.Client"
+) -> None:
+    info = await client.scheduler.identity()
+    current_workers = info["workers"].keys()
+    missing_workers = set(workers) - current_workers
+    if missing_workers:
+        raise RuntimeError(f"Missing required workers: {missing_workers}")
 
 
 async def _train_async(
@@ -929,12 +925,9 @@ async def _train_async(
     custom_metric: Optional[Metric],
 ) -> Optional[TrainReturnT]:
     workers = _get_workers_from_data(dtrain, evals)
+    await _check_workers_are_alive(workers, client)
     _rabit_args = await _get_rabit_args(len(workers), dconfig, client)
-
-    if params.get("booster", None) == "gblinear":
-        raise NotImplementedError(
-            f"booster `{params['booster']}` is not yet supported for dask."
-        )
+    _check_distributed_params(params)
 
     def dispatched_train(
         parameters: Dict,
@@ -997,10 +990,17 @@ async def _train_async(
                 xgb_model=xgb_model,
                 callbacks=callbacks,
             )
-            # Don't return the boosters from empty workers. It's quite difficult to
-            # guarantee everything is in sync in the present of empty workers,
-            # especially with complex objectives like quantile.
-            return _filter_empty(booster, local_history, Xy.num_row() != 0)
+        # Don't return the boosters from empty workers. It's quite difficult to
+        # guarantee everything is in sync in the present of empty workers, especially
+        # with complex objectives like quantile.
+        if Xy.num_row() != 0:
+            ret: Optional[TrainReturnT] = {
+                "booster": booster,
+                "history": local_history,
+            }
+        else:
+            ret = None
+        return ret
 
     async with distributed.MultiLock(workers, client):
         if evals is not None:
@@ -1012,7 +1012,7 @@ async def _train_async(
             evals_name = []
             evals_id = []
 
-        results = await map_worker_partitions(
+        result = await map_worker_partitions(
             client,
             dispatched_train,
             # extra function parameters
@@ -1025,7 +1025,7 @@ async def _train_async(
             # workers to be used for training
             workers=workers,
         )
-        return list(filter(lambda ret: ret is not None, results))[0]
+        return result
 
 
 @_deprecate_positional_args
@@ -1574,7 +1574,7 @@ async def _async_wrap_evaluation_matrices(
     """A switch function for async environment."""
 
     def _dispatch(ref: Optional[DaskDMatrix], **kwargs: Any) -> DaskDMatrix:
-        if tree_method in ("hist", "gpu_hist"):
+        if _can_use_qdm(tree_method):
             return DaskQuantileDMatrix(
                 client=client, ref=ref, max_bin=max_bin, **kwargs
             )

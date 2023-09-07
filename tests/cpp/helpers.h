@@ -35,21 +35,15 @@
 #endif
 
 #if defined(__CUDACC__)
-#define GPUIDX 0
+#define GPUIDX (common::AllVisibleGPUs() == 1 ? 0 : collective::GetRank())
 #else
-#define GPUIDX -1
+#define GPUIDX (-1)
 #endif
 
 #if defined(__CUDACC__)
 #define DeclareUnifiedDistributedTest(name) MGPU ## name
 #else
 #define DeclareUnifiedDistributedTest(name) name
-#endif
-
-#if defined(__CUDACC__)
-#define WORLD_SIZE_FOR_TEST (xgboost::common::AllVisibleGPUs())
-#else
-#define WORLD_SIZE_FOR_TEST (3)
 #endif
 
 namespace xgboost {
@@ -393,23 +387,6 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs,
                                                   LearnerModelParam const* learner_model_param,
                                                   Context const* generic_param);
 
-inline std::unique_ptr<HostDeviceVector<GradientPair>> GenerateGradients(
-    std::size_t rows, bst_target_t n_targets = 1) {
-  auto p_gradients = std::make_unique<HostDeviceVector<GradientPair>>(rows * n_targets);
-  auto& h_gradients = p_gradients->HostVector();
-
-  xgboost::SimpleLCG gen;
-  xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
-
-  for (std::size_t i = 0; i < rows * n_targets; ++i) {
-    auto grad = dist(&gen);
-    auto hess = dist(&gen);
-    h_gradients[i] = GradientPair{grad, hess};
-  }
-
-  return p_gradients;
-}
-
 /**
  * \brief Make a context that uses CUDA if device >= 0.
  */
@@ -421,16 +398,27 @@ inline Context MakeCUDACtx(std::int32_t device) {
 }
 
 inline HostDeviceVector<GradientPair> GenerateRandomGradients(const size_t n_rows,
-                                                              float lower= 0.0f, float upper = 1.0f) {
+                                                              float lower = 0.0f,
+                                                              float upper = 1.0f) {
   xgboost::SimpleLCG gen;
   xgboost::SimpleRealUniformDistribution<bst_float> dist(lower, upper);
   std::vector<GradientPair> h_gpair(n_rows);
-  for (auto &gpair : h_gpair) {
+  for (auto& gpair : h_gpair) {
     bst_float grad = dist(&gen);
     bst_float hess = dist(&gen);
     gpair = GradientPair(grad, hess);
   }
   HostDeviceVector<GradientPair> gpair(h_gpair);
+  return gpair;
+}
+
+inline linalg::Matrix<GradientPair> GenerateRandomGradients(Context const* ctx, bst_row_t n_rows,
+                                                            bst_target_t n_targets,
+                                                            float lower = 0.0f,
+                                                            float upper = 1.0f) {
+  auto g = GenerateRandomGradients(n_rows * n_targets, lower, upper);
+  linalg::Matrix<GradientPair> gpair({n_rows, static_cast<bst_row_t>(n_targets)}, ctx->Device());
+  gpair.Data()->Copy(g);
   return gpair;
 }
 
@@ -522,11 +510,15 @@ inline LearnerModelParam MakeMP(bst_feature_t n_features, float base_score, uint
 
 inline std::int32_t AllThreadsForTest() { return Context{}.Threads(); }
 
-template <typename Function, typename... Args>
+template <bool use_nccl = false, typename Function, typename... Args>
 void RunWithInMemoryCommunicator(int32_t world_size, Function&& function, Args&&... args) {
   auto run = [&](auto rank) {
     Json config{JsonObject()};
-    config["xgboost_communicator"] = String("in-memory");
+    if constexpr (use_nccl) {
+      config["xgboost_communicator"] = String("in-memory-nccl");
+    } else {
+      config["xgboost_communicator"] = String("in-memory");
+    }
     config["in_memory_world_size"] = world_size;
     config["in_memory_rank"] = rank;
     xgboost::collective::Init(config);
@@ -548,27 +540,35 @@ void RunWithInMemoryCommunicator(int32_t world_size, Function&& function, Args&&
 #endif
 }
 
-class DeclareUnifiedDistributedTest(MetricTest) : public ::testing::Test {
+class BaseMGPUTest : public ::testing::Test {
  protected:
   int world_size_;
+  bool use_nccl_{false};
 
   void SetUp() override {
-    world_size_ = WORLD_SIZE_FOR_TEST;
-    if (world_size_ <= 1) {
-      GTEST_SKIP() << "Skipping MGPU test with # GPUs = " << world_size_;
+    auto const n_gpus = common::AllVisibleGPUs();
+    if (n_gpus <= 1) {
+      // Use a single GPU to simulate distributed environment.
+      world_size_ = 3;
+      // NCCL doesn't like sharing a single GPU, so we use the adapter instead.
+      use_nccl_ = false;
+    } else {
+      // Use multiple GPUs for real.
+      world_size_ = n_gpus;
+      use_nccl_ = true;
+    }
+  }
+
+  template <typename Function, typename... Args>
+  void DoTest(Function&& function, Args&&... args) {
+    if (use_nccl_) {
+      RunWithInMemoryCommunicator<true>(world_size_, function, args...);
+    } else {
+      RunWithInMemoryCommunicator<false>(world_size_, function, args...);
     }
   }
 };
 
-// A temporary solution before we move away from gpu_id.
-inline void ConfigLearnerByCtx(Context const* ctx, Learner* learner) {
-  if (ctx->IsCPU()) {
-    learner->SetParam("tree_method", "hist");
-  } else {
-    learner->SetParam("tree_method", "gpu_hist");
-  }
-  learner->SetParam("gpu_id", std::to_string(ctx->gpu_id));
-  learner->Configure();
-  ASSERT_EQ(learner->Ctx()->gpu_id, ctx->gpu_id);
-}
+class DeclareUnifiedDistributedTest(MetricTest) : public BaseMGPUTest{};
+
 }  // namespace xgboost

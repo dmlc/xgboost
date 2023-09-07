@@ -11,7 +11,6 @@
 #include "../common/categorical.h"
 #include "../common/cuda_context.cuh"
 #include "../common/hist_util.cuh"
-#include "../common/random.h"
 #include "../common/transform_iterator.h"  // MakeIndexTransformIter
 #include "./ellpack_page.cuh"
 #include "device_adapter.cuh"  // for HasInfInData
@@ -131,7 +130,11 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, DMatrix* dmat, const BatchP
   monitor_.Start("Quantiles");
   // Create the quantile sketches for the dmatrix and initialize HistogramCuts.
   row_stride = GetRowStride(dmat);
-  cuts_ = common::DeviceSketch(ctx->gpu_id, dmat, param.max_bin);
+  if (!param.hess.empty()) {
+    cuts_ = common::DeviceSketchWithHessian(ctx, dmat, param.max_bin, param.hess);
+  } else {
+    cuts_ = common::DeviceSketch(ctx, dmat, param.max_bin);
+  }
   monitor_.Stop("Quantiles");
 
   monitor_.Start("InitCompressedData");

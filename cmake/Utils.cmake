@@ -90,8 +90,8 @@ function(format_gencode_flags flags out)
   endif()
   # Set up architecture flags
   if(NOT flags)
-    if (CUDA_VERSION VERSION_GREATER_EQUAL "11.1")
-      set(flags "50;60;70;80")
+    if (CUDA_VERSION VERSION_GREATER_EQUAL "11.8")
+      set(flags "50;60;70;80;90")
     elseif (CUDA_VERSION VERSION_GREATER_EQUAL "11.0")
       set(flags "50;60;70;80")
     elseif(CUDA_VERSION VERSION_GREATER_EQUAL "10.0")
@@ -133,6 +133,11 @@ function(xgboost_set_cuda_flags target)
     $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>
     $<$<COMPILE_LANGUAGE:CUDA>:-Xfatbin=-compress-all>)
 
+  if (USE_PER_THREAD_DEFAULT_STREAM)
+    target_compile_options(${target} PRIVATE
+            $<$<COMPILE_LANGUAGE:CUDA>:--default-stream per-thread>)
+  endif (USE_PER_THREAD_DEFAULT_STREAM)
+
   if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
     set_property(TARGET ${target} PROPERTY CUDA_ARCHITECTURES ${CMAKE_CUDA_ARCHITECTURES})
   endif (CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
@@ -172,7 +177,8 @@ function(xgboost_set_cuda_flags target)
   set_target_properties(${target} PROPERTIES
     CUDA_STANDARD 17
     CUDA_STANDARD_REQUIRED ON
-    CUDA_SEPARABLE_COMPILATION OFF)
+    CUDA_SEPARABLE_COMPILATION OFF
+    CUDA_RUNTIME_LIBRARY Static)
 endfunction(xgboost_set_cuda_flags)
 
 macro(xgboost_link_nccl target)
@@ -274,6 +280,7 @@ macro(xgboost_target_link_libraries target)
 
   if (USE_CUDA)
     xgboost_set_cuda_flags(${target})
+    target_link_libraries(${target} PUBLIC CUDA::cudart_static)
   endif (USE_CUDA)
 
   if (PLUGIN_RMM)
@@ -287,10 +294,6 @@ macro(xgboost_target_link_libraries target)
   if (USE_NVTX)
     target_link_libraries(${target} PRIVATE CUDA::nvToolsExt)
   endif (USE_NVTX)
-
-  if (RABIT_BUILD_MPI)
-    target_link_libraries(${target} PRIVATE MPI::MPI_CXX)
-  endif (RABIT_BUILD_MPI)
 
   if (MINGW)
     target_link_libraries(${target} PRIVATE wsock32 ws2_32)
