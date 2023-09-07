@@ -2,6 +2,7 @@ import json
 import logging
 import subprocess
 
+import numpy as np
 import pytest
 import sklearn
 
@@ -13,7 +14,7 @@ from pyspark.ml.linalg import Vectors
 from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 from pyspark.sql import SparkSession
 
-from xgboost.spark import SparkXGBClassifier, SparkXGBRegressor
+from xgboost.spark import SparkXGBClassifier, SparkXGBRegressor, SparkXGBRegressorModel
 
 gpu_discovery_script_path = "tests/test_distributed/test_gpu_with_spark/discover_gpu.sh"
 
@@ -242,3 +243,33 @@ def test_sparkxgb_regressor_feature_cols_with_gpu(spark_diabetes_dataset_feature
     evaluator = RegressionEvaluator(metricName="rmse")
     rmse = evaluator.evaluate(pred_result_df)
     assert rmse <= 65.0
+
+
+def test_gpu_transform(spark_diabetes_dataset) -> None:
+    regressor = SparkXGBRegressor(device="cuda", num_workers=num_workers)
+    train_df, test_df = spark_diabetes_dataset
+    model: SparkXGBRegressorModel = regressor.fit(train_df)
+
+    # The model trained with GPUs, and transform with GPU configurations.
+    assert model._gpu_transform()
+
+    model.set_device("cpu")
+    assert not model._gpu_transform()
+    # without error
+    cpu_rows = model.transform(test_df).select("prediction").collect()
+
+    regressor = SparkXGBRegressor(device="cpu", num_workers=num_workers)
+    model = regressor.fit(train_df)
+
+    # The model trained with CPUs. Even with GPU configurations,
+    # still prefer transforming with CPUs
+    assert not model._gpu_transform()
+
+    # Set gpu transform explicitly.
+    model.set_device("cuda")
+    assert model._gpu_transform()
+    # without error
+    gpu_rows = model.transform(test_df).select("prediction").collect()
+
+    for cpu, gpu in zip(cpu_rows, gpu_rows):
+        np.testing.assert_allclose(cpu.prediction, gpu.prediction, atol=1e-3)
