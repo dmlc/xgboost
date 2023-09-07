@@ -344,11 +344,7 @@ def pandas_feature_info(
 
 def is_nullable_dtype(dtype: PandasDType) -> bool:
     """Whether dtype is a pandas nullable type."""
-    from pandas.api.types import (
-        is_bool_dtype,
-        is_float_dtype,
-        is_integer_dtype,
-    )
+    from pandas.api.types import is_bool_dtype, is_float_dtype, is_integer_dtype
 
     is_int = is_integer_dtype(dtype) and dtype.name in pandas_nullable_mapper
     # np.bool has alias `bool`, while pd.BooleanDtype has `boolean`.
@@ -370,6 +366,7 @@ def is_pa_ext_categorical_dtype(dtype: Any) -> bool:
 
 
 def is_pd_cat_dtype(dtype: PandasDType) -> bool:
+    """Wrapper for testing pandas category type."""
     import pandas as pd
 
     if hasattr(pd.util, "version") and hasattr(pd.util.version, "Version"):
@@ -385,6 +382,7 @@ def is_pd_cat_dtype(dtype: PandasDType) -> bool:
 
 
 def is_pd_sparse_dtype(dtype: PandasDType) -> bool:
+    """Wrapper for testing pandas sparse type."""
     import pandas as pd
 
     if hasattr(pd.util, "version") and hasattr(pd.util.version, "Version"):
