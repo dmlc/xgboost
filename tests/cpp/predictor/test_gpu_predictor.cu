@@ -206,12 +206,8 @@ TEST(GpuPredictor, LesserFeatures) {
   TestPredictionWithLesserFeatures(&ctx);
 }
 
-TEST(GpuPredictor, MGPULesserFeaturesColumnSplit) {
-  auto const n_gpus = common::AllVisibleGPUs();
-  if (n_gpus <= 1) {
-    GTEST_SKIP() << "Skipping MGPULesserFeaturesColumnSplit test with # GPUs = " << n_gpus;
-  }
-  TestPredictionWithLesserFeaturesColumnSplit(n_gpus);
+TEST_F(MGPUPredictorTest, LesserFeaturesColumnSplit) {
+  RunWithInMemoryCommunicator(world_size_, TestPredictionWithLesserFeaturesColumnSplit, true);
 }
 
 // Very basic test of empty model
@@ -278,22 +274,24 @@ TEST(GPUPredictor, IterationRange) {
   TestIterationRange(&ctx);
 }
 
-TEST(GPUPredictor, MGPUIterationRangeColumnSplit) {
-  auto const n_gpus = common::AllVisibleGPUs();
-  if (n_gpus <= 1) {
-    GTEST_SKIP() << "Skipping MGPUIterationRangeColumnSplit test with # GPUs = " << n_gpus;
-  }
-  TestIterationRangeColumnSplit(n_gpus);
+TEST_F(MGPUPredictorTest, IterationRangeColumnSplit) {
+  RunWithInMemoryCommunicator(world_size_, TestIterationRangeColumnSplit, true);
 }
 
 TEST(GPUPredictor, CategoricalPrediction) {
-  auto ctx = MakeCUDACtx(0);
-  TestCategoricalPrediction(&ctx, false);
+  TestCategoricalPrediction(true, false);
+}
+
+TEST_F(MGPUPredictorTest, CategoricalPredictionColumnSplit) {
+  RunWithInMemoryCommunicator(world_size_, TestCategoricalPrediction, true, true);
 }
 
 TEST(GPUPredictor, CategoricalPredictLeaf) {
-  auto ctx = MakeCUDACtx(0);
-  TestCategoricalPredictLeaf(&ctx, false);
+  TestCategoricalPredictLeaf(true, false);
+}
+
+TEST_F(MGPUPredictorTest, CategoricalPredictionLeafColumnSplit) {
+  RunWithInMemoryCommunicator(world_size_, TestCategoricalPredictLeaf, true, true);
 }
 
 TEST(GPUPredictor, PredictLeafBasic) {
@@ -320,5 +318,10 @@ TEST(GPUPredictor, Sparse) {
   auto ctx = MakeCUDACtx(0);
   TestSparsePrediction(&ctx, 0.2);
   TestSparsePrediction(&ctx, 0.8);
+}
+
+TEST_F(MGPUPredictorTest, SparseColumnSplit) {
+  TestSparsePredictionColumnSplit(world_size_, true, 0.2);
+  TestSparsePredictionColumnSplit(world_size_, true, 0.8);
 }
 }  // namespace xgboost::predictor
