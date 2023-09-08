@@ -701,8 +701,9 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredictFr
    */
   namespace linalg = xgboost::linalg;
   jfloat *data = jenv->GetFloatArrayElements(jdata, nullptr);
+  xgboost::Context ctx;
   auto t_data = linalg::MakeTensorView(
-      xgboost::Context::kCpuId,
+      ctx.Device(),
       xgboost::common::Span{data, static_cast<std::size_t>(num_rows * num_features)}, num_rows,
       num_features);
   auto s_array = linalg::ArrayInterfaceStr(t_data);
