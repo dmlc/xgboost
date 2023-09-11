@@ -211,7 +211,7 @@ class TestPandas:
         y = np.random.randn(kRows)
         w = np.random.uniform(size=kRows).astype(np.float32)
         w_pd = pd.DataFrame(w)
-        data = xgb.DMatrix(X, y, w_pd)
+        data = xgb.DMatrix(X, y, weight=w_pd)
 
         assert data.num_row() == kRows
         assert data.num_col() == kCols
@@ -301,14 +301,14 @@ class TestPandas:
 
     @pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
     def test_nullable_type(self, DMatrixT) -> None:
-        from pandas.api.types import is_categorical_dtype
+        from xgboost.data import is_pd_cat_dtype
 
         for orig, df in pd_dtypes():
             if hasattr(df.dtypes, "__iter__"):
-                enable_categorical = any(is_categorical_dtype for dtype in df.dtypes)
+                enable_categorical = any(is_pd_cat_dtype(dtype) for dtype in df.dtypes)
             else:
                 # series
-                enable_categorical = is_categorical_dtype(df.dtype)
+                enable_categorical = is_pd_cat_dtype(df.dtype)
 
             f0_orig = orig[orig.columns[0]] if isinstance(orig, pd.DataFrame) else orig
             f0 = df[df.columns[0]] if isinstance(df, pd.DataFrame) else df
