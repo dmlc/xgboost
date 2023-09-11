@@ -441,11 +441,11 @@ void VerifyIterationRangeColumnSplit(bool use_gpu, Json const &ranged_model,
     auto const &h_sliced = out_predt_sliced.HostVector();
     auto const &h_ranged = out_predt_ranged.HostVector();
     EXPECT_EQ(h_sliced.size(), expected_margin_sliced.size());
-    for (auto i = 0; i < expected_margin_sliced.size(); ++i) {
+    for (std::size_t i = 0; i < expected_margin_sliced.size(); ++i) {
       ASSERT_FLOAT_EQ(h_sliced[i], expected_margin_sliced[i]) << "rank " << rank << ", i " << i;
     }
     EXPECT_EQ(h_ranged.size(), expected_margin_ranged.size());
-    for (auto i = 0; i < expected_margin_ranged.size(); ++i) {
+    for (std::size_t i = 0; i < expected_margin_ranged.size(); ++i) {
       ASSERT_FLOAT_EQ(h_ranged[i], expected_margin_ranged[i]) << "rank " << rank << ", i " << i;
     }
   }
@@ -457,11 +457,11 @@ void VerifyIterationRangeColumnSplit(bool use_gpu, Json const &ranged_model,
     auto const &h_sliced = out_predt_sliced.HostVector();
     auto const &h_ranged = out_predt_ranged.HostVector();
     EXPECT_EQ(h_sliced.size(), expected_leaf_sliced.size());
-    for (auto i = 0; i < expected_leaf_sliced.size(); ++i) {
+    for (std::size_t i = 0; i < expected_leaf_sliced.size(); ++i) {
       ASSERT_FLOAT_EQ(h_sliced[i], expected_leaf_sliced[i]) << "rank " << rank << ", i " << i;
     }
     EXPECT_EQ(h_ranged.size(), expected_leaf_ranged.size());
-    for (auto i = 0; i < expected_leaf_ranged.size(); ++i) {
+    for (std::size_t i = 0; i < expected_leaf_ranged.size(); ++i) {
       ASSERT_FLOAT_EQ(h_ranged[i], expected_leaf_ranged[i]) << "rank " << rank << ", i " << i;
     }
   }
