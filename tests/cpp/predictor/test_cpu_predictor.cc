@@ -128,7 +128,7 @@ TEST(CpuPredictor, IterationRange) {
 
 TEST(CpuPredictor, IterationRangeColmnSplit) {
   auto constexpr kWorldSize = 2;
-  RunWithInMemoryCommunicator(kWorldSize, TestIterationRangeColumnSplit, false);
+  TestIterationRangeColumnSplit(kWorldSize, false);
 }
 
 TEST(CpuPredictor, ExternalMemory) {

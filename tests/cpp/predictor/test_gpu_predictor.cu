@@ -275,7 +275,7 @@ TEST(GPUPredictor, IterationRange) {
 }
 
 TEST_F(MGPUPredictorTest, IterationRangeColumnSplit) {
-  RunWithInMemoryCommunicator(world_size_, TestIterationRangeColumnSplit, true);
+  TestIterationRangeColumnSplit(world_size_, true);
 }
 
 TEST(GPUPredictor, CategoricalPrediction) {

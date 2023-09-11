@@ -406,14 +406,74 @@ void TestIterationRange(Context const* ctx) {
   }
 }
 
-void TestIterationRangeColumnSplit(bool use_gpu) {
+namespace {
+void VerifyIterationRangeColumnSplit(bool use_gpu, Json const &ranged_model,
+                                     Json const &sliced_model, std::size_t rows, std::size_t cols,
+                                     std::size_t classes,
+                                     std::vector<float> const &expected_margin_ranged,
+                                     std::vector<float> const &expected_margin_sliced,
+                                     std::vector<float> const &expected_leaf_ranged,
+                                     std::vector<float> const &expected_leaf_sliced) {
   auto const world_size = collective::GetWorldSize();
   auto const rank = collective::GetRank();
+  Context ctx;
+  if (use_gpu) {
+    ctx = MakeCUDACtx(common::AllVisibleGPUs() == 1 ? 0 : rank);
+  }
+  auto dmat = RandomDataGenerator(rows, cols, 0).GenerateDMatrix(true, true, classes);
+  std::shared_ptr<DMatrix> Xy{dmat->SliceCol(world_size, rank)};
+
+  std::unique_ptr<Learner> learner{Learner::Create({Xy})};
+  learner->SetParam("device", ctx.DeviceName());
+  learner->LoadModel(ranged_model);
+
+  std::unique_ptr<Learner> sliced{Learner::Create({Xy})};
+  sliced->SetParam("device", ctx.DeviceName());
+  sliced->LoadModel(sliced_model);
+
+  HostDeviceVector<float> out_predt_sliced;
+  HostDeviceVector<float> out_predt_ranged;
+
+  // margin
+  {
+    sliced->Predict(Xy, true, &out_predt_sliced, 0, 0, false, false, false, false, false);
+    learner->Predict(Xy, true, &out_predt_ranged, 0, 3, false, false, false, false, false);
+    auto const &h_sliced = out_predt_sliced.HostVector();
+    auto const &h_ranged = out_predt_ranged.HostVector();
+    EXPECT_EQ(h_sliced.size(), expected_margin_sliced.size());
+    for (auto i = 0; i < expected_margin_sliced.size(); ++i) {
+      ASSERT_FLOAT_EQ(h_sliced[i], expected_margin_sliced[i]) << "rank " << rank << ", i " << i;
+    }
+    EXPECT_EQ(h_ranged.size(), expected_margin_ranged.size());
+    for (auto i = 0; i < expected_margin_ranged.size(); ++i) {
+      ASSERT_FLOAT_EQ(h_ranged[i], expected_margin_ranged[i]) << "rank " << rank << ", i " << i;
+    }
+  }
+
+  // Leaf
+  {
+    sliced->Predict(Xy, false, &out_predt_sliced, 0, 0, false, true, false, false, false);
+    learner->Predict(Xy, false, &out_predt_ranged, 0, 3, false, true, false, false, false);
+    auto const &h_sliced = out_predt_sliced.HostVector();
+    auto const &h_ranged = out_predt_ranged.HostVector();
+    EXPECT_EQ(h_sliced.size(), expected_leaf_sliced.size());
+    for (auto i = 0; i < expected_leaf_sliced.size(); ++i) {
+      ASSERT_FLOAT_EQ(h_sliced[i], expected_leaf_sliced[i]) << "rank " << rank << ", i " << i;
+    }
+    EXPECT_EQ(h_ranged.size(), expected_leaf_ranged.size());
+    for (auto i = 0; i < expected_leaf_ranged.size(); ++i) {
+      ASSERT_FLOAT_EQ(h_ranged[i], expected_leaf_ranged[i]) << "rank " << rank << ", i " << i;
+    }
+  }
+}
+}  // anonymous namespace
+
+void TestIterationRangeColumnSplit(int world_size, bool use_gpu) {
   std::size_t constexpr kRows = 1000, kCols = 20, kClasses = 4, kForest = 3, kIters = 10;
   auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix(true, true, kClasses);
   Context ctx;
   if (use_gpu) {
-    ctx = MakeCUDACtx(common::AllVisibleGPUs() == 1 ? 0 : rank);
+    ctx = MakeCUDACtx(0);
   }
   auto learner = LearnerForTest(&ctx, dmat, kIters, kForest);
 
@@ -437,34 +497,14 @@ void TestIterationRangeColumnSplit(bool use_gpu) {
   auto const &leaf_sliced = leaf_predt_sliced.HostVector();
   auto const &leaf_ranged = leaf_predt_ranged.HostVector();
 
-  std::shared_ptr<DMatrix> Xy{dmat->SliceCol(world_size, rank)};
+  Json ranged_model{Object{}};
+  learner->SaveModel(&ranged_model);
+  Json sliced_model{Object{}};
+  sliced->SaveModel(&sliced_model);
 
-  HostDeviceVector<float> out_predt_sliced;
-  HostDeviceVector<float> out_predt_ranged;
-
-  // margin
-  {
-    sliced->Predict(Xy, true, &out_predt_sliced, 0, 0, false, false, false, false, false);
-    learner->Predict(Xy, true, &out_predt_ranged, 0, 3, false, false, false, false, false);
-    auto const &h_sliced = out_predt_sliced.HostVector();
-    auto const &h_ranged = out_predt_ranged.HostVector();
-    EXPECT_EQ(h_sliced.size(), margin_sliced.size());
-    EXPECT_EQ(h_sliced, margin_sliced);
-    EXPECT_EQ(h_ranged.size(), margin_ranged.size());
-    EXPECT_EQ(h_ranged, margin_ranged);
-  }
-
-  // Leaf
-  {
-    sliced->Predict(Xy, false, &out_predt_sliced, 0, 0, false, true, false, false, false);
-    learner->Predict(Xy, false, &out_predt_ranged, 0, 3, false, true, false, false, false);
-    auto const &h_sliced = out_predt_sliced.HostVector();
-    auto const &h_ranged = out_predt_ranged.HostVector();
-    EXPECT_EQ(h_sliced.size(), leaf_sliced.size());
-    EXPECT_EQ(h_sliced, leaf_sliced);
-    EXPECT_EQ(h_ranged.size(), leaf_ranged.size());
-    EXPECT_EQ(h_ranged, leaf_ranged);
-  }
+  RunWithInMemoryCommunicator(world_size, VerifyIterationRangeColumnSplit, use_gpu, ranged_model,
+                              sliced_model, kRows, kCols, kClasses, margin_ranged, margin_sliced,
+                              leaf_ranged, leaf_sliced);
 }
 
 void TestSparsePrediction(Context const *ctx, float sparsity) {

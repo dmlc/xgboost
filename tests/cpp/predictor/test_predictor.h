@@ -102,7 +102,7 @@ void TestCategoricalPredictLeaf(bool use_gpu, bool is_column_split);
 
 void TestIterationRange(Context const* ctx);
 
-void TestIterationRangeColumnSplit(bool use_gpu);
+void TestIterationRangeColumnSplit(int world_size, bool use_gpu);
 
 void TestSparsePrediction(Context const* ctx, float sparsity);
 

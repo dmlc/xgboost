@@ -777,11 +777,7 @@ class ColumnSplitHelper {
     dh::caching_device_vector<BitType> missing_storage{};
 
     auto constexpr kBlockThreads = 128;
-    auto const max_shared_memory_bytes = dh::MaxSharedMemory(ctx_->gpu_id);
-    auto const shared_memory_bytes =
-        SharedMemoryBytes<kBlockThreads>(num_features, max_shared_memory_bytes);
-    auto const use_shared = shared_memory_bytes != 0;
-
+    auto const use_shared = false;
     auto const num_nodes = model.nodes.Size();
     std::size_t batch_offset = 0;
     for (auto const& batch : dmat->GetBatches<SparsePage>()) {
@@ -796,7 +792,7 @@ class ColumnSplitHelper {
       SparsePageView data(batch.data.DeviceSpan(), batch.offset.DeviceSpan(), num_features);
 
       auto const grid = static_cast<uint32_t>(common::DivRoundUp(num_rows, kBlockThreads));
-      dh::LaunchKernel {grid, kBlockThreads, shared_memory_bytes, ctx_->CUDACtx()->Stream()} (
+      dh::LaunchKernel {grid, kBlockThreads, 0, ctx_->CUDACtx()->Stream()} (
           MaskBitVectorKernel, data, model.nodes.ConstDeviceSpan(),
           model.tree_segments.ConstDeviceSpan(), model.tree_group.ConstDeviceSpan(),
           model.split_types.ConstDeviceSpan(), model.categories_tree_segments.ConstDeviceSpan(),
@@ -825,7 +821,6 @@ class ColumnSplitHelper {
         ctx_->gpu_id, decision_storage->data().get(), decision_storage->size());
     collective::AllReduce<collective::Operation::kBitwiseAND>(
         ctx_->gpu_id, missing_storage->data().get(), missing_storage->size());
-    collective::Synchronize(ctx_->gpu_id);
   }
 
   void ResizeBitVectors(dh::caching_device_vector<BitType>* decision_storage,
