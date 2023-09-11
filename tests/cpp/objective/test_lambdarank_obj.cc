@@ -71,7 +71,7 @@ void TestNDCGGPair(Context const* ctx) {
 
   HostDeviceVector<float> predts{0, 1, 0, 1};
   MetaInfo info;
-  info.labels = linalg::Tensor<float, 2>{{0, 1, 0, 1}, {4, 1}, GPUIDX};
+  info.labels = linalg::Tensor<float, 2>{{0, 1, 0, 1}, {4, 1}, ctx->Device()};
   info.group_ptr_ = {0, 2, 4};
   info.num_row_ = 4;
   linalg::Matrix<GradientPair> gpairs;
@@ -146,7 +146,7 @@ TEST(LambdaRank, UnbiasedNDCG) {
 }
 
 void InitMakePairTest(Context const* ctx, MetaInfo* out_info, HostDeviceVector<float>* out_predt) {
-  out_predt->SetDevice(ctx->gpu_id);
+  out_predt->SetDevice(ctx->Device());
   MetaInfo& info = *out_info;
   info.num_row_ = 128;
   info.labels.ModifyInplace([&](HostDeviceVector<float>* data, common::Span<std::size_t> shape) {
@@ -243,7 +243,7 @@ void TestMAPStat(Context const* ctx) {
 
     auto p_cache = std::make_shared<ltr::MAPCache>(ctx, info, param);
 
-    predt.SetDevice(ctx->gpu_id);
+    predt.SetDevice(ctx->Device());
     auto rank_idx =
         p_cache->SortedIdx(ctx, ctx->IsCPU() ? predt.ConstHostSpan() : predt.ConstDeviceSpan());
 
@@ -280,7 +280,7 @@ void TestMAPStat(Context const* ctx) {
 
     auto p_cache = std::make_shared<ltr::MAPCache>(ctx, info, param);
 
-    predt.SetDevice(ctx->gpu_id);
+    predt.SetDevice(ctx->Device());
     auto rank_idx =
         p_cache->SortedIdx(ctx, ctx->IsCPU() ? predt.ConstHostSpan() : predt.ConstDeviceSpan());
 

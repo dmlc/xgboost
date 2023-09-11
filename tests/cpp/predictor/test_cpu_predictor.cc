@@ -142,7 +142,7 @@ TEST(CpuPredictor, InplacePredict) {
   bst_row_t constexpr kRows{128};
   bst_feature_t constexpr kCols{64};
   Context ctx;
-  auto gen = RandomDataGenerator{kRows, kCols, 0.5}.Device(ctx.gpu_id);
+  auto gen = RandomDataGenerator{kRows, kCols, 0.5}.Device(ctx.Device());
   {
     HostDeviceVector<float> data;
     gen.GenerateDense(&data);

@@ -11,18 +11,18 @@ void DMatrixProxy::SetArrayData(StringView interface_str) {
   this->batch_ = adapter;
   this->Info().num_col_ = adapter->NumColumns();
   this->Info().num_row_ = adapter->NumRows();
-  this->ctx_.gpu_id = Context::kCpuId;
+  this->ctx_.Init(Args{{"device", "cpu"}});
 }
 
-void DMatrixProxy::SetCSRData(char const *c_indptr, char const *c_indices,
-                              char const *c_values, bst_feature_t n_features, bool on_host) {
+void DMatrixProxy::SetCSRData(char const *c_indptr, char const *c_indices, char const *c_values,
+                              bst_feature_t n_features, bool on_host) {
   CHECK(on_host) << "Not implemented on device.";
   std::shared_ptr<CSRArrayAdapter> adapter{new CSRArrayAdapter(
       StringView{c_indptr}, StringView{c_indices}, StringView{c_values}, n_features)};
   this->batch_ = adapter;
   this->Info().num_col_ = adapter->NumColumns();
   this->Info().num_row_ = adapter->NumRows();
-  this->ctx_.gpu_id = Context::kCpuId;
+  this->ctx_.Init(Args{{"device", "cpu"}});
 }
 
 namespace cuda_impl {

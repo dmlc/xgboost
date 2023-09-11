@@ -12,9 +12,9 @@ TEST(MultiTargetTree, JsonIO) {
   bst_feature_t n_features{4};
   RegTree tree{n_targets, n_features};
   ASSERT_TRUE(tree.IsMultiTarget());
-  linalg::Vector<float> base_weight{{1.0f, 2.0f, 3.0f}, {3ul}, Context::kCpuId};
-  linalg::Vector<float> left_weight{{2.0f, 3.0f, 4.0f}, {3ul}, Context::kCpuId};
-  linalg::Vector<float> right_weight{{3.0f, 4.0f, 5.0f}, {3ul}, Context::kCpuId};
+  linalg::Vector<float> base_weight{{1.0f, 2.0f, 3.0f}, {3ul}, DeviceOrd::CPU()};
+  linalg::Vector<float> left_weight{{2.0f, 3.0f, 4.0f}, {3ul}, DeviceOrd::CPU()};
+  linalg::Vector<float> right_weight{{3.0f, 4.0f, 5.0f}, {3ul}, DeviceOrd::CPU()};
   tree.ExpandNode(RegTree::kRoot, /*split_idx=*/1, 0.5f, true, base_weight.HostView(),
                   left_weight.HostView(), right_weight.HostView());
   ASSERT_EQ(tree.NumNodes(), 3);

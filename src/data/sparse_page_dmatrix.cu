@@ -45,7 +45,8 @@ BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(Context const* ctx,
     ellpack_page_source_.reset();  // make sure resource is released before making new ones.
     ellpack_page_source_ = std::make_shared<EllpackPageSource>(
         this->missing_, ctx->Threads(), this->Info().num_col_, this->n_batches_, cache_info_.at(id),
-        param, std::move(cuts), this->IsDense(), row_stride, ft, sparse_page_source_, ctx->gpu_id);
+        param, std::move(cuts), this->IsDense(), row_stride, ft, sparse_page_source_,
+        ctx->Device());
   } else {
     CHECK(sparse_page_source_);
     ellpack_page_source_->Reset();

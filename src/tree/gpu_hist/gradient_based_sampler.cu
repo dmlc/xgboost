@@ -167,10 +167,10 @@ GradientBasedSample ExternalMemoryNoSampling::Sample(Context const* ctx,
     for (auto& batch : dmat->GetBatches<EllpackPage>(ctx, batch_param_)) {
       auto page = batch.Impl();
       if (!page_) {
-        page_ = std::make_unique<EllpackPageImpl>(ctx->gpu_id, page->Cuts(), page->is_dense,
+        page_ = std::make_unique<EllpackPageImpl>(ctx->Device(), page->Cuts(), page->is_dense,
                                                   page->row_stride, dmat->Info().num_row_);
       }
-      size_t num_elements = page_->Copy(ctx->gpu_id, page, offset);
+      size_t num_elements = page_->Copy(ctx->Device(), page, offset);
       offset += num_elements;
     }
     page_concatenated_ = true;
@@ -228,13 +228,13 @@ GradientBasedSample ExternalMemoryUniformSampling::Sample(Context const* ctx,
   auto first_page = (*batch_iterator.begin()).Impl();
   // Create a new ELLPACK page with empty rows.
   page_.reset();  // Release the device memory first before reallocating
-  page_.reset(new EllpackPageImpl(ctx->gpu_id, first_page->Cuts(), first_page->is_dense,
+  page_.reset(new EllpackPageImpl(ctx->Device(), first_page->Cuts(), first_page->is_dense,
                                   first_page->row_stride, sample_rows));
 
   // Compact the ELLPACK pages into the single sample page.
   thrust::fill(cuctx->CTP(), dh::tbegin(page_->gidx_buffer), dh::tend(page_->gidx_buffer), 0);
   for (auto& batch : batch_iterator) {
-    page_->Compact(ctx->gpu_id, batch.Impl(), dh::ToSpan(sample_row_index_));
+    page_->Compact(ctx->Device(), batch.Impl(), dh::ToSpan(sample_row_index_));
   }
 
   return {sample_rows, page_.get(), dh::ToSpan(gpair_)};
@@ -306,13 +306,13 @@ GradientBasedSample ExternalMemoryGradientBasedSampling::Sample(Context const* c
   auto first_page = (*batch_iterator.begin()).Impl();
   // Create a new ELLPACK page with empty rows.
   page_.reset();  // Release the device memory first before reallocating
-  page_.reset(new EllpackPageImpl(ctx->gpu_id, first_page->Cuts(), first_page->is_dense,
+  page_.reset(new EllpackPageImpl(ctx->Device(), first_page->Cuts(), first_page->is_dense,
                                   first_page->row_stride, sample_rows));
 
   // Compact the ELLPACK pages into the single sample page.
   thrust::fill(dh::tbegin(page_->gidx_buffer), dh::tend(page_->gidx_buffer), 0);
   for (auto& batch : batch_iterator) {
-    page_->Compact(ctx->gpu_id, batch.Impl(), dh::ToSpan(sample_row_index_));
+    page_->Compact(ctx->Device(), batch.Impl(), dh::ToSpan(sample_row_index_));
   }
 
   return {sample_rows, page_.get(), dh::ToSpan(gpair_)};

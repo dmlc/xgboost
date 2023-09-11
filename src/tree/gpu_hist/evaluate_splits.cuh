@@ -85,7 +85,7 @@ class GPUHistEvaluator {
   std::size_t node_categorical_storage_size_ = 0;
   // Is the data split column-wise?
   bool is_column_split_ = false;
-  int32_t device_;
+  DeviceOrd device_;
 
   // Copy the categories from device to host asynchronously.
   void CopyToHost( const std::vector<bst_node_t>& nidx);
@@ -133,14 +133,14 @@ class GPUHistEvaluator {
   }
 
  public:
-  GPUHistEvaluator(TrainParam const &param, bst_feature_t n_features, int32_t device)
+  GPUHistEvaluator(TrainParam const &param, bst_feature_t n_features, DeviceOrd device)
       : tree_evaluator_{param, n_features, device}, param_{param} {}
   /**
    * \brief Reset the evaluator, should be called before any use.
    */
   void Reset(common::HistogramCuts const &cuts, common::Span<FeatureType const> ft,
              bst_feature_t n_features, TrainParam const &param, bool is_column_split,
-             int32_t device);
+             DeviceOrd device);
 
   /**
    * \brief Get host category storage for nidx.  Different from the internal version, this

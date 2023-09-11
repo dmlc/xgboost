@@ -20,8 +20,8 @@ void FitIntercept::InitEstimation(MetaInfo const& info, linalg::Vector<float>* b
     CheckInitInputs(info);
   }
   // Avoid altering any state in child objective.
-  HostDeviceVector<float> dummy_predt(info.labels.Size(), 0.0f, this->ctx_->gpu_id);
-  linalg::Matrix<GradientPair> gpair(info.labels.Shape(), this->ctx_->gpu_id);
+  HostDeviceVector<float> dummy_predt(info.labels.Size(), 0.0f, this->ctx_->Device());
+  linalg::Matrix<GradientPair> gpair(info.labels.Shape(), this->ctx_->Device());
 
   Json config{Object{}};
   this->SaveConfig(&config);

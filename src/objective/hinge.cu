@@ -1,5 +1,5 @@
-/*!
- * Copyright 2018-2022 by XGBoost Contributors
+/**
+ * Copyright 2018-2023, XGBoost Contributors
  * \file hinge.cc
  * \brief Provides an implementation of the hinge loss function
  * \author Henry Gouk
@@ -13,8 +13,7 @@
 #include "../common/transform.h"
 #include "../common/common.h"
 
-namespace xgboost {
-namespace obj {
+namespace xgboost::obj {
 
 #if defined(XGBOOST_USE_CUDA)
 DMLC_REGISTRY_FILE_TAG(hinge_obj_gpu);
@@ -63,7 +62,7 @@ class HingeObj : public ObjFunction {
           _out_gpair[_idx] = GradientPair(g, h);
         },
         common::Range{0, static_cast<int64_t>(ndata)}, this->ctx_->Threads(),
-        ctx_->gpu_id).Eval(
+        ctx_->Device()).Eval(
             out_gpair->Data(), &preds, info.labels.Data(), &info.weights_);
   }
 
@@ -73,11 +72,11 @@ class HingeObj : public ObjFunction {
           _preds[_idx] = _preds[_idx] > 0.0 ? 1.0 : 0.0;
         },
         common::Range{0, static_cast<int64_t>(io_preds->Size()), 1}, this->ctx_->Threads(),
-        io_preds->DeviceIdx())
+        io_preds->Device())
         .Eval(io_preds);
   }
 
-  const char* DefaultEvalMetric() const override {
+  [[nodiscard]] const char* DefaultEvalMetric() const override {
     return "error";
   }
 
@@ -93,5 +92,4 @@ XGBOOST_REGISTER_OBJECTIVE(HingeObj, "binary:hinge")
 .describe("Hinge loss. Expects labels to be in [0,1f]")
 .set_body([]() { return new HingeObj(); });
 
-}  // namespace obj
-}  // namespace xgboost
+}  // namespace xgboost::obj

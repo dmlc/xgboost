@@ -11,63 +11,59 @@
 #include "../../../src/common/transform.h"
 #include "../helpers.h"
 
+namespace xgboost::common {
+namespace {
+constexpr DeviceOrd TransformDevice() {
 #if defined(__CUDACC__)
-
-#define TRANSFORM_GPU 0
-
+  return DeviceOrd::CUDA(0);
 #else
-
-#define TRANSFORM_GPU -1
-
+  return DeviceOrd::CPU();
 #endif
-
-namespace xgboost {
-namespace common {
+}
+}  // namespace
 
 template <typename T>
 struct TestTransformRange {
-  void XGBOOST_DEVICE operator()(size_t _idx,
-                                 Span<bst_float> _out, Span<const bst_float> _in) {
+  void XGBOOST_DEVICE operator()(std::size_t _idx, Span<float> _out, Span<const float> _in) {
     _out[_idx] = _in[_idx];
   }
 };
 
 TEST(Transform, DeclareUnifiedTest(Basic)) {
-  const size_t size {256};
-  std::vector<bst_float> h_in(size);
-  std::vector<bst_float> h_out(size);
+  const size_t size{256};
+  std::vector<float> h_in(size);
+  std::vector<float> h_out(size);
   std::iota(h_in.begin(), h_in.end(), 0);
-  std::vector<bst_float> h_sol(size);
+  std::vector<float> h_sol(size);
   std::iota(h_sol.begin(), h_sol.end(), 0);
 
-  const HostDeviceVector<bst_float> in_vec{h_in, TRANSFORM_GPU};
-  HostDeviceVector<bst_float> out_vec{h_out, TRANSFORM_GPU};
+  auto device = TransformDevice();
+  HostDeviceVector<float> const in_vec{h_in, device};
+  HostDeviceVector<float> out_vec{h_out, device};
   out_vec.Fill(0);
 
-  Transform<>::Init(TestTransformRange<bst_float>{},
+  Transform<>::Init(TestTransformRange<float>{},
                     Range{0, static_cast<Range::DifferenceType>(size)}, AllThreadsForTest(),
-                    TRANSFORM_GPU)
+                    TransformDevice())
       .Eval(&out_vec, &in_vec);
-  std::vector<bst_float> res = out_vec.HostVector();
+  std::vector<float> res = out_vec.HostVector();
 
   ASSERT_TRUE(std::equal(h_sol.begin(), h_sol.end(), res.begin()));
 }
 
 #if !defined(__CUDACC__)
 TEST(TransformDeathTest, Exception) {
-  size_t const kSize {16};
-  std::vector<bst_float> h_in(kSize);
-  const HostDeviceVector<bst_float> in_vec{h_in, -1};
+  size_t const kSize{16};
+  std::vector<float> h_in(kSize);
+  const HostDeviceVector<float> in_vec{h_in, DeviceOrd::CPU()};
   EXPECT_DEATH(
       {
         Transform<>::Init([](size_t idx, common::Span<float const> _in) { _in[idx + 1]; },
                           Range(0, static_cast<Range::DifferenceType>(kSize)), AllThreadsForTest(),
-                          -1)
+                          DeviceOrd::CPU())
             .Eval(&in_vec);
       },
       "");
 }
 #endif
-
-} // namespace common
-} // namespace xgboost
+}  // namespace xgboost::common

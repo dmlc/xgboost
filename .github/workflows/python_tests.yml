@@ -190,7 +190,7 @@ jobs:
       run: |
         mkdir build_msvc
         cd build_msvc
-        cmake .. -G"Visual Studio 17 2022" -DCMAKE_CONFIGURATION_TYPES="Release" -A x64 -DGOOGLE_TEST=ON  -DUSE_DMLC_GTEST=ON -DBUILD_DEPRECATED_CLI=ON
+        cmake .. -G"Visual Studio 17 2022" -DCMAKE_CONFIGURATION_TYPES="Release" -A x64 -DBUILD_DEPRECATED_CLI=ON
         cmake --build . --config Release --parallel $(nproc)
 
     - name: Install Python package

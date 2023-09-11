@@ -30,7 +30,7 @@ namespace xgboost::data {
 TEST(GradientIndex, ExternalMemoryBaseRowID) {
   Context ctx;
   auto p_fmat = RandomDataGenerator{4096, 256, 0.5}
-                    .Device(ctx.gpu_id)
+                    .Device(ctx.Device())
                     .Batches(8)
                     .GenerateSparsePageDMatrix("cache", true);
 

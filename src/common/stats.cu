@@ -15,14 +15,12 @@
 #include "xgboost/host_device_vector.h"  // HostDeviceVector
 #include "xgboost/linalg.h"              // linalg::TensorView, UnravelIndex, Apply
 
-namespace xgboost {
-namespace common {
-namespace cuda_impl {
+namespace xgboost::common::cuda_impl {
 void Median(Context const* ctx, linalg::TensorView<float const, 2> t,
             common::OptionalWeights weights, linalg::Tensor<float, 1>* out) {
   CHECK_GE(t.Shape(1), 1);
   HostDeviceVector<std::size_t> segments(t.Shape(1) + 1, 0);
-  segments.SetDevice(ctx->gpu_id);
+  segments.SetDevice(ctx->Device());
   auto d_segments = segments.DeviceSpan();
   dh::LaunchN(d_segments.size(), ctx->CUDACtx()->Stream(),
               [=] XGBOOST_DEVICE(std::size_t i) { d_segments[i] = t.Shape(0) * i; });
@@ -31,7 +29,7 @@ void Median(Context const* ctx, linalg::TensorView<float const, 2> t,
         return linalg::detail::Apply(t, linalg::UnravelIndex(i, t.Shape()));
       });
 
-  out->SetDevice(ctx->gpu_id);
+  out->SetDevice(ctx->Device());
   out->Reshape(t.Shape(1));
   if (weights.Empty()) {
     common::SegmentedQuantile(ctx, 0.5, dh::tcbegin(d_segments), dh::tcend(d_segments), val_it,
@@ -60,6 +58,4 @@ void Mean(Context const* ctx, linalg::VectorView<float const> v, linalg::VectorV
   dh::TemporaryArray<char> temp{bytes};
   cub::DeviceReduce::Sum(temp.data().get(), bytes, it, out.Values().data(), v.Size(), s);
 }
-}  // namespace cuda_impl
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common::cuda_impl

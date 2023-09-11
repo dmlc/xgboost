@@ -413,7 +413,7 @@ void GPUHistEvaluator::EvaluateSplits(
     auto const world_size = collective::GetWorldSize();
     dh::TemporaryArray<DeviceSplitCandidate> all_candidate_storage(out_splits.size() * world_size);
     auto all_candidates = dh::ToSpan(all_candidate_storage);
-    collective::AllGather(device_, out_splits.data(), all_candidates.data(),
+    collective::AllGather(device_.ordinal, out_splits.data(), all_candidates.data(),
                           out_splits.size() * sizeof(DeviceSplitCandidate));
 
     // Reduce to get the best candidate from all workers.

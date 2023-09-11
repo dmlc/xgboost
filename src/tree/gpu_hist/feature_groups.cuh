@@ -1,5 +1,5 @@
-/*!
- * Copyright 2020 by XGBoost Contributors
+/**
+ * Copyright 2020-2023 by XGBoost Contributors
  */
 #ifndef FEATURE_GROUPS_CUH_
 #define FEATURE_GROUPS_CUH_
@@ -102,11 +102,10 @@ struct FeatureGroups {
     InitSingle(cuts);
   }
 
-  FeatureGroupsAccessor DeviceAccessor(int device) const {
+  [[nodiscard]] FeatureGroupsAccessor DeviceAccessor(DeviceOrd device) const {
     feature_segments.SetDevice(device);
     bin_segments.SetDevice(device);
-    return {feature_segments.ConstDeviceSpan(), bin_segments.ConstDeviceSpan(),
-        max_group_bins};
+    return {feature_segments.ConstDeviceSpan(), bin_segments.ConstDeviceSpan(), max_group_bins};
   }
 
 private:

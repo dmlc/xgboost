@@ -33,7 +33,7 @@ class UpdaterTreeStatTest : public ::testing::Test {
     ObjInfo task{ObjInfo::kRegression};
     param.Init(Args{});
 
-    Context ctx(updater == "grow_gpu_hist" ? MakeCUDACtx(0) : MakeCUDACtx(Context::kCpuId));
+    Context ctx(updater == "grow_gpu_hist" ? MakeCUDACtx(0) : MakeCUDACtx(DeviceOrd::CPUOrdinal()));
     auto up = std::unique_ptr<TreeUpdater>{TreeUpdater::Create(updater, &ctx, &task)};
     up->Configure(Args{});
     RegTree tree{1u, kCols};
@@ -78,7 +78,7 @@ class UpdaterEtaTest : public ::testing::Test {
   void RunTest(std::string updater) {
     ObjInfo task{ObjInfo::kClassification};
 
-    Context ctx(updater == "grow_gpu_hist" ? MakeCUDACtx(0) : MakeCUDACtx(Context::kCpuId));
+    Context ctx(updater == "grow_gpu_hist" ? MakeCUDACtx(0) : MakeCUDACtx(DeviceOrd::CPUOrdinal()));
 
     float eta = 0.4;
     auto up_0 = std::unique_ptr<TreeUpdater>{TreeUpdater::Create(updater, &ctx, &task)};

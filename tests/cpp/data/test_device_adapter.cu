@@ -59,12 +59,12 @@ TEST(DeviceAdapter, GetRowCounts) {
   for (bst_feature_t n_features : {1, 2, 4, 64, 128, 256}) {
     HostDeviceVector<float> storage;
     auto str_arr = RandomDataGenerator{8192, n_features, 0.0}
-                       .Device(ctx.gpu_id)
+                       .Device(ctx.Device())
                        .GenerateArrayInterface(&storage);
     auto adapter = CupyAdapter{str_arr};
     HostDeviceVector<bst_row_t> offset(adapter.NumRows() + 1, 0);
-    offset.SetDevice(ctx.gpu_id);
-    auto rstride = GetRowCounts(adapter.Value(), offset.DeviceSpan(), ctx.gpu_id,
+    offset.SetDevice(ctx.Device());
+    auto rstride = GetRowCounts(adapter.Value(), offset.DeviceSpan(), ctx.Device(),
                                 std::numeric_limits<float>::quiet_NaN());
     ASSERT_EQ(rstride, n_features);
   }
