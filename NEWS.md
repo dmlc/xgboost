@@ -8,11 +8,11 @@ This file records the changes in xgboost library in reverse chronological order.
 We are excited to announce the 2.0 release for XGBoost. In this release note, we will first walk through some of the general changes then introduce package-specific updates.
 
 ### Initial work on multi-target tree
-In 2.0, we started initial work on vector-leaf tree models for multi-target regression, multi-label classification, and multi-class classification. Previously, XGBoost builds one model for each target, now with this working-in-progress feature, XGBoost can build one tree for all targets. The feature has multiple benefits and trade-offs compared to the existing method, it can help prevent overfitting, produce smaller models, and build trees that in theory consider the correlation between targets. In addition, users can mix two types of trees (vector leaf and scalar leaf) in a training session with a callback. Please note that the feature is still working in progress and most features are missing. See #9043 for current status. Related PRs: (#8538, #8697, #8902, #8884, #8895, #8898, #8612, #8652, #8698, #8908, #8928, #8968, #8616, #8922, #8890, #8872, #8889) Please note that, only the `hist` (default) tree method on CPU can be used for building vector leaf trees at the moment.
+In 2.0, we started initial work on vector-leaf tree models for multi-target regression, multi-label classification, and multi-class classification. Previously, XGBoost builds one model for each target, now with this working-in-progress feature, XGBoost can build one tree for all targets. The feature has multiple benefits and trade-offs compared to the existing method, it can help prevent overfitting, produce smaller models, and build trees that in theory consider the correlation between targets. In addition, users can mix two types of trees (vector leaf and scalar leaf) in a training session with a callback. Please note that the feature is still working in progress and most features are missing. See #9043 for current status. Related PRs: (#8538, #8697, #8902, #8884, #8895, #8898, #8612, #8652, #8698, #8908, #8928, #8968, #8616, #8922, #8890, #8872, #8889, #9509) Please note that, only the `hist` (default) tree method on CPU can be used for building vector leaf trees at the moment.
 
 ### New `device` parameter.
 
-A new `device` parameter is set to replace the existing `gpu_id`, `gpu_hist`, `gpu_predictor`, and the PySpark specific parameter `use_gpu`. Onward, users need only the `device` parameter to select which device to run along with the ordinal of the device. For more information, please see our document page (https://xgboost.readthedocs.io/en/stable/parameter.html#general-parameters) . For example, with  `device="cuda", tree_method="hist"`, XGBoost will run the `hist` tree method on GPU. (#9363, #8528, #8604, #9354, #9274, #9243, #8896, #9129, #9362, #9402, #9385, #9398, #9390, #9386, #9412). The old behavior of ``gpu_hist``  is preserved but deprecated. In addition, the `predictor` parameter is removed.
+A new `device` parameter is set to replace the existing `gpu_id`, `gpu_hist`, `gpu_predictor`, and the PySpark specific parameter `use_gpu`. Onward, users need only the `device` parameter to select which device to run along with the ordinal of the device. For more information, please see our document page (https://xgboost.readthedocs.io/en/stable/parameter.html#general-parameters) . For example, with  `device="cuda", tree_method="hist"`, XGBoost will run the `hist` tree method on GPU. (#9363, #8528, #8604, #9354, #9274, #9243, #8896, #9129, #9362, #9402, #9385, #9398, #9390, #9386, #9412, #9507, #9536). The old behavior of ``gpu_hist``  is preserved but deprecated. In addition, the `predictor` parameter is removed.
 
 
 ### `hist` is now the default tree method
@@ -65,6 +65,7 @@ We have advanced work on column-based split for federated learning. In 2.0, both
 ### PySpark
 After the initial introduction of the PySpark interface, it has gained some new features and optimizations in 2.0.
 
+- GPU-based prediction. (#9292, #9542)
 - Optimization for data initialization by avoiding the stack operation. (#9088)
 - Support predict feature contribution. (#8633)
 - Python typing support. (#9156, #9172, #9079, #8375)
@@ -72,6 +73,7 @@ After the initial introduction of the PySpark interface, it has gained some new 
 - Update eval_metric validation to support list of strings (#8826)
 - Improved logs for training (#9449)
 - Maintenance including refactoring and document updates (#8324, #8465, #8605, #9202, #9460, #9302, #8385, #8630, #8525, #8496)
+- Fix for GPU setup. (#9495)
 
 ### Other General New Features
 Here's a list of new features that don't have their own section and general to all language bindings.
@@ -101,6 +103,7 @@ Some noteworthy bug fixes that are not related to specific language binding are 
 - Fix model IO by clearing the prediction cache. (#8904)
 - `inf` is checked during data construction. (#8911)
 - Preserve order of saved updaters configuration. Normally, this is not an issue unless the `updater` parameter is used instead of the `tree_method` parameter (#9355)
+- Fix GPU memory allocation issue with categorical splits. (#9529)
 - Handle escape sequence like `\t\n` in feature names for JSON model dump. (#9474)
 - Normalize file path for model IO and text input. This handles short path on Windows and paths that contain `~` on Unix (#9463). In addition, all path inputs are required to be encoded in UTF-8 (#9448, #9443)
 - Fix integer overflow on H100. (#9380)
@@ -119,7 +122,7 @@ Aside from documents for new features, we have many smaller updates to improve u
 - How to build the docs using conda (#9276)
 - Explain how to obtain reproducible result on distributed system. (#8903)
 
-* Fixes and small updates to document and demonstration scripts. (#8626, #8436, #8995, #8907, #8923, #8926, #9358, #9232, #9201, #9469, #9462, #9458, #8543, #8597, #8401, #8784, #9213, #9098, #9008, #9223, #9333, #9434, #9435, #9415, #8773, #8752, #9291)
+* Fixes and small updates to document and demonstration scripts. (#8626, #8436, #8995, #8907, #8923, #8926, #9358, #9232, #9201, #9469, #9462, #9458, #8543, #8597, #8401, #8784, #9213, #9098, #9008, #9223, #9333, #9434, #9435, #9415, #8773, #8752, #9291, #9549)
 
 ### Python package
 * New Features and Improvements
@@ -169,7 +172,7 @@ Aside from documents for new features, we have many smaller updates to improve u
 ### R package
 - Use the new data consumption interface for CSR and CSC. This provides better control for number of threads and improves performance. (#8455, #8673)
 - Accept multiple evaluation metrics during training. (#8657)
-
+- Fix integer inputs with `NA`. (#9522)
 - Some refactoring for the R package (#8545, #8430, #8614, #8624, #8613, #9457, #8689, #8563, #9461, #8647, #8564, #8565, #8736, #8610, #8609, #8599, #8704, #9456, #9450, #9476, #9477, #9481). Special thanks to @jameslamb.
 - Document updates (#8886, #9323, #9437, #8998)
 
@@ -199,7 +202,7 @@ Maintenance work includes refactoring, fixing small issues that don't affect end
 
 ### CI
 - Build pip wheel with RMM support (#9383)
-- Other CI updates including updating dependencies and work on the CI infrastructure. (#9464, #9428, #8767, #9394, #9278, #9214, #9234, #9205, #9034, #9104, #8878, #9294, #8625, #8806, #8741, #8707, #8381, #8382, #8388, #8402, #8397, #8445, #8602, #8628, #8583, #8460)
+- Other CI updates including updating dependencies and work on the CI infrastructure. (#9464, #9428, #8767, #9394, #9278, #9214, #9234, #9205, #9034, #9104, #8878, #9294, #8625, #8806, #8741, #8707, #8381, #8382, #8388, #8402, #8397, #8445, #8602, #8628, #8583, #8460, #9544)
 
 ## 1.7.6 (2023 Jun 16)
 
