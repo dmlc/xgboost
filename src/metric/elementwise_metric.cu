@@ -174,7 +174,15 @@ class PseudoErrorLoss : public MetricNoCache {
  public:
   const char* Name() const override { return "mphe"; }
   void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
-  void LoadConfig(Json const& in) override { FromJson(in["pseudo_huber_param"], &param_); }
+  void LoadConfig(Json const& in) override {
+    auto const& obj = get<Object const>(in);
+    auto it = obj.find("pseudo_huber_param");
+    if (it != obj.cend()) {
+      FromJson(in->second, &param_);
+      auto const& name = get<String const>(in["name"]);
+      CHECK_EQ(name, this->Name());
+    }
+  }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String(this->Name());
