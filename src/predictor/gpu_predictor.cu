@@ -633,11 +633,12 @@ __global__ void MaskBitVectorKernel(
     common::Span<std::uint32_t const> d_categories, BitVector decision_bits, BitVector missing_bits,
     std::size_t tree_begin, std::size_t tree_end, std::size_t num_features, std::size_t num_rows,
     std::size_t entry_start, std::size_t num_nodes, bool use_shared, float missing) {
+  // This needs to be always instantiated since the data is loaded cooperatively by all threads.
+  SparsePageLoader loader(data, use_shared, num_features, num_rows, entry_start, missing);
   auto const row_idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (row_idx >= num_rows) {
     return;
   }
-  SparsePageLoader loader(data, use_shared, num_features, num_rows, entry_start, missing);
 
   std::size_t tree_offset = 0;
   for (auto tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
@@ -777,7 +778,11 @@ class ColumnSplitHelper {
     dh::caching_device_vector<BitType> missing_storage{};
 
     auto constexpr kBlockThreads = 128;
-    auto const use_shared = false;
+    auto const max_shared_memory_bytes = dh::MaxSharedMemory(ctx_->gpu_id);
+    auto const shared_memory_bytes =
+        SharedMemoryBytes<kBlockThreads>(num_features, max_shared_memory_bytes);
+    auto const use_shared = shared_memory_bytes != 0;
+
     auto const num_nodes = model.nodes.Size();
     std::size_t batch_offset = 0;
     for (auto const& batch : dmat->GetBatches<SparsePage>()) {
@@ -792,7 +797,7 @@ class ColumnSplitHelper {
       SparsePageView data(batch.data.DeviceSpan(), batch.offset.DeviceSpan(), num_features);
 
       auto const grid = static_cast<uint32_t>(common::DivRoundUp(num_rows, kBlockThreads));
-      dh::LaunchKernel {grid, kBlockThreads, 0, ctx_->CUDACtx()->Stream()} (
+      dh::LaunchKernel {grid, kBlockThreads, shared_memory_bytes, ctx_->CUDACtx()->Stream()} (
           MaskBitVectorKernel, data, model.nodes.ConstDeviceSpan(),
           model.tree_segments.ConstDeviceSpan(), model.tree_group.ConstDeviceSpan(),
           model.split_types.ConstDeviceSpan(), model.categories_tree_segments.ConstDeviceSpan(),
