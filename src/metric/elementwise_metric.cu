@@ -178,7 +178,7 @@ class PseudoErrorLoss : public MetricNoCache {
     auto const& obj = get<Object const>(in);
     auto it = obj.find("pseudo_huber_param");
     if (it != obj.cend()) {
-      FromJson(in->second, &param_);
+      FromJson(it->second, &param_);
       auto const& name = get<String const>(in["name"]);
       CHECK_EQ(name, this->Name());
     }
