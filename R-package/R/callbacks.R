@@ -70,7 +70,7 @@ cb.print.evaluation <- function(period = 1, showsd = TRUE) {
         i == env$begin_iteration ||
         i == env$end_iteration) {
       stdev <- if (showsd) env$bst_evaluation_err else NULL
-      msg <- format.eval.string(i, env$bst_evaluation, stdev)
+      msg <- .format_eval_string(i, env$bst_evaluation, stdev)
       cat(msg, '\n')
     }
   }
@@ -380,7 +380,9 @@ cb.early.stop <- function(stopping_rounds, maximize = FALSE,
     if ((maximize && score > best_score) ||
         (!maximize && score < best_score)) {
 
-      best_msg <<- format.eval.string(i, env$bst_evaluation, env$bst_evaluation_err)
+      best_msg <<- .format_eval_string(
+        i, env$bst_evaluation, env$bst_evaluation_err
+      )
       best_score <<- score
       best_iteration <<- i
       best_ntreelimit <<- best_iteration * env$num_parallel_tree
@@ -754,7 +756,7 @@ xgb.gblinear.history <- function(model, class_index = NULL) {
 #
 
 # Format the evaluation metric string
-format.eval.string <- function(iter, eval_res, eval_err = NULL) {
+.format_eval_string <- function(iter, eval_res, eval_err = NULL) {
   if (length(eval_res) == 0)
     stop('no evaluation results')
   enames <- names(eval_res)
