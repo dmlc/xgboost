@@ -215,9 +215,9 @@ class SockAddrV4 {
   static SockAddrV4 Loopback();
   static SockAddrV4 InaddrAny();
 
-  in_port_t Port() const { return ntohs(addr_.sin_port); }
+  [[nodiscard]] in_port_t Port() const { return ntohs(addr_.sin_port); }
 
-  std::string Addr() const {
+  [[nodiscard]] std::string Addr() const {
     char buf[INET_ADDRSTRLEN];
     auto const *s = system::inet_ntop(static_cast<std::int32_t>(SockDomain::kV4), &addr_.sin_addr,
                                       buf, INET_ADDRSTRLEN);
@@ -226,7 +226,7 @@ class SockAddrV4 {
     }
     return {buf};
   }
-  sockaddr_in const &Handle() const { return addr_; }
+  [[nodiscard]] sockaddr_in const &Handle() const { return addr_; }
 };
 
 /**
@@ -243,13 +243,13 @@ class SockAddress {
   explicit SockAddress(SockAddrV6 const &addr) : v6_{addr}, domain_{SockDomain::kV6} {}
   explicit SockAddress(SockAddrV4 const &addr) : v4_{addr} {}
 
-  auto Domain() const { return domain_; }
+  [[nodiscard]] auto Domain() const { return domain_; }
 
-  bool IsV4() const { return Domain() == SockDomain::kV4; }
-  bool IsV6() const { return !IsV4(); }
+  [[nodiscard]] bool IsV4() const { return Domain() == SockDomain::kV4; }
+  [[nodiscard]] bool IsV6() const { return !IsV4(); }
 
-  auto const &V4() const { return v4_; }
-  auto const &V6() const { return v6_; }
+  [[nodiscard]] auto const &V4() const { return v4_; }
+  [[nodiscard]] auto const &V6() const { return v6_; }
 };
 
 /**
@@ -261,6 +261,7 @@ class TCPSocket {
 
  private:
   HandleT handle_{InvalidSocket()};
+  bool non_blocking_{false};
   // There's reliable no way to extract domain from a socket without first binding that
   // socket on macos.
 #if defined(__APPLE__)
@@ -276,7 +277,7 @@ class TCPSocket {
   /**
    * \brief Return the socket domain.
    */
-  auto Domain() const -> SockDomain {
+  [[nodiscard]] auto Domain() const -> SockDomain {
     auto ret_iafamily = [](std::int32_t domain) {
       switch (domain) {
         case AF_INET:
@@ -321,10 +322,10 @@ class TCPSocket {
 #endif  // platforms
   }
 
-  bool IsClosed() const { return handle_ == InvalidSocket(); }
+  [[nodiscard]] bool IsClosed() const { return handle_ == InvalidSocket(); }
 
-  /** \brief get last error code if any */
-  Result GetSockError() const {
+  /** @brief get last error code if any */
+  [[nodiscard]] Result GetSockError() const {
     std::int32_t optval = 0;
     socklen_t len = sizeof(optval);
     auto ret = getsockopt(handle_, SOL_SOCKET, SO_ERROR, reinterpret_cast<char *>(&optval), &len);
@@ -340,7 +341,7 @@ class TCPSocket {
   }
 
   /** \brief check if anything bad happens */
-  bool BadSocket() const {
+  [[nodiscard]] bool BadSocket() const {
     if (IsClosed()) {
       return true;
     }
@@ -352,24 +353,56 @@ class TCPSocket {
     return false;
   }
 
-  void SetNonBlock(bool non_block) {
+  [[nodiscard]] Result NonBlocking(bool non_block) {
 #if defined(_WIN32)
     u_long mode = non_block ? 1 : 0;
-    xgboost_CHECK_SYS_CALL(ioctlsocket(handle_, FIONBIO, &mode), NO_ERROR);
+    if (ioctlsocket(handle_, FIONBIO, &mode) != NO_ERROR) {
+      return system::FailWithCode("Failed to set socket to non-blocking.");
+    }
 #else
     std::int32_t flag = fcntl(handle_, F_GETFL, 0);
-    if (flag == -1) {
-      system::ThrowAtError("fcntl");
+    auto rc = flag;
+    if (rc == -1) {
+      return system::FailWithCode("Failed to get socket flag.");
     }
     if (non_block) {
       flag |= O_NONBLOCK;
     } else {
       flag &= ~O_NONBLOCK;
     }
-    if (fcntl(handle_, F_SETFL, flag) == -1) {
-      system::ThrowAtError("fcntl");
+    rc = fcntl(handle_, F_SETFL, flag);
+    if (rc == -1) {
+      return system::FailWithCode("Failed to set socket to non-blocking.");
     }
 #endif  // _WIN32
+    non_blocking_ = non_block;
+    return Success();
+  }
+  [[nodiscard]] bool NonBlocking() const { return non_blocking_; }
+  [[nodiscard]] Result RecvTimeout(std::chrono::seconds timeout) {
+    timeval tv;
+    tv.tv_sec = timeout.count();
+    tv.tv_usec = 0;
+    auto rc = setsockopt(Handle(), SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<char const *>(&tv),
+                         sizeof(tv));
+    if (rc != 0) {
+      return system::FailWithCode("Failed to set timeout on recv.");
+    }
+    return Success();
+  }
+
+  [[nodiscard]] Result SetBufSize(std::int32_t n_bytes) {
+    auto rc = setsockopt(this->Handle(), SOL_SOCKET, SO_SNDBUF, reinterpret_cast<char *>(&n_bytes),
+                         sizeof(n_bytes));
+    if (rc != 0) {
+      return system::FailWithCode("Failed to set send buffer size.");
+    }
+    rc = setsockopt(this->Handle(), SOL_SOCKET, SO_RCVBUF, reinterpret_cast<char *>(&n_bytes),
+                    sizeof(n_bytes));
+    if (rc != 0) {
+      return system::FailWithCode("Failed to set recv buffer size.");
+    }
+    return Success();
   }
 
   void SetKeepAlive() {
@@ -391,12 +424,24 @@ class TCPSocket {
    * \brief Accept new connection, returns a new TCP socket for the new connection.
    */
   TCPSocket Accept() {
-    HandleT newfd = accept(handle_, nullptr, nullptr);
+    HandleT newfd = accept(Handle(), nullptr, nullptr);
     if (newfd == InvalidSocket()) {
       system::ThrowAtError("accept");
     }
     TCPSocket newsock{newfd};
     return newsock;
+  }
+
+  [[nodiscard]] Result Accept(TCPSocket *out, SockAddrV4 *addr) {
+    struct sockaddr_in caddr;
+    socklen_t caddr_len = sizeof(caddr);
+    HandleT newfd = accept(Handle(), reinterpret_cast<sockaddr *>(&caddr), &caddr_len);
+    if (newfd == InvalidSocket()) {
+      return system::FailWithCode("Failed to accept.");
+    }
+    *addr = SockAddrV4{caddr};
+    *out = TCPSocket{newfd};
+    return Success();
   }
 
   ~TCPSocket() {
@@ -413,9 +458,9 @@ class TCPSocket {
     return *this;
   }
   /**
-   * \brief Return the native socket file descriptor.
+   * @brief Return the native socket file descriptor.
    */
-  HandleT const &Handle() const { return handle_; }
+  [[nodiscard]] HandleT const &Handle() const { return handle_; }
   /**
    * \brief Listen to incoming requests. Should be called after bind.
    */
@@ -448,6 +493,49 @@ class TCPSocket {
       return ntohs(res_addr.sin_port);
     }
   }
+
+  [[nodiscard]] auto Port() const {
+    if (this->Domain() == SockDomain::kV4) {
+      sockaddr_in res_addr;
+      socklen_t addrlen = sizeof(res_addr);
+      auto code = getsockname(handle_, reinterpret_cast<sockaddr *>(&res_addr), &addrlen);
+      if (code != 0) {
+        return std::make_pair(system::FailWithCode("getsockname"), std::int32_t{0});
+      }
+      return std::make_pair(Success(), std::int32_t{ntohs(res_addr.sin_port)});
+    } else {
+      sockaddr_in6 res_addr;
+      socklen_t addrlen = sizeof(res_addr);
+      auto code = getsockname(handle_, reinterpret_cast<sockaddr *>(&res_addr), &addrlen);
+      if (code != 0) {
+        return std::make_pair(system::FailWithCode("getsockname"), std::int32_t{0});
+      }
+      return std::make_pair(Success(), std::int32_t{ntohs(res_addr.sin6_port)});
+    }
+  }
+
+  [[nodiscard]] Result Bind(StringView ip, std::int32_t *port) {
+    // bind socket handle_ to ip
+    auto addr = MakeSockAddress(ip, 0);
+    std::int32_t errc{0};
+    if (addr.IsV4()) {
+      auto handle = reinterpret_cast<sockaddr const *>(&addr.V4().Handle());
+      errc = bind(handle_, handle, sizeof(std::remove_reference_t<decltype(addr.V4().Handle())>));
+    } else {
+      auto handle = reinterpret_cast<sockaddr const *>(&addr.V6().Handle());
+      errc = bind(handle_, handle, sizeof(std::remove_reference_t<decltype(addr.V6().Handle())>));
+    }
+    if (errc != 0) {
+      return system::FailWithCode("Failed to bind socket.");
+    }
+    auto [rc, new_port] = this->Port();
+    if (!rc.OK()) {
+      return std::move(rc);
+    }
+    *port = new_port;
+    return Success();
+  }
+
   /**
    * \brief Send data, without error then all data should be sent.
    */
@@ -567,13 +655,9 @@ class TCPSocket {
                              xgboost::collective::TCPSocket *out_conn);
 
 /**
- * \brief Get the local host name.
+ * @brief Get the local host name.
  */
-inline std::string GetHostName() {
-  char buf[HOST_NAME_MAX];
-  xgboost_CHECK_SYS_CALL(gethostname(&buf[0], HOST_NAME_MAX), 0);
-  return buf;
-}
+[[nodiscard]] Result GetHostName(std::string *p_out);
 }  // namespace collective
 }  // namespace xgboost
 
