@@ -287,6 +287,13 @@ class PseudoHuberRegression : public FitIntercept {
     }
     FromJson(in["pseudo_huber_param"], &param_);
   }
+  [[nodiscard]] Json DefaultMetricConfig() const override {
+    CHECK(param_.GetInitialised());
+    Json config{Object{}};
+    config["name"] = String{this->DefaultEvalMetric()};
+    config["pseudo_huber_param"] = ToJson(param_);
+    return config;
+  }
 };
 
 XGBOOST_REGISTER_OBJECTIVE(PseudoHuberRegression, "reg:pseudohubererror")

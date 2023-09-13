@@ -1319,7 +1319,9 @@ class LearnerImpl : public LearnerIO {
     if (metrics_.empty() && tparam_.disable_default_eval_metric <= 0) {
       metrics_.emplace_back(Metric::Create(obj_->DefaultEvalMetric(), &ctx_));
       auto config = obj_->DefaultMetricConfig();
-      metrics_.back()->LoadConfig(config);
+      if (!IsA<Null>(config)) {
+        metrics_.back()->LoadConfig(config);
+      }
       metrics_.back()->Configure({cfg_.begin(), cfg_.end()});
     }
 
