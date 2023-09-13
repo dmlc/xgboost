@@ -115,9 +115,12 @@ bool AllreduceBase::Init(int argc, char* argv[]) {
   // start socket
   xgboost::system::SocketStartup();
   utils::Assert(all_links.size() == 0, "can only call Init once");
-  this->host_uri = xgboost::collective::GetHostName();
+  auto rc = xgboost::collective::GetHostName(&this->host_uri);
+  if (!rc.OK()) {
+    LOG(FATAL) << rc.Report();
+  }
   // get information from tracker
-  auto rc = this->ReConnectLinks();
+  rc = this->ReConnectLinks();
   if (rc.OK()) {
     return true;
   }
@@ -406,13 +409,14 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
       if (!match) all_links.emplace_back(std::move(r));
     }
     sock_listen.Close();
+
     this->parent_index = -1;
     // setup tree links and ring structure
     tree_links.plinks.clear();
     for (auto &all_link : all_links) {
       utils::Assert(!all_link.sock.BadSocket(), "ReConnectLink: bad socket");
       // set the socket to non-blocking mode, enable TCP keepalive
-      all_link.sock.SetNonBlock(true);
+      CHECK(all_link.sock.NonBlocking(true).OK());
       all_link.sock.SetKeepAlive();
       if (rabit_enable_tcp_no_delay) {
         all_link.sock.SetNoDelay();

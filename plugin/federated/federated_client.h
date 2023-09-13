@@ -11,9 +11,7 @@
 #include <limits>
 #include <string>
 
-namespace xgboost {
-namespace federated {
-
+namespace xgboost::federated {
 /**
  * @brief A wrapper around the gRPC client.
  */
@@ -112,6 +110,4 @@ class FederatedClient {
   int const rank_;
   uint64_t sequence_number_{};
 };
-
-}  // namespace federated
-}  // namespace xgboost
+}  // namespace xgboost::federated

@@ -73,4 +73,13 @@ TEST(Socket, Basic) {
 
   system::SocketFinalize();
 }
+
+TEST(Socket, Bind) {
+  auto any = SockAddrV4::InaddrAny().Addr();
+  auto sock = TCPSocket::Create(SockDomain::kV4);
+  std::int32_t port{0};
+  auto rc = sock.Bind(any, &port);
+  ASSERT_TRUE(rc.OK());
+  ASSERT_NE(port, 0);
+}
 }  // namespace xgboost::collective
