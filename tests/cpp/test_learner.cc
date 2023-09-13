@@ -655,33 +655,11 @@ TEST_F(InitBaseScore, InitWithPredict) { this->TestInitWithPredt(); }
 TEST_F(InitBaseScore, UpdateProcess) { this->TestUpdateProcess(); }
 
 class TestColumnSplit : public ::testing::TestWithParam<std::string> {
-  static auto MakeFmat(std::string const& obj) {
-    auto constexpr kRows = 10, kCols = 10;
-    auto p_fmat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
-    auto& h_upper = p_fmat->Info().labels_upper_bound_.HostVector();
-    auto& h_lower = p_fmat->Info().labels_lower_bound_.HostVector();
-    h_lower.resize(kRows);
-    h_upper.resize(kRows);
-    for (size_t i = 0; i < kRows; ++i) {
-      h_lower[i] = 1;
-      h_upper[i] = 10;
-    }
-    if (obj.find("rank:") != std::string::npos) {
-      auto h_label = p_fmat->Info().labels.HostView();
-      std::size_t k = 0;
-      for (auto& v : h_label) {
-        v = k % 2 == 0;
-        ++k;
-      }
-    }
-    return p_fmat;
-  };
-
   void TestBaseScore(std::string objective, float expected_base_score, Json expected_model) {
     auto const world_size = collective::GetWorldSize();
     auto const rank = collective::GetRank();
 
-    auto p_fmat = MakeFmat(objective);
+    auto p_fmat = MakeFmatForObjTest(objective);
     std::shared_ptr<DMatrix> sliced{p_fmat->SliceCol(world_size, rank)};
     std::unique_ptr<Learner> learner{Learner::Create({sliced})};
     learner->SetParam("tree_method", "approx");
@@ -705,7 +683,7 @@ class TestColumnSplit : public ::testing::TestWithParam<std::string> {
 
  public:
   void Run(std::string objective) {
-    auto p_fmat = MakeFmat(objective);
+    auto p_fmat = MakeFmatForObjTest(objective);
     std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
     learner->SetParam("tree_method", "approx");
     learner->SetParam("objective", objective);
