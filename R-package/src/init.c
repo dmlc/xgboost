@@ -5,7 +5,6 @@
  * and edited to conform to xgboost C linter requirements. For details, see
  * https://cran.r-project.org/doc/manuals/r-release/R-exts.html#Registering-native-routines
  */
-#include <R.h>
 #include <Rinternals.h>
 #include <stdlib.h>
 #include <R_ext/Rdynload.h>

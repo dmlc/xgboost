@@ -20,7 +20,6 @@
 #include "../../src/common/threading_utils.h"
 
 #include "./xgboost_R.h"  // Must follow other includes.
-#include "Rinternals.h"
 
 /*!
  * \brief macro to annotate begin of api
