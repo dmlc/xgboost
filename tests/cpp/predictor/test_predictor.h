@@ -94,23 +94,19 @@ void TestPredictionWithLesserFeatures(Context const* ctx);
 
 void TestPredictionDeviceAccess();
 
-void TestCategoricalPrediction(Context const* ctx, bool is_column_split);
+void TestCategoricalPrediction(bool use_gpu, bool is_column_split);
 
-void TestCategoricalPredictionColumnSplit(Context const* ctx);
+void TestPredictionWithLesserFeaturesColumnSplit(bool use_gpu);
 
-void TestPredictionWithLesserFeaturesColumnSplit(Context const* ctx);
-
-void TestCategoricalPredictLeaf(Context const* ctx, bool is_column_split);
-
-void TestCategoricalPredictLeafColumnSplit(Context const* ctx);
+void TestCategoricalPredictLeaf(bool use_gpu, bool is_column_split);
 
 void TestIterationRange(Context const* ctx);
 
-void TestIterationRangeColumnSplit(Context const* ctx);
+void TestIterationRangeColumnSplit(int world_size, bool use_gpu);
 
 void TestSparsePrediction(Context const* ctx, float sparsity);
 
-void TestSparsePredictionColumnSplit(Context const* ctx, float sparsity);
+void TestSparsePredictionColumnSplit(int world_size, bool use_gpu, float sparsity);
 
 void TestVectorLeafPrediction(Context const* ctx);
 }  // namespace xgboost
