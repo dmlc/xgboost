@@ -88,6 +88,18 @@ def is_cudf_available() -> bool:
         return False
 
 
+def is_cupy_available() -> bool:
+    """Check cupy package available or not"""
+    if importlib.util.find_spec("cupy") is None:
+        return False
+    try:
+        import cupy
+
+        return True
+    except ImportError:
+        return False
+
+
 try:
     import scipy.sparse as scipy_sparse
     from scipy.sparse import csr_matrix as scipy_csr

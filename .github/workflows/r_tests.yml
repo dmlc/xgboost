@@ -25,7 +25,7 @@ jobs:
       with:
         submodules: 'true'
 
-    - uses: r-lib/actions/setup-r@50d1eae9b8da0bb3f8582c59a5b82225fa2fe7f2 # v2.3.1
+    - uses: r-lib/actions/setup-r@11a22a908006c25fe054c4ef0ac0436b1de3edbe # v2.6.4
       with:
         r-version: ${{ matrix.config.r }}
 
@@ -64,7 +64,7 @@ jobs:
       with:
         submodules: 'true'
 
-    - uses: r-lib/actions/setup-r@50d1eae9b8da0bb3f8582c59a5b82225fa2fe7f2 # v2.3.1
+    - uses: r-lib/actions/setup-r@11a22a908006c25fe054c4ef0ac0436b1de3edbe # v2.6.4
       with:
         r-version: ${{ matrix.config.r }}
 

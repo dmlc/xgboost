@@ -372,6 +372,19 @@ class Json {
   /*! \brief Use your own JsonWriter. */
   static void Dump(Json json, JsonWriter* writer);
 
+  template <typename Container = std::string>
+  static Container Dump(Json json) {
+    if constexpr (std::is_same_v<Container, std::string>) {
+      std::string str;
+      Dump(json, &str);
+      return str;
+    } else {
+      std::vector<char> str;
+      Dump(json, &str);
+      return str;
+    }
+  }
+
   Json() = default;
 
   // number

@@ -35,7 +35,7 @@ Building sdists
 
 In the case of XGBoost, an sdist contains both the Python code as well as
 the C++ code, so that the core part of XGBoost can be compiled into the
-shared libary ``libxgboost.so`` [#shared_lib_name]_.
+shared library ``libxgboost.so`` [#shared_lib_name]_.
 
 You can obtain an sdist as follows:
 

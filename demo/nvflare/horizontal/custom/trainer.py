@@ -67,7 +67,7 @@ class XGBoostTrainer(Executor):
             dtest = xgb.DMatrix('agaricus.txt.test?format=libsvm')
 
             # Specify parameters via map, definition are same as c++ version
-            param = {'max_depth': 2, 'eta': 1, 'objective': 'binary:logistic'}
+            param = {'tree_method': 'hist', 'max_depth': 2, 'eta': 1, 'objective': 'binary:logistic'}
             if self._use_gpus:
                 self.log_info(fl_ctx, f'Training with GPU {rank}')
                 param['device'] = f"cuda:{rank}"

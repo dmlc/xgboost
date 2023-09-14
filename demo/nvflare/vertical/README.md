@@ -56,4 +56,9 @@ shutdown server
 
 ## Training with GPUs
 
-Currently GPUs are not yet supported by vertical federated XGBoost.
+To demo with Vertical Federated Learning using GPUs, make sure your machine has at least 2 GPUs.
+Build XGBoost with the federated learning plugin enabled along with CUDA
+(see the [README](../../plugin/federated/README.md)).
+
+Modify `../config/config_fed_client.json` and set `use_gpus` to `true`, then repeat the steps
+above.
