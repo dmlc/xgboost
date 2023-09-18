@@ -250,8 +250,8 @@ echo "<hash> <artifact>" | shasum -a 256 --check
 ```
 
 **Experimental binary packages for R with CUDA enabled**
-* xgboost_r_gpu_linux_1.7.5.tar.gz: [Download]({r_gpu_linux_url})
-* xgboost_r_gpu_win64_1.7.5.tar.gz: [Download]({r_gpu_win64_url})
+* xgboost_r_gpu_linux_{release}.tar.gz: [Download]({r_gpu_linux_url})
+* xgboost_r_gpu_win64_{release}.tar.gz: [Download]({r_gpu_win64_url})
 
 **Source tarball**
 * xgboost.tar.gz: [Download]({src_tarball})"""
@@ -296,12 +296,13 @@ def main(args: argparse.Namespace) -> None:
     git.submodule("update")
     commit_hash = latest_hash()
 
-    if not os.path.exists(args.outdir):
-        os.mkdir(args.outdir)
+    outdir = os.path.abspath(args.outdir)
+    if not os.path.exists(outdir):
+        os.mkdir(outdir)
 
     # source tarball
     hashes: List[str] = []
-    tarname, h = make_src_package(release, args.outdir)
+    tarname, h = make_src_package(release, outdir)
     hashes.append(h)
 
     # CUDA R packages
@@ -310,18 +311,18 @@ def main(args: argparse.Namespace) -> None:
         branch,
         "" if rc is None else rc + str(rc_ver),
         commit_hash,
-        args.outdir,
+        outdir,
     )
     hashes.extend(hr)
 
     # Python source wheel
-    make_pysrc_wheel(release, rc, rc_ver, args.outdir)
+    make_pysrc_wheel(release, rc, rc_ver, outdir)
 
     # Python binary wheels
-    download_py_packages(branch, major, minor, commit_hash, args.outdir)
+    download_py_packages(branch, major, minor, commit_hash, outdir)
 
     # Write end note
-    release_note(release, hashes, urls, tarname, args.outdir)
+    release_note(release, hashes, urls, tarname, outdir)
 
 
 if __name__ == "__main__":
