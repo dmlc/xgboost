@@ -45,9 +45,14 @@
 #'
 #' @examples
 #' data(agaricus.train)
+#' ## Keep the number of threads to 2 for examples
+#' nthread <- 2
+#' data.table::setDTthreads(nthread)
 #'
-#' bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_depth = 3,
-#'                eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
+#' bst <- xgboost(
+#'   data = agaricus.train$data, label = agaricus.train$label, max_depth = 3,
+#'   eta = 1, nthread = nthread, nrounds = 2, objective = "binary:logistic"
+#' )
 #'
 #' importance_matrix <- xgb.importance(colnames(agaricus.train$data), model = bst)
 #'

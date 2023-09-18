@@ -4,8 +4,10 @@ set.seed(1994)
 
 test_that("Poisson regression works", {
   data(mtcars)
-  bst <- xgboost(data = as.matrix(mtcars[, -11]), label = mtcars[, 11],
-                objective = 'count:poisson', nrounds = 10, verbose = 0)
+  bst <- xgboost(
+    data = as.matrix(mtcars[, -11]), label = mtcars[, 11],
+    objective = 'count:poisson', nrounds = 10, verbose = 0, nthread = 2
+  )
   expect_equal(class(bst), "xgb.Booster")
   pred <- predict(bst, as.matrix(mtcars[, -11]))
   expect_equal(length(pred), 32)

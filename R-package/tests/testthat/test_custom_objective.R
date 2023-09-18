@@ -2,10 +2,16 @@ context('Test models with custom objective')
 
 set.seed(1994)
 
+n_threads <- 2
+
 data(agaricus.train, package = 'xgboost')
 data(agaricus.test, package = 'xgboost')
-dtrain <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
-dtest <- xgb.DMatrix(agaricus.test$data, label = agaricus.test$label)
+dtrain <- xgb.DMatrix(
+  agaricus.train$data, label = agaricus.train$label, nthread = n_threads
+)
+dtest <- xgb.DMatrix(
+  agaricus.test$data, label = agaricus.test$label, nthread = n_threads
+)
 watchlist <- list(eval = dtest, train = dtrain)
 
 logregobj <- function(preds, dtrain) {
@@ -22,7 +28,7 @@ evalerror <- function(preds, dtrain) {
   return(list(metric = "error", value = err))
 }
 
-param <- list(max_depth = 2, eta = 1, nthread = 2,
+param <- list(max_depth = 2, eta = 1, nthread = n_threads,
               objective = logregobj, eval_metric = evalerror)
 num_round <- 2
 
@@ -67,7 +73,7 @@ test_that("custom objective using DMatrix attr works", {
 test_that("custom objective with multi-class shape", {
   data <- as.matrix(iris[, -5])
   label <-  as.numeric(iris$Species) - 1
-  dtrain <- xgb.DMatrix(data = data, label = label)
+  dtrain <- xgb.DMatrix(data = data, label = label, nthread = n_threads)
   n_classes <- 3
 
   fake_softprob <- function(preds, dtrain) {

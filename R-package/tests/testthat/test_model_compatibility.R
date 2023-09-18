@@ -66,7 +66,7 @@ test_that("Models from previous versions of XGBoost can be loaded", {
   unzip(zipfile, exdir = extract_dir, overwrite = TRUE)
   model_dir <- file.path(extract_dir, 'models')
 
-  pred_data <- xgb.DMatrix(matrix(c(0, 0, 0, 0), nrow = 1, ncol = 4))
+  pred_data <- xgb.DMatrix(matrix(c(0, 0, 0, 0), nrow = 1, ncol = 4), nthread = 2)
 
   lapply(list.files(model_dir), function (x) {
     model_file <- file.path(model_dir, x)
@@ -87,6 +87,7 @@ test_that("Models from previous versions of XGBoost can be loaded", {
         booster <- readRDS(model_file)
       } else {
         booster <- xgb.load(model_file)
+        xgb.parameters(booster) <- list(nthread = 2)
       }
       predict(booster, newdata = pred_data)
       run_booster_check(booster, name)

@@ -557,14 +557,18 @@ cb.cv.predict <- function(save_models = FALSE) {
 #'
 #' @examples
 #' #### Binary classification:
-#' #
+#'
+#' ## Keep the number of threads to 1 for examples
+#' nthread <- 1
+#' data.table::setDTthreads(nthread)
+#'
 #' # In the iris dataset, it is hard to linearly separate Versicolor class from the rest
 #' # without considering the 2nd order interactions:
 #' x <- model.matrix(Species ~ .^2, iris)[,-1]
 #' colnames(x)
-#' dtrain <- xgb.DMatrix(scale(x), label = 1*(iris$Species == "versicolor"), nthread = 2)
+#' dtrain <- xgb.DMatrix(scale(x), label = 1*(iris$Species == "versicolor"), nthread = nthread)
 #' param <- list(booster = "gblinear", objective = "reg:logistic", eval_metric = "auc",
-#'               lambda = 0.0003, alpha = 0.0003, nthread = 2)
+#'               lambda = 0.0003, alpha = 0.0003, nthread = nthread)
 #' # For 'shotgun', which is a default linear updater, using high eta values may result in
 #' # unstable behaviour in some datasets. With this simple dataset, however, the high learning
 #' # rate does not break the convergence, but allows us to illustrate the typical pattern of
@@ -594,9 +598,9 @@ cb.cv.predict <- function(save_models = FALSE) {
 #'
 #' #### Multiclass classification:
 #' #
-#' dtrain <- xgb.DMatrix(scale(x), label = as.numeric(iris$Species) - 1, nthread = 1)
+#' dtrain <- xgb.DMatrix(scale(x), label = as.numeric(iris$Species) - 1, nthread = nthread)
 #' param <- list(booster = "gblinear", objective = "multi:softprob", num_class = 3,
-#'               lambda = 0.0003, alpha = 0.0003, nthread = 1)
+#'               lambda = 0.0003, alpha = 0.0003, nthread = nthread)
 #' # For the default linear updater 'shotgun' it sometimes is helpful
 #' # to use smaller eta to reduce instability
 #' bst <- xgb.train(param, dtrain, list(tr=dtrain), nrounds = 50, eta = 0.5,

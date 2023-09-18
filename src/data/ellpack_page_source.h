@@ -50,6 +50,7 @@ inline void EllpackPageSource::Fetch() {
   // silent the warning about unused variables.
   (void)(row_stride_);
   (void)(is_dense_);
+  (void)(device_);
   common::AssertGPUSupport();
 }
 #endif  // !defined(XGBOOST_USE_CUDA)

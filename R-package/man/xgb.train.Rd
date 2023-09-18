@@ -250,7 +250,8 @@ customized objective and evaluation metric functions, therefore it is more flexi
 than the \code{xgboost} interface.
 
 Parallelization is automatically enabled if \code{OpenMP} is present.
-Number of threads can also be manually specified via \code{nthread} parameter.
+Number of threads can also be manually specified via the \code{nthread}
+parameter.
 
 The evaluation metric is chosen automatically by XGBoost (according to the objective)
 when the \code{eval_metric} parameter is not provided.
@@ -286,17 +287,25 @@ The following callbacks are automatically created when certain parameters are se
 data(agaricus.train, package='xgboost')
 data(agaricus.test, package='xgboost')
 
-dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
-dtest <- with(agaricus.test, xgb.DMatrix(data, label = label, nthread = 2))
+## Keep the number of threads to 1 for examples
+nthread <- 1
+data.table::setDTthreads(nthread)
+
+dtrain <- with(
+  agaricus.train, xgb.DMatrix(data, label = label, nthread = nthread)
+)
+dtest <- with(
+  agaricus.test, xgb.DMatrix(data, label = label, nthread = nthread)
+)
 watchlist <- list(train = dtrain, eval = dtest)
 
 ## A simple xgb.train example:
-param <- list(max_depth = 2, eta = 1, verbose = 0, nthread = 2,
+param <- list(max_depth = 2, eta = 1, verbose = 0, nthread = nthread,
               objective = "binary:logistic", eval_metric = "auc")
 bst <- xgb.train(param, dtrain, nrounds = 2, watchlist)
 
-
-## An xgb.train example where custom objective and evaluation metric are used:
+## An xgb.train example where custom objective and evaluation metric are
+## used:
 logregobj <- function(preds, dtrain) {
    labels <- getinfo(dtrain, "label")
    preds <- 1/(1 + exp(-preds))
@@ -312,12 +321,12 @@ evalerror <- function(preds, dtrain) {
 
 # These functions could be used by passing them either:
 #  as 'objective' and 'eval_metric' parameters in the params list:
-param <- list(max_depth = 2, eta = 1, verbose = 0, nthread = 2,
+param <- list(max_depth = 2, eta = 1, verbose = 0, nthread = nthread,
               objective = logregobj, eval_metric = evalerror)
 bst <- xgb.train(param, dtrain, nrounds = 2, watchlist)
 
 #  or through the ... arguments:
-param <- list(max_depth = 2, eta = 1, verbose = 0, nthread = 2)
+param <- list(max_depth = 2, eta = 1, verbose = 0, nthread = nthread)
 bst <- xgb.train(param, dtrain, nrounds = 2, watchlist,
                  objective = logregobj, eval_metric = evalerror)
 
@@ -327,7 +336,7 @@ bst <- xgb.train(param, dtrain, nrounds = 2, watchlist,
 
 
 ## An xgb.train example of using variable learning rates at each iteration:
-param <- list(max_depth = 2, eta = 1, verbose = 0, nthread = 2,
+param <- list(max_depth = 2, eta = 1, verbose = 0, nthread = nthread,
               objective = "binary:logistic", eval_metric = "auc")
 my_etas <- list(eta = c(0.5, 0.1))
 bst <- xgb.train(param, dtrain, nrounds = 2, watchlist,
@@ -339,7 +348,7 @@ bst <- xgb.train(param, dtrain, nrounds = 25, watchlist,
 
 ## An 'xgboost' interface example:
 bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label,
-               max_depth = 2, eta = 1, nthread = 2, nrounds = 2,
+               max_depth = 2, eta = 1, nthread = nthread, nrounds = 2,
                objective = "binary:logistic")
 pred <- predict(bst, agaricus.test$data)
 

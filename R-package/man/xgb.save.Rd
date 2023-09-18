@@ -31,14 +31,22 @@ releases of XGBoost.
 \examples{
 data(agaricus.train, package='xgboost')
 data(agaricus.test, package='xgboost')
+
+## Keep the number of threads to 1 for examples
+nthread <- 1
+data.table::setDTthreads(nthread)
+
 train <- agaricus.train
 test <- agaricus.test
-bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
-               eta = 1, nthread = 2, nrounds = 2,objective = "binary:logistic")
+bst <- xgboost(
+  data = train$data, label = train$label, max_depth = 2, eta = 1,
+  nthread = nthread,
+  nrounds = 2,
+  objective = "binary:logistic"
+)
 xgb.save(bst, 'xgb.model')
 bst <- xgb.load('xgb.model')
 if (file.exists('xgb.model')) file.remove('xgb.model')
-pred <- predict(bst, test$data)
 }
 \seealso{
 \code{\link{xgb.load}}, \code{\link{xgb.Booster.complete}}.

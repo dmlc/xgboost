@@ -173,13 +173,13 @@ Alternatively, you can put your dataset in a *dense* matrix, i.e. a basic **R** 
 
 ```{r trainingDense, message=F, warning=F}
 bstDense <- xgboost(
-    data = as.matrix(train$data)
-    , label = train$label
-    , max_depth = 2
-    , eta = 1
-    , nthread = 2
-    , nrounds = 2
-    , objective = "binary:logistic"
+    data = as.matrix(train$data),
+    label = train$label,
+    max_depth = 2,
+    eta = 1,
+    nthread = 2,
+    nrounds = 2,
+    objective = "binary:logistic"
 )
 ```
 
@@ -188,14 +188,14 @@ bstDense <- xgboost(
 **XGBoost** offers a way to group them in a `xgb.DMatrix`. You can even add other meta data in it. It will be useful for the most advanced features we will discover later.
 
 ```{r trainingDmatrix, message=F, warning=F}
-dtrain <- xgb.DMatrix(data = train$data, label = train$label)
+dtrain <- xgb.DMatrix(data = train$data, label = train$label, nthread = 2)
 bstDMatrix <- xgboost(
-    data = dtrain
-    , max_depth = 2
-    , eta = 1
-    , nthread = 2
-    , nrounds = 2
-    , objective = "binary:logistic"
+    data = dtrain,
+    max_depth = 2,
+    eta = 1,
+    nthread = 2,
+    nrounds = 2,
+    objective = "binary:logistic"
 )
 ```
 
@@ -314,8 +314,8 @@ Most of the features below have been implemented to help you to improve your mod
 For the following advanced features, we need to put data in `xgb.DMatrix` as explained above.
 
 ```{r DMatrix, message=F, warning=F}
-dtrain <- xgb.DMatrix(data = train$data, label = train$label)
-dtest <- xgb.DMatrix(data = test$data, label = test$label)
+dtrain <- xgb.DMatrix(data = train$data, label = train$label, nthread = 2)
+dtest <- xgb.DMatrix(data = test$data, label = test$label, nthread = 2)
 ```
 
 ### Measure learning progress with xgb.train
@@ -476,6 +476,7 @@ An interesting test to see how identical our saved model is to the original one 
 ```{r loadModel, message=F, warning=F}
 # load binary model to R
 bst2 <- xgb.load("xgboost.model")
+xgb.parameters(bst2) <- list(nthread = 2)
 pred2 <- predict(bst2, test$data)
 
 # And now the test
@@ -500,6 +501,7 @@ print(class(rawVec))
 
 # load binary model to R
 bst3 <- xgb.load(rawVec)
+xgb.parameters(bst3) <- list(nthread = 2)
 pred3 <- predict(bst3, test$data)
 
 # pred2 should be identical to pred

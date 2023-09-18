@@ -5,19 +5,21 @@ data(agaricus.test, package = "xgboost")
 test_data <- agaricus.test$data[1:100, ]
 test_label <- agaricus.test$label[1:100]
 
+n_threads <- 2
+
 test_that("xgb.DMatrix: basic construction", {
   # from sparse matrix
-  dtest1 <- xgb.DMatrix(test_data, label = test_label)
+  dtest1 <- xgb.DMatrix(test_data, label = test_label, nthread = n_threads)
 
   # from dense matrix
-  dtest2 <- xgb.DMatrix(as.matrix(test_data), label = test_label)
+  dtest2 <- xgb.DMatrix(as.matrix(test_data), label = test_label, nthread = n_threads)
   expect_equal(getinfo(dtest1, "label"), getinfo(dtest2, "label"))
   expect_equal(dim(dtest1), dim(dtest2))
 
   # from dense integer matrix
   int_data <- as.matrix(test_data)
   storage.mode(int_data) <- "integer"
-  dtest3 <- xgb.DMatrix(int_data, label = test_label)
+  dtest3 <- xgb.DMatrix(int_data, label = test_label, nthread = n_threads)
   expect_equal(dim(dtest1), dim(dtest3))
 
   n_samples <- 100
@@ -29,15 +31,15 @@ test_that("xgb.DMatrix: basic construction", {
   X <- matrix(X, nrow = n_samples)
   y <- rbinom(n = n_samples, size = 1, prob = 1 / 2)
 
-  fd <- xgb.DMatrix(X, label = y, missing = 1)
+  fd <- xgb.DMatrix(X, label = y, missing = 1, nthread = n_threads)
 
   dgc <- as(X, "dgCMatrix")
-  fdgc <- xgb.DMatrix(dgc, label = y, missing = 1.0)
+  fdgc <- xgb.DMatrix(dgc, label = y, missing = 1.0, nthread = n_threads)
 
   dgr <- as(X, "dgRMatrix")
-  fdgr <- xgb.DMatrix(dgr, label = y, missing = 1)
+  fdgr <- xgb.DMatrix(dgr, label = y, missing = 1, nthread = n_threads)
 
-  params <- list(tree_method = "hist")
+  params <- list(tree_method = "hist", nthread = n_threads)
   bst_fd <- xgb.train(
     params, nrounds = 8, fd, watchlist = list(train = fd)
   )
@@ -64,12 +66,12 @@ test_that("xgb.DMatrix: NA", {
   )
   x[1, "x1"] <- NA
 
-  m <- xgb.DMatrix(x)
+  m <- xgb.DMatrix(x, nthread = n_threads)
   xgb.DMatrix.save(m, "int.dmatrix")
 
   x <- matrix(as.numeric(x), nrow = n_samples, ncol = 2)
   colnames(x) <- c("x1", "x2")
-  m <- xgb.DMatrix(x)
+  m <- xgb.DMatrix(x, nthread = n_threads)
 
   xgb.DMatrix.save(m, "float.dmatrix")
 
@@ -94,7 +96,7 @@ test_that("xgb.DMatrix: NA", {
 
 test_that("xgb.DMatrix: saving, loading", {
   # save to a local file
-  dtest1 <- xgb.DMatrix(test_data, label = test_label)
+  dtest1 <- xgb.DMatrix(test_data, label = test_label, nthread = n_threads)
   tmp_file <- tempfile('xgb.DMatrix_')
   on.exit(unlink(tmp_file))
   expect_true(xgb.DMatrix.save(dtest1, tmp_file))
@@ -109,13 +111,17 @@ test_that("xgb.DMatrix: saving, loading", {
   tmp_file <- tempfile(fileext = ".libsvm")
   writeLines(tmp, tmp_file)
   expect_true(file.exists(tmp_file))
-  dtest4 <- xgb.DMatrix(paste(tmp_file, "?format=libsvm", sep = ""), silent = TRUE)
+  dtest4 <- xgb.DMatrix(
+    paste(tmp_file, "?format=libsvm", sep = ""), silent = TRUE, nthread = n_threads
+  )
   expect_equal(dim(dtest4), c(3, 4))
   expect_equal(getinfo(dtest4, 'label'), c(0, 1, 0))
 
   # check that feature info is saved
   data(agaricus.train, package = 'xgboost')
-  dtrain <- xgb.DMatrix(data = agaricus.train$data, label = agaricus.train$label)
+  dtrain <- xgb.DMatrix(
+    data = agaricus.train$data, label = agaricus.train$label, nthread = n_threads
+  )
   cnames <- colnames(dtrain)
   expect_equal(length(cnames), 126)
   tmp_file <- tempfile('xgb.DMatrix_')
@@ -129,7 +135,7 @@ test_that("xgb.DMatrix: saving, loading", {
 })
 
 test_that("xgb.DMatrix: getinfo & setinfo", {
-  dtest <- xgb.DMatrix(test_data)
+  dtest <- xgb.DMatrix(test_data, nthread = n_threads)
   expect_true(setinfo(dtest, 'label', test_label))
   labels <- getinfo(dtest, 'label')
   expect_equal(test_label, getinfo(dtest, 'label'))
@@ -156,7 +162,7 @@ test_that("xgb.DMatrix: getinfo & setinfo", {
 })
 
 test_that("xgb.DMatrix: slice, dim", {
-  dtest <- xgb.DMatrix(test_data, label = test_label)
+  dtest <- xgb.DMatrix(test_data, label = test_label, nthread = n_threads)
   expect_equal(dim(dtest), dim(test_data))
   dsub1 <- slice(dtest, 1:42)
   expect_equal(nrow(dsub1), 42)
@@ -171,16 +177,20 @@ test_that("xgb.DMatrix: slice, trailing empty rows", {
   data(agaricus.train, package = 'xgboost')
   train_data <- agaricus.train$data
   train_label <- agaricus.train$label
-  dtrain <- xgb.DMatrix(data = train_data, label = train_label)
+  dtrain <- xgb.DMatrix(
+    data = train_data, label = train_label, nthread = n_threads
+  )
   slice(dtrain, 6513L)
   train_data[6513, ] <- 0
-  dtrain <- xgb.DMatrix(data = train_data, label = train_label)
+  dtrain <- xgb.DMatrix(
+    data = train_data, label = train_label, nthread = n_threads
+  )
   slice(dtrain, 6513L)
   expect_equal(nrow(dtrain), 6513)
 })
 
 test_that("xgb.DMatrix: colnames", {
-  dtest <- xgb.DMatrix(test_data, label = test_label)
+  dtest <- xgb.DMatrix(test_data, label = test_label, nthread = n_threads)
   expect_equal(colnames(dtest), colnames(test_data))
   expect_error(colnames(dtest) <- 'asdf')
   new_names <- make.names(seq_len(ncol(test_data)))
@@ -196,7 +206,7 @@ test_that("xgb.DMatrix: nrow is correct for a very sparse matrix", {
   x <- Matrix::rsparsematrix(nr, 100, density = 0.0005)
   # we want it very sparse, so that last rows are empty
   expect_lt(max(x@i), nr)
-  dtest <- xgb.DMatrix(x)
+  dtest <- xgb.DMatrix(x, nthread = n_threads)
   expect_equal(dim(dtest), dim(x))
 })
 
@@ -205,8 +215,8 @@ test_that("xgb.DMatrix: print", {
 
     # core DMatrix with just data and labels
     dtrain <- xgb.DMatrix(
-        data = agaricus.train$data
-        , label = agaricus.train$label
+      data = agaricus.train$data, label = agaricus.train$label,
+      nthread = n_threads
     )
     txt <- capture.output({
         print(dtrain)
@@ -222,10 +232,11 @@ test_that("xgb.DMatrix: print", {
 
     # DMatrix with weights and base_margin
     dtrain <- xgb.DMatrix(
-        data = agaricus.train$data
-        , label = agaricus.train$label
-        , weight = seq_along(agaricus.train$label)
-        , base_margin = agaricus.train$label
+      data = agaricus.train$data,
+      label = agaricus.train$label,
+      weight = seq_along(agaricus.train$label),
+      base_margin = agaricus.train$label,
+      nthread = n_threads
     )
     txt <- capture.output({
         print(dtrain)
@@ -234,7 +245,8 @@ test_that("xgb.DMatrix: print", {
 
     # DMatrix with just features
     dtrain <- xgb.DMatrix(
-        data = agaricus.train$data
+      data = agaricus.train$data,
+      nthread = n_threads
     )
     txt <- capture.output({
         print(dtrain)
@@ -245,7 +257,8 @@ test_that("xgb.DMatrix: print", {
     data_no_colnames <- agaricus.train$data
     colnames(data_no_colnames) <- NULL
     dtrain <- xgb.DMatrix(
-        data = data_no_colnames
+      data = data_no_colnames,
+      nthread = n_threads
     )
     txt <- capture.output({
         print(dtrain)

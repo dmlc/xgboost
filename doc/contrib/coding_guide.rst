@@ -80,6 +80,24 @@ R package versioning
 ====================
 See :ref:`release`.
 
+Testing R package with different compilers
+==========================================
+
+You can change the default compiler of R by changing the configuration file in home
+directory. For instance, if you want to test XGBoost built with clang++ instead of g++ on
+Linux, put the following in your ``~/.R/Makevars`` file:
+
+.. code-block:: sh
+
+  CC=clang-15
+  CXX17=clang++-15
+
+Be aware that the variable name should match with the name used by ``R CMD``:
+
+.. code-block:: sh
+
+  R CMD config CXX17
+
 Registering native routines in R
 ================================
 According to `R extension manual <https://cran.r-project.org/doc/manuals/r-release/R-exts.html#Registering-native-routines>`_,

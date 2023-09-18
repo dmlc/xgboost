@@ -16,6 +16,7 @@ test_that("Can save and load models with Unicode paths", {
     path <- file.path(tmpdir, x)
     xgb.save(bst, path)
     bst2 <- xgb.load(path)
+    xgb.parameters(bst2) <- list(nthread = 2)
     expect_equal(predict(bst, test$data), predict(bst2, test$data))
   })
 })
