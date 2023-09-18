@@ -486,7 +486,7 @@ RegTree GetApproxTree(Context const* ctx, DMatrix* dmat) {
   TrainParam param;
   param.UpdateAllowUnknown(Args{});
 
-  linalg::Matrix<GradientPair> gpair({dmat->Info().num_row_}, ctx->Ordinal());
+  linalg::Matrix<GradientPair> gpair({dmat->Info().num_row_}, ctx->Device());
   gpair.Data()->Copy(GenerateRandomGradients(dmat->Info().num_row_));
 
   std::vector<HostDeviceVector<bst_node_t>> position(1);

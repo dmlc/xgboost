@@ -823,7 +823,6 @@ class ColumnSplitHelper {
         ctx_->Ordinal(), decision_storage->data().get(), decision_storage->size());
     collective::AllReduce<collective::Operation::kBitwiseAND>(
         ctx_->Ordinal(), missing_storage->data().get(), missing_storage->size());
-    collective::Synchronize(ctx_->Ordinal());
   }
 
   void ResizeBitVectors(dh::caching_device_vector<BitType>* decision_storage,
