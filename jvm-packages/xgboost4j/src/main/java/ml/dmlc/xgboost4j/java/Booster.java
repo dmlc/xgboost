@@ -39,6 +39,21 @@ public class Booster implements Serializable, KryoSerializable {
   // handle to the booster.
   private long handle = 0;
   private int version = 0;
+  /**
+   * Type of prediction, used for inplace_predict.
+   */
+  public enum PredictionType {
+    kValue(0),
+    kMargin(1);
+
+    private Integer ptype;
+    private PredictionType(final Integer ptype) {
+      this.ptype = ptype;
+    }
+    public Integer getPType() {
+      return ptype;
+    }
+  }
 
   /**
    * Create a new Booster with empty stage.
@@ -218,34 +233,48 @@ public class Booster implements Serializable, KryoSerializable {
     XGBoostJNI.checkCall(XGBoostJNI.XGBoosterUpdateOneIter(handle, iter, dtrain.getHandle()));
   }
 
+  @Deprecated
+  public void update(DMatrix dtrain, IObjective obj) throws XGBoostError {
+    float[][] predicts = this.predict(dtrain, true, 0, false, false);
+    List<float[]> gradients = obj.getGradient(predicts, dtrain);
+    this.boost(dtrain, gradients.get(0), gradients.get(1));
+  }
+
   /**
    * Update with customize obj func
    *
    * @param dtrain training data
+   * @param iter   The current training iteration.
    * @param obj    customized objective class
    * @throws XGBoostError native error
    */
-  public void update(DMatrix dtrain, IObjective obj) throws XGBoostError {
+  public void update(DMatrix dtrain, int iter, IObjective obj) throws XGBoostError {
     float[][] predicts = this.predict(dtrain, true, 0, false, false);
     List<float[]> gradients = obj.getGradient(predicts, dtrain);
-    boost(dtrain, gradients.get(0), gradients.get(1));
+    this.boost(dtrain, iter, gradients.get(0), gradients.get(1));
+  }
+
+  @Deprecated
+  public void boost(DMatrix dtrain, float[] grad, float[] hess) throws XGBoostError {
+    this.boost(dtrain, 0, grad, hess);
   }
 
   /**
-   * update with give grad and hess
+   * Update with give grad and hess
    *
    * @param dtrain training data
+   * @param iter   The current training iteration.
    * @param grad   first order of gradient
    * @param hess   seconde order of gradient
    * @throws XGBoostError native error
    */
-  public void boost(DMatrix dtrain, float[] grad, float[] hess) throws XGBoostError {
+  public void boost(DMatrix dtrain, int iter, float[] grad, float[] hess) throws XGBoostError {
     if (grad.length != hess.length) {
       throw new AssertionError(String.format("grad/hess length mismatch %s / %s", grad.length,
               hess.length));
     }
-    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterBoostOneIter(handle,
-            dtrain.getHandle(), grad, hess));
+    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterTrainOneIter(handle,
+                                                          dtrain.getHandle(), iter, grad, hess));
   }
 
   /**
@@ -352,6 +381,97 @@ public class Booster implements Serializable, KryoSerializable {
     int row = (int) data.rowNum();
     int col = rawPredicts[0].length / row;
     float[][] predicts = new float[row][col];
+    int r, c;
+    for (int i = 0; i < rawPredicts[0].length; i++) {
+      r = i / col;
+      c = i % col;
+      predicts[r][c] = rawPredicts[0][i];
+    }
+    return predicts;
+  }
+
+  /**
+   * Perform thread-safe prediction.
+   *
+   * @param data      Flattened input matrix of features for prediction
+   * @param nrow      The number of preditions to make (count of input matrix rows)
+   * @param ncol      The number of features in the model (count of input matrix columns)
+   * @param missing   Value indicating missing element in the <code>data</code> input matrix
+   *
+   * @return predict  Result matrix
+   */
+  public float[][] inplace_predict(float[] data,
+                                   int nrow,
+                                   int ncol,
+                                   float missing) throws XGBoostError {
+    int[] iteration_range = new int[2];
+    iteration_range[0] = 0;
+    iteration_range[1] = 0;
+    return this.inplace_predict(data, nrow, ncol,
+        missing, iteration_range, PredictionType.kValue, null);
+  }
+
+  /**
+   * Perform thread-safe prediction.
+   *
+   * @param data      Flattened input matrix of features for prediction
+   * @param nrow      The number of preditions to make (count of input matrix rows)
+   * @param ncol      The number of features in the model (count of input matrix columns)
+   * @param missing   Value indicating missing element in the <code>data</code> input matrix
+   * @param iteration_range Specifies which layer of trees are used in prediction.  For
+   *                        example, if a random forest is trained with 100 rounds.
+   *                        Specifying `iteration_range=[10, 20)`, then only the forests
+   *                        built during [10, 20) (half open set) rounds are used in this
+   *                        prediction.
+   *
+   * @return predict  Result matrix
+   */
+  public float[][] inplace_predict(float[] data,
+                                   int nrow,
+                                   int ncol,
+                                   float missing, int[] iteration_range) throws XGBoostError {
+    return this.inplace_predict(data, nrow, ncol,
+        missing, iteration_range, PredictionType.kValue, null);
+  }
+
+
+  /**
+   * Perform thread-safe prediction.
+   *
+   * @param data            Flattened input matrix of features for prediction
+   * @param nrow            The number of preditions to make (count of input matrix rows)
+   * @param ncol            The number of features in the model (count of input matrix columns)
+   * @param missing         Value indicating missing element in the <code>data</code> input matrix
+   * @param iteration_range Specifies which layer of trees are used in prediction.  For
+   *                        example, if a random forest is trained with 100 rounds.
+   *                        Specifying `iteration_range=[10, 20)`, then only the forests
+   *                        built during [10, 20) (half open set) rounds are used in this
+   *                        prediction.
+   * @param predict_type    What kind of prediction to run.
+   * @return predict       Result matrix
+   */
+  public float[][] inplace_predict(float[] data,
+                                   int nrow,
+                                   int ncol,
+                                   float missing,
+                                   int[] iteration_range,
+                                   PredictionType predict_type,
+                                   float[] base_margin) throws XGBoostError {
+    if (iteration_range.length != 2) {
+      throw new XGBoostError(new String("Iteration range is expected to be [begin, end)."));
+    }
+    int ptype = predict_type.getPType();
+
+    int begin = iteration_range[0];
+    int end = iteration_range[1];
+
+    float[][] rawPredicts = new float[1][];
+    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterPredictFromDense(handle, data, nrow, ncol,
+        missing,
+        begin, end, ptype, base_margin, rawPredicts));
+
+    int col = rawPredicts[0].length / nrow;
+    float[][] predicts = new float[nrow][col];
     int r, c;
     for (int i = 0; i < rawPredicts[0].length; i++) {
       r = i / col;

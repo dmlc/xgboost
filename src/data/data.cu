@@ -50,7 +50,7 @@ void CopyTensorInfoImpl(CUDAContext const* ctx, Json arr_interface, linalg::Tens
     return;
   }
   p_out->Reshape(array.shape);
-  auto t = p_out->View(ptr_device);
+  auto t = p_out->View(DeviceOrd::CUDA(ptr_device));
   linalg::ElementWiseTransformDevice(
       t,
       [=] __device__(size_t i, T) {

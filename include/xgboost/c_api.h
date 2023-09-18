@@ -789,16 +789,14 @@ XGB_DLL int XGDMatrixGetUIntInfo(const DMatrixHandle handle,
  * \param out The address to hold number of rows.
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGDMatrixNumRow(DMatrixHandle handle,
-                            bst_ulong *out);
+XGB_DLL int XGDMatrixNumRow(DMatrixHandle handle, bst_ulong *out);
 /*!
  * \brief get number of columns
  * \param handle the handle to the DMatrix
  * \param out The output of number of columns
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGDMatrixNumCol(DMatrixHandle handle,
-                            bst_ulong *out);
+XGB_DLL int XGDMatrixNumCol(DMatrixHandle handle, bst_ulong *out);
 
 /*!
  * \brief Get number of valid values from DMatrix.
@@ -945,21 +943,30 @@ XGB_DLL int XGBoosterUpdateOneIter(BoosterHandle handle, int iter, DMatrixHandle
  * @example c-api-demo.c
  */
 
-/*!
- * \brief update the model, by directly specify gradient and second order gradient,
- *        this can be used to replace UpdateOneIter, to support customized loss function
- * \param handle handle
- * \param dtrain training data
- * \param grad gradient statistics
- * \param hess second order gradient statistics
- * \param len length of grad/hess array
- * \return 0 when success, -1 when failure happens
+/**
+ * @deprecated since 2.1.0
  */
-XGB_DLL int XGBoosterBoostOneIter(BoosterHandle handle,
-                                  DMatrixHandle dtrain,
-                                  float *grad,
-                                  float *hess,
-                                  bst_ulong len);
+XGB_DLL int XGBoosterBoostOneIter(BoosterHandle handle, DMatrixHandle dtrain, float *grad,
+                                  float *hess, bst_ulong len);
+
+/**
+ * @brief Update a model with gradient and Hessian. This is used for training with a
+ *        custom objective function.
+ *
+ * @since 2.0.0
+ *
+ * @param handle handle
+ * @param dtrain The training data.
+ * @param iter   The current iteration round. When training continuation is used, the count
+ *               should restart.
+ * @param grad   Json encoded __(cuda)_array_interface__ for gradient.
+ * @param hess   Json encoded __(cuda)_array_interface__ for Hessian.
+ *
+ * @return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterTrainOneIter(BoosterHandle handle, DMatrixHandle dtrain, int iter,
+                                  char const *grad, char const *hess);
+
 /*!
  * \brief get evaluation statistics for xgboost
  * \param handle handle
@@ -1547,29 +1554,19 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, const char *config,
  * \param config JSON encoded configuration. Accepted JSON keys are:
  *   - xgboost_communicator: The type of the communicator. Can be set as an environment variable.
  *     * rabit: Use Rabit. This is the default if the type is unspecified.
- *     * mpi: Use MPI.
  *     * federated: Use the gRPC interface for Federated Learning.
  * Only applicable to the Rabit communicator (these are case-sensitive):
  *   - rabit_tracker_uri: Hostname of the tracker.
  *   - rabit_tracker_port: Port number of the tracker.
  *   - rabit_task_id: ID of the current task, can be used to obtain deterministic rank assignment.
  *   - rabit_world_size: Total number of workers.
- *   - rabit_hadoop_mode: Enable Hadoop support.
- *   - rabit_tree_reduce_minsize: Minimal size for tree reduce.
- *   - rabit_reduce_ring_mincount: Minimal count to perform ring reduce.
- *   - rabit_reduce_buffer: Size of the reduce buffer.
- *   - rabit_bootstrap_cache: Size of the bootstrap cache.
- *   - rabit_debug: Enable debugging.
  *   - rabit_timeout: Enable timeout.
  *   - rabit_timeout_sec: Timeout in seconds.
- *   - rabit_enable_tcp_no_delay: Enable TCP no delay on Unix platforms.
  * Only applicable to the Rabit communicator (these are case-sensitive, and can be set as
  * environment variables):
  *   - DMLC_TRACKER_URI: Hostname of the tracker.
  *   - DMLC_TRACKER_PORT: Port number of the tracker.
  *   - DMLC_TASK_ID: ID of the current task, can be used to obtain deterministic rank assignment.
- *   - DMLC_ROLE: Role of the current task, "worker" or "server".
- *   - DMLC_NUM_ATTEMPT: Number of attempts after task failure.
  *   - DMLC_WORKER_CONNECT_RETRY: Number of retries to connect to the tracker.
  * Only applicable to the Federated communicator (use upper case for environment variables, use
  * lower case for runtime configuration):

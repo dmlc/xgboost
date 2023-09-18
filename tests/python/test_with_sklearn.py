@@ -1507,6 +1507,7 @@ def test_evaluation_metric():
         # shape check inside the `merror` function
         clf.fit(X, y, eval_set=[(X, y)])
 
+
 def test_weighted_evaluation_metric():
     from sklearn.datasets import make_hastie_10_2
     from sklearn.metrics import log_loss
@@ -1544,3 +1545,18 @@ def test_weighted_evaluation_metric():
         internal["validation_0"]["logloss"],
         atol=1e-6
     )
+
+
+def test_intercept() -> None:
+    X, y, w = tm.make_regression(256, 3, use_cupy=False)
+    reg = xgb.XGBRegressor()
+    reg.fit(X, y, sample_weight=w)
+    result = reg.intercept_
+    assert result.dtype == np.float32
+    assert result[0] < 0.5
+
+    reg = xgb.XGBRegressor(booster="gblinear")
+    reg.fit(X, y, sample_weight=w)
+    result = reg.intercept_
+    assert result.dtype == np.float32
+    assert result[0] < 0.5

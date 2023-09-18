@@ -109,12 +109,12 @@ class LambdaRankObj : public FitIntercept {
     lj_.SetDevice(ctx_->gpu_id);
 
     if (ctx_->IsCPU()) {
-      cpu_impl::LambdaRankUpdatePositionBias(ctx_, li_full_.View(ctx_->gpu_id),
-                                             lj_full_.View(ctx_->gpu_id), &ti_plus_, &tj_minus_,
+      cpu_impl::LambdaRankUpdatePositionBias(ctx_, li_full_.View(ctx_->Device()),
+                                             lj_full_.View(ctx_->Device()), &ti_plus_, &tj_minus_,
                                              &li_, &lj_, p_cache_);
     } else {
-      cuda_impl::LambdaRankUpdatePositionBias(ctx_, li_full_.View(ctx_->gpu_id),
-                                              lj_full_.View(ctx_->gpu_id), &ti_plus_, &tj_minus_,
+      cuda_impl::LambdaRankUpdatePositionBias(ctx_, li_full_.View(ctx_->Device()),
+                                              lj_full_.View(ctx_->Device()), &ti_plus_, &tj_minus_,
                                               &li_, &lj_, p_cache_);
     }
 
@@ -165,9 +165,8 @@ class LambdaRankObj : public FitIntercept {
   void CalcLambdaForGroup(std::int32_t iter, common::Span<float const> g_predt,
                           linalg::VectorView<float const> g_label, float w,
                           common::Span<std::size_t const> g_rank, bst_group_t g, Delta delta,
-                          common::Span<GradientPair> g_gpair) {
-    std::fill_n(g_gpair.data(), g_gpair.size(), GradientPair{});
-    auto p_gpair = g_gpair.data();
+                          linalg::VectorView<GradientPair> g_gpair) {
+    std::fill_n(g_gpair.Values().data(), g_gpair.Size(), GradientPair{});
 
     auto ti_plus = ti_plus_.HostView();
     auto tj_minus = tj_minus_.HostView();
@@ -198,8 +197,8 @@ class LambdaRankObj : public FitIntercept {
 
       std::size_t idx_high = g_rank[rank_high];
       std::size_t idx_low = g_rank[rank_low];
-      p_gpair[idx_high] += pg;
-      p_gpair[idx_low] += ng;
+      g_gpair(idx_high) += pg;
+      g_gpair(idx_low) += ng;
 
       if (unbiased) {
         auto k = ti_plus.Size();
@@ -225,12 +224,13 @@ class LambdaRankObj : public FitIntercept {
     MakePairs(ctx_, iter, p_cache_, g, g_label, g_rank, loop);
     if (sum_lambda > 0.0) {
       double norm = std::log2(1.0 + sum_lambda) / sum_lambda;
-      std::transform(g_gpair.data(), g_gpair.data() + g_gpair.size(), g_gpair.data(),
-                     [norm](GradientPair const& g) { return g * norm; });
+      std::transform(g_gpair.Values().data(), g_gpair.Values().data() + g_gpair.Size(),
+                     g_gpair.Values().data(), [norm](GradientPair const& g) { return g * norm; });
     }
 
     auto w_norm = p_cache_->WeightNorm();
-    std::transform(g_gpair.begin(), g_gpair.end(), g_gpair.begin(),
+    std::transform(g_gpair.Values().data(), g_gpair.Values().data() + g_gpair.Size(),
+                   g_gpair.Values().data(),
                    [&](GradientPair const& gpair) { return gpair * w * w_norm; });
   }
 
@@ -301,7 +301,7 @@ class LambdaRankObj : public FitIntercept {
   }
 
   void GetGradient(HostDeviceVector<float> const& predt, MetaInfo const& info, std::int32_t iter,
-                   HostDeviceVector<GradientPair>* out_gpair) override {
+                   linalg::Matrix<GradientPair>* out_gpair) override {
     CHECK_EQ(info.labels.Size(), predt.Size()) << error::LabelScoreSize();
 
     // init/renew cache
@@ -339,7 +339,7 @@ class LambdaRankNDCG : public LambdaRankObj<LambdaRankNDCG, ltr::NDCGCache> {
   void CalcLambdaForGroupNDCG(std::int32_t iter, common::Span<float const> g_predt,
                               linalg::VectorView<float const> g_label, float w,
                               common::Span<std::size_t const> g_rank,
-                              common::Span<GradientPair> g_gpair,
+                              linalg::VectorView<GradientPair> g_gpair,
                               linalg::VectorView<double const> inv_IDCG,
                               common::Span<double const> discount, bst_group_t g) {
     auto delta = [&](auto y_high, auto y_low, std::size_t rank_high, std::size_t rank_low,
@@ -351,20 +351,22 @@ class LambdaRankNDCG : public LambdaRankObj<LambdaRankNDCG, ltr::NDCGCache> {
   }
 
   void GetGradientImpl(std::int32_t iter, const HostDeviceVector<float>& predt,
-                       const MetaInfo& info, HostDeviceVector<GradientPair>* out_gpair) {
+                       const MetaInfo& info, linalg::Matrix<GradientPair>* out_gpair) {
     if (ctx_->IsCUDA()) {
       cuda_impl::LambdaRankGetGradientNDCG(
-          ctx_, iter, predt, info, GetCache(), ti_plus_.View(ctx_->gpu_id),
-          tj_minus_.View(ctx_->gpu_id), li_full_.View(ctx_->gpu_id), lj_full_.View(ctx_->gpu_id),
-          out_gpair);
+          ctx_, iter, predt, info, GetCache(), ti_plus_.View(ctx_->Device()),
+          tj_minus_.View(ctx_->Device()), li_full_.View(ctx_->Device()),
+          lj_full_.View(ctx_->Device()), out_gpair);
       return;
     }
 
     bst_group_t n_groups = p_cache_->Groups();
     auto gptr = p_cache_->DataGroupPtr(ctx_);
 
-    out_gpair->Resize(info.num_row_);
-    auto h_gpair = out_gpair->HostSpan();
+    out_gpair->SetDevice(ctx_->Device());
+    out_gpair->Reshape(info.num_row_, 1);
+
+    auto h_gpair = out_gpair->HostView();
     auto h_predt = predt.ConstHostSpan();
     auto h_label = info.labels.HostView();
     auto h_weight = common::MakeOptionalWeights(ctx_, info.weights_);
@@ -378,7 +380,8 @@ class LambdaRankNDCG : public LambdaRankObj<LambdaRankNDCG, ltr::NDCGCache> {
       std::size_t cnt = gptr[g + 1] - gptr[g];
       auto w = h_weight[g];
       auto g_predt = h_predt.subspan(gptr[g], cnt);
-      auto g_gpair = h_gpair.subspan(gptr[g], cnt);
+      auto g_gpair =
+          h_gpair.Slice(linalg::Range(static_cast<std::size_t>(gptr[g]), gptr[g] + cnt), 0);
       auto g_label = h_label.Slice(make_range(g), 0);
       auto g_rank = rank_idx.subspan(gptr[g], cnt);
 
@@ -420,7 +423,7 @@ void LambdaRankGetGradientNDCG(Context const*, std::int32_t, HostDeviceVector<fl
                                linalg::VectorView<double const>,  // input bias ratio
                                linalg::VectorView<double const>,  // input bias ratio
                                linalg::VectorView<double>, linalg::VectorView<double>,
-                               HostDeviceVector<GradientPair>*) {
+                               linalg::Matrix<GradientPair>*) {
   common::AssertGPUSupport();
 }
 
@@ -470,20 +473,23 @@ void MAPStat(Context const* ctx, linalg::VectorView<float const> label,
 class LambdaRankMAP : public LambdaRankObj<LambdaRankMAP, ltr::MAPCache> {
  public:
   void GetGradientImpl(std::int32_t iter, const HostDeviceVector<float>& predt,
-                       const MetaInfo& info, HostDeviceVector<GradientPair>* out_gpair) {
+                       const MetaInfo& info, linalg::Matrix<GradientPair>* out_gpair) {
     CHECK(param_.ndcg_exp_gain) << "NDCG gain can not be set for the MAP objective.";
     if (ctx_->IsCUDA()) {
       return cuda_impl::LambdaRankGetGradientMAP(
-          ctx_, iter, predt, info, GetCache(), ti_plus_.View(ctx_->gpu_id),
-          tj_minus_.View(ctx_->gpu_id), li_full_.View(ctx_->gpu_id), lj_full_.View(ctx_->gpu_id),
-          out_gpair);
+          ctx_, iter, predt, info, GetCache(), ti_plus_.View(ctx_->Device()),
+          tj_minus_.View(ctx_->Device()), li_full_.View(ctx_->Device()),
+          lj_full_.View(ctx_->Device()), out_gpair);
     }
 
     auto gptr = p_cache_->DataGroupPtr(ctx_).data();
     bst_group_t n_groups = p_cache_->Groups();
 
-    out_gpair->Resize(info.num_row_);
-    auto h_gpair = out_gpair->HostSpan();
+    CHECK_EQ(info.labels.Shape(1), 1) << "multi-target for learning to rank is not yet supported.";
+    out_gpair->SetDevice(ctx_->Device());
+    out_gpair->Reshape(info.num_row_, this->Targets(info));
+
+    auto h_gpair = out_gpair->HostView();
     auto h_label = info.labels.HostView().Slice(linalg::All(), 0);
     auto h_predt = predt.ConstHostSpan();
     auto rank_idx = p_cache_->SortedIdx(ctx_, h_predt);
@@ -514,7 +520,7 @@ class LambdaRankMAP : public LambdaRankObj<LambdaRankMAP, ltr::MAPCache> {
       auto cnt = gptr[g + 1] - gptr[g];
       auto w = h_weight[g];
       auto g_predt = h_predt.subspan(gptr[g], cnt);
-      auto g_gpair = h_gpair.subspan(gptr[g], cnt);
+      auto g_gpair = h_gpair.Slice(linalg::Range(gptr[g], gptr[g] + cnt), 0);
       auto g_label = h_label.Slice(make_range(g));
       auto g_rank = rank_idx.subspan(gptr[g], cnt);
 
@@ -545,7 +551,7 @@ void LambdaRankGetGradientMAP(Context const*, std::int32_t, HostDeviceVector<flo
                               linalg::VectorView<double const>,  // input bias ratio
                               linalg::VectorView<double const>,  // input bias ratio
                               linalg::VectorView<double>, linalg::VectorView<double>,
-                              HostDeviceVector<GradientPair>*) {
+                              linalg::Matrix<GradientPair>*) {
   common::AssertGPUSupport();
 }
 }  // namespace cuda_impl
@@ -557,20 +563,22 @@ void LambdaRankGetGradientMAP(Context const*, std::int32_t, HostDeviceVector<flo
 class LambdaRankPairwise : public LambdaRankObj<LambdaRankPairwise, ltr::RankingCache> {
  public:
   void GetGradientImpl(std::int32_t iter, const HostDeviceVector<float>& predt,
-                       const MetaInfo& info, HostDeviceVector<GradientPair>* out_gpair) {
+                       const MetaInfo& info, linalg::Matrix<GradientPair>* out_gpair) {
     CHECK(param_.ndcg_exp_gain) << "NDCG gain can not be set for the pairwise objective.";
     if (ctx_->IsCUDA()) {
       return cuda_impl::LambdaRankGetGradientPairwise(
-          ctx_, iter, predt, info, GetCache(), ti_plus_.View(ctx_->gpu_id),
-          tj_minus_.View(ctx_->gpu_id), li_full_.View(ctx_->gpu_id), lj_full_.View(ctx_->gpu_id),
-          out_gpair);
+          ctx_, iter, predt, info, GetCache(), ti_plus_.View(ctx_->Device()),
+          tj_minus_.View(ctx_->Device()), li_full_.View(ctx_->Device()),
+          lj_full_.View(ctx_->Device()), out_gpair);
     }
 
     auto gptr = p_cache_->DataGroupPtr(ctx_);
     bst_group_t n_groups = p_cache_->Groups();
 
-    out_gpair->Resize(info.num_row_);
-    auto h_gpair = out_gpair->HostSpan();
+    out_gpair->SetDevice(ctx_->Device());
+    out_gpair->Reshape(info.num_row_, this->Targets(info));
+
+    auto h_gpair = out_gpair->HostView();
     auto h_label = info.labels.HostView().Slice(linalg::All(), 0);
     auto h_predt = predt.ConstHostSpan();
     auto h_weight = common::MakeOptionalWeights(ctx_, info.weights_);
@@ -585,7 +593,7 @@ class LambdaRankPairwise : public LambdaRankObj<LambdaRankPairwise, ltr::Ranking
       auto cnt = gptr[g + 1] - gptr[g];
       auto w = h_weight[g];
       auto g_predt = h_predt.subspan(gptr[g], cnt);
-      auto g_gpair = h_gpair.subspan(gptr[g], cnt);
+      auto g_gpair = h_gpair.Slice(linalg::Range(gptr[g], gptr[g] + cnt), 0);
       auto g_label = h_label.Slice(make_range(g));
       auto g_rank = rank_idx.subspan(gptr[g], cnt);
 
@@ -611,7 +619,7 @@ void LambdaRankGetGradientPairwise(Context const*, std::int32_t, HostDeviceVecto
                                    linalg::VectorView<double const>,  // input bias ratio
                                    linalg::VectorView<double const>,  // input bias ratio
                                    linalg::VectorView<double>, linalg::VectorView<double>,
-                                   HostDeviceVector<GradientPair>*) {
+                                   linalg::Matrix<GradientPair>*) {
   common::AssertGPUSupport();
 }
 }  // namespace cuda_impl

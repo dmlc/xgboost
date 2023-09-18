@@ -129,7 +129,7 @@ void SortPositionBatch(common::Span<const PerNodeData<OpDataT>> d_batch_info,
         int batch_idx;
         std::size_t item_idx;
         AssignBatch(batch_info_itr, idx, &batch_idx, &item_idx);
-        auto op_res = op(ridx[item_idx], batch_info_itr[batch_idx].data);
+        auto op_res = op(ridx[item_idx], batch_idx, batch_info_itr[batch_idx].data);
         return IndexFlagTuple{static_cast<bst_uint>(item_idx), op_res, batch_idx, op_res};
       });
   size_t temp_bytes = 0;

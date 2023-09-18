@@ -16,7 +16,7 @@ class SupportedTasks(object):
 
 class XGBoostTrainer(Executor):
     def __init__(self, server_address: str, world_size: int, server_cert_path: str,
-                 client_key_path: str, client_cert_path: str):
+                 client_key_path: str, client_cert_path: str, use_gpus: bool):
         """Trainer for federated XGBoost.
 
         Args:
@@ -32,6 +32,7 @@ class XGBoostTrainer(Executor):
         self._server_cert_path = server_cert_path
         self._client_key_path = client_key_path
         self._client_cert_path = client_cert_path
+        self._use_gpus = use_gpus
 
     def execute(self, task_name: str, shareable: Shareable, fl_ctx: FLContext,
                 abort_signal: Signal) -> Shareable:
@@ -76,11 +77,14 @@ class XGBoostTrainer(Executor):
                 'gamma': 1.0,
                 'max_depth': 8,
                 'min_child_weight': 100,
-                'tree_method': 'approx',
+                'tree_method': 'hist',
                 'grow_policy': 'depthwise',
                 'objective': 'binary:logistic',
                 'eval_metric': 'auc',
             }
+            if self._use_gpus:
+                self.log_info(fl_ctx, f'Training with GPU {rank}')
+                param['device'] = f"cuda:{rank}"
 
             # specify validations set to watch performance
             watchlist = [(dtest, "eval"), (dtrain, "train")]

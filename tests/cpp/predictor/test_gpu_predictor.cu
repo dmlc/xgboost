@@ -206,6 +206,10 @@ TEST(GpuPredictor, LesserFeatures) {
   TestPredictionWithLesserFeatures(&ctx);
 }
 
+TEST_F(MGPUPredictorTest, LesserFeaturesColumnSplit) {
+  RunWithInMemoryCommunicator(world_size_, TestPredictionWithLesserFeaturesColumnSplit, true);
+}
+
 // Very basic test of empty model
 TEST(GPUPredictor, ShapStump) {
   cudaSetDevice(0);
@@ -226,7 +230,7 @@ TEST(GPUPredictor, ShapStump) {
   auto dmat = RandomDataGenerator(3, 1, 0).GenerateDMatrix();
   gpu_predictor->PredictContribution(dmat.get(), &predictions, model);
   auto& phis = predictions.HostVector();
-  auto base_score = mparam.BaseScore(Context::kCpuId)(0);
+  auto base_score = mparam.BaseScore(DeviceOrd::CPU())(0);
   EXPECT_EQ(phis[0], 0.0);
   EXPECT_EQ(phis[1], base_score);
   EXPECT_EQ(phis[2], 0.0);
@@ -270,14 +274,24 @@ TEST(GPUPredictor, IterationRange) {
   TestIterationRange(&ctx);
 }
 
+TEST_F(MGPUPredictorTest, IterationRangeColumnSplit) {
+  TestIterationRangeColumnSplit(world_size_, true);
+}
+
 TEST(GPUPredictor, CategoricalPrediction) {
-  auto ctx = MakeCUDACtx(0);
-  TestCategoricalPrediction(&ctx, false);
+  TestCategoricalPrediction(true, false);
+}
+
+TEST_F(MGPUPredictorTest, CategoricalPredictionColumnSplit) {
+  RunWithInMemoryCommunicator(world_size_, TestCategoricalPrediction, true, true);
 }
 
 TEST(GPUPredictor, CategoricalPredictLeaf) {
-  auto ctx = MakeCUDACtx(0);
-  TestCategoricalPredictLeaf(&ctx, false);
+  TestCategoricalPredictLeaf(true, false);
+}
+
+TEST_F(MGPUPredictorTest, CategoricalPredictionLeafColumnSplit) {
+  RunWithInMemoryCommunicator(world_size_, TestCategoricalPredictLeaf, true, true);
 }
 
 TEST(GPUPredictor, PredictLeafBasic) {
@@ -304,5 +318,10 @@ TEST(GPUPredictor, Sparse) {
   auto ctx = MakeCUDACtx(0);
   TestSparsePrediction(&ctx, 0.2);
   TestSparsePrediction(&ctx, 0.8);
+}
+
+TEST_F(MGPUPredictorTest, SparseColumnSplit) {
+  TestSparsePredictionColumnSplit(world_size_, true, 0.2);
+  TestSparsePredictionColumnSplit(world_size_, true, 0.8);
 }
 }  // namespace xgboost::predictor

@@ -76,17 +76,18 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \param iter current iteration number
    * \param train reference to the data matrix.
    */
-  virtual void UpdateOneIter(int iter, std::shared_ptr<DMatrix> train) = 0;
-  /*!
-   * \brief Do customized gradient boosting with in_gpair.
-   *  in_gair can be mutated after this call.
-   * \param iter current iteration number
-   * \param train reference to the data matrix.
-   * \param in_gpair The input gradient statistics.
+  virtual void UpdateOneIter(std::int32_t iter, std::shared_ptr<DMatrix> train) = 0;
+  /**
+   * @brief Do customized gradient boosting with in_gpair.
+   *
+   * @note in_gpair can be mutated after this call.
+   *
+   * @param iter current iteration number
+   * @param train reference to the data matrix.
+   * @param in_gpair The input gradient statistics.
    */
-  virtual void BoostOneIter(int iter,
-                            std::shared_ptr<DMatrix> train,
-                            HostDeviceVector<GradientPair>* in_gpair) = 0;
+  virtual void BoostOneIter(std::int32_t iter, std::shared_ptr<DMatrix> train,
+                            linalg::Matrix<GradientPair>* in_gpair) = 0;
   /*!
    * \brief evaluate the model for specific iteration using the configured metrics.
    * \param iter iteration number
@@ -329,7 +330,7 @@ struct LearnerModelParam {
         multi_strategy{multi_strategy} {}
 
   linalg::TensorView<float const, 1> BaseScore(Context const* ctx) const;
-  [[nodiscard]] linalg::TensorView<float const, 1> BaseScore(std::int32_t device) const;
+  [[nodiscard]] linalg::TensorView<float const, 1> BaseScore(DeviceOrd device) const;
 
   void Copy(LearnerModelParam const& that);
   [[nodiscard]] bool IsVectorLeaf() const noexcept {

@@ -98,17 +98,24 @@ def download_wheels(
     return filenames
 
 
-def make_pysrc_wheel(release: str, outdir: str) -> None:
+def make_pysrc_wheel(
+    release: str, rc: Optional[str], rc_ver: Optional[int], outdir: str
+) -> None:
     """Make Python source distribution."""
-    dist = os.path.join(outdir, "dist")
+    dist = os.path.abspath(os.path.normpath(os.path.join(outdir, "dist")))
     if not os.path.exists(dist):
         os.mkdir(dist)
 
     with DirectoryExcursion(os.path.join(ROOT, "python-package")):
         subprocess.check_call(["python", "-m", "build", "--sdist"])
-        src = os.path.join(DIST, f"xgboost-{release}.tar.gz")
+        if rc is not None:
+            name = f"xgboost-{release}{rc}{rc_ver}.tar.gz"
+        else:
+            name = f"xgboost-{release}.tar.gz"
+        src = os.path.join(DIST, name)
         subprocess.check_call(["twine", "check", src])
-        shutil.move(src, os.path.join(dist, f"xgboost-{release}.tar.gz"))
+        target = os.path.join(dist, name)
+        shutil.move(src, target)
 
 
 def download_py_packages(
@@ -172,7 +179,9 @@ def download_r_packages(
     hashes = []
     with DirectoryExcursion(os.path.join(outdir, "r-packages")):
         for f in filenames:
-            ret = subprocess.run(["sha256sum", os.path.basename(f)], capture_output=True)
+            ret = subprocess.run(
+                ["sha256sum", os.path.basename(f)], capture_output=True
+            )
             h = ret.stdout.decode().strip()
             hashes.append(h)
     return urls, hashes
@@ -241,8 +250,8 @@ echo "<hash> <artifact>" | shasum -a 256 --check
 ```
 
 **Experimental binary packages for R with CUDA enabled**
-* xgboost_r_gpu_linux_1.7.5.tar.gz: [Download]({r_gpu_linux_url})
-* xgboost_r_gpu_win64_1.7.5.tar.gz: [Download]({r_gpu_win64_url})
+* xgboost_r_gpu_linux_{release}.tar.gz: [Download]({r_gpu_linux_url})
+* xgboost_r_gpu_win64_{release}.tar.gz: [Download]({r_gpu_win64_url})
 
 **Source tarball**
 * xgboost.tar.gz: [Download]({src_tarball})"""
@@ -287,12 +296,13 @@ def main(args: argparse.Namespace) -> None:
     git.submodule("update")
     commit_hash = latest_hash()
 
-    if not os.path.exists(args.outdir):
-        os.mkdir(args.outdir)
+    outdir = os.path.abspath(args.outdir)
+    if not os.path.exists(outdir):
+        os.mkdir(outdir)
 
     # source tarball
     hashes: List[str] = []
-    tarname, h = make_src_package(release, args.outdir)
+    tarname, h = make_src_package(release, outdir)
     hashes.append(h)
 
     # CUDA R packages
@@ -301,18 +311,18 @@ def main(args: argparse.Namespace) -> None:
         branch,
         "" if rc is None else rc + str(rc_ver),
         commit_hash,
-        args.outdir,
+        outdir,
     )
     hashes.extend(hr)
 
     # Python source wheel
-    make_pysrc_wheel(release, args.outdir)
+    make_pysrc_wheel(release, rc, rc_ver, outdir)
 
     # Python binary wheels
-    download_py_packages(branch, major, minor, commit_hash, args.outdir)
+    download_py_packages(branch, major, minor, commit_hash, outdir)
 
     # Write end note
-    release_note(release, hashes, urls, tarname, args.outdir)
+    release_note(release, hashes, urls, tarname, outdir)
 
 
 if __name__ == "__main__":

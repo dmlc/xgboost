@@ -216,8 +216,8 @@ TEST(CAPI, JsonModelIO) {
 
   std::string buffer;
   Json::Dump(Json::Load(l, std::ios::binary), &buffer);
-  ASSERT_EQ(model_str_0.size() - 1, buffer.size());
-  ASSERT_EQ(model_str_0.back(), '\0');
+  ASSERT_EQ(model_str_0.size(), buffer.size());
+  ASSERT_EQ(model_str_0.back(), '}');
   ASSERT_TRUE(std::equal(model_str_0.begin(), model_str_0.end() - 1, buffer.begin()));
 
   ASSERT_EQ(XGBoosterSaveModelToBuffer(handle, R"({})", &len, &data), -1);
@@ -565,7 +565,7 @@ void TestXGDMatrixGetQuantileCut(Context const *ctx) {
     ASSERT_EQ(XGBoosterCreate(mats.data(), 1, &booster), 0);
     ASSERT_EQ(XGBoosterSetParam(booster, "max_bin", "16"), 0);
     if (ctx->IsCUDA()) {
-      ASSERT_EQ(XGBoosterSetParam(booster, "tree_method", "gpu_hist"), 0);
+      ASSERT_EQ(XGBoosterSetParam(booster, "device", ctx->DeviceName().c_str()), 0);
     }
     ASSERT_EQ(XGBoosterUpdateOneIter(booster, 0, p_fmat), 0);
     ASSERT_EQ(XGDMatrixGetQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), 0);
@@ -596,7 +596,7 @@ void TestXGDMatrixGetQuantileCut(Context const *ctx) {
     ASSERT_EQ(XGBoosterCreate(mats.data(), 1, &booster), 0);
     ASSERT_EQ(XGBoosterSetParam(booster, "max_bin", "16"), 0);
     if (ctx->IsCUDA()) {
-      ASSERT_EQ(XGBoosterSetParam(booster, "tree_method", "gpu_hist"), 0);
+      ASSERT_EQ(XGBoosterSetParam(booster, "device", ctx->DeviceName().c_str()), 0);
     }
     ASSERT_EQ(XGBoosterUpdateOneIter(booster, 0, p_fmat), 0);
     ASSERT_EQ(XGDMatrixGetQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), 0);

@@ -146,6 +146,8 @@ __MACOSX/
 model*.json
 
 # R tests
+*.htm
+*.html
 *.libsvm
 *.rds
 Rplots.pdf

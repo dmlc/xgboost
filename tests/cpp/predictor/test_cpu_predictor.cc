@@ -127,8 +127,8 @@ TEST(CpuPredictor, IterationRange) {
 }
 
 TEST(CpuPredictor, IterationRangeColmnSplit) {
-  Context ctx;
-  TestIterationRangeColumnSplit(&ctx);
+  auto constexpr kWorldSize = 2;
+  TestIterationRangeColumnSplit(kWorldSize, false);
 }
 
 TEST(CpuPredictor, ExternalMemory) {
@@ -189,11 +189,10 @@ void TestUpdatePredictionCache(bool use_subsampling) {
 
   auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix(true, true, kClasses);
 
-  HostDeviceVector<GradientPair> gpair;
-  auto& h_gpair = gpair.HostVector();
-  h_gpair.resize(kRows * kClasses);
+  linalg::Matrix<GradientPair> gpair({kRows, kClasses}, ctx.Device());
+  auto h_gpair = gpair.HostView();
   for (size_t i = 0; i < kRows * kClasses; ++i) {
-    h_gpair[i] = {static_cast<float>(i), 1};
+    std::apply(h_gpair, linalg::UnravelIndex(i, kRows, kClasses)) = {static_cast<float>(i), 1};
   }
 
   PredictionCacheEntry predtion_cache;
@@ -227,23 +226,21 @@ TEST(CPUPredictor, GHistIndexTraining) {
 }
 
 TEST(CPUPredictor, CategoricalPrediction) {
-  Context ctx;
-  TestCategoricalPrediction(&ctx, false);
+  TestCategoricalPrediction(false, false);
 }
 
 TEST(CPUPredictor, CategoricalPredictionColumnSplit) {
-  Context ctx;
-  TestCategoricalPredictionColumnSplit(&ctx);
+  auto constexpr kWorldSize = 2;
+  RunWithInMemoryCommunicator(kWorldSize, TestCategoricalPrediction, false, true);
 }
 
 TEST(CPUPredictor, CategoricalPredictLeaf) {
-  Context ctx;
-  TestCategoricalPredictLeaf(&ctx, false);
+  TestCategoricalPredictLeaf(false, false);
 }
 
 TEST(CPUPredictor, CategoricalPredictLeafColumnSplit) {
-  Context ctx;
-  TestCategoricalPredictLeafColumnSplit(&ctx);
+  auto constexpr kWorldSize = 2;
+  RunWithInMemoryCommunicator(kWorldSize, TestCategoricalPredictLeaf, false, true);
 }
 
 TEST(CpuPredictor, UpdatePredictionCache) {
@@ -257,8 +254,8 @@ TEST(CpuPredictor, LesserFeatures) {
 }
 
 TEST(CpuPredictor, LesserFeaturesColumnSplit) {
-  Context ctx;
-  TestPredictionWithLesserFeaturesColumnSplit(&ctx);
+  auto constexpr kWorldSize = 2;
+  RunWithInMemoryCommunicator(kWorldSize, TestPredictionWithLesserFeaturesColumnSplit, false);
 }
 
 TEST(CpuPredictor, Sparse) {
@@ -268,9 +265,9 @@ TEST(CpuPredictor, Sparse) {
 }
 
 TEST(CpuPredictor, SparseColumnSplit) {
-  Context ctx;
-  TestSparsePredictionColumnSplit(&ctx, 0.2);
-  TestSparsePredictionColumnSplit(&ctx, 0.8);
+  auto constexpr kWorldSize = 2;
+  TestSparsePredictionColumnSplit(kWorldSize, false, 0.2);
+  TestSparsePredictionColumnSplit(kWorldSize, false, 0.8);
 }
 
 TEST(CpuPredictor, Multi) {

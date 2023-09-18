@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
-project(xgboost LANGUAGES CXX C VERSION 2.0.0)
+project(xgboost LANGUAGES CXX C VERSION 2.1.0)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${xgboost_SOURCE_DIR}/cmake/modules")
 cmake_policy(SET CMP0022 NEW)
@@ -45,8 +45,8 @@ set_default_configuration_release()
 option(BUILD_C_DOC "Build documentation for C APIs using Doxygen." OFF)
 option(USE_OPENMP "Build with OpenMP support." ON)
 option(BUILD_STATIC_LIB "Build static library" OFF)
+option(BUILD_DEPRECATED_CLI "Build the deprecated command line interface" OFF)
 option(FORCE_SHARED_CRT "Build with dynamic CRT on Windows (/MD)" OFF)
-option(RABIT_BUILD_MPI "Build MPI" OFF)
 ## Bindings
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(R_LIB "Build shared library for R package" OFF)
@@ -71,10 +71,6 @@ option(USE_NCCL  "Build with NCCL to enable distributed GPU support." OFF)
 option(BUILD_WITH_SHARED_NCCL "Build with shared NCCL library." OFF)
 set(GPU_COMPUTE_VER "" CACHE STRING
   "Semicolon separated list of compute versions to be built against, e.g. '35;61'")
-## Copied From dmlc
-option(USE_HDFS "Build with HDFS support" OFF)
-option(USE_AZURE "Build with AZURE support" OFF)
-option(USE_S3 "Build with S3 support" OFF)
 ## Sanitizers
 option(USE_SANITIZER "Use santizer flags" OFF)
 option(SANITIZER_PATH "Path to sanitizes.")
@@ -109,12 +105,6 @@ if (R_LIB AND GOOGLE_TEST)
   message(WARNING "Some C++ unittests will fail with `R_LIB` enabled,
  as R package redirects some functions to R runtime implementation.")
 endif (R_LIB AND GOOGLE_TEST)
-if (USE_AVX)
-  message(SEND_ERROR  "The option 'USE_AVX' is deprecated as experimental AVX features have been removed from XGBoost.")
-endif (USE_AVX)
-if (PLUGIN_LZ4)
-  message(SEND_ERROR  "The option 'PLUGIN_LZ4' is removed from XGBoost.")
-endif (PLUGIN_LZ4)
 if (PLUGIN_RMM AND NOT (USE_CUDA))
   message(SEND_ERROR "`PLUGIN_RMM` must be enabled with `USE_CUDA` flag.")
 endif (PLUGIN_RMM AND NOT (USE_CUDA))
@@ -146,6 +136,26 @@ if (PLUGIN_FEDERATED)
     message(SEND_ERROR "Federated learning not supported for Windows platform")
   endif ()
 endif ()
+
+#-- Removed options
+if (USE_AVX)
+  message(SEND_ERROR  "The option `USE_AVX` is deprecated as experimental AVX features have been removed from XGBoost.")
+endif (USE_AVX)
+if (PLUGIN_LZ4)
+  message(SEND_ERROR  "The option `PLUGIN_LZ4` is removed from XGBoost.")
+endif (PLUGIN_LZ4)
+if (RABIT_BUILD_MPI)
+  message(SEND_ERROR "The option `RABIT_BUILD_MPI` has been removed from XGBoost.")
+endif (RABIT_BUILD_MPI)
+if (USE_S3)
+  message(SEND_ERROR "The option `USE_S3` has been removed from XGBoost")
+endif (USE_S3)
+if (USE_AZURE)
+  message(SEND_ERROR "The option `USE_AZURE` has been removed from XGBoost")
+endif (USE_AZURE)
+if (USE_HDFS)
+  message(SEND_ERROR "The option `USE_HDFS` has been removed from XGBoost")
+endif (USE_HDFS)
 
 #-- Sanitizer
 if (USE_SANITIZER)
@@ -225,9 +235,6 @@ endif (MSVC)
 
 # rabit
 add_subdirectory(rabit)
-if (RABIT_BUILD_MPI)
-  find_package(MPI REQUIRED)
-endif (RABIT_BUILD_MPI)
 
 # core xgboost
 add_subdirectory(${xgboost_SOURCE_DIR}/src)
@@ -273,19 +280,30 @@ target_include_directories(xgboost
 #-- End shared library
 
 #-- CLI for xgboost
-add_executable(runxgboost ${xgboost_SOURCE_DIR}/src/cli_main.cc)
-target_link_libraries(runxgboost PRIVATE objxgboost)
-target_include_directories(runxgboost
-  PRIVATE
-  ${xgboost_SOURCE_DIR}/include
-  ${xgboost_SOURCE_DIR}/dmlc-core/include
-  ${xgboost_SOURCE_DIR}/rabit/include
-)
-set_target_properties(runxgboost PROPERTIES OUTPUT_NAME xgboost)
+if (BUILD_DEPRECATED_CLI)
+  add_executable(runxgboost ${xgboost_SOURCE_DIR}/src/cli_main.cc)
+  target_link_libraries(runxgboost PRIVATE objxgboost)
+  target_include_directories(runxgboost
+    PRIVATE
+    ${xgboost_SOURCE_DIR}/include
+    ${xgboost_SOURCE_DIR}/dmlc-core/include
+    ${xgboost_SOURCE_DIR}/rabit/include
+  )
+  set_target_properties(runxgboost PROPERTIES OUTPUT_NAME xgboost)
+  xgboost_target_properties(runxgboost)
+  xgboost_target_link_libraries(runxgboost)
+  xgboost_target_defs(runxgboost)
+
+  if (KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR)
+    set_output_directory(runxgboost ${xgboost_BINARY_DIR})
+  else ()
+    set_output_directory(runxgboost ${xgboost_SOURCE_DIR})
+  endif (KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR)
+endif (BUILD_DEPRECATED_CLI)
 #-- End CLI for xgboost
 
 # Common setup for all targets
-foreach(target xgboost objxgboost dmlc runxgboost)
+foreach(target xgboost objxgboost dmlc)
   xgboost_target_properties(${target})
   xgboost_target_link_libraries(${target})
   xgboost_target_defs(${target})
@@ -298,14 +316,15 @@ if (JVM_BINDINGS)
 endif (JVM_BINDINGS)
 
 if (KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR)
-  set_output_directory(runxgboost ${xgboost_BINARY_DIR})
   set_output_directory(xgboost ${xgboost_BINARY_DIR}/lib)
 else ()
-  set_output_directory(runxgboost ${xgboost_SOURCE_DIR})
   set_output_directory(xgboost ${xgboost_SOURCE_DIR}/lib)
 endif ()
+
 # Ensure these two targets do not build simultaneously, as they produce outputs with conflicting names
-add_dependencies(xgboost runxgboost)
+if (BUILD_DEPRECATED_CLI)
+  add_dependencies(xgboost runxgboost)
+endif (BUILD_DEPRECATED_CLI)
 
 #-- Installing XGBoost
 if (R_LIB)
@@ -341,9 +360,17 @@ install(DIRECTORY ${xgboost_SOURCE_DIR}/include/xgboost
 #
 # https://github.com/dmlc/xgboost/issues/6085
 if (BUILD_STATIC_LIB)
-  set(INSTALL_TARGETS xgboost runxgboost objxgboost dmlc)
+  if (BUILD_DEPRECATED_CLI)
+    set(INSTALL_TARGETS xgboost runxgboost objxgboost dmlc)
+  else()
+    set(INSTALL_TARGETS xgboost objxgboost dmlc)
+  endif (BUILD_DEPRECATED_CLI)
 else (BUILD_STATIC_LIB)
-  set(INSTALL_TARGETS xgboost runxgboost)
+  if (BUILD_DEPRECATED_CLI)
+    set(INSTALL_TARGETS xgboost runxgboost)
+  else(BUILD_DEPRECATED_CLI)
+    set(INSTALL_TARGETS xgboost)
+  endif (BUILD_DEPRECATED_CLI)
 endif (BUILD_STATIC_LIB)
 
 install(TARGETS ${INSTALL_TARGETS}
@@ -393,13 +420,15 @@ if (GOOGLE_TEST)
     ${xgboost_SOURCE_DIR}/tests/cli/machine.conf.in
     ${xgboost_BINARY_DIR}/tests/cli/machine.conf
     @ONLY)
-  add_test(
-    NAME TestXGBoostCLI
-    COMMAND runxgboost ${xgboost_BINARY_DIR}/tests/cli/machine.conf
-    WORKING_DIRECTORY ${xgboost_BINARY_DIR})
-  set_tests_properties(TestXGBoostCLI
-    PROPERTIES
-    PASS_REGULAR_EXPRESSION ".*test-rmse:0.087.*")
+  if (BUILD_DEPRECATED_CLI)
+    add_test(
+      NAME TestXGBoostCLI
+      COMMAND runxgboost ${xgboost_BINARY_DIR}/tests/cli/machine.conf
+      WORKING_DIRECTORY ${xgboost_BINARY_DIR})
+    set_tests_properties(TestXGBoostCLI
+      PROPERTIES
+      PASS_REGULAR_EXPRESSION ".*test-rmse:0.087.*")
+  endif (BUILD_DEPRECATED_CLI)
 endif (GOOGLE_TEST)
 
 # For MSVC: Call msvc_use_static_runtime() once again to completely

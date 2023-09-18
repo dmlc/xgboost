@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 by XGBoost Contributors
+ * Copyright 2022-2023, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/linalg.h>
@@ -8,17 +8,17 @@
 #include "../../src/tree/fit_stump.h"
 #include "../helpers.h"
 
-namespace xgboost {
-namespace tree {
+namespace xgboost::tree {
 namespace {
 void TestFitStump(Context const *ctx, DataSplitMode split = DataSplitMode::kRow) {
   std::size_t constexpr kRows = 16, kTargets = 2;
-  HostDeviceVector<GradientPair> gpair;
-  auto &h_gpair = gpair.HostVector();
-  h_gpair.resize(kRows * kTargets);
+  linalg::Matrix<GradientPair> gpair;
+  gpair.SetDevice(ctx->Device());
+  gpair.Reshape(kRows, kTargets);
+  auto h_gpair = gpair.HostView();
   for (std::size_t i = 0; i < kRows; ++i) {
     for (std::size_t t = 0; t < kTargets; ++t) {
-      h_gpair.at(i * kTargets + t) = GradientPair{static_cast<float>(i), 1};
+      h_gpair(i, t) = GradientPair{static_cast<float>(i), 1};
     }
   }
   linalg::Vector<float> out;
@@ -53,6 +53,4 @@ TEST(InitEstimation, FitStumpColumnSplit) {
   auto constexpr kWorldSize{3};
   RunWithInMemoryCommunicator(kWorldSize, &TestFitStump, &ctx, DataSplitMode::kCol);
 }
-
-}  // namespace tree
-}  // namespace xgboost
+}  // namespace xgboost::tree

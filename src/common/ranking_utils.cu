@@ -133,7 +133,7 @@ struct WeightOp {
 void RankingCache::InitOnCUDA(Context const* ctx, MetaInfo const& info) {
   CUDAContext const* cuctx = ctx->CUDACtx();
 
-  group_ptr_.SetDevice(ctx->gpu_id);
+  group_ptr_.SetDevice(ctx->Device());
   if (info.group_ptr_.empty()) {
     group_ptr_.Resize(2, 0);
     group_ptr_.HostVector()[1] = info.num_row_;
@@ -153,7 +153,7 @@ void RankingCache::InitOnCUDA(Context const* ctx, MetaInfo const& info) {
   max_group_size_ =
       thrust::reduce(cuctx->CTP(), it, it + n_groups, 0ul, thrust::maximum<std::size_t>{});
 
-  threads_group_ptr_.SetDevice(ctx->gpu_id);
+  threads_group_ptr_.SetDevice(ctx->Device());
   threads_group_ptr_.Resize(n_groups + 1, 0);
   auto d_threads_group_ptr = threads_group_ptr_.DeviceSpan();
   if (param_.HasTruncation()) {
@@ -168,7 +168,7 @@ void RankingCache::InitOnCUDA(Context const* ctx, MetaInfo const& info) {
     n_cuda_threads_ = info.num_row_ * param_.NumPair();
   }
 
-  sorted_idx_cache_.SetDevice(ctx->gpu_id);
+  sorted_idx_cache_.SetDevice(ctx->Device());
   sorted_idx_cache_.Resize(info.labels.Size(), 0);
 
   auto weight = common::MakeOptionalWeights(ctx, info.weights_);
@@ -187,18 +187,18 @@ common::Span<std::size_t const> RankingCache::MakeRankOnCUDA(Context const* ctx,
 
 void NDCGCache::InitOnCUDA(Context const* ctx, MetaInfo const& info) {
   CUDAContext const* cuctx = ctx->CUDACtx();
-  auto labels = info.labels.View(ctx->gpu_id).Slice(linalg::All(), 0);
+  auto labels = info.labels.View(ctx->Device()).Slice(linalg::All(), 0);
   CheckNDCGLabels(this->Param(), labels, CheckNDCGOp{cuctx});
 
   auto d_group_ptr = this->DataGroupPtr(ctx);
 
   std::size_t n_groups = d_group_ptr.size() - 1;
   inv_idcg_ = linalg::Zeros<double>(ctx, n_groups);
-  auto d_inv_idcg = inv_idcg_.View(ctx->gpu_id);
+  auto d_inv_idcg = inv_idcg_.View(ctx->Device());
   cuda_impl::CalcQueriesInvIDCG(ctx, labels, d_group_ptr, d_inv_idcg, this->Param());
   CHECK_GE(this->Param().NumPair(), 1ul);
 
-  discounts_.SetDevice(ctx->gpu_id);
+  discounts_.SetDevice(ctx->Device());
   discounts_.Resize(MaxGroupSize());
   auto d_discount = discounts_.DeviceSpan();
   dh::LaunchN(MaxGroupSize(), cuctx->Stream(),
@@ -206,12 +206,12 @@ void NDCGCache::InitOnCUDA(Context const* ctx, MetaInfo const& info) {
 }
 
 void PreCache::InitOnCUDA(Context const* ctx, MetaInfo const& info) {
-  auto const d_label = info.labels.View(ctx->gpu_id).Slice(linalg::All(), 0);
+  auto const d_label = info.labels.View(ctx->Device()).Slice(linalg::All(), 0);
   CheckPreLabels("pre", d_label, CheckMAPOp{ctx->CUDACtx()});
 }
 
 void MAPCache::InitOnCUDA(Context const* ctx, MetaInfo const& info) {
-  auto const d_label = info.labels.View(ctx->gpu_id).Slice(linalg::All(), 0);
+  auto const d_label = info.labels.View(ctx->Device()).Slice(linalg::All(), 0);
   CheckPreLabels("map", d_label, CheckMAPOp{ctx->CUDACtx()});
 }
 }  // namespace xgboost::ltr

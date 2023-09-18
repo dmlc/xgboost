@@ -1,5 +1,5 @@
-/*!
- * Copyright (c) 2022 by XGBoost Contributors
+/**
+ * Copyright 2022-2023 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/collective/socket.h>
@@ -10,8 +10,7 @@
 
 #include "../helpers.h"
 
-namespace xgboost {
-namespace collective {
+namespace xgboost::collective {
 TEST(Socket, Basic) {
   system::SocketStartup();
 
@@ -31,15 +30,16 @@ TEST(Socket, Basic) {
     TCPSocket client;
     if (domain == SockDomain::kV4) {
       auto const& addr = SockAddrV4::Loopback().Addr();
-      ASSERT_EQ(Connect(MakeSockAddress(StringView{addr}, port), &client), std::errc{});
+      auto rc = Connect(StringView{addr}, port, 1, std::chrono::seconds{3}, &client);
+      ASSERT_TRUE(rc.OK()) << rc.Report();
     } else {
       auto const& addr = SockAddrV6::Loopback().Addr();
-      auto rc = Connect(MakeSockAddress(StringView{addr}, port), &client);
+      auto rc = Connect(StringView{addr}, port, 1, std::chrono::seconds{3}, &client);
       // some environment (docker) has restricted network configuration.
-      if (rc == std::error_code{EADDRNOTAVAIL, std::system_category()}) {
+      if (!rc.OK() && rc.Code() == std::error_code{EADDRNOTAVAIL, std::system_category()}) {
         GTEST_SKIP_(msg.c_str());
       }
-      ASSERT_EQ(rc, std::errc{});
+      ASSERT_EQ(rc, Success()) << rc.Report();
     }
     ASSERT_EQ(client.Domain(), domain);
 
@@ -73,5 +73,15 @@ TEST(Socket, Basic) {
 
   system::SocketFinalize();
 }
-}  // namespace collective
-}  // namespace xgboost
+
+TEST(Socket, Bind) {
+  system::SocketStartup();
+  auto any = SockAddrV4::InaddrAny().Addr();
+  auto sock = TCPSocket::Create(SockDomain::kV4);
+  std::int32_t port{0};
+  auto rc = sock.Bind(any, &port);
+  ASSERT_TRUE(rc.OK());
+  ASSERT_NE(port, 0);
+  system::SocketFinalize();
+}
+}  // namespace xgboost::collective

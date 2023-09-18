@@ -345,10 +345,10 @@ class CLI {
 
   void LoadModel(std::string const& path, Learner* learner) const {
     if (common::FileExtension(path) == "json") {
-      auto str = common::LoadSequentialFile(path);
-      CHECK_GT(str.size(), 2);
-      CHECK_EQ(str[0], '{');
-      Json in{Json::Load({str.c_str(), str.size()})};
+      auto buffer = common::LoadSequentialFile(path);
+      CHECK_GT(buffer.size(), 2);
+      CHECK_EQ(buffer[0], '{');
+      Json in{Json::Load({buffer.data(), buffer.size()})};
       learner->LoadModel(in);
     } else {
       std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(path.c_str(), "r"));
@@ -514,7 +514,9 @@ class CLI {
 };
 }  // namespace xgboost
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
+  LOG(WARNING)
+      << "The command line interface is deprecated and will be removed in future releases.";
   try {
     xgboost::CLI cli(argc, argv);
     return cli.Run();

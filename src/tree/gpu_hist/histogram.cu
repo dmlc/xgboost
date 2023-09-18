@@ -8,6 +8,7 @@
 #include <cstdint>  // uint32_t
 #include <limits>
 
+#include "../../collective/aggregator.h"
 #include "../../common/deterministic.cuh"
 #include "../../common/device_helpers.cuh"
 #include "../../data/ellpack_page.cuh"
@@ -52,7 +53,7 @@ struct Clip : public thrust::unary_function<GradientPair, Pair> {
  *
  * to avoid outliers, as the full reduction is reproducible on GPU with reduction tree.
  */
-GradientQuantiser::GradientQuantiser(common::Span<GradientPair const> gpair) {
+GradientQuantiser::GradientQuantiser(common::Span<GradientPair const> gpair, MetaInfo const& info) {
   using GradientSumT = GradientPairPrecise;
   using T = typename GradientSumT::ValueT;
   dh::XGBCachingDeviceAllocator<char> alloc;
@@ -64,11 +65,11 @@ GradientQuantiser::GradientQuantiser(common::Span<GradientPair const> gpair) {
   // Treat pair as array of 4 primitive types to allreduce
   using ReduceT = typename decltype(p.first)::ValueT;
   static_assert(sizeof(Pair) == sizeof(ReduceT) * 4, "Expected to reduce four elements.");
-  collective::Allreduce<collective::Operation::kSum>(reinterpret_cast<ReduceT*>(&p), 4);
+  collective::GlobalSum(info, reinterpret_cast<ReduceT*>(&p), 4);
   GradientPair positive_sum{p.first}, negative_sum{p.second};
 
   std::size_t total_rows = gpair.size();
-  collective::Allreduce<collective::Operation::kSum>(&total_rows, 1);
+  collective::GlobalSum(info, &total_rows, 1);
 
   auto histogram_rounding =
       GradientSumT{common::CreateRoundingFactor<T>(

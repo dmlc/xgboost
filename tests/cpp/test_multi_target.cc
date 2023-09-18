@@ -68,10 +68,12 @@ class TestL1MultiTarget : public ::testing::Test {
     }
   }
 
-  void RunTest(std::string const& tree_method, bool weight) {
+  void RunTest(Context const* ctx, std::string const& tree_method, bool weight) {
     auto p_fmat = weight ? Xyw_ : Xy_;
     std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
-    learner->SetParams(Args{{"tree_method", tree_method}, {"objective", "reg:absoluteerror"}});
+    learner->SetParams(Args{{"tree_method", tree_method},
+                            {"objective", "reg:absoluteerror"},
+                            {"device", ctx->DeviceName()}});
     learner->Configure();
     for (auto i = 0; i < 4; ++i) {
       learner->UpdateOneIter(i, p_fmat);
@@ -87,7 +89,9 @@ class TestL1MultiTarget : public ::testing::Test {
     for (bst_target_t t{0}; t < p_fmat->Info().labels.Shape(1); ++t) {
       auto t_Xy = weight ? single_w_[t] : single_[t];
       std::unique_ptr<Learner> sl{Learner::Create({t_Xy})};
-      sl->SetParams(Args{{"tree_method", tree_method}, {"objective", "reg:absoluteerror"}});
+      sl->SetParams(Args{{"tree_method", tree_method},
+                         {"objective", "reg:absoluteerror"},
+                         {"device", ctx->DeviceName()}});
       sl->Configure();
       sl->UpdateOneIter(0, t_Xy);
       Json s_config{Object{}};
@@ -104,20 +108,32 @@ class TestL1MultiTarget : public ::testing::Test {
     ASSERT_FLOAT_EQ(mean, base_score);
   }
 
-  void RunTest(std::string const& tree_method) {
-    this->RunTest(tree_method, false);
-    this->RunTest(tree_method, true);
+  void RunTest(Context const* ctx, std::string const& tree_method) {
+    this->RunTest(ctx, tree_method, false);
+    this->RunTest(ctx, tree_method, true);
   }
 };
 
-TEST_F(TestL1MultiTarget, Hist) { this->RunTest("hist"); }
+TEST_F(TestL1MultiTarget, Hist) {
+  Context ctx;
+  this->RunTest(&ctx, "hist");
+}
 
-TEST_F(TestL1MultiTarget, Exact) { this->RunTest("exact"); }
+TEST_F(TestL1MultiTarget, Exact) {
+  Context ctx;
+  this->RunTest(&ctx, "exact");
+}
 
-TEST_F(TestL1MultiTarget, Approx) { this->RunTest("approx"); }
+TEST_F(TestL1MultiTarget, Approx) {
+  Context ctx;
+  this->RunTest(&ctx, "approx");
+}
 
 #if defined(XGBOOST_USE_CUDA)
-TEST_F(TestL1MultiTarget, GpuHist) { this->RunTest("gpu_hist"); }
+TEST_F(TestL1MultiTarget, GpuHist) {
+  auto ctx = MakeCUDACtx(0);
+  this->RunTest(&ctx, "hist");
+}
 #endif  // defined(XGBOOST_USE_CUDA)
 
 TEST(MultiStrategy, Configure) {

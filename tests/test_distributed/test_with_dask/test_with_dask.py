@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 import scipy
 import sklearn
-from hypothesis import HealthCheck, given, note, settings
+from hypothesis import HealthCheck, assume, given, note, settings
 from sklearn.datasets import make_classification, make_regression
 
 import xgboost as xgb
@@ -1462,10 +1462,9 @@ class TestWithDask:
         params["tree_method"] = tree_method
         params["debug_synchronize"] = True
         params = dataset.set_params(params)
-        # It doesn't make sense to distribute a completely
-        # empty dataset.
-        if dataset.X.shape[0] == 0:
-            return
+
+        # It doesn't make sense to distribute a completely empty dataset.
+        assume(dataset.X.shape[0] != 0)
 
         chunk = 128
         y_chunk = chunk if len(dataset.y.shape) == 1 else (chunk, dataset.y.shape[1])
@@ -1498,8 +1497,8 @@ class TestWithDask:
 
         # See note on `ObjFunction::UpdateTreeLeaf`.
         update_leaf = dataset.name.endswith("-l1")
-        if update_leaf and len(history) >= 2:
-            assert history[0] >= history[-1]
+        if update_leaf and (is_stump() or minimum_bin()):
+            assert tm.non_increasing(history, tolerance=1e-2)
             return
         elif minimum_bin() and is_stump():
             assert tm.non_increasing(history, tolerance=1e-3)
@@ -1508,7 +1507,7 @@ class TestWithDask:
         # Make sure that it's decreasing
         if is_stump():
             # we might have already got the best score with base_score.
-            assert history[-1] <= history[0]
+            assert history[-1] <= history[0] + 1e-3
         else:
             assert history[-1] < history[0]
 

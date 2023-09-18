@@ -52,7 +52,7 @@ inline XGBOOST_DEVICE bool InvalidCat(float cat) {
  *
  *   Go to left if it's NOT the matching category, which matches one-hot encoding.
  */
-inline XGBOOST_DEVICE bool Decision(common::Span<uint32_t const> cats, float cat) {
+inline XGBOOST_DEVICE bool Decision(common::Span<CatBitField::value_type const> cats, float cat) {
   KCatBitField const s_cats(cats);
   if (XGBOOST_EXPECT(InvalidCat(cat), false)) {
     return true;

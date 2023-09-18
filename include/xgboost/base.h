@@ -274,8 +274,8 @@ class GradientPairInt64 {
   GradientPairInt64(GradientPairInt64 const &g) = default;
   GradientPairInt64 &operator=(GradientPairInt64 const &g) = default;
 
-  XGBOOST_DEVICE [[nodiscard]] T GetQuantisedGrad() const { return grad_; }
-  XGBOOST_DEVICE [[nodiscard]] T GetQuantisedHess() const { return hess_; }
+  [[nodiscard]] XGBOOST_DEVICE T GetQuantisedGrad() const { return grad_; }
+  [[nodiscard]] XGBOOST_DEVICE T GetQuantisedHess() const { return hess_; }
 
   XGBOOST_DEVICE GradientPairInt64 &operator+=(const GradientPairInt64 &rhs) {
     grad_ += rhs.grad_;

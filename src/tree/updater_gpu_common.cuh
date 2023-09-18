@@ -64,19 +64,12 @@ struct DeviceSplitCandidate {
   // split.
   bst_cat_t thresh{-1};
 
-  common::CatBitField split_cats;
   bool is_cat { false };
 
   GradientPairInt64 left_sum;
   GradientPairInt64 right_sum;
 
   XGBOOST_DEVICE DeviceSplitCandidate() {}  // NOLINT
-
-  template <typename T>
-  XGBOOST_DEVICE void SetCat(T c) {
-    this->split_cats.Set(common::AsCat(c));
-    fvalue = std::max(this->fvalue, static_cast<float>(c));
-  }
 
   XGBOOST_DEVICE void Update(float loss_chg_in, DefaultDirection dir_in, float fvalue_in,
                              int findex_in, GradientPairInt64 left_sum_in,
@@ -100,22 +93,23 @@ struct DeviceSplitCandidate {
    */
   XGBOOST_DEVICE void UpdateCat(float loss_chg_in, DefaultDirection dir_in, bst_cat_t thresh_in,
                                 bst_feature_t findex_in, GradientPairInt64 left_sum_in,
-                                GradientPairInt64 right_sum_in, GPUTrainingParam const& param, const GradientQuantiser& quantiser) {
-    if (loss_chg_in > loss_chg &&
-        quantiser.ToFloatingPoint(left_sum_in).GetHess() >= param.min_child_weight &&
-        quantiser.ToFloatingPoint(right_sum_in).GetHess() >= param.min_child_weight) {
-      loss_chg = loss_chg_in;
-      dir = dir_in;
-      fvalue = std::numeric_limits<float>::quiet_NaN();
-      thresh = thresh_in;
-      is_cat = true;
-      left_sum = left_sum_in;
-      right_sum = right_sum_in;
-      findex = findex_in;
-    }
+                                GradientPairInt64 right_sum_in, GPUTrainingParam const& param,
+                                const GradientQuantiser& quantiser) {
+      if (loss_chg_in > loss_chg &&
+          quantiser.ToFloatingPoint(left_sum_in).GetHess() >= param.min_child_weight &&
+          quantiser.ToFloatingPoint(right_sum_in).GetHess() >= param.min_child_weight) {
+        loss_chg = loss_chg_in;
+        dir = dir_in;
+        fvalue = std::numeric_limits<float>::quiet_NaN();
+        thresh = thresh_in;
+        is_cat = true;
+        left_sum = left_sum_in;
+        right_sum = right_sum_in;
+        findex = findex_in;
+      }
   }
 
-  XGBOOST_DEVICE bool IsValid() const { return loss_chg > 0.0f; }
+  [[nodiscard]] XGBOOST_DEVICE bool IsValid() const { return loss_chg > 0.0f; }
 
   friend std::ostream& operator<<(std::ostream& os, DeviceSplitCandidate const& c) {
     os << "loss_chg:" << c.loss_chg << ", "

@@ -387,23 +387,6 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs,
                                                   LearnerModelParam const* learner_model_param,
                                                   Context const* generic_param);
 
-inline std::unique_ptr<HostDeviceVector<GradientPair>> GenerateGradients(
-    std::size_t rows, bst_target_t n_targets = 1) {
-  auto p_gradients = std::make_unique<HostDeviceVector<GradientPair>>(rows * n_targets);
-  auto& h_gradients = p_gradients->HostVector();
-
-  xgboost::SimpleLCG gen;
-  xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
-
-  for (std::size_t i = 0; i < rows * n_targets; ++i) {
-    auto grad = dist(&gen);
-    auto hess = dist(&gen);
-    h_gradients[i] = GradientPair{grad, hess};
-  }
-
-  return p_gradients;
-}
-
 /**
  * \brief Make a context that uses CUDA if device >= 0.
  */
@@ -415,16 +398,27 @@ inline Context MakeCUDACtx(std::int32_t device) {
 }
 
 inline HostDeviceVector<GradientPair> GenerateRandomGradients(const size_t n_rows,
-                                                              float lower= 0.0f, float upper = 1.0f) {
+                                                              float lower = 0.0f,
+                                                              float upper = 1.0f) {
   xgboost::SimpleLCG gen;
   xgboost::SimpleRealUniformDistribution<bst_float> dist(lower, upper);
   std::vector<GradientPair> h_gpair(n_rows);
-  for (auto &gpair : h_gpair) {
+  for (auto& gpair : h_gpair) {
     bst_float grad = dist(&gen);
     bst_float hess = dist(&gen);
     gpair = GradientPair(grad, hess);
   }
   HostDeviceVector<GradientPair> gpair(h_gpair);
+  return gpair;
+}
+
+inline linalg::Matrix<GradientPair> GenerateRandomGradients(Context const* ctx, bst_row_t n_rows,
+                                                            bst_target_t n_targets,
+                                                            float lower = 0.0f,
+                                                            float upper = 1.0f) {
+  auto g = GenerateRandomGradients(n_rows * n_targets, lower, upper);
+  linalg::Matrix<GradientPair> gpair({n_rows, static_cast<bst_row_t>(n_targets)}, ctx->Device());
+  gpair.Data()->Copy(g);
   return gpair;
 }
 

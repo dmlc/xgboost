@@ -11,9 +11,7 @@
 
 #include "../../src/common/io.h"
 
-namespace xgboost {
-namespace federated {
-
+namespace xgboost::federated {
 grpc::Status FederatedService::Allgather(grpc::ServerContext*, AllgatherRequest const* request,
                                          AllgatherReply* reply) {
   handler_.Allgather(request->send_buffer().data(), request->send_buffer().size(),
@@ -75,6 +73,4 @@ void RunInsecureServer(int port, int world_size) {
 
   server->Wait();
 }
-
-}  // namespace federated
-}  // namespace xgboost
+}  // namespace xgboost::federated

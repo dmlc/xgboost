@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include <fstream>
+#include <iterator>  // for back_inserter
 #include <map>
 
 #include "../../../src/common/charconv.h"
@@ -418,7 +419,7 @@ TEST(Json, AssigningString) {
 
 TEST(Json, LoadDump) {
   std::string ori_buffer = GetModelStr();
-  Json origin {Json::Load(StringView{ori_buffer.c_str(), ori_buffer.size()})};
+  Json origin{Json::Load(StringView{ori_buffer.c_str(), ori_buffer.size()})};
 
   dmlc::TemporaryDirectory tempdir;
   auto const& path = tempdir.path + "test_model_dump";
@@ -430,9 +431,9 @@ TEST(Json, LoadDump) {
   ASSERT_TRUE(fout);
   fout << out << std::flush;
 
-  std::string new_buffer = common::LoadSequentialFile(path);
+  std::vector<char> new_buffer = common::LoadSequentialFile(path);
 
-  Json load_back {Json::Load(StringView(new_buffer.c_str(), new_buffer.size()))};
+  Json load_back{Json::Load(StringView(new_buffer.data(), new_buffer.size()))};
   ASSERT_EQ(load_back, origin);
 }
 
@@ -651,7 +652,7 @@ TEST(UBJson, Basic) {
     }
 
     auto data = common::LoadSequentialFile("test.ubj");
-    UBJReader reader{StringView{data}};
+    UBJReader reader{StringView{data.data(), data.size()}};
     json = reader.Load();
     return json;
   };
@@ -689,6 +690,18 @@ TEST(Json, TypeCheck) {
     ASSERT_NE(err.find("Number"), std::string::npos);
     ASSERT_NE(err.find("I32Array"), std::string::npos);
     ASSERT_NE(err.find("foo"), std::string::npos);
+  }
+}
+
+TEST(Json, Dump) {
+  auto str = GetModelStr();
+  auto jobj = Json::Load(str);
+  std::string result_s = Json::Dump(jobj);
+
+  std::vector<char> result_v = Json::Dump<std::vector<char>>(jobj);
+  ASSERT_EQ(result_s.size(), result_v.size());
+  for (std::size_t i = 0; i < result_s.size(); ++i) {
+    ASSERT_EQ(result_s[i], result_v[i]);
   }
 }
 }  // namespace xgboost

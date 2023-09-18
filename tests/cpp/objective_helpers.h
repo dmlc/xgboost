@@ -1,6 +1,8 @@
 /**
  * Copyright (c) 2023, XGBoost contributors
  */
+#pragma once
+
 #include <dmlc/registry.h>  // for Registry
 #include <gtest/gtest.h>
 #include <xgboost/objective.h>  // for ObjFunctionReg
@@ -29,4 +31,6 @@ inline std::string ObjTestNameGenerator(const ::testing::TestParamInfo<ParamType
   }
   return name;
 };
+
+std::shared_ptr<DMatrix> MakeFmatForObjTest(std::string const& obj);
 }  // namespace xgboost

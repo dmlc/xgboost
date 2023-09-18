@@ -104,8 +104,8 @@ b. In a C++ application: modify the macro ``safe_xgboost`` to throw an exception
   #define safe_xgboost(call) {  \
     int err = (call); \
     if (err != 0) { \
-      throw new Exception(std::string(__FILE__) + ":" + std::to_string(__LINE__) + \
-                          ": error in " + #call + ":" + XGBGetLastError()));  \
+      throw std::runtime_error(std::string(__FILE__) + ":" + std::to_string(__LINE__) + \
+                          ": error in " + #call + ":" + XGBGetLastError());  \
     } \
   }
 

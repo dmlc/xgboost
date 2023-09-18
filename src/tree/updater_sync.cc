@@ -31,7 +31,7 @@ class TreeSyncher : public TreeUpdater {
 
   [[nodiscard]] char const* Name() const override { return "prune"; }
 
-  void Update(TrainParam const*, HostDeviceVector<GradientPair>*, DMatrix*,
+  void Update(TrainParam const*, linalg::Matrix<GradientPair>*, DMatrix*,
               common::Span<HostDeviceVector<bst_node_t>> /*out_position*/,
               const std::vector<RegTree*>& trees) override {
     if (collective::GetWorldSize() == 1) return;

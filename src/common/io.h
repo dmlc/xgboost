@@ -84,16 +84,14 @@ class FixedSizeStream : public PeekableInStream {
   std::string buffer_;
 };
 
-/*!
- * \brief Helper function for loading consecutive file to avoid dmlc Stream when possible.
+/**
+ * @brief Helper function for loading consecutive file.
  *
- * \param uri    URI or file name to file.
- * \param stream Use dmlc Stream unconditionally if set to true.  Used for running test
- *               without remote filesystem.
+ * @param uri    URI or file name to file.
  *
- * \return File content.
+ * @return File content.
  */
-std::string LoadSequentialFile(std::string uri, bool stream = false);
+std::vector<char> LoadSequentialFile(std::string uri);
 
 /**
  * \brief Get file extension from file name.

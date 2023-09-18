@@ -9,9 +9,7 @@
 #include "../../src/common/io.h"
 #include "federated_client.h"
 
-namespace xgboost {
-namespace collective {
-
+namespace xgboost::collective {
 /**
  * @brief A Federated Learning communicator class that handles collective communication.
  */
@@ -118,13 +116,13 @@ class FederatedCommunicator : public Communicator {
    * \brief Get if the communicator is distributed.
    * \return True.
    */
-  bool IsDistributed() const override { return true; }
+  [[nodiscard]] bool IsDistributed() const override { return true; }
 
   /**
    * \brief Get if the communicator is federated.
    * \return True.
    */
-  bool IsFederated() const override { return true; }
+  [[nodiscard]] bool IsFederated() const override { return true; }
 
   /**
    * \brief Perform in-place allgather.
@@ -189,5 +187,4 @@ class FederatedCommunicator : public Communicator {
  private:
   std::unique_ptr<xgboost::federated::FederatedClient> client_{};
 };
-}  // namespace collective
-}  // namespace xgboost
+}  // namespace xgboost::collective

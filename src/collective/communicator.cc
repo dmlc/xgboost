@@ -11,9 +11,7 @@
 #include "../../plugin/federated/federated_communicator.h"
 #endif
 
-namespace xgboost {
-namespace collective {
-
+namespace xgboost::collective {
 thread_local std::unique_ptr<Communicator> Communicator::communicator_{new NoOpCommunicator()};
 thread_local CommunicatorType Communicator::type_{};
 
@@ -57,6 +55,4 @@ void Communicator::Finalize() {
   communicator_.reset(new NoOpCommunicator());
 }
 #endif
-
-}  // namespace collective
-}  // namespace xgboost
+}  // namespace xgboost::collective

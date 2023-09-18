@@ -56,6 +56,42 @@ test_that("xgb.DMatrix: basic construction", {
   expect_equal(raw_fd, raw_dgc)
 })
 
+test_that("xgb.DMatrix: NA", {
+  n_samples <- 3
+  x <- cbind(
+    x1 = sample(x = 4, size = n_samples, replace = TRUE),
+    x2 = sample(x = 4, size = n_samples, replace = TRUE)
+  )
+  x[1, "x1"] <- NA
+
+  m <- xgb.DMatrix(x)
+  xgb.DMatrix.save(m, "int.dmatrix")
+
+  x <- matrix(as.numeric(x), nrow = n_samples, ncol = 2)
+  colnames(x) <- c("x1", "x2")
+  m <- xgb.DMatrix(x)
+
+  xgb.DMatrix.save(m, "float.dmatrix")
+
+  iconn <- file("int.dmatrix", "rb")
+  fconn <- file("float.dmatrix", "rb")
+
+  expect_equal(file.size("int.dmatrix"), file.size("float.dmatrix"))
+
+  bytes <- file.size("int.dmatrix")
+  idmatrix <- readBin(iconn, "raw", n = bytes)
+  fdmatrix <- readBin(fconn, "raw", n = bytes)
+
+  expect_equal(length(idmatrix), length(fdmatrix))
+  expect_equal(idmatrix, fdmatrix)
+
+  close(iconn)
+  close(fconn)
+
+  file.remove("int.dmatrix")
+  file.remove("float.dmatrix")
+})
+
 test_that("xgb.DMatrix: saving, loading", {
   # save to a local file
   dtest1 <- xgb.DMatrix(test_data, label = test_label)

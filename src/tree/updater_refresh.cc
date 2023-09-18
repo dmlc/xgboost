@@ -31,11 +31,14 @@ class TreeRefresher : public TreeUpdater {
   [[nodiscard]] char const *Name() const override { return "refresh"; }
   [[nodiscard]] bool CanModifyTree() const override { return true; }
   // update the tree, do pruning
-  void Update(TrainParam const *param, HostDeviceVector<GradientPair> *gpair, DMatrix *p_fmat,
+  void Update(TrainParam const *param, linalg::Matrix<GradientPair> *gpair, DMatrix *p_fmat,
               common::Span<HostDeviceVector<bst_node_t>> /*out_position*/,
               const std::vector<RegTree *> &trees) override {
-    if (trees.size() == 0) return;
-    const std::vector<GradientPair> &gpair_h = gpair->ConstHostVector();
+    if (trees.size() == 0) {
+      return;
+    }
+    CHECK_EQ(gpair->Shape(1), 1) << MTNotImplemented();
+    const std::vector<GradientPair> &gpair_h = gpair->Data()->ConstHostVector();
     // thread temporal space
     std::vector<std::vector<GradStats> > stemp;
     std::vector<RegTree::FVec> fvec_temp;

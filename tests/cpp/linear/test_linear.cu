@@ -1,4 +1,6 @@
-// Copyright by Contributors
+/**
+ * Copyright 2018-2023, XGBoost Contributors
+ */
 #include <xgboost/linear_updater.h>
 #include <xgboost/gbm.h>
 
@@ -19,8 +21,7 @@ TEST(Linear, GPUCoordinate) {
   auto updater = std::unique_ptr<xgboost::LinearUpdater>(
       xgboost::LinearUpdater::Create("gpu_coord_descent", &ctx));
   updater->Configure({{"eta", "1."}});
-  xgboost::HostDeviceVector<xgboost::GradientPair> gpair(
-      mat->Info().num_row_, xgboost::GradientPair(-5, 1.0));
+  auto gpair = linalg::Constant(&ctx, xgboost::GradientPair(-5, 1.0), mat->Info().num_row_, 1);
   xgboost::gbm::GBLinearModel model{&mparam};
 
   model.LazyInitModel();

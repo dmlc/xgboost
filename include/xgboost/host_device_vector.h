@@ -102,6 +102,14 @@ class HostDeviceVector {
   bool Empty() const { return Size() == 0; }
   size_t Size() const;
   int DeviceIdx() const;
+  DeviceOrd Device() const {
+    auto idx = this->DeviceIdx();
+    if (idx == DeviceOrd::CPU().ordinal) {
+      return DeviceOrd::CPU();
+    } else {
+      return DeviceOrd::CUDA(idx);
+    }
+  }
   common::Span<T> DeviceSpan();
   common::Span<const T> ConstDeviceSpan() const;
   common::Span<const T> DeviceSpan() const { return ConstDeviceSpan(); }

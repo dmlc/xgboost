@@ -269,17 +269,18 @@ class GlobalApproxUpdater : public TreeUpdater {
     out["hist_train_param"] = ToJson(hist_param_);
   }
 
-  void InitData(TrainParam const &param, HostDeviceVector<GradientPair> const *gpair,
+  void InitData(TrainParam const &param, linalg::Matrix<GradientPair> const *gpair,
                 linalg::Matrix<GradientPair> *sampled) {
     *sampled = linalg::Empty<GradientPair>(ctx_, gpair->Size(), 1);
-    sampled->Data()->Copy(*gpair);
+    auto in = gpair->HostView().Values();
+    std::copy(in.data(), in.data() + in.size(), sampled->HostView().Values().data());
 
     SampleGradient(ctx_, param, sampled->HostView());
   }
 
   [[nodiscard]] char const *Name() const override { return "grow_histmaker"; }
 
-  void Update(TrainParam const *param, HostDeviceVector<GradientPair> *gpair, DMatrix *m,
+  void Update(TrainParam const *param, linalg::Matrix<GradientPair> *gpair, DMatrix *m,
               common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree *> &trees) override {
     CHECK(hist_param_.GetInitialised());
