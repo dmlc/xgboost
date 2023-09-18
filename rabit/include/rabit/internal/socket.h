@@ -29,10 +29,9 @@
 #include <chrono>
 #include <cstring>
 #include <string>
+#include <system_error>  // make_error_code, errc
 #include <unordered_map>
 #include <vector>
-
-#include "utils.h"
 
 #if !defined(_WIN32)
 
@@ -168,7 +167,7 @@ struct PollHelper {
     }
     int ret = PollImpl(fdset.data(), fdset.size(), timeout);
     if (ret == 0) {
-      return xgboost::collective::Fail("Poll timeout.");
+      return xgboost::collective::Fail("Poll timeout.", std::make_error_code(std::errc::timed_out));
     } else if (ret < 0) {
       return xgboost::system::FailWithCode("Poll failed.");
     } else {
