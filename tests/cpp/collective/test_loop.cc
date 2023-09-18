@@ -11,8 +11,13 @@
 #include "../../../src/collective/loop.h"
 
 namespace xgboost::collective {
-TEST(Loop, Timeout) {
-  system::SocketStartup();
+
+class LoopTest : public ::testing::Test {
+  void SetUp() override { system::SocketStartup(); }
+  void TearDown() override { system::SocketFinalize(); }
+};
+
+TEST_F(LoopTest, Timeout) {
   std::chrono::seconds timeout{1};
   auto loop = std::make_shared<Loop>(timeout);
 
@@ -22,13 +27,10 @@ TEST(Loop, Timeout) {
   loop->Submit(op);
   auto rc = loop->Block();
   ASSERT_FALSE(rc.OK());
-  ASSERT_EQ(rc.Code(), std::make_error_code(std::errc::timed_out));
-  system::SocketFinalize();
+  ASSERT_EQ(rc.Code(), std::make_error_code(std::errc::timed_out)) << rc.Report();
 }
 
-TEST(Loop, Op) {
-  system::SocketStartup();
-
+TEST_F(LoopTest, Op) {
   auto domain = SockDomain::kV4;
   auto server = TCPSocket::Create(domain);
   auto port = server.BindHost();
@@ -61,7 +63,5 @@ TEST(Loop, Op) {
   ASSERT_TRUE(rc.OK()) << rc.Report();
 
   ASSERT_EQ(rbuf[0], wbuf[0]);
-
-  system::SocketFinalize();
 }
 }  // namespace xgboost::collective
