@@ -29,10 +29,9 @@
 #include <chrono>
 #include <cstring>
 #include <string>
+#include <system_error>  // make_error_code, errc
 #include <unordered_map>
 #include <vector>
-
-#include "utils.h"
 
 #if !defined(_WIN32)
 
@@ -91,6 +90,20 @@ int PollImpl(PollFD* pfd, int nfds, std::chrono::seconds timeout) noexcept(true)
 #else
   return poll(pfd, nfds, std::chrono::milliseconds(timeout).count());
 #endif  // IS_MINGW()
+}
+
+template <typename E>
+std::enable_if_t<std::is_integral_v<E>, xgboost::collective::Result> PollError(E const& revents) {
+  if ((revents & POLLERR) != 0) {
+    return xgboost::system::FailWithCode("Poll error condition.");
+  }
+  if ((revents & POLLNVAL) != 0) {
+    return xgboost::system::FailWithCode("Invalid polling request.");
+  }
+  if ((revents & POLLHUP) != 0) {
+    return xgboost::system::FailWithCode("Poll hung up.");
+  }
+  return xgboost::collective::Success();
 }
 
 /*! \brief helper data structure to perform poll */
@@ -160,25 +173,32 @@ struct PollHelper {
    *
    * @param timeout specify timeout in seconds. Block if negative.
    */
-  [[nodiscard]] xgboost::collective::Result Poll(std::chrono::seconds timeout) {
+  [[nodiscard]] xgboost::collective::Result Poll(std::chrono::seconds timeout,
+                                                 bool check_error = true) {
     std::vector<pollfd> fdset;
     fdset.reserve(fds.size());
     for (auto kv : fds) {
       fdset.push_back(kv.second);
     }
-    int ret = PollImpl(fdset.data(), fdset.size(), timeout);
+    std::int32_t ret = PollImpl(fdset.data(), fdset.size(), timeout);
     if (ret == 0) {
-      return xgboost::collective::Fail("Poll timeout.");
+      return xgboost::collective::Fail("Poll timeout.", std::make_error_code(std::errc::timed_out));
     } else if (ret < 0) {
       return xgboost::system::FailWithCode("Poll failed.");
-    } else {
-      for (auto& pfd : fdset) {
-        auto revents = pfd.revents & pfd.events;
-        if (!revents) {
-          fds.erase(pfd.fd);
-        } else {
-          fds[pfd.fd].events = revents;
-        }
+    }
+
+    for (auto& pfd : fdset) {
+      auto result = PollError(pfd.revents);
+      if (check_error && !result.OK()) {
+        return result;
+      }
+
+      auto revents = pfd.revents & pfd.events;
+      if (!revents) {
+        // FIXME(jiamingy): remove this once rabit is replaced.
+        fds.erase(pfd.fd);
+      } else {
+        fds[pfd.fd].events = revents;
       }
     }
     return xgboost::collective::Success();
