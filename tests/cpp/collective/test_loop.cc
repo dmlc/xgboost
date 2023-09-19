@@ -30,16 +30,16 @@ class LoopTest : public ::testing::Test {
     pair_.first = TCPSocket::Create(domain);
     auto port = pair_.first.BindHost();
     pair_.first.Listen();
-    auto rc = pair_.first.NonBlocking(true);
-    ASSERT_TRUE(rc.OK());
 
     auto const& addr = SockAddrV4::Loopback().Addr();
-    rc = Connect(StringView{addr}, port, 1, timeout, &pair_.second);
+    auto rc = Connect(StringView{addr}, port, 1, timeout, &pair_.second);
     ASSERT_TRUE(rc.OK());
     rc = pair_.second.NonBlocking(true);
     ASSERT_TRUE(rc.OK());
 
     pair_.first = pair_.first.Accept();
+    rc = pair_.first.NonBlocking(true);
+    ASSERT_TRUE(rc.OK());
 
     loop_ = std::make_shared<Loop>(timeout);
   }
