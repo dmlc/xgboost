@@ -173,7 +173,8 @@ struct PollHelper {
    *
    * @param timeout specify timeout in seconds. Block if negative.
    */
-  [[nodiscard]] xgboost::collective::Result Poll(std::chrono::seconds timeout) {
+  [[nodiscard]] xgboost::collective::Result Poll(std::chrono::seconds timeout,
+                                                 bool check_error = true) {
     std::vector<pollfd> fdset;
     fdset.reserve(fds.size());
     for (auto kv : fds) {
@@ -188,7 +189,7 @@ struct PollHelper {
 
     for (auto& pfd : fdset) {
       auto result = PollError(pfd.revents);
-      if (!result.OK()) {
+      if (check_error && !result.OK()) {
         return result;
       }
 
