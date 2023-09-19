@@ -721,12 +721,11 @@ AllreduceBase::TryBroadcast(void *sendrecvbuf_, size_t total_size, int root) {
         }
         finished = false;
       }
-      watcher.WatchException(links[i].sock);
     }
     // finish running
     if (finished) break;
     // select
-    auto poll_res = watcher.Poll(timeout_sec);
+    auto poll_res = watcher.Poll(timeout_sec, false);  // fail on macos
     if (!poll_res.OK()) {
       LOG(FATAL) << poll_res.Report();
     }

@@ -118,36 +118,42 @@ std::size_t TCPSocket::Recv(std::string *p_str) {
     }
 
     auto rc = connect(conn.Handle(), addr_handle, addr_len);
-    if (rc != 0) {
-      auto errcode = system::LastError();
-      if (!system::ErrorWouldBlock(errcode)) {
-        log_failure(Fail("connect failed.", std::error_code{errcode, std::system_category()}),
-                    __FILE__, __LINE__);
-        continue;
-      }
-
-      rabit::utils::PollHelper poll;
-      poll.WatchWrite(conn);
-      auto result = poll.Poll(timeout);
-      if (!result.OK()) {
-        log_failure(std::move(result), __FILE__, __LINE__);
-        continue;
-      }
-      if (!poll.CheckWrite(conn)) {
-        log_failure(Fail("poll failed.", std::error_code{errcode, std::system_category()}),
-                    __FILE__, __LINE__);
-        continue;
-      }
-      result = conn.GetSockError();
-      if (!result.OK()) {
-        log_failure(std::move(result), __FILE__, __LINE__);
-        continue;
-      }
-
-      return conn.NonBlocking(non_blocking);
-    } else {
+    if (rc == 0) {
       return conn.NonBlocking(non_blocking);
     }
+
+    auto errcode = system::LastError();
+    if (!system::ErrorWouldBlock(errcode)) {
+      log_failure(Fail("connect failed.", std::error_code{errcode, std::system_category()}),
+                  __FILE__, __LINE__);
+      continue;
+    }
+
+    rabit::utils::PollHelper poll;
+    poll.WatchWrite(conn);
+    auto result = poll.Poll(timeout);
+    if (!result.OK()) {
+      // poll would fail if there's a socket error, we log the root cause instead of the
+      // poll failure.
+      auto sockerr = conn.GetSockError();
+      if (!sockerr.OK()) {
+        result = std::move(sockerr);
+      }
+      log_failure(std::move(result), __FILE__, __LINE__);
+      continue;
+    }
+    if (!poll.CheckWrite(conn)) {
+      log_failure(Fail("poll failed.", std::error_code{errcode, std::system_category()}), __FILE__,
+                  __LINE__);
+      continue;
+    }
+    result = conn.GetSockError();
+    if (!result.OK()) {
+      log_failure(std::move(result), __FILE__, __LINE__);
+      continue;
+    }
+
+    return conn.NonBlocking(non_blocking);
   }
 
   std::stringstream ss;
