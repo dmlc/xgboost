@@ -1,8 +1,9 @@
 /**
  * Copyright 2023, XGBoost Contributors
  */
-#include <gtest/gtest.h>          // for ASSERT_TRUE, ASSERT_EQ
-#include <xgboost/string_view.h>  // for StringView
+#include <gtest/gtest.h>                // for ASSERT_TRUE, ASSERT_EQ
+#include <xgboost/collective/socket.h>  // for TCPSocket, Connect, SocketFinalize, SocketStartup
+#include <xgboost/string_view.h>        // for StringView
 
 #include <chrono>        // for seconds
 #include <cstdint>       // for int8_t
@@ -12,7 +13,6 @@
 #include <vector>        // for vector
 
 #include "../../../src/collective/loop.h"  // for Loop
-#include "xgboost/collective/socket.h"     // for TCPSocket, Connect, SocketFinalize, SocketStartup
 
 namespace xgboost::collective {
 namespace {

@@ -3,8 +3,6 @@
  */
 #include "loop.h"
 
-#include <xgboost/logging.h>
-
 #include <queue>  // for queue
 
 #include "rabit/internal/socket.h"      // for PollHelper
