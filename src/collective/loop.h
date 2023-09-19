@@ -4,13 +4,16 @@
 #pragma once
 #include <chrono>              // for seconds
 #include <condition_variable>  // for condition_variable
+#include <cstddef>             // for size_t
 #include <cstdint>             // for int8_t, int32_t
-#include <mutex>               // for mutex, lock_guard, unique_lock
+#include <exception>           // for exception_ptr
+#include <mutex>               // for unique_lock, mutex
 #include <queue>               // for queue
 #include <thread>              // for thread
 #include <utility>             // for move
 
 #include "../common/timer.h"            // for Monitor
+#include "xgboost/collective/result.h"  // for Result
 #include "xgboost/collective/socket.h"  // for TCPSocket
 
 namespace xgboost::collective {

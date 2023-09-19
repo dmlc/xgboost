@@ -3,10 +3,13 @@
  */
 #include "loop.h"
 
-#include <cinttypes>  // for int32_t
-#include <queue>      // for queue
+#include <xgboost/logging.h>
 
-#include "rabit/internal/socket.h"  // for PullHelper
+#include <queue>  // for queue
+
+#include "rabit/internal/socket.h"      // for PollHelper
+#include "xgboost/collective/socket.h"  // for FailWithCode
+#include "xgboost/logging.h"            // for CHECK
 
 namespace xgboost::collective {
 Result Loop::EmptyQueue() {

@@ -165,13 +165,16 @@ struct PollHelper {
     for (auto kv : fds) {
       fdset.push_back(kv.second);
     }
-    int ret = PollImpl(fdset.data(), fdset.size(), timeout);
+    std::int32_t ret = PollImpl(fdset.data(), fdset.size(), timeout);
     if (ret == 0) {
       return xgboost::collective::Fail("Poll timeout.", std::make_error_code(std::errc::timed_out));
     } else if (ret < 0) {
       return xgboost::system::FailWithCode("Poll failed.");
     } else {
       for (auto& pfd : fdset) {
+        if (pfd.revents & (POLLERR | POLLNVAL | POLLHUP)) {
+          return xgboost::system::FailWithCode("Poll failed");
+        }
         auto revents = pfd.revents & pfd.events;
         if (!revents) {
           fds.erase(pfd.fd);
