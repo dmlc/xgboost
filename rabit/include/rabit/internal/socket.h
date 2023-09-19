@@ -92,6 +92,20 @@ int PollImpl(PollFD* pfd, int nfds, std::chrono::seconds timeout) noexcept(true)
 #endif  // IS_MINGW()
 }
 
+template <typename E>
+std::enable_if_t<std::is_integral_v<E>, xgboost::collective::Result> PollError(E revents) {
+  if ((revents & POLLERR) != 0) {
+    return xgboost::system::FailWithCode("Poll error condition.");
+  }
+  if ((revents & POLLNVAL) != 0) {
+    return xgboost::system::FailWithCode("Invalid polling request.");
+  }
+  if ((revents & POLLHUP) != 0) {
+    return xgboost::system::FailWithCode("Poll hung up.");
+  }
+  return xgboost::collective::Success();
+}
+
 /*! \brief helper data structure to perform poll */
 struct PollHelper {
  public:
@@ -170,17 +184,20 @@ struct PollHelper {
       return xgboost::collective::Fail("Poll timeout.", std::make_error_code(std::errc::timed_out));
     } else if (ret < 0) {
       return xgboost::system::FailWithCode("Poll failed.");
-    } else {
-      for (auto& pfd : fdset) {
-        if (pfd.revents & (POLLERR | POLLNVAL | POLLHUP)) {
-          return xgboost::system::FailWithCode("Poll failed");
-        }
-        auto revents = pfd.revents & pfd.events;
-        if (!revents) {
-          fds.erase(pfd.fd);
-        } else {
-          fds[pfd.fd].events = revents;
-        }
+    }
+
+    for (auto& pfd : fdset) {
+      auto result = PollError(pfd.revents);
+      if (!result.OK()) {
+        return result;
+      }
+
+      auto revents = pfd.revents & pfd.events;
+      if (!revents) {
+        // FIXME(jiamingy): remove this once rabit is replaced.
+        fds.erase(pfd.fd);
+      } else {
+        fds[pfd.fd].events = revents;
       }
     }
     return xgboost::collective::Success();
