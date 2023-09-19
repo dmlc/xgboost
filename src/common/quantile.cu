@@ -657,7 +657,9 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts, bool is_column_split) {
     size_t column_size = std::max(static_cast<size_t>(1ul), this->Column(i).size());
     if (IsCat(h_feature_types, i)) {
       // column_size is the number of unique values in that feature.
-      CheckMaxCat(max_values[i].value, column_size);
+      if (!is_column_split) {
+        CheckMaxCat(max_values[i].value, column_size);
+      }
       h_out_columns_ptr.push_back(max_values[i].value + 1);  // includes both max_cat and 0.
     } else {
       h_out_columns_ptr.push_back(
@@ -681,14 +683,14 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts, bool is_column_split) {
                                              d_out_columns_ptr[column_id + 1] -
                                                  d_out_columns_ptr[column_id]);
     idx -= d_out_columns_ptr[column_id];
-    if (in_column.size() == 0) {
+    if (in_column.empty()) {
       // If the column is empty, we push a dummy value.  It won't affect training as the
       // column is empty, trees cannot split on it.  This is just to be consistent with
       // rest of the library.
       if (idx == 0) {
         d_min_values[column_id] = kRtEps;
         out_column[0] = kRtEps;
-        assert(out_column.size() == 1);
+        assert(is_column_split || out_column.size() == 1);
       }
       return;
     }

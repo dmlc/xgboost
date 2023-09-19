@@ -429,18 +429,14 @@ TEST_F(MGPUQuantileTest, AllReduceBasic) {
 }
 
 namespace {
-void TestColumnSplitBasic() {
+void TestColumnSplit(DMatrix* dmat) {
   auto const world = collective::GetWorldSize();
   auto const rank = collective::GetRank();
-  std::size_t constexpr kRows = 1000, kCols = 100, kBins = 64;
-
-  auto m = std::unique_ptr<DMatrix>{[=]() {
-    auto dmat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
-    return dmat->SliceCol(world, rank);
-  }()};
+  auto m = std::unique_ptr<DMatrix>{dmat->SliceCol(world, rank)};
 
   // Generate cuts for distributed environment.
   auto ctx = MakeCUDACtx(GPUIDX);
+  std::size_t constexpr kBins = 64;
   HistogramCuts distributed_cuts = common::DeviceSketch(&ctx, m.get(), kBins);
 
   // Generate cuts for single node environment
@@ -473,7 +469,26 @@ void TestColumnSplitBasic() {
 }  // anonymous namespace
 
 TEST_F(MGPUQuantileTest, ColumnSplitBasic) {
-  DoTest(TestColumnSplitBasic);
+  std::size_t constexpr kRows = 1000, kCols = 100;
+  auto dmat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
+  DoTest(TestColumnSplit, dmat.get());
+}
+
+TEST_F(MGPUQuantileTest, ColumnSplitCategorical) {
+  std::size_t constexpr kRows = 1000, kCols = 100;
+  auto sparsity = 0.5f;
+  std::vector<FeatureType> ft(kCols);
+  for (size_t i = 0; i < ft.size(); ++i) {
+    ft[i] = (i % 2 == 0) ? FeatureType::kNumerical : FeatureType::kCategorical;
+  }
+  auto dmat = RandomDataGenerator{kRows, kCols, sparsity}
+                  .Seed(0)
+                  .Lower(.0f)
+                  .Upper(1.0f)
+                  .Type(ft)
+                  .MaxCategory(13)
+                  .GenerateDMatrix();
+  DoTest(TestColumnSplit, dmat.get());
 }
 
 namespace {
