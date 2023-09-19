@@ -721,7 +721,6 @@ AllreduceBase::TryBroadcast(void *sendrecvbuf_, size_t total_size, int root) {
         }
         finished = false;
       }
-      watcher.WatchException(links[i].sock);
     }
     // finish running
     if (finished) break;
