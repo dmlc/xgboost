@@ -25,8 +25,8 @@ void SetCudaSetDeviceHandler(void (*handler)(int)) {
 template <typename T>
 class HostDeviceVectorImpl {
  public:
-  HostDeviceVectorImpl(size_t size, T v, int device) : device_(device) {
-    if (device >= 0) {
+  HostDeviceVectorImpl(size_t size, T v, DeviceOrd device) : device_(device) {
+    if (device.IsCUDA()) {
       gpu_access_ = GPUAccess::kWrite;
       SetDevice();
       data_d_->resize(size, v);
@@ -37,8 +37,8 @@ class HostDeviceVectorImpl {
 
   // Initializer can be std::vector<T> or std::initializer_list<T>
   template <class Initializer>
-  HostDeviceVectorImpl(const Initializer& init, int device) : device_(device) {
-    if (device >= 0) {
+  HostDeviceVectorImpl(const Initializer& init, DeviceOrd device) : device_(device) {
+    if (device.IsCUDA()) {
       gpu_access_ = GPUAccess::kWrite;
       LazyResizeDevice(init.size());
       Copy(init);
@@ -54,16 +54,16 @@ class HostDeviceVectorImpl {
     gpu_access_{that.gpu_access_} {}
 
   ~HostDeviceVectorImpl() {
-    if (device_ >= 0) {
+    if (device_.IsCUDA()) {
       SetDevice();
     }
   }
 
-  size_t Size() const {
+  [[nodiscard]] size_t Size() const {
     return HostCanRead() ? data_h_.size() : data_d_ ? data_d_->size() : 0;
   }
 
-  int DeviceIdx() const { return device_; }
+  [[nodiscard]] DeviceOrd Device() const { return device_; }
 
   T* DevicePointer() {
     LazySyncDevice(GPUAccess::kWrite);
@@ -138,7 +138,7 @@ class HostDeviceVectorImpl {
     } else {
       auto ptr = other->ConstDevicePointer();
       SetDevice();
-      CHECK_EQ(this->DeviceIdx(), other->DeviceIdx());
+      CHECK_EQ(this->Device(), other->Device());
       dh::safe_cuda(cudaMemcpyAsync(this->DevicePointer() + ori_size,
                                     ptr,
                                     other->Size() * sizeof(T),
@@ -156,24 +156,25 @@ class HostDeviceVectorImpl {
     return data_h_;
   }
 
-  void SetDevice(int device) {
+  void SetDevice(DeviceOrd device) {
     if (device_ == device) { return; }
-    if (device_ >= 0) {
+    if (device_.IsCUDA()) {
       LazySyncHost(GPUAccess::kNone);
     }
 
-    if (device_ >= 0 && device >= 0) {
-      CHECK_EQ(device_, device) << "New device ordinal is different from previous one.";
+    if (device_.IsCUDA() && device.IsCUDA()) {
+      CHECK_EQ(device_.ordinal, device.ordinal)
+          << "New device ordinal is different from previous one.";
     }
     device_ = device;
-    if (device_ >= 0) {
+    if (device_.IsCUDA()) {
       LazyResizeDevice(data_h_.size());
     }
   }
 
   void Resize(size_t new_size, T v) {
     if (new_size == Size()) { return; }
-    if ((Size() == 0 && device_ >= 0) || (DeviceCanWrite() && device_ >= 0)) {
+    if ((Size() == 0 && device_.IsCUDA()) || (DeviceCanWrite() && device_.IsCUDA())) {
       // fast on-device resize
       gpu_access_ = GPUAccess::kWrite;
       SetDevice();
@@ -218,16 +219,16 @@ class HostDeviceVectorImpl {
     gpu_access_ = access;
   }
 
-  bool HostCanAccess(GPUAccess access) const { return gpu_access_ <= access; }
-  bool HostCanRead() const { return HostCanAccess(GPUAccess::kRead); }
-  bool HostCanWrite() const { return HostCanAccess(GPUAccess::kNone); }
-  bool DeviceCanAccess(GPUAccess access) const { return gpu_access_ >= access; }
-  bool DeviceCanRead() const { return DeviceCanAccess(GPUAccess::kRead); }
-  bool DeviceCanWrite() const { return DeviceCanAccess(GPUAccess::kWrite); }
-  GPUAccess Access() const { return gpu_access_; }
+  [[nodiscard]] bool HostCanAccess(GPUAccess access) const { return gpu_access_ <= access; }
+  [[nodiscard]] bool HostCanRead() const { return HostCanAccess(GPUAccess::kRead); }
+  [[nodiscard]] bool HostCanWrite() const { return HostCanAccess(GPUAccess::kNone); }
+  [[nodiscard]] bool DeviceCanAccess(GPUAccess access) const { return gpu_access_ >= access; }
+  [[nodiscard]] bool DeviceCanRead() const { return DeviceCanAccess(GPUAccess::kRead); }
+  [[nodiscard]] bool DeviceCanWrite() const { return DeviceCanAccess(GPUAccess::kWrite); }
+  [[nodiscard]] GPUAccess Access() const { return gpu_access_; }
 
  private:
-  int device_{-1};
+  DeviceOrd device_{DeviceOrd::CPU()};
   std::vector<T> data_h_{};
   std::unique_ptr<dh::device_vector<T>> data_d_{};
   GPUAccess gpu_access_{GPUAccess::kNone};
@@ -259,11 +260,11 @@ class HostDeviceVectorImpl {
   }
 
   void SetDevice() {
-    CHECK_GE(device_, 0);
+    CHECK_GE(device_.ordinal, 0);
     if (cudaSetDeviceHandler == nullptr) {
-      dh::safe_cuda(cudaSetDevice(device_));
+      dh::safe_cuda(cudaSetDevice(device_.ordinal));
     } else {
-      (*cudaSetDeviceHandler)(device_);
+      (*cudaSetDeviceHandler)(device_.ordinal);
     }
 
     if (!data_d_) {
@@ -273,15 +274,15 @@ class HostDeviceVectorImpl {
 };
 
 template<typename T>
-HostDeviceVector<T>::HostDeviceVector(size_t size, T v, int device)
+HostDeviceVector<T>::HostDeviceVector(size_t size, T v, DeviceOrd device)
     : impl_(new HostDeviceVectorImpl<T>(size, v, device)) {}
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(std::initializer_list<T> init, int device)
+HostDeviceVector<T>::HostDeviceVector(std::initializer_list<T> init, DeviceOrd device)
     : impl_(new HostDeviceVectorImpl<T>(init, device)) {}
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(const std::vector<T>& init, int device)
+HostDeviceVector<T>::HostDeviceVector(const std::vector<T>& init, DeviceOrd device)
     : impl_(new HostDeviceVectorImpl<T>(init, device)) {}
 
 template <typename T>
@@ -309,7 +310,9 @@ template <typename T>
 size_t HostDeviceVector<T>::Size() const { return impl_->Size(); }
 
 template <typename T>
-int HostDeviceVector<T>::DeviceIdx() const { return impl_->DeviceIdx(); }
+DeviceOrd HostDeviceVector<T>::Device() const {
+  return impl_->Device();
+}
 
 template <typename T>
 T* HostDeviceVector<T>::DevicePointer() {
@@ -390,13 +393,8 @@ GPUAccess HostDeviceVector<T>::DeviceAccess() const {
 }
 
 template <typename T>
-void HostDeviceVector<T>::SetDevice(int device) const {
-  impl_->SetDevice(device);
-}
-
-template <typename T>
 void HostDeviceVector<T>::SetDevice(DeviceOrd device) const {
-  impl_->SetDevice(device.ordinal);
+  impl_->SetDevice(device);
 }
 
 template <typename T>

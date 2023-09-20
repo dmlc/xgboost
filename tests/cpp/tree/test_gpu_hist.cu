@@ -29,7 +29,7 @@ TEST(GpuHist, DeviceHistogram) {
   constexpr int kNNodes = 4;
   constexpr size_t kStopGrowing = kNNodes * kNBins * 2u;
   DeviceHistogramStorage<kStopGrowing> histogram;
-  histogram.Init(0, kNBins);
+  histogram.Init(FstCU(), kNBins);
   for (int i = 0; i < kNNodes; ++i) {
     histogram.AllocateHistograms({i});
   }
@@ -102,12 +102,12 @@ void TestBuildHist(bool use_shared_memory_histograms) {
     bst_float hess = dist(&gen);
     gp = GradientPair(grad, hess);
   }
-  gpair.SetDevice(0);
+  gpair.SetDevice(DeviceOrd::CUDA(0));
 
   thrust::host_vector<common::CompressedByteT> h_gidx_buffer (page->gidx_buffer.HostVector());
-  maker.row_partitioner = std::make_unique<RowPartitioner>(0, kNRows);
+  maker.row_partitioner = std::make_unique<RowPartitioner>(FstCU(), kNRows);
 
-  maker.hist.Init(0, page->Cuts().TotalBins());
+  maker.hist.Init(FstCU(), page->Cuts().TotalBins());
   maker.hist.AllocateHistograms({0});
 
   maker.gpair = gpair.DeviceSpan();
@@ -116,8 +116,8 @@ void TestBuildHist(bool use_shared_memory_histograms) {
 
   maker.InitFeatureGroupsOnce();
 
-  BuildGradientHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(0),
-                         maker.feature_groups->DeviceAccessor(0), gpair.DeviceSpan(),
+  BuildGradientHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(DeviceOrd::CUDA(0)),
+                         maker.feature_groups->DeviceAccessor(DeviceOrd::CUDA(0)), gpair.DeviceSpan(),
                          maker.row_partitioner->GetRows(0), maker.hist.GetNodeHistogram(0),
                          *maker.quantiser, !use_shared_memory_histograms);
 
@@ -198,7 +198,7 @@ void TestHistogramIndexImpl() {
   // histogram index
   const auto &maker = hist_maker.maker;
   auto grad = GenerateRandomGradients(kNRows);
-  grad.SetDevice(0);
+  grad.SetDevice(DeviceOrd::CUDA(0));
   maker->Reset(&grad, hist_maker_dmat.get(), kNCols);
   std::vector<common::CompressedByteT> h_gidx_buffer(maker->page->gidx_buffer.HostVector());
 
@@ -264,17 +264,17 @@ TEST(GpuHist, UniformSampling) {
   // Create an in-memory DMatrix.
   std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
 
-  linalg::Matrix<GradientPair> gpair({kRows}, Context{}.MakeCUDA().Ordinal());
+  linalg::Matrix<GradientPair> gpair({kRows}, Context{}.MakeCUDA().Device());
   gpair.Data()->Copy(GenerateRandomGradients(kRows));
 
   // Build a tree using the in-memory DMatrix.
   RegTree tree;
-  HostDeviceVector<bst_float> preds(kRows, 0.0, 0);
+  HostDeviceVector<bst_float> preds(kRows, 0.0, DeviceOrd::CUDA(0));
   Context ctx(MakeCUDACtx(0));
   UpdateTree(&ctx, &gpair, dmat.get(), 0, &tree, &preds, 1.0, "uniform", kRows);
   // Build another tree using sampling.
   RegTree tree_sampling;
-  HostDeviceVector<bst_float> preds_sampling(kRows, 0.0, 0);
+  HostDeviceVector<bst_float> preds_sampling(kRows, 0.0, DeviceOrd::CUDA(0));
   UpdateTree(&ctx, &gpair, dmat.get(), 0, &tree_sampling, &preds_sampling, kSubsample, "uniform",
              kRows);
 
@@ -295,18 +295,18 @@ TEST(GpuHist, GradientBasedSampling) {
   // Create an in-memory DMatrix.
   std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
 
-  linalg::Matrix<GradientPair> gpair({kRows}, MakeCUDACtx(0).Ordinal());
+  linalg::Matrix<GradientPair> gpair({kRows}, MakeCUDACtx(0).Device());
   gpair.Data()->Copy(GenerateRandomGradients(kRows));
 
   // Build a tree using the in-memory DMatrix.
   RegTree tree;
-  HostDeviceVector<bst_float> preds(kRows, 0.0, 0);
+  HostDeviceVector<bst_float> preds(kRows, 0.0, DeviceOrd::CUDA(0));
   Context ctx(MakeCUDACtx(0));
   UpdateTree(&ctx, &gpair, dmat.get(), 0, &tree, &preds, 1.0, "uniform", kRows);
 
   // Build another tree using sampling.
   RegTree tree_sampling;
-  HostDeviceVector<bst_float> preds_sampling(kRows, 0.0, 0);
+  HostDeviceVector<bst_float> preds_sampling(kRows, 0.0, DeviceOrd::CUDA(0));
   UpdateTree(&ctx, &gpair, dmat.get(), 0, &tree_sampling, &preds_sampling, kSubsample,
              "gradient_based", kRows);
 
@@ -333,16 +333,16 @@ TEST(GpuHist, ExternalMemory) {
   std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrix(kRows, kCols, 1, tmpdir.path + "/cache"));
 
   Context ctx(MakeCUDACtx(0));
-  linalg::Matrix<GradientPair> gpair({kRows}, ctx.Ordinal());
+  linalg::Matrix<GradientPair> gpair({kRows}, ctx.Device());
   gpair.Data()->Copy(GenerateRandomGradients(kRows));
 
   // Build a tree using the in-memory DMatrix.
   RegTree tree;
-  HostDeviceVector<bst_float> preds(kRows, 0.0, 0);
+  HostDeviceVector<bst_float> preds(kRows, 0.0, DeviceOrd::CUDA(0));
   UpdateTree(&ctx, &gpair, dmat.get(), 0, &tree, &preds, 1.0, "uniform", kRows);
   // Build another tree using multiple ELLPACK pages.
   RegTree tree_ext;
-  HostDeviceVector<bst_float> preds_ext(kRows, 0.0, 0);
+  HostDeviceVector<bst_float> preds_ext(kRows, 0.0, DeviceOrd::CUDA(0));
   UpdateTree(&ctx, &gpair, dmat_ext.get(), kPageSize, &tree_ext, &preds_ext, 1.0, "uniform", kRows);
 
   // Make sure the predictions are the same.
@@ -371,20 +371,20 @@ TEST(GpuHist, ExternalMemoryWithSampling) {
       CreateSparsePageDMatrix(kRows, kCols, kRows / kPageSize, tmpdir.path + "/cache"));
 
   Context ctx(MakeCUDACtx(0));
-  linalg::Matrix<GradientPair> gpair({kRows}, ctx.Ordinal());
+  linalg::Matrix<GradientPair> gpair({kRows}, ctx.Device());
   gpair.Data()->Copy(GenerateRandomGradients(kRows));
 
   // Build a tree using the in-memory DMatrix.
   auto rng = common::GlobalRandom();
 
   RegTree tree;
-  HostDeviceVector<bst_float> preds(kRows, 0.0, 0);
+  HostDeviceVector<bst_float> preds(kRows, 0.0, DeviceOrd::CUDA(0));
   UpdateTree(&ctx, &gpair, dmat.get(), 0, &tree, &preds, kSubsample, kSamplingMethod, kRows);
 
   // Build another tree using multiple ELLPACK pages.
   common::GlobalRandom() = rng;
   RegTree tree_ext;
-  HostDeviceVector<bst_float> preds_ext(kRows, 0.0, 0);
+  HostDeviceVector<bst_float> preds_ext(kRows, 0.0, DeviceOrd::CUDA(0));
   UpdateTree(&ctx, &gpair, dmat_ext.get(), kPageSize, &tree_ext, &preds_ext, kSubsample,
              kSamplingMethod, kRows);
 
@@ -436,7 +436,7 @@ RegTree GetHistTree(Context const* ctx, DMatrix* dmat) {
   TrainParam param;
   param.UpdateAllowUnknown(Args{});
 
-  linalg::Matrix<GradientPair> gpair({dmat->Info().num_row_}, ctx->Ordinal());
+  linalg::Matrix<GradientPair> gpair({dmat->Info().num_row_}, ctx->Device());
   gpair.Data()->Copy(GenerateRandomGradients(dmat->Info().num_row_));
 
   std::vector<HostDeviceVector<bst_node_t>> position(1);
@@ -486,7 +486,7 @@ RegTree GetApproxTree(Context const* ctx, DMatrix* dmat) {
   TrainParam param;
   param.UpdateAllowUnknown(Args{});
 
-  linalg::Matrix<GradientPair> gpair({dmat->Info().num_row_}, ctx->Ordinal());
+  linalg::Matrix<GradientPair> gpair({dmat->Info().num_row_}, ctx->Device());
   gpair.Data()->Copy(GenerateRandomGradients(dmat->Info().num_row_));
 
   std::vector<HostDeviceVector<bst_node_t>> position(1);

@@ -88,9 +88,9 @@ class HostDeviceVector {
   static_assert(std::is_standard_layout<T>::value, "HostDeviceVector admits only POD types");
 
  public:
-  explicit HostDeviceVector(size_t size = 0, T v = T(), int device = -1);
-  HostDeviceVector(std::initializer_list<T> init, int device = -1);
-  explicit HostDeviceVector(const std::vector<T>& init, int device = -1);
+  explicit HostDeviceVector(size_t size = 0, T v = T(), DeviceOrd device = DeviceOrd::CPU());
+  HostDeviceVector(std::initializer_list<T> init, DeviceOrd device = DeviceOrd::CPU());
+  explicit HostDeviceVector(const std::vector<T>& init, DeviceOrd device = DeviceOrd::CPU());
   ~HostDeviceVector();
 
   HostDeviceVector(const HostDeviceVector<T>&) = delete;
@@ -99,17 +99,9 @@ class HostDeviceVector {
   HostDeviceVector<T>& operator=(const HostDeviceVector<T>&) = delete;
   HostDeviceVector<T>& operator=(HostDeviceVector<T>&&);
 
-  bool Empty() const { return Size() == 0; }
-  size_t Size() const;
-  int DeviceIdx() const;
-  DeviceOrd Device() const {
-    auto idx = this->DeviceIdx();
-    if (idx == DeviceOrd::CPU().ordinal) {
-      return DeviceOrd::CPU();
-    } else {
-      return DeviceOrd::CUDA(idx);
-    }
-  }
+  [[nodiscard]] bool Empty() const { return Size() == 0; }
+  [[nodiscard]] std::size_t Size() const;
+  [[nodiscard]] DeviceOrd Device() const;
   common::Span<T> DeviceSpan();
   common::Span<const T> ConstDeviceSpan() const;
   common::Span<const T> DeviceSpan() const { return ConstDeviceSpan(); }
@@ -135,13 +127,12 @@ class HostDeviceVector {
   const std::vector<T>& ConstHostVector() const;
   const std::vector<T>& HostVector() const {return ConstHostVector(); }
 
-  bool HostCanRead() const;
-  bool HostCanWrite() const;
-  bool DeviceCanRead() const;
-  bool DeviceCanWrite() const;
-  GPUAccess DeviceAccess() const;
+  [[nodiscard]] bool HostCanRead() const;
+  [[nodiscard]] bool HostCanWrite() const;
+  [[nodiscard]] bool DeviceCanRead() const;
+  [[nodiscard]] bool DeviceCanWrite() const;
+  [[nodiscard]] GPUAccess DeviceAccess() const;
 
-  void SetDevice(int device) const;
   void SetDevice(DeviceOrd device) const;
 
   void Resize(size_t new_size, T v = T());

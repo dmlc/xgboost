@@ -82,9 +82,9 @@ __global__ void GetColumnSizeSharedMemKernel(IterSpan<BatchIt> batch_iter,
 }
 
 template <std::uint32_t kBlockThreads, typename Kernel>
-std::uint32_t EstimateGridSize(std::int32_t device, Kernel kernel, std::size_t shared_mem) {
+std::uint32_t EstimateGridSize(DeviceOrd device, Kernel kernel, std::size_t shared_mem) {
   int n_mps = 0;
-  dh::safe_cuda(cudaDeviceGetAttribute(&n_mps, cudaDevAttrMultiProcessorCount, device));
+  dh::safe_cuda(cudaDeviceGetAttribute(&n_mps, cudaDevAttrMultiProcessorCount, device.ordinal));
   int n_blocks_per_mp = 0;
   dh::safe_cuda(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&n_blocks_per_mp, kernel,
                                                               kBlockThreads, shared_mem));
@@ -106,11 +106,11 @@ std::uint32_t EstimateGridSize(std::int32_t device, Kernel kernel, std::size_t s
  * \param out_column_size Output buffer for the size of each column.
  */
 template <typename BatchIt, bool force_use_global_memory = false, bool force_use_u64 = false>
-void LaunchGetColumnSizeKernel(std::int32_t device, IterSpan<BatchIt> batch_iter,
+void LaunchGetColumnSizeKernel(DeviceOrd device, IterSpan<BatchIt> batch_iter,
                                data::IsValidFunctor is_valid, Span<std::size_t> out_column_size) {
   thrust::fill_n(thrust::device, dh::tbegin(out_column_size), out_column_size.size(), 0);
 
-  std::size_t max_shared_memory = dh::MaxSharedMemory(device);
+  std::size_t max_shared_memory = dh::MaxSharedMemory(device.ordinal);
   // Not strictly correct as we should use number of samples to determine the type of
   // counter. However, the sample size is not known due to sliding window on number of
   // elements.
@@ -154,7 +154,7 @@ void LaunchGetColumnSizeKernel(std::int32_t device, IterSpan<BatchIt> batch_iter
 }
 
 template <typename BatchIt>
-void GetColumnSizesScan(int device, size_t num_columns, std::size_t num_cuts_per_feature,
+void GetColumnSizesScan(DeviceOrd device, size_t num_columns, std::size_t num_cuts_per_feature,
                         IterSpan<BatchIt> batch_iter, data::IsValidFunctor is_valid,
                         HostDeviceVector<SketchContainer::OffsetT>* cuts_ptr,
                         dh::caching_device_vector<size_t>* column_sizes_scan) {
@@ -215,7 +215,8 @@ size_t RequiredMemory(bst_row_t num_rows, bst_feature_t num_columns, size_t nnz,
 // Count the valid entries in each column and copy them out.
 template <typename AdapterBatch, typename BatchIter>
 void MakeEntriesFromAdapter(AdapterBatch const& batch, BatchIter batch_iter, Range1d range,
-                            float missing, size_t columns, size_t cuts_per_feature, int device,
+                            float missing, size_t columns, size_t cuts_per_feature,
+                            DeviceOrd device,
                             HostDeviceVector<SketchContainer::OffsetT>* cut_sizes_scan,
                             dh::caching_device_vector<size_t>* column_sizes_scan,
                             dh::device_vector<Entry>* sorted_entries) {
@@ -239,7 +240,7 @@ void MakeEntriesFromAdapter(AdapterBatch const& batch, BatchIter batch_iter, Ran
 void SortByWeight(dh::device_vector<float>* weights,
                   dh::device_vector<Entry>* sorted_entries);
 
-void RemoveDuplicatedCategories(int32_t device, MetaInfo const& info, Span<bst_row_t> d_cuts_ptr,
+void RemoveDuplicatedCategories(DeviceOrd device, MetaInfo const& info, Span<bst_row_t> d_cuts_ptr,
                                 dh::device_vector<Entry>* p_sorted_entries,
                                 dh::device_vector<float>* p_sorted_weights,
                                 dh::caching_device_vector<size_t>* p_column_sizes_scan);
@@ -277,7 +278,7 @@ inline HistogramCuts DeviceSketch(Context const* ctx, DMatrix* p_fmat, bst_bin_t
 
 template <typename AdapterBatch>
 void ProcessSlidingWindow(AdapterBatch const &batch, MetaInfo const &info,
-                          int device, size_t columns, size_t begin, size_t end,
+                          DeviceOrd device, size_t columns, size_t begin, size_t end,
                           float missing, SketchContainer *sketch_container,
                           int num_cuts) {
   // Copy current subset of valid elements into temporary storage and sort
@@ -316,11 +317,11 @@ void ProcessSlidingWindow(AdapterBatch const &batch, MetaInfo const &info,
 template <typename Batch>
 void ProcessWeightedSlidingWindow(Batch batch, MetaInfo const& info,
                                   int num_cuts_per_feature,
-                                  bool is_ranking, float missing, int device,
+                                  bool is_ranking, float missing, DeviceOrd device,
                                   size_t columns, size_t begin, size_t end,
                                   SketchContainer *sketch_container) {
   dh::XGBCachingDeviceAllocator<char> alloc;
-  dh::safe_cuda(cudaSetDevice(device));
+  dh::safe_cuda(cudaSetDevice(device.ordinal));
   info.weights_.SetDevice(device);
   auto weights = info.weights_.ConstDeviceSpan();
 
@@ -412,14 +413,14 @@ void AdapterDeviceSketch(Batch batch, int num_bins,
   size_t num_rows = batch.NumRows();
   size_t num_cols = batch.NumCols();
   size_t num_cuts_per_feature = detail::RequiredSampleCutsPerColumn(num_bins, num_rows);
-  int32_t device = sketch_container->DeviceIdx();
+  auto device = sketch_container->DeviceIdx();
   bool weighted = !info.weights_.Empty();
 
   if (weighted) {
     sketch_batch_num_elements = detail::SketchBatchNumElements(
         sketch_batch_num_elements,
         num_rows, num_cols, std::numeric_limits<size_t>::max(),
-        device, num_cuts_per_feature, true);
+        device.ordinal, num_cuts_per_feature, true);
     for (auto begin = 0ull; begin < batch.Size(); begin += sketch_batch_num_elements) {
       size_t end =
           std::min(batch.Size(), static_cast<std::size_t>(begin + sketch_batch_num_elements));
@@ -432,7 +433,7 @@ void AdapterDeviceSketch(Batch batch, int num_bins,
     sketch_batch_num_elements = detail::SketchBatchNumElements(
         sketch_batch_num_elements,
         num_rows, num_cols, std::numeric_limits<size_t>::max(),
-        device, num_cuts_per_feature, false);
+        device.ordinal, num_cuts_per_feature, false);
     for (auto begin = 0ull; begin < batch.Size(); begin += sketch_batch_num_elements) {
       size_t end =
           std::min(batch.Size(), static_cast<std::size_t>(begin + sketch_batch_num_elements));

@@ -30,9 +30,9 @@ void VerifySampling(size_t page_size,
   for (const auto& gp : gpair.ConstHostVector()) {
     sum_gpair += gp;
   }
-  gpair.SetDevice(0);
-
   Context ctx{MakeCUDACtx(0)};
+  gpair.SetDevice(ctx.Device());
+
   auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
   auto page = (*dmat->GetBatches<EllpackPage>(&ctx, param).begin()).Impl();
   if (page_size != 0) {
@@ -87,9 +87,9 @@ TEST(GradientBasedSampler, NoSamplingExternalMemory) {
   std::unique_ptr<DMatrix> dmat(
       CreateSparsePageDMatrix(kRows, kCols, kRows / kPageSize, tmpdir.path + "/cache"));
   auto gpair = GenerateRandomGradients(kRows);
-  gpair.SetDevice(0);
-
   Context ctx{MakeCUDACtx(0)};
+  gpair.SetDevice(ctx.Device());
+
   auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
   auto page = (*dmat->GetBatches<EllpackPage>(&ctx, param).begin()).Impl();
   EXPECT_NE(page->n_rows, kRows);

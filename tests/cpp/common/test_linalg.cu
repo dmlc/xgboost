@@ -12,7 +12,7 @@ namespace xgboost::linalg {
 namespace {
 void TestElementWiseKernel() {
   auto device = DeviceOrd::CUDA(0);
-  Tensor<float, 3> l{{2, 3, 4}, 0};
+  Tensor<float, 3> l{{2, 3, 4}, device};
   {
     /**
      * Non-contiguous

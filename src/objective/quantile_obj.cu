@@ -70,15 +70,15 @@ class QuantileRegression : public ObjFunction {
     out_gpair->Reshape(info.num_row_, n_targets);
     auto gpair = out_gpair->View(ctx_->Device());
 
-    info.weights_.SetDevice(ctx_->gpu_id);
+    info.weights_.SetDevice(ctx_->Device());
     common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
                                                  : info.weights_.ConstDeviceSpan()};
 
-    preds.SetDevice(ctx_->gpu_id);
+    preds.SetDevice(ctx_->Device());
     auto predt = linalg::MakeVec(&preds);
     auto n_samples = info.num_row_;
 
-    alpha_.SetDevice(ctx_->gpu_id);
+    alpha_.SetDevice(ctx_->Device());
     auto alpha = ctx_->IsCPU() ? alpha_.ConstHostSpan() : alpha_.ConstDeviceSpan();
 
     linalg::ElementWiseKernel(
@@ -103,7 +103,7 @@ class QuantileRegression : public ObjFunction {
     CHECK(!alpha_.Empty());
 
     auto n_targets = this->Targets(info);
-    base_score->SetDevice(ctx_->gpu_id);
+    base_score->SetDevice(ctx_->Device());
     base_score->Reshape(n_targets);
 
     double sw{0};
@@ -129,7 +129,7 @@ class QuantileRegression : public ObjFunction {
       }
     } else {
 #if defined(XGBOOST_USE_CUDA)
-      alpha_.SetDevice(ctx_->gpu_id);
+      alpha_.SetDevice(ctx_->Device());
       auto d_alpha = alpha_.ConstDeviceSpan();
       auto d_labels = info.labels.View(ctx_->Device());
       auto seg_it = dh::MakeTransformIterator<std::size_t>(
@@ -148,7 +148,7 @@ class QuantileRegression : public ObjFunction {
                                   val_it + n, base_score->Data());
         sw = info.num_row_;
       } else {
-        info.weights_.SetDevice(ctx_->gpu_id);
+        info.weights_.SetDevice(ctx_->Device());
         auto d_weights = info.weights_.ConstDeviceSpan();
         auto weight_it = dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),
                                                           [=] XGBOOST_DEVICE(std::size_t i) {

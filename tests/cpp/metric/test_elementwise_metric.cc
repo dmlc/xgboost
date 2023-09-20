@@ -3,8 +3,7 @@
  */
 #include "test_elementwise_metric.h"
 
-namespace xgboost {
-namespace metric {
+namespace xgboost::metric {
 TEST(Metric, DeclareUnifiedTest(RMSE)) { VerifyRMSE(); }
 
 TEST(Metric, DeclareUnifiedTest(RMSLE)) { VerifyRMSLE(); }
@@ -104,5 +103,4 @@ TEST_F(DeclareUnifiedDistributedTest(MetricTest), QuantileRowSplit) {
 TEST_F(DeclareUnifiedDistributedTest(MetricTest), QuantileColumnSplit) {
   DoTest(VerifyQuantile, DataSplitMode::kCol);
 }
-}  // namespace metric
-}  // namespace xgboost
+}  // namespace xgboost::metric

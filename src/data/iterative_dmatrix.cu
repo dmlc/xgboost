@@ -47,9 +47,9 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
 
   int32_t current_device;
   dh::safe_cuda(cudaGetDevice(&current_device));
-  auto get_device = [&]() -> int32_t {
-    std::int32_t d = (ctx->gpu_id == Context::kCpuId) ? current_device : ctx->gpu_id;
-    CHECK_NE(d, Context::kCpuId);
+  auto get_device = [&]() {
+    auto d = (ctx->IsCPU()) ? DeviceOrd::CUDA(current_device) : ctx->Device();
+    CHECK(!d.IsCPU());
     return d;
   };
 
@@ -59,9 +59,8 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
   common::HistogramCuts cuts;
   do {
     // We use do while here as the first batch is fetched in ctor
-    // ctx_.gpu_id = proxy->DeviceIdx();
-    CHECK_LT(ctx->gpu_id, common::AllVisibleGPUs());
-    dh::safe_cuda(cudaSetDevice(get_device()));
+    CHECK_LT(ctx->Ordinal(), common::AllVisibleGPUs());
+    dh::safe_cuda(cudaSetDevice(get_device().ordinal));
     if (cols == 0) {
       cols = num_cols();
       collective::Allreduce<collective::Operation::kMax>(&cols, 1);
@@ -93,7 +92,7 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
   auto n_features = cols;
   CHECK_GE(n_features, 1) << "Data must has at least 1 column.";
 
-  dh::safe_cuda(cudaSetDevice(get_device()));
+  dh::safe_cuda(cudaSetDevice(get_device().ordinal));
   if (!ref) {
     HostDeviceVector<FeatureType> ft;
     common::SketchContainer final_sketch(
@@ -132,7 +131,7 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
   size_t n_batches_for_verification = 0;
   while (iter.Next()) {
     init_page();
-    dh::safe_cuda(cudaSetDevice(get_device()));
+    dh::safe_cuda(cudaSetDevice(get_device().ordinal));
     auto rows = num_rows();
     dh::device_vector<size_t> row_counts(rows + 1, 0);
     common::Span<size_t> row_counts_span(row_counts.data().get(), row_counts.size());
@@ -184,18 +183,18 @@ BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(Context const* ctx,
   if (!ellpack_) {
     ellpack_.reset(new EllpackPage());
     if (ctx->IsCUDA()) {
-      this->Info().feature_types.SetDevice(ctx->gpu_id);
+      this->Info().feature_types.SetDevice(ctx->Device());
       *ellpack_->Impl() =
           EllpackPageImpl(ctx, *this->ghist_, this->Info().feature_types.ConstDeviceSpan());
     } else if (fmat_ctx_.IsCUDA()) {
-      this->Info().feature_types.SetDevice(fmat_ctx_.gpu_id);
+      this->Info().feature_types.SetDevice(fmat_ctx_.Device());
       *ellpack_->Impl() =
           EllpackPageImpl(&fmat_ctx_, *this->ghist_, this->Info().feature_types.ConstDeviceSpan());
     } else {
       // Can happen when QDM is initialized on CPU, but a GPU version is queried by a different QDM
       // for cut reference.
       auto cuda_ctx = ctx->MakeCUDA();
-      this->Info().feature_types.SetDevice(cuda_ctx.gpu_id);
+      this->Info().feature_types.SetDevice(cuda_ctx.Device());
       *ellpack_->Impl() =
           EllpackPageImpl(&cuda_ctx, *this->ghist_, this->Info().feature_types.ConstDeviceSpan());
     }

@@ -28,7 +28,7 @@ TEST(GrowHistMaker, InteractionConstraint) {
   auto p_dmat = GenerateDMatrix(kRows, kCols);
   Context ctx;
 
-  linalg::Matrix<GradientPair> gpair({kRows}, ctx.Ordinal());
+  linalg::Matrix<GradientPair> gpair({kRows}, ctx.Device());
   gpair.Data()->Copy(GenerateRandomGradients(kRows));
 
   ObjInfo task{ObjInfo::kRegression};
@@ -74,7 +74,7 @@ void VerifyColumnSplit(int32_t rows, bst_feature_t cols, bool categorical,
                        RegTree const& expected_tree) {
   Context ctx;
   auto p_dmat = GenerateDMatrix(rows, cols, categorical);
-  linalg::Matrix<GradientPair> gpair({rows}, ctx.Ordinal());
+  linalg::Matrix<GradientPair> gpair({rows}, ctx.Device());
   gpair.Data()->Copy(GenerateRandomGradients(rows));
 
 
@@ -107,7 +107,7 @@ void TestColumnSplit(bool categorical) {
   {
     Context ctx;
     auto p_dmat = GenerateDMatrix(kRows, kCols, categorical);
-    linalg::Matrix<GradientPair> gpair({kRows}, ctx.Ordinal());
+    linalg::Matrix<GradientPair> gpair({kRows}, ctx.Device());
     gpair.Data()->Copy(GenerateRandomGradients(kRows));
     std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create("grow_histmaker", &ctx, &task)};
     std::vector<HostDeviceVector<bst_node_t>> position(1);

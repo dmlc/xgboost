@@ -65,7 +65,7 @@ TEST(GBTree, PredictionCache) {
 
   gbtree.Configure({{"tree_method", "hist"}});
   auto p_m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
-  linalg::Matrix<GradientPair> gpair({kRows}, ctx.Ordinal());
+  linalg::Matrix<GradientPair> gpair({kRows}, ctx.Device());
   gpair.Data()->Copy(GenerateRandomGradients(kRows));
 
   PredictionCacheEntry out_predictions;
@@ -156,7 +156,7 @@ TEST(GBTree, ChoosePredictor) {
 
   // pull data into device.
   data.HostVector();
-  data.SetDevice(0);
+  data.SetDevice(DeviceOrd::CUDA(0));
   data.DeviceSpan();
   ASSERT_FALSE(data.HostCanWrite());
 
@@ -215,7 +215,7 @@ TEST(GBTree, ChooseTreeMethod) {
     }
     learner->Configure();
     for (std::int32_t i = 0; i < 3; ++i) {
-      linalg::Matrix<GradientPair> gpair{{Xy->Info().num_row_}, Context::kCpuId};
+      linalg::Matrix<GradientPair> gpair{{Xy->Info().num_row_}, DeviceOrd::CPU()};
       gpair.Data()->Copy(GenerateRandomGradients(Xy->Info().num_row_));
       learner->BoostOneIter(0, Xy, &gpair);
     }
@@ -400,7 +400,7 @@ class Dart : public testing::TestWithParam<char const*> {
     if (device == "GPU") {
       ctx = MakeCUDACtx(0);
     }
-    auto rng = RandomDataGenerator(kRows, kCols, 0).Device(ctx.gpu_id);
+    auto rng = RandomDataGenerator(kRows, kCols, 0).Device(ctx.Device());
     auto array_str = rng.GenerateArrayInterface(&data);
     auto p_mat = GetDMatrixFromData(data.HostVector(), kRows, kCols);
 
@@ -710,7 +710,7 @@ TEST(GBTree, InplacePredictionError) {
   auto test_qdm_err = [&](std::string booster, Context const* ctx) {
     std::shared_ptr<DMatrix> p_fmat;
     bst_bin_t max_bins = 16;
-    auto rng = RandomDataGenerator{n_samples, n_features, 0.5f}.Device(ctx->gpu_id).Bins(max_bins);
+    auto rng = RandomDataGenerator{n_samples, n_features, 0.5f}.Device(ctx->Device()).Bins(max_bins);
     if (ctx->IsCPU()) {
       p_fmat = rng.GenerateQuantileDMatrix(true);
     } else {

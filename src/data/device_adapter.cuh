@@ -28,8 +28,8 @@ class CudfAdapterBatch : public detail::NoMetaInfo {
   CudfAdapterBatch(common::Span<ArrayInterface<1>> columns, size_t num_rows)
       : columns_(columns),
         num_rows_(num_rows) {}
-  size_t Size() const { return num_rows_ * columns_.size(); }
-  __device__ __forceinline__ COOTuple GetElement(size_t idx) const {
+  [[nodiscard]] std::size_t Size() const { return num_rows_ * columns_.size(); }
+  [[nodiscard]] __device__ __forceinline__ COOTuple GetElement(size_t idx) const {
     size_t column_idx = idx % columns_.size();
     size_t row_idx = idx / columns_.size();
     auto const& column = columns_[column_idx];
@@ -39,7 +39,7 @@ class CudfAdapterBatch : public detail::NoMetaInfo {
     return {row_idx, column_idx, value};
   }
 
-  __device__ float GetElement(bst_row_t ridx, bst_feature_t fidx) const {
+  [[nodiscard]] __device__ float GetElement(bst_row_t ridx, bst_feature_t fidx) const {
     auto const& column = columns_[fidx];
     float value = column.valid.Data() == nullptr || column.valid.Check(ridx)
                       ? column(ridx)
@@ -47,8 +47,8 @@ class CudfAdapterBatch : public detail::NoMetaInfo {
     return value;
   }
 
-  XGBOOST_DEVICE bst_row_t NumRows() const { return num_rows_; }
-  XGBOOST_DEVICE bst_row_t NumCols() const { return columns_.size(); }
+  [[nodiscard]] XGBOOST_DEVICE bst_row_t NumRows() const { return num_rows_; }
+  [[nodiscard]] XGBOOST_DEVICE bst_row_t NumCols() const { return columns_.size(); }
 
  private:
   common::Span<ArrayInterface<1>> columns_;
@@ -120,14 +120,14 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
       return;
     }
 
-    device_idx_ = dh::CudaGetPointerDevice(first_column.data);
-    CHECK_NE(device_idx_, Context::kCpuId);
-    dh::safe_cuda(cudaSetDevice(device_idx_));
+    device_ = DeviceOrd::CUDA(dh::CudaGetPointerDevice(first_column.data));
+    CHECK(device_.IsCUDA());
+    dh::safe_cuda(cudaSetDevice(device_.ordinal));
     for (auto& json_col : json_columns) {
       auto column = ArrayInterface<1>(get<Object const>(json_col));
       columns.push_back(column);
       num_rows_ = std::max(num_rows_, column.Shape(0));
-      CHECK_EQ(device_idx_, dh::CudaGetPointerDevice(column.data))
+      CHECK_EQ(device_.ordinal, dh::CudaGetPointerDevice(column.data))
           << "All columns should use the same device.";
       CHECK_EQ(num_rows_, column.Shape(0))
           << "All columns should have same number of rows.";
@@ -143,15 +143,15 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
     return batch_;
   }
 
-  size_t NumRows() const { return num_rows_; }
-  size_t NumColumns() const { return columns_.size(); }
-  int32_t DeviceIdx() const { return device_idx_; }
+  [[nodiscard]] std::size_t NumRows() const { return num_rows_; }
+  [[nodiscard]] std::size_t NumColumns() const { return columns_.size(); }
+  [[nodiscard]] DeviceOrd Device() const { return device_; }
 
  private:
   CudfAdapterBatch batch_;
   dh::device_vector<ArrayInterface<1>> columns_;
   size_t num_rows_{0};
-  int32_t device_idx_{Context::kCpuId};
+  DeviceOrd device_{DeviceOrd::CPU()};
 };
 
 class CupyAdapterBatch : public detail::NoMetaInfo {
@@ -159,22 +159,22 @@ class CupyAdapterBatch : public detail::NoMetaInfo {
   CupyAdapterBatch() = default;
   explicit CupyAdapterBatch(ArrayInterface<2> array_interface)
     : array_interface_(std::move(array_interface)) {}
-  size_t Size() const {
+  [[nodiscard]] std::size_t Size() const {
     return array_interface_.Shape(0) * array_interface_.Shape(1);
   }
-  __device__ COOTuple GetElement(size_t idx) const {
+  [[nodiscard]]__device__ COOTuple GetElement(size_t idx) const {
     size_t column_idx = idx % array_interface_.Shape(1);
     size_t row_idx = idx / array_interface_.Shape(1);
     float value = array_interface_(row_idx, column_idx);
     return {row_idx, column_idx, value};
   }
-  __device__ float GetElement(bst_row_t ridx, bst_feature_t fidx) const {
+  [[nodiscard]] __device__ float GetElement(bst_row_t ridx, bst_feature_t fidx) const {
     float value = array_interface_(ridx, fidx);
     return value;
   }
 
-  XGBOOST_DEVICE bst_row_t NumRows() const { return array_interface_.Shape(0); }
-  XGBOOST_DEVICE bst_row_t NumCols() const { return array_interface_.Shape(1); }
+  [[nodiscard]] XGBOOST_DEVICE bst_row_t NumRows() const { return array_interface_.Shape(0); }
+  [[nodiscard]] XGBOOST_DEVICE bst_row_t NumCols() const { return array_interface_.Shape(1); }
 
  private:
   ArrayInterface<2> array_interface_;
@@ -189,28 +189,28 @@ class CupyAdapter : public detail::SingleBatchDataIter<CupyAdapterBatch> {
     if (array_interface_.Shape(0) == 0) {
       return;
     }
-    device_idx_ = dh::CudaGetPointerDevice(array_interface_.data);
-    CHECK_NE(device_idx_, Context::kCpuId);
+    device_ = DeviceOrd::CUDA(dh::CudaGetPointerDevice(array_interface_.data));
+    CHECK(device_.IsCUDA());
   }
   explicit CupyAdapter(std::string cuda_interface_str)
       : CupyAdapter{StringView{cuda_interface_str}} {}
-  const CupyAdapterBatch& Value() const override { return batch_; }
+  [[nodiscard]] const CupyAdapterBatch& Value() const override { return batch_; }
 
-  size_t NumRows() const { return array_interface_.Shape(0); }
-  size_t NumColumns() const { return array_interface_.Shape(1); }
-  int32_t DeviceIdx() const { return device_idx_; }
+  [[nodiscard]] std::size_t NumRows() const { return array_interface_.Shape(0); }
+  [[nodiscard]] std::size_t NumColumns() const { return array_interface_.Shape(1); }
+  [[nodiscard]] DeviceOrd Device() const { return device_; }
 
  private:
   ArrayInterface<2> array_interface_;
   CupyAdapterBatch batch_;
-  int32_t device_idx_ {Context::kCpuId};
+  DeviceOrd device_{DeviceOrd::CPU()};
 };
 
 // Returns maximum row length
 template <typename AdapterBatchT>
-std::size_t GetRowCounts(const AdapterBatchT batch, common::Span<bst_row_t> offset, int device_idx,
+std::size_t GetRowCounts(const AdapterBatchT batch, common::Span<bst_row_t> offset, DeviceOrd device,
                          float missing) {
-  dh::safe_cuda(cudaSetDevice(device_idx));
+  dh::safe_cuda(cudaSetDevice(device.ordinal));
   IsValidFunctor is_valid(missing);
   dh::safe_cuda(cudaMemsetAsync(offset.data(), '\0', offset.size_bytes()));
 

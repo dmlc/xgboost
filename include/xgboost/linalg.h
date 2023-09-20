@@ -659,13 +659,13 @@ auto MakeVec(T *ptr, size_t s, DeviceOrd device = DeviceOrd::CPU()) {
 
 template <typename T>
 auto MakeVec(HostDeviceVector<T> *data) {
-  return MakeVec(data->DeviceIdx() == -1 ? data->HostPointer() : data->DevicePointer(),
-                 data->Size(), data->Device());
+  return MakeVec(data->Device().IsCPU() ? data->HostPointer() : data->DevicePointer(), data->Size(),
+                 data->Device());
 }
 
 template <typename T>
 auto MakeVec(HostDeviceVector<T> const *data) {
-  return MakeVec(data->DeviceIdx() == -1 ? data->ConstHostPointer() : data->ConstDevicePointer(),
+  return MakeVec(data->Device().IsCPU() ? data->ConstHostPointer() : data->ConstDevicePointer(),
                  data->Size(), data->Device());
 }
 
@@ -757,13 +757,13 @@ class Tensor {
   Order order_{Order::kC};
 
   template <typename I, std::int32_t D>
-  void Initialize(I const (&shape)[D], std::int32_t device) {
+  void Initialize(I const (&shape)[D], DeviceOrd device) {
     static_assert(D <= kDim, "Invalid shape.");
     std::copy(shape, shape + D, shape_);
     for (auto i = D; i < kDim; ++i) {
       shape_[i] = 1;
     }
-    if (device >= 0) {
+    if (device.IsCUDA()) {
       data_.SetDevice(device);
       data_.ConstDevicePointer();  // Pull to device;
     }
@@ -780,14 +780,11 @@ class Tensor {
    * See \ref TensorView for parameters of this constructor.
    */
   template <typename I, int32_t D>
-  explicit Tensor(I const (&shape)[D], std::int32_t device, Order order = kC)
-      : Tensor{common::Span<I const, D>{shape}, device, order} {}
-  template <typename I, int32_t D>
   explicit Tensor(I const (&shape)[D], DeviceOrd device, Order order = kC)
-      : Tensor{common::Span<I const, D>{shape}, device.ordinal, order} {}
+      : Tensor{common::Span<I const, D>{shape}, device, order} {}
 
   template <typename I, size_t D>
-  explicit Tensor(common::Span<I const, D> shape, std::int32_t device, Order order = kC)
+  explicit Tensor(common::Span<I const, D> shape, DeviceOrd device, Order order = kC)
       : order_{order} {
     // No device unroll as this is a host only function.
     std::copy(shape.data(), shape.data() + D, shape_);
@@ -795,11 +792,11 @@ class Tensor {
       shape_[i] = 1;
     }
     auto size = detail::CalcSize(shape_);
-    if (device >= 0) {
+    if (device.IsCUDA()) {
       data_.SetDevice(device);
     }
     data_.Resize(size);
-    if (device >= 0) {
+    if (device.IsCUDA()) {
       data_.DevicePointer();  // Pull to device
     }
   }
@@ -807,7 +804,7 @@ class Tensor {
    * Initialize from 2 host iterators.
    */
   template <typename It, typename I, int32_t D>
-  explicit Tensor(It begin, It end, I const (&shape)[D], std::int32_t device, Order order = kC)
+  explicit Tensor(It begin, It end, I const (&shape)[D], DeviceOrd device, Order order = kC)
       : order_{order} {
     auto &h_vec = data_.HostVector();
     h_vec.insert(h_vec.begin(), begin, end);
@@ -816,7 +813,7 @@ class Tensor {
   }
 
   template <typename I, int32_t D>
-  explicit Tensor(std::initializer_list<T> data, I const (&shape)[D], std::int32_t device,
+  explicit Tensor(std::initializer_list<T> data, I const (&shape)[D], DeviceOrd device,
                   Order order = kC)
       : order_{order} {
     auto &h_vec = data_.HostVector();
@@ -824,10 +821,6 @@ class Tensor {
     // shape
     this->Initialize(shape, device);
   }
-  template <typename I, int32_t D>
-  explicit Tensor(std::initializer_list<T> data, I const (&shape)[D], DeviceOrd device,
-                  Order order = kC)
-      : Tensor{data, shape, device.ordinal, order} {}
   /**
    * \brief Index operator. Not thread safe, should not be used in performance critical
    *        region. For more efficient indexing, consider getting a view first.
@@ -944,9 +937,7 @@ class Tensor {
   /**
    * \brief Set device ordinal for this tensor.
    */
-  void SetDevice(int32_t device) const { data_.SetDevice(device); }
   void SetDevice(DeviceOrd device) const { data_.SetDevice(device); }
-  [[nodiscard]] int32_t DeviceIdx() const { return data_.DeviceIdx(); }
   [[nodiscard]] DeviceOrd Device() const { return data_.Device(); }
 };
 
@@ -962,7 +953,7 @@ using Vector = Tensor<T, 1>;
 template <typename T, typename... Index>
 auto Empty(Context const *ctx, Index &&...index) {
   Tensor<T, sizeof...(Index)> t;
-  t.SetDevice(ctx->gpu_id);
+  t.SetDevice(ctx->Device());
   t.Reshape(index...);
   return t;
 }
@@ -973,7 +964,7 @@ auto Empty(Context const *ctx, Index &&...index) {
 template <typename T, typename... Index>
 auto Constant(Context const *ctx, T v, Index &&...index) {
   Tensor<T, sizeof...(Index)> t;
-  t.SetDevice(ctx->gpu_id);
+  t.SetDevice(ctx->Device());
   t.Reshape(index...);
   t.Data()->Fill(std::move(v));
   return t;
@@ -990,8 +981,8 @@ auto Zeros(Context const *ctx, Index &&...index) {
 // Only first axis is supported for now.
 template <typename T, int32_t D>
 void Stack(Tensor<T, D> *l, Tensor<T, D> const &r) {
-  if (r.DeviceIdx() >= 0) {
-    l->SetDevice(r.DeviceIdx());
+  if (r.Device().IsCUDA()) {
+    l->SetDevice(r.Device());
   }
   l->ModifyInplace([&](HostDeviceVector<T> *data, common::Span<size_t, D> shape) {
     for (size_t i = 1; i < D; ++i) {

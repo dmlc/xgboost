@@ -20,7 +20,6 @@ namespace xgboost {
 
 DMLC_REGISTER_PARAMETER(Context);
 
-bst_d_ordinal_t constexpr Context::kCpuId;
 std::int64_t constexpr Context::kDefaultSeed;
 
 Context::Context() : cfs_cpu_count_{common::GetCfsCPUCount()} {}
@@ -82,7 +81,7 @@ DeviceOrd CUDAOrdinal(DeviceOrd device, bool) {
     return std::nullopt;
   }
 
-  std::int32_t parsed_id{Context::kCpuId};
+  std::int32_t parsed_id{DeviceOrd::CPUOrdinal()};
   auto res = std::from_chars(ordinal.c_str(), ordinal.c_str() + ordinal.size(), parsed_id);
   if (res.ec != std::errc()) {
     return std::nullopt;
@@ -119,7 +118,7 @@ DeviceOrd CUDAOrdinal(DeviceOrd device, bool) {
 
   auto split_it = std::find(s_device.cbegin(), s_device.cend(), ':');
   DeviceOrd device;
-  device.ordinal = Context::InvalidOrdinal();  // mark it invalid for check.
+  device.ordinal = DeviceOrd::InvalidOrdinal();  // mark it invalid for check.
   if (split_it == s_device.cend()) {
     // no ordinal.
     if (s_device == DeviceSym::CPU()) {
@@ -147,7 +146,7 @@ DeviceOrd CUDAOrdinal(DeviceOrd device, bool) {
     device = DeviceOrd::CUDA(opt_id.value());
   }
 
-  if (device.ordinal < Context::kCpuId) {
+  if (device.ordinal < DeviceOrd::CPUOrdinal()) {
     fatal();
   }
   device = CUDAOrdinal(device, fail_on_invalid_gpu_id);
@@ -155,6 +154,28 @@ DeviceOrd CUDAOrdinal(DeviceOrd device, bool) {
   return device;
 }
 }  // namespace
+
+std::ostream& operator<<(std::ostream& os, DeviceOrd ord) {
+  os << ord.Name();
+  return os;
+}
+
+void Context::Init(Args const& kwargs) {
+  auto unknown = this->UpdateAllowUnknown(kwargs);
+  if (!unknown.empty()) {
+    std::stringstream ss;
+    std::size_t i = 0;
+    ss << "[Internal Error] Unknown parameters passed to the Context {";
+    for (auto const& [k, _] : unknown) {
+      ss << '"' << k << '"';
+      if (++i != unknown.size()) {
+        ss << ", ";
+      }
+    }
+    ss << "}\n";
+    LOG(FATAL) << ss.str();
+  }
+}
 
 void Context::ConfigureGpuId(bool require_gpu) {
   if (this->IsCPU() && require_gpu) {
@@ -178,7 +199,7 @@ void Context::SetDeviceOrdinal(Args const& kwargs) {
     error::WarnDeprecatedGPUId();
     auto opt_id = ParseInt(StringView{gpu_id_it->second});
     CHECK(opt_id.has_value()) << "Invalid value for `gpu_id`. Got:" << gpu_id_it->second;
-    if (opt_id.value() > Context::kCpuId) {
+    if (opt_id.value() > DeviceOrd::CPUOrdinal()) {
       this->UpdateAllowUnknown(Args{{kDevice, DeviceOrd::CUDA(opt_id.value()).Name()}});
     } else {
       this->UpdateAllowUnknown(Args{{kDevice, DeviceOrd::CPU().Name()}});
@@ -194,9 +215,9 @@ void Context::SetDeviceOrdinal(Args const& kwargs) {
   this->SetDevice(new_d);
 
   if (this->IsCPU()) {
-    CHECK_EQ(this->device_.ordinal, kCpuId);
+    CHECK_EQ(this->device_.ordinal, DeviceOrd::CPUOrdinal());
   } else {
-    CHECK_GT(this->device_.ordinal, kCpuId);
+    CHECK_GT(this->device_.ordinal, DeviceOrd::CPUOrdinal());
   }
 }
 

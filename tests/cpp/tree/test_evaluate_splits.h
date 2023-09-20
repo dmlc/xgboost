@@ -76,7 +76,7 @@ class TestPartitionBasedSplit : public ::testing::Test {
                                                      GradientPairPrecise parent_sum) {
       int32_t best_thresh = -1;
       float best_score{-std::numeric_limits<float>::infinity()};
-      TreeEvaluator evaluator{param_, static_cast<bst_feature_t>(n_feat), -1};
+      TreeEvaluator evaluator{param_, static_cast<bst_feature_t>(n_feat), DeviceOrd::CPU()};
       auto tree_evaluator = evaluator.GetEvaluator<TrainParam>();
       GradientPairPrecise left_sum;
       auto parent_gain = tree_evaluator.CalcGain(0, param_, GradStats{total_gpair_});
@@ -111,13 +111,13 @@ class TestPartitionBasedSplit : public ::testing::Test {
 };
 
 inline auto MakeCutsForTest(std::vector<float> values, std::vector<uint32_t> ptrs,
-                            std::vector<float> min_values, int32_t device) {
+                            std::vector<float> min_values, DeviceOrd device) {
   common::HistogramCuts cuts;
   cuts.cut_values_.HostVector() = values;
   cuts.cut_ptrs_.HostVector() = ptrs;
   cuts.min_vals_.HostVector() = min_values;
 
-  if (device >= 0) {
+  if (device.IsCUDA()) {
     cuts.cut_ptrs_.SetDevice(device);
     cuts.cut_values_.SetDevice(device);
     cuts.min_vals_.SetDevice(device);
@@ -136,7 +136,7 @@ class TestCategoricalSplitWithMissing : public testing::Test {
   TrainParam param_;
 
   void SetUp() override {
-    cuts_ = MakeCutsForTest({0.0, 1.0, 2.0, 3.0}, {0, 4}, {0.0}, -1);
+    cuts_ = MakeCutsForTest({0.0, 1.0, 2.0, 3.0}, {0, 4}, {0.0}, DeviceOrd::CPU());
     auto max_cat = *std::max_element(cuts_.cut_values_.HostVector().begin(),
                                      cuts_.cut_values_.HostVector().end());
     cuts_.SetCategorical(true, max_cat);

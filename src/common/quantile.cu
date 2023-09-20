@@ -207,10 +207,10 @@ common::Span<thrust::tuple<uint64_t, uint64_t>> MergePath(
 // summary does the output element come from) result by definition of merged rank.  So we
 // run it in 2 passes to obtain the merge path and then customize the standard merge
 // algorithm.
-void MergeImpl(int32_t device, Span<SketchEntry const> const &d_x,
+void MergeImpl(DeviceOrd device, Span<SketchEntry const> const &d_x,
                Span<bst_row_t const> const &x_ptr, Span<SketchEntry const> const &d_y,
                Span<bst_row_t const> const &y_ptr, Span<SketchEntry> out, Span<bst_row_t> out_ptr) {
-  dh::safe_cuda(cudaSetDevice(device));
+  dh::safe_cuda(cudaSetDevice(device.ordinal));
   CHECK_EQ(d_x.size() + d_y.size(), out.size());
   CHECK_EQ(x_ptr.size(), out_ptr.size());
   CHECK_EQ(y_ptr.size(), out_ptr.size());
@@ -308,7 +308,7 @@ void MergeImpl(int32_t device, Span<SketchEntry const> const &d_x,
 void SketchContainer::Push(Span<Entry const> entries, Span<size_t> columns_ptr,
                            common::Span<OffsetT> cuts_ptr,
                            size_t total_cuts, Span<float> weights) {
-  dh::safe_cuda(cudaSetDevice(device_));
+  dh::safe_cuda(cudaSetDevice(device_.ordinal));
   Span<SketchEntry> out;
   dh::device_vector<SketchEntry> cuts;
   bool first_window = this->Current().empty();
@@ -367,7 +367,7 @@ size_t SketchContainer::ScanInput(Span<SketchEntry> entries, Span<OffsetT> d_col
    * pruning or merging. We preserve the first type and remove the second type.
    */
   timer_.Start(__func__);
-  dh::safe_cuda(cudaSetDevice(device_));
+  dh::safe_cuda(cudaSetDevice(device_.ordinal));
   CHECK_EQ(d_columns_ptr_in.size(), num_columns_ + 1);
   dh::XGBCachingDeviceAllocator<char> alloc;
 
@@ -407,7 +407,7 @@ size_t SketchContainer::ScanInput(Span<SketchEntry> entries, Span<OffsetT> d_col
 
 void SketchContainer::Prune(size_t to) {
   timer_.Start(__func__);
-  dh::safe_cuda(cudaSetDevice(device_));
+  dh::safe_cuda(cudaSetDevice(device_.ordinal));
 
   OffsetT to_total = 0;
   auto& h_columns_ptr = columns_ptr_b_.HostVector();
@@ -442,7 +442,7 @@ void SketchContainer::Prune(size_t to) {
 
 void SketchContainer::Merge(Span<OffsetT const> d_that_columns_ptr,
                             Span<SketchEntry const> that) {
-  dh::safe_cuda(cudaSetDevice(device_));
+  dh::safe_cuda(cudaSetDevice(device_.ordinal));
   timer_.Start(__func__);
   if (this->Current().size() == 0) {
     CHECK_EQ(this->columns_ptr_.HostVector().back(), 0);
@@ -477,7 +477,7 @@ void SketchContainer::Merge(Span<OffsetT const> d_that_columns_ptr,
 }
 
 void SketchContainer::FixError() {
-  dh::safe_cuda(cudaSetDevice(device_));
+  dh::safe_cuda(cudaSetDevice(device_.ordinal));
   auto d_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
   auto in = dh::ToSpan(this->Current());
   dh::LaunchN(in.size(), [=] __device__(size_t idx) {
@@ -502,7 +502,7 @@ void SketchContainer::FixError() {
 }
 
 void SketchContainer::AllReduce(bool is_column_split) {
-  dh::safe_cuda(cudaSetDevice(device_));
+  dh::safe_cuda(cudaSetDevice(device_.ordinal));
   auto world = collective::GetWorldSize();
   if (world == 1 || is_column_split) {
     return;
@@ -529,15 +529,15 @@ void SketchContainer::AllReduce(bool is_column_split) {
   auto offset = rank * d_columns_ptr.size();
   thrust::copy(thrust::device, d_columns_ptr.data(), d_columns_ptr.data() + d_columns_ptr.size(),
                gathered_ptrs.begin() + offset);
-  collective::AllReduce<collective::Operation::kSum>(device_, gathered_ptrs.data().get(),
+  collective::AllReduce<collective::Operation::kSum>(device_.ordinal, gathered_ptrs.data().get(),
                                                      gathered_ptrs.size());
 
   // Get the data from all workers.
   std::vector<size_t> recv_lengths;
   dh::caching_device_vector<char> recvbuf;
-  collective::AllGatherV(device_, this->Current().data().get(),
+  collective::AllGatherV(device_.ordinal, this->Current().data().get(),
                          dh::ToSpan(this->Current()).size_bytes(), &recv_lengths, &recvbuf);
-  collective::Synchronize(device_);
+  collective::Synchronize(device_.ordinal);
 
   // Segment the received data.
   auto s_recvbuf = dh::ToSpan(recvbuf);
@@ -584,7 +584,7 @@ struct InvalidCatOp {
 
 void SketchContainer::MakeCuts(HistogramCuts* p_cuts, bool is_column_split) {
   timer_.Start(__func__);
-  dh::safe_cuda(cudaSetDevice(device_));
+  dh::safe_cuda(cudaSetDevice(device_.ordinal));
   p_cuts->min_vals_.Resize(num_columns_);
 
   // Sync between workers.

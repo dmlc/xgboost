@@ -824,7 +824,7 @@ std::pair<double, std::uint32_t> GPURankingPRAUC(Context const *ctx,
                                                  common::Span<float const> predts,
                                                  MetaInfo const &info,
                                                  std::shared_ptr<DeviceAUCCache> *p_cache) {
-  dh::safe_cuda(cudaSetDevice(ctx->gpu_id));
+  dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
   if (predts.empty()) {
     return std::make_pair(0.0, static_cast<uint32_t>(0));
   }

@@ -63,7 +63,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
     const int nclass = param_.num_class;
     const auto ndata = static_cast<int64_t>(preds.Size() / nclass);
 
-    auto device = ctx_->gpu_id;
+    auto device = ctx_->Device();
     out_gpair->SetDevice(device);
     info.labels.SetDevice(device);
     info.weights_.SetDevice(device);
@@ -133,7 +133,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
     const int nclass = param_.num_class;
     const auto ndata = static_cast<int64_t>(io_preds->Size() / nclass);
 
-    auto device = io_preds->DeviceIdx();
+    auto device = io_preds->Device();
     if (prob) {
       common::Transform<>::Init(
           [=] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {

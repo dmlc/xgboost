@@ -34,7 +34,7 @@ TEST(Predictor, PredictionCache) {
   // Add a cache that is immediately expired.
   auto add_cache = [&]() {
     auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
-    container.Cache(p_dmat, Context::kCpuId);
+    container.Cache(p_dmat, DeviceOrd::CPU());
     m = p_dmat.get();
   };
 
@@ -93,7 +93,7 @@ void TestTrainingPrediction(Context const *ctx, size_t rows, size_t bins,
 void TestInplacePrediction(Context const *ctx, std::shared_ptr<DMatrix> x, bst_row_t rows,
                            bst_feature_t cols) {
   std::size_t constexpr kClasses { 4 };
-  auto gen = RandomDataGenerator{rows, cols, 0.5}.Device(ctx->gpu_id);
+  auto gen = RandomDataGenerator{rows, cols, 0.5}.Device(ctx->Device());
   std::shared_ptr<DMatrix> m = gen.GenerateDMatrix(true, false, kClasses);
 
   std::unique_ptr<Learner> learner {
@@ -192,7 +192,7 @@ void TestPredictionDeviceAccess() {
 
   HostDeviceVector<float> from_cpu;
   {
-    ASSERT_EQ(from_cpu.DeviceIdx(), Context::kCpuId);
+    ASSERT_TRUE(from_cpu.Device().IsCPU());
     Context cpu_ctx;
     learner->SetParam("device", cpu_ctx.DeviceName());
     learner->Predict(m_test, false, &from_cpu, 0, 0);
@@ -206,7 +206,7 @@ void TestPredictionDeviceAccess() {
     Context cuda_ctx = MakeCUDACtx(0);
     learner->SetParam("device", cuda_ctx.DeviceName());
     learner->Predict(m_test, false, &from_cuda, 0, 0);
-    ASSERT_EQ(from_cuda.DeviceIdx(), 0);
+    ASSERT_EQ(from_cuda.Device(), DeviceOrd::CUDA(0));
     ASSERT_TRUE(from_cuda.DeviceCanWrite());
     ASSERT_FALSE(from_cuda.HostCanRead());
   }
@@ -351,7 +351,7 @@ void TestCategoricalPredictLeaf(bool use_gpu, bool is_column_split) {
 void TestIterationRange(Context const* ctx) {
   size_t constexpr kRows = 1000, kCols = 20, kClasses = 4, kForest = 3, kIters = 10;
   auto dmat = RandomDataGenerator(kRows, kCols, 0)
-                  .Device(ctx->gpu_id)
+                  .Device(ctx->Device())
                   .GenerateDMatrix(true, true, kClasses);
   auto learner = LearnerForTest(ctx, dmat, kIters, kForest);
 
@@ -522,7 +522,7 @@ void TestSparsePrediction(Context const *ctx, float sparsity) {
 
   if (ctx->IsCUDA()) {
     learner->SetParam("tree_method", "gpu_hist");
-    learner->SetParam("gpu_id", std::to_string(ctx->gpu_id));
+    learner->SetParam("device", ctx->Device().Name());
   }
   learner->Predict(Xy, false, &sparse_predt, 0, 0);
 
@@ -620,7 +620,7 @@ void TestVectorLeafPrediction(Context const *ctx) {
   size_t constexpr kCols = 5;
 
   LearnerModelParam mparam{static_cast<bst_feature_t>(kCols),
-                           linalg::Vector<float>{{0.5}, {1}, Context::kCpuId}, 1, 3,
+                           linalg::Vector<float>{{0.5}, {1}, DeviceOrd::CPU()}, 1, 3,
                            MultiStrategy::kMultiOutputTree};
 
   std::vector<std::unique_ptr<RegTree>> trees;

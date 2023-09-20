@@ -13,15 +13,15 @@
 namespace xgboost {
 namespace tree {
 
-RowPartitioner::RowPartitioner(int device_idx, size_t num_rows)
+RowPartitioner::RowPartitioner(DeviceOrd device_idx, size_t num_rows)
     : device_idx_(device_idx), ridx_(num_rows), ridx_tmp_(num_rows) {
-  dh::safe_cuda(cudaSetDevice(device_idx_));
+  dh::safe_cuda(cudaSetDevice(device_idx_.ordinal));
   ridx_segments_.emplace_back(NodePositionInfo{Segment(0, num_rows)});
   thrust::sequence(thrust::device, ridx_.data(), ridx_.data() + ridx_.size());
 }
 
 RowPartitioner::~RowPartitioner() {
-  dh::safe_cuda(cudaSetDevice(device_idx_));
+  dh::safe_cuda(cudaSetDevice(device_idx_.ordinal));
 }
 
 common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows(bst_node_t nidx) {

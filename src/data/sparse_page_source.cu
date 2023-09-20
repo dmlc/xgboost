@@ -19,11 +19,11 @@ std::size_t NFeaturesDevice(DMatrixProxy *proxy) {
 }  // namespace detail
 
 void DevicePush(DMatrixProxy *proxy, float missing, SparsePage *page) {
-  auto device = proxy->DeviceIdx();
-  if (device < 0) {
-    device = dh::CurrentDevice();
+  auto device = proxy->Device();
+  if (device.IsCPU()) {
+    device = DeviceOrd::CUDA(dh::CurrentDevice());
   }
-  CHECK_GE(device, 0);
+  CHECK(device.IsCUDA());
 
   cuda_impl::Dispatch(proxy,
                       [&](auto const &value) { CopyToSparsePage(value, device, missing, page); });

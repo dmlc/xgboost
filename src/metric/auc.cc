@@ -23,8 +23,7 @@
 #include "xgboost/linalg.h"
 #include "xgboost/metric.h"
 
-namespace xgboost {
-namespace metric {
+namespace xgboost::metric {
 // tag the this file, used by force static link later.
 DMLC_REGISTRY_FILE_TAG(auc);
 /**
@@ -257,10 +256,10 @@ template <typename Curve>
 class EvalAUC : public MetricNoCache {
   double Eval(const HostDeviceVector<bst_float> &preds, const MetaInfo &info) override {
     double auc {0};
-    if (ctx_->gpu_id != Context::kCpuId) {
-      preds.SetDevice(ctx_->gpu_id);
-      info.labels.SetDevice(ctx_->gpu_id);
-      info.weights_.SetDevice(ctx_->gpu_id);
+    if (ctx_->Device().IsCUDA()) {
+      preds.SetDevice(ctx_->Device());
+      info.labels.SetDevice(ctx_->Device());
+      info.weights_.SetDevice(ctx_->Device());
     }
     //  We use the global size to handle empty dataset.
     std::array<size_t, 2> meta{info.labels.Size(), preds.Size()};
@@ -329,7 +328,7 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
     double auc{0};
     uint32_t valid_groups = 0;
     auto n_threads = ctx_->Threads();
-    if (ctx_->gpu_id == Context::kCpuId) {
+    if (ctx_->IsCPU()) {
       std::tie(auc, valid_groups) =
           RankingAUC<true>(ctx_, predts.ConstHostVector(), info, n_threads);
     } else {
@@ -344,7 +343,7 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
     double auc{0};
     auto n_threads = ctx_->Threads();
     CHECK_NE(n_classes, 0);
-    if (ctx_->gpu_id == Context::kCpuId) {
+    if (ctx_->IsCPU()) {
       auc = MultiClassOVR(ctx_, predts.ConstHostVector(), info, n_classes, n_threads, BinaryROCAUC);
     } else {
       auc = GPUMultiClassROCAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_, n_classes);
@@ -355,7 +354,7 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
   std::tuple<double, double, double>
   EvalBinary(HostDeviceVector<float> const &predts, MetaInfo const &info) {
     double fp, tp, auc;
-    if (ctx_->gpu_id == Context::kCpuId) {
+    if (ctx_->IsCPU()) {
       std::tie(fp, tp, auc) = BinaryROCAUC(ctx_, predts.ConstHostVector(),
                                            info.labels.HostView().Slice(linalg::All(), 0),
                                            common::OptionalWeights{info.weights_.ConstHostSpan()});
@@ -367,7 +366,7 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
   }
 
  public:
-  char const* Name() const override {
+  [[nodiscard]] char const* Name() const override {
     return "auc";
   }
 };
@@ -405,7 +404,7 @@ class EvalPRAUC : public EvalAUC<EvalPRAUC> {
   std::tuple<double, double, double>
   EvalBinary(HostDeviceVector<float> const &predts, MetaInfo const &info) {
     double pr, re, auc;
-    if (ctx_->gpu_id == Context::kCpuId) {
+    if (ctx_->IsCPU()) {
       std::tie(pr, re, auc) =
           BinaryPRAUC(ctx_, predts.ConstHostSpan(), info.labels.HostView().Slice(linalg::All(), 0),
                       common::OptionalWeights{info.weights_.ConstHostSpan()});
@@ -418,7 +417,7 @@ class EvalPRAUC : public EvalAUC<EvalPRAUC> {
 
   double EvalMultiClass(HostDeviceVector<float> const &predts, MetaInfo const &info,
                         size_t n_classes) {
-    if (ctx_->gpu_id == Context::kCpuId) {
+    if (ctx_->IsCPU()) {
       auto n_threads = this->ctx_->Threads();
       return MultiClassOVR(ctx_, predts.ConstHostSpan(), info, n_classes, n_threads, BinaryPRAUC);
     } else {
@@ -431,7 +430,7 @@ class EvalPRAUC : public EvalAUC<EvalPRAUC> {
     double auc{0};
     uint32_t valid_groups = 0;
     auto n_threads = ctx_->Threads();
-    if (ctx_->gpu_id == Context::kCpuId) {
+    if (ctx_->IsCPU()) {
       auto labels = info.labels.Data()->ConstHostSpan();
       if (std::any_of(labels.cbegin(), labels.cend(), PRAUCLabelInvalid{})) {
         InvalidLabels();
@@ -446,7 +445,7 @@ class EvalPRAUC : public EvalAUC<EvalPRAUC> {
   }
 
  public:
-  const char *Name() const override { return "aucpr"; }
+  [[nodiscard]] const char *Name() const override { return "aucpr"; }
 };
 
 XGBOOST_REGISTER_METRIC(AUCPR, "aucpr")
@@ -473,5 +472,4 @@ std::pair<double, std::uint32_t> GPURankingPRAUC(Context const *, common::Span<f
   return {};
 }
 #endif
-}  // namespace metric
-}  // namespace xgboost
+}  // namespace xgboost::metric

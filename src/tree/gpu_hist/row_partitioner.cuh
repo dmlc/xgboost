@@ -199,7 +199,7 @@ class RowPartitioner {
   static constexpr bst_node_t kIgnoredTreePosition = -1;
 
  private:
-  int device_idx_;
+  DeviceOrd device_idx_;
   /*! \brief In here if you want to find the rows belong to a node nid, first you need to
    * get the indices segment from ridx_segments[nid], then get the row index that
    * represents position of row in input data X.  `RowPartitioner::GetRows` would be a
@@ -223,7 +223,7 @@ class RowPartitioner {
   dh::PinnedMemory pinned2_;
 
  public:
-  RowPartitioner(int device_idx, size_t num_rows);
+  RowPartitioner(DeviceOrd device_idx, size_t num_rows);
   ~RowPartitioner();
   RowPartitioner(const RowPartitioner&) = delete;
   RowPartitioner& operator=(const RowPartitioner&) = delete;

@@ -1,5 +1,5 @@
-/*!
- * Copyright 2018-2020 by Contributors
+/**
+ * Copyright 2018-2023 by Contributors
  * \file split_evaluator.h
  * \brief Used for implementing a loss term specific to decision trees. Useful for custom regularisation.
  * \author Henry Gouk
@@ -23,8 +23,7 @@
 #include "xgboost/host_device_vector.h"
 #include "xgboost/tree_model.h"
 
-namespace xgboost {
-namespace tree {
+namespace xgboost::tree {
 class TreeEvaluator {
   // hist and exact use parent id to calculate constraints.
   static constexpr bst_node_t kRootParentId =
@@ -33,13 +32,13 @@ class TreeEvaluator {
   HostDeviceVector<float> lower_bounds_;
   HostDeviceVector<float> upper_bounds_;
   HostDeviceVector<int32_t> monotone_;
-  int32_t device_;
+  DeviceOrd device_;
   bool has_constraint_;
 
  public:
-  TreeEvaluator(TrainParam const& p, bst_feature_t n_features, int32_t device) {
+  TreeEvaluator(TrainParam const& p, bst_feature_t n_features, DeviceOrd device) {
     device_ = device;
-    if (device != Context::kCpuId) {
+    if (device.IsCUDA()) {
       lower_bounds_.SetDevice(device);
       upper_bounds_.SetDevice(device);
       monotone_.SetDevice(device);
@@ -59,7 +58,7 @@ class TreeEvaluator {
       has_constraint_ = true;
     }
 
-    if (device_ != Context::kCpuId) {
+    if (device_.IsCUDA()) {
       // Pull to device early.
       lower_bounds_.ConstDeviceSpan();
       upper_bounds_.ConstDeviceSpan();
@@ -122,7 +121,7 @@ class TreeEvaluator {
     }
 
     // Fast floating point division instruction on device
-    XGBOOST_DEVICE float Divide(float a, float b) const {
+    [[nodiscard]] XGBOOST_DEVICE float Divide(float a, float b) const {
 #ifdef __CUDA_ARCH__
       return __fdividef(a, b);
 #else
@@ -154,7 +153,7 @@ class TreeEvaluator {
  public:
   /* Get a view to the evaluator that can be passed down to device. */
   template <typename ParamT = TrainParam> auto GetEvaluator() const {
-    if (device_ != Context::kCpuId) {
+    if (device_.IsCUDA()) {
       auto constraints = monotone_.ConstDevicePointer();
       return SplitEvaluator<ParamT>{constraints, lower_bounds_.ConstDevicePointer(),
                                     upper_bounds_.ConstDevicePointer(), has_constraint_};
@@ -215,7 +214,6 @@ enum SplitType {
   // partition-based categorical split
   kPart = 2
 };
-}  // namespace tree
-}  // namespace xgboost
+}  // namespace xgboost::tree
 
 #endif  // XGBOOST_TREE_SPLIT_EVALUATOR_H_

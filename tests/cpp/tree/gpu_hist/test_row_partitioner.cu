@@ -16,12 +16,10 @@
 #include "xgboost/task.h"
 #include "xgboost/tree_model.h"
 
-namespace xgboost {
-namespace tree {
-
+namespace xgboost::tree {
 void TestUpdatePositionBatch() {
   const int kNumRows = 10;
-  RowPartitioner rp(0, kNumRows);
+  RowPartitioner rp(FstCU(), kNumRows);
   auto rows = rp.GetRowsHost(0);
   EXPECT_EQ(rows.size(), kNumRows);
   for (auto i = 0ull; i < kNumRows; i++) {
@@ -89,12 +87,11 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
   }
 }
 
-TEST(GpuHist, SortPositionBatch) { 
-  TestSortPositionBatch({0, 1, 2, 3, 4, 5}, {{0, 3}, {3, 6}}); 
-  TestSortPositionBatch({0, 1, 2, 3, 4, 5}, {{0, 1}, {3, 6}}); 
+TEST(GpuHist, SortPositionBatch) {
+  TestSortPositionBatch({0, 1, 2, 3, 4, 5}, {{0, 3}, {3, 6}});
+  TestSortPositionBatch({0, 1, 2, 3, 4, 5}, {{0, 1}, {3, 6}});
   TestSortPositionBatch({0, 1, 2, 3, 4, 5}, {{0, 6}});
   TestSortPositionBatch({0, 1, 2, 3, 4, 5}, {{3, 6}, {0, 2}});
 }
 
-}  // namespace tree
-}  // namespace xgboost
+}  // namespace xgboost::tree

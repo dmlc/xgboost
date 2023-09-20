@@ -35,7 +35,7 @@ void TestCalcQueriesInvIDCG() {
   auto d_scores = dh::ToSpan(scores);
   common::SegmentedSequence(&ctx, d_group_ptr, d_scores);
 
-  linalg::Vector<double> inv_IDCG({n_groups}, ctx.gpu_id);
+  linalg::Vector<double> inv_IDCG({n_groups}, ctx.Device());
 
   ltr::LambdaRankParam p;
   p.UpdateAllowUnknown(Args{{"ndcg_exp_gain", "false"}});
@@ -70,7 +70,7 @@ void TestRankingCache(Context const* ctx) {
   HostDeviceVector<float> predt(info.num_row_, 0);
   auto& h_predt = predt.HostVector();
   std::iota(h_predt.begin(), h_predt.end(), 0.0f);
-  predt.SetDevice(ctx->gpu_id);
+  predt.SetDevice(ctx->Device());
 
   auto rank_idx =
       cache.SortedIdx(ctx, ctx->IsCPU() ? predt.ConstHostSpan() : predt.ConstDeviceSpan());
