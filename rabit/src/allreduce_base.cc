@@ -549,7 +549,7 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
       break;
     }
     // select must return
-    auto poll_res = watcher.Poll(timeout_sec);
+    auto poll_res = watcher.Poll(timeout_sec, false);  // fail on macos
     if (!poll_res.OK()) {
       LOG(FATAL) << poll_res.Report();
     }
@@ -814,7 +814,7 @@ AllreduceBase::TryAllgatherRing(void *sendrecvbuf_, size_t total_size,
       break;
     }
 
-    auto poll_res = watcher.Poll(timeout_sec);
+    auto poll_res = watcher.Poll(timeout_sec, false);  // fail on macos
     if (!poll_res.OK()) {
       LOG(FATAL) << poll_res.Report();
     }
@@ -919,7 +919,7 @@ AllreduceBase::TryReduceScatterRing(void *sendrecvbuf_,
     if (finished) {
       break;
     }
-    auto poll_res = watcher.Poll(timeout_sec);
+    auto poll_res = watcher.Poll(timeout_sec, false);  // fail on macos
     if (!poll_res.OK()) {
       LOG(FATAL) << poll_res.Report();
     }
