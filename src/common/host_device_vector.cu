@@ -138,7 +138,7 @@ class HostDeviceVectorImpl {
     } else {
       auto ptr = other->ConstDevicePointer();
       SetDevice();
-      CHECK_EQ(this->Device().ordinal, other->Device().ordinal);
+      CHECK_EQ(this->Device(), other->Device());
       dh::safe_cuda(cudaMemcpyAsync(this->DevicePointer() + ori_size,
                                     ptr,
                                     other->Size() * sizeof(T),
