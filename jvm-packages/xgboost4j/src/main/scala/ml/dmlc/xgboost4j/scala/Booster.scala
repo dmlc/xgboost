@@ -326,7 +326,7 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
   @throws(classOf[XGBoostError])
   def getNumFeature: Long = booster.getNumFeature
 
-  def getVersion: Int = booster.getVersion
+  def getNumBoostedRound: Long = booster.getNumBoostedRound
 
   /**
     * Save model into a raw byte array.  Available options are "json", "ubj" and "deprecated".

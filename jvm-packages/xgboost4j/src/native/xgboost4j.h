@@ -289,27 +289,19 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterSetAttr
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    XGBoosterLoadRabitCheckpoint
- * Signature: (J[I)I
- */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterLoadRabitCheckpoint
-  (JNIEnv *, jclass, jlong, jintArray);
-
-/*
- * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    XGBoosterSaveRabitCheckpoint
- * Signature: (J)I
- */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterSaveRabitCheckpoint
-  (JNIEnv *, jclass, jlong);
-
-/*
- * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGBoosterGetNumFeature
  * Signature: (J[J)I
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterGetNumFeature
   (JNIEnv *, jclass, jlong, jlongArray);
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGBoosterGetNumBoostedRound
+ * Signature: (J[I)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterGetNumBoostedRound
+  (JNIEnv *, jclass, jlong, jintArray);
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI

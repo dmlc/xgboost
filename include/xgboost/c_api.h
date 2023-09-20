@@ -1309,24 +1309,6 @@ XGB_DLL int XGBoosterUnserializeFromBuffer(BoosterHandle handle,
                                            const void *buf, bst_ulong len);
 
 /*!
- * \brief Initialize the booster from rabit checkpoint.
- *  This is used in distributed training API.
- * \param handle handle
- * \param version The output version of the model.
- * \return 0 when success, -1 when failure happens
- */
-XGB_DLL int XGBoosterLoadRabitCheckpoint(BoosterHandle handle,
-                                         int* version);
-
-/*!
- * \brief Save the current checkpoint to rabit.
- * \param handle handle
- * \return 0 when success, -1 when failure happens
- */
-XGB_DLL int XGBoosterSaveRabitCheckpoint(BoosterHandle handle);
-
-
-/*!
  * \brief Save XGBoost's internal configuration into a JSON document.  Currently the
  *        support is experimental, function signature may change in the future without
  *        notice.

@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2022 by Contributors
+ Copyright (c) 2014-2023 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -808,14 +808,6 @@ public class Booster implements Serializable, KryoSerializable {
     return modelInfos[0];
   }
 
-  public int getVersion() {
-    return this.version;
-  }
-
-  public void setVersion(int version) {
-    this.version = version;
-  }
-
   /**
    * Save model into raw byte array. Currently it's using the deprecated format as
    * default, which will be changed into `ubj` in future releases.
@@ -842,29 +834,6 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   /**
-   * Load the booster model from thread-local rabit checkpoint.
-   * This is only used in distributed training.
-   * @return the stored version number of the checkpoint.
-   * @throws XGBoostError
-   */
-  int loadRabitCheckpoint() throws XGBoostError {
-    int[] out = new int[1];
-    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterLoadRabitCheckpoint(this.handle, out));
-    version = out[0];
-    return version;
-  }
-
-  /**
-   * Save the booster model into thread-local rabit checkpoint and increment the version.
-   * This is only used in distributed training.
-   * @throws XGBoostError
-   */
-  void saveRabitCheckpoint() throws XGBoostError {
-    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterSaveRabitCheckpoint(this.handle));
-    version += 1;
-  }
-
-  /**
    * Get number of model features.
    * @return the number of features.
    * @throws XGBoostError
@@ -873,6 +842,11 @@ public class Booster implements Serializable, KryoSerializable {
     long[] numFeature = new long[1];
     XGBoostJNI.checkCall(XGBoostJNI.XGBoosterGetNumFeature(this.handle, numFeature));
     return numFeature[0];
+  }
+  public int getNumBoostedRound() throws XGBoostError {
+    int[] numRound = new int[1];
+    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterGetNumBoostedRound(this.handle, numRound));
+    return numRound[0];
   }
 
   /**

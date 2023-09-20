@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2022 by Contributors
+ Copyright (c) 2014-2023 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 package ml.dmlc.xgboost4j.java;
 
 import junit.framework.TestCase;
-import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
@@ -31,7 +30,7 @@ import static org.junit.Assert.fail;
 
 /**
  * test cases for Booster Inplace Predict
- * 
+ *
  * @author hzx and Sovrn
  */
 public class BoosterImplTest {
@@ -845,14 +844,12 @@ public class BoosterImplTest {
     float tempBoosterError = eval.eval(tempBooster.predict(testMat, true, 0), testMat);
 
     // Save tempBooster to bytestream and load back
-    int prevVersion = tempBooster.getVersion();
     ByteArrayInputStream in = new ByteArrayInputStream(tempBooster.toByteArray());
     tempBooster = XGBoost.loadModel(in);
     in.close();
-    tempBooster.setVersion(prevVersion);
 
     // Continue training using tempBooster
-    round = 4;
+    round = 2;
     Booster booster2 = XGBoost.train(trainMat, paramMap, round, watches, null, null, null, 0, tempBooster);
     float booster2error = eval.eval(booster2.predict(testMat, true, 0), testMat);
     TestCase.assertTrue(booster1error == booster2error);

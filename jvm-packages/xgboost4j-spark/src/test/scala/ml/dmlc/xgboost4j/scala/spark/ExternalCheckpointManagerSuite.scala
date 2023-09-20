@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2022 by Contributors
+ Copyright (c) 2014-2023 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -51,13 +51,13 @@ class ExternalCheckpointManagerSuite extends AnyFunSuite with TmpFolderPerSuite 
     var files = FileSystem.get(sc.hadoopConfiguration).listStatus(new Path(tmpPath))
     assert(files.length == 1)
     assert(files.head.getPath.getName == "4.model")
-    assert(manager.loadCheckpointAsScalaBooster().getVersion == 4)
+    assert(manager.loadCheckpointAsScalaBooster().getNumBoostedRound == 4)
 
     manager.updateCheckpoint(model8._booster)
     files = FileSystem.get(sc.hadoopConfiguration).listStatus(new Path(tmpPath))
     assert(files.length == 1)
     assert(files.head.getPath.getName == "8.model")
-    assert(manager.loadCheckpointAsScalaBooster().getVersion == 8)
+    assert(manager.loadCheckpointAsScalaBooster().getNumBoostedRound == 8)
   }
 
   test("test cleanUpHigherVersions") {

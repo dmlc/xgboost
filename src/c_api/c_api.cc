@@ -1430,36 +1430,13 @@ XGB_DLL int XGBoosterUnserializeFromBuffer(BoosterHandle handle,
   API_END();
 }
 
-XGB_DLL int XGBoosterLoadRabitCheckpoint(BoosterHandle handle,
-                                         int* version) {
-  API_BEGIN();
-  CHECK_HANDLE();
-  auto* bst = static_cast<Learner*>(handle);
-  xgboost_CHECK_C_ARG_PTR(version);
-  *version = rabit::LoadCheckPoint();
-  if (*version != 0) {
-    bst->Configure();
-  }
-  API_END();
-}
-
-XGB_DLL int XGBoosterSaveRabitCheckpoint(BoosterHandle handle) {
-  API_BEGIN();
-  CHECK_HANDLE();
-  auto *learner = static_cast<Learner *>(handle);
-  learner->Configure();
-  rabit::CheckPoint();
-  API_END();
-}
-
-XGB_DLL int XGBoosterSlice(BoosterHandle handle, int begin_layer,
-                           int end_layer, int step,
+XGB_DLL int XGBoosterSlice(BoosterHandle handle, int begin_layer, int end_layer, int step,
                            BoosterHandle *out) {
   API_BEGIN();
   CHECK_HANDLE();
   xgboost_CHECK_C_ARG_PTR(out);
 
-  auto* learner = static_cast<Learner*>(handle);
+  auto *learner = static_cast<Learner *>(handle);
   bool out_of_bound = false;
   auto p_out = learner->Slice(begin_layer, end_layer, step, &out_of_bound);
   if (out_of_bound) {

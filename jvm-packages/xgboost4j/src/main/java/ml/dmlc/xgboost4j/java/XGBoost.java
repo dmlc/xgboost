@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014,2021 by Contributors
+ Copyright (c) 2014-2023 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -203,7 +203,6 @@ public class XGBoost {
       booster = new Booster(params, allMats);
       booster.setFeatureNames(dtrain.getFeatureNames());
       booster.setFeatureTypes(dtrain.getFeatureTypes());
-      booster.loadRabitCheckpoint();
     } else {
       // Start training on an existing booster
       booster.setParams(params);
@@ -217,18 +216,11 @@ public class XGBoost {
     boolean max_direction = false;
 
     // begin to train
-    for (int iter = booster.getVersion() / 2; iter < numRounds; iter++) {
-      if (booster.getVersion() % 2 == 0) {
-        if (obj != null) {
-          booster.update(dtrain, obj);
-        } else {
-          booster.update(dtrain, iter);
-        }
-        saveCheckpoint(booster, iter, checkpointIterations, ecm);
-        booster.saveRabitCheckpoint();
-      }
+    for (int iter = 0; iter < numRounds; iter++) {
+      booster.update(dtrain, iter);
+      saveCheckpoint(booster, iter, checkpointIterations, ecm);
 
-      //evaluation
+      // evaluation
       if (evalMats.length > 0) {
         float[] metricsOut = new float[evalMats.length];
         String evalInfo;
@@ -285,7 +277,6 @@ public class XGBoost {
           Communicator.communicatorPrint(evalInfo + '\n');
         }
       }
-      booster.saveRabitCheckpoint();
     }
     return booster;
   }

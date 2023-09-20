@@ -1,3 +1,18 @@
+/*
+ Copyright (c) 2014-2023 by Contributors
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+ http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+ */
 package ml.dmlc.xgboost4j.java;
 
 import java.io.IOException;
@@ -56,7 +71,6 @@ public class ExternalCheckpointManager {
       InputStream in = fs.open(new Path(checkpointPath));
       logger.info("loaded checkpoint from " + checkpointPath);
       Booster booster = XGBoost.loadModel(in);
-      booster.setVersion(latestVersion);
       return booster;
     } else {
       return null;
@@ -66,12 +80,12 @@ public class ExternalCheckpointManager {
   public void updateCheckpoint(Booster boosterToCheckpoint) throws IOException, XGBoostError {
     List<String> prevModelPaths = getExistingVersions().stream()
             .map(this::getPath).collect(Collectors.toList());
-    String eventualPath = getPath(boosterToCheckpoint.getVersion());
+    String eventualPath = getPath(boosterToCheckpoint.getNumBoostedRound());
     String tempPath = eventualPath + "-" + UUID.randomUUID();
     try (OutputStream out = fs.create(new Path(tempPath), true)) {
       boosterToCheckpoint.saveModel(out);
       fs.rename(new Path(tempPath), new Path(eventualPath));
-      logger.info("saving checkpoint with version " + boosterToCheckpoint.getVersion());
+      logger.info("saving checkpoint with version " + boosterToCheckpoint.getNumBoostedRound());
       prevModelPaths.stream().forEach(path -> {
         try {
           fs.delete(new Path(path), true);
