@@ -35,7 +35,7 @@ PackedReduceResult PreScore(Context const *ctx, MetaInfo const &info,
   auto d_gptr = p_cache->DataGroupPtr(ctx);
   auto d_label = info.labels.View(ctx->Device()).Slice(linalg::All(), 0);
 
-  predt.SetDevice(ctx->gpu_id);
+  predt.SetDevice(ctx->Device());
   auto d_rank_idx = p_cache->SortedIdx(ctx, predt.ConstDeviceSpan());
   auto topk = p_cache->Param().TopK();
   auto d_weight = common::MakeOptionalWeights(ctx, info.weights_);
@@ -90,7 +90,7 @@ PackedReduceResult NDCGScore(Context const *ctx, MetaInfo const &info,
     CHECK_EQ(d_weight.weights.size(), p_cache->Groups());
   }
   auto d_label = info.labels.View(ctx->Device()).Slice(linalg::All(), 0);
-  predt.SetDevice(ctx->gpu_id);
+  predt.SetDevice(ctx->Device());
   auto d_predt = linalg::MakeTensorView(ctx, predt.ConstDeviceSpan(), predt.Size());
 
   auto d_group_ptr = p_cache->DataGroupPtr(ctx);

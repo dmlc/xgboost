@@ -29,13 +29,13 @@ template <typename T, int32_t D>
 void CopyTensorInfoImpl(CUDAContext const* ctx, Json arr_interface, linalg::Tensor<T, D>* p_out) {
   ArrayInterface<D> array(arr_interface);
   if (array.n == 0) {
-    p_out->SetDevice(0);
+    p_out->SetDevice(DeviceOrd::CUDA(0));
     p_out->Reshape(array.shape);
     return;
   }
   CHECK_EQ(array.valid.Capacity(), 0)
       << "Meta info like label or weight can not have missing value.";
-  auto ptr_device = SetDeviceToPtr(array.data);
+  auto ptr_device = DeviceOrd::CUDA(SetDeviceToPtr(array.data));
   p_out->SetDevice(ptr_device);
 
   if (array.is_contiguous && array.type == ToDType<T>::kType) {
@@ -50,7 +50,7 @@ void CopyTensorInfoImpl(CUDAContext const* ctx, Json arr_interface, linalg::Tens
     return;
   }
   p_out->Reshape(array.shape);
-  auto t = p_out->View(DeviceOrd::CUDA(ptr_device));
+  auto t = p_out->View(ptr_device);
   linalg::ElementWiseTransformDevice(
       t,
       [=] __device__(size_t i, T) {
@@ -86,7 +86,7 @@ void CopyQidImpl(ArrayInterface<1> array_interface, std::vector<bst_group_t>* p_
       });
   dh::caching_device_vector<bool> flag(1);
   auto d_flag = dh::ToSpan(flag);
-  auto d = SetDeviceToPtr(array_interface.data);
+  auto d = DeviceOrd::CUDA(SetDeviceToPtr(array_interface.data));
   dh::LaunchN(1, [=] __device__(size_t) { d_flag[0] = true; });
   dh::LaunchN(array_interface.Shape(0) - 1, [=] __device__(size_t i) {
     auto typed = TypedIndex<uint32_t, 1>{array_interface};

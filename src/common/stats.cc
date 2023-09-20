@@ -15,8 +15,7 @@
 #include "xgboost/linalg.h"              // Tensor, UnravelIndex, Apply
 #include "xgboost/logging.h"             // CHECK_EQ
 
-namespace xgboost {
-namespace common {
+namespace xgboost::common {
 void Median(Context const* ctx, linalg::Tensor<float, 2> const& t,
             HostDeviceVector<float> const& weights, linalg::Tensor<float, 1>* out) {
   if (!ctx->IsCPU()) {
@@ -46,8 +45,8 @@ void Median(Context const* ctx, linalg::Tensor<float, 2> const& t,
 }
 
 void Mean(Context const* ctx, linalg::Vector<float> const& v, linalg::Vector<float>* out) {
-  v.SetDevice(ctx->gpu_id);
-  out->SetDevice(ctx->gpu_id);
+  v.SetDevice(ctx->Device());
+  out->SetDevice(ctx->Device());
   out->Reshape(1);
 
   if (ctx->IsCPU()) {
@@ -62,5 +61,4 @@ void Mean(Context const* ctx, linalg::Vector<float> const& v, linalg::Vector<flo
     cuda_impl::Mean(ctx, v.View(ctx->Device()), out->View(ctx->Device()));
   }
 }
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common

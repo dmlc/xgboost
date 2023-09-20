@@ -15,10 +15,12 @@ namespace xgboost::data {
 TEST(ProxyDMatrix, DeviceData) {
   constexpr size_t kRows{100}, kCols{100};
   HostDeviceVector<float> storage;
-  auto data = RandomDataGenerator(kRows, kCols, 0.5).Device(0).GenerateArrayInterface(&storage);
+  auto data =
+      RandomDataGenerator(kRows, kCols, 0.5).Device(FstCU()).GenerateArrayInterface(&storage);
   std::vector<HostDeviceVector<float>> label_storage(1);
-  auto labels =
-      RandomDataGenerator(kRows, 1, 0).Device(0).GenerateColumnarArrayInterface(&label_storage);
+  auto labels = RandomDataGenerator(kRows, 1, 0)
+                    .Device(FstCU())
+                    .GenerateColumnarArrayInterface(&label_storage);
 
   DMatrixProxy proxy;
   proxy.SetCUDAArray(data.c_str());
@@ -31,7 +33,7 @@ TEST(ProxyDMatrix, DeviceData) {
 
   std::vector<HostDeviceVector<float>> columnar_storage(kCols);
   data = RandomDataGenerator(kRows, kCols, 0)
-             .Device(0)
+             .Device(FstCU())
              .GenerateColumnarArrayInterface(&columnar_storage);
   proxy.SetCUDAArray(data.c_str());
   ASSERT_EQ(proxy.Adapter().type(), typeid(std::shared_ptr<CudfAdapter>));

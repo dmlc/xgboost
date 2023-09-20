@@ -123,7 +123,7 @@ void SortByWeight(dh::device_vector<float>* weights, dh::device_vector<Entry>* s
       [=] __device__(const Entry& a, const Entry& b) { return a.index == b.index; });
 }
 
-void RemoveDuplicatedCategories(int32_t device, MetaInfo const& info, Span<bst_row_t> d_cuts_ptr,
+void RemoveDuplicatedCategories(DeviceOrd device, MetaInfo const& info, Span<bst_row_t> d_cuts_ptr,
                                 dh::device_vector<Entry>* p_sorted_entries,
                                 dh::device_vector<float>* p_sorted_weights,
                                 dh::caching_device_vector<size_t>* p_column_sizes_scan) {
@@ -240,13 +240,13 @@ void ProcessWeightedBatch(Context const* ctx, const SparsePage& page, MetaInfo c
       sorted_entries.data().get(), [] __device__(Entry const& e) -> data::COOTuple {
         return {0, e.index, e.fvalue};  // row_idx is not needed for scaning column size.
       });
-  detail::GetColumnSizesScan(ctx->Ordinal(), info.num_col_, num_cuts_per_feature,
+  detail::GetColumnSizesScan(ctx->Device(), info.num_col_, num_cuts_per_feature,
                              IterSpan{batch_it, sorted_entries.size()}, dummy_is_valid, &cuts_ptr,
                              &column_sizes_scan);
   auto d_cuts_ptr = cuts_ptr.DeviceSpan();
   if (sketch_container->HasCategorical()) {
     auto p_weight = entry_weight.empty() ? nullptr : &entry_weight;
-    detail::RemoveDuplicatedCategories(ctx->Ordinal(), info, d_cuts_ptr, &sorted_entries, p_weight,
+    detail::RemoveDuplicatedCategories(ctx->Device(), info, d_cuts_ptr, &sorted_entries, p_weight,
                                        &column_sizes_scan);
   }
 
@@ -347,7 +347,7 @@ HistogramCuts DeviceSketchWithHessian(Context const* ctx, DMatrix* p_fmat, bst_b
 
   HistogramCuts cuts;
   SketchContainer sketch_container(info.feature_types, max_bin, info.num_col_, info.num_row_,
-                                   ctx->Ordinal());
+                                   ctx->Device());
   CHECK_EQ(has_weight || !hessian.empty(), !d_weight.empty());
   for (const auto& page : p_fmat->GetBatches<SparsePage>()) {
     std::size_t page_nnz = page.data.Size();

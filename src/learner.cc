@@ -305,10 +305,10 @@ linalg::TensorView<float const, 1> LearnerModelParam::BaseScore(Context const* c
 
 void LearnerModelParam::Copy(LearnerModelParam const& that) {
   base_score_.Reshape(that.base_score_.Shape());
-  base_score_.Data()->SetDevice(that.base_score_.DeviceIdx());
+  base_score_.Data()->SetDevice(that.base_score_.Device());
   base_score_.Data()->Copy(*that.base_score_.Data());
   std::as_const(base_score_).HostView();
-  if (that.base_score_.DeviceIdx() != Context::kCpuId) {
+  if (!that.base_score_.Device().IsCPU()) {
     std::as_const(base_score_).View(that.base_score_.Device());
   }
   CHECK_EQ(base_score_.Data()->DeviceCanRead(), that.base_score_.Data()->DeviceCanRead());
@@ -424,7 +424,7 @@ class LearnerConfiguration : public Learner {
     if (mparam_.boost_from_average && !UsePtr(gbm_)->ModelFitted()) {
       if (p_fmat) {
         auto const& info = p_fmat->Info();
-        info.Validate(Ctx()->Ordinal());
+        info.Validate(Ctx()->Device());
         // We estimate it from input data.
         linalg::Tensor<float, 1> base_score;
         InitEstimation(info, &base_score);
@@ -446,7 +446,7 @@ class LearnerConfiguration : public Learner {
     monitor_.Init("Learner");
     for (std::shared_ptr<DMatrix> const& d : cache) {
       if (d) {
-        prediction_container_.Cache(d, Context::kCpuId);
+        prediction_container_.Cache(d, DeviceOrd::CPU());
       }
     }
   }
@@ -1046,7 +1046,7 @@ class LearnerIO : public LearnerConfiguration {
                                                         ? std::numeric_limits<float>::quiet_NaN()
                                                         : obj_->ProbToMargin(mparam_.base_score)},
                                                    {1},
-                                                   Context::kCpuId},
+                                                   DeviceOrd::CPU()},
                           obj_->Task(), tparam_.multi_strategy);
 
     if (attributes_.find("objective") != attributes_.cend()) {
@@ -1271,7 +1271,7 @@ class LearnerImpl : public LearnerIO {
 
     this->ValidateDMatrix(train.get(), true);
 
-    auto& predt = prediction_container_.Cache(train, ctx_.gpu_id);
+    auto& predt = prediction_container_.Cache(train, ctx_.Device());
 
     monitor_.Start("PredictRaw");
     this->PredictRaw(train.get(), &predt, true, 0, 0);
@@ -1301,7 +1301,7 @@ class LearnerImpl : public LearnerIO {
     CHECK_EQ(this->learner_model_param_.OutputLength(), in_gpair->Shape(1))
         << "The number of columns in gradient should be equal to the number of targets/classes in "
            "the model.";
-    auto& predt = prediction_container_.Cache(train, ctx_.gpu_id);
+    auto& predt = prediction_container_.Cache(train, ctx_.Device());
     gbm_->DoBoost(train.get(), in_gpair, &predt, obj_.get());
     monitor_.Stop("BoostOneIter");
   }
@@ -1327,11 +1327,11 @@ class LearnerImpl : public LearnerIO {
 
     for (size_t i = 0; i < data_sets.size(); ++i) {
       std::shared_ptr<DMatrix> m = data_sets[i];
-      auto &predt = prediction_container_.Cache(m, ctx_.gpu_id);
+      auto &predt = prediction_container_.Cache(m, ctx_.Device());
       this->ValidateDMatrix(m.get(), false);
       this->PredictRaw(m.get(), &predt, false, 0, 0);
 
-      auto &out = output_predictions_.Cache(m, ctx_.gpu_id).predictions;
+      auto &out = output_predictions_.Cache(m, ctx_.Device()).predictions;
       out.Resize(predt.predictions.Size());
       out.Copy(predt.predictions);
 
@@ -1367,7 +1367,7 @@ class LearnerImpl : public LearnerIO {
     } else if (pred_leaf) {
       gbm_->PredictLeaf(data.get(), out_preds, layer_begin, layer_end);
     } else {
-      auto& prediction = prediction_container_.Cache(data, ctx_.gpu_id);
+      auto& prediction = prediction_container_.Cache(data, ctx_.Device());
       this->PredictRaw(data.get(), &prediction, training, layer_begin, layer_end);
       // Copy the prediction cache to output prediction. out_preds comes from C API
       out_preds->SetDevice(ctx_.Device());
@@ -1447,7 +1447,7 @@ class LearnerImpl : public LearnerIO {
 
   void ValidateDMatrix(DMatrix* p_fmat, bool is_training) const {
     MetaInfo const& info = p_fmat->Info();
-    info.Validate(ctx_.gpu_id);
+    info.Validate(ctx_.Device());
 
     if (is_training) {
       CHECK_EQ(learner_model_param_.num_feature, p_fmat->Info().num_col_)

@@ -9,7 +9,7 @@ namespace xgboost {
 CudaArrayIterForTest::CudaArrayIterForTest(float sparsity, size_t rows,
                                            size_t cols, size_t batches)
     : ArrayIterForTest{sparsity, rows, cols, batches} {
-  rng_->Device(0);
+  rng_->Device(FstCU());
   std::tie(batches_, interface_) =
       rng_->GenerateArrayInterfaceBatch(&data_, n_batches_);
   this->Reset();

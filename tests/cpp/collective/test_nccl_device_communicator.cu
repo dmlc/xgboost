@@ -34,7 +34,7 @@ void VerifyAllReduceBitwiseAND() {
   auto const rank = collective::GetRank();
   std::bitset<64> original{};
   original[rank] = true;
-  HostDeviceVector<uint64_t> buffer({original.to_ullong()}, rank);
+  HostDeviceVector<uint64_t> buffer({original.to_ullong()}, DeviceOrd::CUDA(rank));
   collective::AllReduce<collective::Operation::kBitwiseAND>(rank, buffer.DevicePointer(), 1);
   collective::Synchronize(rank);
   EXPECT_EQ(buffer.HostVector()[0], 0ULL);
@@ -56,7 +56,7 @@ void VerifyAllReduceBitwiseOR() {
   auto const rank = collective::GetRank();
   std::bitset<64> original{};
   original[rank] = true;
-  HostDeviceVector<uint64_t> buffer({original.to_ullong()}, rank);
+  HostDeviceVector<uint64_t> buffer({original.to_ullong()}, DeviceOrd::CUDA(rank));
   collective::AllReduce<collective::Operation::kBitwiseOR>(rank, buffer.DevicePointer(), 1);
   collective::Synchronize(rank);
   EXPECT_EQ(buffer.HostVector()[0], (1ULL << world_size) - 1);
@@ -78,7 +78,7 @@ void VerifyAllReduceBitwiseXOR() {
   auto const rank = collective::GetRank();
   std::bitset<64> original{~0ULL};
   original[rank] = false;
-  HostDeviceVector<uint64_t> buffer({original.to_ullong()}, rank);
+  HostDeviceVector<uint64_t> buffer({original.to_ullong()}, DeviceOrd::CUDA(rank));
   collective::AllReduce<collective::Operation::kBitwiseXOR>(rank, buffer.DevicePointer(), 1);
   collective::Synchronize(rank);
   EXPECT_EQ(buffer.HostVector()[0], (1ULL << world_size) - 1);

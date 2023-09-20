@@ -33,19 +33,19 @@ struct HostDeviceVectorImpl {
 };
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(size_t size, T v, int)
+HostDeviceVector<T>::HostDeviceVector(size_t size, T v, DeviceOrd)
   : impl_(nullptr) {
   impl_ = new HostDeviceVectorImpl<T>(size, v);
 }
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(std::initializer_list<T> init, int)
+HostDeviceVector<T>::HostDeviceVector(std::initializer_list<T> init, DeviceOrd)
   : impl_(nullptr) {
   impl_ = new HostDeviceVectorImpl<T>(init);
 }
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(const std::vector<T>& init, int)
+HostDeviceVector<T>::HostDeviceVector(const std::vector<T>& init, DeviceOrd)
   : impl_(nullptr) {
   impl_ = new HostDeviceVectorImpl<T>(init);
 }
@@ -81,7 +81,7 @@ template <typename T>
 size_t HostDeviceVector<T>::Size() const { return impl_->Vec().size(); }
 
 template <typename T>
-int HostDeviceVector<T>::DeviceIdx() const { return -1; }
+DeviceOrd HostDeviceVector<T>::Device() const { return DeviceOrd::CPU(); }
 
 template <typename T>
 T* HostDeviceVector<T>::DevicePointer() { return nullptr; }
@@ -164,9 +164,6 @@ template <typename T>
 bool HostDeviceVector<T>::DeviceCanWrite() const {
   return false;
 }
-
-template <typename T>
-void HostDeviceVector<T>::SetDevice(int) const {}
 
 template <typename T>
 void HostDeviceVector<T>::SetDevice(DeviceOrd) const {}

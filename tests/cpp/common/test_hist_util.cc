@@ -147,7 +147,7 @@ TEST(CutsBuilder, SearchGroupInd) {
 
   EXPECT_ANY_THROW(HostSketchContainer::SearchGroupIndFromRow(p_mat->Info().group_ptr_, 17));
 
-  p_mat->Info().Validate(-1);
+  p_mat->Info().Validate(DeviceOrd::CPU());
   EXPECT_THROW(HostSketchContainer::SearchGroupIndFromRow(p_mat->Info().group_ptr_, 17),
                dmlc::Error);
 
@@ -330,7 +330,7 @@ TEST(HistUtil, IndexBinData) {
 void TestSketchFromWeights(bool with_group) {
   size_t constexpr kRows = 300, kCols = 20, kBins = 256;
   size_t constexpr kGroups = 10;
-  auto m = RandomDataGenerator{kRows, kCols, 0}.Device(0).GenerateDMatrix();
+  auto m = RandomDataGenerator{kRows, kCols, 0}.Device(DeviceOrd::CUDA(0)).GenerateDMatrix();
   Context ctx;
   common::HistogramCuts cuts = SketchOnDMatrix(&ctx, m.get(), kBins);
 

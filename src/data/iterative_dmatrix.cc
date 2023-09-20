@@ -36,8 +36,7 @@ IterativeDMatrix::IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle pro
   auto pctx = MakeProxy(proxy_)->Ctx();
 
   Context ctx;
-  ctx.UpdateAllowUnknown(
-      Args{{"nthread", std::to_string(nthread)}, {"device", pctx->DeviceName()}});
+  ctx.Init(Args{{"nthread", std::to_string(nthread)}, {"device", pctx->DeviceName()}});
   // hardcoded parameter.
   BatchParam p{max_bin, tree::TrainParam::DftSparseThreshold()};
 
@@ -139,7 +138,7 @@ void IterativeDMatrix::InitFromCPU(Context const* ctx, BatchParam const& p,
     return HostAdapterDispatch(proxy, [&](auto const& value) {
       size_t n_threads = ctx->Threads();
       size_t n_features = column_sizes.size();
-      linalg::Tensor<std::size_t, 2> column_sizes_tloc({n_threads, n_features}, Context::kCpuId);
+      linalg::Tensor<std::size_t, 2> column_sizes_tloc({n_threads, n_features}, DeviceOrd::CPU());
       column_sizes_tloc.Data()->Fill(0ul);
       auto view = column_sizes_tloc.HostView();
       common::ParallelFor(value.Size(), n_threads, common::Sched::Static(256), [&](auto i) {

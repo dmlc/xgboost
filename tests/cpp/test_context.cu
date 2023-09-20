@@ -13,7 +13,6 @@
 namespace xgboost {
 namespace {
 void TestCUDA(Context const& ctx, bst_d_ordinal_t ord) {
-  ASSERT_EQ(ctx.gpu_id, ord);
   ASSERT_EQ(ctx.Device().ordinal, ord);
   ASSERT_EQ(ctx.DeviceName(), "cuda:" + std::to_string(ord));
   ASSERT_EQ(ctx.Ordinal(), ord);
@@ -25,7 +24,7 @@ void TestCUDA(Context const& ctx, bst_d_ordinal_t ord) {
   Context new_ctx;
   FromJson(jctx, &new_ctx);
   ASSERT_EQ(new_ctx.Device(), ctx.Device());
-  ASSERT_EQ(new_ctx.gpu_id, ctx.gpu_id);
+  ASSERT_EQ(new_ctx.Ordinal(), ctx.Ordinal());
 }
 }  // namespace
 
@@ -53,7 +52,7 @@ TEST(Context, DeviceOrdinal) {
 
   auto cpu_ctx = ctx.MakeCPU();
   ASSERT_TRUE(cpu_ctx.IsCPU());
-  ASSERT_EQ(cpu_ctx.Ordinal(), Context::kCpuId);
+  ASSERT_EQ(cpu_ctx.Ordinal(), DeviceOrd::CPUOrdinal());
   ASSERT_EQ(cpu_ctx.Device(), DeviceOrd::CPU());
 
   auto cuda_ctx = cpu_ctx.MakeCUDA(ctx.Ordinal());

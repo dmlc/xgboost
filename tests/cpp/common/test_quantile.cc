@@ -9,9 +9,7 @@
 #include "../../../src/data/adapter.h"
 #include "xgboost/context.h"
 
-namespace xgboost {
-namespace common {
-
+namespace xgboost::common {
 TEST(Quantile, LoadBalance) {
   size_t constexpr kRows = 1000, kCols = 100;
   auto m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
@@ -314,7 +312,7 @@ void TestSameOnAllWorkers() {
         }
 
         auto m = RandomDataGenerator{kRows, kCols, 0}
-                     .Device(Context::kCpuId)
+                     .Device(DeviceOrd::CPU())
                      .Type(ft)
                      .MaxCategory(17)
                      .Seed(rank + seed)
@@ -373,6 +371,4 @@ TEST(Quantile, SameOnAllWorkers) {
   auto constexpr kWorkers = 4;
   RunWithInMemoryCommunicator(kWorkers, TestSameOnAllWorkers);
 }
-
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common

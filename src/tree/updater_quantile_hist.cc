@@ -518,7 +518,7 @@ class QuantileHistMaker : public TreeUpdater {
     auto need_copy = [&] { return trees.size() > 1 || n_targets > 1; };
     if (need_copy()) {
       // allocate buffer
-      sample_out = decltype(sample_out){h_gpair.Shape(), ctx_->gpu_id, linalg::Order::kF};
+      sample_out = decltype(sample_out){h_gpair.Shape(), ctx_->Device(), linalg::Order::kF};
       h_sample_out = sample_out.HostView();
     }
 

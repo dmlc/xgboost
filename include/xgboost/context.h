@@ -29,31 +29,37 @@ struct DeviceSym {
  *        viewing types like `linalg::TensorView`.
  */
 struct DeviceOrd {
+  // Constant representing the device ID of CPU.
+  static bst_d_ordinal_t constexpr CPUOrdinal() { return -1; }
+  static bst_d_ordinal_t constexpr InvalidOrdinal() { return -2; }
+
   enum Type : std::int16_t { kCPU = 0, kCUDA = 1 } device{kCPU};
   // CUDA device ordinal.
-  bst_d_ordinal_t ordinal{-1};
+  bst_d_ordinal_t ordinal{CPUOrdinal()};
 
   [[nodiscard]] bool IsCUDA() const { return device == kCUDA; }
   [[nodiscard]] bool IsCPU() const { return device == kCPU; }
 
-  DeviceOrd() = default;
+  constexpr DeviceOrd() = default;
   constexpr DeviceOrd(Type type, bst_d_ordinal_t ord) : device{type}, ordinal{ord} {}
 
-  DeviceOrd(DeviceOrd const& that) = default;
-  DeviceOrd& operator=(DeviceOrd const& that) = default;
-  DeviceOrd(DeviceOrd&& that) = default;
-  DeviceOrd& operator=(DeviceOrd&& that) = default;
+  constexpr DeviceOrd(DeviceOrd const& that) = default;
+  constexpr DeviceOrd& operator=(DeviceOrd const& that) = default;
+  constexpr DeviceOrd(DeviceOrd&& that) = default;
+  constexpr DeviceOrd& operator=(DeviceOrd&& that) = default;
 
   /**
    * @brief Constructor for CPU.
    */
-  [[nodiscard]] constexpr static auto CPU() { return DeviceOrd{kCPU, -1}; }
+  [[nodiscard]] constexpr static auto CPU() { return DeviceOrd{kCPU, CPUOrdinal()}; }
   /**
    * @brief Constructor for CUDA device.
    *
    * @param ordinal CUDA device ordinal.
    */
-  [[nodiscard]] static auto CUDA(bst_d_ordinal_t ordinal) { return DeviceOrd{kCUDA, ordinal}; }
+  [[nodiscard]] static constexpr auto CUDA(bst_d_ordinal_t ordinal) {
+    return DeviceOrd{kCUDA, ordinal};
+  }
 
   [[nodiscard]] bool operator==(DeviceOrd const& that) const {
     return device == that.device && ordinal == that.ordinal;
@@ -78,24 +84,25 @@ struct DeviceOrd {
 
 static_assert(sizeof(DeviceOrd) == sizeof(std::int32_t));
 
+std::ostream& operator<<(std::ostream& os, DeviceOrd ord);
+
 /**
  * @brief Runtime context for XGBoost. Contains information like threads and device.
  */
 struct Context : public XGBoostParameter<Context> {
  private:
+  // User interfacing parameter for device ordinal
   std::string device{DeviceSym::CPU()};  // NOLINT
-  // The device object for the current context. We are in the middle of replacing the
-  // `gpu_id` with this device field.
+  // The device ordinal set by user
   DeviceOrd device_{DeviceOrd::CPU()};
 
  public:
-  // Constant representing the device ID of CPU.
-  static bst_d_ordinal_t constexpr kCpuId = -1;
-  static bst_d_ordinal_t constexpr InvalidOrdinal() { return -2; }
   static std::int64_t constexpr kDefaultSeed = 0;
 
  public:
   Context();
+
+  void Init(Args const& kwargs);
 
   template <typename Container>
   Args UpdateAllowUnknown(Container const& kwargs) {
@@ -104,7 +111,6 @@ struct Context : public XGBoostParameter<Context> {
     return args;
   }
 
-  std::int32_t gpu_id{kCpuId};
   // The number of threads to use if OpenMP is enabled. If equals 0, use the system default.
   std::int32_t nthread{0};  // NOLINT
   // stored random seed
@@ -116,7 +122,8 @@ struct Context : public XGBoostParameter<Context> {
   bool validate_parameters{false};
 
   /**
-   * @brief Configure the parameter `gpu_id'.
+   * @brief Configure the parameter `device'. Deprecated, will remove once `gpu_id` is
+   *        removed.
    *
    * @param require_gpu Whether GPU is explicitly required by the user through other
    *                    configurations.
@@ -212,9 +219,7 @@ struct Context : public XGBoostParameter<Context> {
  private:
   void SetDeviceOrdinal(Args const& kwargs);
   Context& SetDevice(DeviceOrd d) {
-    this->device_ = d;
-    this->gpu_id = d.ordinal;  // this can be removed once we move away from `gpu_id`.
-    this->device = d.Name();
+    this->device = (this->device_ = d).Name();
     return *this;
   }
 

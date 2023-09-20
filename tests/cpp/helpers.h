@@ -231,7 +231,7 @@ class RandomDataGenerator {
 
   bst_target_t n_targets_{1};
 
-  std::int32_t device_{Context::kCpuId};
+  DeviceOrd device_{DeviceOrd::CPU()};
   std::size_t n_batches_{0};
   std::uint64_t seed_{0};
   SimpleLCG lcg_;
@@ -256,7 +256,7 @@ class RandomDataGenerator {
     upper_ = v;
     return *this;
   }
-  RandomDataGenerator& Device(int32_t d) {
+  RandomDataGenerator& Device(DeviceOrd d) {
     device_ = d;
     return *this;
   }
@@ -391,7 +391,7 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs,
  * \brief Make a context that uses CUDA if device >= 0.
  */
 inline Context MakeCUDACtx(std::int32_t device) {
-  if (device == Context::kCpuId) {
+  if (device == DeviceOrd::CPUOrdinal()) {
     return Context{};
   }
   return Context{}.MakeCUDA(device);
@@ -501,7 +501,7 @@ RMMAllocatorPtr SetUpRMMResourceForCppTests(int argc, char** argv);
  * \brief Make learner model param
  */
 inline LearnerModelParam MakeMP(bst_feature_t n_features, float base_score, uint32_t n_groups,
-                                int32_t device = Context::kCpuId) {
+                                DeviceOrd device = DeviceOrd::CPU()) {
   size_t shape[1]{1};
   LearnerModelParam mparam(n_features, linalg::Tensor<float, 1>{{base_score}, shape, device},
                            n_groups, 1, MultiStrategy::kOneOutputPerTree);
@@ -571,4 +571,5 @@ class BaseMGPUTest : public ::testing::Test {
 
 class DeclareUnifiedDistributedTest(MetricTest) : public BaseMGPUTest{};
 
+inline DeviceOrd FstCU() { return DeviceOrd::CUDA(0); }
 }  // namespace xgboost

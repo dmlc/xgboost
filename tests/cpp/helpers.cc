@@ -119,8 +119,10 @@ void CheckObjFunction(std::unique_ptr<xgboost::ObjFunction> const& obj,
                       std::vector<xgboost::bst_float> out_hess) {
   xgboost::MetaInfo info;
   info.num_row_ = labels.size();
-  info.labels = xgboost::linalg::Tensor<float, 2>{
-      labels.cbegin(), labels.cend(), {labels.size(), static_cast<std::size_t>(1)}, -1};
+  info.labels = xgboost::linalg::Tensor<float, 2>{labels.cbegin(),
+                                                  labels.cend(),
+                                                  {labels.size(), static_cast<std::size_t>(1)},
+                                                  xgboost::DeviceOrd::CPU()};
   info.weights_.HostVector() = weights;
 
   CheckObjFunctionImpl(obj, preds, labels, weights, info, out_grad, out_hess);
@@ -155,8 +157,10 @@ void CheckRankingObjFunction(std::unique_ptr<xgboost::ObjFunction> const& obj,
                              std::vector<xgboost::bst_float> out_hess) {
   xgboost::MetaInfo info;
   info.num_row_ = labels.size();
-  info.labels = xgboost::linalg::Matrix<float>{
-      labels.cbegin(), labels.cend(), {labels.size(), static_cast<std::size_t>(1)}, -1};
+  info.labels = xgboost::linalg::Matrix<float>{labels.cbegin(),
+                                               labels.cend(),
+                                               {labels.size(), static_cast<std::size_t>(1)},
+                                               xgboost::DeviceOrd::CPU()};
   info.weights_.HostVector() = weights;
   info.group_ptr_ = groups;
 
@@ -171,8 +175,9 @@ xgboost::bst_float GetMetricEval(xgboost::Metric* metric,
                                  xgboost::DataSplitMode data_split_mode) {
   return GetMultiMetricEval(
       metric, preds,
-      xgboost::linalg::Tensor<float, 2>{labels.begin(), labels.end(), {labels.size()}, -1}, weights,
-      groups, data_split_mode);
+      xgboost::linalg::Tensor<float, 2>{
+          labels.begin(), labels.end(), {labels.size()}, xgboost::DeviceOrd::CPU()},
+      weights, groups, data_split_mode);
 }
 
 double GetMultiMetricEval(xgboost::Metric* metric,
@@ -215,7 +220,7 @@ void RandomDataGenerator::GenerateLabels(std::shared_ptr<DMatrix> p_fmat) const 
       p_fmat->Info().labels.Data());
   CHECK_EQ(p_fmat->Info().labels.Size(), this->rows_ * this->n_targets_);
   p_fmat->Info().labels.Reshape(this->rows_, this->n_targets_);
-  if (device_ != Context::kCpuId) {
+  if (device_.IsCUDA()) {
     p_fmat->Info().labels.SetDevice(device_);
   }
 }
@@ -236,7 +241,7 @@ void RandomDataGenerator::GenerateDense(HostDeviceVector<float> *out) const {
       v = dist(&lcg);
     }
   }
-  if (device_ >= 0) {
+  if (device_.IsCUDA()) {
     out->SetDevice(device_);
     out->DeviceSpan();
   }
@@ -258,7 +263,7 @@ std::string RandomDataGenerator::GenerateArrayInterface(
 
 std::pair<std::vector<std::string>, std::string> MakeArrayInterfaceBatch(
     HostDeviceVector<float> const* storage, std::size_t n_samples, bst_feature_t n_features,
-    std::size_t batches, std::int32_t device) {
+    std::size_t batches, DeviceOrd device) {
   std::vector<std::string> result(batches);
   std::vector<Json> objects;
 
@@ -267,7 +272,7 @@ std::pair<std::vector<std::string>, std::string> MakeArrayInterfaceBatch(
   auto make_interface = [storage, device, n_features](std::size_t offset, std::size_t rows) {
     Json array_interface{Object()};
     array_interface["data"] = std::vector<Json>(2);
-    if (device >= 0) {
+    if (device.IsCUDA()) {
       array_interface["data"][0] =
           Integer(reinterpret_cast<int64_t>(storage->DevicePointer() + offset));
       array_interface["stream"] = Null{};
@@ -359,7 +364,7 @@ void RandomDataGenerator::GenerateCSR(
     h_rptr.emplace_back(rptr);
   }
 
-  if (device_ >= 0) {
+  if (device_.IsCUDA()) {
     value->SetDevice(device_);
     value->DeviceSpan();
     row_ptr->SetDevice(device_);
@@ -400,7 +405,7 @@ void RandomDataGenerator::GenerateCSR(
       out->Info().labels.Reshape(this->rows_, this->n_targets_);
     }
   }
-  if (device_ >= 0) {
+  if (device_.IsCUDA()) {
     out->Info().labels.SetDevice(device_);
     out->Info().feature_types.SetDevice(device_);
     for (auto const& page : out->GetBatches<SparsePage>()) {
@@ -423,7 +428,7 @@ void RandomDataGenerator::GenerateCSR(
   CHECK_GE(this->n_batches_, 1)
       << "Must set the n_batches before generating an external memory DMatrix.";
   std::unique_ptr<ArrayIterForTest> iter;
-  if (device_ == Context::kCpuId) {
+  if (device_.IsCPU()) {
     iter = std::make_unique<NumpyArrayIterForTest>(this->sparsity_, rows_, cols_, n_batches_);
   } else {
 #if defined(XGBOOST_USE_CUDA)
@@ -487,7 +492,7 @@ int CudaArrayIterForTest::Next() {
 NumpyArrayIterForTest::NumpyArrayIterForTest(float sparsity, size_t rows, size_t cols,
                                              size_t batches)
     : ArrayIterForTest{sparsity, rows, cols, batches} {
-  rng_->Device(Context::kCpuId);
+  rng_->Device(DeviceOrd::CPU());
   std::tie(batches_, interface_) = rng_->GenerateArrayInterfaceBatch(&data_, n_batches_);
   this->Reset();
 }
@@ -644,8 +649,8 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs,
     labels[i] = i;
   }
   p_dmat->Info().labels =
-      linalg::Tensor<float, 2>{labels.cbegin(), labels.cend(), {labels.size()}, -1};
-  linalg::Matrix<GradientPair> gpair({kRows}, ctx->Ordinal());
+      linalg::Tensor<float, 2>{labels.cbegin(), labels.cend(), {labels.size()}, DeviceOrd::CPU()};
+  linalg::Matrix<GradientPair> gpair({kRows}, ctx->Device());
   auto h_gpair = gpair.HostView();
   for (size_t i = 0; i < kRows; ++i) {
     h_gpair(i) = GradientPair{static_cast<float>(i), 1};
@@ -674,7 +679,7 @@ ArrayIterForTest::ArrayIterForTest(Context const* ctx, HostDeviceVector<float> c
   CHECK_EQ(this->data_.Size(), rows_ * cols_ * n_batches);
   this->data_.Copy(data);
   std::tie(batches_, interface_) =
-      MakeArrayInterfaceBatch(&data_, rows_, cols_, n_batches_, ctx->gpu_id);
+      MakeArrayInterfaceBatch(&data_, rows_, cols_, n_batches_, ctx->Device());
 }
 
 ArrayIterForTest::~ArrayIterForTest() { XGDMatrixFree(proxy_); }

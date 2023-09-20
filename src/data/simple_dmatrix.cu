@@ -10,9 +10,7 @@
 #include "xgboost/context.h"  // for Context
 #include "xgboost/data.h"
 
-namespace xgboost {
-namespace data {
-
+namespace xgboost::data {
 // Does not currently support metainfo as no on-device data source contains this
 // Current implementation assumes a single batch. More batches can
 // be supported in future. Does not currently support inferring row/column size
@@ -21,13 +19,14 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, std::int32_t nthr
                              DataSplitMode data_split_mode) {
   CHECK(data_split_mode != DataSplitMode::kCol)
       << "Column-wise data split is currently not supported on the GPU.";
-  auto device = (adapter->DeviceIdx() < 0 || adapter->NumRows() == 0) ? dh::CurrentDevice()
-                                                                      : adapter->DeviceIdx();
-  CHECK_GE(device, 0);
-  dh::safe_cuda(cudaSetDevice(device));
+  auto device = (adapter->Device().IsCPU() || adapter->NumRows() == 0)
+                    ? DeviceOrd::CUDA(dh::CurrentDevice())
+                    : adapter->Device();
+  CHECK(device.IsCUDA());
+  dh::safe_cuda(cudaSetDevice(device.ordinal));
 
   Context ctx;
-  ctx.Init(Args{{"nthread", std::to_string(nthread)}, {"device", DeviceOrd::CUDA(device).Name()}});
+  ctx.Init(Args{{"nthread", std::to_string(nthread)}, {"device", device.Name()}});
 
   CHECK(adapter->NumRows() != kAdapterUnknownSize);
   CHECK(adapter->NumColumns() != kAdapterUnknownSize);
@@ -52,5 +51,4 @@ template SimpleDMatrix::SimpleDMatrix(CudfAdapter* adapter, float missing,
                                       int nthread, DataSplitMode data_split_mode);
 template SimpleDMatrix::SimpleDMatrix(CupyAdapter* adapter, float missing,
                                       int nthread, DataSplitMode data_split_mode);
-}  // namespace data
-}  // namespace xgboost
+}  // namespace xgboost::data

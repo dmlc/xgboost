@@ -15,8 +15,7 @@
 
 #include "communicator-inl.cuh"
 
-namespace xgboost {
-namespace collective {
+namespace xgboost::collective {
 
 /**
  * @brief Find the global sum of the given values across all workers.
@@ -31,10 +30,9 @@ namespace collective {
  * @param size Number of values to sum.
  */
 template <typename T>
-void GlobalSum(MetaInfo const& info, int device, T* values, size_t size) {
+void GlobalSum(MetaInfo const& info, DeviceOrd device, T* values, size_t size) {
   if (info.IsRowSplit()) {
-    collective::AllReduce<collective::Operation::kSum>(device, values, size);
+    collective::AllReduce<collective::Operation::kSum>(device.ordinal, values, size);
   }
 }
-}  // namespace collective
-}  // namespace xgboost
+}  // namespace xgboost::collective

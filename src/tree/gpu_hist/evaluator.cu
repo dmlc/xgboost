@@ -1,5 +1,5 @@
 /*!
- * Copyright 2022 by XGBoost Contributors
+ * Copyright 2022-2023 by XGBoost Contributors
  *
  * \brief Some components of GPU Hist evaluator, this file only exist to reduce nvcc
  *        compilation time.
@@ -12,11 +12,10 @@
 #include "evaluate_splits.cuh"
 #include "xgboost/data.h"
 
-namespace xgboost {
-namespace tree {
+namespace xgboost::tree {
 void GPUHistEvaluator::Reset(common::HistogramCuts const &cuts, common::Span<FeatureType const> ft,
                              bst_feature_t n_features, TrainParam const &param,
-                             bool is_column_split, int32_t device) {
+                             bool is_column_split, DeviceOrd device) {
   param_ = param;
   tree_evaluator_ = TreeEvaluator{param, n_features, device};
   has_categoricals_ = cuts.HasCategorical();
@@ -127,6 +126,4 @@ common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
                              });
   return dh::ToSpan(cat_sorted_idx_);
 }
-
-}  // namespace tree
-}  // namespace xgboost
+}  // namespace xgboost::tree

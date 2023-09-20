@@ -106,10 +106,10 @@ class MetaInfo {
   MetaInfo& operator=(MetaInfo&& that) = default;
   MetaInfo& operator=(MetaInfo const& that) = delete;
 
-  /*!
-   * \brief Validate all metainfo.
+  /**
+   * @brief Validate all metainfo.
    */
-  void Validate(int32_t device) const;
+  void Validate(DeviceOrd device) const;
 
   MetaInfo Slice(common::Span<int32_t const> ridxs) const;
 

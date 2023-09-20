@@ -21,9 +21,7 @@
 #include "xgboost/logging.h"  // CHECK_EQ
 #include "xgboost/span.h"     // span
 
-namespace xgboost {
-namespace tree {
-namespace cuda_impl {
+namespace xgboost::tree::cuda_impl {
 void FitStump(Context const* ctx, MetaInfo const& info,
               linalg::TensorView<GradientPair const, 2> gpair, linalg::VectorView<float> out) {
   auto n_targets = out.Size();
@@ -50,7 +48,7 @@ void FitStump(Context const* ctx, MetaInfo const& info,
   thrust::reduce_by_key(policy, key_it, key_it + gpair.Size(), grad_it,
                         thrust::make_discard_iterator(), dh::tbegin(d_sum.Values()));
 
-  collective::GlobalSum(info, ctx->gpu_id, reinterpret_cast<double*>(d_sum.Values().data()),
+  collective::GlobalSum(info, ctx->Device(), reinterpret_cast<double*>(d_sum.Values().data()),
                         d_sum.Size() * 2);
 
   thrust::for_each_n(policy, thrust::make_counting_iterator(0ul), n_targets,
@@ -59,6 +57,4 @@ void FitStump(Context const* ctx, MetaInfo const& info,
                            CalcUnregularizedWeight(d_sum(i).GetGrad(), d_sum(i).GetHess()));
                      });
 }
-}  // namespace cuda_impl
-}  // namespace tree
-}  // namespace xgboost
+}  // namespace xgboost::tree::cuda_impl

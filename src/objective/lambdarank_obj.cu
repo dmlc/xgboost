@@ -290,12 +290,12 @@ void Launch(Context const* ctx, std::int32_t iter, HostDeviceVector<float> const
             linalg::VectorView<double> li, linalg::VectorView<double> lj,
             linalg::Matrix<GradientPair>* out_gpair) {
   // boilerplate
-  std::int32_t device_id = ctx->gpu_id;
-  dh::safe_cuda(cudaSetDevice(device_id));
+  auto device = ctx->Device();
+  dh::safe_cuda(cudaSetDevice(device.ordinal));
   auto n_groups = p_cache->Groups();
 
-  info.labels.SetDevice(device_id);
-  preds.SetDevice(device_id);
+  info.labels.SetDevice(device);
+  preds.SetDevice(device);
   out_gpair->SetDevice(ctx->Device());
   out_gpair->Reshape(preds.Size(), 1);
 

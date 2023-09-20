@@ -115,7 +115,7 @@ TEST(HistMultiEvaluator, Evaluate) {
   HistMultiEvaluator evaluator{&ctx, p_fmat->Info(), &param, sampler};
   HistMakerTrainParam hist_param;
   std::vector<BoundedHistCollection> histogram(n_targets);
-  linalg::Vector<GradientPairPrecise> root_sum({2}, Context::kCpuId);
+  linalg::Vector<GradientPairPrecise> root_sum({2}, DeviceOrd::CPU());
   for (bst_target_t t{0}; t < n_targets; ++t) {
     auto &hist = histogram[t];
     hist.Reset(n_bins * n_features, hist_param.max_cached_hist_node);

@@ -24,7 +24,7 @@ struct OptionalWeights {
 inline OptionalWeights MakeOptionalWeights(Context const* ctx,
                                            HostDeviceVector<float> const& weights) {
   if (ctx->IsCUDA()) {
-    weights.SetDevice(ctx->gpu_id);
+    weights.SetDevice(ctx->Device());
   }
   return OptionalWeights{ctx->IsCPU() ? weights.ConstHostSpan() : weights.ConstDeviceSpan()};
 }

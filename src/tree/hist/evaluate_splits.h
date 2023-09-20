@@ -477,7 +477,7 @@ class HistEvaluator {
       : ctx_{ctx},
         param_{param},
         column_sampler_{std::move(sampler)},
-        tree_evaluator_{*param, static_cast<bst_feature_t>(info.num_col_), Context::kCpuId},
+        tree_evaluator_{*param, static_cast<bst_feature_t>(info.num_col_), DeviceOrd::CPU()},
         is_col_split_{info.IsColumnSplit()} {
     interaction_constraints_.Configure(*param, info.num_col_);
     column_sampler_->Init(ctx, info.num_col_, info.feature_weights.HostVector(),
@@ -696,7 +696,7 @@ class HistMultiEvaluator {
     stats_ = linalg::Constant(ctx_, GradientPairPrecise{}, 1, n_targets);
     gain_.resize(1);
 
-    linalg::Vector<float> weight({n_targets}, ctx_->gpu_id);
+    linalg::Vector<float> weight({n_targets}, ctx_->Device());
     CalcWeight(*param_, root_sum, weight.HostView());
     auto root_gain = CalcGainGivenWeight(*param_, root_sum, weight.HostView());
     gain_.front() = root_gain;

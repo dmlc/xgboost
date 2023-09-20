@@ -11,9 +11,7 @@
 #include "../helpers.h"
 #include "test_iterative_dmatrix.h"
 
-namespace xgboost {
-namespace data {
-
+namespace xgboost::data {
 void TestEquivalent(float sparsity) {
   Context ctx{MakeCUDACtx(0)};
 
@@ -23,14 +21,14 @@ void TestEquivalent(float sparsity) {
   std::size_t offset = 0;
   auto first = (*m.GetEllpackBatches(&ctx, {}).begin()).Impl();
   std::unique_ptr<EllpackPageImpl> page_concatenated {
-    new EllpackPageImpl(0, first->Cuts(), first->is_dense,
+    new EllpackPageImpl(ctx.Device(), first->Cuts(), first->is_dense,
                         first->row_stride, 1000 * 100)};
   for (auto& batch : m.GetBatches<EllpackPage>(&ctx, {})) {
     auto page = batch.Impl();
-    size_t num_elements = page_concatenated->Copy(0, page, offset);
+    size_t num_elements = page_concatenated->Copy(ctx.Device(), page, offset);
     offset += num_elements;
   }
-  auto from_iter = page_concatenated->GetDeviceAccessor(0);
+  auto from_iter = page_concatenated->GetDeviceAccessor(ctx.Device());
   ASSERT_EQ(m.Info().num_col_, CudaArrayIterForTest::Cols());
   ASSERT_EQ(m.Info().num_row_, CudaArrayIterForTest::Rows());
 
@@ -40,7 +38,7 @@ void TestEquivalent(float sparsity) {
       DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 0)};
   auto bp = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
   for (auto& ellpack : dm->GetBatches<EllpackPage>(&ctx, bp)) {
-    auto from_data = ellpack.Impl()->GetDeviceAccessor(0);
+    auto from_data = ellpack.Impl()->GetDeviceAccessor(ctx.Device());
 
     std::vector<float> cuts_from_iter(from_iter.gidx_fvalue_map.size());
     std::vector<float> min_fvalues_iter(from_iter.min_fvalue.size());
@@ -152,10 +150,10 @@ TEST(IterativeDeviceDMatrix, RowMajorMissing) {
   auto impl = ellpack.Impl();
   common::CompressedIterator<uint32_t> iterator(
       impl->gidx_buffer.HostVector().data(), impl->NumSymbols());
-  EXPECT_EQ(iterator[1], impl->GetDeviceAccessor(0).NullValue());
-  EXPECT_EQ(iterator[5], impl->GetDeviceAccessor(0).NullValue());
+  EXPECT_EQ(iterator[1], impl->GetDeviceAccessor(ctx.Device()).NullValue());
+  EXPECT_EQ(iterator[5], impl->GetDeviceAccessor(ctx.Device()).NullValue());
   // null values get placed after valid values in a row
-  EXPECT_EQ(iterator[7], impl->GetDeviceAccessor(0).NullValue());
+  EXPECT_EQ(iterator[7], impl->GetDeviceAccessor(ctx.Device()).NullValue());
   EXPECT_EQ(m.Info().num_col_, cols);
   EXPECT_EQ(m.Info().num_row_, rows);
   EXPECT_EQ(m.Info().num_nonzero_, rows* cols - 3);
@@ -183,5 +181,4 @@ TEST(IterativeDeviceDMatrix, Ref) {
   TestRefDMatrix<EllpackPage, CudaArrayIterForTest>(
       &ctx, [](EllpackPage const& page) { return page.Impl()->Cuts(); });
 }
-}  // namespace data
-}  // namespace xgboost
+}  // namespace xgboost::data

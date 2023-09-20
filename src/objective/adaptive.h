@@ -100,7 +100,7 @@ inline void UpdateTreeLeaf(Context const* ctx, HostDeviceVector<bst_node_t> cons
     detail::UpdateTreeLeafHost(ctx, position.ConstHostVector(), group_idx, info, learning_rate,
                                predt, alpha, p_tree);
   } else {
-    position.SetDevice(ctx->gpu_id);
+    position.SetDevice(ctx->Device());
     detail::UpdateTreeLeafDevice(ctx, position.ConstDeviceSpan(), group_idx, info, learning_rate,
                                  predt, alpha, p_tree);
   }

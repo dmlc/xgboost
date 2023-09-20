@@ -66,7 +66,7 @@ void CopyGradientFromCUDAArrays(Context const *ctx, ArrayInterface<2, false> con
   auto hess_dev = dh::CudaGetPointerDevice(hess.data);
   CHECK_EQ(grad_dev, hess_dev) << "gradient and hessian should be on the same device.";
   auto &gpair = *out_gpair;
-  gpair.SetDevice(grad_dev);
+  gpair.SetDevice(DeviceOrd::CUDA(grad_dev));
   gpair.Reshape(grad.Shape(0), grad.Shape(1));
   auto d_gpair = gpair.View(DeviceOrd::CUDA(grad_dev));
   auto cuctx = ctx->CUDACtx();
@@ -144,7 +144,7 @@ int InplacePreidctCUDA(BoosterHandle handle, char const *c_array_interface,
   if (learner->Ctx()->IsCUDA()) {
     CHECK(p_predt->DeviceCanRead() && !p_predt->HostCanRead());
   }
-  p_predt->SetDevice(proxy->DeviceIdx());
+  p_predt->SetDevice(proxy->Device());
 
   auto &shape = learner->GetThreadLocal().prediction_shape;
   size_t n_samples = p_m->Info().num_row_;

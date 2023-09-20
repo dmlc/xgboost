@@ -687,13 +687,13 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_col
 
   linalg::Stack(&this->labels, that.labels);
 
-  this->weights_.SetDevice(that.weights_.DeviceIdx());
+  this->weights_.SetDevice(that.weights_.Device());
   this->weights_.Extend(that.weights_);
 
-  this->labels_lower_bound_.SetDevice(that.labels_lower_bound_.DeviceIdx());
+  this->labels_lower_bound_.SetDevice(that.labels_lower_bound_.Device());
   this->labels_lower_bound_.Extend(that.labels_lower_bound_);
 
-  this->labels_upper_bound_.SetDevice(that.labels_upper_bound_.DeviceIdx());
+  this->labels_upper_bound_.SetDevice(that.labels_upper_bound_.Device());
   this->labels_upper_bound_.Extend(that.labels_upper_bound_);
 
   linalg::Stack(&this->base_margin_, that.base_margin_);
@@ -723,7 +723,7 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_col
   }
   if (!that.feature_weights.Empty()) {
     this->feature_weights.Resize(that.feature_weights.Size());
-    this->feature_weights.SetDevice(that.feature_weights.DeviceIdx());
+    this->feature_weights.SetDevice(that.feature_weights.Device());
     this->feature_weights.Copy(that.feature_weights);
   }
 }
@@ -738,22 +738,22 @@ void MetaInfo::SynchronizeNumberOfColumns() {
 
 namespace {
 template <typename T>
-void CheckDevice(std::int32_t device, HostDeviceVector<T> const& v) {
-  bool valid = v.Device().IsCPU() || device == Context::kCpuId || v.DeviceIdx() == device;
+void CheckDevice(DeviceOrd device, HostDeviceVector<T> const& v) {
+  bool valid = v.Device().IsCPU() || device.IsCPU() || v.Device() == device;
   if (!valid) {
     LOG(FATAL) << "Invalid device ordinal. Data is associated with a different device ordinal than "
                   "the booster. The device ordinal of the data is: "
-               << v.DeviceIdx() << "; the device ordinal of the Booster is: " << device;
+               << v.Device() << "; the device ordinal of the Booster is: " << device;
   }
 }
 
 template <typename T, std::int32_t D>
-void CheckDevice(std::int32_t device, linalg::Tensor<T, D> const& v) {
+void CheckDevice(DeviceOrd device, linalg::Tensor<T, D> const& v) {
   CheckDevice(device, *v.Data());
 }
 }  // anonymous namespace
 
-void MetaInfo::Validate(std::int32_t device) const {
+void MetaInfo::Validate(DeviceOrd device) const {
   if (group_ptr_.size() != 0 && weights_.Size() != 0) {
     CHECK_EQ(group_ptr_.size(), weights_.Size() + 1) << error::GroupWeight();
     return;

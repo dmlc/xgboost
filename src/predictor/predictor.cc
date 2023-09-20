@@ -49,8 +49,8 @@ void Predictor::InitOutPredictions(const MetaInfo& info, HostDeviceVector<bst_fl
   std::size_t n{model.learner_model_param->OutputLength() * info.num_row_};
 
   const HostDeviceVector<bst_float>* base_margin = info.base_margin_.Data();
-  if (ctx_->gpu_id >= 0) {
-    out_preds->SetDevice(ctx_->gpu_id);
+  if (ctx_->Device().IsCUDA()) {
+    out_preds->SetDevice(ctx_->Device());
   }
   if (!base_margin->Empty()) {
     out_preds->Resize(n);
