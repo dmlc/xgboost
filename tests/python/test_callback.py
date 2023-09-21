@@ -443,7 +443,7 @@ class TestCallbacks:
         m = xgb.DMatrix(X, y)
         with tempfile.TemporaryDirectory() as tmpdir:
             check_point = xgb.callback.TrainingCheckPoint(
-                directory=tmpdir, iterations=1, name="model"
+                directory=tmpdir, interval=1, name="model"
             )
             xgb.train(
                 {"objective": "binary:logistic"},
@@ -456,7 +456,7 @@ class TestCallbacks:
                 assert os.path.exists(os.path.join(tmpdir, "model_" + str(i) + ".json"))
 
             check_point = xgb.callback.TrainingCheckPoint(
-                directory=tmpdir, iterations=1, as_pickle=True, name="model"
+                directory=tmpdir, interval=1, as_pickle=True, name="model"
             )
             xgb.train(
                 {"objective": "binary:logistic"},

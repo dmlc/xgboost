@@ -575,8 +575,8 @@ class TrainingCheckPoint(TrainingCallback):
         self._name = name
         self._as_pickle = as_pickle
         self._iterations = interval
-        self._epoch = 0         # counter for iterval
-        self._start = 0         # beginning iteration
+        self._epoch = 0  # counter for iterval
+        self._start = 0  # beginning iteration
         super().__init__()
 
     def before_training(self, model: _Model) -> _Model:
@@ -594,7 +594,7 @@ class TrainingCheckPoint(TrainingCallback):
                 + (str(epoch + self._start))
                 + (".pkl" if self._as_pickle else ".json"),
             )
-            self._epoch = 0     # reset counter
+            self._epoch = 0  # reset counter
             if collective.get_rank() == 0:
                 # checkpoint using the first worker
                 if self._as_pickle:
