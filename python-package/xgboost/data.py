@@ -165,7 +165,7 @@ def _is_scipy_coo(data: DataType) -> bool:
 
 
 def _is_numpy_array(data: DataType) -> bool:
-    return isinstance(data, (np.ndarray, np.matrix))
+    return hasattr(data, "__array_interface__")
 
 
 def _ensure_np_dtype(
