@@ -133,7 +133,7 @@ public class XGBoost {
           int earlyStoppingRound) throws XGBoostError {
     return train(dtrain, params, round, watches, metrics, obj, eval, earlyStoppingRound, null);
   }
-
+  // save checkpoint if iter is in checkpointIterations
   private static void saveCheckpoint(
           Booster booster,
           int iter,
@@ -169,7 +169,6 @@ public class XGBoost {
     int bestIteration;
     List<String> names = new ArrayList<String>();
     List<DMatrix> mats = new ArrayList<DMatrix>();
-    Set<Integer> checkpointIterations = new HashSet<>();
     ExternalCheckpointManager ecm = null;
     if (checkpointPath != null) {
       ecm = new ExternalCheckpointManager(checkpointPath, fs);
@@ -208,8 +207,10 @@ public class XGBoost {
       booster.setParams(params);
     }
 
+    Set<Integer> checkpointIterations = new HashSet<>();
     if (ecm != null) {
-      checkpointIterations = new HashSet<>(ecm.getCheckpointRounds(checkpointInterval, numRounds));
+      checkpointIterations = new HashSet<>(
+          ecm.getCheckpointRounds(booster.getNumBoostedRound(), checkpointInterval, numRounds));
     }
 
     boolean initial_best_score_flag = false;

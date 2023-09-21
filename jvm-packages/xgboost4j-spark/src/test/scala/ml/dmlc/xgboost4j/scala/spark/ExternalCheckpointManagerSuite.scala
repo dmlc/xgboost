@@ -50,13 +50,13 @@ class ExternalCheckpointManagerSuite extends AnyFunSuite with TmpFolderPerSuite 
     manager.updateCheckpoint(model2._booster.booster)
     var files = FileSystem.get(sc.hadoopConfiguration).listStatus(new Path(tmpPath))
     assert(files.length == 1)
-    assert(files.head.getPath.getName == "2.model")
+    assert(files.head.getPath.getName == "1.model")
     assert(manager.loadCheckpointAsScalaBooster().getNumBoostedRound == 2)
 
     manager.updateCheckpoint(model4._booster)
     files = FileSystem.get(sc.hadoopConfiguration).listStatus(new Path(tmpPath))
     assert(files.length == 1)
-    assert(files.head.getPath.getName == "4.model")
+    assert(files.head.getPath.getName == "3.model")
     assert(manager.loadCheckpointAsScalaBooster().getNumBoostedRound == 4)
   }
 
@@ -65,21 +65,20 @@ class ExternalCheckpointManagerSuite extends AnyFunSuite with TmpFolderPerSuite 
 
     val manager = new ExternalCheckpointManager(tmpPath, FileSystem.get(sc.hadoopConfiguration))
     manager.updateCheckpoint(model4._booster)
-    manager.cleanUpHigherVersions(4)
-    assert(new File(s"$tmpPath/4.model").exists())
+    manager.cleanUpHigherVersions(3)
+    assert(new File(s"$tmpPath/3.model").exists())
 
     manager.cleanUpHigherVersions(2)
-    assert(!new File(s"$tmpPath/4.model").exists())
+    assert(!new File(s"$tmpPath/3.model").exists())
   }
 
   test("test checkpoint rounds") {
     import scala.collection.JavaConverters._
     val (tmpPath, model2, model4) = createNewModels()
     val manager = new ExternalCheckpointManager(tmpPath, FileSystem.get(sc.hadoopConfiguration))
-    assertResult(Seq(3))(manager.getCheckpointRounds(0, 3).asScala)
-    assertResult(Seq(0, 1, 2, 3))(manager.getCheckpointRounds(0, 3).asScala)
-    manager.updateCheckpoint(model2._booster)
-    assertResult(Seq(4, 6, 7))(manager.getCheckpointRounds(2, 7).asScala)
+    assertResult(Seq(2))(manager.getCheckpointRounds(0, 0, 3).asScala)
+    assertResult(Seq(0, 2, 4, 6))(manager.getCheckpointRounds(0, 2, 7).asScala)
+    assertResult(Seq(0, 2, 4, 6, 7))(manager.getCheckpointRounds(0, 2, 8).asScala)
   }
 
 
