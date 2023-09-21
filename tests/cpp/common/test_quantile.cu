@@ -339,6 +339,31 @@ TEST(GPUQuantile, MultiMerge) {
   });
 }
 
+TEST(GPUQuantile, MissingColumns) {
+  auto dmat = std::unique_ptr<DMatrix>{[=]() {
+    std::size_t constexpr kRows = 1000, kCols = 100;
+    auto sparsity = 0.5f;
+    std::vector<FeatureType> ft(kCols);
+    for (size_t i = 0; i < ft.size(); ++i) {
+      ft[i] = (i % 2 == 0) ? FeatureType::kNumerical : FeatureType::kCategorical;
+    }
+    auto dmat = RandomDataGenerator{kRows, kCols, sparsity}
+                    .Seed(0)
+                    .Lower(.0f)
+                    .Upper(1.0f)
+                    .Type(ft)
+                    .MaxCategory(13)
+                    .GenerateDMatrix();
+    return dmat->SliceCol(2, 1);
+  }()};
+  dmat->Info().data_split_mode = DataSplitMode::kRow;
+
+  auto ctx = MakeCUDACtx(0);
+  std::size_t constexpr kBins = 64;
+  HistogramCuts cuts = common::DeviceSketch(&ctx, dmat.get(), kBins);
+  ASSERT_TRUE(cuts.HasCategorical());
+}
+
 namespace {
 void TestAllReduceBasic() {
   auto const world = collective::GetWorldSize();
