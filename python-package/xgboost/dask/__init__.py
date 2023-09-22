@@ -60,11 +60,11 @@ from typing import (
 
 import numpy
 
-from . import collective, config
-from ._typing import _T, FeatureNames, FeatureTypes, ModelIn
-from .callback import TrainingCallback
-from .compat import DataFrame, LazyLoader, concat, lazy_isinstance
-from .core import (
+from xgboost import collective, config
+from xgboost._typing import _T, FeatureNames, FeatureTypes, ModelIn
+from xgboost.callback import TrainingCallback
+from xgboost.compat import DataFrame, LazyLoader, concat, lazy_isinstance
+from xgboost.core import (
     Booster,
     DataIter,
     DMatrix,
@@ -75,8 +75,8 @@ from .core import (
     _deprecate_positional_args,
     _expect,
 )
-from .data import _is_cudf_ser, _is_cupy_array
-from .sklearn import (
+from xgboost.data import _is_cudf_ser, _is_cupy_array
+from xgboost.sklearn import (
     XGBClassifier,
     XGBClassifierBase,
     XGBClassifierMixIn,
@@ -91,8 +91,8 @@ from .sklearn import (
     _wrap_evaluation_matrices,
     xgboost_model_doc,
 )
-from .tracker import RabitTracker, get_host_ip
-from .training import train as worker_train
+from xgboost.tracker import RabitTracker, get_host_ip
+from xgboost.training import train as worker_train
 
 if TYPE_CHECKING:
     import dask
