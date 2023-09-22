@@ -35,13 +35,13 @@ struct WQSummary {
   /*! \brief an entry in the sketch summary */
   struct Entry {
     /*! \brief minimum rank */
-    RType rmin;
+    RType rmin{};
     /*! \brief maximum rank */
-    RType rmax;
+    RType rmax{};
     /*! \brief maximum weight */
-    RType wmin;
+    RType wmin{};
     /*! \brief the value of data */
-    DType value;
+    DType value{};
     // constructor
     XGBOOST_DEVICE Entry() {}  // NOLINT
     // constructor
