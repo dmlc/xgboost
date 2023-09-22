@@ -2434,7 +2434,7 @@ class Booster:
             _is_cudf_df,
             _is_cupy_array,
             _is_list,
-            _is_numpy_array,
+            _is_np_array_like,
             _is_pandas_df,
             _is_pandas_series,
             _is_tuple,
@@ -2464,7 +2464,7 @@ class Booster:
                     f"got {data.shape[1]}"
                 )
 
-        if _is_numpy_array(data):
+        if _is_np_array_like(data):
             from .data import _ensure_np_dtype
 
             data, _ = _ensure_np_dtype(data, data.dtype)
