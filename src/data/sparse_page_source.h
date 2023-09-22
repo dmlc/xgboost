@@ -177,15 +177,15 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     }
     // An heuristic for number of pre-fetched batches.  We can make it part of BatchParam
     // to let user adjust number of pre-fetched batches when needed.
-    uint32_t constexpr kPreFetch = 3;
-
-    size_t n_prefetch_batches = std::min(kPreFetch, n_batches_);
+    std::int32_t n_prefetches = std::max(nthreads_, 3);
+    std::int32_t n_prefetch_batches =
+        std::min(static_cast<std::uint32_t>(n_prefetches), n_batches_);
     CHECK_GT(n_prefetch_batches, 0) << "total batches:" << n_batches_;
     std::size_t fetch_it = count_;
 
     exce_.Rethrow();
 
-    for (std::size_t i = 0; i < n_prefetch_batches; ++i, ++fetch_it) {
+    for (std::int32_t i = 0; i < n_prefetch_batches; ++i, ++fetch_it) {
       fetch_it %= n_batches_;  // ring
       if (ring_->at(fetch_it).valid()) {
         continue;
