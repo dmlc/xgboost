@@ -650,8 +650,8 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts, bool is_column_split) {
     SketchEntry default_entry{};
     dh::caching_device_vector<SketchEntry> d_max_results(d_in_columns_ptr.size() - 1,
                                                          default_entry);
-    thrust::scatter(d_max_values.begin(), d_max_values.end(), d_max_keys.begin(),
-                    d_max_results.begin());
+    thrust::scatter(thrust::cuda::par(alloc), d_max_values.begin(), d_max_values.end(),
+                    d_max_keys.begin(), d_max_results.begin());
     dh::CopyDeviceSpanToVector(&max_values, dh::ToSpan(d_max_results));
     auto max_it = MakeIndexTransformIter([&](auto i) {
       if (IsCat(h_feature_types, i)) {
