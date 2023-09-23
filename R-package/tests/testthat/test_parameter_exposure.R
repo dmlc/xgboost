@@ -3,8 +3,12 @@ context('Test model params and call are exposed to R')
 data(agaricus.train, package = 'xgboost')
 data(agaricus.test, package = 'xgboost')
 
-dtrain <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
-dtest <- xgb.DMatrix(agaricus.test$data, label = agaricus.test$label)
+dtrain <- xgb.DMatrix(
+  agaricus.train$data, label = agaricus.train$label, nthread = 2
+)
+dtest <- xgb.DMatrix(
+  agaricus.test$data, label = agaricus.test$label, nthread = 2
+)
 
 bst <- xgboost(data = dtrain,
                max_depth = 2,

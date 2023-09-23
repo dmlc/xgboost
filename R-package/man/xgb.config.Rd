@@ -19,10 +19,15 @@ Accessors for model parameters as JSON string.
 }
 \examples{
 data(agaricus.train, package='xgboost')
+## Keep the number of threads to 1 for examples
+nthread <- 1
+data.table::setDTthreads(nthread)
 train <- agaricus.train
 
-bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
-               eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
+bst <- xgboost(
+  data = train$data, label = train$label, max_depth = 2,
+  eta = 1, nthread = nthread, nrounds = 2, objective = "binary:logistic"
+)
 config <- xgb.config(bst)
 
 }
