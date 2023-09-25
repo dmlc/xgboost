@@ -788,27 +788,6 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   /**
-   * Save the model as byte array representation.
-   * Write these bytes to a file will give compatible format with other xgboost bindings.
-   *
-   * If java natively support HDFS file API, use toByteArray and write the ByteArray
-   *
-   * @param withStats Controls whether the split statistics are output.
-   * @return dumped model information
-   * @throws XGBoostError native error
-   */
-  private String[] getDumpInfo(boolean withStats) throws XGBoostError {
-    int statsFlag = 0;
-    if (withStats) {
-      statsFlag = 1;
-    }
-    String[][] modelInfos = new String[1][];
-    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterDumpModelEx(handle, "", statsFlag, "text",
-            modelInfos));
-    return modelInfos[0];
-  }
-
-  /**
    * Save model into raw byte array. Currently it's using the deprecated format as
    * default, which will be changed into `ubj` in future releases.
    *
