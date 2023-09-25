@@ -118,8 +118,8 @@ public class ExternalCheckpointManager {
   public List<Integer> getCheckpointRounds(
       int firstRound, int checkpointInterval, int numOfRounds)
       throws IOException {
-    Integer end = firstRound + numOfRounds; // exclusive
-    Integer lastRound = end - 1;
+    int end = firstRound + numOfRounds; // exclusive
+    int lastRound = end - 1;
     if (end - 1 < 0) {
       throw new IllegalArgumentException("Inavlid `numOfRounds`.");
     }

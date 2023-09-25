@@ -218,7 +218,11 @@ public class XGBoost {
 
     // begin to train
     for (int iter = 0; iter < numRounds; iter++) {
-      booster.update(dtrain, iter);
+      if (obj != null) {
+        booster.update(dtrain, iter, obj);
+      } else {
+        booster.update(dtrain, iter);
+      }
       saveCheckpoint(booster, iter, checkpointIterations, ecm);
 
       // evaluation
