@@ -986,33 +986,6 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterSetAttr
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    XGBoosterLoadRabitCheckpoint
- * Signature: (J[I)I
- */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterLoadRabitCheckpoint
-  (JNIEnv *jenv , jclass jcls, jlong jhandle, jintArray jout) {
-  BoosterHandle handle = (BoosterHandle) jhandle;
-  int version;
-  int ret = XGBoosterLoadRabitCheckpoint(handle, &version);
-  JVM_CHECK_CALL(ret);
-  jint jversion = version;
-  jenv->SetIntArrayRegion(jout, 0, 1, &jversion);
-  return ret;
-}
-
-/*
- * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    XGBoosterSaveRabitCheckpoint
- * Signature: (J)I
- */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterSaveRabitCheckpoint
-  (JNIEnv *jenv, jclass jcls, jlong jhandle) {
-  BoosterHandle handle = (BoosterHandle) jhandle;
-  return XGBoosterSaveRabitCheckpoint(handle);
-}
-
-/*
- * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGBoosterGetNumFeature
  * Signature: (J[J)I
  */
@@ -1024,6 +997,17 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterGetNumFea
   JVM_CHECK_CALL(ret);
   jlong jnum_feature = num_feature;
   jenv->SetLongArrayRegion(jout, 0, 1, &jnum_feature);
+  return ret;
+}
+
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterGetNumBoostedRound(
+    JNIEnv *jenv, jclass, jlong jhandle, jintArray jout) {
+  BoosterHandle handle = (BoosterHandle)jhandle;
+  std::int32_t n_rounds{0};
+  auto ret = XGBoosterBoostedRounds(handle, &n_rounds);
+  JVM_CHECK_CALL(ret);
+  jint jn_rounds = n_rounds;
+  jenv->SetIntArrayRegion(jout, 0, 1, &jn_rounds);
   return ret;
 }
 

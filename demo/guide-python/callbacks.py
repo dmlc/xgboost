@@ -104,7 +104,7 @@ def check_point_callback():
         # Use callback class from xgboost.callback
         # Feel free to subclass/customize it to suit your need.
         check_point = xgb.callback.TrainingCheckPoint(
-            directory=tmpdir, iterations=rounds, name="model"
+            directory=tmpdir, interval=rounds, name="model"
         )
         xgb.train(
             {"objective": "binary:logistic"},
@@ -118,7 +118,7 @@ def check_point_callback():
         # This version of checkpoint saves everything including parameters and
         # model.  See: doc/tutorials/saving_model.rst
         check_point = xgb.callback.TrainingCheckPoint(
-            directory=tmpdir, iterations=rounds, as_pickle=True, name="model"
+            directory=tmpdir, interval=rounds, as_pickle=True, name="model"
         )
         xgb.train(
             {"objective": "binary:logistic"},

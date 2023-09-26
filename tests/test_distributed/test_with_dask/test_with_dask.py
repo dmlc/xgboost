@@ -2238,7 +2238,7 @@ class TestDaskCallbacks:
                 y,
                 callbacks=[
                     xgb.callback.TrainingCheckPoint(
-                        directory=Path(tmpdir), iterations=1, name="model"
+                        directory=Path(tmpdir), interval=1, name="model"
                     )
                 ],
             )

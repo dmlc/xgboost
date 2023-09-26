@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014,2021 by Contributors
+ Copyright (c) 2014-2023 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -133,7 +133,7 @@ public class XGBoost {
           int earlyStoppingRound) throws XGBoostError {
     return train(dtrain, params, round, watches, metrics, obj, eval, earlyStoppingRound, null);
   }
-
+  // save checkpoint if iter is in checkpointIterations
   private static void saveCheckpoint(
           Booster booster,
           int iter,
@@ -169,7 +169,6 @@ public class XGBoost {
     int bestIteration;
     List<String> names = new ArrayList<String>();
     List<DMatrix> mats = new ArrayList<DMatrix>();
-    Set<Integer> checkpointIterations = new HashSet<>();
     ExternalCheckpointManager ecm = null;
     if (checkpointPath != null) {
       ecm = new ExternalCheckpointManager(checkpointPath, fs);
@@ -203,32 +202,30 @@ public class XGBoost {
       booster = new Booster(params, allMats);
       booster.setFeatureNames(dtrain.getFeatureNames());
       booster.setFeatureTypes(dtrain.getFeatureTypes());
-      booster.loadRabitCheckpoint();
     } else {
       // Start training on an existing booster
       booster.setParams(params);
     }
 
+    Set<Integer> checkpointIterations = new HashSet<>();
     if (ecm != null) {
-      checkpointIterations = new HashSet<>(ecm.getCheckpointRounds(checkpointInterval, numRounds));
+      checkpointIterations = new HashSet<>(
+          ecm.getCheckpointRounds(booster.getNumBoostedRound(), checkpointInterval, numRounds));
     }
 
     boolean initial_best_score_flag = false;
     boolean max_direction = false;
 
     // begin to train
-    for (int iter = booster.getVersion() / 2; iter < numRounds; iter++) {
-      if (booster.getVersion() % 2 == 0) {
-        if (obj != null) {
-          booster.update(dtrain, obj);
-        } else {
-          booster.update(dtrain, iter);
-        }
-        saveCheckpoint(booster, iter, checkpointIterations, ecm);
-        booster.saveRabitCheckpoint();
+    for (int iter = 0; iter < numRounds; iter++) {
+      if (obj != null) {
+        booster.update(dtrain, iter, obj);
+      } else {
+        booster.update(dtrain, iter);
       }
+      saveCheckpoint(booster, iter, checkpointIterations, ecm);
 
-      //evaluation
+      // evaluation
       if (evalMats.length > 0) {
         float[] metricsOut = new float[evalMats.length];
         String evalInfo;
@@ -285,7 +282,6 @@ public class XGBoost {
           Communicator.communicatorPrint(evalInfo + '\n');
         }
       }
-      booster.saveRabitCheckpoint();
     }
     return booster;
   }
