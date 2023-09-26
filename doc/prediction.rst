@@ -146,3 +146,48 @@ instance we might accidentally call ``clf.set_params()`` inside a predict functi
 
     with ThreadPoolExecutor(max_workers=10) as e:
         e.submit(predict_fn, ...)
+
+*****************************
+Privacy-Preserving Prediction
+*****************************
+
+`Concrete ML`_ is a third-party open-source library developed by `Zama`_ that proposes gradient
+boosting classes similar to ours, but predicting directly over encrypted data, thanks to
+Fully Homomorphic Encryption. A simple example would be as follows:
+
+.. code-block:: python
+
+    from sklearn.datasets import make_classification
+    from sklearn.model_selection import train_test_split
+    from concrete.ml.sklearn import XGBClassifier
+
+    x, y = make_classification(n_samples=100, class_sep=2, n_features=30, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(
+        x, y, test_size=10, random_state=42
+    )
+
+    # Train in the clear and quantize the weights
+    model = XGBClassifier()
+    model.fit(X_train, y_train)
+
+    # Simulate the predictions in the clear
+    y_pred_clear = model.predict(X_test)
+
+    # Compile in FHE
+    model.compile(X_train)
+
+    # Generate keys
+    model.fhe_circuit.keygen()
+
+    # Run the inference on encrypted inputs!
+    y_pred_fhe = model.predict(X_test, fhe="execute")
+
+    print("In clear  :", y_pred_clear)
+    print("In FHE    :", y_pred_fhe)
+    print(f"Similarity: {int((y_pred_fhe == y_pred_clear).mean()*100)}%")
+
+More information and examples are given in the `Concrete ML documentation`_.
+
+.. _Zama: https://www.zama.ai/
+.. _Concrete ML: https://github.com/zama-ai/concrete-ml
+.. _Concrete ML documentation: https://docs.zama.ai/concrete-ml
