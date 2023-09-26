@@ -720,42 +720,38 @@ INSTANTIATE_TEST_SUITE_P(ColumnSplitObjective, TestColumnSplit,
                          });
 
 namespace {
-Json GetColumnSamplerModel(std::shared_ptr<DMatrix> dmat, std::string const& tree_method,
-                           std::string const& objective, std::string const& device) {
+Json GetModelWithArgs(std::shared_ptr<DMatrix> dmat, std::string const& tree_method,
+                      std::string const& device, Args const& args) {
   std::unique_ptr<Learner> learner{Learner::Create({dmat})};
   learner->SetParam("tree_method", tree_method);
   learner->SetParam("device", device);
-  learner->SetParam("objective", objective);
-  learner->SetParam("colsample_bytree", "0.5");
-  learner->SetParam("colsample_bylevel", "0.6");
-  learner->SetParam("colsample_bynode", "0.7");
+  learner->SetParam("objective", "reg:logistic");
+  learner->SetParams(args);
   learner->UpdateOneIter(0, dmat);
   Json model{Object{}};
   learner->SaveModel(&model);
   return model;
 }
 
-void VerifyColumnSplitColumnSampler(std::string const& tree_method, bool use_gpu,
-                                    Json const& expected_model) {
+void VerifyColumnSplitWithArgs(std::string const& tree_method, bool use_gpu, Args const& args,
+                               Json const& expected_model) {
   auto const world_size = collective::GetWorldSize();
   auto const rank = collective::GetRank();
-  auto const objective = "reg:logistic";
-  auto p_fmat = MakeFmatForObjTest(objective);
+  auto p_fmat = MakeFmatForObjTest("");
   std::shared_ptr<DMatrix> sliced{p_fmat->SliceCol(world_size, rank)};
   std::string device = "cpu";
   if (use_gpu) {
     auto gpu_id = common::AllVisibleGPUs() == 1 ? 0 : rank;
     device = "cuda:" + std::to_string(gpu_id);
   }
-  auto model = GetColumnSamplerModel(sliced, tree_method, objective, device);
+  auto model = GetModelWithArgs(sliced, tree_method, device, args);
   ASSERT_EQ(model, expected_model);
 }
 
-void TestColumnSplitColumnSampler(std::string const& tree_method, bool use_gpu) {
-  auto objective = "reg:logistic";
-  auto p_fmat = MakeFmatForObjTest(objective);
+void TestColumnSplitWithArgs(std::string const& tree_method, bool use_gpu, Args const& args) {
+  auto p_fmat = MakeFmatForObjTest("");
   std::string device = use_gpu ? "cuda:0" : "cpu";
-  auto model = GetColumnSamplerModel(p_fmat, tree_method, objective, device);
+  auto model = GetModelWithArgs(p_fmat, tree_method, device, args);
 
   auto world_size{3};
   if (use_gpu) {
@@ -765,8 +761,18 @@ void TestColumnSplitColumnSampler(std::string const& tree_method, bool use_gpu) 
       world_size = 3;
     }
   }
-  RunWithInMemoryCommunicator(world_size, VerifyColumnSplitColumnSampler, tree_method, use_gpu,
+  RunWithInMemoryCommunicator(world_size, VerifyColumnSplitWithArgs, tree_method, use_gpu, args,
                               model);
+}
+
+void TestColumnSplitColumnSampler(std::string const& tree_method, bool use_gpu) {
+  Args args{{"colsample_bytree", "0.5"}, {"colsample_bylevel", "0.6"}, {"colsample_bynode", "0.7"}};
+  TestColumnSplitWithArgs(tree_method, use_gpu, args);
+}
+
+void TestColumnSplitInteractionConstraints(std::string const& tree_method, bool use_gpu) {
+  Args args{{"interaction_constraints", "[[0, 5, 7], [2, 8, 9], [1, 3, 6]]"}};
+  TestColumnSplitWithArgs(tree_method, use_gpu, args);
 }
 }  // anonymous namespace
 
@@ -780,70 +786,21 @@ TEST(ColumnSplitColumnSampler, GPUApprox) { TestColumnSplitColumnSampler("approx
 TEST(ColumnSplitColumnSampler, GPUHist) { TestColumnSplitColumnSampler("hist", true); }
 #endif  // defined(XGBOOST_USE_CUDA)
 
-namespace {
-Json GetInteractionConstraintModel(std::shared_ptr<DMatrix> dmat, std::string const& tree_method,
-                                   std::string const& objective, std::string const& device) {
-  std::unique_ptr<Learner> learner{Learner::Create({dmat})};
-  learner->SetParam("tree_method", tree_method);
-  learner->SetParam("device", device);
-  learner->SetParam("objective", objective);
-  learner->SetParam("interaction_constraints", "[[0, 5, 7], [2, 8, 9], [1, 3, 6]]");
-  learner->UpdateOneIter(0, dmat);
-  Json model{Object{}};
-  learner->SaveModel(&model);
-  return model;
+TEST(ColumnSplitInteractionConstraints, Approx) {
+  TestColumnSplitInteractionConstraints("approx", false);
 }
 
-void VerifyColumnSplitInteractionConstraint(std::string const& tree_method, bool use_gpu,
-                                            Json const& expected_model) {
-  auto const world_size = collective::GetWorldSize();
-  auto const rank = collective::GetRank();
-  auto const objective = "reg:logistic";
-  auto p_fmat = MakeFmatForObjTest(objective);
-  std::shared_ptr<DMatrix> sliced{p_fmat->SliceCol(world_size, rank)};
-  std::string device = "cpu";
-  if (use_gpu) {
-    auto gpu_id = common::AllVisibleGPUs() == 1 ? 0 : rank;
-    device = "cuda:" + std::to_string(gpu_id);
-  }
-  auto model = GetInteractionConstraintModel(sliced, tree_method, objective, device);
-  ASSERT_EQ(model, expected_model);
-}
-
-void TestColumnSplitInteractionConstraint(std::string const& tree_method, bool use_gpu) {
-  auto objective = "reg:logistic";
-  auto p_fmat = MakeFmatForObjTest(objective);
-  std::string device = use_gpu ? "cuda:0" : "cpu";
-  auto model = GetInteractionConstraintModel(p_fmat, tree_method, objective, device);
-
-  auto world_size{3};
-  if (use_gpu) {
-    world_size = common::AllVisibleGPUs();
-    // Simulate MPU on a single GPU.
-    if (world_size == 1) {
-      world_size = 3;
-    }
-  }
-  RunWithInMemoryCommunicator(world_size, VerifyColumnSplitInteractionConstraint, tree_method,
-                              use_gpu, model);
-}
-}  // anonymous namespace
-
-TEST(ColumnSplitInteractionConstraint, Approx) {
-  TestColumnSplitInteractionConstraint("approx", false);
-}
-
-TEST(ColumnSplitInteractionConstraint, Hist) {
-  TestColumnSplitInteractionConstraint("hist", false);
+TEST(ColumnSplitInteractionConstraints, Hist) {
+  TestColumnSplitInteractionConstraints("hist", false);
 }
 
 #if defined(XGBOOST_USE_CUDA)
-TEST(ColumnSplitInteractionConstraint, GPUApprox) {
-  TestColumnSplitInteractionConstraint("approx", true);
+TEST(ColumnSplitInteractionConstraints, GPUApprox) {
+  TestColumnSplitInteractionConstraints("approx", true);
 }
 
-TEST(ColumnSplitInteractionConstraint, GPUHist) {
-  TestColumnSplitInteractionConstraint("hist", true);
+TEST(ColumnSplitInteractionConstraints, GPUHist) {
+  TestColumnSplitInteractionConstraints("hist", true);
 }
 #endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost
