@@ -781,9 +781,9 @@ TEST(ColumnSplitColumnSampler, Approx) { TestColumnSplitColumnSampler("approx", 
 TEST(ColumnSplitColumnSampler, Hist) { TestColumnSplitColumnSampler("hist", false); }
 
 #if defined(XGBOOST_USE_CUDA)
-TEST(ColumnSplitColumnSampler, GPUApprox) { TestColumnSplitColumnSampler("approx", true); }
+TEST(MGPUColumnSplitColumnSampler, GPUApprox) { TestColumnSplitColumnSampler("approx", true); }
 
-TEST(ColumnSplitColumnSampler, GPUHist) { TestColumnSplitColumnSampler("hist", true); }
+TEST(MGPUColumnSplitColumnSampler, GPUHist) { TestColumnSplitColumnSampler("hist", true); }
 #endif  // defined(XGBOOST_USE_CUDA)
 
 TEST(ColumnSplitInteractionConstraints, Approx) {
@@ -795,11 +795,11 @@ TEST(ColumnSplitInteractionConstraints, Hist) {
 }
 
 #if defined(XGBOOST_USE_CUDA)
-TEST(ColumnSplitInteractionConstraints, GPUApprox) {
+TEST(MGPUColumnSplitInteractionConstraints, GPUApprox) {
   TestColumnSplitInteractionConstraints("approx", true);
 }
 
-TEST(ColumnSplitInteractionConstraints, GPUHist) {
+TEST(MGPUColumnSplitInteractionConstraints, GPUHist) {
   TestColumnSplitInteractionConstraints("hist", true);
 }
 #endif  // defined(XGBOOST_USE_CUDA)
