@@ -1,5 +1,5 @@
-/*!
- * Copyright 2015-2022 by XGBoost Contributors
+/**
+ * Copyright 2015-2023, XGBoost Contributors
  * \file simple_dmatrix.h
  * \brief In-memory version of DMatrix.
  * \author Tianqi Chen
@@ -15,8 +15,7 @@
 
 #include "gradient_index.h"
 
-namespace xgboost {
-namespace data {
+namespace xgboost::data {
 // Used for single batch data.
 class SimpleDMatrix : public DMatrix {
  public:
@@ -75,6 +74,5 @@ class SimpleDMatrix : public DMatrix {
   // Context used only for DMatrix initialization.
   Context fmat_ctx_;
 };
-}  // namespace data
-}  // namespace xgboost
+}  // namespace xgboost::data
 #endif  // XGBOOST_DATA_SIMPLE_DMATRIX_H_

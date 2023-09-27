@@ -1011,9 +1011,6 @@ template DMatrix* DMatrix::Create<data::CSCArrayAdapter>(data::CSCArrayAdapter* 
 template DMatrix* DMatrix::Create(
     data::IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>* adapter,
     float missing, int nthread, const std::string& cache_prefix, DataSplitMode data_split_mode);
-template DMatrix* DMatrix::Create<data::RecordBatchesIterAdapter>(
-    data::RecordBatchesIterAdapter* adapter, float missing, int nthread, const std::string&,
-    DataSplitMode data_split_mode);
 
 SparsePage SparsePage::GetTranspose(int num_columns, int32_t n_threads) const {
   SparsePage transpose;
