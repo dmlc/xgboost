@@ -80,6 +80,8 @@ class TestArrowTable:
 
         preds3 = bst2.inplace_predict(table)
         np.testing.assert_allclose(preds1, preds3)
+        assert bst2.feature_names == ["A", "B", "C"]
+        assert bst2.feature_types == ["int", "float", "int"]
 
     def test_arrow_survival(self):
         data = os.path.join(tm.data_dir(__file__), "veterans_lung_cancer.csv")
