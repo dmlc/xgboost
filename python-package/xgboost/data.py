@@ -491,7 +491,6 @@ def _transform_pandas_df(
         if is_pa_ext_dtype(dtype):
             pyarrow_extension = True
 
-    print("pyarrow_extension:", pyarrow_extension)
     feature_names, feature_types = pandas_feature_info(
         data, meta, feature_names, feature_types, enable_categorical
     )
