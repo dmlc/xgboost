@@ -5,7 +5,7 @@ import ctypes
 import json
 import os
 import warnings
-from typing import Any, Callable, Iterator, List, Optional, Sequence, Tuple, cast
+from typing import Any, Callable, List, Optional, Sequence, Tuple, cast
 
 import numpy as np
 
@@ -491,6 +491,7 @@ def _transform_pandas_df(
         if is_pa_ext_dtype(dtype):
             pyarrow_extension = True
 
+    print("pyarrow_extension:", pyarrow_extension)
     feature_names, feature_types = pandas_feature_info(
         data, meta, feature_names, feature_types, enable_categorical
     )
@@ -694,32 +695,29 @@ def _arrow_transform(data: DataType) -> Any:
     def type_mapper(dtype: pa.DataType) -> Optional[str]:
         """Maps pyarrow type to pandas arrow extension type."""
         if pa.types.is_int8(dtype):
-            return pd.Int8Dtype()
+            return pd.ArrowDtype(pa.int8())
         if pa.types.is_int16(dtype):
-            return pd.Int16Dtype()
+            return pd.ArrowDtype(pa.int16())
         if pa.types.is_int32(dtype):
-            return pd.Int32Dtype()
+            return pd.ArrowDtype(pa.int32())
         if pa.types.is_int64(dtype):
-            return pd.Int64Dtype()
+            return pd.ArrowDtype(pa.int64())
         if pa.types.is_uint8(dtype):
-            return pd.UInt8Dtype()
+            return pd.ArrowDtype(pa.uint8())
         if pa.types.is_uint16(dtype):
-            return pd.UInt16Dtype()
+            return pd.ArrowDtype(pa.uint16())
         if pa.types.is_uint32(dtype):
-            return pd.UInt32Dtype()
+            return pd.ArrowDtype(pa.uint32())
         if pa.types.is_uint64(dtype):
-            return pd.UInt64Dtype()
+            return pd.ArrowDtype(pa.uint64())
         if pa.types.is_float16(dtype):
-            return pd.Float16Dtype()
+            return pd.ArrowDtype(pa.float16())
         if pa.types.is_float32(dtype):
-            return pd.Float32Dtype()
+            return pd.ArrowDtype(pa.float32())
         if pa.types.is_float64(dtype):
-            return pd.Float64Dtype()
+            return pd.ArrowDtype(pa.float64())
         if pa.types.is_boolean(dtype):
-            return pd.BooleanDtype()
-        if pa.types.is_dictionary(dtype):
-            return pd.CategoricalDtype()
-
+            return pd.ArrowDtype(pa.bool_())
         return None
 
     df = data.to_pandas(types_mapper=type_mapper)
