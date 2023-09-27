@@ -774,6 +774,11 @@ void TestColumnSplitInteractionConstraints(std::string const& tree_method, bool 
   Args args{{"interaction_constraints", "[[0, 5, 7], [2, 8, 9], [1, 3, 6]]"}};
   TestColumnSplitWithArgs(tree_method, use_gpu, args);
 }
+
+void TestColumnSplitMonotoneConstraints(std::string const& tree_method, bool use_gpu) {
+  Args args{{"monotone_constraints", "(1,-1,0,1,1,-1,-1,0,0,1)"}};
+  TestColumnSplitWithArgs(tree_method, use_gpu, args);
+}
 }  // anonymous namespace
 
 TEST(ColumnSplitColumnSampler, Approx) { TestColumnSplitColumnSampler("approx", false); }
@@ -801,6 +806,24 @@ TEST(MGPUColumnSplitInteractionConstraints, GPUApprox) {
 
 TEST(MGPUColumnSplitInteractionConstraints, GPUHist) {
   TestColumnSplitInteractionConstraints("hist", true);
+}
+#endif  // defined(XGBOOST_USE_CUDA)
+
+TEST(ColumnSplitMonotoneConstraints, Approx) {
+  TestColumnSplitMonotoneConstraints("approx", false);
+}
+
+TEST(ColumnSplitMonotoneConstraints, Hist) {
+  TestColumnSplitMonotoneConstraints("hist", false);
+}
+
+#if defined(XGBOOST_USE_CUDA)
+TEST(MGPUColumnSplitMonotoneConstraints, GPUApprox) {
+  TestColumnSplitMonotoneConstraints("approx", true);
+}
+
+TEST(MGPUColumnSplitMonotoneConstraints, GPUHist) {
+  TestColumnSplitMonotoneConstraints("hist", true);
 }
 #endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost
