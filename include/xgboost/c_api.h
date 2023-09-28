@@ -1259,15 +1259,6 @@ XGB_DLL int XGBoosterSaveModelToBuffer(BoosterHandle handle, char const *config,
                                        char const **out_dptr);
 
 /*!
- * \brief Save booster to a buffer with in binary format.
- *
- * \deprecated since 1.6.0
- * \see XGBoosterSaveModelToBuffer()
- */
-XGB_DLL int XGBoosterGetModelRaw(BoosterHandle handle, bst_ulong *out_len,
-                                 const char **out_dptr);
-
-/*!
  * \brief Memory snapshot based serialization method.  Saves everything states
  * into buffer.
  *
