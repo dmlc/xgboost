@@ -1348,29 +1348,6 @@ XGB_DLL int XGBoosterSaveModelToBuffer(BoosterHandle handle, char const *json_co
   API_END();
 }
 
-XGB_DLL int XGBoosterGetModelRaw(BoosterHandle handle, xgboost::bst_ulong *out_len,
-                                 const char **out_dptr) {
-  API_BEGIN();
-  CHECK_HANDLE();
-
-  auto *learner = static_cast<Learner*>(handle);
-  std::string& raw_str = learner->GetThreadLocal().ret_str;
-  raw_str.resize(0);
-
-  common::MemoryBufferStream fo(&raw_str);
-  LOG(WARNING) << error::DeprecatedFunc(__func__, "1.6.0", "XGBoosterSaveModelToBuffer");
-
-  learner->Configure();
-  learner->SaveModel(&fo);
-
-  xgboost_CHECK_C_ARG_PTR(out_dptr);
-  xgboost_CHECK_C_ARG_PTR(out_len);
-
-  *out_dptr = dmlc::BeginPtr(raw_str);
-  *out_len = static_cast<xgboost::bst_ulong>(raw_str.length());
-  API_END();
-}
-
 // The following two functions are `Load` and `Save` for memory based
 // serialization methods. E.g. Python pickle.
 XGB_DLL int XGBoosterSerializeToBuffer(BoosterHandle handle, xgboost::bst_ulong *out_len,
