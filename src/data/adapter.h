@@ -1,5 +1,5 @@
-/*!
- *  Copyright (c) 2019~2021 by Contributors
+/**
+ *  Copyright 2019-2023, XGBoost Contributors
  * \file adapter.h
  */
 #ifndef XGBOOST_DATA_ADAPTER_H_
@@ -16,7 +16,6 @@
 #include <utility>  // std::move
 #include <vector>
 
-#include "../c_api/c_api_error.h"
 #include "../common/error_msg.h"  // for MaxFeatureSize
 #include "../common/math.h"
 #include "array_interface.h"
@@ -742,8 +741,10 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
   dmlc::Parser<uint32_t>* parser_;
 };
 
-/*! \brief Data iterator that takes callback to return data, used in JVM package for
- *  accepting data iterator. */
+/**
+ * @brief Data iterator that takes callback to return data, used in JVM package for accepting data
+ *        iterator.
+ */
 template <typename DataIterHandle, typename XGBCallbackDataIterNext, typename XGBoostBatchCSR>
 class IteratorAdapter : public dmlc::DataIter<FileAdapterBatch> {
  public:
@@ -757,23 +758,9 @@ class IteratorAdapter : public dmlc::DataIter<FileAdapterBatch> {
     CHECK(at_first_) << "Cannot reset IteratorAdapter";
   }
 
-  bool Next() override {
-    if ((*next_callback_)(
-            data_handle_,
-            [](void *handle, XGBoostBatchCSR batch) -> int {
-              API_BEGIN();
-              static_cast<IteratorAdapter *>(handle)->SetData(batch);
-              API_END();
-            },
-            this) != 0) {
-      at_first_ = false;
-      return true;
-    } else {
-      return false;
-    }
-  }
+  [[nodiscard]] bool Next() override;
 
-  FileAdapterBatch const& Value() const override {
+  [[nodiscard]] FileAdapterBatch const& Value() const override {
     return *batch_.get();
   }
 
@@ -821,12 +808,12 @@ class IteratorAdapter : public dmlc::DataIter<FileAdapterBatch> {
     block_.index = dmlc::BeginPtr(index_);
     block_.value = dmlc::BeginPtr(value_);
 
-    batch_.reset(new FileAdapterBatch(&block_, row_offset_));
+    batch_ = std::make_unique<FileAdapterBatch>(&block_, row_offset_);
     row_offset_ += offset_.size() - 1;
   }
 
-  size_t NumColumns() const { return columns_; }
-  size_t NumRows() const { return kAdapterUnknownSize; }
+  [[nodiscard]] std::size_t NumColumns() const { return columns_; }
+  [[nodiscard]] std::size_t NumRows() const { return kAdapterUnknownSize; }
 
  private:
   std::vector<size_t> offset_;
@@ -846,56 +833,6 @@ class IteratorAdapter : public dmlc::DataIter<FileAdapterBatch> {
   // internal Rowblock
   dmlc::RowBlock<uint32_t> block_;
   std::unique_ptr<FileAdapterBatch> batch_;
-};
-
-enum ColumnDType : uint8_t {
-  kUnknown,
-  kInt8,
-  kUInt8,
-  kInt16,
-  kUInt16,
-  kInt32,
-  kUInt32,
-  kInt64,
-  kUInt64,
-  kFloat,
-  kDouble
-};
-
-class Column {
- public:
-  Column() = default;
-
-  Column(size_t col_idx, size_t length, size_t null_count, const uint8_t* bitmap)
-    : col_idx_{col_idx}, length_{length}, null_count_{null_count}, bitmap_{bitmap} {}
-
-  virtual ~Column() = default;
-
-  Column(const Column&) = delete;
-  Column& operator=(const Column&) = delete;
-  Column(Column&&) = delete;
-  Column& operator=(Column&&) = delete;
-
-  // whether the valid bit is set for this element
-  bool IsValid(size_t row_idx) const {
-    return (!bitmap_ || (bitmap_[row_idx/8] & (1 << (row_idx%8))));
-  }
-
-  virtual COOTuple GetElement(size_t row_idx) const = 0;
-
-  virtual bool IsValidElement(size_t row_idx) const = 0;
-
-  virtual std::vector<float> AsFloatVector() const = 0;
-
-  virtual std::vector<uint64_t> AsUint64Vector() const = 0;
-
-  size_t Length() const { return length_; }
-
- protected:
-  size_t col_idx_;
-  size_t length_;
-  size_t null_count_;
-  const uint8_t* bitmap_;
 };
 
 class SparsePageAdapterBatch {
