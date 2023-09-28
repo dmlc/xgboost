@@ -552,24 +552,6 @@ XGB_DLL int XGProxyDMatrixSetDataCSR(DMatrixHandle handle, char const *indptr,
 
 /** @} */  // End of Streaming
 
-XGB_DLL int XGImportArrowRecordBatch(DataIterHandle data_handle, void *ptr_array, void *ptr_schema);
-
-/*!
- * \brief Construct DMatrix from arrow using callbacks.  Arrow related C API is not stable
- *        and subject to change in the future.
- *
- * \param next   Callback function for fetching arrow records.
- * \param config JSON encoded configuration.  Required values are:
- *   - missing: Which value to represent missing value.
- *   - nbatch: Number of batches in arrow table.
- *   - nthread (optional): Number of threads used for initializing DMatrix.
- * \param out      The created DMatrix.
- *
- * \return 0 when success, -1 when failure happens
- */
-XGB_DLL int XGDMatrixCreateFromArrowCallback(XGDMatrixCallbackNext *next, char const *config,
-                                             DMatrixHandle *out);
-
 /*!
  * \brief create a new dmatrix from sliced content of existing matrix
  * \param handle instance of data matrix to be sliced

@@ -2431,6 +2431,8 @@ class Booster:
 
         from .data import (
             _array_interface,
+            _arrow_transform,
+            _is_arrow,
             _is_cudf_df,
             _is_cupy_array,
             _is_list,
@@ -2442,6 +2444,8 @@ class Booster:
         )
 
         enable_categorical = True
+        if _is_arrow(data):
+            data = _arrow_transform(data)
         if _is_pandas_series(data):
             import pandas as pd
 
