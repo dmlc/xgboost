@@ -62,6 +62,7 @@ OBJECTS= \
     $(PKGROOT)/src/gbm/gbtree_model.o \
     $(PKGROOT)/src/gbm/gblinear.o \
     $(PKGROOT)/src/gbm/gblinear_model.o \
+    $(PKGROOT)/src/data/adapter.o \
     $(PKGROOT)/src/data/simple_dmatrix.o \
     $(PKGROOT)/src/data/data.o \
     $(PKGROOT)/src/data/sparse_page_raw_format.o \
