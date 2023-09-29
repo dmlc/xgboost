@@ -559,6 +559,18 @@ XGB_DLL int XGDMatrixSliceDMatrixEx(DMatrixHandle handle,
   API_END();
 }
 
+XGB_DLL int XGDMatrixSliceColumns(DMatrixHandle handle,
+                                  xgboost::bst_ulong num_slices,
+                                  xgboost::bst_ulong slice_id,
+                                  DMatrixHandle *out) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  DMatrix* dmat = static_cast<std::shared_ptr<DMatrix>*>(handle)->get();
+  *out = new std::shared_ptr<DMatrix>(
+      dmat->SliceCol(num_slices, slice_id));
+  API_END();
+}
+
 XGB_DLL int XGDMatrixFree(DMatrixHandle handle) {
   API_BEGIN();
   CHECK_HANDLE();

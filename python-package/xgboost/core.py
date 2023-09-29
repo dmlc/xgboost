@@ -1264,6 +1264,35 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         )
         return res
 
+    def slice_columns(self, num_slices: int, slice_id: int) -> "DMatrix":
+        """Slice the DMatrix by column and return a new DMatrix that only contains the desired columns.
+
+        Parameters
+        ----------
+        num_slices
+            Total number of slices.
+        slice_id
+            Desired slice index.
+
+        Returns
+        -------
+        res
+            A new DMatrix containing only sliced columns.
+        """
+        assert num_slices >= 0
+        assert 0 <= slice_id < num_slices
+        res = DMatrix(None)
+        res.handle = ctypes.c_void_p()
+        _check_call(
+            _LIB.XGDMatrixSliceColumns(
+                self.handle,
+                c_bst_ulong(num_slices),
+                c_bst_ulong(slice_id),
+                ctypes.byref(res.handle),
+            )
+        )
+        return res
+
     @property
     def feature_names(self) -> Optional[FeatureNames]:
         """Labels for features (column labels).

@@ -199,6 +199,39 @@ class TestDMatrix:
         sliced = d.slice(ridxs_arr)
         np.testing.assert_equal(sliced.get_label(), y[2:7])
 
+    def test_slice_columns(self):
+        X = rng.randn(100, 100)
+        y = rng.randint(low=0, high=3, size=100).astype(np.float32)
+        d = xgb.DMatrix(X, y)
+        np.testing.assert_equal(d.get_label(), y)
+
+        fw = rng.uniform(size=100).astype(np.float32)
+        d.set_info(feature_weights=fw)
+
+        # base margin is per-class in multi-class classifier
+        base_margin = rng.randn(100, 3).astype(np.float32)
+        d.set_base_margin(base_margin)
+        np.testing.assert_allclose(d.get_base_margin().reshape(100, 3), base_margin)
+
+        sliced = d.slice_columns(3, 1)
+
+        # Slicing columns doesn't change the number of rows and columns
+        np.testing.assert_equal(sliced.num_row(), d.num_row())
+        np.testing.assert_equal(sliced.num_col(), d.num_col())
+        # but does change the number of non-missing values
+        np.testing.assert_equal(sliced.num_nonmissing(), d.num_nonmissing() * 0.33)
+
+        # Check the columns are correct
+        columns_present = np.unique(sliced.get_data().indices)
+        expected_columns = range(33, 66)
+        np.testing.assert_equal(columns_present, expected_columns)
+
+        # Slicing columns doesn't change label and other meta info fields
+        np.testing.assert_equal(sliced.get_label(), y)
+        np.testing.assert_equal(sliced.get_float_info('feature_weights'), fw)
+        np.testing.assert_equal(sliced.get_base_margin(), base_margin.flatten())
+        np.testing.assert_equal(sliced.get_base_margin(), sliced.get_float_info('base_margin'))
+
     def test_feature_names_slice(self):
         data = np.random.randn(5, 5)
 

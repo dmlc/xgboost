@@ -85,7 +85,7 @@ class DMatrixProxy : public DMatrix {
     LOG(FATAL) << "Slicing DMatrix is not supported for Proxy DMatrix.";
     return nullptr;
   }
-  DMatrix* SliceCol(int, int) override {
+  DMatrix* SliceCol(bst_ulong, bst_ulong) override {
     LOG(FATAL) << "Slicing DMatrix columns is not supported for Proxy DMatrix.";
     return nullptr;
   }

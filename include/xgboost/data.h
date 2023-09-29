@@ -642,7 +642,7 @@ class DMatrix {
    * @param slice_id Index of the current slice
    * @return DMatrix containing the slice of columns
    */
-  virtual DMatrix *SliceCol(int num_slices, int slice_id) = 0;
+  virtual DMatrix *SliceCol(bst_ulong num_slices, bst_ulong slice_id) = 0;
 
  protected:
   virtual BatchSet<SparsePage> GetRowBatches() = 0;

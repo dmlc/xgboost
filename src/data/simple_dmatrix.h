@@ -35,7 +35,7 @@ class SimpleDMatrix : public DMatrix {
 
   bool SingleColBlock() const override { return true; }
   DMatrix* Slice(common::Span<int32_t const> ridxs) override;
-  DMatrix* SliceCol(int num_slices, int slice_id) override;
+  DMatrix* SliceCol(bst_ulong num_slices, bst_ulong slice_id) override;
 
   /*! \brief magic number used to identify SimpleDMatrix binary files */
   static const int kMagic = 0xffffab01;

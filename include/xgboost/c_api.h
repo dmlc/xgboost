@@ -579,6 +579,18 @@ XGB_DLL int XGDMatrixSliceDMatrixEx(DMatrixHandle handle,
                                     DMatrixHandle *out,
                                     int allow_groups);
 /*!
+ * \brief create a new dmatrix from sliced columns of existing matrix
+ * \param handle instance of data matrix to be sliced
+ * \param num_slices Total number of slices
+ * \param slice_id Index of the current slice
+ * \param out a sliced new matrix
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixSliceColumns(DMatrixHandle handle,
+                                  bst_ulong num_slices,
+                                  bst_ulong slice_id,
+                                  DMatrixHandle *out);
+/*!
  * \brief free space in data matrix
  * \return 0 when success, -1 when failure happens
  */

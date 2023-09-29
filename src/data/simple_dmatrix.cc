@@ -48,7 +48,7 @@ DMatrix* SimpleDMatrix::Slice(common::Span<int32_t const> ridxs) {
   return out;
 }
 
-DMatrix* SimpleDMatrix::SliceCol(int num_slices, int slice_id) {
+DMatrix* SimpleDMatrix::SliceCol(bst_ulong num_slices, bst_ulong slice_id) {
   auto out = new SimpleDMatrix;
   SparsePage& out_page = *out->sparse_page_;
   auto const slice_size = info_.num_col_ / num_slices;
