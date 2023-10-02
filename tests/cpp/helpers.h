@@ -310,9 +310,9 @@ class RandomDataGenerator {
   void GenerateCSR(HostDeviceVector<float>* value, HostDeviceVector<bst_row_t>* row_ptr,
                    HostDeviceVector<bst_feature_t>* columns) const;
 
-  [[nodiscard]] std::shared_ptr<DMatrix> GenerateDMatrix(bool with_label = false,
-                                                         bool float_label = true,
-                                                         size_t classes = 1) const;
+  [[nodiscard]] std::shared_ptr<DMatrix> GenerateDMatrix(
+      bool with_label = false, bool float_label = true, size_t classes = 1,
+      DataSplitMode data_split_mode = DataSplitMode::kRow) const;
 
   [[nodiscard]] std::shared_ptr<DMatrix> GenerateSparsePageDMatrix(std::string prefix,
                                                                    bool with_label) const;

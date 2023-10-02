@@ -559,8 +559,9 @@ class DMatrix {
    *
    * \param uri The URI of input.
    * \param silent Whether print information during loading.
-   * \param data_split_mode In distributed mode, split the input according this mode; otherwise,
-   *                        it's just an indicator on how the input was split beforehand.
+   * \param data_split_mode In distributed mode, if the data split mode is row, split the input by
+   *                        row; otherwise, it's just an indicator on how the input was split
+   *                        beforehand.
    * \return The created DMatrix.
    */
   static DMatrix* Load(const std::string& uri, bool silent = true,
