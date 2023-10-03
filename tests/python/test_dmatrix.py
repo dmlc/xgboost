@@ -1,3 +1,4 @@
+import multiprocessing
 import os
 import tempfile
 
@@ -8,7 +9,8 @@ from hypothesis import given, settings, strategies
 from scipy.sparse import csr_matrix, rand
 
 import xgboost as xgb
-from xgboost import testing as tm
+from xgboost import testing as tm, RabitTracker
+from xgboost.core import DataSplitMode
 from xgboost.testing.data import np_dtypes
 
 rng = np.random.RandomState(1)
@@ -60,6 +62,24 @@ def set_base_margin_info(DType, DMatrixT, tm: str):
         base_margin = X.reshape(2, 5, 2, 5)
         with pytest.raises(ValueError, match=r".*base_margin.*"):
             Xy.set_base_margin(base_margin)
+
+
+def run_with_rabit(world_size, test_fn):
+    tracker = RabitTracker(host_ip='127.0.0.1', n_workers=world_size)
+    tracker.start(world_size)
+
+    def run_worker(rabit_env):
+        with xgb.collective.CommunicatorContext(**rabit_env):
+            test_fn(world_size)
+
+    workers = []
+    for rank in range(world_size):
+        worker = multiprocessing.Process(target=run_worker, args=(tracker.worker_envs(),))
+        workers.append(worker)
+        worker.start()
+    for worker in workers:
+        worker.join()
+        assert worker.exitcode == 0
 
 
 class TestDMatrix:
@@ -467,3 +487,45 @@ class TestDMatrix:
             m0 = xgb.DMatrix(orig)
             m1 = xgb.DMatrix(x)
             assert tm.predictor_equal(m0, m1)
+
+    def test_column_split_numpy(self):
+        def verify_column_split(world_size):
+            data = np.random.randn(5, 5)
+            dm = xgb.DMatrix(data, data_split_mode=DataSplitMode.COL)
+            assert dm.num_row() == 5
+            assert dm.num_col() == 5 * world_size
+        run_with_rabit(world_size=3, test_fn=verify_column_split)
+
+    def test_column_split_csr(self):
+        def verify_column_split(world_size):
+            indptr = np.array([0, 2, 3, 6])
+            indices = np.array([0, 2, 2, 0, 1, 2])
+            data = np.array([1, 2, 3, 4, 5, 6])
+            X = scipy.sparse.csr_matrix((data, indices, indptr), shape=(3, 3))
+            dtrain = xgb.DMatrix(X, data_split_mode=DataSplitMode.COL)
+            assert dtrain.num_row() == 3
+            assert dtrain.num_col() == 3 * world_size
+        run_with_rabit(world_size=3, test_fn=verify_column_split)
+
+    def test_column_split_csc(self):
+        def verify_column_split(world_size):
+            row = np.array([0, 2, 2, 0, 1, 2])
+            col = np.array([0, 0, 1, 2, 2, 2])
+            data = np.array([1, 2, 3, 4, 5, 6])
+            X = scipy.sparse.csc_matrix((data, (row, col)), shape=(3, 3))
+            dtrain = xgb.DMatrix(X, data_split_mode=DataSplitMode.COL)
+            assert dtrain.num_row() == 3
+            assert dtrain.num_col() == 3 * world_size
+        run_with_rabit(world_size=3, test_fn=verify_column_split)
+
+    def test_column_split_csc(self):
+        def verify_column_split(world_size):
+            row = np.array([0, 2, 2, 0, 1, 2])
+            col = np.array([0, 0, 1, 2, 2, 2])
+            data = np.array([1, 2, 3, 4, 5, 6])
+            X = scipy.sparse.coo_matrix((data, (row, col)), shape=(3, 3))
+            dtrain = xgb.DMatrix(X, data_split_mode=DataSplitMode.COL)
+            assert dtrain.num_row() == 3
+            assert dtrain.num_col() == 3 * world_size
+        run_with_rabit(world_size=3, test_fn=verify_column_split)
+
