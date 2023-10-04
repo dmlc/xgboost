@@ -972,10 +972,13 @@ def _from_list(
     n_threads: int,
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
+    data_split_mode: DataSplitMode = DataSplitMode.ROW,
 ) -> DispatchedDataBackendReturnType:
     array = np.array(data)
     _check_data_shape(data)
-    return _from_numpy_array(array, missing, n_threads, feature_names, feature_types)
+    return _from_numpy_array(
+        array, missing, n_threads, feature_names, feature_types, data_split_mode
+    )
 
 
 def _is_tuple(data: DataType) -> bool:
@@ -988,8 +991,9 @@ def _from_tuple(
     n_threads: int,
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
+    data_split_mode: DataSplitMode = DataSplitMode.ROW,
 ) -> DispatchedDataBackendReturnType:
-    return _from_list(data, missing, n_threads, feature_names, feature_types)
+    return _from_list(data, missing, n_threads, feature_names, feature_types, data_split_mode)
 
 
 def _is_iter(data: DataType) -> bool:
@@ -1031,9 +1035,13 @@ def dispatch_data_backend(
     if not _is_cudf_ser(data) and not _is_pandas_series(data):
         _check_data_shape(data)
     if _is_scipy_csr(data):
-        return _from_scipy_csr(data, missing, threads, feature_names, feature_types, data_split_mode)
+        return _from_scipy_csr(
+            data, missing, threads, feature_names, feature_types, data_split_mode
+        )
     if _is_scipy_csc(data):
-        return _from_scipy_csc(data, missing, threads, feature_names, feature_types, data_split_mode)
+        return _from_scipy_csc(
+            data, missing, threads, feature_names, feature_types, data_split_mode
+        )
     if _is_scipy_coo(data):
         return _from_scipy_csr(
             data.tocsr(), missing, threads, feature_names, feature_types, data_split_mode
@@ -1045,9 +1053,9 @@ def dispatch_data_backend(
     if _is_uri(data):
         return _from_uri(data, missing, feature_names, feature_types, data_split_mode)
     if _is_list(data):
-        return _from_list(data, missing, threads, feature_names, feature_types)
+        return _from_list(data, missing, threads, feature_names, feature_types, data_split_mode)
     if _is_tuple(data):
-        return _from_tuple(data, missing, threads, feature_names, feature_types)
+        return _from_tuple(data, missing, threads, feature_names, feature_types, data_split_mode)
     if _is_arrow(data):
         data = _arrow_transform(data)
     if _is_pandas_series(data):
