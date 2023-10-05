@@ -34,6 +34,7 @@ import pytest
 from scipy import sparse
 
 import xgboost as xgb
+from xgboost import RabitTracker
 from xgboost.core import ArrayLike
 from xgboost.sklearn import SklObjective
 from xgboost.testing.data import (
@@ -938,3 +939,23 @@ def load_agaricus(path: str) -> Tuple[xgb.DMatrix, xgb.DMatrix]:
 
 def project_root(path: str) -> str:
     return normpath(os.path.join(demo_dir(path), os.path.pardir))
+
+
+def run_with_rabit(world_size, test_fn):
+    tracker = RabitTracker(host_ip="127.0.0.1", n_workers=world_size)
+    tracker.start(world_size)
+
+    def run_worker(rabit_env):
+        with xgb.collective.CommunicatorContext(**rabit_env):
+            test_fn(world_size)
+
+    workers = []
+    for rank in range(world_size):
+        worker = multiprocessing.Process(
+            target=run_worker, args=(tracker.worker_envs(),)
+        )
+        workers.append(worker)
+        worker.start()
+    for worker in workers:
+        worker.join()
+        assert worker.exitcode == 0

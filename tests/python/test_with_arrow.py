@@ -6,6 +6,7 @@ import pytest
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.core import DataSplitMode
 
 try:
     import pandas as pd
@@ -97,3 +98,15 @@ class TestArrowTable:
         y_np_low = dtrain.get_float_info("label_lower_bound")
         np.testing.assert_equal(y_np_up, y_upper_bound.to_pandas().values)
         np.testing.assert_equal(y_np_low, y_lower_bound.to_pandas().values)
+
+    def test_column_split_arrow_table(self):
+        def verify_column_split(world_size):
+            df = pd.DataFrame(
+                [[0, 1, 2.0, 3.0], [1, 2, 3.0, 4.0]], columns=["a", "b", "c", "d"]
+            )
+            table = pa.Table.from_pandas(df)
+            dm = xgb.DMatrix(table, data_split_mode=DataSplitMode.COL)
+            assert dm.num_row() == 2
+            assert dm.num_col() == 4 * world_size
+
+        tm.run_with_rabit(world_size=3, test_fn=verify_column_split)

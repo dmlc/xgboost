@@ -1,4 +1,3 @@
-import multiprocessing
 import os
 import tempfile
 
@@ -9,7 +8,7 @@ from hypothesis import given, settings, strategies
 from scipy.sparse import csr_matrix, rand
 
 import xgboost as xgb
-from xgboost import testing as tm, RabitTracker
+from xgboost import testing as tm
 from xgboost.core import DataSplitMode
 from xgboost.testing.data import np_dtypes
 
@@ -62,24 +61,6 @@ def set_base_margin_info(DType, DMatrixT, tm: str):
         base_margin = X.reshape(2, 5, 2, 5)
         with pytest.raises(ValueError, match=r".*base_margin.*"):
             Xy.set_base_margin(base_margin)
-
-
-def run_with_rabit(world_size, test_fn):
-    tracker = RabitTracker(host_ip='127.0.0.1', n_workers=world_size)
-    tracker.start(world_size)
-
-    def run_worker(rabit_env):
-        with xgb.collective.CommunicatorContext(**rabit_env):
-            test_fn(world_size)
-
-    workers = []
-    for rank in range(world_size):
-        worker = multiprocessing.Process(target=run_worker, args=(tracker.worker_envs(),))
-        workers.append(worker)
-        worker.start()
-    for worker in workers:
-        worker.join()
-        assert worker.exitcode == 0
 
 
 class TestDMatrix:
@@ -495,7 +476,7 @@ class TestDMatrix:
             assert dm.num_row() == 5
             assert dm.num_col() == 5 * world_size
 
-        run_with_rabit(world_size=3, test_fn=verify_column_split)
+        tm.run_with_rabit(world_size=3, test_fn=verify_column_split)
 
     def test_column_split_csr(self):
         def verify_column_split(world_size):
@@ -507,7 +488,7 @@ class TestDMatrix:
             assert dtrain.num_row() == 3
             assert dtrain.num_col() == 3 * world_size
 
-        run_with_rabit(world_size=3, test_fn=verify_column_split)
+        tm.run_with_rabit(world_size=3, test_fn=verify_column_split)
 
     def test_column_split_csc(self):
         def verify_column_split(world_size):
@@ -519,7 +500,7 @@ class TestDMatrix:
             assert dtrain.num_row() == 3
             assert dtrain.num_col() == 3 * world_size
 
-        run_with_rabit(world_size=3, test_fn=verify_column_split)
+        tm.run_with_rabit(world_size=3, test_fn=verify_column_split)
 
     def test_column_split_coo(self):
         def verify_column_split(world_size):
@@ -531,7 +512,7 @@ class TestDMatrix:
             assert dtrain.num_row() == 3
             assert dtrain.num_col() == 3 * world_size
 
-        run_with_rabit(world_size=3, test_fn=verify_column_split)
+        tm.run_with_rabit(world_size=3, test_fn=verify_column_split)
 
     def test_column_split_list(self):
         def verify_column_split(world_size):
@@ -546,7 +527,7 @@ class TestDMatrix:
             assert dm.num_row() == 5
             assert dm.num_col() == 5 * world_size
 
-        run_with_rabit(world_size=3, test_fn=verify_column_split)
+        tm.run_with_rabit(world_size=3, test_fn=verify_column_split)
 
     def test_column_split_tuple(self):
         def verify_column_split(world_size):
@@ -561,4 +542,4 @@ class TestDMatrix:
             assert dm.num_row() == 5
             assert dm.num_col() == 5 * world_size
 
-        run_with_rabit(world_size=3, test_fn=verify_column_split)
+        tm.run_with_rabit(world_size=3, test_fn=verify_column_split)

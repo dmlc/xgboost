@@ -119,7 +119,11 @@ def _from_scipy_csr(
             _array_interface(data.indices),
             _array_interface(data.data),
             c_bst_ulong(data.shape[1]),
-            make_jcargs(missing=float(missing), nthread=int(nthread), data_split_mode=int(data_split_mode)),
+            make_jcargs(
+                missing=float(missing),
+                nthread=int(nthread),
+                data_split_mode=int(data_split_mode),
+            ),
             ctypes.byref(handle),
         )
     )
@@ -151,7 +155,11 @@ def _from_scipy_csc(
             _array_interface(data.indices),
             _array_interface(data.data),
             c_bst_ulong(data.shape[0]),
-            make_jcargs(missing=float(missing), nthread=int(nthread), data_split_mode=int(data_split_mode)),
+            make_jcargs(
+                missing=float(missing),
+                nthread=int(nthread),
+                data_split_mode=int(data_split_mode),
+            ),
             ctypes.byref(handle),
         )
     )
@@ -520,11 +528,14 @@ def _from_pandas_df(
     nthread: int,
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
+    data_split_mode: DataSplitMode = DataSplitMode.ROW,
 ) -> DispatchedDataBackendReturnType:
     data, feature_names, feature_types = _transform_pandas_df(
         data, enable_categorical, feature_names, feature_types
     )
-    return _from_numpy_array(data, missing, nthread, feature_names, feature_types)
+    return _from_numpy_array(
+        data, missing, nthread, feature_names, feature_types, data_split_mode
+    )
 
 
 def _is_pandas_series(data: DataType) -> bool:
@@ -993,7 +1004,9 @@ def _from_tuple(
     feature_types: Optional[FeatureTypes],
     data_split_mode: DataSplitMode = DataSplitMode.ROW,
 ) -> DispatchedDataBackendReturnType:
-    return _from_list(data, missing, n_threads, feature_names, feature_types, data_split_mode)
+    return _from_list(
+        data, missing, n_threads, feature_names, feature_types, data_split_mode
+    )
 
 
 def _is_iter(data: DataType) -> bool:
@@ -1053,9 +1066,13 @@ def dispatch_data_backend(
     if _is_uri(data):
         return _from_uri(data, missing, feature_names, feature_types, data_split_mode)
     if _is_list(data):
-        return _from_list(data, missing, threads, feature_names, feature_types, data_split_mode)
+        return _from_list(
+            data, missing, threads, feature_names, feature_types, data_split_mode
+        )
     if _is_tuple(data):
-        return _from_tuple(data, missing, threads, feature_names, feature_types, data_split_mode)
+        return _from_tuple(
+            data, missing, threads, feature_names, feature_types, data_split_mode
+        )
     if _is_arrow(data):
         data = _arrow_transform(data)
     if _is_pandas_series(data):
@@ -1064,7 +1081,7 @@ def dispatch_data_backend(
         data = pd.DataFrame(data)
     if _is_pandas_df(data):
         return _from_pandas_df(
-            data, enable_categorical, missing, threads, feature_names, feature_types
+            data, enable_categorical, missing, threads, feature_names, feature_types, data_split_mode
         )
     if _is_cudf_df(data) or _is_cudf_ser(data):
         return _from_cudf_df(
