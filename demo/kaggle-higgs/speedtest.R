@@ -39,11 +39,11 @@ for (i in seq_along(threads)){
                   "nthread" = thread)
     watchlist <- list("train" = xgmat)
     nrounds <- 120
-    print ("loading data end, start to boost trees")
+    print("loading data end, start to boost trees")
     bst <- xgb.train(param, xgmat, nrounds, watchlist)
     # save out model
     xgb.save(bst, "higgs.model")
-    print ('finish training')
+    print('finish training')
   })
 }
 

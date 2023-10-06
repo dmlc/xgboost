@@ -37,5 +37,5 @@ xgb.unserialize <- function(buffer, handle = NULL) {
       }
     })
   class(handle) <- "xgb.Booster.handle"
-  return (handle)
+  return(handle)
 }

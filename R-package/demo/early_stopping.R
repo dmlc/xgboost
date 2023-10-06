@@ -30,7 +30,7 @@ evalerror <- function(preds, dtrain) {
   err <- as.numeric(sum(labels != (preds > 0))) / length(labels)
   return(list(metric = "error", value = err))
 }
-print ('start training with early Stopping setting')
+print('start training with early Stopping setting')
 
 bst <- xgb.train(param, dtrain, num_round, watchlist,
                  objective = logregobj, eval_metric = evalerror, maximize = FALSE,
