@@ -947,13 +947,11 @@ def run_with_rabit(world_size, test_fn):
 
     def run_worker(rabit_env):
         with xgb.collective.CommunicatorContext(**rabit_env):
-            test_fn(world_size)
+            test_fn()
 
     workers = []
     for rank in range(world_size):
-        worker = multiprocessing.Process(
-            target=run_worker, args=(tracker.worker_envs(),)
-        )
+        worker = multiprocessing.Process(target=run_worker, args=(tracker.worker_envs(),))
         workers.append(worker)
         worker.start()
     for worker in workers:

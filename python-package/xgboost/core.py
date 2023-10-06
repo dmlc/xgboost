@@ -303,14 +303,14 @@ def _check_distributed_params(kwargs: Dict[str, Any]) -> None:
 
 
 def _validate_feature_info(
-    feature_info: Sequence[str], n_features: int, name: str
+    feature_info: Sequence[str], n_features: int, is_column_split: bool, name: str
 ) -> List[str]:
     if isinstance(feature_info, str) or not isinstance(feature_info, Sequence):
         raise TypeError(
             f"Expecting a sequence of strings for {name}, got: {type(feature_info)}"
         )
     feature_info = list(feature_info)
-    if len(feature_info) != n_features and n_features != 0:
+    if len(feature_info) != n_features and n_features != 0 and not is_column_split:
         msg = (
             f"{name} must have the same length as the number of data columns, ",
             f"expected {n_features}, got {len(feature_info)}",
@@ -839,6 +839,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         self.missing = missing if missing is not None else np.nan
         self.nthread = nthread if nthread is not None else -1
         self.silent = silent
+        self.data_split_mode = data_split_mode
 
         # force into void_p, mac need to pass things in as void_p
         if data is None:
@@ -859,7 +860,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             feature_names=feature_names,
             feature_types=feature_types,
             enable_categorical=enable_categorical,
-            data_split_mode=data_split_mode,
+            data_split_mode=self.data_split_mode,
         )
         assert handle is not None
         self.handle = handle
@@ -1298,7 +1299,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
 
         # validate feature name
         feature_names = _validate_feature_info(
-            feature_names, self.num_col(), "feature names"
+            feature_names, self.num_col(), self.data_split_mode == DataSplitMode.COL, "feature names"
         )
         if len(feature_names) != len(set(feature_names)):
             values, counts = np.unique(
@@ -1371,7 +1372,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             return
 
         feature_types = _validate_feature_info(
-            feature_types, self.num_col(), "feature types"
+            feature_types, self.num_col(), self.data_split_mode == DataSplitMode.COL, "feature types"
         )
 
         feature_types_bytes = [bytes(f, encoding="utf-8") for f in feature_types]

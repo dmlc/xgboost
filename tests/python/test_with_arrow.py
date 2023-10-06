@@ -100,13 +100,13 @@ class TestArrowTable:
         np.testing.assert_equal(y_np_low, y_lower_bound.to_pandas().values)
 
     def test_column_split_arrow_table(self):
-        def verify_column_split(world_size):
+        def verify_column_split():
             df = pd.DataFrame(
                 [[0, 1, 2.0, 3.0], [1, 2, 3.0, 4.0]], columns=["a", "b", "c", "d"]
             )
             table = pa.Table.from_pandas(df)
             dm = xgb.DMatrix(table, data_split_mode=DataSplitMode.COL)
             assert dm.num_row() == 2
-            assert dm.num_col() == 4 * world_size
+            assert dm.num_col() == 4 * xgb.collective.get_world_size()
 
         tm.run_with_rabit(world_size=3, test_fn=verify_column_split)

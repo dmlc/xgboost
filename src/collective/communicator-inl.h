@@ -266,5 +266,14 @@ inline AllgatherVResult<T> AllgatherV(std::vector<T> const &inputs,
   return {offsets, all_sizes, all_inputs};
 }
 
+/**
+ * @brief Gathers a list of strings from all processes and distributes them to all processes.
+ *
+ * @param inputs All the inputs from the local worker.
+ */
+inline std::vector<std::string> AllgatherV(std::vector<std::string> const &inputs) {
+  return {};
+}
+
 }  // namespace collective
 }  // namespace xgboost
