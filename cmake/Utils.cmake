@@ -121,7 +121,7 @@ function(format_gencode_flags flags out)
     set(${out} "${${out}}--generate-code=arch=compute_${ver},code=compute_${ver};")
     set(${out} "${${out}}" PARENT_SCOPE)
     message(STATUS "CUDA GEN_CODE: ${GEN_CODE}")
-  endif (CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
+  endif()
 endfunction(format_gencode_flags flags)
 
 # Set CUDA related flags to target.  Must be used after code `format_gencode_flags`.
@@ -136,11 +136,11 @@ function(xgboost_set_cuda_flags target)
   if (USE_PER_THREAD_DEFAULT_STREAM)
     target_compile_options(${target} PRIVATE
             $<$<COMPILE_LANGUAGE:CUDA>:--default-stream per-thread>)
-  endif (USE_PER_THREAD_DEFAULT_STREAM)
+  endif()
 
   if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
     set_property(TARGET ${target} PROPERTY CUDA_ARCHITECTURES ${CMAKE_CUDA_ARCHITECTURES})
-  endif (CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
+  endif()
 
   if (FORCE_COLORED_OUTPUT)
     if (FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND
@@ -149,7 +149,7 @@ function(xgboost_set_cuda_flags target)
       target_compile_options(${target} PRIVATE
         $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fdiagnostics-color=always>)
     endif()
-  endif (FORCE_COLORED_OUTPUT)
+  endif()
 
   if (USE_DEVICE_DEBUG)
     target_compile_options(${target} PRIVATE
@@ -157,11 +157,11 @@ function(xgboost_set_cuda_flags target)
   else (USE_DEVICE_DEBUG)
     target_compile_options(${target} PRIVATE
       $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>)
-  endif (USE_DEVICE_DEBUG)
+  endif()
 
   if (USE_NVTX)
     target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_NVTX=1)
-  endif (USE_NVTX)
+  endif()
 
   target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_CUDA=1)
   target_include_directories(
@@ -172,7 +172,7 @@ function(xgboost_set_cuda_flags target)
   if (MSVC)
     target_compile_options(${target} PRIVATE
       $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/utf-8>)
-  endif (MSVC)
+  endif()
 
   set_target_properties(${target} PROPERTIES
     CUDA_STANDARD 17
@@ -190,7 +190,7 @@ macro(xgboost_link_nccl target)
     target_include_directories(${target} PRIVATE ${NCCL_INCLUDE_DIR})
     target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_NCCL=1)
     target_link_libraries(${target} PRIVATE ${NCCL_LIBRARY})
-  endif (BUILD_STATIC_LIB)
+  endif()
 endmacro(xgboost_link_nccl)
 
 # compile options
@@ -207,7 +207,7 @@ macro(xgboost_target_properties target)
       CXX_VISIBILITY_PRESET hidden
       CUDA_VISIBILITY_PRESET hidden
     )
-  endif (HIDE_CXX_SYMBOLS)
+  endif()
 
   if (ENABLE_ALL_WARNINGS)
     target_compile_options(${target} PUBLIC
@@ -215,7 +215,7 @@ macro(xgboost_target_properties target)
       -Xcompiler=-Wall -Xcompiler=-Wextra -Xcompiler=-Wno-expansion-to-defined,
       -Wall -Wextra -Wno-expansion-to-defined>
     )
-  endif(ENABLE_ALL_WARNINGS)
+  endif()
 
   target_compile_options(${target}
     PRIVATE
@@ -228,11 +228,11 @@ macro(xgboost_target_properties target)
       -D_CRT_SECURE_NO_WARNINGS
       -D_CRT_SECURE_NO_DEPRECATE
     )
-  endif (MSVC)
+  endif()
 
   if (WIN32 AND MINGW)
     target_compile_options(${target} PUBLIC -static-libstdc++)
-  endif (WIN32 AND MINGW)
+  endif()
 endmacro(xgboost_target_properties)
 
 # Custom definitions used in xgboost.
@@ -242,24 +242,24 @@ macro(xgboost_target_defs target)
       PRIVATE
       -DDMLC_LOG_CUSTOMIZE=1
       $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:_MWAITXINTRIN_H_INCLUDED>)
-  endif ()
+  endif()
   if (USE_DEBUG_OUTPUT)
     target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_DEBUG_OUTPUT=1)
-  endif (USE_DEBUG_OUTPUT)
+  endif()
   if (XGBOOST_MM_PREFETCH_PRESENT)
     target_compile_definitions(${target}
       PRIVATE
       -DXGBOOST_MM_PREFETCH_PRESENT=1)
-  endif(XGBOOST_MM_PREFETCH_PRESENT)
+  endif()
   if (XGBOOST_BUILTIN_PREFETCH_PRESENT)
     target_compile_definitions(${target}
       PRIVATE
       -DXGBOOST_BUILTIN_PREFETCH_PRESENT=1)
-  endif (XGBOOST_BUILTIN_PREFETCH_PRESENT)
+  endif()
 
   if (PLUGIN_RMM)
     target_compile_definitions(objxgboost PUBLIC -DXGBOOST_USE_RMM=1)
-  endif (PLUGIN_RMM)
+  endif()
 endmacro(xgboost_target_defs)
 
 # handles dependencies
@@ -268,34 +268,34 @@ macro(xgboost_target_link_libraries target)
     target_link_libraries(${target} PUBLIC Threads::Threads ${CMAKE_THREAD_LIBS_INIT})
   else()
     target_link_libraries(${target} PRIVATE Threads::Threads ${CMAKE_THREAD_LIBS_INIT})
-  endif (BUILD_STATIC_LIB)
+  endif()
 
   if (USE_OPENMP)
     if (BUILD_STATIC_LIB)
       target_link_libraries(${target} PUBLIC OpenMP::OpenMP_CXX)
     else()
       target_link_libraries(${target} PRIVATE OpenMP::OpenMP_CXX)
-    endif (BUILD_STATIC_LIB)
-  endif (USE_OPENMP)
+    endif()
+  endif()
 
   if (USE_CUDA)
     xgboost_set_cuda_flags(${target})
     target_link_libraries(${target} PUBLIC CUDA::cudart_static)
-  endif (USE_CUDA)
+  endif()
 
   if (PLUGIN_RMM)
     target_link_libraries(${target} PRIVATE rmm::rmm)
-  endif (PLUGIN_RMM)
+  endif()
 
   if (USE_NCCL)
     xgboost_link_nccl(${target})
-  endif (USE_NCCL)
+  endif()
 
   if (USE_NVTX)
     target_link_libraries(${target} PRIVATE CUDA::nvToolsExt)
-  endif (USE_NVTX)
+  endif()
 
   if (MINGW)
     target_link_libraries(${target} PRIVATE wsock32 ws2_32)
-  endif (MINGW)
+  endif()
 endmacro(xgboost_target_link_libraries)
