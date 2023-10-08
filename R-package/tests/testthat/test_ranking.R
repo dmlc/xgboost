@@ -47,7 +47,7 @@ test_that('Test ranking with weighted data', {
     pred <- predict(bst, newdata = dtrain, ntreelimit = i)
     # is_sorted[i]: is i-th group correctly sorted by the ranking predictor?
     is_sorted <- lapply(seq(1, 20, by = 5),
-      function (k) {
+      function(k) {
         ind <- order(-pred[k:(k + 4)])
         z <- y[ind + (k - 1)]
         all(diff(z) <= 0)  # Check if z is monotone decreasing

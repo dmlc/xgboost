@@ -18,6 +18,6 @@ xgb.load.raw <- function(buffer, as_booster = FALSE) {
     booster <- xgb.Booster.complete(booster, saveraw = TRUE)
     return(booster)
   } else {
-    return (handle)
+    return(handle)
   }
 }

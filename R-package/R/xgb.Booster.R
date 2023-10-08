@@ -21,13 +21,13 @@ xgb.Booster.handle <- function(params, cachelist, modelfile, handle) {
       ## A memory buffer
       bst <- xgb.unserialize(modelfile, handle)
       xgb.parameters(bst) <- params
-      return (bst)
+      return(bst)
     } else if (inherits(modelfile, "xgb.Booster")) {
       ## A booster object
       bst <- xgb.Booster.complete(modelfile, saveraw = TRUE)
       bst <- xgb.unserialize(bst$raw)
       xgb.parameters(bst) <- params
-      return (bst)
+      return(bst)
     } else {
       stop("modelfile must be either character filename, or raw booster dump, or xgb.Booster object")
     }
@@ -382,7 +382,7 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
       cval[0] <- val
       return(cval)
     }
-    return (val)
+    return(val)
   }
 
   ## We set strict_shape to TRUE then drop the dimensions conditionally
