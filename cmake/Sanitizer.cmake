@@ -14,7 +14,7 @@ macro(enable_sanitizer sanitizer)
     set(SAN_COMPILE_FLAGS "${SAN_COMPILE_FLAGS} -fsanitize=thread")
     if (TSan_FOUND)
       link_libraries(${TSan_LIBRARY})
-    endif (TSan_FOUND)
+    endif()
 
   elseif(${sanitizer} MATCHES "leak")
     find_package(LSan)
