@@ -198,7 +198,7 @@ class SparkXGBRegressor(_SparkXGBEstimator):
     """
 
     @keyword_only
-    def __init__(
+    def __init__(  # pylint:disable=too-many-arguments
         self,
         *,
         features_col: Union[str, List[str]] = "features",
@@ -376,7 +376,7 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
     """
 
     @keyword_only
-    def __init__(
+    def __init__(  # pylint:disable=too-many-arguments
         self,
         *,
         features_col: Union[str, List[str]] = "features",
@@ -566,7 +566,7 @@ class SparkXGBRanker(_SparkXGBEstimator):
     """
 
     @keyword_only
-    def __init__(
+    def __init__(  # pylint:disable=too-many-arguments
         self,
         *,
         features_col: Union[str, List[str]] = "features",
