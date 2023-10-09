@@ -117,7 +117,7 @@ xgb.get.DMatrix <- function(data, label, missing, weight, nthread) {
       stop("xgboost: invalid input data")
     }
   }
-  return (dtrain)
+  return(dtrain)
 }
 
 

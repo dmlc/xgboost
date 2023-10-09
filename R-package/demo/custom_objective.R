@@ -35,7 +35,7 @@ evalerror <- function(preds, dtrain) {
 
 param <- list(max_depth = 2, eta = 1, nthread  =  2, verbosity = 0,
               objective = logregobj, eval_metric = evalerror)
-print ('start training with user customized objective')
+print('start training with user customized objective')
 # training with customized objective, we can also do step by step training
 # simply look at xgboost.py's implementation of train
 bst <- xgb.train(param, dtrain, num_round, watchlist)
@@ -59,7 +59,7 @@ logregobjattr <- function(preds, dtrain) {
 }
 param <- list(max_depth = 2, eta = 1, nthread  =  2, verbosity = 0,
               objective = logregobjattr, eval_metric = evalerror)
-print ('start training with user customized objective, with additional attributes in DMatrix')
+print('start training with user customized objective, with additional attributes in DMatrix')
 # training with customized objective, we can also do step by step training
 # simply look at xgboost.py's implementation of train
 bst <- xgb.train(param, dtrain, num_round, watchlist)

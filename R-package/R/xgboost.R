@@ -24,7 +24,7 @@ xgboost <- function(data = NULL, label = NULL, missing = NA, weight = NULL,
                    early_stopping_rounds = early_stopping_rounds, maximize = maximize,
                    save_period = save_period, save_name = save_name,
                    xgb_model = xgb_model, callbacks = callbacks, ...)
-  return (bst)
+  return(bst)
 }
 
 #' Training part from Mushroom Data Set
