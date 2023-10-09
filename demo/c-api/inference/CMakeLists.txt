@@ -8,7 +8,7 @@ if (XGBOOST_BUILD_STATIC_LIB)
   enable_language(CXX)
   # find again for those  cxx libraries.
   find_package(xgboost REQUIRED)
-endif(XGBOOST_BUILD_STATIC_LIB)
+endif()
 
 add_executable(inference-demo inference.c)
 target_link_libraries(inference-demo PRIVATE xgboost::xgboost)

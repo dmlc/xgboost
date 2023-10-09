@@ -10,6 +10,6 @@ if (RABIT_MOCK)
   list(APPEND RABIT_SOURCES ${CMAKE_CURRENT_LIST_DIR}/src/engine_mock.cc)
 else ()
   list(APPEND RABIT_SOURCES ${CMAKE_CURRENT_LIST_DIR}/src/engine.cc)
-endif ()
+endif()
 
 set(RABIT_SOURCES ${RABIT_SOURCES} PARENT_SCOPE)

@@ -39,7 +39,7 @@ if (NCCL_LIBRARY)
   if(NOT USE_NCCL_LIB_PATH)
     # Don't cache NCCL_LIBRARY to enable switching between static and shared.
     unset(NCCL_LIBRARY CACHE)
-  endif(NOT USE_NCCL_LIB_PATH)
+  endif()
 endif()
 
 if (BUILD_WITH_SHARED_NCCL)
@@ -48,7 +48,7 @@ if (BUILD_WITH_SHARED_NCCL)
 else ()
   # libnccl_static.a
   set(NCCL_LIB_NAME nccl_static)
-endif (BUILD_WITH_SHARED_NCCL)
+endif()
 
 find_path(NCCL_INCLUDE_DIR
   NAMES nccl.h

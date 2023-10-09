@@ -3,7 +3,7 @@ function (run_doxygen)
 
   if (NOT DOXYGEN_DOT_FOUND)
     message(FATAL_ERROR "Command `dot` not found.  Please install graphviz.")
-  endif (NOT DOXYGEN_DOT_FOUND)
+  endif()
 
   configure_file(
     ${xgboost_SOURCE_DIR}/doc/Doxyfile.in
