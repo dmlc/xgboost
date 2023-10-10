@@ -202,7 +202,7 @@ inline std::vector<std::string> AllgatherV(std::vector<std::string> const &input
   std::vector<std::string> result;
   std::size_t start_index = 0;
   // Iterate through the output, find each null-terminated substring.
-  for (auto i = 0; i < output.size(); i++) {
+  for (std::size_t i = 0; i < output.size(); i++) {
     if (output[i] == '\0') {
       // Construct a std::string from the char* substring
       result.emplace_back(&output[start_index]);
