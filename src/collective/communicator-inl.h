@@ -181,6 +181,38 @@ inline std::vector<T> AllgatherV(std::vector<T> const &input) {
           reinterpret_cast<const T *>(output.data() + output.size())};
 }
 
+/**
+ * @brief Gathers variable-length strings from all processes and distributes them to all processes.
+ * @param input Variable-length list of variable-length strings.
+ */
+inline std::vector<std::string> AllgatherV(std::vector<std::string> const &input) {
+  std::size_t total_size{0};
+  for (auto const &s : input) {
+    total_size += s.length() + 1;  // +1 for null-terminators
+  }
+  std::string flat_string;
+  flat_string.reserve(total_size);
+  for (auto const &s : input) {
+    flat_string.append(s);
+    flat_string.push_back('\0');  // Append a null-terminator after each string
+  }
+
+  auto const output = Communicator::Get()->AllGatherV(flat_string);
+
+  std::vector<std::string> result;
+  std::size_t start_index = 0;
+  // Iterate through the output, find each null-terminated substring.
+  for (auto i = 0; i < output.size(); i++) {
+    if (output[i] == '\0') {
+      // Construct a std::string from the char* substring
+      result.emplace_back(&output[start_index]);
+      // Move to the next substring
+      start_index = i + 1;
+    }
+  }
+  return result;
+}
+
 /*!
  * \brief Perform in-place allreduce. This function is NOT thread-safe.
  *
