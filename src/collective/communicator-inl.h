@@ -57,9 +57,7 @@ namespace collective {
  *   - federated_client_key: Client key file path. Only needed for the SSL mode.
  *   - federated_client_cert: Client certificate file path. Only needed for the SSL mode.
  */
-inline void Init(Json const& config) {
-  Communicator::Init(config);
-}
+inline void Init(Json const &config) { Communicator::Init(config); }
 
 /*!
  * \brief Finalize the collective communicator.
@@ -148,7 +146,7 @@ inline void Broadcast(std::string *sendrecv_data, int root) {
  */
 template <typename T>
 inline std::vector<T> Allgather(T const &input) {
-  std::string_view str_input{reinterpret_cast<char const*>(&input), sizeof(T)};
+  std::string_view str_input{reinterpret_cast<char const *>(&input), sizeof(T)};
   auto const output = Communicator::Get()->AllGather(str_input);
   return {reinterpret_cast<const T *>(output.data()),
           reinterpret_cast<const T *>(output.data() + output.size())};
@@ -163,7 +161,8 @@ inline std::vector<T> Allgather(T const &input) {
  */
 template <typename T>
 inline std::vector<T> Allgather(std::vector<T> const &input) {
-  std::string_view str_input{reinterpret_cast<char const*>(input.data()), input.size() * sizeof(T)};
+  std::string_view str_input{reinterpret_cast<char const *>(input.data()),
+                             input.size() * sizeof(T)};
   auto const output = Communicator::Get()->AllGather(str_input);
   return {reinterpret_cast<const T *>(output.data()),
           reinterpret_cast<const T *>(output.data() + output.size())};
@@ -241,7 +240,7 @@ inline void Allreduce(double *send_receive_buffer, size_t count) {
 }
 
 template <typename T>
-struct AllgatherVResult {
+struct SpecialAllgatherVResult {
   std::vector<std::size_t> offsets;
   std::vector<std::size_t> sizes;
   std::vector<T> result;
@@ -256,10 +255,8 @@ struct AllgatherVResult {
  * @param sizes  Sizes of each input.
  */
 template <typename T>
-inline AllgatherVResult<T> AllgatherV(std::vector<T> const &inputs,
-                                      std::vector<std::size_t> const &sizes) {
-  auto num_inputs = sizes.size();
-
+inline SpecialAllgatherVResult<T> SpecialAllgatherV(std::vector<T> const &inputs,
+                                                    std::vector<std::size_t> const &sizes) {
   // Gather the sizes across all workers.
   auto const all_sizes = Allgather(sizes);
 
@@ -272,7 +269,8 @@ inline AllgatherVResult<T> AllgatherV(std::vector<T> const &inputs,
   // Gather all the inputs.
   auto total_input_size = offsets.back() + all_sizes.back();
   std::vector<T> all_inputs(total_input_size);
-  std::copy_n(inputs.cbegin(), inputs.size(), all_inputs.begin() + offsets[num_inputs * GetRank()]);
+  std::copy_n(inputs.cbegin(), inputs.size(),
+              all_inputs.begin() + offsets[sizes.size() * GetRank()]);
   // We cannot use allgather here, since each worker might have a different size.
   Allreduce<Operation::kMax>(all_inputs.data(), all_inputs.size());
 

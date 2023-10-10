@@ -304,7 +304,7 @@ class HistEvaluator {
     }
 
     // Gather all the cat_bits.
-    auto gathered = collective::AllgatherV(cat_bits, cat_bits_sizes);
+    auto gathered = collective::SpecialAllgatherV(cat_bits, cat_bits_sizes);
 
     common::ParallelFor(num_entries * world, ctx_->Threads(), [&] (auto i) {
       // Copy the cat_bits back into all expand entries.
@@ -591,7 +591,7 @@ class HistMultiEvaluator {
     }
 
     // Gather all the cat_bits.
-    auto gathered_cat_bits = collective::AllgatherV(cat_bits, cat_bits_sizes);
+    auto gathered_cat_bits = collective::SpecialAllgatherV(cat_bits, cat_bits_sizes);
 
     // Gather all the gradients.
     auto const num_gradients = gradients.size();
