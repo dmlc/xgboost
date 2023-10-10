@@ -280,12 +280,7 @@ inline SpecialAllgatherVResult<T> SpecialAllgatherV(std::vector<T> const &inputs
   }
 
   // Gather all the inputs.
-  auto total_input_size = offsets.back() + all_sizes.back();
-  std::vector<T> all_inputs(total_input_size);
-  std::copy_n(inputs.cbegin(), inputs.size(),
-              all_inputs.begin() + offsets[sizes.size() * GetRank()]);
-  // We cannot use allgather here, since each worker might have a different size.
-  Allreduce<Operation::kMax>(all_inputs.data(), all_inputs.size());
+  auto const all_inputs = AllgatherV(inputs);
 
   return {offsets, all_sizes, all_inputs};
 }
