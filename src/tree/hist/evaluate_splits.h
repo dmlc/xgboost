@@ -292,7 +292,6 @@ class HistEvaluator {
    */
   std::vector<CPUExpandEntry> Allgather(std::vector<CPUExpandEntry> const &entries) {
     auto const world = collective::GetWorldSize();
-    auto const rank = collective::GetRank();
     auto const num_entries = entries.size();
 
     // First, gather all the primitive fields.
@@ -578,7 +577,6 @@ class HistMultiEvaluator {
    */
   std::vector<MultiExpandEntry> Allgather(std::vector<MultiExpandEntry> const &entries) {
     auto const world = collective::GetWorldSize();
-    auto const rank = collective::GetRank();
     auto const num_entries = entries.size();
 
     // First, gather all the primitive fields.
