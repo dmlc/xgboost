@@ -7,6 +7,7 @@ package xgboost.federated;
 
 service Federated {
   rpc Allgather(AllgatherRequest) returns (AllgatherReply) {}
+  rpc AllgatherV(AllgatherVRequest) returns (AllgatherVReply) {}
   rpc Allreduce(AllreduceRequest) returns (AllreduceReply) {}
   rpc Broadcast(BroadcastRequest) returns (BroadcastReply) {}
 }
@@ -39,6 +40,17 @@ message AllgatherRequest {
 }
 
 message AllgatherReply {
+  bytes receive_buffer = 1;
+}
+
+message AllgatherVRequest {
+  // An incrementing counter that is unique to each round to operations.
+  uint64 sequence_number = 1;
+  int32 rank = 2;
+  bytes send_buffer = 3;
+}
+
+message AllgatherVReply {
   bytes receive_buffer = 1;
 }
 

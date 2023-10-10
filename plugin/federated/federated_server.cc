@@ -19,6 +19,13 @@ grpc::Status FederatedService::Allgather(grpc::ServerContext*, AllgatherRequest 
   return grpc::Status::OK;
 }
 
+grpc::Status FederatedService::AllgatherV(grpc::ServerContext*, AllgatherVRequest const* request,
+                                          AllgatherVReply* reply) {
+  handler_.AllgatherV(request->send_buffer().data(), request->send_buffer().size(),
+                      reply->mutable_receive_buffer(), request->sequence_number(), request->rank());
+  return grpc::Status::OK;
+}
+
 grpc::Status FederatedService::Allreduce(grpc::ServerContext*, AllreduceRequest const* request,
                                          AllreduceReply* reply) {
   handler_.Allreduce(request->send_buffer().data(), request->send_buffer().size(),

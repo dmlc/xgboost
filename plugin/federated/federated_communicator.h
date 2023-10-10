@@ -125,12 +125,19 @@ class FederatedCommunicator : public Communicator {
   [[nodiscard]] bool IsFederated() const override { return true; }
 
   /**
-   * \brief Perform in-place allgather.
-   * \param send_receive_buffer Buffer for both sending and receiving data.
-   * \param size Number of bytes to be gathered.
+   * \brief Perform allgather.
+   * \param input Buffer for sending data.
    */
   std::string AllGather(std::string_view input) override {
     return client_->Allgather(input);
+  }
+
+  /**
+   * \brief Perform variable-length allgather.
+   * \param input Buffer for sending data.
+   */
+  std::string AllGatherV(std::string_view input) override {
+    return client_->AllgatherV(input);
   }
 
   /**

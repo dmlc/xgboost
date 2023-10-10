@@ -168,6 +168,19 @@ inline std::vector<T> Allgather(std::vector<T> const &input) {
           reinterpret_cast<const T *>(output.data() + output.size())};
 }
 
+/**
+ * @brief Gathers variable-length data from all processes and distributes it to all processes.
+ * @param input Buffer storing the data.
+ */
+template <typename T>
+inline std::vector<T> AllgatherV(std::vector<T> const &input) {
+  std::string_view str_input{reinterpret_cast<char const *>(input.data()),
+                             input.size() * sizeof(T)};
+  auto const output = Communicator::Get()->AllGatherV(str_input);
+  return {reinterpret_cast<const T *>(output.data()),
+          reinterpret_cast<const T *>(output.data() + output.size())};
+}
+
 /*!
  * \brief Perform in-place allreduce. This function is NOT thread-safe.
  *

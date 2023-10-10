@@ -65,6 +65,17 @@ class InMemoryHandler {
                  std::size_t sequence_number, int rank);
 
   /**
+   * @brief Perform variable-length allgather.
+   * @param input The input buffer.
+   * @param bytes Number of bytes in the input buffer.
+   * @param output The output buffer.
+   * @param sequence_number Call sequence number.
+   * @param rank Index of the worker.
+   */
+  void AllgatherV(char const* input, std::size_t bytes, std::string* output,
+                  std::size_t sequence_number, int rank);
+
+  /**
    * @brief Perform allreduce.
    * @param input The input buffer.
    * @param bytes Number of bytes in the input buffer.
@@ -104,13 +115,14 @@ class InMemoryHandler {
   void Handle(char const* input, std::size_t size, std::string* output, std::size_t sequence_number,
               int rank, HandlerFunctor const& functor);
 
-  int world_size_{};                    /// Number of workers.
-  int received_{};                      /// Number of calls received with the current sequence.
-  int sent_{};                          /// Number of calls completed with the current sequence.
-  std::string buffer_{};                /// A shared common buffer.
-  uint64_t sequence_number_{};          /// Call sequence number.
-  mutable std::mutex mutex_;            /// Lock.
-  mutable std::condition_variable cv_;  /// Conditional variable to wait on.
+  int world_size_{};                       /// Number of workers.
+  int received_{};                         /// Number of calls received with the current sequence.
+  int sent_{};                             /// Number of calls completed with the current sequence.
+  std::string buffer_{};                   /// A shared common buffer.
+  std::map<int, std::string_view> aux_{};  /// A shared auxiliary map.
+  uint64_t sequence_number_{};             /// Call sequence number.
+  mutable std::mutex mutex_;               /// Lock.
+  mutable std::condition_variable cv_;     /// Conditional variable to wait on.
 };
 
 }  // namespace collective

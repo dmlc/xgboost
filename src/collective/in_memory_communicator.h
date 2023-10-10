@@ -66,6 +66,12 @@ class InMemoryCommunicator : public Communicator {
     return output;
   }
 
+  std::string AllGatherV(std::string_view input) override {
+    std::string output;
+    handler_.AllgatherV(input.data(), input.size(), &output, sequence_number_++, GetRank());
+    return output;
+  }
+
   void AllReduce(void* in_out, std::size_t size, DataType data_type, Operation operation) override {
     auto const bytes = size * GetTypeSize(data_type);
     std::string output;

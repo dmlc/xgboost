@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include "communicator-inl.h"
 #include "communicator.h"
 #include "xgboost/json.h"
 
@@ -61,6 +62,20 @@ class RabitCommunicator : public Communicator {
     auto const index = per_rank * GetRank();
     std::string result(total_size, '\0');
     rabit::Allgather(result.data(), total_size, index, per_rank, per_rank);
+    return result;
+  }
+
+  std::string AllGatherV(std::string_view input) override {
+    auto const size_node_slice = input.size();
+    auto const all_sizes = collective::Allgather(size_node_slice);
+    auto const total_size = std::accumulate(all_sizes.cbegin(), all_sizes.cend(), 0ul);
+    auto const begin_index =
+        std::accumulate(all_sizes.cbegin(), all_sizes.cbegin() + GetRank(), 0ul);
+    auto const size_prev_slice = GetRank() == 0 ? 0 : all_sizes[GetRank() - 1];
+
+    std::string result(total_size, '\0');
+    result.replace(begin_index, size_node_slice, input);
+    rabit::Allgather(result.data(), total_size, begin_index, size_node_slice, size_prev_slice);
     return result;
   }
 

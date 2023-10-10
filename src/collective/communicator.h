@@ -132,6 +132,12 @@ class Communicator {
   virtual std::string AllGather(std::string_view input) = 0;
 
   /**
+   * @brief Gathers variable-length data from all processes and distributes it to all processes.
+   * @param input Buffer storing the data.
+   */
+  virtual std::string AllGatherV(std::string_view input) = 0;
+
+  /**
    * @brief Combines values from all processes and distributes the result back to all processes.
    *
    * @param send_receive_buffer Buffer storing the data.

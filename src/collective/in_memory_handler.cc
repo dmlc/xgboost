@@ -34,6 +34,32 @@ class AllgatherFunctor {
 };
 
 /**
+ * @brief Functor for variable-length allgather.
+ */
+class AllgatherVFunctor {
+ public:
+  std::string const name{"AllgatherV"};
+
+  AllgatherVFunctor(int world_size, int rank, std::map<int, std::string_view>* data)
+      : world_size_{world_size}, rank_{rank}, data_{data} {}
+
+  void operator()(char const* input, std::size_t bytes, std::string* buffer) const {
+    data_->emplace(rank_, std::string_view{input, bytes});
+    if (data_->size() == world_size_) {
+      for (auto const& kv : *data_) {
+        buffer->append(kv.second);
+      }
+      data_->clear();
+    }
+  }
+
+ private:
+  int world_size_;
+  int rank_;
+  std::map<int, std::string_view>* data_;
+};
+
+/**
  * @brief Functor for allreduce.
  */
 class AllreduceFunctor {
@@ -194,6 +220,11 @@ void InMemoryHandler::Shutdown(uint64_t sequence_number, int) {
 void InMemoryHandler::Allgather(char const* input, std::size_t bytes, std::string* output,
                                 std::size_t sequence_number, int rank) {
   Handle(input, bytes, output, sequence_number, rank, AllgatherFunctor{world_size_, rank});
+}
+
+void InMemoryHandler::AllgatherV(char const* input, std::size_t bytes, std::string* output,
+                                 std::size_t sequence_number, int rank) {
+  Handle(input, bytes, output, sequence_number, rank, AllgatherVFunctor{world_size_, rank, &aux_});
 }
 
 void InMemoryHandler::Allreduce(char const* input, std::size_t bytes, std::string* output,
