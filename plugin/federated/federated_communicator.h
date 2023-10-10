@@ -129,10 +129,8 @@ class FederatedCommunicator : public Communicator {
    * \param send_receive_buffer Buffer for both sending and receiving data.
    * \param size Number of bytes to be gathered.
    */
-  void AllGather(void *send_receive_buffer, std::size_t size) override {
-    std::string const send_buffer(reinterpret_cast<char const *>(send_receive_buffer), size);
-    auto const received = client_->Allgather(send_buffer);
-    received.copy(reinterpret_cast<char *>(send_receive_buffer), size);
+  std::string AllGather(std::string_view input) override {
+    return client_->Allgather(input);
   }
 
   /**

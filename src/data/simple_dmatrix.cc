@@ -76,10 +76,9 @@ DMatrix* SimpleDMatrix::SliceCol(int num_slices, int slice_id) {
 
 void SimpleDMatrix::ReindexFeatures(Context const* ctx) {
   if (info_.IsVerticalFederated()) {
-    std::vector<uint64_t> buffer(collective::GetWorldSize());
-    buffer[collective::GetRank()] = info_.num_col_;
-    collective::Allgather(buffer.data(), buffer.size() * sizeof(uint64_t));
-    auto offset = std::accumulate(buffer.cbegin(), buffer.cbegin() + collective::GetRank(), 0);
+    std::vector<int> input{static_cast<int>(info_.num_col_)};
+    auto num_cols = collective::Allgather(input);
+    auto offset = std::accumulate(num_cols.cbegin(), num_cols.cbegin() + collective::GetRank(), 0);
     if (offset == 0) {
       return;
     }

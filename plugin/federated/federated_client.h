@@ -44,7 +44,7 @@ class FederatedClient {
         }()},
         rank_{rank} {}
 
-  std::string Allgather(std::string const &send_buffer) {
+  std::string Allgather(std::string_view send_buffer) {
     AllgatherRequest request;
     request.set_sequence_number(sequence_number_++);
     request.set_rank(rank_);

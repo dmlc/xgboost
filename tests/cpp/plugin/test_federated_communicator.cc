@@ -31,11 +31,10 @@ class FederatedCommunicatorTest : public BaseFederatedTest {
 
  protected:
   static void CheckAllgather(FederatedCommunicator &comm, int rank) {
-    int buffer[kWorldSize] = {0, 0};
-    buffer[rank] = rank;
-    comm.AllGather(buffer, sizeof(buffer));
+    std::string input{static_cast<char>('0' + rank)};
+    auto output = comm.AllGather(input);
     for (auto i = 0; i < kWorldSize; i++) {
-      EXPECT_EQ(buffer[i], i);
+      EXPECT_EQ(output[i], static_cast<char>('0' + i));
     }
   }
 

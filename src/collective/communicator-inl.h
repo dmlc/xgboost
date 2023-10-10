@@ -144,14 +144,16 @@ inline void Broadcast(std::string *sendrecv_data, int root) {
 /**
  * @brief Gathers data from all processes and distributes it to all processes.
  *
- * This assumes all ranks have the same size, and input data has been sliced into the
- * corresponding position.
+ * This assumes all ranks have the same size.
  *
- * @param send_receive_buffer Buffer storing the data.
- * @param size                Size of the data in bytes.
+ * @param input Buffer storing the data.
  */
-inline void Allgather(void *send_receive_buffer, std::size_t size) {
-  Communicator::Get()->AllGather(send_receive_buffer, size);
+template <typename T>
+inline std::vector<T> Allgather(std::vector<T> const &input) {
+  std::string_view str_input{reinterpret_cast<char const*>(input.data()), input.size() * sizeof(T)};
+  auto const output = Communicator::Get()->AllGather(str_input);
+  return {reinterpret_cast<const T *>(output.data()),
+          reinterpret_cast<const T *>(output.data() + output.size())};
 }
 
 /*!
@@ -246,9 +248,7 @@ inline AllgatherVResult<T> AllgatherV(std::vector<T> const &inputs,
   auto num_inputs = sizes.size();
 
   // Gather the sizes across all workers.
-  std::vector<std::size_t> all_sizes(num_inputs * GetWorldSize());
-  std::copy_n(sizes.cbegin(), sizes.size(), all_sizes.begin() + num_inputs * GetRank());
-  collective::Allgather(all_sizes.data(), all_sizes.size() * sizeof(std::size_t));
+  auto const all_sizes = Allgather(sizes);
 
   // Calculate input offsets (std::exclusive_scan).
   std::vector<std::size_t> offsets(all_sizes.size());

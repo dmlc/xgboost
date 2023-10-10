@@ -80,11 +80,10 @@ class InMemoryCommunicatorTest : public ::testing::Test {
 
  protected:
   static void VerifyAllgather(InMemoryCommunicator &comm, int rank) {
-    char buffer[kWorldSize] = {'a', 'b', 'c'};
-    buffer[rank] = '0' + rank;
-    comm.AllGather(buffer, kWorldSize);
+    std::string input{static_cast<char>('0' + rank)};
+    auto output = comm.AllGather(input);
     for (auto i = 0; i < kWorldSize; i++) {
-      EXPECT_EQ(buffer[i], '0' + i);
+      EXPECT_EQ(output[i], static_cast<char>('0' + i));
     }
   }
 

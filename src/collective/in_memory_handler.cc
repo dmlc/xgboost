@@ -20,14 +20,12 @@ class AllgatherFunctor {
 
   void operator()(char const* input, std::size_t bytes, std::string* buffer) const {
     if (buffer->empty()) {
-      // Copy the input if this is the first request.
-      buffer->assign(input, bytes);
-    } else {
-      // Splice the input into the common buffer.
-      auto const per_rank = bytes / world_size_;
-      auto const index = rank_ * per_rank;
-      buffer->replace(index, per_rank, input + index, per_rank);
+      // Resize the buffer if this is the first request.
+      buffer->resize(bytes * world_size_);
     }
+
+    // Splice the input into the common buffer.
+    buffer->replace(rank_ * bytes, bytes, input, bytes);
   }
 
  private:

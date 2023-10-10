@@ -40,12 +40,10 @@ class DeviceCommunicatorAdapter : public DeviceCommunicator {
     }
 
     dh::safe_cuda(cudaSetDevice(device_ordinal_));
-    host_buffer_.resize(send_size * world_size_);
-    dh::safe_cuda(cudaMemcpy(host_buffer_.data() + rank_ * send_size, send_buffer, send_size,
-                             cudaMemcpyDefault));
-    Allgather(host_buffer_.data(), host_buffer_.size());
-    dh::safe_cuda(
-        cudaMemcpy(receive_buffer, host_buffer_.data(), host_buffer_.size(), cudaMemcpyDefault));
+    host_buffer_.resize(send_size);
+    dh::safe_cuda(cudaMemcpy(host_buffer_.data(), send_buffer, send_size, cudaMemcpyDefault));
+    auto const output = Allgather(host_buffer_);
+    dh::safe_cuda(cudaMemcpy(receive_buffer, output.data(), output.size(), cudaMemcpyDefault));
   }
 
   void AllGatherV(void const *send_buffer, size_t length_bytes, std::vector<std::size_t> *segments,

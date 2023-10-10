@@ -296,13 +296,12 @@ class HistEvaluator {
     auto const num_entries = entries.size();
 
     // First, gather all the primitive fields.
-    std::vector<CPUExpandEntry> all_entries(num_entries * world);
+    auto all_entries = collective::Allgather(entries);
     std::vector<uint32_t> cat_bits;
     std::vector<std::size_t> cat_bits_sizes;
     for (std::size_t i = 0; i < num_entries; i++) {
-      all_entries[num_entries * rank + i].CopyAndCollect(entries[i], &cat_bits, &cat_bits_sizes);
+      entries[i].CollectCatBits(&cat_bits, &cat_bits_sizes);
     }
-    collective::Allgather(all_entries.data(), all_entries.size() * sizeof(CPUExpandEntry));
 
     // Gather all the cat_bits.
     auto gathered = collective::AllgatherV(cat_bits, cat_bits_sizes);
@@ -583,24 +582,20 @@ class HistMultiEvaluator {
     auto const num_entries = entries.size();
 
     // First, gather all the primitive fields.
-    std::vector<MultiExpandEntry> all_entries(num_entries * world);
+    auto all_entries = collective::Allgather(entries);
     std::vector<uint32_t> cat_bits;
     std::vector<std::size_t> cat_bits_sizes;
     std::vector<GradientPairPrecise> gradients;
     for (std::size_t i = 0; i < num_entries; i++) {
-      all_entries[num_entries * rank + i].CopyAndCollect(entries[i], &cat_bits, &cat_bits_sizes,
-                                                         &gradients);
+      entries[i].CollectCatBitsAndGradients(&cat_bits, &cat_bits_sizes, &gradients);
     }
-    collective::Allgather(all_entries.data(), all_entries.size() * sizeof(MultiExpandEntry));
 
     // Gather all the cat_bits.
     auto gathered_cat_bits = collective::AllgatherV(cat_bits, cat_bits_sizes);
 
     // Gather all the gradients.
     auto const num_gradients = gradients.size();
-    std::vector<GradientPairPrecise> all_gradients(num_gradients * world);
-    std::copy_n(gradients.cbegin(), num_gradients, all_gradients.begin() + num_gradients * rank);
-    collective::Allgather(all_gradients.data(), all_gradients.size() * sizeof(GradientPairPrecise));
+    auto const all_gradients = collective::Allgather(gradients);
 
     auto const total_entries = num_entries * world;
     auto const gradients_per_entry = num_gradients / num_entries;
