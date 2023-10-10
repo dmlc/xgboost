@@ -8,7 +8,7 @@
 #define XGBOOST_COMMON_IO_H_
 
 #include <dmlc/io.h>
-#include <rabit/rabit.h>
+#include <rabit/internal/io.h>  // for MemoryFixSizeBuffer, MemoryBufferStream
 
 #include <algorithm>    // for min, fill_n, copy_n
 #include <array>        // for array

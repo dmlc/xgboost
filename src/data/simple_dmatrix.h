@@ -64,9 +64,10 @@ class SimpleDMatrix : public DMatrix {
   /**
    * \brief Reindex the features based on a global view.
    *
-   * In some cases (e.g. vertical federated learning), features are loaded locally with indices
-   * starting from 0. However, all the algorithms assume the features are globally indexed, so we
-   * reindex the features based on the offset needed to obtain the global view.
+   * In some cases (e.g. column-wise data split and vertical federated learning), features are
+   * loaded locally with indices starting from 0. However, all the algorithms assume the features
+   * are globally indexed, so we reindex the features based on the offset needed to obtain the
+   * global view.
    */
   void ReindexFeatures(Context const* ctx);
 

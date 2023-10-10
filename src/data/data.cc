@@ -729,7 +729,7 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_col
 }
 
 void MetaInfo::SynchronizeNumberOfColumns() {
-  if (IsVerticalFederated()) {
+  if (IsColumnSplit()) {
     collective::Allreduce<collective::Operation::kSum>(&num_col_, 1);
   } else {
     collective::Allreduce<collective::Operation::kMax>(&num_col_, 1);
@@ -850,14 +850,6 @@ DMatrix* TryLoadBinary(std::string fname, bool silent) {
 }  // namespace
 
 DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_split_mode) {
-  auto need_split = false;
-  if (collective::IsFederated()) {
-    LOG(CONSOLE) << "XGBoost federated mode detected, not splitting data among workers";
-  } else if (collective::IsDistributed()) {
-    LOG(CONSOLE) << "XGBoost distributed mode detected, will split data among workers";
-    need_split = true;
-  }
-
   std::string fname, cache_file;
   auto dlm_pos = uri.find('#');
   if (dlm_pos != std::string::npos) {
@@ -865,24 +857,6 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
     fname = uri.substr(0, dlm_pos);
     CHECK_EQ(cache_file.find('#'), std::string::npos)
         << "Only one `#` is allowed in file path for cache file specification.";
-    if (need_split && data_split_mode == DataSplitMode::kRow) {
-      std::ostringstream os;
-      std::vector<std::string> cache_shards = common::Split(cache_file, ':');
-      for (size_t i = 0; i < cache_shards.size(); ++i) {
-        size_t pos = cache_shards[i].rfind('.');
-        if (pos == std::string::npos) {
-          os << cache_shards[i] << ".r" << collective::GetRank() << "-"
-             << collective::GetWorldSize();
-        } else {
-          os << cache_shards[i].substr(0, pos) << ".r" << collective::GetRank() << "-"
-             << collective::GetWorldSize() << cache_shards[i].substr(pos, cache_shards[i].length());
-        }
-        if (i + 1 != cache_shards.size()) {
-          os << ':';
-        }
-      }
-      cache_file = os.str();
-    }
   } else {
     fname = uri;
   }
@@ -894,19 +868,7 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
   }
 
   int partid = 0, npart = 1;
-  if (need_split && data_split_mode == DataSplitMode::kRow) {
-    partid = collective::GetRank();
-    npart = collective::GetWorldSize();
-  } else {
-    // test option to load in part
-    npart = 1;
-  }
-
-  if (npart != 1) {
-    LOG(CONSOLE) << "Load part of data " << partid << " of " << npart << " parts";
-  }
-
-  DMatrix* dmat{nullptr};
+  DMatrix* dmat{};
 
   if (cache_file.empty()) {
     fname = data::ValidateFileFormat(fname);
@@ -916,6 +878,8 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
     dmat = DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), Context{}.Threads(),
                            cache_file, data_split_mode);
   } else {
+    CHECK(data_split_mode != DataSplitMode::kCol)
+        << "Column-wise data split is not supported for external memory.";
     data::FileIterator iter{fname, static_cast<uint32_t>(partid), static_cast<uint32_t>(npart)};
     dmat = new data::SparsePageDMatrix{&iter,
                                        iter.Proxy(),
@@ -926,17 +890,7 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
                                        cache_file};
   }
 
-  if (need_split && data_split_mode == DataSplitMode::kCol) {
-    if (!cache_file.empty()) {
-      LOG(FATAL) << "Column-wise data split is not support for external memory.";
-    }
-    LOG(CONSOLE) << "Splitting data by column";
-    auto* sliced = dmat->SliceCol(npart, partid);
-    delete dmat;
-    return sliced;
-  } else {
-    return dmat;
-  }
+  return dmat;
 }
 
 template <typename DataIterHandle, typename DMatrixHandle, typename DataIterResetCallback,

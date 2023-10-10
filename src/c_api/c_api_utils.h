@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2023 by XGBoost Contributors
+ * Copyright 2021-2023, XGBoost Contributors
  */
 #ifndef XGBOOST_C_API_C_API_UTILS_H_
 #define XGBOOST_C_API_C_API_UTILS_H_
@@ -13,6 +13,7 @@
 #include <utility>  // for move
 #include <vector>
 
+#include "../common/json_utils.h"  // for TypeCheck
 #include "xgboost/c_api.h"
 #include "xgboost/data.h"         // DMatrix
 #include "xgboost/feature_map.h"  // for FeatureMap
@@ -253,28 +254,6 @@ inline void GenerateFeatureMap(Learner const *learner,
 }
 
 void XGBBuildInfoDevice(Json* p_info);
-
-template <typename JT>
-auto const &RequiredArg(Json const &in, StringView key, StringView func) {
-  auto const &obj = get<Object const>(in);
-  auto it = obj.find(key);
-  if (it == obj.cend() || IsA<Null>(it->second)) {
-    LOG(FATAL) << "Argument `" << key << "` is required for `" << func << "`.";
-  }
-  TypeCheck<JT>(it->second, StringView{key});
-  return get<std::remove_const_t<JT> const>(it->second);
-}
-
-template <typename JT, typename T>
-auto const &OptionalArg(Json const &in, StringView key, T const &dft) {
-  auto const &obj = get<Object const>(in);
-  auto it = obj.find(key);
-  if (it != obj.cend() && !IsA<Null>(it->second)) {
-    TypeCheck<JT>(it->second, key);
-    return get<std::remove_const_t<JT> const>(it->second);
-  }
-  return dft;
-}
 
 /**
  * \brief Get shared ptr from DMatrix C handle with additional checks.

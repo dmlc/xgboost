@@ -1,19 +1,19 @@
 /**
- * Copyright 2023 by XGBoost contributors
+ * Copyright 2023, XGBoost contributors
  */
 #include "quantile_loss_utils.h"
 
-#include <cctype>             // std::isspace
-#include <istream>            // std::istream
-#include <ostream>            // std::ostream
-#include <string>             // std::string
-#include <vector>             // std::vector
+#include <cctype>   // for isspace
+#include <istream>  // for istream
+#include <ostream>  // for ostream
+#include <string>   // for string
+#include <vector>   // for vector
 
-#include "xgboost/json.h"     // F32Array,TypeCheck,get,Number
-#include "xgboost/json_io.h"  // JsonWriter
+#include "../common/json_utils.h"  // for TypeCheck
+#include "xgboost/json.h"          // for F32Array, get, Number
+#include "xgboost/json_io.h"       // for JsonWriter
 
-namespace xgboost {
-namespace common {
+namespace xgboost::common {
 std::ostream& operator<<(std::ostream& os, const ParamFloatArray& array) {
   auto const& t = array.Get();
   xgboost::F32Array arr{t.size()};
@@ -70,5 +70,4 @@ std::istream& operator>>(std::istream& is, ParamFloatArray& array) {
 }
 
 DMLC_REGISTER_PARAMETER(QuantileLossParam);
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common

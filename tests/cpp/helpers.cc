@@ -378,9 +378,8 @@ void RandomDataGenerator::GenerateCSR(
   CHECK_EQ(columns->Size(), value->Size());
 }
 
-[[nodiscard]] std::shared_ptr<DMatrix> RandomDataGenerator::GenerateDMatrix(bool with_label,
-                                                                            bool float_label,
-                                                                            size_t classes) const {
+[[nodiscard]] std::shared_ptr<DMatrix> RandomDataGenerator::GenerateDMatrix(
+    bool with_label, bool float_label, size_t classes, DataSplitMode data_split_mode) const {
   HostDeviceVector<float> data;
   HostDeviceVector<bst_row_t> rptrs;
   HostDeviceVector<bst_feature_t> columns;
@@ -388,7 +387,7 @@ void RandomDataGenerator::GenerateCSR(
   data::CSRAdapter adapter(rptrs.HostPointer(), columns.HostPointer(), data.HostPointer(), rows_,
                            data.Size(), cols_);
   std::shared_ptr<DMatrix> out{
-      DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)};
+      DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1, "", data_split_mode)};
 
   if (with_label) {
     RandomDataGenerator gen{rows_, n_targets_, 0.0f};
