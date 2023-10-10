@@ -48,7 +48,7 @@ class FederatedClient {
     AllgatherRequest request;
     request.set_sequence_number(sequence_number_++);
     request.set_rank(rank_);
-    request.set_send_buffer(send_buffer);
+    request.set_send_buffer(send_buffer.data(), send_buffer.size());
 
     AllgatherReply reply;
     grpc::ClientContext context;
@@ -67,7 +67,7 @@ class FederatedClient {
     AllgatherVRequest request;
     request.set_sequence_number(sequence_number_++);
     request.set_rank(rank_);
-    request.set_send_buffer(send_buffer);
+    request.set_send_buffer(send_buffer.data(), send_buffer.size());
 
     AllgatherVReply reply;
     grpc::ClientContext context;
