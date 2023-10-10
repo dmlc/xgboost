@@ -3,6 +3,7 @@
  */
 #pragma once
 #include <condition_variable>
+#include <map>
 #include <string>
 
 #include "communicator.h"
