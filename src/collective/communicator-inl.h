@@ -142,6 +142,19 @@ inline void Broadcast(std::string *sendrecv_data, int root) {
 }
 
 /**
+ * @brief Gathers a single value all processes and distributes the result to all processes.
+ *
+ * @param input The single value.
+ */
+template <typename T>
+inline std::vector<T> Allgather(T const &input) {
+  std::string_view str_input{reinterpret_cast<char const*>(&input), sizeof(T)};
+  auto const output = Communicator::Get()->AllGather(str_input);
+  return {reinterpret_cast<const T *>(output.data()),
+          reinterpret_cast<const T *>(output.data() + output.size())};
+}
+
+/**
  * @brief Gathers data from all processes and distributes it to all processes.
  *
  * This assumes all ranks have the same size.
