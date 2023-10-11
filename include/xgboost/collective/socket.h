@@ -432,7 +432,12 @@ class TCPSocket {
    */
   TCPSocket Accept() {
     HandleT newfd = accept(Handle(), nullptr, nullptr);
-    if (newfd == InvalidSocket()) {
+#if defined(_WIN32)
+    auto interrupt = WSAEINTR;
+#else
+    auto interrupt = EINTR;
+#endif
+    if (newfd == InvalidSocket() && system::LastError() != interrupt) {
       system::ThrowAtError("accept");
     }
     TCPSocket newsock{newfd};
@@ -619,7 +624,15 @@ class TCPSocket {
    */
   void Close() {
     if (InvalidSocket() != handle_) {
+#if defined(_WIN32)
+      auto rc = system::CloseSocket(handle_);
+      // it's possible that we close TCP sockets after finalizing WSA due to detached thread.
+      if (rc != 0 && system::LastError() != WSANOTINITIALISED) {
+        system::ThrowAtError("close", rc);
+      }
+#else
       xgboost_CHECK_SYS_CALL(system::CloseSocket(handle_), 0);
+#endif
       handle_ = InvalidSocket();
     }
   }

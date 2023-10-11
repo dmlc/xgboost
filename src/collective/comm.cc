@@ -200,6 +200,10 @@ RabitComm::RabitComm(std::string const& host, std::int32_t port, std::chrono::se
   error_sock->Listen();
   error_worker_ = std::thread{[this, error_sock = std::move(error_sock)] {
     auto conn = error_sock->Accept();
+    // On Windows accept returns an invalid socket after network is shutdown.
+    if (conn.IsClosed()) {
+      return;
+    }
     LOG(WARNING) << "Another worker is running into error.";
     std::string scmd;
     conn.Recv(&scmd);
