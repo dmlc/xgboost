@@ -65,15 +65,9 @@ std::int32_t GetCGroupV2Count(std::filesystem::path const& bandwidth_path) noexc
     warn();
     return cnt;
   }
-  if (b <= 0) {
-    warn();
-    return cnt;
+  if (a > 0 && b > 0) {
+    cnt = std::max(common::DivRoundUp(a, b), 1);
   }
-  auto r = common::DivRoundUp(a, b);
-  if (r <= 0) {
-    return cnt;
-  }
-  cnt = r;
 #endif  //  defined(__linux__)
   return cnt;
 }
