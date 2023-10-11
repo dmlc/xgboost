@@ -64,21 +64,21 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
                                     std::int32_t retry,
                                     std::vector<std::shared_ptr<TCPSocket>>* out_workers) {
   auto next = std::make_shared<TCPSocket>();
+  auto prev = std::make_shared<TCPSocket>();
+
   auto rc = Success() << [&] {
     auto rc = Connect(StringView{ninfo.host}, ninfo.port, retry, timeout, next.get());
     if (!rc.OK()) {
       return Fail("Bootstrap failed to connect to ring next.", std::move(rc));
     }
     return rc;
-  } << [&] { return next->NonBlocking(true); };
-  if (!rc.OK()) {
-    return rc;
-  }
+  } << [&] {
+    return next->NonBlocking(true);
+  } << [&] {
+    SockAddrV4 addr;
+    return listener->Accept(prev.get(), &addr);
+  } << [&] { return prev->NonBlocking(true); };
 
-  auto prev = std::make_shared<TCPSocket>();
-  SockAddrV4 addr;
-  rc = std::move(rc) << [&] { return listener->Accept(prev.get(), &addr); }
-                     << [&] { return prev->NonBlocking(true); };
   if (!rc.OK()) {
     return rc;
   }
@@ -94,30 +94,33 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
 
   auto prev_ch = std::make_shared<Channel>(comm, prev);
   auto next_ch = std::make_shared<Channel>(comm, next);
-  rc = cpu_impl::RingAllgather(comm, s_buffer, HOST_NAME_MAX, 0, prev_ch, next_ch);
+
+  auto block = [&] {
+    for (auto ch : {prev_ch, next_ch}) {
+      auto rc = ch->Block();
+      if (!rc.OK()) {
+        return rc;
+      }
+    }
+    return Success();
+  };
+
+  rc = std::move(rc)
+       << [&] { return cpu_impl::RingAllgather(comm, s_buffer, HOST_NAME_MAX, 0, prev_ch, next_ch); }
+       << [&] { return block(); };
   if (!rc.OK()) {
     return Fail("Failed to get host names from peers.", std::move(rc));
-  }
-  for (auto ch : {prev_ch, next_ch}) {
-    rc = ch->Block();
-    if (!rc.OK()) {
-      return rc;
-    }
   }
 
   std::vector<std::int32_t> peers_port(comm.World(), -1);
   peers_port[comm.Rank()] = ninfo.port;
   auto s_ports = common::Span{reinterpret_cast<std::int8_t*>(peers_port.data()),
                               peers_port.size() * sizeof(ninfo.port)};
-  rc = cpu_impl::RingAllgather(comm, s_ports, sizeof(ninfo.port), 0, prev_ch, next_ch);
+  rc = std::move(rc)
+       << [&] { return cpu_impl::RingAllgather(comm, s_ports, sizeof(ninfo.port), 0, prev_ch, next_ch); }
+       << [&] { return block(); };
   if (!rc.OK()) {
     return Fail("Failed to get the port from peers.", std::move(rc));
-  }
-  for (auto ch : {prev_ch, next_ch}) {
-    rc = ch->Block();
-    if (!rc.OK()) {
-      return rc;
-    }
   }
 
   std::vector<proto::PeerInfo> peers(comm.World());
@@ -162,7 +165,7 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
     if (!rc.OK()) {
       return rc;
     }
-    std::int32_t rank;
+    std::int32_t rank{-1};
     auto n_bytes = peer->RecvAll(&rank, sizeof(rank));
     if (n_bytes != sizeof(comm.Rank())) {
       return Fail("Failed to recv rank.");
@@ -278,39 +281,32 @@ RabitComm::~RabitComm() noexcept(false) {
 
 [[nodiscard]] Result RabitComm::Shutdown() {
   TCPSocket tracker;
-  auto rc = Success() << [&] {
+  return Success() << [&] {
     return ConnectTrackerImpl(tracker_, timeout_, retry_, task_id_, &tracker, Rank(), World());
-  } << [&] { return this->Block(); };
-  if (!rc.OK()) {
-    return rc;
-  }
-
-  Json jcmd{Object{}};
-  jcmd["cmd"] = Integer{static_cast<std::int32_t>(proto::CMD::kShutdown)};
-  auto scmd = Json::Dump(jcmd);
-  tracker.Send(scmd);
-
-  return Success();
+  } << [&] {
+    return this->Block();
+  } << [&] {
+    Json jcmd{Object{}};
+    jcmd["cmd"] = Integer{static_cast<std::int32_t>(proto::CMD::kShutdown)};
+    auto scmd = Json::Dump(jcmd);
+    auto n_bytes = tracker.Send(scmd);
+    if (n_bytes != scmd.size()) {
+      return Fail("Faled to send cmd.");
+    }
+    return Success();
+  };
 }
 
 [[nodiscard]] Result RabitComm::LogTracker(std::string msg) const {
   TCPSocket out;
   proto::Print print;
-  auto rc = Success() << [&] { return this->ConnectTracker(&out); }
-                      << [&] { return print.WorkerSend(&out, msg); };
-  if (!rc.OK()) {
-    return Fail("Logging to tracker failed.", std::move(rc));
-  }
-  return rc;
+  return Success() << [&] { return this->ConnectTracker(&out); }
+                   << [&] { return print.WorkerSend(&out, msg); };
 }
 
 [[nodiscard]] Result RabitComm::SignalError(Result const& res) {
   TCPSocket out;
-  auto rc = this->ConnectTracker(&out);
-  if (!rc.OK()) {
-    return Fail("Logging to tracker failed.", std::move(rc));
-  }
-  proto::ErrorCMD cmd;
-  return cmd.WorkerSend(&out, res);
+  return Success() << [&] { return this->ConnectTracker(&out); }
+                   << [&] { return proto::ErrorCMD{}.WorkerSend(&out, res); };
 }
 }  // namespace xgboost::collective
