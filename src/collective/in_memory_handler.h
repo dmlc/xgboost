@@ -117,8 +117,8 @@ class InMemoryHandler {
               std::size_t rank, HandlerFunctor const& functor);
 
   std::size_t world_size_{};  /// Number of workers.
-  int received_{};            /// Number of calls received with the current sequence.
-  int sent_{};                /// Number of calls completed with the current sequence.
+  std::size_t received_{};    /// Number of calls received with the current sequence.
+  std::size_t sent_{};        /// Number of calls completed with the current sequence.
   std::string buffer_{};      /// A shared common buffer.
   std::map<std::size_t, std::string_view> aux_{};  /// A shared auxiliary map.
   uint64_t sequence_number_{};                     /// Call sequence number.
