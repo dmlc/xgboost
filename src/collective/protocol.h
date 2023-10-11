@@ -4,6 +4,7 @@
 #pragma once
 #include <cstdint>  // for int32_t
 #include <string>   // for string
+#include <utility>  // for move
 
 #include "xgboost/collective/result.h"  // for Result
 #include "xgboost/collective/socket.h"  // for TCPSocket

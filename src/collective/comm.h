@@ -2,13 +2,18 @@
  * Copyright 2023, XGBoost Contributors
  */
 #pragma once
+#include <chrono>              // for seconds
 #include <condition_variable>  // for condition_variable
 #include <cstddef>             // for size_t
 #include <cstdint>             // for int32_t
+#include <memory>              // for shared_ptr
 #include <mutex>               // for mutex
 #include <queue>               // for queue
+#include <string>              // for string
 #include <thread>              // for thread
 #include <type_traits>         // for remove_const_t
+#include <utility>             // for move
+#include <vector>              // for vector
 
 #include "../common/timer.h"
 #include "loop.h"                       // for Loop
@@ -22,6 +27,7 @@ namespace xgboost::collective {
 inline constexpr std::int32_t DefaultTimeoutSec() { return 300; }  // 5min
 inline constexpr std::int32_t DefaultRetry() { return 3; }
 
+// indexing into the ring
 inline std::int32_t BootstrapNext(std::int32_t r, std::int32_t world) {
   auto nrank = (r + world + 1) % world;
   return nrank;
@@ -34,6 +40,9 @@ inline std::int32_t BootstrapPrev(std::int32_t r, std::int32_t world) {
 
 class Channel;
 
+/**
+ * @brief Base communicator storing info about the tracker and other communicators.
+ */
 class Comm {
  protected:
   std::int32_t world_{1};
@@ -99,6 +108,9 @@ class RabitComm : public Comm {
   [[nodiscard]] Result SignalError(Result const&) override;
 };
 
+/**
+ * @brief Communication channel between workers.
+ */
 class Channel {
   std::shared_ptr<TCPSocket> sock_{nullptr};
   Result rc_;

@@ -6,6 +6,8 @@
 #include <cstdint>  // for int32_t
 #include <future>   // for future
 #include <string>   // for string
+#include <utility>  // for pair
+#include <vector>   // for vector
 
 #include "protocol.h"
 #include "xgboost/collective/result.h"  // for Result

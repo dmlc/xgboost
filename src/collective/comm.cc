@@ -3,8 +3,11 @@
  */
 #include "comm.h"
 
-#include <mutex>    // for unique_lock
-#include <utility>  // for move, forward
+#include <algorithm>  // for copy
+#include <chrono>     // for seconds
+#include <memory>     // for shared_ptr
+#include <string>     // for string
+#include <utility>    // for move, forward
 
 #include "../c_api/c_api_utils.h"
 #include "../common/common.h"
@@ -44,14 +47,11 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
   }
 
   TCPSocket& tracker = *out;
-  proto::Magic magic;
-  proto::Connect conn;
-
   return std::move(rc)
       << [&] { return tracker.NonBlocking(false); }
       << [&] { return tracker.RecvTimeout(timeout); }
-      << [&] { return magic.Verify(&tracker); }
-      << [&] { return conn.WorkerSend(&tracker, world, rank, task_id); };
+      << [&] { return proto::Magic{}.Verify(&tracker); }
+      << [&] { return proto::Connect{}.WorkerSend(&tracker, world, rank, task_id); };
 }
 
 [[nodiscard]] Result Comm::ConnectTracker(TCPSocket* out) const {
