@@ -9,11 +9,8 @@
 #include <string>     // for string
 #include <utility>    // for move, forward
 
-#include "../c_api/c_api_utils.h"
-#include "../common/common.h"
 #include "allgather.h"
-#include "protocol.h"  // for kMagic
-#include "tracker.h"
+#include "protocol.h"      // for kMagic
 #include "xgboost/json.h"  // for Json, Object
 
 namespace xgboost::collective {
@@ -105,20 +102,20 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
     return Success();
   };
 
-  rc = std::move(rc)
-       << [&] { return cpu_impl::RingAllgather(comm, s_buffer, HOST_NAME_MAX, 0, prev_ch, next_ch); }
-       << [&] { return block(); };
+  rc = std::move(rc) << [&] {
+    return cpu_impl::RingAllgather(comm, s_buffer, HOST_NAME_MAX, 0, prev_ch, next_ch);
+  } << [&] { return block(); };
   if (!rc.OK()) {
     return Fail("Failed to get host names from peers.", std::move(rc));
   }
 
   std::vector<std::int32_t> peers_port(comm.World(), -1);
   peers_port[comm.Rank()] = ninfo.port;
-  auto s_ports = common::Span{reinterpret_cast<std::int8_t*>(peers_port.data()),
-                              peers_port.size() * sizeof(ninfo.port)};
-  rc = std::move(rc)
-       << [&] { return cpu_impl::RingAllgather(comm, s_ports, sizeof(ninfo.port), 0, prev_ch, next_ch); }
-       << [&] { return block(); };
+  rc = std::move(rc) << [&] {
+    auto s_ports = common::Span{reinterpret_cast<std::int8_t*>(peers_port.data()),
+                                peers_port.size() * sizeof(ninfo.port)};
+    return cpu_impl::RingAllgather(comm, s_ports, sizeof(ninfo.port), 0, prev_ch, next_ch);
+  } << [&] { return block(); };
   if (!rc.OK()) {
     return Fail("Failed to get the port from peers.", std::move(rc));
   }
