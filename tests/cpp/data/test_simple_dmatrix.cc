@@ -428,3 +428,21 @@ TEST(SimpleDMatrix, Threads) {
       DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 0, "")};
   ASSERT_EQ(p_fmat->Ctx()->Threads(), AllThreadsForTest());
 }
+
+namespace {
+void VerifyColumnSplit() {
+  size_t constexpr kRows {16};
+  size_t constexpr kCols {8};
+  auto dmat =
+      RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(false, false, 1, DataSplitMode::kCol);
+
+  ASSERT_EQ(dmat->Info().num_col_, kCols * collective::GetWorldSize());
+  ASSERT_EQ(dmat->Info().num_row_, kRows);
+  ASSERT_EQ(dmat->Info().data_split_mode, DataSplitMode::kCol);
+}
+}  // anonymous namespace
+
+TEST(SimpleDMatrix, ColumnSplit) {
+  auto constexpr kWorldSize{3};
+  RunWithInMemoryCommunicator(kWorldSize, VerifyColumnSplit);
+}

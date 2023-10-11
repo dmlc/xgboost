@@ -658,6 +658,34 @@ class TCPSocket {
  * @brief Get the local host name.
  */
 [[nodiscard]] Result GetHostName(std::string *p_out);
+
+/**
+ * @brief inet_ntop
+ */
+template <typename H>
+Result INetNToP(H const &host, std::string *p_out) {
+  std::string &ip = *p_out;
+  switch (host->h_addrtype) {
+    case AF_INET: {
+      auto addr = reinterpret_cast<struct in_addr *>(host->h_addr_list[0]);
+      char str[INET_ADDRSTRLEN];
+      inet_ntop(AF_INET, addr, str, INET_ADDRSTRLEN);
+      ip = str;
+      break;
+    }
+    case AF_INET6: {
+      auto addr = reinterpret_cast<struct in6_addr *>(host->h_addr_list[0]);
+      char str[INET6_ADDRSTRLEN];
+      inet_ntop(AF_INET6, addr, str, INET6_ADDRSTRLEN);
+      ip = str;
+      break;
+    }
+    default: {
+      return Fail("Invalid address type.");
+    }
+  }
+  return Success();
+}
 }  // namespace collective
 }  // namespace xgboost
 
