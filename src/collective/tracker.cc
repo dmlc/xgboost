@@ -41,15 +41,10 @@ RabitTracker::WorkerProxy::WorkerProxy(std::int32_t world, TCPSocket sock, SockA
     : sock_{std::move(sock)} {
   auto host = addr.Addr();
 
-  proto::Magic magic;
-  rc_ = magic.Verify(&sock_);
-  if (!rc_.OK()) {
-    return;
-  }
-
-  proto::Connect conn;
   std::int32_t rank{0};
-  rc_ = conn.TrackerRecv(&sock_, &world_, &rank, &task_id_);
+  rc_ = Success()
+        << [&] { return proto::Magic{}.Verify(&sock_); }
+        << [&] { return proto::Connect{}.TrackerRecv(&sock_, &world_, &rank, &task_id_); };
   if (!rc_.OK()) {
     return;
   }
@@ -69,7 +64,6 @@ RabitTracker::WorkerProxy::WorkerProxy(std::int32_t world, TCPSocket sock, SockA
     proto::ErrorCMD error;
     rc_ = error.TrackerHandle(jcmd, &msg_, &code_);
   }
-
   if (!rc_.OK()) {
     return;
   }

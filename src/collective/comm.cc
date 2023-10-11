@@ -10,21 +10,11 @@
 #include <utility>    // for move, forward
 
 #include "allgather.h"
-#include "protocol.h"      // for kMagic
-#include "xgboost/json.h"  // for Json, Object
+#include "protocol.h"                   // for kMagic
+#include "xgboost/collective/socket.h"  // for TCPSocket
+#include "xgboost/json.h"               // for Json, Object
 
 namespace xgboost::collective {
-namespace {
-// We don't have monad, a simple helper would do.
-template <typename Fn>
-Result operator<<(Result&& r, Fn&& fn) {
-  if (!r.OK()) {
-    return std::forward<Result>(r);
-  }
-  return fn();
-}
-}  // namespace
-
 Comm::Comm(std::string const& host, std::int32_t port, std::chrono::seconds timeout,
            std::int32_t retry, std::string task_id)
     : timeout_{timeout},
@@ -34,13 +24,13 @@ Comm::Comm(std::string const& host, std::int32_t port, std::chrono::seconds time
       loop_{std::make_shared<Loop>(timeout)} {}
 
 Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, std::int32_t retry,
-                          std::string const& task_id, xgboost::collective::TCPSocket* out,
-                          std::int32_t rank, std::int32_t world) {
+                          std::string const& task_id, TCPSocket* out, std::int32_t rank,
+                          std::int32_t world) {
   // get information from tracker
   CHECK(!info.host.empty());
   auto rc = Connect(info.host, info.port, retry, timeout, out);
   if (!rc.OK()) {
-    return xgboost::collective::Fail("Failed to connect to the tracker.", std::move(rc));
+    return Fail("Failed to connect to the tracker.", std::move(rc));
   }
 
   TCPSocket& tracker = *out;
@@ -64,7 +54,7 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
   auto prev = std::make_shared<TCPSocket>();
 
   auto rc = Success() << [&] {
-    auto rc = Connect(StringView{ninfo.host}, ninfo.port, retry, timeout, next.get());
+    auto rc = Connect(ninfo.host, ninfo.port, retry, timeout, next.get());
     if (!rc.OK()) {
       return Fail("Bootstrap failed to connect to ring next.", std::move(rc));
     }
@@ -75,7 +65,6 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
     SockAddrV4 addr;
     return listener->Accept(prev.get(), &addr);
   } << [&] { return prev->NonBlocking(true); };
-
   if (!rc.OK()) {
     return rc;
   }

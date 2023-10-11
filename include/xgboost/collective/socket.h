@@ -383,8 +383,8 @@ class TCPSocket {
     // https://stackoverflow.com/questions/2876024/linux-is-there-a-read-or-recv-from-socket-with-timeout
 #if defined(_WIN32)
     DWORD tv = timeout.count() * 1000;
-    auto rc = setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<char const *>(&tv),
-                         sizeof(tv));
+    auto rc =
+        setsockopt(Handle(), SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<char *>(&tv), sizeof(tv));
 #else
     struct timeval tv;
     tv.tv_sec = timeout.count();

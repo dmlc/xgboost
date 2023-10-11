@@ -4,12 +4,12 @@
 #include "allgather.h"
 
 #include <algorithm>  // for min
+#include <cstddef>    // for size_t
 #include <cstdint>    // for int8_t
 #include <memory>     // for shared_ptr
 
-#include "comm.h"
-#include "rabit/internal/socket.h"
-#include "xgboost/collective/socket.h"
+#include "comm.h"          // for Comm, Channel
+#include "xgboost/span.h"  // for Span
 
 namespace xgboost::collective::cpu_impl {
 Result RingAllgather(Comm const& comm, common::Span<std::int8_t> data, std::size_t segment_size,
