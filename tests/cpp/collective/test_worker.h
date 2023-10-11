@@ -82,7 +82,11 @@ class TrackerTest : public SocketTest {
   std::chrono::seconds timeout{1};
   std::string host;
 
-  void SetUp() override { ASSERT_TRUE(GetHostAddress(&host).OK()); }
+  void SetUp() override {
+    SocketTest::SetUp();
+    auto rc = GetHostAddress(&host);
+    ASSERT_TRUE(rc.OK()) << rc.Report();
+  }
 };
 
 template <typename WorkerFn>
