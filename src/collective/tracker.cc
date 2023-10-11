@@ -103,7 +103,7 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
   }
 
   for (auto& t : bootstrap_threads) {
-    t.join();  // fixme: check exception
+    t.join();
   }
 
   for (auto const& w : workers) {
