@@ -248,6 +248,9 @@ RabitComm::RabitComm(std::string const& host, std::int32_t port, std::chrono::se
 
   std::vector<std::shared_ptr<TCPSocket>> workers;
   rc = ConnectWorkers(*this, &listener, lport, ninfo, timeout, retry, &workers);
+  if (!rc.OK()) {
+    return rc;
+  }
 
   CHECK(this->channels_.empty());
   for (auto& w : workers) {
