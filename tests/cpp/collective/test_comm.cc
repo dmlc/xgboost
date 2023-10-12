@@ -18,9 +18,12 @@ TEST_F(CommTest, Channel) {
   std::vector<std::thread> workers;
   std::int32_t port = tracker.Port();
 
+  std::vector<std::shared_ptr<WorkerForTest>> refs(n_workers);
+
   for (std::int32_t i = 0; i < n_workers; ++i) {
-    workers.emplace_back([=] {
-      WorkerForTest worker{host, port, timeout, n_workers, i};
+    workers.emplace_back([=, &refs] {
+      refs[i] = std::make_shared<WorkerForTest>(host, port, timeout, n_workers, i);
+      auto &worker = *refs[i];
       if (i % 2 == 0) {
         auto p_chan = worker.Comm().Chan(i + 1);
         p_chan->SendAll(
@@ -41,6 +44,7 @@ TEST_F(CommTest, Channel) {
   for (auto &w : workers) {
     w.join();
   }
+  refs = decltype(refs){};
 
   ASSERT_TRUE(fut.get().OK());
 }
