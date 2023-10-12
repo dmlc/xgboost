@@ -19,6 +19,13 @@ grpc::Status FederatedService::Allgather(grpc::ServerContext*, AllgatherRequest 
   return grpc::Status::OK;
 }
 
+grpc::Status FederatedService::AllgatherV(grpc::ServerContext*, AllgatherVRequest const* request,
+                                          AllgatherVReply* reply) {
+  handler_.AllgatherV(request->send_buffer().data(), request->send_buffer().size(),
+                      reply->mutable_receive_buffer(), request->sequence_number(), request->rank());
+  return grpc::Status::OK;
+}
+
 grpc::Status FederatedService::Allreduce(grpc::ServerContext*, AllreduceRequest const* request,
                                          AllreduceReply* reply) {
   handler_.Allreduce(request->send_buffer().data(), request->send_buffer().size(),
@@ -36,8 +43,8 @@ grpc::Status FederatedService::Broadcast(grpc::ServerContext*, BroadcastRequest 
   return grpc::Status::OK;
 }
 
-void RunServer(int port, int world_size, char const* server_key_file, char const* server_cert_file,
-               char const* client_cert_file) {
+void RunServer(int port, std::size_t world_size, char const* server_key_file,
+               char const* server_cert_file, char const* client_cert_file) {
   std::string const server_address = "0.0.0.0:" + std::to_string(port);
   FederatedService service{world_size};
 
@@ -59,7 +66,7 @@ void RunServer(int port, int world_size, char const* server_key_file, char const
   server->Wait();
 }
 
-void RunInsecureServer(int port, int world_size) {
+void RunInsecureServer(int port, std::size_t world_size) {
   std::string const server_address = "0.0.0.0:" + std::to_string(port);
   FederatedService service{world_size};
 

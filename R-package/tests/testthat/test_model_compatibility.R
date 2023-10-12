@@ -9,20 +9,20 @@ metadata <- list(
   kClasses = 3
 )
 
-run_model_param_check <- function (config) {
+run_model_param_check <- function(config) {
   testthat::expect_equal(config$learner$learner_model_param$num_feature, '4')
   testthat::expect_equal(config$learner$learner_train_param$booster, 'gbtree')
 }
 
-get_num_tree <- function (booster) {
+get_num_tree <- function(booster) {
   dump <- xgb.dump(booster)
   m <- regexec('booster\\[[0-9]+\\]', dump, perl = TRUE)
   m <- regmatches(dump, m)
   num_tree <- Reduce('+', lapply(m, length))
-  return (num_tree)
+  return(num_tree)
 }
 
-run_booster_check <- function (booster, name) {
+run_booster_check <- function(booster, name) {
   # If given a handle, we need to call xgb.Booster.complete() prior to using xgb.config().
   if (inherits(booster, "xgb.Booster") && xgboost:::is.null.handle(booster$handle)) {
     booster <- xgb.Booster.complete(booster)
@@ -68,7 +68,7 @@ test_that("Models from previous versions of XGBoost can be loaded", {
 
   pred_data <- xgb.DMatrix(matrix(c(0, 0, 0, 0), nrow = 1, ncol = 4), nthread = 2)
 
-  lapply(list.files(model_dir), function (x) {
+  lapply(list.files(model_dir), function(x) {
     model_file <- file.path(model_dir, x)
     m <- regexec("xgboost-([0-9\\.]+)\\.([a-z]+)\\.[a-z]+", model_file, perl = TRUE)
     m <- regmatches(model_file, m)[[1]]

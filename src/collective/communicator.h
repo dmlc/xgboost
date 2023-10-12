@@ -125,13 +125,17 @@ class Communicator {
   /**
    * @brief Gathers data from all processes and distributes it to all processes.
    *
-   * This assumes all ranks have the same size, and input data has been sliced into the
-   * corresponding position.
+   * This assumes all ranks have the same size.
    *
-   * @param send_receive_buffer Buffer storing the data.
-   * @param size                Size of the data in bytes.
+   * @param input Buffer storing the data.
    */
-  virtual void AllGather(void *send_receive_buffer, std::size_t size) = 0;
+  virtual std::string AllGather(std::string_view input) = 0;
+
+  /**
+   * @brief Gathers variable-length data from all processes and distributes it to all processes.
+   * @param input Buffer storing the data.
+   */
+  virtual std::string AllGatherV(std::string_view input) = 0;
 
   /**
    * @brief Combines values from all processes and distributes the result back to all processes.

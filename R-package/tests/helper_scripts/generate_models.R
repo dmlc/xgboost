@@ -19,15 +19,15 @@ w <- runif(metadata$kRows)
 version <- packageVersion('xgboost')
 target_dir <- 'models'
 
-save_booster <- function (booster, model_name) {
-  booster_bin <- function (model_name) {
-    return (file.path(target_dir, paste('xgboost-', version, '.', model_name, '.bin', sep = '')))
+save_booster <- function(booster, model_name) {
+  booster_bin <- function(model_name) {
+    return(file.path(target_dir, paste('xgboost-', version, '.', model_name, '.bin', sep = '')))
   }
-  booster_json <- function (model_name) {
-    return (file.path(target_dir, paste('xgboost-', version, '.', model_name, '.json', sep = '')))
+  booster_json <- function(model_name) {
+    return(file.path(target_dir, paste('xgboost-', version, '.', model_name, '.json', sep = '')))
   }
-  booster_rds <- function (model_name) {
-    return (file.path(target_dir, paste('xgboost-', version, '.', model_name, '.rds', sep = '')))
+  booster_rds <- function(model_name) {
+    return(file.path(target_dir, paste('xgboost-', version, '.', model_name, '.rds', sep = '')))
   }
   xgb.save(booster, booster_bin(model_name))
   saveRDS(booster, booster_rds(model_name))
@@ -36,7 +36,7 @@ save_booster <- function (booster, model_name) {
   }
 }
 
-generate_regression_model <- function () {
+generate_regression_model <- function() {
   print('Regression')
   y <- rnorm(metadata$kRows)
 
@@ -47,7 +47,7 @@ generate_regression_model <- function () {
   save_booster(booster, 'reg')
 }
 
-generate_logistic_model <- function () {
+generate_logistic_model <- function() {
   print('Binary classification with logistic loss')
   y <- sample(0:1, size = metadata$kRows, replace = TRUE)
   stopifnot(max(y) == 1, min(y) == 0)
@@ -64,7 +64,7 @@ generate_logistic_model <- function () {
   }
 }
 
-generate_classification_model <- function () {
+generate_classification_model <- function() {
   print('Multi-class classification')
   y <- sample(0:(metadata$kClasses - 1), size = metadata$kRows, replace = TRUE)
   stopifnot(max(y) == metadata$kClasses - 1, min(y) == 0)
@@ -77,7 +77,7 @@ generate_classification_model <- function () {
   save_booster(booster, 'cls')
 }
 
-generate_ranking_model <- function () {
+generate_ranking_model <- function() {
   print('Learning to rank')
   y <- sample(0:4, size = metadata$kRows, replace = TRUE)
   stopifnot(max(y) == 4, min(y) == 0)

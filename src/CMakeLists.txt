@@ -14,7 +14,7 @@ target_sources(objxgboost PRIVATE ${RABIT_SOURCES})
 if (USE_CUDA)
   file(GLOB_RECURSE CUDA_SOURCES *.cu *.cuh)
   target_sources(objxgboost PRIVATE ${CUDA_SOURCES})
-endif (USE_CUDA)
+endif()
 
 target_include_directories(objxgboost
   PRIVATE
@@ -24,7 +24,7 @@ target_include_directories(objxgboost
 
 if (LOG_CAPI_INVOCATION)
   target_compile_definitions(objxgboost PRIVATE -DLOG_CAPI_INVOCATION=1)
-endif (LOG_CAPI_INVOCATION)
+endif()
 
 # For MSVC: Call msvc_use_static_runtime() once again to completely
 # replace /MD with /MT. See https://github.com/dmlc/xgboost/issues/4462

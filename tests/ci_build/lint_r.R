@@ -28,6 +28,7 @@ my_linters <- list(
   equals_na = lintr::equals_na_linter(),
   fixed_regex = lintr::fixed_regex_linter(),
   for_loop_index = lintr::for_loop_index_linter(),
+  function_left_parentheses = lintr::function_left_parentheses_linter(),
   function_return = lintr::function_return_linter(),
   infix_spaces_linter = lintr::infix_spaces_linter(),
   is_numeric = lintr::is_numeric_linter(),

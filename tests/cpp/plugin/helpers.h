@@ -23,7 +23,7 @@ class ServerForTest {
   std::unique_ptr<grpc::Server> server_;
 
  public:
-  explicit ServerForTest(std::int32_t world_size) {
+  explicit ServerForTest(std::size_t world_size) {
     server_thread_.reset(new std::thread([this, world_size] {
       grpc::ServerBuilder builder;
       xgboost::federated::FederatedService service{world_size};

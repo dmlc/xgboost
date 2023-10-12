@@ -1,37 +1,37 @@
 if (USE_DMLC_GTEST)
   if (NOT TARGET gtest)
     message(FATAL_ERROR "USE_DMLC_GTEST=ON but dmlc-core didn't bundle gtest")
-  endif (NOT TARGET gtest)
+  endif()
   set(GTEST_LIBRARIES gtest)
-else (USE_DMLC_GTEST)
+else()
   find_package(GTest REQUIRED)
-endif (USE_DMLC_GTEST)
+endif()
 file(GLOB_RECURSE TEST_SOURCES "*.cc")
 
 if (USE_CUDA)
   file(GLOB_RECURSE CUDA_TEST_SOURCES "*.cu")
   list(APPEND TEST_SOURCES ${CUDA_TEST_SOURCES})
-endif (USE_CUDA)
+endif()
 
 file(GLOB_RECURSE ONEAPI_TEST_SOURCES "plugin/*_oneapi.cc")
 if (NOT PLUGIN_UPDATER_ONEAPI)
   list(REMOVE_ITEM TEST_SOURCES ${ONEAPI_TEST_SOURCES})
-endif (NOT PLUGIN_UPDATER_ONEAPI)
+endif()
 
 if (PLUGIN_FEDERATED)
   target_include_directories(testxgboost PRIVATE ${xgboost_SOURCE_DIR}/plugin/federated)
   target_link_libraries(testxgboost PRIVATE federated_client)
-else (PLUGIN_FEDERATED)
+else()
   file(GLOB_RECURSE FEDERATED_TEST_SOURCES "plugin/*_federated_*.*")
   list(REMOVE_ITEM TEST_SOURCES ${FEDERATED_TEST_SOURCES})
-endif (PLUGIN_FEDERATED)
+endif()
 
 target_sources(testxgboost PRIVATE ${TEST_SOURCES} ${xgboost_SOURCE_DIR}/plugin/example/custom_obj.cc)
 
 if (USE_CUDA AND PLUGIN_RMM)
   find_package(CUDA)
   target_include_directories(testxgboost PRIVATE ${CUDA_INCLUDE_DIRS})
-endif (USE_CUDA AND PLUGIN_RMM)
+endif()
 
 target_include_directories(testxgboost
   PRIVATE
