@@ -4,12 +4,12 @@
 #include "broadcast.h"
 
 #include <cstdint>  // for int32_t, int8_t
+#include <utility>  // for move
 
 #include "../common/bitfield.h"         // for TrailingZeroBits, RBitField32
 #include "comm.h"                       // for Comm
 #include "xgboost/collective/result.h"  // for Result
-#include "xgboost/logging.h"
-#include "xgboost/span.h"  // for Span
+#include "xgboost/span.h"               // for Span
 
 namespace xgboost::collective::cpu_impl {
 namespace {
