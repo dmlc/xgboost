@@ -646,7 +646,7 @@ void MetaInfo::SetFeatureInfo(const char* key, const char **info, const bst_ulon
       feature_type_names.emplace_back(elem);
     }
     if (IsColumnSplit()) {
-      feature_type_names = collective::AllgatherV(feature_type_names);
+      feature_type_names = collective::AllgatherStrings(feature_type_names);
       CHECK_EQ(feature_type_names.size(), num_col_)
           << "Length of " << key << " must be equal to number of columns.";
     }
@@ -654,13 +654,13 @@ void MetaInfo::SetFeatureInfo(const char* key, const char **info, const bst_ulon
     LoadFeatureType(feature_type_names, &h_feature_types);
   } else if (!std::strcmp(key, "feature_name")) {
     if (IsColumnSplit()) {
-      std::vector<std::string> local_feature_names{size};
+      std::vector<std::string> local_feature_names{};
       auto const rank = collective::GetRank();
       for (std::size_t i = 0; i < size; ++i) {
         auto elem = std::to_string(rank) + "." + info[i];
         local_feature_names.emplace_back(elem);
       }
-      feature_names = collective::AllgatherV(local_feature_names);
+      feature_names = collective::AllgatherStrings(local_feature_names);
       CHECK_EQ(feature_names.size(), num_col_)
         << "Length of " << key << " must be equal to number of columns.";
     } else {
