@@ -191,7 +191,7 @@ inline std::vector<T> AllgatherV(std::vector<T> const &input) {
  * @brief Gathers variable-length strings from all processes and distributes them to all processes.
  * @param input Variable-length list of variable-length strings.
  */
-inline std::vector<std::string> AllgatherV(std::vector<std::string> const &input) {
+inline std::vector<std::string> AllgatherStrings(std::vector<std::string> const &input) {
   std::size_t total_size{0};
   for (auto const &s : input) {
     total_size += s.length() + 1;  // +1 for null-terminators
