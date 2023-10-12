@@ -1410,7 +1410,7 @@ class _ProxyDMatrix(DMatrix):
 
     """
 
-    def __init__(self, data: DataType) -> None:  # pylint: disable=super-init-not-called
+    def __init__(self) -> None:  # pylint: disable=super-init-not-called
         self.handle = ctypes.c_void_p()
         _check_call(_LIB.XGProxyDMatrixCreate(ctypes.byref(self.handle)))
 
