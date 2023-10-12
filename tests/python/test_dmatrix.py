@@ -483,10 +483,9 @@ class TestDMatrix:
     def test_column_split_numpy_feature_names(self):
         def verify_column_split():
             world_size = xgb.collective.get_world_size()
-            rank = xgb.collective.get_rank()
             data = np.random.randn(5, 5)
-            feature_names = [f'feature{rank}.{x}' for x in range(5)]
-            feature_types = ['int'] * 5
+            feature_names = [f'feature{x}' for x in range(5)]
+            feature_types = ['float'] * 5
             dm = xgb.DMatrix(data, feature_names=feature_names, feature_types=feature_types,
                              data_split_mode=DataSplitMode.COL)
             assert dm.num_row() == 5
