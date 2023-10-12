@@ -253,11 +253,6 @@ inline std::int32_t OmpGetThreadLimit() {
  * \brief Get thread limit from CFS.
  *
  *   This function has non-trivial overhead and should not be called repeatly.
- *
- * Modified from
- * github.com/psiha/sweater/blob/master/include/boost/sweater/hardware_concurrency.hpp
- *
- * MIT License: Copyright (c) 2016 Domagoj Šarić
  */
 std::int32_t GetCfsCPUCount() noexcept;
 
