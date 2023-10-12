@@ -66,7 +66,7 @@ function(create_rlib_for_msvc)
   execute_process(COMMAND ${DLLTOOL_EXE}
     "--input-def" "${CMAKE_CURRENT_BINARY_DIR}/R.def"
     "--output-lib" "${CMAKE_CURRENT_BINARY_DIR}/R.lib")
-endfunction(create_rlib_for_msvc)
+endfunction()
 
 
 # detection for OSX

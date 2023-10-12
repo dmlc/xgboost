@@ -11,7 +11,7 @@ function(auto_source_group SOURCES)
 
       source_group("${GROUP}" FILES "${FILE}")
   endforeach()
-endfunction(auto_source_group)
+endfunction()
 
 # Force static runtime for MSVC
 function(msvc_use_static_runtime)
@@ -50,7 +50,7 @@ function(msvc_use_static_runtime)
           endif()
       endforeach()
   endif()
-endfunction(msvc_use_static_runtime)
+endfunction()
 
 # Set output directory of target, ignoring debug or release
 function(set_output_directory target dir)
@@ -70,7 +70,7 @@ function(set_output_directory target dir)
     ARCHIVE_OUTPUT_DIRECTORY_RELEASE ${dir}
     ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO ${dir}
     ARCHIVE_OUTPUT_DIRECTORY_MINSIZEREL ${dir})
-endfunction(set_output_directory)
+endfunction()
 
 # Set a default build type to release if none was specified
 function(set_default_configuration_release)
@@ -80,7 +80,7 @@ function(set_default_configuration_release)
 	  message(STATUS "Setting build type to 'Release' as none was specified.")
 	  set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE )
 	endif()
-endfunction(set_default_configuration_release)
+endfunction()
 
 # Generate nvcc compiler flags given a list of architectures
 # Also generates PTX for the most recent architecture for forwards compatibility
@@ -122,7 +122,7 @@ function(format_gencode_flags flags out)
     set(${out} "${${out}}" PARENT_SCOPE)
     message(STATUS "CUDA GEN_CODE: ${GEN_CODE}")
   endif()
-endfunction(format_gencode_flags flags)
+endfunction()
 
 # Set CUDA related flags to target.  Must be used after code `format_gencode_flags`.
 function(xgboost_set_cuda_flags target)
@@ -154,7 +154,7 @@ function(xgboost_set_cuda_flags target)
   if (USE_DEVICE_DEBUG)
     target_compile_options(${target} PRIVATE
       $<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>)
-  else (USE_DEVICE_DEBUG)
+  else()
     target_compile_options(${target} PRIVATE
       $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>)
   endif()
@@ -179,7 +179,7 @@ function(xgboost_set_cuda_flags target)
     CUDA_STANDARD_REQUIRED ON
     CUDA_SEPARABLE_COMPILATION OFF
     CUDA_RUNTIME_LIBRARY Static)
-endfunction(xgboost_set_cuda_flags)
+endfunction()
 
 macro(xgboost_link_nccl target)
   if (BUILD_STATIC_LIB)
@@ -191,7 +191,7 @@ macro(xgboost_link_nccl target)
     target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_NCCL=1)
     target_link_libraries(${target} PRIVATE ${NCCL_LIBRARY})
   endif()
-endmacro(xgboost_link_nccl)
+endmacro()
 
 # compile options
 macro(xgboost_target_properties target)
@@ -233,7 +233,7 @@ macro(xgboost_target_properties target)
   if (WIN32 AND MINGW)
     target_compile_options(${target} PUBLIC -static-libstdc++)
   endif()
-endmacro(xgboost_target_properties)
+endmacro()
 
 # Custom definitions used in xgboost.
 macro(xgboost_target_defs target)
@@ -260,7 +260,7 @@ macro(xgboost_target_defs target)
   if (PLUGIN_RMM)
     target_compile_definitions(objxgboost PUBLIC -DXGBOOST_USE_RMM=1)
   endif()
-endmacro(xgboost_target_defs)
+endmacro()
 
 # handles dependencies
 macro(xgboost_target_link_libraries target)
@@ -298,4 +298,4 @@ macro(xgboost_target_link_libraries target)
   if (MINGW)
     target_link_libraries(${target} PRIVATE wsock32 ws2_32)
   endif()
-endmacro(xgboost_target_link_libraries)
+endmacro()

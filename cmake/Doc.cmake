@@ -13,4 +13,4 @@ function (run_doxygen)
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     COMMENT "Generate C APIs documentation."
     VERBATIM)
-endfunction (run_doxygen)
+endfunction()
