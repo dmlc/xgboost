@@ -839,7 +839,6 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         self.missing = missing if missing is not None else np.nan
         self.nthread = nthread if nthread is not None else -1
         self.silent = silent
-        self.data_split_mode = data_split_mode
 
         # force into void_p, mac need to pass things in as void_p
         if data is None:
@@ -860,7 +859,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             feature_names=feature_names,
             feature_types=feature_types,
             enable_categorical=enable_categorical,
-            data_split_mode=self.data_split_mode,
+            data_split_mode=data_split_mode,
         )
         assert handle is not None
         self.handle = handle
@@ -1232,6 +1231,16 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         _check_call(_LIB.XGDMatrixNumNonMissing(self.handle, ctypes.byref(ret)))
         return ret.value
 
+    def data_split_mode(self) -> DataSplitMode:
+        """Get the data split mode of the DMatrix.
+
+        .. versionadded:: 2.0.1
+
+        """
+        ret = c_bst_ulong()
+        _check_call(_LIB.XGDMatrixDataSplitMode(self.handle, ctypes.byref(ret)))
+        return DataSplitMode(ret.value)
+
     def slice(
         self, rindex: Union[List[int], np.ndarray], allow_groups: bool = False
     ) -> "DMatrix":
@@ -1301,7 +1310,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         feature_names = _validate_feature_info(
             feature_names,
             self.num_col(),
-            self.data_split_mode == DataSplitMode.COL,
+            self.data_split_mode() == DataSplitMode.COL,
             "feature names",
         )
         if len(feature_names) != len(set(feature_names)):
@@ -1377,7 +1386,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         feature_types = _validate_feature_info(
             feature_types,
             self.num_col(),
-            self.data_split_mode == DataSplitMode.COL,
+            self.data_split_mode() == DataSplitMode.COL,
             "feature types",
         )
 
@@ -1401,7 +1410,7 @@ class _ProxyDMatrix(DMatrix):
 
     """
 
-    def __init__(self) -> None:  # pylint: disable=super-init-not-called
+    def __init__(self, data: DataType) -> None:  # pylint: disable=super-init-not-called
         self.handle = ctypes.c_void_p()
         _check_call(_LIB.XGProxyDMatrixCreate(ctypes.byref(self.handle)))
 
@@ -1494,7 +1503,6 @@ class QuantileDMatrix(DMatrix):
         label_upper_bound: Optional[ArrayLike] = None,
         feature_weights: Optional[ArrayLike] = None,
         enable_categorical: bool = False,
-        data_split_mode: DataSplitMode = DataSplitMode.ROW,
     ) -> None:
         self.max_bin = max_bin
         self.missing = missing if missing is not None else np.nan

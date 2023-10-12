@@ -793,6 +793,16 @@ XGB_DLL int XGDMatrixNumCol(DMatrixHandle handle, bst_ulong *out);
  */
 XGB_DLL int XGDMatrixNumNonMissing(DMatrixHandle handle, bst_ulong *out);
 
+/*!
+ * \brief Get the data split mode from DMatrix.
+ *
+ * \param handle the handle to the DMatrix
+ * \param out The output of the data split mode
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixDataSplitMode(DMatrixHandle handle, bst_ulong *out);
+
 /**
  * \brief Get the predictors from DMatrix as CSR matrix for testing.  If this is a
  *        quantized DMatrix, quantized values are returned instead.

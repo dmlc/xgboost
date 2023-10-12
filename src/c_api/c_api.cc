@@ -728,6 +728,15 @@ XGB_DLL int XGDMatrixNumNonMissing(DMatrixHandle const handle, xgboost::bst_ulon
   API_END();
 }
 
+XGB_DLL int XGDMatrixDataSplitMode(DMatrixHandle handle, bst_ulong *out) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  auto p_m = CastDMatrixHandle(handle);
+  xgboost_CHECK_C_ARG_PTR(out);
+  *out = static_cast<xgboost::bst_ulong>(p_m->Info().data_split_mode);
+  API_END();
+}
+
 XGB_DLL int XGDMatrixGetDataAsCSR(DMatrixHandle const handle, char const *config,
                                   xgboost::bst_ulong *out_indptr, unsigned *out_indices,
                                   float *out_data) {
