@@ -1057,7 +1057,12 @@ def dispatch_data_backend(
         )
     if _is_scipy_coo(data):
         return _from_scipy_csr(
-            data.tocsr(), missing, threads, feature_names, feature_types, data_split_mode
+            data.tocsr(),
+            missing,
+            threads,
+            feature_names,
+            feature_types,
+            data_split_mode,
         )
     if _is_np_array_like(data):
         return _from_numpy_array(
@@ -1081,7 +1086,13 @@ def dispatch_data_backend(
         data = pd.DataFrame(data)
     if _is_pandas_df(data):
         return _from_pandas_df(
-            data, enable_categorical, missing, threads, feature_names, feature_types, data_split_mode
+            data,
+            enable_categorical,
+            missing,
+            threads,
+            feature_names,
+            feature_types,
+            data_split_mode,
         )
     if _is_cudf_df(data) or _is_cudf_ser(data):
         return _from_cudf_df(

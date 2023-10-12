@@ -951,7 +951,9 @@ def run_with_rabit(world_size: int, test_fn: Callable) -> None:
 
     workers = []
     for rank in range(world_size):
-        worker = multiprocessing.Process(target=run_worker, args=(tracker.worker_envs(),))
+        worker = multiprocessing.Process(
+            target=run_worker, args=(tracker.worker_envs(),)
+        )
         workers.append(worker)
         worker.start()
     for worker in workers:

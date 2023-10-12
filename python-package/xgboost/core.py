@@ -1299,7 +1299,10 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
 
         # validate feature name
         feature_names = _validate_feature_info(
-            feature_names, self.num_col(), self.data_split_mode == DataSplitMode.COL, "feature names"
+            feature_names,
+            self.num_col(),
+            self.data_split_mode == DataSplitMode.COL,
+            "feature names",
         )
         if len(feature_names) != len(set(feature_names)):
             values, counts = np.unique(
@@ -1372,7 +1375,10 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             return
 
         feature_types = _validate_feature_info(
-            feature_types, self.num_col(), self.data_split_mode == DataSplitMode.COL, "feature types"
+            feature_types,
+            self.num_col(),
+            self.data_split_mode == DataSplitMode.COL,
+            "feature types",
         )
 
         feature_types_bytes = [bytes(f, encoding="utf-8") for f in feature_types]
