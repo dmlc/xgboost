@@ -19,6 +19,11 @@ class FederatedCommunicatorTest : public BaseFederatedTest {
     CheckAllgather(comm, rank);
   }
 
+  static void VerifyAllgatherV(int rank, const std::string &server_address) {
+    FederatedCommunicator comm{kWorldSize, rank, server_address};
+    CheckAllgatherV(comm, rank);
+  }
+
   static void VerifyAllreduce(int rank, const std::string &server_address) {
     FederatedCommunicator comm{kWorldSize, rank, server_address};
     CheckAllreduce(comm);
@@ -31,12 +36,17 @@ class FederatedCommunicatorTest : public BaseFederatedTest {
 
  protected:
   static void CheckAllgather(FederatedCommunicator &comm, int rank) {
-    int buffer[kWorldSize] = {0, 0};
-    buffer[rank] = rank;
-    comm.AllGather(buffer, sizeof(buffer));
+    std::string input{static_cast<char>('0' + rank)};
+    auto output = comm.AllGather(input);
     for (auto i = 0; i < kWorldSize; i++) {
-      EXPECT_EQ(buffer[i], i);
+      EXPECT_EQ(output[i], static_cast<char>('0' + i));
     }
+  }
+
+  static void CheckAllgatherV(FederatedCommunicator &comm, int rank) {
+    std::vector<std::string_view> inputs{"Federated", " Learning!!!"};
+    auto output = comm.AllGatherV(inputs[rank]);
+    EXPECT_EQ(output, "Federated Learning!!!");
   }
 
   static void CheckAllreduce(FederatedCommunicator &comm) {
@@ -113,6 +123,16 @@ TEST_F(FederatedCommunicatorTest, Allgather) {
   std::vector<std::thread> threads;
   for (auto rank = 0; rank < kWorldSize; rank++) {
     threads.emplace_back(&FederatedCommunicatorTest::VerifyAllgather, rank, server_->Address());
+  }
+  for (auto &thread : threads) {
+    thread.join();
+  }
+}
+
+TEST_F(FederatedCommunicatorTest, AllgatherV) {
+  std::vector<std::thread> threads;
+  for (auto rank = 0; rank < kWorldSize; rank++) {
+    threads.emplace_back(&FederatedCommunicatorTest::VerifyAllgatherV, rank, server_->Address());
   }
   for (auto &thread : threads) {
     thread.join();
