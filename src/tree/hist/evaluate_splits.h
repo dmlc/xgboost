@@ -295,12 +295,13 @@ class HistEvaluator {
     auto const num_entries = entries.size();
 
     // First, gather all the primitive fields.
-    auto all_entries = collective::Allgather(entries);
+    std::vector<CPUExpandEntry> local_entries(num_entries);
     std::vector<uint32_t> cat_bits;
     std::vector<std::size_t> cat_bits_sizes;
     for (std::size_t i = 0; i < num_entries; i++) {
-      entries[i].CollectCatBits(&cat_bits, &cat_bits_sizes);
+      local_entries[i].CopyAndCollect(entries[i], &cat_bits, &cat_bits_sizes);
     }
+    auto all_entries = collective::Allgather(local_entries);
 
     // Gather all the cat_bits.
     auto gathered = collective::SpecialAllgatherV(cat_bits, cat_bits_sizes);
@@ -580,13 +581,14 @@ class HistMultiEvaluator {
     auto const num_entries = entries.size();
 
     // First, gather all the primitive fields.
-    auto all_entries = collective::Allgather(entries);
+    std::vector<MultiExpandEntry> local_entries(num_entries);
     std::vector<uint32_t> cat_bits;
     std::vector<std::size_t> cat_bits_sizes;
     std::vector<GradientPairPrecise> gradients;
     for (std::size_t i = 0; i < num_entries; i++) {
-      entries[i].CollectCatBitsAndGradients(&cat_bits, &cat_bits_sizes, &gradients);
+      local_entries[i].CopyAndCollect(entries[i], &cat_bits, &cat_bits_sizes, &gradients);
     }
+    auto all_entries = collective::Allgather(local_entries);
 
     // Gather all the cat_bits.
     auto gathered_cat_bits = collective::SpecialAllgatherV(cat_bits, cat_bits_sizes);

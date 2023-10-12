@@ -148,8 +148,10 @@ template <typename T>
 inline std::vector<T> Allgather(T const &input) {
   std::string_view str_input{reinterpret_cast<char const *>(&input), sizeof(T)};
   auto const output = Communicator::Get()->AllGather(str_input);
-  return {reinterpret_cast<const T *>(output.data()),
-          reinterpret_cast<const T *>(output.data() + output.size())};
+  CHECK_EQ(output.size() % sizeof(T), 0);
+  std::vector<T> result(output.size() / sizeof(T));
+  std::memcpy(reinterpret_cast<void *>(result.data()), output.data(), output.size());
+  return result;
 }
 
 /**
@@ -164,8 +166,10 @@ inline std::vector<T> Allgather(std::vector<T> const &input) {
   std::string_view str_input{reinterpret_cast<char const *>(input.data()),
                              input.size() * sizeof(T)};
   auto const output = Communicator::Get()->AllGather(str_input);
-  return {reinterpret_cast<const T *>(output.data()),
-          reinterpret_cast<const T *>(output.data() + output.size())};
+  CHECK_EQ(output.size() % sizeof(T), 0);
+  std::vector<T> result(output.size() / sizeof(T));
+  std::memcpy(reinterpret_cast<void *>(result.data()), output.data(), output.size());
+  return result;
 }
 
 /**
@@ -177,8 +181,10 @@ inline std::vector<T> AllgatherV(std::vector<T> const &input) {
   std::string_view str_input{reinterpret_cast<char const *>(input.data()),
                              input.size() * sizeof(T)};
   auto const output = Communicator::Get()->AllGatherV(str_input);
-  return {reinterpret_cast<const T *>(output.data()),
-          reinterpret_cast<const T *>(output.data() + output.size())};
+  CHECK_EQ(output.size() % sizeof(T), 0);
+  std::vector<T> result(output.size() / sizeof(T));
+  std::memcpy(reinterpret_cast<void *>(result.data()), output.data(), output.size());
+  return result;
 }
 
 /**
