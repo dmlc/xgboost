@@ -950,7 +950,7 @@ def run_with_rabit(world_size: int, test_fn: Callable) -> None:
             test_fn()
 
     workers = []
-    for rank in range(world_size):
+    for _ in range(world_size):
         worker = multiprocessing.Process(
             target=run_worker, args=(tracker.worker_envs(),)
         )
