@@ -157,4 +157,13 @@ struct Result {
 [[nodiscard]] inline auto Fail(std::string msg, std::error_code errc, Result&& prev) {
   return Result{std::move(msg), std::move(errc), std::forward<Result>(prev)};
 }
+
+// We don't have monad, a simple helper would do.
+template <typename Fn>
+Result operator<<(Result&& r, Fn&& fn) {
+  if (!r.OK()) {
+    return std::forward<Result>(r);
+  }
+  return fn();
+}
 }  // namespace xgboost::collective

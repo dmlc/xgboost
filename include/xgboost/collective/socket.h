@@ -380,11 +380,18 @@ class TCPSocket {
   }
   [[nodiscard]] bool NonBlocking() const { return non_blocking_; }
   [[nodiscard]] Result RecvTimeout(std::chrono::seconds timeout) {
-    timeval tv;
+    // https://stackoverflow.com/questions/2876024/linux-is-there-a-read-or-recv-from-socket-with-timeout
+#if defined(_WIN32)
+    DWORD tv = timeout.count() * 1000;
+    auto rc =
+        setsockopt(Handle(), SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<char *>(&tv), sizeof(tv));
+#else
+    struct timeval tv;
     tv.tv_sec = timeout.count();
     tv.tv_usec = 0;
     auto rc = setsockopt(Handle(), SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<char const *>(&tv),
                          sizeof(tv));
+#endif
     if (rc != 0) {
       return system::FailWithCode("Failed to set timeout on recv.");
     }
@@ -425,7 +432,12 @@ class TCPSocket {
    */
   TCPSocket Accept() {
     HandleT newfd = accept(Handle(), nullptr, nullptr);
-    if (newfd == InvalidSocket()) {
+#if defined(_WIN32)
+    auto interrupt = WSAEINTR;
+#else
+    auto interrupt = EINTR;
+#endif
+    if (newfd == InvalidSocket() && system::LastError() != interrupt) {
       system::ThrowAtError("accept");
     }
     TCPSocket newsock{newfd};
@@ -468,7 +480,7 @@ class TCPSocket {
   /**
    * \brief Bind socket to INADDR_ANY, return the port selected by the OS.
    */
-  in_port_t BindHost() {
+  [[nodiscard]] in_port_t BindHost() {
     if (Domain() == SockDomain::kV6) {
       auto addr = SockAddrV6::InaddrAny();
       auto handle = reinterpret_cast<sockaddr const *>(&addr.Handle());
@@ -539,7 +551,7 @@ class TCPSocket {
   /**
    * \brief Send data, without error then all data should be sent.
    */
-  auto SendAll(void const *buf, std::size_t len) {
+  [[nodiscard]] auto SendAll(void const *buf, std::size_t len) {
     char const *_buf = reinterpret_cast<const char *>(buf);
     std::size_t ndone = 0;
     while (ndone < len) {
@@ -558,7 +570,7 @@ class TCPSocket {
   /**
    * \brief Receive data, without error then all data should be received.
    */
-  auto RecvAll(void *buf, std::size_t len) {
+  [[nodiscard]] auto RecvAll(void *buf, std::size_t len) {
     char *_buf = reinterpret_cast<char *>(buf);
     std::size_t ndone = 0;
     while (ndone < len) {
@@ -612,7 +624,15 @@ class TCPSocket {
    */
   void Close() {
     if (InvalidSocket() != handle_) {
+#if defined(_WIN32)
+      auto rc = system::CloseSocket(handle_);
+      // it's possible that we close TCP sockets after finalizing WSA due to detached thread.
+      if (rc != 0 && system::LastError() != WSANOTINITIALISED) {
+        system::ThrowAtError("close", rc);
+      }
+#else
       xgboost_CHECK_SYS_CALL(system::CloseSocket(handle_), 0);
+#endif
       handle_ = InvalidSocket();
     }
   }
@@ -632,6 +652,24 @@ class TCPSocket {
     TCPSocket socket{fd};
 #if defined(__APPLE__)
     socket.domain_ = domain;
+#endif  // defined(__APPLE__)
+    return socket;
+#endif  // defined(xgboost_IS_MINGW)
+  }
+
+  static TCPSocket *CreatePtr(SockDomain domain) {
+#if defined(xgboost_IS_MINGW)
+    MingWError();
+    return nullptr;
+#else
+    auto fd = socket(static_cast<std::int32_t>(domain), SOCK_STREAM, 0);
+    if (fd == InvalidSocket()) {
+      system::ThrowAtError("socket");
+    }
+    auto socket = new TCPSocket{fd};
+
+#if defined(__APPLE__)
+    socket->domain_ = domain;
 #endif  // defined(__APPLE__)
     return socket;
 #endif  // defined(xgboost_IS_MINGW)

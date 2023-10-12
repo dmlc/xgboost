@@ -7,7 +7,7 @@
 #include <cerrno>        // EADDRNOTAVAIL
 #include <system_error>  // std::error_code, std::system_category
 
-#include "net_test.h"  // for SocketTest
+#include "test_worker.h"  // for SocketTest
 
 namespace xgboost::collective {
 TEST_F(SocketTest, Basic) {
