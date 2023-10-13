@@ -100,16 +100,16 @@ class TestArrowTable:
         np.testing.assert_equal(y_np_up, y_upper_bound.to_pandas().values)
         np.testing.assert_equal(y_np_low, y_lower_bound.to_pandas().values)
 
-    @staticmethod
-    def verify_column_split_arrow_table():
-        df = pd.DataFrame(
-            [[0, 1, 2.0, 3.0], [1, 2, 3.0, 4.0]], columns=["a", "b", "c", "d"]
-        )
-        table = pa.Table.from_pandas(df)
-        dm = xgb.DMatrix(table, data_split_mode=DataSplitMode.COL)
-        assert dm.num_row() == 2
-        assert dm.num_col() == 4 * xgb.collective.get_world_size()
 
-    @pytest.mark.skipif(sys.platform == 'win32', reason='Skip on Windows')
-    def test_column_split_arrow_table(self):
-        tm.run_with_rabit(world_size=3, test_fn=TestArrowTable.verify_column_split_arrow_table)
+class TestArrowTableColumnSplit:
+    def test_arrow_table(self):
+        def verify_arrow_table():
+            df = pd.DataFrame(
+                [[0, 1, 2.0, 3.0], [1, 2, 3.0, 4.0]], columns=["a", "b", "c", "d"]
+            )
+            table = pa.Table.from_pandas(df)
+            dm = xgb.DMatrix(table, data_split_mode=DataSplitMode.COL)
+            assert dm.num_row() == 2
+            assert dm.num_col() == 4 * xgb.collective.get_world_size()
+
+        tm.run_with_rabit(world_size=3, test_fn=verify_arrow_table)

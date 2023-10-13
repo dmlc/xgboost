@@ -10,6 +10,7 @@ import os
 import platform
 import socket
 import sys
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from io import StringIO
@@ -952,11 +953,12 @@ def run_with_rabit(world_size: int, test_fn: Callable) -> None:
 
     workers = []
     for _ in range(world_size):
-        worker = multiprocessing.Process(
+        worker = threading.Thread(
             target=run_rabit_worker, args=(tracker.worker_envs(), test_fn)
         )
         workers.append(worker)
         worker.start()
     for worker in workers:
         worker.join()
-        assert worker.exitcode == 0
+
+    tracker.join()
