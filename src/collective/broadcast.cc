@@ -69,6 +69,7 @@ Result Broadcast(Comm const& comm, common::Span<std::int8_t> data, std::int32_t 
   }
 
   for (std::int32_t i = depth; i >= 0; --i) {
+    CHECK_GE((i + 1), 0);  // weird clang-tidy error that i might be negative
     if (shifted_rank % (1 << (i + 1)) == 0 && shifted_rank + (1 << i) < world) {
       auto sft_peer = shifted_rank + (1 << i);
       auto peer = ShiftRight(sft_peer, world, root);
