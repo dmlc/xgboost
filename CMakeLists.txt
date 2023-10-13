@@ -235,7 +235,7 @@ target_link_libraries(objxgboost PUBLIC dmlc)
 
 # Link -lstdc++fs for GCC 8.x
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "9.0")
-  target_link_libraries(objxgboost PRIVATE stdc++fs)
+  target_link_libraries(objxgboost PUBLIC stdc++fs)
 endif()
 
 # Exports some R specific definitions and objects
