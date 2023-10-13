@@ -941,18 +941,19 @@ def project_root(path: str) -> str:
     return normpath(os.path.join(demo_dir(path), os.path.pardir))
 
 
+def run_rabit_worker(rabit_env: Dict[str, Union[str, int]], test_fn: Callable) -> None:
+    with xgb.collective.CommunicatorContext(**rabit_env):
+        test_fn()
+
+
 def run_with_rabit(world_size: int, test_fn: Callable) -> None:
     tracker = RabitTracker(host_ip="127.0.0.1", n_workers=world_size)
     tracker.start(world_size)
 
-    def run_worker(rabit_env: Dict[str, Union[str, int]]) -> None:
-        with xgb.collective.CommunicatorContext(**rabit_env):
-            test_fn()
-
     workers = []
     for _ in range(world_size):
         worker = multiprocessing.Process(
-            target=run_worker, args=(tracker.worker_envs(),)
+            target=run_rabit_worker, args=(tracker.worker_envs(), test_fn)
         )
         workers.append(worker)
         worker.start()
