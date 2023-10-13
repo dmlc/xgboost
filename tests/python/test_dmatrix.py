@@ -469,94 +469,101 @@ class TestDMatrix:
             m1 = xgb.DMatrix(x)
             assert tm.predictor_equal(m0, m1)
 
-    def test_column_split_numpy(self):
-        def verify_column_split():
-            data = np.random.randn(5, 5)
-            dm = xgb.DMatrix(data, data_split_mode=DataSplitMode.COL)
-            assert dm.num_row() == 5
-            assert dm.num_col() == 5 * xgb.collective.get_world_size()
-            assert dm.feature_names is None
-            assert dm.feature_types is None
+    @staticmethod
+    def verify_column_split_numpy():
+        data = np.random.randn(5, 5)
+        dm = xgb.DMatrix(data, data_split_mode=DataSplitMode.COL)
+        assert dm.num_row() == 5
+        assert dm.num_col() == 5 * xgb.collective.get_world_size()
+        assert dm.feature_names is None
+        assert dm.feature_types is None
 
-        tm.run_with_rabit(world_size=3, test_fn=verify_column_split)
+    def test_column_split_numpy(self):
+        tm.run_with_rabit(world_size=3, test_fn=TestDMatrix.verify_column_split_numpy)
+
+    @staticmethod
+    def verify_column_split_numpy_feature_names():
+        world_size = xgb.collective.get_world_size()
+        data = np.random.randn(5, 5)
+        feature_names = [f'feature{x}' for x in range(5)]
+        feature_types = ['float'] * 5
+        dm = xgb.DMatrix(data, feature_names=feature_names, feature_types=feature_types,
+                         data_split_mode=DataSplitMode.COL)
+        assert dm.num_row() == 5
+        assert dm.num_col() == 5 * world_size
+        assert len(dm.feature_names) == 5 * world_size
+        assert len(dm.feature_types) == 5 * world_size
 
     def test_column_split_numpy_feature_names(self):
-        def verify_column_split():
-            world_size = xgb.collective.get_world_size()
-            data = np.random.randn(5, 5)
-            feature_names = [f'feature{x}' for x in range(5)]
-            feature_types = ['float'] * 5
-            dm = xgb.DMatrix(data, feature_names=feature_names, feature_types=feature_types,
-                             data_split_mode=DataSplitMode.COL)
-            assert dm.num_row() == 5
-            assert dm.num_col() == 5 * world_size
-            assert len(dm.feature_names) == 5 * world_size
-            assert len(dm.feature_types) == 5 * world_size
+        tm.run_with_rabit(world_size=3, test_fn=TestDMatrix.verify_column_split_numpy_feature_names)
 
-        tm.run_with_rabit(world_size=3, test_fn=verify_column_split)
+    @staticmethod
+    def verify_column_split_csr():
+        indptr = np.array([0, 2, 3, 6])
+        indices = np.array([0, 2, 2, 0, 1, 2])
+        data = np.array([1, 2, 3, 4, 5, 6])
+        X = scipy.sparse.csr_matrix((data, indices, indptr), shape=(3, 3))
+        dtrain = xgb.DMatrix(X, data_split_mode=DataSplitMode.COL)
+        assert dtrain.num_row() == 3
+        assert dtrain.num_col() == 3 * xgb.collective.get_world_size()
 
     def test_column_split_csr(self):
-        def verify_column_split():
-            indptr = np.array([0, 2, 3, 6])
-            indices = np.array([0, 2, 2, 0, 1, 2])
-            data = np.array([1, 2, 3, 4, 5, 6])
-            X = scipy.sparse.csr_matrix((data, indices, indptr), shape=(3, 3))
-            dtrain = xgb.DMatrix(X, data_split_mode=DataSplitMode.COL)
-            assert dtrain.num_row() == 3
-            assert dtrain.num_col() == 3 * xgb.collective.get_world_size()
+        tm.run_with_rabit(world_size=3, test_fn=TestDMatrix.verify_column_split_csr)
 
-        tm.run_with_rabit(world_size=3, test_fn=verify_column_split)
+    @staticmethod
+    def verify_column_split_csc():
+        row = np.array([0, 2, 2, 0, 1, 2])
+        col = np.array([0, 0, 1, 2, 2, 2])
+        data = np.array([1, 2, 3, 4, 5, 6])
+        X = scipy.sparse.csc_matrix((data, (row, col)), shape=(3, 3))
+        dtrain = xgb.DMatrix(X, data_split_mode=DataSplitMode.COL)
+        assert dtrain.num_row() == 3
+        assert dtrain.num_col() == 3 * xgb.collective.get_world_size()
 
     def test_column_split_csc(self):
-        def verify_column_split():
-            row = np.array([0, 2, 2, 0, 1, 2])
-            col = np.array([0, 0, 1, 2, 2, 2])
-            data = np.array([1, 2, 3, 4, 5, 6])
-            X = scipy.sparse.csc_matrix((data, (row, col)), shape=(3, 3))
-            dtrain = xgb.DMatrix(X, data_split_mode=DataSplitMode.COL)
-            assert dtrain.num_row() == 3
-            assert dtrain.num_col() == 3 * xgb.collective.get_world_size()
+        tm.run_with_rabit(world_size=3, test_fn=TestDMatrix.verify_column_split_csc)
 
-        tm.run_with_rabit(world_size=3, test_fn=verify_column_split)
+    @staticmethod
+    def verify_column_split_coo():
+        row = np.array([0, 2, 2, 0, 1, 2])
+        col = np.array([0, 0, 1, 2, 2, 2])
+        data = np.array([1, 2, 3, 4, 5, 6])
+        X = scipy.sparse.coo_matrix((data, (row, col)), shape=(3, 3))
+        dtrain = xgb.DMatrix(X, data_split_mode=DataSplitMode.COL)
+        assert dtrain.num_row() == 3
+        assert dtrain.num_col() == 3 * xgb.collective.get_world_size()
 
     def test_column_split_coo(self):
-        def verify_column_split():
-            row = np.array([0, 2, 2, 0, 1, 2])
-            col = np.array([0, 0, 1, 2, 2, 2])
-            data = np.array([1, 2, 3, 4, 5, 6])
-            X = scipy.sparse.coo_matrix((data, (row, col)), shape=(3, 3))
-            dtrain = xgb.DMatrix(X, data_split_mode=DataSplitMode.COL)
-            assert dtrain.num_row() == 3
-            assert dtrain.num_col() == 3 * xgb.collective.get_world_size()
+        tm.run_with_rabit(world_size=3, test_fn=TestDMatrix.verify_column_split_coo)
 
-        tm.run_with_rabit(world_size=3, test_fn=verify_column_split)
+    @staticmethod
+    def verify_column_split_list():
+        data = [
+            [1, 2, 3, 4, 5],
+            [6, 7, 8, 9, 10],
+            [11, 12, 13, 14, 15],
+            [16, 17, 18, 19, 20],
+            [21, 22, 23, 24, 25]
+        ]
+        dm = xgb.DMatrix(data, data_split_mode=DataSplitMode.COL)
+        assert dm.num_row() == 5
+        assert dm.num_col() == 5 * xgb.collective.get_world_size()
 
     def test_column_split_list(self):
-        def verify_column_split():
-            data = [
-                [1, 2, 3, 4, 5],
-                [6, 7, 8, 9, 10],
-                [11, 12, 13, 14, 15],
-                [16, 17, 18, 19, 20],
-                [21, 22, 23, 24, 25]
-            ]
-            dm = xgb.DMatrix(data, data_split_mode=DataSplitMode.COL)
-            assert dm.num_row() == 5
-            assert dm.num_col() == 5 * xgb.collective.get_world_size()
+        tm.run_with_rabit(world_size=3, test_fn=TestDMatrix.verify_column_split_list)
 
-        tm.run_with_rabit(world_size=3, test_fn=verify_column_split)
+    @staticmethod
+    def verify_column_split_tuple():
+        data = (
+            (1, 2, 3, 4, 5),
+            (6, 7, 8, 9, 10),
+            (11, 12, 13, 14, 15),
+            (16, 17, 18, 19, 20),
+            (21, 22, 23, 24, 25)
+        )
+        dm = xgb.DMatrix(data, data_split_mode=DataSplitMode.COL)
+        assert dm.num_row() == 5
+        assert dm.num_col() == 5 * xgb.collective.get_world_size()
 
     def test_column_split_tuple(self):
-        def verify_column_split():
-            data = (
-                (1, 2, 3, 4, 5),
-                (6, 7, 8, 9, 10),
-                (11, 12, 13, 14, 15),
-                (16, 17, 18, 19, 20),
-                (21, 22, 23, 24, 25)
-            )
-            dm = xgb.DMatrix(data, data_split_mode=DataSplitMode.COL)
-            assert dm.num_row() == 5
-            assert dm.num_col() == 5 * xgb.collective.get_world_size()
-
-        tm.run_with_rabit(world_size=3, test_fn=verify_column_split)
+        tm.run_with_rabit(world_size=3, test_fn=TestDMatrix.verify_column_split_tuple)
