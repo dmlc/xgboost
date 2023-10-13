@@ -57,9 +57,7 @@ namespace collective {
  *   - federated_client_key: Client key file path. Only needed for the SSL mode.
  *   - federated_client_cert: Client certificate file path. Only needed for the SSL mode.
  */
-inline void Init(Json const& config) {
-  Communicator::Init(config);
-}
+inline void Init(Json const &config) { Communicator::Init(config); }
 
 /*!
  * \brief Finalize the collective communicator.
@@ -142,16 +140,88 @@ inline void Broadcast(std::string *sendrecv_data, int root) {
 }
 
 /**
+ * @brief Gathers a single value all processes and distributes the result to all processes.
+ *
+ * @param input The single value.
+ */
+template <typename T>
+inline std::vector<T> Allgather(T const &input) {
+  std::string_view str_input{reinterpret_cast<char const *>(&input), sizeof(T)};
+  auto const output = Communicator::Get()->AllGather(str_input);
+  CHECK_EQ(output.size() % sizeof(T), 0);
+  std::vector<T> result(output.size() / sizeof(T));
+  std::memcpy(reinterpret_cast<void *>(result.data()), output.data(), output.size());
+  return result;
+}
+
+/**
  * @brief Gathers data from all processes and distributes it to all processes.
  *
- * This assumes all ranks have the same size, and input data has been sliced into the
- * corresponding position.
+ * This assumes all ranks have the same size.
  *
- * @param send_receive_buffer Buffer storing the data.
- * @param size                Size of the data in bytes.
+ * @param input Buffer storing the data.
  */
-inline void Allgather(void *send_receive_buffer, std::size_t size) {
-  Communicator::Get()->AllGather(send_receive_buffer, size);
+template <typename T>
+inline std::vector<T> Allgather(std::vector<T> const &input) {
+  if (input.empty()) {
+    return input;
+  }
+  std::string_view str_input{reinterpret_cast<char const *>(input.data()),
+                             input.size() * sizeof(T)};
+  auto const output = Communicator::Get()->AllGather(str_input);
+  CHECK_EQ(output.size() % sizeof(T), 0);
+  std::vector<T> result(output.size() / sizeof(T));
+  std::memcpy(reinterpret_cast<void *>(result.data()), output.data(), output.size());
+  return result;
+}
+
+/**
+ * @brief Gathers variable-length data from all processes and distributes it to all processes.
+ * @param input Buffer storing the data.
+ */
+template <typename T>
+inline std::vector<T> AllgatherV(std::vector<T> const &input) {
+  std::string_view str_input{reinterpret_cast<char const *>(input.data()),
+                             input.size() * sizeof(T)};
+  auto const output = Communicator::Get()->AllGatherV(str_input);
+  CHECK_EQ(output.size() % sizeof(T), 0);
+  std::vector<T> result(output.size() / sizeof(T));
+  if (!output.empty()) {
+    std::memcpy(reinterpret_cast<void *>(result.data()), output.data(), output.size());
+  }
+  return result;
+}
+
+/**
+ * @brief Gathers variable-length strings from all processes and distributes them to all processes.
+ * @param input Variable-length list of variable-length strings.
+ */
+inline std::vector<std::string> AllgatherStrings(std::vector<std::string> const &input) {
+  std::size_t total_size{0};
+  for (auto const &s : input) {
+    total_size += s.length() + 1;  // +1 for null-terminators
+  }
+  std::string flat_string;
+  flat_string.reserve(total_size);
+  for (auto const &s : input) {
+    flat_string.append(s);
+    flat_string.push_back('\0');  // Append a null-terminator after each string
+  }
+
+  auto const output = Communicator::Get()->AllGatherV(flat_string);
+
+  std::vector<std::string> result;
+  std::size_t start_index = 0;
+  // Iterate through the output, find each null-terminated substring.
+  for (std::size_t i = 0; i < output.size(); i++) {
+    if (output[i] == '\0') {
+      // Construct a std::string from the char* substring
+      result.emplace_back(&output[start_index]);
+      // Move to the next substring
+      start_index = i + 1;
+    }
+  }
+  return result;
 }
 
 /*!
@@ -226,7 +296,7 @@ inline void Allreduce(double *send_receive_buffer, size_t count) {
 }
 
 template <typename T>
-struct AllgatherVResult {
+struct SpecialAllgatherVResult {
   std::vector<std::size_t> offsets;
   std::vector<std::size_t> sizes;
   std::vector<T> result;
@@ -241,14 +311,10 @@ struct AllgatherVResult {
  * @param sizes  Sizes of each input.
  */
 template <typename T>
-inline AllgatherVResult<T> AllgatherV(std::vector<T> const &inputs,
-                                      std::vector<std::size_t> const &sizes) {
-  auto num_inputs = sizes.size();
-
+inline SpecialAllgatherVResult<T> SpecialAllgatherV(std::vector<T> const &inputs,
+                                                    std::vector<std::size_t> const &sizes) {
   // Gather the sizes across all workers.
-  std::vector<std::size_t> all_sizes(num_inputs * GetWorldSize());
-  std::copy_n(sizes.cbegin(), sizes.size(), all_sizes.begin() + num_inputs * GetRank());
-  collective::Allgather(all_sizes.data(), all_sizes.size() * sizeof(std::size_t));
+  auto const all_sizes = Allgather(sizes);
 
   // Calculate input offsets (std::exclusive_scan).
   std::vector<std::size_t> offsets(all_sizes.size());
@@ -257,11 +323,7 @@ inline AllgatherVResult<T> AllgatherV(std::vector<T> const &inputs,
   }
 
   // Gather all the inputs.
-  auto total_input_size = offsets.back() + all_sizes.back();
-  std::vector<T> all_inputs(total_input_size);
-  std::copy_n(inputs.cbegin(), inputs.size(), all_inputs.begin() + offsets[num_inputs * GetRank()]);
-  // We cannot use allgather here, since each worker might have a different size.
-  Allreduce<Operation::kMax>(all_inputs.data(), all_inputs.size());
+  auto const all_inputs = AllgatherV(inputs);
 
   return {offsets, all_sizes, all_inputs};
 }

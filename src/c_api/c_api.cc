@@ -1724,7 +1724,7 @@ XGB_DLL int XGCommunicatorAllreduce(void *send_receive_buffer, size_t count, int
 }
 
 #if defined(XGBOOST_USE_FEDERATED)
-XGB_DLL int XGBRunFederatedServer(int port, int world_size, char const *server_key_path,
+XGB_DLL int XGBRunFederatedServer(int port, std::size_t world_size, char const *server_key_path,
                                   char const *server_cert_path, char const *client_cert_path) {
   API_BEGIN();
   federated::RunServer(port, world_size, server_key_path, server_cert_path, client_cert_path);
@@ -1732,7 +1732,7 @@ XGB_DLL int XGBRunFederatedServer(int port, int world_size, char const *server_k
 }
 
 // Run a server without SSL for local testing.
-XGB_DLL int XGBRunInsecureFederatedServer(int port, int world_size) {
+XGB_DLL int XGBRunInsecureFederatedServer(int port, std::size_t world_size) {
   API_BEGIN();
   federated::RunInsecureServer(port, world_size);
   API_END();
