@@ -1,4 +1,5 @@
 import os
+import sys
 import unittest
 
 import numpy as np
@@ -109,5 +110,6 @@ class TestArrowTable:
         assert dm.num_row() == 2
         assert dm.num_col() == 4 * xgb.collective.get_world_size()
 
+    @pytest.mark.skipif(sys.platform == 'win32', reason='Skip on Windows')
     def test_column_split_arrow_table(self):
         tm.run_with_rabit(world_size=3, test_fn=TestArrowTable.verify_column_split_arrow_table)

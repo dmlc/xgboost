@@ -1,4 +1,5 @@
 import os
+import sys
 import tempfile
 
 import numpy as np
@@ -478,6 +479,7 @@ class TestDMatrix:
         assert dm.feature_names is None
         assert dm.feature_types is None
 
+    @pytest.mark.skipif(sys.platform == 'win32', reason='Skip on Windows')
     def test_column_split_numpy(self):
         tm.run_with_rabit(world_size=3, test_fn=TestDMatrix.verify_column_split_numpy)
 
@@ -494,6 +496,7 @@ class TestDMatrix:
         assert len(dm.feature_names) == 5 * world_size
         assert len(dm.feature_types) == 5 * world_size
 
+    @pytest.mark.skipif(sys.platform == 'win32', reason='Skip on Windows')
     def test_column_split_numpy_feature_names(self):
         tm.run_with_rabit(world_size=3, test_fn=TestDMatrix.verify_column_split_numpy_feature_names)
 
@@ -507,6 +510,7 @@ class TestDMatrix:
         assert dtrain.num_row() == 3
         assert dtrain.num_col() == 3 * xgb.collective.get_world_size()
 
+    @pytest.mark.skipif(sys.platform == 'win32', reason='Skip on Windows')
     def test_column_split_csr(self):
         tm.run_with_rabit(world_size=3, test_fn=TestDMatrix.verify_column_split_csr)
 
@@ -520,6 +524,7 @@ class TestDMatrix:
         assert dtrain.num_row() == 3
         assert dtrain.num_col() == 3 * xgb.collective.get_world_size()
 
+    @pytest.mark.skipif(sys.platform == 'win32', reason='Skip on Windows')
     def test_column_split_csc(self):
         tm.run_with_rabit(world_size=3, test_fn=TestDMatrix.verify_column_split_csc)
 
@@ -533,6 +538,7 @@ class TestDMatrix:
         assert dtrain.num_row() == 3
         assert dtrain.num_col() == 3 * xgb.collective.get_world_size()
 
+    @pytest.mark.skipif(sys.platform == 'win32', reason='Skip on Windows')
     def test_column_split_coo(self):
         tm.run_with_rabit(world_size=3, test_fn=TestDMatrix.verify_column_split_coo)
 
@@ -549,6 +555,7 @@ class TestDMatrix:
         assert dm.num_row() == 5
         assert dm.num_col() == 5 * xgb.collective.get_world_size()
 
+    @pytest.mark.skipif(sys.platform == 'win32', reason='Skip on Windows')
     def test_column_split_list(self):
         tm.run_with_rabit(world_size=3, test_fn=TestDMatrix.verify_column_split_list)
 
@@ -565,5 +572,6 @@ class TestDMatrix:
         assert dm.num_row() == 5
         assert dm.num_col() == 5 * xgb.collective.get_world_size()
 
+    @pytest.mark.skipif(sys.platform == 'win32', reason='Skip on Windows')
     def test_column_split_tuple(self):
         tm.run_with_rabit(world_size=3, test_fn=TestDMatrix.verify_column_split_tuple)
