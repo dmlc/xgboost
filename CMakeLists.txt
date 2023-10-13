@@ -233,6 +233,11 @@ endif (RABIT_BUILD_MPI)
 add_subdirectory(${xgboost_SOURCE_DIR}/src)
 target_link_libraries(objxgboost PUBLIC dmlc)
 
+# Link -lstdc++fs for GCC 8.x
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "9.0")
+  target_link_libraries(objxgboost PRIVATE stdc++fs)
+endif()
+
 # Exports some R specific definitions and objects
 if (R_LIB)
   add_subdirectory(${xgboost_SOURCE_DIR}/R-package)
