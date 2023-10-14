@@ -1503,6 +1503,7 @@ class QuantileDMatrix(DMatrix):
         label_upper_bound: Optional[ArrayLike] = None,
         feature_weights: Optional[ArrayLike] = None,
         enable_categorical: bool = False,
+        data_split_mode: DataSplitMode = DataSplitMode.ROW,
     ) -> None:
         self.max_bin = max_bin
         self.missing = missing if missing is not None else np.nan
