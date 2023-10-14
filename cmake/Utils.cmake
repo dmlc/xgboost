@@ -76,10 +76,10 @@ endfunction()
 function(set_default_configuration_release)
     if(CMAKE_CONFIGURATION_TYPES STREQUAL "Debug;Release;MinSizeRel;RelWithDebInfo") # multiconfig generator?
         set(CMAKE_CONFIGURATION_TYPES Release CACHE STRING "" FORCE)
-	elseif(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-	  message(STATUS "Setting build type to 'Release' as none was specified.")
-	  set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE )
-	endif()
+    elseif(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+      message(STATUS "Setting build type to 'Release' as none was specified.")
+      set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
+    endif()
 endfunction()
 
 # Generate nvcc compiler flags given a list of architectures
@@ -90,9 +90,9 @@ function(format_gencode_flags flags out)
   endif()
   # Set up architecture flags
   if(NOT flags)
-    if (CUDA_VERSION VERSION_GREATER_EQUAL "11.8")
+    if(CUDA_VERSION VERSION_GREATER_EQUAL "11.8")
       set(flags "50;60;70;80;90")
-    elseif (CUDA_VERSION VERSION_GREATER_EQUAL "11.0")
+    elseif(CUDA_VERSION VERSION_GREATER_EQUAL "11.0")
       set(flags "50;60;70;80")
     elseif(CUDA_VERSION VERSION_GREATER_EQUAL "10.0")
       set(flags "35;50;60;70")
@@ -103,7 +103,7 @@ function(format_gencode_flags flags out)
     endif()
   endif()
 
-  if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
     cmake_policy(SET CMP0104 NEW)
     list(GET flags -1 latest_arch)
     list(TRANSFORM flags APPEND "-real")
@@ -133,17 +133,17 @@ function(xgboost_set_cuda_flags target)
     $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>
     $<$<COMPILE_LANGUAGE:CUDA>:-Xfatbin=-compress-all>)
 
-  if (USE_PER_THREAD_DEFAULT_STREAM)
+  if(USE_PER_THREAD_DEFAULT_STREAM)
     target_compile_options(${target} PRIVATE
             $<$<COMPILE_LANGUAGE:CUDA>:--default-stream per-thread>)
   endif()
 
-  if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
     set_property(TARGET ${target} PROPERTY CUDA_ARCHITECTURES ${CMAKE_CUDA_ARCHITECTURES})
   endif()
 
-  if (FORCE_COLORED_OUTPUT)
-    if (FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND
+  if(FORCE_COLORED_OUTPUT)
+    if(FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND
         ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
           (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")))
       target_compile_options(${target} PRIVATE
@@ -151,7 +151,7 @@ function(xgboost_set_cuda_flags target)
     endif()
   endif()
 
-  if (USE_DEVICE_DEBUG)
+  if(USE_DEVICE_DEBUG)
     target_compile_options(${target} PRIVATE
       $<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>)
   else()
@@ -159,7 +159,7 @@ function(xgboost_set_cuda_flags target)
       $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>)
   endif()
 
-  if (USE_NVTX)
+  if(USE_NVTX)
     target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_NVTX=1)
   endif()
 
@@ -169,7 +169,7 @@ function(xgboost_set_cuda_flags target)
     ${xgboost_SOURCE_DIR}/gputreeshap
     ${CUDAToolkit_INCLUDE_DIRS})
 
-  if (MSVC)
+  if(MSVC)
     target_compile_options(${target} PRIVATE
       $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/utf-8>)
   endif()
@@ -182,11 +182,11 @@ function(xgboost_set_cuda_flags target)
 endfunction()
 
 macro(xgboost_link_nccl target)
-  if (BUILD_STATIC_LIB)
+  if(BUILD_STATIC_LIB)
     target_include_directories(${target} PUBLIC ${NCCL_INCLUDE_DIR})
     target_compile_definitions(${target} PUBLIC -DXGBOOST_USE_NCCL=1)
     target_link_libraries(${target} PUBLIC ${NCCL_LIBRARY})
-  else ()
+  else()
     target_include_directories(${target} PRIVATE ${NCCL_INCLUDE_DIR})
     target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_NCCL=1)
     target_link_libraries(${target} PRIVATE ${NCCL_LIBRARY})
@@ -200,7 +200,7 @@ macro(xgboost_target_properties target)
     CXX_STANDARD_REQUIRED ON
     POSITION_INDEPENDENT_CODE ON)
 
-  if (HIDE_CXX_SYMBOLS)
+  if(HIDE_CXX_SYMBOLS)
     #-- Hide all C++ symbols
     set_target_properties(${target} PROPERTIES
       C_VISIBILITY_PRESET hidden
@@ -209,7 +209,7 @@ macro(xgboost_target_properties target)
     )
   endif()
 
-  if (ENABLE_ALL_WARNINGS)
+  if(ENABLE_ALL_WARNINGS)
     target_compile_options(${target} PUBLIC
       $<IF:$<COMPILE_LANGUAGE:CUDA>,
       -Xcompiler=-Wall -Xcompiler=-Wextra -Xcompiler=-Wno-expansion-to-defined,
@@ -222,7 +222,7 @@ macro(xgboost_target_properties target)
     $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<COMPILE_LANGUAGE:CXX>>:/MP>
     $<$<AND:$<NOT:$<CXX_COMPILER_ID:MSVC>>,$<COMPILE_LANGUAGE:CXX>>:-funroll-loops>)
 
-  if (MSVC)
+  if(MSVC)
     target_compile_options(${target} PRIVATE
       $<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:/utf-8>
       -D_CRT_SECURE_NO_WARNINGS
@@ -230,72 +230,72 @@ macro(xgboost_target_properties target)
     )
   endif()
 
-  if (WIN32 AND MINGW)
+  if(WIN32 AND MINGW)
     target_compile_options(${target} PUBLIC -static-libstdc++)
   endif()
 endmacro()
 
 # Custom definitions used in xgboost.
 macro(xgboost_target_defs target)
-  if (NOT ${target} STREQUAL "dmlc") # skip dmlc core for custom logging.
+  if(NOT ${target} STREQUAL "dmlc") # skip dmlc core for custom logging.
     target_compile_definitions(${target}
       PRIVATE
       -DDMLC_LOG_CUSTOMIZE=1
       $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:_MWAITXINTRIN_H_INCLUDED>)
   endif()
-  if (USE_DEBUG_OUTPUT)
+  if(USE_DEBUG_OUTPUT)
     target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_DEBUG_OUTPUT=1)
   endif()
-  if (XGBOOST_MM_PREFETCH_PRESENT)
+  if(XGBOOST_MM_PREFETCH_PRESENT)
     target_compile_definitions(${target}
       PRIVATE
       -DXGBOOST_MM_PREFETCH_PRESENT=1)
   endif()
-  if (XGBOOST_BUILTIN_PREFETCH_PRESENT)
+  if(XGBOOST_BUILTIN_PREFETCH_PRESENT)
     target_compile_definitions(${target}
       PRIVATE
       -DXGBOOST_BUILTIN_PREFETCH_PRESENT=1)
   endif()
 
-  if (PLUGIN_RMM)
+  if(PLUGIN_RMM)
     target_compile_definitions(objxgboost PUBLIC -DXGBOOST_USE_RMM=1)
   endif()
 endmacro()
 
 # handles dependencies
 macro(xgboost_target_link_libraries target)
-  if (BUILD_STATIC_LIB)
+  if(BUILD_STATIC_LIB)
     target_link_libraries(${target} PUBLIC Threads::Threads ${CMAKE_THREAD_LIBS_INIT})
   else()
     target_link_libraries(${target} PRIVATE Threads::Threads ${CMAKE_THREAD_LIBS_INIT})
   endif()
 
-  if (USE_OPENMP)
-    if (BUILD_STATIC_LIB)
+  if(USE_OPENMP)
+    if(BUILD_STATIC_LIB)
       target_link_libraries(${target} PUBLIC OpenMP::OpenMP_CXX)
     else()
       target_link_libraries(${target} PRIVATE OpenMP::OpenMP_CXX)
     endif()
   endif()
 
-  if (USE_CUDA)
+  if(USE_CUDA)
     xgboost_set_cuda_flags(${target})
     target_link_libraries(${target} PUBLIC CUDA::cudart_static)
   endif()
 
-  if (PLUGIN_RMM)
+  if(PLUGIN_RMM)
     target_link_libraries(${target} PRIVATE rmm::rmm)
   endif()
 
-  if (USE_NCCL)
+  if(USE_NCCL)
     xgboost_link_nccl(${target})
   endif()
 
-  if (USE_NVTX)
+  if(USE_NVTX)
     target_link_libraries(${target} PRIVATE CUDA::nvToolsExt)
   endif()
 
-  if (MINGW)
+  if(MINGW)
     target_link_libraries(${target} PRIVATE wsock32 ws2_32)
   endif()
 endmacro()

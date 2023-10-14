@@ -100,9 +100,6 @@ std::enable_if_t<std::is_integral_v<E>, xgboost::collective::Result> PollError(E
   if ((revents & POLLNVAL) != 0) {
     return xgboost::system::FailWithCode("Invalid polling request.");
   }
-  if ((revents & POLLHUP) != 0) {
-    return xgboost::system::FailWithCode("Poll hung up.");
-  }
   return xgboost::collective::Success();
 }
 

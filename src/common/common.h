@@ -6,7 +6,6 @@
 #ifndef XGBOOST_COMMON_COMMON_H_
 #define XGBOOST_COMMON_COMMON_H_
 
-#include <algorithm>  // for max
 #include <array>      // for array
 #include <cmath>      // for ceil
 #include <cstddef>    // for size_t
@@ -181,7 +180,7 @@ inline void SetDevice(std::int32_t device) {
 #endif
 
 /**
- * Last index of a group in a CSR style of index pointer.
+ * @brief Last index of a group in a CSR style of index pointer.
  */
 template <typename Indexable>
 XGBOOST_DEVICE size_t LastOf(size_t group, Indexable const &indptr) {

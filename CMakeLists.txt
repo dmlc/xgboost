@@ -8,7 +8,7 @@ cmake_policy(SET CMP0076 NEW)
 set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
 cmake_policy(SET CMP0063 NEW)
 
-if ((${CMAKE_VERSION} VERSION_GREATER 3.13) OR (${CMAKE_VERSION} VERSION_EQUAL 3.13))
+if((${CMAKE_VERSION} VERSION_GREATER 3.13) OR (${CMAKE_VERSION} VERSION_EQUAL 3.13))
   cmake_policy(SET CMP0077 NEW)
 endif()
 
@@ -86,91 +86,93 @@ option(PLUGIN_UPDATER_ONEAPI "DPC++ updater" OFF)
 option(ADD_PKGCONFIG "Add xgboost.pc into system." ON)
 
 #-- Checks for building XGBoost
-if (USE_DEBUG_OUTPUT AND (NOT (CMAKE_BUILD_TYPE MATCHES Debug)))
+if(USE_DEBUG_OUTPUT AND (NOT (CMAKE_BUILD_TYPE MATCHES Debug)))
   message(SEND_ERROR "Do not enable `USE_DEBUG_OUTPUT' with release build.")
 endif()
-if (USE_NCCL AND NOT (USE_CUDA))
+if(USE_NCCL AND NOT (USE_CUDA))
   message(SEND_ERROR "`USE_NCCL` must be enabled with `USE_CUDA` flag.")
 endif()
-if (USE_DEVICE_DEBUG AND NOT (USE_CUDA))
+if(USE_DEVICE_DEBUG AND NOT (USE_CUDA))
   message(SEND_ERROR "`USE_DEVICE_DEBUG` must be enabled with `USE_CUDA` flag.")
 endif()
-if (BUILD_WITH_SHARED_NCCL AND (NOT USE_NCCL))
+if(BUILD_WITH_SHARED_NCCL AND (NOT USE_NCCL))
   message(SEND_ERROR "Build XGBoost with -DUSE_NCCL=ON to enable BUILD_WITH_SHARED_NCCL.")
 endif()
-if (JVM_BINDINGS AND R_LIB)
+if(JVM_BINDINGS AND R_LIB)
   message(SEND_ERROR "`R_LIB' is not compatible with `JVM_BINDINGS' as they both have customized configurations.")
 endif()
-if (R_LIB AND GOOGLE_TEST)
-  message(WARNING "Some C++ unittests will fail with `R_LIB` enabled,
- as R package redirects some functions to R runtime implementation.")
+if(R_LIB AND GOOGLE_TEST)
+  message(
+    WARNING
+    "Some C++ tests will fail with `R_LIB` enabled, as R package redirects some functions to R runtime implementation."
+  )
 endif()
-if (PLUGIN_RMM AND NOT (USE_CUDA))
+if(PLUGIN_RMM AND NOT (USE_CUDA))
   message(SEND_ERROR "`PLUGIN_RMM` must be enabled with `USE_CUDA` flag.")
 endif()
-if (PLUGIN_RMM AND NOT ((CMAKE_CXX_COMPILER_ID STREQUAL "Clang") OR (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")))
+if(PLUGIN_RMM AND NOT ((CMAKE_CXX_COMPILER_ID STREQUAL "Clang") OR (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")))
   message(SEND_ERROR "`PLUGIN_RMM` must be used with GCC or Clang compiler.")
 endif()
-if (PLUGIN_RMM AND NOT (CMAKE_SYSTEM_NAME STREQUAL "Linux"))
+if(PLUGIN_RMM AND NOT (CMAKE_SYSTEM_NAME STREQUAL "Linux"))
   message(SEND_ERROR "`PLUGIN_RMM` must be used with Linux.")
 endif()
-if (ENABLE_ALL_WARNINGS)
-  if ((NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang") AND (NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
+if(ENABLE_ALL_WARNINGS)
+  if((NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang") AND (NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
     message(SEND_ERROR "ENABLE_ALL_WARNINGS is only available for Clang and GCC.")
   endif()
 endif()
-if (BUILD_STATIC_LIB AND (R_LIB OR JVM_BINDINGS))
+if(BUILD_STATIC_LIB AND (R_LIB OR JVM_BINDINGS))
   message(SEND_ERROR "Cannot build a static library libxgboost.a when R or JVM packages are enabled.")
 endif()
-if (PLUGIN_FEDERATED)
-  if (CMAKE_CROSSCOMPILING)
+if(PLUGIN_FEDERATED)
+  if(CMAKE_CROSSCOMPILING)
     message(SEND_ERROR "Cannot cross compile with federated learning support")
   endif()
-  if (BUILD_STATIC_LIB)
+  if(BUILD_STATIC_LIB)
     message(SEND_ERROR "Cannot build static lib with federated learning support")
   endif()
-  if (R_LIB OR JVM_BINDINGS)
+  if(R_LIB OR JVM_BINDINGS)
     message(SEND_ERROR "Cannot enable federated learning support when R or JVM packages are enabled.")
   endif()
-  if (WIN32)
+  if(WIN32)
     message(SEND_ERROR "Federated learning not supported for Windows platform")
   endif()
 endif()
 
 #-- Removed options
-if (USE_AVX)
+if(USE_AVX)
   message(SEND_ERROR  "The option `USE_AVX` is deprecated as experimental AVX features have been removed from XGBoost.")
 endif()
-if (PLUGIN_LZ4)
+if(PLUGIN_LZ4)
   message(SEND_ERROR  "The option `PLUGIN_LZ4` is removed from XGBoost.")
 endif()
-if (RABIT_BUILD_MPI)
+if(RABIT_BUILD_MPI)
   message(SEND_ERROR "The option `RABIT_BUILD_MPI` has been removed from XGBoost.")
 endif()
-if (USE_S3)
+if(USE_S3)
   message(SEND_ERROR "The option `USE_S3` has been removed from XGBoost")
 endif()
-if (USE_AZURE)
+if(USE_AZURE)
   message(SEND_ERROR "The option `USE_AZURE` has been removed from XGBoost")
 endif()
-if (USE_HDFS)
+if(USE_HDFS)
   message(SEND_ERROR "The option `USE_HDFS` has been removed from XGBoost")
 endif()
 
 #-- Sanitizer
-if (USE_SANITIZER)
+if(USE_SANITIZER)
   include(cmake/Sanitizer.cmake)
   enable_sanitizers("${ENABLED_SANITIZERS}")
 endif()
 
-if (USE_CUDA)
+if(USE_CUDA)
   set(USE_OPENMP ON CACHE BOOL "CUDA requires OpenMP" FORCE)
   # `export CXX=' is ignored by CMake CUDA.
   set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
   message(STATUS "Configured CUDA host compiler: ${CMAKE_CUDA_HOST_COMPILER}")
 
   enable_language(CUDA)
-  if (${CMAKE_CUDA_COMPILER_VERSION} VERSION_LESS 11.0)
+  if(${CMAKE_CUDA_COMPILER_VERSION} VERSION_LESS 11.0)
     message(FATAL_ERROR "CUDA version must be at least 11.0!")
   endif()
   set(GEN_CODE "")
@@ -180,7 +182,7 @@ if (USE_CUDA)
   find_package(CUDAToolkit REQUIRED)
 endif()
 
-if (FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND
+if(FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND
     ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
       (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")))
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdiagnostics-color=always")
@@ -188,10 +190,10 @@ endif()
 
 find_package(Threads REQUIRED)
 
-if (USE_OPENMP)
-  if (APPLE)
+if(USE_OPENMP)
+  if(APPLE)
     find_package(OpenMP)
-    if (NOT OpenMP_FOUND)
+    if(NOT OpenMP_FOUND)
       # Try again with extra path info; required for libomp 15+ from Homebrew
       execute_process(COMMAND brew --prefix libomp
                       OUTPUT_VARIABLE HOMEBREW_LIBOMP_PREFIX
@@ -205,31 +207,33 @@ if (USE_OPENMP)
       set(OpenMP_omp_LIBRARY ${HOMEBREW_LIBOMP_PREFIX}/lib/libomp.dylib)
       find_package(OpenMP REQUIRED)
     endif()
-  else ()
+  else()
     find_package(OpenMP REQUIRED)
   endif()
 endif()
 #Add for IBM i
-if (${CMAKE_SYSTEM_NAME} MATCHES "OS400")
+if(${CMAKE_SYSTEM_NAME} MATCHES "OS400")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
   set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> -X64 qc <TARGET> <OBJECTS>")
 endif()
 
-if (USE_NCCL)
+if(USE_NCCL)
   find_package(Nccl REQUIRED)
 endif()
 
 # dmlc-core
 msvc_use_static_runtime()
-if (FORCE_SHARED_CRT)
+if(FORCE_SHARED_CRT)
   set(DMLC_FORCE_SHARED_CRT ON)
 endif()
 add_subdirectory(${xgboost_SOURCE_DIR}/dmlc-core)
 
-if (MSVC)
-  if (TARGET dmlc_unit_tests)
-    target_compile_options(dmlc_unit_tests PRIVATE
-                           -D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE)
+if(MSVC)
+  if(TARGET dmlc_unit_tests)
+    target_compile_options(
+        dmlc_unit_tests PRIVATE
+        -D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE
+    )
   endif()
 endif()
 
@@ -240,20 +244,25 @@ add_subdirectory(rabit)
 add_subdirectory(${xgboost_SOURCE_DIR}/src)
 target_link_libraries(objxgboost PUBLIC dmlc)
 
+# Link -lstdc++fs for GCC 8.x
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "9.0")
+  target_link_libraries(objxgboost PUBLIC stdc++fs)
+endif()
+
 # Exports some R specific definitions and objects
-if (R_LIB)
+if(R_LIB)
   add_subdirectory(${xgboost_SOURCE_DIR}/R-package)
 endif()
 
 # This creates its own shared library `xgboost4j'.
-if (JVM_BINDINGS)
+if(JVM_BINDINGS)
   add_subdirectory(${xgboost_SOURCE_DIR}/jvm-packages)
 endif()
 
 # Plugin
 add_subdirectory(${xgboost_SOURCE_DIR}/plugin)
 
-if (PLUGIN_RMM)
+if(PLUGIN_RMM)
   find_package(rmm REQUIRED)
 
   # Patch the rmm targets so they reference the static cudart
@@ -267,7 +276,7 @@ if (PLUGIN_RMM)
 endif()
 
 #-- library
-if (BUILD_STATIC_LIB)
+if(BUILD_STATIC_LIB)
   add_library(xgboost STATIC)
 else()
   add_library(xgboost SHARED)
@@ -280,7 +289,7 @@ target_include_directories(xgboost
 #-- End shared library
 
 #-- CLI for xgboost
-if (BUILD_DEPRECATED_CLI)
+if(BUILD_DEPRECATED_CLI)
   add_executable(runxgboost ${xgboost_SOURCE_DIR}/src/cli_main.cc)
   target_link_libraries(runxgboost PRIVATE objxgboost)
   target_include_directories(runxgboost
@@ -294,9 +303,9 @@ if (BUILD_DEPRECATED_CLI)
   xgboost_target_link_libraries(runxgboost)
   xgboost_target_defs(runxgboost)
 
-  if (KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR)
+  if(KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR)
     set_output_directory(runxgboost ${xgboost_BINARY_DIR})
-  else ()
+  else()
     set_output_directory(runxgboost ${xgboost_SOURCE_DIR})
   endif()
 endif()
@@ -309,38 +318,38 @@ foreach(target xgboost objxgboost dmlc)
   xgboost_target_defs(${target})
 endforeach()
 
-if (JVM_BINDINGS)
+if(JVM_BINDINGS)
   xgboost_target_properties(xgboost4j)
   xgboost_target_link_libraries(xgboost4j)
   xgboost_target_defs(xgboost4j)
 endif()
 
-if (KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR)
+if(KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR)
   set_output_directory(xgboost ${xgboost_BINARY_DIR}/lib)
-else ()
+else()
   set_output_directory(xgboost ${xgboost_SOURCE_DIR}/lib)
 endif()
 
 # Ensure these two targets do not build simultaneously, as they produce outputs with conflicting names
-if (BUILD_DEPRECATED_CLI)
+if(BUILD_DEPRECATED_CLI)
   add_dependencies(xgboost runxgboost)
 endif()
 
 #-- Installing XGBoost
-if (R_LIB)
+if(R_LIB)
   include(cmake/RPackageInstallTargetSetup.cmake)
   set_target_properties(xgboost PROPERTIES PREFIX "")
-  if (APPLE)
+  if(APPLE)
     set_target_properties(xgboost PROPERTIES SUFFIX ".so")
   endif()
   setup_rpackage_install_target(xgboost "${CMAKE_CURRENT_BINARY_DIR}/R-package-install")
   set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/dummy_inst")
 endif()
-if (MINGW)
+if(MINGW)
   set_target_properties(xgboost PROPERTIES PREFIX "")
 endif()
 
-if (BUILD_C_DOC)
+if(BUILD_C_DOC)
   include(cmake/Doc.cmake)
   run_doxygen()
 endif()
@@ -359,14 +368,14 @@ install(DIRECTORY ${xgboost_SOURCE_DIR}/include/xgboost
 #  > in any export set.
 #
 # https://github.com/dmlc/xgboost/issues/6085
-if (BUILD_STATIC_LIB)
-  if (BUILD_DEPRECATED_CLI)
+if(BUILD_STATIC_LIB)
+  if(BUILD_DEPRECATED_CLI)
     set(INSTALL_TARGETS xgboost runxgboost objxgboost dmlc)
   else()
     set(INSTALL_TARGETS xgboost objxgboost dmlc)
   endif()
 else()
-  if (BUILD_DEPRECATED_CLI)
+  if(BUILD_DEPRECATED_CLI)
     set(INSTALL_TARGETS xgboost runxgboost)
   else()
     set(INSTALL_TARGETS xgboost)
@@ -400,7 +409,7 @@ install(
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/xgboost)
 
 #-- Test
-if (GOOGLE_TEST)
+if(GOOGLE_TEST)
   enable_testing()
   # Unittests.
   add_executable(testxgboost)
@@ -420,7 +429,7 @@ if (GOOGLE_TEST)
     ${xgboost_SOURCE_DIR}/tests/cli/machine.conf.in
     ${xgboost_BINARY_DIR}/tests/cli/machine.conf
     @ONLY)
-  if (BUILD_DEPRECATED_CLI)
+  if(BUILD_DEPRECATED_CLI)
     add_test(
       NAME TestXGBoostCLI
       COMMAND runxgboost ${xgboost_BINARY_DIR}/tests/cli/machine.conf
@@ -437,7 +446,7 @@ endif()
 msvc_use_static_runtime()
 
 # Add xgboost.pc
-if (ADD_PKGCONFIG)
+if(ADD_PKGCONFIG)
   configure_file(${xgboost_SOURCE_DIR}/cmake/xgboost.pc.in ${xgboost_BINARY_DIR}/xgboost.pc @ONLY)
 
   install(
