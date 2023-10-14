@@ -1,4 +1,4 @@
-if (NVML_LIBRARY)
+if(NVML_LIBRARY)
   unset(NVML_LIBRARY CACHE)
 endif()
 

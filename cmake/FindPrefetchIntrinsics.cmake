@@ -1,4 +1,4 @@
-function (find_prefetch_intrinsics)
+function(find_prefetch_intrinsics)
   include(CheckCXXSourceCompiles)
   check_cxx_source_compiles("
   #include <xmmintrin.h>
