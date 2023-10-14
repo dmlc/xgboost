@@ -75,7 +75,7 @@ DMatrix* SimpleDMatrix::SliceCol(int num_slices, int slice_id) {
 }
 
 void SimpleDMatrix::ReindexFeatures(Context const* ctx) {
-  if (info_.IsColumnSplit()) {
+  if (info_.IsColumnSplit() && collective::GetWorldSize() > 1) {
     auto const cols = collective::Allgather(info_.num_col_);
     auto const offset = std::accumulate(cols.cbegin(), cols.cbegin() + collective::GetRank(), 0ul);
     if (offset == 0) {
