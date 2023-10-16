@@ -1234,7 +1234,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
     def data_split_mode(self) -> DataSplitMode:
         """Get the data split mode of the DMatrix.
 
-        .. versionadded:: 2.0.1
+        .. versionadded:: 2.1.0
 
         """
         ret = c_bst_ulong()

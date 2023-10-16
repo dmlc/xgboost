@@ -144,7 +144,7 @@ XGB_DLL int XGDMatrixCreateFromFile(const char *fname, int silent, DMatrixHandle
  *            See :doc:`/tutorials/input_format` for more info.
  *          \endverbatim
  *   - silent (optional): Whether to print message during loading. Default to true.
- *   - data_split_mode (optional): Whether the file was split by row or column beforehand. Default to row.
+ *   - data_split_mode (optional): Whether the file was split by row or column beforehand for distributed computing. Default to row.
  * \param out a loaded data matrix
  * \return 0 when success, -1 when failure happens
  */
