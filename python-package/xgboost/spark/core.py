@@ -44,6 +44,7 @@ from pyspark.ml.util import (
     MLWritable,
     MLWriter,
 )
+from pyspark.resource import ResourceProfileBuilder, TaskResourceRequests
 from pyspark.sql import Column, DataFrame
 from pyspark.sql.functions import col, countDistinct, pandas_udf, rand, struct
 from pyspark.sql.types import (
@@ -982,16 +983,9 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         executor_cores = ss.sparkContext.getConf().get("spark.executor.cores")
         assert executor_cores is not None
 
-        # Each training task requires cpu cores > total executor cores//2 + 1 which can
-        # make the tasks be sent to different executors.
-        #
-        # Please note that we can't set task_cpu_cores to the value which is smaller than
-        # total executor cores/2 because only task_gpu_amount can't make sure the tasks be
-        # sent to different executor even task_gpus=1.0
-
-        # Spark-rapids is a project to leverage GPUs to accelerate spark SQL and it can
-        # really help the performance. If spark-rapids is enabled. we don't allow other
-        # ETL gpu tasks running alongside training tasks to avoid OOM
+        # Spark-rapids is a project to leverage GPUs to accelerate spark SQL.
+        # If spark-rapids is enabled, to avoid GPU OOM, we don't allow other
+        # ETL gpu tasks running alongside training tasks.
         spark_plugins = ss.conf.get("spark.plugins", " ")
         assert spark_plugins is not None
         spark_rapids_sql_enabled = ss.conf.get("spark.rapids.sql.enabled", "true")
@@ -1004,21 +998,22 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             else (int(executor_cores) // 2) + 1
         )
 
-        # task_gpus means how many gpu slots the task requires in a single GPU,
-        # it doesn't mean how many gpu shares it would like to require, so we
-        # can set it to any value of (0, 0.5] or 1.
-        task_gpus = 1.0
+        # Each training task requires cpu cores > total executor cores//2 + 1 which can
+        # make sure the tasks be sent to different executors.
+        #
+        # Please note that we can't use GPU to limit the concurrent tasks because of
+        # https://issues.apache.org/jira/browse/SPARK-45527.
 
-        # treqs = TaskResourceRequests().cpus(task_cores).resource("gpu", task_gpus)
-        # rp = ResourceProfileBuilder().require(treqs).build
+        task_gpus = 1.0
+        treqs = TaskResourceRequests().cpus(task_cores).resource("gpu", task_gpus)
+        rp = ResourceProfileBuilder().require(treqs).build
 
         self.logger.info(
             "XGBoost training tasks require the resource(cores=%s, gpu=%s).",
             task_cores,
             task_gpus,
         )
-        # return rdd.withResources(rp)
-        return rdd
+        return rdd.withResources(rp)
 
     def _fit(self, dataset: DataFrame) -> "_SparkXGBModel":
         # pylint: disable=too-many-statements, too-many-locals
