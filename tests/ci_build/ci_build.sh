@@ -148,10 +148,11 @@ then
     $(aws ecr get-login --no-include-email --region ${DOCKER_CACHE_ECR_REGION} --registry-ids ${DOCKER_CACHE_ECR_ID})
     # Pull pre-build container from Docker build cache,
     # if one exists for the particular branch or pull request
-    echo "docker pull --quiet ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
-    if time docker pull --quiet "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
+    DOCKER_TAG="${BRANCH_NAME//\//-}"  # Slashes are not allow in Docker tag
+    echo "docker pull --quiet ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${DOCKER_TAG}"
+    if time docker pull --quiet "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${DOCKER_TAG}"
     then
-      CACHE_FROM_CMD="--cache-from ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
+      CACHE_FROM_CMD="--cache-from ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${DOCKER_TAG}"
     else
       # If the build cache is empty of the particular branch or pull request,
       # use the build cache associated with the master branch
@@ -185,8 +186,8 @@ if [[ -n "${DOCKER_CACHE_REPO}" ]]
 then
     # Push the container we just built to the Docker build cache
     # that is associated with the particular branch or pull request
-    echo "docker tag ${DOCKER_IMG_NAME} ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
-    docker tag "${DOCKER_IMG_NAME}" "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
+    echo "docker tag ${DOCKER_IMG_NAME} ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${DOCKER_TAG}"
+    docker tag "${DOCKER_IMG_NAME}" "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${DOCKER_TAG}"
 
     # Attempt to create Docker repository; it will fail if the repository already exists
     echo "aws ecr create-repository --repository-name ${DOCKER_IMG_NAME} --region ${DOCKER_CACHE_ECR_REGION}"
@@ -214,10 +215,10 @@ then
 EOF
     fi
 
-    echo "docker push --quiet ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
-    docker push --quiet "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
+    echo "docker push --quiet ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${DOCKER_TAG}"
+    docker push --quiet "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${DOCKER_TAG}"
     if [[ $? != "0" ]]; then
-        echo "ERROR: could not update Docker cache ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
+        echo "ERROR: could not update Docker cache ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${DOCKER_TAG}"
         exit 1
     fi
 fi

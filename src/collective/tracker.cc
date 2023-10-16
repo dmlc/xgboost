@@ -15,12 +15,232 @@
 #include <ws2tcpip.h>
 #endif  // defined(_WIN32)
 
-#include <string>  // for string
+#include <algorithm>  // for sort
+#include <chrono>     // for seconds
+#include <cstdint>    // for int32_t
+#include <string>     // for string
+#include <utility>    // for move, forward
 
+#include "../common/json_utils.h"
+#include "comm.h"
+#include "protocol.h"  // for kMagic, PeerInfo
+#include "tracker.h"
 #include "xgboost/collective/result.h"  // for Result, Fail, Success
 #include "xgboost/collective/socket.h"  // for GetHostName, FailWithCode, MakeSockAddress, ...
+#include "xgboost/json.h"
 
 namespace xgboost::collective {
+Tracker::Tracker(Json const& config)
+    : n_workers_{static_cast<std::int32_t>(
+          RequiredArg<Integer const>(config, "n_workers", __func__))},
+      port_{static_cast<std::int32_t>(OptionalArg<Integer const>(config, "port", Integer::Int{0}))},
+      timeout_{std::chrono::seconds{OptionalArg<Integer const>(
+          config, "timeout", static_cast<std::int64_t>(collective::DefaultTimeoutSec()))}} {}
+
+RabitTracker::WorkerProxy::WorkerProxy(std::int32_t world, TCPSocket sock, SockAddrV4 addr)
+    : sock_{std::move(sock)} {
+  auto host = addr.Addr();
+
+  std::int32_t rank{0};
+  rc_ = Success()
+        << [&] { return proto::Magic{}.Verify(&sock_); }
+        << [&] { return proto::Connect{}.TrackerRecv(&sock_, &world_, &rank, &task_id_); };
+  if (!rc_.OK()) {
+    return;
+  }
+
+  std::string cmd;
+  sock_.Recv(&cmd);
+  auto jcmd = Json::Load(StringView{cmd});
+  cmd_ = static_cast<proto::CMD>(get<Integer const>(jcmd["cmd"]));
+  std::int32_t port{0};
+  if (cmd_ == proto::CMD::kStart) {
+    proto::Start start;
+    rc_ = start.TrackerHandle(jcmd, &world_, world, &port, &sock_, &eport_);
+  } else if (cmd_ == proto::CMD::kPrint) {
+    proto::Print print;
+    rc_ = print.TrackerHandle(jcmd, &msg_);
+  } else if (cmd_ == proto::CMD::kError) {
+    proto::ErrorCMD error;
+    rc_ = error.TrackerHandle(jcmd, &msg_, &code_);
+  }
+  if (!rc_.OK()) {
+    return;
+  }
+
+  info_ = proto::PeerInfo{host, port, rank};
+}
+
+RabitTracker::RabitTracker(Json const& config) : Tracker{config} {
+  std::string self;
+  auto rc = collective::GetHostAddress(&self);
+  auto host = OptionalArg<String>(config, "host", self);
+
+  listener_ = TCPSocket::Create(SockDomain::kV4);
+  rc = listener_.Bind(host, &this->port_);
+  CHECK(rc.OK()) << rc.Report();
+  listener_.Listen();
+}
+
+Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
+  auto& workers = *p_workers;
+
+  std::sort(workers.begin(), workers.end(), WorkerCmp{});
+
+  std::vector<std::thread> bootstrap_threads;
+  for (std::int32_t r = 0; r < n_workers_; ++r) {
+    auto& worker = workers[r];
+    auto next = BootstrapNext(r, n_workers_);
+    auto const& next_w = workers[next];
+    bootstrap_threads.emplace_back([next, &worker, &next_w] {
+      auto jnext = proto::PeerInfo{next_w.Host(), next_w.Port(), next}.ToJson();
+      std::string str;
+      Json::Dump(jnext, &str);
+      worker.Send(StringView{str});
+    });
+  }
+
+  for (auto& t : bootstrap_threads) {
+    t.join();
+  }
+
+  for (auto const& w : workers) {
+    worker_error_handles_.emplace_back(w.Host(), w.ErrorPort());
+  }
+  return Success();
+}
+
+[[nodiscard]] std::future<Result> RabitTracker::Run() {
+  // a state machine to keep track of consistency.
+  struct State {
+    std::int32_t const n_workers;
+
+    std::int32_t n_shutdown{0};
+    bool during_restart{false};
+    std::vector<WorkerProxy> pending;
+
+    explicit State(std::int32_t world) : n_workers{world} {}
+    State(State const& that) = delete;
+    State& operator=(State&& that) = delete;
+
+    void Start(WorkerProxy&& worker) {
+      CHECK_LT(pending.size(), n_workers);
+      CHECK_LE(n_shutdown, n_workers);
+
+      pending.emplace_back(std::forward<WorkerProxy>(worker));
+
+      CHECK_LE(pending.size(), n_workers);
+    }
+    void Shutdown() {
+      CHECK_GE(n_shutdown, 0);
+      CHECK_LT(n_shutdown, n_workers);
+
+      ++n_shutdown;
+
+      CHECK_LE(n_shutdown, n_workers);
+    }
+    void Error() {
+      CHECK_LE(pending.size(), n_workers);
+      CHECK_LE(n_shutdown, n_workers);
+
+      during_restart = true;
+    }
+    [[nodiscard]] bool Ready() const {
+      CHECK_LE(pending.size(), n_workers);
+      return static_cast<std::int32_t>(pending.size()) == n_workers;
+    }
+    void Bootstrap() {
+      CHECK_EQ(pending.size(), n_workers);
+      CHECK_LE(n_shutdown, n_workers);
+
+      // A reset.
+      n_shutdown = 0;
+      during_restart = false;
+      pending.clear();
+    }
+    [[nodiscard]] bool ShouldContinue() const {
+      CHECK_LE(pending.size(), n_workers);
+      CHECK_LE(n_shutdown, n_workers);
+      // - Without error, we should shutdown after all workers are offline.
+      // - With error, all workers are offline, and we have during_restart as true.
+      return n_shutdown != n_workers || during_restart;
+    }
+  };
+
+  return std::async(std::launch::async, [this] {
+    State state{this->n_workers_};
+
+    while (state.ShouldContinue()) {
+      TCPSocket sock;
+      SockAddrV4 addr;
+      auto rc = listener_.Accept(&sock, &addr);
+      if (!rc.OK()) {
+        return Fail("Failed to accept connection.", std::move(rc));
+      }
+
+      auto worker = WorkerProxy{n_workers_, std::move(sock), std::move(addr)};
+      if (!worker.Status().OK()) {
+        return Fail("Failed to initialize worker proxy.", std::move(worker.Status()));
+      }
+      switch (worker.Command()) {
+        case proto::CMD::kStart: {
+          state.Start(std::move(worker));
+          if (state.Ready()) {
+            rc = this->Bootstrap(&state.pending);
+            state.Bootstrap();
+          }
+          if (!rc.OK()) {
+            return rc;
+          }
+          continue;
+        }
+        case proto::CMD::kShutdown: {
+          state.Shutdown();
+          continue;
+        }
+        case proto::CMD::kError: {
+          if (state.during_restart) {
+            continue;
+          }
+          state.Error();
+          auto msg = worker.Msg();
+          auto code = worker.Code();
+          LOG(WARNING) << "Recieved error from [" << worker.Host() << ":" << worker.Rank()
+                       << "]: " << msg << " code:" << code;
+          auto host = worker.Host();
+          // We signal all workers for the error, if they haven't aborted already.
+          for (auto& w : worker_error_handles_) {
+            if (w.first == host) {
+              continue;
+            }
+            TCPSocket out;
+            // retry is set to 1, just let the worker timeout or error. Otherwise the
+            // tracker and the worker might be waiting for each other.
+            auto rc = Connect(w.first, w.second, 1, timeout_, &out);
+            // send signal to stop the worker.
+            proto::ShutdownCMD shutdown;
+            rc = shutdown.Send(&out);
+            if (!rc.OK()) {
+              return Fail("Failed to inform workers to stop.");
+            }
+          }
+
+          continue;
+        }
+        case proto::CMD::kPrint: {
+          LOG(CONSOLE) << worker.Msg();
+          continue;
+        }
+        case proto::CMD::kInvalid:
+        default: {
+          return Fail("Invalid command received.");
+        }
+      }
+    }
+    return Success();
+  });
+}
+
 [[nodiscard]] Result GetHostAddress(std::string* out) {
   auto rc = GetHostName(out);
   if (!rc.OK()) {

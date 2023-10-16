@@ -16,7 +16,14 @@ Adding a new unit test
 
 Python package: pytest
 ======================
-Add your test under the directory `tests/python/ <https://github.com/dmlc/xgboost/tree/master/tests/python>`_ or `tests/python-gpu/ <https://github.com/dmlc/xgboost/tree/master/tests/python-gpu>`_ (if you are testing GPU code). Refer to `the PyTest tutorial <https://docs.pytest.org/en/latest/getting-started.html>`_ to learn how to write tests for Python code.
+Add your test under the directories
+
+- `tests/python/ <https://github.com/dmlc/xgboost/tree/master/tests/python>`_
+- `tests/python-gpu/ <https://github.com/dmlc/xgboost/tree/master/tests/python-gpu>`_ (if you are testing GPU code)
+- `tests/test_distributed <https://github.com/dmlc/xgboost/tree/master/tests/test_distributed>`_. (if a distributed framework is used)
+
+Refer to `the PyTest tutorial <https://docs.pytest.org/en/latest/getting-started.html>`_
+to learn how to write tests for Python code.
 
 You may try running your test by following instructions in :ref:`this section <running_pytest>`.
 
@@ -56,19 +63,26 @@ Run
 
 .. code-block:: bash
 
-  make Rcheck
+  python ./tests/ci_build/test_r_package.py --task=check
 
-at the root of the project directory.
+at the root of the project directory. The command builds and checks the XGBoost
+r-package. Alternatively, if you want to just run the tests, you can use the following
+commands after installing XGBoost:
+
+.. code-block:: bash
+
+  cd R-package/tests/
+  Rscript testthat.R
 
 .. _running_jvm_tests:
 
 JVM packages
 ============
-As part of the building process, tests are run:
+Maven is used
 
 .. code-block:: bash
 
-  mvn package
+  mvn test
 
 .. _running_pytest:
 
@@ -99,6 +113,14 @@ In addition, to test CUDA code, run:
 
 (For this step, you should have compiled XGBoost with CUDA enabled.)
 
+For testing with distributed frameworks like ``Dask`` and ``PySpark``:
+
+.. code:: bash
+
+  # Tell Python where to find XGBoost module
+  export PYTHONPATH=./python-package
+  pytest -v -s --fulltrace tests/test_distributed
+
 .. _running_gtest:
 
 C++: Google Test
@@ -110,21 +132,13 @@ To build and run C++ unit tests enable tests while running CMake:
 
   mkdir build
   cd build
-  cmake -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON  ..
-  make
-  make test
+  cmake -GNinja -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DUSE_CUDA=ON -DUSE_NCCL=ON ..
+  ninja
+  ./testxgboost
 
-To enable tests for CUDA code, add ``-DUSE_CUDA=ON`` and ``-DUSE_NCCL=ON`` (CUDA toolkit required):
-
-.. code-block:: bash
-
-  mkdir build
-  cd build
-  cmake -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DUSE_CUDA=ON -DUSE_NCCL=ON ..
-  make
-  make test
-
-One can also run all unit test using ctest tool which provides higher flexibility. For example:
+Flags like ``USE_CUDA``, ``USE_DMLC_GTEST`` are optional. For more info about how to build
+XGBoost from source, see :doc:`</build>`. One can also run all unit test using ctest tool
+which provides higher flexibility. For example:
 
 .. code-block:: bash
 
@@ -157,14 +171,14 @@ sanitizer is not compatible with the other two sanitizers.
 
 .. code-block:: bash
 
-  cmake -DUSE_SANITIZER=ON -DENABLED_SANITIZERS="address;leak" /path/to/xgboost
+  cmake -DUSE_SANITIZER=ON -DENABLED_SANITIZERS="address;undefined" /path/to/xgboost
 
 By default, CMake will search regular system paths for sanitizers, you can also
 supply a specified SANITIZER_PATH.
 
 .. code-block:: bash
 
-  cmake -DUSE_SANITIZER=ON -DENABLED_SANITIZERS="address;leak" \
+  cmake -DUSE_SANITIZER=ON -DENABLED_SANITIZERS="address;undefined" \
   -DSANITIZER_PATH=/path/to/sanitizers /path/to/xgboost
 
 How to use sanitizers with CUDA support
@@ -181,7 +195,7 @@ environment variable:
 Other sanitizer runtime options
 ===============================
 
-By default undefined sanitizer doesn't print out the backtrace.  You can enable it by
+By default undefined sanitizer doesn't print out the backtrace. You can enable it by
 exporting environment variable:
 
 .. code-block::

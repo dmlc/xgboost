@@ -44,11 +44,11 @@ class FederatedClient {
         }()},
         rank_{rank} {}
 
-  std::string Allgather(std::string const &send_buffer) {
+  std::string Allgather(std::string_view send_buffer) {
     AllgatherRequest request;
     request.set_sequence_number(sequence_number_++);
     request.set_rank(rank_);
-    request.set_send_buffer(send_buffer);
+    request.set_send_buffer(send_buffer.data(), send_buffer.size());
 
     AllgatherReply reply;
     grpc::ClientContext context;
@@ -60,6 +60,25 @@ class FederatedClient {
     } else {
       std::cout << status.error_code() << ": " << status.error_message() << '\n';
       throw std::runtime_error("Allgather RPC failed");
+    }
+  }
+
+  std::string AllgatherV(std::string_view send_buffer) {
+    AllgatherVRequest request;
+    request.set_sequence_number(sequence_number_++);
+    request.set_rank(rank_);
+    request.set_send_buffer(send_buffer.data(), send_buffer.size());
+
+    AllgatherVReply reply;
+    grpc::ClientContext context;
+    context.set_wait_for_ready(true);
+    grpc::Status status = stub_->AllgatherV(&context, request, &reply);
+
+    if (status.ok()) {
+      return reply.receive_buffer();
+    } else {
+      std::cout << status.error_code() << ": " << status.error_message() << '\n';
+      throw std::runtime_error("AllgatherV RPC failed");
     }
   }
 

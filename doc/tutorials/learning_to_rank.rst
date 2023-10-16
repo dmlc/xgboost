@@ -58,6 +58,7 @@ Notice that the samples are sorted based on their query index in a non-decreasin
   sorted_idx = np.argsort(qid)
   X = X[sorted_idx, :]
   y = y[sorted_idx]
+  qid = qid[sorted_idx]
 
 The simplest way to train a ranking model is by using the scikit-learn estimator interface. Continuing the previous snippet, we can train a simple ranking model without tuning:
 

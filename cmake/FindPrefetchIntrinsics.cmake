@@ -1,4 +1,4 @@
-function (find_prefetch_intrinsics)
+function(find_prefetch_intrinsics)
   include(CheckCXXSourceCompiles)
   check_cxx_source_compiles("
   #include <xmmintrin.h>
@@ -19,4 +19,4 @@ function (find_prefetch_intrinsics)
   " XGBOOST_BUILTIN_PREFETCH_PRESENT)
   set(XGBOOST_MM_PREFETCH_PRESENT ${XGBOOST_MM_PREFETCH_PRESENT} PARENT_SCOPE)
   set(XGBOOST_BUILTIN_PREFETCH_PRESENT ${XGBOOST_BUILTIN_PREFETCH_PRESENT} PARENT_SCOPE)
-endfunction (find_prefetch_intrinsics)
+endfunction()

@@ -3,7 +3,7 @@ find_package(xgboost REQUIRED)
 
 # xgboost is built as static libraries, all cxx dependencies need to be linked into the
 # executable.
-if (XGBOOST_BUILD_STATIC_LIB)
+if(XGBOOST_BUILD_STATIC_LIB)
   enable_language(CXX)
   # find again for those  cxx libraries.
   find_package(xgboost REQUIRED)

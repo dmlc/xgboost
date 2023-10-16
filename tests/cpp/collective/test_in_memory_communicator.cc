@@ -29,6 +29,11 @@ class InMemoryCommunicatorTest : public ::testing::Test {
     VerifyAllgather(comm, rank);
   }
 
+  static void AllgatherV(int rank) {
+    InMemoryCommunicator comm{kWorldSize, rank};
+    VerifyAllgatherV(comm, rank);
+  }
+
   static void AllreduceMax(int rank) {
     InMemoryCommunicator comm{kWorldSize, rank};
     VerifyAllreduceMax(comm, rank);
@@ -80,12 +85,17 @@ class InMemoryCommunicatorTest : public ::testing::Test {
 
  protected:
   static void VerifyAllgather(InMemoryCommunicator &comm, int rank) {
-    char buffer[kWorldSize] = {'a', 'b', 'c'};
-    buffer[rank] = '0' + rank;
-    comm.AllGather(buffer, kWorldSize);
+    std::string input{static_cast<char>('0' + rank)};
+    auto output = comm.AllGather(input);
     for (auto i = 0; i < kWorldSize; i++) {
-      EXPECT_EQ(buffer[i], '0' + i);
+      EXPECT_EQ(output[i], static_cast<char>('0' + i));
     }
+  }
+
+  static void VerifyAllgatherV(InMemoryCommunicator &comm, int rank) {
+    std::vector<std::string_view> inputs{"a", "bb", "ccc"};
+    auto output = comm.AllGatherV(inputs[rank]);
+    EXPECT_EQ(output, "abbccc");
   }
 
   static void VerifyAllreduceMax(InMemoryCommunicator &comm, int rank) {
@@ -204,6 +214,8 @@ TEST(InMemoryCommunicatorSimpleTest, IsDistributed) {
 }
 
 TEST_F(InMemoryCommunicatorTest, Allgather) { Verify(&Allgather); }
+
+TEST_F(InMemoryCommunicatorTest, AllgatherV) { Verify(&AllgatherV); }
 
 TEST_F(InMemoryCommunicatorTest, AllreduceMax) { Verify(&AllreduceMax); }
 
