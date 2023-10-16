@@ -52,11 +52,13 @@ def make_categorical(
 
 def main() -> None:
     # Use builtin categorical data support
-    # For scikit-learn interface, the input data must be pandas DataFrame or cudf
-    # DataFrame with categorical features
+
+    # For scikit-learn interface, the input data should be pandas DataFrame or cudf
+    # DataFrame with categorical features. If an numpy/cupy array is used instead, the
+    # `feature_types` for `XGBRegressor` should be set accordingly.
     X, y = make_categorical(100, 10, 4, False)
-    # Specify `enable_categorical` to True, also we use onehot encoding based split
-    # here for demonstration. For details see the document of `max_cat_to_onehot`.
+    # Specify `enable_categorical` to True, also we use onehot-encoding-based split here
+    # for demonstration. For details see the document of `max_cat_to_onehot`.
     reg = xgb.XGBRegressor(
         tree_method="hist", enable_categorical=True, max_cat_to_onehot=5, device="cuda"
     )

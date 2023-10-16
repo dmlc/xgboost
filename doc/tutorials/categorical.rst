@@ -117,7 +117,6 @@ SHAP value computation:
   # categorical features are listed as "c"
   print(booster.feature_types)
 
-
 For other types of input, like ``numpy array``, we can tell XGBoost about the feature
 types by using the ``feature_types`` parameter in :class:`DMatrix <xgboost.DMatrix>`:
 
@@ -132,6 +131,18 @@ types by using the ``feature_types`` parameter in :class:`DMatrix <xgboost.DMatr
 For numerical data, the feature type can be ``"q"`` or ``"float"``, while for categorical
 feature it's specified as ``"c"``.  The Dask module in XGBoost has the same interface so
 :class:`dask.Array <dask.Array>` can also be used for categorical data.
+
+****************
+Data Consistency
+****************
+
+XGBoost accepts parameters for which feature is considered categorical, either through the ``dtype`` of a dataframe or through the ``feature_types`` parameter. However, XGBoost by itself doesn't store information on how categories are encoded in the first place. For instance, given an encoding schema that maps music genre to integer code:
+
+.. code-block:: python
+
+  {"acoustic": 0, "indie": 1, "blues": 2, "country": 3}
+
+XGBoost doesn't know this mapping from the input and hence cannot store it in the model. The mapping usually happens in the users' data engineering pipeline with column transformers like :py:class:`sklearn.preprocessing.OrdinalEncoder`. To make sure correct result from XGBoost, users need to keep the pipeline for transforming data consistent across training and testing data.
 
 *************
 Miscellaneous
