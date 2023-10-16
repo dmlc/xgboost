@@ -137,7 +137,7 @@ To build and run C++ unit tests enable tests while running CMake:
   ./testxgboost
 
 Flags like ``USE_CUDA``, ``USE_DMLC_GTEST`` are optional. For more info about how to build
-XGBoost from source, see :doc:`</build>`. One can also run all unit test using ctest tool
+XGBoost from source, see :doc:`/build`. One can also run all unit tests using ctest tool
 which provides higher flexibility. For example:
 
 .. code-block:: bash
