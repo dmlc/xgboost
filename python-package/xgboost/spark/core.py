@@ -910,13 +910,13 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             sc = ss.sparkContext
 
             if ss.version < "3.4.0":
-                self.logger.warning(
+                self.logger.info(
                     "Stage-level scheduling in xgboost requires spark version 3.4.0+"
                 )
                 return True
 
             if not _is_standalone_or_localcluster(sc):
-                self.logger.warning(
+                self.logger.info(
                     "Stage-level scheduling in xgboost requires spark standalone or "
                     "local-cluster mode"
                 )
@@ -925,7 +925,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             executor_cores = sc.getConf().get("spark.executor.cores")
             executor_gpus = sc.getConf().get("spark.executor.resource.gpu.amount")
             if executor_cores is None or executor_gpus is None:
-                self.logger.warning(
+                self.logger.info(
                     "Stage-level scheduling in xgboost requires spark.executor.cores, "
                     "spark.executor.resource.gpu.amount to be set."
                 )
@@ -942,7 +942,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 # For spark.executor.resource.gpu.amount > 1, we suppose user knows how to configure
                 # to make xgboost run successfully.
                 #
-                self.logger.warning(
+                self.logger.info(
                     "Stage-level scheduling in xgboost will not work "
                     "when spark.executor.resource.gpu.amount>1"
                 )
@@ -956,13 +956,8 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 return False
 
             if float(task_gpu_amount) == float(executor_gpus):
-                self.logger.warning(
-                    "The configuration of cores (exec=%s, task=%s, runnable tasks=1) will "
-                    "result in wasted resources due to resource gpu limiting the number of "
-                    "runnable tasks per executor to: 1. Please adjust your configuration.",
-                    executor_gpus,
-                    task_gpu_amount,
-                )
+                # spark.executor.resource.gpu.amount=spark.task.resource.gpu.amount "
+                # results in only 1 task running at a time, which may cause perf issue.
                 return True
 
             # We can enable stage-level scheduling
