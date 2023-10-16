@@ -142,7 +142,18 @@ XGBoost accepts parameters for which feature is considered categorical, either t
 
   {"acoustic": 0, "indie": 1, "blues": 2, "country": 3}
 
-XGBoost doesn't know this mapping from the input and hence cannot store it in the model. The mapping usually happens in the users' data engineering pipeline with column transformers like :py:class:`sklearn.preprocessing.OrdinalEncoder`. To make sure correct result from XGBoost, users need to keep the pipeline for transforming data consistent across training and testing data.
+XGBoost doesn't know this mapping from the input and hence cannot store it in the model. The mapping usually happens in the users' data engineering pipeline with column transformers like :py:class:`sklearn.preprocessing.OrdinalEncoder`. To make sure correct result from XGBoost, users need to keep the pipeline for transforming data consistent across training and testing data. One should watch out for errors like:
+
+.. code-block:: python
+
+  X_train["genre"] = X_train["genre"].astype("category")
+  reg = xgb.XGBRegressor(enable_categorical=True).fit(X_train, y_train)
+
+  # invalid encoding
+  X_test["genre"] = X_test["genre"].astype("category")
+  reg.predict(X_test)
+
+In the above snippet, training data and test data are encoded separately, resulting in two different encoding schemas and invalid prediction result.
 
 *************
 Miscellaneous
