@@ -950,7 +950,7 @@ def run_with_rabit(world_size: int, test_fn: Callable) -> None:
         try:
             with xgb.collective.CommunicatorContext(**rabit_env):
                 test_fn()
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             exception_queue.put(e)
 
     tracker = RabitTracker(host_ip="127.0.0.1", n_workers=world_size)
