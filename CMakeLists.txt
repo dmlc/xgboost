@@ -174,8 +174,12 @@ endif()
 if(USE_CUDA)
   set(USE_OPENMP ON CACHE BOOL "CUDA requires OpenMP" FORCE)
   # `export CXX=' is ignored by CMake CUDA.
-  set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
-  message(STATUS "Configured CUDA host compiler: ${CMAKE_CUDA_HOST_COMPILER}")
+  if(NOT DEFINED CMAKE_CUDA_HOST_COMPILER AND NOT DEFINED ENV{CUDAHOSTCXX})
+    set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER} CACHE FILEPATH
+      "The compiler executable to use when compiling host code for CUDA or HIP language files.")
+    mark_as_advanced(CMAKE_CUDA_HOST_COMPILER)
+    message(STATUS "Configured CUDA host compiler: ${CMAKE_CUDA_HOST_COMPILER}")
+  endif()
 
   enable_language(CUDA)
   if(${CMAKE_CUDA_COMPILER_VERSION} VERSION_LESS 11.0)
