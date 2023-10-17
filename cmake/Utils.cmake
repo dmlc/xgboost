@@ -161,8 +161,7 @@ function(xgboost_set_cuda_flags target)
   set_target_properties(${target} PROPERTIES
     CUDA_STANDARD 17
     CUDA_STANDARD_REQUIRED ON
-    CUDA_SEPARABLE_COMPILATION OFF
-    CUDA_RUNTIME_LIBRARY Static)
+    CUDA_SEPARABLE_COMPILATION OFF)
 endfunction()
 
 macro(xgboost_link_nccl target)

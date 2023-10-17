@@ -181,6 +181,10 @@ if(USE_CUDA)
     message(STATUS "Configured CUDA host compiler: ${CMAKE_CUDA_HOST_COMPILER}")
   endif()
 
+  if(NOT DEFINED CMAKE_CUDA_RUNTIME_LIBRARY)
+    set(CMAKE_CUDA_RUNTIME_LIBRARY Static)
+  endif()
+
   enable_language(CUDA)
   if(${CMAKE_CUDA_COMPILER_VERSION} VERSION_LESS 11.0)
     message(FATAL_ERROR "CUDA version must be at least 11.0!")
