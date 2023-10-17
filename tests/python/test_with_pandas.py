@@ -603,3 +603,38 @@ class TestPandasColumnSplit:
             np.testing.assert_allclose(predt_sparse, predt_dense)
 
         tm.run_with_rabit(world_size=3, test_fn=verify_pandas_sparse)
+
+    @staticmethod
+    def verify_pandas_label():
+        df = pd.DataFrame({"A": np.array([1, 2, 3], dtype=int)})
+        result, _, _ = xgb.data._transform_pandas_df(
+            df, False, None, None, "label", "float"
+        )
+        np.testing.assert_array_equal(
+            result, np.array([[1.0], [2.0], [3.0]], dtype=float)
+        )
+        dm = xgb.DMatrix(np.random.randn(3, 2), label=df, data_split_mode=DataSplitMode.COL)
+        assert dm.num_row() == 3
+        assert dm.num_col() == 2 * xgb.collective.get_world_size()
+
+    def test_pandas_label(self):
+        tm.run_with_rabit(world_size=3, test_fn=self.verify_pandas_label)
+
+    @staticmethod
+    def verify_pandas_weight():
+        rows = 32
+        cols = 8
+
+        X = np.random.randn(rows, cols)
+        y = np.random.randn(rows)
+        w = np.random.uniform(size=rows).astype(np.float32)
+        w_pd = pd.DataFrame(w)
+        data = xgb.DMatrix(X, y, weight=w_pd, data_split_mode=DataSplitMode.COL)
+
+        assert data.num_row() == rows
+        assert data.num_col() == cols * xgb.collective.get_world_size()
+
+        np.testing.assert_array_equal(data.get_weight(), w)
+
+    def test_pandas_weight(self):
+        tm.run_with_rabit(world_size=3, test_fn=self.verify_pandas_weight)
