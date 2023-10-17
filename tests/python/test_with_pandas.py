@@ -531,6 +531,12 @@ class TestPandasColumnSplit:
         expected = tm.column_split_feature_names(["1", "2"], world_size)
         np.testing.assert_equal(np.array(Xy.feature_names), np.array(expected))
 
+        # test pandas series
+        data_series = pd.Series([1, 2, 3, 4, 5])
+        dm = xgb.DMatrix(data_series, data_split_mode=DataSplitMode.COL)
+        assert dm.num_row() == 5
+        assert dm.num_col() == 1 * world_size
+
     def test_pandas(self):
         tm.run_with_rabit(world_size=3, test_fn=self.verify_pandas)
 
