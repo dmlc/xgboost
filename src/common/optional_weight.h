@@ -26,7 +26,7 @@ inline OptionalWeights MakeOptionalWeights(Context const* ctx,
   if (ctx->IsCUDA()) {
     weights.SetDevice(ctx->Device());
   }
-  return OptionalWeights{ctx->IsCPU() ? weights.ConstHostSpan() : weights.ConstDeviceSpan()};
+  return OptionalWeights{ctx->IsCUDA() ? weights.ConstDeviceSpan() : weights.ConstHostSpan()};
 }
 }  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_OPTIONAL_WEIGHT_H_

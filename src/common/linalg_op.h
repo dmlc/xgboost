@@ -55,7 +55,7 @@ void ElementWiseTransformDevice(linalg::TensorView<T, D>, Fn&&, void* = nullptr)
 
 template <typename T, int32_t D, typename Fn>
 void ElementWiseKernel(Context const* ctx, linalg::TensorView<T, D> t, Fn&& fn) {
-  if (!ctx->IsCPU()) {
+  if (ctx->IsCUDA()) {
     common::AssertGPUSupport();
   }
   ElementWiseKernelHost(t, ctx->Threads(), fn);
