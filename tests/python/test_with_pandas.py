@@ -6,6 +6,7 @@ from test_dmatrix import set_base_margin_info
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.core import DataSplitMode
 from xgboost.testing.data import pd_arrow_dtypes, pd_dtypes
 
 try:
@@ -358,3 +359,18 @@ class TestPandas:
             if y is not None:
                 np.testing.assert_allclose(m_orig.get_label(), m_etype.get_label())
                 np.testing.assert_allclose(m_etype.get_label(), y.values)
+
+
+class TestPandasColumnSplit:
+    def test_pandas(self):
+        def verify_pandas():
+            df = pd.DataFrame([[1, 2., True], [2, 3., False]],
+                              columns=['a', 'b', 'c'])
+            dm = xgb.DMatrix(df, data_split_mode=DataSplitMode.COL)
+            world_size = xgb.collective.get_world_size()
+            assert dm.feature_names == ['0.a', '0.b', '0.c', '1.a', '1.b', '1.c', '2.a', '2.b', '2.c']
+            assert dm.feature_types == ['int', 'float', 'i'] * world_size
+            assert dm.num_row() == 2
+            assert dm.num_col() == 3 * world_size
+
+        tm.run_with_rabit(world_size=3, test_fn=verify_pandas)

@@ -8,6 +8,7 @@ import importlib.util
 import multiprocessing
 import os
 import platform
+import queue
 import socket
 import sys
 import threading
@@ -943,12 +944,17 @@ def project_root(path: str) -> str:
 
 
 def run_with_rabit(world_size: int, test_fn: Callable) -> None:
-    tracker = RabitTracker(host_ip="127.0.0.1", n_workers=world_size)
-    tracker.start(world_size)
+    exception_queue: queue.Queue = queue.Queue()
 
     def run_worker(rabit_env: Dict[str, Union[str, int]]) -> None:
-        with xgb.collective.CommunicatorContext(**rabit_env):
-            test_fn()
+        try:
+            with xgb.collective.CommunicatorContext(**rabit_env):
+                test_fn()
+        except Exception as e:
+            exception_queue.put(e)
+
+    tracker = RabitTracker(host_ip="127.0.0.1", n_workers=world_size)
+    tracker.start(world_size)
 
     workers = []
     for _ in range(world_size):
@@ -957,5 +963,6 @@ def run_with_rabit(world_size: int, test_fn: Callable) -> None:
         worker.start()
     for worker in workers:
         worker.join()
+        assert exception_queue.empty(), f"Worker failed: {exception_queue.get()}"
 
     tracker.join()

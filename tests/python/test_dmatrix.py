@@ -1,3 +1,4 @@
+import csv
 import os
 import sys
 import tempfile
@@ -533,6 +534,21 @@ class TestDMatrixColumnSplit:
             assert dtrain.num_col() == 3 * xgb.collective.get_world_size()
 
         tm.run_with_rabit(world_size=3, test_fn=verify_coo)
+
+    def test_uri(self):
+        def verify_uri():
+            rank = xgb.collective.get_rank()
+            data = np.random.rand(5, 5)
+            filename = f'test_data_{rank}.csv'
+            with open(filename, mode='w', newline='') as file:
+                writer = csv.writer(file)
+                for row in data:
+                    writer.writerow(row)
+            dtrain = xgb.DMatrix(f'{filename}?format=csv', data_split_mode=DataSplitMode.COL)
+            assert dtrain.num_row() == 5
+            assert dtrain.num_col() == 5 * xgb.collective.get_world_size()
+
+        tm.run_with_rabit(world_size=3, test_fn=verify_uri)
 
     def test_list(self):
         def verify_list():
