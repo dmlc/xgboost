@@ -160,8 +160,15 @@ function(xgboost_set_cuda_flags target)
 
   set_target_properties(${target} PROPERTIES
     CUDA_STANDARD 17
-    CUDA_STANDARD_REQUIRED ON
-    CUDA_SEPARABLE_COMPILATION OFF)
+    CUDA_STANDARD_REQUIRED ON)
+  if(USE_CUDA_LTO)
+    set_target_properties(${target} PROPERTIES
+      INTERPROCEDURAL_OPTIMIZATION ON
+      CUDA_SEPARABLE_COMPILATION ON)
+  else()
+    set_target_properties(${target} PROPERTIES
+      CUDA_SEPARABLE_COMPILATION OFF)
+  endif()
 endfunction()
 
 macro(xgboost_link_nccl target)

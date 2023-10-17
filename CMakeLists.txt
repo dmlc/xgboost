@@ -6,6 +6,7 @@ list(APPEND CMAKE_MODULE_PATH "${xgboost_SOURCE_DIR}/cmake/modules")
 # These policies are already set from 3.18 but we still need to set the policy
 # default variables here for lower minimum versions in the submodules
 set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
+set(CMAKE_POLICY_DEFAULT_CMP0069 NEW)
 set(CMAKE_POLICY_DEFAULT_CMP0076 NEW)
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 set(CMAKE_POLICY_DEFAULT_CMP0079 NEW)
@@ -39,6 +40,8 @@ write_version()
 set_default_configuration_release()
 
 #-- Options
+include(CMakeDependentOption)
+
 ## User options
 option(BUILD_C_DOC "Build documentation for C APIs using Doxygen." OFF)
 option(USE_OPENMP "Build with OpenMP support." ON)
@@ -77,6 +80,14 @@ if(USE_CUDA)
     unset(GPU_COMPUTE_VER CACHE)
   endif()
 endif()
+# CUDA device LTO was introduced in CMake v3.25 and requires host LTO to also be enabled but can still
+# be explicitly disabled allowing for LTO on host only, host and device, or neither, but device-only LTO
+# is not a supproted configuration
+cmake_dependent_option(USE_CUDA_LTO
+  "Enable link-time optimization for CUDA device code"
+  "${CMAKE_INTERPROCEDURAL_OPTIMIZATION}"
+  "CMAKE_VERSION VERSION_GREATER_EQUAL 3.25;USE_CUDA;CMAKE_INTERPROCEDURAL_OPTIMIZATION"
+  OFF)
 ## Sanitizers
 option(USE_SANITIZER "Use santizer flags" OFF)
 option(SANITIZER_PATH "Path to sanitizes.")
