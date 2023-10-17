@@ -969,7 +969,7 @@ def run_with_rabit(world_size: int, test_fn: Callable) -> None:
 
 
 def column_split_feature_names(
-    feature_names: List[str | int], world_size: int
+    feature_names: List[Union[str, int]], world_size: int
 ) -> List[str]:
     """Get the global list of feature names from the local feature names."""
     return [
