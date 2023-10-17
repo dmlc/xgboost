@@ -129,6 +129,13 @@ def _is_local(spark_context: SparkContext) -> bool:
     return spark_context._jsc.sc().isLocal()
 
 
+def _is_standalone_or_localcluster(spark_context: SparkContext) -> bool:
+    master = spark_context.getConf().get("spark.master")
+    return master is not None and (
+        master.startswith("spark://") or master.startswith("local-cluster")
+    )
+
+
 def _get_gpu_id(task_context: TaskContext) -> int:
     """Get the gpu id from the task resources"""
     if task_context is None:
