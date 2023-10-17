@@ -88,4 +88,27 @@ class TrackerTest : public SocketTest {
     ASSERT_TRUE(rc.OK()) << rc.Report();
   }
 };
+
+template <typename WorkerFn>
+void TestDistributed(std::int32_t n_workers, WorkerFn worker_fn) {
+  std::chrono::seconds timeout{1};
+
+  std::string host;
+  ASSERT_TRUE(GetHostAddress(&host).OK());
+  RabitTracker tracker{StringView{host}, n_workers, 0, timeout};
+  auto fut = tracker.Run();
+
+  std::vector<std::thread> workers;
+  std::int32_t port = tracker.Port();
+
+  for (std::int32_t i = 0; i < n_workers; ++i) {
+    workers.emplace_back([=] { worker_fn(host, port, timeout, i); });
+  }
+
+  for (auto& t : workers) {
+    t.join();
+  }
+
+  ASSERT_TRUE(fut.get().OK());
+}
 }  // namespace xgboost::collective
