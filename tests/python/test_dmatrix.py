@@ -507,11 +507,9 @@ class TestDMatrixColumnSplit:
             assert dm.num_row() == 5
             assert dm.num_col() == 5 * world_size
             assert len(dm.feature_names) == 5 * world_size
-            assert dm.feature_names == [
-                f"{rank}.{feature}"
-                for rank in range(world_size)
-                for feature in feature_names
-            ]
+            assert dm.feature_names == tm.column_split_feature_names(
+                feature_names, world_size
+            )
             assert len(dm.feature_types) == 5 * world_size
             assert dm.feature_types == ["float"] * 5 * world_size
 

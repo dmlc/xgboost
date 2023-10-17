@@ -966,3 +966,12 @@ def run_with_rabit(world_size: int, test_fn: Callable) -> None:
         assert exception_queue.empty(), f"Worker failed: {exception_queue.get()}"
 
     tracker.join()
+
+
+def column_split_feature_names(
+    feature_names: List[str | int], world_size: int
+) -> List[str]:
+    """Get the global list of feature names from the local feature names."""
+    return [
+        f"{rank}.{feature}" for rank in range(world_size) for feature in feature_names
+    ]
