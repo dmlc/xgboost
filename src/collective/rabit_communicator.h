@@ -61,6 +61,7 @@ class RabitCommunicator : public Communicator {
     auto const total_size = per_rank * GetWorldSize();
     auto const index = per_rank * GetRank();
     std::string result(total_size, '\0');
+    result.replace(index, per_rank, input);
     rabit::Allgather(result.data(), total_size, index, per_rank, per_rank);
     return result;
   }
@@ -71,7 +72,8 @@ class RabitCommunicator : public Communicator {
     auto const total_size = std::accumulate(all_sizes.cbegin(), all_sizes.cend(), 0ul);
     auto const begin_index =
         std::accumulate(all_sizes.cbegin(), all_sizes.cbegin() + GetRank(), 0ul);
-    auto const size_prev_slice = GetRank() == 0 ? 0 : all_sizes[GetRank() - 1];
+    auto const size_prev_slice =
+        GetRank() == 0 ? all_sizes[GetWorldSize() - 1] : all_sizes[GetRank() - 1];
 
     std::string result(total_size, '\0');
     result.replace(begin_index, size_node_slice, input);

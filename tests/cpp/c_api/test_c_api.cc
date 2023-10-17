@@ -108,6 +108,7 @@ TEST(CAPI, XGDMatrixCreateFromCSR) {
   Json::Dump(data_arr, &sdata);
   Json config{Object{}};
   config["missing"] = Number{std::numeric_limits<float>::quiet_NaN()};
+  config["data_split_mode"] = Integer{static_cast<int64_t>(DataSplitMode::kCol)};
   Json::Dump(config, &sconfig);
 
   DMatrixHandle handle;
@@ -120,6 +121,8 @@ TEST(CAPI, XGDMatrixCreateFromCSR) {
   ASSERT_EQ(n, 3);
   ASSERT_EQ(XGDMatrixNumNonMissing(handle, &n), 0);
   ASSERT_EQ(n, 3);
+  ASSERT_EQ(XGDMatrixDataSplitMode(handle, &n), 0);
+  ASSERT_EQ(n, static_cast<int64_t>(DataSplitMode::kCol));
 
   std::shared_ptr<xgboost::DMatrix> *pp_fmat =
       static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);

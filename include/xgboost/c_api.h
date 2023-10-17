@@ -144,9 +144,7 @@ XGB_DLL int XGDMatrixCreateFromFile(const char *fname, int silent, DMatrixHandle
  *            See :doc:`/tutorials/input_format` for more info.
  *          \endverbatim
  *   - silent (optional): Whether to print message during loading. Default to true.
- *   - data_split_mode (optional): Whether to split by row or column. In distributed mode, the
- *     file is split accordingly; otherwise this is only an indicator on how the file was split
- *     beforehand. Default to row.
+ *   - data_split_mode (optional): Whether the file was split by row or column beforehand for distributed computing. Default to row.
  * \param out a loaded data matrix
  * \return 0 when success, -1 when failure happens
  */
@@ -174,6 +172,7 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t *indptr, const unsigned *indic
  * \param config  JSON encoded configuration.  Required values are:
  *   - missing: Which value to represent missing value.
  *   - nthread (optional): Number of threads used for initializing DMatrix.
+ *   - data_split_mode (optional): Whether the data was split by row or column beforehand. Default to row.
  * \param out created dmatrix
  * \return 0 when success, -1 when failure happens
  */
@@ -186,6 +185,7 @@ XGB_DLL int XGDMatrixCreateFromCSR(char const *indptr, char const *indices, char
  * \param config JSON encoded configuration.  Required values are:
  *   - missing: Which value to represent missing value.
  *   - nthread (optional): Number of threads used for initializing DMatrix.
+ *   - data_split_mode (optional): Whether the data was split by row or column beforehand. Default to row.
  * \param out created dmatrix
  * \return 0 when success, -1 when failure happens
  */
@@ -200,6 +200,7 @@ XGB_DLL int XGDMatrixCreateFromDense(char const *data, char const *config, DMatr
  * \param config  JSON encoded configuration.  Supported values are:
  *   - missing: Which value to represent missing value.
  *   - nthread (optional): Number of threads used for initializing DMatrix.
+ *   - data_split_mode (optional): Whether the data was split by row or column beforehand. Default to row.
  * \param out created dmatrix
  * \return 0 when success, -1 when failure happens
  */
@@ -266,6 +267,7 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data,
  * \param config JSON encoded configuration.  Required values are:
  *   - missing: Which value to represent missing value.
  *   - nthread (optional): Number of threads used for initializing DMatrix.
+ *   - data_split_mode (optional): Whether the data was split by row or column beforehand. Default to row.
  * \param out created dmatrix
  * \return 0 when success, -1 when failure happens
  */
@@ -278,6 +280,7 @@ XGB_DLL int XGDMatrixCreateFromCudaColumnar(char const *data, char const *config
  * \param config JSON encoded configuration.  Required values are:
  *   - missing: Which value to represent missing value.
  *   - nthread (optional): Number of threads used for initializing DMatrix.
+ *   - data_split_mode (optional): Whether the data was split by row or column beforehand. Default to row.
  * \param out created dmatrix
  * \return 0 when success, -1 when failure happens
  */
@@ -789,6 +792,16 @@ XGB_DLL int XGDMatrixNumCol(DMatrixHandle handle, bst_ulong *out);
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGDMatrixNumNonMissing(DMatrixHandle handle, bst_ulong *out);
+
+/*!
+ * \brief Get the data split mode from DMatrix.
+ *
+ * \param handle the handle to the DMatrix
+ * \param out The output of the data split mode
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixDataSplitMode(DMatrixHandle handle, bst_ulong *out);
 
 /**
  * \brief Get the predictors from DMatrix as CSR matrix for testing.  If this is a

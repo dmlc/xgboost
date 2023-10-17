@@ -10,6 +10,7 @@ import os
 import platform
 import socket
 import sys
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from io import StringIO
@@ -34,6 +35,7 @@ import pytest
 from scipy import sparse
 
 import xgboost as xgb
+from xgboost import RabitTracker
 from xgboost.core import ArrayLike
 from xgboost.sklearn import SklObjective
 from xgboost.testing.data import (
@@ -938,3 +940,22 @@ def load_agaricus(path: str) -> Tuple[xgb.DMatrix, xgb.DMatrix]:
 
 def project_root(path: str) -> str:
     return normpath(os.path.join(demo_dir(path), os.path.pardir))
+
+
+def run_with_rabit(world_size: int, test_fn: Callable) -> None:
+    tracker = RabitTracker(host_ip="127.0.0.1", n_workers=world_size)
+    tracker.start(world_size)
+
+    def run_worker(rabit_env: Dict[str, Union[str, int]]) -> None:
+        with xgb.collective.CommunicatorContext(**rabit_env):
+            test_fn()
+
+    workers = []
+    for _ in range(world_size):
+        worker = threading.Thread(target=run_worker, args=(tracker.worker_envs(),))
+        workers.append(worker)
+        worker.start()
+    for worker in workers:
+        worker.join()
+
+    tracker.join()

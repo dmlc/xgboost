@@ -303,14 +303,14 @@ def _check_distributed_params(kwargs: Dict[str, Any]) -> None:
 
 
 def _validate_feature_info(
-    feature_info: Sequence[str], n_features: int, name: str
+    feature_info: Sequence[str], n_features: int, is_column_split: bool, name: str
 ) -> List[str]:
     if isinstance(feature_info, str) or not isinstance(feature_info, Sequence):
         raise TypeError(
             f"Expecting a sequence of strings for {name}, got: {type(feature_info)}"
         )
     feature_info = list(feature_info)
-    if len(feature_info) != n_features and n_features != 0:
+    if len(feature_info) != n_features and n_features != 0 and not is_column_split:
         msg = (
             f"{name} must have the same length as the number of data columns, ",
             f"expected {n_features}, got {len(feature_info)}",
@@ -1231,6 +1231,16 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         _check_call(_LIB.XGDMatrixNumNonMissing(self.handle, ctypes.byref(ret)))
         return ret.value
 
+    def data_split_mode(self) -> DataSplitMode:
+        """Get the data split mode of the DMatrix.
+
+        .. versionadded:: 2.1.0
+
+        """
+        ret = c_bst_ulong()
+        _check_call(_LIB.XGDMatrixDataSplitMode(self.handle, ctypes.byref(ret)))
+        return DataSplitMode(ret.value)
+
     def slice(
         self, rindex: Union[List[int], np.ndarray], allow_groups: bool = False
     ) -> "DMatrix":
@@ -1298,7 +1308,10 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
 
         # validate feature name
         feature_names = _validate_feature_info(
-            feature_names, self.num_col(), "feature names"
+            feature_names,
+            self.num_col(),
+            self.data_split_mode() == DataSplitMode.COL,
+            "feature names",
         )
         if len(feature_names) != len(set(feature_names)):
             values, counts = np.unique(
@@ -1371,7 +1384,10 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             return
 
         feature_types = _validate_feature_info(
-            feature_types, self.num_col(), "feature types"
+            feature_types,
+            self.num_col(),
+            self.data_split_mode() == DataSplitMode.COL,
+            "feature types",
         )
 
         feature_types_bytes = [bytes(f, encoding="utf-8") for f in feature_types]
