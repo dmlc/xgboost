@@ -2,15 +2,13 @@ cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 project(xgboost LANGUAGES CXX C VERSION 2.1.0)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${xgboost_SOURCE_DIR}/cmake/modules")
-cmake_policy(SET CMP0022 NEW)
-cmake_policy(SET CMP0079 NEW)
-cmake_policy(SET CMP0076 NEW)
-set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
-cmake_policy(SET CMP0063 NEW)
 
-if((${CMAKE_VERSION} VERSION_GREATER 3.13) OR (${CMAKE_VERSION} VERSION_EQUAL 3.13))
-  cmake_policy(SET CMP0077 NEW)
-endif()
+# These policies are already set from 3.18 but we still need to set the policy
+# default variables here for lower minimum versions in the submodules
+set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
+set(CMAKE_POLICY_DEFAULT_CMP0076 NEW)
+set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
+set(CMAKE_POLICY_DEFAULT_CMP0079 NEW)
 
 message(STATUS "CMake version ${CMAKE_VERSION}")
 
@@ -175,8 +173,7 @@ if(USE_CUDA)
   if(${CMAKE_CUDA_COMPILER_VERSION} VERSION_LESS 11.0)
     message(FATAL_ERROR "CUDA version must be at least 11.0!")
   endif()
-  set(GEN_CODE "")
-  format_gencode_flags("${GPU_COMPUTE_VER}" GEN_CODE)
+  compute_cmake_cuda_archs("${GPU_COMPUTE_VER}")
   add_subdirectory(${PROJECT_SOURCE_DIR}/gputreeshap)
 
   find_package(CUDAToolkit REQUIRED)
