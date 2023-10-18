@@ -148,7 +148,8 @@ TEST(IO, Resource) {
     fout << 1.0 << std::endl;
     fout.close();
 
-    auto resource = std::make_shared<MmapResource>(path, 0, sizeof(double));
+    auto resource = std::shared_ptr<MmapResource>{
+      new MmapResource{path, 0, sizeof(double)}};
     ASSERT_EQ(resource->Size(), sizeof(double));
     ASSERT_EQ(resource->Type(), ResourceHandler::kMmap);
     ASSERT_EQ(resource->DataAs<double>()[0], val);
