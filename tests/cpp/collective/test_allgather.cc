@@ -1,18 +1,23 @@
 /**
  * Copyright 2023, XGBoost Contributors
  */
-#include <gtest/gtest.h>
-#include <xgboost/span.h>  // for Span
+#include <gtest/gtest.h>   // for ASSERT_EQ
+#include <xgboost/span.h>  // for Span, oper...
 
-#include <cstdint>  // for int32_t
-#include <numeric>  // for iota
-#include <string>   // for string
-#include <thread>   // for thread
-#include <vector>   // for vector
+#include <algorithm>  // for min
+#include <chrono>     // for seconds
+#include <cstddef>    // for size_t
+#include <cstdint>    // for int32_t
+#include <numeric>    // for iota
+#include <string>     // for string
+#include <thread>     // for thread
+#include <vector>     // for vector
 
-#include "../../../src/collective/allgather.h"
-#include "../../../src/collective/tracker.h"  // for GetHostAddress, Tracker
-#include "test_worker.h"                      // for TestDistributed==
+#include "../../../src/collective/allgather.h"  // for RingAllgather
+#include "../../../src/collective/comm.h"       // for RabitComm
+#include "gtest/gtest.h"                        // for AssertionR...
+#include "test_worker.h"                        // for TestDistri...
+#include "xgboost/collective/result.h"          // for Result
 
 namespace xgboost::collective {
 namespace {

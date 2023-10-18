@@ -2,11 +2,12 @@
  * Copyright 2023, XGBoost Contributors
  */
 #pragma once
-#include <cstddef>  // for size_t
-#include <cstdint>  // for int32_t
-#include <memory>   // for shared_ptr
-#include <numeric>  // for accumulate
-#include <vector>   // for vector
+#include <cstddef>      // for size_t
+#include <cstdint>      // for int32_t
+#include <memory>       // for shared_ptr
+#include <numeric>      // for accumulate
+#include <type_traits>  // for remove_cv_t
+#include <vector>       // for vector
 
 #include "comm.h"                       // for Comm, Channel, EraseType
 #include "xgboost/collective/result.h"  // for Result

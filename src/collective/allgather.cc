@@ -3,9 +3,9 @@
  */
 #include "allgather.h"
 
-#include <algorithm>  // for min
+#include <algorithm>  // for min, copy_n
 #include <cstddef>    // for size_t
-#include <cstdint>    // for int8_t
+#include <cstdint>    // for int8_t, int32_t, int64_t
 #include <memory>     // for shared_ptr
 #include <numeric>    // for partial_sum
 #include <vector>     // for vector
