@@ -8,10 +8,12 @@ In before, users need to run an encoder themselves before passing the data into 
 which creates a sparse matrix and potentially increase memory usage.  This demo
 showcases the experimental categorical data support, more advanced features are planned.
 
-Also, see :doc:`the tutorial </tutorials/categorical>` for using XGBoost with
-categorical data.
+  .. versionadded:: 1.5.0
 
-    .. versionadded:: 1.5.0
+See Also
+--------
+- :doc:`Tutorial </tutorials/categorical>`
+- :ref:`sphx_glr_python_examples_cat_in_the_dat.py`
 
 """
 from typing import Tuple
