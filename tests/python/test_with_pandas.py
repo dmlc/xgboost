@@ -1,3 +1,4 @@
+import os
 from typing import Type
 
 import numpy as np
@@ -417,6 +418,7 @@ class TestPandas:
                 np.testing.assert_allclose(m_etype.get_label(), y.values)
 
 
+@pytest.mark.skipif(os.name == "win32", reason="Skip on Windows")
 class TestPandasColumnSplit:
     @staticmethod
     def verify_pandas():
@@ -619,7 +621,9 @@ class TestPandasColumnSplit:
         np.testing.assert_array_equal(
             result, np.array([[1.0], [2.0], [3.0]], dtype=float)
         )
-        dm = xgb.DMatrix(np.random.randn(3, 2), label=df, data_split_mode=DataSplitMode.COL)
+        dm = xgb.DMatrix(
+            np.random.randn(3, 2), label=df, data_split_mode=DataSplitMode.COL
+        )
         assert dm.num_row() == 3
         assert dm.num_col() == 2 * xgb.collective.get_world_size()
 

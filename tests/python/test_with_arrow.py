@@ -101,6 +101,7 @@ class TestArrowTable:
         np.testing.assert_equal(y_np_low, y_lower_bound.to_pandas().values)
 
 
+@pytest.mark.skipif(os.name == 'win32', reason='Skip on Windows')
 class TestArrowTableColumnSplit:
     def test_arrow_table(self):
         def verify_arrow_table():

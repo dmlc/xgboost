@@ -480,6 +480,7 @@ class TestDMatrix:
             assert tm.predictor_equal(m0, m1)
 
 
+@pytest.mark.skipif(os.name == 'win32', reason='Skip on Windows')
 class TestDMatrixColumnSplit:
     def test_numpy(self):
         def verify_numpy():
