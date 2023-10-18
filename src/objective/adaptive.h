@@ -96,13 +96,13 @@ void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& posit
 inline void UpdateTreeLeaf(Context const* ctx, HostDeviceVector<bst_node_t> const& position,
                            std::int32_t group_idx, MetaInfo const& info, float learning_rate,
                            HostDeviceVector<float> const& predt, float alpha, RegTree* p_tree) {
-  if (ctx->IsCPU()) {
-    detail::UpdateTreeLeafHost(ctx, position.ConstHostVector(), group_idx, info, learning_rate,
-                               predt, alpha, p_tree);
-  } else {
+  if (ctx->IsCUDA()) {
     position.SetDevice(ctx->Device());
     detail::UpdateTreeLeafDevice(ctx, position.ConstDeviceSpan(), group_idx, info, learning_rate,
                                  predt, alpha, p_tree);
+  } else {
+    detail::UpdateTreeLeafHost(ctx, position.ConstHostVector(), group_idx, info, learning_rate,
+                               predt, alpha, p_tree);
   }
 }
 }  // namespace obj

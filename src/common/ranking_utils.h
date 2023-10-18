@@ -197,10 +197,10 @@ class RankingCache {
       CHECK_EQ(info.group_ptr_.back(), info.labels.Size())
           << error::GroupSize() << "the size of label.";
     }
-    if (ctx->IsCPU()) {
-      this->InitOnCPU(ctx, info);
-    } else {
+    if (ctx->IsCUDA()) {
       this->InitOnCUDA(ctx, info);
+    } else {
+      this->InitOnCPU(ctx, info);
     }
     if (!info.weights_.Empty()) {
       CHECK_EQ(Groups(), info.weights_.Size()) << error::GroupWeight();
@@ -218,7 +218,7 @@ class RankingCache {
   // Constructed as [1, n_samples] if group ptr is not supplied by the user
   common::Span<bst_group_t const> DataGroupPtr(Context const* ctx) const {
     group_ptr_.SetDevice(ctx->Device());
-    return ctx->IsCPU() ? group_ptr_.ConstHostSpan() : group_ptr_.ConstDeviceSpan();
+    return ctx->IsCUDA() ? group_ptr_.ConstDeviceSpan() : group_ptr_.ConstHostSpan();
   }
 
   [[nodiscard]] auto const& Param() const { return param_; }
@@ -231,10 +231,10 @@ class RankingCache {
       sorted_idx_cache_.SetDevice(ctx->Device());
       sorted_idx_cache_.Resize(predt.size());
     }
-    if (ctx->IsCPU()) {
-      return this->MakeRankOnCPU(ctx, predt);
-    } else {
+    if (ctx->IsCUDA()) {
       return this->MakeRankOnCUDA(ctx, predt);
+    } else {
+      return this->MakeRankOnCPU(ctx, predt);
     }
   }
   // The function simply returns a uninitialized buffer as this is only used by the
@@ -307,10 +307,10 @@ class NDCGCache : public RankingCache {
  public:
   NDCGCache(Context const* ctx, MetaInfo const& info, LambdaRankParam const& p)
       : RankingCache{ctx, info, p} {
-    if (ctx->IsCPU()) {
-      this->InitOnCPU(ctx, info);
-    } else {
+    if (ctx->IsCUDA()) {
       this->InitOnCUDA(ctx, info);
+    } else {
+      this->InitOnCPU(ctx, info);
     }
   }
 
@@ -318,7 +318,7 @@ class NDCGCache : public RankingCache {
     return inv_idcg_.View(ctx->Device());
   }
   common::Span<double const> Discount(Context const* ctx) const {
-    return ctx->IsCPU() ? discounts_.ConstHostSpan() : discounts_.ConstDeviceSpan();
+    return ctx->IsCUDA() ? discounts_.ConstDeviceSpan() : discounts_.ConstHostSpan();
   }
   linalg::VectorView<double> Dcg(Context const* ctx) {
     if (dcg_.Size() == 0) {
@@ -387,10 +387,10 @@ class PreCache : public RankingCache {
  public:
   PreCache(Context const* ctx, MetaInfo const& info, LambdaRankParam const& p)
       : RankingCache{ctx, info, p} {
-    if (ctx->IsCPU()) {
-      this->InitOnCPU(ctx, info);
-    } else {
+    if (ctx->IsCUDA()) {
       this->InitOnCUDA(ctx, info);
+    } else {
+      this->InitOnCPU(ctx, info);
     }
   }
 
@@ -399,7 +399,7 @@ class PreCache : public RankingCache {
       pre_.SetDevice(ctx->Device());
       pre_.Resize(this->Groups());
     }
-    return ctx->IsCPU() ? pre_.HostSpan() : pre_.DeviceSpan();
+    return ctx->IsCUDA() ? pre_.DeviceSpan() : pre_.HostSpan();
   }
 };
 
@@ -418,10 +418,10 @@ class MAPCache : public RankingCache {
  public:
   MAPCache(Context const* ctx, MetaInfo const& info, LambdaRankParam const& p)
       : RankingCache{ctx, info, p}, n_samples_{static_cast<std::size_t>(info.num_row_)} {
-    if (ctx->IsCPU()) {
-      this->InitOnCPU(ctx, info);
-    } else {
+    if (ctx->IsCUDA()) {
       this->InitOnCUDA(ctx, info);
+    } else {
+      this->InitOnCPU(ctx, info);
     }
   }
 
@@ -430,21 +430,21 @@ class MAPCache : public RankingCache {
       n_rel_.SetDevice(ctx->Device());
       n_rel_.Resize(n_samples_);
     }
-    return ctx->IsCPU() ? n_rel_.HostSpan() : n_rel_.DeviceSpan();
+    return ctx->IsCUDA() ? n_rel_.DeviceSpan() : n_rel_.HostSpan();
   }
   common::Span<double> Acc(Context const* ctx) {
     if (acc_.Empty()) {
       acc_.SetDevice(ctx->Device());
       acc_.Resize(n_samples_);
     }
-    return ctx->IsCPU() ? acc_.HostSpan() : acc_.DeviceSpan();
+    return ctx->IsCUDA() ? acc_.DeviceSpan() : acc_.HostSpan();
   }
   common::Span<double> Map(Context const* ctx) {
     if (map_.Empty()) {
       map_.SetDevice(ctx->Device());
       map_.Resize(this->Groups());
     }
-    return ctx->IsCPU() ? map_.HostSpan() : map_.DeviceSpan();
+    return ctx->IsCUDA() ? map_.DeviceSpan() : map_.HostSpan();
   }
 };
 

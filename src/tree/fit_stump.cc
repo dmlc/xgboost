@@ -72,7 +72,7 @@ void FitStump(Context const* ctx, MetaInfo const& info, linalg::Matrix<GradientP
 
   gpair.SetDevice(ctx->Device());
   auto gpair_t = gpair.View(ctx->Device());
-  ctx->IsCPU() ? cpu_impl::FitStump(ctx, info, gpair_t, out->HostView())
-      : cuda_impl::FitStump(ctx, info, gpair_t, out->View(ctx->Device()));
+  ctx->IsCUDA() ? cuda_impl::FitStump(ctx, info, gpair_t, out->View(ctx->Device()))
+                : cpu_impl::FitStump(ctx, info, gpair_t, out->HostView());
 }
 }  // namespace xgboost::tree

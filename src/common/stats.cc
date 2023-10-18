@@ -49,7 +49,9 @@ void Mean(Context const* ctx, linalg::Vector<float> const& v, linalg::Vector<flo
   out->SetDevice(ctx->Device());
   out->Reshape(1);
 
-  if (ctx->IsCPU()) {
+  if (ctx->IsCUDA()) {
+    cuda_impl::Mean(ctx, v.View(ctx->Device()), out->View(ctx->Device()));
+  } else {
     auto h_v = v.HostView();
     float n = v.Size();
     MemStackAllocator<float, DefaultMaxThreads()> tloc(ctx->Threads(), 0.0f);
@@ -57,8 +59,6 @@ void Mean(Context const* ctx, linalg::Vector<float> const& v, linalg::Vector<flo
                 [&](auto i) { tloc[omp_get_thread_num()] += h_v(i) / n; });
     auto ret = std::accumulate(tloc.cbegin(), tloc.cend(), .0f);
     out->HostView()(0) = ret;
-  } else {
-    cuda_impl::Mean(ctx, v.View(ctx->Device()), out->View(ctx->Device()));
   }
 }
 }  // namespace xgboost::common
