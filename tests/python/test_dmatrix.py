@@ -1,5 +1,6 @@
 import csv
 import os
+import sys
 import tempfile
 
 import numpy as np
@@ -480,7 +481,7 @@ class TestDMatrix:
             assert tm.predictor_equal(m0, m1)
 
 
-@pytest.mark.skipif(os.name == 'win32', reason='Skip on Windows')
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 class TestDMatrixColumnSplit:
     def test_numpy(self):
         def verify_numpy():

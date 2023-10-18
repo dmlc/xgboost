@@ -1,4 +1,4 @@
-import os
+import sys
 from typing import Type
 
 import numpy as np
@@ -418,7 +418,7 @@ class TestPandas:
                 np.testing.assert_allclose(m_etype.get_label(), y.values)
 
 
-@pytest.mark.skipif(os.name == "win32", reason="Skip on Windows")
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 class TestPandasColumnSplit:
     @staticmethod
     def verify_pandas():
