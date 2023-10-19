@@ -137,20 +137,4 @@ class Channel {
 };
 
 enum class Op { kMax = 0, kMin = 1, kSum = 2, kBitwiseAND = 3, kBitwiseOR = 4, kBitwiseXOR = 5 };
-
-template <typename T, typename U = std::conditional_t<std::is_const_v<T>,
-                                                      std::add_const_t<std::int8_t>, std::int8_t>>
-common::Span<U> EraseType(common::Span<T> data) {
-  auto n_total_bytes = data.size_bytes();
-  auto erased = common::Span{reinterpret_cast<std::add_pointer_t<U>>(data.data()), n_total_bytes};
-  return erased;
-}
-
-template <typename T, typename U>
-common::Span<T> RestoreType(common::Span<U> data) {
-  static_assert(std::is_same_v<std::remove_const_t<U>, std::int8_t>);
-  auto n_total_bytes = data.size_bytes();
-  auto restored = common::Span{reinterpret_cast<T*>(data.data()), n_total_bytes / sizeof(T)};
-  return restored;
-}
 }  // namespace xgboost::collective

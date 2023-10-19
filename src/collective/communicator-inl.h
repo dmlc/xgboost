@@ -327,6 +327,5 @@ inline SpecialAllgatherVResult<T> SpecialAllgatherV(std::vector<T> const &inputs
 
   return {offsets, all_sizes, all_inputs};
 }
-
 }  // namespace collective
 }  // namespace xgboost

@@ -4,7 +4,9 @@
 #include <gtest/gtest.h>
 
 #include "../../../src/collective/comm.h"
-#include "test_worker.h"
+#include "../../../src/common/type.h"  // for EraseType
+#include "test_worker.h"               // for TrackerTest
+
 namespace xgboost::collective {
 namespace {
 class CommTest : public TrackerTest {};

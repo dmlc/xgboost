@@ -9,7 +9,7 @@
 #include <bitset>       // for bitset
 #include <cstdint>      // for uint32_t, uint64_t, uint8_t
 #include <ostream>      // for ostream
-#include <type_traits>  // for conditional_t, is_signed_v
+#include <type_traits>  // for conditional_t, is_signed_v, add_const_t
 
 #if defined(__CUDACC__)
 #include <thrust/copy.h>

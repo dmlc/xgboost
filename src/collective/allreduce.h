@@ -4,8 +4,9 @@
 #pragma once
 #include <cstdint>      // for int8_t
 #include <functional>   // for function
-#include <type_traits>  // for is_invocable_v
+#include <type_traits>  // for is_invocable_v, enable_if_t
 
+#include "../common/type.h"             // for EraseType, RestoreType
 #include "../data/array_interface.h"    // for ArrayInterfaceHandler
 #include "comm.h"                       // for Comm, RestoreType
 #include "xgboost/collective/result.h"  // for Result
@@ -23,14 +24,14 @@ Result RingAllreduce(Comm const& comm, common::Span<std::int8_t> data, Func cons
 template <typename T, typename Fn>
 std::enable_if_t<std::is_invocable_v<Fn, common::Span<T const>, common::Span<T>>, Result> Allreduce(
     Comm const& comm, common::Span<T> data, Fn redop) {
-  auto erased = EraseType(data);
+  auto erased = common::EraseType(data);
   auto type = ToDType<T>::kType;
 
   auto erased_fn = [type, redop](common::Span<std::int8_t const> lhs,
                                  common::Span<std::int8_t> out) {
     CHECK_EQ(lhs.size(), out.size()) << "Invalid input for reduction.";
-    auto lhs_t = RestoreType<T const>(lhs);
-    auto rhs_t = RestoreType<T>(out);
+    auto lhs_t = common::RestoreType<T const>(lhs);
+    auto rhs_t = common::RestoreType<T>(out);
     redop(lhs_t, rhs_t);
   };
 
