@@ -154,7 +154,7 @@ XGBoost doesn't know this mapping from the input and hence cannot store it in th
   X_test["genre"] = X_test["genre"].astype("category")
   reg.predict(X_test)
 
-In the above snippet, training data and test data are encoded separately, resulting in two different encoding schemas and invalid prediction result.
+In the above snippet, training data and test data are encoded separately, resulting in two different encoding schemas and invalid prediction result. See :ref:`sphx_glr_python_examples_cat_pipeline.py` for a worked example using ordinal encoder.
 
 *************
 Miscellaneous

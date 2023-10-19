@@ -6,6 +6,12 @@ The script showcases how to keep the categorical data encoding consistent across
 training and inference. There are many ways to attain the same goal, this script can be
 used as a starting point.
 
+See Also
+--------
+- :doc:`Tutorial </tutorials/categorical>`
+- :ref:`sphx_glr_python_examples_categorical.py`
+- :ref:`sphx_glr_python_examples_cat_in_the_dat.py`
+
 """
 from typing import List, Tuple
 

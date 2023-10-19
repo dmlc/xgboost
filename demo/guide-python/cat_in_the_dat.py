@@ -17,6 +17,7 @@ See Also
 --------
 - :doc:`Tutorial </tutorials/categorical>`
 - :ref:`sphx_glr_python_examples_categorical.py`
+- :ref:`sphx_glr_python_examples_cat_pipeline.py`
 
 """
 

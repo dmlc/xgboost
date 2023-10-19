@@ -14,6 +14,7 @@ See Also
 --------
 - :doc:`Tutorial </tutorials/categorical>`
 - :ref:`sphx_glr_python_examples_cat_in_the_dat.py`
+- :ref:`sphx_glr_python_examples_cat_pipeline.py`
 
 """
 from typing import Tuple
