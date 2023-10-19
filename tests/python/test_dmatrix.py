@@ -481,7 +481,7 @@ class TestDMatrix:
             assert tm.predictor_equal(m0, m1)
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@pytest.mark.skipif(tm.is_windows(), reason="Rabit does not run on windows")
 class TestDMatrixColumnSplit:
     def test_numpy(self):
         def verify_numpy():
