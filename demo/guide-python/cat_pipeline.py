@@ -24,18 +24,18 @@ def make_example_data() -> Tuple[pd.DataFrame, pd.Series, List[str]]:
     n_samples = 512
     rng = np.random.default_rng(1994)
 
+    # We have three categorical features, while the rest are numerical.
+    categorical_features = ["brand_id", "retailer_id", "category_id"]
+
     df = pd.DataFrame(
         np.random.randint(32, 96, size=(n_samples, 3)),
-        columns=["brand_id", "retailer_id", "category_id"],
+        columns=categorical_features,
     )
 
     df["price"] = rng.integers(100, 200, size=(n_samples,))
     df["stock_status"] = rng.choice([True, False], n_samples)
     df["on_sale"] = rng.choice([True, False], n_samples)
     df["label"] = rng.normal(loc=0.0, scale=1.0, size=n_samples)
-
-    # We have three categorical features, while the rest are numerical.
-    categorical_features = ["brand_id", "retailer_id", "category_id"]
 
     X = df.drop(["label"], axis=1)
     y = df["label"]
@@ -100,6 +100,7 @@ def pipeline() -> None:
     enc = make_column_transformer(
         (
             OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=np.nan),
+            # all categorical feature names end with "_id"
             make_column_selector(pattern=".*_id"),
         ),
         remainder="passthrough",

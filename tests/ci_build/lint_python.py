@@ -20,6 +20,7 @@ class LintersPaths:
         "tests/python/test_config.py",
         "tests/python/test_data_iterator.py",
         "tests/python/test_dt.py",
+        "tests/python/test_demos.py",
         "tests/python/test_predict.py",
         "tests/python/test_quantile_dmatrix.py",
         "tests/python/test_tree_regularization.py",
@@ -78,6 +79,7 @@ class LintersPaths:
         "python-package/",
         # tests
         "tests/python/test_dt.py",
+        "tests/python/test_demos.py",
         "tests/python/test_data_iterator.py",
         "tests/python-gpu/test_gpu_data_iterator.py",
         "tests/python-gpu/load_pickle.py",
