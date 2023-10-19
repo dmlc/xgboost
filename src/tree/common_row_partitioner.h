@@ -1,35 +1,33 @@
 /**
- * Copyright 2021-2023 XGBoost contributors
+ * Copyright 2021-2023, XGBoost contributors
  * \file common_row_partitioner.h
  * \brief Common partitioner logic for hist and approx methods.
  */
 #ifndef XGBOOST_TREE_COMMON_ROW_PARTITIONER_H_
 #define XGBOOST_TREE_COMMON_ROW_PARTITIONER_H_
 
-#include <algorithm>  // std::all_of
-#include <cinttypes>  // std::uint32_t
-#include <limits>  // std::numeric_limits
-#include <vector>
+#include <algorithm>  // for all_of
+#include <cstdint>    // for uint32_t
+#include <limits>     // for numeric_limits
+#include <vector>     // for vector
 
 #include "../collective/communicator-inl.h"
-#include "../common/linalg_op.h"  // cbegin
-#include "../common/numeric.h"  // Iota
-#include "../common/partition_builder.h"
-#include "hist/expand_entry.h"  // CPUExpandEntry
-#include "xgboost/base.h"
-#include "xgboost/context.h"    // Context
-#include "xgboost/linalg.h"       // TensorView
+#include "../common/linalg_op.h"          // for cbegin
+#include "../common/numeric.h"            // for Iota
+#include "../common/partition_builder.h"  // for PartitionBuilder
+#include "../common/tuning.h"             // for kPartitionBlockSize
+#include "xgboost/base.h"                 // for bst_row_t, bst_bin_t
+#include "xgboost/context.h"              // for Context
+#include "xgboost/linalg.h"               // for TensorView
+#include "xgboost/span.h"                 // for Span
 
 namespace xgboost::tree {
-
-static constexpr size_t kPartitionBlockSize = 2048;
-
 class ColumnSplitHelper {
  public:
   ColumnSplitHelper() = default;
 
   ColumnSplitHelper(bst_row_t num_row,
-                    common::PartitionBuilder<kPartitionBlockSize>* partition_builder,
+                    common::PartitionBuilder<common::kPartitionBlockSize>* partition_builder,
                     common::RowSetCollection* row_set_collection)
       : partition_builder_{partition_builder}, row_set_collection_{row_set_collection} {
     decision_storage_.resize(num_row);
@@ -79,7 +77,7 @@ class ColumnSplitHelper {
   BitVector decision_bits_{};
   std::vector<BitVector::value_type> missing_storage_{};
   BitVector missing_bits_{};
-  common::PartitionBuilder<kPartitionBlockSize>* partition_builder_;
+  common::PartitionBuilder<common::kPartitionBlockSize>* partition_builder_;
   common::RowSetCollection* row_set_collection_;
 };
 
@@ -204,14 +202,14 @@ class CommonRowPartitioner {
           int32_t nid = nodes[node_in_set].nid;
           return row_set_collection_[nid].Size();
         },
-        kPartitionBlockSize);
+        common::kPartitionBlockSize);
 
     // 2.2 Initialize the partition builder
     // allocate buffers for storage intermediate results by each thread
     partition_builder_.Init(space.Size(), n_nodes, [&](size_t node_in_set) {
       const int32_t nid = nodes[node_in_set].nid;
       const size_t size = row_set_collection_[nid].Size();
-      const size_t n_tasks = size / kPartitionBlockSize + !!(size % kPartitionBlockSize);
+      const size_t n_tasks = size / common::kPartitionBlockSize + !!(size % common::kPartitionBlockSize);
       return n_tasks;
     });
     CHECK_EQ(base_rowid, gmat.base_rowid);
@@ -291,7 +289,7 @@ class CommonRowPartitioner {
   }
 
  private:
-  common::PartitionBuilder<kPartitionBlockSize> partition_builder_;
+  common::PartitionBuilder<common::kPartitionBlockSize> partition_builder_;
   common::RowSetCollection row_set_collection_;
   bool is_col_split_;
   ColumnSplitHelper column_split_helper_;

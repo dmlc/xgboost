@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2023 by XGBoost Contributors
+ * Copyright 2017-2023, XGBoost Contributors
  */
 #include <algorithm>  // for max, fill, min
 #include <any>        // for any, any_cast
@@ -19,6 +19,7 @@
 #include "../common/error_msg.h"              // for InplacePredictProxy
 #include "../common/math.h"                   // for CheckNAN
 #include "../common/threading_utils.h"        // for ParallelFor
+#include "../common/tuning.h"                 // for kPredictionBlockSize
 #include "../data/adapter.h"                  // for ArrayAdapter, CSRAdapter, CSRArrayAdapter
 #include "../data/gradient_index.h"           // for GHistIndexMatrix
 #include "../data/proxy_dmatrix.h"            // for DMatrixProxy
@@ -546,7 +547,7 @@ class ColumnSplitHelper {
     }
   }
 
-  template <typename DataView, size_t block_of_rows_size, bool predict_leaf = false>
+  template <typename DataView, std::size_t block_of_rows_size, bool predict_leaf = false>
   void PredictBatchKernel(DataView batch, std::vector<bst_float> *out_preds) {
     auto const num_group = model_.learner_model_param->num_output_group;
 
@@ -582,7 +583,7 @@ class ColumnSplitHelper {
     ClearBitVectors();
   }
 
-  static std::size_t constexpr kBlockOfRowsSize = 64;
+  static std::size_t constexpr kBlockOfRowsSize = common::kPredictionBlockSize;
 
   std::int32_t const n_threads_;
   gbm::GBTreeModel const &model_;
@@ -984,7 +985,7 @@ class CPUPredictor : public Predictor {
   }
 
  private:
-  static size_t constexpr kBlockOfRowsSize = 64;
+  static size_t constexpr kBlockOfRowsSize = common::kPredictionBlockSize;
 };
 
 XGBOOST_REGISTER_PREDICTOR(CPUPredictor, "cpu_predictor")

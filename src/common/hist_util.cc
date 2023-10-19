@@ -1,19 +1,18 @@
 /**
- * Copyright 2017-2023 by XGBoost Contributors
+ * Copyright 2017-2023, XGBoost Contributors
  * \file hist_util.cc
  */
 #include "hist_util.h"
-
-#include <dmlc/timer.h>
 
 #include <vector>
 
 #include "../data/adapter.h"         // for SparsePageAdapterBatch
 #include "../data/gradient_index.h"  // for GHistIndexMatrix
-#include "quantile.h"
-#include "xgboost/base.h"
-#include "xgboost/context.h"  // for Context
-#include "xgboost/data.h"     // for SparsePage, SortedCSCPage
+#include "quantile.h"                // for HostSketchContainer, SortedSketchContainer, CalcColu...
+#include "tuning.h"                  // for kHistAdHocL2Size
+#include "xgboost/base.h"            // for bst_row_t, GradientPair, bst_bin_t
+#include "xgboost/context.h"         // for Context
+#include "xgboost/data.h"            // for SparsePage, SortedCSCPage
 
 #if defined(XGBOOST_MM_PREFETCH_PRESENT)
   #include <xmmintrin.h>
@@ -105,28 +104,7 @@ void SubtractionHist(GHistRow dst, const GHistRow src1, const GHistRow src2, siz
   }
 }
 
-struct Prefetch {
- public:
-  static constexpr size_t kCacheLineSize = 64;
-  static constexpr size_t kPrefetchOffset = 10;
-
- private:
-  static constexpr size_t kNoPrefetchSize =
-      kPrefetchOffset + kCacheLineSize /
-      sizeof(decltype(GHistIndexMatrix::row_ptr)::value_type);
-
- public:
-  static size_t NoPrefetchSize(size_t rows) {
-    return std::min(rows, kNoPrefetchSize);
-  }
-
-  template <typename T>
-  static constexpr size_t GetPrefetchStep() {
-    return Prefetch::kCacheLineSize / sizeof(T);
-  }
-};
-
-constexpr size_t Prefetch::kNoPrefetchSize;
+using Prefetch = HistPrefetch<decltype(GHistIndexMatrix::row_ptr)::value_type>;
 
 struct RuntimeFlags {
   const bool first_page;
@@ -233,12 +211,11 @@ void RowsWiseBuildHistKernel(Span<GradientPair const> gpair,
 
     if (do_prefetch) {
       const size_t icol_start_prefetch =
-          kAnyMissing
-              ? get_row_ptr(rid[i + Prefetch::kPrefetchOffset])
-              : get_rid(rid[i + Prefetch::kPrefetchOffset]) * n_features;
-      const size_t icol_end_prefetch =
-          kAnyMissing ? get_row_ptr(rid[i + Prefetch::kPrefetchOffset] + 1)
-                      : icol_start_prefetch + n_features;
+          kAnyMissing ? get_row_ptr(rid[i + Prefetch::kPrefetchOffset])
+                      : get_rid(rid[i + Prefetch::kPrefetchOffset]) * n_features;
+      const size_t icol_end_prefetch = kAnyMissing
+                                           ? get_row_ptr(rid[i + Prefetch::kPrefetchOffset] + 1)
+                                           : icol_start_prefetch + n_features;
 
       PREFETCH_READ_T0(p_gpair + two * rid[i + Prefetch::kPrefetchOffset]);
       for (size_t j = icol_start_prefetch; j < icol_end_prefetch;
@@ -345,8 +322,7 @@ void BuildHist(Span<GradientPair const> gpair, const RowSetCollection::Elem row_
   /* force_read_by_column is used for testing the columnwise building of histograms.
    * default force_read_by_column = false
    */
-  constexpr double kAdhocL2Size = 1024 * 1024 * 0.8;
-  const bool hist_fit_to_l2 = kAdhocL2Size > 2 * sizeof(float) * gmat.cut.Ptrs().back();
+  const bool hist_fit_to_l2 = kHistAdHocL2Size > 2 * sizeof(float) * gmat.cut.Ptrs().back();
   bool first_page = gmat.base_rowid == 0;
   bool read_by_column = !hist_fit_to_l2 && !any_missing;
   auto bin_type_size = gmat.index.GetBinTypeSize();
