@@ -11,7 +11,7 @@ https://www.kaggle.com/shahules/an-overview-of-encoding-techniques
 And the data can be found at:
 https://www.kaggle.com/shahules/an-overview-of-encoding-techniques/data
 
-  .. versionadded 1.6.0
+  .. versionadded:: 1.6.0
 
 See Also
 --------
