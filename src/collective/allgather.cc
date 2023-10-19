@@ -3,7 +3,7 @@
  */
 #include "allgather.h"
 
-#include <algorithm>  // for min, copy_n
+#include <algorithm>  // for min, copy_n, fill_n
 #include <cstddef>    // for size_t
 #include <cstdint>    // for int8_t, int32_t, int64_t
 #include <memory>     // for shared_ptr
@@ -45,6 +45,7 @@ Result RingAllgather(Comm const& comm, common::Span<std::int8_t> data, std::size
 
 [[nodiscard]] Result RingAllgatherV(Comm const& comm, common::Span<std::int64_t const> sizes,
                                     common::Span<std::int8_t const> data,
+                                    common::Span<std::int64_t> offset,
                                     common::Span<std::int8_t> erased_result) {
   auto world = comm.World();
   auto rank = comm.Rank();
@@ -56,7 +57,8 @@ Result RingAllgather(Comm const& comm, common::Span<std::int8_t> data, std::size
   auto next_ch = comm.Chan(next);
 
   // get worker offset
-  std::vector<std::int64_t> offset(world + 1, 0);
+  CHECK_EQ(world + 1, offset.size());
+  std::fill_n(offset.data(), offset.size(), 0);
   std::partial_sum(sizes.cbegin(), sizes.cend(), offset.begin() + 1);
   CHECK_EQ(*offset.cbegin(), 0);
 

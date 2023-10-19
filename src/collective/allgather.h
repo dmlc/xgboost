@@ -26,6 +26,7 @@ namespace cpu_impl {
 
 [[nodiscard]] Result RingAllgatherV(Comm const& comm, common::Span<std::int64_t const> sizes,
                                     common::Span<std::int8_t const> data,
+                                    common::Span<std::int64_t> offset,
                                     common::Span<std::int8_t> erased_result);
 }  // namespace cpu_impl
 
@@ -66,7 +67,9 @@ template <typename T>
   auto h_result = common::Span{result.data(), result.size()};
   auto erased_result = EraseType(h_result);
   auto erased_data = EraseType(data);
+  std::vector<std::int64_t> offset(world + 1);
 
-  return cpu_impl::RingAllgatherV(comm, sizes, erased_data, erased_result);
+  return cpu_impl::RingAllgatherV(comm, sizes, erased_data,
+                                  common::Span{offset.data(), offset.size()}, erased_result);
 }
 }  // namespace xgboost::collective
