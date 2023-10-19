@@ -27,7 +27,7 @@ import xgboost as xgb
 
 def make_example_data() -> Tuple[pd.DataFrame, pd.Series, List[str]]:
     """Generate data for demo."""
-    n_samples = 512
+    n_samples = 2048
     rng = np.random.default_rng(1994)
 
     # We have three categorical features, while the rest are numerical.
