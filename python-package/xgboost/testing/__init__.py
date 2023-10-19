@@ -943,7 +943,9 @@ def project_root(path: str) -> str:
     return normpath(os.path.join(demo_dir(path), os.path.pardir))
 
 
-def run_with_rabit(world_size: int, test_fn: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
+def run_with_rabit(
+    world_size: int, test_fn: Callable[..., Any], *args: Any, **kwargs: Any
+) -> None:
     exception_queue: queue.Queue = queue.Queue()
 
     def run_worker(rabit_env: Dict[str, Union[str, int]]) -> None:
