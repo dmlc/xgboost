@@ -3,6 +3,7 @@
  */
 #include "broadcast.h"
 
+#include <cmath>    // for ceil, log2
 #include <cstdint>  // for int32_t, int8_t
 #include <utility>  // for move
 

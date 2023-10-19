@@ -11,8 +11,10 @@
 
 #include "allgather.h"
 #include "protocol.h"                   // for kMagic
+#include "xgboost/base.h"               // for XGBOOST_STRICT_R_MODE
 #include "xgboost/collective/socket.h"  // for TCPSocket
 #include "xgboost/json.h"               // for Json, Object
+#include "xgboost/string_view.h"        // for StringView
 
 namespace xgboost::collective {
 Comm::Comm(std::string const& host, std::int32_t port, std::chrono::seconds timeout,
