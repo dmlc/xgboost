@@ -209,7 +209,8 @@ class CommonRowPartitioner {
     partition_builder_.Init(space.Size(), n_nodes, [&](size_t node_in_set) {
       const int32_t nid = nodes[node_in_set].nid;
       const size_t size = row_set_collection_[nid].Size();
-      const size_t n_tasks = size / common::kPartitionBlockSize + !!(size % common::kPartitionBlockSize);
+      const size_t n_tasks =
+          size / common::kPartitionBlockSize + !!(size % common::kPartitionBlockSize);
       return n_tasks;
     });
     CHECK_EQ(base_rowid, gmat.base_rowid);

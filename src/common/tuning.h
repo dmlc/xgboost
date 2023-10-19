@@ -22,7 +22,7 @@ struct HistPrefetch {
  private:
   constexpr static std::size_t KNoPrefetchSize() {
     return kPrefetchOffset + kCacheLineSize / sizeof(RowPtrT);
-  };
+  }
 
  public:
   static size_t NoPrefetchSize(std::size_t rows) { return std::min(rows, KNoPrefetchSize()); }
