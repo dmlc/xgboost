@@ -137,7 +137,7 @@ sklearn interface :py:class:`~xgboost.XGBRegressor` has the same parameter.
 Data Consistency
 ****************
 
-XGBoost accepts parameters for which feature is considered categorical, either through the ``dtypes`` of a dataframe or through the ``feature_types`` parameter. However, XGBoost by itself doesn't store information on how categories are encoded in the first place. For instance, given an encoding schema that maps music genre to integer code:
+XGBoost accepts parameters to indicate which feature is considered categorical, either through the ``dtypes`` of a dataframe or through the ``feature_types`` parameter. However, XGBoost by itself doesn't store information on how categories are encoded in the first place. For instance, given an encoding schema that maps music genres to integer codes:
 
 .. code-block:: python
 
