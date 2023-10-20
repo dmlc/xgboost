@@ -1,6 +1,5 @@
 import os
 import sys
-import unittest
 
 import numpy as np
 import pytest
@@ -101,6 +100,7 @@ class TestArrowTable:
         np.testing.assert_equal(y_np_low, y_lower_bound.to_pandas().values)
 
 
+@pytest.mark.skipif(tm.is_windows(), reason="Rabit does not run on windows")
 class TestArrowTableColumnSplit:
     def test_arrow_table(self):
         def verify_arrow_table():

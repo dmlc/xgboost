@@ -1,3 +1,4 @@
+import sys
 from typing import Type
 
 import numpy as np
@@ -6,6 +7,7 @@ from test_dmatrix import set_base_margin_info
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.core import DataSplitMode
 from xgboost.testing.data import pd_arrow_dtypes, pd_dtypes
 
 try:
@@ -17,114 +19,194 @@ except ImportError:
 pytestmark = pytest.mark.skipif(**tm.no_pandas())
 
 
-dpath = 'demo/data/'
+dpath = "demo/data/"
 rng = np.random.RandomState(1994)
 
 
 class TestPandas:
-    def test_pandas(self):
-        df = pd.DataFrame([[1, 2., True], [2, 3., False]],
-                          columns=['a', 'b', 'c'])
-        dm = xgb.DMatrix(df, label=pd.Series([1, 2]))
-        assert dm.feature_names == ['a', 'b', 'c']
-        assert dm.feature_types == ['int', 'float', 'i']
+    def test_pandas(self, data_split_mode=DataSplitMode.ROW):
+        world_size = xgb.collective.get_world_size()
+        df = pd.DataFrame([[1, 2.0, True], [2, 3.0, False]], columns=["a", "b", "c"])
+        dm = xgb.DMatrix(df, label=pd.Series([1, 2]), data_split_mode=data_split_mode)
         assert dm.num_row() == 2
-        assert dm.num_col() == 3
+        if data_split_mode == DataSplitMode.ROW:
+            assert dm.feature_names == ["a", "b", "c"]
+            assert dm.feature_types == ["int", "float", "i"]
+            assert dm.num_col() == 3
+        else:
+            assert dm.feature_names == tm.column_split_feature_names(
+                ["a", "b", "c"], world_size
+            )
+            assert dm.feature_types == ["int", "float", "i"] * world_size
+            assert dm.num_col() == 3 * world_size
         np.testing.assert_array_equal(dm.get_label(), np.array([1, 2]))
 
         # overwrite feature_names and feature_types
-        dm = xgb.DMatrix(df, label=pd.Series([1, 2]),
-                         feature_names=['x', 'y', 'z'],
-                         feature_types=['q', 'q', 'q'])
-        assert dm.feature_names == ['x', 'y', 'z']
-        assert dm.feature_types == ['q', 'q', 'q']
+        dm = xgb.DMatrix(
+            df,
+            label=pd.Series([1, 2]),
+            feature_names=["x", "y", "z"],
+            feature_types=["q", "q", "q"],
+            data_split_mode=data_split_mode,
+        )
         assert dm.num_row() == 2
-        assert dm.num_col() == 3
+        if data_split_mode == DataSplitMode.ROW:
+            assert dm.feature_names == ["x", "y", "z"]
+            assert dm.feature_types == ["q", "q", "q"]
+            assert dm.num_col() == 3
+        else:
+            assert dm.feature_names == tm.column_split_feature_names(
+                ["x", "y", "z"], world_size
+            )
+            assert dm.feature_types == ["q", "q", "q"] * world_size
+            assert dm.num_col() == 3 * world_size
 
         # incorrect dtypes
-        df = pd.DataFrame([[1, 2., 'x'], [2, 3., 'y']],
-                          columns=['a', 'b', 'c'])
+        df = pd.DataFrame([[1, 2.0, "x"], [2, 3.0, "y"]], columns=["a", "b", "c"])
         with pytest.raises(ValueError):
-            xgb.DMatrix(df)
+            xgb.DMatrix(df, data_split_mode=data_split_mode)
 
         # numeric columns
-        df = pd.DataFrame([[1, 2., True], [2, 3., False]])
-        dm = xgb.DMatrix(df, label=pd.Series([1, 2]))
-        assert dm.feature_names == ['0', '1', '2']
-        assert dm.feature_types == ['int', 'float', 'i']
+        df = pd.DataFrame([[1, 2.0, True], [2, 3.0, False]])
+        dm = xgb.DMatrix(df, label=pd.Series([1, 2]), data_split_mode=data_split_mode)
         assert dm.num_row() == 2
-        assert dm.num_col() == 3
+        if data_split_mode == DataSplitMode.ROW:
+            assert dm.feature_names == ["0", "1", "2"]
+            assert dm.feature_types == ["int", "float", "i"]
+            assert dm.num_col() == 3
+        else:
+            assert dm.feature_names == tm.column_split_feature_names(
+                ["0", "1", "2"], world_size
+            )
+            assert dm.feature_types == ["int", "float", "i"] * world_size
+            assert dm.num_col() == 3 * world_size
         np.testing.assert_array_equal(dm.get_label(), np.array([1, 2]))
 
-        df = pd.DataFrame([[1, 2., 1], [2, 3., 1]], columns=[4, 5, 6])
-        dm = xgb.DMatrix(df, label=pd.Series([1, 2]))
-        assert dm.feature_names == ['4', '5', '6']
-        assert dm.feature_types == ['int', 'float', 'int']
+        df = pd.DataFrame([[1, 2.0, 1], [2, 3.0, 1]], columns=[4, 5, 6])
+        dm = xgb.DMatrix(df, label=pd.Series([1, 2]), data_split_mode=data_split_mode)
         assert dm.num_row() == 2
-        assert dm.num_col() == 3
+        if data_split_mode == DataSplitMode.ROW:
+            assert dm.feature_names == ["4", "5", "6"]
+            assert dm.feature_types == ["int", "float", "int"]
+            assert dm.num_col() == 3
+        else:
+            assert dm.feature_names == tm.column_split_feature_names(
+                ["4", "5", "6"], world_size
+            )
+            assert dm.feature_types == ["int", "float", "int"] * world_size
+            assert dm.num_col() == 3 * world_size
 
-        df = pd.DataFrame({'A': ['X', 'Y', 'Z'], 'B': [1, 2, 3]})
+        df = pd.DataFrame({"A": ["X", "Y", "Z"], "B": [1, 2, 3]})
         dummies = pd.get_dummies(df)
         #    B  A_X  A_Y  A_Z
         # 0  1    1    0    0
         # 1  2    0    1    0
         # 2  3    0    0    1
-        result, _, _ = xgb.data._transform_pandas_df(dummies,
-                                                     enable_categorical=False)
-        exp = np.array([[1., 1., 0., 0.],
-                        [2., 0., 1., 0.],
-                        [3., 0., 0., 1.]])
+        result, _, _ = xgb.data._transform_pandas_df(dummies, enable_categorical=False)
+        exp = np.array(
+            [[1.0, 1.0, 0.0, 0.0], [2.0, 0.0, 1.0, 0.0], [3.0, 0.0, 0.0, 1.0]]
+        )
         np.testing.assert_array_equal(result, exp)
-        dm = xgb.DMatrix(dummies)
-        assert dm.feature_names == ['B', 'A_X', 'A_Y', 'A_Z']
-        if int(pd.__version__[0]) >= 2:
-            assert dm.feature_types == ['int', 'i', 'i', 'i']
+        dm = xgb.DMatrix(dummies, data_split_mode=data_split_mode)
+        assert dm.num_row() == 3
+        if data_split_mode == DataSplitMode.ROW:
+            assert dm.feature_names == ["B", "A_X", "A_Y", "A_Z"]
+            if int(pd.__version__[0]) >= 2:
+                assert dm.feature_types == ["int", "i", "i", "i"]
+            else:
+                assert dm.feature_types == ["int", "int", "int", "int"]
+            assert dm.num_col() == 4
         else:
-            assert dm.feature_types == ['int', 'int', 'int', 'int']
-        assert dm.num_row() == 3
-        assert dm.num_col() == 4
+            assert dm.feature_names == tm.column_split_feature_names(
+                ["B", "A_X", "A_Y", "A_Z"], world_size
+            )
+            if int(pd.__version__[0]) >= 2:
+                assert dm.feature_types == ["int", "i", "i", "i"] * world_size
+            else:
+                assert dm.feature_types == ["int", "int", "int", "int"] * world_size
+            assert dm.num_col() == 4 * world_size
 
-        df = pd.DataFrame({'A=1': [1, 2, 3], 'A=2': [4, 5, 6]})
-        dm = xgb.DMatrix(df)
-        assert dm.feature_names == ['A=1', 'A=2']
-        assert dm.feature_types == ['int', 'int']
+        df = pd.DataFrame({"A=1": [1, 2, 3], "A=2": [4, 5, 6]})
+        dm = xgb.DMatrix(df, data_split_mode=data_split_mode)
         assert dm.num_row() == 3
-        assert dm.num_col() == 2
+        if data_split_mode == DataSplitMode.ROW:
+            assert dm.feature_names == ["A=1", "A=2"]
+            assert dm.feature_types == ["int", "int"]
+            assert dm.num_col() == 2
+        else:
+            assert dm.feature_names == tm.column_split_feature_names(
+                ["A=1", "A=2"], world_size
+            )
+            assert dm.feature_types == ["int", "int"] * world_size
+            assert dm.num_col() == 2 * world_size
 
         df_int = pd.DataFrame([[1, 1.1], [2, 2.2]], columns=[9, 10])
-        dm_int = xgb.DMatrix(df_int)
+        dm_int = xgb.DMatrix(df_int, data_split_mode=data_split_mode)
         df_range = pd.DataFrame([[1, 1.1], [2, 2.2]], columns=range(9, 11, 1))
-        dm_range = xgb.DMatrix(df_range)
-        assert dm_int.feature_names == ['9', '10']  # assert not "9 "
+        dm_range = xgb.DMatrix(df_range, data_split_mode=data_split_mode)
+        if data_split_mode == DataSplitMode.ROW:
+            assert dm_int.feature_names == ["9", "10"]  # assert not "9 "
+        else:
+            assert dm_int.feature_names == tm.column_split_feature_names(
+                ["9", "10"], world_size
+            )
         assert dm_int.feature_names == dm_range.feature_names
 
         # test MultiIndex as columns
         df = pd.DataFrame(
-            [
-                (1, 2, 3, 4, 5, 6),
-                (6, 5, 4, 3, 2, 1)
-            ],
-            columns=pd.MultiIndex.from_tuples((
-                ('a', 1), ('a', 2), ('a', 3),
-                ('b', 1), ('b', 2), ('b', 3),
-            ))
+            [(1, 2, 3, 4, 5, 6), (6, 5, 4, 3, 2, 1)],
+            columns=pd.MultiIndex.from_tuples(
+                (
+                    ("a", 1),
+                    ("a", 2),
+                    ("a", 3),
+                    ("b", 1),
+                    ("b", 2),
+                    ("b", 3),
+                )
+            ),
         )
-        dm = xgb.DMatrix(df)
-        assert dm.feature_names == ['a 1', 'a 2', 'a 3', 'b 1', 'b 2', 'b 3']
-        assert dm.feature_types == ['int', 'int', 'int', 'int', 'int', 'int']
+        dm = xgb.DMatrix(df, data_split_mode=data_split_mode)
         assert dm.num_row() == 2
-        assert dm.num_col() == 6
+        if data_split_mode == DataSplitMode.ROW:
+            assert dm.feature_names == ["a 1", "a 2", "a 3", "b 1", "b 2", "b 3"]
+            assert dm.feature_types == ["int", "int", "int", "int", "int", "int"]
+            assert dm.num_col() == 6
+        else:
+            assert dm.feature_names == tm.column_split_feature_names(
+                ["a 1", "a 2", "a 3", "b 1", "b 2", "b 3"], world_size
+            )
+            assert (
+                dm.feature_types
+                == ["int", "int", "int", "int", "int", "int"] * world_size
+            )
+            assert dm.num_col() == 6 * world_size
 
         # test Index as columns
         df = pd.DataFrame([[1, 1.1], [2, 2.2]], columns=pd.Index([1, 2]))
-        Xy = xgb.DMatrix(df)
-        np.testing.assert_equal(np.array(Xy.feature_names), np.array(["1", "2"]))
+        Xy = xgb.DMatrix(df, data_split_mode=data_split_mode)
+        if data_split_mode == DataSplitMode.ROW:
+            np.testing.assert_equal(np.array(Xy.feature_names), np.array(["1", "2"]))
+        else:
+            np.testing.assert_equal(
+                np.array(Xy.feature_names),
+                np.array(tm.column_split_feature_names(["1", "2"], world_size)),
+            )
+
+        # test pandas series
+        data_series = pd.Series([1, 2, 3, 4, 5])
+        dm = xgb.DMatrix(data_series, data_split_mode=data_split_mode)
+        assert dm.num_row() == 5
+        if data_split_mode == DataSplitMode.ROW:
+            assert dm.num_col() == 1
+        else:
+            assert dm.num_col() == 1 * world_size
 
     def test_slice(self):
         rng = np.random.RandomState(1994)
         rows = 100
         X = rng.randint(3, 7, size=rows)
-        X = pd.DataFrame({'f0': X})
+        X = pd.DataFrame({"f0": X})
         y = rng.randn(rows)
         ridxs = [1, 2, 3, 4, 5, 6]
         m = xgb.DMatrix(X, y)
@@ -132,15 +214,16 @@ class TestPandas:
 
         assert m.feature_types == sliced.feature_types
 
-    def test_pandas_categorical(self):
+    def test_pandas_categorical(self, data_split_mode=DataSplitMode.ROW):
+        world_size = xgb.collective.get_world_size()
         rng = np.random.RandomState(1994)
         rows = 100
         X = rng.randint(3, 7, size=rows)
         X = pd.Series(X, dtype="category")
-        X = pd.DataFrame({'f0': X})
+        X = pd.DataFrame({"f0": X})
         y = rng.randn(rows)
-        m = xgb.DMatrix(X, y, enable_categorical=True)
-        assert m.feature_types[0] == 'c'
+        m = xgb.DMatrix(X, y, enable_categorical=True, data_split_mode=data_split_mode)
+        assert m.feature_types[0] == "c"
 
         X_0 = ["f", "o", "o"]
         X_1 = [4, 3, 2]
@@ -159,22 +242,29 @@ class TestPandas:
         assert not np.any(arr == -1.0)
 
         X = X["f0"]
-        y = y[:X.shape[0]]
+        y = y[: X.shape[0]]
         with pytest.raises(ValueError, match=r".*enable_categorical.*"):
-            xgb.DMatrix(X, y)
+            xgb.DMatrix(X, y, data_split_mode=data_split_mode)
 
-        Xy = xgb.DMatrix(X, y, enable_categorical=True)
+        Xy = xgb.DMatrix(X, y, enable_categorical=True, data_split_mode=data_split_mode)
         assert Xy.num_row() == 3
-        assert Xy.num_col() == 1
+        if data_split_mode == DataSplitMode.ROW:
+            assert Xy.num_col() == 1
+        else:
+            assert Xy.num_col() == 1 * world_size
 
     def test_pandas_sparse(self):
         import pandas as pd
+
         rows = 100
         X = pd.DataFrame(
-            {"A": pd.arrays.SparseArray(np.random.randint(0, 10, size=rows)),
-             "B": pd.arrays.SparseArray(np.random.randn(rows)),
-             "C": pd.arrays.SparseArray(np.random.permutation(
-                 [True, False] * (rows // 2)))}
+            {
+                "A": pd.arrays.SparseArray(np.random.randint(0, 10, size=rows)),
+                "B": pd.arrays.SparseArray(np.random.randn(rows)),
+                "C": pd.arrays.SparseArray(
+                    np.random.permutation([True, False] * (rows // 2))
+                ),
+            }
         )
         y = pd.Series(pd.arrays.SparseArray(np.random.randn(rows)))
         dtrain = xgb.DMatrix(X, y)
@@ -183,27 +273,36 @@ class TestPandas:
         predt_dense = booster.predict(xgb.DMatrix(X.sparse.to_dense()))
         np.testing.assert_allclose(predt_sparse, predt_dense)
 
-    def test_pandas_label(self):
+    def test_pandas_label(self, data_split_mode=DataSplitMode.ROW):
+        world_size = xgb.collective.get_world_size()
         # label must be a single column
-        df = pd.DataFrame({'A': ['X', 'Y', 'Z'], 'B': [1, 2, 3]})
+        df = pd.DataFrame({"A": ["X", "Y", "Z"], "B": [1, 2, 3]})
         with pytest.raises(ValueError):
-            xgb.data._transform_pandas_df(df, False, None, None, 'label', 'float')
+            xgb.data._transform_pandas_df(df, False, None, None, "label", "float")
 
         # label must be supported dtype
-        df = pd.DataFrame({'A': np.array(['a', 'b', 'c'], dtype=object)})
+        df = pd.DataFrame({"A": np.array(["a", "b", "c"], dtype=object)})
         with pytest.raises(ValueError):
-            xgb.data._transform_pandas_df(df, False, None, None, 'label', 'float')
+            xgb.data._transform_pandas_df(df, False, None, None, "label", "float")
 
-        df = pd.DataFrame({'A': np.array([1, 2, 3], dtype=int)})
-        result, _, _ = xgb.data._transform_pandas_df(df, False, None, None,
-                                                     'label', 'float')
-        np.testing.assert_array_equal(result, np.array([[1.], [2.], [3.]],
-                                                       dtype=float))
-        dm = xgb.DMatrix(np.random.randn(3, 2), label=df)
+        df = pd.DataFrame({"A": np.array([1, 2, 3], dtype=int)})
+        result, _, _ = xgb.data._transform_pandas_df(
+            df, False, None, None, "label", "float"
+        )
+        np.testing.assert_array_equal(
+            result, np.array([[1.0], [2.0], [3.0]], dtype=float)
+        )
+        dm = xgb.DMatrix(
+            np.random.randn(3, 2), label=df, data_split_mode=data_split_mode
+        )
         assert dm.num_row() == 3
-        assert dm.num_col() == 2
+        if data_split_mode == DataSplitMode.ROW:
+            assert dm.num_col() == 2
+        else:
+            assert dm.num_col() == 2 * world_size
 
-    def test_pandas_weight(self):
+    def test_pandas_weight(self, data_split_mode=DataSplitMode.ROW):
+        world_size = xgb.collective.get_world_size()
         kRows = 32
         kCols = 8
 
@@ -211,11 +310,13 @@ class TestPandas:
         y = np.random.randn(kRows)
         w = np.random.uniform(size=kRows).astype(np.float32)
         w_pd = pd.DataFrame(w)
-        data = xgb.DMatrix(X, y, weight=w_pd)
+        data = xgb.DMatrix(X, y, weight=w_pd, data_split_mode=data_split_mode)
 
         assert data.num_row() == kRows
-        assert data.num_col() == kCols
-
+        if data_split_mode == DataSplitMode.ROW:
+            assert data.num_col() == kCols
+        else:
+            assert data.num_col() == kCols * world_size
         np.testing.assert_array_equal(data.get_weight(), w)
 
     def test_base_margin(self):
@@ -223,81 +324,128 @@ class TestPandas:
 
     def test_cv_as_pandas(self):
         dm, _ = tm.load_agaricus(__file__)
-        params = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
-                  'objective': 'binary:logistic', 'eval_metric': 'error'}
+        params = {
+            "max_depth": 2,
+            "eta": 1,
+            "verbosity": 0,
+            "objective": "binary:logistic",
+            "eval_metric": "error",
+        }
 
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10)
         assert isinstance(cv, pd.DataFrame)
-        exp = pd.Index([u'test-error-mean', u'test-error-std',
-                        u'train-error-mean', u'train-error-std'])
+        exp = pd.Index(
+            ["test-error-mean", "test-error-std", "train-error-mean", "train-error-std"]
+        )
         assert len(cv.columns.intersection(exp)) == 4
 
         # show progress log (result is the same as above)
-        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
-                    verbose_eval=True)
+        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, verbose_eval=True)
         assert isinstance(cv, pd.DataFrame)
-        exp = pd.Index([u'test-error-mean', u'test-error-std',
-                        u'train-error-mean', u'train-error-std'])
+        exp = pd.Index(
+            ["test-error-mean", "test-error-std", "train-error-mean", "train-error-std"]
+        )
         assert len(cv.columns.intersection(exp)) == 4
-        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
-                    verbose_eval=True, show_stdv=False)
+        cv = xgb.cv(
+            params, dm, num_boost_round=10, nfold=10, verbose_eval=True, show_stdv=False
+        )
         assert isinstance(cv, pd.DataFrame)
-        exp = pd.Index([u'test-error-mean', u'test-error-std',
-                        u'train-error-mean', u'train-error-std'])
+        exp = pd.Index(
+            ["test-error-mean", "test-error-std", "train-error-mean", "train-error-std"]
+        )
         assert len(cv.columns.intersection(exp)) == 4
 
-        params = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
-                  'objective': 'binary:logistic', 'eval_metric': 'auc'}
+        params = {
+            "max_depth": 2,
+            "eta": 1,
+            "verbosity": 0,
+            "objective": "binary:logistic",
+            "eval_metric": "auc",
+        }
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, as_pandas=True)
-        assert 'eval_metric' in params
-        assert 'auc' in cv.columns[0]
+        assert "eval_metric" in params
+        assert "auc" in cv.columns[0]
 
-        params = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
-                  'objective': 'binary:logistic', 'eval_metric': ['auc']}
+        params = {
+            "max_depth": 2,
+            "eta": 1,
+            "verbosity": 0,
+            "objective": "binary:logistic",
+            "eval_metric": ["auc"],
+        }
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, as_pandas=True)
-        assert 'eval_metric' in params
-        assert 'auc' in cv.columns[0]
+        assert "eval_metric" in params
+        assert "auc" in cv.columns[0]
 
-        params = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
-                  'objective': 'binary:logistic', 'eval_metric': ['auc']}
-        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
-                    as_pandas=True, early_stopping_rounds=1)
-        assert 'eval_metric' in params
-        assert 'auc' in cv.columns[0]
+        params = {
+            "max_depth": 2,
+            "eta": 1,
+            "verbosity": 0,
+            "objective": "binary:logistic",
+            "eval_metric": ["auc"],
+        }
+        cv = xgb.cv(
+            params,
+            dm,
+            num_boost_round=10,
+            nfold=10,
+            as_pandas=True,
+            early_stopping_rounds=1,
+        )
+        assert "eval_metric" in params
+        assert "auc" in cv.columns[0]
         assert cv.shape[0] < 10
 
-        params = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
-                  'objective': 'binary:logistic'}
-        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
-                    as_pandas=True, metrics='auc')
-        assert 'auc' in cv.columns[0]
+        params = {
+            "max_depth": 2,
+            "eta": 1,
+            "verbosity": 0,
+            "objective": "binary:logistic",
+        }
+        cv = xgb.cv(
+            params, dm, num_boost_round=10, nfold=10, as_pandas=True, metrics="auc"
+        )
+        assert "auc" in cv.columns[0]
 
-        params = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
-                  'objective': 'binary:logistic'}
-        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
-                    as_pandas=True, metrics=['auc'])
-        assert 'auc' in cv.columns[0]
+        params = {
+            "max_depth": 2,
+            "eta": 1,
+            "verbosity": 0,
+            "objective": "binary:logistic",
+        }
+        cv = xgb.cv(
+            params, dm, num_boost_round=10, nfold=10, as_pandas=True, metrics=["auc"]
+        )
+        assert "auc" in cv.columns[0]
 
-        params = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
-                  'objective': 'binary:logistic', 'eval_metric': ['auc']}
-        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
-                    as_pandas=True, metrics='error')
-        assert 'eval_metric' in params
-        assert 'auc' not in cv.columns[0]
-        assert 'error' in cv.columns[0]
+        params = {
+            "max_depth": 2,
+            "eta": 1,
+            "verbosity": 0,
+            "objective": "binary:logistic",
+            "eval_metric": ["auc"],
+        }
+        cv = xgb.cv(
+            params, dm, num_boost_round=10, nfold=10, as_pandas=True, metrics="error"
+        )
+        assert "eval_metric" in params
+        assert "auc" not in cv.columns[0]
+        assert "error" in cv.columns[0]
 
-        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
-                    as_pandas=True, metrics=['error'])
-        assert 'eval_metric' in params
-        assert 'auc' not in cv.columns[0]
-        assert 'error' in cv.columns[0]
+        cv = xgb.cv(
+            params, dm, num_boost_round=10, nfold=10, as_pandas=True, metrics=["error"]
+        )
+        assert "eval_metric" in params
+        assert "auc" not in cv.columns[0]
+        assert "error" in cv.columns[0]
 
         params = list(params.items())
-        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
-                    as_pandas=True, metrics=['error'])
+        cv = xgb.cv(
+            params, dm, num_boost_round=10, nfold=10, as_pandas=True, metrics=["error"]
+        )
         assert isinstance(params, list)
-        assert 'auc' not in cv.columns[0]
-        assert 'error' in cv.columns[0]
+        assert "auc" not in cv.columns[0]
+        assert "error" in cv.columns[0]
 
     @pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
     def test_nullable_type(self, DMatrixT) -> None:
@@ -358,3 +506,60 @@ class TestPandas:
             if y is not None:
                 np.testing.assert_allclose(m_orig.get_label(), m_etype.get_label())
                 np.testing.assert_allclose(m_etype.get_label(), y.values)
+
+    @pytest.mark.skipif(tm.is_windows(), reason="Rabit does not run on windows")
+    def test_pandas_column_split(self):
+        tm.run_with_rabit(
+            world_size=3, test_fn=self.test_pandas, data_split_mode=DataSplitMode.COL
+        )
+
+    @pytest.mark.skipif(tm.is_windows(), reason="Rabit does not run on windows")
+    def test_pandas_categorical_column_split(self):
+        tm.run_with_rabit(
+            world_size=3,
+            test_fn=self.test_pandas_categorical,
+            data_split_mode=DataSplitMode.COL,
+        )
+
+    @pytest.mark.skipif(tm.is_windows(), reason="Rabit does not run on windows")
+    def test_pandas_sparse_column_split(self):
+        rows = 100
+        X = pd.DataFrame(
+            {
+                "A": pd.arrays.SparseArray(np.random.randint(0, 10, size=rows)),
+                "B": pd.arrays.SparseArray(np.random.randn(rows)),
+                "C": pd.arrays.SparseArray(
+                    np.random.permutation([True, False] * (rows // 2))
+                ),
+            }
+        )
+        y = pd.Series(pd.arrays.SparseArray(np.random.randn(rows)))
+
+        def verify_pandas_sparse():
+            dtrain = xgb.DMatrix(X, y, data_split_mode=DataSplitMode.COL)
+            booster = xgb.train({}, dtrain, num_boost_round=4)
+            predt_sparse = booster.predict(
+                xgb.DMatrix(X, data_split_mode=DataSplitMode.COL)
+            )
+            predt_dense = booster.predict(
+                xgb.DMatrix(X.sparse.to_dense(), data_split_mode=DataSplitMode.COL)
+            )
+            np.testing.assert_allclose(predt_sparse, predt_dense)
+
+        tm.run_with_rabit(world_size=3, test_fn=verify_pandas_sparse)
+
+    @pytest.mark.skipif(tm.is_windows(), reason="Rabit does not run on windows")
+    def test_pandas_label_column_split(self):
+        tm.run_with_rabit(
+            world_size=3,
+            test_fn=self.test_pandas_label,
+            data_split_mode=DataSplitMode.COL,
+        )
+
+    @pytest.mark.skipif(tm.is_windows(), reason="Rabit does not run on windows")
+    def test_pandas_weight_column_split(self):
+        tm.run_with_rabit(
+            world_size=3,
+            test_fn=self.test_pandas_weight,
+            data_split_mode=DataSplitMode.COL,
+        )

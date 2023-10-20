@@ -1,3 +1,4 @@
+import csv
 import os
 import sys
 import tempfile
@@ -15,7 +16,7 @@ from xgboost.testing.data import np_dtypes
 
 rng = np.random.RandomState(1)
 
-dpath = 'demo/data/'
+dpath = "demo/data/"
 rng = np.random.RandomState(1994)
 
 
@@ -67,12 +68,13 @@ def set_base_margin_info(DType, DMatrixT, tm: str):
 class TestDMatrix:
     def test_warn_missing(self):
         from xgboost import data
+
         with pytest.warns(UserWarning):
-            data._warn_unused_missing('uri', 4)
+            data._warn_unused_missing("uri", 4)
 
         with pytest.warns(None) as record:
-            data._warn_unused_missing('uri', None)
-            data._warn_unused_missing('uri', np.nan)
+            data._warn_unused_missing("uri", None)
+            data._warn_unused_missing("uri", np.nan)
 
             assert len(record) == 0
 
@@ -106,7 +108,7 @@ class TestDMatrix:
         with pytest.raises(ValueError):
             xgb.DMatrix(data)
         # object dtype
-        data = np.array([['a', 'b'], ['c', 'd']])
+        data = np.array([["a", "b"], ["c", "d"]])
         with pytest.raises(ValueError):
             xgb.DMatrix(data)
 
@@ -148,18 +150,18 @@ class TestDMatrix:
         y = np.array([12, 34, 56], np.float32)[::2]
         from_view = xgb.DMatrix(np.array([[]]), label=y).get_label()
         from_array = xgb.DMatrix(np.array([[]]), label=y + 0).get_label()
-        assert (from_view.shape == from_array.shape)
+        assert from_view.shape == from_array.shape
         assert (from_view == from_array).all()
 
         # Sliced UInt array
         z = np.array([12, 34, 56], np.uint32)[::2]
         dmat = xgb.DMatrix(np.array([[]]))
-        dmat.set_uint_info('group', z)
-        from_view = dmat.get_uint_info('group_ptr')
+        dmat.set_uint_info("group", z)
+        from_view = dmat.get_uint_info("group_ptr")
         dmat = xgb.DMatrix(np.array([[]]))
-        dmat.set_uint_info('group', z + 0)
-        from_array = dmat.get_uint_info('group_ptr')
-        assert (from_view.shape == from_array.shape)
+        dmat.set_uint_info("group", z + 0)
+        from_array = dmat.get_uint_info("group_ptr")
+        assert from_view.shape == from_array.shape
         assert (from_view == from_array).all()
 
     def test_slice(self):
@@ -181,9 +183,11 @@ class TestDMatrix:
 
         # Slicing works with label and other meta info fields
         np.testing.assert_equal(sliced.get_label(), y[1:7])
-        np.testing.assert_equal(sliced.get_float_info('feature_weights'), fw)
+        np.testing.assert_equal(sliced.get_float_info("feature_weights"), fw)
         np.testing.assert_equal(sliced.get_base_margin(), base_margin[1:7, :].flatten())
-        np.testing.assert_equal(sliced.get_base_margin(), sliced.get_float_info('base_margin'))
+        np.testing.assert_equal(
+            sliced.get_base_margin(), sliced.get_float_info("base_margin")
+        )
 
         # Slicing a DMatrix results into a DMatrix that's equivalent to a DMatrix that's
         # constructed from the corresponding NumPy slice
@@ -191,11 +195,15 @@ class TestDMatrix:
         d2.set_base_margin(base_margin[1:7, :])
         eval_res = {}
         _ = xgb.train(
-            {'num_class': 3, 'objective': 'multi:softprob',
-             'eval_metric': 'mlogloss'},
+            {"num_class": 3, "objective": "multi:softprob", "eval_metric": "mlogloss"},
             d,
-            num_boost_round=2, evals=[(d2, 'd2'), (sliced, 'sliced')], evals_result=eval_res)
-        np.testing.assert_equal(eval_res['d2']['mlogloss'], eval_res['sliced']['mlogloss'])
+            num_boost_round=2,
+            evals=[(d2, "d2"), (sliced, "sliced")],
+            evals_result=eval_res,
+        )
+        np.testing.assert_equal(
+            eval_res["d2"]["mlogloss"], eval_res["sliced"]["mlogloss"]
+        )
 
         ridxs_arr = np.array(ridxs)[1:]  # handles numpy slice correctly
         sliced = d.slice(ridxs_arr)
@@ -206,17 +214,17 @@ class TestDMatrix:
 
         # different length
         with pytest.raises(ValueError):
-            xgb.DMatrix(data, feature_names=list('abcdef'))
+            xgb.DMatrix(data, feature_names=list("abcdef"))
         # contains duplicates
         with pytest.raises(ValueError):
-            xgb.DMatrix(data, feature_names=['a', 'b', 'c', 'd', 'd'])
+            xgb.DMatrix(data, feature_names=["a", "b", "c", "d", "d"])
         # contains symbol
         with pytest.raises(ValueError):
-            xgb.DMatrix(data, feature_names=['a', 'b', 'c', 'd', 'e<1'])
+            xgb.DMatrix(data, feature_names=["a", "b", "c", "d", "e<1"])
 
         dm = xgb.DMatrix(data)
-        dm.feature_names = list('abcde')
-        assert dm.feature_names == list('abcde')
+        dm.feature_names = list("abcde")
+        assert dm.feature_names == list("abcde")
 
         assert dm.slice([0, 1]).num_col() == dm.num_col()
         assert dm.slice([0, 1]).feature_names == dm.feature_names
@@ -224,11 +232,11 @@ class TestDMatrix:
         with pytest.raises(ValueError, match=r"Duplicates found: \['bar'\]"):
             dm.feature_names = ["bar"] * (data.shape[1] - 2) + ["a", "b"]
 
-        dm.feature_types = list('qiqiq')
-        assert dm.feature_types == list('qiqiq')
+        dm.feature_types = list("qiqiq")
+        assert dm.feature_types == list("qiqiq")
 
         with pytest.raises(ValueError):
-            dm.feature_types = list('abcde')
+            dm.feature_types = list("abcde")
 
         # reset
         dm.feature_names = None
@@ -240,20 +248,23 @@ class TestDMatrix:
         data = np.random.randn(100, 5)
         target = np.array([0, 1] * 50)
 
-        cases = [['Feature1', 'Feature2', 'Feature3', 'Feature4', 'Feature5'],
-                 [u'要因1', u'要因2', u'要因3', u'要因4', u'要因5']]
+        cases = [
+            ["Feature1", "Feature2", "Feature3", "Feature4", "Feature5"],
+            ["要因1", "要因2", "要因3", "要因4", "要因5"],
+        ]
 
         for features in cases:
-            dm = xgb.DMatrix(data, label=target,
-                             feature_names=features)
+            dm = xgb.DMatrix(data, label=target, feature_names=features)
             assert dm.feature_names == features
             assert dm.num_row() == 100
             assert dm.num_col() == 5
 
-            params = {'objective': 'multi:softprob',
-                      'eval_metric': 'mlogloss',
-                      'eta': 0.3,
-                      'num_class': 3}
+            params = {
+                "objective": "multi:softprob",
+                "eval_metric": "mlogloss",
+                "eta": 0.3,
+                "num_class": 3,
+            }
 
             bst = xgb.train(params, dm, num_boost_round=10)
             scores = bst.get_fscore()
@@ -264,22 +275,19 @@ class TestDMatrix:
             bst.predict(dm)
 
             # different feature name must raises error
-            dm = xgb.DMatrix(dummy, feature_names=list('abcde'))
+            dm = xgb.DMatrix(dummy, feature_names=list("abcde"))
             with pytest.raises(ValueError):
                 bst.predict(dm)
 
     @pytest.mark.skipif(**tm.no_pandas())
     def test_save_binary(self):
         import pandas as pd
+
         with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, 'm.dmatrix')
-            data = pd.DataFrame({
-                "a": [0, 1],
-                "b": [2, 3],
-                "c": [4, 5]
-            })
+            path = os.path.join(tmpdir, "m.dmatrix")
+            data = pd.DataFrame({"a": [0, 1], "b": [2, 3], "c": [4, 5]})
             m0 = xgb.DMatrix(data.loc[:, ["a", "b"]], data["c"])
-            assert m0.feature_names == ['a', 'b']
+            assert m0.feature_names == ["a", "b"]
             m0.save_binary(path)
             m1 = xgb.DMatrix(path)
             assert m0.feature_names == m1.feature_names
@@ -287,10 +295,10 @@ class TestDMatrix:
 
     def test_get_info(self):
         dtrain, _ = tm.load_agaricus(__file__)
-        dtrain.get_float_info('label')
-        dtrain.get_float_info('weight')
-        dtrain.get_float_info('base_margin')
-        dtrain.get_uint_info('group_ptr')
+        dtrain.get_float_info("label")
+        dtrain.get_float_info("weight")
+        dtrain.get_float_info("base_margin")
+        dtrain.get_uint_info("group_ptr")
 
         group_len = np.array([2, 3, 4])
         dtrain.set_group(group_len)
@@ -305,7 +313,7 @@ class TestDMatrix:
 
         Xy = xgb.DMatrix(X, y)
         Xy.set_info(qid=qid)
-        group_ptr = Xy.get_uint_info('group_ptr')
+        group_ptr = Xy.get_uint_info("group_ptr")
         assert group_ptr[0] == 0
         assert group_ptr[-1] == rows
 
@@ -317,11 +325,11 @@ class TestDMatrix:
         X = rng.randn(kRows, kCols)
         m = xgb.DMatrix(X)
         m.set_info(feature_weights=fw)
-        np.testing.assert_allclose(fw, m.get_float_info('feature_weights'))
+        np.testing.assert_allclose(fw, m.get_float_info("feature_weights"))
         # Handle empty
-        m.set_info(feature_weights=np.empty((0, )))
+        m.set_info(feature_weights=np.empty((0,)))
 
-        assert m.get_float_info('feature_weights').shape[0] == 0
+        assert m.get_float_info("feature_weights").shape[0] == 0
 
         fw -= 1
 
@@ -331,13 +339,13 @@ class TestDMatrix:
     def test_sparse_dmatrix_csr(self):
         nrow = 100
         ncol = 1000
-        x = rand(nrow, ncol, density=0.0005, format='csr', random_state=rng)
+        x = rand(nrow, ncol, density=0.0005, format="csr", random_state=rng)
         assert x.indices.max() < ncol
         x.data[:] = 1
         dtrain = xgb.DMatrix(x, label=rng.binomial(1, 0.3, nrow))
         assert (dtrain.num_row(), dtrain.num_col()) == (nrow, ncol)
-        watchlist = [(dtrain, 'train')]
-        param = {'max_depth': 3, 'objective': 'binary:logistic', 'verbosity': 0}
+        watchlist = [(dtrain, "train")]
+        param = {"max_depth": 3, "objective": "binary:logistic", "verbosity": 0}
         bst = xgb.train(param, dtrain, 5, watchlist)
         bst.predict(dtrain)
 
@@ -369,13 +377,13 @@ class TestDMatrix:
     def test_sparse_dmatrix_csc(self):
         nrow = 1000
         ncol = 100
-        x = rand(nrow, ncol, density=0.0005, format='csc', random_state=rng)
+        x = rand(nrow, ncol, density=0.0005, format="csc", random_state=rng)
         assert x.indices.max() < nrow - 1
         x.data[:] = 1
         dtrain = xgb.DMatrix(x, label=rng.binomial(1, 0.3, nrow))
         assert (dtrain.num_row(), dtrain.num_col()) == (nrow, ncol)
-        watchlist = [(dtrain, 'train')]
-        param = {'max_depth': 3, 'objective': 'binary:logistic', 'verbosity': 0}
+        watchlist = [(dtrain, "train")]
+        param = {"max_depth": 3, "objective": "binary:logistic", "verbosity": 0}
         bst = xgb.train(param, dtrain, 5, watchlist)
         bst.predict(dtrain)
 
@@ -389,6 +397,7 @@ class TestDMatrix:
                 xgb.DMatrix(d)
 
         from scipy import sparse
+
         rng = np.random.RandomState(1994)
         X = rng.rand(10, 10)
         y = rng.rand(10)
@@ -402,7 +411,7 @@ class TestDMatrix:
         n_features = 10
         X, y = tm.make_categorical(10, n_features, n_categories=4, onehot=False)
         X = X.values.astype(np.float32)
-        feature_types = ['c'] * n_features
+        feature_types = ["c"] * n_features
 
         assert isinstance(X, np.ndarray)
         Xy = xgb.DMatrix(X, y, feature_types=feature_types)
@@ -410,10 +419,11 @@ class TestDMatrix:
 
     def test_scipy_categorical(self):
         from scipy import sparse
+
         n_features = 10
         X, y = tm.make_categorical(10, n_features, n_categories=4, onehot=False)
         X = X.values.astype(np.float32)
-        feature_types = ['c'] * n_features
+        feature_types = ["c"] * n_features
 
         X[1, 3] = np.NAN
         X[2, 4] = np.NAN
@@ -433,7 +443,7 @@ class TestDMatrix:
         np.testing.assert_equal(np.array(Xy.feature_types), np.array(feature_types))
 
     def test_uri_categorical(self):
-        path = os.path.join(dpath, 'agaricus.txt.train')
+        path = os.path.join(dpath, "agaricus.txt.train")
         feature_types = ["q"] * 5 + ["c"] + ["q"] * 120
         Xy = xgb.DMatrix(
             path + "?indexing_mode=1&format=libsvm", feature_types=feature_types
@@ -471,6 +481,7 @@ class TestDMatrix:
             assert tm.predictor_equal(m0, m1)
 
 
+@pytest.mark.skipif(tm.is_windows(), reason="Rabit does not run on windows")
 class TestDMatrixColumnSplit:
     def test_numpy(self):
         def verify_numpy():
@@ -487,14 +498,22 @@ class TestDMatrixColumnSplit:
         def verify_numpy_feature_names():
             world_size = xgb.collective.get_world_size()
             data = np.random.randn(5, 5)
-            feature_names = [f'feature{x}' for x in range(5)]
-            feature_types = ['float'] * 5
-            dm = xgb.DMatrix(data, feature_names=feature_names, feature_types=feature_types,
-                             data_split_mode=DataSplitMode.COL)
+            feature_names = [f"feature{x}" for x in range(5)]
+            feature_types = ["float"] * 5
+            dm = xgb.DMatrix(
+                data,
+                feature_names=feature_names,
+                feature_types=feature_types,
+                data_split_mode=DataSplitMode.COL,
+            )
             assert dm.num_row() == 5
             assert dm.num_col() == 5 * world_size
             assert len(dm.feature_names) == 5 * world_size
+            assert dm.feature_names == tm.column_split_feature_names(
+                feature_names, world_size
+            )
             assert len(dm.feature_types) == 5 * world_size
+            assert dm.feature_types == ["float"] * 5 * world_size
 
         tm.run_with_rabit(world_size=3, test_fn=verify_numpy_feature_names)
 
@@ -534,6 +553,23 @@ class TestDMatrixColumnSplit:
 
         tm.run_with_rabit(world_size=3, test_fn=verify_coo)
 
+    def test_uri(self):
+        def verify_uri():
+            rank = xgb.collective.get_rank()
+            data = np.random.rand(5, 5)
+            filename = f"test_data_{rank}.csv"
+            with open(filename, mode="w", newline="") as file:
+                writer = csv.writer(file)
+                for row in data:
+                    writer.writerow(row)
+            dtrain = xgb.DMatrix(
+                f"{filename}?format=csv", data_split_mode=DataSplitMode.COL
+            )
+            assert dtrain.num_row() == 5
+            assert dtrain.num_col() == 5 * xgb.collective.get_world_size()
+
+        tm.run_with_rabit(world_size=3, test_fn=verify_uri)
+
     def test_list(self):
         def verify_list():
             data = [
@@ -541,7 +577,7 @@ class TestDMatrixColumnSplit:
                 [6, 7, 8, 9, 10],
                 [11, 12, 13, 14, 15],
                 [16, 17, 18, 19, 20],
-                [21, 22, 23, 24, 25]
+                [21, 22, 23, 24, 25],
             ]
             dm = xgb.DMatrix(data, data_split_mode=DataSplitMode.COL)
             assert dm.num_row() == 5
@@ -556,7 +592,7 @@ class TestDMatrixColumnSplit:
                 (6, 7, 8, 9, 10),
                 (11, 12, 13, 14, 15),
                 (16, 17, 18, 19, 20),
-                (21, 22, 23, 24, 25)
+                (21, 22, 23, 24, 25),
             )
             dm = xgb.DMatrix(data, data_split_mode=DataSplitMode.COL)
             assert dm.num_row() == 5
