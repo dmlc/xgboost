@@ -82,46 +82,35 @@ function(set_default_configuration_release)
     endif()
 endfunction()
 
-# Generate nvcc compiler flags given a list of architectures
+# Generate CMAKE_CUDA_ARCHITECTURES form a list of architectures
 # Also generates PTX for the most recent architecture for forwards compatibility
-function(format_gencode_flags flags out)
+function(compute_cmake_cuda_archs archs)
   if(CMAKE_CUDA_COMPILER_VERSION MATCHES "^([0-9]+\\.[0-9]+)")
     set(CUDA_VERSION "${CMAKE_MATCH_1}")
   endif()
-  # Set up architecture flags
-  if(NOT flags)
+  list(SORT archs)
+  unset(CMAKE_CUDA_ARCHITECTURES CACHE)
+  set(CMAKE_CUDA_ARCHITECTURES ${archs})
+
+  # Set up defaults based on CUDA varsion
+  if(NOT CMAKE_CUDA_ARCHITECTURES)
     if(CUDA_VERSION VERSION_GREATER_EQUAL "11.8")
-      set(flags "50;60;70;80;90")
+      set(CMAKE_CUDA_ARCHITECTURES 50 60 70 80 90)
     elseif(CUDA_VERSION VERSION_GREATER_EQUAL "11.0")
-      set(flags "50;60;70;80")
+      set(CMAKE_CUDA_ARCHITECTURES 50 60 70 80)
     elseif(CUDA_VERSION VERSION_GREATER_EQUAL "10.0")
-      set(flags "35;50;60;70")
+      set(CMAKE_CUDA_ARCHITECTURES 35 50 60 70)
     elseif(CUDA_VERSION VERSION_GREATER_EQUAL "9.0")
-      set(flags "35;50;60;70")
+      set(CMAKE_CUDA_ARCHITECTURES 35 50 60 70)
     else()
-      set(flags "35;50;60")
+      set(CMAKE_CUDA_ARCHITECTURES 35 50 60)
     endif()
   endif()
 
-  if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
-    cmake_policy(SET CMP0104 NEW)
-    list(GET flags -1 latest_arch)
-    list(TRANSFORM flags APPEND "-real")
-    list(APPEND flags ${latest_arch})
-    set(CMAKE_CUDA_ARCHITECTURES ${flags})
-    set(CMAKE_CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}" PARENT_SCOPE)
-    message(STATUS "CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
-  else()
-    # Generate SASS
-    foreach(ver ${flags})
-      set(${out} "${${out}}--generate-code=arch=compute_${ver},code=sm_${ver};")
-    endforeach()
-    # Generate PTX for last architecture
-    list(GET flags -1 ver)
-    set(${out} "${${out}}--generate-code=arch=compute_${ver},code=compute_${ver};")
-    set(${out} "${${out}}" PARENT_SCOPE)
-    message(STATUS "CUDA GEN_CODE: ${GEN_CODE}")
-  endif()
+  list(TRANSFORM CMAKE_CUDA_ARCHITECTURES APPEND "-real")
+  list(TRANSFORM CMAKE_CUDA_ARCHITECTURES REPLACE "([0-9]+)-real" "\\0;\\1-virtual" AT -1)
+  set(CMAKE_CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}" PARENT_SCOPE)
+  message(STATUS "CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
 endfunction()
 
 # Set CUDA related flags to target.  Must be used after code `format_gencode_flags`.
@@ -129,17 +118,12 @@ function(xgboost_set_cuda_flags target)
   target_compile_options(${target} PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
-    $<$<COMPILE_LANGUAGE:CUDA>:${GEN_CODE}>
     $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>
     $<$<COMPILE_LANGUAGE:CUDA>:-Xfatbin=-compress-all>)
 
   if(USE_PER_THREAD_DEFAULT_STREAM)
     target_compile_options(${target} PRIVATE
             $<$<COMPILE_LANGUAGE:CUDA>:--default-stream per-thread>)
-  endif()
-
-  if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
-    set_property(TARGET ${target} PROPERTY CUDA_ARCHITECTURES ${CMAKE_CUDA_ARCHITECTURES})
   endif()
 
   if(FORCE_COLORED_OUTPUT)
@@ -176,9 +160,15 @@ function(xgboost_set_cuda_flags target)
 
   set_target_properties(${target} PROPERTIES
     CUDA_STANDARD 17
-    CUDA_STANDARD_REQUIRED ON
-    CUDA_SEPARABLE_COMPILATION OFF
-    CUDA_RUNTIME_LIBRARY Static)
+    CUDA_STANDARD_REQUIRED ON)
+  if(USE_CUDA_LTO)
+    set_target_properties(${target} PROPERTIES
+      INTERPROCEDURAL_OPTIMIZATION ON
+      CUDA_SEPARABLE_COMPILATION ON)
+  else()
+    set_target_properties(${target} PROPERTIES
+      CUDA_SEPARABLE_COMPILATION OFF)
+  endif()
 endfunction()
 
 macro(xgboost_link_nccl target)

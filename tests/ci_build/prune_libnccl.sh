@@ -19,10 +19,8 @@ cmake_policy(SET CMP0104 NEW)
 set(CMAKE_CUDA_HOST_COMPILER \${CMAKE_CXX_COMPILER})
 enable_language(CUDA)
 include(../cmake/Utils.cmake)
-set(GEN_CODE "")
-format_gencode_flags("" GEN_CODE)
+compute_cmake_cuda_archs("")
 add_library(test OBJECT test.cu)
-set_property(TARGET test PROPERTY CUDA_ARCHITECTURES \${CMAKE_CUDA_ARCHITECTURES})
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 EOF
 

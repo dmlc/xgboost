@@ -2,15 +2,14 @@ cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 project(xgboost LANGUAGES CXX C VERSION 2.1.0)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${xgboost_SOURCE_DIR}/cmake/modules")
-cmake_policy(SET CMP0022 NEW)
-cmake_policy(SET CMP0079 NEW)
-cmake_policy(SET CMP0076 NEW)
-set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
-cmake_policy(SET CMP0063 NEW)
 
-if((${CMAKE_VERSION} VERSION_GREATER 3.13) OR (${CMAKE_VERSION} VERSION_EQUAL 3.13))
-  cmake_policy(SET CMP0077 NEW)
-endif()
+# These policies are already set from 3.18 but we still need to set the policy
+# default variables here for lower minimum versions in the submodules
+set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
+set(CMAKE_POLICY_DEFAULT_CMP0069 NEW)
+set(CMAKE_POLICY_DEFAULT_CMP0076 NEW)
+set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
+set(CMAKE_POLICY_DEFAULT_CMP0079 NEW)
 
 message(STATUS "CMake version ${CMAKE_VERSION}")
 
@@ -41,6 +40,8 @@ write_version()
 set_default_configuration_release()
 
 #-- Options
+include(CMakeDependentOption)
+
 ## User options
 option(BUILD_C_DOC "Build documentation for C APIs using Doxygen." OFF)
 option(USE_OPENMP "Build with OpenMP support." ON)
@@ -69,8 +70,24 @@ option(USE_CUDA  "Build with GPU acceleration" OFF)
 option(USE_PER_THREAD_DEFAULT_STREAM "Build with per-thread default stream" ON)
 option(USE_NCCL  "Build with NCCL to enable distributed GPU support." OFF)
 option(BUILD_WITH_SHARED_NCCL "Build with shared NCCL library." OFF)
-set(GPU_COMPUTE_VER "" CACHE STRING
-  "Semicolon separated list of compute versions to be built against, e.g. '35;61'")
+if(USE_CUDA)
+  if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES AND NOT DEFINED ENV{CUDAARCHS})
+    set(GPU_COMPUTE_VER "" CACHE STRING
+      "Semicolon separated list of compute versions to be built against, e.g. '35;61'")
+  else()
+    # Clear any cached values from previous runs
+    unset(GPU_COMPUTE_VER)
+    unset(GPU_COMPUTE_VER CACHE)
+  endif()
+endif()
+# CUDA device LTO was introduced in CMake v3.25 and requires host LTO to also be enabled but can still
+# be explicitly disabled allowing for LTO on host only, host and device, or neither, but device-only LTO
+# is not a supproted configuration
+cmake_dependent_option(USE_CUDA_LTO
+  "Enable link-time optimization for CUDA device code"
+  "${CMAKE_INTERPROCEDURAL_OPTIMIZATION}"
+  "CMAKE_VERSION VERSION_GREATER_EQUAL 3.25;USE_CUDA;CMAKE_INTERPROCEDURAL_OPTIMIZATION"
+  OFF)
 ## Sanitizers
 option(USE_SANITIZER "Use santizer flags" OFF)
 option(SANITIZER_PATH "Path to sanitizes.")
@@ -168,15 +185,24 @@ endif()
 if(USE_CUDA)
   set(USE_OPENMP ON CACHE BOOL "CUDA requires OpenMP" FORCE)
   # `export CXX=' is ignored by CMake CUDA.
-  set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
-  message(STATUS "Configured CUDA host compiler: ${CMAKE_CUDA_HOST_COMPILER}")
+  if(NOT DEFINED CMAKE_CUDA_HOST_COMPILER AND NOT DEFINED ENV{CUDAHOSTCXX})
+    set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER} CACHE FILEPATH
+      "The compiler executable to use when compiling host code for CUDA or HIP language files.")
+    mark_as_advanced(CMAKE_CUDA_HOST_COMPILER)
+    message(STATUS "Configured CUDA host compiler: ${CMAKE_CUDA_HOST_COMPILER}")
+  endif()
+
+  if(NOT DEFINED CMAKE_CUDA_RUNTIME_LIBRARY)
+    set(CMAKE_CUDA_RUNTIME_LIBRARY Static)
+  endif()
 
   enable_language(CUDA)
   if(${CMAKE_CUDA_COMPILER_VERSION} VERSION_LESS 11.0)
     message(FATAL_ERROR "CUDA version must be at least 11.0!")
   endif()
-  set(GEN_CODE "")
-  format_gencode_flags("${GPU_COMPUTE_VER}" GEN_CODE)
+  if(DEFINED GPU_COMPUTE_VER)
+    compute_cmake_cuda_archs("${GPU_COMPUTE_VER}")
+  endif()
   add_subdirectory(${PROJECT_SOURCE_DIR}/gputreeshap)
 
   find_package(CUDAToolkit REQUIRED)
