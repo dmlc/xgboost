@@ -10,10 +10,12 @@ set -x
 system_profiler SPSoftwareDataType
 sysctl -n machdep.cpu.brand_string
 uname -m
+set +x
 
 # Create new Conda env
 . $HOME/mambaforge/etc/profile.d/conda.sh
 . $HOME/mambaforge/etc/profile.d/mamba.sh
+set -x
 conda_env=xgboost_dev_$(uuidgen | tr '[:upper:]' '[:lower:]' | tr -d '-')
 conda activate
 mamba env create -n ${conda_env} --file=tests/ci_build/conda_env/macos_cpu_test.yml
