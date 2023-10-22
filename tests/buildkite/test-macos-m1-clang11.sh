@@ -6,9 +6,12 @@ echo "--- Build and Test XGBoost with MacOS M1, Clang 11"
 
 source tests/buildkite/conftest.sh
 
+# Display system info
+set -x
+system_profiler SPSoftwareDataType
+
 # Ensure that XGBoost can be built with Clang 11
 LLVM11_PATH=$(brew --prefix llvm\@11)
-set -x
 mkdir build
 pushd build
 cmake .. -GNinja -DCMAKE_C_COMPILER=${LLVM11_PATH}/bin/clang \
