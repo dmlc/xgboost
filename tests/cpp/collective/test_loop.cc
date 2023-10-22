@@ -41,7 +41,7 @@ class LoopTest : public ::testing::Test {
     rc = pair_.first.NonBlocking(true);
     ASSERT_TRUE(rc.OK());
 
-    loop_ = std::make_shared<Loop>(timeout);
+    loop_ = std::shared_ptr<Loop>{new Loop{timeout}};
   }
 
   void TearDown() override {
