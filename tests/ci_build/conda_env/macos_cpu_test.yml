@@ -32,7 +32,6 @@ dependencies:
 - jsonschema
 - boto3
 - awscli
-- py-ubjson
 - cffi
 - pyarrow
 - pyspark>=3.4.0
@@ -40,3 +39,4 @@ dependencies:
 - pip:
   - sphinx_rtd_theme
   - datatable
+  - py-ubjson
