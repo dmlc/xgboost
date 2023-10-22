@@ -38,5 +38,4 @@ dependencies:
 - cloudpickle
 - pip:
   - sphinx_rtd_theme
-  - datatable
   - py-ubjson
