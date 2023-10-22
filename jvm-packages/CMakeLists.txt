@@ -25,4 +25,3 @@ target_include_directories(xgboost4j
   ${PROJECT_SOURCE_DIR}/rabit/include)
 
 set_output_directory(xgboost4j ${PROJECT_SOURCE_DIR}/lib)
-target_link_libraries(xgboost4j PRIVATE ${JAVA_JVM_LIBRARY})
