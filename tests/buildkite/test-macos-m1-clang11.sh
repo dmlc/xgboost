@@ -8,10 +8,11 @@ source tests/buildkite/conftest.sh
 
 # Ensure that XGBoost can be built with Clang 11
 LLVM11_PATH=$(brew --prefix llvm\@11)
+set -x
 mkdir build
 pushd build
-cmake .. -GNinja -DCMAKE_C_COMPILER=$LLVM11_PATH/bin/clang \
-  -DCMAKE_CXX_COMPILER=LLVM11_PATH/bin/clang++ -DGOOGLE_TEST=ON \
+cmake .. -GNinja -DCMAKE_C_COMPILER=${LLVM11_PATH}/bin/clang \
+  -DCMAKE_CXX_COMPILER=${LLVM11_PATH}/bin/clang++ -DGOOGLE_TEST=ON \
   -DUSE_DMLC_GTEST=ON
 ninja -v
 
