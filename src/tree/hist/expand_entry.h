@@ -6,6 +6,7 @@
 
 #include <algorithm>    // for all_of
 #include <ostream>      // for ostream
+#include <string>       // for string
 #include <type_traits>  // for add_const_t
 #include <utility>      // for move
 #include <vector>       // for vector
