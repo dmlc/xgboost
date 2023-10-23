@@ -23,7 +23,7 @@ Comm::Comm(std::string const& host, std::int32_t port, std::chrono::seconds time
       retry_{retry},
       tracker_{host, port, -1},
       task_id_{std::move(task_id)},
-      loop_{std::make_shared<Loop>(timeout)} {}
+      loop_{std::shared_ptr<Loop>{new Loop{timeout}}} {}
 
 Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, std::int32_t retry,
                           std::string const& task_id, TCPSocket* out, std::int32_t rank,

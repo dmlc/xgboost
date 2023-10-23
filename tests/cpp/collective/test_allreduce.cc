@@ -53,7 +53,7 @@ class AllreduceWorker : public WorkerForTest {
     Context ctx;
     std::vector<std::uint32_t> data(comm_.World(), 0);
     data[comm_.Rank()] = ~std::uint32_t{0};
-    auto pcoll = std::make_shared<Coll>();
+    auto pcoll = std::shared_ptr<Coll>{new Coll{}};
     auto rc = pcoll->Allreduce(&ctx, comm_, EraseType(common::Span{data.data(), data.size()}),
                                ArrayInterfaceHandler::kU4, Op::kBitwiseOR);
     ASSERT_TRUE(rc.OK()) << rc.Report();
