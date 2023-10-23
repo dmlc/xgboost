@@ -294,15 +294,6 @@ class HistEvaluator {
     auto const world = collective::GetWorldSize();
     auto const num_entries = entries.size();
 
-    std::vector<Json> j_entries(num_entries);
-    for (std::size_t i = 0; i < num_entries; ++i) {
-      auto const &e = entries[i];
-      e.Save(&j_entries[i]);
-    }
-    Json ser{Array{j_entries}};
-    std::vector<char> out;
-    Json::Dump(ser, &out, std::ios::binary);
-
     // First, gather all the primitive fields.
     std::vector<CPUExpandEntry> local_entries(num_entries);
     std::vector<uint32_t> cat_bits;
