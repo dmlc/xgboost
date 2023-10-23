@@ -448,11 +448,12 @@ public class Booster implements Serializable, KryoSerializable {
     if (predContribs) {
       optionMask = 4;
     }
-    DMatrix d_mat = new DMatrix(data, num_rows, num_features, missing);
     float[][] rawPredicts = new float[1][];
+    // The DMatrix in this JNI call is completely unused, and creating one actually causes
+    // performance problems. So we will just pass a 0L handle
     XGBoostJNI.checkCall(XGBoostJNI.XGBoosterInplacePredict(handle, data, num_rows, num_features,
-        d_mat.getHandle(), missing,
-        optionMask, treeLimit, rawPredicts));  // pass missing and treelimit here?
+        0L, missing, optionMask, treeLimit, rawPredicts));
+    // pass missing and treelimit here?
 
     // System.out.println("Booster.inplace_predict rawPredicts[0].length = " +
     //    rawPredicts[0].length);
