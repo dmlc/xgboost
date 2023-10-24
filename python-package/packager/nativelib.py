@@ -132,7 +132,7 @@ def locate_or_build_libxgboost(
 
     if build_config.use_system_libxgboost:
         # Find libxgboost from system prefix
-        sys_prefix = pathlib.Path(sys.prefix)
+        sys_prefix = pathlib.Path(sys.base_prefix)
         sys_prefix_candidates = [
             sys_prefix / "lib",
             # Paths possibly used on Windows
