@@ -401,7 +401,7 @@ struct SplitEntryContainer {
   /*! \brief split index */
   bst_feature_t sindex{0};
   bst_float split_value{0.0f};
-  std::vector<uint32_t> cat_bits;
+  std::vector<std::uint32_t> cat_bits;
   bool is_cat{false};
 
   GradientT left_sum;

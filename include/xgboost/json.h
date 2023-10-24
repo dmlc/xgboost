@@ -153,7 +153,7 @@ class JsonTypedArray : public Value {
   using Type = T;
 
   JsonTypedArray() : Value(kind) {}
-  explicit JsonTypedArray(size_t n) : Value(kind) { vec_.resize(n); }
+  explicit JsonTypedArray(std::size_t n) : Value(kind) { vec_.resize(n); }
   JsonTypedArray(JsonTypedArray&& that) noexcept : Value{kind}, vec_{std::move(that.vec_)} {}
 
   bool operator==(Value const& rhs) const override;
@@ -171,21 +171,21 @@ class JsonTypedArray : public Value {
 };
 
 /**
- * \brief Typed UBJSON array for 32-bit floating point.
+ * @brief Typed UBJSON array for 32-bit floating point.
  */
 using F32Array = JsonTypedArray<float, Value::ValueKind::kNumberArray>;
 /**
- * \brief Typed UBJSON array for uint8_t.
+ * @brief Typed UBJSON array for uint8_t.
  */
-using U8Array = JsonTypedArray<uint8_t, Value::ValueKind::kU8Array>;
+using U8Array = JsonTypedArray<std::uint8_t, Value::ValueKind::kU8Array>;
 /**
- * \brief Typed UBJSON array for int32_t.
+ * @brief Typed UBJSON array for int32_t.
  */
-using I32Array = JsonTypedArray<int32_t, Value::ValueKind::kI32Array>;
+using I32Array = JsonTypedArray<std::int32_t, Value::ValueKind::kI32Array>;
 /**
- * \brief Typed UBJSON array for int64_t.
+ * @brief Typed UBJSON array for int64_t.
  */
-using I64Array = JsonTypedArray<int64_t, Value::ValueKind::kI64Array>;
+using I64Array = JsonTypedArray<std::int64_t, Value::ValueKind::kI64Array>;
 
 class JsonObject : public Value {
  public:

@@ -9,7 +9,8 @@
 #include <type_traits>  // for remove_cv_t
 #include <vector>       // for vector
 
-#include "comm.h"                       // for Comm, Channel, EraseType
+#include "../common/type.h"             // for EraseType
+#include "comm.h"                       // for Comm, Channel
 #include "xgboost/collective/result.h"  // for Result
 #include "xgboost/span.h"               // for Span
 
@@ -33,7 +34,7 @@ namespace cpu_impl {
 template <typename T>
 [[nodiscard]] Result RingAllgather(Comm const& comm, common::Span<T> data, std::size_t size) {
   auto n_bytes = sizeof(T) * size;
-  auto erased = EraseType(data);
+  auto erased = common::EraseType(data);
 
   auto rank = comm.Rank();
   auto prev = BootstrapPrev(rank, comm.World());
@@ -65,8 +66,8 @@ template <typename T>
   auto n_total_bytes = std::accumulate(sizes.cbegin(), sizes.cend(), 0);
   result.resize(n_total_bytes / sizeof(T));
   auto h_result = common::Span{result.data(), result.size()};
-  auto erased_result = EraseType(h_result);
-  auto erased_data = EraseType(data);
+  auto erased_result = common::EraseType(h_result);
+  auto erased_data = common::EraseType(data);
   std::vector<std::int64_t> offset(world + 1);
 
   return cpu_impl::RingAllgatherV(comm, sizes, erased_data,
