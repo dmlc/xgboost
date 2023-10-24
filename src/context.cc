@@ -141,12 +141,12 @@ DeviceOrd CUDAOrdinal(DeviceOrd device, bool) {
       device = DeviceOrd::CPU();
     } else if (s_device == DeviceSym::CUDA()) {
       device = DeviceOrd::CUDA(0);  // use 0 as default;
-    } else if (s_device == DeviceSym::SYCL_default()) {
-      device = DeviceOrd::SYCL_default();
-    } else if (s_device == DeviceSym::SYCL_CPU()) {
-      device = DeviceOrd::SYCL_CPU();
-    } else if (s_device == DeviceSym::SYCL_GPU()) {
-      device = DeviceOrd::SYCL_GPU();
+    } else if (s_device == DeviceSym::SyclDefault()) {
+      device = DeviceOrd::SyclDefault();
+    } else if (s_device == DeviceSym::SyclCPU()) {
+      device = DeviceOrd::SyclCPU();
+    } else if (s_device == DeviceSym::SyclGPU()) {
+      device = DeviceOrd::SyclGPU();
     } else {
       fatal();
     }
@@ -166,12 +166,12 @@ DeviceOrd CUDAOrdinal(DeviceOrd device, bool) {
     }
     CHECK_LE(opt_id.value(), std::numeric_limits<bst_d_ordinal_t>::max())
         << "Ordinal value too large.";
-    if (s_type == DeviceSym::SYCL_default()) {
-      device = DeviceOrd::SYCL_default(opt_id.value());
-    } else if (s_type == DeviceSym::SYCL_CPU()) {
-      device = DeviceOrd::SYCL_CPU(opt_id.value());
-    } else if (s_type == DeviceSym::SYCL_GPU()) {
-      device = DeviceOrd::SYCL_GPU(opt_id.value());
+    if (s_type == DeviceSym::SyclDefault()) {
+      device = DeviceOrd::SyclDefault(opt_id.value());
+    } else if (s_type == DeviceSym::SyclCPU()) {
+      device = DeviceOrd::SyclCPU(opt_id.value());
+    } else if (s_type == DeviceSym::SyclGPU()) {
+      device = DeviceOrd::SyclGPU(opt_id.value());
     } else {
       device = DeviceOrd::CUDA(opt_id.value());
     }

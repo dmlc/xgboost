@@ -22,9 +22,9 @@ struct CUDAContext;
 struct DeviceSym {
   static auto constexpr CPU() { return "cpu"; }
   static auto constexpr CUDA() { return "cuda"; }
-  static auto constexpr SYCL_default() { return "sycl"; }
-  static auto constexpr SYCL_CPU() { return "sycl:cpu"; }
-  static auto constexpr SYCL_GPU() { return "sycl:gpu"; }
+  static auto constexpr SyclDefault() { return "sycl"; }
+  static auto constexpr SyclCPU() { return "sycl:cpu"; }
+  static auto constexpr SyclGPU() { return "sycl:gpu"; }
 };
 
 /**
@@ -75,7 +75,7 @@ struct DeviceOrd {
    *
    * @param ordinal SYCL device ordinal.
    */
-  [[nodiscard]] constexpr static auto SYCL_default(bst_d_ordinal_t ordinal = -1) {
+  [[nodiscard]] constexpr static auto SyclDefault(bst_d_ordinal_t ordinal = -1) {
     return DeviceOrd{kSyclDefault, ordinal};
   }
   /**
@@ -83,7 +83,7 @@ struct DeviceOrd {
    *
    * @param ordinal SYCL CPU device ordinal.
    */
-  [[nodiscard]] constexpr static auto SYCL_CPU(bst_d_ordinal_t ordinal = -1) {
+  [[nodiscard]] constexpr static auto SyclCPU(bst_d_ordinal_t ordinal = -1) {
     return DeviceOrd{kSyclCPU, ordinal};
   }
 
@@ -92,7 +92,7 @@ struct DeviceOrd {
    *
    * @param ordinal SYCL GPU device ordinal.
    */
-  [[nodiscard]] constexpr static auto SYCL_GPU(bst_d_ordinal_t ordinal = -1) {
+  [[nodiscard]] constexpr static auto SyclGPU(bst_d_ordinal_t ordinal = -1) {
     return DeviceOrd{kSyclGPU, ordinal};
   }
 
@@ -110,11 +110,11 @@ struct DeviceOrd {
       case DeviceOrd::kCUDA:
         return DeviceSym::CUDA() + (':' + std::to_string(ordinal));
       case DeviceOrd::kSyclDefault:
-        return DeviceSym::SYCL_default() + (':' + std::to_string(ordinal));
+        return DeviceSym::SyclDefault() + (':' + std::to_string(ordinal));
       case DeviceOrd::kSyclCPU:
-        return DeviceSym::SYCL_CPU() + (':' + std::to_string(ordinal));
+        return DeviceSym::SyclCPU() + (':' + std::to_string(ordinal));
       case DeviceOrd::kSyclGPU:
-        return DeviceSym::SYCL_GPU() + (':' + std::to_string(ordinal));
+        return DeviceSym::SyclGPU() + (':' + std::to_string(ordinal));
       default: {
         LOG(FATAL) << "Unknown device.";
         return "";
