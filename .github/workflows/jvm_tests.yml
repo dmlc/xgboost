@@ -68,7 +68,7 @@ jobs:
     - name: Publish artifact libxgboost4j.dylib to S3
       run: |
         cd lib/
-        mv -v libxgboost4j.dylib -NewName libxgboost4j_${{ github.sha }}.dylib
+        mv -v libxgboost4j.dylib libxgboost4j_${{ github.sha }}.dylib
         ls
         python -m awscli s3 cp libxgboost4j_${{ github.sha }}.dylib s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/libxgboost4j --acl public-read
       if: |
