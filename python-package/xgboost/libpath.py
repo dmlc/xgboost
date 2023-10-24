@@ -34,10 +34,10 @@ def find_lib_path() -> List[str]:
         # On Windows, Conda may install libs in different paths
         dll_path.extend(
             [
-                os.path.join(sys.prefix, "bin"),
-                os.path.join(sys.prefix, "Library"),
-                os.path.join(sys.prefix, "Library", "bin"),
-                os.path.join(sys.prefix, "Library", "lib"),
+                os.path.join(sys.base_prefix, "bin"),
+                os.path.join(sys.base_prefix, "Library"),
+                os.path.join(sys.base_prefix, "Library", "bin"),
+                os.path.join(sys.base_prefix, "Library", "lib"),
             ]
         )
         dll_path = [os.path.join(p, "xgboost.dll") for p in dll_path]
