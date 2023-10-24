@@ -8,10 +8,13 @@ In before, users need to run an encoder themselves before passing the data into 
 which creates a sparse matrix and potentially increase memory usage.  This demo
 showcases the experimental categorical data support, more advanced features are planned.
 
-Also, see :doc:`the tutorial </tutorials/categorical>` for using XGBoost with
-categorical data.
+  .. versionadded:: 1.5.0
 
-    .. versionadded:: 1.5.0
+See Also
+--------
+- :doc:`Tutorial </tutorials/categorical>`
+- :ref:`sphx_glr_python_examples_cat_in_the_dat.py`
+- :ref:`sphx_glr_python_examples_cat_pipeline.py`
 
 """
 from typing import Tuple
@@ -52,11 +55,13 @@ def make_categorical(
 
 def main() -> None:
     # Use builtin categorical data support
-    # For scikit-learn interface, the input data must be pandas DataFrame or cudf
-    # DataFrame with categorical features
+
+    # For scikit-learn interface, the input data should be pandas DataFrame or cudf
+    # DataFrame with categorical features. If an numpy/cupy array is used instead, the
+    # `feature_types` for `XGBRegressor` should be set accordingly.
     X, y = make_categorical(100, 10, 4, False)
-    # Specify `enable_categorical` to True, also we use onehot encoding based split
-    # here for demonstration. For details see the document of `max_cat_to_onehot`.
+    # Specify `enable_categorical` to True, also we use onehot-encoding-based split here
+    # for demonstration. For details see the document of `max_cat_to_onehot`.
     reg = xgb.XGBRegressor(
         tree_method="hist", enable_categorical=True, max_cat_to_onehot=5, device="cuda"
     )

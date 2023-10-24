@@ -11,10 +11,13 @@ https://www.kaggle.com/shahules/an-overview-of-encoding-techniques
 And the data can be found at:
 https://www.kaggle.com/shahules/an-overview-of-encoding-techniques/data
 
-Also, see the tutorial for using XGBoost with categorical data:
-:doc:`/tutorials/categorical`.
+  .. versionadded:: 1.6.0
 
-    .. versionadded 1.6.0
+See Also
+--------
+- :doc:`Tutorial </tutorials/categorical>`
+- :ref:`sphx_glr_python_examples_categorical.py`
+- :ref:`sphx_glr_python_examples_cat_pipeline.py`
 
 """
 

@@ -821,7 +821,7 @@ class DirectoryExcursion:
 
     """
 
-    def __init__(self, path: os.PathLike, cleanup: bool = False):
+    def __init__(self, path: Union[os.PathLike, str], cleanup: bool = False):
         self.path = path
         self.curdir = os.path.normpath(os.path.abspath(os.path.curdir))
         self.cleanup = cleanup
