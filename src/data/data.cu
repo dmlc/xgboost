@@ -169,6 +169,11 @@ void MetaInfo::SetInfoFromCUDA(Context const& ctx, StringView key, Json array) {
   }
 }
 
+void SparsePage::ReindexCUDA(uint64_t feature_offset) {
+  auto d_data = this->data.DeviceSpan();
+  dh::LaunchN(d_data.size(), [=] __device__(size_t idx) { d_data[idx].index += feature_offset; });
+}
+
 template <typename AdapterT>
 DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread,
                          const std::string& cache_prefix, DataSplitMode data_split_mode) {

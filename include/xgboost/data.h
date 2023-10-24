@@ -389,7 +389,8 @@ class SparsePage {
   /**
    * \brief Reindex the column index with an offset.
    */
-  void Reindex(uint64_t feature_offset, int32_t n_threads);
+  void ReindexCPU(uint64_t feature_offset, int32_t n_threads);
+  void ReindexCUDA(uint64_t feature_offset);
 
   void SortRows(int32_t n_threads);
 

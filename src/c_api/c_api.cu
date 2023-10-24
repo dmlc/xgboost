@@ -96,9 +96,11 @@ XGB_DLL int XGDMatrixCreateFromCudaColumnar(char const *data,
 
   float missing = GetMissing(config);
   auto n_threads = OptionalArg<Integer, std::int64_t>(config, "nthread", 0);
+  auto data_split_mode =
+      static_cast<DataSplitMode>(OptionalArg<Integer, int64_t>(config, "data_split_mode", 0));
   data::CudfAdapter adapter(json_str);
-  *out =
-      new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
+  *out = new std::shared_ptr<DMatrix>(
+      DMatrix::Create(&adapter, missing, n_threads, "", data_split_mode));
   API_END();
 }
 

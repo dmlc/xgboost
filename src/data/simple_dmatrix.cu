@@ -17,16 +17,13 @@ namespace xgboost::data {
 template <typename AdapterT>
 SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, std::int32_t nthread,
                              DataSplitMode data_split_mode) {
-  CHECK(data_split_mode != DataSplitMode::kCol)
-      << "Column-wise data split is currently not supported on the GPU.";
   auto device = (adapter->Device().IsCPU() || adapter->NumRows() == 0)
                     ? DeviceOrd::CUDA(dh::CurrentDevice())
                     : adapter->Device();
   CHECK(device.IsCUDA());
   dh::safe_cuda(cudaSetDevice(device.ordinal));
 
-  Context ctx;
-  ctx.Init(Args{{"nthread", std::to_string(nthread)}, {"device", device.Name()}});
+  fmat_ctx_.Init(Args{{"nthread", std::to_string(nthread)}, {"device", device.Name()}});
 
   CHECK(adapter->NumRows() != kAdapterUnknownSize);
   CHECK(adapter->NumColumns() != kAdapterUnknownSize);
@@ -42,9 +39,8 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, std::int32_t nthr
   info_.num_row_ = adapter->NumRows();
   // Synchronise worker columns
   info_.data_split_mode = data_split_mode;
+  ReindexFeatures();
   info_.SynchronizeNumberOfColumns();
-
-  this->fmat_ctx_ = ctx;
 }
 
 template SimpleDMatrix::SimpleDMatrix(CudfAdapter* adapter, float missing,

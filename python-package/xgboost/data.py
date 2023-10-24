@@ -853,13 +853,18 @@ def _from_cudf_df(
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
     enable_categorical: bool,
+    data_split_mode: DataSplitMode = DataSplitMode.ROW,
 ) -> DispatchedDataBackendReturnType:
     data, cat_codes, feature_names, feature_types = _transform_cudf_df(
         data, feature_names, feature_types, enable_categorical
     )
     interfaces_str = _cudf_array_interfaces(data, cat_codes)
     handle = ctypes.c_void_p()
-    config = bytes(json.dumps({"missing": missing, "nthread": nthread}), "utf-8")
+    config = make_jcargs(
+        missing=float(missing),
+        nthread=int(nthread),
+        data_split_mode=int(data_split_mode),
+    )
     _check_call(
         _LIB.XGDMatrixCreateFromCudaColumnar(
             interfaces_str,
@@ -1096,7 +1101,13 @@ def dispatch_data_backend(
         )
     if _is_cudf_df(data) or _is_cudf_ser(data):
         return _from_cudf_df(
-            data, missing, threads, feature_names, feature_types, enable_categorical
+            data,
+            missing,
+            threads,
+            feature_names,
+            feature_types,
+            enable_categorical,
+            data_split_mode,
         )
     if _is_cupy_array(data):
         return _from_cupy_array(data, missing, threads, feature_names, feature_types)
