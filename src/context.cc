@@ -115,8 +115,9 @@ DeviceOrd CUDAOrdinal(DeviceOrd device, bool) {
 
   // handle alias
   std::string s_device = input;
-  if (!std::regex_match(s_device, std::regex("sycl(:cpu|:gpu)?(:-1|:[0-9]+)?")))
+  if (!std::regex_match(s_device, std::regex("sycl(:cpu|:gpu)?(:-1|:[0-9]+)?"))) {
     s_device = std::regex_replace(s_device, std::regex{"gpu"}, DeviceSym::CUDA());
+  }
 
   auto split_it = std::find(s_device.cbegin(), s_device.cend(), ':');
   if (std::regex_match(s_device, std::regex("sycl:(cpu|gpu)?"))) split_it = s_device.cend();
