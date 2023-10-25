@@ -94,13 +94,9 @@ DeviceOrd CUDAOrdinal(DeviceOrd device, bool) {
   StringView msg{R"(Invalid argument for `device`. Expected to be one of the following:
 - cpu
 - cuda
-- cuda:<device ordinal>            # e.g. cuda:0
+- cuda:<device ordinal>  # e.g. cuda:0
 - gpu
-- gpu:<device ordinal>             # e.g. gpu:0
-- sycl
-- sycl:<device ordinal>            # e.g. sycl:0
-- sycl:<cpu, gpu>
-- sycl:<cpu, gpu>:<device ordinal> # e.g. sycl:gpu:0
+- gpu:<device ordinal>   # e.g. gpu:0
 )"};
   auto fatal = [&] { LOG(FATAL) << msg << "Got: `" << input << "`."; };
 
