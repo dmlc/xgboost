@@ -14,7 +14,8 @@
 #include "xgboost/collective/result.h"  // for Result
 #include "xgboost/span.h"               // for Span
 
-namespace xgboost::collective::cpu_impl {
+namespace xgboost::collective {
+namespace cpu_impl {
 Result RingAllgather(Comm const& comm, common::Span<std::int8_t> data, std::size_t segment_size,
                      std::int32_t worker_off, std::shared_ptr<Channel> prev_ch,
                      std::shared_ptr<Channel> next_ch) {
@@ -42,10 +43,11 @@ Result RingAllgather(Comm const& comm, common::Span<std::int8_t> data, std::size
 
   return Success();
 }
+}  // namespace cpu_impl
 
+namespace detail {
 [[nodiscard]] Result RingAllgatherV(Comm const& comm, common::Span<std::int64_t const> sizes,
-                                    common::Span<std::int8_t const> data,
-                                    common::Span<std::int64_t> offset,
+                                    common::Span<std::int64_t const> offset,
                                     common::Span<std::int8_t> erased_result) {
   auto world = comm.World();
   auto rank = comm.Rank();
@@ -55,17 +57,6 @@ Result RingAllgather(Comm const& comm, common::Span<std::int8_t> data, std::size
 
   auto prev_ch = comm.Chan(prev);
   auto next_ch = comm.Chan(next);
-
-  // get worker offset
-  CHECK_EQ(world + 1, offset.size());
-  std::fill_n(offset.data(), offset.size(), 0);
-  std::partial_sum(sizes.cbegin(), sizes.cend(), offset.begin() + 1);
-  CHECK_EQ(*offset.cbegin(), 0);
-
-  // copy data
-  auto current = erased_result.subspan(offset[rank], data.size_bytes());
-  auto erased_data = EraseType(data);
-  std::copy_n(erased_data.data(), erased_data.size(), current.data());
 
   for (std::int32_t r = 0; r < world; ++r) {
     auto send_rank = (rank + world - r) % world;
@@ -87,4 +78,5 @@ Result RingAllgather(Comm const& comm, common::Span<std::int8_t> data, std::size
   }
   return comm.Block();
 }
-}  // namespace xgboost::collective::cpu_impl
+}  // namespace detail
+}  // namespace xgboost::collective

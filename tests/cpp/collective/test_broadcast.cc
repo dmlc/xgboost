@@ -47,5 +47,5 @@ TEST_F(BroadcastTest, Basic) {
     Worker worker{host, port, timeout, n_workers, r};
     worker.Run();
   });
-}
+}  // namespace
 }  // namespace xgboost::collective

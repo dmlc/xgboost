@@ -1169,7 +1169,13 @@ class CUDAStreamView {
   operator cudaStream_t() const {  // NOLINT
     return stream_;
   }
-  void Sync() { dh::safe_cuda(cudaStreamSynchronize(stream_)); }
+  cudaError_t Sync(bool error = true) {
+    if (error) {
+      dh::safe_cuda(cudaStreamSynchronize(stream_));
+      return cudaSuccess;
+    }
+    return cudaStreamSynchronize(stream_);
+  }
 };
 
 inline void CUDAEvent::Record(CUDAStreamView stream) {  // NOLINT
