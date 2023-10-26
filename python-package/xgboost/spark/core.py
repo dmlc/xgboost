@@ -414,9 +414,7 @@ class _SparkXGBParams(
             )
 
         if self.getOrDefault(self.features_cols):
-            if not use_cuda(self.getOrDefault(self.device)) and not self.getOrDefault(
-                self.use_gpu
-            ):
+            if not self._run_on_gpu():
                 raise ValueError(
                     "features_col param with list value requires `device=cuda`."
                 )
@@ -914,7 +912,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         """Check if stage-level scheduling is not needed,
         return true to skip stage-level scheduling"""
 
-        if use_cuda(self.getOrDefault(self.device)) or self.getOrDefault(self.use_gpu):
+        if self._run_on_gpu():
             ss = _get_spark_session()
             sc = ss.sparkContext
 
