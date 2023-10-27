@@ -191,6 +191,28 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
   } << [&] { return nccl->Block(); };
 }
 
+/**
+ * @brief Implement allgather-v using broadcast.
+ *
+ * https://arxiv.org/abs/1812.05964
+ */
+Result BroadcastAllgatherV(NCCLComm const* comm, common::Span<std::int8_t const> data,
+                           common::Span<std::int64_t const> sizes, common::Span<std::int8_t> recv) {
+  return Success() << [] { return GetNCCLResult(ncclGroupStart()); } << [&] {
+    std::size_t offset = 0;
+    for (std::int32_t r = 0; r < comm->World(); ++r) {
+      auto as_bytes = sizes[r];
+      auto rc = ncclBroadcast(data.data(), recv.subspan(offset, as_bytes).data(), as_bytes,
+                              ncclInt8, r, comm->Handle(), dh::DefaultStream());
+      if (rc != ncclSuccess) {
+        return GetNCCLResult(rc);
+      }
+      offset += as_bytes;
+    }
+    return Success();
+  } << [] { return GetNCCLResult(ncclGroupEnd()); };
+}
+
 [[nodiscard]] Result NCCLColl::AllgatherV(Comm const& comm, common::Span<std::int8_t const> data,
                                           common::Span<std::int64_t const> sizes,
                                           common::Span<std::int64_t> recv_segments,
@@ -206,9 +228,11 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
   if (!comm.IsDistributed()) {
     return Success();
   }
-  return Success() << [&] { return GetNCCLResult(ncclGroupStart()); }
-                   << [&] { return detail::RingAllgatherV(comm, sizes, recv_segments, recv); } <<
-         [&] { return GetNCCLResult(ncclGroupEnd()); } << [&] { return nccl->Block(); };
+  return BroadcastAllgatherV(nccl, data, sizes, recv);
+
+  return Success() << [] { return GetNCCLResult(ncclGroupStart()); }
+                   << [&] { return detail::RingAllgatherV(comm, sizes, recv_segments, recv); }
+                   << [] { return GetNCCLResult(ncclGroupEnd()); } << [&] { return nccl->Block(); };
 }
 }  // namespace xgboost::collective
 

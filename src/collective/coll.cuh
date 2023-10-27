@@ -8,7 +8,6 @@
 #include "../data/array_interface.h"  // for ArrayInterfaceHandler
 #include "coll.h"                     // for Coll
 #include "comm.h"                     // for Comm
-#include "xgboost/context.h"          // for Context
 #include "xgboost/span.h"             // for Span
 
 namespace xgboost::collective {
