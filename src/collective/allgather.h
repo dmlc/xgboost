@@ -10,8 +10,6 @@
 #include <vector>       // for vector
 
 #include "../common/type.h"  // for EraseType
-#include "allreduce.h"
-#include "coll.h"
 #include "comm.h"                       // for Comm, Channel
 #include "xgboost/collective/result.h"  // for Result
 #include "xgboost/linalg.h"
@@ -27,6 +25,14 @@ namespace cpu_impl {
                                    std::size_t segment_size, std::int32_t worker_off,
                                    std::shared_ptr<Channel> prev_ch,
                                    std::shared_ptr<Channel> next_ch);
+
+/**
+ * @brief Implement allgather-v using broadcast.
+ *
+ * https://arxiv.org/abs/1812.05964
+ */
+Result BroadcastAllgatherV(Comm const& comm, common::Span<std::int64_t const> sizes,
+                           common::Span<std::int8_t> recv);
 }  // namespace cpu_impl
 
 namespace detail {

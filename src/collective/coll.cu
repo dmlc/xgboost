@@ -191,6 +191,7 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
   } << [&] { return nccl->Block(); };
 }
 
+namespace cuda_impl {
 /**
  * @brief Implement allgather-v using broadcast.
  *
@@ -212,11 +213,12 @@ Result BroadcastAllgatherV(NCCLComm const* comm, common::Span<std::int8_t const>
     return Success();
   } << [] { return GetNCCLResult(ncclGroupEnd()); };
 }
+}  // namespace cuda_impl
 
 [[nodiscard]] Result NCCLColl::AllgatherV(Comm const& comm, common::Span<std::int8_t const> data,
                                           common::Span<std::int64_t const> sizes,
                                           common::Span<std::int64_t> recv_segments,
-                                          common::Span<std::int8_t> recv) {
+                                          common::Span<std::int8_t> recv, AllgatherVAlgo algo) {
   auto nccl = dynamic_cast<NCCLComm const*>(&comm);
   CHECK(nccl);
   // get worker offset
@@ -228,11 +230,20 @@ Result BroadcastAllgatherV(NCCLComm const* comm, common::Span<std::int8_t const>
   if (!comm.IsDistributed()) {
     return Success();
   }
-  return BroadcastAllgatherV(nccl, data, sizes, recv);
 
-  return Success() << [] { return GetNCCLResult(ncclGroupStart()); }
-                   << [&] { return detail::RingAllgatherV(comm, sizes, recv_segments, recv); }
-                   << [] { return GetNCCLResult(ncclGroupEnd()); } << [&] { return nccl->Block(); };
+  switch (algo) {
+    case AllgatherVAlgo::kRing: {
+      return Success() << [] { return GetNCCLResult(ncclGroupStart()); } <<
+             [&] { return detail::RingAllgatherV(comm, sizes, recv_segments, recv); } <<
+             [] { return GetNCCLResult(ncclGroupEnd()); } << [&] { return nccl->Block(); };
+    }
+    case AllgatherVAlgo::kBcast: {
+      return cuda_impl::BroadcastAllgatherV(nccl, data, sizes, recv);
+    }
+    default: {
+      return Fail("Unknown algorithm for allgather-v");
+    }
+  }
 }
 }  // namespace xgboost::collective
 

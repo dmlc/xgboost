@@ -8,6 +8,7 @@
 #include <cstdint>    // for int8_t, int32_t, int64_t
 #include <memory>     // for shared_ptr
 
+#include "broadcast.h"
 #include "comm.h"                       // for Comm, Channel
 #include "xgboost/collective/result.h"  // for Result
 #include "xgboost/span.h"               // for Span
@@ -42,6 +43,20 @@ Result RingAllgather(Comm const& comm, common::Span<std::int8_t> data, std::size
     }
   }
 
+  return Success();
+}
+
+Result BroadcastAllgatherV(Comm const& comm, common::Span<std::int64_t const> sizes,
+                           common::Span<std::int8_t> recv) {
+  std::size_t offset = 0;
+  for (std::int32_t r = 0; r < comm.World(); ++r) {
+    auto as_bytes = sizes[r];
+    auto rc = Broadcast(comm, recv.subspan(offset, as_bytes), r);
+    if (!rc.OK()) {
+      return rc;
+    }
+    offset += as_bytes;
+  }
   return Success();
 }
 }  // namespace cpu_impl

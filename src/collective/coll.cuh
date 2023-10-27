@@ -24,6 +24,6 @@ class NCCLColl : public Coll {
   [[nodiscard]] Result AllgatherV(Comm const& comm, common::Span<std::int8_t const> data,
                                   common::Span<std::int64_t const> sizes,
                                   common::Span<std::int64_t> recv_segments,
-                                  common::Span<std::int8_t> recv) override;
+                                  common::Span<std::int8_t> recv, AllgatherVAlgo algo) override;
 };
 }  // namespace xgboost::collective

@@ -23,7 +23,7 @@ class Worker : public NCCLWorkerForTest {
  public:
   using NCCLWorkerForTest::NCCLWorkerForTest;
 
-  void TestV() {
+  void TestV(AllgatherVAlgo algo) {
     {
       // basic test
       std::size_t n = 1;
@@ -41,7 +41,7 @@ class Worker : public NCCLWorkerForTest {
 
       std::vector<std::int64_t> recv_seg(nccl_comm_->World() + 1, 0);
       rc = nccl_coll_->AllgatherV(*nccl_comm_, s_data, common::Span{sizes.data(), sizes.size()},
-                                  common::Span{recv_seg.data(), recv_seg.size()}, s_result);
+                                  common::Span{recv_seg.data(), recv_seg.size()}, s_result, algo);
       ASSERT_TRUE(rc.OK()) << rc.Report();
 
       for (std::int32_t i = 0; i < comm_.World(); ++i) {
@@ -66,7 +66,7 @@ class Worker : public NCCLWorkerForTest {
 
       std::vector<std::int64_t> recv_seg(nccl_comm_->World() + 1, 0);
       rc = nccl_coll_->AllgatherV(*nccl_comm_, s_data, common::Span{sizes.data(), sizes.size()},
-                                  common::Span{recv_seg.data(), recv_seg.size()}, s_result);
+                                  common::Span{recv_seg.data(), recv_seg.size()}, s_result, algo);
       ASSERT_TRUE(rc.OK()) << rc.Report();
       // check segment size
       auto size = recv_seg[nccl_comm_->Rank() + 1] - recv_seg[nccl_comm_->Rank()];
@@ -88,18 +88,27 @@ class Worker : public NCCLWorkerForTest {
   }
 };
 
-namespace {
 class AllgatherTestGPU : public SocketTest {};
 }  // namespace
-}  // namespace
 
-TEST_F(AllgatherTestGPU, MGPUTestV) {
+TEST_F(AllgatherTestGPU, MGPUTestVRing) {
   auto n_workers = common::AllVisibleGPUs();
   TestDistributed(n_workers, [=](std::string host, std::int32_t port, std::chrono::seconds timeout,
                                  std::int32_t r) {
     Worker w{host, port, timeout, n_workers, r};
     w.Setup();
-    w.TestV();
+    w.TestV(AllgatherVAlgo::kRing);
+    w.TestV(AllgatherVAlgo::kBcast);
+  });
+}
+
+TEST_F(AllgatherTestGPU, MGPUTestVBcast) {
+  auto n_workers = common::AllVisibleGPUs();
+  TestDistributed(n_workers, [=](std::string host, std::int32_t port, std::chrono::seconds timeout,
+                                 std::int32_t r) {
+    Worker w{host, port, timeout, n_workers, r};
+    w.Setup();
+    w.TestV(AllgatherVAlgo::kBcast);
   });
 }
 }  // namespace xgboost::collective

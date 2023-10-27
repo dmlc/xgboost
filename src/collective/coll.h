@@ -2,17 +2,20 @@
  * Copyright 2023, XGBoost Contributors
  */
 #pragma once
-#include <cstddef>  // for size_t
 #include <cstdint>  // for int8_t, int64_t
 #include <memory>   // for enable_shared_from_this
 
 #include "../data/array_interface.h"    // for ArrayInterfaceHandler
 #include "comm.h"                       // for Comm
 #include "xgboost/collective/result.h"  // for Result
-#include "xgboost/context.h"            // for Context
 #include "xgboost/span.h"               // for Span
 
 namespace xgboost::collective {
+enum class AllgatherVAlgo {
+  kRing = 0,   // use ring-based allgather-v
+  kBcast = 1,  // use broadcast-based allgather-v
+};
+
 /**
  * @brief Interface and base implementation for collective.
  */
@@ -61,6 +64,6 @@ class Coll : public std::enable_shared_from_this<Coll> {
   [[nodiscard]] virtual Result AllgatherV(Comm const& comm, common::Span<std::int8_t const> data,
                                           common::Span<std::int64_t const> sizes,
                                           common::Span<std::int64_t> recv_segments,
-                                          common::Span<std::int8_t> recv);
+                                          common::Span<std::int8_t> recv, AllgatherVAlgo algo);
 };
 }  // namespace xgboost::collective

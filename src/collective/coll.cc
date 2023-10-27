@@ -66,7 +66,7 @@ namespace xgboost::collective {
 [[nodiscard]] Result Coll::AllgatherV(Comm const& comm, common::Span<std::int8_t const> data,
                                       common::Span<std::int64_t const> sizes,
                                       common::Span<std::int64_t> recv_segments,
-                                      common::Span<std::int8_t> recv) {
+                                      common::Span<std::int8_t> recv, AllgatherVAlgo algo) {
   // get worker offset
   detail::AllgatherVOffset(sizes, recv_segments);
 
@@ -74,7 +74,15 @@ namespace xgboost::collective {
   auto current = recv.subspan(recv_segments[comm.Rank()], data.size_bytes());
   std::copy_n(data.data(), data.size(), current.data());
 
-  return detail::RingAllgatherV(comm, sizes, recv_segments, recv);
+  switch (algo) {
+    case AllgatherVAlgo::kRing:
+      return detail::RingAllgatherV(comm, sizes, recv_segments, recv);
+    case AllgatherVAlgo::kBcast:
+      return cpu_impl::BroadcastAllgatherV(comm, sizes, recv);
+    default: {
+      return Fail("Unknown algorithm for allgather-v");
+    }
+  }
 }
 
 #if !defined(XGBOOST_USE_NCCL)
