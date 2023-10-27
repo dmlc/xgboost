@@ -151,4 +151,4 @@ jobs:
                            python-package/xgboost/lib python-package/xgboost/rabit \
                            python-package/xgboost/src
 
-        sh ./tests/ci_build/lint_cmake.sh || true
+        sh ./tests/ci_build/lint_cmake.sh
