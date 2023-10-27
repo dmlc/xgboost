@@ -128,7 +128,8 @@ Write your PySpark application
 ==============================
 
 Below snippet is a small example for training xgboost model with PySpark. Notice that we are
-using a list of feature names instead of vector features and the additional parameter ``device``:
+using a list of feature names instead of vector type as the input. The parameter ``"device=cuda"``
+specifically indicates that the training will be performed on a GPU.
 
 .. code-block:: python
 
@@ -200,8 +201,9 @@ you still need to set ``"spark.task.resource.gpu.amount"`` equal to ``"spark.exe
     --archives xgboost_env.tar.gz#environment \
     xgboost_app.py
 
-By executing the aforementioned command, the XGBoost application will be submitted with python environment created by pip or conda,
-specifying a request for 1 GPU and 12 CPUs per executor. During the ETL phase, a total of 12 tasks will be executed concurrently.
+The above command submits the xgboost pyspark application with the python environment created by pip or conda,
+specifying a request for 1 GPU and 12 CPUs per executor. So you can see, a total of 12 tasks per executor will be
+executed concurrently during the ETL phase.
 
 Model Persistence
 =================
