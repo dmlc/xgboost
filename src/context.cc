@@ -117,7 +117,7 @@ DeviceOrd CUDAOrdinal(DeviceOrd device, bool) {
 #if defined(__MINGW32__)
   // mingw hangs on regex using rtools 430. Basic checks only.
   bool is_sycl = (substr == "syc");
-#else  
+#else
   bool is_sycl = std::regex_match(input, std::regex("sycl(:cpu|:gpu)?(:-1|:[0-9]+)?"));
 #endif  // defined(__MINGW32__)
 
