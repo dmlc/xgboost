@@ -87,7 +87,7 @@ XGBoost PySpark GPU support
 XGBoost PySpark fully supports GPU acceleration. Users are not only able to enable
 efficient training but also utilize their GPUs for the whole PySpark pipeline including
 ETL and inference. In below sections, we will walk through an example of training on a
-Spark standalone cluster with GPU supported. To get started, first we need to install some
+Spark standalone cluster with GPU support. To get started, first we need to install some
 additional packages, then we can set the ``device`` parameter to ``cuda`` or ``gpu``.
 
 Prepare the necessary packages
