@@ -7,8 +7,6 @@
 #include <cstddef>    // for size_t
 #include <cstdint>    // for int8_t, int32_t, int64_t
 #include <memory>     // for shared_ptr
-#include <numeric>    // for partial_sum
-#include <vector>     // for vector
 
 #include "comm.h"                       // for Comm, Channel
 #include "xgboost/collective/result.h"  // for Result
@@ -22,6 +20,9 @@ Result RingAllgather(Comm const& comm, common::Span<std::int8_t> data, std::size
   auto world = comm.World();
   auto rank = comm.Rank();
   CHECK_LT(worker_off, world);
+  if (world == 1) {
+    return Success();
+  }
 
   for (std::int32_t r = 0; r < world; ++r) {
     auto send_rank = (rank + world - r + worker_off) % world;
@@ -50,6 +51,9 @@ namespace detail {
                                     common::Span<std::int64_t const> offset,
                                     common::Span<std::int8_t> erased_result) {
   auto world = comm.World();
+  if (world == 1) {
+    return Success();
+  }
   auto rank = comm.Rank();
 
   auto prev = BootstrapPrev(rank, comm.World());

@@ -43,7 +43,7 @@ class Coll;
  */
 class Comm {
  protected:
-  std::int32_t world_{1};
+  std::int32_t world_{-1};
   std::int32_t rank_{0};
   std::chrono::seconds timeout_{DefaultTimeoutSec()};
   std::int32_t retry_{DefaultRetry()};
@@ -75,8 +75,8 @@ class Comm {
   [[nodiscard]] auto TaskID() const { return task_id_; }
 
   [[nodiscard]] auto Rank() const { return rank_; }
-  [[nodiscard]] auto World() const { return world_; }
-  [[nodiscard]] bool IsDistributed() const { return World() > 1; }
+  [[nodiscard]] auto World() const { return IsDistributed() ? world_ : 1; }
+  [[nodiscard]] bool IsDistributed() const { return world_ != -1; }
   void Submit(Loop::Op op) const { loop_->Submit(op); }
   [[nodiscard]] virtual Result Block() const { return loop_->Block(); }
 

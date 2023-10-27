@@ -144,6 +144,9 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
 
 [[nodiscard]] Result NCCLColl::Allreduce(Comm const& comm, common::Span<std::int8_t> data,
                                          ArrayInterfaceHandler::Type type, Op op) {
+  if (!comm.IsDistributed()) {
+    return Success();
+  }
   auto nccl = dynamic_cast<NCCLComm const*>(&comm);
   CHECK(nccl);
   return Success() << [&] {
@@ -163,6 +166,9 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
 
 [[nodiscard]] Result NCCLColl::Broadcast(Comm const& comm, common::Span<std::int8_t> data,
                                          std::int32_t root) {
+  if (!comm.IsDistributed()) {
+    return Success();
+  }
   auto nccl = dynamic_cast<NCCLComm const*>(&comm);
   CHECK(nccl);
   return Success() << [&] {
@@ -173,6 +179,9 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
 
 [[nodiscard]] Result NCCLColl::Allgather(Comm const& comm, common::Span<std::int8_t> data,
                                          std::int64_t size) {
+  if (!comm.IsDistributed()) {
+    return Success();
+  }
   auto nccl = dynamic_cast<NCCLComm const*>(&comm);
   CHECK(nccl);
   auto send = data.subspan(comm.Rank() * size, size);
@@ -194,6 +203,9 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
   auto current = recv.subspan(recv_segments[comm.Rank()], data.size_bytes());
   dh::safe_cuda(cudaMemcpyAsync(current.data(), data.data(), current.size_bytes(),
                                 cudaMemcpyDeviceToDevice, nccl->Stream()));
+  if (!comm.IsDistributed()) {
+    return Success();
+  }
   return Success() << [&] { return GetNCCLResult(ncclGroupStart()); }
                    << [&] { return detail::RingAllgatherV(comm, sizes, recv_segments, recv); } <<
          [&] { return GetNCCLResult(ncclGroupEnd()); } << [&] { return nccl->Block(); };

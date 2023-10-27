@@ -64,6 +64,10 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
   this->world_ = root.World();
   this->rank_ = root.Rank();
   this->domain_ = root.Domain();
+  if (!root.IsDistributed()) {
+    return;
+  }
+
   dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
 
   std::vector<std::uint64_t> uuids(root.World() * kUuidLength, 0);
