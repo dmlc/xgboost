@@ -114,13 +114,25 @@ DeviceOrd CUDAOrdinal(DeviceOrd device, bool) {
 #endif  // defined(__MINGW32__)
 
   // handle alias
+#if defined(__MINGW32__)
+  // mingw hangs on regex using rtools 430. Basic checks only.
+  bool is_sycl = (substr == "syc");
+#else  
+  bool is_sycl = std::regex_match(input, std::regex("sycl(:cpu|:gpu)?(:-1|:[0-9]+)?"));
+#endif  // defined(__MINGW32__)
+
   std::string s_device = input;
-  if (!std::regex_match(s_device, std::regex("sycl(:cpu|:gpu)?(:-1|:[0-9]+)?"))) {
+  if (!is_sycl) {
     s_device = std::regex_replace(s_device, std::regex{"gpu"}, DeviceSym::CUDA());
   }
 
   auto split_it = std::find(s_device.cbegin(), s_device.cend(), ':');
-  if (std::regex_match(s_device, std::regex("sycl:(cpu|gpu)?"))) split_it = s_device.cend();
+
+  // For these cases we need to move iterator to the end, not to look for a ordinal.
+  if ((s_device == "sycl:cpu") ||
+      (s_device == "sycl:gpu")) {
+        split_it = s_device.cend();
+  }
 
   // For s_device like "sycl:gpu:1"
   if (split_it != s_device.cend()) {
