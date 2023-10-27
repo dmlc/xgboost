@@ -14,7 +14,6 @@
 #include "../../../src/collective/allgather.h"     // for RingAllgather
 #include "../../../src/common/device_helpers.cuh"  // for ToSpan,  device_vector
 #include "../../../src/common/type.h"              // for EraseType
-#include "../helpers.h"                            // for MakeCUDACtx
 #include "test_worker.cuh"                         // for NCCLWorkerForTest
 #include "test_worker.h"                           // for TestDistributed, WorkerForTest
 

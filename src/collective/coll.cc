@@ -8,11 +8,10 @@
 #include <cstdint>     // for int8_t, int64_t
 #include <functional>  // for bit_and, bit_or, bit_xor, plus
 
-#include "allgather.h"        // for RingAllgatherV, RingAllgather
-#include "allreduce.h"        // for Allreduce
-#include "broadcast.h"        // for Broadcast
-#include "comm.h"             // for Comm
-#include "xgboost/context.h"  // for Context
+#include "allgather.h"  // for RingAllgatherV, RingAllgather
+#include "allreduce.h"  // for Allreduce
+#include "broadcast.h"  // for Broadcast
+#include "comm.h"       // for Comm
 
 namespace xgboost::collective {
 [[nodiscard]] Result Coll::Allreduce(Comm const& comm, common::Span<std::int8_t> data,

@@ -10,7 +10,6 @@
 #include <sstream>    // for stringstream
 #include <vector>     // for vector
 
-#include "../common/cuda_context.cuh"    // for CUDAContext
 #include "../common/device_helpers.cuh"  // for DefaultStream
 #include "../common/type.h"              // for EraseType
 #include "broadcast.h"                   // for Broadcast
