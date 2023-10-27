@@ -221,21 +221,23 @@ Result BroadcastAllgatherV(NCCLComm const* comm, common::Span<std::int8_t const>
                                           common::Span<std::int8_t> recv, AllgatherVAlgo algo) {
   auto nccl = dynamic_cast<NCCLComm const*>(&comm);
   CHECK(nccl);
-  // get worker offset
-  detail::AllgatherVOffset(sizes, recv_segments);
-  // copy data
-  auto current = recv.subspan(recv_segments[comm.Rank()], data.size_bytes());
-  dh::safe_cuda(cudaMemcpyAsync(current.data(), data.data(), current.size_bytes(),
-                                cudaMemcpyDeviceToDevice, nccl->Stream()));
   if (!comm.IsDistributed()) {
     return Success();
   }
 
   switch (algo) {
     case AllgatherVAlgo::kRing: {
-      return Success() << [] { return GetNCCLResult(ncclGroupStart()); } <<
-             [&] { return detail::RingAllgatherV(comm, sizes, recv_segments, recv); } <<
-             [] { return GetNCCLResult(ncclGroupEnd()); } << [&] { return nccl->Block(); };
+      return Success() << [] { return GetNCCLResult(ncclGroupStart()); } << [&] {
+        // get worker offset
+        detail::AllgatherVOffset(sizes, recv_segments);
+        // copy data
+        auto current = recv.subspan(recv_segments[comm.Rank()], data.size_bytes());
+        dh::safe_cuda(cudaMemcpyAsync(current.data(), data.data(), current.size_bytes(),
+                                      cudaMemcpyDeviceToDevice, nccl->Stream()));
+        return detail::RingAllgatherV(comm, sizes, recv_segments, recv);
+      } << [] {
+        return GetNCCLResult(ncclGroupEnd());
+      } << [&] { return nccl->Block(); };
     }
     case AllgatherVAlgo::kBcast: {
       return cuda_impl::BroadcastAllgatherV(nccl, data, sizes, recv);
