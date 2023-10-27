@@ -173,7 +173,7 @@ Submit the PySpark application
 Assuming you have configured the Spark standalone cluster with GPU support. Otherwise, please
 refer to `spark standalone configuration with GPU support <https://nvidia.github.io/spark-rapids/docs/get-started/getting-started-on-prem.html#spark-standalone-cluster>`_.
 
-Starting from XGBoost 2.0.1, stage-level scheduling is automatically supported. Therefore,
+Starting from XGBoost 2.0.1, stage-level scheduling is automatically enabled. Therefore,
 if you are using Spark standalone cluster version 3.4.0 or higher, we strongly recommend
 configuring the ``"spark.task.resource.gpu.amount"`` setting as a fractional value. This will
 enable running multiple tasks in parallel during the ETL phase. An example configuration
