@@ -33,7 +33,7 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   endif()
 endif()
 
-include(${xgboost_SOURCE_DIR}/cmake/FindPrefetchIntrinsics.cmake)
+include(${xgboost_SOURCE_DIR}/cmake/PrefetchIntrinsics.cmake)
 find_prefetch_intrinsics()
 include(${xgboost_SOURCE_DIR}/cmake/Version.cmake)
 write_version()
