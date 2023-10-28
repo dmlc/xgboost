@@ -2,15 +2,14 @@
  * Copyright 2023, XGBoost Contributors
  */
 #pragma once
-#include <chrono>       // for seconds
-#include <cstddef>      // for size_t
-#include <cstdint>      // for int32_t
-#include <memory>       // for shared_ptr
-#include <string>       // for string
-#include <thread>       // for thread
-#include <type_traits>  // for remove_const_t
-#include <utility>      // for move
-#include <vector>       // for vector
+#include <chrono>   // for seconds
+#include <cstddef>  // for size_t
+#include <cstdint>  // for int32_t
+#include <memory>   // for shared_ptr
+#include <string>   // for string
+#include <thread>   // for thread
+#include <utility>  // for move
+#include <vector>   // for vector
 
 #include "loop.h"                       // for Loop
 #include "protocol.h"                   // for PeerInfo

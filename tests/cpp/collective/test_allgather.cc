@@ -97,7 +97,7 @@ class Worker : public WorkerForTest {
     }
   }
 
-  void TestVBcast() {
+  void TestVAlgo() {
     // V test, broadcast
     std::vector<std::int32_t> data(comm_.Rank() + 1, comm_.Rank());
     auto s_data = common::Span{data.data(), data.size()};
@@ -119,6 +119,23 @@ class Worker : public WorkerForTest {
                            common::EraseType(s_recv), AllgatherVAlgo::kBcast);
     ASSERT_TRUE(rc.OK());
     CheckV(s_recv);
+
+    // Test inplace
+    auto test_inplace = [&] (AllgatherVAlgo algo) {
+      std::fill_n(s_recv.data(), s_recv.size(), 0);
+      auto current = s_recv.subspan(recv_segments[comm_.Rank()],
+                                    recv_segments[comm_.Rank() + 1] - recv_segments[comm_.Rank()]);
+      std::copy_n(data.data(), data.size(), current.data());
+      rc = pcoll->AllgatherV(comm_, common::EraseType(current),
+                             common::Span{sizes.data(), sizes.size()},
+                             common::Span{recv_segments.data(), recv_segments.size()},
+                             common::EraseType(s_recv), algo);
+      ASSERT_TRUE(rc.OK());
+      CheckV(s_recv);
+    };
+
+    test_inplace(AllgatherVAlgo::kBcast);
+    test_inplace(AllgatherVAlgo::kRing);
   }
 };
 }  // namespace
@@ -150,12 +167,12 @@ TEST_F(AllgatherTest, VRing) {
   });
 }
 
-TEST_F(AllgatherTest, VBcast) {
+TEST_F(AllgatherTest, VAlgo) {
   std::int32_t n_workers = std::min(7u, std::thread::hardware_concurrency());
   TestDistributed(n_workers, [=](std::string host, std::int32_t port, std::chrono::seconds timeout,
                                  std::int32_t r) {
     Worker worker{host, port, timeout, n_workers, r};
-    worker.TestVBcast();
+    worker.TestVAlgo();
   });
 }
 }  // namespace xgboost::collective

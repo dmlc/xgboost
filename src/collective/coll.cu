@@ -232,8 +232,10 @@ Result BroadcastAllgatherV(NCCLComm const* comm, common::Span<std::int8_t const>
         detail::AllgatherVOffset(sizes, recv_segments);
         // copy data
         auto current = recv.subspan(recv_segments[comm.Rank()], data.size_bytes());
-        dh::safe_cuda(cudaMemcpyAsync(current.data(), data.data(), current.size_bytes(),
-                                      cudaMemcpyDeviceToDevice, nccl->Stream()));
+        if (current.data() != data.data()) {
+          dh::safe_cuda(cudaMemcpyAsync(current.data(), data.data(), current.size_bytes(),
+                                        cudaMemcpyDeviceToDevice, nccl->Stream()));
+        }
         return detail::RingAllgatherV(comm, sizes, recv_segments, recv);
       } << [] {
         return GetNCCLResult(ncclGroupEnd());

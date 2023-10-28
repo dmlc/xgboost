@@ -72,7 +72,9 @@ namespace xgboost::collective {
 
   // copy data
   auto current = recv.subspan(recv_segments[comm.Rank()], data.size_bytes());
-  std::copy_n(data.data(), data.size(), current.data());
+  if (current.data() != data.data()) {
+    std::copy_n(data.data(), data.size(), current.data());
+  }
 
   switch (algo) {
     case AllgatherVAlgo::kRing:

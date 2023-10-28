@@ -69,9 +69,11 @@ class Worker : public NCCLWorkerForTest {
                                   common::Span{recv_seg.data(), recv_seg.size()}, s_result, algo);
       ASSERT_TRUE(rc.OK()) << rc.Report();
       // check segment size
-      auto size = recv_seg[nccl_comm_->Rank() + 1] - recv_seg[nccl_comm_->Rank()];
-      ASSERT_EQ(size, n * nccl_comm_->Rank() * sizeof(std::int32_t));
-      ASSERT_EQ(size, sizes[nccl_comm_->Rank()]);
+      if (algo != AllgatherVAlgo::kBcast) {
+        auto size = recv_seg[nccl_comm_->Rank() + 1] - recv_seg[nccl_comm_->Rank()];
+        ASSERT_EQ(size, n * nccl_comm_->Rank() * sizeof(std::int32_t));
+        ASSERT_EQ(size, sizes[nccl_comm_->Rank()]);
+      }
       // check data
       std::size_t k{0};
       for (std::int32_t r = 0; r < nccl_comm_->World(); ++r) {

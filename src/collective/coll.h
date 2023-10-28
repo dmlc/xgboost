@@ -57,8 +57,9 @@ class Coll : public std::enable_shared_from_this<Coll> {
    *
    * @param [in] data Input data for the current worker.
    * @param [in] sizes Size of the input from each worker.
-   * @param [out] recv_segments pre-allocated offset for each worker in the output, size
-   *        should be equal to (world + 1).
+   * @param [out] recv_segments pre-allocated offset buffer for each worker in the output,
+   *              size should be equal to (world + 1). GPU ring-based implementation
+   *              doesn't use the buffer.
    * @param [out] recv pre-allocated buffer for output.
    */
   [[nodiscard]] virtual Result AllgatherV(Comm const& comm, common::Span<std::int8_t const> data,
