@@ -1,6 +1,7 @@
 /**
  * Copyright 2023, XGBoost Contributors
  */
+#pragma once
 #include <gtest/gtest.h>
 
 #include <chrono>   // for seconds

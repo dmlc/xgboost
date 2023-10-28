@@ -6,10 +6,10 @@
 #include "../../../src/collective/allreduce.h"
 #include "../../../src/collective/coll.h"  // for Coll
 #include "../../../src/collective/tracker.h"
-#include "test_worker.h"  // for WorkerForTest, TestDistributed
+#include "../../../src/common/type.h"  // for EraseType
+#include "test_worker.h"               // for WorkerForTest, TestDistributed
 
 namespace xgboost::collective {
-
 namespace {
 class AllreduceWorker : public WorkerForTest {
  public:
@@ -50,11 +50,10 @@ class AllreduceWorker : public WorkerForTest {
   }
 
   void BitOr() {
-    Context ctx;
     std::vector<std::uint32_t> data(comm_.World(), 0);
     data[comm_.Rank()] = ~std::uint32_t{0};
     auto pcoll = std::shared_ptr<Coll>{new Coll{}};
-    auto rc = pcoll->Allreduce(&ctx, comm_, EraseType(common::Span{data.data(), data.size()}),
+    auto rc = pcoll->Allreduce(comm_, common::EraseType(common::Span{data.data(), data.size()}),
                                ArrayInterfaceHandler::kU4, Op::kBitwiseOR);
     ASSERT_TRUE(rc.OK()) << rc.Report();
     for (auto v : data) {

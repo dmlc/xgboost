@@ -262,7 +262,7 @@ RabitComm::RabitComm(std::string const& host, std::int32_t port, std::chrono::se
 }
 
 RabitComm::~RabitComm() noexcept(false) {
-  if (!IsDistributed()) {
+  if (!this->IsDistributed()) {
     return;
   }
   auto rc = this->Shutdown();

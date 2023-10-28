@@ -8,16 +8,14 @@
 #include <cstdint>     // for int8_t, int64_t
 #include <functional>  // for bit_and, bit_or, bit_xor, plus
 
-#include "allgather.h"        // for RingAllgatherV, RingAllgather
-#include "allreduce.h"        // for Allreduce
-#include "broadcast.h"        // for Broadcast
-#include "comm.h"             // for Comm
-#include "xgboost/context.h"  // for Context
+#include "allgather.h"  // for RingAllgatherV, RingAllgather
+#include "allreduce.h"  // for Allreduce
+#include "broadcast.h"  // for Broadcast
+#include "comm.h"       // for Comm
 
 namespace xgboost::collective {
-[[nodiscard]] Result Coll::Allreduce(Context const*, Comm const& comm,
-                                     common::Span<std::int8_t> data, ArrayInterfaceHandler::Type,
-                                     Op op) {
+[[nodiscard]] Result Coll::Allreduce(Comm const& comm, common::Span<std::int8_t> data,
+                                     ArrayInterfaceHandler::Type, Op op) {
   namespace coll = ::xgboost::collective;
 
   auto redop_fn = [](auto lhs, auto out, auto elem_op) {
@@ -55,21 +53,45 @@ namespace xgboost::collective {
   return comm.Block();
 }
 
-[[nodiscard]] Result Coll::Broadcast(Context const*, Comm const& comm,
-                                     common::Span<std::int8_t> data, std::int32_t root) {
+[[nodiscard]] Result Coll::Broadcast(Comm const& comm, common::Span<std::int8_t> data,
+                                     std::int32_t root) {
   return cpu_impl::Broadcast(comm, data, root);
 }
 
-[[nodiscard]] Result Coll::Allgather(Context const*, Comm const& comm,
-                                     common::Span<std::int8_t> data, std::size_t size) {
+[[nodiscard]] Result Coll::Allgather(Comm const& comm, common::Span<std::int8_t> data,
+                                     std::int64_t size) {
   return RingAllgather(comm, data, size);
 }
 
-[[nodiscard]] Result Coll::AllgatherV(Context const*, Comm const& comm,
-                                      common::Span<std::int8_t const> data,
+[[nodiscard]] Result Coll::AllgatherV(Comm const& comm, common::Span<std::int8_t const> data,
                                       common::Span<std::int64_t const> sizes,
                                       common::Span<std::int64_t> recv_segments,
-                                      common::Span<std::int8_t> recv) {
-  return cpu_impl::RingAllgatherV(comm, sizes, data, recv_segments, recv);
+                                      common::Span<std::int8_t> recv, AllgatherVAlgo algo) {
+  // get worker offset
+  detail::AllgatherVOffset(sizes, recv_segments);
+
+  // copy data
+  auto current = recv.subspan(recv_segments[comm.Rank()], data.size_bytes());
+  if (current.data() != data.data()) {
+    std::copy_n(data.data(), data.size(), current.data());
+  }
+
+  switch (algo) {
+    case AllgatherVAlgo::kRing:
+      return detail::RingAllgatherV(comm, sizes, recv_segments, recv);
+    case AllgatherVAlgo::kBcast:
+      return cpu_impl::BroadcastAllgatherV(comm, sizes, recv);
+    default: {
+      return Fail("Unknown algorithm for allgather-v");
+    }
+  }
 }
+
+#if !defined(XGBOOST_USE_NCCL)
+Coll* Coll::MakeCUDAVar() {
+  LOG(FATAL) << "NCCL is required for device communication.";
+  return nullptr;
+}
+#endif
+
 }  // namespace xgboost::collective
