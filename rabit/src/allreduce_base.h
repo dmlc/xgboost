@@ -89,7 +89,7 @@ class AllreduceBase : public IEngine {
   }
 
   /*!
-  * \brief internal Allgather function, each node have a segment of data in the ring of sendrecvbuf,
+  * \brief internal Allgather function, each node has a segment of data in the ring of sendrecvbuf,
   *  the data provided by current node k is [slice_begin, slice_end),
   *  the next node's segment must start with slice_end
   *  after the call of Allgather, sendrecvbuf_ contains all the contents including all segments
@@ -281,7 +281,7 @@ class AllreduceBase : public IEngine {
      * this function can not be used together with ReadToRingBuffer
      * a link can either read into the ring buffer, or existing array
      * \param max_size maximum size of array
-     * \return true if it is an successful read, false if there is some error happens, check errno
+     * \return true if it is a successful read, false if there is some error happens, check errno
      */
     inline ReturnType ReadToArray(void *recvbuf_, size_t max_size) {
       if (max_size == size_read) return kSuccess;
@@ -299,7 +299,7 @@ class AllreduceBase : public IEngine {
      * \brief write data in array to sock
      * \param sendbuf_ head of array
      * \param max_size maximum size of array
-     * \return true if it is an successful write, false if there is some error happens, check errno
+     * \return true if it is a successful write, false if there is some error happens, check errno
      */
     inline ReturnType WriteFromArray(const void *sendbuf_, size_t max_size) {
       const char *p = static_cast<const char*>(sendbuf_);
@@ -333,7 +333,7 @@ class AllreduceBase : public IEngine {
    */
   [[nodiscard]] xgboost::collective::Result ConnectTracker(xgboost::collective::TCPSocket *out) const;
   /*!
-   * \brief connect to the tracker to fix the the missing links
+   * \brief connect to the tracker to fix the missing links
    *   this function is also used when the engine start up
    * \param cmd possible command to sent to tracker
    */
@@ -358,7 +358,7 @@ class AllreduceBase : public IEngine {
                           size_t count,
                           ReduceFunction reducer);
   /*!
-   * \brief broadcast data from root to all nodes, this function can fail,and will return the cause of failure
+   * \brief broadcast data from root to all nodes, this function can fail, and will return the cause of failure
    * \param sendrecvbuf_ buffer for both sending and receiving data
    * \param size the size of the data to be broadcasted
    * \param root the root worker id to broadcast the data
