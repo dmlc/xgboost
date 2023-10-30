@@ -10,14 +10,14 @@ How to tune parameters
 See :doc:`Parameter Tuning Guide </tutorials/param_tuning>`.
 
 ************************
-Description on the model
+Description of the model
 ************************
 See :doc:`Introduction to Boosted Trees </tutorials/model>`.
 
 ********************
 I have a big dataset
 ********************
-XGBoost is designed to be memory efficient. Usually it can handle problems as long as the data fit into your memory.
+XGBoost is designed to be memory efficient. Usually it can handle problems as long as the data fits into your memory.
 This usually means millions of instances.
 
 If you are running out of memory, checkout the tutorial page for using :doc:`distributed training </tutorials/index>` with one of the many frameworks, or the :doc:`external memory version </tutorials/external_memory>` for using external memory.
@@ -26,7 +26,7 @@ If you are running out of memory, checkout the tutorial page for using :doc:`dis
 **********************************
 How to handle categorical feature?
 **********************************
-Visit :doc:`this tutorial </tutorials/categorical>` for a walk through of categorical data handling and some worked examples.
+Visit :doc:`this tutorial </tutorials/categorical>` for a walkthrough of categorical data handling and some worked examples.
 
 ******************************************************************
 Why not implement distributed XGBoost on top of X (Spark, Hadoop)?
@@ -37,14 +37,14 @@ The ultimate question will still come back to how to push the limit of each comp
 and use less resources to complete the task (thus with less communication and chance of failure).
 
 To achieve these, we decide to reuse the optimizations in the single node XGBoost and build the distributed version on top of it.
-The demand of communication in machine learning is rather simple, in the sense that we can depend on a limited set of APIs (in our case rabit).
+The demand for communication in machine learning is rather simple, in the sense that we can depend on a limited set of APIs (in our case rabit).
 Such design allows us to reuse most of the code, while being portable to major platforms such as Hadoop/Yarn, MPI, SGE.
 Most importantly, it pushes the limit of the computation resources we can use.
 
 ****************************************
 How can I port a model to my own system?
 ****************************************
-The model and data format of XGBoost is exchangeable,
+The model and data format of XGBoost are exchangeable,
 which means the model trained by one language can be loaded in another.
 This means you can train the model using R, while running prediction using
 Java or C++, which are more common in production systems.
