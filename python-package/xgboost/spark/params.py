@@ -17,7 +17,7 @@ class HasArbitraryParamsDict(Params):
         Params._dummy(),
         "arbitrary_params_dict",
         "arbitrary_params_dict This parameter holds all of the additional parameters which are "
-        "not exposed as the the XGBoost Spark estimator params but can be recognized by "
+        "not exposed as the XGBoost Spark estimator params but can be recognized by "
         "underlying XGBoost library. It is stored as a dictionary.",
     )
 
