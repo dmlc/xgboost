@@ -104,6 +104,10 @@ FederatedComm::FederatedComm(Json const& config) {
     client_cert = value;
   }
 
+  server_cert = OptionalArg<String>(config, "federated_server_cert_path", server_cert);
+  client_key = OptionalArg<String>(config, "federated_client_key_path", client_key);
+  client_cert = OptionalArg<String>(config, "federated_client_cert_path", client_cert);
+
   this->Init(parsed[0], std::stoi(parsed[1]), world_size, rank, server_cert, client_key,
              client_cert);
 }

@@ -23,10 +23,20 @@ class FederatedComm : public Comm {
             std::string const& client_cert);
 
  public:
+  /**
+   * @param config
+   *
+   * - federated_server_address: Tracker address
+   * - federated_world_size: The number of workers
+   * - federated_rank: Rank of federated worker
+   * - federated_server_cert_path
+   * - federated_client_key_path
+   * - federated_client_cert_path
+   */
   explicit FederatedComm(Json const& config);
   explicit FederatedComm(std::string const& host, std::int32_t port, std::int32_t world,
                          std::int32_t rank) {
-    this->Init(host, port, world, rank, "", "", "");
+    this->Init(host, port, world, rank, {}, {}, {});
   }
   ~FederatedComm() override { stub_.reset(); }
 
