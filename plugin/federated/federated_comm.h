@@ -1,0 +1,43 @@
+/**
+ * Copyright 2023, XGBoost contributors
+ */
+#pragma once
+
+#include <federated.grpc.pb.h>
+#include <federated.pb.h>
+
+#include <cstdint>  // for int32_t
+#include <memory>   // for unique_ptr
+#include <string>   // for string
+
+#include "../../src/collective/comm.h"    // for Comm
+#include "../../src/common/json_utils.h"  // for OptionalArg
+#include "xgboost/json.h"
+
+namespace xgboost::collective {
+class FederatedComm : public Comm {
+  std::unique_ptr<federated::Federated::Stub> stub_;
+
+  void Init(std::string const& host, std::int32_t port, std::int32_t world, std::int32_t rank,
+            std::string const& server_cert, std::string const& client_key,
+            std::string const& client_cert);
+
+ public:
+  explicit FederatedComm(Json const& config);
+  explicit FederatedComm(std::string const& host, std::int32_t port, std::int32_t world,
+                         std::int32_t rank) {
+    this->Init(host, port, world, rank, "", "", "");
+  }
+  ~FederatedComm() override { stub_.reset(); }
+
+  [[nodiscard]] std::shared_ptr<Channel> Chan(std::int32_t) const override {
+    LOG(FATAL) << "peer to peer communication is not allowed for federated learning.";
+    return nullptr;
+  }
+  [[nodiscard]] Result LogTracker(std::string msg) const override {
+    LOG(CONSOLE) << msg;
+    return Success();
+  }
+  [[nodiscard]] bool IsFederated() const override { return true; }
+};
+}  // namespace xgboost::collective

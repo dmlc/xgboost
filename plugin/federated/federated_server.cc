@@ -4,12 +4,15 @@
 #include "federated_server.h"
 
 #include <grpcpp/grpcpp.h>
+#include <grpcpp/server.h>  // for Server
 #include <grpcpp/server_builder.h>
 #include <xgboost/logging.h>
 
 #include <sstream>
 
+#include "../../src/collective/comm.h"
 #include "../../src/common/io.h"
+#include "../../src/common/json_utils.h"
 
 namespace xgboost::federated {
 grpc::Status FederatedService::Allgather(grpc::ServerContext*, AllgatherRequest const* request,
@@ -46,7 +49,7 @@ grpc::Status FederatedService::Broadcast(grpc::ServerContext*, BroadcastRequest 
 void RunServer(int port, std::size_t world_size, char const* server_key_file,
                char const* server_cert_file, char const* client_cert_file) {
   std::string const server_address = "0.0.0.0:" + std::to_string(port);
-  FederatedService service{world_size};
+  FederatedService service{static_cast<std::int32_t>(world_size)};
 
   grpc::ServerBuilder builder;
   auto options =
@@ -68,7 +71,7 @@ void RunServer(int port, std::size_t world_size, char const* server_key_file,
 
 void RunInsecureServer(int port, std::size_t world_size) {
   std::string const server_address = "0.0.0.0:" + std::to_string(port);
-  FederatedService service{world_size};
+  FederatedService service{static_cast<std::int32_t>(world_size)};
 
   grpc::ServerBuilder builder;
   builder.SetMaxReceiveMessageSize(std::numeric_limits<int>::max());

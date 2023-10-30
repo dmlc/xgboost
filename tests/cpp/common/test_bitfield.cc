@@ -97,4 +97,29 @@ TEST(BitField, Clear) {
     TestBitFieldClear<RBitField8>(19);
   }
 }
+
+TEST(BitField, CTZ) {
+  {
+    auto cnt = TrailingZeroBits(0);
+    ASSERT_EQ(cnt, sizeof(std::uint32_t) * 8);
+  }
+  {
+    auto cnt = TrailingZeroBits(0b00011100);
+    ASSERT_EQ(cnt, 2);
+    cnt = detail::TrailingZeroBitsImpl(0b00011100);
+    ASSERT_EQ(cnt, 2);
+  }
+  {
+    auto cnt = TrailingZeroBits(0b00011101);
+    ASSERT_EQ(cnt, 0);
+    cnt = detail::TrailingZeroBitsImpl(0b00011101);
+    ASSERT_EQ(cnt, 0);
+  }
+  {
+    auto cnt = TrailingZeroBits(0b1000000000000000);
+    ASSERT_EQ(cnt, 15);
+    cnt = detail::TrailingZeroBitsImpl(0b1000000000000000);
+    ASSERT_EQ(cnt, 15);
+  }
+}
 }  // namespace xgboost

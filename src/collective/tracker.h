@@ -50,6 +50,7 @@ class Tracker {
   [[nodiscard]] virtual std::future<Result> Run() = 0;
   [[nodiscard]] virtual Json WorkerArgs() const = 0;
   [[nodiscard]] std::chrono::seconds Timeout() const { return timeout_; }
+  [[nodiscard]] virtual std::int32_t Port() const { return port_; }
 };
 
 class RabitTracker : public Tracker {
@@ -124,7 +125,6 @@ class RabitTracker : public Tracker {
 
   std::future<Result> Run() override;
 
-  [[nodiscard]] std::int32_t Port() const { return port_; }
   [[nodiscard]] Json WorkerArgs() const override {
     Json args{Object{}};
     args["DMLC_TRACKER_URI"] = String{host_};

@@ -572,4 +572,31 @@ class BaseMGPUTest : public ::testing::Test {
 class DeclareUnifiedDistributedTest(MetricTest) : public BaseMGPUTest{};
 
 inline DeviceOrd FstCU() { return DeviceOrd::CUDA(0); }
+
+/**
+ * @brief poor man's gmock for message matching.
+ *
+ * @tparam Error The type of expected execption.
+ *
+ * @param submsg A substring of the actual error message.
+ * @param fn The function that throws Error
+ */
+template <typename Error, typename Fn>
+void ExpectThrow(std::string submsg, Fn&& fn) {
+  try {
+    fn();
+  } catch (Error const& exc) {
+    auto actual = std::string{exc.what()};
+    ASSERT_NE(actual.find(submsg), std::string::npos)
+        << "Expecting substring `" << submsg << "` from the error message."
+        << " Got:\n"
+        << actual << "\n";
+    return;
+  } catch (std::exception const& exc) {
+    auto actual = exc.what();
+    ASSERT_TRUE(false) << "An unexpected type of exception is thrown. what:" << actual;
+    return;
+  }
+  ASSERT_TRUE(false) << "No exception is thrown";
+}
 }  // namespace xgboost
