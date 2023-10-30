@@ -28,6 +28,6 @@ target_sources(federated_client INTERFACE federated_client.h)
 target_link_libraries(federated_client INTERFACE federated_proto)
 
 # Rabit engine for Federated Learning.
-target_sources(objxgboost PRIVATE federated_server.cc)
+target_sources(objxgboost PRIVATE federated_tracker.cc federated_server.cc federated_comm.cc)
 target_link_libraries(objxgboost PRIVATE federated_client "-Wl,--exclude-libs,ALL")
 target_compile_definitions(objxgboost PUBLIC -DXGBOOST_USE_FEDERATED=1)
