@@ -87,8 +87,8 @@ XGBoost PySpark GPU support
 XGBoost PySpark fully supports GPU acceleration. Users are not only able to enable
 efficient training but also utilize their GPUs for the whole PySpark pipeline including
 ETL and inference. In below sections, we will walk through an example of training on a
-PySpark standalone GPU cluster. To get started, first we need to install some additional
-packages, then we can set the ``device`` parameter to ``cuda`` or ``gpu``.
+Spark standalone cluster with GPU support. To get started, first we need to install some
+additional packages, then we can set the ``device`` parameter to ``cuda`` or ``gpu``.
 
 Prepare the necessary packages
 ==============================
@@ -128,7 +128,8 @@ Write your PySpark application
 ==============================
 
 Below snippet is a small example for training xgboost model with PySpark. Notice that we are
-using a list of feature names and the additional parameter ``device``:
+using a list of feature names instead of vector type as the input. The parameter ``"device=cuda"``
+specifically indicates that the training will be performed on a GPU.
 
 .. code-block:: python
 
@@ -163,13 +164,28 @@ using a list of feature names and the additional parameter ``device``:
   predict_df = model.transform(test_df)
   predict_df.show()
 
-Like other distributed interfaces, the ```device`` parameter doesn't support specifying ordinal as GPUs are managed by Spark instead of XGBoost (good: ``device=cuda``, bad: ``device=cuda:0``).
+Like other distributed interfaces, the ``device`` parameter doesn't support specifying ordinal as GPUs are managed by Spark instead of XGBoost (good: ``device=cuda``, bad: ``device=cuda:0``).
+
+.. _stage-level-scheduling:
 
 Submit the PySpark application
 ==============================
 
-Assuming you have configured your Spark cluster with GPU support. Otherwise, please
+Assuming you have configured the Spark standalone cluster with GPU support. Otherwise, please
 refer to `spark standalone configuration with GPU support <https://nvidia.github.io/spark-rapids/docs/get-started/getting-started-on-prem.html#spark-standalone-cluster>`_.
+
+Starting from XGBoost 2.0.1, stage-level scheduling is automatically enabled. Therefore,
+if you are using Spark standalone cluster version 3.4.0 or higher, we strongly recommend
+configuring the ``"spark.task.resource.gpu.amount"`` as a fractional value. This will
+enable running multiple tasks in parallel during the ETL phase. An example configuration
+would be ``"spark.task.resource.gpu.amount=1/spark.executor.cores"``. However, if you are
+using a XGBoost version earlier than 2.0.1 or a Spark standalone cluster version below 3.4.0,
+you still need to set ``"spark.task.resource.gpu.amount"`` equal to ``"spark.executor.resource.gpu.amount"``.
+
+.. note::
+
+  As of now, the stage-level scheduling feature in XGBoost is limited to the Spark standalone cluster mode.
+  However, we have plans to expand its compatibility to YARN and Kubernetes once Spark 3.5.1 is officially released.
 
 .. code-block:: bash
 
@@ -178,19 +194,21 @@ refer to `spark standalone configuration with GPU support <https://nvidia.github
 
   spark-submit \
     --master spark://<master-ip>:7077 \
+    --conf spark.executor.cores=12 \
+    --conf spark.task.cpus=1 \
     --conf spark.executor.resource.gpu.amount=1 \
-    --conf spark.task.resource.gpu.amount=1 \
+    --conf spark.task.resource.gpu.amount=0.08 \
     --archives xgboost_env.tar.gz#environment \
     xgboost_app.py
 
-
-The submit command sends the Python environment created by pip or conda along with the
-specification of GPU allocation. We will revisit this command later on.
+The above command submits the xgboost pyspark application with the python environment created by pip or conda,
+specifying a request for 1 GPU and 12 CPUs per executor. So you can see, a total of 12 tasks per executor will be
+executed concurrently during the ETL phase.
 
 Model Persistence
 =================
 
-Similar to standard PySpark ml estimators, one can persist and reuse the model with ``save`
+Similar to standard PySpark ml estimators, one can persist and reuse the model with ``save``
 and ``load`` methods:
 
 .. code-block:: python
@@ -230,8 +248,13 @@ Accelerate the whole pipeline for xgboost pyspark
 
 With `RAPIDS Accelerator for Apache Spark <https://nvidia.github.io/spark-rapids/>`_, you
 can leverage GPUs to accelerate the whole pipeline (ETL, Train, Transform) for xgboost
-pyspark without any Python code change. An example submit command is shown below with
-additional spark configurations and dependencies:
+pyspark without the need for any code modifications. Likewise, you have the option to configure
+the ``"spark.task.resource.gpu.amount"`` setting as a fractional value, enabling a higher
+number of tasks to be executed in parallel during the ETL phase. please refer to
+:ref:`stage-level-scheduling` for more details.
+
+
+An example submit command is shown below with additional spark configurations and dependencies:
 
 .. code-block:: bash
 
@@ -240,8 +263,10 @@ additional spark configurations and dependencies:
 
   spark-submit \
     --master spark://<master-ip>:7077 \
+    --conf spark.executor.cores=12 \
+    --conf spark.task.cpus=1 \
     --conf spark.executor.resource.gpu.amount=1 \
-    --conf spark.task.resource.gpu.amount=1 \
+    --conf spark.task.resource.gpu.amount=0.08 \
     --packages com.nvidia:rapids-4-spark_2.12:23.04.0 \
     --conf spark.plugins=com.nvidia.spark.SQLPlugin \
     --conf spark.sql.execution.arrow.maxRecordsPerBatch=1000000 \
