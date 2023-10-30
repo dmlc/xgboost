@@ -91,15 +91,15 @@ FederatedComm::FederatedComm(Json const& config) {
   std::string server_cert{};
   std::string client_key{};
   std::string client_cert{};
-  value = getenv("FEDERATED_SERVER_CERT");
+  value = getenv("FEDERATED_SERVER_CERT_PATH");
   if (value != nullptr) {
     server_cert = value;
   }
-  value = getenv("FEDERATED_CLIENT_KEY");
+  value = getenv("FEDERATED_CLIENT_KEY_PATH");
   if (value != nullptr) {
     client_key = value;
   }
-  value = getenv("FEDERATED_CLIENT_CERT");
+  value = getenv("FEDERATED_CLIENT_CERT_PATH");
   if (value != nullptr) {
     client_cert = value;
   }
