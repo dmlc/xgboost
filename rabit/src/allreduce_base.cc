@@ -106,7 +106,7 @@ bool AllreduceBase::Init(int argc, char* argv[]) {
     }
   }
   if (dmlc_role != "worker") {
-    LOG(FATAL) << "Rabit Module currently only work with dmlc worker";
+    LOG(FATAL) << "Rabit Module currently only works with dmlc worker";
   }
 
   // clear the setting before start reconnection
@@ -273,7 +273,7 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
   return xgboost::collective::Success();
 }
 /*!
- * \brief connect to the tracker to fix the the missing links
+ * \brief connect to the tracker to fix the missing links
  *   this function is also used when the engine start up
  */
 [[nodiscard]] xgboost::collective::Result AllreduceBase::ReConnectLinks(const char *cmd) {
