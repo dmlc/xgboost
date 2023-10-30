@@ -73,7 +73,7 @@ Parameters for Tree Booster
 ===========================
 * ``eta`` [default=0.3, alias: ``learning_rate``]
 
-  - Step size shrinkage used in update to prevents overfitting. After each boosting step, we can directly get the weights of new features, and ``eta`` shrinks the feature weights to make the boosting process more conservative.
+  - Step size shrinkage used in update to prevent overfitting. After each boosting step, we can directly get the weights of new features, and ``eta`` shrinks the feature weights to make the boosting process more conservative.
   - range: [0,1]
 
 * ``gamma`` [default=0, alias: ``min_split_loss``]
