@@ -8,11 +8,35 @@
 #include <memory>  // for unique_ptr
 #include <string>  // for string
 
+#include "../../src/collective/in_memory_handler.h"
 #include "../../src/collective/tracker.h"  // for Tracker
 #include "xgboost/collective/result.h"     // for Result
 #include "xgboost/json.h"                  // for Json
 
 namespace xgboost::collective {
+namespace federated {
+class FederatedService final : public Federated::Service {
+ public:
+  explicit FederatedService(std::int32_t world_size)
+      : handler_{static_cast<std::size_t>(world_size)} {}
+
+  grpc::Status Allgather(grpc::ServerContext* context, AllgatherRequest const* request,
+                         AllgatherReply* reply) override;
+
+  grpc::Status AllgatherV(grpc::ServerContext* context, AllgatherVRequest const* request,
+                          AllgatherVReply* reply) override;
+
+  grpc::Status Allreduce(grpc::ServerContext* context, AllreduceRequest const* request,
+                         AllreduceReply* reply) override;
+
+  grpc::Status Broadcast(grpc::ServerContext* context, BroadcastRequest const* request,
+                         BroadcastReply* reply) override;
+
+ private:
+  xgboost::collective::InMemoryHandler handler_;
+};
+};  // namespace federated
+
 class FederatedTracker : public collective::Tracker {
   std::unique_ptr<grpc::Server> server_;
   std::string server_key_path_;

@@ -7,6 +7,7 @@
 
 #include <cstdint>  // for int32_t
 #include <cstdlib>  // for getenv
+#include <limits>   // for numeric_limits
 #include <string>   // for string, stoi
 
 #include "../../src/common/common.h"      // for Split
@@ -29,12 +30,18 @@ void FederatedComm::Init(std::string const& host, std::int32_t port, std::int32_
   CHECK_GE(rank, 0) << "Invalid worker rank.";
   CHECK_LT(rank, world) << "Invalid worker rank.";
 
+  auto certs = {server_cert, client_cert, client_cert};
+  auto is_empty = [](auto const& s) { return s.empty(); };
+  bool valid = std::all_of(certs.begin(), certs.end(), is_empty) ||
+               std::none_of(certs.begin(), certs.end(), is_empty);
+  CHECK(valid) << "Invalid arguments for certificates.";
+
   if (server_cert.empty()) {
     stub_ = [&] {
       grpc::ChannelArguments args;
-      args.SetMaxReceiveMessageSize(std::numeric_limits<int>::max());
-      return federated::Federated::NewStub(
-          grpc::CreateCustomChannel(host, grpc::InsecureChannelCredentials(), args));
+      args.SetMaxReceiveMessageSize(std::numeric_limits<std::int32_t>::max());
+      return federated::Federated::NewStub(grpc::CreateCustomChannel(
+          host + ":" + std::to_string(port), grpc::InsecureChannelCredentials(), args));
     }();
   } else {
     stub_ = [&] {
@@ -43,8 +50,9 @@ void FederatedComm::Init(std::string const& host, std::int32_t port, std::int32_
       options.pem_private_key = client_key;
       options.pem_cert_chain = client_cert;
       grpc::ChannelArguments args;
-      args.SetMaxReceiveMessageSize(std::numeric_limits<int>::max());
-      auto channel = grpc::CreateCustomChannel(host, grpc::SslCredentials(options), args);
+      args.SetMaxReceiveMessageSize(std::numeric_limits<std::int32_t>::max());
+      auto channel = grpc::CreateCustomChannel(host + ":" + std::to_string(port),
+                                               grpc::SslCredentials(options), args);
       channel->WaitForConnected(
           gpr_time_add(gpr_now(GPR_CLOCK_REALTIME), gpr_time_from_seconds(60, GPR_TIMESPAN)));
       return federated::Federated::NewStub(channel);
@@ -79,7 +87,7 @@ FederatedComm::FederatedComm(Json const& config) {
   rank = OptionalArg<Integer>(config, "federated_rank", static_cast<Integer::Int>(rank));
 
   auto parsed = common::Split(server_address, ':');
-  CHECK_EQ(parsed.size(), 2) << "invalid server address:" << server_address;
+  CHECK_EQ(parsed.size(), 2) << "Invalid server address:" << server_address;
 
   CHECK_NE(rank, -1) << "Parameter `federated_rank` is required";
   CHECK_NE(world_size, 0) << "Parameter `federated_world_size` is required.";
@@ -111,4 +119,11 @@ FederatedComm::FederatedComm(Json const& config) {
   this->Init(parsed[0], std::stoi(parsed[1]), world_size, rank, server_cert, client_key,
              client_cert);
 }
+
+#if !defined(XGBOOST_USE_CUDA)
+Comm* FederatedComm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
+  common::AssertGPUSupport();
+  return nullptr;
+}
+#endif  //  !defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost::collective

@@ -3,7 +3,7 @@
  */
 #pragma once
 
-#include <federated.grpc.pb.h>
+#include <federated.old.grpc.pb.h>
 
 #include <cstdint>  // for int32_t
 #include <future>   // for future

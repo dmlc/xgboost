@@ -9,7 +9,8 @@
 #include <string>     // for string
 #include <utility>    // for move, forward
 
-#include "allgather.h"
+#include "../common/common.h"           // for AssertGPUSupport
+#include "allgather.h"                  // for RingAllgather
 #include "protocol.h"                   // for kMagic
 #include "xgboost/base.h"               // for XGBOOST_STRICT_R_MODE
 #include "xgboost/collective/socket.h"  // for TCPSocket
@@ -47,6 +48,14 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
   return ConnectTrackerImpl(this->TrackerInfo(), this->Timeout(), this->retry_, this->task_id_, out,
                             this->Rank(), this->World());
 }
+
+#if !defined(XGBOOST_USE_NCCL)
+Comm* Comm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
+  common::AssertGPUSupport();
+  common::AssertNCCLSupport();
+  return nullptr;
+}
+#endif  //  !defined(XGBOOST_USE_NCCL)
 
 [[nodiscard]] Result ConnectWorkers(Comm const& comm, TCPSocket* listener, std::int32_t lport,
                                     proto::PeerInfo ninfo, std::chrono::seconds timeout,
