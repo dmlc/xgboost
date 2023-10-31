@@ -9,6 +9,7 @@
 #include <algorithm>  // for copy_n
 
 #include "../../src/collective/allgather.h"
+#include "../../src/common/common.h"    // for AssertGPUSupport
 #include "federated_comm.h"             // for FederatedComm
 #include "xgboost/collective/result.h"  // for Result
 
@@ -52,6 +53,13 @@ namespace {
   return Success();
 }
 }  // namespace
+
+#if !defined(XGBOOST_USE_CUDA)
+Coll *FederatedColl::MakeCUDAVar() {
+  common::AssertGPUSupport();
+  return nullptr;
+}
+#endif
 
 [[nodiscard]] Result FederatedColl::Allreduce(Comm const &comm, common::Span<std::int8_t> data,
                                               ArrayInterfaceHandler::Type type, Op op) {
