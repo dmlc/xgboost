@@ -121,7 +121,7 @@ FederatedComm::FederatedComm(Json const& config) {
 }
 
 #if !defined(XGBOOST_USE_CUDA)
-Comm* FederatedComm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const override {
+Comm* FederatedComm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
   common::AssertGPUSupport();
   return nullptr;
 }
