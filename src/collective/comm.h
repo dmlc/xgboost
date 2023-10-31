@@ -40,7 +40,7 @@ class Coll;
 /**
  * @brief Base communicator storing info about the tracker and other communicators.
  */
-class Comm {
+class Comm : public std::enable_shared_from_this<Comm> {
  protected:
   std::int32_t world_{-1};
   std::int32_t rank_{0};
@@ -87,7 +87,7 @@ class Comm {
 
   [[nodiscard]] virtual Result SignalError(Result const&) { return Success(); }
 
-  Comm* MakeCUDAVar(Context const* ctx, std::shared_ptr<Coll> pimpl);
+  virtual Comm* MakeCUDAVar(Context const* ctx, std::shared_ptr<Coll> pimpl) const;
 };
 
 class RabitComm : public Comm {

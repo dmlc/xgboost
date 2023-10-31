@@ -2,8 +2,8 @@
  * Copyright 2022 XGBoost contributors
  */
 #pragma once
-#include <federated.grpc.pb.h>
-#include <federated.pb.h>
+#include <federated.old.grpc.pb.h>
+#include <federated.old.pb.h>
 #include <grpcpp/grpcpp.h>
 
 #include <cstdio>

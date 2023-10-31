@@ -16,9 +16,41 @@
 #include "../../src/common/io.h"          // for ReadAll
 #include "../../src/common/json_utils.h"  // for RequiredArg
 #include "../../src/common/timer.h"       // for Timer
-#include "federated_server.h"             // for FederatedService
 
 namespace xgboost::collective {
+namespace federated {
+grpc::Status FederatedService::Allgather(grpc::ServerContext*, AllgatherRequest const* request,
+                                         AllgatherReply* reply) {
+  handler_.Allgather(request->send_buffer().data(), request->send_buffer().size(),
+                     reply->mutable_receive_buffer(), request->sequence_number(), request->rank());
+  return grpc::Status::OK;
+}
+
+grpc::Status FederatedService::AllgatherV(grpc::ServerContext*, AllgatherVRequest const* request,
+                                          AllgatherVReply* reply) {
+  handler_.AllgatherV(request->send_buffer().data(), request->send_buffer().size(),
+                      reply->mutable_receive_buffer(), request->sequence_number(), request->rank());
+  return grpc::Status::OK;
+}
+
+grpc::Status FederatedService::Allreduce(grpc::ServerContext*, AllreduceRequest const* request,
+                                         AllreduceReply* reply) {
+  handler_.Allreduce(request->send_buffer().data(), request->send_buffer().size(),
+                     reply->mutable_receive_buffer(), request->sequence_number(), request->rank(),
+                     static_cast<xgboost::collective::DataType>(request->data_type()),
+                     static_cast<xgboost::collective::Operation>(request->reduce_operation()));
+  return grpc::Status::OK;
+}
+
+grpc::Status FederatedService::Broadcast(grpc::ServerContext*, BroadcastRequest const* request,
+                                         BroadcastReply* reply) {
+  handler_.Broadcast(request->send_buffer().data(), request->send_buffer().size(),
+                     reply->mutable_receive_buffer(), request->sequence_number(), request->rank(),
+                     request->root());
+  return grpc::Status::OK;
+}
+}  // namespace federated
+
 FederatedTracker::FederatedTracker(Json const& config) : Tracker{config} {
   auto is_secure = RequiredArg<Boolean const>(config, "federated_secure", __func__);
   if (is_secure) {
@@ -31,7 +63,8 @@ FederatedTracker::FederatedTracker(Json const& config) : Tracker{config} {
 std::future<Result> FederatedTracker::Run() {
   return std::async([this]() {
     std::string const server_address = "0.0.0.0:" + std::to_string(this->port_);
-    federated::FederatedService service{static_cast<std::int32_t>(this->n_workers_)};
+    xgboost::collective::federated::FederatedService service{
+        static_cast<std::int32_t>(this->n_workers_)};
     grpc::ServerBuilder builder;
 
     if (this->server_cert_file_.empty()) {
@@ -42,7 +75,6 @@ std::future<Result> FederatedTracker::Run() {
         builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
       }
       builder.RegisterService(&service);
-      server_ = builder.BuildAndStart();
       LOG(CONSOLE) << "Insecure federated server listening on " << server_address << ", world size "
                    << this->n_workers_;
     } else {
@@ -60,12 +92,12 @@ std::future<Result> FederatedTracker::Run() {
         builder.AddListeningPort(server_address, grpc::SslServerCredentials(options));
       }
       builder.RegisterService(&service);
-      server_ = builder.BuildAndStart();
       LOG(CONSOLE) << "Federated server listening on " << server_address << ", world size "
                    << n_workers_;
     }
 
     try {
+      server_ = builder.BuildAndStart();
       server_->Wait();
     } catch (std::exception const& e) {
       return collective::Fail(std::string{e.what()});

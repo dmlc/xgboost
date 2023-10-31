@@ -20,14 +20,14 @@
 
 namespace xgboost::collective {
 namespace {
-Result GetUniqueId(Comm const& comm, ncclUniqueId* pid) {
+Result GetUniqueId(Comm const& comm, std::shared_ptr<Coll> coll, ncclUniqueId* pid) {
   static const int kRootRank = 0;
   ncclUniqueId id;
   if (comm.Rank() == kRootRank) {
     dh::safe_nccl(ncclGetUniqueId(&id));
   }
-  auto rc = Broadcast(comm, common::Span{reinterpret_cast<std::int8_t*>(&id), sizeof(ncclUniqueId)},
-                      kRootRank);
+  auto rc = coll->Broadcast(
+      comm, common::Span{reinterpret_cast<std::int8_t*>(&id), sizeof(ncclUniqueId)}, kRootRank);
   if (!rc.OK()) {
     return rc;
   }
@@ -53,7 +53,7 @@ static std::string PrintUUID(xgboost::common::Span<std::uint64_t, kUuidLength> c
 }
 }  // namespace
 
-Comm* Comm::MakeCUDAVar(Context const* ctx, std::shared_ptr<Coll> pimpl) {
+Comm* Comm::MakeCUDAVar(Context const* ctx, std::shared_ptr<Coll> pimpl) const {
   return new NCCLComm{ctx, *this, pimpl};
 }
 
@@ -76,6 +76,7 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
   GetCudaUUID(s_this_uuid, ctx->Device());
 
   auto rc = pimpl->Allgather(root, common::EraseType(s_uuid), s_this_uuid.size_bytes());
+
   CHECK(rc.OK()) << rc.Report();
 
   std::vector<xgboost::common::Span<std::uint64_t, kUuidLength>> converted(root.World());
@@ -93,7 +94,7 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
       << "Multiple processes within communication group running on same CUDA "
       << "device is not supported. " << PrintUUID(s_this_uuid) << "\n";
 
-  rc = GetUniqueId(root, &nccl_unique_id_);
+  rc = GetUniqueId(root, pimpl, &nccl_unique_id_);
   CHECK(rc.OK()) << rc.Report();
   dh::safe_nccl(ncclCommInitRank(&nccl_comm_, root.World(), nccl_unique_id_, root.Rank()));
 
