@@ -163,6 +163,12 @@ inline void AssertGPUSupport() {
 #endif  // XGBOOST_USE_CUDA
 }
 
+inline void AssertNCCLSupport() {
+#if !defined(XGBOOST_USE_NCCL)
+    LOG(FATAL) << "XGBoost version not compiled with NCCL support.";
+#endif  // !defined(XGBOOST_USE_NCCL)
+}
+
 inline void AssertOneAPISupport() {
 #ifndef XGBOOST_USE_ONEAPI
     LOG(FATAL) << "XGBoost version not compiled with OneAPI support.";

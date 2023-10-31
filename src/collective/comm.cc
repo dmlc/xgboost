@@ -49,12 +49,13 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
                             this->Rank(), this->World());
 }
 
-#if !defined(XGBOOST_USE_CUDA)
+#if !defined(XGBOOST_USE_NCCL)
 Comm* Comm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
   common::AssertGPUSupport();
+  common::AssertNCCLSupport();
   return nullptr;
 }
-#endif
+#endif  //  !defined(XGBOOST_USE_NCCL)
 
 [[nodiscard]] Result ConnectWorkers(Comm const& comm, TCPSocket* listener, std::int32_t lport,
                                     proto::PeerInfo ninfo, std::chrono::seconds timeout,

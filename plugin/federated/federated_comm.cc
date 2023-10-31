@@ -125,5 +125,5 @@ Comm* FederatedComm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
   common::AssertGPUSupport();
   return nullptr;
 }
-#endif
+#endif  //  !defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost::collective
