@@ -382,6 +382,9 @@ test_that("xgb.importance works with GLM model", {
   expect_equal(colnames(imp2plot), c("Feature", "Weight", "Importance"))
   xgb.ggplot.importance(importance.GLM)
 
+  # check that the input is not modified in-place
+  expect_false("Importance" %in% names(importance.GLM))
+
   # for multiclass
   imp.GLM <- xgb.importance(model = mbst.GLM)
   expect_equal(dim(imp.GLM), c(12, 3))
@@ -398,6 +401,16 @@ test_that("xgb.model.dt.tree and xgb.importance work with a single split model",
   expect_error(imp <- xgb.importance(model = bst1), regexp = NA) # no error
   expect_equal(nrow(imp), 1)
   expect_equal(imp$Gain, 1)
+})
+
+test_that("xgb.plot.importance de-duplicates features", {
+  importances <- data.table(
+    Feature = c("col1", "col2", "col2"),
+    Gain = c(0.4, 0.3, 0.3)
+  )
+  imp2plot <- xgb.plot.importance(importances)
+  expect_equal(nrow(imp2plot), 2L)
+  expect_equal(imp2plot$Feature, c("col2", "col1"))
 })
 
 test_that("xgb.plot.tree works with and without feature names", {

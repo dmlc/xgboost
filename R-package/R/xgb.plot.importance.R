@@ -87,7 +87,13 @@ xgb.plot.importance <- function(importance_matrix = NULL, top_n = NULL, measure 
   }
 
   # also aggregate, just in case when the values were not yet summed up by feature
-  importance_matrix <- importance_matrix[, Importance := sum(get(measure)), by = Feature]
+  importance_matrix <- importance_matrix[
+    , lapply(.SD, sum)
+    , .SDcols = setdiff(names(importance_matrix), "Feature")
+    , by = Feature
+  ][
+    , Importance := get(measure)
+  ]
 
   # make sure it's ordered
   importance_matrix <- importance_matrix[order(-abs(Importance))]
