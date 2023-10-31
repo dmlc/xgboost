@@ -48,9 +48,9 @@ target_link_libraries(federated_client INTERFACE federated_old_proto)
 target_sources(
   objxgboost PRIVATE federated_tracker.cc federated_server.cc federated_comm.cc federated_coll.cc
 )
-if (USE_CUDA)
+if(USE_CUDA)
   target_sources(objxgboost PRIVATE federated_comm.cu federated_coll.cu)
-endif (USE_CUDA)
+endif()
 
 target_link_libraries(objxgboost PRIVATE federated_client "-Wl,--exclude-libs,ALL")
 target_compile_definitions(objxgboost PUBLIC -DXGBOOST_USE_FEDERATED=1)
