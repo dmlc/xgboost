@@ -79,7 +79,7 @@ bool constexpr IsFloatingPointV() {
         if constexpr (IsFloatingPointV<T>()) {
           return Fail("Invalid type.");
         } else {
-          return fn(std::bit_and<>{}, t);
+          return fn(std::bit_or<>{}, t);
         }
       }
       case Op::kBitwiseXOR: {
