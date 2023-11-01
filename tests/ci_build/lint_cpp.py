@@ -134,7 +134,12 @@ def process(fname, allow_type):
 
 def main():
     parser = argparse.ArgumentParser(description="run cpp lint")
-    parser.add_argument("path", nargs="+", help="path to traverse")
+    parser.add_argument(
+        "path",
+        nargs="*",
+        help="Path to traverse",
+        default=["src", "include", os.path.join("R-package", "src"), "python-package"],
+    )
     parser.add_argument(
         "--exclude_path",
         nargs="+",
@@ -148,6 +153,8 @@ def main():
     allow_type += CXX_SUFFIX
 
     for path in args.path:
+        if not os.path.exists(path):
+            raise ValueError(f"Unknown path: {path}")
         if os.path.isfile(path):
             normpath = os.path.normpath(path)
             if normpath not in excluded_paths:
