@@ -144,7 +144,14 @@ To run checks for cpplint locally:
   python ./tests/ci_build/lint_cpp.py
 
 
-See next section for clang-tidy.
+See next section for clang-tidy. For CMake scripts:
+
+.. code-block:: bash
+
+  bash ./tests/ci_build/lint_cmake.sh
+
+Lastly, the linter for jvm-packages is integrated into the maven build process.
+
 
 Clang-tidy
 ==========
