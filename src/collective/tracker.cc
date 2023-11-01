@@ -261,6 +261,9 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
 }
 
 [[nodiscard]] Json RabitTracker::WorkerArgs() const {
+  auto rc = this->WaitUntilReady();
+  CHECK(rc.OK()) << rc.Report();
+
   Json args{Object{}};
   args["DMLC_TRACKER_URI"] = String{host_};
   args["DMLC_TRACKER_PORT"] = this->Port();

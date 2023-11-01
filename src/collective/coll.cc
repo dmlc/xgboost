@@ -28,14 +28,13 @@ namespace xgboost::collective {
 
   auto fn = [&](auto elem_op, auto t) {
     using T = decltype(t);
-
-    auto redop = [redop_fn, elem_op](auto lhs, auto rhs) { redop_fn(lhs, rhs, elem_op); };
-
-    auto erased_fn = [redop](common::Span<std::int8_t const> lhs, common::Span<std::int8_t> out) {
+    auto erased_fn = [redop_fn, elem_op](common::Span<std::int8_t const> lhs,
+                                         common::Span<std::int8_t> out) {
       CHECK_EQ(lhs.size(), out.size()) << "Invalid input for reduction.";
       auto lhs_t = common::RestoreType<T const>(lhs);
       auto rhs_t = common::RestoreType<T>(out);
-      redop(lhs_t, rhs_t);
+
+      redop_fn(lhs_t, rhs_t, elem_op);
     };
 
     return cpu_impl::RingAllreduce(comm, data, erased_fn, type);
