@@ -9,7 +9,7 @@ from dask.distributed import Client
 # It's recommended to use dask_cuda for GPU assignment
 from dask_cuda import LocalCUDACluster
 
-import xgboost
+from xgboost import dask as dxgb
 
 
 def main(client):
@@ -20,7 +20,7 @@ def main(client):
     X = da.random.random((m, n), partition_size)
     y = da.random.random(m, partition_size)
 
-    regressor = xgboost.dask.DaskXGBRegressor(verbosity=1)
+    regressor = dxgb.DaskXGBRegressor(verbosity=1)
     # set the device to CUDA
     regressor.set_params(tree_method="hist", device="cuda")
     # assigning client here is optional

@@ -6,7 +6,7 @@ Example of training with Dask on CPU
 from dask import array as da
 from dask.distributed import Client, LocalCluster
 
-import xgboost as xgb
+from xgboost import dask as dxgb
 from xgboost.dask import DaskDMatrix
 
 
@@ -25,7 +25,7 @@ def main(client):
     # distributed version of train returns a dictionary containing the
     # resulting booster and evaluation history obtained from
     # evaluation metrics.
-    output = xgb.dask.train(
+    output = dxgb.train(
         client,
         {"verbosity": 1, "tree_method": "hist"},
         dtrain,
@@ -36,7 +36,7 @@ def main(client):
     history = output["history"]
 
     # you can pass output directly into `predict` too.
-    prediction = xgb.dask.predict(client, bst, dtrain)
+    prediction = dxgb.predict(client, bst, dtrain)
     print("Evaluation history:", history)
     return prediction
 

@@ -8,6 +8,7 @@ from dask_ml.datasets import make_regression
 from dask_ml.model_selection import train_test_split
 
 import xgboost as xgb
+import xgboost.dask as dxgb
 from xgboost.dask import DaskDMatrix
 
 
@@ -61,7 +62,7 @@ def main(client):
     dtrain = DaskDMatrix(client, X_train, y_train)
     dtest = DaskDMatrix(client, X_test, y_test)
 
-    output = xgb.dask.train(
+    output = dxgb.train(
         client,
         {
             "verbosity": 1,
