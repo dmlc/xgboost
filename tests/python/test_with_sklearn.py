@@ -702,6 +702,10 @@ def test_sklearn_random_state():
     clf = xgb.XGBClassifier(random_state=random_state)
     assert isinstance(clf.get_xgb_params()['random_state'], int)
 
+    random_state = np.random.default_rng(seed=404)
+    clf = xgb.XGBClassifier(random_state=random_state)
+    assert isinstance(clf.get_xgb_params()['random_state'], int)
+
 
 def test_sklearn_n_jobs():
     clf = xgb.XGBClassifier(n_jobs=1)

@@ -248,7 +248,7 @@ __model_doc = f"""
         Balancing of positive and negative weights.
     base_score : Optional[float]
         The initial prediction score of all instances, global bias.
-    random_state : Optional[Union[numpy.random.RandomState, int]]
+    random_state : Optional[Union[numpy.random.RandomState, numpy.random.Generator, int]]
         Random number seed.
 
         .. note::
@@ -651,7 +651,9 @@ class XGBModel(XGBModelBase):
         reg_lambda: Optional[float] = None,
         scale_pos_weight: Optional[float] = None,
         base_score: Optional[float] = None,
-        random_state: Optional[Union[np.random.RandomState, int]] = None,
+        random_state: Optional[
+            Union[np.random.RandomState, np.random.Generator, int]
+        ] = None,
         missing: float = np.nan,
         num_parallel_tree: Optional[int] = None,
         monotone_constraints: Optional[Union[Dict[str, int], str]] = None,
@@ -788,6 +790,10 @@ class XGBModel(XGBModelBase):
         if isinstance(params["random_state"], np.random.RandomState):
             params["random_state"] = params["random_state"].randint(
                 np.iinfo(np.int32).max
+            )
+        elif isinstance(params["random_state"], np.random.Generator):
+            params["random_state"] = int(
+                params["random_state"].integers(np.iinfo(np.int32).max)
             )
 
         return params
