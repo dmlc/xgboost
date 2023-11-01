@@ -40,6 +40,7 @@ class Tracker {
   std::int32_t n_workers_{0};
   std::int32_t port_{-1};
   std::chrono::seconds timeout_{0};
+  std::atomic<bool> ready_{false};
 
  public:
   explicit Tracker(Json const& config);
@@ -47,10 +48,17 @@ class Tracker {
       : n_workers_{n_worders}, port_{port}, timeout_{timeout} {}
 
   virtual ~Tracker() noexcept(false){};  // NOLINT
+
+  [[nodiscard]] Result WaitUntilReady() const;
+
   [[nodiscard]] virtual std::future<Result> Run() = 0;
   [[nodiscard]] virtual Json WorkerArgs() const = 0;
   [[nodiscard]] std::chrono::seconds Timeout() const { return timeout_; }
   [[nodiscard]] virtual std::int32_t Port() const { return port_; }
+  /**
+   * @brief Flag to indicate whether the server is running.
+   */
+  [[nodiscard]] bool Ready() const { return ready_; }
 };
 
 class RabitTracker : public Tracker {
@@ -124,13 +132,7 @@ class RabitTracker : public Tracker {
   ~RabitTracker() noexcept(false) override = default;
 
   std::future<Result> Run() override;
-
-  [[nodiscard]] Json WorkerArgs() const override {
-    Json args{Object{}};
-    args["DMLC_TRACKER_URI"] = String{host_};
-    args["DMLC_TRACKER_PORT"] = this->Port();
-    return args;
-  }
+  [[nodiscard]] Json WorkerArgs() const override;
 };
 
 // Prob the public IP address of the host, need a better method.

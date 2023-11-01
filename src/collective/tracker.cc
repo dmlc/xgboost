@@ -16,7 +16,7 @@
 #endif  // defined(_WIN32)
 
 #include <algorithm>  // for sort
-#include <chrono>     // for seconds
+#include <chrono>     // for seconds, ms
 #include <cstdint>    // for int32_t
 #include <string>     // for string
 #include <utility>    // for move, forward
@@ -36,6 +36,25 @@ Tracker::Tracker(Json const& config)
       port_{static_cast<std::int32_t>(OptionalArg<Integer const>(config, "port", Integer::Int{0}))},
       timeout_{std::chrono::seconds{OptionalArg<Integer const>(
           config, "timeout", static_cast<std::int64_t>(collective::DefaultTimeoutSec()))}} {}
+
+Result Tracker::WaitUntilReady() const {
+  using namespace std::chrono_literals;  // NOLINT
+
+  // Busy waiting. The function is mostly for waiting for the OS to launch an async
+  // thread, which should be reasonably fast.
+  common::Timer timer;
+  timer.Start();
+  while (!this->Ready()) {
+    auto ela = timer.Duration().count();
+    if (ela > this->Timeout().count()) {
+      return Fail("Failed to start tracker, timeout:" + std::to_string(this->Timeout().count()) +
+                  " seconds.");
+    }
+    std::this_thread::sleep_for(100ms);
+  }
+
+  return Success();
+}
 
 RabitTracker::WorkerProxy::WorkerProxy(std::int32_t world, TCPSocket sock, SockAddrV4 addr)
     : sock_{std::move(sock)} {
@@ -76,6 +95,7 @@ RabitTracker::RabitTracker(Json const& config) : Tracker{config} {
   auto rc = collective::GetHostAddress(&self);
   auto host = OptionalArg<String>(config, "host", self);
 
+  host_ = host;
   listener_ = TCPSocket::Create(SockDomain::kV4);
   rc = listener_.Bind(host, &this->port_);
   CHECK(rc.OK()) << rc.Report();
@@ -173,6 +193,7 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
     while (state.ShouldContinue()) {
       TCPSocket sock;
       SockAddrV4 addr;
+      this->ready_ = true;
       auto rc = listener_.Accept(&sock, &addr);
       if (!rc.OK()) {
         return Fail("Failed to accept connection.", std::move(rc));
@@ -237,8 +258,19 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
         }
       }
     }
+    ready_ = false;
     return Success();
   });
+}
+
+[[nodiscard]] Json RabitTracker::WorkerArgs() const {
+  auto rc = this->WaitUntilReady();
+  CHECK(rc.OK()) << rc.Report();
+
+  Json args{Object{}};
+  args["DMLC_TRACKER_URI"] = String{host_};
+  args["DMLC_TRACKER_PORT"] = this->Port();
+  return args;
 }
 
 [[nodiscard]] Result GetHostAddress(std::string* out) {
