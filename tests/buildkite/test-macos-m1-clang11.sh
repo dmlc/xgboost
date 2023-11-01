@@ -18,7 +18,7 @@ set -x
 mkdir build
 pushd build
 export JAVA_HOME=$(/usr/libexec/java_home)
-cmake .. -GNinja -DJVM_BINDINGS=ON
+cmake .. -GNinja -DJVM_BINDINGS=ON -DUSE_OPENMP=OFF
 ninja -v
 popd
 rm -rf build
