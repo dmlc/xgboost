@@ -18,7 +18,7 @@ set -x
 mkdir build
 pushd build
 export JAVA_HOME=$(/usr/libexec/java_home)
-cmake .. -GNinja -DJVM_BINDINGS=ON -DUSE_OPENMP=OFF
+cmake .. -GNinja -DJVM_BINDINGS=ON -DUSE_OPENMP=OFF -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15
 ninja -v
 popd
 rm -rf build
