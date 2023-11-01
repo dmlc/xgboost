@@ -8,12 +8,26 @@
 #include <cstdint>     // for int8_t, int64_t
 #include <functional>  // for bit_and, bit_or, bit_xor, plus
 
-#include "allgather.h"  // for RingAllgatherV, RingAllgather
-#include "allreduce.h"  // for Allreduce
-#include "broadcast.h"  // for Broadcast
-#include "comm.h"       // for Comm
+#include "../data/array_interface.h"  // for ArrayInterfaceHandler
+#include "allgather.h"                // for RingAllgatherV, RingAllgather
+#include "allreduce.h"                // for Allreduce
+#include "broadcast.h"                // for Broadcast
+#include "comm.h"                     // for Comm
+
+#if defined(XGBOOST_USE_CUDA)
+#include "cuda_fp16.h"  // for __half
+#endif
 
 namespace xgboost::collective {
+template <typename T>
+bool constexpr IsFloatingPointV() {
+#if defined(XGBOOST_USE_CUDA)
+  return std::is_floating_point_v<T> || std::is_same_v<T, __half>;
+#else
+  return std::is_floating_point_v<T>;
+#endif  // defined(XGBOOST_USE_CUDA)
+}
+
 [[nodiscard]] Result Coll::Allreduce(Comm const& comm, common::Span<std::int8_t> data,
                                      ArrayInterfaceHandler::Type type, Op op) {
   namespace coll = ::xgboost::collective;
@@ -40,7 +54,7 @@ namespace xgboost::collective {
     return cpu_impl::RingAllreduce(comm, data, erased_fn, type);
   };
 
-  auto rc = DispatchDType(type, [&] (auto t) {
+  auto rc = DispatchDType(type, [&](auto t) {
     using T = decltype(t);
     switch (op) {
       case Op::kMax: {
@@ -53,21 +67,21 @@ namespace xgboost::collective {
         return fn(std::plus<>{}, t);
       }
       case Op::kBitwiseAND: {
-        if constexpr (std::is_floating_point_v<T> || std::is_same_v<__half, T>) {
+        if constexpr (IsFloatingPointV<T>()) {
           return Fail("Invalid type.");
         } else {
           return fn(std::bit_and<>{}, t);
         }
       }
       case Op::kBitwiseOR: {
-        if constexpr (std::is_floating_point_v<T> || std::is_same_v<__half, T>) {
+        if constexpr (IsFloatingPointV<T>()) {
           return Fail("Invalid type.");
         } else {
           return fn(std::bit_and<>{}, t);
         }
       }
       case Op::kBitwiseXOR: {
-        if constexpr (std::is_floating_point_v<T> || std::is_same_v<__half, T>) {
+        if constexpr (IsFloatingPointV<T>()) {
           return Fail("Invalid type.");
         } else {
           return fn(std::bit_xor<>{}, t);
