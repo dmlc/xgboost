@@ -38,9 +38,12 @@ Tracker::Tracker(Json const& config)
           config, "timeout", static_cast<std::int64_t>(collective::DefaultTimeoutSec()))}} {}
 
 Result Tracker::WaitUntilReady() const {
+  using namespace std::chrono_literals;  // NOLINT
+
+  // Busy waiting. The function is mostly for waiting for the OS to launch an async
+  // thread, which should be reasonably fast.
   common::Timer timer;
   timer.Start();
-  using namespace std::chrono_literals;
   while (!this->Ready()) {
     auto ela = timer.Duration().count();
     if (ela > this->Timeout().count()) {
