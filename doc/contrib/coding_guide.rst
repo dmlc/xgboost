@@ -122,7 +122,7 @@ We use a combination of linters to enforce style convention and find potential e
 
 For Python scripts, `pylint <https://github.com/PyCQA/pylint>`_, `black <https://github.com/psf/black>`__ and `isort <https://github.com/PyCQA/isort>`__ are used for providing guidance on coding style, and `mypy <https://github.com/python/mypy>`__ is required for type checking. For C++, `cpplint <https://github.com/cpplint/cpplint>`_ is used along with ``clang-tidy``. For R, ``lintr`` is used.
 
-To run checks for Python locally, installed the checkers mentioned previously and run:
+To run checks for Python locally, install the checkers mentioned previously and run:
 
 .. code-block:: bash
 
