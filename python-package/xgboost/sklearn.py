@@ -651,7 +651,9 @@ class XGBModel(XGBModelBase):
         reg_lambda: Optional[float] = None,
         scale_pos_weight: Optional[float] = None,
         base_score: Optional[float] = None,
-        random_state: Optional[Union[np.random.RandomState, np.random.Generator, int]] = None,
+        random_state: Optional[
+            Union[np.random.RandomState, np.random.Generator, int]
+        ] = None,
         missing: float = np.nan,
         num_parallel_tree: Optional[int] = None,
         monotone_constraints: Optional[Union[Dict[str, int], str]] = None,
