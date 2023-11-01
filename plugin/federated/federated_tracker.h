@@ -57,9 +57,8 @@ class FederatedTracker : public collective::Tracker {
   explicit FederatedTracker(Json const& config);
   ~FederatedTracker() override;
   std::future<Result> Run() override;
-  // federated tracker do not provide initialization parameters, users have to provide it
-  // themseleves.
-  [[nodiscard]] Json WorkerArgs() const override { return Json{Null{}}; }
+
+  [[nodiscard]] Json WorkerArgs() const override;
   [[nodiscard]] Result Shutdown();
 };
 }  // namespace xgboost::collective

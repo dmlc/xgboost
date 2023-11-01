@@ -15,7 +15,7 @@
 
 namespace xgboost::collective {
 [[nodiscard]] Result Coll::Allreduce(Comm const& comm, common::Span<std::int8_t> data,
-                                     ArrayInterfaceHandler::Type, Op op) {
+                                     ArrayInterfaceHandler::Type type, Op op) {
   namespace coll = ::xgboost::collective;
 
   auto redop_fn = [](auto lhs, auto out, auto elem_op) {
@@ -25,32 +25,60 @@ namespace xgboost::collective {
       p_out[i] = elem_op(p_lhs[i], p_out[i]);
     }
   };
-  auto fn = [&](auto elem_op) {
-    return coll::Allreduce(
-        comm, data, [redop_fn, elem_op](auto lhs, auto rhs) { redop_fn(lhs, rhs, elem_op); });
+
+  auto fn = [&](auto elem_op, auto t) {
+    using T = decltype(t);
+
+    auto redop = [redop_fn, elem_op](auto lhs, auto rhs) { redop_fn(lhs, rhs, elem_op); };
+
+    auto erased_fn = [redop](common::Span<std::int8_t const> lhs, common::Span<std::int8_t> out) {
+      CHECK_EQ(lhs.size(), out.size()) << "Invalid input for reduction.";
+      auto lhs_t = common::RestoreType<T const>(lhs);
+      auto rhs_t = common::RestoreType<T>(out);
+      redop(lhs_t, rhs_t);
+    };
+
+    return cpu_impl::RingAllreduce(comm, data, erased_fn, type);
   };
 
-  switch (op) {
-    case Op::kMax: {
-      return fn([](auto l, auto r) { return std::max(l, r); });
+  auto rc = DispatchDType(type, [&] (auto t) {
+    using T = decltype(t);
+    switch (op) {
+      case Op::kMax: {
+        return fn([](auto l, auto r) { return std::max(l, r); }, t);
+      }
+      case Op::kMin: {
+        return fn([](auto l, auto r) { return std::min(l, r); }, t);
+      }
+      case Op::kSum: {
+        return fn(std::plus<>{}, t);
+      }
+      case Op::kBitwiseAND: {
+        if constexpr (std::is_floating_point_v<T> || std::is_same_v<__half, T>) {
+          return Fail("Invalid type.");
+        } else {
+          return fn(std::bit_and<>{}, t);
+        }
+      }
+      case Op::kBitwiseOR: {
+        if constexpr (std::is_floating_point_v<T> || std::is_same_v<__half, T>) {
+          return Fail("Invalid type.");
+        } else {
+          return fn(std::bit_and<>{}, t);
+        }
+      }
+      case Op::kBitwiseXOR: {
+        if constexpr (std::is_floating_point_v<T> || std::is_same_v<__half, T>) {
+          return Fail("Invalid type.");
+        } else {
+          return fn(std::bit_xor<>{}, t);
+        }
+      }
     }
-    case Op::kMin: {
-      return fn([](auto l, auto r) { return std::min(l, r); });
-    }
-    case Op::kSum: {
-      return fn(std::plus<>{});
-    }
-    case Op::kBitwiseAND: {
-      return fn(std::bit_and<>{});
-    }
-    case Op::kBitwiseOR: {
-      return fn(std::bit_or<>{});
-    }
-    case Op::kBitwiseXOR: {
-      return fn(std::bit_xor<>{});
-    }
-  }
-  return comm.Block();
+    return Fail("Invalid op.");
+  });
+
+  return std::move(rc) << [&] { return comm.Block(); };
 }
 
 [[nodiscard]] Result Coll::Broadcast(Comm const& comm, common::Span<std::int8_t> data,
