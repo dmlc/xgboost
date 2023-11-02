@@ -10,7 +10,7 @@ import pytest
 
 import xgboost as xgb
 from xgboost import testing as tm
-from xgboost.testing.ranking import run_ranking_qid_df, run_ranking_categorical
+from xgboost.testing.ranking import run_ranking_categorical, run_ranking_qid_df
 
 sys.path.append("tests/python")
 import test_with_sklearn as twskl  # noqa
