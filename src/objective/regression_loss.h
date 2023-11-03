@@ -116,7 +116,7 @@ class GammaDeviance {
   static ObjInfo Info() { return ObjInfo::kRegression; }
   static const char* Name() { return "reg:gamma"; }
   static const char* DefaultEvalMetric() { return "gamma-deviance"; }
-  XGBOOST_DEVICE static bool CheckLabel(float x) { return x >= 0.0f; }
+  XGBOOST_DEVICE static bool CheckLabel(float x) { return x > 0.0f; }
   static const char* LabelErrorMsg() { return "label must be positive for gamma regression."; }
 };
 }  // namespace xgboost::obj
