@@ -216,7 +216,7 @@ Submit the application
 **********************
 
 Assuming that the application main class is "Iris" and the application jar is "iris-1.0.0.jar",`
-provided below is an instance demonstrating how to submit the xgboost application to the Apache
+provided below is an instance demonstrating how to submit the xgboost application to an Apache
 Spark Standalone cluster.
 
 .. code-block:: bash
