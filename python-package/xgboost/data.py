@@ -912,19 +912,11 @@ def _from_cupy_array(
 
 
 def _is_cupy_csr(data: DataType) -> bool:
-    try:
-        import cupyx
-    except ImportError:
-        return False
-    return isinstance(data, cupyx.scipy.sparse.csr_matrix)
+    return lazy_isinstance(data, "cupyx.scipy.sparse._csr", "csr_matrix")
 
 
 def _is_cupy_csc(data: DataType) -> bool:
-    try:
-        import cupyx
-    except ImportError:
-        return False
-    return isinstance(data, cupyx.scipy.sparse.csc_matrix)
+    return lazy_isinstance(data, "cupyx.scipy.sparse._csc", "csc_matrix")
 
 
 def _is_dlpack(data: DataType) -> bool:
@@ -1198,6 +1190,20 @@ def _meta_from_dt(
 ) -> None:
     data, _, _ = _transform_dt_df(data, None, None, field, dtype)
     _meta_from_numpy(data, field, dtype, handle)
+
+
+def _is_cuda_input(data: DataType) -> bool:
+    return any(
+        fn(data)
+        for fn in (
+            _is_cupy_array,
+            _is_cupy_csr,
+            _is_cupy_csc,
+            _is_cudf_df,
+            _is_cudf_ser,
+            _is_dlpack,
+        )
+    )
 
 
 def dispatch_meta_backend(
