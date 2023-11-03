@@ -105,14 +105,15 @@ struct LogisticRaw : public LogisticRegression {
   static ObjInfo Info() { return ObjInfo::kRegression; }
 };
 
+// gamma deviance loss.
 class GammaDeviance {
  public:
   XGBOOST_DEVICE static float PredTransform(float x) { return std::exp(x); }
   XGBOOST_DEVICE static float ProbToMargin(float x) { return std::log(x); }
-  XGBOOST_DEVICE static bst_float FirstOrderGradient(float p, float y) {
+  XGBOOST_DEVICE static float FirstOrderGradient(float p, float y) {
     return 1.0f - y / p;
   }
-  XGBOOST_DEVICE static bst_float SecondOrderGradient(float p, float y) { return y / p; }
+  XGBOOST_DEVICE static float SecondOrderGradient(float p, float y) { return y / p; }
   static ObjInfo Info() { return ObjInfo::kRegression; }
   static const char* Name() { return "reg:gamma"; }
   static const char* DefaultEvalMetric() { return "gamma-deviance"; }
