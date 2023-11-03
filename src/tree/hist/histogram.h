@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2023 by XGBoost Contributors
+ * Copyright 2021-2023, XGBoost Contributors
  */
 #ifndef XGBOOST_TREE_HIST_HISTOGRAM_H_
 #define XGBOOST_TREE_HIST_HISTOGRAM_H_
@@ -16,6 +16,7 @@
 #include "../../common/hist_util.h"             // for GHistRow, ParallelGHi...
 #include "../../common/row_set.h"               // for RowSetCollection
 #include "../../common/threading_utils.h"       // for ParallelFor2d, Range1d, BlockedSpace2d
+#include "../../common/tuning.h"                // for kSyncHistBlockSize
 #include "../../data/gradient_index.h"          // for GHistIndexMatrix
 #include "expand_entry.h"                       // for MultiExpandEntry, CPUExpandEntry
 #include "hist_cache.h"                         // for BoundedHistCollection
@@ -175,7 +176,8 @@ class HistogramBuilder {
                      std::vector<bst_node_t> const &nodes_to_trick) {
     auto n_total_bins = buffer_.TotalBins();
     common::BlockedSpace2d space(
-        nodes_to_build.size(), [&](std::size_t) { return n_total_bins; }, 1024);
+        nodes_to_build.size(), [&](std::size_t) { return n_total_bins; },
+        common::kSyncHistBlockSize);
     common::ParallelFor2d(space, this->n_threads_, [&](size_t node, common::Range1d r) {
       // Merging histograms from each thread.
       this->buffer_.ReduceHist(node, r.begin(), r.end());
@@ -193,7 +195,8 @@ class HistogramBuilder {
         nodes_to_trick.size() == nodes_to_build.size()
             ? space
             : common::BlockedSpace2d{nodes_to_trick.size(),
-                                     [&](std::size_t) { return n_total_bins; }, 1024};
+                                     [&](std::size_t) { return n_total_bins; },
+                                     common::kSyncHistBlockSize};
     common::ParallelFor2d(
         subspace, this->n_threads_, [&](std::size_t nidx_in_set, common::Range1d r) {
           auto subtraction_nidx = nodes_to_trick[nidx_in_set];
@@ -231,8 +234,9 @@ common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
       k++;
     }
   }
-  common::BlockedSpace2d space{
-      nodes_to_build.size(), [&](size_t nidx_in_set) { return partition_size[nidx_in_set]; }, 256};
+  common::BlockedSpace2d space{nodes_to_build.size(),
+                               [&](std::size_t nidx_in_set) { return partition_size[nidx_in_set]; },
+                               common::kHistBlockSize};
   return space;
 }
 
