@@ -2093,7 +2093,17 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
 
         """
         X, qid = _get_qid(X, None)
-        Xyq = DMatrix(X, y, qid=qid)
+        # fixme(jiamingy): base margin and group weight is not yet supported. We might
+        # need to make extra special fields in the dataframe.
+        Xyq = DMatrix(
+            X,
+            y,
+            qid=qid,
+            missing=self.missing,
+            enable_categorical=self.enable_categorical,
+            nthread=self.n_jobs,
+            feature_types=self.feature_types,
+        )
         if callable(self.eval_metric):
             metric = ltr_metric_decorator(self.eval_metric, self.n_jobs)
             result_str = self.get_booster().eval_set([(Xyq, "eval")], feval=metric)

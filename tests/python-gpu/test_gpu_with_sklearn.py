@@ -9,7 +9,7 @@ import pytest
 
 import xgboost as xgb
 from xgboost import testing as tm
-from xgboost.testing.ranking import run_ranking_qid_df
+from xgboost.testing.ranking import run_ranking_categorical, run_ranking_qid_df
 
 sys.path.append("tests/python")
 import test_with_sklearn as twskl  # noqa
@@ -163,6 +163,11 @@ def test_ranking_qid_df():
     import cudf
 
     run_ranking_qid_df(cudf, "gpu_hist")
+
+
+@pytest.mark.skipif(**tm.no_pandas())
+def test_ranking_categorical() -> None:
+    run_ranking_categorical(device="cuda")
 
 
 @pytest.mark.skipif(**tm.no_cupy())
