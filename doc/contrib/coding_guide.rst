@@ -118,16 +118,40 @@ two automatic checks to enforce coding style conventions. To expedite the code r
 
 Linter
 ======
-We use `pylint <https://github.com/PyCQA/pylint>`_ and `cpplint <https://github.com/cpplint/cpplint>`_ to enforce style convention and find potential errors. Linting is especially useful for Python, as we can catch many errors that would have otherwise occurred at run-time.
+We use a combination of linters to enforce style convention and find potential errors. Linting is especially useful for scripting languages like Python, as we can catch many errors that would have otherwise occurred at run-time.
 
-To run this check locally, run the following command from the top level source tree:
+For Python scripts, `pylint <https://github.com/PyCQA/pylint>`_, `black <https://github.com/psf/black>`__ and `isort <https://github.com/PyCQA/isort>`__ are used for providing guidance on coding style, and `mypy <https://github.com/python/mypy>`__ is required for type checking. For C++, `cpplint <https://github.com/cpplint/cpplint>`_ is used along with ``clang-tidy``. For R, ``lintr`` is used.
+
+To run checks for Python locally, install the checkers mentioned previously and run:
 
 .. code-block:: bash
 
   cd /path/to/xgboost/
-  make lint
+  python ./tests/ci_build/lint_python.py --fix
 
-This command requires the Python packages pylint and cpplint.
+To run checks for R:
+
+.. code-block:: bash
+
+  cd /path/to/xgboost/
+  Rscript tests/ci_build/lint_r.R $(pwd)
+
+To run checks for cpplint locally:
+
+.. code-block:: bash
+
+  cd /path/to/xgboost/
+  python ./tests/ci_build/lint_cpp.py
+
+
+See next section for clang-tidy. For CMake scripts:
+
+.. code-block:: bash
+
+  bash ./tests/ci_build/lint_cmake.sh
+
+Lastly, the linter for jvm-packages is integrated into the maven build process.
+
 
 Clang-tidy
 ==========
