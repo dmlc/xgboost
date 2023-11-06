@@ -74,14 +74,18 @@ DMatrix* SimpleDMatrix::SliceCol(int num_slices, int slice_id) {
   return out;
 }
 
-void SimpleDMatrix::ReindexFeatures(Context const* ctx) {
+void SimpleDMatrix::ReindexFeatures() {
   if (info_.IsColumnSplit() && collective::GetWorldSize() > 1) {
     auto const cols = collective::Allgather(info_.num_col_);
     auto const offset = std::accumulate(cols.cbegin(), cols.cbegin() + collective::GetRank(), 0ul);
     if (offset == 0) {
       return;
     }
-    sparse_page_->Reindex(offset, ctx->Threads());
+    if (fmat_ctx_.IsCUDA()) {
+      sparse_page_->ReindexCUDA(offset);
+    } else {
+      sparse_page_->ReindexCPU(offset, fmat_ctx_.Threads());
+    }
   }
 }
 
@@ -216,8 +220,7 @@ BatchSet<ExtSparsePage> SimpleDMatrix::GetExtBatches(Context const*, BatchParam 
 template <typename AdapterT>
 SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
                              DataSplitMode data_split_mode) {
-  Context ctx;
-  ctx.Init(Args{{"nthread", std::to_string(nthread)}});
+  fmat_ctx_.Init(Args{{"nthread", std::to_string(nthread)}});
 
   std::vector<uint64_t> qids;
   uint64_t default_max = std::numeric_limits<uint64_t>::max();
@@ -233,7 +236,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
   // Iterate over batches of input data
   while (adapter->Next()) {
     auto& batch = adapter->Value();
-    auto batch_max_columns = sparse_page_->Push(batch, missing, ctx.Threads());
+    auto batch_max_columns = sparse_page_->Push(batch, missing, fmat_ctx_.Threads());
     inferred_num_columns = std::max(batch_max_columns, inferred_num_columns);
     total_batch_size += batch.Size();
     // Append meta information if available
@@ -282,7 +285,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
 
   // Synchronise worker columns
   info_.data_split_mode = data_split_mode;
-  ReindexFeatures(&ctx);
+  ReindexFeatures();
   info_.SynchronizeNumberOfColumns();
 
   if (adapter->NumRows() == kAdapterUnknownSize) {
@@ -315,11 +318,9 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
   info_.num_nonzero_ = data_vec.size();
 
   // Sort the index for row partitioners used by variuos tree methods.
-  if (!sparse_page_->IsIndicesSorted(ctx.Threads())) {
-    sparse_page_->SortIndices(ctx.Threads());
+  if (!sparse_page_->IsIndicesSorted(fmat_ctx_.Threads())) {
+    sparse_page_->SortIndices(fmat_ctx_.Threads());
   }
-
-  this->fmat_ctx_ = ctx;
 }
 
 SimpleDMatrix::SimpleDMatrix(dmlc::Stream* in_stream) {

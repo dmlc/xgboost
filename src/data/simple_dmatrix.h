@@ -69,7 +69,7 @@ class SimpleDMatrix : public DMatrix {
    * are globally indexed, so we reindex the features based on the offset needed to obtain the
    * global view.
    */
-  void ReindexFeatures(Context const* ctx);
+  void ReindexFeatures();
 
  private:
   // Context used only for DMatrix initialization.
