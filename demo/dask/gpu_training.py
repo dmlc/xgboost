@@ -8,7 +8,6 @@ from dask import dataframe as dd
 from dask.distributed import Client
 from dask_cuda import LocalCUDACluster
 
-import xgboost as xgb
 from xgboost import dask as dxgb
 from xgboost.dask import DaskDMatrix
 
@@ -21,7 +20,7 @@ def using_dask_matrix(client: Client, X: da.Array, y: da.Array) -> da.Array:
     # Use train method from xgboost.dask instead of xgboost.  This distributed version
     # of train returns a dictionary containing the resulting booster and evaluation
     # history obtained from evaluation metrics.
-    output = xgb.dask.train(
+    output = dxgb.train(
         client,
         {
             "verbosity": 2,
@@ -37,7 +36,7 @@ def using_dask_matrix(client: Client, X: da.Array, y: da.Array) -> da.Array:
     history = output["history"]
 
     # you can pass output directly into `predict` too.
-    prediction = xgb.dask.predict(client, bst, dtrain)
+    prediction = dxgb.predict(client, bst, dtrain)
     print("Evaluation history:", history)
     return prediction
 
@@ -56,14 +55,14 @@ def using_quantile_device_dmatrix(client: Client, X: da.Array, y: da.Array) -> d
     # be used for anything else other than training unless a reference is specified. See
     # the `ref` argument of `DaskQuantileDMatrix`.
     dtrain = dxgb.DaskQuantileDMatrix(client, X, y)
-    output = xgb.dask.train(
+    output = dxgb.train(
         client,
         {"verbosity": 2, "tree_method": "hist", "device": "cuda"},
         dtrain,
         num_boost_round=4,
     )
 
-    prediction = xgb.dask.predict(client, output, X)
+    prediction = dxgb.predict(client, output, X)
     return prediction
 
 

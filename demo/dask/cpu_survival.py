@@ -9,7 +9,7 @@ import os
 import dask.dataframe as dd
 from dask.distributed import Client, LocalCluster
 
-import xgboost as xgb
+from xgboost import dask as dxgb
 from xgboost.dask import DaskDMatrix
 
 
@@ -48,14 +48,14 @@ def main(client):
         "lambda": 0.01,
         "alpha": 0.02,
     }
-    output = xgb.dask.train(
+    output = dxgb.train(
         client, params, dtrain, num_boost_round=100, evals=[(dtrain, "train")]
     )
     bst = output["booster"]
     history = output["history"]
 
     # you can pass output directly into `predict` too.
-    prediction = xgb.dask.predict(client, bst, dtrain)
+    prediction = dxgb.predict(client, bst, dtrain)
     print("Evaluation history: ", history)
 
     # Uncomment the following line to save the model to the disk
