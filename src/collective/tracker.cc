@@ -58,36 +58,35 @@ Result Tracker::WaitUntilReady() const {
 
 RabitTracker::WorkerProxy::WorkerProxy(std::int32_t world, TCPSocket sock, SockAddrV4 addr)
     : sock_{std::move(sock)} {
-  auto host = addr.Addr();
-
   std::int32_t rank{0};
-  rc_ = Success()
-        << [&] { return proto::Magic{}.Verify(&sock_); }
-        << [&] { return proto::Connect{}.TrackerRecv(&sock_, &world_, &rank, &task_id_); };
-  if (!rc_.OK()) {
-    return;
-  }
-
-  std::string cmd;
-  sock_.Recv(&cmd);
-  auto jcmd = Json::Load(StringView{cmd});
-  cmd_ = static_cast<proto::CMD>(get<Integer const>(jcmd["cmd"]));
+  Json jcmd;
   std::int32_t port{0};
-  if (cmd_ == proto::CMD::kStart) {
-    proto::Start start;
-    rc_ = start.TrackerHandle(jcmd, &world_, world, &port, &sock_, &eport_);
-  } else if (cmd_ == proto::CMD::kPrint) {
-    proto::Print print;
-    rc_ = print.TrackerHandle(jcmd, &msg_);
-  } else if (cmd_ == proto::CMD::kError) {
-    proto::ErrorCMD error;
-    rc_ = error.TrackerHandle(jcmd, &msg_, &code_);
-  }
-  if (!rc_.OK()) {
-    return;
-  }
 
-  info_ = proto::PeerInfo{host, port, rank};
+  rc_ = Success() << [&] { return proto::Magic{}.Verify(&sock_); } << [&] {
+    return proto::Connect{}.TrackerRecv(&sock_, &world_, &rank, &task_id_);
+  } << [&] {
+    std::string cmd;
+    sock_.Recv(&cmd);
+    jcmd = Json::Load(StringView{cmd});
+    cmd_ = static_cast<proto::CMD>(get<Integer const>(jcmd["cmd"]));
+    return Success();
+  } << [&] {
+    if (cmd_ == proto::CMD::kStart) {
+      proto::Start start;
+      return start.TrackerHandle(jcmd, &world_, world, &port, &sock_, &eport_);
+    } else if (cmd_ == proto::CMD::kPrint) {
+      proto::Print print;
+      return print.TrackerHandle(jcmd, &msg_);
+    } else if (cmd_ == proto::CMD::kError) {
+      proto::ErrorCMD error;
+      return error.TrackerHandle(jcmd, &msg_, &code_);
+    }
+    return Success();
+  } << [&] {
+    auto host = addr.Addr();
+    info_ = proto::PeerInfo{host, port, rank};
+    return Success();
+  };
 }
 
 RabitTracker::RabitTracker(Json const& config) : Tracker{config} {
@@ -137,15 +136,18 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
 
     std::int32_t n_shutdown{0};
     bool during_restart{false};
+    bool running{false};
     std::vector<WorkerProxy> pending;
 
     explicit State(std::int32_t world) : n_workers{world} {}
     State(State const& that) = delete;
     State& operator=(State&& that) = delete;
 
+    // modifiers
     void Start(WorkerProxy&& worker) {
       CHECK_LT(pending.size(), n_workers);
       CHECK_LE(n_shutdown, n_workers);
+      CHECK(!running);
 
       pending.emplace_back(std::forward<WorkerProxy>(worker));
 
@@ -155,6 +157,7 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
       CHECK_GE(n_shutdown, 0);
       CHECK_LT(n_shutdown, n_workers);
 
+      running = false;
       ++n_shutdown;
 
       CHECK_LE(n_shutdown, n_workers);
@@ -163,20 +166,25 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
       CHECK_LE(pending.size(), n_workers);
       CHECK_LE(n_shutdown, n_workers);
 
+      running = false;
       during_restart = true;
-    }
-    [[nodiscard]] bool Ready() const {
-      CHECK_LE(pending.size(), n_workers);
-      return static_cast<std::int32_t>(pending.size()) == n_workers;
     }
     void Bootstrap() {
       CHECK_EQ(pending.size(), n_workers);
       CHECK_LE(n_shutdown, n_workers);
 
+      running = true;
+
       // A reset.
       n_shutdown = 0;
       during_restart = false;
       pending.clear();
+    }
+
+    // observers
+    [[nodiscard]] bool Ready() const {
+      CHECK_LE(pending.size(), n_workers);
+      return static_cast<std::int32_t>(pending.size()) == n_workers;
     }
     [[nodiscard]] bool ShouldContinue() const {
       CHECK_LE(pending.size(), n_workers);
@@ -187,7 +195,31 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
     }
   };
 
-  return std::async(std::launch::async, [this] {
+  auto handle_error = [&](WorkerProxy const& worker) {
+    auto msg = worker.Msg();
+    auto code = worker.Code();
+    LOG(WARNING) << "Recieved error from [" << worker.Host() << ":" << worker.Rank() << "]: " << msg
+                 << " code:" << code;
+    auto host = worker.Host();
+    // We signal all workers for the error, if they haven't aborted already.
+    for (auto& w : worker_error_handles_) {
+      if (w.first == host) {
+        continue;
+      }
+      TCPSocket out;
+      // Connecting to the error port as a signal for exit.
+      //
+      // retry is set to 1, just let the worker timeout or error. Otherwise the
+      // tracker and the worker might be waiting for each other.
+      auto rc = Connect(w.first, w.second, 1, timeout_, &out);
+      if (!rc.OK()) {
+        return Fail("Failed to inform workers to stop.");
+      }
+    }
+    return Success();
+  };
+
+  return std::async(std::launch::async, [this, handle_error] {
     State state{this->n_workers_};
 
     while (state.ShouldContinue()) {
@@ -205,6 +237,16 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
       }
       switch (worker.Command()) {
         case proto::CMD::kStart: {
+          if (state.running) {
+            // Something went wrong with one of the workers. It got disconnected without
+            // notice.
+            state.Error();
+            rc = handle_error(worker);
+            if (!rc.OK()) {
+              return Fail("Failed to handle abort.", std::move(rc));
+            }
+          }
+
           state.Start(std::move(worker));
           if (state.Ready()) {
             rc = this->Bootstrap(&state.pending);
@@ -216,36 +258,20 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
           continue;
         }
         case proto::CMD::kShutdown: {
+          if (state.during_restart) {
+            // The worker can still send shutdown after call to `std::exit`.
+            continue;
+          }
           state.Shutdown();
           continue;
         }
         case proto::CMD::kError: {
           if (state.during_restart) {
+            // Ignore further errors.
             continue;
           }
           state.Error();
-          auto msg = worker.Msg();
-          auto code = worker.Code();
-          LOG(WARNING) << "Recieved error from [" << worker.Host() << ":" << worker.Rank()
-                       << "]: " << msg << " code:" << code;
-          auto host = worker.Host();
-          // We signal all workers for the error, if they haven't aborted already.
-          for (auto& w : worker_error_handles_) {
-            if (w.first == host) {
-              continue;
-            }
-            TCPSocket out;
-            // retry is set to 1, just let the worker timeout or error. Otherwise the
-            // tracker and the worker might be waiting for each other.
-            auto rc = Connect(w.first, w.second, 1, timeout_, &out);
-            // send signal to stop the worker.
-            proto::ShutdownCMD shutdown;
-            rc = shutdown.Send(&out);
-            if (!rc.OK()) {
-              return Fail("Failed to inform workers to stop.");
-            }
-          }
-
+          rc = handle_error(worker);
           continue;
         }
         case proto::CMD::kPrint: {

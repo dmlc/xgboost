@@ -60,7 +60,8 @@ void FederatedComm::Init(std::string const& host, std::int32_t port, std::int32_
   }
 }
 
-FederatedComm::FederatedComm(Json const& config) {
+FederatedComm::FederatedComm(std::int32_t retry, std::chrono::seconds timeout, std::string task_id,
+                             Json const& config) {
   /**
    * Topology
    */
@@ -92,6 +93,13 @@ FederatedComm::FederatedComm(Json const& config) {
   CHECK_NE(rank, -1) << "Parameter `federated_rank` is required";
   CHECK_NE(world_size, 0) << "Parameter `federated_world_size` is required.";
   CHECK(!server_address.empty()) << "Parameter `federated_server_address` is required.";
+
+  /**
+   * Basic config
+   */
+  this->retry_ = retry;
+  this->timeout_ = timeout;
+  this->task_id_ = task_id;
 
   /**
    * Certificates
