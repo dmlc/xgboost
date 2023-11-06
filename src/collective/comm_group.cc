@@ -3,10 +3,12 @@
  */
 #include "comm_group.h"
 
-#include <chrono>   // for seconds
-#include <cstdint>  // for int32_t
-#include <memory>   // for shared_ptr, unique_ptr
-#include <string>   // for string
+#include <algorithm>  // for transform
+#include <chrono>     // for seconds
+#include <cstdint>    // for int32_t
+#include <memory>     // for shared_ptr, unique_ptr
+#include <string>     // for string
+#include <vector>     // for vector
 
 #include "../common/json_utils.h"       // for OptionalArg
 #include "coll.h"                       // for Coll
