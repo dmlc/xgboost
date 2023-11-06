@@ -220,7 +220,7 @@ RabitComm::RabitComm(std::string const& host, std::int32_t port, std::chrono::se
     // exit is nicer than abort as the former performs cleanups.
     std::exit(-1);
 #else
-    LOG(FATAL) << rc.Report();
+    LOG(FATAL) << "abort";
 #endif
   }};
   error_worker_.detach();
