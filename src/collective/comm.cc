@@ -215,6 +215,10 @@ RabitComm::RabitComm(std::string const& host, std::int32_t port, std::chrono::se
   error_sock->Listen();
   error_worker_ = std::thread{[error_sock = std::move(error_sock)] {
     auto conn = error_sock->Accept();
+    // On Windows, accept returns a closed socket after finalize.
+    if (conn.IsClosed()) {
+      return;
+    }
     LOG(WARNING) << "Another worker is running into error.";
 #if !defined(XGBOOST_STRICT_R_MODE) || XGBOOST_STRICT_R_MODE == 0
     // exit is nicer than abort as the former performs cleanups.
