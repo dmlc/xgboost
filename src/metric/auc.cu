@@ -199,8 +199,9 @@ void Transpose(common::Span<float const> in, common::Span<float> out, size_t m,
   });
 }
 
-double ScaleClasses(Context const* ctx, common::Span<double> results, common::Span<double> local_area,
-                    common::Span<double> tp, common::Span<double> auc, size_t n_classes) {
+double ScaleClasses(Context const *ctx, common::Span<double> results,
+                    common::Span<double> local_area, common::Span<double> tp,
+                    common::Span<double> auc, size_t n_classes) {
   if (collective::IsDistributed()) {
     int32_t device = dh::CurrentDevice();
     CHECK_EQ(dh::CudaGetPointerDevice(results.data()), device);

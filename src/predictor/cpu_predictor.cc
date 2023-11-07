@@ -419,7 +419,8 @@ class ColumnSplitHelper {
     }
   }
 
-  void PredictInstance(Context const* ctx, SparsePage::Inst const &inst, std::vector<bst_float> *out_preds) {
+  void PredictInstance(Context const *ctx, SparsePage::Inst const &inst,
+                       std::vector<bst_float> *out_preds) {
     CHECK(xgboost::collective::IsDistributed())
         << "column-split prediction is only supported for distributed training";
 
@@ -454,7 +455,8 @@ class ColumnSplitHelper {
     std::fill(missing_storage_.begin(), missing_storage_.end(), 0);
   }
 
-  [[nodiscard]] std::size_t BitIndex(std::size_t tree_id, std::size_t row_id, std::size_t node_id) const {
+  [[nodiscard]] std::size_t BitIndex(std::size_t tree_id, std::size_t row_id,
+                                     std::size_t node_id) const {
     size_t tree_index = tree_id - tree_begin_;
     return tree_offsets_[tree_index] * n_rows_ + row_id * tree_sizes_[tree_index] + node_id;
   }
