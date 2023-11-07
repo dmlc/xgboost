@@ -84,7 +84,6 @@ XGB_DLL int XGTrackerCreate(char const *config, TrackerHandle *handle) {
 
 XGB_DLL int XGTrackerWorkerArgs(TrackerHandle handle, char const **args) {
   API_BEGIN();
-  xgboost_CHECK_C_ARG_PTR(handle);
   auto *ptr = GetTrackerHandle(handle);
   auto &local = *CollAPIThreadLocalStore::Get();
   local.ret_str = Json::Dump(ptr->first->WorkerArgs());
@@ -95,7 +94,6 @@ XGB_DLL int XGTrackerWorkerArgs(TrackerHandle handle, char const **args) {
 
 XGB_DLL int XGTrackerRun(TrackerHandle handle) {
   API_BEGIN();
-  xgboost_CHECK_C_ARG_PTR(handle);
   auto *ptr = GetTrackerHandle(handle);
   CHECK(!ptr->second.valid()) << "Tracker is already running.";
   ptr->second = ptr->first->Run();
@@ -113,7 +111,6 @@ XGB_DLL int XGTrackerWait(TrackerHandle handle, char const *config) {
 
 XGB_DLL int XGTrackerFree(TrackerHandle handle) {
   API_BEGIN();
-  xgboost_CHECK_C_ARG_PTR(handle);
   auto *ptr = GetTrackerHandle(handle);
   WaitImpl(ptr);
   delete ptr;
