@@ -45,7 +45,9 @@ namespace xgboost::collective {
   return *comm_;
 }
 
-CommGroup::CommGroup() : comm_{std::make_shared<RabitComm>()}, backend_{std::make_shared<Coll>()} {}
+CommGroup::CommGroup()
+    : comm_{std::shared_ptr<RabitComm>(new RabitComm{})},  // NOLINT
+      backend_{std::shared_ptr<Coll>(new Coll{})} {}       // NOLINT
 
 [[nodiscard]] CommGroup* CommGroup::Create(Json config) {
   if (IsA<Null>(config)) {
@@ -72,7 +74,7 @@ CommGroup::CommGroup() : comm_{std::make_shared<RabitComm>()}, backend_{std::mak
       return OptionalArg<decltype(t)>(config, name, dft);
     }
   };
-
+  // Common args
   auto retry =
       OptionalArg<Integer>(config, "dmlc_retry", static_cast<Integer::Int>(DefaultRetry()));
   auto timeout = OptionalArg<Integer>(config, "dmlc_timeout_sec",
@@ -82,9 +84,11 @@ CommGroup::CommGroup() : comm_{std::make_shared<RabitComm>()}, backend_{std::mak
   if (type == "rabit") {
     auto host = get_param("dmlc_tracker_uri", std::string{}, String{});
     auto port = get_param("dmlc_tracker_port", static_cast<std::int64_t>(0), Integer{});
-    auto ptr = new CommGroup{
-        std::make_shared<RabitComm>(host, port, std::chrono::seconds{timeout}, retry, task_id),
-        std::make_shared<Coll>()};
+    auto ptr =
+        new CommGroup{std::shared_ptr<RabitComm>{new RabitComm{  // NOLINT
+                          host, static_cast<std::int32_t>(port), std::chrono::seconds{timeout},
+                          static_cast<std::int32_t>(retry), task_id}},
+                      std::shared_ptr<Coll>(new Coll{})};  // NOLINT
     return ptr;
   } else if (type == "federated") {
 #if defined(XGBOOST_USE_FEDERATED)
