@@ -27,6 +27,10 @@ class FederatedComm : public Comm {
     this->rank_ = that->Rank();
     this->world_ = that->World();
 
+    this->retry_ = that->Retry();
+    this->timeout_ = that->Timeout();
+    this->task_id_ = that->TaskID();
+
     this->tracker_ = that->TrackerInfo();
   }
 
@@ -41,7 +45,8 @@ class FederatedComm : public Comm {
    * - federated_client_key_path
    * - federated_client_cert_path
    */
-  explicit FederatedComm(Json const& config);
+  explicit FederatedComm(std::int32_t retry, std::chrono::seconds timeout, std::string task_id,
+                         Json const& config);
   explicit FederatedComm(std::string const& host, std::int32_t port, std::int32_t world,
                          std::int32_t rank) {
     this->Init(host, port, world, rank, {}, {}, {});

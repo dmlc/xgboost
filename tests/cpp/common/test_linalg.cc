@@ -15,6 +15,15 @@
 namespace xgboost::linalg {
 namespace {
 DeviceOrd CPU() { return DeviceOrd::CPU(); }
+
+template <typename T>
+void ConstView(linalg::VectorView<T> v1, linalg::VectorView<std::add_const_t<T>> v2) {
+  // compile test for being able to pass non-const view to const view.
+  auto s = v1.Slice(linalg::All());
+  ASSERT_EQ(s.Size(), v1.Size());
+  auto s2 = v2.Slice(linalg::All());
+  ASSERT_EQ(s2.Size(), v2.Size());
+}
 }  // namespace
 
 auto MakeMatrixFromTest(HostDeviceVector<float> *storage, std::size_t n_rows, std::size_t n_cols) {
@@ -205,6 +214,11 @@ TEST(Linalg, TensorView) {
     ASSERT_TRUE(t.Contiguous());
     ASSERT_TRUE(t.FContiguous());
     ASSERT_FALSE(t.CContiguous());
+  }
+  {
+    // const
+    TensorView<double, 1> t{data, {data.size()}, CPU()};
+    ConstView(t, t);
   }
 }
 

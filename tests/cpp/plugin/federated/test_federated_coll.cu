@@ -124,6 +124,9 @@ TEST_F(FederatedCollTestGPU, Allgather) {
 
 TEST_F(FederatedCollTestGPU, AllgatherV) {
   std::int32_t n_workers = 2;
+  if (common::AllVisibleGPUs() < n_workers) {
+    GTEST_SKIP_("At least 2 GPUs are required for the test.");
+  }
   TestFederated(n_workers, [=](std::shared_ptr<FederatedComm> comm, std::int32_t rank) {
     TestAllgatherV(comm, rank);
   });

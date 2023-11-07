@@ -5,13 +5,17 @@
 
 #include <algorithm>  // for copy
 #include <chrono>     // for seconds
+#include <cstdlib>    // for exit
 #include <memory>     // for shared_ptr
+#include <mutex>      // for unique_lock
 #include <string>     // for string
 #include <utility>    // for move, forward
 
 #include "../common/common.h"           // for AssertGPUSupport
+#include "../common/json_utils.h"       // for OptionalArg
 #include "allgather.h"                  // for RingAllgather
 #include "protocol.h"                   // for kMagic
+#include "tracker.h"                    // for GetHostAddress
 #include "xgboost/base.h"               // for XGBOOST_STRICT_R_MODE
 #include "xgboost/collective/socket.h"  // for TCPSocket
 #include "xgboost/json.h"               // for Json, Object
@@ -209,24 +213,18 @@ RabitComm::RabitComm(std::string const& host, std::int32_t port, std::chrono::se
   std::shared_ptr<TCPSocket> error_sock{TCPSocket::CreatePtr(domain)};
   auto eport = error_sock->BindHost();
   error_sock->Listen();
-  error_worker_ = std::thread{[this, error_sock = std::move(error_sock)] {
+  error_worker_ = std::thread{[error_sock = std::move(error_sock)] {
     auto conn = error_sock->Accept();
-    // On Windows accept returns an invalid socket after network is shutdown.
+    // On Windows, accept returns a closed socket after finalize.
     if (conn.IsClosed()) {
       return;
     }
     LOG(WARNING) << "Another worker is running into error.";
-    std::string scmd;
-    conn.Recv(&scmd);
-    auto jcmd = Json::Load(scmd);
-    auto rc = this->Shutdown();
-    if (!rc.OK()) {
-      LOG(WARNING) << "Fail to shutdown worker:" << rc.Report();
-    }
 #if !defined(XGBOOST_STRICT_R_MODE) || XGBOOST_STRICT_R_MODE == 0
-    exit(-1);
+    // exit is nicer than abort as the former performs cleanups.
+    std::exit(-1);
 #else
-    LOG(FATAL) << rc.Report();
+    LOG(FATAL) << "abort";
 #endif
   }};
   error_worker_.detach();

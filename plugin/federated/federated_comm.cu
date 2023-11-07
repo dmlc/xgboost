@@ -11,6 +11,8 @@ namespace xgboost::collective {
 CUDAFederatedComm::CUDAFederatedComm(Context const* ctx, std::shared_ptr<FederatedComm const> impl)
     : FederatedComm{impl}, stream_{ctx->CUDACtx()->Stream()} {
   CHECK(impl);
+  CHECK(ctx->IsCUDA());
+  dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
 }
 
 Comm* FederatedComm::MakeCUDAVar(Context const* ctx, std::shared_ptr<Coll>) const {
