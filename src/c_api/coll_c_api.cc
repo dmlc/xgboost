@@ -18,6 +18,8 @@
 
 #if defined(XGBOOST_USE_FEDERATED)
 #include "../../plugin/federated/federated_tracker.h"  // for FederatedTracker
+#else
+#include "../common/error_msg.h"  // for NoFederated
 #endif
 
 using namespace xgboost;  // NOLINT
