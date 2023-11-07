@@ -27,9 +27,11 @@ auto MakeConfig(std::string host, std::int32_t port, std::chrono::seconds timeou
   config["dmlc_retry"] = 2;
   return config;
 }
+
+class CommGroupTest : public SocketTest {};
 }  // namespace
 
-TEST(CommGroup, Basic) {
+TEST_F(CommGroupTest, Basic) {
   std::int32_t n_workers = std::min(std::thread::hardware_concurrency(), 5u);
   TestDistributed(n_workers, [&](std::string host, std::int32_t port, std::chrono::seconds timeout,
                                  std::int32_t r) {
@@ -45,7 +47,7 @@ TEST(CommGroup, Basic) {
 }
 
 #if defined(XGBOOST_USE_NCCL)
-TEST(CommGroup, BasicGPU) {
+TEST_F(CommGroupTest, BasicGPU) {
   std::int32_t n_workers = common::AllVisibleGPUs();
   TestDistributed(n_workers, [&](std::string host, std::int32_t port, std::chrono::seconds timeout,
                                  std::int32_t r) {
