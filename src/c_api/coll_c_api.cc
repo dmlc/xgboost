@@ -39,6 +39,19 @@ struct CollAPIEntry {
   std::string ret_str;
 };
 using CollAPIThreadLocalStore = dmlc::ThreadLocalStore<CollAPIEntry>;
+
+void WaitImpl(TrackerHandleT *ptr) {
+  std::chrono::seconds wait_for{100};
+  while (ptr->second.valid()) {
+    auto res = ptr->second.wait_for(wait_for);
+    CHECK(res != std::future_status::deferred);
+    if (res == std::future_status::ready) {
+      auto rc = ptr->second.get();
+      CHECK(rc.OK()) << rc.Report();
+      break;
+    }
+  }
+}
 }  // namespace
 
 XGB_DLL int XGTrackerCreate(char const *config, TrackerHandle *handle) {
@@ -94,16 +107,7 @@ XGB_DLL int XGTrackerWait(TrackerHandle handle, char const *config) {
   auto *ptr = GetTrackerHandle(handle);
   xgboost_CHECK_C_ARG_PTR(config);
   auto jconfig = Json::Load(StringView{config});
-  std::chrono::seconds wait_for{100};
-  while (ptr->second.valid()) {
-    auto res = ptr->second.wait_for(wait_for);
-    CHECK(res != std::future_status::deferred);
-    if (res == std::future_status::ready) {
-      auto rc = ptr->second.get();
-      CHECK(rc.OK()) << rc.Report();
-      break;
-    }
-  }
+  WaitImpl(ptr);
   API_END();
 }
 
@@ -111,9 +115,7 @@ XGB_DLL int XGTrackerFree(TrackerHandle handle) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(handle);
   auto *ptr = GetTrackerHandle(handle);
-  if (ptr->second.valid()) {
-    ptr->second.wait_for(ptr->first->Timeout());
-  }
+  WaitImpl(ptr);
   delete ptr;
   API_END();
 }
