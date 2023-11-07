@@ -29,6 +29,7 @@ class NcclDeviceCommunicator : public DeviceCommunicator {
   ~NcclDeviceCommunicator() override;
   void AllReduce(void *send_receive_buffer, std::size_t count, DataType data_type,
                  Operation op) override;
+  void AllGather(void const *send_buffer, void *receive_buffer, std::size_t send_size) override;
   void AllGatherV(void const *send_buffer, size_t length_bytes, std::vector<std::size_t> *segments,
                   dh::caching_device_vector<char> *receive_buffer) override;
   void Synchronize() override;
@@ -77,7 +78,6 @@ class NcclDeviceCommunicator : public DeviceCommunicator {
   int const world_size_;
   int const rank_;
   ncclComm_t nccl_comm_{};
-  cudaStream_t cuda_stream_{};
   ncclUniqueId nccl_unique_id_{};
   size_t allreduce_bytes_{0};  // Keep statistics of the number of bytes communicated.
   size_t allreduce_calls_{0};  // Keep statistics of the number of reduce calls.

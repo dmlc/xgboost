@@ -69,7 +69,7 @@ def run_dmatrix_ctor(is_feature_cols: bool, is_qdm: bool, on_gpu: bool) -> None:
     train_Xy, valid_Xy = create_dmatrix_from_partitions(
         iter(dfs),
         feature_cols,
-        gpu_id=device_id,
+        dev_ordinal=device_id,
         use_qdm=is_qdm,
         kwargs=kwargs,
         enable_sparse_data_optim=False,

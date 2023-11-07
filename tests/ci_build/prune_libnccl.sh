@@ -19,14 +19,12 @@ cmake_policy(SET CMP0104 NEW)
 set(CMAKE_CUDA_HOST_COMPILER \${CMAKE_CXX_COMPILER})
 enable_language(CUDA)
 include(../cmake/Utils.cmake)
-set(GEN_CODE "")
-format_gencode_flags("" GEN_CODE)
+compute_cmake_cuda_archs("")
 add_library(test OBJECT test.cu)
-set_property(TARGET test PROPERTY CUDA_ARCHITECTURES \${CMAKE_CUDA_ARCHITECTURES})
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 EOF
 
-cmake . -GNinja
+cmake . -GNinja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 gen_code=$(grep -o -- '--generate-code=\S*' compile_commands.json | paste -sd ' ')
 
 nvprune ${gen_code} /usr/lib64/libnccl_static.a -o ../libnccl_static.a

@@ -234,7 +234,7 @@ Arrow specification.'''
         cp.cuda.runtime.setDevice(0)
         dtrain = dmatrix_from_cupy(np.float32, xgb.QuantileDMatrix, np.nan)
         with pytest.raises(
-            xgb.core.XGBoostError, match="Data is resided on a different device"
+            xgb.core.XGBoostError, match="Invalid device ordinal"
         ):
             xgb.train(
                 {'tree_method': 'gpu_hist', 'gpu_id': 1}, dtrain, num_boost_round=10

@@ -63,31 +63,27 @@ TEST(IO, LoadSequentialFile) {
 
   // Generate a JSON file.
   size_t constexpr kRows = 1000, kCols = 100;
-  std::shared_ptr<DMatrix> p_dmat{
-    RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true)};
-  std::unique_ptr<Learner> learner { Learner::Create({p_dmat}) };
+  std::shared_ptr<DMatrix> p_dmat{RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true)};
+  std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
   learner->SetParam("tree_method", "hist");
   learner->Configure();
 
   for (int32_t iter = 0; iter < 10; ++iter) {
     learner->UpdateOneIter(iter, p_dmat);
   }
-  Json out { Object() };
+  Json out{Object()};
   learner->SaveModel(&out);
-  std::string str;
+  std::vector<char> str;
   Json::Dump(out, &str);
 
   std::string tmpfile = tempdir.path + "/model.json";
   {
-    std::unique_ptr<dmlc::Stream> fo(
-        dmlc::Stream::Create(tmpfile.c_str(), "w"));
-    fo->Write(str.c_str(), str.size());
+    std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(tmpfile.c_str(), "w"));
+    fo->Write(str.data(), str.size());
   }
 
-  auto loaded = LoadSequentialFile(tmpfile, true);
+  auto loaded = LoadSequentialFile(tmpfile);
   ASSERT_EQ(loaded, str);
-
-  ASSERT_THROW(LoadSequentialFile("non-exist", true), dmlc::Error);
 }
 
 TEST(IO, Resource) {
@@ -119,6 +115,20 @@ TEST(IO, Resource) {
     for (std::size_t i = n; i < 2 * n; ++i) {
       ASSERT_EQ(malloc_resource->DataAs<std::uint8_t>()[i], 0);
     }
+
+    ptr = malloc_resource->DataAs<std::uint8_t>();
+    std::fill_n(ptr, malloc_resource->Size(), 7);
+    if (force_malloc) {
+      malloc_resource->Resize<true>(n * 3, std::byte{3});
+    } else {
+      malloc_resource->Resize<false>(n * 3, std::byte{3});
+    }
+    for (std::size_t i = 0; i < n * 2; ++i) {
+      ASSERT_EQ(malloc_resource->DataAs<std::uint8_t>()[i], 7);
+    }
+    for (std::size_t i = n * 2; i < n * 3; ++i) {
+      ASSERT_EQ(malloc_resource->DataAs<std::uint8_t>()[i], 3);
+    }
   };
   test_malloc_resize(true);
   test_malloc_resize(false);
@@ -134,7 +144,8 @@ TEST(IO, Resource) {
     fout << 1.0 << std::endl;
     fout.close();
 
-    auto resource = std::make_shared<MmapResource>(path, 0, sizeof(double));
+    auto resource = std::shared_ptr<MmapResource>{
+      new MmapResource{path, 0, sizeof(double)}};
     ASSERT_EQ(resource->Size(), sizeof(double));
     ASSERT_EQ(resource->Type(), ResourceHandler::kMmap);
     ASSERT_EQ(resource->DataAs<double>()[0], val);

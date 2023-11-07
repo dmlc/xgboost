@@ -23,14 +23,14 @@ class EllpackPageSource : public PageSourceIncMixIn<EllpackPage> {
   BatchParam param_;
   common::Span<FeatureType const> feature_types_;
   std::unique_ptr<common::HistogramCuts> cuts_;
-  std::int32_t device_;
+  DeviceOrd device_;
 
  public:
   EllpackPageSource(float missing, int nthreads, bst_feature_t n_features, size_t n_batches,
                     std::shared_ptr<Cache> cache, BatchParam param,
                     std::unique_ptr<common::HistogramCuts> cuts, bool is_dense, size_t row_stride,
                     common::Span<FeatureType const> feature_types,
-                    std::shared_ptr<SparsePageSource> source, std::int32_t device)
+                    std::shared_ptr<SparsePageSource> source, DeviceOrd device)
       : PageSourceIncMixIn(missing, nthreads, n_features, n_batches, cache, false),
         is_dense_{is_dense},
         row_stride_{row_stride},
@@ -50,6 +50,7 @@ inline void EllpackPageSource::Fetch() {
   // silent the warning about unused variables.
   (void)(row_stride_);
   (void)(is_dense_);
+  (void)(device_);
   common::AssertGPUSupport();
 }
 #endif  // !defined(XGBOOST_USE_CUDA)

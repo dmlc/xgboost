@@ -25,14 +25,22 @@
 #' @examples
 #' data(agaricus.train, package='xgboost')
 #' data(agaricus.test, package='xgboost')
+#'
+#' ## Keep the number of threads to 1 for examples
+#' nthread <- 1
+#' data.table::setDTthreads(nthread)
+#'
 #' train <- agaricus.train
 #' test <- agaricus.test
-#' bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
-#'                eta = 1, nthread = 2, nrounds = 2,objective = "binary:logistic")
+#' bst <- xgboost(
+#'   data = train$data, label = train$label, max_depth = 2, eta = 1,
+#'   nthread = nthread,
+#'   nrounds = 2,
+#'   objective = "binary:logistic"
+#' )
 #' xgb.save(bst, 'xgb.model')
 #' bst <- xgb.load('xgb.model')
 #' if (file.exists('xgb.model')) file.remove('xgb.model')
-#' pred <- predict(bst, test$data)
 #' @export
 xgb.save <- function(model, fname) {
   if (typeof(fname) != "character")
@@ -43,6 +51,6 @@ xgb.save <- function(model, fname) {
   }
   model <- xgb.Booster.complete(model, saveraw = FALSE)
   fname <- path.expand(fname)
-  .Call(XGBoosterSaveModel_R, model$handle, fname[1])
+  .Call(XGBoosterSaveModel_R, model$handle, enc2utf8(fname[1]))
   return(TRUE)
 }

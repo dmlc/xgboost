@@ -34,7 +34,7 @@ class TestLoadPickle:
         bst = load_pickle(model_path)
         config = bst.save_config()
         config = json.loads(config)
-        assert config["learner"]["generic_param"]["gpu_id"] == "-1"
+        assert config["learner"]["generic_param"]["device"] == "cpu"
 
     def test_context_is_preserved(self) -> None:
         """Test the device context is preserved after pickling."""
@@ -42,14 +42,14 @@ class TestLoadPickle:
         bst = load_pickle(model_path)
         config = bst.save_config()
         config = json.loads(config)
-        assert config["learner"]["generic_param"]["gpu_id"] == "0"
+        assert config["learner"]["generic_param"]["device"] == "cuda:0"
 
     def test_wrap_gpu_id(self) -> None:
         assert os.environ["CUDA_VISIBLE_DEVICES"] == "0"
         bst = load_pickle(model_path)
         config = bst.save_config()
         config = json.loads(config)
-        assert config["learner"]["generic_param"]["gpu_id"] == "0"
+        assert config["learner"]["generic_param"]["device"] == "cuda:0"
 
         x, y = build_dataset()
         test_x = xgb.DMatrix(x)
@@ -61,9 +61,7 @@ class TestLoadPickle:
         rng = np.random.RandomState(1994)
         X = rng.randn(10, 10)
         y = rng.randn(10)
-        with tm.captured_output() as (out, err):
+        with pytest.warns(UserWarning, match="No visible GPU is found"):
             # Test no thrust exception is thrown
-            with pytest.raises(xgb.core.XGBoostError):
+            with pytest.raises(xgb.core.XGBoostError, match="have at least one device"):
                 xgb.train({"tree_method": "gpu_hist"}, xgb.DMatrix(X, y))
-
-            assert out.getvalue().find("No visible GPU is found") != -1

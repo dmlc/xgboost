@@ -3,8 +3,14 @@ import argparse
 import os
 import shutil
 import subprocess
+from io import StringIO
 from pathlib import Path
 from platform import system
+
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
 
 from test_utils import R_PACKAGE, ROOT, DirectoryExcursion, cd, print_time, record_time
 
@@ -97,16 +103,47 @@ def build_rpackage(path: str) -> str:
     return tarball
 
 
+def check_example_timing(rcheck_dir: Path, threshold: float) -> None:
+    with open(rcheck_dir / "xgboost-Ex.timings", "r") as fd:
+        timings = fd.readlines()
+        newlines = []
+        for line in timings:
+            line = line.strip()
+            newlines.append(line)
+        con_timings = "\n".join(newlines)
+        df = pd.read_csv(StringIO(con_timings), delimiter="\t")
+        ratio_n = "user/elapsed"
+        df[ratio_n] = df["user"] / df["elapsed"]
+        offending = df[df[ratio_n] > threshold]
+
+    try:
+        # requires the tabulate package
+        df.to_markdown("timings.md")
+        offending.to_markdown("offending.md")
+    except ImportError:
+        print("failed to export markdown files.")
+        pass
+
+    if offending.shape[0] == 0:
+        return
+
+    print(offending)
+    raise ValueError("There are examples using too many threads")
+
+
 @cd(ROOT)
 @record_time
 def check_rpackage(path: str) -> None:
     env = os.environ.copy()
     print("Ncpus:", f"{os.cpu_count()}")
+    threshold = 2.5
     env.update(
         {
             "MAKEFLAGS": f"-j{os.cpu_count()}",
             # cran specific environment variables
-            "_R_CHECK_EXAMPLE_TIMING_CPU_TO_ELAPSED_THRESHOLD_": str(2.5),
+            "_R_CHECK_EXAMPLE_TIMING_CPU_TO_ELAPSED_THRESHOLD_": str(threshold),
+            "_R_CHECK_TEST_TIMING_CPU_TO_ELAPSED_THRESHOLD_": str(threshold),
+            "_R_CHECK_VIGNETTE_TIMING_CPU_TO_ELAPSED_THRESHOLD_": str(threshold),
         }
     )
 
@@ -118,11 +155,14 @@ def check_rpackage(path: str) -> None:
         CC = os.path.join(mingw_bin, "gcc.exe")
         env.update({"CC": CC, "CXX": CXX})
 
-    status = subprocess.run([R, "CMD", "check", "--as-cran", path], env=env)
-    with open(Path("xgboost.Rcheck") / "00check.log", "r") as fd:
+    status = subprocess.run(
+        [R, "CMD", "check", "--as-cran", "--timings", path], env=env
+    )
+    rcheck_dir = Path("xgboost.Rcheck")
+    with open(rcheck_dir / "00check.log", "r") as fd:
         check_log = fd.read()
 
-    with open(Path("xgboost.Rcheck") / "00install.out", "r") as fd:
+    with open(rcheck_dir / "00install.out", "r") as fd:
         install_log = fd.read()
 
     msg = f"""
@@ -144,6 +184,8 @@ def check_rpackage(path: str) -> None:
     if check_log.find("Examples with CPU time") != -1:
         print(msg)
         raise ValueError("Suspicious NOTE.")
+    if pd is not None:
+        check_example_timing(rcheck_dir, threshold)
 
 
 @cd(R_PACKAGE)
@@ -264,6 +306,8 @@ def main(args: argparse.Namespace) -> None:
             test_with_autotools()
         else:
             test_with_cmake(args)
+    elif args.task == "timings":
+        check_example_timing(Path("xgboost.Rcheck"), 2.5)
     else:
         raise ValueError("Unexpected task.")
 
@@ -279,7 +323,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--task",
         type=str,
-        choices=["pack", "build", "check", "doc"],
+        choices=["pack", "build", "check", "doc", "timings"],
         default="check",
         required=False,
     )

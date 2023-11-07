@@ -1,3 +1,18 @@
+/*
+ Copyright (c) 2014-2023 by Contributors
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+ http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+ */
 package ml.dmlc.xgboost4j.java;
 
 import java.io.IOException;
@@ -15,7 +30,7 @@ public class ExternalCheckpointManager {
 
   private Log logger = LogFactory.getLog("ExternalCheckpointManager");
   private String modelSuffix = ".model";
-  private Path checkpointPath;
+  private Path checkpointPath;  // directory for checkpoints
   private FileSystem fs;
 
   public ExternalCheckpointManager(String checkpointPath, FileSystem fs) throws XGBoostError {
@@ -35,6 +50,7 @@ public class ExternalCheckpointManager {
     if (!fs.exists(checkpointPath)) {
       return new ArrayList<>();
     } else {
+      // Get integer versions from a list of checkpoint files.
       return Arrays.stream(fs.listStatus(checkpointPath))
               .map(path -> path.getPath().getName())
               .filter(fileName -> fileName.endsWith(modelSuffix))
@@ -44,6 +60,11 @@ public class ExternalCheckpointManager {
     }
   }
 
+  private Integer latest(List<Integer> versions) {
+    return versions.stream()
+        .max(Comparator.comparing(Integer::valueOf)).get();
+  }
+
   public void cleanPath() throws IOException {
     fs.delete(checkpointPath, true);
   }
@@ -51,12 +72,11 @@ public class ExternalCheckpointManager {
   public Booster loadCheckpointAsBooster() throws IOException, XGBoostError {
     List<Integer> versions = getExistingVersions();
     if (versions.size() > 0) {
-      int latestVersion = versions.stream().max(Comparator.comparing(Integer::valueOf)).get();
+      int latestVersion = this.latest(versions);
       String checkpointPath = getPath(latestVersion);
       InputStream in = fs.open(new Path(checkpointPath));
       logger.info("loaded checkpoint from " + checkpointPath);
       Booster booster = XGBoost.loadModel(in);
-      booster.setVersion(latestVersion);
       return booster;
     } else {
       return null;
@@ -65,13 +85,16 @@ public class ExternalCheckpointManager {
 
   public void updateCheckpoint(Booster boosterToCheckpoint) throws IOException, XGBoostError {
     List<String> prevModelPaths = getExistingVersions().stream()
-            .map(this::getPath).collect(Collectors.toList());
-    String eventualPath = getPath(boosterToCheckpoint.getVersion());
+        .map(this::getPath).collect(Collectors.toList());
+    // checkpointing is done after update, so n_rounds - 1 is the current iteration
+    // accounting for training continuation.
+    Integer iter = boosterToCheckpoint.getNumBoostedRound() - 1;
+    String eventualPath = getPath(iter);
     String tempPath = eventualPath + "-" + UUID.randomUUID();
     try (OutputStream out = fs.create(new Path(tempPath), true)) {
       boosterToCheckpoint.saveModel(out);
       fs.rename(new Path(tempPath), new Path(eventualPath));
-      logger.info("saving checkpoint with version " + boosterToCheckpoint.getVersion());
+      logger.info("saving checkpoint with version " + iter);
       prevModelPaths.stream().forEach(path -> {
         try {
           fs.delete(new Path(path), true);
@@ -83,7 +106,7 @@ public class ExternalCheckpointManager {
   }
 
   public void cleanUpHigherVersions(int currentRound) throws IOException {
-    getExistingVersions().stream().filter(v -> v / 2 >= currentRound).forEach(v -> {
+    getExistingVersions().stream().filter(v -> v > currentRound).forEach(v -> {
       try {
         fs.delete(new Path(getPath(v)), true);
       } catch (IOException e) {
@@ -91,27 +114,26 @@ public class ExternalCheckpointManager {
       }
     });
   }
-
-  public List<Integer> getCheckpointRounds(int checkpointInterval, int numOfRounds)
+  // Get a list of iterations that need checkpointing.
+  public List<Integer> getCheckpointRounds(
+      int firstRound, int checkpointInterval, int numOfRounds)
       throws IOException {
+    int end = firstRound + numOfRounds; // exclusive
+    int lastRound = end - 1;
+    if (end - 1 < 0) {
+      throw new IllegalArgumentException("Inavlid `numOfRounds`.");
+    }
+
+    List<Integer> arr = new ArrayList<>();
     if (checkpointInterval > 0) {
-      List<Integer> prevRounds =
-              getExistingVersions().stream().map(v -> v / 2).collect(Collectors.toList());
-      prevRounds.add(0);
-      int firstCheckpointRound = prevRounds.stream()
-              .max(Comparator.comparing(Integer::valueOf)).get() + checkpointInterval;
-      List<Integer> arr = new ArrayList<>();
-      for (int i = firstCheckpointRound; i <= numOfRounds; i += checkpointInterval) {
+      for (int i = firstRound; i < end; i += checkpointInterval) {
         arr.add(i);
       }
-      arr.add(numOfRounds);
-      return arr;
-    } else if (checkpointInterval <= 0) {
-      List<Integer> l = new ArrayList<Integer>();
-      l.add(numOfRounds);
-      return l;
-    } else {
-      throw new IllegalArgumentException("parameters \"checkpoint_path\" should also be set.");
     }
+
+    if (!arr.contains(lastRound)) {
+      arr.add(lastRound);
+    }
+    return arr;
   }
 }

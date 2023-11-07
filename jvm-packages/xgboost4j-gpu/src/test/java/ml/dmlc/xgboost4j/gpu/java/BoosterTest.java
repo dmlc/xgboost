@@ -77,7 +77,8 @@ public class BoosterTest {
         put("objective", "binary:logistic");
         put("num_round", round);
         put("num_workers", 1);
-        put("tree_method", "gpu_hist");
+        put("tree_method", "hist");
+	put("device", "cuda");
         put("max_bin", maxBin);
       }
     };

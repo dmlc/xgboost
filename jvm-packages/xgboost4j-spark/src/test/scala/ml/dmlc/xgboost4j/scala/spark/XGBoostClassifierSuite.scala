@@ -469,7 +469,6 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
       .setFeatureTypes(featureTypes)
     val model = xgb.fit(trainingDF)
     val modelStr = new String(model._booster.toByteArray("json"))
-    System.out.println(modelStr)
     val jsonModel = parseJson(modelStr)
     implicit val formats: Formats = DefaultFormats
     val featureNamesInModel = (jsonModel \ "learner" \ "feature_names").extract[List[String]]

@@ -110,7 +110,7 @@ class XGBoostJNI {
 
   public final static native int XGBoosterUpdateOneIter(long handle, int iter, long dtrain);
 
-  public final static native int XGBoosterBoostOneIter(long handle, long dtrain, float[] grad,
+  public final static native int XGBoosterTrainOneIter(long handle, long dtrain, int iter, float[] grad,
                                                        float[] hess);
 
   public final static native int XGBoosterEvalOneIter(long handle, int iter, long[] dmats,
@@ -118,6 +118,10 @@ class XGBoostJNI {
 
   public final static native int XGBoosterPredict(long handle, long dmat, int option_mask,
                                                   int ntree_limit, float[][] predicts);
+
+  public final static native int XGBoosterPredictFromDense(long handle, float[] data,
+      long nrow, long ncol, float missing, int iteration_begin, int iteration_end, int predict_type, float[] margin,
+      float[][] predicts);
 
   public final static native int XGBoosterLoadModel(long handle, String fname);
 
@@ -136,9 +140,10 @@ class XGBoostJNI {
   public final static native int XGBoosterGetAttrNames(long handle, String[][] out_strings);
   public final static native int XGBoosterGetAttr(long handle, String key, String[] out_string);
   public final static native int XGBoosterSetAttr(long handle, String key, String value);
-  public final static native int XGBoosterLoadRabitCheckpoint(long handle, int[] out_version);
-  public final static native int XGBoosterSaveRabitCheckpoint(long handle);
+
   public final static native int XGBoosterGetNumFeature(long handle, long[] feature);
+
+  public final static native int XGBoosterGetNumBoostedRound(long handle, int[] rounds);
 
   // communicator functions
   public final static native int CommunicatorInit(String[] args);
@@ -153,10 +158,6 @@ class XGBoostJNI {
 
   public final static native int XGDMatrixSetInfoFromInterface(
     long handle, String field, String json);
-
-  @Deprecated
-  public final static native int XGDeviceQuantileDMatrixCreateFromCallback(
-    java.util.Iterator<ColumnBatch> iter, float missing, int nthread, int maxBin, long[] out);
 
   public final static native int XGQuantileDMatrixCreateFromCallback(
     java.util.Iterator<ColumnBatch> iter, java.util.Iterator<ColumnBatch> ref, String config, long[] out);

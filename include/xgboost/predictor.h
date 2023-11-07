@@ -39,9 +39,8 @@ struct PredictionCacheEntry {
    *
    * \param v Added versions.
    */
-  void Update(std::uint32_t v) {
-    version += v;
-  }
+  void Update(std::uint32_t v) { version += v; }
+  void Reset() { version = 0; }
 };
 
 /**
@@ -53,9 +52,9 @@ class PredictionContainer : public DMatrixCache<PredictionCacheEntry> {
 
  public:
   PredictionContainer() : DMatrixCache<PredictionCacheEntry>{DefaultSize()} {}
-  PredictionCacheEntry& Cache(std::shared_ptr<DMatrix> m, std::int32_t device) {
+  PredictionCacheEntry& Cache(std::shared_ptr<DMatrix> m, DeviceOrd device) {
     auto p_cache = this->CacheItem(m);
-    if (device != Context::kCpuId) {
+    if (device.IsCUDA()) {
       p_cache->predictions.SetDevice(device);
     }
     return *p_cache;

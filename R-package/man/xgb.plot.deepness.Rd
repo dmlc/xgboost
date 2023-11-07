@@ -61,10 +61,13 @@ This function was inspired by the blog post
 \examples{
 
 data(agaricus.train, package='xgboost')
+## Keep the number of threads to 2 for examples
+nthread <- 2
+data.table::setDTthreads(nthread)
 
-# Change max_depth to a higher number to get a more significant result
+## Change max_depth to a higher number to get a more significant result
 bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_depth = 6,
-               eta = 0.1, nthread = 2, nrounds = 50, objective = "binary:logistic",
+               eta = 0.1, nthread = nthread, nrounds = 50, objective = "binary:logistic",
                subsample = 0.5, min_child_weight = 2)
 
 xgb.plot.deepness(bst)

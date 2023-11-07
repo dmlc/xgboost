@@ -1,10 +1,11 @@
-/*!
- *  Copyright (c) 2014-2022 by XGBoost Contributors
+/**
+ *  Copyright 2014-2023, XGBoost Contributors
  * \file socket.h
  * \author Tianqi Chen
  */
 #ifndef RABIT_INTERNAL_SOCKET_H_
 #define RABIT_INTERNAL_SOCKET_H_
+#include "xgboost/collective/result.h"
 #include "xgboost/collective/socket.h"
 
 #if defined(_WIN32)
@@ -28,10 +29,9 @@
 #include <chrono>
 #include <cstring>
 #include <string>
+#include <system_error>  // make_error_code, errc
 #include <unordered_map>
 #include <vector>
-
-#include "utils.h"
 
 #if !defined(_WIN32)
 
@@ -77,7 +77,7 @@ namespace rabit {
 namespace utils {
 
 template <typename PollFD>
-int PollImpl(PollFD *pfd, int nfds, std::chrono::seconds timeout) {
+int PollImpl(PollFD* pfd, int nfds, std::chrono::seconds timeout) noexcept(true) {
 #if defined(_WIN32)
 
 #if IS_MINGW()
@@ -90,6 +90,17 @@ int PollImpl(PollFD *pfd, int nfds, std::chrono::seconds timeout) {
 #else
   return poll(pfd, nfds, std::chrono::milliseconds(timeout).count());
 #endif  // IS_MINGW()
+}
+
+template <typename E>
+std::enable_if_t<std::is_integral_v<E>, xgboost::collective::Result> PollError(E const& revents) {
+  if ((revents & POLLERR) != 0) {
+    return xgboost::system::FailWithCode("Poll error condition.");
+  }
+  if ((revents & POLLNVAL) != 0) {
+    return xgboost::system::FailWithCode("Invalid polling request.");
+  }
+  return xgboost::collective::Success();
 }
 
 /*! \brief helper data structure to perform poll */
@@ -135,11 +146,11 @@ struct PollHelper {
    * \brief Check if the descriptor is ready for read
    * \param fd file descriptor to check status
    */
-  inline bool CheckRead(SOCKET fd) const {
+  [[nodiscard]] bool CheckRead(SOCKET fd) const {
     const auto& pfd = fds.find(fd);
     return pfd != fds.end() && ((pfd->second.events & POLLIN) != 0);
   }
-  bool CheckRead(xgboost::collective::TCPSocket const &socket) const {
+  [[nodiscard]] bool CheckRead(xgboost::collective::TCPSocket const& socket) const {
     return this->CheckRead(socket.Handle());
   }
 
@@ -147,39 +158,47 @@ struct PollHelper {
    * \brief Check if the descriptor is ready for write
    * \param fd file descriptor to check status
    */
-  inline bool CheckWrite(SOCKET fd) const {
+  [[nodiscard]] bool CheckWrite(SOCKET fd) const {
     const auto& pfd = fds.find(fd);
     return pfd != fds.end() && ((pfd->second.events & POLLOUT) != 0);
   }
-  bool CheckWrite(xgboost::collective::TCPSocket const &socket) const {
+  [[nodiscard]] bool CheckWrite(xgboost::collective::TCPSocket const& socket) const {
     return this->CheckWrite(socket.Handle());
   }
-  /*!
-   * \brief perform poll on the set defined, read, write, exception
-   * \param timeout specify timeout in milliseconds(ms) if negative, means poll will block
-   * \return
+  /**
+   * @brief perform poll on the set defined, read, write, exception
+   *
+   * @param timeout specify timeout in seconds. Block if negative.
    */
-  inline void Poll(std::chrono::seconds timeout) {  // NOLINT(*)
+  [[nodiscard]] xgboost::collective::Result Poll(std::chrono::seconds timeout,
+                                                 bool check_error = true) {
     std::vector<pollfd> fdset;
     fdset.reserve(fds.size());
     for (auto kv : fds) {
       fdset.push_back(kv.second);
     }
-    int ret = PollImpl(fdset.data(), fdset.size(), timeout);
+    std::int32_t ret = PollImpl(fdset.data(), fdset.size(), timeout);
     if (ret == 0) {
-      LOG(FATAL) << "Poll timeout";
+      return xgboost::collective::Fail("Poll timeout.", std::make_error_code(std::errc::timed_out));
     } else if (ret < 0) {
-      LOG(FATAL) << "Failed to poll.";
-    } else {
-      for (auto& pfd : fdset) {
-        auto revents = pfd.revents & pfd.events;
-        if (!revents) {
-          fds.erase(pfd.fd);
-        } else {
-          fds[pfd.fd].events = revents;
-        }
+      return xgboost::system::FailWithCode("Poll failed.");
+    }
+
+    for (auto& pfd : fdset) {
+      auto result = PollError(pfd.revents);
+      if (check_error && !result.OK()) {
+        return result;
+      }
+
+      auto revents = pfd.revents & pfd.events;
+      if (!revents) {
+        // FIXME(jiamingy): remove this once rabit is replaced.
+        fds.erase(pfd.fd);
+      } else {
+        fds[pfd.fd].events = revents;
       }
     }
+    return xgboost::collective::Success();
   }
 
   std::unordered_map<SOCKET, pollfd> fds;

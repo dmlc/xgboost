@@ -16,7 +16,7 @@ namespace xgboost {
 class UpdaterTreeStatTest : public ::testing::Test {
  protected:
   std::shared_ptr<DMatrix> p_dmat_;
-  HostDeviceVector<GradientPair> gpairs_;
+  linalg::Matrix<GradientPair> gpairs_;
   size_t constexpr static kRows = 10;
   size_t constexpr static kCols = 10;
 
@@ -24,8 +24,8 @@ class UpdaterTreeStatTest : public ::testing::Test {
   void SetUp() override {
     p_dmat_ = RandomDataGenerator(kRows, kCols, .5f).GenerateDMatrix(true);
     auto g = GenerateRandomGradients(kRows);
-    gpairs_.Resize(kRows);
-    gpairs_.Copy(g);
+    gpairs_.Reshape(kRows, 1);
+    gpairs_.Data()->Copy(g);
   }
 
   void RunTest(std::string updater) {
@@ -33,7 +33,7 @@ class UpdaterTreeStatTest : public ::testing::Test {
     ObjInfo task{ObjInfo::kRegression};
     param.Init(Args{});
 
-    Context ctx(updater == "grow_gpu_hist" ? MakeCUDACtx(0) : MakeCUDACtx(Context::kCpuId));
+    Context ctx(updater == "grow_gpu_hist" ? MakeCUDACtx(0) : MakeCUDACtx(DeviceOrd::CPUOrdinal()));
     auto up = std::unique_ptr<TreeUpdater>{TreeUpdater::Create(updater, &ctx, &task)};
     up->Configure(Args{});
     RegTree tree{1u, kCols};
@@ -63,7 +63,7 @@ TEST_F(UpdaterTreeStatTest, Approx) { this->RunTest("grow_histmaker"); }
 class UpdaterEtaTest : public ::testing::Test {
  protected:
   std::shared_ptr<DMatrix> p_dmat_;
-  HostDeviceVector<GradientPair> gpairs_;
+  linalg::Matrix<GradientPair> gpairs_;
   size_t constexpr static kRows = 10;
   size_t constexpr static kCols = 10;
   size_t constexpr static kClasses = 10;
@@ -71,14 +71,14 @@ class UpdaterEtaTest : public ::testing::Test {
   void SetUp() override {
     p_dmat_ = RandomDataGenerator(kRows, kCols, .5f).GenerateDMatrix(true, false, kClasses);
     auto g = GenerateRandomGradients(kRows);
-    gpairs_.Resize(kRows);
-    gpairs_.Copy(g);
+    gpairs_.Reshape(kRows, 1);
+    gpairs_.Data()->Copy(g);
   }
 
   void RunTest(std::string updater) {
     ObjInfo task{ObjInfo::kClassification};
 
-    Context ctx(updater == "grow_gpu_hist" ? MakeCUDACtx(0) : MakeCUDACtx(Context::kCpuId));
+    Context ctx(updater == "grow_gpu_hist" ? MakeCUDACtx(0) : MakeCUDACtx(DeviceOrd::CPUOrdinal()));
 
     float eta = 0.4;
     auto up_0 = std::unique_ptr<TreeUpdater>{TreeUpdater::Create(updater, &ctx, &task)};
@@ -125,17 +125,18 @@ TEST_F(UpdaterEtaTest, GpuHist) { this->RunTest("grow_gpu_hist"); }
 
 class TestMinSplitLoss : public ::testing::Test {
   std::shared_ptr<DMatrix> dmat_;
-  HostDeviceVector<GradientPair> gpair_;
+  linalg::Matrix<GradientPair> gpair_;
 
   void SetUp() override {
     constexpr size_t kRows = 32;
     constexpr size_t kCols = 16;
     constexpr float kSparsity = 0.6;
     dmat_ = RandomDataGenerator(kRows, kCols, kSparsity).Seed(3).GenerateDMatrix();
-    gpair_ = GenerateRandomGradients(kRows);
+    gpair_.Reshape(kRows, 1);
+    gpair_.Data()->Copy(GenerateRandomGradients(kRows));
   }
 
-  std::int32_t Update(std::string updater, float gamma) {
+  std::int32_t Update(Context const* ctx, std::string updater, float gamma) {
     Args args{{"max_depth", "1"},
               {"max_leaves", "0"},
 
@@ -154,8 +155,7 @@ class TestMinSplitLoss : public ::testing::Test {
     param.UpdateAllowUnknown(args);
     ObjInfo task{ObjInfo::kRegression};
 
-    Context ctx{MakeCUDACtx(updater == "grow_gpu_hist" ? 0 : Context::kCpuId)};
-    auto up = std::unique_ptr<TreeUpdater>{TreeUpdater::Create(updater, &ctx, &task)};
+    auto up = std::unique_ptr<TreeUpdater>{TreeUpdater::Create(updater, ctx, &task)};
     up->Configure({});
 
     RegTree tree;
@@ -167,16 +167,16 @@ class TestMinSplitLoss : public ::testing::Test {
   }
 
  public:
-  void RunTest(std::string updater) {
+  void RunTest(Context const* ctx, std::string updater) {
     {
-      int32_t n_nodes = Update(updater, 0.01);
+      int32_t n_nodes = Update(ctx, updater, 0.01);
       // This is not strictly verified, meaning the numeber `2` is whatever GPU_Hist retured
       // when writing this test, and only used for testing larger gamma (below) does prevent
       // building tree.
       ASSERT_EQ(n_nodes, 2);
     }
     {
-      int32_t n_nodes = Update(updater, 100.0);
+      int32_t n_nodes = Update(ctx, updater, 100.0);
       // No new nodes with gamma == 100.
       ASSERT_EQ(n_nodes, static_cast<decltype(n_nodes)>(0));
     }
@@ -185,10 +185,25 @@ class TestMinSplitLoss : public ::testing::Test {
 
 /* Exact tree method requires a pruner as an additional updater, so not tested here. */
 
-TEST_F(TestMinSplitLoss, Approx) { this->RunTest("grow_histmaker"); }
+TEST_F(TestMinSplitLoss, Approx) {
+  Context ctx;
+  this->RunTest(&ctx, "grow_histmaker");
+}
 
-TEST_F(TestMinSplitLoss, Hist) { this->RunTest("grow_quantile_histmaker"); }
+TEST_F(TestMinSplitLoss, Hist) {
+  Context ctx;
+  this->RunTest(&ctx, "grow_quantile_histmaker");
+}
+
 #if defined(XGBOOST_USE_CUDA)
-TEST_F(TestMinSplitLoss, GpuHist) { this->RunTest("grow_gpu_hist"); }
+TEST_F(TestMinSplitLoss, GpuHist) {
+  auto ctx = MakeCUDACtx(0);
+  this->RunTest(&ctx, "grow_gpu_hist");
+}
+
+TEST_F(TestMinSplitLoss, GpuApprox) {
+  auto ctx = MakeCUDACtx(0);
+  this->RunTest(&ctx, "grow_gpu_approx");
+}
 #endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost

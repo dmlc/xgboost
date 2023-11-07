@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2023 by XGBoost Contributors
+ * Copyright 2021-2023, XGBoost Contributors
  */
 #ifndef XGBOOST_C_API_C_API_UTILS_H_
 #define XGBOOST_C_API_C_API_UTILS_H_
@@ -7,16 +7,19 @@
 #include <algorithm>
 #include <cstddef>
 #include <functional>
-#include <memory>  // std::shared_ptr
-#include <string>
+#include <memory>   // for shared_ptr
+#include <string>   // for string
+#include <tuple>    // for make_tuple
+#include <utility>  // for move
 #include <vector>
 
+#include "../common/json_utils.h"  // for TypeCheck
 #include "xgboost/c_api.h"
 #include "xgboost/data.h"         // DMatrix
 #include "xgboost/feature_map.h"  // for FeatureMap
 #include "xgboost/json.h"
 #include "xgboost/learner.h"
-#include "xgboost/linalg.h"       // ArrayInterfaceHandler
+#include "xgboost/linalg.h"  // ArrayInterfaceHandler, MakeTensorView, ArrayInterfaceStr
 #include "xgboost/logging.h"
 #include "xgboost/string_view.h"  // StringView
 
@@ -252,28 +255,6 @@ inline void GenerateFeatureMap(Learner const *learner,
 
 void XGBBuildInfoDevice(Json* p_info);
 
-template <typename JT>
-auto const &RequiredArg(Json const &in, StringView key, StringView func) {
-  auto const &obj = get<Object const>(in);
-  auto it = obj.find(key);
-  if (it == obj.cend() || IsA<Null>(it->second)) {
-    LOG(FATAL) << "Argument `" << key << "` is required for `" << func << "`.";
-  }
-  TypeCheck<JT>(it->second, StringView{key});
-  return get<std::remove_const_t<JT> const>(it->second);
-}
-
-template <typename JT, typename T>
-auto const &OptionalArg(Json const &in, StringView key, T const &dft) {
-  auto const &obj = get<Object const>(in);
-  auto it = obj.find(key);
-  if (it != obj.cend() && !IsA<Null>(it->second)) {
-    TypeCheck<JT>(it->second, key);
-    return get<std::remove_const_t<JT> const>(it->second);
-  }
-  return dft;
-}
-
 /**
  * \brief Get shared ptr from DMatrix C handle with additional checks.
  */
@@ -287,6 +268,19 @@ inline std::shared_ptr<DMatrix> CastDMatrixHandle(DMatrixHandle const handle) {
 }
 
 namespace detail {
+inline void EmptyHandle() {
+  LOG(FATAL) << "DMatrix/Booster has not been initialized or has already been disposed.";
+}
+
+inline xgboost::Context const *BoosterCtx(BoosterHandle handle) {
+  if (handle == nullptr) {
+    EmptyHandle();
+  }
+  auto *learner = static_cast<xgboost::Learner *>(handle);
+  CHECK(learner);
+  return learner->Ctx();
+}
+
 template <typename PtrT, typename I, typename T>
 void MakeSparseFromPtr(PtrT const *p_indptr, I const *p_indices, T const *p_data,
                        std::size_t nindptr, std::string *indptr_str, std::string *indices_str,
@@ -334,6 +328,40 @@ void MakeSparseFromPtr(PtrT const *p_indptr, I const *p_indices, T const *p_data
   Json::Dump(jindices, indices_str);
   Json::Dump(jdata, data_str);
 }
+
+/**
+ * @brief Make array interface for other language bindings.
+ */
+template <typename G, typename H>
+auto MakeGradientInterface(Context const *ctx, G const *grad, H const *hess, linalg::Order order,
+                           std::size_t n_samples, std::size_t n_targets) {
+  auto t_grad = linalg::MakeTensorView(ctx, order, common::Span{grad, n_samples * n_targets},
+                                       n_samples, n_targets);
+  auto t_hess = linalg::MakeTensorView(ctx, order, common::Span{hess, n_samples * n_targets},
+                                       n_samples, n_targets);
+  auto s_grad = linalg::ArrayInterfaceStr(t_grad);
+  auto s_hess = linalg::ArrayInterfaceStr(t_hess);
+  return std::make_tuple(s_grad, s_hess);
+}
+
+template <typename G, typename H>
+struct CustomGradHessOp {
+  linalg::MatrixView<G> t_grad;
+  linalg::MatrixView<H> t_hess;
+  linalg::MatrixView<GradientPair> d_gpair;
+
+  CustomGradHessOp(linalg::MatrixView<G> t_grad, linalg::MatrixView<H> t_hess,
+                   linalg::MatrixView<GradientPair> d_gpair)
+      : t_grad{std::move(t_grad)}, t_hess{std::move(t_hess)}, d_gpair{std::move(d_gpair)} {}
+
+  XGBOOST_DEVICE void operator()(std::size_t i) {
+    auto [m, n] = linalg::UnravelIndex(i, t_grad.Shape(0), t_grad.Shape(1));
+    auto g = t_grad(m, n);
+    auto h = t_hess(m, n);
+    // from struct of arrays to array of structs.
+    d_gpair(m, n) = GradientPair{static_cast<float>(g), static_cast<float>(h)};
+  }
+};
 }  // namespace detail
 }  // namespace xgboost
 #endif  // XGBOOST_C_API_C_API_UTILS_H_

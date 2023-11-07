@@ -29,7 +29,7 @@ struct StringView {
  public:
   constexpr StringView() = default;
   constexpr StringView(CharT const* str, std::size_t size) : str_{str}, size_{size} {}
-  explicit StringView(std::string const& str) : str_{str.c_str()}, size_{str.size()} {}
+  StringView(std::string const& str) : str_{str.c_str()}, size_{str.size()} {}  // NOLINT
   constexpr StringView(CharT const* str)  // NOLINT
       : str_{str}, size_{str == nullptr ? 0ul : Traits::length(str)} {}
 

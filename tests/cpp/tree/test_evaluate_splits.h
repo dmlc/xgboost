@@ -2,22 +2,24 @@
  * Copyright 2022-2023 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/base.h>                       // for GradientPairInternal, GradientPairPrecise
-#include <xgboost/data.h>                       // for MetaInfo
-#include <xgboost/host_device_vector.h>         // for HostDeviceVector
-#include <xgboost/span.h>                       // for operator!=, Span, SpanIterator
+#include <xgboost/base.h>                // for GradientPairInternal, GradientPairPrecise
+#include <xgboost/data.h>                // for MetaInfo
+#include <xgboost/host_device_vector.h>  // for HostDeviceVector
+#include <xgboost/span.h>                // for operator!=, Span, SpanIterator
 
-#include <algorithm>                            // for max, max_element, next_permutation, copy
-#include <cmath>                                // for isnan
-#include <cstddef>                              // for size_t
-#include <cstdint>                              // for int32_t, uint64_t, uint32_t
-#include <limits>                               // for numeric_limits
-#include <numeric>                              // for iota
-#include <tuple>                                // for make_tuple, tie, tuple
-#include <utility>                              // for pair
-#include <vector>                               // for vector
+#include <algorithm>  // for max, max_element, next_permutation, copy
+#include <cmath>      // for isnan
+#include <cstddef>    // for size_t
+#include <cstdint>    // for int32_t, uint64_t, uint32_t
+#include <limits>     // for numeric_limits
+#include <numeric>    // for iota
+#include <tuple>      // for make_tuple, tie, tuple
+#include <utility>    // for pair
+#include <vector>     // for vector
 
 #include "../../../src/common/hist_util.h"      // for HistogramCuts, HistCollection, GHistRow
+#include "../../../src/tree/hist/hist_cache.h"  // for HistogramCollection
+#include "../../../src/tree/hist/param.h"       // for HistMakerTrainParam
 #include "../../../src/tree/param.h"            // for TrainParam, GradStats
 #include "../../../src/tree/split_evaluator.h"  // for TreeEvaluator
 #include "../helpers.h"                         // for SimpleLCG, SimpleRealUniformDistribution
@@ -35,7 +37,7 @@ class TestPartitionBasedSplit : public ::testing::Test {
   MetaInfo info_;
   float best_score_{-std::numeric_limits<float>::infinity()};
   common::HistogramCuts cuts_;
-  common::HistCollection hist_;
+  BoundedHistCollection hist_;
   GradientPairPrecise total_gpair_;
 
   void SetUp() override {
@@ -56,9 +58,9 @@ class TestPartitionBasedSplit : public ::testing::Test {
 
     cuts_.min_vals_.Resize(1);
 
-    hist_.Init(cuts_.TotalBins());
-    hist_.AddHistRow(0);
-    hist_.AllocateAllData();
+    HistMakerTrainParam hist_param;
+    hist_.Reset(cuts_.TotalBins(), hist_param.max_cached_hist_node);
+    hist_.AllocateHistograms({0});
     auto node_hist = hist_[0];
 
     SimpleLCG lcg;
@@ -74,7 +76,7 @@ class TestPartitionBasedSplit : public ::testing::Test {
                                                      GradientPairPrecise parent_sum) {
       int32_t best_thresh = -1;
       float best_score{-std::numeric_limits<float>::infinity()};
-      TreeEvaluator evaluator{param_, static_cast<bst_feature_t>(n_feat), -1};
+      TreeEvaluator evaluator{param_, static_cast<bst_feature_t>(n_feat), DeviceOrd::CPU()};
       auto tree_evaluator = evaluator.GetEvaluator<TrainParam>();
       GradientPairPrecise left_sum;
       auto parent_gain = tree_evaluator.CalcGain(0, param_, GradStats{total_gpair_});
@@ -109,13 +111,13 @@ class TestPartitionBasedSplit : public ::testing::Test {
 };
 
 inline auto MakeCutsForTest(std::vector<float> values, std::vector<uint32_t> ptrs,
-                            std::vector<float> min_values, int32_t device) {
+                            std::vector<float> min_values, DeviceOrd device) {
   common::HistogramCuts cuts;
   cuts.cut_values_.HostVector() = values;
   cuts.cut_ptrs_.HostVector() = ptrs;
   cuts.min_vals_.HostVector() = min_values;
 
-  if (device >= 0) {
+  if (device.IsCUDA()) {
     cuts.cut_ptrs_.SetDevice(device);
     cuts.cut_values_.SetDevice(device);
     cuts.min_vals_.SetDevice(device);
@@ -134,7 +136,7 @@ class TestCategoricalSplitWithMissing : public testing::Test {
   TrainParam param_;
 
   void SetUp() override {
-    cuts_ = MakeCutsForTest({0.0, 1.0, 2.0, 3.0}, {0, 4}, {0.0}, -1);
+    cuts_ = MakeCutsForTest({0.0, 1.0, 2.0, 3.0}, {0, 4}, {0.0}, DeviceOrd::CPU());
     auto max_cat = *std::max_element(cuts_.cut_values_.HostVector().begin(),
                                      cuts_.cut_values_.HostVector().end());
     cuts_.SetCategorical(true, max_cat);

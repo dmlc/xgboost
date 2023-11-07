@@ -27,8 +27,8 @@ void ParallelGHistBuilderReset() {
 
   for(size_t inode = 0; inode < kNodesExtended; inode++) {
     collection.AddHistRow(inode);
+    collection.AllocateData(inode);
   }
-  collection.AllocateAllData();
   ParallelGHistBuilder hist_builder;
   hist_builder.Init(kBins);
   std::vector<GHistRow> target_hist(kNodes);
@@ -83,8 +83,8 @@ void ParallelGHistBuilderReduceHist(){
 
   for(size_t inode = 0; inode < kNodes; inode++) {
     collection.AddHistRow(inode);
+    collection.AllocateData(inode);
   }
-  collection.AllocateAllData();
   ParallelGHistBuilder hist_builder;
   hist_builder.Init(kBins);
   std::vector<GHistRow> target_hist(kNodes);
@@ -129,7 +129,7 @@ TEST(CutsBuilder, SearchGroupInd) {
 
   auto p_mat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
-  std::vector<bst_int> group(kNumGroups);
+  std::vector<bst_group_t> group(kNumGroups);
   group[0] = 2;
   group[1] = 3;
   group[2] = 7;
@@ -147,7 +147,7 @@ TEST(CutsBuilder, SearchGroupInd) {
 
   EXPECT_ANY_THROW(HostSketchContainer::SearchGroupIndFromRow(p_mat->Info().group_ptr_, 17));
 
-  p_mat->Info().Validate(-1);
+  p_mat->Info().Validate(DeviceOrd::CPU());
   EXPECT_THROW(HostSketchContainer::SearchGroupIndFromRow(p_mat->Info().group_ptr_, 17),
                dmlc::Error);
 
@@ -330,7 +330,7 @@ TEST(HistUtil, IndexBinData) {
 void TestSketchFromWeights(bool with_group) {
   size_t constexpr kRows = 300, kCols = 20, kBins = 256;
   size_t constexpr kGroups = 10;
-  auto m = RandomDataGenerator{kRows, kCols, 0}.Device(0).GenerateDMatrix();
+  auto m = RandomDataGenerator{kRows, kCols, 0}.Device(DeviceOrd::CUDA(0)).GenerateDMatrix();
   Context ctx;
   common::HistogramCuts cuts = SketchOnDMatrix(&ctx, m.get(), kBins);
 

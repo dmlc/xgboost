@@ -46,9 +46,12 @@
 #' # Basic use:
 #'
 #' data(agaricus.train, package='xgboost')
+#' ## Keep the number of threads to 1 for examples
+#' nthread <- 1
+#' data.table::setDTthreads(nthread)
 #'
 #' bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_depth = 2,
-#'                eta = 1, nthread = 2, nrounds = 2,objective = "binary:logistic")
+#'                eta = 1, nthread = nthread, nrounds = 2,objective = "binary:logistic")
 #'
 #' (dt <- xgb.model.dt.tree(colnames(agaricus.train$data), bst))
 #'
@@ -86,8 +89,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
     text <- xgb.dump(model = model, with_stats = TRUE)
   }
 
-  if (length(text) < 2 ||
-      sum(grepl('leaf=(\\d+)', text)) < 1) {
+  if (length(text) < 2 || !any(grepl('leaf=(\\d+)', text))) {
     stop("Non-tree model detected! This function can only be used with tree models.")
   }
 

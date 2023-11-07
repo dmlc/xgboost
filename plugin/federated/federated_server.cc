@@ -4,25 +4,33 @@
 #include "federated_server.h"
 
 #include <grpcpp/grpcpp.h>
+#include <grpcpp/server.h>  // for Server
 #include <grpcpp/server_builder.h>
 #include <xgboost/logging.h>
 
 #include <sstream>
 
+#include "../../src/collective/comm.h"
 #include "../../src/common/io.h"
+#include "../../src/common/json_utils.h"
 
-namespace xgboost {
-namespace federated {
-
-grpc::Status FederatedService::Allgather(grpc::ServerContext* context,
-                                         AllgatherRequest const* request, AllgatherReply* reply) {
+namespace xgboost::federated {
+grpc::Status FederatedService::Allgather(grpc::ServerContext*, AllgatherRequest const* request,
+                                         AllgatherReply* reply) {
   handler_.Allgather(request->send_buffer().data(), request->send_buffer().size(),
                      reply->mutable_receive_buffer(), request->sequence_number(), request->rank());
   return grpc::Status::OK;
 }
 
-grpc::Status FederatedService::Allreduce(grpc::ServerContext* context,
-                                         AllreduceRequest const* request, AllreduceReply* reply) {
+grpc::Status FederatedService::AllgatherV(grpc::ServerContext*, AllgatherVRequest const* request,
+                                          AllgatherVReply* reply) {
+  handler_.AllgatherV(request->send_buffer().data(), request->send_buffer().size(),
+                      reply->mutable_receive_buffer(), request->sequence_number(), request->rank());
+  return grpc::Status::OK;
+}
+
+grpc::Status FederatedService::Allreduce(grpc::ServerContext*, AllreduceRequest const* request,
+                                         AllreduceReply* reply) {
   handler_.Allreduce(request->send_buffer().data(), request->send_buffer().size(),
                      reply->mutable_receive_buffer(), request->sequence_number(), request->rank(),
                      static_cast<xgboost::collective::DataType>(request->data_type()),
@@ -30,18 +38,18 @@ grpc::Status FederatedService::Allreduce(grpc::ServerContext* context,
   return grpc::Status::OK;
 }
 
-grpc::Status FederatedService::Broadcast(grpc::ServerContext* context,
-                                         BroadcastRequest const* request, BroadcastReply* reply) {
+grpc::Status FederatedService::Broadcast(grpc::ServerContext*, BroadcastRequest const* request,
+                                         BroadcastReply* reply) {
   handler_.Broadcast(request->send_buffer().data(), request->send_buffer().size(),
                      reply->mutable_receive_buffer(), request->sequence_number(), request->rank(),
                      request->root());
   return grpc::Status::OK;
 }
 
-void RunServer(int port, int world_size, char const* server_key_file, char const* server_cert_file,
-               char const* client_cert_file) {
+void RunServer(int port, std::size_t world_size, char const* server_key_file,
+               char const* server_cert_file, char const* client_cert_file) {
   std::string const server_address = "0.0.0.0:" + std::to_string(port);
-  FederatedService service{world_size};
+  FederatedService service{static_cast<std::int32_t>(world_size)};
 
   grpc::ServerBuilder builder;
   auto options =
@@ -61,9 +69,9 @@ void RunServer(int port, int world_size, char const* server_key_file, char const
   server->Wait();
 }
 
-void RunInsecureServer(int port, int world_size) {
+void RunInsecureServer(int port, std::size_t world_size) {
   std::string const server_address = "0.0.0.0:" + std::to_string(port);
-  FederatedService service{world_size};
+  FederatedService service{static_cast<std::int32_t>(world_size)};
 
   grpc::ServerBuilder builder;
   builder.SetMaxReceiveMessageSize(std::numeric_limits<int>::max());
@@ -75,6 +83,4 @@ void RunInsecureServer(int port, int world_size) {
 
   server->Wait();
 }
-
-}  // namespace federated
-}  // namespace xgboost
+}  // namespace xgboost::federated

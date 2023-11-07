@@ -1,6 +1,6 @@
-if (NVML_LIBRARY)
+if(NVML_LIBRARY)
   unset(NVML_LIBRARY CACHE)
-endif(NVML_LIBRARY)
+endif()
 
 set(NVML_LIB_NAME nvml)
 

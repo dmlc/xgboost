@@ -8,12 +8,12 @@
 
 #include <algorithm>
 #include <limits>
+#include <numeric>  // for accumulate
 #include <type_traits>
 #include <vector>
 
-#include "../common/error_msg.h"  // for InconsistentMaxBin
-#include "../common/random.h"
-#include "../common/threading_utils.h"
+#include "../collective/communicator-inl.h"  // for GetWorldSize, GetRank, Allgather
+#include "../common/error_msg.h"             // for InconsistentMaxBin
 #include "./simple_batch_iterator.h"
 #include "adapter.h"
 #include "batch_utils.h"   // for CheckEmpty, RegenGHist
@@ -75,11 +75,9 @@ DMatrix* SimpleDMatrix::SliceCol(int num_slices, int slice_id) {
 }
 
 void SimpleDMatrix::ReindexFeatures(Context const* ctx) {
-  if (info_.IsVerticalFederated()) {
-    std::vector<uint64_t> buffer(collective::GetWorldSize());
-    buffer[collective::GetRank()] = info_.num_col_;
-    collective::Allgather(buffer.data(), buffer.size() * sizeof(uint64_t));
-    auto offset = std::accumulate(buffer.cbegin(), buffer.cbegin() + collective::GetRank(), 0);
+  if (info_.IsColumnSplit() && collective::GetWorldSize() > 1) {
+    auto const cols = collective::Allgather(info_.num_col_);
+    auto const offset = std::accumulate(cols.cbegin(), cols.cbegin() + collective::GetRank(), 0ul);
     if (offset == 0) {
       return;
     }
@@ -253,7 +251,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
     }
     if (batch.BaseMargin() != nullptr) {
       info_.base_margin_ = decltype(info_.base_margin_){
-          batch.BaseMargin(), batch.BaseMargin() + batch.Size(), {batch.Size()}, Context::kCpuId};
+          batch.BaseMargin(), batch.BaseMargin() + batch.Size(), {batch.Size()}, DeviceOrd::CPU()};
     }
     if (batch.Qid() != nullptr) {
       qids.insert(qids.end(), batch.Qid(), batch.Qid() + batch.Size());
@@ -361,78 +359,4 @@ template SimpleDMatrix::SimpleDMatrix(FileAdapter* adapter, float missing, int n
 template SimpleDMatrix::SimpleDMatrix(
     IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>* adapter,
     float missing, int nthread, DataSplitMode data_split_mode);
-
-template <>
-SimpleDMatrix::SimpleDMatrix(RecordBatchesIterAdapter* adapter, float missing, int nthread,
-                             DataSplitMode data_split_mode) {
-  Context ctx;
-  ctx.nthread = nthread;
-
-  auto& offset_vec = sparse_page_->offset.HostVector();
-  auto& data_vec = sparse_page_->data.HostVector();
-  uint64_t total_batch_size = 0;
-  uint64_t total_elements = 0;
-
-  adapter->BeforeFirst();
-  // Iterate over batches of input data
-  while (adapter->Next()) {
-    auto& batches = adapter->Value();
-    size_t num_elements = 0;
-    size_t num_rows = 0;
-    // Import Arrow RecordBatches
-#pragma omp parallel for reduction(+ : num_elements, num_rows) num_threads(ctx.Threads())
-    for (int i = 0; i < static_cast<int>(batches.size()); ++i) {  // NOLINT
-      num_elements += batches[i]->Import(missing);
-      num_rows += batches[i]->Size();
-    }
-    total_elements += num_elements;
-    total_batch_size += num_rows;
-    // Compute global offset for every row and starting row for every batch
-    std::vector<uint64_t> batch_offsets(batches.size());
-    for (size_t i = 0; i < batches.size(); ++i) {
-      if (i == 0) {
-        batch_offsets[i] = total_batch_size - num_rows;
-        batches[i]->ShiftRowOffsets(total_elements - num_elements);
-      } else {
-        batch_offsets[i] = batch_offsets[i - 1] + batches[i - 1]->Size();
-        batches[i]->ShiftRowOffsets(batches[i - 1]->RowOffsets().back());
-      }
-    }
-    // Pre-allocate DMatrix memory
-    data_vec.resize(total_elements);
-    offset_vec.resize(total_batch_size + 1);
-    // Copy data into DMatrix
-#pragma omp parallel num_threads(ctx.Threads())
-    {
-#pragma omp for nowait
-      for (int i = 0; i < static_cast<int>(batches.size()); ++i) {  // NOLINT
-        size_t begin = batches[i]->RowOffsets()[0];
-        for (size_t k = 0; k < batches[i]->Size(); ++k) {
-          for (size_t j = 0; j < batches[i]->NumColumns(); ++j) {
-            auto element = batches[i]->GetColumn(j).GetElement(k);
-            if (!std::isnan(element.value)) {
-              data_vec[begin++] = Entry(element.column_idx, element.value);
-            }
-          }
-        }
-      }
-#pragma omp for nowait
-      for (int i = 0; i < static_cast<int>(batches.size()); ++i) {
-        auto& offsets = batches[i]->RowOffsets();
-        std::copy(offsets.begin() + 1, offsets.end(), offset_vec.begin() + batch_offsets[i] + 1);
-      }
-    }
-  }
-  // Synchronise worker columns
-  info_.num_col_ = adapter->NumColumns();
-  info_.data_split_mode = data_split_mode;
-  ReindexFeatures(&ctx);
-  info_.SynchronizeNumberOfColumns();
-
-  info_.num_row_ = total_batch_size;
-  info_.num_nonzero_ = data_vec.size();
-  CHECK_EQ(offset_vec.back(), info_.num_nonzero_);
-
-  fmat_ctx_ = ctx;
-}
 }  // namespace xgboost::data

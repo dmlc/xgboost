@@ -1,5 +1,5 @@
-/*!
- * Copyright 2015-2022 by XGBoost Contributors
+/**
+ * Copyright 2015-2023, XGBoost Contributors
  * \file multi_class.cc
  * \brief Definition of multi-class classification objectives.
  * \author Tianqi Chen
@@ -48,13 +48,8 @@ class SoftmaxMultiClassObj : public ObjFunction {
 
   ObjInfo Task() const override { return ObjInfo::kClassification; }
 
-  void GetGradient(const HostDeviceVector<bst_float>& preds,
-                   const MetaInfo& info,
-                   int iter,
-                   HostDeviceVector<GradientPair>* out_gpair) override {
-    // Remove unused parameter compiler warning.
-    (void) iter;
-
+  void GetGradient(const HostDeviceVector<bst_float>& preds, const MetaInfo& info, std::int32_t,
+                   linalg::Matrix<GradientPair>* out_gpair) override {
     if (info.labels.Size() == 0) {
       return;
     }
@@ -68,7 +63,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
     const int nclass = param_.num_class;
     const auto ndata = static_cast<int64_t>(preds.Size() / nclass);
 
-    auto device = ctx_->gpu_id;
+    auto device = ctx_->Device();
     out_gpair->SetDevice(device);
     info.labels.SetDevice(device);
     info.weights_.SetDevice(device);
@@ -77,7 +72,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
     label_correct_.Resize(1);
     label_correct_.SetDevice(device);
 
-    out_gpair->Resize(preds.Size());
+    out_gpair->Reshape(info.num_row_, static_cast<std::uint64_t>(nclass));
     label_correct_.Fill(1);
 
     const bool is_null_weight = info.weights_.Size() == 0;
@@ -115,7 +110,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
             gpair[idx * nclass + k] = GradientPair(p * wt, h);
           }
         }, common::Range{0, ndata}, ctx_->Threads(), device)
-        .Eval(out_gpair, info.labels.Data(), &preds, &info.weights_, &label_correct_);
+        .Eval(out_gpair->Data(), info.labels.Data(), &preds, &info.weights_, &label_correct_);
 
     std::vector<int>& label_correct_h = label_correct_.HostVector();
     for (auto const flag : label_correct_h) {
@@ -138,7 +133,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
     const int nclass = param_.num_class;
     const auto ndata = static_cast<int64_t>(io_preds->Size() / nclass);
 
-    auto device = io_preds->DeviceIdx();
+    auto device = io_preds->Device();
     if (prob) {
       common::Transform<>::Init(
           [=] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {

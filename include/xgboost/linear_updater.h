@@ -49,9 +49,8 @@ class LinearUpdater : public Configurable {
    * \param model               Model to be updated.
    * \param sum_instance_weight The sum instance weights, used to normalise l1/l2 penalty.
    */
-  virtual void Update(HostDeviceVector<GradientPair>* in_gpair, DMatrix* data,
-                      gbm::GBLinearModel* model,
-                      double sum_instance_weight) = 0;
+  virtual void Update(linalg::Matrix<GradientPair>* in_gpair, DMatrix* data,
+                      gbm::GBLinearModel* model, double sum_instance_weight) = 0;
 
   /*!
    * \brief Create a linear updater given name

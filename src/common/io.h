@@ -8,9 +8,9 @@
 #define XGBOOST_COMMON_IO_H_
 
 #include <dmlc/io.h>
-#include <rabit/rabit.h>
+#include <rabit/internal/io.h>  // for MemoryFixSizeBuffer, MemoryBufferStream
 
-#include <algorithm>    // for min
+#include <algorithm>    // for min, fill_n, copy_n
 #include <array>        // for array
 #include <cstddef>      // for byte, size_t
 #include <cstdlib>      // for malloc, realloc, free
@@ -84,16 +84,14 @@ class FixedSizeStream : public PeekableInStream {
   std::string buffer_;
 };
 
-/*!
- * \brief Helper function for loading consecutive file to avoid dmlc Stream when possible.
+/**
+ * @brief Helper function for loading consecutive file.
  *
- * \param uri    URI or file name to file.
- * \param stream Use dmlc Stream unconditionally if set to true.  Used for running test
- *               without remote filesystem.
+ * @param uri    URI or file name to file.
  *
- * \return File content.
+ * @return File content.
  */
-std::string LoadSequentialFile(std::string uri, bool stream = false);
+std::vector<char> LoadSequentialFile(std::string uri);
 
 /**
  * \brief Get file extension from file name.
@@ -207,7 +205,7 @@ class MallocResource : public ResourceHandler {
    * @param n_bytes The new size.
    */
   template <bool force_malloc = false>
-  void Resize(std::size_t n_bytes) {
+  void Resize(std::size_t n_bytes, std::byte init = std::byte{0}) {
     // realloc(ptr, 0) works, but is deprecated.
     if (n_bytes == 0) {
       this->Clear();
@@ -236,7 +234,7 @@ class MallocResource : public ResourceHandler {
       std::copy_n(reinterpret_cast<std::byte*>(ptr_), n_, reinterpret_cast<std::byte*>(new_ptr));
     }
     // default initialize
-    std::memset(reinterpret_cast<std::byte*>(new_ptr) + n_, '\0', n_bytes - n_);
+    std::fill_n(reinterpret_cast<std::byte*>(new_ptr) + n_, n_bytes - n_, init);
     // free the old ptr if malloc is used.
     if (need_copy) {
       this->Clear();
@@ -384,7 +382,8 @@ class PrivateMmapConstStream : public AlignedResourceReadStream {
    * @param length    See the `length` parameter of `mmap` for details.
    */
   explicit PrivateMmapConstStream(std::string path, std::size_t offset, std::size_t length)
-      : AlignedResourceReadStream{std::make_shared<MmapResource>(path, offset, length)} {}
+      : AlignedResourceReadStream{std::shared_ptr<MmapResource>{  // NOLINT
+            new MmapResource{std::move(path), offset, length}}} {}
   ~PrivateMmapConstStream() noexcept(false) override;
 };
 

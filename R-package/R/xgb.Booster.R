@@ -1,7 +1,6 @@
 # Construct an internal xgboost Booster and return a handle to it.
 # internal utility function
-xgb.Booster.handle <- function(params = list(), cachelist = list(),
-                               modelfile = NULL, handle = NULL) {
+xgb.Booster.handle <- function(params, cachelist, modelfile, handle) {
   if (typeof(cachelist) != "list" ||
       !all(vapply(cachelist, inherits, logical(1), what = 'xgb.DMatrix'))) {
     stop("cachelist must be a list of xgb.DMatrix objects")
@@ -12,7 +11,7 @@ xgb.Booster.handle <- function(params = list(), cachelist = list(),
       ## A filename
       handle <- .Call(XGBoosterCreate_R, cachelist)
       modelfile <- path.expand(modelfile)
-      .Call(XGBoosterLoadModel_R, handle, modelfile[1])
+      .Call(XGBoosterLoadModel_R, handle, enc2utf8(modelfile[1]))
       class(handle) <- "xgb.Booster.handle"
       if (length(params) > 0) {
         xgb.parameters(handle) <- params
@@ -22,13 +21,13 @@ xgb.Booster.handle <- function(params = list(), cachelist = list(),
       ## A memory buffer
       bst <- xgb.unserialize(modelfile, handle)
       xgb.parameters(bst) <- params
-      return (bst)
+      return(bst)
     } else if (inherits(modelfile, "xgb.Booster")) {
       ## A booster object
       bst <- xgb.Booster.complete(modelfile, saveraw = TRUE)
       bst <- xgb.unserialize(bst$raw)
       xgb.parameters(bst) <- params
-      return (bst)
+      return(bst)
     } else {
       stop("modelfile must be either character filename, or raw booster dump, or xgb.Booster object")
     }
@@ -44,7 +43,7 @@ xgb.Booster.handle <- function(params = list(), cachelist = list(),
 
 # Convert xgb.Booster.handle to xgb.Booster
 # internal utility function
-xgb.handleToBooster <- function(handle, raw = NULL) {
+xgb.handleToBooster <- function(handle, raw) {
   bst <- list(handle = handle, raw = raw)
   class(bst) <- "xgb.Booster"
   return(bst)
@@ -129,7 +128,12 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
     stop("argument type must be xgb.Booster")
 
   if (is.null.handle(object$handle)) {
-    object$handle <- xgb.Booster.handle(modelfile = object$raw, handle = object$handle)
+    object$handle <- xgb.Booster.handle(
+      params = list(),
+      cachelist = list(),
+      modelfile = object$raw,
+      handle = object$handle
+    )
   } else {
     if (is.null(object$raw) && saveraw) {
       object$raw <- xgb.serialize(object$handle)
@@ -263,11 +267,16 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #'
 #' data(agaricus.train, package='xgboost')
 #' data(agaricus.test, package='xgboost')
+#'
+#' ## Keep the number of threads to 2 for examples
+#' nthread <- 2
+#' data.table::setDTthreads(nthread)
+#'
 #' train <- agaricus.train
 #' test <- agaricus.test
 #'
 #' bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
-#'                eta = 0.5, nthread = 2, nrounds = 5, objective = "binary:logistic")
+#'                eta = 0.5, nthread = nthread, nrounds = 5, objective = "binary:logistic")
 #' # use all trees by default
 #' pred <- predict(bst, test$data)
 #' # use only the 1st tree
@@ -333,8 +342,14 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
                                 reshape = FALSE, training = FALSE, iterationrange = NULL, strict_shape = FALSE, ...) {
   object <- xgb.Booster.complete(object, saveraw = FALSE)
 
-  if (!inherits(newdata, "xgb.DMatrix"))
-    newdata <- xgb.DMatrix(newdata, missing = missing, nthread = NVL(object$params[["nthread"]], -1))
+  if (!inherits(newdata, "xgb.DMatrix")) {
+    config <- jsonlite::fromJSON(xgb.config(object))
+    nthread <- strtoi(config$learner$generic_param$nthread)
+    newdata <- xgb.DMatrix(
+      newdata,
+      missing = missing, nthread = NVL(nthread, -1)
+    )
+  }
   if (!is.null(object[["feature_names"]]) &&
       !is.null(colnames(newdata)) &&
       !identical(object[["feature_names"]], colnames(newdata)))
@@ -367,7 +382,7 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
       cval[0] <- val
       return(cval)
     }
-    return (val)
+    return(val)
   }
 
   ## We set strict_shape to TRUE then drop the dimensions conditionally
@@ -475,7 +490,7 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
 #' @export
 predict.xgb.Booster.handle <- function(object, ...) {
 
-  bst <- xgb.handleToBooster(object)
+  bst <- xgb.handleToBooster(handle = object, raw = NULL)
 
   ret <- predict(bst, ...)
   return(ret)
@@ -624,10 +639,15 @@ xgb.attributes <- function(object) {
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
+#' ## Keep the number of threads to 1 for examples
+#' nthread <- 1
+#' data.table::setDTthreads(nthread)
 #' train <- agaricus.train
 #'
-#' bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
-#'                eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
+#' bst <- xgboost(
+#'   data = train$data, label = train$label, max_depth = 2,
+#'   eta = 1, nthread = nthread, nrounds = 2, objective = "binary:logistic"
+#' )
 #' config <- xgb.config(bst)
 #'
 #' @rdname xgb.config

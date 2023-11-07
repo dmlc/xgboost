@@ -1,3 +1,8 @@
+/**
+ * Copyright 2020-2023, XGBoost contributors
+ */
+#pragma once
+
 #if defined(__CUDACC__)
 #include "../../src/data/ellpack_page.cuh"
 #endif
@@ -24,8 +29,8 @@ class HistogramCutsWrapper : public common::HistogramCuts {
 };
 }  //  anonymous namespace
 
-inline std::unique_ptr<EllpackPageImpl> BuildEllpackPage(
-    int n_rows, int n_cols, bst_float sparsity= 0) {
+inline std::unique_ptr<EllpackPageImpl> BuildEllpackPage(int n_rows, int n_cols,
+                                                         bst_float sparsity = 0) {
   auto dmat = RandomDataGenerator(n_rows, n_cols, sparsity).Seed(3).GenerateDMatrix();
   const SparsePage& batch = *dmat->GetBatches<xgboost::SparsePage>().begin();
 
@@ -49,7 +54,7 @@ inline std::unique_ptr<EllpackPageImpl> BuildEllpackPage(
   }
 
   auto page = std::unique_ptr<EllpackPageImpl>(
-      new EllpackPageImpl(0, cmat, batch, dmat->IsDense(), row_stride, {}));
+      new EllpackPageImpl(DeviceOrd::CUDA(0), cmat, batch, dmat->IsDense(), row_stride, {}));
 
   return page;
 }

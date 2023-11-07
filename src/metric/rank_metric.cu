@@ -33,9 +33,9 @@ PackedReduceResult PreScore(Context const *ctx, MetaInfo const &info,
                             HostDeviceVector<float> const &predt,
                             std::shared_ptr<ltr::PreCache> p_cache) {
   auto d_gptr = p_cache->DataGroupPtr(ctx);
-  auto d_label = info.labels.View(ctx->gpu_id).Slice(linalg::All(), 0);
+  auto d_label = info.labels.View(ctx->Device()).Slice(linalg::All(), 0);
 
-  predt.SetDevice(ctx->gpu_id);
+  predt.SetDevice(ctx->Device());
   auto d_rank_idx = p_cache->SortedIdx(ctx, predt.ConstDeviceSpan());
   auto topk = p_cache->Param().TopK();
   auto d_weight = common::MakeOptionalWeights(ctx, info.weights_);
@@ -89,8 +89,8 @@ PackedReduceResult NDCGScore(Context const *ctx, MetaInfo const &info,
   if (!d_weight.Empty()) {
     CHECK_EQ(d_weight.weights.size(), p_cache->Groups());
   }
-  auto d_label = info.labels.View(ctx->gpu_id).Slice(linalg::All(), 0);
-  predt.SetDevice(ctx->gpu_id);
+  auto d_label = info.labels.View(ctx->Device()).Slice(linalg::All(), 0);
+  predt.SetDevice(ctx->Device());
   auto d_predt = linalg::MakeTensorView(ctx, predt.ConstDeviceSpan(), predt.Size());
 
   auto d_group_ptr = p_cache->DataGroupPtr(ctx);
@@ -119,9 +119,9 @@ PackedReduceResult MAPScore(Context const *ctx, MetaInfo const &info,
                             HostDeviceVector<float> const &predt, bool minus,
                             std::shared_ptr<ltr::MAPCache> p_cache) {
   auto d_group_ptr = p_cache->DataGroupPtr(ctx);
-  auto d_label = info.labels.View(ctx->gpu_id).Slice(linalg::All(), 0);
+  auto d_label = info.labels.View(ctx->Device()).Slice(linalg::All(), 0);
 
-  predt.SetDevice(ctx->gpu_id);
+  predt.SetDevice(ctx->Device());
   auto d_rank_idx = p_cache->SortedIdx(ctx, predt.ConstDeviceSpan());
   auto key_it = dh::MakeTransformIterator<std::size_t>(
       thrust::make_counting_iterator(0ul),

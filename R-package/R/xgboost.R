@@ -10,7 +10,13 @@ xgboost <- function(data = NULL, label = NULL, missing = NA, weight = NULL,
                     save_period = NULL, save_name = "xgboost.model",
                     xgb_model = NULL, callbacks = list(), ...) {
   merged <- check.booster.params(params, ...)
-  dtrain <- xgb.get.DMatrix(data, label, missing, weight, nthread = merged$nthread)
+  dtrain <- xgb.get.DMatrix(
+    data = data,
+    label = label,
+    missing = missing,
+    weight = weight,
+    nthread = merged$nthread
+  )
 
   watchlist <- list(train = dtrain)
 
@@ -18,7 +24,7 @@ xgboost <- function(data = NULL, label = NULL, missing = NA, weight = NULL,
                    early_stopping_rounds = early_stopping_rounds, maximize = maximize,
                    save_period = save_period, save_name = save_name,
                    xgb_model = xgb_model, callbacks = callbacks, ...)
-  return (bst)
+  return(bst)
 }
 
 #' Training part from Mushroom Data Set

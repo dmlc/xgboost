@@ -1,5 +1,7 @@
 context("feature weights")
 
+n_threads <- 2
+
 test_that("training with feature weights works", {
   nrows <- 1000
   ncols <- 9
@@ -10,8 +12,12 @@ test_that("training with feature weights works", {
 
   test <- function(tm) {
     names <- paste0("f", 1:ncols)
-    xy <- xgb.DMatrix(data = x, label = y, feature_weights = weights)
-    params <- list(colsample_bynode = 0.4, tree_method = tm, nthread = 1)
+    xy <- xgb.DMatrix(
+      data = x, label = y, feature_weights = weights, nthread = n_threads
+    )
+    params <- list(
+      colsample_bynode = 0.4, tree_method = tm, nthread = n_threads
+    )
     model <- xgb.train(params = params, data = xy, nrounds = 32)
     importance <- xgb.importance(model = model, feature_names = names)
     expect_equal(dim(importance), c(ncols, 4))

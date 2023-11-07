@@ -23,8 +23,7 @@
 
 namespace xgboost::ltr {
 void TestCalcQueriesInvIDCG() {
-  Context ctx;
-  ctx.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
+  auto ctx = MakeCUDACtx(0);
   std::size_t n_groups = 5, n_samples_per_group = 32;
 
   dh::device_vector<float> scores(n_samples_per_group * n_groups);
@@ -36,13 +35,13 @@ void TestCalcQueriesInvIDCG() {
   auto d_scores = dh::ToSpan(scores);
   common::SegmentedSequence(&ctx, d_group_ptr, d_scores);
 
-  linalg::Vector<double> inv_IDCG({n_groups}, ctx.gpu_id);
+  linalg::Vector<double> inv_IDCG({n_groups}, ctx.Device());
 
   ltr::LambdaRankParam p;
   p.UpdateAllowUnknown(Args{{"ndcg_exp_gain", "false"}});
 
   cuda_impl::CalcQueriesInvIDCG(&ctx, linalg::MakeTensorView(&ctx, d_scores, d_scores.size()),
-                                dh::ToSpan(group_ptr), inv_IDCG.View(ctx.gpu_id), p);
+                                dh::ToSpan(group_ptr), inv_IDCG.View(ctx.Device()), p);
   for (std::size_t i = 0; i < n_groups; ++i) {
     double inv_idcg = inv_IDCG(i);
     ASSERT_NEAR(inv_idcg, 0.00551782, kRtEps);
@@ -71,7 +70,7 @@ void TestRankingCache(Context const* ctx) {
   HostDeviceVector<float> predt(info.num_row_, 0);
   auto& h_predt = predt.HostVector();
   std::iota(h_predt.begin(), h_predt.end(), 0.0f);
-  predt.SetDevice(ctx->gpu_id);
+  predt.SetDevice(ctx->Device());
 
   auto rank_idx =
       cache.SortedIdx(ctx, ctx->IsCPU() ? predt.ConstHostSpan() : predt.ConstDeviceSpan());
@@ -85,20 +84,17 @@ void TestRankingCache(Context const* ctx) {
 }  // namespace
 
 TEST(RankingCache, InitFromGPU) {
-  Context ctx;
-  ctx.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
+  auto ctx = MakeCUDACtx(0);
   TestRankingCache(&ctx);
 }
 
 TEST(NDCGCache, InitFromGPU) {
-  Context ctx;
-  ctx.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
+  auto ctx = MakeCUDACtx(0);
   TestNDCGCache(&ctx);
 }
 
 TEST(MAPCache, InitFromGPU) {
-  Context ctx;
-  ctx.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
+  auto ctx = MakeCUDACtx(0);
   TestMAPCache(&ctx);
 }
 }  // namespace xgboost::ltr

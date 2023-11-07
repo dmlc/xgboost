@@ -11,9 +11,7 @@
 #include "../../../src/common/linalg_op.h"
 #include "../helpers.h"
 
-namespace xgboost {
-namespace metric {
-
+namespace xgboost::metric {
 inline void CheckDeterministicMetricElementWise(StringView name, int32_t device) {
   auto ctx = MakeCUDACtx(device);
   std::unique_ptr<Metric> metric{Metric::Create(name.c_str(), &ctx)};
@@ -325,14 +323,14 @@ inline void VerifyPoissonNegLogLik(DataSplitMode data_split_mode = DataSplitMode
 }
 
 inline void VerifyMultiRMSE(DataSplitMode data_split_mode = DataSplitMode::kRow) {
+  auto ctx = MakeCUDACtx(GPUIDX);
   size_t n_samples = 32, n_targets = 8;
-  linalg::Tensor<float, 2> y{{n_samples, n_targets}, GPUIDX};
+  linalg::Tensor<float, 2> y{{n_samples, n_targets}, ctx.Device()};
   auto &h_y = y.Data()->HostVector();
   std::iota(h_y.begin(), h_y.end(), 0);
 
   HostDeviceVector<float> predt(n_samples * n_targets, 0);
 
-  auto ctx = MakeCUDACtx(GPUIDX);
   std::unique_ptr<Metric> metric{Metric::Create("rmse", &ctx)};
   metric->Configure({});
 
@@ -381,5 +379,4 @@ inline void VerifyQuantile(DataSplitMode data_split_mode = DataSplitMode::kRow) 
   metric->Configure(Args{{"quantile_alpha", "[1.0]"}});
   EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels, {}, {}, data_split_mode), 0.3f, 0.001f);
 }
-}  // namespace metric
-}  // namespace xgboost
+}  // namespace xgboost::metric

@@ -56,9 +56,10 @@ using ssize_t = int;
 
 #endif                            // defined(_WIN32)
 
-#include "xgboost/base.h"         // XGBOOST_EXPECT
-#include "xgboost/logging.h"      // LOG
-#include "xgboost/string_view.h"  // StringView
+#include "xgboost/base.h"               // XGBOOST_EXPECT
+#include "xgboost/collective/result.h"  // for Result
+#include "xgboost/logging.h"            // LOG
+#include "xgboost/string_view.h"        // StringView
 
 #if !defined(HOST_NAME_MAX)
 #define HOST_NAME_MAX 256  // macos
@@ -79,6 +80,10 @@ inline std::int32_t LastError() {
   int errsv = errno;
   return errsv;
 #endif
+}
+
+[[nodiscard]] inline collective::Result FailWithCode(std::string msg) {
+  return collective::Fail(std::move(msg), std::error_code{LastError(), std::system_category()});
 }
 
 #if defined(__GLIBC__)
@@ -120,13 +125,17 @@ inline std::int32_t CloseSocket(SocketT fd) {
 #endif
 }
 
-inline bool LastErrorWouldBlock() {
-  int errsv = LastError();
+inline bool ErrorWouldBlock(std::int32_t errsv) noexcept(true) {
 #ifdef _WIN32
   return errsv == WSAEWOULDBLOCK;
 #else
-  return errsv == EAGAIN || errsv == EWOULDBLOCK;
+  return errsv == EAGAIN || errsv == EWOULDBLOCK || errsv == EINPROGRESS;
 #endif  // _WIN32
+}
+
+inline bool LastErrorWouldBlock() {
+  int errsv = LastError();
+  return ErrorWouldBlock(errsv);
 }
 
 inline void SocketStartup() {
@@ -206,9 +215,9 @@ class SockAddrV4 {
   static SockAddrV4 Loopback();
   static SockAddrV4 InaddrAny();
 
-  in_port_t Port() const { return ntohs(addr_.sin_port); }
+  [[nodiscard]] in_port_t Port() const { return ntohs(addr_.sin_port); }
 
-  std::string Addr() const {
+  [[nodiscard]] std::string Addr() const {
     char buf[INET_ADDRSTRLEN];
     auto const *s = system::inet_ntop(static_cast<std::int32_t>(SockDomain::kV4), &addr_.sin_addr,
                                       buf, INET_ADDRSTRLEN);
@@ -217,7 +226,7 @@ class SockAddrV4 {
     }
     return {buf};
   }
-  sockaddr_in const &Handle() const { return addr_; }
+  [[nodiscard]] sockaddr_in const &Handle() const { return addr_; }
 };
 
 /**
@@ -234,13 +243,13 @@ class SockAddress {
   explicit SockAddress(SockAddrV6 const &addr) : v6_{addr}, domain_{SockDomain::kV6} {}
   explicit SockAddress(SockAddrV4 const &addr) : v4_{addr} {}
 
-  auto Domain() const { return domain_; }
+  [[nodiscard]] auto Domain() const { return domain_; }
 
-  bool IsV4() const { return Domain() == SockDomain::kV4; }
-  bool IsV6() const { return !IsV4(); }
+  [[nodiscard]] bool IsV4() const { return Domain() == SockDomain::kV4; }
+  [[nodiscard]] bool IsV6() const { return !IsV4(); }
 
-  auto const &V4() const { return v4_; }
-  auto const &V6() const { return v6_; }
+  [[nodiscard]] auto const &V4() const { return v4_; }
+  [[nodiscard]] auto const &V6() const { return v6_; }
 };
 
 /**
@@ -252,6 +261,7 @@ class TCPSocket {
 
  private:
   HandleT handle_{InvalidSocket()};
+  bool non_blocking_{false};
   // There's reliable no way to extract domain from a socket without first binding that
   // socket on macos.
 #if defined(__APPLE__)
@@ -267,7 +277,7 @@ class TCPSocket {
   /**
    * \brief Return the socket domain.
    */
-  auto Domain() const -> SockDomain {
+  [[nodiscard]] auto Domain() const -> SockDomain {
     auto ret_iafamily = [](std::int32_t domain) {
       switch (domain) {
         case AF_INET:
@@ -312,43 +322,94 @@ class TCPSocket {
 #endif  // platforms
   }
 
-  bool IsClosed() const { return handle_ == InvalidSocket(); }
+  [[nodiscard]] bool IsClosed() const { return handle_ == InvalidSocket(); }
 
-  /** \brief get last error code if any */
-  std::int32_t GetSockError() const {
-    std::int32_t error = 0;
-    socklen_t len = sizeof(error);
-    xgboost_CHECK_SYS_CALL(
-        getsockopt(handle_, SOL_SOCKET, SO_ERROR, reinterpret_cast<char *>(&error), &len), 0);
-    return error;
+  /** @brief get last error code if any */
+  [[nodiscard]] Result GetSockError() const {
+    std::int32_t optval = 0;
+    socklen_t len = sizeof(optval);
+    auto ret = getsockopt(handle_, SOL_SOCKET, SO_ERROR, reinterpret_cast<char *>(&optval), &len);
+    if (ret != 0) {
+      auto errc = std::error_code{system::LastError(), std::system_category()};
+      return Fail("Failed to retrieve socket error.", std::move(errc));
+    }
+    if (optval != 0) {
+      auto errc = std::error_code{optval, std::system_category()};
+      return Fail("Socket error.", std::move(errc));
+    }
+    return Success();
   }
+
   /** \brief check if anything bad happens */
-  bool BadSocket() const {
-    if (IsClosed()) return true;
-    std::int32_t err = GetSockError();
-    if (err == EBADF || err == EINTR) return true;
+  [[nodiscard]] bool BadSocket() const {
+    if (IsClosed()) {
+      return true;
+    }
+    auto err = GetSockError();
+    if (err.Code() == std::error_code{EBADF, std::system_category()} ||  // NOLINT
+        err.Code() == std::error_code{EINTR, std::system_category()}) {  // NOLINT
+      return true;
+    }
     return false;
   }
 
-  void SetNonBlock() {
-    bool non_block{true};
+  [[nodiscard]] Result NonBlocking(bool non_block) {
 #if defined(_WIN32)
     u_long mode = non_block ? 1 : 0;
-    xgboost_CHECK_SYS_CALL(ioctlsocket(handle_, FIONBIO, &mode), NO_ERROR);
+    if (ioctlsocket(handle_, FIONBIO, &mode) != NO_ERROR) {
+      return system::FailWithCode("Failed to set socket to non-blocking.");
+    }
 #else
     std::int32_t flag = fcntl(handle_, F_GETFL, 0);
-    if (flag == -1) {
-      system::ThrowAtError("fcntl");
+    auto rc = flag;
+    if (rc == -1) {
+      return system::FailWithCode("Failed to get socket flag.");
     }
     if (non_block) {
       flag |= O_NONBLOCK;
     } else {
       flag &= ~O_NONBLOCK;
     }
-    if (fcntl(handle_, F_SETFL, flag) == -1) {
-      system::ThrowAtError("fcntl");
+    rc = fcntl(handle_, F_SETFL, flag);
+    if (rc == -1) {
+      return system::FailWithCode("Failed to set socket to non-blocking.");
     }
 #endif  // _WIN32
+    non_blocking_ = non_block;
+    return Success();
+  }
+  [[nodiscard]] bool NonBlocking() const { return non_blocking_; }
+  [[nodiscard]] Result RecvTimeout(std::chrono::seconds timeout) {
+    // https://stackoverflow.com/questions/2876024/linux-is-there-a-read-or-recv-from-socket-with-timeout
+#if defined(_WIN32)
+    DWORD tv = timeout.count() * 1000;
+    auto rc =
+        setsockopt(Handle(), SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<char *>(&tv), sizeof(tv));
+#else
+    struct timeval tv;
+    tv.tv_sec = timeout.count();
+    tv.tv_usec = 0;
+    auto rc = setsockopt(Handle(), SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<char const *>(&tv),
+                         sizeof(tv));
+#endif
+    if (rc != 0) {
+      return system::FailWithCode("Failed to set timeout on recv.");
+    }
+    return Success();
+  }
+
+  [[nodiscard]] Result SetBufSize(std::int32_t n_bytes) {
+    auto rc = setsockopt(this->Handle(), SOL_SOCKET, SO_SNDBUF, reinterpret_cast<char *>(&n_bytes),
+                         sizeof(n_bytes));
+    if (rc != 0) {
+      return system::FailWithCode("Failed to set send buffer size.");
+    }
+    rc = setsockopt(this->Handle(), SOL_SOCKET, SO_RCVBUF, reinterpret_cast<char *>(&n_bytes),
+                    sizeof(n_bytes));
+    if (rc != 0) {
+      return system::FailWithCode("Failed to set recv buffer size.");
+    }
+    return Success();
   }
 
   void SetKeepAlive() {
@@ -370,12 +431,29 @@ class TCPSocket {
    * \brief Accept new connection, returns a new TCP socket for the new connection.
    */
   TCPSocket Accept() {
-    HandleT newfd = accept(handle_, nullptr, nullptr);
-    if (newfd == InvalidSocket()) {
+    HandleT newfd = accept(Handle(), nullptr, nullptr);
+#if defined(_WIN32)
+    auto interrupt = WSAEINTR;
+#else
+    auto interrupt = EINTR;
+#endif
+    if (newfd == InvalidSocket() && system::LastError() != interrupt) {
       system::ThrowAtError("accept");
     }
     TCPSocket newsock{newfd};
     return newsock;
+  }
+
+  [[nodiscard]] Result Accept(TCPSocket *out, SockAddrV4 *addr) {
+    struct sockaddr_in caddr;
+    socklen_t caddr_len = sizeof(caddr);
+    HandleT newfd = accept(Handle(), reinterpret_cast<sockaddr *>(&caddr), &caddr_len);
+    if (newfd == InvalidSocket()) {
+      return system::FailWithCode("Failed to accept.");
+    }
+    *addr = SockAddrV4{caddr};
+    *out = TCPSocket{newfd};
+    return Success();
   }
 
   ~TCPSocket() {
@@ -392,9 +470,9 @@ class TCPSocket {
     return *this;
   }
   /**
-   * \brief Return the native socket file descriptor.
+   * @brief Return the native socket file descriptor.
    */
-  HandleT const &Handle() const { return handle_; }
+  [[nodiscard]] HandleT const &Handle() const { return handle_; }
   /**
    * \brief Listen to incoming requests. Should be called after bind.
    */
@@ -402,7 +480,7 @@ class TCPSocket {
   /**
    * \brief Bind socket to INADDR_ANY, return the port selected by the OS.
    */
-  in_port_t BindHost() {
+  [[nodiscard]] in_port_t BindHost() {
     if (Domain() == SockDomain::kV6) {
       auto addr = SockAddrV6::InaddrAny();
       auto handle = reinterpret_cast<sockaddr const *>(&addr.Handle());
@@ -427,10 +505,53 @@ class TCPSocket {
       return ntohs(res_addr.sin_port);
     }
   }
+
+  [[nodiscard]] auto Port() const {
+    if (this->Domain() == SockDomain::kV4) {
+      sockaddr_in res_addr;
+      socklen_t addrlen = sizeof(res_addr);
+      auto code = getsockname(handle_, reinterpret_cast<sockaddr *>(&res_addr), &addrlen);
+      if (code != 0) {
+        return std::make_pair(system::FailWithCode("getsockname"), std::int32_t{0});
+      }
+      return std::make_pair(Success(), std::int32_t{ntohs(res_addr.sin_port)});
+    } else {
+      sockaddr_in6 res_addr;
+      socklen_t addrlen = sizeof(res_addr);
+      auto code = getsockname(handle_, reinterpret_cast<sockaddr *>(&res_addr), &addrlen);
+      if (code != 0) {
+        return std::make_pair(system::FailWithCode("getsockname"), std::int32_t{0});
+      }
+      return std::make_pair(Success(), std::int32_t{ntohs(res_addr.sin6_port)});
+    }
+  }
+
+  [[nodiscard]] Result Bind(StringView ip, std::int32_t *port) {
+    // bind socket handle_ to ip
+    auto addr = MakeSockAddress(ip, 0);
+    std::int32_t errc{0};
+    if (addr.IsV4()) {
+      auto handle = reinterpret_cast<sockaddr const *>(&addr.V4().Handle());
+      errc = bind(handle_, handle, sizeof(std::remove_reference_t<decltype(addr.V4().Handle())>));
+    } else {
+      auto handle = reinterpret_cast<sockaddr const *>(&addr.V6().Handle());
+      errc = bind(handle_, handle, sizeof(std::remove_reference_t<decltype(addr.V6().Handle())>));
+    }
+    if (errc != 0) {
+      return system::FailWithCode("Failed to bind socket.");
+    }
+    auto [rc, new_port] = this->Port();
+    if (!rc.OK()) {
+      return std::move(rc);
+    }
+    *port = new_port;
+    return Success();
+  }
+
   /**
    * \brief Send data, without error then all data should be sent.
    */
-  auto SendAll(void const *buf, std::size_t len) {
+  [[nodiscard]] auto SendAll(void const *buf, std::size_t len) {
     char const *_buf = reinterpret_cast<const char *>(buf);
     std::size_t ndone = 0;
     while (ndone < len) {
@@ -449,7 +570,7 @@ class TCPSocket {
   /**
    * \brief Receive data, without error then all data should be received.
    */
-  auto RecvAll(void *buf, std::size_t len) {
+  [[nodiscard]] auto RecvAll(void *buf, std::size_t len) {
     char *_buf = reinterpret_cast<char *>(buf);
     std::size_t ndone = 0;
     while (ndone < len) {
@@ -503,7 +624,15 @@ class TCPSocket {
    */
   void Close() {
     if (InvalidSocket() != handle_) {
+#if defined(_WIN32)
+      auto rc = system::CloseSocket(handle_);
+      // it's possible that we close TCP sockets after finalizing WSA due to detached thread.
+      if (rc != 0 && system::LastError() != WSANOTINITIALISED) {
+        system::ThrowAtError("close", rc);
+      }
+#else
       xgboost_CHECK_SYS_CALL(system::CloseSocket(handle_), 0);
+#endif
       handle_ = InvalidSocket();
     }
   }
@@ -527,21 +656,73 @@ class TCPSocket {
     return socket;
 #endif  // defined(xgboost_IS_MINGW)
   }
+
+  static TCPSocket *CreatePtr(SockDomain domain) {
+#if defined(xgboost_IS_MINGW)
+    MingWError();
+    return nullptr;
+#else
+    auto fd = socket(static_cast<std::int32_t>(domain), SOCK_STREAM, 0);
+    if (fd == InvalidSocket()) {
+      system::ThrowAtError("socket");
+    }
+    auto socket = new TCPSocket{fd};
+
+#if defined(__APPLE__)
+    socket->domain_ = domain;
+#endif  // defined(__APPLE__)
+    return socket;
+#endif  // defined(xgboost_IS_MINGW)
+  }
 };
 
 /**
- * \brief Connect to remote address, returns the error code if failed (no exception is
- *        raised so that we can retry).
+ * @brief Connect to remote address, returns the error code if failed.
+ *
+ * @param host   Host IP address.
+ * @param port   Connection port.
+ * @param retry  Number of retries to attempt.
+ * @param timeout  Timeout of each connection attempt.
+ * @param out_conn Output socket if the connection is successful. Value is invalid and undefined if
+ *                 the connection failed.
+ *
+ * @return Connection status.
  */
-std::error_code Connect(SockAddress const &addr, TCPSocket *out);
+[[nodiscard]] Result Connect(xgboost::StringView host, std::int32_t port, std::int32_t retry,
+                             std::chrono::seconds timeout,
+                             xgboost::collective::TCPSocket *out_conn);
 
 /**
- * \brief Get the local host name.
+ * @brief Get the local host name.
  */
-inline std::string GetHostName() {
-  char buf[HOST_NAME_MAX];
-  xgboost_CHECK_SYS_CALL(gethostname(&buf[0], HOST_NAME_MAX), 0);
-  return buf;
+[[nodiscard]] Result GetHostName(std::string *p_out);
+
+/**
+ * @brief inet_ntop
+ */
+template <typename H>
+Result INetNToP(H const &host, std::string *p_out) {
+  std::string &ip = *p_out;
+  switch (host->h_addrtype) {
+    case AF_INET: {
+      auto addr = reinterpret_cast<struct in_addr *>(host->h_addr_list[0]);
+      char str[INET_ADDRSTRLEN];
+      inet_ntop(AF_INET, addr, str, INET_ADDRSTRLEN);
+      ip = str;
+      break;
+    }
+    case AF_INET6: {
+      auto addr = reinterpret_cast<struct in6_addr *>(host->h_addr_list[0]);
+      char str[INET6_ADDRSTRLEN];
+      inet_ntop(AF_INET6, addr, str, INET6_ADDRSTRLEN);
+      ip = str;
+      break;
+    }
+    default: {
+      return Fail("Invalid address type.");
+    }
+  }
+  return Success();
 }
 }  // namespace collective
 }  // namespace xgboost

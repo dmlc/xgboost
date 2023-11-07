@@ -13,7 +13,7 @@ namespace xgboost {
 namespace linalg {
 template <typename T, int32_t D, typename Fn>
 void ElementWiseKernelDevice(linalg::TensorView<T, D> t, Fn&& fn, cudaStream_t s = nullptr) {
-  dh::safe_cuda(cudaSetDevice(t.DeviceIdx()));
+  dh::safe_cuda(cudaSetDevice(t.Device().ordinal));
   static_assert(std::is_void<std::result_of_t<Fn(size_t, T&)>>::value,
                 "For function with return, use transform instead.");
   if (t.Contiguous()) {
@@ -42,7 +42,7 @@ void ElementWiseTransformDevice(linalg::TensorView<T, D> t, Fn&& fn, cudaStream_
 
 template <typename T, int32_t D, typename Fn>
 void ElementWiseKernel(Context const* ctx, linalg::TensorView<T, D> t, Fn&& fn) {
-  ctx->IsCPU() ? ElementWiseKernelHost(t, ctx->Threads(), fn) : ElementWiseKernelDevice(t, fn);
+  ctx->IsCUDA() ? ElementWiseKernelDevice(t, fn) : ElementWiseKernelHost(t, ctx->Threads(), fn);
 }
 }  // namespace linalg
 }  // namespace xgboost

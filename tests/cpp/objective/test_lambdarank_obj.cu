@@ -13,26 +13,22 @@
 
 namespace xgboost::obj {
 TEST(LambdaRank, GPUNDCGJsonIO) {
-  Context ctx;
-  ctx.gpu_id = 0;
+  auto ctx = MakeCUDACtx(0);
   TestNDCGJsonIO(&ctx);
 }
 
 TEST(LambdaRank, GPUMAPStat) {
-  Context ctx;
-  ctx.gpu_id = 0;
+  auto ctx = MakeCUDACtx(0);
   TestMAPStat(&ctx);
 }
 
 TEST(LambdaRank, GPUNDCGGPair) {
-  Context ctx;
-  ctx.gpu_id = 0;
+  auto ctx = MakeCUDACtx(0);
   TestNDCGGPair(&ctx);
 }
 
 void TestGPUMakePair() {
-  Context ctx;
-  ctx.gpu_id = 0;
+  auto ctx = MakeCUDACtx(0);
 
   MetaInfo info;
   HostDeviceVector<float> predt;
@@ -43,23 +39,24 @@ void TestGPUMakePair() {
   auto make_args = [&](std::shared_ptr<ltr::RankingCache> p_cache, auto rank_idx,
                        common::Span<std::size_t const> y_sorted_idx) {
     linalg::Vector<double> dummy;
-    auto d = dummy.View(ctx.gpu_id);
+    auto d = dummy.View(ctx.Device());
     linalg::Vector<GradientPair> dgpair;
-    auto dg = dgpair.View(ctx.gpu_id);
-    cuda_impl::KernelInputs args{d,
-                                 d,
-                                 d,
-                                 d,
-                                 p_cache->DataGroupPtr(&ctx),
-                                 p_cache->CUDAThreadsGroupPtr(),
-                                 rank_idx,
-                                 info.labels.View(ctx.gpu_id),
-                                 predt.ConstDeviceSpan(),
-                                 {},
-                                 dg,
-                                 nullptr,
-                                 y_sorted_idx,
-                                 0};
+    auto dg = dgpair.View(ctx.Device());
+    cuda_impl::KernelInputs args{
+        d,
+        d,
+        d,
+        d,
+        p_cache->DataGroupPtr(&ctx),
+        p_cache->CUDAThreadsGroupPtr(),
+        rank_idx,
+        info.labels.View(ctx.Device()),
+        predt.ConstDeviceSpan(),
+        linalg::MatrixView<GradientPair>{common::Span<GradientPair>{}, {0}, DeviceOrd::CUDA(0)},
+        dg,
+        nullptr,
+        y_sorted_idx,
+        0};
     return args;
   };
 
@@ -126,8 +123,7 @@ void TestGPUMakePair() {
 TEST(LambdaRank, GPUMakePair) { TestGPUMakePair(); }
 
 TEST(LambdaRank, GPUUnbiasedNDCG) {
-  Context ctx;
-  ctx.gpu_id = 0;
+  auto ctx = MakeCUDACtx(0);
   TestUnbiasedNDCG(&ctx);
 }
 
@@ -161,8 +157,7 @@ TEST(LambdaRank, RankItemCountOnRight) {
 }
 
 TEST(LambdaRank, GPUMAPGPair) {
-  Context ctx;
-  ctx.gpu_id = 0;
+  auto ctx = MakeCUDACtx(0);
   TestMAPGPair(&ctx);
 }
 }  // namespace xgboost::obj

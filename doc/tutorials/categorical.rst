@@ -4,16 +4,17 @@ Categorical Data
 
 .. note::
 
-   As of XGBoost 1.6, the feature is experimental and has limited features
+   As of XGBoost 1.6, the feature is experimental and has limited features. Only the
+   Python package is fully supported.
 
-Starting from version 1.5, XGBoost has experimental support for categorical data available
-for public testing. For numerical data, the split condition is defined as :math:`value <
-threshold`, while for categorical data the split is defined depending on whether
-partitioning or onehot encoding is used. For partition-based splits, the splits are
-specified as :math:`value \in categories`, where ``categories`` is the set of categories
-in one feature.  If onehot encoding is used instead, then the split is defined as
-:math:`value == category`. More advanced categorical split strategy is planned for future
-releases and this tutorial details how to inform XGBoost about the data type.
+Starting from version 1.5, the XGBoost Python package has experimental support for
+categorical data available for public testing. For numerical data, the split condition is
+defined as :math:`value < threshold`, while for categorical data the split is defined
+depending on whether partitioning or onehot encoding is used. For partition-based splits,
+the splits are specified as :math:`value \in categories`, where ``categories`` is the set
+of categories in one feature.  If onehot encoding is used instead, then the split is
+defined as :math:`value == category`. More advanced categorical split strategy is planned
+for future releases and this tutorial details how to inform XGBoost about the data type.
 
 ************************************
 Training with scikit-learn Interface
@@ -35,8 +36,8 @@ parameter ``enable_categorical``:
 
 .. code:: python
 
-  # Supported tree methods are `gpu_hist`, `approx`, and `hist`.
-  clf = xgb.XGBClassifier(tree_method="gpu_hist", enable_categorical=True)
+  # Supported tree methods are `approx` and `hist`.
+  clf = xgb.XGBClassifier(tree_method="hist", enable_categorical=True, device="cuda")
   # X is the dataframe we created in previous snippet
   clf.fit(X, y)
   # Must use JSON/UBJSON for serialization, otherwise the information is lost.
@@ -93,11 +94,11 @@ Using native interface
 **********************
 
 The ``scikit-learn`` interface is user friendly, but lacks some features that are only
-available in native interface.  For instance users cannot compute SHAP value directly or
-use quantized :class:`DMatrix <xgboost.DMatrix>`.  Also native interface supports data
-types other than dataframe, like ``numpy/cupy array``. To use the native interface with
-categorical data, we need to pass the similar parameter to :class:`DMatrix
-<xgboost.DMatrix>` and the :func:`train <xgboost.train>` function.  For dataframe input:
+available in native interface.  For instance users cannot compute SHAP value directly.
+Also native interface supports more data types. To use the native interface with
+categorical data, we need to pass the similar parameter to :class:`~xgboost.DMatrix` or
+:py:class:`~xgboost.QuantileDMatrix` and the :func:`train <xgboost.train>` function.  For
+dataframe input:
 
 .. code:: python
 
@@ -116,7 +117,6 @@ SHAP value computation:
   # categorical features are listed as "c"
   print(booster.feature_types)
 
-
 For other types of input, like ``numpy array``, we can tell XGBoost about the feature
 types by using the ``feature_types`` parameter in :class:`DMatrix <xgboost.DMatrix>`:
 
@@ -130,7 +130,31 @@ types by using the ``feature_types`` parameter in :class:`DMatrix <xgboost.DMatr
 
 For numerical data, the feature type can be ``"q"`` or ``"float"``, while for categorical
 feature it's specified as ``"c"``.  The Dask module in XGBoost has the same interface so
-:class:`dask.Array <dask.Array>` can also be used for categorical data.
+:class:`dask.Array <dask.Array>` can also be used for categorical data. Lastly, the
+sklearn interface :py:class:`~xgboost.XGBRegressor` has the same parameter.
+
+****************
+Data Consistency
+****************
+
+XGBoost accepts parameters to indicate which feature is considered categorical, either through the ``dtypes`` of a dataframe or through the ``feature_types`` parameter. However, XGBoost by itself doesn't store information on how categories are encoded in the first place. For instance, given an encoding schema that maps music genres to integer codes:
+
+.. code-block:: python
+
+  {"acoustic": 0, "indie": 1, "blues": 2, "country": 3}
+
+XGBoost doesn't know this mapping from the input and hence cannot store it in the model. The mapping usually happens in the users' data engineering pipeline with column transformers like :py:class:`sklearn.preprocessing.OrdinalEncoder`. To make sure correct result from XGBoost, users need to keep the pipeline for transforming data consistent across training and testing data. One should watch out for errors like:
+
+.. code-block:: python
+
+  X_train["genre"] = X_train["genre"].astype("category")
+  reg = xgb.XGBRegressor(enable_categorical=True).fit(X_train, y_train)
+
+  # invalid encoding
+  X_test["genre"] = X_test["genre"].astype("category")
+  reg.predict(X_test)
+
+In the above snippet, training data and test data are encoded separately, resulting in two different encoding schemas and invalid prediction result. See :ref:`sphx_glr_python_examples_cat_pipeline.py` for a worked example using ordinal encoder.
 
 *************
 Miscellaneous

@@ -104,7 +104,8 @@ def ranking_demo(args: argparse.Namespace) -> None:
     qid_test = qid_test[sorted_idx]
 
     ranker = xgb.XGBRanker(
-        tree_method="gpu_hist",
+        tree_method="hist",
+        device="cuda",
         lambdarank_pair_method="topk",
         lambdarank_num_pair_per_sample=13,
         eval_metric=["ndcg@1", "ndcg@8"],
@@ -161,7 +162,8 @@ def click_data_demo(args: argparse.Namespace) -> None:
 
     ranker = xgb.XGBRanker(
         n_estimators=512,
-        tree_method="gpu_hist",
+        tree_method="hist",
+        device="cuda",
         learning_rate=0.01,
         reg_lambda=1.5,
         subsample=0.8,

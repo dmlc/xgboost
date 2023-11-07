@@ -104,7 +104,7 @@ class SparkExamplesTest extends AnyFunSuite with BeforeAndAfterAll {
 
   test("Smoke test for SparkMLlibPipeline example") {
     SparkMLlibPipeline.run(spark, pathToTestDataset.toString, "target/native-model",
-      "target/pipeline-model", "auto", 2)
+      "target/pipeline-model", "cpu", 2)
   }
 
   test("Smoke test for SparkTraining example") {
@@ -118,6 +118,6 @@ class SparkExamplesTest extends AnyFunSuite with BeforeAndAfterAll {
       .config("spark.task.cpus", 1)
       .getOrCreate()
 
-    SparkTraining.run(spark, pathToTestDataset.toString, "auto", 2)
+    SparkTraining.run(spark, pathToTestDataset.toString, "cpu", 2)
   }
 }

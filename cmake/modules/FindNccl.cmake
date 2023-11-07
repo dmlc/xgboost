@@ -35,28 +35,28 @@
 #
 # This module assumes that the user has already called find_package(CUDA)
 
-if (NCCL_LIBRARY)
+if(NCCL_LIBRARY)
   if(NOT USE_NCCL_LIB_PATH)
     # Don't cache NCCL_LIBRARY to enable switching between static and shared.
     unset(NCCL_LIBRARY CACHE)
-  endif(NOT USE_NCCL_LIB_PATH)
+  endif()
 endif()
 
-if (BUILD_WITH_SHARED_NCCL)
+if(BUILD_WITH_SHARED_NCCL)
   # libnccl.so
   set(NCCL_LIB_NAME nccl)
-else ()
+else()
   # libnccl_static.a
   set(NCCL_LIB_NAME nccl_static)
-endif (BUILD_WITH_SHARED_NCCL)
+endif()
 
 find_path(NCCL_INCLUDE_DIR
   NAMES nccl.h
-  PATHS $ENV{NCCL_ROOT}/include ${NCCL_ROOT}/include)
+  HINTS  ${NCCL_ROOT}/include $ENV{NCCL_ROOT}/include)
 
 find_library(NCCL_LIBRARY
   NAMES ${NCCL_LIB_NAME}
-  PATHS $ENV{NCCL_ROOT}/lib/ ${NCCL_ROOT}/lib)
+  HINTS ${NCCL_ROOT}/lib $ENV{NCCL_ROOT}/lib/)
 
 message(STATUS "Using nccl library: ${NCCL_LIBRARY}")
 

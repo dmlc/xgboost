@@ -153,7 +153,7 @@ class JsonTypedArray : public Value {
   using Type = T;
 
   JsonTypedArray() : Value(kind) {}
-  explicit JsonTypedArray(size_t n) : Value(kind) { vec_.resize(n); }
+  explicit JsonTypedArray(std::size_t n) : Value(kind) { vec_.resize(n); }
   JsonTypedArray(JsonTypedArray&& that) noexcept : Value{kind}, vec_{std::move(that.vec_)} {}
 
   bool operator==(Value const& rhs) const override;
@@ -171,21 +171,21 @@ class JsonTypedArray : public Value {
 };
 
 /**
- * \brief Typed UBJSON array for 32-bit floating point.
+ * @brief Typed UBJSON array for 32-bit floating point.
  */
 using F32Array = JsonTypedArray<float, Value::ValueKind::kNumberArray>;
 /**
- * \brief Typed UBJSON array for uint8_t.
+ * @brief Typed UBJSON array for uint8_t.
  */
-using U8Array = JsonTypedArray<uint8_t, Value::ValueKind::kU8Array>;
+using U8Array = JsonTypedArray<std::uint8_t, Value::ValueKind::kU8Array>;
 /**
- * \brief Typed UBJSON array for int32_t.
+ * @brief Typed UBJSON array for int32_t.
  */
-using I32Array = JsonTypedArray<int32_t, Value::ValueKind::kI32Array>;
+using I32Array = JsonTypedArray<std::int32_t, Value::ValueKind::kI32Array>;
 /**
- * \brief Typed UBJSON array for int64_t.
+ * @brief Typed UBJSON array for int64_t.
  */
-using I64Array = JsonTypedArray<int64_t, Value::ValueKind::kI64Array>;
+using I64Array = JsonTypedArray<std::int64_t, Value::ValueKind::kI64Array>;
 
 class JsonObject : public Value {
  public:
@@ -371,6 +371,19 @@ class Json {
   static void Dump(Json json, std::vector<char>* out, std::ios::openmode mode = std::ios::out);
   /*! \brief Use your own JsonWriter. */
   static void Dump(Json json, JsonWriter* writer);
+
+  template <typename Container = std::string>
+  static Container Dump(Json json) {
+    if constexpr (std::is_same_v<Container, std::string>) {
+      std::string str;
+      Dump(json, &str);
+      return str;
+    } else {
+      std::vector<char> str;
+      Dump(json, &str);
+      return str;
+    }
+  }
 
   Json() = default;
 
@@ -595,44 +608,6 @@ using Boolean = JsonBoolean;
 using String  = JsonString;
 using Null    = JsonNull;
 
-// Utils tailored for XGBoost.
-namespace detail {
-template <typename Head>
-bool TypeCheckImpl(Json const& value) {
-  return IsA<Head>(value);
-}
-
-template <typename Head, typename... JT>
-std::enable_if_t<sizeof...(JT) != 0, bool> TypeCheckImpl(Json const& value) {
-  return IsA<Head>(value) || TypeCheckImpl<JT...>(value);
-}
-
-template <typename Head>
-std::string TypeCheckError() {
-  return "`" + Head{}.TypeStr() + "`";
-}
-
-template <typename Head, typename... JT>
-std::enable_if_t<sizeof...(JT) != 0, std::string> TypeCheckError() {
-  return "`" + Head{}.TypeStr() + "`, " + TypeCheckError<JT...>();
-}
-}  // namespace detail
-
-/**
- * \brief Type check for JSON-based parameters
- *
- * \tparam JT    Expected JSON types.
- * \param  value Value to be checked.
- */
-template <typename... JT>
-void TypeCheck(Json const& value, StringView name) {
-  if (!detail::TypeCheckImpl<JT...>(value)) {
-    LOG(FATAL) << "Invalid type for: `" << name << "`, expecting one of the: {`"
-               << detail::TypeCheckError<JT...>() << "}, got: `" << value.GetValue().TypeStr()
-               << "`";
-  }
-}
-
 /**
  * \brief Convert XGBoost parameter to JSON object.
  *
@@ -664,11 +639,11 @@ Object ToJson(Parameter const& param) {
 template <typename Parameter>
 Args FromJson(Json const& obj, Parameter* param) {
   auto const& j_param = get<Object const>(obj);
-  std::map<std::string, std::string> m;
+  Args args;
   for (auto const& kv : j_param) {
-    m[kv.first] = get<String const>(kv.second);
+    args.emplace_back(kv.first, get<String const>(kv.second));
   }
-  return param->UpdateAllowUnknown(m);
+  return param->UpdateAllowUnknown(args);
 }
 }  // namespace xgboost
 #endif  // XGBOOST_JSON_H_

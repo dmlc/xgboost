@@ -31,16 +31,15 @@ def find_lib_path() -> List[str]:
     ]
 
     if sys.platform == "win32":
-        if platform.architecture()[0] == "64bit":
-            dll_path.append(os.path.join(curr_path, "../../windows/x64/Release/"))
-            # hack for pip installation when copy all parent source
-            # directory here
-            dll_path.append(os.path.join(curr_path, "./windows/x64/Release/"))
-        else:
-            dll_path.append(os.path.join(curr_path, "../../windows/Release/"))
-            # hack for pip installation when copy all parent source
-            # directory here
-            dll_path.append(os.path.join(curr_path, "./windows/Release/"))
+        # On Windows, Conda may install libs in different paths
+        dll_path.extend(
+            [
+                os.path.join(sys.base_prefix, "bin"),
+                os.path.join(sys.base_prefix, "Library"),
+                os.path.join(sys.base_prefix, "Library", "bin"),
+                os.path.join(sys.base_prefix, "Library", "lib"),
+            ]
+        )
         dll_path = [os.path.join(p, "xgboost.dll") for p in dll_path]
     elif sys.platform.startswith(("linux", "freebsd", "emscripten")):
         dll_path = [os.path.join(p, "libxgboost.so") for p in dll_path]

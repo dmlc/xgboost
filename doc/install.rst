@@ -3,10 +3,10 @@ Installation Guide
 ##################
 
 XGBoost provides binary packages for some language bindings.  The binary packages support
-the GPU algorithm (``gpu_hist``) on machines with NVIDIA GPUs. Please note that **training
-with multiple GPUs is only supported for Linux platform**. See :doc:`gpu/index`.  Also we
-have both stable releases and nightly builds, see below for how to install them.  For
-building from source, visit :doc:`this page </build>`.
+the GPU algorithm (``device=cuda:0``) on machines with NVIDIA GPUs. Please note that
+**training with multiple GPUs is only supported for Linux platform**. See
+:doc:`gpu/index`.  Also we have both stable releases and nightly builds, see below for how
+to install them.  For building from source, visit :doc:`this page </build>`.
 
 .. contents:: Contents
 
@@ -189,7 +189,7 @@ This will check out the latest stable version from the Maven Central.
 
 For the latest release version number, please check `release page <https://github.com/dmlc/xgboost/releases>`_.
 
-To enable the GPU algorithm (``tree_method='gpu_hist'``), use artifacts ``xgboost4j-gpu_2.12`` and ``xgboost4j-spark-gpu_2.12`` instead (note the ``gpu`` suffix).
+To enable the GPU algorithm (``device='cuda'``), use artifacts ``xgboost4j-gpu_2.12`` and ``xgboost4j-spark-gpu_2.12`` instead (note the ``gpu`` suffix).
 
 
 .. note:: Windows not supported in the JVM package
@@ -325,4 +325,4 @@ The SNAPSHOT JARs are hosted by the XGBoost project. Every commit in the ``maste
 
 You can browse the file listing of the Maven repository at https://s3-us-west-2.amazonaws.com/xgboost-maven-repo/list.html.
 
-To enable the GPU algorithm (``tree_method='gpu_hist'``), use artifacts ``xgboost4j-gpu_2.12`` and ``xgboost4j-spark-gpu_2.12`` instead (note the ``gpu`` suffix).
+To enable the GPU algorithm (``device='cuda'``), use artifacts ``xgboost4j-gpu_2.12`` and ``xgboost4j-spark-gpu_2.12`` instead (note the ``gpu`` suffix).

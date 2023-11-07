@@ -171,6 +171,7 @@ test_that("SHAPs sum to predictions, with or without DART", {
     fit <- xgboost(
       params = c(
         list(
+          nthread = 2,
           booster = booster,
           objective = "reg:squarederror",
           eval_metric = "rmse"),
@@ -189,7 +190,7 @@ test_that("SHAPs sum to predictions, with or without DART", {
     tol <- 1e-5
 
     expect_equal(rowSums(shap), pred, tol = tol)
-    expect_equal(apply(shapi, 1, sum), pred, tol = tol)
+    expect_equal(rowSums(shapi), pred, tol = tol)
     for (i in seq_len(nrow(d)))
       for (f in list(rowSums, colSums))
         expect_equal(f(shapi[i, , ]), shap[i, ], tol = tol)
@@ -257,7 +258,7 @@ test_that("xgb.Booster serializing as R object works", {
   .skip_if_vcd_not_available()
   saveRDS(bst.Tree, 'xgb.model.rds')
   bst <- readRDS('xgb.model.rds')
-  dtrain <- xgb.DMatrix(sparse_matrix, label = label)
+  dtrain <- xgb.DMatrix(sparse_matrix, label = label, nthread = 2)
   expect_equal(predict(bst.Tree, dtrain), predict(bst, dtrain), tolerance = float_tolerance)
   expect_equal(xgb.dump(bst.Tree), xgb.dump(bst))
   xgb.save(bst, 'xgb.model')
@@ -363,7 +364,8 @@ test_that("xgb.importance works with and without feature names", {
     data = as.matrix(data.frame(x = c(0, 1))),
     label = c(1, 2),
     nrounds = 1,
-    base_score = 0.5
+    base_score = 0.5,
+    nthread = 2
   )
   df <- xgb.model.dt.tree(model = m)
   expect_equal(df$Feature, "Leaf")
@@ -379,6 +381,9 @@ test_that("xgb.importance works with GLM model", {
   imp2plot <- xgb.plot.importance(importance.GLM)
   expect_equal(colnames(imp2plot), c("Feature", "Weight", "Importance"))
   xgb.ggplot.importance(importance.GLM)
+
+  # check that the input is not modified in-place
+  expect_false("Importance" %in% names(importance.GLM))
 
   # for multiclass
   imp.GLM <- xgb.importance(model = mbst.GLM)
@@ -396,6 +401,16 @@ test_that("xgb.model.dt.tree and xgb.importance work with a single split model",
   expect_error(imp <- xgb.importance(model = bst1), regexp = NA) # no error
   expect_equal(nrow(imp), 1)
   expect_equal(imp$Gain, 1)
+})
+
+test_that("xgb.plot.importance de-duplicates features", {
+  importances <- data.table(
+    Feature = c("col1", "col2", "col2"),
+    Gain = c(0.4, 0.3, 0.3)
+  )
+  imp2plot <- xgb.plot.importance(importances)
+  expect_equal(nrow(imp2plot), 2L)
+  expect_equal(imp2plot$Feature, c("col2", "col1"))
 })
 
 test_that("xgb.plot.tree works with and without feature names", {

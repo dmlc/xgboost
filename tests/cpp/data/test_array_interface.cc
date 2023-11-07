@@ -22,7 +22,7 @@ TEST(ArrayInterface, Initialize) {
 
   HostDeviceVector<size_t> u64_storage(storage.Size());
   std::string u64_arr_str{ArrayInterfaceStr(linalg::TensorView<size_t const, 2>{
-      u64_storage.ConstHostSpan(), {kRows, kCols}, Context::kCpuId})};
+      u64_storage.ConstHostSpan(), {kRows, kCols}, DeviceOrd::CPU()})};
   std::copy(storage.ConstHostVector().cbegin(), storage.ConstHostVector().cend(),
             u64_storage.HostSpan().begin());
   auto u64_arr = ArrayInterface<2>{u64_arr_str};

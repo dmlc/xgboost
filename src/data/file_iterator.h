@@ -4,46 +4,20 @@
 #ifndef XGBOOST_DATA_FILE_ITERATOR_H_
 #define XGBOOST_DATA_FILE_ITERATOR_H_
 
-#include <map>
-#include <memory>
-#include <string>
-#include <utility>
-#include <vector>
+#include <algorithm>  // for max_element
+#include <cstddef>    // for size_t
+#include <cstdint>    // for uint32_t
+#include <memory>     // for unique_ptr
+#include <string>     // for string
+#include <utility>    // for move
 
-#include "array_interface.h"
-#include "dmlc/data.h"
-#include "xgboost/c_api.h"
-#include "xgboost/json.h"
-#include "xgboost/linalg.h"
+#include "dmlc/data.h"        // for RowBlock, Parser
+#include "xgboost/c_api.h"    // for XGDMatrixSetDenseInfo, XGDMatrixFree, XGProxyDMatrixCreate
+#include "xgboost/linalg.h"   // for ArrayInterfaceStr, MakeVec
+#include "xgboost/logging.h"  // for CHECK
 
-namespace xgboost {
-namespace data {
-inline void ValidateFileFormat(std::string const& uri) {
-  std::vector<std::string> name_cache = common::Split(uri, '#');
-  CHECK_LE(name_cache.size(), 2)
-      << "Only one `#` is allowed in file path for cachefile specification";
-
-  std::vector<std::string> name_args = common::Split(name_cache[0], '?');
-  CHECK_LE(name_args.size(), 2) << "only one `?` is allowed in file path.";
-
-  StringView msg{"URI parameter `format` is required for loading text data: filename?format=csv"};
-  CHECK_EQ(name_args.size(), 2) << msg;
-
-  std::map<std::string, std::string> args;
-  std::vector<std::string> arg_list = common::Split(name_args[1], '&');
-  for (size_t i = 0; i < arg_list.size(); ++i) {
-    std::istringstream is(arg_list[i]);
-    std::pair<std::string, std::string> kv;
-    CHECK(std::getline(is, kv.first, '=')) << "Invalid uri argument format"
-                                           << " for key in arg " << i + 1;
-    CHECK(std::getline(is, kv.second)) << "Invalid uri argument format"
-                                       << " for value in arg " << i + 1;
-    args.insert(kv);
-  }
-  if (args.find("format") == args.cend()) {
-    LOG(FATAL) << msg;
-  }
-}
+namespace xgboost::data {
+[[nodiscard]] std::string ValidateFileFormat(std::string const& uri);
 
 /**
  * An iterator for implementing external memory support with file inputs.  Users of
@@ -72,8 +46,7 @@ class FileIterator {
 
  public:
   FileIterator(std::string uri, unsigned part_index, unsigned num_parts)
-      : uri_{std::move(uri)}, part_idx_{part_index}, n_parts_{num_parts} {
-    ValidateFileFormat(uri_);
+      : uri_{ValidateFileFormat(std::move(uri))}, part_idx_{part_index}, n_parts_{num_parts} {
     XGProxyDMatrixCreate(&proxy_);
   }
   ~FileIterator() {
@@ -132,6 +105,5 @@ inline int Next(DataIterHandle self) {
   return static_cast<FileIterator*>(self)->Next();
 }
 }  // namespace fileiter
-}  // namespace data
-}  // namespace xgboost
+}  // namespace xgboost::data
 #endif  // XGBOOST_DATA_FILE_ITERATOR_H_

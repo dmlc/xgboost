@@ -10,6 +10,7 @@
 #include <cstddef>    // for size_t
 #include <cstdint>    // for int32_t
 #include <iterator>   // for iterator_traits
+#include <numeric>    // for accumulate
 #include <vector>
 
 #include "common.h"                      // AssertGPUSupport

@@ -76,9 +76,7 @@ def softprob_obj(predt: np.ndarray, data: xgb.DMatrix):
             grad[r, c] = g
             hess[r, c] = h
 
-    # Right now (XGBoost 1.0.0), reshaping is necessary
-    grad = grad.reshape((kRows * kClasses, 1))
-    hess = hess.reshape((kRows * kClasses, 1))
+    # After 2.1.0, pass the gradient as it is.
     return grad, hess
 
 

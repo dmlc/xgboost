@@ -8,10 +8,11 @@
 #include <xgboost/learner.h>
 #include <xgboost/version_config.h>
 
-#include <array>    // for array
-#include <cstddef>  // std::size_t
-#include <limits>   // std::numeric_limits
-#include <string>   // std::string
+#include <array>      // for array
+#include <cstddef>    // std::size_t
+#include <filesystem> // std::filesystem
+#include <limits>     // std::numeric_limits
+#include <string>     // std::string
 #include <vector>
 
 #include "../../../src/c_api/c_api_error.h"
@@ -107,6 +108,7 @@ TEST(CAPI, XGDMatrixCreateFromCSR) {
   Json::Dump(data_arr, &sdata);
   Json config{Object{}};
   config["missing"] = Number{std::numeric_limits<float>::quiet_NaN()};
+  config["data_split_mode"] = Integer{static_cast<int64_t>(DataSplitMode::kCol)};
   Json::Dump(config, &sconfig);
 
   DMatrixHandle handle;
@@ -119,6 +121,8 @@ TEST(CAPI, XGDMatrixCreateFromCSR) {
   ASSERT_EQ(n, 3);
   ASSERT_EQ(XGDMatrixNumNonMissing(handle, &n), 0);
   ASSERT_EQ(n, 3);
+  ASSERT_EQ(XGDMatrixDataSplitMode(handle, &n), 0);
+  ASSERT_EQ(n, static_cast<int64_t>(DataSplitMode::kCol));
 
   std::shared_ptr<xgboost::DMatrix> *pp_fmat =
       static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
@@ -162,7 +166,7 @@ TEST(CAPI, ConfigIO) {
 TEST(CAPI, JsonModelIO) {
   size_t constexpr kRows = 10;
   size_t constexpr kCols = 10;
-  dmlc::TemporaryDirectory tempdir;
+  auto tempdir = std::filesystem::temp_directory_path();
 
   auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
   std::vector<std::shared_ptr<DMatrix>> mat {p_dmat};
@@ -178,19 +182,19 @@ TEST(CAPI, JsonModelIO) {
   learner->UpdateOneIter(0, p_dmat);
   BoosterHandle handle = learner.get();
 
-  std::string modelfile_0 = tempdir.path + "/model_0.json";
-  XGBoosterSaveModel(handle, modelfile_0.c_str());
-  XGBoosterLoadModel(handle, modelfile_0.c_str());
+  auto modelfile_0 = tempdir / std::filesystem::u8path(u8"모델_0.json");
+  XGBoosterSaveModel(handle, modelfile_0.u8string().c_str());
+  XGBoosterLoadModel(handle, modelfile_0.u8string().c_str());
 
   bst_ulong num_feature {0};
   ASSERT_EQ(XGBoosterGetNumFeature(handle, &num_feature), 0);
   ASSERT_EQ(num_feature, kCols);
 
-  std::string modelfile_1 = tempdir.path + "/model_1.json";
-  XGBoosterSaveModel(handle, modelfile_1.c_str());
+  auto modelfile_1 = tempdir / "model_1.json";
+  XGBoosterSaveModel(handle, modelfile_1.u8string().c_str());
 
-  auto model_str_0 = common::LoadSequentialFile(modelfile_0);
-  auto model_str_1 = common::LoadSequentialFile(modelfile_1);
+  auto model_str_0 = common::LoadSequentialFile(modelfile_0.u8string());
+  auto model_str_1 = common::LoadSequentialFile(modelfile_1.u8string());
 
   ASSERT_EQ(model_str_0.front(), '{');
   ASSERT_EQ(model_str_0, model_str_1);
@@ -215,8 +219,8 @@ TEST(CAPI, JsonModelIO) {
 
   std::string buffer;
   Json::Dump(Json::Load(l, std::ios::binary), &buffer);
-  ASSERT_EQ(model_str_0.size() - 1, buffer.size());
-  ASSERT_EQ(model_str_0.back(), '\0');
+  ASSERT_EQ(model_str_0.size(), buffer.size());
+  ASSERT_EQ(model_str_0.back(), '}');
   ASSERT_TRUE(std::equal(model_str_0.begin(), model_str_0.end() - 1, buffer.begin()));
 
   ASSERT_EQ(XGBoosterSaveModelToBuffer(handle, R"({})", &len, &data), -1);
@@ -564,7 +568,7 @@ void TestXGDMatrixGetQuantileCut(Context const *ctx) {
     ASSERT_EQ(XGBoosterCreate(mats.data(), 1, &booster), 0);
     ASSERT_EQ(XGBoosterSetParam(booster, "max_bin", "16"), 0);
     if (ctx->IsCUDA()) {
-      ASSERT_EQ(XGBoosterSetParam(booster, "tree_method", "gpu_hist"), 0);
+      ASSERT_EQ(XGBoosterSetParam(booster, "device", ctx->DeviceName().c_str()), 0);
     }
     ASSERT_EQ(XGBoosterUpdateOneIter(booster, 0, p_fmat), 0);
     ASSERT_EQ(XGDMatrixGetQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), 0);
@@ -595,7 +599,7 @@ void TestXGDMatrixGetQuantileCut(Context const *ctx) {
     ASSERT_EQ(XGBoosterCreate(mats.data(), 1, &booster), 0);
     ASSERT_EQ(XGBoosterSetParam(booster, "max_bin", "16"), 0);
     if (ctx->IsCUDA()) {
-      ASSERT_EQ(XGBoosterSetParam(booster, "tree_method", "gpu_hist"), 0);
+      ASSERT_EQ(XGBoosterSetParam(booster, "device", ctx->DeviceName().c_str()), 0);
     }
     ASSERT_EQ(XGBoosterUpdateOneIter(booster, 0, p_fmat), 0);
     ASSERT_EQ(XGDMatrixGetQuantileCut(p_fmat, s_config.c_str(), &out_indptr, &out_data), 0);

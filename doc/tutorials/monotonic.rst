@@ -83,13 +83,14 @@ Some other examples:
 - ``(0,-1)``: No constraint on the first predictor and a decreasing constraint on the second.
 
 
-**Note for the 'hist' tree construction algorithm**.
-If ``tree_method`` is set to either ``hist``, ``approx`` or ``gpu_hist``, enabling
-monotonic constraints may produce unnecessarily shallow trees. This is because the
-``hist`` method reduces the number of candidate splits to be considered at each
-split. Monotonic constraints may wipe out all available split candidates, in which case no
-split is made. To reduce the effect, you may want to increase the ``max_bin`` parameter to
-consider more split candidates.
+.. note::
+
+   **Note for the 'hist' tree construction algorithm**.  If ``tree_method`` is set to
+   either ``hist`` or ``approx``, enabling monotonic constraints may produce unnecessarily
+   shallow trees. This is because the ``hist`` method reduces the number of candidate
+   splits to be considered at each split. Monotonic constraints may wipe out all available
+   split candidates, in which case no split is made. To reduce the effect, you may want to
+   increase the ``max_bin`` parameter to consider more split candidates.
 
 
 *******************

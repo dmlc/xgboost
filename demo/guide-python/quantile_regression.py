@@ -7,6 +7,11 @@ Quantile Regression
 The script is inspired by this awesome example in sklearn:
 https://scikit-learn.org/stable/auto_examples/ensemble/plot_gradient_boosting_quantile.html
 
+.. note::
+
+    The feature is only supported using the Python package. In addition, quantile
+    crossing can happen due to limitation in the algorithm.
+
 """
 import argparse
 from typing import Dict

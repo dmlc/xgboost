@@ -106,7 +106,7 @@ Please send pull requests if you find ones that are missing here.
 - Prarthana Bhat, 2nd place winner in [DYD Competition](https://datahack.analyticsvidhya.com/contest/date-your-data/). Link to [Solution](https://github.com/analyticsvidhya/DateYourData/blob/master/Prathna_Bhat_Model.R).
 
 ## Talks
-- [XGBoost: A Scalable Tree Boosting System](http://datascience.la/xgboost-workshop-and-meetup-talk-with-tianqi-chen/) (video+slides) by Tianqi Chen at the Los Angeles Data Science meetup
+- XGBoost: A Scalable Tree Boosting System ([video] (https://www.youtube.com/watch?v=Vly8xGnNiWs) + [slides](https://speakerdeck.com/datasciencela/tianqi-chen-xgboost-overview-and-latest-news-la-meetup-talk)) by Tianqi Chen at the Los Angeles Data Science meetup
 
 ## Tutorials
 
@@ -145,7 +145,7 @@ Send a PR to add a one sentence description:)
 ## Tools using XGBoost
 
 - [BayesBoost](https://github.com/mpearmain/BayesBoost) - Bayesian Optimization using xgboost and sklearn API
-- [FLAML](https://github.com/microsoft/FLAML) - An open source AutoML library 
+- [FLAML](https://github.com/microsoft/FLAML) - An open source AutoML library
 designed to automatically produce accurate machine learning models with low computational cost. FLAML includes [XGBoost as one of the default learners](https://github.com/microsoft/FLAML/blob/main/flaml/model.py) and can also be used as a fast hyperparameter tuning tool for XGBoost ([code example](https://microsoft.github.io/FLAML/docs/Examples/AutoML-for-XGBoost)).
 - [gp_xgboost_gridsearch](https://github.com/vatsan/gp_xgboost_gridsearch) - In-database parallel grid-search for XGBoost on [Greenplum](https://github.com/greenplum-db/gpdb) using PL/Python
 - [tpot](https://github.com/rhiever/tpot) - A Python tool that automatically creates and optimizes machine learning pipelines using genetic programming.

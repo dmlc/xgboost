@@ -401,7 +401,7 @@ struct SplitEntryContainer {
   /*! \brief split index */
   bst_feature_t sindex{0};
   bst_float split_value{0.0f};
-  std::vector<uint32_t> cat_bits;
+  std::vector<std::uint32_t> cat_bits;
   bool is_cat{false};
 
   GradientT left_sum;
@@ -526,7 +526,7 @@ struct SplitEntryContainer {
    * \return whether the proposed split is better and can replace current split
    */
   template <typename GradientSumT>
-  bool Update(bst_float new_loss_chg, unsigned split_index, bst_float new_split_value,
+  bool Update(bst_float new_loss_chg, bst_feature_t split_index, float new_split_value,
               bool default_left, bool is_cat, GradientSumT const &left_sum,
               GradientSumT const &right_sum) {
     if (this->NeedReplace(new_loss_chg, split_index)) {

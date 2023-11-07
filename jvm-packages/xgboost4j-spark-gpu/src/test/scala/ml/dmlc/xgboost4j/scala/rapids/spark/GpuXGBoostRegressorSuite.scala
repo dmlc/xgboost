@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2021-2022 by Contributors
+ Copyright (c) 2021-2023 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ class GpuXGBoostRegressorSuite extends GpuTestSuite {
   test("The transform result should be same for several runs on same model") {
     withGpuSparkSession(enableCsvConf()) { spark =>
       val xgbParam = Map("eta" -> 0.1f, "max_depth" -> 2, "objective" -> "reg:squarederror",
-        "num_round" -> 10, "num_workers" -> 1, "tree_method" -> "gpu_hist",
+        "num_round" -> 10, "num_workers" -> 1, "tree_method" -> "hist", "device" -> "cuda",
         "features_cols" -> featureNames, "label_col" -> labelName)
       val Array(originalDf, testDf) = spark.read.option("header", "true").schema(schema)
         .csv(getResourcePath("/rank.train.csv")).randomSplit(Array(0.7, 0.3), seed = 1)
@@ -54,10 +54,30 @@ class GpuXGBoostRegressorSuite extends GpuTestSuite {
     }
   }
 
+  test("Tree method gpu_hist still works") {
+    withGpuSparkSession(enableCsvConf()) { spark =>
+      val params = Map(
+        "tree_method" -> "gpu_hist",
+        "features_cols" -> featureNames,
+        "label_col" -> labelName,
+        "num_round" -> 10,
+        "num_workers" -> 1
+      )
+      val Array(originalDf, testDf) = spark.read.option("header", "true").schema(schema)
+        .csv(getResourcePath("/rank.train.csv")).randomSplit(Array(0.7, 0.3), seed = 1)
+      // Get a model
+      val model = new XGBoostRegressor(params).fit(originalDf)
+      val left = model.transform(testDf).collect()
+      val right = model.transform(testDf).collect()
+      // The left should be same with right
+      assert(compareResults(true, 0.000001, left, right))
+    }
+  }
+
   test("use weight") {
     withGpuSparkSession(enableCsvConf()) { spark =>
       val xgbParam = Map("eta" -> 0.1f, "max_depth" -> 2, "objective" -> "reg:squarederror",
-        "num_round" -> 10, "num_workers" -> 1, "tree_method" -> "gpu_hist",
+        "num_round" -> 10, "num_workers" -> 1, "tree_method" -> "hist", "device" -> "cuda",
         "features_cols" -> featureNames, "label_col" -> labelName)
       val Array(originalDf, testDf) = spark.read.option("header", "true").schema(schema)
         .csv(getResourcePath("/rank.train.csv")).randomSplit(Array(0.7, 0.3), seed = 1)
@@ -88,7 +108,8 @@ class GpuXGBoostRegressorSuite extends GpuTestSuite {
       val classifier = new XGBoostRegressor(xgbParam)
         .setFeaturesCol(featureNames)
         .setLabelCol(labelName)
-        .setTreeMethod("gpu_hist")
+        .setTreeMethod("hist")
+        .setDevice("cuda")
       (classifier.fit(rawInput), testDf)
     }
 
@@ -175,7 +196,7 @@ class GpuXGBoostRegressorSuite extends GpuTestSuite {
       val classifier = new XGBoostRegressor(xgbParam)
         .setFeaturesCol(featureNames)
         .setLabelCol(labelName)
-        .setTreeMethod("gpu_hist")
+        .setDevice("cuda")
       classifier.fit(rawInput)
     }
 
@@ -234,5 +255,4 @@ class GpuXGBoostRegressorSuite extends GpuTestSuite {
       assert(testDf.count() === ret.length)
     }
   }
-
 }

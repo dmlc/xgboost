@@ -1,5 +1,5 @@
-/*!
- * Copyright 2022-2023 XGBoost contributors
+/**
+ * Copyright 2022-2023, XGBoost contributors
  */
 #pragma once
 
@@ -23,10 +23,10 @@ class ServerForTest {
   std::unique_ptr<grpc::Server> server_;
 
  public:
-  explicit ServerForTest(std::int32_t world_size) {
+  explicit ServerForTest(std::size_t world_size) {
     server_thread_.reset(new std::thread([this, world_size] {
       grpc::ServerBuilder builder;
-      xgboost::federated::FederatedService service{world_size};
+      xgboost::federated::FederatedService service{static_cast<std::int32_t>(world_size)};
       int selected_port;
       builder.AddListeningPort("localhost:0", grpc::InsecureServerCredentials(), &selected_port);
       builder.RegisterService(&service);

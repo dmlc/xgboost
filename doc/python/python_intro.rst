@@ -172,9 +172,8 @@ Support Matrix
 +-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
 | modin.Series            | NPA       | FF                | NPA       | NPA       | FF                 |             |
 +-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
-| pyarrow.Table           | T         | F                 |           | NPA       | FF                 |             |
+| pyarrow.Table           | NPA       | NPA               | NPA       | NPA       | NPA                | NPA         |
 +-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
-| pyarrow.dataset.Dataset | T         | F                 |           |           | F                  |             |
 +-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
 | _\_array\_\_            | NPA       | F                 | NPA       | NPA       | H                  |             |
 +-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
@@ -310,8 +309,8 @@ for more info.
 
 .. code-block:: python
 
-  # Use "gpu_hist" for training the model.
-  reg = xgb.XGBRegressor(tree_method="gpu_hist")
+  # Use "hist" for training the model.
+  reg = xgb.XGBRegressor(tree_method="hist", device="cuda")
   # Fit the model using predictor X and response y.
   reg.fit(X, y)
   # Save model into JSON format.

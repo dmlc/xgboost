@@ -4,42 +4,57 @@
  */
 #include "xgboost/data.h"
 
-#include <dmlc/registry.h>
+#include <dmlc/registry.h>  // for DMLC_REGISTRY_ENABLE, DMLC_REGISTRY_LINK_TAG
 
-#include <array>
-#include <cstddef>
-#include <cstring>
+#include <algorithm>    // for copy, max, none_of, min
+#include <atomic>       // for atomic
+#include <cmath>        // for abs
+#include <cstdint>      // for uint64_t, int32_t, uint8_t, uint32_t
+#include <cstring>      // for size_t, strcmp, memcpy
+#include <exception>    // for exception
+#include <iostream>     // for operator<<, basic_ostream, basic_ostream::op...
+#include <map>          // for map, operator!=
+#include <numeric>      // for accumulate, partial_sum
+#include <tuple>        // for get, apply
+#include <type_traits>  // for remove_pointer_t, remove_reference
 
-#include "../collective/communicator-inl.h"
-#include "../collective/communicator.h"
-#include "../common/algorithm.h"  // for StableSort
-#include "../common/api_entry.h"  // for XGBAPIThreadLocalEntry
-#include "../common/common.h"
-#include "../common/error_msg.h"  // for InfInData, GroupWeight, GroupSize
-#include "../common/group_data.h"
-#include "../common/io.h"
-#include "../common/linalg_op.h"
-#include "../common/math.h"
-#include "../common/numeric.h"  // for Iota
-#include "../common/threading_utils.h"
-#include "../common/version.h"
-#include "../data/adapter.h"
-#include "../data/iterative_dmatrix.h"
-#include "./sparse_page_dmatrix.h"
-#include "./sparse_page_source.h"
-#include "dmlc/io.h"
-#include "file_iterator.h"
-#include "simple_dmatrix.h"
-#include "sparse_page_writer.h"
-#include "validation.h"
-#include "xgboost/c_api.h"
-#include "xgboost/context.h"
-#include "xgboost/host_device_vector.h"
-#include "xgboost/learner.h"
-#include "xgboost/linalg.h"  // Vector
-#include "xgboost/logging.h"
-#include "xgboost/string_view.h"
-#include "xgboost/version_config.h"
+#include "../collective/communicator-inl.h"  // for GetRank, GetWorldSize, Allreduce, IsFederated
+#include "../collective/communicator.h"      // for Operation
+#include "../common/algorithm.h"             // for StableSort
+#include "../common/api_entry.h"             // for XGBAPIThreadLocalEntry
+#include "../common/common.h"                // for Split
+#include "../common/error_msg.h"             // for GroupSize, GroupWeight, InfInData
+#include "../common/group_data.h"            // for ParallelGroupBuilder
+#include "../common/io.h"                    // for PeekableInStream
+#include "../common/linalg_op.h"             // for ElementWiseTransformHost
+#include "../common/math.h"                  // for CheckNAN
+#include "../common/numeric.h"               // for Iota, RunLengthEncode
+#include "../common/threading_utils.h"       // for ParallelFor
+#include "../common/version.h"               // for Version
+#include "../data/adapter.h"                 // for COOTuple, FileAdapter, IsValidFunctor
+#include "../data/iterative_dmatrix.h"       // for IterativeDMatrix
+#include "./sparse_page_dmatrix.h"           // for SparsePageDMatrix
+#include "array_interface.h"                 // for ArrayInterfaceHandler, ArrayInterface, Dispa...
+#include "dmlc/base.h"                       // for BeginPtr
+#include "dmlc/common.h"                     // for OMPException
+#include "dmlc/data.h"                       // for Parser
+#include "dmlc/endian.h"                     // for ByteSwap, DMLC_IO_NO_ENDIAN_SWAP
+#include "dmlc/io.h"                         // for Stream
+#include "dmlc/thread_local.h"               // for ThreadLocalStore
+#include "ellpack_page.h"                    // for EllpackPage
+#include "file_iterator.h"                   // for ValidateFileFormat, FileIterator, Next, Reset
+#include "gradient_index.h"                  // for GHistIndexMatrix
+#include "simple_dmatrix.h"                  // for SimpleDMatrix
+#include "sparse_page_writer.h"              // for SparsePageFormatReg
+#include "validation.h"                      // for LabelsCheck, WeightsCheck, ValidateQueryGroup
+#include "xgboost/base.h"                    // for bst_group_t, bst_row_t, bst_float, bst_ulong
+#include "xgboost/context.h"                 // for Context
+#include "xgboost/host_device_vector.h"      // for HostDeviceVector
+#include "xgboost/learner.h"                 // for HostDeviceVector
+#include "xgboost/linalg.h"                  // for Tensor, Stack, TensorView, Vector, ArrayInte...
+#include "xgboost/logging.h"                 // for Error, LogCheck_EQ, CHECK, CHECK_EQ, LOG
+#include "xgboost/span.h"                    // for Span, operator!=, SpanIterator
+#include "xgboost/string_view.h"             // for operator==, operator<<, StringView
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::data::SparsePageFormatReg<::xgboost::SparsePage>);
@@ -351,7 +366,7 @@ MetaInfo MetaInfo::Slice(common::Span<int32_t const> ridxs) const {
   // Groups is maintained by a higher level Python function.  We should aim at deprecating
   // the slice function.
   if (this->labels.Size() != this->num_row_) {
-    auto t_labels = this->labels.View(this->labels.Data()->DeviceIdx());
+    auto t_labels = this->labels.View(this->labels.Data()->Device());
     out.labels.Reshape(ridxs.size(), labels.Shape(1));
     out.labels.Data()->HostVector() =
         Gather(this->labels.Data()->HostVector(), ridxs, t_labels.Stride(0));
@@ -379,7 +394,7 @@ MetaInfo MetaInfo::Slice(common::Span<int32_t const> ridxs) const {
   if (this->base_margin_.Size() != this->num_row_) {
     CHECK_EQ(this->base_margin_.Size() % this->num_row_, 0)
         << "Incorrect size of base margin vector.";
-    auto t_margin = this->base_margin_.View(this->base_margin_.Data()->DeviceIdx());
+    auto t_margin = this->base_margin_.View(this->base_margin_.Data()->Device());
     out.base_margin_.Reshape(ridxs.size(), t_margin.Shape(1));
     out.base_margin_.Data()->HostVector() =
         Gather(this->base_margin_.Data()->HostVector(), ridxs, t_margin.Stride(0));
@@ -430,10 +445,10 @@ void CopyTensorInfoImpl(Context const& ctx, Json arr_interface, linalg::Tensor<T
     return;
   }
   p_out->Reshape(array.shape);
-  auto t_out = p_out->View(Context::kCpuId);
+  auto t_out = p_out->View(DeviceOrd::CPU());
   CHECK(t_out.CContiguous());
   auto const shape = t_out.Shape();
-  DispatchDType(array, Context::kCpuId, [&](auto&& in) {
+  DispatchDType(array, DeviceOrd::CPU(), [&](auto&& in) {
     linalg::ElementWiseTransformHost(t_out, ctx.Threads(), [&](auto i, auto) {
       return std::apply(in, linalg::UnravelIndex<D>(i, shape));
     });
@@ -549,7 +564,7 @@ void MetaInfo::SetInfo(Context const& ctx, const char* key, const void* dptr, Da
   CHECK(key);
   auto proc = [&](auto cast_d_ptr) {
     using T = std::remove_pointer_t<decltype(cast_d_ptr)>;
-    auto t = linalg::TensorView<T, 1>(common::Span<T>{cast_d_ptr, num}, {num}, Context::kCpuId);
+    auto t = linalg::TensorView<T, 1>(common::Span<T>{cast_d_ptr, num}, {num}, DeviceOrd::CPU());
     CHECK(t.CContiguous());
     Json interface {
       linalg::ArrayInterface(t)
@@ -620,22 +635,39 @@ void MetaInfo::GetInfo(char const* key, bst_ulong* out_len, DataType dtype,
 }
 
 void MetaInfo::SetFeatureInfo(const char* key, const char **info, const bst_ulong size) {
-  if (size != 0 && this->num_col_ != 0) {
+  if (size != 0 && this->num_col_ != 0 && !IsColumnSplit()) {
     CHECK_EQ(size, this->num_col_) << "Length of " << key << " must be equal to number of columns.";
     CHECK(info);
   }
   if (!std::strcmp(key, "feature_type")) {
     feature_type_names.clear();
-    auto& h_feature_types = feature_types.HostVector();
     for (size_t i = 0; i < size; ++i) {
       auto elem = info[i];
       feature_type_names.emplace_back(elem);
     }
+    if (IsColumnSplit()) {
+      feature_type_names = collective::AllgatherStrings(feature_type_names);
+      CHECK_EQ(feature_type_names.size(), num_col_)
+          << "Length of " << key << " must be equal to number of columns.";
+    }
+    auto& h_feature_types = feature_types.HostVector();
     LoadFeatureType(feature_type_names, &h_feature_types);
   } else if (!std::strcmp(key, "feature_name")) {
-    feature_names.clear();
-    for (size_t i = 0; i < size; ++i) {
-      feature_names.emplace_back(info[i]);
+    if (IsColumnSplit()) {
+      std::vector<std::string> local_feature_names{};
+      auto const rank = collective::GetRank();
+      for (std::size_t i = 0; i < size; ++i) {
+        auto elem = std::to_string(rank) + "." + info[i];
+        local_feature_names.emplace_back(elem);
+      }
+      feature_names = collective::AllgatherStrings(local_feature_names);
+      CHECK_EQ(feature_names.size(), num_col_)
+        << "Length of " << key << " must be equal to number of columns.";
+    } else {
+      feature_names.clear();
+      for (size_t i = 0; i < size; ++i) {
+        feature_names.emplace_back(info[i]);
+      }
     }
   } else {
     LOG(FATAL) << "Unknown feature info name: " << key;
@@ -672,13 +704,13 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_col
 
   linalg::Stack(&this->labels, that.labels);
 
-  this->weights_.SetDevice(that.weights_.DeviceIdx());
+  this->weights_.SetDevice(that.weights_.Device());
   this->weights_.Extend(that.weights_);
 
-  this->labels_lower_bound_.SetDevice(that.labels_lower_bound_.DeviceIdx());
+  this->labels_lower_bound_.SetDevice(that.labels_lower_bound_.Device());
   this->labels_lower_bound_.Extend(that.labels_lower_bound_);
 
-  this->labels_upper_bound_.SetDevice(that.labels_upper_bound_.DeviceIdx());
+  this->labels_upper_bound_.SetDevice(that.labels_upper_bound_.Device());
   this->labels_upper_bound_.Extend(that.labels_upper_bound_);
 
   linalg::Stack(&this->base_margin_, that.base_margin_);
@@ -708,13 +740,13 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_col
   }
   if (!that.feature_weights.Empty()) {
     this->feature_weights.Resize(that.feature_weights.Size());
-    this->feature_weights.SetDevice(that.feature_weights.DeviceIdx());
+    this->feature_weights.SetDevice(that.feature_weights.Device());
     this->feature_weights.Copy(that.feature_weights);
   }
 }
 
 void MetaInfo::SynchronizeNumberOfColumns() {
-  if (IsVerticalFederated()) {
+  if (IsColumnSplit()) {
     collective::Allreduce<collective::Operation::kSum>(&num_col_, 1);
   } else {
     collective::Allreduce<collective::Operation::kMax>(&num_col_, 1);
@@ -723,19 +755,22 @@ void MetaInfo::SynchronizeNumberOfColumns() {
 
 namespace {
 template <typename T>
-void CheckDevice(std::int32_t device, HostDeviceVector<T> const& v) {
-  CHECK(v.DeviceIdx() == Context::kCpuId || device == Context::kCpuId || v.DeviceIdx() == device)
-      << "Data is resided on a different device than `gpu_id`. "
-      << "Device that data is on: " << v.DeviceIdx() << ", "
-      << "`gpu_id` for XGBoost: " << device;
+void CheckDevice(DeviceOrd device, HostDeviceVector<T> const& v) {
+  bool valid = v.Device().IsCPU() || device.IsCPU() || v.Device() == device;
+  if (!valid) {
+    LOG(FATAL) << "Invalid device ordinal. Data is associated with a different device ordinal than "
+                  "the booster. The device ordinal of the data is: "
+               << v.Device() << "; the device ordinal of the Booster is: " << device;
+  }
 }
+
 template <typename T, std::int32_t D>
-void CheckDevice(std::int32_t device, linalg::Tensor<T, D> const& v) {
+void CheckDevice(DeviceOrd device, linalg::Tensor<T, D> const& v) {
   CheckDevice(device, *v.Data());
 }
 }  // anonymous namespace
 
-void MetaInfo::Validate(std::int32_t device) const {
+void MetaInfo::Validate(DeviceOrd device) const {
   if (group_ptr_.size() != 0 && weights_.Size() != 0) {
     CHECK_EQ(group_ptr_.size(), weights_.Size() + 1) << error::GroupWeight();
     return;
@@ -807,10 +842,10 @@ DMatrix::~DMatrix() {
   }
 }
 
-DMatrix *TryLoadBinary(std::string fname, bool silent) {
-  int magic;
-  std::unique_ptr<dmlc::Stream> fi(
-      dmlc::Stream::Create(fname.c_str(), "r", true));
+namespace {
+DMatrix* TryLoadBinary(std::string fname, bool silent) {
+  std::int32_t magic;
+  std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r", true));
   if (fi != nullptr) {
     common::PeekableInStream is(fi.get());
     if (is.PeekRead(&magic, sizeof(magic)) == sizeof(magic)) {
@@ -818,11 +853,10 @@ DMatrix *TryLoadBinary(std::string fname, bool silent) {
         dmlc::ByteSwap(&magic, sizeof(magic), 1);
       }
       if (magic == data::SimpleDMatrix::kMagic) {
-        DMatrix *dmat = new data::SimpleDMatrix(&is);
+        DMatrix* dmat = new data::SimpleDMatrix(&is);
         if (!silent) {
-          LOG(CONSOLE) << dmat->Info().num_row_ << 'x' << dmat->Info().num_col_
-                       << " matrix with " << dmat->Info().num_nonzero_
-                       << " entries loaded from " << fname;
+          LOG(CONSOLE) << dmat->Info().num_row_ << 'x' << dmat->Info().num_col_ << " matrix with "
+                       << dmat->Info().num_nonzero_ << " entries loaded from " << fname;
         }
         return dmat;
       }
@@ -830,44 +864,16 @@ DMatrix *TryLoadBinary(std::string fname, bool silent) {
   }
   return nullptr;
 }
+}  // namespace
 
 DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_split_mode) {
-  auto need_split = false;
-  if (collective::IsFederated()) {
-    LOG(CONSOLE) << "XGBoost federated mode detected, not splitting data among workers";
-  } else if (collective::IsDistributed()) {
-    LOG(CONSOLE) << "XGBoost distributed mode detected, will split data among workers";
-    need_split = true;
-  }
-
   std::string fname, cache_file;
-  size_t dlm_pos = uri.find('#');
+  auto dlm_pos = uri.find('#');
   if (dlm_pos != std::string::npos) {
     cache_file = uri.substr(dlm_pos + 1, uri.length());
     fname = uri.substr(0, dlm_pos);
     CHECK_EQ(cache_file.find('#'), std::string::npos)
         << "Only one `#` is allowed in file path for cache file specification.";
-    if (need_split && data_split_mode == DataSplitMode::kRow) {
-      std::ostringstream os;
-      std::vector<std::string> cache_shards = common::Split(cache_file, ':');
-      for (size_t i = 0; i < cache_shards.size(); ++i) {
-        size_t pos = cache_shards[i].rfind('.');
-        if (pos == std::string::npos) {
-          os << cache_shards[i]
-             << ".r" << collective::GetRank()
-             << "-" <<  collective::GetWorldSize();
-        } else {
-          os << cache_shards[i].substr(0, pos)
-             << ".r" << collective::GetRank()
-             << "-" <<  collective::GetWorldSize()
-             << cache_shards[i].substr(pos, cache_shards[i].length());
-        }
-        if (i + 1 != cache_shards.size()) {
-          os << ':';
-        }
-      }
-      cache_file = os.str();
-    }
   } else {
     fname = uri;
   }
@@ -879,28 +885,18 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
   }
 
   int partid = 0, npart = 1;
-  if (need_split && data_split_mode == DataSplitMode::kRow) {
-    partid = collective::GetRank();
-    npart = collective::GetWorldSize();
-  } else {
-    // test option to load in part
-    npart = 1;
-  }
-
-  if (npart != 1) {
-    LOG(CONSOLE) << "Load part of data " << partid << " of " << npart << " parts";
-  }
-
-  data::ValidateFileFormat(fname);
-  DMatrix* dmat {nullptr};
+  DMatrix* dmat{};
 
   if (cache_file.empty()) {
-    std::unique_ptr<dmlc::Parser<uint32_t>> parser(
-        dmlc::Parser<uint32_t>::Create(fname.c_str(), partid, npart, "auto"));
+    fname = data::ValidateFileFormat(fname);
+    std::unique_ptr<dmlc::Parser<std::uint32_t>> parser(
+        dmlc::Parser<std::uint32_t>::Create(fname.c_str(), partid, npart, "auto"));
     data::FileAdapter adapter(parser.get());
     dmat = DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), Context{}.Threads(),
                            cache_file, data_split_mode);
   } else {
+    CHECK(data_split_mode != DataSplitMode::kCol)
+        << "Column-wise data split is not supported for external memory.";
     data::FileIterator iter{fname, static_cast<uint32_t>(partid), static_cast<uint32_t>(npart)};
     dmat = new data::SparsePageDMatrix{&iter,
                                        iter.Proxy(),
@@ -911,17 +907,7 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
                                        cache_file};
   }
 
-  if (need_split && data_split_mode == DataSplitMode::kCol) {
-    if (!cache_file.empty()) {
-      LOG(FATAL) << "Column-wise data split is not support for external memory.";
-    }
-    LOG(CONSOLE) << "Splitting data by column";
-    auto* sliced = dmat->SliceCol(npart, partid);
-    delete dmat;
-    return sliced;
-  } else {
-    return dmat;
-  }
+  return dmat;
 }
 
 template <typename DataIterHandle, typename DMatrixHandle, typename DataIterResetCallback,
@@ -996,9 +982,6 @@ template DMatrix* DMatrix::Create<data::CSCArrayAdapter>(data::CSCArrayAdapter* 
 template DMatrix* DMatrix::Create(
     data::IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>* adapter,
     float missing, int nthread, const std::string& cache_prefix, DataSplitMode data_split_mode);
-template DMatrix* DMatrix::Create<data::RecordBatchesIterAdapter>(
-    data::RecordBatchesIterAdapter* adapter, float missing, int nthread, const std::string&,
-    DataSplitMode data_split_mode);
 
 SparsePage SparsePage::GetTranspose(int num_columns, int32_t n_threads) const {
   SparsePage transpose;

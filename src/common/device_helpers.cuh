@@ -480,7 +480,7 @@ struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
   cub::CachingDeviceAllocator& GetGlobalCachingAllocator() {
     // Configure allocator with maximum cached bin size of ~1GB and no limit on
     // maximum cached bytes
-    static cub::CachingDeviceAllocator *allocator = new cub::CachingDeviceAllocator(2, 9, 29);
+    thread_local cub::CachingDeviceAllocator *allocator = new cub::CachingDeviceAllocator(2, 9, 29);
     return *allocator;
   }
   pointer allocate(size_t n) {  // NOLINT
@@ -1169,14 +1169,26 @@ class CUDAStreamView {
   operator cudaStream_t() const {  // NOLINT
     return stream_;
   }
-  void Sync() { dh::safe_cuda(cudaStreamSynchronize(stream_)); }
+  cudaError_t Sync(bool error = true) {
+    if (error) {
+      dh::safe_cuda(cudaStreamSynchronize(stream_));
+      return cudaSuccess;
+    }
+    return cudaStreamSynchronize(stream_);
+  }
 };
 
 inline void CUDAEvent::Record(CUDAStreamView stream) {  // NOLINT
   dh::safe_cuda(cudaEventRecord(event_, cudaStream_t{stream}));
 }
 
-inline CUDAStreamView DefaultStream() { return CUDAStreamView{cudaStreamLegacy}; }
+inline CUDAStreamView DefaultStream() {
+#ifdef CUDA_API_PER_THREAD_DEFAULT_STREAM
+  return CUDAStreamView{cudaStreamPerThread};
+#else
+  return CUDAStreamView{cudaStreamLegacy};
+#endif
+}
 
 class CUDAStream {
   cudaStream_t stream_;

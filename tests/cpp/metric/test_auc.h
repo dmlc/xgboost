@@ -28,7 +28,7 @@ inline void VerifyBinaryAUC(DataSplitMode data_split_mode = DataSplitMode::kRow)
   // Invalid dataset
   auto p_fmat = EmptyDMatrix();
   MetaInfo& info = p_fmat->Info();
-  info.labels = linalg::Tensor<float, 2>{{0.0f, 0.0f}, {2}, -1};
+  info.labels = linalg::Tensor<float, 2>{{0.0f, 0.0f}, {2}, DeviceOrd::CPU()};
   float auc = metric->Evaluate({1, 1}, p_fmat);
   ASSERT_TRUE(std::isnan(auc));
   *info.labels.Data() = HostDeviceVector<float>{};

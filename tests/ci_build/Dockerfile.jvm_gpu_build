@@ -1,5 +1,5 @@
 ARG CUDA_VERSION_ARG
-FROM nvidia/cuda:$CUDA_VERSION_ARG-devel-centos7
+FROM nvcr.io/nvidia/cuda:$CUDA_VERSION_ARG-devel-centos7
 ARG CUDA_VERSION_ARG
 ARG NCCL_VERSION_ARG
 

@@ -51,17 +51,30 @@ jobs:
       id: extract_branch
       if: |
         (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
-        matrix.os == 'windows-latest'
+        (matrix.os == 'windows-latest' || matrix.os == 'macos-11')
 
     - name: Publish artifact xgboost4j.dll to S3
       run: |
         cd lib/
         Rename-Item -Path xgboost4j.dll -NewName xgboost4j_${{ github.sha }}.dll
         dir
-        python -m awscli s3 cp xgboost4j_${{ github.sha }}.dll s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/ --acl public-read
+        python -m awscli s3 cp xgboost4j_${{ github.sha }}.dll s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/libxgboost4j/ --acl public-read
       if: |
         (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
         matrix.os == 'windows-latest'
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
+
+    - name: Publish artifact libxgboost4j.dylib to S3
+      run: |
+        cd lib/
+        mv -v libxgboost4j.dylib libxgboost4j_${{ github.sha }}.dylib
+        ls
+        python -m awscli s3 cp libxgboost4j_${{ github.sha }}.dylib s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/libxgboost4j/ --acl public-read
+      if: |
+        (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
+        matrix.os == 'macos-11'
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}

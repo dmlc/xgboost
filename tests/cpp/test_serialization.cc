@@ -210,9 +210,9 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
     }
     // Pull data to device
     for (auto &batch : p_dmat->GetBatches<SparsePage>()) {
-      batch.data.SetDevice(0);
+      batch.data.SetDevice(DeviceOrd::CUDA(0));
       batch.data.DeviceSpan();
-      batch.offset.SetDevice(0);
+      batch.offset.SetDevice(DeviceOrd::CUDA(0));
       batch.offset.DeviceSpan();
     }
 

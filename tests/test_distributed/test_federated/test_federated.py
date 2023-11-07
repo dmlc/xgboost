@@ -35,14 +35,14 @@ def run_worker(port: int, world_size: int, rank: int, with_ssl: bool, with_gpu: 
     # Always call this before using distributed module
     with xgb.collective.CommunicatorContext(**communicator_env):
         # Load file, file will not be sharded in federated mode.
-        dtrain = xgb.DMatrix('agaricus.txt.train-%02d' % rank)
-        dtest = xgb.DMatrix('agaricus.txt.test-%02d' % rank)
+        dtrain = xgb.DMatrix('agaricus.txt.train-%02d?format=libsvm' % rank)
+        dtest = xgb.DMatrix('agaricus.txt.test-%02d?format=libsvm' % rank)
 
         # Specify parameters via map, definition are same as c++ version
         param = {'max_depth': 2, 'eta': 1, 'objective': 'binary:logistic'}
         if with_gpu:
-            param['tree_method'] = 'gpu_hist'
-            param['gpu_id'] = rank
+            param['tree_method'] = 'hist'
+            param['device'] = f"cuda:{rank}"
 
         # Specify validations set to watch performance
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]

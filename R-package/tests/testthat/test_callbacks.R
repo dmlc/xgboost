@@ -6,6 +6,8 @@ data(agaricus.test, package = 'xgboost')
 train <- agaricus.train
 test <- agaricus.test
 
+n_threads <- 2
+
 # add some label noise for early stopping tests
 add.noise <- function(label, frac) {
   inoise <- sample(length(label), length(label) * frac)
@@ -15,15 +17,15 @@ add.noise <- function(label, frac) {
 set.seed(11)
 ltrain <- add.noise(train$label, 0.2)
 ltest <- add.noise(test$label, 0.2)
-dtrain <- xgb.DMatrix(train$data, label = ltrain)
-dtest <- xgb.DMatrix(test$data, label = ltest)
+dtrain <- xgb.DMatrix(train$data, label = ltrain, nthread = n_threads)
+dtest <- xgb.DMatrix(test$data, label = ltest, nthread = n_threads)
 watchlist <- list(train = dtrain, test = dtest)
 
 
 err <- function(label, pr) sum((pr > 0.5) != label) / length(label)
 
 param <- list(objective = "binary:logistic", eval_metric = "error",
-              max_depth = 2, nthread = 2)
+              max_depth = 2, nthread = n_threads)
 
 
 test_that("cb.print.evaluation works as expected", {
@@ -103,7 +105,7 @@ test_that("cb.evaluation.log works as expected", {
 
 
 param <- list(objective = "binary:logistic", eval_metric = "error",
-              max_depth = 4, nthread = 2)
+              max_depth = 4, nthread = n_threads)
 
 test_that("can store evaluation_log without printing", {
   expect_silent(
@@ -179,8 +181,10 @@ test_that("cb.save.model works as expected", {
   expect_true(file.exists('xgboost_01.json'))
   expect_true(file.exists('xgboost_02.json'))
   b1 <- xgb.load('xgboost_01.json')
+  xgb.parameters(b1) <- list(nthread = 2)
   expect_equal(xgb.ntree(b1), 1)
   b2 <- xgb.load('xgboost_02.json')
+  xgb.parameters(b2) <- list(nthread = 2)
   expect_equal(xgb.ntree(b2), 2)
 
   xgb.config(b2) <- xgb.config(bst)
@@ -267,7 +271,8 @@ test_that("early stopping works with titanic", {
     objective = "binary:logistic",
     eval_metric = "auc",
     nrounds = 100,
-    early_stopping_rounds = 3
+    early_stopping_rounds = 3,
+    nthread = n_threads
   )
 
   expect_true(TRUE)  # should not crash
@@ -308,7 +313,7 @@ test_that("prediction in xgb.cv works", {
 
 test_that("prediction in xgb.cv works for gblinear too", {
   set.seed(11)
-  p <- list(booster = 'gblinear', objective = "reg:logistic", nthread = 2)
+  p <- list(booster = 'gblinear', objective = "reg:logistic", nthread = n_threads)
   cv <- xgb.cv(p, dtrain, nfold = 5, eta = 0.5, nrounds = 2, prediction = TRUE, verbose = 0)
   expect_false(is.null(cv$evaluation_log))
   expect_false(is.null(cv$pred))
@@ -341,7 +346,7 @@ test_that("prediction in xgb.cv for softprob works", {
   set.seed(11)
   expect_warning(
     cv <- xgb.cv(data = as.matrix(iris[, -5]), label = lb, nfold = 4,
-                 eta = 0.5, nrounds = 5, max_depth = 3, nthread = 2,
+                 eta = 0.5, nrounds = 5, max_depth = 3, nthread = n_threads,
                  subsample = 0.8, gamma = 2, verbose = 0,
                  prediction = TRUE, objective = "multi:softprob", num_class = 3)
   , NA)

@@ -18,9 +18,9 @@ Build an ML Application with XGBoost4J-Spark-GPU
 Add XGBoost to Your Project
 ===========================
 
-Before we go into the tour of how to use XGBoost4J-Spark-GPU, you should first consult
-:ref:`Installation from Maven repository <install_jvm_packages>` in order to add XGBoost4J-Spark-GPU as
-a dependency for your project. We provide both stable releases and snapshots.
+Prior to delving into the tutorial on utilizing XGBoost4J-Spark-GPU, it is advisable to refer to
+:ref:`Installation from Maven repository <install_jvm_packages>` for instructions on adding XGBoost4J-Spark-GPU
+as a project dependency. We offer both stable releases and snapshots for your convenience.
 
 Data Preparation
 ================
@@ -54,7 +54,7 @@ Read Dataset with Spark's Built-In Reader
       .schema(schema)
       .csv(dataPath)
 
-In the first line, we create an instance of a `SparkSession <https://spark.apache.org/docs/latest/sql-getting-started.html#starting-point-sparksession>`_
+At first, we create an instance of a `SparkSession <https://spark.apache.org/docs/latest/sql-getting-started.html#starting-point-sparksession>`_
 which is the entry point of any Spark application working with DataFrames. The ``schema`` variable
 defines the schema of the DataFrame wrapping Iris data. With this explicitly set schema, we
 can define the column names as well as their types; otherwise the column names would be
@@ -112,7 +112,7 @@ models. Although we use the Iris dataset in this tutorial to show how we use
 ``XGBoost/XGBoost4J-Spark-GPU`` to resolve a multi-classes classification problem, the
 usage in Regression is very similar to classification.
 
-To train a XGBoost model for classification, we need to claim a XGBoostClassifier first:
+To train a XGBoost model for classification, we need to define a XGBoostClassifier first:
 
 .. code-block:: scala
 
@@ -121,7 +121,7 @@ To train a XGBoost model for classification, we need to claim a XGBoostClassifie
       "objective" -> "multi:softprob",
       "num_class" -> 3,
       "num_round" -> 100,
-      "tree_method" -> "gpu_hist",
+      "device" -> "cuda",
       "num_workers" -> 1)
 
   val featuresNames = schema.fieldNames.filter(name => name != labelName)
@@ -130,15 +130,18 @@ To train a XGBoost model for classification, we need to claim a XGBoostClassifie
       .setFeaturesCol(featuresNames)
       .setLabelCol(labelName)
 
+The ``device`` parameter is for informing XGBoost that CUDA devices should be used instead of CPU.
+Unlike the single-node mode, GPUs are managed by spark instead of by XGBoost. Therefore,
+explicitly specified device ordinal like ``cuda:1`` is not support.
+
 The available parameters for training a XGBoost model can be found in :doc:`here </parameter>`.
 Similar to the XGBoost4J-Spark package, in addition to the default set of parameters,
-XGBoost4J-Spark-GPU also supports the camel-case variant of these parameters to be
-consistent with Spark's MLlib naming convention.
+XGBoost4J-Spark-GPU also supports the camel-case variant of these parameters to be consistent with Spark's MLlib naming convention.
 
 Specifically, each parameter in :doc:`this page </parameter>` has its equivalent form in
-XGBoost4J-Spark-GPU with camel case. For example, to set ``max_depth`` for each tree, you can pass
-parameter just like what we did in the above code snippet (as ``max_depth`` wrapped in a Map), or
-you can do it through setters in XGBoostClassifer:
+XGBoost4J-Spark-GPU with camel case. For example, to set ``max_depth`` for each tree, you
+can pass parameter just like what we did in the above code snippet (as ``max_depth``
+wrapped in a Map), or you can do it through setters in XGBoostClassifer:
 
 .. code-block:: scala
 
@@ -212,32 +215,31 @@ and the prediction for each instance.
 Submit the application
 **********************
 
-Here’s an example to submit an end-to-end XGBoost-4j-Spark-GPU Spark application to an
-Apache Spark Standalone cluster, assuming the application main class is Iris and the
-application jar is iris-1.0.0.jar
+Assuming that the application main class is "Iris" and the application jar is "iris-1.0.0.jar",`
+provided below is an instance demonstrating how to submit the xgboost application to an Apache
+Spark Standalone cluster.
 
 .. code-block:: bash
 
-  cudf_version=22.02.0
-  rapids_version=22.02.0
-  xgboost_version=1.6.1
+  rapids_version=23.10.0
+  xgboost_version=2.0.1
   main_class=Iris
   app_jar=iris-1.0.0.jar
 
   spark-submit \
     --master $master \
-    --packages ai.rapids:cudf:${cudf_version},com.nvidia:rapids-4-spark_2.12:${rapids_version},ml.dmlc:xgboost4j-gpu_2.12:${xgboost_version},ml.dmlc:xgboost4j-spark-gpu_2.12:${xgboost_version} \
+    --packages com.nvidia:rapids-4-spark_2.12:${rapids_version},ml.dmlc:xgboost4j-gpu_2.12:${xgboost_version},ml.dmlc:xgboost4j-spark-gpu_2.12:${xgboost_version} \
     --conf spark.executor.cores=12 \
-    --conf spark.task.cpus=1 \
+    --conf spark.task.cpus=12 \
     --conf spark.executor.resource.gpu.amount=1 \
-    --conf spark.task.resource.gpu.amount=0.08 \
+    --conf spark.task.resource.gpu.amount=1 \
     --conf spark.rapids.sql.csv.read.double.enabled=true \
     --conf spark.rapids.sql.hasNans=false \
     --conf spark.plugins=com.nvidia.spark.SQLPlugin \
     --class ${main_class} \
      ${app_jar}
 
-* First, we need to specify the ``RAPIDS Accelerator, cudf, xgboost4j-gpu, xgboost4j-spark-gpu`` packages by ``--packages``
+* First, we need to specify the ``RAPIDS Accelerator, xgboost4j-gpu, xgboost4j-spark-gpu`` packages by ``--packages``
 * Second, ``RAPIDS Accelerator`` is a Spark plugin, so we need to configure it by specifying ``spark.plugins=com.nvidia.spark.SQLPlugin``
 
 For details about other ``RAPIDS Accelerator`` other configurations, please refer to the `configuration <https://nvidia.github.io/spark-rapids/docs/configs.html>`_.

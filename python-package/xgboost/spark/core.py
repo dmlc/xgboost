@@ -1,4 +1,4 @@
-"""Xgboost pyspark integration submodule for core code."""
+"""XGBoost pyspark integration submodule for core code."""
 import base64
 
 # pylint: disable=fixme, too-many-ancestors, protected-access, no-member, invalid-name
@@ -22,7 +22,7 @@ from typing import (
 
 import numpy as np
 import pandas as pd
-from pyspark import SparkContext, cloudpickle
+from pyspark import RDD, SparkContext, cloudpickle
 from pyspark.ml import Estimator, Model
 from pyspark.ml.functions import array_to_vector, vector_to_array
 from pyspark.ml.linalg import VectorUDT
@@ -44,6 +44,7 @@ from pyspark.ml.util import (
     MLWritable,
     MLWriter,
 )
+from pyspark.resource import ResourceProfileBuilder, TaskResourceRequests
 from pyspark.sql import Column, DataFrame
 from pyspark.sql.functions import col, countDistinct, pandas_udf, rand, struct
 from pyspark.sql.types import (
@@ -59,11 +60,12 @@ from scipy.special import expit, softmax  # pylint: disable=no-name-in-module
 
 import xgboost
 from xgboost import XGBClassifier
-from xgboost.compat import is_cudf_available
-from xgboost.core import Booster
-from xgboost.sklearn import DEFAULT_N_ESTIMATORS, XGBModel
+from xgboost.compat import is_cudf_available, is_cupy_available
+from xgboost.core import Booster, _check_distributed_params
+from xgboost.sklearn import DEFAULT_N_ESTIMATORS, XGBModel, _can_use_qdm
 from xgboost.training import train as worker_train
 
+from .._typing import ArrayLike
 from .data import (
     _read_csr_matrix_from_unwrapped_spark_vec,
     alias,
@@ -87,11 +89,13 @@ from .utils import (
     _get_rabit_args,
     _get_spark_session,
     _is_local,
+    _is_standalone_or_localcluster,
     deserialize_booster,
     deserialize_xgb_model,
     get_class_name,
     get_logger,
     serialize_booster,
+    use_cuda,
 )
 
 # Put pyspark specific params here, they won't be passed to XGBoost.
@@ -108,13 +112,13 @@ _pyspark_specific_params = [
     "arbitrary_params_dict",
     "force_repartition",
     "num_workers",
-    "use_gpu",
     "feature_names",
     "features_cols",
     "enable_sparse_data_optim",
     "qid_col",
     "repartition_random_shuffle",
     "pred_contrib_col",
+    "use_gpu",
 ]
 
 _non_booster_params = ["missing", "n_estimators", "feature_types", "feature_weights"]
@@ -132,7 +136,7 @@ _pyspark_param_alias_map = {
 _inverse_pyspark_param_alias_map = {v: k for k, v in _pyspark_param_alias_map.items()}
 
 _unsupported_xgb_params = [
-    "gpu_id",  # we have "use_gpu" pyspark param instead.
+    "gpu_id",  # we have "device" pyspark param instead.
     "enable_categorical",  # Use feature_types param to specify categorical feature instead
     "use_label_encoder",
     "n_jobs",  # Do not allow user to set it, will use `spark.task.cpus` value instead.
@@ -197,11 +201,24 @@ class _SparkXGBParams(
         "The number of XGBoost workers. Each XGBoost worker corresponds to one spark task.",
         TypeConverters.toInt,
     )
+    device = Param(
+        Params._dummy(),
+        "device",
+        (
+            "The device type for XGBoost executors. Available options are `cpu`,`cuda`"
+            " and `gpu`. Set `device` to `cuda` or `gpu` if the executors are running "
+            "on GPU instances. Currently, only one GPU per task is supported."
+        ),
+        TypeConverters.toString,
+    )
     use_gpu = Param(
         Params._dummy(),
         "use_gpu",
-        "A boolean variable. Set use_gpu=true if the executors "
-        + "are running on GPU instances. Currently, only one GPU per task is supported.",
+        (
+            "Deprecated, use `device` instead. A boolean variable. Set use_gpu=true "
+            "if the executors are running on GPU instances. Currently, only one GPU per"
+            " task is supported."
+        ),
         TypeConverters.toBoolean,
     )
     force_repartition = Param(
@@ -226,6 +243,13 @@ class _SparkXGBParams(
         "A list of str to specify feature names.",
         TypeConverters.toList,
     )
+
+    def set_device(self, value: str) -> "_SparkXGBParams":
+        """Set device, optional value: cpu, cuda, gpu"""
+        _check_distributed_params({"device": value})
+        assert value in ("cpu", "cuda", "gpu")
+        self.set(self.device, value)
+        return self
 
     @classmethod
     def _xgb_cls(cls) -> Type[XGBModel]:
@@ -320,6 +344,54 @@ class _SparkXGBParams(
                 predict_params[param.name] = self.getOrDefault(param)
         return predict_params
 
+    def _validate_gpu_params(self) -> None:
+        """Validate the gpu parameters and gpu configurations"""
+
+        if self._run_on_gpu():
+            ss = _get_spark_session()
+            sc = ss.sparkContext
+
+            if _is_local(sc):
+                # Support GPU training in Spark local mode is just for debugging
+                # purposes, so it's okay for printing the below warning instead of
+                # checking the real gpu numbers and raising the exception.
+                get_logger(self.__class__.__name__).warning(
+                    "You have enabled GPU in spark local mode. Please make sure your"
+                    " local node has at least %d GPUs",
+                    self.getOrDefault(self.num_workers),
+                )
+            else:
+                executor_gpus = sc.getConf().get("spark.executor.resource.gpu.amount")
+                if executor_gpus is None:
+                    raise ValueError(
+                        "The `spark.executor.resource.gpu.amount` is required for training"
+                        " on GPU."
+                    )
+
+                if not (ss.version >= "3.4.0" and _is_standalone_or_localcluster(sc)):
+                    # We will enable stage-level scheduling in spark 3.4.0+ which doesn't
+                    # require spark.task.resource.gpu.amount to be set explicitly
+                    gpu_per_task = sc.getConf().get("spark.task.resource.gpu.amount")
+                    if gpu_per_task is not None:
+                        if float(gpu_per_task) < 1.0:
+                            raise ValueError(
+                                "XGBoost doesn't support GPU fractional configurations. "
+                                "Please set `spark.task.resource.gpu.amount=spark.executor"
+                                ".resource.gpu.amount`"
+                            )
+
+                        if float(gpu_per_task) > 1.0:
+                            get_logger(self.__class__.__name__).warning(
+                                "%s GPUs for each Spark task is configured, but each "
+                                "XGBoost training task uses only 1 GPU.",
+                                gpu_per_task,
+                            )
+                    else:
+                        raise ValueError(
+                            "The `spark.task.resource.gpu.amount` is required for training"
+                            " on GPU."
+                        )
+
     def _validate_params(self) -> None:
         # pylint: disable=too-many-branches
         init_model = self.getOrDefault("xgb_model")
@@ -335,10 +407,16 @@ class _SparkXGBParams(
                 f"It cannot be less than 1 [Default is 1]"
             )
 
+        tree_method = self.getOrDefault(self.getParam("tree_method"))
+        if tree_method == "exact":
+            raise ValueError(
+                "The `exact` tree method is not supported for distributed systems."
+            )
+
         if self.getOrDefault(self.features_cols):
-            if not self.getOrDefault(self.use_gpu):
+            if not self._run_on_gpu():
                 raise ValueError(
-                    "features_col param with list value requires enabling use_gpu."
+                    "features_col param with list value requires `device=cuda`."
                 )
 
         if self.getOrDefault("objective") is not None:
@@ -391,57 +469,16 @@ class _SparkXGBParams(
                     "`pyspark.ml.linalg.Vector` type."
                 )
 
-        if self.getOrDefault(self.use_gpu):
-            tree_method = self.getParam("tree_method")
-            if (
-                self.getOrDefault(tree_method) is not None
-                and self.getOrDefault(tree_method) != "gpu_hist"
-            ):
-                raise ValueError(
-                    f"tree_method should be 'gpu_hist' or None when use_gpu is True,"
-                    f"found {self.getOrDefault(tree_method)}."
-                )
+        self._validate_gpu_params()
 
-            gpu_per_task = (
-                _get_spark_session()
-                .sparkContext.getConf()
-                .get("spark.task.resource.gpu.amount")
-            )
+    def _run_on_gpu(self) -> bool:
+        """If train or transform on the gpu according to the parameters"""
 
-            is_local = _is_local(_get_spark_session().sparkContext)
-
-            if is_local:
-                # checking spark local mode.
-                if gpu_per_task:
-                    raise RuntimeError(
-                        "The spark cluster does not support gpu configuration for local mode. "
-                        "Please delete spark.executor.resource.gpu.amount and "
-                        "spark.task.resource.gpu.amount"
-                    )
-
-                # Support GPU training in Spark local mode is just for debugging purposes,
-                # so it's okay for printing the below warning instead of checking the real
-                # gpu numbers and raising the exception.
-                get_logger(self.__class__.__name__).warning(
-                    "You enabled use_gpu in spark local mode. Please make sure your local node "
-                    "has at least %d GPUs",
-                    self.getOrDefault(self.num_workers),
-                )
-            else:
-                # checking spark non-local mode.
-                if not gpu_per_task or int(gpu_per_task) < 1:
-                    raise RuntimeError(
-                        "The spark cluster does not have the necessary GPU"
-                        + "configuration for the spark task. Therefore, we cannot"
-                        + "run xgboost training using GPU."
-                    )
-
-                if int(gpu_per_task) > 1:
-                    get_logger(self.__class__.__name__).warning(
-                        "You configured %s GPU cores for each spark task, but in "
-                        "XGBoost training, every Spark task will only use one GPU core.",
-                        gpu_per_task,
-                    )
+        return (
+            use_cuda(self.getOrDefault(self.device))
+            or self.getOrDefault(self.use_gpu)
+            or self.getOrDefault(self.getParam("tree_method")) == "gpu_hist"
+        )
 
 
 def _validate_and_convert_feature_col_as_float_col_list(
@@ -557,6 +594,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         #  they are added in `setParams`.
         self._setDefault(
             num_workers=1,
+            device="cpu",
             use_gpu=False,
             force_repartition=False,
             repartition_random_shuffle=False,
@@ -565,9 +603,9 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             arbitrary_params_dict={},
         )
 
-    def setParams(
-        self, **kwargs: Dict[str, Any]
-    ) -> None:  # pylint: disable=invalid-name
+        self.logger = get_logger(self.__class__.__name__)
+
+    def setParams(self, **kwargs: Any) -> None:  # pylint: disable=invalid-name
         """
         Set params for the estimator.
         """
@@ -612,6 +650,8 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                     )
                     raise ValueError(err_msg)
                 _extra_params[k] = v
+
+        _check_distributed_params(kwargs)
         _existing_extra_params = self.getOrDefault(self.arbitrary_params_dict)
         self._set(arbitrary_params_dict={**_existing_extra_params, **_extra_params})
 
@@ -707,9 +747,6 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
         # TODO: support "num_parallel_tree" for random forest
         params["num_boost_round"] = self.getOrDefault("n_estimators")
-
-        if self.getOrDefault(self.use_gpu):
-            params["tree_method"] = "gpu_hist"
 
         return params
 
@@ -870,6 +907,116 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
         return booster_params, train_call_kwargs_params, dmatrix_kwargs
 
+    def _skip_stage_level_scheduling(self) -> bool:
+        # pylint: disable=too-many-return-statements
+        """Check if stage-level scheduling is not needed,
+        return true to skip stage-level scheduling"""
+
+        if self._run_on_gpu():
+            ss = _get_spark_session()
+            sc = ss.sparkContext
+
+            if ss.version < "3.4.0":
+                self.logger.info(
+                    "Stage-level scheduling in xgboost requires spark version 3.4.0+"
+                )
+                return True
+
+            if not _is_standalone_or_localcluster(sc):
+                self.logger.info(
+                    "Stage-level scheduling in xgboost requires spark standalone or "
+                    "local-cluster mode"
+                )
+                return True
+
+            executor_cores = sc.getConf().get("spark.executor.cores")
+            executor_gpus = sc.getConf().get("spark.executor.resource.gpu.amount")
+            if executor_cores is None or executor_gpus is None:
+                self.logger.info(
+                    "Stage-level scheduling in xgboost requires spark.executor.cores, "
+                    "spark.executor.resource.gpu.amount to be set."
+                )
+                return True
+
+            if int(executor_cores) == 1:
+                # there will be only 1 task running at any time.
+                self.logger.info(
+                    "Stage-level scheduling in xgboost requires spark.executor.cores > 1 "
+                )
+                return True
+
+            if int(executor_gpus) > 1:
+                # For spark.executor.resource.gpu.amount > 1, we suppose user knows how to configure
+                # to make xgboost run successfully.
+                #
+                self.logger.info(
+                    "Stage-level scheduling in xgboost will not work "
+                    "when spark.executor.resource.gpu.amount>1"
+                )
+                return True
+
+            task_gpu_amount = sc.getConf().get("spark.task.resource.gpu.amount")
+
+            if task_gpu_amount is None:
+                # The ETL tasks will not grab a gpu when spark.task.resource.gpu.amount is not set,
+                # but with stage-level scheduling, we can make training task grab the gpu.
+                return False
+
+            if float(task_gpu_amount) == float(executor_gpus):
+                # spark.executor.resource.gpu.amount=spark.task.resource.gpu.amount "
+                # results in only 1 task running at a time, which may cause perf issue.
+                return True
+
+            # We can enable stage-level scheduling
+            return False
+
+        # CPU training doesn't require stage-level scheduling
+        return True
+
+    def _try_stage_level_scheduling(self, rdd: RDD) -> RDD:
+        """Try to enable stage-level scheduling"""
+
+        if self._skip_stage_level_scheduling():
+            return rdd
+
+        ss = _get_spark_session()
+
+        # executor_cores will not be None
+        executor_cores = ss.sparkContext.getConf().get("spark.executor.cores")
+        assert executor_cores is not None
+
+        # Spark-rapids is a project to leverage GPUs to accelerate spark SQL.
+        # If spark-rapids is enabled, to avoid GPU OOM, we don't allow other
+        # ETL gpu tasks running alongside training tasks.
+        spark_plugins = ss.conf.get("spark.plugins", " ")
+        assert spark_plugins is not None
+        spark_rapids_sql_enabled = ss.conf.get("spark.rapids.sql.enabled", "true")
+        assert spark_rapids_sql_enabled is not None
+
+        task_cores = (
+            int(executor_cores)
+            if "com.nvidia.spark.SQLPlugin" in spark_plugins
+            and "true" == spark_rapids_sql_enabled.lower()
+            else (int(executor_cores) // 2) + 1
+        )
+
+        # Each training task requires cpu cores > total executor cores//2 + 1 which can
+        # make sure the tasks be sent to different executors.
+        #
+        # Please note that we can't use GPU to limit the concurrent tasks because of
+        # https://issues.apache.org/jira/browse/SPARK-45527.
+
+        task_gpus = 1.0
+        treqs = TaskResourceRequests().cpus(task_cores).resource("gpu", task_gpus)
+        rp = ResourceProfileBuilder().require(treqs).build
+
+        self.logger.info(
+            "XGBoost training tasks require the resource(cores=%s, gpu=%s).",
+            task_cores,
+            task_gpus,
+        )
+        return rdd.withResources(rp)
+
     def _fit(self, dataset: DataFrame) -> "_SparkXGBModel":
         # pylint: disable=too-many-statements, too-many-locals
         self._validate_params()
@@ -882,7 +1029,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             dmatrix_kwargs,
         ) = self._get_xgb_parameters(dataset)
 
-        use_gpu = self.getOrDefault(self.use_gpu)
+        run_on_gpu = self._run_on_gpu()
 
         is_local = _is_local(_get_spark_session().sparkContext)
 
@@ -899,34 +1046,30 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
             context = BarrierTaskContext.get()
 
-            gpu_id = None
-            use_hist = booster_params.get("tree_method", None) in ("hist", "gpu_hist")
+            dev_ordinal = None
+            use_qdm = _can_use_qdm(booster_params.get("tree_method", None))
 
-            if use_gpu:
-                gpu_id = context.partitionId() if is_local else _get_gpu_id(context)
-                booster_params["gpu_id"] = gpu_id
+            if run_on_gpu:
+                dev_ordinal = (
+                    context.partitionId() if is_local else _get_gpu_id(context)
+                )
+                booster_params["device"] = "cuda:" + str(dev_ordinal)
                 # If cuDF is not installed, then using DMatrix instead of QDM,
                 # because without cuDF, DMatrix performs better than QDM.
                 # Note: Checking `is_cudf_available` in spark worker side because
                 # spark worker might has different python environment with driver side.
-                use_qdm = use_hist and is_cudf_available()
-            else:
-                use_qdm = use_hist
+                use_qdm = use_qdm and is_cudf_available()
+                get_logger("XGBoost-PySpark").info(
+                    "Leveraging %s to train with QDM: %s",
+                    booster_params["device"],
+                    "on" if use_qdm else "off",
+                )
 
             if use_qdm and (booster_params.get("max_bin", None) is not None):
                 dmatrix_kwargs["max_bin"] = booster_params["max_bin"]
 
             _rabit_args = {}
             if context.partitionId() == 0:
-                get_logger("XGBoostPySpark").debug(
-                    "booster params: %s\n"
-                    "train_call_kwargs_params: %s\n"
-                    "dmatrix_kwargs: %s",
-                    booster_params,
-                    train_call_kwargs_params,
-                    dmatrix_kwargs,
-                )
-
                 _rabit_args = _get_rabit_args(context, num_workers)
 
             worker_message = {
@@ -945,7 +1088,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 dtrain, dvalid = create_dmatrix_from_partitions(
                     pandas_df_iter,
                     feature_prop.features_cols_names,
-                    gpu_id,
+                    dev_ordinal,
                     use_qdm,
                     dmatrix_kwargs,
                     enable_sparse_data_optim=feature_prop.enable_sparse_data_optim,
@@ -973,17 +1116,31 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 )
 
         def _run_job() -> Tuple[str, str]:
-            ret = (
+            rdd = (
                 dataset.mapInPandas(
-                    _train_booster, schema="config string, booster string"  # type: ignore
+                    _train_booster,  # type: ignore
+                    schema="config string, booster string",
                 )
                 .rdd.barrier()
                 .mapPartitions(lambda x: x)
-                .collect()[0]
             )
+            rdd_with_resource = self._try_stage_level_scheduling(rdd)
+            ret = rdd_with_resource.collect()[0]
             return ret[0], ret[1]
 
+        get_logger("XGBoost-PySpark").info(
+            "Running xgboost-%s on %s workers with"
+            "\n\tbooster params: %s"
+            "\n\ttrain_call_kwargs_params: %s"
+            "\n\tdmatrix_kwargs: %s",
+            xgboost._py_version(),
+            num_workers,
+            booster_params,
+            train_call_kwargs_params,
+            dmatrix_kwargs,
+        )
         (config, booster) = _run_job()
+        get_logger("XGBoost-PySpark").info("Finished xgboost training!")
 
         result_xgb_model = self._convert_to_sklearn_model(
             bytearray(booster, "utf-8"), config
@@ -1092,12 +1249,114 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
             )
         return features_col, feature_col_names
 
+    def _get_pred_contrib_col_name(self) -> Optional[str]:
+        """Return the pred_contrib_col col name"""
+        pred_contrib_col_name = None
+        if (
+            self.isDefined(self.pred_contrib_col)
+            and self.getOrDefault(self.pred_contrib_col) != ""
+        ):
+            pred_contrib_col_name = self.getOrDefault(self.pred_contrib_col)
+
+        return pred_contrib_col_name
+
+    def _out_schema(self) -> Tuple[bool, str]:
+        """Return the bool to indicate if it's a single prediction, true is single prediction,
+        and the returned type of the user-defined function. The value must
+        be a DDL-formatted type string."""
+
+        if self._get_pred_contrib_col_name() is not None:
+            return False, f"{pred.prediction} double, {pred.pred_contrib} array<double>"
+
+        return True, "double"
+
+    def _get_predict_func(self) -> Callable:
+        """Return the true prediction function which will be running on the executor side"""
+
+        predict_params = self._gen_predict_params_dict()
+        pred_contrib_col_name = self._get_pred_contrib_col_name()
+
+        def _predict(
+            model: XGBModel, X: ArrayLike, base_margin: Optional[ArrayLike]
+        ) -> Union[pd.DataFrame, pd.Series]:
+            data = {}
+            preds = model.predict(
+                X,
+                base_margin=base_margin,
+                validate_features=False,
+                **predict_params,
+            )
+            data[pred.prediction] = pd.Series(preds)
+
+            if pred_contrib_col_name is not None:
+                contribs = pred_contribs(model, X, base_margin)
+                data[pred.pred_contrib] = pd.Series(list(contribs))
+                return pd.DataFrame(data=data)
+
+            return data[pred.prediction]
+
+        return _predict
+
+    def _post_transform(self, dataset: DataFrame, pred_col: Column) -> DataFrame:
+        """Post process of transform"""
+        prediction_col_name = self.getOrDefault(self.predictionCol)
+        single_pred, _ = self._out_schema()
+
+        if single_pred:
+            if prediction_col_name:
+                dataset = dataset.withColumn(prediction_col_name, pred_col)
+        else:
+            pred_struct_col = "_prediction_struct"
+            dataset = dataset.withColumn(pred_struct_col, pred_col)
+
+            if prediction_col_name:
+                dataset = dataset.withColumn(
+                    prediction_col_name, getattr(col(pred_struct_col), pred.prediction)
+                )
+
+            pred_contrib_col_name = self._get_pred_contrib_col_name()
+            if pred_contrib_col_name is not None:
+                dataset = dataset.withColumn(
+                    pred_contrib_col_name,
+                    array_to_vector(getattr(col(pred_struct_col), pred.pred_contrib)),
+                )
+
+            dataset = dataset.drop(pred_struct_col)
+        return dataset
+
+    def _run_on_gpu(self) -> bool:
+        """If gpu is used to do the prediction according to the parameters
+        and spark configurations"""
+
+        use_gpu_by_params = super()._run_on_gpu()
+
+        if _is_local(_get_spark_session().sparkContext):
+            # if it's local model, no need to check the spark configurations
+            return use_gpu_by_params
+
+        gpu_per_task = (
+            _get_spark_session()
+            .sparkContext.getConf()
+            .get("spark.task.resource.gpu.amount")
+        )
+
+        # User don't set gpu configurations, just use cpu
+        if gpu_per_task is None:
+            if use_gpu_by_params:
+                get_logger("XGBoost-PySpark").warning(
+                    "Do the prediction on the CPUs since "
+                    "no gpu configurations are set"
+                )
+            return False
+
+        # User already sets the gpu configurations.
+        return use_gpu_by_params
+
     def _transform(self, dataset: DataFrame) -> DataFrame:
         # pylint: disable=too-many-statements, too-many-locals
         # Save xgb_sklearn_model and predict_params to be local variable
         # to avoid the `self` object to be pickled to remote.
         xgb_sklearn_model = self._xgb_sklearn_model
-        predict_params = self._gen_predict_params_dict()
 
         has_base_margin = False
         if (
@@ -1112,79 +1371,88 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
         features_col, feature_col_names = self._get_feature_col(dataset)
         enable_sparse_data_optim = self.getOrDefault(self.enable_sparse_data_optim)
 
-        pred_contrib_col_name = None
-        if (
-            self.isDefined(self.pred_contrib_col)
-            and self.getOrDefault(self.pred_contrib_col) != ""
-        ):
-            pred_contrib_col_name = self.getOrDefault(self.pred_contrib_col)
+        predict_func = self._get_predict_func()
 
-        single_pred = True
-        schema = "double"
-        if pred_contrib_col_name:
-            single_pred = False
-            schema = f"{pred.prediction} double, {pred.pred_contrib} array<double>"
+        _, schema = self._out_schema()
+
+        is_local = _is_local(_get_spark_session().sparkContext)
+        run_on_gpu = self._run_on_gpu()
 
         @pandas_udf(schema)  # type: ignore
         def predict_udf(iterator: Iterator[pd.DataFrame]) -> Iterator[pd.Series]:
             assert xgb_sklearn_model is not None
             model = xgb_sklearn_model
+
+            from pyspark import TaskContext
+
+            context = TaskContext.get()
+            assert context is not None
+
+            dev_ordinal = -1
+
+            msg = "Do the inference on the CPUs"
+            if run_on_gpu:
+                if is_cudf_available() and is_cupy_available():
+                    if is_local:
+                        import cupy as cp  # pylint: disable=import-error
+
+                        total_gpus = cp.cuda.runtime.getDeviceCount()
+                        if total_gpus > 0:
+                            partition_id = context.partitionId()
+                            # For transform local mode, default the dev_ordinal to
+                            # (partition id) % gpus.
+                            dev_ordinal = partition_id % total_gpus
+                    else:
+                        dev_ordinal = _get_gpu_id(context)
+
+                    if dev_ordinal >= 0:
+                        device = "cuda:" + str(dev_ordinal)
+                        msg = "Do the inference with device: " + device
+                        model.set_params(device=device)
+                    else:
+                        msg = "Couldn't get the correct gpu id, fallback the inference on the CPUs"
+                else:
+                    msg = "CUDF or Cupy is unavailable, fallback the inference on the CPUs"
+
+            get_logger("XGBoost-PySpark").info(msg)
+
+            def to_gpu_if_possible(data: ArrayLike) -> ArrayLike:
+                """Move the data to gpu if possible"""
+                if dev_ordinal >= 0:
+                    import cudf  # pylint: disable=import-error
+                    import cupy as cp  # pylint: disable=import-error
+
+                    # We must set the device after import cudf, which will change the device id to 0
+                    # See https://github.com/rapidsai/cudf/issues/11386
+                    cp.cuda.runtime.setDevice(dev_ordinal)  # pylint: disable=I1101
+                    df = cudf.DataFrame(data)
+                    del data
+                    return df
+                return data
+
             for data in iterator:
                 if enable_sparse_data_optim:
                     X = _read_csr_matrix_from_unwrapped_spark_vec(data)
                 else:
                     if feature_col_names is not None:
-                        X = data[feature_col_names]
+                        tmp = data[feature_col_names]
                     else:
-                        X = stack_series(data[alias.data])
+                        tmp = stack_series(data[alias.data])
+                    X = to_gpu_if_possible(tmp)
 
                 if has_base_margin:
-                    base_margin = data[alias.margin].to_numpy()
+                    base_margin = to_gpu_if_possible(data[alias.margin])
                 else:
                     base_margin = None
 
-                data = {}
-                preds = model.predict(
-                    X,
-                    base_margin=base_margin,
-                    validate_features=False,
-                    **predict_params,
-                )
-                data[pred.prediction] = pd.Series(preds)
-
-                if pred_contrib_col_name:
-                    contribs = pred_contribs(model, X, base_margin)
-                    data[pred.pred_contrib] = pd.Series(list(contribs))
-                    yield pd.DataFrame(data=data)
-                else:
-                    yield data[pred.prediction]
+                yield predict_func(model, X, base_margin)
 
         if has_base_margin:
             pred_col = predict_udf(struct(*features_col, base_margin_col))
         else:
             pred_col = predict_udf(struct(*features_col))
 
-        prediction_col_name = self.getOrDefault(self.predictionCol)
-
-        if single_pred:
-            dataset = dataset.withColumn(prediction_col_name, pred_col)
-        else:
-            pred_struct_col = "_prediction_struct"
-            dataset = dataset.withColumn(pred_struct_col, pred_col)
-
-            dataset = dataset.withColumn(
-                prediction_col_name, getattr(col(pred_struct_col), pred.prediction)
-            )
-
-            if pred_contrib_col_name:
-                dataset = dataset.withColumn(
-                    pred_contrib_col_name,
-                    array_to_vector(getattr(col(pred_struct_col), pred.pred_contrib)),
-                )
-
-            dataset = dataset.drop(pred_struct_col)
-
-        return dataset
+        return self._post_transform(dataset, pred_col)
 
 
 class _ClassificationModel(  # pylint: disable=abstract-method
@@ -1196,22 +1464,21 @@ class _ClassificationModel(  # pylint: disable=abstract-method
     .. Note:: This API is experimental.
     """
 
-    def _transform(self, dataset: DataFrame) -> DataFrame:
-        # pylint: disable=too-many-statements, too-many-locals
-        # Save xgb_sklearn_model and predict_params to be local variable
-        # to avoid the `self` object to be pickled to remote.
-        xgb_sklearn_model = self._xgb_sklearn_model
-        predict_params = self._gen_predict_params_dict()
+    def _out_schema(self) -> Tuple[bool, str]:
+        schema = (
+            f"{pred.raw_prediction} array<double>, {pred.prediction} double,"
+            f" {pred.probability} array<double>"
+        )
+        if self._get_pred_contrib_col_name() is not None:
+            # We will force setting strict_shape to True when predicting contribs,
+            # So, it will also output 3-D shape result.
+            schema = f"{schema}, {pred.pred_contrib} array<array<double>>"
 
-        has_base_margin = False
-        if (
-            self.isDefined(self.base_margin_col)
-            and self.getOrDefault(self.base_margin_col) != ""
-        ):
-            has_base_margin = True
-            base_margin_col = col(self.getOrDefault(self.base_margin_col)).alias(
-                alias.margin
-            )
+        return False, schema
+
+    def _get_predict_func(self) -> Callable:
+        predict_params = self._gen_predict_params_dict()
+        pred_contrib_col_name = self._get_pred_contrib_col_name()
 
         def transform_margin(margins: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
             if margins.ndim == 1:
@@ -1226,76 +1493,38 @@ class _ClassificationModel(  # pylint: disable=abstract-method
                 class_probs = softmax(raw_preds, axis=1)
             return raw_preds, class_probs
 
-        features_col, feature_col_names = self._get_feature_col(dataset)
-        enable_sparse_data_optim = self.getOrDefault(self.enable_sparse_data_optim)
+        def _predict(
+            model: XGBModel, X: ArrayLike, base_margin: Optional[np.ndarray]
+        ) -> Union[pd.DataFrame, pd.Series]:
+            margins = model.predict(
+                X,
+                base_margin=base_margin,
+                output_margin=True,
+                validate_features=False,
+                **predict_params,
+            )
+            raw_preds, class_probs = transform_margin(margins)
 
-        pred_contrib_col_name = None
-        if (
-            self.isDefined(self.pred_contrib_col)
-            and self.getOrDefault(self.pred_contrib_col) != ""
-        ):
-            pred_contrib_col_name = self.getOrDefault(self.pred_contrib_col)
+            # It seems that they use argmax of class probs,
+            # not of margin to get the prediction (Note: scala implementation)
+            preds = np.argmax(class_probs, axis=1)
+            result: Dict[str, pd.Series] = {
+                pred.raw_prediction: pd.Series(list(raw_preds)),
+                pred.prediction: pd.Series(preds),
+                pred.probability: pd.Series(list(class_probs)),
+            }
 
-        schema = (
-            f"{pred.raw_prediction} array<double>, {pred.prediction} double,"
-            f" {pred.probability} array<double>"
-        )
-        if pred_contrib_col_name:
-            # We will force setting strict_shape to True when predicting contribs,
-            # So, it will also output 3-D shape result.
-            schema = f"{schema}, {pred.pred_contrib} array<array<double>>"
+            if pred_contrib_col_name is not None:
+                contribs = pred_contribs(model, X, base_margin, strict_shape=True)
+                result[pred.pred_contrib] = pd.Series(list(contribs.tolist()))
 
-        @pandas_udf(schema)  # type: ignore
-        def predict_udf(
-            iterator: Iterator[Tuple[pd.Series, ...]]
-        ) -> Iterator[pd.DataFrame]:
-            assert xgb_sklearn_model is not None
-            model = xgb_sklearn_model
-            for data in iterator:
-                if enable_sparse_data_optim:
-                    X = _read_csr_matrix_from_unwrapped_spark_vec(data)
-                else:
-                    if feature_col_names is not None:
-                        X = data[feature_col_names]  # type: ignore
-                    else:
-                        X = stack_series(data[alias.data])
+            return pd.DataFrame(data=result)
 
-                if has_base_margin:
-                    base_margin = stack_series(data[alias.margin])
-                else:
-                    base_margin = None
+        return _predict
 
-                margins = model.predict(
-                    X,
-                    base_margin=base_margin,
-                    output_margin=True,
-                    validate_features=False,
-                    **predict_params,
-                )
-                raw_preds, class_probs = transform_margin(margins)
-
-                # It seems that they use argmax of class probs,
-                # not of margin to get the prediction (Note: scala implementation)
-                preds = np.argmax(class_probs, axis=1)
-                result: Dict[str, pd.Series] = {
-                    pred.raw_prediction: pd.Series(list(raw_preds)),
-                    pred.prediction: pd.Series(preds),
-                    pred.probability: pd.Series(list(class_probs)),
-                }
-
-                if pred_contrib_col_name:
-                    contribs = pred_contribs(model, X, base_margin, strict_shape=True)
-                    result[pred.pred_contrib] = pd.Series(list(contribs.tolist()))
-
-                yield pd.DataFrame(data=result)
-
-        if has_base_margin:
-            pred_struct = predict_udf(struct(*features_col, base_margin_col))
-        else:
-            pred_struct = predict_udf(struct(*features_col))
-
+    def _post_transform(self, dataset: DataFrame, pred_col: Column) -> DataFrame:
         pred_struct_col = "_prediction_struct"
-        dataset = dataset.withColumn(pred_struct_col, pred_struct)
+        dataset = dataset.withColumn(pred_struct_col, pred_col)
 
         raw_prediction_col_name = self.getOrDefault(self.rawPredictionCol)
         if raw_prediction_col_name:
@@ -1317,7 +1546,8 @@ class _ClassificationModel(  # pylint: disable=abstract-method
                 array_to_vector(getattr(col(pred_struct_col), pred.probability)),
             )
 
-        if pred_contrib_col_name:
+        pred_contrib_col_name = self._get_pred_contrib_col_name()
+        if pred_contrib_col_name is not None:
             dataset = dataset.withColumn(
                 pred_contrib_col_name,
                 getattr(col(pred_struct_col), pred.pred_contrib),

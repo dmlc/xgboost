@@ -1,0 +1,81 @@
+/*!
+ * Copyright 2022 XGBoost contributors
+ */
+syntax = "proto3";
+
+package xgboost.federated;
+
+service Federated {
+  rpc Allgather(AllgatherRequest) returns (AllgatherReply) {}
+  rpc AllgatherV(AllgatherVRequest) returns (AllgatherVReply) {}
+  rpc Allreduce(AllreduceRequest) returns (AllreduceReply) {}
+  rpc Broadcast(BroadcastRequest) returns (BroadcastReply) {}
+}
+
+enum DataType {
+  INT8 = 0;
+  UINT8 = 1;
+  INT32 = 2;
+  UINT32 = 3;
+  INT64 = 4;
+  UINT64 = 5;
+  FLOAT = 6;
+  DOUBLE = 7;
+}
+
+enum ReduceOperation {
+  MAX = 0;
+  MIN = 1;
+  SUM = 2;
+  BITWISE_AND = 3;
+  BITWISE_OR = 4;
+  BITWISE_XOR = 5;
+}
+
+message AllgatherRequest {
+  // An incrementing counter that is unique to each round to operations.
+  uint64 sequence_number = 1;
+  int32 rank = 2;
+  bytes send_buffer = 3;
+}
+
+message AllgatherReply {
+  bytes receive_buffer = 1;
+}
+
+message AllgatherVRequest {
+  // An incrementing counter that is unique to each round to operations.
+  uint64 sequence_number = 1;
+  int32 rank = 2;
+  bytes send_buffer = 3;
+}
+
+message AllgatherVReply {
+  bytes receive_buffer = 1;
+}
+
+message AllreduceRequest {
+  // An incrementing counter that is unique to each round to operations.
+  uint64 sequence_number = 1;
+  int32 rank = 2;
+  bytes send_buffer = 3;
+  DataType data_type = 4;
+  ReduceOperation reduce_operation = 5;
+}
+
+message AllreduceReply {
+  bytes receive_buffer = 1;
+}
+
+message BroadcastRequest {
+  // An incrementing counter that is unique to each round to operations.
+  uint64 sequence_number = 1;
+  int32 rank = 2;
+  bytes send_buffer = 3;
+  // The root rank to broadcast from.
+  int32 root = 4;
+}
+
+message BroadcastReply {
+  bytes receive_buffer = 1;
+}

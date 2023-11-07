@@ -1,13 +1,19 @@
 context('Test generalized linear models')
 
+n_threads <- 2
+
 test_that("gblinear works", {
   data(agaricus.train, package = 'xgboost')
   data(agaricus.test, package = 'xgboost')
-  dtrain <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
-  dtest <- xgb.DMatrix(agaricus.test$data, label = agaricus.test$label)
+  dtrain <- xgb.DMatrix(
+    agaricus.train$data, label = agaricus.train$label, nthread = n_threads
+  )
+  dtest <- xgb.DMatrix(
+    agaricus.test$data, label = agaricus.test$label, nthread = n_threads
+  )
 
   param <- list(objective = "binary:logistic", eval_metric = "error", booster = "gblinear",
-                nthread = 2, eta = 0.8, alpha = 0.0001, lambda = 0.0001)
+                nthread = n_threads, eta = 0.8, alpha = 0.0001, lambda = 0.0001)
   watchlist <- list(eval = dtest, train = dtrain)
 
   n <- 5         # iterations
@@ -48,12 +54,16 @@ test_that("gblinear works", {
 test_that("gblinear early stopping works", {
   data(agaricus.train, package = 'xgboost')
   data(agaricus.test, package = 'xgboost')
-  dtrain <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
-  dtest <- xgb.DMatrix(agaricus.test$data, label = agaricus.test$label)
+  dtrain <- xgb.DMatrix(
+    agaricus.train$data, label = agaricus.train$label, nthread = n_threads
+  )
+  dtest <- xgb.DMatrix(
+    agaricus.test$data, label = agaricus.test$label, nthread = n_threads
+  )
 
   param <- list(
     objective = "binary:logistic", eval_metric = "error", booster = "gblinear",
-    nthread = 2, eta = 0.8, alpha = 0.0001, lambda = 0.0001,
+    nthread = n_threads, eta = 0.8, alpha = 0.0001, lambda = 0.0001,
     updater = "coord_descent"
   )
 

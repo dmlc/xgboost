@@ -30,3 +30,4 @@ See `Awesome XGBoost <https://github.com/dmlc/xgboost/tree/master/demo>`_ for mo
   input_format
   param_tuning
   custom_metric_obj
+  privacy_preserving

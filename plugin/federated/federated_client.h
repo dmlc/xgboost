@@ -2,8 +2,8 @@
  * Copyright 2022 XGBoost contributors
  */
 #pragma once
-#include <federated.grpc.pb.h>
-#include <federated.pb.h>
+#include <federated.old.grpc.pb.h>
+#include <federated.old.pb.h>
 #include <grpcpp/grpcpp.h>
 
 #include <cstdio>
@@ -11,9 +11,7 @@
 #include <limits>
 #include <string>
 
-namespace xgboost {
-namespace federated {
-
+namespace xgboost::federated {
 /**
  * @brief A wrapper around the gRPC client.
  */
@@ -46,11 +44,11 @@ class FederatedClient {
         }()},
         rank_{rank} {}
 
-  std::string Allgather(std::string const &send_buffer) {
+  std::string Allgather(std::string_view send_buffer) {
     AllgatherRequest request;
     request.set_sequence_number(sequence_number_++);
     request.set_rank(rank_);
-    request.set_send_buffer(send_buffer);
+    request.set_send_buffer(send_buffer.data(), send_buffer.size());
 
     AllgatherReply reply;
     grpc::ClientContext context;
@@ -62,6 +60,25 @@ class FederatedClient {
     } else {
       std::cout << status.error_code() << ": " << status.error_message() << '\n';
       throw std::runtime_error("Allgather RPC failed");
+    }
+  }
+
+  std::string AllgatherV(std::string_view send_buffer) {
+    AllgatherVRequest request;
+    request.set_sequence_number(sequence_number_++);
+    request.set_rank(rank_);
+    request.set_send_buffer(send_buffer.data(), send_buffer.size());
+
+    AllgatherVReply reply;
+    grpc::ClientContext context;
+    context.set_wait_for_ready(true);
+    grpc::Status status = stub_->AllgatherV(&context, request, &reply);
+
+    if (status.ok()) {
+      return reply.receive_buffer();
+    } else {
+      std::cout << status.error_code() << ": " << status.error_message() << '\n';
+      throw std::runtime_error("AllgatherV RPC failed");
     }
   }
 
@@ -112,6 +129,4 @@ class FederatedClient {
   int const rank_;
   uint64_t sequence_number_{};
 };
-
-}  // namespace federated
-}  // namespace xgboost
+}  // namespace xgboost::federated

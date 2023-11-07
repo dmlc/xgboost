@@ -1,5 +1,5 @@
-/*!
- * Copyright 2018-2022 by XGBoost Contributors
+/**
+ * Copyright 2018-2023, XGBoost Contributors
  * \file hinge.cc
  * \brief Provides an implementation of the hinge loss function
  * \author Henry Gouk
@@ -13,8 +13,7 @@
 #include "../common/transform.h"
 #include "../common/common.h"
 
-namespace xgboost {
-namespace obj {
+namespace xgboost::obj {
 
 #if defined(XGBOOST_USE_CUDA)
 DMLC_REGISTRY_FILE_TAG(hinge_obj_gpu);
@@ -27,8 +26,8 @@ class HingeObj : public ObjFunction {
   void Configure(Args const&) override {}
   ObjInfo Task() const override { return ObjInfo::kRegression; }
 
-  void GetGradient(const HostDeviceVector<bst_float> &preds, const MetaInfo &info, int /*iter*/,
-                   HostDeviceVector<GradientPair> *out_gpair) override {
+  void GetGradient(const HostDeviceVector<bst_float> &preds, const MetaInfo &info,
+                   std::int32_t /*iter*/, linalg::Matrix<GradientPair> *out_gpair) override {
     CHECK_NE(info.labels.Size(), 0U) << "label set cannot be empty";
     CHECK_EQ(preds.Size(), info.labels.Size())
         << "labels are not correctly provided"
@@ -41,7 +40,8 @@ class HingeObj : public ObjFunction {
       CHECK_EQ(info.weights_.Size(), ndata)
           << "Number of weights should be equal to number of data points.";
     }
-    out_gpair->Resize(ndata);
+    CHECK_EQ(info.labels.Shape(1), 1) << "Multi-target for `binary:hinge` is not yet supported.";
+    out_gpair->Reshape(ndata, 1);
     common::Transform<>::Init(
         [=] XGBOOST_DEVICE(size_t _idx,
                            common::Span<GradientPair> _out_gpair,
@@ -62,8 +62,8 @@ class HingeObj : public ObjFunction {
           _out_gpair[_idx] = GradientPair(g, h);
         },
         common::Range{0, static_cast<int64_t>(ndata)}, this->ctx_->Threads(),
-        ctx_->gpu_id).Eval(
-            out_gpair, &preds, info.labels.Data(), &info.weights_);
+        ctx_->Device()).Eval(
+            out_gpair->Data(), &preds, info.labels.Data(), &info.weights_);
   }
 
   void PredTransform(HostDeviceVector<bst_float> *io_preds) const override {
@@ -72,11 +72,11 @@ class HingeObj : public ObjFunction {
           _preds[_idx] = _preds[_idx] > 0.0 ? 1.0 : 0.0;
         },
         common::Range{0, static_cast<int64_t>(io_preds->Size()), 1}, this->ctx_->Threads(),
-        io_preds->DeviceIdx())
+        io_preds->Device())
         .Eval(io_preds);
   }
 
-  const char* DefaultEvalMetric() const override {
+  [[nodiscard]] const char* DefaultEvalMetric() const override {
     return "error";
   }
 
@@ -92,5 +92,4 @@ XGBOOST_REGISTER_OBJECTIVE(HingeObj, "binary:hinge")
 .describe("Hinge loss. Expects labels to be in [0,1f]")
 .set_body([]() { return new HingeObj(); });
 
-}  // namespace obj
-}  // namespace xgboost
+}  // namespace xgboost::obj

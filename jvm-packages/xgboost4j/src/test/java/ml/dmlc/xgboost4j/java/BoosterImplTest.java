@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2022 by Contributors
+ Copyright (c) 2014-2023 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -23,10 +23,11 @@ import org.junit.Test;
 
 import static org.junit.Assert.*;
 
+
 /**
- * test cases for Booster
+ * test cases for Booster Inplace Predict
  *
- * @author hzx
+ * @author hzx and Sovrn
  */
 public class BoosterImplTest {
   private final String train_uri = "../../demo/data/agaricus.txt.train?indexing_mode=1&format=libsvm";
@@ -100,6 +101,179 @@ public class BoosterImplTest {
       //error must be less than 0.1
       assertTrue(eval.eval(predicts, testMat) < 0.1f);
     }
+  }
+
+  @Test
+  public void inplacePredictTest() throws XGBoostError {
+    /* Data Generation */
+    // Generate a training set.
+    int trainRows = 1000;
+    int features = 10;
+    int trainSize = trainRows * features;
+    float[] trainX = generateRandomDataSet(trainSize);
+    float[] trainY = generateRandomDataSet(trainRows);
+
+    DMatrix trainingMatrix = new DMatrix(trainX, trainRows, features, Float.NaN);
+    trainingMatrix.setLabel(trainY);
+
+    // Generate a testing set
+    int testRows = 10;
+    int testSize = testRows * features;
+    float[] testX = generateRandomDataSet(testSize);
+    float[] testY = generateRandomDataSet(testRows);
+
+    DMatrix testingMatrix = new DMatrix(testX, testRows, features, Float.NaN);
+    testingMatrix.setLabel(testY);
+
+    /* Training */
+
+    // Set parameters
+    Map<String, Object> params = new HashMap<>();
+    params.put("eta", 1.0);
+    params.put("max_depth",2);
+    params.put("silent", 1);
+    params.put("tree_method", "hist");
+
+    Map<String, DMatrix> watches = new HashMap<>();
+    watches.put("train", trainingMatrix);
+    watches.put("test", testingMatrix);
+
+    Booster booster = XGBoost.train(trainingMatrix, params, 10, watches, null, null);
+
+    /* Prediction */
+
+    // Standard prediction
+    float[][] predictions = booster.predict(testingMatrix);
+
+    // Inplace-prediction
+    float[][] inplacePredictions = booster.inplace_predict(testX, testRows, features, Float.NaN);
+
+    // Confirm that the two prediction results are identical
+    assertArrayEquals(predictions, inplacePredictions);
+  }
+
+  @Test
+  public void inplacePredictMultiPredictTest() throws InterruptedException {
+    // Multithreaded, multiple prediction
+    int trainRows = 1000;
+    int features = 10;
+    int trainSize = trainRows * features;
+
+    int testRows = 10;
+    int testSize = testRows * features;
+
+    //Simulate multiple predictions on multiple random data sets simultaneously.
+    ExecutorService executorService = Executors.newFixedThreadPool(5);
+    int predictsToPerform = 100;
+    for(int i = 0; i < predictsToPerform; i++) {
+      executorService.submit(() -> {
+        try {
+          float[] trainX = generateRandomDataSet(trainSize);
+          float[] trainY = generateRandomDataSet(trainRows);
+          DMatrix trainingMatrix = new DMatrix(trainX, trainRows, features, Float.NaN);
+          trainingMatrix.setLabel(trainY);
+
+          float[] testX = generateRandomDataSet(testSize);
+          float[] testY = generateRandomDataSet(testRows);
+          DMatrix testingMatrix = new DMatrix(testX, testRows, features, Float.NaN);
+          testingMatrix.setLabel(testY);
+
+          Map<String, Object> params = new HashMap<>();
+          params.put("eta", 1.0);
+          params.put("max_depth", 2);
+          params.put("silent", 1);
+          params.put("tree_method", "hist");
+
+          Map<String, DMatrix> watches = new HashMap<>();
+          watches.put("train", trainingMatrix);
+          watches.put("test", testingMatrix);
+
+          Booster booster = XGBoost.train(trainingMatrix, params, 10, watches, null, null);
+
+          float[][] predictions = booster.predict(testingMatrix);
+          float[][] inplacePredictions = booster.inplace_predict(testX, testRows, features, Float.NaN);
+
+          assertArrayEquals(predictions, inplacePredictions);
+        } catch (XGBoostError xgBoostError) {
+          fail(xgBoostError.getMessage());
+        }
+      });
+    }
+    executorService.shutdown();
+    if(!executorService.awaitTermination(1, TimeUnit.MINUTES))
+      executorService.shutdownNow();
+  }
+
+  @Test
+  public void inplacePredictWithMarginTest() throws XGBoostError {
+    //Generate a training set
+    int trainRows = 1000;
+    int features = 10;
+    int trainSize = trainRows * features;
+    float[] trainX = generateRandomDataSet(trainSize);
+    float[] trainY = generateRandomDataSet(trainRows);
+
+    DMatrix trainingMatrix = new DMatrix(trainX, trainRows, features, Float.NaN);
+    trainingMatrix.setLabel(trainY);
+
+    // Generate a testing set
+    int testRows = 10;
+    int testSize = testRows * features;
+    float[] testX = generateRandomDataSet(testSize);
+    float[] testY = generateRandomDataSet(testRows);
+
+    DMatrix testingMatrix = new DMatrix(testX, testRows, features, Float.NaN);
+    testingMatrix.setLabel(testY);
+
+    // Set booster parameters
+    Map<String, Object> params = new HashMap<>();
+    params.put("eta", 1.0);
+    params.put("max_depth",2);
+    params.put("tree_method", "hist");
+    params.put("base_score", 0.0);
+
+    Map<String, DMatrix> watches = new HashMap<>();
+    watches.put("train", trainingMatrix);
+    watches.put("test", testingMatrix);
+
+    // Train booster on training matrix.
+    Booster booster = XGBoost.train(trainingMatrix, params, 10, watches, null, null);
+
+    // Create a margin
+    float[] margin = new float[testRows];
+    Arrays.fill(margin, 0.5f);
+
+    // Define an iteration range to use all training iterations, this should match
+    // the without margin call
+    // which defines an iteration range of [0,0)
+    int[] iterationRange = new int[] { 0, 0 };
+
+    float[][] inplacePredictionsWithMargin = booster.inplace_predict(testX,
+        testRows,
+        features,
+        Float.NaN,
+        iterationRange,
+        Booster.PredictionType.kValue,
+        margin);
+    float[][] inplacePredictionsWithoutMargin = booster.inplace_predict(testX, testRows, features, Float.NaN);
+
+    for (int i = 0; i < inplacePredictionsWithoutMargin.length; i++) {
+      for (int j = 0; j < inplacePredictionsWithoutMargin[i].length; j++) {
+        inplacePredictionsWithoutMargin[i][j] += margin[j];
+      }
+    }
+    for (int i = 0; i < inplacePredictionsWithoutMargin.length; i++) {
+      assertArrayEquals(inplacePredictionsWithMargin[i], inplacePredictionsWithoutMargin[i], 1e-6f);
+    }
+  }
+
+  private float[] generateRandomDataSet(int size) {
+    float[] newSet = new float[size];
+    Random random = new Random();
+    for(int i = 0; i < size; i++) {
+      newSet[i] = random.nextFloat();
+    }
+    return newSet;
   }
 
   @Test
@@ -658,14 +832,12 @@ public class BoosterImplTest {
     float tempBoosterError = eval.eval(tempBooster.predict(testMat, true, 0), testMat);
 
     // Save tempBooster to bytestream and load back
-    int prevVersion = tempBooster.getVersion();
     ByteArrayInputStream in = new ByteArrayInputStream(tempBooster.toByteArray());
     tempBooster = XGBoost.loadModel(in);
     in.close();
-    tempBooster.setVersion(prevVersion);
 
     // Continue training using tempBooster
-    round = 4;
+    round = 2;
     Booster booster2 = XGBoost.train(trainMat, paramMap, round, watches, null, null, null, 0, tempBooster);
     float booster2error = eval.eval(booster2.predict(testMat, true, 0), testMat);
     assertEquals(booster1error, booster2error, 0.0);

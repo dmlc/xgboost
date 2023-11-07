@@ -8,6 +8,7 @@
 #include <limits>  // for numeric_limits
 #include <memory>  // for shared_ptr
 #include <string>  // for string
+#include <thread>  // for thread
 
 #include "../../../src/data/adapter.h"           // for ArrayAdapter
 #include "../../../src/data/device_adapter.cuh"  // for CupyAdapter
@@ -21,7 +22,7 @@ void TestInplaceFallback(Context const* ctx) {
   bst_feature_t n_features{32};
   HostDeviceVector<float> X_storage;
   // use a different device than the learner
-  std::int32_t data_ordinal = ctx->IsCPU() ? 0 : -1;
+  auto data_ordinal = ctx->IsCPU() ? DeviceOrd::CUDA(0) : DeviceOrd::CPU();
   auto X = RandomDataGenerator{n_samples, n_features, 0.0}
                .Device(data_ordinal)
                .GenerateArrayInterface(&X_storage);
@@ -29,7 +30,7 @@ void TestInplaceFallback(Context const* ctx) {
   auto y = RandomDataGenerator{n_samples, 1u, 0.0}.GenerateArrayInterface(&y_storage);
 
   std::shared_ptr<DMatrix> Xy;
-  if (data_ordinal == Context::kCpuId) {
+  if (data_ordinal.IsCPU()) {
     auto X_adapter = data::ArrayAdapter{StringView{X}};
     Xy.reset(DMatrix::Create(&X_adapter, std::numeric_limits<float>::quiet_NaN(), ctx->Threads()));
   } else {
@@ -41,14 +42,14 @@ void TestInplaceFallback(Context const* ctx) {
 
   // learner is configured to the device specified by ctx
   std::unique_ptr<Learner> learner{Learner::Create({Xy})};
-  ConfigLearnerByCtx(ctx, learner.get());
+  learner->SetParam("device", ctx->DeviceName());
   for (std::int32_t i = 0; i < 3; ++i) {
     learner->UpdateOneIter(i, Xy);
   }
 
   std::shared_ptr<DMatrix> p_m{new data::DMatrixProxy};
   auto proxy = std::dynamic_pointer_cast<data::DMatrixProxy>(p_m);
-  if (data_ordinal == Context::kCpuId) {
+  if (data_ordinal.IsCPU()) {
     proxy->SetArrayData(StringView{X});
   } else {
     proxy->SetCUDAArray(X.c_str());
@@ -56,18 +57,16 @@ void TestInplaceFallback(Context const* ctx) {
 
   HostDeviceVector<float>* out_predt{nullptr};
   ConsoleLogger::Configure(Args{{"verbosity", "1"}});
-  // test whether the warning is raised
-  ::testing::internal::CaptureStderr();
+  std::string output;
+
   learner->InplacePredict(p_m, PredictionType::kValue, std::numeric_limits<float>::quiet_NaN(),
                           &out_predt, 0, 0);
-  auto output = testing::internal::GetCapturedStderr();
-  ASSERT_NE(output.find("Falling back"), std::string::npos);
 
   // test when the contexts match
   Context new_ctx = *proxy->Ctx();
-  ASSERT_NE(new_ctx.gpu_id, ctx->gpu_id);
+  ASSERT_NE(new_ctx.Ordinal(), ctx->Ordinal());
 
-  ConfigLearnerByCtx(&new_ctx, learner.get());
+  learner->SetParam("device", new_ctx.DeviceName());
   HostDeviceVector<float>* out_predt_1{nullptr};
   // no warning is raised
   ::testing::internal::CaptureStderr();

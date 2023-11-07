@@ -34,7 +34,7 @@ void VerifyAllReduceBitwiseAND() {
   auto const rank = collective::GetRank();
   std::bitset<64> original{};
   original[rank] = true;
-  HostDeviceVector<uint64_t> buffer({original.to_ullong()}, rank);
+  HostDeviceVector<uint64_t> buffer({original.to_ullong()}, DeviceOrd::CUDA(rank));
   collective::AllReduce<collective::Operation::kBitwiseAND>(rank, buffer.DevicePointer(), 1);
   collective::Synchronize(rank);
   EXPECT_EQ(buffer.HostVector()[0], 0ULL);
@@ -46,7 +46,8 @@ TEST(NcclDeviceCommunicator, MGPUAllReduceBitwiseAND) {
   if (n_gpus <= 1) {
     GTEST_SKIP() << "Skipping MGPUAllReduceBitwiseAND test with # GPUs = " << n_gpus;
   }
-  RunWithInMemoryCommunicator(n_gpus, VerifyAllReduceBitwiseAND);
+  auto constexpr kUseNccl = true;
+  RunWithInMemoryCommunicator<kUseNccl>(n_gpus, VerifyAllReduceBitwiseAND);
 }
 
 namespace {
@@ -55,7 +56,7 @@ void VerifyAllReduceBitwiseOR() {
   auto const rank = collective::GetRank();
   std::bitset<64> original{};
   original[rank] = true;
-  HostDeviceVector<uint64_t> buffer({original.to_ullong()}, rank);
+  HostDeviceVector<uint64_t> buffer({original.to_ullong()}, DeviceOrd::CUDA(rank));
   collective::AllReduce<collective::Operation::kBitwiseOR>(rank, buffer.DevicePointer(), 1);
   collective::Synchronize(rank);
   EXPECT_EQ(buffer.HostVector()[0], (1ULL << world_size) - 1);
@@ -67,7 +68,8 @@ TEST(NcclDeviceCommunicator, MGPUAllReduceBitwiseOR) {
   if (n_gpus <= 1) {
     GTEST_SKIP() << "Skipping MGPUAllReduceBitwiseOR test with # GPUs = " << n_gpus;
   }
-  RunWithInMemoryCommunicator(n_gpus, VerifyAllReduceBitwiseOR);
+  auto constexpr kUseNccl = true;
+  RunWithInMemoryCommunicator<kUseNccl>(n_gpus, VerifyAllReduceBitwiseOR);
 }
 
 namespace {
@@ -76,7 +78,7 @@ void VerifyAllReduceBitwiseXOR() {
   auto const rank = collective::GetRank();
   std::bitset<64> original{~0ULL};
   original[rank] = false;
-  HostDeviceVector<uint64_t> buffer({original.to_ullong()}, rank);
+  HostDeviceVector<uint64_t> buffer({original.to_ullong()}, DeviceOrd::CUDA(rank));
   collective::AllReduce<collective::Operation::kBitwiseXOR>(rank, buffer.DevicePointer(), 1);
   collective::Synchronize(rank);
   EXPECT_EQ(buffer.HostVector()[0], (1ULL << world_size) - 1);
@@ -88,7 +90,8 @@ TEST(NcclDeviceCommunicator, MGPUAllReduceBitwiseXOR) {
   if (n_gpus <= 1) {
     GTEST_SKIP() << "Skipping MGPUAllReduceBitwiseXOR test with # GPUs = " << n_gpus;
   }
-  RunWithInMemoryCommunicator(n_gpus, VerifyAllReduceBitwiseXOR);
+  auto constexpr kUseNccl = true;
+  RunWithInMemoryCommunicator<kUseNccl>(n_gpus, VerifyAllReduceBitwiseXOR);
 }
 
 }  // namespace collective

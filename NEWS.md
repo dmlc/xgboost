@@ -3,6 +3,207 @@ XGBoost Change Log
 
 This file records the changes in xgboost library in reverse chronological order.
 
+## 2.0.0 (2023 Aug 16)
+
+We are excited to announce the release of XGBoost 2.0. This note will begin by covering some overall changes and then highlight specific updates to the package.
+
+### Initial work on multi-target trees with vector-leaf outputs
+We have been working on vector-leaf tree models for multi-target regression, multi-label classification, and multi-class classification in version 2.0. Previously, XGBoost would build a separate model for each target. However, with this new feature that's still being developed, XGBoost can build one tree for all targets. The feature has multiple benefits and trade-offs compared to the existing approach. It can help prevent overfitting, produce smaller models, and build trees that consider the correlation between targets. In addition, users can combine vector leaf and scalar leaf trees during a training session using a callback. Please note that the feature is still a working in progress, and many parts are not yet available. See #9043 for the current status. Related PRs: (#8538, #8697, #8902, #8884, #8895, #8898, #8612, #8652, #8698, #8908, #8928, #8968, #8616, #8922, #8890, #8872, #8889, #9509) Please note that, only the `hist` (default) tree method on CPU can be used for building vector leaf trees at the moment.
+
+### New `device` parameter.
+
+A new `device` parameter is set to replace the existing `gpu_id`, `gpu_hist`, `gpu_predictor`, `cpu_predictor`, `gpu_coord_descent`, and the PySpark specific parameter `use_gpu`. Onward, users need only the `device` parameter to select which device to run along with the ordinal of the device. For more information, please see our document page (https://xgboost.readthedocs.io/en/stable/parameter.html#general-parameters) . For example, with  `device="cuda", tree_method="hist"`, XGBoost will run the `hist` tree method on GPU. (#9363, #8528, #8604, #9354, #9274, #9243, #8896, #9129, #9362, #9402, #9385, #9398, #9390, #9386, #9412, #9507, #9536). The old behavior of ``gpu_hist``  is preserved but deprecated. In addition, the `predictor` parameter is removed.
+
+
+### `hist` is now the default tree method
+Starting from 2.0, the `hist` tree method will be the default. In previous versions, XGBoost chooses `approx` or `exact` depending on the input data and training environment. The new default can help XGBoost train models more efficiently and consistently. (#9320, #9353)
+
+### GPU-based approx tree method
+There's initial support for using the `approx` tree method on GPU. The performance of the `approx` is not yet well optimized but is feature complete except for the JVM packages. It can be accessed through the use of the parameter combination `device="cuda", tree_method="approx"`. (#9414, #9399, #9478). Please note that the Scala-based Spark interface is not yet supported.
+
+### Optimize and bound the size of the histogram on CPU, to control memory footprint
+
+XGBoost has a new parameter `max_cached_hist_node` for users to limit the CPU cache size for histograms. It can help prevent XGBoost from caching histograms too aggressively. Without the cache, performance is likely to decrease. However, the size of the cache grows exponentially with the depth of the tree. The limit can be crucial when growing deep trees. In most cases, users need not configure this parameter as it does not affect the model's accuracy. (#9455, #9441, #9440, #9427, #9400).
+
+Along with the cache limit, XGBoost also reduces the memory usage of the `hist` and `approx` tree method on distributed systems by cutting the size of the cache by half. (#9433)
+
+### Improved external memory support
+There is some exciting development around external memory support in XGBoost. It's still an experimental feature, but the performance has been significantly improved with the default `hist` tree method. We replaced the old file IO logic with memory map. In addition to performance, we have reduced CPU memory usage and added extensive documentation. Beginning from 2.0.0, we encourage users to try it with the `hist` tree method when the memory saving by `QuantileDMatrix` is not sufficient. (#9361, #9317, #9282, #9315, #8457)
+
+### Learning to rank
+We created a brand-new implementation for the learning-to-rank task. With the latest version, XGBoost gained a set of new features for ranking task including:
+
+- A new parameter `lambdarank_pair_method` for choosing the pair construction strategy.
+- A new parameter `lambdarank_num_pair_per_sample` for controlling the number of samples for each group.
+- An experimental implementation of unbiased learning-to-rank, which can be accessed using the `lambdarank_unbiased` parameter.
+- Support for custom gain function with `NDCG` using the `ndcg_exp_gain` parameter.
+- Deterministic GPU computation for all objectives and metrics.
+- `NDCG` is now the default objective function.
+- Improved performance of metrics using caches.
+- Support scikit-learn utilities for `XGBRanker`.
+- Extensive documentation on how learning-to-rank works with XGBoost.
+
+For more information, please see the [tutorial](https://xgboost.readthedocs.io/en/latest/tutorials/learning_to_rank.html). Related PRs: (#8771, #8692, #8783, #8789, #8790, #8859, #8887, #8893, #8906, #8931, #9075, #9015, #9381, #9336, #8822, #9222, #8984, #8785, #8786, #8768)
+
+### Automatically estimated intercept
+
+In the previous version, `base_score` was a constant that could be set as a training parameter. In the new version, XGBoost can automatically estimate this parameter based on input labels for optimal accuracy. (#8539, #8498, #8272, #8793, #8607)
+
+### Quantile regression
+The XGBoost algorithm now supports quantile regression, which involves minimizing the quantile loss (also called "pinball loss"). Furthermore, XGBoost allows for training with multiple target quantiles simultaneously with one tree per quantile. (#8775, #8761, #8760, #8758, #8750)
+
+### L1 and Quantile regression now supports learning rate
+Both objectives use adaptive trees due to the lack of proper Hessian values. In the new version, XGBoost can scale the leaf value with the learning rate accordingly. (#8866)
+
+### Export cut value
+
+Using the Python or the C package, users can export the quantile values (not to be confused with quantile regression) used for the `hist` tree method. (#9356)
+
+### column-based split and federated learning
+We made progress on column-based split for federated learning. In 2.0, both `approx`, `hist`, and `hist` with vector leaf can work with column-based data split, along with support for vertical federated learning. Work on GPU support is still on-going, stay tuned. (#8576, #8468, #8442, #8847, #8811, #8985, #8623, #8568, #8828, #8932, #9081, #9102, #9103, #9124, #9120, #9367, #9370, #9343, #9171, #9346, #9270, #9244, #8494, #8434, #8742, #8804, #8710, #8676, #9020, #9002, #9058, #9037, #9018, #9295, #9006, #9300, #8765, #9365, #9060)
+
+### PySpark
+After the initial introduction of the PySpark interface, it has gained some new features and optimizations in 2.0.
+
+- GPU-based prediction. (#9292, #9542)
+- Optimization for data initialization by avoiding the stack operation. (#9088)
+- Support predict feature contribution. (#8633)
+- Python typing support. (#9156, #9172, #9079, #8375)
+- `use_gpu` is deprecated. The `device` parameter is preferred.
+- Update eval_metric validation to support list of strings (#8826)
+- Improved logs for training (#9449)
+- Maintenance, including refactoring and document updates (#8324, #8465, #8605, #9202, #9460, #9302, #8385, #8630, #8525, #8496)
+- Fix for GPU setup. (#9495)
+
+### Other General New Features
+Here's a list of new features that don't have their own section and yet are general to all language bindings.
+
+- Use array interface for CSC matrix. This helps XGBoost to use a consistent number of threads and align the interface of the CSC matrix with other interfaces. In addition, memory usage is likely to decrease with CSC input thanks to on-the-fly type conversion. (#8672)
+- CUDA compute 90 is now part of the default build.. (#9397)
+
+### Other General Optimization
+These optimizations are general to all language bindings. For language-specific optimization, please visit the corresponding sections.
+
+- Performance for input with `array_interface` on CPU (like `numpy`) is significantly improved. (#9090)
+- Some optimization with CUDA for data initialization. (#9199, #9209, #9144)
+- Use the latest thrust policy to prevent synchronizing GPU devices. (#9212)
+- XGBoost now uses a per-thread CUDA stream, which prevents synchronization with other streams. (#9416, #9396, #9413)
+
+### Notable breaking change
+
+Other than the aforementioned change with the `device` parameter, here's a list of breaking changes affecting all packages.
+
+- Users must specify the format for text input (#9077). However, we suggest using third-party data structures such as `numpy.ndarray` instead of relying on text inputs. See https://github.com/dmlc/xgboost/issues/9472 for more info.
+
+### Notable bug fixes
+
+Some noteworthy bug fixes that are not related to specific language bindings are listed in this section.
+
+- Some language environments use a different thread to perform garbage collection, which breaks the thread-local cache used in XGBoost. XGBoost 2.0 implements a new thread-safe cache using a light weight lock to replace the thread-local cache. (#8851)
+- Fix model IO by clearing the prediction cache. (#8904)
+- `inf` is checked during data construction. (#8911)
+- Preserve order of saved updaters configuration. Usually, this is not an issue unless the `updater` parameter is used instead of the `tree_method` parameter (#9355)
+- Fix GPU memory allocation issue with categorical splits. (#9529)
+- Handle escape sequence like `\t\n` in feature names for JSON model dump. (#9474)
+- Normalize file path for model IO and text input. This handles short paths on Windows and paths that contain `~` on Unix (#9463). In addition, all path inputs are required to be encoded in UTF-8 (#9448, #9443)
+- Fix integer overflow on H100. (#9380)
+- Fix weighted sketching on GPU with categorical features. (#9341)
+- Fix metric serialization. The bug might cause some of the metrics to be dropped during evaluation. (#9405)
+- Fixes compilation errors on MSVC x86 targets (#8823)
+- Pick up the dmlc-core fix for the CSV parser. (#8897)
+
+
+### Documentation
+Aside from documents for new features, we have many smaller updates to improve user experience, from troubleshooting guides to typo fixes.
+
+- Explain CPU/GPU interop. (#8450)
+- Guide to troubleshoot NCCL errors. (#8943, #9206)
+- Add a note for rabit port selection. (#8879)
+- How to build the docs using conda (#9276)
+- Explain how to obtain reproducible results on distributed systems. (#8903)
+
+* Fixes and small updates to document and demonstration scripts. (#8626, #8436, #8995, #8907, #8923, #8926, #9358, #9232, #9201, #9469, #9462, #9458, #8543, #8597, #8401, #8784, #9213, #9098, #9008, #9223, #9333, #9434, #9435, #9415, #8773, #8752, #9291, #9549)
+
+### Python package
+* New Features and Improvements
+- Support primitive types of pyarrow-backed pandas dataframe. (#8653)
+- Warning messages emitted by XGBoost are now emitted using Python warnings. (#9387)
+- User can now format the value printed near the bars on the `plot_importance` plot (#8540)
+- XGBoost has improved half-type support (float16) with pandas, cupy, and cuDF. With GPU input, the handling is through CUDA `__half` type, and no data copy is made. (#8487, #9207, #8481)
+- Support `Series` and Python primitive types in `inplace_predict` and `QuantileDMatrix` (#8547, #8542)
+- Support all pandas' nullable integer types. (#8480)
+- Custom metric with the scikit-learn interface now supports `sample_weight`. (#8706)
+- Enable Installation of Python Package with System lib in a Virtual Environment (#9349)
+- Raise if expected workers are not alive in `xgboost.dask.train` (#9421)
+
+* Optimization
+- Cache transformed data in `QuantileDMatrix` for efficiency. (#8666, #9445)
+- Take datatable as row-major input. (#8472)
+- Remove unnecessary conversions between data structures (#8546)
+
+* Adopt modern Python packaging conventions (PEP 517, PEP 518, PEP 621)
+-  XGBoost adopted the modern Python packaging conventions. The old setup script `setup.py` is now replaced with the new configuration file `pyproject.toml`. Along with this, XGBoost now supports Python 3.11. (#9021, #9112, #9114, #9115) Consult the latest documentation for the updated instructions to build and install XGBoost.
+
+* Fixes
+- `DataIter` now accepts only keyword arguments. (#9431)
+- Fix empty DMatrix with categorical features. (#8739)
+- Convert ``DaskXGBClassifier.classes_`` to an array (#8452)
+- Define `best_iteration` only if early stopping is used to be consistent with documented behavior. (#9403)
+- Make feature validation immutable. (#9388)
+
+* Breaking changes
+- Discussed in the new `device` parameter section,  the `predictor` parameter is now removed. (#9129)
+- Remove support for single-string feature info. Feature type and names should be a sequence of strings (#9401)
+- Remove parameters in the `save_model` call for the scikit-learn interface. (#8963)
+- Remove the `ntree_limit` in the python package. This has been deprecated in previous versions. (#8345)
+
+* Maintenance including formatting and refactoring along with type hints.
+- More consistent use of `black` and `isort` for code formatting (#8420, #8748, #8867)
+- Improved type support. Most of the type changes happen in the PySpark module; here, we list the remaining changes. (#8444, #8617, #9197, #9005)
+- Set `enable_categorical` to True in predict. (#8592)
+- Some refactoring and updates for tests (#8395, #8372, #8557, #8379, #8702, #9459, #9316, #8446, #8695, #8409, #8993, #9480)
+
+* Documentation
+- Add introduction and notes for the sklearn interface. (#8948)
+- Demo for using dask for hyper-parameter optimization. (#8891)
+- Document all supported Python input types. (#8643)
+- Other documentation updates (#8944, #9304)
+
+### R package
+- Use the new data consumption interface for CSR and CSC. This provides better control for the number of threads and improves performance. (#8455, #8673)
+- Accept multiple evaluation metrics during training. (#8657)
+- Fix integer inputs with `NA`. (#9522)
+- Some refactoring for the R package (#8545, #8430, #8614, #8624, #8613, #9457, #8689, #8563, #9461, #8647, #8564, #8565, #8736, #8610, #8609, #8599, #8704, #9456, #9450, #9476, #9477, #9481). Special thanks to @jameslamb.
+- Document updates (#8886, #9323, #9437, #8998)
+
+### JVM packages
+Following are changes specific to various JVM-based packages.
+
+- Stop using Rabit in prediction (#9054)
+- Set feature_names and feature_types in jvm-packages. This is to prepare support for categorical features (#9364)
+- Scala 2.13 support. (#9099)
+- Change training stage from `ResultStage` to `ShuffleMapStage` (#9423)
+- Automatically set the max/min direction for the best score during early stopping. (#9404)
+* Revised support for `flink` (#9046)
+
+* Breaking changes
+- Scala-based tracker is removed. (#9078, #9045)
+- Change `DeviceQuantileDmatrix` into `QuantileDMatrix` (#8461)
+
+* Maintenance (#9253, #9166, #9395, #9389, #9224, #9233, #9351, #9479)
+
+* CI bot PRs
+We employed GitHub dependent bot to help us keep the dependencies up-to-date for JVM packages. With the help from the bot, we have cleared up all the dependencies that are lagging behind (#8501, #8507).
+
+Here's a list of dependency update PRs including those made by dependent bots (#8456, #8560, #8571, #8561, #8562, #8600, #8594, #8524, #8509, #8548, #8549, #8533, #8521, #8534, #8532, #8516, #8503, #8531, #8530, #8518, #8512, #8515, #8517, #8506, #8504, #8502, #8629, #8815, #8813, #8814, #8877, #8876, #8875, #8874, #8873, #9049, #9070, #9073, #9039, #9083, #8917, #8952, #8980, #8973, #8962, #9252, #9208, #9131, #9136, #9219, #9160, #9158, #9163, #9184, #9192, #9265, #9268, #8882, #8837, #8662, #8661, #8390, #9056, #8508, #8925, #8920, #9149, #9230, #9097, #8648, #9203, #8593).
+
+### Maintenance
+Maintenance work includes refactoring, fixing small issues that don't affect end users. (#9256, #8627, #8756, #8735, #8966, #8864, #8747, #8892, #9057, #8921, #8949, #8941, #8942, #9108, #9125, #9155, #9153, #9176, #9447, #9444, #9436, #9438, #9430, #9200, #9210, #9055, #9014, #9004, #8999, #9154, #9148, #9283, #9246, #8888, #8900, #8871, #8861, #8858, #8791, #8807, #8751, #8703, #8696, #8693, #8677, #8686, #8665, #8660, #8386, #8371, #8410, #8578, #8574, #8483, #8443, #8454, #8733)
+
+### CI
+- Build pip wheel with RMM support (#9383)
+- Other CI updates including updating dependencies and work on the CI infrastructure. (#9464, #9428, #8767, #9394, #9278, #9214, #9234, #9205, #9034, #9104, #8878, #9294, #8625, #8806, #8741, #8707, #8381, #8382, #8388, #8402, #8397, #8445, #8602, #8628, #8583, #8460, #9544)
+
 ## 1.7.6 (2023 Jun 16)
 
 This is a patch release for bug fixes. The CRAN package for the R binding is kept at 1.7.5.
