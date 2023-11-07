@@ -206,7 +206,7 @@ class GpuXGBoostGeneralSuite extends GpuTestSuite {
         .setDevice("cuda:1")
         .fit(trainingDf)
       }
-      assert(thrown.getMessage.contains("`cuda` or `gpu`"))
+      assert(thrown.getMessage.contains("device given invalid value cuda:1"))
     }
   }
 }
