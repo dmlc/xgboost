@@ -827,13 +827,14 @@ class SketchContainerImpl {
     return group_ind;
   }
   // Gather sketches from all workers.
-  void GatherSketchInfo(MetaInfo const& info,
+  void GatherSketchInfo(Context const *ctx, MetaInfo const &info,
                         std::vector<typename WQSketch::SummaryContainer> const &reduced,
                         std::vector<bst_row_t> *p_worker_segments,
                         std::vector<bst_row_t> *p_sketches_scan,
                         std::vector<typename WQSketch::Entry> *p_global_sketches);
   // Merge sketches from all workers.
-  void AllReduce(MetaInfo const& info, std::vector<typename WQSketch::SummaryContainer> *p_reduced,
+  void AllReduce(Context const *ctx, MetaInfo const &info,
+                 std::vector<typename WQSketch::SummaryContainer> *p_reduced,
                  std::vector<int32_t> *p_num_cuts);
 
   template <typename Batch, typename IsValid>
@@ -887,11 +888,11 @@ class SketchContainerImpl {
   /* \brief Push a CSR matrix. */
   void PushRowPage(SparsePage const &page, MetaInfo const &info, Span<float const> hessian = {});
 
-  void MakeCuts(MetaInfo const& info, HistogramCuts* cuts);
+  void MakeCuts(Context const *ctx, MetaInfo const &info, HistogramCuts *cuts);
 
  private:
   // Merge all categories from other workers.
-  void AllreduceCategories(MetaInfo const& info);
+  void AllreduceCategories(Context const* ctx, MetaInfo const& info);
 };
 
 class HostSketchContainer : public SketchContainerImpl<WQuantileSketch<float, float>> {

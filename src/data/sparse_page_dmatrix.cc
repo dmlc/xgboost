@@ -97,7 +97,7 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
   this->info_.num_col_ = n_features;
   this->info_.num_nonzero_ = nnz;
 
-  info_.SynchronizeNumberOfColumns();
+  info_.SynchronizeNumberOfColumns(&ctx);
   CHECK_NE(info_.num_col_, 0);
 
   fmat_ctx_ = ctx;

@@ -42,7 +42,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, std::int32_t nthr
   info_.num_row_ = adapter->NumRows();
   // Synchronise worker columns
   info_.data_split_mode = data_split_mode;
-  info_.SynchronizeNumberOfColumns();
+  info_.SynchronizeNumberOfColumns(&ctx);
 
   this->fmat_ctx_ = ctx;
 }

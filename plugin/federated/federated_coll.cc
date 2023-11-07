@@ -29,7 +29,7 @@ namespace {
   auto stub = fed->Handle();
 
   BroadcastRequest request;
-  request.set_sequence_number(*sequence_number++);
+  request.set_sequence_number((*sequence_number)++);
   request.set_rank(comm.Rank());
   if (comm.Rank() != root) {
     request.set_send_buffer(nullptr, 0);
@@ -90,9 +90,9 @@ Coll *FederatedColl::MakeCUDAVar() {
 [[nodiscard]] Result FederatedColl::Broadcast(Comm const &comm, common::Span<std::int8_t> data,
                                               std::int32_t root) {
   if (comm.Rank() == root) {
-    return BroadcastImpl(comm, &sequence_number_, data, root);
+    return BroadcastImpl(comm, &this->sequence_number_, data, root);
   } else {
-    return BroadcastImpl(comm, &sequence_number_, data, root);
+    return BroadcastImpl(comm, &this->sequence_number_, data, root);
   }
 }
 

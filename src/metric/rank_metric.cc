@@ -162,7 +162,7 @@ struct EvalRank : public MetricNoCache, public EvalRankConfig {
     return collective::GlobalRatio(info, sum_metric, static_cast<double>(ngroups));
   }
 
-  const char* Name() const override {
+  [[nodiscard]] const char* Name() const override {
     return name.c_str();
   }
 
@@ -294,7 +294,7 @@ class EvalRankWithCache : public Metric {
 };
 
 namespace {
-double Finalize(MetaInfo const& info, double score, double sw) {
+double Finalize(Context const*, MetaInfo const& info, double score, double sw) {
   std::array<double, 2> dat{score, sw};
   collective::GlobalSum(info, &dat);
   std::tie(score, sw) = std::tuple_cat(dat);
@@ -323,7 +323,7 @@ class EvalPrecision : public EvalRankWithCache<ltr::PreCache> {
 
     if (ctx_->IsCUDA()) {
       auto pre = cuda_impl::PreScore(ctx_, info, predt, p_cache);
-      return Finalize(info, pre.Residue(), pre.Weights());
+      return Finalize(ctx_, info, pre.Residue(), pre.Weights());
     }
 
     auto gptr = p_cache->DataGroupPtr(ctx_);
@@ -352,7 +352,7 @@ class EvalPrecision : public EvalRankWithCache<ltr::PreCache> {
     }
 
     auto sum = std::accumulate(pre.cbegin(), pre.cend(), 0.0);
-    return Finalize(info, sum, sw);
+    return Finalize(ctx_, info, sum, sw);
   }
 };
 
@@ -369,7 +369,7 @@ class EvalNDCG : public EvalRankWithCache<ltr::NDCGCache> {
               std::shared_ptr<ltr::NDCGCache> p_cache) override {
     if (ctx_->IsCUDA()) {
       auto ndcg = cuda_impl::NDCGScore(ctx_, info, preds, minus_, p_cache);
-      return Finalize(info, ndcg.Residue(), ndcg.Weights());
+      return Finalize(ctx_, info, ndcg.Residue(), ndcg.Weights());
     }
 
     // group local ndcg
@@ -415,7 +415,7 @@ class EvalNDCG : public EvalRankWithCache<ltr::NDCGCache> {
       sum_w = std::accumulate(weights.weights.cbegin(), weights.weights.cend(), 0.0);
     }
     auto ndcg = std::accumulate(linalg::cbegin(ndcg_gloc), linalg::cend(ndcg_gloc), 0.0);
-    return Finalize(info, ndcg, sum_w);
+    return Finalize(ctx_, info, ndcg, sum_w);
   }
 };
 
@@ -427,7 +427,7 @@ class EvalMAPScore : public EvalRankWithCache<ltr::MAPCache> {
               std::shared_ptr<ltr::MAPCache> p_cache) override {
     if (ctx_->IsCUDA()) {
       auto map = cuda_impl::MAPScore(ctx_, info, predt, minus_, p_cache);
-      return Finalize(info, map.Residue(), map.Weights());
+      return Finalize(ctx_, info, map.Residue(), map.Weights());
     }
 
     auto gptr = p_cache->DataGroupPtr(ctx_);
@@ -469,7 +469,7 @@ class EvalMAPScore : public EvalRankWithCache<ltr::MAPCache> {
       sw += weight[i];
     }
     auto sum = std::accumulate(map_gloc.cbegin(), map_gloc.cend(), 0.0);
-    return Finalize(info, sum, sw);
+    return Finalize(ctx_, info, sum, sw);
   }
 };
 

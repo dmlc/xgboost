@@ -111,7 +111,7 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   maker.hist.AllocateHistograms({0});
 
   maker.gpair = gpair.DeviceSpan();
-  maker.quantiser = std::make_unique<GradientQuantiser>(maker.gpair, MetaInfo());
+  maker.quantiser = std::make_unique<GradientQuantiser>(&ctx, maker.gpair, MetaInfo());
   maker.page = page.get();
 
   maker.InitFeatureGroupsOnce();
@@ -160,12 +160,6 @@ HistogramCutsWrapper GetHostCutMatrix () {
               0.26f, 0.74f, 1.98f,
               0.26f, 0.71f, 1.83f});
   return cmat;
-}
-
-inline GradientQuantiser DummyRoundingFactor() {
-  thrust::device_vector<GradientPair> gpair(1);
-  gpair[0] = {1000.f, 1000.f};  // Tests should not exceed sum of 1000
-  return {dh::ToSpan(gpair), MetaInfo()};
 }
 
 void TestHistogramIndexImpl() {

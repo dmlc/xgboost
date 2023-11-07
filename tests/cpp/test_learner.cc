@@ -2,6 +2,7 @@
  * Copyright (c) 2017-2023, XGBoost contributors
  */
 #include <gtest/gtest.h>
+#include <gmock/gmock.h>
 #include <xgboost/learner.h>                        // for Learner
 #include <xgboost/logging.h>                        // for LogCheck_NE, CHECK_NE, LogCheck_EQ
 #include <xgboost/objective.h>                      // for ObjFunction
@@ -81,7 +82,9 @@ TEST(Learner, ParameterValidation) {
 
   // whitespace
   learner->SetParam("tree method", "exact");
-  EXPECT_THROW(learner->Configure(), dmlc::Error);
+  EXPECT_THAT([&] { learner->Configure(); },
+              ::testing::ThrowsMessage<dmlc::Error>(
+                  ::testing::HasSubstr(R"("tree method" contains whitespace)")));
 }
 
 TEST(Learner, CheckGroup) {

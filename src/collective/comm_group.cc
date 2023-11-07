@@ -105,7 +105,7 @@ CommGroup::CommGroup()
 }
 
 std::unique_ptr<collective::CommGroup>& GlobalCommGroup() {
-  static std::unique_ptr<collective::CommGroup> sptr;
+  static thread_local std::unique_ptr<collective::CommGroup> sptr;
   if (!sptr) {
     Json config{Null{}};
     sptr.reset(CommGroup::Create(config));

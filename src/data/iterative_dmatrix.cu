@@ -105,7 +105,7 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
     sketch_containers.clear();
     sketch_containers.shrink_to_fit();
 
-    final_sketch.MakeCuts(&cuts, this->info_.IsColumnSplit());
+    final_sketch.MakeCuts(ctx, &cuts, this->info_.IsColumnSplit());
   } else {
     GetCutsFromRef(ctx, ref, Info().num_col_, p, &cuts);
   }
@@ -167,7 +167,7 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
 
   iter.Reset();
   // Synchronise worker columns
-  info_.SynchronizeNumberOfColumns();
+  info_.SynchronizeNumberOfColumns(ctx);
 }
 
 BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(Context const* ctx,

@@ -745,7 +745,7 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_col
   }
 }
 
-void MetaInfo::SynchronizeNumberOfColumns() {
+void MetaInfo::SynchronizeNumberOfColumns(Context const*) {
   if (IsColumnSplit()) {
     collective::Allreduce<collective::Operation::kSum>(&num_col_, 1);
   } else {

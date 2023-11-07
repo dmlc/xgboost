@@ -178,7 +178,7 @@ class MetaInfo {
    * in vertical federated learning, since each worker loads its own list of columns,
    * we need to sum them.
    */
-  void SynchronizeNumberOfColumns();
+  void SynchronizeNumberOfColumns(Context const* ctx);
 
   /*! \brief Whether the data is split row-wise. */
   bool IsRowSplit() const {

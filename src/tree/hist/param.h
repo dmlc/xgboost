@@ -15,7 +15,7 @@ struct HistMakerTrainParam : public XGBoostParameter<HistMakerTrainParam> {
   bool debug_synchronize{false};
   std::size_t max_cached_hist_node{DefaultNodes()};
 
-  void CheckTreesSynchronized(RegTree const* local_tree) const;
+  void CheckTreesSynchronized(Context const* ctx, RegTree const* local_tree) const;
 
   // declare parameters
   DMLC_DECLARE_PARAMETER(HistMakerTrainParam) {

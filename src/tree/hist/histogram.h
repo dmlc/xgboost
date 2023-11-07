@@ -171,7 +171,8 @@ class HistogramBuilder {
     }
   }
 
-  void SyncHistogram(RegTree const *p_tree, std::vector<bst_node_t> const &nodes_to_build,
+  void SyncHistogram(Context const *, RegTree const *p_tree,
+                     std::vector<bst_node_t> const &nodes_to_build,
                      std::vector<bst_node_t> const &nodes_to_trick) {
     auto n_total_bins = buffer_.TotalBins();
     common::BlockedSpace2d space(
@@ -277,14 +278,14 @@ class MultiHistogramBuilder {
     }
 
     for (bst_target_t t = 0; t < p_tree->NumTargets(); ++t) {
-      this->target_builders_[t].SyncHistogram(p_tree, nodes, dummy_sub);
+      this->target_builders_[t].SyncHistogram(ctx_, p_tree, nodes, dummy_sub);
     }
   }
   /**
    * @brief Build histogram for left and right child of valid candidates
    */
   template <typename Partitioner, typename ExpandEntry>
-  void BuildHistLeftRight(DMatrix *p_fmat, RegTree const *p_tree,
+  void BuildHistLeftRight(Context const *ctx, DMatrix *p_fmat, RegTree const *p_tree,
                           std::vector<Partitioner> const &partitioners,
                           std::vector<ExpandEntry> const &valid_candidates,
                           linalg::MatrixView<GradientPair const> gpair, BatchParam const &param,
@@ -318,7 +319,7 @@ class MultiHistogramBuilder {
     }
 
     for (bst_target_t t = 0; t < p_tree->NumTargets(); ++t) {
-      this->target_builders_[t].SyncHistogram(p_tree, nodes_to_build, nodes_to_sub);
+      this->target_builders_[t].SyncHistogram(ctx, p_tree, nodes_to_build, nodes_to_sub);
     }
   }
 

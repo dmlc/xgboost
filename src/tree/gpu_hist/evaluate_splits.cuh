@@ -193,7 +193,7 @@ class GPUHistEvaluator {
   /**
    * \brief Evaluate splits for left and right nodes.
    */
-  void EvaluateSplits(const std::vector<bst_node_t> &nidx,
+  void EvaluateSplits(Context const* ctx, const std::vector<bst_node_t> &nidx,
                       bst_feature_t max_active_features,
                       common::Span<const EvaluateSplitInputs> d_inputs,
                       EvaluateSplitSharedInputs shared_inputs,
@@ -201,7 +201,7 @@ class GPUHistEvaluator {
   /**
    * \brief Evaluate splits for root node.
    */
-  GPUExpandEntry EvaluateSingleSplit(EvaluateSplitInputs input,
+  GPUExpandEntry EvaluateSingleSplit(Context const *ctx, EvaluateSplitInputs input,
                                      EvaluateSplitSharedInputs shared_inputs);
 };
 }  // namespace tree

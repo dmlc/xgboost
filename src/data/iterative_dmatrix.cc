@@ -95,7 +95,7 @@ void GetCutsFromRef(Context const* ctx, std::shared_ptr<DMatrix> ref, bst_featur
 
 namespace {
 // Synchronize feature type in case of empty DMatrix
-void SyncFeatureType(std::vector<FeatureType>* p_h_ft) {
+void SyncFeatureType(Context const*, std::vector<FeatureType>* p_h_ft) {
   if (!collective::IsDistributed()) {
     return;
   }
@@ -193,7 +193,7 @@ void IterativeDMatrix::InitFromCPU(Context const* ctx, BatchParam const& p,
   // From here on Info() has the correct data shape
   Info().num_row_ = accumulated_rows;
   Info().num_nonzero_ = nnz;
-  Info().SynchronizeNumberOfColumns();
+  Info().SynchronizeNumberOfColumns(ctx);
   CHECK(std::none_of(column_sizes.cbegin(), column_sizes.cend(), [&](auto f) {
     return f > accumulated_rows;
   })) << "Something went wrong during iteration.";
@@ -213,9 +213,9 @@ void IterativeDMatrix::InitFromCPU(Context const* ctx, BatchParam const& p,
     while (iter.Next()) {
       if (!p_sketch) {
         h_ft = proxy->Info().feature_types.ConstHostVector();
-        SyncFeatureType(&h_ft);
-        p_sketch.reset(new common::HostSketchContainer{ctx, p.max_bin, h_ft, column_sizes,
-                                                       !proxy->Info().group_ptr_.empty()});
+        SyncFeatureType(ctx, &h_ft);
+        p_sketch = std::make_unique<common::HostSketchContainer>(ctx, p.max_bin, h_ft, column_sizes,
+                                                                 !proxy->Info().group_ptr_.empty());
       }
       HostAdapterDispatch(proxy, [&](auto const& batch) {
         proxy->Info().num_nonzero_ = batch_nnz[i];
@@ -230,7 +230,7 @@ void IterativeDMatrix::InitFromCPU(Context const* ctx, BatchParam const& p,
     CHECK_EQ(accumulated_rows, Info().num_row_);
 
     CHECK(p_sketch);
-    p_sketch->MakeCuts(Info(), &cuts);
+    p_sketch->MakeCuts(ctx, Info(), &cuts);
   }
   if (!h_ft.empty()) {
     CHECK_EQ(h_ft.size(), n_features);

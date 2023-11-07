@@ -62,9 +62,7 @@ struct TreeView {
     cats.node_ptr = tree_cat_ptrs;
   }
 
-  __device__ bool HasCategoricalSplit() const {
-    return !cats.categories.empty();
-  }
+  [[nodiscard]] __device__ bool HasCategoricalSplit() const { return !cats.categories.empty(); }
 };
 
 struct SparsePageView {
@@ -77,7 +75,7 @@ struct SparsePageView {
                                 common::Span<const bst_row_t> row_ptr,
                                 bst_feature_t num_features)
       : d_data{data}, d_row_ptr{row_ptr}, num_features(num_features) {}
-  __device__ float GetElement(size_t ridx, size_t fidx) const {
+  [[nodiscard]] __device__ float GetElement(size_t ridx, size_t fidx) const {
     // Binary search
     auto begin_ptr = d_data.begin() + d_row_ptr[ridx];
     auto end_ptr = d_data.begin() + d_row_ptr[ridx + 1];
@@ -105,8 +103,8 @@ struct SparsePageView {
     // Value is missing
     return nanf("");
   }
-  XGBOOST_DEVICE size_t NumRows() const { return d_row_ptr.size() - 1; }
-  XGBOOST_DEVICE size_t NumCols() const { return num_features; }
+  [[nodiscard]] XGBOOST_DEVICE size_t NumRows() const { return d_row_ptr.size() - 1; }
+  [[nodiscard]] XGBOOST_DEVICE size_t NumCols() const { return num_features; }
 };
 
 struct SparsePageLoader {
@@ -137,7 +135,7 @@ struct SparsePageLoader {
       __syncthreads();
     }
   }
-  __device__ float GetElement(size_t  ridx, size_t  fidx) const {
+  [[nodiscard]] __device__ float GetElement(size_t ridx, size_t fidx) const {
     if (use_shared) {
       return smem[threadIdx.x * data.num_features + fidx];
     } else {
@@ -151,7 +149,7 @@ struct EllpackLoader {
   XGBOOST_DEVICE EllpackLoader(EllpackDeviceAccessor const& m, bool, bst_feature_t, bst_row_t,
                                size_t, float)
       : matrix{m} {}
-  __device__ __forceinline__ float GetElement(size_t ridx, size_t fidx) const {
+  [[nodiscard]] __device__ __forceinline__ float GetElement(size_t ridx, size_t fidx) const {
     auto gidx = matrix.GetBinIndex(ridx, fidx);
     if (gidx == -1) {
       return nan("");

@@ -73,6 +73,7 @@ void RunWithFederatedCommunicator(int32_t world_size, std::string const& server_
   auto run = [&](auto rank) {
     Json config{JsonObject()};
     config["xgboost_communicator"] = String("federated");
+    config["federated_secure"] = false;
     config["federated_server_address"] = String(server_address);
     config["federated_world_size"] = world_size;
     config["federated_rank"] = rank;
