@@ -42,7 +42,7 @@ TEST_F(TrackerAPITest, CAPI) {
   std::vector<std::thread> workers;
   using namespace std::chrono_literals;  // NOLINT
   for (std::int32_t r = 0; r < 2; ++r) {
-    workers.emplace_back([&] { WorkerForTest w{host, static_cast<std::int32_t>(port), 1s, 2, r}; });
+    workers.emplace_back([=] { WorkerForTest w{host, static_cast<std::int32_t>(port), 1s, 2, r}; });
   }
   for (auto& w : workers) {
     w.join();
