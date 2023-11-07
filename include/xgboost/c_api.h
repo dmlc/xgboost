@@ -1508,6 +1508,83 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, const char *config,
  * @{
  */
 
+/**
+ * @brief Handle to tracker.
+ *
+ *   There are currently two types of tracker in XGBoost, first one is `rabit`, while the
+ *   other one is `federated`.
+ *
+ *   This is still under development.
+ */
+typedef void *TrackerHandle; /* NOLINT */
+
+/**
+ * @brief Create a new tracker.
+ *
+ * @param config JSON encoded parameters.
+ *
+ *   - dmlc_communicator: String, the type of tracker to create. Available options are `rabit`
+ *                        and `federated`.
+ *   - n_workers: Integer, the number of workers.
+ *   - port: (Optional) Integer, the port this tracker should listen to.
+ *   - timeout: (Optional) Integer, timeout in seconds for various networking operations.
+ *
+ *   Some configurations are `rabit` specific:
+ *   - host: (Optional) String, Used by the the `rabit` tracker to specify the address of the host.
+ *
+ *   Some `federated` specific configurations:
+ *   - federated_secure: Boolean, whether this is a secure server.
+ *   - server_key_path: Path to the server key. Used only if this is a secure server.
+ *   - server_cert_path: Path to the server certificate. Used only if this is a secure server.
+ *   - client_cert_path: Path to the client certificate. Used only if this is a secure server.
+ *
+ * @param handle The handle to the created tracker.
+ *
+ * @return 0 for success, -1 for failure.
+ */
+XGB_DLL int XGTrackerCreate(char const *config, TrackerHandle *handle);
+
+/**
+ * @brief Get the arguments needed for running workers. This should be called after
+ *        XGTrackerRun() and XGTrackerWait()
+ *
+ * @param handle The handle to the tracker.
+ * @param args The arguments returned as a JSON document.
+ *
+ * @return 0 for success, -1 for failure.
+ */
+XGB_DLL int XGTrackerWorkerArgs(TrackerHandle handle, char const **args);
+
+/**
+ * @brief Run the tracker.
+ *
+ * @param handle The handle to the tracker.
+ *
+ * @return 0 for success, -1 for failure.
+ */
+XGB_DLL int XGTrackerRun(TrackerHandle handle);
+
+/**
+ * @brief Wait for the tracker to finish, should be called after XGTrackerRun().
+ *
+ * @param handle The handle to the tracker.
+ * @param config JSON encoded configuration. No argument is required yet, preserved for
+ *        the future.
+ *
+ * @return 0 for success, -1 for failure.
+ */
+XGB_DLL int XGTrackerWait(TrackerHandle handle, char const *config);
+
+/**
+ * @brief Free a tracker instance. XGTrackerWait() is called internally. If the tracker
+ *        cannot close properly, manual interruption is required.
+ *
+ * @param handle The handle to the tracker.
+ *
+ * @return 0 for success, -1 for failure.
+ */
+XGB_DLL int XGTrackerFree(TrackerHandle handle);
+
 /*!
  * \brief Initialize the collective communicator.
  *
