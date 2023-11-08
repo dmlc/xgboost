@@ -1,7 +1,7 @@
 Package: xgboost
 Type: Package
 Title: Extreme Gradient Boosting
-Version: 2.0.1.1
+Version: 2.0.2.1
 Date: 2023-10-12
 Authors@R: c(
   person("Tianqi", "Chen", role = c("aut"),

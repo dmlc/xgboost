@@ -5,12 +5,12 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>ml.dmlc</groupId>
-        <artifactId>xgboost-jvm</artifactId>
-        <version>2.0.1</version>
+        <artifactId>xgboost-jvm_${scala.binary.version}</artifactId>
+        <version>2.0.2</version>
     </parent>
     <name>xgboost4j-example</name>
     <artifactId>xgboost4j-example_${scala.binary.version}</artifactId>
-    <version>2.0.1</version>
+    <version>2.0.2</version>
     <packaging>jar</packaging>
     <build>
         <plugins>
