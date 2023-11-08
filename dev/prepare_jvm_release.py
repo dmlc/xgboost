@@ -210,13 +210,23 @@ def main():
         "2. Store the Sonatype credentials in .m2/settings.xml. See insturctions in "
         "https://central.sonatype.org/publish/publish-maven/"
     )
-    print("3. Now on a Mac machine, run:")
+    print(
+        "3. Now on a M1 Mac machine, run the following to build Scala 2.12 artifacts:"
+    )
     print("   GPG_TTY=$(tty) mvn deploy -Prelease -DskipTests")
     print(
         "4. Log into https://oss.sonatype.org/. On the left menu panel, click Staging "
-        "Repositories. Visit the URL https://oss.sonatype.org/content/repositories/mldmlc-1085 "
+        "Repositories. Visit the URL https://oss.sonatype.org/content/repositories/mldmlc-xxxx "
         "to inspect the staged JAR files. Finally, press Release button to publish the "
-        "artifacts to the Maven Central repository."
+        "artifacts to the Maven Central repository. The top-level metapackage should be "
+        "named xgboost-jvm_2.12."
+    )
+    print("5. Remove the Scala 2.12 artifacts and build Scala 2.13 artifacts:")
+    print("   rm -rf targets/")
+    print("   GPG_TTY=$(tty) mvn deploy -Prelease-cpu-only,scala-2.13 -DskipTests")
+    print(
+        "6. Go to https://oss.sonatype.org/ to release the Scala 2.13 artifacts."
+        "The top-level metapackage should be named xgboost-jvm_2.13."
     )
 
 
