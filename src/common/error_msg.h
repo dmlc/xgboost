@@ -97,5 +97,7 @@ constexpr StringView InvalidCUDAOrdinal() {
 }
 
 void MismatchedDevices(Context const* booster, Context const* data);
+
+inline auto NoFederated() { return "XGBoost is not compiled with federated learning support."; }
 }  // namespace xgboost::error
 #endif  // XGBOOST_COMMON_ERROR_MSG_H_

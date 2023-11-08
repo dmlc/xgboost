@@ -114,6 +114,9 @@ class RabitTracker : public Tracker {
   // record for how to reach out to workers if error happens.
   std::vector<std::pair<std::string, std::int32_t>> worker_error_handles_;
   // listening socket for incoming workers.
+  //
+  // At the moment, the listener calls accept without first polling. We can add an
+  // additional unix domain socket to allow cancelling the accept.
   TCPSocket listener_;
 
   Result Bootstrap(std::vector<WorkerProxy>* p_workers);
