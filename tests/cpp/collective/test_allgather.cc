@@ -45,9 +45,9 @@ class Worker : public WorkerForTest {
       // test for limited socket buffer
       this->LimitSockBuf(4096);
 
-      std::size_t n = 8192;  // n_bytes = 8192 * sizeof(int)
+      std::size_t n = 8192 * 8;  // n_bytes = 8192 * sizeof(int)
       std::vector<std::int32_t> data(comm_.World() * n, 0);
-      auto s_data = common::Span{data.data(), data.size()};
+      auto s_data = common::Span<std::int32_t>{data};
       auto seg = s_data.subspan(comm_.Rank() * n, n);
       std::iota(seg.begin(), seg.end(), comm_.Rank());
 
