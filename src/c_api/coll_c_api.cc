@@ -26,7 +26,7 @@ using namespace xgboost;  // NOLINT
 
 namespace {
 using TrackerHandleT =
-    std::pair<std::unique_ptr<collective::Tracker>, std::future<collective::Result>>;
+    std::pair<std::unique_ptr<collective::Tracker>, std::shared_future<collective::Result>>;
 
 TrackerHandleT *GetTrackerHandle(TrackerHandle handle) {
   xgboost_CHECK_C_ARG_PTR(handle);
@@ -42,11 +42,12 @@ using CollAPIThreadLocalStore = dmlc::ThreadLocalStore<CollAPIEntry>;
 
 void WaitImpl(TrackerHandleT *ptr) {
   std::chrono::seconds wait_for{100};
-  while (ptr->second.valid()) {
-    auto res = ptr->second.wait_for(wait_for);
+  auto fut = ptr->second;
+  while (fut.valid()) {
+    auto res = fut.wait_for(wait_for);
     CHECK(res != std::future_status::deferred);
     if (res == std::future_status::ready) {
-      auto rc = ptr->second.get();
+      auto const &rc = ptr->second.get();
       CHECK(rc.OK()) << rc.Report();
       break;
     }

@@ -28,6 +28,13 @@ TEST_F(TrackerAPITest, CAPI) {
   rc = XGTrackerRun(handle);
   ASSERT_EQ(rc, 0);
 
+  std::thread bg_wait{[&] {
+    Json config{Object{}};
+    auto config_str = Json::Dump(config);
+    auto rc = XGTrackerWait(handle, config_str.c_str());
+    ASSERT_EQ(rc, 0);
+  }};
+
   char const* cargs;
   rc = XGTrackerWorkerArgs(handle, &cargs);
   ASSERT_EQ(rc, 0);
@@ -50,5 +57,7 @@ TEST_F(TrackerAPITest, CAPI) {
 
   rc = XGTrackerFree(handle);
   ASSERT_EQ(rc, 0);
+
+  bg_wait.join();
 }
 }  // namespace xgboost::collective
