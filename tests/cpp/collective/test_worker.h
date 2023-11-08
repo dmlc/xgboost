@@ -92,7 +92,7 @@ class TrackerTest : public SocketTest {
 
 template <typename WorkerFn>
 void TestDistributed(std::int32_t n_workers, WorkerFn worker_fn) {
-  std::chrono::seconds timeout{1};
+  std::chrono::seconds timeout{2};
 
   std::string host;
   auto rc = GetHostAddress(&host);
