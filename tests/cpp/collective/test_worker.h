@@ -92,11 +92,12 @@ class TrackerTest : public SocketTest {
 
 template <typename WorkerFn>
 void TestDistributed(std::int32_t n_workers, WorkerFn worker_fn) {
-  std::chrono::seconds timeout{1};
+  std::chrono::seconds timeout{2};
 
   std::string host;
   auto rc = GetHostAddress(&host);
   ASSERT_TRUE(rc.OK()) << rc.Report();
+  LOG(INFO) << "Using " << n_workers << " workers for test.";
   RabitTracker tracker{StringView{host}, n_workers, 0, timeout};
   auto fut = tracker.Run();
 
