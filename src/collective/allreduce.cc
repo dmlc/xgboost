@@ -62,6 +62,9 @@ Result RingScatterReduceTyped(Comm const& comm, common::Span<std::int8_t> data,
 
 Result RingAllreduce(Comm const& comm, common::Span<std::int8_t> data, Func const& op,
                      ArrayInterfaceHandler::Type type) {
+  if (comm.World() == 1) {
+    return Success();
+  }
   return DispatchDType(type, [&](auto t) {
     using T = decltype(t);
     // Divide the data into segments according to the number of workers.

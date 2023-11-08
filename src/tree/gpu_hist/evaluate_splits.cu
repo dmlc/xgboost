@@ -395,11 +395,11 @@ void GPUHistEvaluator::CopyToHost(const std::vector<bst_node_t> &nidx) {
   }
 }
 
-void GPUHistEvaluator::EvaluateSplits(
-    const std::vector<bst_node_t> &nidx, bst_feature_t max_active_features,
-    common::Span<const EvaluateSplitInputs> d_inputs,
-    EvaluateSplitSharedInputs shared_inputs,
-    common::Span<GPUExpandEntry> out_entries) {
+void GPUHistEvaluator::EvaluateSplits(Context const *ctx, const std::vector<bst_node_t> &nidx,
+                                      bst_feature_t max_active_features,
+                                      common::Span<const EvaluateSplitInputs> d_inputs,
+                                      EvaluateSplitSharedInputs shared_inputs,
+                                      common::Span<GPUExpandEntry> out_entries) {
   auto evaluator = this->tree_evaluator_.template GetEvaluator<GPUTrainingParam>();
 
   dh::TemporaryArray<DeviceSplitCandidate> splits_out_storage(d_inputs.size());
@@ -417,19 +417,20 @@ void GPUHistEvaluator::EvaluateSplits(
                           out_splits.size() * sizeof(DeviceSplitCandidate));
 
     // Reduce to get the best candidate from all workers.
-    dh::LaunchN(out_splits.size(), [world_size, all_candidates, out_splits] __device__(size_t i) {
-      out_splits[i] = all_candidates[i];
-      for (auto rank = 1; rank < world_size; rank++) {
-        out_splits[i] = out_splits[i] + all_candidates[rank * out_splits.size() + i];
-      }
-    });
+    dh::LaunchN(out_splits.size(), ctx->CUDACtx()->Stream(),
+                [world_size, all_candidates, out_splits] __device__(size_t i) {
+                  out_splits[i] = all_candidates[i];
+                  for (auto rank = 1; rank < world_size; rank++) {
+                    out_splits[i] = out_splits[i] + all_candidates[rank * out_splits.size() + i];
+                  }
+                });
   }
 
   auto d_sorted_idx = this->SortedIdx(d_inputs.size(), shared_inputs.feature_values.size());
   auto d_entries = out_entries;
   auto device_cats_accessor = this->DeviceCatStorage(nidx);
   // turn candidate into entry, along with handling sort based split.
-  dh::LaunchN(d_inputs.size(), [=] __device__(size_t i) mutable {
+  dh::LaunchN(d_inputs.size(), ctx->CUDACtx()->Stream(), [=] __device__(size_t i) mutable {
     auto const input = d_inputs[i];
     auto &split = out_splits[i];
     // Subtract parent gain here
@@ -464,12 +465,12 @@ void GPUHistEvaluator::EvaluateSplits(
   this->CopyToHost(nidx);
 }
 
-GPUExpandEntry GPUHistEvaluator::EvaluateSingleSplit(
-    EvaluateSplitInputs input, EvaluateSplitSharedInputs shared_inputs) {
+GPUExpandEntry GPUHistEvaluator::EvaluateSingleSplit(Context const *ctx, EvaluateSplitInputs input,
+                                                     EvaluateSplitSharedInputs shared_inputs) {
   dh::device_vector<EvaluateSplitInputs> inputs = std::vector<EvaluateSplitInputs>{input};
   dh::TemporaryArray<GPUExpandEntry> out_entries(1);
-  this->EvaluateSplits({input.nidx}, input.feature_set.size(), dh::ToSpan(inputs), shared_inputs,
-                       dh::ToSpan(out_entries));
+  this->EvaluateSplits(ctx, {input.nidx}, input.feature_set.size(), dh::ToSpan(inputs),
+                       shared_inputs, dh::ToSpan(out_entries));
   GPUExpandEntry root_entry;
   dh::safe_cuda(cudaMemcpyAsync(&root_entry, out_entries.data().get(), sizeof(GPUExpandEntry),
                                 cudaMemcpyDeviceToHost));

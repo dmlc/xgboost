@@ -151,9 +151,9 @@ class SketchContainer {
              Span<SketchEntry const> that);
 
   /* \brief Merge quantiles from other GPU workers. */
-  void AllReduce(bool is_column_split);
+  void AllReduce(Context const* ctx, bool is_column_split);
   /* \brief Create the final histogram cut values. */
-  void MakeCuts(HistogramCuts* cuts, bool is_column_split);
+  void MakeCuts(Context const* ctx, HistogramCuts* cuts, bool is_column_split);
 
   Span<SketchEntry const> Data() const {
     return {this->Current().data().get(), this->Current().size()};

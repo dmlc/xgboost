@@ -228,8 +228,8 @@ class MultiTargetHistBuilder {
                       std::vector<MultiExpandEntry> const &valid_candidates,
                       linalg::MatrixView<GradientPair const> gpair) {
     monitor_->Start(__func__);
-    histogram_builder_->BuildHistLeftRight(p_fmat, p_tree, partitioner_, valid_candidates, gpair,
-                                           HistBatch(param_));
+    histogram_builder_->BuildHistLeftRight(ctx_, p_fmat, p_tree, partitioner_, valid_candidates,
+                                           gpair, HistBatch(param_));
     monitor_->Stop(__func__);
   }
 
@@ -436,8 +436,8 @@ class HistUpdater {
                       std::vector<CPUExpandEntry> const &valid_candidates,
                       linalg::MatrixView<GradientPair const> gpair) {
     monitor_->Start(__func__);
-    this->histogram_builder_->BuildHistLeftRight(p_fmat, p_tree, partitioner_, valid_candidates,
-                                                 gpair, HistBatch(param_));
+    this->histogram_builder_->BuildHistLeftRight(ctx_, p_fmat, p_tree, partitioner_,
+                                                 valid_candidates, gpair, HistBatch(param_));
     monitor_->Stop(__func__);
   }
 
@@ -537,7 +537,7 @@ class QuantileHistMaker : public TreeUpdater {
                                    h_out_position, *tree_it);
       }
 
-      hist_param_.CheckTreesSynchronized(*tree_it);
+      hist_param_.CheckTreesSynchronized(ctx_, *tree_it);
     }
   }
 

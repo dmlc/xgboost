@@ -51,7 +51,7 @@ HistogramCuts SketchOnDMatrix(Context const *ctx, DMatrix *m, bst_bin_t max_bins
     for (auto const &page : m->GetBatches<SparsePage>()) {
       container.PushRowPage(page, info, hessian);
     }
-    container.MakeCuts(m->Info(), &out);
+    container.MakeCuts(ctx, m->Info(), &out);
   } else {
     SortedSketchContainer container{ctx,
                                     max_bins,
@@ -61,7 +61,7 @@ HistogramCuts SketchOnDMatrix(Context const *ctx, DMatrix *m, bst_bin_t max_bins
     for (auto const &page : m->GetBatches<SortedCSCPage>(ctx)) {
       container.PushColPage(page, info, hessian);
     }
-    container.MakeCuts(m->Info(), &out);
+    container.MakeCuts(ctx, m->Info(), &out);
   }
 
   return out;

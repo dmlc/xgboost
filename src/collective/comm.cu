@@ -10,6 +10,7 @@
 #include <sstream>    // for stringstream
 #include <vector>     // for vector
 
+#include "../common/cuda_context.cuh"    // for CUDAContext
 #include "../common/device_helpers.cuh"  // for DefaultStream
 #include "../common/type.h"              // for EraseType
 #include "broadcast.h"                   // for Broadcast
@@ -60,7 +61,7 @@ Comm* Comm::MakeCUDAVar(Context const* ctx, std::shared_ptr<Coll> pimpl) const {
 NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> pimpl)
     : Comm{root.TrackerInfo().host, root.TrackerInfo().port, root.Timeout(), root.Retry(),
            root.TaskID()},
-      stream_{dh::DefaultStream()} {
+      stream_{ctx->CUDACtx()->Stream()} {
   this->world_ = root.World();
   this->rank_ = root.Rank();
   this->domain_ = root.Domain();

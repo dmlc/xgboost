@@ -39,18 +39,20 @@ private:
   GradientPairPrecise to_floating_point_;
 
  public:
-  GradientQuantiser(common::Span<GradientPair const> gpair, MetaInfo const& info);
-  XGBOOST_DEVICE GradientPairInt64 ToFixedPoint(GradientPair const& gpair) const {
+  GradientQuantiser(Context const* ctx, common::Span<GradientPair const> gpair, MetaInfo const& info);
+  [[nodiscard]] XGBOOST_DEVICE GradientPairInt64 ToFixedPoint(GradientPair const& gpair) const {
     auto adjusted = GradientPairInt64(gpair.GetGrad() * to_fixed_point_.GetGrad(),
-                               gpair.GetHess() * to_fixed_point_.GetHess());
+                                      gpair.GetHess() * to_fixed_point_.GetHess());
     return adjusted;
   }
-  XGBOOST_DEVICE GradientPairInt64 ToFixedPoint(GradientPairPrecise const& gpair) const {
+  [[nodiscard]] XGBOOST_DEVICE GradientPairInt64
+  ToFixedPoint(GradientPairPrecise const& gpair) const {
     auto adjusted = GradientPairInt64(gpair.GetGrad() * to_fixed_point_.GetGrad(),
-                               gpair.GetHess() * to_fixed_point_.GetHess());
+                                      gpair.GetHess() * to_fixed_point_.GetHess());
     return adjusted;
   }
-  XGBOOST_DEVICE GradientPairPrecise ToFloatingPoint(const GradientPairInt64&gpair) const {
+  [[nodiscard]] XGBOOST_DEVICE GradientPairPrecise
+  ToFloatingPoint(const GradientPairInt64& gpair) const {
     auto g = gpair.GetQuantisedGrad() * to_floating_point_.GetGrad();
     auto h = gpair.GetQuantisedHess() * to_floating_point_.GetHess();
     return {g,h};

@@ -12,7 +12,7 @@
 namespace xgboost::tree {
 DMLC_REGISTER_PARAMETER(HistMakerTrainParam);
 
-void HistMakerTrainParam::CheckTreesSynchronized(RegTree const* local_tree) const {
+void HistMakerTrainParam::CheckTreesSynchronized(Context const*, RegTree const* local_tree) const {
   if (!this->debug_synchronize) {
     return;
   }

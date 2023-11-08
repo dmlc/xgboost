@@ -582,20 +582,20 @@ auto MakeTensorView(Context const *ctx, Container &data, S &&...shape) {  // NOL
   return TensorView<T, sizeof...(S)>{data, in_shape, ctx->Device()};
 }
 
-template <typename T, typename... S>
-LINALG_HD auto MakeTensorView(DeviceOrd device, common::Span<T> data, S &&...shape) {
+template <typename T, decltype(common::dynamic_extent) ext, typename... S>
+LINALG_HD auto MakeTensorView(DeviceOrd device, common::Span<T, ext> data, S &&...shape) {
   std::size_t in_shape[sizeof...(S)];
   detail::IndexToArr(in_shape, std::forward<S>(shape)...);
   return TensorView<T, sizeof...(S)>{data, in_shape, device};
 }
 
-template <typename T, typename... S>
-auto MakeTensorView(Context const *ctx, common::Span<T> data, S &&...shape) {
+template <typename T, decltype(common::dynamic_extent) ext, typename... S>
+auto MakeTensorView(Context const *ctx, common::Span<T, ext> data, S &&...shape) {
   return MakeTensorView(ctx->Device(), data, std::forward<S>(shape)...);
 }
 
-template <typename T, typename... S>
-auto MakeTensorView(Context const *ctx, Order order, common::Span<T> data, S &&...shape) {
+template <typename T, decltype(common::dynamic_extent) ext, typename... S>
+auto MakeTensorView(Context const *ctx, Order order, common::Span<T, ext> data, S &&...shape) {
   std::size_t in_shape[sizeof...(S)];
   detail::IndexToArr(in_shape, std::forward<S>(shape)...);
   return TensorView<T, sizeof...(S)>{data, in_shape, ctx->Device(), order};

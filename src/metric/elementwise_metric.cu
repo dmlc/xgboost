@@ -215,7 +215,7 @@ struct EvalError {
       has_param_ = false;
     }
   }
-  const char *Name() const {
+  [[nodiscard]] const char *Name() const {
     static thread_local std::string name;
     if (has_param_) {
       std::ostringstream os;
@@ -228,7 +228,7 @@ struct EvalError {
     }
   }
 
-  XGBOOST_DEVICE bst_float EvalRow(bst_float label, bst_float pred) const {
+  [[nodiscard]] XGBOOST_DEVICE bst_float EvalRow(bst_float label, bst_float pred) const {
     // assume label is in [0,1]
     return pred > threshold_ ? 1.0f - label : label;
   }
@@ -370,7 +370,7 @@ struct EvalEWiseBase : public MetricNoCache {
     return Policy::GetFinal(dat[0], dat[1]);
   }
 
-  const char* Name() const override { return policy_.Name(); }
+  [[nodiscard]] const char* Name() const override { return policy_.Name(); }
 
  private:
   Policy policy_;

@@ -37,7 +37,7 @@ void TestDeterministicHistogram(bool is_dense, int shm_size) {
     FeatureGroups feature_groups(page->Cuts(), page->is_dense, shm_size,
                                  sizeof(GradientPairInt64));
 
-    auto quantiser = GradientQuantiser(gpair.DeviceSpan(), MetaInfo());
+    auto quantiser = GradientQuantiser(&ctx, gpair.DeviceSpan(), MetaInfo());
     BuildGradientHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(FstCU()),
                            feature_groups.DeviceAccessor(FstCU()), gpair.DeviceSpan(), ridx,
                            d_histogram, quantiser);
@@ -51,7 +51,7 @@ void TestDeterministicHistogram(bool is_dense, int shm_size) {
       dh::device_vector<GradientPairInt64> new_histogram(num_bins);
       auto d_new_histogram = dh::ToSpan(new_histogram);
 
-      auto quantiser = GradientQuantiser(gpair.DeviceSpan(), MetaInfo());
+      auto quantiser = GradientQuantiser(&ctx, gpair.DeviceSpan(), MetaInfo());
       BuildGradientHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(FstCU()),
                              feature_groups.DeviceAccessor(FstCU()), gpair.DeviceSpan(), ridx,
                              d_new_histogram, quantiser);
@@ -129,7 +129,7 @@ void TestGPUHistogramCategorical(size_t num_categories) {
   dh::device_vector<GradientPairInt64> cat_hist(num_categories);
   auto gpair = GenerateRandomGradients(kRows, 0, 2);
   gpair.SetDevice(DeviceOrd::CUDA(0));
-  auto quantiser = GradientQuantiser(gpair.DeviceSpan(), MetaInfo());
+  auto quantiser = GradientQuantiser(&ctx, gpair.DeviceSpan(), MetaInfo());
   /**
    * Generate hist with cat data.
    */

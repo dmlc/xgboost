@@ -22,9 +22,7 @@
 #include "transform_iterator.h"  // MakeIndexTransformIter
 #include "xgboost/span.h"
 
-namespace xgboost {
-namespace common {
-
+namespace xgboost::common {
 using WQSketch = HostSketchContainer::WQSketch;
 using SketchEntry = WQSketch::Entry;
 
@@ -501,7 +499,7 @@ void SketchContainer::FixError() {
   });
 }
 
-void SketchContainer::AllReduce(bool is_column_split) {
+void SketchContainer::AllReduce(Context const*, bool is_column_split) {
   dh::safe_cuda(cudaSetDevice(device_.ordinal));
   auto world = collective::GetWorldSize();
   if (world == 1 || is_column_split) {
@@ -582,13 +580,13 @@ struct InvalidCatOp {
 };
 }  // anonymous namespace
 
-void SketchContainer::MakeCuts(HistogramCuts* p_cuts, bool is_column_split) {
+void SketchContainer::MakeCuts(Context const* ctx, HistogramCuts* p_cuts, bool is_column_split) {
   timer_.Start(__func__);
   dh::safe_cuda(cudaSetDevice(device_.ordinal));
   p_cuts->min_vals_.Resize(num_columns_);
 
   // Sync between workers.
-  this->AllReduce(is_column_split);
+  this->AllReduce(ctx, is_column_split);
 
   // Prune to final number of bins.
   this->Prune(num_bins_ + 1);
@@ -731,5 +729,4 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts, bool is_column_split) {
   p_cuts->SetCategorical(this->has_categorical_, max_cat);
   timer_.Stop(__func__);
 }
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common

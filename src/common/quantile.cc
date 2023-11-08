@@ -11,9 +11,7 @@
 #include "categorical.h"
 #include "hist_util.h"
 
-namespace xgboost {
-namespace common {
-
+namespace xgboost::common {
 template <typename WQSketch>
 SketchContainerImpl<WQSketch>::SketchContainerImpl(Context const *ctx,
                                                    std::vector<bst_row_t> columns_size,
@@ -129,7 +127,7 @@ struct QuantileAllreduce {
    * \param rank rank of target worker
    * \param fidx feature idx
    */
-  auto Values(int32_t rank, bst_feature_t fidx) const {
+  [[nodiscard]] auto Values(int32_t rank, bst_feature_t fidx) const {
     // get span for worker
     auto wsize = worker_indptr[rank + 1] - worker_indptr[rank];
     auto worker_values = global_values.subspan(worker_indptr[rank], wsize);
@@ -145,7 +143,7 @@ struct QuantileAllreduce {
 
 template <typename WQSketch>
 void SketchContainerImpl<WQSketch>::GatherSketchInfo(
-    MetaInfo const& info,
+    Context const *, MetaInfo const &info,
     std::vector<typename WQSketch::SummaryContainer> const &reduced,
     std::vector<size_t> *p_worker_segments, std::vector<bst_row_t> *p_sketches_scan,
     std::vector<typename WQSketch::Entry> *p_global_sketches) {
@@ -206,7 +204,7 @@ void SketchContainerImpl<WQSketch>::GatherSketchInfo(
 }
 
 template <typename WQSketch>
-void SketchContainerImpl<WQSketch>::AllreduceCategories(MetaInfo const& info) {
+void SketchContainerImpl<WQSketch>::AllreduceCategories(Context const*, MetaInfo const& info) {
   auto world_size = collective::GetWorldSize();
   auto rank = collective::GetRank();
   if (world_size == 1 || info.IsColumnSplit()) {
@@ -274,16 +272,15 @@ void SketchContainerImpl<WQSketch>::AllreduceCategories(MetaInfo const& info) {
 
 template <typename WQSketch>
 void SketchContainerImpl<WQSketch>::AllReduce(
-    MetaInfo const& info,
-    std::vector<typename WQSketch::SummaryContainer> *p_reduced,
-    std::vector<int32_t>* p_num_cuts) {
+    Context const *ctx, MetaInfo const &info,
+    std::vector<typename WQSketch::SummaryContainer> *p_reduced, std::vector<int32_t> *p_num_cuts) {
   monitor_.Start(__func__);
 
   size_t n_columns = sketches_.size();
   collective::Allreduce<collective::Operation::kMax>(&n_columns, 1);
   CHECK_EQ(n_columns, sketches_.size()) << "Number of columns differs across workers";
 
-  AllreduceCategories(info);
+  AllreduceCategories(ctx, info);
 
   auto& num_cuts = *p_num_cuts;
   CHECK_EQ(num_cuts.size(), 0);
@@ -324,7 +321,7 @@ void SketchContainerImpl<WQSketch>::AllReduce(
   std::vector<bst_row_t> sketches_scan((n_columns + 1) * world, 0);
 
   std::vector<typename WQSketch::Entry> global_sketches;
-  this->GatherSketchInfo(info, reduced, &worker_segments, &sketches_scan, &global_sketches);
+  this->GatherSketchInfo(ctx, info, reduced, &worker_segments, &sketches_scan, &global_sketches);
 
   std::vector<typename WQSketch::SummaryContainer> final_sketches(n_columns);
 
@@ -383,11 +380,12 @@ auto AddCategories(std::set<float> const &categories, HistogramCuts *cuts) {
 }
 
 template <typename WQSketch>
-void SketchContainerImpl<WQSketch>::MakeCuts(MetaInfo const &info, HistogramCuts *p_cuts) {
+void SketchContainerImpl<WQSketch>::MakeCuts(Context const *ctx, MetaInfo const &info,
+                                             HistogramCuts *p_cuts) {
   monitor_.Start(__func__);
   std::vector<typename WQSketch::SummaryContainer> reduced;
   std::vector<int32_t> num_cuts;
-  this->AllReduce(info, &reduced, &num_cuts);
+  this->AllReduce(ctx, info, &reduced, &num_cuts);
 
   p_cuts->min_vals_.HostVector().resize(sketches_.size(), 0.0f);
   std::vector<typename WQSketch::SummaryContainer> final_summaries(reduced.size());
@@ -496,5 +494,4 @@ void SortedSketchContainer::PushColPage(SparsePage const &page, MetaInfo const &
   });
   monitor_.Stop(__func__);
 }
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common

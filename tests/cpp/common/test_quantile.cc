@@ -86,7 +86,7 @@ void DoTestDistributedQuantile(size_t rows, size_t cols) {
   }
 
   HistogramCuts distributed_cuts;
-  sketch_distributed.MakeCuts(m->Info(), &distributed_cuts);
+  sketch_distributed.MakeCuts(&ctx, m->Info(), &distributed_cuts);
 
   // Generate cuts for single node environment
   collective::Finalize();
@@ -117,7 +117,7 @@ void DoTestDistributedQuantile(size_t rows, size_t cols) {
   }
 
   HistogramCuts single_node_cuts;
-  sketch_on_single_node.MakeCuts(m->Info(), &single_node_cuts);
+  sketch_on_single_node.MakeCuts(&ctx, m->Info(), &single_node_cuts);
 
   auto const& sptrs = single_node_cuts.Ptrs();
   auto const& dptrs = distributed_cuts.Ptrs();
@@ -220,7 +220,7 @@ void DoTestColSplitQuantile(size_t rows, size_t cols) {
       }
     }
 
-    sketch_distributed.MakeCuts(m->Info(), &distributed_cuts);
+    sketch_distributed.MakeCuts(&ctx, m->Info(), &distributed_cuts);
   }
 
   // Generate cuts for single node environment
@@ -243,7 +243,7 @@ void DoTestColSplitQuantile(size_t rows, size_t cols) {
       }
     }
 
-    sketch_on_single_node.MakeCuts(m->Info(), &single_node_cuts);
+    sketch_on_single_node.MakeCuts(&ctx, m->Info(), &single_node_cuts);
   }
 
   auto const& sptrs = single_node_cuts.Ptrs();

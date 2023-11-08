@@ -209,7 +209,7 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     return dmlc::Parameter<LearnerModelParamLegacy>::UpdateAllowUnknown(kwargs);
   }
   // sanity check
-  void Validate() {
+  void Validate(Context const*) {
     if (!collective::IsDistributed()) {
       return;
     }
@@ -434,7 +434,7 @@ class LearnerConfiguration : public Learner {
       }
       // Update the shared model parameter
       this->ConfigureModelParamWithoutBaseScore();
-      mparam_.Validate();
+      mparam_.Validate(&ctx_);
     }
     CHECK(!std::isnan(mparam_.base_score));
     CHECK(!std::isinf(mparam_.base_score));

@@ -246,7 +246,7 @@ struct GPUHistMakerDevice {
     this->evaluator_.Reset(page->Cuts(), feature_types, dmat->Info().num_col_, param,
                            dmat->Info().IsColumnSplit(), ctx_->Device());
 
-    quantiser = std::make_unique<GradientQuantiser>(this->gpair, dmat->Info());
+    quantiser = std::make_unique<GradientQuantiser>(ctx_, this->gpair, dmat->Info());
 
     row_partitioner.reset();  // Release the device memory first before reallocating
     row_partitioner = std::make_unique<RowPartitioner>(ctx_->Device(), sample.sample_rows);
@@ -276,7 +276,7 @@ struct GPUHistMakerDevice {
         matrix.min_fvalue,
         matrix.is_dense && !collective::IsDistributed()
     };
-    auto split = this->evaluator_.EvaluateSingleSplit(inputs, shared_inputs);
+    auto split = this->evaluator_.EvaluateSingleSplit(ctx_, inputs, shared_inputs);
     return split;
   }
 
@@ -329,7 +329,7 @@ struct GPUHistMakerDevice {
         d_node_inputs.data().get(), h_node_inputs.data(),
         h_node_inputs.size() * sizeof(EvaluateSplitInputs), cudaMemcpyDefault));
 
-    this->evaluator_.EvaluateSplits(nidx, max_active_features, dh::ToSpan(d_node_inputs),
+    this->evaluator_.EvaluateSplits(ctx_, nidx, max_active_features, dh::ToSpan(d_node_inputs),
                                     shared_inputs, dh::ToSpan(entries));
     dh::safe_cuda(cudaMemcpyAsync(pinned_candidates_out.data(),
                                   entries.data().get(), sizeof(GPUExpandEntry) * entries.size(),
@@ -842,7 +842,7 @@ class GPUHistMaker : public TreeUpdater {
       std::size_t t_idx{0};
       for (xgboost::RegTree* tree : trees) {
         this->UpdateTree(param, gpair_hdv, dmat, tree, &out_position[t_idx]);
-        this->hist_maker_param_.CheckTreesSynchronized(tree);
+        this->hist_maker_param_.CheckTreesSynchronized(ctx_, tree);
         ++t_idx;
       }
       dh::safe_cuda(cudaGetLastError());
@@ -985,7 +985,7 @@ class GPUGlobalApproxMaker : public TreeUpdater {
     std::size_t t_idx{0};
     for (xgboost::RegTree* tree : trees) {
       this->UpdateTree(gpair->Data(), p_fmat, tree, &out_position[t_idx]);
-      this->hist_maker_param_.CheckTreesSynchronized(tree);
+      this->hist_maker_param_.CheckTreesSynchronized(ctx_, tree);
       ++t_idx;
     }
 
