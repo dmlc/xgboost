@@ -7,7 +7,7 @@ build-backend = "packager.pep517"
 
 [project]
 name = "xgboost"
-version = "2.0.1"
+version = "2.0.2"
 authors = [
     { name = "Hyunsu Cho", email = "chohyu01@cs.washington.edu" },
     { name = "Jiaming Yuan", email = "jm.yuan@outlook.com" }
