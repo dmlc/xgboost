@@ -470,7 +470,7 @@ Parameter for using Pseudo-Huber (``reg:pseudohubererror``)
 Parameter for using Quantile Loss (``reg:quantileerror``)
 =========================================================
 
-* ``quantile_alpha``: A scala or a list of targeted quantiles.
+* ``quantile_alpha``: A scalar or a list of targeted quantiles.
 
     .. versionadded:: 2.0.0
 
