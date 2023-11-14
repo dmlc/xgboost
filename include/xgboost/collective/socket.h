@@ -412,19 +412,24 @@ class TCPSocket {
     return Success();
   }
 
-  void SetKeepAlive() {
+  [[nodiscard]] Result SetKeepAlive() {
     std::int32_t keepalive = 1;
-    xgboost_CHECK_SYS_CALL(setsockopt(handle_, SOL_SOCKET, SO_KEEPALIVE,
-                                      reinterpret_cast<char *>(&keepalive), sizeof(keepalive)),
-                           0);
+    auto rc = setsockopt(handle_, SOL_SOCKET, SO_KEEPALIVE, reinterpret_cast<char *>(&keepalive),
+                         sizeof(keepalive));
+    if (rc != 0) {
+      return system::FailWithCode("Failed to set TCP keeaplive.");
+    }
+    return Success();
   }
 
-  void SetNoDelay() {
+  [[nodiscard]] Result SetNoDelay() {
     std::int32_t tcp_no_delay = 1;
-    xgboost_CHECK_SYS_CALL(
-        setsockopt(handle_, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<char *>(&tcp_no_delay),
-                   sizeof(tcp_no_delay)),
-        0);
+    auto rc = setsockopt(handle_, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<char *>(&tcp_no_delay),
+                         sizeof(tcp_no_delay));
+    if (rc != 0) {
+      return system::FailWithCode("Failed to set TCP no delay.");
+    }
+    return Success();
   }
 
   /**
