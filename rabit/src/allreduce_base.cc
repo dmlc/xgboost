@@ -417,9 +417,9 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
       utils::Assert(!all_link.sock.BadSocket(), "ReConnectLink: bad socket");
       // set the socket to non-blocking mode, enable TCP keepalive
       CHECK(all_link.sock.NonBlocking(true).OK());
-      all_link.sock.SetKeepAlive();
+      CHECK(all_link.sock.SetKeepAlive().OK());
       if (rabit_enable_tcp_no_delay) {
-        all_link.sock.SetNoDelay();
+        CHECK(all_link.sock.SetNoDelay().OK());
       }
       if (tree_neighbors.count(all_link.rank) != 0) {
         if (all_link.rank == parent_rank) {

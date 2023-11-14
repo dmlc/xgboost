@@ -257,7 +257,8 @@ RabitComm::RabitComm(std::string const& host, std::int32_t port, std::chrono::se
   CHECK(this->channels_.empty());
   for (auto& w : workers) {
     if (w) {
-      rc = std::move(rc) << [&] { return w->SetNoDelay(); } << [&] { return w->NonBlocking(true); };
+      rc = std::move(rc) << [&] { return w->SetNoDelay(); } << [&] { return w->NonBlocking(true); }
+                         << [&] { return w->SetKeepAlive(); };
     }
     if (!rc.OK()) {
       return rc;
