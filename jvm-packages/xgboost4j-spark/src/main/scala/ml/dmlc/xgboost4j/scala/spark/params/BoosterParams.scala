@@ -154,11 +154,13 @@ private[spark] trait BoosterParams extends Params {
     (value: String) => BoosterParams.supportedTreeMethods.contains(value))
 
   final def getTreeMethod: String = $(treeMethod)
+
   /**
     *  The device for running XGBoost algorithms, options: cpu, cuda
     */
   final val device = new Param[String](
-    this, "device", "The device for running XGBoost algorithms, options: cpu, cuda"
+    this, "device", "The device for running XGBoost algorithms, options: cpu, cuda",
+    (value: String) => BoosterParams.supportedDevices.contains(value)
   )
 
   final def getDevice: String = $(device)
@@ -288,4 +290,6 @@ private[scala] object BoosterParams {
   val supportedSampleType = HashSet("uniform", "weighted")
 
   val supportedNormalizeType = HashSet("tree", "forest")
+
+  val supportedDevices = HashSet("cpu", "cuda")
 }
