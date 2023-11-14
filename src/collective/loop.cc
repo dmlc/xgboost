@@ -12,10 +12,7 @@
 namespace xgboost::collective {
 Result Loop::EmptyQueue(std::queue<Op>* p_queue) const {
   timer_.Start(__func__);
-  auto error = [this] {
-    std::cout << "something went wrong" << std::endl;
-    timer_.Stop(__func__);
-  };
+  auto error = [this] { timer_.Stop(__func__); };
 
   if (stop_) {
     timer_.Stop(__func__);
