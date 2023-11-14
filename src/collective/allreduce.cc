@@ -6,6 +6,7 @@
 #include <algorithm>  // for min
 #include <cstddef>    // for size_t
 #include <cstdint>    // for int32_t, int8_t
+#include <utility>    // for move
 #include <vector>     // for vector
 
 #include "../data/array_interface.h"    // for Type, DispatchDType
