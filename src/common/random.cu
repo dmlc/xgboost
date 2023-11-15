@@ -44,7 +44,7 @@ void WeightedSamplingWithoutReplacement(Context const *ctx, common::Span<bst_fea
   dh::ArgSort<false>(d_keys, idx->DeviceSpan());
   auto it = thrust::make_permutation_iterator(dh::tbegin(array), dh::tbegin(idx->DeviceSpan()));
   CHECK_GE(results.size(), n);
-  thrust::copy_n(it, n, dh::tbegin(results));
+  thrust::copy_n(cuctx->CTP(), it, n, dh::tbegin(results));
 }
 
 void SampleFeature(Context const *ctx, bst_feature_t n_features,
@@ -86,6 +86,13 @@ void SampleFeature(Context const *ctx, bst_feature_t n_features,
   }
 
   auto d_new_features = new_features.DeviceSpan();
-  thrust::sort(dh::tbegin(d_new_features), dh::tend(d_new_features));
+  thrust::sort(cuctx->CTP(), dh::tbegin(d_new_features), dh::tend(d_new_features));
+}
+
+void InitFeatureSet(Context const *ctx,
+                    std::shared_ptr<HostDeviceVector<bst_feature_t>> p_features) {
+  CUDAContext const *cuctx = ctx->CUDACtx();
+  auto d_features = p_features->DeviceSpan();
+  thrust::sequence(cuctx->CTP(), dh::tbegin(d_features), dh::tend(d_features), 0);
 }
 }  // namespace xgboost::common::cuda_impl

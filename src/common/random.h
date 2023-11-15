@@ -119,6 +119,9 @@ void SampleFeature(Context const* ctx, bst_feature_t n_features,
                    HostDeviceVector<float> const& feature_weights,
                    HostDeviceVector<float>* weight_buffer,
                    HostDeviceVector<bst_feature_t>* idx_buffer, GlobalRandomEngine& grng);
+
+void InitFeatureSet(Context const* ctx,
+                    std::shared_ptr<HostDeviceVector<bst_feature_t>> p_features);
 }  // namespace cuda_impl
 
 /**
@@ -172,8 +175,17 @@ class ColumnSampler {
     }
     Reset();
 
+    feature_set_tree_->SetDevice(ctx->Device());
     feature_set_tree_->Resize(num_col);
-    std::iota(feature_set_tree_->HostVector().begin(), feature_set_tree_->HostVector().end(), 0);
+    if (ctx->IsCPU()) {
+      std::iota(feature_set_tree_->HostVector().begin(), feature_set_tree_->HostVector().end(), 0);
+    } else {
+#if defined(XGBOOST_USE_CUDA)
+      cuda_impl::InitFeatureSet(ctx, feature_set_tree_);
+#else
+      AssertGPUSupport();
+#endif
+    }
 
     feature_set_tree_ = ColSample(feature_set_tree_, colsample_bytree_);
   }
