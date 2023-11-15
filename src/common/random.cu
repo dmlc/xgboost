@@ -78,5 +78,8 @@ void SampleFeature(Context const *ctx, bst_feature_t n_features,
     thrust::shuffle(cuctx->CTP(), dh::tbegin(d_feat), dh::tend(d_feat), rng);
     new_features.Resize(n_features);
   }
+
+  auto d_new_features = new_features.DeviceSpan();
+  thrust::sort(dh::tbegin(d_new_features), dh::tend(d_new_features));
 }
 }  // namespace xgboost::common::cuda_impl

@@ -113,11 +113,12 @@ std::vector<T> WeightedSamplingWithoutReplacement(Context const* ctx, std::vecto
 }
 
 namespace cuda_impl {
-void WeightedSamplingWithoutReplacement(Context const* ctx, common::Span<bst_feature_t const> array,
-                                        common::Span<float const> weights,
-                                        common::Span<bst_feature_t> results, std::size_t n,
-                                        HostDeviceVector<bst_feature_t>* idx,
-                                        GlobalRandomEngine& grng);
+void SampleFeature(Context const* ctx, bst_feature_t n_features,
+                   std::shared_ptr<HostDeviceVector<bst_feature_t>> p_features,
+                   std::shared_ptr<HostDeviceVector<bst_feature_t>> p_new_features,
+                   HostDeviceVector<float> const& feature_weights,
+                   HostDeviceVector<float>* weight_buffer,
+                   HostDeviceVector<bst_feature_t>* idx_buffer, GlobalRandomEngine& grng);
 }  // namespace cuda_impl
 
 /**
