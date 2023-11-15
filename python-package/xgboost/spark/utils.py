@@ -10,7 +10,7 @@ from threading import Thread
 from typing import Any, Callable, Dict, Optional, Set, Type
 
 import pyspark
-from pyspark import BarrierTaskContext, SparkContext, SparkFiles, TaskContext
+from pyspark import BarrierTaskContext, SparkConf, SparkContext, SparkFiles, TaskContext
 from pyspark.sql.session import SparkSession
 
 from xgboost import Booster, XGBModel, collective
@@ -129,8 +129,8 @@ def _is_local(spark_context: SparkContext) -> bool:
     return spark_context._jsc.sc().isLocal()
 
 
-def _is_standalone_or_localcluster(spark_context: SparkContext) -> bool:
-    master = spark_context.getConf().get("spark.master")
+def _is_standalone_or_localcluster(conf: SparkConf) -> bool:
+    master = conf.get("spark.master")
     return master is not None and (
         master.startswith("spark://") or master.startswith("local-cluster")
     )
