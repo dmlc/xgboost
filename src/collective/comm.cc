@@ -38,7 +38,11 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
   TCPSocket& tracker = *out;
   return Success() << [&] {
     auto rc = Connect(info.host, info.port, retry, timeout, out);
-    return rc.OK() ? std::move(rc) : Fail("Failed to connect to the tracker.", std::move(rc));
+    if (rc.OK()) {
+      return rc;
+    } else {
+      return Fail("Failed to connect to the tracker.", std::move(rc));
+    }
   } << [&] {
     return tracker.NonBlocking(false);
   } << [&] {
