@@ -117,12 +117,12 @@ void Loop::Process() {
       break;
     }
 
-    auto unlock_notify = [&](bool is_blocking) {
+    auto unlock_notify = [&](bool is_blocking, bool stop) {
       if (!is_blocking) {
         std::lock_guard guard{mu_};
-        stop_ = true;
+        stop_ = stop;
       } else {
-        stop_ = true;
+        stop_ = stop;
         lock.unlock();
       }
       cv_.notify_one();
@@ -148,14 +148,14 @@ void Loop::Process() {
     auto rc = this->EmptyQueue(&qcopy);
     // Handle error
     if (!rc.OK()) {
-      unlock_notify(is_blocking);
+      unlock_notify(is_blocking, true);
       std::lock_guard<std::mutex> guard{rc_lock_};
       this->rc_ = std::move(rc);
       return;
     }
 
     CHECK(qcopy.empty());
-    unlock_notify(is_blocking);
+    unlock_notify(is_blocking, false);
   }
 }
 
