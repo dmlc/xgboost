@@ -43,6 +43,7 @@ void WeightedSamplingWithoutReplacement(Context const *ctx, common::Span<bst_fea
 
   dh::ArgSort<false>(d_keys, idx->DeviceSpan());
   auto it = thrust::make_permutation_iterator(dh::tbegin(array), dh::tbegin(idx->DeviceSpan()));
+  CHECK_GE(results.size(), n);
   thrust::copy_n(it, n, dh::tbegin(results));
 }
 
@@ -55,17 +56,22 @@ void SampleFeature(Context const *ctx, bst_feature_t n_features,
   CUDAContext const *cuctx = ctx->CUDACtx();
   auto &new_features = *p_new_features;
   new_features.SetDevice(ctx->Device());
+  p_features->SetDevice(ctx->Device());
 
   if (!feature_weights.Empty()) {
+    weight_buffer->SetDevice(ctx->Device());
+    idx_buffer->SetDevice(ctx->Device());
+    feature_weights.SetDevice(ctx->Device());
+
     auto d_features = p_features->DeviceSpan();
-    if (weight_buffer->Size() < d_features.size()) {
-      weight_buffer->Resize(d_features.size());
+    if (weight_buffer->Size() < feature_weights.Size()) {
+      weight_buffer->Resize(feature_weights.Size());
     }
     auto d_weight = weight_buffer->DeviceSpan().subspan(0, d_features.size());
     auto d_feature_weight = feature_weights.ConstDeviceSpan();
     auto it =
         thrust::make_permutation_iterator(dh::tcbegin(d_feature_weight), dh::tcbegin(d_features));
-    thrust::copy_n(cuctx->CTP(), it, d_feature_weight.size(), d_weight.begin());
+    thrust::copy_n(cuctx->CTP(), it, d_features.size(), dh::tbegin(d_weight));
     new_features.Resize(n_features);
     WeightedSamplingWithoutReplacement(ctx, d_features, d_weight, new_features.DeviceSpan(),
                                        n_features, idx_buffer, grng);

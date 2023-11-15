@@ -133,7 +133,8 @@ TEST(ColumnSampler, WeightedSampling) {
   }
 }
 
-TEST(ColumnSampler, WeightedMultiSampling) {
+namespace {
+void TestWeightedMultiSampling(Context const* ctx) {
   size_t constexpr kCols = 32;
   std::vector<float> feature_weights(kCols, 0);
   for (size_t i = 0; i < feature_weights.size(); ++i) {
@@ -141,12 +142,24 @@ TEST(ColumnSampler, WeightedMultiSampling) {
   }
   ColumnSampler cs{0};
   float bytree{0.5}, bylevel{0.5}, bynode{0.5};
-  Context ctx;
-  cs.Init(&ctx, feature_weights.size(), feature_weights, bytree, bylevel, bynode);
+  cs.Init(ctx, feature_weights.size(), feature_weights, bytree, bylevel, bynode);
   auto feature_set = cs.GetFeatureSet(0);
   size_t n_sampled = kCols * bytree * bylevel * bynode;
   ASSERT_EQ(feature_set->Size(), n_sampled);
   feature_set = cs.GetFeatureSet(1);
   ASSERT_EQ(feature_set->Size(), n_sampled);
 }
+}  // namespace
+
+TEST(ColumnSampler, WeightedMultiSampling) {
+  Context ctx;
+  TestWeightedMultiSampling(&ctx);
+}
+
+#if defined(XGBOOST_USE_CUDA)
+TEST(ColumnSampler, GPUWeightedMultiSampling) {
+  auto ctx = MakeCUDACtx(0);
+  TestWeightedMultiSampling(&ctx);
+}
+#endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost::common

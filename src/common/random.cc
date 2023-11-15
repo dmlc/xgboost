@@ -3,8 +3,10 @@
  */
 #include "random.h"
 
-#include <algorithm>  // for sort
+#include <algorithm>  // for sort, max, copy
 #include <memory>     // for shared_ptr
+
+#include "xgboost/host_device_vector.h"  // for HostDeviceVector
 
 namespace xgboost::common {
 std::shared_ptr<HostDeviceVector<bst_feature_t>> ColumnSampler::ColSample(
