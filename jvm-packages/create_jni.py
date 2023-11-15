@@ -15,7 +15,7 @@ if sys.platform.startswith("linux"):
 
 
 CONFIG = {
-    "USE_OPENMP": "ON",
+    "USE_OPENMP": "OFF",
     "USE_HDFS": "OFF",
     "USE_AZURE": "OFF",
     "USE_S3": "OFF",
@@ -118,7 +118,7 @@ if __name__ == "__main__":
             lib_dir = os.path.join(os.pardir, 'lib')
             if os.path.exists(lib_dir):
                 shutil.rmtree(lib_dir)
-            run("cmake .. " + " ".join(args) + maybe_generator)
+            run("cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo .. " + " ".join(args) + maybe_generator)
             run("cmake --build . --config Release" + maybe_parallel_build)
 
         with cd("demo/CLI/regression"):
