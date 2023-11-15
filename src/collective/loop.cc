@@ -116,6 +116,15 @@ void Loop::Process() {
     if (stop_) {
       break;
     }
+
+    auto unlock_notify = [&](bool is_blocking) {
+      if (!is_blocking) {
+        return;
+      }
+      lock.unlock();
+      cv_.notify_one();
+    };
+
     // move the queue
     std::queue<Op> qcopy;
     bool is_blocking = false;
@@ -128,7 +137,6 @@ void Loop::Process() {
         qcopy.push(op);
       }
     }
-
     // unblock the queue
     if (!is_blocking) {
       lock.unlock();
@@ -138,14 +146,12 @@ void Loop::Process() {
     // Handle error
     if (!rc.OK()) {
       this->rc_ = std::move(rc);
+      unlock_notify(is_blocking);
       return;
     }
 
     CHECK(qcopy.empty());
-    if (is_blocking) {
-      lock.unlock();
-      cv_.notify_one();
-    }
+    unlock_notify(is_blocking);
   }
 }
 
