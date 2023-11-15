@@ -17,14 +17,14 @@ void WeightedSamplingWithoutReplacement(Context const *ctx, common::Span<bst_fea
                                         common::Span<float const> weights,
                                         common::Span<bst_feature_t> results, std::size_t n,
                                         HostDeviceVector<bst_feature_t> *idx,
-                                        GlobalRandomEngine &grng) {
+                                        GlobalRandomEngine *grng) {
   CUDAContext const *cuctx = ctx->CUDACtx();
   CHECK_EQ(array.size(), weights.size());
   dh::caching_device_vector<float> keys(weights.size());
 
   auto d_keys = dh::ToSpan(keys);
 
-  auto seed = grng();
+  auto seed = (*grng)();
   constexpr auto kEps = kRtEps;
   thrust::for_each_n(cuctx->CTP(), thrust::make_counting_iterator(0ul), array.size(),
                      [=] XGBOOST_DEVICE(std::size_t i) {
@@ -52,7 +52,7 @@ void SampleFeature(Context const *ctx, bst_feature_t n_features,
                    std::shared_ptr<HostDeviceVector<bst_feature_t>> p_new_features,
                    HostDeviceVector<float> const &feature_weights,
                    HostDeviceVector<float> *weight_buffer,
-                   HostDeviceVector<bst_feature_t> *idx_buffer, GlobalRandomEngine &grng) {
+                   HostDeviceVector<bst_feature_t> *idx_buffer, GlobalRandomEngine *grng) {
   CUDAContext const *cuctx = ctx->CUDACtx();
   auto &new_features = *p_new_features;
   new_features.SetDevice(ctx->Device());
@@ -80,7 +80,7 @@ void SampleFeature(Context const *ctx, bst_feature_t n_features,
     new_features.Copy(*p_features);
     auto d_feat = new_features.DeviceSpan();
     thrust::default_random_engine rng;
-    rng.seed(grng());
+    rng.seed((*grng)());
     thrust::shuffle(cuctx->CTP(), dh::tbegin(d_feat), dh::tend(d_feat), rng);
     new_features.Resize(n_features);
   }

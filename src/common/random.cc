@@ -21,7 +21,7 @@ std::shared_ptr<HostDeviceVector<bst_feature_t>> ColumnSampler::ColSample(
   if (ctx_->IsCUDA()) {
 #if defined(XGBOOST_USE_CUDA)
     cuda_impl::SampleFeature(ctx_, n, p_features, p_new_features, this->feature_weights_,
-                             &this->weight_buffer_, &this->idx_buffer_, rng_);
+                             &this->weight_buffer_, &this->idx_buffer_, &rng_);
     return p_new_features;
 #else
     AssertGPUSupport();

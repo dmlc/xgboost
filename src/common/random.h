@@ -118,7 +118,7 @@ void SampleFeature(Context const* ctx, bst_feature_t n_features,
                    std::shared_ptr<HostDeviceVector<bst_feature_t>> p_new_features,
                    HostDeviceVector<float> const& feature_weights,
                    HostDeviceVector<float>* weight_buffer,
-                   HostDeviceVector<bst_feature_t>* idx_buffer, GlobalRandomEngine& grng);
+                   HostDeviceVector<bst_feature_t>* idx_buffer, GlobalRandomEngine* grng);
 
 void InitFeatureSet(Context const* ctx,
                     std::shared_ptr<HostDeviceVector<bst_feature_t>> p_features);
