@@ -1,5 +1,5 @@
-/*!
- * Copyright 2015-2020 by Contributors
+/**
+ * Copyright 2015-2020, XGBoost Contributors
  * \file random.h
  * \brief Utility related to random.
  * \author Tianqi Chen
@@ -25,8 +25,7 @@
 #include "xgboost/context.h"  // Context
 #include "xgboost/host_device_vector.h"
 
-namespace xgboost {
-namespace common {
+namespace xgboost::common {
 /*!
  * \brief Define mt19937 as default type Random Engine.
  */
@@ -113,6 +112,14 @@ std::vector<T> WeightedSamplingWithoutReplacement(Context const* ctx, std::vecto
   return results;
 }
 
+namespace cuda_impl {
+void WeightedSamplingWithoutReplacement(Context const* ctx, common::Span<bst_feature_t const> array,
+                                        common::Span<float const> weights,
+                                        common::Span<bst_feature_t> results, std::size_t n,
+                                        HostDeviceVector<bst_feature_t>* idx,
+                                        GlobalRandomEngine& grng);
+}  // namespace cuda_impl
+
 /**
  * \class ColumnSampler
  *
@@ -123,46 +130,37 @@ std::vector<T> WeightedSamplingWithoutReplacement(Context const* ctx, std::vecto
 class ColumnSampler {
   std::shared_ptr<HostDeviceVector<bst_feature_t>> feature_set_tree_;
   std::map<int, std::shared_ptr<HostDeviceVector<bst_feature_t>>> feature_set_level_;
-  std::vector<float> feature_weights_;
+  HostDeviceVector<float> feature_weights_;
   float colsample_bylevel_{1.0f};
   float colsample_bytree_{1.0f};
   float colsample_bynode_{1.0f};
   GlobalRandomEngine rng_;
   Context const* ctx_;
 
+  // Used for weighted sampling.
+  HostDeviceVector<bst_feature_t> idx_buffer_;
+  HostDeviceVector<float> weight_buffer_;
+
  public:
   std::shared_ptr<HostDeviceVector<bst_feature_t>> ColSample(
       std::shared_ptr<HostDeviceVector<bst_feature_t>> p_features, float colsample);
   /**
-   * \brief Column sampler constructor.
-   * \note This constructor manually sets the rng seed
+   * @brief Column sampler constructor.
+   * @note This constructor manually sets the rng seed
    */
-  explicit ColumnSampler(uint32_t seed) {
-    rng_.seed(seed);
-  }
+  explicit ColumnSampler(std::uint32_t seed) { rng_.seed(seed); }
 
   /**
-  * \brief Column sampler constructor.
-  * \note This constructor synchronizes the RNG seed across processes.
-  */
-  ColumnSampler() {
-    uint32_t seed = common::GlobalRandom()();
-    collective::Broadcast(&seed, sizeof(seed), 0);
-    rng_.seed(seed);
-  }
-
-  /**
-   * \brief Initialise this object before use.
+   * @brief Initialise this object before use.
    *
-   * \param num_col
-   * \param colsample_bynode
-   * \param colsample_bylevel
-   * \param colsample_bytree
-   * \param skip_index_0      (Optional) True to skip index 0.
+   * @param num_col
+   * @param colsample_bynode  Sampling rate for node.
+   * @param colsample_bylevel Sampling rate for tree level.
+   * @param colsample_bytree  Sampling rate for tree.
    */
   void Init(Context const* ctx, int64_t num_col, std::vector<float> feature_weights,
             float colsample_bynode, float colsample_bylevel, float colsample_bytree) {
-    feature_weights_ = std::move(feature_weights);
+    feature_weights_.HostVector() = std::move(feature_weights);
     colsample_bylevel_ = colsample_bylevel;
     colsample_bytree_ = colsample_bytree;
     colsample_bynode_ = colsample_bynode;
@@ -216,6 +214,11 @@ class ColumnSampler {
   }
 };
 
-}  // namespace common
-}  // namespace xgboost
+inline auto MakeColumnSampler(Context const*) {
+  std::uint32_t seed = common::GlobalRandomEngine()();
+  collective::Broadcast(&seed, sizeof(seed), 0);
+  auto cs = std::make_shared<common::ColumnSampler>(seed);
+  return cs;
+}
+}  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_RANDOM_H_

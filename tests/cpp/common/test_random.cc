@@ -1,15 +1,16 @@
-#include <valarray>
+/**
+ * Copyright 2018-2023, XGBoost Contributors
+ */
 #include "../../../src/common/random.h"
 #include "../helpers.h"
 #include "gtest/gtest.h"
 #include "xgboost/context.h"  // Context
 
-namespace xgboost {
-namespace common {
+namespace xgboost::common {
 TEST(ColumnSampler, Test) {
   Context ctx;
   int n = 128;
-  ColumnSampler cs;
+  ColumnSampler cs{1u};
   std::vector<float> feature_weights;
 
   // No node sampling
@@ -148,5 +149,4 @@ TEST(ColumnSampler, WeightedMultiSampling) {
   feature_set = cs.GetFeatureSet(1);
   ASSERT_EQ(feature_set->Size(), n_sampled);
 }
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common

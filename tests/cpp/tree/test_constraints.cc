@@ -1,3 +1,6 @@
+/**
+ * Copyright 2019-2023, XGBoost Contributors
+ */
 #include <gtest/gtest.h>
 #include <xgboost/base.h>
 #include <xgboost/logging.h>
@@ -9,9 +12,7 @@
 #include "../../../src/tree/hist/evaluate_splits.h"
 #include "../helpers.h"
 
-namespace xgboost {
-namespace tree {
-
+namespace xgboost::tree {
 TEST(CPUFeatureInteractionConstraint, Empty) {
   TrainParam param;
   param.UpdateAllowUnknown(Args{});
@@ -77,7 +78,7 @@ TEST(CPUMonoConstraint, Basic) {
   param.UpdateAllowUnknown(Args{{"monotone_constraints", str_mono}});
 
   auto Xy = RandomDataGenerator{kRows, kCols, 0.0}.GenerateDMatrix(true);
-  auto sampler = std::make_shared<common::ColumnSampler>();
+  auto sampler = std::make_shared<common::ColumnSampler>(1u);
 
   HistEvaluator evalutor{&ctx, &param, Xy->Info(), sampler};
   evalutor.InitRoot(GradStats{2.0, 2.0});
@@ -90,5 +91,4 @@ TEST(CPUMonoConstraint, Basic) {
 
   ASSERT_TRUE(evalutor.Evaluator().has_constraint);
 }
-}  // namespace tree
-}  // namespace xgboost
+}  // namespace xgboost::tree

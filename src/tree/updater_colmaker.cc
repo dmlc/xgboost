@@ -225,9 +225,12 @@ class ColMaker: public TreeUpdater {
         }
       }
       {
-        column_sampler_.Init(ctx_, fmat.Info().num_col_,
-                             fmat.Info().feature_weights.ConstHostVector(), param_.colsample_bynode,
-                             param_.colsample_bylevel, param_.colsample_bytree);
+        if (!column_sampler_) {
+          column_sampler_ = common::MakeColumnSampler(ctx_);
+        }
+        column_sampler_->Init(
+            ctx_, fmat.Info().num_col_, fmat.Info().feature_weights.ConstHostVector(),
+            param_.colsample_bynode, param_.colsample_bylevel, param_.colsample_bytree);
       }
       {
         // setup temp space for each thread
@@ -467,7 +470,7 @@ class ColMaker: public TreeUpdater {
                           RegTree *p_tree) {
       auto evaluator = tree_evaluator_.GetEvaluator();
 
-      auto feat_set = column_sampler_.GetFeatureSet(depth);
+      auto feat_set = column_sampler_->GetFeatureSet(depth);
       for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>(ctx_)) {
         this->UpdateSolution(batch, feat_set->HostVector(), gpair, p_fmat);
       }
@@ -586,7 +589,7 @@ class ColMaker: public TreeUpdater {
     const ColMakerTrainParam& colmaker_train_param_;
     // number of omp thread used during training
     Context const* ctx_;
-    common::ColumnSampler column_sampler_;
+    std::shared_ptr<common::ColumnSampler> column_sampler_;
     // Instance Data: current node position in the tree of each instance
     std::vector<int> position_;
     // PerThread x PerTreeNode: statistics for per thread construction
