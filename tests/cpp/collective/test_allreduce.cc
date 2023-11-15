@@ -18,31 +18,34 @@ class AllreduceWorker : public WorkerForTest {
   void Basic() {
     {
       std::vector<double> data(13, 0.0);
-      Allreduce(comm_, common::Span{data.data(), data.size()}, [](auto lhs, auto rhs) {
+      auto rc = Allreduce(comm_, common::Span{data.data(), data.size()}, [](auto lhs, auto rhs) {
         for (std::size_t i = 0; i < rhs.size(); ++i) {
           rhs[i] += lhs[i];
         }
       });
+      ASSERT_TRUE(rc.OK());
       ASSERT_EQ(std::accumulate(data.cbegin(), data.cend(), 0.0), 0.0);
     }
     {
       std::vector<double> data(1, 1.0);
-      Allreduce(comm_, common::Span{data.data(), data.size()}, [](auto lhs, auto rhs) {
+      auto rc = Allreduce(comm_, common::Span{data.data(), data.size()}, [](auto lhs, auto rhs) {
         for (std::size_t i = 0; i < rhs.size(); ++i) {
           rhs[i] += lhs[i];
         }
       });
+      ASSERT_TRUE(rc.OK());
       ASSERT_EQ(data[0], static_cast<double>(comm_.World()));
     }
   }
 
   void Acc() {
     std::vector<double> data(314, 1.5);
-    Allreduce(comm_, common::Span{data.data(), data.size()}, [](auto lhs, auto rhs) {
+    auto rc = Allreduce(comm_, common::Span{data.data(), data.size()}, [](auto lhs, auto rhs) {
       for (std::size_t i = 0; i < rhs.size(); ++i) {
         rhs[i] += lhs[i];
       }
     });
+    ASSERT_TRUE(rc.OK());
     for (std::size_t i = 0; i < data.size(); ++i) {
       auto v = data[i];
       ASSERT_EQ(v, 1.5 * static_cast<double>(comm_.World())) << i;

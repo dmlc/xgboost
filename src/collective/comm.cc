@@ -33,19 +33,28 @@ Comm::Comm(std::string const& host, std::int32_t port, std::chrono::seconds time
 Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, std::int32_t retry,
                           std::string const& task_id, TCPSocket* out, std::int32_t rank,
                           std::int32_t world) {
-  // get information from tracker
+  // Get information from the tracker
   CHECK(!info.host.empty());
-  auto rc = Connect(info.host, info.port, retry, timeout, out);
-  if (!rc.OK()) {
-    return Fail("Failed to connect to the tracker.", std::move(rc));
-  }
-
   TCPSocket& tracker = *out;
-  return std::move(rc)
-      << [&] { return tracker.NonBlocking(false); }
-      << [&] { return tracker.RecvTimeout(timeout); }
-      << [&] { return proto::Magic{}.Verify(&tracker); }
-      << [&] { return proto::Connect{}.WorkerSend(&tracker, world, rank, task_id); };
+  return Success() << [&] {
+    auto rc = Connect(info.host, info.port, retry, timeout, out);
+    if (rc.OK()) {
+      return rc;
+    } else {
+      return Fail("Failed to connect to the tracker.", std::move(rc));
+    }
+  } << [&] {
+    return tracker.NonBlocking(false);
+  } << [&] {
+    return tracker.RecvTimeout(timeout);
+  } << [&] {
+    return proto::Magic{}.Verify(&tracker);
+  } << [&] {
+    return proto::Connect{}.WorkerSend(&tracker, world, rank, task_id);
+  } << [&] {
+    LOG(INFO) << "Task " << task_id << " connected to the tracker";
+    return Success();
+  };
 }
 
 [[nodiscard]] Result Comm::ConnectTracker(TCPSocket* out) const {
@@ -257,8 +266,8 @@ RabitComm::RabitComm(std::string const& host, std::int32_t port, std::chrono::se
   CHECK(this->channels_.empty());
   for (auto& w : workers) {
     if (w) {
-      w->SetNoDelay();
-      rc = w->NonBlocking(true);
+      rc = std::move(rc) << [&] { return w->SetNoDelay(); } << [&] { return w->NonBlocking(true); }
+                         << [&] { return w->SetKeepAlive(); };
     }
     if (!rc.OK()) {
       return rc;

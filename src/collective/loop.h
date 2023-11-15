@@ -20,13 +20,14 @@ namespace xgboost::collective {
 class Loop {
  public:
   struct Op {
-    enum Code : std::int8_t { kRead = 0, kWrite = 1 } code;
+    enum Code : std::int8_t { kRead = 0, kWrite = 1, kBlock = 2 } code;
     std::int32_t rank{-1};
     std::int8_t* ptr{nullptr};
     std::size_t n{0};
     TCPSocket* sock{nullptr};
     std::size_t off{0};
 
+    explicit Op(Code c) : code{c} { CHECK(c == kBlock); }
     Op(Code c, std::int32_t rank, std::int8_t* ptr, std::size_t n, TCPSocket* sock, std::size_t off)
         : code{c}, rank{rank}, ptr{ptr}, n{n}, sock{sock}, off{off} {}
     Op(Op const&) = default;
@@ -44,9 +45,9 @@ class Loop {
   Result rc_;
   bool stop_{false};
   std::exception_ptr curr_exce_{nullptr};
-  common::Monitor timer_;
+  common::Monitor mutable timer_;
 
-  Result EmptyQueue();
+  Result EmptyQueue(std::queue<Op>* p_queue) const;
   void Process();
 
  public:
@@ -60,15 +61,7 @@ class Loop {
     cv_.notify_one();
   }
 
-  [[nodiscard]] Result Block() {
-    {
-      std::unique_lock lock{mu_};
-      cv_.notify_all();
-    }
-    std::unique_lock lock{mu_};
-    cv_.wait(lock, [this] { return this->queue_.empty() || stop_; });
-    return std::move(rc_);
-  }
+  [[nodiscard]] Result Block();
 
   explicit Loop(std::chrono::seconds timeout);
 

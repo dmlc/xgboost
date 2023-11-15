@@ -6,6 +6,7 @@
 #include <algorithm>  // for min
 #include <cstddef>    // for size_t
 #include <cstdint>    // for int32_t, int8_t
+#include <utility>    // for move
 #include <vector>     // for vector
 
 #include "../data/array_interface.h"    // for Type, DispatchDType
@@ -47,7 +48,7 @@ Result RingScatterReduceTyped(Comm const& comm, common::Span<std::int8_t> data,
     auto seg = s_buf.subspan(0, recv_seg.size());
 
     prev_ch->RecvAll(seg);
-    auto rc = prev_ch->Block();
+    auto rc = comm.Block();
     if (!rc.OK()) {
       return rc;
     }
@@ -83,11 +84,9 @@ Result RingAllreduce(Comm const& comm, common::Span<std::int8_t> data, Func cons
     auto prev_ch = comm.Chan(prev);
     auto next_ch = comm.Chan(next);
 
-    rc = RingAllgather(comm, data, n_bytes_in_seg, 1, prev_ch, next_ch);
-    if (!rc.OK()) {
-      return rc;
-    }
-    return comm.Block();
+    return std::move(rc) << [&] {
+      return RingAllgather(comm, data, n_bytes_in_seg, 1, prev_ch, next_ch);
+    } << [&] { return comm.Block(); };
   });
 }
 }  // namespace xgboost::collective::cpu_impl
