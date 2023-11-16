@@ -248,8 +248,7 @@ class GlobalApproxUpdater : public TreeUpdater {
   std::unique_ptr<GloablApproxBuilder> pimpl_;
   // pointer to the last DMatrix, used for update prediction cache.
   DMatrix *cached_{nullptr};
-  std::shared_ptr<common::ColumnSampler> column_sampler_ =
-      std::make_shared<common::ColumnSampler>();
+  std::shared_ptr<common::ColumnSampler> column_sampler_;
   ObjInfo const *task_;
   HistMakerTrainParam hist_param_;
 
@@ -284,6 +283,9 @@ class GlobalApproxUpdater : public TreeUpdater {
               common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree *> &trees) override {
     CHECK(hist_param_.GetInitialised());
+    if (!column_sampler_) {
+      column_sampler_ = common::MakeColumnSampler(ctx_);
+    }
     pimpl_ = std::make_unique<GloablApproxBuilder>(param, &hist_param_, m->Info(), ctx_,
                                                    column_sampler_, task_, &monitor_);
 

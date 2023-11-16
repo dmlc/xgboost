@@ -13,9 +13,7 @@
 #include "adaptive.h"
 #include "xgboost/context.h"
 
-namespace xgboost {
-namespace obj {
-namespace detail {
+namespace xgboost::obj::detail {
 void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> position,
                           dh::device_vector<size_t>* p_ridx, HostDeviceVector<size_t>* p_nptr,
                           HostDeviceVector<bst_node_t>* p_nidx, RegTree const& tree) {
@@ -28,7 +26,7 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
                                 position.size_bytes(), cudaMemcpyDeviceToDevice, cuctx->Stream()));
 
   p_ridx->resize(position.size());
-  dh::Iota(dh::ToSpan(*p_ridx));
+  dh::Iota(dh::ToSpan(*p_ridx), cuctx->Stream());
   // sort row index according to node index
   thrust::stable_sort_by_key(cuctx->TP(), sorted_position.begin(),
                              sorted_position.begin() + n_samples, p_ridx->begin());
@@ -190,6 +188,4 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
   });
   UpdateLeafValues(&quantiles.HostVector(), nidx.ConstHostVector(), info, learning_rate, p_tree);
 }
-}  // namespace detail
-}  // namespace obj
-}  // namespace xgboost
+}  // namespace xgboost::obj::detail

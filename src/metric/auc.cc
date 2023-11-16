@@ -360,7 +360,7 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
                                            common::OptionalWeights{info.weights_.ConstHostSpan()});
     } else {
       std::tie(fp, tp, auc) =
-          GPUBinaryROCAUC(predts.ConstDeviceSpan(), info, ctx_->Device(), &this->d_cache_);
+          GPUBinaryROCAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_);
     }
     return std::make_tuple(fp, tp, auc);
   }
@@ -376,8 +376,9 @@ XGBOOST_REGISTER_METRIC(EvalAUC, "auc")
 .set_body([](const char*) { return new EvalROCAUC(); });
 
 #if !defined(XGBOOST_USE_CUDA)
-std::tuple<double, double, double> GPUBinaryROCAUC(common::Span<float const>, MetaInfo const &,
-                                                   DeviceOrd, std::shared_ptr<DeviceAUCCache> *) {
+std::tuple<double, double, double> GPUBinaryROCAUC(Context const *, common::Span<float const>,
+                                                   MetaInfo const &,
+                                                   std::shared_ptr<DeviceAUCCache> *) {
   common::AssertGPUSupport();
   return {};
 }
@@ -409,8 +410,7 @@ class EvalPRAUC : public EvalAUC<EvalPRAUC> {
           BinaryPRAUC(ctx_, predts.ConstHostSpan(), info.labels.HostView().Slice(linalg::All(), 0),
                       common::OptionalWeights{info.weights_.ConstHostSpan()});
     } else {
-      std::tie(pr, re, auc) =
-          GPUBinaryPRAUC(predts.ConstDeviceSpan(), info, ctx_->Device(), &this->d_cache_);
+      std::tie(pr, re, auc) = GPUBinaryPRAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_);
     }
     return std::make_tuple(pr, re, auc);
   }
@@ -453,8 +453,9 @@ XGBOOST_REGISTER_METRIC(AUCPR, "aucpr")
     .set_body([](char const *) { return new EvalPRAUC{}; });
 
 #if !defined(XGBOOST_USE_CUDA)
-std::tuple<double, double, double> GPUBinaryPRAUC(common::Span<float const>, MetaInfo const &,
-                                                  DeviceOrd, std::shared_ptr<DeviceAUCCache> *) {
+std::tuple<double, double, double> GPUBinaryPRAUC(Context const *, common::Span<float const>,
+                                                  MetaInfo const &,
+                                                  std::shared_ptr<DeviceAUCCache> *) {
   common::AssertGPUSupport();
   return {};
 }

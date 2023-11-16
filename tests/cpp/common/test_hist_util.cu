@@ -16,6 +16,7 @@
 #include <vector>     // for vector
 
 #include "../../../include/xgboost/logging.h"
+#include "../../../src/common/cuda_context.cuh"
 #include "../../../src/common/device_helpers.cuh"
 #include "../../../src/common/hist_util.cuh"
 #include "../../../src/common/hist_util.h"
@@ -211,7 +212,7 @@ TEST(HistUtil, RemoveDuplicatedCategories) {
   cuts_ptr.SetDevice(DeviceOrd::CUDA(0));
 
   dh::device_vector<float> weight(n_samples * n_features, 0);
-  dh::Iota(dh::ToSpan(weight));
+  dh::Iota(dh::ToSpan(weight), ctx.CUDACtx()->Stream());
 
   dh::caching_device_vector<bst_row_t> columns_ptr(4);
   for (std::size_t i = 0; i < columns_ptr.size(); ++i) {

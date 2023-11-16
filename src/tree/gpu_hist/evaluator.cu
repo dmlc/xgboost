@@ -72,7 +72,7 @@ common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
     TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator) {
   dh::XGBCachingDeviceAllocator<char> alloc;
   auto sorted_idx = this->SortedIdx(d_inputs.size(), shared_inputs.feature_values.size());
-  dh::Iota(sorted_idx);
+  dh::Iota(sorted_idx, dh::DefaultStream());
   auto data = this->SortInput(d_inputs.size(), shared_inputs.feature_values.size());
   auto it = thrust::make_counting_iterator(0u);
   auto d_feature_idx = dh::ToSpan(feature_idx_);

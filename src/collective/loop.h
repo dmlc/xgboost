@@ -42,7 +42,10 @@ class Loop {
   std::mutex mu_;
   std::queue<Op> queue_;
   std::chrono::seconds timeout_;
+
   Result rc_;
+  std::mutex rc_lock_;  // lock for transferring error info.
+
   bool stop_{false};
   std::exception_ptr curr_exce_{nullptr};
   common::Monitor mutable timer_;
