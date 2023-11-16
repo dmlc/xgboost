@@ -215,6 +215,22 @@ and the prediction for each instance.
 Submit the application
 **********************
 
+Assuming you have configured the Spark standalone cluster with GPU support. Otherwise, please
+refer to `spark standalone configuration with GPU support <https://nvidia.github.io/spark-rapids/docs/get-started/getting-started-on-prem.html#spark-standalone-cluster>`_.
+
+Starting from XGBoost 2.1.0, stage-level scheduling is automatically enabled. Therefore,
+if you are using Spark standalone cluster version 3.4.0 or higher, we strongly recommend
+configuring the ``"spark.task.resource.gpu.amount"`` as a fractional value. This will
+enable running multiple tasks in parallel during the ETL phase. An example configuration
+would be ``"spark.task.resource.gpu.amount=1/spark.executor.cores"``. However, if you are
+using a XGBoost version earlier than 2.1.0 or a Spark standalone cluster version below 3.4.0,
+you still need to set ``"spark.task.resource.gpu.amount"`` equal to ``"spark.executor.resource.gpu.amount"``.
+
+.. note::
+
+  As of now, the stage-level scheduling feature in XGBoost is limited to the Spark standalone cluster mode.
+  However, we have plans to expand its compatibility to YARN and Kubernetes once Spark 3.5.1 is officially released.
+
 Assuming that the application main class is "Iris" and the application jar is "iris-1.0.0.jar",`
 provided below is an instance demonstrating how to submit the xgboost application to an Apache
 Spark Standalone cluster.
@@ -230,9 +246,9 @@ Spark Standalone cluster.
     --master $master \
     --packages com.nvidia:rapids-4-spark_2.12:${rapids_version},ml.dmlc:xgboost4j-gpu_2.12:${xgboost_version},ml.dmlc:xgboost4j-spark-gpu_2.12:${xgboost_version} \
     --conf spark.executor.cores=12 \
-    --conf spark.task.cpus=12 \
+    --conf spark.task.cpus=1 \
     --conf spark.executor.resource.gpu.amount=1 \
-    --conf spark.task.resource.gpu.amount=1 \
+    --conf spark.task.resource.gpu.amount=0.08 \
     --conf spark.rapids.sql.csv.read.double.enabled=true \
     --conf spark.rapids.sql.hasNans=false \
     --conf spark.plugins=com.nvidia.spark.SQLPlugin \
