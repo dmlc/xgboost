@@ -24,7 +24,7 @@
         <dependency>
             <groupId>ml.dmlc</groupId>
             <artifactId>xgboost4j_${scala.binary.version}</artifactId>
-            <version>1.7.5-sovrn-dmatrix-fix</version>
+            <version>1.7.5-sovrn-no-openmp</version>
         </dependency>
         <dependency>
             <groupId>org.apache.spark</groupId>
