@@ -13,19 +13,21 @@
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
 
 namespace xgboost::common::cuda_impl {
+// GPU implementation for sampling without replacement, see the CPU version for references.
 void WeightedSamplingWithoutReplacement(Context const *ctx, common::Span<bst_feature_t const> array,
                                         common::Span<float const> weights,
-                                        common::Span<bst_feature_t> results, std::size_t n,
-                                        HostDeviceVector<bst_feature_t> *idx,
+                                        common::Span<bst_feature_t> results,
+                                        HostDeviceVector<bst_feature_t> *sorted_idx,
                                         GlobalRandomEngine *grng) {
   CUDAContext const *cuctx = ctx->CUDACtx();
   CHECK_EQ(array.size(), weights.size());
+  // Sampling keys
   dh::caching_device_vector<float> keys(weights.size());
 
   auto d_keys = dh::ToSpan(keys);
 
   auto seed = (*grng)();
-  constexpr auto kEps = kRtEps;
+  constexpr auto kEps = kRtEps;  // avoid CUDA compilation error
   thrust::for_each_n(cuctx->CTP(), thrust::make_counting_iterator(0ul), array.size(),
                      [=] XGBOOST_DEVICE(std::size_t i) {
                        thrust::default_random_engine rng;
@@ -38,13 +40,18 @@ void WeightedSamplingWithoutReplacement(Context const *ctx, common::Span<bst_fea
                        auto k = std::log(u) / w;
                        d_keys[i] = k;
                      });
-  idx->SetDevice(ctx->Device());
-  idx->Resize(keys.size());
+  // Allocate buffer for sorted index.
+  sorted_idx->SetDevice(ctx->Device());
+  if (sorted_idx->Size() < keys.size()) {
+    sorted_idx->Resize(keys.size());
+  }
+  auto d_idx = sorted_idx->DeviceSpan().subspan(0, keys.size());
 
-  dh::ArgSort<false>(d_keys, idx->DeviceSpan());
-  auto it = thrust::make_permutation_iterator(dh::tbegin(array), dh::tbegin(idx->DeviceSpan()));
-  CHECK_GE(results.size(), n);
-  thrust::copy_n(cuctx->CTP(), it, n, dh::tbegin(results));
+  dh::ArgSort<false>(d_keys, sorted_idx->DeviceSpan());
+
+  // Filter the result according to sorted index.
+  auto it = thrust::make_permutation_iterator(dh::tbegin(array), dh::tbegin(d_idx));
+  thrust::copy_n(cuctx->CTP(), it, results.size(), dh::tbegin(results));
 }
 
 void SampleFeature(Context const *ctx, bst_feature_t n_features,
@@ -63,18 +70,19 @@ void SampleFeature(Context const *ctx, bst_feature_t n_features,
     idx_buffer->SetDevice(ctx->Device());
     feature_weights.SetDevice(ctx->Device());
 
-    auto d_features = p_features->DeviceSpan();
+    auto d_old_features = p_features->DeviceSpan();
     if (weight_buffer->Size() < feature_weights.Size()) {
       weight_buffer->Resize(feature_weights.Size());
     }
-    auto d_weight = weight_buffer->DeviceSpan().subspan(0, d_features.size());
+    // Filter weights according to the existing feature index.
+    auto d_weight_buffer = weight_buffer->DeviceSpan().subspan(0, d_old_features.size());
     auto d_feature_weight = feature_weights.ConstDeviceSpan();
-    auto it =
-        thrust::make_permutation_iterator(dh::tcbegin(d_feature_weight), dh::tcbegin(d_features));
-    thrust::copy_n(cuctx->CTP(), it, d_features.size(), dh::tbegin(d_weight));
+    auto it = thrust::make_permutation_iterator(dh::tcbegin(d_feature_weight),
+                                                dh::tcbegin(d_old_features));
+    thrust::copy_n(cuctx->CTP(), it, d_old_features.size(), dh::tbegin(d_weight_buffer));
     new_features.Resize(n_features);
-    WeightedSamplingWithoutReplacement(ctx, d_features, d_weight, new_features.DeviceSpan(),
-                                       n_features, idx_buffer, grng);
+    WeightedSamplingWithoutReplacement(ctx, d_old_features, d_weight_buffer,
+                                       new_features.DeviceSpan(), idx_buffer, grng);
   } else {
     new_features.Resize(p_features->Size());
     new_features.Copy(*p_features);
