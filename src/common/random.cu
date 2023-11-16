@@ -5,6 +5,7 @@
 
 #include <memory>  // for shared_ptr
 
+#include "algorithm.cuh"     // for ArgSort
 #include "cuda_context.cuh"  // for CUDAContext
 #include "device_helpers.cuh"
 #include "random.h"
@@ -41,16 +42,17 @@ void WeightedSamplingWithoutReplacement(Context const *ctx, common::Span<bst_fea
                        d_keys[i] = k;
                      });
   // Allocate buffer for sorted index.
-  sorted_idx->SetDevice(ctx->Device());
-  if (sorted_idx->Size() < keys.size()) {
-    sorted_idx->Resize(keys.size());
-  }
-  auto d_idx = sorted_idx->DeviceSpan().subspan(0, keys.size());
+  auto d_idx = dh::LazyResize(ctx, sorted_idx, keys.size());
 
-  dh::ArgSort<false>(d_keys, sorted_idx->DeviceSpan());
+  ArgSort<false>(ctx, d_keys, d_idx);
 
   // Filter the result according to sorted index.
   auto it = thrust::make_permutation_iterator(dh::tbegin(array), dh::tbegin(d_idx));
+  // |array| == |weights| == |keys| == |sorted_idx| >= |results|
+  for (auto size : {array.size(), weights.size(), keys.size()}) {
+    CHECK_EQ(size, d_idx.size());
+  }
+  CHECK_GE(array.size(), results.size());
   thrust::copy_n(cuctx->CTP(), it, results.size(), dh::tbegin(results));
 }
 
@@ -64,18 +66,16 @@ void SampleFeature(Context const *ctx, bst_feature_t n_features,
   auto &new_features = *p_new_features;
   new_features.SetDevice(ctx->Device());
   p_features->SetDevice(ctx->Device());
+  CHECK_LE(n_features, p_features->Size());
 
   if (!feature_weights.Empty()) {
-    weight_buffer->SetDevice(ctx->Device());
+    CHECK_LE(p_features->Size(), feature_weights.Size());
     idx_buffer->SetDevice(ctx->Device());
     feature_weights.SetDevice(ctx->Device());
 
     auto d_old_features = p_features->DeviceSpan();
-    if (weight_buffer->Size() < feature_weights.Size()) {
-      weight_buffer->Resize(feature_weights.Size());
-    }
+    auto d_weight_buffer = dh::LazyResize(ctx, weight_buffer, d_old_features.size());
     // Filter weights according to the existing feature index.
-    auto d_weight_buffer = weight_buffer->DeviceSpan().subspan(0, d_old_features.size());
     auto d_feature_weight = feature_weights.ConstDeviceSpan();
     auto it = thrust::make_permutation_iterator(dh::tcbegin(d_feature_weight),
                                                 dh::tcbegin(d_old_features));

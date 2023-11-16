@@ -360,7 +360,7 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
                                            common::OptionalWeights{info.weights_.ConstHostSpan()});
     } else {
       std::tie(fp, tp, auc) =
-          GPUBinaryROCAUC(predts.ConstDeviceSpan(), info, ctx_->Device(), &this->d_cache_);
+          GPUBinaryROCAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_);
     }
     return std::make_tuple(fp, tp, auc);
   }
@@ -409,8 +409,7 @@ class EvalPRAUC : public EvalAUC<EvalPRAUC> {
           BinaryPRAUC(ctx_, predts.ConstHostSpan(), info.labels.HostView().Slice(linalg::All(), 0),
                       common::OptionalWeights{info.weights_.ConstHostSpan()});
     } else {
-      std::tie(pr, re, auc) =
-          GPUBinaryPRAUC(predts.ConstDeviceSpan(), info, ctx_->Device(), &this->d_cache_);
+      std::tie(pr, re, auc) = GPUBinaryPRAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_);
     }
     return std::make_tuple(pr, re, auc);
   }

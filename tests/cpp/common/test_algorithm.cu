@@ -57,13 +57,13 @@ TEST(Algorithm, GpuArgSort) {
   auto ctx = MakeCUDACtx(0);
 
   dh::device_vector<float> values(20);
-  dh::Iota(dh::ToSpan(values));                                    // accending
+  dh::Iota(dh::ToSpan(values), ctx.CUDACtx()->Stream());  // accending
   dh::device_vector<size_t> sorted_idx(20);
-  dh::ArgSort<false>(dh::ToSpan(values), dh::ToSpan(sorted_idx));  // sort to descending
-  ASSERT_TRUE(thrust::is_sorted(thrust::device, sorted_idx.begin(), sorted_idx.end(),
+  ArgSort<false>(&ctx, dh::ToSpan(values), dh::ToSpan(sorted_idx));  // sort to descending
+  ASSERT_TRUE(thrust::is_sorted(ctx.CUDACtx()->CTP(), sorted_idx.begin(), sorted_idx.end(),
                                 thrust::greater<size_t>{}));
 
-  dh::Iota(dh::ToSpan(values));
+  dh::Iota(dh::ToSpan(values), ctx.CUDACtx()->Stream());
   dh::device_vector<size_t> groups(3);
   groups[0] = 0;
   groups[1] = 10;

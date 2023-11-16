@@ -313,8 +313,8 @@ inline void LaunchN(size_t n, L lambda) {
 }
 
 template <typename Container>
-void Iota(Container array) {
-  LaunchN(array.size(), [=] __device__(size_t i) { array[i] = i; });
+void Iota(Container array, cudaStream_t stream) {
+  LaunchN(array.size(), stream, [=] __device__(size_t i) { array[i] = i; });
 }
 
 namespace detail {
@@ -596,6 +596,16 @@ class DoubleBuffer {
 
   T *Other() { return buff.Alternate(); }
 };
+
+template <typename T>
+xgboost::common::Span<T> LazyResize(xgboost::Context const *ctx,
+                                    xgboost::HostDeviceVector<T> *buffer, std::size_t n) {
+  buffer->SetDevice(ctx->Device());
+  if (buffer->Size() < n) {
+    buffer->Resize(n);
+  }
+  return buffer->DeviceSpan().subspan(0, n);
+}
 
 /**
  * \brief Copies device span to std::vector.
@@ -1058,74 +1068,6 @@ void CopyIf(InIt in_first, InIt in_second, OutIt out_first, Predicate pred) {
 template <typename InputIteratorT, typename OutputIteratorT, typename OffsetT>
 void InclusiveSum(InputIteratorT d_in, OutputIteratorT d_out, OffsetT num_items) {
   InclusiveScan(d_in, d_out, cub::Sum(), num_items);
-}
-
-template <bool accending, typename IdxT, typename U>
-void ArgSort(xgboost::common::Span<U> keys, xgboost::common::Span<IdxT> sorted_idx) {
-  size_t bytes = 0;
-  Iota(sorted_idx);
-
-  using KeyT = typename decltype(keys)::value_type;
-  using ValueT = std::remove_const_t<IdxT>;
-
-  TemporaryArray<KeyT> out(keys.size());
-  cub::DoubleBuffer<KeyT> d_keys(const_cast<KeyT *>(keys.data()),
-                                 out.data().get());
-  TemporaryArray<IdxT> sorted_idx_out(sorted_idx.size());
-  cub::DoubleBuffer<ValueT> d_values(const_cast<ValueT *>(sorted_idx.data()),
-                                     sorted_idx_out.data().get());
-
-  // track https://github.com/NVIDIA/cub/pull/340 for 64bit length support
-  using OffsetT = std::conditional_t<!BuildWithCUDACub(), std::ptrdiff_t, int32_t>;
-  CHECK_LE(sorted_idx.size(), std::numeric_limits<OffsetT>::max());
-  if (accending) {
-    void *d_temp_storage = nullptr;
-#if THRUST_MAJOR_VERSION >= 2
-    safe_cuda((cub::DispatchRadixSort<false, KeyT, ValueT, OffsetT>::Dispatch(
-        d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
-        sizeof(KeyT) * 8, false, nullptr)));
-#else
-    safe_cuda((cub::DispatchRadixSort<false, KeyT, ValueT, OffsetT>::Dispatch(
-        d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
-        sizeof(KeyT) * 8, false, nullptr, false)));
-#endif
-    TemporaryArray<char> storage(bytes);
-    d_temp_storage = storage.data().get();
-#if THRUST_MAJOR_VERSION >= 2
-    safe_cuda((cub::DispatchRadixSort<false, KeyT, ValueT, OffsetT>::Dispatch(
-        d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
-        sizeof(KeyT) * 8, false, nullptr)));
-#else
-    safe_cuda((cub::DispatchRadixSort<false, KeyT, ValueT, OffsetT>::Dispatch(
-        d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
-        sizeof(KeyT) * 8, false, nullptr, false)));
-#endif
-  } else {
-    void *d_temp_storage = nullptr;
-#if THRUST_MAJOR_VERSION >= 2
-    safe_cuda((cub::DispatchRadixSort<true, KeyT, ValueT, OffsetT>::Dispatch(
-        d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
-        sizeof(KeyT) * 8, false, nullptr)));
-#else
-    safe_cuda((cub::DispatchRadixSort<true, KeyT, ValueT, OffsetT>::Dispatch(
-        d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
-        sizeof(KeyT) * 8, false, nullptr, false)));
-#endif
-    TemporaryArray<char> storage(bytes);
-    d_temp_storage = storage.data().get();
-#if THRUST_MAJOR_VERSION >= 2
-    safe_cuda((cub::DispatchRadixSort<true, KeyT, ValueT, OffsetT>::Dispatch(
-        d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
-        sizeof(KeyT) * 8, false, nullptr)));
-#else
-    safe_cuda((cub::DispatchRadixSort<true, KeyT, ValueT, OffsetT>::Dispatch(
-        d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
-        sizeof(KeyT) * 8, false, nullptr, false)));
-#endif
-  }
-
-  safe_cuda(cudaMemcpyAsync(sorted_idx.data(), sorted_idx_out.data().get(),
-                            sorted_idx.size_bytes(), cudaMemcpyDeviceToDevice));
 }
 
 class CUDAStreamView;
