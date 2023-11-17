@@ -159,8 +159,8 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
       return DispatchDType(type, [=](auto t) {
         using T = decltype(t);
         auto rdata = common::RestoreType<T>(data);
-        auto rc = ncclAllReduce(data.data(), data.data(), rdata.size(), GetNCCLType(type),
-                                GetNCCLRedOp(op), nccl->Handle(), nccl->Stream());
+        auto rc = stub->Allreduce(data.data(), data.data(), rdata.size(), GetNCCLType(type),
+                                  GetNCCLRedOp(op), nccl->Handle(), nccl->Stream());
         return GetNCCLResult(stub, rc);
       });
     }
@@ -177,8 +177,8 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
   auto stub = nccl->Stub();
 
   return Success() << [&] {
-    return GetNCCLResult(stub, ncclBroadcast(data.data(), data.data(), data.size_bytes(), ncclInt8,
-                                             root, nccl->Handle(), nccl->Stream()));
+    return GetNCCLResult(stub, stub->Broadcast(data.data(), data.data(), data.size_bytes(),
+                                               ncclInt8, root, nccl->Handle(), nccl->Stream()));
   } << [&] { return nccl->Block(); };
 }
 
@@ -193,8 +193,8 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
 
   auto send = data.subspan(comm.Rank() * size, size);
   return Success() << [&] {
-    return GetNCCLResult(stub, ncclAllGather(send.data(), data.data(), size, ncclInt8,
-                                             nccl->Handle(), nccl->Stream()));
+    return GetNCCLResult(stub, stub->Allgather(send.data(), data.data(), size, ncclInt8,
+                                               nccl->Handle(), nccl->Stream()));
   } << [&] { return nccl->Block(); };
 }
 
@@ -211,8 +211,8 @@ Result BroadcastAllgatherV(NCCLComm const* comm, common::Span<std::int8_t const>
     std::size_t offset = 0;
     for (std::int32_t r = 0; r < comm->World(); ++r) {
       auto as_bytes = sizes[r];
-      auto rc = ncclBroadcast(data.data(), recv.subspan(offset, as_bytes).data(), as_bytes,
-                              ncclInt8, r, comm->Handle(), dh::DefaultStream());
+      auto rc = stub->Broadcast(data.data(), recv.subspan(offset, as_bytes).data(), as_bytes,
+                                ncclInt8, r, comm->Handle(), dh::DefaultStream());
       if (rc != ncclSuccess) {
         return GetNCCLResult(stub, rc);
       }
