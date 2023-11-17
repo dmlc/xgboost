@@ -31,17 +31,17 @@ DeviceCommunicator* Communicator::GetDevice(int device_ordinal) {
 #ifdef XGBOOST_USE_NCCL
     switch (type_) {
       case CommunicatorType::kRabit:
-        device_communicator_.reset(new NcclDeviceCommunicator(device_ordinal, false));
+        device_communicator_.reset(new NcclDeviceCommunicator(device_ordinal, false, nccl_path_));
         break;
       case CommunicatorType::kFederated:
       case CommunicatorType::kInMemory:
         device_communicator_.reset(new DeviceCommunicatorAdapter(device_ordinal));
         break;
       case CommunicatorType::kInMemoryNccl:
-        device_communicator_.reset(new NcclDeviceCommunicator(device_ordinal, true));
+        device_communicator_.reset(new NcclDeviceCommunicator(device_ordinal, true, nccl_path_));
         break;
       default:
-        device_communicator_.reset(new NcclDeviceCommunicator(device_ordinal, false));
+        device_communicator_.reset(new NcclDeviceCommunicator(device_ordinal, false, nccl_path_));
     }
 #else
     device_communicator_.reset(new DeviceCommunicatorAdapter(device_ordinal));

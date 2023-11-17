@@ -7,11 +7,12 @@
 namespace xgboost {
 namespace collective {
 
-NcclDeviceCommunicator::NcclDeviceCommunicator(int device_ordinal, bool needs_sync)
+NcclDeviceCommunicator::NcclDeviceCommunicator(int device_ordinal, bool needs_sync, std::string nccl_path)
     : device_ordinal_{device_ordinal},
       needs_sync_{needs_sync},
       world_size_{GetWorldSize()},
-      rank_{GetRank()} {
+      rank_{GetRank()},
+      nccl_path_{std::move(nccl_path)} {
   if (device_ordinal_ < 0) {
     LOG(FATAL) << "Invalid device ordinal: " << device_ordinal_;
   }

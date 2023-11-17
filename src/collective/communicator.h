@@ -234,6 +234,7 @@ class Communicator {
 
   static thread_local std::unique_ptr<Communicator> communicator_;
   static thread_local CommunicatorType type_;
+  static thread_local std::string nccl_path_;
 #if defined(XGBOOST_USE_CUDA)
   static thread_local std::unique_ptr<DeviceCommunicator> device_communicator_;
 #endif

@@ -16,6 +16,9 @@ thread_local std::unique_ptr<Communicator> Communicator::communicator_{new NoOpC
 thread_local CommunicatorType Communicator::type_{};
 
 void Communicator::Init(Json const& config) {
+  auto nccl = OptionalArg<String>(config, "dmlc_nccl_path", std::string{"libnccl.so.2"});
+  nccl_path_ = nccl;
+
   auto type = GetTypeFromEnv();
   auto const arg = GetTypeFromConfig(config);
   if (arg != CommunicatorType::kUnknown) {

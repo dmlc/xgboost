@@ -16,7 +16,7 @@ namespace xgboost {
 namespace collective {
 
 TEST(NcclDeviceCommunicatorSimpleTest, ThrowOnInvalidDeviceOrdinal) {
-  auto construct = []() { NcclDeviceCommunicator comm{-1, false}; };
+  auto construct = []() { NcclDeviceCommunicator comm{-1, false, "libnccl.so.2"}; };
   EXPECT_THROW(construct(), dmlc::Error);
 }
 
