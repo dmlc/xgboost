@@ -23,12 +23,13 @@
 
 namespace xgboost::collective {
 Comm::Comm(std::string const& host, std::int32_t port, std::chrono::seconds timeout,
-           std::int32_t retry, std::string task_id)
+           std::int32_t retry, std::string task_id, std::string nccl_path)
     : timeout_{timeout},
       retry_{retry},
       tracker_{host, port, -1},
       task_id_{std::move(task_id)},
-      loop_{std::shared_ptr<Loop>{new Loop{timeout}}} {}
+      loop_{std::shared_ptr<Loop>{new Loop{timeout}}},
+      nccl_path_{std::move(nccl_path)} {}
 
 Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, std::int32_t retry,
                           std::string const& task_id, TCPSocket* out, std::int32_t rank,
@@ -194,8 +195,8 @@ Comm* Comm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
 }
 
 RabitComm::RabitComm(std::string const& host, std::int32_t port, std::chrono::seconds timeout,
-                     std::int32_t retry, std::string task_id)
-    : Comm{std::move(host), port, timeout, retry, std::move(task_id)} {
+                     std::int32_t retry, std::string task_id, std::string nccl_path)
+    : Comm{std::move(host), port, timeout, retry, std::move(task_id), nccl_path} {
   auto rc = this->Bootstrap(timeout_, retry_, task_id_);
   CHECK(rc.OK()) << rc.Report();
 }

@@ -54,11 +54,12 @@ class Comm : public std::enable_shared_from_this<Comm> {
   std::vector<std::shared_ptr<Channel>> channels_;
   std::shared_ptr<Loop> loop_{new Loop{std::chrono::seconds{
       DefaultTimeoutSec()}}};  // fixme: require federated comm to have a timeout
+  std::string nccl_path_{"libnccl.so.2"};
 
  public:
   Comm() = default;
   Comm(std::string const& host, std::int32_t port, std::chrono::seconds timeout, std::int32_t retry,
-       std::string task_id);
+       std::string task_id, std::string nccl_path);
   virtual ~Comm() noexcept(false) {}  // NOLINT
 
   Comm(Comm const& that) = delete;
@@ -100,7 +101,7 @@ class RabitComm : public Comm {
   RabitComm() = default;
   // ctor for testing where environment is known.
   RabitComm(std::string const& host, std::int32_t port, std::chrono::seconds timeout,
-            std::int32_t retry, std::string task_id);
+            std::int32_t retry, std::string task_id, std::string nccl_path = "libnccl.so.2");
   ~RabitComm() noexcept(false) override;
 
   [[nodiscard]] bool IsFederated() const override { return false; }
