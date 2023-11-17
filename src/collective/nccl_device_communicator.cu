@@ -1,6 +1,7 @@
 /*!
  * Copyright 2023 XGBoost contributors
  */
+#include "comm.cuh"
 #if defined(XGBOOST_USE_NCCL)
 #include "nccl_device_communicator.cuh"
 
@@ -45,7 +46,9 @@ NcclDeviceCommunicator::NcclDeviceCommunicator(int device_ordinal, bool needs_sy
 
   nccl_unique_id_ = GetUniqueId();
   dh::safe_cuda(cudaSetDevice(device_ordinal_));
-  dh::safe_nccl(stub_->CommInitRank(&nccl_comm_, world_size_, nccl_unique_id_, rank_));
+  auto rc =
+      GetNCCLResult(stub_, stub_->CommInitRank(&nccl_comm_, world_size_, nccl_unique_id_, rank_));
+  CHECK(rc.OK()) << rc.Report();
 }
 
 NcclDeviceCommunicator::~NcclDeviceCommunicator() {
@@ -53,7 +56,8 @@ NcclDeviceCommunicator::~NcclDeviceCommunicator() {
     return;
   }
   if (nccl_comm_) {
-    dh::safe_nccl(stub_->CommDestroy(nccl_comm_));
+    auto rc = GetNCCLResult(stub_, stub_->CommDestroy(nccl_comm_));
+    CHECK(rc.OK()) << rc.Report();
   }
   if (xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
     LOG(CONSOLE) << "======== NCCL Statistics========";
