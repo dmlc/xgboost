@@ -207,7 +207,7 @@ namespace cuda_impl {
 Result BroadcastAllgatherV(NCCLComm const* comm, common::Span<std::int8_t const> data,
                            common::Span<std::int64_t const> sizes, common::Span<std::int8_t> recv) {
   auto stub = comm->Stub();
-  return Success() << [&stub] { return GetNCCLResult(stub, ncclGroupStart()); } << [&] {
+  return Success() << [&stub] { return GetNCCLResult(stub, stub->GroupStart()); } << [&] {
     std::size_t offset = 0;
     for (std::int32_t r = 0; r < comm->World(); ++r) {
       auto as_bytes = sizes[r];
@@ -219,7 +219,7 @@ Result BroadcastAllgatherV(NCCLComm const* comm, common::Span<std::int8_t const>
       offset += as_bytes;
     }
     return Success();
-  } << [&] { return GetNCCLResult(stub, ncclGroupEnd()); };
+  } << [&] { return GetNCCLResult(stub, stub->GroupEnd()); };
 }
 }  // namespace cuda_impl
 
@@ -236,7 +236,7 @@ Result BroadcastAllgatherV(NCCLComm const* comm, common::Span<std::int8_t const>
 
   switch (algo) {
     case AllgatherVAlgo::kRing: {
-      return Success() << [&] { return GetNCCLResult(stub, ncclGroupStart()); } << [&] {
+      return Success() << [&] { return GetNCCLResult(stub, stub->GroupStart()); } << [&] {
         // get worker offset
         detail::AllgatherVOffset(sizes, recv_segments);
         // copy data
@@ -247,7 +247,7 @@ Result BroadcastAllgatherV(NCCLComm const* comm, common::Span<std::int8_t const>
         }
         return detail::RingAllgatherV(comm, sizes, recv_segments, recv);
       } << [&] {
-        return GetNCCLResult(stub, ncclGroupEnd());
+        return GetNCCLResult(stub, stub->GroupEnd());
       } << [&] { return nccl->Block(); };
     }
     case AllgatherVAlgo::kBcast: {

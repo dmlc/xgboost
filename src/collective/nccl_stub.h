@@ -27,6 +27,10 @@ class NcclStub {
                         ncclComm_t comm, cudaStream_t stream);
   ncclResult_t (*recv_)(void* recvbuff, size_t count, ncclDataType_t datatype, int peer,
                         ncclComm_t comm, cudaStream_t stream);
+
+  ncclResult_t  (*group_start_)();
+  ncclResult_t  (*group_end_)();
+
   const char*  (*get_error_string_)(ncclResult_t result);
 
  public:
@@ -65,6 +69,9 @@ class NcclStub {
                                   ncclComm_t comm, cudaStream_t stream) {
     return recv_(recvbuff, count, datatype, peer, comm, stream);
   }
+  [[nodiscard]] ncclResult_t GroupStart() { return group_start_(); }
+  [[nodiscard]] ncclResult_t GroupEnd() { return group_end_(); }
+
   [[nodiscard]] const char* GetErrorString(ncclResult_t result) {
     return get_error_string_(result);
   }

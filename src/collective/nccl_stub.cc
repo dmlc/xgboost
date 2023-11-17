@@ -27,6 +27,10 @@ NcclStub::NcclStub(std::string path) : path_{std::move(path)} {
   CHECK(send_) << msg << dlerror();
   recv_ = reinterpret_cast<decltype(recv_)>(dlsym(handle_, "ncclRecv"));
   CHECK(recv_) << msg << dlerror();
+  group_start_ = reinterpret_cast<decltype(group_start_)>(dlsym(handle_, "ncclGroupStart"));
+  CHECK(group_start_) << msg << dlerror();
+  group_end_ = reinterpret_cast<decltype(group_end_)>(dlsym(handle_, "ncclGroupEnd"));
+  CHECK(group_end_) << msg << dlerror();
   get_error_string_ =
       reinterpret_cast<decltype(get_error_string_)>(dlsym(handle_, "ncclGetErrorString"));
 };

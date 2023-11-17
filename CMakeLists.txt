@@ -69,6 +69,7 @@ option(KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR "Output build artifacts in CMake binar
 option(USE_CUDA  "Build with GPU acceleration" OFF)
 option(USE_PER_THREAD_DEFAULT_STREAM "Build with per-thread default stream" ON)
 option(USE_NCCL  "Build with NCCL to enable distributed GPU support." OFF)
+option(DLOPEN_NCCL "Build with a NCCL stub." ON)
 option(BUILD_WITH_SHARED_NCCL "Build with shared NCCL library." OFF)
 if(USE_CUDA)
   if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES AND NOT DEFINED ENV{CUDAARCHS})
