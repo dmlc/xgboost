@@ -8,7 +8,8 @@
 #include "../data/array_interface.h"  // for ArrayInterfaceHandler
 #include "coll.h"                     // for Coll
 #include "comm.h"                     // for Comm
-#include "xgboost/span.h"             // for Span
+#include "nccl_stub.h"
+#include "xgboost/span.h"  // for Span
 
 namespace xgboost::collective {
 class NCCLColl : public Coll {

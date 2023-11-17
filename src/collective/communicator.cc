@@ -14,6 +14,7 @@
 namespace xgboost::collective {
 thread_local std::unique_ptr<Communicator> Communicator::communicator_{new NoOpCommunicator()};
 thread_local CommunicatorType Communicator::type_{};
+thread_local std::string Communicator::nccl_path_{};
 
 void Communicator::Init(Json const& config) {
   auto nccl = OptionalArg<String>(config, "dmlc_nccl_path", std::string{"libnccl.so.2"});

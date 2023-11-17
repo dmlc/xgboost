@@ -19,25 +19,6 @@ Coll* Coll::MakeCUDAVar() { return new NCCLColl{}; }
 
 NCCLColl::~NCCLColl() = default;
 namespace {
-Result GetNCCLResult(std::shared_ptr<NcclStub> stub, ncclResult_t code) {
-  if (code == ncclSuccess) {
-    return Success();
-  }
-
-  std::stringstream ss;
-  ss << "NCCL failure: " << stub->GetErrorString(code) << ".";
-  if (code == ncclUnhandledCudaError) {
-    // nccl usually preserves the last error so we can get more details.
-    auto err = cudaPeekAtLastError();
-    ss << "  CUDA error: " << thrust::system_error(err, thrust::cuda_category()).what() << "\n";
-  } else if (code == ncclSystemError) {
-    ss << "  This might be caused by a network configuration issue. Please consider specifying "
-          "the network interface for NCCL via environment variables listed in its reference: "
-          "`https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html`.\n";
-  }
-  return Fail(ss.str());
-}
-
 auto GetNCCLType(ArrayInterfaceHandler::Type type) {
   auto fatal = [] {
     LOG(FATAL) << "Invalid type for NCCL operation.";

@@ -6,13 +6,12 @@
 #include "../common/device_helpers.cuh"
 #include "communicator.h"
 #include "device_communicator.cuh"
+#include "nccl_stub.h"
 
 namespace xgboost {
 namespace collective {
 
 class NcclDeviceCommunicator : public DeviceCommunicator {
-  std::string nccl_path_;
-
  public:
   /**
    * @brief Construct a new NCCL communicator.
@@ -66,7 +65,7 @@ class NcclDeviceCommunicator : public DeviceCommunicator {
     static const int kRootRank = 0;
     ncclUniqueId id;
     if (rank_ == kRootRank) {
-      dh::safe_nccl(ncclGetUniqueId(&id));
+      dh::safe_nccl(stub_->GetUniqueId(&id));
     }
     Broadcast(static_cast<void *>(&id), sizeof(ncclUniqueId), static_cast<int>(kRootRank));
     return id;
@@ -80,6 +79,7 @@ class NcclDeviceCommunicator : public DeviceCommunicator {
   int const world_size_;
   int const rank_;
   ncclComm_t nccl_comm_{};
+  std::shared_ptr<NcclStub> stub_;
   ncclUniqueId nccl_unique_id_{};
   size_t allreduce_bytes_{0};  // Keep statistics of the number of bytes communicated.
   size_t allreduce_calls_{0};  // Keep statistics of the number of reduce calls.
