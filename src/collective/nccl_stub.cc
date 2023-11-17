@@ -27,6 +27,8 @@ NcclStub::NcclStub(std::string path) : path_{std::move(path)} {
   CHECK(send_) << msg << dlerror();
   recv_ = reinterpret_cast<decltype(recv_)>(dlsym(handle_, "ncclRecv"));
   CHECK(recv_) << msg << dlerror();
+  get_error_string_ =
+      reinterpret_cast<decltype(get_error_string_)>(dlsym(handle_, "ncclGetErrorString"));
 };
 
 NcclStub::~NcclStub() { CHECK_EQ(dlclose(handle_), 0) << dlerror(); }

@@ -27,6 +27,7 @@ class NcclStub {
                         ncclComm_t comm, cudaStream_t stream);
   ncclResult_t (*recv_)(void* recvbuff, size_t count, ncclDataType_t datatype, int peer,
                         ncclComm_t comm, cudaStream_t stream);
+  const char*  (*get_error_string_)(ncclResult_t result);
 
  public:
   explicit NcclStub(std::string path);
@@ -63,6 +64,9 @@ class NcclStub {
   [[nodiscard]] ncclResult_t Recv(void* recvbuff, size_t count, ncclDataType_t datatype, int peer,
                                   ncclComm_t comm, cudaStream_t stream) {
     return recv_(recvbuff, count, datatype, peer, comm, stream);
+  }
+  [[nodiscard]] const char* GetErrorString(ncclResult_t result) {
+    return get_error_string_(result);
   }
 };
 }  // namespace xgboost::collective

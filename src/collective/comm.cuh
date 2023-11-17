@@ -34,6 +34,7 @@ class NCCLComm : public Comm {
 
  public:
   [[nodiscard]] ncclComm_t Handle() const { return nccl_comm_; }
+  auto Stub() const { return stub_; }
 
   explicit NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> pimpl,
                     std::string nccl_path);
