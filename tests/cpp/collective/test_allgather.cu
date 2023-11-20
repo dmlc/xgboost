@@ -90,10 +90,10 @@ class Worker : public NCCLWorkerForTest {
   }
 };
 
-class AllgatherTestGPU : public SocketTest {};
+class MGPUAllgatherTest : public SocketTest {};
 }  // namespace
 
-TEST_F(AllgatherTestGPU, MGPUTestVRing) {
+TEST_F(MGPUAllgatherTest, MGPUTestVRing) {
   auto n_workers = common::AllVisibleGPUs();
   TestDistributed(n_workers, [=](std::string host, std::int32_t port, std::chrono::seconds timeout,
                                  std::int32_t r) {
@@ -104,7 +104,7 @@ TEST_F(AllgatherTestGPU, MGPUTestVRing) {
   });
 }
 
-TEST_F(AllgatherTestGPU, MGPUTestVBcast) {
+TEST_F(MGPUAllgatherTest, MGPUTestVBcast) {
   auto n_workers = common::AllVisibleGPUs();
   TestDistributed(n_workers, [=](std::string host, std::int32_t port, std::chrono::seconds timeout,
                                  std::int32_t r) {
