@@ -4,6 +4,7 @@
 #pragma once
 
 #include "../common/device_helpers.cuh"
+#include "comm.cuh"
 #include "communicator.h"
 #include "device_communicator.cuh"
 #include "nccl_stub.h"
@@ -65,7 +66,8 @@ class NcclDeviceCommunicator : public DeviceCommunicator {
     static const int kRootRank = 0;
     ncclUniqueId id;
     if (rank_ == kRootRank) {
-      dh::safe_nccl(stub_->GetUniqueId(&id));
+      auto rc = GetNCCLResult(stub_, stub_->GetUniqueId(&id));
+      CHECK(rc.OK()) << rc.Report();
     }
     Broadcast(static_cast<void *>(&id), sizeof(ncclUniqueId), static_cast<int>(kRootRank));
     return id;

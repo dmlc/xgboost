@@ -8,6 +8,7 @@
 #include <bitset>
 #include <string>  // for string
 
+#include "../../../src/collective/comm.cuh"
 #include "../../../src/collective/communicator-inl.cuh"
 #include "../../../src/collective/nccl_device_communicator.cuh"
 #include "../helpers.h"
@@ -21,12 +22,10 @@ TEST(NcclDeviceCommunicatorSimpleTest, ThrowOnInvalidDeviceOrdinal) {
 }
 
 TEST(NcclDeviceCommunicatorSimpleTest, SystemError) {
-  try {
-    dh::safe_nccl(ncclSystemError);
-  } catch (dmlc::Error const& e) {
-    auto str = std::string{e.what()};
-    ASSERT_TRUE(str.find("environment variables") != std::string::npos);
-  }
+  auto stub = std::make_shared<NcclStub>("libnccl.so.2");
+  auto rc = GetNCCLResult(stub, ncclSystemError);
+  auto msg = rc.Report();
+  ASSERT_TRUE(msg.find("environment variables") != std::string::npos);
 }
 
 namespace {

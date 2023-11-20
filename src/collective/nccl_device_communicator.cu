@@ -143,8 +143,10 @@ void NcclDeviceCommunicator::BitwiseAllReduce(void *send_receive_buffer, std::si
   auto *device_buffer = buffer.data().get();
 
   // First gather data from all the workers.
-  dh::safe_nccl(stub_->Allgather(send_receive_buffer, device_buffer, count,
-                                 GetNcclDataType(data_type), nccl_comm_, dh::DefaultStream()));
+  auto rc = GetNCCLResult(
+      stub_, stub_->Allgather(send_receive_buffer, device_buffer, count, GetNcclDataType(data_type),
+                              nccl_comm_, dh::DefaultStream()));
+  CHECK(rc.OK()) << rc.Report();
   if (needs_sync_) {
     dh::DefaultStream().Sync();
   }
@@ -176,9 +178,10 @@ void NcclDeviceCommunicator::AllReduce(void *send_receive_buffer, std::size_t co
   if (IsBitwiseOp(op)) {
     BitwiseAllReduce(send_receive_buffer, count, data_type, op);
   } else {
-    dh::safe_nccl(stub_->Allreduce(send_receive_buffer, send_receive_buffer, count,
-                                   GetNcclDataType(data_type), GetNcclRedOp(op), nccl_comm_,
-                                   dh::DefaultStream()));
+    auto rc = GetNCCLResult(stub_, stub_->Allreduce(send_receive_buffer, send_receive_buffer, count,
+                                                    GetNcclDataType(data_type), GetNcclRedOp(op),
+                                                    nccl_comm_, dh::DefaultStream()));
+    CHECK(rc.OK()) << rc.Report();
   }
   allreduce_bytes_ += count * GetTypeSize(data_type);
   allreduce_calls_ += 1;
@@ -191,8 +194,9 @@ void NcclDeviceCommunicator::AllGather(void const *send_buffer, void *receive_bu
   }
 
   dh::safe_cuda(cudaSetDevice(device_ordinal_));
-  dh::safe_nccl(stub_->Allgather(send_buffer, receive_buffer, send_size, ncclInt8, nccl_comm_,
-                                 dh::DefaultStream()));
+  auto rc = GetNCCLResult(stub_, stub_->Allgather(send_buffer, receive_buffer, send_size, ncclInt8,
+                                                  nccl_comm_, dh::DefaultStream()));
+  CHECK(rc.OK()) << rc.Report();
 }
 
 void NcclDeviceCommunicator::AllGatherV(void const *send_buffer, size_t length_bytes,
@@ -212,14 +216,19 @@ void NcclDeviceCommunicator::AllGatherV(void const *send_buffer, size_t length_b
   receive_buffer->resize(total_bytes);
 
   size_t offset = 0;
-  dh::safe_nccl(stub_->GroupStart());
-  for (int32_t i = 0; i < world_size_; ++i) {
-    size_t as_bytes = segments->at(i);
-    dh::safe_nccl(stub_->Broadcast(send_buffer, receive_buffer->data().get() + offset, as_bytes,
-                                   ncclChar, i, nccl_comm_, dh::DefaultStream()));
-    offset += as_bytes;
-  }
-  dh::safe_nccl(stub_->GroupEnd());
+  auto rc = Success() << [&] { return GetNCCLResult(stub_, stub_->GroupStart()); } << [&] {
+    for (int32_t i = 0; i < world_size_; ++i) {
+      size_t as_bytes = segments->at(i);
+      auto rc = GetNCCLResult(
+          stub_, stub_->Broadcast(send_buffer, receive_buffer->data().get() + offset, as_bytes,
+                                  ncclChar, i, nccl_comm_, dh::DefaultStream()));
+      if (!rc.OK()) {
+        return rc;
+      }
+      offset += as_bytes;
+    }
+    return Success();
+  } << [&] { return GetNCCLResult(stub_, stub_->GroupEnd()); };
 }
 
 void NcclDeviceCommunicator::Synchronize() {

@@ -5,11 +5,9 @@
 #include <gtest/gtest.h>
 #include <thrust/host_vector.h>  // for host_vector
 
-#include "../../../src/collective/coll.h"  // for Coll
 #include "../../../src/common/common.h"
 #include "../../../src/common/device_helpers.cuh"  // for ToSpan,  device_vector
 #include "../../../src/common/type.h"              // for EraseType
-#include "../helpers.h"                            // for MakeCUDACtx
 #include "test_worker.cuh"                         // for NCCLWorkerForTest
 #include "test_worker.h"                           // for WorkerForTest, TestDistributed
 
