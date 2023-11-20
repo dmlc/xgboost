@@ -536,6 +536,17 @@ Troubleshooting
 - MIG (Multi-Instance GPU) is not yet supported by NCCL. You will receive an error message
   that includes `Multiple processes within a communication group ...` upon initialization.
 
+- Failed to load NCCL from the environment. Starting from 2.1.0, in order to reduce the
+  binary size, the XGBoost PyPI package loads NCCL from the environment instead of relies
+  on static linking. If you encounter an error message like "Failed to load nccl ...",
+  please instead nccl using pip:
+
+.. code-block:: sh
+
+    pip install pip install nvidia-nccl-cu12
+
+  The default conda build should not receive such error.
+
 ************
 IPv6 Support
 ************
