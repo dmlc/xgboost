@@ -103,6 +103,7 @@ if __name__ == "__main__":
             if cli_args.use_cuda == 'ON':
                 CONFIG['USE_CUDA'] = 'ON'
                 CONFIG['USE_NCCL'] = 'ON'
+                CONFIG["USE_DLOPEN_NCCL"] = "OFF"
 
             args = ["-D{0}:BOOL={1}".format(k, v) for k, v in CONFIG.items()]
 
