@@ -10,7 +10,7 @@ from typing import Any, Dict, List
 import numpy as np
 
 from ._typing import _T
-from .core import _LIB, _check_call, c_str, from_pystr_to_cstr, py_str
+from .core import _LIB, _check_call, build_info, c_str, from_pystr_to_cstr, py_str
 
 LOGGER = logging.getLogger("[xgboost.collective]")
 
@@ -252,6 +252,10 @@ class CommunicatorContext:
     def __init__(self, **args: Any) -> None:
         self.args = args
         try:
+            binfo = build_info()
+            if not binfo["USE_DLOPEN_NCCL"]:
+                return
+
             from nvidia.nccl import lib
             dirname = os.path.dirname(lib.__file__)
             path = os.path.join(dirname, "libnccl.so.2")
