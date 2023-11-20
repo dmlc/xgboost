@@ -49,6 +49,10 @@ class NCCLComm : public Comm {
     auto rc = this->Stream().Sync(false);
     return GetCUDAResult(rc);
   }
+  Comm* MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const override {
+    LOG(FATAL) << "[Internal Error]: Invalid request for CUDA variant.";
+    return nullptr;
+  }
 };
 
 inline Result GetNCCLResult(std::shared_ptr<NcclStub> stub, ncclResult_t code) {

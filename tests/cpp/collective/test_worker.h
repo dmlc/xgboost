@@ -33,7 +33,7 @@ class WorkerForTest {
         tracker_port_{port},
         world_size_{world},
         task_id_{"t:" + std::to_string(rank)},
-        comm_{tracker_host_, tracker_port_, timeout, retry_, task_id_} {
+        comm_{tracker_host_, tracker_port_, timeout, retry_, task_id_, DefaultNcclName()} {
     CHECK_EQ(world_size_, comm_.World());
   }
   virtual ~WorkerForTest() = default;

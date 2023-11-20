@@ -12,7 +12,9 @@
 
 namespace xgboost::collective {
 class NcclStub {
+#if defined(XGBOOST_USE_DLOPEN_NCCL)
   void* handle_{nullptr};
+#endif  // defined(XGBOOST_USE_DLOPEN_NCCL)
   std::string path_;
 
   decltype(ncclAllReduce)* allreduce_{nullptr};

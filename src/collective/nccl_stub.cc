@@ -20,7 +20,7 @@ NcclStub::NcclStub(StringView path) : path_{std::move(path)} {
   std::string msg{"Failed to load nccl from path: `" + path_ + "`. Error:"};
   msg += R"m(
 This usually happens when XGBoost is intalled from PyPI (using pip) and can be fixed by:
-- Run `pip install pip install nvidia-nccl-cu12`
+- Run `pip install nvidia-nccl-cu12`.
 
 If you are using a customized XGBoost, please make sure one of the following is true:
 - XGBoost is NOT compiled with the `USE_DLOPEN_NCCL` flag.
@@ -53,8 +53,9 @@ binary size for some repositories with limited capacity.
   CHECK(group_end_) << msg << dlerror();
   get_error_string_ =
       reinterpret_cast<decltype(get_error_string_)>(dlsym(handle_, "ncclGetErrorString"));
+  CHECK(get_error_string_) << msg << dlerror();
   get_version_ = reinterpret_cast<decltype(get_version_)>(dlsym(handle_, "ncclGetVersion"));
-  CHECK(get_version_);
+  CHECK(get_version_) << msg << dlerror();
 
   std::int32_t v;
   CHECK_EQ(get_version_(&v), ncclSuccess);
@@ -62,10 +63,9 @@ binary size for some repositories with limited capacity.
   auto minor = (v / 100) % 100;
   auto major = v / 10000;
 
-  LOG(INFO) << "Loaded shared NCCL [" << major << "." << minor << "." << patch << "]:`" << path_
+  LOG(INFO) << "Loaded shared NCCL " << major << "." << minor << "." << patch << ":`" << path_
             << "`" << std::endl;
 #else
-  handle_ = nullptr;
   allreduce_ = ncclAllReduce;
   broadcast_ = ncclBroadcast;
   allgather_ = ncclAllGather;
@@ -81,7 +81,8 @@ binary size for some repositories with limited capacity.
 #endif
 };
 
-NcclStub::~NcclStub() {
+NcclStub::~NcclStub() {  // NOLINT
+#if defined(XGBOOST_USE_DLOPEN_NCCL)
   if (handle_) {
     auto rc = dlclose(handle_);
     if (rc != 0) {
@@ -89,6 +90,7 @@ NcclStub::~NcclStub() {
     }
   }
   handle_ = nullptr;
+#endif  // defined(XGBOOST_USE_DLOPEN_NCCL)
 }
 }  // namespace xgboost::collective
 #endif  // defined(XGBOOST_USE_NCCL)

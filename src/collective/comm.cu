@@ -56,15 +56,14 @@ static std::string PrintUUID(xgboost::common::Span<std::uint64_t, kUuidLength> c
 }
 }  // namespace
 
-Comm* Comm::MakeCUDAVar(Context const* ctx, std::shared_ptr<Coll> pimpl) const {
+Comm* RabitComm::MakeCUDAVar(Context const* ctx, std::shared_ptr<Coll> pimpl) const {
   return new NCCLComm{ctx, *this, pimpl, StringView{this->nccl_path_}};
 }
 
 NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> pimpl,
                    StringView nccl_path)
-    : Comm{root.TrackerInfo().host, root.TrackerInfo().port,
-           root.Timeout(),          root.Retry(),
-           root.TaskID(),           nccl_path},
+    : Comm{root.TrackerInfo().host, root.TrackerInfo().port, root.Timeout(), root.Retry(),
+           root.TaskID()},
       stream_{ctx->CUDACtx()->Stream()},
       stub_{std::make_shared<NcclStub>(nccl_path)} {
   this->world_ = root.World();

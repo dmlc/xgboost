@@ -54,7 +54,7 @@ find_path(NCCL_INCLUDE_DIR
   NAMES nccl.h
   HINTS  ${NCCL_ROOT}/include $ENV{NCCL_ROOT}/include)
 
-if (DLOPEN_NCCL)
+if(USE_DLOPEN_NCCL)
   include(FindPackageHandleStandardArgs)
   find_package_handle_standard_args(Nccl DEFAULT_MSG NCCL_INCLUDE_DIR)
 
