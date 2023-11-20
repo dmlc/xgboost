@@ -2,13 +2,14 @@
  * Copyright 2023, XGBoost Contributors
  */
 #if defined(XGBOOST_USE_NCCL)
-#include <cuda.h>
 #include "nccl_stub.h"
 
+#include <cuda.h>   // for CUDA_VERSION
 #include <dlfcn.h>  // for dlclose, dlsym, dlopen
 #include <nccl.h>
 
 #include <cstdint>  // for int32_t
+#include <sstream>  // for stringstream
 #include <string>   // for string
 #include <utility>  // for move
 
@@ -17,24 +18,16 @@
 namespace xgboost::collective {
 NcclStub::NcclStub(StringView path) : path_{std::move(path)} {
 #if defined(XGBOOST_USE_DLOPEN_NCCL)
-  CHECK(!path_.empty()) << "Empty path for nccl.";
-  handle_ = dlopen(path_.c_str(), RTLD_LAZY);
-  std::string msg{"Failed to load nccl from path: `" + path_ + "`. Error:"};
+  CHECK(!path_.empty()) << "Empty path for NCCL.";
+
   auto cu_major = (CUDA_VERSION) / 1000;
+  std::stringstream ss;
+  ss << R"m(
 
-  msg += R"m(
-If XGBoost is installed from PyPI with pip, the error can fixed by:)m";
-  msg += R"m(
-- Run `pip install nvidia-nccl-cu)m";
-  msg += std::to_string(cu_major);
-  msg += "`. (Or with any CUDA version higher than " + std::to_string(cu_major) + ").";
-  msg += R"m(
-Alternatively, you can use the following command with pip:
-- `pip install nvidia-pyindex && pip install nvidia-nccl`
-to install nccl from NVIDIA Python Index.
-)m";
-
-  msg += R"m(
+If XGBoost is installed from PyPI with pip, the error can fixed by:
+- Run `pip install nvidia-nccl-cu)m"
+     << cu_major << "` (Or with any CUDA version that's higher than " << cu_major << ").";
+  ss << R"m(
 
 If you are using the XGBoost package from conda-forge, please open an issue. This error
 should not have happened.
@@ -49,35 +42,38 @@ open an issue.
 Since 2.1.0, in order to reduce the binary size for some restricted repositories (like
 PyPI), XGBoost can optionally load the `libnccl.so.2` shared object from the environment
 using `dlopen`. If you are seeing this error, it means XGBoost failed to find the correct
-nccl installation in the current environment.
+NCCL installation in the current environment.
 
 )m";
-  CHECK(handle_) << msg << dlerror();
-  allreduce_ = reinterpret_cast<decltype(allreduce_)>(dlsym(handle_, "ncclAllReduce"));
-  CHECK(allreduce_) << msg << dlerror();
-  broadcast_ = reinterpret_cast<decltype(broadcast_)>(dlsym(handle_, "ncclBroadcast"));
-  CHECK(broadcast_) << msg << dlerror();
-  allgather_ = reinterpret_cast<decltype(allgather_)>(dlsym(handle_, "ncclAllGather"));
-  CHECK(allgather_) << msg << dlerror();
-  comm_init_rank_ = reinterpret_cast<decltype(comm_init_rank_)>(dlsym(handle_, "ncclCommInitRank"));
-  CHECK(comm_init_rank_) << msg << dlerror();
-  comm_destroy_ = reinterpret_cast<decltype(comm_destroy_)>(dlsym(handle_, "ncclCommDestroy"));
-  CHECK(comm_destroy_) << msg << dlerror();
-  get_uniqueid_ = reinterpret_cast<decltype(get_uniqueid_)>(dlsym(handle_, "ncclGetUniqueId"));
-  CHECK(get_uniqueid_) << msg << dlerror();
-  send_ = reinterpret_cast<decltype(send_)>(dlsym(handle_, "ncclSend"));
-  CHECK(send_) << msg << dlerror();
-  recv_ = reinterpret_cast<decltype(recv_)>(dlsym(handle_, "ncclRecv"));
-  CHECK(recv_) << msg << dlerror();
-  group_start_ = reinterpret_cast<decltype(group_start_)>(dlsym(handle_, "ncclGroupStart"));
-  CHECK(group_start_) << msg << dlerror();
-  group_end_ = reinterpret_cast<decltype(group_end_)>(dlsym(handle_, "ncclGroupEnd"));
-  CHECK(group_end_) << msg << dlerror();
-  get_error_string_ =
-      reinterpret_cast<decltype(get_error_string_)>(dlsym(handle_, "ncclGetErrorString"));
-  CHECK(get_error_string_) << msg << dlerror();
-  get_version_ = reinterpret_cast<decltype(get_version_)>(dlsym(handle_, "ncclGetVersion"));
-  CHECK(get_version_) << msg << dlerror();
+  auto help = ss.str();
+  std::string msg{"Failed to load NCCL from path: `" + path_ + "`. Error:\n  "};
+
+  auto safe_load = [&](auto t, StringView name) {
+    std::stringstream errs;
+    auto ptr = reinterpret_cast<decltype(t)>(dlsym(handle_, name.c_str()));
+    if (!ptr) {
+      errs << "Failed to load NCCL symbol `" << name << "` from " << path_ << ". Error:\n  "
+           << dlerror() << help;
+      LOG(FATAL) << errs.str();
+    }
+    return ptr;
+  };
+
+  handle_ = dlopen(path_.c_str(), RTLD_LAZY);
+  CHECK(handle_) << msg << dlerror() << help;
+
+  allreduce_ = safe_load(allreduce_, "ncclAllReduce");
+  broadcast_ = safe_load(broadcast_, "ncclBroadcast");
+  allgather_ = safe_load(allgather_, "ncclAllGather");
+  comm_init_rank_ = safe_load(comm_init_rank_, "ncclCommInitRank");
+  comm_destroy_ = safe_load(comm_destroy_, "ncclCommDestroy");
+  get_uniqueid_ = safe_load(get_uniqueid_, "ncclGetUniqueId");
+  send_ = safe_load(send_, "ncclSend");
+  recv_ = safe_load(recv_, "ncclRecv");
+  group_start_ = safe_load(group_start_, "ncclGroupStart");
+  group_end_ = safe_load(group_end_, "ncclGroupEnd");
+  get_error_string_ = safe_load(get_error_string_, "ncclGetErrorString");
+  get_version_ = safe_load(get_version_, "ncclGetVersion");
 
   std::int32_t v;
   CHECK_EQ(get_version_(&v), ncclSuccess);

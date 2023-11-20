@@ -585,11 +585,11 @@ def test_invalid_nccl(local_cuda_client: Client) -> None:
         X, y, w = tm.make_regression(n_samples=10, n_features=10, use_cupy=True)
 
         with ctx:
-            xgb.QuantileDMatrix(X, y, weight=w)
+            with pytest.raises(ValueError, match=r"pip install"):
+                xgb.QuantileDMatrix(X, y, weight=w)
 
     futures = client.map(run, range(len(workers)), workers=workers)
-    with pytest.raises(ValueError, match=r"pip install"):
-        client.gather(futures)
+    client.gather(futures)
 
 
 async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainReturnT:

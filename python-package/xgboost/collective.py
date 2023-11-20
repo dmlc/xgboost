@@ -5,7 +5,7 @@ import logging
 import os
 import pickle
 from enum import IntEnum, unique
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
@@ -263,9 +263,17 @@ class CommunicatorContext:
             # PyPI package of NCCL.
             from nvidia.nccl import lib
 
-            dirname = os.path.dirname(lib.__file__)
-            path = os.path.join(dirname, "libnccl.so.2")
-            self.args[key] = path
+            # There are two versions of nvidia-nccl, one is from PyPI, another one from
+            # nvidia-pyindex. We support only the first one as the second one is too old
+            # (2.9.8 as of writing).
+            if lib.__file__ is not None:
+                dirname: Optional[str] = os.path.dirname(lib.__file__)
+            else:
+                dirname = None
+
+            if dirname:
+                path = os.path.join(dirname, "libnccl.so.2")
+                self.args[key] = path
         except ImportError:
             pass
 
