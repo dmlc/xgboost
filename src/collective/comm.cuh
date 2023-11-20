@@ -37,7 +37,7 @@ class NCCLComm : public Comm {
   auto Stub() const { return stub_; }
 
   explicit NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> pimpl,
-                    std::string nccl_path);
+                    StringView nccl_path);
   [[nodiscard]] Result LogTracker(std::string) const override {
     LOG(FATAL) << "Device comm is used for logging.";
     return Fail("Undefined.");

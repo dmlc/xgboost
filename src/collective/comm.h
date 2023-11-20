@@ -56,7 +56,7 @@ class Comm : public std::enable_shared_from_this<Comm> {
   std::vector<std::shared_ptr<Channel>> channels_;
   std::shared_ptr<Loop> loop_{new Loop{std::chrono::seconds{
       DefaultTimeoutSec()}}};  // fixme: require federated comm to have a timeout
-  std::string nccl_path_{DefaultNcclName()};
+  std::string nccl_path_ = std::string{DefaultNcclName()};
 
  public:
   Comm() = default;

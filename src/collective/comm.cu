@@ -13,7 +13,6 @@
 #include "../common/cuda_context.cuh"    // for CUDAContext
 #include "../common/device_helpers.cuh"  // for DefaultStream
 #include "../common/type.h"              // for EraseType
-#include "broadcast.h"                   // for Broadcast
 #include "comm.cuh"                      // for NCCLComm
 #include "comm.h"                        // for Comm
 #include "nccl_stub.h"                   // for NcclStub
@@ -58,11 +57,11 @@ static std::string PrintUUID(xgboost::common::Span<std::uint64_t, kUuidLength> c
 }  // namespace
 
 Comm* Comm::MakeCUDAVar(Context const* ctx, std::shared_ptr<Coll> pimpl) const {
-  return new NCCLComm{ctx, *this, pimpl, nccl_path_};
+  return new NCCLComm{ctx, *this, pimpl, StringView{this->nccl_path_}};
 }
 
 NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> pimpl,
-                   std::string nccl_path)
+                   StringView nccl_path)
     : Comm{root.TrackerInfo().host, root.TrackerInfo().port,
            root.Timeout(),          root.Retry(),
            root.TaskID(),           nccl_path},
