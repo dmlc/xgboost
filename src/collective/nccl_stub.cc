@@ -20,15 +20,22 @@ NcclStub::NcclStub(StringView path) : path_{std::move(path)} {
   handle_ = dlopen(path_.c_str(), RTLD_LAZY);
   std::string msg{"Failed to load nccl from path: `" + path_ + "`. Error:"};
   msg += R"m(
-This usually happens when XGBoost is intalled from PyPI (using pip) and can be fixed by:
+If XGBoost is installed from PyPI with pip, the error can fixed by:
 - Run `pip install nvidia-nccl-cu12`.
 
-If you are using a customized XGBoost, please make sure one of the following is true:
+If you are using the XGBoost package from conda-forge, please open an issue.
+
+If you are using a customized XGBoost, please make sure one of the followings is true:
 - XGBoost is NOT compiled with the `USE_DLOPEN_NCCL` flag.
 - The `dmlc_nccl_path` parameter is set to full NCCL path when initializing the collective.
 
-Since 2.1.0, XGBoost can optionally load `libnccl.so` from the environment to reduce the
-binary size for some repositories with limited capacity.
+If you are not using distributed training with XGBoost yet this error comes up, please
+open an issu.
+
+Since 2.1.0, XGBoost can optionally load `libnccl.so` from the environment using `dlopen`
+to reduce the binary size for some repositories (like PyPI) with limited capacity. If you
+are seeing this error, it means XGBoost failed to find the correct nccl installation in
+the current environment.
 
 )m";
   CHECK(handle_) << msg << dlerror();
