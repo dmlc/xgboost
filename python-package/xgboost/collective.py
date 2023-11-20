@@ -2,6 +2,7 @@
 import ctypes
 import json
 import logging
+import os
 import pickle
 from enum import IntEnum, unique
 from typing import Any, Dict, List
@@ -250,6 +251,13 @@ class CommunicatorContext:
 
     def __init__(self, **args: Any) -> None:
         self.args = args
+        try:
+            from nvidia.nccl import lib
+            dirname = os.path.dirname(lib.__file__)
+            path = os.path.join(dirname, "libnccl.so.2")
+            self.args["dmlc_nccl_path"] = path
+        except ImportError:
+            pass
 
     def __enter__(self) -> Dict[str, Any]:
         init(**self.args)
