@@ -2,11 +2,13 @@
  * Copyright 2023, XGBoost Contributors
  */
 #pragma once
-
+#if defined(XGBOOST_USE_NCCL)
 #include <cuda_runtime_api.h>
 #include <nccl.h>
 
 #include <string>  // for string
+
+#include "xgboost/string_view.h"  // for StringView
 
 namespace xgboost::collective {
 class NcclStub {
@@ -26,7 +28,7 @@ class NcclStub {
   decltype(ncclGetErrorString)* get_error_string_{nullptr};
 
  public:
-  explicit NcclStub(std::string path);
+  explicit NcclStub(StringView path);
   ~NcclStub();
 
   [[nodiscard]] ncclResult_t Allreduce(const void* sendbuff, void* recvbuff, size_t count,
@@ -69,3 +71,5 @@ class NcclStub {
   }
 };
 }  // namespace xgboost::collective
+
+#endif  // defined(XGBOOST_USE_NCCL)

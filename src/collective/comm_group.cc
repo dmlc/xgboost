@@ -84,7 +84,7 @@ CommGroup::CommGroup()
   if (type == "rabit") {
     auto host = get_param("dmlc_tracker_uri", std::string{}, String{});
     auto port = get_param("dmlc_tracker_port", static_cast<std::int64_t>(0), Integer{});
-    auto nccl = get_param("dmlc_nccl_path", std::string{}, String{"libnccl.so.2"});
+    auto nccl = get_param("dmlc_nccl_path", std::string{}, String{std::string{DefaultNcclName()}});
     auto ptr =
         new CommGroup{std::shared_ptr<RabitComm>{new RabitComm{  // NOLINT
                           host, static_cast<std::int32_t>(port), std::chrono::seconds{timeout},

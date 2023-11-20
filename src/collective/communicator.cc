@@ -3,6 +3,7 @@
  */
 #include "communicator.h"
 
+#include "comm.h"
 #include "in_memory_communicator.h"
 #include "noop_communicator.h"
 #include "rabit_communicator.h"
@@ -17,7 +18,7 @@ thread_local CommunicatorType Communicator::type_{};
 thread_local std::string Communicator::nccl_path_{};
 
 void Communicator::Init(Json const& config) {
-  auto nccl = OptionalArg<String>(config, "dmlc_nccl_path", std::string{"libnccl.so.2"});
+  auto nccl = OptionalArg<String>(config, "dmlc_nccl_path", std::string{DefaultNcclName()});
   nccl_path_ = nccl;
 
   auto type = GetTypeFromEnv();

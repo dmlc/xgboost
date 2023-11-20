@@ -7,15 +7,12 @@
 #include <chrono>     // for seconds
 #include <cstdlib>    // for exit
 #include <memory>     // for shared_ptr
-#include <mutex>      // for unique_lock
 #include <string>     // for string
 #include <utility>    // for move, forward
 
 #include "../common/common.h"           // for AssertGPUSupport
-#include "../common/json_utils.h"       // for OptionalArg
 #include "allgather.h"                  // for RingAllgather
 #include "protocol.h"                   // for kMagic
-#include "tracker.h"                    // for GetHostAddress
 #include "xgboost/base.h"               // for XGBOOST_STRICT_R_MODE
 #include "xgboost/collective/socket.h"  // for TCPSocket
 #include "xgboost/json.h"               // for Json, Object
@@ -23,7 +20,7 @@
 
 namespace xgboost::collective {
 Comm::Comm(std::string const& host, std::int32_t port, std::chrono::seconds timeout,
-           std::int32_t retry, std::string task_id, std::string nccl_path)
+           std::int32_t retry, std::string task_id, StringView nccl_path)
     : timeout_{timeout},
       retry_{retry},
       tracker_{host, port, -1},

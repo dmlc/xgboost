@@ -27,7 +27,7 @@ class NcclDeviceCommunicator : public DeviceCommunicator {
    * needed. The in-memory communicator is used in tests with multiple threads, each thread
    * representing a rank/worker, so the additional synchronization is needed to avoid deadlocks.
    */
-  explicit NcclDeviceCommunicator(int device_ordinal, bool needs_sync, std::string nccl_path);
+  explicit NcclDeviceCommunicator(int device_ordinal, bool needs_sync, StringView nccl_path);
   ~NcclDeviceCommunicator() override;
   void AllReduce(void *send_receive_buffer, std::size_t count, DataType data_type,
                  Operation op) override;

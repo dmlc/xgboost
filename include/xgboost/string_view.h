@@ -30,38 +30,39 @@ struct StringView {
   constexpr StringView() = default;
   constexpr StringView(CharT const* str, std::size_t size) : str_{str}, size_{size} {}
   StringView(std::string const& str) : str_{str.c_str()}, size_{str.size()} {}  // NOLINT
-  constexpr StringView(CharT const* str)  // NOLINT
+  constexpr StringView(CharT const* str)                                        // NOLINT
       : str_{str}, size_{str == nullptr ? 0ul : Traits::length(str)} {}
 
-  CharT const& operator[](size_t p) const { return str_[p]; }
-  CharT const& at(size_t p) const {  // NOLINT
+  [[nodiscard]] CharT const& operator[](size_t p) const { return str_[p]; }
+  [[nodiscard]] explicit operator std::string() const { return {this->c_str(), this->size()}; }
+  [[nodiscard]] CharT const& at(size_t p) const {  // NOLINT
     CHECK_LT(p, size_);
     return str_[p];
   }
-  constexpr std::size_t size() const { return size_; }  // NOLINT
-  constexpr bool empty() const { return size() == 0; }  // NOLINT
-  StringView substr(size_t beg, size_t n) const {       // NOLINT
+  [[nodiscard]] constexpr std::size_t size() const { return size_; }  // NOLINT
+  [[nodiscard]] constexpr bool empty() const { return size() == 0; }  // NOLINT
+  StringView substr(size_t beg, size_t n) const {                     // NOLINT
     CHECK_LE(beg, size_);
     size_t len = std::min(n, size_ - beg);
     return {str_ + beg, len};
   }
-  CharT const* c_str() const { return str_; }                    // NOLINT
+  [[nodiscard]] CharT const* c_str() const { return str_; }  // NOLINT
 
-  constexpr CharT const* cbegin() const { return str_; }         // NOLINT
-  constexpr CharT const* cend() const { return str_ + size(); }  // NOLINT
-  constexpr CharT const* begin() const { return str_; }          // NOLINT
-  constexpr CharT const* end() const { return str_ + size(); }   // NOLINT
+  [[nodiscard]] constexpr CharT const* cbegin() const { return str_; }         // NOLINT
+  [[nodiscard]] constexpr CharT const* cend() const { return str_ + size(); }  // NOLINT
+  [[nodiscard]] constexpr CharT const* begin() const { return str_; }          // NOLINT
+  [[nodiscard]] constexpr CharT const* end() const { return str_ + size(); }   // NOLINT
 
-  const_reverse_iterator rbegin() const noexcept {               // NOLINT
+  [[nodiscard]] const_reverse_iterator rbegin() const noexcept {  // NOLINT
     return const_reverse_iterator(this->end());
   }
-  const_reverse_iterator crbegin() const noexcept {  // NOLINT
+  [[nodiscard]] const_reverse_iterator crbegin() const noexcept {  // NOLINT
     return const_reverse_iterator(this->end());
   }
-  const_reverse_iterator rend() const noexcept {  // NOLINT
+  [[nodiscard]] const_reverse_iterator rend() const noexcept {  // NOLINT
     return const_reverse_iterator(this->begin());
   }
-  const_reverse_iterator crend() const noexcept {  // NOLINT
+  [[nodiscard]] const_reverse_iterator crend() const noexcept {  // NOLINT
     return const_reverse_iterator(this->begin());
   }
 };

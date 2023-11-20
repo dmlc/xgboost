@@ -1,6 +1,7 @@
 /**
  * Copyright 2023, XGBoost Contributors
  */
+#if defined(XGBOOST_USE_NCCL)
 #include "nccl_stub.h"
 
 #include <dlfcn.h>
@@ -11,7 +12,7 @@
 #include "xgboost/logging.h"
 
 namespace xgboost::collective {
-NcclStub::NcclStub(std::string path) : path_{std::move(path)} {
+NcclStub::NcclStub(StringView path) : path_{std::move(path)} {
 #if defined(XGBOOST_USE_DLOPEN_NCCL)
   handle_ = dlopen(path_.c_str(), RTLD_LAZY);
   std::string msg{"Failed to load nccl from " + path_ + ". Error:"};
@@ -57,3 +58,4 @@ NcclStub::NcclStub(std::string path) : path_{std::move(path)} {
 
 NcclStub::~NcclStub() { CHECK_EQ(dlclose(handle_), 0) << dlerror(); }
 }  // namespace xgboost::collective
+#endif  // defined(XGBOOST_USE_NCCL)

@@ -17,12 +17,12 @@ namespace xgboost {
 namespace collective {
 
 TEST(NcclDeviceCommunicatorSimpleTest, ThrowOnInvalidDeviceOrdinal) {
-  auto construct = []() { NcclDeviceCommunicator comm{-1, false, "libnccl.so.2"}; };
+  auto construct = []() { NcclDeviceCommunicator comm{-1, false, DefaultNcclName()}; };
   EXPECT_THROW(construct(), dmlc::Error);
 }
 
 TEST(NcclDeviceCommunicatorSimpleTest, SystemError) {
-  auto stub = std::make_shared<NcclStub>("libnccl.so.2");
+  auto stub = std::make_shared<NcclStub>(DefaultNcclName());
   auto rc = GetNCCLResult(stub, ncclSystemError);
   auto msg = rc.Report();
   ASSERT_TRUE(msg.find("environment variables") != std::string::npos);

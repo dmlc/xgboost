@@ -9,7 +9,7 @@ namespace xgboost {
 namespace collective {
 
 NcclDeviceCommunicator::NcclDeviceCommunicator(int device_ordinal, bool needs_sync,
-                                               std::string nccl_path)
+                                               StringView nccl_path)
     : device_ordinal_{device_ordinal},
       needs_sync_{needs_sync},
       world_size_{GetWorldSize()},
