@@ -100,10 +100,11 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
       << "Multiple processes within communication group running on same CUDA "
       << "device is not supported. " << PrintUUID(s_this_uuid) << "\n";
 
-  rc = std::move(rc)<< [&] {
+  rc = std::move(rc) << [&] {
     return GetUniqueId(root, this->stub_, pimpl, &nccl_unique_id_);
   } << [&] {
-    return GetNCCLResult(this->stub_, this->stub_->CommInitRank(&nccl_comm_, root.World(), nccl_unique_id_, root.Rank()));
+    return GetNCCLResult(this->stub_, this->stub_->CommInitRank(&nccl_comm_, root.World(),
+                                                                nccl_unique_id_, root.Rank()));
   };
   CHECK(rc.OK()) << rc.Report();
 
