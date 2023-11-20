@@ -27,7 +27,7 @@ RUN \
     wget -nv -nc https://developer.download.nvidia.com/compute/machine-learning/repos/rhel7/x86_64/nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm && \
     rpm -i nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm && \
     yum -y update && \
-    yum install -y libnccl-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-devel-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-static-${NCCL_VERSION}+cuda${CUDA_SHORT} && \
+    yum install -y libnccl-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-devel-${NCCL_VERSION}+cuda${CUDA_SHORT} && \
     rm -f nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm;
 
 ENV PATH=/opt/mambaforge/bin:/usr/local/ninja:$PATH
