@@ -37,7 +37,7 @@ namespace xgboost::collective {
 [[nodiscard]] Comm const& CommGroup::Ctx(Context const* ctx, DeviceOrd device) const {
   if (device.IsCUDA()) {
     CHECK(ctx->IsCUDA());
-    if (!gpu_comm_) {
+    if (!gpu_comm_ || gpu_comm_->World() != comm_->World()) {
       gpu_comm_.reset(comm_->MakeCUDAVar(ctx, backend_));
     }
     return *gpu_comm_;

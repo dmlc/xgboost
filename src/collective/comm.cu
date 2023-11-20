@@ -64,8 +64,7 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
                    StringView nccl_path)
     : Comm{root.TrackerInfo().host, root.TrackerInfo().port, root.Timeout(), root.Retry(),
            root.TaskID()},
-      stream_{ctx->CUDACtx()->Stream()},
-      stub_{std::make_shared<NcclStub>(nccl_path)} {
+      stream_{ctx->CUDACtx()->Stream()} {
   this->world_ = root.World();
   this->rank_ = root.Rank();
   this->domain_ = root.Domain();
@@ -74,6 +73,7 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
   }
 
   dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
+  stub_ = std::make_shared<NcclStub>(nccl_path);
 
   std::vector<std::uint64_t> uuids(root.World() * kUuidLength, 0);
   auto s_uuid = xgboost::common::Span<std::uint64_t>{uuids.data(), uuids.size()};

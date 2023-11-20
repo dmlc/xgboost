@@ -13,14 +13,14 @@ NcclDeviceCommunicator::NcclDeviceCommunicator(int device_ordinal, bool needs_sy
     : device_ordinal_{device_ordinal},
       needs_sync_{needs_sync},
       world_size_{GetWorldSize()},
-      rank_{GetRank()},
-      stub_{std::make_shared<NcclStub>(std::move(nccl_path))} {
+      rank_{GetRank()} {
   if (device_ordinal_ < 0) {
     LOG(FATAL) << "Invalid device ordinal: " << device_ordinal_;
   }
   if (world_size_ == 1) {
     return;
   }
+  stub_ = std::make_shared<NcclStub>(std::move(nccl_path));
 
   std::vector<uint64_t> uuids(world_size_ * kUuidLength, 0);
   auto s_uuid = xgboost::common::Span<uint64_t>{uuids.data(), uuids.size()};

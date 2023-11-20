@@ -16,6 +16,7 @@
 namespace xgboost::collective {
 NcclStub::NcclStub(StringView path) : path_{std::move(path)} {
 #if defined(XGBOOST_USE_DLOPEN_NCCL)
+  CHECK(!path_.empty()) << "Empty path for nccl.";
   handle_ = dlopen(path_.c_str(), RTLD_LAZY);
   std::string msg{"Failed to load nccl from path: `" + path_ + "`. Error:"};
   msg += R"m(
