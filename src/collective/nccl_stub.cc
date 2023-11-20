@@ -12,6 +12,7 @@
 
 namespace xgboost::collective {
 NcclStub::NcclStub(std::string path) : path_{std::move(path)} {
+#if defined(XGBOOST_USE_DLOPEN_NCCL)
   handle_ = dlopen(path_.c_str(), RTLD_LAZY);
   std::string msg{"Failed to load nccl from " + path_ + ". Error:"};
   CHECK(handle_) << msg << dlerror();
@@ -38,6 +39,20 @@ NcclStub::NcclStub(std::string path) : path_{std::move(path)} {
   get_error_string_ =
       reinterpret_cast<decltype(get_error_string_)>(dlsym(handle_, "ncclGetErrorString"));
   LOG(INFO) << "Loaded shared NCCL:`" << path_ << "`" << std::endl;
+#else
+  handle_ = nullptr;
+  allreduce_ = &ncclAllReduce;
+  broadcast_ = &ncclBroadcast;
+  allgather_ = &ncclAllGather;
+  comm_init_rank_ = &ncclCommInitRank;
+  comm_destroy_ = &ncclCommDestroy;
+  get_uniqueid_ = &ncclGetUniqueId;
+  send_ = &ncclSend;
+  recv_ = &ncclRecv;
+  group_start_ = &ncclGroupStart;
+  group_end_ = &ncclGroupEnd;
+  get_error_string_ = &ncclGetErrorString;
+#endif
 };
 
 NcclStub::~NcclStub() { CHECK_EQ(dlclose(handle_), 0) << dlerror(); }

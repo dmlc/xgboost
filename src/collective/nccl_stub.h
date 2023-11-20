@@ -13,25 +13,17 @@ class NcclStub {
   void* handle_{nullptr};
   std::string path_;
 
-  ncclResult_t (*allreduce_)(const void*, void*, size_t, ncclDataType_t, ncclRedOp_t, ncclComm_t,
-                             cudaStream_t);
-  ncclResult_t (*broadcast_)(const void*, void*, size_t, ncclDataType_t, int, ncclComm_t,
-                             cudaStream_t);
-  ncclResult_t (*allgather_)(const void*, void*, size_t, ncclDataType_t, ncclComm_t, cudaStream_t);
-
-  ncclResult_t (*comm_init_rank_)(ncclComm_t* comm, int nranks, ncclUniqueId commId, int rank);
-  ncclResult_t (*comm_destroy_)(ncclComm_t comm);
-  ncclResult_t (*get_uniqueid_)(ncclUniqueId* uniqueId);
-
-  ncclResult_t (*send_)(const void* sendbuff, size_t count, ncclDataType_t datatype, int peer,
-                        ncclComm_t comm, cudaStream_t stream);
-  ncclResult_t (*recv_)(void* recvbuff, size_t count, ncclDataType_t datatype, int peer,
-                        ncclComm_t comm, cudaStream_t stream);
-
-  ncclResult_t (*group_start_)();
-  ncclResult_t (*group_end_)();
-
-  const char* (*get_error_string_)(ncclResult_t result);
+  decltype(ncclAllReduce)* allreduce_{nullptr};
+  decltype(ncclBroadcast)* broadcast_{nullptr};
+  decltype(ncclAllGather)* allgather_{nullptr};
+  decltype(ncclCommInitRank)* comm_init_rank_{nullptr};
+  decltype(ncclCommDestroy)* comm_destroy_{nullptr};
+  decltype(ncclGetUniqueId)* get_uniqueid_{nullptr};
+  decltype(ncclSend)* send_{nullptr};
+  decltype(ncclRecv)* recv_{nullptr};
+  decltype(ncclGroupStart)* group_start_{nullptr};
+  decltype(ncclGroupEnd)* group_end_{nullptr};
+  decltype(ncclGetErrorString)* get_error_string_{nullptr};
 
  public:
   explicit NcclStub(std::string path);
