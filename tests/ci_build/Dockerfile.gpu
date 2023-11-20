@@ -24,8 +24,9 @@ RUN \
     conda install -c conda-forge mamba && \
     mamba create -n gpu_test -c rapidsai-nightly -c rapidsai -c nvidia -c conda-forge -c defaults \
         python=3.10 cudf=$RAPIDS_VERSION_ARG* rmm=$RAPIDS_VERSION_ARG* cudatoolkit=$CUDA_VERSION_ARG \
-        nccl>=$(cut -d "-" -f 1 << $NCCL_VERSION_ARG) \ # 2.16.5-1 => 2.16.5
-        dask dask-cuda=$RAPIDS_VERSION_ARG* dask-cudf=$RAPIDS_VERSION_ARG* cupy \
+        nccl>=$(cut -d "-" -f 1 << $NCCL_VERSION_ARG) \
+        dask \
+        dask-cuda=$RAPIDS_VERSION_ARG* dask-cudf=$RAPIDS_VERSION_ARG* cupy \
         numpy pytest pytest-timeout scipy scikit-learn pandas matplotlib wheel python-kubernetes urllib3 graphviz hypothesis \
         pyspark>=3.4.0 cloudpickle cuda-python && \
     mamba clean --all && \
