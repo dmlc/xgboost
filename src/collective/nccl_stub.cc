@@ -1,15 +1,19 @@
+/**
+ * Copyright 2023, XGBoost Contributors
+ */
 #include "nccl_stub.h"
 
 #include <dlfcn.h>
 #include <nccl.h>
 
+#include <string>  // for string
+
 #include "xgboost/logging.h"
-#include "xgboost/string_view.h"  // for StringView
 
 namespace xgboost::collective {
 NcclStub::NcclStub(std::string path) : path_{std::move(path)} {
   handle_ = dlopen(path_.c_str(), RTLD_LAZY);
-  StringView msg{"Failed to load nccl:"};
+  std::string msg{"Failed to load nccl from " + path_ + ". Error:"};
   CHECK(handle_) << msg << dlerror();
   allreduce_ = reinterpret_cast<decltype(allreduce_)>(dlsym(handle_, "ncclAllReduce"));
   CHECK(allreduce_) << msg << dlerror();
@@ -33,6 +37,7 @@ NcclStub::NcclStub(std::string path) : path_{std::move(path)} {
   CHECK(group_end_) << msg << dlerror();
   get_error_string_ =
       reinterpret_cast<decltype(get_error_string_)>(dlsym(handle_, "ncclGetErrorString"));
+  LOG(INFO) << "Loaded shared NCCL:`" << path_ << "`" << std::endl;
 };
 
 NcclStub::~NcclStub() { CHECK_EQ(dlclose(handle_), 0) << dlerror(); }

@@ -28,10 +28,10 @@ class NcclStub {
   ncclResult_t (*recv_)(void* recvbuff, size_t count, ncclDataType_t datatype, int peer,
                         ncclComm_t comm, cudaStream_t stream);
 
-  ncclResult_t  (*group_start_)();
-  ncclResult_t  (*group_end_)();
+  ncclResult_t (*group_start_)();
+  ncclResult_t (*group_end_)();
 
-  const char*  (*get_error_string_)(ncclResult_t result);
+  const char* (*get_error_string_)(ncclResult_t result);
 
  public:
   explicit NcclStub(std::string path);

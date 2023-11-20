@@ -69,8 +69,9 @@ option(KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR "Output build artifacts in CMake binar
 option(USE_CUDA  "Build with GPU acceleration" OFF)
 option(USE_PER_THREAD_DEFAULT_STREAM "Build with per-thread default stream" ON)
 option(USE_NCCL  "Build with NCCL to enable distributed GPU support." OFF)
-option(DLOPEN_NCCL "Build with a NCCL stub." ON)
+option(USE_DLOPEN_NCCL "Build with a NCCL stub." ON)
 option(BUILD_WITH_SHARED_NCCL "Build with shared NCCL library." OFF)
+
 if(USE_CUDA)
   if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES AND NOT DEFINED ENV{CUDAARCHS})
     set(GPU_COMPUTE_VER "" CACHE STRING
@@ -81,6 +82,7 @@ if(USE_CUDA)
     unset(GPU_COMPUTE_VER CACHE)
   endif()
 endif()
+
 # CUDA device LTO was introduced in CMake v3.25 and requires host LTO to also be enabled but can still
 # be explicitly disabled allowing for LTO on host only, host and device, or neither, but device-only LTO
 # is not a supproted configuration
