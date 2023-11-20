@@ -1,8 +1,8 @@
 /*!
  * Copyright 2023 XGBoost contributors
  */
-#include "comm.cuh"
 #if defined(XGBOOST_USE_NCCL)
+#include "comm.cuh"
 #include "nccl_device_communicator.cuh"
 
 namespace xgboost {

@@ -25,6 +25,7 @@ inline Result GetCUDAResult(cudaError rc) {
   return Fail(msg);
 }
 
+#if defined(XGBOOST_USE_NCCL)
 class NCCLComm : public Comm {
   ncclComm_t nccl_comm_{nullptr};
   std::shared_ptr<NcclStub> stub_;
@@ -102,4 +103,6 @@ class NCCLChannel : public Channel {
     return GetCUDAResult(rc);
   }
 };
+
+#endif  //  defined(XGBOOST_USE_NCCL)
 }  // namespace xgboost::collective
