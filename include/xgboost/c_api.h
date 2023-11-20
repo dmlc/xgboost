@@ -1613,6 +1613,8 @@ XGB_DLL int XGTrackerFree(TrackerHandle handle);
  *   - DMLC_TRACKER_PORT: Port number of the tracker.
  *   - DMLC_TASK_ID: ID of the current task, can be used to obtain deterministic rank assignment.
  *   - DMLC_WORKER_CONNECT_RETRY: Number of retries to connect to the tracker.
+ *   - dmlc_nccl_path: The path to NCCL shared object. Only used if XGBoost is compiled with
+ *                     `USE_DLOPEN_NCCL`.
  * Only applicable to the Federated communicator (use upper case for environment variables, use
  * lower case for runtime configuration):
  *   - federated_server_address: Address of the federated server.

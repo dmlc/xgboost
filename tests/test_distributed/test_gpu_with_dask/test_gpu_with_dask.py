@@ -12,6 +12,7 @@ from hypothesis._settings import duration
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.collective import CommunicatorContext
 from xgboost.testing.params import hist_parameter_strategy
 
 pytestmark = [
@@ -570,6 +571,25 @@ def test_with_asyncio(local_cuda_client: Client) -> None:
     output = asyncio.run(run_from_dask_array_asyncio(address))
     assert isinstance(output["booster"], xgb.Booster)
     assert isinstance(output["history"], dict)
+
+
+def test_invalid_nccl(local_cuda_client: Client) -> None:
+    client = local_cuda_client
+    workers = tm.get_client_workers(client)
+    args = client.sync(
+        dxgb._get_rabit_args, len(workers), dxgb._get_dask_config(), client
+    )
+
+    def run(wid: int) -> None:
+        ctx = CommunicatorContext(dmlc_nccl_path="foo", **args)
+        X, y, w = tm.make_regression(n_samples=10, n_features=10, use_cupy=True)
+
+        with ctx:
+            xgb.QuantileDMatrix(X, y, weight=w)
+
+    futures = client.map(run, range(len(workers)), workers=workers)
+    with pytest.raises(ValueError, match=r"pip install"):
+        client.gather(futures)
 
 
 async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainReturnT:

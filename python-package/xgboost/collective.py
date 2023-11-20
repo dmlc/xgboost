@@ -251,16 +251,21 @@ class CommunicatorContext:
 
     def __init__(self, **args: Any) -> None:
         self.args = args
-        try:
-            binfo = build_info()
-            if not binfo["USE_DLOPEN_NCCL"]:
-                return
+        key = "dmlc_nccl_path"
+        if args.get(key, None) is not None:
+            return
 
+        binfo = build_info()
+        if not binfo["USE_DLOPEN_NCCL"]:
+            return
+
+        try:
+            # PyPI package of NCCL.
             from nvidia.nccl import lib
 
             dirname = os.path.dirname(lib.__file__)
             path = os.path.join(dirname, "libnccl.so.2")
-            self.args["dmlc_nccl_path"] = path
+            self.args[key] = path
         except ImportError:
             pass
 

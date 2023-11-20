@@ -2,6 +2,7 @@
  * Copyright 2023, XGBoost Contributors
  */
 #if defined(XGBOOST_USE_NCCL)
+#include <cuda.h>
 #include "nccl_stub.h"
 
 #include <dlfcn.h>  // for dlclose, dlsym, dlopen
@@ -19,23 +20,36 @@ NcclStub::NcclStub(StringView path) : path_{std::move(path)} {
   CHECK(!path_.empty()) << "Empty path for nccl.";
   handle_ = dlopen(path_.c_str(), RTLD_LAZY);
   std::string msg{"Failed to load nccl from path: `" + path_ + "`. Error:"};
-  msg += R"m(
-If XGBoost is installed from PyPI with pip, the error can fixed by:
-- Run `pip install nvidia-nccl-cu12`.
+  auto cu_major = (CUDA_VERSION) / 1000;
 
-If you are using the XGBoost package from conda-forge, please open an issue.
+  msg += R"m(
+If XGBoost is installed from PyPI with pip, the error can fixed by:)m";
+  msg += R"m(
+- Run `pip install nvidia-nccl-cu)m";
+  msg += std::to_string(cu_major);
+  msg += "`. (Or with any CUDA version higher than " + std::to_string(cu_major) + ").";
+  msg += R"m(
+Alternatively, you can use the following command with pip:
+- `pip install nvidia-pyindex && pip install nvidia-nccl`
+to install nccl from NVIDIA Python Index.
+)m";
+
+  msg += R"m(
+
+If you are using the XGBoost package from conda-forge, please open an issue. This error
+should not have happened.
 
 If you are using a customized XGBoost, please make sure one of the followings is true:
 - XGBoost is NOT compiled with the `USE_DLOPEN_NCCL` flag.
 - The `dmlc_nccl_path` parameter is set to full NCCL path when initializing the collective.
 
 If you are not using distributed training with XGBoost yet this error comes up, please
-open an issu.
+open an issue.
 
-Since 2.1.0, XGBoost can optionally load `libnccl.so` from the environment using `dlopen`
-to reduce the binary size for some repositories (like PyPI) with limited capacity. If you
-are seeing this error, it means XGBoost failed to find the correct nccl installation in
-the current environment.
+Since 2.1.0, in order to reduce the binary size for some restricted repositories (like
+PyPI), XGBoost can optionally load the `libnccl.so.2` shared object from the environment
+using `dlopen`. If you are seeing this error, it means XGBoost failed to find the correct
+nccl installation in the current environment.
 
 )m";
   CHECK(handle_) << msg << dlerror();
