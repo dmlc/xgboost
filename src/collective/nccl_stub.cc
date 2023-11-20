@@ -15,7 +15,19 @@ namespace xgboost::collective {
 NcclStub::NcclStub(StringView path) : path_{std::move(path)} {
 #if defined(XGBOOST_USE_DLOPEN_NCCL)
   handle_ = dlopen(path_.c_str(), RTLD_LAZY);
-  std::string msg{"Failed to load nccl from " + path_ + ". Error:"};
+  std::string msg{"Failed to load nccl from path: `" + path_ + "`. Error:"};
+  msg += R"m(
+This usually happens when XGBoost is intalled from PyPI (using pip) and can be fixed by:
+- Run `pip install pip install nvidia-nccl-cu12`
+
+If you are using a customized XGBoost, please make sure one of the following is true:
+- XGBoost is NOT compiled with the `USE_DLOPEN_NCCL` flag.
+- The `dmlc_nccl_path` parameter is set to full NCCL path when initializing the collective.
+
+Since 2.1.0, XGBoost can optionally load `libnccl.so` from the environment to reduce the
+binary size for some repositories with limited capacity.
+
+)m";
   CHECK(handle_) << msg << dlerror();
   allreduce_ = reinterpret_cast<decltype(allreduce_)>(dlsym(handle_, "ncclAllReduce"));
   CHECK(allreduce_) << msg << dlerror();
@@ -39,23 +51,42 @@ NcclStub::NcclStub(StringView path) : path_{std::move(path)} {
   CHECK(group_end_) << msg << dlerror();
   get_error_string_ =
       reinterpret_cast<decltype(get_error_string_)>(dlsym(handle_, "ncclGetErrorString"));
-  LOG(INFO) << "Loaded shared NCCL:`" << path_ << "`" << std::endl;
+  get_version_ = reinterpret_cast<decltype(get_version_)>(dlsym(handle_, "ncclGetVersion"));
+  CHECK(get_version_);
+
+  std::int32_t v;
+  CHECK_EQ(get_version_(&v), ncclSuccess);
+  auto patch = v % 100;
+  auto minor = (v / 100) % 100;
+  auto major = v / 10000;
+
+  LOG(INFO) << "Loaded shared NCCL [" << major << "." << minor << "." << patch << "]:`" << path_
+            << "`" << std::endl;
 #else
   handle_ = nullptr;
-  allreduce_ = &ncclAllReduce;
-  broadcast_ = &ncclBroadcast;
-  allgather_ = &ncclAllGather;
-  comm_init_rank_ = &ncclCommInitRank;
-  comm_destroy_ = &ncclCommDestroy;
-  get_uniqueid_ = &ncclGetUniqueId;
-  send_ = &ncclSend;
-  recv_ = &ncclRecv;
-  group_start_ = &ncclGroupStart;
-  group_end_ = &ncclGroupEnd;
-  get_error_string_ = &ncclGetErrorString;
+  allreduce_ = ncclAllReduce;
+  broadcast_ = ncclBroadcast;
+  allgather_ = ncclAllGather;
+  comm_init_rank_ = ncclCommInitRank;
+  comm_destroy_ = ncclCommDestroy;
+  get_uniqueid_ = ncclGetUniqueId;
+  send_ = ncclSend;
+  recv_ = ncclRecv;
+  group_start_ = ncclGroupStart;
+  group_end_ = ncclGroupEnd;
+  get_error_string_ = ncclGetErrorString;
+  get_version_ = ncclGetVersion;
 #endif
 };
 
-NcclStub::~NcclStub() { CHECK_EQ(dlclose(handle_), 0) << dlerror(); }
+NcclStub::~NcclStub() {
+  if (handle_) {
+    auto rc = dlclose(handle_);
+    if (rc != 0) {
+      LOG(WARNING) << "Failed to close NCCL handle:" << dlerror();
+    }
+  }
+  handle_ = nullptr;
+}
 }  // namespace xgboost::collective
 #endif  // defined(XGBOOST_USE_NCCL)
