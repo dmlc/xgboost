@@ -257,6 +257,7 @@ class CommunicatorContext:
                 return
 
             from nvidia.nccl import lib
+
             dirname = os.path.dirname(lib.__file__)
             path = os.path.join(dirname, "libnccl.so.2")
             self.args["dmlc_nccl_path"] = path

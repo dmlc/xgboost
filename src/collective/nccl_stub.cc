@@ -4,10 +4,12 @@
 #if defined(XGBOOST_USE_NCCL)
 #include "nccl_stub.h"
 
-#include <dlfcn.h>
+#include <dlfcn.h>  // for dlclose, dlsym, dlopen
 #include <nccl.h>
 
-#include <string>  // for string
+#include <cstdint>  // for int32_t
+#include <string>   // for string
+#include <utility>  // for move
 
 #include "xgboost/logging.h"
 
