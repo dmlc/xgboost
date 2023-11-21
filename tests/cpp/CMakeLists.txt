@@ -14,9 +14,9 @@ if(USE_CUDA)
 endif()
 
 file(GLOB_RECURSE SYCL_TEST_SOURCES "plugin/test_sycl_*.cc")
-if (NOT PLUGIN_SYCL)
+if(NOT PLUGIN_SYCL)
   list(REMOVE_ITEM TEST_SOURCES ${SYCL_TEST_SOURCES})
-endif ()
+endif()
 
 if(PLUGIN_FEDERATED)
   target_include_directories(testxgboost PRIVATE ${xgboost_SOURCE_DIR}/plugin/federated)

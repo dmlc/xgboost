@@ -2,7 +2,7 @@ if(PLUGIN_DENSE_PARSER)
   target_sources(objxgboost PRIVATE ${xgboost_SOURCE_DIR}/plugin/dense_parser/dense_libsvm.cc)
 endif()
 
-if (PLUGIN_SYCL)
+if(PLUGIN_SYCL)
   set(CMAKE_CXX_COMPILER "icpx")
   add_library(plugin_sycl OBJECT
     ${xgboost_SOURCE_DIR}/plugin/sycl/device_manager.cc
@@ -28,7 +28,7 @@ if (PLUGIN_SYCL)
   target_link_libraries(objxgboost PUBLIC plugin_sycl)
   # Add all objects of plugin_sycl to objxgboost
   target_sources(objxgboost INTERFACE $<TARGET_OBJECTS:plugin_sycl>)
-endif ()
+endif()
 
 # Add the Federate Learning plugin if enabled.
 if(PLUGIN_FEDERATED)
