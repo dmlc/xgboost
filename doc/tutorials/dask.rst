@@ -536,16 +536,36 @@ Troubleshooting
 - MIG (Multi-Instance GPU) is not yet supported by NCCL. You will receive an error message
   that includes `Multiple processes within a communication group ...` upon initialization.
 
-- Failed to load NCCL from the environment. Starting from 2.1.0, in order to reduce the
-  binary size, the XGBoost PyPI package loads NCCL from the environment instead of relies
-  on static linking. If you encounter an error message like "Failed to load nccl ...",
-  please install nccl using pip:
+.. _nccl-load:
 
-.. code-block:: sh
+- Starting from version 2.1.0, to reduce the size of the binary wheel, the XGBoost package
+  (installed using pip) loads NCCL from the environment instead of bundling it
+  directly. This means that if you encounter an error message like
+  "Failed to load nccl ...", it indicates that NCCL is not installed or properly
+  configured in your environment.
 
-    pip install pip install nvidia-nccl-cu12
+  To resolve this issue, you can install NCCL using pip:
 
-  The default conda build should not receive such error.
+  .. code-block:: sh
+
+    pip install pip install nvidia-nccl-cu12 # (or with any compatible CUDA version)
+
+  The default conda installation of XGBoost should not encounter this error. If you are
+  using a customized XGBoost, please make sure one of the followings is true:
+
+  + XGBoost is NOT compiled with the `USE_DLOPEN_NCCL` flag.
+  + The `dmlc_nccl_path` parameter is set to full NCCL path when initializing the collective.
+
+  Here are some additional tips for troubleshooting NCCL dependency issues:
+
+  + Check the NCCL installation path and verify that it's installed correctly. We try to
+    find NCCL by using ``from nvidia.nccl import lib`` in Python when XGBoost is installed
+    using pip.
+  + Ensure that you have the correct CUDA version installed. NCCL requires a compatible
+    CUDA version to function properly.
+  + If you are not using distributed training with XGBoost and yet see this error, please
+    open an issue on GitHub.
+  + If you continue to encounter NCCL dependency issues, please open an issue on GitHub.
 
 ************
 IPv6 Support

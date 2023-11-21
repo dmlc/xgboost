@@ -25,24 +25,17 @@ NcclStub::NcclStub(StringView path) : path_{std::move(path)} {
   ss << R"m(
 
 If XGBoost is installed from PyPI with pip, the error can fixed by:
+
 - Run `pip install nvidia-nccl-cu)m"
-     << cu_major << "` (Or with any CUDA version that's higher than " << cu_major << ").";
+     << cu_major << "` (Or with any CUDA version that's compatible with " << cu_major << ").";
   ss << R"m(
 
-If you are using the XGBoost package from conda-forge, please open an issue. This error
-should not have happened.
+Otherwise, please refer to:
 
-If you are using a customized XGBoost, please make sure one of the followings is true:
-- XGBoost is NOT compiled with the `USE_DLOPEN_NCCL` flag.
-- The `dmlc_nccl_path` parameter is set to full NCCL path when initializing the collective.
+  https://xgboost.readthedocs.io/en/stable/tutorials/dask.html#troubleshooting
 
-If you are not using distributed training with XGBoost yet this error comes up, please
-open an issue.
-
-Since 2.1.0, in order to reduce the binary size for some restricted repositories (like
-PyPI), XGBoost can optionally load the `libnccl.so.2` shared object from the environment
-using `dlopen`. If you are seeing this error, it means XGBoost failed to find the correct
-NCCL installation in the current environment.
+for more info, or open an issue on GitHub. Starting from XGBoost 2.1.0, the PyPI package
+no long bundles NCCL in the binary wheel.
 
 )m";
   auto help = ss.str();
@@ -60,7 +53,9 @@ NCCL installation in the current environment.
   };
 
   handle_ = dlopen(path_.c_str(), RTLD_LAZY);
-  CHECK(handle_) << msg << dlerror() << help;
+  if (!handle_) {
+    LOG(FATAL) << msg << dlerror() << help;
+  }
 
   allreduce_ = safe_load(allreduce_, "ncclAllReduce");
   broadcast_ = safe_load(broadcast_, "ncclBroadcast");
