@@ -250,9 +250,16 @@ struct Context : public XGBoostParameter<Context> {
       default:
         // Do not use the device name as this is likely an internal error, the name
         // wouldn't be valid.
-        LOG(FATAL) << "Unknown device type:"
-                   << static_cast<std::underlying_type_t<DeviceOrd::Type>>(this->Device().device);
-        break;
+        if (this->Device().IsSycl()) {
+          LOG(WARNING) << "The requested feature doesn't have SYCL specific implementation yet. " 
+                       << "CPU implementation is used";
+          return cpu_fn();
+        } else {
+          LOG(FATAL) << "Unknown device type:"
+                    << "is sycl = " << this->Device().IsSycl() << "; "
+                    << static_cast<std::underlying_type_t<DeviceOrd::Type>>(this->Device().device);
+          break;
+        }
     }
     return std::invoke_result_t<CPUFn>();
   }

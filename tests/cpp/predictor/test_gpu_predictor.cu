@@ -289,7 +289,8 @@ TEST_F(MGPUPredictorTest, CategoricalPredictionColumnSplit) {
 }
 
 TEST(GPUPredictor, CategoricalPredictLeaf) {
-  TestCategoricalPredictLeaf(true, false);
+  ctx = MakeCUDACtx(common::AllVisibleGPUs() == 1 ? 0 : collective::GetRank())
+  TestCategoricalPredictLeaf(&ctx, false);
 }
 
 TEST_F(MGPUPredictorTest, CategoricalPredictionLeafColumnSplit) {
