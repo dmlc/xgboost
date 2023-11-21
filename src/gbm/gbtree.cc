@@ -555,7 +555,10 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
         return this->gpu_predictor_->InplacePredict(p_m, model_, missing, out_preds, begin, end);
       },
       [&, begin = tree_begin, end = tree_end] {
+        common::AssertSYCLSupport();
+#if defined(XGBOOST_USE_SYCL)
         return this->sycl_predictor_->InplacePredict(p_m, model_, missing, out_preds, begin, end);
+#endif  // defined(XGBOOST_USE_SYCL)
       });
   if (!known_type) {
     auto proxy = std::dynamic_pointer_cast<data::DMatrixProxy>(p_m);
