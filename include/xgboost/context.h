@@ -269,15 +269,16 @@ struct Context : public XGBoostParameter<Context> {
    */
   template <typename CPUFn, typename CUDAFn, typename SYCLFn>
   decltype(auto) DispatchDevice(CPUFn&& cpu_fn, CUDAFn&& cuda_fn, SYCLFn&& sycl_fn) const {
-    static_assert(std::is_same_v<std::invoke_result_t<CPUFn>, std::invoke_result_t<CUDAFn>>);
 #if defined(XGBOOST_USE_SYCL)
     static_assert(std::is_same_v<std::invoke_result_t<CPUFn>, std::invoke_result_t<SYCLFn>>);
-#endif // defined(XGBOOST_USE_SYCL)
     if (this->Device().IsSycl()) {
       return sycl_fn();
     } else {
       return DispatchDevice(cpu_fn, cuda_fn);
     }
+#else
+    return DispatchDevice(cpu_fn, cuda_fn);
+#endif  // defined(XGBOOST_USE_SYCL)
   }
 
   // declare parameters
