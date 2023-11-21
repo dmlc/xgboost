@@ -1,7 +1,3 @@
-if(PLUGIN_DENSE_PARSER)
-  target_sources(objxgboost PRIVATE ${xgboost_SOURCE_DIR}/plugin/dense_parser/dense_libsvm.cc)
-endif()
-
 if(PLUGIN_UPDATER_ONEAPI)
   add_library(oneapi_plugin OBJECT
     ${xgboost_SOURCE_DIR}/plugin/updater_oneapi/regression_obj_oneapi.cc

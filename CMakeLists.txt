@@ -99,7 +99,6 @@ set(ENABLED_SANITIZERS "address" "leak" CACHE STRING
   "Semicolon separated list of sanitizer names. E.g 'address;leak'. Supported sanitizers are
 address, leak, undefined and thread.")
 ## Plugins
-option(PLUGIN_DENSE_PARSER "Build dense parser plugin" OFF)
 option(PLUGIN_RMM "Build with RAPIDS Memory Manager (RMM)" OFF)
 option(PLUGIN_FEDERATED "Build with Federated Learning" OFF)
 ## TODO: 1. Add check if DPC++ compiler is used for building
@@ -184,6 +183,9 @@ if(USE_AZURE)
 endif()
 if(USE_HDFS)
   message(SEND_ERROR "The option `USE_HDFS` has been removed from XGBoost")
+endif()
+if(PLUGIN_DENSE_PARSER)
+  message(SEND_ERROR "The option `PLUGIN_DENSE_PARSER` has been removed from XGBoost.")
 endif()
 
 #-- Sanitizer
