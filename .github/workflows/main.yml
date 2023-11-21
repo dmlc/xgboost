@@ -100,10 +100,14 @@ jobs:
         export DEBUG_CPPFLAGS=${DEBUG_CPPFLAGS/' -isystem '$CONDA_PREFIX'/include'}
         cmake .. -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DPLUGIN_SYCL=ON -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX
         make -j$(nproc)
-    - name: Run gtest binary
+    - name: Run gtest binary for SYCL
       run: |
         cd build
         ./testxgboost --gtest_filter=Sycl*
+    - name: Run gtest binary for non SYCL
+      run: |
+        cd build
+        ./testxgboost --gtest_filter=-Sycl*
 
   c-api-demo:
     name: Test installing XGBoost lib + building the C API demo
