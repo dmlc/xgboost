@@ -553,13 +553,12 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
       },
       [&, begin = tree_begin, end = tree_end] {
         return this->gpu_predictor_->InplacePredict(p_m, model_, missing, out_preds, begin, end);
-      }
 #if defined(XGBOOST_USE_SYCL)
-      , [&, begin = tree_begin, end = tree_end] {
+      },
+      [&, begin = tree_begin, end = tree_end] {
         return this->sycl_predictor_->InplacePredict(p_m, model_, missing, out_preds, begin, end);
-      }
 #endif  // defined(XGBOOST_USE_SYCL)
-      );
+      });
   if (!known_type) {
     auto proxy = std::dynamic_pointer_cast<data::DMatrixProxy>(p_m);
     CHECK(proxy) << error::InplacePredictProxy();
@@ -832,13 +831,12 @@ class Dart : public GBTree {
           },
           [&] {
             return gpu_predictor_->InplacePredict(p_fmat, model_, missing, &predts, i, i + 1);
-          }
 #if defined(XGBOOST_USE_SYCL)
-          , [&] {
+          },
+          [&] {
             return sycl_predictor_->InplacePredict(p_fmat, model_, missing, &predts, i, i + 1);
-          }
 #endif  // defined(XGBOOST_USE_SYCL)
-          );
+          });
       CHECK(success) << msg;
     };
 
@@ -854,14 +852,13 @@ class Dart : public GBTree {
             [&] {
               this->gpu_predictor_->InitOutPredictions(p_fmat->Info(), &p_out_preds->predictions,
                                                        model_);
-            }
 #if defined(XGBOOST_USE_SYCL)
-            , [&] {
+            },
+            [&] {
               this->sycl_predictor_->InitOutPredictions(p_fmat->Info(), &p_out_preds->predictions,
                                                         model_);
-            }
 #endif  // defined(XGBOOST_USE_SYCL)
-            );
+            });
       }
       // Multiple the tree weight
       auto w = this->weight_drop_.at(i);
