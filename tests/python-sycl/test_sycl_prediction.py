@@ -113,9 +113,7 @@ class TestSYCLPredict(unittest.TestCase):
         params['device'] = 'sycl'
         m.set_params(**params)
 
-        # m = xgb.XGBRegressor(**params).fit(X_train, y_train)
         sycl_train_score = m.score(X_train, y_train)
-        # m = xgb.XGBRegressor(**params).fit(X_train, y_train)
         sycl_test_score = m.score(X_test, y_test)
 
         assert np.allclose(cpu_train_score, sycl_train_score)

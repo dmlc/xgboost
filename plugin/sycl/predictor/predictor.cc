@@ -266,17 +266,6 @@ class Predictor : public xgboost::Predictor {
   void PredictBatch(DMatrix *dmat, PredictionCacheEntry *predts,
                     const gbm::GBTreeModel &model, uint32_t tree_begin,
                     uint32_t tree_end = 0) const override {
-    // Existing caching approach is not valid due to the const modifier of the PredictBatch method
-    /* 
-    if (this->device_matrix_cache_.find(dmat) ==
-        this->device_matrix_cache_.end()) {
-      this->device_matrix_cache_.emplace(
-          dmat, std::unique_ptr<sycl::DeviceMatrix>(
-                    new sycl::DeviceMatrix(qu_, dmat)));
-    }
-    sycl::DeviceMatrix* device_matrix = device_matrix_cache_.find(dmat)->second.get();
-    */
-
     ::sycl::queue qu = device_manager.GetQueue(ctx_->Device());
     sycl::DeviceMatrix device_matrix(qu, dmat); // TODO: remove temporary workaround after cache fix
 
@@ -333,8 +322,6 @@ class Predictor : public xgboost::Predictor {
   DeviceManager device_manager;
 
   std::unique_ptr<xgboost::Predictor> cpu_predictor;
-
-  std::unordered_map<DMatrix*, std::unique_ptr<sycl::DeviceMatrix>> device_matrix_cache_;
 };
 
 XGBOOST_REGISTER_PREDICTOR(Predictor, "sycl_predictor")
