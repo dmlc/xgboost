@@ -548,7 +548,7 @@ Troubleshooting
 
   .. code-block:: sh
 
-    pip install pip install nvidia-nccl-cu12 # (or with any compatible CUDA version)
+    pip install nvidia-nccl-cu12 # (or with any compatible CUDA version)
 
   The default conda installation of XGBoost should not encounter this error. If you are
   using a customized XGBoost, please make sure one of the followings is true:
