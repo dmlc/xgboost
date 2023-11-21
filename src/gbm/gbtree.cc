@@ -834,7 +834,10 @@ class Dart : public GBTree {
             return gpu_predictor_->InplacePredict(p_fmat, model_, missing, &predts, i, i + 1);
           },
           [&] {
+            common::AssertSYCLSupport();
+#if defined(XGBOOST_USE_SYCL)
             return sycl_predictor_->InplacePredict(p_fmat, model_, missing, &predts, i, i + 1);
+#endif  // defined(XGBOOST_USE_SYCL)
           });
       CHECK(success) << msg;
     };
@@ -853,8 +856,11 @@ class Dart : public GBTree {
                                                        model_);
             },
             [&] {
+              common::AssertSYCLSupport();
+#if defined(XGBOOST_USE_SYCL)
               this->sycl_predictor_->InitOutPredictions(p_fmat->Info(), &p_out_preds->predictions,
                                                         model_);
+#endif  // defined(XGBOOST_USE_SYCL)
             });
       }
       // Multiple the tree weight

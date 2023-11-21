@@ -251,7 +251,7 @@ struct Context : public XGBoostParameter<Context> {
         // Do not use the device name as this is likely an internal error, the name
         // wouldn't be valid.
         if (this->Device().IsSycl()) {
-          LOG(WARNING) << "The requested feature doesn't have SYCL specific implementation yet. " 
+          LOG(WARNING) << "The requested feature doesn't have SYCL specific implementation yet. "
                        << "CPU implementation is used";
           return cpu_fn();
         } else {
