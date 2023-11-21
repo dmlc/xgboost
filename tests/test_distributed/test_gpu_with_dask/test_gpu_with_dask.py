@@ -608,8 +608,8 @@ def test_nccl_load(local_cuda_client: Client, tree_method: str) -> None:
     # no nccl load when using single-node.
     with tm.captured_output() as (out, err):
         make_model()
-        assert out.getvalue().find("nccl") == -1
-        assert err.getvalue().find("nccl") == -1
+        assert out.getvalue().find("NCCL") == -1
+        assert err.getvalue().find("NCCL") == -1
 
     client = local_cuda_client
     workers = tm.get_client_workers(client)
