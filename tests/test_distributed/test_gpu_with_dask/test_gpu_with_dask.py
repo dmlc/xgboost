@@ -596,7 +596,7 @@ def test_invalid_nccl(local_cuda_client: Client) -> None:
 def test_nccl_load(local_cuda_client: Client, tree_method: str) -> None:
     X, y, w = tm.make_regression(128, 16, use_cupy=True)
 
-    def make_model():
+    def make_model() -> None:
         xgb.XGBRegressor(
             device="cuda",
             tree_method=tree_method,
@@ -620,7 +620,7 @@ def test_nccl_load(local_cuda_client: Client, tree_method: str) -> None:
     # nccl is loaded
     def run(wid: int) -> None:
         # FIXME(jiamingy): https://github.com/dmlc/xgboost/issues/9147
-        from xgboost.core import _register_log_callback, _LIB
+        from xgboost.core import _LIB, _register_log_callback
         _register_log_callback(_LIB)
 
         with CommunicatorContext(**args):
