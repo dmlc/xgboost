@@ -184,7 +184,7 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
 
 RabitComm::RabitComm(std::string const& host, std::int32_t port, std::chrono::seconds timeout,
                      std::int32_t retry, std::string task_id, StringView nccl_path)
-    : Comm{std::move(host), port, timeout, retry, std::move(task_id)},
+    : HostComm{std::move(host), port, timeout, retry, std::move(task_id)},
       nccl_path_{std::move(nccl_path)} {
   auto rc = this->Bootstrap(timeout_, retry_, task_id_);
   CHECK(rc.OK()) << rc.Report();

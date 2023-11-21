@@ -17,14 +17,16 @@ namespace xgboost::collective {
  *        collective implementations.
  */
 class CommGroup {
-  std::shared_ptr<Comm> comm_;
+  std::shared_ptr<HostComm> comm_;
   mutable std::shared_ptr<Comm> gpu_comm_;
 
   std::shared_ptr<Coll> backend_;
   mutable std::shared_ptr<Coll> gpu_coll_;  // lazy initialization
 
   CommGroup(std::shared_ptr<Comm> comm, std::shared_ptr<Coll> coll)
-      : comm_{std::move(comm)}, backend_{std::move(coll)} {}
+      : comm_{std::dynamic_pointer_cast<HostComm>(comm)}, backend_{std::move(coll)} {
+    CHECK(comm_);
+  }
 
  public:
   CommGroup();

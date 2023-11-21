@@ -10,12 +10,12 @@
 #include <memory>   // for unique_ptr
 #include <string>   // for string
 
-#include "../../src/collective/comm.h"    // for Comm
+#include "../../src/collective/comm.h"    // for HostComm
 #include "../../src/common/json_utils.h"  // for OptionalArg
 #include "xgboost/json.h"
 
 namespace xgboost::collective {
-class FederatedComm : public Comm {
+class FederatedComm : public HostComm {
   std::shared_ptr<federated::Federated::Stub> stub_;
 
   void Init(std::string const& host, std::int32_t port, std::int32_t world, std::int32_t rank,
@@ -64,6 +64,6 @@ class FederatedComm : public Comm {
   [[nodiscard]] bool IsFederated() const override { return true; }
   [[nodiscard]] federated::Federated::Stub* Handle() const { return stub_.get(); }
 
-  Comm* MakeCUDAVar(Context const* ctx, std::shared_ptr<Coll> pimpl) const override;
+  [[nodiscard]] Comm* MakeCUDAVar(Context const* ctx, std::shared_ptr<Coll> pimpl) const override;
 };
 }  // namespace xgboost::collective

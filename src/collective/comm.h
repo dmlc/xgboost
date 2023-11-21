@@ -88,11 +88,19 @@ class Comm : public std::enable_shared_from_this<Comm> {
   [[nodiscard]] virtual Result LogTracker(std::string msg) const = 0;
 
   [[nodiscard]] virtual Result SignalError(Result const&) { return Success(); }
-
-  virtual Comm* MakeCUDAVar(Context const* ctx, std::shared_ptr<Coll> pimpl) const = 0;
 };
 
-class RabitComm : public Comm {
+/**
+ * @brief Base class for CPU-based communicator.
+ */
+class HostComm : public Comm {
+ public:
+  using Comm::Comm;
+  [[nodiscard]] virtual Comm* MakeCUDAVar(Context const* ctx,
+                                          std::shared_ptr<Coll> pimpl) const = 0;
+};
+
+class RabitComm : public HostComm {
   std::string nccl_path_ = std::string{DefaultNcclName()};
 
   [[nodiscard]] Result Bootstrap(std::chrono::seconds timeout, std::int32_t retry,
@@ -112,7 +120,7 @@ class RabitComm : public Comm {
 
   [[nodiscard]] Result SignalError(Result const&) override;
 
-  Comm* MakeCUDAVar(Context const* ctx, std::shared_ptr<Coll> pimpl) const override;
+  [[nodiscard]] Comm* MakeCUDAVar(Context const* ctx, std::shared_ptr<Coll> pimpl) const override;
 };
 
 /**
