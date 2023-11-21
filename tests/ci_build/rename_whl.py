@@ -3,7 +3,6 @@ import sys
 
 from test_utils import DirectoryExcursion
 
-
 if len(sys.argv) != 4:
     print("Usage: {} [wheel to rename] [commit id] [platform tag]".format(sys.argv[0]))
     sys.exit(1)
