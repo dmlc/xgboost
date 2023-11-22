@@ -2,7 +2,7 @@
 This plugin adds support of SYCL programming model for prediction algorithms to XGBoost.
 
 ## Usage
-Specify the 'device' parameter as one of the following options to offload model training and inference on SYCL device.
+Specify the 'device' parameter as described in the table below to offload model training and inference on SYCL device.
 
 ### Algorithms
 | device | Description |
