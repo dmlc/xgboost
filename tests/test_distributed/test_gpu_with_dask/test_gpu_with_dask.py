@@ -573,6 +573,10 @@ def test_with_asyncio(local_cuda_client: Client) -> None:
     assert isinstance(output["history"], dict)
 
 
+@pytest.mark.skipif(
+    condition=not xgb.build_info()["USE_DLOPEN_NCCL"],
+    reason="Not compiled with dlopen.",
+)
 def test_invalid_nccl(local_cuda_client: Client) -> None:
     client = local_cuda_client
     workers = tm.get_client_workers(client)
@@ -592,6 +596,10 @@ def test_invalid_nccl(local_cuda_client: Client) -> None:
     client.gather(futures)
 
 
+@pytest.mark.skipif(
+    condition=not xgb.build_info()["USE_DLOPEN_NCCL"],
+    reason="Not compiled with dlopen.",
+)
 @pytest.mark.parametrize("tree_method", ["hist", "approx"])
 def test_nccl_load(local_cuda_client: Client, tree_method: str) -> None:
     X, y, w = tm.make_regression(128, 16, use_cupy=True)
