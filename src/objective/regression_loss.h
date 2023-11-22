@@ -13,9 +13,7 @@
 #include "xgboost/logging.h"
 #include "xgboost/task.h"  // ObjInfo
 
-namespace xgboost {
-namespace obj {
-// common regressions
+namespace xgboost::obj {
 // linear regression
 struct LinearSquareLoss {
   XGBOOST_DEVICE static bst_float PredTransform(bst_float x) { return x; }
@@ -106,7 +104,21 @@ struct LogisticRaw : public LogisticRegression {
 
   static ObjInfo Info() { return ObjInfo::kRegression; }
 };
-}  // namespace obj
-}  // namespace xgboost
 
+// gamma deviance loss.
+class GammaDeviance {
+ public:
+  XGBOOST_DEVICE static float PredTransform(float x) { return std::exp(x); }
+  XGBOOST_DEVICE static float ProbToMargin(float x) { return std::log(x); }
+  XGBOOST_DEVICE static float FirstOrderGradient(float p, float y) {
+    return 1.0f - y / p;
+  }
+  XGBOOST_DEVICE static float SecondOrderGradient(float p, float y) { return y / p; }
+  static ObjInfo Info() { return ObjInfo::kRegression; }
+  static const char* Name() { return "reg:gamma"; }
+  static const char* DefaultEvalMetric() { return "gamma-deviance"; }
+  XGBOOST_DEVICE static bool CheckLabel(float x) { return x > 0.0f; }
+  static const char* LabelErrorMsg() { return "label must be positive for gamma regression."; }
+};
+}  // namespace xgboost::obj
 #endif  // XGBOOST_OBJECTIVE_REGRESSION_LOSS_H_
