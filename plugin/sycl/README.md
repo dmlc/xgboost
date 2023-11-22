@@ -1,3 +1,8 @@
+<!--
+******************************************************************************
+* Copyright by Contributors 2017-2023
+*******************************************************************************/-->
+
 # SYCL-based Algorithm for Tree Construction
 This plugin adds support of SYCL programming model for prediction algorithms to XGBoost.
 

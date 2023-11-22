@@ -138,7 +138,7 @@ def main():
         "path",
         nargs="*",
         help="Path to traverse",
-        default=["src", "include", os.path.join("R-package", "src"), "python-package"],
+        default=["src", "include", os.path.join("R-package", "src"), "python-package", "plugin/sycl"],
     )
     parser.add_argument(
         "--exclude_path",

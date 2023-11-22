@@ -256,8 +256,7 @@ struct Context : public XGBoostParameter<Context> {
           return cpu_fn();
         } else {
           LOG(FATAL) << "Unknown device type:"
-                    << "is sycl = " << this->Device().IsSycl() << "; "
-                    << static_cast<std::underlying_type_t<DeviceOrd::Type>>(this->Device().device);
+                     << static_cast<std::underlying_type_t<DeviceOrd::Type>>(this->Device().device);
           break;
         }
     }

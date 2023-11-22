@@ -285,8 +285,6 @@ jobs:
       run: |
         mkdir build
         cd build
-        export CXX=g++
-        export CC=gcc
         cmake .. -DPLUGIN_SYCL=ON -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
         make -j$(nproc)
     - name: Install Python package

@@ -1,14 +1,17 @@
 /*!
  * Copyright by Contributors 2017-2023
  */
-#include <cstddef>
-#include <limits>
-#include <mutex>
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"
 #pragma GCC diagnostic ignored "-W#pragma-messages"
 #include <rabit/rabit.h>
 #pragma GCC diagnostic pop
+
+#include <cstddef>
+#include <limits>
+#include <mutex>
+
+#include <CL/sycl.hpp>
 
 #include "../data.h"
 
@@ -26,8 +29,6 @@
 #include "../../src/gbm/gbtree_model.h"
 
 #include "../device_manager.h"
-
-#include "CL/sycl.hpp"
 
 namespace xgboost {
 namespace sycl {
@@ -50,7 +51,7 @@ struct DeviceNode {
   int right_child_idx;
   NodeValue val;
 
-  DeviceNode(const RegTree::Node& n) {
+  explicit DeviceNode(const RegTree::Node& n) {
     this->left_child_idx = n.LeftChild();
     this->right_child_idx = n.RightChild();
     this->fidx = n.SplitIndex();
@@ -84,7 +85,9 @@ struct DeviceNode {
   float GetWeight() const { return val.leaf_weight; }
 };
 
-/* SYCL implementation of a device model, storing tree structure in USM buffers to provide access from device kernels */
+/* SYCL implementation of a device model,
+ * storing tree structure in USM buffers to provide access from device kernels
+ */
 class DeviceModel {
  public:
   ::sycl::queue qu_;
@@ -102,7 +105,7 @@ class DeviceModel {
   void Init(::sycl::queue qu, const gbm::GBTreeModel& model, size_t tree_begin, size_t tree_end) {
     qu_ = qu;
 
-    tree_segments_.Resize(qu_, (tree_end - tree_begin) + 1);
+    tree_segments_.Resize(&qu_, (tree_end - tree_begin) + 1);
     int sum = 0;
     tree_segments_[0] = sum;
     for (int tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
@@ -113,24 +116,25 @@ class DeviceModel {
       tree_segments_[tree_idx - tree_begin + 1] = sum;
     }
 
-    nodes_.Resize(qu_, sum);
+    nodes_.Resize(&qu_, sum);
     for (int tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
       auto& src_nodes = model.trees[tree_idx]->GetNodes();
       for (size_t node_idx = 0; node_idx < src_nodes.size(); node_idx++)
-        nodes_[node_idx + tree_segments_[tree_idx - tree_begin]] = src_nodes[node_idx];
+        nodes_[node_idx + tree_segments_[tree_idx - tree_begin]] =
+          static_cast<DeviceNode>(src_nodes[node_idx]);
     }
 
-    tree_group_.Resize(qu_, model.tree_info.size());
+    tree_group_.Resize(&qu_, model.tree_info.size());
     for (size_t tree_idx = 0; tree_idx < model.tree_info.size(); tree_idx++)
       tree_group_[tree_idx] = model.tree_info[tree_idx];
 
     tree_beg_ = tree_begin;
     tree_end_ = tree_end;
-    num_group_ = model.learner_model_param->num_output_group; 
+    num_group_ = model.learner_model_param->num_output_group;
   }
 };
 
-float GetFvalue(int ridx, int fidx, Entry* data, size_t* row_ptr, bool& is_missing) {
+float GetFvalue(int ridx, int fidx, Entry* data, size_t* row_ptr, bool* is_missing) {
   // Binary search
   auto begin_ptr = data + row_ptr[ridx];
   auto end_ptr = data + row_ptr[ridx + 1];
@@ -144,7 +148,7 @@ float GetFvalue(int ridx, int fidx, Entry* data, size_t* row_ptr, bool& is_missi
     }
 
     if (middle->index == fidx) {
-      is_missing = false;
+      *is_missing = false;
       return middle->fvalue;
     } else if (middle->index < fidx) {
       begin_ptr = middle;
@@ -152,7 +156,7 @@ float GetFvalue(int ridx, int fidx, Entry* data, size_t* row_ptr, bool& is_missi
       end_ptr = middle;
     }
   }
-  is_missing = true;
+  *is_missing = true;
   return 0.0;
 }
 
@@ -161,7 +165,7 @@ float GetLeafWeight(int ridx, const DeviceNode* tree, Entry* data, size_t* row_p
   int node_id = 0;
   bool is_missing;
   while (!n.IsLeaf()) {
-    float fvalue = GetFvalue(ridx, n.GetFidx(), data, row_ptr, is_missing);
+    float fvalue = GetFvalue(ridx, n.GetFidx(), data, row_ptr, &is_missing);
     // Missing value
     if (is_missing) {
       n = tree[n.MissingIdx()];
@@ -261,13 +265,15 @@ class Predictor : public xgboost::Predictor {
 
  public:
   explicit Predictor(Context const* context) :
-      xgboost::Predictor::Predictor{context}, cpu_predictor(xgboost::Predictor::Create("cpu_predictor", context)) {}
+      xgboost::Predictor::Predictor{context},
+      cpu_predictor(xgboost::Predictor::Create("cpu_predictor", context)) {}
 
   void PredictBatch(DMatrix *dmat, PredictionCacheEntry *predts,
                     const gbm::GBTreeModel &model, uint32_t tree_begin,
                     uint32_t tree_end = 0) const override {
     ::sycl::queue qu = device_manager.GetQueue(ctx_->Device());
-    sycl::DeviceMatrix device_matrix(qu, dmat); // TODO: remove temporary workaround after cache fix
+    // TODO(razdoburdin): remove temporary workaround after cache fix
+    sycl::DeviceMatrix device_matrix(qu, dmat);
 
     auto* out_preds = &predts->predictions;
     if (tree_end == 0) {
@@ -307,15 +313,18 @@ class Predictor : public xgboost::Predictor {
                            bool approximate, int condition,
                            unsigned condition_feature) const override {
     LOG(WARNING) << "PredictContribution is not yet implemented for SYCL. CPU Predictor is used.";
-    cpu_predictor->PredictContribution(p_fmat, out_contribs, model, ntree_limit, tree_weights, approximate, condition, condition_feature);
+    cpu_predictor->PredictContribution(p_fmat, out_contribs, model, ntree_limit, tree_weights,
+                                       approximate, condition, condition_feature);
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_contribs,
                                        const gbm::GBTreeModel& model, unsigned ntree_limit,
                                        const std::vector<bst_float>* tree_weights,
                                        bool approximate) const override {
-    LOG(WARNING) << "PredictInteractionContributions is not yet implemented for SYCL. CPU Predictor is used.";
-    cpu_predictor->PredictInteractionContributions(p_fmat, out_contribs, model, ntree_limit, tree_weights, approximate);
+    LOG(WARNING) << "PredictInteractionContributions is not yet implemented for SYCL. "
+                 << "CPU Predictor is used.";
+    cpu_predictor->PredictInteractionContributions(p_fmat, out_contribs, model, ntree_limit,
+                                                   tree_weights, approximate);
   }
 
  private:

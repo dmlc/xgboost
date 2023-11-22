@@ -33,6 +33,7 @@ class LintersPaths:
         "tests/python-gpu/test_gpu_pickling.py",
         "tests/python-gpu/test_gpu_eval_metrics.py",
         "tests/python-gpu/test_gpu_with_sklearn.py",
+        "tests/python-sycl/test_sycl_prediction.py",
         "tests/test_distributed/test_with_spark/",
         "tests/test_distributed/test_gpu_with_spark/",
         # demo

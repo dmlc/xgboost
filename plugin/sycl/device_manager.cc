@@ -37,11 +37,11 @@ namespace sycl {
           auto& gpu_devices = device_register.gpu_devices;
           CHECK_LT(device_idx, gpu_devices.size());
           return gpu_devices[device_idx];
-      }   
+      }
     } else {
-        if(device_spec.IsSyclCPU()) {
+        if (device_spec.IsSyclCPU()) {
             return ::sycl::device(::sycl::cpu_selector_v);
-        } else if(device_spec.IsSyclGPU()) {
+        } else if (device_spec.IsSyclGPU()) {
             return ::sycl::device(::sycl::gpu_selector_v);
         } else {
             return ::sycl::device(::sycl::default_selector_v);
@@ -90,7 +90,7 @@ namespace sycl {
         }
     }
     return queue_register.at(device_spec.Name());
-}  
+}
 
 DeviceManager::DeviceRegister& DeviceManager::GetDevicesRegister() const {
     static DeviceRegister device_register;
@@ -99,7 +99,8 @@ DeviceManager::DeviceRegister& DeviceManager::GetDevicesRegister() const {
         std::lock_guard<std::mutex> guard(device_registering_mutex);
         std::vector<::sycl::device> devices = ::sycl::device::get_devices();
         for (size_t i = 0; i < devices.size(); i++) {
-            LOG(INFO) << "device_index = " << i << ", name = " << devices[i].get_info<::sycl::info::device::name>();
+            LOG(INFO) << "device_index = " << i << ", name = "
+                      << devices[i].get_info<::sycl::info::device::name>();
         }
 
         for (size_t i = 0; i < devices.size(); i++) {
@@ -112,7 +113,7 @@ DeviceManager::DeviceRegister& DeviceManager::GetDevicesRegister() const {
         }
     }
     return device_register;
-}    
+}
 
 DeviceManager::QueueRegister_t& DeviceManager::GetQueueRegister() const {
     static QueueRegister_t queue_register;

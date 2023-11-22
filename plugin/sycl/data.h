@@ -1,12 +1,15 @@
 /*!
  * Copyright by Contributors 2017-2023
  */
-#ifndef XGBOOST_COMMON_DATA_SYCL_H_
-#define XGBOOST_COMMON_DATA_SYCL_H_
+#ifndef PLUGIN_SYCL_DATA_H_
+#define PLUGIN_SYCL_DATA_H_
 
 #include <cstddef>
 #include <limits>
 #include <mutex>
+#include <vector>
+#include <memory>
+#include <algorithm>
 
 #include "xgboost/base.h"
 #pragma GCC diagnostic push
@@ -28,39 +31,39 @@ enum class MemoryType { shared, on_device};
 
 template <typename T>
 class USMDeleter {
-public:
+ public:
   explicit USMDeleter(::sycl::queue qu) : qu_(qu) {}
 
   void operator()(T* data) const {
     ::sycl::free(data, qu_);
   }
 
-private:
+ private:
   ::sycl::queue qu_;
 };
 
-template <typename T, MemoryType memory_type=MemoryType::shared>
+template <typename T, MemoryType memory_type = MemoryType::shared>
 class USMVector {
   static_assert(std::is_standard_layout<T>::value, "USMVector admits only POD types");
 
-  std::shared_ptr<T> allocate_memory_(::sycl::queue& qu, size_t size) {
+  std::shared_ptr<T> allocate_memory_(::sycl::queue* qu, size_t size) {
     if constexpr (memory_type == MemoryType::shared) {
-      return std::shared_ptr<T>(::sycl::malloc_shared<T>(size_, qu), USMDeleter<T>(qu));
+      return std::shared_ptr<T>(::sycl::malloc_shared<T>(size_, *qu), USMDeleter<T>(*qu));
     } else {
-      return std::shared_ptr<T>(::sycl::malloc_device<T>(size_, qu), USMDeleter<T>(qu));
+      return std::shared_ptr<T>(::sycl::malloc_device<T>(size_, *qu), USMDeleter<T>(*qu));
     }
   }
 
-  void copy_vector_to_memory_(::sycl::queue& qu, const std::vector<T> &vec) {
+  void copy_vector_to_memory_(::sycl::queue* qu, const std::vector<T> &vec) {
     if constexpr (memory_type == MemoryType::shared) {
-      std::copy(vec.begin (), vec.end (), data_.get());
+      std::copy(vec.begin(), vec.end(), data_.get());
     } else {
-      qu.memcpy(data_.get(), vec.data(), size_ * sizeof(T));
+      qu->memcpy(data_.get(), vec.data(), size_ * sizeof(T));
     }
   }
 
 
-public:
+ public:
   USMVector() : size_(0), capacity_(0), data_(nullptr) {}
 
   USMVector(::sycl::queue& qu, size_t size) : size_(size), capacity_(size) {
@@ -72,7 +75,7 @@ public:
     qu.fill(data_.get(), v, size_).wait();
   }
 
-  USMVector(::sycl::queue& qu, const std::vector<T> &vec) {
+  USMVector(::sycl::queue* qu, const std::vector<T> &vec) {
     size_ = vec.size();
     capacity_ = size_;
     data_ = allocate_memory_(qu, size_);
@@ -110,7 +113,7 @@ public:
     capacity_ = 0;
   }
 
-  void Resize(::sycl::queue& qu, size_t size_new) {
+  void Resize(::sycl::queue* qu, size_t size_new) {
     if (size_new <= capacity_) {
       size_ = size_new;
     } else {
@@ -120,16 +123,16 @@ public:
       capacity_ = size_new;
       data_ = allocate_memory_(qu, size_);;
       if (size_old > 0) {
-        qu.memcpy(data_.get(), data_old.get(), sizeof(T) * size_old).wait();
+        qu->memcpy(data_.get(), data_old.get(), sizeof(T) * size_old).wait();
       }
     }
   }
 
-  void Resize(::sycl::queue& qu, size_t size_new, T v) {
+  void Resize(::sycl::queue* qu, size_t size_new, T v) {
     if (size_new <= size_) {
       size_ = size_new;
     } else if (size_new <= capacity_) {
-      qu.fill(data_.get() + size_, v, size_new - size_).wait();
+      qu->fill(data_.get() + size_, v, size_new - size_).wait();
       size_ = size_new;
     } else {
       size_t size_old = size_;
@@ -138,18 +141,18 @@ public:
       capacity_ = size_new;
       data_ = allocate_memory_(qu, size_);
       if (size_old > 0) {
-        qu.memcpy(data_.get(), data_old.get(), sizeof(T) * size_old).wait();
+        qu->memcpy(data_.get(), data_old.get(), sizeof(T) * size_old).wait();
       }
-      qu.fill(data_.get() + size_old, v, size_new - size_old).wait();
+      qu->fill(data_.get() + size_old, v, size_new - size_old).wait();
     }
   }
 
-  ::sycl::event ResizeAsync(::sycl::queue& qu, size_t size_new, T v) {
+  ::sycl::event ResizeAsync(::sycl::queue* qu, size_t size_new, T v) {
     if (size_new <= size_) {
       size_ = size_new;
       return ::sycl::event();
     } else if (size_new <= capacity_) {
-      auto event = qu.fill(data_.get() + size_, v, size_new - size_);
+      auto event = qu->fill(data_.get() + size_, v, size_new - size_);
       size_ = size_new;
       return event;
     } else {
@@ -160,34 +163,34 @@ public:
       data_ = allocate_memory_(qu, size_);
       ::sycl::event event;
       if (size_old > 0) {
-        event = qu.memcpy(data_.get(), data_old.get(), sizeof(T) * size_old);
+        event = qu->memcpy(data_.get(), data_old.get(), sizeof(T) * size_old);
       }
-      return qu.fill(data_.get() + size_old, v, size_new - size_old, event);
+      return qu->fill(data_.get() + size_old, v, size_new - size_old, event);
     }
   }
 
-  ::sycl::event ResizeAndFill(::sycl::queue& qu, size_t size_new, int v) {
+  ::sycl::event ResizeAndFill(::sycl::queue* qu, size_t size_new, int v) {
     if (size_new <= size_) {
       size_ = size_new;
-      return qu.memset(data_.get(), v, size_new * sizeof(T));
+      return qu->memset(data_.get(), v, size_new * sizeof(T));
     } else if (size_new <= capacity_) {
       size_ = size_new;
-      return qu.memset(data_.get(), v, size_new * sizeof(T));
+      return qu->memset(data_.get(), v, size_new * sizeof(T));
     } else {
       size_t size_old = size_;
       auto data_old = data_;
       size_ = size_new;
       capacity_ = size_new;
       data_ = allocate_memory_(qu, size_);
-      return qu.memset(data_.get(), v, size_new * sizeof(T));
+      return qu->memset(data_.get(), v, size_new * sizeof(T));
     }
   }
 
-  ::sycl::event Fill(::sycl::queue& qu, T v) {
-    return qu.fill(data_.get(), v, size_);
+  ::sycl::event Fill(::sycl::queue* qu, T v) {
+    return qu->fill(data_.get(), v, size_);
   }
 
-  void Init(::sycl::queue& qu, const std::vector<T> &vec) {
+  void Init(::sycl::queue* qu, const std::vector<T> &vec) {
     size_ = vec.size();
     capacity_ = size_;
     data_ = allocate_memory_(qu, size_);
@@ -196,7 +199,7 @@ public:
 
   using value_type = T;  // NOLINT
 
-private:
+ private:
   size_t size_;
   size_t capacity_;
   std::shared_ptr<T> data_;
@@ -220,8 +223,8 @@ struct DeviceMatrix {
       num_row += batch.Size();
     }
 
-    row_ptr.Resize(qu_, num_row + 1);
-    data.Resize(qu_, num_nonzero);
+    row_ptr.Resize(&qu_, num_row + 1);
+    data.Resize(&qu_, num_nonzero);
 
     size_t data_offset = 0;
     for (auto &batch : dmat->GetBatches<SparsePage>()) {
@@ -232,7 +235,7 @@ struct DeviceMatrix {
         std::copy(offset_vec.data(), offset_vec.data() + batch_size,
                   row_ptr.Data() + batch.base_rowid);
         if (batch.base_rowid > 0) {
-          for(size_t i = 0; i < batch_size; i++)
+          for (size_t i = 0; i < batch_size; i++)
             row_ptr[i + batch.base_rowid] += batch.base_rowid;
         }
         std::copy(data_vec.data(), data_vec.data() + offset_vec[batch_size],
@@ -250,4 +253,4 @@ struct DeviceMatrix {
 }  // namespace sycl
 }  // namespace xgboost
 
-#endif  // XGBOOST_COMMON_DATA_SYCL_H_
+#endif  // PLUGIN_SYCL_DATA_H_

@@ -91,13 +91,6 @@ jobs:
       run: |
         mkdir build
         cd build
-        # modify variable to build xgboost with g++ and plugin with icxp
-        export CXX=g++
-        export CC=gcc
-        export CXXFLAGS=${CXXFLAGS/' -isystem '$CONDA_PREFIX'/include'}
-        export DEBUG_CXXFLAGS=${DEBUG_CXXFLAGS/' -isystem '$CONDA_PREFIX'/include'}
-        export CPPFLAGS=${CPPFLAGS/' -isystem '$CONDA_PREFIX'/include'}
-        export DEBUG_CPPFLAGS=${DEBUG_CPPFLAGS/' -isystem '$CONDA_PREFIX'/include'}
         cmake .. -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DPLUGIN_SYCL=ON -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX
         make -j$(nproc)
     - name: Run gtest binary for SYCL
