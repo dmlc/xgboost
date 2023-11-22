@@ -61,13 +61,13 @@ void XGBBuildInfoDevice(Json *p_info) {
 void XGBoostAPIGuard::SetGPUAttribute() {
   // Not calling `safe_cuda` to avoid unnecessary exception handling overhead.
   // If errors, do nothing, assuming running on CPU only machine.
-  dh::safe_cuda(cudaGetDevice(&device_id_));
+  cudaGetDevice(&device_id_);
 }
 
 void XGBoostAPIGuard::RestoreGPUAttribute() {
   // Not calling `safe_cuda` to avoid unnecessary exception handling overhead.
   // If errors, do nothing, assuming running on CPU only machine.
-  dh::safe_cuda(cudaSetDevice(device_id_));
+  cudaSetDevice(device_id_);
 }
 
 void CopyGradientFromCUDAArrays(Context const *ctx, ArrayInterface<2, false> const &grad,
