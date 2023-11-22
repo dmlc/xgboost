@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2022 by Contributors
+ * Copyright 2017-2023 by Contributors
  * \file device_manager.h
  */
 #ifndef XGBOOST_DEVICE_MANAGER_SYCL_H_
