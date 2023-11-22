@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2020 XGBoost contributors
+ * Copyright 2017-2023 XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/predictor.h>
