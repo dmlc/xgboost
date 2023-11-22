@@ -26,7 +26,7 @@ Result GetUniqueId(Comm const& comm, std::shared_ptr<NcclStub> stub, std::shared
   static const int kRootRank = 0;
   ncclUniqueId id;
   if (comm.Rank() == kRootRank) {
-    auto rc = GetNCCLResult(stub, stub->GetUniqueId(&id));
+    auto rc = stub->GetUniqueId(&id);
     CHECK(rc.OK()) << rc.Report();
   }
   auto rc = coll->Broadcast(
@@ -99,12 +99,10 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
       << "Multiple processes within communication group running on same CUDA "
       << "device is not supported. " << PrintUUID(s_this_uuid) << "\n";
 
-  rc = std::move(rc) << [&] {
-    return GetUniqueId(root, this->stub_, pimpl, &nccl_unique_id_);
-  } << [&] {
-    return GetNCCLResult(this->stub_, this->stub_->CommInitRank(&nccl_comm_, root.World(),
-                                                                nccl_unique_id_, root.Rank()));
-  };
+  rc = std::move(rc) << [&] { return GetUniqueId(root, this->stub_, pimpl, &nccl_unique_id_); } <<
+       [&] {
+         return this->stub_->CommInitRank(&nccl_comm_, root.World(), nccl_unique_id_, root.Rank());
+       };
   CHECK(rc.OK()) << rc.Report();
 
   for (std::int32_t r = 0; r < root.World(); ++r) {
@@ -115,7 +113,7 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
 
 NCCLComm::~NCCLComm() {
   if (nccl_comm_) {
-    auto rc = GetNCCLResult(stub_, stub_->CommDestroy(nccl_comm_));
+    auto rc = stub_->CommDestroy(nccl_comm_);
     CHECK(rc.OK()) << rc.Report();
   }
 }

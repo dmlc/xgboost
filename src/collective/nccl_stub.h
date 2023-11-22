@@ -8,9 +8,13 @@
 
 #include <string>  // for string
 
-#include "xgboost/string_view.h"  // for StringView
+#include "xgboost/collective/result.h"  // for Result
+#include "xgboost/string_view.h"        // for StringView
 
 namespace xgboost::collective {
+/**
+ * @brief A stub for NCCL to facilitate dynamic loading.
+ */
 class NcclStub {
 #if defined(XGBOOST_USE_DLOPEN_NCCL)
   void* handle_{nullptr};
@@ -31,60 +35,47 @@ class NcclStub {
   decltype(ncclGetVersion)* get_version_{nullptr};
 
  public:
+  Result GetNcclResult(ncclResult_t code) const;
+
+ public:
   explicit NcclStub(StringView path);
   ~NcclStub();
 
-  [[nodiscard]] ncclResult_t Allreduce(const void* sendbuff, void* recvbuff, size_t count,
-                                       ncclDataType_t datatype, ncclRedOp_t op, ncclComm_t comm,
-                                       cudaStream_t stream) const {
-    CHECK(allreduce_);
-    return this->allreduce_(sendbuff, recvbuff, count, datatype, op, comm, stream);
+  [[nodiscard]] Result Allreduce(const void* sendbuff, void* recvbuff, size_t count,
+                                 ncclDataType_t datatype, ncclRedOp_t op, ncclComm_t comm,
+                                 cudaStream_t stream) const {
+    return this->GetNcclResult(allreduce_(sendbuff, recvbuff, count, datatype, op, comm, stream));
   }
-  [[nodiscard]] ncclResult_t Broadcast(const void* sendbuff, void* recvbuff, size_t count,
-                                       ncclDataType_t datatype, int root, ncclComm_t comm,
-                                       cudaStream_t stream) const {
-    CHECK(broadcast_);
-    return this->broadcast_(sendbuff, recvbuff, count, datatype, root, comm, stream);
+  [[nodiscard]] Result Broadcast(const void* sendbuff, void* recvbuff, size_t count,
+                                 ncclDataType_t datatype, int root, ncclComm_t comm,
+                                 cudaStream_t stream) const {
+    return this->GetNcclResult(broadcast_(sendbuff, recvbuff, count, datatype, root, comm, stream));
   }
-  [[nodiscard]] ncclResult_t Allgather(const void* sendbuff, void* recvbuff, size_t sendcount,
-                                       ncclDataType_t datatype, ncclComm_t comm,
-                                       cudaStream_t stream) const {
-    CHECK(allgather_);
-    return this->allgather_(sendbuff, recvbuff, sendcount, datatype, comm, stream);
+  [[nodiscard]] Result Allgather(const void* sendbuff, void* recvbuff, size_t sendcount,
+                                 ncclDataType_t datatype, ncclComm_t comm,
+                                 cudaStream_t stream) const {
+    return this->GetNcclResult(allgather_(sendbuff, recvbuff, sendcount, datatype, comm, stream));
   }
-  [[nodiscard]] ncclResult_t CommInitRank(ncclComm_t* comm, int nranks, ncclUniqueId commId,
-                                          int rank) const {
-    CHECK(comm_init_rank_);
-    return this->comm_init_rank_(comm, nranks, commId, rank);
+  [[nodiscard]] Result CommInitRank(ncclComm_t* comm, int nranks, ncclUniqueId commId,
+                                    int rank) const {
+    return this->GetNcclResult(this->comm_init_rank_(comm, nranks, commId, rank));
   }
-  [[nodiscard]] ncclResult_t CommDestroy(ncclComm_t comm) const {
-    CHECK(comm_destroy_);
-    return this->comm_destroy_(comm);
+  [[nodiscard]] Result CommDestroy(ncclComm_t comm) const {
+    return this->GetNcclResult(comm_destroy_(comm));
   }
-
-  [[nodiscard]] ncclResult_t GetUniqueId(ncclUniqueId* uniqueId) const {
-    CHECK(get_uniqueid_);
-    return this->get_uniqueid_(uniqueId);
+  [[nodiscard]] Result GetUniqueId(ncclUniqueId* uniqueId) const {
+    return this->GetNcclResult(get_uniqueid_(uniqueId));
   }
-  [[nodiscard]] ncclResult_t Send(const void* sendbuff, size_t count, ncclDataType_t datatype,
-                                  int peer, ncclComm_t comm, cudaStream_t stream) {
-    CHECK(send_);
-    return send_(sendbuff, count, datatype, peer, comm, stream);
+  [[nodiscard]] Result Send(const void* sendbuff, size_t count, ncclDataType_t datatype, int peer,
+                            ncclComm_t comm, cudaStream_t stream) {
+    return this->GetNcclResult(send_(sendbuff, count, datatype, peer, comm, stream));
   }
-  [[nodiscard]] ncclResult_t Recv(void* recvbuff, size_t count, ncclDataType_t datatype, int peer,
-                                  ncclComm_t comm, cudaStream_t stream) const {
-    CHECK(recv_);
-    return recv_(recvbuff, count, datatype, peer, comm, stream);
+  [[nodiscard]] Result Recv(void* recvbuff, size_t count, ncclDataType_t datatype, int peer,
+                            ncclComm_t comm, cudaStream_t stream) const {
+    return this->GetNcclResult(recv_(recvbuff, count, datatype, peer, comm, stream));
   }
-  [[nodiscard]] ncclResult_t GroupStart() const {
-    CHECK(group_start_);
-    return group_start_();
-  }
-  [[nodiscard]] ncclResult_t GroupEnd() const {
-    CHECK(group_end_);
-    return group_end_();
-  }
-
+  [[nodiscard]] Result GroupStart() const { return this->GetNcclResult(group_start_()); }
+  [[nodiscard]] Result GroupEnd() const { return this->GetNcclResult(group_end_()); }
   [[nodiscard]] const char* GetErrorString(ncclResult_t result) const {
     return get_error_string_(result);
   }

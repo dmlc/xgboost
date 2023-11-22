@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2023 by XGBoost Contributors
+ * Copyright 2019-2023, XGBoost Contributors
  */
 #include <thrust/transform.h>  // for transform
 
@@ -15,6 +15,9 @@
 #include "xgboost/data.h"
 #include "xgboost/json.h"
 #include "xgboost/learner.h"
+#if defined(XGBOOST_USE_NCCL)
+#include <nccl.h>
+#endif
 
 namespace xgboost {
 void XGBBuildInfoDevice(Json *p_info) {
@@ -58,13 +61,13 @@ void XGBBuildInfoDevice(Json *p_info) {
 void XGBoostAPIGuard::SetGPUAttribute() {
   // Not calling `safe_cuda` to avoid unnecessary exception handling overhead.
   // If errors, do nothing, assuming running on CPU only machine.
-  cudaGetDevice(&device_id_);
+  dh::safe_cuda(cudaGetDevice(&device_id_));
 }
 
 void XGBoostAPIGuard::RestoreGPUAttribute() {
   // Not calling `safe_cuda` to avoid unnecessary exception handling overhead.
   // If errors, do nothing, assuming running on CPU only machine.
-  cudaSetDevice(device_id_);
+  dh::safe_cuda(cudaSetDevice(device_id_));
 }
 
 void CopyGradientFromCUDAArrays(Context const *ctx, ArrayInterface<2, false> const &grad,

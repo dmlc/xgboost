@@ -25,15 +25,18 @@ TEST_F(CommTest, Channel) {
       WorkerForTest worker{host, port, timeout, n_workers, i};
       if (i % 2 == 0) {
         auto p_chan = worker.Comm().Chan(i + 1);
-        p_chan->SendAll(
-            EraseType(common::Span<std::int32_t const>{&i, static_cast<std::size_t>(1)}));
-        auto rc = p_chan->Block();
+        auto rc = Success() << [&] {
+          return p_chan->SendAll(
+              EraseType(common::Span<std::int32_t const>{&i, static_cast<std::size_t>(1)}));
+        } << [&] { return p_chan->Block(); };
         ASSERT_TRUE(rc.OK()) << rc.Report();
       } else {
         auto p_chan = worker.Comm().Chan(i - 1);
         std::int32_t r{-1};
-        p_chan->RecvAll(EraseType(common::Span<std::int32_t>{&r, static_cast<std::size_t>(1)}));
-        auto rc = p_chan->Block();
+        auto rc = Success() << [&] {
+          return p_chan->RecvAll(
+              EraseType(common::Span<std::int32_t>{&r, static_cast<std::size_t>(1)}));
+        } << [&] { return p_chan->Block(); };
         ASSERT_TRUE(rc.OK()) << rc.Report();
         ASSERT_EQ(r, i - 1);
       }

@@ -135,21 +135,25 @@ class Channel {
   explicit Channel(Comm const& comm, std::shared_ptr<TCPSocket> sock)
       : sock_{std::move(sock)}, comm_{comm} {}
 
-  virtual void SendAll(std::int8_t const* ptr, std::size_t n) {
+  [[nodiscard]] virtual Result SendAll(std::int8_t const* ptr, std::size_t n) {
     Loop::Op op{Loop::Op::kWrite, comm_.Rank(), const_cast<std::int8_t*>(ptr), n, sock_.get(), 0};
     CHECK(sock_.get());
     comm_.Submit(std::move(op));
+    return Success();
   }
-  void SendAll(common::Span<std::int8_t const> data) {
-    this->SendAll(data.data(), data.size_bytes());
+  [[nodiscard]] Result SendAll(common::Span<std::int8_t const> data) {
+    return this->SendAll(data.data(), data.size_bytes());
   }
 
-  virtual void RecvAll(std::int8_t* ptr, std::size_t n) {
+  [[nodiscard]] virtual Result RecvAll(std::int8_t* ptr, std::size_t n) {
     Loop::Op op{Loop::Op::kRead, comm_.Rank(), ptr, n, sock_.get(), 0};
     CHECK(sock_.get());
     comm_.Submit(std::move(op));
+    return Success();
   }
-  void RecvAll(common::Span<std::int8_t> data) { this->RecvAll(data.data(), data.size_bytes()); }
+  [[nodiscard]] Result RecvAll(common::Span<std::int8_t> data) {
+    return this->RecvAll(data.data(), data.size_bytes());
+  }
 
   [[nodiscard]] auto Socket() const { return sock_; }
   [[nodiscard]] virtual Result Block() { return comm_.Block(); }

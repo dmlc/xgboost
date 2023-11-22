@@ -808,7 +808,6 @@ class XGBModel(XGBModelBase):
             "kwargs",
             "missing",
             "n_estimators",
-            "use_label_encoder",
             "enable_categorical",
             "early_stopping_rounds",
             "callbacks",

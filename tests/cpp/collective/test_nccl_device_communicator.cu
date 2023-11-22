@@ -23,7 +23,7 @@ TEST(NcclDeviceCommunicatorSimpleTest, ThrowOnInvalidDeviceOrdinal) {
 
 TEST(NcclDeviceCommunicatorSimpleTest, SystemError) {
   auto stub = std::make_shared<NcclStub>(DefaultNcclName());
-  auto rc = GetNCCLResult(stub, ncclSystemError);
+  auto rc = stub->GetNcclResult(ncclSystemError);
   auto msg = rc.Report();
   ASSERT_TRUE(msg.find("environment variables") != std::string::npos);
 }

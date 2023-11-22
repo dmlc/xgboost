@@ -66,7 +66,7 @@ class NcclDeviceCommunicator : public DeviceCommunicator {
     static const int kRootRank = 0;
     ncclUniqueId id;
     if (rank_ == kRootRank) {
-      auto rc = GetNCCLResult(stub_, stub_->GetUniqueId(&id));
+      auto rc = stub_->GetUniqueId(&id);
       CHECK(rc.OK()) << rc.Report();
     }
     Broadcast(static_cast<void *>(&id), sizeof(ncclUniqueId), static_cast<int>(kRootRank));

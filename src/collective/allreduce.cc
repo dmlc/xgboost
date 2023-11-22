@@ -37,7 +37,10 @@ Result RingScatterReduceTyped(Comm const& comm, common::Span<std::int8_t> data,
     auto seg_nbytes = std::min(data.size_bytes() - send_off, n_bytes_in_seg);
     auto send_seg = data.subspan(send_off, seg_nbytes);
 
-    next_ch->SendAll(send_seg);
+    auto rc = next_ch->SendAll(send_seg);
+    if (!rc.OK()) {
+      return rc;
+    }
 
     // receive from ring prev
     auto recv_off = ((rank + world - r - 1) % world) * n_bytes_in_seg;
@@ -47,8 +50,7 @@ Result RingScatterReduceTyped(Comm const& comm, common::Span<std::int8_t> data,
     auto recv_seg = data.subspan(recv_off, seg_nbytes);
     auto seg = s_buf.subspan(0, recv_seg.size());
 
-    prev_ch->RecvAll(seg);
-    auto rc = comm.Block();
+    rc = std::move(rc) << [&] { return prev_ch->RecvAll(seg); } << [&] { return comm.Block(); };
     if (!rc.OK()) {
       return rc;
     }
