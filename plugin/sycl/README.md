@@ -19,7 +19,7 @@ param['device'] = 'sycl:gpu:0'
 ```
 
 ## Dependencies
-Building the plugin requires Data Parallel C++ Compiler (https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html)
+To build the plugin, install [Intel® oneAPI DPC++/C++ Compiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html).
 
 ## Build
 From the ``xgboost`` directory, run:
