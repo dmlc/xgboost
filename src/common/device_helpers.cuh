@@ -115,30 +115,6 @@ XGBOOST_DEV_INLINE T atomicAdd(T *addr, T v) {  // NOLINT
 }
 namespace dh {
 
-#ifdef XGBOOST_USE_NCCL
-#define safe_nccl(ans) ThrowOnNcclError((ans), __FILE__, __LINE__)
-
-inline ncclResult_t ThrowOnNcclError(ncclResult_t code, const char *file, int line) {
-  if (code != ncclSuccess) {
-    std::stringstream ss;
-    ss << "NCCL failure: " << ncclGetErrorString(code) << ".";
-    ss << " " << file << "(" << line << ")\n";
-    if (code == ncclUnhandledCudaError) {
-      // nccl usually preserves the last error so we can get more details.
-      auto err = cudaPeekAtLastError();
-      ss << "  CUDA error: " << thrust::system_error(err, thrust::cuda_category()).what() << "\n";
-    } else if (code == ncclSystemError) {
-      ss << "  This might be caused by a network configuration issue. Please consider specifying "
-            "the network interface for NCCL via environment variables listed in its reference: "
-            "`https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html`.\n";
-    }
-    LOG(FATAL) << ss.str();
-  }
-
-  return code;
-}
-#endif
-
 inline int32_t CudaGetPointerDevice(void const *ptr) {
   int32_t device = -1;
   cudaPointerAttributes attr;

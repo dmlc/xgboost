@@ -33,8 +33,16 @@ void XGBBuildInfoDevice(Json *p_info) {
   info["USE_NCCL"] = Boolean{true};
   v = {Json{Integer{NCCL_MAJOR}}, Json{Integer{NCCL_MINOR}}, Json{Integer{NCCL_PATCH}}};
   info["NCCL_VERSION"] = v;
+
+#if defined(XGBOOST_USE_DLOPEN_NCCL)
+  info["USE_DLOPEN_NCCL"] = Boolean{true};
+#else
+  info["USE_DLOPEN_NCCL"] = Boolean{false};
+#endif  // defined(XGBOOST_USE_DLOPEN_NCCL)
+
 #else
   info["USE_NCCL"] = Boolean{false};
+  info["USE_DLOPEN_NCCL"] = Boolean{false};
 #endif
 
 #if defined(XGBOOST_USE_RMM)

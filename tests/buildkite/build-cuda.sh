@@ -21,11 +21,17 @@ command_wrapper="tests/ci_build/ci_build.sh gpu_build_centos7 docker --build-arg
                 `"RAPIDS_VERSION_ARG=$RAPIDS_VERSION"
 
 echo "--- Build libxgboost from the source"
-$command_wrapper tests/ci_build/prune_libnccl.sh
-$command_wrapper tests/ci_build/build_via_cmake.sh -DCMAKE_PREFIX_PATH="/opt/grpc" \
-  -DUSE_CUDA=ON -DUSE_NCCL=ON -DUSE_OPENMP=ON -DHIDE_CXX_SYMBOLS=ON -DPLUGIN_FEDERATED=ON \
-  -DUSE_NCCL_LIB_PATH=ON -DNCCL_INCLUDE_DIR=/usr/include \
-  -DNCCL_LIBRARY=/workspace/libnccl_static.a ${arch_flag}
+$command_wrapper tests/ci_build/build_via_cmake.sh \
+		 -DCMAKE_PREFIX_PATH="/opt/grpc" \
+		 -DUSE_CUDA=ON \
+		 -DUSE_OPENMP=ON \
+		 -DHIDE_CXX_SYMBOLS=ON \
+		 -DPLUGIN_FEDERATED=ON \
+		 -DUSE_NCCL=ON \
+		 -DUSE_NCCL_LIB_PATH=ON \
+		 -DNCCL_INCLUDE_DIR=/usr/include \
+		 -DUSE_DLOPEN_NCCL=ON \
+		 ${arch_flag}
 echo "--- Build binary wheel"
 $command_wrapper bash -c \
   "cd python-package && rm -rf dist/* && pip wheel --no-deps -v . --wheel-dir dist/"

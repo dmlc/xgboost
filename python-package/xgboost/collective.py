@@ -2,14 +2,15 @@
 import ctypes
 import json
 import logging
+import os
 import pickle
 from enum import IntEnum, unique
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
 from ._typing import _T
-from .core import _LIB, _check_call, c_str, from_pystr_to_cstr, py_str
+from .core import _LIB, _check_call, build_info, c_str, from_pystr_to_cstr, py_str
 
 LOGGER = logging.getLogger("[xgboost.collective]")
 
@@ -250,6 +251,31 @@ class CommunicatorContext:
 
     def __init__(self, **args: Any) -> None:
         self.args = args
+        key = "dmlc_nccl_path"
+        if args.get(key, None) is not None:
+            return
+
+        binfo = build_info()
+        if not binfo["USE_DLOPEN_NCCL"]:
+            return
+
+        try:
+            # PyPI package of NCCL.
+            from nvidia.nccl import lib
+
+            # There are two versions of nvidia-nccl, one is from PyPI, another one from
+            # nvidia-pyindex. We support only the first one as the second one is too old
+            # (2.9.8 as of writing).
+            if lib.__file__ is not None:
+                dirname: Optional[str] = os.path.dirname(lib.__file__)
+            else:
+                dirname = None
+
+            if dirname:
+                path = os.path.join(dirname, "libnccl.so.2")
+                self.args[key] = path
+        except ImportError:
+            pass
 
     def __enter__(self) -> Dict[str, Any]:
         init(**self.args)

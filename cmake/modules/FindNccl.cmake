@@ -54,17 +54,24 @@ find_path(NCCL_INCLUDE_DIR
   NAMES nccl.h
   HINTS  ${NCCL_ROOT}/include $ENV{NCCL_ROOT}/include)
 
-find_library(NCCL_LIBRARY
-  NAMES ${NCCL_LIB_NAME}
-  HINTS ${NCCL_ROOT}/lib $ENV{NCCL_ROOT}/lib/)
+if(USE_DLOPEN_NCCL)
+  include(FindPackageHandleStandardArgs)
+  find_package_handle_standard_args(Nccl DEFAULT_MSG NCCL_INCLUDE_DIR)
 
-message(STATUS "Using nccl library: ${NCCL_LIBRARY}")
+  mark_as_advanced(NCCL_INCLUDE_DIR)
+else()
+  find_library(NCCL_LIBRARY
+    NAMES ${NCCL_LIB_NAME}
+    HINTS ${NCCL_ROOT}/lib $ENV{NCCL_ROOT}/lib/)
 
-include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(Nccl DEFAULT_MSG
-                                  NCCL_INCLUDE_DIR NCCL_LIBRARY)
+  message(STATUS "Using nccl library: ${NCCL_LIBRARY}")
 
-mark_as_advanced(
-  NCCL_INCLUDE_DIR
-  NCCL_LIBRARY
-)
+  include(FindPackageHandleStandardArgs)
+  find_package_handle_standard_args(Nccl DEFAULT_MSG
+    NCCL_INCLUDE_DIR NCCL_LIBRARY)
+
+  mark_as_advanced(
+    NCCL_INCLUDE_DIR
+    NCCL_LIBRARY
+  )
+endif()

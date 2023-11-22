@@ -7,15 +7,12 @@
 #include <chrono>     // for seconds
 #include <cstdlib>    // for exit
 #include <memory>     // for shared_ptr
-#include <mutex>      // for unique_lock
 #include <string>     // for string
 #include <utility>    // for move, forward
 
 #include "../common/common.h"           // for AssertGPUSupport
-#include "../common/json_utils.h"       // for OptionalArg
 #include "allgather.h"                  // for RingAllgather
 #include "protocol.h"                   // for kMagic
-#include "tracker.h"                    // for GetHostAddress
 #include "xgboost/base.h"               // for XGBOOST_STRICT_R_MODE
 #include "xgboost/collective/socket.h"  // for TCPSocket
 #include "xgboost/json.h"               // for Json, Object
@@ -61,14 +58,6 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
   return ConnectTrackerImpl(this->TrackerInfo(), this->Timeout(), this->retry_, this->task_id_, out,
                             this->Rank(), this->World());
 }
-
-#if !defined(XGBOOST_USE_NCCL)
-Comm* Comm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
-  common::AssertGPUSupport();
-  common::AssertNCCLSupport();
-  return nullptr;
-}
-#endif  //  !defined(XGBOOST_USE_NCCL)
 
 [[nodiscard]] Result ConnectWorkers(Comm const& comm, TCPSocket* listener, std::int32_t lport,
                                     proto::PeerInfo ninfo, std::chrono::seconds timeout,
@@ -194,11 +183,20 @@ Comm* Comm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
 }
 
 RabitComm::RabitComm(std::string const& host, std::int32_t port, std::chrono::seconds timeout,
-                     std::int32_t retry, std::string task_id)
-    : Comm{std::move(host), port, timeout, retry, std::move(task_id)} {
+                     std::int32_t retry, std::string task_id, StringView nccl_path)
+    : HostComm{std::move(host), port, timeout, retry, std::move(task_id)},
+      nccl_path_{std::move(nccl_path)} {
   auto rc = this->Bootstrap(timeout_, retry_, task_id_);
   CHECK(rc.OK()) << rc.Report();
 }
+
+#if !defined(XGBOOST_USE_NCCL)
+Comm* RabitComm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
+  common::AssertGPUSupport();
+  common::AssertNCCLSupport();
+  return nullptr;
+}
+#endif  //  !defined(XGBOOST_USE_NCCL)
 
 [[nodiscard]] Result RabitComm::Bootstrap(std::chrono::seconds timeout, std::int32_t retry,
                                           std::string task_id) {

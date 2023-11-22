@@ -184,6 +184,13 @@ def _py_version() -> str:
         return f.read().strip()
 
 
+def _register_log_callback(lib: ctypes.CDLL) -> None:
+    lib.XGBGetLastError.restype = ctypes.c_char_p
+    lib.callback = _get_log_callback_func()  # type: ignore
+    if lib.XGBRegisterLogCallback(lib.callback) != 0:
+        raise XGBoostError(lib.XGBGetLastError())
+
+
 def _load_lib() -> ctypes.CDLL:
     """Load xgboost Library."""
     lib_paths = find_lib_path()
@@ -228,10 +235,7 @@ Likely causes:
 Error message(s): {os_error_list}
 """
         )
-    lib.XGBGetLastError.restype = ctypes.c_char_p
-    lib.callback = _get_log_callback_func()  # type: ignore
-    if lib.XGBRegisterLogCallback(lib.callback) != 0:
-        raise XGBoostError(lib.XGBGetLastError())
+    _register_log_callback(lib)
 
     def parse(ver: str) -> Tuple[int, int, int]:
         """Avoid dependency on packaging (PEP 440)."""

@@ -37,7 +37,7 @@ namespace xgboost::collective {
 [[nodiscard]] Comm const& CommGroup::Ctx(Context const* ctx, DeviceOrd device) const {
   if (device.IsCUDA()) {
     CHECK(ctx->IsCUDA());
-    if (!gpu_comm_) {
+    if (!gpu_comm_ || gpu_comm_->World() != comm_->World()) {
       gpu_comm_.reset(comm_->MakeCUDAVar(ctx, backend_));
     }
     return *gpu_comm_;
@@ -55,7 +55,6 @@ CommGroup::CommGroup()
   }
 
   std::string type = OptionalArg<String>(config, "dmlc_communicator", std::string{"rabit"});
-  std::vector<std::string> keys;
   // Try both lower and upper case for compatibility
   auto get_param = [&](std::string name, auto dft, auto t) {
     std::string upper;
@@ -63,8 +62,6 @@ CommGroup::CommGroup()
                    [](char c) { return std::toupper(c); });
     std::transform(name.cbegin(), name.cend(), name.begin(),
                    [](char c) { return std::tolower(c); });
-    keys.push_back(upper);
-    keys.push_back(name);
 
     auto const& obj = get<Object const>(config);
     auto it = obj.find(upper);
@@ -75,19 +72,19 @@ CommGroup::CommGroup()
     }
   };
   // Common args
-  auto retry =
-      OptionalArg<Integer>(config, "dmlc_retry", static_cast<Integer::Int>(DefaultRetry()));
-  auto timeout = OptionalArg<Integer>(config, "dmlc_timeout_sec",
-                                      static_cast<Integer::Int>(DefaultTimeoutSec()));
+  auto retry = get_param("dmlc_retry", static_cast<Integer::Int>(DefaultRetry()), Integer{});
+  auto timeout =
+      get_param("dmlc_timeout_sec", static_cast<Integer::Int>(DefaultTimeoutSec()), Integer{});
   auto task_id = get_param("dmlc_task_id", std::string{}, String{});
 
   if (type == "rabit") {
     auto host = get_param("dmlc_tracker_uri", std::string{}, String{});
     auto port = get_param("dmlc_tracker_port", static_cast<std::int64_t>(0), Integer{});
+    auto nccl = get_param("dmlc_nccl_path", std::string{DefaultNcclName()}, String{});
     auto ptr =
         new CommGroup{std::shared_ptr<RabitComm>{new RabitComm{  // NOLINT
                           host, static_cast<std::int32_t>(port), std::chrono::seconds{timeout},
-                          static_cast<std::int32_t>(retry), task_id}},
+                          static_cast<std::int32_t>(retry), task_id, nccl}},
                       std::shared_ptr<Coll>(new Coll{})};  // NOLINT
     return ptr;
   } else if (type == "federated") {

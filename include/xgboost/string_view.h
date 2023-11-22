@@ -1,23 +1,24 @@
 /**
- * Copyright 2021-2023 by XGBoost Contributors
+ * Copyright 2021-2023, XGBoost Contributors
  */
 #ifndef XGBOOST_STRING_VIEW_H_
 #define XGBOOST_STRING_VIEW_H_
 #include <xgboost/logging.h>  // CHECK_LT
 #include <xgboost/span.h>     // Span
 
-#include <algorithm>          // std::equal,std::min
-#include <iterator>           // std::reverse_iterator
-#include <ostream>            // std::ostream
-#include <string>             // std::char_traits,std::string
+#include <algorithm>  // for equal, min
+#include <cstddef>    // for size_t
+#include <iterator>   // for reverse_iterator
+#include <ostream>    // for ostream
+#include <string>     // for char_traits, string
 
 namespace xgboost {
 struct StringView {
  private:
-  using CharT = char;  // unsigned char
+  using CharT = char;
   using Traits = std::char_traits<CharT>;
   CharT const* str_{nullptr};
-  size_t size_{0};
+  std::size_t size_{0};
 
  public:
   using value_type = CharT;                                        // NOLINT
@@ -28,40 +29,41 @@ struct StringView {
 
  public:
   constexpr StringView() = default;
-  constexpr StringView(CharT const* str, std::size_t size) : str_{str}, size_{size} {}
+  constexpr StringView(value_type const* str, std::size_t size) : str_{str}, size_{size} {}
   StringView(std::string const& str) : str_{str.c_str()}, size_{str.size()} {}  // NOLINT
-  constexpr StringView(CharT const* str)  // NOLINT
+  constexpr StringView(value_type const* str)                                   // NOLINT
       : str_{str}, size_{str == nullptr ? 0ul : Traits::length(str)} {}
 
-  CharT const& operator[](size_t p) const { return str_[p]; }
-  CharT const& at(size_t p) const {  // NOLINT
+  [[nodiscard]] value_type const& operator[](std::size_t p) const { return str_[p]; }
+  [[nodiscard]] explicit operator std::string() const { return {this->c_str(), this->size()}; }
+  [[nodiscard]] value_type const& at(std::size_t p) const {  // NOLINT
     CHECK_LT(p, size_);
     return str_[p];
   }
-  constexpr std::size_t size() const { return size_; }  // NOLINT
-  constexpr bool empty() const { return size() == 0; }  // NOLINT
-  StringView substr(size_t beg, size_t n) const {       // NOLINT
+  [[nodiscard]] constexpr std::size_t size() const { return size_; }       // NOLINT
+  [[nodiscard]] constexpr bool empty() const { return size() == 0; }       // NOLINT
+  [[nodiscard]] StringView substr(std::size_t beg, std::size_t n) const {  // NOLINT
     CHECK_LE(beg, size_);
-    size_t len = std::min(n, size_ - beg);
+    std::size_t len = std::min(n, size_ - beg);
     return {str_ + beg, len};
   }
-  CharT const* c_str() const { return str_; }                    // NOLINT
+  [[nodiscard]] value_type const* c_str() const { return str_; }  // NOLINT
 
-  constexpr CharT const* cbegin() const { return str_; }         // NOLINT
-  constexpr CharT const* cend() const { return str_ + size(); }  // NOLINT
-  constexpr CharT const* begin() const { return str_; }          // NOLINT
-  constexpr CharT const* end() const { return str_ + size(); }   // NOLINT
+  [[nodiscard]] constexpr const_iterator cbegin() const { return str_; }         // NOLINT
+  [[nodiscard]] constexpr const_iterator cend() const { return str_ + size(); }  // NOLINT
+  [[nodiscard]] constexpr iterator begin() const { return str_; }                // NOLINT
+  [[nodiscard]] constexpr iterator end() const { return str_ + size(); }         // NOLINT
 
-  const_reverse_iterator rbegin() const noexcept {               // NOLINT
+  [[nodiscard]] const_reverse_iterator rbegin() const noexcept {  // NOLINT
     return const_reverse_iterator(this->end());
   }
-  const_reverse_iterator crbegin() const noexcept {  // NOLINT
+  [[nodiscard]] const_reverse_iterator crbegin() const noexcept {  // NOLINT
     return const_reverse_iterator(this->end());
   }
-  const_reverse_iterator rend() const noexcept {  // NOLINT
+  [[nodiscard]] const_reverse_iterator rend() const noexcept {  // NOLINT
     return const_reverse_iterator(this->begin());
   }
-  const_reverse_iterator crend() const noexcept {  // NOLINT
+  [[nodiscard]] const_reverse_iterator crend() const noexcept {  // NOLINT
     return const_reverse_iterator(this->begin());
   }
 };

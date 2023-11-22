@@ -12,6 +12,7 @@ from hypothesis._settings import duration
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.collective import CommunicatorContext
 from xgboost.testing.params import hist_parameter_strategy
 
 pytestmark = [
@@ -570,6 +571,65 @@ def test_with_asyncio(local_cuda_client: Client) -> None:
     output = asyncio.run(run_from_dask_array_asyncio(address))
     assert isinstance(output["booster"], xgb.Booster)
     assert isinstance(output["history"], dict)
+
+
+def test_invalid_nccl(local_cuda_client: Client) -> None:
+    client = local_cuda_client
+    workers = tm.get_client_workers(client)
+    args = client.sync(
+        dxgb._get_rabit_args, len(workers), dxgb._get_dask_config(), client
+    )
+
+    def run(wid: int) -> None:
+        ctx = CommunicatorContext(dmlc_nccl_path="foo", **args)
+        X, y, w = tm.make_regression(n_samples=10, n_features=10, use_cupy=True)
+
+        with ctx:
+            with pytest.raises(ValueError, match=r"pip install"):
+                xgb.QuantileDMatrix(X, y, weight=w)
+
+    futures = client.map(run, range(len(workers)), workers=workers)
+    client.gather(futures)
+
+
+@pytest.mark.parametrize("tree_method", ["hist", "approx"])
+def test_nccl_load(local_cuda_client: Client, tree_method: str) -> None:
+    X, y, w = tm.make_regression(128, 16, use_cupy=True)
+
+    def make_model() -> None:
+        xgb.XGBRegressor(
+            device="cuda",
+            tree_method=tree_method,
+            objective="reg:quantileerror",
+            verbosity=2,
+            quantile_alpha=[0.2, 0.8],
+        ).fit(X, y, sample_weight=w)
+
+    # no nccl load when using single-node.
+    with tm.captured_output() as (out, err):
+        make_model()
+        assert out.getvalue().find("NCCL") == -1
+        assert err.getvalue().find("NCCL") == -1
+
+    client = local_cuda_client
+    workers = tm.get_client_workers(client)
+    args = client.sync(
+        dxgb._get_rabit_args, len(workers), dxgb._get_dask_config(), client
+    )
+
+    # nccl is loaded
+    def run(wid: int) -> None:
+        # FIXME(jiamingy): https://github.com/dmlc/xgboost/issues/9147
+        from xgboost.core import _LIB, _register_log_callback
+        _register_log_callback(_LIB)
+
+        with CommunicatorContext(**args):
+            with tm.captured_output() as (out, err):
+                make_model()
+                assert out.getvalue().find("Loaded shared NCCL") != -1, out.getvalue()
+
+    futures = client.map(run, range(len(workers)), workers=workers)
+    client.gather(futures)
 
 
 async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainReturnT:
