@@ -1,7 +1,3 @@
-if(PLUGIN_DENSE_PARSER)
-  target_sources(objxgboost PRIVATE ${xgboost_SOURCE_DIR}/plugin/dense_parser/dense_libsvm.cc)
-endif()
-
 if(PLUGIN_SYCL)
   set(CMAKE_CXX_COMPILER "icpx")
   add_library(plugin_sycl OBJECT

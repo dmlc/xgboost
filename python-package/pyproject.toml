@@ -29,7 +29,8 @@ classifiers = [
 ]
 dependencies = [
     "numpy",
-    "scipy"
+    "scipy",
+    "nvidia-nccl-cu12 ; platform_system == 'Linux' and platform_machine != 'aarch64'"
 ]
 
 [project.urls]

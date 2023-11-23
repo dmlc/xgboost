@@ -4,8 +4,10 @@
 #pragma once
 
 #include "../common/device_helpers.cuh"
+#include "comm.cuh"
 #include "communicator.h"
 #include "device_communicator.cuh"
+#include "nccl_stub.h"
 
 namespace xgboost {
 namespace collective {
@@ -25,7 +27,7 @@ class NcclDeviceCommunicator : public DeviceCommunicator {
    * needed. The in-memory communicator is used in tests with multiple threads, each thread
    * representing a rank/worker, so the additional synchronization is needed to avoid deadlocks.
    */
-  explicit NcclDeviceCommunicator(int device_ordinal, bool needs_sync);
+  explicit NcclDeviceCommunicator(int device_ordinal, bool needs_sync, StringView nccl_path);
   ~NcclDeviceCommunicator() override;
   void AllReduce(void *send_receive_buffer, std::size_t count, DataType data_type,
                  Operation op) override;
@@ -64,7 +66,8 @@ class NcclDeviceCommunicator : public DeviceCommunicator {
     static const int kRootRank = 0;
     ncclUniqueId id;
     if (rank_ == kRootRank) {
-      dh::safe_nccl(ncclGetUniqueId(&id));
+      auto rc = GetNCCLResult(stub_, stub_->GetUniqueId(&id));
+      CHECK(rc.OK()) << rc.Report();
     }
     Broadcast(static_cast<void *>(&id), sizeof(ncclUniqueId), static_cast<int>(kRootRank));
     return id;
@@ -78,6 +81,7 @@ class NcclDeviceCommunicator : public DeviceCommunicator {
   int const world_size_;
   int const rank_;
   ncclComm_t nccl_comm_{};
+  std::shared_ptr<NcclStub> stub_;
   ncclUniqueId nccl_unique_id_{};
   size_t allreduce_bytes_{0};  // Keep statistics of the number of bytes communicated.
   size_t allreduce_calls_{0};  // Keep statistics of the number of reduce calls.

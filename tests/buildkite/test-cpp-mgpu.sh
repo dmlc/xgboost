@@ -13,4 +13,5 @@ chmod +x build/testxgboost
 tests/ci_build/ci_build.sh gpu nvidia-docker \
   --build-arg CUDA_VERSION_ARG=$CUDA_VERSION \
   --build-arg RAPIDS_VERSION_ARG=$RAPIDS_VERSION \
+  --build-arg NCCL_VERSION_ARG=$NCCL_VERSION \
   build/testxgboost --gtest_filter=*MGPU*

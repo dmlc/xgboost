@@ -34,6 +34,8 @@ inline std::int32_t BootstrapPrev(std::int32_t r, std::int32_t world) {
   return nrank;
 }
 
+inline StringView DefaultNcclName() { return "libnccl.so.2"; }
+
 class Channel;
 class Coll;
 
@@ -86,11 +88,21 @@ class Comm : public std::enable_shared_from_this<Comm> {
   [[nodiscard]] virtual Result LogTracker(std::string msg) const = 0;
 
   [[nodiscard]] virtual Result SignalError(Result const&) { return Success(); }
-
-  virtual Comm* MakeCUDAVar(Context const* ctx, std::shared_ptr<Coll> pimpl) const;
 };
 
-class RabitComm : public Comm {
+/**
+ * @brief Base class for CPU-based communicator.
+ */
+class HostComm : public Comm {
+ public:
+  using Comm::Comm;
+  [[nodiscard]] virtual Comm* MakeCUDAVar(Context const* ctx,
+                                          std::shared_ptr<Coll> pimpl) const = 0;
+};
+
+class RabitComm : public HostComm {
+  std::string nccl_path_ = std::string{DefaultNcclName()};
+
   [[nodiscard]] Result Bootstrap(std::chrono::seconds timeout, std::int32_t retry,
                                  std::string task_id);
   [[nodiscard]] Result Shutdown();
@@ -100,13 +112,15 @@ class RabitComm : public Comm {
   RabitComm() = default;
   // ctor for testing where environment is known.
   RabitComm(std::string const& host, std::int32_t port, std::chrono::seconds timeout,
-            std::int32_t retry, std::string task_id);
+            std::int32_t retry, std::string task_id, StringView nccl_path);
   ~RabitComm() noexcept(false) override;
 
   [[nodiscard]] bool IsFederated() const override { return false; }
   [[nodiscard]] Result LogTracker(std::string msg) const override;
 
   [[nodiscard]] Result SignalError(Result const&) override;
+
+  [[nodiscard]] Comm* MakeCUDAVar(Context const* ctx, std::shared_ptr<Coll> pimpl) const override;
 };
 
 /**

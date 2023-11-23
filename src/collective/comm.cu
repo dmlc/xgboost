@@ -13,19 +13,21 @@
 #include "../common/cuda_context.cuh"    // for CUDAContext
 #include "../common/device_helpers.cuh"  // for DefaultStream
 #include "../common/type.h"              // for EraseType
-#include "broadcast.h"                   // for Broadcast
 #include "comm.cuh"                      // for NCCLComm
 #include "comm.h"                        // for Comm
+#include "nccl_stub.h"                   // for NcclStub
 #include "xgboost/collective/result.h"   // for Result
 #include "xgboost/span.h"                // for Span
 
 namespace xgboost::collective {
 namespace {
-Result GetUniqueId(Comm const& comm, std::shared_ptr<Coll> coll, ncclUniqueId* pid) {
+Result GetUniqueId(Comm const& comm, std::shared_ptr<NcclStub> stub, std::shared_ptr<Coll> coll,
+                   ncclUniqueId* pid) {
   static const int kRootRank = 0;
   ncclUniqueId id;
   if (comm.Rank() == kRootRank) {
-    dh::safe_nccl(ncclGetUniqueId(&id));
+    auto rc = GetNCCLResult(stub, stub->GetUniqueId(&id));
+    CHECK(rc.OK()) << rc.Report();
   }
   auto rc = coll->Broadcast(
       comm, common::Span{reinterpret_cast<std::int8_t*>(&id), sizeof(ncclUniqueId)}, kRootRank);
@@ -54,11 +56,12 @@ static std::string PrintUUID(xgboost::common::Span<std::uint64_t, kUuidLength> c
 }
 }  // namespace
 
-Comm* Comm::MakeCUDAVar(Context const* ctx, std::shared_ptr<Coll> pimpl) const {
-  return new NCCLComm{ctx, *this, pimpl};
+Comm* RabitComm::MakeCUDAVar(Context const* ctx, std::shared_ptr<Coll> pimpl) const {
+  return new NCCLComm{ctx, *this, pimpl, StringView{this->nccl_path_}};
 }
 
-NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> pimpl)
+NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> pimpl,
+                   StringView nccl_path)
     : Comm{root.TrackerInfo().host, root.TrackerInfo().port, root.Timeout(), root.Retry(),
            root.TaskID()},
       stream_{ctx->CUDACtx()->Stream()} {
@@ -70,6 +73,7 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
   }
 
   dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
+  stub_ = std::make_shared<NcclStub>(nccl_path);
 
   std::vector<std::uint64_t> uuids(root.World() * kUuidLength, 0);
   auto s_uuid = xgboost::common::Span<std::uint64_t>{uuids.data(), uuids.size()};
@@ -95,19 +99,24 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
       << "Multiple processes within communication group running on same CUDA "
       << "device is not supported. " << PrintUUID(s_this_uuid) << "\n";
 
-  rc = GetUniqueId(root, pimpl, &nccl_unique_id_);
+  rc = std::move(rc) << [&] {
+    return GetUniqueId(root, this->stub_, pimpl, &nccl_unique_id_);
+  } << [&] {
+    return GetNCCLResult(this->stub_, this->stub_->CommInitRank(&nccl_comm_, root.World(),
+                                                                nccl_unique_id_, root.Rank()));
+  };
   CHECK(rc.OK()) << rc.Report();
-  dh::safe_nccl(ncclCommInitRank(&nccl_comm_, root.World(), nccl_unique_id_, root.Rank()));
 
   for (std::int32_t r = 0; r < root.World(); ++r) {
     this->channels_.emplace_back(
-        std::make_shared<NCCLChannel>(root, r, nccl_comm_, dh::DefaultStream()));
+        std::make_shared<NCCLChannel>(root, r, nccl_comm_, stub_, dh::DefaultStream()));
   }
 }
 
 NCCLComm::~NCCLComm() {
   if (nccl_comm_) {
-    dh::safe_nccl(ncclCommDestroy(nccl_comm_));
+    auto rc = GetNCCLResult(stub_, stub_->CommDestroy(nccl_comm_));
+    CHECK(rc.OK()) << rc.Report();
   }
 }
 }  // namespace xgboost::collective

@@ -15,14 +15,12 @@ class BuildConfiguration:  # pylint: disable=R0902
     use_cuda: bool = False
     # Whether to enable NCCL
     use_nccl: bool = False
-    # Whether to enable HDFS
-    use_hdfs: bool = False
-    # Whether to enable Azure Storage
-    use_azure: bool = False
-    # Whether to enable AWS S3
-    use_s3: bool = False
-    # Whether to enable the dense parser plugin
-    plugin_dense_parser: bool = False
+    # Whether to load nccl dynamically
+    use_dlopen_nccl: bool = False
+    # Whether to enable federated learning
+    plugin_federated: bool = False
+    # Whether to enable rmm support
+    plugin_rmm: bool = False
     # Special option: See explanation below
     use_system_libxgboost: bool = False
 

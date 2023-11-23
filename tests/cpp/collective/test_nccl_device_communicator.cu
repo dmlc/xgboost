@@ -8,6 +8,7 @@
 #include <bitset>
 #include <string>  // for string
 
+#include "../../../src/collective/comm.cuh"
 #include "../../../src/collective/communicator-inl.cuh"
 #include "../../../src/collective/nccl_device_communicator.cuh"
 #include "../helpers.h"
@@ -16,17 +17,15 @@ namespace xgboost {
 namespace collective {
 
 TEST(NcclDeviceCommunicatorSimpleTest, ThrowOnInvalidDeviceOrdinal) {
-  auto construct = []() { NcclDeviceCommunicator comm{-1, false}; };
+  auto construct = []() { NcclDeviceCommunicator comm{-1, false, DefaultNcclName()}; };
   EXPECT_THROW(construct(), dmlc::Error);
 }
 
 TEST(NcclDeviceCommunicatorSimpleTest, SystemError) {
-  try {
-    dh::safe_nccl(ncclSystemError);
-  } catch (dmlc::Error const& e) {
-    auto str = std::string{e.what()};
-    ASSERT_TRUE(str.find("environment variables") != std::string::npos);
-  }
+  auto stub = std::make_shared<NcclStub>(DefaultNcclName());
+  auto rc = GetNCCLResult(stub, ncclSystemError);
+  auto msg = rc.Report();
+  ASSERT_TRUE(msg.find("environment variables") != std::string::npos);
 }
 
 namespace {

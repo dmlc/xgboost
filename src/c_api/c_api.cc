@@ -7,8 +7,6 @@
 #include <cinttypes>                         // for strtoimax
 #include <cmath>                             // for nan
 #include <cstring>                           // for strcmp
-#include <fstream>                           // for operator<<, basic_ostream, ios, stringstream
-#include <functional>                        // for less
 #include <limits>                            // for numeric_limits
 #include <map>                               // for operator!=, _Rb_tree_const_iterator, _Rb_tre...
 #include <memory>                            // for shared_ptr, allocator, __shared_ptr_access
@@ -22,7 +20,6 @@
 #include "../common/charconv.h"              // for from_chars, to_chars, NumericLimits, from_ch...
 #include "../common/hist_util.h"             // for HistogramCuts
 #include "../common/io.h"                    // for FileExtension, LoadSequentialFile, MemoryBuf...
-#include "../common/linalg_op.h"             // for ElementWiseTransformHost
 #include "../common/threading_utils.h"       // for OmpGetNumThreads, ParallelFor
 #include "../data/adapter.h"                 // for ArrayAdapter, DenseAdapter, RecordBatchesIte...
 #include "../data/ellpack_page.h"            // for EllpackPage
@@ -35,14 +32,12 @@
 #include "dmlc/parameter.h"                  // for FieldAccessEntry, FieldEntry, ParamManager
 #include "dmlc/thread_local.h"               // for ThreadLocalStore
 #include "rabit/c_api.h"                     // for RabitLinkTag
-#include "rabit/rabit.h"                     // for CheckPoint, LoadCheckPoint
 #include "xgboost/base.h"                    // for bst_ulong, bst_float, GradientPair, bst_feat...
 #include "xgboost/context.h"                 // for Context
 #include "xgboost/data.h"                    // for DMatrix, MetaInfo, DataType, ExtSparsePage
 #include "xgboost/feature_map.h"             // for FeatureMap
 #include "xgboost/global_config.h"           // for GlobalConfiguration, GlobalConfigThreadLocal...
 #include "xgboost/host_device_vector.h"      // for HostDeviceVector
-#include "xgboost/intrusive_ptr.h"           // for xgboost
 #include "xgboost/json.h"                    // for Json, get, Integer, IsA, Boolean, String
 #include "xgboost/learner.h"                 // for Learner, PredictionType
 #include "xgboost/logging.h"                 // for LOG_FATAL, LogMessageFatal, CHECK, LogCheck_EQ
@@ -79,6 +74,7 @@ void XGBBuildInfoDevice(Json *p_info) {
   info["USE_CUDA"] = Boolean{false};
   info["USE_NCCL"] = Boolean{false};
   info["USE_RMM"] = Boolean{false};
+  info["USE_DLOPEN_NCCL"] = Boolean{false};
 }
 }  // namespace xgboost
 #endif

@@ -76,7 +76,10 @@ option(KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR "Output build artifacts in CMake binar
 option(USE_CUDA  "Build with GPU acceleration" OFF)
 option(USE_PER_THREAD_DEFAULT_STREAM "Build with per-thread default stream" ON)
 option(USE_NCCL  "Build with NCCL to enable distributed GPU support." OFF)
+# This is specifically designed for PyPI binary release and should be disabled for most of the cases.
+option(USE_DLOPEN_NCCL "Whether to load nccl dynamically." OFF)
 option(BUILD_WITH_SHARED_NCCL "Build with shared NCCL library." OFF)
+
 if(USE_CUDA)
   if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES AND NOT DEFINED ENV{CUDAARCHS})
     set(GPU_COMPUTE_VER "" CACHE STRING
@@ -87,6 +90,7 @@ if(USE_CUDA)
     unset(GPU_COMPUTE_VER CACHE)
   endif()
 endif()
+
 # CUDA device LTO was introduced in CMake v3.25 and requires host LTO to also be enabled but can still
 # be explicitly disabled allowing for LTO on host only, host and device, or neither, but device-only LTO
 # is not a supproted configuration
@@ -102,7 +106,6 @@ set(ENABLED_SANITIZERS "address" "leak" CACHE STRING
   "Semicolon separated list of sanitizer names. E.g 'address;leak'. Supported sanitizers are
 address, leak, undefined and thread.")
 ## Plugins
-option(PLUGIN_DENSE_PARSER "Build dense parser plugin" OFF)
 option(PLUGIN_RMM "Build with RAPIDS Memory Manager (RMM)" OFF)
 option(PLUGIN_FEDERATED "Build with Federated Learning" OFF)
 ## TODO: 1. Add check if DPC++ compiler is used for building
@@ -121,6 +124,12 @@ if(USE_DEVICE_DEBUG AND NOT (USE_CUDA))
 endif()
 if(BUILD_WITH_SHARED_NCCL AND (NOT USE_NCCL))
   message(SEND_ERROR "Build XGBoost with -DUSE_NCCL=ON to enable BUILD_WITH_SHARED_NCCL.")
+endif()
+if(USE_DLOPEN_NCCL AND (NOT USE_NCCL))
+  message(SEND_ERROR "Build XGBoost with -DUSE_NCCL=ON to enable USE_DLOPEN_NCCL.")
+endif()
+if(USE_DLOPEN_NCCL AND (NOT (CMAKE_SYSTEM_NAME STREQUAL "Linux")))
+  message(SEND_ERROR "`USE_DLOPEN_NCCL` supports only Linux at the moment.")
 endif()
 if(JVM_BINDINGS AND R_LIB)
   message(SEND_ERROR "`R_LIB' is not compatible with `JVM_BINDINGS' as they both have customized configurations.")
@@ -181,6 +190,9 @@ if(USE_AZURE)
 endif()
 if(USE_HDFS)
   message(SEND_ERROR "The option `USE_HDFS` has been removed from XGBoost")
+endif()
+if(PLUGIN_DENSE_PARSER)
+  message(SEND_ERROR "The option `PLUGIN_DENSE_PARSER` has been removed from XGBoost.")
 endif()
 
 #-- Sanitizer

@@ -5,17 +5,15 @@
 #include <gtest/gtest.h>
 #include <thrust/host_vector.h>  // for host_vector
 
-#include "../../../src/collective/coll.h"  // for Coll
 #include "../../../src/common/common.h"
 #include "../../../src/common/device_helpers.cuh"  // for ToSpan,  device_vector
 #include "../../../src/common/type.h"              // for EraseType
-#include "../helpers.h"                            // for MakeCUDACtx
 #include "test_worker.cuh"                         // for NCCLWorkerForTest
 #include "test_worker.h"                           // for WorkerForTest, TestDistributed
 
 namespace xgboost::collective {
 namespace {
-class AllreduceTestGPU : public SocketTest {};
+class MGPUAllreduceTest : public SocketTest {};
 
 class Worker : public NCCLWorkerForTest {
  public:
@@ -47,7 +45,7 @@ class Worker : public NCCLWorkerForTest {
 };
 }  // namespace
 
-TEST_F(AllreduceTestGPU, BitOr) {
+TEST_F(MGPUAllreduceTest, BitOr) {
   auto n_workers = common::AllVisibleGPUs();
   TestDistributed(n_workers, [=](std::string host, std::int32_t port, std::chrono::seconds timeout,
                                  std::int32_t r) {
@@ -57,7 +55,7 @@ TEST_F(AllreduceTestGPU, BitOr) {
   });
 }
 
-TEST_F(AllreduceTestGPU, Sum) {
+TEST_F(MGPUAllreduceTest, Sum) {
   auto n_workers = common::AllVisibleGPUs();
   TestDistributed(n_workers, [=](std::string host, std::int32_t port, std::chrono::seconds timeout,
                                  std::int32_t r) {
