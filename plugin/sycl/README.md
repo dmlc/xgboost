@@ -22,9 +22,12 @@ Python example:
 ```python
 param['device'] = 'sycl:gpu:0'
 ```
+Note: 'sycl:cpu' devices have full functional support but can't provide good enough performance. We recommend use 'sycl:cpu' devices only for test purposes.
+Note: if device is specified to be 'sycl', device type will be automatically chosen. In case the system has both sycl GPU and sycl CPU, GPU will on use.
 
 ## Dependencies
-To build the plugin, install [Intel® oneAPI DPC++/C++ Compiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html).
+To build and use the plugin, install [Intel® oneAPI DPC++/C++ Compiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html).
+See also [Intel® oneAPI Programming Guide](https://www.intel.com/content/www/us/en/docs/oneapi/programming-guide/2024-0/overview.html).
 
 ## Build
 From the ``xgboost`` directory, run:
