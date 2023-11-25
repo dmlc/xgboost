@@ -1931,6 +1931,7 @@ class TestWithDask:
         cls.client = client
         cls.fit(X, y)
         predt_0 = cls.predict(X)
+        proba_0 = cls.predict_proba(X)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "model.pkl")
@@ -1940,7 +1941,9 @@ class TestWithDask:
             with open(path, "rb") as fd:
                 cls = pickle.load(fd)
             predt_1 = cls.predict(X)
+            proba_1 = cls.predict_proba(X)
             np.testing.assert_allclose(predt_0.compute(), predt_1.compute())
+            np.testing.assert_allclose(proba_0.compute(), proba_1.compute())
 
             path = os.path.join(tmpdir, "cls.json")
             cls.save_model(path)
@@ -1949,16 +1952,20 @@ class TestWithDask:
             cls.load_model(path)
             assert cls.n_classes_ == 10
             predt_2 = cls.predict(X)
+            proba_2 = cls.predict_proba(X)
 
             np.testing.assert_allclose(predt_0.compute(), predt_2.compute())
+            np.testing.assert_allclose(proba_0.compute(), proba_2.compute())
 
             # Use single node to load
             cls = xgb.XGBClassifier()
             cls.load_model(path)
             assert cls.n_classes_ == 10
             predt_3 = cls.predict(X_)
+            proba_3 = cls.predict_proba(X_)
 
             np.testing.assert_allclose(predt_0.compute(), predt_3)
+            np.testing.assert_allclose(proba_0.compute(), proba_3)
 
 
 def test_dask_unsupported_features(client: "Client") -> None:
