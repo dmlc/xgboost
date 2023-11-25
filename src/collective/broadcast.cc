@@ -62,8 +62,8 @@ Result Broadcast(Comm const& comm, common::Span<std::int8_t> data, std::int32_t 
 
   if (shifted_rank != 0) {  // not root
     auto parent = ShiftRight(ShiftedParentRank(shifted_rank, depth), world, root);
-    comm.Chan(parent)->RecvAll(data);
-    auto rc = comm.Chan(parent)->Block();
+    auto rc = Success() << [&] { return comm.Chan(parent)->RecvAll(data); }
+                        << [&] { return comm.Chan(parent)->Block(); };
     if (!rc.OK()) {
       return Fail("broadcast failed.", std::move(rc));
     }
@@ -75,7 +75,10 @@ Result Broadcast(Comm const& comm, common::Span<std::int8_t> data, std::int32_t 
       auto sft_peer = shifted_rank + (1 << i);
       auto peer = ShiftRight(sft_peer, world, root);
       CHECK_NE(peer, root);
-      comm.Chan(peer)->SendAll(data);
+      auto rc = comm.Chan(peer)->SendAll(data);
+      if (!rc.OK()) {
+        return rc;
+      }
     }
   }
 

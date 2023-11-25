@@ -4,9 +4,12 @@
 #if defined(XGBOOST_USE_NCCL)
 #include "nccl_stub.h"
 
-#include <cuda.h>   // for CUDA_VERSION
-#include <dlfcn.h>  // for dlclose, dlsym, dlopen
+#include <cuda.h>              // for CUDA_VERSION
+#include <cuda_runtime_api.h>  // for cudaPeekAtLastError
+#include <dlfcn.h>             // for dlclose, dlsym, dlopen
 #include <nccl.h>
+#include <thrust/system/cuda/error.h>  // for cuda_category
+#include <thrust/system_error.h>       // for system_error
 
 #include <cstdint>  // for int32_t
 #include <sstream>  // for stringstream
@@ -16,6 +19,25 @@
 #include "xgboost/logging.h"
 
 namespace xgboost::collective {
+Result NcclStub::GetNcclResult(ncclResult_t code) const {
+  if (code == ncclSuccess) {
+    return Success();
+  }
+
+  std::stringstream ss;
+  ss << "NCCL failure: " << this->GetErrorString(code) << ".";
+  if (code == ncclUnhandledCudaError) {
+    // nccl usually preserves the last error so we can get more details.
+    auto err = cudaPeekAtLastError();
+    ss << "  CUDA error: " << thrust::system_error(err, thrust::cuda_category()).what() << "\n";
+  } else if (code == ncclSystemError) {
+    ss << "  This might be caused by a network configuration issue. Please consider specifying "
+          "the network interface for NCCL via environment variables listed in its reference: "
+          "`https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html`.\n";
+  }
+  return Fail(ss.str());
+}
+
 NcclStub::NcclStub(StringView path) : path_{std::move(path)} {
 #if defined(XGBOOST_USE_DLOPEN_NCCL)
   CHECK(!path_.empty()) << "Empty path for NCCL.";

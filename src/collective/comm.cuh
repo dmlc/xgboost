@@ -52,25 +52,6 @@ class NCCLComm : public Comm {
   }
 };
 
-inline Result GetNCCLResult(std::shared_ptr<NcclStub> stub, ncclResult_t code) {
-  if (code == ncclSuccess) {
-    return Success();
-  }
-
-  std::stringstream ss;
-  ss << "NCCL failure: " << stub->GetErrorString(code) << ".";
-  if (code == ncclUnhandledCudaError) {
-    // nccl usually preserves the last error so we can get more details.
-    auto err = cudaPeekAtLastError();
-    ss << "  CUDA error: " << thrust::system_error(err, thrust::cuda_category()).what() << "\n";
-  } else if (code == ncclSystemError) {
-    ss << "  This might be caused by a network configuration issue. Please consider specifying "
-          "the network interface for NCCL via environment variables listed in its reference: "
-          "`https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html`.\n";
-  }
-  return Fail(ss.str());
-}
-
 class NCCLChannel : public Channel {
   std::int32_t rank_{-1};
   ncclComm_t nccl_comm_{};
@@ -86,13 +67,11 @@ class NCCLChannel : public Channel {
         Channel{comm, nullptr},
         stream_{stream} {}
 
-  void SendAll(std::int8_t const* ptr, std::size_t n) override {
-    auto rc = GetNCCLResult(stub_, stub_->Send(ptr, n, ncclInt8, rank_, nccl_comm_, stream_));
-    CHECK(rc.OK()) << rc.Report();
+  [[nodiscard]] Result SendAll(std::int8_t const* ptr, std::size_t n) override {
+    return stub_->Send(ptr, n, ncclInt8, rank_, nccl_comm_, stream_);
   }
-  void RecvAll(std::int8_t* ptr, std::size_t n) override {
-    auto rc = GetNCCLResult(stub_, stub_->Recv(ptr, n, ncclInt8, rank_, nccl_comm_, stream_));
-    CHECK(rc.OK()) << rc.Report();
+  [[nodiscard]] Result RecvAll(std::int8_t* ptr, std::size_t n) override {
+    return stub_->Recv(ptr, n, ncclInt8, rank_, nccl_comm_, stream_);
   }
   [[nodiscard]] Result Block() override {
     auto rc = stream_.Sync(false);

@@ -36,10 +36,6 @@
 #include "xgboost/logging.h"
 #include "xgboost/span.h"
 
-#ifdef XGBOOST_USE_NCCL
-#include "nccl.h"
-#endif  // XGBOOST_USE_NCCL
-
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 #include "rmm/mr/device/per_device_resource.hpp"
 #include "rmm/mr/device/thrust_allocator_adaptor.hpp"
