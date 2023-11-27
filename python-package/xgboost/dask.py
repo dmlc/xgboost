@@ -78,7 +78,6 @@ from .data import _is_cudf_ser, _is_cupy_array
 from .sklearn import (
     XGBClassifier,
     XGBClassifierBase,
-    XGBClassifierMixIn,
     XGBModel,
     XGBRanker,
     XGBRankerMixIn,
@@ -1854,7 +1853,7 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
     "Implementation of the scikit-learn API for XGBoost classification.",
     ["estimators", "model"],
 )
-class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierMixIn, XGBClassifierBase):
+class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
     # pylint: disable=missing-class-docstring
     async def _fit_async(
         self,
@@ -2035,10 +2034,6 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierMixIn, XGBClassifierBa
 
             preds = da.map_blocks(_argmax, pred_probs, drop_axis=1)
         return preds
-
-    def load_model(self, fname: ModelIn) -> None:
-        super().load_model(fname)
-        self._load_model_attributes(self.get_booster())
 
 
 @xgboost_model_doc(
