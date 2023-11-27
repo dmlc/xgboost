@@ -46,7 +46,7 @@
         <cudf.version>23.08.0</cudf.version>
         <spark.rapids.version>23.08.1</spark.rapids.version>
         <cudf.classifier>cuda11</cudf.classifier>
-        <scalatest.version>3.2.16</scalatest.version>
+        <scalatest.version>3.2.17</scalatest.version>
         <scala-collection-compat.version>2.11.0</scala-collection-compat.version>
       </properties>
     <repositories>
@@ -381,7 +381,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-checkstyle-plugin</artifactId>
-                <version>3.3.0</version>
+                <version>3.3.1</version>
                 <configuration>
                     <configLocation>checkstyle.xml</configLocation>
                     <failOnViolation>true</failOnViolation>
@@ -434,7 +434,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.1.2</version>
+                <version>3.2.2</version>
                 <configuration>
                     <skipTests>false</skipTests>
                     <useSystemClassLoader>false</useSystemClassLoader>
@@ -457,7 +457,7 @@
         <plugins>
             <plugin>
                 <artifactId>maven-project-info-reports-plugin</artifactId>
-                <version>3.4.5</version>
+                <version>3.5.0</version>
             </plugin>
             <plugin>
                 <groupId>net.alchim31.maven</groupId>
