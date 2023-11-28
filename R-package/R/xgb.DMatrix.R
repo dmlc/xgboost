@@ -5,7 +5,7 @@
 #' \code{\link{xgb.DMatrix.save}}).
 #'
 #' @param data a \code{matrix} object (either numeric or integer), a \code{dgCMatrix} object,
-#'        a \code{dgRMatrix} object (only when making predictions from a fitted model),
+#'        a \code{dgRMatrix} object,
 #'        a \code{dsparseVector} object (only when making predictions from a fitted model, will be
 #'        interpreted as a row vector), or a character string representing a filename.
 #' @param info a named list of additional information to store in the \code{xgb.DMatrix} object.
