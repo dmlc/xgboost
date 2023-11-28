@@ -82,11 +82,11 @@ XGB_DLL SEXP XGBGetGlobalConfig_R() {
 }
 
 XGB_DLL SEXP XGDMatrixCreateFromFile_R(SEXP fname, SEXP silent) {
-  SEXP ret;
+  SEXP ret = PROTECT(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
   R_API_BEGIN();
   DMatrixHandle handle;
   CHECK_CALL(XGDMatrixCreateFromFile(CHAR(asChar(fname)), asInteger(silent), &handle));
-  ret = PROTECT(R_MakeExternalPtr(handle, R_NilValue, R_NilValue));
+  R_SetExternalPtrAddr(ret, handle);
   R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
   R_API_END();
   UNPROTECT(1);
@@ -158,7 +158,7 @@ void CreateFromSparse(SEXP indptr, SEXP indices, SEXP data, std::string *indptr_
 
 XGB_DLL SEXP XGDMatrixCreateFromCSC_R(SEXP indptr, SEXP indices, SEXP data, SEXP num_row,
                                       SEXP missing, SEXP n_threads) {
-  SEXP ret;
+  SEXP ret = PROTECT(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
   R_API_BEGIN();
   std::int32_t threads = asInteger(n_threads);
 
@@ -180,8 +180,7 @@ XGB_DLL SEXP XGDMatrixCreateFromCSC_R(SEXP indptr, SEXP indices, SEXP data, SEXP
   CHECK_CALL(XGDMatrixCreateFromCSC(sindptr.c_str(), sindices.c_str(), sdata.c_str(), nrow,
                                     config.c_str(), &handle));
 
-  ret = PROTECT(R_MakeExternalPtr(handle, R_NilValue, R_NilValue));
-
+  R_SetExternalPtrAddr(ret, handle);
   R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
   R_API_END();
   UNPROTECT(1);
@@ -190,7 +189,7 @@ XGB_DLL SEXP XGDMatrixCreateFromCSC_R(SEXP indptr, SEXP indices, SEXP data, SEXP
 
 XGB_DLL SEXP XGDMatrixCreateFromCSR_R(SEXP indptr, SEXP indices, SEXP data, SEXP num_col,
                                       SEXP missing, SEXP n_threads) {
-  SEXP ret;
+  SEXP ret = PROTECT(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
   R_API_BEGIN();
   std::int32_t threads = asInteger(n_threads);
 
@@ -211,8 +210,7 @@ XGB_DLL SEXP XGDMatrixCreateFromCSR_R(SEXP indptr, SEXP indices, SEXP data, SEXP
   Json::Dump(jconfig, &config);
   CHECK_CALL(XGDMatrixCreateFromCSR(sindptr.c_str(), sindices.c_str(), sdata.c_str(), ncol,
                                     config.c_str(), &handle));
-  ret = PROTECT(R_MakeExternalPtr(handle, R_NilValue, R_NilValue));
-
+  R_SetExternalPtrAddr(ret, handle);
   R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
   R_API_END();
   UNPROTECT(1);
@@ -220,7 +218,7 @@ XGB_DLL SEXP XGDMatrixCreateFromCSR_R(SEXP indptr, SEXP indices, SEXP data, SEXP
 }
 
 XGB_DLL SEXP XGDMatrixSliceDMatrix_R(SEXP handle, SEXP idxset) {
-  SEXP ret;
+  SEXP ret = PROTECT(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
   R_API_BEGIN();
   int len = length(idxset);
   std::vector<int> idxvec(len);
@@ -232,7 +230,7 @@ XGB_DLL SEXP XGDMatrixSliceDMatrix_R(SEXP handle, SEXP idxset) {
                                      BeginPtr(idxvec), len,
                                      &res,
                                      0));
-  ret = PROTECT(R_MakeExternalPtr(res, R_NilValue, R_NilValue));
+  R_SetExternalPtrAddr(ret, res);
   R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
   R_API_END();
   UNPROTECT(1);
@@ -351,7 +349,7 @@ void _BoosterFinalizer(SEXP ext) {
 }
 
 XGB_DLL SEXP XGBoosterCreate_R(SEXP dmats) {
-  SEXP ret;
+  SEXP ret = PROTECT(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
   R_API_BEGIN();
   int len = length(dmats);
   std::vector<void*> dvec;
@@ -360,7 +358,7 @@ XGB_DLL SEXP XGBoosterCreate_R(SEXP dmats) {
   }
   BoosterHandle handle;
   CHECK_CALL(XGBoosterCreate(BeginPtr(dvec), dvec.size(), &handle));
-  ret = PROTECT(R_MakeExternalPtr(handle, R_NilValue, R_NilValue));
+  R_SetExternalPtrAddr(ret, handle);
   R_RegisterCFinalizerEx(ret, _BoosterFinalizer, TRUE);
   R_API_END();
   UNPROTECT(1);
