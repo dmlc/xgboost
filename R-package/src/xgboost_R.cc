@@ -8,18 +8,96 @@
 #include <xgboost/data.h>
 #include <xgboost/logging.h>
 
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
+#ifdef __cpp_lib_endian
+# include <bit>
+#endif
 
 #include "../../src/c_api/c_api_error.h"
 #include "../../src/c_api/c_api_utils.h"  // MakeSparseFromPtr
 #include "../../src/common/threading_utils.h"
 
 #include "./xgboost_R.h"  // Must follow other includes.
+
+static bool get_is_little_endian()
+{
+#ifdef __cpp_lib_endian
+  return std::endian::native == std::endian::little;
+#else
+  const int one = 1;
+  return *((unsigned char*)&one) != 0;
+#endif
+}
+
+const bool is_little_endian = get_is_little_endian();
+
+#define ARR_MAX_JSON_LENGTH 256
+
+const void* get_R_pointer(SEXP &R_arr)
+{
+  const SEXPTYPE arr_type = TYPEOF(R_arr);
+  switch (arr_type) {
+    case REALSXP: return static_cast<const void*>(REAL(R_arr));
+    case INTSXP: return static_cast<const void*>(INTEGER(R_arr));
+    case LGLSXP: return static_cast<const void*>(LOGICAL(R_arr));
+    default: throw std::runtime_error("Error: array or matrix has unsupported type.");
+  }
+}
+
+static void make_numpy_array_interface_from_R_mat(char *out_json, SEXP &R_mat)
+{
+  SEXP mat_dims = Rf_getAttrib(R_mat, R_DimSymbol);
+  const int *ptr_mat_dims = INTEGER(mat_dims);
+  const bool is_double = TYPEOF(R_mat) == REALSXP;
+  const void *ptr_mat_data = get_R_pointer(R_mat);
+  std::uintptr_t ptr_as_number = reinterpret_cast<std::uintptr_t>(ptr_mat_data);
+  const auto size_of_type = is_double? sizeof(double) : sizeof(int);
+  const std::uint64_t stride = static_cast<uint64_t>(ptr_mat_dims[0]) * size_of_type;
+  std::snprintf(
+    out_json,
+    ARR_MAX_JSON_LENGTH,
+    "{\"data\": [%" PRIuPTR ", true], \"shape\": [%d,%d], \"strides\": [%d,%" PRIu64 "], \"typestr\": \"%s%s%d\", \"version\":3}",
+    ptr_as_number, ptr_mat_dims[0], ptr_mat_dims[1],
+    static_cast<int>(size_of_type), stride,
+    is_little_endian? "<" : ">", is_double? "f" : "i", static_cast<int>(size_of_type)
+  );
+}
+
+static void make_json_config_for_array(char *out_json, SEXP missing, SEXP n_threads, SEXPTYPE arr_type)
+{
+  char missing_str[128];
+  const SEXPTYPE missing_type = TYPEOF(missing);
+  if (Rf_isNull(missing) ||
+      (missing_type == REALSXP && ISNAN(Rf_asReal(missing))) ||
+      (missing_type == LGLSXP && Rf_asLogical(missing) == R_NaInt) ||
+      (missing_type == INTSXP && Rf_asInteger(missing) == R_NaInt)) {
+    if (arr_type == REALSXP) {
+      std::strncpy(missing_str, "NaN", 128);
+    } else {
+      std::snprintf(missing_str, 128, "%d", R_NaInt);
+    }
+  } else {
+    const double missing_as_double = Rf_asReal(missing);
+    if (std::isinf(missing_as_double)) {
+      std::snprintf(missing_str, 128, "%sInfinity", (missing_as_double < 0)? "-" : "");
+    } else {
+      std::snprintf(missing_str, 128, "%f", Rf_asReal(missing));
+    }
+  }
+
+  std::snprintf(
+    out_json,
+    ARR_MAX_JSON_LENGTH,
+    "{\"missing\": %s, \"nthread\": %d}",
+    missing_str, Rf_asInteger(n_threads)
+  );
+}
 
 /*!
  * \brief macro to annotate begin of api
@@ -94,47 +172,16 @@ XGB_DLL SEXP XGDMatrixCreateFromFile_R(SEXP fname, SEXP silent) {
 }
 
 XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat, SEXP missing, SEXP n_threads) {
-  SEXP ret;
+  SEXP ret = PROTECT(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
   R_API_BEGIN();
-  SEXP dim = getAttrib(mat, R_DimSymbol);
-  size_t nrow = static_cast<size_t>(INTEGER(dim)[0]);
-  size_t ncol = static_cast<size_t>(INTEGER(dim)[1]);
-  const bool is_int = TYPEOF(mat) == INTSXP;
-  double *din;
-  int *iin;
-  if (is_int) {
-    iin = INTEGER(mat);
-  } else {
-    din = REAL(mat);
-  }
-  std::vector<float> data(nrow * ncol);
-  xgboost::Context ctx;
-  ctx.nthread = asInteger(n_threads);
-  std::int32_t threads = ctx.Threads();
-
-  if (is_int) {
-    xgboost::common::ParallelFor(nrow, threads, [&](xgboost::omp_ulong i) {
-      for (size_t j = 0; j < ncol; ++j) {
-        auto v = iin[i + nrow * j];
-        if (v == NA_INTEGER) {
-          data[i * ncol + j] = std::numeric_limits<float>::quiet_NaN();
-        } else {
-          data[i * ncol + j] = static_cast<float>(v);
-        }
-      }
-    });
-  } else {
-    xgboost::common::ParallelFor(nrow, threads, [&](xgboost::omp_ulong i) {
-      for (size_t j = 0; j < ncol; ++j) {
-        data[i * ncol + j] = din[i + nrow * j];
-      }
-    });
-  }
+  char json_mat_info[ARR_MAX_JSON_LENGTH];
+  make_numpy_array_interface_from_R_mat(json_mat_info, mat);
+  char json_config_info[ARR_MAX_JSON_LENGTH];
+  make_json_config_for_array(json_config_info, missing, n_threads, TYPEOF(mat));
 
   DMatrixHandle handle;
-  CHECK_CALL(XGDMatrixCreateFromMat_omp(BeginPtr(data), nrow, ncol,
-                                        asReal(missing), &handle, threads));
-  ret = PROTECT(R_MakeExternalPtr(handle, R_NilValue, R_NilValue));
+  CHECK_CALL(XGDMatrixCreateFromDense(json_mat_info, json_config_info, &handle));
+  R_SetExternalPtrAddr(ret, handle);
   R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
   R_API_END();
   UNPROTECT(1);
