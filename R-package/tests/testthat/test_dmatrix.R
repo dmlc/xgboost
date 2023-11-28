@@ -267,7 +267,7 @@ test_that("xgb.DMatrix: print", {
 })
 
 test_that("xgb.DMatrix: Inf as missing", {
-  x_inf <- matrix(as.numeric(1:10), nrow=5)
+  x_inf <- matrix(as.numeric(1:10), nrow = 5)
   x_inf[2, 1] <- Inf
 
   x_nan <- x_inf

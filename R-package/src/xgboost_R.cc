@@ -25,8 +25,7 @@
 
 #include "./xgboost_R.h"  // Must follow other includes.
 
-static bool get_is_little_endian()
-{
+static bool get_is_little_endian() {
 #ifdef __cpp_lib_endian
   return std::endian::native == std::endian::little;
 #else
@@ -39,8 +38,7 @@ const bool is_little_endian = get_is_little_endian();
 
 #define ARR_MAX_JSON_LENGTH 256
 
-const void* get_R_pointer(SEXP &R_arr)
-{
+const void* get_R_pointer(SEXP R_arr) {
   const SEXPTYPE arr_type = TYPEOF(R_arr);
   switch (arr_type) {
     case REALSXP: return static_cast<const void*>(REAL(R_arr));
@@ -50,8 +48,7 @@ const void* get_R_pointer(SEXP &R_arr)
   }
 }
 
-static void make_numpy_array_interface_from_R_mat(char *out_json, SEXP &R_mat)
-{
+static void make_numpy_array_interface_from_R_mat(char *out_json, SEXP R_mat) {
   SEXP mat_dims = Rf_getAttrib(R_mat, R_DimSymbol);
   const int *ptr_mat_dims = INTEGER(mat_dims);
   const bool is_double = TYPEOF(R_mat) == REALSXP;
@@ -62,15 +59,16 @@ static void make_numpy_array_interface_from_R_mat(char *out_json, SEXP &R_mat)
   std::snprintf(
     out_json,
     ARR_MAX_JSON_LENGTH,
-    "{\"data\": [%" PRIuPTR ", true], \"shape\": [%d,%d], \"strides\": [%d,%" PRIu64 "], \"typestr\": \"%s%s%d\", \"version\":3}",
+    "{\"data\": [%" PRIuPTR ", true], \"shape\": [%d,%d], \"strides\": [%d,%" PRIu64
+    "], \"typestr\": \"%s%s%d\", \"version\":3}",
     ptr_as_number, ptr_mat_dims[0], ptr_mat_dims[1],
     static_cast<int>(size_of_type), stride,
-    is_little_endian? "<" : ">", is_double? "f" : "i", static_cast<int>(size_of_type)
-  );
+    is_little_endian? "<" : ">", is_double? "f" : "i", static_cast<int>(size_of_type));
 }
 
-static void make_json_config_for_array(char *out_json, SEXP missing, SEXP n_threads, SEXPTYPE arr_type)
-{
+static void make_json_config_for_array(
+  char *out_json, SEXP missing, SEXP n_threads, SEXPTYPE arr_type
+) {
   char missing_str[128];
   const SEXPTYPE missing_type = TYPEOF(missing);
   if (Rf_isNull(missing) ||
@@ -80,14 +78,15 @@ static void make_json_config_for_array(char *out_json, SEXP missing, SEXP n_thre
     if (arr_type == REALSXP) {
       std::strncpy(missing_str, "NaN", 128);
     } else {
-      std::snprintf(missing_str, 128, "%d", R_NaInt);
+      std::snprintf(missing_str, sizeof(missing_str), "%d", R_NaInt);
     }
   } else {
     const double missing_as_double = Rf_asReal(missing);
     if (std::isinf(missing_as_double)) {
-      std::snprintf(missing_str, 128, "%sInfinity", (missing_as_double < 0)? "-" : "");
+      std::snprintf(
+        missing_str, sizeof(missing_str), "%sInfinity", (missing_as_double < 0)? "-" : "");
     } else {
-      std::snprintf(missing_str, 128, "%f", Rf_asReal(missing));
+      std::snprintf(missing_str, sizeof(missing_str), "%f", Rf_asReal(missing));
     }
   }
 
@@ -95,8 +94,7 @@ static void make_json_config_for_array(char *out_json, SEXP missing, SEXP n_thre
     out_json,
     ARR_MAX_JSON_LENGTH,
     "{\"missing\": %s, \"nthread\": %d}",
-    missing_str, Rf_asInteger(n_threads)
-  );
+    missing_str, Rf_asInteger(n_threads));
 }
 
 /*!
