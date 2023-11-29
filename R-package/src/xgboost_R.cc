@@ -74,14 +74,8 @@ namespace {
       jconfig["missing"] = R_NaInt;
     }
   } else {
-    const double missing_as_double = Rf_asReal(missing);
     // missing specified
-    if (std::isinf(missing_as_double)) {
-      jconfig["missing"] = (missing_as_double < 0) ? -std::numeric_limits<float>::infinity()
-                                                   : std::numeric_limits<float>::infinity();
-    } else {
-      jconfig["missing"] = Rf_asReal(missing);
-    }
+    jconfig["missing"] = Rf_asReal(missing);
   }
 
   jconfig["nthread"] = Rf_asInteger(n_threads);
