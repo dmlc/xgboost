@@ -15,9 +15,6 @@
 #include <string>
 #include <utility>
 #include <vector>
-#ifdef __cpp_lib_endian
-# include <bit>
-#endif
 
 #include "../../src/c_api/c_api_error.h"
 #include "../../src/c_api/c_api_utils.h"  // MakeSparseFromPtr
@@ -42,8 +39,7 @@ namespace {
         linalg::Order::kF  // R uses column-major
     };
     CHECK(m.FContiguous());
-    auto array_str = linalg::ArrayInterfaceStr(m);
-    return array_str;
+    return linalg::ArrayInterfaceStr(m);
   };
 
   const SEXPTYPE arr_type = TYPEOF(R_mat);
