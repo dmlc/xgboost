@@ -33,7 +33,8 @@ namespace {
     using T = std::remove_pointer_t<decltype(ptr)>;
 
     auto m = linalg::MatrixView<T>{
-        common::Span{ptr, static_cast<std::size_t>(ptr_mat_dims[0] * ptr_mat_dims[1])},
+        common::Span{ptr,
+          static_cast<std::size_t>(ptr_mat_dims[0]) * static_cast<std::size_t>(ptr_mat_dims[1])},
         {ptr_mat_dims[0], ptr_mat_dims[1]},  // Shape
         DeviceOrd::CPU(),
         linalg::Order::kF  // R uses column-major
