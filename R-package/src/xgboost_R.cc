@@ -8,6 +8,7 @@
 #include <xgboost/data.h>
 #include <xgboost/logging.h>
 
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <sstream>
@@ -20,6 +21,67 @@
 #include "../../src/common/threading_utils.h"
 
 #include "./xgboost_R.h"  // Must follow other includes.
+
+namespace {
+[[nodiscard]] std::string MakeArrayInterfaceFromRMat(SEXP R_mat) {
+  SEXP mat_dims = Rf_getAttrib(R_mat, R_DimSymbol);
+  const int *ptr_mat_dims = INTEGER(mat_dims);
+
+  // Lambda for type dispatch.
+  auto make_matrix = [=](auto const *ptr) {
+    using namespace xgboost;  // NOLINT
+    using T = std::remove_pointer_t<decltype(ptr)>;
+
+    auto m = linalg::MatrixView<T>{
+        common::Span{ptr,
+          static_cast<std::size_t>(ptr_mat_dims[0]) * static_cast<std::size_t>(ptr_mat_dims[1])},
+        {ptr_mat_dims[0], ptr_mat_dims[1]},  // Shape
+        DeviceOrd::CPU(),
+        linalg::Order::kF  // R uses column-major
+    };
+    CHECK(m.FContiguous());
+    return linalg::ArrayInterfaceStr(m);
+  };
+
+  const SEXPTYPE arr_type = TYPEOF(R_mat);
+  switch (arr_type) {
+    case REALSXP:
+      return make_matrix(REAL(R_mat));
+    case INTSXP:
+      return make_matrix(INTEGER(R_mat));
+    case LGLSXP:
+      return make_matrix(LOGICAL(R_mat));
+    default:
+      LOG(FATAL) << "Array or matrix has unsupported type.";
+  }
+
+  LOG(FATAL) << "Not reachable";
+  return "";
+}
+
+[[nodiscard]] std::string MakeJsonConfigForArray(SEXP missing, SEXP n_threads, SEXPTYPE arr_type) {
+  using namespace ::xgboost;  // NOLINT
+  Json jconfig{Object{}};
+
+  const SEXPTYPE missing_type = TYPEOF(missing);
+  if (Rf_isNull(missing) || (missing_type == REALSXP && ISNAN(Rf_asReal(missing))) ||
+      (missing_type == LGLSXP && Rf_asLogical(missing) == R_NaInt) ||
+      (missing_type == INTSXP && Rf_asInteger(missing) == R_NaInt)) {
+    // missing is not specified
+    if (arr_type == REALSXP) {
+      jconfig["missing"] = std::numeric_limits<double>::quiet_NaN();
+    } else {
+      jconfig["missing"] = R_NaInt;
+    }
+  } else {
+    // missing specified
+    jconfig["missing"] = Rf_asReal(missing);
+  }
+
+  jconfig["nthread"] = Rf_asInteger(n_threads);
+  return Json::Dump(jconfig);
+}
+}  // namespace
 
 /*!
  * \brief macro to annotate begin of api
@@ -94,47 +156,16 @@ XGB_DLL SEXP XGDMatrixCreateFromFile_R(SEXP fname, SEXP silent) {
 }
 
 XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat, SEXP missing, SEXP n_threads) {
-  SEXP ret;
+  SEXP ret = PROTECT(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
   R_API_BEGIN();
-  SEXP dim = getAttrib(mat, R_DimSymbol);
-  size_t nrow = static_cast<size_t>(INTEGER(dim)[0]);
-  size_t ncol = static_cast<size_t>(INTEGER(dim)[1]);
-  const bool is_int = TYPEOF(mat) == INTSXP;
-  double *din;
-  int *iin;
-  if (is_int) {
-    iin = INTEGER(mat);
-  } else {
-    din = REAL(mat);
-  }
-  std::vector<float> data(nrow * ncol);
-  xgboost::Context ctx;
-  ctx.nthread = asInteger(n_threads);
-  std::int32_t threads = ctx.Threads();
 
-  if (is_int) {
-    xgboost::common::ParallelFor(nrow, threads, [&](xgboost::omp_ulong i) {
-      for (size_t j = 0; j < ncol; ++j) {
-        auto v = iin[i + nrow * j];
-        if (v == NA_INTEGER) {
-          data[i * ncol + j] = std::numeric_limits<float>::quiet_NaN();
-        } else {
-          data[i * ncol + j] = static_cast<float>(v);
-        }
-      }
-    });
-  } else {
-    xgboost::common::ParallelFor(nrow, threads, [&](xgboost::omp_ulong i) {
-      for (size_t j = 0; j < ncol; ++j) {
-        data[i * ncol + j] = din[i + nrow * j];
-      }
-    });
-  }
+  auto array_str = MakeArrayInterfaceFromRMat(mat);
+  auto config_str = MakeJsonConfigForArray(missing, n_threads, TYPEOF(mat));
 
   DMatrixHandle handle;
-  CHECK_CALL(XGDMatrixCreateFromMat_omp(BeginPtr(data), nrow, ncol,
-                                        asReal(missing), &handle, threads));
-  ret = PROTECT(R_MakeExternalPtr(handle, R_NilValue, R_NilValue));
+  CHECK_CALL(XGDMatrixCreateFromDense(array_str.c_str(), config_str.c_str(), &handle));
+
+  R_SetExternalPtrAddr(ret, handle);
   R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
   R_API_END();
   UNPROTECT(1);
