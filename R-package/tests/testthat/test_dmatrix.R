@@ -265,3 +265,35 @@ test_that("xgb.DMatrix: print", {
     })
     expect_equal(txt, "xgb.DMatrix  dim: 6513 x 126  info: NA  colnames: no")
 })
+
+test_that("xgb.DMatrix: Inf as missing", {
+  x_inf <- matrix(as.numeric(1:10), nrow = 5)
+  x_inf[2, 1] <- Inf
+
+  x_nan <- x_inf
+  x_nan[2, 1] <- NA_real_
+
+  m_inf <- xgb.DMatrix(x_inf, nthread = n_threads, missing = Inf)
+  xgb.DMatrix.save(m_inf, "inf.dmatrix")
+
+  m_nan <- xgb.DMatrix(x_nan, nthread = n_threads, missing = NA_real_)
+  xgb.DMatrix.save(m_nan, "nan.dmatrix")
+
+  infconn <- file("inf.dmatrix", "rb")
+  nanconn <- file("nan.dmatrix", "rb")
+
+  expect_equal(file.size("inf.dmatrix"), file.size("nan.dmatrix"))
+
+  bytes <- file.size("inf.dmatrix")
+  infdmatrix <- readBin(infconn, "raw", n = bytes)
+  nandmatrix <- readBin(nanconn, "raw", n = bytes)
+
+  expect_equal(length(infdmatrix), length(nandmatrix))
+  expect_equal(infdmatrix, nandmatrix)
+
+  close(infconn)
+  close(nanconn)
+
+  file.remove("inf.dmatrix")
+  file.remove("nan.dmatrix")
+})
