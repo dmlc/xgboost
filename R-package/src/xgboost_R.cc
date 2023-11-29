@@ -52,7 +52,7 @@ namespace {
       return make_matrix(LOGICAL(R_mat));
     default:
       LOG(FATAL) << "Array or matrix has unsupported type.";
-  };
+  }
 
   LOG(FATAL) << "Not reachable";
   return "";
