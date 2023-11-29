@@ -947,38 +947,24 @@ DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread, const st
   return new data::SimpleDMatrix(adapter, missing, nthread, data_split_mode);
 }
 
-template DMatrix* DMatrix::Create<data::DenseAdapter>(data::DenseAdapter* adapter, float missing,
-                                                      std::int32_t nthread,
-                                                      const std::string& cache_prefix,
-                                                      DataSplitMode data_split_mode);
-template DMatrix* DMatrix::Create<data::ArrayAdapter>(data::ArrayAdapter* adapter, float missing,
-                                                      std::int32_t nthread,
-                                                      const std::string& cache_prefix,
-                                                      DataSplitMode data_split_mode);
-template DMatrix* DMatrix::Create<data::CSRAdapter>(data::CSRAdapter* adapter, float missing,
-                                                    std::int32_t nthread,
-                                                    const std::string& cache_prefix,
-                                                    DataSplitMode data_split_mode);
-template DMatrix* DMatrix::Create<data::CSCAdapter>(data::CSCAdapter* adapter, float missing,
-                                                    std::int32_t nthread,
-                                                    const std::string& cache_prefix,
-                                                    DataSplitMode data_split_mode);
-template DMatrix* DMatrix::Create<data::DataTableAdapter>(data::DataTableAdapter* adapter,
-                                                          float missing, std::int32_t nthread,
-                                                          const std::string& cache_prefix,
-                                                          DataSplitMode data_split_mode);
-template DMatrix* DMatrix::Create<data::FileAdapter>(data::FileAdapter* adapter, float missing,
-                                                     std::int32_t nthread,
-                                                     const std::string& cache_prefix,
-                                                     DataSplitMode data_split_mode);
-template DMatrix* DMatrix::Create<data::CSRArrayAdapter>(data::CSRArrayAdapter* adapter,
-                                                         float missing, std::int32_t nthread,
-                                                         const std::string& cache_prefix,
-                                                         DataSplitMode data_split_mode);
-template DMatrix* DMatrix::Create<data::CSCArrayAdapter>(data::CSCArrayAdapter* adapter,
-                                                         float missing, std::int32_t nthread,
-                                                         const std::string& cache_prefix,
-                                                         DataSplitMode data_split_mode);
+// Instantiate the factory function for various adapters
+#define INSTANTIATION_CREATE(_AdapterT)                               \
+  template DMatrix* DMatrix::Create<data::_AdapterT>(                 \
+      data::_AdapterT * adapter, float missing, std::int32_t nthread, \
+      const std::string& cache_prefix, DataSplitMode data_split_mode);
+
+INSTANTIATION_CREATE(DenseAdapter)
+INSTANTIATION_CREATE(ArrayAdapter)
+INSTANTIATION_CREATE(CSRAdapter)
+INSTANTIATION_CREATE(CSCAdapter)
+INSTANTIATION_CREATE(DataTableAdapter)
+INSTANTIATION_CREATE(FileAdapter)
+INSTANTIATION_CREATE(CSRArrayAdapter)
+INSTANTIATION_CREATE(CSCArrayAdapter)
+INSTANTIATION_CREATE(ColumnarAdapter)
+
+#undef INSTANTIATION_CREATE
+
 template DMatrix* DMatrix::Create(
     data::IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>* adapter,
     float missing, int nthread, const std::string& cache_prefix, DataSplitMode data_split_mode);
@@ -1156,7 +1142,6 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
   builder.InitStorage();
 
   // Second pass over batch, placing elements in correct position
-
   auto is_valid = data::IsValidFunctor{missing};
 #pragma omp parallel num_threads(nthread)
   {
@@ -1253,9 +1238,10 @@ template uint64_t SparsePage::Push(const data::CSCAdapterBatch& batch, float mis
 template uint64_t SparsePage::Push(const data::DataTableAdapterBatch& batch, float missing,
                                    int nthread);
 template uint64_t SparsePage::Push(const data::FileAdapterBatch& batch, float missing, int nthread);
+template uint64_t SparsePage::Push(const data::ColumnarAdapterBatch& batch, float missing,
+                                   std::int32_t nthread);
 
 namespace data {
-
 // List of files that will be force linked in static links.
 DMLC_REGISTRY_LINK_TAG(sparse_page_raw_format);
 DMLC_REGISTRY_LINK_TAG(gradient_index_format);

@@ -97,6 +97,7 @@ void HostSketchContainer::PushAdapterBatch(Batch const &batch, size_t base_rowid
   // the nnz from info is not reliable as sketching might be the first place to go through
   // the data.
   auto is_dense = info.num_nonzero_ == info.num_col_ * info.num_row_;
+  CHECK(!this->columns_size_.empty());
   this->PushRowPageImpl(batch, base_rowid, weights, info.num_nonzero_, info.num_col_, is_dense,
                         is_valid);
 }
@@ -110,6 +111,7 @@ INSTANTIATE(CSRArrayAdapterBatch)
 INSTANTIATE(CSCAdapterBatch)
 INSTANTIATE(DataTableAdapterBatch)
 INSTANTIATE(SparsePageAdapterBatch)
+INSTANTIATE(ColumnarAdapterBatch)
 
 namespace {
 /**

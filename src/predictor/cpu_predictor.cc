@@ -761,6 +761,9 @@ class CPUPredictor : public Predictor {
     } else if (x.type() == typeid(std::shared_ptr<data::CSRArrayAdapter>)) {
       this->DispatchedInplacePredict<data::CSRArrayAdapter, 1>(x, p_m, model, missing, out_preds,
                                                                tree_begin, tree_end);
+    } else if (x.type() == typeid(std::shared_ptr<data::ColumnarAdapter>)) {
+      this->DispatchedInplacePredict<data::ColumnarAdapter, kBlockOfRowsSize>(
+          x, p_m, model, missing, out_preds, tree_begin, tree_end);
     } else {
       return false;
     }
