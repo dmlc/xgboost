@@ -87,9 +87,7 @@ namespace {
 
 void AddMissingToJson(xgboost::Json *jconfig, SEXP missing, SEXPTYPE arr_type) {
   const SEXPTYPE missing_type = TYPEOF(missing);
-  if (Rf_isNull(missing) || (missing_type == REALSXP && ISNAN(Rf_asReal(missing))) ||
-      (missing_type == LGLSXP && Rf_asLogical(missing) == R_NaInt) ||
-      (missing_type == INTSXP && Rf_asInteger(missing) == R_NaInt)) {
+  if (Rf_isNull(missing) || ISNAN(Rf_asReal(missing))) {
     // missing is not specified
     if (arr_type == REALSXP) {
       (*jconfig)["missing"] = std::numeric_limits<double>::quiet_NaN();
