@@ -30,6 +30,8 @@ extern SEXP XGBoosterLoadJsonConfig_R(SEXP handle, SEXP value);
 extern SEXP XGBoosterSerializeToBuffer_R(SEXP handle);
 extern SEXP XGBoosterUnserializeFromBuffer_R(SEXP handle, SEXP raw);
 extern SEXP XGBoosterPredictFromDMatrix_R(SEXP, SEXP, SEXP);
+extern SEXP XGBoosterPredictFromDense_R(SEXP, SEXP, SEXP, SEXP);
+extern SEXP XGBoosterPredictFromCSR_R(SEXP, SEXP, SEXP, SEXP);
 extern SEXP XGBoosterSaveModel_R(SEXP, SEXP);
 extern SEXP XGBoosterSetAttr_R(SEXP, SEXP, SEXP);
 extern SEXP XGBoosterSetParam_R(SEXP, SEXP, SEXP);
@@ -67,6 +69,8 @@ static const R_CallMethodDef CallEntries[] = {
   {"XGBoosterSerializeToBuffer_R",     (DL_FUNC) &XGBoosterSerializeToBuffer_R,     1},
   {"XGBoosterUnserializeFromBuffer_R", (DL_FUNC) &XGBoosterUnserializeFromBuffer_R, 2},
   {"XGBoosterPredictFromDMatrix_R", (DL_FUNC) &XGBoosterPredictFromDMatrix_R, 3},
+  {"XGBoosterPredictFromDense_R", (DL_FUNC) &XGBoosterPredictFromDense_R, 4},
+  {"XGBoosterPredictFromCSR_R",   (DL_FUNC) &XGBoosterPredictFromCSR_R,   4},
   {"XGBoosterSaveModel_R",        (DL_FUNC) &XGBoosterSaveModel_R,        2},
   {"XGBoosterSetAttr_R",          (DL_FUNC) &XGBoosterSetAttr_R,          3},
   {"XGBoosterSetParam_R",         (DL_FUNC) &XGBoosterSetParam_R,         3},

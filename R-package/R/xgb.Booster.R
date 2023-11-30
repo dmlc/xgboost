@@ -341,9 +341,22 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
                                 predleaf = FALSE, predcontrib = FALSE, approxcontrib = FALSE, predinteraction = FALSE,
                                 reshape = FALSE, training = FALSE, iterationrange = NULL, strict_shape = FALSE, ...) {
   object <- xgb.Booster.complete(object, saveraw = FALSE)
+  config <- jsonlite::fromJSON(xgb.config(object))
 
-  if (!inherits(newdata, "xgb.DMatrix")) {
-    config <- jsonlite::fromJSON(xgb.config(object))
+  use_as_dense_matrix <- FALSE
+  use_as_csr_matrix <- FALSE
+  inplace_predict_supported <- !predcontrib && !predinteraction && !predleaf && is.null(ntreelimit)
+  if (inplace_predict_supported) {
+    if (config$learner$learner_train_param$booster != "gbtree") {
+      inplace_predict_supported <- FALSE
+    }
+  }
+  if (inplace_predict_supported && is.matrix(newdata)) {
+    use_as_dense_matrix <- TRUE
+  } else if (inplace_predict_supported && inherits(newdata, "dgRMatrix")) {
+    use_as_csr_matrix <- TRUE
+    csr_data <- list(newdata@p, newdata@j, newdata@x, ncol(newdata))
+  } else if (!inherits(newdata, "xgb.DMatrix")) {
     nthread <- strtoi(config$learner$generic_param$nthread)
     newdata <- xgb.DMatrix(
       newdata,
@@ -414,9 +427,21 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     args$type <- set_type(6)
   }
 
-  predts <- .Call(
-    XGBoosterPredictFromDMatrix_R, object$handle, newdata, jsonlite::toJSON(args, auto_unbox = TRUE)
-  )
+  json_conf <- jsonlite::toJSON(args, auto_unbox = TRUE)
+  if (use_as_dense_matrix) {
+    predts <- .Call(
+      XGBoosterPredictFromDense_R, object$handle, newdata, missing, json_conf
+    )
+  } else if (use_as_csr_matrix) {
+    predts <- .Call(
+      XGBoosterPredictFromCSR_R, object$handle, csr_data, missing, json_conf
+    )
+  } else {
+    predts <- .Call(
+      XGBoosterPredictFromDMatrix_R, object$handle, newdata, json_conf
+    )
+  }
+
   names(predts) <- c("shape", "results")
   shape <- predts$shape
   ret <- predts$results

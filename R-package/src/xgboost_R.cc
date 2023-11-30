@@ -85,25 +85,27 @@ namespace {
   return "";
 }
 
-[[nodiscard]] std::string MakeJsonConfigForArray(SEXP missing, SEXP n_threads, SEXPTYPE arr_type) {
-  using namespace ::xgboost;  // NOLINT
-  Json jconfig{Object{}};
-
+void AddMissingToJson(xgboost::Json *jconfig, SEXP missing, SEXPTYPE arr_type) {
   const SEXPTYPE missing_type = TYPEOF(missing);
   if (Rf_isNull(missing) || (missing_type == REALSXP && ISNAN(Rf_asReal(missing))) ||
       (missing_type == LGLSXP && Rf_asLogical(missing) == R_NaInt) ||
       (missing_type == INTSXP && Rf_asInteger(missing) == R_NaInt)) {
     // missing is not specified
     if (arr_type == REALSXP) {
-      jconfig["missing"] = std::numeric_limits<double>::quiet_NaN();
+      (*jconfig)["missing"] = std::numeric_limits<double>::quiet_NaN();
     } else {
-      jconfig["missing"] = R_NaInt;
+      (*jconfig)["missing"] = R_NaInt;
     }
   } else {
     // missing specified
-    jconfig["missing"] = Rf_asReal(missing);
+    (*jconfig)["missing"] = Rf_asReal(missing);
   }
+}
 
+[[nodiscard]] std::string MakeJsonConfigForArray(SEXP missing, SEXP n_threads, SEXPTYPE arr_type) {
+  using namespace ::xgboost;  // NOLINT
+  Json jconfig{Object{}};
+  AddMissingToJson(&jconfig, missing, arr_type);
   jconfig["nthread"] = Rf_asInteger(n_threads);
   return Json::Dump(jconfig);
 }
@@ -234,7 +236,7 @@ XGB_DLL SEXP XGDMatrixCreateFromCSC_R(SEXP indptr, SEXP indices, SEXP data, SEXP
   Json jconfig{Object{}};
   // Construct configuration
   jconfig["nthread"] = Integer{threads};
-  jconfig["missing"] = xgboost::Number{asReal(missing)};
+  AddMissingToJson(&jconfig, missing, TYPEOF(data));
   std::string config;
   Json::Dump(jconfig, &config);
   CHECK_CALL(XGDMatrixCreateFromCSC(sindptr.c_str(), sindices.c_str(), sdata.c_str(), nrow,
@@ -265,7 +267,7 @@ XGB_DLL SEXP XGDMatrixCreateFromCSR_R(SEXP indptr, SEXP indices, SEXP data, SEXP
   Json jconfig{Object{}};
   // Construct configuration
   jconfig["nthread"] = Integer{threads};
-  jconfig["missing"] = xgboost::Number{asReal(missing)};
+  AddMissingToJson(&jconfig, missing, TYPEOF(data));
   std::string config;
   Json::Dump(jconfig, &config);
   CHECK_CALL(XGDMatrixCreateFromCSR(sindptr.c_str(), sindices.c_str(), sdata.c_str(), ncol,
@@ -498,7 +500,10 @@ XGB_DLL SEXP XGBoosterEvalOneIter_R(SEXP handle, SEXP iter, SEXP dmats, SEXP evn
   return mkString(ret);
 }
 
-XGB_DLL SEXP XGBoosterPredictFromDMatrix_R(SEXP handle, SEXP dmat, SEXP json_config)  {
+enum class PredictionInputType {DMatrix, DenseMatrix, CSRMatrix};
+
+static SEXP XGBoosterPredictGeneric(SEXP handle, SEXP input_data, SEXP json_config,
+                                    PredictionInputType input_type, SEXP missing) {
   SEXP r_out_shape;
   SEXP r_out_result;
   SEXP r_out;
@@ -509,9 +514,54 @@ XGB_DLL SEXP XGBoosterPredictFromDMatrix_R(SEXP handle, SEXP dmat, SEXP json_con
   bst_ulong out_dim;
   bst_ulong const *out_shape;
   float const *out_result;
-  CHECK_CALL(XGBoosterPredictFromDMatrix(R_ExternalPtrAddr(handle),
-                                         R_ExternalPtrAddr(dmat), c_json_config,
-                                         &out_shape, &out_dim, &out_result));
+
+  int res_code;
+  {
+    switch (input_type) {
+      case PredictionInputType::DMatrix: {
+        res_code = XGBoosterPredictFromDMatrix(R_ExternalPtrAddr(handle),
+                                               R_ExternalPtrAddr(input_data), c_json_config,
+                                               &out_shape, &out_dim, &out_result);
+        break;
+      }
+
+      case PredictionInputType::CSRMatrix: {
+        SEXP indptr = VECTOR_ELT(input_data, 0);
+        SEXP indices = VECTOR_ELT(input_data, 1);
+        SEXP data = VECTOR_ELT(input_data, 2);
+        const int ncol_csr = Rf_asInteger(VECTOR_ELT(input_data, 3));
+        const SEXPTYPE type_data = TYPEOF(data);
+        CHECK_EQ(type_data, REALSXP);
+        std::string sindptr, sindices, sdata;
+        CreateFromSparse(indptr, indices, data, &sindptr, &sindices, &sdata);
+
+        xgboost::StringView json_str(c_json_config);
+        xgboost::Json new_json = xgboost::Json::Load(json_str);
+        AddMissingToJson(&new_json, missing, type_data);
+        const std::string new_c_json = xgboost::Json::Dump(new_json);
+
+        res_code = XGBoosterPredictFromCSR(
+          R_ExternalPtrAddr(handle), sindptr.c_str(), sindices.c_str(), sdata.c_str(),
+          ncol_csr, new_c_json.c_str(), nullptr, &out_shape, &out_dim, &out_result);
+        break;
+      }
+
+      case PredictionInputType::DenseMatrix: {
+        const std::string array_str = MakeArrayInterfaceFromRMat(input_data);
+
+        xgboost::StringView json_str(c_json_config);
+        xgboost::Json new_json = xgboost::Json::Load(json_str);
+        AddMissingToJson(&new_json, missing, TYPEOF(input_data));
+        const std::string new_c_json = xgboost::Json::Dump(new_json);
+
+        res_code = XGBoosterPredictFromDense(
+          R_ExternalPtrAddr(handle), array_str.c_str(), new_c_json.c_str(),
+          nullptr, &out_shape, &out_dim, &out_result);
+        break;
+      }
+    }
+  }
+  CHECK_CALL(res_code);
 
   r_out_shape = PROTECT(allocVector(INTSXP, out_dim));
   size_t len = 1;
@@ -534,6 +584,21 @@ XGB_DLL SEXP XGBoosterPredictFromDMatrix_R(SEXP handle, SEXP dmat, SEXP json_con
   UNPROTECT(3);
 
   return r_out;
+}
+
+XGB_DLL SEXP XGBoosterPredictFromDMatrix_R(SEXP handle, SEXP dmat, SEXP json_config)  {
+  return XGBoosterPredictGeneric(handle, dmat, json_config,
+                                 PredictionInputType::DMatrix, R_NilValue);
+}
+
+XGB_DLL SEXP XGBoosterPredictFromDense_R(SEXP handle, SEXP R_mat, SEXP missing, SEXP json_config) {
+  return XGBoosterPredictGeneric(handle, R_mat, json_config,
+                                 PredictionInputType::DenseMatrix, missing);
+}
+
+XGB_DLL SEXP XGBoosterPredictFromCSR_R(SEXP handle, SEXP lst, SEXP missing, SEXP json_config) {
+  return XGBoosterPredictGeneric(handle, lst, json_config,
+                                 PredictionInputType::CSRMatrix, missing);
 }
 
 XGB_DLL SEXP XGBoosterLoadModel_R(SEXP handle, SEXP fname) {
