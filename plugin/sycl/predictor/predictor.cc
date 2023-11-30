@@ -233,7 +233,7 @@ class Predictor : public xgboost::Predictor {
  protected:
   void InitOutPredictions(const MetaInfo& info,
                           HostDeviceVector<bst_float>* out_preds,
-                          const gbm::GBTreeModel& model) const {
+                          const gbm::GBTreeModel& model) const override {
     CHECK_NE(model.learner_model_param->num_output_group, 0);
     size_t n = model.learner_model_param->num_output_group * info.num_row_;
     const auto& base_margin = info.base_margin_.Data()->HostVector();
