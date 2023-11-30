@@ -294,7 +294,8 @@ TEST(GPUPredictor, CategoricalPredictLeaf) {
 }
 
 TEST_F(MGPUPredictorTest, CategoricalPredictionLeafColumnSplit) {
-  RunWithInMemoryCommunicator(world_size_, TestCategoricalPredictLeaf, true, true);
+  auto ctx = MakeCUDACtx(common::AllVisibleGPUs() == 1 ? 0 : collective::GetRank());
+  RunWithInMemoryCommunicator(world_size_, TestCategoricalPredictLeaf, &ctx, true);
 }
 
 TEST(GPUPredictor, PredictLeafBasic) {
