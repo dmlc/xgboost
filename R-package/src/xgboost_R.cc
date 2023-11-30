@@ -26,25 +26,25 @@ namespace {
 
 struct ErrorWithUnwind : public std::exception {};
 
-void throw_exception_from_R_error(void *unused, Rboolean jump) {
+void ThrowExceptionFromRError(void *unused, Rboolean jump) {
   if (jump) {
     throw ErrorWithUnwind();
   }
 }
 
-struct ptr_to_const_char {
+struct PtrToConstChar {
   const char *ptr;
 };
 
 SEXP WrappedMkChar(void *void_ptr) {
-  return Rf_mkChar(static_cast<ptr_to_const_char*>(void_ptr)->ptr);
+  return Rf_mkChar(static_cast<PtrToConstChar*>(void_ptr)->ptr);
 }
 
 SEXP SafeMkChar(const char *c_str, SEXP continuation_token) {
-  ptr_to_const_char ptr_struct{c_str};
+  PtrToConstChar ptr_struct{c_str};
   return R_UnwindProtect(
     WrappedMkChar, static_cast<void*>(&ptr_struct),
-    throw_exception_from_R_error, nullptr,
+    ThrowExceptionFromRError, nullptr,
     continuation_token);
 }
 
@@ -217,24 +217,27 @@ XGB_DLL SEXP XGDMatrixCreateFromCSC_R(SEXP indptr, SEXP indices, SEXP data, SEXP
   SEXP ret = PROTECT(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
   R_API_BEGIN();
   std::int32_t threads = asInteger(n_threads);
-
-  using xgboost::Integer;
-  using xgboost::Json;
-  using xgboost::Object;
-
-  std::string sindptr, sindices, sdata;
-  CreateFromSparse(indptr, indices, data, &sindptr, &sindices, &sdata);
-  auto nrow = static_cast<std::size_t>(INTEGER(num_row)[0]);
-
   DMatrixHandle handle;
-  Json jconfig{Object{}};
-  // Construct configuration
-  jconfig["nthread"] = Integer{threads};
-  jconfig["missing"] = xgboost::Number{asReal(missing)};
-  std::string config;
-  Json::Dump(jconfig, &config);
-  CHECK_CALL(XGDMatrixCreateFromCSC(sindptr.c_str(), sindices.c_str(), sdata.c_str(), nrow,
-                                    config.c_str(), &handle));
+
+  int res_code;
+  {
+    using xgboost::Integer;
+    using xgboost::Json;
+    using xgboost::Object;
+    std::string sindptr, sindices, sdata;
+    CreateFromSparse(indptr, indices, data, &sindptr, &sindices, &sdata);
+    auto nrow = static_cast<std::size_t>(INTEGER(num_row)[0]);
+
+    Json jconfig{Object{}};
+    // Construct configuration
+    jconfig["nthread"] = Integer{threads};
+    jconfig["missing"] = xgboost::Number{asReal(missing)};
+    std::string config;
+    Json::Dump(jconfig, &config);
+    res_code = XGDMatrixCreateFromCSC(sindptr.c_str(), sindices.c_str(), sdata.c_str(), nrow,
+                                      config.c_str(), &handle);
+  }
+  CHECK_CALL(res_code);
 
   R_SetExternalPtrAddr(ret, handle);
   R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
@@ -248,24 +251,27 @@ XGB_DLL SEXP XGDMatrixCreateFromCSR_R(SEXP indptr, SEXP indices, SEXP data, SEXP
   SEXP ret = PROTECT(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
   R_API_BEGIN();
   std::int32_t threads = asInteger(n_threads);
-
-  using xgboost::Integer;
-  using xgboost::Json;
-  using xgboost::Object;
-
-  std::string sindptr, sindices, sdata;
-  CreateFromSparse(indptr, indices, data, &sindptr, &sindices, &sdata);
-  auto ncol = static_cast<std::size_t>(INTEGER(num_col)[0]);
-
   DMatrixHandle handle;
-  Json jconfig{Object{}};
-  // Construct configuration
-  jconfig["nthread"] = Integer{threads};
-  jconfig["missing"] = xgboost::Number{asReal(missing)};
-  std::string config;
-  Json::Dump(jconfig, &config);
-  CHECK_CALL(XGDMatrixCreateFromCSR(sindptr.c_str(), sindices.c_str(), sdata.c_str(), ncol,
-                                    config.c_str(), &handle));
+
+  int res_code;
+  {
+    using xgboost::Integer;
+    using xgboost::Json;
+    using xgboost::Object;
+
+    std::string sindptr, sindices, sdata;
+    CreateFromSparse(indptr, indices, data, &sindptr, &sindices, &sdata);
+    auto ncol = static_cast<std::size_t>(INTEGER(num_col)[0]);
+
+    Json jconfig{Object{}};
+    // Construct configuration
+    jconfig["nthread"] = Integer{threads};
+    jconfig["missing"] = xgboost::Number{asReal(missing)};
+    std::string config;
+    Json::Dump(jconfig, &config);
+    res_code = XGDMatrixCreateFromCSR(sindptr.c_str(), sindices.c_str(), sdata.c_str(), ncol,
+                                      config.c_str(), &handle);
+  }
   R_SetExternalPtrAddr(ret, handle);
   R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
   R_API_END();
@@ -277,16 +283,21 @@ XGB_DLL SEXP XGDMatrixSliceDMatrix_R(SEXP handle, SEXP idxset) {
   SEXP ret = PROTECT(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
   R_API_BEGIN();
   R_xlen_t len = Rf_xlength(idxset);
-  std::vector<int> idxvec(len);
   const int *idxset_ = INTEGER(idxset);
-  for (R_xlen_t i = 0; i < len; ++i) {
-    idxvec[i] = idxset_[i] - 1;
-  }
   DMatrixHandle res;
-  CHECK_CALL(XGDMatrixSliceDMatrixEx(R_ExternalPtrAddr(handle),
-                                     BeginPtr(idxvec), len,
-                                     &res,
-                                     0));
+  
+  int res_code;
+  {
+    std::vector<int> idxvec(len);
+    for (R_xlen_t i = 0; i < len; ++i) {
+      idxvec[i] = idxset_[i] - 1;
+    }
+    res_code = XGDMatrixSliceDMatrixEx(R_ExternalPtrAddr(handle),
+                                       BeginPtr(idxvec), len,
+                                       &res,
+                                       0);
+  }
+  CHECK_CALL(res_code);
   R_SetExternalPtrAddr(ret, res);
   R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
   R_API_END();
@@ -344,14 +355,18 @@ XGB_DLL SEXP XGDMatrixSetStrFeatureInfo_R(SEXP handle, SEXP field, SEXP array) {
 
   SEXP field_ = PROTECT(Rf_asChar(field));
   const char *name = CHAR(field_);
-  std::vector<std::string> str_info;
-  for (size_t i = 0; i < len; ++i) {
-    str_info.emplace_back(CHAR(VECTOR_ELT(str_info_holder, i)));
+  int res_code;
+  {
+    std::vector<std::string> str_info;
+    for (size_t i = 0; i < len; ++i) {
+      str_info.emplace_back(CHAR(VECTOR_ELT(str_info_holder, i)));
+    }
+    std::vector<char const*> vec(len);
+    std::transform(str_info.cbegin(), str_info.cend(), vec.begin(),
+                   [](std::string const &str) { return str.c_str(); });
+    res_code = XGDMatrixSetStrFeatureInfo(R_ExternalPtrAddr(handle), name, vec.data(), len);
   }
-  std::vector<char const*> vec(len);
-  std::transform(str_info.cbegin(), str_info.cend(), vec.begin(),
-                 [](std::string const &str) { return str.c_str(); });
-  CHECK_CALL(XGDMatrixSetStrFeatureInfo(R_ExternalPtrAddr(handle), name, vec.data(), len));
+  CHECK_CALL(res_code);
   UNPROTECT(2);
   R_API_END();
   return R_NilValue;
@@ -421,12 +436,17 @@ XGB_DLL SEXP XGBoosterCreate_R(SEXP dmats) {
   SEXP ret = PROTECT(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
   R_API_BEGIN();
   R_xlen_t len = Rf_xlength(dmats);
-  std::vector<void*> dvec;
-  for (R_xlen_t i = 0; i < len; ++i) {
-    dvec.push_back(R_ExternalPtrAddr(VECTOR_ELT(dmats, i)));
-  }
   BoosterHandle handle;
-  CHECK_CALL(XGBoosterCreate(BeginPtr(dvec), dvec.size(), &handle));
+
+  int res_code;
+  {
+    std::vector<void*> dvec;
+    for (R_xlen_t i = 0; i < len; ++i) {
+      dvec.push_back(R_ExternalPtrAddr(VECTOR_ELT(dmats, i)));
+    }
+    res_code = XGBoosterCreate(BeginPtr(dvec), dvec.size(), &handle);
+  }
+  CHECK_CALL(res_code);
   R_SetExternalPtrAddr(ret, handle);
   R_RegisterCFinalizerEx(ret, _BoosterFinalizer, TRUE);
   R_API_END();
@@ -437,12 +457,17 @@ XGB_DLL SEXP XGBoosterCreate_R(SEXP dmats) {
 XGB_DLL SEXP XGBoosterCreateInEmptyObj_R(SEXP dmats, SEXP R_handle) {
   R_API_BEGIN();
   R_xlen_t len = Rf_xlength(dmats);
-  std::vector<void*> dvec;
-  for (R_xlen_t i = 0; i < len; ++i) {
-    dvec.push_back(R_ExternalPtrAddr(VECTOR_ELT(dmats, i)));
-  }
   BoosterHandle handle;
-  CHECK_CALL(XGBoosterCreate(BeginPtr(dvec), dvec.size(), &handle));
+
+  int res_code;
+  {
+    std::vector<void*> dvec;
+    for (R_xlen_t i = 0; i < len; ++i) {
+      dvec.push_back(R_ExternalPtrAddr(VECTOR_ELT(dmats, i)));
+    }
+    res_code = XGBoosterCreate(BeginPtr(dvec), dvec.size(), &handle);
+  }
+  CHECK_CALL(res_code);
   R_SetExternalPtrAddr(R_handle, handle);
   R_RegisterCFinalizerEx(R_handle, _BoosterFinalizer, TRUE);
   R_API_END();
@@ -483,11 +508,15 @@ XGB_DLL SEXP XGBoosterTrainOneIter_R(SEXP handle, SEXP dtrain, SEXP iter, SEXP g
   double const *d_grad = REAL(grad);
   double const *d_hess = REAL(hess);
 
-  auto ctx = xgboost::detail::BoosterCtx(R_ExternalPtrAddr(handle));
-  auto [s_grad, s_hess] = xgboost::detail::MakeGradientInterface(
-      ctx, d_grad, d_hess, xgboost::linalg::kF, n_samples, n_targets);
-  CHECK_CALL(XGBoosterTrainOneIter(R_ExternalPtrAddr(handle), R_ExternalPtrAddr(dtrain),
-                                   asInteger(iter), s_grad.c_str(), s_hess.c_str()));
+  int res_code;
+  {
+    auto ctx = xgboost::detail::BoosterCtx(R_ExternalPtrAddr(handle));
+    auto [s_grad, s_hess] = xgboost::detail::MakeGradientInterface(
+        ctx, d_grad, d_hess, xgboost::linalg::kF, n_samples, n_targets);
+    res_code = XGBoosterTrainOneIter(R_ExternalPtrAddr(handle), R_ExternalPtrAddr(dtrain),
+                                     asInteger(iter), s_grad.c_str(), s_hess.c_str());
+  }
+  CHECK_CALL(res_code);
 
   R_API_END();
   return R_NilValue;
@@ -504,21 +533,25 @@ XGB_DLL SEXP XGBoosterEvalOneIter_R(SEXP handle, SEXP iter, SEXP dmats, SEXP evn
     SET_VECTOR_ELT(evnames_lst, i, Rf_asChar(VECTOR_ELT(evnames, i)));
   }
 
-  std::vector<void*> vec_dmats;
-  std::vector<std::string> vec_names;
-  std::vector<const char*> vec_sptr;
-  for (R_xlen_t i = 0; i < len; ++i) {
-    vec_dmats.push_back(R_ExternalPtrAddr(VECTOR_ELT(dmats, i)));
-    vec_names.emplace_back(CHAR(VECTOR_ELT(evnames_lst, i)));
+  int res_code;
+  {
+    std::vector<void*> vec_dmats;
+    std::vector<std::string> vec_names;
+    std::vector<const char*> vec_sptr;
+    for (R_xlen_t i = 0; i < len; ++i) {
+      vec_dmats.push_back(R_ExternalPtrAddr(VECTOR_ELT(dmats, i)));
+      vec_names.emplace_back(CHAR(VECTOR_ELT(evnames_lst, i)));
+    }
+    for (R_xlen_t i = 0; i < len; ++i) {
+      vec_sptr.push_back(vec_names[i].c_str());
+    }
+    res_code = XGBoosterEvalOneIter(R_ExternalPtrAddr(handle),
+                                    asInteger(iter),
+                                    BeginPtr(vec_dmats),
+                                    BeginPtr(vec_sptr),
+                                    len, &ret);
   }
-  for (R_xlen_t i = 0; i < len; ++i) {
-    vec_sptr.push_back(vec_names[i].c_str());
-  }
-  CHECK_CALL(XGBoosterEvalOneIter(R_ExternalPtrAddr(handle),
-                                  asInteger(iter),
-                                  BeginPtr(vec_dmats),
-                                  BeginPtr(vec_sptr),
-                                  len, &ret));
+  CHECK_CALL(res_code);
   UNPROTECT(1);
   R_API_END();
   return mkString(ret);
