@@ -314,7 +314,7 @@ XGB_DLL SEXP XGDMatrixSliceDMatrix_R(SEXP handle, SEXP idxset) {
   R_xlen_t len = Rf_xlength(idxset);
   const int *idxset_ = INTEGER(idxset);
   DMatrixHandle res;
-  
+
   int res_code;
   {
     std::vector<int> idxvec(len);
