@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2022 by XGBoost Contributors
+ * Copyright 2014-2023, XGBoost Contributors
  */
 #include <dmlc/common.h>
 #include <dmlc/omp.h>
@@ -12,7 +12,6 @@
 #include <cstring>
 #include <sstream>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "../../src/c_api/c_api_error.h"
@@ -26,22 +25,24 @@
 #define R_API_BEGIN()                           \
   GetRNGstate();                                \
   try {
+
 /*!
  * \brief macro to annotate end of api
  */
-#define R_API_END()                             \
-  } catch(dmlc::Error& e) {                     \
-    PutRNGstate();                              \
-    error(e.what());                            \
-  }                                             \
+#define R_API_END()           \
+  }                           \
+  catch (dmlc::Error & e) {   \
+    PutRNGstate();            \
+    Rf_error("%s", e.what()); \
+  }                           \
   PutRNGstate();
 
 /*!
  * \brief macro to check the call.
  */
-#define CHECK_CALL(x)                           \
-  if ((x) != 0) {                               \
-    error(XGBGetLastError());                   \
+#define CHECK_CALL(x)                  \
+  if ((x) != 0) {                      \
+    Rf_error("%s", XGBGetLastError()); \
   }
 
 using dmlc::BeginPtr;

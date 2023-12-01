@@ -161,6 +161,7 @@ test_that("SHAPs sum to predictions, with or without DART", {
     fit <- xgboost(
       params = c(
         list(
+          nthread = 2,
           booster = booster,
           objective = "reg:squarederror",
           eval_metric = "rmse"),
@@ -243,7 +244,7 @@ if (grepl('Windows', Sys.info()[['sysname']]) ||
 test_that("xgb.Booster serializing as R object works", {
   saveRDS(bst.Tree, 'xgb.model.rds')
   bst <- readRDS('xgb.model.rds')
-  dtrain <- xgb.DMatrix(sparse_matrix, label = label)
+  dtrain <- xgb.DMatrix(sparse_matrix, label = label, nthread = 2)
   expect_equal(predict(bst.Tree, dtrain), predict(bst, dtrain), tolerance = float_tolerance)
   expect_equal(xgb.dump(bst.Tree), xgb.dump(bst))
   xgb.save(bst, 'xgb.model')
@@ -345,7 +346,8 @@ test_that("xgb.importance works with and without feature names", {
   m <- xgboost::xgboost(
     data = as.matrix(data.frame(x = c(0, 1))),
     label = c(1, 2),
-    nrounds = 1
+    nrounds = 1,
+    nthread = 2
   )
   df <- xgb.model.dt.tree(model = m)
   expect_equal(df$Feature, "Leaf")

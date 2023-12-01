@@ -2,6 +2,8 @@ require(xgboost)
 
 context("interaction constraints")
 
+n_threads <- 2
+
 set.seed(1024)
 x1 <- rnorm(1000, 1)
 x2 <- rnorm(1000, 1)
@@ -45,11 +47,18 @@ test_that("interaction constraints scientific representation", {
   d <- matrix(rexp(rows, rate = .1), nrow = rows, ncol = cols)
   y <- rnorm(rows)
 
-  dtrain <- xgb.DMatrix(data = d, info = list(label = y))
+  dtrain <- xgb.DMatrix(data = d, info = list(label = y), nthread = n_threads)
   inc <- list(c(seq.int(from = 0, to = cols, by = 1)))
 
-  with_inc <- xgb.train(data = dtrain, tree_method = 'hist',
-                        interaction_constraints = inc, nrounds = 10)
-  without_inc <- xgb.train(data = dtrain, tree_method = 'hist', nrounds = 10)
+  with_inc <- xgb.train(
+    data = dtrain,
+    tree_method = 'hist',
+    interaction_constraints = inc,
+    nrounds = 10,
+    nthread = n_threads
+  )
+  without_inc <- xgb.train(
+    data = dtrain, tree_method = 'hist', nrounds = 10, nthread = n_threads
+  )
   expect_equal(xgb.save.raw(with_inc), xgb.save.raw(without_inc))
 })

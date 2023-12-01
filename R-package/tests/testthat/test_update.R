@@ -4,8 +4,15 @@ context("update trees in an existing model")
 
 data(agaricus.train, package = 'xgboost')
 data(agaricus.test, package = 'xgboost')
-dtrain <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
-dtest <- xgb.DMatrix(agaricus.test$data, label = agaricus.test$label)
+
+n_threads <- 1
+
+dtrain <- xgb.DMatrix(
+  agaricus.train$data, label = agaricus.train$label, nthread = n_threads
+)
+dtest <- xgb.DMatrix(
+  agaricus.test$data, label = agaricus.test$label, nthread = n_threads
+)
 
 # Disable flaky tests for 32-bit Windows.
 # See https://github.com/dmlc/xgboost/issues/3720
@@ -15,7 +22,10 @@ test_that("updating the model works", {
   watchlist <- list(train = dtrain, test = dtest)
 
   # no-subsampling
-  p1 <- list(objective = "binary:logistic", max_depth = 2, eta = 0.05, nthread = 2)
+  p1 <- list(
+    objective = "binary:logistic", max_depth = 2, eta = 0.05, nthread = n_threads,
+    updater = "grow_colmaker,prune"
+  )
   set.seed(11)
   bst1 <- xgb.train(p1, dtrain, nrounds = 10, watchlist, verbose = 0)
   tr1 <- xgb.model.dt.tree(model = bst1)
@@ -85,9 +95,11 @@ test_that("updating the model works", {
 })
 
 test_that("updating works for multiclass & multitree", {
-  dtr <- xgb.DMatrix(as.matrix(iris[, -5]), label = as.numeric(iris$Species) - 1)
+  dtr <- xgb.DMatrix(
+    as.matrix(iris[, -5]), label = as.numeric(iris$Species) - 1, nthread = n_threads
+  )
   watchlist <- list(train = dtr)
-  p0 <- list(max_depth = 2, eta = 0.5, nthread = 2, subsample = 0.6,
+  p0 <- list(max_depth = 2, eta = 0.5, nthread = n_threads, subsample = 0.6,
              objective = "multi:softprob", num_class = 3, num_parallel_tree = 2,
              base_score = 0)
   set.seed(121)

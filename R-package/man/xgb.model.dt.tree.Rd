@@ -66,9 +66,12 @@ Parse a boosted tree model text dump into a \code{data.table} structure.
 # Basic use:
 
 data(agaricus.train, package='xgboost')
+## Keep the number of threads to 1 for examples
+nthread <- 1
+data.table::setDTthreads(nthread)
 
 bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_depth = 2,
-               eta = 1, nthread = 2, nrounds = 2,objective = "binary:logistic")
+               eta = 1, nthread = nthread, nrounds = 2,objective = "binary:logistic")
 
 (dt <- xgb.model.dt.tree(colnames(agaricus.train$data), bst))
 
