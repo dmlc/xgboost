@@ -87,8 +87,13 @@ test_that("Models from previous versions of XGBoost can be loaded", {
         booster <- readRDS(model_file)
         expect_warning(run_booster_check(booster, name))
       } else {
-        booster <- xgb.load(model_file)
-        xgb.parameters(booster) <- list(nthread = 2)
+        if (is_rds) {
+          booster <- readRDS(model_file)
+        } else {
+          booster <- xgb.load(model_file)
+        }
+        predict(booster, newdata = pred_data)
+        run_booster_check(booster, name)
       }
     })
     cpp_warning <- paste0(cpp_warning, collapse = ' ')
