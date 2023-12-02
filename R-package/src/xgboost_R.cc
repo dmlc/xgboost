@@ -311,7 +311,9 @@ XGB_DLL SEXP XGDMatrixSliceDMatrix_R(SEXP handle, SEXP idxset) {
   int res_code;
   {
     std::vector<int> idxvec(len);
+    #ifndef _MSC_VER
     #pragma omp simd
+    #endif
     for (R_xlen_t i = 0; i < len; ++i) {
       idxvec[i] = idxset_[i] - 1;
     }
