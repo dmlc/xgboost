@@ -1,6 +1,7 @@
 ARG CUDA_VERSION_ARG
 FROM nvcr.io/nvidia/cuda:$CUDA_VERSION_ARG-devel-centos7
 ARG CUDA_VERSION_ARG
+ARG R_VERSION_ARG
 
 # Install all basic requirements
 RUN \
@@ -11,26 +12,28 @@ RUN \
     yum -y update && \
     yum install -y tar unzip wget xz git which ninja-build readline-devel libX11-devel libXt-devel \
                    xorg-x11-server-devel openssl-devel zlib-devel bzip2-devel xz-devel \
-                   pcre-devel libcurl-devel texlive-* \
+                   pcre2-devel libcurl-devel texlive-* \
                    devtoolset-9-gcc devtoolset-9-binutils devtoolset-9-gcc-c++ \
                    devtoolset-9-gcc-gfortran devtoolset-9-libquadmath-devel \
                    devtoolset-9-runtime devtoolset-9-libstdc++-devel
 
-ENV PATH=/opt/mambaforge/bin:/usr/local/ninja:/opt/software/packages/bin:/opt/R/3.3.0/bin:$PATH
-ENV LD_LIBRARY_PATH=/opt/software/packages/lib:/opt/R/3.3.0/lib64:$LD_LIBRARY_PATH
+ENV PATH=/opt/mambaforge/bin:/usr/local/ninja:/opt/software/packages/bin:/opt/R/$R_VERSION_ARG/bin:$PATH
+ENV LD_LIBRARY_PATH=/opt/software/packages/lib:/opt/R/$R_VERSION_ARG/lib64:$LD_LIBRARY_PATH
 ENV CC=/opt/rh/devtoolset-9/root/usr/bin/gcc
 ENV CXX=/opt/rh/devtoolset-9/root/usr/bin/c++
 ENV CPP=/opt/rh/devtoolset-9/root/usr/bin/cpp
 ENV F77=/opt/rh/devtoolset-9/root/usr/bin/gfortran
+ENV FC=/opt/rh/devtoolset-9/root/usr/bin/gfortran
 
-# R 3.3.0
 RUN \
-    wget -nv -nc https://cran.r-project.org/src/base/R-3/R-3.3.0.tar.gz  && \
-    tar xf R-3.3.0.tar.gz  && \
-    cd R-3.3.0  && \
-    ./configure --prefix=/opt/R/3.3.0 --enable-R-shlib  && \
+    wget -nv -nc https://cran.r-project.org/src/base/R-4/R-$R_VERSION_ARG.tar.gz  && \
+    tar xf R-$R_VERSION_ARG.tar.gz  && \
+    cd R-$R_VERSION_ARG  && \
+    ./configure --prefix=/opt/R/$R_VERSION_ARG --enable-R-shlib --with-pcrel  && \
     make -j$(nproc)  && \
-    make install  && \
+    make install
+
+run \
     # Python
     wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/22.11.1-2/Mambaforge-22.11.1-2-Linux-x86_64.sh && \
     bash conda.sh -b -p /opt/mambaforge && \
