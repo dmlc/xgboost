@@ -33,7 +33,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
-        <flink.version>1.17.1</flink.version>
+        <flink.version>1.18.0</flink.version>
         <junit.version>4.13.2</junit.version>
         <spark.version>3.4.1</spark.version>
         <spark.version.gpu>3.4.1</spark.version.gpu>
@@ -481,7 +481,7 @@
         <dependency>
             <groupId>commons-logging</groupId>
             <artifactId>commons-logging</artifactId>
-            <version>1.2</version>
+            <version>1.3.0</version>
         </dependency>
         <dependency>
             <groupId>org.scalatest</groupId>
