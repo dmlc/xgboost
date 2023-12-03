@@ -571,12 +571,13 @@ test_that("Can use multi-output labels with built-in objectives", {
   y <- mtcars$mpg
   x <- as.matrix(mtcars[, -1])
   y_mirrored <- cbind(y, -y)
-  dm <- xgb.DMatrix(x, label = y_mirrored)
+  dm <- xgb.DMatrix(x, label = y_mirrored, nthread = n_threads)
   model <- xgb.train(
     params = list(
       tree_method = "hist",
       multi_strategy = "multi_output_tree",
-      objective = "reg:squarederror"
+      objective = "reg:squarederror",
+      nthread = n_threads
     ),
     data = dm,
     nrounds = 5
@@ -592,7 +593,7 @@ test_that("Can use multi-output labels with custom objectives", {
   y <- mtcars$mpg
   x <- as.matrix(mtcars[, -1])
   y_mirrored <- cbind(y, -y)
-  dm <- xgb.DMatrix(x, label = y_mirrored)
+  dm <- xgb.DMatrix(x, label = y_mirrored, nthread = n_threads)
   model <- xgb.train(
     params = list(
       tree_method = "hist",
@@ -604,7 +605,8 @@ test_that("Can use multi-output labels with custom objectives", {
         hess <- rep(1, nrow(grad) * ncol(grad))
         hess <- matrix(hess, nrow = nrow(grad))
         return(list(grad = grad, hess = hess))
-      }
+      },
+      nthread = n_threads
     ),
     data = dm,
     nrounds = 5
