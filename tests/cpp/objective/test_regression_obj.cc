@@ -16,11 +16,14 @@
 
 namespace xgboost {
 
-TEST(Objective, DeclareUnifiedTest(LinearRegressionGPair)) {
-  Context ctx = MakeCUDACtx(GPUIDX);
-  std::vector<std::pair<std::string, std::string>> args;
+void TestLinearRegressionGPair(const Context* ctx) {
+  std::string obj_name = "reg:squarederror";
+  if (ctx->IsSycl()) {
+    obj_name = ObjFunction::GetSyclImplementationName(obj_name);
+  }
 
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:squarederror", &ctx)};
+  std::vector<std::pair<std::string, std::string>> args;
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create(obj_name, ctx)};
 
   obj->Configure(args);
   CheckObjFunction(obj,
@@ -38,13 +41,16 @@ TEST(Objective, DeclareUnifiedTest(LinearRegressionGPair)) {
   ASSERT_NO_THROW(obj->DefaultEvalMetric());
 }
 
-TEST(Objective, DeclareUnifiedTest(SquaredLog)) {
-  Context ctx = MakeCUDACtx(GPUIDX);
+void TestSquaredLog(const Context* ctx) {
+  std::string obj_name = "reg:squaredlogerror";
+  if (ctx->IsSycl()) {
+    obj_name = ObjFunction::GetSyclImplementationName(obj_name);
+  }
   std::vector<std::pair<std::string, std::string>> args;
 
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:squaredlogerror", &ctx)};
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create(obj_name, ctx)};
   obj->Configure(args);
-  CheckConfigReload(obj, "reg:squaredlogerror");
+  CheckConfigReload(obj, obj_name);
 
   CheckObjFunction(obj,
                    {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},  // pred
@@ -59,6 +65,84 @@ TEST(Objective, DeclareUnifiedTest(SquaredLog)) {
                    {-0.5435f, -0.4257f, -0.25475f, -0.05855f, 0.1009f},
                    { 1.3205f,  1.0492f,  0.69215f,  0.34115f, 0.1091f});
   ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"rmsle"});
+}
+
+void TestLogisticRegressionGPair(const Context* ctx) {
+  std::string obj_name = "reg:logistic";
+  if (ctx->IsSycl()) {
+    obj_name = ObjFunction::GetSyclImplementationName(obj_name);
+  }
+  std::vector<std::pair<std::string, std::string>> args;
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create(obj_name, ctx)};
+
+  obj->Configure(args);
+  CheckConfigReload(obj, obj_name);
+
+  CheckObjFunction(obj,
+                   {   0,  0.1f,  0.9f,    1,    0,   0.1f,  0.9f,      1}, // preds
+                   {   0,    0,    0,    0,    1,     1,     1,     1}, // labels
+                   {   1,    1,    1,    1,    1,     1,     1,     1}, // weights
+                   { 0.5f, 0.52f, 0.71f, 0.73f, -0.5f, -0.47f, -0.28f, -0.26f}, // out_grad
+                   {0.25f, 0.24f, 0.20f, 0.19f, 0.25f,  0.24f,  0.20f,  0.19f}); // out_hess
+}
+
+void TestLogisticRegressionBasic(const Context* ctx) {
+  std::string obj_name = "reg:logistic";
+  if (ctx->IsSycl()) {
+    obj_name = ObjFunction::GetSyclImplementationName(obj_name);
+  }
+  std::vector<std::pair<std::string, std::string>> args;
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create(obj_name, ctx)};
+
+  obj->Configure(args);
+  CheckConfigReload(obj, obj_name);
+
+  // test label validation
+  EXPECT_ANY_THROW(CheckObjFunction(obj, {0}, {10}, {1}, {0}, {0}))
+    << "Expected error when label not in range [0,1f] for LogisticRegression";
+
+  // test ProbToMargin
+  EXPECT_NEAR(obj->ProbToMargin(0.1f), -2.197f, 0.01f);
+  EXPECT_NEAR(obj->ProbToMargin(0.5f), 0, 0.01f);
+  EXPECT_NEAR(obj->ProbToMargin(0.9f), 2.197f, 0.01f);
+  EXPECT_ANY_THROW((void)obj->ProbToMargin(10))
+      << "Expected error when base_score not in range [0,1f] for LogisticRegression";
+
+  // test PredTransform
+  HostDeviceVector<bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
+  std::vector<bst_float> out_preds = {0.5f, 0.524f, 0.622f, 0.710f, 0.731f};
+  obj->PredTransform(&io_preds);
+  auto& preds = io_preds.HostVector();
+  for (int i = 0; i < static_cast<int>(io_preds.Size()); ++i) {
+    EXPECT_NEAR(preds[i], out_preds[i], 0.01f);
+  }
+}
+
+void TestsLogisticRawGPair(const Context* ctx) {
+  std::string obj_name = "binary:logitraw";
+  if (ctx->IsSycl()) {
+    obj_name = ObjFunction::GetSyclImplementationName(obj_name);
+  }
+  std::vector<std::pair<std::string, std::string>> args;
+  std::unique_ptr<ObjFunction>  obj {ObjFunction::Create(obj_name, ctx)};
+  obj->Configure(args);
+
+  CheckObjFunction(obj,
+                   {   0,  0.1f,  0.9f,    1,    0,   0.1f,   0.9f,     1},
+                   {   0,    0,    0,    0,    1,     1,     1,     1},
+                   {   1,    1,    1,    1,    1,     1,     1,     1},
+                   { 0.5f, 0.52f, 0.71f, 0.73f, -0.5f, -0.47f, -0.28f, -0.26f},
+                   {0.25f, 0.24f, 0.20f, 0.19f, 0.25f,  0.24f,  0.20f,  0.19f});
+}
+
+TEST(Objective, DeclareUnifiedTest(LinearRegressionGPair)) {
+  Context ctx = MakeCUDACtx(GPUIDX);
+  TestLinearRegressionGPair(&ctx);
+}
+
+TEST(Objective, DeclareUnifiedTest(SquaredLog)) {
+  Context ctx = MakeCUDACtx(GPUIDX);
+  TestSquaredLog(&ctx);
 }
 
 TEST(Objective, DeclareUnifiedTest(PseudoHuber)) {
@@ -92,63 +176,17 @@ TEST(Objective, DeclareUnifiedTest(PseudoHuber)) {
 
 TEST(Objective, DeclareUnifiedTest(LogisticRegressionGPair)) {
   Context ctx = MakeCUDACtx(GPUIDX);
-  std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:logistic", &ctx)};
-
-  obj->Configure(args);
-  CheckConfigReload(obj, "reg:logistic");
-
-  CheckObjFunction(obj,
-                   {   0,  0.1f,  0.9f,    1,    0,   0.1f,  0.9f,      1}, // preds
-                   {   0,    0,    0,    0,    1,     1,     1,     1}, // labels
-                   {   1,    1,    1,    1,    1,     1,     1,     1}, // weights
-                   { 0.5f, 0.52f, 0.71f, 0.73f, -0.5f, -0.47f, -0.28f, -0.26f}, // out_grad
-                   {0.25f, 0.24f, 0.20f, 0.19f, 0.25f,  0.24f,  0.20f,  0.19f}); // out_hess
+  TestLogisticRegressionGPair(&ctx);
 }
 
 TEST(Objective, DeclareUnifiedTest(LogisticRegressionBasic)) {
   Context ctx = MakeCUDACtx(GPUIDX);
-  std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:logistic", &ctx)};
-
-  obj->Configure(args);
-  CheckConfigReload(obj, "reg:logistic");
-
-  // test label validation
-  EXPECT_ANY_THROW(CheckObjFunction(obj, {0}, {10}, {1}, {0}, {0}))
-    << "Expected error when label not in range [0,1f] for LogisticRegression";
-
-  // test ProbToMargin
-  EXPECT_NEAR(obj->ProbToMargin(0.1f), -2.197f, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.5f), 0, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.9f), 2.197f, 0.01f);
-  EXPECT_ANY_THROW((void)obj->ProbToMargin(10))
-      << "Expected error when base_score not in range [0,1f] for LogisticRegression";
-
-  // test PredTransform
-  HostDeviceVector<bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
-  std::vector<bst_float> out_preds = {0.5f, 0.524f, 0.622f, 0.710f, 0.731f};
-  obj->PredTransform(&io_preds);
-  auto& preds = io_preds.HostVector();
-  for (int i = 0; i < static_cast<int>(io_preds.Size()); ++i) {
-    EXPECT_NEAR(preds[i], out_preds[i], 0.01f);
-  }
+  TestLogisticRegressionBasic(&ctx);
 }
 
 TEST(Objective, DeclareUnifiedTest(LogisticRawGPair)) {
   Context ctx = MakeCUDACtx(GPUIDX);
-  std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction>  obj {
-    ObjFunction::Create("binary:logitraw", &ctx)
-  };
-  obj->Configure(args);
-
-  CheckObjFunction(obj,
-                   {   0,  0.1f,  0.9f,    1,    0,   0.1f,   0.9f,     1},
-                   {   0,    0,    0,    0,    1,     1,     1,     1},
-                   {   1,    1,    1,    1,    1,     1,     1,     1},
-                   { 0.5f, 0.52f, 0.71f, 0.73f, -0.5f, -0.47f, -0.28f, -0.26f},
-                   {0.25f, 0.24f, 0.20f, 0.19f, 0.25f,  0.24f,  0.20f,  0.19f});
+  TestsLogisticRawGPair(&ctx);
 }
 
 TEST(Objective, DeclareUnifiedTest(PoissonRegressionGPair)) {

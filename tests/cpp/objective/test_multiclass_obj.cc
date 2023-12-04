@@ -8,15 +8,19 @@
 
 namespace xgboost {
 
-TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassObjGPair)) {
-  Context ctx = MakeCUDACtx(GPUIDX);
+void TestSoftmaxMultiClassObjGPair(const Context* ctx) {
+  std::string obj_name = "multi:softmax";
+  if (ctx->IsSycl()) {
+    obj_name = ObjFunction::GetSyclImplementationName(obj_name);
+  }
+
   std::vector<std::pair<std::string, std::string>> args {{"num_class", "3"}};
   std::unique_ptr<ObjFunction> obj {
-    ObjFunction::Create("multi:softmax", &ctx)
+    ObjFunction::Create(obj_name, ctx)
   };
 
   obj->Configure(args);
-  CheckConfigReload(obj, "multi:softmax");
+  CheckConfigReload(obj, obj_name);
 
   CheckObjFunction(obj,
 		   {1.0f, 0.0f, 2.0f, 2.0f, 0.0f, 1.0f}, // preds
@@ -35,14 +39,18 @@ TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassObjGPair)) {
   ASSERT_NO_THROW(obj->DefaultEvalMetric());
 }
 
-TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassBasic)) {
-  auto ctx = MakeCUDACtx(GPUIDX);
+void TestSoftmaxMultiClassBasic(const Context* ctx) {
+  std::string obj_name = "multi:softmax";
+  if (ctx->IsSycl()) {
+    obj_name = ObjFunction::GetSyclImplementationName(obj_name);
+  }
+
   std::vector<std::pair<std::string, std::string>> args{
       std::pair<std::string, std::string>("num_class", "3")};
 
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("multi:softmax", &ctx)};
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create(obj_name, ctx)};
   obj->Configure(args);
-  CheckConfigReload(obj, "multi:softmax");
+  CheckConfigReload(obj, obj_name);
 
   HostDeviceVector<bst_float>  io_preds = {2.0f, 0.0f, 1.0f,
                                            1.0f, 0.0f, 2.0f};
@@ -56,16 +64,20 @@ TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassBasic)) {
   }
 }
 
-TEST(Objective, DeclareUnifiedTest(SoftprobMultiClassBasic)) {
-  Context ctx = MakeCUDACtx(GPUIDX);
+void TestSoftprobMultiClassBasic(const Context* ctx) {
+  std::string obj_name = "multi:softprob";
+  if (ctx->IsSycl()) {
+    obj_name = ObjFunction::GetSyclImplementationName(obj_name);
+  }
+
   std::vector<std::pair<std::string, std::string>> args {
     std::pair<std::string, std::string>("num_class", "3")};
 
   std::unique_ptr<ObjFunction> obj {
-    ObjFunction::Create("multi:softprob", &ctx)
+    ObjFunction::Create(obj_name, ctx)
   };
   obj->Configure(args);
-  CheckConfigReload(obj, "multi:softprob");
+  CheckConfigReload(obj, obj_name);
 
   HostDeviceVector<bst_float>  io_preds = {2.0f, 0.0f, 1.0f};
   std::vector<bst_float> out_preds = {0.66524096f, 0.09003057f, 0.24472847f};
@@ -76,5 +88,20 @@ TEST(Objective, DeclareUnifiedTest(SoftprobMultiClassBasic)) {
   for (int i = 0; i < static_cast<int>(io_preds.Size()); ++i) {
     EXPECT_NEAR(preds[i], out_preds[i], 0.01f);
   }
+}
+
+TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassObjGPair)) {
+  Context ctx = MakeCUDACtx(GPUIDX);
+  TestSoftmaxMultiClassObjGPair(&ctx);
+}
+
+TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassBasic)) {
+  auto ctx = MakeCUDACtx(GPUIDX);
+  TestSoftmaxMultiClassBasic(&ctx);
+}
+
+TEST(Objective, DeclareUnifiedTest(SoftprobMultiClassBasic)) {
+  Context ctx = MakeCUDACtx(GPUIDX);
+  TestSoftprobMultiClassBasic(&ctx);
 }
 }  // namespace xgboost
