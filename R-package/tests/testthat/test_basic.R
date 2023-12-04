@@ -565,3 +565,30 @@ test_that("'predict' accepts CSR data", {
   expect_equal(p_csc, p_csr)
   expect_equal(p_csc, p_spv)
 })
+
+test_that("Quantile regression accepts multiple quantiles", {
+  data(mtcars)
+  y <- mtcars[, 1]
+  x <- as.matrix(mtcars[, -1])
+  dm <- xgb.DMatrix(data = x, label = y)
+  model <- xgb.train(
+    data = dm,
+    params = list(
+      objective = "reg:quantileerror",
+      tree_method = "exact",
+      quantile_alpha = c(0.05, 0.5, 0.95),
+      nthread = n_threads
+    ),
+    nrounds = 15
+  )
+  pred <- predict(model, x, reshape = TRUE)
+
+  expect_equal(dim(pred)[1], nrow(x))
+  expect_equal(dim(pred)[2], 3)
+  expect_true(all(pred[, 1] <= pred[, 3]))
+
+  cors <- cor(y, pred)
+  expect_true(cors[2] > cors[1])
+  expect_true(cors[2] > cors[3])
+  expect_true(cors[2] > 0.85)
+})

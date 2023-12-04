@@ -93,6 +93,14 @@ check.booster.params <- function(params, ...) {
     interaction_constraints <- sapply(params[['interaction_constraints']], function(x) paste0('[', paste(x, collapse = ','), ']'))
     params[['interaction_constraints']] <- paste0('[', paste(interaction_constraints, collapse = ','), ']')
   }
+
+  # for evaluation metrics, should generate multiple entries per metric
+  if (NROW(params[['eval_metric']]) > 1) {
+    eval_metrics <- as.list(params[["eval_metric"]])
+    names(eval_metrics) <- rep("eval_metric", length(eval_metrics))
+    params_without_ev_metrics <- within(params, rm(eval_metric))
+    params <- c(params_without_ev_metrics, eval_metrics)
+  }
   return(params)
 }
 
