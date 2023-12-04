@@ -256,6 +256,47 @@ jobs:
       run: |
         pytest -s -v -rxXs --durations=0 ./tests/test_distributed/test_with_spark
 
+  python-sycl-tests-on-ubuntu:
+    name: Test XGBoost Python package with SYCL on ${{ matrix.config.os }}
+    runs-on: ${{ matrix.config.os }}
+    timeout-minutes: 90
+    strategy:
+      matrix:
+        config:
+          - {os: ubuntu-latest, python-version: "3.8"}
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+
+    - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
+      with:
+        cache-downloads: true
+        cache-env: true
+        environment-name: linux_sycl_test
+        environment-file: tests/ci_build/conda_env/linux_sycl_test.yml
+
+    - name: Display Conda env
+      run: |
+        conda info
+        conda list
+    - name: Build XGBoost on Ubuntu
+      run: |
+        mkdir build
+        cd build
+        cmake .. -DPLUGIN_SYCL=ON -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
+        make -j$(nproc)
+    - name: Install Python package
+      run: |
+        cd python-package
+        python --version
+        pip install -v .
+    - name: Test Python package
+      run: |
+        pytest -s -v -rxXs --durations=0 ./tests/python-sycl/
+
+
   python-system-installation-on-ubuntu:
     name: Test XGBoost Python package System Installation on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}

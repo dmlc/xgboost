@@ -26,6 +26,79 @@
 #include "xgboost/tree_model.h"                   // for RegTree
 
 namespace xgboost {
+
+void TestBasic(DMatrix* dmat, Context const *ctx) {
+  auto predictor = std::unique_ptr<Predictor>(CreatePredictorForTest(ctx));
+
+  size_t const kRows = dmat->Info().num_row_;
+  size_t const kCols = dmat->Info().num_col_;
+
+  LearnerModelParam mparam{MakeMP(kCols, .0, 1)};
+
+  gbm::GBTreeModel model = CreateTestModel(&mparam, ctx);
+
+  // Test predict batch
+  PredictionCacheEntry out_predictions;
+  predictor->InitOutPredictions(dmat->Info(), &out_predictions.predictions, model);
+  predictor->PredictBatch(dmat, &out_predictions, model, 0);
+
+  std::vector<float>& out_predictions_h = out_predictions.predictions.HostVector();
+  for (size_t i = 0; i < out_predictions.predictions.Size(); i++) {
+    ASSERT_EQ(out_predictions_h[i], 1.5);
+  }
+
+  // Test predict instance
+  auto const& batch = *dmat->GetBatches<xgboost::SparsePage>().begin();
+  auto page = batch.GetView();
+  for (size_t i = 0; i < batch.Size(); i++) {
+    std::vector<float> instance_out_predictions;
+    predictor->PredictInstance(page[i], &instance_out_predictions, model, 0,
+                                   dmat->Info().IsColumnSplit());
+    ASSERT_EQ(instance_out_predictions[0], 1.5);
+  }
+
+  // Test predict leaf
+  HostDeviceVector<float> leaf_out_predictions;
+  predictor->PredictLeaf(dmat, &leaf_out_predictions, model);
+  auto const& h_leaf_out_predictions = leaf_out_predictions.ConstHostVector();
+  for (auto v : h_leaf_out_predictions) {
+    ASSERT_EQ(v, 0);
+  }
+
+  if (dmat->Info().IsColumnSplit()) {
+    // Predict contribution is not supported for column split.
+    return;
+  }
+
+  // Test predict contribution
+  HostDeviceVector<float> out_contribution_hdv;
+  auto& out_contribution = out_contribution_hdv.HostVector();
+  predictor->PredictContribution(dmat, &out_contribution_hdv, model);
+  ASSERT_EQ(out_contribution.size(), kRows * (kCols + 1));
+  for (size_t i = 0; i < out_contribution.size(); ++i) {
+    auto const& contri = out_contribution[i];
+    // shift 1 for bias, as test tree is a decision dump, only global bias is
+    // filled with LeafValue().
+    if ((i + 1) % (kCols + 1) == 0) {
+      ASSERT_EQ(out_contribution.back(), 1.5f);
+    } else {
+      ASSERT_EQ(contri, 0);
+    }
+  }
+  // Test predict contribution (approximate method)
+  predictor->PredictContribution(dmat, &out_contribution_hdv, model, 0, nullptr, true);
+  for (size_t i = 0; i < out_contribution.size(); ++i) {
+    auto const& contri = out_contribution[i];
+    // shift 1 for bias, as test tree is a decision dump, only global bias is
+    // filled with LeafValue().
+    if ((i + 1) % (kCols + 1) == 0) {
+      ASSERT_EQ(out_contribution.back(), 1.5f);
+    } else {
+      ASSERT_EQ(contri, 0);
+    }
+  }
+}
+
 TEST(Predictor, PredictionCache) {
   size_t constexpr kRows = 16, kCols = 4;
 
@@ -64,7 +137,7 @@ void TestTrainingPrediction(Context const *ctx, size_t rows, size_t bins,
                           {"num_feature", std::to_string(kCols)},
                           {"num_class", std::to_string(kClasses)},
                           {"max_bin", std::to_string(bins)},
-                          {"device", ctx->DeviceName()}});
+                          {"device", ctx->IsSycl() ? "cpu" : ctx->DeviceName()}});
   learner->Configure();
 
   for (size_t i = 0; i < kIters; ++i) {
@@ -151,7 +224,7 @@ std::unique_ptr<Learner> LearnerForTest(Context const *ctx, std::shared_ptr<DMat
                                         size_t iters, size_t forest = 1) {
   std::unique_ptr<Learner> learner{Learner::Create({dmat})};
   learner->SetParams(
-      Args{{"num_parallel_tree", std::to_string(forest)}, {"device", ctx->DeviceName()}});
+      Args{{"num_parallel_tree", std::to_string(forest)}, {"device", ctx->IsSycl() ? "cpu" : ctx->DeviceName()}});
   for (size_t i = 0; i < iters; ++i) {
     learner->UpdateOneIter(i, dmat);
   }
@@ -305,11 +378,7 @@ void TestCategoricalPrediction(bool use_gpu, bool is_column_split) {
   ASSERT_EQ(out_predictions.predictions.HostVector()[0], left_weight + score);
 }
 
-void TestCategoricalPredictLeaf(bool use_gpu, bool is_column_split) {
-  Context ctx;
-  if (use_gpu) {
-    ctx = MakeCUDACtx(common::AllVisibleGPUs() == 1 ? 0 : collective::GetRank());
-  }
+void TestCategoricalPredictLeaf(Context const *ctx, bool is_column_split) {
   size_t constexpr kCols = 10;
   PredictionCacheEntry out_predictions;
 
@@ -320,10 +389,10 @@ void TestCategoricalPredictLeaf(bool use_gpu, bool is_column_split) {
   float left_weight = 1.3f;
   float right_weight = 1.7f;
 
-  gbm::GBTreeModel model(&mparam, &ctx);
+  gbm::GBTreeModel model(&mparam, ctx);
   GBTreeModelForTest(&model, split_ind, split_cat, left_weight, right_weight);
 
-  std::unique_ptr<Predictor> predictor{CreatePredictorForTest(&ctx)};
+  std::unique_ptr<Predictor> predictor{CreatePredictorForTest(ctx)};
 
   std::vector<float> row(kCols);
   row[split_ind] = split_cat;
@@ -363,7 +432,6 @@ void TestIterationRange(Context const* ctx) {
   HostDeviceVector<float> out_predt_sliced;
   HostDeviceVector<float> out_predt_ranged;
 
-  // margin
   {
     sliced->Predict(dmat, true, &out_predt_sliced, 0, 0, false, false, false, false, false);
     learner->Predict(dmat, true, &out_predt_ranged, 0, lend, false, false, false, false, false);
@@ -519,6 +587,8 @@ void TestSparsePrediction(Context const *ctx, float sparsity) {
 
   learner.reset(Learner::Create({Xy}));
   learner->LoadModel(model);
+  learner->SetParam("device", ctx->DeviceName());
+  learner->Configure();
 
   if (ctx->IsCUDA()) {
     learner->SetParam("tree_method", "gpu_hist");

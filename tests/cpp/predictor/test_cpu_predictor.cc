@@ -18,92 +18,17 @@
 
 namespace xgboost {
 
-namespace {
-void TestBasic(DMatrix* dmat) {
-  Context ctx;
-  std::unique_ptr<Predictor> cpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &ctx));
-
-  size_t const kRows = dmat->Info().num_row_;
-  size_t const kCols = dmat->Info().num_col_;
-
-  LearnerModelParam mparam{MakeMP(kCols, .0, 1)};
-
-  ctx.UpdateAllowUnknown(Args{});
-  gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx);
-
-  // Test predict batch
-  PredictionCacheEntry out_predictions;
-  cpu_predictor->InitOutPredictions(dmat->Info(), &out_predictions.predictions, model);
-  cpu_predictor->PredictBatch(dmat, &out_predictions, model, 0);
-
-  std::vector<float>& out_predictions_h = out_predictions.predictions.HostVector();
-  for (size_t i = 0; i < out_predictions.predictions.Size(); i++) {
-    ASSERT_EQ(out_predictions_h[i], 1.5);
-  }
-
-  // Test predict instance
-  auto const& batch = *dmat->GetBatches<xgboost::SparsePage>().begin();
-  auto page = batch.GetView();
-  for (size_t i = 0; i < batch.Size(); i++) {
-    std::vector<float> instance_out_predictions;
-    cpu_predictor->PredictInstance(page[i], &instance_out_predictions, model, 0,
-                                   dmat->Info().IsColumnSplit());
-    ASSERT_EQ(instance_out_predictions[0], 1.5);
-  }
-
-  // Test predict leaf
-  HostDeviceVector<float> leaf_out_predictions;
-  cpu_predictor->PredictLeaf(dmat, &leaf_out_predictions, model);
-  auto const& h_leaf_out_predictions = leaf_out_predictions.ConstHostVector();
-  for (auto v : h_leaf_out_predictions) {
-    ASSERT_EQ(v, 0);
-  }
-
-  if (dmat->Info().IsColumnSplit()) {
-    // Predict contribution is not supported for column split.
-    return;
-  }
-
-  // Test predict contribution
-  HostDeviceVector<float> out_contribution_hdv;
-  auto& out_contribution = out_contribution_hdv.HostVector();
-  cpu_predictor->PredictContribution(dmat, &out_contribution_hdv, model);
-  ASSERT_EQ(out_contribution.size(), kRows * (kCols + 1));
-  for (size_t i = 0; i < out_contribution.size(); ++i) {
-    auto const& contri = out_contribution[i];
-    // shift 1 for bias, as test tree is a decision dump, only global bias is
-    // filled with LeafValue().
-    if ((i + 1) % (kCols + 1) == 0) {
-      ASSERT_EQ(out_contribution.back(), 1.5f);
-    } else {
-      ASSERT_EQ(contri, 0);
-    }
-  }
-  // Test predict contribution (approximate method)
-  cpu_predictor->PredictContribution(dmat, &out_contribution_hdv, model, 0, nullptr, true);
-  for (size_t i = 0; i < out_contribution.size(); ++i) {
-    auto const& contri = out_contribution[i];
-    // shift 1 for bias, as test tree is a decision dump, only global bias is
-    // filled with LeafValue().
-    if ((i + 1) % (kCols + 1) == 0) {
-      ASSERT_EQ(out_contribution.back(), 1.5f);
-    } else {
-      ASSERT_EQ(contri, 0);
-    }
-  }
-}
-}  // anonymous namespace
-
 TEST(CpuPredictor, Basic) {
+  Context ctx;
   size_t constexpr kRows = 5;
   size_t constexpr kCols = 5;
   auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
-  TestBasic(dmat.get());
+  TestBasic(dmat.get(), &ctx);
 }
 
 namespace {
 void TestColumnSplit() {
+  Context ctx;
   size_t constexpr kRows = 5;
   size_t constexpr kCols = 5;
   auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
@@ -112,7 +37,7 @@ void TestColumnSplit() {
   auto const rank = collective::GetRank();
   dmat = std::unique_ptr<DMatrix>{dmat->SliceCol(world_size, rank)};
 
-  TestBasic(dmat.get());
+  TestBasic(dmat.get(), &ctx);
 }
 }  // anonymous namespace
 
@@ -132,10 +57,11 @@ TEST(CpuPredictor, IterationRangeColmnSplit) {
 }
 
 TEST(CpuPredictor, ExternalMemory) {
+  Context ctx;
   size_t constexpr kPageSize = 64, kEntriesPerCol = 3;
   size_t constexpr kEntries = kPageSize * kEntriesPerCol * 2;
   std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(kEntries);
-  TestBasic(dmat.get());
+  TestBasic(dmat.get(), &ctx);
 }
 
 TEST(CpuPredictor, InplacePredict) {
@@ -235,12 +161,14 @@ TEST(CPUPredictor, CategoricalPredictionColumnSplit) {
 }
 
 TEST(CPUPredictor, CategoricalPredictLeaf) {
-  TestCategoricalPredictLeaf(false, false);
+  Context ctx;
+  TestCategoricalPredictLeaf(&ctx, false);
 }
 
 TEST(CPUPredictor, CategoricalPredictLeafColumnSplit) {
   auto constexpr kWorldSize = 2;
-  RunWithInMemoryCommunicator(kWorldSize, TestCategoricalPredictLeaf, false, true);
+  Context ctx;
+  RunWithInMemoryCommunicator(kWorldSize, TestCategoricalPredictLeaf, &ctx, true);
 }
 
 TEST(CpuPredictor, UpdatePredictionCache) {

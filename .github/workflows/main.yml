@@ -63,6 +63,45 @@ jobs:
         cd build
         ctest --extra-verbose
 
+  gtest-cpu-sycl:
+    name: Test Google C++ unittest (CPU SYCL)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.8"]
+    steps:
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
+      with:
+        submodules: 'true'
+    - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
+      with:
+        cache-downloads: true
+        cache-env: true
+        environment-name: linux_sycl_test
+        environment-file: tests/ci_build/conda_env/linux_sycl_test.yml
+
+    - name: Display Conda env
+      run: |
+        conda info
+        conda list
+    - name: Build and install XGBoost
+      shell: bash -l {0}
+      run: |
+        mkdir build
+        cd build
+        cmake .. -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DPLUGIN_SYCL=ON -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX
+        make -j$(nproc)
+    - name: Run gtest binary for SYCL
+      run: |
+        cd build
+        ./testxgboost --gtest_filter=Sycl*
+    - name: Run gtest binary for non SYCL
+      run: |
+        cd build
+        ./testxgboost --gtest_filter=-Sycl*
+
   c-api-demo:
     name: Test installing XGBoost lib + building the C API demo
     runs-on: ${{ matrix.os }}
