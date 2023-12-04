@@ -98,7 +98,7 @@ check.booster.params <- function(params, ...) {
   if (NROW(params[['eval_metric']]) > 1) {
     eval_metrics <- as.list(params[["eval_metric"]])
     names(eval_metrics) <- rep("eval_metric", length(eval_metrics))
-    params_without_ev_metrics <- within(params, rm(eval_metric))
+    params_without_ev_metrics <- within(params, rm("eval_metric"))
     params <- c(params_without_ev_metrics, eval_metrics)
   }
   return(params)

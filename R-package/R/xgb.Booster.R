@@ -697,7 +697,7 @@ xgb.config <- function(object) {
     stop("parameter names cannot be empty strings")
   }
   names(p) <- gsub(".", "_", names(p), fixed = TRUE)
-  p <- lapply(p, function (x) {
+  p <- lapply(p, function(x) {
     if (is.vector(x) && length(x) == 1) {
       return(as.character(x)[1])
     } else {
