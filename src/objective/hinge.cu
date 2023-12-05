@@ -39,8 +39,8 @@ class HingeObj : public FitIntercept {
     return std::max(static_cast<std::size_t>(1), info.labels.Shape(1));
   }
 
-  void GetGradient(HostDeviceVector<float> const &preds, MetaInfo const &info, std::int32_t /*iter*/,
-                   linalg::Matrix<GradientPair> *out_gpair) override {
+  void GetGradient(HostDeviceVector<float> const &preds, MetaInfo const &info,
+                   std::int32_t /*iter*/, linalg::Matrix<GradientPair> *out_gpair) override {
     CheckInitInputs(info);
     CHECK_EQ(info.labels.Size(), preds.Size()) << "Invalid shape of labels.";
     if (!info.weights_.Empty()) {
