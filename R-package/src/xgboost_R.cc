@@ -50,6 +50,9 @@ SEXP SafeMkChar(const char *c_str, SEXP continuation_token) {
 
 [[nodiscard]] std::string MakeArrayInterfaceFromRMat(SEXP R_mat) {
   SEXP mat_dims = Rf_getAttrib(R_mat, R_DimSymbol);
+  if (Rf_xlength(mat_dims) > 2) {
+    LOG(FATAL) << "Passed input array with more than two dimensions, which is not supported.";
+  }
   const int *ptr_mat_dims = INTEGER(mat_dims);
 
   // Lambda for type dispatch.
