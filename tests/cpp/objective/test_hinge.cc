@@ -21,7 +21,7 @@ TEST(Objective, DeclareUnifiedTest(HingeObj)) {
   CheckObjFunction(obj, predt, label, {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f}, grad, hess);
   CheckObjFunction(obj, predt, label, {/* Empty weight. */}, grad, hess);
 
-  ASSERT_EQ(obj->DefaultEvalMetric(), "error");
+  ASSERT_EQ(obj->DefaultEvalMetric(), StringView{"error"});
 
   MetaInfo info;
   info.num_row_ = label.size();
