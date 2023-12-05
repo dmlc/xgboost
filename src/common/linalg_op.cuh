@@ -12,22 +12,6 @@
 namespace xgboost {
 namespace linalg {
 template <typename T, int32_t D, typename Fn>
-void ElementWiseKernelDevice(linalg::TensorView<T, D> t, Fn&& fn, cudaStream_t s = nullptr) {
-  dh::safe_cuda(cudaSetDevice(t.Device().ordinal));
-  static_assert(std::is_void<std::result_of_t<Fn(size_t, T&)>>::value,
-                "For function with return, use transform instead.");
-  if (t.Contiguous()) {
-    auto ptr = t.Values().data();
-    dh::LaunchN(t.Size(), s, [=] __device__(size_t i) mutable { fn(i, ptr[i]); });
-  } else {
-    dh::LaunchN(t.Size(), s, [=] __device__(size_t i) mutable {
-      T& v = detail::Apply(t, linalg::UnravelIndex(i, t.Shape()));
-      fn(i, v);
-    });
-  }
-}
-
-template <typename T, int32_t D, typename Fn>
 void ElementWiseTransformDevice(linalg::TensorView<T, D> t, Fn&& fn, cudaStream_t s = nullptr) {
   if (t.Contiguous()) {
     auto ptr = t.Values().data();
@@ -36,6 +20,18 @@ void ElementWiseTransformDevice(linalg::TensorView<T, D> t, Fn&& fn, cudaStream_
     dh::LaunchN(t.Size(), s, [=] __device__(size_t i) mutable {
       T& v = detail::Apply(t, linalg::UnravelIndex(i, t.Shape()));
       v = fn(i, v);
+    });
+  }
+}
+
+template <typename T, std::int32_t D, typename Fn>
+void ElementWiseKernelDevice(linalg::TensorView<T, D> t, Fn&& fn, cudaStream_t s = nullptr) {
+  dh::safe_cuda(cudaSetDevice(t.Device().ordinal));
+  if constexpr (D == 1) {
+    dh::LaunchN(t.Size(), s, [=] __device__(std::size_t i) { fn(i); });
+  } else {
+    dh::LaunchN(t.Size(), s, [=] __device__(std::size_t i) mutable {
+      std::apply(fn, linalg::UnravelIndex(i, t.Shape()));
     });
   }
 }
