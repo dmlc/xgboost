@@ -261,6 +261,8 @@ def test_with_cmake(args: argparse.Namespace) -> None:
                     "-DCMAKE_CONFIGURATION_TYPES=Release",
                     "-A",
                     "x64",
+                    "-G",
+                    "Visual Studio 17 2022",
                 ]
             )
             subprocess.check_call(
