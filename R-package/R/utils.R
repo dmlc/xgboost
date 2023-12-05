@@ -168,23 +168,24 @@ xgb.iter.update <- function(booster_handle, dtrain, iter, obj) {
     )
     gpair <- obj(pred, dtrain)
     n_samples <- dim(dtrain)[1]
+    grad <- gpair$grad
+    hess <- gpair$hess
 
-    msg <- paste(
-      "Since 2.1.0, the shape of the gradient and hessian is required to be ",
-      "(n_samples, n_targets) or (n_samples, n_classes).",
-      sep = ""
-    )
-    if (is.matrix(gpair$grad) && dim(gpair$grad)[1] != n_samples) {
-      warning(msg)
-    }
-    if (is.numeric(gpair$grad) && length(gpair$grad) != n_samples) {
-      warning(msg)
+    if ((is.matrix(grad) && dim(grad)[1] != n_samples) ||
+        (is.vector(grad) && length(grad) != n_samples) ||
+        (is.vector(grad) != is.vector(hess))) {
+      warning(paste(
+        "Since 2.1.0, the shape of the gradient and hessian is required to be ",
+        "(n_samples, n_targets) or (n_samples, n_classes). Will reshape assuming ",
+        "column-major order.",
+        sep = ""
+      ))
+      grad <- matrix(grad, nrow = n_samples)
+      hess <- matrix(hess, nrow = n_samples)
     }
 
-    gpair$grad <- matrix(gpair$grad, nrow = n_samples)
-    gpair$hess <- matrix(gpair$hess, nrow = n_samples)
     .Call(
-      XGBoosterBoostOneIter_R, booster_handle, dtrain, iter, gpair$grad, gpair$hess
+      XGBoosterTrainOneIter_R, booster_handle, dtrain, iter, grad, hess
     )
   }
   return(TRUE)
