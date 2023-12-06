@@ -9,7 +9,7 @@ https://scikit-learn.org/stable/auto_examples/ensemble/plot_gradient_boosting_qu
 
 .. note::
 
-    The feature is only supported using the Python package. In addition, quantile
+    The feature is only supported using the Python, R, and C packages. In addition, quantile
     crossing can happen due to limitation in the algorithm.
 
 """
