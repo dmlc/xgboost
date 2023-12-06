@@ -9,7 +9,8 @@ https://scikit-learn.org/stable/auto_examples/ensemble/plot_gradient_boosting_qu
 
 .. note::
 
-    Quantile crossing can happen due to limitation in the algorithm.
+    The feature is only supported using the Python, R, and C packages. In addition, quantile
+    crossing can happen due to limitation in the algorithm.
 
 """
 import argparse
