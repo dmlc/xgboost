@@ -1,5 +1,5 @@
-/*!
- * Copyright 2021-2022 by XGBoost Contributors
+/**
+ * Copyright 2021-2023, XGBoost Contributors
  */
 #ifndef XGBOOST_COMMON_LINALG_OP_CUH_
 #define XGBOOST_COMMON_LINALG_OP_CUH_
@@ -11,6 +11,28 @@
 
 namespace xgboost {
 namespace linalg {
+namespace cuda_impl {
+
+template <typename T, std::int32_t D>
+struct ElementWiseImpl {
+  template <typename Fn>
+  void operator()(linalg::TensorView<T, D> t, Fn&& fn, cudaStream_t s) {
+    static_assert(D > 1);
+    dh::LaunchN(t.Size(), s, [=] __device__(std::size_t i) mutable {
+      std::apply(fn, linalg::UnravelIndex(i, t.Shape()));
+    });
+  }
+};
+
+template <typename T>
+struct ElementWiseImpl<T, 1> {
+  template <typename Fn>
+  void operator()(linalg::TensorView<T, 1> t, Fn&& fn, cudaStream_t s) {
+    dh::LaunchN(t.Size(), s, [=] __device__(std::size_t i) { fn(i); });
+  }
+};
+}  // namespace cuda_impl
+
 template <typename T, int32_t D, typename Fn>
 void ElementWiseTransformDevice(linalg::TensorView<T, D> t, Fn&& fn, cudaStream_t s = nullptr) {
   if (t.Contiguous()) {
@@ -27,13 +49,7 @@ void ElementWiseTransformDevice(linalg::TensorView<T, D> t, Fn&& fn, cudaStream_
 template <typename T, std::int32_t D, typename Fn>
 void ElementWiseKernelDevice(linalg::TensorView<T, D> t, Fn&& fn, cudaStream_t s = nullptr) {
   dh::safe_cuda(cudaSetDevice(t.Device().ordinal));
-  if constexpr (D == 1) {
-    dh::LaunchN(t.Size(), s, [=] __device__(std::size_t i) { fn(i); });
-  } else {
-    dh::LaunchN(t.Size(), s, [=] __device__(std::size_t i) mutable {
-      std::apply(fn, linalg::UnravelIndex(i, t.Shape()));
-    });
-  }
+  cuda_impl::ElementWiseImpl<T, D>{}(t, fn, s);
 }
 
 template <typename T, int32_t D, typename Fn>
