@@ -53,7 +53,7 @@ from ._typing import (
     TransformedData,
     c_bst_ulong,
 )
-from .compat import PANDAS_INSTALLED, DataFrame, get_cupy, py_str
+from .compat import PANDAS_INSTALLED, DataFrame, import_cupy, py_str
 from .libpath import find_lib_path
 
 
@@ -436,10 +436,8 @@ def from_array_interface(interface: dict) -> NumpyOrCupy:
 
     if "stream" in interface:
         # CUDA stream is presented, this is a __cuda_array_interface__.
-        cp = get_cupy()
-
         arr.__cuda_array_interface__ = interface
-        out = cp.array(arr, copy=True)
+        out = import_cupy().array(arr, copy=True)
     else:
         arr.__array_interface__ = interface
         out = np.array(arr, copy=True)
@@ -453,14 +451,20 @@ def make_array_interface(
     """Make an __(cuda)_array_interface__ from a pointer."""
     # Use an empty array to handle typestr and descr
     if is_cuda:
-        empty = get_cupy().empty(shape=(0,), dtype=dtype)
+        empty = import_cupy().empty(shape=(0,), dtype=dtype)
         array = empty.__cuda_array_interface__  # pylint: disable=no-member
     else:
         empty = np.empty(shape=(0,), dtype=dtype)
         array = empty.__array_interface__  # pylint: disable=no-member
 
     addr = ctypes.cast(ptr, ctypes.c_void_p).value
-    assert addr is not None, ptr
+    length = int(np.prod(shape))
+    # Handle empty dataset.
+    assert addr is not None or length == 0
+
+    if addr is None:
+        return array
+
     array["data"] = (addr, True)
     if is_cuda:
         array["stream"] = 2

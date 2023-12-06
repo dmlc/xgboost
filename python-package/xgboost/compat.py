@@ -100,7 +100,7 @@ def is_cupy_available() -> bool:
         return False
 
 
-def get_cupy() -> types.ModuleType:
+def import_cupy() -> types.ModuleType:
     """Import cupy."""
     if not is_cupy_available():
         raise ImportError("`cupy` is required for handling CUDA buffer.")
