@@ -16,6 +16,12 @@
 #' @param nthread Number of threads used for creating DMatrix.
 #' @param ... the \code{info} data could be passed directly as parameters, without creating an \code{info} list.
 #'
+#' @details
+#' Note that DMatrix objects are not serializable through R functions such as \code{saveRDS} or \code{save}.
+#' If a DMatrix gets serialized and then de-serialized (for example, when saving data in an R session or caching
+#' chunks in an Rmd file), the resulting object will not be usable anymore and will need to be reconstructed
+#' from the original source of data.
+#'
 #' @examples
 #' data(agaricus.train, package='xgboost')
 #' ## Keep the number of threads to 1 for examples

@@ -36,6 +36,12 @@ Construct xgb.DMatrix object from either a dense matrix, a sparse matrix, or a l
 Supported input file formats are either a LIBSVM text file or a binary file that was created previously by
 \code{\link{xgb.DMatrix.save}}).
 }
+\details{
+Note that DMatrix objects are not serializable through R functions such as \code{saveRDS} or \code{save}.
+If a DMatrix gets serialized and then de-serialized (for example, when saving data in an R session or caching
+chunks in an Rmd file), the resulting object will not be usable anymore and will need to be reconstructed
+from the original source of data.
+}
 \examples{
 data(agaricus.train, package='xgboost')
 ## Keep the number of threads to 1 for examples
