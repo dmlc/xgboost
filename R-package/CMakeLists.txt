@@ -14,6 +14,15 @@ if(ENABLE_ALL_WARNINGS)
   target_compile_options(xgboost-r PRIVATE -Wall -Wextra)
 endif()
 
+if(MSVC)
+  # https://github.com/microsoft/LightGBM/pull/6061
+  # MSVC doesn't work with anonymous types in structs. (R complex)
+  #
+  # syntax error: missing ';' before identifier 'private_data_c'
+  #
+  target_compile_definitions(xgboost-r PRIVATE -DR_LEGACY_RCOMPLEX)
+endif()
+
 target_compile_definitions(
   xgboost-r PUBLIC
   -DXGBOOST_STRICT_R_MODE=1
