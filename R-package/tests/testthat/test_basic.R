@@ -565,3 +565,81 @@ test_that("'predict' accepts CSR data", {
   expect_equal(p_csc, p_csr)
   expect_equal(p_csc, p_spv)
 })
+
+test_that("Quantile regression accepts multiple quantiles", {
+  data(mtcars)
+  y <- mtcars[, 1]
+  x <- as.matrix(mtcars[, -1])
+  dm <- xgb.DMatrix(data = x, label = y)
+  model <- xgb.train(
+    data = dm,
+    params = list(
+      objective = "reg:quantileerror",
+      tree_method = "exact",
+      quantile_alpha = c(0.05, 0.5, 0.95),
+      nthread = n_threads
+    ),
+    nrounds = 15
+  )
+  pred <- predict(model, x, reshape = TRUE)
+
+  expect_equal(dim(pred)[1], nrow(x))
+  expect_equal(dim(pred)[2], 3)
+  expect_true(all(pred[, 1] <= pred[, 3]))
+
+  cors <- cor(y, pred)
+  expect_true(cors[2] > cors[1])
+  expect_true(cors[2] > cors[3])
+  expect_true(cors[2] > 0.85)
+})
+
+test_that("Can use multi-output labels with built-in objectives", {
+  data("mtcars")
+  y <- mtcars$mpg
+  x <- as.matrix(mtcars[, -1])
+  y_mirrored <- cbind(y, -y)
+  dm <- xgb.DMatrix(x, label = y_mirrored, nthread = n_threads)
+  model <- xgb.train(
+    params = list(
+      tree_method = "hist",
+      multi_strategy = "multi_output_tree",
+      objective = "reg:squarederror",
+      nthread = n_threads
+    ),
+    data = dm,
+    nrounds = 5
+  )
+  pred <- predict(model, x, reshape = TRUE)
+  expect_equal(pred[, 1], -pred[, 2])
+  expect_true(cor(y, pred[, 1]) > 0.9)
+  expect_true(cor(y, pred[, 2]) < -0.9)
+})
+
+test_that("Can use multi-output labels with custom objectives", {
+  data("mtcars")
+  y <- mtcars$mpg
+  x <- as.matrix(mtcars[, -1])
+  y_mirrored <- cbind(y, -y)
+  dm <- xgb.DMatrix(x, label = y_mirrored, nthread = n_threads)
+  model <- xgb.train(
+    params = list(
+      tree_method = "hist",
+      multi_strategy = "multi_output_tree",
+      base_score = 0,
+      objective = function(pred, dtrain) {
+        y <- getinfo(dtrain, "label")
+        grad <- pred - y
+        hess <- rep(1, nrow(grad) * ncol(grad))
+        hess <- matrix(hess, nrow = nrow(grad))
+        return(list(grad = grad, hess = hess))
+      },
+      nthread = n_threads
+    ),
+    data = dm,
+    nrounds = 5
+  )
+  pred <- predict(model, x, reshape = TRUE)
+  expect_equal(pred[, 1], -pred[, 2])
+  expect_true(cor(y, pred[, 1]) > 0.9)
+  expect_true(cor(y, pred[, 2]) < -0.9)
+})

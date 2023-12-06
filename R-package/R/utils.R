@@ -93,6 +93,14 @@ check.booster.params <- function(params, ...) {
     interaction_constraints <- sapply(params[['interaction_constraints']], function(x) paste0('[', paste(x, collapse = ','), ']'))
     params[['interaction_constraints']] <- paste0('[', paste(interaction_constraints, collapse = ','), ']')
   }
+
+  # for evaluation metrics, should generate multiple entries per metric
+  if (NROW(params[['eval_metric']]) > 1) {
+    eval_metrics <- as.list(params[["eval_metric"]])
+    names(eval_metrics) <- rep("eval_metric", length(eval_metrics))
+    params_without_ev_metrics <- within(params, rm("eval_metric"))
+    params <- c(params_without_ev_metrics, eval_metrics)
+  }
   return(params)
 }
 
@@ -160,23 +168,24 @@ xgb.iter.update <- function(booster_handle, dtrain, iter, obj) {
     )
     gpair <- obj(pred, dtrain)
     n_samples <- dim(dtrain)[1]
+    grad <- gpair$grad
+    hess <- gpair$hess
 
-    msg <- paste(
-      "Since 2.1.0, the shape of the gradient and hessian is required to be ",
-      "(n_samples, n_targets) or (n_samples, n_classes).",
-      sep = ""
-    )
-    if (is.matrix(gpair$grad) && dim(gpair$grad)[1] != n_samples) {
-      warning(msg)
-    }
-    if (is.numeric(gpair$grad) && length(gpair$grad) != n_samples) {
-      warning(msg)
+    if ((is.matrix(grad) && dim(grad)[1] != n_samples) ||
+        (is.vector(grad) && length(grad) != n_samples) ||
+        (is.vector(grad) != is.vector(hess))) {
+      warning(paste(
+        "Since 2.1.0, the shape of the gradient and hessian is required to be ",
+        "(n_samples, n_targets) or (n_samples, n_classes). Will reshape assuming ",
+        "column-major order.",
+        sep = ""
+      ))
+      grad <- matrix(grad, nrow = n_samples)
+      hess <- matrix(hess, nrow = n_samples)
     }
 
-    gpair$grad <- matrix(gpair$grad, nrow = n_samples)
-    gpair$hess <- matrix(gpair$hess, nrow = n_samples)
     .Call(
-      XGBoosterBoostOneIter_R, booster_handle, dtrain, iter, gpair$grad, gpair$hess
+      XGBoosterTrainOneIter_R, booster_handle, dtrain, iter, grad, hess
     )
   }
   return(TRUE)

@@ -50,6 +50,9 @@ SEXP SafeMkChar(const char *c_str, SEXP continuation_token) {
 
 [[nodiscard]] std::string MakeArrayInterfaceFromRMat(SEXP R_mat) {
   SEXP mat_dims = Rf_getAttrib(R_mat, R_DimSymbol);
+  if (Rf_xlength(mat_dims) > 2) {
+    LOG(FATAL) << "Passed input array with more than two dimensions, which is not supported.";
+  }
   const int *ptr_mat_dims = INTEGER(mat_dims);
 
   // Lambda for type dispatch.
@@ -159,13 +162,6 @@ void AddMissingToJson(xgboost::Json *jconfig, SEXP missing, SEXPTYPE arr_type) {
   }
 
 using dmlc::BeginPtr;
-
-xgboost::Context const *DMatrixCtx(DMatrixHandle handle) {
-  CHECK_HANDLE();
-  auto p_m = static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
-  CHECK(p_m);
-  return p_m->get()->Ctx();
-}
 
 XGB_DLL SEXP XGCheckNullPtr_R(SEXP handle) {
   return ScalarLogical(R_ExternalPtrAddr(handle) == NULL);
@@ -318,6 +314,9 @@ XGB_DLL SEXP XGDMatrixSliceDMatrix_R(SEXP handle, SEXP idxset) {
   int res_code;
   {
     std::vector<int> idxvec(len);
+    #ifndef _MSC_VER
+    #pragma omp simd
+    #endif
     for (R_xlen_t i = 0; i < len; ++i) {
       idxvec[i] = idxset_[i] - 1;
     }
@@ -346,9 +345,11 @@ XGB_DLL SEXP XGDMatrixSaveBinary_R(SEXP handle, SEXP fname, SEXP silent) {
 XGB_DLL SEXP XGDMatrixSetInfo_R(SEXP handle, SEXP field, SEXP array) {
   R_API_BEGIN();
   SEXP field_ = PROTECT(Rf_asChar(field));
+  SEXP arr_dim = Rf_getAttrib(array, R_DimSymbol);
   int res_code;
   {
-    const std::string array_str = MakeArrayInterfaceFromRVector(array);
+    const std::string array_str = Rf_isNull(arr_dim)?
+      MakeArrayInterfaceFromRVector(array) : MakeArrayInterfaceFromRMat(array);
     res_code = XGDMatrixSetInfoFromInterface(
       R_ExternalPtrAddr(handle), CHAR(field_), array_str.c_str());
   }
@@ -375,6 +376,7 @@ XGB_DLL SEXP XGDMatrixSetStrFeatureInfo_R(SEXP handle, SEXP field, SEXP array) {
   int res_code;
   {
     std::vector<std::string> str_info;
+    str_info.reserve(len);
     for (size_t i = 0; i < len; ++i) {
       str_info.emplace_back(CHAR(VECTOR_ELT(str_info_holder, i)));
     }
@@ -457,9 +459,9 @@ XGB_DLL SEXP XGBoosterCreate_R(SEXP dmats) {
 
   int res_code;
   {
-    std::vector<void*> dvec;
+    std::vector<void*> dvec(len);
     for (R_xlen_t i = 0; i < len; ++i) {
-      dvec.push_back(R_ExternalPtrAddr(VECTOR_ELT(dmats, i)));
+      dvec[i] = R_ExternalPtrAddr(VECTOR_ELT(dmats, i));
     }
     res_code = XGBoosterCreate(BeginPtr(dvec), dvec.size(), &handle);
   }
@@ -478,9 +480,9 @@ XGB_DLL SEXP XGBoosterCreateInEmptyObj_R(SEXP dmats, SEXP R_handle) {
 
   int res_code;
   {
-    std::vector<void*> dvec;
+    std::vector<void*> dvec(len);
     for (R_xlen_t i = 0; i < len; ++i) {
-      dvec.push_back(R_ExternalPtrAddr(VECTOR_ELT(dmats, i)));
+      dvec[i] = R_ExternalPtrAddr(VECTOR_ELT(dmats, i));
     }
     res_code = XGBoosterCreate(BeginPtr(dvec), dvec.size(), &handle);
   }
@@ -516,20 +518,14 @@ XGB_DLL SEXP XGBoosterTrainOneIter_R(SEXP handle, SEXP dtrain, SEXP iter, SEXP g
   R_API_BEGIN();
   CHECK_EQ(Rf_xlength(grad), Rf_xlength(hess)) << "gradient and hess must have same length.";
   SEXP gdim = getAttrib(grad, R_DimSymbol);
-  auto n_samples = static_cast<std::size_t>(INTEGER(gdim)[0]);
-  auto n_targets = static_cast<std::size_t>(INTEGER(gdim)[1]);
-
   SEXP hdim = getAttrib(hess, R_DimSymbol);
-  CHECK_EQ(INTEGER(hdim)[0], n_samples) << "mismatched size between gradient and hessian";
-  CHECK_EQ(INTEGER(hdim)[1], n_targets) << "mismatched size between gradient and hessian";
-  double const *d_grad = REAL(grad);
-  double const *d_hess = REAL(hess);
 
   int res_code;
   {
-    auto ctx = xgboost::detail::BoosterCtx(R_ExternalPtrAddr(handle));
-    auto [s_grad, s_hess] = xgboost::detail::MakeGradientInterface(
-        ctx, d_grad, d_hess, xgboost::linalg::kF, n_samples, n_targets);
+    const std::string s_grad = Rf_isNull(gdim)?
+      MakeArrayInterfaceFromRVector(grad) : MakeArrayInterfaceFromRMat(grad);
+    const std::string s_hess = Rf_isNull(hdim)?
+      MakeArrayInterfaceFromRVector(hess) : MakeArrayInterfaceFromRMat(hess);
     res_code = XGBoosterTrainOneIter(R_ExternalPtrAddr(handle), R_ExternalPtrAddr(dtrain),
                                      asInteger(iter), s_grad.c_str(), s_hess.c_str());
   }
@@ -552,15 +548,16 @@ XGB_DLL SEXP XGBoosterEvalOneIter_R(SEXP handle, SEXP iter, SEXP dmats, SEXP evn
 
   int res_code;
   {
-    std::vector<void*> vec_dmats;
+    std::vector<void*> vec_dmats(len);
     std::vector<std::string> vec_names;
-    std::vector<const char*> vec_sptr;
+    vec_names.reserve(len);
+    std::vector<const char*> vec_sptr(len);
     for (R_xlen_t i = 0; i < len; ++i) {
-      vec_dmats.push_back(R_ExternalPtrAddr(VECTOR_ELT(dmats, i)));
+      vec_dmats[i] = R_ExternalPtrAddr(VECTOR_ELT(dmats, i));
       vec_names.emplace_back(CHAR(VECTOR_ELT(evnames_lst, i)));
     }
     for (R_xlen_t i = 0; i < len; ++i) {
-      vec_sptr.push_back(vec_names[i].c_str());
+      vec_sptr[i] = vec_names[i].c_str();
     }
     res_code = XGBoosterEvalOneIter(R_ExternalPtrAddr(handle),
                                     asInteger(iter),
@@ -646,11 +643,7 @@ static SEXP XGBoosterPredictGeneric(SEXP handle, SEXP input_data, SEXP json_conf
     len *= out_shape[i];
   }
   r_out_result = PROTECT(allocVector(REALSXP, len));
-  auto ctx = xgboost::detail::BoosterCtx(R_ExternalPtrAddr(handle));
-  double *r_out_result_ = REAL(r_out_result);
-  xgboost::common::ParallelFor(len, ctx->Threads(), [&](xgboost::omp_ulong i) {
-    r_out_result_[i] = out_result[i];
-  });
+  std::copy(out_result, out_result + len, REAL(r_out_result));
 
   SET_VECTOR_ELT(r_out, 0, r_out_shape);
   SET_VECTOR_ELT(r_out, 1, r_out_result);
@@ -894,11 +887,7 @@ XGB_DLL SEXP XGBoosterFeatureScore_R(SEXP handle, SEXP json_config) {
   }
 
   out_scores_sexp = PROTECT(allocVector(REALSXP, len));
-  auto ctx = xgboost::detail::BoosterCtx(R_ExternalPtrAddr(handle));
-  double *out_scores_sexp_ = REAL(out_scores_sexp);
-  xgboost::common::ParallelFor(len, ctx->Threads(), [&](xgboost::omp_ulong i) {
-    out_scores_sexp_[i] = out_scores[i];
-  });
+  std::copy(out_scores, out_scores + len, REAL(out_scores_sexp));
 
   SET_VECTOR_ELT(r_out, 0, out_features_sexp);
   SET_VECTOR_ELT(r_out, 1, out_shape_sexp);

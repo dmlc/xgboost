@@ -58,7 +58,7 @@ Suggests:
     float,
     titanic
 Depends:
-    R (>= 3.3.0)
+    R (>= 4.3.0)
 Imports:
     Matrix (>= 1.1-0),
     methods,

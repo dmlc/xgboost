@@ -328,3 +328,11 @@ test_that("xgb.DMatrix: missing in CSR", {
   file.remove("dense.dmatrix")
   file.remove("csr.dmatrix")
 })
+
+test_that("xgb.DMatrix: error on three-dimensional array", {
+  set.seed(123)
+  x <- matrix(rnorm(500), nrow = 50)
+  y <- rnorm(400)
+  dim(y) <- c(50, 4, 2)
+  expect_error(xgb.DMatrix(data = x, label = y))
+})

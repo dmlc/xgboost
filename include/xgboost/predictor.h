@@ -92,8 +92,8 @@ class Predictor {
    * \param out_predt Prediction vector to be initialized.
    * \param model Tree model used for prediction.
    */
-  void InitOutPredictions(const MetaInfo& info, HostDeviceVector<bst_float>* out_predt,
-                          const gbm::GBTreeModel& model) const;
+  virtual void InitOutPredictions(const MetaInfo& info, HostDeviceVector<bst_float>* out_predt,
+                                  const gbm::GBTreeModel& model) const;
 
   /**
    * \brief Generate batch predictions for a given feature matrix. May use

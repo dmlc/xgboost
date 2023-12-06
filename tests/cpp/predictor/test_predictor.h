@@ -34,6 +34,8 @@ inline gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param, Context 
 inline auto CreatePredictorForTest(Context const* ctx) {
   if (ctx->IsCPU()) {
     return Predictor::Create("cpu_predictor", ctx);
+  } else if (ctx->IsSycl()) {
+    return Predictor::Create("sycl_predictor", ctx);
   } else {
     return Predictor::Create("gpu_predictor", ctx);
   }
@@ -83,6 +85,8 @@ void TestPredictionFromGradientIndex(Context const* ctx, size_t rows, size_t col
   }
 }
 
+void TestBasic(DMatrix* dmat, Context const * ctx);
+
 // p_full and p_hist should come from the same data set.
 void TestTrainingPrediction(Context const* ctx, size_t rows, size_t bins,
                             std::shared_ptr<DMatrix> p_full, std::shared_ptr<DMatrix> p_hist);
@@ -98,7 +102,7 @@ void TestCategoricalPrediction(bool use_gpu, bool is_column_split);
 
 void TestPredictionWithLesserFeaturesColumnSplit(bool use_gpu);
 
-void TestCategoricalPredictLeaf(bool use_gpu, bool is_column_split);
+void TestCategoricalPredictLeaf(Context const *ctx, bool is_column_split);
 
 void TestIterationRange(Context const* ctx);
 

@@ -349,9 +349,9 @@ class GBTree : public GradientBooster {
   // Predictors
   std::unique_ptr<Predictor> cpu_predictor_;
   std::unique_ptr<Predictor> gpu_predictor_{nullptr};
-#if defined(XGBOOST_USE_ONEAPI)
-  std::unique_ptr<Predictor> oneapi_predictor_;
-#endif  // defined(XGBOOST_USE_ONEAPI)
+#if defined(XGBOOST_USE_SYCL)
+  std::unique_ptr<Predictor> sycl_predictor_;
+#endif  // defined(XGBOOST_USE_SYCL)
   common::Monitor monitor_;
 };
 

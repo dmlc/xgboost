@@ -1,4 +1,11 @@
 cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
+
+if(PLUGIN_SYCL)
+  set(CMAKE_CXX_COMPILER  "g++")
+  set(CMAKE_C_COMPILER  "gcc")
+  string(REPLACE " -isystem ${CONDA_PREFIX}/include" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+endif()
+
 project(xgboost LANGUAGES CXX C VERSION 2.1.0)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${xgboost_SOURCE_DIR}/cmake/modules")
@@ -102,7 +109,7 @@ address, leak, undefined and thread.")
 option(PLUGIN_RMM "Build with RAPIDS Memory Manager (RMM)" OFF)
 option(PLUGIN_FEDERATED "Build with Federated Learning" OFF)
 ## TODO: 1. Add check if DPC++ compiler is used for building
-option(PLUGIN_UPDATER_ONEAPI "DPC++ updater" OFF)
+option(PLUGIN_SYCL "SYCL plugin" OFF)
 option(ADD_PKGCONFIG "Add xgboost.pc into system." ON)
 
 #-- Checks for building XGBoost
@@ -311,6 +318,15 @@ if(PLUGIN_RMM)
   list(APPEND rmm_link_libs CUDA::cudart_static)
   set_target_properties(rmm::rmm PROPERTIES INTERFACE_LINK_LIBRARIES "${rmm_link_libs}")
   get_target_property(rmm_link_libs rmm::rmm INTERFACE_LINK_LIBRARIES)
+endif()
+
+if(PLUGIN_SYCL)
+  set(CMAKE_CXX_LINK_EXECUTABLE
+      "icpx <FLAGS> <CMAKE_CXX_LINK_FLAGS> -qopenmp <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+  set(CMAKE_CXX_CREATE_SHARED_LIBRARY
+      "icpx <CMAKE_SHARED_LIBRARY_CXX_FLAGS> -qopenmp <LANGUAGE_COMPILE_FLAGS> \
+      <CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS> <SONAME_FLAG>,<TARGET_SONAME> \
+      -o <TARGET> <OBJECTS> <LINK_LIBRARIES>")
 endif()
 
 #-- library

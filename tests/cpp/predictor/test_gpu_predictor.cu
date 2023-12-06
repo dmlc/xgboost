@@ -289,11 +289,13 @@ TEST_F(MGPUPredictorTest, CategoricalPredictionColumnSplit) {
 }
 
 TEST(GPUPredictor, CategoricalPredictLeaf) {
-  TestCategoricalPredictLeaf(true, false);
+  auto ctx = MakeCUDACtx(common::AllVisibleGPUs() == 1 ? 0 : collective::GetRank());
+  TestCategoricalPredictLeaf(&ctx, false);
 }
 
 TEST_F(MGPUPredictorTest, CategoricalPredictionLeafColumnSplit) {
-  RunWithInMemoryCommunicator(world_size_, TestCategoricalPredictLeaf, true, true);
+  auto ctx = MakeCUDACtx(common::AllVisibleGPUs() == 1 ? 0 : collective::GetRank());
+  RunWithInMemoryCommunicator(world_size_, TestCategoricalPredictLeaf, &ctx, true);
 }
 
 TEST(GPUPredictor, PredictLeafBasic) {

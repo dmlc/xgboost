@@ -1,0 +1,20 @@
+name: linux_sycl_test
+channels:
+- conda-forge
+- intel
+dependencies:
+- python=3.8
+- cmake
+- c-compiler
+- cxx-compiler
+- pip
+- wheel
+- numpy
+- scipy
+- scikit-learn
+- pandas
+- hypothesis>=6.46
+- pytest
+- pytest-timeout
+- pytest-cov
+- dpcpp_linux-64
