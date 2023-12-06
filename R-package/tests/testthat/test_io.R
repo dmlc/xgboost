@@ -12,7 +12,8 @@ test_that("load/save raw works", {
   nrounds <- 8
   booster <- xgboost(
     data = train$data, label = train$label,
-    nrounds = nrounds, objective = "binary:logistic"
+    nrounds = nrounds, objective = "binary:logistic",
+    nthread = 2
   )
 
   json_bytes <- xgb.save.raw(booster, raw_format = "json")

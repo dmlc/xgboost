@@ -70,7 +70,7 @@ cb.print.evaluation <- function(period = 1, showsd = TRUE) {
         i == env$begin_iteration ||
         i == env$end_iteration) {
       stdev <- if (showsd) env$bst_evaluation_err else NULL
-      msg <- format.eval.string(i, env$bst_evaluation, stdev)
+      msg <- .format_eval_string(i, env$bst_evaluation, stdev)
       cat(msg, '\n')
     }
   }
@@ -380,7 +380,9 @@ cb.early.stop <- function(stopping_rounds, maximize = FALSE,
     if ((maximize && score > best_score) ||
         (!maximize && score < best_score)) {
 
-      best_msg <<- format.eval.string(i, env$bst_evaluation, env$bst_evaluation_err)
+      best_msg <<- .format_eval_string(
+        i, env$bst_evaluation, env$bst_evaluation_err
+      )
       best_score <<- score
       best_iteration <<- i
       best_ntreelimit <<- best_iteration * env$num_parallel_tree
@@ -555,14 +557,18 @@ cb.cv.predict <- function(save_models = FALSE) {
 #'
 #' @examples
 #' #### Binary classification:
-#' #
+#'
+#' ## Keep the number of threads to 1 for examples
+#' nthread <- 1
+#' data.table::setDTthreads(nthread)
+#'
 #' # In the iris dataset, it is hard to linearly separate Versicolor class from the rest
 #' # without considering the 2nd order interactions:
 #' x <- model.matrix(Species ~ .^2, iris)[,-1]
 #' colnames(x)
-#' dtrain <- xgb.DMatrix(scale(x), label = 1*(iris$Species == "versicolor"), nthread = 2)
+#' dtrain <- xgb.DMatrix(scale(x), label = 1*(iris$Species == "versicolor"), nthread = nthread)
 #' param <- list(booster = "gblinear", objective = "reg:logistic", eval_metric = "auc",
-#'               lambda = 0.0003, alpha = 0.0003, nthread = 2)
+#'               lambda = 0.0003, alpha = 0.0003, nthread = nthread)
 #' # For 'shotgun', which is a default linear updater, using high eta values may result in
 #' # unstable behaviour in some datasets. With this simple dataset, however, the high learning
 #' # rate does not break the convergence, but allows us to illustrate the typical pattern of
@@ -592,9 +598,9 @@ cb.cv.predict <- function(save_models = FALSE) {
 #'
 #' #### Multiclass classification:
 #' #
-#' dtrain <- xgb.DMatrix(scale(x), label = as.numeric(iris$Species) - 1, nthread = 2)
+#' dtrain <- xgb.DMatrix(scale(x), label = as.numeric(iris$Species) - 1, nthread = nthread)
 #' param <- list(booster = "gblinear", objective = "multi:softprob", num_class = 3,
-#'               lambda = 0.0003, alpha = 0.0003, nthread = 2)
+#'               lambda = 0.0003, alpha = 0.0003, nthread = nthread)
 #' # For the default linear updater 'shotgun' it sometimes is helpful
 #' # to use smaller eta to reduce instability
 #' bst <- xgb.train(param, dtrain, list(tr=dtrain), nrounds = 70, eta = 0.5,
@@ -752,7 +758,7 @@ xgb.gblinear.history <- function(model, class_index = NULL) {
 #
 
 # Format the evaluation metric string
-format.eval.string <- function(iter, eval_res, eval_err = NULL) {
+.format_eval_string <- function(iter, eval_res, eval_err = NULL) {
   if (length(eval_res) == 0)
     stop('no evaluation results')
   enames <- names(eval_res)

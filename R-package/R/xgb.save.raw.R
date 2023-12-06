@@ -16,13 +16,18 @@
 #' @examples
 #' data(agaricus.train, package='xgboost')
 #' data(agaricus.test, package='xgboost')
+#'
+#' ## Keep the number of threads to 2 for examples
+#' nthread <- 2
+#' data.table::setDTthreads(nthread)
+#'
 #' train <- agaricus.train
 #' test <- agaricus.test
 #' bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
-#'                eta = 1, nthread = 2, nrounds = 2,objective = "binary:logistic")
+#'                eta = 1, nthread = nthread, nrounds = 2,objective = "binary:logistic")
+#'
 #' raw <- xgb.save.raw(bst)
 #' bst <- xgb.load.raw(raw)
-#' pred <- predict(bst, test$data)
 #'
 #' @export
 xgb.save.raw <- function(model, raw_format = "deprecated") {

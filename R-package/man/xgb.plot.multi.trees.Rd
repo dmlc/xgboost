@@ -63,10 +63,15 @@ This function is inspired by this blog post:
 \examples{
 
 data(agaricus.train, package='xgboost')
+## Keep the number of threads to 2 for examples
+nthread <- 2
+data.table::setDTthreads(nthread)
 
-bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_depth = 15,
-               eta = 1, nthread = 2, nrounds = 30, objective = "binary:logistic",
-               min_child_weight = 50, verbose = 0)
+bst <- xgboost(
+  data = agaricus.train$data, label = agaricus.train$label, max_depth = 15,
+  eta = 1, nthread = nthread, nrounds = 30, objective = "binary:logistic",
+  min_child_weight = 50, verbose = 0
+)
 
 p <- xgb.plot.multi.trees(model = bst, features_keep = 3)
 print(p)

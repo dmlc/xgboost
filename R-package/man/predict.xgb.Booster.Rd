@@ -128,11 +128,16 @@ of the most important features first. See below about the format of the returned
 
 data(agaricus.train, package='xgboost')
 data(agaricus.test, package='xgboost')
+
+## Keep the number of threads to 2 for examples
+nthread <- 2
+data.table::setDTthreads(nthread)
+
 train <- agaricus.train
 test <- agaricus.test
 
 bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
-               eta = 0.5, nthread = 2, nrounds = 5, objective = "binary:logistic")
+               eta = 0.5, nthread = nthread, nrounds = 5, objective = "binary:logistic")
 # use all trees by default
 pred <- predict(bst, test$data)
 # use only the 1st tree

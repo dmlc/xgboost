@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2022 by XGBoost Contributors
+ * Copyright 2014-2023, XGBoost Contributors
  */
 #include <dmlc/common.h>
 #include <dmlc/omp.h>
@@ -12,7 +12,6 @@
 #include <cstring>
 #include <sstream>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "../../src/c_api/c_api_error.h"
@@ -26,22 +25,24 @@
 #define R_API_BEGIN()                           \
   GetRNGstate();                                \
   try {
+
 /*!
  * \brief macro to annotate end of api
  */
-#define R_API_END()                             \
-  } catch(dmlc::Error& e) {                     \
-    PutRNGstate();                              \
-    error(e.what());                            \
-  }                                             \
+#define R_API_END()           \
+  }                           \
+  catch (dmlc::Error & e) {   \
+    PutRNGstate();            \
+    Rf_error("%s", e.what()); \
+  }                           \
   PutRNGstate();
 
 /*!
  * \brief macro to check the call.
  */
-#define CHECK_CALL(x)                           \
-  if ((x) != 0) {                               \
-    error(XGBGetLastError());                   \
+#define CHECK_CALL(x)                  \
+  if ((x) != 0) {                      \
+    Rf_error("%s", XGBGetLastError()); \
   }
 
 using dmlc::BeginPtr;
@@ -116,11 +117,25 @@ XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat, SEXP missing, SEXP n_threads) {
   std::vector<float> data(nrow * ncol);
   int32_t threads = xgboost::common::OmpGetNumThreads(asInteger(n_threads));
 
-  xgboost::common::ParallelFor(nrow, threads, [&](xgboost::omp_ulong i) {
-    for (size_t j = 0; j < ncol; ++j) {
-      data[i * ncol + j] = is_int ? static_cast<float>(iin[i + nrow * j]) : din[i + nrow * j];
-    }
-  });
+  if (is_int) {
+    xgboost::common::ParallelFor(nrow, threads, [&](xgboost::omp_ulong i) {
+      for (size_t j = 0; j < ncol; ++j) {
+        auto v = iin[i + nrow * j];
+        if (v == NA_INTEGER) {
+          data[i * ncol + j] = std::numeric_limits<float>::quiet_NaN();
+        } else {
+          data[i * ncol + j] = static_cast<float>(v);
+        }
+      }
+    });
+  } else {
+    xgboost::common::ParallelFor(nrow, threads, [&](xgboost::omp_ulong i) {
+      for (size_t j = 0; j < ncol; ++j) {
+        data[i * ncol + j] = din[i + nrow * j];
+      }
+    });
+  }
+
   DMatrixHandle handle;
   CHECK_CALL(XGDMatrixCreateFromMat_omp(BeginPtr(data), nrow, ncol,
                                         asReal(missing), &handle, threads));
