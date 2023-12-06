@@ -20,6 +20,7 @@
 #include "xgboost/tree_model.h"
 #include "xgboost/predictor.h"
 #include "xgboost/tree_updater.h"
+#include "../../../src/common/timer.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"
@@ -134,6 +135,206 @@ class DeviceModel {
   }
 };
 
+union NodeValue {
+  float leaf_weight;
+  float fvalue;
+};
+
+class Node {
+  const int* fidx_;
+  const int* left_child_idx_;
+  const int* right_child_idx_;
+  const NodeValue* val_;
+
+ public:
+  Node(const int* fidx, const int* left_child_idx, const int* right_child_idx, const NodeValue* val) : 
+    fidx_(fidx), left_child_idx_(left_child_idx), right_child_idx_(right_child_idx), val_(val) {}
+
+  int LeftChildIdx() const {return *left_child_idx_; }
+
+  int RightChildIdx() const {return *right_child_idx_; }
+
+  bool IsLeaf() const { return *left_child_idx_ == -1; }
+
+  int GetFidx() const { return *fidx_ & ((1U << 31) - 1U); }
+
+  bool MissingLeft() const { return (*fidx_ >> 31) != 0; }
+
+  int MissingIdx() const {
+    if (MissingLeft()) {
+      return *left_child_idx_;
+    } else {
+      return *right_child_idx_;
+    }
+  }
+
+  float GetFvalue() const { return (*val_).fvalue; }
+
+  float GetWeight() const { return (*val_).leaf_weight; }
+};
+
+class DeviceModelNew {
+  USMVector<int> fidx_;
+  USMVector<int> left_child_idx_;
+  USMVector<int> right_child_idx_;
+  USMVector<NodeValue> val_;
+
+  Node InitNode(const RegTree::Node& n, size_t node_idx) {
+    left_child_idx_[node_idx] = n.LeftChild();
+    right_child_idx_[node_idx] = n.RightChild();
+    fidx_[node_idx] = n.SplitIndex();
+    if (n.DefaultLeft()) {
+      fidx_[node_idx] |= (1U << 31);
+    }
+
+    if (n.IsLeaf()) {
+      val_[node_idx].leaf_weight = n.LeafValue();
+    } else {
+      val_[node_idx].fvalue = n.SplitCond();
+    }
+    return {fidx_.Data()            + node_idx, left_child_idx_.Data() + node_idx, 
+            right_child_idx_.Data() + node_idx, val_.Data()            + node_idx};
+  }
+
+ public:
+  USMVector<Node> nodes;
+  USMVector<size_t> first_node_position;
+  USMVector<int> tree_group;
+  size_t tree_beg;
+  size_t tree_end;
+  int num_group;
+
+  void Init(::sycl::queue* qu, const gbm::GBTreeModel& model, size_t tree_begin, size_t tree_end) {
+    int n_nodes = 0;
+    first_node_position.Resize(qu, (tree_end - tree_begin) + 1);
+    first_node_position[0] = n_nodes;
+    for (int tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
+      if (model.trees[tree_idx]->HasCategoricalSplit()) {
+        LOG(FATAL) << "Categorical features are not yet supported by sycl";
+      }
+      n_nodes += model.trees[tree_idx]->GetNodes().size();
+      first_node_position[tree_idx - tree_begin + 1] = n_nodes;
+    }
+
+    std::vector<::sycl::event> events(5);
+    events[0] = fidx_.ResizeAsync(qu, n_nodes, events[0]);
+    events[1] = left_child_idx_.ResizeAsync(qu, n_nodes, events[1]);
+    events[2] = right_child_idx_.ResizeAsync(qu, n_nodes, events[2]);
+    events[3] = val_.ResizeAsync(qu, n_nodes, events[3]);
+    events[4] = nodes.ResizeAsync(qu, n_nodes, events[4]);
+
+    ::sycl::event event;
+    event.wait_and_throw(events);
+    for (int tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
+      auto& src_nodes = model.trees[tree_idx]->GetNodes();
+      size_t n_nodes_shift = first_node_position[tree_idx - tree_begin];
+      for (size_t node_idx = 0; node_idx < src_nodes.size(); node_idx++) {
+        nodes[node_idx + n_nodes_shift] = InitNode(src_nodes[node_idx], node_idx + n_nodes_shift);
+      }
+    }
+
+    tree_group.Resize(qu, model.tree_info.size());
+    for (size_t tree_idx = 0; tree_idx < model.tree_info.size(); tree_idx++)
+      tree_group[tree_idx] = model.tree_info[tree_idx];
+
+    tree_beg = tree_begin;
+    tree_end = tree_end;
+    num_group = model.learner_model_param->num_output_group;
+  }
+};
+
+struct NodeResponse {
+  float fvalue;
+  uint8_t is_missing;
+};
+
+float GetLeafWeightNew(const Node* nodes, const NodeResponse* fval_buff) {
+  const Node* node = nodes;
+  while (!node->IsLeaf()) {
+    const NodeResponse& response = fval_buff[node->GetFidx()];
+    if (response.is_missing == 1) {
+      node = nodes + node->MissingIdx();
+    } else {
+      if (response.fvalue < node->GetFvalue()) {
+        node = nodes + node->LeftChildIdx();
+      } else {
+        node = nodes + node->RightChildIdx();
+      }
+    }
+  }
+  return node->GetWeight();
+}
+
+void DevicePredictInternalNew(::sycl::queue* qu,
+                              const sycl::DeviceMatrix& dmat,
+                              HostDeviceVector<float>* out_preds,
+                              const gbm::GBTreeModel& model,
+                              size_t tree_begin,
+                              size_t tree_end) {
+  if (tree_end - tree_begin == 0) return;
+  if (out_preds->HostVector().size() == 0) return;
+
+  DeviceModelNew device_model;
+  device_model.Init(qu, model, tree_begin, tree_end);
+
+  const Node* nodes = device_model.nodes.DataConst();
+  const size_t* first_node_position = device_model.first_node_position.DataConst();
+  const int* tree_group = device_model.tree_group.DataConst();
+  const size_t* row_ptr = dmat.row_ptr.DataConst();
+  const Entry* data = dmat.data.DataConst();
+  int num_features = dmat.p_mat->Info().num_col_;
+  int num_rows = dmat.row_ptr.Size() - 1;
+  int num_group = model.learner_model_param->num_output_group;
+
+  USMVector<NodeResponse, MemoryType::on_device> fval_buff(qu, num_features * num_rows);
+  auto* fval_buff_ptr = fval_buff.Data();
+
+  constexpr NodeResponse missing_response = {0.0, 1};
+  std::vector<::sycl::event> events(1);
+  events[0] = qu->fill(fval_buff_ptr, missing_response, num_features * num_rows);
+
+  events[0] = qu->submit([&](::sycl::handler& cgh) {
+    cgh.depends_on(events);
+    cgh.parallel_for<>(::sycl::range<1>(num_rows), [=](::sycl::id<1> pid) {
+      int global_idx = pid[0];
+      auto* fval_buff_row_ptr = fval_buff_ptr + num_features * global_idx;
+
+      const Entry* begin_ptr = data + row_ptr[global_idx];
+      const Entry* end_ptr = data + row_ptr[global_idx + 1];
+      for (const Entry* entry = begin_ptr; entry < end_ptr; entry += 1) {
+        fval_buff_row_ptr[entry->index] = {entry->fvalue, 0};
+      }
+    });
+  });
+
+  auto& out_preds_vec = out_preds->HostVector();
+  ::sycl::buffer<float, 1> out_preds_buf(out_preds_vec.data(), out_preds_vec.size());
+  events[0] = qu->submit([&](::sycl::handler& cgh) {
+    cgh.depends_on(events[0]);
+    auto out_predictions = out_preds_buf.template get_access<::sycl::access::mode::read_write>(cgh);
+    cgh.parallel_for<>(::sycl::range<1>(num_rows), [=](::sycl::id<1> pid) {
+      int global_idx = pid[0];
+      auto* fval_buff_row_ptr = fval_buff_ptr + num_features * global_idx;
+      if (num_group == 1) {
+        float sum = 0.0;
+        for (int tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
+          const Node* first_node = nodes + first_node_position[tree_idx - tree_begin];
+          sum += GetLeafWeightNew(first_node, fval_buff_row_ptr);
+        }
+        out_predictions[global_idx] += sum;
+      } else {
+        for (int tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
+          const Node* first_node = nodes + first_node_position[tree_idx - tree_begin];
+          int out_prediction_idx = global_idx * num_group + tree_group[tree_idx];
+          out_predictions[out_prediction_idx] += GetLeafWeightNew(first_node, fval_buff_row_ptr);
+        }
+      }
+    });
+  });
+  qu->wait();
+}
+
+
 float GetFvalue(int ridx, int fidx, Entry* data, size_t* row_ptr, bool* is_missing) {
   // Binary search
   auto begin_ptr = data + row_ptr[ridx];
@@ -230,10 +431,12 @@ void DevicePredictInternal(::sycl::queue qu,
 }
 
 class Predictor : public xgboost::Predictor {
+  mutable xgboost::common::Monitor monitor;
  protected:
   void InitOutPredictions(const MetaInfo& info,
                           HostDeviceVector<bst_float>* out_preds,
                           const gbm::GBTreeModel& model) const override {
+    monitor.Start(__func__);
     CHECK_NE(model.learner_model_param->num_output_group, 0);
     size_t n = model.learner_model_param->num_output_group * info.num_row_;
     const auto& base_margin = info.base_margin_.Data()->HostVector();
@@ -261,19 +464,21 @@ class Predictor : public xgboost::Predictor {
       }
       std::fill(out_preds_h.begin(), out_preds_h.end(), base_score);
     }
+    monitor.Stop(__func__);
   }
 
  public:
   explicit Predictor(Context const* context) :
       xgboost::Predictor::Predictor{context},
-      cpu_predictor(xgboost::Predictor::Create("cpu_predictor", context)) {}
+      cpu_predictor(xgboost::Predictor::Create("cpu_predictor", context)) {monitor.Init("SyclPredictor"); }
 
   void PredictBatch(DMatrix *dmat, PredictionCacheEntry *predts,
                     const gbm::GBTreeModel &model, uint32_t tree_begin,
                     uint32_t tree_end = 0) const override {
+    monitor.Start(__func__);
     ::sycl::queue qu = device_manager.GetQueue(ctx_->Device());
     // TODO(razdoburdin): remove temporary workaround after cache fix
-    sycl::DeviceMatrix device_matrix(qu, dmat);
+    sycl::DeviceMatrix device_matrix(qu, dmat, &monitor);
 
     auto* out_preds = &predts->predictions;
     if (tree_end == 0) {
@@ -281,8 +486,9 @@ class Predictor : public xgboost::Predictor {
     }
 
     if (tree_begin < tree_end) {
-      DevicePredictInternal(qu, &device_matrix, out_preds, model, tree_begin, tree_end);
+      DevicePredictInternalNew(&qu, device_matrix, out_preds, model, tree_begin, tree_end);
     }
+    monitor.Stop(__func__);
   }
 
   bool InplacePredict(std::shared_ptr<DMatrix> p_m,
