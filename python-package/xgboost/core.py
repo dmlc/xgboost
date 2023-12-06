@@ -449,7 +449,7 @@ def from_array_interface(interface: dict) -> NumpyOrCupy:
 
 def make_array_interface(
     ptr: CNumericPtr, shape: Tuple[int, ...], dtype: Type[np.number], is_cuda: bool
-) -> dict[str, Union[int, tuple]]:
+) -> Dict[str, Union[int, tuple, None]]:
     """Make an __(cuda)_array_interface__ from a pointer."""
     # Use an empty array to handle typestr and descr
     if is_cuda:
