@@ -1097,6 +1097,8 @@ inline void CUDAEvent::Record(CUDAStreamView stream) {  // NOLINT
   dh::safe_cuda(cudaEventRecord(event_, cudaStream_t{stream}));
 }
 
+// Changing this has effect on prediction return, where we need to pass the pointer to
+// third-party libraries like cuPy
 inline CUDAStreamView DefaultStream() {
 #ifdef CUDA_API_PER_THREAD_DEFAULT_STREAM
   return CUDAStreamView{cudaStreamPerThread};
