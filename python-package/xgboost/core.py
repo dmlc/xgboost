@@ -460,6 +460,7 @@ def make_array_interface(
         array = empty.__array_interface__  # pylint: disable=no-member
 
     addr = ctypes.cast(ptr, ctypes.c_void_p).value
+    assert addr is not None, ptr
     array["data"] = (addr, True)
     if is_cuda:
         array["stream"] = 2
