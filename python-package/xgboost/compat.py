@@ -105,7 +105,7 @@ def get_cupy() -> types.ModuleType:
     if not is_cupy_available():
         raise ImportError("`cupy` is required for handling CUDA buffer.")
 
-    import cupy
+    import cupy  # pylint: disable=import-error
 
     return cupy
 
