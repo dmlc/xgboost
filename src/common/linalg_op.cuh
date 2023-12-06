@@ -4,15 +4,20 @@
 #ifndef XGBOOST_COMMON_LINALG_OP_CUH_
 #define XGBOOST_COMMON_LINALG_OP_CUH_
 
-#include "device_helpers.cuh"
+#include <cstdint>  // for int32_t
+#include <cstdlib>  // for size_t
+#include <tuple>    // for apply
+
+#include "device_helpers.cuh"  // for LaunchN
 #include "linalg_op.h"
-#include "xgboost/context.h"
-#include "xgboost/linalg.h"
+#include "xgboost/context.h"  // for Context
+#include "xgboost/linalg.h"   // for TensorView
 
 namespace xgboost {
 namespace linalg {
 namespace cuda_impl {
-
+// Use template specialization to dispatch, Windows + CUDA 11.8 doesn't support extended
+// lambda inside constexpr if
 template <typename T, std::int32_t D>
 struct ElementWiseImpl {
   template <typename Fn>
@@ -31,6 +36,12 @@ struct ElementWiseImpl<T, 1> {
     dh::LaunchN(t.Size(), s, [=] __device__(std::size_t i) { fn(i); });
   }
 };
+
+template <typename T, std::int32_t D, typename Fn>
+void ElementWiseKernel(linalg::TensorView<T, D> t, Fn&& fn, cudaStream_t s = nullptr) {
+  dh::safe_cuda(cudaSetDevice(t.Device().ordinal));
+  cuda_impl::ElementWiseImpl<T, D>{}(t, fn, s);
+}
 }  // namespace cuda_impl
 
 template <typename T, int32_t D, typename Fn>
@@ -46,15 +57,10 @@ void ElementWiseTransformDevice(linalg::TensorView<T, D> t, Fn&& fn, cudaStream_
   }
 }
 
-template <typename T, std::int32_t D, typename Fn>
-void ElementWiseKernelDevice(linalg::TensorView<T, D> t, Fn&& fn, cudaStream_t s = nullptr) {
-  dh::safe_cuda(cudaSetDevice(t.Device().ordinal));
-  cuda_impl::ElementWiseImpl<T, D>{}(t, fn, s);
-}
-
 template <typename T, int32_t D, typename Fn>
 void ElementWiseKernel(Context const* ctx, linalg::TensorView<T, D> t, Fn&& fn) {
-  ctx->IsCUDA() ? ElementWiseKernelDevice(t, fn) : ElementWiseKernelHost(t, ctx->Threads(), fn);
+  ctx->IsCUDA() ? cuda_impl::ElementWiseKernel(t, fn)
+                : ElementWiseKernelHost(t, ctx->Threads(), fn);
 }
 }  // namespace linalg
 }  // namespace xgboost

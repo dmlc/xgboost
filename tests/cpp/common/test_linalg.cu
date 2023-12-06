@@ -31,7 +31,7 @@ void TestElementWiseKernel() {
     }
 
     t = l.View(device).Slice(linalg::All(), 1, linalg::All());
-    ElementWiseKernelDevice(
+    cuda_impl::ElementWiseKernel(
         t, [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable { t(i, j) = i + j; });
 
     t = l.Slice(linalg::All(), 1, linalg::All());
