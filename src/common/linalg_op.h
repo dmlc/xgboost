@@ -1,5 +1,5 @@
-/*!
- * Copyright 2021-2022 by XGBoost Contributors
+/**
+ * Copyright 2021-2023, XGBoost Contributors
  */
 #ifndef XGBOOST_COMMON_LINALG_OP_H_
 #define XGBOOST_COMMON_LINALG_OP_H_
@@ -27,17 +27,23 @@ void ElementWiseTransformHost(linalg::TensorView<T, D> t, int32_t n_threads, Fn&
   }
 }
 
-template <typename T, int32_t D, typename Fn>
-void ElementWiseKernelHost(linalg::TensorView<T, D> t, int32_t n_threads, Fn&& fn) {
-  static_assert(std::is_void<std::result_of_t<Fn(size_t, T&)>>::value,
-                "For function with return, use transform instead.");
-  if (t.Contiguous()) {
-    auto ptr = t.Values().data();
-    common::ParallelFor(t.Size(), n_threads, [&](size_t i) { fn(i, ptr[i]); });
+template <typename T, std::int32_t D, typename Fn>
+void ElementWiseKernelHost(linalg::TensorView<T, D> t, std::int32_t n_threads, Fn &&fn) {
+  if constexpr (D == 1) {
+    common::ParallelFor(t.Size(), n_threads, [&](std::size_t i) { fn(i); });
+  } else if (D == 2 && t.CContiguous() && t.Shape(0) > t.Shape(1) * 64) {
+    // Heuristic. Tall, c-contiguous matrix,
+    auto n_rows = t.Shape(0);
+    auto n_columns = t.Shape(1);
+    common::ParallelFor(n_rows, n_threads, [&](std::size_t i) {
+      for (std::size_t j = 0; j < n_columns; ++j) {
+        fn(i, j);
+      }
+    });
   } else {
-    common::ParallelFor(t.Size(), n_threads, [&](size_t i) {
-      auto& v = detail::Apply(t, linalg::UnravelIndex(i, t.Shape()));
-      fn(i, v);
+    common::ParallelFor(t.Size(), n_threads, [&](std::size_t i) {
+      auto idx = linalg::UnravelIndex(i, t.Shape());
+      std::apply(fn, idx);
     });
   }
 }
