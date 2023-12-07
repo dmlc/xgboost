@@ -100,6 +100,16 @@ def is_cupy_available() -> bool:
         return False
 
 
+def import_cupy() -> types.ModuleType:
+    """Import cupy."""
+    if not is_cupy_available():
+        raise ImportError("`cupy` is required for handling CUDA buffer.")
+
+    import cupy  # pylint: disable=import-error
+
+    return cupy
+
+
 try:
     import scipy.sparse as scipy_sparse
     from scipy.sparse import csr_matrix as scipy_csr
