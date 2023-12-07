@@ -287,7 +287,7 @@ getinfo <- function(object, ...) UseMethod("getinfo")
 #' @rdname getinfo
 #' @export
 getinfo.xgb.DMatrix <- function(object, name, ...) {
-  allowed_int_fields <- c('group')
+  allowed_int_fields <- 'group'
   allowed_float_fields <- c(
     'label', 'weight', 'base_margin',
     'label_lower_bound', 'label_upper_bound'
