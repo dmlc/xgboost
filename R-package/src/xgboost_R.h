@@ -106,12 +106,20 @@ XGB_DLL SEXP XGDMatrixSaveBinary_R(SEXP handle, SEXP fname, SEXP silent);
 XGB_DLL SEXP XGDMatrixSetInfo_R(SEXP handle, SEXP field, SEXP array);
 
 /*!
- * \brief get info vector from matrix
+ * \brief get info vector (float type) from matrix
  * \param handle a instance of data matrix
  * \param field field name
  * \return info vector
  */
-XGB_DLL SEXP XGDMatrixGetInfo_R(SEXP handle, SEXP field);
+XGB_DLL SEXP XGDMatrixGetFloatInfo_R(SEXP handle, SEXP field);
+
+/*!
+ * \brief get info vector (uint type) from matrix
+ * \param handle a instance of data matrix
+ * \param field field name
+ * \return info vector
+ */
+XGB_DLL SEXP XGDMatrixGetUIntInfo_R(SEXP handle, SEXP field);
 
 /*!
  * \brief return number of rows
