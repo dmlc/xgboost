@@ -1,10 +1,11 @@
 /*!
- * Copyright 2018-2019 XGBoost contributors
+ * Copyright 2018-2023 XGBoost contributors
  */
 #include <xgboost/objective.h>
 #include <xgboost/context.h>
 #include "../../src/common/common.h"
 #include "../helpers.h"
+#include "test_multiclass_obj.h"
 
 namespace xgboost {
 
@@ -90,18 +91,4 @@ void TestSoftprobMultiClassBasic(const Context* ctx) {
   }
 }
 
-TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassObjGPair)) {
-  Context ctx = MakeCUDACtx(GPUIDX);
-  TestSoftmaxMultiClassObjGPair(&ctx);
-}
-
-TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassBasic)) {
-  auto ctx = MakeCUDACtx(GPUIDX);
-  TestSoftmaxMultiClassBasic(&ctx);
-}
-
-TEST(Objective, DeclareUnifiedTest(SoftprobMultiClassBasic)) {
-  Context ctx = MakeCUDACtx(GPUIDX);
-  TestSoftprobMultiClassBasic(&ctx);
-}
 }  // namespace xgboost
