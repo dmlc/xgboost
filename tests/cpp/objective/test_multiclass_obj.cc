@@ -10,15 +10,13 @@
 namespace xgboost {
 
 void TestSoftmaxMultiClassObjGPair(const Context* ctx) {
-  std::string obj_name = "multi:softmax";
-
   std::vector<std::pair<std::string, std::string>> args {{"num_class", "3"}};
   std::unique_ptr<ObjFunction> obj {
-    ObjFunction::Create(obj_name, ctx)
+    ObjFunction::Create("multi:softmax", ctx)
   };
 
   obj->Configure(args);
-  CheckConfigReload(obj, obj_name);
+  CheckConfigReload(obj, "multi:softmax");
 
   CheckObjFunction(obj,
 		   {1.0f, 0.0f, 2.0f, 2.0f, 0.0f, 1.0f}, // preds
@@ -38,14 +36,12 @@ void TestSoftmaxMultiClassObjGPair(const Context* ctx) {
 }
 
 void TestSoftmaxMultiClassBasic(const Context* ctx) {
-  std::string obj_name = "multi:softmax";
-
   std::vector<std::pair<std::string, std::string>> args{
       std::pair<std::string, std::string>("num_class", "3")};
 
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create(obj_name, ctx)};
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("multi:softmax", ctx)};
   obj->Configure(args);
-  CheckConfigReload(obj, obj_name);
+  CheckConfigReload(obj, "multi:softmax");
 
   HostDeviceVector<bst_float>  io_preds = {2.0f, 0.0f, 1.0f,
                                            1.0f, 0.0f, 2.0f};
@@ -60,16 +56,14 @@ void TestSoftmaxMultiClassBasic(const Context* ctx) {
 }
 
 void TestSoftprobMultiClassBasic(const Context* ctx) {
-  std::string obj_name = "multi:softprob";
-
   std::vector<std::pair<std::string, std::string>> args {
     std::pair<std::string, std::string>("num_class", "3")};
 
   std::unique_ptr<ObjFunction> obj {
-    ObjFunction::Create(obj_name, ctx)
+    ObjFunction::Create("multi:softprob", ctx)
   };
   obj->Configure(args);
-  CheckConfigReload(obj, obj_name);
+  CheckConfigReload(obj, "multi:softprob");
 
   HostDeviceVector<bst_float>  io_preds = {2.0f, 0.0f, 1.0f};
   std::vector<bst_float> out_preds = {0.66524096f, 0.09003057f, 0.24472847f};

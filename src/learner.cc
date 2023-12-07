@@ -790,7 +790,6 @@ class LearnerConfiguration : public Learner {
       // Rename one of them once binary IO is gone.
       cfg_["max_delta_step"] = kMaxDeltaStepDefaultValue;
     }
-
     if (obj_ == nullptr || tparam_.objective != old.objective) {
       obj_.reset(ObjFunction::Create(tparam_.objective, &ctx_));
     }
