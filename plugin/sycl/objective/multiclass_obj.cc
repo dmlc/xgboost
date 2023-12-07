@@ -18,10 +18,14 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"
 #include "xgboost/data.h"
+#include "../../src/common/math.h"
 #pragma GCC diagnostic pop
 #include "xgboost/logging.h"
 #include "xgboost/objective.h"
 #include "xgboost/json.h"
+#include "xgboost/span.h"
+
+#include "../../../src/objective/multiclass_param.h"
 
 #include "../device_manager.h"
 #include <CL/sycl.hpp>
@@ -31,55 +35,6 @@ namespace sycl {
 namespace obj {
 
 DMLC_REGISTRY_FILE_TAG(multiclass_obj_sycl);
-
-/*!
- * \brief Do inplace softmax transformaton on start to end
- *
- * \tparam Iterator Input iterator type
- *
- * \param start Start iterator of input
- * \param end end iterator of input
- */
-template <typename Iterator>
-inline void Softmax(Iterator start, Iterator end) {
-  bst_float wmax = *start;
-  for (Iterator i = start+1; i != end; ++i) {
-    wmax = ::sycl::max(*i, wmax);
-  }
-  float wsum = 0.0f;
-  for (Iterator i = start; i != end; ++i) {
-    *i = ::sycl::exp(*i - wmax);
-    wsum += *i;
-  }
-  for (Iterator i = start; i != end; ++i) {
-    *i /= static_cast<float>(wsum);
-  }
-}
-
-/*!
- * \brief Find the maximum iterator within the iterators
- * \param begin The begining iterator.
- * \param end The end iterator.
- * \return the iterator point to the maximum value.
- * \tparam Iterator The type of the iterator.
- */
-template<typename Iterator>
-inline Iterator FindMaxIndex(Iterator begin, Iterator end) {
-  Iterator maxit = begin;
-  for (Iterator it = begin; it != end; ++it) {
-    if (*it > *maxit) maxit = it;
-  }
-  return maxit;
-}
-
-struct SoftmaxMultiClassParam : public XGBoostParameter<SoftmaxMultiClassParam> {
-  int num_class;
-  // declare parameters
-  DMLC_DECLARE_PARAMETER(SoftmaxMultiClassParam) {
-    DMLC_DECLARE_FIELD(num_class).set_lower_bound(1)
-        .describe("Number of output class in the multi-class classification.");
-  }
-};
 
 class SoftmaxMultiClassObj : public ObjFunction {
  public:
@@ -188,8 +143,8 @@ class SoftmaxMultiClassObj : public ObjFunction {
           auto io_preds_acc = io_preds_buf.get_access<::sycl::access::mode::read_write>(cgh);
           cgh.parallel_for<>(::sycl::range<1>(ndata), [=](::sycl::id<1> pid) {
             int idx = pid[0];
-            bst_float * point = &io_preds_acc[idx * nclass];
-            Softmax(point, point + nclass);
+            auto it = io_preds_acc.begin() + idx * nclass;
+            common::Softmax(it, it + nclass);
           });
         }).wait();
       } else {
@@ -200,8 +155,8 @@ class SoftmaxMultiClassObj : public ObjFunction {
           auto max_preds_acc = max_preds_buf.get_access<::sycl::access::mode::read_write>(cgh);
           cgh.parallel_for<>(::sycl::range<1>(ndata), [=](::sycl::id<1> pid) {
             int idx = pid[0];
-            bst_float const * point = &io_preds_acc[idx * nclass];
-            max_preds_acc[idx] = FindMaxIndex(point, point + nclass) - point;
+            auto it = io_preds_acc.begin() + idx * nclass;
+            max_preds_acc[idx] = common::FindMaxIndex(it, it + nclass) - it;
           });
         }).wait();
       }
@@ -218,9 +173,9 @@ class SoftmaxMultiClassObj : public ObjFunction {
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     if (this->output_prob_) {
-      out["name"] = String("multi:softprob_sycl");
+      out["name"] = String("multi:softprob");
     } else {
-      out["name"] = String("multi:softmax_sycl");
+      out["name"] = String("multi:softmax");
     }
     out["softmax_multiclass_param"] = ToJson(param_);
   }
@@ -233,7 +188,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
   // output probability
   bool output_prob_;
   // parameter
-  SoftmaxMultiClassParam param_;
+  xgboost::obj::SoftmaxMultiClassParam param_;
   // Cache for max_preds
   mutable HostDeviceVector<bst_float> max_preds_;
 
@@ -241,9 +196,6 @@ class SoftmaxMultiClassObj : public ObjFunction {
 
   mutable ::sycl::queue qu_;
 };
-
-// register the objective functions
-DMLC_REGISTER_PARAMETER(SoftmaxMultiClassParam);
 
 XGBOOST_REGISTER_OBJECTIVE(SoftmaxMultiClass, "multi:softmax_sycl")
 .describe("Softmax for multi-class classification, output class index.")

@@ -35,6 +35,8 @@
 #include "xgboost/span.h"
 #include "xgboost/tree_model.h"  // RegTree
 
+#include "regression_param.h"
+
 #if defined(XGBOOST_USE_CUDA)
 #include "../common/cuda_context.cuh"  // for CUDAContext
 #include "../common/device_helpers.cuh"
@@ -53,14 +55,7 @@ void CheckRegInputs(MetaInfo const& info, HostDeviceVector<bst_float> const& pre
 DMLC_REGISTRY_FILE_TAG(regression_obj_gpu);
 #endif  // defined(XGBOOST_USE_CUDA)
 
-struct RegLossParam : public XGBoostParameter<RegLossParam> {
-  float scale_pos_weight;
-  // declare parameters
-  DMLC_DECLARE_PARAMETER(RegLossParam) {
-    DMLC_DECLARE_FIELD(scale_pos_weight).set_default(1.0f).set_lower_bound(0.0f)
-      .describe("Scale the weight of positive examples by this factor");
-  }
-};
+
 
 template<typename Loss>
 class RegLossObj : public FitIntercept {

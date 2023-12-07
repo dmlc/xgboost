@@ -20,9 +20,6 @@ namespace xgboost {
 
 void TestLinearRegressionGPair(const Context* ctx) {
   std::string obj_name = "reg:squarederror";
-  if (ctx->IsSycl()) {
-    obj_name = ObjFunction::GetSyclImplementationName(obj_name);
-  }
 
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create(obj_name, ctx)};
@@ -45,9 +42,6 @@ void TestLinearRegressionGPair(const Context* ctx) {
 
 void TestSquaredLog(const Context* ctx) {
   std::string obj_name = "reg:squaredlogerror";
-  if (ctx->IsSycl()) {
-    obj_name = ObjFunction::GetSyclImplementationName(obj_name);
-  }
   std::vector<std::pair<std::string, std::string>> args;
 
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create(obj_name, ctx)};
@@ -71,9 +65,6 @@ void TestSquaredLog(const Context* ctx) {
 
 void TestLogisticRegressionGPair(const Context* ctx) {
   std::string obj_name = "reg:logistic";
-  if (ctx->IsSycl()) {
-    obj_name = ObjFunction::GetSyclImplementationName(obj_name);
-  }
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create(obj_name, ctx)};
 
@@ -90,9 +81,6 @@ void TestLogisticRegressionGPair(const Context* ctx) {
 
 void TestLogisticRegressionBasic(const Context* ctx) {
   std::string obj_name = "reg:logistic";
-  if (ctx->IsSycl()) {
-    obj_name = ObjFunction::GetSyclImplementationName(obj_name);
-  }
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create(obj_name, ctx)};
 
@@ -122,9 +110,6 @@ void TestLogisticRegressionBasic(const Context* ctx) {
 
 void TestsLogisticRawGPair(const Context* ctx) {
   std::string obj_name = "binary:logitraw";
-  if (ctx->IsSycl()) {
-    obj_name = ObjFunction::GetSyclImplementationName(obj_name);
-  }
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction>  obj {ObjFunction::Create(obj_name, ctx)};
   obj->Configure(args);

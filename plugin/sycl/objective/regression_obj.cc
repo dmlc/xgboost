@@ -22,7 +22,12 @@
 
 #include "../../src/common/transform.h"
 #include "../../src/common/common.h"
-#include "regression_loss.h"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wtautological-constant-compare"
+#include "../../../src/objective/regression_loss.h"
+#pragma GCC diagnostic pop
+#include "../../../src/objective/regression_param.h"
+
 #include "../device_manager.h"
 
 #include <CL/sycl.hpp>
@@ -32,15 +37,6 @@ namespace sycl {
 namespace obj {
 
 DMLC_REGISTRY_FILE_TAG(regression_obj_sycl);
-
-struct RegLossParam : public XGBoostParameter<RegLossParam> {
-  float scale_pos_weight;
-  // declare parameters
-  DMLC_DECLARE_PARAMETER(RegLossParam) {
-    DMLC_DECLARE_FIELD(scale_pos_weight).set_default(1.0f).set_lower_bound(0.0f)
-      .describe("Scale the weight of positive examples by this factor");
-  }
-};
 
 template<typename Loss>
 class RegLossObj : public ObjFunction {
@@ -164,35 +160,37 @@ class RegLossObj : public ObjFunction {
   }
 
  protected:
-  RegLossParam param_;
+  xgboost::obj::RegLossParam param_;
   sycl::DeviceManager device_manager;
 
   mutable ::sycl::queue qu_;
 };
 
-// register the objective functions
-DMLC_REGISTER_PARAMETER(RegLossParam);
-
-/* TODO(razdoburdin):
- * Find a better way to dispatch names of SYCL kernels with various 
- * template parameters of loss function
- */
-XGBOOST_REGISTER_OBJECTIVE(SquaredLossRegression, LinearSquareLoss::Name())
+XGBOOST_REGISTER_OBJECTIVE(SquaredLossRegression,
+                           std::string(xgboost::obj::LinearSquareLoss::Name()) + "_sycl")
 .describe("Regression with squared error with SYCL backend.")
-.set_body([]() { return new RegLossObj<LinearSquareLoss>(); });
-XGBOOST_REGISTER_OBJECTIVE(SquareLogError, SquaredLogError::Name())
+.set_body([]() { return new RegLossObj<xgboost::obj::LinearSquareLoss>(); });
+
+XGBOOST_REGISTER_OBJECTIVE(SquareLogError,
+                           std::string(xgboost::obj::SquaredLogError::Name()) + "_sycl")
 .describe("Regression with root mean squared logarithmic error with SYCL backend.")
-.set_body([]() { return new RegLossObj<SquaredLogError>(); });
-XGBOOST_REGISTER_OBJECTIVE(LogisticRegression, LogisticRegression::Name())
+.set_body([]() { return new RegLossObj<xgboost::obj::SquaredLogError>(); });
+
+XGBOOST_REGISTER_OBJECTIVE(LogisticRegression,
+                           std::string(xgboost::obj::LogisticRegression::Name()) + "_sycl")
 .describe("Logistic regression for probability regression task with SYCL backend.")
-.set_body([]() { return new RegLossObj<LogisticRegression>(); });
-XGBOOST_REGISTER_OBJECTIVE(LogisticClassification, LogisticClassification::Name())
+.set_body([]() { return new RegLossObj<xgboost::obj::LogisticRegression>(); });
+
+XGBOOST_REGISTER_OBJECTIVE(LogisticClassification,
+                           std::string(xgboost::obj::LogisticClassification::Name()) + "_sycl")
 .describe("Logistic regression for binary classification task with SYCL backend.")
-.set_body([]() { return new RegLossObj<LogisticClassification>(); });
-XGBOOST_REGISTER_OBJECTIVE(LogisticRaw, LogisticRaw::Name())
+.set_body([]() { return new RegLossObj<xgboost::obj::LogisticClassification>(); });
+
+XGBOOST_REGISTER_OBJECTIVE(LogisticRaw,
+                           std::string(xgboost::obj::LogisticRaw::Name()) + "_sycl")
 .describe("Logistic regression for classification, output score "
           "before logistic transformation with SYCL backend.")
-.set_body([]() { return new RegLossObj<LogisticRaw>(); });
+.set_body([]() { return new RegLossObj<xgboost::obj::LogisticRaw>(); });
 
 }  // namespace obj
 }  // namespace sycl

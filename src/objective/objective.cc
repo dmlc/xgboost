@@ -18,7 +18,11 @@ DMLC_REGISTRY_ENABLE(::xgboost::ObjFunctionReg);
 namespace xgboost {
 // implement factory functions
 ObjFunction* ObjFunction::Create(const std::string& name, Context const* ctx) {
-  auto *e = ::dmlc::Registry< ::xgboost::ObjFunctionReg>::Get()->Find(name);
+  std::string obj_name = name;
+  if (ctx->IsSycl()) {
+    obj_name = GetSyclImplementationName(obj_name);
+  }
+  auto *e = ::dmlc::Registry< ::xgboost::ObjFunctionReg>::Get()->Find(obj_name);
   if (e == nullptr) {
     std::stringstream ss;
     for (const auto& entry : ::dmlc::Registry< ::xgboost::ObjFunctionReg>::List()) {

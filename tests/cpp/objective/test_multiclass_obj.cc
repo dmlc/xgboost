@@ -11,9 +11,6 @@ namespace xgboost {
 
 void TestSoftmaxMultiClassObjGPair(const Context* ctx) {
   std::string obj_name = "multi:softmax";
-  if (ctx->IsSycl()) {
-    obj_name = ObjFunction::GetSyclImplementationName(obj_name);
-  }
 
   std::vector<std::pair<std::string, std::string>> args {{"num_class", "3"}};
   std::unique_ptr<ObjFunction> obj {
@@ -42,9 +39,6 @@ void TestSoftmaxMultiClassObjGPair(const Context* ctx) {
 
 void TestSoftmaxMultiClassBasic(const Context* ctx) {
   std::string obj_name = "multi:softmax";
-  if (ctx->IsSycl()) {
-    obj_name = ObjFunction::GetSyclImplementationName(obj_name);
-  }
 
   std::vector<std::pair<std::string, std::string>> args{
       std::pair<std::string, std::string>("num_class", "3")};
@@ -67,9 +61,6 @@ void TestSoftmaxMultiClassBasic(const Context* ctx) {
 
 void TestSoftprobMultiClassBasic(const Context* ctx) {
   std::string obj_name = "multi:softprob";
-  if (ctx->IsSycl()) {
-    obj_name = ObjFunction::GetSyclImplementationName(obj_name);
-  }
 
   std::vector<std::pair<std::string, std::string>> args {
     std::pair<std::string, std::string>("num_class", "3")};

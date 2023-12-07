@@ -528,9 +528,6 @@ class LearnerConfiguration : public Learner {
     auto const& objective_fn = learner_parameters.at("objective");
     if (!obj_) {
       CHECK_EQ(get<String const>(objective_fn["name"]), tparam_.objective);
-      if (ctx_.IsSycl()) {
-        tparam_.objective = ObjFunction::GetSyclImplementationName(tparam_.objective);
-      }
       obj_.reset(ObjFunction::Create(tparam_.objective, &ctx_));
     }
     obj_->LoadConfig(objective_fn);
@@ -779,8 +776,7 @@ class LearnerConfiguration : public Learner {
   void ConfigureObjective(LearnerTrainParam const& old, Args* p_args) {
     // Once binary IO is gone, NONE of these config is useful.
     if (cfg_.find("num_class") != cfg_.cend() && cfg_.at("num_class") != "0" &&
-        tparam_.objective != "multi:softprob" &&
-        tparam_.objective != ObjFunction::GetSyclImplementationName("multi:softprob")) {
+        tparam_.objective != "multi:softprob") {
       cfg_["num_output_group"] = cfg_["num_class"];
       if (atoi(cfg_["num_class"].c_str()) > 1 && cfg_.count("objective") == 0) {
         tparam_.objective = "multi:softmax";
@@ -794,9 +790,7 @@ class LearnerConfiguration : public Learner {
       // Rename one of them once binary IO is gone.
       cfg_["max_delta_step"] = kMaxDeltaStepDefaultValue;
     }
-    if (ctx_.IsSycl()) {
-      tparam_.objective = ObjFunction::GetSyclImplementationName(tparam_.objective);
-    }
+
     if (obj_ == nullptr || tparam_.objective != old.objective) {
       obj_.reset(ObjFunction::Create(tparam_.objective, &ctx_));
     }
@@ -887,9 +881,6 @@ class LearnerIO : public LearnerConfiguration {
     auto const& objective_fn = learner.at("objective");
 
     std::string name = get<String>(objective_fn["name"]);
-    if (ctx_.IsSycl()) {
-      name = ObjFunction::GetSyclImplementationName(name);
-    }
     tparam_.UpdateAllowUnknown(Args{{"objective", name}});
     obj_.reset(ObjFunction::Create(name, &ctx_));
     obj_->LoadConfig(objective_fn);
@@ -1017,9 +1008,6 @@ class LearnerIO : public LearnerConfiguration {
     CHECK(fi->Read(&tparam_.objective)) << "BoostLearner: wrong model format";
     CHECK(fi->Read(&tparam_.booster)) << "BoostLearner: wrong model format";
 
-    if (ctx_.IsSycl()) {
-      tparam_.objective = ObjFunction::GetSyclImplementationName(tparam_.objective);
-    }
     obj_.reset(ObjFunction::Create(tparam_.objective, &ctx_));
     gbm_.reset(GradientBooster::Create(tparam_.booster, &ctx_, &learner_model_param_));
     gbm_->Load(fi);

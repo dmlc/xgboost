@@ -21,21 +21,14 @@
 #include "../common/math.h"
 #include "../common/transform.h"
 
+#include "multiclass_param.h"
+
 namespace xgboost {
 namespace obj {
 
 #if defined(XGBOOST_USE_CUDA)
 DMLC_REGISTRY_FILE_TAG(multiclass_obj_gpu);
 #endif  // defined(XGBOOST_USE_CUDA)
-
-struct SoftmaxMultiClassParam : public XGBoostParameter<SoftmaxMultiClassParam> {
-  int num_class;
-  // declare parameters
-  DMLC_DECLARE_PARAMETER(SoftmaxMultiClassParam) {
-    DMLC_DECLARE_FIELD(num_class).set_lower_bound(1)
-        .describe("Number of output class in the multi-class classification.");
-  }
-};
 
 class SoftmaxMultiClassObj : public ObjFunction {
  public:
