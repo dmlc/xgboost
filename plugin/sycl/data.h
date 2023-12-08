@@ -234,8 +234,7 @@ struct DeviceMatrix {
   USMVector<Entry, MemoryType::on_device> data;
   size_t total_offset;
 
-  DeviceMatrix(::sycl::queue qu, DMatrix* dmat, xgboost::common::Monitor* monitor) : p_mat(dmat), qu_(qu) {
-    monitor->Start(__func__);
+  DeviceMatrix(::sycl::queue qu, DMatrix* dmat) : p_mat(dmat), qu_(qu) {
     size_t num_row = 0;
     size_t num_nonzero = 0;
     for (auto &batch : dmat->GetBatches<SparsePage>()) {
@@ -260,15 +259,14 @@ struct DeviceMatrix {
           for (size_t i = 0; i < batch_size; i++)
             row_ptr[i + batch.base_rowid] += batch.base_rowid;
         }
-        qu.memcpy(data.Data() + data_offset, data_vec.data(), offset_vec[batch_size] * sizeof(Entry)).wait();
-        // std::copy(data_vec.data(), data_vec.data() + offset_vec[batch_size],
-        //           data.Data() + data_offset);
+        qu.memcpy(data.Data() + data_offset,
+                  data_vec.data(),
+                  offset_vec[batch_size] * sizeof(Entry)).wait();
         data_offset += offset_vec[batch_size];
       }
     }
     row_ptr[num_row] = data_offset;
     total_offset = data_offset;
-    monitor->Stop(__func__);
   }
 
   ~DeviceMatrix() {
