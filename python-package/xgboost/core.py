@@ -206,6 +206,7 @@ def _load_lib() -> ctypes.CDLL:
             lib = ctypes.cdll.LoadLibrary(lib_path)
             setattr(lib, "path", os.path.normpath(lib_path))
             lib_success = True
+            break
         except OSError as e:
             os_error_list.append(str(e))
             continue
