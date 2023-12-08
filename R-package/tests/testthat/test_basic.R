@@ -388,6 +388,38 @@ test_that("xgb.cv works with stratified folds", {
   expect_true(all(cv$evaluation_log[, test_logloss_mean] != cv2$evaluation_log[, test_logloss_mean]))
 })
 
+test_that("xgb.cv works for AFT", {
+  X <- matrix(c(1, -1, -1, 1, 0, 1, 1, 0), nrow = 4, byrow = TRUE)  # 4x2 matrix
+  dtrain <- xgb.DMatrix(X, nthread = n_threads)
+  
+  setinfo(dtrain, 'label_lower_bound', c(2, 3, 0, 4))
+  setinfo(dtrain, 'label_upper_bound', c(2, Inf, 4, 5))
+  
+  params <- list(objective = 'survival:aft', learning_rate = 0.2, max_depth = 2L)
+  
+  # data must be xgb.DMatrix in aft case
+  expect_error(
+    xgb.cv(
+      params = params, 
+      data = X, 
+      nround = 5L, 
+      nfold = 4L, 
+      nthread = n_threads,
+      label = c(2, 3, 0, 4)
+    )
+  )
+  
+  # automatic stratified splitting is turned off
+  expect_warning(
+    xgb.cv(params = params, data = dtrain, nround = 5L, nfold = 4L, nthread = n_threads)
+  )
+  
+  # this works without any issue
+  expect_no_warning(
+    xgb.cv(params = params, data = dtrain, nround = 5L, nfold = 4L, stratified = FALSE)
+  )
+})
+
 test_that("train and predict with non-strict classes", {
   # standard dense matrix input
   train_dense <- as.matrix(train$data)

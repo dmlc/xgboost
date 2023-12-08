@@ -239,6 +239,12 @@ convert.labels <- function(labels, objective_name) {
 
 # Generates random (stratified if needed) CV folds
 generate.cv.folds <- function(nfold, nrows, stratified, label, params) {
+  
+  # cannot stratify if label is NULL
+  if (isTRUE(stratified) && is.null(label)) {
+    warning("Will use unstratified splitting (no labels provided)")
+    stratified <- FALSE
+  }
 
   # cannot do it for rank
   objective <- params$objective

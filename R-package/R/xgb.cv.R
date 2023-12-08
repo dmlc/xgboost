@@ -134,17 +134,29 @@ xgb.cv <- function(params = list(), data, nrounds, nfold, label = NULL, missing 
 
   check.custom.obj()
   check.custom.eval()
-
-  # Check the labels
-  if ((inherits(data, 'xgb.DMatrix') && is.null(getinfo(data, 'label'))) ||
-      (!inherits(data, 'xgb.DMatrix') && is.null(label))) {
-    stop("Labels must be provided for CV either through xgb.DMatrix, or through 'label=' when 'data' is matrix")
-  } else if (inherits(data, 'xgb.DMatrix')) {
-    if (!is.null(label))
-      warning("xgb.cv: label will be ignored, since data is of type xgb.DMatrix")
-    cv_label <- getinfo(data, 'label')
+  
+  # AFT uses 'label_lower/upper_bound' instead of 'label'
+  if (is.character(params$objective) && params$objective == 'survival:aft') {
+    if (!inherits(data, 'xgb.DMatrix')) {
+      stop("Objective 'survival:aft' requires the data to be an 'xgb.DMatrix'.")
+    }
+    if (is.null(getinfo(data, name = 'label_lower_bound')) || 
+        is.null(getinfo(data, name = 'label_upper_bound'))) {
+      stop("Objective 'survival:aft' requires 'label_lower_bound' and 'label_upper_bound.")
+    }
+    cv_label <- NULL
   } else {
-    cv_label <- label
+    # Check the labels
+    if ((inherits(data, 'xgb.DMatrix') && is.null(getinfo(data, 'label'))) ||
+        (!inherits(data, 'xgb.DMatrix') && is.null(label))) {
+      stop("Labels must be provided for CV either through xgb.DMatrix, or through 'label=' when 'data' is matrix")
+    } else if (inherits(data, 'xgb.DMatrix')) {
+      if (!is.null(label))
+        warning("xgb.cv: label will be ignored, since data is of type xgb.DMatrix")
+      cv_label <- getinfo(data, 'label')
+    } else {
+      cv_label <- label
+    }
   }
 
   # CV folds
