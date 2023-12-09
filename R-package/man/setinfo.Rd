@@ -22,13 +22,15 @@ setinfo(object, ...)
 Set information of an xgb.DMatrix object
 }
 \details{
-The \code{name} field can be one of the following:
+See the documentation for \link{xgb.DMatrix} for possible fields that can be set
+(which correspond to arguments in that function).
 
-\itemize{
-    \item \code{label}: label XGBoost learn from ;
-    \item \code{weight}: to do a weight rescale ;
-    \item \code{base_margin}: base margin is the base prediction XGBoost will boost from ;
-    \item \code{group}: number of rows in each group (to use with \code{rank:pairwise} objective).
+Note that the following fields are allowed in the construction of an \code{xgb.DMatrix}
+but \bold{aren't} allowed here:\itemize{
+\item data
+\item missing
+\item silent
+\item nthread
 }
 }
 \examples{

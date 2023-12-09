@@ -6,11 +6,18 @@
 \usage{
 xgb.DMatrix(
   data,
-  info = list(),
+  label = NULL,
+  weight = NULL,
+  base_margin = NULL,
   missing = NA,
   silent = FALSE,
+  feature_names = colnames(data),
   nthread = NULL,
-  ...
+  group = NULL,
+  qid = NULL,
+  label_lower_bound = NULL,
+  label_upper_bound = NULL,
+  feature_weights = NULL
 )
 }
 \arguments{
@@ -19,17 +26,35 @@ a \code{dgRMatrix} object,
 a \code{dsparseVector} object (only when making predictions from a fitted model, will be
 interpreted as a row vector), or a character string representing a filename.}
 
-\item{info}{a named list of additional information to store in the \code{xgb.DMatrix} object.
-See \code{\link{setinfo}} for the specific allowed kinds of}
+\item{label}{Label of the training data.}
+
+\item{weight}{Weight for each instance.
+
+Note that, for ranking task, weights are per-group.  In ranking task, one weight
+is assigned to each group (not each data point). This is because we
+only care about the relative ordering of data points within each group,
+so it doesn't make sense to assign weights to individual data points.}
+
+\item{base_margin}{Base margin used for boosting from existing model.}
 
 \item{missing}{a float value to represents missing values in data (used only when input is a dense matrix).
 It is useful when a 0 or some other extreme value represents missing values in data.}
 
 \item{silent}{whether to suppress printing an informational message after loading from a file.}
 
+\item{feature_names}{Set names for features.}
+
 \item{nthread}{Number of threads used for creating DMatrix.}
 
-\item{...}{the \code{info} data could be passed directly as parameters, without creating an \code{info} list.}
+\item{group}{Group size for all ranking group.}
+
+\item{qid}{Query ID for data samples, used for ranking.}
+
+\item{label_lower_bound}{Lower bound for survival training.}
+
+\item{label_upper_bound}{Upper bound for survival training.}
+
+\item{feature_weights}{Set feature weights for column sampling.}
 }
 \description{
 Construct xgb.DMatrix object from either a dense matrix, a sparse matrix, or a local file.

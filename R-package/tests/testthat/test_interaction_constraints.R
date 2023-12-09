@@ -47,7 +47,7 @@ test_that("interaction constraints scientific representation", {
   d <- matrix(rexp(rows, rate = .1), nrow = rows, ncol = cols)
   y <- rnorm(rows)
 
-  dtrain <- xgb.DMatrix(data = d, info = list(label = y), nthread = n_threads)
+  dtrain <- xgb.DMatrix(data = d, label = y, nthread = n_threads)
   inc <- list(c(seq.int(from = 0, to = cols, by = 1)))
 
   with_inc <- xgb.train(

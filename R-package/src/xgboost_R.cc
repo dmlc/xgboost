@@ -8,6 +8,7 @@
 #include <xgboost/data.h>
 #include <xgboost/logging.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -412,17 +413,27 @@ XGB_DLL SEXP XGDMatrixGetStrFeatureInfo_R(SEXP handle, SEXP field) {
   return ret;
 }
 
-XGB_DLL SEXP XGDMatrixGetInfo_R(SEXP handle, SEXP field) {
+XGB_DLL SEXP XGDMatrixGetFloatInfo_R(SEXP handle, SEXP field) {
   SEXP ret;
   R_API_BEGIN();
   bst_ulong olen;
   const float *res;
   CHECK_CALL(XGDMatrixGetFloatInfo(R_ExternalPtrAddr(handle), CHAR(asChar(field)), &olen, &res));
   ret = PROTECT(allocVector(REALSXP, olen));
-  double *ret_ = REAL(ret);
-  for (size_t i = 0; i < olen; ++i) {
-    ret_[i] = res[i];
-  }
+  std::copy(res, res + olen, REAL(ret));
+  R_API_END();
+  UNPROTECT(1);
+  return ret;
+}
+
+XGB_DLL SEXP XGDMatrixGetUIntInfo_R(SEXP handle, SEXP field) {
+  SEXP ret;
+  R_API_BEGIN();
+  bst_ulong olen;
+  const unsigned *res;
+  CHECK_CALL(XGDMatrixGetUIntInfo(R_ExternalPtrAddr(handle), CHAR(asChar(field)), &olen, &res));
+  ret = PROTECT(allocVector(INTSXP, olen));
+  std::copy(res, res + olen, INTEGER(ret));
   R_API_END();
   UNPROTECT(1);
   return ret;
