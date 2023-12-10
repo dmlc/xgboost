@@ -134,6 +134,19 @@ XGB_DLL SEXP XGDMatrixNumRow_R(SEXP handle);
 XGB_DLL SEXP XGDMatrixNumCol_R(SEXP handle);
 
 /*!
+ * \brief create quantile dmatrix from dense matrix
+ * This assumes the matrix is stored in column major format
+ * \param R_mat R Matrix object
+ * \param missing which value to represent missing value
+ * \param n_threads Number of threads used to construct DMatrix from dense matrix.
+ * \param max_bin Maximum number of bins for building histogram.
+ * \param ref_dmat Optional reference DMatrix for providing quantile information
+ * \return created dmatrix
+ */
+XGB_DLL SEXP XGQuantileDMatrixFromMat_R(SEXP R_mat, SEXP missing, SEXP n_threads,
+                                        SEXP max_bin, SEXP ref_dmat);
+
+/*!
  * \brief create xgboost learner
  * \param dmats a list of dmatrix handles that will be cached
  */

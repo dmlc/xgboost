@@ -48,6 +48,7 @@ extern SEXP XGDMatrixSaveBinary_R(SEXP, SEXP, SEXP);
 extern SEXP XGDMatrixSetInfo_R(SEXP, SEXP, SEXP);
 extern SEXP XGDMatrixSetStrFeatureInfo_R(SEXP, SEXP, SEXP);
 extern SEXP XGDMatrixSliceDMatrix_R(SEXP, SEXP);
+extern SEXP XGQuantileDMatrixFromMat_R(SEXP, SEXP, SEXP, SEXP, SEXP);
 extern SEXP XGBSetGlobalConfig_R(SEXP);
 extern SEXP XGBGetGlobalConfig_R(void);
 extern SEXP XGBoosterFeatureScore_R(SEXP, SEXP);
@@ -86,6 +87,7 @@ static const R_CallMethodDef CallEntries[] = {
   {"XGDMatrixSetInfo_R",          (DL_FUNC) &XGDMatrixSetInfo_R,          3},
   {"XGDMatrixSetStrFeatureInfo_R", (DL_FUNC) &XGDMatrixSetStrFeatureInfo_R, 3},
   {"XGDMatrixSliceDMatrix_R",     (DL_FUNC) &XGDMatrixSliceDMatrix_R,     2},
+  {"XGQuantileDMatrixFromMat_R",  (DL_FUNC) &XGQuantileDMatrixFromMat_R,  5},
   {"XGBSetGlobalConfig_R",        (DL_FUNC) &XGBSetGlobalConfig_R,        1},
   {"XGBGetGlobalConfig_R",        (DL_FUNC) &XGBGetGlobalConfig_R,        0},
   {"XGBoosterFeatureScore_R",     (DL_FUNC) &XGBoosterFeatureScore_R,     2},

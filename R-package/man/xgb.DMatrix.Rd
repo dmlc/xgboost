@@ -17,7 +17,10 @@ xgb.DMatrix(
   qid = NULL,
   label_lower_bound = NULL,
   label_upper_bound = NULL,
-  feature_weights = NULL
+  feature_weights = NULL,
+  as_quantile_dmatrix = FALSE,
+  ref = NULL,
+  max_bin = NULL
 )
 }
 \arguments{
@@ -55,6 +58,28 @@ It is useful when a 0 or some other extreme value represents missing values in d
 \item{label_upper_bound}{Upper bound for survival training.}
 
 \item{feature_weights}{Set feature weights for column sampling.}
+
+\item{as_quantile_dmatrix}{Whether to generate a QuantileDMatrix instead of a regular DMatrix.
+
+A QuantileDMatrix generates quantilized data directly from input for the \code{hist} tree method.
+This DMatrix variant is primarily designed to save memory in training by avoiding intermediate storage.
+
+Currently, QuantileDMatrix creation is only supported from dense matrices (class \code{matrix} from base R).
+
+When the resulting object is generated as a QuantileDMatrix, it will have an additional class
+\code{xgb.QuantileDMatrix} in addition to inheriting from regular \code{xgb.DMatrix}.}
+
+\item{ref}{The training dataset that provides quantile information, needed when creating validation/test dataset
+with QuantileDMatrix. Supplying the training DMatrix as a reference means that the same quantisation applied to
+the training data is applied to the validation/test data.
+
+This is ignored when passing \code{as_quantile_dmatrix = FALSE} or when construction of a QuantileDMatrix is not
+possible from the supplied inputs.}
+
+\item{max_bin}{The number of histogram bin, should be consistent with the training parameter \code{max_bin}.
+
+This is ignored when passing \code{as_quantile_dmatrix = FALSE} or when construction of a QuantileDMatrix is not
+possible from the supplied inputs.}
 }
 \description{
 Construct xgb.DMatrix object from either a dense matrix, a sparse matrix, or a local file.

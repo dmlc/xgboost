@@ -26,6 +26,25 @@
 #' @param label_lower_bound Lower bound for survival training.
 #' @param label_upper_bound Upper bound for survival training.
 #' @param feature_weights Set feature weights for column sampling.
+#' @param as_quantile_dmatrix Whether to generate a QuantileDMatrix instead of a regular DMatrix.
+#'
+#' A QuantileDMatrix generates quantilized data directly from input for the \code{hist} tree method.
+#' This DMatrix variant is primarily designed to save memory in training by avoiding intermediate storage.
+#'
+#' Currently, QuantileDMatrix creation is only supported from dense matrices (class \code{matrix} from base R).
+#'
+#' When the resulting object is generated as a QuantileDMatrix, it will have an additional class
+#' \code{xgb.QuantileDMatrix} in addition to inheriting from regular \code{xgb.DMatrix}.
+#' @param ref The training dataset that provides quantile information, needed when creating validation/test dataset
+#' with QuantileDMatrix. Supplying the training DMatrix as a reference means that the same quantisation applied to
+#' the training data is applied to the validation/test data.
+#'
+#' This is ignored when passing \code{as_quantile_dmatrix = FALSE} or when construction of a QuantileDMatrix is not
+#' possible from the supplied inputs.
+#' @param max_bin The number of histogram bin, should be consistent with the training parameter \code{max_bin}.
+#'
+#' This is ignored when passing \code{as_quantile_dmatrix = FALSE} or when construction of a QuantileDMatrix is not
+#' possible from the supplied inputs.
 #'
 #' @details
 #' Note that DMatrix objects are not serializable through R functions such as \code{saveRDS} or \code{save}.
@@ -58,11 +77,16 @@ xgb.DMatrix <- function(
   qid = NULL,
   label_lower_bound = NULL,
   label_upper_bound = NULL,
-  feature_weights = NULL
+  feature_weights = NULL,
+  as_quantile_dmatrix = FALSE,
+  ref = NULL,
+  max_bin = NULL
 ) {
   if (!is.null(group) && !is.null(qid)) {
     stop("Either one of 'group' or 'qid' should be NULL")
   }
+  is_quantile_dmatrix <- FALSE
+  nthread <- as.integer(NVL(nthread, -1))
   if (typeof(data) == "character") {
     if (length(data) > 1)
       stop("'data' has class 'character' and length ", length(data),
@@ -70,7 +94,18 @@ xgb.DMatrix <- function(
     data <- path.expand(data)
     handle <- .Call(XGDMatrixCreateFromFile_R, data, as.integer(silent))
   } else if (is.matrix(data)) {
-    handle <- .Call(XGDMatrixCreateFromMat_R, data, missing, as.integer(NVL(nthread, -1)))
+    if (!as_quantile_dmatrix) {
+      handle <- .Call(XGDMatrixCreateFromMat_R, data, missing, nthread)
+    } else {
+      if (!is.null(ref)) {
+        if (!inherits(ref, "xgb.QuantileDMatrix")) {
+          stop("'ref' must be an xgb.QuantileDMatrix object.")
+        }
+      }
+      handle <- .Call(XGQuantileDMatrixFromMat_R, data, missing,
+                      nthread, max_bin, ref)
+      is_quantile_dmatrix <- TRUE
+    }
   } else if (inherits(data, "dgCMatrix")) {
     handle <- .Call(
       XGDMatrixCreateFromCSC_R,
@@ -79,7 +114,7 @@ xgb.DMatrix <- function(
       data@x,
       nrow(data),
       missing,
-      as.integer(NVL(nthread, -1))
+      nthread
     )
   } else if (inherits(data, "dgRMatrix")) {
     handle <- .Call(
@@ -89,7 +124,7 @@ xgb.DMatrix <- function(
       data@x,
       ncol(data),
       missing,
-      as.integer(NVL(nthread, -1))
+      nthread
     )
   } else if (inherits(data, "dsparseVector")) {
     indptr <- c(0L, as.integer(length(data@i)))
@@ -101,14 +136,18 @@ xgb.DMatrix <- function(
       data@x,
       length(data),
       missing,
-      as.integer(NVL(nthread, -1))
+      nthread
     )
   } else {
     stop("xgb.DMatrix does not support construction from ", typeof(data))
   }
 
   dmat <- handle
-  attributes(dmat) <- list(class = "xgb.DMatrix")
+  dmat_class <- "xgb.DMatrix"
+  if (is_quantile_dmatrix) {
+    dmat_class <- c(dmat_class, "xgb.QuantileDMatrix")
+  }
+  attributes(dmat) <- list(class = dmat_class)
 
   if (!is.null(label)) {
     setinfo(dmat, "label", label)
@@ -512,7 +551,8 @@ slice.xgb.DMatrix <- function(object, idxset, ...) {
 #' @method print xgb.DMatrix
 #' @export
 print.xgb.DMatrix <- function(x, verbose = FALSE, ...) {
-  cat('xgb.DMatrix  dim:', nrow(x), 'x', ncol(x), ' info: ')
+  class_print <- ifelse(inherits(x, "xgb.QuantileDMatrix"), "xgb.QuantileDMatrix", "xgb.DMatrix")
+  cat(class_print, ' dim:', nrow(x), 'x', ncol(x), ' info: ')
   infos <- character(0)
   if (length(getinfo(x, 'label')) > 0) infos <- 'label'
   if (length(getinfo(x, 'weight')) > 0) infos <- c(infos, 'weight')

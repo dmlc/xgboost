@@ -322,3 +322,67 @@ test_that("xgb.DMatrix: can get group for both 'qid' and 'group' constructors", 
   expected_gr <- c(0, 20, 40, 100)
   expect_equal(info_gr, expected_gr)
 })
+
+test_that("xgb.DMatrix: QuantileDMatrix produces same result as DMatrix", {
+  data(mtcars)
+  y <- mtcars[, 1]
+  x <- as.matrix(mtcars[, -1])
+  qdm <- xgb.DMatrix(
+    data = x,
+    label = y,
+    as_quantile_dmatrix = TRUE,
+    nthread = n_threads,
+    max_bin = 5
+  )
+  params <- list(
+    tree_method = "hist",
+    objective = "reg:squarederror",
+    nthread = n_threads,
+    max_bin = 5
+  )
+  model_qdm <- xgb.train(
+    params = params,
+    data = qdm,
+    nrounds = 2
+  )
+  pred_qdm <- predict(model_qdm, x)
+
+  dm <- xgb.DMatrix(
+    data = x,
+    label = y,
+    as_quantile_dmatrix = FALSE,
+    nthread = n_threads
+  )
+  model_dm <- xgb.train(
+    params = params,
+    data = dm,
+    nrounds = 2
+  )
+  pred_dm <- predict(model_dm, x)
+
+  expect_equal(pred_qdm, pred_dm)
+})
+
+test_that("xgb.DMatrix: QuantileDMatrix is not accepted by exact method", {
+  data(mtcars)
+  y <- mtcars[, 1]
+  x <- as.matrix(mtcars[, -1])
+  qdm <- xgb.DMatrix(
+    data = x,
+    label = y,
+    as_quantile_dmatrix = TRUE,
+    nthread = n_threads
+  )
+  params <- list(
+    tree_method = "exact",
+    objective = "reg:squarederror",
+    nthread = n_threads
+  )
+  expect_error({
+    xgb.train(
+      params = params,
+      data = qdm,
+      nrounds = 2
+    )
+  })
+})

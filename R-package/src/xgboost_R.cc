@@ -455,6 +455,97 @@ XGB_DLL SEXP XGDMatrixNumCol_R(SEXP handle) {
   return ScalarInteger(static_cast<int>(ncol));
 }
 
+struct IteratorError : public std::exception {};
+
+struct _RMatrixSingleIterator {
+  int iter;
+  DMatrixHandle proxy_dmat_handle;
+  const char *array_str;
+
+  _RMatrixSingleIterator(
+    DMatrixHandle proxy_dmat_handle,
+    const char *array_str) : iter(0), proxy_dmat_handle(proxy_dmat_handle), array_str(array_str) {}
+
+  void reset() {
+    this->iter = 0;
+  }
+
+  int next() {
+    if (this->iter >= 1) {
+      return 0;
+    }
+
+    int res_code = XGProxyDMatrixSetDataDense(this->proxy_dmat_handle, this->array_str);
+    if (res_code != 0) {
+      throw IteratorError();
+    }
+    this->iter++;
+    return 1;
+  }
+};
+
+void _reset_RMatrixSingleIterator(DataIterHandle iter) {
+  static_cast<_RMatrixSingleIterator*>(iter)->reset();
+}
+
+int _next_RMatrixSingleIterator(DataIterHandle iter) {
+  return static_cast<_RMatrixSingleIterator*>(iter)->next();
+}
+
+XGB_DLL SEXP XGQuantileDMatrixFromMat_R(SEXP R_mat, SEXP missing, SEXP n_threads,
+                                        SEXP max_bin, SEXP ref_dmat) {
+  SEXP ret = PROTECT(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
+  R_API_BEGIN();
+  DMatrixHandle proxy_dmat_handle;
+  CHECK_CALL(XGProxyDMatrixCreate(&proxy_dmat_handle));
+  DMatrixHandle out_dmat;
+  int res_code1, res_code2;
+
+  try {
+    xgboost::Json jconfig{xgboost::Object{}};
+    /* FIXME: this 'missing' field should have R_NaInt when the input is an integer matrix. */
+    jconfig["missing"] = Rf_asReal(missing);
+    if (!Rf_isNull(n_threads)) {
+      jconfig["nthread"] = Rf_asInteger(n_threads);
+    }
+    if (!Rf_isNull(max_bin)) {
+      jconfig["max_bin"] = Rf_asInteger(max_bin);
+    }
+    std::string json_str = xgboost::Json::Dump(jconfig);
+
+    DMatrixHandle ref_dmat_handle = nullptr;
+    if (!Rf_isNull(ref_dmat)) {
+      ref_dmat_handle = R_ExternalPtrAddr(ref_dmat);
+    }
+
+    std::string array_str = MakeArrayInterfaceFromRMat(R_mat);
+    _RMatrixSingleIterator single_iterator(proxy_dmat_handle, array_str.c_str());
+
+    res_code1 = XGQuantileDMatrixCreateFromCallback(
+      &single_iterator,
+      proxy_dmat_handle,
+      ref_dmat_handle,
+      _reset_RMatrixSingleIterator,
+      _next_RMatrixSingleIterator,
+      json_str.c_str(),
+      &out_dmat);
+    res_code2 = XGDMatrixFree(proxy_dmat_handle);
+  } catch(IteratorError &err) {
+    XGDMatrixFree(proxy_dmat_handle);
+    Rf_error(XGBGetLastError());
+  }
+
+  CHECK_CALL(res_code2);
+  CHECK_CALL(res_code1);
+
+  R_SetExternalPtrAddr(ret, out_dmat);
+  R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
+  R_API_END();
+
+  UNPROTECT(1);
+  return ret;
+}
+
 // functions related to booster
 void _BoosterFinalizer(SEXP ext) {
   if (R_ExternalPtrAddr(ext) == NULL) return;
