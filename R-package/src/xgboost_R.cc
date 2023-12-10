@@ -484,11 +484,11 @@ struct _RMatrixSingleIterator {
   }
 };
 
-void _reset_RMatrixSingleIterator(DataIterHandle iter) {
+static void _reset_RMatrixSingleIterator(DataIterHandle iter) {
   static_cast<_RMatrixSingleIterator*>(iter)->reset();
 }
 
-int _next_RMatrixSingleIterator(DataIterHandle iter) {
+static int _next_RMatrixSingleIterator(DataIterHandle iter) {
   return static_cast<_RMatrixSingleIterator*>(iter)->next();
 }
 
