@@ -189,25 +189,6 @@ void DevicePredictInternal(::sycl::queue* qu,
   }
   auto* miss_buff_ptr = miss_buff.Data();
 
-  events[0] = qu->submit([&](::sycl::handler& cgh) {
-    cgh.depends_on(events);
-    cgh.parallel_for<>(::sycl::range<1>(num_rows),
-                       [=](::sycl::item<1> pid) {
-      int row_idx   = pid.get_id(0);
-      auto* fval_buff_row_ptr = fval_buff_ptr + num_features * row_idx;
-      auto* miss_buff_row_ptr = miss_buff_ptr + num_features * row_idx;
-
-      const Entry* begin_ptr = data + row_ptr[row_idx];
-      const Entry* end_ptr = data + row_ptr[row_idx + 1];
-      for (const Entry* entry = begin_ptr; entry < end_ptr; entry += 1) {
-        fval_buff_row_ptr[entry->index] = entry->fvalue;
-        if constexpr (any_missing) {
-          miss_buff_row_ptr[entry->index] = 0;
-        }
-      }
-    });
-  });
-
   auto& out_preds_vec = out_preds->HostVector();
   ::sycl::buffer<float, 1> out_preds_buf(out_preds_vec.data(), out_preds_vec.size());
   events[0] = qu->submit([&](::sycl::handler& cgh) {
@@ -217,6 +198,15 @@ void DevicePredictInternal(::sycl::queue* qu,
       int row_idx = pid[0];
       auto* fval_buff_row_ptr = fval_buff_ptr + num_features * row_idx;
       auto* miss_buff_row_ptr = miss_buff_ptr + num_features * row_idx;
+
+      const Entry* first_entry = data + row_ptr[row_idx];
+      const Entry* last_entry = data + row_ptr[row_idx + 1];
+      for (const Entry* entry = first_entry; entry < last_entry; entry += 1) {
+        fval_buff_row_ptr[entry->index] = entry->fvalue;
+        if constexpr (any_missing) {
+          miss_buff_row_ptr[entry->index] = 0;
+        }
+      }
 
       if (num_group == 1) {
         float sum = 0.0;
