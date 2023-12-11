@@ -66,7 +66,7 @@ to \code{c(1, 1)} XGBoost will use all trees.}
 \item{strict_shape}{Default is \code{FALSE}. When it's set to \code{TRUE}, output
 type and shape of prediction are invariant to model type.}
 
-\item{...}{Parameters passed to \code{predict.xgb.Booster}}
+\item{...}{Not used.}
 }
 \value{
 The return type is different depending whether \code{strict_shape} is set to \code{TRUE}.  By default,
