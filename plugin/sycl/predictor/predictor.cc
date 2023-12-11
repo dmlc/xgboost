@@ -185,7 +185,7 @@ void DevicePredictInternal(::sycl::queue* qu,
 
   std::vector<::sycl::event> events(1);
   if constexpr (any_missing) {
-    events[0] = miss_buff.ResizeAsync(qu, num_features * num_rows, 1);
+    miss_buff.Resize(qu, num_features * num_rows, 1, &events[0]);
   }
   auto* miss_buff_ptr = miss_buff.Data();
 
