@@ -60,3 +60,12 @@ Minimum Amount of Data Manipulation
 ***********************************
 
 XGBoost is mostly a machine learning library providing boosting algorithm implementation. Some other implementations might perform some sort of data manipulation implicitly like deciding the coding of the data, and transforming the data according to some heuristic before training. We prefer to keep these operations based on necessities instead of convenience to keep the scope of the project well-defined. Whenever possible, we should leave these features to 3-party libraries and consider how a user can compose their pipeline. For instance, XGBoost itself should not perform ordinal encoding for categorical data, users will pick an encoder that fits their use cases (like out-of-core implementation, distributed implementation, known mapping, etc). If some transformations are decided to be part of the algorithm, we can have it inside the core instead of the language binding. Examples would be target-encoding or sketching the response variables. If we were to support them, we could have it inside the core implementation as part of the ML algorithm. This aligns with the same principles of default parameters, various bindings should provide similar (if not the same) results given the same set of parameters and data.
+
+************
+Feature Info
+************
+
+XGBoost accepts data structures that contain meta info about predictors, including the names and types of features. Example inputs are :py:class:`pandas.DataFrame`, R `data.frame`. We have the following heuristics:
+- When the input data structure contains such information, we set the `feature_names` and `feature_types` for `DMatrix` accordingly.
+- When a user provides this information as explicit parameters, the user-provided version should override the one provided by the data structure.
+- When both sources are missing, the `DMatrix` class contain empty info.
