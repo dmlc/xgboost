@@ -195,10 +195,12 @@ XGB_DLL SEXP XGBoosterPredictFromDMatrix_R(SEXP handle, SEXP dmat, SEXP json_con
  * \param R_mat R matrix
  * \param missing missing value
  * \param json_config See `XGBoosterPredictFromDense` in xgboost c_api.h. Doesn't include 'missing'
+ * \param base_margin base margin for the prediction
  *
  * \return A list containing 2 vectors, first one for shape while second one for prediction result.
  */
-XGB_DLL SEXP XGBoosterPredictFromDense_R(SEXP handle, SEXP R_mat, SEXP missing, SEXP json_config);
+XGB_DLL SEXP XGBoosterPredictFromDense_R(SEXP handle, SEXP R_mat, SEXP missing,
+                                         SEXP json_config, SEXP base_margin);
 
 /*!
  * \brief Run prediction on R CSR matrix
@@ -210,10 +212,12 @@ XGB_DLL SEXP XGBoosterPredictFromDense_R(SEXP handle, SEXP R_mat, SEXP missing, 
  *              (d) number of columns
  * \param missing missing value
  * \param json_config See `XGBoosterPredictFromCSR` in xgboost c_api.h. Doesn't include 'missing'
+ * \param base_margin base margin for the prediction
  *
  * \return A list containing 2 vectors, first one for shape while second one for prediction result.
  */
-XGB_DLL SEXP XGBoosterPredictFromCSR_R(SEXP handle, SEXP lst, SEXP missing, SEXP json_config);
+XGB_DLL SEXP XGBoosterPredictFromCSR_R(SEXP handle, SEXP lst, SEXP missing,
+                                       SEXP json_config, SEXP base_margin);
 
 /*!
  * \brief load model from existing file

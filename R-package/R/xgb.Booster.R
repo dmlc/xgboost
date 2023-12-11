@@ -193,6 +193,7 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #'        to \code{c(1, 1)} XGBoost will use all trees.
 #' @param strict_shape  Default is \code{FALSE}. When it's set to \code{TRUE}, output
 #'        type and shape of prediction are invariant to model type.
+#' @param base_margin Base margin used for boosting from existing model.
 #'
 #' @param ... Parameters passed to \code{predict.xgb.Booster}
 #'
@@ -339,7 +340,8 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' @export
 predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FALSE, ntreelimit = NULL,
                                 predleaf = FALSE, predcontrib = FALSE, approxcontrib = FALSE, predinteraction = FALSE,
-                                reshape = FALSE, training = FALSE, iterationrange = NULL, strict_shape = FALSE, ...) {
+                                reshape = FALSE, training = FALSE, iterationrange = NULL, strict_shape = FALSE,
+                                base_margin = NULL, ...) {
   object <- xgb.Booster.complete(object, saveraw = FALSE)
   config <- jsonlite::fromJSON(xgb.config(object))
 
@@ -361,7 +363,9 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     nthread <- strtoi(config$learner$generic_param$nthread)
     newdata <- xgb.DMatrix(
       newdata,
-      missing = missing, nthread = NVL(nthread, -1)
+      missing = missing,
+      base_margin = base_margin,
+      nthread = NVL(nthread, -1)
     )
   }
   if (!is.null(object[["feature_names"]]) &&
@@ -431,11 +435,11 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
   json_conf <- jsonlite::toJSON(args, auto_unbox = TRUE)
   if (use_as_dense_matrix) {
     predts <- .Call(
-      XGBoosterPredictFromDense_R, object$handle, newdata, missing, json_conf
+      XGBoosterPredictFromDense_R, object$handle, newdata, missing, json_conf, base_margin
     )
   } else if (use_as_csr_matrix) {
     predts <- .Call(
-      XGBoosterPredictFromCSR_R, object$handle, csr_data, missing, json_conf
+      XGBoosterPredictFromCSR_R, object$handle, csr_data, missing, json_conf, base_margin
     )
   } else {
     predts <- .Call(

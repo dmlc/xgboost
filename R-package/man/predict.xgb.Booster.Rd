@@ -19,6 +19,7 @@
   training = FALSE,
   iterationrange = NULL,
   strict_shape = FALSE,
+  base_margin = NULL,
   ...
 )
 
@@ -65,6 +66,8 @@ to \code{c(1, 1)} XGBoost will use all trees.}
 
 \item{strict_shape}{Default is \code{FALSE}. When it's set to \code{TRUE}, output
 type and shape of prediction are invariant to model type.}
+
+\item{base_margin}{Base margin used for boosting from existing model.}
 
 \item{...}{Parameters passed to \code{predict.xgb.Booster}}
 }
