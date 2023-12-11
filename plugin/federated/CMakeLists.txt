@@ -8,7 +8,7 @@ if(NOT Protobuf_FOUND)
 endif()
 if(NOT Protobuf_FOUND)
   # let CMake emit error
-  find_package(Protobuf CONFIG)
+  find_package(Protobuf CONFIG REQUIRED)
 endif()
 
 find_package(gRPC CONFIG REQUIRED)
