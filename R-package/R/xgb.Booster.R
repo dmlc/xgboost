@@ -347,7 +347,8 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
   use_as_csr_matrix <- FALSE
   inplace_predict_supported <- !predcontrib && !predinteraction && !predleaf && is.null(ntreelimit)
   if (inplace_predict_supported) {
-    if (config$learner$learner_train_param$booster != "gbtree") {
+    if (config$learner$learner_train_param$booster == "gblinear" ||
+        (config$learner$learner_train_param$booster == "dart" && training)) {
       inplace_predict_supported <- FALSE
     }
   }
