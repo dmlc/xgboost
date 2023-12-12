@@ -154,12 +154,12 @@ SEXP SafeMkChar(const char *c_str, SEXP continuation_token) {
   }                                             \
   PutRNGstate();
 
-/*!
- * \brief macro to check the call.
+/**
+ * @brief Macro for checking XGBoost return code.
  */
-#define CHECK_CALL(x)                           \
-  if ((x) != 0) {                               \
-    error(XGBGetLastError());                   \
+#define CHECK_CALL(__rc)               \
+  if ((__rc) != 0) {                   \
+    Rf_error("%s", XGBGetLastError()); \
   }
 
 using dmlc::BeginPtr;
