@@ -62,6 +62,8 @@ class DMatrixProxy : public DMatrix {
 #endif  // defined(XGBOOST_USE_CUDA)
   }
 
+  void SetColumnarData(StringView interface_str);
+
   void SetArrayData(StringView interface_str);
   void SetCSRData(char const* c_indptr, char const* c_indices, char const* c_values,
                   bst_feature_t n_features, bool on_host);
@@ -146,6 +148,17 @@ decltype(auto) HostAdapterDispatch(DMatrixProxy const* proxy, Fn fn, bool* type_
       return fn(value);
     } else {
       auto value = std::any_cast<std::shared_ptr<ArrayAdapter>>(proxy->Adapter());
+      return fn(value);
+    }
+    if (type_error) {
+      *type_error = false;
+    }
+  } else if (proxy->Adapter().type() == typeid(std::shared_ptr<ColumnarAdapter>)) {
+    if constexpr (get_value) {
+      auto value = std::any_cast<std::shared_ptr<ColumnarAdapter>>(proxy->Adapter())->Value();
+      return fn(value);
+    } else {
+      auto value = std::any_cast<std::shared_ptr<ColumnarAdapter>>(proxy->Adapter());
       return fn(value);
     }
     if (type_error) {

@@ -5,7 +5,22 @@
 
 #include "proxy_dmatrix.h"
 
+#include <memory>  // for shared_ptr
+
+#include "xgboost/context.h"  // for Context
+#include "xgboost/data.h"     // for DMatrix
+#include "xgboost/logging.h"
+#include "xgboost/string_view.h"  // for StringView
+
 namespace xgboost::data {
+void DMatrixProxy::SetColumnarData(StringView interface_str) {
+  std::shared_ptr<ColumnarAdapter> adapter{new ColumnarAdapter{interface_str}};
+  this->batch_ = adapter;
+  this->Info().num_col_ = adapter->NumColumns();
+  this->Info().num_row_ = adapter->NumRows();
+  this->ctx_.Init(Args{{"device", "cpu"}});
+}
+
 void DMatrixProxy::SetArrayData(StringView interface_str) {
   std::shared_ptr<ArrayAdapter> adapter{new ArrayAdapter{interface_str}};
   this->batch_ = adapter;

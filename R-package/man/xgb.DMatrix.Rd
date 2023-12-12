@@ -17,7 +17,8 @@ xgb.DMatrix(
   qid = NULL,
   label_lower_bound = NULL,
   label_upper_bound = NULL,
-  feature_weights = NULL
+  feature_weights = NULL,
+  enable_categorical = FALSE
 )
 }
 \arguments{
@@ -42,7 +43,8 @@ It is useful when a 0 or some other extreme value represents missing values in d
 
 \item{silent}{whether to suppress printing an informational message after loading from a file.}
 
-\item{feature_names}{Set names for features.}
+\item{feature_names}{Set names for features. Overrides column names in data
+frame and matrix.}
 
 \item{nthread}{Number of threads used for creating DMatrix.}
 
@@ -55,6 +57,9 @@ It is useful when a 0 or some other extreme value represents missing values in d
 \item{label_upper_bound}{Upper bound for survival training.}
 
 \item{feature_weights}{Set feature weights for column sampling.}
+
+\item{enable_categorical}{Experimental support of specializing for
+categorical features. JSON/UBJSON serialization format is required.}
 }
 \description{
 Construct xgb.DMatrix object from either a dense matrix, a sparse matrix, or a local file.

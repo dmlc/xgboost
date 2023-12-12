@@ -78,6 +78,10 @@ def categorical_model(X: pd.DataFrame, y: pd.Series, output_dir: str) -> None:
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, random_state=1994, test_size=0.2
     )
+    # Be aware that the encoding for X_train and X_test are the same here. In practice,
+    # we should try to use an encoder like (sklearn OrdinalEncoder) to obtain the
+    # categorical values.
+
     # Specify `enable_categorical` to True.
     clf = xgb.XGBClassifier(
         **params,

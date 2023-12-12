@@ -159,6 +159,16 @@ XGB_DLL int XGDMatrixCreateFromURI(char const *config, DMatrixHandle *out);
 XGB_DLL int XGDMatrixCreateFromCSREx(const size_t *indptr, const unsigned *indices,
                                      const float *data, size_t nindptr, size_t nelem,
                                      size_t num_col, DMatrixHandle *out);
+/**
+ * @brief Create a DMatrix from columnar data. (table)
+ *
+ * @param data   See @ref XGBoosterPredictFromColumnar for details.
+ * @param config See @ref XGDMatrixCreateFromDense for details.
+ * @param out    The created dmatrix.
+ *
+ * @return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixCreateFromColumnar(char const *data, char const *config, DMatrixHandle *out);
 
 /**
  * @example c-api-demo.c
@@ -513,6 +523,16 @@ XGB_DLL int XGDeviceQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatr
 XGB_DLL int
 XGProxyDMatrixSetDataCudaArrayInterface(DMatrixHandle handle,
                                         const char *c_interface_str);
+
+/**
+ * @brief Set columnar (table) data on a DMatrix proxy.
+ *
+ * @param handle          A DMatrix proxy created by @ref XGProxyDMatrixCreate
+ * @param c_interface_str See @ref XGBoosterPredictFromColumnar for details.
+ *
+ * @return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGProxyDMatrixSetDataCudaColumnar(DMatrixHandle handle, char const *c_interface_str);
 
 /*!
  * \brief Set data on a DMatrix proxy.
@@ -1112,6 +1132,31 @@ XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, char const *values, 
 /**
  * @example inference.c
  */
+
+/**
+ * @brief Inplace prediction from CPU columnar data. (Table)
+ *
+ * @note If the booster is configured to run on a CUDA device, XGBoost falls back to run
+ *       prediction with DMatrix with a performance warning.
+ *
+ * @param handle        Booster handle.
+ * @param values        An JSON array of __array_interface__ for each column.
+ * @param config        See @ref XGBoosterPredictFromDMatrix for more info.
+ *   Additional fields for inplace prediction are:
+ *     - "missing": float
+ * @param m             An optional (NULL if not available) proxy DMatrix instance
+ *                      storing meta info.
+ *
+ * @param out_shape     See @ref XGBoosterPredictFromDMatrix for more info.
+ * @param out_dim       See @ref XGBoosterPredictFromDMatrix for more info.
+ * @param out_result    See @ref XGBoosterPredictFromDMatrix for more info.
+ *
+ * @return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterPredictFromColumnar(BoosterHandle handle, char const *array_interface,
+                                         char const *c_json_config, DMatrixHandle m,
+                                         bst_ulong const **out_shape, bst_ulong *out_dim,
+                                         const float **out_result);
 
 /**
  * \brief Inplace prediction from CPU CSR matrix.

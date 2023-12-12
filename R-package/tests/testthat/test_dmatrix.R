@@ -322,3 +322,30 @@ test_that("xgb.DMatrix: can get group for both 'qid' and 'group' constructors", 
   expected_gr <- c(0, 20, 40, 100)
   expect_equal(info_gr, expected_gr)
 })
+
+test_that("xgb.DMatrix: data.frame", {
+  df <- data.frame(
+    a = (1:4) / 10,
+    num = c(1, NA, 3, 4),
+    as.int = as.integer(c(1, 2, 3, 4)),
+    lo = c(TRUE, FALSE, NA, TRUE),
+    str.fac = c("a", "b", "d", "c"),
+    as.fac = as.factor(c(3, 5, 8, 11)),
+    stringsAsFactors = TRUE
+  )
+
+  m <- xgb.DMatrix(df, enable_categorical = TRUE)
+  expect_equal(colnames(m), colnames(df))
+  expect_equal(
+    getinfo(m, "feature_type"), c("float", "float", "int", "i", "c", "c")
+  )
+  expect_error(xgb.DMatrix(df))
+
+  df <- data.frame(
+    missing = c("a", "b", "d", NA),
+    valid = c("a", "b", "d", "c"),
+    stringsAsFactors = TRUE
+  )
+  m <- xgb.DMatrix(df, enable_categorical = TRUE)
+  expect_equal(getinfo(m, "feature_type"), c("c", "c"))
+})
