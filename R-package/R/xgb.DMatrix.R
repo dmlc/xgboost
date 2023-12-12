@@ -67,7 +67,6 @@ xgb.DMatrix <- function(
   if (!is.null(group) && !is.null(qid)) {
     stop("Either one of 'group' or 'qid' should be NULL")
   }
-  cnames <- NULL
   ctypes <- NULL
   if (typeof(data) == "character") {
     if (length(data) > 1) {
@@ -82,7 +81,6 @@ xgb.DMatrix <- function(
     handle <- .Call(
       XGDMatrixCreateFromMat_R, data, missing, as.integer(NVL(nthread, -1))
     )
-    cnames <- colnames(data)
   } else if (inherits(data, "dgCMatrix")) {
     handle <- .Call(
       XGDMatrixCreateFromCSC_R,
@@ -148,7 +146,6 @@ xgb.DMatrix <- function(
     handle <- .Call(
       XGDMatrixCreateFromDF_R, data, missing, as.integer(NVL(nthread, -1))
     )
-    cnames <- colnames(data)
   } else {
     stop("xgb.DMatrix does not support construction from ", typeof(data))
   }
@@ -165,11 +162,7 @@ xgb.DMatrix <- function(
   if (!is.null(base_margin)) {
     setinfo(dmat, "base_margin", base_margin)
   }
-  if (!is.null(cnames)) {
-    setinfo(dmat, "feature_name", cnames)
-  }
   if (!is.null(feature_names)) {
-    ## override cnames
     setinfo(dmat, "feature_name", feature_names)
   }
   if (!is.null(group)) {
