@@ -166,11 +166,14 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' Predicted values based on either xgboost model or model handle object.
 #'
 #' @param object Object of class \code{xgb.Booster} or \code{xgb.Booster.handle}
-#' @param newdata takes \code{matrix}, \code{dgCMatrix}, \code{dgRMatrix}, \code{dsparseVector},
+#' @param newdata takes \code{data.frame}, \code{matrix}, \code{dgCMatrix}, \code{dgRMatrix}, \code{dsparseVector},
 #'        local data file or \code{xgb.DMatrix}.
 #'
 #'        For single-row predictions on sparse data, it's recommended to use CSR format. If passing
 #'        a sparse vector, it will take it as a row vector.
+#'
+#'        Note that, for repeated predictions, one might want to create a DMatrix to pass here instead
+#'        of passing R types like matrices or data frames, as predictions will be faster on DMatrix.
 #' @param missing Missing is only used when input is dense matrix. Pick a float value that represents
 #'        missing values in data (e.g., sometimes 0 or some other extreme value is used).
 #' @param outputmargin whether the prediction should be returned in the for of original untransformed
@@ -347,23 +350,44 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
                                 reshape = FALSE, training = FALSE, iterationrange = NULL, strict_shape = FALSE,
                                 base_margin = NULL, ...) {
   object <- xgb.Booster.complete(object, saveraw = FALSE)
-  config <- jsonlite::fromJSON(xgb.config(object))
 
+  is_dmatrix <- inherits(newdata, "xgb.DMatrix")
+  if (is_dmatrix && !is.null(base_margin)) {
+    warning("'base_margin' is ignored when passing 'xgb.DMatrix' as input.")
+  }
+
+  use_as_df <- FALSE
   use_as_dense_matrix <- FALSE
   use_as_csr_matrix <- FALSE
-  inplace_predict_supported <- !predcontrib && !predinteraction && !predleaf && is.null(ntreelimit)
-  if (inplace_predict_supported) {
-    if (config$learner$learner_train_param$booster == "gblinear" ||
-        (config$learner$learner_train_param$booster == "dart" && training)) {
-      inplace_predict_supported <- FALSE
+  if (!is_dmatrix) {
+
+    config <- jsonlite::fromJSON(xgb.config(object))
+    inplace_predict_supported <- !predcontrib && !predinteraction && !predleaf && is.null(ntreelimit)
+    if (inplace_predict_supported) {
+      if (config$learner$learner_train_param$booster == "gblinear" ||
+          (config$learner$learner_train_param$booster == "dart" && training)) {
+        inplace_predict_supported <- FALSE
+      }
+    }
+    if (inplace_predict_supported) {
+
+      if (is.matrix(newdata)) {
+        use_as_dense_matrix <- TRUE
+      } else if (is.data.frame(newdata)) {
+        # note: since here it turns it into a non-data-frame list,
+        # needs to keep track of the number of rows it had for later
+        n_row <- nrow(newdata)
+        newdata <- lapply(newdata, as.numeric)
+        use_as_df <- TRUE
+      } else if (inherits(newdata, "dgRMatrix")) {
+        use_as_csr_matrix <- TRUE
+        csr_data <- list(newdata@p, newdata@j, newdata@x, ncol(newdata))
+      }
+
     }
   }
-  if (inplace_predict_supported && is.matrix(newdata)) {
-    use_as_dense_matrix <- TRUE
-  } else if (inplace_predict_supported && inherits(newdata, "dgRMatrix")) {
-    use_as_csr_matrix <- TRUE
-    csr_data <- list(newdata@p, newdata@j, newdata@x, ncol(newdata))
-  } else if (!inherits(newdata, "xgb.DMatrix")) {
+
+  if (!is_dmatrix && !use_as_dense_matrix && !use_as_csr_matrix && !use_as_df) {
     nthread <- strtoi(config$learner$generic_param$nthread)
     newdata <- xgb.DMatrix(
       newdata,
@@ -371,7 +395,13 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
       base_margin = base_margin,
       nthread = NVL(nthread, -1)
     )
+    is_dmatrix <- TRUE
   }
+
+  if (!use_as_df) {
+    n_row <- nrow(newdata)
+  }
+
   if (!is.null(object[["feature_names"]]) &&
       !is.null(colnames(newdata)) &&
       !identical(object[["feature_names"]], colnames(newdata)))
@@ -437,7 +467,11 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
   }
 
   json_conf <- jsonlite::toJSON(args, auto_unbox = TRUE)
-  if (use_as_dense_matrix) {
+  if (is_dmatrix) {
+    predts <- .Call(
+      XGBoosterPredictFromDMatrix_R, object$handle, newdata, json_conf
+    )
+  } else if (use_as_dense_matrix) {
     predts <- .Call(
       XGBoosterPredictFromDense_R, object$handle, newdata, missing, json_conf, base_margin
     )
@@ -445,9 +479,9 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     predts <- .Call(
       XGBoosterPredictFromCSR_R, object$handle, csr_data, missing, json_conf, base_margin
     )
-  } else {
+  } else if (use_as_df) {
     predts <- .Call(
-      XGBoosterPredictFromDMatrix_R, object$handle, newdata, json_conf
+      XGBoosterPredictFromColumnar_R, object$handle, newdata, missing, json_conf, base_margin
     )
   }
 
@@ -456,7 +490,6 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
   ret <- predts$results
 
   n_ret <- length(ret)
-  n_row <- nrow(newdata)
   if (n_row != shape[1]) {
     stop("Incorrect predict shape.")
   }

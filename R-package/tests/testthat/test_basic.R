@@ -669,6 +669,27 @@ test_that("Can use ranking objectives with either 'qid' or 'group'", {
   expect_equal(pred_qid, pred_gr)
 })
 
+test_that("Can predict on data.frame objects", {
+  data("mtcars")
+  y <- mtcars$mpg
+  x_df <- mtcars[, -1]
+  x_mat <- as.matrix(x_df)
+  dm <- xgb.DMatrix(x_mat, label = y, nthread = n_threads)
+  model <- xgb.train(
+    params = list(
+      tree_method = "hist",
+      objective = "reg:squarederror",
+      nthread = n_threads
+    ),
+    data = dm,
+    nrounds = 5
+  )
+
+  pred_mat <- predict(model, xgb.DMatrix(x_mat), nthread = n_threads)
+  pred_df <- predict(model, x_df, nthread = n_threads)
+  expect_equal(pred_mat, pred_df)
+})
+
 test_that("'base_margin' gives the same result in DMatrix as in inplace_predict", {
   data("mtcars")
   y <- mtcars$mpg

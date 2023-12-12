@@ -238,6 +238,19 @@ XGB_DLL SEXP XGBoosterPredictFromCSR_R(SEXP handle, SEXP lst, SEXP missing,
                                        SEXP json_config, SEXP base_margin);
 
 /*!
+ * \brief Run prediction on R data.frame
+ * \param handle handle
+ * \param R_df R data.frame
+ * \param missing missing value
+ * \param json_config See `XGBoosterPredictFromDense` in xgboost c_api.h. Doesn't include 'missing'
+ * \param base_margin base margin for the prediction
+ *
+ * \return A list containing 2 vectors, first one for shape while second one for prediction result.
+ */
+XGB_DLL SEXP XGBoosterPredictFromColumnar_R(SEXP handle, SEXP R_df, SEXP missing,
+                                            SEXP json_config, SEXP base_margin);
+
+/*!
  * \brief load model from existing file
  * \param handle handle
  * \param fname file name

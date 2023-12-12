@@ -28,11 +28,14 @@
 \arguments{
 \item{object}{Object of class \code{xgb.Booster} or \code{xgb.Booster.handle}}
 
-\item{newdata}{takes \code{matrix}, \code{dgCMatrix}, \code{dgRMatrix}, \code{dsparseVector},
+\item{newdata}{takes \code{data.frame}, \code{matrix}, \code{dgCMatrix}, \code{dgRMatrix}, \code{dsparseVector},
        local data file or \code{xgb.DMatrix}.
 
        For single-row predictions on sparse data, it's recommended to use CSR format. If passing
-       a sparse vector, it will take it as a row vector.}
+       a sparse vector, it will take it as a row vector.
+
+       Note that, for repeated predictions, one might want to create a DMatrix to pass here instead
+       of passing R types like matrices or data frames, as predictions will be faster on DMatrix.}
 
 \item{missing}{Missing is only used when input is dense matrix. Pick a float value that represents
 missing values in data (e.g., sometimes 0 or some other extreme value is used).}
