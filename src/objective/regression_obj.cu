@@ -35,6 +35,8 @@
 #include "xgboost/span.h"
 #include "xgboost/tree_model.h"  // RegTree
 
+#include "regression_param.h"
+
 #if defined(XGBOOST_USE_CUDA)
 #include "../common/cuda_context.cuh"  // for CUDAContext
 #include "../common/device_helpers.cuh"
@@ -53,14 +55,7 @@ void CheckRegInputs(MetaInfo const& info, HostDeviceVector<bst_float> const& pre
 DMLC_REGISTRY_FILE_TAG(regression_obj_gpu);
 #endif  // defined(XGBOOST_USE_CUDA)
 
-struct RegLossParam : public XGBoostParameter<RegLossParam> {
-  float scale_pos_weight;
-  // declare parameters
-  DMLC_DECLARE_PARAMETER(RegLossParam) {
-    DMLC_DECLARE_FIELD(scale_pos_weight).set_default(1.0f).set_lower_bound(0.0f)
-      .describe("Scale the weight of positive examples by this factor");
-  }
-};
+
 
 template<typename Loss>
 class RegLossObj : public FitIntercept {
@@ -255,24 +250,24 @@ class PseudoHuberRegression : public FitIntercept {
     auto gpair = out_gpair->View(ctx_->Device());
 
     preds.SetDevice(ctx_->Device());
-    auto predt = linalg::MakeVec(&preds);
+    auto predt = linalg::MakeTensorView(ctx_, &preds, info.num_row_, this->Targets(info));
 
     info.weights_.SetDevice(ctx_->Device());
     common::OptionalWeights weight{ctx_->IsCUDA() ? info.weights_.ConstDeviceSpan()
                                                   : info.weights_.ConstHostSpan()};
 
-    linalg::ElementWiseKernel(ctx_, labels, [=] XGBOOST_DEVICE(size_t i, float const y) mutable {
-      auto sample_id = std::get<0>(linalg::UnravelIndex(i, labels.Shape()));
-      const float z = predt(i) - y;
-      const float scale_sqrt = std::sqrt(1 + common::Sqr(z) / common::Sqr(slope));
-      float grad = z / scale_sqrt;
+    linalg::ElementWiseKernel(
+        ctx_, labels, [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
+          float z = predt(i, j) - labels(i, j);
+          float scale_sqrt = std::sqrt(1 + common::Sqr(z) / common::Sqr(slope));
+          float grad = z / scale_sqrt;
 
-      auto scale = common::Sqr(slope) + common::Sqr(z);
-      float hess = common::Sqr(slope) / (scale * scale_sqrt);
+          auto scale = common::Sqr(slope) + common::Sqr(z);
+          float hess = common::Sqr(slope) / (scale * scale_sqrt);
 
-      auto w = weight[sample_id];
-      gpair(i) = {grad * w, hess * w};
-    });
+          auto w = weight[i];
+          gpair(i) = {grad * w, hess * w};
+        });
   }
 
   [[nodiscard]] const char* DefaultEvalMetric() const override { return "mphe"; }
@@ -635,20 +630,21 @@ class MeanAbsoluteError : public ObjFunction {
     auto gpair = out_gpair->View(ctx_->Device());
 
     preds.SetDevice(ctx_->Device());
-    auto predt = linalg::MakeVec(&preds);
+    auto predt = linalg::MakeTensorView(ctx_, &preds, info.num_row_, this->Targets(info));
     info.weights_.SetDevice(ctx_->Device());
     common::OptionalWeights weight{ctx_->IsCUDA() ? info.weights_.ConstDeviceSpan()
                                                   : info.weights_.ConstHostSpan()};
 
-    linalg::ElementWiseKernel(ctx_, labels, [=] XGBOOST_DEVICE(std::size_t i, float y) mutable {
-      auto sign = [](auto x) {
-        return (x > static_cast<decltype(x)>(0)) - (x < static_cast<decltype(x)>(0));
-      };
-      auto [sample_id, target_id] = linalg::UnravelIndex(i, labels.Shape());
-      auto grad = sign(predt(i) - y) * weight[sample_id];
-      auto hess = weight[sample_id];
-      gpair(sample_id, target_id) = GradientPair{grad, hess};
-    });
+    linalg::ElementWiseKernel(
+        ctx_, labels, [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
+          auto sign = [](auto x) {
+            return (x > static_cast<decltype(x)>(0)) - (x < static_cast<decltype(x)>(0));
+          };
+          auto y = labels(i, j);
+          auto hess = weight[i];
+          auto grad = sign(predt(i, j) - y) * hess;
+          gpair(i, j) = GradientPair{grad, hess};
+        });
   }
 
   void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_margin) const override {

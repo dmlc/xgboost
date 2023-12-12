@@ -1,7 +1,16 @@
 # gRPC needs to be installed first. See README.md.
 set(protobuf_MODULE_COMPATIBLE TRUE)
 set(protobuf_BUILD_SHARED_LIBS TRUE)
-find_package(Protobuf CONFIG REQUIRED)
+
+find_package(Protobuf CONFIG)
+if(NOT Protobuf_FOUND)
+  find_package(Protobuf)
+endif()
+if(NOT Protobuf_FOUND)
+  # let CMake emit error
+  find_package(Protobuf CONFIG REQUIRED)
+endif()
+
 find_package(gRPC CONFIG REQUIRED)
 message(STATUS "Found gRPC: ${gRPC_CONFIG}")
 

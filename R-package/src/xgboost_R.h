@@ -53,6 +53,16 @@ XGB_DLL SEXP XGDMatrixCreateFromFile_R(SEXP fname, SEXP silent);
 XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat,
                                       SEXP missing,
                                       SEXP n_threads);
+
+/**
+ * @brief Create matrix content from a data frame.
+ * @param data R data.frame object
+ * @param missing which value to represent missing value
+ * @param n_threads Number of threads used to construct DMatrix from dense matrix.
+ * @return created dmatrix
+ */
+XGB_DLL SEXP XGDMatrixCreateFromDF_R(SEXP df, SEXP missing, SEXP n_threads);
+
 /*!
  * \brief create a matrix content from CSC format
  * \param indptr pointer to column headers
@@ -106,12 +116,20 @@ XGB_DLL SEXP XGDMatrixSaveBinary_R(SEXP handle, SEXP fname, SEXP silent);
 XGB_DLL SEXP XGDMatrixSetInfo_R(SEXP handle, SEXP field, SEXP array);
 
 /*!
- * \brief get info vector from matrix
+ * \brief get info vector (float type) from matrix
  * \param handle a instance of data matrix
  * \param field field name
  * \return info vector
  */
-XGB_DLL SEXP XGDMatrixGetInfo_R(SEXP handle, SEXP field);
+XGB_DLL SEXP XGDMatrixGetFloatInfo_R(SEXP handle, SEXP field);
+
+/*!
+ * \brief get info vector (uint type) from matrix
+ * \param handle a instance of data matrix
+ * \param field field name
+ * \return info vector
+ */
+XGB_DLL SEXP XGDMatrixGetUIntInfo_R(SEXP handle, SEXP field);
 
 /*!
  * \brief return number of rows

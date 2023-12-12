@@ -105,8 +105,8 @@ class TestPandas:
         result, _, _ = xgb.data._transform_pandas_df(dummies, enable_categorical=False)
         exp = np.array(
             [[1.0, 1.0, 0.0, 0.0], [2.0, 0.0, 1.0, 0.0], [3.0, 0.0, 0.0, 1.0]]
-        )
-        np.testing.assert_array_equal(result, exp)
+        ).T
+        np.testing.assert_array_equal(result.columns, exp)
         dm = xgb.DMatrix(dummies, data_split_mode=data_split_mode)
         assert dm.num_row() == 3
         if data_split_mode == DataSplitMode.ROW:
@@ -202,6 +202,20 @@ class TestPandas:
         else:
             assert dm.num_col() == 1 * world_size
 
+    @pytest.mark.skipif(**tm.no_sklearn())
+    def test_multi_target(self) -> None:
+        from sklearn.datasets import make_regression
+
+        X, y = make_regression(n_samples=1024, n_features=4, n_targets=3)
+        ydf = pd.DataFrame({i: y[:, i] for i in range(y.shape[1])})
+
+        Xy = xgb.DMatrix(X, ydf)
+        assert Xy.num_row() == y.shape[0]
+        assert Xy.get_label().size == y.shape[0] * y.shape[1]
+        Xy = xgb.QuantileDMatrix(X, ydf)
+        assert Xy.num_row() == y.shape[0]
+        assert Xy.get_label().size == y.shape[0] * y.shape[1]
+
     def test_slice(self):
         rng = np.random.RandomState(1994)
         rows = 100
@@ -233,13 +247,14 @@ class TestPandas:
             X, enable_categorical=True
         )
 
-        assert transformed[:, 0].min() == 0
+        assert transformed.columns[0].min() == 0
 
         # test missing value
         X = pd.DataFrame({"f0": ["a", "b", np.NaN]})
         X["f0"] = X["f0"].astype("category")
         arr, _, _ = xgb.data._transform_pandas_df(X, enable_categorical=True)
-        assert not np.any(arr == -1.0)
+        for c in arr.columns:
+            assert not np.any(c == -1.0)
 
         X = X["f0"]
         y = y[: X.shape[0]]
@@ -273,24 +288,25 @@ class TestPandas:
         predt_dense = booster.predict(xgb.DMatrix(X.sparse.to_dense()))
         np.testing.assert_allclose(predt_sparse, predt_dense)
 
-    def test_pandas_label(self, data_split_mode=DataSplitMode.ROW):
+    def test_pandas_label(
+        self, data_split_mode: DataSplitMode = DataSplitMode.ROW
+    ) -> None:
         world_size = xgb.collective.get_world_size()
         # label must be a single column
         df = pd.DataFrame({"A": ["X", "Y", "Z"], "B": [1, 2, 3]})
         with pytest.raises(ValueError):
-            xgb.data._transform_pandas_df(df, False, None, None, "label", "float")
+            xgb.data._transform_pandas_df(df, False, None, None, "label")
 
         # label must be supported dtype
         df = pd.DataFrame({"A": np.array(["a", "b", "c"], dtype=object)})
         with pytest.raises(ValueError):
-            xgb.data._transform_pandas_df(df, False, None, None, "label", "float")
+            xgb.data._transform_pandas_df(df, False, None, None, "label")
 
         df = pd.DataFrame({"A": np.array([1, 2, 3], dtype=int)})
-        result, _, _ = xgb.data._transform_pandas_df(
-            df, False, None, None, "label", "float"
-        )
+        result, _, _ = xgb.data._transform_pandas_df(df, False, None, None, "label")
         np.testing.assert_array_equal(
-            result, np.array([[1.0], [2.0], [3.0]], dtype=float)
+            np.stack(result.columns, axis=1),
+            np.array([[1.0], [2.0], [3.0]], dtype=float),
         )
         dm = xgb.DMatrix(
             np.random.randn(3, 2), label=df, data_split_mode=data_split_mode
@@ -506,6 +522,35 @@ class TestPandas:
             if y is not None:
                 np.testing.assert_allclose(m_orig.get_label(), m_etype.get_label())
                 np.testing.assert_allclose(m_etype.get_label(), y.values)
+
+    @pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
+    def test_mixed_type(self, DMatrixT: Type[xgb.DMatrix]) -> None:
+        f0 = np.arange(0, 4)
+        f1 = pd.Series(f0, dtype="int64[pyarrow]")
+        f2l = list(f0)
+        f2l[0] = pd.NA
+        f2 = pd.Series(f2l, dtype=pd.Int64Dtype())
+
+        df = pd.DataFrame({"f0": f0})
+        df["f2"] = f2
+
+        m = DMatrixT(df)
+        assert m.num_col() == df.shape[1]
+
+        df["f1"] = f1
+        m = DMatrixT(df)
+        assert m.num_col() == df.shape[1]
+        assert m.num_row() == df.shape[0]
+        assert m.num_nonmissing() == df.size - 1
+        assert m.feature_names == list(map(str, df.columns))
+        assert m.feature_types == ["int"] * df.shape[1]
+
+        y = f0
+        m.set_info(label=y)
+        booster = xgb.train({}, m)
+        p0 = booster.inplace_predict(df)
+        p1 = booster.predict(m)
+        np.testing.assert_allclose(p0, p1)
 
     @pytest.mark.skipif(tm.is_windows(), reason="Rabit does not run on windows")
     def test_pandas_column_split(self):

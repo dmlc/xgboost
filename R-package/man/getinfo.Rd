@@ -23,14 +23,20 @@ Get information of an xgb.DMatrix object
 The \code{name} field can be one of the following:
 
 \itemize{
-    \item \code{label}: label XGBoost learn from ;
-    \item \code{weight}: to do a weight rescale ;
-    \item \code{base_margin}: base margin is the base prediction XGBoost will boost from ;
-    \item \code{nrow}: number of rows of the \code{xgb.DMatrix}.
-
+    \item \code{label}
+    \item \code{weight}
+    \item \code{base_margin}
+    \item \code{label_lower_bound}
+    \item \code{label_upper_bound}
+    \item \code{group}
+    \item \code{feature_type}
+    \item \code{feature_name}
+    \item \code{nrow}
 }
+See the documentation for \link{xgb.DMatrix} for more information about these fields.
 
-\code{group} can be setup by \code{setinfo} but can't be retrieved by \code{getinfo}.
+Note that, while 'qid' cannot be retrieved, it's possible to get the equivalent 'group'
+for a DMatrix that had 'qid' assigned.
 }
 \examples{
 data(agaricus.train, package='xgboost')

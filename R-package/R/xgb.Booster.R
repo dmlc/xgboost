@@ -195,7 +195,7 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #'        type and shape of prediction are invariant to model type.
 #' @param base_margin Base margin used for boosting from existing model.
 #'
-#' @param ... Parameters passed to \code{predict.xgb.Booster}
+#' @param ... Not used.
 #'
 #' @details
 #'

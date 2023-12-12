@@ -75,28 +75,25 @@ class QuantileRegression : public ObjFunction {
                                                   : info.weights_.ConstHostSpan()};
 
     preds.SetDevice(ctx_->Device());
-    auto predt = linalg::MakeVec(&preds);
-    auto n_samples = info.num_row_;
+    auto predt = linalg::MakeTensorView(ctx_, &preds, info.num_row_, n_targets);
 
     alpha_.SetDevice(ctx_->Device());
     auto alpha = ctx_->IsCUDA() ? alpha_.ConstDeviceSpan() : alpha_.ConstHostSpan();
 
-    linalg::ElementWiseKernel(
-        ctx_, gpair, [=] XGBOOST_DEVICE(std::size_t i, GradientPair const&) mutable {
-          auto [sample_id, quantile_id, target_id] =
-              linalg::UnravelIndex(i, n_samples, alpha.size(), n_targets / alpha.size());
-          assert(target_id == 0);
-
-          auto d = predt(i) - labels(sample_id, target_id);
-          auto h = weight[sample_id];
-          if (d >= 0) {
-            auto g = (1.0f - alpha[quantile_id]) * weight[sample_id];
-            gpair(sample_id, quantile_id) = GradientPair{g, h};
-          } else {
-            auto g = (-alpha[quantile_id] * weight[sample_id]);
-            gpair(sample_id, quantile_id) = GradientPair{g, h};
-          }
-        });
+    linalg::ElementWiseKernel(ctx_, gpair,
+                              [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
+                                // j is the quantile index
+                                // 0 is the target index
+                                auto d = predt(i, j) - labels(i, 0);
+                                auto h = weight[i];
+                                if (d >= 0) {
+                                  auto g = (1.0f - alpha[j]) * weight[i];
+                                  gpair(i, j) = GradientPair{g, h};
+                                } else {
+                                  auto g = (-alpha[j] * weight[i]);
+                                  gpair(i, j) = GradientPair{g, h};
+                                }
+                              });
   }
 
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override {

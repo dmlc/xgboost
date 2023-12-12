@@ -69,7 +69,7 @@ type and shape of prediction are invariant to model type.}
 
 \item{base_margin}{Base margin used for boosting from existing model.}
 
-\item{...}{Parameters passed to \code{predict.xgb.Booster}}
+\item{...}{Not used.}
 }
 \value{
 The return type is different depending whether \code{strict_shape} is set to \code{TRUE}.  By default,
