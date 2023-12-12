@@ -19,7 +19,8 @@
 #' @param missing a float value to represents missing values in data (used only when input is a dense matrix).
 #'        It is useful when a 0 or some other extreme value represents missing values in data.
 #' @param silent whether to suppress printing an informational message after loading from a file.
-#' @param feature_names Set names for features.
+#' @param feature_names Set names for features. Overrides column names in data
+#'        frame and matrix.
 #' @param nthread Number of threads used for creating DMatrix.
 #' @param group Group size for all ranking group.
 #' @param qid Query ID for data samples, used for ranking.
@@ -51,6 +52,8 @@
 #' If a DMatrix gets serialized and then de-serialized (for example, when saving data in an R session or caching
 #' chunks in an Rmd file), the resulting object will not be usable anymore and will need to be reconstructed
 #' from the original source of data.
+#' @param enable_categorical Experimental support of specializing for
+#'        categorical features. JSON/UBJSON serialization format is required.
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
@@ -78,6 +81,7 @@ xgb.DMatrix <- function(
   label_lower_bound = NULL,
   label_upper_bound = NULL,
   feature_weights = NULL,
+  enable_categorical = FALSE,
   as_quantile_dmatrix = FALSE,
   ref = NULL,
   max_bin = NULL
@@ -87,10 +91,14 @@ xgb.DMatrix <- function(
   }
   is_quantile_dmatrix <- FALSE
   nthread <- as.integer(NVL(nthread, -1))
+  ctypes <- NULL
   if (typeof(data) == "character") {
-    if (length(data) > 1)
-      stop("'data' has class 'character' and length ", length(data),
-           ".\n  'data' accepts either a numeric matrix or a single filename.")
+    if (length(data) > 1) {
+      stop(
+        "'data' has class 'character' and length ", length(data),
+        ".\n  'data' accepts either a numeric matrix or a single filename."
+      )
+    }
     data <- path.expand(data)
     handle <- .Call(XGDMatrixCreateFromFile_R, data, as.integer(silent))
   } else if (is.matrix(data)) {
@@ -138,6 +146,39 @@ xgb.DMatrix <- function(
       missing,
       nthread
     )
+  } else if (is.data.frame(data)) {
+    ctypes <- sapply(data, function(x) {
+      if (is.factor(x)) {
+        if (!enable_categorical) {
+          stop(
+            "When factor type is used, the parameter `enable_categorical`",
+            " must be set to TRUE."
+          )
+        }
+        "c"
+      } else if (is.integer(x)) {
+        "int"
+      } else if (is.logical(x)) {
+        "i"
+      } else {
+        if (!is.numeric(x)) {
+          stop("Invalid type in dataframe.")
+        }
+        "float"
+      }
+    })
+    ## as.data.frame somehow converts integer/logical into real.
+    data <- as.data.frame(sapply(data, function(x) {
+      if (is.factor(x)) {
+        ## XGBoost uses 0-based indexing.
+        as.numeric(x) - 1
+      } else {
+        x
+      }
+    }))
+    handle <- .Call(
+      XGDMatrixCreateFromDF_R, data, missing, as.integer(NVL(nthread, -1))
+    )
   } else {
     stop("xgb.DMatrix does not support construction from ", typeof(data))
   }
@@ -175,6 +216,9 @@ xgb.DMatrix <- function(
   }
   if (!is.null(feature_weights)) {
     setinfo(dmat, "feature_weights", feature_weights)
+  }
+  if (!is.null(ctypes)) {
+    setinfo(dmat, "feature_type", ctypes)
   }
 
   return(dmat)

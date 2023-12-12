@@ -223,6 +223,69 @@ XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat, SEXP missing, SEXP n_threads) {
   return ret;
 }
 
+XGB_DLL SEXP XGDMatrixCreateFromDF_R(SEXP df, SEXP missing, SEXP n_threads) {
+  SEXP ret = Rf_protect(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
+  R_API_BEGIN();
+
+  DMatrixHandle handle;
+
+  auto make_vec = [&](auto const *ptr, std::int32_t len) {
+    auto v = xgboost::linalg::MakeVec(ptr, len);
+    return xgboost::linalg::ArrayInterface(v);
+  };
+
+  std::int32_t rc{0};
+  {
+    using xgboost::Json;
+    auto n_features = Rf_xlength(df);
+    std::vector<Json> array(n_features);
+    CHECK_GT(n_features, 0);
+    auto len = Rf_xlength(VECTOR_ELT(df, 0));
+    // The `data.frame` in R actually converts all data into numeric. The other type
+    // handlers here are not used. At the moment they are kept as a reference for when we
+    // can avoid making data copies during transformation.
+    for (decltype(n_features) i = 0; i < n_features; ++i) {
+      switch (TYPEOF(VECTOR_ELT(df, i))) {
+        case INTSXP: {
+          auto const *ptr = INTEGER(VECTOR_ELT(df, i));
+          array[i] = make_vec(ptr, len);
+          break;
+        }
+        case REALSXP: {
+          auto const *ptr = REAL(VECTOR_ELT(df, i));
+          array[i] = make_vec(ptr, len);
+          break;
+        }
+        case LGLSXP: {
+          auto const *ptr = LOGICAL(VECTOR_ELT(df, i));
+          array[i] = make_vec(ptr, len);
+          break;
+        }
+        default: {
+          LOG(FATAL) << "data.frame has unsupported type.";
+        }
+      }
+    }
+
+    Json jinterface{std::move(array)};
+    auto sinterface = Json::Dump(jinterface);
+    Json jconfig{xgboost::Object{}};
+    jconfig["missing"] = asReal(missing);
+    jconfig["nthread"] = asInteger(n_threads);
+    auto sconfig = Json::Dump(jconfig);
+
+    rc = XGDMatrixCreateFromColumnar(sinterface.c_str(), sconfig.c_str(), &handle);
+  }
+
+  CHECK_CALL(rc);
+  R_SetExternalPtrAddr(ret, handle);
+  R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
+  R_API_END();
+  Rf_unprotect(1);
+
+  return ret;
+}
+
 namespace {
 void CreateFromSparse(SEXP indptr, SEXP indices, SEXP data, std::string *indptr_str,
                       std::string *indices_str, std::string *data_str) {
@@ -298,6 +361,7 @@ XGB_DLL SEXP XGDMatrixCreateFromCSR_R(SEXP indptr, SEXP indices, SEXP data, SEXP
     res_code = XGDMatrixCreateFromCSR(sindptr.c_str(), sindices.c_str(), sdata.c_str(), ncol,
                                       config.c_str(), &handle);
   }
+  CHECK_CALL(res_code);
   R_SetExternalPtrAddr(ret, handle);
   R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
   R_API_END();

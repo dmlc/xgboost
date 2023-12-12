@@ -129,6 +129,12 @@ class ObjFunction : public Configurable {
    * \param name Name of the objective.
    */
   static ObjFunction* Create(const std::string& name, Context const* ctx);
+
+  /*!
+   * \brief Return sycl specific implementation name if possible.
+   * \param name Name of the objective.
+   */
+  static std::string GetSyclImplementationName(const std::string& name);
 };
 
 /*!

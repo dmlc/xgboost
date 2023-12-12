@@ -822,8 +822,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
 
             .. note:: This parameter is experimental
 
-            Experimental support of specializing for categorical features.  Do not set
-            to True unless you are interested in development. Also, JSON/UBJSON
+            Experimental support of specializing for categorical features. JSON/UBJSON
             serialization format is required.
 
         """
@@ -1429,6 +1428,12 @@ class _ProxyDMatrix(DMatrix):
 
         _check_call(
             _LIB.XGProxyDMatrixSetDataDense(self.handle, _array_interface(data))
+        )
+
+    def _set_data_from_pandas(self, data: DataType) -> None:
+        """Set data from a pandas DataFrame. The input is a PandasTransformed instance."""
+        _check_call(
+            _LIB.XGProxyDMatrixSetDataColumnar(self.handle, data.array_interface())
         )
 
     def _set_data_from_csr(self, csr: scipy.sparse.csr_matrix) -> None:
@@ -2440,6 +2445,7 @@ class Booster:
         assert proxy is None or isinstance(proxy, _ProxyDMatrix)
 
         from .data import (
+            PandasTransformed,
             _array_interface,
             _arrow_transform,
             _is_arrow,
@@ -2486,6 +2492,19 @@ class Booster:
                 _LIB.XGBoosterPredictFromDense(
                     self.handle,
                     _array_interface(data),
+                    args,
+                    p_handle,
+                    ctypes.byref(shape),
+                    ctypes.byref(dims),
+                    ctypes.byref(preds),
+                )
+            )
+            return _prediction_output(shape, dims, preds, False)
+        if isinstance(data, PandasTransformed):
+            _check_call(
+                _LIB.XGBoosterPredictFromColumnar(
+                    self.handle,
+                    data.array_interface(),
                     args,
                     p_handle,
                     ctypes.byref(shape),
