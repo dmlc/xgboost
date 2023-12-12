@@ -67,7 +67,11 @@ to \code{c(1, 1)} XGBoost will use all trees.}
 \item{strict_shape}{Default is \code{FALSE}. When it's set to \code{TRUE}, output
 type and shape of prediction are invariant to model type.}
 
-\item{base_margin}{Base margin used for boosting from existing model.}
+\item{base_margin}{Base margin used for boosting from existing model.
+
+       Note that, if \code{newdata} is an \code{xgb.DMatrix} object, this argument will
+       be ignored as it needs to be added to the DMatrix instead (e.g. by passing it as
+       an argument in its constructor, or by calling \link{setinfo.xgb.DMatrix}).}
 
 \item{...}{Not used.}
 }

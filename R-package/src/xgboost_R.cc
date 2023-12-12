@@ -692,7 +692,7 @@ static std::unique_ptr<_ProxyDmatrixWrapper> GetProxyDMatrixWithBaseMargin(SEXP 
     }
     return proxy_dmat;
   } catch(ProxyDmatrixError &err) {
-    Rf_error(XGBGetLastError());
+    Rf_error("%s", XGBGetLastError());
   }
 }
 
