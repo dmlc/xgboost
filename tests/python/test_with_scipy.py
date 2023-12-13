@@ -62,6 +62,7 @@ def test_csc(DMatrixT: Type[xgb.DMatrix], CSC: Type) -> None:
         assert tm.predictor_equal(DMatrixT(X.tocsr()), DMatrixT(X))
 
 
+@pytest.mark.filterwarnings("error")
 @pytest.mark.parametrize(
     "DMatrixT,COO",
     [
