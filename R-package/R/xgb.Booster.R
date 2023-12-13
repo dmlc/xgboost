@@ -174,6 +174,18 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #'
 #'        Note that, for repeated predictions, one might want to create a DMatrix to pass here instead
 #'        of passing R types like matrices or data frames, as predictions will be faster on DMatrix.
+#'
+#'        If \code{newdata} is a \code{data.frame}, be aware that:\itemize{
+#'        \item Columns will be converted to numeric if they aren't already, which could potentially make
+#'              the operation slower than in an equivalent \code{matrix} object.
+#'        \item The order of the columns must match with that of the data from which the model was fitted
+#'              (i.e. columns will not be referenced by their names, just by their order in the data).
+#'        \item If the model was fitted to data with categorical columns, these columns must be of
+#'              \code{factor} type here, and must use the same encoding (i.e. have the same levels).
+#'        \item If \code{newdata} contains any \code{factor} columns, they will be converted to base-0
+#'              encoding (same as during DMatrix creation) - hence, one should not pass a \code{factor}
+#'              under a column which during training had a different type.
+#'        }
 #' @param missing Missing is only used when input is dense matrix. Pick a float value that represents
 #'        missing values in data (e.g., sometimes 0 or some other extreme value is used).
 #' @param outputmargin whether the prediction should be returned in the for of original untransformed
@@ -377,7 +389,10 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
         # note: since here it turns it into a non-data-frame list,
         # needs to keep track of the number of rows it had for later
         n_row <- nrow(newdata)
-        newdata <- lapply(newdata, as.numeric)
+        newdata <- lapply(
+          newdata,
+          function(x) if (is.factor(x)) return(as.numeric(x) - 1) else return(as.numeric(x))
+        )
         use_as_df <- TRUE
       } else if (inherits(newdata, "dgRMatrix")) {
         use_as_csr_matrix <- TRUE

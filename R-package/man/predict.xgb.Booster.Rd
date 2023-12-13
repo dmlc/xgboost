@@ -35,7 +35,19 @@
        a sparse vector, it will take it as a row vector.
 
        Note that, for repeated predictions, one might want to create a DMatrix to pass here instead
-       of passing R types like matrices or data frames, as predictions will be faster on DMatrix.}
+       of passing R types like matrices or data frames, as predictions will be faster on DMatrix.
+
+       If \code{newdata} is a \code{data.frame}, be aware that:\itemize{
+       \item Columns will be converted to numeric if they aren't already, which could potentially make
+             the operation slower than in an equivalent \code{matrix} object.
+       \item The order of the columns must match with that of the data from which the model was fitted
+             (i.e. columns will not be referenced by their names, just by their order in the data).
+       \item If the model was fitted to data with categorical columns, these columns must be of
+             \code{factor} type here, and must use the same encoding (i.e. have the same levels).
+       \item If \code{newdata} contains any \code{factor} columns, they will be converted to base-0
+             encoding (same as during DMatrix creation) - hence, one should not pass a \code{factor}
+             under a column which during training had a different type.
+       }}
 
 \item{missing}{Missing is only used when input is dense matrix. Pick a float value that represents
 missing values in data (e.g., sometimes 0 or some other extreme value is used).}
