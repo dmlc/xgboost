@@ -46,14 +46,24 @@
 #'
 #' This is ignored when passing \code{as_quantile_dmatrix = FALSE} or when construction of a QuantileDMatrix is not
 #' possible from the supplied inputs.
+#' @param enable_categorical Experimental support of specializing for categorical features.
+#'
+#'                           If passing 'TRUE' and 'data' is a data frame,
+#'                           columns of categorical types will automatically
+#'                           be set to be of categorical type (feature_type='c') in the resulting DMatrix.
+#'
+#'                           If passing 'FALSE' and 'data' is a data frame with categorical columns,
+#'                           it will result in an error being thrown.
+#'
+#'                           If 'data' is not a data frame, this argument is ignored.
+#'
+#'                           JSON/UBJSON serialization format is required for this.
 #'
 #' @details
 #' Note that DMatrix objects are not serializable through R functions such as \code{saveRDS} or \code{save}.
 #' If a DMatrix gets serialized and then de-serialized (for example, when saving data in an R session or caching
 #' chunks in an Rmd file), the resulting object will not be usable anymore and will need to be reconstructed
 #' from the original source of data.
-#' @param enable_categorical Experimental support of specializing for
-#'        categorical features. JSON/UBJSON serialization format is required.
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
@@ -106,8 +116,8 @@ xgb.DMatrix <- function(
       handle <- .Call(XGDMatrixCreateFromMat_R, data, missing, nthread)
     } else {
       if (!is.null(ref)) {
-        if (!inherits(ref, "xgb.QuantileDMatrix")) {
-          stop("'ref' must be an xgb.QuantileDMatrix object.")
+        if (!inherits(ref, "xgb.DMatrix")) {
+          stop("'ref' must be an xgb.DMatrix object.")
         }
       }
       handle <- .Call(XGQuantileDMatrixFromMat_R, data, missing,

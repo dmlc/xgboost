@@ -61,8 +61,18 @@ frame and matrix.}
 
 \item{feature_weights}{Set feature weights for column sampling.}
 
-\item{enable_categorical}{Experimental support of specializing for
-categorical features. JSON/UBJSON serialization format is required.}
+\item{enable_categorical}{Experimental support of specializing for categorical features.
+
+                          If passing 'TRUE' and 'data' is a data frame,
+                          columns of categorical types will automatically
+                          be set to be of categorical type (feature_type='c') in the resulting DMatrix.
+
+                          If passing 'FALSE' and 'data' is a data frame with categorical columns,
+                          it will result in an error being thrown.
+
+                          If 'data' is not a data frame, this argument is ignored.
+
+                          JSON/UBJSON serialization format is required for this.}
 
 \item{as_quantile_dmatrix}{Whether to generate a QuantileDMatrix instead of a regular DMatrix.
 
