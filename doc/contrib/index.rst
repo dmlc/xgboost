@@ -22,6 +22,7 @@ Here are guidelines for contributing to various aspect of the XGBoost project:
 
   Community Guideline <community>
   donate
+  scaling
   coding_guide
   consistency
   python_packaging
