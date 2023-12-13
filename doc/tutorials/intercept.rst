@@ -16,6 +16,9 @@ estimation:
     reg = xgb.XGBRegressor()
     reg.set_params(base_score=0.5)
 
+In addition, here 0.5 represents the value after applying the inverse link function. See
+the end of the document for a description.
+
 Other than the ``base_score``, users can also provide global bias via the data field
 ``base_margin``, which is a vector or a matrix depending on the task.
 
@@ -75,3 +78,20 @@ function, hence:
 
 As a result, if you are feeding outputs from models like GLM with a corresponding
 objective function, make sure the outputs are not yet transformed by the inverse link.
+
+In the case of ``base_score`` (intercept), if you access the estimation through
+:py:meth:`~xgboost.Booster.save_config`, XGBoost returns the value
+:math:`g^{-1}(base_score)`. With logistic regression and the logit link function, given
+the ``base_score`` as 0.5, :math:`logit(0.5) = 0.0` is added to the raw model output:
+
+.. math::
+
+   E[y_i] = g^{-1}{(F(x_i) + g(intercept))}
+
+This is more intuitive if you remove the model and consider only the intercept, which is
+estimated before the model is fitted:
+
+.. math::
+
+   E[y_i] = g^{-1}{g(intercept))} \\
+   E[y_i] = intercept
