@@ -20,7 +20,9 @@ In addition, here 0.5 represents the value after applying the inverse link funct
 the end of the document for a description.
 
 Other than the ``base_score``, users can also provide global bias via the data field
-``base_margin``, which is a vector or a matrix depending on the task.
+``base_margin``, which is a vector or a matrix depending on the task. With multi-output
+and multi-class, the ``base_margin`` is a matrix with size ``(n_samples, n_targets)`` or
+``(n_samples, n_classes)``.
 
 .. code-block:: python
 
@@ -79,19 +81,24 @@ function, hence:
 As a result, if you are feeding outputs from models like GLM with a corresponding
 objective function, make sure the outputs are not yet transformed by the inverse link.
 
-In the case of ``base_score`` (intercept), if you access the estimation through
-:py:meth:`~xgboost.Booster.save_config`, XGBoost returns the value
-:math:`g^{-1}(base_score)`. With logistic regression and the logit link function, given
-the ``base_score`` as 0.5, :math:`logit(0.5) = 0.0` is added to the raw model output:
+In the case of ``base_score`` (intercept), it can be accessed through
+:py:meth:`~xgboost.Booster.save_config` after estimation. Unlike the ``base_margin``, the
+returned value represents a value after applying inverse link.  With logistic regression
+and the logit link function as an example, given the ``base_score`` as 0.5,
+:math:`g(intercept) = logit(0.5) = 0` is added to the raw model output:
 
 .. math::
 
    E[y_i] = g^{-1}{(F(x_i) + g(intercept))}
 
-This is more intuitive if you remove the model and consider only the intercept, which is
-estimated before the model is fitted:
+and 0.5 is the same as :math:`base_score = g^{-1}(0) = 0.5`. This is more intuitive if you
+remove the model and consider only the intercept, which is estimated before the model is
+fitted:
 
 .. math::
 
-   E[y_i] = g^{-1}{g(intercept))} \\
-   E[y_i] = intercept
+   E[y] = g^{-1}{g(intercept))} \\
+   E[y] = intercept
+
+For some objectives like MAE, there are close solutions, while for others it's estimated
+with one step Newton method.
