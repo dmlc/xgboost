@@ -824,9 +824,10 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
 
             Experimental support of specializing for categorical features.
 
-            If passing 'True' and 'data' is a data frame (from supported libraries
-            such as Pandas or Modin), columns of categorical types will automatically
-            be set to be of categorical type (feature_type='c') in the resulting DMatrix.
+            If passing 'True' and 'data' is a data frame (from supported libraries such
+            as Pandas, Modin or cuDF), columns of categorical types will automatically
+            be set to be of categorical type (feature_type='c') in the resulting
+            DMatrix.
 
             If passing 'False' and 'data' is a data frame with categorical columns,
             it will result in an error being thrown.

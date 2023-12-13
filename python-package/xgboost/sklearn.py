@@ -276,13 +276,7 @@ __model_doc = f"""
 
     enable_categorical : bool
 
-        .. versionadded:: 1.5.0
-
-        .. note:: This parameter is experimental
-
-        Experimental support for categorical data.  When enabled, cudf/pandas.DataFrame
-        should be used to specify categorical data type.  Also, JSON/UBJSON
-        serialization format is required.
+        See the same parameter of :py:class:`DMatrix` for details.
 
     feature_types : Optional[FeatureTypes]
 
