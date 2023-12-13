@@ -271,7 +271,8 @@ available in XGBoost:
 We use ``multi:softmax`` to illustrate the differences of transformed prediction.  With
 ``softprob`` the output prediction array has shape ``(n_samples, n_classes)`` while for
 ``softmax`` it's ``(n_samples, )``. A demo for multi-class objective function is also
-available at :ref:`sphx_glr_python_examples_custom_softmax.py`.
+available at :ref:`sphx_glr_python_examples_custom_softmax.py`. Also, see
+:doc:`/tutorials/intercept` for some more explanation.
 
 
 **********************

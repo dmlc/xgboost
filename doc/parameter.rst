@@ -390,6 +390,8 @@ Specify the learning task and the corresponding learning objective. The objectiv
     disable the estimation, specify a real number argument.
   - For sufficient number of iterations, changing this value will not have too much effect.
 
+  See :doc:`/tutorials/intercept` for more info.
+
 * ``eval_metric`` [default according to objective]
 
   - Evaluation metrics for validation data, a default metric will be assigned according to objective (rmse for regression, and logloss for classification, `mean average precision` for ``rank:map``, etc.)

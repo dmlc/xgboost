@@ -785,7 +785,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
                  so it doesn't make sense to assign weights to individual data points.
 
         base_margin :
-            Base margin used for boosting from existing model.
+            Global bias for each instance. See :doc:`/tutorials/intercept` for details.
         missing :
             Value in the input data which needs to be present as a missing value. If
             None, defaults to np.nan.
