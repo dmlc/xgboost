@@ -25,6 +25,7 @@ rm -rf build
 set +x
 
 echo "--- Upload Python wheel"
+set -x
 pushd lib
 mv -v libxgboost4j.dylib libxgboost4j_m1_${BUILDKITE_COMMIT}.dylib
 buildkite-agent artifact upload libxgboost4j_m1_${BUILDKITE_COMMIT}.dylib
@@ -34,6 +35,8 @@ then
     s3://xgboost-nightly-builds/${BRANCH_NAME}/libxgboost4j/ \
     --acl public-read --no-progress
 fi
+popd
+set +x
 
 # Ensure that XGBoost can be built with Clang 11
 echo "--- Build and Test XGBoost with MacOS M1, Clang 11"
