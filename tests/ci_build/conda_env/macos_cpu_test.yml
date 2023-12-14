@@ -32,11 +32,10 @@ dependencies:
 - jsonschema
 - boto3
 - awscli
-- py-ubjson
 - cffi
 - pyarrow
 - pyspark>=3.4.0
 - cloudpickle
 - pip:
   - sphinx_rtd_theme
-  - datatable
+  - py-ubjson
