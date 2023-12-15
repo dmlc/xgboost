@@ -3,15 +3,6 @@ import pathlib
 import re
 import shutil
 
-try:
-    import sh
-except ImportError as e:
-    raise ImportError(
-        "Please install sh in your Python environment.\n"
-        " - Pip: pip install sh\n"
-        " - Conda: conda install -c conda-forge sh"
-    ) from e
-
 
 def main(args):
     if args.scala_version == "2.12":
@@ -32,20 +23,36 @@ def main(args):
     # Update pom.xml
     for pom in pathlib.Path("jvm-packages/").glob("**/pom.xml"):
         print(f"Updating {pom}...")
-        sh.sed(
-            [
-                "-i",
-                "-e",
-                f"s/<artifactId>xgboost-jvm_[0-9\\.]*/<artifactId>xgboost-jvm_{scala_ver}/g",
-                "-e",
+        with open(pom, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        with open(pom, "w", encoding="utf-8") as f:
+            replaced_scalaver = False
+            replaced_scala_binver = False
+            for line in lines:
+                line = re.sub(
+                    r"<artifactId>xgboost-jvm_[0-9\.]*",
+                    f"<artifactId>xgboost-jvm_{scala_ver}",
+                    line,
+                )
                 # Only replace the first occurrence of scala.version
-                f"0,/<scala.version>/ s/<scala.version>[0-9\\.]*/<scala.version>{scala_patchver}/",
-                "-e",
+                if not replaced_scalaver:
+                    line, nsubs = re.subn(
+                        r"<scala.version>[0-9\.]*",
+                        f"<scala.version>{scala_patchver}",
+                        line,
+                    )
+                    if nsubs > 0:
+                        replaced_scalaver = True
                 # Only replace the first occurrence of scala.binary.version
-                f"0,/<scala.binary.version>/ s/<scala.binary.version>[0-9\\.]*/<scala.binary.version>{scala_ver}/",
-                str(pom),
-            ]
-        )
+                if not replaced_scala_binver:
+                    line, nsubs = re.subn(
+                        r"<scala.binary.version>[0-9\.]*",
+                        f"<scala.binary.version>{scala_ver}",
+                        line,
+                    )
+                    if nsubs > 0:
+                        replaced_scala_binver = True
+                f.write(line)
 
 
 if __name__ == "__main__":
