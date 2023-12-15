@@ -211,12 +211,12 @@ def main():
         "https://central.sonatype.org/publish/publish-maven/"
     )
     print(
-        "3. Now on a Linux machine, run the following to build Scala 2.12 artifacts."
+        "3. Now on a Linux machine, run the following to build Scala 2.12 artifacts. "
         "Make sure to use an Internet connection with fast upload speed:"
     )
     print(
-        "   # Skip native build, since we have all needed native binaries from CI"
-        "   export MAVEN_SKIP_NATIVE_BUILD=1"
+        "   # Skip native build, since we have all needed native binaries from CI\n"
+        "   export MAVEN_SKIP_NATIVE_BUILD=1\n"
         "   GPG_TTY=$(tty) mvn deploy -Prelease -DskipTests"
     )
     print(
@@ -226,14 +226,14 @@ def main():
         "artifacts to the Maven Central repository. The top-level metapackage should be "
         "named xgboost-jvm_2.12."
     )
-    print("5. Remove the Scala 2.12 artifacts and build Scala 2.13 artifacts:")
     print(
-        "   find . -name target -exec rm -rv {} +"
-        "   find . -name pom.xml -exec sed -i 's/xgboost-jvm_2.12/xgboost-jvm_2.13/g' {} +"
+        "5. Remove the Scala 2.12 artifacts and build Scala 2.13 artifacts:\n"
+        "   export MAVEN_SKIP_NATIVE_BUILD=1\n"
+        "   python dev/change_scala_version.py --scala-version 2.13\n"
+        "   GPG_TTY=$(tty) mvn deploy -Prelease-cpu-only,scala-2.13 -DskipTests"
     )
-    print("   GPG_TTY=$(tty) mvn deploy -Prelease-cpu-only,scala-2.13 -DskipTests")
     print(
-        "6. Go to https://oss.sonatype.org/ to release the Scala 2.13 artifacts."
+        "6. Go to https://oss.sonatype.org/ to release the Scala 2.13 artifacts. "
         "The top-level metapackage should be named xgboost-jvm_2.13."
     )
 
