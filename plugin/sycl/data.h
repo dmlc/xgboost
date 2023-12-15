@@ -66,13 +66,13 @@ class USMVector {
  public:
   USMVector() : size_(0), capacity_(0), data_(nullptr) {}
 
-  USMVector(::sycl::queue& qu, size_t size) : size_(size), capacity_(size) {
+  USMVector(::sycl::queue* qu, size_t size) : size_(size), capacity_(size) {
     data_ = allocate_memory_(qu, size_);
   }
 
-  USMVector(::sycl::queue& qu, size_t size, T v) : size_(size), capacity_(size) {
+  USMVector(::sycl::queue* qu, size_t size, T v) : size_(size), capacity_(size) {
     data_ = allocate_memory_(qu, size_);
-    qu.fill(data_.get(), v, size_).wait();
+    qu->fill(data_.get(), v, size_).wait();
   }
 
   USMVector(::sycl::queue* qu, const std::vector<T> &vec) {
@@ -147,25 +147,22 @@ class USMVector {
     }
   }
 
-  ::sycl::event ResizeAsync(::sycl::queue* qu, size_t size_new, T v) {
+  void Resize(::sycl::queue* qu, size_t size_new, T v, ::sycl::event* event) {
     if (size_new <= size_) {
       size_ = size_new;
-      return ::sycl::event();
     } else if (size_new <= capacity_) {
       auto event = qu->fill(data_.get() + size_, v, size_new - size_);
       size_ = size_new;
-      return event;
     } else {
       size_t size_old = size_;
       auto data_old = data_;
       size_ = size_new;
       capacity_ = size_new;
       data_ = allocate_memory_(qu, size_);
-      ::sycl::event event;
       if (size_old > 0) {
-        event = qu->memcpy(data_.get(), data_old.get(), sizeof(T) * size_old);
+        *event = qu->memcpy(data_.get(), data_old.get(), sizeof(T) * size_old, *event);
       }
-      return qu->fill(data_.get() + size_old, v, size_new - size_old, event);
+      *event = qu->fill(data_.get() + size_old, v, size_new - size_old, *event);
     }
   }
 
@@ -210,7 +207,7 @@ struct DeviceMatrix {
   DMatrix* p_mat;  // Pointer to the original matrix on the host
   ::sycl::queue qu_;
   USMVector<size_t> row_ptr;
-  USMVector<Entry> data;
+  USMVector<Entry, MemoryType::on_device> data;
   size_t total_offset;
 
   DeviceMatrix(::sycl::queue qu, DMatrix* dmat) : p_mat(dmat), qu_(qu) {
@@ -238,8 +235,9 @@ struct DeviceMatrix {
           for (size_t i = 0; i < batch_size; i++)
             row_ptr[i + batch.base_rowid] += batch.base_rowid;
         }
-        std::copy(data_vec.data(), data_vec.data() + offset_vec[batch_size],
-                  data.Data() + data_offset);
+        qu.memcpy(data.Data() + data_offset,
+                  data_vec.data(),
+                  offset_vec[batch_size] * sizeof(Entry)).wait();
         data_offset += offset_vec[batch_size];
       }
     }
