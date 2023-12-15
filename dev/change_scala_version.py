@@ -14,6 +14,15 @@ except ImportError as e:
 
 
 def main(args):
+    if args.scala_version == "2.12":
+        scala_ver = "2.12"
+        scala_patchver = "2.12.18"
+    elif args.scala_version == "2.13":
+        scala_ver = "2.13"
+        scala_patchver = "2.13.11"
+    else:
+        raise ValueError(f"Unsupported Scala version: {args.scala_version}")
+
     # Clean artifacts
     for target in pathlib.Path("jvm-packages/").glob("**/target"):
         if target.is_dir():
@@ -26,7 +35,14 @@ def main(args):
         sh.sed(
             [
                 "-i",
-                f"s/<artifactId>xgboost-jvm_[0-9\\.]*/<artifactId>xgboost-jvm_{args.scala_version}/g",
+                "-e",
+                f"s/<artifactId>xgboost-jvm_[0-9\\.]*/<artifactId>xgboost-jvm_{scala_ver}/g",
+                "-e",
+                # Only replace the first occurrence of scala.version
+                f"0,/<scala.version>/ s/<scala.version>[0-9\\.]*/<scala.version>{scala_patchver}/",
+                "-e",
+                # Only replace the first occurrence of scala.binary.version
+                f"0,/<scala.binary.version>/ s/<scala.binary.version>[0-9\\.]*/<scala.binary.version>{scala_ver}/",
                 str(pom),
             ]
         )
