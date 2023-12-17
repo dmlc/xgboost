@@ -391,7 +391,13 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
         n_row <- nrow(newdata)
         newdata <- lapply(
           newdata,
-          function(x) if (is.factor(x)) return(as.numeric(x) - 1) else return(as.numeric(x))
+          function(x) {
+            if (is.factor(x)) {
+              return(as.numeric(x) - 1)
+            } else {
+              return(as.numeric(x))
+            }
+          }
         )
         use_as_df <- TRUE
       } else if (inherits(newdata, "dgRMatrix")) {
