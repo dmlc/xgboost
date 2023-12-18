@@ -29,11 +29,20 @@ def main(args):
             replaced_scalaver = False
             replaced_scala_binver = False
             for line in lines:
-                line = re.sub(
-                    r"<artifactId>xgboost-jvm_[0-9\.]*",
-                    f"<artifactId>xgboost-jvm_{scala_ver}",
-                    line,
-                )
+                for artifact in [
+                    "xgboost-jvm",
+                    "xgboost4j",
+                    "xgboost4j-gpu",
+                    "xgboost4j-spark",
+                    "xgboost4j-spark-gpu",
+                    "xgboost4j-flink",
+                    "xgboost4j-example",
+                ]:
+                    line = re.sub(
+                        f"<artifactId>{artifact}_[0-9\\.]*",
+                        f"<artifactId>{artifact}_{scala_ver}",
+                        line,
+                    )
                 # Only replace the first occurrence of scala.version
                 if not replaced_scalaver:
                     line, nsubs = re.subn(
