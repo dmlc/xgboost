@@ -138,21 +138,37 @@ SEXP SafeMkChar(const char *c_str, SEXP continuation_token) {
 }
 }  // namespace
 
+char cpp_ex_msg[256];
+struct RRNGStateController {
+  RRNGStateController() {
+    GetRNGstate();
+  }
+
+  ~RRNGStateController() {
+    PutRNGstate();
+  }
+};
+
 /*!
  * \brief macro to annotate begin of api
  */
 #define R_API_BEGIN()                           \
-  GetRNGstate();                                \
-  try {
+  try {                                         \
+    RRNGStateController rng_controller{};
 /*!
  * \brief macro to annotate end of api
  */
 #define R_API_END()                             \
   } catch(dmlc::Error& e) {                     \
-    PutRNGstate();                              \
-    error(e.what());                            \
+    Rf_error("%s", e.what());                   \
+  } catch(std::exception &e) {                  \
+    std::strncpy(cpp_ex_msg, e.what(), 256);    \
+    goto throw_cpp_ex_as_R_err;                 \
   }                                             \
-  PutRNGstate();
+  if (false) {                                  \
+    throw_cpp_ex_as_R_err:                      \
+    Rf_error("%s", cpp_ex_msg);                 \
+  }
 
 /**
  * @brief Macro for checking XGBoost return code.
