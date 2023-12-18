@@ -138,7 +138,6 @@ SEXP SafeMkChar(const char *c_str, SEXP continuation_token) {
 }
 }  // namespace
 
-char cpp_ex_msg[256];
 struct RRNGStateController {
   RRNGStateController() {
     GetRNGstate();
@@ -155,6 +154,14 @@ struct RRNGStateController {
 #define R_API_BEGIN()                           \
   try {                                         \
     RRNGStateController rng_controller{};
+
+/* Note: an R error triggers a long jump, hence all C++ objects that
+allocated memory through non-R allocators, including the exception
+object, need to be destructed before triggering the R error.
+In order to preserve the error message, it gets copied to a temporary
+buffer, and the R error section is reached through a 'goto' statement
+that bypasses usual function control flow. */
+char cpp_ex_msg[256];
 /*!
  * \brief macro to annotate end of api
  */
