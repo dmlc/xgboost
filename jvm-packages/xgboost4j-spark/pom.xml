@@ -9,7 +9,7 @@
         <version>2.1.0-SNAPSHOT</version>
     </parent>
     <name>xgboost4j-spark</name>
-    <artifactId>xgboost4j-spark_${scala.binary.version}</artifactId>
+    <artifactId>xgboost4j-spark_2.12</artifactId>
     <build>
         <plugins>
             <plugin>
@@ -24,7 +24,7 @@
     <dependencies>
         <dependency>
             <groupId>ml.dmlc</groupId>
-            <artifactId>xgboost4j_${scala.binary.version}</artifactId>
+            <artifactId>xgboost4j_2.12</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>

@@ -8,7 +8,7 @@
         <artifactId>xgboost-jvm_2.12</artifactId>
         <version>2.1.0-SNAPSHOT</version>
     </parent>
-    <artifactId>xgboost4j-gpu_${scala.binary.version}</artifactId>
+    <artifactId>xgboost4j-gpu_2.12</artifactId>
     <name>xgboost4j-gpu</name>
     <version>2.1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
