@@ -48,7 +48,7 @@ be the binary vector \code{[0, 1, 0, 1, 0]}, where the first 3 entries
 correspond to the leaves of the first subtree and last 2 to
 those of the second subtree.
 
-[...]
+\link{...}
 
 We can understand boosted decision tree
 based transformation as a supervised feature encoding that

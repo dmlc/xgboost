@@ -41,18 +41,18 @@ A \code{data.table} with detailed information about model trees' nodes.
 The columns of the \code{data.table} are:
 
 \itemize{
- \item \code{Tree}: integer ID of a tree in a model (zero-based index)
- \item \code{Node}: integer ID of a node in a tree (zero-based index)
- \item \code{ID}: character identifier of a node in a model (only when \code{use_int_id=FALSE})
- \item \code{Feature}: for a branch node, it's a feature id or name (when available);
-             for a leaf note, it simply labels it as \code{'Leaf'}
- \item \code{Split}: location of the split for a branch node (split condition is always "less than")
- \item \code{Yes}: ID of the next node when the split condition is met
- \item \code{No}: ID of the next node when the split condition is not met
- \item \code{Missing}: ID of the next node when branch value is missing
- \item \code{Quality}: either the split gain (change in loss) or the leaf value
- \item \code{Cover}: metric related to the number of observation either seen by a split
-                     or collected by a leaf during training.
+\item \code{Tree}: integer ID of a tree in a model (zero-based index)
+\item \code{Node}: integer ID of a node in a tree (zero-based index)
+\item \code{ID}: character identifier of a node in a model (only when \code{use_int_id=FALSE})
+\item \code{Feature}: for a branch node, it's a feature id or name (when available);
+for a leaf note, it simply labels it as \code{'Leaf'}
+\item \code{Split}: location of the split for a branch node (split condition is always "less than")
+\item \code{Yes}: ID of the next node when the split condition is met
+\item \code{No}: ID of the next node when the split condition is not met
+\item \code{Missing}: ID of the next node when branch value is missing
+\item \code{Quality}: either the split gain (change in loss) or the leaf value
+\item \code{Cover}: metric related to the number of observation either seen by a split
+or collected by a leaf during training.
 }
 
 When \code{use_int_id=FALSE}, columns "Yes", "No", and "Missing" point to model-wide node identifiers

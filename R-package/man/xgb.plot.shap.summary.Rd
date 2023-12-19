@@ -38,7 +38,7 @@ xgb.plot.shap.summary(
 \item{features}{a vector of either column indices or of feature names to plot. When it is NULL,
 feature importance is calculated, and \code{top_n} high ranked features are taken.}
 
-\item{top_n}{when \code{features} is NULL, top_n [1, 100] most important features in a model are taken.}
+\item{top_n}{when \code{features} is NULL, top_n \link{1, 100} most important features in a model are taken.}
 
 \item{model}{an \code{xgb.Booster} model. It has to be provided when either \code{shap_contrib}
 or \code{features} is missing.}
@@ -74,5 +74,5 @@ or smaller values of the feature. We effectively try to replicate the
 }
 \seealso{
 \code{\link{xgb.plot.shap}}, \code{\link{xgb.ggplot.shap.summary}},
-  \url{https://github.com/shap/shap}
+\url{https://github.com/shap/shap}
 }

@@ -44,9 +44,9 @@ Visualizes distributions related to depth of tree leafs.
 When \code{which="2x1"}, two distributions with respect to the leaf depth
 are plotted on top of each other:
 \itemize{
- \item the distribution of the number of leafs in a tree model at a certain depth;
- \item the distribution of average weighted number of observations ("cover")
-       ending up in leafs at certain depth.
+\item the distribution of the number of leafs in a tree model at a certain depth;
+\item the distribution of average weighted number of observations ("cover")
+ending up in leafs at certain depth.
 }
 Those could be helpful in determining sensible ranges of the \code{max_depth}
 and \code{min_child_weight} parameters.
