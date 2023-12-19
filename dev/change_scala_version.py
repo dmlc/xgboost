@@ -15,10 +15,11 @@ def main(args):
         raise ValueError(f"Unsupported Scala version: {args.scala_version}")
 
     # Clean artifacts
-    for target in pathlib.Path("jvm-packages/").glob("**/target"):
-        if target.is_dir():
-            print(f"Removing {target}...")
-            shutil.rmtree(target)
+    if args.purge_artifacts:
+        for target in pathlib.Path("jvm-packages/").glob("**/target"):
+            if target.is_dir():
+                print(f"Removing {target}...")
+                shutil.rmtree(target)
 
     # Update pom.xml
     for pom in pathlib.Path("jvm-packages/").glob("**/pom.xml"):
@@ -66,6 +67,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--purge-artifacts", type=bool, action="store_true")
     parser.add_argument(
         "--scala-version",
         type=str,

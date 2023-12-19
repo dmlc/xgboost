@@ -28,7 +28,7 @@ mvn_profile_string=""
 if [ "x$use_scala213" != "x" ]; then
   export mvn_profile_string="-Pdefault,scala-2.13"
   cd ..
-  python dev/change_scala_version.py --scala-version 2.13
+  python dev/change_scala_version.py --scala-version 2.13 --purge-artifacts
   cd jvm-packages
 fi
 
