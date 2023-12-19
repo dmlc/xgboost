@@ -67,7 +67,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--purge-artifacts", type=bool, action="store_true")
+    parser.add_argument("--purge-artifacts", action="store_true")
     parser.add_argument(
         "--scala-version",
         type=str,
