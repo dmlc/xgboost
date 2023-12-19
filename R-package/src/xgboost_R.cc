@@ -138,21 +138,44 @@ SEXP SafeMkChar(const char *c_str, SEXP continuation_token) {
 }
 }  // namespace
 
+struct RRNGStateController {
+  RRNGStateController() {
+    GetRNGstate();
+  }
+
+  ~RRNGStateController() {
+    PutRNGstate();
+  }
+};
+
 /*!
  * \brief macro to annotate begin of api
  */
 #define R_API_BEGIN()                           \
-  GetRNGstate();                                \
-  try {
+  try {                                         \
+    RRNGStateController rng_controller{};
+
+/* Note: an R error triggers a long jump, hence all C++ objects that
+allocated memory through non-R allocators, including the exception
+object, need to be destructed before triggering the R error.
+In order to preserve the error message, it gets copied to a temporary
+buffer, and the R error section is reached through a 'goto' statement
+that bypasses usual function control flow. */
+char cpp_ex_msg[256];
 /*!
  * \brief macro to annotate end of api
  */
 #define R_API_END()                             \
   } catch(dmlc::Error& e) {                     \
-    PutRNGstate();                              \
-    error(e.what());                            \
+    Rf_error("%s", e.what());                   \
+  } catch(std::exception &e) {                  \
+    std::strncpy(cpp_ex_msg, e.what(), 256);    \
+    goto throw_cpp_ex_as_R_err;                 \
   }                                             \
-  PutRNGstate();
+  if (false) {                                  \
+    throw_cpp_ex_as_R_err:                      \
+    Rf_error("%s", cpp_ex_msg);                 \
+  }
 
 /**
  * @brief Macro for checking XGBoost return code.
