@@ -23,7 +23,7 @@ the data in batches on-demand.}
 
 \item{missing}{A float value to represents missing values in data.
 
-Note that, while functions like \link{xgb.DataMatrix} can take a generic `NA` and interpret
+Note that, while functions like \link{xgb.DMatrix} can take a generic `NA` and interpret
 correctly it for different types like `numeric` and `integer`, if an `NA` value is passed here,
 it will not be adapted for different input types.
 

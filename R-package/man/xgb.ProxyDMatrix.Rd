@@ -64,6 +64,23 @@ so it doesn't make sense to assign weights to individual data points.}
        Note: columns are not referenced by name when calling `predict`, so the column order there
        must be the same as in the DMatrix construction, regardless of the column names.}
 
+\item{feature_types}{Set types for features.
+
+If `data` is a `data.frame` and passing `enable_categorical=TRUE`, the types will be deduced
+automatically from the column types.
+
+Otherwise, one can pass a character vector with the same length as number of columns in `data`,
+with the following possible values:\itemize{
+\item "c", which represents categorical columns.
+\item "q", which represents numeric columns.
+\item "int", which represents integer columns.
+\item "i", which represents logical (boolean) columns.
+}
+
+Note that, while categorical types are treated differently from the rest for model fitting
+purposes, the other types do not influence the generated model, but have effects in other
+functionalities such as feature importances.}
+
 \item{group}{Group size for all ranking group.}
 
 \item{qid}{Query ID for data samples, used for ranking.}

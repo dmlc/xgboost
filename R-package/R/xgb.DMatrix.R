@@ -56,6 +56,22 @@
 #'
 #'        Note: columns are not referenced by name when calling `predict`, so the column order there
 #'        must be the same as in the DMatrix construction, regardless of the column names.
+#' @param feature_types Set types for features.
+#'
+#' If `data` is a `data.frame` and passing `enable_categorical=TRUE`, the types will be deduced
+#' automatically from the column types.
+#'
+#' Otherwise, one can pass a character vector with the same length as number of columns in `data`,
+#' with the following possible values:\itemize{
+#' \item "c", which represents categorical columns.
+#' \item "q", which represents numeric columns.
+#' \item "int", which represents integer columns.
+#' \item "i", which represents logical (boolean) columns.
+#' }
+#'
+#' Note that, while categorical types are treated differently from the rest for model fitting
+#' purposes, the other types do not influence the generated model, but have effects in other
+#' functionalities such as feature importances.
 #' @param nthread Number of threads used for creating DMatrix.
 #' @param group Group size for all ranking group.
 #' @param qid Query ID for data samples, used for ranking.
@@ -595,7 +611,7 @@ xgb.ProxyDMatrix <- function(
 #' @param cache_prefix The path of cache file, caller must initialize all the directories in this path.
 #' @param missing A float value to represents missing values in data.
 #'
-#' Note that, while functions like \link{xgb.DataMatrix} can take a generic `NA` and interpret
+#' Note that, while functions like \link{xgb.DMatrix} can take a generic `NA` and interpret
 #' correctly it for different types like `numeric` and `integer`, if an `NA` value is passed here,
 #' it will not be adapted for different input types.
 #'
