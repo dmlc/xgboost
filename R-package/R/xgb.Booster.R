@@ -177,7 +177,7 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' @param object Object of class `xgb.Booster` or `xgb.Booster.handle`.
 #' @param newdata Takes `matrix`, `dgCMatrix`, `dgRMatrix`, `dsparseVector`,
 #'        local data file, or `xgb.DMatrix`.
-#'        For single-row predictions on sparse data, it is recommended to use the CSR format. 
+#'        For single-row predictions on sparse data, it is recommended to use the CSR format.
 #'        If passing a sparse vector, it will take it as a row vector.
 #' @param missing Only used when input is a dense matrix. Pick a float value that represents
 #'        missing values in data (e.g., 0 or some other extreme value).
@@ -237,7 +237,7 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' - When `predleaf = TRUE`: A matrix with one column per tree.
 #' - When `predcontrib = TRUE`: When not multiclass, a matrix with
 #' ` num_features + 1` columns. The last "+ 1" column corresponds to the baseline value.
-#'   In the multiclass case, a list of `num_class` such matrices. 
+#'   In the multiclass case, a list of `num_class` such matrices.
 #'   The contribution values are on the scale of untransformed margin
 #'   (e.g., for binary classification, the values are log-odds deviations from the baseline).
 #' - When `predinteraction = TRUE`: When not multiclass, the output is a 3d array of
@@ -254,9 +254,9 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' - For `predleaf = TRUE`, the dimension is `(n_trees_in_forest, num_class, n_iterations, nrow(newdata))`.
 #' @seealso [xgb.train()]
 #' @references
-#' 1. Scott M. Lundberg, Su-In Lee, "A Unified Approach to Interpreting Model Predictions", 
+#' 1. Scott M. Lundberg, Su-In Lee, "A Unified Approach to Interpreting Model Predictions",
 #'   NIPS Proceedings 2017, \url{https://arxiv.org/abs/1705.07874}
-#' 2. Scott M. Lundberg, Su-In Lee, "Consistent feature attribution for tree ensembles", 
+#' 2. Scott M. Lundberg, Su-In Lee, "Consistent feature attribution for tree ensembles",
 #'   \url{https://arxiv.org/abs/1706.06060}
 #'
 #' @examples
@@ -349,7 +349,7 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #'   nthread = 2,
 #'   nrounds = 10,
 #'   subsample = 0.5,
-#'   objective = "multi:softmax", 
+#'   objective = "multi:softmax",
 #'   num_class = num_class
 #' )
 #'
