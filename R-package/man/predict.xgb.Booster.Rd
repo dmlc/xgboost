@@ -213,7 +213,7 @@ bst <- xgboost(
   nthread = 2,
   nrounds = 10,
   subsample = 0.5,
-  objective = "multi:softmax", 
+  objective = "multi:softmax",
   num_class = num_class
 )
 
