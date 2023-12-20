@@ -322,6 +322,9 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   dtrain <- data
   if (!inherits(dtrain, "xgb.DMatrix"))
     stop("second argument dtrain must be xgb.DMatrix")
+  if (inherits(dtrain, "xgb.ProxyDMatrix")) {
+    stop("Cannot train on ProxyDMatrix. Create a regular DMatrix or QuantileDMatrix.")
+  }
   if (length(watchlist) > 0) {
     if (typeof(watchlist) != "list" ||
         !all(vapply(watchlist, inherits, logical(1), what = 'xgb.DMatrix')))
