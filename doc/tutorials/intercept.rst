@@ -38,8 +38,8 @@ and multi-class, the ``base_margin`` is a matrix with size ``(n_samples, n_targe
 
     reg_1 = xgb.XGBRegressor()
     # Feed the prediction into the next model
-    reg.fit(X, y, base_margin=m)
-    reg.predict(X, base_margin=m)
+    reg_1.fit(X, y, base_margin=m)
+    reg_1.predict(X, base_margin=m)
 
 
 It specifies the bias for each sample and can be used for stacking an XGBoost model on top
@@ -79,7 +79,8 @@ function, hence:
    E[y_i] = \exp{(F(x_i) + b_i)}
 
 As a result, if you are feeding outputs from models like GLM with a corresponding
-objective function, make sure the outputs are not yet transformed by the inverse link.
+objective function, make sure the outputs are not yet transformed by the inverse link
+(activation).
 
 In the case of ``base_score`` (intercept), it can be accessed through
 :py:meth:`~xgboost.Booster.save_config` after estimation. Unlike the ``base_margin``, the
@@ -91,13 +92,13 @@ and the logit link function as an example, given the ``base_score`` as 0.5,
 
    E[y_i] = g^{-1}{(F(x_i) + g(intercept))}
 
-and 0.5 is the same as :math:`base_score = g^{-1}(0) = 0.5`. This is more intuitive if you
-remove the model and consider only the intercept, which is estimated before the model is
-fitted:
+and 0.5 is the same as :math:`base\_score = g^{-1}(0) = 0.5`. This is more intuitive if
+you remove the model and consider only the intercept, which is estimated before the model
+is fitted:
 
 .. math::
 
-   E[y] = g^{-1}{g(intercept))} \\
+   E[y] = g^{-1}{(g(intercept))} \\
    E[y] = intercept
 
 For some objectives like MAE, there are close solutions, while for others it's estimated
