@@ -15,7 +15,7 @@ xgb.ExternalDMatrix(
 )
 }
 \arguments{
-\item{data_iterator}{A data iterator structure as returned by \link{xgb.DataIterator},
+\item{data_iterator}{A data iterator structure as returned by \link{xgb.DataIter},
 which includes an environment shared between function calls, and functions to access
 the data in batches on-demand.}
 
@@ -56,7 +56,7 @@ A 'DMatrix' object.\itemize{
 }
 \description{
 Create an xgboost 'DMatrix' or 'QuantileDMatrix' object from external data
-supplied by an \link{xgb.DataIterator} object, potentially passed in batches from a
+supplied by an \link{xgb.DataIter} object, potentially passed in batches from a
 bigger set that might not fit entirely in memory.
 
 Might be created as either a regular 'DMatrix', or as a 'QuantileDMatrix'.\itemize{
@@ -129,7 +129,7 @@ iterator_reset <- function(iterator_env) {
   iterator_env[["iter"]] <- 0
 }
 
-data_iterator <- xgb.DataIterator(
+data_iterator <- xgb.DataIter(
   env = iterator_env,
   f_next = iterator_next,
   f_reset = iterator_reset
@@ -149,5 +149,5 @@ pred_dm <- predict(model, dm)
 pred_mat <- predict(model, as.matrix(mtcars[, -1]))
 }
 \seealso{
-\link{xgb.DataIterator}, \link{xgb.ProxyDMatrix}, \link{xgb.QuantileDMatrix}
+\link{xgb.DataIter}, \link{xgb.ProxyDMatrix}, \link{xgb.QuantileDMatrix}
 }

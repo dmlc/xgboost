@@ -174,7 +174,7 @@ XGB_DLL SEXP XGProxyDMatrixSetDataCSR_R(SEXP handle, SEXP lst);
 XGB_DLL SEXP XGProxyDMatrixSetDataColumnar_R(SEXP handle, SEXP lst);
 
 /*!
- * \brief Create a DMatrix from a DataIterator with callbacks
+ * \brief Create a DMatrix from a DataIter with callbacks
  * \param expr_f_next expression for function(env, proxy_dmat) that sets the data on the proxy
  * dmatrix and returns either zero (end of batch) or one (batch continues).
  * \param expr_f_reset expression for function(env) that resets the data iterator to
@@ -191,7 +191,7 @@ XGB_DLL SEXP XGDMatrixCreateFromCallback_R(
   SEXP n_threads, SEXP missing, SEXP cache_prefix);
 
 /*!
- * \brief Create a QuantileDMatrix from a DataIterator with callbacks
+ * \brief Create a QuantileDMatrix from a DataIter with callbacks
  * \param expr_f_next expression for function(env, proxy_dmat) that sets the data on the proxy
  * dmatrix and returns either zero (end of batch) or one (batch continues).
  * \param expr_f_reset expression for function(env) that resets the data iterator to

@@ -492,7 +492,7 @@ test_that("xgb.DMatrix: ExternalDMatrix produces the same results as regular DMa
   iterator_reset <- function(iterator_env) {
     iterator_env[["iter"]] <- 0
   }
-  data_iterator <- xgb.DataIterator(
+  data_iterator <- xgb.DataIter(
     env = iterator_env,
     f_next = iterator_next,
     f_reset = iterator_reset
@@ -546,7 +546,7 @@ test_that("xgb.DMatrix: R errors thrown on DataIterator are thrown back to the u
   iterator_reset <- function(iterator_env) {
     iterator_env[["iter"]] <- 0
   }
-  data_iterator <- xgb.DataIterator(
+  data_iterator <- xgb.DataIter(
     env = iterator_env,
     f_next = iterator_next,
     f_reset = iterator_reset
