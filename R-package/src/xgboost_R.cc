@@ -161,15 +161,13 @@ object, need to be destructed before triggering the R error.
 In order to preserve the error message, it gets copied to a temporary
 buffer, and the R error section is reached through a 'goto' statement
 that bypasses usual function control flow. */
-char cpp_ex_msg[256];
+char cpp_ex_msg[512];
 /*!
  * \brief macro to annotate end of api
  */
 #define R_API_END()                             \
-  } catch(dmlc::Error& e) {                     \
-    Rf_error("%s", e.what());                   \
   } catch(std::exception &e) {                  \
-    std::strncpy(cpp_ex_msg, e.what(), 256);    \
+    std::strncpy(cpp_ex_msg, e.what(), 512);    \
     goto throw_cpp_ex_as_R_err;                 \
   }                                             \
   if (false) {                                  \
