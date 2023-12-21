@@ -1199,6 +1199,8 @@ print.xgb.DMatrix <- function(x, verbose = FALSE, ...) {
     "xgb.QuantileDMatrix"
   } else if (inherits(x, "xgb.ExternalDMatrix")) {
     "xgb.ExternalDMatrix"
+  } else if (inherits(x, "xgb.ProxyDMatrix")) {
+    "xgb.ProxyDMatrix"
   } else {
     "xgb.DMatrix"
   }
