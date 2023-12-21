@@ -5,7 +5,7 @@
 \alias{xgb.attr<-}
 \alias{xgb.attributes}
 \alias{xgb.attributes<-}
-\title{Accessors for serializable attributes of a model.}
+\title{Accessors for serializable attributes of a model}
 \usage{
 xgb.attr(object, name)
 
@@ -18,62 +18,70 @@ xgb.attributes(object) <- value
 \arguments{
 \item{object}{Object of class \code{xgb.Booster} or \code{xgb.Booster.handle}.}
 
-\item{name}{a non-empty character string specifying which attribute is to be accessed.}
+\item{name}{A non-empty character string specifying which attribute is to be accessed.}
 
-\item{value}{a value of an attribute for \code{xgb.attr<-}; for \code{xgb.attributes<-}
-it's a list (or an object coercible to a list) with the names of attributes to set
+\item{value}{For \verb{xgb.attr<-}, a value of an attribute; for \verb{xgb.attributes<-},
+it is a list (or an object coercible to a list) with the names of attributes to set
 and the elements corresponding to attribute values.
 Non-character values are converted to character.
-When attribute value is not a scalar, only the first index is used.
+When an attribute value is not a scalar, only the first index is used.
 Use \code{NULL} to remove an attribute.}
 }
 \value{
-\code{xgb.attr} returns either a string value of an attribute
+\itemize{
+\item \code{xgb.attr()} returns either a string value of an attribute
 or \code{NULL} if an attribute wasn't stored in a model.
-
-\code{xgb.attributes} returns a list of all attribute stored in a model
+\item \code{xgb.attributes()} returns a list of all attributes stored in a model
 or \code{NULL} if a model has no stored attributes.
+}
 }
 \description{
 These methods allow to manipulate the key-value attribute strings of an xgboost model.
 }
 \details{
-The primary purpose of xgboost model attributes is to store some meta-data about the model.
+The primary purpose of xgboost model attributes is to store some meta data about the model.
 Note that they are a separate concept from the object attributes in R.
 Specifically, they refer to key-value strings that can be attached to an xgboost model,
 stored together with the model's binary representation, and accessed later
 (from R or any other interface).
-In contrast, any R-attribute assigned to an R-object of \code{xgb.Booster} class
-would not be saved by \code{xgb.save} because an xgboost model is an external memory object
+In contrast, any R attribute assigned to an R object of \code{xgb.Booster} class
+would not be saved by \code{\link[=xgb.save]{xgb.save()}} because an xgboost model is an external memory object
 and its serialization is handled externally.
 Also, setting an attribute that has the same name as one of xgboost's parameters wouldn't
 change the value of that parameter for a model.
-Use \code{\link{xgb.parameters<-}} to set or change model parameters.
+Use \code{\link[=xgb.parameters<-]{xgb.parameters<-()}} to set or change model parameters.
 
 The attribute setters would usually work more efficiently for \code{xgb.Booster.handle}
 than for \code{xgb.Booster}, since only just a handle (pointer) would need to be copied.
 That would only matter if attributes need to be set many times.
 Note, however, that when feeding a handle of an \code{xgb.Booster} object to the attribute setters,
 the raw model cache of an \code{xgb.Booster} object would not be automatically updated,
-and it would be user's responsibility to call \code{xgb.serialize} to update it.
+and it would be the user's responsibility to call \code{\link[=xgb.serialize]{xgb.serialize()}} to update it.
 
-The \code{xgb.attributes<-} setter either updates the existing or adds one or several attributes,
+The \verb{xgb.attributes<-} setter either updates the existing or adds one or several attributes,
 but it doesn't delete the other existing attributes.
 }
 \examples{
-data(agaricus.train, package='xgboost')
+data(agaricus.train, package = "xgboost")
 train <- agaricus.train
 
-bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
-               eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
+bst <- xgboost(
+  data = train$data,
+  label = train$label,
+  max_depth = 2,
+  eta = 1,
+  nthread = 2,
+  nrounds = 2,
+  objective = "binary:logistic"
+)
 
 xgb.attr(bst, "my_attribute") <- "my attribute value"
 print(xgb.attr(bst, "my_attribute"))
 xgb.attributes(bst) <- list(a = 123, b = "abc")
 
-xgb.save(bst, 'xgb.model')
-bst1 <- xgb.load('xgb.model')
-if (file.exists('xgb.model')) file.remove('xgb.model')
+xgb.save(bst, "xgb.model")
+bst1 <- xgb.load("xgb.model")
+if (file.exists("xgb.model")) file.remove("xgb.model")
 print(xgb.attr(bst1, "my_attribute"))
 print(xgb.attributes(bst1))
 

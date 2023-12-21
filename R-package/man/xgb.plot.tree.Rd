@@ -52,14 +52,14 @@ Read a tree model text dump and plot the model.
 The content of each node is organised that way:
 
 \itemize{
- \item Feature name.
- \item \code{Cover}: The sum of second order gradient of training data classified to the leaf.
-       If it is square loss, this simply corresponds to the number of instances seen by a split
-       or collected by a leaf during training.
-       The deeper in the tree a node is, the lower this metric will be.
- \item \code{Gain} (for split nodes): the information gain metric of a split
-       (corresponds to the importance of the node in the model).
- \item \code{Value} (for leafs): the margin value that the leaf may contribute to prediction.
+\item Feature name.
+\item \code{Cover}: The sum of second order gradient of training data classified to the leaf.
+If it is square loss, this simply corresponds to the number of instances seen by a split
+or collected by a leaf during training.
+The deeper in the tree a node is, the lower this metric will be.
+\item \code{Gain} (for split nodes): the information gain metric of a split
+(corresponds to the importance of the node in the model).
+\item \code{Value} (for leafs): the margin value that the leaf may contribute to prediction.
 }
 The tree root nodes also indicate the Tree index (0-based).
 

@@ -11,7 +11,7 @@ xgb.unserialize(buffer, handle = NULL)
 
 \item{handle}{An \code{xgb.Booster.handle} object which will be overwritten with
 the new deserialized object. Must be a null handle (e.g. when loading the model through
-`readRDS`). If not provided, a new handle will be created.}
+\code{readRDS}). If not provided, a new handle will be created.}
 }
 \value{
 An \code{xgb.Booster.handle} object.

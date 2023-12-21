@@ -47,24 +47,24 @@ xgb.QuantileDMatrix(
 for getting predictions out of a fitted model.
 
 Supported input types are as follows:\itemize{
-\item `matrix` objects, with types `numeric`, `integer`, or `logical`.
-\item `data.frame` objects, with columns of types `numeric`, `integer`, `logical`, or `factor`.
+\item \code{matrix} objects, with types \code{numeric}, \code{integer}, or \code{logical}.
+\item \code{data.frame} objects, with columns of types \code{numeric}, \code{integer}, \code{logical}, or \code{factor}.
 
-If passing `enable_categorical=TRUE`, columns with `factor` type will be treated as categorical.
-Otherwise, if passing `enable_categorical=FALSE` and the data contains `factor` columns, an error
+If passing \code{enable_categorical=TRUE}, columns with \code{factor} type will be treated as categorical.
+Otherwise, if passing \code{enable_categorical=FALSE} and the data contains \code{factor} columns, an error
 will be thrown.
 
-Note that xgboost uses base-0 encoding for categorical types, hence `factor` types (which use base-1
-encoding') will be converted inside the function call. Be aware that the encoding used for `factor`
-types is not kept as part of the model, so in subsequent calls to `predict`, it is the user's
+Note that xgboost uses base-0 encoding for categorical types, hence \code{factor} types (which use base-1
+encoding') will be converted inside the function call. Be aware that the encoding used for \code{factor}
+types is not kept as part of the model, so in subsequent calls to \code{predict}, it is the user's
 responsibility to ensure that factor columns have the same levels as the ones from which the DMatrix
 was constructed.
 
 Other column types are not supported.
-\item CSR matrices, as class `dgRMatrix` from package `Matrix`.
-\item CSC matrices, as class `dgCMatrix` from package `Matrix`. These are \bold{not} supported for
+\item CSR matrices, as class \code{dgRMatrix} from package \code{Matrix}.
+\item CSC matrices, as class \code{dgCMatrix} from package \code{Matrix}. These are \bold{not} supported for
 'xgb.QuantileDMatrix'.
-\item Single-row CSR matrices, as class `dsparseVector` from package `Matrix`, which is interpreted
+\item Single-row CSR matrices, as class \code{dsparseVector} from package \code{Matrix}, which is interpreted
 as a single row (only when making predictions from a fitted model).
 \item Text files in SVMLight / LibSVM formats, passed as a path to the file. These are \bold{not}
 supported for xgb.QuantileDMatrix'.
@@ -83,7 +83,8 @@ so it doesn't make sense to assign weights to individual data points.}
 
 \item{base_margin}{Base margin used for boosting from existing model.
 
-       In the case of multi-output models, one can also pass multi-dimensional base_margin.}
+\if{html}{\out{<div class="sourceCode">}}\preformatted{   In the case of multi-output models, one can also pass multi-dimensional base_margin.
+}\if{html}{\out{</div>}}}
 
 \item{missing}{a float value to represents missing values in data (not used when creating DMatrix
 from text files).
@@ -93,17 +94,18 @@ values in data.}
 \item{silent}{whether to suppress printing an informational message after loading from a file.}
 
 \item{feature_names}{Set names for features. Overrides column names in data
-       frame and matrix.
+frame and matrix.
 
-       Note: columns are not referenced by name when calling `predict`, so the column order there
-       must be the same as in the DMatrix construction, regardless of the column names.}
+\if{html}{\out{<div class="sourceCode">}}\preformatted{   Note: columns are not referenced by name when calling `predict`, so the column order there
+   must be the same as in the DMatrix construction, regardless of the column names.
+}\if{html}{\out{</div>}}}
 
 \item{feature_types}{Set types for features.
 
-If `data` is a `data.frame` and passing `enable_categorical=TRUE`, the types will be deduced
+If \code{data} is a \code{data.frame} and passing \code{enable_categorical=TRUE}, the types will be deduced
 automatically from the column types.
 
-Otherwise, one can pass a character vector with the same length as number of columns in `data`,
+Otherwise, one can pass a character vector with the same length as number of columns in \code{data},
 with the following possible values:\itemize{
 \item "c", which represents categorical columns.
 \item "q", which represents numeric columns.
@@ -129,24 +131,25 @@ functionalities such as feature importances.}
 
 \item{enable_categorical}{Experimental support of specializing for categorical features.
 
-                          If passing 'TRUE' and 'data' is a data frame,
-                          columns of categorical types will automatically
-                          be set to be of categorical type (feature_type='c') in the resulting DMatrix.
+\if{html}{\out{<div class="sourceCode">}}\preformatted{                      If passing 'TRUE' and 'data' is a data frame,
+                      columns of categorical types will automatically
+                      be set to be of categorical type (feature_type='c') in the resulting DMatrix.
 
-                          If passing 'FALSE' and 'data' is a data frame with categorical columns,
-                          it will result in an error being thrown.
+                      If passing 'FALSE' and 'data' is a data frame with categorical columns,
+                      it will result in an error being thrown.
 
-                          If 'data' is not a data frame, this argument is ignored.
+                      If 'data' is not a data frame, this argument is ignored.
 
-                          JSON/UBJSON serialization format is required for this.}
+                      JSON/UBJSON serialization format is required for this.
+}\if{html}{\out{</div>}}}
 
 \item{ref}{The training dataset that provides quantile information, needed when creating
-validation/test dataset with `xgb.QuantileDMatrix`. Supplying the training DMatrix
+validation/test dataset with \code{xgb.QuantileDMatrix}. Supplying the training DMatrix
 as a reference means that the same quantisation applied to the training data is
 applied to the validation/test data}
 
 \item{max_bin}{The number of histogram bin, should be consistent with the training parameter
-`max_bin`.
+\code{max_bin}.
 
 This is only supported when constructing a QuantileDMatrix.}
 }
@@ -162,9 +165,8 @@ such as \link{xgb.train} or \link{predict.xgb.Booster}.
 Function 'xgb.QuantileDMatrix' will construct a DMatrix with quantization for the histogram
 method already applied to it, which can be used to reduce memory usage (compared to using a
 a regular DMatrix first and then creating a quantization out of it) when using the histogram
-method (`tree_method = "hist"`, which is the default algorithm), but is not usable for the
-sorted-indices method (`tree_method = "exact"`).
-
+method (\code{tree_method = "hist"}, which is the default algorithm), but is not usable for the
+sorted-indices method (\code{tree_method = "exact"}).
 
 Note that DMatrix objects are not serializable through R functions such as \code{saveRDS} or \code{save}.
 If a DMatrix gets serialized and then de-serialized (for example, when saving data in an R session or caching

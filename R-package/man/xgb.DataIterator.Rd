@@ -13,19 +13,19 @@ used to keep track of variables to determine how to handle the batches.
 For example, one might want to keep track of an iteration number in this environment in order
 to know which part of the data to pass next.}
 
-\item{f_next}{`function(env, proxy_handle)` which is responsible for:\itemize{
+\item{f_next}{\verb{function(env, proxy_handle)} which is responsible for:\itemize{
 \item Accessing the next batch of data in the iterator.
-\item Passing this data to `proxy_handle` by calling function \link{xgb.ProxyDMatrix} on it.
-The `proxy_handle` that is supplied to this function \bold{must} in turn be passed as first
+\item Passing this data to \code{proxy_handle} by calling function \link{xgb.ProxyDMatrix} on it.
+The \code{proxy_handle} that is supplied to this function \bold{must} in turn be passed as first
 argument in the call to \link{xgb.ProxyDMatrix} inside of the call.
 \item Keeping track of where in the iterator batch it is or will go next, which can for example
-be done by modifiying variables in the `env` variable that is passed here.
+be done by modifiying variables in the \code{env} variable that is passed here.
 \item Signaling whether there are more batches to be consumed or not, by returning an integer
 with a value of zero when the stream of data ends (all batches in the iterator have been consumed),
 or an integer with a positive value when there are more batches in the line to be consumed.
 }}
 
-\item{f_reset}{`function(env)` which is responsible for reseting the data iterator
+\item{f_reset}{\verb{function(env)} which is responsible for reseting the data iterator
 (i.e. taking it back to the first batch, called before and after the sequence of batches
 has been consumed).
 

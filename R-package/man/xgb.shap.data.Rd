@@ -27,7 +27,7 @@ xgb.shap.data(
 \item{features}{a vector of either column indices or of feature names to plot. When it is NULL,
 feature importance is calculated, and \code{top_n} high ranked features are taken.}
 
-\item{top_n}{when \code{features} is NULL, top_n [1, 100] most important features in a model are taken.}
+\item{top_n}{when \code{features} is NULL, top_n \verb{[1, 100]} most important features in a model are taken.}
 
 \item{model}{an \code{xgb.Booster} model. It has to be provided when either \code{shap_contrib}
 or \code{features} is missing.}
@@ -45,8 +45,8 @@ it is set so that up to 100K data points are used.}
 }
 \value{
 A list containing: 'data', a matrix containing sample observations
-  and their feature values; 'shap_contrib', a matrix containing the SHAP contribution
-  values for these observations.
+and their feature values; 'shap_contrib', a matrix containing the SHAP contribution
+values for these observations.
 }
 \description{
 Prepare data for SHAP plots. To be used in xgb.plot.shap, xgb.plot.shap.summary, etc.

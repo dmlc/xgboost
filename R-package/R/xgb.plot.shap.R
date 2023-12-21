@@ -7,7 +7,7 @@
 #'          \code{data}. When it is NULL, it is computed internally using \code{model} and \code{data}.
 #' @param features a vector of either column indices or of feature names to plot. When it is NULL,
 #'          feature importance is calculated, and \code{top_n} high ranked features are taken.
-#' @param top_n when \code{features} is NULL, top_n [1, 100] most important features in a model are taken.
+#' @param top_n when \code{features} is NULL, top_n `[1, 100]` most important features in a model are taken.
 #' @param model an \code{xgb.Booster} model. It has to be provided when either \code{shap_contrib}
 #'          or \code{features} is missing.
 #' @param trees passed to \code{\link{xgb.importance}} when \code{features = NULL}.
@@ -197,7 +197,7 @@ xgb.plot.shap <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
 #' hence allows us to see which features have a negative / positive contribution
 #' on the model prediction, and whether the contribution is different for larger
 #' or smaller values of the feature. We effectively try to replicate the
-#' \code{summary_plot} function from https://github.com/shap/shap.
+#' \code{summary_plot} function from <https://github.com/shap/shap>.
 #'
 #' @inheritParams xgb.plot.shap
 #'

@@ -23,14 +23,14 @@ the data in batches on-demand.}
 
 \item{missing}{A float value to represents missing values in data.
 
-Note that, while functions like \link{xgb.DMatrix} can take a generic `NA` and interpret
-correctly it for different types like `numeric` and `integer`, if an `NA` value is passed here,
+Note that, while functions like \link{xgb.DMatrix} can take a generic \code{NA} and interpret
+correctly it for different types like \code{numeric} and \code{integer}, if an \code{NA} value is passed here,
 it will not be adapted for different input types.
 
-For example, in R `integer` types, missing values are represented by integer number `-2147483648`
-(since machine 'integer' types do not have an inherent 'NA' value) - hence, if one passes `NA`,
+For example, in R \code{integer} types, missing values are represented by integer number \code{-2147483648}
+(since machine 'integer' types do not have an inherent 'NA' value) - hence, if one passes \code{NA},
 which is interpreted as a floating-point NaN by 'xgb.ExternalDMatrix', these integer missing values
-will not be treated as missing. This should not pose any problem for `numeric` types, since they
+will not be treated as missing. This should not pose any problem for \code{numeric} types, since they
 do have an inheret NaN value.}
 
 \item{nthread}{Number of threads used for creating DMatrix.}
@@ -38,20 +38,20 @@ do have an inheret NaN value.}
 \item{as_quantile_dmatrix}{Whether to create the resulting object as a QuantileDMatrix.}
 
 \item{ref}{The training dataset that provides quantile information, needed when creating
-validation/test dataset with `xgb.QuantileDMatrix`. Supplying the training DMatrix
+validation/test dataset with \code{xgb.QuantileDMatrix}. Supplying the training DMatrix
 as a reference means that the same quantisation applied to the training data is
 applied to the validation/test data}
 
 \item{max_bin}{The number of histogram bin, should be consistent with the training parameter
-`max_bin`.
+\code{max_bin}.
 
 This is only supported when constructing a QuantileDMatrix.}
 }
 \value{
 A 'DMatrix' object.\itemize{
-\item If passing `as_quantile_dmatrix=TRUE`, will have additional subclass 'xgb.QuantileDMatrix'
+\item If passing \code{as_quantile_dmatrix=TRUE}, will have additional subclass 'xgb.QuantileDMatrix'
 (same as the objects returned by calling \link{xgb.QuantileDMatrix}).
-\item If passing `as_quantile_dmatrix=FALSE`, will have additional subclass 'xgb.ExternalDMatrix'.
+\item If passing \code{as_quantile_dmatrix=FALSE}, will have additional subclass 'xgb.ExternalDMatrix'.
 }
 }
 \description{

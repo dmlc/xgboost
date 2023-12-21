@@ -35,14 +35,14 @@ For more information and for example usage, see the documentation for \link{xgb.
 
 Note that not all of the input types supported by \link{xgb.DMatrix} are possible
 to pass here. Supported types are:\itemize{
-\item `matrix`, with types `numeric`, `integer`, and `logical`. Note that for types
-`integer` and `logical`, missing values might not be automatically recognized as
-as such - see the documentation for parameter `missing` in \link{xgb.ExternalDMatrix}
+\item \code{matrix}, with types \code{numeric}, \code{integer}, and \code{logical}. Note that for types
+\code{integer} and \code{logical}, missing values might not be automatically recognized as
+as such - see the documentation for parameter \code{missing} in \link{xgb.ExternalDMatrix}
 for details on this.
-\item `data.frame`, with the same types as supported by 'xgb.DMatrix' and same
-conversions applied to it. See the documentation for parameter `data` in
+\item \code{data.frame}, with the same types as supported by 'xgb.DMatrix' and same
+conversions applied to it. See the documentation for parameter \code{data} in
 \link{xgb.DMatrix} for details on it.
-\item CSR matrices, as class `dgRMatrix` from package `Matrix`.
+\item CSR matrices, as class \code{dgRMatrix} from package \code{Matrix}.
 }}
 
 \item{label}{Label of the training data.}
@@ -56,20 +56,22 @@ so it doesn't make sense to assign weights to individual data points.}
 
 \item{base_margin}{Base margin used for boosting from existing model.
 
-       In the case of multi-output models, one can also pass multi-dimensional base_margin.}
+\if{html}{\out{<div class="sourceCode">}}\preformatted{   In the case of multi-output models, one can also pass multi-dimensional base_margin.
+}\if{html}{\out{</div>}}}
 
 \item{feature_names}{Set names for features. Overrides column names in data
-       frame and matrix.
+frame and matrix.
 
-       Note: columns are not referenced by name when calling `predict`, so the column order there
-       must be the same as in the DMatrix construction, regardless of the column names.}
+\if{html}{\out{<div class="sourceCode">}}\preformatted{   Note: columns are not referenced by name when calling `predict`, so the column order there
+   must be the same as in the DMatrix construction, regardless of the column names.
+}\if{html}{\out{</div>}}}
 
 \item{feature_types}{Set types for features.
 
-If `data` is a `data.frame` and passing `enable_categorical=TRUE`, the types will be deduced
+If \code{data} is a \code{data.frame} and passing \code{enable_categorical=TRUE}, the types will be deduced
 automatically from the column types.
 
-Otherwise, one can pass a character vector with the same length as number of columns in `data`,
+Otherwise, one can pass a character vector with the same length as number of columns in \code{data},
 with the following possible values:\itemize{
 \item "c", which represents categorical columns.
 \item "q", which represents numeric columns.
@@ -93,16 +95,17 @@ functionalities such as feature importances.}
 
 \item{enable_categorical}{Experimental support of specializing for categorical features.
 
-                          If passing 'TRUE' and 'data' is a data frame,
-                          columns of categorical types will automatically
-                          be set to be of categorical type (feature_type='c') in the resulting DMatrix.
+\if{html}{\out{<div class="sourceCode">}}\preformatted{                      If passing 'TRUE' and 'data' is a data frame,
+                      columns of categorical types will automatically
+                      be set to be of categorical type (feature_type='c') in the resulting DMatrix.
 
-                          If passing 'FALSE' and 'data' is a data frame with categorical columns,
-                          it will result in an error being thrown.
+                      If passing 'FALSE' and 'data' is a data frame with categorical columns,
+                      it will result in an error being thrown.
 
-                          If 'data' is not a data frame, this argument is ignored.
+                      If 'data' is not a data frame, this argument is ignored.
 
-                          JSON/UBJSON serialization format is required for this.}
+                      JSON/UBJSON serialization format is required for this.
+}\if{html}{\out{</div>}}}
 }
 \value{
 Always returns value 'TRUE'.

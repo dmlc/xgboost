@@ -38,7 +38,7 @@ xgb.plot.shap.summary(
 \item{features}{a vector of either column indices or of feature names to plot. When it is NULL,
 feature importance is calculated, and \code{top_n} high ranked features are taken.}
 
-\item{top_n}{when \code{features} is NULL, top_n [1, 100] most important features in a model are taken.}
+\item{top_n}{when \code{features} is NULL, top_n \verb{[1, 100]} most important features in a model are taken.}
 
 \item{model}{an \code{xgb.Booster} model. It has to be provided when either \code{shap_contrib}
 or \code{features} is missing.}
@@ -67,12 +67,12 @@ Each point (observation) is coloured based on its feature value. The plot
 hence allows us to see which features have a negative / positive contribution
 on the model prediction, and whether the contribution is different for larger
 or smaller values of the feature. We effectively try to replicate the
-\code{summary_plot} function from https://github.com/shap/shap.
+\code{summary_plot} function from \url{https://github.com/shap/shap}.
 }
 \examples{
 # See \code{\link{xgb.plot.shap}}.
 }
 \seealso{
 \code{\link{xgb.plot.shap}}, \code{\link{xgb.ggplot.shap.summary}},
-  \url{https://github.com/shap/shap}
+\url{https://github.com/shap/shap}
 }

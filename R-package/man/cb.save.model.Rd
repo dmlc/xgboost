@@ -13,7 +13,7 @@ cb.save.model(save_period = 0, save_name = "xgboost.model")
 \item{save_name}{the name or path for the saved model file.
 It can contain a \code{\link[base]{sprintf}} formatting specifier
 to include the integer iteration number in the file name.
-E.g., with \code{save_name} = 'xgboost_%04d.model',
+E.g., with \code{save_name} = 'xgboost_\%04d.model',
 the file saved at iteration 50 would be named "xgboost_0050.model".}
 }
 \description{

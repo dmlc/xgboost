@@ -7,23 +7,32 @@
 \method{print}{xgb.Booster}(x, verbose = FALSE, ...)
 }
 \arguments{
-\item{x}{an xgb.Booster object}
+\item{x}{An \code{xgb.Booster} object.}
 
-\item{verbose}{whether to print detailed data (e.g., attribute values)}
+\item{verbose}{Whether to print detailed data (e.g., attribute values).}
 
-\item{...}{not currently used}
+\item{...}{Not currently used.}
 }
 \description{
-Print information about xgb.Booster.
+Print information about \code{xgb.Booster}.
 }
 \examples{
-data(agaricus.train, package='xgboost')
+data(agaricus.train, package = "xgboost")
 train <- agaricus.train
-bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
-               eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
-attr(bst, 'myattr') <- 'memo'
+
+bst <- xgboost(
+  data = train$data,
+  label = train$label,
+  max_depth = 2,
+  eta = 1,
+  nthread = 2,
+  nrounds = 2,
+  objective = "binary:logistic"
+)
+
+attr(bst, "myattr") <- "memo"
 
 print(bst)
-print(bst, verbose=TRUE)
+print(bst, verbose = TRUE)
 
 }
