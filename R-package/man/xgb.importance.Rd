@@ -35,20 +35,20 @@ is zero-based (e.g., use \code{trees = 0:4} for first 5 trees).}
 \value{
 For a tree model, a \code{data.table} with the following columns:
 \itemize{
-  \item \code{Features} names of the features used in the model;
-  \item \code{Gain} represents fractional contribution of each feature to the model based on
-       the total gain of this feature's splits. Higher percentage means a more important
-       predictive feature.
-  \item \code{Cover} metric of the number of observation related to this feature;
-  \item \code{Frequency} percentage representing the relative number of times
-       a feature have been used in trees.
+\item \code{Features} names of the features used in the model;
+\item \code{Gain} represents fractional contribution of each feature to the model based on
+the total gain of this feature's splits. Higher percentage means a more important
+predictive feature.
+\item \code{Cover} metric of the number of observation related to this feature;
+\item \code{Frequency} percentage representing the relative number of times
+a feature have been used in trees.
 }
 
 A linear model's importance \code{data.table} has the following columns:
 \itemize{
-  \item \code{Features} names of the features used in the model;
-  \item \code{Weight} the linear coefficient of this feature;
-  \item \code{Class} (only for multiclass models) class label.
+\item \code{Features} names of the features used in the model;
+\item \code{Weight} the linear coefficient of this feature;
+\item \code{Class} (only for multiclass models) class label.
 }
 
 If \code{feature_names} is not provided and \code{model} doesn't have \code{feature_names},

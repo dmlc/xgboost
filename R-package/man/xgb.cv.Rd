@@ -29,22 +29,22 @@ xgb.cv(
 }
 \arguments{
 \item{params}{the list of parameters. The complete list of parameters is
-  available in the \href{http://xgboost.readthedocs.io/en/latest/parameter.html}{online documentation}. Below
-  is a shorter summary:
+available in the \href{http://xgboost.readthedocs.io/en/latest/parameter.html}{online documentation}. Below
+is a shorter summary:
 \itemize{
-  \item \code{objective} objective function, common ones are
-  \itemize{
-    \item \code{reg:squarederror} Regression with squared loss.
-    \item \code{binary:logistic} logistic regression for classification.
-    \item See \code{\link[=xgb.train]{xgb.train}()} for complete list of objectives.
-  }
-  \item \code{eta} step size of each boosting step
-  \item \code{max_depth} maximum depth of the tree
-  \item \code{nthread} number of thread used in training, if not set, all threads are used
+\item \code{objective} objective function, common ones are
+\itemize{
+\item \code{reg:squarederror} Regression with squared loss.
+\item \code{binary:logistic} logistic regression for classification.
+\item See \code{\link[=xgb.train]{xgb.train}()} for complete list of objectives.
+}
+\item \code{eta} step size of each boosting step
+\item \code{max_depth} maximum depth of the tree
+\item \code{nthread} number of thread used in training, if not set, all threads are used
 }
 
-  See \code{\link{xgb.train}} for further details.
-  See also demo/ for walkthrough example in R.}
+See \code{\link{xgb.train}} for further details.
+See also demo/ for walkthrough example in R.}
 
 \item{data}{takes an \code{xgb.DMatrix}, \code{matrix}, or \code{dgCMatrix} as the input.}
 
@@ -64,17 +64,17 @@ from each CV model. This parameter engages the \code{\link{cb.cv.predict}} callb
 \item{showsd}{\code{boolean}, whether to show standard deviation of cross validation}
 
 \item{metrics, }{list of evaluation metrics to be used in cross validation,
-  when it is not specified, the evaluation metric is chosen according to objective function.
-  Possible options are:
+when it is not specified, the evaluation metric is chosen according to objective function.
+Possible options are:
 \itemize{
-  \item \code{error} binary classification error rate
-  \item \code{rmse} Rooted mean square error
-  \item \code{logloss} negative log-likelihood function
-  \item \code{mae} Mean absolute error
-  \item \code{mape} Mean absolute percentage error
-  \item \code{auc} Area under curve
-  \item \code{aucpr} Area under PR curve
-  \item \code{merror} Exact matching error, used to evaluate multi-class classification
+\item \code{error} binary classification error rate
+\item \code{rmse} Rooted mean square error
+\item \code{logloss} negative log-likelihood function
+\item \code{mae} Mean absolute error
+\item \code{mape} Mean absolute percentage error
+\item \code{auc} Area under curve
+\item \code{aucpr} Area under PR curve
+\item \code{merror} Exact matching error, used to evaluate multi-class classification
 }}
 
 \item{obj}{customized objective function. Returns gradient and second order
@@ -120,26 +120,26 @@ to customize the training process.}
 \value{
 An object of class \code{xgb.cv.synchronous} with the following elements:
 \itemize{
-  \item \code{call} a function call.
-  \item \code{params} parameters that were passed to the xgboost library. Note that it does not
-        capture parameters changed by the \code{\link{cb.reset.parameters}} callback.
-  \item \code{callbacks} callback functions that were either automatically assigned or
-        explicitly passed.
-  \item \code{evaluation_log} evaluation history stored as a \code{data.table} with the
-        first column corresponding to iteration number and the rest corresponding to the
-        CV-based evaluation means and standard deviations for the training and test CV-sets.
-        It is created by the \code{\link{cb.evaluation.log}} callback.
-  \item \code{niter} number of boosting iterations.
-  \item \code{nfeatures} number of features in training data.
-  \item \code{folds} the list of CV folds' indices - either those passed through the \code{folds}
-        parameter or randomly generated.
-  \item \code{best_iteration} iteration number with the best evaluation metric value
-        (only available with early stopping).
-  \item \code{best_ntreelimit} and the \code{ntreelimit} Deprecated attributes, use \code{best_iteration} instead.
-  \item \code{pred} CV prediction values available when \code{prediction} is set.
-        It is either vector or matrix (see \code{\link{cb.cv.predict}}).
-  \item \code{models} a list of the CV folds' models. It is only available with the explicit
-        setting of the \code{cb.cv.predict(save_models = TRUE)} callback.
+\item \code{call} a function call.
+\item \code{params} parameters that were passed to the xgboost library. Note that it does not
+capture parameters changed by the \code{\link{cb.reset.parameters}} callback.
+\item \code{callbacks} callback functions that were either automatically assigned or
+explicitly passed.
+\item \code{evaluation_log} evaluation history stored as a \code{data.table} with the
+first column corresponding to iteration number and the rest corresponding to the
+CV-based evaluation means and standard deviations for the training and test CV-sets.
+It is created by the \code{\link{cb.evaluation.log}} callback.
+\item \code{niter} number of boosting iterations.
+\item \code{nfeatures} number of features in training data.
+\item \code{folds} the list of CV folds' indices - either those passed through the \code{folds}
+parameter or randomly generated.
+\item \code{best_iteration} iteration number with the best evaluation metric value
+(only available with early stopping).
+\item \code{best_ntreelimit} and the \code{ntreelimit} Deprecated attributes, use \code{best_iteration} instead.
+\item \code{pred} CV prediction values available when \code{prediction} is set.
+It is either vector or matrix (see \code{\link{cb.cv.predict}}).
+\item \code{models} a list of the CV folds' models. It is only available with the explicit
+setting of the \code{cb.cv.predict(save_models = TRUE)} callback.
 }
 }
 \description{

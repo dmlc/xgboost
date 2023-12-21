@@ -2,14 +2,14 @@
 % Please edit documentation in R/xgb.Booster.R
 \name{xgb.parameters<-}
 \alias{xgb.parameters<-}
-\title{Accessors for model parameters.}
+\title{Accessors for model parameters}
 \usage{
 xgb.parameters(object) <- value
 }
 \arguments{
 \item{object}{Object of class \code{xgb.Booster} or \code{xgb.Booster.handle}.}
 
-\item{value}{a list (or an object coercible to a list) with the names of parameters to set
+\item{value}{A list (or an object coercible to a list) with the names of parameters to set
 and the elements corresponding to parameter values.}
 }
 \description{
@@ -20,11 +20,18 @@ Note that the setter would usually work more efficiently for \code{xgb.Booster.h
 than for \code{xgb.Booster}, since only just a handle would need to be copied.
 }
 \examples{
-data(agaricus.train, package='xgboost')
+data(agaricus.train, package = "xgboost")
 train <- agaricus.train
 
-bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
-               eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
+bst <- xgboost(
+  data = train$data,
+  label = train$label,
+  max_depth = 2,
+  eta = 1,
+  nthread = 2,
+  nrounds = 2,
+  objective = "binary:logistic"
+)
 
 xgb.parameters(bst) <- list(eta = 0.1)
 

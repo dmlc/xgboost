@@ -23,15 +23,15 @@ Get information of an xgb.DMatrix object
 The \code{name} field can be one of the following:
 
 \itemize{
-    \item \code{label}
-    \item \code{weight}
-    \item \code{base_margin}
-    \item \code{label_lower_bound}
-    \item \code{label_upper_bound}
-    \item \code{group}
-    \item \code{feature_type}
-    \item \code{feature_name}
-    \item \code{nrow}
+\item \code{label}
+\item \code{weight}
+\item \code{base_margin}
+\item \code{label_lower_bound}
+\item \code{label_upper_bound}
+\item \code{group}
+\item \code{feature_type}
+\item \code{feature_name}
+\item \code{nrow}
 }
 See the documentation for \link{xgb.DMatrix} for more information about these fields.
 
