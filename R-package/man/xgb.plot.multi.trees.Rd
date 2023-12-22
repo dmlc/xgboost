@@ -15,9 +15,10 @@ xgb.plot.multi.trees(
 )
 }
 \arguments{
-\item{model}{An \code{xgb.Booster}.}
+\item{model}{Object of class \code{xgb.Booster}.}
 
-\item{feature_names}{Character vector of feature names passed to \code{\link[=xgb.model.dt.tree]{xgb.model.dt.tree()}}.}
+\item{feature_names}{Character vector used to overwrite the feature names
+of the model. The default (\code{NULL}) uses the original feature names.}
 
 \item{features_keep}{Number of features to keep in each position of the multi trees,
 by default 5.}
@@ -27,7 +28,7 @@ The values are passed to \code{\link[DiagrammeR:render_graph]{DiagrammeR::render
 
 \item{render}{Should the graph be rendered or not? The default is \code{TRUE}.}
 
-\item{...}{Currently not used.}
+\item{...}{currently not used.}
 }
 \value{
 The value depends on the \code{render} parameter:

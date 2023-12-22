@@ -23,15 +23,16 @@
 #' To obtain a meaningful ranking by importance for linear models, the features need to
 #' be on the same scale (which is also recommended when using L1 or L2 regularization).
 #'
-#' @return
-#' For a tree model, a `data.table` with the following columns:
+#' @return A `data.table` with the following columns:
+#' 
+#' For a tree model:
 #' - `Features`: Names of the features used in the model.
 #' - `Gain`: Fractional contribution of each feature to the model based on
 #'    the total gain of this feature's splits. Higher percentage means higher importance.
 #' - `Cover`: Metric of the number of observation related to this feature.
 #' - `Frequency`: Percentage of times a feature has been used in trees.
 #'
-#' For a linear model, a `data.table` with the following columns:
+#' For a linear model:
 #' - `Features`: Names of the features used in the model.
 #' - `Weight`: Linear coefficient of this feature.
 #' - `Class`: Class label (only for multiclass models).

@@ -2,14 +2,9 @@
 #'
 #' Visualization of the ensemble of trees as a single collective unit.
 #'
-#' @param model An `xgb.Booster`.
-#' @param feature_names Character vector of feature names passed to [xgb.model.dt.tree()].
+#' @inheritParams xgb.plot.tree
 #' @param features_keep Number of features to keep in each position of the multi trees,
 #'        by default 5.
-#' @param plot_width,plot_height Width and height of the graph in pixels.
-#'        The values are passed to [DiagrammeR::render_graph()].
-#' @param render Should the graph be rendered or not? The default is `TRUE`.
-#' @param ... Currently not used.
 #'
 #' @details
 #'
@@ -29,15 +24,8 @@
 #'
 #' This function is inspired by this blog post:
 #' <https://wellecks.wordpress.com/2015/02/21/peering-into-the-black-box-visualizing-lambdamart/>
-#'
-#' @return
-#' The value depends on the `render` parameter:
-#' - If `render = TRUE` (default): Rendered graph object which is an htmlwidget of 
-#'   class `grViz`. Similar to "ggplot" objects, it needs to be printed when not 
-#'   running from the command line.
-#' - If `render = FALSE`: Graph object which is of DiagrammeR's class `dgr_graph`.
-#'   This could be useful if one wants to modify some of the graph attributes
-#'   before rendering the graph with [DiagrammeR::render_graph()].
+#' 
+#' @inherit xgb.plot.tree return
 #'
 #' @examples
 #'

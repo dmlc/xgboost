@@ -3,7 +3,7 @@
 \name{xgb.ggplot.deepness}
 \alias{xgb.ggplot.deepness}
 \alias{xgb.plot.deepness}
-\title{Plot model tree deepness}
+\title{Plot model tree depth}
 \usage{
 xgb.ggplot.deepness(
   model = NULL,
@@ -18,7 +18,7 @@ xgb.plot.deepness(
 )
 }
 \arguments{
-\item{model}{Either an \code{xgb.Booster} model, or a "data.table" as returned by \code{\link[=xgb.model.dt.tree]{xgb.model.dt.tree()}}.}
+\item{model}{Either an \code{xgb.Booster} model, or the "data.table" returned by \code{\link[=xgb.model.dt.tree]{xgb.model.dt.tree()}}.}
 
 \item{which}{Which distribution to plot (see details).}
 

@@ -33,7 +33,9 @@ is zero-based (e.g., use \code{trees = 0:4} for the first five trees).}
 \item{target}{Deprecated.}
 }
 \value{
-For a tree model, a \code{data.table} with the following columns:
+A \code{data.table} with the following columns:
+
+For a tree model:
 \itemize{
 \item \code{Features}: Names of the features used in the model.
 \item \code{Gain}: Fractional contribution of each feature to the model based on
@@ -42,7 +44,7 @@ the total gain of this feature's splits. Higher percentage means higher importan
 \item \code{Frequency}: Percentage of times a feature has been used in trees.
 }
 
-For a linear model, a \code{data.table} with the following columns:
+For a linear model:
 \itemize{
 \item \code{Features}: Names of the features used in the model.
 \item \code{Weight}: Linear coefficient of this feature.
