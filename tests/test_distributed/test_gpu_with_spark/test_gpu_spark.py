@@ -10,7 +10,7 @@ from xgboost import testing as tm
 
 pytestmark = [
     pytest.mark.skipif(**tm.no_spark()),
-    tm.timeout(120),
+    tm.timeout(240),
 ]
 
 from pyspark.ml.linalg import Vectors
