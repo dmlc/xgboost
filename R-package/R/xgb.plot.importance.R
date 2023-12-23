@@ -1,14 +1,14 @@
 #' Plot feature importance
 #'
 #' Represents previously calculated feature importance as a bar graph.
-#' - `xgb.plot.importance()` uses base R graphics, while 
+#' - `xgb.plot.importance()` uses base R graphics, while
 #' - `xgb.ggplot.importance()` uses "ggplot".
 #'
 #' @param importance_matrix A `data.table` as returned by [xgb.importance()].
 #' @param top_n Maximal number of top features to include into the plot.
 #' @param measure The name of importance measure to plot.
 #'        When `NULL`, 'Gain' would be used for trees and 'Weight' would be used for gblinear.
-#' @param rel_to_first Whether importance values should be represented as relative to 
+#' @param rel_to_first Whether importance values should be represented as relative to
 #'        the highest ranked feature, see Details.
 #' @param left_margin Adjust the left margin size to fit feature names.
 #'        When `NULL`, the existing `par("mar")` is used.
@@ -16,8 +16,8 @@
 #' @param plot Should the barplot be shown? Default is `TRUE`.
 #' @param n_clusters A numeric vector containing the min and the max range
 #'        of the possible number of clusters of bars.
-#' @param ... Other parameters passed to [graphics::barplot()] 
-#'        (except `horiz`, `border`, `cex.names`, `names.arg`, and `las`). 
+#' @param ... Other parameters passed to [graphics::barplot()]
+#'        (except `horiz`, `border`, `cex.names`, `names.arg`, and `las`).
 #'        Only used in `xgb.plot.importance()`.
 #'
 #' @details
@@ -37,16 +37,16 @@
 #'
 #' @return
 #' The return value depends on the function:
-#' - `xgb.plot.importance()`: Invisibly, a "data.table" with `n_top` features sorted 
+#' - `xgb.plot.importance()`: Invisibly, a "data.table" with `n_top` features sorted
 #'   by importance. If `plot = TRUE`, the values are also plotted as barplot.
-#' - `xgb.ggplot.importance()`: A customizable "ggplot" object. 
+#' - `xgb.ggplot.importance()`: A customizable "ggplot" object.
 #'   E.g., to change the title, set `+ ggtitle("A GRAPH NAME")`.
 #'
 #' @seealso [graphics::barplot()]
 #'
 #' @examples
 #' data(agaricus.train)
-#' 
+#'
 #' ## Keep the number of threads to 2 for examples
 #' nthread <- 2
 #' data.table::setDTthreads(nthread)

@@ -24,7 +24,7 @@
 #' be on the same scale (which is also recommended when using L1 or L2 regularization).
 #'
 #' @return A `data.table` with the following columns:
-#' 
+#'
 #' For a tree model:
 #' - `Features`: Names of the features used in the model.
 #' - `Gain`: Fractional contribution of each feature to the model based on
@@ -45,7 +45,7 @@
 #'
 #' # binomial classification using "gbtree":
 #' data(agaricus.train, package = "xgboost")
-#' 
+#'
 #' bst <- xgboost(
 #'   data = agaricus.train$data,
 #'   label = agaricus.train$label,
@@ -55,7 +55,7 @@
 #'   nrounds = 2,
 #'   objective = "binary:logistic"
 #' )
-#' 
+#'
 #' xgb.importance(model = bst)
 #'
 #' # binomial classification using "gblinear":
@@ -67,7 +67,7 @@
 #'   nthread = 1,
 #'   nrounds = 20,objective = "binary:logistic"
 #' )
-#' 
+#'
 #' xgb.importance(model = bst)
 #'
 #' # multiclass classification using "gbtree":
@@ -83,10 +83,10 @@
 #'   objective = "multi:softprob",
 #'   num_class = nclass
 #' )
-#' 
+#'
 #' # all classes clumped together:
 #' xgb.importance(model = mbst)
-#' 
+#'
 #' # inspect importances separately for each class:
 #' xgb.importance(
 #'   model = mbst, trees = seq(from = 0, by = nclass, length.out = nrounds)
@@ -106,10 +106,10 @@
 #'   eta = 0.2,
 #'   nthread = 1,
 #'   nrounds = 15,
-#'   objective = "multi:softprob", 
+#'   objective = "multi:softprob",
 #'   num_class = nclass
 #' )
-#' 
+#'
 #' xgb.importance(model = mbst)
 #'
 #' @export

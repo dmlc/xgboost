@@ -130,7 +130,7 @@ mbst <- xgboost(
   eta = 0.2,
   nthread = 1,
   nrounds = 15,
-  objective = "multi:softprob", 
+  objective = "multi:softprob",
   num_class = nclass
 )
 

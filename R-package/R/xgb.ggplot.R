@@ -162,7 +162,7 @@ prepare.ggplot.shap.data <- function(data_list, normalize = FALSE) {
 }
 
 #' Scale feature values
-#' 
+#'
 #' Internal function that scales feature values to mean 0 and standard deviation 1.
 #' Useful to compare multiple features on the same plot.
 #'

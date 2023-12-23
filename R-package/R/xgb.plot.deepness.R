@@ -1,7 +1,7 @@
 #' Plot model tree depth
 #'
 #' Visualizes distributions related to the depth of tree leaves.
-#' - `xgb.plot.deepness()` uses base R graphics, while 
+#' - `xgb.plot.deepness()` uses base R graphics, while
 #' - `xgb.ggplot.deepness()` uses "ggplot2".
 #'
 #' @param model Either an `xgb.Booster` model, or the "data.table" returned by [xgb.model.dt.tree()].
@@ -22,7 +22,7 @@
 #'
 #' When `which = "max.depth"` or `which = "med.depth"`, plots of either maximum or
 #' median depth per tree with respect to the tree number are created.
-#' 
+#'
 #' Finally, `which = "med.weight"` allows to see how
 #' a tree's median absolute leaf weight changes through the iterations.
 #'

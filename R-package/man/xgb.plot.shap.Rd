@@ -188,7 +188,7 @@ xgb.plot.shap(
 )
 
 xgb.plot.shap(
-  x, 
+  x,
   model = mbst,
   trees = trees0 + 1,
   target_class = 1,

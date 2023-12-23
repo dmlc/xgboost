@@ -1,11 +1,11 @@
 #' Plot boosted trees
 #'
 #' Read a tree model text dump and plot the model.
-#' 
+#'
 #' @param feature_names Character vector used to overwrite the feature names
 #'        of the model. The default (`NULL`) uses the original feature names.
 #' @param model Object of class `xgb.Booster`.
-#' @param trees An integer vector of tree indices that should be used. 
+#' @param trees An integer vector of tree indices that should be used.
 #'        The default (`NULL`) uses all trees.
 #'        Useful, e.g., in multiclass classification to get only
 #'        the trees of one class. *Important*: the tree index in XGBoost models
@@ -26,7 +26,7 @@
 #' - *Gain* (for split nodes): Information gain metric of a split
 #'        (corresponds to the importance of the node in the model).
 #' - *Value* (for leaves): Margin value that the leaf may contribute to the prediction.
-#' 
+#'
 #' The tree root nodes also indicate the tree index (0-based).
 #'
 #' The "Yes" branches are marked by the "< split_value" label.
@@ -34,11 +34,11 @@
 #' (as in "carrying extra capacity").
 #'
 #' This function uses [GraphViz](https://www.graphviz.org/) as DiagrammeR backend.
-#' 
+#'
 #' @return
 #' The value depends on the `render` parameter:
-#' - If `render = TRUE` (default): Rendered graph object which is an htmlwidget of 
-#'   class `grViz`. Similar to "ggplot" objects, it needs to be printed when not 
+#' - If `render = TRUE` (default): Rendered graph object which is an htmlwidget of
+#'   class `grViz`. Similar to "ggplot" objects, it needs to be printed when not
 #'   running from the command line.
 #' - If `render = FALSE`: Graph object which is of DiagrammeR's class `dgr_graph`.
 #'   This could be useful if one wants to modify some of the graph attributes
@@ -56,10 +56,10 @@
 #'   nrounds = 2,
 #'   objective = "binary:logistic"
 #' )
-#' 
+#'
 #' # plot all the trees
 #' xgb.plot.tree(model = bst)
-#' 
+#'
 #' # plot only the first tree and display the node ID:
 #' xgb.plot.tree(model = bst, trees = 0, show_node_id = TRUE)
 #'
@@ -67,9 +67,9 @@
 #' # Below is an example of how to save this plot to a file.
 #' # Note that for export_graph() to work, the {DiagrammeRsvg}
 #' # and {rsvg} packages must also be installed.
-#' 
+#'
 #' library(DiagrammeR)
-#' 
+#'
 #' gr <- xgb.plot.tree(model = bst, trees = 0:1, render = FALSE)
 #' export_graph(gr, "tree.pdf", width = 1500, height = 1900)
 #' export_graph(gr, "tree.png", width = 1500, height = 1900)

@@ -87,7 +87,7 @@ print(p)
 
 \dontrun{
 # Below is an example of how to save this plot to a file.
-# Note that for export_graph() to work, the {DiagrammeRsvg} and {rsvg} packages 
+# Note that for export_graph() to work, the {DiagrammeRsvg} and {rsvg} packages
 # must also be installed.
 
 library(DiagrammeR)

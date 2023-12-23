@@ -84,7 +84,7 @@ bst <- xgboost(
 
 # How to match feature names of splits that are following a current 'Yes' branch:
 merge(
-  dt, 
+  dt,
   dt[, .(ID, Y.Feature = Feature)], by.x = "Yes", by.y = "ID", all.x = TRUE
 )[
   order(Tree, Node)

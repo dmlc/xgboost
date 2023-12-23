@@ -24,13 +24,13 @@
 #'
 #' This function is inspired by this blog post:
 #' <https://wellecks.wordpress.com/2015/02/21/peering-into-the-black-box-visualizing-lambdamart/>
-#' 
+#'
 #' @inherit xgb.plot.tree return
 #'
 #' @examples
 #'
 #' data(agaricus.train, package = "xgboost")
-#' 
+#'
 #' ## Keep the number of threads to 2 for examples
 #' nthread <- 2
 #' data.table::setDTthreads(nthread)
@@ -52,11 +52,11 @@
 #'
 #' \dontrun{
 #' # Below is an example of how to save this plot to a file.
-#' # Note that for export_graph() to work, the {DiagrammeRsvg} and {rsvg} packages 
+#' # Note that for export_graph() to work, the {DiagrammeRsvg} and {rsvg} packages
 #' # must also be installed.
-#' 
+#'
 #' library(DiagrammeR)
-#' 
+#'
 #' gr <- xgb.plot.multi.trees(model = bst, features_keep = 3, render = FALSE)
 #' export_graph(gr, "tree.pdf", width = 1500, height = 600)
 #' }

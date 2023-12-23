@@ -95,10 +95,10 @@
 #' )
 #'
 #' xgb.plot.shap(agaricus.test$data, model = bst, features = "odor=none")
-#' 
+#'
 #' contr <- predict(bst, agaricus.test$data, predcontrib = TRUE)
 #' xgb.plot.shap(agaricus.test$data, contr, model = bst, top_n = 12, n_col = 3)
-#' 
+#'
 #' # Summary plot
 #' xgb.ggplot.shap.summary(agaricus.test$data, contr, model = bst, top_n = 12)
 #'
@@ -107,7 +107,7 @@
 #' x <- as.matrix(iris[, -5])
 #' set.seed(123)
 #' is.na(x[sample(nrow(x) * 4, 30)]) <- TRUE # introduce some missing values
-#' 
+#'
 #' mbst <- xgboost(
 #'   data = x,
 #'   label = as.numeric(iris$Species) - 1,
@@ -133,9 +133,9 @@
 #'   pch = 16,
 #'   pch_NA = 17
 #' )
-#' 
+#'
 #' xgb.plot.shap(
-#'   x, 
+#'   x,
 #'   model = mbst,
 #'   trees = trees0 + 1,
 #'   target_class = 1,
@@ -145,7 +145,7 @@
 #'   pch = 16,
 #'   pch_NA = 17
 #' )
-#' 
+#'
 #' xgb.plot.shap(
 #'   x,
 #'   model = mbst,
@@ -157,7 +157,7 @@
 #'   pch = 16,
 #'   pch_NA = 17
 #' )
-#' 
+#'
 #' # Summary plot
 #' xgb.ggplot.shap.summary(x, model = mbst, target_class = 0, top_n = 4)
 #'
@@ -249,7 +249,7 @@ xgb.plot.shap <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
 #' A point plot (each point representing one observation from `data`) is
 #' produced for each feature, with the points plotted on the SHAP value axis.
 #' Each point (observation) is coloured based on its feature value.
-#' 
+#'
 #' The plot allows to see which features have a negative / positive contribution
 #' on the model prediction, and whether the contribution is different for larger
 #' or smaller values of the feature. Inspired by the summary plot of
@@ -260,9 +260,9 @@ xgb.plot.shap <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
 #' @return A `ggplot2` object.
 #' @export
 #'
-#' @examples 
+#' @examples
 #' See xgb.plot.shap().
-#' 
+#'
 #' @seealso [xgb.plot.shap()], [xgb.ggplot.shap.summary()],
 #'   and the Python library <https://github.com/shap/shap>.
 xgb.plot.shap.summary <- function(data, shap_contrib = NULL, features = NULL, top_n = 10, model = NULL,
@@ -272,7 +272,7 @@ xgb.plot.shap.summary <- function(data, shap_contrib = NULL, features = NULL, to
 }
 
 #' Prepare data for SHAP plots
-#' 
+#'
 #' Internal function used in [xgb.plot.shap()], [xgb.plot.shap.summary()], etc.
 #'
 #' @inheritParams xgb.plot.shap
@@ -280,8 +280,8 @@ xgb.plot.shap.summary <- function(data, shap_contrib = NULL, features = NULL, to
 #' @keywords internal
 #' @noRd
 #'
-#' @return 
-#' A list containing: 
+#' @return
+#' A list containing:
 #' - `data`: The matrix of feature values.
 #' - `shap_contrib`: The matrix with corresponding SHAP values.
 xgb.shap.data <- function(data, shap_contrib = NULL, features = NULL, top_n = 1, model = NULL,
