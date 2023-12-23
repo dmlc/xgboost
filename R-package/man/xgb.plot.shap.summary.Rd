@@ -40,9 +40,10 @@ When \code{NULL} (default), the \code{top_n} most important features are selecte
 by \code{\link[=xgb.importance]{xgb.importance()}}.}
 
 \item{top_n}{How many of the most important features (<= 100) should be selected?
-(By default 1). Only used when \code{features = NULL}.}
+By default 1 for SHAP dependence and 10 for SHAP summary).
+Only used when \code{features = NULL}.}
 
-\item{model}{An \code{xgb.Booster} model. Only when \code{shap_contrib = NULL} or
+\item{model}{An \code{xgb.Booster} model. Only required when \code{shap_contrib = NULL} or
 \code{features = NULL}.}
 
 \item{trees}{Passed to \code{\link[=xgb.importance]{xgb.importance()}} when \code{features = NULL}.}

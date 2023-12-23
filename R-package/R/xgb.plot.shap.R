@@ -9,8 +9,9 @@
 #'        When `NULL` (default), the `top_n` most important features are selected
 #'        by [xgb.importance()].
 #' @param top_n How many of the most important features (<= 100) should be selected?
-#'        (By default 1). Only used when `features = NULL`.
-#' @param model An `xgb.Booster` model. Only when `shap_contrib = NULL` or
+#'        By default 1 for SHAP dependence and 10 for SHAP summary).
+#'        Only used when `features = NULL`.
+#' @param model An `xgb.Booster` model. Only required when `shap_contrib = NULL` or
 #'        `features = NULL`.
 #' @param trees Passed to [xgb.importance()] when `features = NULL`.
 #' @param target_class Only relevant for multiclass models. The default (`NULL`)
