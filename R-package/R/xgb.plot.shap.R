@@ -261,7 +261,7 @@ xgb.plot.shap <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
 #' @export
 #'
 #' @examples
-#' See xgb.plot.shap().
+#' # See examples in xgb.plot.shap()
 #'
 #' @seealso [xgb.plot.shap()], [xgb.ggplot.shap.summary()],
 #'   and the Python library <https://github.com/shap/shap>.

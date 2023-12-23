@@ -74,7 +74,7 @@ or smaller values of the feature. Inspired by the summary plot of
 \url{https://github.com/shap/shap}.
 }
 \examples{
-See xgb.plot.shap().
+# See examples in xgb.plot.shap()
 
 }
 \seealso{
