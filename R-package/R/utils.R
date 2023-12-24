@@ -148,19 +148,17 @@ check.custom.eval <- function(env = parent.frame()) {
 
 
 # Update a booster handle for an iteration with dtrain data
-xgb.iter.update <- function(booster_handle, dtrain, iter, obj) {
-  if (!identical(class(booster_handle), "xgb.Booster.handle")) {
-    stop("booster_handle must be of xgb.Booster.handle class")
-  }
+xgb.iter.update <- function(bst, dtrain, iter, obj) {
   if (!inherits(dtrain, "xgb.DMatrix")) {
     stop("dtrain must be of xgb.DMatrix class")
   }
+  handle <- xgb.get.handle(bst)
 
   if (is.null(obj)) {
-    .Call(XGBoosterUpdateOneIter_R, booster_handle, as.integer(iter), dtrain)
+    .Call(XGBoosterUpdateOneIter_R, handle, as.integer(iter), dtrain)
   } else {
     pred <- predict(
-      booster_handle,
+      bst,
       dtrain,
       outputmargin = TRUE,
       training = TRUE,
@@ -185,7 +183,7 @@ xgb.iter.update <- function(booster_handle, dtrain, iter, obj) {
     }
 
     .Call(
-      XGBoosterTrainOneIter_R, booster_handle, dtrain, iter, grad, hess
+      XGBoosterTrainOneIter_R, handle, dtrain, iter, grad, hess
     )
   }
   return(TRUE)
@@ -195,23 +193,22 @@ xgb.iter.update <- function(booster_handle, dtrain, iter, obj) {
 # Evaluate one iteration.
 # Returns a named vector of evaluation metrics
 # with the names in a 'datasetname-metricname' format.
-xgb.iter.eval <- function(booster_handle, watchlist, iter, feval) {
-  if (!identical(class(booster_handle), "xgb.Booster.handle"))
-    stop("class of booster_handle must be xgb.Booster.handle")
+xgb.iter.eval <- function(bst, watchlist, iter, feval) {
+  handle <- xgb.get.handle(bst)
 
   if (length(watchlist) == 0)
     return(NULL)
 
   evnames <- names(watchlist)
   if (is.null(feval)) {
-    msg <- .Call(XGBoosterEvalOneIter_R, booster_handle, as.integer(iter), watchlist, as.list(evnames))
+    msg <- .Call(XGBoosterEvalOneIter_R, handle, as.integer(iter), watchlist, as.list(evnames))
     mat <- matrix(strsplit(msg, '\\s+|:')[[1]][-1], nrow = 2)
     res <- structure(as.numeric(mat[2, ]), names = mat[1, ])
   } else {
     res <- sapply(seq_along(watchlist), function(j) {
       w <- watchlist[[j]]
       ## predict using all trees
-      preds <- predict(booster_handle, w, outputmargin = TRUE, iterationrange = c(1, 1))
+      preds <- predict(bst, w, outputmargin = TRUE, iterationrange = c(1, 1))
       eval_res <- feval(preds, w)
       out <- eval_res$value
       names(out) <- paste0(evnames[j], "-", eval_res$metric)
@@ -362,6 +359,14 @@ NULL
 #' XGBoost and persist it with \code{\link[base]{saveRDS}}, the model is not guaranteed to be
 #' accessible in later releases of XGBoost. To ensure that your model can be accessed in future
 #' releases of XGBoost, use \code{\link{xgb.save}} or \code{\link{xgb.save.raw}} instead.
+#'
+#' Currently, it is not possible to use R serializers like `readRDS` to load an XGBoost. model
+#' saved with an XGBoost. version lower than 2.1.0, and it's not possible to load an XGBoost. model
+#' saved with R serializers like `readRDS` under XGBoost. version 2.1.0 when using an older version
+#' of XGBoost.
+#'
+#' Furthermore, note that using the package `qs` for serialization will require version 0.26 or
+#' higher of said package, and will have the same compatibility restrictions as R serializers.
 #'
 #' @details
 #' Use \code{\link{xgb.save}} to save the XGBoost model as a stand-alone file. You may opt into

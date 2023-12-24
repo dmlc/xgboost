@@ -111,9 +111,9 @@ test_that("can store evaluation_log without printing", {
   expect_silent(
     bst <- xgb.train(param, dtrain, nrounds = 10, watchlist, eta = 1, verbose = 0)
   )
-  expect_false(is.null(bst$evaluation_log))
-  expect_false(is.null(bst$evaluation_log$train_error))
-  expect_lt(bst$evaluation_log[, min(train_error)], 0.2)
+  expect_false(is.null(attributes(bst)$evaluation_log))
+  expect_false(is.null(attributes(bst)$evaluation_log$train_error))
+  expect_lt(attributes(bst)$evaluation_log[, min(train_error)], 0.2)
 })
 
 test_that("cb.reset.parameters works as expected", {
@@ -121,34 +121,34 @@ test_that("cb.reset.parameters works as expected", {
   # fixed eta
   set.seed(111)
   bst0 <- xgb.train(param, dtrain, nrounds = 2, watchlist, eta = 0.9, verbose = 0)
-  expect_false(is.null(bst0$evaluation_log))
-  expect_false(is.null(bst0$evaluation_log$train_error))
+  expect_false(is.null(attributes(bst0)$evaluation_log))
+  expect_false(is.null(attributes(bst0)$evaluation_log$train_error))
 
   # same eta but re-set as a vector parameter in the callback
   set.seed(111)
   my_par <- list(eta = c(0.9, 0.9))
   bst1 <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0,
                     callbacks = list(cb.reset.parameters(my_par)))
-  expect_false(is.null(bst1$evaluation_log$train_error))
-  expect_equal(bst0$evaluation_log$train_error,
-               bst1$evaluation_log$train_error)
+  expect_false(is.null(attributes(bst1)$evaluation_log$train_error))
+  expect_equal(attributes(bst0)$evaluation_log$train_error,
+               attributes(bst1)$evaluation_log$train_error)
 
   # same eta but re-set via a function in the callback
   set.seed(111)
   my_par <- list(eta = function(itr, itr_end) 0.9)
   bst2 <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0,
                     callbacks = list(cb.reset.parameters(my_par)))
-  expect_false(is.null(bst2$evaluation_log$train_error))
-  expect_equal(bst0$evaluation_log$train_error,
-               bst2$evaluation_log$train_error)
+  expect_false(is.null(attributes(bst2)$evaluation_log$train_error))
+  expect_equal(attributes(bst0)$evaluation_log$train_error,
+               attributes(bst2)$evaluation_log$train_error)
 
   # different eta re-set as a vector parameter in the callback
   set.seed(111)
   my_par <- list(eta = c(0.6, 0.5))
   bst3 <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0,
                     callbacks = list(cb.reset.parameters(my_par)))
-  expect_false(is.null(bst3$evaluation_log$train_error))
-  expect_false(all(bst0$evaluation_log$train_error == bst3$evaluation_log$train_error))
+  expect_false(is.null(attributes(bst3)$evaluation_log$train_error))
+  expect_false(all(attributes(bst0)$evaluation_log$train_error == attributes(bst3)$evaluation_log$train_error))
 
   # resetting multiple parameters at the same time runs with no error
   my_par <- list(eta = c(1., 0.5), gamma = c(1, 2), max_depth = c(4, 8))
@@ -166,8 +166,8 @@ test_that("cb.reset.parameters works as expected", {
   my_par <- list(eta = c(0., 0.))
   bstX <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0,
                     callbacks = list(cb.reset.parameters(my_par)))
-  expect_false(is.null(bstX$evaluation_log$train_error))
-  er <- unique(bstX$evaluation_log$train_error)
+  expect_false(is.null(attributes(bstX)$evaluation_log$train_error))
+  er <- unique(attributes(bstX)$evaluation_log$train_error)
   expect_length(er, 1)
   expect_gt(er, 0.4)
 })
@@ -182,14 +182,21 @@ test_that("cb.save.model works as expected", {
   expect_true(file.exists('xgboost_02.json'))
   b1 <- xgb.load('xgboost_01.json')
   xgb.parameters(b1) <- list(nthread = 2)
-  expect_equal(xgb.ntree(b1), 1)
+  expect_equal(xgb.nrounds(b1), 1)
   b2 <- xgb.load('xgboost_02.json')
   xgb.parameters(b2) <- list(nthread = 2)
-  expect_equal(xgb.ntree(b2), 2)
+  expect_equal(xgb.nrounds(b2), 2)
 
   xgb.config(b2) <- xgb.config(bst)
   expect_equal(xgb.config(bst), xgb.config(b2))
-  expect_equal(bst$raw, b2$raw)
+  # TODO: remove this workaround once serialization to disk is able to take more attributes
+  # expect_equal(xgb.save.raw(bst), xgb.save.raw(b2))
+  # workaround below:
+  s1 <- jsonlite::fromJSON(rawToChar(xgb.save.raw(bst, raw_format = "json")))
+  s2 <- jsonlite::fromJSON(rawToChar(xgb.save.raw(b2, raw_format = "json")))
+  s1$learner$feature_names <- NULL
+  s2$learner$feature_names <- NULL
+  expect_equal(s1, s2)
 
   # save_period = 0 saves the last iteration's model
   bst <- xgb.train(param, dtrain, nrounds = 2, watchlist, eta = 1, verbose = 0,
@@ -197,7 +204,14 @@ test_that("cb.save.model works as expected", {
   expect_true(file.exists('xgboost.json'))
   b2 <- xgb.load('xgboost.json')
   xgb.config(b2) <- xgb.config(bst)
-  expect_equal(bst$raw, b2$raw)
+  # TODO: remove this workaround once serialization to disk is able to take more attributes
+  # expect_equal(xgb.save.raw(bst), xgb.save.raw(b2))
+  # workaround below:
+  s1 <- jsonlite::fromJSON(rawToChar(xgb.save.raw(bst, raw_format = "json")))
+  s2 <- jsonlite::fromJSON(rawToChar(xgb.save.raw(b2, raw_format = "json")))
+  s1$learner$feature_names <- NULL
+  s2$learner$feature_names <- NULL
+  expect_equal(s1, s2)
 
   for (f in files) if (file.exists(f)) file.remove(f)
 })
@@ -208,14 +222,14 @@ test_that("early stopping xgb.train works", {
     bst <- xgb.train(param, dtrain, nrounds = 20, watchlist, eta = 0.3,
                      early_stopping_rounds = 3, maximize = FALSE)
   , "Stopping. Best iteration")
-  expect_false(is.null(bst$best_iteration))
-  expect_lt(bst$best_iteration, 19)
-  expect_equal(bst$best_iteration, bst$best_ntreelimit)
+  expect_false(is.null(xgb.attr(bst, "best_iteration")))
+  expect_lt(xgb.attr(bst, "best_iteration"), 19)
+  expect_equal(xgb.attr(bst, "best_iteration"), xgb.attr(bst, "best_ntreelimit"))
 
   pred <- predict(bst, dtest)
   expect_equal(length(pred), 1611)
   err_pred <- err(ltest, pred)
-  err_log <- bst$evaluation_log[bst$best_iteration, test_error]
+  err_log <- attributes(bst)$evaluation_log[xgb.attr(bst, "best_iteration"), test_error]
   expect_equal(err_log, err_pred, tolerance = 5e-6)
 
   set.seed(11)
@@ -223,14 +237,14 @@ test_that("early stopping xgb.train works", {
     bst0 <- xgb.train(param, dtrain, nrounds = 20, watchlist, eta = 0.3,
                       early_stopping_rounds = 3, maximize = FALSE, verbose = 0)
   )
-  expect_equal(bst$evaluation_log, bst0$evaluation_log)
+  expect_equal(attributes(bst)$evaluation_log, attributes(bst0)$evaluation_log)
 
   xgb.save(bst, "model.bin")
   loaded <- xgb.load("model.bin")
 
-  expect_false(is.null(loaded$best_iteration))
-  expect_equal(loaded$best_iteration, bst$best_ntreelimit)
-  expect_equal(loaded$best_ntreelimit, bst$best_ntreelimit)
+  expect_false(is.null(xgb.attr(loaded, "best_iteration")))
+  expect_equal(xgb.attr(loaded, "best_iteration"), xgb.attr(bst, "best_ntreelimit"))
+  expect_equal(xgb.attr(loaded, "best_ntreelimit"), xgb.attr(bst, "best_ntreelimit"))
 
   file.remove("model.bin")
 })
@@ -243,14 +257,14 @@ test_that("early stopping using a specific metric works", {
                      callbacks = list(cb.early.stop(stopping_rounds = 3, maximize = FALSE,
                                                     metric_name = 'test_logloss')))
   , "Stopping. Best iteration")
-  expect_false(is.null(bst$best_iteration))
-  expect_lt(bst$best_iteration, 19)
-  expect_equal(bst$best_iteration, bst$best_ntreelimit)
+  expect_false(is.null(xgb.attr(bst, "best_iteration")))
+  expect_lt(xgb.attr(bst, "best_iteration"), 19)
+  expect_equal(xgb.attr(bst, "best_iteration"), xgb.attr(bst, "best_ntreelimit"))
 
-  pred <- predict(bst, dtest, ntreelimit = bst$best_ntreelimit)
+  pred <- predict(bst, dtest, ntreelimit = xgb.attr(bst, "best_ntreelimit"))
   expect_equal(length(pred), 1611)
   logloss_pred <- sum(-ltest * log(pred) - (1 - ltest) * log(1 - pred)) / length(ltest)
-  logloss_log <- bst$evaluation_log[bst$best_iteration, test_logloss]
+  logloss_log <- attributes(bst)$evaluation_log[xgb.attr(bst, "best_iteration"), test_logloss]
   expect_equal(logloss_log, logloss_pred, tolerance = 1e-5)
 })
 

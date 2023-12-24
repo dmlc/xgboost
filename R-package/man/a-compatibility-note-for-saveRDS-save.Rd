@@ -14,6 +14,14 @@ accessible in later releases of XGBoost. To ensure that your model can be access
 releases of XGBoost, use \code{\link{xgb.save}} or \code{\link{xgb.save.raw}} instead.
 }
 \details{
+Currently, it is not possible to use R serializers like \code{readRDS} to load an XGBoost. model
+saved with an XGBoost. version lower than 2.1.0, and it's not possible to load an XGBoost. model
+saved with R serializers like \code{readRDS} under XGBoost. version 2.1.0 when using an older version
+of XGBoost.
+
+Furthermore, note that using the package \code{qs} for serialization will require version 0.26 or
+higher of said package, and will have the same compatibility restrictions as R serializers.
+
 Use \code{\link{xgb.save}} to save the XGBoost model as a stand-alone file. You may opt into
 the JSON format by specifying the JSON extension. To read the model back, use
 \code{\link{xgb.load}}.

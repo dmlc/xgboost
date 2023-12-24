@@ -11,8 +11,6 @@
 #'     \item \code{deprecated}: Encode the booster into old customized binary format.
 #' }
 #'
-#' Right now the default is \code{deprecated} but will be changed to \code{ubj} in upcoming release.
-#'
 #' @examples
 #' data(agaricus.train, package='xgboost')
 #' data(agaricus.test, package='xgboost')
@@ -30,7 +28,7 @@
 #' bst <- xgb.load.raw(raw)
 #'
 #' @export
-xgb.save.raw <- function(model, raw_format = "deprecated") {
+xgb.save.raw <- function(model, raw_format = "ubj") {
   handle <- xgb.get.handle(model)
   args <- list(format = raw_format)
   .Call(XGBoosterSaveModelToRaw_R, handle, jsonlite::toJSON(args, auto_unbox = TRUE))

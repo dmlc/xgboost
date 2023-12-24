@@ -8,8 +8,6 @@ xgb.load.raw(buffer, as_booster = FALSE)
 }
 \arguments{
 \item{buffer}{the buffer returned by xgb.save.raw}
-
-\item{as_booster}{Return the loaded model as xgb.Booster instead of xgb.Booster.handle.}
 }
 \description{
 User can generate raw memory buffer by calling xgb.save.raw

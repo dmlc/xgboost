@@ -17,7 +17,7 @@
 #' An object of \code{xgb.Booster} class.
 #'
 #' @seealso
-#' \code{\link{xgb.save}}, \code{\link{xgb.Booster.complete}}.
+#' \code{\link{xgb.save}}
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
@@ -44,11 +44,11 @@ xgb.load <- function(modelfile) {
   if (is.null(modelfile))
     stop("xgb.load: modelfile cannot be NULL")
 
-  handle <- xgb.Booster.handle(
+  bst <- xgb.Booster(
     params = list(),
     cachelist = list(),
     modelfile = modelfile,
-    handle = NULL
+    training_continuation = "copy"
   )
   # re-use modelfile if it is raw so we do not need to serialize
   if (typeof(modelfile) == "raw") {
@@ -59,10 +59,6 @@ xgb.load <- function(modelfile) {
         " `xgb.unserialize` instead. "
       )
     )
-    bst <- xgb.handleToBooster(handle = handle, raw = modelfile)
-  } else {
-    bst <- xgb.handleToBooster(handle = handle, raw = NULL)
   }
-  bst <- xgb.Booster.complete(bst, saveraw = TRUE)
   return(bst)
 }

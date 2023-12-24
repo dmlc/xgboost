@@ -87,21 +87,21 @@ xgb.importance <- function(feature_names = NULL, model = NULL, trees = NULL,
   if (!(is.null(data) && is.null(label) && is.null(target)))
     warning("xgb.importance: parameters 'data', 'label' and 'target' are deprecated")
 
-  if (!inherits(model, "xgb.Booster"))
-    stop("model: must be an object of class xgb.Booster")
-
-  if (is.null(feature_names) && !is.null(model$feature_names))
-    feature_names <- model$feature_names
+  if (is.null(feature_names)) {
+    model_feature_names <- xgb.feature_names(model)
+    if (NROW(model_feature_names)) {
+      feature_names <- model_feature_names
+    }
+  }
 
   if (!(is.null(feature_names) || is.character(feature_names)))
     stop("feature_names: Has to be a character vector")
 
-  model <- xgb.Booster.complete(model)
-  config <- jsonlite::fromJSON(xgb.config(model))
-  if (config$learner$gradient_booster$name == "gblinear") {
+  handle <- xgb.get.handle(model)
+  if (xgb.booster_type(model) == "gblinear") {
     args <- list(importance_type = "weight", feature_names = feature_names)
     results <- .Call(
-      XGBoosterFeatureScore_R, model$handle, jsonlite::toJSON(args, auto_unbox = TRUE, null = "null")
+      XGBoosterFeatureScore_R, handle, jsonlite::toJSON(args, auto_unbox = TRUE, null = "null")
     )
     names(results) <- c("features", "shape", "weight")
     if (length(results$shape) == 2) {
@@ -122,7 +122,7 @@ xgb.importance <- function(feature_names = NULL, model = NULL, trees = NULL,
     for (importance_type in c("weight", "total_gain", "total_cover")) {
       args <- list(importance_type = importance_type, feature_names = feature_names, tree_idx = trees)
       results <- .Call(
-        XGBoosterFeatureScore_R, model$handle, jsonlite::toJSON(args, auto_unbox = TRUE, null = "null")
+        XGBoosterFeatureScore_R, handle, jsonlite::toJSON(args, auto_unbox = TRUE, null = "null")
       )
       names(results) <- c("features", "shape", importance_type)
       concatenated[

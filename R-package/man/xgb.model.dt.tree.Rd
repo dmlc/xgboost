@@ -16,7 +16,9 @@ xgb.model.dt.tree(
 \arguments{
 \item{feature_names}{character vector of feature names. If the model already
 contains feature names, those would be used when \code{feature_names=NULL} (default value).
-Non-null \code{feature_names} could be provided to override those in the model.}
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{     Note that, if the model already contains feature names, it's \\bold\{not\} possible to override them here.
+}\if{html}{\out{</div>}}}
 
 \item{model}{object of class \code{xgb.Booster}}
 

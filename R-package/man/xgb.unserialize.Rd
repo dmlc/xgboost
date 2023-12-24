@@ -4,17 +4,13 @@
 \alias{xgb.unserialize}
 \title{Load the instance back from \code{\link{xgb.serialize}}}
 \usage{
-xgb.unserialize(buffer, handle = NULL)
+xgb.unserialize(buffer)
 }
 \arguments{
 \item{buffer}{the buffer containing booster instance saved by \code{\link{xgb.serialize}}}
-
-\item{handle}{An \code{xgb.Booster.handle} object which will be overwritten with
-the new deserialized object. Must be a null handle (e.g. when loading the model through
-\code{readRDS}). If not provided, a new handle will be created.}
 }
 \value{
-An \code{xgb.Booster.handle} object.
+An \code{xgb.Booster} object.
 }
 \description{
 Load the instance back from \code{\link{xgb.serialize}}

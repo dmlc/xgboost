@@ -228,7 +228,7 @@ cb.reset.parameters <- function(new_params) {
     })
 
     if (!is.null(env$bst)) {
-      xgb.parameters(env$bst$handle) <- pars
+      xgb.parameters(env$bst) <- pars
     } else {
       for (fd in env$bst_folds)
         xgb.parameters(fd$bst) <- pars
@@ -333,13 +333,13 @@ cb.early.stop <- function(stopping_rounds, maximize = FALSE,
     if (!is.null(env$bst)) {
       if (!inherits(env$bst, 'xgb.Booster'))
         stop("'bst' in the parent frame must be an 'xgb.Booster'")
-      if (!is.null(best_score <- xgb.attr(env$bst$handle, 'best_score'))) {
+      if (!is.null(best_score <- xgb.attr(env$bst, 'best_score'))) {
         best_score <<- as.numeric(best_score)
-        best_iteration <<- as.numeric(xgb.attr(env$bst$handle, 'best_iteration')) + 1
-        best_msg <<- as.numeric(xgb.attr(env$bst$handle, 'best_msg'))
+        best_iteration <<- as.numeric(xgb.attr(env$bst, 'best_iteration')) + 1
+        best_msg <<- as.numeric(xgb.attr(env$bst, 'best_msg'))
       } else {
-        xgb.attributes(env$bst$handle) <- list(best_iteration = best_iteration - 1,
-                                               best_score = best_score)
+        xgb.attributes(env$bst) <- list(best_iteration = best_iteration - 1,
+                                        best_score = best_score)
       }
     } else if (is.null(env$bst_folds) || is.null(env$basket)) {
       stop("Parent frame has neither 'bst' nor ('bst_folds' and 'basket')")
@@ -348,7 +348,7 @@ cb.early.stop <- function(stopping_rounds, maximize = FALSE,
 
   finalizer <- function(env) {
     if (!is.null(env$bst)) {
-      attr_best_score <- as.numeric(xgb.attr(env$bst$handle, 'best_score'))
+      attr_best_score <- as.numeric(xgb.attr(env$bst, 'best_score'))
       if (best_score != attr_best_score) {
         # If the difference is too big, throw an error
         if (abs(best_score - attr_best_score) >= 1e-14) {
@@ -358,9 +358,9 @@ cb.early.stop <- function(stopping_rounds, maximize = FALSE,
         # If the difference is due to floating-point truncation, update best_score
         best_score <- attr_best_score
       }
-      env$bst$best_iteration <- best_iteration
-      env$bst$best_ntreelimit <- best_ntreelimit
-      env$bst$best_score <- best_score
+      xgb.attr(env$bst, "best_iteration") <- best_iteration
+      xgb.attr(env$bst, "best_ntreelimit") <- best_ntreelimit
+      xgb.attr(env$bst, "best_score") <- best_score
     } else {
       env$basket$best_iteration <- best_iteration
       env$basket$best_ntreelimit <- best_ntreelimit
@@ -440,8 +440,10 @@ cb.save.model <- function(save_period = 0, save_name = "xgboost.model") {
       stop("'save_model' callback requires the 'bst' booster object in its calling frame")
 
     if ((save_period > 0 && (env$iteration - env$begin_iteration) %% save_period == 0) ||
-        (save_period == 0 && env$iteration == env$end_iteration))
-      xgb.save(env$bst, sprintf(save_name, env$iteration))
+        (save_period == 0 && env$iteration == env$end_iteration)) {
+      suppressWarnings({save_name <- sprintf(save_name, env$iteration)})
+      xgb.save(env$bst, save_name)
+    }
   }
   attr(callback, 'call') <- match.call()
   attr(callback, 'name') <- 'cb.save.model'
@@ -512,8 +514,7 @@ cb.cv.predict <- function(save_models = FALSE) {
     env$basket$pred <- pred
     if (save_models) {
       env$basket$models <- lapply(env$bst_folds, function(fd) {
-        xgb.attr(fd$bst, 'niter') <- env$end_iteration - 1
-        xgb.Booster.complete(xgb.handleToBooster(handle = fd$bst, raw = NULL), saveraw = TRUE)
+        return(fd$bst)
       })
     }
   }
@@ -665,7 +666,7 @@ cb.gblinear.history <- function(sparse = FALSE) {
     } else { # xgb.cv:
       cf <- vector("list", length(env$bst_folds))
       for (i in seq_along(env$bst_folds)) {
-        dmp <- xgb.dump(xgb.handleToBooster(handle = env$bst_folds[[i]]$bst, raw = NULL))
+        dmp <- xgb.dump(env$bst_folds[[i]]$bst)
         cf[[i]] <- as.numeric(grep('(booster|bias|weigh)', dmp, invert = TRUE, value = TRUE))
         if (sparse) cf[[i]] <- as(cf[[i]], "sparseVector")
       }
@@ -685,14 +686,19 @@ cb.gblinear.history <- function(sparse = FALSE) {
   callback
 }
 
-#' Extract gblinear coefficients history.
-#'
-#' A helper function to extract the matrix of linear coefficients' history
+#' @title Extract gblinear coefficients history.
+#' @description A helper function to extract the matrix of linear coefficients' history
 #' from a gblinear model created while using the \code{cb.gblinear.history()}
 #' callback.
+#' @details Note that this is an R-specific function that relies on R attributes that
+#' are not saved when using xgboost's own serialization functions like \link{xgb.load}
+#' or \link{xgb.load.raw}.
 #'
+#' In order for a serialized model to be accepted by tgis function, one must use R
+#' serializers such as \link{saveRDS}.
 #' @param model either an \code{xgb.Booster} or a result of \code{xgb.cv()}, trained
-#'        using the \code{cb.gblinear.history()} callback.
+#'        using the \code{cb.gblinear.history()} callback, but \bold{not} a booster
+#'        loaded from \link{xgb.load} or \link{xgb.load.raw}.
 #' @param class_index zero-based class index to extract the coefficients for only that
 #'        specific class in a multinomial multiclass model. When it is NULL, all the
 #'        coefficients are returned. Has no effect in non-multiclass models.
@@ -713,20 +719,18 @@ xgb.gblinear.history <- function(model, class_index = NULL) {
     stop("model must be an object of either xgb.Booster or xgb.cv.synchronous class")
   is_cv <- inherits(model, "xgb.cv.synchronous")
 
-  if (is.null(model[["callbacks"]]) || is.null(model$callbacks[["cb.gblinear.history"]]))
+  if (is_cv) {
+    callbacks <- model$callbacks
+  } else {
+    callbacks <- attributes(model)$callbacks
+  }
+
+  if (is.null(callbacks) || is.null(callbacks$cb.gblinear.history))
     stop("model must be trained while using the cb.gblinear.history() callback")
 
   if (!is_cv) {
-    # extract num_class & num_feat from the internal model
-    dmp <- xgb.dump(model)
-    if (length(dmp) < 2 || dmp[2] != "bias:")
-      stop("It does not appear to be a gblinear model")
-    dmp <- dmp[-c(1, 2)]
-    n <- which(dmp == 'weight:')
-    if (length(n) != 1)
-      stop("It does not appear to be a gblinear model")
-    num_class <- n - 1
-    num_feat <- (length(dmp) - 4) / num_class
+    num_class <- xgb.num_class(model)
+    num_feat <- .Call(XGBoosterGetNumFeature_R, xgb.get.handle(model))
   } else {
     # in case of CV, the object is expected to have this info
     if (model$params$booster != "gblinear")
@@ -742,7 +746,7 @@ xgb.gblinear.history <- function(model, class_index = NULL) {
       (class_index[1] < 0 || class_index[1] >= num_class))
     stop("class_index has to be within [0,", num_class - 1, "]")
 
-  coef_path <- environment(model$callbacks$cb.gblinear.history)[["coefs"]]
+  coef_path <- environment(callbacks$cb.gblinear.history)[["coefs"]]
   if (!is.null(class_index) && num_class > 1) {
     coef_path <- if (is.list(coef_path)) {
       lapply(coef_path,

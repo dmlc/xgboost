@@ -2,19 +2,17 @@
 % Please edit documentation in R/xgb.serialize.R
 \name{xgb.serialize}
 \alias{xgb.serialize}
-\title{Serialize the booster instance into R's raw vector.  The serialization method differs
+\title{Serialize the booster instance into R's raw vector. The serialization method differs
 from \code{\link{xgb.save.raw}} as the latter one saves only the model but not
-parameters.  This serialization format is not stable across different xgboost versions.}
+parameters.}
 \usage{
 xgb.serialize(booster)
 }
 \arguments{
-\item{booster}{the booster instance}
+\item{booster}{A booster instance}
 }
 \description{
-Serialize the booster instance into R's raw vector.  The serialization method differs
-from \code{\link{xgb.save.raw}} as the latter one saves only the model but not
-parameters.  This serialization format is not stable across different xgboost versions.
+\bold{IMPORTANT:} this serialization format is not stable across different xgboost versions.
 }
 \examples{
 data(agaricus.train, package='xgboost')

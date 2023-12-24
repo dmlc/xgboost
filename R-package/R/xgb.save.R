@@ -20,7 +20,7 @@
 #' releases of XGBoost.
 #'
 #' @seealso
-#' \code{\link{xgb.load}}, \code{\link{xgb.Booster.complete}}.
+#' \code{\link{xgb.load}}
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
@@ -49,8 +49,7 @@ xgb.save <- function(model, fname) {
     stop("model must be xgb.Booster.",
          if (inherits(model, "xgb.DMatrix")) " Use xgb.DMatrix.save to save an xgb.DMatrix object." else "")
   }
-  model <- xgb.Booster.complete(model, saveraw = FALSE)
   fname <- path.expand(fname)
-  .Call(XGBoosterSaveModel_R, model$handle, enc2utf8(fname[1]))
+  .Call(XGBoosterSaveModel_R, xgb.get.handle(model), enc2utf8(fname[1]))
   return(TRUE)
 }

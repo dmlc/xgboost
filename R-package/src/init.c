@@ -15,9 +15,17 @@ Check these declarations against the C/Fortran source code.
 */
 
 /* .Call calls */
+extern void XGBInitializeAltrepClass(DllInfo *info);
+static SEXP XGDuplicate_R(SEXP);
+static SEXP XGDuplicateAttrib(SEXP, SEXP);
+static SEXP XGPointerEqComparison(SEXP, SEXP);
 extern SEXP XGBoosterTrainOneIter_R(SEXP, SEXP, SEXP, SEXP, SEXP);
 extern SEXP XGBoosterCreate_R(SEXP);
-extern SEXP XGBoosterCreateInEmptyObj_R(SEXP, SEXP);
+extern SEXP XGBoosterCopyInfoFromDMatrix(SEXP, SEXP);
+extern SEXP XGBoosterSetStrFeatureInfo_R(SEXP, SEXP, SEXP);
+extern SEXP XGBoosterGetStrFeatureInfo_R(SEXP, SEXP);
+extern SEXP XGBoosterBoostedRounds_R(SEXP);
+extern SEXP XGBoosterGetNumFeature_R(SEXP);
 extern SEXP XGBoosterDumpModel_R(SEXP, SEXP, SEXP, SEXP);
 extern SEXP XGBoosterEvalOneIter_R(SEXP, SEXP, SEXP, SEXP);
 extern SEXP XGBoosterGetAttrNames_R(SEXP);
@@ -54,9 +62,16 @@ extern SEXP XGBGetGlobalConfig_R(void);
 extern SEXP XGBoosterFeatureScore_R(SEXP, SEXP);
 
 static const R_CallMethodDef CallEntries[] = {
+  {"XGDuplicate_R",               (DL_FUNC) &XGDuplicate_R,               1},
+  {"XGDuplicateAttrib",           (DL_FUNC) &XGDuplicateAttrib,           2},
+  {"XGPointerEqComparison",       (DL_FUNC) &XGPointerEqComparison,       2},
   {"XGBoosterTrainOneIter_R",     (DL_FUNC) &XGBoosterTrainOneIter_R,     5},
   {"XGBoosterCreate_R",           (DL_FUNC) &XGBoosterCreate_R,           1},
-  {"XGBoosterCreateInEmptyObj_R", (DL_FUNC) &XGBoosterCreateInEmptyObj_R, 2},
+  {"XGBoosterCopyInfoFromDMatrix",(DL_FUNC) &XGBoosterCopyInfoFromDMatrix,2},  // NOLINT
+  {"XGBoosterSetStrFeatureInfo_R",(DL_FUNC) &XGBoosterSetStrFeatureInfo_R,3},  // NOLINT
+  {"XGBoosterGetStrFeatureInfo_R",(DL_FUNC) &XGBoosterGetStrFeatureInfo_R,2},  // NOLINT
+  {"XGBoosterBoostedRounds_R",    (DL_FUNC) &XGBoosterBoostedRounds_R,    1},
+  {"XGBoosterGetNumFeature_R",    (DL_FUNC) &XGBoosterGetNumFeature_R,    1},
   {"XGBoosterDumpModel_R",        (DL_FUNC) &XGBoosterDumpModel_R,        4},
   {"XGBoosterEvalOneIter_R",      (DL_FUNC) &XGBoosterEvalOneIter_R,      4},
   {"XGBoosterGetAttrNames_R",     (DL_FUNC) &XGBoosterGetAttrNames_R,     1},
@@ -100,4 +115,5 @@ __declspec(dllexport)
 void attribute_visible R_init_xgboost(DllInfo *dll) {
   R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
   R_useDynamicSymbols(dll, FALSE);
+  XGBInitializeAltrepClass(dll);
 }

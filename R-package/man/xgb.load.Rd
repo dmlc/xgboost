@@ -46,5 +46,5 @@ bst <- xgb.load('xgb.model')
 if (file.exists('xgb.model')) file.remove('xgb.model')
 }
 \seealso{
-\code{\link{xgb.save}}, \code{\link{xgb.Booster.complete}}.
+\code{\link{xgb.save}}
 }

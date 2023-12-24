@@ -106,7 +106,7 @@ test_that("updating works for multiclass & multitree", {
 
   # run update process for an original model with subsampling
   p0u <- modifyList(p0, list(process_type = 'update', updater = 'refresh', refresh_leaf = FALSE))
-  bst0u <- xgb.train(p0u, dtr, nrounds = bst0$niter, watchlist, xgb_model = bst0, verbose = 0)
+  bst0u <- xgb.train(p0u, dtr, nrounds = xgb.nrounds(bst0), watchlist, xgb_model = bst0, verbose = 0)
   tr0u <- xgb.model.dt.tree(model = bst0u)
 
   # should be the same evaluation but different gains and larger cover

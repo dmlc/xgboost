@@ -4,14 +4,15 @@
 \alias{print.xgb.Booster}
 \title{Print xgb.Booster}
 \usage{
-\method{print}{xgb.Booster}(x, verbose = FALSE, ...)
+\method{print}{xgb.Booster}(x, ...)
 }
 \arguments{
 \item{x}{An \code{xgb.Booster} object.}
 
-\item{verbose}{Whether to print detailed data (e.g., attribute values).}
-
-\item{...}{Not currently used.}
+\item{...}{Not used.}
+}
+\value{
+The same \code{x} object, returned invisibly
 }
 \description{
 Print information about \code{xgb.Booster}.
@@ -33,6 +34,5 @@ bst <- xgboost(
 attr(bst, "myattr") <- "memo"
 
 print(bst)
-print(bst, verbose = TRUE)
 
 }

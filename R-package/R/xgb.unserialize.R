@@ -1,23 +1,14 @@
 #' Load the instance back from \code{\link{xgb.serialize}}
 #'
 #' @param buffer the buffer containing booster instance saved by \code{\link{xgb.serialize}}
-#' @param handle An \code{xgb.Booster.handle} object which will be overwritten with
-#' the new deserialized object. Must be a null handle (e.g. when loading the model through
-#' `readRDS`). If not provided, a new handle will be created.
-#' @return An \code{xgb.Booster.handle} object.
+#' @return An \code{xgb.Booster} object.
 #'
 #' @export
-xgb.unserialize <- function(buffer, handle = NULL) {
+xgb.unserialize <- function(buffer) {
   cachelist <- list()
-  if (is.null(handle)) {
-    handle <- .Call(XGBoosterCreate_R, cachelist)
-  } else {
-    if (!is.null.handle(handle))
-      stop("'handle' is not null/empty. Cannot overwrite existing handle.")
-    .Call(XGBoosterCreateInEmptyObj_R, cachelist, handle)
-  }
+  bst <- .Call(XGBoosterCreate_R, cachelist)
   tryCatch(
-    .Call(XGBoosterUnserializeFromBuffer_R, handle, buffer),
+    .Call(XGBoosterUnserializeFromBuffer_R, xgb.get.handle(bst), buffer),
     error = function(e) {
       error_msg <- conditionMessage(e)
       m <- regexec("(src[\\\\/]learner.cc:[0-9]+): Check failed: (header == serialisation_header_)",
@@ -31,11 +22,10 @@ xgb.unserialize <- function(buffer, handle = NULL) {
                       "long term. For more details and explanation, see ",
                       "https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html",
                       sep = ""))
-        .Call(XGBoosterLoadModelFromRaw_R, handle, buffer)
+        .Call(XGBoosterLoadModelFromRaw_R, xgb.get.handle(bst), buffer)
       } else {
         stop(e)
       }
     })
-  class(handle) <- "xgb.Booster.handle"
-  return(handle)
+  return(bst)
 }

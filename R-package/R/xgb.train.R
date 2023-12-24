@@ -148,10 +148,25 @@
 #' @param xgb_model a previously built model to continue the training from.
 #'        Could be either an object of class \code{xgb.Booster}, or its raw data, or the name of a
 #'        file with a previously saved model.
+#' @param training_continuation when passing `xgb_model`, whether to update the previous model by
+#'        creating a copy of it which will contain the new boosted rounds (meaning: the original object
+#'        is kept as it was before the call to `xgb.train`, and there will be two booster objects), or
+#'        by updating the previous object in-place (meaning: the object passed under `xgb_model` will
+#'        be updated, and nothing will be returned from this function).
+#'
+#'        Note that, if passing "update" here, the object in `xgb_model`
+#'        \bold{will get updated regardless of whether this function succeeds or not}
+#'        (for example, the parameters will be set on the existing `xgb_model`, overwriting previous ones,
+#'        even if the training fails because of some error).
 #' @param callbacks a list of callback functions to perform various task during boosting.
 #'        See \code{\link{callbacks}}. Some of the callbacks are automatically created depending on the
 #'        parameters' values. User can provide either existing or their own callback methods in order
 #'        to customize the training process.
+#'
+#'        Note that some callbacks might try to set an evaluation log - in order to keep such logs,
+#'        it's necessary to pass `keep_extra_attributes = TRUE`. Be aware that these evaluation logs
+#'        are kept as R attributes, and thus do not get saved when using non-R serializaters like
+#'        \link{xgb.save} (but are kept when using R serializers like \link{saveRDS}).
 #' @param ... other parameters to pass to \code{params}.
 #' @param label vector of response values. Should not be provided when data is
 #'        a local data file name or an \code{xgb.DMatrix}.
@@ -159,6 +174,17 @@
 #'        by the algorithm. Sometimes, 0 or other extreme value might be used to represent missing values.
 #'        This parameter is only used when input is a dense matrix.
 #' @param weight a vector indicating the weight for each row of the input.
+#' @param keep_extra_attributes Whether to keep extra R attributes in the booster object which
+#'        are specific to the R interface and which do not get saved along when calling functions
+#'        like `xgb.save`, but which get saved with R-specific serializers such as `saveRDS`.
+#'
+#'        These attributes include, for example, the function call that was used to produce the model,
+#'        evaluation logs from callbacks, among others.
+#'
+#' @return
+#' An object of class \code{xgb.Booster}, unless passing a previous `xgb_model` and passing
+#' `training_continuation="update"`, in which case will update that object and return NULL
+#' (invisibly) from this function.
 #'
 #' @details
 #' These are the training functions for \code{xgboost}.
@@ -201,28 +227,19 @@
 #'   \item \code{cb.save.model}: when \code{save_period > 0} is set.
 #' }
 #'
-#' @return
-#' An object of class \code{xgb.Booster} with the following elements:
-#' \itemize{
-#'   \item \code{handle} a handle (pointer) to the xgboost model in memory.
-#'   \item \code{raw} a cached memory dump of the xgboost model saved as R's \code{raw} type.
-#'   \item \code{niter} number of boosting iterations.
-#'   \item \code{evaluation_log} evaluation history stored as a \code{data.table} with the
-#'         first column corresponding to iteration number and the rest corresponding to evaluation
-#'         metrics' values. It is created by the \code{\link{cb.evaluation.log}} callback.
-#'   \item \code{call} a function call.
-#'   \item \code{params} parameters that were passed to the xgboost library. Note that it does not
-#'         capture parameters changed by the \code{\link{cb.reset.parameters}} callback.
-#'   \item \code{callbacks} callback functions that were either automatically assigned or
-#'         explicitly passed.
-#'   \item \code{best_iteration} iteration number with the best evaluation metric value
-#'         (only available with early stopping).
-#'   \item \code{best_score} the best evaluation metric value during early stopping.
-#'         (only available with early stopping).
-#'   \item \code{feature_names} names of the training dataset features
-#'         (only when column names were defined in training data).
-#'   \item \code{nfeatures} number of features in training data.
-#' }
+#' Note that objects of type `xgb.Booster` as returned by this function behave a bit differently
+#' from typical R objects (it's an 'altrep' list class), and it makes a separation between
+#' internal booster attributes (restricted to jsonifyable data), accessed through \link{xgb.attr}
+#' and shared between interfaces through serialization functions like \link{xgb.save}; and
+#' R-specific attributes, accessed through \link{attributes} and \link{attr}, which are otherwise
+#' only used in the R interface, only kept when using R's serializers like \link{saveRDS}, and
+#' not anyhow used by functions like \link{predict.xgb.Booster}.
+#'
+#' If passing `keep_extra_attributes=TRUE`, note that the parameters passed here will be kept
+#' in the R-specific attributes, but since functions like \link{xgb.parameters} allow changing
+#' parameters in the C-level object after it has been fitted, be aware that there's no guarantee
+#' that these R parameters would be synchronized with the internal booster parameters as
+#' return by \link{xgb.parameters} or \link{xgb.config}.
 #'
 #' @seealso
 #' \code{\link{callbacks}},
@@ -309,7 +326,8 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
                       obj = NULL, feval = NULL, verbose = 1, print_every_n = 1L,
                       early_stopping_rounds = NULL, maximize = NULL,
                       save_period = NULL, save_name = "xgboost.model",
-                      xgb_model = NULL, callbacks = list(), ...) {
+                      xgb_model = NULL, training_continuation = c("copy", "update"),
+                      callbacks = list(), keep_extra_attributes = TRUE, ...) {
 
   check.deprecation(...)
 
@@ -317,6 +335,16 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
 
   check.custom.obj()
   check.custom.eval()
+
+  if (is.null(xgb_model)) {
+    training_continuation <- "copy"
+  } else {
+    training_continuation <- head(training_continuation, 1L)
+    training_continuation <- as.character(training_continuation)
+    if (!(training_continuation %in% c("copy", "update"))) {
+      stop("'training_continuation' must be one of 'copy' or 'update'.")
+    }
+  }
 
   # data & watchlist checks
   dtrain <- data
@@ -371,23 +399,36 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   # The tree updating process would need slightly different handling
   is_update <- NVL(params[['process_type']], '.') == 'update'
 
+  past_evaluation_log <- NULL
+  if (inherits(xgb_model, "xgb.Booster")) {
+    past_evaluation_log <- attributes(xgb_model)$evaluation_log
+  }
+
+  niter_init <- 0
+  if (inherits(xgb_model, "xgb.Booster")) {
+    # Note: when assigning 'xgb.params', the number of rounds in the object
+    # gets reset to zero, hence this piece of code.
+    niter_init <- xgb.nrounds(xgb_model)
+  }
+
   # Construct a booster (either a new one or load from xgb_model)
-  handle <- xgb.Booster.handle(
+  bst <- xgb.Booster(
     params = params,
     cachelist = append(watchlist, dtrain),
     modelfile = xgb_model,
-    handle = NULL
+    training_continuation = training_continuation
   )
-  bst <- xgb.handleToBooster(handle = handle, raw = NULL)
 
   # extract parameters that can affect the relationship b/w #trees and #iterations
+  # Note: it might look like these aren't used, but they need to be defined in this
+  # environment for the callbacks for work correctly.
   num_class <- max(as.numeric(NVL(params[['num_class']], 1)), 1)
   num_parallel_tree <- max(as.numeric(NVL(params[['num_parallel_tree']], 1)), 1)
 
   # When the 'xgb_model' was set, find out how many boosting iterations it has
-  niter_init <- 0
-  if (!is.null(xgb_model)) {
-    niter_init <- as.numeric(xgb.attr(bst, 'niter')) + 1
+  # TODO: improve this kind of logic by leveraging C-level attributes
+  if (!is.null(xgb_model) && !inherits(xgb_model, "xgb.Booster")) {
+    niter_init <- xgb.nrounds(bst)
     if (length(niter_init) == 0) {
       niter_init <- xgb.ntree(bst) %/% (num_parallel_tree * num_class)
     }
@@ -405,7 +446,7 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
     for (f in cb$pre_iter) f()
 
     xgb.iter.update(
-        booster_handle = bst$handle,
+        bst = bst,
         dtrain = dtrain,
         iter = iteration - 1,
         obj = obj
@@ -413,14 +454,12 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
 
     if (length(watchlist) > 0) {
       bst_evaluation <- xgb.iter.eval(  # nolint: object_usage_linter
-        booster_handle = bst$handle,
+        bst = bst,
         watchlist = watchlist,
         iter = iteration - 1,
         feval = feval
       )
     }
-
-    xgb.attr(bst$handle, 'niter') <- iteration - 1
 
     for (f in cb$post_iter) f()
 
@@ -428,31 +467,45 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   }
   for (f in cb$finalize) f(finalize = TRUE)
 
-  bst <- xgb.Booster.complete(bst, saveraw = TRUE)
-
-  # store the total number of boosting iterations
-  bst$niter <- end_iteration
-
   # store the evaluation results
-  if (length(evaluation_log) > 0 &&
-      nrow(evaluation_log) > 0) {
+  keep_evaluation_log <- FALSE
+  if (length(evaluation_log) > 0 && nrow(evaluation_log) > 0) {
+    keep_evaluation_log <- TRUE
     # include the previous compatible history when available
     if (inherits(xgb_model, 'xgb.Booster') &&
         !is_update &&
-        !is.null(xgb_model$evaluation_log) &&
+        !is.null(past_evaluation_log) &&
         isTRUE(all.equal(colnames(evaluation_log),
-                         colnames(xgb_model$evaluation_log)))) {
-      evaluation_log <- rbindlist(list(xgb_model$evaluation_log, evaluation_log))
+                         colnames(past_evaluation_log)))) {
+      evaluation_log <- rbindlist(list(past_evaluation_log, evaluation_log))
     }
-    bst$evaluation_log <- evaluation_log
   }
 
-  bst$call <- match.call()
-  bst$params <- params
-  bst$callbacks <- callbacks
-  if (!is.null(colnames(dtrain)))
-    bst$feature_names <- colnames(dtrain)
-  bst$nfeatures <- ncol(dtrain)
+  .Call(
+    XGBoosterCopyInfoFromDMatrix,
+    xgb.get.handle(bst),
+    dtrain
+  )
 
-  return(bst)
+  if (keep_extra_attributes) {
+    extra_attrs <- list(
+      call = match.call(),
+      params = params,
+      callbacks = callbacks
+    )
+    if (keep_evaluation_log) {
+      extra_attrs$evaluation_log <- evaluation_log
+    }
+    curr_attrs <- attributes(bst)
+    attributes(bst) <- c(curr_attrs, extra_attrs)
+    if (training_continuation == "update") {
+      .Call(XGDuplicateAttrib, bst, xgb_model)
+    }
+  }
+
+  if (training_continuation == "update") {
+    return(invisible(NULL))
+  } else {
+    return(bst)
+  }
 }

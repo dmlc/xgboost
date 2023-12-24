@@ -1,8 +1,10 @@
-#' Serialize the booster instance into R's raw vector.  The serialization method differs
+#' Serialize the booster instance into R's raw vector. The serialization method differs
 #' from \code{\link{xgb.save.raw}} as the latter one saves only the model but not
-#' parameters.  This serialization format is not stable across different xgboost versions.
+#' parameters.
 #'
-#' @param booster the booster instance
+#' \bold{IMPORTANT:} this serialization format is not stable across different xgboost versions.
+#'
+#' @param booster A booster instance
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
