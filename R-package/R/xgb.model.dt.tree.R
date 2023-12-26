@@ -56,8 +56,6 @@
 #'   objective = "binary:logistic"
 #' )
 #'
-#' (dt <- xgb.model.dt.tree(colnames(agaricus.train$data), bst))
-#'
 #' # This bst model already has feature_names stored with it, so those would be used when
 #' # feature_names is not set:
 #' (dt <- xgb.model.dt.tree(model = bst))
