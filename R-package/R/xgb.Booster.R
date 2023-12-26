@@ -669,9 +669,7 @@ setinfo.xgb.Booster <- function(object, name, info, ...) {
   if (!(name %in% allowed_fields)) {
     stop("setinfo: unknown info name ", name)
   }
-  if (!is.character(info)) {
-    stop("'info' must be a character vector.")
-  }
+  info <- as.character(info)
   handle <- xgb.get.handle(object)
   .Call(
     XGBoosterSetStrFeatureInfo_R,

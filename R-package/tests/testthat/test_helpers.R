@@ -51,12 +51,7 @@ mbst.GLM <- xgboost(data = as.matrix(iris[, -5]), label = mlabel, verbose = 0,
 
 # without feature names
 bst.Tree.unnamed <- xgb.copy.Booster(bst.Tree)
-.Call(
-    XGBoosterSetStrFeatureInfo_R,
-    xgb.get.handle(bst.Tree.unnamed),
-    "feature_name",
-    NULL
-)
+setinfo(bst.Tree.unnamed, "feature_name", NULL)
 
 test_that("xgb.dump works", {
   .skip_if_vcd_not_available()
