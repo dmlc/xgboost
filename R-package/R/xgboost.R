@@ -99,6 +99,7 @@ NULL
 #' @importFrom jsonlite fromJSON
 #' @importFrom jsonlite toJSON
 #' @importFrom utils object.size str tail
+#' @importFrom stats coef
 #' @importFrom stats predict
 #' @importFrom stats median
 #' @importFrom utils head
