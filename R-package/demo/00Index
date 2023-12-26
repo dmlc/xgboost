@@ -1,5 +1,4 @@
 basic_walkthrough               Basic feature walkthrough
-caret_wrapper                   Use xgboost to train in caret library
 custom_objective                Customize loss function, and evaluation metric
 boost_from_prediction           Boosting from existing prediction
 predict_first_ntree             Predicting using first n trees
