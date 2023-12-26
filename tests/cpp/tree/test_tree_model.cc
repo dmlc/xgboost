@@ -404,7 +404,7 @@ TEST(Tree, DumpText) {
   }
   ASSERT_EQ(n_conditions, 3ul);
 
-  ASSERT_NE(str.find("[f0<0]"), std::string::npos);
+  ASSERT_NE(str.find("[f0<0]"), std::string::npos) << str;
   ASSERT_NE(str.find("[f1<1]"), std::string::npos);
   ASSERT_NE(str.find("[f2<2]"), std::string::npos);
 
