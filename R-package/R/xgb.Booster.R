@@ -682,6 +682,16 @@ setinfo.xgb.Booster <- function(object, name, info, ...) {
   return(TRUE)
 }
 
+#' @title Get number of boosting in a fitted booster
+#' @param model A fitted `xgb.Booster` model.
+#' @return The number of rounds saved in the model, as an integer.
+#' @details Note that setting the booster parameters will reset the
+#' number of rounds to zero.
+#' @export
+xgb.get.Booster.nrounds <- function(model) {
+  return(xgb.nrounds(model))
+}
+
 # Extract the number of trees in a model.
 # internal utility function
 xgb.nrounds <- function(bst) {
