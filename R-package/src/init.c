@@ -16,9 +16,9 @@ Check these declarations against the C/Fortran source code.
 
 /* .Call calls */
 extern void XGBInitializeAltrepClass(DllInfo *info);
-static SEXP XGDuplicate_R(SEXP);
-static SEXP XGDuplicateAttrib(SEXP, SEXP);
-static SEXP XGPointerEqComparison(SEXP, SEXP);
+extern SEXP XGDuplicate_R(SEXP);
+extern SEXP XGDuplicateAttrib(SEXP, SEXP);
+extern SEXP XGPointerEqComparison(SEXP, SEXP);
 extern SEXP XGBoosterTrainOneIter_R(SEXP, SEXP, SEXP, SEXP, SEXP);
 extern SEXP XGBoosterCreate_R(SEXP);
 extern SEXP XGBoosterCopyInfoFromDMatrix(SEXP, SEXP);
