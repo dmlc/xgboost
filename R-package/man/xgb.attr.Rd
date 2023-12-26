@@ -57,7 +57,7 @@ but it doesn't delete the other existing attributes.
 Important: since this modifies the booster's C object, semantics for assignment here
 will differ from R's, as any object reference to the same booster will be modified
 too, while assignment of R attributes through \verb{attributes(model)$<attr> <- <value>}
-will follow the usual copy-on-write R semantics (see \link{xgb.xopy.Booster} for an
+will follow the usual copy-on-write R semantics (see \link{xgb.copy.Booster} for an
 example of these behaviors).
 }
 \examples{

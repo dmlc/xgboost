@@ -305,10 +305,10 @@ only used in the R interface, only kept when using R's serializers like \link{sa
 not anyhow used by functions like \link{predict.xgb.Booster}.
 
 If passing \code{keep_extra_attributes=TRUE}, note that the parameters passed here will be kept
-in the R-specific attributes, but since functions like \link{xgb.parameters} allow changing
+in the R-specific attributes, but since functions like \link{xgb.parameters<-} allow changing
 parameters in the C-level object after it has been fitted, be aware that there's no guarantee
 that these R parameters would be synchronized with the internal booster parameters as
-return by \link{xgb.parameters} or \link{xgb.config}.
+return by \link{xgb.parameters<-} or \link{xgb.config}.
 }
 \examples{
 data(agaricus.train, package='xgboost')

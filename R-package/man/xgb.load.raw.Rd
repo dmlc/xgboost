@@ -4,7 +4,7 @@
 \alias{xgb.load.raw}
 \title{Load serialised xgboost model from R's raw vector}
 \usage{
-xgb.load.raw(buffer, as_booster = FALSE)
+xgb.load.raw(buffer)
 }
 \arguments{
 \item{buffer}{the buffer returned by xgb.save.raw}

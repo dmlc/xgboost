@@ -442,7 +442,7 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
 #' Important: since this modifies the booster's C object, semantics for assignment here
 #' will differ from R's, as any object reference to the same booster will be modified
 #' too, while assignment of R attributes through `attributes(model)$<attr> <- <value>`
-#' will follow the usual copy-on-write R semantics (see \link{xgb.xopy.Booster} for an
+#' will follow the usual copy-on-write R semantics (see \link{xgb.copy.Booster} for an
 #' example of these behaviors).
 #'
 #' @return
@@ -757,7 +757,7 @@ xgb.best_iteration <- function(bst) {
 #' as first column.
 #' \item If there's more than one coefficient per column in the data (e.g. when using
 #' `objective="multi:softmax"`), will be returned as a matrix with dimensions equal
-#' to [num_features, num_cols], with the intercepts as first row. Note that the column
+#' to `[num_features, num_cols]`, with the intercepts as first row. Note that the column
 #' (classes in multi-class classification) dimension will not be named.
 #' }
 #'

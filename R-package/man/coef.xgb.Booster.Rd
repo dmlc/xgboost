@@ -18,7 +18,7 @@ vector, potentially containing the feature names if available, with the intercep
 as first column.
 \item If there's more than one coefficient per column in the data (e.g. when using
 \code{objective="multi:softmax"}), will be returned as a matrix with dimensions equal
-to \link{num_features, num_cols}, with the intercepts as first row. Note that the column
+to \verb{[num_features, num_cols]}, with the intercepts as first row. Note that the column
 (classes in multi-class classification) dimension will not be named.
 }
 
