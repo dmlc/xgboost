@@ -732,7 +732,7 @@ xgb.gblinear.history <- function(model, class_index = NULL) {
 
   if (!is_cv) {
     num_class <- xgb.num_class(model)
-    num_feat <- .Call(XGBoosterGetNumFeature_R, xgb.get.handle(model))
+    num_feat <- xgb.num_feature(model)
   } else {
     # in case of CV, the object is expected to have this info
     if (model$params$booster != "gblinear")

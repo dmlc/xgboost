@@ -307,7 +307,7 @@ xgb.shap.data <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
   if (is.null(features) && !is.null(model)) {
     model_feature_names <- xgb.feature_names(model)
   }
-  if (is.null(model_feature_names) && .Call(XGBoosterGetNumFeature_R, model) != ncol(data))
+  if (is.null(model_feature_names) && xgb.num_feature(model) != ncol(data))
     stop("if model has no feature_names, columns in `data` must match features in model")
 
   if (!is.null(subsample)) {
