@@ -17,8 +17,8 @@ test_that("load/save raw works", {
   ubj_bytes <- xgb.save.raw(booster, raw_format = "ubj")
   old_bytes <- xgb.save.raw(booster, raw_format = "deprecated")
 
-  from_json <- xgb.load.raw(json_bytes, as_booster = TRUE)
-  from_ubj <- xgb.load.raw(ubj_bytes, as_booster = TRUE)
+  from_json <- xgb.load.raw(json_bytes)
+  from_ubj <- xgb.load.raw(ubj_bytes)
 
   json2old <- xgb.save.raw(from_json, raw_format = "deprecated")
   ubj2old <- xgb.save.raw(from_ubj, raw_format = "deprecated")
