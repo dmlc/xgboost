@@ -441,7 +441,9 @@ cb.save.model <- function(save_period = 0, save_name = "xgboost.model") {
 
     if ((save_period > 0 && (env$iteration - env$begin_iteration) %% save_period == 0) ||
         (save_period == 0 && env$iteration == env$end_iteration)) {
-      suppressWarnings({save_name <- sprintf(save_name, env$iteration)})
+      suppressWarnings({
+        save_name <- sprintf(save_name, env$iteration)
+      })
       xgb.save(env$bst, save_name)
     }
   }

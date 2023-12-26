@@ -330,7 +330,7 @@ test_that("training continuation works", {
   }
   expect_equal(dim(attributes(bst2)$evaluation_log), c(2, 2))
   file.remove("xgboost.json")
-  
+
   set.seed(11)
   bst1 <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0)
   # continue for two more, this time in-place:
