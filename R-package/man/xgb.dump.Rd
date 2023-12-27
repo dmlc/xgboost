@@ -32,7 +32,7 @@ cover is the sum of second order gradient in each node.}
 \item{dump_format}{either 'text', 'json', or 'dot' (graphviz) format could be specified.
 
 Format 'dot' for a single tree can be passed directly to packages that consume this format
-for graph visualization, such as function \link{DiagrammeR::grViz}}
+for graph visualization, such as function \code{\link[DiagrammeR:grViz]{DiagrammeR::grViz()}}}
 
 \item{...}{currently not used}
 }
