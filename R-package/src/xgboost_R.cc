@@ -189,13 +189,15 @@ XGB_DLL SEXP XGCheckNullPtr_R(SEXP handle) {
   return Rf_ScalarLogical(R_ExternalPtrAddr(handle) == nullptr);
 }
 
-XGB_DLL void _DMatrixFinalizer(SEXP ext) {
+namespace {
+void _DMatrixFinalizer(SEXP ext) {
   R_API_BEGIN();
   if (R_ExternalPtrAddr(ext) == NULL) return;
   CHECK_CALL(XGDMatrixFree(R_ExternalPtrAddr(ext)));
   R_ClearExternalPtr(ext);
   R_API_END();
 }
+} /* namespace */
 
 XGB_DLL SEXP XGBSetGlobalConfig_R(SEXP json_str) {
   R_API_BEGIN();
@@ -560,7 +562,8 @@ XGB_DLL SEXP XGPointerEqComparison(SEXP obj1, SEXP obj2) {
 }
 
 // functions related to booster
-static void _BoosterFinalizer(SEXP R_ptr) {
+namespace {
+void _BoosterFinalizer(SEXP R_ptr) {
   if (R_ExternalPtrAddr(R_ptr) == NULL) return;
   CHECK_CALL(XGBoosterFree(R_ExternalPtrAddr(R_ptr)));
   R_ClearExternalPtr(R_ptr);
@@ -569,17 +572,17 @@ static void _BoosterFinalizer(SEXP R_ptr) {
 /* Booster is represented as an altrep list with one element which
 corresponds to an 'externalptr' holding the C object, forbidding
 modification by not implementing setters, and adding custom serialization. */
-static R_altrep_class_t XGBAltrepPointerClass;
+R_altrep_class_t XGBAltrepPointerClass;
 
-static R_xlen_t XGBAltrepPointerLength_R(SEXP R_altrepped_obj) {
+R_xlen_t XGBAltrepPointerLength_R(SEXP R_altrepped_obj) {
   return 1;
 }
 
-static SEXP XGBAltrepPointerGetElt_R(SEXP R_altrepped_obj, R_xlen_t idx) {
+SEXP XGBAltrepPointerGetElt_R(SEXP R_altrepped_obj, R_xlen_t idx) {
   return R_altrep_data1(R_altrepped_obj);
 }
 
-static SEXP XGBMakeEmptyAltrep() {
+SEXP XGBMakeEmptyAltrep() {
   SEXP class_name = Rf_protect(Rf_mkString("xgb.Booster"));
   SEXP elt_names = Rf_protect(Rf_mkString("ptr"));
   SEXP R_ptr = Rf_protect(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
@@ -592,15 +595,15 @@ static SEXP XGBMakeEmptyAltrep() {
 
 /* Note: the idea for separating this function from the one above is to be
 able to trigger all R allocations first before doing non-R allocations. */
-static void XGBAltrepSetPointer(SEXP R_altrepped_obj, BoosterHandle handle) {
+void XGBAltrepSetPointer(SEXP R_altrepped_obj, BoosterHandle handle) {
   SEXP R_ptr = R_altrep_data1(R_altrepped_obj);
   R_SetExternalPtrAddr(R_ptr, handle);
   R_RegisterCFinalizerEx(R_ptr, _BoosterFinalizer, TRUE);
 }
 
-const char *ubj_json_format_str = "{\"format\": \"ubj\"}";
+char *ubj_json_format_str = "{\"format\": \"ubj\"}";
 
-static SEXP XGBAltrepSerializer_R(SEXP R_altrepped_obj) {
+SEXP XGBAltrepSerializer_R(SEXP R_altrepped_obj) {
   R_API_BEGIN();
   BoosterHandle handle = R_ExternalPtrAddr(R_altrep_data1(R_altrepped_obj));
   char const *serialized_bytes;
@@ -617,7 +620,7 @@ static SEXP XGBAltrepSerializer_R(SEXP R_altrepped_obj) {
   return R_NilValue; /* <- should not be reached */
 }
 
-static SEXP XGBAltrepDeserializer_R(SEXP unused, SEXP R_state) {
+SEXP XGBAltrepDeserializer_R(SEXP unused, SEXP R_state) {
   SEXP R_altrepped_obj = Rf_protect(XGBMakeEmptyAltrep());
   R_API_BEGIN();
   BoosterHandle handle = nullptr;
@@ -636,7 +639,7 @@ static SEXP XGBAltrepDeserializer_R(SEXP unused, SEXP R_state) {
 }
 
 // https://purrple.cat/blog/2018/10/14/altrep-and-cpp/
-static Rboolean XGBAltrepInspector_R(
+Rboolean XGBAltrepInspector_R(
   SEXP x, int pre, int deep, int pvec,
   void (*inspect_subtree)(SEXP, int, int, int)) {
   Rprintf("Altrepped external pointer [address:%p]\n",
@@ -644,7 +647,7 @@ static Rboolean XGBAltrepInspector_R(
   return TRUE;
 }
 
-static SEXP XGBAltrepDuplicate_R(SEXP R_altrepped_obj, Rboolean deep) {
+SEXP XGBAltrepDuplicate_R(SEXP R_altrepped_obj, Rboolean deep) {
   R_API_BEGIN();
   if (!deep) {
     SEXP out = Rf_protect(XGBMakeEmptyAltrep());
@@ -674,6 +677,8 @@ static SEXP XGBAltrepDuplicate_R(SEXP R_altrepped_obj, Rboolean deep) {
   R_API_END();
   return R_NilValue; /* <- should not be reached */
 }
+
+} /* namespace */
 
 XGB_DLL void XGBInitializeAltrepClass(DllInfo *dll) {
   XGBAltrepPointerClass = R_make_altlist_class("XGBAltrepPointerClass", "xgboost", dll);
