@@ -360,10 +360,10 @@ NULL
 #' accessible in later releases of XGBoost. To ensure that your model can be accessed in future
 #' releases of XGBoost, use \code{\link{xgb.save}} or \code{\link{xgb.save.raw}} instead.
 #'
-#' Currently, it is not possible to use R serializers like `readRDS` to load an XGBoost. model
-#' saved with an XGBoost. version lower than 2.1.0, and it's not possible to load an XGBoost. model
-#' saved with R serializers like `readRDS` under XGBoost. version 2.1.0 when using an older version
-#' of XGBoost.
+#' Note that XGBoost models in R starting from version `2.1.0` and onwards, and XGBoost models
+#' before version `2.1.0`; have a very different R object structure and are incompatible with
+#' each other. Hence, models that were saved with R serializers live `saveRDS` or `save` before
+#' version `2.1.0` will not work with latter `xgboost` versions and vice versa.
 #'
 #' Furthermore, note that using the package `qs` for serialization will require version 0.26 or
 #' higher of said package, and will have the same compatibility restrictions as R serializers.

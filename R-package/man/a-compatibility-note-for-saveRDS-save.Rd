@@ -14,10 +14,10 @@ accessible in later releases of XGBoost. To ensure that your model can be access
 releases of XGBoost, use \code{\link{xgb.save}} or \code{\link{xgb.save.raw}} instead.
 }
 \details{
-Currently, it is not possible to use R serializers like \code{readRDS} to load an XGBoost. model
-saved with an XGBoost. version lower than 2.1.0, and it's not possible to load an XGBoost. model
-saved with R serializers like \code{readRDS} under XGBoost. version 2.1.0 when using an older version
-of XGBoost.
+Note that XGBoost models in R starting from version \verb{2.1.0} and onwards, and XGBoost models
+before version \verb{2.1.0}; have a very different R object structure and are incompatible with
+each other. Hence, models that were saved with R serializers live \code{saveRDS} or \code{save} before
+version \verb{2.1.0} will not work with latter \code{xgboost} versions and vice versa.
 
 Furthermore, note that using the package \code{qs} for serialization will require version 0.26 or
 higher of said package, and will have the same compatibility restrictions as R serializers.
