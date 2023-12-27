@@ -158,7 +158,6 @@ SEXP SafeMkChar(const char *c_str, SEXP continuation_token) {
 }
 
 void AddMissingToJson(xgboost::Json *jconfig, SEXP missing, SEXPTYPE arr_type) {
-  const SEXPTYPE missing_type = TYPEOF(missing);
   if (Rf_isNull(missing) || ISNAN(Rf_asReal(missing))) {
     // missing is not specified
     if (arr_type == REALSXP) {
