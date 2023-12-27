@@ -528,6 +528,135 @@ setinfo.xgb.DMatrix <- function(object, name, info, ...) {
   stop("setinfo: unknown info name ", name)
 }
 
+#' @title Get Quantile Cuts from DMatrix
+#' @description Get the quantile cuts (a.k.a. borders) from an `xgb.DMatrix`
+#' that has been quantized for the histogram method (`tree_method="hist"`).
+#'
+#' These cuts are used in order to assign observations to bins - i.e. these are ordered
+#' boundaries which are used to determine assignment condition `border_low < x < border_high`.
+#' As such, the first and last bin will be outside of the range of the data, so as to include
+#' all of the observations there.
+#'
+#' If a given column has 'n' bins, then there will be 'n+1' cuts / borders for that column,
+#' which will be output in sorted order from lowest to highest.
+#'
+#' Different columns can have different numbers of bins according to their range.
+#' @param dmat An `xgb.DMatrix` object, as returned by \link{xgb.DMatrix}.
+#' @param output Output format for the quantile cuts. Possible options are:\itemize{
+#' \item `"list"` will return the output as a list with one entry per column, where
+#' each column will have a numeric vector with the cuts. The list will be named if
+#' `dmat` has column names assigned to it.
+#' \item `"csc"` will return the output as a sparse CSC matrix (class `dgCMatrix` from
+#' package `Matrix`). Note that different columns might have different numbers of bins,
+#' so they will be padded with zeros at thee nd (missing entries in the sparse object)
+#' in order to accommodate the column with the largest number of bins.
+#' \item `"simple"` will return a list with entries `indptr` (base-0 indexing) and
+#' `data`. Here, the cuts for column 'i' are obtained by slicing 'data' from entries
+#' `indptr[i]+1` to `indptr[i+1]`.
+#' }
+#' @return The quantile cuts, in the format specified by parameter `output`.
+#' @examples
+#' library(xgboost)
+#' data(mtcars)
+#' y <- mtcars$mpg
+#' x <- as.matrix(mtcars[, -1])
+#' dm <- xgb.DMatrix(x, label = y, nthread = 1)
+#'
+#' # DMatrix is not quantized right away, but will be once a hist model is generated
+#' model <- xgb.train(
+#'   data = dm,
+#'   params = list(
+#'     tree_method = "hist",
+#'     max_bin = 8,
+#'     nthread = 1
+#'   ),
+#'   nrounds = 3
+#' )
+#'
+#' # Now can get the quantile cuts
+#' xgb.get.DMatrix.qcut(dm)
+#' @export
+xgb.get.DMatrix.qcut <- function(dmat, output = c("list", "csc", "simple")) {
+  stopifnot(inherits(dmat, "xgb.DMatrix"))
+  output <- head(output, 1L)
+  stopifnot(output %in% c("list", "csc", "simple"))
+  res <- .Call(XGDMatrixGetQuantileCut_R, dmat)
+  if (output == "simple") {
+    return(res)
+  }
+  feature_names <- getinfo(dmat, "feature_name")
+  if (output == "csc") {
+    if (max(res$indptr) > .Machine$integer.max) {
+      stop("Resulting quantile cuts are too large. Cannot return them as CSC.")
+    }
+    res$indptr <- as.integer(res$indptr)
+    nrows <- diff(res$indptr)
+    indices <- unlist(lapply(nrows, function(x) seq(0, x - 1)))
+    out <- methods::new("dgCMatrix")
+    out@p <- res$indptr
+    out@i <- as.integer(indices)
+    out@x <- res$data
+    out@Dim <- c(max(nrows), length(nrows))
+    dim_names <- list(NULL, NULL)
+    if (NROW(feature_names)) {
+      dim_names[[2L]] <- feature_names
+    }
+    out@Dimnames <- dim_names
+    return(out)
+  }
+  if (output == "list") {
+    ncols <- length(res$indptr) - 1
+    out <- lapply(
+      seq(1, ncols),
+      function(col) {
+        st <- res$indptr[col]
+        end <- res$indptr[col + 1]
+        if (end <= st) {
+          return(numeric())
+        }
+        return(res$data[seq(1 + st, end)])
+      }
+    )
+    if (NROW(feature_names)) {
+      names(out) <- feature_names
+    }
+    return(out)
+  }
+}
+
+#' @title Get Number of Non-Missing Entries in DMatrix
+#' @param dmat An `xgb.DMatrix` object, as returned by \link{xgb.DMatrix}.
+#' @return The number of non-missing entries in the DMatrix
+#' @export
+xgb.get.DMatrix.num.non.missing <- function(dmat) {
+  stopifnot(inherits(dmat, "xgb.DMatrix"))
+  return(.Call(XGDMatrixNumNonMissing_R, dmat))
+}
+
+#' @title Get DMatrix Data
+#' @param dmat An `xgb.DMatrix` object, as returned by \link{xgb.DMatrix}.
+#' @return The data held in the DMatrix, as a sparse CSR matrix (class `dgRMatrix`
+#' from package `Matrix`). If it had feature names, these will be added as column names
+#' in the output.
+#' @export
+xgb.get.DMatrix.data <- function(dmat) {
+  stopifnot(inherits(dmat, "xgb.DMatrix"))
+  res <- .Call(XGDMatrixGetDataAsCSR_R, dmat)
+  out <- methods::new("dgRMatrix")
+  nrows <- as.integer(length(res$indptr) - 1)
+  out@p <- res$indptr
+  out@j <- res$indices
+  out@x <- res$data
+  out@Dim <- as.integer(c(nrows, res$ncols))
+
+  feature_names <- getinfo(dmat, "feature_name")
+  dim_names <- list(NULL, NULL)
+  if (NROW(feature_names)) {
+    dim_names[[2L]] <- feature_names
+  }
+  out@Dimnames <- dim_names
+  return(out)
+}
 
 #' Get a new DMatrix containing the specified rows of
 #' original xgb.DMatrix object
