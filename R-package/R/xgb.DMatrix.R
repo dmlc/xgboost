@@ -576,7 +576,7 @@ setinfo.xgb.DMatrix <- function(object, name, info, ...) {
 #' # Now can get the quantile cuts
 #' xgb.get.DMatrix.qcut(dm)
 #' @export
-xgb.get.DMatrix.qcut <- function(dmat, output = c("list", "csc", "simple")) {
+xgb.get.DMatrix.qcut <- function(dmat, output = c("list", "csc", "simple")) { # nolint
   stopifnot(inherits(dmat, "xgb.DMatrix"))
   output <- head(output, 1L)
   stopifnot(output %in% c("list", "csc", "simple"))

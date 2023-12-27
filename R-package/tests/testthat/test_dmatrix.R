@@ -439,7 +439,7 @@ test_that("xgb.DMatrix: quantile cuts look correct", {
   expect_true(nrow(qcut_csc) <= 9)
   expect_equal(
     length(qcut_csc@x),
-    sum(sapply(qcut_list, length))
+    sum(lengths(qcut_list))
   )
   lapply(
     seq(1, ncol(x)),
