@@ -12,6 +12,7 @@ xgb.plot.tree(
   plot_height = NULL,
   render = TRUE,
   show_node_id = FALSE,
+  style = c("R", "xgboost"),
   ...
 )
 }
@@ -34,6 +35,22 @@ The values are passed to \code{\link[DiagrammeR:render_graph]{DiagrammeR::render
 
 \item{show_node_id}{a logical flag for whether to show node id's in the graph.}
 
+\item{style}{Style to use for the plot. Options are:\itemize{
+\item \code{"xgboost"}: will use the plot style defined in the core XGBoost library,
+which is shared between different interfaces through the 'dot' format. This
+style was not available before version 2.1.0 in R. It always plots the trees
+vertically (from top to bottom).
+\item \code{"R"}: will use the style defined from XGBoost's R interface, which predates
+the introducition of the standardized style from the core library. It might plot
+the trees horizontally (from left to right).
+}
+
+Note that \code{style="xgboost"} is only supported when all of the following conditions are met:\itemize{
+\item Only a single tree is being plotted.
+\item Node IDs are not added to the graph.
+\item The graph is being returned as \code{htmlwidget} (\code{render=TRUE}).
+}}
+
 \item{...}{currently not used.}
 }
 \value{
@@ -51,7 +68,16 @@ before rendering the graph with \code{\link[DiagrammeR:render_graph]{DiagrammeR:
 Read a tree model text dump and plot the model.
 }
 \details{
-The content of each node is visualized like this:
+When using \code{style="xgboost"}, the content of each node is visualized as follows:
+\itemize{
+\item For non-terminal nodes, it will display the split condition (number or name if
+available, and the condition that would decide to which node to go next).
+\item Those nodes will be connected to their children by arrows that indicate whether the
+branch corresponds to the condition being met or not being met.
+\item Terminal (leaf) nodes contain the margin to add when ending there.
+}
+
+When using \code{style="R"}, the content of each node is visualized like this:
 \itemize{
 \item \emph{Feature name}.
 \item \emph{Cover:} The sum of second order gradients of training data.
@@ -83,8 +109,13 @@ bst <- xgboost(
   objective = "binary:logistic"
 )
 
+# plot the first tree, using the style from xgboost's core library
+# (this plot should look identical to the ones generated from other
+# interfaces like the python package for xgboost)
+xgb.plot.tree(model = bst, trees = 1, style = "xgboost")
+
 # plot all the trees
-xgb.plot.tree(model = bst)
+xgb.plot.tree(model = bst, trees = NULL)
 
 # plot only the first tree and display the node ID:
 xgb.plot.tree(model = bst, trees = 0, show_node_id = TRUE)
