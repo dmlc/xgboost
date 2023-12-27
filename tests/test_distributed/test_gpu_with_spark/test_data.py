@@ -2,7 +2,10 @@ import pytest
 
 from xgboost import testing as tm
 
-pytestmark = pytest.mark.skipif(**tm.no_spark())
+pytestmark = [
+    pytest.mark.skipif(**tm.no_spark()),
+    tm.timeout(120),
+]
 
 from ..test_with_spark.test_data import run_dmatrix_ctor
 

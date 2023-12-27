@@ -36,7 +36,10 @@ is assigned to each group (not each data point). This is because we
 only care about the relative ordering of data points within each group,
 so it doesn't make sense to assign weights to individual data points.}
 
-\item{base_margin}{Base margin used for boosting from existing model.}
+\item{base_margin}{Base margin used for boosting from existing model.
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{   In the case of multi-output models, one can also pass multi-dimensional base_margin.
+}\if{html}{\out{</div>}}}
 
 \item{missing}{a float value to represents missing values in data (used only when input is a dense matrix).
 It is useful when a 0 or some other extreme value represents missing values in data.}
@@ -58,8 +61,19 @@ frame and matrix.}
 
 \item{feature_weights}{Set feature weights for column sampling.}
 
-\item{enable_categorical}{Experimental support of specializing for
-categorical features. JSON/UBJSON serialization format is required.}
+\item{enable_categorical}{Experimental support of specializing for categorical features.
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{                      If passing 'TRUE' and 'data' is a data frame,
+                      columns of categorical types will automatically
+                      be set to be of categorical type (feature_type='c') in the resulting DMatrix.
+
+                      If passing 'FALSE' and 'data' is a data frame with categorical columns,
+                      it will result in an error being thrown.
+
+                      If 'data' is not a data frame, this argument is ignored.
+
+                      JSON/UBJSON serialization format is required for this.
+}\if{html}{\out{</div>}}}
 }
 \description{
 Construct xgb.DMatrix object from either a dense matrix, a sparse matrix, or a local file.

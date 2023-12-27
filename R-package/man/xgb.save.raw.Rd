@@ -12,9 +12,9 @@ xgb.save.raw(model, raw_format = "deprecated")
 
 \item{raw_format}{The format for encoding the booster.  Available options are
 \itemize{
-    \item \code{json}: Encode the booster into JSON text document.
-    \item \code{ubj}:  Encode the booster into Universal Binary JSON.
-    \item \code{deprecated}: Encode the booster into old customized binary format.
+\item \code{json}: Encode the booster into JSON text document.
+\item \code{ubj}:  Encode the booster into Universal Binary JSON.
+\item \code{deprecated}: Encode the booster into old customized binary format.
 }
 
 Right now the default is \code{deprecated} but will be changed to \code{ubj} in upcoming release.}

@@ -16,6 +16,8 @@
 #' only care about the relative ordering of data points within each group,
 #' so it doesn't make sense to assign weights to individual data points.
 #' @param base_margin Base margin used for boosting from existing model.
+#'
+#'        In the case of multi-output models, one can also pass multi-dimensional base_margin.
 #' @param missing a float value to represents missing values in data (used only when input is a dense matrix).
 #'        It is useful when a 0 or some other extreme value represents missing values in data.
 #' @param silent whether to suppress printing an informational message after loading from a file.
@@ -27,14 +29,24 @@
 #' @param label_lower_bound Lower bound for survival training.
 #' @param label_upper_bound Upper bound for survival training.
 #' @param feature_weights Set feature weights for column sampling.
+#' @param enable_categorical Experimental support of specializing for categorical features.
+#'
+#'                           If passing 'TRUE' and 'data' is a data frame,
+#'                           columns of categorical types will automatically
+#'                           be set to be of categorical type (feature_type='c') in the resulting DMatrix.
+#'
+#'                           If passing 'FALSE' and 'data' is a data frame with categorical columns,
+#'                           it will result in an error being thrown.
+#'
+#'                           If 'data' is not a data frame, this argument is ignored.
+#'
+#'                           JSON/UBJSON serialization format is required for this.
 #'
 #' @details
 #' Note that DMatrix objects are not serializable through R functions such as \code{saveRDS} or \code{save}.
 #' If a DMatrix gets serialized and then de-serialized (for example, when saving data in an R session or caching
 #' chunks in an Rmd file), the resulting object will not be usable anymore and will need to be reconstructed
 #' from the original source of data.
-#' @param enable_categorical Experimental support of specializing for
-#'        categorical features. JSON/UBJSON serialization format is required.
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
@@ -151,7 +163,10 @@ xgb.DMatrix <- function(
   }
 
   dmat <- handle
-  attributes(dmat) <- list(class = "xgb.DMatrix")
+  attributes(dmat) <- list(
+    class = "xgb.DMatrix",
+    fields = new.env()
+  )
 
   if (!is.null(label)) {
     setinfo(dmat, "label", label)
@@ -185,6 +200,35 @@ xgb.DMatrix <- function(
   }
 
   return(dmat)
+}
+
+#' @title Check whether DMatrix object has a field
+#' @description Checks whether an xgb.DMatrix object has a given field assigned to
+#' it, such as weights, labels, etc.
+#' @param object The DMatrix object to check for the given \code{info} field.
+#' @param info The field to check for presence or absence in \code{object}.
+#' @seealso \link{xgb.DMatrix}, \link{getinfo.xgb.DMatrix}, \link{setinfo.xgb.DMatrix}
+#' @examples
+#' library(xgboost)
+#' x <- matrix(1:10, nrow = 5)
+#' dm <- xgb.DMatrix(x, nthread = 1)
+#'
+#' # 'dm' so far doesn't have any fields set
+#' xgb.DMatrix.hasinfo(dm, "label")
+#'
+#' # Fields can be added after construction
+#' setinfo(dm, "label", 1:5)
+#' xgb.DMatrix.hasinfo(dm, "label")
+#' @export
+xgb.DMatrix.hasinfo <- function(object, info) {
+  if (!inherits(object, "xgb.DMatrix")) {
+    stop("Object is not an 'xgb.DMatrix'.")
+  }
+  if (.Call(XGCheckNullPtr_R, object)) {
+    warning("xgb.DMatrix object is invalid. Must be constructed again.")
+    return(FALSE)
+  }
+  return(NVL(attr(object, "fields")[[info]], FALSE))
 }
 
 
@@ -377,7 +421,7 @@ getinfo.xgb.DMatrix <- function(object, name, ...) {
 #' @param object Object of class "xgb.DMatrix"
 #' @param name the name of the field to get
 #' @param info the specific field of information to set
-#' @param ... other parameters
+#' @param ... Not used.
 #'
 #' @details
 #' See the documentation for \link{xgb.DMatrix} for possible fields that can be set
@@ -406,6 +450,12 @@ setinfo <- function(object, ...) UseMethod("setinfo")
 #' @rdname setinfo
 #' @export
 setinfo.xgb.DMatrix <- function(object, name, info, ...) {
+  .internal.setinfo.xgb.DMatrix(object, name, info, ...)
+  attr(object, "fields")[[name]] <- TRUE
+  return(TRUE)
+}
+
+.internal.setinfo.xgb.DMatrix <- function(object, name, info, ...) {
   if (name == "label") {
     if (NROW(info) != nrow(object))
       stop("The length of labels must equal to the number of rows in the input data")
@@ -413,44 +463,42 @@ setinfo.xgb.DMatrix <- function(object, name, info, ...) {
     return(TRUE)
   }
   if (name == "label_lower_bound") {
-    if (length(info) != nrow(object))
+    if (NROW(info) != nrow(object))
       stop("The length of lower-bound labels must equal to the number of rows in the input data")
-    .Call(XGDMatrixSetInfo_R, object, name, as.numeric(info))
+    .Call(XGDMatrixSetInfo_R, object, name, info)
     return(TRUE)
   }
   if (name == "label_upper_bound") {
-    if (length(info) != nrow(object))
+    if (NROW(info) != nrow(object))
       stop("The length of upper-bound labels must equal to the number of rows in the input data")
-    .Call(XGDMatrixSetInfo_R, object, name, as.numeric(info))
+    .Call(XGDMatrixSetInfo_R, object, name, info)
     return(TRUE)
   }
   if (name == "weight") {
-    .Call(XGDMatrixSetInfo_R, object, name, as.numeric(info))
+    .Call(XGDMatrixSetInfo_R, object, name, info)
     return(TRUE)
   }
   if (name == "base_margin") {
-    # if (length(info)!=nrow(object))
-    #   stop("The length of base margin must equal to the number of rows in the input data")
-    .Call(XGDMatrixSetInfo_R, object, name, as.numeric(info))
+    .Call(XGDMatrixSetInfo_R, object, name, info)
     return(TRUE)
   }
   if (name == "group") {
     if (sum(info) != nrow(object))
       stop("The sum of groups must equal to the number of rows in the input data")
-    .Call(XGDMatrixSetInfo_R, object, name, as.integer(info))
+    .Call(XGDMatrixSetInfo_R, object, name, info)
     return(TRUE)
   }
   if (name == "qid") {
     if (NROW(info) != nrow(object))
       stop("The length of qid assignments must equal to the number of rows in the input data")
-    .Call(XGDMatrixSetInfo_R, object, name, as.integer(info))
+    .Call(XGDMatrixSetInfo_R, object, name, info)
     return(TRUE)
   }
   if (name == "feature_weights") {
-    if (length(info) != ncol(object)) {
+    if (NROW(info) != ncol(object)) {
       stop("The number of feature weights must equal to the number of columns in the input data")
     }
-    .Call(XGDMatrixSetInfo_R, object, name, as.numeric(info))
+    .Call(XGDMatrixSetInfo_R, object, name, info)
     return(TRUE)
   }
 
@@ -558,11 +606,15 @@ slice.xgb.DMatrix <- function(object, idxset, ...) {
 #' @method print xgb.DMatrix
 #' @export
 print.xgb.DMatrix <- function(x, verbose = FALSE, ...) {
+  if (.Call(XGCheckNullPtr_R, x)) {
+    cat("INVALID xgb.DMatrix object. Must be constructed anew.\n")
+    return(invisible(x))
+  }
   cat('xgb.DMatrix  dim:', nrow(x), 'x', ncol(x), ' info: ')
   infos <- character(0)
-  if (length(getinfo(x, 'label')) > 0) infos <- 'label'
-  if (length(getinfo(x, 'weight')) > 0) infos <- c(infos, 'weight')
-  if (length(getinfo(x, 'base_margin')) > 0) infos <- c(infos, 'base_margin')
+  if (xgb.DMatrix.hasinfo(x, 'label')) infos <- 'label'
+  if (xgb.DMatrix.hasinfo(x, 'weight')) infos <- c(infos, 'weight')
+  if (xgb.DMatrix.hasinfo(x, 'base_margin')) infos <- c(infos, 'base_margin')
   if (length(infos) == 0) infos <- 'NA'
   cat(infos)
   cnames <- colnames(x)

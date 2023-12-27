@@ -532,7 +532,7 @@ XGProxyDMatrixSetDataCudaArrayInterface(DMatrixHandle handle,
  *
  * @return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGProxyDMatrixSetDataCudaColumnar(DMatrixHandle handle, char const *c_interface_str);
+XGB_DLL int XGProxyDMatrixSetDataColumnar(DMatrixHandle handle, char const *c_interface_str);
 
 /*!
  * \brief Set data on a DMatrix proxy.

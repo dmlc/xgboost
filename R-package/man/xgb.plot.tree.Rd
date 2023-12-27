@@ -2,7 +2,7 @@
 % Please edit documentation in R/xgb.plot.tree.R
 \name{xgb.plot.tree}
 \alias{xgb.plot.tree}
-\title{Plot a boosted tree model}
+\title{Plot boosted trees}
 \usage{
 xgb.plot.tree(
   feature_names = NULL,
@@ -16,76 +16,89 @@ xgb.plot.tree(
 )
 }
 \arguments{
-\item{feature_names}{names of each feature as a \code{character} vector.}
+\item{feature_names}{Character vector used to overwrite the feature names
+of the model. The default (\code{NULL}) uses the original feature names.}
 
-\item{model}{produced by the \code{xgb.train} function.}
+\item{model}{Object of class \code{xgb.Booster}.}
 
-\item{trees}{an integer vector of tree indices that should be visualized.
-If set to \code{NULL}, all trees of the model are included.
-IMPORTANT: the tree index in xgboost model is zero-based
-(e.g., use \code{trees = 0:2} for the first 3 trees in a model).}
+\item{trees}{An integer vector of tree indices that should be used.
+The default (\code{NULL}) uses all trees.
+Useful, e.g., in multiclass classification to get only
+the trees of one class. \emph{Important}: the tree index in XGBoost models
+is zero-based (e.g., use \code{trees = 0:2} for the first three trees).}
 
-\item{plot_width}{the width of the diagram in pixels.}
+\item{plot_width, plot_height}{Width and height of the graph in pixels.
+The values are passed to \code{\link[DiagrammeR:render_graph]{DiagrammeR::render_graph()}}.}
 
-\item{plot_height}{the height of the diagram in pixels.}
-
-\item{render}{a logical flag for whether the graph should be rendered (see Value).}
+\item{render}{Should the graph be rendered or not? The default is \code{TRUE}.}
 
 \item{show_node_id}{a logical flag for whether to show node id's in the graph.}
 
 \item{...}{currently not used.}
 }
 \value{
-When \code{render = TRUE}:
-returns a rendered graph object which is an \code{htmlwidget} of class \code{grViz}.
-Similar to ggplot objects, it needs to be printed to see it when not running from command line.
-
-When \code{render = FALSE}:
-silently returns a graph object which is of DiagrammeR's class \code{dgr_graph}.
+The value depends on the \code{render} parameter:
+\itemize{
+\item If \code{render = TRUE} (default): Rendered graph object which is an htmlwidget of
+class \code{grViz}. Similar to "ggplot" objects, it needs to be printed when not
+running from the command line.
+\item If \code{render = FALSE}: Graph object which is of DiagrammeR's class \code{dgr_graph}.
 This could be useful if one wants to modify some of the graph attributes
-before rendering the graph with \code{\link[DiagrammeR]{render_graph}}.
+before rendering the graph with \code{\link[DiagrammeR:render_graph]{DiagrammeR::render_graph()}}.
+}
 }
 \description{
 Read a tree model text dump and plot the model.
 }
 \details{
-The content of each node is organised that way:
-
+The content of each node is visualized like this:
 \itemize{
- \item Feature name.
- \item \code{Cover}: The sum of second order gradient of training data classified to the leaf.
-       If it is square loss, this simply corresponds to the number of instances seen by a split
-       or collected by a leaf during training.
-       The deeper in the tree a node is, the lower this metric will be.
- \item \code{Gain} (for split nodes): the information gain metric of a split
-       (corresponds to the importance of the node in the model).
- \item \code{Value} (for leafs): the margin value that the leaf may contribute to prediction.
+\item \emph{Feature name}.
+\item \emph{Cover:} The sum of second order gradients of training data.
+For the squared loss, this simply corresponds to the number of instances in the node.
+The deeper in the tree, the lower the value.
+\item \emph{Gain} (for split nodes): Information gain metric of a split
+(corresponds to the importance of the node in the model).
+\item \emph{Value} (for leaves): Margin value that the leaf may contribute to the prediction.
 }
-The tree root nodes also indicate the Tree index (0-based).
+
+The tree root nodes also indicate the tree index (0-based).
 
 The "Yes" branches are marked by the "< split_value" label.
-The branches that also used for missing values are marked as bold
+The branches also used for missing values are marked as bold
 (as in "carrying extra capacity").
 
-This function uses \href{https://www.graphviz.org/}{GraphViz} as a backend of DiagrammeR.
+This function uses \href{https://www.graphviz.org/}{GraphViz} as DiagrammeR backend.
 }
 \examples{
-data(agaricus.train, package='xgboost')
+data(agaricus.train, package = "xgboost")
 
-bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_depth = 3,
-               eta = 1, nthread = 2, nrounds = 2,objective = "binary:logistic")
+bst <- xgboost(
+  data = agaricus.train$data,
+  label = agaricus.train$label,
+  max_depth = 3,
+  eta = 1,
+  nthread = 2,
+  nrounds = 2,
+  objective = "binary:logistic"
+)
+
 # plot all the trees
 xgb.plot.tree(model = bst)
+
 # plot only the first tree and display the node ID:
 xgb.plot.tree(model = bst, trees = 0, show_node_id = TRUE)
 
 \dontrun{
 # Below is an example of how to save this plot to a file.
-# Note that for `export_graph` to work, the DiagrammeRsvg and rsvg packages must also be installed.
+# Note that for export_graph() to work, the {DiagrammeRsvg}
+# and {rsvg} packages must also be installed.
+
 library(DiagrammeR)
-gr <- xgb.plot.tree(model=bst, trees=0:1, render=FALSE)
-export_graph(gr, 'tree.pdf', width=1500, height=1900)
-export_graph(gr, 'tree.png', width=1500, height=1900)
+
+gr <- xgb.plot.tree(model = bst, trees = 0:1, render = FALSE)
+export_graph(gr, "tree.pdf", width = 1500, height = 1900)
+export_graph(gr, "tree.png", width = 1500, height = 1900)
 }
 
 }

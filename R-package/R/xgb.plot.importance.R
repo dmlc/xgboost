@@ -1,64 +1,75 @@
-#' Plot feature importance as a bar graph
+#' Plot feature importance
 #'
 #' Represents previously calculated feature importance as a bar graph.
-#' \code{xgb.plot.importance} uses base R graphics, while \code{xgb.ggplot.importance} uses the ggplot backend.
+#' - `xgb.plot.importance()` uses base R graphics, while
+#' - `xgb.ggplot.importance()` uses "ggplot".
 #'
-#' @param importance_matrix a \code{data.table} returned by \code{\link{xgb.importance}}.
-#' @param top_n maximal number of top features to include into the plot.
-#' @param measure the name of importance measure to plot.
-#'        When \code{NULL}, 'Gain' would be used for trees and 'Weight' would be used for gblinear.
-#' @param rel_to_first whether importance values should be represented as relative to the highest ranked feature.
-#'        See Details.
-#' @param left_margin (base R barplot) allows to adjust the left margin size to fit feature names.
-#'        When it is NULL, the existing \code{par('mar')} is used.
-#' @param cex (base R barplot) passed as \code{cex.names} parameter to \code{barplot}.
-#' @param plot (base R barplot) whether a barplot should be produced.
-#'        If FALSE, only a data.table is returned.
-#' @param n_clusters (ggplot only) a \code{numeric} vector containing the min and the max range
+#' @param importance_matrix A `data.table` as returned by [xgb.importance()].
+#' @param top_n Maximal number of top features to include into the plot.
+#' @param measure The name of importance measure to plot.
+#'        When `NULL`, 'Gain' would be used for trees and 'Weight' would be used for gblinear.
+#' @param rel_to_first Whether importance values should be represented as relative to
+#'        the highest ranked feature, see Details.
+#' @param left_margin Adjust the left margin size to fit feature names.
+#'        When `NULL`, the existing `par("mar")` is used.
+#' @param cex Passed as `cex.names` parameter to [graphics::barplot()].
+#' @param plot Should the barplot be shown? Default is `TRUE`.
+#' @param n_clusters A numeric vector containing the min and the max range
 #'        of the possible number of clusters of bars.
-#' @param ... other parameters passed to \code{barplot} (except horiz, border, cex.names, names.arg, and las).
+#' @param ... Other parameters passed to [graphics::barplot()]
+#'        (except `horiz`, `border`, `cex.names`, `names.arg`, and `las`).
+#'        Only used in `xgb.plot.importance()`.
 #'
 #' @details
 #' The graph represents each feature as a horizontal bar of length proportional to the importance of a feature.
-#' Features are shown ranked in a decreasing importance order.
-#' It works for importances from both \code{gblinear} and \code{gbtree} models.
+#' Features are sorted by decreasing importance.
+#' It works for both "gblinear" and "gbtree" models.
 #'
-#' When \code{rel_to_first = FALSE}, the values would be plotted as they were in \code{importance_matrix}.
-#' For gbtree model, that would mean being normalized to the total of 1
+#' When `rel_to_first = FALSE`, the values would be plotted as in `importance_matrix`.
+#' For a "gbtree" model, that would mean being normalized to the total of 1
 #' ("what is feature's importance contribution relative to the whole model?").
-#' For linear models, \code{rel_to_first = FALSE} would show actual values of the coefficients.
-#' Setting \code{rel_to_first = TRUE} allows to see the picture from the perspective of
+#' For linear models, `rel_to_first = FALSE` would show actual values of the coefficients.
+#' Setting `rel_to_first = TRUE` allows to see the picture from the perspective of
 #' "what is feature's importance contribution relative to the most important feature?"
 #'
-#' The ggplot-backend method also performs 1-D clustering of the importance values,
-#' with bar colors corresponding to different clusters that have somewhat similar importance values.
+#' The "ggplot" backend performs 1-D clustering of the importance values,
+#' with bar colors corresponding to different clusters having similar importance values.
 #'
 #' @return
-#' The \code{xgb.plot.importance} function creates a \code{barplot} (when \code{plot=TRUE})
-#' and silently returns a processed data.table with \code{n_top} features sorted by importance.
+#' The return value depends on the function:
+#' - `xgb.plot.importance()`: Invisibly, a "data.table" with `n_top` features sorted
+#'   by importance. If `plot = TRUE`, the values are also plotted as barplot.
+#' - `xgb.ggplot.importance()`: A customizable "ggplot" object.
+#'   E.g., to change the title, set `+ ggtitle("A GRAPH NAME")`.
 #'
-#' The \code{xgb.ggplot.importance} function returns a ggplot graph which could be customized afterwards.
-#' E.g., to change the title of the graph, add \code{+ ggtitle("A GRAPH NAME")} to the result.
-#'
-#' @seealso
-#' \code{\link[graphics]{barplot}}.
+#' @seealso [graphics::barplot()]
 #'
 #' @examples
 #' data(agaricus.train)
+#'
 #' ## Keep the number of threads to 2 for examples
 #' nthread <- 2
 #' data.table::setDTthreads(nthread)
 #'
 #' bst <- xgboost(
-#'   data = agaricus.train$data, label = agaricus.train$label, max_depth = 3,
-#'   eta = 1, nthread = nthread, nrounds = 2, objective = "binary:logistic"
+#'   data = agaricus.train$data,
+#'   label = agaricus.train$label,
+#'   max_depth = 3,
+#'   eta = 1,
+#'   nthread = nthread,
+#'   nrounds = 2,
+#'   objective = "binary:logistic"
 #' )
 #'
 #' importance_matrix <- xgb.importance(colnames(agaricus.train$data), model = bst)
+#' xgb.plot.importance(
+#'   importance_matrix, rel_to_first = TRUE, xlab = "Relative importance"
+#' )
 #'
-#' xgb.plot.importance(importance_matrix, rel_to_first = TRUE, xlab = "Relative importance")
-#'
-#' (gg <- xgb.ggplot.importance(importance_matrix, measure = "Frequency", rel_to_first = TRUE))
+#' gg <- xgb.ggplot.importance(
+#'   importance_matrix, measure = "Frequency", rel_to_first = TRUE
+#' )
+#' gg
 #' gg + ggplot2::ylab("Frequency")
 #'
 #' @rdname xgb.plot.importance

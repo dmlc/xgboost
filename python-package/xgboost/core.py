@@ -785,7 +785,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
                  so it doesn't make sense to assign weights to individual data points.
 
         base_margin :
-            Base margin used for boosting from existing model.
+            Global bias for each instance. See :doc:`/tutorials/intercept` for details.
         missing :
             Value in the input data which needs to be present as a missing value. If
             None, defaults to np.nan.
@@ -822,8 +822,19 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
 
             .. note:: This parameter is experimental
 
-            Experimental support of specializing for categorical features. JSON/UBJSON
-            serialization format is required.
+            Experimental support of specializing for categorical features.
+
+            If passing 'True' and 'data' is a data frame (from supported libraries such
+            as Pandas, Modin or cuDF), columns of categorical types will automatically
+            be set to be of categorical type (feature_type='c') in the resulting
+            DMatrix.
+
+            If passing 'False' and 'data' is a data frame with categorical columns,
+            it will result in an error being thrown.
+
+            If 'data' is not a data frame, this argument is ignored.
+
+            JSON/UBJSON serialization format is required for this.
 
         """
         if group is not None and qid is not None:

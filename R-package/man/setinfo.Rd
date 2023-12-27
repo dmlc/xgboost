@@ -12,7 +12,7 @@ setinfo(object, ...)
 \arguments{
 \item{object}{Object of class "xgb.DMatrix"}
 
-\item{...}{other parameters}
+\item{...}{Not used.}
 
 \item{name}{the name of the field to get}
 

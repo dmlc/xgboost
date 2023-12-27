@@ -79,36 +79,45 @@ xgb.get.handle <- function(object) {
   handle
 }
 
-#' Restore missing parts of an incomplete xgb.Booster object.
+#' Restore missing parts of an incomplete xgb.Booster object
 #'
-#' It attempts to complete an \code{xgb.Booster} object by restoring either its missing
-#' raw model memory dump (when it has no \code{raw} data but its \code{xgb.Booster.handle} is valid)
-#' or its missing internal handle (when its \code{xgb.Booster.handle} is not valid
+#' It attempts to complete an `xgb.Booster` object by restoring either its missing
+#' raw model memory dump (when it has no `raw` data but its `xgb.Booster.handle` is valid)
+#' or its missing internal handle (when its `xgb.Booster.handle` is not valid
 #' but it has a raw Booster memory dump).
 #'
-#' @param object object of class \code{xgb.Booster}
-#' @param saveraw a flag indicating whether to append \code{raw} Booster memory dump data
+#' @param object Object of class `xgb.Booster`.
+#' @param saveraw A flag indicating whether to append `raw` Booster memory dump data
 #'                when it doesn't already exist.
 #'
 #' @details
 #'
 #' While this method is primarily for internal use, it might be useful in some practical situations.
 #'
-#' E.g., when an \code{xgb.Booster} model is saved as an R object and then is loaded as an R object,
+#' E.g., when an `xgb.Booster` model is saved as an R object and then is loaded as an R object,
 #' its handle (pointer) to an internal xgboost model would be invalid. The majority of xgboost methods
 #' should still work for such a model object since those methods would be using
-#' \code{xgb.Booster.complete} internally. However, one might find it to be more efficient to call the
-#' \code{xgb.Booster.complete} function explicitly once after loading a model as an R-object.
+#' `xgb.Booster.complete()` internally. However, one might find it to be more efficient to call the
+#' `xgb.Booster.complete()` function explicitly once after loading a model as an R-object.
 #' That would prevent further repeated implicit reconstruction of an internal booster model.
 #'
 #' @return
-#' An object of \code{xgb.Booster} class.
+#' An object of `xgb.Booster` class.
 #'
 #' @examples
 #'
-#' data(agaricus.train, package='xgboost')
-#' bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_depth = 2,
-#'                eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
+#' data(agaricus.train, package = "xgboost")
+#'
+#' bst <- xgboost(
+#'   data = agaricus.train$data,
+#'   label = agaricus.train$label,
+#'   max_depth = 2,
+#'   eta = 1,
+#'   nthread = 2,
+#'   nrounds = 2,
+#'   objective = "binary:logistic"
+#' )
+#'
 #' saveRDS(bst, "xgb.model.rds")
 #'
 #' # Warning: The resulting RDS file is only compatible with the current XGBoost version.
@@ -161,13 +170,13 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
   return(object)
 }
 
-#' Predict method for eXtreme Gradient Boosting model
+#' Predict method for XGBoost model
 #'
 #' Predicted values based on either xgboost model or model handle object.
 #'
-#' @param object Object of class \code{xgb.Booster} or \code{xgb.Booster.handle}
-#' @param newdata takes \code{data.frame}, \code{matrix}, \code{dgCMatrix}, \code{dgRMatrix}, \code{dsparseVector},
-#'        local data file or \code{xgb.DMatrix}.
+#' @param object Object of class `xgb.Booster` or `xgb.Booster.handle`.
+#' @param newdata takes `data.frame`, `matrix`, `dgCMatrix`, `dgRMatrix`, `dsparseVector`,
+#'        local data file, or `xgb.DMatrix`.
 #'
 #'        For single-row predictions on sparse data, it's recommended to use CSR format. If passing
 #'        a sparse vector, it will take it as a row vector.
@@ -175,42 +184,41 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #'        Note that, for repeated predictions, one might want to create a DMatrix to pass here instead
 #'        of passing R types like matrices or data frames, as predictions will be faster on DMatrix.
 #'
-#'        If \code{newdata} is a \code{data.frame}, be aware that:\itemize{
+#'        If `newdata` is a `data.frame`, be aware that:\itemize{
 #'        \item Columns will be converted to numeric if they aren't already, which could potentially make
-#'              the operation slower than in an equivalent \code{matrix} object.
+#'              the operation slower than in an equivalent `matrix` object.
 #'        \item The order of the columns must match with that of the data from which the model was fitted
 #'              (i.e. columns will not be referenced by their names, just by their order in the data).
 #'        \item If the model was fitted to data with categorical columns, these columns must be of
-#'              \code{factor} type here, and must use the same encoding (i.e. have the same levels).
-#'        \item If \code{newdata} contains any \code{factor} columns, they will be converted to base-0
-#'              encoding (same as during DMatrix creation) - hence, one should not pass a \code{factor}
+#'              `factor` type here, and must use the same encoding (i.e. have the same levels).
+#'        \item If `newdata` contains any `factor` columns, they will be converted to base-0
+#'              encoding (same as during DMatrix creation) - hence, one should not pass a `factor`
 #'              under a column which during training had a different type.
 #'        }
-#' @param missing Missing is only used when input is dense matrix. Pick a float value that represents
-#'        missing values in data (e.g., sometimes 0 or some other extreme value is used).
-#' @param outputmargin whether the prediction should be returned in the for of original untransformed
-#'        sum of predictions from boosting iterations' results. E.g., setting \code{outputmargin=TRUE} for
-#'        logistic regression would result in predictions for log-odds instead of probabilities.
-#' @param ntreelimit Deprecated, use \code{iterationrange} instead.
-#' @param predleaf whether predict leaf index.
-#' @param predcontrib whether to return feature contributions to individual predictions (see Details).
-#' @param approxcontrib whether to use a fast approximation for feature contributions (see Details).
-#' @param predinteraction whether to return contributions of feature interactions to individual predictions (see Details).
-#' @param reshape whether to reshape the vector of predictions to a matrix form when there are several
-#'        prediction outputs per case. This option has no effect when either of predleaf, predcontrib,
-#'        or predinteraction flags is TRUE.
-#' @param training whether is the prediction result used for training.  For dart booster,
+#' @param missing Float value that represents missing values in data (e.g., 0 or some other extreme value).
+#' @param outputmargin Whether the prediction should be returned in the form of original untransformed
+#'        sum of predictions from boosting iterations' results. E.g., setting `outputmargin=TRUE` for
+#'        logistic regression would return log-odds instead of probabilities.
+#' @param ntreelimit Deprecated, use `iterationrange` instead.
+#' @param predleaf Whether predict leaf index.
+#' @param predcontrib Whether to return feature contributions to individual predictions (see Details).
+#' @param approxcontrib Whether to use a fast approximation for feature contributions (see Details).
+#' @param predinteraction Whether to return contributions of feature interactions to individual predictions (see Details).
+#' @param reshape Whether to reshape the vector of predictions to matrix form when there are several
+#'        prediction outputs per case. No effect if `predleaf`, `predcontrib`,
+#'        or `predinteraction` is `TRUE`.
+#' @param training Whether is the prediction result used for training.  For dart booster,
 #'        training predicting will perform dropout.
-#' @param iterationrange Specifies which layer of trees are used in prediction.  For
-#'        example, if a random forest is trained with 100 rounds.  Specifying
-#'        `iterationrange=(1, 21)`, then only the forests built during [1, 21) (half open set)
-#'        rounds are used in this prediction.  It's 1-based index just like R vector.  When set
-#'        to \code{c(1, 1)} XGBoost will use all trees.
-#' @param strict_shape  Default is \code{FALSE}. When it's set to \code{TRUE}, output
-#'        type and shape of prediction are invariant to model type.
+#' @param iterationrange Specifies which trees are used in prediction. For
+#'        example, take a random forest with 100 rounds.
+#'        With `iterationrange=c(1, 21)`, only the trees built during `[1, 21)` (half open set)
+#'        rounds are used in this prediction. The index is 1-based just like an R vector. When set
+#'        to `c(1, 1)`, XGBoost will use all trees.
+#' @param strict_shape  Default is `FALSE`. When set to `TRUE`, the output
+#'        type and shape of predictions are invariant to the model type.
 #' @param base_margin Base margin used for boosting from existing model.
 #'
-#'        Note that, if \code{newdata} is an \code{xgb.DMatrix} object, this argument will
+#'        Note that, if `newdata` is an `xgb.DMatrix` object, this argument will
 #'        be ignored as it needs to be added to the DMatrix instead (e.g. by passing it as
 #'        an argument in its constructor, or by calling \link{setinfo.xgb.DMatrix}).
 #'
@@ -218,75 +226,65 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #'
 #' @details
 #'
-#' Note that \code{iterationrange} would currently do nothing for predictions from gblinear,
-#' since gblinear doesn't keep its boosting history.
+#' Note that `iterationrange` would currently do nothing for predictions from "gblinear",
+#' since "gblinear" doesn't keep its boosting history.
 #'
-#' One possible practical applications of the \code{predleaf} option is to use the model
+#' One possible practical applications of the `predleaf` option is to use the model
 #' as a generator of new features which capture non-linearity and interactions,
-#' e.g., as implemented in \code{\link{xgb.create.features}}.
+#' e.g., as implemented in [xgb.create.features()].
 #'
-#' Setting \code{predcontrib = TRUE} allows to calculate contributions of each feature to
+#' Setting `predcontrib = TRUE` allows to calculate contributions of each feature to
 #' individual predictions. For "gblinear" booster, feature contributions are simply linear terms
 #' (feature_beta * feature_value). For "gbtree" booster, feature contributions are SHAP
 #' values (Lundberg 2017) that sum to the difference between the expected output
 #' of the model and the current prediction (where the hessian weights are used to compute the expectations).
-#' Setting \code{approxcontrib = TRUE} approximates these values following the idea explained
+#' Setting `approxcontrib = TRUE` approximates these values following the idea explained
 #' in \url{http://blog.datadive.net/interpreting-random-forests/}.
 #'
-#' With \code{predinteraction = TRUE}, SHAP values of contributions of interaction of each pair of features
+#' With `predinteraction = TRUE`, SHAP values of contributions of interaction of each pair of features
 #' are computed. Note that this operation might be rather expensive in terms of compute and memory.
 #' Since it quadratically depends on the number of features, it is recommended to perform selection
 #' of the most important features first. See below about the format of the returned results.
 #'
-#' The \code{predict()} method uses as many threads as defined in \code{xgb.Booster} object (all by default).
-#' If you want to change their number, then assign a new number to \code{nthread} using \code{\link{xgb.parameters<-}}.
-#' Note also that converting a matrix to \code{\link{xgb.DMatrix}} uses multiple threads too.
+#' The `predict()` method uses as many threads as defined in `xgb.Booster` object (all by default).
+#' If you want to change their number, assign a new number to `nthread` using [xgb.parameters<-()].
+#' Note that converting a matrix to [xgb.DMatrix()] uses multiple threads too.
 #'
 #' @return
-#' The return type is different depending whether \code{strict_shape} is set to \code{TRUE}.  By default,
-#' for regression or binary classification, it returns a vector of length \code{nrows(newdata)}.
-#' For multiclass classification, either a \code{num_class * nrows(newdata)} vector or
-#' a \code{(nrows(newdata), num_class)} dimension matrix is returned, depending on
-#' the \code{reshape} value.
+#' The return type depends on `strict_shape`. If `FALSE` (default):
+#' - For regression or binary classification: A vector of length `nrows(newdata)`.
+#' - For multiclass classification: A vector of length `num_class * nrows(newdata)` or
+#'   a `(nrows(newdata), num_class)` matrix, depending on the `reshape` value.
+#' - When `predleaf = TRUE`: A matrix with one column per tree.
+#' - When `predcontrib = TRUE`: When not multiclass, a matrix with
+#' ` num_features + 1` columns. The last "+ 1" column corresponds to the baseline value.
+#'   In the multiclass case, a list of `num_class` such matrices.
+#'   The contribution values are on the scale of untransformed margin
+#'   (e.g., for binary classification, the values are log-odds deviations from the baseline).
+#' - When `predinteraction = TRUE`: When not multiclass, the output is a 3d array of
+#'   dimension `c(nrow, num_features + 1, num_features + 1)`. The off-diagonal (in the last two dimensions)
+#'   elements represent different feature interaction contributions. The array is symmetric WRT the last
+#'   two dimensions. The "+ 1" columns corresponds to the baselines. Summing this array along the last dimension should
+#'   produce practically the same result as `predcontrib = TRUE`.
+#'   In the multiclass case, a list of `num_class` such arrays.
 #'
-#' When \code{predleaf = TRUE}, the output is a matrix object with the
-#' number of columns corresponding to the number of trees.
-#'
-#' When \code{predcontrib = TRUE} and it is not a multiclass setting, the output is a matrix object with
-#' \code{num_features + 1} columns. The last "+ 1" column in a matrix corresponds to bias.
-#' For a multiclass case, a list of \code{num_class} elements is returned, where each element is
-#' such a matrix. The contribution values are on the scale of untransformed margin
-#' (e.g., for binary classification would mean that the contributions are log-odds deviations from bias).
-#'
-#' When \code{predinteraction = TRUE} and it is not a multiclass setting, the output is a 3d array with
-#' dimensions \code{c(nrow, num_features + 1, num_features + 1)}. The off-diagonal (in the last two dimensions)
-#' elements represent different features interaction contributions. The array is symmetric WRT the last
-#' two dimensions. The "+ 1" columns corresponds to bias. Summing this array along the last dimension should
-#' produce practically the same result as predict with \code{predcontrib = TRUE}.
-#' For a multiclass case, a list of \code{num_class} elements is returned, where each element is
-#' such an array.
-#'
-#' When \code{strict_shape} is set to \code{TRUE}, the output is always an array.  For
-#' normal prediction, the output is a 2-dimension array \code{(num_class, nrow(newdata))}.
-#'
-#' For \code{predcontrib = TRUE}, output is \code{(ncol(newdata) + 1, num_class, nrow(newdata))}
-#' For \code{predinteraction = TRUE}, output is \code{(ncol(newdata) + 1, ncol(newdata) + 1, num_class, nrow(newdata))}
-#' For \code{predleaf = TRUE}, output is \code{(n_trees_in_forest, num_class, n_iterations, nrow(newdata))}
-#'
-#' @seealso
-#' \code{\link{xgb.train}}.
-#'
+#' When `strict_shape = TRUE`, the output is always an array:
+#' - For normal predictions, the output has dimension `(num_class, nrow(newdata))`.
+#' - For `predcontrib = TRUE`, the dimension is `(ncol(newdata) + 1, num_class, nrow(newdata))`.
+#' - For `predinteraction = TRUE`, the dimension is `(ncol(newdata) + 1, ncol(newdata) + 1, num_class, nrow(newdata))`.
+#' - For `predleaf = TRUE`, the dimension is `(n_trees_in_forest, num_class, n_iterations, nrow(newdata))`.
+#' @seealso [xgb.train()]
 #' @references
-#'
-#' Scott M. Lundberg, Su-In Lee, "A Unified Approach to Interpreting Model Predictions", NIPS Proceedings 2017, \url{https://arxiv.org/abs/1705.07874}
-#'
-#' Scott M. Lundberg, Su-In Lee, "Consistent feature attribution for tree ensembles", \url{https://arxiv.org/abs/1706.06060}
+#' 1. Scott M. Lundberg, Su-In Lee, "A Unified Approach to Interpreting Model Predictions",
+#'   NIPS Proceedings 2017, \url{https://arxiv.org/abs/1705.07874}
+#' 2. Scott M. Lundberg, Su-In Lee, "Consistent feature attribution for tree ensembles",
+#'   \url{https://arxiv.org/abs/1706.06060}
 #'
 #' @examples
 #' ## binary classification:
 #'
-#' data(agaricus.train, package='xgboost')
-#' data(agaricus.test, package='xgboost')
+#' data(agaricus.train, package = "xgboost")
+#' data(agaricus.test, package = "xgboost")
 #'
 #' ## Keep the number of threads to 2 for examples
 #' nthread <- 2
@@ -295,8 +293,16 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' train <- agaricus.train
 #' test <- agaricus.test
 #'
-#' bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
-#'                eta = 0.5, nthread = nthread, nrounds = 5, objective = "binary:logistic")
+#' bst <- xgboost(
+#'   data = train$data,
+#'   label = train$label,
+#'   max_depth = 2,
+#'   eta = 0.5,
+#'   nthread = nthread,
+#'   nrounds = 5,
+#'   objective = "binary:logistic"
+#' )
+#'
 #' # use all trees by default
 #' pred <- predict(bst, test$data)
 #' # use only the 1st tree
@@ -328,32 +334,53 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #'
 #' lb <- as.numeric(iris$Species) - 1
 #' num_class <- 3
+#'
 #' set.seed(11)
-#' bst <- xgboost(data = as.matrix(iris[, -5]), label = lb,
-#'                max_depth = 4, eta = 0.5, nthread = 2, nrounds = 10, subsample = 0.5,
-#'                objective = "multi:softprob", num_class = num_class)
+#'
+#' bst <- xgboost(
+#'   data = as.matrix(iris[, -5]),
+#'   label = lb,
+#'   max_depth = 4,
+#'   eta = 0.5,
+#'   nthread = 2,
+#'   nrounds = 10,
+#'   subsample = 0.5,
+#'   objective = "multi:softprob",
+#'   num_class = num_class
+#' )
+#'
 #' # predict for softmax returns num_class probability numbers per case:
 #' pred <- predict(bst, as.matrix(iris[, -5]))
 #' str(pred)
 #' # reshape it to a num_class-columns matrix
-#' pred <- matrix(pred, ncol=num_class, byrow=TRUE)
+#' pred <- matrix(pred, ncol = num_class, byrow = TRUE)
 #' # convert the probabilities to softmax labels
 #' pred_labels <- max.col(pred) - 1
 #' # the following should result in the same error as seen in the last iteration
-#' sum(pred_labels != lb)/length(lb)
+#' sum(pred_labels != lb) / length(lb)
 #'
-#' # compare that to the predictions from softmax:
+#' # compare with predictions from softmax:
 #' set.seed(11)
-#' bst <- xgboost(data = as.matrix(iris[, -5]), label = lb,
-#'                max_depth = 4, eta = 0.5, nthread = 2, nrounds = 10, subsample = 0.5,
-#'                objective = "multi:softmax", num_class = num_class)
+#'
+#' bst <- xgboost(
+#'   data = as.matrix(iris[, -5]),
+#'   label = lb,
+#'   max_depth = 4,
+#'   eta = 0.5,
+#'   nthread = 2,
+#'   nrounds = 10,
+#'   subsample = 0.5,
+#'   objective = "multi:softmax",
+#'   num_class = num_class
+#' )
+#'
 #' pred <- predict(bst, as.matrix(iris[, -5]))
 #' str(pred)
 #' all.equal(pred, pred_labels)
 #' # prediction from using only 5 iterations should result
 #' # in the same error as seen in iteration 5:
-#' pred5 <- predict(bst, as.matrix(iris[, -5]), iterationrange=c(1, 6))
-#' sum(pred5 != lb)/length(lb)
+#' pred5 <- predict(bst, as.matrix(iris[, -5]), iterationrange = c(1, 6))
+#' sum(pred5 != lb) / length(lb)
 #'
 #' @rdname predict.xgb.Booster
 #' @export
@@ -585,63 +612,69 @@ predict.xgb.Booster.handle <- function(object, ...) {
 }
 
 
-#' Accessors for serializable attributes of a model.
+#' Accessors for serializable attributes of a model
 #'
 #' These methods allow to manipulate the key-value attribute strings of an xgboost model.
 #'
-#' @param object Object of class \code{xgb.Booster} or \code{xgb.Booster.handle}.
-#' @param name a non-empty character string specifying which attribute is to be accessed.
-#' @param value a value of an attribute for \code{xgb.attr<-}; for \code{xgb.attributes<-}
-#'        it's a list (or an object coercible to a list) with the names of attributes to set
+#' @param object Object of class `xgb.Booster` or `xgb.Booster.handle`.
+#' @param name A non-empty character string specifying which attribute is to be accessed.
+#' @param value For `xgb.attr<-`, a value of an attribute; for `xgb.attributes<-`,
+#'        it is a list (or an object coercible to a list) with the names of attributes to set
 #'        and the elements corresponding to attribute values.
 #'        Non-character values are converted to character.
-#'        When attribute value is not a scalar, only the first index is used.
-#'        Use \code{NULL} to remove an attribute.
+#'        When an attribute value is not a scalar, only the first index is used.
+#'        Use `NULL` to remove an attribute.
 #'
 #' @details
-#' The primary purpose of xgboost model attributes is to store some meta-data about the model.
+#' The primary purpose of xgboost model attributes is to store some meta data about the model.
 #' Note that they are a separate concept from the object attributes in R.
 #' Specifically, they refer to key-value strings that can be attached to an xgboost model,
 #' stored together with the model's binary representation, and accessed later
 #' (from R or any other interface).
-#' In contrast, any R-attribute assigned to an R-object of \code{xgb.Booster} class
-#' would not be saved by \code{xgb.save} because an xgboost model is an external memory object
+#' In contrast, any R attribute assigned to an R object of `xgb.Booster` class
+#' would not be saved by [xgb.save()] because an xgboost model is an external memory object
 #' and its serialization is handled externally.
 #' Also, setting an attribute that has the same name as one of xgboost's parameters wouldn't
 #' change the value of that parameter for a model.
-#' Use \code{\link{xgb.parameters<-}} to set or change model parameters.
+#' Use [xgb.parameters<-()] to set or change model parameters.
 #'
-#' The attribute setters would usually work more efficiently for \code{xgb.Booster.handle}
-#' than for \code{xgb.Booster}, since only just a handle (pointer) would need to be copied.
+#' The attribute setters would usually work more efficiently for `xgb.Booster.handle`
+#' than for `xgb.Booster`, since only just a handle (pointer) would need to be copied.
 #' That would only matter if attributes need to be set many times.
-#' Note, however, that when feeding a handle of an \code{xgb.Booster} object to the attribute setters,
-#' the raw model cache of an \code{xgb.Booster} object would not be automatically updated,
-#' and it would be user's responsibility to call \code{xgb.serialize} to update it.
+#' Note, however, that when feeding a handle of an `xgb.Booster` object to the attribute setters,
+#' the raw model cache of an `xgb.Booster` object would not be automatically updated,
+#' and it would be the user's responsibility to call [xgb.serialize()] to update it.
 #'
-#' The \code{xgb.attributes<-} setter either updates the existing or adds one or several attributes,
+#' The `xgb.attributes<-` setter either updates the existing or adds one or several attributes,
 #' but it doesn't delete the other existing attributes.
 #'
 #' @return
-#' \code{xgb.attr} returns either a string value of an attribute
-#' or \code{NULL} if an attribute wasn't stored in a model.
-#'
-#' \code{xgb.attributes} returns a list of all attribute stored in a model
-#' or \code{NULL} if a model has no stored attributes.
+#' - `xgb.attr()` returns either a string value of an attribute
+#'   or `NULL` if an attribute wasn't stored in a model.
+#' - `xgb.attributes()` returns a list of all attributes stored in a model
+#'   or `NULL` if a model has no stored attributes.
 #'
 #' @examples
-#' data(agaricus.train, package='xgboost')
+#' data(agaricus.train, package = "xgboost")
 #' train <- agaricus.train
 #'
-#' bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
-#'                eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
+#' bst <- xgboost(
+#'   data = train$data,
+#'   label = train$label,
+#'   max_depth = 2,
+#'   eta = 1,
+#'   nthread = 2,
+#'   nrounds = 2,
+#'   objective = "binary:logistic"
+#' )
 #'
 #' xgb.attr(bst, "my_attribute") <- "my attribute value"
 #' print(xgb.attr(bst, "my_attribute"))
 #' xgb.attributes(bst) <- list(a = 123, b = "abc")
 #'
-#' xgb.save(bst, 'xgb.model')
-#' bst1 <- xgb.load('xgb.model')
-#' if (file.exists('xgb.model')) file.remove('xgb.model')
+#' xgb.save(bst, "xgb.model")
+#' bst1 <- xgb.load("xgb.model")
+#' if (file.exists("xgb.model")) file.remove("xgb.model")
 #' print(xgb.attr(bst1, "my_attribute"))
 #' print(xgb.attributes(bst1))
 #'
@@ -720,22 +753,29 @@ xgb.attributes <- function(object) {
   object
 }
 
-#' Accessors for model parameters as JSON string.
+#' Accessors for model parameters as JSON string
 #'
-#' @param object Object of class \code{xgb.Booster}
+#' @param object Object of class `xgb.Booster`.
 #' @param value A JSON string.
 #'
 #' @examples
-#' data(agaricus.train, package='xgboost')
+#' data(agaricus.train, package = "xgboost")
+#'
 #' ## Keep the number of threads to 1 for examples
 #' nthread <- 1
 #' data.table::setDTthreads(nthread)
 #' train <- agaricus.train
 #'
 #' bst <- xgboost(
-#'   data = train$data, label = train$label, max_depth = 2,
-#'   eta = 1, nthread = nthread, nrounds = 2, objective = "binary:logistic"
+#'   data = train$data,
+#'   label = train$label,
+#'   max_depth = 2,
+#'   eta = 1,
+#'   nthread = nthread,
+#'   nrounds = 2,
+#'   objective = "binary:logistic"
 #' )
+#'
 #' config <- xgb.config(bst)
 #'
 #' @rdname xgb.config
@@ -755,24 +795,31 @@ xgb.config <- function(object) {
   object
 }
 
-#' Accessors for model parameters.
+#' Accessors for model parameters
 #'
 #' Only the setter for xgboost parameters is currently implemented.
 #'
-#' @param object Object of class \code{xgb.Booster} or \code{xgb.Booster.handle}.
-#' @param value a list (or an object coercible to a list) with the names of parameters to set
+#' @param object Object of class `xgb.Booster` or `xgb.Booster.handle`.
+#' @param value A list (or an object coercible to a list) with the names of parameters to set
 #'        and the elements corresponding to parameter values.
 #'
 #' @details
-#' Note that the setter would usually work more efficiently for \code{xgb.Booster.handle}
-#' than for \code{xgb.Booster}, since only just a handle would need to be copied.
+#' Note that the setter would usually work more efficiently for `xgb.Booster.handle`
+#' than for `xgb.Booster`, since only just a handle would need to be copied.
 #'
 #' @examples
-#' data(agaricus.train, package='xgboost')
+#' data(agaricus.train, package = "xgboost")
 #' train <- agaricus.train
 #'
-#' bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
-#'                eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
+#' bst <- xgboost(
+#'   data = train$data,
+#'   label = train$label,
+#'   max_depth = 2,
+#'   eta = 1,
+#'   nthread = 2,
+#'   nrounds = 2,
+#'   objective = "binary:logistic"
+#' )
 #'
 #' xgb.parameters(bst) <- list(eta = 0.1)
 #'
@@ -812,23 +859,31 @@ xgb.ntree <- function(bst) {
 
 #' Print xgb.Booster
 #'
-#' Print information about xgb.Booster.
+#' Print information about `xgb.Booster`.
 #'
-#' @param x an xgb.Booster object
-#' @param verbose whether to print detailed data (e.g., attribute values)
-#' @param ... not currently used
+#' @param x An `xgb.Booster` object.
+#' @param verbose Whether to print detailed data (e.g., attribute values).
+#' @param ... Not currently used.
 #'
 #' @examples
-#' data(agaricus.train, package='xgboost')
+#' data(agaricus.train, package = "xgboost")
 #' train <- agaricus.train
-#' bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
-#'                eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
-#' attr(bst, 'myattr') <- 'memo'
+#'
+#' bst <- xgboost(
+#'   data = train$data,
+#'   label = train$label,
+#'   max_depth = 2,
+#'   eta = 1,
+#'   nthread = 2,
+#'   nrounds = 2,
+#'   objective = "binary:logistic"
+#' )
+#'
+#' attr(bst, "myattr") <- "memo"
 #'
 #' print(bst)
-#' print(bst, verbose=TRUE)
+#' print(bst, verbose = TRUE)
 #'
-#' @method print xgb.Booster
 #' @export
 print.xgb.Booster <- function(x, verbose = FALSE, ...) {
   cat('##### xgb.Booster\n')

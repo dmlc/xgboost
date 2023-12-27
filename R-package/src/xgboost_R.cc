@@ -181,28 +181,49 @@ void AddMissingToJson(xgboost::Json *jconfig, SEXP missing, SEXPTYPE arr_type) {
 }
 }  // namespace
 
+struct RRNGStateController {
+  RRNGStateController() {
+    GetRNGstate();
+  }
+
+  ~RRNGStateController() {
+    PutRNGstate();
+  }
+};
+
 /*!
  * \brief macro to annotate begin of api
  */
 #define R_API_BEGIN()                           \
-  GetRNGstate();                                \
-  try {
+  try {                                         \
+    RRNGStateController rng_controller{};
+
+/* Note: an R error triggers a long jump, hence all C++ objects that
+allocated memory through non-R allocators, including the exception
+object, need to be destructed before triggering the R error.
+In order to preserve the error message, it gets copied to a temporary
+buffer, and the R error section is reached through a 'goto' statement
+that bypasses usual function control flow. */
+char cpp_ex_msg[512];
 /*!
  * \brief macro to annotate end of api
  */
 #define R_API_END()                             \
-  } catch(dmlc::Error& e) {                     \
-    PutRNGstate();                              \
-    error(e.what());                            \
+  } catch(std::exception &e) {                  \
+    std::strncpy(cpp_ex_msg, e.what(), 512);    \
+    goto throw_cpp_ex_as_R_err;                 \
   }                                             \
-  PutRNGstate();
+  if (false) {                                  \
+    throw_cpp_ex_as_R_err:                      \
+    Rf_error("%s", cpp_ex_msg);                 \
+  }
 
-/*!
- * \brief macro to check the call.
+/**
+ * @brief Macro for checking XGBoost return code.
  */
-#define CHECK_CALL(x)                           \
-  if ((x) != 0) {                               \
-    error(XGBGetLastError());                   \
+#define CHECK_CALL(__rc)               \
+  if ((__rc) != 0) {                   \
+    Rf_error("%s", XGBGetLastError()); \
   }
 
 using dmlc::BeginPtr;

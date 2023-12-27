@@ -126,6 +126,9 @@ xgb.cv <- function(params = list(), data, nrounds, nfold, label = NULL, missing 
                    early_stopping_rounds = NULL, maximize = NULL, callbacks = list(), ...) {
 
   check.deprecation(...)
+  if (inherits(data, "xgb.DMatrix") && .Call(XGCheckNullPtr_R, data)) {
+    stop("'data' is an invalid 'xgb.DMatrix' object. Must be constructed again.")
+  }
 
   params <- check.booster.params(params, ...)
   # TODO: should we deprecate the redundant 'metrics' parameter?
@@ -136,7 +139,7 @@ xgb.cv <- function(params = list(), data, nrounds, nfold, label = NULL, missing 
   check.custom.eval()
 
   # Check the labels
-  if ((inherits(data, 'xgb.DMatrix') && is.null(getinfo(data, 'label'))) ||
+  if ((inherits(data, 'xgb.DMatrix') && !xgb.DMatrix.hasinfo(data, 'label')) ||
       (!inherits(data, 'xgb.DMatrix') && is.null(label))) {
     stop("Labels must be provided for CV either through xgb.DMatrix, or through 'label=' when 'data' is matrix")
   } else if (inherits(data, 'xgb.DMatrix')) {

@@ -276,13 +276,7 @@ __model_doc = f"""
 
     enable_categorical : bool
 
-        .. versionadded:: 1.5.0
-
-        .. note:: This parameter is experimental
-
-        Experimental support for categorical data.  When enabled, cudf/pandas.DataFrame
-        should be used to specify categorical data type.  Also, JSON/UBJSON
-        serialization format is required.
+        See the same parameter of :py:class:`DMatrix` for details.
 
     feature_types : Optional[FeatureTypes]
 
@@ -1012,7 +1006,7 @@ class XGBModel(XGBModelBase):
         sample_weight :
             instance weights
         base_margin :
-            global bias for each instance.
+            Global bias for each instance. See :doc:`/tutorials/intercept` for details.
         eval_set :
             A list of (X, y) tuple pairs to use as validation sets, for which
             metrics will be computed.
@@ -1152,7 +1146,7 @@ class XGBModel(XGBModelBase):
             When this is True, validate that the Booster's and data's feature_names are
             identical.  Otherwise, it is assumed that the feature_names are the same.
         base_margin :
-            Margin added to prediction.
+            Global bias for each instance. See :doc:`/tutorials/intercept` for details.
         iteration_range :
             Specifies which layer of trees are used in prediction.  For example, if a
             random forest is trained with 100 rounds.  Specifying ``iteration_range=(10,
@@ -1605,7 +1599,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             When this is True, validate that the Booster's and data's feature_names are
             identical.  Otherwise, it is assumed that the feature_names are the same.
         base_margin :
-            Margin added to prediction.
+            Global bias for each instance. See :doc:`/tutorials/intercept` for details.
         iteration_range :
             Specifies which layer of trees are used in prediction.  For example, if a
             random forest is trained with 100 rounds.  Specifying `iteration_range=(10,
@@ -1948,7 +1942,7 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
                 weights to individual data points.
 
         base_margin :
-            Global bias for each instance.
+            Global bias for each instance. See :doc:`/tutorials/intercept` for details.
         eval_set :
             A list of (X, y) tuple pairs to use as validation sets, for which
             metrics will be computed.
