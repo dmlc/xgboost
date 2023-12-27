@@ -207,14 +207,14 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' @param reshape Whether to reshape the vector of predictions to matrix form when there are several
 #'        prediction outputs per case. No effect if `predleaf`, `predcontrib`,
 #'        or `predinteraction` is `TRUE`.
-#' @param training Whether is the prediction result used for training.  For dart booster,
+#' @param training Whether the prediction result is used for training. For dart booster,
 #'        training predicting will perform dropout.
 #' @param iterationrange Specifies which trees are used in prediction. For
 #'        example, take a random forest with 100 rounds.
 #'        With `iterationrange=c(1, 21)`, only the trees built during `[1, 21)` (half open set)
 #'        rounds are used in this prediction. The index is 1-based just like an R vector. When set
 #'        to `c(1, 1)`, XGBoost will use all trees.
-#' @param strict_shape  Default is `FALSE`. When set to `TRUE`, the output
+#' @param strict_shape Default is `FALSE`. When set to `TRUE`, the output
 #'        type and shape of predictions are invariant to the model type.
 #' @param base_margin Base margin used for boosting from existing model.
 #'

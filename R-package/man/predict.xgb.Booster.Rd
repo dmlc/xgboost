@@ -70,7 +70,7 @@ logistic regression would return log-odds instead of probabilities.}
 prediction outputs per case. No effect if \code{predleaf}, \code{predcontrib},
 or \code{predinteraction} is \code{TRUE}.}
 
-\item{training}{Whether is the prediction result used for training.  For dart booster,
+\item{training}{Whether the prediction result is used for training. For dart booster,
 training predicting will perform dropout.}
 
 \item{iterationrange}{Specifies which trees are used in prediction. For
