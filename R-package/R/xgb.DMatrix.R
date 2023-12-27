@@ -628,7 +628,7 @@ xgb.get.DMatrix.qcut <- function(dmat, output = c("list", "csc", "simple")) { # 
 #' @param dmat An `xgb.DMatrix` object, as returned by \link{xgb.DMatrix}.
 #' @return The number of non-missing entries in the DMatrix
 #' @export
-xgb.get.DMatrix.num.non.missing <- function(dmat) {
+xgb.get.DMatrix.num.non.missing <- function(dmat) { # nolint
   stopifnot(inherits(dmat, "xgb.DMatrix"))
   return(.Call(XGDMatrixNumNonMissing_R, dmat))
 }
