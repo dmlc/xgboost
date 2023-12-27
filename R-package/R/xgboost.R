@@ -98,7 +98,7 @@ NULL
 #' @importFrom data.table setnames
 #' @importFrom jsonlite fromJSON
 #' @importFrom jsonlite toJSON
-#' @importFrom methods as
+#' @importFrom methods new
 #' @importFrom utils object.size str tail
 #' @importFrom stats predict
 #' @importFrom stats median
