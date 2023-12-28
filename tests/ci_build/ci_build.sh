@@ -152,13 +152,13 @@ then
     echo "docker pull --quiet ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${DOCKER_TAG}"
     if time docker pull --quiet "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${DOCKER_TAG}"
     then
-      CACHE_FROM_CMD="--cache-from ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${DOCKER_TAG}"
+      CACHE_FROM_CMD="--cache-from ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${DOCKER_TAG} --build-arg BUILDKIT_INLINE_CACHE=1"
     else
       # If the build cache is empty of the particular branch or pull request,
       # use the build cache associated with the master branch
       echo "docker pull --quiet ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:master"
       docker pull --quiet "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:master" || true
-      CACHE_FROM_CMD="--cache-from ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:master"
+      CACHE_FROM_CMD="--cache-from ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:master --build-arg BUILDKIT_INLINE_CACHE=1"
     fi
 else
     CACHE_FROM_CMD=''
