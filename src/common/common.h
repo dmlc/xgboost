@@ -66,7 +66,19 @@ inline std::vector<std::string> Split(const std::string& s, char delim) {
   return ret;
 }
 
+/**
+ * @brief Add escapes for a UTF-8 string.
+ */
 void EscapeU8(std::string const &string, std::string *p_buffer);
+
+/**
+ * @brief Add escapes for a UTF-8 string with newly created buffer as return.
+ */
+inline std::string EscapeU8(std::string const &str) {
+  std::string buffer;
+  EscapeU8(str, &buffer);
+  return buffer;
+}
 
 template <typename T>
 XGBOOST_DEVICE T Max(T a, T b) {
