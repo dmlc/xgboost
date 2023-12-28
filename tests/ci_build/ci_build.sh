@@ -166,11 +166,13 @@ fi
 
 echo "docker build \
     ${CI_DOCKER_BUILD_ARG} \
+    --progress=plain \
     -t ${DOCKER_IMG_NAME} \
     -f ${DOCKERFILE_PATH} ${DOCKER_CONTEXT_PATH} \
     ${CACHE_FROM_CMD}"
 docker build \
     ${CI_DOCKER_BUILD_ARG} \
+    --progress=plain \
     -t "${DOCKER_IMG_NAME}" \
     -f "${DOCKERFILE_PATH}" "${DOCKER_CONTEXT_PATH}" \
     ${CACHE_FROM_CMD}
