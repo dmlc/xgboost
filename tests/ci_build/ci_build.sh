@@ -144,8 +144,8 @@ then
     DOCKER_CACHE_REPO="${DOCKER_CACHE_ECR_ID}.dkr.ecr.${DOCKER_CACHE_ECR_REGION}.amazonaws.com"
     echo "Using AWS ECR; repo URL = ${DOCKER_CACHE_REPO}"
     # Login for Docker registry
-    echo "\$(aws ecr get-login --no-include-email --region ${DOCKER_CACHE_ECR_REGION} --registry-ids ${DOCKER_CACHE_ECR_ID})"
-    $(aws ecr get-login --no-include-email --region ${DOCKER_CACHE_ECR_REGION} --registry-ids ${DOCKER_CACHE_ECR_ID})
+    echo "aws ecr get-login-password --region ${DOCKER_CACHE_ECR_REGION} | docker login --username AWS --password-stdin ${DOCKER_CACHE_REPO}"
+    aws ecr get-login-password --region ${DOCKER_CACHE_ECR_REGION} | docker login --username AWS --password-stdin ${DOCKER_CACHE_REPO}
     # Pull pre-build container from Docker build cache,
     # if one exists for the particular branch or pull request
     DOCKER_TAG="${BRANCH_NAME//\//-}"  # Slashes are not allow in Docker tag
