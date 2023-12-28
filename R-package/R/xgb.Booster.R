@@ -1,5 +1,8 @@
-# Construct an internal xgboost Booster.
+# Construct an internal xgboost Booster and get its current number of rounds.
 # internal utility function
+# Note: the number of rounds in the C booster gets reset to zero when updating
+# the parameters through 'xgb.parameters', hence the need to return it from
+# this function when using it for training continuation
 xgb.Booster <- function(params, cachelist, modelfile, training_continuation) {
   if (typeof(cachelist) != "list" ||
       !all(vapply(cachelist, inherits, logical(1), what = 'xgb.DMatrix'))) {
@@ -12,24 +15,28 @@ xgb.Booster <- function(params, cachelist, modelfile, training_continuation) {
       bst <- .Call(XGBoosterCreate_R, cachelist)
       modelfile <- path.expand(modelfile)
       .Call(XGBoosterLoadModel_R, xgb.get.handle(bst), enc2utf8(modelfile[1]))
+      niter <- xgb.nrounds(bst)
       if (length(params) > 0) {
         xgb.parameters(bst) <- params
       }
-      return(bst)
+      return(list(bst = bst, niter = niter))
     } else if (is.raw(modelfile)) {
       ## A memory buffer
       bst <- xgb.unserialize(modelfile)
+      niter <- xgb.nrounds(bst)
       xgb.parameters(bst) <- params
-      return(bst)
+      return(list(bst = bst, niter = niter))
     } else if (inherits(modelfile, "xgb.Booster")) {
       ## A booster object
       if (training_continuation == "copy") {
         bst <- .Call(XGDuplicate_R, modelfile)
+        niter <- xgb.nrounds(bst)
         xgb.parameters(bst) <- params
-        return(bst)
+        return(list(bst = bst, niter = niter))
       } else {
+        niter <- xgb.nrounds(modelfile)
         xgb.parameters(modelfile) <- params
-        return(modelfile)
+        return(list(bst = modelfile, niter = niter))
       }
     } else {
       stop("modelfile must be either character filename, or raw booster dump, or xgb.Booster object")
@@ -40,7 +47,7 @@ xgb.Booster <- function(params, cachelist, modelfile, training_continuation) {
   if (length(params) > 0) {
     xgb.parameters(bst) <- params
   }
-  return(bst)
+  return(list(bst = bst, niter = 0L))
 }
 
 # Check whether xgb.Booster handle is null

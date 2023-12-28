@@ -210,6 +210,7 @@ xgb.cv <- function(params = list(), data, nrounds, nfold, label = NULL, missing 
       modelfile = NULL,
       training_continuation = "copy" # <- not used
     )
+    bst <- bst$bst
     list(dtrain = dtrain, bst = bst, watchlist = list(train = dtrain, test = dtest), index = folds[[k]])
   })
   rm(dall)

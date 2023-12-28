@@ -50,6 +50,7 @@ xgb.load <- function(modelfile) {
     modelfile = modelfile,
     training_continuation = "copy"
   )
+  bst <- bst$bst
   # re-use modelfile if it is raw so we do not need to serialize
   if (typeof(modelfile) == "raw") {
     warning(

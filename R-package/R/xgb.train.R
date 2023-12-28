@@ -404,13 +404,6 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
     past_evaluation_log <- attributes(xgb_model)$evaluation_log
   }
 
-  niter_init <- 0
-  if (inherits(xgb_model, "xgb.Booster")) {
-    # Note: when assigning 'xgb.params', the number of rounds in the object
-    # gets reset to zero, hence this piece of code.
-    niter_init <- xgb.nrounds(xgb_model)
-  }
-
   # Construct a booster (either a new one or load from xgb_model)
   bst <- xgb.Booster(
     params = params,
@@ -418,6 +411,8 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
     modelfile = xgb_model,
     training_continuation = training_continuation
   )
+  niter_init <- bst$niter
+  bst <- bst$bst
 
   # extract parameters that can affect the relationship b/w #trees and #iterations
   # Note: it might look like these aren't used, but they need to be defined in this
@@ -425,14 +420,6 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   num_class <- max(as.numeric(NVL(params[['num_class']], 1)), 1)
   num_parallel_tree <- max(as.numeric(NVL(params[['num_parallel_tree']], 1)), 1)
 
-  # When the 'xgb_model' was set, find out how many boosting iterations it has
-  # TODO: improve this kind of logic by leveraging C-level attributes
-  if (!is.null(xgb_model) && !inherits(xgb_model, "xgb.Booster")) {
-    niter_init <- xgb.nrounds(bst)
-    if (length(niter_init) == 0) {
-      niter_init <- xgb.ntree(bst) %/% (num_parallel_tree * num_class)
-    }
-  }
   if (is_update && nrounds > niter_init)
     stop("nrounds cannot be larger than ", niter_init, " (nrounds of xgb_model)")
 
