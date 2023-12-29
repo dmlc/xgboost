@@ -215,6 +215,7 @@ class TestQuantileDMatrix:
 
     def test_ltr(self) -> None:
         import cupy as cp
+
         X, y, qid, w = tm.make_ltr(100, 3, 3, 5)
         # make sure GPU is used to run sketching.
         cpX = cp.array(X)
