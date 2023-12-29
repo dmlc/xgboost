@@ -2,14 +2,14 @@
 #
 # Execute command within a docker container
 #
-# Usage: ci_build.sh <CONTAINER_TYPE> <DOCKER_BINARY>
+# Usage: ci_build.sh <CONTAINER_TYPE> [--use-gpus]
 #                    [--dockerfile <DOCKERFILE_PATH>] [-it]
 #                    [--build-arg <BUILD_ARG>] <COMMAND>
 #
 # CONTAINER_TYPE: Type of the docker container used the run the build: e.g.,
 #                 (cpu | gpu)
 #
-# DOCKER_BINARY: Command to invoke docker, e.g. (docker | nvidia-docker).
+# --use-gpus: Whether to grant the container access to NVIDIA GPUs.
 #
 # DOCKERFILE_PATH: (Optional) Path to the Dockerfile used for docker build.  If
 #                  this optional value is not supplied (via the --dockerfile
@@ -29,9 +29,12 @@ shift 1
 DOCKERFILE_PATH="${SCRIPT_DIR}/Dockerfile.${CONTAINER_TYPE}"
 DOCKER_CONTEXT_PATH="${SCRIPT_DIR}"
 
-# Get docker binary command (should be either docker or nvidia-docker)
-DOCKER_BINARY="$1"
-shift 1
+GPU_FLAG=''
+if [[ "$1" == "--use-gpus" ]]; then
+    echo "Using NVIDIA GPUs"
+    GPU_FLAG='--gpus all'
+    shift 1
+fi
 
 if [[ "$1" == "--dockerfile" ]]; then
     DOCKERFILE_PATH="$2"
@@ -235,7 +238,8 @@ echo "Running '${COMMAND[*]}' inside ${DOCKER_IMG_NAME}..."
 # and share the PID namespace (--pid=host) so the process inside does not have
 # pid 1 and SIGKILL is propagated to the process inside (jenkins can kill it).
 set -x
-${DOCKER_BINARY} run --rm --pid=host \
+docker run --rm --pid=host \
+    ${GPU_FLAG} \
     -v "${WORKSPACE}":/workspace \
     -w /workspace \
     ${USER_IDS} \
