@@ -1,6 +1,9 @@
 from typing import Any, Dict
 
 from hypothesis import given, note, settings, strategies
+
+import xgboost as xgb
+from xgboost import testing as tm
 from xgboost.testing.params import (
     exact_parameter_strategy,
     hist_cache_strategy,
@@ -8,9 +11,6 @@ from xgboost.testing.params import (
     hist_parameter_strategy,
 )
 from xgboost.testing.updater import ResetStrategy, train_result
-
-import xgboost as xgb
-from xgboost import testing as tm
 
 
 class TestTreeMethodMulti:
