@@ -32,5 +32,5 @@ cp -v lib/xgboost.dll xgboost_rpack/src/
 echo 'all:' > xgboost_rpack/src/Makefile
 echo 'all:' > xgboost_rpack/src/Makefile.win
 mv xgboost_rpack/ xgboost/
-/c/Rtools/bin/tar -cvf xgboost_r_gpu_win64_${commit_hash}.tar xgboost/
-/c/Rtools/bin/gzip -9c xgboost_r_gpu_win64_${commit_hash}.tar > xgboost_r_gpu_win64_${commit_hash}.tar.gz
+/c/Rtools43/usr/bin/tar -cvf xgboost_r_gpu_win64_${commit_hash}.tar xgboost/
+/c/Rtools43/usr/bin/gzip -9c xgboost_r_gpu_win64_${commit_hash}.tar > xgboost_r_gpu_win64_${commit_hash}.tar.gz
