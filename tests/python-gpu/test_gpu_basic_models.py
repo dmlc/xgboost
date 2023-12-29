@@ -43,7 +43,7 @@ class TestGPUBasicModels:
         self.cpu_test_bm.run_custom_objective("gpu_hist")
 
     def test_eta_decay(self):
-        self.cpu_test_cb.run_eta_decay('gpu_hist')
+        self.cpu_test_cb.run_eta_decay("gpu_hist")
 
     @pytest.mark.parametrize(
         "objective", ["binary:logistic", "reg:absoluteerror", "reg:quantileerror"]
