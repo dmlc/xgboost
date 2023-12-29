@@ -12,7 +12,7 @@ phases:
             - |
               yum groupinstall -y "Development tools"
               yum install -y kernel-devel-$(uname -r)
-              dnf install kernel-modules-extra
+              dnf install -y kernel-modules-extra
               aws s3 cp --recursive s3://ec2-linux-nvidia-drivers/latest/ .
               chmod +x NVIDIA-Linux-x86_64*.run
               ./NVIDIA-Linux-x86_64*.run --silent

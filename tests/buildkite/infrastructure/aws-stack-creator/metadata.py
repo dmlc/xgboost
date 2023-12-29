@@ -1,10 +1,10 @@
 AMI_ID = {
     # Managed by XGBoost team
     "linux-amd64-gpu": {
-        "us-west-2": "ami-094271bed4788ddb5",
+        "us-west-2": "ami-08c3bc1dd5ec8bc5c",
     },
     "linux-amd64-mgpu": {
-        "us-west-2": "ami-094271bed4788ddb5",
+        "us-west-2": "ami-08c3bc1dd5ec8bc5c",
     },
     "windows-gpu": {
         "us-west-2": "ami-03c7f2156f93b22a7",
