@@ -8,7 +8,7 @@ echo "--- Build CPU code targeting ARM64"
 
 source tests/buildkite/conftest.sh
 
-command_wrapper="tests/ci_build/ci_build.sh aarch64 docker"
+command_wrapper="tests/ci_build/ci_build.sh aarch64"
 
 echo "--- Build libxgboost from the source"
 $command_wrapper tests/ci_build/build_via_cmake.sh --conda-env=aarch64_test \
