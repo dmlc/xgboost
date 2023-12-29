@@ -22,6 +22,7 @@ case "${container}" in
 
   gpu)
     BUILD_ARGS="$BUILD_ARGS --build-arg CUDA_VERSION_ARG=$CUDA_VERSION"
+    BUILD_ARGS="$BUILD_ARGS --build-arg NCCL_VERSION_ARG=$NCCL_VERSION"
     BUILD_ARGS="$BUILD_ARGS --build-arg RAPIDS_VERSION_ARG=$RAPIDS_VERSION"
     ;;
 
