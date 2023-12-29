@@ -8,6 +8,7 @@ import pytest
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.testing.updater import ResetStrategy
 
 dpath = tm.data_dir(__file__)
 
@@ -652,11 +653,6 @@ class TestModels:
         Xy = xgb.DMatrix(data=X, label=y)
         num_parallel_tree = 4
         num_boost_round = 16
-
-        class ResetStrategy(xgb.callback.TrainingCallback):
-            def after_iteration(self, model, epoch: int, evals_log) -> bool:
-                model.set_param({"multi_strategy": "multi_output_tree"})
-                return False
 
         booster = xgb.train(
             {

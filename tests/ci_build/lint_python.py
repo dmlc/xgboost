@@ -22,6 +22,7 @@ class LintersPaths:
         "tests/python/test_dmatrix.py",
         "tests/python/test_dt.py",
         "tests/python/test_demos.py",
+        "tests/python/test_multi_target.py",
         "tests/python/test_predict.py",
         "tests/python/test_quantile_dmatrix.py",
         "tests/python/test_tree_regularization.py",
