@@ -43,4 +43,4 @@ case "${container}" in
 esac
 
 # Run a no-op command. This will simply build the container and push it to the private registry
-tests/ci_build/ci_build.sh ${container} docker ${BUILD_ARGS} bash
+tests/ci_build/ci_build.sh ${container} ${BUILD_ARGS} bash
