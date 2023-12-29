@@ -85,6 +85,7 @@ class LintersPaths:
         "tests/python/test_dt.py",
         "tests/python/test_demos.py",
         "tests/python/test_data_iterator.py",
+        "tests/python/test_multi_target.py",
         "tests/python-gpu/test_gpu_data_iterator.py",
         "tests/python-gpu/load_pickle.py",
         "tests/test_distributed/test_with_spark/test_data.py",
