@@ -601,7 +601,7 @@ void XGBAltrepSetPointer(SEXP R_altrepped_obj, BoosterHandle handle) {
   R_RegisterCFinalizerEx(R_ptr, _BoosterFinalizer, TRUE);
 }
 
-char *ubj_json_format_str = "{\"format\": \"ubj\"}";
+const char *ubj_json_format_str = "{\"format\": \"ubj\"}";
 
 SEXP XGBAltrepSerializer_R(SEXP R_altrepped_obj) {
   R_API_BEGIN();
