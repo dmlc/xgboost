@@ -95,13 +95,13 @@ xgb.plot.multi.trees <- function(model, feature_names = NULL, features_keep = 5,
     data.table::set(tree.matrix, j = nm, value = sub("^\\d+-", "", tree.matrix[[nm]]))
 
   nodes.dt <- tree.matrix[
-        , .(Quality = sum(Quality))
+        , .(Gain = sum(Gain))
         , by = .(abs.node.position, Feature)
       ][, .(Text = paste0(
               paste0(
                 Feature[seq_len(min(length(Feature), features_keep))],
                 " (",
-                format(Quality[seq_len(min(length(Quality), features_keep))], digits = 5),
+                format(Gain[seq_len(min(length(Gain), features_keep))], digits = 5),
                 ")"
               ),
               collapse = "\n"
