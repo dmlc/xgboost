@@ -7,16 +7,14 @@
 \title{Get a new DMatrix containing the specified rows of
 original xgb.DMatrix object}
 \usage{
-slice(object, ...)
+slice(object, idxset)
 
-\method{slice}{xgb.DMatrix}(object, idxset, ...)
+\method{slice}{xgb.DMatrix}(object, idxset)
 
 \method{[}{xgb.DMatrix}(object, idxset, colset = NULL)
 }
 \arguments{
 \item{object}{Object of class "xgb.DMatrix"}
-
-\item{...}{other parameters (currently not used)}
 
 \item{idxset}{a integer vector of indices of rows needed}
 
