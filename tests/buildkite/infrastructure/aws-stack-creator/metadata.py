@@ -1,34 +1,34 @@
 AMI_ID = {
     # Managed by XGBoost team
     "linux-amd64-gpu": {
-        "us-west-2": "ami-094271bed4788ddb5",
+        "us-west-2": "ami-08c3bc1dd5ec8bc5c",
     },
     "linux-amd64-mgpu": {
-        "us-west-2": "ami-094271bed4788ddb5",
+        "us-west-2": "ami-08c3bc1dd5ec8bc5c",
     },
     "windows-gpu": {
-        "us-west-2": "ami-0839681594a1d7627",
+        "us-west-2": "ami-03c7f2156f93b22a7",
     },
     "windows-cpu": {
-        "us-west-2": "ami-0839681594a1d7627",
+        "us-west-2": "ami-03c7f2156f93b22a7",
     },
     # Managed by BuildKite
     # from https://s3.amazonaws.com/buildkite-aws-stack/latest/aws-stack.yml
     "linux-amd64-cpu": {
-        "us-west-2": "ami-00f2127550cf03658",
+        "us-west-2": "ami-015e64acb52b3e595",
     },
     "pipeline-loader": {
-        "us-west-2": "ami-00f2127550cf03658",
+        "us-west-2": "ami-015e64acb52b3e595",
     },
     "linux-arm64-cpu": {
-        "us-west-2": "ami-0c5789068f4a2d1b5",
+        "us-west-2": "ami-0884e9c23a2fa98d0",
     },
 }
 
 STACK_PARAMS = {
     "linux-amd64-gpu": {
         "InstanceOperatingSystem": "linux",
-        "InstanceType": "g4dn.xlarge",
+        "InstanceTypes": "g4dn.xlarge",
         "AgentsPerInstance": "1",
         "MinSize": "0",
         "MaxSize": "8",
@@ -38,7 +38,7 @@ STACK_PARAMS = {
     },
     "linux-amd64-mgpu": {
         "InstanceOperatingSystem": "linux",
-        "InstanceType": "g4dn.12xlarge",
+        "InstanceTypes": "g4dn.12xlarge",
         "AgentsPerInstance": "1",
         "MinSize": "0",
         "MaxSize": "1",
@@ -48,7 +48,7 @@ STACK_PARAMS = {
     },
     "windows-gpu": {
         "InstanceOperatingSystem": "windows",
-        "InstanceType": "g4dn.2xlarge",
+        "InstanceTypes": "g4dn.2xlarge",
         "AgentsPerInstance": "1",
         "MinSize": "0",
         "MaxSize": "2",
@@ -58,7 +58,7 @@ STACK_PARAMS = {
     },
     "windows-cpu": {
         "InstanceOperatingSystem": "windows",
-        "InstanceType": "c5a.2xlarge",
+        "InstanceTypes": "c5a.2xlarge",
         "AgentsPerInstance": "1",
         "MinSize": "0",
         "MaxSize": "2",
@@ -68,7 +68,7 @@ STACK_PARAMS = {
     },
     "linux-amd64-cpu": {
         "InstanceOperatingSystem": "linux",
-        "InstanceType": "c5a.4xlarge",
+        "InstanceTypes": "c5a.4xlarge",
         "AgentsPerInstance": "1",
         "MinSize": "0",
         "MaxSize": "16",
@@ -78,7 +78,7 @@ STACK_PARAMS = {
     },
     "pipeline-loader": {
         "InstanceOperatingSystem": "linux",
-        "InstanceType": "t3a.micro",
+        "InstanceTypes": "t3a.micro",
         "AgentsPerInstance": "1",
         "MinSize": "2",
         "MaxSize": "2",
@@ -88,7 +88,7 @@ STACK_PARAMS = {
     },
     "linux-arm64-cpu": {
         "InstanceOperatingSystem": "linux",
-        "InstanceType": "c6g.4xlarge",
+        "InstanceTypes": "c6g.4xlarge",
         "AgentsPerInstance": "1",
         "MinSize": "0",
         "MaxSize": "8",
