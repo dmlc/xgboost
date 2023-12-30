@@ -603,8 +603,8 @@ xgb.config <- function(object) {
 #'
 #' See \link{xgb.copy.Booster} for an example of this behavior.
 #'
-#' Be aware that setting the parameters of a fitted booster will reset its number of rounds
-#' indicator to zero.
+#' Be aware that setting parameters of a fitted booster related to training continuation / updates
+#' will reset its number of rounds indicator to zero.
 #' @param object Object of class `xgb.Booster`. \bold{Will be modified in-place}.
 #' @param value A list (or an object coercible to a list) with the names of parameters to set
 #'        and the elements corresponding to parameter values.
@@ -690,7 +690,8 @@ setinfo.xgb.Booster <- function(object, name, info, ...) {
 #' @title Get number of boosting in a fitted booster
 #' @param model A fitted `xgb.Booster` model.
 #' @return The number of rounds saved in the model, as an integer.
-#' @details Note that setting the booster parameters will reset the
+#' @details Note that setting booster parameters related to training
+#' continuation / updates through \link{xgb.params<-} will reset the
 #' number of rounds to zero.
 #' @export
 xgb.get.Booster.nrounds <- function(model) {

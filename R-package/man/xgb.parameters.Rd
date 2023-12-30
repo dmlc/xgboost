@@ -26,8 +26,8 @@ attributes which follow copy-on-write semantics.
 
 See \link{xgb.copy.Booster} for an example of this behavior.
 
-Be aware that setting the parameters of a fitted booster will reset its number of rounds
-indicator to zero.
+Be aware that setting parameters of a fitted booster related to training continuation / updates
+will reset its number of rounds indicator to zero.
 }
 \examples{
 data(agaricus.train, package = "xgboost")

@@ -16,6 +16,7 @@ The number of rounds saved in the model, as an integer.
 Get number of boosting in a fitted booster
 }
 \details{
-Note that setting the booster parameters will reset the
+Note that setting booster parameters related to training
+continuation / updates through \link{xgb.params<-} will reset the
 number of rounds to zero.
 }
