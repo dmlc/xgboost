@@ -691,7 +691,7 @@ setinfo.xgb.Booster <- function(object, name, info, ...) {
 #' @param model A fitted `xgb.Booster` model.
 #' @return The number of rounds saved in the model, as an integer.
 #' @details Note that setting booster parameters related to training
-#' continuation / updates through \link{xgb.params<-} will reset the
+#' continuation / updates through \link{xgb.parameters<-} will reset the
 #' number of rounds to zero.
 #' @export
 xgb.get.Booster.nrounds <- function(model) {
