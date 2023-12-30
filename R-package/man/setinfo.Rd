@@ -15,8 +15,6 @@ setinfo(object, name, info)
 \item{name}{the name of the field to get}
 
 \item{info}{the specific field of information to set}
-
-\item{...}{Not used.}
 }
 \description{
 Set information of an xgb.DMatrix object

@@ -420,7 +420,6 @@ getinfo.xgb.DMatrix <- function(object, name) {
 #' @param object Object of class "xgb.DMatrix"
 #' @param name the name of the field to get
 #' @param info the specific field of information to set
-#' @param ... Not used.
 #'
 #' @details
 #' See the documentation for \link{xgb.DMatrix} for possible fields that can be set
