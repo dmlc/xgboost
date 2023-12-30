@@ -13,7 +13,10 @@
 #'        When this option is on, the model dump contains two additional values:
 #'        gain is the approximate loss function gain we get in each split;
 #'        cover is the sum of second order gradient in each node.
-#' @param dump_format either 'text' or 'json' format could be specified.
+#' @param dump_format either 'text', 'json', or 'dot' (graphviz) format could be specified.
+#'
+#' Format 'dot' for a single tree can be passed directly to packages that consume this format
+#' for graph visualization, such as function [DiagrammeR::grViz()]
 #' @param ... currently not used
 #'
 #' @return
@@ -37,9 +40,13 @@
 #' # print in JSON format:
 #' cat(xgb.dump(bst, with_stats = TRUE, dump_format='json'))
 #'
+#' # plot first tree leveraging the 'dot' format
+#' if (requireNamespace('DiagrammeR', quietly = TRUE)) {
+#'   DiagrammeR::grViz(xgb.dump(bst, dump_format = "dot")[[1L]])
+#' }
 #' @export
 xgb.dump <- function(model, fname = NULL, fmap = "", with_stats = FALSE,
-                     dump_format = c("text", "json"), ...) {
+                     dump_format = c("text", "json", "dot"), ...) {
   check.deprecation(...)
   dump_format <- match.arg(dump_format)
   if (!inherits(model, "xgb.Booster"))
@@ -52,6 +59,9 @@ xgb.dump <- function(model, fname = NULL, fmap = "", with_stats = FALSE,
   model <- xgb.Booster.complete(model)
   model_dump <- .Call(XGBoosterDumpModel_R, model$handle, NVL(fmap, "")[1], as.integer(with_stats),
                       as.character(dump_format))
+  if (dump_format == "dot") {
+    return(sapply(model_dump, function(x) gsub("^booster\\[\\d+\\]\\n", "\\1", x)))
+  }
 
   if (is.null(fname))
     model_dump <- gsub('\t', '', model_dump, fixed = TRUE)
