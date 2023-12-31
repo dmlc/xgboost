@@ -579,8 +579,7 @@ xgb.get.DMatrix.qcut <- function(dmat, output = c("list", "arrays")) { # nolint
   res <- .Call(XGDMatrixGetQuantileCut_R, dmat)
   if (output == "arrays") {
     return(res)
-  }
-  else {
+  } else {
     feature_names <- getinfo(dmat, "feature_name")
     ncols <- length(res$indptr) - 1
     out <- lapply(
