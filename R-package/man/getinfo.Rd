@@ -9,9 +9,9 @@
 \alias{setinfo.xgb.DMatrix}
 \title{Get or set information of xgb.DMatrix and xgb.Booster objects}
 \usage{
-\method{getinfo}{xgb.Booster}(object, name, ...)
+\method{getinfo}{xgb.Booster}(object, name)
 
-\method{setinfo}{xgb.Booster}(object, name, info, ...)
+\method{setinfo}{xgb.Booster}(object, name, info)
 
 getinfo(object, name)
 

@@ -447,7 +447,6 @@ getinfo.xgb.DMatrix <- function(object, name) {
 #' setinfo(dtrain, 'label', 1-labels)
 #' labels2 <- getinfo(dtrain, 'label')
 #' stopifnot(all.equal(labels2, 1-labels))
-#' @rdname setinfo
 #' @export
 setinfo <- function(object, name, info) UseMethod("setinfo")
 
