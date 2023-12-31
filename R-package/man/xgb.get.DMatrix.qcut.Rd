@@ -4,7 +4,7 @@
 \alias{xgb.get.DMatrix.qcut}
 \title{Get Quantile Cuts from DMatrix}
 \usage{
-xgb.get.DMatrix.qcut(dmat, output = c("list", "csc", "simple"))
+xgb.get.DMatrix.qcut(dmat, output = c("list", "arrays"))
 }
 \arguments{
 \item{dmat}{An \code{xgb.DMatrix} object, as returned by \link{xgb.DMatrix}.}
@@ -13,11 +13,7 @@ xgb.get.DMatrix.qcut(dmat, output = c("list", "csc", "simple"))
 \item \code{"list"} will return the output as a list with one entry per column, where
 each column will have a numeric vector with the cuts. The list will be named if
 \code{dmat} has column names assigned to it.
-\item \code{"csc"} will return the output as a sparse CSC matrix (class \code{dgCMatrix} from
-package \code{Matrix}). Note that different columns might have different numbers of bins,
-so they will be padded with zeros at thee nd (missing entries in the sparse object)
-in order to accommodate the column with the largest number of bins.
-\item \code{"simple"} will return a list with entries \code{indptr} (base-0 indexing) and
+\item \code{"arrays"} will return a list with entries \code{indptr} (base-0 indexing) and
 \code{data}. Here, the cuts for column 'i' are obtained by slicing 'data' from entries
 \code{indptr[i]+1} to \code{indptr[i+1]}.
 }}

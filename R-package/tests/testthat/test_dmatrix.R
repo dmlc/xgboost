@@ -410,14 +410,13 @@ test_that("xgb.DMatrix: quantile cuts look correct", {
     ),
     nrounds = 3
   )
-  qcut_csc <- xgb.get.DMatrix.qcut(dm, "csc")
   qcut_list <- xgb.get.DMatrix.qcut(dm, "list")
-  qcut_simple <- xgb.get.DMatrix.qcut(dm, "simple")
+  qcut_arrays <- xgb.get.DMatrix.qcut(dm, "arrays")
 
-  expect_equal(length(qcut_simple), 2)
-  expect_equal(names(qcut_simple), c("indptr", "data"))
-  expect_equal(length(qcut_simple$indptr), ncol(x) + 1)
-  expect_true(min(diff(qcut_simple$indptr)) > 0)
+  expect_equal(length(qcut_arrays), 2)
+  expect_equal(names(qcut_arrays), c("indptr", "data"))
+  expect_equal(length(qcut_arrays$indptr), ncol(x) + 1)
+  expect_true(min(diff(qcut_arrays$indptr)) > 0)
 
   col_min <- apply(x, 2, min)
   col_max <- apply(x, 2, max)
@@ -432,28 +431,6 @@ test_that("xgb.DMatrix: quantile cuts look correct", {
       expect_true(col_min[col] > cuts[1])
       expect_true(col_max[col] < cuts[length(cuts)])
       expect_true(length(cuts) <= 9)
-    }
-  )
-
-  expect_equal(ncol(qcut_csc), ncol(x))
-  expect_true(nrow(qcut_csc) <= 9)
-  expect_equal(
-    length(qcut_csc@x),
-    sum(lengths(qcut_list))
-  )
-  lapply(
-    seq(1, ncol(x)),
-    function(col) {
-      this_col <- as.numeric(qcut_csc[, col, drop = TRUE])
-      idx_zeros <- which(this_col == 0)
-      idx_nonzeros <- which(this_col != 0)
-      if (length(idx_zeros)) {
-        expect_true(min(idx_zeros) > max(idx_nonzeros))
-      }
-      expect_equal(
-        this_col[idx_nonzeros],
-        qcut_list[[col]]
-      )
     }
   )
 })

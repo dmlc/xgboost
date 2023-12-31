@@ -546,11 +546,7 @@ setinfo.xgb.DMatrix <- function(object, name, info, ...) {
 #' \item `"list"` will return the output as a list with one entry per column, where
 #' each column will have a numeric vector with the cuts. The list will be named if
 #' `dmat` has column names assigned to it.
-#' \item `"csc"` will return the output as a sparse CSC matrix (class `dgCMatrix` from
-#' package `Matrix`). Note that different columns might have different numbers of bins,
-#' so they will be padded with zeros at thee nd (missing entries in the sparse object)
-#' in order to accommodate the column with the largest number of bins.
-#' \item `"simple"` will return a list with entries `indptr` (base-0 indexing) and
+#' \item `"arrays"` will return a list with entries `indptr` (base-0 indexing) and
 #' `data`. Here, the cuts for column 'i' are obtained by slicing 'data' from entries
 #' `indptr[i]+1` to `indptr[i+1]`.
 #' }
@@ -576,35 +572,16 @@ setinfo.xgb.DMatrix <- function(object, name, info, ...) {
 #' # Now can get the quantile cuts
 #' xgb.get.DMatrix.qcut(dm)
 #' @export
-xgb.get.DMatrix.qcut <- function(dmat, output = c("list", "csc", "simple")) { # nolint
+xgb.get.DMatrix.qcut <- function(dmat, output = c("list", "arrays")) { # nolint
   stopifnot(inherits(dmat, "xgb.DMatrix"))
   output <- head(output, 1L)
-  stopifnot(output %in% c("list", "csc", "simple"))
+  stopifnot(output %in% c("list", "arrays"))
   res <- .Call(XGDMatrixGetQuantileCut_R, dmat)
-  if (output == "simple") {
+  if (output == "arrays") {
     return(res)
   }
-  feature_names <- getinfo(dmat, "feature_name")
-  if (output == "csc") {
-    if (max(res$indptr) > .Machine$integer.max) {
-      stop("Resulting quantile cuts are too large. Cannot return them as CSC.")
-    }
-    res$indptr <- as.integer(res$indptr)
-    nrows <- diff(res$indptr)
-    indices <- unlist(lapply(nrows, function(x) seq(0, x - 1)))
-    out <- methods::new("dgCMatrix")
-    out@p <- res$indptr
-    out@i <- as.integer(indices)
-    out@x <- res$data
-    out@Dim <- c(max(nrows), length(nrows))
-    dim_names <- list(NULL, NULL)
-    if (NROW(feature_names)) {
-      dim_names[[2L]] <- feature_names
-    }
-    out@Dimnames <- dim_names
-    return(out)
-  }
-  if (output == "list") {
+  else {
+    feature_names <- getinfo(dmat, "feature_name")
     ncols <- length(res$indptr) - 1
     out <- lapply(
       seq(1, ncols),
