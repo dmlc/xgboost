@@ -57,7 +57,7 @@ test_that("cb.print.evaluation works as expected", {
   expect_output(f5(), "\\[round: 7\\]\ttrain-auc:0.900000\ttest-auc:0.800000")
 
   bst_evaluation_err  <- c('train-auc' = 0.1, 'test-auc' = 0.2)
-  expect_output(f1(), "\\[round: 7\\]\ttrain-auc:0.900000\\±0.100000\ttest-auc:0.800000\\±0.200000")
+  expect_output(f1(), "\\[round: 7\\]\ttrain-auc:0.900000±0.100000\ttest-auc:0.800000±0.200000")
 })
 
 test_that("cb.evaluation.log works as expected", {
