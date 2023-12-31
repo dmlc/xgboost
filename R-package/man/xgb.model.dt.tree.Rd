@@ -46,7 +46,7 @@ for a leaf node, it simply labels it as \code{"Leaf"}.
 \item \code{Yes}: ID of the next node when the split condition is met.
 \item \code{No}: ID of the next node when the split condition is not met.
 \item \code{Missing}: ID of the next node when the branch value is missing.
-\item \code{Quality}: either the split gain (change in loss) or the leaf value.
+\item \code{Gain}: either the split gain (change in loss) or the leaf value.
 \item \code{Cover}: metric related to the number of observations either seen by a split
 or collected by a leaf during training.
 }

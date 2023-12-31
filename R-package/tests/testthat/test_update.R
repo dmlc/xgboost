@@ -53,9 +53,9 @@ test_that("updating the model works", {
   # should be the same evaluation but different gains and larger cover
   expect_equal(bst2$evaluation_log, bst2r$evaluation_log)
   if (!win32_flag) {
-    expect_equal(tr2[Feature == 'Leaf']$Quality, tr2r[Feature == 'Leaf']$Quality)
+    expect_equal(tr2[Feature == 'Leaf']$Gain, tr2r[Feature == 'Leaf']$Gain)
   }
-  expect_gt(sum(abs(tr2[Feature != 'Leaf']$Quality - tr2r[Feature != 'Leaf']$Quality)), 100)
+  expect_gt(sum(abs(tr2[Feature != 'Leaf']$Gain - tr2r[Feature != 'Leaf']$Gain)), 100)
   expect_gt(sum(tr2r$Cover) / sum(tr2$Cover), 1.5)
 
   # process type 'update' for no-subsampling model, refreshing the tree stats AND leaves from training data:
@@ -72,8 +72,8 @@ test_that("updating the model works", {
   tr2u <- xgb.model.dt.tree(model = bst2u)
   # should be the same evaluation but different gains and larger cover
   expect_equal(bst2$evaluation_log, bst2u$evaluation_log)
-  expect_equal(tr2[Feature == 'Leaf']$Quality, tr2u[Feature == 'Leaf']$Quality)
-  expect_gt(sum(abs(tr2[Feature != 'Leaf']$Quality - tr2u[Feature != 'Leaf']$Quality)), 100)
+  expect_equal(tr2[Feature == 'Leaf']$Gain, tr2u[Feature == 'Leaf']$Gain)
+  expect_gt(sum(abs(tr2[Feature != 'Leaf']$Gain - tr2u[Feature != 'Leaf']$Gain)), 100)
   expect_gt(sum(tr2u$Cover) / sum(tr2$Cover), 1.5)
   # the results should be the same as for the model with an extra 'refresh' updater
   expect_equal(bst2r$evaluation_log, bst2u$evaluation_log)
@@ -87,8 +87,8 @@ test_that("updating the model works", {
   tr1ut <- xgb.model.dt.tree(model = bst1ut)
   # should be the same evaluations but different gains and smaller cover (test data is smaller)
   expect_equal(bst1$evaluation_log, bst1ut$evaluation_log)
-  expect_equal(tr1[Feature == 'Leaf']$Quality, tr1ut[Feature == 'Leaf']$Quality)
-  expect_gt(sum(abs(tr1[Feature != 'Leaf']$Quality - tr1ut[Feature != 'Leaf']$Quality)), 100)
+  expect_equal(tr1[Feature == 'Leaf']$Gain, tr1ut[Feature == 'Leaf']$Gain)
+  expect_gt(sum(abs(tr1[Feature != 'Leaf']$Gain - tr1ut[Feature != 'Leaf']$Gain)), 100)
   expect_lt(sum(tr1ut$Cover) / sum(tr1$Cover), 0.5)
 })
 
@@ -111,7 +111,7 @@ test_that("updating works for multiclass & multitree", {
 
   # should be the same evaluation but different gains and larger cover
   expect_equal(bst0$evaluation_log, bst0u$evaluation_log)
-  expect_equal(tr0[Feature == 'Leaf']$Quality, tr0u[Feature == 'Leaf']$Quality)
-  expect_gt(sum(abs(tr0[Feature != 'Leaf']$Quality - tr0u[Feature != 'Leaf']$Quality)), 100)
+  expect_equal(tr0[Feature == 'Leaf']$Gain, tr0u[Feature == 'Leaf']$Gain)
+  expect_gt(sum(abs(tr0[Feature != 'Leaf']$Gain - tr0u[Feature != 'Leaf']$Gain)), 100)
   expect_gt(sum(tr0u$Cover) / sum(tr0$Cover), 1.5)
 })

@@ -275,7 +275,7 @@ test_that("xgb.Booster serializing as R object works", {
 
 test_that("xgb.model.dt.tree works with and without feature names", {
   .skip_if_vcd_not_available()
-  names.dt.trees <- c("Tree", "Node", "ID", "Feature", "Split", "Yes", "No", "Missing", "Quality", "Cover")
+  names.dt.trees <- c("Tree", "Node", "ID", "Feature", "Split", "Yes", "No", "Missing", "Gain", "Cover")
   dt.tree <- xgb.model.dt.tree(feature_names = feature.names, model = bst.Tree)
   expect_equal(names.dt.trees, names(dt.tree))
   if (!flag_32bit)
@@ -341,7 +341,7 @@ test_that("xgb.importance works with and without feature names", {
       trees = trees
     )[
       Feature != "Leaf", .(
-        Gain = sum(Quality),
+        Gain = sum(Gain),
         Cover = sum(Cover),
         Frequency = .N
       ),

@@ -5,14 +5,12 @@
 \alias{getinfo.xgb.DMatrix}
 \title{Get information of an xgb.DMatrix object}
 \usage{
-getinfo(object, ...)
+getinfo(object, name)
 
-\method{getinfo}{xgb.DMatrix}(object, name, ...)
+\method{getinfo}{xgb.DMatrix}(object, name)
 }
 \arguments{
 \item{object}{Object of class \code{xgb.DMatrix}}
-
-\item{...}{other parameters}
 
 \item{name}{the name of the information field to get (see details)}
 }

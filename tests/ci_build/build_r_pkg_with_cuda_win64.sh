@@ -18,7 +18,7 @@ mv xgboost/ xgboost_rpack/
 
 mkdir build
 cd build
-cmake .. -G"Visual Studio 17 2022" -A x64 -DUSE_CUDA=ON -DR_LIB=ON -DLIBR_HOME="c:\\Program Files\\R\\R-3.6.3"
+cmake .. -G"Visual Studio 17 2022" -A x64 -DUSE_CUDA=ON -DR_LIB=ON -DLIBR_HOME="c:\\Program Files\\R\\R-4.3.2" -DCMAKE_PREFIX_PATH="C:\\rtools43\\x86_64-w64-mingw32.static.posix\\bin"
 cmake --build . --config Release --parallel
 cd ..
 
@@ -32,5 +32,5 @@ cp -v lib/xgboost.dll xgboost_rpack/src/
 echo 'all:' > xgboost_rpack/src/Makefile
 echo 'all:' > xgboost_rpack/src/Makefile.win
 mv xgboost_rpack/ xgboost/
-/c/Rtools/bin/tar -cvf xgboost_r_gpu_win64_${commit_hash}.tar xgboost/
-/c/Rtools/bin/gzip -9c xgboost_r_gpu_win64_${commit_hash}.tar > xgboost_r_gpu_win64_${commit_hash}.tar.gz
+/c/Rtools43/usr/bin/tar -cvf xgboost_r_gpu_win64_${commit_hash}.tar xgboost/
+/c/Rtools43/usr/bin/gzip -9c xgboost_r_gpu_win64_${commit_hash}.tar > xgboost_r_gpu_win64_${commit_hash}.tar.gz

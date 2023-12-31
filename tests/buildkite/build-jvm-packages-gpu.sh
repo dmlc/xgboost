@@ -13,7 +13,7 @@ else
   arch_flag=""
 fi
 
-tests/ci_build/ci_build.sh jvm_gpu_build nvidia-docker \
+tests/ci_build/ci_build.sh jvm_gpu_build --use-gpus \
   --build-arg CUDA_VERSION_ARG=${CUDA_VERSION} \
   --build-arg NCCL_VERSION_ARG=${NCCL_VERSION} \
   tests/ci_build/build_jvm_packages.sh \

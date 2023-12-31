@@ -5,13 +5,13 @@ set -euo pipefail
 source tests/buildkite/conftest.sh
 
 echo "--- Build XGBoost JVM packages scala 2.12"
-tests/ci_build/ci_build.sh jvm docker tests/ci_build/build_jvm_packages.sh \
+tests/ci_build/ci_build.sh jvm tests/ci_build/build_jvm_packages.sh \
   ${SPARK_VERSION}
 
 
 echo "--- Build XGBoost JVM packages scala 2.13"
 
-tests/ci_build/ci_build.sh jvm docker tests/ci_build/build_jvm_packages.sh \
+tests/ci_build/ci_build.sh jvm tests/ci_build/build_jvm_packages.sh \
   ${SPARK_VERSION} "" "" "true"
 
 echo "--- Stash XGBoost4J JARs"
