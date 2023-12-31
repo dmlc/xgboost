@@ -265,14 +265,14 @@ test_that("early stopping works with titanic", {
   dtx <- model.matrix(~ 0 + ., data = titanic[, c("Pclass", "Sex")])
   dty <- titanic$Survived
 
-  xgboost::xgboost(
-    data = dtx,
-    label = dty,
+  xgboost::xgb.train(
+    data = xgb.DMatrix(dtx, label = dty),
     objective = "binary:logistic",
     eval_metric = "auc",
     nrounds = 100,
     early_stopping_rounds = 3,
-    nthread = n_threads
+    nthread = n_threads,
+    watchlist = list(train = xgb.DMatrix(dtx, label = dty))
   )
 
   expect_true(TRUE)  # should not crash

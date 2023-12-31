@@ -52,9 +52,8 @@ labels <- c(1, 1, 1,
 
 data <- data.frame(dates = dates, labels = labels)
 
-bst <- xgboost(
-  data = as.matrix(data$dates),
-  label = labels,
+bst <- xgb.train(
+  data = xgb.DMatrix(as.matrix(data$dates), label = labels),
   nthread = 2,
   nrounds = 1,
   objective = "binary:logistic",
