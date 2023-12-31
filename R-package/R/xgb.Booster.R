@@ -650,7 +650,7 @@ xgb.config <- function(object) {
 
 #' @rdname getinfo
 #' @export
-getinfo.xgb.Booster <- function(object, name, ...) {
+getinfo.xgb.Booster <- function(object, name) {
   name <- as.character(head(name, 1L))
   allowed_fields <- c("feature_name", "feature_type")
   if (!(name %in% allowed_fields)) {
@@ -670,7 +670,7 @@ getinfo.xgb.Booster <- function(object, name, ...) {
 
 #' @rdname getinfo
 #' @export
-setinfo.xgb.Booster <- function(object, name, info, ...) {
+setinfo.xgb.Booster <- function(object, name, info) {
   name <- as.character(head(name, 1L))
   allowed_fields <- c("feature_name", "feature_type")
   if (!(name %in% allowed_fields)) {
