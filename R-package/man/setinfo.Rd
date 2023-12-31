@@ -5,14 +5,12 @@
 \alias{setinfo.xgb.DMatrix}
 \title{Set information of an xgb.DMatrix object}
 \usage{
-setinfo(object, ...)
+setinfo(object, name, info)
 
-\method{setinfo}{xgb.DMatrix}(object, name, info, ...)
+\method{setinfo}{xgb.DMatrix}(object, name, info)
 }
 \arguments{
 \item{object}{Object of class "xgb.DMatrix"}
-
-\item{...}{Not used.}
 
 \item{name}{the name of the field to get}
 
