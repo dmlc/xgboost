@@ -132,7 +132,7 @@ xgb.plot.tree <- function(feature_names = NULL, model = NULL, trees = NULL, plot
 
   dt <- xgb.model.dt.tree(feature_names = feature_names, model = model, trees = trees)
 
-  dt[, label := paste0(Feature, "\nCover: ", Cover, ifelse(Feature == "Leaf", "\nValue: ", "\nGain: "), Quality)]
+  dt[, label := paste0(Feature, "\nCover: ", Cover, ifelse(Feature == "Leaf", "\nValue: ", "\nGain: "), Gain)]
   if (show_node_id)
     dt[, label := paste0(ID, ": ", label)]
   dt[Node == 0, label := paste0("Tree ", Tree, "\n", label)]
@@ -199,4 +199,4 @@ xgb.plot.tree <- function(feature_names = NULL, model = NULL, trees = NULL, plot
 # Avoid error messages during CRAN check.
 # The reason is that these variables are never declared
 # They are mainly column names inferred by Data.table...
-globalVariables(c("Feature", "ID", "Cover", "Quality", "Split", "Yes", "No", "Missing", ".", "shape", "filledcolor", "label"))
+globalVariables(c("Feature", "ID", "Cover", "Gain", "Split", "Yes", "No", "Missing", ".", "shape", "filledcolor", "label"))
