@@ -30,7 +30,7 @@
 #' - `Yes`: ID of the next node when the split condition is met.
 #' - `No`: ID of the next node when the split condition is not met.
 #' - `Missing`: ID of the next node when the branch value is missing.
-#' - `Quality`: either the split gain (change in loss) or the leaf value.
+#' - `Gain`: either the split gain (change in loss) or the leaf value.
 #' - `Cover`: metric related to the number of observations either seen by a split
 #'            or collected by a leaf during training.
 #'
@@ -151,7 +151,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
   if (text_has_feature_names && is.null(model) && !is.null(feature_names)) {
     stop("'text' contains feature names. Cannot override them.")
   }
-  branch_cols <- c("Feature", "Split", "Yes", "No", "Missing", "Quality", "Cover")
+  branch_cols <- c("Feature", "Split", "Yes", "No", "Missing", "Gain", "Cover")
   td[
     isLeaf == FALSE,
     (branch_cols) := {
@@ -161,7 +161,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
       xtr[, 3:5] <- add.tree.id(xtr[, 3:5], Tree)
       if (length(xtr) == 0) {
         as.data.table(
-          list(Feature = "NA", Split = "NA", Yes = "NA", No = "NA", Missing = "NA", Quality = "NA", Cover = "NA")
+          list(Feature = "NA", Split = "NA", Yes = "NA", No = "NA", Missing = "NA", Gain = "NA", Cover = "NA")
         )
       } else {
         as.data.table(xtr)
@@ -183,7 +183,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
 
   # parse leaf lines
   leaf_rx <- paste0("leaf=(", anynumber_regex, "),cover=(", anynumber_regex, ")")
-  leaf_cols <- c("Feature", "Quality", "Cover")
+  leaf_cols <- c("Feature", "Gain", "Cover")
   td[
     isLeaf == TRUE,
     (leaf_cols) := {
@@ -198,7 +198,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
   ]
 
   # convert some columns to numeric
-  numeric_cols <- c("Split", "Quality", "Cover")
+  numeric_cols <- c("Split", "Gain", "Cover")
   td[, (numeric_cols) := lapply(.SD, as.numeric), .SDcols = numeric_cols]
   if (use_int_id) {
     int_cols <- c("Yes", "No", "Missing")

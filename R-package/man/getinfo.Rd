@@ -13,20 +13,18 @@
 
 \method{setinfo}{xgb.Booster}(object, name, info, ...)
 
-getinfo(object, ...)
+getinfo(object, name)
 
-\method{getinfo}{xgb.DMatrix}(object, name, ...)
+\method{getinfo}{xgb.DMatrix}(object, name)
 
-setinfo(object, ...)
+setinfo(object, name, info)
 
-\method{setinfo}{xgb.DMatrix}(object, name, info, ...)
+\method{setinfo}{xgb.DMatrix}(object, name, info)
 }
 \arguments{
 \item{object}{Object of class \code{xgb.DMatrix} of \code{xgb.Booster}.}
 
 \item{name}{the name of the information field to get (see details)}
-
-\item{...}{Not used.}
 
 \item{info}{the specific field of information to set}
 }
@@ -69,6 +67,17 @@ Be aware that, when a booster object is serialized to disk through functions lik
 \link{xgb.save}, information that was set on it will be lost, but such information
 would be kept as part of the serialization when using to-bytes serializers like
 \link{xgb.save.raw}, and when using R serializers like \link{saveRDS}.
+
+See the documentation for \link{xgb.DMatrix} for possible fields that can be set
+(which correspond to arguments in that function).
+
+Note that the following fields are allowed in the construction of an \code{xgb.DMatrix}
+but \bold{aren't} allowed here:\itemize{
+\item data
+\item missing
+\item silent
+\item nthread
+}
 }
 \examples{
 data(agaricus.train, package='xgboost')
@@ -79,4 +88,11 @@ setinfo(dtrain, 'label', 1-labels)
 
 labels2 <- getinfo(dtrain, 'label')
 stopifnot(all(labels2 == 1-labels))
+data(agaricus.train, package='xgboost')
+dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
+
+labels <- getinfo(dtrain, 'label')
+setinfo(dtrain, 'label', 1-labels)
+labels2 <- getinfo(dtrain, 'label')
+stopifnot(all.equal(labels2, 1-labels))
 }

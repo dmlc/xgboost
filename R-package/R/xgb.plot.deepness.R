@@ -92,7 +92,7 @@ xgb.plot.deepness <- function(model = NULL, which = c("2x1", "max.depth", "med.d
     stop("Model tree columns are not as expected!\n",
          "  Note that this function works only for tree models.")
 
-  dt_depths <- merge(get.leaf.depth(dt_tree), dt_tree[, .(ID, Cover, Weight = Quality)], by = "ID")
+  dt_depths <- merge(get.leaf.depth(dt_tree), dt_tree[, .(ID, Cover, Weight = Gain)], by = "ID")
   setkeyv(dt_depths, c("Tree", "ID"))
   # count by depth levels, and also calculate average cover at a depth
   dt_summaries <- dt_depths[, .(.N, Cover = mean(Cover)), Depth]
@@ -157,6 +157,6 @@ get.leaf.depth <- function(dt_tree) {
 # They are mainly column names inferred by Data.table...
 globalVariables(
   c(
-    ".N", "N", "Depth", "Quality", "Cover", "Tree", "ID", "Yes", "No", "Feature", "Leaf", "Weight"
+    ".N", "N", "Depth", "Gain", "Cover", "Tree", "ID", "Yes", "No", "Feature", "Leaf", "Weight"
   )
 )
