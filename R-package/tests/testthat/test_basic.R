@@ -674,4 +674,3 @@ test_that("Can use ranking objectives with either 'qid' or 'group'", {
   pred_gr <- predict(model_gr, x)
   expect_equal(pred_qid, pred_gr)
 })
-
