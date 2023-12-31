@@ -766,11 +766,12 @@ xgb.gblinear.history <- function(model, class_index = NULL) {
   enames <- names(eval_res)
   if (is.null(enames))
     stop('evaluation results must have names')
-  iter <- sprintf('[%d]\t', iter)
+  iter <- sprintf('[round: %d]\t', iter)
   if (!is.null(eval_err)) {
     if (length(eval_res) != length(eval_err))
       stop('eval_res & eval_err lengths mismatch')
-    res <- paste0(sprintf("%s:%f+%f", enames, eval_res, eval_err), collapse = '\t')
+    # Note: UTF-8 code for plus/minus sign is U+00B1
+    res <- paste0(sprintf("%s:%f\U00B1%f", enames, eval_res, eval_err), collapse = '\t')
   } else {
     res <- paste0(sprintf("%s:%f", enames, eval_res), collapse = '\t')
   }

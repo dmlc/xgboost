@@ -244,8 +244,9 @@ xgb.cv <- function(params = list(), data, nrounds, nfold, label = NULL, missing 
       )
     })
     msg <- simplify2array(msg)
-    bst_evaluation <- rowMeans(msg)
-    bst_evaluation_err <- sqrt(rowMeans(msg^2) - bst_evaluation^2) # nolint
+    # Note: these variables might look unused here, but they are used in the callbacks
+    bst_evaluation <- rowMeans(msg) # nolint
+    bst_evaluation_err <- apply(msg, 1, sd) # nolint
 
     for (f in cb$post_iter) f()
 
