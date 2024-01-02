@@ -1,10 +1,13 @@
 import json
 import os
 import pickle
+import tempfile
 
 import numpy as np
+import pytest
 
 import xgboost as xgb
+from xgboost import testing as tm
 
 kRows = 100
 kCols = 10
@@ -61,3 +64,27 @@ class TestPickling:
         params = {"nthread": 8, "tree_method": "exact", "subsample": 0.5}
         config = self.run_model_pickling(params)
         check(config)
+
+    @pytest.mark.skipif(**tm.no_sklearn())
+    def test_with_sklearn_obj_metric(self) -> None:
+        from sklearn.metrics import mean_squared_error
+
+        X, y = tm.datasets.make_regression()
+        reg = xgb.XGBRegressor(objective=tm.ls_obj, eval_metric=mean_squared_error)
+        reg.fit(X, y)
+
+        pkl = pickle.dumps(reg)
+        reg_1 = pickle.loads(pkl)
+        assert callable(reg_1.objective)
+        assert callable(reg_1.eval_metric)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "model.json")
+            reg.save_model(path)
+
+            reg_2 = xgb.XGBRegressor()
+            reg_2.load_model(path)
+
+        assert not callable(reg_2.objective)
+        assert not callable(reg_2.eval_metric)
+        assert reg_2.eval_metric is None
