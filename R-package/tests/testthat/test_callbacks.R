@@ -44,20 +44,20 @@ test_that("cb.print.evaluation works as expected", {
 
   iteration <- 1
   expect_silent(f0())
-  expect_output(f1(), "\\[round: 1\\]\ttrain-auc:0.900000\ttest-auc:0.800000")
-  expect_output(f5(), "\\[round: 1\\]\ttrain-auc:0.900000\ttest-auc:0.800000")
+  expect_output(f1(), "\\[1\\]\ttrain-auc:0.900000\ttest-auc:0.800000")
+  expect_output(f5(), "\\[1\\]\ttrain-auc:0.900000\ttest-auc:0.800000")
   expect_null(f1())
 
   iteration <- 2
-  expect_output(f1(), "\\[round: 2\\]\ttrain-auc:0.900000\ttest-auc:0.800000")
+  expect_output(f1(), "\\[2\\]\ttrain-auc:0.900000\ttest-auc:0.800000")
   expect_silent(f5())
 
   iteration <- 7
-  expect_output(f1(), "\\[round: 7\\]\ttrain-auc:0.900000\ttest-auc:0.800000")
-  expect_output(f5(), "\\[round: 7\\]\ttrain-auc:0.900000\ttest-auc:0.800000")
+  expect_output(f1(), "\\[7\\]\ttrain-auc:0.900000\ttest-auc:0.800000")
+  expect_output(f5(), "\\[7\\]\ttrain-auc:0.900000\ttest-auc:0.800000")
 
   bst_evaluation_err  <- c('train-auc' = 0.1, 'test-auc' = 0.2)
-  expect_output(f1(), "\\[round: 7\\]\ttrain-auc:0.900000±0.100000\ttest-auc:0.800000±0.200000")
+  expect_output(f1(), "\\[7\\]\ttrain-auc:0.900000±0.100000\ttest-auc:0.800000±0.200000")
 })
 
 test_that("cb.evaluation.log works as expected", {

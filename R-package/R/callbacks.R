@@ -766,7 +766,7 @@ xgb.gblinear.history <- function(model, class_index = NULL) {
   enames <- names(eval_res)
   if (is.null(enames))
     stop('evaluation results must have names')
-  iter <- sprintf('[round: %d]\t', iter)
+  iter <- sprintf('[%d]\t', iter)
   if (!is.null(eval_err)) {
     if (length(eval_res) != length(eval_err))
       stop('eval_res & eval_err lengths mismatch')
