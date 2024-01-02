@@ -7,7 +7,7 @@
 
 namespace xgboost {
 #if !defined(XGBOOST_USE_CUDA)
-inline void ArrayInterfaceHandler::SyncCudaStream(int64_t) { common::AssertGPUSupport(); }
-inline bool ArrayInterfaceHandler::IsCudaPtr(void const *) { return false; }
+void ArrayInterfaceHandler::SyncCudaStream(int64_t) { common::AssertGPUSupport(); }
+bool ArrayInterfaceHandler::IsCudaPtr(void const *) { return false; }
 #endif  // !defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost
