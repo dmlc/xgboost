@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2023 by XGBoost Contributors
+ * Copyright 2014-2024, XGBoost Contributors
  */
 #include <dmlc/common.h>
 #include <dmlc/omp.h>
@@ -22,14 +22,15 @@
 #include "../../src/c_api/c_api_error.h"
 #include "../../src/c_api/c_api_utils.h"  // MakeSparseFromPtr
 #include "../../src/common/threading_utils.h"
+#include "../../src/common/linalg_op.h"      // for cbegin
+#include "../../src/data/array_interface.h"  // for ArrayInterface
 
 #include "./xgboost_R.h"  // Must follow other includes.
 
 namespace {
-
 struct ErrorWithUnwind : public std::exception {};
 
-void ThrowExceptionFromRError(void *unused, Rboolean jump) {
+void ThrowExceptionFromRError(void *, Rboolean jump) {
   if (jump) {
     throw ErrorWithUnwind();
   }
@@ -163,108 +164,35 @@ SEXP SafeAllocInteger(size_t size, SEXP continuation_token) {
   return Json::Dump(jconfig);
 }
 
-template <class SourceDType, class DestDType>
-void XGCopyTypedArray(const void *src, void *dest, size_t len, size_t stride) {
-  const SourceDType *src_typed = static_cast<const SourceDType*>(src);
-  DestDType *dest_typed = static_cast<DestDType*>(dest);
-  if (stride == 1) {
-    std::copy(src_typed, src_typed + len, dest_typed);
-  } else {
-    for (size_t idx = 0; idx < len; idx++) {
-      dest_typed[idx] = static_cast<DestDType>(src_typed[idx*stride]);
-    }
-  }
-}
+// Allocate a R vector and copy an array interface encoded object to it.
+[[nodiscard]] SEXP CopyArrayToR(const char *array_str, SEXP ctoken) {
+  xgboost::ArrayInterface<1> array{xgboost::StringView{array_str}};
+  // R supports only int and double.
+  bool is_int =
+      xgboost::DispatchDType(array.type, [](auto t) { return std::is_integral_v<decltype(t)>; });
+  bool is_float = xgboost::DispatchDType(
+      array.type, [](auto v) { return std::is_floating_point_v<decltype(v)>; });
+  CHECK(is_int || is_float) << "Internal error: Invalid DType.";
+  // Allocate memory in R
+  SEXP out =
+      Rf_protect(is_int ? SafeAllocInteger(array.n, ctoken) : SafeAllocReal(array.n, ctoken));
+  CHECK(array.is_contiguous) << "Return by XGBoost should be contiguous";
 
-template <class SourceDType, class DestDType>
-SEXP XGCopyToRArray(const void *src, size_t len, size_t stride, SEXP continuation_token) {
-  if constexpr (!std::is_same<DestDType, double>::value && !std::is_same<DestDType, int>::value) {
-    LOG(FATAL) << "Internal error: attempting to create R array of unsupported type.";
-  }
-  const bool is_int = std::is_same<DestDType, int>::value;
-  SEXP out = Rf_protect(
-    is_int? SafeAllocInteger(len, continuation_token) : SafeAllocReal(len, continuation_token));
-  void *ptr_out = is_int? static_cast<void*>(INTEGER(out)) : static_cast<void*>(REAL(out));
-  XGCopyTypedArray<SourceDType, DestDType>(src, ptr_out, len, stride);
+  xgboost::DispatchDType(array.type, [&](auto t) {
+    using T = decltype(t);
+    auto in_ptr = static_cast<T const *>(array.data);
+    if (is_int) {
+      auto out_ptr = INTEGER(out);
+      std::copy_n(in_ptr, array.n, out_ptr);
+    } else {
+      auto out_ptr = REAL(out);
+      std::copy_n(in_ptr, array.n, out_ptr);
+    }
+  });
+
   Rf_unprotect(1);
   return out;
 }
-
-SEXP XGArrayStrToROneDimensional(const char *array_str, SEXP ctoken) {
-  xgboost::StringView json_str(array_str);
-  xgboost::Json json_obj = xgboost::Json::Load(json_str);
-
-  if (xgboost::get<xgboost::Array>(json_obj["shape"]).size() > 1) {
-    LOG(FATAL) << "Internal error: got array interface with more than one dimension.";
-  }
-
-  auto type_str = xgboost::get<xgboost::String>(json_obj["typestr"]);
-  const char *dtype_codes = type_str.c_str() + 1;
-
-#if DMLC_LITTLE_ENDIAN == 1
-  if (type_str.c_str()[0] == '>') {
-#else
-  if (type_str.c_str()[0] == '<') {
-#endif
-    LOG(FATAL) << "Internal error: got array interface with incorrect bit endianness.";
-  }
-
-  auto strides = xgboost::get<xgboost::JsonArray>(json_obj["strides"]);
-  size_t stride = 1;
-  if (!strides.empty()) {
-    double dtype_size = std::stoi(dtype_codes + 1);
-    double sep_size = xgboost::get<xgboost::Integer>(strides[0]);
-    if (dtype_size != sep_size) {
-      double stride_ = sep_size / dtype_size;
-      if (stride_ != std::floor(stride_)) {
-        LOG(FATAL) << "Internal error: got array interface with incorrect strides.";
-      }
-      stride = static_cast<size_t>(sep_size / dtype_size);
-    }
-  }
-
-  auto ptr_int = xgboost::get<xgboost::Integer>(json_obj["data"][0]);
-  const void *ptr = reinterpret_cast<const void*>(ptr_int);
-  auto len = xgboost::get<xgboost::Integer>(json_obj["shape"][0]);
-
-  switch (dtype_codes[0]) {
-    case 'f': {
-      switch (dtype_codes[1]) {
-        case '4': return XGCopyToRArray<float, double>(ptr, len, stride, ctoken);
-        case '8': return XGCopyToRArray<double, double>(ptr, len, stride, ctoken);
-        default: goto parsing_error;
-      }
-    }
-
-    case 'i': {
-      switch (dtype_codes[1]) {
-        case '1': return XGCopyToRArray<std::int8_t, int>(ptr, len, stride, ctoken);
-        case '2': return XGCopyToRArray<std::int16_t, int>(ptr, len, stride, ctoken);
-        case '4': return XGCopyToRArray<std::int32_t, int>(ptr, len, stride, ctoken);
-        case '8': return XGCopyToRArray<std::int64_t, double>(ptr, len, stride, ctoken);
-        default: goto parsing_error;
-      }
-    }
-
-    case 'u': {
-      switch (dtype_codes[1]) {
-        case '1': return XGCopyToRArray<std::uint8_t, int>(ptr, len, stride, ctoken);
-        case '2': return XGCopyToRArray<std::uint16_t, int>(ptr, len, stride, ctoken);
-        case '4': return XGCopyToRArray<std::uint32_t, double>(ptr, len, stride, ctoken);
-        case '8': return XGCopyToRArray<std::uint64_t, double>(ptr, len, stride, ctoken);
-        default: goto parsing_error;
-      }
-    }
-
-    default: {
-      parsing_error:
-      LOG(FATAL) << "Internal error: got invalid array interface";
-    }
-  }
-  LOG(FATAL) << "Internal error: did not return from function";
-  return R_NilValue;
-}
-
 }  // namespace
 
 struct RRNGStateController {
@@ -670,7 +598,7 @@ XGB_DLL SEXP XGDMatrixNumCol_R(SEXP handle) {
 }
 
 XGB_DLL SEXP XGDMatrixGetQuantileCut_R(SEXP handle) {
-  const char *out_names[] = {"indptr", "data", ""};
+  const char *out_names[] = {"indptr", "data"};
   SEXP continuation_token = Rf_protect(R_MakeUnwindCont());
   SEXP out = Rf_protect(Rf_mkNamed(VECSXP, out_names));
   R_API_BEGIN();
@@ -678,10 +606,8 @@ XGB_DLL SEXP XGDMatrixGetQuantileCut_R(SEXP handle) {
   const char *out_data;
   CHECK_CALL(XGDMatrixGetQuantileCut(R_ExternalPtrAddr(handle), "{}", &out_indptr, &out_data));
   try {
-    SET_VECTOR_ELT(out, 0,
-                   XGArrayStrToROneDimensional(out_indptr, continuation_token));
-    SET_VECTOR_ELT(out, 1,
-                   XGArrayStrToROneDimensional(out_data, continuation_token));
+    SET_VECTOR_ELT(out, 0, CopyArrayToR(out_indptr, continuation_token));
+    SET_VECTOR_ELT(out, 1, CopyArrayToR(out_data, continuation_token));
   } catch (ErrorWithUnwind &e) {
     R_ContinueUnwind(continuation_token);
   }
