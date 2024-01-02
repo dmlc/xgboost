@@ -597,7 +597,7 @@ XGB_DLL SEXP XGDMatrixNumCol_R(SEXP handle) {
 }
 
 XGB_DLL SEXP XGDMatrixGetQuantileCut_R(SEXP handle) {
-  const char *out_names[] = {"indptr", "data"};
+  const char *out_names[] = {"indptr", "data", ""};
   SEXP continuation_token = Rf_protect(R_MakeUnwindCont());
   SEXP out = Rf_protect(Rf_mkNamed(VECSXP, out_names));
   R_API_BEGIN();
