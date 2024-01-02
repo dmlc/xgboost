@@ -383,8 +383,9 @@ NULL
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
-#' bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_depth = 2,
-#'                eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
+#' bst <- xgb.train(data = xgb.DMatrix(agaricus.train$data, label = agaricus.train$label),
+#'                  max_depth = 2, eta = 1, nthread = 2, nrounds = 2,
+#'                  objective = "binary:logistic")
 #'
 #' # Save as a stand-alone file; load it with xgb.load()
 #' xgb.save(bst, 'xgb.model')

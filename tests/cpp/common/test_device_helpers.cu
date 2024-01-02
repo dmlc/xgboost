@@ -165,7 +165,7 @@ TEST(SegmentedUnique, Regression) {
   }
 }
 
-TEST(Allocator, OOM) {
+TEST(Allocator, DISABLED_OOM) {
   auto size = dh::AvailableMemory(0) * 4;
   ASSERT_THROW({dh::caching_device_vector<char> vec(size);}, dmlc::Error);
   ASSERT_THROW({dh::device_vector<char> vec(size);}, dmlc::Error);

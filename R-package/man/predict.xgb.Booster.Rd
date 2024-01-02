@@ -160,9 +160,8 @@ data.table::setDTthreads(nthread)
 train <- agaricus.train
 test <- agaricus.test
 
-bst <- xgboost(
-  data = train$data,
-  label = train$label,
+bst <- xgb.train(
+  data = xgb.DMatrix(train$data, label = train$label),
   max_depth = 2,
   eta = 0.5,
   nthread = nthread,
@@ -204,9 +203,8 @@ num_class <- 3
 
 set.seed(11)
 
-bst <- xgboost(
-  data = as.matrix(iris[, -5]),
-  label = lb,
+bst <- xgb.train(
+  data = xgb.DMatrix(as.matrix(iris[, -5]), label = lb),
   max_depth = 4,
   eta = 0.5,
   nthread = 2,
@@ -229,9 +227,8 @@ sum(pred_labels != lb) / length(lb)
 # compare with predictions from softmax:
 set.seed(11)
 
-bst <- xgboost(
-  data = as.matrix(iris[, -5]),
-  label = lb,
+bst <- xgb.train(
+  data = xgb.DMatrix(as.matrix(iris[, -5]), label = lb),
   max_depth = 4,
   eta = 0.5,
   nthread = 2,

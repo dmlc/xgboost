@@ -340,7 +340,6 @@ dimnames.xgb.DMatrix <- function(x) {
 #' Get information of an xgb.DMatrix object
 #' @param object Object of class \code{xgb.DMatrix}
 #' @param name the name of the information field to get (see details)
-#' @param ... other parameters
 #'
 #' @details
 #' The \code{name} field can be one of the following:
@@ -372,11 +371,11 @@ dimnames.xgb.DMatrix <- function(x) {
 #' stopifnot(all(labels2 == 1-labels))
 #' @rdname getinfo
 #' @export
-getinfo <- function(object, ...) UseMethod("getinfo")
+getinfo <- function(object, name) UseMethod("getinfo")
 
 #' @rdname getinfo
 #' @export
-getinfo.xgb.DMatrix <- function(object, name, ...) {
+getinfo.xgb.DMatrix <- function(object, name) {
   allowed_int_fields <- 'group'
   allowed_float_fields <- c(
     'label', 'weight', 'base_margin',
@@ -421,7 +420,6 @@ getinfo.xgb.DMatrix <- function(object, name, ...) {
 #' @param object Object of class "xgb.DMatrix"
 #' @param name the name of the field to get
 #' @param info the specific field of information to set
-#' @param ... Not used.
 #'
 #' @details
 #' See the documentation for \link{xgb.DMatrix} for possible fields that can be set
@@ -445,17 +443,17 @@ getinfo.xgb.DMatrix <- function(object, name, ...) {
 #' stopifnot(all.equal(labels2, 1-labels))
 #' @rdname setinfo
 #' @export
-setinfo <- function(object, ...) UseMethod("setinfo")
+setinfo <- function(object, name, info) UseMethod("setinfo")
 
 #' @rdname setinfo
 #' @export
-setinfo.xgb.DMatrix <- function(object, name, info, ...) {
-  .internal.setinfo.xgb.DMatrix(object, name, info, ...)
+setinfo.xgb.DMatrix <- function(object, name, info) {
+  .internal.setinfo.xgb.DMatrix(object, name, info)
   attr(object, "fields")[[name]] <- TRUE
   return(TRUE)
 }
 
-.internal.setinfo.xgb.DMatrix <- function(object, name, info, ...) {
+.internal.setinfo.xgb.DMatrix <- function(object, name, info) {
   if (name == "label") {
     if (NROW(info) != nrow(object))
       stop("The length of labels must equal to the number of rows in the input data")
@@ -538,7 +536,6 @@ setinfo.xgb.DMatrix <- function(object, name, info, ...) {
 #' @param object Object of class "xgb.DMatrix"
 #' @param idxset a integer vector of indices of rows needed
 #' @param colset currently not used (columns subsetting is not available)
-#' @param ... other parameters (currently not used)
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
@@ -552,11 +549,11 @@ setinfo.xgb.DMatrix <- function(object, name, info, ...) {
 #'
 #' @rdname slice.xgb.DMatrix
 #' @export
-slice <- function(object, ...) UseMethod("slice")
+slice <- function(object, idxset) UseMethod("slice")
 
 #' @rdname slice.xgb.DMatrix
 #' @export
-slice.xgb.DMatrix <- function(object, idxset, ...) {
+slice.xgb.DMatrix <- function(object, idxset) {
   if (!inherits(object, "xgb.DMatrix")) {
     stop("object must be xgb.DMatrix")
   }

@@ -4,8 +4,8 @@ set.seed(1994)
 
 test_that("Poisson regression works", {
   data(mtcars)
-  bst <- xgboost(
-    data = as.matrix(mtcars[, -11]), label = mtcars[, 11],
+  bst <- xgb.train(
+    data = xgb.DMatrix(as.matrix(mtcars[, -11]), label = mtcars[, 11]),
     objective = 'count:poisson', nrounds = 10, verbose = 0, nthread = 2
   )
   expect_equal(class(bst), "xgb.Booster")

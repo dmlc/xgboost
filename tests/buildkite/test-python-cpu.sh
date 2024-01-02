@@ -13,4 +13,4 @@ chmod +x ./xgboost
 
 export BUILDKITE_ANALYTICS_TOKEN=$(get_aws_secret buildkite/test_analytics/cpu)
 set_buildkite_env_vars_in_container
-tests/ci_build/ci_build.sh cpu docker tests/ci_build/test_python.sh cpu
+tests/ci_build/ci_build.sh cpu tests/ci_build/test_python.sh cpu

@@ -251,9 +251,9 @@
 #' watchlist <- list(train = dtrain, eval = dtest)
 #'
 #' ## A simple xgb.train example:
-#' param <- list(max_depth = 2, eta = 1, verbose = 0, nthread = nthread,
+#' param <- list(max_depth = 2, eta = 1, nthread = nthread,
 #'               objective = "binary:logistic", eval_metric = "auc")
-#' bst <- xgb.train(param, dtrain, nrounds = 2, watchlist)
+#' bst <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0)
 #'
 #' ## An xgb.train example where custom objective and evaluation metric are
 #' ## used:
@@ -272,13 +272,13 @@
 #'
 #' # These functions could be used by passing them either:
 #' #  as 'objective' and 'eval_metric' parameters in the params list:
-#' param <- list(max_depth = 2, eta = 1, verbose = 0, nthread = nthread,
+#' param <- list(max_depth = 2, eta = 1, nthread = nthread,
 #'               objective = logregobj, eval_metric = evalerror)
-#' bst <- xgb.train(param, dtrain, nrounds = 2, watchlist)
+#' bst <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0)
 #'
 #' #  or through the ... arguments:
-#' param <- list(max_depth = 2, eta = 1, verbose = 0, nthread = nthread)
-#' bst <- xgb.train(param, dtrain, nrounds = 2, watchlist,
+#' param <- list(max_depth = 2, eta = 1, nthread = nthread)
+#' bst <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0,
 #'                  objective = logregobj, eval_metric = evalerror)
 #'
 #' #  or as dedicated 'obj' and 'feval' parameters of xgb.train:
@@ -287,10 +287,10 @@
 #'
 #'
 #' ## An xgb.train example of using variable learning rates at each iteration:
-#' param <- list(max_depth = 2, eta = 1, verbose = 0, nthread = nthread,
+#' param <- list(max_depth = 2, eta = 1, nthread = nthread,
 #'               objective = "binary:logistic", eval_metric = "auc")
 #' my_etas <- list(eta = c(0.5, 0.1))
-#' bst <- xgb.train(param, dtrain, nrounds = 2, watchlist,
+#' bst <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0,
 #'                  callbacks = list(cb.reset.parameters(my_etas)))
 #'
 #' ## Early stopping:

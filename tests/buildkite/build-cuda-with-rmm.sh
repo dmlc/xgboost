@@ -15,7 +15,7 @@ else
   arch_flag=""
 fi
 
-command_wrapper="tests/ci_build/ci_build.sh gpu_build_centos7 docker --build-arg "`
+command_wrapper="tests/ci_build/ci_build.sh gpu_build_centos7 --build-arg "`
                 `"CUDA_VERSION_ARG=$CUDA_VERSION --build-arg "`
                 `"NCCL_VERSION_ARG=$NCCL_VERSION --build-arg "`
                 `"RAPIDS_VERSION_ARG=$RAPIDS_VERSION"
@@ -40,13 +40,13 @@ $command_wrapper python tests/ci_build/rename_whl.py python-package/dist/*.whl \
   ${BUILDKITE_COMMIT} ${WHEEL_TAG}
 
 echo "--- Audit binary wheel to ensure it's compliant with manylinux2014 standard"
-tests/ci_build/ci_build.sh auditwheel_x86_64 docker auditwheel repair \
+tests/ci_build/ci_build.sh auditwheel_x86_64 auditwheel repair \
   --plat ${WHEEL_TAG} python-package/dist/*.whl
 $command_wrapper python tests/ci_build/rename_whl.py wheelhouse/*.whl \
   ${BUILDKITE_COMMIT} ${WHEEL_TAG}
 mv -v wheelhouse/*.whl python-package/dist/
 # Make sure that libgomp.so is vendored in the wheel
-tests/ci_build/ci_build.sh auditwheel_x86_64 docker bash -c \
+tests/ci_build/ci_build.sh auditwheel_x86_64 bash -c \
   "unzip -l python-package/dist/*.whl | grep libgomp  || exit -1"
 
 echo "--- Upload Python wheel"
