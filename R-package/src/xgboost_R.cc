@@ -22,7 +22,6 @@
 #include "../../src/c_api/c_api_error.h"
 #include "../../src/c_api/c_api_utils.h"  // MakeSparseFromPtr
 #include "../../src/common/threading_utils.h"
-#include "../../src/common/linalg_op.h"      // for cbegin
 #include "../../src/data/array_interface.h"  // for ArrayInterface
 
 #include "./xgboost_R.h"  // Must follow other includes.
