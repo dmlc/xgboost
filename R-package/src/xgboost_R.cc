@@ -172,10 +172,11 @@ SEXP SafeAllocInteger(size_t size, SEXP continuation_token) {
   bool is_float = xgboost::DispatchDType(
       array.type, [](auto v) { return std::is_floating_point_v<decltype(v)>; });
   CHECK(is_int || is_float) << "Internal error: Invalid DType.";
+  CHECK(array.is_contiguous) << "Internal error: Return by XGBoost should be contiguous";
+
   // Allocate memory in R
   SEXP out =
       Rf_protect(is_int ? SafeAllocInteger(array.n, ctoken) : SafeAllocReal(array.n, ctoken));
-  CHECK(array.is_contiguous) << "Return by XGBoost should be contiguous";
 
   xgboost::DispatchDType(array.type, [&](auto t) {
     using T = decltype(t);
