@@ -180,9 +180,8 @@ xgb.get.handle <- function(object) {
 #' train <- agaricus.train
 #' test <- agaricus.test
 #'
-#' bst <- xgboost(
-#'   data = train$data,
-#'   label = train$label,
+#' bst <- xgb.train(
+#'   data = xgb.DMatrix(train$data, label = train$label),
 #'   max_depth = 2,
 #'   eta = 0.5,
 #'   nthread = nthread,
@@ -224,9 +223,8 @@ xgb.get.handle <- function(object) {
 #'
 #' set.seed(11)
 #'
-#' bst <- xgboost(
-#'   data = as.matrix(iris[, -5]),
-#'   label = lb,
+#' bst <- xgb.train(
+#'   data = xgb.DMatrix(as.matrix(iris[, -5]), label = lb),
 #'   max_depth = 4,
 #'   eta = 0.5,
 #'   nthread = 2,
@@ -249,9 +247,8 @@ xgb.get.handle <- function(object) {
 #' # compare with predictions from softmax:
 #' set.seed(11)
 #'
-#' bst <- xgboost(
-#'   data = as.matrix(iris[, -5]),
-#'   label = lb,
+#' bst <- xgb.train(
+#'   data = xgb.DMatrix(as.matrix(iris[, -5]), label = lb),
 #'   max_depth = 4,
 #'   eta = 0.5,
 #'   nthread = 2,

@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2023 by XGBoost Contributors
+ * Copyright 2014-2024, XGBoost Contributors
  */
 #include <dmlc/common.h>
 #include <dmlc/omp.h>
@@ -9,9 +9,11 @@
 #include <xgboost/logging.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -20,14 +22,14 @@
 #include "../../src/c_api/c_api_error.h"
 #include "../../src/c_api/c_api_utils.h"  // MakeSparseFromPtr
 #include "../../src/common/threading_utils.h"
+#include "../../src/data/array_interface.h"  // for ArrayInterface
 
 #include "./xgboost_R.h"  // Must follow other includes.
 
 namespace {
-
 struct ErrorWithUnwind : public std::exception {};
 
-void ThrowExceptionFromRError(void *unused, Rboolean jump) {
+void ThrowExceptionFromRError(void *, Rboolean jump) {
   if (jump) {
     throw ErrorWithUnwind();
   }
@@ -45,6 +47,30 @@ SEXP SafeMkChar(const char *c_str, SEXP continuation_token) {
   PtrToConstChar ptr_struct{c_str};
   return R_UnwindProtect(
     WrappedMkChar, static_cast<void*>(&ptr_struct),
+    ThrowExceptionFromRError, nullptr,
+    continuation_token);
+}
+
+SEXP WrappedAllocReal(void *void_ptr) {
+  size_t *size = static_cast<size_t*>(void_ptr);
+  return Rf_allocVector(REALSXP, *size);
+}
+
+SEXP SafeAllocReal(size_t size, SEXP continuation_token) {
+  return R_UnwindProtect(
+    WrappedAllocReal, static_cast<void*>(&size),
+    ThrowExceptionFromRError, nullptr,
+    continuation_token);
+}
+
+SEXP WrappedAllocInteger(void *void_ptr) {
+  size_t *size = static_cast<size_t*>(void_ptr);
+  return Rf_allocVector(INTSXP, *size);
+}
+
+SEXP SafeAllocInteger(size_t size, SEXP continuation_token) {
+  return R_UnwindProtect(
+    WrappedAllocInteger, static_cast<void*>(&size),
     ThrowExceptionFromRError, nullptr,
     continuation_token);
 }
@@ -135,6 +161,37 @@ SEXP SafeMkChar(const char *c_str, SEXP continuation_token) {
 
   jconfig["nthread"] = Rf_asInteger(n_threads);
   return Json::Dump(jconfig);
+}
+
+// Allocate a R vector and copy an array interface encoded object to it.
+[[nodiscard]] SEXP CopyArrayToR(const char *array_str, SEXP ctoken) {
+  xgboost::ArrayInterface<1> array{xgboost::StringView{array_str}};
+  // R supports only int and double.
+  bool is_int =
+      xgboost::DispatchDType(array.type, [](auto t) { return std::is_integral_v<decltype(t)>; });
+  bool is_float = xgboost::DispatchDType(
+      array.type, [](auto v) { return std::is_floating_point_v<decltype(v)>; });
+  CHECK(is_int || is_float) << "Internal error: Invalid DType.";
+  CHECK(array.is_contiguous) << "Internal error: Return by XGBoost should be contiguous";
+
+  // Allocate memory in R
+  SEXP out =
+      Rf_protect(is_int ? SafeAllocInteger(array.n, ctoken) : SafeAllocReal(array.n, ctoken));
+
+  xgboost::DispatchDType(array.type, [&](auto t) {
+    using T = decltype(t);
+    auto in_ptr = static_cast<T const *>(array.data);
+    if (is_int) {
+      auto out_ptr = INTEGER(out);
+      std::copy_n(in_ptr, array.n, out_ptr);
+    } else {
+      auto out_ptr = REAL(out);
+      std::copy_n(in_ptr, array.n, out_ptr);
+    }
+  });
+
+  Rf_unprotect(1);
+  return out;
 }
 }  // namespace
 
@@ -559,6 +616,73 @@ XGB_DLL SEXP XGDuplicateAttrib(SEXP src, SEXP dest) {
 
 XGB_DLL SEXP XGPointerEqComparison(SEXP obj1, SEXP obj2) {
   return Rf_ScalarLogical(R_ExternalPtrAddr(obj1) == R_ExternalPtrAddr(obj2));
+}
+
+XGB_DLL SEXP XGDMatrixGetQuantileCut_R(SEXP handle) {
+  const char *out_names[] = {"indptr", "data", ""};
+  SEXP continuation_token = Rf_protect(R_MakeUnwindCont());
+  SEXP out = Rf_protect(Rf_mkNamed(VECSXP, out_names));
+  R_API_BEGIN();
+  const char *out_indptr;
+  const char *out_data;
+  CHECK_CALL(XGDMatrixGetQuantileCut(R_ExternalPtrAddr(handle), "{}", &out_indptr, &out_data));
+  try {
+    SET_VECTOR_ELT(out, 0, CopyArrayToR(out_indptr, continuation_token));
+    SET_VECTOR_ELT(out, 1, CopyArrayToR(out_data, continuation_token));
+  } catch (ErrorWithUnwind &e) {
+    R_ContinueUnwind(continuation_token);
+  }
+  R_API_END();
+  Rf_unprotect(2);
+  return out;
+}
+
+XGB_DLL SEXP XGDMatrixNumNonMissing_R(SEXP handle) {
+  SEXP out = Rf_protect(Rf_allocVector(REALSXP, 1));
+  R_API_BEGIN();
+  bst_ulong out_;
+  CHECK_CALL(XGDMatrixNumNonMissing(R_ExternalPtrAddr(handle), &out_));
+  REAL(out)[0] = static_cast<double>(out_);
+  R_API_END();
+  Rf_unprotect(1);
+  return out;
+}
+
+XGB_DLL SEXP XGDMatrixGetDataAsCSR_R(SEXP handle) {
+  const char *out_names[] = {"indptr", "indices", "data", "ncols", ""};
+  SEXP out = Rf_protect(Rf_mkNamed(VECSXP, out_names));
+  R_API_BEGIN();
+
+  bst_ulong nrows, ncols, nnz;
+  CHECK_CALL(XGDMatrixNumRow(R_ExternalPtrAddr(handle), &nrows));
+  CHECK_CALL(XGDMatrixNumCol(R_ExternalPtrAddr(handle), &ncols));
+  CHECK_CALL(XGDMatrixNumNonMissing(R_ExternalPtrAddr(handle), &nnz));
+  if (std::max(nrows, ncols) > std::numeric_limits<int>::max()) {
+    Rf_error("%s", "Error: resulting DMatrix data does not fit into R 'dgRMatrix'.");
+  }
+
+  SET_VECTOR_ELT(out, 0, Rf_allocVector(INTSXP, nrows + 1));
+  SET_VECTOR_ELT(out, 1, Rf_allocVector(INTSXP, nnz));
+  SET_VECTOR_ELT(out, 2, Rf_allocVector(REALSXP, nnz));
+  SET_VECTOR_ELT(out, 3, Rf_ScalarInteger(ncols));
+
+  std::unique_ptr<bst_ulong[]> indptr(new bst_ulong[nrows + 1]);
+  std::unique_ptr<unsigned[]> indices(new unsigned[nnz]);
+  std::unique_ptr<float[]> data(new float[nnz]);
+
+  CHECK_CALL(XGDMatrixGetDataAsCSR(R_ExternalPtrAddr(handle),
+                                   "{}",
+                                   indptr.get(),
+                                   indices.get(),
+                                   data.get()));
+
+  std::copy(indptr.get(), indptr.get() + nrows + 1, INTEGER(VECTOR_ELT(out, 0)));
+  std::copy(indices.get(), indices.get() + nnz, INTEGER(VECTOR_ELT(out, 1)));
+  std::copy(data.get(), data.get() + nnz, REAL(VECTOR_ELT(out, 2)));
+
+  R_API_END();
+  Rf_unprotect(1);
+  return out;
 }
 
 // functions related to booster

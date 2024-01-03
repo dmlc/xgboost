@@ -81,8 +81,8 @@ output_vector <- df[, Y := 0][Improved == "Marked", Y := 1][, Y]
 
 # Following is the same process as other demo
 cat("Learning...\n")
-bst <- xgboost(data = sparse_matrix, label = output_vector, max_depth = 9,
-               eta = 1, nthread = 2, nrounds = 10, objective = "binary:logistic")
+bst <- xgb.train(data = xgb.DMatrix(sparse_matrix, label = output_vector), max_depth = 9,
+                 eta = 1, nthread = 2, nrounds = 10, objective = "binary:logistic")
 
 importance <- xgb.importance(feature_names = colnames(sparse_matrix), model = bst)
 print(importance)
