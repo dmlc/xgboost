@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2023, XGBoost Contributors
+ * Copyright 2014-2024, XGBoost Contributors
  * \file gblinear.cc
  * \brief Implementation of Linear booster, with L1/L2 regularization: Elastic Net
  *        the update rule is parallel coordinate descent (shotgun)
@@ -8,25 +8,24 @@
 #include <dmlc/omp.h>
 #include <dmlc/parameter.h>
 
-#include <vector>
-#include <string>
-#include <sstream>
 #include <algorithm>
 #include <numeric>
+#include <sstream>
+#include <string>
+#include <vector>
 
+#include "../common/common.h"
+#include "../common/error_msg.h"  // NoCategorical, DeprecatedFunc
+#include "../common/threading_utils.h"
+#include "../common/timer.h"
+#include "gblinear_model.h"
 #include "xgboost/gbm.h"
 #include "xgboost/json.h"
-#include "xgboost/predictor.h"
-#include "xgboost/linear_updater.h"
-#include "xgboost/logging.h"
 #include "xgboost/learner.h"
 #include "xgboost/linalg.h"
-
-#include "gblinear_model.h"
-#include "../common/timer.h"
-#include "../common/common.h"
-#include "../common/threading_utils.h"
-#include "../common/error_msg.h"
+#include "xgboost/linear_updater.h"
+#include "xgboost/logging.h"
+#include "xgboost/predictor.h"
 
 namespace xgboost::gbm {
 DMLC_REGISTRY_FILE_TAG(gblinear);
@@ -145,6 +144,7 @@ class GBLinear : public GradientBooster {
                ObjFunction const*) override {
     monitor_.Start("DoBoost");
 
+    CHECK(!p_fmat->Info().HasCategorical()) << error::NoCategorical("`gblinear`");
     model_.LazyInitModel();
     this->LazySumWeights(p_fmat);
 
