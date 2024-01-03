@@ -45,6 +45,9 @@ extern SEXP XGDMatrixCreateFromDF_R(SEXP, SEXP, SEXP);
 extern SEXP XGDMatrixGetStrFeatureInfo_R(SEXP, SEXP);
 extern SEXP XGDMatrixNumCol_R(SEXP);
 extern SEXP XGDMatrixNumRow_R(SEXP);
+extern SEXP XGDMatrixGetQuantileCut_R(SEXP);
+extern SEXP XGDMatrixNumNonMissing_R(SEXP);
+extern SEXP XGDMatrixGetDataAsCSR_R(SEXP);
 extern SEXP XGDMatrixSaveBinary_R(SEXP, SEXP, SEXP);
 extern SEXP XGDMatrixSetInfo_R(SEXP, SEXP, SEXP);
 extern SEXP XGDMatrixSetStrFeatureInfo_R(SEXP, SEXP, SEXP);
@@ -84,6 +87,9 @@ static const R_CallMethodDef CallEntries[] = {
   {"XGDMatrixGetStrFeatureInfo_R", (DL_FUNC) &XGDMatrixGetStrFeatureInfo_R, 2},
   {"XGDMatrixNumCol_R",           (DL_FUNC) &XGDMatrixNumCol_R,           1},
   {"XGDMatrixNumRow_R",           (DL_FUNC) &XGDMatrixNumRow_R,           1},
+  {"XGDMatrixGetQuantileCut_R",   (DL_FUNC) &XGDMatrixGetQuantileCut_R,   1},
+  {"XGDMatrixNumNonMissing_R",    (DL_FUNC) &XGDMatrixNumNonMissing_R,    1},
+  {"XGDMatrixGetDataAsCSR_R",     (DL_FUNC) &XGDMatrixGetDataAsCSR_R,     1},
   {"XGDMatrixSaveBinary_R",       (DL_FUNC) &XGDMatrixSaveBinary_R,       3},
   {"XGDMatrixSetInfo_R",          (DL_FUNC) &XGDMatrixSetInfo_R,          3},
   {"XGDMatrixSetStrFeatureInfo_R", (DL_FUNC) &XGDMatrixSetStrFeatureInfo_R, 3},
