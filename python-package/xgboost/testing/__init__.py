@@ -666,11 +666,9 @@ def make_datasets_with_margin(
     return weight_margin
 
 
-# A strategy for drawing from a set of example datasets. May add random weights to the
-# dataset
 @memory.cache
-def make_dataset_strategy() -> Callable:
-    _unweighted_datasets_strategy = strategies.sampled_from(
+def cached_strategies() -> strategies.SearchStrategy:
+    unweighted_datasets_strategy = strategies.sampled_from(
         [
             TestDataset(
                 "calif_housing", get_california_housing, "reg:squarederror", "rmse"
@@ -689,7 +687,13 @@ def make_dataset_strategy() -> Callable:
             ),
         ]
     )
-    return make_datasets_with_margin(_unweighted_datasets_strategy)()
+    return unweighted_datasets_strategy
+
+
+# A strategy for drawing from a set of example datasets. May add random weights to the
+# dataset
+def make_dataset_strategy() -> Callable:
+    return make_datasets_with_margin(cached_strategies)()
 
 
 _unweighted_multi_datasets_strategy = strategies.sampled_from(
