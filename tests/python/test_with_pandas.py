@@ -1,14 +1,12 @@
-import sys
 from typing import Type
 
 import numpy as np
 import pytest
-from test_dmatrix import set_base_margin_info
 
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.core import DataSplitMode
-from xgboost.testing.data import pd_arrow_dtypes, pd_dtypes
+from xgboost.testing.data import pd_arrow_dtypes, pd_dtypes, run_base_margin_info
 
 try:
     import pandas as pd
@@ -336,7 +334,7 @@ class TestPandas:
         np.testing.assert_array_equal(data.get_weight(), w)
 
     def test_base_margin(self):
-        set_base_margin_info(pd.DataFrame, xgb.DMatrix, "hist")
+        run_base_margin_info(pd.DataFrame, xgb.DMatrix, "cpu")
 
     def test_cv_as_pandas(self):
         dm, _ = tm.load_agaricus(__file__)
