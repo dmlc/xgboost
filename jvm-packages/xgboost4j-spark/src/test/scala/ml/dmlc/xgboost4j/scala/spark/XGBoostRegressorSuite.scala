@@ -337,9 +337,8 @@ class XGBoostRegressorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
     val modelUbjPath = new File(tempDir.toFile, "xgbcUbj").getPath
     model.write.save(modelUbjPath)
 
-    // Deprecated format
-    val nativeDeprecatedModelPath = new File(tempDir.toFile, "nativeModel.deprecated").getPath
-    model.nativeBooster.saveModel(nativeDeprecatedModelPath)
+    val nativeUbjModelPath = new File(tempDir.toFile, "nativeModel.ubj").getPath
+    model.nativeBooster.saveModel(nativeUbjModelPath)
 
     assert(compareTwoFiles(new File(modelUbjPath, "data/XGBoostRegressionModel").getPath,
       nativeDeprecatedModelPath))
