@@ -71,9 +71,10 @@ class TestBoosterIO:
         from_ubjraw.load_model(ubj_raw)
 
         if parameters.get("multi_strategy", None) != "multi_output_tree":
-            # old binary model is not supported.
-            old_from_json = from_jraw.save_raw(raw_format="deprecated")
-            old_from_ubj = from_ubjraw.save_raw(raw_format="deprecated")
+            # Old binary model is not supported for vector leaf.
+            with pytest.warns(Warning, match="Model format is default to UBJSON"):
+                old_from_json = from_jraw.save_raw(raw_format="deprecated")
+                old_from_ubj = from_ubjraw.save_raw(raw_format="deprecated")
 
             assert old_from_json == old_from_ubj
 
@@ -83,8 +84,9 @@ class TestBoosterIO:
 
         if parameters.get("multi_strategy", None) != "multi_output_tree":
             # old binary model is not supported.
-            old_from_json = from_jraw.save_raw(raw_format="deprecated")
-            old_from_ubj = from_ubjraw.save_raw(raw_format="deprecated")
+            with pytest.warns(Warning, match="Model format is default to UBJSON"):
+                old_from_json = from_jraw.save_raw(raw_format="deprecated")
+                old_from_ubj = from_ubjraw.save_raw(raw_format="deprecated")
 
             assert old_from_json == old_from_ubj
 
@@ -121,7 +123,8 @@ class TestBoosterIO:
         with tempfile.TemporaryDirectory() as tempdir:
             path = os.path.join(tempdir, "model.deprecated")
             with pytest.raises(ValueError, match=r".*JSON/UBJSON.*"):
-                booster.save_model(path)
+                with pytest.warns(Warning, match="Model format is default to UBJSON"):
+                    booster.save_model(path)
 
             path = os.path.join(tempdir, "model.json")
             booster.save_model(path)
@@ -269,7 +272,8 @@ def test_sklearn_model() -> None:
 
     with tempfile.TemporaryDirectory() as tempdir:
         model_path = os.path.join(tempdir, "digits.deprecated")
-        save_load_model(model_path)
+        with pytest.warns(Warning, match="Model format is default to UBJSON"):
+            save_load_model(model_path)
 
     with tempfile.TemporaryDirectory() as tempdir:
         model_path = os.path.join(tempdir, "digits.model.json")
