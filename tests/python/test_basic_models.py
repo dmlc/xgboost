@@ -49,7 +49,7 @@ class TestModels:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             dtest_path = os.path.join(tmpdir, 'dtest.dmatrix')
-            model_path = os.path.join(tmpdir, 'xgboost.model.dart')
+            model_path = os.path.join(tmpdir, "xgboost.model.dart.ubj")
             # save dmatrix into binary buffer
             dtest.save_binary(dtest_path)
             model_path = model_path
