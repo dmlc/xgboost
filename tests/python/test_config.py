@@ -30,7 +30,8 @@ def test_global_config_use_rmm(use_rmm):
     assert old_use_rmm_flag == get_current_use_rmm_flag()
 
 
-def test_nested_config():
+def test_nested_config() -> None:
+    verbosity = xgb.get_config()["verbosity"]
     with xgb.config_context(verbosity=3):
         assert xgb.get_config()["verbosity"] == 3
         with xgb.config_context(verbosity=2):
@@ -45,7 +46,6 @@ def test_nested_config():
         with xgb.config_context(verbosity=None):
             assert xgb.get_config()["verbosity"] == 3  # None has no effect
 
-    verbosity = xgb.get_config()["verbosity"]
     xgb.set_config(verbosity=2)
     assert xgb.get_config()["verbosity"] == 2
     with xgb.config_context(verbosity=3):
