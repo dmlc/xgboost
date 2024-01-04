@@ -101,7 +101,5 @@ def test_multilabel() -> None:
     assert clf.objective == "binary:logistic"
     assert tm.non_increasing(clf.evals_result()["validation_0"]["logloss"])
 
-    clf.predict_proba(X)
-
     proba = clf.predict_proba(X)
     assert proba.shape == y.shape
