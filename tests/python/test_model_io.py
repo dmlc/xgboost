@@ -1,6 +1,5 @@
 import json
 import locale
-import warnings
 import os
 import pickle
 import tempfile
