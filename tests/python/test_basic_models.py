@@ -477,7 +477,7 @@ class TestModels:
         predt_0 = booster.predict(Xy)
 
         with tempfile.TemporaryDirectory() as tempdir:
-            path = os.path.join(tempdir, "model.binary")
+            path = os.path.join(tempdir, "model.deprecated")
             with pytest.raises(ValueError, match=r".*JSON/UBJSON.*"):
                 booster.save_model(path)
 
