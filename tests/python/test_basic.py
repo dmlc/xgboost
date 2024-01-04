@@ -93,7 +93,7 @@ class TestBasic:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             dtest_path = os.path.join(tmpdir, 'dtest.buffer')
-            model_path = os.path.join(tmpdir, 'xgb.model')
+            model_path = os.path.join(tmpdir, 'xgb.ubj')
             # save dmatrix into binary buffer
             dtest.save_binary(dtest_path)
             # save model
@@ -295,42 +295,3 @@ class TestBasicPathLike:
         """An invalid model_file path should raise XGBoostError."""
         with pytest.raises(xgb.core.XGBoostError):
             xgb.Booster(model_file=Path("invalidpath"))
-
-    def test_Booster_save_and_load(self):
-        """Saving and loading model files from paths."""
-        save_path = Path("saveload.model")
-
-        data = np.random.randn(100, 2)
-        target = np.array([0, 1] * 50)
-        features = ['Feature1', 'Feature2']
-
-        dm = xgb.DMatrix(data, label=target, feature_names=features)
-        params = {'objective': 'binary:logistic',
-                  'eval_metric': 'logloss',
-                  'eta': 0.3,
-                  'max_depth': 1}
-
-        bst = xgb.train(params, dm, num_boost_round=1)
-
-        # save, assert exists
-        bst.save_model(save_path)
-        assert save_path.exists()
-
-        def dump_assertions(dump):
-            """Assertions for the expected dump from Booster"""
-            assert len(dump) == 1, 'Exepcted only 1 tree to be dumped.'
-            assert len(dump[0].splitlines()) == 3, 'Expected 1 root and 2 leaves - 3 lines.'
-
-        # load the model again using Path
-        bst2 = xgb.Booster(model_file=save_path)
-        dump2 = bst2.get_dump()
-        dump_assertions(dump2)
-
-        # load again using load_model
-        bst3 = xgb.Booster()
-        bst3.load_model(save_path)
-        dump3 = bst3.get_dump()
-        dump_assertions(dump3)
-
-        # remove file
-        Path.unlink(save_path)
