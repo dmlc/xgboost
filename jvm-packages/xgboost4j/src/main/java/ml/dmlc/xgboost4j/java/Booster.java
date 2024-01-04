@@ -15,7 +15,9 @@
  */
 package ml.dmlc.xgboost4j.java;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -33,8 +35,8 @@ import org.apache.commons.logging.LogFactory;
 /**
  * Booster for xgboost, this is a model API that support interactive build of a XGBoost Model
  */
-public class Booster implements Serializable, KryoSerializable {
-  public static final String DEFAULT_FORMAT = "deprecated";
+public class Booster implements Serializable, KryoSerializable, AutoCloseable {
+  public static final String DEFAULT_FORMAT = "ubj";
   private static final Log logger = LogFactory.getLog(Booster.class);
   // handle to the booster.
   private long handle = 0;
@@ -885,6 +887,11 @@ public class Booster implements Serializable, KryoSerializable {
   @Override
   protected void finalize() throws Throwable {
     super.finalize();
+    dispose();
+  }
+
+  @Override
+  public void close() throws XGBoostError {
     dispose();
   }
 

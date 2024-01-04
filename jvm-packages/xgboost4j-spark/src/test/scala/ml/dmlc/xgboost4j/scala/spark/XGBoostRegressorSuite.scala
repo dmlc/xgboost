@@ -333,14 +333,6 @@ class XGBoostRegressorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
     assert(compareTwoFiles(new File(modelPath, "data/XGBoostRegressionModel").getPath,
       nativeJsonModelPath))
 
-    // test default "deprecated"
-    val modelUbjPath = new File(tempDir.toFile, "xgbcUbj").getPath
-    model.write.save(modelUbjPath)
-    val nativeDeprecatedModelPath = new File(tempDir.toFile, "nativeModel").getPath
-    model.nativeBooster.saveModel(nativeDeprecatedModelPath)
-    assert(compareTwoFiles(new File(modelUbjPath, "data/XGBoostRegressionModel").getPath,
-      nativeDeprecatedModelPath))
-
     // json file should be indifferent with ubj file
     val modelJsonPath = new File(tempDir.toFile, "xgbcJson").getPath
     model.write.option("format", "json").save(modelJsonPath)
@@ -348,6 +340,14 @@ class XGBoostRegressorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
     model.nativeBooster.saveModel(nativeUbjModelPath)
     assert(!compareTwoFiles(new File(modelJsonPath, "data/XGBoostRegressionModel").getPath,
       nativeUbjModelPath))
+
+    // test default "deprecated"
+    val modelUbjPath = new File(tempDir.toFile, "xgbcUbj").getPath
+    model.write.option("format", "deprecated").save(modelUbjPath)
+    val nativeDeprecatedModelPath = new File(tempDir.toFile, "nativeModel").getPath
+    model.nativeBooster.saveModel(nativeDeprecatedModelPath)
+    assert(compareTwoFiles(new File(modelUbjPath, "data/XGBoostRegressionModel").getPath,
+      nativeDeprecatedModelPath))
   }
 
 }
