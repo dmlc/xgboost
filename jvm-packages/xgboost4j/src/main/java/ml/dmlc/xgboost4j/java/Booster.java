@@ -34,7 +34,7 @@ import org.apache.commons.logging.LogFactory;
  * Booster for xgboost, this is a model API that support interactive build of a XGBoost Model
  */
 public class Booster implements Serializable, KryoSerializable {
-  public static final String DEFAULT_FORMAT = "deprecated";
+  public static final String DEFAULT_FORMAT = "ubj";
   private static final Log logger = LogFactory.getLog(Booster.class);
   // handle to the booster.
   private long handle = 0;
