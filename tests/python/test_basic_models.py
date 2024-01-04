@@ -17,7 +17,7 @@ rng = np.random.RandomState(1994)
 
 class TestModels:
     def test_glm(self):
-        param = {'verbosity': 0, 'objective': 'binary:logistic',
+        param = {'objective': 'binary:logistic',
                  'booster': 'gblinear', 'alpha': 0.0001, 'lambda': 1,
                  'nthread': 1}
         dtrain, dtest = tm.load_agaricus(__file__)
@@ -77,7 +77,6 @@ class TestModels:
 
         # check whether sample_type and normalize_type work
         num_round = 50
-        param['verbosity'] = 0
         param['learning_rate'] = 0.1
         param['rate_drop'] = 0.1
         preds_list = []
@@ -190,8 +189,7 @@ class TestModels:
         assert set(evals_result['eval'].keys()) == {'auc', 'error', 'logloss'}
 
     def test_fpreproc(self):
-        param = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
-                 'objective': 'binary:logistic'}
+        param = {'max_depth': 2, 'eta': 1, 'objective': 'binary:logistic'}
         num_round = 2
 
         def fpreproc(dtrain, dtest, param):
@@ -205,8 +203,7 @@ class TestModels:
                metrics={'auc'}, seed=0, fpreproc=fpreproc)
 
     def test_show_stdv(self):
-        param = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
-                 'objective': 'binary:logistic'}
+        param = {'max_depth': 2, 'eta': 1, 'objective': 'binary:logistic'}
         num_round = 2
         dtrain, _ = tm.load_agaricus(__file__)
         xgb.cv(param, dtrain, num_round, nfold=5,

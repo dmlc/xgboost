@@ -117,7 +117,6 @@ class TestTreeMethod:
         ag_param = {'max_depth': 2,
                     'tree_method': 'hist',
                     'eta': 1,
-                    'verbosity': 0,
                     'objective': 'binary:logistic',
                     'eval_metric': 'auc'}
         hist_res = {}

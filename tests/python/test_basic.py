@@ -62,7 +62,7 @@ class TestBasic:
         # Make sure that the metric configuration happens in booster so the
         # string `['error', 'auc']` doesn't get passed down to core.
         dtrain, dtest = tm.load_agaricus(__file__)
-        param = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
+        param = {'max_depth': 2, 'eta': 1,
                  'objective': 'binary:logistic', 'eval_metric': ['error', 'auc']}
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
         num_round = 2
@@ -78,7 +78,7 @@ class TestBasic:
 
     def test_multiclass(self):
         dtrain, dtest = tm.load_agaricus(__file__)
-        param = {'max_depth': 2, 'eta': 1, 'verbosity': 0, 'num_class': 2}
+        param = {'max_depth': 2, 'eta': 1, 'num_class': 2}
         # specify validations set to watch performance
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
         num_round = 2
@@ -198,8 +198,7 @@ class TestBasic:
 
     def test_cv(self):
         dm, _ = tm.load_agaricus(__file__)
-        params = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
-                  'objective': 'binary:logistic'}
+        params = {'max_depth': 2, 'eta': 1, 'objective': 'binary:logistic'}
 
         # return np.ndarray
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, as_pandas=False)
@@ -208,8 +207,7 @@ class TestBasic:
 
     def test_cv_no_shuffle(self):
         dm, _ = tm.load_agaricus(__file__)
-        params = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
-                  'objective': 'binary:logistic'}
+        params = {'max_depth': 2, 'eta': 1, 'objective': 'binary:logistic'}
 
         # return np.ndarray
         cv = xgb.cv(params, dm, num_boost_round=10, shuffle=False, nfold=10,
@@ -219,8 +217,7 @@ class TestBasic:
 
     def test_cv_explicit_fold_indices(self):
         dm, _ = tm.load_agaricus(__file__)
-        params = {'max_depth': 2, 'eta': 1, 'verbosity': 0, 'objective':
-                  'binary:logistic'}
+        params = {'max_depth': 2, 'eta': 1, 'objective': 'binary:logistic'}
         folds = [
             # Train        Test
             ([1, 3], [5, 8]),
@@ -235,8 +232,7 @@ class TestBasic:
 
     @pytest.mark.skipif(**tm.skip_s390x())
     def test_cv_explicit_fold_indices_labels(self):
-        params = {'max_depth': 2, 'eta': 1, 'verbosity': 0, 'objective':
-                  'reg:squarederror'}
+        params = {'max_depth': 2, 'eta': 1, 'objective': 'reg:squarederror'}
         N = 100
         F = 3
         dm = xgb.DMatrix(data=np.random.randn(N, F), label=np.arange(N))

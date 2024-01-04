@@ -678,7 +678,6 @@ def test_split_value_histograms():
     params = {
         "max_depth": 6,
         "eta": 0.01,
-        "verbosity": 0,
         "objective": "binary:logistic",
         "base_score": 0.5,
     }

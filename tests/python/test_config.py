@@ -12,6 +12,7 @@ def test_global_config_verbosity(verbosity_level):
         return xgb.get_config()["verbosity"]
 
     old_verbosity = get_current_verbosity()
+    assert old_verbosity == 1
     with xgb.config_context(verbosity=verbosity_level):
         new_verbosity = get_current_verbosity()
         assert new_verbosity == verbosity_level
@@ -32,6 +33,8 @@ def test_global_config_use_rmm(use_rmm):
 
 def test_nested_config() -> None:
     verbosity = xgb.get_config()["verbosity"]
+    assert verbosity == 1
+
     with xgb.config_context(verbosity=3):
         assert xgb.get_config()["verbosity"] == 3
         with xgb.config_context(verbosity=2):
@@ -51,6 +54,9 @@ def test_nested_config() -> None:
     with xgb.config_context(verbosity=3):
         assert xgb.get_config()["verbosity"] == 3
     xgb.set_config(verbosity=verbosity)  # reset
+
+    verbosity = xgb.get_config()["verbosity"]
+    assert verbosity == 1
 
 
 def test_thread_safty():

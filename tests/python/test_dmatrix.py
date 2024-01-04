@@ -264,7 +264,7 @@ class TestDMatrix:
         dtrain = xgb.DMatrix(x, label=rng.binomial(1, 0.3, nrow))
         assert (dtrain.num_row(), dtrain.num_col()) == (nrow, ncol)
         watchlist = [(dtrain, "train")]
-        param = {"max_depth": 3, "objective": "binary:logistic", "verbosity": 0}
+        param = {"max_depth": 3, "objective": "binary:logistic"}
         bst = xgb.train(param, dtrain, 5, watchlist)
         bst.predict(dtrain)
 
@@ -302,7 +302,7 @@ class TestDMatrix:
         dtrain = xgb.DMatrix(x, label=rng.binomial(1, 0.3, nrow))
         assert (dtrain.num_row(), dtrain.num_col()) == (nrow, ncol)
         watchlist = [(dtrain, "train")]
-        param = {"max_depth": 3, "objective": "binary:logistic", "verbosity": 0}
+        param = {"max_depth": 3, "objective": "binary:logistic"}
         bst = xgb.train(param, dtrain, 5, watchlist)
         bst.predict(dtrain)
 

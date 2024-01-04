@@ -37,6 +37,9 @@ def json_model(model_path: str, parameters: dict) -> dict:
 
 class TestBoosterIO:
     def run_model_json_io(self, parameters: dict, ext: str) -> None:
+        config = xgb.config.get_config()
+        assert config["verbosity"] == 1
+
         if ext == "ubj" and tm.no_ubjson()["condition"]:
             pytest.skip(tm.no_ubjson()["reason"])
 
