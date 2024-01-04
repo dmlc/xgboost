@@ -192,11 +192,16 @@ __model_doc = f"""
         Boosting learning rate (xgb's "eta")
     verbosity : Optional[int]
         The degree of verbosity. Valid values are 0 (silent) - 3 (debug).
+
     objective : {SklObjective}
-        Specify the learning task and the corresponding learning objective or
-        a custom objective function to be used (see note below).
+
+        Specify the learning task and the corresponding learning objective or a custom
+        objective function to be used. For custom objective, see
+        :doc:`/tutorials/custom_metric_obj` and :ref:`custom-obj-metric` for more
+        information.
+
     booster: Optional[str]
-        Specify which booster to use: gbtree, gblinear or dart.
+        Specify which booster to use: `gbtree`, `gblinear` or `dart`.
     tree_method: Optional[str]
         Specify which tree method to use.  Default to auto.  If this parameter is set to
         default, XGBoost will choose the most conservative option available.  It's
@@ -328,21 +333,21 @@ __model_doc = f"""
 
         Metric used for monitoring the training result and early stopping.  It can be a
         string or list of strings as names of predefined metric in XGBoost (See
-        doc/parameter.rst), one of the metrics in :py:mod:`sklearn.metrics`, or any other
-        user defined metric that looks like `sklearn.metrics`.
+        doc/parameter.rst), one of the metrics in :py:mod:`sklearn.metrics`, or any
+        other user defined metric that looks like `sklearn.metrics`.
 
         If custom objective is also provided, then custom metric should implement the
         corresponding reverse link function.
 
         Unlike the `scoring` parameter commonly used in scikit-learn, when a callable
-        object is provided, it's assumed to be a cost function and by default XGBoost will
-        minimize the result during early stopping.
+        object is provided, it's assumed to be a cost function and by default XGBoost
+        will minimize the result during early stopping.
 
-        For advanced usage on Early stopping like directly choosing to maximize instead of
-        minimize, see :py:obj:`xgboost.callback.EarlyStopping`.
+        For advanced usage on Early stopping like directly choosing to maximize instead
+        of minimize, see :py:obj:`xgboost.callback.EarlyStopping`.
 
-        See :doc:`Custom Objective and Evaluation Metric </tutorials/custom_metric_obj>`
-        for more.
+        See :doc:`/tutorials/custom_metric_obj` and :ref:`custom-obj-metric` for more
+        information.
 
         .. note::
 

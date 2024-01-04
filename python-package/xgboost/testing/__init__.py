@@ -815,6 +815,13 @@ def softprob_obj(
     return objective
 
 
+def ls_obj(y_true: np.ndarray, y_pred: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """Least squared error."""
+    grad = y_pred - y_true
+    hess = np.ones(len(y_true))
+    return grad, hess
+
+
 class DirectoryExcursion:
     """Change directory.  Change back and optionally cleaning up the directory when
     exit.
