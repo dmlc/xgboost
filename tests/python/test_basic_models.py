@@ -15,29 +15,6 @@ dpath = tm.data_dir(__file__)
 rng = np.random.RandomState(1994)
 
 
-def json_model(model_path: str, parameters: dict) -> dict:
-    datasets = pytest.importorskip("sklearn.datasets")
-
-    X, y = datasets.make_classification(64, n_features=8, n_classes=3, n_informative=6)
-    if parameters.get("objective", None) == "multi:softmax":
-        parameters["num_class"] = 3
-
-    dm1 = xgb.DMatrix(X, y)
-
-    bst = xgb.train(parameters, dm1)
-    bst.save_model(model_path)
-
-    if model_path.endswith("ubj"):
-        import ubjson
-
-        with open(model_path, "rb") as ubjfd:
-            model = ubjson.load(ubjfd)
-    else:
-        with open(model_path, "r") as fd:
-            model = json.load(fd)
-
-    return model
-
 class TestModels:
     def test_glm(self):
         param = {'verbosity': 0, 'objective': 'binary:logistic',

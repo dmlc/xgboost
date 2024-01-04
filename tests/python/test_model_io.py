@@ -1,5 +1,6 @@
 import json
 import locale
+import warnings
 import os
 import pickle
 import tempfile
@@ -174,7 +175,7 @@ class TestBoosterIO:
             assert set(objectives) == objectives_from_schema
 
     def test_model_binary_io(self) -> None:
-        model_path = "test_model_binary_io.bin"
+        model_path = "test_model_binary_io.deprecated"
         parameters = {
             "tree_method": "hist",
             "booster": "gbtree",
@@ -184,7 +185,8 @@ class TestBoosterIO:
         y = np.random.random((10,))
         dtrain = xgb.DMatrix(X, y)
         bst = xgb.train(parameters, dtrain, num_boost_round=2)
-        bst.save_model(model_path)
+        with pytest.warns(Warning, match="Model format is default to UBJSON"):
+            bst.save_model(model_path)
         bst = xgb.Booster(model_file=model_path)
         os.remove(model_path)
         config = json.loads(bst.save_config())
@@ -205,7 +207,7 @@ def save_load_model(model_path: str) -> None:
     from sklearn.datasets import load_digits
     from sklearn.model_selection import KFold
 
-    rng = np.random.default_rng(1994)
+    rng = np.random.RandomState(1994)
 
     digits = load_digits(n_class=2)
     y = digits["target"]
@@ -263,16 +265,16 @@ def save_load_model(model_path: str) -> None:
 
 @pytest.mark.skipif(**tm.no_sklearn())
 def test_sklearn_model() -> None:
+    from sklearn.datasets import load_digits
+    from sklearn.model_selection import train_test_split
+
     with tempfile.TemporaryDirectory() as tempdir:
-        model_path = os.path.join(tempdir, "digits.model")
+        model_path = os.path.join(tempdir, "digits.deprecated")
         save_load_model(model_path)
 
     with tempfile.TemporaryDirectory() as tempdir:
         model_path = os.path.join(tempdir, "digits.model.json")
         save_load_model(model_path)
-
-    from sklearn.datasets import load_digits
-    from sklearn.model_selection import train_test_split
 
     with tempfile.TemporaryDirectory() as tempdir:
         model_path = os.path.join(tempdir, "digits.model.ubj")

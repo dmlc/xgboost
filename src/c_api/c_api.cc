@@ -1315,7 +1315,7 @@ namespace {
 void WarnOldModel() {
   if (XGBOOST_VER_MAJOR >= 2) {
     LOG(WARNING) << "Saving into deprecated binary model format, please consider using `json` or "
-                    "`ubj`. Model format will default to JSON in XGBoost 2.2 if not specified.";
+                    "`ubj`. Model format is default to UBJSON in XGBoost 2.1 if not specified.";
   }
 }
 }  // anonymous namespace
