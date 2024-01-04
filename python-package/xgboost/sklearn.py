@@ -1,5 +1,6 @@
 # pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme, too-many-lines
 """Scikit-Learn Wrapper interface for XGBoost."""
+import contextlib
 import copy
 import json
 import os
@@ -818,16 +819,27 @@ class XGBModel(XGBModelBase):
             )
         return self._estimator_type  # pylint: disable=no-member
 
-    def save_model(self, fname: Union[str, os.PathLike]) -> None:
+    @contextlib.contextmanager
+    def _set_sklearn_metadata(self) -> None:
         meta: Dict[str, Any] = {}
         # For validation.
         meta["_estimator_type"] = self._get_type()
         meta_str = json.dumps(meta)
         self.get_booster().set_attr(scikit_learn=meta_str)
-        self.get_booster().save_model(fname)
+        yield
         self.get_booster().set_attr(scikit_learn=None)
 
+    def save_model(self, fname: Union[str, os.PathLike]) -> None:
+        with self._set_sklearn_metadata():
+            self.get_booster().save_model(fname)
+
     save_model.__doc__ = f"""{Booster.save_model.__doc__}"""
+
+    def save_raw(self, raw_format: str = "deprecated") -> bytearray:
+        with self._set_sklearn_metadata():
+            return self.get_booster().save_raw(raw_format)
+
+    save_model.__doc__ = f"""{Booster.save_raw.__doc__}"""
 
     def load_model(self, fname: ModelIn) -> None:
         # pylint: disable=attribute-defined-outside-init

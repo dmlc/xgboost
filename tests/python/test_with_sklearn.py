@@ -1019,6 +1019,98 @@ def test_save_load_model():
         assert clf.best_score == score
 
 
+def save_raw_load_model(raw_format):
+    from sklearn.datasets import load_digits
+    from sklearn.model_selection import KFold
+
+    digits = load_digits(n_class=2)
+    y = digits['target']
+    X = digits['data']
+    kf = KFold(n_splits=2, shuffle=True, random_state=rng)
+    for train_index, test_index in kf.split(X, y):
+        xgb_model = xgb.XGBClassifier().fit(X[train_index], y[train_index])
+        buf = xgb_model.save_raw(raw_format)
+
+        xgb_model = xgb.XGBClassifier()
+        xgb_model.load_model(buf)
+
+        assert isinstance(xgb_model.classes_, np.ndarray)
+        np.testing.assert_equal(xgb_model.classes_, np.array([0, 1]))
+        assert isinstance(xgb_model._Booster, xgb.Booster)
+
+        preds = xgb_model.predict(X[test_index])
+        labels = y[test_index]
+        err = sum(1 for i in range(len(preds))
+                  if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
+        assert err < 0.1
+        assert xgb_model.get_booster().attr('scikit_learn') is None
+
+        # test native booster
+        preds = xgb_model.predict(X[test_index], output_margin=True)
+        booster = xgb.Booster(model_file=buf)
+        predt_1 = booster.predict(xgb.DMatrix(X[test_index]),
+                                  output_margin=True)
+        assert np.allclose(preds, predt_1)
+
+        with pytest.raises(TypeError):
+            xgb_model = xgb.XGBModel()
+            xgb_model.load_model(buf)
+
+
+def test_save_raw_load_model():
+    for raw_format in ('deprecated', 'json', 'ubj'):
+        save_raw_load_model(raw_format)
+
+    from sklearn.datasets import load_digits
+    from sklearn.model_selection import train_test_split
+
+    digits = load_digits(n_class=2)
+    y = digits['target']
+    X = digits['data']
+    booster = xgb.train({'tree_method': 'hist',
+                            'objective': 'binary:logistic'},
+                        dtrain=xgb.DMatrix(X, y),
+                        num_boost_round=4)
+    predt_0 = booster.predict(xgb.DMatrix(X))
+    buf = booster.save_raw()
+    cls = xgb.XGBClassifier()
+    cls.load_model(buf)
+
+    proba = cls.predict_proba(X)
+    assert proba.shape[0] == X.shape[0]
+    assert proba.shape[1] == 2  # binary
+
+    predt_1 = cls.predict_proba(X)[:, 1]
+    assert np.allclose(predt_0, predt_1)
+
+    cls = xgb.XGBModel()
+    cls.load_model(buf)
+    predt_1 = cls.predict(X)
+    assert np.allclose(predt_0, predt_1)
+
+    # mclass
+    X, y = load_digits(n_class=10, return_X_y=True)
+    # small test_size to force early stop
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.01, random_state=1
+    )
+    clf = xgb.XGBClassifier(
+        n_estimators=64, tree_method="hist", early_stopping_rounds=2
+    )
+    clf.fit(X_train, y_train, eval_set=[(X_test, y_test)])
+    score = clf.best_score
+    clf.save_model(buf)
+
+    clf = xgb.XGBClassifier()
+    clf.load_model(buf)
+    assert clf.classes_.size == 10
+    np.testing.assert_equal(clf.classes_, np.arange(10))
+    assert clf.n_classes_ == 10
+
+    assert clf.best_iteration == 27
+    assert clf.best_score == score
+
+
 def test_RFECV():
     from sklearn.datasets import load_breast_cancer, load_diabetes, load_iris
     from sklearn.feature_selection import RFECV
