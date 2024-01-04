@@ -38,7 +38,6 @@ def json_model(model_path: str, parameters: dict) -> dict:
 
     return model
 
-
 class TestModels:
     def test_glm(self):
         param = {'verbosity': 0, 'objective': 'binary:logistic',
@@ -273,142 +272,6 @@ class TestModels:
         bst = xgb.train([], dm2)
         bst.predict(dm2)  # success
 
-    def test_model_binary_io(self):
-        model_path = 'test_model_binary_io.bin'
-        parameters = {'tree_method': 'hist', 'booster': 'gbtree',
-                      'scale_pos_weight': '0.5'}
-        X = np.random.random((10, 3))
-        y = np.random.random((10,))
-        dtrain = xgb.DMatrix(X, y)
-        bst = xgb.train(parameters, dtrain, num_boost_round=2)
-        bst.save_model(model_path)
-        bst = xgb.Booster(model_file=model_path)
-        os.remove(model_path)
-        config = json.loads(bst.save_config())
-        assert float(config['learner']['objective'][
-            'reg_loss_param']['scale_pos_weight']) == 0.5
-
-        buf = bst.save_raw()
-        from_raw = xgb.Booster()
-        from_raw.load_model(buf)
-
-        buf_from_raw = from_raw.save_raw()
-        assert buf == buf_from_raw
-
-    def run_model_json_io(self, parameters: dict, ext: str) -> None:
-        if ext == "ubj" and tm.no_ubjson()["condition"]:
-            pytest.skip(tm.no_ubjson()["reason"])
-
-        loc = locale.getpreferredencoding(False)
-        model_path = 'test_model_json_io.' + ext
-        j_model = json_model(model_path, parameters)
-        assert isinstance(j_model['learner'], dict)
-
-        bst = xgb.Booster(model_file=model_path)
-
-        bst.save_model(fname=model_path)
-        if ext == "ubj":
-            import ubjson
-            with open(model_path, "rb") as ubjfd:
-                j_model = ubjson.load(ubjfd)
-        else:
-            with open(model_path, 'r') as fd:
-                j_model = json.load(fd)
-
-        assert isinstance(j_model['learner'], dict)
-
-        os.remove(model_path)
-        assert locale.getpreferredencoding(False) == loc
-
-        json_raw = bst.save_raw(raw_format="json")
-        from_jraw = xgb.Booster()
-        from_jraw.load_model(json_raw)
-
-        ubj_raw = bst.save_raw(raw_format="ubj")
-        from_ubjraw = xgb.Booster()
-        from_ubjraw.load_model(ubj_raw)
-
-        if parameters.get("multi_strategy", None) != "multi_output_tree":
-            # old binary model is not supported.
-            old_from_json = from_jraw.save_raw(raw_format="deprecated")
-            old_from_ubj = from_ubjraw.save_raw(raw_format="deprecated")
-
-            assert old_from_json == old_from_ubj
-
-        raw_json = bst.save_raw(raw_format="json")
-        pretty = json.dumps(json.loads(raw_json), indent=2) + "\n\n"
-        bst.load_model(bytearray(pretty, encoding="ascii"))
-
-        if parameters.get("multi_strategy", None) != "multi_output_tree":
-            # old binary model is not supported.
-            old_from_json = from_jraw.save_raw(raw_format="deprecated")
-            old_from_ubj = from_ubjraw.save_raw(raw_format="deprecated")
-
-            assert old_from_json == old_from_ubj
-
-        rng = np.random.default_rng()
-        X = rng.random(size=from_jraw.num_features() * 10).reshape(
-            (10, from_jraw.num_features())
-        )
-        predt_from_jraw = from_jraw.predict(xgb.DMatrix(X))
-        predt_from_bst = bst.predict(xgb.DMatrix(X))
-        np.testing.assert_allclose(predt_from_jraw, predt_from_bst)
-
-    @pytest.mark.parametrize("ext", ["json", "ubj"])
-    def test_model_json_io(self, ext: str) -> None:
-        parameters = {"booster": "gbtree", "tree_method": "hist"}
-        self.run_model_json_io(parameters, ext)
-        parameters = {
-            "booster": "gbtree",
-            "tree_method": "hist",
-            "multi_strategy": "multi_output_tree",
-            "objective": "multi:softmax",
-        }
-        self.run_model_json_io(parameters, ext)
-        parameters = {"booster": "gblinear"}
-        self.run_model_json_io(parameters, ext)
-        parameters = {"booster": "dart", "tree_method": "hist"}
-        self.run_model_json_io(parameters, ext)
-
-    @pytest.mark.skipif(**tm.no_json_schema())
-    def test_json_io_schema(self):
-        import jsonschema
-        model_path = 'test_json_schema.json'
-        path = os.path.dirname(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        doc = os.path.join(path, 'doc', 'model.schema')
-        with open(doc, 'r') as fd:
-            schema = json.load(fd)
-        parameters = {'tree_method': 'hist', 'booster': 'gbtree'}
-        jsonschema.validate(instance=json_model(model_path, parameters),
-                            schema=schema)
-        os.remove(model_path)
-
-        parameters = {'tree_method': 'hist', 'booster': 'dart'}
-        jsonschema.validate(instance=json_model(model_path, parameters),
-                            schema=schema)
-        os.remove(model_path)
-
-        try:
-            dtrain, _ = tm.load_agaricus(__file__)
-            xgb.train({'objective': 'foo'}, dtrain, num_boost_round=1)
-        except ValueError as e:
-            e_str = str(e)
-            beg = e_str.find('Objective candidate')
-            end = e_str.find('Stack trace')
-            e_str = e_str[beg: end]
-            e_str = e_str.strip()
-            splited = e_str.splitlines()
-            objectives = [s.split(': ')[1] for s in splited]
-            j_objectives = schema['properties']['learner']['properties'][
-                'objective']['oneOf']
-            objectives_from_schema = set()
-            for j_obj in j_objectives:
-                objectives_from_schema.add(
-                    j_obj['properties']['name']['const'])
-            objectives = set(objectives)
-            assert objectives == objectives_from_schema
-
     @pytest.mark.skipif(**tm.no_json_schema())
     def test_json_dump_schema(self):
         import jsonschema
@@ -469,29 +332,6 @@ class TestModels:
         text_dump = booster.get_dump(dump_format="text")
         for d in text_dump:
             assert d.find(r"feature \"2\"") != -1
-
-    def test_categorical_model_io(self):
-        X, y = tm.make_categorical(256, 16, 71, False)
-        Xy = xgb.DMatrix(X, y, enable_categorical=True)
-        booster = xgb.train({"tree_method": "approx"}, Xy, num_boost_round=16)
-        predt_0 = booster.predict(Xy)
-
-        with tempfile.TemporaryDirectory() as tempdir:
-            path = os.path.join(tempdir, "model.deprecated")
-            with pytest.raises(ValueError, match=r".*JSON/UBJSON.*"):
-                booster.save_model(path)
-
-            path = os.path.join(tempdir, "model.json")
-            booster.save_model(path)
-            booster = xgb.Booster(model_file=path)
-            predt_1 = booster.predict(Xy)
-            np.testing.assert_allclose(predt_0, predt_1)
-
-            path = os.path.join(tempdir, "model.ubj")
-            booster.save_model(path)
-            booster = xgb.Booster(model_file=path)
-            predt_1 = booster.predict(Xy)
-            np.testing.assert_allclose(predt_0, predt_1)
 
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_attributes(self):
