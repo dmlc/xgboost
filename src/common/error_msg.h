@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 by XGBoost contributors
+ * Copyright 2023-2024, XGBoost contributors
  *
  * \brief Common error message for various checks.
  */
@@ -99,5 +99,9 @@ constexpr StringView InvalidCUDAOrdinal() {
 void MismatchedDevices(Context const* booster, Context const* data);
 
 inline auto NoFederated() { return "XGBoost is not compiled with federated learning support."; }
+
+inline auto NoCategorical(std::string name) {
+  return name + " doesn't support categorical features.";
+}
 }  // namespace xgboost::error
 #endif  // XGBOOST_COMMON_ERROR_MSG_H_

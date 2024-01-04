@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2023 by XGBoost Contributors
+ * Copyright 2015-2024, XGBoost Contributors
  * \file data.h
  * \brief The input data structure of xgboost.
  * \author Tianqi Chen
@@ -158,15 +158,15 @@ class MetaInfo {
   void SetFeatureInfo(const char *key, const char **info, const bst_ulong size);
   void GetFeatureInfo(const char *field, std::vector<std::string>* out_str_vecs) const;
 
-  /*
-   * \brief Extend with other MetaInfo.
+  /**
+   * @brief Extend with other MetaInfo.
    *
-   * \param that The other MetaInfo object.
+   * @param that The other MetaInfo object.
    *
-   * \param accumulate_rows Whether rows need to be accumulated in this function.  If
+   * @param accumulate_rows Whether rows need to be accumulated in this function.  If
    *                        client code knows number of rows in advance, set this
    *                        parameter to false.
-   * \param check_column Whether the extend method should check the consistency of
+   * @param check_column Whether the extend method should check the consistency of
    *                     columns.
    */
   void Extend(MetaInfo const& that, bool accumulate_rows, bool check_column);
@@ -203,6 +203,10 @@ class MetaInfo {
    * learning where labels are only available on worker 0.
    */
   bool ShouldHaveLabels() const;
+  /**
+   * @brief Flag for whether the DMatrix has categorical features.
+   */
+  bool HasCategorical() const { return has_categorical_; }
 
  private:
   void SetInfoFromHost(Context const& ctx, StringView key, Json arr);
@@ -210,6 +214,7 @@ class MetaInfo {
 
   /*! \brief argsort of labels */
   mutable std::vector<size_t> label_order_cache_;
+  bool has_categorical_{false};
 };
 
 /*! \brief Element from a sparse vector */
