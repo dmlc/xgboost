@@ -788,8 +788,7 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   /**
-   * Save model into raw byte array. Currently it's using the deprecated format as
-   * default, which will be changed into `ubj` in future releases.
+   * Save model into raw byte array in the UBJSON ("ubj") format.
    *
    * @return the saved byte array
    * @throws XGBoostError native error
