@@ -278,14 +278,18 @@ class TestCallbacks:
 
         dtrain, dtest = tm.load_agaricus(__file__)
 
-        watchlist = [(dtest, 'eval'), (dtrain, 'train')]
+        watchlist = [(dtest, "eval"), (dtrain, "train")]
         num_round = 4
 
         # learning_rates as a list
         # init eta with 0 to check whether learning_rates work
-        param = {'max_depth': 2, 'eta': 0,
-                 'objective': 'binary:logistic', 'eval_metric': 'error',
-                 'tree_method': tree_method}
+        param = {
+            "max_depth": 2,
+            "eta": 0,
+            "objective": "binary:logistic",
+            "eval_metric": "error",
+            "tree_method": tree_method,
+        }
         evals_result = {}
         bst = xgb.train(
             param,
@@ -295,15 +299,19 @@ class TestCallbacks:
             callbacks=[scheduler([0.8, 0.7, 0.6, 0.5])],
             evals_result=evals_result,
         )
-        eval_errors_0 = list(map(float, evals_result['eval']['error']))
+        eval_errors_0 = list(map(float, evals_result["eval"]["error"]))
         assert isinstance(bst, xgb.core.Booster)
         # validation error should decrease, if eta > 0
         assert eval_errors_0[0] > eval_errors_0[-1]
 
         # init learning_rate with 0 to check whether learning_rates work
-        param = {'max_depth': 2, 'learning_rate': 0,
-                 'objective': 'binary:logistic', 'eval_metric': 'error',
-                 'tree_method': tree_method}
+        param = {
+            "max_depth": 2,
+            "learning_rate": 0,
+            "objective": "binary:logistic",
+            "eval_metric": "error",
+            "tree_method": tree_method,
+        }
         evals_result = {}
 
         bst = xgb.train(
@@ -314,15 +322,17 @@ class TestCallbacks:
             callbacks=[scheduler([0.8, 0.7, 0.6, 0.5])],
             evals_result=evals_result,
         )
-        eval_errors_1 = list(map(float, evals_result['eval']['error']))
+        eval_errors_1 = list(map(float, evals_result["eval"]["error"]))
         assert isinstance(bst, xgb.core.Booster)
         # validation error should decrease, if learning_rate > 0
         assert eval_errors_1[0] > eval_errors_1[-1]
 
         # check if learning_rates override default value of eta/learning_rate
         param = {
-            'max_depth': 2, 'objective': 'binary:logistic',
-            'eval_metric': 'error', 'tree_method': tree_method
+            "max_depth": 2,
+            "objective": "binary:logistic",
+            "eval_metric": "error",
+            "tree_method": tree_method,
         }
         evals_result = {}
         bst = xgb.train(
