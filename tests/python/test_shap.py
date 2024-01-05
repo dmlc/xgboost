@@ -49,7 +49,7 @@ class TestSHAP:
 
         def fn(max_depth: int, num_rounds: int) -> None:
             # train
-            params = {"max_depth": max_depth, "eta": 1, "verbosity": 0}
+            params = {"max_depth": max_depth, "eta": 1}
             bst = xgb.train(params, dtrain, num_boost_round=num_rounds)
 
             # predict

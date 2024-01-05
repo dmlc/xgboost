@@ -341,7 +341,6 @@ class TestPandas:
         params = {
             "max_depth": 2,
             "eta": 1,
-            "verbosity": 0,
             "objective": "binary:logistic",
             "eval_metric": "error",
         }
@@ -372,7 +371,6 @@ class TestPandas:
         params = {
             "max_depth": 2,
             "eta": 1,
-            "verbosity": 0,
             "objective": "binary:logistic",
             "eval_metric": "auc",
         }
@@ -383,7 +381,6 @@ class TestPandas:
         params = {
             "max_depth": 2,
             "eta": 1,
-            "verbosity": 0,
             "objective": "binary:logistic",
             "eval_metric": ["auc"],
         }
@@ -394,7 +391,6 @@ class TestPandas:
         params = {
             "max_depth": 2,
             "eta": 1,
-            "verbosity": 0,
             "objective": "binary:logistic",
             "eval_metric": ["auc"],
         }
@@ -413,7 +409,6 @@ class TestPandas:
         params = {
             "max_depth": 2,
             "eta": 1,
-            "verbosity": 0,
             "objective": "binary:logistic",
         }
         cv = xgb.cv(
@@ -424,7 +419,6 @@ class TestPandas:
         params = {
             "max_depth": 2,
             "eta": 1,
-            "verbosity": 0,
             "objective": "binary:logistic",
         }
         cv = xgb.cv(
@@ -435,7 +429,6 @@ class TestPandas:
         params = {
             "max_depth": 2,
             "eta": 1,
-            "verbosity": 0,
             "objective": "binary:logistic",
             "eval_metric": ["auc"],
         }

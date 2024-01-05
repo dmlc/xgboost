@@ -2613,7 +2613,7 @@ class Booster:
         else:
             raise TypeError("fname must be a string or os PathLike")
 
-    def save_raw(self, raw_format: str = "deprecated") -> bytearray:
+    def save_raw(self, raw_format: str = "ubj") -> bytearray:
         """Save the model to a in memory buffer representation instead of file.
 
         Parameters

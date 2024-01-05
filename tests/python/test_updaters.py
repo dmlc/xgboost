@@ -117,7 +117,6 @@ class TestTreeMethod:
         ag_param = {'max_depth': 2,
                     'tree_method': 'hist',
                     'eta': 1,
-                    'verbosity': 0,
                     'objective': 'binary:logistic',
                     'eval_metric': 'auc'}
         hist_res = {}
@@ -340,7 +339,8 @@ class TestTreeMethod:
 
         assert get_score(config_0) == get_score(config_1)
 
-        raw_booster = booster_1.save_raw(raw_format="deprecated")
+        with pytest.warns(Warning, match="Model format is default to UBJSON"):
+            raw_booster = booster_1.save_raw(raw_format="deprecated")
         booster_2 = xgb.Booster(model_file=raw_booster)
         config_2 = json.loads(booster_2.save_config())
         assert get_score(config_1) == get_score(config_2)
