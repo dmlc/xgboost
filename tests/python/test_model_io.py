@@ -262,40 +262,47 @@ class TestBoosterIO:
         X, y, w = tm.make_regression(64, 16, False)
         booster = xgb.train({}, xgb.QuantileDMatrix(X, y, weight=w), num_boost_round=3)
 
+        def rename(src: str, dst: str) -> None:
+            if os.path.exists(dst):
+                # Windows cannot overwrite an existing file.
+                os.remove(dst)
+            os.rename(src, dst)
+
         with tempfile.TemporaryDirectory() as tmpdir:
             path_dep = os.path.join(tmpdir, "model.deprecated")
             # save into deprecated format
-            booster.save_model(path_dep)
+            with pytest.warns(UserWarning, match="UBJSON"):
+                booster.save_model(path_dep)
 
             path_ubj = os.path.join(tmpdir, "model.ubj")
-            os.rename(path_dep, path_ubj)
+            rename(path_dep, path_ubj)
 
             with pytest.raises(ValueError, match="{"):
                 xgb.Booster(model_file=path_ubj)
 
             path_json = os.path.join(tmpdir, "model.json")
-            os.rename(path_ubj, path_json)
+            rename(path_ubj, path_json)
 
             with pytest.raises(ValueError, match="{"):
                 xgb.Booster(model_file=path_json)
 
             # save into ubj format
             booster.save_model(path_ubj)
-            os.rename(path_ubj, path_dep)
+            rename(path_ubj, path_dep)
             # deprecated is not a recognized format internally, XGBoost can guess the
             # right format
             xgb.Booster(model_file=path_dep)
-            os.rename(path_dep, path_json)
+            rename(path_dep, path_json)
             with pytest.raises(ValueError, match="Expecting"):
                 xgb.Booster(model_file=path_json)
 
             # save into JSON format
             booster.save_model(path_json)
-            os.rename(path_json, path_dep)
+            rename(path_json, path_dep)
             # deprecated is not a recognized format internally, XGBoost can guess the
             # right format
             xgb.Booster(model_file=path_dep)
-            os.rename(path_dep, path_ubj)
+            rename(path_dep, path_ubj)
             with pytest.raises(ValueError, match="Expecting"):
                 xgb.Booster(model_file=path_ubj)
 
