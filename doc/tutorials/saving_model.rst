@@ -2,14 +2,20 @@
 Introduction to Model IO
 ########################
 
+Since 2.1.0, the default model format for XGBoost is the UBJSON format, the option is
+enabled for serializing models to file, serializing models to buffer, and for memory
+snapshot (pickle and alike).
+
 In XGBoost 1.0.0, we introduced support of using `JSON
 <https://www.json.org/json-en.html>`_ for saving/loading XGBoost models and related
 hyper-parameters for training, aiming to replace the old binary internal format with an
 open format that can be easily reused.  Later in XGBoost 1.6.0, additional support for
 `Universal Binary JSON <https://ubjson.org/>`__ is added as an optimization for more
-efficient model IO.  They have the same document structure with different representations,
-and we will refer them collectively as the JSON format. This tutorial aims to share some
-basic insights into the JSON serialisation method used in XGBoost.  Without explicitly
+efficient model IO, which is set to default in 2.1.
+
+JSON and UBJSON have the same document structure with different representations, and we
+will refer them collectively as the JSON format. This tutorial aims to share some basic
+insights into the JSON serialisation method used in XGBoost.  Without explicitly
 mentioned, the following sections assume you are using the one of the 2 outputs formats,
 which can be enabled by providing the file name with ``.json`` (or ``.ubj`` for binary
 JSON) as file extension when saving/loading model: ``booster.save_model('model.json')``.
@@ -25,12 +31,13 @@ If you come from Deep Learning community, then it should be
 clear to you that there are differences between the neural network structures composed of
 weights with fixed tensor operations, and the optimizers (like RMSprop) used to train them.
 
-So when one calls ``booster.save_model`` (``xgb.save`` in R), XGBoost saves the trees, some model
-parameters like number of input columns in trained trees, and the objective function, which combined
-to represent the concept of "model" in XGBoost.  As for why are we saving the objective as
-part of model, that's because objective controls transformation of global bias (called
-``base_score`` in XGBoost).  Users can share this model with others for prediction,
-evaluation or continue the training with a different set of hyper-parameters etc.
+So when one calls ``booster.save_model`` (``xgb.save`` in R), XGBoost saves the trees,
+some model parameters like number of input columns in trained trees, and the objective
+function, which combined to represent the concept of "model" in XGBoost.  As for why are
+we saving the objective as part of model, that's because objective controls transformation
+of global bias (called ``base_score`` in XGBoost) and task-specific information.  Users
+can share this model with others for prediction, evaluation or continue the training with
+a different set of hyper-parameters etc.
 
 However, this is not the end of story.  There are cases where we need to save something
 more than just the model itself.  For example, in distributed training, XGBoost performs
@@ -81,7 +88,10 @@ a filename with ``.json`` or ``.ubj`` as file extension, the latter is the exten
   JSON files that were produced by an external source may lead to undefined behaviors
   and crashes.
 
-While for memory snapshot, UBJSON is the default starting with xgboost 1.6.
+While for memory snapshot, UBJSON is the default starting with xgboost 1.6. When loading
+the model back, XGBoost recognizes the file extensions ``.json`` and ``.ubj``, and can
+dispatch accordingly. If the extension is not specified, XGBoost tries to guess the right
+one.
 
 ***************************************************************
 A note on backward compatibility of models and memory snapshots
