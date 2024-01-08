@@ -17,7 +17,11 @@ namespace xgboost {
 ConsoleLogger::~ConsoleLogger() {
   if (cur_verbosity_ == LogVerbosity::kIgnore ||
       cur_verbosity_ <= GlobalVerbosity()) {
-    dmlc::CustomLogMessage::Log(log_stream_.str());
+    if (cur_verbosity_ == LogVerbosity::kWarning) {
+      REprintf("%s\n", log_stream_.str().c_str());
+    } else {
+      dmlc::CustomLogMessage::Log(log_stream_.str());
+    }
   }
 }
 TrackerLogger::~TrackerLogger() {

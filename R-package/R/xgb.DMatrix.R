@@ -107,11 +107,11 @@
 #' dtrain <- with(
 #'   agaricus.train, xgb.DMatrix(data, label = label, nthread = nthread)
 #' )
-#' xgb.DMatrix.save(dtrain, 'xgb.DMatrix.data')
-#' dtrain <- xgb.DMatrix('xgb.DMatrix.data')
-#' if (file.exists('xgb.DMatrix.data')) file.remove('xgb.DMatrix.data')
+#' fname <- file.path(tempdir(), "xgb.DMatrix.data")
+#' xgb.DMatrix.save(dtrain, fname)
+#' dtrain <- xgb.DMatrix(fname)
 #' @export
-#' @rdname DMatrix
+#' @rdname xgb.DMatrix
 xgb.DMatrix <- function(
   data,
   label = NULL,
@@ -310,7 +310,7 @@ xgb.DMatrix <- function(
 #'
 #' This is only supported when constructing a QuantileDMatrix.
 #' @export
-#' @rdname DMatrix
+#' @rdname xgb.DMatrix
 xgb.QuantileDMatrix <- function(
   data,
   label = NULL,

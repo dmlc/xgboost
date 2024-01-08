@@ -79,9 +79,9 @@ xgb.attr(bst, "my_attribute") <- "my attribute value"
 print(xgb.attr(bst, "my_attribute"))
 xgb.attributes(bst) <- list(a = 123, b = "abc")
 
-xgb.save(bst, "xgb.model")
-bst1 <- xgb.load("xgb.model")
-if (file.exists("xgb.model")) file.remove("xgb.model")
+fname <- file.path(tempdir(), "xgb.ubj")
+xgb.save(bst, fname)
+bst1 <- xgb.load(fname)
 print(xgb.attr(bst1, "my_attribute"))
 print(xgb.attributes(bst1))
 

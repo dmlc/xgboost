@@ -45,12 +45,12 @@ bst <- xgboost(
   objective = "binary:logistic"
 )
 
-saveRDS(bst, "xgb.model.rds")
+fname <- file.path(tempdir(), "xgb_model.Rds")
+saveRDS(bst, fname)
 
 # Warning: The resulting RDS file is only compatible with the current XGBoost version.
 # Refer to the section titled "a-compatibility-note-for-saveRDS-save".
-bst1 <- readRDS("xgb.model.rds")
-if (file.exists("xgb.model.rds")) file.remove("xgb.model.rds")
+bst1 <- readRDS(fname)
 # the handle is invalid:
 print(bst1$handle)
 

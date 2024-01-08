@@ -46,9 +46,9 @@ bst <- xgb.train(
   nrounds = 2,
   objective = "binary:logistic"
 )
-xgb.save(bst, 'xgb.model')
-bst <- xgb.load('xgb.model')
-if (file.exists('xgb.model')) file.remove('xgb.model')
+fname <- file.path(tempdir(), "xgb.ubj")
+xgb.save(bst, fname)
+bst <- xgb.load(fname)
 }
 \seealso{
 \code{\link{xgb.load}}, \code{\link{xgb.Booster.complete}}.
