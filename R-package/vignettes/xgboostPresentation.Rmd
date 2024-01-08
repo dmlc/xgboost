@@ -400,9 +400,10 @@ In simple cases, it will happen because there is nothing better than a linear al
 Like saving models, `xgb.DMatrix` object (which groups both dataset and outcome) can also be saved using `xgb.DMatrix.save` function.
 
 ```{r DMatrixSave, message=F, warning=F}
-xgb.DMatrix.save(dtrain, "dtrain.buffer")
+fname <- file.path(tempdir(), "dtrain.buffer")
+xgb.DMatrix.save(dtrain, fname)
 # to load it in, simply call xgb.DMatrix
-dtrain2 <- xgb.DMatrix("dtrain.buffer")
+dtrain2 <- xgb.DMatrix(fname)
 bst <- xgb.train(
     data = dtrain2
     , max_depth = 2
@@ -415,7 +416,7 @@ bst <- xgb.train(
 ```
 
 ```{r DMatrixDel, include=FALSE}
-file.remove("dtrain.buffer")
+file.remove(fname)
 ```
 
 #### Information extraction
@@ -466,7 +467,8 @@ Hopefully for you, **XGBoost** implements such functions.
 
 ```{r saveModel, message=F, warning=F}
 # save model to binary local file
-xgb.save(bst, "xgboost.model")
+fname <- file.path(tempdir(), "xgb_model.ubj")
+xgb.save(bst, fname)
 ```
 
 > `xgb.save` function should return `r TRUE` if everything goes well and crashes otherwise.
@@ -475,7 +477,7 @@ An interesting test to see how identical our saved model is to the original one 
 
 ```{r loadModel, message=F, warning=F}
 # load binary model to R
-bst2 <- xgb.load("xgboost.model")
+bst2 <- xgb.load(fname)
 xgb.parameters(bst2) <- list(nthread = 2)
 pred2 <- predict(bst2, test$data)
 
@@ -485,7 +487,7 @@ print(paste("sum(abs(pred2-pred))=", sum(abs(pred2 - pred))))
 
 ```{r clean, include=FALSE}
 # delete the created model
-file.remove("./xgboost.model")
+file.remove(fname)
 ```
 
 > result is `0`? We are good!

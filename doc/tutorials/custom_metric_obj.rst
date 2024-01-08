@@ -279,7 +279,6 @@ available at :ref:`sphx_glr_python_examples_custom_softmax.py`. Also, see
 Scikit-Learn Interface
 **********************
 
-
 The scikit-learn interface of XGBoost has some utilities to improve the integration with
 standard scikit-learn functions.  For instance, after XGBoost 1.6.0 users can use the cost
 function (not scoring functions) from scikit-learn out of the box:

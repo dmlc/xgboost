@@ -244,7 +244,7 @@ class TestCallbacks:
         assert booster.num_boosted_rounds() == booster.best_iteration + 1
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, 'model.json')
+            path = os.path.join(tmpdir, "model.json")
             cls.save_model(path)
             cls = xgb.XGBClassifier()
             cls.load_model(path)
@@ -278,14 +278,18 @@ class TestCallbacks:
 
         dtrain, dtest = tm.load_agaricus(__file__)
 
-        watchlist = [(dtest, 'eval'), (dtrain, 'train')]
+        watchlist = [(dtest, "eval"), (dtrain, "train")]
         num_round = 4
 
         # learning_rates as a list
         # init eta with 0 to check whether learning_rates work
-        param = {'max_depth': 2, 'eta': 0, 'verbosity': 0,
-                 'objective': 'binary:logistic', 'eval_metric': 'error',
-                 'tree_method': tree_method}
+        param = {
+            "max_depth": 2,
+            "eta": 0,
+            "objective": "binary:logistic",
+            "eval_metric": "error",
+            "tree_method": tree_method,
+        }
         evals_result = {}
         bst = xgb.train(
             param,
@@ -295,15 +299,19 @@ class TestCallbacks:
             callbacks=[scheduler([0.8, 0.7, 0.6, 0.5])],
             evals_result=evals_result,
         )
-        eval_errors_0 = list(map(float, evals_result['eval']['error']))
+        eval_errors_0 = list(map(float, evals_result["eval"]["error"]))
         assert isinstance(bst, xgb.core.Booster)
         # validation error should decrease, if eta > 0
         assert eval_errors_0[0] > eval_errors_0[-1]
 
         # init learning_rate with 0 to check whether learning_rates work
-        param = {'max_depth': 2, 'learning_rate': 0, 'verbosity': 0,
-                 'objective': 'binary:logistic', 'eval_metric': 'error',
-                 'tree_method': tree_method}
+        param = {
+            "max_depth": 2,
+            "learning_rate": 0,
+            "objective": "binary:logistic",
+            "eval_metric": "error",
+            "tree_method": tree_method,
+        }
         evals_result = {}
 
         bst = xgb.train(
@@ -314,15 +322,17 @@ class TestCallbacks:
             callbacks=[scheduler([0.8, 0.7, 0.6, 0.5])],
             evals_result=evals_result,
         )
-        eval_errors_1 = list(map(float, evals_result['eval']['error']))
+        eval_errors_1 = list(map(float, evals_result["eval"]["error"]))
         assert isinstance(bst, xgb.core.Booster)
         # validation error should decrease, if learning_rate > 0
         assert eval_errors_1[0] > eval_errors_1[-1]
 
         # check if learning_rates override default value of eta/learning_rate
         param = {
-            'max_depth': 2, 'verbosity': 0, 'objective': 'binary:logistic',
-            'eval_metric': 'error', 'tree_method': tree_method
+            "max_depth": 2,
+            "objective": "binary:logistic",
+            "eval_metric": "error",
+            "tree_method": tree_method,
         }
         evals_result = {}
         bst = xgb.train(
@@ -368,7 +378,7 @@ class TestCallbacks:
         scheduler = xgb.callback.LearningRateScheduler
 
         dtrain, dtest = tm.load_agaricus(__file__)
-        watchlist = [(dtest, 'eval'), (dtrain, 'train')]
+        watchlist = [(dtest, "eval"), (dtrain, "train")]
 
         param = {
             "max_depth": 2,
@@ -419,7 +429,7 @@ class TestCallbacks:
         assert tree_3th_0["split_conditions"] != tree_3th_1["split_conditions"]
 
     @pytest.mark.parametrize("tree_method", ["hist", "approx", "approx"])
-    def test_eta_decay(self, tree_method):
+    def test_eta_decay(self, tree_method: str) -> None:
         self.run_eta_decay(tree_method)
 
     @pytest.mark.parametrize(
@@ -436,7 +446,7 @@ class TestCallbacks:
     def test_eta_decay_leaf_output(self, tree_method: str, objective: str) -> None:
         self.run_eta_decay_leaf_output(tree_method, objective)
 
-    def test_check_point(self):
+    def test_check_point(self) -> None:
         from sklearn.datasets import load_breast_cancer
 
         X, y = load_breast_cancer(return_X_y=True)
@@ -453,7 +463,12 @@ class TestCallbacks:
                 callbacks=[check_point],
             )
             for i in range(1, 10):
-                assert os.path.exists(os.path.join(tmpdir, "model_" + str(i) + ".json"))
+                assert os.path.exists(
+                    os.path.join(
+                        tmpdir,
+                        f"model_{i}.{xgb.callback.TrainingCheckPoint.default_format}",
+                    )
+                )
 
             check_point = xgb.callback.TrainingCheckPoint(
                 directory=tmpdir, interval=1, as_pickle=True, name="model"
@@ -468,7 +483,7 @@ class TestCallbacks:
             for i in range(1, 10):
                 assert os.path.exists(os.path.join(tmpdir, "model_" + str(i) + ".pkl"))
 
-    def test_callback_list(self):
+    def test_callback_list(self) -> None:
         X, y = tm.data.get_california_housing()
         m = xgb.DMatrix(X, y)
         callbacks = [xgb.callback.EarlyStopping(rounds=10)]

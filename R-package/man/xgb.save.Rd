@@ -58,9 +58,9 @@ bst <- xgb.train(
   nrounds = 2,
   objective = "binary:logistic"
 )
-xgb.save(bst, 'xgb.ubj')
-bst <- xgb.load('xgb.ubj')
-if (file.exists('xgb.ubj')) file.remove('xgb.ubj')
+fname <- file.path(tempdir(), "xgb.ubj")
+xgb.save(bst, fname)
+bst <- xgb.load(fname)
 }
 \seealso{
 \code{\link{xgb.load}}

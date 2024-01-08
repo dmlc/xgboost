@@ -630,7 +630,7 @@ sparse_datasets_strategy = strategies.sampled_from(
 
 def make_datasets_with_margin(
     unweighted_strategy: strategies.SearchStrategy,
-) -> Callable:
+) -> Callable[[], strategies.SearchStrategy[TestDataset]]:
     """Factory function for creating strategies that generates datasets with weight and
     base margin.
 
@@ -668,8 +668,7 @@ def make_datasets_with_margin(
 
 # A strategy for drawing from a set of example datasets. May add random weights to the
 # dataset
-@memory.cache
-def make_dataset_strategy() -> Callable:
+def make_dataset_strategy() -> strategies.SearchStrategy[TestDataset]:
     _unweighted_datasets_strategy = strategies.sampled_from(
         [
             TestDataset(
@@ -813,6 +812,13 @@ def softprob_obj(
         return grad, hess
 
     return objective
+
+
+def ls_obj(y_true: np.ndarray, y_pred: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """Least squared error."""
+    grad = y_pred - y_true
+    hess = np.ones(len(y_true))
+    return grad, hess
 
 
 class DirectoryExcursion:

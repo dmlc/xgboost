@@ -22,8 +22,14 @@ coord_strategy = strategies.fixed_dictionaries({
 
 def train_result(param, dmat, num_rounds):
     result = {}
-    xgb.train(param, dmat, num_rounds, [(dmat, 'train')], verbose_eval=False,
-              evals_result=result)
+    xgb.train(
+        param,
+        dmat,
+        num_rounds,
+        evals=[(dmat, "train")],
+        verbose_eval=False,
+        evals_result=result,
+    )
     return result
 
 

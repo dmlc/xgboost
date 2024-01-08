@@ -337,8 +337,7 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
   }
 
   /**
-    * Save model into a raw byte array. Currently it's using the deprecated format as
-   *  default, which will be changed into `ubj` in future releases.
+    * Save model into a raw byte array in the UBJSON ("ubj") format.
     */
   @throws(classOf[XGBoostError])
   def toByteArray: Array[Byte] = {

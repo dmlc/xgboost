@@ -221,9 +221,9 @@ test_that("xgb-attribute functionality", {
   xgb.attributes(bst.Tree.copy) <- list.val
   expect_equal(xgb.attributes(bst.Tree.copy), list.ch)
   # serializing:
-  xgb.save(bst.Tree.copy, 'xgb.model')
-  bst <- xgb.load('xgb.model')
-  if (file.exists('xgb.model')) file.remove('xgb.model')
+  fname <- file.path(tempdir(), "xgb.ubj")
+  xgb.save(bst.Tree.copy, fname)
+  bst <- xgb.load(fname)
   expect_equal(xgb.attr(bst, "my_attr"), val)
   expect_equal(xgb.attributes(bst), list.ch)
   # deletion:
@@ -260,15 +260,17 @@ if (grepl('Windows', Sys.info()[['sysname']], fixed = TRUE) ||
 
 test_that("xgb.Booster serializing as R object works", {
   .skip_if_vcd_not_available()
-  saveRDS(bst.Tree, 'xgb.model.rds')
-  bst <- readRDS('xgb.model.rds')
+  fname_rds <- file.path(tempdir(), "xgb.model.rds")
+  saveRDS(bst.Tree, fname_rds)
+  bst <- readRDS(fname_rds)
   dtrain <- xgb.DMatrix(sparse_matrix, label = label, nthread = 2)
   expect_equal(predict(bst.Tree, dtrain), predict(bst, dtrain), tolerance = float_tolerance)
   expect_equal(xgb.dump(bst.Tree), xgb.dump(bst))
-  xgb.save(bst, 'xgb.model')
-  if (file.exists('xgb.model')) file.remove('xgb.model')
-  bst <- readRDS('xgb.model.rds')
-  if (file.exists('xgb.model.rds')) file.remove('xgb.model.rds')
+
+  fname_bin <- file.path(tempdir(), "xgb.model")
+  xgb.save(bst, fname_bin)
+  bst <- readRDS(fname_rds)
+  expect_equal(predict(bst.Tree, dtrain), predict(bst, dtrain), tolerance = float_tolerance)
 })
 
 test_that("xgb.model.dt.tree works with and without feature names", {
