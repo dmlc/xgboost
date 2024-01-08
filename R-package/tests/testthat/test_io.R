@@ -26,3 +26,24 @@ test_that("load/save raw works", {
   expect_equal(json2old, ubj2old)
   expect_equal(json2old, old_bytes)
 })
+
+test_that("saveRDS preserves C and R attributes", {
+  data(mtcars)
+  y <- mtcars$mpg
+  x <- as.matrix(mtcars[, -1])
+  dm <- xgb.DMatrix(x, label = y, nthread = 1)
+  model <- xgb.train(
+    data = dm,
+    params = list(nthread = 1, max_depth = 2),
+    nrounds = 5
+  )
+  attributes(model)$my_attr <- "qwerty"
+  xgb.attr(model, "c_attr") <- "asdf"
+
+  fname <- file.path(tempdir(), "xgb_model.Rds")
+  saveRDS(model, fname)
+  model_new <- readRDS(fname)
+
+  expect_equal(attributes(model_new)$my_attr, attributes(model)$my_attr)
+  expect_equal(xgb.attr(model, "c_attr"), xgb.attr(model_new, "c_attr"))
+})
