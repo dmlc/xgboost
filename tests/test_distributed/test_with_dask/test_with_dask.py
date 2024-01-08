@@ -2251,7 +2251,10 @@ class TestDaskCallbacks:
             )
             for i in range(1, 10):
                 assert os.path.exists(
-                    os.path.join(tmpdir, f"model_{i}.{xgb.callback.TrainingCheckPoint}")
+                    os.path.join(
+                        tmpdir,
+                        f"model_{i}.{xgb.callback.TrainingCheckPoint.default_format}",
+                    )
                 )
 
 
