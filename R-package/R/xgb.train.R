@@ -391,7 +391,7 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   niter_init <- bst$niter
   bst <- bst$bst
   .Call(
-    XGBoosterCopyInfoFromDMatrix,
+    XGBoosterCopyInfoFromDMatrix_R,
     xgb.get.handle(bst),
     dtrain
   )

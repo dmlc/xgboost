@@ -156,13 +156,13 @@ XGB_DLL SEXP XGDuplicate_R(SEXP obj);
  * \param obj1 R 'externalptr'
  * \param obj2 R 'externalptr'
  */
-XGB_DLL SEXP XGPointerEqComparison(SEXP obj1, SEXP obj2);
+XGB_DLL SEXP XGPointerEqComparison_R(SEXP obj1, SEXP obj2);
 
 /*!
  * \brief Register the Altrep class used for the booster
  * \param dll DLL info as provided by R_init
  */
-XGB_DLL void XGBInitializeAltrepClass(DllInfo *dll);
+XGB_DLL void XGBInitializeAltrepClass_R(DllInfo *dll);
 
 /*!
  * \brief return the quantile cuts used for the histogram method
@@ -200,7 +200,7 @@ XGB_DLL SEXP XGBoosterCreate_R(SEXP dmats);
  * \param booster R 'externalptr' pointing to a booster object
  * \param dmat R 'externalptr' pointing to a DMatrix object
  */
-XGB_DLL SEXP XGBoosterCopyInfoFromDMatrix(SEXP booster, SEXP dmat);
+XGB_DLL SEXP XGBoosterCopyInfoFromDMatrix_R(SEXP booster, SEXP dmat);
 
 /*!
  * \brief handle R 'externalptr' holding the booster object

@@ -15,12 +15,12 @@ Check these declarations against the C/Fortran source code.
 */
 
 /* .Call calls */
-extern void XGBInitializeAltrepClass(DllInfo *info);
+extern void XGBInitializeAltrepClass_R(DllInfo *info);
 extern SEXP XGDuplicate_R(SEXP);
-extern SEXP XGPointerEqComparison(SEXP, SEXP);
+extern SEXP XGPointerEqComparison_R(SEXP, SEXP);
 extern SEXP XGBoosterTrainOneIter_R(SEXP, SEXP, SEXP, SEXP, SEXP);
 extern SEXP XGBoosterCreate_R(SEXP);
-extern SEXP XGBoosterCopyInfoFromDMatrix(SEXP, SEXP);
+extern SEXP XGBoosterCopyInfoFromDMatrix_R(SEXP, SEXP);
 extern SEXP XGBoosterSetStrFeatureInfo_R(SEXP, SEXP, SEXP);
 extern SEXP XGBoosterGetStrFeatureInfo_R(SEXP, SEXP);
 extern SEXP XGBoosterBoostedRounds_R(SEXP);
@@ -65,10 +65,10 @@ extern SEXP XGBoosterFeatureScore_R(SEXP, SEXP);
 
 static const R_CallMethodDef CallEntries[] = {
   {"XGDuplicate_R",               (DL_FUNC) &XGDuplicate_R,               1},
-  {"XGPointerEqComparison",       (DL_FUNC) &XGPointerEqComparison,       2},
+  {"XGPointerEqComparison_R",     (DL_FUNC) &XGPointerEqComparison_R,     2},
   {"XGBoosterTrainOneIter_R",     (DL_FUNC) &XGBoosterTrainOneIter_R,     5},
   {"XGBoosterCreate_R",           (DL_FUNC) &XGBoosterCreate_R,           1},
-  {"XGBoosterCopyInfoFromDMatrix",(DL_FUNC) &XGBoosterCopyInfoFromDMatrix,2},  // NOLINT
+  {"XGBoosterCopyInfoFromDMatrix_R", (DL_FUNC) &XGBoosterCopyInfoFromDMatrix_R, 2},
   {"XGBoosterSetStrFeatureInfo_R",(DL_FUNC) &XGBoosterSetStrFeatureInfo_R,3},  // NOLINT
   {"XGBoosterGetStrFeatureInfo_R",(DL_FUNC) &XGBoosterGetStrFeatureInfo_R,2},  // NOLINT
   {"XGBoosterBoostedRounds_R",    (DL_FUNC) &XGBoosterBoostedRounds_R,    1},
@@ -119,5 +119,5 @@ __declspec(dllexport)
 void attribute_visible R_init_xgboost(DllInfo *dll) {
   R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
   R_useDynamicSymbols(dll, FALSE);
-  XGBInitializeAltrepClass(dll);
+  XGBInitializeAltrepClass_R(dll);
 }

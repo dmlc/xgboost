@@ -907,7 +907,7 @@ xgb.is.same.Booster <- function(obj1, obj2) {
   }
   return(
     .Call(
-      XGPointerEqComparison,
+      XGPointerEqComparison_R,
       xgb.get.handle(obj1),
       xgb.get.handle(obj2)
     )

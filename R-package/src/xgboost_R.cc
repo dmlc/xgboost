@@ -609,7 +609,7 @@ XGB_DLL SEXP XGDuplicate_R(SEXP obj) {
   return Rf_duplicate(obj);
 }
 
-XGB_DLL SEXP XGPointerEqComparison(SEXP obj1, SEXP obj2) {
+XGB_DLL SEXP XGPointerEqComparison_R(SEXP obj1, SEXP obj2) {
   return Rf_ScalarLogical(R_ExternalPtrAddr(obj1) == R_ExternalPtrAddr(obj2));
 }
 
@@ -799,7 +799,7 @@ SEXP XGBAltrepDuplicate_R(SEXP R_altrepped_obj, Rboolean deep) {
 
 } /* namespace */
 
-XGB_DLL void XGBInitializeAltrepClass(DllInfo *dll) {
+XGB_DLL void XGBInitializeAltrepClass_R(DllInfo *dll) {
   XGBAltrepPointerClass = R_make_altlist_class("XGBAltrepPointerClass", "xgboost", dll);
   R_set_altrep_Length_method(XGBAltrepPointerClass, XGBAltrepPointerLength_R);
   R_set_altlist_Elt_method(XGBAltrepPointerClass, XGBAltrepPointerGetElt_R);
@@ -830,7 +830,7 @@ XGB_DLL SEXP XGBoosterCreate_R(SEXP dmats) {
   return out;
 }
 
-XGB_DLL SEXP XGBoosterCopyInfoFromDMatrix(SEXP booster, SEXP dmat) {
+XGB_DLL SEXP XGBoosterCopyInfoFromDMatrix_R(SEXP booster, SEXP dmat) {
   R_API_BEGIN();
   char const **feature_names;
   bst_ulong len_feature_names = 0;
