@@ -36,7 +36,7 @@ class Plotting(xgb.callback.TrainingCallback):
         return f"{data}-{metric}"
 
     def after_iteration(
-        self, model: xgb.Booster, epoch: int, evals_log: dict[str, dict]
+        self, model: xgb.Booster, epoch: int, evals_log: Dict[str, dict]
     ) -> bool:
         """Update the plot."""
         if not self.lines:
