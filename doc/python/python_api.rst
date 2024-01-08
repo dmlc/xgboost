@@ -88,22 +88,18 @@ Callback API
 
 .. autoclass:: xgboost.callback.EvaluationMonitor
     :members:
-    :inherited-members:
     :show-inheritance:
 
 .. autoclass:: xgboost.callback.EarlyStopping
     :members:
-    :inherited-members:
     :show-inheritance:
 
 .. autoclass:: xgboost.callback.LearningRateScheduler
     :members:
-    :inherited-members:
     :show-inheritance:
 
 .. autoclass:: xgboost.callback.TrainingCheckPoint
     :members:
-    :inherited-members:
     :show-inheritance:
 
 .. _dask_api:
