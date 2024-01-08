@@ -144,6 +144,31 @@ XGB_DLL SEXP XGDMatrixNumRow_R(SEXP handle);
 XGB_DLL SEXP XGDMatrixNumCol_R(SEXP handle);
 
 /*!
+ * \brief return the quantile cuts used for the histogram method
+ * \param handle an instance of data matrix
+ * \return A list with entries 'indptr' and 'data'
+ */
+XGB_DLL SEXP XGDMatrixGetQuantileCut_R(SEXP handle);
+
+/*!
+ * \brief get the number of non-missing entries in a dmatrix
+ * \param handle an instance of data matrix
+ * \return the number of non-missing entries
+ */
+XGB_DLL SEXP XGDMatrixNumNonMissing_R(SEXP handle);
+
+/*!
+ * \brief get the data in a dmatrix in CSR format
+ * \param handle an instance of data matrix
+ * \return R list with the following entries in this order:
+ * - 'indptr
+ * - 'indices
+ * - 'data'
+ * - 'ncol'
+ */
+XGB_DLL SEXP XGDMatrixGetDataAsCSR_R(SEXP handle);
+
+/*!
  * \brief create xgboost learner
  * \param dmats a list of dmatrix handles that will be cached
  */

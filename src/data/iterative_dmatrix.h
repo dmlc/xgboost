@@ -93,7 +93,7 @@ class IterativeDMatrix : public DMatrix {
     return nullptr;
   }
   BatchSet<SparsePage> GetRowBatches() override {
-    LOG(FATAL) << "Not implemented.";
+    LOG(FATAL) << "Not implemented for `QuantileDMatrix`.";
     return BatchSet<SparsePage>(BatchIterator<SparsePage>(nullptr));
   }
   BatchSet<CSCPage> GetColumnBatches(Context const *) override {

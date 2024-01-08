@@ -1,7 +1,7 @@
 import csv
 import os
-import sys
 import tempfile
+import warnings
 
 import numpy as np
 import pytest
@@ -12,57 +12,10 @@ from scipy.sparse import csr_matrix, rand
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.core import DataSplitMode
-from xgboost.testing.data import np_dtypes
-
-rng = np.random.RandomState(1)
+from xgboost.testing.data import np_dtypes, run_base_margin_info
 
 dpath = "demo/data/"
 rng = np.random.RandomState(1994)
-
-
-def set_base_margin_info(DType, DMatrixT, tm: str):
-    rng = np.random.default_rng()
-    X = DType(rng.normal(0, 1.0, size=100).astype(np.float32).reshape(50, 2))
-    if hasattr(X, "iloc"):
-        y = X.iloc[:, 0]
-    else:
-        y = X[:, 0]
-    base_margin = X
-    # no error at set
-    Xy = DMatrixT(X, y, base_margin=base_margin)
-    # Error at train, caused by check in predictor.
-    with pytest.raises(ValueError, match=r".*base_margin.*"):
-        xgb.train({"tree_method": tm}, Xy)
-
-    if not hasattr(X, "iloc"):
-        # column major matrix
-        got = DType(Xy.get_base_margin().reshape(50, 2))
-        assert (got == base_margin).all()
-
-        assert base_margin.T.flags.c_contiguous is False
-        assert base_margin.T.flags.f_contiguous is True
-        Xy.set_info(base_margin=base_margin.T)
-        got = DType(Xy.get_base_margin().reshape(2, 50))
-        assert (got == base_margin.T).all()
-
-        # Row vs col vec.
-        base_margin = y
-        Xy.set_base_margin(base_margin)
-        bm_col = Xy.get_base_margin()
-        Xy.set_base_margin(base_margin.reshape(1, base_margin.size))
-        bm_row = Xy.get_base_margin()
-        assert (bm_row == bm_col).all()
-
-        # type
-        base_margin = base_margin.astype(np.float64)
-        Xy.set_base_margin(base_margin)
-        bm_f64 = Xy.get_base_margin()
-        assert (bm_f64 == bm_col).all()
-
-        # too many dimensions
-        base_margin = X.reshape(2, 5, 2, 5)
-        with pytest.raises(ValueError, match=r".*base_margin.*"):
-            Xy.set_base_margin(base_margin)
 
 
 class TestDMatrix:
@@ -72,19 +25,17 @@ class TestDMatrix:
         with pytest.warns(UserWarning):
             data._warn_unused_missing("uri", 4)
 
-        with pytest.warns(None) as record:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
             data._warn_unused_missing("uri", None)
             data._warn_unused_missing("uri", np.nan)
 
-            assert len(record) == 0
-
-        with pytest.warns(None) as record:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
             x = rng.randn(10, 10)
             y = rng.randn(10)
 
             xgb.DMatrix(x, y, missing=4)
-
-            assert len(record) == 0
 
     def test_dmatrix_numpy_init(self):
         data = np.random.randn(5, 5)
@@ -312,7 +263,7 @@ class TestDMatrix:
         dtrain = xgb.DMatrix(x, label=rng.binomial(1, 0.3, nrow))
         assert (dtrain.num_row(), dtrain.num_col()) == (nrow, ncol)
         watchlist = [(dtrain, "train")]
-        param = {"max_depth": 3, "objective": "binary:logistic", "verbosity": 0}
+        param = {"max_depth": 3, "objective": "binary:logistic"}
         bst = xgb.train(param, dtrain, 5, watchlist)
         bst.predict(dtrain)
 
@@ -350,7 +301,7 @@ class TestDMatrix:
         dtrain = xgb.DMatrix(x, label=rng.binomial(1, 0.3, nrow))
         assert (dtrain.num_row(), dtrain.num_col()) == (nrow, ncol)
         watchlist = [(dtrain, "train")]
-        param = {"max_depth": 3, "objective": "binary:logistic", "verbosity": 0}
+        param = {"max_depth": 3, "objective": "binary:logistic"}
         bst = xgb.train(param, dtrain, 5, watchlist)
         bst.predict(dtrain)
 
@@ -417,8 +368,8 @@ class TestDMatrix:
         )
         np.testing.assert_equal(np.array(Xy.feature_types), np.array(feature_types))
 
-    def test_base_margin(self):
-        set_base_margin_info(np.asarray, xgb.DMatrix, "hist")
+    def test_base_margin(self) -> None:
+        run_base_margin_info(np.asarray, xgb.DMatrix, "cpu")
 
     @given(
         strategies.integers(0, 1000),
@@ -523,17 +474,19 @@ class TestDMatrixColumnSplit:
     def test_uri(self):
         def verify_uri():
             rank = xgb.collective.get_rank()
-            data = np.random.rand(5, 5)
-            filename = f"test_data_{rank}.csv"
-            with open(filename, mode="w", newline="") as file:
-                writer = csv.writer(file)
-                for row in data:
-                    writer.writerow(row)
-            dtrain = xgb.DMatrix(
-                f"{filename}?format=csv", data_split_mode=DataSplitMode.COL
-            )
-            assert dtrain.num_row() == 5
-            assert dtrain.num_col() == 5 * xgb.collective.get_world_size()
+            with tempfile.TemporaryDirectory() as tmpdir:
+                filename = os.path.join(tmpdir, f"test_data_{rank}.csv")
+
+                data = np.random.rand(5, 5)
+                with open(filename, mode="w", newline="") as file:
+                    writer = csv.writer(file)
+                    for row in data:
+                        writer.writerow(row)
+                dtrain = xgb.DMatrix(
+                    f"{filename}?format=csv", data_split_mode=DataSplitMode.COL
+                )
+                assert dtrain.num_row() == 5
+                assert dtrain.num_col() == 5 * xgb.collective.get_world_size()
 
         tm.run_with_rabit(world_size=3, test_fn=verify_uri)
 

@@ -22,12 +22,13 @@ def non_increasing(L):
 
 def assert_constraint(constraint, tree_method):
     from sklearn.datasets import make_regression
+
     n = 1000
     X, y = make_regression(n, random_state=rng, n_features=1, n_informative=1)
     dtrain = xgb.DMatrix(X, y)
     param = {}
-    param['tree_method'] = tree_method
-    param['monotone_constraints'] = "(" + str(constraint) + ")"
+    param["tree_method"] = tree_method
+    param["monotone_constraints"] = "(" + str(constraint) + ")"
     bst = xgb.train(param, dtrain)
     dpredict = xgb.DMatrix(X[X[:, 0].argsort()])
     pred = bst.predict(dpredict)
@@ -40,15 +41,15 @@ def assert_constraint(constraint, tree_method):
 
 @pytest.mark.skipif(**tm.no_sklearn())
 def test_gpu_hist_basic():
-    assert_constraint(1, 'gpu_hist')
-    assert_constraint(-1, 'gpu_hist')
+    assert_constraint(1, "gpu_hist")
+    assert_constraint(-1, "gpu_hist")
 
 
 def test_gpu_hist_depthwise():
     params = {
-        'tree_method': 'gpu_hist',
-        'grow_policy': 'depthwise',
-        'monotone_constraints': '(1, -1)'
+        "tree_method": "gpu_hist",
+        "grow_policy": "depthwise",
+        "monotone_constraints": "(1, -1)",
     }
     model = xgb.train(params, tmc.training_dset)
     tmc.is_correctly_constrained(model)
@@ -56,9 +57,9 @@ def test_gpu_hist_depthwise():
 
 def test_gpu_hist_lossguide():
     params = {
-        'tree_method': 'gpu_hist',
-        'grow_policy': 'lossguide',
-        'monotone_constraints': '(1, -1)'
+        "tree_method": "gpu_hist",
+        "grow_policy": "lossguide",
+        "monotone_constraints": "(1, -1)",
     }
     model = xgb.train(params, tmc.training_dset)
     tmc.is_correctly_constrained(model)

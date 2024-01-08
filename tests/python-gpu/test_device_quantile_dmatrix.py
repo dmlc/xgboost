@@ -203,9 +203,7 @@ class TestQuantileDMatrix:
         np.testing.assert_equal(h_ret.indptr, d_ret.indptr)
         np.testing.assert_equal(h_ret.indices, d_ret.indices)
 
-        booster = xgb.train(
-            {"tree_method": "hist", "device": "cuda:0"}, dtrain=d_m
-        )
+        booster = xgb.train({"tree_method": "hist", "device": "cuda:0"}, dtrain=d_m)
 
         np.testing.assert_allclose(
             booster.predict(d_m),
@@ -215,6 +213,7 @@ class TestQuantileDMatrix:
 
     def test_ltr(self) -> None:
         import cupy as cp
+
         X, y, qid, w = tm.make_ltr(100, 3, 3, 5)
         # make sure GPU is used to run sketching.
         cpX = cp.array(X)
