@@ -22,7 +22,7 @@ xgb.Booster <- function(params, cachelist, modelfile) {
       return(list(bst = bst, niter = niter))
     } else if (is.raw(modelfile)) {
       ## A memory buffer
-      bst <- xgb.unserialize(modelfile)
+      bst <- xgb.load.raw(modelfile)
       niter <- xgb.nrounds(bst)
       xgb.parameters(bst) <- params
       return(list(bst = bst, niter = niter))
