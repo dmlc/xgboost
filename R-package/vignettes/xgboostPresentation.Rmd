@@ -155,11 +155,13 @@ We will train decision tree model using the following parameters:
 bstSparse <- xgboost(
     data = train$data
     , label = train$label
-    , max_depth = 2
-    , eta = 1
-    , nthread = 2
+    , params = list(
+        max_depth = 2
+        , eta = 1
+        , nthread = 2
+        , objective = "binary:logistic"
+    )
     , nrounds = 2
-    , objective = "binary:logistic"
 )
 ```
 
@@ -175,11 +177,13 @@ Alternatively, you can put your dataset in a *dense* matrix, i.e. a basic **R** 
 bstDense <- xgboost(
     data = as.matrix(train$data),
     label = train$label,
-    max_depth = 2,
-    eta = 1,
-    nthread = 2,
-    nrounds = 2,
-    objective = "binary:logistic"
+    params = list(
+        max_depth = 2,
+        eta = 1,
+        nthread = 2,
+        objective = "binary:logistic"
+    ),
+    nrounds = 2
 )
 ```
 
@@ -191,11 +195,13 @@ bstDense <- xgboost(
 dtrain <- xgb.DMatrix(data = train$data, label = train$label, nthread = 2)
 bstDMatrix <- xgboost(
     data = dtrain,
-    max_depth = 2,
-    eta = 1,
-    nthread = 2,
-    nrounds = 2,
-    objective = "binary:logistic"
+    params = list(
+        max_depth = 2,
+        eta = 1,
+        nthread = 2,
+        objective = "binary:logistic"
+    ),
+    nrounds = 2
 )
 ```
 
@@ -209,11 +215,13 @@ One of the simplest way to see the training progress is to set the `verbose` opt
 # verbose = 0, no message
 bst <- xgboost(
     data = dtrain
-    , max_depth = 2
-    , eta = 1
-    , nthread = 2
+    , params = list(
+        max_depth = 2
+        , eta = 1
+        , nthread = 2
+        , objective = "binary:logistic"
+    )
     , nrounds = 2
-    , objective = "binary:logistic"
     , verbose = 0
 )
 ```
@@ -222,11 +230,13 @@ bst <- xgboost(
 # verbose = 1, print evaluation metric
 bst <- xgboost(
     data = dtrain
-    , max_depth = 2
-    , eta = 1
-    , nthread = 2
+    , params = list(
+        max_depth = 2
+        , eta = 1
+        , nthread = 2
+        , objective = "binary:logistic"
+    )
     , nrounds = 2
-    , objective = "binary:logistic"
     , verbose = 1
 )
 ```
@@ -235,11 +245,13 @@ bst <- xgboost(
 # verbose = 2, also print information about tree
 bst <- xgboost(
     data = dtrain
-    , max_depth = 2
-    , eta = 1
-    , nthread = 2
+    , params = list(
+        max_depth = 2
+        , eta = 1
+        , nthread = 2
+        , objective = "binary:logistic"
+    )
     , nrounds = 2
-    , objective = "binary:logistic"
     , verbose = 2
 )
 ```
@@ -336,12 +348,14 @@ watchlist <- list(train = dtrain, test = dtest)
 
 bst <- xgb.train(
     data = dtrain
-    , max_depth = 2
-    , eta = 1
-    , nthread = 2
+    , params = list(
+        max_depth = 2
+        , eta = 1
+        , nthread = 2
+        , objective = "binary:logistic"
+    )
     , nrounds = 2
     , watchlist = watchlist
-    , objective = "binary:logistic"
 )
 ```
 
@@ -357,13 +371,15 @@ For a better understanding of the learning progression, you may want to have som
 bst <- xgb.train(
     data = dtrain
     , max_depth = 2
-    , eta = 1
-    , nthread = 2
+    , params = list(
+        eta = 1
+        , nthread = 2
+        , objective = "binary:logistic"
+        , eval_metric = "error"
+        , eval_metric = "logloss"
+    )
     , nrounds = 2
     , watchlist = watchlist
-    , eval_metric = "error"
-    , eval_metric = "logloss"
-    , objective = "binary:logistic"
 )
 ```
 
@@ -377,14 +393,15 @@ Until now, all the learnings we have performed were based on boosting trees. **X
 ```{r linearBoosting, message=F, warning=F}
 bst <- xgb.train(
     data = dtrain
-    , booster = "gblinear"
-    , max_depth = 2
-    , nthread = 2
+    , params = list(
+        booster = "gblinear"
+        , nthread = 2
+        , objective = "binary:logistic"
+        , eval_metric = "error"
+        , eval_metric = "logloss"
+    )
     , nrounds = 2
     , watchlist = watchlist
-    , eval_metric = "error"
-    , eval_metric = "logloss"
-    , objective = "binary:logistic"
 )
 ```
 
@@ -406,12 +423,14 @@ xgb.DMatrix.save(dtrain, fname)
 dtrain2 <- xgb.DMatrix(fname)
 bst <- xgb.train(
     data = dtrain2
-    , max_depth = 2
-    , eta = 1
-    , nthread = 2
+    , params = list(
+        max_depth = 2
+        , eta = 1
+        , nthread = 2
+        , objective = "binary:logistic"
+    )
     , nrounds = 2
     , watchlist = watchlist
-    , objective = "binary:logistic"
 )
 ```
 
