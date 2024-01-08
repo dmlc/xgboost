@@ -207,8 +207,7 @@ xgb.cv <- function(params = list(), data, nrounds, nfold, label = NULL, missing 
     bst <- xgb.Booster(
       params = params,
       cachelist = list(dtrain, dtest),
-      modelfile = NULL,
-      training_continuation = "copy" # <- not used
+      modelfile = NULL
     )
     bst <- bst$bst
     list(dtrain = dtrain, bst = bst, watchlist = list(train = dtrain, test = dtest), index = folds[[k]])

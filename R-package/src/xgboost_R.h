@@ -152,13 +152,6 @@ XGB_DLL SEXP XGDMatrixNumCol_R(SEXP handle);
 XGB_DLL SEXP XGDuplicate_R(SEXP obj);
 
 /*!
- * \brief Call R C-level function 'DUPLICATE_ATTRIB'
- * \param src Object from which to take the attributes
- * \param dest Object for which to set the attributes
- */
-XGB_DLL SEXP XGDuplicateAttrib(SEXP src, SEXP dest);
-
-/*!
  * \brief Equality comparison for two pointers
  * \param obj1 R 'externalptr'
  * \param obj2 R 'externalptr'

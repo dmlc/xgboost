@@ -19,7 +19,6 @@ xgb.train(
   save_period = NULL,
   save_name = "xgboost.model",
   xgb_model = NULL,
-  training_continuation = c("copy", "update"),
   callbacks = list(),
   keep_extra_attributes = TRUE,
   ...
@@ -204,18 +203,6 @@ This parameter is passed to the \code{\link{cb.early.stop}} callback.}
 Could be either an object of class \code{xgb.Booster}, or its raw data, or the name of a
 file with a previously saved model.}
 
-\item{training_continuation}{when passing \code{xgb_model}, whether to update the previous model by
-creating a copy of it which will contain the new boosted rounds (meaning: the original object
-is kept as it was before the call to \code{xgb.train}, and there will be two booster objects), or
-by updating the previous object in-place (meaning: the object passed under \code{xgb_model} will
-be updated, and nothing will be returned from this function).
-
-\if{html}{\out{<div class="sourceCode">}}\preformatted{   Note that, if passing "update" here, the object in `xgb_model`
-   \\bold\{will get updated regardless of whether this function succeeds or not\}
-   (for example, the parameters will be set on the existing `xgb_model`, overwriting previous ones,
-   even if the training fails because of some error).
-}\if{html}{\out{</div>}}}
-
 \item{callbacks}{a list of callback functions to perform various task during boosting.
 See \code{\link{callbacks}}. Some of the callbacks are automatically created depending on the
 parameters' values. User can provide either existing or their own callback methods in order
@@ -247,9 +234,7 @@ This parameter is only used when input is a dense matrix.}
 \item{weight}{a vector indicating the weight for each row of the input.}
 }
 \value{
-An object of class \code{xgb.Booster}, unless passing a previous \code{xgb_model} and passing
-\code{training_continuation="update"}, in which case will update that object and return NULL
-(invisibly) from this function.
+An object of class \code{xgb.Booster}.
 }
 \description{
 \code{xgb.train} is an advanced interface for training an xgboost model.

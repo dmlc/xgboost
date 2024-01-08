@@ -17,7 +17,6 @@ Check these declarations against the C/Fortran source code.
 /* .Call calls */
 extern void XGBInitializeAltrepClass(DllInfo *info);
 extern SEXP XGDuplicate_R(SEXP);
-extern SEXP XGDuplicateAttrib(SEXP, SEXP);
 extern SEXP XGPointerEqComparison(SEXP, SEXP);
 extern SEXP XGBoosterTrainOneIter_R(SEXP, SEXP, SEXP, SEXP, SEXP);
 extern SEXP XGBoosterCreate_R(SEXP);
@@ -66,7 +65,6 @@ extern SEXP XGBoosterFeatureScore_R(SEXP, SEXP);
 
 static const R_CallMethodDef CallEntries[] = {
   {"XGDuplicate_R",               (DL_FUNC) &XGDuplicate_R,               1},
-  {"XGDuplicateAttrib",           (DL_FUNC) &XGDuplicateAttrib,           2},
   {"XGPointerEqComparison",       (DL_FUNC) &XGPointerEqComparison,       2},
   {"XGBoosterTrainOneIter_R",     (DL_FUNC) &XGBoosterTrainOneIter_R,     5},
   {"XGBoosterCreate_R",           (DL_FUNC) &XGBoosterCreate_R,           1},

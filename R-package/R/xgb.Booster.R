@@ -3,7 +3,7 @@
 # Note: the number of rounds in the C booster gets reset to zero when updating
 # the parameters through 'xgb.parameters', hence the need to return it from
 # this function when using it for training continuation
-xgb.Booster <- function(params, cachelist, modelfile, training_continuation) {
+xgb.Booster <- function(params, cachelist, modelfile) {
   if (typeof(cachelist) != "list" ||
       !all(vapply(cachelist, inherits, logical(1), what = 'xgb.DMatrix'))) {
     stop("cachelist must be a list of xgb.DMatrix objects")
@@ -28,16 +28,10 @@ xgb.Booster <- function(params, cachelist, modelfile, training_continuation) {
       return(list(bst = bst, niter = niter))
     } else if (inherits(modelfile, "xgb.Booster")) {
       ## A booster object
-      if (training_continuation == "copy") {
-        bst <- .Call(XGDuplicate_R, modelfile)
-        niter <- xgb.nrounds(bst)
-        xgb.parameters(bst) <- params
-        return(list(bst = bst, niter = niter))
-      } else {
-        niter <- xgb.nrounds(modelfile)
-        xgb.parameters(modelfile) <- params
-        return(list(bst = modelfile, niter = niter))
-      }
+      bst <- .Call(XGDuplicate_R, modelfile)
+      niter <- xgb.nrounds(bst)
+      xgb.parameters(bst) <- params
+      return(list(bst = bst, niter = niter))
     } else {
       stop("modelfile must be either character filename, or raw booster dump, or xgb.Booster object")
     }

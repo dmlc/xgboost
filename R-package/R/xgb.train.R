@@ -148,16 +148,6 @@
 #' @param xgb_model a previously built model to continue the training from.
 #'        Could be either an object of class \code{xgb.Booster}, or its raw data, or the name of a
 #'        file with a previously saved model.
-#' @param training_continuation when passing `xgb_model`, whether to update the previous model by
-#'        creating a copy of it which will contain the new boosted rounds (meaning: the original object
-#'        is kept as it was before the call to `xgb.train`, and there will be two booster objects), or
-#'        by updating the previous object in-place (meaning: the object passed under `xgb_model` will
-#'        be updated, and nothing will be returned from this function).
-#'
-#'        Note that, if passing "update" here, the object in `xgb_model`
-#'        \bold{will get updated regardless of whether this function succeeds or not}
-#'        (for example, the parameters will be set on the existing `xgb_model`, overwriting previous ones,
-#'        even if the training fails because of some error).
 #' @param callbacks a list of callback functions to perform various task during boosting.
 #'        See \code{\link{callbacks}}. Some of the callbacks are automatically created depending on the
 #'        parameters' values. User can provide either existing or their own callback methods in order
@@ -182,9 +172,7 @@
 #'        evaluation logs from callbacks, among others.
 #'
 #' @return
-#' An object of class \code{xgb.Booster}, unless passing a previous `xgb_model` and passing
-#' `training_continuation="update"`, in which case will update that object and return NULL
-#' (invisibly) from this function.
+#' An object of class \code{xgb.Booster}.
 #'
 #' @details
 #' These are the training functions for \code{xgboost}.
@@ -326,8 +314,8 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
                       obj = NULL, feval = NULL, verbose = 1, print_every_n = 1L,
                       early_stopping_rounds = NULL, maximize = NULL,
                       save_period = NULL, save_name = "xgboost.model",
-                      xgb_model = NULL, training_continuation = c("copy", "update"),
-                      callbacks = list(), keep_extra_attributes = TRUE, ...) {
+                      xgb_model = NULL, callbacks = list(),
+                      keep_extra_attributes = TRUE, ...) {
 
   check.deprecation(...)
 
@@ -335,16 +323,6 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
 
   check.custom.obj()
   check.custom.eval()
-
-  if (is.null(xgb_model)) {
-    training_continuation <- "copy"
-  } else {
-    training_continuation <- head(training_continuation, 1L)
-    training_continuation <- as.character(training_continuation)
-    if (!(training_continuation %in% c("copy", "update"))) {
-      stop("'training_continuation' must be one of 'copy' or 'update'.")
-    }
-  }
 
   # data & watchlist checks
   dtrain <- data
@@ -408,8 +386,7 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   bst <- xgb.Booster(
     params = params,
     cachelist = append(watchlist, dtrain),
-    modelfile = xgb_model,
-    training_continuation = training_continuation
+    modelfile = xgb_model
   )
   niter_init <- bst$niter
   bst <- bst$bst
@@ -484,14 +461,7 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
     }
     curr_attrs <- attributes(bst)
     attributes(bst) <- c(curr_attrs, extra_attrs)
-    if (training_continuation == "update") {
-      .Call(XGDuplicateAttrib, bst, xgb_model)
-    }
   }
 
-  if (training_continuation == "update") {
-    return(invisible(NULL))
-  } else {
-    return(bst)
-  }
+  return(bst)
 }

@@ -49,8 +49,7 @@ xgb.load <- function(modelfile) {
   bst <- xgb.Booster(
     params = list(),
     cachelist = list(),
-    modelfile = modelfile,
-    training_continuation = "copy"
+    modelfile = modelfile
   )
   bst <- bst$bst
   # re-use modelfile if it is raw so we do not need to serialize

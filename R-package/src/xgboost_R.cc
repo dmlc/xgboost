@@ -609,11 +609,6 @@ XGB_DLL SEXP XGDuplicate_R(SEXP obj) {
   return Rf_duplicate(obj);
 }
 
-XGB_DLL SEXP XGDuplicateAttrib(SEXP src, SEXP dest) {
-  DUPLICATE_ATTRIB(dest, src);
-  return R_NilValue;
-}
-
 XGB_DLL SEXP XGPointerEqComparison(SEXP obj1, SEXP obj2) {
   return Rf_ScalarLogical(R_ExternalPtrAddr(obj1) == R_ExternalPtrAddr(obj2));
 }
