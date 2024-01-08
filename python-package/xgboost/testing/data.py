@@ -7,6 +7,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Dict,
     Generator,
     NamedTuple,
     Optional,
@@ -285,15 +286,20 @@ def get_ames_housing() -> Tuple[DataFrameT, np.ndarray]:
     n_samples = 1460
     df = pd.DataFrame()
 
-    def synth_cat(name_proba: dict[str, float], density: float) -> pd.Series:
+    def synth_cat(name_proba: Dict[str, float], density: float) -> pd.Series:
+        n_nulls = int(n_samples * (1 - density))
+        has_nan = np.abs(1.0 - density) > 1e-6 and n_nulls > 0
+        if has_nan:
+            sparsity = 1.0 - density
+            name_proba["_null_"] = sparsity
+
         keys = list(name_proba.keys())
         p = list(name_proba.values())
         p[-1] += 1.0 - np.sum(p)  # Fix floating point error
         x = rng.choice(keys, size=n_samples, p=p)
-        n_nulls = int(n_samples * (1.0 - density))
-        if np.abs(1.0 - density) > 1e-6 and n_nulls > 0:
-            null_idx = rng.choice(n_samples, size=n_nulls, replace=False)
-            x[null_idx] = np.nan
+        if has_nan:
+            x[x == "_null_"] = np.nan
+
         series = pd.Series(x, dtype=pd.CategoricalDtype(keys))
         return series
 
