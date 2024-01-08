@@ -62,11 +62,31 @@ class TrainingCallback(ABC):
         return model
 
     def before_iteration(self, model: _Model, epoch: int, evals_log: EvalsLog) -> bool:
-        """Run before each iteration.  Return True when training should stop."""
+        """Run before each iteration.  Returns True when training should stop. See
+        :py:meth:`after_iteration` for details.
+
+        """
         return False
 
     def after_iteration(self, model: _Model, epoch: int, evals_log: EvalsLog) -> bool:
-        """Run after each iteration.  Return True when training should stop."""
+        """Run after each iteration.  Returns `True` when training should stop.
+
+        Parameters
+        ----------
+
+        model :
+            Eeither a :py:class:`~xgboost.Booster` object or a CVPack if the cv function
+            in xgboost is being used.
+        epoch :
+            The current training iteration.
+        evals_log :
+            A dictionary containing the evaluation history:
+
+            .. code-block:: python
+
+                {"data_name": {"metric_name": [0.5, ...]}}
+
+        """
         return False
 
 

@@ -31,6 +31,8 @@ class LintersPaths:
         "tests/python/test_with_pandas.py",
         "tests/python-gpu/",
         "tests/python-sycl/",
+        "tests/test_distributed/test_with_dask/",
+        "tests/test_distributed/test_gpu_with_dask/",
         "tests/test_distributed/test_with_spark/",
         "tests/test_distributed/test_gpu_with_spark/",
         # demo
