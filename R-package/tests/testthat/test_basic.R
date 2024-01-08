@@ -25,7 +25,7 @@ test_that("train and predict binary classification", {
     "train-error"
   )
   expect_equal(class(bst), "xgb.Booster")
-  expect_equal(xgb.nrounds(bst), nrounds)
+  expect_equal(xgb.get.num.boosted.rounds(bst), nrounds)
   expect_false(is.null(attributes(bst)$evaluation_log))
   expect_equal(nrow(attributes(bst)$evaluation_log), nrounds)
   expect_lt(attributes(bst)$evaluation_log[, min(train_error)], 0.03)
@@ -161,7 +161,7 @@ test_that("train and predict softprob", {
   )
   expect_false(is.null(attributes(bst)$evaluation_log))
   expect_lt(attributes(bst)$evaluation_log[, min(train_merror)], 0.025)
-  expect_equal(xgb.nrounds(bst) * 3, xgb.ntree(bst))
+  expect_equal(xgb.get.num.boosted.rounds(bst) * 3, xgb.ntree(bst))
   pred <- predict(bst, as.matrix(iris[, -5]))
   expect_length(pred, nrow(iris) * 3)
   # row sums add up to total probability of 1:
@@ -212,7 +212,7 @@ test_that("train and predict softmax", {
   )
   expect_false(is.null(attributes(bst)$evaluation_log))
   expect_lt(attributes(bst)$evaluation_log[, min(train_merror)], 0.025)
-  expect_equal(xgb.nrounds(bst) * 3, xgb.ntree(bst))
+  expect_equal(xgb.get.num.boosted.rounds(bst) * 3, xgb.ntree(bst))
 
   pred <- predict(bst, as.matrix(iris[, -5]))
   expect_length(pred, nrow(iris))
@@ -231,7 +231,7 @@ test_that("train and predict RF", {
     num_parallel_tree = 20, subsample = 0.6, colsample_bytree = 0.1,
     watchlist = list(train = xgb.DMatrix(train$data, label = lb))
   )
-  expect_equal(xgb.nrounds(bst), 1)
+  expect_equal(xgb.get.num.boosted.rounds(bst), 1)
   expect_equal(xgb.ntree(bst), 20)
 
   pred <- predict(bst, train$data)
@@ -259,7 +259,7 @@ test_that("train and predict RF with softprob", {
     num_parallel_tree = 4, subsample = 0.5, colsample_bytree = 0.5,
     watchlist = list(train = xgb.DMatrix(as.matrix(iris[, -5]), label = lb))
   )
-  expect_equal(xgb.nrounds(bst), 15)
+  expect_equal(xgb.get.num.boosted.rounds(bst), 15)
   expect_equal(xgb.ntree(bst), 15 * 3 * 4)
   # predict for all iterations:
   pred <- predict(bst, as.matrix(iris[, -5]), reshape = TRUE)

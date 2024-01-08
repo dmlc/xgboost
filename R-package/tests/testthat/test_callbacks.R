@@ -182,10 +182,10 @@ test_that("cb.save.model works as expected", {
   expect_true(file.exists('xgboost_02.json'))
   b1 <- xgb.load('xgboost_01.json')
   xgb.parameters(b1) <- list(nthread = 2)
-  expect_equal(xgb.nrounds(b1), 1)
+  expect_equal(xgb.get.num.boosted.rounds(b1), 1)
   b2 <- xgb.load('xgboost_02.json')
   xgb.parameters(b2) <- list(nthread = 2)
-  expect_equal(xgb.nrounds(b2), 2)
+  expect_equal(xgb.get.num.boosted.rounds(b2), 2)
 
   xgb.config(b2) <- xgb.config(bst)
   expect_equal(xgb.config(bst), xgb.config(b2))

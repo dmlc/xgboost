@@ -15,7 +15,7 @@ xgb.Booster <- function(params, cachelist, modelfile) {
       bst <- .Call(XGBoosterCreate_R, cachelist)
       modelfile <- path.expand(modelfile)
       .Call(XGBoosterLoadModel_R, xgb.get.handle(bst), enc2utf8(modelfile[1]))
-      niter <- xgb.nrounds(bst)
+      niter <- xgb.get.num.boosted.rounds(bst)
       if (length(params) > 0) {
         xgb.parameters(bst) <- params
       }
@@ -23,13 +23,13 @@ xgb.Booster <- function(params, cachelist, modelfile) {
     } else if (is.raw(modelfile)) {
       ## A memory buffer
       bst <- xgb.load.raw(modelfile)
-      niter <- xgb.nrounds(bst)
+      niter <- xgb.get.num.boosted.rounds(bst)
       xgb.parameters(bst) <- params
       return(list(bst = bst, niter = niter))
     } else if (inherits(modelfile, "xgb.Booster")) {
       ## A booster object
       bst <- .Call(XGDuplicate_R, modelfile)
-      niter <- xgb.nrounds(bst)
+      niter <- xgb.get.num.boosted.rounds(bst)
       xgb.parameters(bst) <- params
       return(list(bst = bst, niter = niter))
     } else {
@@ -689,13 +689,7 @@ setinfo.xgb.Booster <- function(object, name, info) {
 #' number of rounds to zero.
 #' @export
 xgb.get.num.boosted.rounds <- function(model) {
-  return(xgb.nrounds(model))
-}
-
-# Extract the number of trees in a model.
-# internal utility function
-xgb.nrounds <- function(bst) {
-  return(.Call(XGBoosterBoostedRounds_R, xgb.get.handle(bst)))
+  return(.Call(XGBoosterBoostedRounds_R, xgb.get.handle(model)))
 }
 
 xgb.ntree <- function(bst) {
@@ -956,7 +950,7 @@ print.xgb.Booster <- function(x, ...) {
   }
 
   cat('# of features:', xgb.num_feature(x), '\n')
-  cat('# of rounds: ', xgb.nrounds(x), '\n')
+  cat('# of rounds: ', xgb.get.num.boosted.rounds(x), '\n')
 
   attr_names <- .Call(XGBoosterGetAttrNames_R, handle)
   if (NROW(attr_names)) {
