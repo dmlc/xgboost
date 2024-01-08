@@ -48,6 +48,22 @@
         <cudf.classifier>cuda11</cudf.classifier>
         <scalatest.version>3.2.17</scalatest.version>
         <scala-collection-compat.version>2.11.0</scala-collection-compat.version>
+
+        <!-- SPARK-36796 for JDK-17 test-->
+        <extraJavaTestArgs>
+          -XX:+IgnoreUnrecognizedVMOptions
+          --add-opens=java.base/java.lang=ALL-UNNAMED
+          --add-opens=java.base/java.lang.invoke=ALL-UNNAMED
+          --add-opens=java.base/java.io=ALL-UNNAMED
+          --add-opens=java.base/java.net=ALL-UNNAMED
+          --add-opens=java.base/java.nio=ALL-UNNAMED
+          --add-opens=java.base/java.util=ALL-UNNAMED
+          --add-opens=java.base/java.util.concurrent=ALL-UNNAMED
+          --add-opens=java.base/sun.nio.ch=ALL-UNNAMED
+          --add-opens=java.base/sun.nio.cs=ALL-UNNAMED
+          --add-opens=java.base/sun.security.action=ALL-UNNAMED
+          --add-opens=java.base/sun.util.calendar=ALL-UNNAMED
+        </extraJavaTestArgs>
       </properties>
     <repositories>
         <repository>
@@ -337,6 +353,9 @@
               <groupId>org.scalatest</groupId>
               <artifactId>scalatest-maven-plugin</artifactId>
               <version>2.2.0</version>
+              <configuration>
+                <argLine>-ea -Xmx4g -Xss4m ${extraJavaTestArgs}</argLine>
+              </configuration>
               <executions>
                 <execution>
                   <id>test</id>
