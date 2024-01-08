@@ -330,13 +330,17 @@ XGB_DLL SEXP XGCheckNullPtr_R(SEXP handle) {
   return ScalarLogical(R_ExternalPtrAddr(handle) == NULL);
 }
 
-static void _DMatrixFinalizer(SEXP ext) {
+namespace {
+
+void _DMatrixFinalizer(SEXP ext) {
   R_API_BEGIN();
   if (R_ExternalPtrAddr(ext) == NULL) return;
   CHECK_CALL(XGDMatrixFree(R_ExternalPtrAddr(ext)));
   R_ClearExternalPtr(ext);
   R_API_END();
 }
+
+} /* namespace */
 
 XGB_DLL SEXP XGBSetGlobalConfig_R(SEXP json_str) {
   R_API_BEGIN();
@@ -725,15 +729,17 @@ struct _RDataIterator {
   }
 };
 
-static void _reset_RDataIterator(DataIterHandle iter) {
+namespace {
+
+void _reset_RDataIterator(DataIterHandle iter) {
   static_cast<_RDataIterator*>(iter)->reset();
 }
 
-static int _next_RDataIterator(DataIterHandle iter) {
+int _next_RDataIterator(DataIterHandle iter) {
   return static_cast<_RDataIterator*>(iter)->next();
 }
 
-static SEXP XGDMatrixCreateFromCallbackGeneric_R(
+SEXP XGDMatrixCreateFromCallbackGeneric_R(
   SEXP f_next, SEXP f_reset, SEXP calling_env, SEXP proxy_dmat,
   SEXP n_threads, SEXP missing, SEXP max_bin, SEXP ref_dmat,
   SEXP cache_prefix, bool as_quantile_dmatrix) {
@@ -796,6 +802,8 @@ static SEXP XGDMatrixCreateFromCallbackGeneric_R(
   R_API_END();
   return out;
 }
+
+} /* namespace */
 
 XGB_DLL SEXP XGQuantileDMatrixCreateFromCallback_R(
   SEXP f_next, SEXP f_reset, SEXP calling_env, SEXP proxy_dmat,
