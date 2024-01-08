@@ -83,7 +83,8 @@ test_that("parameter validation works", {
       bar = "foo"
     )
     output <- capture.output(
-      xgb.train(params = params, data = dtrain, nrounds = nrounds)
+      xgb.train(params = params, data = dtrain, nrounds = nrounds),
+      type = "message"
     )
     print(output)
   }
