@@ -495,6 +495,7 @@ class TestModels:
     @pytest.mark.parametrize("ext", ["json", "ubj"])
     def test_feature_info(self, ext: str) -> None:
         import pandas as pd
+
         # make data
         rows = 100
         cols = 10
