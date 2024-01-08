@@ -189,14 +189,7 @@ test_that("cb.save.model works as expected", {
 
   xgb.config(b2) <- xgb.config(bst)
   expect_equal(xgb.config(bst), xgb.config(b2))
-  # TODO: remove this workaround once serialization to disk is able to take more attributes
-  # expect_equal(xgb.save.raw(bst), xgb.save.raw(b2))
-  # workaround below:
-  s1 <- jsonlite::fromJSON(rawToChar(xgb.save.raw(bst, raw_format = "json")))
-  s2 <- jsonlite::fromJSON(rawToChar(xgb.save.raw(b2, raw_format = "json")))
-  s1$learner$feature_names <- NULL
-  s2$learner$feature_names <- NULL
-  expect_equal(s1, s2)
+  expect_equal(xgb.save.raw(bst), xgb.save.raw(b2))
 
   # save_period = 0 saves the last iteration's model
   bst <- xgb.train(param, dtrain, nrounds = 2, watchlist, eta = 1, verbose = 0,
@@ -204,14 +197,7 @@ test_that("cb.save.model works as expected", {
   expect_true(file.exists('xgboost.json'))
   b2 <- xgb.load('xgboost.json')
   xgb.config(b2) <- xgb.config(bst)
-  # TODO: remove this workaround once serialization to disk is able to take more attributes
-  # expect_equal(xgb.save.raw(bst), xgb.save.raw(b2))
-  # workaround below:
-  s1 <- jsonlite::fromJSON(rawToChar(xgb.save.raw(bst, raw_format = "json")))
-  s2 <- jsonlite::fromJSON(rawToChar(xgb.save.raw(b2, raw_format = "json")))
-  s1$learner$feature_names <- NULL
-  s2$learner$feature_names <- NULL
-  expect_equal(s1, s2)
+  expect_equal(xgb.save.raw(bst), xgb.save.raw(b2))
 
   for (f in files) if (file.exists(f)) file.remove(f)
 })

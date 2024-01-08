@@ -38,9 +38,9 @@
 #'   objective = "binary:logistic"
 #' )
 #'
-#' xgb.save(bst, 'xgb.model')
-#' bst <- xgb.load('xgb.model')
-#' if (file.exists('xgb.model')) file.remove('xgb.model')
+#' xgb.save(bst, 'xgb.ubj')
+#' bst <- xgb.load('xgb.ubj')
+#' if (file.exists('xgb.ubj')) file.remove('xgb.ubj')
 #' @export
 xgb.load <- function(modelfile) {
   if (is.null(modelfile))

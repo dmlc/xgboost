@@ -413,6 +413,11 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   )
   niter_init <- bst$niter
   bst <- bst$bst
+  .Call(
+    XGBoosterCopyInfoFromDMatrix,
+    xgb.get.handle(bst),
+    dtrain
+  )
 
   # extract parameters that can affect the relationship b/w #trees and #iterations
   # Note: it might look like these aren't used, but they need to be defined in this
@@ -467,12 +472,6 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
       evaluation_log <- rbindlist(list(past_evaluation_log, evaluation_log))
     }
   }
-
-  .Call(
-    XGBoosterCopyInfoFromDMatrix,
-    xgb.get.handle(bst),
-    dtrain
-  )
 
   if (keep_extra_attributes) {
     extra_attrs <- list(

@@ -412,11 +412,15 @@ cb.early.stop <- function(stopping_rounds, maximize = FALSE,
 #' @param save_period save the model to disk after every
 #'        \code{save_period} iterations; 0 means save the model at the end.
 #' @param save_name the name or path for the saved model file.
+#'
+#'        Note that the format of the model being saved is determined by the file
+#'        extension specified here (see \link{xgb.save} for details about how it works).
+#'
 #'        It can contain a \code{\link[base]{sprintf}} formatting specifier
 #'        to include the integer iteration number in the file name.
-#'        E.g., with \code{save_name} = 'xgboost_%04d.model',
-#'        the file saved at iteration 50 would be named "xgboost_0050.model".
-#'
+#'        E.g., with \code{save_name} = 'xgboost_%04d.ubj',
+#'        the file saved at iteration 50 would be named "xgboost_0050.ubj".
+#' @seealso \link{xgb.save}
 #' @details
 #' This callback function allows to save an xgb-model file, either periodically after each \code{save_period}'s or at the end.
 #'
@@ -430,7 +434,7 @@ cb.early.stop <- function(stopping_rounds, maximize = FALSE,
 #' \code{\link{callbacks}}
 #'
 #' @export
-cb.save.model <- function(save_period = 0, save_name = "xgboost.model") {
+cb.save.model <- function(save_period = 0, save_name = "xgboost.ubj") {
 
   if (save_period < 0)
     stop("'save_period' cannot be negative")
