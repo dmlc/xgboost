@@ -262,6 +262,7 @@ def get_sparse() -> Tuple[np.ndarray, np.ndarray]:
     return X, y
 
 
+# pylint: disable=too-many-statements
 @memory.cache
 def get_ames_housing() -> Tuple[DataFrameT, np.ndarray]:
     """Get a synthetic version of the amse housing dataset.
@@ -286,21 +287,27 @@ def get_ames_housing() -> Tuple[DataFrameT, np.ndarray]:
     n_samples = 1460
     df = pd.DataFrame()
 
-    def synth_cat(name_proba: Dict[str, float], density: float) -> pd.Series:
+    def synth_cat(
+        name_proba: Dict[Union[str, float], float], density: float
+    ) -> pd.Series:
         n_nulls = int(n_samples * (1 - density))
         has_nan = np.abs(1.0 - density) > 1e-6 and n_nulls > 0
         if has_nan:
             sparsity = 1.0 - density
-            name_proba["_null_"] = sparsity
+            name_proba[np.nan] = sparsity
 
         keys = list(name_proba.keys())
         p = list(name_proba.values())
         p[-1] += 1.0 - np.sum(p)  # Fix floating point error
         x = rng.choice(keys, size=n_samples, p=p)
-        if has_nan:
-            x[x == "_null_"] = np.nan
 
-        series = pd.Series(x, dtype=pd.CategoricalDtype(keys))
+        series = pd.Series(
+            x,
+            dtype=pd.CategoricalDtype(
+                # not NA
+                filter(lambda x: isinstance(x, str), keys)
+            ),
+        )
         return series
 
     df["BldgType"] = synth_cat(
