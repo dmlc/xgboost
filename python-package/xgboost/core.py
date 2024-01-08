@@ -2591,9 +2591,8 @@ class Booster:
 
         The model is saved in an XGBoost internal format which is universal among the
         various XGBoost interfaces. Auxiliary attributes of the Python Booster object
-        (such as feature_names) will not be saved when using binary format.  To save
-        those attributes, use JSON/UBJ instead. See :doc:`Model IO
-        </tutorials/saving_model>` for more info.
+        (such as feature_names) are only saved when using JSON or UBJSON (default)
+        format. See :doc:`Model IO </tutorials/saving_model>` for more info.
 
         .. code-block:: python
 
@@ -2616,12 +2615,15 @@ class Booster:
     def save_raw(self, raw_format: str = "ubj") -> bytearray:
         """Save the model to a in memory buffer representation instead of file.
 
+        The model is saved in an XGBoost internal format which is universal among the
+        various XGBoost interfaces. Auxiliary attributes of the Python Booster object
+        (such as feature_names) are only saved when using JSON or UBJSON (default)
+        format. See :doc:`Model IO </tutorials/saving_model>` for more info.
+
         Parameters
         ----------
         raw_format :
-            Format of output buffer. Can be `json`, `ubj` or `deprecated`.  Right now
-            the default is `deprecated` but it will be changed to `ubj` (univeral binary
-            json) in the future.
+            Format of output buffer. Can be `json`, `ubj` or `deprecated`.
 
         Returns
         -------
@@ -2640,11 +2642,10 @@ class Booster:
     def load_model(self, fname: ModelIn) -> None:
         """Load the model from a file or a bytearray.
 
-        The model is loaded from XGBoost format which is universal among the various
-        XGBoost interfaces. Auxiliary attributes of the Python Booster object (such as
-        feature_names) will not be loaded when using binary format.  To save those
-        attributes, use JSON/UBJ instead.  See :doc:`Model IO </tutorials/saving_model>`
-        for more info.
+        The model is saved in an XGBoost internal format which is universal among the
+        various XGBoost interfaces. Auxiliary attributes of the Python Booster object
+        (such as feature_names) are only saved when using JSON or UBJSON (default)
+        format. See :doc:`Model IO </tutorials/saving_model>` for more info.
 
         .. code-block:: python
 
@@ -2769,9 +2770,9 @@ class Booster:
         with_stats: bool = False,
         dump_format: str = "text",
     ) -> List[str]:
-        """Returns the model dump as a list of strings.  Unlike :py:meth:`save_model`, the output
-        format is primarily used for visualization or interpretation, hence it's more
-        human readable but cannot be loaded back to XGBoost.
+        """Returns the model dump as a list of strings.  Unlike :py:meth:`save_model`,
+        the output format is primarily used for visualization or interpretation, hence
+        it's more human readable but cannot be loaded back to XGBoost.
 
         Parameters
         ----------

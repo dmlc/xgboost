@@ -547,14 +547,16 @@ class TrainingCheckPoint(TrainingCallback):
 
     .. versionadded:: 1.3.0
 
+    Since XGBoost 2.1.0, the default format is changed to UBJSON.
+
     Parameters
     ----------
 
     directory :
         Output model directory.
     name :
-        pattern of output model file.  Models will be saved as name_0.json, name_1.json,
-        name_2.json ....
+        pattern of output model file.  Models will be saved as name_0.ubj, name_1.ubj,
+        name_2.ubj ....
     as_pickle :
         When set to True, all training parameters will be saved in pickle format,
         instead of saving only the model.
@@ -592,7 +594,7 @@ class TrainingCheckPoint(TrainingCallback):
                 self._name
                 + "_"
                 + (str(epoch + self._start))
-                + (".pkl" if self._as_pickle else ".json"),
+                + (".pkl" if self._as_pickle else ".ubj"),
             )
             self._epoch = 0  # reset counter
             if collective.get_rank() == 0:
