@@ -4,10 +4,11 @@ import os
 import zipfile
 from dataclasses import dataclass
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
+    Dict,
     Generator,
-    List,
     NamedTuple,
     Optional,
     Tuple,
@@ -24,6 +25,11 @@ from scipy import sparse
 
 import xgboost
 from xgboost.data import pandas_pyarrow_mapper
+
+if TYPE_CHECKING:
+    from ..compat import DataFrame as DataFrameT
+else:
+    DataFrameT = Any
 
 joblib = pytest.importorskip("joblib")
 memory = joblib.Memory("./cachedir", verbose=0)
@@ -256,46 +262,186 @@ def get_sparse() -> Tuple[np.ndarray, np.ndarray]:
     return X, y
 
 
+# pylint: disable=too-many-statements
 @memory.cache
-def get_ames_housing() -> Tuple[np.ndarray, np.ndarray]:
-    """
+def get_ames_housing() -> Tuple[DataFrameT, np.ndarray]:
+    """Get a synthetic version of the amse housing dataset.
+
+    The real one can be obtained via:
+
+    .. code-block::
+
+        from sklearn import datasets
+
+        datasets.fetch_openml(data_id=42165, as_frame=True, return_X_y=True)
+
     Number of samples: 1460
     Number of features: 20
     Number of categorical features: 10
     Number of numerical features: 10
     """
-    datasets = pytest.importorskip("sklearn.datasets")
-    X, y = datasets.fetch_openml(data_id=42165, as_frame=True, return_X_y=True)
+    pytest.importorskip("pandas")
+    import pandas as pd
 
-    categorical_columns_subset: List[str] = [
-        "BldgType",  # 5 cats, no nan
-        "GarageFinish",  # 3 cats, nan
-        "LotConfig",  # 5 cats, no nan
-        "Functional",  # 7 cats, no nan
-        "MasVnrType",  # 4 cats, nan
-        "HouseStyle",  # 8 cats, no nan
-        "FireplaceQu",  # 5 cats, nan
-        "ExterCond",  # 5 cats, no nan
-        "ExterQual",  # 4 cats, no nan
-        "PoolQC",  # 3 cats, nan
-    ]
+    rng = np.random.default_rng(1994)
+    n_samples = 1460
+    df = pd.DataFrame()
 
-    numerical_columns_subset: List[str] = [
-        "3SsnPorch",
-        "Fireplaces",
-        "BsmtHalfBath",
-        "HalfBath",
-        "GarageCars",
-        "TotRmsAbvGrd",
-        "BsmtFinSF1",
-        "BsmtFinSF2",
-        "GrLivArea",
-        "ScreenPorch",
-    ]
+    def synth_cat(
+        name_proba: Dict[Union[str, float], float], density: float
+    ) -> pd.Series:
+        n_nulls = int(n_samples * (1 - density))
+        has_nan = np.abs(1.0 - density) > 1e-6 and n_nulls > 0
+        if has_nan:
+            sparsity = 1.0 - density
+            name_proba[np.nan] = sparsity
 
-    X = X[categorical_columns_subset + numerical_columns_subset]
-    X[categorical_columns_subset] = X[categorical_columns_subset].astype("category")
-    return X, y
+        keys = list(name_proba.keys())
+        p = list(name_proba.values())
+        p[-1] += 1.0 - np.sum(p)  # Fix floating point error
+        x = rng.choice(keys, size=n_samples, p=p)
+
+        series = pd.Series(
+            x,
+            dtype=pd.CategoricalDtype(
+                # not NA
+                filter(lambda x: isinstance(x, str), keys)
+            ),
+        )
+        return series
+
+    df["BldgType"] = synth_cat(
+        {
+            "1Fam": 0.835616,
+            "2fmCon": 0.078082,
+            "Duplex": 0.035616,
+            "Twnhs": 0.029452,
+            "TwnhsE": 0.021233,
+        },
+        1.0,
+    )
+    df["GarageFinish"] = synth_cat(
+        {"Unf": 0.414384, "RFn": 0.289041, "Fin": 0.241096}, 0.94452
+    )
+    df["LotConfig"] = synth_cat(
+        {
+            "Corner": 0.180137,
+            "CulDSac": 0.064384,
+            "FR2": 0.032192,
+            "FR3": 0.002740,
+        },
+        1.0,
+    )
+    df["Functional"] = synth_cat(
+        {
+            "Typ": 0.931506,
+            "Min2": 0.023287,
+            "Min1": 0.021232,
+            "Mod": 0.010273,
+            "Maj1": 0.009589,
+            "Maj2": 0.003424,
+            "Sev": 0.000684,
+        },
+        1.0,
+    )
+    df["MasVnrType"] = synth_cat(
+        {
+            "None": 0.591780,
+            "BrkFace": 0.304794,
+            "Stone": 0.087671,
+            "BrkCmn": 0.010273,
+        },
+        0.99452,
+    )
+    df["HouseStyle"] = synth_cat(
+        {
+            "1Story": 0.497260,
+            "2Story": 0.304794,
+            "1.5Fin": 0.105479,
+            "SLvl": 0.044520,
+            "SFoyer": 0.025342,
+            "1.5Unf": 0.009589,
+            "2.5Unf": 0.007534,
+            "2.5Fin": 0.005479,
+        },
+        1.0,
+    )
+    df["FireplaceQu"] = synth_cat(
+        {
+            "Gd": 0.260273,
+            "TA": 0.214383,
+            "Fa": 0.022602,
+            "Ex": 0.016438,
+            "Po": 0.013698,
+        },
+        0.527397,
+    )
+    df["ExterCond"] = synth_cat(
+        {
+            "TA": 0.878082,
+            "Gd": 0.1,
+            "Fa": 0.019178,
+            "Ex": 0.002054,
+            "Po": 0.000684,
+        },
+        1.0,
+    )
+    df["ExterQual"] = synth_cat(
+        {
+            "TA": 0.620547,
+            "Gd": 0.334246,
+            "Ex": 0.035616,
+            "Fa": 0.009589,
+        },
+        1.0,
+    )
+    df["PoolQC"] = synth_cat(
+        {
+            "Gd": 0.002054,
+            "Ex": 0.001369,
+            "Fa": 0.001369,
+        },
+        0.004794,
+    )
+
+    # We focus on the cateogircal values here, for numerical features, simple normal
+    # distribution is used, which doesn't match the original data.
+    def synth_num(loc: float, std: float, density: float) -> pd.Series:
+        x = rng.normal(loc=loc, scale=std, size=n_samples)
+        n_nulls = int(n_samples * (1 - density))
+        if np.abs(1.0 - density) > 1e-6 and n_nulls > 0:
+            null_idx = rng.choice(n_samples, size=n_nulls, replace=False)
+            x[null_idx] = np.nan
+        return pd.Series(x, dtype=np.float64)
+
+    df["3SsnPorch"] = synth_num(3.4095890410958902, 29.31733055678188, 1.0)
+    df["Fireplaces"] = synth_num(0.613013698630137, 0.6446663863122295, 1.0)
+    df["BsmtHalfBath"] = synth_num(0.057534246575342465, 0.23875264627921178, 1.0)
+    df["HalfBath"] = synth_num(0.38287671232876713, 0.5028853810928914, 1.0)
+    df["GarageCars"] = synth_num(1.7671232876712328, 0.7473150101111095, 1.0)
+    df["TotRmsAbvGrd"] = synth_num(6.517808219178082, 1.6253932905840505, 1.0)
+    df["BsmtFinSF1"] = synth_num(443.6397260273973, 456.0980908409277, 1.0)
+    df["BsmtFinSF2"] = synth_num(46.54931506849315, 161.31927280654173, 1.0)
+    df["GrLivArea"] = synth_num(1515.463698630137, 525.4803834232025, 1.0)
+    df["ScreenPorch"] = synth_num(15.060958904109588, 55.757415281874174, 1.0)
+
+    columns = list(df.columns)
+    rng.shuffle(columns)
+    df = df[columns]
+
+    # linear interaction for testing purposes.
+    y = np.zeros(shape=(n_samples,))
+    for c in df.columns:
+        if isinstance(df[c].dtype, pd.CategoricalDtype):
+            y += df[c].cat.codes.astype(np.float64)
+        else:
+            y += df[c].values
+
+    # Shift and scale to match the original y.
+    y *= 79442.50288288662 / y.std()
+    y += 180921.19589041095 - y.mean()
+
+    return df, y
 
 
 @memory.cache
