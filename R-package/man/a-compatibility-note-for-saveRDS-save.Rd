@@ -38,13 +38,14 @@ bst <- xgb.train(data = xgb.DMatrix(agaricus.train$data, label = agaricus.train$
                  objective = "binary:logistic")
 
 # Save as a stand-alone file; load it with xgb.load()
-xgb.save(bst, 'xgb.model')
-bst2 <- xgb.load('xgb.model')
+fname <- file.path(tempdir(), "xgb_model.ubj")
+xgb.save(bst, fname)
+bst2 <- xgb.load(fname)
 
 # Save as a stand-alone file (JSON); load it with xgb.load()
-xgb.save(bst, 'xgb.model.json')
-bst2 <- xgb.load('xgb.model.json')
-if (file.exists('xgb.model.json')) file.remove('xgb.model.json')
+fname <- file.path(tempdir(), "xgb_model.json")
+xgb.save(bst, fname)
+bst2 <- xgb.load(fname)
 
 # Save as a raw byte vector; load it with xgb.load.raw()
 xgb_bytes <- xgb.save.raw(bst)
@@ -55,11 +56,11 @@ obj <- list(xgb_model_bytes = xgb.save.raw(bst), description = "My first XGBoost
 # Persist the R object. Here, saveRDS() is okay, since it doesn't persist
 # xgb.Booster directly. What's being persisted is the future-proof byte representation
 # as given by xgb.save.raw().
-saveRDS(obj, 'my_object.rds')
+fname <- file.path(tempdir(), "my_object.Rds")
+saveRDS(obj, fname)
 # Read back the R object
-obj2 <- readRDS('my_object.rds')
+obj2 <- readRDS(fname)
 # Re-construct xgb.Booster object from the bytes
 bst2 <- xgb.load.raw(obj2$xgb_model_bytes)
-if (file.exists('my_object.rds')) file.remove('my_object.rds')
 
 }

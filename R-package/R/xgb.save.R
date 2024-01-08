@@ -40,9 +40,9 @@
 #'   nrounds = 2,
 #'   objective = "binary:logistic"
 #' )
-#' xgb.save(bst, 'xgb.model')
-#' bst <- xgb.load('xgb.model')
-#' if (file.exists('xgb.model')) file.remove('xgb.model')
+#' fname <- file.path(tempdir(), "xgb.ubj")
+#' xgb.save(bst, fname)
+#' bst <- xgb.load(fname)
 #' @export
 xgb.save <- function(model, fname) {
   if (typeof(fname) != "character")

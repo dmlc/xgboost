@@ -330,17 +330,17 @@ test_that("training continuation works", {
   }
   expect_equal(dim(bst2$evaluation_log), c(2, 2))
   # test continuing from a model in file
-  xgb.save(bst1, "xgboost.json")
-  bst2 <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0, xgb_model = "xgboost.json")
+  fname <- file.path(tempdir(), "xgboost.json")
+  xgb.save(bst1, fname)
+  bst2 <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0, xgb_model = fname)
   if (!windows_flag && !solaris_flag) {
     expect_equal(bst$raw, bst2$raw)
   }
   expect_equal(dim(bst2$evaluation_log), c(2, 2))
-  file.remove("xgboost.json")
 })
 
 test_that("model serialization works", {
-  out_path <- "model_serialization"
+  out_path <- file.path(tempdir(), "model_serialization")
   dtrain <- xgb.DMatrix(train$data, label = train$label, nthread = n_threads)
   watchlist <- list(train = dtrain)
   param <- list(objective = "binary:logistic", nthread = n_threads)

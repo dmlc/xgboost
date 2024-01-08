@@ -174,16 +174,17 @@ test_that("cb.reset.parameters works as expected", {
 
 test_that("cb.save.model works as expected", {
   files <- c('xgboost_01.json', 'xgboost_02.json', 'xgboost.json')
+  files <- unname(sapply(files, function(f) file.path(tempdir(), f)))
   for (f in files) if (file.exists(f)) file.remove(f)
 
   bst <- xgb.train(param, dtrain, nrounds = 2, watchlist, eta = 1, verbose = 0,
-                   save_period = 1, save_name = "xgboost_%02d.json")
-  expect_true(file.exists('xgboost_01.json'))
-  expect_true(file.exists('xgboost_02.json'))
-  b1 <- xgb.load('xgboost_01.json')
+                   save_period = 1, save_name = file.path(tempdir(), "xgboost_%02d.json"))
+  expect_true(file.exists(files[1]))
+  expect_true(file.exists(files[2]))
+  b1 <- xgb.load(files[1])
   xgb.parameters(b1) <- list(nthread = 2)
   expect_equal(xgb.ntree(b1), 1)
-  b2 <- xgb.load('xgboost_02.json')
+  b2 <- xgb.load(files[2])
   xgb.parameters(b2) <- list(nthread = 2)
   expect_equal(xgb.ntree(b2), 2)
 
@@ -193,9 +194,9 @@ test_that("cb.save.model works as expected", {
 
   # save_period = 0 saves the last iteration's model
   bst <- xgb.train(param, dtrain, nrounds = 2, watchlist, eta = 1, verbose = 0,
-                   save_period = 0, save_name = 'xgboost.json')
-  expect_true(file.exists('xgboost.json'))
-  b2 <- xgb.load('xgboost.json')
+                   save_period = 0, save_name = file.path(tempdir(), 'xgboost.json'))
+  expect_true(file.exists(files[3]))
+  b2 <- xgb.load(files[3])
   xgb.config(b2) <- xgb.config(bst)
   expect_equal(bst$raw, b2$raw)
 
@@ -225,14 +226,13 @@ test_that("early stopping xgb.train works", {
   )
   expect_equal(bst$evaluation_log, bst0$evaluation_log)
 
-  xgb.save(bst, "model.bin")
-  loaded <- xgb.load("model.bin")
+  fname <- file.path(tempdir(), "model.bin")
+  xgb.save(bst, fname)
+  loaded <- xgb.load(fname)
 
   expect_false(is.null(loaded$best_iteration))
   expect_equal(loaded$best_iteration, bst$best_ntreelimit)
   expect_equal(loaded$best_ntreelimit, bst$best_ntreelimit)
-
-  file.remove("model.bin")
 })
 
 test_that("early stopping using a specific metric works", {
