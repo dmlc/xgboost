@@ -445,6 +445,7 @@ cb.save.model <- function(save_period = 0, save_name = "xgboost.ubj") {
 
     if ((save_period > 0 && (env$iteration - env$begin_iteration) %% save_period == 0) ||
         (save_period == 0 && env$iteration == env$end_iteration)) {
+      # Note: this throws a warning if the name doesn't have anything to format through 'sprintf'
       suppressWarnings({
         save_name <- sprintf(save_name, env$iteration)
       })
