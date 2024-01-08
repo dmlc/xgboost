@@ -547,9 +547,8 @@ xgb.attributes <- function(object) {
 #'
 #' See \link{xgb.copy.Booster} for an example of this behavior.
 #' @param object Object of class `xgb.Booster`. \bold{Will be modified in-place} when assigning to it.
-#' @param value A JSON string.
-#' @return `xgb.config` will return the parameters as JSON text, which can be parsed through
-#' e.g. `jsonlite::fromJSON`.
+#' @param value An R list.
+#' @return `xgb.config` will return the parameters as an R list.
 #' @examples
 #' data(agaricus.train, package = "xgboost")
 #'
@@ -574,14 +573,18 @@ xgb.attributes <- function(object) {
 #' @export
 xgb.config <- function(object) {
   handle <- xgb.get.handle(object)
-  .Call(XGBoosterSaveJsonConfig_R, handle)
+  return(jsonlite::fromJSON(.Call(XGBoosterSaveJsonConfig_R, handle)))
 }
 
 #' @rdname xgb.config
 #' @export
 `xgb.config<-` <- function(object, value) {
   handle <- xgb.get.handle(object)
-  .Call(XGBoosterLoadJsonConfig_R, handle, value)
+  .Call(
+    XGBoosterLoadJsonConfig_R,
+    handle,
+    jsonlite::toJSON(value, auto_unbox = TRUE, null = "null")
+  )
   return(object)
 }
 
@@ -696,25 +699,25 @@ xgb.nrounds <- function(bst) {
 }
 
 xgb.ntree <- function(bst) {
-  config <- jsonlite::fromJSON(xgb.config(bst))
+  config <- xgb.config(bst)
   out <- strtoi(config$learner$gradient_booster$gbtree_model_param$num_trees)
   return(out)
 }
 
 xgb.nthread <- function(bst) {
-  config <- jsonlite::fromJSON(xgb.config(bst))
+  config <- xgb.config(bst)
   out <- strtoi(config$learner$generic_param$nthread)
   return(out)
 }
 
 xgb.booster_type <- function(bst) {
-  config <- jsonlite::fromJSON(xgb.config(bst))
+  config <- xgb.config(bst)
   out <- config$learner$learner_train_param$booster
   return(out)
 }
 
 xgb.num_class <- function(bst) {
-  config <- jsonlite::fromJSON(xgb.config(bst))
+  config <- xgb.config(bst)
   out <- strtoi(config$learner$learner_model_param$num_class)
   return(out)
 }

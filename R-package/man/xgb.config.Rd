@@ -12,11 +12,10 @@ xgb.config(object) <- value
 \arguments{
 \item{object}{Object of class \code{xgb.Booster}. \bold{Will be modified in-place} when assigning to it.}
 
-\item{value}{A JSON string.}
+\item{value}{An R list.}
 }
 \value{
-\code{xgb.config} will return the parameters as JSON text, which can be parsed through
-e.g. \code{jsonlite::fromJSON}.
+\code{xgb.config} will return the parameters as an R list.
 }
 \description{
 Accessors for model parameters as JSON string

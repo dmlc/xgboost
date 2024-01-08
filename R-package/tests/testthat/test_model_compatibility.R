@@ -23,7 +23,7 @@ get_num_tree <- function(booster) {
 }
 
 run_booster_check <- function(booster, name) {
-  config <- jsonlite::fromJSON(xgb.config(booster))
+  config <- xgb.config(booster)
   run_model_param_check(config)
   if (name == 'cls') {
     testthat::expect_equal(get_num_tree(booster),
