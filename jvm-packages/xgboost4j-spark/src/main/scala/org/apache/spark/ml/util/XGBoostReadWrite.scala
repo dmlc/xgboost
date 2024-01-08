@@ -30,9 +30,6 @@ import org.apache.spark.ml.param.Params
 import org.apache.spark.ml.util.DefaultParamsReader.Metadata
 
 abstract class XGBoostWriter extends MLWriter {
-
-  /** Currently it's using the "deprecated" format as
-   * default, which will be changed into `ubj` in future releases. */
   def getModelFormat(): String = {
     optionMap.getOrElse("format", JBooster.DEFAULT_FORMAT)
   }

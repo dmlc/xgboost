@@ -6,7 +6,7 @@ echo "--- Build CPU code"
 
 source tests/buildkite/conftest.sh
 
-command_wrapper="tests/ci_build/ci_build.sh cpu docker"
+command_wrapper="tests/ci_build/ci_build.sh cpu"
 
 $command_wrapper rm -fv dmlc-core/include/dmlc/build_config_default.h
   # This step is not necessary, but here we include it, to ensure that

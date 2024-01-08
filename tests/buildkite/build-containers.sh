@@ -22,6 +22,7 @@ case "${container}" in
 
   gpu)
     BUILD_ARGS="$BUILD_ARGS --build-arg CUDA_VERSION_ARG=$CUDA_VERSION"
+    BUILD_ARGS="$BUILD_ARGS --build-arg NCCL_VERSION_ARG=$NCCL_VERSION"
     BUILD_ARGS="$BUILD_ARGS --build-arg RAPIDS_VERSION_ARG=$RAPIDS_VERSION"
     ;;
 
@@ -43,4 +44,4 @@ case "${container}" in
 esac
 
 # Run a no-op command. This will simply build the container and push it to the private registry
-tests/ci_build/ci_build.sh ${container} docker ${BUILD_ARGS} bash
+tests/ci_build/ci_build.sh ${container} ${BUILD_ARGS} bash

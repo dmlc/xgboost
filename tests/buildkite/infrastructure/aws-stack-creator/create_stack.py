@@ -63,7 +63,7 @@ def format_params(args, *, stack_id, agent_iam_policy):
     params["BuildkiteAgentToken"] = args.agent_token
     params["VpcId"] = default_vpc.id
     params["Subnets"] = ",".join(subnets)
-    params["ManagedPolicyARN"] = agent_iam_policy
+    params["ManagedPolicyARNs"] = agent_iam_policy
     params.update(COMMON_STACK_PARAMS)
     return [{"ParameterKey": k, "ParameterValue": v} for k, v in params.items()]
 

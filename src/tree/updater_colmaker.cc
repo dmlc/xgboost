@@ -1,21 +1,22 @@
 /**
- * Copyright 2014-2023 by XGBoost Contributors
+ * Copyright 2014-2024, XGBoost Contributors
  * \file updater_colmaker.cc
  * \brief use columnwise update to construct a tree
  * \author Tianqi Chen
  */
-#include <vector>
-#include <cmath>
 #include <algorithm>
+#include <cmath>
+#include <vector>
 
+#include "../common/error_msg.h"  // for NoCategorical
+#include "../common/random.h"
+#include "constraints.h"
+#include "param.h"
+#include "split_evaluator.h"
+#include "xgboost/json.h"
+#include "xgboost/logging.h"
 #include "xgboost/parameter.h"
 #include "xgboost/tree_updater.h"
-#include "xgboost/logging.h"
-#include "xgboost/json.h"
-#include "param.h"
-#include "constraints.h"
-#include "../common/random.h"
-#include "split_evaluator.h"
 
 namespace xgboost::tree {
 
@@ -101,6 +102,9 @@ class ColMaker: public TreeUpdater {
     if (!dmat->SingleColBlock()) {
       LOG(FATAL) << "Updater `grow_colmaker` or `exact` tree method doesn't "
                     "support external memory training.";
+    }
+    if (dmat->Info().HasCategorical()) {
+      LOG(FATAL) << error::NoCategorical("Updater `grow_colmaker` or `exact` tree method");
     }
     this->LazyGetColumnDensity(dmat);
     // rescale learning rate according to size of trees

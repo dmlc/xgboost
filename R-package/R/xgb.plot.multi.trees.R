@@ -1,14 +1,10 @@
-#' Project all trees on one tree and plot it
+#' Project all trees on one tree
 #'
 #' Visualization of the ensemble of trees as a single collective unit.
 #'
-#' @param model produced by the \code{xgb.train} function.
-#' @param feature_names names of each feature as a \code{character} vector.
-#' @param features_keep number of features to keep in each position of the multi trees.
-#' @param plot_width width in pixels of the graph to produce
-#' @param plot_height height in pixels of the graph to produce
-#' @param render a logical flag for whether the graph should be rendered (see Value).
-#' @param ... currently not used
+#' @inheritParams xgb.plot.tree
+#' @param features_keep Number of features to keep in each position of the multi trees,
+#'        by default 5.
 #'
 #' @details
 #'
@@ -24,33 +20,31 @@
 #' Moreover, the trees tend to reuse the same features.
 #'
 #' The function projects each tree onto one, and keeps for each position the
-#' \code{features_keep} first features (based on the Gain per feature measure).
+#' `features_keep` first features (based on the Gain per feature measure).
 #'
 #' This function is inspired by this blog post:
-#' \url{https://wellecks.wordpress.com/2015/02/21/peering-into-the-black-box-visualizing-lambdamart/}
+#' <https://wellecks.wordpress.com/2015/02/21/peering-into-the-black-box-visualizing-lambdamart/>
 #'
-#' @return
-#'
-#' When \code{render = TRUE}:
-#' returns a rendered graph object which is an \code{htmlwidget} of class \code{grViz}.
-#' Similar to ggplot objects, it needs to be printed to see it when not running from command line.
-#'
-#' When \code{render = FALSE}:
-#' silently returns a graph object which is of DiagrammeR's class \code{dgr_graph}.
-#' This could be useful if one wants to modify some of the graph attributes
-#' before rendering the graph with \code{\link[DiagrammeR]{render_graph}}.
+#' @inherit xgb.plot.tree return
 #'
 #' @examples
 #'
-#' data(agaricus.train, package='xgboost')
+#' data(agaricus.train, package = "xgboost")
+#'
 #' ## Keep the number of threads to 2 for examples
 #' nthread <- 2
 #' data.table::setDTthreads(nthread)
 #'
 #' bst <- xgboost(
-#'   data = agaricus.train$data, label = agaricus.train$label, max_depth = 15,
-#'   eta = 1, nthread = nthread, nrounds = 30, objective = "binary:logistic",
-#'   min_child_weight = 50, verbose = 0
+#'   data = agaricus.train$data,
+#'   label = agaricus.train$label,
+#'   max_depth = 15,
+#'   eta = 1,
+#'   nthread = nthread,
+#'   nrounds = 30,
+#'   objective = "binary:logistic",
+#'   min_child_weight = 50,
+#'   verbose = 0
 #' )
 #'
 #' p <- xgb.plot.multi.trees(model = bst, features_keep = 3)
@@ -58,10 +52,13 @@
 #'
 #' \dontrun{
 #' # Below is an example of how to save this plot to a file.
-#' # Note that for `export_graph` to work, the DiagrammeRsvg and rsvg packages must also be installed.
+#' # Note that for export_graph() to work, the {DiagrammeRsvg} and {rsvg} packages
+#' # must also be installed.
+#'
 #' library(DiagrammeR)
-#' gr <- xgb.plot.multi.trees(model=bst, features_keep = 3, render=FALSE)
-#' export_graph(gr, 'tree.pdf', width=1500, height=600)
+#'
+#' gr <- xgb.plot.multi.trees(model = bst, features_keep = 3, render = FALSE)
+#' export_graph(gr, "tree.pdf", width = 1500, height = 600)
 #' }
 #'
 #' @export
@@ -98,13 +95,13 @@ xgb.plot.multi.trees <- function(model, feature_names = NULL, features_keep = 5,
     data.table::set(tree.matrix, j = nm, value = sub("^\\d+-", "", tree.matrix[[nm]]))
 
   nodes.dt <- tree.matrix[
-        , .(Quality = sum(Quality))
+        , .(Gain = sum(Gain))
         , by = .(abs.node.position, Feature)
       ][, .(Text = paste0(
               paste0(
                 Feature[seq_len(min(length(Feature), features_keep))],
                 " (",
-                format(Quality[seq_len(min(length(Quality), features_keep))], digits = 5),
+                format(Gain[seq_len(min(length(Gain), features_keep))], digits = 5),
                 ")"
               ),
               collapse = "\n"

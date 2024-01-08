@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2022 by Contributors
+ Copyright (c) 2014-2024 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -333,21 +333,24 @@ class XGBoostRegressorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
     assert(compareTwoFiles(new File(modelPath, "data/XGBoostRegressionModel").getPath,
       nativeJsonModelPath))
 
-    // test default "deprecated"
+    // test default "ubj"
     val modelUbjPath = new File(tempDir.toFile, "xgbcUbj").getPath
     model.write.save(modelUbjPath)
-    val nativeDeprecatedModelPath = new File(tempDir.toFile, "nativeModel").getPath
-    model.nativeBooster.saveModel(nativeDeprecatedModelPath)
-    assert(compareTwoFiles(new File(modelUbjPath, "data/XGBoostRegressionModel").getPath,
-      nativeDeprecatedModelPath))
 
-    // json file should be indifferent with ubj file
-    val modelJsonPath = new File(tempDir.toFile, "xgbcJson").getPath
-    model.write.option("format", "json").save(modelJsonPath)
-    val nativeUbjModelPath = new File(tempDir.toFile, "nativeModel1.ubj").getPath
+    val nativeUbjModelPath = new File(tempDir.toFile, "nativeModel.ubj").getPath
     model.nativeBooster.saveModel(nativeUbjModelPath)
-    assert(!compareTwoFiles(new File(modelJsonPath, "data/XGBoostRegressionModel").getPath,
-      nativeUbjModelPath))
-  }
 
+    assert(compareTwoFiles(new File(modelUbjPath, "data/XGBoostRegressionModel").getPath,
+      nativeUbjModelPath))
+
+    // test the deprecated format
+    val modelDeprecatedPath = new File(tempDir.toFile, "modelDeprecated").getPath
+    model.write.option("format", "deprecated").save(modelDeprecatedPath)
+
+    val nativeDeprecatedModelPath = new File(tempDir.toFile, "nativeModel.deprecated").getPath
+    model.nativeBooster.saveModel(nativeDeprecatedModelPath)
+
+    assert(compareTwoFiles(new File(modelDeprecatedPath, "data/XGBoostRegressionModel").getPath,
+      nativeDeprecatedModelPath))
+  }
 }

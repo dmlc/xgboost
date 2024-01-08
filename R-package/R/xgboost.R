@@ -82,7 +82,7 @@ NULL
 NULL
 
 # Various imports
-#' @importClassesFrom Matrix dgCMatrix dgeMatrix
+#' @importClassesFrom Matrix dgCMatrix dgeMatrix dgRMatrix
 #' @importFrom Matrix colSums
 #' @importFrom Matrix sparse.model.matrix
 #' @importFrom Matrix sparseVector
@@ -98,6 +98,7 @@ NULL
 #' @importFrom data.table setnames
 #' @importFrom jsonlite fromJSON
 #' @importFrom jsonlite toJSON
+#' @importFrom methods new
 #' @importFrom utils object.size str tail
 #' @importFrom stats predict
 #' @importFrom stats median

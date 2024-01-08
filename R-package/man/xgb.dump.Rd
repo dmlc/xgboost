@@ -9,7 +9,7 @@ xgb.dump(
   fname = NULL,
   fmap = "",
   with_stats = FALSE,
-  dump_format = c("text", "json"),
+  dump_format = c("text", "json", "dot"),
   ...
 )
 }
@@ -29,7 +29,10 @@ When this option is on, the model dump contains two additional values:
 gain is the approximate loss function gain we get in each split;
 cover is the sum of second order gradient in each node.}
 
-\item{dump_format}{either 'text' or 'json' format could be specified.}
+\item{dump_format}{either 'text', 'json', or 'dot' (graphviz) format could be specified.
+
+Format 'dot' for a single tree can be passed directly to packages that consume this format
+for graph visualization, such as function \code{\link[DiagrammeR:grViz]{DiagrammeR::grViz()}}}
 
 \item{...}{currently not used}
 }
@@ -57,4 +60,8 @@ print(xgb.dump(bst, with_stats = TRUE))
 # print in JSON format:
 cat(xgb.dump(bst, with_stats = TRUE, dump_format='json'))
 
+# plot first tree leveraging the 'dot' format
+if (requireNamespace('DiagrammeR', quietly = TRUE)) {
+  DiagrammeR::grViz(xgb.dump(bst, dump_format = "dot")[[1L]])
+}
 }

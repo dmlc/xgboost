@@ -1313,10 +1313,8 @@ XGB_DLL int XGBoosterLoadModel(BoosterHandle handle, const char* fname) {
 
 namespace {
 void WarnOldModel() {
-  if (XGBOOST_VER_MAJOR >= 2) {
-    LOG(WARNING) << "Saving into deprecated binary model format, please consider using `json` or "
-                    "`ubj`. Model format will default to JSON in XGBoost 2.2 if not specified.";
-  }
+  LOG(WARNING) << "Saving into deprecated binary model format, please consider using `json` or "
+                  "`ubj`. Model format is default to UBJSON in XGBoost 2.1 if not specified.";
 }
 }  // anonymous namespace
 
@@ -1339,14 +1337,14 @@ XGB_DLL int XGBoosterSaveModel(BoosterHandle handle, const char *fname) {
     save_json(std::ios::out);
   } else if (common::FileExtension(fname) == "ubj") {
     save_json(std::ios::binary);
-  } else if (XGBOOST_VER_MAJOR == 2 && XGBOOST_VER_MINOR >= 2) {
-    LOG(WARNING) << "Saving model to JSON as default.  You can use file extension `json`, `ubj` or "
-                    "`deprecated` to choose between formats.";
-    save_json(std::ios::out);
-  } else {
+  } else if (common::FileExtension(fname) == "deprecated") {
     WarnOldModel();
     auto *bst = static_cast<Learner *>(handle);
     bst->SaveModel(fo.get());
+  } else {
+    LOG(WARNING) << "Saving model in the UBJSON format as default.  You can use file extension:"
+                    " `json`, `ubj` or `deprecated` to choose between formats.";
+    save_json(std::ios::binary);
   }
   API_END();
 }

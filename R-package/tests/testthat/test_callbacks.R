@@ -57,7 +57,7 @@ test_that("cb.print.evaluation works as expected", {
   expect_output(f5(), "\\[7\\]\ttrain-auc:0.900000\ttest-auc:0.800000")
 
   bst_evaluation_err  <- c('train-auc' = 0.1, 'test-auc' = 0.2)
-  expect_output(f1(), "\\[7\\]\ttrain-auc:0.900000\\+0.100000\ttest-auc:0.800000\\+0.200000")
+  expect_output(f1(), "\\[7\\]\ttrain-auc:0.900000±0.100000\ttest-auc:0.800000±0.200000")
 })
 
 test_that("cb.evaluation.log works as expected", {
@@ -265,14 +265,14 @@ test_that("early stopping works with titanic", {
   dtx <- model.matrix(~ 0 + ., data = titanic[, c("Pclass", "Sex")])
   dty <- titanic$Survived
 
-  xgboost::xgboost(
-    data = dtx,
-    label = dty,
+  xgboost::xgb.train(
+    data = xgb.DMatrix(dtx, label = dty),
     objective = "binary:logistic",
     eval_metric = "auc",
     nrounds = 100,
     early_stopping_rounds = 3,
-    nthread = n_threads
+    nthread = n_threads,
+    watchlist = list(train = xgb.DMatrix(dtx, label = dty))
   )
 
   expect_true(TRUE)  # should not crash

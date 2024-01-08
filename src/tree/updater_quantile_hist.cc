@@ -545,12 +545,12 @@ class QuantileHistMaker : public TreeUpdater {
   }
 
   bool UpdatePredictionCache(const DMatrix *data, linalg::MatrixView<float> out_preds) override {
-    if (p_impl_) {
-      return p_impl_->UpdatePredictionCache(data, out_preds);
-    } else if (p_mtimpl_) {
+    if (out_preds.Shape(1) > 1) {
+      CHECK(p_mtimpl_);
       return p_mtimpl_->UpdatePredictionCache(data, out_preds);
     } else {
-      return false;
+      CHECK(p_impl_);
+      return p_impl_->UpdatePredictionCache(data, out_preds);
     }
   }
 

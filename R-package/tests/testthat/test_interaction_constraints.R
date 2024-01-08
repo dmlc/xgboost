@@ -13,9 +13,9 @@ train <- matrix(c(x1, x2, x3), ncol = 3)
 
 test_that("interaction constraints for regression", {
   # Fit a model that only allows interaction between x1 and x2
-  bst <- xgboost(data = train, label = y, max_depth = 3,
-                 eta = 0.1, nthread = 2, nrounds = 100, verbose = 0,
-                 interaction_constraints = list(c(0, 1)))
+  bst <- xgb.train(data = xgb.DMatrix(train, label = y), max_depth = 3,
+                   eta = 0.1, nthread = 2, nrounds = 100, verbose = 0,
+                   interaction_constraints = list(c(0, 1)))
 
   # Set all observations to have the same x3 values then increment
   #  by the same amount

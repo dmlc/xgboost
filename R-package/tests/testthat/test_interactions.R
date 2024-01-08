@@ -98,15 +98,14 @@ test_that("SHAP contribution values are not NAN", {
 
   ivs <- c("x1", "x2")
 
-  fit <- xgboost(
+  fit <- xgb.train(
     verbose = 0,
     params = list(
       objective = "reg:squarederror",
       eval_metric = "rmse",
       nthread = n_threads
     ),
-    data = as.matrix(subset(d, fold == 2)[, ivs]),
-    label = subset(d, fold == 2)$y,
+    data = xgb.DMatrix(as.matrix(subset(d, fold == 2)[, ivs]), label = subset(d, fold == 2)$y),
     nrounds = 3
   )
 
@@ -169,9 +168,8 @@ test_that("multiclass feature interactions work", {
 test_that("SHAP single sample works", {
   train <- agaricus.train
   test <- agaricus.test
-  booster <- xgboost(
-    data = train$data,
-    label = train$label,
+  booster <- xgb.train(
+    data = xgb.DMatrix(train$data, label = train$label),
     max_depth = 2,
     nrounds = 4,
     objective = "binary:logistic",

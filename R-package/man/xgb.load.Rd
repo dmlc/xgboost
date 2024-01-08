@@ -34,8 +34,10 @@ data.table::setDTthreads(nthread)
 
 train <- agaricus.train
 test <- agaricus.test
-bst <- xgboost(
-  data = train$data, label = train$label, max_depth = 2, eta = 1,
+bst <- xgb.train(
+  data = xgb.DMatrix(train$data, label = train$label),
+  max_depth = 2,
+  eta = 1,
   nthread = nthread,
   nrounds = 2,
   objective = "binary:logistic"

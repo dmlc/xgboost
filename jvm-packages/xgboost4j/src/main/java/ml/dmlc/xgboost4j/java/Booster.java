@@ -34,7 +34,7 @@ import org.apache.commons.logging.LogFactory;
  * Booster for xgboost, this is a model API that support interactive build of a XGBoost Model
  */
 public class Booster implements Serializable, KryoSerializable {
-  public static final String DEFAULT_FORMAT = "deprecated";
+  public static final String DEFAULT_FORMAT = "ubj";
   private static final Log logger = LogFactory.getLog(Booster.class);
   // handle to the booster.
   private long handle = 0;
@@ -788,8 +788,7 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   /**
-   * Save model into raw byte array. Currently it's using the deprecated format as
-   * default, which will be changed into `ubj` in future releases.
+   * Save model into raw byte array in the UBJSON ("ubj") format.
    *
    * @return the saved byte array
    * @throws XGBoostError native error
