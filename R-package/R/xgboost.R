@@ -103,6 +103,7 @@ NULL
 #' @importFrom stats coef
 #' @importFrom stats predict
 #' @importFrom stats median
+#' @importFrom stats variable.names
 #' @importFrom utils head
 #' @importFrom graphics barplot
 #' @importFrom graphics lines

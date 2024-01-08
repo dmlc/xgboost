@@ -792,6 +792,11 @@ test_that("DMatrix field are set to booster when training", {
   expect_null(getinfo(model_feature_types, "feature_name"))
   expect_equal(getinfo(model_both, "feature_name"), c("a", "b", "c"))
 
+  expect_null(variable.names(model_unnamed))
+  expect_equal(variable.names(model_feature_names), c("a", "b", "c"))
+  expect_null(variable.names(model_feature_types))
+  expect_equal(variable.names(model_both), c("a", "b", "c"))
+
   expect_null(getinfo(model_unnamed, "feature_type"))
   expect_null(getinfo(model_feature_names, "feature_type"))
   expect_equal(getinfo(model_feature_types, "feature_type"), c("q", "c", "q"))

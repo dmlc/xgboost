@@ -692,6 +692,21 @@ xgb.get.num.boosted.rounds <- function(model) {
   return(.Call(XGBoosterBoostedRounds_R, xgb.get.handle(model)))
 }
 
+#' @title Get Features Names from Booster
+#' @description Returns the feature / variable / column names from a fitted
+#' booster object, which are set automatically during the call to \link{xgb.train}
+#' from the DMatrix names, or which can be set manually through \link{setinfo}.
+#'
+#' If the object doesn't have feature names, will return `NULL`.
+#'
+#' It is equivalent to calling `getinfo(object, "feature_name")`.
+#' @param object An `xgb.Booster` object.
+#' @param ... Not used.
+#' @export
+variable.names.xgb.Booster <- function(object, ...) {
+  return(getinfo(object, "feature_name"))
+}
+
 xgb.ntree <- function(bst) {
   config <- xgb.config(bst)
   out <- strtoi(config$learner$gradient_booster$gbtree_model_param$num_trees)
