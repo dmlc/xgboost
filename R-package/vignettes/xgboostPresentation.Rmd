@@ -496,13 +496,13 @@ In some very specific cases, you will want to save the model as a *R* binary vec
 
 ```{r saveLoadRBinVectorModel, message=F, warning=F}
 # save model to R's raw vector
-rawVec <- xgb.serialize(bst)
+rawVec <- xgb.save.raw(bst)
 
 # print class
 print(class(rawVec))
 
 # load binary model to R
-bst3 <- xgb.load(rawVec)
+bst3 <- xgb.load.raw(rawVec)
 xgb.parameters(bst3) <- list(nthread = 2)
 pred3 <- predict(bst3, test$data)
 
