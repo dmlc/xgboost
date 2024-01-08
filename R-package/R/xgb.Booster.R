@@ -1,8 +1,11 @@
 # Construct an internal xgboost Booster and get its current number of rounds.
 # internal utility function
-# Note: the number of rounds in the C booster gets reset to zero when updating
-# the parameters through 'xgb.parameters', hence the need to return it from
-# this function when using it for training continuation
+# Note: the number of rounds in the C booster gets reset to zero when changing
+# key booster parameters like 'process_type=update', but in some cases, when
+# replacing previous iterations, it needs to make a check that the new number
+# of iterations doesn't exceed the previous ones, hence it keeps track of the
+# current number of iterations before resetting the parameters in order to
+# perform the check later on.
 xgb.Booster <- function(params, cachelist, modelfile) {
   if (typeof(cachelist) != "list" ||
       !all(vapply(cachelist, inherits, logical(1), what = 'xgb.DMatrix'))) {
