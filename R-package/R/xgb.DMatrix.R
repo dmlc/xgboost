@@ -367,11 +367,6 @@ dimnames.xgb.DMatrix <- function(x) {
 #'
 #' \bold{Important}: when calling `setinfo`, the objects are modified in-place. See
 #' \link{xgb.copy.Booster} for an idea of this in-place assignment works.
-#'
-#' Be aware that, when a booster object is serialized to disk through functions like
-#' \link{xgb.save}, information that was set on it will be lost, but such information
-#' would be kept as part of the serialization when using to-bytes serializers like
-#' \link{xgb.save.raw}, and when using R serializers like \link{saveRDS}.
 #' @examples
 #' data(agaricus.train, package='xgboost')
 #' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))

@@ -63,11 +63,6 @@ for a DMatrix that had 'qid' assigned.
 \bold{Important}: when calling \code{setinfo}, the objects are modified in-place. See
 \link{xgb.copy.Booster} for an idea of this in-place assignment works.
 
-Be aware that, when a booster object is serialized to disk through functions like
-\link{xgb.save}, information that was set on it will be lost, but such information
-would be kept as part of the serialization when using to-bytes serializers like
-\link{xgb.save.raw}, and when using R serializers like \link{saveRDS}.
-
 See the documentation for \link{xgb.DMatrix} for possible fields that can be set
 (which correspond to arguments in that function).
 

@@ -691,7 +691,7 @@ setinfo.xgb.Booster <- function(object, name, info) {
 #' continuation / updates through \link{xgb.parameters<-} will reset the
 #' number of rounds to zero.
 #' @export
-xgb.get.Booster.nrounds <- function(model) {
+xgb.get.num.boosted.rounds <- function(model) {
   return(xgb.nrounds(model))
 }
 
