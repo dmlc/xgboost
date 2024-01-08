@@ -566,6 +566,8 @@ class TrainingCheckPoint(TrainingCallback):
 
     """
 
+    default_format = "ubj"
+
     def __init__(
         self,
         directory: Union[str, os.PathLike],
@@ -594,7 +596,7 @@ class TrainingCheckPoint(TrainingCallback):
                 self._name
                 + "_"
                 + (str(epoch + self._start))
-                + (".pkl" if self._as_pickle else ".ubj"),
+                + (".pkl" if self._as_pickle else f".{self.default_format}"),
             )
             self._epoch = 0  # reset counter
             if collective.get_rank() == 0:

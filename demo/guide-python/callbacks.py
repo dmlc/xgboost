@@ -83,7 +83,12 @@ def custom_callback():
 
 
 def check_point_callback():
-    # only for demo, set a larger value (like 100) in practice as checkpointing is quite
+    """Demo for using the checkpoint callback. Custom logic for handling output is
+    usually required and users are encouraged to define their own callback for
+    checkpointing operations. The builtin one can be used as a starting point.
+
+    """
+    # Only for demo, set a larger value (like 100) in practice as checkpointing is quite
     # slow.
     rounds = 2
 
@@ -94,7 +99,10 @@ def check_point_callback():
             if as_pickle:
                 path = os.path.join(tmpdir, "model_" + str(i) + ".pkl")
             else:
-                path = os.path.join(tmpdir, "model_" + str(i) + ".json")
+                path = os.path.join(
+                    tmpdir,
+                    f"model_{i}.{xgb.callback.TrainingCheckPoint.default_format}",
+                )
             assert os.path.exists(path)
 
     X, y = load_breast_cancer(return_X_y=True)
