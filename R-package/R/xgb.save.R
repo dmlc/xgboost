@@ -10,7 +10,7 @@
 #' This format uses binary types for e.g. floating point numbers, thereby preventing any loss
 #' of precision when converting to a human-readable JSON text or similar.
 #' \item Extension ".json" will use plain JSON, which is a human-readable format.
-#' \item Extension ".model" will use a \bold{deprecated} binary format. This format will
+#' \item Extension ".deprecated" will use a \bold{deprecated} binary format. This format will
 #' not be able to save attributes introduced after v1 of XGBoost, such as the "best_iteration"
 #' attribute that boosters might keep, nor feature names or user-specifiec attributes.
 #' \item If the format is not specified by passing one of the file extensions above, will
