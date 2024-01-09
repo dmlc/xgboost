@@ -20,7 +20,6 @@ xgb.train(
   save_name = "xgboost.model",
   xgb_model = NULL,
   callbacks = list(),
-  keep_extra_attributes = TRUE,
   ...
 )
 
@@ -208,18 +207,9 @@ See \code{\link{callbacks}}. Some of the callbacks are automatically created dep
 parameters' values. User can provide either existing or their own callback methods in order
 to customize the training process.
 
-\if{html}{\out{<div class="sourceCode">}}\preformatted{   Note that some callbacks might try to set an evaluation log - in order to keep such logs,
-   it's necessary to pass `keep_extra_attributes = TRUE`. Be aware that these evaluation logs
+\if{html}{\out{<div class="sourceCode">}}\preformatted{   Note that some callbacks might try to set an evaluation log - be aware that these evaluation logs
    are kept as R attributes, and thus do not get saved when using non-R serializaters like
    \link{xgb.save} (but are kept when using R serializers like \link{saveRDS}).
-}\if{html}{\out{</div>}}}
-
-\item{keep_extra_attributes}{Whether to keep extra R attributes in the booster object which
-are specific to the R interface and which do not get saved along when calling functions
-like \code{xgb.save}, but which get saved with R-specific serializers such as \code{saveRDS}.
-
-\if{html}{\out{<div class="sourceCode">}}\preformatted{   These attributes include, for example, the function call that was used to produce the model,
-   evaluation logs from callbacks, among others.
 }\if{html}{\out{</div>}}}
 
 \item{...}{other parameters to pass to \code{params}.}
@@ -288,12 +278,6 @@ and shared between interfaces through serialization functions like \link{xgb.sav
 R-specific attributes, accessed through \link{attributes} and \link{attr}, which are otherwise
 only used in the R interface, only kept when using R's serializers like \link{saveRDS}, and
 not anyhow used by functions like \link{predict.xgb.Booster}.
-
-If passing \code{keep_extra_attributes=TRUE}, note that the parameters passed here will be kept
-in the R-specific attributes, but since functions like \link{xgb.parameters<-} allow changing
-parameters in the C-level object after it has been fitted, be aware that there's no guarantee
-that these R parameters would be synchronized with the internal booster parameters as
-return by \link{xgb.parameters<-} or \link{xgb.config}.
 }
 \examples{
 data(agaricus.train, package='xgboost')

@@ -153,8 +153,7 @@
 #'        parameters' values. User can provide either existing or their own callback methods in order
 #'        to customize the training process.
 #'
-#'        Note that some callbacks might try to set an evaluation log - in order to keep such logs,
-#'        it's necessary to pass `keep_extra_attributes = TRUE`. Be aware that these evaluation logs
+#'        Note that some callbacks might try to set an evaluation log - be aware that these evaluation logs
 #'        are kept as R attributes, and thus do not get saved when using non-R serializaters like
 #'        \link{xgb.save} (but are kept when using R serializers like \link{saveRDS}).
 #' @param ... other parameters to pass to \code{params}.
@@ -164,12 +163,6 @@
 #'        by the algorithm. Sometimes, 0 or other extreme value might be used to represent missing values.
 #'        This parameter is only used when input is a dense matrix.
 #' @param weight a vector indicating the weight for each row of the input.
-#' @param keep_extra_attributes Whether to keep extra R attributes in the booster object which
-#'        are specific to the R interface and which do not get saved along when calling functions
-#'        like `xgb.save`, but which get saved with R-specific serializers such as `saveRDS`.
-#'
-#'        These attributes include, for example, the function call that was used to produce the model,
-#'        evaluation logs from callbacks, among others.
 #'
 #' @return
 #' An object of class \code{xgb.Booster}.
@@ -222,12 +215,6 @@
 #' R-specific attributes, accessed through \link{attributes} and \link{attr}, which are otherwise
 #' only used in the R interface, only kept when using R's serializers like \link{saveRDS}, and
 #' not anyhow used by functions like \link{predict.xgb.Booster}.
-#'
-#' If passing `keep_extra_attributes=TRUE`, note that the parameters passed here will be kept
-#' in the R-specific attributes, but since functions like \link{xgb.parameters<-} allow changing
-#' parameters in the C-level object after it has been fitted, be aware that there's no guarantee
-#' that these R parameters would be synchronized with the internal booster parameters as
-#' return by \link{xgb.parameters<-} or \link{xgb.config}.
 #'
 #' @seealso
 #' \code{\link{callbacks}},
@@ -314,8 +301,7 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
                       obj = NULL, feval = NULL, verbose = 1, print_every_n = 1L,
                       early_stopping_rounds = NULL, maximize = NULL,
                       save_period = NULL, save_name = "xgboost.model",
-                      xgb_model = NULL, callbacks = list(),
-                      keep_extra_attributes = TRUE, ...) {
+                      xgb_model = NULL, callbacks = list(), ...) {
 
   check.deprecation(...)
 
@@ -450,18 +436,16 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
     }
   }
 
-  if (keep_extra_attributes) {
-    extra_attrs <- list(
-      call = match.call(),
-      params = params,
-      callbacks = callbacks
-    )
-    if (keep_evaluation_log) {
-      extra_attrs$evaluation_log <- evaluation_log
-    }
-    curr_attrs <- attributes(bst)
-    attributes(bst) <- c(curr_attrs, extra_attrs)
+  extra_attrs <- list(
+    call = match.call(),
+    params = params,
+    callbacks = callbacks
+  )
+  if (keep_evaluation_log) {
+    extra_attrs$evaluation_log <- evaluation_log
   }
+  curr_attrs <- attributes(bst)
+  attributes(bst) <- c(curr_attrs, extra_attrs)
 
   return(bst)
 }
