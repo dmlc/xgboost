@@ -57,8 +57,7 @@ xgb.load <- function(modelfile) {
     warning(
       paste(
         "The support for loading raw booster with `xgb.load` will be ",
-        "discontinued in upcoming release. Use `xgb.load.raw` or",
-        " `xgb.unserialize` instead. "
+        "discontinued in upcoming release. Use `xgb.load.raw` instead. "
       )
     )
   }

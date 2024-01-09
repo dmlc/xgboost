@@ -339,22 +339,6 @@ test_that("training continuation works", {
   expect_equal(dim(attributes(bst2)$evaluation_log), c(2, 2))
 })
 
-test_that("model serialization works", {
-  out_path <- file.path(tempdir(), "model_serialization")
-  dtrain <- xgb.DMatrix(train$data, label = train$label, nthread = n_threads)
-  watchlist <- list(train = dtrain)
-  param <- list(objective = "binary:logistic", nthread = n_threads)
-  booster <- xgb.train(param, dtrain, nrounds = 4, watchlist)
-  raw <- xgb.serialize(booster)
-  saveRDS(raw, out_path)
-  raw <- readRDS(out_path)
-
-  loaded <- xgb.unserialize(raw)
-  raw_from_loaded <- xgb.serialize(loaded)
-  expect_equal(raw, raw_from_loaded)
-  file.remove(out_path)
-})
-
 test_that("xgb.cv works", {
   set.seed(11)
   expect_output(
