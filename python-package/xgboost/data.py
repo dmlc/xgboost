@@ -26,6 +26,7 @@ from .core import (
     DataIter,
     DataSplitMode,
     DMatrix,
+    _array_hasobject,
     _check_call,
     _cuda_array_interface,
     _ProxyDMatrix,
@@ -77,9 +78,8 @@ def is_scipy_csr(data: DataType) -> bool:
 
 
 def _array_interface_dict(data: np.ndarray) -> dict:
-    assert (
-        data.dtype.hasobject is False
-    ), "Input data contains `object` dtype.  Expecting numeric data."
+    if _array_hasobject(data):
+        raise ValueError("Input data contains `object` dtype.  Expecting numeric data.")
     interface = data.__array_interface__
     if "mask" in interface:
         interface["mask"] = interface["mask"].__array_interface__
@@ -219,7 +219,7 @@ def _is_np_array_like(data: DataType) -> bool:
 def _ensure_np_dtype(
     data: DataType, dtype: Optional[NumpyDType]
 ) -> Tuple[np.ndarray, Optional[NumpyDType]]:
-    if data.dtype.hasobject or data.dtype in [np.float16, np.bool_]:
+    if _array_hasobject(data) or data.dtype in [np.float16, np.bool_]:
         dtype = np.float32
         data = data.astype(dtype, copy=False)
     if not data.flags.aligned:
@@ -998,11 +998,8 @@ def _is_cudf_ser(data: DataType) -> bool:
     return lazy_isinstance(data, "cudf.core.series", "Series")
 
 
-def _is_cupy_array(data: DataType) -> bool:
-    return any(
-        lazy_isinstance(data, n, "ndarray")
-        for n in ("cupy.core.core", "cupy", "cupy._core.core")
-    )
+def _is_cupy_alike(data: DataType) -> bool:
+    return hasattr(data, "__cuda_array_interface__")
 
 
 def _transform_cupy_array(data: DataType) -> CupyT:
@@ -1010,7 +1007,7 @@ def _transform_cupy_array(data: DataType) -> CupyT:
 
     if not hasattr(data, "__cuda_array_interface__") and hasattr(data, "__array__"):
         data = cupy.array(data, copy=False)
-    if data.dtype.hasobject or data.dtype in [cupy.bool_]:
+    if _array_hasobject(data) or data.dtype in [cupy.bool_]:
         data = data.astype(cupy.float32, copy=False)
     return data
 
@@ -1222,7 +1219,7 @@ def dispatch_data_backend(
         return _from_cudf_df(
             data, missing, threads, feature_names, feature_types, enable_categorical
         )
-    if _is_cupy_array(data):
+    if _is_cupy_alike(data):
         return _from_cupy_array(data, missing, threads, feature_names, feature_types)
     if _is_cupy_csr(data):
         raise TypeError("cupyx CSR is not supported yet.")
@@ -1354,7 +1351,7 @@ def dispatch_meta_backend(
         data = _transform_dlpack(data)
         _meta_from_cupy_array(data, name, handle)
         return
-    if _is_cupy_array(data):
+    if _is_cupy_alike(data):
         _meta_from_cupy_array(data, name, handle)
         return
     if _is_cudf_ser(data):
@@ -1419,7 +1416,7 @@ def _proxy_transform(
         return _transform_cudf_df(
             data, feature_names, feature_types, enable_categorical
         )
-    if _is_cupy_array(data):
+    if _is_cupy_alike(data):
         data = _transform_cupy_array(data)
         return data, None, feature_names, feature_types
     if _is_dlpack(data):
@@ -1470,7 +1467,7 @@ def dispatch_proxy_set_data(
         # pylint: disable=W0212
         proxy._set_data_from_cuda_columnar(data, cast(List, cat_codes))
         return
-    if _is_cupy_array(data):
+    if _is_cupy_alike(data):
         proxy._set_data_from_cuda_interface(data)  # pylint: disable=W0212
         return
     if _is_dlpack(data):

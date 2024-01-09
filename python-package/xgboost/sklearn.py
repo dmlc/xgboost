@@ -39,7 +39,7 @@ from .core import (
     _deprecate_positional_args,
     _parse_eval_str,
 )
-from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_array, _is_pandas_df
+from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_alike, _is_pandas_df
 from .training import train
 
 
@@ -1177,7 +1177,7 @@ class XGBModel(XGBModelBase):
                         base_margin=base_margin,
                         validate_features=validate_features,
                     )
-                    if _is_cupy_array(predts):
+                    if _is_cupy_alike(predts):
                         import cupy  # pylint: disable=import-error
 
                         predts = cupy.asnumpy(predts)  # ensure numpy array is used.
@@ -1458,7 +1458,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                 classes = cp.unique(y.values)
                 self.n_classes_ = len(classes)
                 expected_classes = cp.array(self.classes_)
-            elif _is_cupy_array(y):
+            elif _is_cupy_alike(y):
                 import cupy as cp  # pylint: disable=E0401
 
                 classes = cp.unique(y)
