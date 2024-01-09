@@ -357,10 +357,13 @@ def _numpy2ctypes_type(dtype: Type[np.number]) -> Type[CNumeric]:
     return _NUMPY_TO_CTYPES_MAPPING[dtype]
 
 
+def _array_hasobject(data: DataType) -> bool:
+    return hasattr(data.dtype, "hasobject") and data.dtype.hasobject
+
+
 def _cuda_array_interface(data: DataType) -> bytes:
-    assert (
-        data.dtype.hasobject is False
-    ), "Input data contains `object` dtype.  Expecting numeric data."
+    if _array_hasobject(data):
+        raise ValueError("Input data contains `object` dtype.  Expecting numeric data.")
     interface = data.__cuda_array_interface__
     if "mask" in interface:
         interface["mask"] = interface["mask"].__cuda_array_interface__

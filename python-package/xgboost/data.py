@@ -26,6 +26,7 @@ from .core import (
     DataIter,
     DataSplitMode,
     DMatrix,
+    _array_hasobject,
     _check_call,
     _cuda_array_interface,
     _ProxyDMatrix,
@@ -77,9 +78,8 @@ def is_scipy_csr(data: DataType) -> bool:
 
 
 def _array_interface_dict(data: np.ndarray) -> dict:
-    assert (
-        data.dtype.hasobject is False
-    ), "Input data contains `object` dtype.  Expecting numeric data."
+    if _array_hasobject(data):
+        raise ValueError("Input data contains `object` dtype.  Expecting numeric data.")
     interface = data.__array_interface__
     if "mask" in interface:
         interface["mask"] = interface["mask"].__array_interface__
@@ -219,7 +219,7 @@ def _is_np_array_like(data: DataType) -> bool:
 def _ensure_np_dtype(
     data: DataType, dtype: Optional[NumpyDType]
 ) -> Tuple[np.ndarray, Optional[NumpyDType]]:
-    if data.dtype.hasobject or data.dtype in [np.float16, np.bool_]:
+    if _array_hasobject(data) or data.dtype in [np.float16, np.bool_]:
         dtype = np.float32
         data = data.astype(dtype, copy=False)
     if not data.flags.aligned:
@@ -999,10 +999,7 @@ def _is_cudf_ser(data: DataType) -> bool:
 
 
 def _is_cupy_array(data: DataType) -> bool:
-    return any(
-        lazy_isinstance(data, n, "ndarray")
-        for n in ("cupy.core.core", "cupy", "cupy._core.core")
-    )
+    return hasattr(data, "__cuda_array_interface__")
 
 
 def _transform_cupy_array(data: DataType) -> CupyT:
@@ -1010,7 +1007,7 @@ def _transform_cupy_array(data: DataType) -> CupyT:
 
     if not hasattr(data, "__cuda_array_interface__") and hasattr(data, "__array__"):
         data = cupy.array(data, copy=False)
-    if data.dtype.hasobject or data.dtype in [cupy.bool_]:
+    if _array_hasobject(data) or data.dtype in [cupy.bool_]:
         data = data.astype(cupy.float32, copy=False)
     return data
 
