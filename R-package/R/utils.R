@@ -354,13 +354,13 @@ NULL
 #'
 #' When it comes to serializing XGBoost models, it's possible to use R serializers such as
 #' \link{save} or \link{saveRDS} to serialize an XGBoost R model, but XGBoost also provides
-#' its own serializers with perhaps better compability guarantees and which allow loading
+#' its own serializers with better compatibility guarantees, which allow loading
 #' said models in other language bindings of XGBoost.
 #'
 #' Note that an `xgb.Booster` object, outside of its core components, might also keep:\itemize{
-#' \item Additional model configuration attributes (accessible through \link{xgb.config}),
-#' which might be used during model fitting but are not used in e.g. `predict`, feature importance,
-#' or plotting methods.
+#' \item Additional model configuration (accessible through \link{xgb.config}),
+#' which includes model fitting parameters like `max_depth` and runtime parameters like `nthread`.
+#' These are not necessarily useful for prediction/importance/plotting.
 #' \item Additional R-specific attributes  - e.g. results of callbacks, such as evaluation logs,
 #' which are kept as a `data.table` object, accessible through `attributes(model)$evaluation_log`
 #' if present.
