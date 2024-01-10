@@ -278,6 +278,13 @@ and shared between interfaces through serialization functions like \link{xgb.sav
 R-specific attributes, accessed through \link{attributes} and \link{attr}, which are otherwise
 only used in the R interface, only kept when using R's serializers like \link{saveRDS}, and
 not anyhow used by functions like \link{predict.xgb.Booster}.
+
+Be aware that one such R attribute that is automatically added is \code{params} - this attribute
+is assigned from the \code{params} argument to this function, and is only meant to serve as a
+reference for what went into the booster, but is not used in other methods that take a booster
+object - so for example, changing the booster's configuration requires calling \verb{xgb.config<-}
+or 'xgb.parameters<-', while simply modifying \verb{attributes(model)$params$<...>} will have no
+effect elsewhere.
 }
 \examples{
 data(agaricus.train, package='xgboost')
