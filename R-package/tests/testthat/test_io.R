@@ -67,4 +67,5 @@ test_that("R serializers keep C config", {
     xgb.config(model)$learner$gradient_booster$gbtree_train_param$tree_method,
     xgb.config(model_new)$learner$gradient_booster$gbtree_train_param$tree_method
   )
+  expect_equal(variable.names(model), variable.names(model_new))
 })
