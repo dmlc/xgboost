@@ -1,11 +1,11 @@
 /**
- * Copyright 2020-2023 by XGBoost Contributors
+ * Copyright 2020-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/context.h>  // for Context
-#include <xgboost/task.h>     // for ObjInfo
-#include <xgboost/tree_model.h>
-#include <xgboost/tree_updater.h>
+#include <xgboost/context.h>       // for Context
+#include <xgboost/task.h>          // for ObjInfo
+#include <xgboost/tree_model.h>    // for RegTree
+#include <xgboost/tree_updater.h>  // for TreeUpdater
 
 #include <memory>                     // for unique_ptr
 
@@ -52,6 +52,7 @@ class UpdaterTreeStatTest : public ::testing::Test {
 
 #if defined(XGBOOST_USE_CUDA)
 TEST_F(UpdaterTreeStatTest, GpuHist) { this->RunTest("grow_gpu_hist"); }
+TEST_F(UpdaterTreeStatTest, GpuApprox) { this->RunTest("grow_gpu_approx"); }
 #endif  // defined(XGBOOST_USE_CUDA)
 
 TEST_F(UpdaterTreeStatTest, Hist) { this->RunTest("grow_quantile_histmaker"); }
@@ -204,6 +205,85 @@ TEST_F(TestMinSplitLoss, GpuHist) {
 TEST_F(TestMinSplitLoss, GpuApprox) {
   auto ctx = MakeCUDACtx(0);
   this->RunTest(&ctx, "grow_gpu_approx");
+}
+#endif  // defined(XGBOOST_USE_CUDA)
+
+// Test changing learning rate doesn't change internal splits.
+class TestSplitWithEta : public ::testing::Test {
+ protected:
+  void Run(Context const* ctx, bst_target_t n_targets, std::string name) {
+    auto Xy = RandomDataGenerator{512, 64, 0.2}.Targets(n_targets).GenerateDMatrix(true);
+
+    auto gen_tree = [&](float eta) {
+      auto tree =
+          std::make_unique<RegTree>(n_targets, static_cast<bst_feature_t>(Xy->Info().num_col_));
+      std::vector<RegTree*> trees{tree.get()};
+      ObjInfo task{ObjInfo::kRegression};
+      std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create(name, ctx, &task)};
+      updater->Configure({});
+
+      auto grad = GenerateRandomGradients(ctx, Xy->Info().num_row_, n_targets);
+      tree::TrainParam param;
+      param.Init(Args{{"learning_rate", std::to_string(eta)}});
+      HostDeviceVector<bst_node_t> position;
+
+      updater->Update(&param, &grad, Xy.get(), common::Span{&position, 1}, trees);
+      return tree;
+    };
+
+    auto p_tree0 = gen_tree(0.1f);
+    auto p_tree1 = gen_tree(0.8f);
+    // Just to make sure we are not testing a stump.
+    CHECK_GE(p_tree0->NumExtraNodes(), 32);
+
+    p_tree0->WalkTree([&](bst_node_t nidx) {
+      if (p_tree0->IsLeaf(nidx)) {
+        CHECK(p_tree1->IsLeaf(nidx));
+        CHECK_EQ(p_tree0->SplitCond(nidx) * 8.0f, p_tree1->SplitCond(nidx));
+      } else {
+        CHECK(!p_tree1->IsLeaf(nidx));
+        CHECK_EQ(p_tree0->SplitCond(nidx), p_tree1->SplitCond(nidx));
+      }
+      return true;
+    });
+  }
+};
+
+TEST_F(TestSplitWithEta, HistMulti) {
+  Context ctx;
+  bst_target_t n_targets{3};
+  this->Run(&ctx, n_targets, "grow_quantile_histmaker");
+}
+
+TEST_F(TestSplitWithEta, Hist) {
+  Context ctx;
+  bst_target_t n_targets{1};
+  this->Run(&ctx, n_targets, "grow_quantile_histmaker");
+}
+
+TEST_F(TestSplitWithEta, Approx) {
+  Context ctx;
+  bst_target_t n_targets{1};
+  this->Run(&ctx, n_targets, "grow_histmaker");
+}
+
+TEST_F(TestSplitWithEta, Exact) {
+  Context ctx;
+  bst_target_t n_targets{1};
+  this->Run(&ctx, n_targets, "grow_colmaker");
+}
+
+#if defined(XGBOOST_USE_CUDA)
+TEST_F(TestSplitWithEta, GpuHist) {
+  auto ctx = MakeCUDACtx(0);
+  bst_target_t n_targets{1};
+  this->Run(&ctx, n_targets, "grow_gpu_hist");
+}
+
+TEST_F(TestSplitWithEta, GpuApprox) {
+  auto ctx = MakeCUDACtx(0);
+  bst_target_t n_targets{1};
+  this->Run(&ctx, n_targets, "grow_gpu_approx");
 }
 #endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost
