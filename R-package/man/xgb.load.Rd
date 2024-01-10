@@ -48,5 +48,5 @@ xgb.save(bst, fname)
 bst <- xgb.load(fname)
 }
 \seealso{
-\code{\link{xgb.save}}, \code{\link{xgb.Booster.complete}}.
+\code{\link{xgb.save}}
 }

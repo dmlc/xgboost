@@ -40,7 +40,12 @@ test_that("updating the model works", {
   bst1r <- xgb.train(p1r, dtrain, nrounds = 10, watchlist, verbose = 0)
   tr1r <- xgb.model.dt.tree(model = bst1r)
   # all should be the same when no subsampling
-  expect_equal(bst1$evaluation_log, bst1r$evaluation_log)
+  expect_equal(attributes(bst1)$evaluation_log, attributes(bst1r)$evaluation_log)
+  expect_equal(
+    jsonlite::fromJSON(rawToChar(xgb.save.raw(bst1, raw_format = "json"))),
+    jsonlite::fromJSON(rawToChar(xgb.save.raw(bst1r, raw_format = "json"))),
+    tolerance = 1e-6
+  )
   if (!win32_flag) {
     expect_equal(tr1, tr1r, tolerance = 0.00001, check.attributes = FALSE)
   }
@@ -51,7 +56,7 @@ test_that("updating the model works", {
   bst2r <- xgb.train(p2r, dtrain, nrounds = 10, watchlist, verbose = 0)
   tr2r <- xgb.model.dt.tree(model = bst2r)
   # should be the same evaluation but different gains and larger cover
-  expect_equal(bst2$evaluation_log, bst2r$evaluation_log)
+  expect_equal(attributes(bst2)$evaluation_log, attributes(bst2r)$evaluation_log)
   if (!win32_flag) {
     expect_equal(tr2[Feature == 'Leaf']$Gain, tr2r[Feature == 'Leaf']$Gain)
   }
@@ -59,11 +64,25 @@ test_that("updating the model works", {
   expect_gt(sum(tr2r$Cover) / sum(tr2$Cover), 1.5)
 
   # process type 'update' for no-subsampling model, refreshing the tree stats AND leaves from training data:
+  set.seed(123)
   p1u <- modifyList(p1, list(process_type = 'update', updater = 'refresh', refresh_leaf = TRUE))
   bst1u <- xgb.train(p1u, dtrain, nrounds = 10, watchlist, verbose = 0, xgb_model = bst1)
   tr1u <- xgb.model.dt.tree(model = bst1u)
   # all should be the same when no subsampling
-  expect_equal(bst1$evaluation_log, bst1u$evaluation_log)
+  expect_equal(attributes(bst1)$evaluation_log, attributes(bst1u)$evaluation_log)
+  expect_equal(
+    jsonlite::fromJSON(rawToChar(xgb.save.raw(bst1, raw_format = "json"))),
+    jsonlite::fromJSON(rawToChar(xgb.save.raw(bst1u, raw_format = "json"))),
+    tolerance = 1e-6
+  )
+  expect_equal(tr1, tr1u, tolerance = 0.00001, check.attributes = FALSE)
+
+  # same thing but with a serialized model
+  set.seed(123)
+  bst1u <- xgb.train(p1u, dtrain, nrounds = 10, watchlist, verbose = 0, xgb_model = xgb.save.raw(bst1))
+  tr1u <- xgb.model.dt.tree(model = bst1u)
+  # all should be the same when no subsampling
+  expect_equal(attributes(bst1)$evaluation_log, attributes(bst1u)$evaluation_log)
   expect_equal(tr1, tr1u, tolerance = 0.00001, check.attributes = FALSE)
 
   # process type 'update' for model with subsampling, refreshing only the tree stats from training data:
@@ -71,12 +90,12 @@ test_that("updating the model works", {
   bst2u <- xgb.train(p2u, dtrain, nrounds = 10, watchlist, verbose = 0, xgb_model = bst2)
   tr2u <- xgb.model.dt.tree(model = bst2u)
   # should be the same evaluation but different gains and larger cover
-  expect_equal(bst2$evaluation_log, bst2u$evaluation_log)
+  expect_equal(attributes(bst2)$evaluation_log, attributes(bst2u)$evaluation_log)
   expect_equal(tr2[Feature == 'Leaf']$Gain, tr2u[Feature == 'Leaf']$Gain)
   expect_gt(sum(abs(tr2[Feature != 'Leaf']$Gain - tr2u[Feature != 'Leaf']$Gain)), 100)
   expect_gt(sum(tr2u$Cover) / sum(tr2$Cover), 1.5)
   # the results should be the same as for the model with an extra 'refresh' updater
-  expect_equal(bst2r$evaluation_log, bst2u$evaluation_log)
+  expect_equal(attributes(bst2r)$evaluation_log, attributes(bst2u)$evaluation_log)
   if (!win32_flag) {
     expect_equal(tr2r, tr2u, tolerance = 0.00001, check.attributes = FALSE)
   }
@@ -86,7 +105,7 @@ test_that("updating the model works", {
   bst1ut <- xgb.train(p1ut, dtest, nrounds = 10, watchlist, verbose = 0, xgb_model = bst1)
   tr1ut <- xgb.model.dt.tree(model = bst1ut)
   # should be the same evaluations but different gains and smaller cover (test data is smaller)
-  expect_equal(bst1$evaluation_log, bst1ut$evaluation_log)
+  expect_equal(attributes(bst1)$evaluation_log, attributes(bst1ut)$evaluation_log)
   expect_equal(tr1[Feature == 'Leaf']$Gain, tr1ut[Feature == 'Leaf']$Gain)
   expect_gt(sum(abs(tr1[Feature != 'Leaf']$Gain - tr1ut[Feature != 'Leaf']$Gain)), 100)
   expect_lt(sum(tr1ut$Cover) / sum(tr1$Cover), 0.5)
@@ -106,11 +125,12 @@ test_that("updating works for multiclass & multitree", {
 
   # run update process for an original model with subsampling
   p0u <- modifyList(p0, list(process_type = 'update', updater = 'refresh', refresh_leaf = FALSE))
-  bst0u <- xgb.train(p0u, dtr, nrounds = bst0$niter, watchlist, xgb_model = bst0, verbose = 0)
+  bst0u <- xgb.train(p0u, dtr, nrounds = xgb.get.num.boosted.rounds(bst0),
+                     watchlist, xgb_model = bst0, verbose = 0)
   tr0u <- xgb.model.dt.tree(model = bst0u)
 
   # should be the same evaluation but different gains and larger cover
-  expect_equal(bst0$evaluation_log, bst0u$evaluation_log)
+  expect_equal(attributes(bst0)$evaluation_log, attributes(bst0u)$evaluation_log)
   expect_equal(tr0[Feature == 'Leaf']$Gain, tr0u[Feature == 'Leaf']$Gain)
   expect_gt(sum(abs(tr0[Feature != 'Leaf']$Gain - tr0u[Feature != 'Leaf']$Gain)), 100)
   expect_gt(sum(tr0u$Cover) / sum(tr0$Cover), 1.5)

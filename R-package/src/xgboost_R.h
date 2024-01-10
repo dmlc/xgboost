@@ -8,7 +8,9 @@
 #define XGBOOST_R_H_ // NOLINT(*)
 
 
+#include <R.h>
 #include <Rinternals.h>
+#include <R_ext/Altrep.h>
 #include <R_ext/Random.h>
 #include <Rmath.h>
 
@@ -144,6 +146,25 @@ XGB_DLL SEXP XGDMatrixNumRow_R(SEXP handle);
 XGB_DLL SEXP XGDMatrixNumCol_R(SEXP handle);
 
 /*!
+ * \brief Call R C-level function 'duplicate'
+ * \param obj Object to duplicate
+ */
+XGB_DLL SEXP XGDuplicate_R(SEXP obj);
+
+/*!
+ * \brief Equality comparison for two pointers
+ * \param obj1 R 'externalptr'
+ * \param obj2 R 'externalptr'
+ */
+XGB_DLL SEXP XGPointerEqComparison_R(SEXP obj1, SEXP obj2);
+
+/*!
+ * \brief Register the Altrep class used for the booster
+ * \param dll DLL info as provided by R_init
+ */
+XGB_DLL void XGBInitializeAltrepClass_R(DllInfo *dll);
+
+/*!
  * \brief return the quantile cuts used for the histogram method
  * \param handle an instance of data matrix
  * \return A list with entries 'indptr' and 'data'
@@ -174,13 +195,37 @@ XGB_DLL SEXP XGDMatrixGetDataAsCSR_R(SEXP handle);
  */
 XGB_DLL SEXP XGBoosterCreate_R(SEXP dmats);
 
+/*!
+ * \brief copy information about features from a DMatrix into a Booster
+ * \param booster R 'externalptr' pointing to a booster object
+ * \param dmat R 'externalptr' pointing to a DMatrix object
+ */
+XGB_DLL SEXP XGBoosterCopyInfoFromDMatrix_R(SEXP booster, SEXP dmat);
 
 /*!
- * \brief create xgboost learner, saving the pointer into an existing R object
- * \param dmats a list of dmatrix handles that will be cached
- * \param R_handle a clean R external pointer (not holding any object)
+ * \brief handle R 'externalptr' holding the booster object
+ * \param field field name
+ * \param features features to set for the field
  */
-XGB_DLL SEXP XGBoosterCreateInEmptyObj_R(SEXP dmats, SEXP R_handle);
+XGB_DLL SEXP XGBoosterSetStrFeatureInfo_R(SEXP handle, SEXP field, SEXP features);
+
+/*!
+ * \brief handle R 'externalptr' holding the booster object
+ * \param field field name
+ */
+XGB_DLL SEXP XGBoosterGetStrFeatureInfo_R(SEXP handle, SEXP field);
+
+/*!
+ * \brief Get the number of boosted rounds from a model
+ * \param handle R 'externalptr' holding the booster object
+ */
+XGB_DLL SEXP XGBoosterBoostedRounds_R(SEXP handle);
+
+/*!
+ * \brief Get the number of features to which the model was fitted
+ * \param handle R 'externalptr' holding the booster object
+ */
+XGB_DLL SEXP XGBoosterGetNumFeature_R(SEXP handle);
 
 /*!
  * \brief set parameters
