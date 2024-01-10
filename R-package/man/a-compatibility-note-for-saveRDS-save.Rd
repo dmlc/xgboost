@@ -2,26 +2,45 @@
 % Please edit documentation in R/utils.R
 \name{a-compatibility-note-for-saveRDS-save}
 \alias{a-compatibility-note-for-saveRDS-save}
-\title{Do not use \code{\link[base]{saveRDS}} or \code{\link[base]{save}} for long-term archival of
-models. Instead, use \code{\link{xgb.save}} or \code{\link{xgb.save.raw}}.}
+\title{Model Serialization and Compatibility}
 \description{
-It is a common practice to use the built-in \code{\link[base]{saveRDS}} function (or
-\code{\link[base]{save}}) to persist R objects to the disk. While it is possible to persist
-\code{xgb.Booster} objects using \code{\link[base]{saveRDS}}, it is not advisable to do so if
-the model is to be accessed in the future. If you train a model with the current version of
-XGBoost and persist it with \code{\link[base]{saveRDS}}, the model is not guaranteed to be
-accessible in later releases of XGBoost. To ensure that your model can be accessed in future
-releases of XGBoost, use \code{\link{xgb.save}} or \code{\link{xgb.save.raw}} instead.
+When it comes to serializing XGBoost models, it's possible to use R serializers such as
+\link{save} or \link{saveRDS} to serialize an XGBoost R model, but XGBoost also provides
+its own serializers with perhaps better compability guarantees and which allow loading
+said models in other language bindings of XGBoost.
+
+Note however that an \code{xgb.Booster} object might also keep:\itemize{
+\item Additional model configuration attributes (accessible through \link{xgb.config}),
+which might be used during model fitting but are not used in e.g. \code{predict}, feature importance,
+or plotting methods.
+\item Additional R-specific attributes  - e.g. results of callbacks, such as evaluation logs,
+which are kept as a \code{data.table} object, accessible through \code{attributes(model)$evaluation_log}
+if present.
 }
-\details{
+
+The first ones (configuration attributes) do not have the same compatibility guarantees as
+attributes that are set and accessed through \link{xgb.attributes} - that is, such attributes
+might be lost after loading the booster in a different XGBoost version, regardless of the
+serializer that was used. Note that these are saved when using \link{xgb.save}, but not when
+using \link{xgb.save.raw}.
+
+The second ones (R attributes) are not part of standard XGBoost model structure, and thus are
+not saved when using XGBoost's own serializers. These attributes are only used for informational
+purposes, such as keeping track of evaluation metrics as the model was fit, or saving the R
+call that produced the model, but are otherwise not used for prediction / importance / plotting / etc.
+These R attributes are only preserved when using R's own serializers.
+
 Note that XGBoost models in R starting from version \verb{2.1.0} and onwards, and XGBoost models
 before version \verb{2.1.0}; have a very different R object structure and are incompatible with
 each other. Hence, models that were saved with R serializers live \code{saveRDS} or \code{save} before
-version \verb{2.1.0} will not work with latter \code{xgboost} versions and vice versa.
+version \verb{2.1.0} will not work with latter \code{xgboost} versions and vice versa. Be aware that
+the structure of R model objects could in theory again in the future, so XGBoost's serializers
+should be preferred for very long-term storage.
 
 Furthermore, note that using the package \code{qs} for serialization will require version 0.26 or
 higher of said package, and will have the same compatibility restrictions as R serializers.
-
+}
+\details{
 Use \code{\link{xgb.save}} to save the XGBoost model as a stand-alone file. You may opt into
 the JSON format by specifying the JSON extension. To read the model back, use
 \code{\link{xgb.load}}.
@@ -31,6 +50,11 @@ in a future-proof manner. Future releases of XGBoost will be able to read the ra
 re-construct the corresponding model. To read the model back, use \code{\link{xgb.load.raw}}.
 The \code{\link{xgb.save.raw}} function is useful if you'd like to persist the XGBoost model
 as part of another R object.
+
+Use \link{saveRDS} if you require the R-specific attributes that a booster might have, such
+as evaluation logs, but note that future compatibility of such objects is outside XGBoost's
+control as it relies on R's serialization format (see e.g. the details section in
+\link{serialize} and \link{save} from base R).
 
 For more details and explanation about model persistence and archival, consult the page
 \url{https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html}.
