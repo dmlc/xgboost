@@ -357,7 +357,7 @@ NULL
 #' its own serializers with perhaps better compability guarantees and which allow loading
 #' said models in other language bindings of XGBoost.
 #'
-#' Note however that an `xgb.Booster` object might also keep:\itemize{
+#' Note that an `xgb.Booster` object, outside of its core components, might also keep:\itemize{
 #' \item Additional model configuration attributes (accessible through \link{xgb.config}),
 #' which might be used during model fitting but are not used in e.g. `predict`, feature importance,
 #' or plotting methods.
