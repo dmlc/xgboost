@@ -369,8 +369,9 @@ NULL
 #' The first ones (configuration attributes) do not have the same compatibility guarantees as
 #' attributes that are set and accessed through \link{xgb.attributes} - that is, such attributes
 #' might be lost after loading the booster in a different XGBoost version, regardless of the
-#' serializer that was used. Note that these are saved when using \link{xgb.save}, but not when
-#' using \link{xgb.save.raw}.
+#' serializer that was used. These are saved when using \link{saveRDS}, but will be discarded
+#' if loaded into an incompatible XGBoost version. They are not saved when using XGBoost's
+#' serializers from its public interface.
 #'
 #' The second ones (R attributes) are not part of standard XGBoost model structure, and thus are
 #' not saved when using XGBoost's own serializers. These attributes are only used for informational
