@@ -47,3 +47,24 @@ test_that("saveRDS preserves C and R attributes", {
   expect_equal(attributes(model_new)$my_attr, attributes(model)$my_attr)
   expect_equal(xgb.attr(model, "c_attr"), xgb.attr(model_new, "c_attr"))
 })
+
+test_that("R serializers keep C config", {
+  data(mtcars)
+  y <- mtcars$mpg
+  x <- as.matrix(mtcars[, -1])
+  dm <- xgb.DMatrix(x, label = y, nthread = 1)
+  model <- xgb.train(
+    data = dm,
+    params = list(
+      tree_method = "approx",
+      nthread = 1,
+      max_depth = 2
+    ),
+    nrounds = 3
+  )
+  model_new <- unserialize(serialize(model, NULL))
+  expect_equal(
+    xgb.config(model)$learner$gradient_booster$gbtree_train_param$tree_method,
+    xgb.config(model_new)$learner$gradient_booster$gbtree_train_param$tree_method
+  )
+})
