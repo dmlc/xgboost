@@ -6,37 +6,37 @@
 \description{
 When it comes to serializing XGBoost models, it's possible to use R serializers such as
 \link{save} or \link{saveRDS} to serialize an XGBoost R model, but XGBoost also provides
-its own serializers with perhaps better compability guarantees and which allow loading
+its own serializers with better compatibility guarantees, which allow loading
 said models in other language bindings of XGBoost.
 
 Note that an \code{xgb.Booster} object, outside of its core components, might also keep:\itemize{
-\item Additional model configuration attributes (accessible through \link{xgb.config}),
-which might be used during model fitting but are not used in e.g. \code{predict}, feature importance,
-or plotting methods.
+\item Additional model configuration (accessible through \link{xgb.config}),
+which includes model fitting parameters like \code{max_depth} and runtime parameters like \code{nthread}.
+These are not necessarily useful for prediction/importance/plotting.
 \item Additional R-specific attributes  - e.g. results of callbacks, such as evaluation logs,
 which are kept as a \code{data.table} object, accessible through \code{attributes(model)$evaluation_log}
 if present.
 }
 
-The first ones (configuration attributes) do not have the same compatibility guarantees as
-attributes that are set and accessed through \link{xgb.attributes} - that is, such attributes
+The first one (configurations) does not have the same compatibility guarantees as
+the model itself, including attributes that are set and accessed through \link{xgb.attributes} - that is, such configuration
 might be lost after loading the booster in a different XGBoost version, regardless of the
 serializer that was used. These are saved when using \link{saveRDS}, but will be discarded
 if loaded into an incompatible XGBoost version. They are not saved when using XGBoost's
-serializers from its public interface.
+serializers from its public interface including \link{xgb.save} and \link{xgb.save.raw}.
 
-The second ones (R attributes) are not part of standard XGBoost model structure, and thus are
+The second ones (R attributes) are not part of the standard XGBoost model structure, and thus are
 not saved when using XGBoost's own serializers. These attributes are only used for informational
 purposes, such as keeping track of evaluation metrics as the model was fit, or saving the R
 call that produced the model, but are otherwise not used for prediction / importance / plotting / etc.
-These R attributes are only preserved when using R's own serializers.
+These R attributes are only preserved when using R's serializers.
 
 Note that XGBoost models in R starting from version \verb{2.1.0} and onwards, and XGBoost models
 before version \verb{2.1.0}; have a very different R object structure and are incompatible with
 each other. Hence, models that were saved with R serializers live \code{saveRDS} or \code{save} before
 version \verb{2.1.0} will not work with latter \code{xgboost} versions and vice versa. Be aware that
-the structure of R model objects could in theory again in the future, so XGBoost's serializers
-should be preferred for very long-term storage.
+the structure of R model objects could in theory change again in the future, so XGBoost's serializers
+should be preferred for long-term storage.
 
 Furthermore, note that using the package \code{qs} for serialization will require version 0.26 or
 higher of said package, and will have the same compatibility restrictions as R serializers.
