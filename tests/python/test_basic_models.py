@@ -1,5 +1,4 @@
 import json
-import locale
 import os
 import tempfile
 
@@ -110,19 +109,38 @@ class TestModels:
         predt_2 = bst.predict(dtrain)
         assert np.all(np.abs(predt_2 - predt_1) < 1e-6)
 
-    def test_boost_from_existing_model(self):
+    def test_boost_from_existing_model(self) -> None:
         X, _ = tm.load_agaricus(__file__)
-        booster = xgb.train({'tree_method': 'hist'}, X, num_boost_round=4)
+        booster = xgb.train({"tree_method": "hist"}, X, num_boost_round=4)
         assert booster.num_boosted_rounds() == 4
-        booster = xgb.train({'tree_method': 'hist'}, X, num_boost_round=4,
-                            xgb_model=booster)
+        booster.set_param({"tree_method": "approx"})
+        assert booster.num_boosted_rounds() == 4
+        booster = xgb.train(
+            {"tree_method": "hist"}, X, num_boost_round=4, xgb_model=booster
+        )
         assert booster.num_boosted_rounds() == 8
-        booster = xgb.train({'updater': 'prune', 'process_type': 'update'}, X,
-                            num_boost_round=4, xgb_model=booster)
+        with pytest.warns(UserWarning, match="`updater`"):
+            booster = xgb.train(
+                {"updater": "prune", "process_type": "update"},
+                X,
+                num_boost_round=4,
+                xgb_model=booster,
+            )
         # Trees are moved for update, the rounds is reduced.  This test is
         # written for being compatible with current code (1.0.0).  If the
         # behaviour is considered sub-optimal, feel free to change.
         assert booster.num_boosted_rounds() == 4
+
+        booster = xgb.train({"booster": "gblinear"}, X, num_boost_round=4)
+        assert booster.num_boosted_rounds() == 4
+        booster.set_param({"updater": "coord_descent"})
+        assert booster.num_boosted_rounds() == 4
+        booster.set_param({"updater": "shotgun"})
+        assert booster.num_boosted_rounds() == 4
+        booster = xgb.train(
+            {"booster": "gblinear"}, X, num_boost_round=4, xgb_model=booster
+        )
+        assert booster.num_boosted_rounds() == 8
 
     def run_custom_objective(self, tree_method=None):
         param = {
@@ -307,25 +325,6 @@ class TestModels:
         for d in text_dump:
             assert d.find(r"feature \"2\"") != -1
 
-    @pytest.mark.skipif(**tm.no_sklearn())
-    def test_attributes(self):
-        from sklearn.datasets import load_iris
-
-        X, y = load_iris(return_X_y=True)
-        cls = xgb.XGBClassifier(n_estimators=2)
-        cls.fit(X, y, early_stopping_rounds=1, eval_set=[(X, y)])
-        assert cls.get_booster().best_iteration == cls.n_estimators - 1
-        assert cls.best_iteration == cls.get_booster().best_iteration
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "cls.json")
-            cls.save_model(path)
-
-            cls = xgb.XGBClassifier(n_estimators=2)
-            cls.load_model(path)
-            assert cls.get_booster().best_iteration == cls.n_estimators - 1
-            assert cls.best_iteration == cls.get_booster().best_iteration
-
     def run_slice(
         self,
         booster: xgb.Booster,
@@ -493,18 +492,23 @@ class TestModels:
         np.testing.assert_allclose(predt0, predt1, atol=1e-5)
 
     @pytest.mark.skipif(**tm.no_pandas())
-    def test_feature_info(self):
+    @pytest.mark.parametrize("ext", ["json", "ubj"])
+    def test_feature_info(self, ext: str) -> None:
         import pandas as pd
 
+        # make data
         rows = 100
         cols = 10
         X = rng.randn(rows, cols)
         y = rng.randn(rows)
+
+        # Test with pandas, which has feature info.
         feature_names = ["test_feature_" + str(i) for i in range(cols)]
         X_pd = pd.DataFrame(X, columns=feature_names)
         X_pd[f"test_feature_{3}"] = X_pd.iloc[:, 3].astype(np.int32)
 
         Xy = xgb.DMatrix(X_pd, y)
+        assert Xy.feature_types is not None
         assert Xy.feature_types[3] == "int"
         booster = xgb.train({}, dtrain=Xy, num_boost_round=1)
 
@@ -513,10 +517,32 @@ class TestModels:
         assert booster.feature_types == Xy.feature_types
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            path = tmpdir + "model.json"
+            path = tmpdir + f"model.{ext}"
             booster.save_model(path)
             booster = xgb.Booster()
             booster.load_model(path)
 
             assert booster.feature_names == Xy.feature_names
             assert booster.feature_types == Xy.feature_types
+
+        # Test with numpy, no feature info is set
+        Xy = xgb.DMatrix(X, y)
+        assert Xy.feature_names is None
+        assert Xy.feature_types is None
+
+        booster = xgb.train({}, dtrain=Xy, num_boost_round=1)
+        assert booster.feature_names is None
+        assert booster.feature_types is None
+
+        # test explicitly set
+        fns = [str(i) for i in range(cols)]
+        booster.feature_names = fns
+
+        assert booster.feature_names == fns
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, f"model.{ext}")
+            booster.save_model(path)
+
+            booster = xgb.Booster(model_file=path)
+            assert booster.feature_names == fns

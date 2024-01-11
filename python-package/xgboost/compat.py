@@ -138,9 +138,9 @@ def concat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statem
         from cudf import concat as CUDF_concat  # pylint: disable=import-error
 
         return CUDF_concat(value, axis=0)
-    from .data import _is_cupy_array
+    from .data import _is_cupy_alike
 
-    if _is_cupy_array(value[0]):
+    if _is_cupy_alike(value[0]):
         import cupy  # pylint: disable=import-error
 
         # pylint: disable=c-extension-no-member,no-member

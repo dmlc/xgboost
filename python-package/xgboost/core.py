@@ -357,10 +357,13 @@ def _numpy2ctypes_type(dtype: Type[np.number]) -> Type[CNumeric]:
     return _NUMPY_TO_CTYPES_MAPPING[dtype]
 
 
+def _array_hasobject(data: DataType) -> bool:
+    return hasattr(data.dtype, "hasobject") and data.dtype.hasobject
+
+
 def _cuda_array_interface(data: DataType) -> bytes:
-    assert (
-        data.dtype.hasobject is False
-    ), "Input data contains `object` dtype.  Expecting numeric data."
+    if _array_hasobject(data):
+        raise ValueError("Input data contains `object` dtype.  Expecting numeric data.")
     interface = data.__cuda_array_interface__
     if "mask" in interface:
         interface["mask"] = interface["mask"].__cuda_array_interface__
@@ -2116,7 +2119,7 @@ class Booster:
             _array_interface,
             _cuda_array_interface,
             _ensure_np_dtype,
-            _is_cupy_array,
+            _is_cupy_alike,
         )
 
         self._assign_dmatrix_features(dtrain)
@@ -2130,7 +2133,7 @@ class Booster:
                 "Expecting `np.ndarray` or `cupy.ndarray` for gradient and hessian."
                 f" Got: {type(array)}"
             )
-            if not isinstance(array, np.ndarray) and not _is_cupy_array(array):
+            if not isinstance(array, np.ndarray) and not _is_cupy_alike(array):
                 raise TypeError(msg)
 
             n_samples = dtrain.num_row()
@@ -2145,7 +2148,7 @@ class Booster:
             if isinstance(array, np.ndarray):
                 array, _ = _ensure_np_dtype(array, array.dtype)
                 interface = _array_interface(array)
-            elif _is_cupy_array(array):
+            elif _is_cupy_alike(array):
                 interface = _cuda_array_interface(array)
             else:
                 raise TypeError(msg)
@@ -2475,7 +2478,7 @@ class Booster:
             _arrow_transform,
             _is_arrow,
             _is_cudf_df,
-            _is_cupy_array,
+            _is_cupy_alike,
             _is_list,
             _is_np_array_like,
             _is_pandas_df,
@@ -2557,7 +2560,7 @@ class Booster:
                 )
             )
             return _prediction_output(shape, dims, preds, False)
-        if _is_cupy_array(data):
+        if _is_cupy_alike(data):
             from .data import _transform_cupy_array
 
             data = _transform_cupy_array(data)

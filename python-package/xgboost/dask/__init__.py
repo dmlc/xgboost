@@ -75,7 +75,7 @@ from xgboost.core import (
     _deprecate_positional_args,
     _expect,
 )
-from xgboost.data import _is_cudf_ser, _is_cupy_array
+from xgboost.data import _is_cudf_ser, _is_cupy_alike
 from xgboost.sklearn import (
     XGBClassifier,
     XGBClassifierBase,
@@ -1909,7 +1909,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             self.classes_ = await self.client.compute(y.drop_duplicates())
         if _is_cudf_ser(self.classes_):
             self.classes_ = self.classes_.to_cupy()
-        if _is_cupy_array(self.classes_):
+        if _is_cupy_alike(self.classes_):
             self.classes_ = self.classes_.get()
         self.classes_ = numpy.array(self.classes_)
         self.n_classes_ = len(self.classes_)

@@ -204,13 +204,13 @@ xgb.cv <- function(params = list(), data, nrounds, nfold, label = NULL, missing 
        dtrain <- slice(dall, unlist(folds[-k]))
     else
        dtrain <- slice(dall, train_folds[[k]])
-    handle <- xgb.Booster.handle(
+    bst <- xgb.Booster(
       params = params,
       cachelist = list(dtrain, dtest),
-      modelfile = NULL,
-      handle = NULL
+      modelfile = NULL
     )
-    list(dtrain = dtrain, bst = handle, watchlist = list(train = dtrain, test = dtest), index = folds[[k]])
+    bst <- bst$bst
+    list(dtrain = dtrain, bst = bst, watchlist = list(train = dtrain, test = dtest), index = folds[[k]])
   })
   rm(dall)
   # a "basket" to collect some results from callbacks
@@ -231,13 +231,13 @@ xgb.cv <- function(params = list(), data, nrounds, nfold, label = NULL, missing 
 
     msg <- lapply(bst_folds, function(fd) {
       xgb.iter.update(
-        booster_handle = fd$bst,
+        bst = fd$bst,
         dtrain = fd$dtrain,
         iter = iteration - 1,
         obj = obj
       )
       xgb.iter.eval(
-        booster_handle = fd$bst,
+        bst = fd$bst,
         watchlist = fd$watchlist,
         iter = iteration - 1,
         feval = feval
@@ -267,7 +267,7 @@ xgb.cv <- function(params = list(), data, nrounds, nfold, label = NULL, missing 
   ret <- c(ret, basket)
 
   class(ret) <- 'xgb.cv.synchronous'
-  invisible(ret)
+  return(invisible(ret))
 }
 
 

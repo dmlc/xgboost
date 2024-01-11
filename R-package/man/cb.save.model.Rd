@@ -4,17 +4,22 @@
 \alias{cb.save.model}
 \title{Callback closure for saving a model file.}
 \usage{
-cb.save.model(save_period = 0, save_name = "xgboost.model")
+cb.save.model(save_period = 0, save_name = "xgboost.ubj")
 }
 \arguments{
 \item{save_period}{save the model to disk after every
 \code{save_period} iterations; 0 means save the model at the end.}
 
 \item{save_name}{the name or path for the saved model file.
-It can contain a \code{\link[base]{sprintf}} formatting specifier
-to include the integer iteration number in the file name.
-E.g., with \code{save_name} = 'xgboost_\%04d.model',
-the file saved at iteration 50 would be named "xgboost_0050.model".}
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{   Note that the format of the model being saved is determined by the file
+   extension specified here (see \link{xgb.save} for details about how it works).
+
+   It can contain a \code{\link[base]{sprintf}} formatting specifier
+   to include the integer iteration number in the file name.
+   E.g., with \code{save_name} = 'xgboost_\%04d.ubj',
+   the file saved at iteration 50 would be named "xgboost_0050.ubj".
+}\if{html}{\out{</div>}}}
 }
 \description{
 Callback closure for saving a model file.
@@ -29,5 +34,7 @@ Callback function expects the following values to be set in its calling frame:
 \code{end_iteration}.
 }
 \seealso{
+\link{xgb.save}
+
 \code{\link{callbacks}}
 }
