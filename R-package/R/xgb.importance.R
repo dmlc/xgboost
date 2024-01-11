@@ -113,18 +113,11 @@
 #' xgb.importance(model = mbst)
 #'
 #' @export
-xgb.importance <- function(feature_names = NULL, model = NULL, trees = NULL,
+xgb.importance <- function(model = NULL, feature_names = getinfo(model, "feature_name"), trees = NULL,
                            data = NULL, label = NULL, target = NULL) {
 
   if (!(is.null(data) && is.null(label) && is.null(target)))
     warning("xgb.importance: parameters 'data', 'label' and 'target' are deprecated")
-
-  if (is.null(feature_names)) {
-    model_feature_names <- xgb.feature_names(model)
-    if (NROW(model_feature_names)) {
-      feature_names <- model_feature_names
-    }
-  }
 
   if (!(is.null(feature_names) || is.character(feature_names)))
     stop("feature_names: Has to be a character vector")
