@@ -55,7 +55,7 @@ message(sprintf("Creating '%s' from '%s'", OUT_DEF_FILE, IN_DLL_FILE))
 }
 
 # use objdump to dump all the symbols
-OBJDUMP_FILE <- "objdump-out.txt"
+OBJDUMP_FILE <- file.path(tempdir(), "objdump-out.txt")
 .pipe_shell_command_to_stdout(
     command = "objdump"
     , args = c("-p", IN_DLL_FILE)

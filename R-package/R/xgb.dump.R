@@ -56,9 +56,13 @@ xgb.dump <- function(model, fname = NULL, fmap = "", with_stats = FALSE,
   if (!(is.null(fmap) || is.character(fmap)))
     stop("fmap: argument must be a character string (when provided)")
 
-  model <- xgb.Booster.complete(model)
-  model_dump <- .Call(XGBoosterDumpModel_R, model$handle, NVL(fmap, "")[1], as.integer(with_stats),
-                      as.character(dump_format))
+  model_dump <- .Call(
+    XGBoosterDumpModel_R,
+    xgb.get.handle(model),
+    NVL(fmap, "")[1],
+    as.integer(with_stats),
+    as.character(dump_format)
+  )
   if (dump_format == "dot") {
     return(sapply(model_dump, function(x) gsub("^booster\\[\\d+\\]\\n", "\\1", x)))
   }

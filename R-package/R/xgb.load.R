@@ -17,7 +17,7 @@
 #' An object of \code{xgb.Booster} class.
 #'
 #' @seealso
-#' \code{\link{xgb.save}}, \code{\link{xgb.Booster.complete}}.
+#' \code{\link{xgb.save}}
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
@@ -38,33 +38,28 @@
 #'   objective = "binary:logistic"
 #' )
 #'
-#' xgb.save(bst, 'xgb.model')
-#' bst <- xgb.load('xgb.model')
-#' if (file.exists('xgb.model')) file.remove('xgb.model')
+#' fname <- file.path(tempdir(), "xgb.ubj")
+#' xgb.save(bst, fname)
+#' bst <- xgb.load(fname)
 #' @export
 xgb.load <- function(modelfile) {
   if (is.null(modelfile))
     stop("xgb.load: modelfile cannot be NULL")
 
-  handle <- xgb.Booster.handle(
+  bst <- xgb.Booster(
     params = list(),
     cachelist = list(),
-    modelfile = modelfile,
-    handle = NULL
+    modelfile = modelfile
   )
+  bst <- bst$bst
   # re-use modelfile if it is raw so we do not need to serialize
   if (typeof(modelfile) == "raw") {
     warning(
       paste(
         "The support for loading raw booster with `xgb.load` will be ",
-        "discontinued in upcoming release. Use `xgb.load.raw` or",
-        " `xgb.unserialize` instead. "
+        "discontinued in upcoming release. Use `xgb.load.raw` instead. "
       )
     )
-    bst <- xgb.handleToBooster(handle = handle, raw = modelfile)
-  } else {
-    bst <- xgb.handleToBooster(handle = handle, raw = NULL)
   }
-  bst <- xgb.Booster.complete(bst, saveraw = TRUE)
   return(bst)
 }

@@ -56,9 +56,9 @@
 #' dtrain <- with(
 #'   agaricus.train, xgb.DMatrix(data, label = label, nthread = nthread)
 #' )
-#' xgb.DMatrix.save(dtrain, 'xgb.DMatrix.data')
-#' dtrain <- xgb.DMatrix('xgb.DMatrix.data')
-#' if (file.exists('xgb.DMatrix.data')) file.remove('xgb.DMatrix.data')
+#' fname <- file.path(tempdir(), "xgb.DMatrix.data")
+#' xgb.DMatrix.save(dtrain, fname)
+#' dtrain <- xgb.DMatrix(fname)
 #' @export
 xgb.DMatrix <- function(
   data,
@@ -335,14 +335,13 @@ dimnames.xgb.DMatrix <- function(x) {
 }
 
 
-#' Get information of an xgb.DMatrix object
-#'
-#' Get information of an xgb.DMatrix object
-#' @param object Object of class \code{xgb.DMatrix}
+#' @title Get or set information of xgb.DMatrix and xgb.Booster objects
+#' @param object Object of class \code{xgb.DMatrix} of `xgb.Booster`.
 #' @param name the name of the information field to get (see details)
-#'
+#' @return For `getinfo`, will return the requested field. For `setinfo`, will always return value `TRUE`
+#' if it succeeds.
 #' @details
-#' The \code{name} field can be one of the following:
+#' The \code{name} field can be one of the following for `xgb.DMatrix`:
 #'
 #' \itemize{
 #'     \item \code{label}
@@ -357,9 +356,17 @@ dimnames.xgb.DMatrix <- function(x) {
 #' }
 #' See the documentation for \link{xgb.DMatrix} for more information about these fields.
 #'
+#' For `xgb.Booster`, can be one of the following:
+#' \itemize{
+#'     \item \code{feature_type}
+#'     \item \code{feature_name}
+#' }
+#'
 #' Note that, while 'qid' cannot be retrieved, it's possible to get the equivalent 'group'
 #' for a DMatrix that had 'qid' assigned.
 #'
+#' \bold{Important}: when calling `setinfo`, the objects are modified in-place. See
+#' \link{xgb.copy.Booster} for an idea of this in-place assignment works.
 #' @examples
 #' data(agaricus.train, package='xgboost')
 #' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
@@ -412,13 +419,7 @@ getinfo.xgb.DMatrix <- function(object, name) {
   return(ret)
 }
 
-
-#' Set information of an xgb.DMatrix object
-#'
-#' Set information of an xgb.DMatrix object
-#'
-#' @param object Object of class "xgb.DMatrix"
-#' @param name the name of the field to get
+#' @rdname getinfo
 #' @param info the specific field of information to set
 #'
 #' @details
@@ -441,11 +442,10 @@ getinfo.xgb.DMatrix <- function(object, name) {
 #' setinfo(dtrain, 'label', 1-labels)
 #' labels2 <- getinfo(dtrain, 'label')
 #' stopifnot(all.equal(labels2, 1-labels))
-#' @rdname setinfo
 #' @export
 setinfo <- function(object, name, info) UseMethod("setinfo")
 
-#' @rdname setinfo
+#' @rdname getinfo
 #' @export
 setinfo.xgb.DMatrix <- function(object, name, info) {
   .internal.setinfo.xgb.DMatrix(object, name, info)

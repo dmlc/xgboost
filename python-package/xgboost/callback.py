@@ -62,11 +62,31 @@ class TrainingCallback(ABC):
         return model
 
     def before_iteration(self, model: _Model, epoch: int, evals_log: EvalsLog) -> bool:
-        """Run before each iteration.  Return True when training should stop."""
+        """Run before each iteration.  Returns True when training should stop. See
+        :py:meth:`after_iteration` for details.
+
+        """
         return False
 
     def after_iteration(self, model: _Model, epoch: int, evals_log: EvalsLog) -> bool:
-        """Run after each iteration.  Return True when training should stop."""
+        """Run after each iteration.  Returns `True` when training should stop.
+
+        Parameters
+        ----------
+
+        model :
+            Eeither a :py:class:`~xgboost.Booster` object or a CVPack if the cv function
+            in xgboost is being used.
+        epoch :
+            The current training iteration.
+        evals_log :
+            A dictionary containing the evaluation history:
+
+            .. code-block:: python
+
+                {"data_name": {"metric_name": [0.5, ...]}}
+
+        """
         return False
 
 
@@ -547,14 +567,16 @@ class TrainingCheckPoint(TrainingCallback):
 
     .. versionadded:: 1.3.0
 
+    Since XGBoost 2.1.0, the default format is changed to UBJSON.
+
     Parameters
     ----------
 
     directory :
         Output model directory.
     name :
-        pattern of output model file.  Models will be saved as name_0.json, name_1.json,
-        name_2.json ....
+        pattern of output model file.  Models will be saved as name_0.ubj, name_1.ubj,
+        name_2.ubj ....
     as_pickle :
         When set to True, all training parameters will be saved in pickle format,
         instead of saving only the model.
@@ -563,6 +585,8 @@ class TrainingCheckPoint(TrainingCallback):
         reduce performance hit.
 
     """
+
+    default_format = "ubj"
 
     def __init__(
         self,
@@ -592,7 +616,7 @@ class TrainingCheckPoint(TrainingCallback):
                 self._name
                 + "_"
                 + (str(epoch + self._start))
-                + (".pkl" if self._as_pickle else ".json"),
+                + (".pkl" if self._as_pickle else f".{self.default_format}"),
             )
             self._epoch = 0  # reset counter
             if collective.get_rank() == 0:

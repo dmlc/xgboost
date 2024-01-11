@@ -205,7 +205,12 @@ file with a previously saved model.}
 \item{callbacks}{a list of callback functions to perform various task during boosting.
 See \code{\link{callbacks}}. Some of the callbacks are automatically created depending on the
 parameters' values. User can provide either existing or their own callback methods in order
-to customize the training process.}
+to customize the training process.
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{   Note that some callbacks might try to set an evaluation log - be aware that these evaluation logs
+   are kept as R attributes, and thus do not get saved when using non-R serializaters like
+   \link{xgb.save} (but are kept when using R serializers like \link{saveRDS}).
+}\if{html}{\out{</div>}}}
 
 \item{...}{other parameters to pass to \code{params}.}
 
@@ -219,27 +224,7 @@ This parameter is only used when input is a dense matrix.}
 \item{weight}{a vector indicating the weight for each row of the input.}
 }
 \value{
-An object of class \code{xgb.Booster} with the following elements:
-\itemize{
-\item \code{handle} a handle (pointer) to the xgboost model in memory.
-\item \code{raw} a cached memory dump of the xgboost model saved as R's \code{raw} type.
-\item \code{niter} number of boosting iterations.
-\item \code{evaluation_log} evaluation history stored as a \code{data.table} with the
-first column corresponding to iteration number and the rest corresponding to evaluation
-metrics' values. It is created by the \code{\link{cb.evaluation.log}} callback.
-\item \code{call} a function call.
-\item \code{params} parameters that were passed to the xgboost library. Note that it does not
-capture parameters changed by the \code{\link{cb.reset.parameters}} callback.
-\item \code{callbacks} callback functions that were either automatically assigned or
-explicitly passed.
-\item \code{best_iteration} iteration number with the best evaluation metric value
-(only available with early stopping).
-\item \code{best_score} the best evaluation metric value during early stopping.
-(only available with early stopping).
-\item \code{feature_names} names of the training dataset features
-(only when column names were defined in training data).
-\item \code{nfeatures} number of features in training data.
-}
+An object of class \code{xgb.Booster}.
 }
 \description{
 \code{xgb.train} is an advanced interface for training an xgboost model.
@@ -285,6 +270,21 @@ and the \code{print_every_n} parameter is passed to it.
 \item \code{cb.early.stop}: when \code{early_stopping_rounds} is set.
 \item \code{cb.save.model}: when \code{save_period > 0} is set.
 }
+
+Note that objects of type \code{xgb.Booster} as returned by this function behave a bit differently
+from typical R objects (it's an 'altrep' list class), and it makes a separation between
+internal booster attributes (restricted to jsonifyable data), accessed through \link{xgb.attr}
+and shared between interfaces through serialization functions like \link{xgb.save}; and
+R-specific attributes, accessed through \link{attributes} and \link{attr}, which are otherwise
+only used in the R interface, only kept when using R's serializers like \link{saveRDS}, and
+not anyhow used by functions like \link{predict.xgb.Booster}.
+
+Be aware that one such R attribute that is automatically added is \code{params} - this attribute
+is assigned from the \code{params} argument to this function, and is only meant to serve as a
+reference for what went into the booster, but is not used in other methods that take a booster
+object - so for example, changing the booster's configuration requires calling \verb{xgb.config<-}
+or 'xgb.parameters<-', while simply modifying \verb{attributes(model)$params$<...>} will have no
+effect elsewhere.
 }
 \examples{
 data(agaricus.train, package='xgboost')

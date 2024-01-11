@@ -357,10 +357,13 @@ def _numpy2ctypes_type(dtype: Type[np.number]) -> Type[CNumeric]:
     return _NUMPY_TO_CTYPES_MAPPING[dtype]
 
 
+def _array_hasobject(data: DataType) -> bool:
+    return hasattr(data.dtype, "hasobject") and data.dtype.hasobject
+
+
 def _cuda_array_interface(data: DataType) -> bytes:
-    assert (
-        data.dtype.hasobject is False
-    ), "Input data contains `object` dtype.  Expecting numeric data."
+    if _array_hasobject(data):
+        raise ValueError("Input data contains `object` dtype.  Expecting numeric data.")
     interface = data.__cuda_array_interface__
     if "mask" in interface:
         interface["mask"] = interface["mask"].__cuda_array_interface__
@@ -2102,7 +2105,7 @@ class Booster:
             _array_interface,
             _cuda_array_interface,
             _ensure_np_dtype,
-            _is_cupy_array,
+            _is_cupy_alike,
         )
 
         self._assign_dmatrix_features(dtrain)
@@ -2116,7 +2119,7 @@ class Booster:
                 "Expecting `np.ndarray` or `cupy.ndarray` for gradient and hessian."
                 f" Got: {type(array)}"
             )
-            if not isinstance(array, np.ndarray) and not _is_cupy_array(array):
+            if not isinstance(array, np.ndarray) and not _is_cupy_alike(array):
                 raise TypeError(msg)
 
             n_samples = dtrain.num_row()
@@ -2131,7 +2134,7 @@ class Booster:
             if isinstance(array, np.ndarray):
                 array, _ = _ensure_np_dtype(array, array.dtype)
                 interface = _array_interface(array)
-            elif _is_cupy_array(array):
+            elif _is_cupy_alike(array):
                 interface = _cuda_array_interface(array)
             else:
                 raise TypeError(msg)
@@ -2461,7 +2464,7 @@ class Booster:
             _arrow_transform,
             _is_arrow,
             _is_cudf_df,
-            _is_cupy_array,
+            _is_cupy_alike,
             _is_list,
             _is_np_array_like,
             _is_pandas_df,
@@ -2543,7 +2546,7 @@ class Booster:
                 )
             )
             return _prediction_output(shape, dims, preds, False)
-        if _is_cupy_array(data):
+        if _is_cupy_alike(data):
             from .data import _transform_cupy_array
 
             data = _transform_cupy_array(data)
@@ -2591,9 +2594,8 @@ class Booster:
 
         The model is saved in an XGBoost internal format which is universal among the
         various XGBoost interfaces. Auxiliary attributes of the Python Booster object
-        (such as feature_names) will not be saved when using binary format.  To save
-        those attributes, use JSON/UBJ instead. See :doc:`Model IO
-        </tutorials/saving_model>` for more info.
+        (such as feature_names) are only saved when using JSON or UBJSON (default)
+        format. See :doc:`Model IO </tutorials/saving_model>` for more info.
 
         .. code-block:: python
 
@@ -2616,12 +2618,15 @@ class Booster:
     def save_raw(self, raw_format: str = "ubj") -> bytearray:
         """Save the model to a in memory buffer representation instead of file.
 
+        The model is saved in an XGBoost internal format which is universal among the
+        various XGBoost interfaces. Auxiliary attributes of the Python Booster object
+        (such as feature_names) are only saved when using JSON or UBJSON (default)
+        format. See :doc:`Model IO </tutorials/saving_model>` for more info.
+
         Parameters
         ----------
         raw_format :
-            Format of output buffer. Can be `json`, `ubj` or `deprecated`.  Right now
-            the default is `deprecated` but it will be changed to `ubj` (univeral binary
-            json) in the future.
+            Format of output buffer. Can be `json`, `ubj` or `deprecated`.
 
         Returns
         -------
@@ -2640,11 +2645,10 @@ class Booster:
     def load_model(self, fname: ModelIn) -> None:
         """Load the model from a file or a bytearray.
 
-        The model is loaded from XGBoost format which is universal among the various
-        XGBoost interfaces. Auxiliary attributes of the Python Booster object (such as
-        feature_names) will not be loaded when using binary format.  To save those
-        attributes, use JSON/UBJ instead.  See :doc:`Model IO </tutorials/saving_model>`
-        for more info.
+        The model is saved in an XGBoost internal format which is universal among the
+        various XGBoost interfaces. Auxiliary attributes of the Python Booster object
+        (such as feature_names) are only saved when using JSON or UBJSON (default)
+        format. See :doc:`Model IO </tutorials/saving_model>` for more info.
 
         .. code-block:: python
 
@@ -2769,9 +2773,9 @@ class Booster:
         with_stats: bool = False,
         dump_format: str = "text",
     ) -> List[str]:
-        """Returns the model dump as a list of strings.  Unlike :py:meth:`save_model`, the output
-        format is primarily used for visualization or interpretation, hence it's more
-        human readable but cannot be loaded back to XGBoost.
+        """Returns the model dump as a list of strings.  Unlike :py:meth:`save_model`,
+        the output format is primarily used for visualization or interpretation, hence
+        it's more human readable but cannot be loaded back to XGBoost.
 
         Parameters
         ----------

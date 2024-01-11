@@ -1,12 +1,24 @@
 #' Save xgboost model to binary file
 #'
-#' Save xgboost model to a file in binary format.
+#' Save xgboost model to a file in binary or JSON format.
 #'
-#' @param model model object of \code{xgb.Booster} class.
-#' @param fname name of the file to write.
+#' @param model Model object of \code{xgb.Booster} class.
+#' @param fname Name of the file to write.
+#'
+#' Note that the extension of this file name determined the serialization format to use:\itemize{
+#' \item Extension ".ubj" will use the universal binary JSON format (recommended).
+#' This format uses binary types for e.g. floating point numbers, thereby preventing any loss
+#' of precision when converting to a human-readable JSON text or similar.
+#' \item Extension ".json" will use plain JSON, which is a human-readable format.
+#' \item Extension ".deprecated" will use a \bold{deprecated} binary format. This format will
+#' not be able to save attributes introduced after v1 of XGBoost, such as the "best_iteration"
+#' attribute that boosters might keep, nor feature names or user-specifiec attributes.
+#' \item If the format is not specified by passing one of the file extensions above, will
+#' default to UBJ.
+#' }
 #'
 #' @details
-#' This methods allows to save a model in an xgboost-internal binary format which is universal
+#' This methods allows to save a model in an xgboost-internal binary or text format which is universal
 #' among the various xgboost interfaces. In R, the saved model file could be read-in later
 #' using either the \code{\link{xgb.load}} function or the \code{xgb_model} parameter
 #' of \code{\link{xgb.train}}.
@@ -14,13 +26,13 @@
 #' Note: a model can also be saved as an R-object (e.g., by using \code{\link[base]{readRDS}}
 #' or \code{\link[base]{save}}). However, it would then only be compatible with R, and
 #' corresponding R-methods would need to be used to load it. Moreover, persisting the model with
-#' \code{\link[base]{readRDS}} or \code{\link[base]{save}}) will cause compatibility problems in
+#' \code{\link[base]{readRDS}} or \code{\link[base]{save}}) might cause compatibility problems in
 #' future versions of XGBoost. Consult \code{\link{a-compatibility-note-for-saveRDS-save}} to learn
 #' how to persist models in a future-proof way, i.e. to make the model accessible in future
 #' releases of XGBoost.
 #'
 #' @seealso
-#' \code{\link{xgb.load}}, \code{\link{xgb.Booster.complete}}.
+#' \code{\link{xgb.load}}
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
@@ -40,9 +52,9 @@
 #'   nrounds = 2,
 #'   objective = "binary:logistic"
 #' )
-#' xgb.save(bst, 'xgb.model')
-#' bst <- xgb.load('xgb.model')
-#' if (file.exists('xgb.model')) file.remove('xgb.model')
+#' fname <- file.path(tempdir(), "xgb.ubj")
+#' xgb.save(bst, fname)
+#' bst <- xgb.load(fname)
 #' @export
 xgb.save <- function(model, fname) {
   if (typeof(fname) != "character")
@@ -51,8 +63,7 @@ xgb.save <- function(model, fname) {
     stop("model must be xgb.Booster.",
          if (inherits(model, "xgb.DMatrix")) " Use xgb.DMatrix.save to save an xgb.DMatrix object." else "")
   }
-  model <- xgb.Booster.complete(model, saveraw = FALSE)
   fname <- path.expand(fname)
-  .Call(XGBoosterSaveModel_R, model$handle, enc2utf8(fname[1]))
+  .Call(XGBoosterSaveModel_R, xgb.get.handle(model), enc2utf8(fname[1]))
   return(TRUE)
 }

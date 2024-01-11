@@ -19,12 +19,12 @@ bst <- xgb.train(data = dtrain,
                  objective = "binary:logistic")
 
 test_that("call is exposed to R", {
-  expect_false(is.null(bst$call))
-  expect_is(bst$call, "call")
+  expect_false(is.null(attributes(bst)$call))
+  expect_is(attributes(bst)$call, "call")
 })
 
 test_that("params is exposed to R", {
-  model_params <- bst$params
+  model_params <- attributes(bst)$params
   expect_is(model_params, "list")
   expect_equal(model_params$eta, 1)
   expect_equal(model_params$max_depth, 2)

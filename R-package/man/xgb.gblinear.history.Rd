@@ -8,7 +8,8 @@ xgb.gblinear.history(model, class_index = NULL)
 }
 \arguments{
 \item{model}{either an \code{xgb.Booster} or a result of \code{xgb.cv()}, trained
-using the \code{cb.gblinear.history()} callback.}
+using the \code{cb.gblinear.history()} callback, but \bold{not} a booster
+loaded from \link{xgb.load} or \link{xgb.load.raw}.}
 
 \item{class_index}{zero-based class index to extract the coefficients for only that
 specific class in a multinomial multiclass model. When it is NULL, all the
@@ -26,4 +27,12 @@ corresponding to CV folds.
 A helper function to extract the matrix of linear coefficients' history
 from a gblinear model created while using the \code{cb.gblinear.history()}
 callback.
+}
+\details{
+Note that this is an R-specific function that relies on R attributes that
+are not saved when using xgboost's own serialization functions like \link{xgb.load}
+or \link{xgb.load.raw}.
+
+In order for a serialized model to be accepted by tgis function, one must use R
+serializers such as \link{saveRDS}.
 }

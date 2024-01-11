@@ -2,16 +2,44 @@
 % Please edit documentation in R/utils.R
 \name{a-compatibility-note-for-saveRDS-save}
 \alias{a-compatibility-note-for-saveRDS-save}
-\title{Do not use \code{\link[base]{saveRDS}} or \code{\link[base]{save}} for long-term archival of
-models. Instead, use \code{\link{xgb.save}} or \code{\link{xgb.save.raw}}.}
+\title{Model Serialization and Compatibility}
 \description{
-It is a common practice to use the built-in \code{\link[base]{saveRDS}} function (or
-\code{\link[base]{save}}) to persist R objects to the disk. While it is possible to persist
-\code{xgb.Booster} objects using \code{\link[base]{saveRDS}}, it is not advisable to do so if
-the model is to be accessed in the future. If you train a model with the current version of
-XGBoost and persist it with \code{\link[base]{saveRDS}}, the model is not guaranteed to be
-accessible in later releases of XGBoost. To ensure that your model can be accessed in future
-releases of XGBoost, use \code{\link{xgb.save}} or \code{\link{xgb.save.raw}} instead.
+When it comes to serializing XGBoost models, it's possible to use R serializers such as
+\link{save} or \link{saveRDS} to serialize an XGBoost R model, but XGBoost also provides
+its own serializers with better compatibility guarantees, which allow loading
+said models in other language bindings of XGBoost.
+
+Note that an \code{xgb.Booster} object, outside of its core components, might also keep:\itemize{
+\item Additional model configuration (accessible through \link{xgb.config}),
+which includes model fitting parameters like \code{max_depth} and runtime parameters like \code{nthread}.
+These are not necessarily useful for prediction/importance/plotting.
+\item Additional R-specific attributes  - e.g. results of callbacks, such as evaluation logs,
+which are kept as a \code{data.table} object, accessible through \code{attributes(model)$evaluation_log}
+if present.
+}
+
+The first one (configurations) does not have the same compatibility guarantees as
+the model itself, including attributes that are set and accessed through \link{xgb.attributes} - that is, such configuration
+might be lost after loading the booster in a different XGBoost version, regardless of the
+serializer that was used. These are saved when using \link{saveRDS}, but will be discarded
+if loaded into an incompatible XGBoost version. They are not saved when using XGBoost's
+serializers from its public interface including \link{xgb.save} and \link{xgb.save.raw}.
+
+The second ones (R attributes) are not part of the standard XGBoost model structure, and thus are
+not saved when using XGBoost's own serializers. These attributes are only used for informational
+purposes, such as keeping track of evaluation metrics as the model was fit, or saving the R
+call that produced the model, but are otherwise not used for prediction / importance / plotting / etc.
+These R attributes are only preserved when using R's serializers.
+
+Note that XGBoost models in R starting from version \verb{2.1.0} and onwards, and XGBoost models
+before version \verb{2.1.0}; have a very different R object structure and are incompatible with
+each other. Hence, models that were saved with R serializers live \code{saveRDS} or \code{save} before
+version \verb{2.1.0} will not work with latter \code{xgboost} versions and vice versa. Be aware that
+the structure of R model objects could in theory change again in the future, so XGBoost's serializers
+should be preferred for long-term storage.
+
+Furthermore, note that using the package \code{qs} for serialization will require version 0.26 or
+higher of said package, and will have the same compatibility restrictions as R serializers.
 }
 \details{
 Use \code{\link{xgb.save}} to save the XGBoost model as a stand-alone file. You may opt into
@@ -24,9 +52,10 @@ re-construct the corresponding model. To read the model back, use \code{\link{xg
 The \code{\link{xgb.save.raw}} function is useful if you'd like to persist the XGBoost model
 as part of another R object.
 
-Note: Do not use \code{\link{xgb.serialize}} to store models long-term. It persists not only the
-model but also internal configurations and parameters, and its format is not stable across
-multiple XGBoost versions. Use \code{\link{xgb.serialize}} only for checkpointing.
+Use \link{saveRDS} if you require the R-specific attributes that a booster might have, such
+as evaluation logs, but note that future compatibility of such objects is outside XGBoost's
+control as it relies on R's serialization format (see e.g. the details section in
+\link{serialize} and \link{save} from base R).
 
 For more details and explanation about model persistence and archival, consult the page
 \url{https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html}.
@@ -38,13 +67,14 @@ bst <- xgb.train(data = xgb.DMatrix(agaricus.train$data, label = agaricus.train$
                  objective = "binary:logistic")
 
 # Save as a stand-alone file; load it with xgb.load()
-xgb.save(bst, 'xgb.model')
-bst2 <- xgb.load('xgb.model')
+fname <- file.path(tempdir(), "xgb_model.ubj")
+xgb.save(bst, fname)
+bst2 <- xgb.load(fname)
 
 # Save as a stand-alone file (JSON); load it with xgb.load()
-xgb.save(bst, 'xgb.model.json')
-bst2 <- xgb.load('xgb.model.json')
-if (file.exists('xgb.model.json')) file.remove('xgb.model.json')
+fname <- file.path(tempdir(), "xgb_model.json")
+xgb.save(bst, fname)
+bst2 <- xgb.load(fname)
 
 # Save as a raw byte vector; load it with xgb.load.raw()
 xgb_bytes <- xgb.save.raw(bst)
@@ -55,11 +85,11 @@ obj <- list(xgb_model_bytes = xgb.save.raw(bst), description = "My first XGBoost
 # Persist the R object. Here, saveRDS() is okay, since it doesn't persist
 # xgb.Booster directly. What's being persisted is the future-proof byte representation
 # as given by xgb.save.raw().
-saveRDS(obj, 'my_object.rds')
+fname <- file.path(tempdir(), "my_object.Rds")
+saveRDS(obj, fname)
 # Read back the R object
-obj2 <- readRDS('my_object.rds')
+obj2 <- readRDS(fname)
 # Re-construct xgb.Booster object from the bytes
 bst2 <- xgb.load.raw(obj2$xgb_model_bytes)
-if (file.exists('my_object.rds')) file.remove('my_object.rds')
 
 }

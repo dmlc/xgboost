@@ -16,7 +16,7 @@ xgb.attributes(object)
 xgb.attributes(object) <- value
 }
 \arguments{
-\item{object}{Object of class \code{xgb.Booster} or \code{xgb.Booster.handle}.}
+\item{object}{Object of class \code{xgb.Booster}. \bold{Will be modified in-place} when assigning to it.}
 
 \item{name}{A non-empty character string specifying which attribute is to be accessed.}
 
@@ -51,15 +51,14 @@ Also, setting an attribute that has the same name as one of xgboost's parameters
 change the value of that parameter for a model.
 Use \code{\link[=xgb.parameters<-]{xgb.parameters<-()}} to set or change model parameters.
 
-The attribute setters would usually work more efficiently for \code{xgb.Booster.handle}
-than for \code{xgb.Booster}, since only just a handle (pointer) would need to be copied.
-That would only matter if attributes need to be set many times.
-Note, however, that when feeding a handle of an \code{xgb.Booster} object to the attribute setters,
-the raw model cache of an \code{xgb.Booster} object would not be automatically updated,
-and it would be the user's responsibility to call \code{\link[=xgb.serialize]{xgb.serialize()}} to update it.
-
 The \verb{xgb.attributes<-} setter either updates the existing or adds one or several attributes,
 but it doesn't delete the other existing attributes.
+
+Important: since this modifies the booster's C object, semantics for assignment here
+will differ from R's, as any object reference to the same booster will be modified
+too, while assignment of R attributes through \verb{attributes(model)$<attr> <- <value>}
+will follow the usual copy-on-write R semantics (see \link{xgb.copy.Booster} for an
+example of these behaviors).
 }
 \examples{
 data(agaricus.train, package = "xgboost")
@@ -79,9 +78,9 @@ xgb.attr(bst, "my_attribute") <- "my attribute value"
 print(xgb.attr(bst, "my_attribute"))
 xgb.attributes(bst) <- list(a = 123, b = "abc")
 
-xgb.save(bst, "xgb.model")
-bst1 <- xgb.load("xgb.model")
-if (file.exists("xgb.model")) file.remove("xgb.model")
+fname <- file.path(tempdir(), "xgb.ubj")
+xgb.save(bst, fname)
+bst1 <- xgb.load(fname)
 print(xgb.attr(bst1, "my_attribute"))
 print(xgb.attributes(bst1))
 

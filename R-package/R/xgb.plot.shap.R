@@ -303,7 +303,11 @@ xgb.shap.data <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
   if (is.character(features) && is.null(colnames(data)))
     stop("either provide `data` with column names or provide `features` as column indices")
 
-  if (is.null(model$feature_names) && model$nfeatures != ncol(data))
+  model_feature_names <- NULL
+  if (is.null(features) && !is.null(model)) {
+    model_feature_names <- xgb.feature_names(model)
+  }
+  if (is.null(model_feature_names) && xgb.num_feature(model) != ncol(data))
     stop("if model has no feature_names, columns in `data` must match features in model")
 
   if (!is.null(subsample)) {
@@ -332,7 +336,7 @@ xgb.shap.data <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
   }
 
   if (is.null(features)) {
-    if (!is.null(model$feature_names)) {
+    if (!is.null(model_feature_names)) {
       imp <- xgb.importance(model = model, trees = trees)
     } else {
       imp <- xgb.importance(model = model, trees = trees, feature_names = colnames(data))

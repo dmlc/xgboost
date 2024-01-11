@@ -466,3 +466,33 @@ def test_with_sklearn_obj_metric() -> None:
     assert not callable(reg_2.objective)
     assert not callable(reg_2.eval_metric)
     assert reg_2.eval_metric is None
+
+
+@pytest.mark.skipif(**tm.no_sklearn())
+def test_attributes() -> None:
+    from sklearn.datasets import load_iris
+
+    X, y = load_iris(return_X_y=True)
+    clf = xgb.XGBClassifier(n_estimators=2, early_stopping_rounds=1)
+    clf.fit(X, y, eval_set=[(X, y)])
+    best_iteration = clf.get_booster().best_iteration
+    assert best_iteration is not None
+    assert clf.n_estimators is not None
+    assert best_iteration == clf.n_estimators - 1
+
+    best_iteration = clf.best_iteration
+    assert best_iteration == clf.get_booster().best_iteration
+
+    clf.get_booster().set_attr(foo="bar")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = os.path.join(tmpdir, "clf.json")
+        clf.save_model(path)
+
+        clf = xgb.XGBClassifier(n_estimators=2)
+        clf.load_model(path)
+        assert clf.n_estimators is not None
+        assert clf.get_booster().best_iteration == clf.n_estimators - 1
+        assert clf.best_iteration == clf.get_booster().best_iteration
+
+        assert clf.get_booster().attributes()["foo"] == "bar"

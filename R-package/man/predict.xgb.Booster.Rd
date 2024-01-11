@@ -2,7 +2,6 @@
 % Please edit documentation in R/xgb.Booster.R
 \name{predict.xgb.Booster}
 \alias{predict.xgb.Booster}
-\alias{predict.xgb.Booster.handle}
 \title{Predict method for XGBoost model}
 \usage{
 \method{predict}{xgb.Booster}(
@@ -22,11 +21,9 @@
   base_margin = NULL,
   ...
 )
-
-\method{predict}{xgb.Booster.handle}(object, ...)
 }
 \arguments{
-\item{object}{Object of class \code{xgb.Booster} or \code{xgb.Booster.handle}.}
+\item{object}{Object of class \code{xgb.Booster}.}
 
 \item{newdata}{takes \code{data.frame}, \code{matrix}, \code{dgCMatrix}, \code{dgRMatrix}, \code{dsparseVector},
 local data file, or \code{xgb.DMatrix}.

@@ -14,8 +14,11 @@ xgb.model.dt.tree(
 )
 }
 \arguments{
-\item{feature_names}{Character vector used to overwrite the feature names
-of the model. The default (\code{NULL}) uses the original feature names.}
+\item{feature_names}{Character vector of feature names. If the model already
+contains feature names, those will be used when \code{feature_names=NULL} (default value).
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{   Note that, if the model already contains feature names, it's \\bold\{not\} possible to override them here.
+}\if{html}{\out{</div>}}}
 
 \item{model}{Object of class \code{xgb.Booster}.}
 
@@ -75,8 +78,6 @@ bst <- xgboost(
   nrounds = 2,
   objective = "binary:logistic"
 )
-
-(dt <- xgb.model.dt.tree(colnames(agaricus.train$data), bst))
 
 # This bst model already has feature_names stored with it, so those would be used when
 # feature_names is not set:
