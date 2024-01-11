@@ -230,7 +230,7 @@ def main():
         "5. Remove the Scala 2.12 artifacts and build Scala 2.13 artifacts:\n"
         "   export MAVEN_SKIP_NATIVE_BUILD=1\n"
         "   python dev/change_scala_version.py --scala-version 2.13 --purge-artifacts\n"
-        "   GPG_TTY=$(tty) mvn deploy -Prelease-cpu-only,scala-2.13 -DskipTests"
+        "   GPG_TTY=$(tty) mvn deploy -Prelease,scala-2.13 -DskipTests"
     )
     print(
         "6. Go to https://oss.sonatype.org/ to release the Scala 2.13 artifacts. "
