@@ -393,7 +393,6 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   # Note: it might look like these aren't used, but they need to be defined in this
   # environment for the callbacks for work correctly.
   num_class <- max(as.numeric(NVL(params[['num_class']], 1)), 1) # nolint
-  num_parallel_tree <- max(as.numeric(NVL(params[['num_parallel_tree']], 1)), 1) # nolint
 
   if (is_update && nrounds > niter_init)
     stop("nrounds cannot be larger than ", niter_init, " (nrounds of xgb_model)")
