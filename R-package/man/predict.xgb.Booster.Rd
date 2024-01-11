@@ -25,7 +25,7 @@
 \arguments{
 \item{object}{Object of class \code{xgb.Booster}.}
 
-\item{newdata}{takes \code{data.frame}, \code{matrix}, \code{dgCMatrix}, \code{dgRMatrix}, \code{dsparseVector},
+\item{newdata}{Takes \code{data.frame}, \code{matrix}, \code{dgCMatrix}, \code{dgRMatrix}, \code{dsparseVector},
 local data file, or \code{xgb.DMatrix}.
 
 \if{html}{\out{<div class="sourceCode">}}\preformatted{   For single-row predictions on sparse data, it's recommended to use CSR format. If passing
