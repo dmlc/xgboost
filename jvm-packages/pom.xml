@@ -90,14 +90,6 @@
             </modules>
         </profile>
 
-        <profile>
-            <id>scala-2.13</id>
-            <properties>
-                <scala.binary.version>2.13</scala.binary.version>
-                <scala.version>2.13.11</scala.version>
-            </properties>
-        </profile>
-
         <!-- gpu profile with both cpu and gpu test suites -->
         <profile>
             <id>gpu</id>

@@ -30,7 +30,7 @@ mvn --no-transfer-progress package deploy -P default,gpu,release-to-s3 -Dspark.v
 cd ..
 python dev/change_scala_version.py --scala-version 2.13 --purge-artifacts
 cd jvm-packages/
-mvn --no-transfer-progress package deploy -P release-to-s3,default,scala-2.13 -Dspark.version=${spark_version} -DskipTests
+mvn --no-transfer-progress package deploy -P default,gpu,release-to-s3 -Dspark.version=${spark_version} -DskipTests
 
 
 set +x
