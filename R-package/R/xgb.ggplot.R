@@ -127,22 +127,20 @@ xgb.ggplot.shap.summary <- function(data, shap_contrib = NULL, features = NULL, 
   p
 }
 
-#' Combine and melt feature values and SHAP contributions for sample
-#' observations.
+#' Combine feature values and SHAP values
 #'
-#' Conforms to data format required for ggplot functions.
+#' Internal function used to combine and melt feature values and SHAP contributions
+#' as required for ggplot functions related to SHAP.
 #'
-#' Internal utility function.
+#' @param data_list The result of `xgb.shap.data()`.
+#' @param normalize Whether to standardize feature values to mean 0 and
+#'   standard deviation 1. This is useful for comparing multiple features on the same
+#'   plot. Default is \code{FALSE}.
 #'
-#' @param data_list List containing 'data' and 'shap_contrib' returned by
-#'   \code{xgb.shap.data()}.
-#' @param normalize Whether to standardize feature values to have mean 0 and
-#'   standard deviation 1 (useful for comparing multiple features on the same
-#'   plot). Default \code{FALSE}.
-#'
-#' @return A data.table containing the observation ID, the feature name, the
+#' @return A `data.table` containing the observation ID, the feature name, the
 #'   feature value (normalized if specified), and the SHAP contribution value.
 #' @noRd
+#' @keywords internal
 prepare.ggplot.shap.data <- function(data_list, normalize = FALSE) {
   data <- data_list[["data"]]
   shap_contrib <- data_list[["shap_contrib"]]
@@ -163,15 +161,16 @@ prepare.ggplot.shap.data <- function(data_list, normalize = FALSE) {
   p_data
 }
 
-#' Scale feature value to have mean 0, standard deviation 1
+#' Scale feature values
 #'
-#' This is used to compare multiple features on the same plot.
-#' Internal utility function
+#' Internal function that scales feature values to mean 0 and standard deviation 1.
+#' Useful to compare multiple features on the same plot.
 #'
-#' @param x Numeric vector
+#' @param x Numeric vector.
 #'
-#' @return Numeric vector with mean 0 and sd 1.
+#' @return Numeric vector with mean 0 and standard deviation 1.
 #' @noRd
+#' @keywords internal
 normalize <- function(x) {
   loc <- mean(x, na.rm = TRUE)
   scale <- stats::sd(x, na.rm = TRUE)

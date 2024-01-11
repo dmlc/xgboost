@@ -25,15 +25,15 @@ if (isTRUE(VCD_AVAILABLE)) {
     label <- df[, ifelse(Improved == "Marked", 1, 0)]
 
     # binary
-    bst.Tree <- xgboost(data = sparse_matrix, label = label, max_depth = 9,
-                        eta = 1, nthread = 2, nrounds = nrounds, verbose = 0,
-                        objective = "binary:logistic", booster = "gbtree",
-                        base_score = 0.5)
+    bst.Tree <- xgb.train(data = xgb.DMatrix(sparse_matrix, label = label), max_depth = 9,
+                          eta = 1, nthread = 2, nrounds = nrounds, verbose = 0,
+                          objective = "binary:logistic", booster = "gbtree",
+                          base_score = 0.5)
 
-    bst.GLM <- xgboost(data = sparse_matrix, label = label,
-                       eta = 1, nthread = 1, nrounds = nrounds, verbose = 0,
-                       objective = "binary:logistic", booster = "gblinear",
-                       base_score = 0.5)
+    bst.GLM <- xgb.train(data = xgb.DMatrix(sparse_matrix, label = label),
+                         eta = 1, nthread = 1, nrounds = nrounds, verbose = 0,
+                         objective = "binary:logistic", booster = "gblinear",
+                         base_score = 0.5)
 
     feature.names <- colnames(sparse_matrix)
 }
@@ -41,14 +41,17 @@ if (isTRUE(VCD_AVAILABLE)) {
 # multiclass
 mlabel <- as.numeric(iris$Species) - 1
 nclass <- 3
-mbst.Tree <- xgboost(data = as.matrix(iris[, -5]), label = mlabel, verbose = 0,
-                     max_depth = 3, eta = 0.5, nthread = 2, nrounds = nrounds,
-                     objective = "multi:softprob", num_class = nclass, base_score = 0)
+mbst.Tree <- xgb.train(data = xgb.DMatrix(as.matrix(iris[, -5]), label = mlabel), verbose = 0,
+                       max_depth = 3, eta = 0.5, nthread = 2, nrounds = nrounds,
+                       objective = "multi:softprob", num_class = nclass, base_score = 0)
 
-mbst.GLM <- xgboost(data = as.matrix(iris[, -5]), label = mlabel, verbose = 0,
-                    booster = "gblinear", eta = 0.1, nthread = 1, nrounds = nrounds,
-                    objective = "multi:softprob", num_class = nclass, base_score = 0)
+mbst.GLM <- xgb.train(data = xgb.DMatrix(as.matrix(iris[, -5]), label = mlabel), verbose = 0,
+                      booster = "gblinear", eta = 0.1, nthread = 1, nrounds = nrounds,
+                      objective = "multi:softprob", num_class = nclass, base_score = 0)
 
+# without feature names
+bst.Tree.unnamed <- xgb.copy.Booster(bst.Tree)
+setinfo(bst.Tree.unnamed, "feature_name", NULL)
 
 test_that("xgb.dump works", {
   .skip_if_vcd_not_available()
@@ -71,8 +74,9 @@ test_that("xgb.dump works for gblinear", {
   expect_length(xgb.dump(bst.GLM), 14)
   # also make sure that it works properly for a sparse model where some coefficients
   # are 0 from setting large L1 regularization:
-  bst.GLM.sp <- xgboost(data = sparse_matrix, label = label, eta = 1, nthread = 2, nrounds = 1,
-                        alpha = 2, objective = "binary:logistic", booster = "gblinear")
+  bst.GLM.sp <- xgb.train(data = xgb.DMatrix(sparse_matrix, label = label), eta = 1,
+                          nthread = 2, nrounds = 1,
+                          alpha = 2, objective = "binary:logistic", booster = "gblinear")
   d.sp <- xgb.dump(bst.GLM.sp)
   expect_length(d.sp, 14)
   expect_gt(sum(d.sp == "0"), 0)
@@ -168,7 +172,7 @@ test_that("SHAPs sum to predictions, with or without DART", {
   nrounds <- 30
 
   for (booster in list("gbtree", "dart")) {
-    fit <- xgboost(
+    fit <- xgb.train(
       params = c(
         list(
           nthread = 2,
@@ -177,8 +181,7 @@ test_that("SHAPs sum to predictions, with or without DART", {
           eval_metric = "rmse"),
         if (booster == "dart")
           list(rate_drop = .01, one_drop = TRUE)),
-      data = d,
-      label = y,
+      data = xgb.DMatrix(d, label = y),
       nrounds = nrounds)
 
     pr <- function(...) {
@@ -204,7 +207,7 @@ test_that("xgb-attribute functionality", {
   list.ch <- list.val[order(names(list.val))]
   list.ch <- lapply(list.ch, as.character)
   # note: iter is 0-index in xgb attributes
-  list.default <- list(niter = as.character(nrounds - 1))
+  list.default <- list()
   list.ch <- c(list.ch, list.default)
   # proper input:
   expect_error(xgb.attr(bst.Tree, NULL))
@@ -212,24 +215,25 @@ test_that("xgb-attribute functionality", {
   # set & get:
   expect_null(xgb.attr(bst.Tree, "asdf"))
   expect_equal(xgb.attributes(bst.Tree), list.default)
-  xgb.attr(bst.Tree, "my_attr") <- val
-  expect_equal(xgb.attr(bst.Tree, "my_attr"), val)
-  xgb.attributes(bst.Tree) <- list.val
-  expect_equal(xgb.attributes(bst.Tree), list.ch)
+  bst.Tree.copy <- xgb.copy.Booster(bst.Tree)
+  xgb.attr(bst.Tree.copy, "my_attr") <- val
+  expect_equal(xgb.attr(bst.Tree.copy, "my_attr"), val)
+  xgb.attributes(bst.Tree.copy) <- list.val
+  expect_equal(xgb.attributes(bst.Tree.copy), list.ch)
   # serializing:
-  xgb.save(bst.Tree, 'xgb.model')
-  bst <- xgb.load('xgb.model')
-  if (file.exists('xgb.model')) file.remove('xgb.model')
+  fname <- file.path(tempdir(), "xgb.ubj")
+  xgb.save(bst.Tree.copy, fname)
+  bst <- xgb.load(fname)
   expect_equal(xgb.attr(bst, "my_attr"), val)
   expect_equal(xgb.attributes(bst), list.ch)
   # deletion:
   xgb.attr(bst, "my_attr") <- NULL
   expect_null(xgb.attr(bst, "my_attr"))
-  expect_equal(xgb.attributes(bst), list.ch[c("a", "b", "niter")])
+  expect_equal(xgb.attributes(bst), list.ch[c("a", "b")])
   xgb.attributes(bst) <- list(a = NULL, b = NULL)
   expect_equal(xgb.attributes(bst), list.default)
   xgb.attributes(bst) <- list(niter = NULL)
-  expect_null(xgb.attributes(bst))
+  expect_equal(xgb.attributes(bst), list())
 })
 
 if (grepl('Windows', Sys.info()[['sysname']], fixed = TRUE) ||
@@ -256,27 +260,23 @@ if (grepl('Windows', Sys.info()[['sysname']], fixed = TRUE) ||
 
 test_that("xgb.Booster serializing as R object works", {
   .skip_if_vcd_not_available()
-  saveRDS(bst.Tree, 'xgb.model.rds')
-  bst <- readRDS('xgb.model.rds')
+  fname_rds <- file.path(tempdir(), "xgb.model.rds")
+  saveRDS(bst.Tree, fname_rds)
+  bst <- readRDS(fname_rds)
   dtrain <- xgb.DMatrix(sparse_matrix, label = label, nthread = 2)
   expect_equal(predict(bst.Tree, dtrain), predict(bst, dtrain), tolerance = float_tolerance)
   expect_equal(xgb.dump(bst.Tree), xgb.dump(bst))
-  xgb.save(bst, 'xgb.model')
-  if (file.exists('xgb.model')) file.remove('xgb.model')
-  bst <- readRDS('xgb.model.rds')
-  if (file.exists('xgb.model.rds')) file.remove('xgb.model.rds')
-  nil_ptr <- new("externalptr")
-  class(nil_ptr) <- "xgb.Booster.handle"
-  expect_true(identical(bst$handle, nil_ptr))
-  bst <- xgb.Booster.complete(bst)
-  expect_true(!identical(bst$handle, nil_ptr))
+
+  fname_bin <- file.path(tempdir(), "xgb.model")
+  xgb.save(bst, fname_bin)
+  bst <- readRDS(fname_rds)
   expect_equal(predict(bst.Tree, dtrain), predict(bst, dtrain), tolerance = float_tolerance)
 })
 
 test_that("xgb.model.dt.tree works with and without feature names", {
   .skip_if_vcd_not_available()
-  names.dt.trees <- c("Tree", "Node", "ID", "Feature", "Split", "Yes", "No", "Missing", "Quality", "Cover")
-  dt.tree <- xgb.model.dt.tree(feature_names = feature.names, model = bst.Tree)
+  names.dt.trees <- c("Tree", "Node", "ID", "Feature", "Split", "Yes", "No", "Missing", "Gain", "Cover")
+  dt.tree <- xgb.model.dt.tree(model = bst.Tree)
   expect_equal(names.dt.trees, names(dt.tree))
   if (!flag_32bit)
     expect_equal(dim(dt.tree), c(188, 10))
@@ -286,9 +286,7 @@ test_that("xgb.model.dt.tree works with and without feature names", {
   expect_equal(dt.tree, dt.tree.0)
 
   # when model contains no feature names:
-  bst.Tree.x <- bst.Tree
-  bst.Tree.x$feature_names <- NULL
-  dt.tree.x <- xgb.model.dt.tree(model = bst.Tree.x)
+  dt.tree.x <- xgb.model.dt.tree(model = bst.Tree.unnamed)
   expect_output(str(dt.tree.x), 'Feature.*\\"3\\"')
   expect_equal(dt.tree[, -4, with = FALSE], dt.tree.x[, -4, with = FALSE])
 
@@ -316,9 +314,7 @@ test_that("xgb.importance works with and without feature names", {
   expect_equal(importance.Tree, importance.Tree.0, tolerance = float_tolerance)
 
   # when model contains no feature names:
-  bst.Tree.x <- bst.Tree
-  bst.Tree.x$feature_names <- NULL
-  importance.Tree.x <- xgb.importance(model = bst.Tree)
+  importance.Tree.x <- xgb.importance(model = bst.Tree.unnamed)
   expect_equal(importance.Tree[, -1, with = FALSE], importance.Tree.x[, -1, with = FALSE],
                tolerance = float_tolerance)
 
@@ -334,14 +330,14 @@ test_that("xgb.importance works with and without feature names", {
   importance <- xgb.importance(feature_names = feature.names, model = bst.Tree, trees = trees)
 
   importance_from_dump <- function() {
-    model_text_dump <- xgb.dump(model = bst.Tree, with_stats = TRUE, trees = trees)
+    model_text_dump <- xgb.dump(model = bst.Tree.unnamed, with_stats = TRUE, trees = trees)
     imp <- xgb.model.dt.tree(
       feature_names = feature.names,
       text = model_text_dump,
       trees = trees
     )[
       Feature != "Leaf", .(
-        Gain = sum(Quality),
+        Gain = sum(Gain),
         Cover = sum(Cover),
         Frequency = .N
       ),
@@ -360,9 +356,8 @@ test_that("xgb.importance works with and without feature names", {
   expect_equal(importance_from_dump(), importance, tolerance = 1e-6)
 
   ## decision stump
-  m <- xgboost::xgboost(
-    data = as.matrix(data.frame(x = c(0, 1))),
-    label = c(1, 2),
+  m <- xgboost::xgb.train(
+    data = xgb.DMatrix(as.matrix(data.frame(x = c(0, 1))), label = c(1, 2)),
     nrounds = 1,
     base_score = 0.5,
     nthread = 2
@@ -393,9 +388,9 @@ test_that("xgb.importance works with GLM model", {
 
 test_that("xgb.model.dt.tree and xgb.importance work with a single split model", {
   .skip_if_vcd_not_available()
-  bst1 <- xgboost(data = sparse_matrix, label = label, max_depth = 1,
-                  eta = 1, nthread = 2, nrounds = 1, verbose = 0,
-                  objective = "binary:logistic")
+  bst1 <- xgb.train(data = xgb.DMatrix(sparse_matrix, label = label), max_depth = 1,
+                    eta = 1, nthread = 2, nrounds = 1, verbose = 0,
+                    objective = "binary:logistic")
   expect_error(dt <- xgb.model.dt.tree(model = bst1), regexp = NA) # no error
   expect_equal(nrow(dt), 3)
   expect_error(imp <- xgb.importance(model = bst1), regexp = NA) # no error
@@ -415,13 +410,13 @@ test_that("xgb.plot.importance de-duplicates features", {
 
 test_that("xgb.plot.tree works with and without feature names", {
   .skip_if_vcd_not_available()
-  expect_silent(xgb.plot.tree(feature_names = feature.names, model = bst.Tree))
+  expect_silent(xgb.plot.tree(feature_names = feature.names, model = bst.Tree.unnamed))
   expect_silent(xgb.plot.tree(model = bst.Tree))
 })
 
 test_that("xgb.plot.multi.trees works with and without feature names", {
   .skip_if_vcd_not_available()
-  xgb.plot.multi.trees(model = bst.Tree, feature_names = feature.names, features_keep = 3)
+  xgb.plot.multi.trees(model = bst.Tree.unnamed, feature_names = feature.names, features_keep = 3)
   xgb.plot.multi.trees(model = bst.Tree, features_keep = 3)
 })
 

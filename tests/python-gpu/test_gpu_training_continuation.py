@@ -14,14 +14,18 @@ class TestGPUTrainingContinuation:
         X = np.random.randn(kRows, kCols)
         y = np.random.randn(kRows)
         dtrain = xgb.DMatrix(X, y)
-        params = {'tree_method': 'gpu_hist', 'max_depth': '2',
-                  'gamma': '0.1', 'alpha': '0.01'}
+        params = {
+            "tree_method": "gpu_hist",
+            "max_depth": "2",
+            "gamma": "0.1",
+            "alpha": "0.01",
+        }
         bst_0 = xgb.train(params, dtrain, num_boost_round=64)
-        dump_0 = bst_0.get_dump(dump_format='json')
+        dump_0 = bst_0.get_dump(dump_format="json")
 
         bst_1 = xgb.train(params, dtrain, num_boost_round=32)
         bst_1 = xgb.train(params, dtrain, num_boost_round=32, xgb_model=bst_1)
-        dump_1 = bst_1.get_dump(dump_format='json')
+        dump_1 = bst_1.get_dump(dump_format="json")
 
         def recursive_compare(obj_0, obj_1):
             if isinstance(obj_0, float):
@@ -37,9 +41,8 @@ class TestGPUTrainingContinuation:
                 values_1 = list(obj_1.values())
                 for i in range(len(obj_0.items())):
                     assert keys_0[i] == keys_1[i]
-                    if list(obj_0.keys())[i] != 'missing':
-                        recursive_compare(values_0[i],
-                                          values_1[i])
+                    if list(obj_0.keys())[i] != "missing":
+                        recursive_compare(values_0[i], values_1[i])
             else:
                 for i in range(len(obj_0)):
                     recursive_compare(obj_0[i], obj_1[i])

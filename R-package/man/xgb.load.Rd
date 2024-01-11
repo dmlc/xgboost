@@ -34,17 +34,19 @@ data.table::setDTthreads(nthread)
 
 train <- agaricus.train
 test <- agaricus.test
-bst <- xgboost(
-  data = train$data, label = train$label, max_depth = 2, eta = 1,
+bst <- xgb.train(
+  data = xgb.DMatrix(train$data, label = train$label),
+  max_depth = 2,
+  eta = 1,
   nthread = nthread,
   nrounds = 2,
   objective = "binary:logistic"
 )
 
-xgb.save(bst, 'xgb.model')
-bst <- xgb.load('xgb.model')
-if (file.exists('xgb.model')) file.remove('xgb.model')
+fname <- file.path(tempdir(), "xgb.ubj")
+xgb.save(bst, fname)
+bst <- xgb.load(fname)
 }
 \seealso{
-\code{\link{xgb.save}}, \code{\link{xgb.Booster.complete}}.
+\code{\link{xgb.save}}
 }

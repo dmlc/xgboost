@@ -126,6 +126,9 @@ xgb.cv <- function(params = list(), data, nrounds, nfold, label = NULL, missing 
                    early_stopping_rounds = NULL, maximize = NULL, callbacks = list(), ...) {
 
   check.deprecation(...)
+  if (inherits(data, "xgb.DMatrix") && .Call(XGCheckNullPtr_R, data)) {
+    stop("'data' is an invalid 'xgb.DMatrix' object. Must be constructed again.")
+  }
 
   params <- check.booster.params(params, ...)
   # TODO: should we deprecate the redundant 'metrics' parameter?
@@ -136,7 +139,7 @@ xgb.cv <- function(params = list(), data, nrounds, nfold, label = NULL, missing 
   check.custom.eval()
 
   # Check the labels
-  if ((inherits(data, 'xgb.DMatrix') && is.null(getinfo(data, 'label'))) ||
+  if ((inherits(data, 'xgb.DMatrix') && !xgb.DMatrix.hasinfo(data, 'label')) ||
       (!inherits(data, 'xgb.DMatrix') && is.null(label))) {
     stop("Labels must be provided for CV either through xgb.DMatrix, or through 'label=' when 'data' is matrix")
   } else if (inherits(data, 'xgb.DMatrix')) {
@@ -201,13 +204,13 @@ xgb.cv <- function(params = list(), data, nrounds, nfold, label = NULL, missing 
        dtrain <- slice(dall, unlist(folds[-k]))
     else
        dtrain <- slice(dall, train_folds[[k]])
-    handle <- xgb.Booster.handle(
+    bst <- xgb.Booster(
       params = params,
       cachelist = list(dtrain, dtest),
-      modelfile = NULL,
-      handle = NULL
+      modelfile = NULL
     )
-    list(dtrain = dtrain, bst = handle, watchlist = list(train = dtrain, test = dtest), index = folds[[k]])
+    bst <- bst$bst
+    list(dtrain = dtrain, bst = bst, watchlist = list(train = dtrain, test = dtest), index = folds[[k]])
   })
   rm(dall)
   # a "basket" to collect some results from callbacks
@@ -228,21 +231,22 @@ xgb.cv <- function(params = list(), data, nrounds, nfold, label = NULL, missing 
 
     msg <- lapply(bst_folds, function(fd) {
       xgb.iter.update(
-        booster_handle = fd$bst,
+        bst = fd$bst,
         dtrain = fd$dtrain,
         iter = iteration - 1,
         obj = obj
       )
       xgb.iter.eval(
-        booster_handle = fd$bst,
+        bst = fd$bst,
         watchlist = fd$watchlist,
         iter = iteration - 1,
         feval = feval
       )
     })
     msg <- simplify2array(msg)
-    bst_evaluation <- rowMeans(msg)
-    bst_evaluation_err <- sqrt(rowMeans(msg^2) - bst_evaluation^2) # nolint
+    # Note: these variables might look unused here, but they are used in the callbacks
+    bst_evaluation <- rowMeans(msg) # nolint
+    bst_evaluation_err <- apply(msg, 1, sd) # nolint
 
     for (f in cb$post_iter) f()
 
@@ -263,7 +267,7 @@ xgb.cv <- function(params = list(), data, nrounds, nfold, label = NULL, missing 
   ret <- c(ret, basket)
 
   class(ret) <- 'xgb.cv.synchronous'
-  invisible(ret)
+  return(invisible(ret))
 }
 
 

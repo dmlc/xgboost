@@ -107,7 +107,7 @@ train <- agaricus.train
 test <- agaricus.test
 ```
 
-> In the real world, it would be up to you to make this division between `train` and `test` data. The way to do it is out of the purpose of this article, however `caret` package may [help](http://topepo.github.io/caret/data-splitting.html).
+> In the real world, it would be up to you to make this division between `train` and `test` data.
 
 Each variable is a `list` containing two things, `label` and `data`:
 
@@ -155,11 +155,13 @@ We will train decision tree model using the following parameters:
 bstSparse <- xgboost(
     data = train$data
     , label = train$label
-    , max_depth = 2
-    , eta = 1
-    , nthread = 2
+    , params = list(
+        max_depth = 2
+        , eta = 1
+        , nthread = 2
+        , objective = "binary:logistic"
+    )
     , nrounds = 2
-    , objective = "binary:logistic"
 )
 ```
 
@@ -175,11 +177,13 @@ Alternatively, you can put your dataset in a *dense* matrix, i.e. a basic **R** 
 bstDense <- xgboost(
     data = as.matrix(train$data),
     label = train$label,
-    max_depth = 2,
-    eta = 1,
-    nthread = 2,
-    nrounds = 2,
-    objective = "binary:logistic"
+    params = list(
+        max_depth = 2,
+        eta = 1,
+        nthread = 2,
+        objective = "binary:logistic"
+    ),
+    nrounds = 2
 )
 ```
 
@@ -191,11 +195,13 @@ bstDense <- xgboost(
 dtrain <- xgb.DMatrix(data = train$data, label = train$label, nthread = 2)
 bstDMatrix <- xgboost(
     data = dtrain,
-    max_depth = 2,
-    eta = 1,
-    nthread = 2,
-    nrounds = 2,
-    objective = "binary:logistic"
+    params = list(
+        max_depth = 2,
+        eta = 1,
+        nthread = 2,
+        objective = "binary:logistic"
+    ),
+    nrounds = 2
 )
 ```
 
@@ -209,11 +215,13 @@ One of the simplest way to see the training progress is to set the `verbose` opt
 # verbose = 0, no message
 bst <- xgboost(
     data = dtrain
-    , max_depth = 2
-    , eta = 1
-    , nthread = 2
+    , params = list(
+        max_depth = 2
+        , eta = 1
+        , nthread = 2
+        , objective = "binary:logistic"
+    )
     , nrounds = 2
-    , objective = "binary:logistic"
     , verbose = 0
 )
 ```
@@ -222,11 +230,13 @@ bst <- xgboost(
 # verbose = 1, print evaluation metric
 bst <- xgboost(
     data = dtrain
-    , max_depth = 2
-    , eta = 1
-    , nthread = 2
+    , params = list(
+        max_depth = 2
+        , eta = 1
+        , nthread = 2
+        , objective = "binary:logistic"
+    )
     , nrounds = 2
-    , objective = "binary:logistic"
     , verbose = 1
 )
 ```
@@ -235,11 +245,13 @@ bst <- xgboost(
 # verbose = 2, also print information about tree
 bst <- xgboost(
     data = dtrain
-    , max_depth = 2
-    , eta = 1
-    , nthread = 2
+    , params = list(
+        max_depth = 2
+        , eta = 1
+        , nthread = 2
+        , objective = "binary:logistic"
+    )
     , nrounds = 2
-    , objective = "binary:logistic"
     , verbose = 2
 )
 ```
@@ -336,12 +348,14 @@ watchlist <- list(train = dtrain, test = dtest)
 
 bst <- xgb.train(
     data = dtrain
-    , max_depth = 2
-    , eta = 1
-    , nthread = 2
+    , params = list(
+        max_depth = 2
+        , eta = 1
+        , nthread = 2
+        , objective = "binary:logistic"
+    )
     , nrounds = 2
     , watchlist = watchlist
-    , objective = "binary:logistic"
 )
 ```
 
@@ -349,7 +363,7 @@ bst <- xgb.train(
 
 Both training and test error related metrics are very similar, and in some way, it makes sense: what we have learned from the training dataset matches the observations from the test dataset.
 
-If with your own dataset you have not such results, you should think about how you divided your dataset in training and test. May be there is something to fix. Again, `caret` package may [help](http://topepo.github.io/caret/data-splitting.html).
+If with your own dataset you have not such results, you should think about how you divided your dataset in training and test. May be there is something to fix.
 
 For a better understanding of the learning progression, you may want to have some specific metric or even use multiple evaluation metrics.
 
@@ -357,13 +371,15 @@ For a better understanding of the learning progression, you may want to have som
 bst <- xgb.train(
     data = dtrain
     , max_depth = 2
-    , eta = 1
-    , nthread = 2
+    , params = list(
+        eta = 1
+        , nthread = 2
+        , objective = "binary:logistic"
+        , eval_metric = "error"
+        , eval_metric = "logloss"
+    )
     , nrounds = 2
     , watchlist = watchlist
-    , eval_metric = "error"
-    , eval_metric = "logloss"
-    , objective = "binary:logistic"
 )
 ```
 
@@ -377,14 +393,15 @@ Until now, all the learnings we have performed were based on boosting trees. **X
 ```{r linearBoosting, message=F, warning=F}
 bst <- xgb.train(
     data = dtrain
-    , booster = "gblinear"
-    , max_depth = 2
-    , nthread = 2
+    , params = list(
+        booster = "gblinear"
+        , nthread = 2
+        , objective = "binary:logistic"
+        , eval_metric = "error"
+        , eval_metric = "logloss"
+    )
     , nrounds = 2
     , watchlist = watchlist
-    , eval_metric = "error"
-    , eval_metric = "logloss"
-    , objective = "binary:logistic"
 )
 ```
 
@@ -400,22 +417,25 @@ In simple cases, it will happen because there is nothing better than a linear al
 Like saving models, `xgb.DMatrix` object (which groups both dataset and outcome) can also be saved using `xgb.DMatrix.save` function.
 
 ```{r DMatrixSave, message=F, warning=F}
-xgb.DMatrix.save(dtrain, "dtrain.buffer")
+fname <- file.path(tempdir(), "dtrain.buffer")
+xgb.DMatrix.save(dtrain, fname)
 # to load it in, simply call xgb.DMatrix
-dtrain2 <- xgb.DMatrix("dtrain.buffer")
+dtrain2 <- xgb.DMatrix(fname)
 bst <- xgb.train(
     data = dtrain2
-    , max_depth = 2
-    , eta = 1
-    , nthread = 2
+    , params = list(
+        max_depth = 2
+        , eta = 1
+        , nthread = 2
+        , objective = "binary:logistic"
+    )
     , nrounds = 2
     , watchlist = watchlist
-    , objective = "binary:logistic"
 )
 ```
 
 ```{r DMatrixDel, include=FALSE}
-file.remove("dtrain.buffer")
+file.remove(fname)
 ```
 
 #### Information extraction
@@ -466,7 +486,8 @@ Hopefully for you, **XGBoost** implements such functions.
 
 ```{r saveModel, message=F, warning=F}
 # save model to binary local file
-xgb.save(bst, "xgboost.model")
+fname <- file.path(tempdir(), "xgb_model.ubj")
+xgb.save(bst, fname)
 ```
 
 > `xgb.save` function should return `r TRUE` if everything goes well and crashes otherwise.
@@ -475,7 +496,7 @@ An interesting test to see how identical our saved model is to the original one 
 
 ```{r loadModel, message=F, warning=F}
 # load binary model to R
-bst2 <- xgb.load("xgboost.model")
+bst2 <- xgb.load(fname)
 xgb.parameters(bst2) <- list(nthread = 2)
 pred2 <- predict(bst2, test$data)
 
@@ -485,22 +506,22 @@ print(paste("sum(abs(pred2-pred))=", sum(abs(pred2 - pred))))
 
 ```{r clean, include=FALSE}
 # delete the created model
-file.remove("./xgboost.model")
+file.remove(fname)
 ```
 
 > result is `0`? We are good!
 
-In some very specific cases, like when you want to pilot **XGBoost** from `caret` package, you will want to save the model as a *R* binary vector. See below how to do it.
+In some very specific cases, you will want to save the model as a *R* binary vector. See below how to do it.
 
 ```{r saveLoadRBinVectorModel, message=F, warning=F}
 # save model to R's raw vector
-rawVec <- xgb.serialize(bst)
+rawVec <- xgb.save.raw(bst)
 
 # print class
 print(class(rawVec))
 
 # load binary model to R
-bst3 <- xgb.load(rawVec)
+bst3 <- xgb.load.raw(rawVec)
 xgb.parameters(bst3) <- list(nthread = 2)
 pred3 <- predict(bst3, test$data)
 

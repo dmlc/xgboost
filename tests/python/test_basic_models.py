@@ -1,5 +1,4 @@
 import json
-import locale
 import os
 import tempfile
 
@@ -8,38 +7,16 @@ import pytest
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.testing.updater import ResetStrategy
 
 dpath = tm.data_dir(__file__)
 
 rng = np.random.RandomState(1994)
 
 
-def json_model(model_path: str, parameters: dict) -> dict:
-    datasets = pytest.importorskip("sklearn.datasets")
-
-    X, y = datasets.make_classification(64, n_features=8, n_classes=3, n_informative=6)
-    if parameters.get("objective", None) == "multi:softmax":
-        parameters["num_class"] = 3
-
-    dm1 = xgb.DMatrix(X, y)
-
-    bst = xgb.train(parameters, dm1)
-    bst.save_model(model_path)
-
-    if model_path.endswith("ubj"):
-        import ubjson
-        with open(model_path, "rb") as ubjfd:
-            model = ubjson.load(ubjfd)
-    else:
-        with open(model_path, 'r') as fd:
-            model = json.load(fd)
-
-    return model
-
-
 class TestModels:
     def test_glm(self):
-        param = {'verbosity': 0, 'objective': 'binary:logistic',
+        param = {'objective': 'binary:logistic',
                  'booster': 'gblinear', 'alpha': 0.0001, 'lambda': 1,
                  'nthread': 1}
         dtrain, dtest = tm.load_agaricus(__file__)
@@ -71,7 +48,7 @@ class TestModels:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             dtest_path = os.path.join(tmpdir, 'dtest.dmatrix')
-            model_path = os.path.join(tmpdir, 'xgboost.model.dart')
+            model_path = os.path.join(tmpdir, "xgboost.model.dart.ubj")
             # save dmatrix into binary buffer
             dtest.save_binary(dtest_path)
             model_path = model_path
@@ -99,7 +76,6 @@ class TestModels:
 
         # check whether sample_type and normalize_type work
         num_round = 50
-        param['verbosity'] = 0
         param['learning_rate'] = 0.1
         param['rate_drop'] = 0.1
         preds_list = []
@@ -133,19 +109,38 @@ class TestModels:
         predt_2 = bst.predict(dtrain)
         assert np.all(np.abs(predt_2 - predt_1) < 1e-6)
 
-    def test_boost_from_existing_model(self):
+    def test_boost_from_existing_model(self) -> None:
         X, _ = tm.load_agaricus(__file__)
-        booster = xgb.train({'tree_method': 'hist'}, X, num_boost_round=4)
+        booster = xgb.train({"tree_method": "hist"}, X, num_boost_round=4)
         assert booster.num_boosted_rounds() == 4
-        booster = xgb.train({'tree_method': 'hist'}, X, num_boost_round=4,
-                            xgb_model=booster)
+        booster.set_param({"tree_method": "approx"})
+        assert booster.num_boosted_rounds() == 4
+        booster = xgb.train(
+            {"tree_method": "hist"}, X, num_boost_round=4, xgb_model=booster
+        )
         assert booster.num_boosted_rounds() == 8
-        booster = xgb.train({'updater': 'prune', 'process_type': 'update'}, X,
-                            num_boost_round=4, xgb_model=booster)
+        with pytest.warns(UserWarning, match="`updater`"):
+            booster = xgb.train(
+                {"updater": "prune", "process_type": "update"},
+                X,
+                num_boost_round=4,
+                xgb_model=booster,
+            )
         # Trees are moved for update, the rounds is reduced.  This test is
         # written for being compatible with current code (1.0.0).  If the
         # behaviour is considered sub-optimal, feel free to change.
         assert booster.num_boosted_rounds() == 4
+
+        booster = xgb.train({"booster": "gblinear"}, X, num_boost_round=4)
+        assert booster.num_boosted_rounds() == 4
+        booster.set_param({"updater": "coord_descent"})
+        assert booster.num_boosted_rounds() == 4
+        booster.set_param({"updater": "shotgun"})
+        assert booster.num_boosted_rounds() == 4
+        booster = xgb.train(
+            {"booster": "gblinear"}, X, num_boost_round=4, xgb_model=booster
+        )
+        assert booster.num_boosted_rounds() == 8
 
     def run_custom_objective(self, tree_method=None):
         param = {
@@ -212,8 +207,7 @@ class TestModels:
         assert set(evals_result['eval'].keys()) == {'auc', 'error', 'logloss'}
 
     def test_fpreproc(self):
-        param = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
-                 'objective': 'binary:logistic'}
+        param = {'max_depth': 2, 'eta': 1, 'objective': 'binary:logistic'}
         num_round = 2
 
         def fpreproc(dtrain, dtest, param):
@@ -227,8 +221,7 @@ class TestModels:
                metrics={'auc'}, seed=0, fpreproc=fpreproc)
 
     def test_show_stdv(self):
-        param = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
-                 'objective': 'binary:logistic'}
+        param = {'max_depth': 2, 'eta': 1, 'objective': 'binary:logistic'}
         num_round = 2
         dtrain, _ = tm.load_agaricus(__file__)
         xgb.cv(param, dtrain, num_round, nfold=5,
@@ -271,142 +264,6 @@ class TestModels:
         bst = xgb.train([], dm2)
         bst.predict(dm2)  # success
 
-    def test_model_binary_io(self):
-        model_path = 'test_model_binary_io.bin'
-        parameters = {'tree_method': 'hist', 'booster': 'gbtree',
-                      'scale_pos_weight': '0.5'}
-        X = np.random.random((10, 3))
-        y = np.random.random((10,))
-        dtrain = xgb.DMatrix(X, y)
-        bst = xgb.train(parameters, dtrain, num_boost_round=2)
-        bst.save_model(model_path)
-        bst = xgb.Booster(model_file=model_path)
-        os.remove(model_path)
-        config = json.loads(bst.save_config())
-        assert float(config['learner']['objective'][
-            'reg_loss_param']['scale_pos_weight']) == 0.5
-
-        buf = bst.save_raw()
-        from_raw = xgb.Booster()
-        from_raw.load_model(buf)
-
-        buf_from_raw = from_raw.save_raw()
-        assert buf == buf_from_raw
-
-    def run_model_json_io(self, parameters: dict, ext: str) -> None:
-        if ext == "ubj" and tm.no_ubjson()["condition"]:
-            pytest.skip(tm.no_ubjson()["reason"])
-
-        loc = locale.getpreferredencoding(False)
-        model_path = 'test_model_json_io.' + ext
-        j_model = json_model(model_path, parameters)
-        assert isinstance(j_model['learner'], dict)
-
-        bst = xgb.Booster(model_file=model_path)
-
-        bst.save_model(fname=model_path)
-        if ext == "ubj":
-            import ubjson
-            with open(model_path, "rb") as ubjfd:
-                j_model = ubjson.load(ubjfd)
-        else:
-            with open(model_path, 'r') as fd:
-                j_model = json.load(fd)
-
-        assert isinstance(j_model['learner'], dict)
-
-        os.remove(model_path)
-        assert locale.getpreferredencoding(False) == loc
-
-        json_raw = bst.save_raw(raw_format="json")
-        from_jraw = xgb.Booster()
-        from_jraw.load_model(json_raw)
-
-        ubj_raw = bst.save_raw(raw_format="ubj")
-        from_ubjraw = xgb.Booster()
-        from_ubjraw.load_model(ubj_raw)
-
-        if parameters.get("multi_strategy", None) != "multi_output_tree":
-            # old binary model is not supported.
-            old_from_json = from_jraw.save_raw(raw_format="deprecated")
-            old_from_ubj = from_ubjraw.save_raw(raw_format="deprecated")
-
-            assert old_from_json == old_from_ubj
-
-        raw_json = bst.save_raw(raw_format="json")
-        pretty = json.dumps(json.loads(raw_json), indent=2) + "\n\n"
-        bst.load_model(bytearray(pretty, encoding="ascii"))
-
-        if parameters.get("multi_strategy", None) != "multi_output_tree":
-            # old binary model is not supported.
-            old_from_json = from_jraw.save_raw(raw_format="deprecated")
-            old_from_ubj = from_ubjraw.save_raw(raw_format="deprecated")
-
-            assert old_from_json == old_from_ubj
-
-        rng = np.random.default_rng()
-        X = rng.random(size=from_jraw.num_features() * 10).reshape(
-            (10, from_jraw.num_features())
-        )
-        predt_from_jraw = from_jraw.predict(xgb.DMatrix(X))
-        predt_from_bst = bst.predict(xgb.DMatrix(X))
-        np.testing.assert_allclose(predt_from_jraw, predt_from_bst)
-
-    @pytest.mark.parametrize("ext", ["json", "ubj"])
-    def test_model_json_io(self, ext: str) -> None:
-        parameters = {"booster": "gbtree", "tree_method": "hist"}
-        self.run_model_json_io(parameters, ext)
-        parameters = {
-            "booster": "gbtree",
-            "tree_method": "hist",
-            "multi_strategy": "multi_output_tree",
-            "objective": "multi:softmax",
-        }
-        self.run_model_json_io(parameters, ext)
-        parameters = {"booster": "gblinear"}
-        self.run_model_json_io(parameters, ext)
-        parameters = {"booster": "dart", "tree_method": "hist"}
-        self.run_model_json_io(parameters, ext)
-
-    @pytest.mark.skipif(**tm.no_json_schema())
-    def test_json_io_schema(self):
-        import jsonschema
-        model_path = 'test_json_schema.json'
-        path = os.path.dirname(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        doc = os.path.join(path, 'doc', 'model.schema')
-        with open(doc, 'r') as fd:
-            schema = json.load(fd)
-        parameters = {'tree_method': 'hist', 'booster': 'gbtree'}
-        jsonschema.validate(instance=json_model(model_path, parameters),
-                            schema=schema)
-        os.remove(model_path)
-
-        parameters = {'tree_method': 'hist', 'booster': 'dart'}
-        jsonschema.validate(instance=json_model(model_path, parameters),
-                            schema=schema)
-        os.remove(model_path)
-
-        try:
-            dtrain, _ = tm.load_agaricus(__file__)
-            xgb.train({'objective': 'foo'}, dtrain, num_boost_round=1)
-        except ValueError as e:
-            e_str = str(e)
-            beg = e_str.find('Objective candidate')
-            end = e_str.find('Stack trace')
-            e_str = e_str[beg: end]
-            e_str = e_str.strip()
-            splited = e_str.splitlines()
-            objectives = [s.split(': ')[1] for s in splited]
-            j_objectives = schema['properties']['learner']['properties'][
-                'objective']['oneOf']
-            objectives_from_schema = set()
-            for j_obj in j_objectives:
-                objectives_from_schema.add(
-                    j_obj['properties']['name']['const'])
-            objectives = set(objectives)
-            assert objectives == objectives_from_schema
-
     @pytest.mark.skipif(**tm.no_json_schema())
     def test_json_dump_schema(self):
         import jsonschema
@@ -439,66 +296,34 @@ class TestModels:
                       'objective': 'multi:softmax'}
         validate_model(parameters)
 
-    def test_special_model_dump_characters(self):
+    def test_special_model_dump_characters(self) -> None:
         params = {"objective": "reg:squarederror", "max_depth": 3}
-        feature_names = ['"feature 0"', "\tfeature\n1", "feature 2"]
+        feature_names = ['"feature 0"', "\tfeature\n1", """feature "2"."""]
         X, y, w = tm.make_regression(n_samples=128, n_features=3, use_cupy=False)
         Xy = xgb.DMatrix(X, label=y, feature_names=feature_names)
         booster = xgb.train(params, Xy, num_boost_round=3)
+
         json_dump = booster.get_dump(dump_format="json")
         assert len(json_dump) == 3
 
-        def validate(obj: dict) -> None:
+        def validate_json(obj: dict) -> None:
             for k, v in obj.items():
                 if k == "split":
                     assert v in feature_names
                 elif isinstance(v, dict):
-                    validate(v)
+                    validate_json(v)
 
         for j_tree in json_dump:
             loaded = json.loads(j_tree)
-            validate(loaded)
+            validate_json(loaded)
 
-    def test_categorical_model_io(self):
-        X, y = tm.make_categorical(256, 16, 71, False)
-        Xy = xgb.DMatrix(X, y, enable_categorical=True)
-        booster = xgb.train({"tree_method": "approx"}, Xy, num_boost_round=16)
-        predt_0 = booster.predict(Xy)
+        dot_dump = booster.get_dump(dump_format="dot")
+        for d in dot_dump:
+            assert d.find(r"feature \"2\"") != -1
 
-        with tempfile.TemporaryDirectory() as tempdir:
-            path = os.path.join(tempdir, "model.binary")
-            with pytest.raises(ValueError, match=r".*JSON/UBJSON.*"):
-                booster.save_model(path)
-
-            path = os.path.join(tempdir, "model.json")
-            booster.save_model(path)
-            booster = xgb.Booster(model_file=path)
-            predt_1 = booster.predict(Xy)
-            np.testing.assert_allclose(predt_0, predt_1)
-
-            path = os.path.join(tempdir, "model.ubj")
-            booster.save_model(path)
-            booster = xgb.Booster(model_file=path)
-            predt_1 = booster.predict(Xy)
-            np.testing.assert_allclose(predt_0, predt_1)
-
-    @pytest.mark.skipif(**tm.no_sklearn())
-    def test_attributes(self):
-        from sklearn.datasets import load_iris
-        X, y = load_iris(return_X_y=True)
-        cls = xgb.XGBClassifier(n_estimators=2)
-        cls.fit(X, y, early_stopping_rounds=1, eval_set=[(X, y)])
-        assert cls.get_booster().best_iteration == cls.n_estimators - 1
-        assert cls.best_iteration == cls.get_booster().best_iteration
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "cls.json")
-            cls.save_model(path)
-
-            cls = xgb.XGBClassifier(n_estimators=2)
-            cls.load_model(path)
-            assert cls.get_booster().best_iteration == cls.n_estimators - 1
-            assert cls.best_iteration == cls.get_booster().best_iteration
+        text_dump = booster.get_dump(dump_format="text")
+        for d in text_dump:
+            assert d.find(r"feature \"2\"") != -1
 
     def run_slice(
         self,
@@ -642,11 +467,6 @@ class TestModels:
         num_parallel_tree = 4
         num_boost_round = 16
 
-        class ResetStrategy(xgb.callback.TrainingCallback):
-            def after_iteration(self, model, epoch: int, evals_log) -> bool:
-                model.set_param({"multi_strategy": "multi_output_tree"})
-                return False
-
         booster = xgb.train(
             {
                 "num_parallel_tree": num_parallel_tree,
@@ -672,17 +492,23 @@ class TestModels:
         np.testing.assert_allclose(predt0, predt1, atol=1e-5)
 
     @pytest.mark.skipif(**tm.no_pandas())
-    def test_feature_info(self):
+    @pytest.mark.parametrize("ext", ["json", "ubj"])
+    def test_feature_info(self, ext: str) -> None:
         import pandas as pd
+
+        # make data
         rows = 100
         cols = 10
         X = rng.randn(rows, cols)
         y = rng.randn(rows)
+
+        # Test with pandas, which has feature info.
         feature_names = ["test_feature_" + str(i) for i in range(cols)]
         X_pd = pd.DataFrame(X, columns=feature_names)
         X_pd[f"test_feature_{3}"] = X_pd.iloc[:, 3].astype(np.int32)
 
         Xy = xgb.DMatrix(X_pd, y)
+        assert Xy.feature_types is not None
         assert Xy.feature_types[3] == "int"
         booster = xgb.train({}, dtrain=Xy, num_boost_round=1)
 
@@ -691,10 +517,32 @@ class TestModels:
         assert booster.feature_types == Xy.feature_types
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            path = tmpdir + "model.json"
+            path = tmpdir + f"model.{ext}"
             booster.save_model(path)
             booster = xgb.Booster()
             booster.load_model(path)
 
             assert booster.feature_names == Xy.feature_names
             assert booster.feature_types == Xy.feature_types
+
+        # Test with numpy, no feature info is set
+        Xy = xgb.DMatrix(X, y)
+        assert Xy.feature_names is None
+        assert Xy.feature_types is None
+
+        booster = xgb.train({}, dtrain=Xy, num_boost_round=1)
+        assert booster.feature_names is None
+        assert booster.feature_types is None
+
+        # test explicitly set
+        fns = [str(i) for i in range(cols)]
+        booster.feature_names = fns
+
+        assert booster.feature_names == fns
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, f"model.{ext}")
+            booster.save_model(path)
+
+            booster = xgb.Booster(model_file=path)
+            assert booster.feature_names == fns

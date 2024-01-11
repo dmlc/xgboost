@@ -504,15 +504,10 @@ def test_regression_with_custom_objective():
     from sklearn.metrics import mean_squared_error
     from sklearn.model_selection import KFold
 
-    def objective_ls(y_true, y_pred):
-        grad = (y_pred - y_true)
-        hess = np.ones(len(y_true))
-        return grad, hess
-
     X, y = fetch_california_housing(return_X_y=True)
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf.split(X, y):
-        xgb_model = xgb.XGBRegressor(objective=objective_ls).fit(
+        xgb_model = xgb.XGBRegressor(objective=tm.ls_obj).fit(
             X[train_index], y[train_index]
         )
         preds = xgb_model.predict(X[test_index])
@@ -530,27 +525,29 @@ def test_regression_with_custom_objective():
     np.testing.assert_raises(XGBCustomObjectiveException, xgb_model.fit, X, y)
 
 
+def logregobj(y_true, y_pred):
+    y_pred = 1.0 / (1.0 + np.exp(-y_pred))
+    grad = y_pred - y_true
+    hess = y_pred * (1.0 - y_pred)
+    return grad, hess
+
+
 def test_classification_with_custom_objective():
     from sklearn.datasets import load_digits
     from sklearn.model_selection import KFold
 
-    def logregobj(y_true, y_pred):
-        y_pred = 1.0 / (1.0 + np.exp(-y_pred))
-        grad = y_pred - y_true
-        hess = y_pred * (1.0 - y_pred)
-        return grad, hess
-
     digits = load_digits(n_class=2)
-    y = digits['target']
-    X = digits['data']
+    y = digits["target"]
+    X = digits["data"]
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf.split(X, y):
         xgb_model = xgb.XGBClassifier(objective=logregobj)
         xgb_model.fit(X[train_index], y[train_index])
         preds = xgb_model.predict(X[test_index])
         labels = y[test_index]
-        err = sum(1 for i in range(len(preds))
-                  if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
+        err = sum(
+            1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]
+        ) / float(len(preds))
         assert err < 0.1
 
     # Test that the custom objective function is actually used
@@ -681,7 +678,6 @@ def test_split_value_histograms():
     params = {
         "max_depth": 6,
         "eta": 0.01,
-        "verbosity": 0,
         "objective": "binary:logistic",
         "base_score": 0.5,
     }
@@ -898,128 +894,6 @@ def run_validation_weights(model):
 def test_validation_weights():
     run_validation_weights(xgb.XGBModel)
     run_validation_weights(xgb.XGBClassifier)
-
-
-def save_load_model(model_path):
-    from sklearn.datasets import load_digits
-    from sklearn.model_selection import KFold
-
-    digits = load_digits(n_class=2)
-    y = digits['target']
-    X = digits['data']
-    kf = KFold(n_splits=2, shuffle=True, random_state=rng)
-    for train_index, test_index in kf.split(X, y):
-        xgb_model = xgb.XGBClassifier().fit(X[train_index], y[train_index])
-        xgb_model.save_model(model_path)
-
-        xgb_model = xgb.XGBClassifier()
-        xgb_model.load_model(model_path)
-
-        assert isinstance(xgb_model.classes_, np.ndarray)
-        np.testing.assert_equal(xgb_model.classes_, np.array([0, 1]))
-        assert isinstance(xgb_model._Booster, xgb.Booster)
-
-        preds = xgb_model.predict(X[test_index])
-        labels = y[test_index]
-        err = sum(1 for i in range(len(preds))
-                  if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
-        assert err < 0.1
-        assert xgb_model.get_booster().attr('scikit_learn') is None
-
-        # test native booster
-        preds = xgb_model.predict(X[test_index], output_margin=True)
-        booster = xgb.Booster(model_file=model_path)
-        predt_1 = booster.predict(xgb.DMatrix(X[test_index]),
-                                  output_margin=True)
-        assert np.allclose(preds, predt_1)
-
-        with pytest.raises(TypeError):
-            xgb_model = xgb.XGBModel()
-            xgb_model.load_model(model_path)
-
-    clf = xgb.XGBClassifier(booster="gblinear", early_stopping_rounds=1)
-    clf.fit(X, y, eval_set=[(X, y)])
-    best_iteration = clf.best_iteration
-    best_score = clf.best_score
-    predt_0 = clf.predict(X)
-    clf.save_model(model_path)
-    clf.load_model(model_path)
-    assert clf.booster == "gblinear"
-    predt_1 = clf.predict(X)
-    np.testing.assert_allclose(predt_0, predt_1)
-    assert clf.best_iteration == best_iteration
-    assert clf.best_score == best_score
-
-    clfpkl = pickle.dumps(clf)
-    clf = pickle.loads(clfpkl)
-    predt_2 = clf.predict(X)
-    np.testing.assert_allclose(predt_0, predt_2)
-    assert clf.best_iteration == best_iteration
-    assert clf.best_score == best_score
-
-
-def test_save_load_model():
-    with tempfile.TemporaryDirectory() as tempdir:
-        model_path = os.path.join(tempdir, "digits.model")
-        save_load_model(model_path)
-
-    with tempfile.TemporaryDirectory() as tempdir:
-        model_path = os.path.join(tempdir, "digits.model.json")
-        save_load_model(model_path)
-
-    from sklearn.datasets import load_digits
-    from sklearn.model_selection import train_test_split
-
-    with tempfile.TemporaryDirectory() as tempdir:
-        model_path = os.path.join(tempdir, "digits.model.ubj")
-        digits = load_digits(n_class=2)
-        y = digits["target"]
-        X = digits["data"]
-        booster = xgb.train(
-            {"tree_method": "hist", "objective": "binary:logistic"},
-            dtrain=xgb.DMatrix(X, y),
-            num_boost_round=4,
-        )
-        predt_0 = booster.predict(xgb.DMatrix(X))
-        booster.save_model(model_path)
-        cls = xgb.XGBClassifier()
-        cls.load_model(model_path)
-
-        proba = cls.predict_proba(X)
-        assert proba.shape[0] == X.shape[0]
-        assert proba.shape[1] == 2  # binary
-
-        predt_1 = cls.predict_proba(X)[:, 1]
-        assert np.allclose(predt_0, predt_1)
-
-        cls = xgb.XGBModel()
-        cls.load_model(model_path)
-        predt_1 = cls.predict(X)
-        assert np.allclose(predt_0, predt_1)
-
-        # mclass
-        X, y = load_digits(n_class=10, return_X_y=True)
-        # small test_size to force early stop
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.01, random_state=1
-        )
-        clf = xgb.XGBClassifier(
-            n_estimators=64, tree_method="hist", early_stopping_rounds=2
-        )
-        clf.fit(X_train, y_train, eval_set=[(X_test, y_test)])
-        score = clf.best_score
-        clf.save_model(model_path)
-
-        clf = xgb.XGBClassifier()
-        clf.load_model(model_path)
-        assert clf.classes_.size == 10
-        assert clf.objective == "multi:softprob"
-
-        np.testing.assert_equal(clf.classes_, np.arange(10))
-        assert clf.n_classes_ == 10
-
-        assert clf.best_iteration == 27
-        assert clf.best_score == score
 
 
 def test_RFECV():

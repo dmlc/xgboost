@@ -40,10 +40,10 @@ xgboost <- function(data = NULL, label = NULL, missing = NA, weight = NULL,
 #' }
 #'
 #' @references
-#' https://archive.ics.uci.edu/ml/datasets/Mushroom
+#' <https://archive.ics.uci.edu/ml/datasets/Mushroom>
 #'
 #' Bache, K. & Lichman, M. (2013). UCI Machine Learning Repository
-#' [http://archive.ics.uci.edu/ml]. Irvine, CA: University of California,
+#' <http://archive.ics.uci.edu/ml>. Irvine, CA: University of California,
 #' School of Information and Computer Science.
 #'
 #' @docType data
@@ -67,10 +67,10 @@ NULL
 #' }
 #'
 #' @references
-#' https://archive.ics.uci.edu/ml/datasets/Mushroom
+#' <https://archive.ics.uci.edu/ml/datasets/Mushroom>
 #'
 #' Bache, K. & Lichman, M. (2013). UCI Machine Learning Repository
-#' [http://archive.ics.uci.edu/ml]. Irvine, CA: University of California,
+#' <http://archive.ics.uci.edu/ml>. Irvine, CA: University of California,
 #' School of Information and Computer Science.
 #'
 #' @docType data
@@ -82,7 +82,7 @@ NULL
 NULL
 
 # Various imports
-#' @importClassesFrom Matrix dgCMatrix dgeMatrix
+#' @importClassesFrom Matrix dgCMatrix dgeMatrix dgRMatrix
 #' @importFrom Matrix colSums
 #' @importFrom Matrix sparse.model.matrix
 #' @importFrom Matrix sparseVector
@@ -98,9 +98,12 @@ NULL
 #' @importFrom data.table setnames
 #' @importFrom jsonlite fromJSON
 #' @importFrom jsonlite toJSON
+#' @importFrom methods new
 #' @importFrom utils object.size str tail
+#' @importFrom stats coef
 #' @importFrom stats predict
 #' @importFrom stats median
+#' @importFrom stats variable.names
 #' @importFrom utils head
 #' @importFrom graphics barplot
 #' @importFrom graphics lines

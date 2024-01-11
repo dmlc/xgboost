@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2022 by Contributors
+ Copyright (c) 2014-2024 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -432,6 +432,7 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
     val xgb = new XGBoostClassifier(paramMap)
     val model = xgb.fit(trainingDF)
 
+    // test json
     val modelPath = new File(tempDir.toFile, "xgbc").getPath
     model.write.option("format", "json").save(modelPath)
     val nativeJsonModelPath = new File(tempDir.toFile, "nativeModel.json").getPath
@@ -439,21 +440,21 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
     assert(compareTwoFiles(new File(modelPath, "data/XGBoostClassificationModel").getPath,
       nativeJsonModelPath))
 
-    // test default "deprecated"
+    // test ubj
     val modelUbjPath = new File(tempDir.toFile, "xgbcUbj").getPath
     model.write.save(modelUbjPath)
-    val nativeDeprecatedModelPath = new File(tempDir.toFile, "nativeModel").getPath
-    model.nativeBooster.saveModel(nativeDeprecatedModelPath)
+    val nativeUbjModelPath = new File(tempDir.toFile, "nativeModel.ubj").getPath
+    model.nativeBooster.saveModel(nativeUbjModelPath)
     assert(compareTwoFiles(new File(modelUbjPath, "data/XGBoostClassificationModel").getPath,
-      nativeDeprecatedModelPath))
+      nativeUbjModelPath))
 
     // json file should be indifferent with ubj file
     val modelJsonPath = new File(tempDir.toFile, "xgbcJson").getPath
     model.write.option("format", "json").save(modelJsonPath)
-    val nativeUbjModelPath = new File(tempDir.toFile, "nativeModel1.ubj").getPath
-    model.nativeBooster.saveModel(nativeUbjModelPath)
+    val nativeUbjModelPath1 = new File(tempDir.toFile, "nativeModel1.ubj").getPath
+    model.nativeBooster.saveModel(nativeUbjModelPath1)
     assert(!compareTwoFiles(new File(modelJsonPath, "data/XGBoostClassificationModel").getPath,
-      nativeUbjModelPath))
+      nativeUbjModelPath1))
   }
 
   test("native json model file should store feature_name and feature_type") {

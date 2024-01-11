@@ -21,21 +21,21 @@ class TestGPUBasicModels:
     cpu_test_bm = test_bm.TestModels()
 
     def run_cls(self, X, y):
-        cls = xgb.XGBClassifier(tree_method='gpu_hist')
+        cls = xgb.XGBClassifier(tree_method="hist", device="cuda")
         cls.fit(X, y)
-        cls.get_booster().save_model('test_deterministic_gpu_hist-0.json')
+        cls.get_booster().save_model("test_deterministic_gpu_hist-0.json")
 
-        cls = xgb.XGBClassifier(tree_method='gpu_hist')
+        cls = xgb.XGBClassifier(tree_method="hist", device="cuda")
         cls.fit(X, y)
-        cls.get_booster().save_model('test_deterministic_gpu_hist-1.json')
+        cls.get_booster().save_model("test_deterministic_gpu_hist-1.json")
 
-        with open('test_deterministic_gpu_hist-0.json', 'r') as fd:
+        with open("test_deterministic_gpu_hist-0.json", "r") as fd:
             model_0 = fd.read()
-        with open('test_deterministic_gpu_hist-1.json', 'r') as fd:
+        with open("test_deterministic_gpu_hist-1.json", "r") as fd:
             model_1 = fd.read()
 
-        os.remove('test_deterministic_gpu_hist-0.json')
-        os.remove('test_deterministic_gpu_hist-1.json')
+        os.remove("test_deterministic_gpu_hist-0.json")
+        os.remove("test_deterministic_gpu_hist-1.json")
 
         return hash(model_0), hash(model_1)
 
@@ -43,7 +43,7 @@ class TestGPUBasicModels:
         self.cpu_test_bm.run_custom_objective("gpu_hist")
 
     def test_eta_decay(self):
-        self.cpu_test_cb.run_eta_decay('gpu_hist')
+        self.cpu_test_cb.run_eta_decay("gpu_hist")
 
     @pytest.mark.parametrize(
         "objective", ["binary:logistic", "reg:absoluteerror", "reg:quantileerror"]

@@ -2,7 +2,7 @@
 % Please edit documentation in R/xgb.importance.R
 \name{xgb.importance}
 \alias{xgb.importance}
-\title{Importance of features in a model.}
+\title{Feature importance}
 \usage{
 xgb.importance(
   feature_names = NULL,
@@ -14,88 +14,126 @@ xgb.importance(
 )
 }
 \arguments{
-\item{feature_names}{character vector of feature names. If the model already
-contains feature names, those would be used when \code{feature_names=NULL} (default value).
-Non-null \code{feature_names} could be provided to override those in the model.}
+\item{feature_names}{Character vector used to overwrite the feature names
+of the model. The default is \code{NULL} (use original feature names).}
 
-\item{model}{object of class \code{xgb.Booster}.}
+\item{model}{Object of class \code{xgb.Booster}.}
 
-\item{trees}{(only for the gbtree booster) an integer vector of tree indices that should be included
-into the importance calculation. If set to \code{NULL}, all trees of the model are parsed.
+\item{trees}{An integer vector of tree indices that should be included
+into the importance calculation (only for the "gbtree" booster).
+The default (\code{NULL}) parses all trees.
 It could be useful, e.g., in multiclass classification to get feature importances
-for each class separately. IMPORTANT: the tree index in xgboost models
-is zero-based (e.g., use \code{trees = 0:4} for first 5 trees).}
+for each class separately. \emph{Important}: the tree index in XGBoost models
+is zero-based (e.g., use \code{trees = 0:4} for the first five trees).}
 
-\item{data}{deprecated.}
+\item{data}{Deprecated.}
 
-\item{label}{deprecated.}
+\item{label}{Deprecated.}
 
-\item{target}{deprecated.}
+\item{target}{Deprecated.}
 }
 \value{
-For a tree model, a \code{data.table} with the following columns:
+A \code{data.table} with the following columns:
+
+For a tree model:
 \itemize{
-  \item \code{Features} names of the features used in the model;
-  \item \code{Gain} represents fractional contribution of each feature to the model based on
-       the total gain of this feature's splits. Higher percentage means a more important
-       predictive feature.
-  \item \code{Cover} metric of the number of observation related to this feature;
-  \item \code{Frequency} percentage representing the relative number of times
-       a feature have been used in trees.
+\item \code{Features}: Names of the features used in the model.
+\item \code{Gain}: Fractional contribution of each feature to the model based on
+the total gain of this feature's splits. Higher percentage means higher importance.
+\item \code{Cover}: Metric of the number of observation related to this feature.
+\item \code{Frequency}: Percentage of times a feature has been used in trees.
 }
 
-A linear model's importance \code{data.table} has the following columns:
+For a linear model:
 \itemize{
-  \item \code{Features} names of the features used in the model;
-  \item \code{Weight} the linear coefficient of this feature;
-  \item \code{Class} (only for multiclass models) class label.
+\item \code{Features}: Names of the features used in the model.
+\item \code{Weight}: Linear coefficient of this feature.
+\item \code{Class}: Class label (only for multiclass models).
 }
 
 If \code{feature_names} is not provided and \code{model} doesn't have \code{feature_names},
-index of the features will be used instead. Because the index is extracted from the model dump
+the index of the features will be used instead. Because the index is extracted from the model dump
 (based on C++ code), it starts at 0 (as in C/C++ or Python) instead of 1 (usual in R).
 }
 \description{
-Creates a \code{data.table} of feature importances in a model.
+Creates a \code{data.table} of feature importances.
 }
 \details{
 This function works for both linear and tree models.
 
 For linear models, the importance is the absolute magnitude of linear coefficients.
-For that reason, in order to obtain a meaningful ranking by importance for a linear model,
-the features need to be on the same scale (which you also would want to do when using either
-L1 or L2 regularization).
+To obtain a meaningful ranking by importance for linear models, the features need to
+be on the same scale (which is also recommended when using L1 or L2 regularization).
 }
 \examples{
 
-# binomial classification using gbtree:
-data(agaricus.train, package='xgboost')
-bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_depth = 2,
-               eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
+# binomial classification using "gbtree":
+data(agaricus.train, package = "xgboost")
+
+bst <- xgboost(
+  data = agaricus.train$data,
+  label = agaricus.train$label,
+  max_depth = 2,
+  eta = 1,
+  nthread = 2,
+  nrounds = 2,
+  objective = "binary:logistic"
+)
+
 xgb.importance(model = bst)
 
-# binomial classification using gblinear:
-bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, booster = "gblinear",
-               eta = 0.3, nthread = 1, nrounds = 20, objective = "binary:logistic")
+# binomial classification using "gblinear":
+bst <- xgboost(
+  data = agaricus.train$data,
+  label = agaricus.train$label,
+  booster = "gblinear",
+  eta = 0.3,
+  nthread = 1,
+  nrounds = 20,objective = "binary:logistic"
+)
+
 xgb.importance(model = bst)
 
-# multiclass classification using gbtree:
+# multiclass classification using "gbtree":
 nclass <- 3
 nrounds <- 10
-mbst <- xgboost(data = as.matrix(iris[, -5]), label = as.numeric(iris$Species) - 1,
-               max_depth = 3, eta = 0.2, nthread = 2, nrounds = nrounds,
-               objective = "multi:softprob", num_class = nclass)
+mbst <- xgboost(
+  data = as.matrix(iris[, -5]),
+  label = as.numeric(iris$Species) - 1,
+  max_depth = 3,
+  eta = 0.2,
+  nthread = 2,
+  nrounds = nrounds,
+  objective = "multi:softprob",
+  num_class = nclass
+)
+
 # all classes clumped together:
 xgb.importance(model = mbst)
-# inspect importances separately for each class:
-xgb.importance(model = mbst, trees = seq(from=0, by=nclass, length.out=nrounds))
-xgb.importance(model = mbst, trees = seq(from=1, by=nclass, length.out=nrounds))
-xgb.importance(model = mbst, trees = seq(from=2, by=nclass, length.out=nrounds))
 
-# multiclass classification using gblinear:
-mbst <- xgboost(data = scale(as.matrix(iris[, -5])), label = as.numeric(iris$Species) - 1,
-               booster = "gblinear", eta = 0.2, nthread = 1, nrounds = 15,
-               objective = "multi:softprob", num_class = nclass)
+# inspect importances separately for each class:
+xgb.importance(
+  model = mbst, trees = seq(from = 0, by = nclass, length.out = nrounds)
+)
+xgb.importance(
+  model = mbst, trees = seq(from = 1, by = nclass, length.out = nrounds)
+)
+xgb.importance(
+  model = mbst, trees = seq(from = 2, by = nclass, length.out = nrounds)
+)
+
+# multiclass classification using "gblinear":
+mbst <- xgboost(
+  data = scale(as.matrix(iris[, -5])),
+  label = as.numeric(iris$Species) - 1,
+  booster = "gblinear",
+  eta = 0.2,
+  nthread = 1,
+  nrounds = 15,
+  objective = "multi:softprob",
+  num_class = nclass
+)
+
 xgb.importance(model = mbst)
 
 }

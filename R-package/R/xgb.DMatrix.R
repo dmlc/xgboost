@@ -56,9 +56,9 @@
 #' dtrain <- with(
 #'   agaricus.train, xgb.DMatrix(data, label = label, nthread = nthread)
 #' )
-#' xgb.DMatrix.save(dtrain, 'xgb.DMatrix.data')
-#' dtrain <- xgb.DMatrix('xgb.DMatrix.data')
-#' if (file.exists('xgb.DMatrix.data')) file.remove('xgb.DMatrix.data')
+#' fname <- file.path(tempdir(), "xgb.DMatrix.data")
+#' xgb.DMatrix.save(dtrain, fname)
+#' dtrain <- xgb.DMatrix(fname)
 #' @export
 xgb.DMatrix <- function(
   data,
@@ -163,7 +163,10 @@ xgb.DMatrix <- function(
   }
 
   dmat <- handle
-  attributes(dmat) <- list(class = "xgb.DMatrix")
+  attributes(dmat) <- list(
+    class = "xgb.DMatrix",
+    fields = new.env()
+  )
 
   if (!is.null(label)) {
     setinfo(dmat, "label", label)
@@ -197,6 +200,35 @@ xgb.DMatrix <- function(
   }
 
   return(dmat)
+}
+
+#' @title Check whether DMatrix object has a field
+#' @description Checks whether an xgb.DMatrix object has a given field assigned to
+#' it, such as weights, labels, etc.
+#' @param object The DMatrix object to check for the given \code{info} field.
+#' @param info The field to check for presence or absence in \code{object}.
+#' @seealso \link{xgb.DMatrix}, \link{getinfo.xgb.DMatrix}, \link{setinfo.xgb.DMatrix}
+#' @examples
+#' library(xgboost)
+#' x <- matrix(1:10, nrow = 5)
+#' dm <- xgb.DMatrix(x, nthread = 1)
+#'
+#' # 'dm' so far doesn't have any fields set
+#' xgb.DMatrix.hasinfo(dm, "label")
+#'
+#' # Fields can be added after construction
+#' setinfo(dm, "label", 1:5)
+#' xgb.DMatrix.hasinfo(dm, "label")
+#' @export
+xgb.DMatrix.hasinfo <- function(object, info) {
+  if (!inherits(object, "xgb.DMatrix")) {
+    stop("Object is not an 'xgb.DMatrix'.")
+  }
+  if (.Call(XGCheckNullPtr_R, object)) {
+    warning("xgb.DMatrix object is invalid. Must be constructed again.")
+    return(FALSE)
+  }
+  return(NVL(attr(object, "fields")[[info]], FALSE))
 }
 
 
@@ -303,15 +335,13 @@ dimnames.xgb.DMatrix <- function(x) {
 }
 
 
-#' Get information of an xgb.DMatrix object
-#'
-#' Get information of an xgb.DMatrix object
-#' @param object Object of class \code{xgb.DMatrix}
+#' @title Get or set information of xgb.DMatrix and xgb.Booster objects
+#' @param object Object of class \code{xgb.DMatrix} of `xgb.Booster`.
 #' @param name the name of the information field to get (see details)
-#' @param ... other parameters
-#'
+#' @return For `getinfo`, will return the requested field. For `setinfo`, will always return value `TRUE`
+#' if it succeeds.
 #' @details
-#' The \code{name} field can be one of the following:
+#' The \code{name} field can be one of the following for `xgb.DMatrix`:
 #'
 #' \itemize{
 #'     \item \code{label}
@@ -326,9 +356,17 @@ dimnames.xgb.DMatrix <- function(x) {
 #' }
 #' See the documentation for \link{xgb.DMatrix} for more information about these fields.
 #'
+#' For `xgb.Booster`, can be one of the following:
+#' \itemize{
+#'     \item \code{feature_type}
+#'     \item \code{feature_name}
+#' }
+#'
 #' Note that, while 'qid' cannot be retrieved, it's possible to get the equivalent 'group'
 #' for a DMatrix that had 'qid' assigned.
 #'
+#' \bold{Important}: when calling `setinfo`, the objects are modified in-place. See
+#' \link{xgb.copy.Booster} for an idea of this in-place assignment works.
 #' @examples
 #' data(agaricus.train, package='xgboost')
 #' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
@@ -340,11 +378,11 @@ dimnames.xgb.DMatrix <- function(x) {
 #' stopifnot(all(labels2 == 1-labels))
 #' @rdname getinfo
 #' @export
-getinfo <- function(object, ...) UseMethod("getinfo")
+getinfo <- function(object, name) UseMethod("getinfo")
 
 #' @rdname getinfo
 #' @export
-getinfo.xgb.DMatrix <- function(object, name, ...) {
+getinfo.xgb.DMatrix <- function(object, name) {
   allowed_int_fields <- 'group'
   allowed_float_fields <- c(
     'label', 'weight', 'base_margin',
@@ -381,15 +419,8 @@ getinfo.xgb.DMatrix <- function(object, name, ...) {
   return(ret)
 }
 
-
-#' Set information of an xgb.DMatrix object
-#'
-#' Set information of an xgb.DMatrix object
-#'
-#' @param object Object of class "xgb.DMatrix"
-#' @param name the name of the field to get
+#' @rdname getinfo
 #' @param info the specific field of information to set
-#' @param ... other parameters
 #'
 #' @details
 #' See the documentation for \link{xgb.DMatrix} for possible fields that can be set
@@ -411,13 +442,18 @@ getinfo.xgb.DMatrix <- function(object, name, ...) {
 #' setinfo(dtrain, 'label', 1-labels)
 #' labels2 <- getinfo(dtrain, 'label')
 #' stopifnot(all.equal(labels2, 1-labels))
-#' @rdname setinfo
 #' @export
-setinfo <- function(object, ...) UseMethod("setinfo")
+setinfo <- function(object, name, info) UseMethod("setinfo")
 
-#' @rdname setinfo
+#' @rdname getinfo
 #' @export
-setinfo.xgb.DMatrix <- function(object, name, info, ...) {
+setinfo.xgb.DMatrix <- function(object, name, info) {
+  .internal.setinfo.xgb.DMatrix(object, name, info)
+  attr(object, "fields")[[name]] <- TRUE
+  return(TRUE)
+}
+
+.internal.setinfo.xgb.DMatrix <- function(object, name, info) {
   if (name == "label") {
     if (NROW(info) != nrow(object))
       stop("The length of labels must equal to the number of rows in the input data")
@@ -425,19 +461,19 @@ setinfo.xgb.DMatrix <- function(object, name, info, ...) {
     return(TRUE)
   }
   if (name == "label_lower_bound") {
-    if (length(info) != nrow(object))
+    if (NROW(info) != nrow(object))
       stop("The length of lower-bound labels must equal to the number of rows in the input data")
-    .Call(XGDMatrixSetInfo_R, object, name, as.numeric(info))
+    .Call(XGDMatrixSetInfo_R, object, name, info)
     return(TRUE)
   }
   if (name == "label_upper_bound") {
-    if (length(info) != nrow(object))
+    if (NROW(info) != nrow(object))
       stop("The length of upper-bound labels must equal to the number of rows in the input data")
-    .Call(XGDMatrixSetInfo_R, object, name, as.numeric(info))
+    .Call(XGDMatrixSetInfo_R, object, name, info)
     return(TRUE)
   }
   if (name == "weight") {
-    .Call(XGDMatrixSetInfo_R, object, name, as.numeric(info))
+    .Call(XGDMatrixSetInfo_R, object, name, info)
     return(TRUE)
   }
   if (name == "base_margin") {
@@ -447,20 +483,20 @@ setinfo.xgb.DMatrix <- function(object, name, info, ...) {
   if (name == "group") {
     if (sum(info) != nrow(object))
       stop("The sum of groups must equal to the number of rows in the input data")
-    .Call(XGDMatrixSetInfo_R, object, name, as.integer(info))
+    .Call(XGDMatrixSetInfo_R, object, name, info)
     return(TRUE)
   }
   if (name == "qid") {
     if (NROW(info) != nrow(object))
       stop("The length of qid assignments must equal to the number of rows in the input data")
-    .Call(XGDMatrixSetInfo_R, object, name, as.integer(info))
+    .Call(XGDMatrixSetInfo_R, object, name, info)
     return(TRUE)
   }
   if (name == "feature_weights") {
-    if (length(info) != ncol(object)) {
+    if (NROW(info) != ncol(object)) {
       stop("The number of feature weights must equal to the number of columns in the input data")
     }
-    .Call(XGDMatrixSetInfo_R, object, name, as.numeric(info))
+    .Call(XGDMatrixSetInfo_R, object, name, info)
     return(TRUE)
   }
 
@@ -490,6 +526,111 @@ setinfo.xgb.DMatrix <- function(object, name, info, ...) {
   stop("setinfo: unknown info name ", name)
 }
 
+#' @title Get Quantile Cuts from DMatrix
+#' @description Get the quantile cuts (a.k.a. borders) from an `xgb.DMatrix`
+#' that has been quantized for the histogram method (`tree_method="hist"`).
+#'
+#' These cuts are used in order to assign observations to bins - i.e. these are ordered
+#' boundaries which are used to determine assignment condition `border_low < x < border_high`.
+#' As such, the first and last bin will be outside of the range of the data, so as to include
+#' all of the observations there.
+#'
+#' If a given column has 'n' bins, then there will be 'n+1' cuts / borders for that column,
+#' which will be output in sorted order from lowest to highest.
+#'
+#' Different columns can have different numbers of bins according to their range.
+#' @param dmat An `xgb.DMatrix` object, as returned by \link{xgb.DMatrix}.
+#' @param output Output format for the quantile cuts. Possible options are:\itemize{
+#' \item `"list"` will return the output as a list with one entry per column, where
+#' each column will have a numeric vector with the cuts. The list will be named if
+#' `dmat` has column names assigned to it.
+#' \item `"arrays"` will return a list with entries `indptr` (base-0 indexing) and
+#' `data`. Here, the cuts for column 'i' are obtained by slicing 'data' from entries
+#' `indptr[i]+1` to `indptr[i+1]`.
+#' }
+#' @return The quantile cuts, in the format specified by parameter `output`.
+#' @examples
+#' library(xgboost)
+#' data(mtcars)
+#' y <- mtcars$mpg
+#' x <- as.matrix(mtcars[, -1])
+#' dm <- xgb.DMatrix(x, label = y, nthread = 1)
+#'
+#' # DMatrix is not quantized right away, but will be once a hist model is generated
+#' model <- xgb.train(
+#'   data = dm,
+#'   params = list(
+#'     tree_method = "hist",
+#'     max_bin = 8,
+#'     nthread = 1
+#'   ),
+#'   nrounds = 3
+#' )
+#'
+#' # Now can get the quantile cuts
+#' xgb.get.DMatrix.qcut(dm)
+#' @export
+xgb.get.DMatrix.qcut <- function(dmat, output = c("list", "arrays")) { # nolint
+  stopifnot(inherits(dmat, "xgb.DMatrix"))
+  output <- head(output, 1L)
+  stopifnot(output %in% c("list", "arrays"))
+  res <- .Call(XGDMatrixGetQuantileCut_R, dmat)
+  if (output == "arrays") {
+    return(res)
+  } else {
+    feature_names <- getinfo(dmat, "feature_name")
+    ncols <- length(res$indptr) - 1
+    out <- lapply(
+      seq(1, ncols),
+      function(col) {
+        st <- res$indptr[col]
+        end <- res$indptr[col + 1]
+        if (end <= st) {
+          return(numeric())
+        }
+        return(res$data[seq(1 + st, end)])
+      }
+    )
+    if (NROW(feature_names)) {
+      names(out) <- feature_names
+    }
+    return(out)
+  }
+}
+
+#' @title Get Number of Non-Missing Entries in DMatrix
+#' @param dmat An `xgb.DMatrix` object, as returned by \link{xgb.DMatrix}.
+#' @return The number of non-missing entries in the DMatrix
+#' @export
+xgb.get.DMatrix.num.non.missing <- function(dmat) { # nolint
+  stopifnot(inherits(dmat, "xgb.DMatrix"))
+  return(.Call(XGDMatrixNumNonMissing_R, dmat))
+}
+
+#' @title Get DMatrix Data
+#' @param dmat An `xgb.DMatrix` object, as returned by \link{xgb.DMatrix}.
+#' @return The data held in the DMatrix, as a sparse CSR matrix (class `dgRMatrix`
+#' from package `Matrix`). If it had feature names, these will be added as column names
+#' in the output.
+#' @export
+xgb.get.DMatrix.data <- function(dmat) {
+  stopifnot(inherits(dmat, "xgb.DMatrix"))
+  res <- .Call(XGDMatrixGetDataAsCSR_R, dmat)
+  out <- methods::new("dgRMatrix")
+  nrows <- as.integer(length(res$indptr) - 1)
+  out@p <- res$indptr
+  out@j <- res$indices
+  out@x <- res$data
+  out@Dim <- as.integer(c(nrows, res$ncols))
+
+  feature_names <- getinfo(dmat, "feature_name")
+  dim_names <- list(NULL, NULL)
+  if (NROW(feature_names)) {
+    dim_names[[2L]] <- feature_names
+  }
+  out@Dimnames <- dim_names
+  return(out)
+}
 
 #' Get a new DMatrix containing the specified rows of
 #' original xgb.DMatrix object
@@ -500,7 +641,6 @@ setinfo.xgb.DMatrix <- function(object, name, info, ...) {
 #' @param object Object of class "xgb.DMatrix"
 #' @param idxset a integer vector of indices of rows needed
 #' @param colset currently not used (columns subsetting is not available)
-#' @param ... other parameters (currently not used)
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
@@ -514,11 +654,11 @@ setinfo.xgb.DMatrix <- function(object, name, info, ...) {
 #'
 #' @rdname slice.xgb.DMatrix
 #' @export
-slice <- function(object, ...) UseMethod("slice")
+slice <- function(object, idxset) UseMethod("slice")
 
 #' @rdname slice.xgb.DMatrix
 #' @export
-slice.xgb.DMatrix <- function(object, idxset, ...) {
+slice.xgb.DMatrix <- function(object, idxset) {
   if (!inherits(object, "xgb.DMatrix")) {
     stop("object must be xgb.DMatrix")
   }
@@ -568,11 +708,15 @@ slice.xgb.DMatrix <- function(object, idxset, ...) {
 #' @method print xgb.DMatrix
 #' @export
 print.xgb.DMatrix <- function(x, verbose = FALSE, ...) {
+  if (.Call(XGCheckNullPtr_R, x)) {
+    cat("INVALID xgb.DMatrix object. Must be constructed anew.\n")
+    return(invisible(x))
+  }
   cat('xgb.DMatrix  dim:', nrow(x), 'x', ncol(x), ' info: ')
   infos <- character(0)
-  if (length(getinfo(x, 'label')) > 0) infos <- 'label'
-  if (length(getinfo(x, 'weight')) > 0) infos <- c(infos, 'weight')
-  if (length(getinfo(x, 'base_margin')) > 0) infos <- c(infos, 'base_margin')
+  if (xgb.DMatrix.hasinfo(x, 'label')) infos <- 'label'
+  if (xgb.DMatrix.hasinfo(x, 'weight')) infos <- c(infos, 'weight')
+  if (xgb.DMatrix.hasinfo(x, 'base_margin')) infos <- c(infos, 'base_margin')
   if (length(infos) == 0) infos <- 'NA'
   cat(infos)
   cnames <- colnames(x)

@@ -3,31 +3,48 @@
 \name{xgb.config}
 \alias{xgb.config}
 \alias{xgb.config<-}
-\title{Accessors for model parameters as JSON string.}
+\title{Accessors for model parameters as JSON string}
 \usage{
 xgb.config(object)
 
 xgb.config(object) <- value
 }
 \arguments{
-\item{object}{Object of class \code{xgb.Booster}}
+\item{object}{Object of class \code{xgb.Booster}. \bold{Will be modified in-place} when assigning to it.}
 
-\item{value}{A JSON string.}
+\item{value}{An R list.}
+}
+\value{
+\code{xgb.config} will return the parameters as an R list.
 }
 \description{
-Accessors for model parameters as JSON string.
+Accessors for model parameters as JSON string
+}
+\details{
+Note that assignment is performed in-place on the booster C object, which unlike assignment
+of R attributes, doesn't follow typical copy-on-write semantics for assignment - i.e. all references
+to the same booster will also get updated.
+
+See \link{xgb.copy.Booster} for an example of this behavior.
 }
 \examples{
-data(agaricus.train, package='xgboost')
+data(agaricus.train, package = "xgboost")
+
 ## Keep the number of threads to 1 for examples
 nthread <- 1
 data.table::setDTthreads(nthread)
 train <- agaricus.train
 
 bst <- xgboost(
-  data = train$data, label = train$label, max_depth = 2,
-  eta = 1, nthread = nthread, nrounds = 2, objective = "binary:logistic"
+  data = train$data,
+  label = train$label,
+  max_depth = 2,
+  eta = 1,
+  nthread = nthread,
+  nrounds = 2,
+  objective = "binary:logistic"
 )
+
 config <- xgb.config(bst)
 
 }

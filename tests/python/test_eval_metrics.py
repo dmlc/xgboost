@@ -9,29 +9,13 @@ rng = np.random.RandomState(1337)
 
 
 class TestEvalMetrics:
-    xgb_params_01 = {
-        'verbosity': 0,
-        'nthread': 1,
-        'eval_metric': 'error'
-    }
+    xgb_params_01 = {'nthread': 1, 'eval_metric': 'error'}
 
-    xgb_params_02 = {
-        'verbosity': 0,
-        'nthread': 1,
-        'eval_metric': ['error']
-    }
+    xgb_params_02 = {'nthread': 1, 'eval_metric': ['error']}
 
-    xgb_params_03 = {
-        'verbosity': 0,
-        'nthread': 1,
-        'eval_metric': ['rmse', 'error']
-    }
+    xgb_params_03 = {'nthread': 1, 'eval_metric': ['rmse', 'error']}
 
-    xgb_params_04 = {
-        'verbosity': 0,
-        'nthread': 1,
-        'eval_metric': ['error', 'rmse']
-    }
+    xgb_params_04 = {'nthread': 1, 'eval_metric': ['error', 'rmse']}
 
     def evalerror_01(self, preds, dtrain):
         labels = dtrain.get_label()

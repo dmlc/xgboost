@@ -78,7 +78,7 @@ Parameters for Tree Booster
 
 * ``gamma`` [default=0, alias: ``min_split_loss``]
 
-  - Minimum loss reduction required to make a further partition on a leaf node of the tree. The larger ``gamma`` is, the more conservative the algorithm will be.
+  - Minimum loss reduction required to make a further partition on a leaf node of the tree. The larger ``gamma`` is, the more conservative the algorithm will be. Note that a tree where no splits were made might still contain a single terminal node with a non-zero score.
   - range: [0,∞]
 
 * ``max_depth`` [default=6]
@@ -388,7 +388,10 @@ Specify the learning task and the corresponding learning objective. The objectiv
   - The initial prediction score of all instances, global bias
   - The parameter is automatically estimated for selected objectives before training. To
     disable the estimation, specify a real number argument.
+  - If ``base_margin`` is supplied, ``base_score`` will not be added.
   - For sufficient number of iterations, changing this value will not have too much effect.
+
+  See :doc:`/tutorials/intercept` for more info.
 
 * ``eval_metric`` [default according to objective]
 

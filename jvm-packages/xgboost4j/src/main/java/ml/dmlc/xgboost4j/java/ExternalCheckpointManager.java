@@ -29,7 +29,7 @@ import org.apache.hadoop.fs.Path;
 public class ExternalCheckpointManager {
 
   private Log logger = LogFactory.getLog("ExternalCheckpointManager");
-  private String modelSuffix = ".model";
+  private String modelSuffix = ".ubj";
   private Path checkpointPath;  // directory for checkpoints
   private FileSystem fs;
 

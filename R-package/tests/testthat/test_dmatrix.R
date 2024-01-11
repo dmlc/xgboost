@@ -67,20 +67,22 @@ test_that("xgb.DMatrix: NA", {
   x[1, "x1"] <- NA
 
   m <- xgb.DMatrix(x, nthread = n_threads)
-  xgb.DMatrix.save(m, "int.dmatrix")
+  fname_int <- file.path(tempdir(), "int.dmatrix")
+  xgb.DMatrix.save(m, fname_int)
 
   x <- matrix(as.numeric(x), nrow = n_samples, ncol = 2)
   colnames(x) <- c("x1", "x2")
   m <- xgb.DMatrix(x, nthread = n_threads)
 
-  xgb.DMatrix.save(m, "float.dmatrix")
+  fname_float <- file.path(tempdir(), "float.dmatrix")
+  xgb.DMatrix.save(m, fname_float)
 
-  iconn <- file("int.dmatrix", "rb")
-  fconn <- file("float.dmatrix", "rb")
+  iconn <- file(fname_int, "rb")
+  fconn <- file(fname_float, "rb")
 
-  expect_equal(file.size("int.dmatrix"), file.size("float.dmatrix"))
+  expect_equal(file.size(fname_int), file.size(fname_float))
 
-  bytes <- file.size("int.dmatrix")
+  bytes <- file.size(fname_int)
   idmatrix <- readBin(iconn, "raw", n = bytes)
   fdmatrix <- readBin(fconn, "raw", n = bytes)
 
@@ -90,8 +92,8 @@ test_that("xgb.DMatrix: NA", {
   close(iconn)
   close(fconn)
 
-  file.remove("int.dmatrix")
-  file.remove("float.dmatrix")
+  file.remove(fname_int)
+  file.remove(fname_float)
 })
 
 test_that("xgb.DMatrix: saving, loading", {
@@ -274,17 +276,19 @@ test_that("xgb.DMatrix: Inf as missing", {
   x_nan[2, 1] <- NA_real_
 
   m_inf <- xgb.DMatrix(x_inf, nthread = n_threads, missing = Inf)
-  xgb.DMatrix.save(m_inf, "inf.dmatrix")
+  fname_inf <- file.path(tempdir(), "inf.dmatrix")
+  xgb.DMatrix.save(m_inf, fname_inf)
 
   m_nan <- xgb.DMatrix(x_nan, nthread = n_threads, missing = NA_real_)
-  xgb.DMatrix.save(m_nan, "nan.dmatrix")
+  fname_nan <- file.path(tempdir(), "nan.dmatrix")
+  xgb.DMatrix.save(m_nan, fname_nan)
 
-  infconn <- file("inf.dmatrix", "rb")
-  nanconn <- file("nan.dmatrix", "rb")
+  infconn <- file(fname_inf, "rb")
+  nanconn <- file(fname_nan, "rb")
 
-  expect_equal(file.size("inf.dmatrix"), file.size("nan.dmatrix"))
+  expect_equal(file.size(fname_inf), file.size(fname_nan))
 
-  bytes <- file.size("inf.dmatrix")
+  bytes <- file.size(fname_inf)
   infdmatrix <- readBin(infconn, "raw", n = bytes)
   nandmatrix <- readBin(nanconn, "raw", n = bytes)
 
@@ -294,8 +298,8 @@ test_that("xgb.DMatrix: Inf as missing", {
   close(infconn)
   close(nanconn)
 
-  file.remove("inf.dmatrix")
-  file.remove("nan.dmatrix")
+  file.remove(fname_inf)
+  file.remove(fname_nan)
 })
 
 test_that("xgb.DMatrix: error on three-dimensional array", {
@@ -374,4 +378,63 @@ test_that("xgb.DMatrix: can take multi-dimensional 'base_margin'", {
     reshape = TRUE
   )
   expect_equal(pred_only_x, pred_w_base - b, tolerance = 1e-5)
+})
+
+test_that("xgb.DMatrix: number of non-missing matches data", {
+  x <- matrix(1:10, nrow = 5)
+  dm1 <- xgb.DMatrix(x)
+  expect_equal(xgb.get.DMatrix.num.non.missing(dm1), 10)
+
+  x[2, 2] <- NA
+  x[4, 1] <- NA
+  dm2 <- xgb.DMatrix(x)
+  expect_equal(xgb.get.DMatrix.num.non.missing(dm2), 8)
+})
+
+test_that("xgb.DMatrix: retrieving data as CSR", {
+  data(mtcars)
+  dm <- xgb.DMatrix(as.matrix(mtcars))
+  csr <- xgb.get.DMatrix.data(dm)
+  expect_equal(dim(csr), dim(mtcars))
+  expect_equal(colnames(csr), colnames(mtcars))
+  expect_equal(unname(as.matrix(csr)), unname(as.matrix(mtcars)), tolerance = 1e-6)
+})
+
+test_that("xgb.DMatrix: quantile cuts look correct", {
+  data(mtcars)
+  y <- mtcars$mpg
+  x <- as.matrix(mtcars[, -1])
+  dm <- xgb.DMatrix(x, label = y)
+  model <- xgb.train(
+    data = dm,
+    params = list(
+      tree_method = "hist",
+      max_bin = 8,
+      nthread = 1
+    ),
+    nrounds = 3
+  )
+  qcut_list <- xgb.get.DMatrix.qcut(dm, "list")
+  qcut_arrays <- xgb.get.DMatrix.qcut(dm, "arrays")
+
+  expect_equal(length(qcut_arrays), 2)
+  expect_equal(names(qcut_arrays), c("indptr", "data"))
+  expect_equal(length(qcut_arrays$indptr), ncol(x) + 1)
+  expect_true(min(diff(qcut_arrays$indptr)) > 0)
+
+  col_min <- apply(x, 2, min)
+  col_max <- apply(x, 2, max)
+
+  expect_equal(length(qcut_list), ncol(x))
+  expect_equal(names(qcut_list), colnames(x))
+  lapply(
+    seq(1, ncol(x)),
+    function(col) {
+      cuts <- qcut_list[[col]]
+      expect_true(min(diff(cuts)) > 0)
+      expect_true(col_min[col] > cuts[1])
+      expect_true(col_max[col] < cuts[length(cuts)])
+      expect_true(length(cuts) <= 9)
+    }
+  )
 })

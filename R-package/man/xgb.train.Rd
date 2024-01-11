@@ -43,111 +43,114 @@ xgboost(
 }
 \arguments{
 \item{params}{the list of parameters. The complete list of parameters is
-  available in the \href{http://xgboost.readthedocs.io/en/latest/parameter.html}{online documentation}. Below
-  is a shorter summary:
-
-1. General Parameters
-
-\itemize{
-  \item \code{booster} which booster to use, can be \code{gbtree} or \code{gblinear}. Default: \code{gbtree}.
+available in the \href{http://xgboost.readthedocs.io/en/latest/parameter.html}{online documentation}. Below
+is a shorter summary:
+\enumerate{
+\item General Parameters
 }
 
-2. Booster Parameters
+\itemize{
+\item \code{booster} which booster to use, can be \code{gbtree} or \code{gblinear}. Default: \code{gbtree}.
+}
+\enumerate{
+\item Booster Parameters
+}
 
 2.1. Parameters for Tree Booster
 
 \itemize{
-  \item{ \code{eta} control the learning rate: scale the contribution of each tree by a factor of \code{0 < eta < 1}
-         when it is added to the current approximation.
-         Used to prevent overfitting by making the boosting process more conservative.
-         Lower value for \code{eta} implies larger value for \code{nrounds}: low \code{eta} value means model
-         more robust to overfitting but slower to compute. Default: 0.3}
-  \item{ \code{gamma} minimum loss reduction required to make a further partition on a leaf node of the tree.
-         the larger, the more conservative the algorithm will be.}
-  \item \code{max_depth} maximum depth of a tree. Default: 6
-  \item{\code{min_child_weight} minimum sum of instance weight (hessian) needed in a child.
-        If the tree partition step results in a leaf node with the sum of instance weight less than min_child_weight,
-        then the building process will give up further partitioning.
-        In linear regression mode, this simply corresponds to minimum number of instances needed to be in each node.
-        The larger, the more conservative the algorithm will be. Default: 1}
-  \item{ \code{subsample} subsample ratio of the training instance.
-        Setting it to 0.5 means that xgboost randomly collected half of the data instances to grow trees
-        and this will prevent overfitting. It makes computation shorter (because less data to analyse).
-        It is advised to use this parameter with \code{eta} and increase \code{nrounds}. Default: 1}
-  \item \code{colsample_bytree} subsample ratio of columns when constructing each tree. Default: 1
-  \item \code{lambda} L2 regularization term on weights. Default: 1
-  \item \code{alpha} L1 regularization term on weights. (there is no L1 reg on bias because it is not important). Default: 0
-  \item{ \code{num_parallel_tree} Experimental parameter. number of trees to grow per round.
-         Useful to test Random Forest through XGBoost
-         (set \code{colsample_bytree < 1}, \code{subsample  < 1}  and \code{round = 1}) accordingly.
-         Default: 1}
-  \item{ \code{monotone_constraints} A numerical vector consists of \code{1}, \code{0} and \code{-1} with its length
-         equals to the number of features in the training data.
-         \code{1} is increasing, \code{-1} is decreasing and \code{0} is no constraint.}
-  \item{ \code{interaction_constraints} A list of vectors specifying feature indices of permitted interactions.
-       Each item of the list represents one permitted interaction where specified features are allowed to interact with each other.
-       Feature index values should start from \code{0} (\code{0} references the first column).
-       Leave argument unspecified for no interaction constraints.}
+\item{ \code{eta} control the learning rate: scale the contribution of each tree by a factor of \code{0 < eta < 1}
+when it is added to the current approximation.
+Used to prevent overfitting by making the boosting process more conservative.
+Lower value for \code{eta} implies larger value for \code{nrounds}: low \code{eta} value means model
+more robust to overfitting but slower to compute. Default: 0.3}
+\item{ \code{gamma} minimum loss reduction required to make a further partition on a leaf node of the tree.
+the larger, the more conservative the algorithm will be.}
+\item \code{max_depth} maximum depth of a tree. Default: 6
+\item{\code{min_child_weight} minimum sum of instance weight (hessian) needed in a child.
+If the tree partition step results in a leaf node with the sum of instance weight less than min_child_weight,
+then the building process will give up further partitioning.
+In linear regression mode, this simply corresponds to minimum number of instances needed to be in each node.
+The larger, the more conservative the algorithm will be. Default: 1}
+\item{ \code{subsample} subsample ratio of the training instance.
+Setting it to 0.5 means that xgboost randomly collected half of the data instances to grow trees
+and this will prevent overfitting. It makes computation shorter (because less data to analyse).
+It is advised to use this parameter with \code{eta} and increase \code{nrounds}. Default: 1}
+\item \code{colsample_bytree} subsample ratio of columns when constructing each tree. Default: 1
+\item \code{lambda} L2 regularization term on weights. Default: 1
+\item \code{alpha} L1 regularization term on weights. (there is no L1 reg on bias because it is not important). Default: 0
+\item{ \code{num_parallel_tree} Experimental parameter. number of trees to grow per round.
+Useful to test Random Forest through XGBoost
+(set \code{colsample_bytree < 1}, \code{subsample  < 1}  and \code{round = 1}) accordingly.
+Default: 1}
+\item{ \code{monotone_constraints} A numerical vector consists of \code{1}, \code{0} and \code{-1} with its length
+equals to the number of features in the training data.
+\code{1} is increasing, \code{-1} is decreasing and \code{0} is no constraint.}
+\item{ \code{interaction_constraints} A list of vectors specifying feature indices of permitted interactions.
+Each item of the list represents one permitted interaction where specified features are allowed to interact with each other.
+Feature index values should start from \code{0} (\code{0} references the first column).
+Leave argument unspecified for no interaction constraints.}
 }
 
 2.2. Parameters for Linear Booster
 
 \itemize{
-  \item \code{lambda} L2 regularization term on weights. Default: 0
-  \item \code{lambda_bias} L2 regularization term on bias. Default: 0
-  \item \code{alpha} L1 regularization term on weights. (there is no L1 reg on bias because it is not important). Default: 0
+\item \code{lambda} L2 regularization term on weights. Default: 0
+\item \code{lambda_bias} L2 regularization term on bias. Default: 0
+\item \code{alpha} L1 regularization term on weights. (there is no L1 reg on bias because it is not important). Default: 0
 }
-
-3. Task Parameters
+\enumerate{
+\item Task Parameters
+}
 
 \itemize{
 \item{ \code{objective} specify the learning task and the corresponding learning objective, users can pass a self-defined function to it.
-       The default objective options are below:
-  \itemize{
-    \item \code{reg:squarederror} Regression with squared loss (Default).
-    \item{ \code{reg:squaredlogerror}: regression with squared log loss \eqn{1/2 * (log(pred + 1) - log(label + 1))^2}.
-           All inputs are required to be greater than -1.
-           Also, see metric rmsle for possible issue with this objective.}
-    \item \code{reg:logistic} logistic regression.
-    \item \code{reg:pseudohubererror}: regression with Pseudo Huber loss, a twice differentiable alternative to absolute loss.
-    \item \code{binary:logistic} logistic regression for binary classification. Output probability.
-    \item \code{binary:logitraw} logistic regression for binary classification, output score before logistic transformation.
-    \item \code{binary:hinge}: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
-    \item{ \code{count:poisson}: Poisson regression for count data, output mean of Poisson distribution.
-           \code{max_delta_step} is set to 0.7 by default in poisson regression (used to safeguard optimization).}
-    \item{ \code{survival:cox}: Cox regression for right censored survival time data (negative values are considered right censored).
-           Note that predictions are returned on the hazard ratio scale (i.e., as HR = exp(marginal_prediction) in the proportional
-           hazard function \code{h(t) = h0(t) * HR)}.}
-    \item{ \code{survival:aft}: Accelerated failure time model for censored survival time data. See
-           \href{https://xgboost.readthedocs.io/en/latest/tutorials/aft_survival_analysis.html}{Survival Analysis with Accelerated Failure Time}
-           for details.}
-    \item \code{aft_loss_distribution}: Probability Density Function used by \code{survival:aft} and \code{aft-nloglik} metric.
-    \item{ \code{multi:softmax} set xgboost to do multiclass classification using the softmax objective.
-           Class is represented by a number and should be from 0 to \code{num_class - 1}.}
-    \item{ \code{multi:softprob} same as softmax, but prediction outputs a vector of ndata * nclass elements, which can be
-           further reshaped to ndata, nclass matrix. The result contains predicted probabilities of each data point belonging
-           to each class.}
-    \item \code{rank:pairwise} set xgboost to do ranking task by minimizing the pairwise loss.
-    \item{ \code{rank:ndcg}: Use LambdaMART to perform list-wise ranking where
-           \href{https://en.wikipedia.org/wiki/Discounted_cumulative_gain}{Normalized Discounted Cumulative Gain (NDCG)} is maximized.}
-    \item{ \code{rank:map}: Use LambdaMART to perform list-wise ranking where
-           \href{https://en.wikipedia.org/wiki/Evaluation_measures_(information_retrieval)#Mean_average_precision}{Mean Average Precision (MAP)}
-           is maximized.}
-    \item{ \code{reg:gamma}: gamma regression with log-link.
-           Output is a mean of gamma distribution.
-           It might be useful, e.g., for modeling insurance claims severity, or for any outcome that might be
-           \href{https://en.wikipedia.org/wiki/Gamma_distribution#Applications}{gamma-distributed}.}
-    \item{ \code{reg:tweedie}: Tweedie regression with log-link.
-           It might be useful, e.g., for modeling total loss in insurance, or for any outcome that might be
-           \href{https://en.wikipedia.org/wiki/Tweedie_distribution#Applications}{Tweedie-distributed}.}
-  }
- }
-  \item \code{base_score} the initial prediction score of all instances, global bias. Default: 0.5
-  \item{ \code{eval_metric} evaluation metrics for validation data.
-         Users can pass a self-defined function to it.
-         Default: metric will be assigned according to objective
-         (rmse for regression, and error for classification, mean average precision for ranking).
-         List is provided in detail section.}
+The default objective options are below:
+\itemize{
+\item \code{reg:squarederror} Regression with squared loss (Default).
+\item{ \code{reg:squaredlogerror}: regression with squared log loss \eqn{1/2 * (log(pred + 1) - log(label + 1))^2}.
+All inputs are required to be greater than -1.
+Also, see metric rmsle for possible issue with this objective.}
+\item \code{reg:logistic} logistic regression.
+\item \code{reg:pseudohubererror}: regression with Pseudo Huber loss, a twice differentiable alternative to absolute loss.
+\item \code{binary:logistic} logistic regression for binary classification. Output probability.
+\item \code{binary:logitraw} logistic regression for binary classification, output score before logistic transformation.
+\item \code{binary:hinge}: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
+\item{ \code{count:poisson}: Poisson regression for count data, output mean of Poisson distribution.
+\code{max_delta_step} is set to 0.7 by default in poisson regression (used to safeguard optimization).}
+\item{ \code{survival:cox}: Cox regression for right censored survival time data (negative values are considered right censored).
+Note that predictions are returned on the hazard ratio scale (i.e., as HR = exp(marginal_prediction) in the proportional
+hazard function \code{h(t) = h0(t) * HR)}.}
+\item{ \code{survival:aft}: Accelerated failure time model for censored survival time data. See
+\href{https://xgboost.readthedocs.io/en/latest/tutorials/aft_survival_analysis.html}{Survival Analysis with Accelerated Failure Time}
+for details.}
+\item \code{aft_loss_distribution}: Probability Density Function used by \code{survival:aft} and \code{aft-nloglik} metric.
+\item{ \code{multi:softmax} set xgboost to do multiclass classification using the softmax objective.
+Class is represented by a number and should be from 0 to \code{num_class - 1}.}
+\item{ \code{multi:softprob} same as softmax, but prediction outputs a vector of ndata * nclass elements, which can be
+further reshaped to ndata, nclass matrix. The result contains predicted probabilities of each data point belonging
+to each class.}
+\item \code{rank:pairwise} set xgboost to do ranking task by minimizing the pairwise loss.
+\item{ \code{rank:ndcg}: Use LambdaMART to perform list-wise ranking where
+\href{https://en.wikipedia.org/wiki/Discounted_cumulative_gain}{Normalized Discounted Cumulative Gain (NDCG)} is maximized.}
+\item{ \code{rank:map}: Use LambdaMART to perform list-wise ranking where
+\href{https://en.wikipedia.org/wiki/Evaluation_measures_(information_retrieval)#Mean_average_precision}{Mean Average Precision (MAP)}
+is maximized.}
+\item{ \code{reg:gamma}: gamma regression with log-link.
+Output is a mean of gamma distribution.
+It might be useful, e.g., for modeling insurance claims severity, or for any outcome that might be
+\href{https://en.wikipedia.org/wiki/Gamma_distribution#Applications}{gamma-distributed}.}
+\item{ \code{reg:tweedie}: Tweedie regression with log-link.
+It might be useful, e.g., for modeling total loss in insurance, or for any outcome that might be
+\href{https://en.wikipedia.org/wiki/Tweedie_distribution#Applications}{Tweedie-distributed}.}
+}
+}
+\item \code{base_score} the initial prediction score of all instances, global bias. Default: 0.5
+\item{ \code{eval_metric} evaluation metrics for validation data.
+Users can pass a self-defined function to it.
+Default: metric will be assigned according to objective
+(rmse for regression, and error for classification, mean average precision for ranking).
+List is provided in detail section.}
 }}
 
 \item{data}{training dataset. \code{xgb.train} accepts only an \code{xgb.DMatrix} as the input.
@@ -202,7 +205,12 @@ file with a previously saved model.}
 \item{callbacks}{a list of callback functions to perform various task during boosting.
 See \code{\link{callbacks}}. Some of the callbacks are automatically created depending on the
 parameters' values. User can provide either existing or their own callback methods in order
-to customize the training process.}
+to customize the training process.
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{   Note that some callbacks might try to set an evaluation log - be aware that these evaluation logs
+   are kept as R attributes, and thus do not get saved when using non-R serializaters like
+   \link{xgb.save} (but are kept when using R serializers like \link{saveRDS}).
+}\if{html}{\out{</div>}}}
 
 \item{...}{other parameters to pass to \code{params}.}
 
@@ -216,27 +224,7 @@ This parameter is only used when input is a dense matrix.}
 \item{weight}{a vector indicating the weight for each row of the input.}
 }
 \value{
-An object of class \code{xgb.Booster} with the following elements:
-\itemize{
-  \item \code{handle} a handle (pointer) to the xgboost model in memory.
-  \item \code{raw} a cached memory dump of the xgboost model saved as R's \code{raw} type.
-  \item \code{niter} number of boosting iterations.
-  \item \code{evaluation_log} evaluation history stored as a \code{data.table} with the
-        first column corresponding to iteration number and the rest corresponding to evaluation
-        metrics' values. It is created by the \code{\link{cb.evaluation.log}} callback.
-  \item \code{call} a function call.
-  \item \code{params} parameters that were passed to the xgboost library. Note that it does not
-        capture parameters changed by the \code{\link{cb.reset.parameters}} callback.
-  \item \code{callbacks} callback functions that were either automatically assigned or
-        explicitly passed.
-  \item \code{best_iteration} iteration number with the best evaluation metric value
-        (only available with early stopping).
-  \item \code{best_score} the best evaluation metric value during early stopping.
-        (only available with early stopping).
-  \item \code{feature_names} names of the training dataset features
-        (only when column names were defined in training data).
-  \item \code{nfeatures} number of features in training data.
-}
+An object of class \code{xgb.Booster}.
 }
 \description{
 \code{xgb.train} is an advanced interface for training an xgboost model.
@@ -258,30 +246,45 @@ when the \code{eval_metric} parameter is not provided.
 User may set one or several \code{eval_metric} parameters.
 Note that when using a customized metric, only this single metric can be used.
 The following is the list of built-in metrics for which XGBoost provides optimized implementation:
-  \itemize{
-     \item \code{rmse} root mean square error. \url{https://en.wikipedia.org/wiki/Root_mean_square_error}
-     \item \code{logloss} negative log-likelihood. \url{https://en.wikipedia.org/wiki/Log-likelihood}
-     \item \code{mlogloss} multiclass logloss. \url{https://scikit-learn.org/stable/modules/generated/sklearn.metrics.log_loss.html}
-     \item \code{error} Binary classification error rate. It is calculated as \code{(# wrong cases) / (# all cases)}.
-           By default, it uses the 0.5 threshold for predicted values to define negative and positive instances.
-           Different threshold (e.g., 0.) could be specified as "error@0."
-     \item \code{merror} Multiclass classification error rate. It is calculated as \code{(# wrong cases) / (# all cases)}.
-     \item \code{mae} Mean absolute error
-     \item \code{mape} Mean absolute percentage error
-     \item{ \code{auc} Area under the curve.
-            \url{https://en.wikipedia.org/wiki/Receiver_operating_characteristic#'Area_under_curve} for ranking evaluation.}
-     \item \code{aucpr} Area under the PR curve. \url{https://en.wikipedia.org/wiki/Precision_and_recall} for ranking evaluation.
-     \item \code{ndcg} Normalized Discounted Cumulative Gain (for ranking task). \url{https://en.wikipedia.org/wiki/NDCG}
-  }
+\itemize{
+\item \code{rmse} root mean square error. \url{https://en.wikipedia.org/wiki/Root_mean_square_error}
+\item \code{logloss} negative log-likelihood. \url{https://en.wikipedia.org/wiki/Log-likelihood}
+\item \code{mlogloss} multiclass logloss. \url{https://scikit-learn.org/stable/modules/generated/sklearn.metrics.log_loss.html}
+\item \code{error} Binary classification error rate. It is calculated as \code{(# wrong cases) / (# all cases)}.
+By default, it uses the 0.5 threshold for predicted values to define negative and positive instances.
+Different threshold (e.g., 0.) could be specified as "error@0."
+\item \code{merror} Multiclass classification error rate. It is calculated as \code{(# wrong cases) / (# all cases)}.
+\item \code{mae} Mean absolute error
+\item \code{mape} Mean absolute percentage error
+\item{ \code{auc} Area under the curve.
+\url{https://en.wikipedia.org/wiki/Receiver_operating_characteristic#'Area_under_curve} for ranking evaluation.}
+\item \code{aucpr} Area under the PR curve. \url{https://en.wikipedia.org/wiki/Precision_and_recall} for ranking evaluation.
+\item \code{ndcg} Normalized Discounted Cumulative Gain (for ranking task). \url{https://en.wikipedia.org/wiki/NDCG}
+}
 
 The following callbacks are automatically created when certain parameters are set:
 \itemize{
-  \item \code{cb.print.evaluation} is turned on when \code{verbose > 0};
-        and the \code{print_every_n} parameter is passed to it.
-  \item \code{cb.evaluation.log} is on when \code{watchlist} is present.
-  \item \code{cb.early.stop}: when \code{early_stopping_rounds} is set.
-  \item \code{cb.save.model}: when \code{save_period > 0} is set.
+\item \code{cb.print.evaluation} is turned on when \code{verbose > 0};
+and the \code{print_every_n} parameter is passed to it.
+\item \code{cb.evaluation.log} is on when \code{watchlist} is present.
+\item \code{cb.early.stop}: when \code{early_stopping_rounds} is set.
+\item \code{cb.save.model}: when \code{save_period > 0} is set.
 }
+
+Note that objects of type \code{xgb.Booster} as returned by this function behave a bit differently
+from typical R objects (it's an 'altrep' list class), and it makes a separation between
+internal booster attributes (restricted to jsonifyable data), accessed through \link{xgb.attr}
+and shared between interfaces through serialization functions like \link{xgb.save}; and
+R-specific attributes, accessed through \link{attributes} and \link{attr}, which are otherwise
+only used in the R interface, only kept when using R's serializers like \link{saveRDS}, and
+not anyhow used by functions like \link{predict.xgb.Booster}.
+
+Be aware that one such R attribute that is automatically added is \code{params} - this attribute
+is assigned from the \code{params} argument to this function, and is only meant to serve as a
+reference for what went into the booster, but is not used in other methods that take a booster
+object - so for example, changing the booster's configuration requires calling \verb{xgb.config<-}
+or 'xgb.parameters<-', while simply modifying \verb{attributes(model)$params$<...>} will have no
+effect elsewhere.
 }
 \examples{
 data(agaricus.train, package='xgboost')
@@ -300,9 +303,9 @@ dtest <- with(
 watchlist <- list(train = dtrain, eval = dtest)
 
 ## A simple xgb.train example:
-param <- list(max_depth = 2, eta = 1, verbose = 0, nthread = nthread,
+param <- list(max_depth = 2, eta = 1, nthread = nthread,
               objective = "binary:logistic", eval_metric = "auc")
-bst <- xgb.train(param, dtrain, nrounds = 2, watchlist)
+bst <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0)
 
 ## An xgb.train example where custom objective and evaluation metric are
 ## used:
@@ -321,13 +324,13 @@ evalerror <- function(preds, dtrain) {
 
 # These functions could be used by passing them either:
 #  as 'objective' and 'eval_metric' parameters in the params list:
-param <- list(max_depth = 2, eta = 1, verbose = 0, nthread = nthread,
+param <- list(max_depth = 2, eta = 1, nthread = nthread,
               objective = logregobj, eval_metric = evalerror)
-bst <- xgb.train(param, dtrain, nrounds = 2, watchlist)
+bst <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0)
 
 #  or through the ... arguments:
-param <- list(max_depth = 2, eta = 1, verbose = 0, nthread = nthread)
-bst <- xgb.train(param, dtrain, nrounds = 2, watchlist,
+param <- list(max_depth = 2, eta = 1, nthread = nthread)
+bst <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0,
                  objective = logregobj, eval_metric = evalerror)
 
 #  or as dedicated 'obj' and 'feval' parameters of xgb.train:
@@ -336,10 +339,10 @@ bst <- xgb.train(param, dtrain, nrounds = 2, watchlist,
 
 
 ## An xgb.train example of using variable learning rates at each iteration:
-param <- list(max_depth = 2, eta = 1, verbose = 0, nthread = nthread,
+param <- list(max_depth = 2, eta = 1, nthread = nthread,
               objective = "binary:logistic", eval_metric = "auc")
 my_etas <- list(eta = c(0.5, 0.1))
-bst <- xgb.train(param, dtrain, nrounds = 2, watchlist,
+bst <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0,
                  callbacks = list(cb.reset.parameters(my_etas)))
 
 ## Early stopping:

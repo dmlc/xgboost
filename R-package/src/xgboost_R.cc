@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2023 by XGBoost Contributors
+ * Copyright 2014-2024, XGBoost Contributors
  */
 #include <dmlc/common.h>
 #include <dmlc/omp.h>
@@ -9,9 +9,11 @@
 #include <xgboost/logging.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -20,14 +22,14 @@
 #include "../../src/c_api/c_api_error.h"
 #include "../../src/c_api/c_api_utils.h"  // MakeSparseFromPtr
 #include "../../src/common/threading_utils.h"
+#include "../../src/data/array_interface.h"  // for ArrayInterface
 
 #include "./xgboost_R.h"  // Must follow other includes.
 
 namespace {
-
 struct ErrorWithUnwind : public std::exception {};
 
-void ThrowExceptionFromRError(void *unused, Rboolean jump) {
+void ThrowExceptionFromRError(void *, Rboolean jump) {
   if (jump) {
     throw ErrorWithUnwind();
   }
@@ -45,6 +47,30 @@ SEXP SafeMkChar(const char *c_str, SEXP continuation_token) {
   PtrToConstChar ptr_struct{c_str};
   return R_UnwindProtect(
     WrappedMkChar, static_cast<void*>(&ptr_struct),
+    ThrowExceptionFromRError, nullptr,
+    continuation_token);
+}
+
+SEXP WrappedAllocReal(void *void_ptr) {
+  size_t *size = static_cast<size_t*>(void_ptr);
+  return Rf_allocVector(REALSXP, *size);
+}
+
+SEXP SafeAllocReal(size_t size, SEXP continuation_token) {
+  return R_UnwindProtect(
+    WrappedAllocReal, static_cast<void*>(&size),
+    ThrowExceptionFromRError, nullptr,
+    continuation_token);
+}
+
+SEXP WrappedAllocInteger(void *void_ptr) {
+  size_t *size = static_cast<size_t*>(void_ptr);
+  return Rf_allocVector(INTSXP, *size);
+}
+
+SEXP SafeAllocInteger(size_t size, SEXP continuation_token) {
+  return R_UnwindProtect(
+    WrappedAllocInteger, static_cast<void*>(&size),
     ThrowExceptionFromRError, nullptr,
     continuation_token);
 }
@@ -136,23 +162,92 @@ SEXP SafeMkChar(const char *c_str, SEXP continuation_token) {
   jconfig["nthread"] = Rf_asInteger(n_threads);
   return Json::Dump(jconfig);
 }
+
+// Allocate a R vector and copy an array interface encoded object to it.
+[[nodiscard]] SEXP CopyArrayToR(const char *array_str, SEXP ctoken) {
+  xgboost::ArrayInterface<1> array{xgboost::StringView{array_str}};
+  // R supports only int and double.
+  bool is_int_type =
+      xgboost::DispatchDType(array.type, [](auto t) { return std::is_integral_v<decltype(t)>; });
+  bool is_float = xgboost::DispatchDType(
+      array.type, [](auto v) { return std::is_floating_point_v<decltype(v)>; });
+  CHECK(is_int_type || is_float) << "Internal error: Invalid DType.";
+  CHECK(array.is_contiguous) << "Internal error: Return by XGBoost should be contiguous";
+
+  // Note: the only case in which this will receive an integer type is
+  // for the 'indptr' part of the quantile cut outputs, which comes
+  // in sorted order, so the last element contains the maximum value.
+  bool fits_into_C_int = xgboost::DispatchDType(array.type, [&](auto t) {
+    using T = decltype(t);
+    if (!std::is_integral_v<decltype(t)>) {
+      return false;
+    }
+    auto ptr = static_cast<T const *>(array.data);
+    T last_elt = ptr[array.n - 1];
+    if (last_elt < 0) {
+      last_elt = -last_elt;  // no std::abs overload for all possible types
+    }
+    return last_elt <= std::numeric_limits<int>::max();
+  });
+  bool use_int = is_int_type && fits_into_C_int;
+
+  // Allocate memory in R
+  SEXP out =
+      Rf_protect(use_int ? SafeAllocInteger(array.n, ctoken) : SafeAllocReal(array.n, ctoken));
+
+  xgboost::DispatchDType(array.type, [&](auto t) {
+    using T = decltype(t);
+    auto in_ptr = static_cast<T const *>(array.data);
+    if (use_int) {
+      auto out_ptr = INTEGER(out);
+      std::copy_n(in_ptr, array.n, out_ptr);
+    } else {
+      auto out_ptr = REAL(out);
+      std::copy_n(in_ptr, array.n, out_ptr);
+    }
+  });
+
+  Rf_unprotect(1);
+  return out;
+}
 }  // namespace
+
+struct RRNGStateController {
+  RRNGStateController() {
+    GetRNGstate();
+  }
+
+  ~RRNGStateController() {
+    PutRNGstate();
+  }
+};
 
 /*!
  * \brief macro to annotate begin of api
  */
 #define R_API_BEGIN()                           \
-  GetRNGstate();                                \
-  try {
+  try {                                         \
+    RRNGStateController rng_controller{};
+
+/* Note: an R error triggers a long jump, hence all C++ objects that
+allocated memory through non-R allocators, including the exception
+object, need to be destructed before triggering the R error.
+In order to preserve the error message, it gets copied to a temporary
+buffer, and the R error section is reached through a 'goto' statement
+that bypasses usual function control flow. */
+char cpp_ex_msg[512];
 /*!
  * \brief macro to annotate end of api
  */
 #define R_API_END()                             \
-  } catch(dmlc::Error& e) {                     \
-    PutRNGstate();                              \
-    error(e.what());                            \
+  } catch(std::exception &e) {                  \
+    std::strncpy(cpp_ex_msg, e.what(), 512);    \
+    goto throw_cpp_ex_as_R_err;                 \
   }                                             \
-  PutRNGstate();
+  if (false) {                                  \
+    throw_cpp_ex_as_R_err:                      \
+    Rf_error("%s", cpp_ex_msg);                 \
+  }
 
 /**
  * @brief Macro for checking XGBoost return code.
@@ -165,7 +260,7 @@ SEXP SafeMkChar(const char *c_str, SEXP continuation_token) {
 using dmlc::BeginPtr;
 
 XGB_DLL SEXP XGCheckNullPtr_R(SEXP handle) {
-  return ScalarLogical(R_ExternalPtrAddr(handle) == NULL);
+  return Rf_ScalarLogical(R_ExternalPtrAddr(handle) == nullptr);
 }
 
 XGB_DLL SEXP XGSetArrayDimInplace_R(SEXP arr, SEXP dims) {
@@ -178,13 +273,15 @@ XGB_DLL SEXP XGSetArrayDimNamesInplace_R(SEXP arr, SEXP dim_names) {
   return R_NilValue;
 }
 
-XGB_DLL void _DMatrixFinalizer(SEXP ext) {
+namespace {
+void _DMatrixFinalizer(SEXP ext) {
   R_API_BEGIN();
   if (R_ExternalPtrAddr(ext) == NULL) return;
   CHECK_CALL(XGDMatrixFree(R_ExternalPtrAddr(ext)));
   R_ClearExternalPtr(ext);
   R_API_END();
 }
+} /* namespace */
 
 XGB_DLL SEXP XGBSetGlobalConfig_R(SEXP json_str) {
   R_API_BEGIN();
@@ -442,8 +539,14 @@ XGB_DLL SEXP XGDMatrixSetStrFeatureInfo_R(SEXP handle, SEXP field, SEXP array) {
   }
 
   SEXP str_info_holder = PROTECT(Rf_allocVector(VECSXP, len));
-  for (size_t i = 0; i < len; ++i) {
-    SET_VECTOR_ELT(str_info_holder, i, Rf_asChar(VECTOR_ELT(array, i)));
+  if (TYPEOF(array) == STRSXP) {
+    for (size_t i = 0; i < len; ++i) {
+      SET_VECTOR_ELT(str_info_holder, i, STRING_ELT(array, i));
+    }
+  } else {
+    for (size_t i = 0; i < len; ++i) {
+      SET_VECTOR_ELT(str_info_holder, i, Rf_asChar(VECTOR_ELT(array, i)));
+    }
   }
 
   SEXP field_ = PROTECT(Rf_asChar(field));
@@ -529,15 +632,210 @@ XGB_DLL SEXP XGDMatrixNumCol_R(SEXP handle) {
   return ScalarInteger(static_cast<int>(ncol));
 }
 
+XGB_DLL SEXP XGDuplicate_R(SEXP obj) {
+  return Rf_duplicate(obj);
+}
+
+XGB_DLL SEXP XGPointerEqComparison_R(SEXP obj1, SEXP obj2) {
+  return Rf_ScalarLogical(R_ExternalPtrAddr(obj1) == R_ExternalPtrAddr(obj2));
+}
+
+XGB_DLL SEXP XGDMatrixGetQuantileCut_R(SEXP handle) {
+  const char *out_names[] = {"indptr", "data", ""};
+  SEXP continuation_token = Rf_protect(R_MakeUnwindCont());
+  SEXP out = Rf_protect(Rf_mkNamed(VECSXP, out_names));
+  R_API_BEGIN();
+  const char *out_indptr;
+  const char *out_data;
+  CHECK_CALL(XGDMatrixGetQuantileCut(R_ExternalPtrAddr(handle), "{}", &out_indptr, &out_data));
+  try {
+    SET_VECTOR_ELT(out, 0, CopyArrayToR(out_indptr, continuation_token));
+    SET_VECTOR_ELT(out, 1, CopyArrayToR(out_data, continuation_token));
+  } catch (ErrorWithUnwind &e) {
+    R_ContinueUnwind(continuation_token);
+  }
+  R_API_END();
+  Rf_unprotect(2);
+  return out;
+}
+
+XGB_DLL SEXP XGDMatrixNumNonMissing_R(SEXP handle) {
+  SEXP out = Rf_protect(Rf_allocVector(REALSXP, 1));
+  R_API_BEGIN();
+  bst_ulong out_;
+  CHECK_CALL(XGDMatrixNumNonMissing(R_ExternalPtrAddr(handle), &out_));
+  REAL(out)[0] = static_cast<double>(out_);
+  R_API_END();
+  Rf_unprotect(1);
+  return out;
+}
+
+XGB_DLL SEXP XGDMatrixGetDataAsCSR_R(SEXP handle) {
+  const char *out_names[] = {"indptr", "indices", "data", "ncols", ""};
+  SEXP out = Rf_protect(Rf_mkNamed(VECSXP, out_names));
+  R_API_BEGIN();
+
+  bst_ulong nrows, ncols, nnz;
+  CHECK_CALL(XGDMatrixNumRow(R_ExternalPtrAddr(handle), &nrows));
+  CHECK_CALL(XGDMatrixNumCol(R_ExternalPtrAddr(handle), &ncols));
+  CHECK_CALL(XGDMatrixNumNonMissing(R_ExternalPtrAddr(handle), &nnz));
+  if (std::max(nrows, ncols) > std::numeric_limits<int>::max()) {
+    Rf_error("%s", "Error: resulting DMatrix data does not fit into R 'dgRMatrix'.");
+  }
+
+  SET_VECTOR_ELT(out, 0, Rf_allocVector(INTSXP, nrows + 1));
+  SET_VECTOR_ELT(out, 1, Rf_allocVector(INTSXP, nnz));
+  SET_VECTOR_ELT(out, 2, Rf_allocVector(REALSXP, nnz));
+  SET_VECTOR_ELT(out, 3, Rf_ScalarInteger(ncols));
+
+  std::unique_ptr<bst_ulong[]> indptr(new bst_ulong[nrows + 1]);
+  std::unique_ptr<unsigned[]> indices(new unsigned[nnz]);
+  std::unique_ptr<float[]> data(new float[nnz]);
+
+  CHECK_CALL(XGDMatrixGetDataAsCSR(R_ExternalPtrAddr(handle),
+                                   "{}",
+                                   indptr.get(),
+                                   indices.get(),
+                                   data.get()));
+
+  std::copy(indptr.get(), indptr.get() + nrows + 1, INTEGER(VECTOR_ELT(out, 0)));
+  std::copy(indices.get(), indices.get() + nnz, INTEGER(VECTOR_ELT(out, 1)));
+  std::copy(data.get(), data.get() + nnz, REAL(VECTOR_ELT(out, 2)));
+
+  R_API_END();
+  Rf_unprotect(1);
+  return out;
+}
+
 // functions related to booster
-void _BoosterFinalizer(SEXP ext) {
-  if (R_ExternalPtrAddr(ext) == NULL) return;
-  CHECK_CALL(XGBoosterFree(R_ExternalPtrAddr(ext)));
-  R_ClearExternalPtr(ext);
+namespace {
+void _BoosterFinalizer(SEXP R_ptr) {
+  if (R_ExternalPtrAddr(R_ptr) == NULL) return;
+  CHECK_CALL(XGBoosterFree(R_ExternalPtrAddr(R_ptr)));
+  R_ClearExternalPtr(R_ptr);
+}
+
+/* Booster is represented as an altrep list with one element which
+corresponds to an 'externalptr' holding the C object, forbidding
+modification by not implementing setters, and adding custom serialization. */
+R_altrep_class_t XGBAltrepPointerClass;
+
+R_xlen_t XGBAltrepPointerLength_R(SEXP R_altrepped_obj) {
+  return 1;
+}
+
+SEXP XGBAltrepPointerGetElt_R(SEXP R_altrepped_obj, R_xlen_t idx) {
+  return R_altrep_data1(R_altrepped_obj);
+}
+
+SEXP XGBMakeEmptyAltrep() {
+  SEXP class_name = Rf_protect(Rf_mkString("xgb.Booster"));
+  SEXP elt_names = Rf_protect(Rf_mkString("ptr"));
+  SEXP R_ptr = Rf_protect(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
+  SEXP R_altrepped_obj = Rf_protect(R_new_altrep(XGBAltrepPointerClass, R_ptr, R_NilValue));
+  Rf_setAttrib(R_altrepped_obj, R_NamesSymbol, elt_names);
+  Rf_setAttrib(R_altrepped_obj, R_ClassSymbol, class_name);
+  Rf_unprotect(4);
+  return R_altrepped_obj;
+}
+
+/* Note: the idea for separating this function from the one above is to be
+able to trigger all R allocations first before doing non-R allocations. */
+void XGBAltrepSetPointer(SEXP R_altrepped_obj, BoosterHandle handle) {
+  SEXP R_ptr = R_altrep_data1(R_altrepped_obj);
+  R_SetExternalPtrAddr(R_ptr, handle);
+  R_RegisterCFinalizerEx(R_ptr, _BoosterFinalizer, TRUE);
+}
+
+SEXP XGBAltrepSerializer_R(SEXP R_altrepped_obj) {
+  R_API_BEGIN();
+  BoosterHandle handle = R_ExternalPtrAddr(R_altrep_data1(R_altrepped_obj));
+  char const *serialized_bytes;
+  bst_ulong serialized_length;
+  CHECK_CALL(XGBoosterSerializeToBuffer(
+    handle, &serialized_length, &serialized_bytes));
+  SEXP R_state = Rf_protect(Rf_allocVector(RAWSXP, serialized_length));
+  if (serialized_length != 0) {
+    std::memcpy(RAW(R_state), serialized_bytes, serialized_length);
+  }
+  Rf_unprotect(1);
+  return R_state;
+  R_API_END();
+  return R_NilValue; /* <- should not be reached */
+}
+
+SEXP XGBAltrepDeserializer_R(SEXP unused, SEXP R_state) {
+  SEXP R_altrepped_obj = Rf_protect(XGBMakeEmptyAltrep());
+  R_API_BEGIN();
+  BoosterHandle handle = nullptr;
+  CHECK_CALL(XGBoosterCreate(nullptr, 0, &handle));
+  int res_code = XGBoosterUnserializeFromBuffer(handle,
+                                                RAW(R_state),
+                                                Rf_xlength(R_state));
+  if (res_code != 0) {
+    XGBoosterFree(handle);
+  }
+  CHECK_CALL(res_code);
+  XGBAltrepSetPointer(R_altrepped_obj, handle);
+  R_API_END();
+  Rf_unprotect(1);
+  return R_altrepped_obj;
+}
+
+// https://purrple.cat/blog/2018/10/14/altrep-and-cpp/
+Rboolean XGBAltrepInspector_R(
+  SEXP x, int pre, int deep, int pvec,
+  void (*inspect_subtree)(SEXP, int, int, int)) {
+  Rprintf("Altrepped external pointer [address:%p]\n",
+          R_ExternalPtrAddr(R_altrep_data1(x)));
+  return TRUE;
+}
+
+SEXP XGBAltrepDuplicate_R(SEXP R_altrepped_obj, Rboolean deep) {
+  R_API_BEGIN();
+  if (!deep) {
+    SEXP out = Rf_protect(XGBMakeEmptyAltrep());
+    R_set_altrep_data1(out, R_altrep_data1(R_altrepped_obj));
+    Rf_unprotect(1);
+    return out;
+  } else {
+    SEXP out = Rf_protect(XGBMakeEmptyAltrep());
+    char const *serialized_bytes;
+    bst_ulong serialized_length;
+    CHECK_CALL(XGBoosterSerializeToBuffer(
+      R_ExternalPtrAddr(R_altrep_data1(R_altrepped_obj)),
+      &serialized_length, &serialized_bytes));
+    BoosterHandle new_handle = nullptr;
+    CHECK_CALL(XGBoosterCreate(nullptr, 0, &new_handle));
+    int res_code = XGBoosterUnserializeFromBuffer(new_handle,
+                                                  serialized_bytes,
+                                                  serialized_length);
+    if (res_code != 0) {
+      XGBoosterFree(new_handle);
+    }
+    CHECK_CALL(res_code);
+    XGBAltrepSetPointer(out, new_handle);
+    Rf_unprotect(1);
+    return out;
+  }
+  R_API_END();
+  return R_NilValue; /* <- should not be reached */
+}
+
+} /* namespace */
+
+XGB_DLL void XGBInitializeAltrepClass_R(DllInfo *dll) {
+  XGBAltrepPointerClass = R_make_altlist_class("XGBAltrepPointerClass", "xgboost", dll);
+  R_set_altrep_Length_method(XGBAltrepPointerClass, XGBAltrepPointerLength_R);
+  R_set_altlist_Elt_method(XGBAltrepPointerClass, XGBAltrepPointerGetElt_R);
+  R_set_altrep_Inspect_method(XGBAltrepPointerClass, XGBAltrepInspector_R);
+  R_set_altrep_Serialized_state_method(XGBAltrepPointerClass, XGBAltrepSerializer_R);
+  R_set_altrep_Unserialize_method(XGBAltrepPointerClass, XGBAltrepDeserializer_R);
+  R_set_altrep_Duplicate_method(XGBAltrepPointerClass, XGBAltrepDuplicate_R);
 }
 
 XGB_DLL SEXP XGBoosterCreate_R(SEXP dmats) {
-  SEXP ret = PROTECT(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
+  SEXP out = Rf_protect(XGBMakeEmptyAltrep());
   R_API_BEGIN();
   R_xlen_t len = Rf_xlength(dmats);
   BoosterHandle handle;
@@ -551,31 +849,102 @@ XGB_DLL SEXP XGBoosterCreate_R(SEXP dmats) {
     res_code = XGBoosterCreate(BeginPtr(dvec), dvec.size(), &handle);
   }
   CHECK_CALL(res_code);
-  R_SetExternalPtrAddr(ret, handle);
-  R_RegisterCFinalizerEx(ret, _BoosterFinalizer, TRUE);
+  XGBAltrepSetPointer(out, handle);
   R_API_END();
-  UNPROTECT(1);
-  return ret;
+  Rf_unprotect(1);
+  return out;
 }
 
-XGB_DLL SEXP XGBoosterCreateInEmptyObj_R(SEXP dmats, SEXP R_handle) {
+XGB_DLL SEXP XGBoosterCopyInfoFromDMatrix_R(SEXP booster, SEXP dmat) {
   R_API_BEGIN();
-  R_xlen_t len = Rf_xlength(dmats);
-  BoosterHandle handle;
+  char const **feature_names;
+  bst_ulong len_feature_names = 0;
+  CHECK_CALL(XGDMatrixGetStrFeatureInfo(R_ExternalPtrAddr(dmat),
+                                        "feature_name",
+                                        &len_feature_names,
+                                        &feature_names));
+  if (len_feature_names) {
+    CHECK_CALL(XGBoosterSetStrFeatureInfo(R_ExternalPtrAddr(booster),
+                                          "feature_name",
+                                          feature_names,
+                                          len_feature_names));
+  }
+
+  char const **feature_types;
+  bst_ulong len_feature_types = 0;
+  CHECK_CALL(XGDMatrixGetStrFeatureInfo(R_ExternalPtrAddr(dmat),
+                                        "feature_type",
+                                        &len_feature_types,
+                                        &feature_types));
+  if (len_feature_types) {
+    CHECK_CALL(XGBoosterSetStrFeatureInfo(R_ExternalPtrAddr(booster),
+                                          "feature_type",
+                                          feature_types,
+                                          len_feature_types));
+  }
+  R_API_END();
+  return R_NilValue;
+}
+
+XGB_DLL SEXP XGBoosterSetStrFeatureInfo_R(SEXP handle, SEXP field, SEXP features) {
+  R_API_BEGIN();
+  SEXP field_char = Rf_protect(Rf_asChar(field));
+  bst_ulong len_features = Rf_xlength(features);
 
   int res_code;
   {
-    std::vector<void*> dvec(len);
-    for (R_xlen_t i = 0; i < len; ++i) {
-      dvec[i] = R_ExternalPtrAddr(VECTOR_ELT(dmats, i));
+    std::vector<const char*> str_arr(len_features);
+    for (bst_ulong idx = 0; idx < len_features; idx++) {
+      str_arr[idx] = CHAR(STRING_ELT(features, idx));
     }
-    res_code = XGBoosterCreate(BeginPtr(dvec), dvec.size(), &handle);
+    res_code = XGBoosterSetStrFeatureInfo(R_ExternalPtrAddr(handle),
+                                          CHAR(field_char),
+                                          str_arr.data(),
+                                          len_features);
   }
   CHECK_CALL(res_code);
-  R_SetExternalPtrAddr(R_handle, handle);
-  R_RegisterCFinalizerEx(R_handle, _BoosterFinalizer, TRUE);
+  Rf_unprotect(1);
   R_API_END();
   return R_NilValue;
+}
+
+XGB_DLL SEXP XGBoosterGetStrFeatureInfo_R(SEXP handle, SEXP field) {
+  R_API_BEGIN();
+  bst_ulong len;
+  const char **out_features;
+  SEXP field_char = Rf_protect(Rf_asChar(field));
+  CHECK_CALL(XGBoosterGetStrFeatureInfo(R_ExternalPtrAddr(handle),
+                                        CHAR(field_char), &len, &out_features));
+  SEXP out = Rf_protect(Rf_allocVector(STRSXP, len));
+  for (bst_ulong idx = 0; idx < len; idx++) {
+    SET_STRING_ELT(out, idx, Rf_mkChar(out_features[idx]));
+  }
+  Rf_unprotect(2);
+  return out;
+  R_API_END();
+  return R_NilValue; /* <- should not be reached */
+}
+
+XGB_DLL SEXP XGBoosterBoostedRounds_R(SEXP handle) {
+  SEXP out = Rf_protect(Rf_allocVector(INTSXP, 1));
+  R_API_BEGIN();
+  CHECK_CALL(XGBoosterBoostedRounds(R_ExternalPtrAddr(handle), INTEGER(out)));
+  R_API_END();
+  Rf_unprotect(1);
+  return out;
+}
+
+/* Note: R's integer class is 32-bit-and-signed only, while xgboost
+supports more, so it returns it as a floating point instead */
+XGB_DLL SEXP XGBoosterGetNumFeature_R(SEXP handle) {
+  SEXP out = Rf_protect(Rf_allocVector(REALSXP, 1));
+  R_API_BEGIN();
+  bst_ulong res;
+  CHECK_CALL(XGBoosterGetNumFeature(R_ExternalPtrAddr(handle), &res));
+  REAL(out)[0] = static_cast<double>(res);
+  R_API_END();
+  Rf_unprotect(1);
+  return out;
 }
 
 XGB_DLL SEXP XGBoosterSetParam_R(SEXP handle, SEXP name, SEXP val) {
@@ -593,8 +962,8 @@ XGB_DLL SEXP XGBoosterSetParam_R(SEXP handle, SEXP name, SEXP val) {
 XGB_DLL SEXP XGBoosterUpdateOneIter_R(SEXP handle, SEXP iter, SEXP dtrain) {
   R_API_BEGIN();
   CHECK_CALL(XGBoosterUpdateOneIter(R_ExternalPtrAddr(handle),
-                                  asInteger(iter),
-                                  R_ExternalPtrAddr(dtrain)));
+                                    Rf_asInteger(iter),
+                                    R_ExternalPtrAddr(dtrain)));
   R_API_END();
   return R_NilValue;
 }

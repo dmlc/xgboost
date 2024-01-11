@@ -2,7 +2,7 @@
 % Please edit documentation in R/xgb.plot.multi.trees.R
 \name{xgb.plot.multi.trees}
 \alias{xgb.plot.multi.trees}
-\title{Project all trees on one tree and plot it}
+\title{Project all trees on one tree}
 \usage{
 xgb.plot.multi.trees(
   model,
@@ -15,29 +15,31 @@ xgb.plot.multi.trees(
 )
 }
 \arguments{
-\item{model}{produced by the \code{xgb.train} function.}
+\item{model}{Object of class \code{xgb.Booster}.}
 
-\item{feature_names}{names of each feature as a \code{character} vector.}
+\item{feature_names}{Character vector used to overwrite the feature names
+of the model. The default (\code{NULL}) uses the original feature names.}
 
-\item{features_keep}{number of features to keep in each position of the multi trees.}
+\item{features_keep}{Number of features to keep in each position of the multi trees,
+by default 5.}
 
-\item{plot_width}{width in pixels of the graph to produce}
+\item{plot_width, plot_height}{Width and height of the graph in pixels.
+The values are passed to \code{\link[DiagrammeR:render_graph]{DiagrammeR::render_graph()}}.}
 
-\item{plot_height}{height in pixels of the graph to produce}
+\item{render}{Should the graph be rendered or not? The default is \code{TRUE}.}
 
-\item{render}{a logical flag for whether the graph should be rendered (see Value).}
-
-\item{...}{currently not used}
+\item{...}{currently not used.}
 }
 \value{
-When \code{render = TRUE}:
-returns a rendered graph object which is an \code{htmlwidget} of class \code{grViz}.
-Similar to ggplot objects, it needs to be printed to see it when not running from command line.
-
-When \code{render = FALSE}:
-silently returns a graph object which is of DiagrammeR's class \code{dgr_graph}.
+The value depends on the \code{render} parameter:
+\itemize{
+\item If \code{render = TRUE} (default): Rendered graph object which is an htmlwidget of
+class \code{grViz}. Similar to "ggplot" objects, it needs to be printed when not
+running from the command line.
+\item If \code{render = FALSE}: Graph object which is of DiagrammeR's class \code{dgr_graph}.
 This could be useful if one wants to modify some of the graph attributes
-before rendering the graph with \code{\link[DiagrammeR]{render_graph}}.
+before rendering the graph with \code{\link[DiagrammeR:render_graph]{DiagrammeR::render_graph()}}.
+}
 }
 \description{
 Visualization of the ensemble of trees as a single collective unit.
@@ -62,15 +64,22 @@ This function is inspired by this blog post:
 }
 \examples{
 
-data(agaricus.train, package='xgboost')
+data(agaricus.train, package = "xgboost")
+
 ## Keep the number of threads to 2 for examples
 nthread <- 2
 data.table::setDTthreads(nthread)
 
 bst <- xgboost(
-  data = agaricus.train$data, label = agaricus.train$label, max_depth = 15,
-  eta = 1, nthread = nthread, nrounds = 30, objective = "binary:logistic",
-  min_child_weight = 50, verbose = 0
+  data = agaricus.train$data,
+  label = agaricus.train$label,
+  max_depth = 15,
+  eta = 1,
+  nthread = nthread,
+  nrounds = 30,
+  objective = "binary:logistic",
+  min_child_weight = 50,
+  verbose = 0
 )
 
 p <- xgb.plot.multi.trees(model = bst, features_keep = 3)
@@ -78,10 +87,13 @@ print(p)
 
 \dontrun{
 # Below is an example of how to save this plot to a file.
-# Note that for `export_graph` to work, the DiagrammeRsvg and rsvg packages must also be installed.
+# Note that for export_graph() to work, the {DiagrammeRsvg} and {rsvg} packages
+# must also be installed.
+
 library(DiagrammeR)
-gr <- xgb.plot.multi.trees(model=bst, features_keep = 3, render=FALSE)
-export_graph(gr, 'tree.pdf', width=1500, height=600)
+
+gr <- xgb.plot.multi.trees(model = bst, features_keep = 3, render = FALSE)
+export_graph(gr, "tree.pdf", width = 1500, height = 600)
 }
 
 }

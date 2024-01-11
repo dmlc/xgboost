@@ -1,4 +1,4 @@
-"""Copyright 2019-2022 XGBoost contributors"""
+"""Copyright 2019-2023, XGBoost contributors"""
 import asyncio
 import json
 from collections import OrderedDict
@@ -18,6 +18,7 @@ from xgboost.testing.params import hist_parameter_strategy
 pytestmark = [
     pytest.mark.skipif(**tm.no_dask()),
     pytest.mark.skipif(**tm.no_dask_cuda()),
+    tm.timeout(60),
 ]
 
 from ..test_with_dask.test_with_dask import generate_array
@@ -629,6 +630,7 @@ def test_nccl_load(local_cuda_client: Client, tree_method: str) -> None:
     def run(wid: int) -> None:
         # FIXME(jiamingy): https://github.com/dmlc/xgboost/issues/9147
         from xgboost.core import _LIB, _register_log_callback
+
         _register_log_callback(_LIB)
 
         with CommunicatorContext(**args):

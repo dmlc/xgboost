@@ -39,7 +39,7 @@ from .core import (
     _deprecate_positional_args,
     _parse_eval_str,
 )
-from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_array, _is_pandas_df
+from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_alike, _is_pandas_df
 from .training import train
 
 
@@ -192,11 +192,16 @@ __model_doc = f"""
         Boosting learning rate (xgb's "eta")
     verbosity : Optional[int]
         The degree of verbosity. Valid values are 0 (silent) - 3 (debug).
+
     objective : {SklObjective}
-        Specify the learning task and the corresponding learning objective or
-        a custom objective function to be used (see note below).
+
+        Specify the learning task and the corresponding learning objective or a custom
+        objective function to be used. For custom objective, see
+        :doc:`/tutorials/custom_metric_obj` and :ref:`custom-obj-metric` for more
+        information.
+
     booster: Optional[str]
-        Specify which booster to use: gbtree, gblinear or dart.
+        Specify which booster to use: `gbtree`, `gblinear` or `dart`.
     tree_method: Optional[str]
         Specify which tree method to use.  Default to auto.  If this parameter is set to
         default, XGBoost will choose the most conservative option available.  It's
@@ -328,21 +333,21 @@ __model_doc = f"""
 
         Metric used for monitoring the training result and early stopping.  It can be a
         string or list of strings as names of predefined metric in XGBoost (See
-        doc/parameter.rst), one of the metrics in :py:mod:`sklearn.metrics`, or any other
-        user defined metric that looks like `sklearn.metrics`.
+        doc/parameter.rst), one of the metrics in :py:mod:`sklearn.metrics`, or any
+        other user defined metric that looks like `sklearn.metrics`.
 
         If custom objective is also provided, then custom metric should implement the
         corresponding reverse link function.
 
         Unlike the `scoring` parameter commonly used in scikit-learn, when a callable
-        object is provided, it's assumed to be a cost function and by default XGBoost will
-        minimize the result during early stopping.
+        object is provided, it's assumed to be a cost function and by default XGBoost
+        will minimize the result during early stopping.
 
-        For advanced usage on Early stopping like directly choosing to maximize instead of
-        minimize, see :py:obj:`xgboost.callback.EarlyStopping`.
+        For advanced usage on Early stopping like directly choosing to maximize instead
+        of minimize, see :py:obj:`xgboost.callback.EarlyStopping`.
 
-        See :doc:`Custom Objective and Evaluation Metric </tutorials/custom_metric_obj>`
-        for more.
+        See :doc:`/tutorials/custom_metric_obj` and :ref:`custom-obj-metric` for more
+        information.
 
         .. note::
 
@@ -1006,7 +1011,7 @@ class XGBModel(XGBModelBase):
         sample_weight :
             instance weights
         base_margin :
-            global bias for each instance.
+            Global bias for each instance. See :doc:`/tutorials/intercept` for details.
         eval_set :
             A list of (X, y) tuple pairs to use as validation sets, for which
             metrics will be computed.
@@ -1146,7 +1151,7 @@ class XGBModel(XGBModelBase):
             When this is True, validate that the Booster's and data's feature_names are
             identical.  Otherwise, it is assumed that the feature_names are the same.
         base_margin :
-            Margin added to prediction.
+            Global bias for each instance. See :doc:`/tutorials/intercept` for details.
         iteration_range :
             Specifies which layer of trees are used in prediction.  For example, if a
             random forest is trained with 100 rounds.  Specifying ``iteration_range=(10,
@@ -1172,7 +1177,7 @@ class XGBModel(XGBModelBase):
                         base_margin=base_margin,
                         validate_features=validate_features,
                     )
-                    if _is_cupy_array(predts):
+                    if _is_cupy_alike(predts):
                         import cupy  # pylint: disable=import-error
 
                         predts = cupy.asnumpy(predts)  # ensure numpy array is used.
@@ -1453,7 +1458,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                 classes = cp.unique(y.values)
                 self.n_classes_ = len(classes)
                 expected_classes = cp.array(self.classes_)
-            elif _is_cupy_array(y):
+            elif _is_cupy_alike(y):
                 import cupy as cp  # pylint: disable=E0401
 
                 classes = cp.unique(y)
@@ -1599,7 +1604,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             When this is True, validate that the Booster's and data's feature_names are
             identical.  Otherwise, it is assumed that the feature_names are the same.
         base_margin :
-            Margin added to prediction.
+            Global bias for each instance. See :doc:`/tutorials/intercept` for details.
         iteration_range :
             Specifies which layer of trees are used in prediction.  For example, if a
             random forest is trained with 100 rounds.  Specifying `iteration_range=(10,
@@ -1942,7 +1947,7 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
                 weights to individual data points.
 
         base_margin :
-            Global bias for each instance.
+            Global bias for each instance. See :doc:`/tutorials/intercept` for details.
         eval_set :
             A list of (X, y) tuple pairs to use as validation sets, for which
             metrics will be computed.
