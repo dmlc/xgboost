@@ -282,9 +282,8 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
 
 
   if (!is.null(iterationrange)) {
-    if (is.character(iterationrange) &&
-        length(iterationrange) == 1 &&
-        iterationrange == "all") {
+    if (is.character(iterationrange)) {
+      stopifnot(iterationrange == "all")
       iterationrange <- c(0, 0)
     } else {
       iterationrange[1] <- iterationrange[1] - 1 # base-0 indexing
