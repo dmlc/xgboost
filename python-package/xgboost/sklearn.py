@@ -976,18 +976,6 @@ class XGBModel(XGBModelBase):
             metrics will be computed.
             Validation metrics will help us track the performance of the model.
 
-        eval_metric : str, list of str, or callable, optional
-
-            .. deprecated:: 1.6.0
-
-            Use `eval_metric` in :py:meth:`__init__` or :py:meth:`set_params` instead.
-
-        early_stopping_rounds : int
-
-            .. deprecated:: 1.6.0
-
-            Use `early_stopping_rounds` in :py:meth:`__init__` or :py:meth:`set_params`
-            instead.
         verbose :
             If `verbose` is True and an evaluation set is used, the evaluation metric
             measured on the validation set is printed to stdout at each boosting stage.
@@ -1007,10 +995,6 @@ class XGBModel(XGBModelBase):
             Weight for each feature, defines the probability of each feature being
             selected when colsample is being used.  All values must be greater than 0,
             otherwise a `ValueError` is thrown.
-
-        callbacks :
-            .. deprecated:: 1.6.0
-                Use `callbacks` in :py:meth:`__init__` or :py:meth:`set_params` instead.
 
         """
         with config_context(verbosity=self.verbosity):
