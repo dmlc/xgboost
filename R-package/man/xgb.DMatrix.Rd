@@ -166,7 +166,8 @@ Function 'xgb.QuantileDMatrix' will construct a DMatrix with quantization for th
 method already applied to it, which can be used to reduce memory usage (compared to using a
 a regular DMatrix first and then creating a quantization out of it) when using the histogram
 method (\code{tree_method = "hist"}, which is the default algorithm), but is not usable for the
-sorted-indices method (\code{tree_method = "exact"}).
+sorted-indices method (\code{tree_method = "exact"}), nor for the approximate method
+(\code{tree_method = "approx"}).
 
 Note that DMatrix objects are not serializable through R functions such as \code{saveRDS} or \code{save}.
 If a DMatrix gets serialized and then de-serialized (for example, when saving data in an R session or caching

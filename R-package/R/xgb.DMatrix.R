@@ -7,7 +7,8 @@
 #' method already applied to it, which can be used to reduce memory usage (compared to using a
 #' a regular DMatrix first and then creating a quantization out of it) when using the histogram
 #' method (`tree_method = "hist"`, which is the default algorithm), but is not usable for the
-#' sorted-indices method (`tree_method = "exact"`).
+#' sorted-indices method (`tree_method = "exact"`), nor for the approximate method
+#' (`tree_method = "approx"`).
 #' @param data Data from which to create a DMatrix, which can then be used for fitting models or
 #' for getting predictions out of a fitted model.
 #'
