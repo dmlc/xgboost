@@ -61,7 +61,7 @@ from typing import (
 import numpy
 
 from xgboost import collective, config
-from xgboost._typing import _T, FeatureNames, FeatureTypes, ModelIn
+from xgboost._typing import _T, FeatureNames, FeatureTypes
 from xgboost.callback import TrainingCallback
 from xgboost.compat import DataFrame, LazyLoader, concat, lazy_isinstance
 from xgboost.core import (
