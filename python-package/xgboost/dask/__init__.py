@@ -2047,7 +2047,7 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
     def __init__(self, *, objective: str = "rank:pairwise", **kwargs: Any):
         if callable(objective):
             raise ValueError("Custom objective function not supported by XGBRanker.")
-        super().__init__(objective=objective, kwargs=kwargs)
+        super().__init__(objective=objective, **kwargs)
 
     async def _fit_async(
         self,
