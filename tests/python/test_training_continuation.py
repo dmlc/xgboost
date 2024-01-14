@@ -149,8 +149,8 @@ class TestTrainingContinuation:
         from sklearn.datasets import load_breast_cancer
 
         X, y = load_breast_cancer(return_X_y=True)
-        clf = xgb.XGBClassifier(n_estimators=2)
-        clf.fit(X, y, eval_set=[(X, y)], eval_metric="logloss")
+        clf = xgb.XGBClassifier(n_estimators=2, eval_metric="logloss")
+        clf.fit(X, y, eval_set=[(X, y)])
         assert tm.non_increasing(clf.evals_result()["validation_0"]["logloss"])
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -160,5 +160,6 @@ class TestTrainingContinuation:
 
         clf = xgb.XGBClassifier(n_estimators=2)
         # change metric to error
-        clf.fit(X, y, eval_set=[(X, y)], eval_metric="error")
+        clf.set_params(eval_metric="error")
+        clf.fit(X, y, eval_set=[(X, y)], xgb_model=loaded)
         assert tm.non_increasing(clf.evals_result()["validation_0"]["error"])
