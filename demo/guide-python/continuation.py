@@ -56,8 +56,10 @@ def training_continuation_early_stop(tmpdir: str, use_pickle: bool) -> None:
     n_estimators = 512
 
     X, y = load_breast_cancer(return_X_y=True)
-    clf = xgboost.XGBClassifier(n_estimators=n_estimators, eval_metric="logloss")
-    clf.fit(X, y, eval_set=[(X, y)], callbacks=[early_stop])
+    clf = xgboost.XGBClassifier(
+        n_estimators=n_estimators, eval_metric="logloss", callbacks=[early_stop]
+    )
+    clf.fit(X, y, eval_set=[(X, y)])
     print("Total boosted rounds:", clf.get_booster().num_boosted_rounds())
     best = clf.best_iteration
 
@@ -70,6 +72,7 @@ def training_continuation_early_stop(tmpdir: str, use_pickle: bool) -> None:
     early_stop = xgboost.callback.EarlyStopping(
         rounds=early_stopping_rounds, save_best=True
     )
+    clf.set_params(callbacks=[early_stop])
     clf.fit(X, y, eval_set=[(X, y)])
     assert clf.get_booster().num_boosted_rounds() == 128
 
