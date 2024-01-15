@@ -51,6 +51,7 @@ class Loop {
   common::Monitor mutable timer_;
 
   Result EmptyQueue(std::queue<Op>* p_queue) const;
+  // The cunsumer function that runs inside a worker thread.
   void Process();
 
  public:

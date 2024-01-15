@@ -200,7 +200,7 @@ Loop::Loop(std::chrono::seconds timeout) : timeout_{timeout} {
       std::lock_guard<std::mutex> guard{mu_};
       if (!curr_exce_) {
         curr_exce_ = std::current_exception();
-        rc_ = Fail("Exception was thrown");
+        rc_ = Fail("Exception inside the event loop:" + std::string{e.what()});
       }
       stop_ = true;
       cv_.notify_all();
@@ -208,7 +208,7 @@ Loop::Loop(std::chrono::seconds timeout) : timeout_{timeout} {
       std::lock_guard<std::mutex> guard{mu_};
       if (!curr_exce_) {
         curr_exce_ = std::current_exception();
-        rc_ = Fail("Exception was thrown");
+        rc_ = Fail("An exception was thrown inside the event loop.");
       }
       stop_ = true;
       cv_.notify_all();
