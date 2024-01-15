@@ -4,7 +4,7 @@ facilities.
 # Directories
   * ci_build:  Test facilities for Jenkins CI and GitHub action.
   * cli: Basic test for command line executable `xgboost`.  Most of the other command line
-    specific tests are in Python test `test_cli.py`
+    specific tests are in Python test `test_cli.py`.
   * cpp: Tests for C++ core, using Google test framework.
   * python: Tests for Python package, demonstrations and CLI.  For how to setup the
     dependencies for tests, see conda files in `ci_build`.
