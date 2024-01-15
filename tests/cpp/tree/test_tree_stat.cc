@@ -31,13 +31,12 @@ class UpdaterTreeStatTest : public ::testing::Test {
     gpairs_.Data()->Copy(g);
   }
 
-  void RunTest(std::string updater) {
+  void RunTest(Context const* ctx, std::string updater) {
     tree::TrainParam param;
     ObjInfo task{ObjInfo::kRegression};
     param.Init(Args{});
 
-    Context ctx(updater == "grow_gpu_hist" ? MakeCUDACtx(0) : MakeCUDACtx(DeviceOrd::CPUOrdinal()));
-    auto up = std::unique_ptr<TreeUpdater>{TreeUpdater::Create(updater, &ctx, &task)};
+    auto up = std::unique_ptr<TreeUpdater>{TreeUpdater::Create(updater, ctx, &task)};
     up->Configure(Args{});
     RegTree tree{1u, kCols};
     std::vector<HostDeviceVector<bst_node_t>> position(1);
@@ -54,16 +53,31 @@ class UpdaterTreeStatTest : public ::testing::Test {
 };
 
 #if defined(XGBOOST_USE_CUDA)
-TEST_F(UpdaterTreeStatTest, GpuHist) { this->RunTest("grow_gpu_hist"); }
+TEST_F(UpdaterTreeStatTest, GpuHist) {
+  auto ctx = MakeCUDACtx(0);
+  this->RunTest(&ctx, "grow_gpu_hist");
+}
 
-TEST_F(UpdaterTreeStatTest, GpuApprox) { this->RunTest("grow_gpu_approx"); }
+TEST_F(UpdaterTreeStatTest, GpuApprox) {
+  auto ctx = MakeCUDACtx(0);
+  this->RunTest(&ctx, "grow_gpu_approx");
+}
 #endif  // defined(XGBOOST_USE_CUDA)
 
-TEST_F(UpdaterTreeStatTest, Hist) { this->RunTest("grow_quantile_histmaker"); }
+TEST_F(UpdaterTreeStatTest, Hist) {
+  Context ctx;
+  this->RunTest(&ctx, "grow_quantile_histmaker");
+}
 
-TEST_F(UpdaterTreeStatTest, Exact) { this->RunTest("grow_colmaker"); }
+TEST_F(UpdaterTreeStatTest, Exact) {
+  Context ctx;
+  this->RunTest(&ctx, "grow_colmaker");
+}
 
-TEST_F(UpdaterTreeStatTest, Approx) { this->RunTest("grow_histmaker"); }
+TEST_F(UpdaterTreeStatTest, Approx) {
+  Context ctx;
+  this->RunTest(&ctx, "grow_histmaker");
+}
 
 /**
  * @brief Test changing learning rate doesn't change internal splits.
