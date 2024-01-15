@@ -3,9 +3,17 @@
  */
 #include "loop.h"
 
-#include <queue>  // for queue
+#include <cstddef>    // for size_t
+#include <cstdint>    // for int32_t
+#include <exception>  // for exception, current_exception, rethrow_exception
+#include <mutex>      // for lock_guard, unique_lock
+#include <queue>      // for queue
+#include <string>     // for string
+#include <thread>     // for thread
+#include <utility>    // for move
 
 #include "rabit/internal/socket.h"      // for PollHelper
+#include "xgboost/collective/result.h"  // for Fail, Success
 #include "xgboost/collective/socket.h"  // for FailWithCode
 #include "xgboost/logging.h"            // for CHECK
 

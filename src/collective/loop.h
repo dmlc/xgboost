@@ -10,7 +10,6 @@
 #include <mutex>               // for unique_lock, mutex
 #include <queue>               // for queue
 #include <thread>              // for thread
-#include <utility>             // for move
 
 #include "../common/timer.h"            // for Monitor
 #include "xgboost/collective/result.h"  // for Result
