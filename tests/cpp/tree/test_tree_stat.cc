@@ -66,45 +66,6 @@ TEST_F(UpdaterTreeStatTest, Exact) { this->RunTest("grow_colmaker"); }
 TEST_F(UpdaterTreeStatTest, Approx) { this->RunTest("grow_histmaker"); }
 
 /**
- * @brief Test the learning rate is correctly applied to leaf value.
- */
-class UpdaterEtaTest : public ::testing::Test {
- protected:
-  std::shared_ptr<DMatrix> p_dmat_;
-  linalg::Matrix<GradientPair> gpairs_;
-  size_t constexpr static kRows = 10;
-  size_t constexpr static kCols = 10;
-  size_t constexpr static kClasses = 10;
-
-  void SetUp() override {
-    p_dmat_ = RandomDataGenerator(kRows, kCols, .5f).GenerateDMatrix(true, false, kClasses);
-    auto g = GenerateRandomGradients(kRows);
-    gpairs_.Reshape(kRows, 1);
-    gpairs_.Data()->Copy(g);
-  }
-
-  void RunTest(std::string updater) {
-    ObjInfo task{ObjInfo::kClassification};
-
-    Context ctx(updater == "grow_gpu_hist" ? MakeCUDACtx(0) : MakeCUDACtx(DeviceOrd::CPUOrdinal()));
-
-
-  }
-};
-
-TEST_F(UpdaterEtaTest, Hist) { this->RunTest("grow_quantile_histmaker"); }
-
-TEST_F(UpdaterEtaTest, Exact) { this->RunTest("grow_colmaker"); }
-
-TEST_F(UpdaterEtaTest, Approx) { this->RunTest("grow_histmaker"); }
-
-#if defined(XGBOOST_USE_CUDA)
-TEST_F(UpdaterEtaTest, GpuHist) { this->RunTest("grow_gpu_hist"); }
-
-TEST_F(UpdaterEtaTest, GpuApprox) { this->RunTest("grow_gpu_approx"); }
-#endif  // defined(XGBOOST_USE_CUDA)
-
-/**
  * @brief Test changing learning rate doesn't change internal splits.
  */
 class TestSplitWithEta : public ::testing::Test {
