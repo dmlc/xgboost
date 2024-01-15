@@ -5,7 +5,6 @@
 \title{Plot boosted trees}
 \usage{
 xgb.plot.tree(
-  feature_names = NULL,
   model = NULL,
   trees = NULL,
   plot_width = NULL,
@@ -17,10 +16,8 @@ xgb.plot.tree(
 )
 }
 \arguments{
-\item{feature_names}{Character vector used to overwrite the feature names
-of the model. The default (\code{NULL}) uses the original feature names.}
-
-\item{model}{Object of class \code{xgb.Booster}.}
+\item{model}{Object of class \code{xgb.Booster}. If it contains feature names (they can be set through
+\link{setinfo}), they will be used in the output from this function.}
 
 \item{trees}{An integer vector of tree indices that should be used.
 The default (\code{NULL}) uses all trees.

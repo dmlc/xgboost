@@ -2,9 +2,8 @@
 #'
 #' Read a tree model text dump and plot the model.
 #'
-#' @param feature_names Character vector used to overwrite the feature names
-#'        of the model. The default (`NULL`) uses the original feature names.
-#' @param model Object of class `xgb.Booster`.
+#' @param model Object of class `xgb.Booster`. If it contains feature names (they can be set through
+#'        \link{setinfo}), they will be used in the output from this function.
 #' @param trees An integer vector of tree indices that should be used.
 #'        The default (`NULL`) uses all trees.
 #'        Useful, e.g., in multiclass classification to get only
@@ -103,7 +102,7 @@
 #' }
 #'
 #' @export
-xgb.plot.tree <- function(feature_names = NULL, model = NULL, trees = NULL, plot_width = NULL, plot_height = NULL,
+xgb.plot.tree <- function(model = NULL, trees = NULL, plot_width = NULL, plot_height = NULL,
                           render = TRUE, show_node_id = FALSE, style = c("R", "xgboost"), ...) {
   check.deprecation(...)
   if (!inherits(model, "xgb.Booster")) {
@@ -120,17 +119,12 @@ xgb.plot.tree <- function(feature_names = NULL, model = NULL, trees = NULL, plot
     if (NROW(trees) != 1L || !render || show_node_id) {
       stop("style='xgboost' is only supported for single, rendered tree, without node IDs.")
     }
-    if (!is.null(feature_names)) {
-      stop(
-        "style='xgboost' cannot override 'feature_names'. Will automatically take them from the model."
-      )
-    }
 
     txt <- xgb.dump(model, dump_format = "dot")
     return(DiagrammeR::grViz(txt[[trees + 1]], width = plot_width, height = plot_height))
   }
 
-  dt <- xgb.model.dt.tree(feature_names = feature_names, model = model, trees = trees)
+  dt <- xgb.model.dt.tree(model = model, trees = trees)
 
   dt[, label := paste0(Feature, "\nCover: ", Cover, ifelse(Feature == "Leaf", "\nValue: ", "\nGain: "), Gain)]
   if (show_node_id)

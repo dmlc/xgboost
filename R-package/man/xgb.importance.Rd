@@ -5,8 +5,8 @@
 \title{Feature importance}
 \usage{
 xgb.importance(
-  feature_names = NULL,
   model = NULL,
+  feature_names = getinfo(model, "feature_name"),
   trees = NULL,
   data = NULL,
   label = NULL,
@@ -14,10 +14,10 @@ xgb.importance(
 )
 }
 \arguments{
+\item{model}{Object of class \code{xgb.Booster}.}
+
 \item{feature_names}{Character vector used to overwrite the feature names
 of the model. The default is \code{NULL} (use original feature names).}
-
-\item{model}{Object of class \code{xgb.Booster}.}
 
 \item{trees}{An integer vector of tree indices that should be included
 into the importance calculation (only for the "gbtree" booster).
