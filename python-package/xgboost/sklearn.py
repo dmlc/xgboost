@@ -349,12 +349,6 @@ __model_doc = f"""
         See :doc:`/tutorials/custom_metric_obj` and :ref:`custom-obj-metric` for more
         information.
 
-        .. note::
-
-             This parameter replaces `eval_metric` in :py:meth:`fit` method.  The old
-             one receives un-transformed prediction regardless of whether custom
-             objective is being used.
-
         .. code-block:: python
 
             from sklearn.datasets import load_diabetes
@@ -388,10 +382,6 @@ __model_doc = f"""
         - If there's more than one item in **eval_set**, the last entry will be used for
           early stopping.  If there's more than one metric in **eval_metric**, the last
           metric will be used for early stopping.
-
-        .. note::
-
-            This parameter replaces `early_stopping_rounds` in :py:meth:`fit` method.
 
     callbacks : Optional[List[TrainingCallback]]
         List of callback functions that are applied at end of each iteration.
