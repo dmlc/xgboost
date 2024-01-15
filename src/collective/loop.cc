@@ -229,7 +229,7 @@ Result Loop::Stop() {
   this->Submit(Op{Op::kBlock});
 
   {
-    // Wait until the block call to finish.
+    // Wait for the block call to finish.
     std::unique_lock lock{mu_};
     block_cv_.wait(lock, [this] { return block_done_ || stop_; });
     block_done_ = false;
