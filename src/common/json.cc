@@ -36,7 +36,7 @@ void JsonWriter::Visit(F32Array const* arr) {
   this->WriteArray(arr, [](float v) { return Json{v}; });
 }
 namespace {
-auto to_i64 = [](auto v) { return Json{static_cast<std::int64_t>(v)}; };
+auto to_i64 = [](auto v) { return Json{static_cast<int64_t>(v)}; };
 }  // anonymous namespace
 void JsonWriter::Visit(U8Array const* arr) { this->WriteArray(arr, to_i64); }
 void JsonWriter::Visit(I32Array const* arr) { this->WriteArray(arr, to_i64); }

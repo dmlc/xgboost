@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2024, XGBoost Contributors
+ * Copyright 2021-2023 by XGBoost Contributors
  */
 #ifndef XGBOOST_TREE_HIST_EVALUATE_SPLITS_H_
 #define XGBOOST_TREE_HIST_EVALUATE_SPLITS_H_
@@ -588,33 +588,10 @@ class HistMultiEvaluator {
     for (std::size_t i = 0; i < num_entries; i++) {
       local_entries[i].CopyAndCollect(entries[i], &cat_bits, &cat_bits_sizes, &gradients);
     }
+    auto all_entries = collective::Allgather(local_entries);
 
-    // serialize the entries for allgather
-    std::vector<std::string> j_local_entries(local_entries.size());
-    std::transform(local_entries.cbegin(), local_entries.cend(), j_local_entries.begin(),
-                   [](MultiExpandEntry const &e) {
-                     Json out{Object{}};
-                     e.Save(&out);
-                     std::string sout;
-                     Json::Dump(out, &sout, std::ios::binary);
-                     return sout;
-                   });
-    // allgather
-    std::vector<std::string> j_all_entries = collective::AllgatherStrings(j_local_entries);
-    std::vector<MultiExpandEntry> all_entries(j_all_entries.size());
-    std::transform(j_all_entries.cbegin(), j_all_entries.cend(), all_entries.begin(),
-                   [](std::string const &str) {
-                     auto je = Json::Load(StringView{str}, std::ios::binary);
-                     MultiExpandEntry e;
-                     e.Load(je);
-                     return e;
-                   });
-
-    // // allgather
-    // auto all_entries = collective::Allgather(local_entries);
-
-    // // Gather all the cat_bits.
-    // auto gathered_cat_bits = collective::SpecialAllgatherV(cat_bits, cat_bits_sizes);
+    // Gather all the cat_bits.
+    auto gathered_cat_bits = collective::SpecialAllgatherV(cat_bits, cat_bits_sizes);
 
     // Gather all the gradients.
     auto const num_gradients = gradients.size();
@@ -624,10 +601,10 @@ class HistMultiEvaluator {
     auto const gradients_per_entry = num_gradients / num_entries;
     auto const gradients_per_side = gradients_per_entry / 2;
     common::ParallelFor(total_entries, ctx_->Threads(), [&] (auto i) {
-      // // Copy the cat_bits back into all expand entries.
-      // all_entries[i].split.cat_bits.resize(gathered_cat_bits.sizes[i]);
-      // std::copy_n(gathered_cat_bits.result.cbegin() + gathered_cat_bits.offsets[i],
-      //             gathered_cat_bits.sizes[i], all_entries[i].split.cat_bits.begin());
+      // Copy the cat_bits back into all expand entries.
+      all_entries[i].split.cat_bits.resize(gathered_cat_bits.sizes[i]);
+      std::copy_n(gathered_cat_bits.result.cbegin() + gathered_cat_bits.offsets[i],
+                  gathered_cat_bits.sizes[i], all_entries[i].split.cat_bits.begin());
 
       // Copy the gradients back into all expand entries.
       all_entries[i].split.left_sum.resize(gradients_per_side);
