@@ -123,14 +123,14 @@ void Loop::Process() {
   };
 
   // This loop cannot exit unless `stop_` is set to true. There must always be a thread to
-  // answer blocking call even if there's an error, otherwise block will wait for the CV
-  // without timeout.
+  // answer the blocking call even if there are errors, otherwise the blocking will wait
+  // forever.
   while (true) {
     try {
       std::unique_lock lock{mu_};
       cv_.wait(lock, [this] { return !this->queue_.empty() || stop_; });
       if (stop_) {
-        break;  // only piont that it can exit.
+        break;  // only piont where this loop can exit.
       }
 
       // Move the global queue into a local variable to unblock it.
@@ -151,12 +151,12 @@ void Loop::Process() {
       }
 
       if (!is_blocking) {
-        // Unlock, the global queue can write again.
+        // Unblock, we can write to the global queue again.
         lock.unlock();
       }
 
-      // Clear the local queue, this is blocking the current worker thread, wait until all
-      // operations are finished.
+      // Clear the local queue, this is blocking the current worker thread (but not the
+      // client thread), wait until all operations are finished.
       auto rc = this->EmptyQueue(&qcopy);
 
       if (is_blocking) {
@@ -164,6 +164,7 @@ void Loop::Process() {
         lock.unlock();
       }
 
+      // Notify the client thread who called block after all error conditions are set.
       auto notify_if_block = [&] {
         if (is_blocking) {
           std::unique_lock lock{mu_};
@@ -176,10 +177,6 @@ void Loop::Process() {
       // Handle error
       if (!rc.OK()) {
         set_rc(std::move(rc));
-
-        std::unique_lock<std::mutex> lock{mu_};
-        block_done_ = true;
-        lock.unlock();
       } else {
         CHECK(qcopy.empty());
       }
@@ -232,7 +229,7 @@ Result Loop::Stop() {
   this->Submit(Op{Op::kBlock});
 
   {
-    // Wait until the block call has finished.
+    // Wait until the block call to finish.
     std::unique_lock lock{mu_};
     block_cv_.wait(lock, [this] { return block_done_ || stop_; });
     block_done_ = false;
