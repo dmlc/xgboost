@@ -195,8 +195,9 @@ void MultiTargetTree::Expand(bst_node_t nidx, bst_feature_t split_idx, float spl
   split_index_.resize(n);
   split_index_[nidx] = split_idx;
 
-  split_conds_.resize(n);
+  split_conds_.resize(n, std::numeric_limits<float>::quiet_NaN());
   split_conds_[nidx] = split_cond;
+
   default_left_.resize(n);
   default_left_[nidx] = static_cast<std::uint8_t>(default_left);
 
