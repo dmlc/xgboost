@@ -149,6 +149,9 @@ class MultiTargetHistBuilder {
   }
 
   void InitData(DMatrix *p_fmat, RegTree const *p_tree) {
+    if (collective::IsDistributed()) {
+      LOG(FATAL) << "Distributed training for vector-leaf is not yet supported.";
+    }
     monitor_->Start(__func__);
 
     p_last_fmat_ = p_fmat;
