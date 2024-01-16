@@ -118,7 +118,7 @@ Result Loop::EmptyQueue(std::queue<Op>* p_queue) const {
 
 void Loop::Process() {
   auto set_rc = [this](Result&& rc) {
-    std::lock_guard lock{mu_};
+    std::lock_guard lock{rc_lock_};
     rc_ = std::forward<Result>(rc);
   };
 
@@ -130,7 +130,7 @@ void Loop::Process() {
       std::unique_lock lock{mu_};
       cv_.wait(lock, [this] { return !this->queue_.empty() || stop_; });
       if (stop_) {
-        break;  // only piont where this loop can exit.
+        break;  // only point where this loop can exit.
       }
 
       // Move the global queue into a local variable to unblock it.
@@ -223,6 +223,7 @@ Result Loop::Stop() {
   }
 
   if (!this->worker_.joinable()) {
+    std::lock_guard<std::mutex> guard{rc_lock_};
     return Fail("Worker has stopped.", std::move(rc_));
   }
 
