@@ -10,9 +10,7 @@ facilities.
     dependencies for tests, see conda files in `ci_build`.
   * python-gpu: Similar to python tests, but for GPU.
   * travis: CI facilities for Travis.
-  * distributed: Test for distributed system.
-  * benchmark: Legacy benchmark code.  There are a number of benchmark projects for
-    XGBoost with much better configurations.
+  * test_distributed: Test for distributed systems including spark and dask.
 
 # Others
   * pytest.ini: Describes the `pytest` marker for python tests, some markers are generated
