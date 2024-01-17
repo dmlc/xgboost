@@ -516,12 +516,22 @@ class EvaluationMonitor(TrainingCallback):
         How many epoches between printing.
     show_stdv :
         Used in cv to show standard deviation.  Users should not specify it.
+    logger :
+        A callable used for logging evaluation result.
+
     """
 
-    def __init__(self, rank: int = 0, period: int = 1, show_stdv: bool = False) -> None:
+    def __init__(
+        self,
+        rank: int = 0,
+        period: int = 1,
+        show_stdv: bool = False,
+        logger: Callable[[str], None] = collective.communicator_print,
+    ):
         self.printer_rank = rank
         self.show_stdv = show_stdv
         self.period = period
+        self._logger = logger
         assert period > 0
         # last error message, useful when early stopping and period are used together.
         self._latest: Optional[str] = None
@@ -556,7 +566,7 @@ class EvaluationMonitor(TrainingCallback):
             msg += "\n"
 
             if (epoch % self.period) == 0 or self.period == 1:
-                collective.communicator_print(msg)
+                self._logger(msg)
                 self._latest = None
             else:
                 # There is skipped message
@@ -565,7 +575,7 @@ class EvaluationMonitor(TrainingCallback):
 
     def after_training(self, model: _Model) -> _Model:
         if collective.get_rank() == self.printer_rank and self._latest is not None:
-            collective.communicator_print(self._latest)
+            self._logger(self._latest)
         return model
 
 
