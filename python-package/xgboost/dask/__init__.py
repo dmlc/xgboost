@@ -1082,6 +1082,7 @@ def train(  # pylint: disable=unused-argument
     _assert_dask_support()
     client = _xgb_get_client(client)
     args = locals()
+
     return client.sync(
         _train_async,
         global_config=config.get_config(),

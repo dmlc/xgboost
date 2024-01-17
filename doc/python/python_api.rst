@@ -158,6 +158,13 @@ Dask API
     :show-inheritance:
 
 
+.. automodule:: xgboost.dask.callback
+
+.. autoclass:: xgboost.dask.callback.EvaluationMonitor
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
 PySpark API
 -----------
 

@@ -11,13 +11,13 @@ from dask.distributed import Client
 from dask_cuda import LocalCUDACluster
 
 from xgboost import dask as dxgb
-from xgboost.dask import DaskDMatrix
+from xgboost.dask.callback import EvaluationMonitor
 
 
-def using_dask_matrix(client: Client, X: da.Array, y: da.Array) -> da.Array:
+def approx_train(client: Client, X: da.Array, y: da.Array) -> da.Array:
     # DaskDMatrix acts like normal DMatrix, works as a proxy for local DMatrix scatter
     # around workers.
-    dtrain = DaskDMatrix(client, X, y)
+    dtrain = dxgb.DaskDMatrix(client, X, y)
 
     # Use train method from xgboost.dask instead of xgboost.  This distributed version
     # of train returns a dictionary containing the resulting booster and evaluation
@@ -25,7 +25,7 @@ def using_dask_matrix(client: Client, X: da.Array, y: da.Array) -> da.Array:
     output = dxgb.train(
         client,
         # Make sure the device is set to CUDA.
-        {"tree_method": "hist", "device": "cuda"},
+        {"tree_method": "approx", "device": "cuda"},
         dtrain,
         num_boost_round=4,
         evals=[(dtrain, "train")],
@@ -39,7 +39,7 @@ def using_dask_matrix(client: Client, X: da.Array, y: da.Array) -> da.Array:
     return prediction
 
 
-def using_quantile_device_dmatrix(client: Client, X: da.Array, y: da.Array) -> da.Array:
+def hist_train(client: Client, X: da.Array, y: da.Array) -> da.Array:
     """`DaskQuantileDMatrix` is a data type specialized for `hist` tree methods for
      reducing memory usage.
 
@@ -47,8 +47,8 @@ def using_quantile_device_dmatrix(client: Client, X: da.Array, y: da.Array) -> d
 
     """
     # `DaskQuantileDMatrix` is used instead of `DaskDMatrix`, be careful that it can not
-    # be used for anything else other than training unless a reference is specified. See
-    # the `ref` argument of `DaskQuantileDMatrix`.
+    # be used for anything else other than as a training DMatrix, unless a reference is
+    # specified. See the `ref` argument of `DaskQuantileDMatrix`.
     dtrain = dxgb.DaskQuantileDMatrix(client, X, y)
     output = dxgb.train(
         client,
@@ -57,9 +57,16 @@ def using_quantile_device_dmatrix(client: Client, X: da.Array, y: da.Array) -> d
         dtrain,
         num_boost_round=4,
         evals=[(dtrain, "train")],
+        # See the document of `EvaluationMonitor` for why it's used this way.
+        callbacks=[EvaluationMonitor(client, period=1)],
+        # Disable the internal logging and prefer the client-side `EvaluationMonitor`.
+        verbose_eval=False,
     )
+    bst = output["booster"]
+    history = output["history"]
 
-    prediction = dxgb.predict(client, output, X)
+    prediction = dxgb.predict(client, bst, X)
+    print("Evaluation history:", history)
     return prediction
 
 
@@ -85,6 +92,6 @@ if __name__ == "__main__":
             assert isinstance(y, dask_cudf.Series)
 
             print("Using DaskQuantileDMatrix")
-            from_ddqdm = using_quantile_device_dmatrix(client, X, y)
+            from_ddqdm = hist_train(client, X, y).compute()
             print("Using DMatrix")
-            from_dmatrix = using_dask_matrix(client, X, y)
+            from_dmatrix = approx_train(client, X, y).compute()
