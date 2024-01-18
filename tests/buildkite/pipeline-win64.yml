@@ -13,11 +13,6 @@ steps:
     key: build-win64-gpu
     agents:
       queue: windows-cpu
-  - label: ":windows: Build XGBoost R package for Windows with CUDA"
-    command: "tests/buildkite/build-rpkg-win64-gpu.ps1"
-    key: build-rpkg-win64-gpu
-    agents:
-      queue: windows-cpu
 
   - wait
 

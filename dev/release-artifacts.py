@@ -153,7 +153,7 @@ Following steps should be done manually:
 def download_r_packages(
     release: str, branch: str, rc: str, commit: str, outdir: str
 ) -> Tuple[Dict[str, str], List[str]]:
-    platforms = ["win64", "linux"]
+    platforms = ["linux"]
     dirname = os.path.join(outdir, "r-packages")
     if not os.path.exists(dirname):
         os.mkdir(dirname)
