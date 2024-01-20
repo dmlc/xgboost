@@ -55,7 +55,6 @@ Callback function expects the following values to be set in its calling frame:
 \code{iteration},
 \code{begin_iteration},
 \code{end_iteration},
-\code{num_parallel_tree}.
 }
 \seealso{
 \code{\link{callbacks}},

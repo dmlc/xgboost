@@ -89,7 +89,6 @@ xgb.get.handle <- function(object) {
 #' @param outputmargin Whether the prediction should be returned in the form of original untransformed
 #'        sum of predictions from boosting iterations' results. E.g., setting `outputmargin=TRUE` for
 #'        logistic regression would return log-odds instead of probabilities.
-#' @param ntreelimit Deprecated, use `iterationrange` instead.
 #' @param predleaf Whether to predict pre-tree leaf indices.
 #' @param predcontrib Whether to return feature contributions to individual predictions (see Details).
 #' @param approxcontrib Whether to use a fast approximation for feature contributions (see Details).
@@ -99,11 +98,17 @@ xgb.get.handle <- function(object) {
 #'        or `predinteraction` is `TRUE`.
 #' @param training Whether the predictions are used for training. For dart booster,
 #'        training predicting will perform dropout.
-#' @param iterationrange Specifies which trees are used in prediction. For
-#'        example, take a random forest with 100 rounds.
-#'        With `iterationrange=c(1, 21)`, only the trees built during `[1, 21)` (half open set)
-#'        rounds are used in this prediction. The index is 1-based just like an R vector. When set
-#'        to `c(1, 1)`, XGBoost will use all trees.
+#' @param iterationrange Sequence of rounds/iterations from the model to use for prediction, specified by passing
+#'        a two-dimensional vector with the start and end numbers in the sequence (same format as R's `seq` - i.e.
+#'        base-1 indexing, and inclusive of both ends).
+#'
+#'        For example, passing `c(1,20)` will predict using the first twenty iterations, while passing `c(1,1)` will
+#'        predict using only the first one.
+#'
+#'        If passing `NULL`, will either stop at the best iteration if the model used early stopping, or use all
+#'        of the iterations (rounds) otherwise.
+#'
+#'        If passing "all", will use all of the rounds regardless of whether the model had early stopping or not.
 #' @param strict_shape Default is `FALSE`. When set to `TRUE`, the output
 #'        type and shape of predictions are invariant to the model type.
 #' @param ... Not used.
@@ -189,7 +194,7 @@ xgb.get.handle <- function(object) {
 #' # use all trees by default
 #' pred <- predict(bst, test$data)
 #' # use only the 1st tree
-#' pred1 <- predict(bst, test$data, iterationrange = c(1, 2))
+#' pred1 <- predict(bst, test$data, iterationrange = c(1, 1))
 #'
 #' # Predicting tree leafs:
 #' # the result is an nsamples X ntrees matrix
@@ -260,11 +265,11 @@ xgb.get.handle <- function(object) {
 #' all.equal(pred, pred_labels)
 #' # prediction from using only 5 iterations should result
 #' # in the same error as seen in iteration 5:
-#' pred5 <- predict(bst, as.matrix(iris[, -5]), iterationrange = c(1, 6))
+#' pred5 <- predict(bst, as.matrix(iris[, -5]), iterationrange = c(1, 5))
 #' sum(pred5 != lb) / length(lb)
 #'
 #' @export
-predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FALSE, ntreelimit = NULL,
+predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FALSE,
                                 predleaf = FALSE, predcontrib = FALSE, approxcontrib = FALSE, predinteraction = FALSE,
                                 reshape = FALSE, training = FALSE, iterationrange = NULL, strict_shape = FALSE, ...) {
   if (!inherits(newdata, "xgb.DMatrix")) {
@@ -275,25 +280,21 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     )
   }
 
-  if (NVL(xgb.booster_type(object), '') == 'gblinear' || is.null(ntreelimit))
-    ntreelimit <- 0
 
-  if (ntreelimit != 0 && is.null(iterationrange)) {
-    ## only ntreelimit, initialize iteration range
-    iterationrange <- c(0, 0)
-  } else if (ntreelimit == 0 && !is.null(iterationrange)) {
-    ## only iteration range, handle 1-based indexing
-    iterationrange <- c(iterationrange[1] - 1, iterationrange[2] - 1)
-  } else if (ntreelimit != 0 && !is.null(iterationrange)) {
-    ## both are specified, let libgxgboost throw an error
+  if (!is.null(iterationrange)) {
+    if (is.character(iterationrange)) {
+      stopifnot(iterationrange == "all")
+      iterationrange <- c(0, 0)
+    } else {
+      iterationrange[1] <- iterationrange[1] - 1 # base-0 indexing
+    }
   } else {
     ## no limit is supplied, use best
     best_iteration <- xgb.best_iteration(object)
     if (is.null(best_iteration)) {
       iterationrange <- c(0, 0)
     } else {
-      ## We don't need to + 1 as R is 1-based index.
-      iterationrange <- c(0, as.integer(best_iteration))
+      iterationrange <- c(0, as.integer(best_iteration) + 1L)
     }
   }
   ## Handle the 0 length values.
@@ -312,7 +313,6 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     strict_shape = box(TRUE),
     iteration_begin = box(as.integer(iterationrange[1])),
     iteration_end = box(as.integer(iterationrange[2])),
-    ntree_limit = box(as.integer(ntreelimit)),
     type = box(as.integer(0))
   )
 
@@ -343,24 +343,24 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
   )
   names(predts) <- c("shape", "results")
   shape <- predts$shape
-  ret <- predts$results
+  arr <- predts$results
 
-  n_ret <- length(ret)
+  n_ret <- length(arr)
   n_row <- nrow(newdata)
   if (n_row != shape[1]) {
     stop("Incorrect predict shape.")
   }
 
-  arr <- array(data = ret, dim = rev(shape))
+  .Call(XGSetArrayDimInplace_R, arr, rev(shape))
 
   cnames <- if (!is.null(colnames(newdata))) c(colnames(newdata), "BIAS") else NULL
   n_groups <- shape[2]
 
   ## Needed regardless of whether strict shape is being used.
   if (predcontrib) {
-    dimnames(arr) <- list(cnames, NULL, NULL)
+    .Call(XGSetArrayDimNamesInplace_R, arr, list(cnames, NULL, NULL))
   } else if (predinteraction) {
-    dimnames(arr) <- list(cnames, cnames, NULL, NULL)
+    .Call(XGSetArrayDimNamesInplace_R, arr, list(cnames, cnames, NULL, NULL))
   }
   if (strict_shape) {
     return(arr) # strict shape is calculated by libxgboost uniformly.
@@ -368,43 +368,51 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
 
   if (predleaf) {
     ## Predict leaf
-    arr <- if (n_ret == n_row) {
-      matrix(arr, ncol = 1)
+    if (n_ret == n_row) {
+      .Call(XGSetArrayDimInplace_R, arr, c(n_row, 1L))
     } else {
-      matrix(arr, nrow = n_row, byrow = TRUE)
+      arr <- matrix(arr, nrow = n_row, byrow = TRUE)
     }
   } else if (predcontrib) {
     ## Predict contribution
     arr <- aperm(a = arr, perm = c(2, 3, 1)) # [group, row, col]
-    arr <- if (n_ret == n_row) {
-      matrix(arr, ncol =  1, dimnames = list(NULL, cnames))
+    if (n_ret == n_row) {
+      .Call(XGSetArrayDimInplace_R, arr, c(n_row, 1L))
+      .Call(XGSetArrayDimNamesInplace_R, arr, list(NULL, cnames))
     } else if (n_groups != 1) {
       ## turns array into list of matrices
-      lapply(seq_len(n_groups), function(g) arr[g, , ])
+      arr <- lapply(seq_len(n_groups), function(g) arr[g, , ])
     } else {
       ## remove the first axis (group)
-      dn <- dimnames(arr)
-      matrix(arr[1, , ], nrow = dim(arr)[2], ncol = dim(arr)[3], dimnames = c(dn[2], dn[3]))
+      newdim <- dim(arr)[2:3]
+      newdn <- dimnames(arr)[2:3]
+      arr <- arr[1, , ]
+      .Call(XGSetArrayDimInplace_R, arr, newdim)
+      .Call(XGSetArrayDimNamesInplace_R, arr, newdn)
     }
   } else if (predinteraction) {
     ## Predict interaction
     arr <- aperm(a = arr, perm = c(3, 4, 1, 2)) # [group, row, col, col]
-    arr <- if (n_ret == n_row) {
-      matrix(arr, ncol = 1, dimnames = list(NULL, cnames))
+    if (n_ret == n_row) {
+      .Call(XGSetArrayDimInplace_R, arr, c(n_row, 1L))
+      .Call(XGSetArrayDimNamesInplace_R, arr, list(NULL, cnames))
     } else if (n_groups != 1) {
       ## turns array into list of matrices
-      lapply(seq_len(n_groups), function(g) arr[g, , , ])
+      arr <- lapply(seq_len(n_groups), function(g) arr[g, , , ])
     } else {
       ## remove the first axis (group)
       arr <- arr[1, , , , drop = FALSE]
-      array(arr, dim = dim(arr)[2:4], dimnames(arr)[2:4])
+      newdim <- dim(arr)[2:4]
+      newdn <- dimnames(arr)[2:4]
+      .Call(XGSetArrayDimInplace_R, arr, newdim)
+      .Call(XGSetArrayDimNamesInplace_R, arr, newdn)
     }
   } else {
     ## Normal prediction
-    arr <- if (reshape && n_groups != 1) {
-      matrix(arr, ncol = n_groups, byrow = TRUE)
+    if (reshape && n_groups != 1) {
+      arr <- matrix(arr, ncol = n_groups, byrow = TRUE)
     } else {
-      as.vector(ret)
+      .Call(XGSetArrayDimInplace_R, arr, NULL)
     }
   }
   return(arr)
@@ -492,7 +500,7 @@ xgb.attr <- function(object, name) {
     return(NULL)
   }
   if (!is.null(out)) {
-    if (name %in% c("best_iteration", "best_ntreelimit", "best_score")) {
+    if (name %in% c("best_iteration", "best_score")) {
       out <- as.numeric(out)
     }
   }
@@ -708,12 +716,6 @@ xgb.get.num.boosted.rounds <- function(model) {
 #' @export
 variable.names.xgb.Booster <- function(object, ...) {
   return(getinfo(object, "feature_name"))
-}
-
-xgb.ntree <- function(bst) {
-  config <- xgb.config(bst)
-  out <- strtoi(config$learner$gradient_booster$gbtree_model_param$num_trees)
-  return(out)
 }
 
 xgb.nthread <- function(bst) {

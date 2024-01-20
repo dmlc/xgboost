@@ -730,6 +730,9 @@ class HistMultiEvaluator {
 
     std::size_t n_nodes = p_tree->Size();
     gain_.resize(n_nodes);
+    // Re-calculate weight without learning rate.
+    CalcWeight(*param_, left_sum, left_weight);
+    CalcWeight(*param_, right_sum, right_weight);
     gain_[left_child] = CalcGainGivenWeight(*param_, left_sum, left_weight);
     gain_[right_child] = CalcGainGivenWeight(*param_, right_sum, right_weight);
 

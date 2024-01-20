@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-import errno
 import argparse
+import errno
 import glob
 import os
 import platform
@@ -19,11 +19,10 @@ CONFIG = {
     "USE_HDFS": "OFF",
     "USE_AZURE": "OFF",
     "USE_S3": "OFF",
-
     "USE_CUDA": "OFF",
     "USE_NCCL": "OFF",
     "JVM_BINDINGS": "ON",
-    "LOG_CAPI_INVOCATION": "OFF"
+    "LOG_CAPI_INVOCATION": "OFF",
 }
 
 
@@ -70,26 +69,22 @@ def normpath(path):
         return normalized
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--log-capi-invocation', type=str, choices=['ON', 'OFF'], default='OFF')
-    parser.add_argument('--use-cuda', type=str, choices=['ON', 'OFF'], default='OFF')
-    cli_args = parser.parse_args()
-
+def native_build(args):
     if sys.platform == "darwin":
         # Enable of your compiler supports OpenMP.
         CONFIG["USE_OPENMP"] = "OFF"
-        os.environ["JAVA_HOME"] = subprocess.check_output(
-            "/usr/libexec/java_home").strip().decode()
+        os.environ["JAVA_HOME"] = (
+            subprocess.check_output("/usr/libexec/java_home").strip().decode()
+        )
 
     print("building Java wrapper")
     with cd(".."):
-        build_dir = 'build-gpu' if cli_args.use_cuda == 'ON' else 'build'
+        build_dir = "build-gpu" if cli_args.use_cuda == "ON" else "build"
         maybe_makedirs(build_dir)
         with cd(build_dir):
             if sys.platform == "win32":
                 # Force x64 build on Windows.
-                maybe_generator = ' -A x64'
+                maybe_generator = " -A x64"
             else:
                 maybe_generator = ""
             if sys.platform == "linux":
@@ -97,12 +92,12 @@ if __name__ == "__main__":
             else:
                 maybe_parallel_build = ""
 
-            if cli_args.log_capi_invocation == 'ON':
-                CONFIG['LOG_CAPI_INVOCATION'] = 'ON'
+            if cli_args.log_capi_invocation == "ON":
+                CONFIG["LOG_CAPI_INVOCATION"] = "ON"
 
-            if cli_args.use_cuda == 'ON':
-                CONFIG['USE_CUDA'] = 'ON'
-                CONFIG['USE_NCCL'] = 'ON'
+            if cli_args.use_cuda == "ON":
+                CONFIG["USE_CUDA"] = "ON"
+                CONFIG["USE_NCCL"] = "ON"
                 CONFIG["USE_DLOPEN_NCCL"] = "OFF"
 
             args = ["-D{0}:BOOL={1}".format(k, v) for k, v in CONFIG.items()]
@@ -116,7 +111,7 @@ if __name__ == "__main__":
             if gpu_arch_flag is not None:
                 args.append("%s" % gpu_arch_flag)
 
-            lib_dir = os.path.join(os.pardir, 'lib')
+            lib_dir = os.path.join(os.pardir, "lib")
             if os.path.exists(lib_dir):
                 shutil.rmtree(lib_dir)
             run("cmake .. " + " ".join(args) + maybe_generator)
@@ -126,8 +121,10 @@ if __name__ == "__main__":
             run(f'"{sys.executable}" mapfeat.py')
             run(f'"{sys.executable}" mknfold.py machine.txt 1')
 
-    xgboost4j = 'xgboost4j-gpu' if cli_args.use_cuda == 'ON' else 'xgboost4j'
-    xgboost4j_spark = 'xgboost4j-spark-gpu' if cli_args.use_cuda == 'ON' else 'xgboost4j-spark'
+    xgboost4j = "xgboost4j-gpu" if cli_args.use_cuda == "ON" else "xgboost4j"
+    xgboost4j_spark = (
+        "xgboost4j-spark-gpu" if cli_args.use_cuda == "ON" else "xgboost4j-spark"
+    )
 
     print("copying native library")
     library_name, os_folder = {
@@ -142,14 +139,19 @@ if __name__ == "__main__":
         "i86pc": "x86_64",  # on Solaris x86_64
         "sun4v": "sparc",  # on Solaris sparc
         "arm64": "aarch64",  # on macOS & Windows ARM 64-bit
-        "aarch64": "aarch64"
+        "aarch64": "aarch64",
     }[platform.machine().lower()]
-    output_folder = "{}/src/main/resources/lib/{}/{}".format(xgboost4j, os_folder, arch_folder)
+    output_folder = "{}/src/main/resources/lib/{}/{}".format(
+        xgboost4j, os_folder, arch_folder
+    )
     maybe_makedirs(output_folder)
     cp("../lib/" + library_name, output_folder)
 
     print("copying pure-Python tracker")
-    cp("../python-package/xgboost/tracker.py", "{}/src/main/resources".format(xgboost4j))
+    cp(
+        "../python-package/xgboost/tracker.py",
+        "{}/src/main/resources".format(xgboost4j),
+    )
 
     print("copying train/test files")
     maybe_makedirs("{}/src/test/resources".format(xgboost4j_spark))
@@ -165,3 +167,18 @@ if __name__ == "__main__":
     maybe_makedirs("{}/src/test/resources".format(xgboost4j))
     for file in glob.glob("../demo/data/agaricus.*"):
         cp(file, "{}/src/test/resources".format(xgboost4j))
+
+
+if __name__ == "__main__":
+    if "MAVEN_SKIP_NATIVE_BUILD" in os.environ:
+        print("MAVEN_SKIP_NATIVE_BUILD is set. Skipping native build...")
+    else:
+        parser = argparse.ArgumentParser()
+        parser.add_argument(
+            "--log-capi-invocation", type=str, choices=["ON", "OFF"], default="OFF"
+        )
+        parser.add_argument(
+            "--use-cuda", type=str, choices=["ON", "OFF"], default="OFF"
+        )
+        cli_args = parser.parse_args()
+        native_build(cli_args)

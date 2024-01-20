@@ -6,7 +6,6 @@
 \usage{
 xgb.plot.multi.trees(
   model,
-  feature_names = NULL,
   features_keep = 5,
   plot_width = NULL,
   plot_height = NULL,
@@ -15,10 +14,8 @@ xgb.plot.multi.trees(
 )
 }
 \arguments{
-\item{model}{Object of class \code{xgb.Booster}.}
-
-\item{feature_names}{Character vector used to overwrite the feature names
-of the model. The default (\code{NULL}) uses the original feature names.}
+\item{model}{Object of class \code{xgb.Booster}. If it contains feature names (they can be set through
+\link{setinfo}), they will be used in the output from this function.}
 
 \item{features_keep}{Number of features to keep in each position of the multi trees,
 by default 5.}

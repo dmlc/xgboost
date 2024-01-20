@@ -330,6 +330,16 @@ XGB_DLL SEXP XGCheckNullPtr_R(SEXP handle) {
   return Rf_ScalarLogical(R_ExternalPtrAddr(handle) == nullptr);
 }
 
+XGB_DLL SEXP XGSetArrayDimInplace_R(SEXP arr, SEXP dims) {
+  Rf_setAttrib(arr, R_DimSymbol, dims);
+  return R_NilValue;
+}
+
+XGB_DLL SEXP XGSetArrayDimNamesInplace_R(SEXP arr, SEXP dim_names) {
+  Rf_setAttrib(arr, R_DimNamesSymbol, dim_names);
+  return R_NilValue;
+}
+
 namespace {
 void _DMatrixFinalizer(SEXP ext) {
   R_API_BEGIN();

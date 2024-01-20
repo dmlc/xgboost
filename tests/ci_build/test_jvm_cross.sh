@@ -20,10 +20,11 @@ if [ ! -z "$RUN_INTEGRATION_TEST" ]; then
   cd $jvm_packages_dir
 fi
 
-# including maven profiles for different scala versions: 2.12 is the default at the moment.
-for _maven_profile_string in "" "-Pdefault,scala-2.13"; do
-  scala_version=$(mvn help:evaluate $_maven_profile_string -Dexpression=scala.version -q -DforceStdout)
-  scala_binary_version=$(mvn help:evaluate $_maven_profile_string -Dexpression=scala.binary.version -q -DforceStdout)
+for scala_binary_version in "2.12" "2.13"; do
+  cd ..
+  python dev/change_scala_version.py --scala-version ${scala_binary_version}
+  cd jvm-packages
+  scala_version=$(mvn help:evaluate -Dexpression=scala.version -q -DforceStdout)
 
   # Install XGBoost4J JAR into local Maven repository
   mvn --no-transfer-progress install:install-file -Dfile=./xgboost4j/target/xgboost4j_${scala_binary_version}-${xgboost4j_version}.jar -DgroupId=ml.dmlc -DartifactId=xgboost4j_${scala_binary_version} -Dversion=${xgboost4j_version} -Dpackaging=jar

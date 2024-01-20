@@ -398,8 +398,8 @@ class RegTree : public Model {
       if (!func(nidx)) {
         return;
       }
-      auto left = self[nidx].LeftChild();
-      auto right = self[nidx].RightChild();
+      auto left = self.LeftChild(nidx);
+      auto right = self.RightChild(nidx);
       if (left != RegTree::kInvalidNodeId) {
         nodes.push(left);
       }

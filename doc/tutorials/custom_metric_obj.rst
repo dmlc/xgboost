@@ -123,11 +123,11 @@ monitor our model's performance.  As mentioned above, the default metric for ``S
         elements = np.power(np.log1p(y) - np.log1p(predt), 2)
         return 'PyRMSLE', float(np.sqrt(np.sum(elements) / len(y)))
 
-Since we are demonstrating in Python, the metric or objective need not be a function,
-any callable object should suffice.  Similar to the objective function, our metric also
-accepts ``predt`` and ``dtrain`` as inputs, but returns the name of the metric itself and a
-floating point value as the result.  After passing it into XGBoost as argument of ``feval``
-parameter:
+Since we are demonstrating in Python, the metric or objective need not be a function, any
+callable object should suffice.  Similar to the objective function, our metric also
+accepts ``predt`` and ``dtrain`` as inputs, but returns the name of the metric itself and
+a floating point value as the result.  After passing it into XGBoost as argument of
+``custom_metric`` parameter:
 
 .. code-block:: python
 
@@ -136,7 +136,7 @@ parameter:
               dtrain=dtrain,
               num_boost_round=10,
               obj=squared_log,
-              feval=rmsle,
+              custom_metric=rmsle,
               evals=[(dtrain, 'dtrain'), (dtest, 'dtest')],
               evals_result=results)
 

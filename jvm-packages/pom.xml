@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>ml.dmlc</groupId>
-    <artifactId>xgboost-jvm</artifactId>
+    <artifactId>xgboost-jvm_2.12</artifactId>
     <version>2.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>XGBoost JVM Package</name>
@@ -43,9 +43,9 @@
         <maven.wagon.http.retryHandler.count>5</maven.wagon.http.retryHandler.count>
         <log.capi.invocation>OFF</log.capi.invocation>
         <use.cuda>OFF</use.cuda>
-        <cudf.version>23.10.0</cudf.version>
-        <spark.rapids.version>23.10.0</spark.rapids.version>
-        <cudf.classifier>cuda11</cudf.classifier>
+        <cudf.version>23.12.1</cudf.version>
+        <spark.rapids.version>23.12.1</spark.rapids.version>
+        <cudf.classifier>cuda12</cudf.classifier>
         <scalatest.version>3.2.17</scalatest.version>
         <scala-collection-compat.version>2.11.0</scala-collection-compat.version>
 
@@ -88,14 +88,6 @@
                 <module>xgboost4j-spark</module>
                 <module>xgboost4j-flink</module>
             </modules>
-        </profile>
-
-        <profile>
-            <id>scala-2.13</id>
-            <properties>
-                <scala.binary.version>2.13</scala.binary.version>
-                <scala.version>2.13.11</scala.version>
-            </properties>
         </profile>
 
         <!-- gpu profile with both cpu and gpu test suites -->

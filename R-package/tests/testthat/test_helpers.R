@@ -282,9 +282,6 @@ test_that("xgb.model.dt.tree works with and without feature names", {
     expect_equal(dim(dt.tree), c(188, 10))
   expect_output(str(dt.tree), 'Feature.*\\"Age\\"')
 
-  dt.tree.0 <- xgb.model.dt.tree(model = bst.Tree)
-  expect_equal(dt.tree, dt.tree.0)
-
   # when model contains no feature names:
   dt.tree.x <- xgb.model.dt.tree(model = bst.Tree.unnamed)
   expect_output(str(dt.tree.x), 'Feature.*\\"3\\"')
@@ -304,7 +301,7 @@ test_that("xgb.model.dt.tree throws error for gblinear", {
 
 test_that("xgb.importance works with and without feature names", {
   .skip_if_vcd_not_available()
-  importance.Tree <- xgb.importance(feature_names = feature.names, model = bst.Tree)
+  importance.Tree <- xgb.importance(feature_names = feature.names, model = bst.Tree.unnamed)
   if (!flag_32bit)
     expect_equal(dim(importance.Tree), c(7, 4))
   expect_equal(colnames(importance.Tree), c("Feature", "Gain", "Cover", "Frequency"))
@@ -330,9 +327,8 @@ test_that("xgb.importance works with and without feature names", {
   importance <- xgb.importance(feature_names = feature.names, model = bst.Tree, trees = trees)
 
   importance_from_dump <- function() {
-    model_text_dump <- xgb.dump(model = bst.Tree.unnamed, with_stats = TRUE, trees = trees)
+    model_text_dump <- xgb.dump(model = bst.Tree, with_stats = TRUE, trees = trees)
     imp <- xgb.model.dt.tree(
-      feature_names = feature.names,
       text = model_text_dump,
       trees = trees
     )[

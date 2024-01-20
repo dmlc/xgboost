@@ -24,12 +24,13 @@ if [ "x$gpu_arch" != "x" ]; then
   export GPU_ARCH_FLAG=$gpu_arch
 fi
 
-mvn_profile_string=""
 if [ "x$use_scala213" != "x" ]; then
-  export mvn_profile_string="-Pdefault,scala-2.13"
+  cd ..
+  python dev/change_scala_version.py --scala-version 2.13 --purge-artifacts
+  cd jvm-packages
 fi
 
-mvn --no-transfer-progress package $mvn_profile_string -Dspark.version=${spark_version} $gpu_options
+mvn --no-transfer-progress package -Dspark.version=${spark_version} $gpu_options
 
 set +x
 set +e
