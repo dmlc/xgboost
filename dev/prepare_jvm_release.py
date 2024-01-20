@@ -2,7 +2,6 @@ import argparse
 import errno
 import glob
 import os
-import platform
 import re
 import shutil
 import subprocess
@@ -88,10 +87,6 @@ def main():
         help="Version of the release being prepared",
     )
     args = parser.parse_args()
-
-    if sys.platform != "darwin" or platform.machine() != "arm64":
-        raise NotImplementedError("Please run this script using an M1 Mac")
-
     version = args.release_version
     expected_git_tag = "v" + version
     current_git_tag = get_current_git_tag()
@@ -141,6 +136,7 @@ def main():
             ("linux", "x86_64"),
             ("windows", "x86_64"),
             ("macos", "x86_64"),
+            ("macos", "aarch64"),
         ]:
             output_dir = f"xgboost4j/src/main/resources/lib/{os_ident}/{arch}"
             maybe_makedirs(output_dir)
@@ -163,6 +159,10 @@ def main():
         retrieve(
             url=f"{nightly_bucket_prefix}/{git_branch}/libxgboost4j/libxgboost4j_{commit_hash}.dylib",
             filename="xgboost4j/src/main/resources/lib/macos/x86_64/libxgboost4j.dylib",
+        )
+        retrieve(
+            url=f"{nightly_bucket_prefix}/{git_branch}/libxgboost4j/libxgboost4j_m1_{commit_hash}.dylib",
+            filename="xgboost4j/src/main/resources/lib/macos/aarch64/libxgboost4j.dylib",
         )
 
         with tempfile.TemporaryDirectory() as tempdir:
@@ -210,13 +210,31 @@ def main():
         "2. Store the Sonatype credentials in .m2/settings.xml. See insturctions in "
         "https://central.sonatype.org/publish/publish-maven/"
     )
-    print("3. Now on a Mac machine, run:")
-    print("   GPG_TTY=$(tty) mvn deploy -Prelease -DskipTests")
+    print(
+        "3. Now on a Linux machine, run the following to build Scala 2.12 artifacts. "
+        "Make sure to use an Internet connection with fast upload speed:"
+    )
+    print(
+        "   # Skip native build, since we have all needed native binaries from CI\n"
+        "   export MAVEN_SKIP_NATIVE_BUILD=1\n"
+        "   GPG_TTY=$(tty) mvn deploy -Prelease -DskipTests"
+    )
     print(
         "4. Log into https://oss.sonatype.org/. On the left menu panel, click Staging "
-        "Repositories. Visit the URL https://oss.sonatype.org/content/repositories/mldmlc-1085 "
+        "Repositories. Visit the URL https://oss.sonatype.org/content/repositories/mldmlc-xxxx "
         "to inspect the staged JAR files. Finally, press Release button to publish the "
-        "artifacts to the Maven Central repository."
+        "artifacts to the Maven Central repository. The top-level metapackage should be "
+        "named xgboost-jvm_2.12."
+    )
+    print(
+        "5. Remove the Scala 2.12 artifacts and build Scala 2.13 artifacts:\n"
+        "   export MAVEN_SKIP_NATIVE_BUILD=1\n"
+        "   python dev/change_scala_version.py --scala-version 2.13 --purge-artifacts\n"
+        "   GPG_TTY=$(tty) mvn deploy -Prelease -DskipTests"
+    )
+    print(
+        "6. Go to https://oss.sonatype.org/ to release the Scala 2.13 artifacts. "
+        "The top-level metapackage should be named xgboost-jvm_2.13."
     )
 
 

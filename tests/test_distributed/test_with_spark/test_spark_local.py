@@ -311,24 +311,20 @@ def clf_with_weight(
     y_val = np.array([0, 1])
     w_train = np.array([1.0, 2.0])
     w_val = np.array([1.0, 2.0])
-    cls2 = XGBClassifier()
+    cls2 = XGBClassifier(eval_metric="logloss", early_stopping_rounds=1)
     cls2.fit(
         X_train,
         y_train,
         eval_set=[(X_val, y_val)],
-        early_stopping_rounds=1,
-        eval_metric="logloss",
     )
 
-    cls3 = XGBClassifier()
+    cls3 = XGBClassifier(eval_metric="logloss", early_stopping_rounds=1)
     cls3.fit(
         X_train,
         y_train,
         sample_weight=w_train,
         eval_set=[(X_val, y_val)],
         sample_weight_eval_set=[w_val],
-        early_stopping_rounds=1,
-        eval_metric="logloss",
     )
 
     cls_df_train_with_eval_weight = spark.createDataFrame(

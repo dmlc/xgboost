@@ -61,7 +61,7 @@ from typing import (
 import numpy
 
 from xgboost import collective, config
-from xgboost._typing import _T, FeatureNames, FeatureTypes, ModelIn
+from xgboost._typing import _T, FeatureNames, FeatureTypes
 from xgboost.callback import TrainingCallback
 from xgboost.compat import DataFrame, LazyLoader, concat, lazy_isinstance
 from xgboost.core import (
@@ -1774,14 +1774,11 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
         sample_weight: Optional[_DaskCollection],
         base_margin: Optional[_DaskCollection],
         eval_set: Optional[Sequence[Tuple[_DaskCollection, _DaskCollection]]],
-        eval_metric: Optional[Union[str, Sequence[str], Metric]],
         sample_weight_eval_set: Optional[Sequence[_DaskCollection]],
         base_margin_eval_set: Optional[Sequence[_DaskCollection]],
-        early_stopping_rounds: Optional[int],
         verbose: Union[int, bool],
         xgb_model: Optional[Union[Booster, XGBModel]],
         feature_weights: Optional[_DaskCollection],
-        callbacks: Optional[Sequence[TrainingCallback]],
     ) -> _DaskCollection:
         params = self.get_xgb_params()
         dtrain, evals = await _async_wrap_evaluation_matrices(
@@ -1809,9 +1806,7 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
             obj: Optional[Callable] = _objective_decorator(self.objective)
         else:
             obj = None
-        model, metric, params, early_stopping_rounds, callbacks = self._configure_fit(
-            xgb_model, eval_metric, params, early_stopping_rounds, callbacks
-        )
+        model, metric, params = self._configure_fit(xgb_model, params)
         results = await self.client.sync(
             _train_async,
             asynchronous=True,
@@ -1826,8 +1821,8 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
             feval=None,
             custom_metric=metric,
             verbose_eval=verbose,
-            early_stopping_rounds=early_stopping_rounds,
-            callbacks=callbacks,
+            early_stopping_rounds=self.early_stopping_rounds,
+            callbacks=self.callbacks,
             xgb_model=model,
         )
         self._Booster = results["booster"]
@@ -1844,14 +1839,11 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
         sample_weight: Optional[_DaskCollection] = None,
         base_margin: Optional[_DaskCollection] = None,
         eval_set: Optional[Sequence[Tuple[_DaskCollection, _DaskCollection]]] = None,
-        eval_metric: Optional[Union[str, Sequence[str], Callable]] = None,
-        early_stopping_rounds: Optional[int] = None,
         verbose: Union[int, bool] = True,
         xgb_model: Optional[Union[Booster, XGBModel]] = None,
         sample_weight_eval_set: Optional[Sequence[_DaskCollection]] = None,
         base_margin_eval_set: Optional[Sequence[_DaskCollection]] = None,
         feature_weights: Optional[_DaskCollection] = None,
-        callbacks: Optional[Sequence[TrainingCallback]] = None,
     ) -> "DaskXGBRegressor":
         _assert_dask_support()
         args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
@@ -1871,14 +1863,11 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         sample_weight: Optional[_DaskCollection],
         base_margin: Optional[_DaskCollection],
         eval_set: Optional[Sequence[Tuple[_DaskCollection, _DaskCollection]]],
-        eval_metric: Optional[Union[str, Sequence[str], Metric]],
         sample_weight_eval_set: Optional[Sequence[_DaskCollection]],
         base_margin_eval_set: Optional[Sequence[_DaskCollection]],
-        early_stopping_rounds: Optional[int],
         verbose: Union[int, bool],
         xgb_model: Optional[Union[Booster, XGBModel]],
         feature_weights: Optional[_DaskCollection],
-        callbacks: Optional[Sequence[TrainingCallback]],
     ) -> "DaskXGBClassifier":
         params = self.get_xgb_params()
         dtrain, evals = await _async_wrap_evaluation_matrices(
@@ -1924,9 +1913,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             obj: Optional[Callable] = _objective_decorator(self.objective)
         else:
             obj = None
-        model, metric, params, early_stopping_rounds, callbacks = self._configure_fit(
-            xgb_model, eval_metric, params, early_stopping_rounds, callbacks
-        )
+        model, metric, params = self._configure_fit(xgb_model, params)
         results = await self.client.sync(
             _train_async,
             asynchronous=True,
@@ -1941,8 +1928,8 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             feval=None,
             custom_metric=metric,
             verbose_eval=verbose,
-            early_stopping_rounds=early_stopping_rounds,
-            callbacks=callbacks,
+            early_stopping_rounds=self.early_stopping_rounds,
+            callbacks=self.callbacks,
             xgb_model=model,
         )
         self._Booster = results["booster"]
@@ -1960,14 +1947,11 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         sample_weight: Optional[_DaskCollection] = None,
         base_margin: Optional[_DaskCollection] = None,
         eval_set: Optional[Sequence[Tuple[_DaskCollection, _DaskCollection]]] = None,
-        eval_metric: Optional[Union[str, Sequence[str], Callable]] = None,
-        early_stopping_rounds: Optional[int] = None,
         verbose: Union[int, bool] = True,
         xgb_model: Optional[Union[Booster, XGBModel]] = None,
         sample_weight_eval_set: Optional[Sequence[_DaskCollection]] = None,
         base_margin_eval_set: Optional[Sequence[_DaskCollection]] = None,
         feature_weights: Optional[_DaskCollection] = None,
-        callbacks: Optional[Sequence[TrainingCallback]] = None,
     ) -> "DaskXGBClassifier":
         _assert_dask_support()
         args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
@@ -2063,7 +2047,7 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
     def __init__(self, *, objective: str = "rank:pairwise", **kwargs: Any):
         if callable(objective):
             raise ValueError("Custom objective function not supported by XGBRanker.")
-        super().__init__(objective=objective, kwargs=kwargs)
+        super().__init__(objective=objective, **kwargs)
 
     async def _fit_async(
         self,
@@ -2078,12 +2062,9 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
         base_margin_eval_set: Optional[Sequence[_DaskCollection]],
         eval_group: Optional[Sequence[_DaskCollection]],
         eval_qid: Optional[Sequence[_DaskCollection]],
-        eval_metric: Optional[Union[str, Sequence[str], Metric]],
-        early_stopping_rounds: Optional[int],
         verbose: Union[int, bool],
         xgb_model: Optional[Union[XGBModel, Booster]],
         feature_weights: Optional[_DaskCollection],
-        callbacks: Optional[Sequence[TrainingCallback]],
     ) -> "DaskXGBRanker":
         msg = "Use `qid` instead of `group` on dask interface."
         if not (group is None and eval_group is None):
@@ -2111,14 +2092,7 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
             enable_categorical=self.enable_categorical,
             feature_types=self.feature_types,
         )
-        if eval_metric is not None:
-            if callable(eval_metric):
-                raise ValueError(
-                    "Custom evaluation metric is not yet supported for XGBRanker."
-                )
-        model, metric, params, early_stopping_rounds, callbacks = self._configure_fit(
-            xgb_model, eval_metric, params, early_stopping_rounds, callbacks
-        )
+        model, metric, params = self._configure_fit(xgb_model, params)
         results = await self.client.sync(
             _train_async,
             asynchronous=True,
@@ -2133,8 +2107,8 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
             feval=None,
             custom_metric=metric,
             verbose_eval=verbose,
-            early_stopping_rounds=early_stopping_rounds,
-            callbacks=callbacks,
+            early_stopping_rounds=self.early_stopping_rounds,
+            callbacks=self.callbacks,
             xgb_model=model,
         )
         self._Booster = results["booster"]
@@ -2155,14 +2129,11 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
         eval_set: Optional[Sequence[Tuple[_DaskCollection, _DaskCollection]]] = None,
         eval_group: Optional[Sequence[_DaskCollection]] = None,
         eval_qid: Optional[Sequence[_DaskCollection]] = None,
-        eval_metric: Optional[Union[str, Sequence[str], Callable]] = None,
-        early_stopping_rounds: Optional[int] = None,
         verbose: Union[int, bool] = False,
         xgb_model: Optional[Union[XGBModel, Booster]] = None,
         sample_weight_eval_set: Optional[Sequence[_DaskCollection]] = None,
         base_margin_eval_set: Optional[Sequence[_DaskCollection]] = None,
         feature_weights: Optional[_DaskCollection] = None,
-        callbacks: Optional[Sequence[TrainingCallback]] = None,
     ) -> "DaskXGBRanker":
         _assert_dask_support()
         args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
@@ -2221,18 +2192,15 @@ class DaskXGBRFRegressor(DaskXGBRegressor):
         sample_weight: Optional[_DaskCollection] = None,
         base_margin: Optional[_DaskCollection] = None,
         eval_set: Optional[Sequence[Tuple[_DaskCollection, _DaskCollection]]] = None,
-        eval_metric: Optional[Union[str, Sequence[str], Callable]] = None,
-        early_stopping_rounds: Optional[int] = None,
         verbose: Union[int, bool] = True,
         xgb_model: Optional[Union[Booster, XGBModel]] = None,
         sample_weight_eval_set: Optional[Sequence[_DaskCollection]] = None,
         base_margin_eval_set: Optional[Sequence[_DaskCollection]] = None,
         feature_weights: Optional[_DaskCollection] = None,
-        callbacks: Optional[Sequence[TrainingCallback]] = None,
     ) -> "DaskXGBRFRegressor":
         _assert_dask_support()
         args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
-        _check_rf_callback(early_stopping_rounds, callbacks)
+        _check_rf_callback(self.early_stopping_rounds, self.callbacks)
         super().fit(**args)
         return self
 
@@ -2285,17 +2253,14 @@ class DaskXGBRFClassifier(DaskXGBClassifier):
         sample_weight: Optional[_DaskCollection] = None,
         base_margin: Optional[_DaskCollection] = None,
         eval_set: Optional[Sequence[Tuple[_DaskCollection, _DaskCollection]]] = None,
-        eval_metric: Optional[Union[str, Sequence[str], Callable]] = None,
-        early_stopping_rounds: Optional[int] = None,
         verbose: Union[int, bool] = True,
         xgb_model: Optional[Union[Booster, XGBModel]] = None,
         sample_weight_eval_set: Optional[Sequence[_DaskCollection]] = None,
         base_margin_eval_set: Optional[Sequence[_DaskCollection]] = None,
         feature_weights: Optional[_DaskCollection] = None,
-        callbacks: Optional[Sequence[TrainingCallback]] = None,
     ) -> "DaskXGBRFClassifier":
         _assert_dask_support()
         args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
-        _check_rf_callback(early_stopping_rounds, callbacks)
+        _check_rf_callback(self.early_stopping_rounds, self.callbacks)
         super().fit(**args)
         return self

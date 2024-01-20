@@ -62,13 +62,13 @@
 #' }
 #'
 #' @export
-xgb.plot.multi.trees <- function(model, feature_names = NULL, features_keep = 5, plot_width = NULL, plot_height = NULL,
+xgb.plot.multi.trees <- function(model, features_keep = 5, plot_width = NULL, plot_height = NULL,
                                  render = TRUE, ...) {
   if (!requireNamespace("DiagrammeR", quietly = TRUE)) {
     stop("DiagrammeR is required for xgb.plot.multi.trees")
   }
   check.deprecation(...)
-  tree.matrix <- xgb.model.dt.tree(feature_names = feature_names, model = model)
+  tree.matrix <- xgb.model.dt.tree(model = model)
 
   # first number of the path represents the tree, then the following numbers are related to the path to follow
   # root init

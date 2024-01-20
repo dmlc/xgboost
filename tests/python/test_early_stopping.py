@@ -15,23 +15,23 @@ class TestEarlyStopping:
         from sklearn.model_selection import train_test_split
 
         digits = load_digits(n_class=2)
-        X = digits['data']
-        y = digits['target']
+        X = digits["data"]
+        y = digits["target"]
         X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=0)
-        clf1 = xgb.XGBClassifier(learning_rate=0.1)
-        clf1.fit(X_train, y_train, early_stopping_rounds=5, eval_metric="auc",
-                 eval_set=[(X_test, y_test)])
-        clf2 = xgb.XGBClassifier(learning_rate=0.1)
-        clf2.fit(X_train, y_train, early_stopping_rounds=4, eval_metric="auc",
-                 eval_set=[(X_test, y_test)])
+        clf1 = xgb.XGBClassifier(
+            learning_rate=0.1, early_stopping_rounds=5, eval_metric="auc"
+        )
+        clf1.fit(X_train, y_train, eval_set=[(X_test, y_test)])
+        clf2 = xgb.XGBClassifier(
+            learning_rate=0.1, early_stopping_rounds=4, eval_metric="auc"
+        )
+        clf2.fit(X_train, y_train, eval_set=[(X_test, y_test)])
         # should be the same
         assert clf1.best_score == clf2.best_score
         assert clf1.best_score != 1
         # check overfit
         clf3 = xgb.XGBClassifier(
-            learning_rate=0.1,
-            eval_metric="auc",
-            early_stopping_rounds=10
+            learning_rate=0.1, eval_metric="auc", early_stopping_rounds=10
         )
         clf3.fit(X_train, y_train, eval_set=[(X_test, y_test)])
         base_score = get_basescore(clf3)
@@ -39,9 +39,9 @@ class TestEarlyStopping:
 
         clf3 = xgb.XGBClassifier(
             learning_rate=0.1,
-            base_score=.5,
+            base_score=0.5,
             eval_metric="auc",
-            early_stopping_rounds=10
+            early_stopping_rounds=10,
         )
         clf3.fit(X_train, y_train, eval_set=[(X_test, y_test)])
 

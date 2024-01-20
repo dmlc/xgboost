@@ -15,7 +15,7 @@ cat('start testing prediction from first n trees\n')
 labels <- getinfo(dtest, 'label')
 
 ### predict using first 1 tree
-ypred1 <- predict(bst, dtest, ntreelimit = 1)
+ypred1 <- predict(bst, dtest, iterationrange = c(1, 1))
 # by default, we predict using all the trees
 ypred2 <- predict(bst, dtest)
 

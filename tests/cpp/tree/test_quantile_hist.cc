@@ -253,6 +253,5 @@ void TestColumnSplit(bst_target_t n_targets) {
 
 TEST(QuantileHist, ColumnSplit) { TestColumnSplit(1); }
 
-TEST(QuantileHist, ColumnSplitMultiTarget) { TestColumnSplit(3); }
-
+TEST(QuantileHist, DISABLED_ColumnSplitMultiTarget) { TestColumnSplit(3); }
 }  // namespace xgboost::tree

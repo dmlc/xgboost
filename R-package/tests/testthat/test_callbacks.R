@@ -211,12 +211,11 @@ test_that("early stopping xgb.train works", {
   , "Stopping. Best iteration")
   expect_false(is.null(xgb.attr(bst, "best_iteration")))
   expect_lt(xgb.attr(bst, "best_iteration"), 19)
-  expect_equal(xgb.attr(bst, "best_iteration"), xgb.attr(bst, "best_ntreelimit"))
 
   pred <- predict(bst, dtest)
   expect_equal(length(pred), 1611)
   err_pred <- err(ltest, pred)
-  err_log <- attributes(bst)$evaluation_log[xgb.attr(bst, "best_iteration"), test_error]
+  err_log <- attributes(bst)$evaluation_log[xgb.attr(bst, "best_iteration") + 1, test_error]
   expect_equal(err_log, err_pred, tolerance = 5e-6)
 
   set.seed(11)
@@ -231,8 +230,7 @@ test_that("early stopping xgb.train works", {
   loaded <- xgb.load(fname)
 
   expect_false(is.null(xgb.attr(loaded, "best_iteration")))
-  expect_equal(xgb.attr(loaded, "best_iteration"), xgb.attr(bst, "best_ntreelimit"))
-  expect_equal(xgb.attr(loaded, "best_ntreelimit"), xgb.attr(bst, "best_ntreelimit"))
+  expect_equal(xgb.attr(loaded, "best_iteration"), xgb.attr(bst, "best_iteration"))
 })
 
 test_that("early stopping using a specific metric works", {
@@ -245,12 +243,11 @@ test_that("early stopping using a specific metric works", {
   , "Stopping. Best iteration")
   expect_false(is.null(xgb.attr(bst, "best_iteration")))
   expect_lt(xgb.attr(bst, "best_iteration"), 19)
-  expect_equal(xgb.attr(bst, "best_iteration"), xgb.attr(bst, "best_ntreelimit"))
 
-  pred <- predict(bst, dtest, ntreelimit = xgb.attr(bst, "best_ntreelimit"))
+  pred <- predict(bst, dtest, iterationrange = c(1, xgb.attr(bst, "best_iteration") + 1))
   expect_equal(length(pred), 1611)
   logloss_pred <- sum(-ltest * log(pred) - (1 - ltest) * log(1 - pred)) / length(ltest)
-  logloss_log <- attributes(bst)$evaluation_log[xgb.attr(bst, "best_iteration"), test_logloss]
+  logloss_log <- attributes(bst)$evaluation_log[xgb.attr(bst, "best_iteration") + 1, test_logloss]
   expect_equal(logloss_log, logloss_pred, tolerance = 1e-5)
 })
 
@@ -286,7 +283,6 @@ test_that("early stopping xgb.cv works", {
   , "Stopping. Best iteration")
   expect_false(is.null(cv$best_iteration))
   expect_lt(cv$best_iteration, 19)
-  expect_equal(cv$best_iteration, cv$best_ntreelimit)
   # the best error is min error:
   expect_true(cv$evaluation_log[, test_error_mean[cv$best_iteration] == min(test_error_mean)])
 })
@@ -353,4 +349,45 @@ test_that("prediction in xgb.cv for softprob works", {
   expect_false(is.null(cv$pred))
   expect_equal(dim(cv$pred), c(nrow(iris), 3))
   expect_lt(diff(range(rowSums(cv$pred))), 1e-6)
+})
+
+test_that("prediction in xgb.cv works for multi-quantile", {
+  data(mtcars)
+  y <- mtcars$mpg
+  x <- as.matrix(mtcars[, -1])
+  dm <- xgb.DMatrix(x, label = y, nthread = 1)
+  cv <- xgb.cv(
+    data = dm,
+    params = list(
+      objective = "reg:quantileerror",
+      quantile_alpha = c(0.1, 0.2, 0.5, 0.8, 0.9),
+      nthread = 1
+    ),
+    nrounds = 5,
+    nfold = 3,
+    prediction = TRUE,
+    verbose = 0
+  )
+  expect_equal(dim(cv$pred), c(nrow(x), 5))
+})
+
+test_that("prediction in xgb.cv works for multi-output", {
+  data(mtcars)
+  y <- mtcars$mpg
+  x <- as.matrix(mtcars[, -1])
+  dm <- xgb.DMatrix(x, label = cbind(y, -y), nthread = 1)
+  cv <- xgb.cv(
+    data = dm,
+    params = list(
+      tree_method = "hist",
+      multi_strategy = "multi_output_tree",
+      objective = "reg:squarederror",
+      nthread = n_threads
+    ),
+    nrounds = 5,
+    nfold = 3,
+    prediction = TRUE,
+    verbose = 0
+  )
+  expect_equal(dim(cv$pred), c(nrow(x), 2))
 })

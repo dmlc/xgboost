@@ -135,7 +135,6 @@ It is created by the \code{\link{cb.evaluation.log}} callback.
 parameter or randomly generated.
 \item \code{best_iteration} iteration number with the best evaluation metric value
 (only available with early stopping).
-\item \code{best_ntreelimit} and the \code{ntreelimit} Deprecated attributes, use \code{best_iteration} instead.
 \item \code{pred} CV prediction values available when \code{prediction} is set.
 It is either vector or matrix (see \code{\link{cb.cv.predict}}).
 \item \code{models} a list of the CV folds' models. It is only available with the explicit
