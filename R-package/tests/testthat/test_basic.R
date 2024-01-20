@@ -33,15 +33,11 @@ test_that("train and predict binary classification", {
   pred <- predict(bst, test$data)
   expect_length(pred, 1611)
 
-  pred1 <- predict(bst, train$data, ntreelimit = 1)
+  pred1 <- predict(bst, train$data, iterationrange = c(1, 1))
   expect_length(pred1, 6513)
   err_pred1 <- sum((pred1 > 0.5) != train$label) / length(train$label)
   err_log <- attributes(bst)$evaluation_log[1, train_error]
   expect_lt(abs(err_pred1 - err_log), 10e-6)
-
-  pred2 <- predict(bst, train$data, iterationrange = c(1, 2))
-  expect_length(pred1, 6513)
-  expect_equal(pred1, pred2)
 })
 
 test_that("parameter validation works", {
@@ -117,8 +113,8 @@ test_that("dart prediction works", {
     nrounds = nrounds,
     objective = "reg:squarederror"
   )
-  pred_by_xgboost_0 <- predict(booster_by_xgboost, newdata = d, ntreelimit = 0)
-  pred_by_xgboost_1 <- predict(booster_by_xgboost, newdata = d, ntreelimit = nrounds)
+  pred_by_xgboost_0 <- predict(booster_by_xgboost, newdata = d, iterationrange = NULL)
+  pred_by_xgboost_1 <- predict(booster_by_xgboost, newdata = d, iterationrange = c(1, nrounds))
   expect_true(all(matrix(pred_by_xgboost_0, byrow = TRUE) == matrix(pred_by_xgboost_1, byrow = TRUE)))
 
   pred_by_xgboost_2 <- predict(booster_by_xgboost, newdata = d, training = TRUE)
@@ -139,8 +135,8 @@ test_that("dart prediction works", {
     data = dtrain,
     nrounds = nrounds
   )
-  pred_by_train_0 <- predict(booster_by_train, newdata = dtrain, ntreelimit = 0)
-  pred_by_train_1 <- predict(booster_by_train, newdata = dtrain, ntreelimit = nrounds)
+  pred_by_train_0 <- predict(booster_by_train, newdata = dtrain, iterationrange = NULL)
+  pred_by_train_1 <- predict(booster_by_train, newdata = dtrain, iterationrange = c(1, nrounds))
   pred_by_train_2 <- predict(booster_by_train, newdata = dtrain, training = TRUE)
 
   expect_true(all(matrix(pred_by_train_0, byrow = TRUE) == matrix(pred_by_xgboost_0, byrow = TRUE)))
@@ -162,7 +158,7 @@ test_that("train and predict softprob", {
   )
   expect_false(is.null(attributes(bst)$evaluation_log))
   expect_lt(attributes(bst)$evaluation_log[, min(train_merror)], 0.025)
-  expect_equal(xgb.get.num.boosted.rounds(bst) * 3, xgb.ntree(bst))
+  expect_equal(xgb.get.num.boosted.rounds(bst), 5)
   pred <- predict(bst, as.matrix(iris[, -5]))
   expect_length(pred, nrow(iris) * 3)
   # row sums add up to total probability of 1:
@@ -174,12 +170,12 @@ test_that("train and predict softprob", {
   err <- sum(pred_labels != lb) / length(lb)
   expect_equal(attributes(bst)$evaluation_log[5, train_merror], err, tolerance = 5e-6)
   # manually calculate error at the 1st iteration:
-  mpred <- predict(bst, as.matrix(iris[, -5]), reshape = TRUE, ntreelimit = 1)
+  mpred <- predict(bst, as.matrix(iris[, -5]), reshape = TRUE, iterationrange = c(1, 1))
   pred_labels <- max.col(mpred) - 1
   err <- sum(pred_labels != lb) / length(lb)
   expect_equal(attributes(bst)$evaluation_log[1, train_merror], err, tolerance = 5e-6)
 
-  mpred1 <- predict(bst, as.matrix(iris[, -5]), reshape = TRUE, iterationrange = c(1, 2))
+  mpred1 <- predict(bst, as.matrix(iris[, -5]), reshape = TRUE, iterationrange = c(1, 1))
   expect_equal(mpred, mpred1)
 
   d <- cbind(
@@ -213,7 +209,7 @@ test_that("train and predict softmax", {
   )
   expect_false(is.null(attributes(bst)$evaluation_log))
   expect_lt(attributes(bst)$evaluation_log[, min(train_merror)], 0.025)
-  expect_equal(xgb.get.num.boosted.rounds(bst) * 3, xgb.ntree(bst))
+  expect_equal(xgb.get.num.boosted.rounds(bst), 5)
 
   pred <- predict(bst, as.matrix(iris[, -5]))
   expect_length(pred, nrow(iris))
@@ -233,19 +229,15 @@ test_that("train and predict RF", {
     watchlist = list(train = xgb.DMatrix(train$data, label = lb))
   )
   expect_equal(xgb.get.num.boosted.rounds(bst), 1)
-  expect_equal(xgb.ntree(bst), 20)
 
   pred <- predict(bst, train$data)
   pred_err <- sum((pred > 0.5) != lb) / length(lb)
   expect_lt(abs(attributes(bst)$evaluation_log[1, train_error] - pred_err), 10e-6)
   # expect_lt(pred_err, 0.03)
 
-  pred <- predict(bst, train$data, ntreelimit = 20)
+  pred <- predict(bst, train$data, iterationrange = c(1, 1))
   pred_err_20 <- sum((pred > 0.5) != lb) / length(lb)
   expect_equal(pred_err_20, pred_err)
-
-  pred1 <- predict(bst, train$data, iterationrange = c(1, 2))
-  expect_equal(pred, pred1)
 })
 
 test_that("train and predict RF with softprob", {
@@ -261,7 +253,6 @@ test_that("train and predict RF with softprob", {
     watchlist = list(train = xgb.DMatrix(as.matrix(iris[, -5]), label = lb))
   )
   expect_equal(xgb.get.num.boosted.rounds(bst), 15)
-  expect_equal(xgb.ntree(bst), 15 * 3 * 4)
   # predict for all iterations:
   pred <- predict(bst, as.matrix(iris[, -5]), reshape = TRUE)
   expect_equal(dim(pred), c(nrow(iris), 3))
@@ -269,7 +260,7 @@ test_that("train and predict RF with softprob", {
   err <- sum(pred_labels != lb) / length(lb)
   expect_equal(attributes(bst)$evaluation_log[nrounds, train_merror], err, tolerance = 5e-6)
   # predict for 7 iterations and adjust for 4 parallel trees per iteration
-  pred <- predict(bst, as.matrix(iris[, -5]), reshape = TRUE, ntreelimit = 7 * 4)
+  pred <- predict(bst, as.matrix(iris[, -5]), reshape = TRUE, iterationrange = c(1, 7))
   err <- sum((max.col(pred) - 1) != lb) / length(lb)
   expect_equal(attributes(bst)$evaluation_log[7, train_merror], err, tolerance = 5e-6)
 })

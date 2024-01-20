@@ -72,10 +72,10 @@ test_that("gblinear early stopping works", {
   booster <- xgb.train(
     param, dtrain, n, list(eval = dtest, train = dtrain), early_stopping_rounds = es_round
   )
-  expect_equal(xgb.attr(booster, "best_iteration"), 5)
+  expect_equal(xgb.attr(booster, "best_iteration"), 4)
   predt_es <- predict(booster, dtrain)
 
-  n <- xgb.attr(booster, "best_iteration") + es_round
+  n <- xgb.attr(booster, "best_iteration") + es_round + 1
   booster <- xgb.train(
     param, dtrain, n, list(eval = dtest, train = dtrain), early_stopping_rounds = es_round
   )

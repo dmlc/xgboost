@@ -44,7 +44,7 @@ test_that('Test ranking with weighted data', {
   expect_true(all(diff(attributes(bst)$evaluation_log$train_auc) >= 0))
   expect_true(all(diff(attributes(bst)$evaluation_log$train_aucpr) >= 0))
   for (i in 1:10) {
-    pred <- predict(bst, newdata = dtrain, ntreelimit = i)
+    pred <- predict(bst, newdata = dtrain, iterationrange = c(1, i))
     # is_sorted[i]: is i-th group correctly sorted by the ranking predictor?
     is_sorted <- lapply(seq(1, 20, by = 5),
       function(k) {

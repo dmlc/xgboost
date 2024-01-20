@@ -280,7 +280,6 @@ cb.reset.parameters <- function(new_params) {
 #' \code{iteration},
 #' \code{begin_iteration},
 #' \code{end_iteration},
-#' \code{num_parallel_tree}.
 #'
 #' @seealso
 #' \code{\link{callbacks}},
@@ -291,7 +290,6 @@ cb.early.stop <- function(stopping_rounds, maximize = FALSE,
                           metric_name = NULL, verbose = TRUE) {
   # state variables
   best_iteration <- -1
-  best_ntreelimit <- -1
   best_score <- Inf
   best_msg <- NULL
   metric_idx <- 1
@@ -358,12 +356,10 @@ cb.early.stop <- function(stopping_rounds, maximize = FALSE,
         # If the difference is due to floating-point truncation, update best_score
         best_score <- attr_best_score
       }
-      xgb.attr(env$bst, "best_iteration") <- best_iteration
-      xgb.attr(env$bst, "best_ntreelimit") <- best_ntreelimit
+      xgb.attr(env$bst, "best_iteration") <- best_iteration - 1
       xgb.attr(env$bst, "best_score") <- best_score
     } else {
       env$basket$best_iteration <- best_iteration
-      env$basket$best_ntreelimit <- best_ntreelimit
     }
   }
 
@@ -385,14 +381,13 @@ cb.early.stop <- function(stopping_rounds, maximize = FALSE,
       )
       best_score <<- score
       best_iteration <<- i
-      best_ntreelimit <<- best_iteration * env$num_parallel_tree
       # save the property to attributes, so they will occur in checkpoint
       if (!is.null(env$bst)) {
         xgb.attributes(env$bst) <- list(
           best_iteration = best_iteration - 1, # convert to 0-based index
           best_score = best_score,
-          best_msg = best_msg,
-          best_ntreelimit = best_ntreelimit)
+          best_msg = best_msg
+        )
       }
     } else if (i - best_iteration >= stopping_rounds) {
       env$stop_condition <- TRUE
@@ -475,8 +470,6 @@ cb.save.model <- function(save_period = 0, save_name = "xgboost.ubj") {
 #' \code{data},
 #' \code{end_iteration},
 #' \code{params},
-#' \code{num_parallel_tree},
-#' \code{num_class}.
 #'
 #' @return
 #' Predictions are returned inside of the \code{pred} element, which is either a vector or a matrix,
@@ -499,19 +492,21 @@ cb.cv.predict <- function(save_models = FALSE) {
       stop("'cb.cv.predict' callback requires 'basket' and 'bst_folds' lists in its calling frame")
 
     N <- nrow(env$data)
-    pred <-
-      if (env$num_class > 1) {
-        matrix(NA_real_, N, env$num_class)
-      } else {
-        rep(NA_real_, N)
-      }
+    pred <- NULL
 
-    iterationrange <- c(1, NVL(env$basket$best_iteration, env$end_iteration) + 1)
+    iterationrange <- c(1, NVL(env$basket$best_iteration, env$end_iteration))
     if (NVL(env$params[['booster']], '') == 'gblinear') {
-      iterationrange <- c(1, 1)  # must be 0 for gblinear
+      iterationrange <- "all"
     }
     for (fd in env$bst_folds) {
       pr <- predict(fd$bst, fd$watchlist[[2]], iterationrange = iterationrange, reshape = TRUE)
+      if (is.null(pred)) {
+        if (NCOL(pr) > 1L) {
+          pred <- matrix(NA_real_, N, ncol(pr))
+        } else {
+          pred <- matrix(NA_real_, N)
+        }
+      }
       if (is.matrix(pred)) {
         pred[fd$index, ] <- pr
       } else {
