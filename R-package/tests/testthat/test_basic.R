@@ -348,7 +348,6 @@ test_that("xgb.cv works", {
   expect_false(is.null(cv$folds) && is.list(cv$folds))
   expect_length(cv$folds, 5)
   expect_false(is.null(cv$params) && is.list(cv$params))
-  expect_false(is.null(cv$callbacks))
   expect_false(is.null(cv$call))
 })
 

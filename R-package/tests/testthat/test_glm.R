@@ -27,7 +27,7 @@ test_that("gblinear works", {
   expect_lt(attributes(bst)$evaluation_log$eval_error[n], ERR_UL)
 
   bst <- xgb.train(param, dtrain, n, watchlist, verbose = VERB, feature_selector = 'cyclic',
-                   callbacks = list(cb.gblinear.history()))
+                   callbacks = list(xgb.cb.gblinear.history()))
   expect_lt(attributes(bst)$evaluation_log$eval_error[n], ERR_UL)
   h <- xgb.gblinear.history(bst)
   expect_equal(dim(h), c(n, ncol(dtrain) + 1))
@@ -44,7 +44,7 @@ test_that("gblinear works", {
   expect_lt(attributes(bst)$evaluation_log$eval_error[2], ERR_UL)
 
   bst <- xgb.train(param, dtrain, n, watchlist, verbose = VERB, feature_selector = 'thrifty',
-                   top_k = 50, callbacks = list(cb.gblinear.history(sparse = TRUE)))
+                   top_k = 50, callbacks = list(xgb.cb.gblinear.history(sparse = TRUE)))
   expect_lt(attributes(bst)$evaluation_log$eval_error[n], ERR_UL)
   h <- xgb.gblinear.history(bst)
   expect_equal(dim(h), c(n, ncol(dtrain) + 1))

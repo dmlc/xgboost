@@ -59,7 +59,7 @@ that NA values should be considered as 'missing' by the algorithm.
 Sometimes, 0 or other extreme value might be used to represent missing values.}
 
 \item{prediction}{A logical value indicating whether to return the test fold predictions
-from each CV model. This parameter engages the \code{\link{cb.cv.predict}} callback.}
+from each CV model. This parameter engages the \code{\link{xgb.cb.cv.predict}} callback.}
 
 \item{showsd}{\code{boolean}, whether to show standard deviation of cross validation}
 
@@ -98,20 +98,20 @@ the \code{nfold} and \code{stratified} parameters are ignored.}
 
 \item{print_every_n}{Print each n-th iteration evaluation messages when \code{verbose>0}.
 Default is 1 which means all messages are printed. This parameter is passed to the
-\code{\link{cb.print.evaluation}} callback.}
+\code{\link{xgb.cb.print.evaluation}} callback.}
 
 \item{early_stopping_rounds}{If \code{NULL}, the early stopping function is not triggered.
 If set to an integer \code{k}, training with a validation set will stop if the performance
 doesn't improve for \code{k} rounds.
-Setting this parameter engages the \code{\link{cb.early.stop}} callback.}
+Setting this parameter engages the \code{\link{xgb.cb.early.stop}} callback.}
 
 \item{maximize}{If \code{feval} and \code{early_stopping_rounds} are set,
 then this parameter must be set as well.
 When it is \code{TRUE}, it means the larger the evaluation score the better.
-This parameter is passed to the \code{\link{cb.early.stop}} callback.}
+This parameter is passed to the \code{\link{xgb.cb.early.stop}} callback.}
 
 \item{callbacks}{a list of callback functions to perform various task during boosting.
-See \code{\link{callbacks}}. Some of the callbacks are automatically created depending on the
+See \code{\link{xgb.Callback}}. Some of the callbacks are automatically created depending on the
 parameters' values. User can provide either existing or their own callback methods in order
 to customize the training process.}
 
@@ -122,24 +122,24 @@ An object of class \code{xgb.cv.synchronous} with the following elements:
 \itemize{
 \item \code{call} a function call.
 \item \code{params} parameters that were passed to the xgboost library. Note that it does not
-capture parameters changed by the \code{\link{cb.reset.parameters}} callback.
-\item \code{callbacks} callback functions that were either automatically assigned or
-explicitly passed.
+capture parameters changed by the \code{\link{xgb.cb.reset.parameters}} callback.
 \item \code{evaluation_log} evaluation history stored as a \code{data.table} with the
 first column corresponding to iteration number and the rest corresponding to the
 CV-based evaluation means and standard deviations for the training and test CV-sets.
-It is created by the \code{\link{cb.evaluation.log}} callback.
+It is created by the \code{\link{xgb.cb.evaluation.log}} callback.
 \item \code{niter} number of boosting iterations.
 \item \code{nfeatures} number of features in training data.
 \item \code{folds} the list of CV folds' indices - either those passed through the \code{folds}
 parameter or randomly generated.
 \item \code{best_iteration} iteration number with the best evaluation metric value
 (only available with early stopping).
-\item \code{pred} CV prediction values available when \code{prediction} is set.
-It is either vector or matrix (see \code{\link{cb.cv.predict}}).
-\item \code{models} a list of the CV folds' models. It is only available with the explicit
-setting of the \code{cb.cv.predict(save_models = TRUE)} callback.
 }
+
+Plus other potential elements that are the result of callbacks, such as a list \code{cv_predict} with
+a sub-element \code{pred} when passing \code{prediction = TRUE}, which is added by the \link{xgb.cb.cv.predict}
+callback (note that one can also pass it manually under \code{callbacks} with different settings,
+such as saving also the models created during cross validation); or a list \code{early_stop} which
+will contain elements such as \code{best_iteration} when using the early stopping callback (\link{xgb.cb.early.stop}).
 }
 \description{
 The cross validation function of xgboost

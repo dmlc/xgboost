@@ -142,7 +142,7 @@ check.custom.eval <- function(env = parent.frame()) {
   if (!is.null(env$feval) &&
       is.null(env$maximize) && (
         !is.null(env$early_stopping_rounds) ||
-        has.callbacks(env$callbacks, 'cb.early.stop')))
+        has.callbacks(env$callbacks, "early_stop")))
     stop("Please set 'maximize' to indicate whether the evaluation metric needs to be maximized or not")
 }
 

@@ -1056,12 +1056,9 @@ print.xgb.Booster <- function(x, ...) {
     cat("  ", paste(attr_names, collapse = ", "), "\n")
   }
 
-  if (!is.null(R_attrs$callbacks) && length(R_attrs$callbacks) > 0) {
-    cat('callbacks:\n')
-    lapply(callback.calls(R_attrs$callbacks), function(x) {
-      cat('  ')
-      print(x)
-    })
+  additional_attr <- setdiff(names(R_attrs), .reserved_cb_names)
+  if (NROW(additional_attr)) {
+    cat("callbacks:\n  ", paste(additional_attr, collapse = ", "), "\n")
   }
 
   if (!is.null(R_attrs$evaluation_log)) {
