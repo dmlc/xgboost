@@ -2,12 +2,15 @@
 % Please edit documentation in R/xgb.Booster.R
 \name{xgb.get.num.boosted.rounds}
 \alias{xgb.get.num.boosted.rounds}
+\alias{length.xgb.Booster}
 \title{Get number of boosting in a fitted booster}
 \usage{
 xgb.get.num.boosted.rounds(model)
+
+\method{length}{xgb.Booster}(x)
 }
 \arguments{
-\item{model}{A fitted \code{xgb.Booster} model.}
+\item{model, x}{A fitted \code{xgb.Booster} model.}
 }
 \value{
 The number of rounds saved in the model, as an integer.
