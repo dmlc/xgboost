@@ -32,6 +32,8 @@ Foreach-Object {
 
 Write-Host "--- Run Python tests"
 python -X faulthandler -m pytest -v -s -rxXs --fulltrace tests/python
+if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 Write-Host "--- Run Python tests with GPU"
 python -X faulthandler -m pytest -v -s -rxXs --fulltrace -m "(not slow) and (not mgpu)"`
   tests/python-gpu
+if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
