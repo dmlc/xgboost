@@ -23,7 +23,42 @@ class TestBasic:
         assert not lazy_isinstance(a, "numpy", "dataframe")
 
     def test_basic(self):
-        assert False
+        dtrain, dtest = tm.load_agaricus(__file__)
+        param = {"max_depth": 2, "eta": 1, "objective": "binary:logistic"}
+        # specify validations set to watch performance
+        watchlist = [(dtrain, "train")]
+        num_round = 2
+        bst = xgb.train(param, dtrain, num_round, evals=watchlist, verbose_eval=True)
+
+        preds = bst.predict(dtrain)
+        labels = dtrain.get_label()
+        err = sum(
+            1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]
+        ) / float(len(preds))
+        # error must be smaller than 10%
+        assert err < 0.1
+
+        preds = bst.predict(dtest)
+        labels = dtest.get_label()
+        err = sum(
+            1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]
+        ) / float(len(preds))
+        # error must be smaller than 10%
+        assert err < 0.1
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dtest_path = os.path.join(tmpdir, "dtest.dmatrix")
+            # save dmatrix into binary buffer
+            dtest.save_binary(dtest_path)
+            # save model
+            model_path = os.path.join(tmpdir, "model.ubj")
+            bst.save_model(model_path)
+            # load model and data in
+            bst2 = xgb.Booster(model_file=model_path)
+            dtest2 = xgb.DMatrix(dtest_path)
+            preds2 = bst2.predict(dtest2)
+            # assert they are the same
+            assert np.sum(np.abs(preds2 - preds)) == 0
 
     def test_metric_config(self):
         # Make sure that the metric configuration happens in booster so the string
