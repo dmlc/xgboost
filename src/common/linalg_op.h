@@ -28,7 +28,7 @@ void ElementWiseTransformHost(linalg::TensorView<T, D> t, int32_t n_threads, Fn&
 
 template <typename T, int32_t D, typename Fn>
 void ElementWiseKernelHost(linalg::TensorView<T, D> t, int32_t n_threads, Fn&& fn) {
-  static_assert(std::is_void<std::result_of_t<Fn(size_t, T&)>>::value,
+  static_assert(std::is_void<std::invoke_result_t<Fn, size_t, T&>>::value,
                 "For function with return, use transform instead.");
   if (t.Contiguous()) {
     auto ptr = t.Values().data();

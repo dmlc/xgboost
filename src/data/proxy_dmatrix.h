@@ -127,15 +127,13 @@ inline DMatrixProxy* MakeProxy(DMatrixHandle proxy) {
 template <typename Fn>
 decltype(auto) HostAdapterDispatch(DMatrixProxy const* proxy, Fn fn, bool* type_error = nullptr) {
   if (proxy->Adapter().type() == typeid(std::shared_ptr<CSRArrayAdapter>)) {
-    auto value =
-        dmlc::get<std::shared_ptr<CSRArrayAdapter>>(proxy->Adapter())->Value();
+    auto value = dmlc::get<std::shared_ptr<CSRArrayAdapter>>(proxy->Adapter())->Value();
     if (type_error) {
       *type_error = false;
     }
     return fn(value);
   } else if (proxy->Adapter().type() == typeid(std::shared_ptr<ArrayAdapter>)) {
-    auto value = dmlc::get<std::shared_ptr<ArrayAdapter>>(
-        proxy->Adapter())->Value();
+    auto value = dmlc::get<std::shared_ptr<ArrayAdapter>>(proxy->Adapter())->Value();
     if (type_error) {
       *type_error = false;
     }
@@ -146,8 +144,8 @@ decltype(auto) HostAdapterDispatch(DMatrixProxy const* proxy, Fn fn, bool* type_
     } else {
       LOG(FATAL) << "Unknown type: " << proxy->Adapter().type().name();
     }
-    return std::result_of_t<Fn(
-        decltype(std::declval<std::shared_ptr<ArrayAdapter>>()->Value()))>();
+    return std::invoke_result_t<Fn,
+                                decltype(std::declval<std::shared_ptr<ArrayAdapter>>()->Value())>();
   }
 }
 }  // namespace data
