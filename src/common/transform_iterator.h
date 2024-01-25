@@ -1,12 +1,12 @@
 /**
- * Copyright 2022 by XGBoost Contributors
+ * Copyright 2022-2024, XGBoost Contributors
  */
 #ifndef XGBOOST_COMMON_TRANSFORM_ITERATOR_H_
 #define XGBOOST_COMMON_TRANSFORM_ITERATOR_H_
 
 #include <cstddef>      // std::size_t
 #include <iterator>     // std::random_access_iterator_tag
-#include <type_traits>  // std::result_of_t, std::add_pointer_t, std::add_lvalue_reference_t
+#include <type_traits>  // for invoke_result_t, add_pointer_t, add_lvalue_reference_t
 #include <utility>      // std::forward
 
 #include "xgboost/span.h"  // ptrdiff_t
@@ -25,11 +25,11 @@ class IndexTransformIter {
   Fn fn_;
 
  public:
-  using iterator_category = std::random_access_iterator_tag;  // NOLINT
-  using reference = std::result_of_t<Fn(std::size_t)>;        // NOLINT
-  using value_type = std::remove_cv_t<std::remove_reference_t<reference>>; // NOLINT
-  using difference_type = detail::ptrdiff_t;                  // NOLINT
-  using pointer = std::add_pointer_t<value_type>;             // NOLINT
+  using iterator_category = std::random_access_iterator_tag;                // NOLINT
+  using reference = std::invoke_result_t<Fn, std::size_t>;                  // NOLINT
+  using value_type = std::remove_cv_t<std::remove_reference_t<reference>>;  // NOLINT
+  using difference_type = detail::ptrdiff_t;                                // NOLINT
+  using pointer = std::add_pointer_t<value_type>;                           // NOLINT
 
  public:
   /**

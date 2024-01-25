@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2023 by XGBoost Contributors
+ * Copyright 2019-2024, XGBoost Contributors
  * \file array_interface.h
  * \brief View of __array_interface__
  */
@@ -12,7 +12,7 @@
 #include <limits>  // for numeric_limits
 #include <map>
 #include <string>
-#include <type_traits>  // std::alignment_of,std::remove_pointer_t
+#include <type_traits>  // for alignment_of, remove_pointer_t, invoke_result_t
 #include <utility>
 #include <vector>
 
@@ -643,7 +643,7 @@ auto DispatchDType(ArrayInterfaceHandler::Type dtype, Fn dispatch) {
     }
   }
 
-  return std::result_of_t<Fn(std::int8_t)>();
+  return std::invoke_result_t<Fn, std::int8_t>();
 }
 
 template <std::int32_t D, typename Fn>
