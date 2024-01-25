@@ -8,9 +8,9 @@ from dask import array as da
 from dask import dataframe as dd
 from dask.distributed import Client
 from dask_cuda import LocalCUDACluster
-from xgboost.dask import DaskDMatrix
 
 from xgboost import dask as dxgb
+from xgboost.dask import DaskDMatrix
 
 
 def using_dask_matrix(client: Client, X: da.Array, y: da.Array) -> da.Array:
