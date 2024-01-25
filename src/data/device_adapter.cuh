@@ -260,12 +260,10 @@ bool NoInfInData(AdapterBatchT const& batch, IsValidFunctor is_valid) {
   auto counting = thrust::make_counting_iterator(0llu);
   auto value_iter = dh::MakeTransformIterator<bool>(counting, [=] XGBOOST_DEVICE(std::size_t idx) {
     auto v = batch.GetElement(idx).value;
-    if (!is_valid(v)) {
-      // discard the invalid elements.
-      return true;
+    if (is_valid(v) && isinf(v)) {
+      return false;
     }
-    // check that there's no inf in data.
-    return !std::isinf(v);
+    return true;
   });
   dh::XGBCachingDeviceAllocator<char> alloc;
   // The default implementation in thrust optimizes any_of/none_of/all_of by using small
