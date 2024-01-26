@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2023 XGBoost contributors
+ * Copyright 2017-2024 XGBoost contributors
  */
 #ifndef PLUGIN_SYCL_COMMON_PARTITION_BUILDER_H_
 #define PLUGIN_SYCL_COMMON_PARTITION_BUILDER_H_
