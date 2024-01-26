@@ -142,9 +142,9 @@ namespace detail {
 template <typename T>
 class GradientPairInternal {
   /*! \brief gradient statistics */
-  T grad_;
+  T grad_{0};
   /*! \brief second order gradient statistics */
-  T hess_;
+  T hess_{0};
 
   XGBOOST_DEVICE void SetGrad(T g) { grad_ = g; }
   XGBOOST_DEVICE void SetHess(T h) { hess_ = h; }
@@ -161,7 +161,7 @@ class GradientPairInternal {
     a += b;
   }
 
-  XGBOOST_DEVICE GradientPairInternal() : grad_(0), hess_(0) {}
+  GradientPairInternal() = default;
 
   XGBOOST_DEVICE GradientPairInternal(T grad, T hess) {
     SetGrad(grad);
@@ -169,7 +169,10 @@ class GradientPairInternal {
   }
 
   // Copy constructor if of same value type, marked as default to be trivially_copyable
-  GradientPairInternal(const GradientPairInternal<T> &g) = default;
+  GradientPairInternal(GradientPairInternal const &g) = default;
+  GradientPairInternal(GradientPairInternal &&g) = default;
+  GradientPairInternal &operator=(GradientPairInternal const &that) = default;
+  GradientPairInternal &operator=(GradientPairInternal &&that) = default;
 
   // Copy constructor if different value type - use getters and setters to
   // perform conversion
@@ -274,10 +277,11 @@ class GradientPairInt64 {
   GradientPairInt64() = default;
 
   // Copy constructor if of same value type, marked as default to be trivially_copyable
-  GradientPairInt64(const GradientPairInt64 &g) = default;
+  GradientPairInt64(GradientPairInt64 const &g) = default;
+  GradientPairInt64 &operator=(GradientPairInt64 const &g) = default;
 
-  XGBOOST_DEVICE T GetQuantisedGrad() const { return grad_; }
-  XGBOOST_DEVICE T GetQuantisedHess() const { return hess_; }
+  [[nodiscard]] XGBOOST_DEVICE T GetQuantisedGrad() const { return grad_; }
+  [[nodiscard]] XGBOOST_DEVICE T GetQuantisedHess() const { return hess_; }
 
   XGBOOST_DEVICE GradientPairInt64 &operator+=(const GradientPairInt64 &rhs) {
     grad_ += rhs.grad_;
