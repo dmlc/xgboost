@@ -31,10 +31,6 @@ namespace common {
 // The builder is required for samples partition to left and rights children for set of nodes
 class PartitionBuilder {
  public:
-  static constexpr size_t maxLocalSums = 256;
-  static constexpr size_t subgroupSize = 16;
-
-
   template<typename Func>
   void Init(::sycl::queue* qu, size_t n_nodes, Func funcNTaks) {
     qu_ = qu;
@@ -53,11 +49,6 @@ class PartitionBuilder {
     }
   }
 
-  size_t GetSubgroupSize() {
-    return subgroupSize;
-  }
-
-
   size_t GetNLeftElems(int nid) const {
     return result_rows_[2 * nid];
   }
@@ -67,11 +58,12 @@ class PartitionBuilder {
     return result_rows_[2 * nid + 1];
   }
 
+  // For test purposes only
   void SetNLeftElems(int nid, size_t val) {
     result_rows_[2 * nid] = val;
   }
 
-
+  // For test purposes only
   void SetNRightElems(int nid, size_t val) {
     result_rows_[2 * nid + 1] = val;
   }
@@ -82,18 +74,17 @@ class PartitionBuilder {
 
   void MergeToArray(size_t nid,
                     size_t* data_result,
-                    ::sycl::event* event) {
+                    ::sycl::event event) {
     size_t n_nodes_total = GetNLeftElems(nid) + GetNRightElems(nid);
     if (n_nodes_total > 0) {
       const size_t* data = data_.Data() + nodes_offsets_[nid];
-      qu_->memcpy(data_result, data, sizeof(size_t) * n_nodes_total, *event);
+      qu_->memcpy(data_result, data, sizeof(size_t) * n_nodes_total, event);
     }
   }
 
  protected:
   std::vector<size_t> nodes_offsets_;
   std::vector<size_t> result_rows_;
-  std::vector<::sycl::event> nodes_events_;
   size_t n_nodes_;
 
   USMVector<size_t, MemoryType::on_device> parts_size_;

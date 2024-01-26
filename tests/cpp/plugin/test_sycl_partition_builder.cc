@@ -67,7 +67,7 @@ TEST(SyclPartitionBuilder, BasicTest) {
   std::vector<size_t> v(*std::max_element(rows.begin(), rows.end()));
   size_t row_id = 0;
   for(size_t nid = 0; nid < kNodes; ++nid) {
-    builder.MergeToArray(nid, v.data(), &event);
+    builder.MergeToArray(nid, v.data(), event);
     qu.wait();
 
     // Check that row_id for left side are correct
