@@ -440,7 +440,7 @@ def test_regression():
         preds = xgb_model.predict(X[test_index])
         # test other params in XGBRegressor().fit
         preds2 = xgb_model.predict(
-            X[test_index], output_margin=True, iteration_range=(0, 3)
+            X[test_index], output_margin=True, iteration_range=(0, np.int16(3))
         )
         preds3 = xgb_model.predict(
             X[test_index], output_margin=True, iteration_range=None

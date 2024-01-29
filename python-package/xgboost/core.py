@@ -48,6 +48,8 @@ from ._typing import (
     FeatureInfo,
     FeatureNames,
     FeatureTypes,
+    Integer,
+    IterationRange,
     ModelIn,
     NumpyOrCupy,
     TransformedData,
@@ -1826,19 +1828,25 @@ class Booster:
             state["handle"] = handle
         self.__dict__.update(state)
 
-    def __getitem__(self, val: Union[int, tuple, slice]) -> "Booster":
+    def __getitem__(self, val: Union[Integer, tuple, slice]) -> "Booster":
         """Get a slice of the tree-based model.
 
         .. versionadded:: 1.3.0
 
         """
-        if isinstance(val, int):
-            val = slice(val, val + 1)
+        # convert to slice for all other types
+        if isinstance(val, (np.integer, int)):
+            val = slice(int(val), int(val + 1))
+        if isinstance(val, type(Ellipsis)):
+            val = slice(0, 0)
         if isinstance(val, tuple):
             raise ValueError("Only supports slicing through 1 dimension.")
+        # All supported types are now slice
+        # FIXME(jiamingy): Use `types.EllipsisType` once Python 3.10 is used.
         if not isinstance(val, slice):
-            msg = _expect((int, slice), type(val))
+            msg = _expect((int, slice, np.integer, type(Ellipsis)), type(val))
             raise TypeError(msg)
+
         if isinstance(val.start, type(Ellipsis)) or val.start is None:
             start = 0
         else:
@@ -2260,12 +2268,13 @@ class Booster:
         pred_interactions: bool = False,
         validate_features: bool = True,
         training: bool = False,
-        iteration_range: Tuple[int, int] = (0, 0),
+        iteration_range: IterationRange = (0, 0),
         strict_shape: bool = False,
     ) -> np.ndarray:
-        """Predict with data.  The full model will be used unless `iteration_range` is specified,
-        meaning user have to either slice the model or use the ``best_iteration``
-        attribute to get prediction from best model returned from early stopping.
+        """Predict with data.  The full model will be used unless `iteration_range` is
+        specified, meaning user have to either slice the model or use the
+        ``best_iteration`` attribute to get prediction from best model returned from
+        early stopping.
 
         .. note::
 
@@ -2350,8 +2359,8 @@ class Booster:
         args = {
             "type": 0,
             "training": training,
-            "iteration_begin": iteration_range[0],
-            "iteration_end": iteration_range[1],
+            "iteration_begin": int(iteration_range[0]),
+            "iteration_end": int(iteration_range[1]),
             "strict_shape": strict_shape,
         }
 
@@ -2387,7 +2396,7 @@ class Booster:
     def inplace_predict(
         self,
         data: DataType,
-        iteration_range: Tuple[int, int] = (0, 0),
+        iteration_range: IterationRange = (0, 0),
         predict_type: str = "value",
         missing: float = np.nan,
         validate_features: bool = True,
@@ -2453,8 +2462,8 @@ class Booster:
         args = make_jcargs(
             type=1 if predict_type == "margin" else 0,
             training=False,
-            iteration_begin=iteration_range[0],
-            iteration_end=iteration_range[1],
+            iteration_begin=int(iteration_range[0]),
+            iteration_end=int(iteration_range[1]),
             missing=missing,
             strict_shape=strict_shape,
             cache_id=0,

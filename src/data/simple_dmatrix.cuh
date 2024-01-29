@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2023 by XGBoost Contributors
+ * Copyright 2019-2024, XGBoost Contributors
  * \file simple_dmatrix.cuh
  */
 #ifndef XGBOOST_DATA_SIMPLE_DMATRIX_CUH_
@@ -11,7 +11,7 @@
 
 #include "../common/device_helpers.cuh"
 #include "../common/error_msg.h"  // for InfInData
-#include "device_adapter.cuh"     // for HasInfInData
+#include "device_adapter.cuh"     // for NoInfInData
 
 namespace xgboost::data {
 
