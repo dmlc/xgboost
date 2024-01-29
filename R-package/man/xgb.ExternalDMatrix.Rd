@@ -83,7 +83,9 @@ iterator_next <- function(iterator_env) {
     x_batch <- iterator_env[["x"]][17:32, ]
     y_batch <- iterator_env[["y"]][17:32]
   }
-  on.exit({iterator_env[["iter"]] <- curr_iter + 1})
+  on.exit({
+    iterator_env[["iter"]] <- curr_iter + 1
+  })
 
   # Function 'xgb.ProxyDMatrix' must be called manually
   # at each batch with all the appropriate attributes,

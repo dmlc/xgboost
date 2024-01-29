@@ -369,7 +369,9 @@ xgb.QuantileDMatrix <- function(
   # of scope, hence this piece of code to tigger its destruction earlier
   # and free memory right away.
   proxy_handle <- .make.proxy.handle()
-  on.exit({.Call(XGDMatrixFree_R, proxy_handle)})
+  on.exit({
+    .Call(XGDMatrixFree_R, proxy_handle)
+  })
   iterator_next <- function() {
     return(xgb.ProxyDMatrix.internal(proxy_handle, data_iterator))
   }
@@ -453,7 +455,9 @@ xgb.DataIter <- function(env = new.env(), f_next, f_reset) {
     return(NULL)
   }
 
-  on.exit({env[["iter"]] <- curr_iter + 1L})
+  on.exit({
+    env[["iter"]] <- curr_iter + 1L
+  })
   return(
     xgb.ProxyDMatrix(
       data = env[["data"]],
@@ -572,7 +576,7 @@ xgb.ProxyDMatrix.internal <- function(proxy_handle, data_iterator) {
   }
   if (is.data.frame(lst$data)) {
     tmp <- .process.df.for.dmatrix(lst$data, lst$enable_categorical, lst$feature_types)
-    feature_types <- tmp$feature_types
+    lst$feature_types <- tmp$feature_types
     .Call(XGProxyDMatrixSetDataColumnar_R, proxy_handle, tmp$lst)
     rm(tmp)
   } else if (is.matrix(lst$data)) {
@@ -666,7 +670,9 @@ xgb.ProxyDMatrix.internal <- function(proxy_handle, data_iterator) {
 #'     x_batch <- iterator_env[["x"]][17:32, ]
 #'     y_batch <- iterator_env[["y"]][17:32]
 #'   }
-#'   on.exit({iterator_env[["iter"]] <- curr_iter + 1})
+#'   on.exit({
+#'     iterator_env[["iter"]] <- curr_iter + 1
+#'   })
 #'
 #'   # Function 'xgb.ProxyDMatrix' must be called manually
 #'   # at each batch with all the appropriate attributes,
@@ -711,7 +717,9 @@ xgb.ExternalDMatrix <- function(
   nthread <- as.integer(NVL(nthread, -1L))
 
   proxy_handle <- .make.proxy.handle()
-  on.exit({.Call(XGDMatrixFree_R, proxy_handle)})
+  on.exit({
+    .Call(XGDMatrixFree_R, proxy_handle)
+  })
   iterator_next <- function() {
     return(xgb.ProxyDMatrix.internal(proxy_handle, data_iterator))
   }
@@ -759,7 +767,7 @@ xgb.ExternalDMatrix <- function(
 #' @seealso \link{xgb.DataIter}, \link{xgb.ProxyDMatrix}, \link{xgb.ExternalDMatrix},
 #' \link{xgb.QuantileDMatrix}
 #' @export
-xgb.QuantileDMatrix.from_iterator <- function(
+xgb.QuantileDMatrix.from_iterator <- function( # nolint
   data_iterator,
   missing = NA,
   nthread = NULL,
@@ -774,7 +782,9 @@ xgb.QuantileDMatrix.from_iterator <- function(
   nthread <- as.integer(NVL(nthread, -1L))
 
   proxy_handle <- .make.proxy.handle()
-  on.exit({.Call(XGDMatrixFree_R, proxy_handle)})
+  on.exit({
+    .Call(XGDMatrixFree_R, proxy_handle)
+  })
   iterator_next <- function() {
     return(xgb.ProxyDMatrix.internal(proxy_handle, data_iterator))
   }

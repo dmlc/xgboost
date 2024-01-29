@@ -485,7 +485,9 @@ test_that("xgb.DMatrix: ExternalDMatrix produces the same results as regular DMa
       x_batch <- iterator_env[["x"]][17:32, ]
       y_batch <- iterator_env[["y"]][17:32]
     }
-    on.exit({iterator_env[["iter"]] <- curr_iter + 1})
+    on.exit({
+      iterator_env[["iter"]] <- curr_iter + 1
+    })
     return(xgb.ProxyDMatrix(data = x_batch, label = y_batch))
   }
   iterator_reset <- function(iterator_env) {
@@ -557,7 +559,9 @@ test_that("xgb.DMatrix: External QDM produces same results as regular QDM", {
       x_batch <- iterator_env[["x"]][17:32, ]
       y_batch <- iterator_env[["y"]][17:32]
     }
-    on.exit({iterator_env[["iter"]] <- curr_iter + 1})
+    on.exit({
+      iterator_env[["iter"]] <- curr_iter + 1
+    })
     return(xgb.ProxyDMatrix(data = x_batch, label = y_batch))
   }
   iterator_reset <- function(iterator_env) {
@@ -612,7 +616,9 @@ test_that("xgb.DMatrix: R errors thrown on DataIterator are thrown back to the u
     } else {
       stop("custom error")
     }
-    on.exit({iterator_env[["iter"]] <- curr_iter + 1})
+    on.exit({
+      iterator_env[["iter"]] <- curr_iter + 1
+    })
     return(xgb.ProxyDMatrix(data = x_batch, label = y_batch))
   }
   iterator_reset <- function(iterator_env) {
