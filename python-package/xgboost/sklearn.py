@@ -22,7 +22,7 @@ from typing import (
 import numpy as np
 from scipy.special import softmax
 
-from ._typing import ArrayLike, FeatureNames, FeatureTypes, ModelIn
+from ._typing import ArrayLike, FeatureNames, FeatureTypes, IterationRange, ModelIn
 from .callback import TrainingCallback
 
 # Do not use class names on scikit-learn directly.  Re-define the classes on
@@ -1039,8 +1039,8 @@ class XGBModel(XGBModelBase):
         return False
 
     def _get_iteration_range(
-        self, iteration_range: Optional[Tuple[int, int]]
-    ) -> Tuple[int, int]:
+        self, iteration_range: Optional[IterationRange]
+    ) -> IterationRange:
         if iteration_range is None or iteration_range[1] == 0:
             # Use best_iteration if defined.
             try:
@@ -1057,7 +1057,7 @@ class XGBModel(XGBModelBase):
         output_margin: bool = False,
         validate_features: bool = True,
         base_margin: Optional[ArrayLike] = None,
-        iteration_range: Optional[Tuple[int, int]] = None,
+        iteration_range: Optional[IterationRange] = None,
     ) -> ArrayLike:
         """Predict with `X`.  If the model is trained with early stopping, then
         :py:attr:`best_iteration` is used automatically. The estimator uses
@@ -1129,7 +1129,7 @@ class XGBModel(XGBModelBase):
     def apply(
         self,
         X: ArrayLike,
-        iteration_range: Optional[Tuple[int, int]] = None,
+        iteration_range: Optional[IterationRange] = None,
     ) -> np.ndarray:
         """Return the predicted leaf every tree for each sample. If the model is trained
         with early stopping, then :py:attr:`best_iteration` is used automatically.
@@ -1465,7 +1465,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         output_margin: bool = False,
         validate_features: bool = True,
         base_margin: Optional[ArrayLike] = None,
-        iteration_range: Optional[Tuple[int, int]] = None,
+        iteration_range: Optional[IterationRange] = None,
     ) -> ArrayLike:
         with config_context(verbosity=self.verbosity):
             class_probs = super().predict(
@@ -1500,7 +1500,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         X: ArrayLike,
         validate_features: bool = True,
         base_margin: Optional[ArrayLike] = None,
-        iteration_range: Optional[Tuple[int, int]] = None,
+        iteration_range: Optional[IterationRange] = None,
     ) -> np.ndarray:
         """Predict the probability of each `X` example being of a given class. If the
         model is trained with early stopping, then :py:attr:`best_iteration` is used
@@ -1942,7 +1942,7 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
         output_margin: bool = False,
         validate_features: bool = True,
         base_margin: Optional[ArrayLike] = None,
-        iteration_range: Optional[Tuple[int, int]] = None,
+        iteration_range: Optional[IterationRange] = None,
     ) -> ArrayLike:
         X, _ = _get_qid(X, None)
         return super().predict(
@@ -1956,7 +1956,7 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
     def apply(
         self,
         X: ArrayLike,
-        iteration_range: Optional[Tuple[int, int]] = None,
+        iteration_range: Optional[IterationRange] = None,
     ) -> ArrayLike:
         X, _ = _get_qid(X, None)
         return super().apply(X, iteration_range)

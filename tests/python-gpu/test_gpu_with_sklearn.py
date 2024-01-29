@@ -249,7 +249,7 @@ def test_custom_objective(
         clf.fit(X, y)
 
 
-@pytest.mark.skipif(**tm.no_pandas())
+@pytest.mark.skipif(**tm.no_cudf())
 def test_ranking_qid_df():
     import cudf
 

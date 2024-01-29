@@ -36,6 +36,11 @@ PandasDType = Any  # real type is pandas.core.dtypes.base.ExtensionDtype
 
 FloatCompatible = Union[float, np.float32, np.float64]
 
+# typing.SupportsInt is not suitable here since floating point values are convertible to
+# integers as well.
+Integer = Union[int, np.integer]
+IterationRange = Tuple[Integer, Integer]
+
 # callables
 FPreProcCallable = Callable
 
