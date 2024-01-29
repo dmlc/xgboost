@@ -8,10 +8,7 @@ xgb.ExternalDMatrix(
   data_iterator,
   cache_prefix = tempdir(),
   missing = NA,
-  nthread = NULL,
-  as_quantile_dmatrix = FALSE,
-  ref = NULL,
-  max_bin = NULL
+  nthread = NULL
 )
 }
 \arguments{
@@ -23,51 +20,30 @@ the data in batches on-demand.}
 
 \item{missing}{A float value to represents missing values in data.
 
-Note that, while functions like \link{xgb.DMatrix} can take a generic \code{NA} and interpret
-correctly it for different types like \code{numeric} and \code{integer}, if an \code{NA} value is passed here,
+Note that, while functions like \link{xgb.DMatrix} can take a generic \code{NA} and interpret it
+correctly for different types like \code{numeric} and \code{integer}, if an \code{NA} value is passed here,
 it will not be adapted for different input types.
 
 For example, in R \code{integer} types, missing values are represented by integer number \code{-2147483648}
 (since machine 'integer' types do not have an inherent 'NA' value) - hence, if one passes \code{NA},
-which is interpreted as a floating-point NaN by 'xgb.ExternalDMatrix', these integer missing values
-will not be treated as missing. This should not pose any problem for \code{numeric} types, since they
-do have an inheret NaN value.}
+which is interpreted as a floating-point NaN by 'xgb.ExternalDMatrix' and by
+'xgb.QuantileDMatrix.from_iterator', these integer missing values will not be treated as missing.
+This should not pose any problem for \code{numeric} types, since they do have an inheret NaN value.}
 
 \item{nthread}{Number of threads used for creating DMatrix.}
-
-\item{as_quantile_dmatrix}{Whether to create the resulting object as a QuantileDMatrix.}
-
-\item{ref}{The training dataset that provides quantile information, needed when creating
-validation/test dataset with \code{xgb.QuantileDMatrix}. Supplying the training DMatrix
-as a reference means that the same quantisation applied to the training data is
-applied to the validation/test data}
-
-\item{max_bin}{The number of histogram bin, should be consistent with the training parameter
-\code{max_bin}.
-
-This is only supported when constructing a QuantileDMatrix.}
 }
 \value{
-A 'DMatrix' object.\itemize{
-\item If passing \code{as_quantile_dmatrix=TRUE}, will have additional subclass 'xgb.QuantileDMatrix'
-(same as the objects returned by calling \link{xgb.QuantileDMatrix}).
-\item If passing \code{as_quantile_dmatrix=FALSE}, will have additional subclass 'xgb.ExternalDMatrix'.
-}
+An 'xgb.DMatrix' object, with subclass 'xgb.ExternalDMatrix', in which the data is not
+held internally but accessed through the iterator when needed.
 }
 \description{
-Create an xgboost 'DMatrix' or 'QuantileDMatrix' object from external data
+Create a special type of xgboost 'DMatrix' object from external data
 supplied by an \link{xgb.DataIter} object, potentially passed in batches from a
 bigger set that might not fit entirely in memory.
 
-Might be created as either a regular 'DMatrix', or as a 'QuantileDMatrix'.\itemize{
-\item If created as a regular 'DMatrix', the data is accessed on-demand as needed, multiple
-times, without being concatenated (but note that fields like 'label' \bold{will} be concatenated
-from multiple calls to the data iterator).
-\item If created as a 'QuantileDMatrix', the quantized representation of the full data will
-be created in memory, concatenated from multiple calls to the data iterator. The quantized
-version is typically lighter than the original data, so there might be cases in which this
-representation could potentially fit in memory even if the full data doesn't.
-}
+The data supplied by the iterator is accessed on-demand as needed, multiple times,
+without being concatenated, but note that fields like 'label' \bold{will} be
+concatenated from multiple calls to the data iterator.
 
 For more information, see the guide 'Using XGBoost External Memory Version':
 \url{https://xgboost.readthedocs.io/en/stable/tutorials/external_memory.html}
@@ -149,5 +125,5 @@ pred_dm <- predict(model, dm)
 pred_mat <- predict(model, as.matrix(mtcars[, -1]))
 }
 \seealso{
-\link{xgb.DataIter}, \link{xgb.ProxyDMatrix}, \link{xgb.QuantileDMatrix}
+\link{xgb.DataIter}, \link{xgb.ProxyDMatrix}, \link{xgb.QuantileDMatrix.from_iterator}
 }

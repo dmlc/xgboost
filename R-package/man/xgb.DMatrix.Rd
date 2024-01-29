@@ -86,7 +86,7 @@ so it doesn't make sense to assign weights to individual data points.}
 \if{html}{\out{<div class="sourceCode">}}\preformatted{   In the case of multi-output models, one can also pass multi-dimensional base_margin.
 }\if{html}{\out{</div>}}}
 
-\item{missing}{a float value to represents missing values in data (not used when creating DMatrix
+\item{missing}{A float value to represents missing values in data (not used when creating DMatrix
 from text files).
 It is useful to change when a zero, infinite, or some other extreme value represents missing
 values in data.}

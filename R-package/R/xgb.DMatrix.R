@@ -47,7 +47,7 @@
 #' @param base_margin Base margin used for boosting from existing model.
 #'
 #'        In the case of multi-output models, one can also pass multi-dimensional base_margin.
-#' @param missing a float value to represents missing values in data (not used when creating DMatrix
+#' @param missing A float value to represents missing values in data (not used when creating DMatrix
 #'        from text files).
 #'        It is useful to change when a zero, infinite, or some other extreme value represents missing
 #'        values in data.
@@ -589,19 +589,13 @@ xgb.ProxyDMatrix <- function(
 }
 
 #' @title DMatrix from External Data
-#' @description Create an xgboost 'DMatrix' or 'QuantileDMatrix' object from external data
+#' @description Create a special type of xgboost 'DMatrix' object from external data
 #' supplied by an \link{xgb.DataIter} object, potentially passed in batches from a
 #' bigger set that might not fit entirely in memory.
 #'
-#' Might be created as either a regular 'DMatrix', or as a 'QuantileDMatrix'.\itemize{
-#' \item If created as a regular 'DMatrix', the data is accessed on-demand as needed, multiple
-#' times, without being concatenated (but note that fields like 'label' \bold{will} be concatenated
-#' from multiple calls to the data iterator).
-#' \item If created as a 'QuantileDMatrix', the quantized representation of the full data will
-#' be created in memory, concatenated from multiple calls to the data iterator. The quantized
-#' version is typically lighter than the original data, so there might be cases in which this
-#' representation could potentially fit in memory even if the full data doesn't.
-#' }
+#' The data supplied by the iterator is accessed on-demand as needed, multiple times,
+#' without being concatenated, but note that fields like 'label' \bold{will} be
+#' concatenated from multiple calls to the data iterator.
 #'
 #' For more information, see the guide 'Using XGBoost External Memory Version':
 #' \url{https://xgboost.readthedocs.io/en/stable/tutorials/external_memory.html}
@@ -612,22 +606,18 @@ xgb.ProxyDMatrix <- function(
 #' @param cache_prefix The path of cache file, caller must initialize all the directories in this path.
 #' @param missing A float value to represents missing values in data.
 #'
-#' Note that, while functions like \link{xgb.DMatrix} can take a generic `NA` and interpret
-#' correctly it for different types like `numeric` and `integer`, if an `NA` value is passed here,
+#' Note that, while functions like \link{xgb.DMatrix} can take a generic `NA` and interpret it
+#' correctly for different types like `numeric` and `integer`, if an `NA` value is passed here,
 #' it will not be adapted for different input types.
 #'
 #' For example, in R `integer` types, missing values are represented by integer number `-2147483648`
 #' (since machine 'integer' types do not have an inherent 'NA' value) - hence, if one passes `NA`,
-#' which is interpreted as a floating-point NaN by 'xgb.ExternalDMatrix', these integer missing values
-#' will not be treated as missing. This should not pose any problem for `numeric` types, since they
-#' do have an inheret NaN value.
-#' @param as_quantile_dmatrix Whether to create the resulting object as a QuantileDMatrix.
-#' @return A 'DMatrix' object.\itemize{
-#' \item If passing `as_quantile_dmatrix=TRUE`, will have additional subclass 'xgb.QuantileDMatrix'
-#' (same as the objects returned by calling \link{xgb.QuantileDMatrix}).
-#' \item If passing `as_quantile_dmatrix=FALSE`, will have additional subclass 'xgb.ExternalDMatrix'.
-#' }
-#' @seealso \link{xgb.DataIter}, \link{xgb.ProxyDMatrix}, \link{xgb.QuantileDMatrix}
+#' which is interpreted as a floating-point NaN by 'xgb.ExternalDMatrix' and by
+#' 'xgb.QuantileDMatrix.from_iterator', these integer missing values will not be treated as missing.
+#' This should not pose any problem for `numeric` types, since they do have an inheret NaN value.
+#' @return An 'xgb.DMatrix' object, with subclass 'xgb.ExternalDMatrix', in which the data is not
+#' held internally but accessed through the iterator when needed.
+#' @seealso \link{xgb.DataIter}, \link{xgb.ProxyDMatrix}, \link{xgb.QuantileDMatrix.from_iterator}
 #' @examples
 #' library(xgboost)
 #' data(mtcars)
@@ -708,39 +698,16 @@ xgb.ExternalDMatrix <- function(
   data_iterator,
   cache_prefix = tempdir(),
   missing = NA,
-  nthread = NULL,
-  as_quantile_dmatrix = FALSE,
-  ref = NULL,
-  max_bin = NULL
+  nthread = NULL
 ) {
-  if (!inherits(data_iterator, "xgb.DataIter")) {
-    stop("'data_iterator' must be an 'xgb.DataIter' object as returned by said function.")
-  }
-  as_quantile_dmatrix <- as.logical(as_quantile_dmatrix)[1]
-  if (is.null(as_quantile_dmatrix) || is.na(as_quantile_dmatrix)) {
-    stop("'as_quantile_dmatrix' cannot be missing.")
-  }
-  if (!as_quantile_dmatrix) {
-    if (!is.character(cache_prefix)) {
-      stop("'cache_prefix' must be a path, passed in the form of a character (string) object.")
-    }
-    cache_prefix <- path.expand(cache_prefix)
+  stopifnot(inherits(data_iterator, "xgb.DataIter"))
+  stopifnot(is.character(cache_prefix))
 
-    if (!is.null(ref)) {
-      warning("'ref' is not used when passing 'as_quantile_dmatrix=FALSE'.")
-    }
-    if (!is.null(max_bin)) {
-      warning("'max_bin' is not used when passing 'as_quantile_dmatrix=FALSE'.")
-    }
-  } else {
-    if (!is.null(ref) && !inherits(ref, "xgb.DMatrix")) {
-      stop("'ref' must be an xgb.DMatrix object.")
-    }
-  }
-
+  cache_prefix <- path.expand(cache_prefix)
   nthread <- as.integer(NVL(nthread, -1L))
 
   proxy_handle <- .make.proxy.handle()
+  on.exit({.Call(XGDMatrixFree_R, proxy_handle)})
   iterator_next <- function() {
     return(data_iterator$f_next(data_iterator$env, proxy_handle))
   }
@@ -749,42 +716,85 @@ xgb.ExternalDMatrix <- function(
   }
   calling_env <- environment()
 
-  if (as_quantile_dmatrix) {
-    dmat <- .Call(
-      XGQuantileDMatrixCreateFromCallback_R,
-      iterator_next,
-      iterator_reset,
-      calling_env,
-      proxy_handle,
-      nthread,
-      missing,
-      max_bin,
-      ref
-    )
-  } else {
-    dmat <- .Call(
-      XGDMatrixCreateFromCallback_R,
-      iterator_next,
-      iterator_reset,
-      calling_env,
-      proxy_handle,
-      nthread,
-      missing,
-      cache_prefix
-    )
-  }
+  dmat <- .Call(
+    XGDMatrixCreateFromCallback_R,
+    iterator_next,
+    iterator_reset,
+    calling_env,
+    proxy_handle,
+    nthread,
+    missing,
+    cache_prefix
+  )
 
-  out_class <- "xgb.DMatrix"
-  if (as_quantile_dmatrix) {
-    out_class <- c(out_class, "xgb.QuantileDMatrix")
-  } else {
-    out_class <- c(out_class, "xgb.ExternalDMatrix")
-  }
   attributes(dmat) <- list(
-    class = out_class,
+    class = c("xgb.DMatrix", "xgb.ExternalDMatrix"),
     fields = attributes(proxy_handle)$fields
   )
-  .Call(XGDMatrixFree_R, proxy_handle)
+  return(dmat)
+}
+
+
+#' @title QuantileDMatrix from External Data
+#' @description Create an `xgb.QuantileDMatrix` object (exact same class as would be returned by
+#' calling function \link{xgb.QuantileDMatrix}, with the same advantages and limitations) from
+#' external data supplied by an \link{xgb.DataIter} object, potentially passed in batches from
+#' a bigger set that might not fit entirely in memory, same way as \link{xgb.ExternalDMatrix}.
+#'
+#' Note that, while external data will only be loaded through the iterator (thus the full data
+#' might not be held entirely in-memory), the quantized representation of the data will get
+#' created in-memory, being concatenated from multiple calls to the data iterator. The quantized
+#' version is typically lighter than the original data, so there might be cases in which this
+#' representation could potentially fit in memory even if the full data doesn't.
+#'
+#' For more information, see the guide 'Using XGBoost External Memory Version':
+#' \url{https://xgboost.readthedocs.io/en/stable/tutorials/external_memory.html}
+#' @inheritParams xgb.ExternalDMatrix
+#' @inheritParams xgb.QuantileDMatrix
+#' @return An 'xgb.DMatrix' object, with subclass 'xgb.QuantileDMatrix'.
+#' @seealso \link{xgb.DataIter}, \link{xgb.ProxyDMatrix}, \link{xgb.ExternalDMatrix},
+#' \link{xgb.QuantileDMatrix}
+#' @export
+xgb.QuantileDMatrix.from_iterator <- function(
+  data_iterator,
+  missing = NA,
+  nthread = NULL,
+  ref = NULL,
+  max_bin = NULL
+) {
+  stopifnot(inherits(data_iterator, "xgb.DataIter"))
+  if (!is.null(ref) && !inherits(ref, "xgb.DMatrix")) {
+    stop("'ref' must be an xgb.DMatrix object.")
+  }
+
+  nthread <- as.integer(NVL(nthread, -1L))
+
+  proxy_handle <- .make.proxy.handle()
+  on.exit({.Call(XGDMatrixFree_R, proxy_handle)})
+  iterator_next <- function() {
+    return(data_iterator$f_next(data_iterator$env, proxy_handle))
+  }
+  iterator_reset <- function() {
+    return(data_iterator$f_reset(data_iterator$env))
+  }
+  calling_env <- environment()
+
+  dmat <- .Call(
+    XGQuantileDMatrixCreateFromCallback_R,
+    iterator_next,
+    iterator_reset,
+    calling_env,
+    proxy_handle,
+    nthread,
+    missing,
+    max_bin,
+    ref
+  )
+
+  attributes(dmat) <- list(
+    class = c("xgb.DMatrix", "xgb.QuantileDMatrix"),
+    fields = attributes(proxy_handle)$fields
+  )
   return(dmat)
 }
 

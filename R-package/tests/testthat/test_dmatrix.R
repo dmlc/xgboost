@@ -503,6 +503,8 @@ test_that("xgb.DMatrix: ExternalDMatrix produces the same results as regular DMa
   )
   cache_prefix <- tempdir()
   edm <- xgb.ExternalDMatrix(data_iterator, cache_prefix, nthread = 1)
+  expect_true(inherits(edm, "xgb.ExternalDMatrix"))
+  expect_true(inherits(edm, "xgb.DMatrix"))
   set.seed(123)
   model_ext <- xgb.train(
     data = edm,
@@ -517,6 +519,87 @@ test_that("xgb.DMatrix: ExternalDMatrix produces the same results as regular DMa
   expect_equal(pred_model1_edm, pred)
   expect_equal(pred_model2_mat, pred)
   expect_equal(pred_model2_edm, pred)
+})
+
+test_that("xgb.DMatrix: External QDM produces same results as regular QDM", {
+  data(mtcars)
+  y <- mtcars[, 1]
+  x <- as.matrix(mtcars[, -1])
+  set.seed(123)
+  params <- list(
+    objective = "reg:squarederror",
+    nthread = n_threads,
+    max_bin = 3
+  )
+  model <- xgb.train(
+    data = xgb.QuantileDMatrix(
+      x,
+      label = y,
+      nthread = 1,
+      max_bin = 3
+    ),
+    params = params,
+    nrounds = 5
+  )
+  pred <- predict(model, x)
+
+  iterator_env <- as.environment(
+    list(
+      iter = 0,
+      x = mtcars[, -1],
+      y = mtcars[, 1]
+    )
+  )
+  iterator_next <- function(iterator_env, proxy_handle) {
+    curr_iter <- iterator_env[["iter"]]
+    if (curr_iter >= 2) {
+      return(0)
+    }
+    if (curr_iter == 0) {
+      x_batch <- iterator_env[["x"]][1:16, ]
+      y_batch <- iterator_env[["y"]][1:16]
+    } else {
+      x_batch <- iterator_env[["x"]][17:32, ]
+      y_batch <- iterator_env[["y"]][17:32]
+    }
+    xgb.ProxyDMatrix(
+      proxy_handle = proxy_handle,
+      data = x_batch,
+      label = y_batch
+    )
+    iterator_env[["iter"]] <- curr_iter + 1
+    return(iterator_env[["iter"]])
+  }
+  iterator_reset <- function(iterator_env) {
+    iterator_env[["iter"]] <- 0
+  }
+  data_iterator <- xgb.DataIter(
+    env = iterator_env,
+    f_next = iterator_next,
+    f_reset = iterator_reset
+  )
+  cache_prefix <- tempdir()
+  qdm <- xgb.QuantileDMatrix.from_iterator(
+    data_iterator,
+    max_bin = 3,
+    nthread = 1
+  )
+  expect_true(inherits(qdm, "xgb.QuantileDMatrix"))
+  expect_true(inherits(qdm, "xgb.DMatrix"))
+  set.seed(123)
+  model_ext <- xgb.train(
+    data = qdm,
+    params = params,
+    nrounds = 5
+  )
+
+  pred_model1_qdm <- predict(model, qdm)
+  pred_model2_mat <- predict(model_ext, x)
+  pred_model2_qdm <- predict(model_ext, qdm)
+
+  expect_equal(pred_model1_qdm, pred)
+  expect_equal(pred_model2_mat, pred)
+  expect_equal(pred_model2_qdm, pred)
 })
 
 test_that("xgb.DMatrix: R errors thrown on DataIterator are thrown back to the user", {
