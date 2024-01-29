@@ -69,13 +69,11 @@ iterator_env <- as.environment(
 # and can be passed in full in one go, but there can be situations in which
 # only a subset of the data will fit in the computer's memory, and it can
 # be loaded in batches that are accessed one-at-a-time only.
-# The 'proxy_handle' is supplied externally when this function is called,
-# and it must be passed to 'xgb.ProxyDMatrix' inside of the call.
-iterator_next <- function(iterator_env, proxy_handle) {
+iterator_next <- function(iterator_env) {
   curr_iter <- iterator_env[["iter"]]
   if (curr_iter >= 2) {
     # there are only two batches, so this signals end of the stream
-    return(0)
+    return(NULL)
   }
 
   if (curr_iter == 0) {
@@ -85,19 +83,12 @@ iterator_next <- function(iterator_env, proxy_handle) {
     x_batch <- iterator_env[["x"]][17:32, ]
     y_batch <- iterator_env[["y"]][17:32]
   }
+  on.exit({iterator_env[["iter"]] <- curr_iter + 1})
 
   # Function 'xgb.ProxyDMatrix' must be called manually
   # at each batch with all the appropriate attributes,
   # such as feature names and feature types.
-  xgb.ProxyDMatrix(
-    proxy_handle = proxy_handle,
-    data = x_batch,
-    label = y_batch
-  )
-
-  iterator_env[["iter"]] <- curr_iter + 1
-  # this signals that the stream continues
-  return(iterator_env[["iter"]])
+  return(xgb.ProxyDMatrix(data = x_batch, label = y_batch))
 }
 
 # This moves the iterator back to its beginning

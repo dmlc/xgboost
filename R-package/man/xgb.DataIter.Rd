@@ -13,16 +13,14 @@ used to keep track of variables to determine how to handle the batches.
 For example, one might want to keep track of an iteration number in this environment in order
 to know which part of the data to pass next.}
 
-\item{f_next}{\verb{function(env, proxy_handle)} which is responsible for:\itemize{
-\item Accessing the next batch of data in the iterator.
-\item Passing this data to \code{proxy_handle} by calling function \link{xgb.ProxyDMatrix} on it.
-The \code{proxy_handle} that is supplied to this function \bold{must} in turn be passed as first
-argument in the call to \link{xgb.ProxyDMatrix} inside of the call.
+\item{f_next}{\verb{function(env)} which is responsible for:\itemize{
+\item Accessing or retrieving the next batch of data in the iterator.
+\item Supplying this data by calling function \link{xgb.ProxyDMatrix} on it and returning the result.
 \item Keeping track of where in the iterator batch it is or will go next, which can for example
 be done by modifiying variables in the \code{env} variable that is passed here.
-\item Signaling whether there are more batches to be consumed or not, by returning an integer
-with a value of zero when the stream of data ends (all batches in the iterator have been consumed),
-or an integer with a positive value when there are more batches in the line to be consumed.
+\item Signaling whether there are more batches to be consumed or not, by returning \code{NULL}
+when the stream of data ends (all batches in the iterator have been consumed), or the result from
+calling \link{xgb.ProxyDMatrix} when there are more batches in the line to be consumed.
 }}
 
 \item{f_reset}{\verb{function(env)} which is responsible for reseting the data iterator
@@ -33,7 +31,7 @@ Note that, after resetting the iterator, the batches will be accessed again, so 
 (and in the same order) must be passed in subsequent iterations.}
 }
 \value{
-An 'xgb.DataIter' object, containing the same inputs supplied here, which can then
+An \code{xgb.DataIter} object, containing the same inputs supplied here, which can then
 be passed to \link{xgb.ExternalDMatrix}.
 }
 \description{
