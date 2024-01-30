@@ -1,4 +1,4 @@
-name: Build 32-bit
+name: XGBoost-i386-test
 
 on: [push, pull_request]
 
@@ -10,8 +10,7 @@ jobs:
     name: Build 32-bit
     runs-on: ubuntu-latest
     container: i386/ubuntu:latest
-
-  steps:
+    steps:
     - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
