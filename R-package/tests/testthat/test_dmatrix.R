@@ -338,19 +338,18 @@ test_that("xgb.DMatrix: data.frame", {
     stringsAsFactors = TRUE
   )
 
-  m <- xgb.DMatrix(df, enable_categorical = TRUE)
+  m <- xgb.DMatrix(df)
   expect_equal(colnames(m), colnames(df))
   expect_equal(
     getinfo(m, "feature_type"), c("float", "float", "int", "i", "c", "c")
   )
-  expect_error(xgb.DMatrix(df, enable_categorical = FALSE))
 
   df <- data.frame(
     missing = c("a", "b", "d", NA),
     valid = c("a", "b", "d", "c"),
     stringsAsFactors = TRUE
   )
-  m <- xgb.DMatrix(df, enable_categorical = TRUE)
+  m <- xgb.DMatrix(df)
   expect_equal(getinfo(m, "feature_type"), c("c", "c"))
 })
 
