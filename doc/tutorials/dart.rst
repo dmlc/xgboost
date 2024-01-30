@@ -96,8 +96,8 @@ Sample Script
 
   import xgboost as xgb
   # read in data
-  dtrain = xgb.DMatrix('demo/data/agaricus.txt.train')
-  dtest = xgb.DMatrix('demo/data/agaricus.txt.test')
+  dtrain = xgb.DMatrix('demo/data/agaricus.txt.train?format=libsvm')
+  dtest = xgb.DMatrix('demo/data/agaricus.txt.test?format=libsvm')
   # specify parameters via map
   param = {'booster': 'dart',
            'max_depth': 5, 'learning_rate': 0.1,

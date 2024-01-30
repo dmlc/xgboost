@@ -1,4 +1,5 @@
 """Tests for updaters."""
+
 import json
 from functools import partial, update_wrapper
 from typing import Any, Dict, List

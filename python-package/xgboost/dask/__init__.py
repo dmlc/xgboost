@@ -61,7 +61,7 @@ from typing import (
 import numpy
 
 from xgboost import collective, config
-from xgboost._typing import _T, FeatureNames, FeatureTypes
+from xgboost._typing import _T, FeatureNames, FeatureTypes, IterationRange
 from xgboost.callback import TrainingCallback
 from xgboost.compat import DataFrame, LazyLoader, concat, lazy_isinstance
 from xgboost.core import (
@@ -1146,9 +1146,9 @@ async def _direct_predict_impl(  # pylint: disable=too-many-branches
     if _can_output_df(isinstance(data, dd.DataFrame), output_shape):
         if base_margin is not None and isinstance(base_margin, da.Array):
             # Easier for map_partitions
-            base_margin_df: Optional[
-                Union[dd.DataFrame, dd.Series]
-            ] = base_margin.to_dask_dataframe()
+            base_margin_df: Optional[Union[dd.DataFrame, dd.Series]] = (
+                base_margin.to_dask_dataframe()
+            )
         else:
             base_margin_df = base_margin
         predictions = dd.map_partitions(
@@ -1263,7 +1263,7 @@ async def _predict_async(
     approx_contribs: bool,
     pred_interactions: bool,
     validate_features: bool,
-    iteration_range: Tuple[int, int],
+    iteration_range: IterationRange,
     strict_shape: bool,
 ) -> _DaskCollection:
     _booster = await _get_model_future(client, model)
@@ -1410,7 +1410,7 @@ def predict(  # pylint: disable=unused-argument
     approx_contribs: bool = False,
     pred_interactions: bool = False,
     validate_features: bool = True,
-    iteration_range: Tuple[int, int] = (0, 0),
+    iteration_range: IterationRange = (0, 0),
     strict_shape: bool = False,
 ) -> Any:
     """Run prediction with a trained booster.
@@ -1458,7 +1458,7 @@ async def _inplace_predict_async(  # pylint: disable=too-many-branches
     global_config: Dict[str, Any],
     model: Union[Booster, Dict, "distributed.Future"],
     data: _DataT,
-    iteration_range: Tuple[int, int],
+    iteration_range: IterationRange,
     predict_type: str,
     missing: float,
     validate_features: bool,
@@ -1516,7 +1516,7 @@ def inplace_predict(  # pylint: disable=unused-argument
     client: Optional["distributed.Client"],
     model: Union[TrainReturnT, Booster, "distributed.Future"],
     data: _DataT,
-    iteration_range: Tuple[int, int] = (0, 0),
+    iteration_range: IterationRange = (0, 0),
     predict_type: str = "value",
     missing: float = numpy.nan,
     validate_features: bool = True,
@@ -1624,7 +1624,7 @@ class DaskScikitLearnBase(XGBModel):
         output_margin: bool,
         validate_features: bool,
         base_margin: Optional[_DaskCollection],
-        iteration_range: Optional[Tuple[int, int]],
+        iteration_range: Optional[IterationRange],
     ) -> Any:
         iteration_range = self._get_iteration_range(iteration_range)
         if self._can_use_inplace_predict():
@@ -1664,7 +1664,7 @@ class DaskScikitLearnBase(XGBModel):
         output_margin: bool = False,
         validate_features: bool = True,
         base_margin: Optional[_DaskCollection] = None,
-        iteration_range: Optional[Tuple[int, int]] = None,
+        iteration_range: Optional[IterationRange] = None,
     ) -> Any:
         _assert_dask_support()
         return self.client.sync(
@@ -1679,7 +1679,7 @@ class DaskScikitLearnBase(XGBModel):
     async def _apply_async(
         self,
         X: _DataT,
-        iteration_range: Optional[Tuple[int, int]] = None,
+        iteration_range: Optional[IterationRange] = None,
     ) -> Any:
         iteration_range = self._get_iteration_range(iteration_range)
         test_dmatrix = await DaskDMatrix(
@@ -1700,7 +1700,7 @@ class DaskScikitLearnBase(XGBModel):
     def apply(
         self,
         X: _DataT,
-        iteration_range: Optional[Tuple[int, int]] = None,
+        iteration_range: Optional[IterationRange] = None,
     ) -> Any:
         _assert_dask_support()
         return self.client.sync(self._apply_async, X, iteration_range=iteration_range)
@@ -1962,7 +1962,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         X: _DataT,
         validate_features: bool,
         base_margin: Optional[_DaskCollection],
-        iteration_range: Optional[Tuple[int, int]],
+        iteration_range: Optional[IterationRange],
     ) -> _DaskCollection:
         if self.objective == "multi:softmax":
             raise ValueError(
@@ -1987,7 +1987,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         X: _DaskCollection,
         validate_features: bool = True,
         base_margin: Optional[_DaskCollection] = None,
-        iteration_range: Optional[Tuple[int, int]] = None,
+        iteration_range: Optional[IterationRange] = None,
     ) -> Any:
         _assert_dask_support()
         return self._client_sync(
@@ -2006,7 +2006,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         output_margin: bool,
         validate_features: bool,
         base_margin: Optional[_DaskCollection],
-        iteration_range: Optional[Tuple[int, int]],
+        iteration_range: Optional[IterationRange],
     ) -> _DaskCollection:
         pred_probs = await super()._predict_async(
             data, output_margin, validate_features, base_margin, iteration_range

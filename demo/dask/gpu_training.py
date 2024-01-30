@@ -2,6 +2,8 @@
 Example of training with Dask on GPU
 ====================================
 """
+
+import cupy as cp
 import dask_cudf
 from dask import array as da
 from dask import dataframe as dd
@@ -72,10 +74,12 @@ if __name__ == "__main__":
     with LocalCUDACluster(n_workers=2, threads_per_worker=4) as cluster:
         with Client(cluster) as client:
             # generate some random data for demonstration
+            rng = da.random.default_rng(1)
+
             m = 100000
             n = 100
-            X = da.random.random(size=(m, n), chunks=10000)
-            y = da.random.random(size=(m,), chunks=10000)
+            X = rng.normal(size=(m, n))
+            y = X.sum(axis=1)
 
             print("Using DaskQuantileDMatrix")
             from_ddqdm = using_quantile_device_dmatrix(client, X, y)

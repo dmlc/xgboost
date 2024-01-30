@@ -1,4 +1,5 @@
 """XGBoost collective communication related API."""
+
 import ctypes
 import json
 import logging

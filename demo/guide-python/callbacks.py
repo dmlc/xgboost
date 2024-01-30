@@ -4,6 +4,7 @@ Demo for using and defining callback functions
 
     .. versionadded:: 1.3.0
 """
+
 import argparse
 import os
 import tempfile

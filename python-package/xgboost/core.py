@@ -48,6 +48,8 @@ from ._typing import (
     FeatureInfo,
     FeatureNames,
     FeatureTypes,
+    Integer,
+    IterationRange,
     ModelIn,
     NumpyOrCupy,
     TransformedData,
@@ -62,13 +64,11 @@ class XGBoostError(ValueError):
 
 
 @overload
-def from_pystr_to_cstr(data: str) -> bytes:
-    ...
+def from_pystr_to_cstr(data: str) -> bytes: ...
 
 
 @overload
-def from_pystr_to_cstr(data: List[str]) -> ctypes.Array:
-    ...
+def from_pystr_to_cstr(data: List[str]) -> ctypes.Array: ...
 
 
 def from_pystr_to_cstr(data: Union[str, List[str]]) -> Union[bytes, ctypes.Array]:
@@ -798,9 +798,23 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             Set names for features.
         feature_types :
 
-            Set types for features.  When `enable_categorical` is set to `True`, string
-            "c" represents categorical data type while "q" represents numerical feature
-            type. For categorical features, the input is assumed to be preprocessed and
+            Set types for features. If `data` is a DataFrame type and passing
+            `enable_categorical=True`, the types will be deduced automatically
+            from the column types.
+
+            Otherwise, one can pass a list-like input with the same length as number
+            of columns in `data`, with the following possible values:
+             - "c", which represents categorical columns.
+             - "q", which represents numeric columns.
+             - "int", which represents integer columns.
+             - "i", which represents boolean columns.
+
+            Note that, while categorical types are treated differently from
+            the rest for model fitting purposes, the other types do not influence
+            the generated model, but have effects in other functionalities such as
+            feature importances.
+
+            For categorical features, the input is assumed to be preprocessed and
             encoded by the users. The encoding can be done via
             :py:class:`sklearn.preprocessing.OrdinalEncoder` or pandas dataframe
             `.cat.codes` method. This is useful when users want to specify categorical
@@ -1812,19 +1826,25 @@ class Booster:
             state["handle"] = handle
         self.__dict__.update(state)
 
-    def __getitem__(self, val: Union[int, tuple, slice]) -> "Booster":
+    def __getitem__(self, val: Union[Integer, tuple, slice]) -> "Booster":
         """Get a slice of the tree-based model.
 
         .. versionadded:: 1.3.0
 
         """
-        if isinstance(val, int):
-            val = slice(val, val + 1)
+        # convert to slice for all other types
+        if isinstance(val, (np.integer, int)):
+            val = slice(int(val), int(val + 1))
+        if isinstance(val, type(Ellipsis)):
+            val = slice(0, 0)
         if isinstance(val, tuple):
             raise ValueError("Only supports slicing through 1 dimension.")
+        # All supported types are now slice
+        # FIXME(jiamingy): Use `types.EllipsisType` once Python 3.10 is used.
         if not isinstance(val, slice):
-            msg = _expect((int, slice), type(val))
+            msg = _expect((int, slice, np.integer, type(Ellipsis)), type(val))
             raise TypeError(msg)
+
         if isinstance(val.start, type(Ellipsis)) or val.start is None:
             start = 0
         else:
@@ -2246,12 +2266,13 @@ class Booster:
         pred_interactions: bool = False,
         validate_features: bool = True,
         training: bool = False,
-        iteration_range: Tuple[int, int] = (0, 0),
+        iteration_range: IterationRange = (0, 0),
         strict_shape: bool = False,
     ) -> np.ndarray:
-        """Predict with data.  The full model will be used unless `iteration_range` is specified,
-        meaning user have to either slice the model or use the ``best_iteration``
-        attribute to get prediction from best model returned from early stopping.
+        """Predict with data.  The full model will be used unless `iteration_range` is
+        specified, meaning user have to either slice the model or use the
+        ``best_iteration`` attribute to get prediction from best model returned from
+        early stopping.
 
         .. note::
 
@@ -2336,8 +2357,8 @@ class Booster:
         args = {
             "type": 0,
             "training": training,
-            "iteration_begin": iteration_range[0],
-            "iteration_end": iteration_range[1],
+            "iteration_begin": int(iteration_range[0]),
+            "iteration_end": int(iteration_range[1]),
             "strict_shape": strict_shape,
         }
 
@@ -2373,7 +2394,7 @@ class Booster:
     def inplace_predict(
         self,
         data: DataType,
-        iteration_range: Tuple[int, int] = (0, 0),
+        iteration_range: IterationRange = (0, 0),
         predict_type: str = "value",
         missing: float = np.nan,
         validate_features: bool = True,
@@ -2439,8 +2460,8 @@ class Booster:
         args = make_jcargs(
             type=1 if predict_type == "margin" else 0,
             training=False,
-            iteration_begin=iteration_range[0],
-            iteration_end=iteration_range[1],
+            iteration_begin=int(iteration_range[0]),
+            iteration_end=int(iteration_range[1]),
             missing=missing,
             strict_shape=strict_shape,
             cache_id=0,

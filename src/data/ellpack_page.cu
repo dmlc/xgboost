@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2023 by XGBoost contributors
+ * Copyright 2019-2024, XGBoost contributors
  */
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/transform_output_iterator.h>
@@ -13,7 +13,7 @@
 #include "../common/hist_util.cuh"
 #include "../common/transform_iterator.h"  // MakeIndexTransformIter
 #include "./ellpack_page.cuh"
-#include "device_adapter.cuh"  // for HasInfInData
+#include "device_adapter.cuh"  // for NoInfInData
 #include "ellpack_page.h"
 #include "gradient_index.h"
 #include "xgboost/data.h"

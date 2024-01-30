@@ -3,6 +3,7 @@ Example of training with Dask on CPU
 ====================================
 
 """
+
 from dask import array as da
 from dask.distributed import Client, LocalCluster
 
@@ -14,8 +15,9 @@ def main(client):
     # generate some random data for demonstration
     m = 100000
     n = 100
-    X = da.random.random(size=(m, n), chunks=100)
-    y = da.random.random(size=(m,), chunks=100)
+    rng = da.random.default_rng(1)
+    X = rng.normal(size=(m, n))
+    y = X.sum(axis=1)
 
     # DaskDMatrix acts like normal DMatrix, works as a proxy for local
     # DMatrix scatter around workers.

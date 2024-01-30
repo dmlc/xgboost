@@ -15,6 +15,7 @@ position debiasing training.
 For an overview of learning to rank in XGBoost, please see
 :doc:`Learning to Rank </tutorials/learning_to_rank>`.
 """
+
 from __future__ import annotations
 
 import argparse

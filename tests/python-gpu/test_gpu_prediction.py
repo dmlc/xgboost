@@ -152,6 +152,7 @@ class TestGPUPredict:
 
     @pytest.mark.parametrize("device", ["cpu", "cuda"])
     @pytest.mark.skipif(**tm.no_cupy())
+    @pytest.mark.skipif(**tm.no_cudf())
     def test_inplace_predict_device_type(self, device: str) -> None:
         """Test inplace predict with different device and data types.
 

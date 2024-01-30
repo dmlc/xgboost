@@ -374,7 +374,7 @@ test_that("xgb.DMatrix: data.frame", {
   expect_equal(
     getinfo(m, "feature_type"), c("float", "float", "int", "i", "c", "c")
   )
-  expect_error(xgb.DMatrix(df))
+  expect_error(xgb.DMatrix(df, enable_categorical = FALSE))
 
   df <- data.frame(
     missing = c("a", "b", "d", NA),
@@ -409,6 +409,261 @@ test_that("xgb.DMatrix: can take multi-dimensional 'base_margin'", {
     reshape = TRUE
   )
   expect_equal(pred_only_x, pred_w_base - b, tolerance = 1e-5)
+})
+
+test_that("xgb.DMatrix: QuantileDMatrix produces same result as DMatrix", {
+  data(mtcars)
+  y <- mtcars[, 1]
+  x <- mtcars[, -1]
+
+  cast_matrix <- function(x) as.matrix(x)
+  cast_df <- function(x) as.data.frame(x)
+  cast_csr <- function(x) as(as.matrix(x), "RsparseMatrix")
+  casting_funs <- list(cast_matrix, cast_df, cast_csr)
+
+  for (casting_fun in casting_funs) {
+
+    qdm <- xgb.QuantileDMatrix(
+      data = casting_fun(x),
+      label = y,
+      nthread = n_threads,
+      max_bin = 5
+    )
+    params <- list(
+      tree_method = "hist",
+      objective = "reg:squarederror",
+      nthread = n_threads,
+      max_bin = 5
+    )
+    model_qdm <- xgb.train(
+      params = params,
+      data = qdm,
+      nrounds = 2
+    )
+    pred_qdm <- predict(model_qdm, x)
+
+    dm <- xgb.DMatrix(
+      data = x,
+      label = y,
+      nthread = n_threads
+    )
+    model_dm <- xgb.train(
+      params = params,
+      data = dm,
+      nrounds = 2
+    )
+    pred_dm <- predict(model_dm, x)
+
+    expect_equal(pred_qdm, pred_dm)
+  }
+})
+
+test_that("xgb.DMatrix: QuantileDMatrix is not accepted by exact method", {
+  data(mtcars)
+  y <- mtcars[, 1]
+  x <- as.matrix(mtcars[, -1])
+  qdm <- xgb.QuantileDMatrix(
+    data = x,
+    label = y,
+    nthread = n_threads
+  )
+  params <- list(
+    tree_method = "exact",
+    objective = "reg:squarederror",
+    nthread = n_threads
+  )
+  expect_error({
+    xgb.train(
+      params = params,
+      data = qdm,
+      nrounds = 2
+    )
+  })
+})
+
+test_that("xgb.DMatrix: ExternalDMatrix produces the same results as regular DMatrix", {
+  data(mtcars)
+  y <- mtcars[, 1]
+  x <- as.matrix(mtcars[, -1])
+  set.seed(123)
+  params <- list(
+    objective = "reg:squarederror",
+    nthread = n_threads
+  )
+  model <- xgb.train(
+    data = xgb.DMatrix(x, label = y),
+    params = params,
+    nrounds = 5
+  )
+  pred <- predict(model, x)
+
+  iterator_env <- as.environment(
+    list(
+      iter = 0,
+      x = mtcars[, -1],
+      y = mtcars[, 1]
+    )
+  )
+  iterator_next <- function(iterator_env, proxy_handle) {
+    curr_iter <- iterator_env[["iter"]]
+    if (curr_iter >= 2) {
+      return(NULL)
+    }
+    if (curr_iter == 0) {
+      x_batch <- iterator_env[["x"]][1:16, ]
+      y_batch <- iterator_env[["y"]][1:16]
+    } else {
+      x_batch <- iterator_env[["x"]][17:32, ]
+      y_batch <- iterator_env[["y"]][17:32]
+    }
+    on.exit({
+      iterator_env[["iter"]] <- curr_iter + 1
+    })
+    return(xgb.ProxyDMatrix(data = x_batch, label = y_batch))
+  }
+  iterator_reset <- function(iterator_env) {
+    iterator_env[["iter"]] <- 0
+  }
+  data_iterator <- xgb.DataIter(
+    env = iterator_env,
+    f_next = iterator_next,
+    f_reset = iterator_reset
+  )
+  cache_prefix <- tempdir()
+  edm <- xgb.ExternalDMatrix(data_iterator, cache_prefix, nthread = 1)
+  expect_true(inherits(edm, "xgb.ExternalDMatrix"))
+  expect_true(inherits(edm, "xgb.DMatrix"))
+  set.seed(123)
+  model_ext <- xgb.train(
+    data = edm,
+    params = params,
+    nrounds = 5
+  )
+
+  pred_model1_edm <- predict(model, edm)
+  pred_model2_mat <- predict(model_ext, x)
+  pred_model2_edm <- predict(model_ext, edm)
+
+  expect_equal(pred_model1_edm, pred)
+  expect_equal(pred_model2_mat, pred)
+  expect_equal(pred_model2_edm, pred)
+})
+
+test_that("xgb.DMatrix: External QDM produces same results as regular QDM", {
+  data(mtcars)
+  y <- mtcars[, 1]
+  x <- as.matrix(mtcars[, -1])
+  set.seed(123)
+  params <- list(
+    objective = "reg:squarederror",
+    nthread = n_threads,
+    max_bin = 3
+  )
+  model <- xgb.train(
+    data = xgb.QuantileDMatrix(
+      x,
+      label = y,
+      nthread = 1,
+      max_bin = 3
+    ),
+    params = params,
+    nrounds = 5
+  )
+  pred <- predict(model, x)
+
+  iterator_env <- as.environment(
+    list(
+      iter = 0,
+      x = mtcars[, -1],
+      y = mtcars[, 1]
+    )
+  )
+  iterator_next <- function(iterator_env, proxy_handle) {
+    curr_iter <- iterator_env[["iter"]]
+    if (curr_iter >= 2) {
+      return(NULL)
+    }
+    if (curr_iter == 0) {
+      x_batch <- iterator_env[["x"]][1:16, ]
+      y_batch <- iterator_env[["y"]][1:16]
+    } else {
+      x_batch <- iterator_env[["x"]][17:32, ]
+      y_batch <- iterator_env[["y"]][17:32]
+    }
+    on.exit({
+      iterator_env[["iter"]] <- curr_iter + 1
+    })
+    return(xgb.ProxyDMatrix(data = x_batch, label = y_batch))
+  }
+  iterator_reset <- function(iterator_env) {
+    iterator_env[["iter"]] <- 0
+  }
+  data_iterator <- xgb.DataIter(
+    env = iterator_env,
+    f_next = iterator_next,
+    f_reset = iterator_reset
+  )
+  cache_prefix <- tempdir()
+  qdm <- xgb.QuantileDMatrix.from_iterator(
+    data_iterator,
+    max_bin = 3,
+    nthread = 1
+  )
+  expect_true(inherits(qdm, "xgb.QuantileDMatrix"))
+  expect_true(inherits(qdm, "xgb.DMatrix"))
+  set.seed(123)
+  model_ext <- xgb.train(
+    data = qdm,
+    params = params,
+    nrounds = 5
+  )
+
+  pred_model1_qdm <- predict(model, qdm)
+  pred_model2_mat <- predict(model_ext, x)
+  pred_model2_qdm <- predict(model_ext, qdm)
+
+  expect_equal(pred_model1_qdm, pred)
+  expect_equal(pred_model2_mat, pred)
+  expect_equal(pred_model2_qdm, pred)
+})
+
+test_that("xgb.DMatrix: R errors thrown on DataIterator are thrown back to the user", {
+  data(mtcars)
+  iterator_env <- as.environment(
+    list(
+      iter = 0,
+      x = mtcars[, -1],
+      y = mtcars[, 1]
+    )
+  )
+  iterator_next <- function(iterator_env, proxy_handle) {
+    curr_iter <- iterator_env[["iter"]]
+    if (curr_iter >= 2) {
+      return(0)
+    }
+    if (curr_iter == 0) {
+      x_batch <- iterator_env[["x"]][1:16, ]
+      y_batch <- iterator_env[["y"]][1:16]
+    } else {
+      stop("custom error")
+    }
+    on.exit({
+      iterator_env[["iter"]] <- curr_iter + 1
+    })
+    return(xgb.ProxyDMatrix(data = x_batch, label = y_batch))
+  }
+  iterator_reset <- function(iterator_env) {
+    iterator_env[["iter"]] <- 0
+  }
+  data_iterator <- xgb.DataIter(
+    env = iterator_env,
+    f_next = iterator_next,
+    f_reset = iterator_reset
+  )
+  expect_error(
+    {xgb.ExternalDMatrix(data_iterator, nthread = 1)},
+    "custom error"
+  )
 })
 
 test_that("xgb.DMatrix: number of non-missing matches data", {

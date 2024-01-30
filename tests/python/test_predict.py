@@ -1,4 +1,5 @@
 """Tests for running inplace prediction."""
+
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
@@ -61,7 +62,7 @@ def run_predict_leaf(device: str) -> np.ndarray:
 
     validate_leaf_output(leaf, num_parallel_tree)
 
-    n_iters = 2
+    n_iters = np.int32(2)
     sliced = booster.predict(
         m,
         pred_leaf=True,
