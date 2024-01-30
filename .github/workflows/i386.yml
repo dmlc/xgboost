@@ -1,0 +1,23 @@
+name: Build 32-bit
+
+on: [push, pull_request]
+
+permissions:
+  contents: read # to fetch code (actions/checkout)
+
+jobs:
+  build-32bit:
+    name: Build 32-bit
+    runs-on: ubuntu-latest
+    container: i386/ubuntu:latest
+
+  steps:
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
+      with:
+        submodules: 'true'
+    - name: Build
+      run: |
+        mkdir build
+        cd build
+        cmake .. -DGOOGLE_TEST=ON -DUSE_OPENMP=ON -DUSE_DMLC_GTEST=ON -GNinja
+        ninja -v
