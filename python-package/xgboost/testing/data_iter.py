@@ -1,4 +1,5 @@
 """Tests related to the `DataIter` interface."""
+
 import numpy as np
 
 import xgboost

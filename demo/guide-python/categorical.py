@@ -17,6 +17,7 @@ See Also
 - :ref:`sphx_glr_python_examples_cat_pipeline.py`
 
 """
+
 from typing import Tuple
 
 import numpy as np

@@ -1,4 +1,5 @@
 """Tests for running inplace prediction."""
+
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np

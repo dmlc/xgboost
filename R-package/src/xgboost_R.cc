@@ -27,7 +27,12 @@
 #include "./xgboost_R.h"  // Must follow other includes.
 
 namespace {
-struct ErrorWithUnwind : public std::exception {};
+
+/* Note: this class is used as a throwable exception.
+Some xgboost C functions that use callbacks will catch exceptions
+that happen inside of the callback execution, hence it purposefully
+doesn't inherit from 'std::exception' even if used as such. */
+struct ErrorWithUnwind {};
 
 void ThrowExceptionFromRError(void *, Rboolean jump) {
   if (jump) {
@@ -47,6 +52,27 @@ SEXP SafeMkChar(const char *c_str, SEXP continuation_token) {
   PtrToConstChar ptr_struct{c_str};
   return R_UnwindProtect(
     WrappedMkChar, static_cast<void*>(&ptr_struct),
+    ThrowExceptionFromRError, nullptr,
+    continuation_token);
+}
+
+struct RFunAndEnv {
+  SEXP R_fun;
+  SEXP R_calling_env;
+};
+
+SEXP WrappedExecFun(void *void_ptr) {
+  RFunAndEnv *r_fun_and_env = static_cast<RFunAndEnv*>(void_ptr);
+  SEXP f_expr = Rf_protect(Rf_lang1(r_fun_and_env->R_fun));
+  SEXP out = Rf_protect(Rf_eval(f_expr, r_fun_and_env->R_calling_env));
+  Rf_unprotect(2);
+  return out;
+}
+
+SEXP SafeExecFun(SEXP R_fun, SEXP R_calling_env, SEXP continuation_token) {
+  RFunAndEnv r_fun_and_env{R_fun, R_calling_env};
+  return R_UnwindProtect(
+    WrappedExecFun, static_cast<void*>(&r_fun_and_env),
     ThrowExceptionFromRError, nullptr,
     continuation_token);
 }
@@ -138,6 +164,47 @@ SEXP SafeAllocInteger(size_t size, SEXP continuation_token) {
 
   LOG(FATAL) << "Not reachable";
   return "";
+}
+
+[[nodiscard]] std::string MakeArrayInterfaceFromRDataFrame(SEXP R_df) {
+  auto make_vec = [&](auto const *ptr, std::size_t len) {
+    auto v = xgboost::linalg::MakeVec(ptr, len);
+    return xgboost::linalg::ArrayInterface(v);
+  };
+
+  R_xlen_t n_features = Rf_xlength(R_df);
+  std::vector<xgboost::Json> array(n_features);
+  CHECK_GT(n_features, 0);
+  std::size_t len = Rf_xlength(VECTOR_ELT(R_df, 0));
+
+  // The `data.frame` in R actually converts all data into numeric. The other type
+  // handlers here are not used. At the moment they are kept as a reference for when we
+  // can avoid making data copies during transformation.
+  for (R_xlen_t i = 0; i < n_features; ++i) {
+    switch (TYPEOF(VECTOR_ELT(R_df, i))) {
+      case INTSXP: {
+        auto const *ptr = INTEGER(VECTOR_ELT(R_df, i));
+        array[i] = make_vec(ptr, len);
+        break;
+      }
+      case REALSXP: {
+        auto const *ptr = REAL(VECTOR_ELT(R_df, i));
+        array[i] = make_vec(ptr, len);
+        break;
+      }
+      case LGLSXP: {
+        auto const *ptr = LOGICAL(VECTOR_ELT(R_df, i));
+        array[i] = make_vec(ptr, len);
+        break;
+      }
+      default: {
+        LOG(FATAL) << "data.frame has unsupported type.";
+      }
+    }
+  }
+
+  xgboost::Json jinterface{std::move(array)};
+  return xgboost::Json::Dump(jinterface);
 }
 
 [[nodiscard]] std::string MakeJsonConfigForArray(SEXP missing, SEXP n_threads, SEXPTYPE arr_type) {
@@ -335,51 +402,13 @@ XGB_DLL SEXP XGDMatrixCreateFromDF_R(SEXP df, SEXP missing, SEXP n_threads) {
   R_API_BEGIN();
 
   DMatrixHandle handle;
-
-  auto make_vec = [&](auto const *ptr, std::int32_t len) {
-    auto v = xgboost::linalg::MakeVec(ptr, len);
-    return xgboost::linalg::ArrayInterface(v);
-  };
-
   std::int32_t rc{0};
   {
-    using xgboost::Json;
-    auto n_features = Rf_xlength(df);
-    std::vector<Json> array(n_features);
-    CHECK_GT(n_features, 0);
-    auto len = Rf_xlength(VECTOR_ELT(df, 0));
-    // The `data.frame` in R actually converts all data into numeric. The other type
-    // handlers here are not used. At the moment they are kept as a reference for when we
-    // can avoid making data copies during transformation.
-    for (decltype(n_features) i = 0; i < n_features; ++i) {
-      switch (TYPEOF(VECTOR_ELT(df, i))) {
-        case INTSXP: {
-          auto const *ptr = INTEGER(VECTOR_ELT(df, i));
-          array[i] = make_vec(ptr, len);
-          break;
-        }
-        case REALSXP: {
-          auto const *ptr = REAL(VECTOR_ELT(df, i));
-          array[i] = make_vec(ptr, len);
-          break;
-        }
-        case LGLSXP: {
-          auto const *ptr = LOGICAL(VECTOR_ELT(df, i));
-          array[i] = make_vec(ptr, len);
-          break;
-        }
-        default: {
-          LOG(FATAL) << "data.frame has unsupported type.";
-        }
-      }
-    }
-
-    Json jinterface{std::move(array)};
-    auto sinterface = Json::Dump(jinterface);
-    Json jconfig{xgboost::Object{}};
+    std::string sinterface = MakeArrayInterfaceFromRDataFrame(df);
+    xgboost::Json jconfig{xgboost::Object{}};
     jconfig["missing"] = asReal(missing);
     jconfig["nthread"] = asInteger(n_threads);
-    auto sconfig = Json::Dump(jconfig);
+    std::string sconfig = xgboost::Json::Dump(jconfig);
 
     rc = XGDMatrixCreateFromColumnar(sinterface.c_str(), sconfig.c_str(), &handle);
   }
@@ -630,6 +659,192 @@ XGB_DLL SEXP XGDMatrixNumCol_R(SEXP handle) {
   CHECK_CALL(XGDMatrixNumCol(R_ExternalPtrAddr(handle), &ncol));
   R_API_END();
   return ScalarInteger(static_cast<int>(ncol));
+}
+
+XGB_DLL SEXP XGProxyDMatrixCreate_R() {
+  SEXP out = Rf_protect(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
+  R_API_BEGIN();
+  DMatrixHandle proxy_dmat_handle;
+  CHECK_CALL(XGProxyDMatrixCreate(&proxy_dmat_handle));
+  R_SetExternalPtrAddr(out, proxy_dmat_handle);
+  R_RegisterCFinalizerEx(out, _DMatrixFinalizer, TRUE);
+  Rf_unprotect(1);
+  R_API_END();
+  return out;
+}
+
+XGB_DLL SEXP XGProxyDMatrixSetDataDense_R(SEXP handle, SEXP R_mat) {
+  R_API_BEGIN();
+  DMatrixHandle proxy_dmat = R_ExternalPtrAddr(handle);
+  int res_code;
+  {
+    std::string array_str = MakeArrayInterfaceFromRMat(R_mat);
+    res_code = XGProxyDMatrixSetDataDense(proxy_dmat, array_str.c_str());
+  }
+  CHECK_CALL(res_code);
+  R_API_END();
+  return R_NilValue;
+}
+
+XGB_DLL SEXP XGProxyDMatrixSetDataCSR_R(SEXP handle, SEXP lst) {
+  R_API_BEGIN();
+  DMatrixHandle proxy_dmat = R_ExternalPtrAddr(handle);
+  int res_code;
+  {
+    std::string array_str_indptr = MakeArrayInterfaceFromRVector(VECTOR_ELT(lst, 0));
+    std::string array_str_indices = MakeArrayInterfaceFromRVector(VECTOR_ELT(lst, 1));
+    std::string array_str_data = MakeArrayInterfaceFromRVector(VECTOR_ELT(lst, 2));
+    const int ncol = Rf_asInteger(VECTOR_ELT(lst, 3));
+    res_code = XGProxyDMatrixSetDataCSR(proxy_dmat,
+                                        array_str_indptr.c_str(),
+                                        array_str_indices.c_str(),
+                                        array_str_data.c_str(),
+                                        ncol);
+  }
+  CHECK_CALL(res_code);
+  R_API_END();
+  return R_NilValue;
+}
+
+XGB_DLL SEXP XGProxyDMatrixSetDataColumnar_R(SEXP handle, SEXP lst) {
+  R_API_BEGIN();
+  DMatrixHandle proxy_dmat = R_ExternalPtrAddr(handle);
+  int res_code;
+  {
+    std::string sinterface = MakeArrayInterfaceFromRDataFrame(lst);
+    res_code = XGProxyDMatrixSetDataColumnar(proxy_dmat, sinterface.c_str());
+  }
+  CHECK_CALL(res_code);
+  R_API_END();
+  return R_NilValue;
+}
+
+namespace {
+
+struct _RDataIterator {
+  SEXP f_next;
+  SEXP f_reset;
+  SEXP calling_env;
+  SEXP continuation_token;
+
+  _RDataIterator(
+    SEXP f_next, SEXP f_reset, SEXP calling_env, SEXP continuation_token) :
+  f_next(f_next), f_reset(f_reset), calling_env(calling_env),
+  continuation_token(continuation_token) {}
+
+  void reset() {
+    SafeExecFun(this->f_reset, this->calling_env, this->continuation_token);
+  }
+
+  int next() {
+    SEXP R_res = Rf_protect(
+      SafeExecFun(this->f_next, this->calling_env, this->continuation_token));
+    int res = Rf_asInteger(R_res);
+    Rf_unprotect(1);
+    return res;
+  }
+};
+
+void _reset_RDataIterator(DataIterHandle iter) {
+  static_cast<_RDataIterator*>(iter)->reset();
+}
+
+int _next_RDataIterator(DataIterHandle iter) {
+  return static_cast<_RDataIterator*>(iter)->next();
+}
+
+SEXP XGDMatrixCreateFromCallbackGeneric_R(
+  SEXP f_next, SEXP f_reset, SEXP calling_env, SEXP proxy_dmat,
+  SEXP n_threads, SEXP missing, SEXP max_bin, SEXP ref_dmat,
+  SEXP cache_prefix, bool as_quantile_dmatrix) {
+  SEXP continuation_token = Rf_protect(R_MakeUnwindCont());
+  SEXP out = Rf_protect(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
+  R_API_BEGIN();
+  DMatrixHandle out_dmat;
+
+  int res_code;
+  try {
+    _RDataIterator data_iterator(f_next, f_reset, calling_env, continuation_token);
+
+    std::string str_cache_prefix;
+    xgboost::Json jconfig{xgboost::Object{}};
+    jconfig["missing"] = Rf_asReal(missing);
+    if (!Rf_isNull(n_threads)) {
+      jconfig["nthread"] = Rf_asInteger(n_threads);
+    }
+    if (as_quantile_dmatrix) {
+      if (!Rf_isNull(max_bin)) {
+        jconfig["max_bin"] = Rf_asInteger(max_bin);
+      }
+    } else {
+      str_cache_prefix = std::string(CHAR(Rf_asChar(cache_prefix)));
+      jconfig["cache_prefix"] = str_cache_prefix;
+    }
+    std::string json_str = xgboost::Json::Dump(jconfig);
+
+    DMatrixHandle ref_dmat_handle = nullptr;
+    if (as_quantile_dmatrix && !Rf_isNull(ref_dmat)) {
+      ref_dmat_handle = R_ExternalPtrAddr(ref_dmat);
+    }
+
+    if (as_quantile_dmatrix) {
+      res_code = XGQuantileDMatrixCreateFromCallback(
+        &data_iterator,
+        R_ExternalPtrAddr(proxy_dmat),
+        ref_dmat_handle,
+        _reset_RDataIterator,
+        _next_RDataIterator,
+        json_str.c_str(),
+        &out_dmat);
+    } else {
+      res_code = XGDMatrixCreateFromCallback(
+        &data_iterator,
+        R_ExternalPtrAddr(proxy_dmat),
+        _reset_RDataIterator,
+        _next_RDataIterator,
+        json_str.c_str(),
+        &out_dmat);
+    }
+  } catch (ErrorWithUnwind &e) {
+    R_ContinueUnwind(continuation_token);
+  }
+  CHECK_CALL(res_code);
+
+  R_SetExternalPtrAddr(out, out_dmat);
+  R_RegisterCFinalizerEx(out, _DMatrixFinalizer, TRUE);
+  Rf_unprotect(2);
+  R_API_END();
+  return out;
+}
+
+} /* namespace */
+
+XGB_DLL SEXP XGQuantileDMatrixCreateFromCallback_R(
+  SEXP f_next, SEXP f_reset, SEXP calling_env, SEXP proxy_dmat,
+  SEXP n_threads, SEXP missing, SEXP max_bin, SEXP ref_dmat) {
+  return XGDMatrixCreateFromCallbackGeneric_R(
+    f_next, f_reset, calling_env, proxy_dmat,
+    n_threads, missing, max_bin, ref_dmat,
+    R_NilValue, true);
+}
+
+XGB_DLL SEXP XGDMatrixCreateFromCallback_R(
+  SEXP f_next, SEXP f_reset, SEXP calling_env, SEXP proxy_dmat,
+  SEXP n_threads, SEXP missing, SEXP cache_prefix) {
+  return XGDMatrixCreateFromCallbackGeneric_R(
+    f_next, f_reset, calling_env, proxy_dmat,
+    n_threads, missing, R_NilValue, R_NilValue,
+    cache_prefix, false);
+}
+
+XGB_DLL SEXP XGDMatrixFree_R(SEXP proxy_dmat) {
+  _DMatrixFinalizer(proxy_dmat);
+  return R_NilValue;
+}
+
+XGB_DLL SEXP XGGetRNAIntAsDouble() {
+  double sentinel_as_double = static_cast<double>(R_NaInt);
+  return Rf_ScalarReal(sentinel_as_double);
 }
 
 XGB_DLL SEXP XGDuplicate_R(SEXP obj) {

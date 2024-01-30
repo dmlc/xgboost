@@ -1,4 +1,5 @@
 """Copyright 2019-2023, XGBoost contributors"""
+
 import asyncio
 import json
 from collections import OrderedDict

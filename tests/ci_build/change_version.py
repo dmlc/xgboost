@@ -7,6 +7,7 @@ needed, run CMake .
     If this is a RC release, the version for JVM packages has the form
     <major>.<minor>.<patch>-RC1
 """
+
 import argparse
 import datetime
 import os

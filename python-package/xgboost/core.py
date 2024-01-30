@@ -64,13 +64,11 @@ class XGBoostError(ValueError):
 
 
 @overload
-def from_pystr_to_cstr(data: str) -> bytes:
-    ...
+def from_pystr_to_cstr(data: str) -> bytes: ...
 
 
 @overload
-def from_pystr_to_cstr(data: List[str]) -> ctypes.Array:
-    ...
+def from_pystr_to_cstr(data: List[str]) -> ctypes.Array: ...
 
 
 def from_pystr_to_cstr(data: Union[str, List[str]]) -> Union[bytes, ctypes.Array]:
@@ -800,9 +798,23 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             Set names for features.
         feature_types :
 
-            Set types for features.  When `enable_categorical` is set to `True`, string
-            "c" represents categorical data type while "q" represents numerical feature
-            type. For categorical features, the input is assumed to be preprocessed and
+            Set types for features. If `data` is a DataFrame type and passing
+            `enable_categorical=True`, the types will be deduced automatically
+            from the column types.
+
+            Otherwise, one can pass a list-like input with the same length as number
+            of columns in `data`, with the following possible values:
+             - "c", which represents categorical columns.
+             - "q", which represents numeric columns.
+             - "int", which represents integer columns.
+             - "i", which represents boolean columns.
+
+            Note that, while categorical types are treated differently from
+            the rest for model fitting purposes, the other types do not influence
+            the generated model, but have effects in other functionalities such as
+            feature importances.
+
+            For categorical features, the input is assumed to be preprocessed and
             encoded by the users. The encoding can be done via
             :py:class:`sklearn.preprocessing.OrdinalEncoder` or pandas dataframe
             `.cat.codes` method. This is useful when users want to specify categorical

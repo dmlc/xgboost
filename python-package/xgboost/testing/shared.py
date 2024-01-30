@@ -1,4 +1,5 @@
 """Testing code shared by other tests."""
+
 # pylint: disable=invalid-name
 import collections
 import importlib.util

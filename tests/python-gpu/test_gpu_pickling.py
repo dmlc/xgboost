@@ -1,4 +1,5 @@
 """Test model IO with pickle."""
+
 import os
 import pickle
 import subprocess

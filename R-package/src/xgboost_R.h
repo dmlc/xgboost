@@ -162,6 +162,84 @@ XGB_DLL SEXP XGDMatrixNumRow_R(SEXP handle);
 XGB_DLL SEXP XGDMatrixNumCol_R(SEXP handle);
 
 /*!
+<<<<<<< HEAD
+ * \brief create a ProxyDMatrix and get an R externalptr object for it
+ */
+XGB_DLL SEXP XGProxyDMatrixCreate_R();
+
+/*!
+ * \brief Set dense matrix data on a proxy dmatrix
+ * \param handle R externalptr pointing to a ProxyDMatrix
+ * \param R_mat R matrix to set in the proxy dmatrix
+ */
+XGB_DLL SEXP XGProxyDMatrixSetDataDense_R(SEXP handle, SEXP R_mat);
+
+/*!
+ * \brief Set dense matrix data on a proxy dmatrix
+ * \param handle R externalptr pointing to a ProxyDMatrix
+ * \param lst R list containing, in this order:
+ * 1. 'p' or 'indptr' vector of the CSR matrix.
+ * 2. 'j' or 'indices' vector of the CSR matrix.
+ * 3. 'x' or 'data' vector of the CSR matrix.
+ * 4. Number of columns in the CSR matrix.
+ */
+XGB_DLL SEXP XGProxyDMatrixSetDataCSR_R(SEXP handle, SEXP lst);
+
+/*!
+ * \brief Set dense matrix data on a proxy dmatrix
+ * \param handle R externalptr pointing to a ProxyDMatrix
+ * \param lst R list or data.frame object containing its columns as numeric vectors
+ */
+XGB_DLL SEXP XGProxyDMatrixSetDataColumnar_R(SEXP handle, SEXP lst);
+
+/*!
+ * \brief Create a DMatrix from a DataIter with callbacks
+ * \param expr_f_next expression for function(env, proxy_dmat) that sets the data on the proxy
+ * dmatrix and returns either zero (end of batch) or one (batch continues).
+ * \param expr_f_reset expression for function(env) that resets the data iterator to
+ * the beginning (first batch).
+ * \param calling_env R environment where to evaluate the expressions above
+ * \param proxy_dmat R externalptr holding a ProxyDMatrix.
+ * \param n_threads number of parallel threads to use for constructing the DMatrix.
+ * \param missing which value to represent missing value.
+ * \param cache_prefix path of cache file
+ * \return handle R externalptr holding the resulting DMatrix.
+ */
+XGB_DLL SEXP XGDMatrixCreateFromCallback_R(
+  SEXP expr_f_next, SEXP expr_f_reset, SEXP calling_env, SEXP proxy_dmat,
+  SEXP n_threads, SEXP missing, SEXP cache_prefix);
+
+/*!
+ * \brief Create a QuantileDMatrix from a DataIter with callbacks
+ * \param expr_f_next expression for function(env, proxy_dmat) that sets the data on the proxy
+ * dmatrix and returns either zero (end of batch) or one (batch continues).
+ * \param expr_f_reset expression for function(env) that resets the data iterator to
+ * the beginning (first batch).
+ * \param calling_env R environment where to evaluate the expressions above
+ * \param proxy_dmat R externalptr holding a ProxyDMatrix.
+ * \param n_threads number of parallel threads to use for constructing the QuantileDMatrix.
+ * \param missing which value to represent missing value.
+ * \param max_bin maximum number of bins to have in the resulting QuantileDMatrix.
+ * \param ref_dmat an optional reference DMatrix from which to get the bin boundaries.
+ * \return handle R externalptr holding the resulting QuantileDMatrix.
+ */
+XGB_DLL SEXP XGQuantileDMatrixCreateFromCallback_R(
+  SEXP expr_f_next, SEXP expr_f_reset, SEXP calling_env, SEXP proxy_dmat,
+  SEXP n_threads, SEXP missing, SEXP max_bin, SEXP ref_dmat);
+
+/*!
+ * \brief Frees a ProxyDMatrix and empties out the R externalptr object that holds it
+ * \param proxy_dmat R externalptr containing a ProxyDMatrix
+ * \return NULL
+ */
+XGB_DLL SEXP XGDMatrixFree_R(SEXP proxy_dmat);
+
+/*!
+ * \brief Get the value that represents missingness in R integers as a numeric non-missing value.
+ */
+XGB_DLL SEXP XGGetRNAIntAsDouble();
+
+/*!
  * \brief Call R C-level function 'duplicate'
  * \param obj Object to duplicate
  */

@@ -1,4 +1,5 @@
 """Xgboost pyspark integration submodule for params."""
+
 from typing import Dict
 
 # pylint: disable=too-few-public-methods
@@ -55,7 +56,6 @@ class HasFeaturesCols(Params):
 
 
 class HasEnableSparseDataOptim(Params):
-
     """
     This is a Params based class that is extended by _SparkXGBParams
     and holds the variable to store the boolean config of enabling sparse data optimization.
