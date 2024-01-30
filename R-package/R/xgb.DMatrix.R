@@ -1256,19 +1256,15 @@ xgb.get.DMatrix.data <- function(dmat) {
 #' data(agaricus.train, package='xgboost')
 #' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
 #'
-#' dsub <- slice(dtrain, 1:42)
+#' dsub <- xgb.slice.DMatrix(dtrain, 1:42)
 #' labels1 <- getinfo(dsub, 'label')
 #' dsub <- dtrain[1:42, ]
 #' labels2 <- getinfo(dsub, 'label')
 #' all.equal(labels1, labels2)
 #'
-#' @rdname slice.xgb.DMatrix
+#' @rdname xgb.slice.DMatrix
 #' @export
-slice <- function(object, idxset) UseMethod("slice")
-
-#' @rdname slice.xgb.DMatrix
-#' @export
-slice.xgb.DMatrix <- function(object, idxset) {
+xgb.slice.DMatrix <- function(object, idxset) {
   if (!inherits(object, "xgb.DMatrix")) {
     stop("object must be xgb.DMatrix")
   }
@@ -1292,10 +1288,10 @@ slice.xgb.DMatrix <- function(object, idxset) {
   return(structure(ret, class = "xgb.DMatrix"))
 }
 
-#' @rdname slice.xgb.DMatrix
+#' @rdname xgb.slice.DMatrix
 #' @export
 `[.xgb.DMatrix` <- function(object, idxset, colset = NULL) {
-  slice(object, idxset)
+  xgb.slice.DMatrix(object, idxset)
 }
 
 
