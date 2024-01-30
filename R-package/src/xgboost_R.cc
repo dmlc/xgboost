@@ -1240,19 +1240,21 @@ XGB_DLL SEXP XGBoosterEvalOneIter_R(SEXP handle, SEXP iter, SEXP dmats, SEXP evn
   return mkString(ret);
 }
 
+namespace {
+
 struct ProxyDmatrixError : public std::exception {};
 
-struct _ProxyDmatrixWrapper {
+struct ProxyDmatrixWrapper {
   DMatrixHandle proxy_dmat_handle;
 
-  _ProxyDmatrixWrapper() {
+  ProxyDmatrixWrapper() {
     int res_code = XGProxyDMatrixCreate(&this->proxy_dmat_handle);
     if (res_code != 0) {
       throw ProxyDmatrixError();
     }
   }
 
-  ~_ProxyDmatrixWrapper() {
+  ~ProxyDmatrixWrapper() {
     if (this->proxy_dmat_handle) {
       XGDMatrixFree(this->proxy_dmat_handle);
       this->proxy_dmat_handle = nullptr;
@@ -1264,9 +1266,9 @@ struct _ProxyDmatrixWrapper {
   }
 };
 
-static std::unique_ptr<_ProxyDmatrixWrapper> GetProxyDMatrixWithBaseMargin(SEXP base_margin) {
+std::unique_ptr<ProxyDmatrixWrapper> GetProxyDMatrixWithBaseMargin(SEXP base_margin) {
   if (Rf_isNull(base_margin)) {
-    return std::unique_ptr<_ProxyDmatrixWrapper>(nullptr);
+    return std::unique_ptr<ProxyDmatrixWrapper>(nullptr);
   }
 
   SEXP base_margin_dim = Rf_getAttrib(base_margin, R_DimSymbol);
@@ -1274,7 +1276,7 @@ static std::unique_ptr<_ProxyDmatrixWrapper> GetProxyDMatrixWithBaseMargin(SEXP 
   try {
     const std::string array_str = Rf_isNull(base_margin_dim)?
       MakeArrayInterfaceFromRVector(base_margin) : MakeArrayInterfaceFromRMat(base_margin);
-    std::unique_ptr<_ProxyDmatrixWrapper> proxy_dmat(new _ProxyDmatrixWrapper());
+    std::unique_ptr<ProxyDmatrixWrapper> proxy_dmat(new ProxyDmatrixWrapper());
     res_code = XGDMatrixSetInfoFromInterface(proxy_dmat->get_handle(),
                                              "base_margin",
                                              array_str.c_str());
@@ -1289,7 +1291,7 @@ static std::unique_ptr<_ProxyDmatrixWrapper> GetProxyDMatrixWithBaseMargin(SEXP 
 
 enum class PredictionInputType {DMatrix, DenseMatrix, CSRMatrix, DataFrame};
 
-static SEXP XGBoosterPredictGeneric(SEXP handle, SEXP input_data, SEXP json_config,
+SEXP XGBoosterPredictGeneric(SEXP handle, SEXP input_data, SEXP json_config,
                                     PredictionInputType input_type, SEXP missing,
                                     SEXP base_margin) {
   SEXP r_out_shape;
@@ -1315,7 +1317,7 @@ static SEXP XGBoosterPredictGeneric(SEXP handle, SEXP input_data, SEXP json_conf
       }
 
       case PredictionInputType::CSRMatrix: {
-        std::unique_ptr<_ProxyDmatrixWrapper> proxy_dmat = GetProxyDMatrixWithBaseMargin(
+        std::unique_ptr<ProxyDmatrixWrapper> proxy_dmat = GetProxyDMatrixWithBaseMargin(
           base_margin);
         DMatrixHandle proxy_dmat_handle = proxy_dmat.get()? proxy_dmat->get_handle() : nullptr;
 
@@ -1340,7 +1342,7 @@ static SEXP XGBoosterPredictGeneric(SEXP handle, SEXP input_data, SEXP json_conf
       }
 
       case PredictionInputType::DenseMatrix: {
-        std::unique_ptr<_ProxyDmatrixWrapper> proxy_dmat = GetProxyDMatrixWithBaseMargin(
+        std::unique_ptr<ProxyDmatrixWrapper> proxy_dmat = GetProxyDMatrixWithBaseMargin(
           base_margin);
         DMatrixHandle proxy_dmat_handle = proxy_dmat.get()? proxy_dmat->get_handle() : nullptr;
         const std::string array_str = MakeArrayInterfaceFromRMat(input_data);
@@ -1357,7 +1359,7 @@ static SEXP XGBoosterPredictGeneric(SEXP handle, SEXP input_data, SEXP json_conf
       }
 
       case PredictionInputType::DataFrame: {
-        std::unique_ptr<_ProxyDmatrixWrapper> proxy_dmat = GetProxyDMatrixWithBaseMargin(
+        std::unique_ptr<ProxyDmatrixWrapper> proxy_dmat = GetProxyDMatrixWithBaseMargin(
           base_margin);
         DMatrixHandle proxy_dmat_handle = proxy_dmat.get()? proxy_dmat->get_handle() : nullptr;
 
@@ -1394,6 +1396,8 @@ static SEXP XGBoosterPredictGeneric(SEXP handle, SEXP input_data, SEXP json_conf
   UNPROTECT(4);
 
   return r_out;
+}
+
 }
 
 XGB_DLL SEXP XGBoosterPredictFromDMatrix_R(SEXP handle, SEXP dmat, SEXP json_config)  {
