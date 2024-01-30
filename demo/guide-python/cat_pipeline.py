@@ -13,6 +13,7 @@ See Also
 - :ref:`sphx_glr_python_examples_cat_in_the_dat.py`
 
 """
+
 from typing import List, Tuple
 
 import numpy as np

@@ -9,6 +9,7 @@ Created on 1 Apr 2015
 
 @author: Jamie Hall
 """
+
 import pickle
 
 import numpy as np

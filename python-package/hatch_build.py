@@ -2,6 +2,7 @@
 Custom hook to customize the behavior of Hatchling.
 Here, we customize the tag of the generated wheels.
 """
+
 import sysconfig
 from typing import Any, Dict
 

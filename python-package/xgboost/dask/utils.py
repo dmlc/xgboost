@@ -1,4 +1,5 @@
 """Utilities for the XGBoost Dask interface."""
+
 import logging
 from typing import TYPE_CHECKING, Any, Dict
 

@@ -3,6 +3,7 @@ Example of training with Dask on CPU
 ====================================
 
 """
+
 from dask import array as da
 from dask.distributed import Client, LocalCluster
 

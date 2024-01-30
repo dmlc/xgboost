@@ -1,4 +1,5 @@
 """Tests for training continuation."""
+
 import json
 from typing import Any, Dict, TypeVar
 

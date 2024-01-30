@@ -64,13 +64,11 @@ class XGBoostError(ValueError):
 
 
 @overload
-def from_pystr_to_cstr(data: str) -> bytes:
-    ...
+def from_pystr_to_cstr(data: str) -> bytes: ...
 
 
 @overload
-def from_pystr_to_cstr(data: List[str]) -> ctypes.Array:
-    ...
+def from_pystr_to_cstr(data: List[str]) -> ctypes.Array: ...
 
 
 def from_pystr_to_cstr(data: Union[str, List[str]]) -> Union[bytes, ctypes.Array]:
