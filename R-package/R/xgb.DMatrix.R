@@ -373,7 +373,7 @@ xgb.QuantileDMatrix <- function(
     .Call(XGDMatrixFree_R, proxy_handle)
   })
   iterator_next <- function() {
-    return(xgb.ProxyDMatrix.internal(proxy_handle, data_iterator))
+    return(xgb.ProxyDMatrix(proxy_handle, data_iterator))
   }
   iterator_reset <- function() {
     return(data_iterator$f_reset(iterator_env))
@@ -416,12 +416,12 @@ xgb.QuantileDMatrix <- function(
 #' to know which part of the data to pass next.
 #' @param f_next `function(env)` which is responsible for:\itemize{
 #' \item Accessing or retrieving the next batch of data in the iterator.
-#' \item Supplying this data by calling function \link{xgb.ProxyDMatrix} on it and returning the result.
+#' \item Supplying this data by calling function \link{xgb.DataBatch} on it and returning the result.
 #' \item Keeping track of where in the iterator batch it is or will go next, which can for example
 #' be done by modifiying variables in the `env` variable that is passed here.
 #' \item Signaling whether there are more batches to be consumed or not, by returning `NULL`
 #' when the stream of data ends (all batches in the iterator have been consumed), or the result from
-#' calling \link{xgb.ProxyDMatrix} when there are more batches in the line to be consumed.
+#' calling \link{xgb.DataBatch} when there are more batches in the line to be consumed.
 #' }
 #' @param f_reset `function(env)` which is responsible for reseting the data iterator
 #' (i.e. taking it back to the first batch, called before and after the sequence of batches
@@ -431,7 +431,7 @@ xgb.QuantileDMatrix <- function(
 #' (and in the same order) must be passed in subsequent iterations.
 #' @return An `xgb.DataIter` object, containing the same inputs supplied here, which can then
 #' be passed to \link{xgb.ExternalDMatrix}.
-#' @seealso \link{xgb.ExternalDMatrix}, \link{xgb.ProxyDMatrix}.
+#' @seealso \link{xgb.ExternalDMatrix}, \link{xgb.DataBatch}.
 #' @export
 xgb.DataIter <- function(env = new.env(), f_next, f_reset) {
   if (!is.function(f_next)) {
@@ -459,7 +459,7 @@ xgb.DataIter <- function(env = new.env(), f_next, f_reset) {
     env[["iter"]] <- curr_iter + 1L
   })
   return(
-    xgb.ProxyDMatrix(
+    xgb.DataBatch(
       data = env[["data"]],
       label = env[["label"]],
       weight = env[["weight"]],
@@ -490,13 +490,13 @@ xgb.DataIter <- function(env = new.env(), f_next, f_reset) {
 .make.proxy.handle <- function() {
   out <- .Call(XGProxyDMatrixCreate_R)
   attributes(out) <- list(
-    class = c("xgb.DMatrix", "xgb.ProxyDMatrixHandle"),
+    class = c("xgb.DMatrix", "xgb.ProxyDMatrix"),
     fields = new.env()
   )
   return(out)
 }
 
-#' @title Proxy DMatrix Updater
+#' @title Structure for Data Batches
 #' @description Helper function to supply data in batches of a data iterator when
 #' constructing a DMatrix from external memory through \link{xgb.ExternalDMatrix}
 #' or through \link{xgb.QuantileDMatrix.from_iterator}.
@@ -506,8 +506,8 @@ xgb.DataIter <- function(env = new.env(), f_next, f_reset) {
 #' when constructing a DMatrix through external memory - otherwise, one should call
 #' \link{xgb.DMatrix} or \link{xgb.QuantileDMatrix}.
 #'
-#' The object that results from calling this function directly is \bold{not} like the other
-#' `xgb.DMatrix` variants - i.e. cannot be used to train a model, nor to get predictions - only
+#' The object that results from calling this function directly is \bold{not} like
+#' an `xgb.DMatrix` - i.e. cannot be used to train a model, nor to get predictions - only
 #' possible usage is to supply data to an iterator, from which a DMatrix is then constructed.
 #'
 #' For more information and for example usage, see the documentation for \link{xgb.ExternalDMatrix}.
@@ -525,11 +525,11 @@ xgb.DataIter <- function(env = new.env(), f_next, f_reset) {
 #' \link{xgb.DMatrix} for details on it.
 #' \item CSR matrices, as class `dgRMatrix` from package `Matrix`.
 #' }
-#' @return An object of class `xgb.ProxyDMatrix`, which is just a list containing the
+#' @return An object of class `xgb.DataBatch`, which is just a list containing the
 #' data and parameters passed here. It does \bold{not} inherit from `xgb.DMatrix`.
 #' @seealso \link{xgb.DataIter}, \link{xgb.ExternalDMatrix}.
 #' @export
-xgb.ProxyDMatrix <- function(
+xgb.DataBatch <- function(
   data,
   label = NULL,
   weight = NULL,
@@ -558,17 +558,18 @@ xgb.ProxyDMatrix <- function(
     feature_weights = feature_weights,
     enable_categorical = enable_categorical
   )
-  class(out) <- "xgb.ProxyDMatrix"
+  class(out) <- "xgb.DataBatch"
   return(out)
 }
 
-xgb.ProxyDMatrix.internal <- function(proxy_handle, data_iterator) {
+# This is only for internal usage, class is not exposed to the user.
+xgb.ProxyDMatrix <- function(proxy_handle, data_iterator) {
   lst <- data_iterator$f_next(data_iterator$env)
   if (is.null(lst)) {
     return(0L)
   }
-  if (!inherits(lst, "xgb.ProxyDMatrix")) {
-    stop("DataIter 'f_next' must return either NULL or the result from calling 'xgb.ProxyDMatrix'.")
+  if (!inherits(lst, "xgb.DataBatch")) {
+    stop("DataIter 'f_next' must return either NULL or the result from calling 'xgb.DataBatch'.")
   }
 
   if (!is.null(lst$group) && !is.null(lst$qid)) {
@@ -634,7 +635,7 @@ xgb.ProxyDMatrix.internal <- function(proxy_handle, data_iterator) {
 #' This should not pose any problem for `numeric` types, since they do have an inheret NaN value.
 #' @return An 'xgb.DMatrix' object, with subclass 'xgb.ExternalDMatrix', in which the data is not
 #' held internally but accessed through the iterator when needed.
-#' @seealso \link{xgb.DataIter}, \link{xgb.ProxyDMatrix}, \link{xgb.QuantileDMatrix.from_iterator}
+#' @seealso \link{xgb.DataIter}, \link{xgb.DataBatch}, \link{xgb.QuantileDMatrix.from_iterator}
 #' @examples
 #' library(xgboost)
 #' data(mtcars)
@@ -674,10 +675,10 @@ xgb.ProxyDMatrix.internal <- function(proxy_handle, data_iterator) {
 #'     iterator_env[["iter"]] <- curr_iter + 1
 #'   })
 #'
-#'   # Function 'xgb.ProxyDMatrix' must be called manually
+#'   # Function 'xgb.DataBatch' must be called manually
 #'   # at each batch with all the appropriate attributes,
 #'   # such as feature names and feature types.
-#'   return(xgb.ProxyDMatrix(data = x_batch, label = y_batch))
+#'   return(xgb.DataBatch(data = x_batch, label = y_batch))
 #' }
 #'
 #' # This moves the iterator back to its beginning
@@ -721,7 +722,7 @@ xgb.ExternalDMatrix <- function(
     .Call(XGDMatrixFree_R, proxy_handle)
   })
   iterator_next <- function() {
-    return(xgb.ProxyDMatrix.internal(proxy_handle, data_iterator))
+    return(xgb.ProxyDMatrix(proxy_handle, data_iterator))
   }
   iterator_reset <- function() {
     return(data_iterator$f_reset(data_iterator$env))
@@ -764,7 +765,7 @@ xgb.ExternalDMatrix <- function(
 #' @inheritParams xgb.ExternalDMatrix
 #' @inheritParams xgb.QuantileDMatrix
 #' @return An 'xgb.DMatrix' object, with subclass 'xgb.QuantileDMatrix'.
-#' @seealso \link{xgb.DataIter}, \link{xgb.ProxyDMatrix}, \link{xgb.ExternalDMatrix},
+#' @seealso \link{xgb.DataIter}, \link{xgb.DataBatch}, \link{xgb.ExternalDMatrix},
 #' \link{xgb.QuantileDMatrix}
 #' @export
 xgb.QuantileDMatrix.from_iterator <- function( # nolint
@@ -786,7 +787,7 @@ xgb.QuantileDMatrix.from_iterator <- function( # nolint
     .Call(XGDMatrixFree_R, proxy_handle)
   })
   iterator_next <- function() {
-    return(xgb.ProxyDMatrix.internal(proxy_handle, data_iterator))
+    return(xgb.ProxyDMatrix(proxy_handle, data_iterator))
   }
   iterator_reset <- function() {
     return(data_iterator$f_reset(data_iterator$env))
