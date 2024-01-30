@@ -552,7 +552,7 @@ test_that("validate.features works as expected", {
     validate.features(model, mtcars[, 1:3])
   })
   expect_error({
-    validate.features(model, as.matrix(mtcars[, 1:ncol(x)]))
+    validate.features(model, as.matrix(mtcars[, 1:ncol(x)])) # nolint
   })
   expect_error({
     validate.features(model, xgb.DMatrix(mtcars[, 1:3]))
