@@ -876,7 +876,7 @@ xgb.cb.cv.predict <- function(save_models = FALSE, outputmargin = FALSE) {
 }
 
 .extract.coef <- function(model, sparse) {
-  coefs <- coef(model)
+  coefs <- .internal.coef.xgb.Booster(model, add_names = FALSE)
   if (NCOL(coefs) > 1L) {
     coefs <- as.vector(coefs)
   }
