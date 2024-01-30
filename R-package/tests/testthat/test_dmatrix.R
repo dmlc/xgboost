@@ -166,7 +166,7 @@ test_that("xgb.DMatrix: getinfo & setinfo", {
 test_that("xgb.DMatrix: slice, dim", {
   dtest <- xgb.DMatrix(test_data, label = test_label, nthread = n_threads)
   expect_equal(dim(dtest), dim(test_data))
-  dsub1 <- slice(dtest, 1:42)
+  dsub1 <- xgb.slice.DMatrix(dtest, 1:42)
   expect_equal(nrow(dsub1), 42)
   expect_equal(ncol(dsub1), ncol(test_data))
 
@@ -182,12 +182,12 @@ test_that("xgb.DMatrix: slice, trailing empty rows", {
   dtrain <- xgb.DMatrix(
     data = train_data, label = train_label, nthread = n_threads
   )
-  slice(dtrain, 6513L)
+  xgb.slice.DMatrix(dtrain, 6513L)
   train_data[6513, ] <- 0
   dtrain <- xgb.DMatrix(
     data = train_data, label = train_label, nthread = n_threads
   )
-  slice(dtrain, 6513L)
+  xgb.slice.DMatrix(dtrain, 6513L)
   expect_equal(nrow(dtrain), 6513)
 })
 
@@ -338,19 +338,18 @@ test_that("xgb.DMatrix: data.frame", {
     stringsAsFactors = TRUE
   )
 
-  m <- xgb.DMatrix(df, enable_categorical = TRUE)
+  m <- xgb.DMatrix(df)
   expect_equal(colnames(m), colnames(df))
   expect_equal(
     getinfo(m, "feature_type"), c("float", "float", "int", "i", "c", "c")
   )
-  expect_error(xgb.DMatrix(df, enable_categorical = FALSE))
 
   df <- data.frame(
     missing = c("a", "b", "d", NA),
     valid = c("a", "b", "d", "c"),
     stringsAsFactors = TRUE
   )
-  m <- xgb.DMatrix(df, enable_categorical = TRUE)
+  m <- xgb.DMatrix(df)
   expect_equal(getinfo(m, "feature_type"), c("c", "c"))
 })
 

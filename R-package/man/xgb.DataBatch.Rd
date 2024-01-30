@@ -15,8 +15,7 @@ xgb.DataBatch(
   qid = NULL,
   label_lower_bound = NULL,
   label_upper_bound = NULL,
-  feature_weights = NULL,
-  enable_categorical = FALSE
+  feature_weights = NULL
 )
 }
 \arguments{
@@ -57,7 +56,7 @@ frame and matrix.
 
 \item{feature_types}{Set types for features.
 
-If \code{data} is a \code{data.frame} and passing \code{enable_categorical=TRUE}, the types will be deduced
+If \code{data} is a \code{data.frame} and passing \code{feature_types} is not supplied, feature types will be deduced
 automatically from the column types.
 
 Otherwise, one can pass a character vector with the same length as number of columns in \code{data},
@@ -81,20 +80,6 @@ functionalities such as feature importances.}
 \item{label_upper_bound}{Upper bound for survival training.}
 
 \item{feature_weights}{Set feature weights for column sampling.}
-
-\item{enable_categorical}{Experimental support of specializing for categorical features.
-
-\if{html}{\out{<div class="sourceCode">}}\preformatted{                      If passing 'TRUE' and 'data' is a data frame,
-                      columns of categorical types will automatically
-                      be set to be of categorical type (feature_type='c') in the resulting DMatrix.
-
-                      If passing 'FALSE' and 'data' is a data frame with categorical columns,
-                      it will result in an error being thrown.
-
-                      If 'data' is not a data frame, this argument is ignored.
-
-                      JSON/UBJSON serialization format is required for this.
-}\if{html}{\out{</div>}}}
 }
 \value{
 An object of class \code{xgb.DataBatch}, which is just a list containing the

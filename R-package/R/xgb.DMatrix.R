@@ -16,10 +16,6 @@
 #' \item `matrix` objects, with types `numeric`, `integer`, or `logical`.
 #' \item `data.frame` objects, with columns of types `numeric`, `integer`, `logical`, or `factor`.
 #'
-#' If passing `enable_categorical=TRUE`, columns with `factor` type will be treated as categorical.
-#' Otherwise, if passing `enable_categorical=FALSE` and the data contains `factor` columns, an error
-#' will be thrown.
-#'
 #' Note that xgboost uses base-0 encoding for categorical types, hence `factor` types (which use base-1
 #' encoding') will be converted inside the function call. Be aware that the encoding used for `factor`
 #' types is not kept as part of the model, so in subsequent calls to `predict`, it is the user's
@@ -59,7 +55,7 @@
 #'        must be the same as in the DMatrix construction, regardless of the column names.
 #' @param feature_types Set types for features.
 #'
-#' If `data` is a `data.frame` and passing `enable_categorical=TRUE`, the types will be deduced
+#' If `data` is a `data.frame` and passing `feature_types` is not supplied, feature types will be deduced
 #' automatically from the column types.
 #'
 #' Otherwise, one can pass a character vector with the same length as number of columns in `data`,
@@ -79,18 +75,6 @@
 #' @param label_lower_bound Lower bound for survival training.
 #' @param label_upper_bound Upper bound for survival training.
 #' @param feature_weights Set feature weights for column sampling.
-#' @param enable_categorical Experimental support of specializing for categorical features.
-#'
-#'                           If passing 'TRUE' and 'data' is a data frame,
-#'                           columns of categorical types will automatically
-#'                           be set to be of categorical type (feature_type='c') in the resulting DMatrix.
-#'
-#'                           If passing 'FALSE' and 'data' is a data frame with categorical columns,
-#'                           it will result in an error being thrown.
-#'
-#'                           If 'data' is not a data frame, this argument is ignored.
-#'
-#'                           JSON/UBJSON serialization format is required for this.
 #' @return An 'xgb.DMatrix' object. If calling 'xgb.QuantileDMatrix', it will have additional
 #' subclass 'xgb.QuantileDMatrix'.
 #'
@@ -127,8 +111,7 @@ xgb.DMatrix <- function(
   qid = NULL,
   label_lower_bound = NULL,
   label_upper_bound = NULL,
-  feature_weights = NULL,
-  enable_categorical = FALSE
+  feature_weights = NULL
 ) {
   if (!is.null(group) && !is.null(qid)) {
     stop("Either one of 'group' or 'qid' should be NULL")
@@ -180,7 +163,7 @@ xgb.DMatrix <- function(
       nthread
     )
   } else if (is.data.frame(data)) {
-    tmp <- .process.df.for.dmatrix(data, enable_categorical, feature_types)
+    tmp <- .process.df.for.dmatrix(data, feature_types)
     feature_types <- tmp$feature_types
     handle <- .Call(
       XGDMatrixCreateFromDF_R, tmp$lst, missing, nthread
@@ -212,7 +195,7 @@ xgb.DMatrix <- function(
   return(dmat)
 }
 
-.process.df.for.dmatrix <- function(df, enable_categorical, feature_types) {
+.process.df.for.dmatrix <- function(df, feature_types) {
   if (!nrow(df) || !ncol(df)) {
     stop("'data' is an empty data.frame.")
   }
@@ -225,12 +208,6 @@ xgb.DMatrix <- function(
   } else {
     feature_types <- sapply(df, function(col) {
       if (is.factor(col)) {
-        if (!enable_categorical) {
-          stop(
-            "When factor type is used, the parameter `enable_categorical`",
-            " must be set to TRUE."
-          )
-        }
         return("c")
       } else if (is.integer(col)) {
         return("int")
@@ -326,7 +303,6 @@ xgb.QuantileDMatrix <- function(
   label_lower_bound = NULL,
   label_upper_bound = NULL,
   feature_weights = NULL,
-  enable_categorical = FALSE,
   ref = NULL,
   max_bin = NULL
 ) {
@@ -357,8 +333,7 @@ xgb.QuantileDMatrix <- function(
       qid = qid,
       label_lower_bound = label_lower_bound,
       label_upper_bound = label_upper_bound,
-      feature_weights = feature_weights,
-      enable_categorical = enable_categorical
+      feature_weights = feature_weights
     )
   )
   data_iterator <- .single.data.iterator(iterator_env)
@@ -470,8 +445,7 @@ xgb.DataIter <- function(env = new.env(), f_next, f_reset) {
       qid = env[["qid"]],
       label_lower_bound = env[["label_lower_bound"]],
       label_upper_bound = env[["label_upper_bound"]],
-      feature_weights = env[["feature_weights"]],
-      enable_categorical = env[["enable_categorical"]]
+      feature_weights = env[["feature_weights"]]
     )
   )
 }
@@ -540,8 +514,7 @@ xgb.DataBatch <- function(
   qid = NULL,
   label_lower_bound = NULL,
   label_upper_bound = NULL,
-  feature_weights = NULL,
-  enable_categorical = FALSE
+  feature_weights = NULL
 ) {
   stopifnot(inherits(data, c("matrix", "data.frame", "dgRMatrix")))
   out <- list(
@@ -555,8 +528,7 @@ xgb.DataBatch <- function(
     qid = qid,
     label_lower_bound = label_lower_bound,
     label_upper_bound = label_upper_bound,
-    feature_weights = feature_weights,
-    enable_categorical = enable_categorical
+    feature_weights = feature_weights
   )
   class(out) <- "xgb.DataBatch"
   return(out)
@@ -576,7 +548,7 @@ xgb.ProxyDMatrix <- function(proxy_handle, data_iterator) {
     stop("Either one of 'group' or 'qid' should be NULL")
   }
   if (is.data.frame(lst$data)) {
-    tmp <- .process.df.for.dmatrix(lst$data, lst$enable_categorical, lst$feature_types)
+    tmp <- .process.df.for.dmatrix(lst$data, lst$feature_types)
     lst$feature_types <- tmp$feature_types
     .Call(XGProxyDMatrixSetDataColumnar_R, proxy_handle, tmp$lst)
     rm(tmp)
@@ -1257,19 +1229,15 @@ xgb.get.DMatrix.data <- function(dmat) {
 #' data(agaricus.train, package='xgboost')
 #' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
 #'
-#' dsub <- slice(dtrain, 1:42)
+#' dsub <- xgb.slice.DMatrix(dtrain, 1:42)
 #' labels1 <- getinfo(dsub, 'label')
 #' dsub <- dtrain[1:42, ]
 #' labels2 <- getinfo(dsub, 'label')
 #' all.equal(labels1, labels2)
 #'
-#' @rdname slice.xgb.DMatrix
+#' @rdname xgb.slice.DMatrix
 #' @export
-slice <- function(object, idxset) UseMethod("slice")
-
-#' @rdname slice.xgb.DMatrix
-#' @export
-slice.xgb.DMatrix <- function(object, idxset) {
+xgb.slice.DMatrix <- function(object, idxset) {
   if (!inherits(object, "xgb.DMatrix")) {
     stop("object must be xgb.DMatrix")
   }
@@ -1293,10 +1261,10 @@ slice.xgb.DMatrix <- function(object, idxset) {
   return(structure(ret, class = "xgb.DMatrix"))
 }
 
-#' @rdname slice.xgb.DMatrix
+#' @rdname xgb.slice.DMatrix
 #' @export
 `[.xgb.DMatrix` <- function(object, idxset, colset = NULL) {
-  slice(object, idxset)
+  xgb.slice.DMatrix(object, idxset)
 }
 
 
