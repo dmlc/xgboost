@@ -1398,7 +1398,7 @@ SEXP XGBoosterPredictGeneric(SEXP handle, SEXP input_data, SEXP json_config,
   return r_out;
 }
 
-}
+}  // namespace
 
 XGB_DLL SEXP XGBoosterPredictFromDMatrix_R(SEXP handle, SEXP dmat, SEXP json_config)  {
   return XGBoosterPredictGeneric(handle, dmat, json_config,
