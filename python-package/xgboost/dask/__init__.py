@@ -1146,9 +1146,9 @@ async def _direct_predict_impl(  # pylint: disable=too-many-branches
     if _can_output_df(isinstance(data, dd.DataFrame), output_shape):
         if base_margin is not None and isinstance(base_margin, da.Array):
             # Easier for map_partitions
-            base_margin_df: Optional[
-                Union[dd.DataFrame, dd.Series]
-            ] = base_margin.to_dask_dataframe()
+            base_margin_df: Optional[Union[dd.DataFrame, dd.Series]] = (
+                base_margin.to_dask_dataframe()
+            )
         else:
             base_margin_df = base_margin
         predictions = dd.map_partitions(

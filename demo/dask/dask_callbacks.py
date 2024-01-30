@@ -2,6 +2,7 @@
 Example of using callbacks with Dask
 ====================================
 """
+
 import numpy as np
 from dask.distributed import Client, LocalCluster
 from dask_ml.datasets import make_regression

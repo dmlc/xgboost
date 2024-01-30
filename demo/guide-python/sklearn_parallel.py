@@ -2,6 +2,7 @@
 Demo for using xgboost with sklearn
 ===================================
 """
+
 import multiprocessing
 
 from sklearn.datasets import fetch_california_housing

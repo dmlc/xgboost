@@ -2,6 +2,7 @@
 Example of training with Dask on GPU
 ====================================
 """
+
 import cupy as cp
 import dask_cudf
 from dask import array as da

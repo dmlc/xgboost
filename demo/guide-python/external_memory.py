@@ -11,6 +11,7 @@ instead of Quantile DMatrix.  The feature is not ready for production use yet.
 See :doc:`the tutorial </tutorials/external_memory>` for more details.
 
 """
+
 import os
 import tempfile
 from typing import Callable, List, Tuple

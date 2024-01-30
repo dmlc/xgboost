@@ -6,6 +6,7 @@ This demo uses 1D toy data and visualizes how XGBoost fits a tree ensemble. The 
 model starts out as a flat line and evolves into a step function in order to account for
 all ranged labels.
 """
+
 import matplotlib.pyplot as plt
 import numpy as np
 
