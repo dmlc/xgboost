@@ -41,6 +41,7 @@ class HistEvaluator {
   std::shared_ptr<common::ColumnSampler> column_sampler_;
   TreeEvaluator tree_evaluator_;
   bool is_col_split_{false};
+  bool is_secure_{false};
   FeatureInteractionConstraintHost interaction_constraints_;
   std::vector<NodeEntry> snode_;
 
@@ -393,6 +394,11 @@ class HistEvaluator {
       }
     }
 
+
+    // Print the info about modes of data split.
+    std::cout<< "Data split mode: " << (is_col_split_ ? "column-wise" : "row-wise") << std::endl;
+    std::cout<< "Secure compute mode: " << (is_secure_ ? "secure" : "plain") << std::endl;
+
     if (is_col_split_) {
       // With column-wise data split, we gather the best splits from all the workers and update the
       // expand entries accordingly.
@@ -477,7 +483,8 @@ class HistEvaluator {
         param_{param},
         column_sampler_{std::move(sampler)},
         tree_evaluator_{*param, static_cast<bst_feature_t>(info.num_col_), DeviceOrd::CPU()},
-        is_col_split_{info.IsColumnSplit()} {
+        is_col_split_{info.IsColumnSplit()},
+        is_secure_{info.IsSecureCompute()}{
     interaction_constraints_.Configure(*param, info.num_col_);
     column_sampler_->Init(ctx, info.num_col_, info.feature_weights.HostVector(),
                           param_->colsample_bynode, param_->colsample_bylevel,
@@ -493,6 +500,7 @@ class HistMultiEvaluator {
   std::shared_ptr<common::ColumnSampler> column_sampler_;
   Context const *ctx_;
   bool is_col_split_{false};
+  bool is_secure_{false};
 
  private:
   static double MultiCalcSplitGain(TrainParam const &param,
@@ -753,7 +761,8 @@ class HistMultiEvaluator {
       : param_{param},
         column_sampler_{std::move(sampler)},
         ctx_{ctx},
-        is_col_split_{info.IsColumnSplit()} {
+        is_col_split_{info.IsColumnSplit()},
+        is_secure_{info.IsSecureCompute()} {
     interaction_constraints_.Configure(*param, info.num_col_);
     column_sampler_->Init(ctx, info.num_col_, info.feature_weights.HostVector(),
                           param_->colsample_bynode, param_->colsample_bylevel,
