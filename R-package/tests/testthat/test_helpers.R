@@ -511,3 +511,82 @@ test_that('convert.labels works', {
     expect_equal(class(res), 'numeric')
   }
 })
+
+test_that("validate.features works as expected", {
+  data(mtcars)
+  y <- mtcars$mpg
+  x <- as.matrix(mtcars[, -1])
+  dm <- xgb.DMatrix(x, label = y, nthread = 1)
+  model <- xgb.train(
+    params = list(nthread = 1),
+    data = dm,
+    nrounds = 3
+  )
+
+  # result is output as-is when needed
+  res <- validate.features(model, x)
+  expect_equal(res, x)
+  res <- validate.features(model, dm)
+  expect_identical(res, dm)
+  res <- validate.features(model, as(x[1, ], "dsparseVector"))
+  expect_equal(as.numeric(res), unname(x[1, ]))
+  res <- validate.features(model, "file.txt")
+  expect_equal(res, "file.txt")
+
+  # columns are reordered
+  res <- validate.features(model, mtcars[, rev(names(mtcars))])
+  expect_equal(names(res), colnames(x))
+  expect_equal(as.matrix(res), x)
+  res <- validate.features(model, as.matrix(mtcars[, rev(names(mtcars))]))
+  expect_equal(colnames(res), colnames(x))
+  expect_equal(res, x)
+  res <- validate.features(model, mtcars[1, rev(names(mtcars)), drop = FALSE])
+  expect_equal(names(res), colnames(x))
+  expect_equal(unname(as.matrix(res)), unname(x[1, , drop = FALSE]))
+  res <- validate.features(model, as.data.table(mtcars[, rev(names(mtcars))]))
+  expect_equal(names(res), colnames(x))
+  expect_equal(unname(as.matrix(res)), unname(x))
+
+  # error when columns are missing
+  expect_error({
+    validate.features(model, mtcars[, 1:3])
+  })
+  expect_error({
+    validate.features(model, as.matrix(mtcars[, 1:ncol(x)])) # nolint
+  })
+  expect_error({
+    validate.features(model, xgb.DMatrix(mtcars[, 1:3]))
+  })
+  expect_error({
+    validate.features(model, as(x[, 1:3], "CsparseMatrix"))
+  })
+
+  # error when it cannot reorder or subset
+  expect_error({
+    validate.features(model, xgb.DMatrix(mtcars))
+  }, "Feature names")
+  expect_error({
+    validate.features(model, xgb.DMatrix(x[, rev(colnames(x))]))
+  }, "Feature names")
+
+  # no error about types if the booster doesn't have types
+  expect_error({
+    validate.features(model, xgb.DMatrix(x, feature_types = c(rep("q", 5), rep("c", 5))))
+  }, NA)
+  tmp <- mtcars
+  tmp[["vs"]] <- factor(tmp[["vs"]])
+  expect_error({
+    validate.features(model, tmp)
+  }, NA)
+
+  # error when types do not match
+  setinfo(model, "feature_type", rep("q", 10))
+  expect_error({
+    validate.features(model, xgb.DMatrix(x, feature_types = c(rep("q", 5), rep("c", 5))))
+  }, "Feature types")
+  tmp <- mtcars
+  tmp[["vs"]] <- factor(tmp[["vs"]])
+  expect_error({
+    validate.features(model, tmp)
+  }, "Feature types")
+})
