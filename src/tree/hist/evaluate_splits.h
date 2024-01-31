@@ -402,7 +402,19 @@ class HistEvaluator {
     if (is_col_split_) {
       // With column-wise data split, we gather the best splits from all the workers and update the
       // expand entries accordingly.
+
+      //Print entry information before allgather
+      std::cout << "Entries Before allgather: " << std::endl;
+      for (size_t i = 0; i < entries.size(); ++i) {
+          std::cout << "Entry " << i << " nid: " << entries[i].nid << " gain: " << entries[i].split.loss_chg << std::endl;
+      }
       auto all_entries = Allgather(entries);
+      //Print entry information after allgather
+      std::cout << "Entries After allgather: " << std::endl;
+      for (size_t i = 0; i < all_entries.size(); ++i) {
+          std::cout << "Entry " << i << " nid: " << all_entries[i].nid << " gain: " << all_entries[i].split.loss_chg << std::endl;
+      }
+
       for (auto worker = 0; worker < collective::GetWorldSize(); ++worker) {
         for (std::size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
           entries[nidx_in_set].split.Update(
@@ -484,7 +496,7 @@ class HistEvaluator {
         column_sampler_{std::move(sampler)},
         tree_evaluator_{*param, static_cast<bst_feature_t>(info.num_col_), DeviceOrd::CPU()},
         is_col_split_{info.IsColumnSplit()},
-        is_secure_{info.IsSecureCompute()}{
+        is_secure_{info.IsSecure()}{
     interaction_constraints_.Configure(*param, info.num_col_);
     column_sampler_->Init(ctx, info.num_col_, info.feature_weights.HostVector(),
                           param_->colsample_bynode, param_->colsample_bylevel,
@@ -762,7 +774,7 @@ class HistMultiEvaluator {
         column_sampler_{std::move(sampler)},
         ctx_{ctx},
         is_col_split_{info.IsColumnSplit()},
-        is_secure_{info.IsSecureCompute()} {
+        is_secure_{info.IsSecure()} {
     interaction_constraints_.Configure(*param, info.num_col_);
     column_sampler_->Init(ctx, info.num_col_, info.feature_weights.HostVector(),
                           param_->colsample_bynode, param_->colsample_bylevel,

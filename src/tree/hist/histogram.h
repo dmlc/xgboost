@@ -50,6 +50,7 @@ class HistogramBuilder {
   // Whether XGBoost is running in distributed environment.
   bool is_distributed_{false};
   bool is_col_split_{false};
+  bool is_secure_{false};
 
  public:
   /**
@@ -60,13 +61,14 @@ class HistogramBuilder {
    *                         of using global rabit variable.
    */
   void Reset(Context const *ctx, bst_bin_t total_bins, BatchParam const &p, bool is_distributed,
-             bool is_col_split, HistMakerTrainParam const *param) {
+             bool is_col_split, bool is_secure, HistMakerTrainParam const *param) {
     n_threads_ = ctx->Threads();
     param_ = p;
     hist_.Reset(total_bins, param->max_cached_hist_node);
     buffer_.Init(total_bins);
     is_distributed_ = is_distributed;
     is_col_split_ = is_col_split;
+    is_secure_ = is_secure;
   }
 
   template <bool any_missing>
@@ -329,12 +331,12 @@ class MultiHistogramBuilder {
   [[nodiscard]] auto &Histogram(bst_target_t t) { return target_builders_[t].Histogram(); }
 
   void Reset(Context const *ctx, bst_bin_t total_bins, bst_target_t n_targets, BatchParam const &p,
-             bool is_distributed, bool is_col_split, HistMakerTrainParam const *param) {
+             bool is_distributed, bool is_col_split, bool is_secure, HistMakerTrainParam const *param) {
     ctx_ = ctx;
     target_builders_.resize(n_targets);
     CHECK_GE(n_targets, 1);
     for (auto &v : target_builders_) {
-      v.Reset(ctx, total_bins, p, is_distributed, is_col_split, param);
+      v.Reset(ctx, total_bins, p, is_distributed, is_col_split, is_secure, param);
     }
   }
 };
