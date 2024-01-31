@@ -104,7 +104,7 @@ using cross validation with early stopping, here is a snippet to begin with:
 
     clf = xgb.XGBClassifier(tree_method="hist", early_stopping_rounds=3)
 
-    resutls = {}
+    results = {}
 
     for train, test in cv.split(X, y):
         X_train = X[train]
@@ -114,7 +114,7 @@ using cross validation with early stopping, here is a snippet to begin with:
         est, train_score, test_score = fit_and_score(
             clone(clf), X_train, X_test, y_train, y_test
         )
-        resutls[est] = (train_score, test_score)
+        results[est] = (train_score, test_score)
 
 
 ***********************************
