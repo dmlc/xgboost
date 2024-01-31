@@ -60,6 +60,6 @@ For more information, see the guide 'Using XGBoost External Memory Version':
 \url{https://xgboost.readthedocs.io/en/stable/tutorials/external_memory.html}
 }
 \seealso{
-\link{xgb.DataIter}, \link{xgb.ProxyDMatrix}, \link{xgb.ExternalDMatrix},
+\link{xgb.DataIter}, \link{xgb.DataBatch}, \link{xgb.ExternalDMatrix},
 \link{xgb.QuantileDMatrix}
 }

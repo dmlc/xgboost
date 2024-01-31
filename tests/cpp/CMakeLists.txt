@@ -14,8 +14,38 @@ if(USE_CUDA)
 endif()
 
 file(GLOB_RECURSE SYCL_TEST_SOURCES "plugin/test_sycl_*.cc")
-if(NOT PLUGIN_SYCL)
-  list(REMOVE_ITEM TEST_SOURCES ${SYCL_TEST_SOURCES})
+list(REMOVE_ITEM TEST_SOURCES ${SYCL_TEST_SOURCES})
+
+if(PLUGIN_SYCL)
+  set(CMAKE_CXX_COMPILER "icpx")
+  file(GLOB_RECURSE SYCL_TEST_SOURCES "plugin/test_sycl_*.cc")
+  add_library(plugin_sycl_test OBJECT ${SYCL_TEST_SOURCES})
+
+  target_include_directories(plugin_sycl_test
+    PRIVATE
+    ${gtest_SOURCE_DIR}/include
+    ${xgboost_SOURCE_DIR}/include
+    ${xgboost_SOURCE_DIR}/dmlc-core/include
+    ${xgboost_SOURCE_DIR}/rabit/include)
+
+  target_compile_definitions(plugin_sycl_test PUBLIC -DXGBOOST_USE_SYCL=1)
+
+  target_link_libraries(plugin_sycl_test PUBLIC -fsycl)
+
+  set_target_properties(plugin_sycl_test PROPERTIES
+  COMPILE_FLAGS -fsycl
+  CXX_STANDARD 17
+  CXX_STANDARD_REQUIRED ON
+  POSITION_INDEPENDENT_CODE ON)
+  if(USE_OPENMP)
+    find_package(OpenMP REQUIRED)
+    set_target_properties(plugin_sycl_test PROPERTIES
+    COMPILE_FLAGS "-fsycl -qopenmp")
+  endif()
+  # Get compilation and link flags of plugin_sycl and propagate to testxgboost
+  target_link_libraries(testxgboost PUBLIC plugin_sycl_test)
+  # Add all objects of plugin_sycl to testxgboost
+  target_sources(testxgboost INTERFACE $<TARGET_OBJECTS:plugin_sycl_test>)
 endif()
 
 if(PLUGIN_FEDERATED)
