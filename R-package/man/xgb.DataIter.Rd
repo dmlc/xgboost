@@ -15,12 +15,12 @@ to know which part of the data to pass next.}
 
 \item{f_next}{\verb{function(env)} which is responsible for:\itemize{
 \item Accessing or retrieving the next batch of data in the iterator.
-\item Supplying this data by calling function \link{xgb.ProxyDMatrix} on it and returning the result.
+\item Supplying this data by calling function \link{xgb.DataBatch} on it and returning the result.
 \item Keeping track of where in the iterator batch it is or will go next, which can for example
 be done by modifiying variables in the \code{env} variable that is passed here.
 \item Signaling whether there are more batches to be consumed or not, by returning \code{NULL}
 when the stream of data ends (all batches in the iterator have been consumed), or the result from
-calling \link{xgb.ProxyDMatrix} when there are more batches in the line to be consumed.
+calling \link{xgb.DataBatch} when there are more batches in the line to be consumed.
 }}
 
 \item{f_reset}{\verb{function(env)} which is responsible for reseting the data iterator
@@ -47,5 +47,5 @@ which will consume the data and create a DMatrix from it by executing the callba
 For more information, and for a usage example, see the documentation for \link{xgb.ExternalDMatrix}.
 }
 \seealso{
-\link{xgb.ExternalDMatrix}, \link{xgb.ProxyDMatrix}.
+\link{xgb.ExternalDMatrix}, \link{xgb.DataBatch}.
 }

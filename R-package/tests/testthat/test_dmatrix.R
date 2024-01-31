@@ -472,7 +472,7 @@ test_that("xgb.DMatrix: ExternalDMatrix produces the same results as regular DMa
       y = mtcars[, 1]
     )
   )
-  iterator_next <- function(iterator_env, proxy_handle) {
+  iterator_next <- function(iterator_env) {
     curr_iter <- iterator_env[["iter"]]
     if (curr_iter >= 2) {
       return(NULL)
@@ -487,7 +487,7 @@ test_that("xgb.DMatrix: ExternalDMatrix produces the same results as regular DMa
     on.exit({
       iterator_env[["iter"]] <- curr_iter + 1
     })
-    return(xgb.ProxyDMatrix(data = x_batch, label = y_batch))
+    return(xgb.DataBatch(data = x_batch, label = y_batch))
   }
   iterator_reset <- function(iterator_env) {
     iterator_env[["iter"]] <- 0
@@ -546,7 +546,7 @@ test_that("xgb.DMatrix: External QDM produces same results as regular QDM", {
       y = mtcars[, 1]
     )
   )
-  iterator_next <- function(iterator_env, proxy_handle) {
+  iterator_next <- function(iterator_env) {
     curr_iter <- iterator_env[["iter"]]
     if (curr_iter >= 2) {
       return(NULL)
@@ -561,7 +561,7 @@ test_that("xgb.DMatrix: External QDM produces same results as regular QDM", {
     on.exit({
       iterator_env[["iter"]] <- curr_iter + 1
     })
-    return(xgb.ProxyDMatrix(data = x_batch, label = y_batch))
+    return(xgb.DataBatch(data = x_batch, label = y_batch))
   }
   iterator_reset <- function(iterator_env) {
     iterator_env[["iter"]] <- 0
@@ -604,7 +604,7 @@ test_that("xgb.DMatrix: R errors thrown on DataIterator are thrown back to the u
       y = mtcars[, 1]
     )
   )
-  iterator_next <- function(iterator_env, proxy_handle) {
+  iterator_next <- function(iterator_env) {
     curr_iter <- iterator_env[["iter"]]
     if (curr_iter >= 2) {
       return(0)
@@ -618,7 +618,7 @@ test_that("xgb.DMatrix: R errors thrown on DataIterator are thrown back to the u
     on.exit({
       iterator_env[["iter"]] <- curr_iter + 1
     })
-    return(xgb.ProxyDMatrix(data = x_batch, label = y_batch))
+    return(xgb.DataBatch(data = x_batch, label = y_batch))
   }
   iterator_reset <- function(iterator_env) {
     iterator_env[["iter"]] <- 0
