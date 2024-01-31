@@ -114,7 +114,7 @@ class HistogramCuts {
     auto beg = ptrs[column_id];
     auto it = std::upper_bound(values.cbegin() + beg, values.cbegin() + end, value);
     auto idx = static_cast<bst_bin_t>(it - values.cbegin());
-    idx -= !!(idx == end);
+    idx -= !!(idx == static_cast<bst_bin_t>(end));
     return idx;
   }
 
@@ -137,7 +137,7 @@ class HistogramCuts {
     // Truncates the value in case it's not perfectly rounded.
     auto v = static_cast<float>(common::AsCat(value));
     auto bin_idx = static_cast<bst_bin_t>(std::lower_bound(beg, end, v) - vals.cbegin());
-    if (bin_idx == ptrs.at(fidx + 1)) {
+    if (bin_idx == static_cast<bst_bin_t>(ptrs.at(fidx + 1))) {
       bin_idx -= 1;
     }
     return bin_idx;
