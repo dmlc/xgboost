@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2023 by Contributors
+ * Copyright 2017-2024 by Contributors
  */
 #include "xgboost/predictor.h"
 

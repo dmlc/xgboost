@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright 2023-2024, XGBoost Contributors
  */
 #ifndef XGBOOST_COMMON_REF_RESOURCE_VIEW_H_
 #define XGBOOST_COMMON_REF_RESOURCE_VIEW_H_

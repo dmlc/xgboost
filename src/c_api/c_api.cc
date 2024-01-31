@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2023 by XGBoost Contributors
+ * Copyright 2014-2024 by XGBoost Contributors
  */
 #include "xgboost/c_api.h"
 
