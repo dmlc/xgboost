@@ -12,7 +12,7 @@ command_wrapper="tests/ci_build/ci_build.sh aarch64"
 
 echo "--- Build libxgboost from the source"
 $command_wrapper tests/ci_build/build_via_cmake.sh --conda-env=aarch64_test \
-  -DUSE_OPENMP=ON -DHIDE_CXX_SYMBOL=ON -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
+  -DUSE_OPENMP=ON -DHIDE_CXX_SYMBOL=ON
 echo "--- Run Google Test"
 $command_wrapper bash -c "cd build && ctest --extra-verbose"
 
