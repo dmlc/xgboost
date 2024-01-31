@@ -347,53 +347,66 @@ class HistEvaluator {
     auto evaluator = tree_evaluator_.GetEvaluator();
     auto const& cut_ptrs = cut.Ptrs();
 
-    common::ParallelFor2d(space, n_threads, [&](size_t nidx_in_set, common::Range1d r) {
-      auto tidx = omp_get_thread_num();
-      auto entry = &tloc_candidates[n_threads * nidx_in_set + tidx];
-      auto best = &entry->split;
-      auto nidx = entry->nid;
-      auto histogram = hist[nidx];
-      auto features_set = features[nidx_in_set]->ConstHostSpan();
-      for (auto fidx_in_set = r.begin(); fidx_in_set < r.end(); fidx_in_set++) {
-        auto fidx = features_set[fidx_in_set];
-        bool is_cat = common::IsCat(feature_types, fidx);
-        if (!interaction_constraints_.Query(nidx, fidx)) {
-          continue;
-        }
-        if (is_cat) {
-          auto n_bins = cut_ptrs.at(fidx + 1) - cut_ptrs[fidx];
-          if (common::UseOneHot(n_bins, param_->max_cat_to_onehot)) {
-            EnumerateOneHot(cut, histogram, fidx, nidx, evaluator, best);
-          } else {
-            std::vector<size_t> sorted_idx(n_bins);
-            std::iota(sorted_idx.begin(), sorted_idx.end(), 0);
-            auto feat_hist = histogram.subspan(cut_ptrs[fidx], n_bins);
-            // Sort the histogram to get contiguous partitions.
-            std::stable_sort(sorted_idx.begin(), sorted_idx.end(), [&](size_t l, size_t r) {
-              auto ret = evaluator.CalcWeightCat(*param_, feat_hist[l]) <
-                         evaluator.CalcWeightCat(*param_, feat_hist[r]);
-              return ret;
-            });
-            EnumeratePart<+1>(cut, sorted_idx, histogram, fidx, nidx, evaluator, best);
-            EnumeratePart<-1>(cut, sorted_idx, histogram, fidx, nidx, evaluator, best);
-          }
-        } else {
-          auto grad_stats = EnumerateSplit<+1>(cut, histogram, fidx, nidx, evaluator, best);
-          if (SplitContainsMissingValues(grad_stats, snode_[nidx])) {
-            EnumerateSplit<-1>(cut, histogram, fidx, nidx, evaluator, best);
-          }
-        }
-      }
-    });
 
-    for (unsigned nidx_in_set = 0; nidx_in_set < entries.size();
-         ++nidx_in_set) {
-      for (auto tidx = 0; tidx < n_threads; ++tidx) {
-        entries[nidx_in_set].split.Update(
-            tloc_candidates[n_threads * nidx_in_set + tidx].split);
+    // print current rank
+    std::cout << "------------------------" << std::endl;
+    std::cout << "rank: " << collective::GetRank() << std::endl;
+    std::cout << "n_threads = " << n_threads << std::endl;
+
+    // Under secure vertical setting, only the label owner is able to evaluate the split
+    // based on the global histogram. The other parties will only receive the final best split information
+    // Hence the below computation is not performed by the non-label owners under secure vertical setting
+    if ((!is_secure_) || (collective::GetRank() == 0)) {
+      // Evaluate the splits for each feature
+      common::ParallelFor2d(space, n_threads, [&](size_t nidx_in_set, common::Range1d r) {
+        auto tidx = omp_get_thread_num();
+        auto entry = &tloc_candidates[n_threads * nidx_in_set + tidx];
+        auto best = &entry->split;
+        auto nidx = entry->nid;
+        auto histogram = hist[nidx];
+        auto features_set = features[nidx_in_set]->ConstHostSpan();
+        for (auto fidx_in_set = r.begin(); fidx_in_set < r.end(); fidx_in_set++) {
+          auto fidx = features_set[fidx_in_set];
+          bool is_cat = common::IsCat(feature_types, fidx);
+          if (!interaction_constraints_.Query(nidx, fidx)) {
+            continue;
+          }
+          if (is_cat) {
+            auto n_bins = cut_ptrs.at(fidx + 1) - cut_ptrs[fidx];
+            if (common::UseOneHot(n_bins, param_->max_cat_to_onehot)) {
+              EnumerateOneHot(cut, histogram, fidx, nidx, evaluator, best);
+            }
+            else {
+              std::vector<size_t> sorted_idx(n_bins);
+              std::iota(sorted_idx.begin(), sorted_idx.end(), 0);
+              auto feat_hist = histogram.subspan(cut_ptrs[fidx], n_bins);
+              // Sort the histogram to get contiguous partitions.
+              std::stable_sort(sorted_idx.begin(), sorted_idx.end(), [&](size_t l, size_t r) {
+                auto ret = evaluator.CalcWeightCat(*param_, feat_hist[l]) <
+                           evaluator.CalcWeightCat(*param_, feat_hist[r]);
+                return ret;
+              });
+              EnumeratePart<+1>(cut, sorted_idx, histogram, fidx, nidx, evaluator, best);
+              EnumeratePart<-1>(cut, sorted_idx, histogram, fidx, nidx, evaluator, best);
+            }
+          }
+          else {
+            auto grad_stats = EnumerateSplit<+1>(cut, histogram, fidx, nidx, evaluator, best);
+            if (SplitContainsMissingValues(grad_stats, snode_[nidx])) {
+              EnumerateSplit<-1>(cut, histogram, fidx, nidx, evaluator, best);
+            }
+          }
+        }
+      });
+
+      for (unsigned nidx_in_set = 0; nidx_in_set < entries.size();
+           ++nidx_in_set) {
+        for (auto tidx = 0; tidx < n_threads; ++tidx) {
+          entries[nidx_in_set].split.Update(
+              tloc_candidates[n_threads * nidx_in_set + tidx].split);
+        }
       }
     }
-
 
     // Print the info about modes of data split.
     std::cout<< "Data split mode: " << (is_col_split_ ? "column-wise" : "row-wise") << std::endl;
