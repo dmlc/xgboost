@@ -2,7 +2,11 @@
  * Copyright 2017-2019 XGBoost contributors
  */
 #include <gtest/gtest.h>
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wtautological-constant-compare"
+#pragma GCC diagnostic ignored "-W#pragma-messages"
 #include <xgboost/objective.h>
+#pragma GCC diagnostic pop
 #include <xgboost/context.h>
 
 #include "../helpers.h"
