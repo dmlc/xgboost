@@ -40,7 +40,7 @@ class GHistIndexRawFormat : public SparsePageFormat<GHistIndexMatrix> {
       return false;
     }
     // - index
-    page->index = common::Index{common::Span{page->data.data(), page->data.size()}, size_type};
+    page->index = common::Index{common::Span{page->data.data(), static_cast<size_t>(page->data.size())}, size_type};
 
     // hit count
     if (!common::ReadVec(fi, &page->hit_count)) {
