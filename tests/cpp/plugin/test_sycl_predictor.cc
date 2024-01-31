@@ -2,11 +2,19 @@
  * Copyright 2017-2023 XGBoost contributors
  */
 #include <gtest/gtest.h>
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wtautological-constant-compare"
+#pragma GCC diagnostic ignored "-W#pragma-messages"
 #include <xgboost/predictor.h>
+#pragma GCC diagnostic pop
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wtautological-constant-compare"
 #include "../../../src/data/adapter.h"
-#include "../../../src/data/proxy_dmatrix.h"
 #include "../../../src/gbm/gbtree.h"
+#pragma GCC diagnostic pop
+
+#include "../../../src/data/proxy_dmatrix.h"
 #include "../../../src/gbm/gbtree_model.h"
 #include "../filesystem.h"  // dmlc::TemporaryDirectory
 #include "../helpers.h"
