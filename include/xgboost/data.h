@@ -188,8 +188,8 @@ class MetaInfo {
   /** @brief Whether the data is split column-wise. */
   bool IsColumnSplit() const { return (data_split_mode == DataSplitMode::kCol) || (data_split_mode == DataSplitMode::kColS); }
 
-  /** @brief Whether the data is split column-wise for secure computation. */
-  bool IsSecureCompute() const { return data_split_mode == DataSplitMode::kColS; }
+  /** @brief Whether the data is split column-wise with secure computation. */
+  bool IsSecure() const { return data_split_mode == DataSplitMode::kColS; }
 
   /** @brief Whether this is a learning to rank data. */
   bool IsRanking() const { return !group_ptr_.empty(); }
