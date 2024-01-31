@@ -1,5 +1,5 @@
 /**
- * Copyright 2016-2023 by XGBoost contributors
+ * Copyright 2016-2024 by XGBoost contributors
  */
 #include "helpers.h"
 
@@ -216,7 +216,7 @@ SimpleLCG::StateType SimpleLCG::Max() const { return max(); }
 static_assert(SimpleLCG::max() - SimpleLCG::min());
 
 void RandomDataGenerator::GenerateLabels(std::shared_ptr<DMatrix> p_fmat) const {
-  RandomDataGenerator{p_fmat->Info().num_row_, this->n_targets_, 0.0f}.GenerateDense(
+  RandomDataGenerator{static_cast<bst_row_t>(p_fmat->Info().num_row_), this->n_targets_, 0.0f}.GenerateDense(
       p_fmat->Info().labels.Data());
   CHECK_EQ(p_fmat->Info().labels.Size(), this->rows_ * this->n_targets_);
   p_fmat->Info().labels.Reshape(this->rows_, this->n_targets_);
@@ -458,7 +458,7 @@ void RandomDataGenerator::GenerateCSR(
   EXPECT_EQ(row_count, dmat->Info().num_row_);
 
   if (with_label) {
-    RandomDataGenerator{dmat->Info().num_row_, this->n_targets_, 0.0f}.GenerateDense(
+    RandomDataGenerator{static_cast<bst_row_t>(dmat->Info().num_row_), this->n_targets_, 0.0f}.GenerateDense(
         dmat->Info().labels.Data());
     CHECK_EQ(dmat->Info().labels.Size(), this->rows_ * this->n_targets_);
     dmat->Info().labels.Reshape(this->rows_, this->n_targets_);

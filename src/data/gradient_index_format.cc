@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2023 XGBoost contributors
+ * Copyright 2021-2024 XGBoost contributors
  */
 #include <cstddef>      // for size_t
 #include <cstdint>      // for uint8_t
@@ -40,7 +40,9 @@ class GHistIndexRawFormat : public SparsePageFormat<GHistIndexMatrix> {
       return false;
     }
     // - index
-    page->index = common::Index{common::Span{page->data.data(), page->data.size()}, size_type};
+    page->index =
+        common::Index{common::Span{page->data.data(), static_cast<size_t>(page->data.size())},
+            size_type};
 
     // hit count
     if (!common::ReadVec(fi, &page->hit_count)) {

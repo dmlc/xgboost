@@ -1,5 +1,5 @@
 /**
- * Copyright 2016-2023 by XGBoost contributors
+ * Copyright 2016-2024 by XGBoost contributors
  */
 #pragma once
 
@@ -238,7 +238,7 @@ class RandomDataGenerator {
 
   bst_bin_t bins_{0};
   std::vector<FeatureType> ft_;
-  bst_cat_t max_cat_;
+  bst_cat_t max_cat_{32};
 
   Json ArrayInterfaceImpl(HostDeviceVector<float>* storage, size_t rows, size_t cols) const;
 
