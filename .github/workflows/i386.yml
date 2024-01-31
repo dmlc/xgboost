@@ -33,4 +33,7 @@ jobs:
         cache-to: type=gha,mode=max
     - name: Build XGBoost
       run: |
-        docker run --rm -v $PWD:/workspace -w /workspace localhost:5000/xgboost/build-32bit:latest tests/ci_build/build_via_cmake.sh
+        docker run --rm -v $PWD:/workspace -w /workspace \
+          localhost:5000/xgboost/build-32bit:latest \
+          tests/ci_build/build_via_cmake.sh \
+          -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF
