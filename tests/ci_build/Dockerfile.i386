@@ -1,0 +1,8 @@
+FROM i386/debian:sid
+
+ENV DEBIAN_FRONTEND noninteractive
+SHELL ["/bin/bash", "-c"]   # Use Bash as shell
+
+RUN \
+    apt-get update && \
+    apt-get install -y tar unzip wget git build-essential ninja-build cmake

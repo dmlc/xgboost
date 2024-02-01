@@ -197,12 +197,12 @@ xgb.cv <- function(params = list(), data, nrounds, nfold, label = NULL, missing 
     nthread = params$nthread
   )
   bst_folds <- lapply(seq_along(folds), function(k) {
-    dtest  <- slice(dall, folds[[k]])
+    dtest  <- xgb.slice.DMatrix(dall, folds[[k]])
     # code originally contributed by @RolandASc on stackoverflow
     if (is.null(train_folds))
-       dtrain <- slice(dall, unlist(folds[-k]))
+       dtrain <- xgb.slice.DMatrix(dall, unlist(folds[-k]))
     else
-       dtrain <- slice(dall, train_folds[[k]])
+       dtrain <- xgb.slice.DMatrix(dall, train_folds[[k]])
     bst <- xgb.Booster(
       params = params,
       cachelist = list(dtrain, dtest),

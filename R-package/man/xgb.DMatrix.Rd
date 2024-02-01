@@ -19,8 +19,7 @@ xgb.DMatrix(
   qid = NULL,
   label_lower_bound = NULL,
   label_upper_bound = NULL,
-  feature_weights = NULL,
-  enable_categorical = FALSE
+  feature_weights = NULL
 )
 
 xgb.QuantileDMatrix(
@@ -37,7 +36,6 @@ xgb.QuantileDMatrix(
   label_lower_bound = NULL,
   label_upper_bound = NULL,
   feature_weights = NULL,
-  enable_categorical = FALSE,
   ref = NULL,
   max_bin = NULL
 )
@@ -49,10 +47,6 @@ for getting predictions out of a fitted model.
 Supported input types are as follows:\itemize{
 \item \code{matrix} objects, with types \code{numeric}, \code{integer}, or \code{logical}.
 \item \code{data.frame} objects, with columns of types \code{numeric}, \code{integer}, \code{logical}, or \code{factor}.
-
-If passing \code{enable_categorical=TRUE}, columns with \code{factor} type will be treated as categorical.
-Otherwise, if passing \code{enable_categorical=FALSE} and the data contains \code{factor} columns, an error
-will be thrown.
 
 Note that xgboost uses base-0 encoding for categorical types, hence \code{factor} types (which use base-1
 encoding') will be converted inside the function call. Be aware that the encoding used for \code{factor}
@@ -103,7 +97,7 @@ frame and matrix.
 
 \item{feature_types}{Set types for features.
 
-If \code{data} is a \code{data.frame} and passing \code{enable_categorical=TRUE}, the types will be deduced
+If \code{data} is a \code{data.frame} and passing \code{feature_types} is not supplied, feature types will be deduced
 automatically from the column types.
 
 Otherwise, one can pass a character vector with the same length as number of columns in \code{data},
@@ -134,20 +128,6 @@ not be saved, so make sure that \code{factor} columns passed to \code{predict} h
 \item{label_upper_bound}{Upper bound for survival training.}
 
 \item{feature_weights}{Set feature weights for column sampling.}
-
-\item{enable_categorical}{Experimental support of specializing for categorical features.
-
-\if{html}{\out{<div class="sourceCode">}}\preformatted{                      If passing 'TRUE' and 'data' is a data frame,
-                      columns of categorical types will automatically
-                      be set to be of categorical type (feature_type='c') in the resulting DMatrix.
-
-                      If passing 'FALSE' and 'data' is a data frame with categorical columns,
-                      it will result in an error being thrown.
-
-                      If 'data' is not a data frame, this argument is ignored.
-
-                      JSON/UBJSON serialization format is required for this.
-}\if{html}{\out{</div>}}}
 
 \item{ref}{The training dataset that provides quantile information, needed when creating
 validation/test dataset with \code{xgb.QuantileDMatrix}. Supplying the training DMatrix

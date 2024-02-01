@@ -16,10 +16,6 @@
 #' \item `matrix` objects, with types `numeric`, `integer`, or `logical`.
 #' \item `data.frame` objects, with columns of types `numeric`, `integer`, `logical`, or `factor`.
 #'
-#' If passing `enable_categorical=TRUE`, columns with `factor` type will be treated as categorical.
-#' Otherwise, if passing `enable_categorical=FALSE` and the data contains `factor` columns, an error
-#' will be thrown.
-#'
 #' Note that xgboost uses base-0 encoding for categorical types, hence `factor` types (which use base-1
 #' encoding') will be converted inside the function call. Be aware that the encoding used for `factor`
 #' types is not kept as part of the model, so in subsequent calls to `predict`, it is the user's
@@ -60,7 +56,7 @@
 #'        must be the same as in the DMatrix construction, regardless of the column names.
 #' @param feature_types Set types for features.
 #'
-#' If `data` is a `data.frame` and passing `enable_categorical=TRUE`, the types will be deduced
+#' If `data` is a `data.frame` and passing `feature_types` is not supplied, feature types will be deduced
 #' automatically from the column types.
 #'
 #' Otherwise, one can pass a character vector with the same length as number of columns in `data`,
@@ -85,18 +81,6 @@
 #' @param label_lower_bound Lower bound for survival training.
 #' @param label_upper_bound Upper bound for survival training.
 #' @param feature_weights Set feature weights for column sampling.
-#' @param enable_categorical Experimental support of specializing for categorical features.
-#'
-#'                           If passing 'TRUE' and 'data' is a data frame,
-#'                           columns of categorical types will automatically
-#'                           be set to be of categorical type (feature_type='c') in the resulting DMatrix.
-#'
-#'                           If passing 'FALSE' and 'data' is a data frame with categorical columns,
-#'                           it will result in an error being thrown.
-#'
-#'                           If 'data' is not a data frame, this argument is ignored.
-#'
-#'                           JSON/UBJSON serialization format is required for this.
 #' @return An 'xgb.DMatrix' object. If calling 'xgb.QuantileDMatrix', it will have additional
 #' subclass 'xgb.QuantileDMatrix'.
 #'
@@ -133,8 +117,7 @@ xgb.DMatrix <- function(
   qid = NULL,
   label_lower_bound = NULL,
   label_upper_bound = NULL,
-  feature_weights = NULL,
-  enable_categorical = FALSE
+  feature_weights = NULL
 ) {
   if (!is.null(group) && !is.null(qid)) {
     stop("Either one of 'group' or 'qid' should be NULL")
@@ -186,7 +169,7 @@ xgb.DMatrix <- function(
       nthread
     )
   } else if (is.data.frame(data)) {
-    tmp <- .process.df.for.dmatrix(data, enable_categorical, feature_types)
+    tmp <- .process.df.for.dmatrix(data, feature_types)
     feature_types <- tmp$feature_types
     handle <- .Call(
       XGDMatrixCreateFromDF_R, tmp$lst, missing, nthread
@@ -218,7 +201,7 @@ xgb.DMatrix <- function(
   return(dmat)
 }
 
-.process.df.for.dmatrix <- function(df, enable_categorical, feature_types) {
+.process.df.for.dmatrix <- function(df, feature_types) {
   if (!nrow(df) || !ncol(df)) {
     stop("'data' is an empty data.frame.")
   }
@@ -231,12 +214,6 @@ xgb.DMatrix <- function(
   } else {
     feature_types <- sapply(df, function(col) {
       if (is.factor(col)) {
-        if (!enable_categorical) {
-          stop(
-            "When factor type is used, the parameter `enable_categorical`",
-            " must be set to TRUE."
-          )
-        }
         return("c")
       } else if (is.integer(col)) {
         return("int")
@@ -332,7 +309,6 @@ xgb.QuantileDMatrix <- function(
   label_lower_bound = NULL,
   label_upper_bound = NULL,
   feature_weights = NULL,
-  enable_categorical = FALSE,
   ref = NULL,
   max_bin = NULL
 ) {
@@ -363,8 +339,7 @@ xgb.QuantileDMatrix <- function(
       qid = qid,
       label_lower_bound = label_lower_bound,
       label_upper_bound = label_upper_bound,
-      feature_weights = feature_weights,
-      enable_categorical = enable_categorical
+      feature_weights = feature_weights
     )
   )
   data_iterator <- .single.data.iterator(iterator_env)
@@ -379,7 +354,7 @@ xgb.QuantileDMatrix <- function(
     .Call(XGDMatrixFree_R, proxy_handle)
   })
   iterator_next <- function() {
-    return(xgb.ProxyDMatrix.internal(proxy_handle, data_iterator))
+    return(xgb.ProxyDMatrix(proxy_handle, data_iterator))
   }
   iterator_reset <- function() {
     return(data_iterator$f_reset(iterator_env))
@@ -422,12 +397,12 @@ xgb.QuantileDMatrix <- function(
 #' to know which part of the data to pass next.
 #' @param f_next `function(env)` which is responsible for:\itemize{
 #' \item Accessing or retrieving the next batch of data in the iterator.
-#' \item Supplying this data by calling function \link{xgb.ProxyDMatrix} on it and returning the result.
+#' \item Supplying this data by calling function \link{xgb.DataBatch} on it and returning the result.
 #' \item Keeping track of where in the iterator batch it is or will go next, which can for example
 #' be done by modifiying variables in the `env` variable that is passed here.
 #' \item Signaling whether there are more batches to be consumed or not, by returning `NULL`
 #' when the stream of data ends (all batches in the iterator have been consumed), or the result from
-#' calling \link{xgb.ProxyDMatrix} when there are more batches in the line to be consumed.
+#' calling \link{xgb.DataBatch} when there are more batches in the line to be consumed.
 #' }
 #' @param f_reset `function(env)` which is responsible for reseting the data iterator
 #' (i.e. taking it back to the first batch, called before and after the sequence of batches
@@ -437,7 +412,7 @@ xgb.QuantileDMatrix <- function(
 #' (and in the same order) must be passed in subsequent iterations.
 #' @return An `xgb.DataIter` object, containing the same inputs supplied here, which can then
 #' be passed to \link{xgb.ExternalDMatrix}.
-#' @seealso \link{xgb.ExternalDMatrix}, \link{xgb.ProxyDMatrix}.
+#' @seealso \link{xgb.ExternalDMatrix}, \link{xgb.DataBatch}.
 #' @export
 xgb.DataIter <- function(env = new.env(), f_next, f_reset) {
   if (!is.function(f_next)) {
@@ -465,7 +440,7 @@ xgb.DataIter <- function(env = new.env(), f_next, f_reset) {
     env[["iter"]] <- curr_iter + 1L
   })
   return(
-    xgb.ProxyDMatrix(
+    xgb.DataBatch(
       data = env[["data"]],
       label = env[["label"]],
       weight = env[["weight"]],
@@ -476,8 +451,7 @@ xgb.DataIter <- function(env = new.env(), f_next, f_reset) {
       qid = env[["qid"]],
       label_lower_bound = env[["label_lower_bound"]],
       label_upper_bound = env[["label_upper_bound"]],
-      feature_weights = env[["feature_weights"]],
-      enable_categorical = env[["enable_categorical"]]
+      feature_weights = env[["feature_weights"]]
     )
   )
 }
@@ -496,13 +470,13 @@ xgb.DataIter <- function(env = new.env(), f_next, f_reset) {
 .make.proxy.handle <- function() {
   out <- .Call(XGProxyDMatrixCreate_R)
   attributes(out) <- list(
-    class = c("xgb.DMatrix", "xgb.ProxyDMatrixHandle"),
+    class = c("xgb.DMatrix", "xgb.ProxyDMatrix"),
     fields = new.env()
   )
   return(out)
 }
 
-#' @title Proxy DMatrix Updater
+#' @title Structure for Data Batches
 #' @description Helper function to supply data in batches of a data iterator when
 #' constructing a DMatrix from external memory through \link{xgb.ExternalDMatrix}
 #' or through \link{xgb.QuantileDMatrix.from_iterator}.
@@ -512,8 +486,8 @@ xgb.DataIter <- function(env = new.env(), f_next, f_reset) {
 #' when constructing a DMatrix through external memory - otherwise, one should call
 #' \link{xgb.DMatrix} or \link{xgb.QuantileDMatrix}.
 #'
-#' The object that results from calling this function directly is \bold{not} like the other
-#' `xgb.DMatrix` variants - i.e. cannot be used to train a model, nor to get predictions - only
+#' The object that results from calling this function directly is \bold{not} like
+#' an `xgb.DMatrix` - i.e. cannot be used to train a model, nor to get predictions - only
 #' possible usage is to supply data to an iterator, from which a DMatrix is then constructed.
 #'
 #' For more information and for example usage, see the documentation for \link{xgb.ExternalDMatrix}.
@@ -531,11 +505,11 @@ xgb.DataIter <- function(env = new.env(), f_next, f_reset) {
 #' \link{xgb.DMatrix} for details on it.
 #' \item CSR matrices, as class `dgRMatrix` from package `Matrix`.
 #' }
-#' @return An object of class `xgb.ProxyDMatrix`, which is just a list containing the
+#' @return An object of class `xgb.DataBatch`, which is just a list containing the
 #' data and parameters passed here. It does \bold{not} inherit from `xgb.DMatrix`.
 #' @seealso \link{xgb.DataIter}, \link{xgb.ExternalDMatrix}.
 #' @export
-xgb.ProxyDMatrix <- function(
+xgb.DataBatch <- function(
   data,
   label = NULL,
   weight = NULL,
@@ -546,8 +520,7 @@ xgb.ProxyDMatrix <- function(
   qid = NULL,
   label_lower_bound = NULL,
   label_upper_bound = NULL,
-  feature_weights = NULL,
-  enable_categorical = FALSE
+  feature_weights = NULL
 ) {
   stopifnot(inherits(data, c("matrix", "data.frame", "dgRMatrix")))
   out <- list(
@@ -561,27 +534,27 @@ xgb.ProxyDMatrix <- function(
     qid = qid,
     label_lower_bound = label_lower_bound,
     label_upper_bound = label_upper_bound,
-    feature_weights = feature_weights,
-    enable_categorical = enable_categorical
+    feature_weights = feature_weights
   )
-  class(out) <- "xgb.ProxyDMatrix"
+  class(out) <- "xgb.DataBatch"
   return(out)
 }
 
-xgb.ProxyDMatrix.internal <- function(proxy_handle, data_iterator) {
+# This is only for internal usage, class is not exposed to the user.
+xgb.ProxyDMatrix <- function(proxy_handle, data_iterator) {
   lst <- data_iterator$f_next(data_iterator$env)
   if (is.null(lst)) {
     return(0L)
   }
-  if (!inherits(lst, "xgb.ProxyDMatrix")) {
-    stop("DataIter 'f_next' must return either NULL or the result from calling 'xgb.ProxyDMatrix'.")
+  if (!inherits(lst, "xgb.DataBatch")) {
+    stop("DataIter 'f_next' must return either NULL or the result from calling 'xgb.DataBatch'.")
   }
 
   if (!is.null(lst$group) && !is.null(lst$qid)) {
     stop("Either one of 'group' or 'qid' should be NULL")
   }
   if (is.data.frame(lst$data)) {
-    tmp <- .process.df.for.dmatrix(lst$data, lst$enable_categorical, lst$feature_types)
+    tmp <- .process.df.for.dmatrix(lst$data, lst$feature_types)
     lst$feature_types <- tmp$feature_types
     .Call(XGProxyDMatrixSetDataColumnar_R, proxy_handle, tmp$lst)
     rm(tmp)
@@ -640,7 +613,7 @@ xgb.ProxyDMatrix.internal <- function(proxy_handle, data_iterator) {
 #' This should not pose any problem for `numeric` types, since they do have an inheret NaN value.
 #' @return An 'xgb.DMatrix' object, with subclass 'xgb.ExternalDMatrix', in which the data is not
 #' held internally but accessed through the iterator when needed.
-#' @seealso \link{xgb.DataIter}, \link{xgb.ProxyDMatrix}, \link{xgb.QuantileDMatrix.from_iterator}
+#' @seealso \link{xgb.DataIter}, \link{xgb.DataBatch}, \link{xgb.QuantileDMatrix.from_iterator}
 #' @examples
 #' library(xgboost)
 #' data(mtcars)
@@ -680,10 +653,10 @@ xgb.ProxyDMatrix.internal <- function(proxy_handle, data_iterator) {
 #'     iterator_env[["iter"]] <- curr_iter + 1
 #'   })
 #'
-#'   # Function 'xgb.ProxyDMatrix' must be called manually
+#'   # Function 'xgb.DataBatch' must be called manually
 #'   # at each batch with all the appropriate attributes,
 #'   # such as feature names and feature types.
-#'   return(xgb.ProxyDMatrix(data = x_batch, label = y_batch))
+#'   return(xgb.DataBatch(data = x_batch, label = y_batch))
 #' }
 #'
 #' # This moves the iterator back to its beginning
@@ -727,7 +700,7 @@ xgb.ExternalDMatrix <- function(
     .Call(XGDMatrixFree_R, proxy_handle)
   })
   iterator_next <- function() {
-    return(xgb.ProxyDMatrix.internal(proxy_handle, data_iterator))
+    return(xgb.ProxyDMatrix(proxy_handle, data_iterator))
   }
   iterator_reset <- function() {
     return(data_iterator$f_reset(data_iterator$env))
@@ -770,7 +743,7 @@ xgb.ExternalDMatrix <- function(
 #' @inheritParams xgb.ExternalDMatrix
 #' @inheritParams xgb.QuantileDMatrix
 #' @return An 'xgb.DMatrix' object, with subclass 'xgb.QuantileDMatrix'.
-#' @seealso \link{xgb.DataIter}, \link{xgb.ProxyDMatrix}, \link{xgb.ExternalDMatrix},
+#' @seealso \link{xgb.DataIter}, \link{xgb.DataBatch}, \link{xgb.ExternalDMatrix},
 #' \link{xgb.QuantileDMatrix}
 #' @export
 xgb.QuantileDMatrix.from_iterator <- function( # nolint
@@ -792,7 +765,7 @@ xgb.QuantileDMatrix.from_iterator <- function( # nolint
     .Call(XGDMatrixFree_R, proxy_handle)
   })
   iterator_next <- function() {
-    return(xgb.ProxyDMatrix.internal(proxy_handle, data_iterator))
+    return(xgb.ProxyDMatrix(proxy_handle, data_iterator))
   }
   iterator_reset <- function() {
     return(data_iterator$f_reset(data_iterator$env))
@@ -1262,19 +1235,15 @@ xgb.get.DMatrix.data <- function(dmat) {
 #' data(agaricus.train, package='xgboost')
 #' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
 #'
-#' dsub <- slice(dtrain, 1:42)
+#' dsub <- xgb.slice.DMatrix(dtrain, 1:42)
 #' labels1 <- getinfo(dsub, 'label')
 #' dsub <- dtrain[1:42, ]
 #' labels2 <- getinfo(dsub, 'label')
 #' all.equal(labels1, labels2)
 #'
-#' @rdname slice.xgb.DMatrix
+#' @rdname xgb.slice.DMatrix
 #' @export
-slice <- function(object, idxset) UseMethod("slice")
-
-#' @rdname slice.xgb.DMatrix
-#' @export
-slice.xgb.DMatrix <- function(object, idxset) {
+xgb.slice.DMatrix <- function(object, idxset) {
   if (!inherits(object, "xgb.DMatrix")) {
     stop("object must be xgb.DMatrix")
   }
@@ -1298,10 +1267,10 @@ slice.xgb.DMatrix <- function(object, idxset) {
   return(structure(ret, class = "xgb.DMatrix"))
 }
 
-#' @rdname slice.xgb.DMatrix
+#' @rdname xgb.slice.DMatrix
 #' @export
 `[.xgb.DMatrix` <- function(object, idxset, colset = NULL) {
-  slice(object, idxset)
+  xgb.slice.DMatrix(object, idxset)
 }
 
 

@@ -87,10 +87,10 @@ iterator_next <- function(iterator_env) {
     iterator_env[["iter"]] <- curr_iter + 1
   })
 
-  # Function 'xgb.ProxyDMatrix' must be called manually
+  # Function 'xgb.DataBatch' must be called manually
   # at each batch with all the appropriate attributes,
   # such as feature names and feature types.
-  return(xgb.ProxyDMatrix(data = x_batch, label = y_batch))
+  return(xgb.DataBatch(data = x_batch, label = y_batch))
 }
 
 # This moves the iterator back to its beginning
@@ -118,5 +118,5 @@ pred_dm <- predict(model, dm)
 pred_mat <- predict(model, as.matrix(mtcars[, -1]))
 }
 \seealso{
-\link{xgb.DataIter}, \link{xgb.ProxyDMatrix}, \link{xgb.QuantileDMatrix.from_iterator}
+\link{xgb.DataIter}, \link{xgb.DataBatch}, \link{xgb.QuantileDMatrix.from_iterator}
 }
