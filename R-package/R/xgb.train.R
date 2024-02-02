@@ -178,6 +178,11 @@
 #' Number of threads can also be manually specified via the \code{nthread}
 #' parameter.
 #'
+#' While in other interfaces, the default random seed defaults to zero, in R, if a parameter `seed`
+#' is not manually supplied, it will generate a random seed through R's own random number generator,
+#' whose seed in turn is controllable through `set.seed`. If `seed` is passed, it will override the
+#' RNG from R.
+#'
 #' The evaluation metric is chosen automatically by XGBoost (according to the objective)
 #' when the \code{eval_metric} parameter is not provided.
 #' User may set one or several \code{eval_metric} parameters.
@@ -363,8 +368,8 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   # Sort the callbacks into categories
   cb <- categorize.callbacks(callbacks)
   params['validate_parameters'] <- TRUE
-  if (!is.null(params[['seed']])) {
-    warning("xgb.train: `seed` is ignored in R package.  Use `set.seed()` instead.")
+  if (!("seed" %in% names(params))) {
+    params[["seed"]] <- sample(.Machine$integer.max, size = 1)
   }
 
   # The tree updating process would need slightly different handling

@@ -450,7 +450,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
 * ``seed`` [default=0]
 
-  - Random number seed.  This parameter is ignored in R package, use `set.seed()` instead.
+  - Random number seed.  In the R package, if not specified, instead of defaulting to seed 'zero', will take a random seed through R's own RNG engine.
 
 * ``seed_per_iteration`` [default= ``false``]
 
