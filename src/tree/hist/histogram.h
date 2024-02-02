@@ -177,6 +177,10 @@ class HistogramBuilder {
                      std::vector<bst_node_t> const &nodes_to_build,
                      std::vector<bst_node_t> const &nodes_to_trick) {
     auto n_total_bins = buffer_.TotalBins();
+
+    // Print the bin information
+    LOG(CONSOLE) << "Total bins: " << n_total_bins;
+
     common::BlockedSpace2d space(
         nodes_to_build.size(), [&](std::size_t) { return n_total_bins; }, 1024);
     common::ParallelFor2d(space, this->n_threads_, [&](size_t node, common::Range1d r) {
@@ -190,6 +194,39 @@ class HistogramBuilder {
       std::size_t n = n_total_bins * nodes_to_build.size() * 2;
       collective::Allreduce<collective::Operation::kSum>(
           reinterpret_cast<double *>(this->hist_[first_nidx].data()), n);
+    }
+
+    if (is_distributed_ && is_col_split_ && is_secure_) {
+      // Under secure mode, we perform allgather for all nodes
+      CHECK(!nodes_to_build.empty());
+
+      // print histogram info before allgather
+        LOG(CONSOLE) << "Before allgather";
+        for (size_t i = 0; i < nodes_to_build.size(); ++i) {
+            auto const nidx = nodes_to_build[i];
+            auto const &hist = this->hist_[nidx];
+            LOG(CONSOLE) << "Rank: " << collective::GetRank() << " Node: " << nidx << " has "
+                         << hist.size() << " histograms";
+        }
+
+        LOG(CONSOLE) << "********* Allgather histograms for all nodes *********";
+      // allgather histograms for all nodes
+        // First, gather all the primitive fields.
+        /**auto const num_entries = entries.size();
+        std::vector<CPUExpandEntry> local_entries(num_entries);
+        std::vector<uint32_t> cat_bits;
+        std::vector<std::size_t> cat_bits_sizes;
+        for (std::size_t i = 0; i < num_entries; i++) {
+            local_entries[i].CopyAndCollect(entries[i], &cat_bits, &cat_bits_sizes);
+        }
+        auto all_entries = collective::Allgather(local_entries);
+        // Gather all the cat_bits.
+        auto gathered = collective::SpecialAllgatherV(cat_bits, cat_bits_sizes);
+**/
+
+        auto all_entries = collective::Allgather(this->hist_[nodes_to_build.front()].data());
+        LOG(CONSOLE) << "After allgather " << all_entries.size() << " entries";
+
     }
 
     common::BlockedSpace2d const &subspace =

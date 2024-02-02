@@ -295,6 +295,9 @@ class HistEvaluator {
     auto const world = collective::GetWorldSize();
     auto const num_entries = entries.size();
 
+    // print the number of entries
+    std::cout << "Number of local entries, threads, and wordsize: " << num_entries << " " << ctx_->Threads() << " " << world << std::endl;
+
     // First, gather all the primitive fields.
     std::vector<CPUExpandEntry> local_entries(num_entries);
     std::vector<uint32_t> cat_bits;
@@ -415,12 +418,21 @@ class HistEvaluator {
     if (is_col_split_) {
       // With column-wise data split, we gather the best splits from all the workers and update the
       // expand entries accordingly.
+      // Note that under secure vertical setting, only the label owner is able to evaluate the split
+      // based on the global histogram. The other parties will receive the final best splits
+      // allgather is capable of performing this (0-gain entries for non-label owners),
+      // but can be replaced with a broadcast in the future
 
       //Print entry information before allgather
       std::cout << "Entries Before allgather: " << std::endl;
       for (size_t i = 0; i < entries.size(); ++i) {
           std::cout << "Entry " << i << " nid: " << entries[i].nid << " gain: " << entries[i].split.loss_chg << std::endl;
       }
+
+      std::cout << "**************" << std::endl;
+      std::cout << "Allgather entries" << std::endl;
+      std::cout << "**************" << std::endl;
+
       auto all_entries = Allgather(entries);
       //Print entry information after allgather
       std::cout << "Entries After allgather: " << std::endl;
