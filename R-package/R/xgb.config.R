@@ -4,7 +4,17 @@
 #' values of one or more global-scope parameters. Use \code{xgb.get.config} to fetch the current
 #' values of all global-scope parameters (listed in
 #' \url{https://xgboost.readthedocs.io/en/stable/parameter.html}).
+#' @details
+#' Note that some functions might use a globally-configured number of threads, which is not
+#' managed by this configuration. Typically, XGBoost methods accept an `nthreads` parameter
+#' controlling the number of parallel  threads that will be used, but some functionalities
+#' might execute functions before this parameter can be supplied.
 #'
+#' In such cases, the global number of threads is taken from the configured number of OpenMP
+#' (OMP) threads, which if not set, will default to the maximum number of available threads.
+#' The number of OMP threads in turn can be configured through an environment variable
+#' `OMP_NUM_THREADS` (which needs to be set before R is started), or alternatively, can be
+#' changed in an R session through package `RhpcBLASctl`, by calling function `RhpcBLASctl::omp_set_num_threads`.
 #' @rdname xgbConfig
 #' @title Set and get global configuration
 #' @name xgb.set.config, xgb.get.config
