@@ -294,8 +294,8 @@ generate.group.folds <- function(nfold, group) {
     groups_idx_test <- randomized_groups[assignments[[idx]]]
     groups_test <- indices[groups_idx_test]
     idx_test <- unlist(groups_test)
-    attributes(idx_test)$group_test <- sapply(groups_test, length)
-    attributes(idx_test)$group_train <- sapply(indices[-groups_idx_test], length)
+    attributes(idx_test)$group_test <- lengths(groups_test)
+    attributes(idx_test)$group_train <- lengths(indices[-groups_idx_test])
     out[[idx]] <- idx_test
   }
   return(out)
