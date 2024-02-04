@@ -53,12 +53,13 @@ XGB_DLL SEXP XGBSetGlobalConfig_R(SEXP json_str);
 XGB_DLL SEXP XGBGetGlobalConfig_R();
 
 /*!
- * \brief load a data matrix
- * \param fname name of the content
+ * \brief load a data matrix from URI
+ * \param uri URI to the source file to read data from
  * \param silent whether print messages
+ * \param Data split mode (0=rows, 1=columns)
  * \return a loaded data matrix
  */
-XGB_DLL SEXP XGDMatrixCreateFromFile_R(SEXP fname, SEXP silent);
+XGB_DLL SEXP XGDMatrixCreateFromURI_R(SEXP uri, SEXP silent, SEXP data_split_mode);
 
 /*!
  * \brief create matrix content from dense matrix

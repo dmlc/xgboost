@@ -730,3 +730,20 @@ test_that("xgb.DMatrix: can slice with groups", {
   expect_null(getinfo(dm_slice, "group"))
   expect_equal(getinfo(dm_slice, "label"), y[idx_take], tolerance = 1e-6)
 })
+
+test_that("xgb.DMatrix: can read CSV", {
+  txt <- paste(
+    "1,2,3",
+    "-1,3,2",
+    sep = "\n"
+  )
+  fname <- file.path(tempdir(), "data.csv")
+  writeChar(txt, fname)
+  uri <- paste0(fname, "?format=csv&label_column=0")
+  dm <- xgb.DMatrix(uri, silent = TRUE)
+  expect_equal(getinfo(dm, "label"), c(1, -1))
+  expect_equal(
+    as.matrix(xgb.get.DMatrix.data(dm)),
+    matrix(c(2, 3, 3, 2), nrow = 2, byrow = TRUE)
+  )
+})
