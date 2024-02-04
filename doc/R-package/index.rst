@@ -34,4 +34,5 @@ Other topics
 .. toctree::
   :maxdepth: 2
   :titlesonly:
+
   Handling of indexable elements <index_base>
