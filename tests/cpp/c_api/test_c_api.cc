@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2023 XGBoost contributors
+ * Copyright 2019-2024 XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/c_api.h>
@@ -212,8 +212,8 @@ TEST(CAPI, JsonModelIO) {
   bst_ulong saved_len{0};
   XGBoosterSaveModelToBuffer(handle, R"({"format": "ubj"})", &saved_len, &saved);
   ASSERT_EQ(len, saved_len);
-  auto l = StringView{data, len};
-  auto r = StringView{saved, saved_len};
+  auto l = StringView{data, static_cast<size_t>(len)};
+  auto r = StringView{saved, static_cast<size_t>(saved_len)};
   ASSERT_EQ(l.size(), r.size());
   ASSERT_EQ(l, r);
 

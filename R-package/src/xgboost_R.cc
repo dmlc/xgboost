@@ -365,15 +365,22 @@ XGB_DLL SEXP XGBGetGlobalConfig_R() {
   return mkString(json_str);
 }
 
-XGB_DLL SEXP XGDMatrixCreateFromFile_R(SEXP fname, SEXP silent) {
-  SEXP ret = PROTECT(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
+XGB_DLL SEXP XGDMatrixCreateFromURI_R(SEXP uri, SEXP silent, SEXP data_split_mode) {
+  SEXP ret = Rf_protect(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
+  SEXP uri_char = Rf_protect(Rf_asChar(uri));
+  const char *uri_ptr = CHAR(uri_char);
   R_API_BEGIN();
+  xgboost::Json jconfig{xgboost::Object{}};
+  jconfig["uri"] = std::string(uri_ptr);
+  jconfig["silent"] = Rf_asLogical(silent);
+  jconfig["data_split_mode"] = Rf_asInteger(data_split_mode);
+  const std::string sconfig = xgboost::Json::Dump(jconfig);
   DMatrixHandle handle;
-  CHECK_CALL(XGDMatrixCreateFromFile(CHAR(asChar(fname)), asInteger(silent), &handle));
+  CHECK_CALL(XGDMatrixCreateFromURI(sconfig.c_str(), &handle));
   R_SetExternalPtrAddr(ret, handle);
   R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
   R_API_END();
-  UNPROTECT(1);
+  Rf_unprotect(2);
   return ret;
 }
 
