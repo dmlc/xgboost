@@ -197,35 +197,73 @@ class HistogramBuilder {
     }
 
     if (is_distributed_ && is_col_split_ && is_secure_) {
-      // Under secure mode, we perform allgather for all nodes
+      // Under secure vertical mode, we perform allgather for all nodes
       CHECK(!nodes_to_build.empty());
 
-      // print histogram info before allgather
-        LOG(CONSOLE) << "Before allgather";
+
+
+
+
+
+      // print the details of histograms to a file
+      std::ofstream file_0, file_1;
+      file_0.open("hist_before_allgather_0.txt", std::ios_base::app);
+      file_1.open("hist_before_allgather_1.txt", std::ios_base::app);
+      for (size_t i = 0; i < nodes_to_build.size(); ++i) {
+          auto const nidx = nodes_to_build[i];
+          auto const &hist = this->hist_[nidx];
+          if (collective::GetRank() == 0) {
+            file_0 << std::endl << "Rank: " << collective::GetRank() << " Node: " << nidx << " has "
+                 << hist.size() << " histograms" << std::endl;
+            for (size_t j = 0; j < hist.size(); ++j) {
+                file_0 << "Histogram " << j << ": " << hist[j] << std::endl;
+            }
+          } else {
+            file_1 << std::endl << "Rank: " << collective::GetRank() << " Node: " << nidx << " has "
+                   << hist.size() << " histograms" << std::endl;
+            for (size_t j = 0; j < hist.size(); ++j) {
+                file_1 << "Histogram " << j << ": " << hist[j] << std::endl;
+            }
+          }
+        }
+      file_0.close();
+      file_1.close();
+
+
+      LOG(CONSOLE) << "********* Allgather histograms for all nodes *********";
+      // in theory the operation is AllGather, but with current system functionality,
+      // we use AllReduce to simulate the AllGather operation
+      auto first_nidx = nodes_to_build.front();
+      std::size_t n = n_total_bins * nodes_to_build.size() * 2;
+      collective::Allreduce<collective::Operation::kSum>(
+              reinterpret_cast<double *>(this->hist_[first_nidx].data()), n);
+
+
+
+
+        // print the details of histograms to a file
+        file_0.open("hist_after_allgather_0.txt", std::ios_base::app);
+        file_1.open("hist_after_allgather_1.txt", std::ios_base::app);
         for (size_t i = 0; i < nodes_to_build.size(); ++i) {
             auto const nidx = nodes_to_build[i];
             auto const &hist = this->hist_[nidx];
-            LOG(CONSOLE) << "Rank: " << collective::GetRank() << " Node: " << nidx << " has "
-                         << hist.size() << " histograms";
+            if (collective::GetRank() == 0) {
+                file_0 << std::endl << "Rank: " << collective::GetRank() << " Node: " << nidx << " has "
+                       << hist.size() << " histograms" << std::endl;
+                for (size_t j = 0; j < hist.size(); ++j) {
+                    file_0 << "Histogram " << j << ": " << hist[j] << std::endl;
+                }
+            } else {
+                file_1 << std::endl << "Rank: " << collective::GetRank() << " Node: " << nidx << " has "
+                       << hist.size() << " histograms" << std::endl;
+                for (size_t j = 0; j < hist.size(); ++j) {
+                    file_1 << "Histogram " << j << ": " << hist[j] << std::endl;
+                }
+            }
         }
+        file_0.close();
+        file_1.close();
 
-        LOG(CONSOLE) << "********* Allgather histograms for all nodes *********";
-      // allgather histograms for all nodes
-        // First, gather all the primitive fields.
-        /**auto const num_entries = entries.size();
-        std::vector<CPUExpandEntry> local_entries(num_entries);
-        std::vector<uint32_t> cat_bits;
-        std::vector<std::size_t> cat_bits_sizes;
-        for (std::size_t i = 0; i < num_entries; i++) {
-            local_entries[i].CopyAndCollect(entries[i], &cat_bits, &cat_bits_sizes);
-        }
-        auto all_entries = collective::Allgather(local_entries);
-        // Gather all the cat_bits.
-        auto gathered = collective::SpecialAllgatherV(cat_bits, cat_bits_sizes);
-**/
-
-        auto all_entries = collective::Allgather(this->hist_[nodes_to_build.front()].data());
-        LOG(CONSOLE) << "After allgather " << all_entries.size() << " entries";
 
     }
 
