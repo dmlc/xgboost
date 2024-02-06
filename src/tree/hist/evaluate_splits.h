@@ -296,7 +296,7 @@ class HistEvaluator {
     auto const num_entries = entries.size();
 
     // print the number of entries
-    std::cout << "Number of local entries, threads, and wordsize: " << num_entries << " " << ctx_->Threads() << " " << world << std::endl;
+    //std::cout << "Number of local entries, threads, and wordsize: " << num_entries << " " << ctx_->Threads() << " " << world << std::endl;
 
     // First, gather all the primitive fields.
     std::vector<CPUExpandEntry> local_entries(num_entries);
@@ -351,10 +351,39 @@ class HistEvaluator {
     auto const& cut_ptrs = cut.Ptrs();
 
 
-    // print current rank
-    std::cout << "------------------------" << std::endl;
-    std::cout << "rank: " << collective::GetRank() << std::endl;
-    std::cout << "n_threads = " << n_threads << std::endl;
+
+
+      // Print the details of the histogram and the features to a file
+      // according to the rank
+      std::ofstream file_0, file_1;
+      file_0.open("histogram_0.txt", std::ios_base::app);
+      file_1.open("histogram_1.txt", std::ios_base::app);
+      if (collective::GetRank() == 0) {
+          for (size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
+              auto nidx = entries[nidx_in_set].nid;
+              auto features_set = column_sampler_->GetFeatureSet(tree.GetDepth(nidx))->ConstHostSpan();
+              file_0 << std::endl << "Features for node " << nidx << std::endl;
+              for (size_t i = 0; i < features_set.size(); i++) {
+                  file_0 << "Feature " << features_set[i] <<  " Cut " << cut.Ptrs()[i] << " " << cut.Ptrs()[i+1] << std::endl;
+              }
+          }
+      } else {
+          for (size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
+              auto nidx = entries[nidx_in_set].nid;
+              auto features_set = column_sampler_->GetFeatureSet(tree.GetDepth(nidx))->ConstHostSpan();
+              file_1 << std::endl << "Features for node " << nidx << std::endl;
+              for (size_t i = 0; i < features_set.size(); i++) {
+                  file_1 << "Feature " << features_set[i]  << " Cut " << cut.Ptrs()[i] << " " << cut.Ptrs()[i+1] << std::endl;
+              }
+          }
+      }
+      file_0.close();
+      file_1.close();
+
+
+
+
+
 
     // Under secure vertical setting, only the label owner is able to evaluate the split
     // based on the global histogram. The other parties will only receive the final best split information
@@ -411,10 +440,6 @@ class HistEvaluator {
       }
     }
 
-    // Print the info about modes of data split.
-    std::cout<< "Data split mode: " << (is_col_split_ ? "column-wise" : "row-wise") << std::endl;
-    std::cout<< "Secure compute mode: " << (is_secure_ ? "secure" : "plain") << std::endl;
-
     if (is_col_split_) {
       // With column-wise data split, we gather the best splits from all the workers and update the
       // expand entries accordingly.
@@ -423,22 +448,23 @@ class HistEvaluator {
       // allgather is capable of performing this (0-gain entries for non-label owners),
       // but can be replaced with a broadcast in the future
 
+
       //Print entry information before allgather
       std::cout << "Entries Before allgather: " << std::endl;
       for (size_t i = 0; i < entries.size(); ++i) {
           std::cout << "Entry " << i << " nid: " << entries[i].nid << " gain: " << entries[i].split.loss_chg << std::endl;
       }
-
-      std::cout << "**************" << std::endl;
       std::cout << "Allgather entries" << std::endl;
-      std::cout << "**************" << std::endl;
 
       auto all_entries = Allgather(entries);
+
+
       //Print entry information after allgather
       std::cout << "Entries After allgather: " << std::endl;
       for (size_t i = 0; i < all_entries.size(); ++i) {
           std::cout << "Entry " << i << " nid: " << all_entries[i].nid << " gain: " << all_entries[i].split.loss_chg << std::endl;
       }
+
 
       for (auto worker = 0; worker < collective::GetWorldSize(); ++worker) {
         for (std::size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
@@ -675,7 +701,7 @@ class HistMultiEvaluator {
     }
     CHECK(!features.empty());
 
-    std::int32_t n_threads = ctx_->Threads();
+   std::int32_t n_threads = ctx_->Threads();
     std::size_t const grain_size = std::max<std::size_t>(1, features.front()->Size() / n_threads);
     common::BlockedSpace2d space(
         entries.size(), [&](std::size_t nidx_in_set) { return features[nidx_in_set]->Size(); },
