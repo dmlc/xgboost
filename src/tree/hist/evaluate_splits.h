@@ -278,10 +278,17 @@ class HistEvaluator {
             split_pt = cut_val[i - 1];
           }
           best.Update(loss_chg, fidx, split_pt, d_step == -1, false, right_sum, left_sum);
+
+          //log best
+          //if (fidx == 5) {
+          //    LOG(CONSOLE) << "Best cut for feature " << fidx << " is at " << best.split_value << " with gain " << best.loss_chg << std::endl;
+          //}
+
+
+
         }
       }
     }
-
     p_best->Update(best);
     return left_sum;
   }
@@ -352,7 +359,7 @@ class HistEvaluator {
 
 
 
-
+/*
       // Print the details of the histogram and the features to a file
       // according to the rank
       std::ofstream file_0, file_1;
@@ -379,10 +386,7 @@ class HistEvaluator {
       }
       file_0.close();
       file_1.close();
-
-
-
-
+*/
 
 
     // Under secure vertical setting, only the label owner is able to evaluate the split
@@ -424,6 +428,11 @@ class HistEvaluator {
           }
           else {
             auto grad_stats = EnumerateSplit<+1>(cut, histogram, fidx, nidx, evaluator, best);
+
+            // print the best split for each feature
+            // std::cout << "Best split for feature " << fidx << " is " << best->split_value << " with gain " << best->loss_chg << std::endl;
+
+
             if (SplitContainsMissingValues(grad_stats, snode_[nidx])) {
               EnumerateSplit<-1>(cut, histogram, fidx, nidx, evaluator, best);
             }
@@ -448,30 +457,22 @@ class HistEvaluator {
       // allgather is capable of performing this (0-gain entries for non-label owners),
       // but can be replaced with a broadcast in the future
 
-
-      //Print entry information before allgather
-      std::cout << "Entries Before allgather: " << std::endl;
-      for (size_t i = 0; i < entries.size(); ++i) {
-          std::cout << "Entry " << i << " nid: " << entries[i].nid << " gain: " << entries[i].split.loss_chg << std::endl;
-      }
-      std::cout << "Allgather entries" << std::endl;
-
       auto all_entries = Allgather(entries);
-
-
-      //Print entry information after allgather
-      std::cout << "Entries After allgather: " << std::endl;
-      for (size_t i = 0; i < all_entries.size(); ++i) {
-          std::cout << "Entry " << i << " nid: " << all_entries[i].nid << " gain: " << all_entries[i].split.loss_chg << std::endl;
-      }
-
 
       for (auto worker = 0; worker < collective::GetWorldSize(); ++worker) {
         for (std::size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
-          entries[nidx_in_set].split.Update(
-              all_entries[worker * entries.size() + nidx_in_set].split);
+            entries[nidx_in_set].split.Update(
+                all_entries[worker * entries.size() + nidx_in_set].split);
         }
       }
+
+      // Print entry information after AllGather
+      for (size_t i = 0; i < entries.size(); ++i) {
+          LOG(CONSOLE) << "After AllGather rank: " << collective::GetRank() << " nid: " << entries[i].nid
+          << " gain: " << entries[i].split.loss_chg << " fid: " << entries[i].split.sindex << " split: "
+          << entries[i].split.split_value << std::endl;
+      }
+
     }
   }
 

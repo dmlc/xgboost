@@ -390,10 +390,10 @@ void AddCutPointSecure(typename SketchType::SummaryContainer const &summary, int
         }
       }
     }
-    // if empty column, fill the cut values with minimum value
+    // if empty column, fill the cut values with 0
     else {
       for (size_t i = 1; i < required_cuts; ++i) {
-        cut_values.push_back(mval);
+        cut_values.push_back(0.0);
       }
     }
 }
@@ -476,6 +476,13 @@ void SketchContainerImpl<WQSketch>::MakeCuts(Context const *ctx, MetaInfo const 
     auto cut_size = static_cast<uint32_t>(p_cuts->cut_values_.HostVector().size());
     CHECK_GT(cut_size, p_cuts->cut_ptrs_.HostVector().back());
     p_cuts->cut_ptrs_.HostVector().push_back(cut_size);
+  }
+
+  if (info.IsVerticalFederated() && info.IsSecure()) {
+      // cut values need to be synced across all workers via Allreduce
+      auto cut_val = p_cuts->cut_values_.HostVector().data();
+      std::size_t n = p_cuts->cut_values_.HostVector().size();
+      collective::Allreduce<collective::Operation::kSum>(cut_val, n);
   }
 
   p_cuts->SetCategorical(this->has_categorical_, max_cat);
