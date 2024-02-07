@@ -320,6 +320,7 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
   use_as_df <- FALSE
   use_as_dense_matrix <- FALSE
   use_as_csr_matrix <- FALSE
+  n_row <- NULL
   if (!is_dmatrix) {
 
     inplace_predict_supported <- !predcontrib && !predinteraction && !predleaf
@@ -351,6 +352,14 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
       } else if (inherits(newdata, "dgRMatrix")) {
         use_as_csr_matrix <- TRUE
         csr_data <- list(newdata@p, newdata@j, newdata@x, ncol(newdata))
+      } else if (inherits(newdata, "dsparseVector")) {
+        use_as_csr_matrix <- TRUE
+        n_row <- 1L
+        i <- newdata@i - 1L
+        if (storage.mode(i) != "integer") {
+          storage.mode(i) <- "integer"
+        }
+        csr_data <- list(c(0L, length(i)), i, newdata@x, length(newdata))
       }
 
     }
@@ -368,7 +377,7 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     is_dmatrix <- TRUE
   }
 
-  if (!use_as_df) {
+  if (is.null(n_row)) {
     n_row <- nrow(newdata)
   }
 
