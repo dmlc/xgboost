@@ -47,7 +47,11 @@ local data file, or \code{xgb.DMatrix}.
    \}
 }\if{html}{\out{</div>}}}
 
-\item{missing}{Float value that represents missing values in data (e.g., 0 or some other extreme value).}
+\item{missing}{Float value that represents missing values in data (e.g., 0 or some other extreme value).
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{   This parameter is not used when `newdata` is an `xgb.DMatrix` - in such cases, should pass
+   this as an argument to the DMatrix constructor instead.
+}\if{html}{\out{</div>}}}
 
 \item{outputmargin}{Whether the prediction should be returned in the form of original untransformed
 sum of predictions from boosting iterations' results. E.g., setting \code{outputmargin=TRUE} for
@@ -139,7 +143,7 @@ When \code{strict_shape = TRUE}, the output is always an array:
 }
 }
 \description{
-Predicted values based on either xgboost model or model handle object.
+Predict values on data based on xgboost model.
 }
 \details{
 Note that \code{iterationrange} would currently do nothing for predictions from "gblinear",

@@ -77,7 +77,7 @@ xgb.get.handle <- function(object) {
 
 #' Predict method for XGBoost model
 #'
-#' Predicted values based on either xgboost model or model handle object.
+#' Predict values on data based on xgboost model.
 #'
 #' @param object Object of class `xgb.Booster`.
 #' @param newdata Takes `data.frame`, `matrix`, `dgCMatrix`, `dgRMatrix`, `dsparseVector`,
@@ -101,6 +101,9 @@ xgb.get.handle <- function(object) {
 #'              under a column which during training had a different type.
 #'        }
 #' @param missing Float value that represents missing values in data (e.g., 0 or some other extreme value).
+#'
+#'        This parameter is not used when `newdata` is an `xgb.DMatrix` - in such cases, should pass
+#'        this as an argument to the DMatrix constructor instead.
 #' @param outputmargin Whether the prediction should be returned in the form of original untransformed
 #'        sum of predictions from boosting iterations' results. E.g., setting `outputmargin=TRUE` for
 #'        logistic regression would return log-odds instead of probabilities.
