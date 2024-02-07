@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2023 by XGBoost Contributors
+ * Copyright 2017-2024 by XGBoost Contributors
  * \file hist_util.h
  * \brief Utility for fast histogram aggregation
  * \author Philip Cho, Tianqi Chen
@@ -113,8 +113,8 @@ class HistogramCuts {
     auto end = ptrs[column_id + 1];
     auto beg = ptrs[column_id];
     auto it = std::upper_bound(values.cbegin() + beg, values.cbegin() + end, value);
-    auto idx = it - values.cbegin();
-    idx -= !!(idx == end);
+    auto idx = static_cast<bst_bin_t>(it - values.cbegin());
+    idx -= !!(idx == static_cast<bst_bin_t>(end));
     return idx;
   }
 
@@ -136,8 +136,8 @@ class HistogramCuts {
     auto beg = ptrs[fidx] + vals.cbegin();
     // Truncates the value in case it's not perfectly rounded.
     auto v = static_cast<float>(common::AsCat(value));
-    auto bin_idx = std::lower_bound(beg, end, v) - vals.cbegin();
-    if (bin_idx == ptrs.at(fidx + 1)) {
+    auto bin_idx = static_cast<bst_bin_t>(std::lower_bound(beg, end, v) - vals.cbegin());
+    if (bin_idx == static_cast<bst_bin_t>(ptrs.at(fidx + 1))) {
       bin_idx -= 1;
     }
     return bin_idx;

@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2023 by XGBoost Contributors
+ * Copyright 2014-2024 by XGBoost Contributors
  */
 #include "xgboost/c_api.h"
 
@@ -991,8 +991,8 @@ XGB_DLL int XGBoosterBoostOneIter(BoosterHandle handle, DMatrixHandle dtrain, bs
   auto *learner = static_cast<Learner *>(handle);
   auto ctx = learner->Ctx()->MakeCPU();
 
-  auto t_grad = linalg::MakeTensorView(&ctx, common::Span{grad, len}, len);
-  auto t_hess = linalg::MakeTensorView(&ctx, common::Span{hess, len}, len);
+  auto t_grad = linalg::MakeTensorView(&ctx, common::Span{grad, static_cast<size_t>(len)}, len);
+  auto t_hess = linalg::MakeTensorView(&ctx, common::Span{hess, static_cast<size_t>(len)}, len);
 
   auto s_grad = linalg::ArrayInterfaceStr(t_grad);
   auto s_hess = linalg::ArrayInterfaceStr(t_hess);

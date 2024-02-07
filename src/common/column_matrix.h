@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2023, XGBoost Contributors
+ * Copyright 2017-2024, XGBoost Contributors
  * \file column_matrix.h
  * \brief Utility for fast column-wise access
  * \author Philip Cho
@@ -176,7 +176,7 @@ class ColumnMatrix {
     void SetValid(typename LBitField32::index_type i) { missing.Clear(i); }
     /** @brief assign the storage to the view. */
     void InitView() {
-      missing = LBitField32{Span{storage.data(), storage.size()}};
+      missing = LBitField32{Span{storage.data(), static_cast<size_t>(storage.size())}};
     }
 
     void GrowTo(std::size_t n_elements, bool init) {
@@ -318,8 +318,8 @@ class ColumnMatrix {
     common::Span<const BinIdxType> bin_index = {
         reinterpret_cast<const BinIdxType*>(&index_[feature_offset * bins_type_size_]),
         column_size};
-    return std::move(DenseColumnIter<BinIdxType, any_missing>{
-        bin_index, static_cast<bst_bin_t>(index_base_[fidx]), missing_.missing, feature_offset});
+    return DenseColumnIter<BinIdxType, any_missing>{
+        bin_index, static_cast<bst_bin_t>(index_base_[fidx]), missing_.missing, feature_offset};
   }
 
   // all columns are dense column and has no missing value
@@ -332,7 +332,7 @@ class ColumnMatrix {
     DispatchBinType(bins_type_size_, [&](auto t) {
       using ColumnBinT = decltype(t);
       auto column_index = Span<ColumnBinT>{reinterpret_cast<ColumnBinT*>(index_.data()),
-                                           index_.size() / sizeof(ColumnBinT)};
+                                           static_cast<size_t>(index_.size() / sizeof(ColumnBinT))};
       ParallelFor(n_samples, n_threads, [&](auto rid) {
         rid += base_rowid;
         const size_t ibegin = rid * n_features;

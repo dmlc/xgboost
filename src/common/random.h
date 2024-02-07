@@ -31,7 +31,7 @@ namespace xgboost::common {
  */
 using RandomEngine = std::mt19937;
 
-#if XGBOOST_CUSTOMIZE_GLOBAL_PRNG
+#if defined(XGBOOST_CUSTOMIZE_GLOBAL_PRNG) && XGBOOST_CUSTOMIZE_GLOBAL_PRNG == 1
 /*!
  * \brief An customized random engine, used to be plugged in PRNG from other systems.
  *  The implementation of this library is not provided by xgboost core library.

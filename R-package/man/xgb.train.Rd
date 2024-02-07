@@ -241,6 +241,11 @@ Parallelization is automatically enabled if \code{OpenMP} is present.
 Number of threads can also be manually specified via the \code{nthread}
 parameter.
 
+While in other interfaces, the default random seed defaults to zero, in R, if a parameter \code{seed}
+is not manually supplied, it will generate a random seed through R's own random number generator,
+whose seed in turn is controllable through \code{set.seed}. If \code{seed} is passed, it will override the
+RNG from R.
+
 The evaluation metric is chosen automatically by XGBoost (according to the objective)
 when the \code{eval_metric} parameter is not provided.
 User may set one or several \code{eval_metric} parameters.
