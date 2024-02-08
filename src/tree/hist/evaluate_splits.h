@@ -294,9 +294,6 @@ class HistEvaluator {
     auto const world = collective::GetWorldSize();
     auto const num_entries = entries.size();
 
-    // print the number of entries
-    //std::cout << "Number of local entries, threads, and wordsize: " << num_entries << " " << ctx_->Threads() << " " << world << std::endl;
-
     // First, gather all the primitive fields.
     std::vector<CPUExpandEntry> local_entries(num_entries);
     std::vector<uint32_t> cat_bits;
@@ -421,8 +418,8 @@ class HistEvaluator {
 
       for (auto worker = 0; worker < collective::GetWorldSize(); ++worker) {
         for (std::size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
-            entries[nidx_in_set].split.Update(
-                all_entries[worker * entries.size() + nidx_in_set].split);
+          entries[nidx_in_set].split.Update(
+              all_entries[worker * entries.size() + nidx_in_set].split);
         }
       }
     }
@@ -654,7 +651,7 @@ class HistMultiEvaluator {
     }
     CHECK(!features.empty());
 
-   std::int32_t n_threads = ctx_->Threads();
+    std::int32_t n_threads = ctx_->Threads();
     std::size_t const grain_size = std::max<std::size_t>(1, features.front()->Size() / n_threads);
     common::BlockedSpace2d space(
         entries.size(), [&](std::size_t nidx_in_set) { return features[nidx_in_set]->Size(); },
