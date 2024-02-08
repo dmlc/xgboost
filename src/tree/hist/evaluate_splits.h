@@ -278,14 +278,6 @@ class HistEvaluator {
             split_pt = cut_val[i - 1];
           }
           best.Update(loss_chg, fidx, split_pt, d_step == -1, false, right_sum, left_sum);
-
-          //log best
-          //if (fidx == 5) {
-          //    LOG(CONSOLE) << "Best cut for feature " << fidx << " is at " << best.split_value << " with gain " << best.loss_chg << std::endl;
-          //}
-
-
-
         }
       }
     }
@@ -356,38 +348,6 @@ class HistEvaluator {
     }
     auto evaluator = tree_evaluator_.GetEvaluator();
     auto const& cut_ptrs = cut.Ptrs();
-
-
-
-/*
-      // Print the details of the histogram and the features to a file
-      // according to the rank
-      std::ofstream file_0, file_1;
-      file_0.open("histogram_0.txt", std::ios_base::app);
-      file_1.open("histogram_1.txt", std::ios_base::app);
-      if (collective::GetRank() == 0) {
-          for (size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
-              auto nidx = entries[nidx_in_set].nid;
-              auto features_set = column_sampler_->GetFeatureSet(tree.GetDepth(nidx))->ConstHostSpan();
-              file_0 << std::endl << "Features for node " << nidx << std::endl;
-              for (size_t i = 0; i < features_set.size(); i++) {
-                  file_0 << "Feature " << features_set[i] <<  " Cut " << cut.Ptrs()[i] << " " << cut.Ptrs()[i+1] << std::endl;
-              }
-          }
-      } else {
-          for (size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
-              auto nidx = entries[nidx_in_set].nid;
-              auto features_set = column_sampler_->GetFeatureSet(tree.GetDepth(nidx))->ConstHostSpan();
-              file_1 << std::endl << "Features for node " << nidx << std::endl;
-              for (size_t i = 0; i < features_set.size(); i++) {
-                  file_1 << "Feature " << features_set[i]  << " Cut " << cut.Ptrs()[i] << " " << cut.Ptrs()[i+1] << std::endl;
-              }
-          }
-      }
-      file_0.close();
-      file_1.close();
-*/
-
 
     // Under secure vertical setting, only the label owner is able to evaluate the split
     // based on the global histogram. The other parties will only receive the final best split information
@@ -465,14 +425,6 @@ class HistEvaluator {
                 all_entries[worker * entries.size() + nidx_in_set].split);
         }
       }
-
-      // Print entry information after AllGather
-      for (size_t i = 0; i < entries.size(); ++i) {
-          LOG(CONSOLE) << "After AllGather rank: " << collective::GetRank() << " nid: " << entries[i].nid
-          << " gain: " << entries[i].split.loss_chg << " fid: " << entries[i].split.sindex << " split: "
-          << entries[i].split.split_value << std::endl;
-      }
-
     }
   }
 
