@@ -196,12 +196,135 @@ class HistogramBuilder {
     if (is_distributed_ && is_col_split_ && is_secure_) {
       // Under secure vertical mode, we perform allgather for all nodes
       CHECK(!nodes_to_build.empty());
-      // in theory the operation is AllGather, but with current system functionality,
-      // we use AllReduce to simulate the AllGather operation
       auto first_nidx = nodes_to_build.front();
       std::size_t n = n_total_bins * nodes_to_build.size() * 2;
-      collective::Allreduce<collective::Operation::kSum>(
-              reinterpret_cast<double *>(this->hist_[first_nidx].data()), n);
+
+      // in theory the operation is AllGather, with current system functionality,
+      // it can be achieved with AllReduce for the special hist data structure
+
+      //collective::Allreduce<collective::Operation::kSum>(
+      //     reinterpret_cast<double *>(this->hist_[first_nidx].data()), n);
+
+      // implementation with AllGather, note that only Label Owner needs
+      // the global histogram
+
+        if (collective::GetRank() == 0) {
+            //print the entries to file for debug
+            std::ofstream file_hist;
+            file_hist.open("hist_before_allgather_0.txt", std::ios_base::app);
+            file_hist << "********************************" << std::endl;
+            file_hist << "nodes to build: " << nodes_to_build.size() << std::endl;
+            //iterate through the nodes to build
+            for (auto i = 0; i < nodes_to_build.size(); i++) {
+                auto hist = this->hist_[nodes_to_build[i]];
+                auto hist_size = hist.size();
+                file_hist << "node " << i << " hist_size: " << hist_size << std::endl;
+                // get item with iterator
+                size_t j = 0;
+                for (auto it = hist.begin(); it != hist.end(); it++) {
+                    if ((j < 10) || ((j>2000)&&(j<2010))) {
+                        file_hist << "hist_item " << j << ": " << *it << std::endl;
+                    }
+                    j++;
+                }
+            }
+            file_hist.close();
+        }
+
+        if (collective::GetRank() == 1) {
+            //print the entries to file for debug
+            std::ofstream file_hist;
+            file_hist.open("hist_before_allgather_1.txt", std::ios_base::app);
+            file_hist << "********************************" << std::endl;
+            file_hist << "nodes to build: " << nodes_to_build.size() << std::endl;
+            //iterate through the nodes to build
+            for (auto i = 0; i < nodes_to_build.size(); i++) {
+                auto hist = this->hist_[nodes_to_build[i]];
+                auto hist_size = hist.size();
+                file_hist << "node " << i << " hist_size: " << hist_size << std::endl;
+                // get item with iterator
+                size_t j = 0;
+                for (auto it = hist.begin(); it != hist.end(); it++) {
+                    if ((j < 10) || ((j>2000)&&(j<2010))) {
+                        file_hist << "hist_item " << j << ": " << *it << std::endl;
+                    }
+                    j++;
+                }
+            }
+            file_hist.close();
+        }
+
+        // Perform AllGather at finest granularity (histogram entries)
+        for (auto i = 0; i < nodes_to_build.size(); i++) {
+          auto hist = this->hist_[nodes_to_build[i]];
+          auto hist_size = hist.size();
+          // get item with iterator
+          size_t j = 0;
+          for (auto it = hist.begin(); it != hist.end(); it++) {
+            auto item = *it;
+            // perform AllGather for each histogram entry
+            auto hist_entries = collective::Allgather(item);
+            if (collective::GetRank() == 0) {
+              // DECRYPT the received entries HERE!!!!!!!!!
+              // only perform update for the label owner
+              this->hist_[nodes_to_build[i]][j] = hist_entries[0];
+              for (size_t k = 1; k < hist_entries.size(); k++) {
+                // update the global histogram with the received entries
+                this->hist_[nodes_to_build[i]][j] += hist_entries[k];
+              }
+            }
+            j++;
+          }
+        }
+
+        if (collective::GetRank() == 0) {
+            //print the entries to file for debug
+            std::ofstream file_hist;
+            file_hist.open("hist_after_allgather_0.txt", std::ios_base::app);
+            file_hist << "********************************" << std::endl;
+            file_hist << "nodes to build: " << nodes_to_build.size() << std::endl;
+            //iterate through the nodes to build
+            for (auto i = 0; i < nodes_to_build.size(); i++) {
+                auto hist = this->hist_[nodes_to_build[i]];
+                auto hist_size = hist.size();
+                file_hist << "node " << i << " hist_size: " << hist_size << std::endl;
+                // get item with iterator
+                size_t j = 0;
+                for (auto it = hist.begin(); it != hist.end(); it++) {
+                    if ((j < 10) || ((j>2000)&&(j<2010))) {
+                        file_hist << "hist_item " << j << ": " << *it << std::endl;
+                    }
+                    j++;
+                }
+            }
+            file_hist.close();
+        }
+
+        if (collective::GetRank() == 1) {
+            //print the entries to file for debug
+            std::ofstream file_hist;
+            file_hist.open("hist_after_allgather_1.txt", std::ios_base::app);
+            file_hist << "********************************" << std::endl;
+            file_hist << "nodes to build: " << nodes_to_build.size() << std::endl;
+            //iterate through the nodes to build
+            for (auto i = 0; i < nodes_to_build.size(); i++) {
+                auto hist = this->hist_[nodes_to_build[i]];
+                auto hist_size = hist.size();
+                file_hist << "node " << i << " hist_size: " << hist_size << std::endl;
+                // get item with iterator
+                size_t j = 0;
+                for (auto it = hist.begin(); it != hist.end(); it++) {
+                    if ((j < 10) || ((j>2000)&&(j<2010))) {
+                        file_hist << "hist_item " << j << ": " << *it << std::endl;
+                    }
+                    j++;
+                }
+            }
+            file_hist.close();
+        }
+
+
+
     }
 
     common::BlockedSpace2d const &subspace =
