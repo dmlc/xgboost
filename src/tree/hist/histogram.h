@@ -205,6 +205,15 @@ class HistogramBuilder {
       //collective::Allreduce<collective::Operation::kSum>(
       //     reinterpret_cast<double *>(this->hist_[first_nidx].data()), n);
 
+
+
+
+
+
+
+
+
+
       // implementation with AllGather, note that only Label Owner needs
       // the global histogram
 
@@ -254,7 +263,21 @@ class HistogramBuilder {
             file_hist.close();
         }
 
-        // Perform AllGather at finest granularity (histogram entries)
+
+
+
+
+
+
+
+
+
+
+        // Collect the histogram entries from all nodes
+        // allocate memory for the received entries as a flat vector
+        std::vector<double> hist_flat;
+        hist_flat.resize(n);
+        // iterate through the nodes to build
         for (auto i = 0; i < nodes_to_build.size(); i++) {
           auto hist = this->hist_[nodes_to_build[i]];
           auto hist_size = hist.size();
@@ -262,20 +285,44 @@ class HistogramBuilder {
           size_t j = 0;
           for (auto it = hist.begin(); it != hist.end(); it++) {
             auto item = *it;
-            // perform AllGather for each histogram entry
-            auto hist_entries = collective::Allgather(item);
-            if (collective::GetRank() == 0) {
-              // DECRYPT the received entries HERE!!!!!!!!!
-              // only perform update for the label owner
-              this->hist_[nodes_to_build[i]][j] = hist_entries[0];
-              for (size_t k = 1; k < hist_entries.size(); k++) {
-                // update the global histogram with the received entries
-                this->hist_[nodes_to_build[i]][j] += hist_entries[k];
-              }
-            }
-            j++;
+            hist_flat[i * hist_size + j] = item.GetGrad();
+            hist_flat[i * hist_size + j + 1] = item.GetHess();
+            j = j + 2;
           }
         }
+        // Perform AllGather
+        auto hist_entries = collective::AllgatherV(hist_flat);
+        // Update histogram for data owner
+        if (collective::GetRank() == 0) {
+          // skip rank 0, as local hist already contains its own entries
+          for (auto rank_idx = 1; rank_idx < hist_entries.size()/n; rank_idx++) {
+            // iterate through the nodes to build
+            for (auto node_idx = 0; node_idx < nodes_to_build.size(); node_idx++) {
+              // get the histogram of the node
+              auto hist = this->hist_[nodes_to_build[node_idx]];
+              // get item with iterator
+              size_t hist_item_idx = 0;
+              for (auto it = hist.begin(); it != hist.end(); it++) {
+                auto flat_idx = (rank_idx + node_idx) * n + hist_item_idx*2;
+                // DECRYPT the received entries HERE!!!!!!!!!
+                auto hist_item_grad = hist_entries[flat_idx];
+                auto hist_item_hess = hist_entries[flat_idx + 1];
+                // compose a gradient pair
+                auto hist_item_temp = GradientPairPrecise(hist_item_grad, hist_item_hess);
+                // update the global histogram with the received entries
+                *it += hist_item_temp;
+                hist_item_idx += 1;
+              }
+            }
+          }
+        }
+
+
+
+
+
+
+
 
         if (collective::GetRank() == 0) {
             //print the entries to file for debug
@@ -322,6 +369,23 @@ class HistogramBuilder {
             }
             file_hist.close();
         }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
