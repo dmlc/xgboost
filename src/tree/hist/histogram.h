@@ -194,29 +194,13 @@ class HistogramBuilder {
     }
 
     if (is_distributed_ && is_col_split_ && is_secure_) {
-      // Under secure vertical mode, we perform allgather for all nodes
+      // Under secure vertical mode, we perform allgather to get the global histogram.
+      // note that only Label Owner needs the global histogram
       CHECK(!nodes_to_build.empty());
-      auto first_nidx = nodes_to_build.front();
       std::size_t n = n_total_bins * nodes_to_build.size() * 2;
 
-      // in theory the operation is AllGather, with current system functionality,
-      // it can be achieved with AllReduce for the special hist data structure
 
-      //collective::Allreduce<collective::Operation::kSum>(
-      //     reinterpret_cast<double *>(this->hist_[first_nidx].data()), n);
-
-
-
-
-
-
-
-
-
-
-      // implementation with AllGather, note that only Label Owner needs
-      // the global histogram
-
+      /*
         if (collective::GetRank() == 0) {
             //print the entries to file for debug
             std::ofstream file_hist;
@@ -262,7 +246,7 @@ class HistogramBuilder {
             }
             file_hist.close();
         }
-
+*/
 
 
 
@@ -323,7 +307,7 @@ class HistogramBuilder {
 
 
 
-
+/*
         if (collective::GetRank() == 0) {
             //print the entries to file for debug
             std::ofstream file_hist;
@@ -369,7 +353,7 @@ class HistogramBuilder {
             }
             file_hist.close();
         }
-
+*/
 
 
 

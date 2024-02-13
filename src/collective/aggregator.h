@@ -102,6 +102,40 @@ void ApplyWithLabels(MetaInfo const& info, HostDeviceVector<T>* result, Function
   }
 }
 
+
+template <typename T, typename Function>
+void ApplyWithLabelsEncrypted(MetaInfo const& info, HostDeviceVector<T>* result, Function&& function) {
+  if (info.IsVerticalFederated()) {
+    // We assume labels are only available on worker 0, so the calculation is done there and result
+    // broadcast to other workers.
+    std::string message;
+    if (collective::GetRank() == 0) {
+      try {
+        std::forward<Function>(function)();
+      } catch (dmlc::Error& e) {
+       message = e.what();
+      }
+    }
+
+    collective::Broadcast(&message, 0);
+    if (!message.empty()) {
+      LOG(FATAL) << &message[0];
+      return;
+    }
+
+    std::size_t size{};
+    if (collective::GetRank() == 0) {
+      size = result->Size();
+    }
+    collective::Broadcast(&size, sizeof(std::size_t), 0);
+
+    result->Resize(size);
+    collective::Broadcast(result->HostPointer(), size * sizeof(T), 0);
+  } else {
+      std::forward<Function>(function)();
+  }
+}
+
 /**
  * @brief Find the global max of the given value across all workers.
  *
