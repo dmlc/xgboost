@@ -428,4 +428,39 @@ public class DMatrixTest {
     String[] retFeatureTypes = dmat.getFeatureTypes();
     assertArrayEquals(featureTypes, retFeatureTypes);
   }
+
+  @Test
+  public void testGetDataMatrixForCSR() throws XGBoostError {
+    //create Matrix from csr format sparse Matrix and labels
+    /**
+     * sparse matrix
+     * 1 0 2 3 0
+     * 4 0 2 3 5
+     * 3 1 2 5 0
+     */
+    float[] data = new float[]{1, 2, 3, 4, 2, 3, 5, 3, 1, 2, 5};
+    int[] colIndex = new int[]{0, 2, 3, 0, 2, 3, 4, 0, 1, 2, 3};
+    long[] rowHeaders = new long[]{0, 3, 7, 11};
+    DMatrix dmat1 = new DMatrix(rowHeaders, colIndex, data, DMatrix.SparseType.CSR, 5);
+    BigDenseMatrix denseMatrix = dmat1.getData();
+
+    TestCase.assertTrue(denseMatrix.get(0, 0) == 1.0f);
+    TestCase.assertTrue(denseMatrix.get(0, 1) == 0.0f);
+    TestCase.assertTrue(denseMatrix.get(0, 2) == 2.0f);
+    TestCase.assertTrue(denseMatrix.get(0, 3) == 3.0f);
+    TestCase.assertTrue(denseMatrix.get(0, 4) == 0.0f);
+
+    TestCase.assertTrue(denseMatrix.get(1, 0) == 4.0f);
+    TestCase.assertTrue(denseMatrix.get(1, 1) == 0.0f);
+    TestCase.assertTrue(denseMatrix.get(1, 2) == 2.0f);
+    TestCase.assertTrue(denseMatrix.get(1, 3) == 3.0f);
+    TestCase.assertTrue(denseMatrix.get(1, 4) == 5.0f);
+
+    TestCase.assertTrue(denseMatrix.get(2, 0) == 3.0f);
+    TestCase.assertTrue(denseMatrix.get(2, 1) == 1.0f);
+    TestCase.assertTrue(denseMatrix.get(2, 2) == 2.0f);
+    TestCase.assertTrue(denseMatrix.get(2, 3) == 5.0f);
+    TestCase.assertTrue(denseMatrix.get(2, 4) == 0.0f);
+
+  }
 }

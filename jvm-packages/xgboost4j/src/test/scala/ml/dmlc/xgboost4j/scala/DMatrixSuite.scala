@@ -16,10 +16,10 @@
 
 package ml.dmlc.xgboost4j.scala
 
+import ml.dmlc.xgboost4j.java.DMatrix.SparseType
+
 import java.util.Arrays
-
 import scala.util.Random
-
 import org.scalatest.funsuite.AnyFunSuite
 import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
 
@@ -173,4 +173,28 @@ class DMatrixSuite extends AnyFunSuite {
     assert(dmat0.rowNum === 10)
     assert(dmat0.getLabel.length === 10)
   }
+
+  test("create get data from DMatrix as BigDenseMatrix") {
+    // create Matrix from csr format sparse Matrix and labels
+    /**
+     * sparse matrix
+     * 1 0 2 3 0
+     * 4 0 2 3 5
+     * 3 1 2 5 0
+     */
+    val data = Array[Float](1, 2, 3, 4, 2, 3, 5, 3, 1, 2, 5)
+    val colIndex = Array[Int](0, 2, 3, 0, 2, 3, 4, 0, 1, 2, 3)
+    val rowHeaders = Array[Long](0, 3, 7, 11)
+    val dmatrix = new DMatrix(rowHeaders, colIndex, data, SparseType.CSR, 5)
+
+    val denseMatrix = dmatrix.getData
+
+    assert(denseMatrix.get(0, 0) == 1.0f)
+    assert(denseMatrix.get(0, 3) == 3.0f)
+    assert(denseMatrix.get(1, 2) == 2.0f)
+    assert(denseMatrix.get(2, 3) == 5.0f)
+    assert(denseMatrix.get(2, 4) == 0.0f)
+
+  }
+
 }
