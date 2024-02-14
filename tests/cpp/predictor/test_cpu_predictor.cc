@@ -148,7 +148,7 @@ TEST(CPUPredictor, GHistIndexTraining) {
   auto adapter = data::ArrayAdapter(columnar.c_str());
   std::shared_ptr<DMatrix> p_full{
       DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)};
-  TestTrainingPrediction(&ctx, kRows, kBins, p_full, p_hist);
+  TestTrainingPrediction(&ctx, kRows, kBins, p_full, p_hist, true);
 }
 
 TEST(CPUPredictor, CategoricalPrediction) {
