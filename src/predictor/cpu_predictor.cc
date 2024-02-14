@@ -702,9 +702,9 @@ class CPUPredictor : public Predictor {
   void PredictContributionKernel(DataView batch, const MetaInfo& info,
                                  const gbm::GBTreeModel& model,
                                  const std::vector<bst_float>* tree_weights,
-                                 std::vector<std::vector<float>>& mean_values,
-                                 std::vector<RegTree::FVec>& feat_vecs,
-                                 std::vector<bst_float>& contribs, uint32_t ntree_limit,
+                                 std::vector<std::vector<float>>* mean_values,
+                                 std::vector<RegTree::FVec>* feat_vecs,
+                                 std::vector<bst_float>* contribs, uint32_t ntree_limit,
                                  bool approximate, int condition,
                                  unsigned condition_feature) const {
     const int num_feature = model.learner_model_param->num_feature;
@@ -718,18 +718,18 @@ class CPUPredictor : public Predictor {
     // parallel over local batch
     common::ParallelFor(batch.Size(), this->ctx_->Threads(), [&](auto i) {
       auto row_idx = batch.base_rowid + i;
-      RegTree::FVec &feats = feat_vecs[omp_get_thread_num()];
+      RegTree::FVec &feats = (*feat_vecs)[omp_get_thread_num()];
       if (feats.Size() == 0) {
         feats.Init(num_feature);
       }
       std::vector<bst_float> this_tree_contribs(ncolumns);
       // loop over all classes
       for (int gid = 0; gid < ngroup; ++gid) {
-        bst_float* p_contribs = &contribs[(row_idx * ngroup + gid) * ncolumns];
+        bst_float* p_contribs = &(*contribs)[(row_idx * ngroup + gid) * ncolumns];
         feats.Fill(batch[i]);
         // calculate contributions
         for (unsigned j = 0; j < ntree_limit; ++j) {
-          auto *tree_mean_values = &mean_values.at(j);
+          auto *tree_mean_values = &mean_values->at(j);
           std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0);
           if (model.tree_info[j] != gid) {
             continue;
@@ -756,7 +756,7 @@ class CPUPredictor : public Predictor {
           p_contribs[ncolumns - 1] += base_score;
         }
       }
-    });  
+    });
   }
 
  public:
@@ -948,14 +948,14 @@ class CPUPredictor : public Predictor {
       for (const auto &batch : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, {})) {
         PredictContributionKernel(
             GHistIndexMatrixView{batch, info.num_col_, ft, workspace, n_threads},
-            info, model, tree_weights, mean_values, feat_vecs, contribs, ntree_limit, approximate,
-            condition, condition_feature);
+            info, model, tree_weights, &mean_values, &feat_vecs, &contribs, ntree_limit,
+            approximate, condition, condition_feature);
       }
     } else {
       for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
         PredictContributionKernel(
-            SparsePageView{&batch}, info, model, tree_weights, mean_values, feat_vecs, contribs,
-            ntree_limit, approximate, condition, condition_feature);
+            SparsePageView{&batch}, info, model, tree_weights, &mean_values, &feat_vecs,
+            &contribs, ntree_limit, approximate, condition, condition_feature);
       }
     }
   }
