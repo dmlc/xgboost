@@ -371,7 +371,6 @@ void AddCutPointSecure(typename SketchType::SummaryContainer const &summary, int
                      HistogramCuts *cuts) {
     // For secure vertical pipeline, we fill the cut values corresponding to empty columns
     // with a vector of minimum value
-    const float mval = 1e-5f;
     size_t required_cuts = std::min(summary.size, static_cast<size_t>(max_bin));
     // make a copy of required_cuts for mode selection
     size_t required_cuts_original = required_cuts;
@@ -447,21 +446,19 @@ void SketchContainerImpl<WQSketch>::MakeCuts(Context const *ctx, MetaInfo const 
 
   float max_cat{-1.f};
   for (size_t fid = 0; fid < reduced.size(); ++fid) {
-    size_t max_num_bins = std::min(num_cuts[fid], max_bins_);
-    // If vertical and secure mode, we need to sync the max_num_bins aross workers
-    if (info.IsVerticalFederated() && info.IsSecure()) {
-      collective::Allreduce<collective::Operation::kMax>(&max_num_bins, 1);
-    }
     typename WQSketch::SummaryContainer const &a = final_summaries[fid];
     if (IsCat(feature_types_, fid)) {
       max_cat = std::max(max_cat, AddCategories(categories_.at(fid), p_cuts));
     } else {
+      size_t max_num_bins = std::min(num_cuts[fid], max_bins_);
       // use special AddCutPoint scheme for secure vertical federated learning
       if (info.IsVerticalFederated() && info.IsSecure()) {
-          AddCutPointSecure<WQSketch>(a, max_num_bins, p_cuts);
+        // If vertical and secure mode, we need to sync the max_num_bins aross workers
+        collective::Allreduce<collective::Operation::kMax>(&max_num_bins, 1);
+        AddCutPointSecure<WQSketch>(a, max_num_bins, p_cuts);
       }
       else {
-          AddCutPoint<WQSketch>(a, max_num_bins, p_cuts);
+        AddCutPoint<WQSketch>(a, max_num_bins, p_cuts);
       }
       // push a value that is greater than anything
       const bst_float cpt =
