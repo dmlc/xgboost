@@ -69,7 +69,7 @@ def _can_use_qdm(tree_method: Optional[str]) -> bool:
     return tree_method in ("hist", "gpu_hist", None, "auto")
 
 
-class _SklObjWProto(Protocol):
+class _SklObjWProto(Protocol):  # pylint: disable=too-few-public-methods
     def __call__(
         self,
         y_true: ArrayLike,
@@ -197,75 +197,121 @@ def ltr_metric_decorator(func: Callable, n_jobs: Optional[int]) -> Metric:
     return inner
 
 
-__estimator_doc = """
-    n_estimators : Optional[int]
+__estimator_doc = f"""
+    n_estimators : {Optional[int]}
         Number of gradient boosted trees.  Equivalent to number of boosting
         rounds.
 """
 
 __model_doc = f"""
-    max_depth :  Optional[int]
+    max_depth :  {Optional[int]}
+
         Maximum tree depth for base learners.
-    max_leaves :
+
+    max_leaves : {Optional[int]}
+
         Maximum number of leaves; 0 indicates no limit.
-    max_bin :
+
+    max_bin : {Optional[int]}
+
         If using histogram-based algorithm, maximum number of bins per feature
-    grow_policy :
-        Tree growing policy. 0: favor splitting at nodes closest to the node, i.e. grow
-        depth-wise. 1: favor splitting at nodes with highest loss change.
-    learning_rate : Optional[float]
+
+    grow_policy : {Optional[str]}
+
+        Tree growing policy.
+
+        - depthwise: Favors splitting at nodes closest to the node,
+        - lossguide: Favors splitting at nodes with highest loss change.
+
+    learning_rate : {Optional[float]}
+
         Boosting learning rate (xgb's "eta")
-    verbosity : Optional[int]
+
+    verbosity : {Optional[int]}
+
         The degree of verbosity. Valid values are 0 (silent) - 3 (debug).
 
     objective : {SklObjective}
 
         Specify the learning task and the corresponding learning objective or a custom
-        objective function to be used. For custom objective, see
-        :doc:`/tutorials/custom_metric_obj` and :ref:`custom-obj-metric` for more
-        information.
+        objective function to be used.
 
-    booster: Optional[str]
-        Specify which booster to use: `gbtree`, `gblinear` or `dart`.
-    tree_method: Optional[str]
+        For custom objective, see :doc:`/tutorials/custom_metric_obj` and
+        :ref:`custom-obj-metric` for more information, along with the end note for
+        function signatures.
+
+    booster: {Optional[str]}
+
+        Specify which booster to use: ``gbtree``, ``gblinear`` or ``dart``.
+
+    tree_method : {Optional[str]}
+
         Specify which tree method to use.  Default to auto.  If this parameter is set to
         default, XGBoost will choose the most conservative option available.  It's
         recommended to study this option from the parameters document :doc:`tree method
         </treemethod>`
-    n_jobs : Optional[int]
+
+    n_jobs : {Optional[int]}
+
         Number of parallel threads used to run xgboost.  When used with other
         Scikit-Learn algorithms like grid search, you may choose which algorithm to
         parallelize and balance the threads.  Creating thread contention will
         significantly slow down both algorithms.
-    gamma : Optional[float]
-        (min_split_loss) Minimum loss reduction required to make a further partition on a
-        leaf node of the tree.
-    min_child_weight : Optional[float]
+
+    gamma : {Optional[float]}
+
+        (min_split_loss) Minimum loss reduction required to make a further partition on
+        a leaf node of the tree.
+
+    min_child_weight : {Optional[float]}
+
         Minimum sum of instance weight(hessian) needed in a child.
-    max_delta_step : Optional[float]
+
+    max_delta_step : {Optional[float]}
+
         Maximum delta step we allow each tree's weight estimation to be.
-    subsample : Optional[float]
+
+    subsample : {Optional[float]}
+
         Subsample ratio of the training instance.
-    sampling_method :
+
+    sampling_method : {Optional[str]}
+
         Sampling method. Used only by the GPU version of ``hist`` tree method.
-          - ``uniform``: select random training instances uniformly.
-          - ``gradient_based`` select random training instances with higher probability
+
+        - ``uniform``: Select random training instances uniformly.
+        - ``gradient_based``: Select random training instances with higher probability
             when the gradient and hessian are larger. (cf. CatBoost)
-    colsample_bytree : Optional[float]
+
+    colsample_bytree : {Optional[float]}
+
         Subsample ratio of columns when constructing each tree.
-    colsample_bylevel : Optional[float]
+
+    colsample_bylevel : {Optional[float]}
+
         Subsample ratio of columns for each level.
-    colsample_bynode : Optional[float]
+
+    colsample_bynode : {Optional[float]}
+
         Subsample ratio of columns for each split.
-    reg_alpha : Optional[float]
+
+    reg_alpha : {Optional[float]}
+
         L1 regularization term on weights (xgb's alpha).
-    reg_lambda : Optional[float]
+
+    reg_lambda : {Optional[float]}
+
         L2 regularization term on weights (xgb's lambda).
-    scale_pos_weight : Optional[float]
+
+    scale_pos_weight : {Optional[float]}
         Balancing of positive and negative weights.
-    base_score : Optional[float]
+
+    base_score : {Optional[float]}
+
         The initial prediction score of all instances, global bias.
-    random_state : Optional[Union[numpy.random.RandomState, numpy.random.Generator, int]]
+
+    random_state : {Optional[Union[np.random.RandomState, np.random.Generator, int]]}
+
         Random number seed.
 
         .. note::
@@ -273,34 +319,44 @@ __model_doc = f"""
            Using gblinear booster with shotgun updater is nondeterministic as
            it uses Hogwild algorithm.
 
-    missing : float, default np.nan
-        Value in the data which needs to be present as a missing value.
-    num_parallel_tree: Optional[int]
+    missing : float
+
+        Value in the data which needs to be present as a missing value. Default to
+        :py:data:`numpy.nan`.
+
+    num_parallel_tree: {Optional[int]}
+
         Used for boosting random forest.
-    monotone_constraints : Optional[Union[Dict[str, int], str]]
+
+    monotone_constraints : {Optional[Union[Dict[str, int], str]]}
+
         Constraint of variable monotonicity.  See :doc:`tutorial </tutorials/monotonic>`
         for more information.
-    interaction_constraints : Optional[Union[str, List[Tuple[str]]]]
+
+    interaction_constraints : {Optional[Union[str, List[Tuple[str]]]]}
+
         Constraints for interaction representing permitted interactions.  The
         constraints must be specified in the form of a nested list, e.g. ``[[0, 1], [2,
         3, 4]]``, where each inner list is a group of indices of features that are
         allowed to interact with each other.  See :doc:`tutorial
         </tutorials/feature_interaction_constraint>` for more information
-    importance_type: Optional[str]
+
+    importance_type: {Optional[str]}
+
         The feature importance type for the feature_importances\\_ property:
 
         * For tree model, it's either "gain", "weight", "cover", "total_gain" or
           "total_cover".
-        * For linear model, only "weight" is defined and it's the normalized coefficients
-          without bias.
+        * For linear model, only "weight" is defined and it's the normalized
+          coefficients without bias.
 
-    device : Optional[str]
+    device : {Optional[str]}
 
         .. versionadded:: 2.0.0
 
         Device ordinal, available options are `cpu`, `cuda`, and `gpu`.
 
-    validate_parameters : Optional[bool]
+    validate_parameters : {Optional[bool]}
 
         Give warnings for unknown parameter.
 
@@ -308,14 +364,14 @@ __model_doc = f"""
 
         See the same parameter of :py:class:`DMatrix` for details.
 
-    feature_types : Optional[FeatureTypes]
+    feature_types : {Optional[FeatureTypes]}
 
         .. versionadded:: 1.7.0
 
         Used for specifying feature types without constructing a dataframe. See
         :py:class:`DMatrix` for details.
 
-    max_cat_to_onehot : Optional[int]
+    max_cat_to_onehot : {Optional[int]}
 
         .. versionadded:: 1.6.0
 
@@ -328,7 +384,7 @@ __model_doc = f"""
         categorical feature support. See :doc:`Categorical Data
         </tutorials/categorical>` and :ref:`cat-param` for details.
 
-    max_cat_threshold : Optional[int]
+    max_cat_threshold : {Optional[int]}
 
         .. versionadded:: 1.7.0
 
@@ -339,7 +395,7 @@ __model_doc = f"""
         needs to be set to have categorical feature support. See :doc:`Categorical Data
         </tutorials/categorical>` and :ref:`cat-param` for details.
 
-    multi_strategy : Optional[str]
+    multi_strategy : {Optional[str]}
 
         .. versionadded:: 2.0.0
 
@@ -352,7 +408,7 @@ __model_doc = f"""
         - ``one_output_per_tree``: One model for each target.
         - ``multi_output_tree``:  Use multi-target trees.
 
-    eval_metric : Optional[Union[str, List[str], Callable]]
+    eval_metric : {Optional[Union[str, List[str], Callable]]}
 
         .. versionadded:: 1.6.0
 
@@ -385,7 +441,7 @@ __model_doc = f"""
             )
             reg.fit(X, y, eval_set=[(X, y)])
 
-    early_stopping_rounds : Optional[int]
+    early_stopping_rounds : {Optional[int]}
 
         .. versionadded:: 1.6.0
 
@@ -408,7 +464,8 @@ __model_doc = f"""
           early stopping.  If there's more than one metric in **eval_metric**, the last
           metric will be used for early stopping.
 
-    callbacks : Optional[List[TrainingCallback]]
+    callbacks : {Optional[List[TrainingCallback]]}
+
         List of callback functions that are applied at end of each iteration.
         It is possible to use predefined callbacks by using
         :ref:`Callback API <callback_api>`.
@@ -427,7 +484,8 @@ __model_doc = f"""
                 reg = xgboost.XGBRegressor(**params, callbacks=callbacks)
                 reg.fit(X, y)
 
-    kwargs : dict, optional
+    kwargs : {Optional[Any]}
+
         Keyword arguments for XGBoost Booster object.  Full documentation of parameters
         can be found :doc:`here </parameter>`.
         Attempting to set a parameter via the constructor args and \\*\\*kwargs
