@@ -861,7 +861,10 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         self.nthread = nthread if nthread is not None else -1
         self.silent = silent
 
-        self.handle: Optional[ctypes.c_void_p] = None
+        if isinstance(data, ctypes.c_void_p):
+            # Used for constructing DMatrix slice.
+            self.handle = data
+            return
 
         from .data import _is_iter, dispatch_data_backend
 
@@ -922,9 +925,9 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         self.handle = handle
 
     def __del__(self) -> None:
-        if hasattr(self, "handle") and self.handle:
+        if hasattr(self, "handle"):
             _check_call(_LIB.XGDMatrixFree(self.handle))
-            self.handle = None
+            del self.handle
 
     @_deprecate_positional_args
     def set_info(
@@ -1278,8 +1281,9 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         """
         from .data import _maybe_np_slice
 
-        res = DMatrix(None)
-        res.handle = ctypes.c_void_p()
+        handle = ctypes.c_void_p()
+        res = DMatrix(handle)
+
         rindex = _maybe_np_slice(rindex, dtype=np.int32)
         _check_call(
             _LIB.XGDMatrixSliceDMatrixEx(
