@@ -1456,3 +1456,16 @@ def test_intercept() -> None:
     result = reg.intercept_
     assert result.dtype == np.float32
     assert result[0] < 0.5
+
+
+def test_fit_none() -> None:
+    with pytest.raises(TypeError, match="NoneType"):
+        xgb.XGBClassifier().fit(None, [0, 1])
+
+    X = rng.normal(size=4).reshape(2, 2)
+
+    with pytest.raises(ValueError, match="Invalid classes"):
+        xgb.XGBClassifier().fit(X, None)
+
+    with pytest.raises(ValueError, match="labels"):
+        xgb.XGBRegressor().fit(X, None)

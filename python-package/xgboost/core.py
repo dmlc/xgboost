@@ -861,10 +861,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         self.nthread = nthread if nthread is not None else -1
         self.silent = silent
 
-        # force into void_p, mac need to pass things in as void_p
-        if data is None:
-            self.handle: Optional[ctypes.c_void_p] = None
-            return
+        self.handle: Optional[ctypes.c_void_p] = None
 
         from .data import _is_iter, dispatch_data_backend
 
