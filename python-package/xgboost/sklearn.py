@@ -5,12 +5,14 @@ import json
 import os
 import warnings
 from concurrent.futures import ThreadPoolExecutor
+from inspect import signature
 from typing import (
     Any,
     Callable,
     Dict,
     List,
     Optional,
+    Protocol,
     Sequence,
     Tuple,
     Type,
@@ -67,14 +69,20 @@ def _can_use_qdm(tree_method: Optional[str]) -> bool:
     return tree_method in ("hist", "gpu_hist", None, "auto")
 
 
-SklObjective = Optional[
-    Union[str, Callable[[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]]]
-]
+class _SklObjWProto(Protocol):
+    def __call__(
+        self,
+        y_true: ArrayLike,
+        y_pred: ArrayLike,
+        sample_weight: Optional[ArrayLike],
+    ) -> Tuple[ArrayLike, ArrayLike]: ...
 
 
-def _objective_decorator(
-    func: Callable[[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]]
-) -> Objective:
+_SklObjProto = Callable[[ArrayLike, ArrayLike], Tuple[np.ndarray, np.ndarray]]
+SklObjective = Optional[Union[str, _SklObjWProto, _SklObjProto]]
+
+
+def _objective_decorator(func: Union[_SklObjWProto, _SklObjProto]) -> Objective:
     """Decorate an objective function
 
     Converts an objective function using the typical sklearn metrics
@@ -89,6 +97,8 @@ def _objective_decorator(
             The target values
         y_pred: array_like of shape [n_samples]
             The predicted values
+        sample_weight :
+            Optional sample weight, None or a ndarray.
 
     Returns
     -------
@@ -103,10 +113,25 @@ def _objective_decorator(
             ``dmatrix.get_label()``
     """
 
+    parameters = signature(func).parameters
+    supports_sw = "sample_weight" in parameters
+
     def inner(preds: np.ndarray, dmatrix: DMatrix) -> Tuple[np.ndarray, np.ndarray]:
-        """internal function"""
+        """Internal function."""
+        sample_weight = dmatrix.get_weight()
         labels = dmatrix.get_label()
-        return func(labels, preds)
+
+        if sample_weight.size > 0 and not supports_sw:
+            raise ValueError(
+                "Custom objective doesn't have the `sample_weight` parameter while"
+                " sample_weight is used."
+            )
+        if sample_weight.size > 0:
+            fnw = cast(_SklObjWProto, func)
+            return fnw(labels, preds, sample_weight=sample_weight)
+
+        fn = cast(_SklObjProto, func)
+        return fn(labels, preds)
 
     return inner
 
@@ -419,13 +444,16 @@ __custom_obj_note = """
         .. note::  Custom objective function
 
             A custom objective function can be provided for the ``objective``
-            parameter. In this case, it should have the signature
-            ``objective(y_true, y_pred) -> grad, hess``:
+            parameter. In this case, it should have the signature ``objective(y_true,
+            y_pred) -> [grad, hess]`` or ``objective(y_true, y_pred, *, sample_weight)
+            -> [grad, hess]``:
 
             y_true: array_like of shape [n_samples]
                 The target values
             y_pred: array_like of shape [n_samples]
                 The predicted values
+            sample_weight :
+                Optional sample weights.
 
             grad: array_like of shape [n_samples]
                 The value of the gradient for each sample point.

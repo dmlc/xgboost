@@ -815,10 +815,15 @@ def softprob_obj(
     return objective
 
 
-def ls_obj(y_true: np.ndarray, y_pred: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+def ls_obj(
+    y_true: np.ndarray, y_pred: np.ndarray, sample_weight: Optional[np.ndarray] = None
+) -> Tuple[np.ndarray, np.ndarray]:
     """Least squared error."""
     grad = y_pred - y_true
     hess = np.ones(len(y_true))
+    if sample_weight is not None:
+        grad *= sample_weight
+        hess *= sample_weight
     return grad, hess
 
 
