@@ -639,6 +639,31 @@ TEST(Json, TypedArray) {
       ASSERT_EQ(arr[i + 8], i);
     }
   }
+
+  {
+    Json f64{Object{}};
+    auto array = F64Array();
+    auto& vec = array.GetArray();
+    vec.resize(18);
+    std::iota(vec.begin(), vec.end(), 0.0);
+    static_assert(
+        std::is_same_v<double, typename std::remove_reference_t<decltype(vec)>::value_type>);
+
+    f64["f64"] = std::move(array);
+    ASSERT_TRUE(IsA<F64Array>(f64["f64"]));
+    std::vector<char> out;
+    Json::Dump(f64, &out, std::ios::binary);
+
+    auto loaded = Json::Load(StringView{out.data(), out.size()}, std::ios::binary);
+    ASSERT_TRUE(IsA<F64Array>(loaded["f64"]));
+    auto const& result = get<F64Array const>(loaded["f64"]);
+
+    auto& vec1 = get<F64Array const>(f64["f64"]);
+    ASSERT_EQ(result.size(), vec1.size());
+    for (std::size_t i = 0; i < vec1.size(); ++i) {
+      ASSERT_EQ(result[i], vec1[i]);
+    }
+  }
 }
 
 TEST(UBJson, Basic) {
@@ -693,6 +718,7 @@ TEST(UBJson, Basic) {
     ASSERT_EQ(boolean, loaded);
   }
 }
+
 
 TEST(Json, TypeCheck) {
   Json config{Object{}};
