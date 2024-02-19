@@ -118,7 +118,8 @@ TEST(Predictor, PredictionCache) {
 }
 
 void TestTrainingPrediction(Context const *ctx, size_t rows, size_t bins,
-                            std::shared_ptr<DMatrix> p_full, std::shared_ptr<DMatrix> p_hist) {
+                            std::shared_ptr<DMatrix> p_full, std::shared_ptr<DMatrix> p_hist,
+                            bool check_contribs) {
   size_t constexpr kCols = 16;
   size_t constexpr kClasses = 3;
   size_t constexpr kIters = 3;
@@ -160,6 +161,28 @@ void TestTrainingPrediction(Context const *ctx, size_t rows, size_t bins,
 
   for (size_t i = 0; i < rows; ++i) {
     EXPECT_NEAR(from_hist.ConstHostVector()[i], from_full.ConstHostVector()[i], kRtEps);
+  }
+
+  if (check_contribs) {
+    // Contributions
+    HostDeviceVector<float> from_full_contribs;
+    learner->Predict(p_full, false, &from_full_contribs, 0, 0, false, false, true);
+    HostDeviceVector<float> from_hist_contribs;
+    learner->Predict(p_hist, false, &from_hist_contribs, 0, 0, false, false, true);
+    for (size_t i = 0; i < from_full_contribs.ConstHostVector().size(); ++i) {
+      EXPECT_NEAR(from_hist_contribs.ConstHostVector()[i],
+                  from_full_contribs.ConstHostVector()[i], kRtEps);
+    }
+
+    // Contributions (approximate method)
+    HostDeviceVector<float> from_full_approx_contribs;
+    learner->Predict(p_full, false, &from_full_approx_contribs, 0, 0, false, false, false, true);
+    HostDeviceVector<float> from_hist_approx_contribs;
+    learner->Predict(p_hist, false, &from_hist_approx_contribs, 0, 0, false, false, false, true);
+    for (size_t i = 0; i < from_full_approx_contribs.ConstHostVector().size(); ++i) {
+      EXPECT_NEAR(from_hist_approx_contribs.ConstHostVector()[i],
+                  from_full_approx_contribs.ConstHostVector()[i], kRtEps);
+    }
   }
 }
 
