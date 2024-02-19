@@ -677,6 +677,21 @@ TEST(UBJson, Basic) {
     ASSERT_FLOAT_EQ(3.14, get<Number>(get<Array>(ret["test"])[1]));
     ASSERT_FLOAT_EQ(2.71, get<Number>(get<Array>(ret["test"])[0]));
   }
+  {
+    // boolean
+    Json boolean{Object{}};
+    boolean["foo"] = Boolean{false};
+    std::vector<char> out;
+    Json::Dump(boolean, &out, std::ios::binary);
+    auto loaded = Json::Load(StringView{out.data(), out.size()}, std::ios::binary);
+
+    ASSERT_EQ(boolean, loaded);
+
+    boolean["foo"] = Boolean{true};
+    Json::Dump(boolean, &out, std::ios::binary);
+    loaded = Json::Load(StringView{out.data(), out.size()}, std::ios::binary);
+    ASSERT_EQ(boolean, loaded);
+  }
 }
 
 TEST(Json, TypeCheck) {
