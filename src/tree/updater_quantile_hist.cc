@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2023, XGBoost Contributors
+ * Copyright 2017-2024, XGBoost Contributors
  * \file updater_quantile_hist.cc
  * \brief use quantized feature values to construct a tree
  * \author Philip Cho, Tianqi Checn, Egor Smirnov
@@ -149,9 +149,6 @@ class MultiTargetHistBuilder {
   }
 
   void InitData(DMatrix *p_fmat, RegTree const *p_tree) {
-    if (collective::IsDistributed()) {
-      LOG(FATAL) << "Distributed training for vector-leaf is not yet supported.";
-    }
     monitor_->Start(__func__);
 
     p_last_fmat_ = p_fmat;
