@@ -3,7 +3,7 @@ list(REMOVE_ITEM CPU_SOURCES ${xgboost_SOURCE_DIR}/src/cli_main.cc)
 
 #-- Object library
 # Object library is necessary for jvm-package, which creates its own shared library.
-add_library(objxgboost OBJECT)
+add_library(objxgboost OBJECT encryption/cipher.h encryption/cipher_loader.cc)
 target_sources(objxgboost PRIVATE ${CPU_SOURCES})
 # Skip files with factory object
 set_source_files_properties(
