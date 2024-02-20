@@ -644,8 +644,16 @@ TEST(Json, TypedArray) {
     Json f64{Object{}};
     auto array = F64Array();
     auto& vec = array.GetArray();
+    // Construct test data
     vec.resize(18);
     std::iota(vec.begin(), vec.end(), 0.0);
+    // special values
+    vec.push_back(std::numeric_limits<double>::epsilon());
+    vec.push_back(std::numeric_limits<double>::max());
+    vec.push_back(std::numeric_limits<double>::min());
+    vec.push_back(std::numeric_limits<double>::denorm_min());
+    vec.push_back(std::numeric_limits<double>::quiet_NaN());
+
     static_assert(
         std::is_same_v<double, typename std::remove_reference_t<decltype(vec)>::value_type>);
 
@@ -660,9 +668,10 @@ TEST(Json, TypedArray) {
 
     auto& vec1 = get<F64Array const>(f64["f64"]);
     ASSERT_EQ(result.size(), vec1.size());
-    for (std::size_t i = 0; i < vec1.size(); ++i) {
+    for (std::size_t i = 0; i < vec1.size() - 1; ++i) {
       ASSERT_EQ(result[i], vec1[i]);
     }
+    ASSERT_TRUE(std::isnan(result.back()));
   }
 }
 
