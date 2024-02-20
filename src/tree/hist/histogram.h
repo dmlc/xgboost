@@ -177,6 +177,7 @@ class HistogramBuilder {
                      std::vector<bst_node_t> const &nodes_to_build,
                      std::vector<bst_node_t> const &nodes_to_trick) {
     auto n_total_bins = buffer_.TotalBins();
+
     common::BlockedSpace2d space(
         nodes_to_build.size(), [&](std::size_t) { return n_total_bins; }, 1024);
     common::ParallelFor2d(space, this->n_threads_, [&](size_t node, common::Range1d r) {
@@ -194,9 +195,9 @@ class HistogramBuilder {
 
     if (is_distributed_ && is_col_split_ && is_secure_) {
       // Under secure vertical mode, we perform allgather for all nodes
+      CHECK(!nodes_to_build.empty());
       // in theory the operation is AllGather, but with current system functionality,
       // we use AllReduce to simulate the AllGather operation
-      CHECK(!nodes_to_build.empty());
       auto first_nidx = nodes_to_build.front();
       std::size_t n = n_total_bins * nodes_to_build.size() * 2;
       collective::Allreduce<collective::Operation::kSum>(
