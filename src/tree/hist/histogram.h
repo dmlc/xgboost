@@ -199,177 +199,55 @@ class HistogramBuilder {
       CHECK(!nodes_to_build.empty());
       std::size_t n = n_total_bins * nodes_to_build.size() * 2;
 
-
-      /*
-        if (collective::GetRank() == 0) {
-            //print the entries to file for debug
-            std::ofstream file_hist;
-            file_hist.open("hist_before_allgather_0.txt", std::ios_base::app);
-            file_hist << "********************************" << std::endl;
-            file_hist << "nodes to build: " << nodes_to_build.size() << std::endl;
-            //iterate through the nodes to build
-            for (auto i = 0; i < nodes_to_build.size(); i++) {
-                auto hist = this->hist_[nodes_to_build[i]];
-                auto hist_size = hist.size();
-                file_hist << "node " << i << " hist_size: " << hist_size << std::endl;
-                // get item with iterator
-                size_t j = 0;
-                for (auto it = hist.begin(); it != hist.end(); it++) {
-                    if ((j < 10) || ((j>2000)&&(j<2010))) {
-                        file_hist << "hist_item " << j << ": " << *it << std::endl;
-                    }
-                    j++;
-                }
-            }
-            file_hist.close();
-        }
-
-        if (collective::GetRank() == 1) {
-            //print the entries to file for debug
-            std::ofstream file_hist;
-            file_hist.open("hist_before_allgather_1.txt", std::ios_base::app);
-            file_hist << "********************************" << std::endl;
-            file_hist << "nodes to build: " << nodes_to_build.size() << std::endl;
-            //iterate through the nodes to build
-            for (auto i = 0; i < nodes_to_build.size(); i++) {
-                auto hist = this->hist_[nodes_to_build[i]];
-                auto hist_size = hist.size();
-                file_hist << "node " << i << " hist_size: " << hist_size << std::endl;
-                // get item with iterator
-                size_t j = 0;
-                for (auto it = hist.begin(); it != hist.end(); it++) {
-                    if ((j < 10) || ((j>2000)&&(j<2010))) {
-                        file_hist << "hist_item " << j << ": " << *it << std::endl;
-                    }
-                    j++;
-                }
-            }
-            file_hist.close();
-        }
-*/
+      // Option 1: in theory the operation is AllGather, but with current system functionality,
+      // we use AllReduce to simulate the AllGather operation
+      //auto first_nidx = nodes_to_build.front();
+      //collective::Allreduce<collective::Operation::kSum>(
+      //        reinterpret_cast<double *>(this->hist_[first_nidx].data()), n);
 
 
 
+      // Option 2: use AllGather instead of AllReduce
+      // Collect the histogram entries from all nodes
+      // allocate memory for the received entries as a flat vector
+      std::vector<double> hist_flat;
+      hist_flat.resize(n);
+      // iterate through the nodes_to_build
+      std::cout << "nodes_to_build.size() = " << nodes_to_build.size() << std::endl;
+      // front pointer
+      auto it = reinterpret_cast<double *>(this->hist_[nodes_to_build.front()].data());
+      auto hist_size = this->hist_[nodes_to_build.front()].size();
+      std::cout<< "n=" << n << std::endl;
+      std::cout << "hist_size = " << hist_size << std::endl;
+      for (size_t i = 0; i < n; i++) {
+        // get item with iterator
+        auto item = *it;
+        hist_flat[i] = item;
+        it++;
+      }
+      std::cout << "hist_flat.size() = " << hist_flat.size() << std::endl;
 
+      // Perform AllGather
+      auto hist_entries = collective::Allgather(hist_flat);
 
-
-
-
-
-
-        // Collect the histogram entries from all nodes
-        // allocate memory for the received entries as a flat vector
-        std::vector<double> hist_flat;
-        hist_flat.resize(n);
-        // iterate through the nodes to build
-        for (auto i = 0; i < nodes_to_build.size(); i++) {
-          auto hist = this->hist_[nodes_to_build[i]];
-          auto hist_size = hist.size();
-          // get item with iterator
-          size_t j = 0;
-          for (auto it = hist.begin(); it != hist.end(); it++) {
-            auto item = *it;
-            hist_flat[i * hist_size + j] = item.GetGrad();
-            hist_flat[i * hist_size + j + 1] = item.GetHess();
-            j = j + 2;
+      // Update histogram for data owner
+      if (collective::GetRank() == 0) {
+        // skip rank 0, as local hist already contains its own entries
+        std::cout << "hist_entries.size() = " << hist_entries.size() << std::endl;
+        // reposition iterator to the beginning of the vector
+        it = reinterpret_cast<double *>(this->hist_[nodes_to_build.front()].data());
+        for (auto rank_idx = 1; rank_idx < hist_entries.size()/n; rank_idx++) {
+          // iterate through the flat vector
+          for (size_t i = 0; i < n; i++) {
+            auto flat_idx = rank_idx * n + i;
+            // DECRYPT the received entries HERE!!!!!!!!!
+            auto hist_item = hist_entries[flat_idx];
+            // update the global histogram with the received entries
+            *it += hist_item;
+            it++;
           }
         }
-        // Perform AllGather
-        auto hist_entries = collective::AllgatherV(hist_flat);
-        // Update histogram for data owner
-        if (collective::GetRank() == 0) {
-          // skip rank 0, as local hist already contains its own entries
-          for (auto rank_idx = 1; rank_idx < hist_entries.size()/n; rank_idx++) {
-            // iterate through the nodes to build
-            for (auto node_idx = 0; node_idx < nodes_to_build.size(); node_idx++) {
-              // get the histogram of the node
-              auto hist = this->hist_[nodes_to_build[node_idx]];
-              // get item with iterator
-              size_t hist_item_idx = 0;
-              for (auto it = hist.begin(); it != hist.end(); it++) {
-                auto flat_idx = (rank_idx + node_idx) * n + hist_item_idx*2;
-                // DECRYPT the received entries HERE!!!!!!!!!
-                auto hist_item_grad = hist_entries[flat_idx];
-                auto hist_item_hess = hist_entries[flat_idx + 1];
-                // compose a gradient pair
-                auto hist_item_temp = GradientPairPrecise(hist_item_grad, hist_item_hess);
-                // update the global histogram with the received entries
-                *it += hist_item_temp;
-                hist_item_idx += 1;
-              }
-            }
-          }
-        }
-
-
-
-
-
-
-
-/*
-        if (collective::GetRank() == 0) {
-            //print the entries to file for debug
-            std::ofstream file_hist;
-            file_hist.open("hist_after_allgather_0.txt", std::ios_base::app);
-            file_hist << "********************************" << std::endl;
-            file_hist << "nodes to build: " << nodes_to_build.size() << std::endl;
-            //iterate through the nodes to build
-            for (auto i = 0; i < nodes_to_build.size(); i++) {
-                auto hist = this->hist_[nodes_to_build[i]];
-                auto hist_size = hist.size();
-                file_hist << "node " << i << " hist_size: " << hist_size << std::endl;
-                // get item with iterator
-                size_t j = 0;
-                for (auto it = hist.begin(); it != hist.end(); it++) {
-                    if ((j < 10) || ((j>2000)&&(j<2010))) {
-                        file_hist << "hist_item " << j << ": " << *it << std::endl;
-                    }
-                    j++;
-                }
-            }
-            file_hist.close();
-        }
-
-        if (collective::GetRank() == 1) {
-            //print the entries to file for debug
-            std::ofstream file_hist;
-            file_hist.open("hist_after_allgather_1.txt", std::ios_base::app);
-            file_hist << "********************************" << std::endl;
-            file_hist << "nodes to build: " << nodes_to_build.size() << std::endl;
-            //iterate through the nodes to build
-            for (auto i = 0; i < nodes_to_build.size(); i++) {
-                auto hist = this->hist_[nodes_to_build[i]];
-                auto hist_size = hist.size();
-                file_hist << "node " << i << " hist_size: " << hist_size << std::endl;
-                // get item with iterator
-                size_t j = 0;
-                for (auto it = hist.begin(); it != hist.end(); it++) {
-                    if ((j < 10) || ((j>2000)&&(j<2010))) {
-                        file_hist << "hist_item " << j << ": " << *it << std::endl;
-                    }
-                    j++;
-                }
-            }
-            file_hist.close();
-        }
-*/
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+      }
 
 
 

@@ -1472,12 +1472,11 @@ class LearnerImpl : public LearnerIO {
   void GetGradient(HostDeviceVector<bst_float> const& preds, MetaInfo const& info,
                    std::int32_t iter, linalg::Matrix<GradientPair>* out_gpair) {
     out_gpair->Reshape(info.num_row_, this->learner_model_param_.OutputLength());
-
     // calculate gradient and communicate with or without encryption
     if (info.IsSecure()) {
       collective::ApplyWithLabelsEncrypted(info, out_gpair->Data(),
                                   [&] { obj_->GetGradient(preds, info, iter, out_gpair); });
-    } else {
+      } else {
       collective::ApplyWithLabels(info, out_gpair->Data(),
                                   [&] { obj_->GetGradient(preds, info, iter, out_gpair); });
     }
