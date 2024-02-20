@@ -55,6 +55,8 @@ print(paste("test-error=", err))
 # save model to binary local file
 xgb.save(bst, "xgboost.model")
 # load binary model to R
+# Function doesn't take 'nthreads', but can be set like this:
+RhpcBLASctl::omp_set_num_threads(1)
 bst2 <- xgb.load("xgboost.model")
 pred2 <- predict(bst2, test$data)
 # pred2 should be identical to pred

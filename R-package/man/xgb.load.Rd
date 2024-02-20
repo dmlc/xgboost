@@ -25,6 +25,7 @@ Note: a model saved as an R-object, has to be loaded using corresponding R-metho
 not \code{xgb.load}.
 }
 \examples{
+\dontshow{RhpcBLASctl::omp_set_num_threads(1)}
 data(agaricus.train, package='xgboost')
 data(agaricus.test, package='xgboost')
 
