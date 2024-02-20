@@ -89,7 +89,8 @@ void TestBasic(DMatrix* dmat, Context const * ctx);
 
 // p_full and p_hist should come from the same data set.
 void TestTrainingPrediction(Context const* ctx, size_t rows, size_t bins,
-                            std::shared_ptr<DMatrix> p_full, std::shared_ptr<DMatrix> p_hist);
+                            std::shared_ptr<DMatrix> p_full, std::shared_ptr<DMatrix> p_hist,
+                            bool check_contribs = false);
 
 void TestInplacePrediction(Context const* ctx, std::shared_ptr<DMatrix> x, bst_row_t rows,
                            bst_feature_t cols);

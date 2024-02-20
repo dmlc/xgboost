@@ -17,6 +17,7 @@
   training = FALSE,
   iterationrange = NULL,
   strict_shape = FALSE,
+  validate_features = FALSE,
   ...
 )
 }
@@ -65,6 +66,23 @@ base-1 indexing, and inclusive of both ends).
 
 \item{strict_shape}{Default is \code{FALSE}. When set to \code{TRUE}, the output
 type and shape of predictions are invariant to the model type.}
+
+\item{validate_features}{When \code{TRUE}, validate that the Booster's and newdata's feature_names
+match (only applicable when both \code{object} and \code{newdata} have feature names).
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{   If the column names differ and `newdata` is not an `xgb.DMatrix`, will try to reorder
+   the columns in `newdata` to match with the booster's.
+
+   If the booster has feature types and `newdata` is either an `xgb.DMatrix` or `data.frame`,
+   will additionally verify that categorical columns are of the correct type in `newdata`,
+   throwing an error if they do not match.
+
+   If passing `FALSE`, it is assumed that the feature names and types are the same,
+   and come in the same order as in the training data.
+
+   Note that this check might add some sizable latency to the predictions, so it's
+   recommended to disable it for performance-sensitive applications.
+}\if{html}{\out{</div>}}}
 
 \item{...}{Not used.}
 }

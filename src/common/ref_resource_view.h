@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright 2023-2024, XGBoost Contributors
  */
 #ifndef XGBOOST_COMMON_REF_RESOURCE_VIEW_H_
 #define XGBOOST_COMMON_REF_RESOURCE_VIEW_H_
@@ -76,7 +76,7 @@ class RefResourceView {
 
   [[nodiscard]] size_type size() const { return size_; }  // NOLINT
   [[nodiscard]] size_type size_bytes() const {            // NOLINT
-    return Span<const value_type>{data(), size()}.size_bytes();
+    return Span<const value_type>{data(), static_cast<size_t>(size())}.size_bytes();
   }
   [[nodiscard]] value_type* data() { return ptr_; };              // NOLINT
   [[nodiscard]] value_type const* data() const { return ptr_; };  // NOLINT

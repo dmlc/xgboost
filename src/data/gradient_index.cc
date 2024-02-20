@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2023, XGBoost Contributors
+ * Copyright 2017-2024, XGBoost Contributors
  * \brief Data type for fast histogram aggregation.
  */
 #include "gradient_index.h"
@@ -148,7 +148,8 @@ void GHistIndexMatrix::ResizeIndex(const size_t n_index, const bool isDense) {
       new_vec = {new_ptr, n_bytes / sizeof(std::uint8_t), malloc_resource};
     }
     this->data = std::move(new_vec);
-    this->index = common::Index{common::Span{data.data(), data.size()}, t_size};
+    this->index = common::Index{common::Span{data.data(), static_cast<size_t>(data.size())},
+        t_size};
   };
 
   if ((MaxNumBinPerFeat() - 1 <= static_cast<int>(std::numeric_limits<uint8_t>::max())) &&

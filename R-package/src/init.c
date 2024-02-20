@@ -46,7 +46,7 @@ extern SEXP XGSetArrayDimInplace_R(SEXP, SEXP);
 extern SEXP XGSetArrayDimNamesInplace_R(SEXP, SEXP);
 extern SEXP XGDMatrixCreateFromCSC_R(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
 extern SEXP XGDMatrixCreateFromCSR_R(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
-extern SEXP XGDMatrixCreateFromFile_R(SEXP, SEXP);
+extern SEXP XGDMatrixCreateFromURI_R(SEXP, SEXP, SEXP);
 extern SEXP XGDMatrixCreateFromMat_R(SEXP, SEXP, SEXP);
 extern SEXP XGDMatrixGetFloatInfo_R(SEXP, SEXP);
 extern SEXP XGDMatrixGetUIntInfo_R(SEXP, SEXP);
@@ -105,7 +105,7 @@ static const R_CallMethodDef CallEntries[] = {
   {"XGSetArrayDimNamesInplace_R", (DL_FUNC) &XGSetArrayDimNamesInplace_R, 2},
   {"XGDMatrixCreateFromCSC_R",    (DL_FUNC) &XGDMatrixCreateFromCSC_R,    6},
   {"XGDMatrixCreateFromCSR_R",    (DL_FUNC) &XGDMatrixCreateFromCSR_R,    6},
-  {"XGDMatrixCreateFromFile_R",   (DL_FUNC) &XGDMatrixCreateFromFile_R,   2},
+  {"XGDMatrixCreateFromURI_R",    (DL_FUNC) &XGDMatrixCreateFromURI_R,    3},
   {"XGDMatrixCreateFromMat_R",    (DL_FUNC) &XGDMatrixCreateFromMat_R,    3},
   {"XGDMatrixGetFloatInfo_R",     (DL_FUNC) &XGDMatrixGetFloatInfo_R,     2},
   {"XGDMatrixGetUIntInfo_R",      (DL_FUNC) &XGDMatrixGetUIntInfo_R,      2},

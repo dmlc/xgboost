@@ -166,7 +166,7 @@ test_that("xgb.DMatrix: getinfo & setinfo", {
 test_that("xgb.DMatrix: slice, dim", {
   dtest <- xgb.DMatrix(test_data, label = test_label, nthread = n_threads)
   expect_equal(dim(dtest), dim(test_data))
-  dsub1 <- slice(dtest, 1:42)
+  dsub1 <- xgb.slice.DMatrix(dtest, 1:42)
   expect_equal(nrow(dsub1), 42)
   expect_equal(ncol(dsub1), ncol(test_data))
 
@@ -182,12 +182,12 @@ test_that("xgb.DMatrix: slice, trailing empty rows", {
   dtrain <- xgb.DMatrix(
     data = train_data, label = train_label, nthread = n_threads
   )
-  slice(dtrain, 6513L)
+  xgb.slice.DMatrix(dtrain, 6513L)
   train_data[6513, ] <- 0
   dtrain <- xgb.DMatrix(
     data = train_data, label = train_label, nthread = n_threads
   )
-  slice(dtrain, 6513L)
+  xgb.slice.DMatrix(dtrain, 6513L)
   expect_equal(nrow(dtrain), 6513)
 })
 
@@ -338,19 +338,18 @@ test_that("xgb.DMatrix: data.frame", {
     stringsAsFactors = TRUE
   )
 
-  m <- xgb.DMatrix(df, enable_categorical = TRUE)
+  m <- xgb.DMatrix(df)
   expect_equal(colnames(m), colnames(df))
   expect_equal(
     getinfo(m, "feature_type"), c("float", "float", "int", "i", "c", "c")
   )
-  expect_error(xgb.DMatrix(df, enable_categorical = FALSE))
 
   df <- data.frame(
     missing = c("a", "b", "d", NA),
     valid = c("a", "b", "d", "c"),
     stringsAsFactors = TRUE
   )
-  m <- xgb.DMatrix(df, enable_categorical = TRUE)
+  m <- xgb.DMatrix(df)
   expect_equal(getinfo(m, "feature_type"), c("c", "c"))
 })
 
@@ -473,7 +472,7 @@ test_that("xgb.DMatrix: ExternalDMatrix produces the same results as regular DMa
       y = mtcars[, 1]
     )
   )
-  iterator_next <- function(iterator_env, proxy_handle) {
+  iterator_next <- function(iterator_env) {
     curr_iter <- iterator_env[["iter"]]
     if (curr_iter >= 2) {
       return(NULL)
@@ -488,7 +487,7 @@ test_that("xgb.DMatrix: ExternalDMatrix produces the same results as regular DMa
     on.exit({
       iterator_env[["iter"]] <- curr_iter + 1
     })
-    return(xgb.ProxyDMatrix(data = x_batch, label = y_batch))
+    return(xgb.DataBatch(data = x_batch, label = y_batch))
   }
   iterator_reset <- function(iterator_env) {
     iterator_env[["iter"]] <- 0
@@ -547,7 +546,7 @@ test_that("xgb.DMatrix: External QDM produces same results as regular QDM", {
       y = mtcars[, 1]
     )
   )
-  iterator_next <- function(iterator_env, proxy_handle) {
+  iterator_next <- function(iterator_env) {
     curr_iter <- iterator_env[["iter"]]
     if (curr_iter >= 2) {
       return(NULL)
@@ -562,7 +561,7 @@ test_that("xgb.DMatrix: External QDM produces same results as regular QDM", {
     on.exit({
       iterator_env[["iter"]] <- curr_iter + 1
     })
-    return(xgb.ProxyDMatrix(data = x_batch, label = y_batch))
+    return(xgb.DataBatch(data = x_batch, label = y_batch))
   }
   iterator_reset <- function(iterator_env) {
     iterator_env[["iter"]] <- 0
@@ -605,7 +604,7 @@ test_that("xgb.DMatrix: R errors thrown on DataIterator are thrown back to the u
       y = mtcars[, 1]
     )
   )
-  iterator_next <- function(iterator_env, proxy_handle) {
+  iterator_next <- function(iterator_env) {
     curr_iter <- iterator_env[["iter"]]
     if (curr_iter >= 2) {
       return(0)
@@ -619,7 +618,7 @@ test_that("xgb.DMatrix: R errors thrown on DataIterator are thrown back to the u
     on.exit({
       iterator_env[["iter"]] <- curr_iter + 1
     })
-    return(xgb.ProxyDMatrix(data = x_batch, label = y_batch))
+    return(xgb.DataBatch(data = x_batch, label = y_batch))
   }
   iterator_reset <- function(iterator_env) {
     iterator_env[["iter"]] <- 0
@@ -691,5 +690,22 @@ test_that("xgb.DMatrix: quantile cuts look correct", {
       expect_true(col_max[col] < cuts[length(cuts)])
       expect_true(length(cuts) <= 9)
     }
+  )
+})
+
+test_that("xgb.DMatrix: can read CSV", {
+  txt <- paste(
+    "1,2,3",
+    "-1,3,2",
+    sep = "\n"
+  )
+  fname <- file.path(tempdir(), "data.csv")
+  writeChar(txt, fname)
+  uri <- paste0(fname, "?format=csv&label_column=0")
+  dm <- xgb.DMatrix(uri, silent = TRUE)
+  expect_equal(getinfo(dm, "label"), c(1, -1))
+  expect_equal(
+    as.matrix(xgb.get.DMatrix.data(dm)),
+    matrix(c(2, 3, 3, 2), nrow = 2, byrow = TRUE)
   )
 })

@@ -56,7 +56,8 @@ Suggests:
     testthat,
     igraph (>= 1.0.1),
     float,
-    titanic
+    titanic,
+    RhpcBLASctl
 Depends:
     R (>= 4.3.0)
 Imports:

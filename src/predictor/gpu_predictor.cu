@@ -1042,6 +1042,9 @@ class GPUPredictor : public xgboost::Predictor {
     if (tree_weights != nullptr) {
       LOG(FATAL) << "Dart booster feature " << not_implemented;
     }
+    if (!p_fmat->PageExists<SparsePage>()) {
+      LOG(FATAL) << "SHAP value for QuantileDMatrix is not yet implemented for GPU.";
+    }
     CHECK(!p_fmat->Info().IsColumnSplit())
         << "Predict contribution support for column-wise data split is not yet implemented.";
     dh::safe_cuda(cudaSetDevice(ctx_->Ordinal()));
@@ -1101,6 +1104,9 @@ class GPUPredictor : public xgboost::Predictor {
     }
     if (tree_weights != nullptr) {
       LOG(FATAL) << "Dart booster feature " << not_implemented;
+    }
+    if (!p_fmat->PageExists<SparsePage>()) {
+      LOG(FATAL) << "SHAP value for QuantileDMatrix is not yet implemented for GPU.";
     }
     dh::safe_cuda(cudaSetDevice(ctx_->Ordinal()));
     out_contribs->SetDevice(ctx_->Device());

@@ -63,7 +63,7 @@ The input data is stored in a :py:class:`DMatrix <xgboost.DMatrix>` object. For 
 
   .. code-block:: python
 
-    dtrain = xgb.DMatrix('train.svm.txt')
+    dtrain = xgb.DMatrix('train.svm.txt?format=libsvm')
     dtrain.save_binary('train.buffer')
 
 * Missing values can be replaced by a default value in the :py:class:`DMatrix <xgboost.DMatrix>` constructor:
@@ -86,7 +86,7 @@ to number of groups.
 
   .. code-block:: python
 
-    dtrain = xgb.DMatrix('train.svm.txt')
+    dtrain = xgb.DMatrix('train.svm.txt?format=libsvm')
     dtest = xgb.DMatrix('test.svm.buffer')
 
   The parser in XGBoost has limited functionality. When using Python interface, it's
@@ -176,7 +176,6 @@ Support Matrix
 +-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
 | pyarrow.Table           | NPA       | NPA               | NPA       | NPA       | NPA                | NPA         |
 +-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
-+-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
 | _\_array\_\_            | NPA       | F                 | NPA       | NPA       | H                  |             |
 +-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
 | Others                  | SciCSR    | F                 |           | F         | F                  |             |
@@ -240,7 +239,7 @@ A saved model can be loaded as follows:
 .. code-block:: python
 
   bst = xgb.Booster({'nthread': 4})  # init model
-  bst.load_model('model.bin')  # load data
+  bst.load_model('model.bin')  # load model data
 
 Methods including `update` and `boost` from `xgboost.Booster` are designed for
 internal usage only.  The wrapper function `xgboost.train` does some

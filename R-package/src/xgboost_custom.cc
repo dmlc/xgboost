@@ -41,16 +41,6 @@ double LogGamma(double v) {
   return lgammafn(v);
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
-// customize random engine.
-void CustomGlobalRandomEngine::seed(CustomGlobalRandomEngine::result_type val) {
-  // ignore the seed
-}
 
-// use R's PRNG to replacd
-CustomGlobalRandomEngine::result_type
-CustomGlobalRandomEngine::operator()() {
-  return static_cast<result_type>(
-      std::floor(unif_rand() * CustomGlobalRandomEngine::max()));
-}
 }  // namespace common
 }  // namespace xgboost
