@@ -791,7 +791,7 @@ Json UBJReader::Parse() {
         return Json{JsonBoolean{true}};
       }
       case 'F': {
-        return Json{JsonBoolean{true}};
+        return Json{JsonBoolean{false}};
       }
       case 'd': {
         auto v = this->ReadPrimitive<float>();
