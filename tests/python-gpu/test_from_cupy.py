@@ -202,7 +202,10 @@ class TestFromCupy:
         n = 100
         X = cp.random.random((n, 2))
         m = xgb.QuantileDMatrix(X.toDlpack())
-        with pytest.raises(xgb.core.XGBoostError):
+
+        with pytest.raises(
+            xgb.core.XGBoostError, match="Slicing DMatrix is not supported"
+        ):
             m.slice(rindex=[0, 1, 2])
 
     @pytest.mark.skipif(**tm.no_cupy())

@@ -1053,10 +1053,10 @@ def _is_dlpack(data: DataType) -> bool:
 
 
 def _transform_dlpack(data: DataType) -> bool:
-    from cupy import fromDlpack  # pylint: disable=E0401
+    from cupy import from_dlpack  # pylint: disable=E0401
 
     assert "used_dltensor" not in str(data)
-    data = fromDlpack(data)
+    data = from_dlpack(data)
     return data
 
 

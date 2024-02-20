@@ -26,8 +26,13 @@
 
 namespace xgboost {
 namespace sycl {
-enum class MemoryType { shared, on_device};
+template <typename T>
+using AtomicRef = ::sycl::atomic_ref<T,
+                                    ::sycl::memory_order::relaxed,
+                                    ::sycl::memory_scope::device,
+                                    ::sycl::access::address_space::ext_intel_global_device_space>;
 
+enum class MemoryType { shared, on_device};
 
 template <typename T>
 class USMDeleter {

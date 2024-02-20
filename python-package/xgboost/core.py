@@ -861,9 +861,9 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         self.nthread = nthread if nthread is not None else -1
         self.silent = silent
 
-        # force into void_p, mac need to pass things in as void_p
-        if data is None:
-            self.handle: Optional[ctypes.c_void_p] = None
+        if isinstance(data, ctypes.c_void_p):
+            # Used for constructing DMatrix slice.
+            self.handle = data
             return
 
         from .data import _is_iter, dispatch_data_backend
@@ -925,9 +925,10 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         self.handle = handle
 
     def __del__(self) -> None:
-        if hasattr(self, "handle") and self.handle:
+        if hasattr(self, "handle"):
+            assert self.handle is not None
             _check_call(_LIB.XGDMatrixFree(self.handle))
-            self.handle = None
+            del self.handle
 
     @_deprecate_positional_args
     def set_info(
@@ -1281,19 +1282,19 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         """
         from .data import _maybe_np_slice
 
-        res = DMatrix(None)
-        res.handle = ctypes.c_void_p()
+        handle = ctypes.c_void_p()
+
         rindex = _maybe_np_slice(rindex, dtype=np.int32)
         _check_call(
             _LIB.XGDMatrixSliceDMatrixEx(
                 self.handle,
                 c_array(ctypes.c_int, rindex),
                 c_bst_ulong(len(rindex)),
-                ctypes.byref(res.handle),
+                ctypes.byref(handle),
                 ctypes.c_int(1 if allow_groups else 0),
             )
         )
-        return res
+        return DMatrix(handle)
 
     @property
     def feature_names(self) -> Optional[FeatureNames]:
