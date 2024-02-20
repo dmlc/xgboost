@@ -804,10 +804,11 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
 
             Otherwise, one can pass a list-like input with the same length as number
             of columns in `data`, with the following possible values:
-             - "c", which represents categorical columns.
-             - "q", which represents numeric columns.
-             - "int", which represents integer columns.
-             - "i", which represents boolean columns.
+
+            - "c", which represents categorical columns.
+            - "q", which represents numeric columns.
+            - "int", which represents integer columns.
+            - "i", which represents boolean columns.
 
             Note that, while categorical types are treated differently from
             the rest for model fitting purposes, the other types do not influence
