@@ -496,6 +496,9 @@ An interesting test to see how identical our saved model is to the original one 
 
 ```{r loadModel, message=F, warning=F}
 # load binary model to R
+# Note that the number of threads for 'xgb.load' is taken from global config,
+# can be modified like this:
+RhpcBLASctl::omp_set_num_threads(1)
 bst2 <- xgb.load(fname)
 xgb.parameters(bst2) <- list(nthread = 2)
 pred2 <- predict(bst2, test$data)
