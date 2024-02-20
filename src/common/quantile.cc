@@ -371,7 +371,6 @@ void AddCutPointSecure(typename SketchType::SummaryContainer const &summary, int
                      HistogramCuts *cuts) {
     // For secure vertical pipeline, we fill the cut values corresponding to empty columns
     // with a vector of minimum value
-    const float mval = 1e-5f;
     size_t required_cuts = std::min(summary.size, static_cast<size_t>(max_bin));
     // make a copy of required_cuts for mode selection
     size_t required_cuts_original = required_cuts;

@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2023 by Contributors
+ * Copyright 2017-2024 by Contributors
  */
 #include "xgboost/predictor.h"
 
@@ -46,7 +46,7 @@ void ValidateBaseMarginShape(linalg::Tensor<float, D> const& margin, bst_row_t n
 void Predictor::InitOutPredictions(const MetaInfo& info, HostDeviceVector<bst_float>* out_preds,
                                    const gbm::GBTreeModel& model) const {
   CHECK_NE(model.learner_model_param->num_output_group, 0);
-  std::size_t n{model.learner_model_param->OutputLength() * info.num_row_};
+  auto n = static_cast<size_t>(model.learner_model_param->OutputLength() * info.num_row_);
 
   const HostDeviceVector<bst_float>* base_margin = info.base_margin_.Data();
   if (ctx_->Device().IsCUDA()) {
