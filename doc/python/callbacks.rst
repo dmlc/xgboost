@@ -49,7 +49,7 @@ inside iteration loop.  You can also pass this callback function directly into X
         verbose_eval=False)
 
     dump = booster.get_dump(dump_format='json')
-    assert len(early_stop.stopping_history['Valid']['CustomErr']) == len(dump)
+    assert len(early_stop.stopping_history['Train']['CustomErr']) == len(dump)
 
 
 Defining your own callback
