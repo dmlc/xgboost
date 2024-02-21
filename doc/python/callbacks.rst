@@ -36,7 +36,7 @@ inside iteration loop.  You can also pass this callback function directly into X
     # Specify which dataset and which metric should be used for early stopping.
     early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
                                             metric_name='CustomErr',
-                                            data_name='Train')
+                                            data_name='Valid')
 
     booster = xgb.train(
         {'objective': 'binary:logistic',
@@ -49,7 +49,7 @@ inside iteration loop.  You can also pass this callback function directly into X
         verbose_eval=False)
 
     dump = booster.get_dump(dump_format='json')
-    assert len(early_stop.stopping_history['Train']['CustomErr']) == len(dump)
+    assert len(early_stop.stopping_history['Valid']['CustomErr']) == len(dump)
 
 
 Defining your own callback
