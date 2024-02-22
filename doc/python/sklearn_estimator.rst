@@ -62,7 +62,7 @@ stack of trees:
 .. code-block:: python
 
     early_stop = xgb.callback.EarlyStopping(
-        rounds=2, metric_name='logloss', data_name='Validation_0', save_best=True
+        rounds=2, metric_name='logloss', data_name='validation_0', save_best=True
     )
     clf = xgb.XGBClassifier(tree_method="hist", callbacks=[early_stop])
     clf.fit(X_train, y_train, eval_set=[(X_test, y_test)])
