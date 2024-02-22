@@ -19,10 +19,11 @@ jobs:
       with:
         submodules: 'true'
 
-    - uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
+    - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
       with:
-        python-version: '3.8'
-        architecture: 'x64'
+        cache-downloads: true
+        cache-env: true
+        environment-name: jvm_tests
 
     - name: Install Python packages
       run: |
