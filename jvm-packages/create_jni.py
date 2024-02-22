@@ -106,12 +106,6 @@ def native_build(args):
         if gpu_arch_flag is not None:
             args.append("%s" % gpu_arch_flag)
 
-        path = os.environ.get("PATH", None)
-        print("env path:", path)
-        cl = "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/MSVC/14.38.33130/bin/HostX64/x64/cl.exe"
-        clexists = os.path.exists(cl)
-        print(f"clexists: {clexists}")
-
         with cd(build_dir):
             lib_dir = os.path.join(os.pardir, "lib")
             if os.path.exists(lib_dir):
@@ -127,17 +121,7 @@ def native_build(args):
                 )
                 for generator in supported_generators:
                     try:
-                        run(
-                            "cmake .. "
-                            + " ".join(
-                                args
-                                + [
-                                    generator,
-                                    f'-DCMAKE_CXX_COMPILER="{cl}"',
-                                    f'-DCMAKE_C_COMPILER="{cl}"',
-                                ]
-                            )
-                        )
+                        run("cmake .. " + " ".join(args + [generator]))
                         break
                     except subprocess.CalledProcessError as e:
                         print(f"Failed to build with generator: {generator}", e)
