@@ -42,10 +42,12 @@ jobs:
         mkdir build
         cd build
         cmake .. -G"Visual Studio 17 2022" -A x64 -DJVM_BINDINGS=ON
+        cmake --build . --config Release
 
     - name: Test XGBoost4J (Core)
       run: |
         cd jvm-packages
+        export MAVEN_SKIP_NATIVE_BUILD=1
         mvn test -B -pl :xgboost4j_2.12
 
     - name: Extract branch name
