@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest]
+        os: [windows-latest, ubuntu-latest]
 
     steps:
     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
@@ -55,7 +55,6 @@ jobs:
       run: echo "branch_name=${GITHUB_REF#refs/heads/}" >> "$GITHUB_ENV"
       id: extract_branch
       if: |
-        (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
         (matrix.os == 'windows-latest' || matrix.os == 'macos-11')
 
     - name: Publish artifact xgboost4j.dll to S3
@@ -78,7 +77,6 @@ jobs:
         ls
         python -m awscli s3 cp libxgboost4j_${{ github.sha }}.dylib s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/libxgboost4j/ --acl public-read --region us-west-2
       if: |
-        (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
         matrix.os == 'macos-11'
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
