@@ -72,7 +72,7 @@ def build_libxgboost(
             subprocess.check_call([build_tool, f"-j{nproc}"], cwd=build_dir)
 
     path = os.environ.get("PATH", None)
-    logger.info("env path", path)
+    logger.info("env path: %s", str(path))
 
     if system() == "Windows":
         supported_generators = (

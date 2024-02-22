@@ -108,9 +108,8 @@ def native_build(args):
 
         path = os.environ.get("PATH", None)
         print("env path:", path)
-        clexists = os.path.exists(
-            "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/MSVC/14.38.33130/bin/HostX64/x64/cl.exe"
-        )
+        cl = "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/MSVC/14.38.33130/bin/HostX64/x64/cl.exe"
+        clexists = os.path.exists(cl)
         print(f"clexists: {clexists}")
 
         with cd(build_dir):
@@ -121,14 +120,24 @@ def native_build(args):
             # Same trick as Python build, just test all possible generators.
             if sys.platform == "win32":
                 supported_generators = (
-                    "",  # empty, decided by cmake
+                    # "",  # empty, decided by cmake
                     '-G"Visual Studio 17 2022"',
-                    '-G"Visual Studio 16 2019"',
-                    '-G"Visual Studio 15 2017"',
+                    # '-G"Visual Studio 16 2019"',
+                    # '-G"Visual Studio 15 2017"',
                 )
                 for generator in supported_generators:
                     try:
-                        run("cmake .. " + " ".join(args + [generator]))
+                        run(
+                            "cmake .. "
+                            + " ".join(
+                                args
+                                + [
+                                    generator,
+                                    f'-DCMAKE_CXX_COMPILER="{cl}"',
+                                    f'-DCMAKE_C_COMPILER="{cl}"',
+                                ]
+                            )
+                        )
                         break
                     except subprocess.CalledProcessError as e:
                         print(f"Failed to build with generator: {generator}", e)
