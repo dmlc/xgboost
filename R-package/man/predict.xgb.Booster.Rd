@@ -31,8 +31,9 @@ local data file, or \code{xgb.DMatrix}.
 \if{html}{\out{<div class="sourceCode">}}\preformatted{   For single-row predictions on sparse data, it's recommended to use CSR format. If passing
    a sparse vector, it will take it as a row vector.
 
-   Note that, for repeated predictions, one might want to create a DMatrix to pass here instead
-   of passing R types like matrices or data frames, as predictions will be faster on DMatrix.
+   Note that, for repeated predictions on the same data, one might want to create a DMatrix to
+   pass here instead of passing R types like matrices or data frames, as predictions will be
+   faster on DMatrix.
 
    If `newdata` is a `data.frame`, be aware that:\\itemize\{
    \\item Columns will be converted to numeric if they aren't already, which could potentially make
