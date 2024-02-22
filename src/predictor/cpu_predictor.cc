@@ -698,6 +698,67 @@ class CPUPredictor : public Predictor {
     }
   }
 
+  template <typename DataView>
+  void PredictContributionKernel(DataView batch, const MetaInfo& info,
+                                 const gbm::GBTreeModel& model,
+                                 const std::vector<bst_float>* tree_weights,
+                                 std::vector<std::vector<float>>* mean_values,
+                                 std::vector<RegTree::FVec>* feat_vecs,
+                                 std::vector<bst_float>* contribs, uint32_t ntree_limit,
+                                 bool approximate, int condition,
+                                 unsigned condition_feature) const {
+    const int num_feature = model.learner_model_param->num_feature;
+    const int ngroup = model.learner_model_param->num_output_group;
+    CHECK_NE(ngroup, 0);
+    size_t const ncolumns = num_feature + 1;
+    CHECK_NE(ncolumns, 0);
+    auto base_margin = info.base_margin_.View(ctx_->Device());
+    auto base_score = model.learner_model_param->BaseScore(ctx_->Device())(0);
+
+    // parallel over local batch
+    common::ParallelFor(batch.Size(), this->ctx_->Threads(), [&](auto i) {
+      auto row_idx = batch.base_rowid + i;
+      RegTree::FVec &feats = (*feat_vecs)[omp_get_thread_num()];
+      if (feats.Size() == 0) {
+        feats.Init(num_feature);
+      }
+      std::vector<bst_float> this_tree_contribs(ncolumns);
+      // loop over all classes
+      for (int gid = 0; gid < ngroup; ++gid) {
+        bst_float* p_contribs = &(*contribs)[(row_idx * ngroup + gid) * ncolumns];
+        feats.Fill(batch[i]);
+        // calculate contributions
+        for (unsigned j = 0; j < ntree_limit; ++j) {
+          auto *tree_mean_values = &mean_values->at(j);
+          std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0);
+          if (model.tree_info[j] != gid) {
+            continue;
+          }
+          if (!approximate) {
+            CalculateContributions(*model.trees[j], feats, tree_mean_values,
+                                   &this_tree_contribs[0], condition, condition_feature);
+          } else {
+            model.trees[j]->CalculateContributionsApprox(
+                feats, tree_mean_values, &this_tree_contribs[0]);
+          }
+          for (size_t ci = 0; ci < ncolumns; ++ci) {
+            p_contribs[ci] +=
+                this_tree_contribs[ci] *
+                (tree_weights == nullptr ? 1 : (*tree_weights)[j]);
+          }
+        }
+        feats.Drop();
+        // add base margin to BIAS
+        if (base_margin.Size() != 0) {
+          CHECK_EQ(base_margin.Shape(1), ngroup);
+          p_contribs[ncolumns - 1] += base_margin(row_idx, gid);
+        } else {
+          p_contribs[ncolumns - 1] += base_score;
+        }
+      }
+    });
+  }
+
  public:
   explicit CPUPredictor(Context const *ctx) : Predictor::Predictor{ctx} {}
 
@@ -861,7 +922,6 @@ class CPUPredictor : public Predictor {
     CHECK(!p_fmat->Info().IsColumnSplit())
         << "Predict contribution support for column-wise data split is not yet implemented.";
     auto const n_threads = this->ctx_->Threads();
-    const int num_feature = model.learner_model_param->num_feature;
     std::vector<RegTree::FVec> feat_vecs;
     InitThreadTemp(n_threads, &feat_vecs);
     const MetaInfo& info = p_fmat->Info();
@@ -869,10 +929,7 @@ class CPUPredictor : public Predictor {
     if (ntree_limit == 0 || ntree_limit > model.trees.size()) {
       ntree_limit = static_cast<unsigned>(model.trees.size());
     }
-    const int ngroup = model.learner_model_param->num_output_group;
-    CHECK_NE(ngroup, 0);
-    size_t const ncolumns = num_feature + 1;
-    CHECK_NE(ncolumns, 0);
+    size_t const ncolumns = model.learner_model_param->num_feature + 1;
     // allocate space for (number of features + bias) times the number of rows
     std::vector<bst_float>& contribs = out_contribs->HostVector();
     contribs.resize(info.num_row_ * ncolumns * model.learner_model_param->num_output_group);
@@ -884,53 +941,22 @@ class CPUPredictor : public Predictor {
     common::ParallelFor(ntree_limit, n_threads, [&](bst_omp_uint i) {
       FillNodeMeanValues(model.trees[i].get(), &(mean_values[i]));
     });
-    auto base_margin = info.base_margin_.View(ctx_->Device());
-    auto base_score = model.learner_model_param->BaseScore(ctx_->Device())(0);
     // start collecting the contributions
-    for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
-      auto page = batch.GetView();
-      // parallel over local batch
-      common::ParallelFor(batch.Size(), n_threads, [&](auto i) {
-        auto row_idx = batch.base_rowid + i;
-        RegTree::FVec &feats = feat_vecs[omp_get_thread_num()];
-        if (feats.Size() == 0) {
-          feats.Init(num_feature);
-        }
-        std::vector<bst_float> this_tree_contribs(ncolumns);
-        // loop over all classes
-        for (int gid = 0; gid < ngroup; ++gid) {
-          bst_float* p_contribs = &contribs[(row_idx * ngroup + gid) * ncolumns];
-          feats.Fill(page[i]);
-          // calculate contributions
-          for (unsigned j = 0; j < ntree_limit; ++j) {
-            auto *tree_mean_values = &mean_values.at(j);
-            std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0);
-            if (model.tree_info[j] != gid) {
-              continue;
-            }
-            if (!approximate) {
-              CalculateContributions(*model.trees[j], feats, tree_mean_values,
-                                     &this_tree_contribs[0], condition, condition_feature);
-            } else {
-              model.trees[j]->CalculateContributionsApprox(
-                  feats, tree_mean_values, &this_tree_contribs[0]);
-            }
-            for (size_t ci = 0; ci < ncolumns; ++ci) {
-              p_contribs[ci] +=
-                  this_tree_contribs[ci] *
-                  (tree_weights == nullptr ? 1 : (*tree_weights)[j]);
-            }
-          }
-          feats.Drop();
-          // add base margin to BIAS
-          if (base_margin.Size() != 0) {
-            CHECK_EQ(base_margin.Shape(1), ngroup);
-            p_contribs[ncolumns - 1] += base_margin(row_idx, gid);
-          } else {
-            p_contribs[ncolumns - 1] += base_score;
-          }
-        }
-      });
+    if (!p_fmat->PageExists<SparsePage>()) {
+      std::vector<Entry> workspace(info.num_col_ * kUnroll * n_threads);
+      auto ft = p_fmat->Info().feature_types.ConstHostVector();
+      for (const auto &batch : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, {})) {
+        PredictContributionKernel(
+            GHistIndexMatrixView{batch, info.num_col_, ft, workspace, n_threads},
+            info, model, tree_weights, &mean_values, &feat_vecs, &contribs, ntree_limit,
+            approximate, condition, condition_feature);
+      }
+    } else {
+      for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
+        PredictContributionKernel(
+            SparsePageView{&batch}, info, model, tree_weights, &mean_values, &feat_vecs,
+            &contribs, ntree_limit, approximate, condition, condition_feature);
+      }
     }
   }
 

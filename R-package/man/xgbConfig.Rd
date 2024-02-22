@@ -25,6 +25,15 @@ values of one or more global-scope parameters. Use \code{xgb.get.config} to fetc
 values of all global-scope parameters (listed in
 \url{https://xgboost.readthedocs.io/en/stable/parameter.html}).
 }
+\details{
+Note that serialization-related functions might use a globally-configured number of threads,
+which is managed by the system's OpenMP (OMP) configuration instead. Typically, XGBoost methods
+accept an \code{nthreads} parameter, but some methods like \code{readRDS} might get executed before such
+parameter can be supplied.
+
+The number of OMP threads can in turn be configured for example through an environment variable
+\code{OMP_NUM_THREADS} (needs to be set before R is started), or through \code{RhpcBLASctl::omp_set_num_threads}.
+}
 \examples{
 # Set verbosity level to silent (0)
 xgb.set.config(verbosity = 0)

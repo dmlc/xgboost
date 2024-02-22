@@ -100,6 +100,7 @@ class LintersPaths:
         # demo
         "demo/json-model/json_parser.py",
         "demo/guide-python/external_memory.py",
+        "demo/guide-python/sklearn_examples.py",
         "demo/guide-python/continuation.py",
         "demo/guide-python/callbacks.py",
         "demo/guide-python/cat_in_the_dat.py",

@@ -1750,9 +1750,20 @@ class TestWithDask:
             )
             tm.non_increasing(results_native["validation_0"]["rmse"])
 
+            reg = xgb.dask.DaskXGBRegressor(
+                n_estimators=rounds, objective=tm.ls_obj, tree_method="hist"
+            )
+            rng = da.random.RandomState(1994)
+            w = rng.uniform(low=0.0, high=1.0, size=y.shape[0])
+            reg.fit(
+                X, y, sample_weight=w, eval_set=[(X, y)], sample_weight_eval_set=[w]
+            )
+            results_custom = reg.evals_result()
+            tm.non_increasing(results_custom["validation_0"]["rmse"])
+
     def test_no_duplicated_partition(self) -> None:
-        """Assert each worker has the correct amount of data, and DMatrix initialization doesn't
-        generate unnecessary copies of data.
+        """Assert each worker has the correct amount of data, and DMatrix initialization
+        doesn't generate unnecessary copies of data.
 
         """
         with LocalCluster(n_workers=2, dashboard_address=":0") as cluster:
