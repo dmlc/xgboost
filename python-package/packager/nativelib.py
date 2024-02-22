@@ -68,6 +68,9 @@ def build_libxgboost(
             assert build_tool is not None
             subprocess.check_call([build_tool, f"-j{nproc}"], cwd=build_dir)
 
+    path = os.environ.get("PATH", None)
+    print("env path:", path)
+
     if system() == "Windows":
         supported_generators = (
             "-GVisual Studio 17 2022",
