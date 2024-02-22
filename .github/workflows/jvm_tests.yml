@@ -30,13 +30,6 @@ jobs:
           awscli
         channels: conda-forge
 
-    - name: Enable Developer Command Prompt
-      uses: ilammy/msvc-dev-cmd@v1.13.0
-      with:
-        arch: amd64
-        vsversion: 2022
-      if: matrix.os == 'windows-latest'
-
     - name: Build XGBoost4J
       run: |
         mkdir build
