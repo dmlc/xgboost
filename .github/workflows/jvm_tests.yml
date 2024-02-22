@@ -19,7 +19,7 @@ jobs:
       with:
         submodules: 'true'
 
-      uses: mamba-org/setup-micromamba@422500192359a097648154e8db4e39bdb6c6eed7  # v1.8.1
+    - uses: mamba-org/setup-micromamba@422500192359a097648154e8db4e39bdb6c6eed7  # v1.8.1
       with:
         micromamba-version: '1.5.6-0'
         environment-name: jvm_tests
