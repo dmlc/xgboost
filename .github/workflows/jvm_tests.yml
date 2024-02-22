@@ -27,7 +27,7 @@ jobs:
           python=3.10
           awscli
         cache-downloads: true
-        cache-env: true
+        cache-environment: true
         init-shell: bash powershell
 
     - name: Cache Maven packages
