@@ -25,10 +25,10 @@ jobs:
         cache-env: true
         environment-file: false
         environment-name: jvm_tests
-      extra-specs: |
-        python=3.10
-        awscli
-      channels: conda-forge
+        extra-specs: |
+          python=3.10
+          awscli
+        channels: conda-forge
 
     - name: Cache Maven packages
       uses: actions/cache@13aacd865c20de90d75de3b17ebe84f7a17d57d2 # v4.0.0
