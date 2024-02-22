@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-11]
+        os: [windows-latest]
 
     steps:
     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
@@ -52,7 +52,7 @@ jobs:
 
     - name: Extract branch name
       shell: bash
-      run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+      run: echo "branch_name=${GITHUB_REF#refs/heads/}" >> "$GITHUB_ENV"
       id: extract_branch
       if: |
         (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
@@ -63,20 +63,20 @@ jobs:
         cd lib/
         Rename-Item -Path xgboost4j.dll -NewName xgboost4j_${{ github.sha }}.dll
         dir
-        python -m awscli s3 cp xgboost4j_${{ github.sha }}.dll s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/libxgboost4j/ --acl public-read
+        python -m awscli s3 cp xgboost4j_${{ github.sha }}.dll s3://xgboost-nightly-builds/$branch_name/libxgboost4j/ --acl public-read --region us-west-2
       if: |
-        (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
         matrix.os == 'windows-latest'
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
 
     - name: Publish artifact libxgboost4j.dylib to S3
+      shell: bash -l {0}
       run: |
         cd lib/
         mv -v libxgboost4j.dylib libxgboost4j_${{ github.sha }}.dylib
         ls
-        python -m awscli s3 cp libxgboost4j_${{ github.sha }}.dylib s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/libxgboost4j/ --acl public-read
+        python -m awscli s3 cp libxgboost4j_${{ github.sha }}.dylib s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/libxgboost4j/ --acl public-read --region us-west-2
       if: |
         (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
         matrix.os == 'macos-11'
@@ -93,7 +93,6 @@ jobs:
       if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
       env:
         RABIT_MOCK: ON
-
 
     - name: Build and Test XGBoost4J with scala 2.13
       run: |
