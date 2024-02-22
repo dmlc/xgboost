@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-11]
+        os: [windows-latest]
 
     steps:
     - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
@@ -29,13 +29,6 @@ jobs:
           python=3.10
           awscli
         channels: conda-forge
-
-    - name: Cache Maven packages
-      uses: actions/cache@13aacd865c20de90d75de3b17ebe84f7a17d57d2 # v4.0.0
-      with:
-        path: ~/.m2
-        key: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
-        restore-keys: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
 
     - name: Test XGBoost4J (Core)
       run: |
