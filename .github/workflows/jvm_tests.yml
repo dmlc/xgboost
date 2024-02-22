@@ -15,26 +15,34 @@ jobs:
         os: [windows-latest]
 
     steps:
-    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
+    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       with:
         submodules: 'true'
 
-    - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
+      uses: mamba-org/setup-micromamba@422500192359a097648154e8db4e39bdb6c6eed7  # v1.8.1
       with:
-        cache-downloads: true
-        cache-env: true
-        environment-file: false
+        micromamba-version: '1.5.6-0'
         environment-name: jvm_tests
-        extra-specs: |
+        extra-specs: >-
           python=3.10
           awscli
-        channels: conda-forge
+        cache-downloads: true
+        cache-env: true
 
-    - name: Build XGBoost4J
+    - name: Cache Maven packages
+      uses: actions/cache@13aacd865c20de90d75de3b17ebe84f7a17d57d2  # v4.0.0
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
+        restore-keys: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
+
+    - name: Build xgboost4j.dll
       run: |
         mkdir build
         cd build
         cmake .. -G"Visual Studio 17 2022" -A x64 -DJVM_BINDINGS=ON
+        cmake --build . --config Release
+      if: matrix.os == 'windows-latest'
 
     - name: Test XGBoost4J (Core)
       run: |

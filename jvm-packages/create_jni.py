@@ -114,10 +114,10 @@ def native_build(args):
             # Same trick as Python build, just test all possible generators.
             if sys.platform == "win32":
                 supported_generators = (
-                    # "",  # empty, decided by cmake
+                    "",  # empty, decided by cmake
                     '-G"Visual Studio 17 2022"',
-                    # '-G"Visual Studio 16 2019"',
-                    # '-G"Visual Studio 15 2017"',
+                    '-G"Visual Studio 16 2019"',
+                    '-G"Visual Studio 15 2017"',
                 )
                 for generator in supported_generators:
                     try:
