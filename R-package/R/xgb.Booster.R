@@ -318,7 +318,10 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
   }
   is_dmatrix <- inherits(newdata, "xgb.DMatrix")
   if (is_dmatrix && !is.null(base_margin)) {
-    warning("'base_margin' is ignored when passing 'xgb.DMatrix' as input.")
+    stop(
+      "'base_margin' is not supported when passing 'xgb.DMatrix' as input.",
+      " Should be passed as argument to 'xgb.DMatrix' constructor."
+    )
   }
 
   use_as_df <- FALSE
