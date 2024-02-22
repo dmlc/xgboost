@@ -23,7 +23,7 @@ jobs:
       with:
         micromamba-version: '1.5.6-0'
         environment-name: jvm_tests
-        extra-specs: >-
+        create-args: >-
           python=3.10
           awscli
         cache-downloads: true
