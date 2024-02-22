@@ -40,8 +40,9 @@ jobs:
     - name: Test XGBoost4J (Core)
       run: |
         cd jvm-packages
-        export MAVEN_SKIP_NATIVE_BUILD=1
         mvn test -B -pl :xgboost4j_2.12
+      env:
+        MAVEN_SKIP_NATIVE_BUILD: 1
 
     - name: Extract branch name
       shell: bash
