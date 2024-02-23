@@ -76,7 +76,29 @@ class HistogramBuilder {
                             std::vector<bst_node_t> const &nodes_to_build,
                             common::RowSetCollection const &row_set_collection,
                             common::Span<GradientPair const> gpair_h, bool force_read_by_column) {
+
+
+      if ((collective::GetRank() == 1)) {
+          std::cout << "Current samples on nodes: " << std::endl;
+          // print info on all nodes
+          for (bst_node_t nit = 0; nit < row_set_collection.Size(); ++nit) {
+              auto size = row_set_collection[nit].Size();
+              std::cout << "Node " << nit << " has " << size << " rows." << std::endl;
+          }
+
+
+          for (auto nit = nodes_to_build.begin(); nit != nodes_to_build.end(); ++nit) {
+              std::cout << "Building local histogram for node ID: " << *nit << " with " << row_set_collection[*nit].Size() << " samples." << std::endl;
+          }
+          std::cout << std::endl;
+
+      }
+
+
+
+
     // Parallel processing by nodes and data in each node
+    bool print_once = true;
     common::ParallelFor2d(space, this->n_threads_, [&](size_t nid_in_set, common::Range1d r) {
       const auto tid = static_cast<unsigned>(omp_get_thread_num());
       bst_node_t const nidx = nodes_to_build[nid_in_set];
@@ -86,6 +108,19 @@ class HistogramBuilder {
       auto rid_set = common::RowSetCollection::Elem(elem.begin + start_of_row_set,
                                                     elem.begin + end_of_row_set, nidx);
       auto hist = buffer_.GetInitializedHist(tid, nid_in_set);
+
+        // print info
+        //if ((collective::GetRank() == 0) && print_once ) {
+            //std::cout << "Sample of row set for node " << nidx << ": ";
+            //std::cout << "Size: " << row_set_collection[nidx].Size() << ", ";
+            //for (auto i = 0; i < 10; i++) {
+            //  std::cout << rid_set.begin[i] << ", ";
+            //}
+            //std::cout << std::endl;
+            //print_once = false;
+        //}
+
+
       if (rid_set.Size() != 0) {
         common::BuildHist<any_missing>(gpair_h, rid_set, gidx, hist, force_read_by_column);
       }
@@ -156,6 +191,11 @@ class HistogramBuilder {
     if (page_idx == 0) {
       // Add the local histogram cache to the parallel buffer before processing the first page.
       auto n_nodes = nodes_to_build.size();
+
+        if ((collective::GetRank() == 0)) {
+          std::cout << "Building histogram for " << n_nodes << " nodes" << std::endl;
+        }
+
       std::vector<common::GHistRow> target_hists(n_nodes);
       for (size_t i = 0; i < n_nodes; ++i) {
         auto const nidx = nodes_to_build[i];
@@ -213,19 +253,19 @@ class HistogramBuilder {
       std::vector<double> hist_flat;
       hist_flat.resize(n);
       // iterate through the nodes_to_build
-      std::cout << "nodes_to_build.size() = " << nodes_to_build.size() << std::endl;
+      //std::cout << "nodes_to_build.size() = " << nodes_to_build.size() << std::endl;
       // front pointer
       auto it = reinterpret_cast<double *>(this->hist_[nodes_to_build.front()].data());
       auto hist_size = this->hist_[nodes_to_build.front()].size();
-      std::cout<< "n=" << n << std::endl;
-      std::cout << "hist_size = " << hist_size << std::endl;
+      //std::cout<< "n=" << n << std::endl;
+      //std::cout << "hist_size = " << hist_size << std::endl;
       for (size_t i = 0; i < n; i++) {
         // get item with iterator
         auto item = *it;
         hist_flat[i] = item;
         it++;
       }
-      std::cout << "hist_flat.size() = " << hist_flat.size() << std::endl;
+      //std::cout << "hist_flat.size() = " << hist_flat.size() << std::endl;
 
       // Perform AllGather
       auto hist_entries = collective::Allgather(hist_flat);
@@ -233,7 +273,7 @@ class HistogramBuilder {
       // Update histogram for data owner
       if (collective::GetRank() == 0) {
         // skip rank 0, as local hist already contains its own entries
-        std::cout << "hist_entries.size() = " << hist_entries.size() << std::endl;
+        //std::cout << "hist_entries.size() = " << hist_entries.size() << std::endl;
         // reposition iterator to the beginning of the vector
         it = reinterpret_cast<double *>(this->hist_[nodes_to_build.front()].data());
         for (auto rank_idx = 1; rank_idx < hist_entries.size()/n; rank_idx++) {
@@ -317,6 +357,10 @@ class MultiHistogramBuilder {
                      linalg::MatrixView<GradientPair const> gpair, ExpandEntry const &best,
                      BatchParam const &param, bool force_read_by_column = false) {
     auto n_targets = p_tree->NumTargets();
+
+
+    std::cout << "Root n_targets = " << n_targets << std::endl;
+
     CHECK_EQ(gpair.Shape(1), n_targets);
     CHECK_EQ(p_fmat->Info().num_row_, gpair.Shape(0));
     CHECK_EQ(target_builders_.size(), n_targets);
@@ -357,6 +401,16 @@ class MultiHistogramBuilder {
     std::vector<bst_node_t> nodes_to_sub(valid_candidates.size());
     AssignNodes(p_tree, valid_candidates, nodes_to_build, nodes_to_sub);
 
+
+    // print index for nodes_to_build and nodes_to_sub
+    if (collective::GetRank() == 0) {
+        for (int i = 0; i < nodes_to_build.size(); i++) {
+          std::cout<< "Left-Right: nodes_to_build index " << nodes_to_build[i] << ";  ";
+          std::cout<< "nodes_to_sub index " << nodes_to_sub[i] << std::endl;
+        }
+    }
+
+
     // use the first builder for getting number of valid nodes.
     target_builders_.front().AddHistRows(p_tree, &nodes_to_build, &nodes_to_sub, true);
     CHECK_GE(nodes_to_build.size(), nodes_to_sub.size());
@@ -373,6 +427,9 @@ class MultiHistogramBuilder {
       CHECK_EQ(gpair.Shape(1), p_tree->NumTargets());
       for (bst_target_t t = 0; t < p_tree->NumTargets(); ++t) {
         auto t_gpair = gpair.Slice(linalg::All(), t);
+          if (collective::GetRank() == 0) {
+              std::cout<< "Total row count: " << p_fmat->Info().num_row_ << std::endl;
+          }
         CHECK_EQ(t_gpair.Shape(0), p_fmat->Info().num_row_);
         this->target_builders_[t].BuildHist(page_idx, space, page,
                                             partitioners[page_idx].Partitions(), nodes_to_build,

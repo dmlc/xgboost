@@ -385,7 +385,15 @@ class HistUpdater {
     monitor_->Start(__func__);
     CPUExpandEntry node(RegTree::kRoot, p_tree->GetDepth(0));
 
-    this->histogram_builder_->BuildRootHist(p_fmat, p_tree, partitioner_, gpair, node,
+
+
+
+      std::cout<<"InitRoot: --------------------------------------"<<std::endl;
+
+
+
+
+      this->histogram_builder_->BuildRootHist(p_fmat, p_tree, partitioner_, gpair, node,
                                             HistBatch(param_));
 
     {
@@ -439,6 +447,8 @@ class HistUpdater {
                       std::vector<CPUExpandEntry> const &valid_candidates,
                       linalg::MatrixView<GradientPair const> gpair) {
     monitor_->Start(__func__);
+
+    std::cout << "BuildHistogram: --------------------------------------" << std::endl;
     this->histogram_builder_->BuildHistLeftRight(ctx_, p_fmat, p_tree, partitioner_,
                                                  valid_candidates, gpair, HistBatch(param_));
     monitor_->Stop(__func__);

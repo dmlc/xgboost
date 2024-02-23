@@ -155,9 +155,9 @@ void ApplyWithLabelsEncrypted(MetaInfo const& info, HostDeviceVector<T>* result,
             }
         }
         // print 1 sample
-        std::cout << " g[0]: " << result_vector_g[0] << " h[0]: " << result_vector_h[0] << std::endl;
+        //std::cout << " g[0]: " << result_vector_g[0] << " h[0]: " << result_vector_h[0] << std::endl;
         // print max and min
-        std::cout << "max_g: " << max_g << " min_g: " << min_g << " max_h: " << max_h << " min_h: " << min_h << std::endl;
+        //std::cout << "max_g: " << max_g << " min_g: " << min_g << " max_h: " << max_h << " min_h: " << min_h << std::endl;
     }
 
     result->Resize(size);
