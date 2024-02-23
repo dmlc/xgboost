@@ -81,40 +81,55 @@ def native_build(args):
     with cd(".."):
         build_dir = "build-gpu" if cli_args.use_cuda == "ON" else "build"
         maybe_makedirs(build_dir)
+
+        if sys.platform == "linux":
+            maybe_parallel_build = " -- -j $(nproc)"
+        else:
+            maybe_parallel_build = ""
+
+        if cli_args.log_capi_invocation == "ON":
+            CONFIG["LOG_CAPI_INVOCATION"] = "ON"
+
+        if cli_args.use_cuda == "ON":
+            CONFIG["USE_CUDA"] = "ON"
+            CONFIG["USE_NCCL"] = "ON"
+            CONFIG["USE_DLOPEN_NCCL"] = "OFF"
+
+        args = ["-D{0}:BOOL={1}".format(k, v) for k, v in CONFIG.items()]
+
+        # if enviorment set rabit_mock
+        if os.getenv("RABIT_MOCK", None) is not None:
+            args.append("-DRABIT_MOCK:BOOL=ON")
+
+        # if enviorment set GPU_ARCH_FLAG
+        gpu_arch_flag = os.getenv("GPU_ARCH_FLAG", None)
+        if gpu_arch_flag is not None:
+            args.append("%s" % gpu_arch_flag)
+
         with cd(build_dir):
-            if sys.platform == "win32":
-                # Force x64 build on Windows.
-                maybe_generator = " -A x64"
-            else:
-                maybe_generator = ""
-            if sys.platform == "linux":
-                maybe_parallel_build = " -- -j $(nproc)"
-            else:
-                maybe_parallel_build = ""
-
-            if cli_args.log_capi_invocation == "ON":
-                CONFIG["LOG_CAPI_INVOCATION"] = "ON"
-
-            if cli_args.use_cuda == "ON":
-                CONFIG["USE_CUDA"] = "ON"
-                CONFIG["USE_NCCL"] = "ON"
-                CONFIG["USE_DLOPEN_NCCL"] = "OFF"
-
-            args = ["-D{0}:BOOL={1}".format(k, v) for k, v in CONFIG.items()]
-
-            # if enviorment set rabit_mock
-            if os.getenv("RABIT_MOCK", None) is not None:
-                args.append("-DRABIT_MOCK:BOOL=ON")
-
-            # if enviorment set GPU_ARCH_FLAG
-            gpu_arch_flag = os.getenv("GPU_ARCH_FLAG", None)
-            if gpu_arch_flag is not None:
-                args.append("%s" % gpu_arch_flag)
-
             lib_dir = os.path.join(os.pardir, "lib")
             if os.path.exists(lib_dir):
                 shutil.rmtree(lib_dir)
-            run("cmake .. " + " ".join(args) + maybe_generator)
+
+            # Same trick as Python build, just test all possible generators.
+            if sys.platform == "win32":
+                supported_generators = (
+                    "",  # empty, decided by cmake
+                    '-G"Visual Studio 17 2022" -A x64',
+                    '-G"Visual Studio 16 2019" -A x64',
+                    '-G"Visual Studio 15 2017" -A x64',
+                )
+                for generator in supported_generators:
+                    try:
+                        run("cmake .. " + " ".join(args + [generator]))
+                        break
+                    except subprocess.CalledProcessError as e:
+                        print(f"Failed to build with generator: {generator}", e)
+                        with cd(os.path.pardir):
+                            shutil.rmtree(build_dir)
+                            maybe_makedirs(build_dir)
+            else:
+                run("cmake .. " + " ".join(args))
             run("cmake --build . --config Release" + maybe_parallel_build)
 
         with cd("demo/CLI/regression"):
