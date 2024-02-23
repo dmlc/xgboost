@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-11]
+        os: [windows-latest, ubuntu-latest, macos-11]
 
     steps:
     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
@@ -54,9 +54,9 @@ jobs:
       shell: bash
       run: |
         echo "branch=${GITHUB_REF#refs/heads/}" >> "$GITHUB_OUTPUT"
-        echo "branch=foobar" >> "$GITHUB_OUTPUT"
       id: extract_branch
       if: |
+        (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
         (matrix.os == 'windows-latest' || matrix.os == 'macos-11')
 
     - name: Publish artifact xgboost4j.dll to S3
@@ -66,6 +66,7 @@ jobs:
         dir
         python -m awscli s3 cp xgboost4j_${{ github.sha }}.dll s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/libxgboost4j/ --acl public-read --region us-west-2
       if: |
+        (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
         matrix.os == 'windows-latest'
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
@@ -79,6 +80,7 @@ jobs:
         ls
         python -m awscli s3 cp libxgboost4j_${{ github.sha }}.dylib s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/libxgboost4j/ --acl public-read --region us-west-2
       if: |
+        (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
         matrix.os == 'macos-11'
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
@@ -93,6 +95,7 @@ jobs:
       if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
       env:
         RABIT_MOCK: ON
+
 
     - name: Build and Test XGBoost4J with scala 2.13
       run: |
