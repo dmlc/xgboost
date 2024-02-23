@@ -29,6 +29,13 @@ namespace xgboost::processing {
         virtual void Shutdown() = 0;
 
         /*!
+         * \brief Free buffer
+         *
+         * \param buffer Any buffer returned by the calls from the plugin
+         */
+        virtual void FreeBuffer(common::Span<std::int8_t> buffer) = 0;
+
+        /*!
          * \brief Preparing g & h pairs to be sent to other clients by active client
          *
          * \param pairs g&h pairs in a vector (g1, h1, g2, h2 ...)

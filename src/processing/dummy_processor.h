@@ -4,9 +4,26 @@
 
 class DummyProcessor: public xgboost::processing::Processor {
 
-    void Initialize(bool active, std::map<std::string, std::string> params) override;
+private:
+    bool active;
+    std::map<std::string, std::string> params;
+    std::vector<int> *sample_feature_bin_ids = NULL;
+    std::vector<int> *feature_bin_sizes = NULL;
+    std::vector<int> *available_features = NULL;
+    xgboost::common::Span<int8_t> encrypted_gh_pairs;
 
-    void Shutdown() override;
+public:
+
+    void Initialize(bool active, std::map<std::string, std::string> params) override {
+        this->active = active;
+        this->params = params;
+    }
+
+    void Shutdown() override {}
+
+    void FreeBuffer(xgboost::common::Span<std::int8_t> buffer) override {
+        free(buffer.data());
+    }
 
     xgboost::common::Span<int8_t> ProcessGHPairs(std::vector<double> &pairs) override;
 
