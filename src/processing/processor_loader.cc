@@ -1,10 +1,10 @@
 #include <iostream>
 #include <dlfcn.h>
 
-#include "processor.h"
-#include "dummy_processor.h"
+#include "./processor.h"
+#include "./dummy_processor.h"
 
-namespace xgboost::processing{
+namespace xgboost::processing {
 
     typedef Processor* (load_func)(const char *);
 
