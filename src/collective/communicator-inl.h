@@ -192,6 +192,15 @@ inline std::vector<T> AllgatherV(std::vector<T> const &input) {
   return result;
 }
 
+/**
+ * @brief Gathers variable-length data from all processes and distributes it to all processes.
+ *
+ * @param inputs All the inputs from the local worker. The number of inputs can vary
+ *               across different workers. Along with which, the size of each vector in
+ *               the input can also vary.
+ *
+ * @return The AllgatherV result, containing vectors from all workers.
+ */
 [[nodiscard]] std::vector<std::vector<char>> VectorAllgatherV(
     std::vector<std::vector<char>> const &input);
 
