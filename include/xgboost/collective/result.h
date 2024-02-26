@@ -3,12 +3,13 @@
  */
 #pragma once
 
+#include <xgboost/logging.h>
+
 #include <memory>   // for unique_ptr
 #include <sstream>  // for stringstream
 #include <stack>    // for stack
 #include <string>   // for string
 #include <utility>  // for move
-#include <xgboost/logging.h>
 
 namespace xgboost::collective {
 namespace detail {
