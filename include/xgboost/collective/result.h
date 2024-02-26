@@ -162,7 +162,7 @@ struct Result {
 
 // We don't have monad, a simple helper would do.
 template <typename Fn>
-Result operator<<(Result&& r, Fn&& fn) {
+[[nodiscard]] Result operator<<(Result&& r, Fn&& fn) {
   if (!r.OK()) {
     return std::forward<Result>(r);
   }
