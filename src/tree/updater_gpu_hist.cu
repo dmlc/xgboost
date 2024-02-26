@@ -611,11 +611,8 @@ struct GPUHistMakerDevice {
     monitor.Start("AllReduce");
     auto d_node_hist = hist.GetNodeHistogram(nidx).data();
     using ReduceT = typename std::remove_pointer<decltype(d_node_hist)>::type::ValueT;
-    auto rc = collective::GlobalSum(
-        ctx_, info_,
-        linalg::MakeVec(reinterpret_cast<ReduceT*>(d_node_hist),
-                        page->Cuts().TotalBins() * 2 * num_histograms, ctx_->Device()));
-    collective::SafeColl(rc);
+    collective::GlobalSum(info_, ctx_->Device(), reinterpret_cast<ReduceT*>(d_node_hist),
+                          page->Cuts().TotalBins() * 2 * num_histograms);
 
     monitor.Stop("AllReduce");
   }
