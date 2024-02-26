@@ -1,7 +1,7 @@
 /**
- * Copyright 2022-2023 by XGBoost Contributors
+ * Copyright 2022-2024, XGBoost Contributors
  *
- * \brief Utilities for estimating initial score.
+ * @brief Utilities for estimating initial score.
  */
 #if !defined(NOMINMAX) && defined(_WIN32)
 #define NOMINMAX
@@ -11,8 +11,7 @@
 
 #include <cstddef>                                // std::size_t
 
-#include "../collective/aggregator.cuh"
-#include "../collective/communicator-inl.cuh"
+#include "../collective/aggregator.h"
 #include "../common/device_helpers.cuh"           // dh::MakeTransformIterator
 #include "fit_stump.h"
 #include "xgboost/base.h"     // GradientPairPrecise, GradientPair, XGBOOST_DEVICE
@@ -48,8 +47,10 @@ void FitStump(Context const* ctx, MetaInfo const& info,
   thrust::reduce_by_key(policy, key_it, key_it + gpair.Size(), grad_it,
                         thrust::make_discard_iterator(), dh::tbegin(d_sum.Values()));
 
-  collective::GlobalSum(info, ctx->Device(), reinterpret_cast<double*>(d_sum.Values().data()),
-                        d_sum.Size() * 2);
+  auto rc = collective::GlobalSum(ctx, info,
+                                  linalg::MakeVec(reinterpret_cast<double*>(d_sum.Values().data()),
+                                                  d_sum.Size() * 2, ctx->Device()));
+  collective::SafeColl(rc);
 
   thrust::for_each_n(policy, thrust::make_counting_iterator(0ul), n_targets,
                      [=] XGBOOST_DEVICE(std::size_t i) mutable {

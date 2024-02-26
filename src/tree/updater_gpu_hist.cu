@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2023 by XGBoost contributors
+ * Copyright 2017-2024, XGBoost contributors
  */
 #include <thrust/copy.h>
 #include <thrust/reduce.h>
@@ -611,8 +611,11 @@ struct GPUHistMakerDevice {
     monitor.Start("AllReduce");
     auto d_node_hist = hist.GetNodeHistogram(nidx).data();
     using ReduceT = typename std::remove_pointer<decltype(d_node_hist)>::type::ValueT;
-    collective::GlobalSum(info_, ctx_->Device(), reinterpret_cast<ReduceT*>(d_node_hist),
-                          page->Cuts().TotalBins() * 2 * num_histograms);
+    auto rc = collective::GlobalSum(
+        ctx_, info_,
+        linalg::MakeVec(reinterpret_cast<ReduceT*>(d_node_hist),
+                        page->Cuts().TotalBins() * 2 * num_histograms, ctx_->Device()));
+    collective::SafeColl(rc);
 
     monitor.Stop("AllReduce");
   }
@@ -729,7 +732,9 @@ struct GPUHistMakerDevice {
         dh::Reduce(ctx_->CUDACtx()->CTP(), gpair_it, gpair_it + gpair.size(),
                    GradientPairInt64{}, thrust::plus<GradientPairInt64>{});
     using ReduceT = typename decltype(root_sum_quantised)::ValueT;
-    collective::GlobalSum(info_, reinterpret_cast<ReduceT*>(&root_sum_quantised), 2);
+    auto rc = collective::GlobalSum(
+        ctx_, info_, linalg::MakeVec(reinterpret_cast<ReduceT*>(&root_sum_quantised), 2));
+    collective::SafeColl(rc);
 
     hist.AllocateHistograms({kRootNIdx});
     this->BuildHist(kRootNIdx);

@@ -1,5 +1,5 @@
 /**
- *  Copyright 2023, XGBoost Contributors
+ *  Copyright 2023-2024, XGBoost Contributors
  */
 #pragma once
 
@@ -8,6 +8,7 @@
 #include <stack>    // for stack
 #include <string>   // for string
 #include <utility>  // for move
+#include <xgboost/logging.h>
 
 namespace xgboost::collective {
 namespace detail {
@@ -165,5 +166,11 @@ Result operator<<(Result&& r, Fn&& fn) {
     return std::forward<Result>(r);
   }
   return fn();
+}
+
+inline void SafeColl(Result const& rc) {
+  if (!rc.OK()) {
+    LOG(FATAL) << rc.Report();
+  }
 }
 }  // namespace xgboost::collective
