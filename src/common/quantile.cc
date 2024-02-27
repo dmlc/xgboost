@@ -496,50 +496,6 @@ void SketchContainerImpl<WQSketch>::MakeCuts(Context const *ctx, MetaInfo const 
     p_cuts->cut_ptrs_.HostVector().push_back(cut_size);
   }
 
-
-/*
-    // save the cut values and cut pointers to files for examination
-    if (collective::GetRank() == 0) {
-        //print the entries to file for debug
-        std::ofstream file;
-        file.open("cut_info_0.txt", std::ios_base::app);
-        file << " Total cut ptr count: " << p_cuts->cut_ptrs_.HostVector().size() << std::endl;
-        file << " Total cut count: " << p_cuts->cut_values_.HostVector().size() << std::endl;
-        //iterate through the cut pointers
-        for (auto i = 0; i < p_cuts->cut_ptrs_.HostVector().size(); i++) {
-            file << "cut_ptr " << i << ": " << p_cuts->cut_ptrs_.HostVector()[i] << std::endl;
-        }
-        //iterate through the cut values
-        for (auto i = 0; i < p_cuts->cut_values_.HostVector().size(); i++) {
-            file << "cut_value " << i << ": " << p_cuts->cut_values_.HostVector()[i] << std::endl;
-        }
-        file.close();
-    }
-    if (collective::GetRank() == 1) {
-        //print the entries to file for debug
-        std::ofstream file;
-        file.open("cut_info_1.txt", std::ios_base::app);
-        file << " Total cut ptr count: " << p_cuts->cut_ptrs_.HostVector().size() << std::endl;
-        file << " Total cut count: " << p_cuts->cut_values_.HostVector().size() << std::endl;
-        //iterate through the cut pointers
-        for (auto i = 0; i < p_cuts->cut_ptrs_.HostVector().size(); i++) {
-            file << "cut_ptr " << i << ": " << p_cuts->cut_ptrs_.HostVector()[i] << std::endl;
-        }
-        //iterate through the cut values
-        for (auto i = 0; i < p_cuts->cut_values_.HostVector().size(); i++) {
-            file << "cut_value " << i << ": " << p_cuts->cut_values_.HostVector()[i] << std::endl;
-        }
-        file.close();
-    }
-
-    if (info.IsVerticalFederated() && info.IsSecure()) {
-        // cut values need to be synced across all workers via Allreduce
-        auto cut_val = p_cuts->cut_values_.HostVector().data();
-        std::size_t n = p_cuts->cut_values_.HostVector().size();
-        collective::Allreduce<collective::Operation::kSum>(cut_val, n);
-    }
-    */
-
   p_cuts->SetCategorical(this->has_categorical_, max_cat);
   monitor_.Stop(__func__);
 }

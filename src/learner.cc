@@ -1286,44 +1286,6 @@ class LearnerImpl : public LearnerIO {
     GetGradient(predt.predictions, train->Info(), iter, &gpair_);
     monitor_.Stop("GetGradient");
 
-
-/*
-      if(collective::GetRank()==0){
-          //print the total number of samples
-            std::cout << "Total number of samples: " << train->Info().labels.Size() << std::endl;
-          auto i = 0;
-          // print the first five predictions
-          for (auto p : predt.predictions.HostVector()) {
-              std::cout << "Prediction " << i << ": " << p << std::endl;
-              i++;
-              if (i == 5) {
-                  break;
-              }
-          }
-
-    // print the first five labels
-    std::cout << "Labels: " << std::endl;
-     i = 0;
-    while ( i<5 ) {
-      std::cout << "Label " << i << ": " << train->Info().labels.HostView()(i) << std::endl;
-      i++;
-    }
-
-    // print the first five gradients
-    std::cout << "Gradients: " << std::endl;
-    i = 0;
-    for (auto p : gpair_.Data()->HostVector()) {
-      std::cout << "Gradient " << i << ": " << p.GetGrad() << std::endl;
-      i++;
-      if (i == 5) {
-        break;
-      }
-    }
-    }
-*/
-
-
-
     TrainingObserver::Instance().Observe(*gpair_.Data(), "Gradients");
 
     gbm_->DoBoost(train.get(), &gpair_, &predt, obj_.get());
