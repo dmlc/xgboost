@@ -89,8 +89,8 @@ class CommonRowPartitioner {
 
   CommonRowPartitioner() = default;
   CommonRowPartitioner(Context const* ctx, bst_row_t num_row, bst_row_t _base_rowid,
-                       bool is_col_split)
-      : base_rowid{_base_rowid}, is_col_split_{is_col_split} {
+                       bool is_col_split, bool is_secure)
+      : base_rowid{_base_rowid}, is_col_split_{is_col_split}, is_secure_{is_secure} {
     row_set_collection_.Clear();
     std::vector<size_t>& row_indices = *row_set_collection_.Data();
     row_indices.resize(num_row);
@@ -106,7 +106,7 @@ class CommonRowPartitioner {
 
   template <typename ExpandEntry>
   void FindSplitConditions(const std::vector<ExpandEntry>& nodes, const RegTree& tree,
-                           const GHistIndexMatrix& gmat, std::vector<int32_t>* split_conditions) {
+                           const GHistIndexMatrix& gmat, std::vector<int32_t>* split_conditions, bool is_index) {
     auto const& ptrs = gmat.cut.Ptrs();
     auto const& vals = gmat.cut.Values();
 
@@ -114,18 +114,25 @@ class CommonRowPartitioner {
       bst_node_t const nidx = nodes[i].nid;
       bst_feature_t const fidx = tree.SplitIndex(nidx);
       float const split_pt = tree.SplitCond(nidx);
-      std::uint32_t const lower_bound = ptrs[fidx];
-      std::uint32_t const upper_bound = ptrs[fidx + 1];
-      bst_bin_t split_cond = -1;
-      // convert floating-point split_pt into corresponding bin_id
-      // split_cond = -1 indicates that split_pt is less than all known cut points
-      CHECK_LT(upper_bound, static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
-      for (auto bound = lower_bound; bound < upper_bound; ++bound) {
-        if (split_pt == vals[bound]) {
-          split_cond = static_cast<bst_bin_t>(bound);
-        }
+      if (is_index) {
+        // if the split_pt is already recorded as a bin_id, use it directly
+        (*split_conditions)[i] = static_cast<int32_t>(split_pt);
       }
-      (*split_conditions)[i] = split_cond;
+      else {
+        // otherwise find the bin_id that corresponds to split_pt
+        std::uint32_t const lower_bound = ptrs[fidx];
+        std::uint32_t const upper_bound = ptrs[fidx + 1];
+        bst_bin_t split_cond = -1;
+        // convert floating-point split_pt into corresponding bin_id
+        // split_cond = -1 indicates that split_pt is less than all known cut points
+        CHECK_LT(upper_bound, static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
+        for (auto bound = lower_bound; bound < upper_bound; ++bound) {
+          if (split_pt == vals[bound]) {
+            split_cond = static_cast<bst_bin_t>(bound);
+          }
+        }
+        (*split_conditions)[i] = split_cond;
+      }
     }
   }
 
@@ -194,7 +201,13 @@ class CommonRowPartitioner {
     std::vector<int32_t> split_conditions;
     if (column_matrix.IsInitialized()) {
       split_conditions.resize(n_nodes);
-      FindSplitConditions(nodes, *p_tree, gmat, &split_conditions);
+      if (is_secure_) {
+        // in secure mode, the split index is kept instead of the split value
+        FindSplitConditions(nodes, *p_tree, gmat, &split_conditions, true);
+      }
+      else {
+        FindSplitConditions(nodes, *p_tree, gmat, &split_conditions, false);
+      }
     }
 
     // 2.1 Create a blocked space of size SUM(samples in each node)
@@ -294,6 +307,7 @@ class CommonRowPartitioner {
   common::PartitionBuilder<kPartitionBlockSize> partition_builder_;
   common::RowSetCollection row_set_collection_;
   bool is_col_split_;
+  bool is_secure_;
   ColumnSplitHelper column_split_helper_;
 };
 

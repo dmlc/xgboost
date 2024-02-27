@@ -264,20 +264,36 @@ class HistEvaluator {
               static_cast<float>(evaluator.CalcSplitGain(*param_, nidx, fidx, GradStats{left_sum},
                                                          GradStats{right_sum}) -
                                  parent.root_gain);
-          split_pt = cut_val[i];  // not used for partition based
-          best.Update(loss_chg, fidx, split_pt, d_step == -1, false, left_sum, right_sum);
+          if (!is_secure_) {
+            split_pt = cut_val[i];  // not used for partition based
+            best.Update(loss_chg, fidx, split_pt, d_step == -1, false, left_sum, right_sum);
+          }
+          else {
+            // secure mode: record the best split point, rather than the actual value since it is not accessible
+            best.Update(loss_chg, fidx, i, d_step == -1, false, left_sum, right_sum);
+          }
+
         } else {
           // backward enumeration: split at left bound of each bin
           loss_chg =
               static_cast<float>(evaluator.CalcSplitGain(*param_, nidx, fidx, GradStats{right_sum},
                                                          GradStats{left_sum}) -
                                  parent.root_gain);
-          if (i == imin) {
-            split_pt = cut.MinValues()[fidx];
-          } else {
-            split_pt = cut_val[i - 1];
+          if (!is_secure_) {
+            if (i == imin) {
+              split_pt = cut.MinValues()[fidx];
+            } else {
+              split_pt = cut_val[i - 1];
+            }
+            best.Update(loss_chg, fidx, split_pt, d_step == -1, false, right_sum, left_sum);
           }
-          best.Update(loss_chg, fidx, split_pt, d_step == -1, false, right_sum, left_sum);
+          else {
+            // secure mode: record the best split point, rather than the actual value since it is not accessible
+            if (i != imin) {
+              i = i - 1;
+            }
+            best.Update(loss_chg, fidx, i, d_step == -1, false, right_sum, left_sum);
+          }
         }
       }
     }
@@ -387,7 +403,7 @@ class HistEvaluator {
             auto grad_stats = EnumerateSplit<+1>(cut, histogram, fidx, nidx, evaluator, best);
 
             // print the best split for each feature
-            // std::cout << "Best split for feature " << fidx << " is " << best->split_value << " with gain " << best->loss_chg << std::endl;
+            //std::cout << "Current best split at feature " << fidx << " is: " << std::endl << *best << std::endl;
 
 
             if (SplitContainsMissingValues(grad_stats, snode_[nidx])) {
@@ -408,7 +424,7 @@ class HistEvaluator {
 
     if (is_col_split_) {
       // With column-wise data split, we gather the best splits from all the workers and update the
-      // expand entries accordingly.
+      // expand entries accordingly. Update() takes care of selecting the best one.
       // Note that under secure vertical setting, only the label owner is able to evaluate the split
       // based on the global histogram. The other parties will receive the final best splits
       // allgather is capable of performing this (0-gain entries for non-label owners),

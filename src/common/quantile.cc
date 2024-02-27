@@ -5,6 +5,7 @@
 
 #include <limits>
 #include <utility>
+#include <fstream>
 
 #include "../collective/aggregator.h"
 #include "../data/adapter.h"
@@ -367,7 +368,7 @@ void AddCutPoint(typename SketchType::SummaryContainer const &summary, int max_b
 }
 
 template <typename SketchType>
-void AddCutPointSecure(typename SketchType::SummaryContainer const &summary, int max_bin,
+double AddCutPointSecure(typename SketchType::SummaryContainer const &summary, int max_bin,
                      HistogramCuts *cuts) {
     // For secure vertical pipeline, we fill the cut values corresponding to empty columns
     // with a vector of minimum value
@@ -388,12 +389,15 @@ void AddCutPointSecure(typename SketchType::SummaryContainer const &summary, int
           cut_values.push_back(cpt);
         }
       }
+      return cut_values.back();
     }
-    // if empty column, fill the cut values with 0
+    // if empty column, fill the cut values with NaN
     else {
       for (size_t i = 1; i < required_cuts; ++i) {
-        cut_values.push_back(0.0);
+        //cut_values.push_back(0.0);
+        cut_values.push_back(std::numeric_limits<double>::quiet_NaN());
       }
+      return std::numeric_limits<double>::quiet_NaN();
     }
 }
 
@@ -448,6 +452,7 @@ void SketchContainerImpl<WQSketch>::MakeCuts(Context const *ctx, MetaInfo const 
   for (size_t fid = 0; fid < reduced.size(); ++fid) {
     size_t max_num_bins = std::min(num_cuts[fid], max_bins_);
     // If vertical and secure mode, we need to sync the max_num_bins aross workers
+    // to create the same global number of cut point bins for easier future processing
     if (info.IsVerticalFederated() && info.IsSecure()) {
       collective::Allreduce<collective::Operation::kMax>(&max_num_bins, 1);
     }
@@ -457,17 +462,31 @@ void SketchContainerImpl<WQSketch>::MakeCuts(Context const *ctx, MetaInfo const 
     } else {
       // use special AddCutPoint scheme for secure vertical federated learning
       if (info.IsVerticalFederated() && info.IsSecure()) {
-          AddCutPointSecure<WQSketch>(a, max_num_bins, p_cuts);
+          double last_value = AddCutPointSecure<WQSketch>(a, max_num_bins, p_cuts);
+          // push a value that is greater than anything if the feature is not empty
+          // i.e. if the last value is not NaN
+          if (!std::isnan(last_value)) {
+              const bst_float cpt =
+                      (a.size > 0) ? a.data[a.size - 1].value : p_cuts->min_vals_.HostVector()[fid];
+              // this must be bigger than last value in a scale
+            const bst_float last = cpt + (fabs(cpt) + 1e-5f);
+            p_cuts->cut_values_.HostVector().push_back(last);
+            }
+          else {
+              // if the feature is empty, push a NaN value
+              p_cuts->cut_values_.HostVector().push_back(std::numeric_limits<double>::quiet_NaN());
+          }
       }
       else {
           AddCutPoint<WQSketch>(a, max_num_bins, p_cuts);
+          // push a value that is greater than anything
+          const bst_float cpt =
+                  (a.size > 0) ? a.data[a.size - 1].value : p_cuts->min_vals_.HostVector()[fid];
+          // this must be bigger than last value in a scale
+          const bst_float last = cpt + (fabs(cpt) + 1e-5f);
+          p_cuts->cut_values_.HostVector().push_back(last);
       }
-      // push a value that is greater than anything
-      const bst_float cpt =
-          (a.size > 0) ? a.data[a.size - 1].value : p_cuts->min_vals_.HostVector()[fid];
-      // this must be bigger than last value in a scale
-      const bst_float last = cpt + (fabs(cpt) + 1e-5f);
-      p_cuts->cut_values_.HostVector().push_back(last);
+
     }
 
     // Ensure that every feature gets at least one quantile point
@@ -477,12 +496,49 @@ void SketchContainerImpl<WQSketch>::MakeCuts(Context const *ctx, MetaInfo const 
     p_cuts->cut_ptrs_.HostVector().push_back(cut_size);
   }
 
-  if (info.IsVerticalFederated() && info.IsSecure()) {
-      // cut values need to be synced across all workers via Allreduce
-      auto cut_val = p_cuts->cut_values_.HostVector().data();
-      std::size_t n = p_cuts->cut_values_.HostVector().size();
-      collective::Allreduce<collective::Operation::kSum>(cut_val, n);
-  }
+
+/*
+    // save the cut values and cut pointers to files for examination
+    if (collective::GetRank() == 0) {
+        //print the entries to file for debug
+        std::ofstream file;
+        file.open("cut_info_0.txt", std::ios_base::app);
+        file << " Total cut ptr count: " << p_cuts->cut_ptrs_.HostVector().size() << std::endl;
+        file << " Total cut count: " << p_cuts->cut_values_.HostVector().size() << std::endl;
+        //iterate through the cut pointers
+        for (auto i = 0; i < p_cuts->cut_ptrs_.HostVector().size(); i++) {
+            file << "cut_ptr " << i << ": " << p_cuts->cut_ptrs_.HostVector()[i] << std::endl;
+        }
+        //iterate through the cut values
+        for (auto i = 0; i < p_cuts->cut_values_.HostVector().size(); i++) {
+            file << "cut_value " << i << ": " << p_cuts->cut_values_.HostVector()[i] << std::endl;
+        }
+        file.close();
+    }
+    if (collective::GetRank() == 1) {
+        //print the entries to file for debug
+        std::ofstream file;
+        file.open("cut_info_1.txt", std::ios_base::app);
+        file << " Total cut ptr count: " << p_cuts->cut_ptrs_.HostVector().size() << std::endl;
+        file << " Total cut count: " << p_cuts->cut_values_.HostVector().size() << std::endl;
+        //iterate through the cut pointers
+        for (auto i = 0; i < p_cuts->cut_ptrs_.HostVector().size(); i++) {
+            file << "cut_ptr " << i << ": " << p_cuts->cut_ptrs_.HostVector()[i] << std::endl;
+        }
+        //iterate through the cut values
+        for (auto i = 0; i < p_cuts->cut_values_.HostVector().size(); i++) {
+            file << "cut_value " << i << ": " << p_cuts->cut_values_.HostVector()[i] << std::endl;
+        }
+        file.close();
+    }
+
+    if (info.IsVerticalFederated() && info.IsSecure()) {
+        // cut values need to be synced across all workers via Allreduce
+        auto cut_val = p_cuts->cut_values_.HostVector().data();
+        std::size_t n = p_cuts->cut_values_.HostVector().size();
+        collective::Allreduce<collective::Operation::kSum>(cut_val, n);
+    }
+    */
 
   p_cuts->SetCategorical(this->has_categorical_, max_cat);
   monitor_.Stop(__func__);
