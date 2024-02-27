@@ -117,6 +117,12 @@ class CommonRowPartitioner {
       if (is_index) {
         // if the split_pt is already recorded as a bin_id, use it directly
         (*split_conditions)[i] = static_cast<int32_t>(split_pt);
+        // at this point, each participants received the best split index,
+        // therefore can recover the split_pt from bin_id, update tree info
+        auto split_pt_local = vals[split_pt];
+        // make updates to the tree, replacing the existing index
+        // with cut value, note that we modified const here, carefully
+        const_cast<RegTree::Node&>(tree.GetNodes()[nidx]).SetSplit(fidx, split_pt_local);
       }
       else {
         // otherwise find the bin_id that corresponds to split_pt

@@ -270,6 +270,7 @@ class HistEvaluator {
           }
           else {
             // secure mode: record the best split point, rather than the actual value since it is not accessible
+            // at this point (active party finding best-split)
             best.Update(loss_chg, fidx, i, d_step == -1, false, left_sum, right_sum);
           }
 

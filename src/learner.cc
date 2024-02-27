@@ -1287,7 +1287,7 @@ class LearnerImpl : public LearnerIO {
     monitor_.Stop("GetGradient");
 
 
-
+/*
       if(collective::GetRank()==0){
           //print the total number of samples
             std::cout << "Total number of samples: " << train->Info().labels.Size() << std::endl;
@@ -1320,7 +1320,7 @@ class LearnerImpl : public LearnerIO {
       }
     }
     }
-
+*/
 
 
 
@@ -1372,9 +1372,6 @@ class LearnerImpl : public LearnerIO {
       std::shared_ptr<DMatrix> m = data_sets[i];
       auto &predt = prediction_container_.Cache(m, ctx_.Device());
       this->ValidateDMatrix(m.get(), false);
-        if(collective::GetRank()==0){
-            std::cout << "data size = " << data_sets[i]->Info().num_row_ << std::endl;
-        }
       this->PredictRaw(m.get(), &predt, false, 0, 0);
 
       auto &out = output_predictions_.Cache(m, ctx_.Device()).predictions;
@@ -1383,15 +1380,7 @@ class LearnerImpl : public LearnerIO {
 
       obj_->EvalTransform(&out);
       for (auto& ev : metrics_) {
-
-        auto metric = ev->Evaluate(out, m);
-
-          if(collective::GetRank()==0){
-              std::cout << "eval result = " << metric << std::endl;
-          }
-
-
-        os << '\t' << data_names[i] << '-' << ev->Name() << ':' << metric; //ev->Evaluate(out, m);
+        os << '\t' << data_names[i] << '-' << ev->Name() << ':' << ev->Evaluate(out, m);
       }
     }
 
@@ -1496,11 +1485,6 @@ class LearnerImpl : public LearnerIO {
     CHECK(gbm_ != nullptr) << "Predict must happen after Load or configuration";
     this->CheckModelInitialized();
     this->ValidateDMatrix(data, false);
-
-    if(collective::GetRank()==0){
-    std::cout << "PredictRaw training ? " << training << std::endl;
-    }
-
     gbm_->PredictBatch(data, out_preds, training, layer_begin, layer_end);
   }
 
