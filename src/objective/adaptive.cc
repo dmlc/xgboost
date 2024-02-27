@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2023 by XGBoost Contributors
+ * Copyright 2022-2024, XGBoost Contributors
  */
 #include "adaptive.h"
 
@@ -85,7 +85,7 @@ void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& posit
   size_t n_leaf = nidx.size();
   if (nptr.empty()) {
     std::vector<float> quantiles;
-    UpdateLeafValues(&quantiles, nidx, info, learning_rate, p_tree);
+    UpdateLeafValues(ctx, &quantiles, nidx, info, learning_rate, p_tree);
     return;
   }
 
@@ -100,7 +100,7 @@ void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& posit
                                         predt.Size() / info.num_row_);
 
   collective::ApplyWithLabels(
-      info, static_cast<void*>(quantiles.data()), quantiles.size() * sizeof(float), [&] {
+      ctx, info, static_cast<void*>(quantiles.data()), quantiles.size() * sizeof(float), [&] {
         // loop over each leaf
         common::ParallelFor(quantiles.size(), ctx->Threads(), [&](size_t k) {
           auto nidx = h_node_idx[k];
@@ -134,7 +134,7 @@ void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& posit
         });
       });
 
-  UpdateLeafValues(&quantiles, nidx, info, learning_rate, p_tree);
+  UpdateLeafValues(ctx, &quantiles, nidx, info, learning_rate, p_tree);
 }
 
 #if !defined(XGBOOST_USE_CUDA)
