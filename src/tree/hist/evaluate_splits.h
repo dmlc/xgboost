@@ -298,6 +298,7 @@ class HistEvaluator {
         }
       }
     }
+
     p_best->Update(best);
     return left_sum;
   }
@@ -385,8 +386,7 @@ class HistEvaluator {
             auto n_bins = cut_ptrs.at(fidx + 1) - cut_ptrs[fidx];
             if (common::UseOneHot(n_bins, param_->max_cat_to_onehot)) {
               EnumerateOneHot(cut, histogram, fidx, nidx, evaluator, best);
-            }
-            else {
+            } else {
               std::vector<size_t> sorted_idx(n_bins);
               std::iota(sorted_idx.begin(), sorted_idx.end(), 0);
               auto feat_hist = histogram.subspan(cut_ptrs[fidx], n_bins);
@@ -399,14 +399,8 @@ class HistEvaluator {
               EnumeratePart<+1>(cut, sorted_idx, histogram, fidx, nidx, evaluator, best);
               EnumeratePart<-1>(cut, sorted_idx, histogram, fidx, nidx, evaluator, best);
             }
-          }
-          else {
+          } else {
             auto grad_stats = EnumerateSplit<+1>(cut, histogram, fidx, nidx, evaluator, best);
-
-            // print the best split for each feature
-            //std::cout << "Current best split at feature " << fidx << " is: " << std::endl << *best << std::endl;
-
-
             if (SplitContainsMissingValues(grad_stats, snode_[nidx])) {
               EnumerateSplit<-1>(cut, histogram, fidx, nidx, evaluator, best);
             }
