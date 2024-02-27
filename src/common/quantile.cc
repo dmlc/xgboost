@@ -5,7 +5,6 @@
 
 #include <limits>
 #include <utility>
-#include <fstream>
 
 #include "../collective/aggregator.h"
 #include "../data/adapter.h"
