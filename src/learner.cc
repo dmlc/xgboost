@@ -1285,7 +1285,6 @@ class LearnerImpl : public LearnerIO {
     monitor_.Start("GetGradient");
     GetGradient(predt.predictions, train->Info(), iter, &gpair_);
     monitor_.Stop("GetGradient");
-
     TrainingObserver::Instance().Observe(*gpair_.Data(), "Gradients");
 
     gbm_->DoBoost(train.get(), &gpair_, &predt, obj_.get());

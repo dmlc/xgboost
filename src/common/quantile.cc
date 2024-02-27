@@ -401,7 +401,6 @@ double AddCutPointSecure(typename SketchType::SummaryContainer const &summary, i
     }
 }
 
-
 auto AddCategories(std::set<float> const &categories, HistogramCuts *cuts) {
   if (std::any_of(categories.cbegin(), categories.cend(), InvalidCat)) {
     InvalidCategory();
@@ -486,7 +485,6 @@ void SketchContainerImpl<WQSketch>::MakeCuts(Context const *ctx, MetaInfo const 
           const bst_float last = cpt + (fabs(cpt) + 1e-5f);
           p_cuts->cut_values_.HostVector().push_back(last);
       }
-
     }
 
     // Ensure that every feature gets at least one quantile point

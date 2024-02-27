@@ -273,7 +273,6 @@ class HistEvaluator {
             // at this point (active party finding best-split)
             best.Update(loss_chg, fidx, i, d_step == -1, false, left_sum, right_sum);
           }
-
         } else {
           // backward enumeration: split at left bound of each bin
           loss_chg =
