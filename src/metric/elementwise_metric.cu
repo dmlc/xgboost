@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2023 by XGBoost Contributors
+ * Copyright 2015-2024, XGBoost Contributors
  * \file elementwise_metric.cu
  * \brief evaluation metrics for elementwise binary or regression.
  * \author Kailong Chen, Tianqi Chen
@@ -12,13 +12,14 @@
 #include <cmath>
 
 #include "../collective/communicator-inl.h"
-#include "../common/common.h"           // MetricNoCache
+#include "../common/common.h"  // MetricNoCache
 #include "../common/math.h"
 #include "../common/optional_weight.h"  // OptionalWeights
 #include "../common/pseudo_huber.h"
 #include "../common/quantile_loss_utils.h"  // QuantileLossParam
 #include "../common/threading_utils.h"
 #include "metric_common.h"
+#include "xgboost/collective/result.h"  // for SafeColl
 #include "xgboost/metric.h"
 
 #if defined(XGBOOST_USE_CUDA)
@@ -30,8 +31,7 @@
 #include "../common/device_helpers.cuh"
 #endif  // XGBOOST_USE_CUDA
 
-namespace xgboost {
-namespace metric {
+namespace xgboost::metric {
 // tag the this file, used by force static link later.
 DMLC_REGISTRY_FILE_TAG(elementwise_metric);
 
@@ -199,7 +199,8 @@ class PseudoErrorLoss : public MetricNoCache {
           return std::make_tuple(v, wt);
         });
     std::array<double, 2> dat{result.Residue(), result.Weights()};
-    collective::GlobalSum(info, &dat);
+    auto rc = collective::GlobalSum(ctx_, info, linalg::MakeVec(dat.data(), dat.size()));
+    collective::SafeColl(rc);
     return EvalRowMAPE::GetFinal(dat[0], dat[1]);
   }
 };
@@ -243,11 +244,11 @@ struct EvalError {
 };
 
 struct EvalPoissonNegLogLik {
-  const char *Name() const {
+  [[nodiscard]] const char *Name() const {
     return "poisson-nloglik";
   }
 
-  XGBOOST_DEVICE bst_float EvalRow(bst_float y, bst_float py) const {
+  [[nodiscard]] XGBOOST_DEVICE bst_float EvalRow(bst_float y, bst_float py) const {
     const bst_float eps = 1e-16f;
     if (py < eps) py = eps;
     return common::LogGamma(y + 1.0f) + py - std::log(py) * y;
@@ -266,9 +267,9 @@ struct EvalPoissonNegLogLik {
  *   predt >= 0
  */
 struct EvalGammaDeviance {
-  const char *Name() const { return "gamma-deviance"; }
+  [[nodiscard]] const char *Name() const { return "gamma-deviance"; }
 
-  XGBOOST_DEVICE bst_float EvalRow(bst_float label, bst_float predt) const {
+  [[nodiscard]] XGBOOST_DEVICE bst_float EvalRow(bst_float label, bst_float predt) const {
     predt += kRtEps;
     label += kRtEps;
     return std::log(predt / label) + label / predt - 1;
@@ -287,7 +288,7 @@ struct EvalGammaNLogLik {
     return "gamma-nloglik";
   }
 
-  XGBOOST_DEVICE bst_float EvalRow(bst_float y, bst_float py) const {
+  [[nodiscard]] XGBOOST_DEVICE bst_float EvalRow(bst_float y, bst_float py) const {
     py = std::max(py, 1e-6f);
     // hardcoded dispersion.
     float constexpr kPsi = 1.0;
@@ -313,7 +314,7 @@ struct EvalTweedieNLogLik {
     CHECK(rho_ < 2 && rho_ >= 1)
         << "tweedie variance power must be in interval [1, 2)";
   }
-  const char *Name() const {
+  [[nodiscard]] const char *Name() const {
     static thread_local std::string name;
     std::ostringstream os;
     os << "tweedie-nloglik@" << rho_;
@@ -321,7 +322,7 @@ struct EvalTweedieNLogLik {
     return name.c_str();
   }
 
-  XGBOOST_DEVICE bst_float EvalRow(bst_float y, bst_float p) const {
+  [[nodiscard]] XGBOOST_DEVICE bst_float EvalRow(bst_float y, bst_float p) const {
     bst_float a = y * std::exp((1 - rho_) * std::log(p)) / (1 - rho_);
     bst_float b = std::exp((2 - rho_) * std::log(p)) / (2 - rho_);
     return -a + b;
@@ -366,7 +367,8 @@ struct EvalEWiseBase : public MetricNoCache {
         });
 
     std::array<double, 2> dat{result.Residue(), result.Weights()};
-    collective::GlobalSum(info, &dat);
+    auto rc = collective::GlobalSum(ctx_, info, linalg::MakeVec(dat.data(), dat.size()));
+    collective::SafeColl(rc);
     return Policy::GetFinal(dat[0], dat[1]);
   }
 
@@ -438,7 +440,8 @@ class QuantileError : public MetricNoCache {
     if (info.num_row_ == 0) {
       // empty DMatrix on distributed env
       std::array<double, 2> dat{0.0, 0.0};
-      collective::GlobalSum(info, &dat);
+      auto rc = collective::GlobalSum(ctx_, info, linalg::MakeVec(dat.data(), dat.size()));
+      collective::SafeColl(rc);
       CHECK_GT(dat[1], 0);
       return dat[0] / dat[1];
     }
@@ -476,7 +479,8 @@ class QuantileError : public MetricNoCache {
           return std::make_tuple(l, w);
         });
     std::array<double, 2> dat{result.Residue(), result.Weights()};
-    collective::GlobalSum(info, &dat);
+    auto rc = collective::GlobalSum(ctx, info, linalg::MakeVec(dat.data(), dat.size()));
+    collective::SafeColl(rc);
     CHECK_GT(dat[1], 0);
     return dat[0] / dat[1];
   }
@@ -501,5 +505,4 @@ class QuantileError : public MetricNoCache {
 XGBOOST_REGISTER_METRIC(QuantileError, "quantile")
     .describe("Quantile regression error.")
     .set_body([](const char*) { return new QuantileError{}; });
-}  // namespace metric
-}  // namespace xgboost
+}  // namespace xgboost::metric

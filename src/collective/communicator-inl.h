@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2023 by XGBoost contributors
+ * Copyright 2022-2024, XGBoost contributors
  */
 #pragma once
 #include <string>
@@ -193,6 +193,18 @@ inline std::vector<T> AllgatherV(std::vector<T> const &input) {
 }
 
 /**
+ * @brief Gathers variable-length data from all processes and distributes it to all processes.
+ *
+ * @param inputs All the inputs from the local worker. The number of inputs can vary
+ *               across different workers. Along with which, the size of each vector in
+ *               the input can also vary.
+ *
+ * @return The AllgatherV result, containing vectors from all workers.
+ */
+[[nodiscard]] std::vector<std::vector<char>> VectorAllgatherV(
+    std::vector<std::vector<char>> const &input);
+
+/**
  * @brief Gathers variable-length strings from all processes and distributes them to all processes.
  * @param input Variable-length list of variable-length strings.
  */
@@ -293,39 +305,6 @@ inline void Allreduce(float *send_receive_buffer, size_t count) {
 template <Operation op>
 inline void Allreduce(double *send_receive_buffer, size_t count) {
   Communicator::Get()->AllReduce(send_receive_buffer, count, DataType::kDouble, op);
-}
-
-template <typename T>
-struct SpecialAllgatherVResult {
-  std::vector<std::size_t> offsets;
-  std::vector<std::size_t> sizes;
-  std::vector<T> result;
-};
-
-/**
- * @brief Gathers variable-length data from all processes and distributes it to all processes.
- *
- * We assume each worker has the same number of inputs, but each input may be of a different size.
- *
- * @param inputs All the inputs from the local worker.
- * @param sizes  Sizes of each input.
- */
-template <typename T>
-inline SpecialAllgatherVResult<T> SpecialAllgatherV(std::vector<T> const &inputs,
-                                                    std::vector<std::size_t> const &sizes) {
-  // Gather the sizes across all workers.
-  auto const all_sizes = Allgather(sizes);
-
-  // Calculate input offsets (std::exclusive_scan).
-  std::vector<std::size_t> offsets(all_sizes.size());
-  for (std::size_t i = 1; i < offsets.size(); i++) {
-    offsets[i] = offsets[i - 1] + all_sizes[i - 1];
-  }
-
-  // Gather all the inputs.
-  auto const all_inputs = AllgatherV(inputs);
-
-  return {offsets, all_sizes, all_inputs};
 }
 }  // namespace collective
 }  // namespace xgboost

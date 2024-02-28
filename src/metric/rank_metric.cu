@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 by XGBoost Contributors
+ * Copyright 2020-2024, XGBoost Contributors
  */
 #include <dmlc/registry.h>
 #include <thrust/iterator/counting_iterator.h>  // for make_counting_iterator

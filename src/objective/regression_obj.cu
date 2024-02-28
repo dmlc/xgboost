@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2023 by XGBoost Contributors
+ * Copyright 2015-2024, XGBoost Contributors
  * \file regression_obj.cu
  * \brief Definition of single-value regression and classification objectives.
  * \author Tianqi Chen, Kailong Chen
@@ -672,8 +672,12 @@ class MeanAbsoluteError : public ObjFunction {
     std::transform(linalg::cbegin(out), linalg::cend(out), linalg::begin(out),
                    [w](float v) { return v * w; });
 
-    collective::GlobalSum(info, &out.Values());
-    collective::GlobalSum(info, &w, 1);
+    auto rc = collective::Success() << [&] {
+      return collective::GlobalSum(ctx_, info, out);
+    } << [&] {
+      return collective::GlobalSum(ctx_, info, linalg::MakeVec(&w, 1));
+    };
+    collective::SafeColl(rc);
 
     if (common::CloseTo(w, 0.0)) {
       // Mostly for handling empty dataset test.
