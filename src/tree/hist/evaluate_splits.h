@@ -392,11 +392,6 @@ class HistEvaluator {
           }
           else {
             auto grad_stats = EnumerateSplit<+1>(cut, histogram, fidx, nidx, evaluator, best);
-
-            // print the best split for each feature
-            // std::cout << "Best split for feature " << fidx << " is " << best->split_value << " with gain " << best->loss_chg << std::endl;
-
-
             if (SplitContainsMissingValues(grad_stats, snode_[nidx])) {
               EnumerateSplit<-1>(cut, histogram, fidx, nidx, evaluator, best);
             }
