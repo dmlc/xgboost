@@ -280,7 +280,8 @@ class Predictor : public xgboost::Predictor {
                     uint32_t tree_end = 0) const override {
     ::sycl::queue qu = device_manager.GetQueue(ctx_->Device());
     // TODO(razdoburdin): remove temporary workaround after cache fix
-    sycl::DeviceMatrix device_matrix(qu, dmat);
+    sycl::DeviceMatrix device_matrix;
+    device_matrix.Init(qu, dmat);
 
     auto* out_preds = &predts->predictions;
     if (tree_end == 0) {

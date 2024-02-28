@@ -49,7 +49,8 @@ TEST(SyclGradientIndex, Init) {
 
   auto p_fmat = RandomDataGenerator{n_rows, n_columns, 0.3}.GenerateDMatrix();
 
-  sycl::DeviceMatrix dmat(qu, p_fmat.get());
+  sycl::DeviceMatrix dmat;
+  dmat.Init(qu, p_fmat.get());
 
   int max_bins = 256;
   common::GHistIndexMatrix gmat_sycl;
