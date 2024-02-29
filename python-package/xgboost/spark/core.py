@@ -95,9 +95,9 @@ from .utils import (
     deserialize_xgb_model,
     get_class_name,
     get_logger,
+    get_logger_level,
     serialize_booster,
     use_cuda,
-    get_logger_level,
 )
 
 # Put pyspark specific params here, they won't be passed to XGBoost.
