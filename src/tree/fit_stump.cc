@@ -1,7 +1,7 @@
 /**
- * Copyright 2022 by XGBoost Contributors
+ * Copyright 2022-2024, XGBoost Contributors
  *
- * \brief Utilities for estimating initial score.
+ * @brief Utilities for estimating initial score.
  */
 #include "fit_stump.h"
 
@@ -44,8 +44,11 @@ void FitStump(Context const* ctx, MetaInfo const& info,
     }
   }
   CHECK(h_sum.CContiguous());
-
-  collective::GlobalSum(info, reinterpret_cast<double*>(h_sum.Values().data()), h_sum.Size() * 2);
+  auto as_double = linalg::MakeTensorView(
+      ctx, common::Span{reinterpret_cast<double*>(h_sum.Values().data()), h_sum.Size() * 2},
+      h_sum.Size() * 2);
+  auto rc = collective::GlobalSum(ctx, info, as_double);
+  collective::SafeColl(rc);
 
   for (std::size_t i = 0; i < h_sum.Size(); ++i) {
     out(i) = static_cast<float>(CalcUnregularizedWeight(h_sum(i).GetGrad(), h_sum(i).GetHess()));

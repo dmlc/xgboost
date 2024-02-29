@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2023 by XGBoost Contributors
+ * Copyright 2019-2024, XGBoost Contributors
  */
 #ifndef XGBOOST_JSON_H_
 #define XGBOOST_JSON_H_
@@ -42,7 +42,8 @@ class Value {
     kBoolean,
     kNull,
     // typed array for ubjson
-    kNumberArray,
+    kF32Array,
+    kF64Array,
     kU8Array,
     kI32Array,
     kI64Array
@@ -173,7 +174,11 @@ class JsonTypedArray : public Value {
 /**
  * @brief Typed UBJSON array for 32-bit floating point.
  */
-using F32Array = JsonTypedArray<float, Value::ValueKind::kNumberArray>;
+using F32Array = JsonTypedArray<float, Value::ValueKind::kF32Array>;
+/**
+ * @brief Typed UBJSON array for 64-bit floating point.
+ */
+using F64Array = JsonTypedArray<double, Value::ValueKind::kF64Array>;
 /**
  * @brief Typed UBJSON array for uint8_t.
  */
@@ -457,9 +462,9 @@ class Json {
   Json& operator[](int ind)                 const { return (*ptr_)[ind]; }
 
   /*! \brief Return the reference to stored Json value. */
-  Value const& GetValue() const & { return *ptr_; }
-  Value const& GetValue() &&      { return *ptr_; }
-  Value&       GetValue() &       { return *ptr_; }
+  [[nodiscard]] Value const& GetValue() const& { return *ptr_; }
+  Value const& GetValue() && { return *ptr_; }
+  Value& GetValue() & { return *ptr_; }
 
   bool operator==(Json const& rhs) const {
     return *ptr_ == *(rhs.ptr_);
@@ -472,7 +477,7 @@ class Json {
     return os;
   }
 
-  IntrusivePtr<Value> const& Ptr() const { return ptr_; }
+  [[nodiscard]] IntrusivePtr<Value> const& Ptr() const { return ptr_; }
 
  private:
   IntrusivePtr<Value> ptr_{new JsonNull};

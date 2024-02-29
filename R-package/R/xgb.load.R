@@ -20,6 +20,7 @@
 #' \code{\link{xgb.save}}
 #'
 #' @examples
+#' \dontshow{RhpcBLASctl::omp_set_num_threads(1)}
 #' data(agaricus.train, package='xgboost')
 #' data(agaricus.test, package='xgboost')
 #'

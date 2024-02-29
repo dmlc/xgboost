@@ -104,6 +104,7 @@ OBJECTS= \
     $(PKGROOT)/src/collective/broadcast.o \
     $(PKGROOT)/src/collective/comm.o \
     $(PKGROOT)/src/collective/coll.o \
+    $(PKGROOT)/src/collective/communicator-inl.o \
     $(PKGROOT)/src/collective/tracker.o \
     $(PKGROOT)/src/collective/communicator.o \
     $(PKGROOT)/src/collective/in_memory_communicator.o \
