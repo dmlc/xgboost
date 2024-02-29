@@ -106,6 +106,9 @@ class ColMaker: public TreeUpdater {
     if (dmat->Info().HasCategorical()) {
       LOG(FATAL) << error::NoCategorical("Updater `grow_colmaker` or `exact` tree method");
     }
+    if (param->colsample_bynode - 1.0 != 0.0) {
+      LOG(FATAL) << "column sample by node is not yet supported by the exact tree method";
+    }
     this->LazyGetColumnDensity(dmat);
     // rescale learning rate according to size of trees
     interaction_constraints_.Configure(*param, dmat->Info().num_row_);
@@ -440,9 +443,8 @@ class ColMaker: public TreeUpdater {
     }
 
     // update the solution candidate
-    virtual void UpdateSolution(const SortedCSCPage &batch,
-                                const std::vector<bst_feature_t> &feat_set,
-                                const std::vector<GradientPair> &gpair, DMatrix *) {
+    void UpdateSolution(SortedCSCPage const &batch, const std::vector<bst_feature_t> &feat_set,
+                        const std::vector<GradientPair> &gpair) {
       // start enumeration
       const auto num_features = feat_set.size();
       CHECK(this->ctx_);
@@ -466,17 +468,15 @@ class ColMaker: public TreeUpdater {
             }
           });
     }
+
     // find splits at current level, do split per level
-    inline void FindSplit(int depth,
-                          const std::vector<int> &qexpand,
-                          const std::vector<GradientPair> &gpair,
-                          DMatrix *p_fmat,
-                          RegTree *p_tree) {
+    void FindSplit(bst_node_t depth, const std::vector<int> &qexpand,
+                   std::vector<GradientPair> const &gpair, DMatrix *p_fmat, RegTree *p_tree) {
       auto evaluator = tree_evaluator_.GetEvaluator();
 
       auto feat_set = column_sampler_->GetFeatureSet(depth);
       for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>(ctx_)) {
-        this->UpdateSolution(batch, feat_set->HostVector(), gpair, p_fmat);
+        this->UpdateSolution(batch, feat_set->HostVector(), gpair);
       }
       // after this each thread's stemp will get the best candidates, aggregate results
       this->SyncBestSolution(qexpand);
