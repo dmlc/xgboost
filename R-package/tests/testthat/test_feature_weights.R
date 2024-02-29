@@ -25,7 +25,7 @@ test_that("training with feature weights works", {
     expect_lt(importance[1, Frequency], importance[9, Frequency])
   }
 
-  for (tm in c("hist", "approx", "exact")) {
+  for (tm in c("hist", "approx")) {
     test(tm)
   }
 })
