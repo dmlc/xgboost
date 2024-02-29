@@ -119,6 +119,7 @@ def get_logger(name: str, level: Optional[Union[str, int]] = None) -> logging.Lo
 
 
 def get_logger_level(name: str) -> Optional[int]:
+    """Get the logger level for the given log name"""
     logger = logging.getLogger(name)
     return None if logger.level == logging.NOTSET else logger.level
 
