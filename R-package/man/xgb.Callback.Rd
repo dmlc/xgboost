@@ -34,7 +34,13 @@ If passing \code{NULL} for this or for the other function inputs, then no functi
 If passing a function, it will be called with parameters supplied as non-named arguments
 matching the function signatures that are shown in the default value for each function argument.}
 
-\item{f_before_iter}{A function that will be executed before each boosting round.}
+\item{f_before_iter}{A function that will be executed before each boosting round.
+
+This function can signal whether the training should be finalized or not, by outputting
+a value that evaluates to \code{TRUE} - i.e. if the output from the function provided here at
+a given round is \code{TRUE}, then training will be stopped before the current iteration happens.
+
+Return values of \code{NULL} will be interpreted as \code{FALSE}.}
 
 \item{f_after_iter}{A function that will be executed after each boosting round.
 

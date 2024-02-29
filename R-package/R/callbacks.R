@@ -20,6 +20,12 @@
 #' If passing a function, it will be called with parameters supplied as non-named arguments
 #' matching the function signatures that are shown in the default value for each function argument.
 #' @param f_before_iter A function that will be executed before each boosting round.
+#'
+#' This function can signal whether the training should be finalized or not, by outputting
+#' a value that evaluates to `TRUE` - i.e. if the output from the function provided here at
+#' a given round is `TRUE`, then training will be stopped before the current iteration happens.
+#'
+#' Return values of `NULL` will be interpreted as `FALSE`.
 #' @param f_after_iter A function that will be executed after each boosting round.
 #'
 #' This function can signal whether the training should be finalized or not, by outputting
@@ -270,17 +276,28 @@ xgb.Callback <- function(
   watchlist,
   iteration
 ) {
-  for (callback in callbacks) {
-    if (!is.null(callback$f_before_iter)) {
-      callback$f_before_iter(
-        callback$env,
-        model,
-        data,
-        watchlist,
-        iteration
-      )
-    }
+  if (!length(callbacks)) {
+    return(FALSE)
   }
+  out <- sapply(callbacks, function(cb) {
+    if (is.null(cb$f_before_iter)) {
+      return(FALSE)
+    }
+    should_stop <- cb$f_before_iter(
+      cb$env,
+      model,
+      data,
+      watchlist,
+      iteration
+    )
+    if (!NROW(should_stop)) {
+      should_stop <- FALSE
+    } else if (NROW(should_stop) > 1) {
+      should_stop <- head(as.logical(should_stop), 1)
+    }
+    return(should_stop)
+  })
+  return(any(out))
 }
 
 .execute.cb.after.iter <- function(
@@ -559,6 +576,7 @@ xgb.cb.reset.parameters <- function(new_params) {
           xgb.parameters(fd$bst) <- pars
         }
       }
+      return(FALSE)
     },
     f_after_iter = NULL,
     f_after_training = NULL
