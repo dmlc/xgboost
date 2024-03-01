@@ -1,6 +1,5 @@
-/*!
- * Copyright 2018-2022 by Contributors
- * \file metric_common.h
+/**
+ * Copyright 2018-2024, Contributors
  */
 #ifndef XGBOOST_METRIC_METRIC_COMMON_H_
 #define XGBOOST_METRIC_METRIC_COMMON_H_
@@ -24,7 +23,7 @@ class MetricNoCache : public Metric {
   double Evaluate(HostDeviceVector<float> const &predts, std::shared_ptr<DMatrix> p_fmat) final {
     double result{0.0};
     auto const &info = p_fmat->Info();
-    collective::ApplyWithLabels(info, &result, sizeof(double),
+    collective::ApplyWithLabels(ctx_, info, &result, sizeof(double),
                                 [&] { result = this->Eval(predts, info); });
     return result;
   }

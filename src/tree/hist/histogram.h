@@ -196,8 +196,9 @@ class HistogramBuilder {
     if (is_distributed_ && is_col_split_ && is_secure_) {
       // Under secure vertical mode, we perform allgather for all nodes
       CHECK(!nodes_to_build.empty());
-      // in theory the operation is AllGather, but with current system functionality,
-      // we use AllReduce to simulate the AllGather operation
+      // in theory the operation is AllGather, under current histogram setting of
+      // same length with 0s for empty slots,
+      // AllReduce is the most efficient way of achieving the global histogram
       auto first_nidx = nodes_to_build.front();
       std::size_t n = n_total_bins * nodes_to_build.size() * 2;
       collective::Allreduce<collective::Operation::kSum>(
@@ -343,7 +344,8 @@ class MultiHistogramBuilder {
   [[nodiscard]] auto &Histogram(bst_target_t t) { return target_builders_[t].Histogram(); }
 
   void Reset(Context const *ctx, bst_bin_t total_bins, bst_target_t n_targets, BatchParam const &p,
-             bool is_distributed, bool is_col_split, bool is_secure, HistMakerTrainParam const *param) {
+             bool is_distributed, bool is_col_split, bool is_secure,
+             HistMakerTrainParam const *param) {
     ctx_ = ctx;
     target_builders_.resize(n_targets);
     CHECK_GE(n_targets, 1);
