@@ -166,8 +166,8 @@ class MultiTargetHistBuilder {
     bst_target_t n_targets = p_tree->NumTargets();
     histogram_builder_ = std::make_unique<MultiHistogramBuilder>();
     histogram_builder_->Reset(ctx_, n_total_bins, n_targets, HistBatch(param_),
-                              collective::IsDistributed(), p_fmat->Info().IsColumnSplit(), p_fmat->Info().IsSecure(),
-                              hist_param_);
+                              collective::IsDistributed(), p_fmat->Info().IsColumnSplit(),
+                              p_fmat->Info().IsSecure(), hist_param_);
 
     evaluator_ = std::make_unique<HistMultiEvaluator>(ctx_, p_fmat->Info(), param_, col_sampler_);
     p_last_tree_ = p_tree;

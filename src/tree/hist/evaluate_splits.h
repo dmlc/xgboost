@@ -353,9 +353,9 @@ class HistEvaluator {
     auto evaluator = tree_evaluator_.GetEvaluator();
     auto const &cut_ptrs = cut.Ptrs();
 
-    // Under secure vertical setting, only the label owner is able to evaluate the split
-    // based on the global histogram. The other parties will only receive the final best split information
-    // Hence the below computation is not performed by the non-label owners under secure vertical setting
+    // Under secure vertical setting, only the active party is able to evaluate the split
+    // based on global histogram. Other parties will receive the final best split information
+    // Hence the below computation is not performed by the passive parties
     if ((!is_secure_) || (collective::GetRank() == 0)) {
       // Evaluate the splits for each feature
       common::ParallelFor2d(space, n_threads, [&](size_t nidx_in_set, common::Range1d r) {
@@ -375,8 +375,7 @@ class HistEvaluator {
             auto n_bins = cut_ptrs.at(fidx + 1) - cut_ptrs[fidx];
             if (common::UseOneHot(n_bins, param_->max_cat_to_onehot)) {
               EnumerateOneHot(cut, histogram, fidx, nidx, evaluator, best);
-            }
-            else {
+            } else {
               std::vector<size_t> sorted_idx(n_bins);
               std::iota(sorted_idx.begin(), sorted_idx.end(), 0);
               auto feat_hist = histogram.subspan(cut_ptrs[fidx], n_bins);
@@ -389,8 +388,7 @@ class HistEvaluator {
               EnumeratePart<+1>(cut, sorted_idx, histogram, fidx, nidx, evaluator, best);
               EnumeratePart<-1>(cut, sorted_idx, histogram, fidx, nidx, evaluator, best);
             }
-          }
-          else {
+          } else {
             auto grad_stats = EnumerateSplit<+1>(cut, histogram, fidx, nidx, evaluator, best);
             if (SplitContainsMissingValues(grad_stats, snode_[nidx])) {
               EnumerateSplit<-1>(cut, histogram, fidx, nidx, evaluator, best);

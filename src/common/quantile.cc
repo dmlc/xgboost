@@ -372,12 +372,11 @@ void AddCutPoint(typename SketchType::SummaryContainer const &summary, int max_b
   }
   auto &cut_values = cuts->cut_values_.HostVector();
   // if empty column, fill the cut values with 0
-  if (secure && (required_cuts_original == 0)){
+  if (secure && (required_cuts_original == 0)) {
     for (size_t i = 1; i < required_cuts; ++i) {
       cut_values.push_back(0.0);
     }
-  }
-  else {
+  } else {
     // we use the min_value as the first (0th) element, hence starting from 1.
     for (size_t i = 1; i < required_cuts; ++i) {
       bst_float cpt = summary.data[i].value;
