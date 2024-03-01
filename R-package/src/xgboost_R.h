@@ -535,4 +535,14 @@ XGB_DLL SEXP XGBoosterFeatureScore_R(SEXP handle, SEXP json_config);
  */
 XGB_DLL SEXP XGBoosterSlice_R(SEXP handle, SEXP begin_layer, SEXP end_layer, SEXP step);
 
+/*!
+ * \brief Slice a fitted booster model (by rounds), and replace its handle with the result
+ * \param handle handle to the fitted booster
+ * \param begin_layer start of the slice
+ * \param end_later end of the slice; end_layer=0 is equivalent to end_layer=num_boost_round
+ * \param step step size of the slice
+ * \return NULL
+ */
+XGB_DLL SEXP XGBoosterSliceAndReplace_R(SEXP handle, SEXP begin_layer, SEXP end_layer, SEXP step);
+
 #endif  // XGBOOST_WRAPPER_R_H_ // NOLINT(*)

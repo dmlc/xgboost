@@ -162,7 +162,7 @@ List is provided in detail section.}
 Metrics specified in either \code{eval_metric} or \code{feval} will be computed for each
 of these datasets during each boosting iteration, and stored in the end as a field named
 \code{evaluation_log} in the resulting object. When either \code{verbose>=1} or
-\code{\link{cb.print.evaluation}} callback is engaged, the performance results are continuously
+\code{\link{xgb.cb.print.evaluation}} callback is engaged, the performance results are continuously
 printed out during the training.
 E.g., specifying \code{watchlist=list(validation1=mat1, validation2=mat2)} allows to track
 the performance of each round's model on mat1 and mat2.}
@@ -177,24 +177,24 @@ prediction and dtrain.}
 \item{verbose}{If 0, xgboost will stay silent. If 1, it will print information about performance.
 If 2, some additional information will be printed out.
 Note that setting \code{verbose > 0} automatically engages the
-\code{cb.print.evaluation(period=1)} callback function.}
+\code{xgb.cb.print.evaluation(period=1)} callback function.}
 
 \item{print_every_n}{Print each n-th iteration evaluation messages when \code{verbose>0}.
 Default is 1 which means all messages are printed. This parameter is passed to the
-\code{\link{cb.print.evaluation}} callback.}
+\code{\link{xgb.cb.print.evaluation}} callback.}
 
 \item{early_stopping_rounds}{If \code{NULL}, the early stopping function is not triggered.
 If set to an integer \code{k}, training with a validation set will stop if the performance
 doesn't improve for \code{k} rounds.
-Setting this parameter engages the \code{\link{cb.early.stop}} callback.}
+Setting this parameter engages the \code{\link{xgb.cb.early.stop}} callback.}
 
 \item{maximize}{If \code{feval} and \code{early_stopping_rounds} are set,
 then this parameter must be set as well.
 When it is \code{TRUE}, it means the larger the evaluation score the better.
-This parameter is passed to the \code{\link{cb.early.stop}} callback.}
+This parameter is passed to the \code{\link{xgb.cb.early.stop}} callback.}
 
 \item{save_period}{when it is non-NULL, model is saved to disk after every \code{save_period} rounds,
-0 means save at the end. The saving is handled by the \code{\link{cb.save.model}} callback.}
+0 means save at the end. The saving is handled by the \code{\link{xgb.cb.save.model}} callback.}
 
 \item{save_name}{the name or path for periodically saved model file.}
 
@@ -203,12 +203,13 @@ Could be either an object of class \code{xgb.Booster}, or its raw data, or the n
 file with a previously saved model.}
 
 \item{callbacks}{a list of callback functions to perform various task during boosting.
-See \code{\link{callbacks}}. Some of the callbacks are automatically created depending on the
+See \code{\link{xgb.Callback}}. Some of the callbacks are automatically created depending on the
 parameters' values. User can provide either existing or their own callback methods in order
 to customize the training process.
 
-\if{html}{\out{<div class="sourceCode">}}\preformatted{   Note that some callbacks might try to set an evaluation log - be aware that these evaluation logs
-   are kept as R attributes, and thus do not get saved when using non-R serializaters like
+\if{html}{\out{<div class="sourceCode">}}\preformatted{   Note that some callbacks might try to leave attributes in the resulting model object,
+   such as an evaluation log (a `data.table` object) - be aware that these objects are kept
+   as R attributes, and thus do not get saved when using XGBoost's own serializaters like
    \link{xgb.save} (but are kept when using R serializers like \link{saveRDS}).
 }\if{html}{\out{</div>}}}
 
@@ -269,18 +270,19 @@ Different threshold (e.g., 0.) could be specified as "error@0."
 
 The following callbacks are automatically created when certain parameters are set:
 \itemize{
-\item \code{cb.print.evaluation} is turned on when \code{verbose > 0};
+\item \code{xgb.cb.print.evaluation} is turned on when \code{verbose > 0};
 and the \code{print_every_n} parameter is passed to it.
-\item \code{cb.evaluation.log} is on when \code{watchlist} is present.
-\item \code{cb.early.stop}: when \code{early_stopping_rounds} is set.
-\item \code{cb.save.model}: when \code{save_period > 0} is set.
+\item \code{xgb.cb.evaluation.log} is on when \code{watchlist} is present.
+\item \code{xgb.cb.early.stop}: when \code{early_stopping_rounds} is set.
+\item \code{xgb.cb.save.model}: when \code{save_period > 0} is set.
 }
 
 Note that objects of type \code{xgb.Booster} as returned by this function behave a bit differently
 from typical R objects (it's an 'altrep' list class), and it makes a separation between
 internal booster attributes (restricted to jsonifyable data), accessed through \link{xgb.attr}
 and shared between interfaces through serialization functions like \link{xgb.save}; and
-R-specific attributes, accessed through \link{attributes} and \link{attr}, which are otherwise
+R-specific attributes (typically the result from a callback), accessed through \link{attributes}
+and \link{attr}, which are otherwise
 only used in the R interface, only kept when using R's serializers like \link{saveRDS}, and
 not anyhow used by functions like \link{predict.xgb.Booster}.
 
@@ -348,7 +350,7 @@ param <- list(max_depth = 2, eta = 1, nthread = nthread,
               objective = "binary:logistic", eval_metric = "auc")
 my_etas <- list(eta = c(0.5, 0.1))
 bst <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0,
-                 callbacks = list(cb.reset.parameters(my_etas)))
+                 callbacks = list(xgb.cb.reset.parameters(my_etas)))
 
 ## Early stopping:
 bst <- xgb.train(param, dtrain, nrounds = 25, watchlist,
@@ -366,7 +368,7 @@ Tianqi Chen and Carlos Guestrin, "XGBoost: A Scalable Tree Boosting System",
 22nd SIGKDD Conference on Knowledge Discovery and Data Mining, 2016, \url{https://arxiv.org/abs/1603.02754}
 }
 \seealso{
-\code{\link{callbacks}},
+\code{\link{xgb.Callback}},
 \code{\link{predict.xgb.Booster}},
 \code{\link{xgb.cv}}
 }

@@ -1071,6 +1071,10 @@ xgb.best_iteration <- function(bst) {
 #' coef(model)
 #' @export
 coef.xgb.Booster <- function(object, ...) {
+  return(.internal.coef.xgb.Booster(object, add_names = TRUE))
+}
+
+.internal.coef.xgb.Booster <- function(object, add_names = TRUE) {
   booster_type <- xgb.booster_type(object)
   if (booster_type != "gblinear") {
     stop("Coefficients are not defined for Booster type ", booster_type)
@@ -1089,21 +1093,27 @@ coef.xgb.Booster <- function(object, ...) {
   intercepts <- weights[seq(sep + 1, length(weights))]
   intercepts <- intercepts + as.numeric(base_score)
 
-  feature_names <- xgb.feature_names(object)
-  if (!NROW(feature_names)) {
-    # This mimics the default naming in R which names columns as "V1..N"
-    # when names are needed but not available
-    feature_names <- paste0("V", seq(1L, num_feature))
+  if (add_names) {
+    feature_names <- xgb.feature_names(object)
+    if (!NROW(feature_names)) {
+      # This mimics the default naming in R which names columns as "V1..N"
+      # when names are needed but not available
+      feature_names <- paste0("V", seq(1L, num_feature))
+    }
+    feature_names <- c("(Intercept)", feature_names)
   }
-  feature_names <- c("(Intercept)", feature_names)
   if (n_cols == 1L) {
     out <- c(intercepts, coefs)
-    names(out) <- feature_names
+    if (add_names) {
+      names(out) <- feature_names
+    }
   } else {
     coefs <- matrix(coefs, nrow = num_feature, byrow = TRUE)
     dim(intercepts) <- c(1L, n_cols)
     out <- rbind(intercepts, coefs)
-    row.names(out) <- feature_names
+    if (add_names) {
+      row.names(out) <- feature_names
+    }
     # TODO: if a class names attributes is added,
     # should use those names here.
   }
@@ -1255,12 +1265,9 @@ print.xgb.Booster <- function(x, ...) {
     cat("  ", paste(attr_names, collapse = ", "), "\n")
   }
 
-  if (!is.null(R_attrs$callbacks) && length(R_attrs$callbacks) > 0) {
-    cat('callbacks:\n')
-    lapply(callback.calls(R_attrs$callbacks), function(x) {
-      cat('  ')
-      print(x)
-    })
+  additional_attr <- setdiff(names(R_attrs), .reserved_cb_names)
+  if (NROW(additional_attr)) {
+    cat("callbacks:\n  ", paste(additional_attr, collapse = ", "), "\n")
   }
 
   if (!is.null(R_attrs$evaluation_log)) {

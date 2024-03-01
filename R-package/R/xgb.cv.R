@@ -27,7 +27,7 @@
 #'        that NA values should be considered as 'missing' by the algorithm.
 #'        Sometimes, 0 or other extreme value might be used to represent missing values.
 #' @param prediction A logical value indicating whether to return the test fold predictions
-#'        from each CV model. This parameter engages the \code{\link{cb.cv.predict}} callback.
+#'        from each CV model. This parameter engages the \code{\link{xgb.cb.cv.predict}} callback.
 #' @param showsd \code{boolean}, whether to show standard deviation of cross validation
 #' @param metrics, list of evaluation metrics to be used in cross validation,
 #'   when it is not specified, the evaluation metric is chosen according to objective function.
@@ -57,17 +57,17 @@
 #' @param verbose \code{boolean}, print the statistics during the process
 #' @param print_every_n Print each n-th iteration evaluation messages when \code{verbose>0}.
 #'        Default is 1 which means all messages are printed. This parameter is passed to the
-#'        \code{\link{cb.print.evaluation}} callback.
+#'        \code{\link{xgb.cb.print.evaluation}} callback.
 #' @param early_stopping_rounds If \code{NULL}, the early stopping function is not triggered.
 #'        If set to an integer \code{k}, training with a validation set will stop if the performance
 #'        doesn't improve for \code{k} rounds.
-#'        Setting this parameter engages the \code{\link{cb.early.stop}} callback.
+#'        Setting this parameter engages the \code{\link{xgb.cb.early.stop}} callback.
 #' @param maximize If \code{feval} and \code{early_stopping_rounds} are set,
 #'        then this parameter must be set as well.
 #'        When it is \code{TRUE}, it means the larger the evaluation score the better.
-#'        This parameter is passed to the \code{\link{cb.early.stop}} callback.
+#'        This parameter is passed to the \code{\link{xgb.cb.early.stop}} callback.
 #' @param callbacks a list of callback functions to perform various task during boosting.
-#'        See \code{\link{callbacks}}. Some of the callbacks are automatically created depending on the
+#'        See \code{\link{xgb.Callback}}. Some of the callbacks are automatically created depending on the
 #'        parameters' values. User can provide either existing or their own callback methods in order
 #'        to customize the training process.
 #' @param ... other parameters to pass to \code{params}.
@@ -90,24 +90,24 @@
 #' \itemize{
 #'   \item \code{call} a function call.
 #'   \item \code{params} parameters that were passed to the xgboost library. Note that it does not
-#'         capture parameters changed by the \code{\link{cb.reset.parameters}} callback.
-#'   \item \code{callbacks} callback functions that were either automatically assigned or
-#'         explicitly passed.
+#'         capture parameters changed by the \code{\link{xgb.cb.reset.parameters}} callback.
 #'   \item \code{evaluation_log} evaluation history stored as a \code{data.table} with the
 #'         first column corresponding to iteration number and the rest corresponding to the
 #'         CV-based evaluation means and standard deviations for the training and test CV-sets.
-#'         It is created by the \code{\link{cb.evaluation.log}} callback.
+#'         It is created by the \code{\link{xgb.cb.evaluation.log}} callback.
 #'   \item \code{niter} number of boosting iterations.
 #'   \item \code{nfeatures} number of features in training data.
 #'   \item \code{folds} the list of CV folds' indices - either those passed through the \code{folds}
 #'         parameter or randomly generated.
 #'   \item \code{best_iteration} iteration number with the best evaluation metric value
 #'         (only available with early stopping).
-#'   \item \code{pred} CV prediction values available when \code{prediction} is set.
-#'         It is either vector or matrix (see \code{\link{cb.cv.predict}}).
-#'   \item \code{models} a list of the CV folds' models. It is only available with the explicit
-#'         setting of the \code{cb.cv.predict(save_models = TRUE)} callback.
 #' }
+#'
+#' Plus other potential elements that are the result of callbacks, such as a list `cv_predict` with
+#' a sub-element `pred` when passing `prediction = TRUE`, which is added by the \link{xgb.cb.cv.predict}
+#' callback (note that one can also pass it manually under `callbacks` with different settings,
+#' such as saving also the models created during cross validation); or a list `early_stop` which
+#' will contain elements such as `best_iteration` when using the early stopping callback (\link{xgb.cb.early.stop}).
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
@@ -160,32 +160,38 @@ xgb.cv <- function(params = list(), data, nrounds, nfold, label = NULL, missing 
     folds <- generate.cv.folds(nfold, nrow(data), stratified, cv_label, params)
   }
 
+  # Callbacks
+  tmp <- .process.callbacks(callbacks, is_cv = TRUE)
+  callbacks <- tmp$callbacks
+  cb_names <- tmp$cb_names
+  rm(tmp)
+
+  # Early stopping callback
+  if (!is.null(early_stopping_rounds) && !("early_stop" %in% cb_names)) {
+    callbacks <- add.callback(
+      callbacks,
+      xgb.cb.early.stop(
+        early_stopping_rounds,
+        maximize = maximize,
+        verbose = verbose
+      ),
+      as_first_elt = TRUE
+    )
+  }
   # verbosity & evaluation printing callback:
   params <- c(params, list(silent = 1))
   print_every_n <- max(as.integer(print_every_n), 1L)
-  if (!has.callbacks(callbacks, 'cb.print.evaluation') && verbose) {
-    callbacks <- add.cb(callbacks, cb.print.evaluation(print_every_n, showsd = showsd))
+  if (verbose && !("print_evaluation" %in% cb_names)) {
+    callbacks <- add.callback(callbacks, xgb.cb.print.evaluation(print_every_n, showsd = showsd))
   }
   # evaluation log callback: always is on in CV
-  evaluation_log <- list()
-  if (!has.callbacks(callbacks, 'cb.evaluation.log')) {
-    callbacks <- add.cb(callbacks, cb.evaluation.log())
-  }
-  # Early stopping callback
-  stop_condition <- FALSE
-  if (!is.null(early_stopping_rounds) &&
-      !has.callbacks(callbacks, 'cb.early.stop')) {
-    callbacks <- add.cb(callbacks, cb.early.stop(early_stopping_rounds,
-                                                 maximize = maximize, verbose = verbose))
+  if (!("evaluation_log" %in% cb_names)) {
+    callbacks <- add.callback(callbacks, xgb.cb.evaluation.log())
   }
   # CV-predictions callback
-  if (prediction &&
-      !has.callbacks(callbacks, 'cb.cv.predict')) {
-    callbacks <- add.cb(callbacks, cb.cv.predict(save_models = FALSE))
+  if (prediction && !("cv_predict" %in% cb_names)) {
+    callbacks <- add.callback(callbacks, xgb.cb.cv.predict(save_models = FALSE))
   }
-  # Sort the callbacks into categories
-  cb <- categorize.callbacks(callbacks)
-
 
   # create the booster-folds
   # train_folds
@@ -211,9 +217,6 @@ xgb.cv <- function(params = list(), data, nrounds, nfold, label = NULL, missing 
     bst <- bst$bst
     list(dtrain = dtrain, bst = bst, watchlist = list(train = dtrain, test = dtest), index = folds[[k]])
   })
-  rm(dall)
-  # a "basket" to collect some results from callbacks
-  basket <- list()
 
   # extract parameters that can affect the relationship b/w #trees and #iterations
   num_class <- max(as.numeric(NVL(params[['num_class']], 1)), 1) # nolint
@@ -222,10 +225,25 @@ xgb.cv <- function(params = list(), data, nrounds, nfold, label = NULL, missing 
   begin_iteration <- 1
   end_iteration <- nrounds
 
+  .execute.cb.before.training(
+    callbacks,
+    bst_folds,
+    dall,
+    NULL,
+    begin_iteration,
+    end_iteration
+  )
+
   # synchronous CV boosting: run CV folds' models within each iteration
   for (iteration in begin_iteration:end_iteration) {
 
-    for (f in cb$pre_iter) f()
+    .execute.cb.before.iter(
+      callbacks,
+      bst_folds,
+      dall,
+      NULL,
+      iteration
+    )
 
     msg <- lapply(bst_folds, function(fd) {
       xgb.iter.update(
@@ -242,27 +260,36 @@ xgb.cv <- function(params = list(), data, nrounds, nfold, label = NULL, missing 
       )
     })
     msg <- simplify2array(msg)
-    # Note: these variables might look unused here, but they are used in the callbacks
-    bst_evaluation <- rowMeans(msg) # nolint
-    bst_evaluation_err <- apply(msg, 1, sd) # nolint
 
-    for (f in cb$post_iter) f()
+    should_stop <- .execute.cb.after.iter(
+      callbacks,
+      bst_folds,
+      dall,
+      NULL,
+      iteration,
+      msg
+    )
 
-    if (stop_condition) break
+    if (should_stop) break
   }
-  for (f in cb$finalize) f(finalize = TRUE)
+  cb_outputs <- .execute.cb.after.training(
+    callbacks,
+    bst_folds,
+    dall,
+    NULL,
+    iteration,
+    msg
+  )
 
   # the CV result
   ret <- list(
     call = match.call(),
     params = params,
-    callbacks = callbacks,
-    evaluation_log = evaluation_log,
-    niter = end_iteration,
-    nfeatures = ncol(data),
+    niter = iteration,
+    nfeatures = ncol(dall),
     folds = folds
   )
-  ret <- c(ret, basket)
+  ret <- c(ret, cb_outputs)
 
   class(ret) <- 'xgb.cv.synchronous'
   return(invisible(ret))
@@ -308,23 +335,16 @@ print.xgb.cv.synchronous <- function(x, verbose = FALSE, ...) {
                 paste0('"', unlist(x$params), '"'),
                 sep = ' = ', collapse = ', '), '\n', sep = '')
     }
-    if (!is.null(x$callbacks) && length(x$callbacks) > 0) {
-      cat('callbacks:\n')
-      lapply(callback.calls(x$callbacks), function(x) {
-        cat('  ')
-        print(x)
-      })
-    }
 
     for (n in c('niter', 'best_iteration')) {
-      if (is.null(x[[n]]))
+      if (is.null(x$early_stop[[n]]))
         next
-      cat(n, ': ', x[[n]], '\n', sep = '')
+      cat(n, ': ', x$early_stop[[n]], '\n', sep = '')
     }
 
-    if (!is.null(x$pred)) {
+    if (!is.null(x$cv_predict$pred)) {
       cat('pred:\n')
-      str(x$pred)
+      str(x$cv_predict$pred)
     }
   }
 
@@ -332,9 +352,9 @@ print.xgb.cv.synchronous <- function(x, verbose = FALSE, ...) {
     cat('evaluation_log:\n')
   print(x$evaluation_log, row.names = FALSE, ...)
 
-  if (!is.null(x$best_iteration)) {
+  if (!is.null(x$early_stop$best_iteration)) {
     cat('Best iteration:\n')
-    print(x$evaluation_log[x$best_iteration], row.names = FALSE, ...)
+    print(x$evaluation_log[x$early_stop$best_iteration], row.names = FALSE, ...)
   }
   invisible(x)
 }

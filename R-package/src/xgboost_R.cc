@@ -1674,3 +1674,18 @@ XGB_DLL SEXP XGBoosterSlice_R(SEXP handle, SEXP begin_layer, SEXP end_layer, SEX
   Rf_unprotect(1);
   return out;
 }
+
+XGB_DLL SEXP XGBoosterSliceAndReplace_R(SEXP handle, SEXP begin_layer, SEXP end_layer, SEXP step) {
+  R_API_BEGIN();
+  BoosterHandle old_handle = R_ExternalPtrAddr(handle);
+  BoosterHandle new_handle = nullptr;
+  CHECK_CALL(XGBoosterSlice(old_handle,
+                            Rf_asInteger(begin_layer),
+                            Rf_asInteger(end_layer),
+                            Rf_asInteger(step),
+                            &new_handle));
+  R_SetExternalPtrAddr(handle, new_handle);
+  CHECK_CALL(XGBoosterFree(old_handle));
+  R_API_END();
+  return R_NilValue;
+}

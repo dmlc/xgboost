@@ -82,12 +82,8 @@ NULL
 NULL
 
 # Various imports
-#' @importClassesFrom Matrix dgCMatrix dgeMatrix dgRMatrix
-#' @importFrom Matrix colSums
+#' @importClassesFrom Matrix dgCMatrix dgRMatrix CsparseMatrix
 #' @importFrom Matrix sparse.model.matrix
-#' @importFrom Matrix sparseVector
-#' @importFrom Matrix sparseMatrix
-#' @importFrom Matrix t
 #' @importFrom data.table data.table
 #' @importFrom data.table is.data.table
 #' @importFrom data.table as.data.table
@@ -103,6 +99,7 @@ NULL
 #' @importFrom stats coef
 #' @importFrom stats predict
 #' @importFrom stats median
+#' @importFrom stats sd
 #' @importFrom stats variable.names
 #' @importFrom utils head
 #' @importFrom graphics barplot

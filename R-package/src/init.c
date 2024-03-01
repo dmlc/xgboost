@@ -76,6 +76,7 @@ extern SEXP XGBSetGlobalConfig_R(SEXP);
 extern SEXP XGBGetGlobalConfig_R(void);
 extern SEXP XGBoosterFeatureScore_R(SEXP, SEXP);
 extern SEXP XGBoosterSlice_R(SEXP, SEXP, SEXP, SEXP);
+extern SEXP XGBoosterSliceAndReplace_R(SEXP, SEXP, SEXP, SEXP);
 
 static const R_CallMethodDef CallEntries[] = {
   {"XGDuplicate_R",               (DL_FUNC) &XGDuplicate_R,               1},
@@ -138,6 +139,7 @@ static const R_CallMethodDef CallEntries[] = {
   {"XGBGetGlobalConfig_R",        (DL_FUNC) &XGBGetGlobalConfig_R,        0},
   {"XGBoosterFeatureScore_R",     (DL_FUNC) &XGBoosterFeatureScore_R,     2},
   {"XGBoosterSlice_R",            (DL_FUNC) &XGBoosterSlice_R,            4},
+  {"XGBoosterSliceAndReplace_R",  (DL_FUNC) &XGBoosterSliceAndReplace_R,  4},
   {NULL, NULL, 0}
 };
 
