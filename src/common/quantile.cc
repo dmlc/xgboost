@@ -362,14 +362,27 @@ void SketchContainerImpl<WQSketch>::AllReduce(
 
 template <typename SketchType>
 void AddCutPoint(typename SketchType::SummaryContainer const &summary, int max_bin,
-                 HistogramCuts *cuts) {
+                 HistogramCuts *cuts, bool secure) {
   size_t required_cuts = std::min(summary.size, static_cast<size_t>(max_bin));
+  // make a copy of required_cuts for mode selection
+  size_t required_cuts_original = required_cuts;
+  if (secure) {
+    // Sync the required_cuts across all workers
+    collective::Allreduce<collective::Operation::kMax>(&required_cuts, 1);
+  }
   auto &cut_values = cuts->cut_values_.HostVector();
-  // we use the min_value as the first (0th) element, hence starting from 1.
-  for (size_t i = 1; i < required_cuts; ++i) {
-    bst_float cpt = summary.data[i].value;
-    if (i == 1 || cpt > cut_values.back()) {
-      cut_values.push_back(cpt);
+  // if empty column, fill the cut values with 0
+  if (secure && (required_cuts_original == 0)) {
+    for (size_t i = 1; i < required_cuts; ++i) {
+      cut_values.push_back(0.0);
+    }
+  } else {
+    // we use the min_value as the first (0th) element, hence starting from 1.
+    for (size_t i = 1; i < required_cuts; ++i) {
+      bst_float cpt = summary.data[i].value;
+      if (i == 1 || cpt > cut_values.back()) {
+        cut_values.push_back(cpt);
+      }
     }
   }
 }
@@ -423,11 +436,16 @@ void SketchContainerImpl<WQSketch>::MakeCuts(Context const *ctx, MetaInfo const 
   float max_cat{-1.f};
   for (size_t fid = 0; fid < reduced.size(); ++fid) {
     size_t max_num_bins = std::min(num_cuts[fid], max_bins_);
+    // If vertical and secure mode, we need to sync the max_num_bins aross workers
+    if (info.IsVerticalFederated() && info.IsSecure()) {
+      collective::Allreduce<collective::Operation::kMax>(&max_num_bins, 1);
+    }
     typename WQSketch::SummaryContainer const &a = final_summaries[fid];
     if (IsCat(feature_types_, fid)) {
       max_cat = std::max(max_cat, AddCategories(categories_.at(fid), p_cuts));
     } else {
-      AddCutPoint<WQSketch>(a, max_num_bins, p_cuts);
+      // use special AddCutPoint scheme for secure vertical federated learning
+      AddCutPoint<WQSketch>(a, max_num_bins, p_cuts, info.IsSecure());
       // push a value that is greater than anything
       const bst_float cpt =
           (a.size > 0) ? a.data[a.size - 1].value : p_cuts->min_vals_.HostVector()[fid];
@@ -441,6 +459,13 @@ void SketchContainerImpl<WQSketch>::MakeCuts(Context const *ctx, MetaInfo const 
     auto cut_size = static_cast<uint32_t>(p_cuts->cut_values_.HostVector().size());
     CHECK_GT(cut_size, p_cuts->cut_ptrs_.HostVector().back());
     p_cuts->cut_ptrs_.HostVector().push_back(cut_size);
+  }
+
+  if (info.IsVerticalFederated() && info.IsSecure()) {
+      // cut values need to be synced across all workers via Allreduce
+      auto cut_val = p_cuts->cut_values_.HostVector().data();
+      std::size_t n = p_cuts->cut_values_.HostVector().size();
+      collective::Allreduce<collective::Operation::kSum>(cut_val, n);
   }
 
   p_cuts->SetCategorical(this->has_categorical_, max_cat);
