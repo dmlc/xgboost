@@ -46,7 +46,7 @@ jobs:
         MAKEFLAGS="-j$(nproc)" R CMD INSTALL R-package/
         Rscript tests/ci_build/lint_r.R $(pwd)
 
-  test-R-on-Windows:
+  test-Rpkg:
     runs-on: ${{ matrix.config.os }}
     name: Test R on OS ${{ matrix.config.os }}, R ${{ matrix.config.r }}, Compiler ${{ matrix.config.compiler }}, Build ${{ matrix.config.build }}
     strategy:
@@ -54,11 +54,17 @@ jobs:
       matrix:
         config:
           - {os: windows-latest, r: 'release', compiler: 'mingw', build: 'autotools'}
+          - {os: ubuntu-latest, r: 'release', compiler: 'none', build: 'cmake'}
     env:
       R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
       RSPM: ${{ matrix.config.rspm }}
 
     steps:
+    - name: Install system dependencies
+      run: |
+        sudo apt update
+        sudo apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev
+      if: matrix.config.os == 'ubuntu-latest'
     - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
@@ -89,6 +95,12 @@ jobs:
     - name: Test R
       run: |
         python tests/ci_build/test_r_package.py --compiler='${{ matrix.config.compiler }}' --build-tool="${{ matrix.config.build }}" --task=check
+      if: matrix.config.compiler != 'none'
+
+    - name: Test R
+      run: |
+        python tests/ci_build/test_r_package.py --build-tool="${{ matrix.config.build }}" --task=check
+      if: matrix.config.compiler == 'none'
 
   test-R-on-Debian:
     name: Test R package on Debian
