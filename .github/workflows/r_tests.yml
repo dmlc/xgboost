@@ -46,7 +46,7 @@ jobs:
         MAKEFLAGS="-j$(nproc)" R CMD INSTALL R-package/
         Rscript tests/ci_build/lint_r.R $(pwd)
 
-  test-R-on-Windows:
+  test-Rpkg:
     runs-on: ${{ matrix.config.os }}
     name: Test R on OS ${{ matrix.config.os }}, R ${{ matrix.config.r }}, Compiler ${{ matrix.config.compiler }}, Build ${{ matrix.config.build }}
     strategy:
@@ -54,6 +54,7 @@ jobs:
       matrix:
         config:
           - {os: windows-latest, r: 'release', compiler: 'mingw', build: 'autotools'}
+          - {os: ubuntu-latest, r: 'release', compiler: '', build: 'cmake'}
     env:
       R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
       RSPM: ${{ matrix.config.rspm }}
@@ -89,6 +90,12 @@ jobs:
     - name: Test R
       run: |
         python tests/ci_build/test_r_package.py --compiler='${{ matrix.config.compiler }}' --build-tool="${{ matrix.config.build }}" --task=check
+      if: matrix.config.compiler != ""
+
+    - name: Test R
+      run: |
+        python tests/ci_build/test_r_package.py --build-tool="${{ matrix.config.build }}" --task=check
+      if: matrix.config.compiler == ""
 
   test-R-on-Debian:
     name: Test R package on Debian
