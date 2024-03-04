@@ -59,13 +59,12 @@ jobs:
       R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
       RSPM: ${{ matrix.config.rspm }}
 
+    steps:
     - name: Install system dependencies
       run: |
         # Must run before checkout to have the latest git installed.
         apt update && apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev git -y
-      if: matrix.config.os == "ubuntu-latest"
-
-    steps:
+      if: matrix.config.os == 'ubuntu-latest'
     - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
