@@ -1,8 +1,9 @@
 /**
- * Copyright 2016-2024 by XGBoost contributors
+ * Copyright 2016-2024, XGBoost contributors
  */
 #pragma once
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -12,7 +13,7 @@
 #include <xgboost/learner.h>  // for LearnerModelParam
 #include <xgboost/model.h>    // for Configurable
 
-#include <cstdint>            // std::int32_t
+#include <cstdint>  // std::int32_t
 #include <cstdio>
 #include <fstream>
 #include <iostream>
@@ -573,30 +574,7 @@ class DeclareUnifiedDistributedTest(MetricTest) : public BaseMGPUTest{};
 
 inline DeviceOrd FstCU() { return DeviceOrd::CUDA(0); }
 
-/**
- * @brief poor man's gmock for message matching.
- *
- * @tparam Error The type of expected execption.
- *
- * @param submsg A substring of the actual error message.
- * @param fn The function that throws Error
- */
-template <typename Error, typename Fn>
-void ExpectThrow(std::string submsg, Fn&& fn) {
-  try {
-    fn();
-  } catch (Error const& exc) {
-    auto actual = std::string{exc.what()};
-    ASSERT_NE(actual.find(submsg), std::string::npos)
-        << "Expecting substring `" << submsg << "` from the error message."
-        << " Got:\n"
-        << actual << "\n";
-    return;
-  } catch (std::exception const& exc) {
-    auto actual = exc.what();
-    ASSERT_TRUE(false) << "An unexpected type of exception is thrown. what:" << actual;
-    return;
-  }
-  ASSERT_TRUE(false) << "No exception is thrown";
+inline auto GMockThrow(StringView msg) {
+  return ::testing::ThrowsMessage<dmlc::Error>(::testing::HasSubstr(msg));
 }
 }  // namespace xgboost
