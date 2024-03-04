@@ -1,6 +1,9 @@
-// Copyright 2016-2021 by Contributors
+/**
+ * Copyright 2016-2024, XGBoost contributors
+ */
 #include "test_metainfo.h"
 
+#include <gmock/gmock.h>
 #include <dmlc/io.h>
 #include <xgboost/data.h>
 
@@ -9,7 +12,7 @@
 
 #include "../../../src/common/version.h"
 #include "../filesystem.h"  // dmlc::TemporaryDirectory
-#include "../helpers.h"
+#include "../helpers.h"     // for GMockTHrow
 #include "xgboost/base.h"
 
 namespace xgboost {
@@ -46,6 +49,8 @@ TEST(MetaInfo, GetSet) {
 
 TEST(MetaInfo, GetSetFeature) {
   xgboost::MetaInfo info;
+  ASSERT_THAT([&] { info.SetFeatureInfo("", nullptr, 0); },
+              GMockThrow("Unknown feature info name"));
   EXPECT_THROW(info.SetFeatureInfo("", nullptr, 0), dmlc::Error);
   EXPECT_THROW(info.SetFeatureInfo("foo", nullptr, 0), dmlc::Error);
   EXPECT_NO_THROW(info.SetFeatureInfo("feature_name", nullptr, 0));
@@ -86,7 +91,8 @@ void VerifyGetSetFeatureColumnSplit() {
   std::transform(types.cbegin(), types.cend(), c_types.begin(),
                  [](auto const &str) { return str.c_str(); });
   info.num_col_ = kCols;
-  EXPECT_THROW(info.SetFeatureInfo(u8"feature_type", c_types.data(), c_types.size()), dmlc::Error);
+  ASSERT_THAT([&] { info.SetFeatureInfo(u8"feature_type", c_types.data(), c_types.size()); },
+              GMockThrow("Length of feature_type must be equal to number of columns"));
   info.num_col_ = kCols * world_size;
   EXPECT_NO_THROW(info.SetFeatureInfo(u8"feature_type", c_types.data(), c_types.size()));
   std::vector<std::string> expected_type_names{u8"float", u8"c",     u8"float",
@@ -103,7 +109,8 @@ void VerifyGetSetFeatureColumnSplit() {
   std::transform(names.cbegin(), names.cend(), c_names.begin(),
                  [](auto const &str) { return str.c_str(); });
   info.num_col_ = kCols;
-  EXPECT_THROW(info.SetFeatureInfo(u8"feature_name", c_names.data(), c_names.size()), dmlc::Error);
+  ASSERT_THAT([&] { info.SetFeatureInfo(u8"feature_name", c_names.data(), c_names.size()); },
+              GMockThrow("Length of feature_name must be equal to number of columns"));
   info.num_col_ = kCols * world_size;
   EXPECT_NO_THROW(info.SetFeatureInfo(u8"feature_name", c_names.data(), c_names.size()));
   std::vector<std::string> expected_names{u8"0.feature0", u8"0.feature1", u8"1.feature0",

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017-2023, XGBoost contributors
+ * Copyright 2017-2024, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
@@ -82,9 +82,7 @@ TEST(Learner, ParameterValidation) {
 
   // whitespace
   learner->SetParam("tree method", "exact");
-  EXPECT_THAT([&] { learner->Configure(); },
-              ::testing::ThrowsMessage<dmlc::Error>(
-                  ::testing::HasSubstr(R"("tree method" contains whitespace)")));
+  ASSERT_THAT([&] { learner->Configure(); }, GMockThrow(R"("tree method" contains whitespace)"));
 }
 
 TEST(Learner, CheckGroup) {
