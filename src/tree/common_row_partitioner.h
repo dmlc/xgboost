@@ -106,7 +106,8 @@ class CommonRowPartitioner {
 
   template <typename ExpandEntry>
   void FindSplitConditions(const std::vector<ExpandEntry>& nodes, const RegTree& tree,
-                           const GHistIndexMatrix& gmat, std::vector<int32_t>* split_conditions, bool is_index) {
+                           const GHistIndexMatrix& gmat,
+                           std::vector<int32_t>* split_conditions, bool is_index) {
     auto const& ptrs = gmat.cut.Ptrs();
     auto const& vals = gmat.cut.Values();
 
@@ -121,10 +122,9 @@ class CommonRowPartitioner {
         // therefore can recover the split_pt from bin_id, update tree info
         auto split_pt_local = vals[split_pt];
         // make updates to the tree, replacing the existing index
-        // with cut value, note that we modified const here, carefully
+        // with cut value, so as to be consistent with the tree model format
         const_cast<RegTree::Node&>(tree.GetNodes()[nidx]).SetSplit(fidx, split_pt_local);
-      }
-      else {
+      } else {
         // otherwise find the bin_id that corresponds to split_pt
         std::uint32_t const lower_bound = ptrs[fidx];
         std::uint32_t const upper_bound = ptrs[fidx + 1];
@@ -210,8 +210,7 @@ class CommonRowPartitioner {
       if (is_secure_) {
         // in secure mode, the split index is kept instead of the split value
         FindSplitConditions(nodes, *p_tree, gmat, &split_conditions, true);
-      }
-      else {
+      } else {
         FindSplitConditions(nodes, *p_tree, gmat, &split_conditions, false);
       }
     }

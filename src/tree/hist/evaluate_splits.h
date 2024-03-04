@@ -303,23 +303,20 @@ class HistEvaluator {
           // forward enumeration: split at right bound of each bin
           loss_chg =
               static_cast<float>(evaluator.CalcSplitGain(*param_, nidx, fidx, GradStats{left_sum},
-                                                         GradStats{right_sum}) -
-                                 parent.root_gain);
+                                                         GradStats{right_sum}) - parent.root_gain);
           if (!is_secure_) {
             split_pt = cut_val[i];  // not used for partition based
             best.Update(loss_chg, fidx, split_pt, d_step == -1, false, left_sum, right_sum);
-          }
-          else {
-            // secure mode: record the best split point, rather than the actual value since it is not accessible
-            // at this point (active party finding best-split)
+          } else {
+            // secure mode: record the best split point, rather than the actual value
+            // since it is not accessible at this point (active party finding best-split)
             best.Update(loss_chg, fidx, i, d_step == -1, false, left_sum, right_sum);
           }
         } else {
           // backward enumeration: split at left bound of each bin
           loss_chg =
               static_cast<float>(evaluator.CalcSplitGain(*param_, nidx, fidx, GradStats{right_sum},
-                                                         GradStats{left_sum}) -
-                                 parent.root_gain);
+                                                         GradStats{left_sum}) - parent.root_gain);
           if (!is_secure_) {
             if (i == imin) {
               split_pt = cut.MinValues()[fidx];
@@ -327,9 +324,9 @@ class HistEvaluator {
               split_pt = cut_val[i - 1];
             }
             best.Update(loss_chg, fidx, split_pt, d_step == -1, false, right_sum, left_sum);
-          }
-          else {
-            // secure mode: record the best split point, rather than the actual value since it is not accessible
+          } else {
+            // secure mode: record the best split point, rather than the actual value
+            // since it is not accessible at this point (active party finding best-split)
             if (i != imin) {
               i = i - 1;
             }
