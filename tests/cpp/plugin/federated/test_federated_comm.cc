@@ -9,7 +9,7 @@
 
 #include "../../../../plugin/federated/federated_comm.h"
 #include "../../collective/test_worker.h"  // for SocketTest
-#include "../../helpers.h"                 // for ExpectThrow
+#include "../../helpers.h"                 // for GMockThrow
 #include "test_worker.h"                   // for TestFederated
 #include "xgboost/json.h"                  // for Json
 

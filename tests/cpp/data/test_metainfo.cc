@@ -12,7 +12,7 @@
 
 #include "../../../src/common/version.h"
 #include "../filesystem.h"  // dmlc::TemporaryDirectory
-#include "../helpers.h"
+#include "../helpers.h"     // for GMockTHrow
 #include "xgboost/base.h"
 
 namespace xgboost {
