@@ -8,6 +8,10 @@ env:
 permissions:
   contents: read # to fetch code (actions/checkout)
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lintr:
     runs-on: ${{ matrix.config.os }}
