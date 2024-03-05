@@ -361,7 +361,7 @@ void SketchContainerImpl<WQSketch>::AllReduce(
 }
 
 template <typename SketchType>
-double AddCutPoint(typename SketchType::SummaryContainer const &summary, int max_bin,
+bool AddCutPoint(typename SketchType::SummaryContainer const &summary, int max_bin,
                  HistogramCuts *cuts, bool secure) {
   size_t required_cuts = std::min(summary.size, static_cast<size_t>(max_bin));
   // make a copy of required_cuts for mode selection
@@ -377,7 +377,7 @@ double AddCutPoint(typename SketchType::SummaryContainer const &summary, int max
     for (size_t i = 1; i < required_cuts; ++i) {
       cut_values.push_back(std::numeric_limits<double>::quiet_NaN());
     }
-    return std::numeric_limits<double>::quiet_NaN();
+    return true;
   } else {
     // we use the min_value as the first (0th) element, hence starting from 1.
     for (size_t i = 1; i < required_cuts; ++i) {
@@ -386,7 +386,7 @@ double AddCutPoint(typename SketchType::SummaryContainer const &summary, int max
         cut_values.push_back(cpt);
       }
     }
-    return cut_values.back();
+    return false;
   }
 }
 
@@ -449,10 +449,10 @@ void SketchContainerImpl<WQSketch>::MakeCuts(Context const *ctx, MetaInfo const 
       max_cat = std::max(max_cat, AddCategories(categories_.at(fid), p_cuts));
     } else {
       // use special AddCutPoint scheme for secure vertical federated learning
-      double last_value = AddCutPoint<WQSketch>(a, max_num_bins, p_cuts, info.IsSecure());
+      bool is_nan = AddCutPoint<WQSketch>(a, max_num_bins, p_cuts, info.IsSecure());
       // push a value that is greater than anything if the feature is not empty
       // i.e. if the last value is not NaN
-      if (!std::isnan(last_value)) {
+      if (!is_nan) {
         const bst_float cpt =
               (a.size > 0) ? a.data[a.size - 1].value : p_cuts->min_vals_.HostVector()[fid];
         // this must be bigger than last value in a scale
