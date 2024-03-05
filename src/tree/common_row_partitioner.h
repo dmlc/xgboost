@@ -89,8 +89,8 @@ class CommonRowPartitioner {
 
   CommonRowPartitioner() = default;
   CommonRowPartitioner(Context const* ctx, bst_row_t num_row, bst_row_t _base_rowid,
-                       bool is_col_split, bool is_secure)
-      : base_rowid{_base_rowid}, is_col_split_{is_col_split}, is_secure_{is_secure} {
+                       bool is_col_split)
+      : base_rowid{_base_rowid}, is_col_split_{is_col_split} {
     row_set_collection_.Clear();
     std::vector<size_t>& row_indices = *row_set_collection_.Data();
     row_indices.resize(num_row);
@@ -106,8 +106,7 @@ class CommonRowPartitioner {
 
   template <typename ExpandEntry>
   void FindSplitConditions(const std::vector<ExpandEntry>& nodes, const RegTree& tree,
-                           const GHistIndexMatrix& gmat,
-                           std::vector<int32_t>* split_conditions) {
+                           const GHistIndexMatrix& gmat, std::vector<int32_t>* split_conditions) {
     auto const& ptrs = gmat.cut.Ptrs();
     auto const& vals = gmat.cut.Values();
 
@@ -115,7 +114,6 @@ class CommonRowPartitioner {
       bst_node_t const nidx = nodes[i].nid;
       bst_feature_t const fidx = tree.SplitIndex(nidx);
       float const split_pt = tree.SplitCond(nidx);
-      // find the bin_id that corresponds to split_pt
       std::uint32_t const lower_bound = ptrs[fidx];
       std::uint32_t const upper_bound = ptrs[fidx + 1];
       bst_bin_t split_cond = -1;
@@ -296,7 +294,6 @@ class CommonRowPartitioner {
   common::PartitionBuilder<kPartitionBlockSize> partition_builder_;
   common::RowSetCollection row_set_collection_;
   bool is_col_split_;
-  bool is_secure_;
   ColumnSplitHelper column_split_helper_;
 };
 

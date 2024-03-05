@@ -160,8 +160,7 @@ class MultiTargetHistBuilder {
       } else {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
-      partitioner_.emplace_back(ctx_, page.Size(), page.base_rowid,
-                                p_fmat->Info().IsColumnSplit(), p_fmat->Info().IsSecure());
+      partitioner_.emplace_back(ctx_, page.Size(), page.base_rowid, p_fmat->Info().IsColumnSplit());
     }
 
     bst_target_t n_targets = p_tree->NumTargets();
@@ -354,8 +353,7 @@ class HistUpdater {
       } else {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
-      partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid,
-                                fmat->Info().IsColumnSplit(), fmat->Info().IsSecure());
+      partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid, fmat->Info().IsColumnSplit());
     }
     histogram_builder_->Reset(ctx_, n_total_bins, 1, HistBatch(param_), collective::IsDistributed(),
                               fmat->Info().IsColumnSplit(), fmat->Info().IsSecure(), hist_param_);
