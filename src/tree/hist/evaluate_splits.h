@@ -429,13 +429,15 @@ class HistEvaluator {
               all_entries[worker * entries.size() + nidx_in_set].split);
         }
       }
-      // At this point, all the workers have the best splits for all the nodes
-      // and workers can recover the actual split value with the split index
-      // Note that after the recovery, different workers will hold different
-      // split_value: real value for feature owner, NaN for others
-      for (std::size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
+      if (is_secure_) {
+        // At this point, all the workers have the best splits for all the nodes
+        // and workers can recover the actual split value with the split index
+        // Note that after the recovery, different workers will hold different
+        // split_value: real value for feature owner, NaN for others
+        for (std::size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
           auto cut_index = entries[nidx_in_set].split.split_value;
           entries[nidx_in_set].split.split_value = cut.Values()[cut_index];
+        }
       }
     }
   }
