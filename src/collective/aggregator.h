@@ -69,7 +69,7 @@ void ApplyWithLabels(MetaInfo const& info, void* buffer, size_t size, Function&&
  * @param result The HostDeviceVector storing the results.
  * @param function The function used to calculate the results.
  */
-template <typename T, typename Function>
+template <bool is_gpair, typename T, typename Function>
 void ApplyWithLabels(MetaInfo const& info, HostDeviceVector<T>* result, Function&& function) {
   if (info.IsVerticalFederated()) {
     // We assume labels are only available on worker 0, so the calculation is done there and result
@@ -91,84 +91,46 @@ void ApplyWithLabels(MetaInfo const& info, HostDeviceVector<T>* result, Function
 
     std::size_t size{};
     if (collective::GetRank() == 0) {
-      size = result->Size();
+        size = result->Size();
     }
     collective::Broadcast(&size, sizeof(std::size_t), 0);
 
-    result->Resize(size);
-    collective::Broadcast(result->HostPointer(), size * sizeof(T), 0);
+    if (info.IsSecure() && is_gpair) {
+      // Under secure mode, gpairs will be processed to vector and encrypt
+      // information only available on rank 0
+      if (collective::GetRank() == 0) {
+        std::vector<double> vector_g, vector_h;
+        for (int i = 0; i < size; i++) {
+          auto gpair = result->HostVector()[i];
+          // cast from GradientPair to float pointer
+          auto gpair_ptr = reinterpret_cast<float*>(&gpair);
+          // save to vector
+          vector_g.push_back(gpair_ptr[0]);
+          vector_h.push_back(gpair_ptr[1]);
+        }
+      // provide the vectors to the processor interface
+
+      }
+      // broadcast the encrypted data
+      result->Resize(size);
+      collective::Broadcast(result->HostPointer(), size * sizeof(T), 0);
+    } else {
+      // clear text mode
+      result->Resize(size);
+      collective::Broadcast(result->HostPointer(), size * sizeof(T), 0);
+    }
+
+
+    /*
+    // print 1 sample
+    if (is_gpair) {
+      std::cout << "Rank: " << collective::GetRank() << " after broadcast - g: "
+      << reinterpret_cast<float*>(&result->HostVector()[0])[0] << " h: "
+      << reinterpret_cast<float*>(&result->HostVector()[0])[1] << std::endl;
+    }
+    */
   } else {
     std::forward<Function>(function)();
-  }
-}
-
-// Same as above, but with encyption on the result
-template <typename T, typename Function>
-void ApplyWithLabelsEncrypted(MetaInfo const& info, HostDeviceVector<T>* result, Function&& function) {
-  if (info.IsVerticalFederated()) {
-    // We assume labels are only available on worker 0, so the calculation is done there and result
-    // broadcast to other workers.
-    std::string message;
-    if (collective::GetRank() == 0) {
-      try {
-        std::forward<Function>(function)();
-      } catch (dmlc::Error& e) {
-       message = e.what();
-      }
-    }
-
-    collective::Broadcast(&message, 0);
-    if (!message.empty()) {
-      LOG(FATAL) << &message[0];
-      return;
-    }
-
-    std::size_t size{};
-    if (collective::GetRank() == 0) {
-      size = result->Size();
-    }
-    collective::Broadcast(&size, sizeof(std::size_t), 0);
-
-    // save to vector and encrypt
-    if (collective::GetRank() == 0) {
-        // check the max and min value of the result vector
-        float max_g = std::numeric_limits<float>::min();
-        float min_g = std::numeric_limits<float>::max();
-        float max_h = std::numeric_limits<float>::min();
-        float min_h = std::numeric_limits<float>::max();
-        std::vector<double> result_vector_g, result_vector_h;
-        for (int i = 0; i < size; i++) {
-            result_vector_g.push_back(result->HostVector()[i].GetGrad());
-            result_vector_h.push_back(result->HostVector()[i].GetHess());
-
-            if (result->HostVector()[i].GetGrad() > max_g) {
-                max_g = result->HostVector()[i].GetGrad();
-            }
-            if (result->HostVector()[i].GetGrad() < min_g) {
-                min_g = result->HostVector()[i].GetGrad();
-            }
-            if (result->HostVector()[i].GetHess() > max_h) {
-                max_h = result->HostVector()[i].GetHess();
-            }
-            if (result->HostVector()[i].GetHess() < min_h) {
-                min_h = result->HostVector()[i].GetHess();
-            }
-        }
-        // print 1 sample
-        //std::cout << " g[0]: " << result_vector_g[0] << " h[0]: " << result_vector_h[0] << std::endl;
-        // print max and min
-        //std::cout << "max_g: " << max_g << " min_g: " << min_g << " max_h: " << max_h << " min_h: " << min_h << std::endl;
-    }
-
-    result->Resize(size);
-    collective::Broadcast(result->HostPointer(), size * sizeof(T), 0);
-
-    // print 1 sample
-    std::cout << "Rank: " << collective::GetRank() << " after broadcast - g: " << result->HostVector()[0].GetGrad() << " h: " << result->HostVector()[0].GetHess() << std::endl;
-
-
-  } else {
-      std::forward<Function>(function)();
   }
 }
 
