@@ -1295,7 +1295,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
                 ctypes.c_int(1 if allow_groups else 0),
             )
         )
-        return DMatrix(handle)
+        return self.__class__(handle)
 
     @property
     def feature_names(self) -> Optional[FeatureNames]:
