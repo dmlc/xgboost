@@ -78,6 +78,7 @@ struct LambdaRankParam : public XGBoostParameter<LambdaRankParam> {
 
   // unbiased
   bool lambdarank_unbiased{false};
+  bool lambdarank_normalization{true};
   double lambdarank_bias_norm{1.0};
   // ndcg
   bool ndcg_exp_gain{true};
@@ -86,6 +87,7 @@ struct LambdaRankParam : public XGBoostParameter<LambdaRankParam> {
     return lambdarank_pair_method == that.lambdarank_pair_method &&
            lambdarank_num_pair_per_sample == that.lambdarank_num_pair_per_sample &&
            lambdarank_unbiased == that.lambdarank_unbiased &&
+           lambdarank_normalization == that.lambdarank_normalization &&
            lambdarank_bias_norm == that.lambdarank_bias_norm && ndcg_exp_gain == that.ndcg_exp_gain;
   }
   bool operator!=(LambdaRankParam const& that) const { return !(*this == that); }
@@ -134,6 +136,9 @@ struct LambdaRankParam : public XGBoostParameter<LambdaRankParam> {
     DMLC_DECLARE_FIELD(lambdarank_unbiased)
         .set_default(false)
         .describe("Unbiased lambda mart. Use extended IPW to debias click position");
+    DMLC_DECLARE_FIELD(lambdarank_normalization)
+        .set_default(true)
+        .describe("Whether to normalize the leaf value for lambda rank.");
     DMLC_DECLARE_FIELD(lambdarank_bias_norm)
         .set_default(1.0)
         .set_lower_bound(0.0)
