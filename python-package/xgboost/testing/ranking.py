@@ -103,6 +103,7 @@ def run_ranking_categorical(device: str) -> None:
 
 
 def run_normalization(device: str) -> None:
+    """Test normalization."""
     X, y, qid, _ = tm.make_ltr(2048, 4, 64, 3)
     ltr = xgb.XGBRanker(objective="rank:pairwise", n_estimators=4, device=device)
     ltr.fit(X, y, qid=qid, eval_set=[(X, y)], eval_qid=[qid])
