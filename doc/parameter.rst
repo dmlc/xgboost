@@ -489,7 +489,7 @@ Parameters for learning to rank (``rank:ndcg``, ``rank:map``, ``rank:pairwise``)
 
 These are parameters specific to learning to rank task. See :doc:`Learning to Rank </tutorials/learning_to_rank>` for an in-depth explanation.
 
-* ``lambdarank_pair_method`` [default = ``mean``]
+* ``lambdarank_pair_method`` [default = ``topk``]
 
   How to construct pairs for pair-wise learning.
 
