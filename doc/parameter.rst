@@ -500,7 +500,11 @@ These are parameters specific to learning to rank task. See :doc:`Learning to Ra
 
   It specifies the number of pairs sampled for each document when pair method is ``mean``, or the truncation level for queries when the pair method is ``topk``. For example, to train with ``ndcg@6``, set ``lambdarank_num_pair_per_sample`` to :math:`6` and ``lambdarank_pair_method`` to ``topk``.
 
-* ``lambdarank_unbiased`` [default = ``false``]
+* ``lambdarank_normalization`` [default = ``true``]
+
+  Whether to normalize the leaf value by lambda gradient. This can sometimes stagnate the training progress.
+
+*  ``lambdarank_unbiased`` [default = ``false``]
 
   Specify whether do we need to debias input click data.
 

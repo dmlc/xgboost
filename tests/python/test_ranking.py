@@ -13,6 +13,7 @@ import xgboost
 from xgboost import testing as tm
 from xgboost.testing.data import RelDataCV, simulate_clicks, sort_ltr_samples
 from xgboost.testing.params import lambdarank_parameter_strategy
+from xgboost.testing.ranking import run_normalization
 
 
 def test_ndcg_custom_gain():
@@ -186,6 +187,10 @@ def test_unbiased() -> None:
     np.testing.assert_allclose(df["tj-"].iloc[0], 1.0)
     # less biased on low ranks.
     assert df["ti+"].iloc[-1] < df["ti+"].iloc[0]
+
+
+def test_normalization() -> None:
+    run_normalization("cpu")
 
 
 class TestRanking:
