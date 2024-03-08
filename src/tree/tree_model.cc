@@ -767,8 +767,8 @@ XGBOOST_REGISTER_TREE_IO(GraphvizGenerator, "dot")
 constexpr bst_node_t RegTree::kRoot;
 
 std::string RegTree::DumpModel(const FeatureMap& fmap, bool with_stats, std::string format) const {
-  if (format != "dot") {
-    MTNotImplemented();
+  if (this->IsMultiTarget() && format != "dot") {
+    LOG(FATAL) << format << " tree dump " << MTNotImplemented();
   }
   std::unique_ptr<TreeGenerator> builder{TreeGenerator::Create(format, fmap, with_stats)};
   builder->BuildTree(*this);
