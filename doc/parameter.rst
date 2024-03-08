@@ -502,6 +502,8 @@ These are parameters specific to learning to rank task. See :doc:`Learning to Ra
 
 * ``lambdarank_normalization`` [default = ``true``]
 
+  .. versionadded:: 2.1.0
+
   Whether to normalize the leaf value by lambda gradient. This can sometimes stagnate the training progress.
 
 *  ``lambdarank_unbiased`` [default = ``false``]
