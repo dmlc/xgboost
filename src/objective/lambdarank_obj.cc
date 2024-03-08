@@ -222,7 +222,7 @@ class LambdaRankObj : public FitIntercept {
     };
 
     MakePairs(ctx_, iter, p_cache_, g, g_label, g_rank, loop);
-    if (sum_lambda > 0.0) {
+    if (sum_lambda > 0.0 && param_.lambdarank_normalization) {
       double norm = std::log2(1.0 + sum_lambda) / sum_lambda;
       std::transform(g_gpair.Values().data(), g_gpair.Values().data() + g_gpair.Size(),
                      g_gpair.Values().data(), [norm](GradientPair const& g) { return g * norm; });

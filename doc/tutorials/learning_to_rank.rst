@@ -48,7 +48,7 @@ Notice that the samples are sorted based on their query index in a non-decreasin
   import xgboost as xgb
 
   # Make a synthetic ranking dataset for demonstration
-  seed = 1994 
+  seed = 1994
   X, y = make_classification(random_state=seed)
   rng = np.random.default_rng(seed)
   n_query_groups = 3
@@ -146,7 +146,8 @@ The consideration of effective pairs also applies to the choice of pair method (
 
 When using the mean strategy for generating pairs, where the target metric (like ``NDCG``) is computed over the whole query list, users can specify how many pairs should be generated per each document, by setting the ``lambdarank_num_pair_per_sample``. XGBoost will randomly sample ``lambdarank_num_pair_per_sample`` pairs for each element in the query group (:math:`|pairs| = |query| \times num\_pairsample`). Often, setting it to 1 can produce reasonable results. In cases where performance is inadequate due to insufficient number of effective pairs being generated, set ``lambdarank_num_pair_per_sample`` to a higher value. As more document pairs are generated, more effective pairs will be generated as well.
 
-On the other hand, if you are prioritizing the top :math:`k` documents, the ``lambdarank_num_pair_per_sample`` should be set slightly higher than :math:`k` (with a few more documents) to obtain a good training result.
+On the other hand, if you are prioritizing the top :math:`k` documents, the ``lambdarank_num_pair_per_sample`` should be set slightly higher than :math:`k` (with a few more documents) to obtain a good training result. Lastly, XGBoost employs additional regularization for learning to rank objectives, which can be disabled by setting the ``lambdarank_normalization`` to ``False``.
+
 
 **Summary** If you have large amount of training data:
 

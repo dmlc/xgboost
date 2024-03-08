@@ -266,12 +266,13 @@ void CalcGrad(Context const* ctx, MetaInfo const& info, std::shared_ptr<ltr::Ran
    */
   auto d_weights = common::MakeOptionalWeights(ctx, info.weights_);
   auto w_norm = p_cache->WeightNorm();
+  auto norm = p_cache->Param().lambdarank_normalization;
   thrust::for_each_n(ctx->CUDACtx()->CTP(), thrust::make_counting_iterator(0ul), d_gpair.Size(),
                      [=] XGBOOST_DEVICE(std::size_t i) mutable {
                        auto g = dh::SegmentId(d_gptr, i);
                        auto sum_lambda = thrust::get<2>(d_max_lambdas[g]);
                        // Normalization
-                       if (sum_lambda > 0.0) {
+                       if (sum_lambda > 0.0 && norm) {
                          double norm = std::log2(1.0 + sum_lambda) / sum_lambda;
                          d_gpair(i, 0) *= norm;
                        }
