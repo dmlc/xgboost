@@ -30,8 +30,10 @@ classifiers = [
 dependencies = [
     "numpy",
     "scipy",
-    "nvidia-nccl-cu12 ; platform_system == 'Linux' and platform_machine != 'aarch64'"
 ]
+
+[project.optional-dependencies]
+gpu = ["nvidia-nccl-cu12"]
 
 [project.urls]
 documentation = "https://xgboost.readthedocs.io/en/stable/"
