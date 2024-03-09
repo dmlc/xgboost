@@ -56,10 +56,10 @@
 #' For \link{xgb.cv}, folds are a list with a structure as follows:\itemize{
 #' \item `dtrain`: The training data for the fold (as an `xgb.DMatrix` object).
 #' \item `bst`: Rhe `xgb.Booster` object for the fold.
-#' \item `watchlist`: A list with two DMatrices, with names `train` and `test`
+#' \item `evals`: A list containing two DMatrices, with names `train` and `test`
 #' (`test` is the held-out data for the fold).
 #' \item `index`: The indices of the hold-out data for that fold (base-1 indexing),
-#' from which the `test` entry in the watchlist was obtained.
+#' from which the `test` entry in `evals` was obtained.
 #' }
 #'
 #' This object should \bold{not} be in-place modified in ways that conflict with the
@@ -78,7 +78,7 @@
 #' Note that, for \link{xgb.cv}, this will be the full data, while data for the specific
 #' folds can be found in the `model` object.
 #'
-#' \item watchlist The evaluation watchlist, as passed under argument `watchlist` to
+#' \item evals The evaluation data, as passed under argument `evals` to
 #' \link{xgb.train}.
 #'
 #' For \link{xgb.cv}, this will always be `NULL`.
@@ -101,15 +101,15 @@
 #' \item iteration Index of the iteration number that is being executed (first iteration
 #' will be the same as parameter `begin_iteration`, then next one will add +1, and so on).
 #'
-#' \item iter_feval Evaluation metrics for the `watchlist` that was supplied, either
+#' \item iter_feval Evaluation metrics for `evals` that were supplied, either
 #' determined by the objective, or by parameter `feval`.
 #'
 #' For \link{xgb.train}, this will be a named vector with one entry per element in
-#' `watchlist`, where the names are determined as 'watchlist name' + '-' + 'metric name' - for
-#' example, if `watchlist` contains an entry named "tr" and the metric is "rmse",
+#' `evals`, where the names are determined as 'evals name' + '-' + 'metric name' - for
+#' example, if `evals` contains an entry named "tr" and the metric is "rmse",
 #' this will be a one-element vector with name "tr-rmse".
 #'
-#' For \link{xgb.cv}, this will be a 2d matrix with dimensions `[length(watchlist), nfolds]`,
+#' For \link{xgb.cv}, this will be a 2d matrix with dimensions `[length(evals), nfolds]`,
 #' where the row names will follow the same naming logic as the one-dimensional vector
 #' that is passed in \link{xgb.train}.
 #'
@@ -169,18 +169,18 @@
 #' }
 #' @examples
 #' # Example constructing a custom callback that calculates
-#' # squared error on the training data, without a watchlist,
+#' # squared error on the training data (no separate test set),
 #' # and outputs the per-iteration results.
 #' ssq_callback <- xgb.Callback(
 #'   cb_name = "ssq",
-#'   f_before_training = function(env, model, data, watchlist,
+#'   f_before_training = function(env, model, data, evals,
 #'                                begin_iteration, end_iteration) {
 #'     # A vector to keep track of a number at each iteration
 #'     env$logs <- rep(NA_real_, end_iteration - begin_iteration + 1)
 #'   },
-#'   f_after_iter = function(env, model, data, watchlist, iteration, iter_feval) {
+#'   f_after_iter = function(env, model, data, evals, iteration, iter_feval) {
 #'     # This calculates the sum of squared errors on the training data.
-#'     # Note that this can be better done by passing a 'watchlist' entry,
+#'     # Note that this can be better done by passing an 'evals' entry,
 #'     # but this demonstrates a way in which callbacks can be structured.
 #'     pred <- predict(model, data)
 #'     err <- pred - getinfo(data, "label")
@@ -196,7 +196,7 @@
 #'     # A return value of 'TRUE' here would signal to finalize the training
 #'     return(FALSE)
 #'   },
-#'   f_after_training = function(env, model, data, watchlist, iteration,
+#'   f_after_training = function(env, model, data, evals, iteration,
 #'                               final_feval, prev_cb_res) {
 #'     return(env$logs)
 #'   }
@@ -220,10 +220,10 @@
 xgb.Callback <- function(
   cb_name = "custom_callback",
   env = new.env(),
-  f_before_training = function(env, model, data, watchlist, begin_iteration, end_iteration) NULL,
-  f_before_iter = function(env, model, data, watchlist, iteration) NULL,
-  f_after_iter = function(env, model, data, watchlist, iteration, iter_feval) NULL,
-  f_after_training = function(env, model, data, watchlist, iteration, final_feval, prev_cb_res) NULL
+  f_before_training = function(env, model, data, evals, begin_iteration, end_iteration) NULL,
+  f_before_iter = function(env, model, data, evals, iteration) NULL,
+  f_after_iter = function(env, model, data, evals, iteration, iter_feval) NULL,
+  f_after_training = function(env, model, data, evals, iteration, final_feval, prev_cb_res) NULL
 ) {
   stopifnot(is.null(f_before_training) || is.function(f_before_training))
   stopifnot(is.null(f_before_iter) || is.function(f_before_iter))
@@ -251,7 +251,7 @@ xgb.Callback <- function(
   callbacks,
   model,
   data,
-  watchlist,
+  evals,
   begin_iteration,
   end_iteration
 ) {
@@ -261,7 +261,7 @@ xgb.Callback <- function(
         callback$env,
         model,
         data,
-        watchlist,
+        evals,
         begin_iteration,
         end_iteration
       )
@@ -273,7 +273,7 @@ xgb.Callback <- function(
   callbacks,
   model,
   data,
-  watchlist,
+  evals,
   iteration
 ) {
   if (!length(callbacks)) {
@@ -287,7 +287,7 @@ xgb.Callback <- function(
       cb$env,
       model,
       data,
-      watchlist,
+      evals,
       iteration
     )
     if (!NROW(should_stop)) {
@@ -304,7 +304,7 @@ xgb.Callback <- function(
   callbacks,
   model,
   data,
-  watchlist,
+  evals,
   iteration,
   iter_feval
 ) {
@@ -319,7 +319,7 @@ xgb.Callback <- function(
       cb$env,
       model,
       data,
-      watchlist,
+      evals,
       iteration,
       iter_feval
     )
@@ -337,7 +337,7 @@ xgb.Callback <- function(
   callbacks,
   model,
   data,
-  watchlist,
+  evals,
   iteration,
   final_feval,
   prev_cb_res
@@ -355,7 +355,7 @@ xgb.Callback <- function(
           cb$env,
           model,
           data,
-          watchlist,
+          evals,
           iteration,
           final_feval,
           getElement(old_cb_res, cb$cb_name)
@@ -428,7 +428,7 @@ xgb.cb.print.evaluation <- function(period = 1, showsd = TRUE) {
     env = as.environment(list(period = period, showsd = showsd, is_first_call = TRUE)),
     f_before_training = NULL,
     f_before_iter = NULL,
-    f_after_iter = function(env, model, data, watchlist, iteration, iter_feval) {
+    f_after_iter = function(env, model, data, evals, iteration, iter_feval) {
       if (is.null(iter_feval)) {
         return(FALSE)
       }
@@ -439,7 +439,7 @@ xgb.cb.print.evaluation <- function(period = 1, showsd = TRUE) {
       env$is_first_call <- FALSE
       return(FALSE)
     },
-    f_after_training = function(env, model, data, watchlist, iteration, final_feval, prev_cb_res) {
+    f_after_training = function(env, model, data, evals, iteration, final_feval, prev_cb_res) {
       if (is.null(final_feval)) {
         return(NULL)
       }
@@ -453,7 +453,7 @@ xgb.cb.print.evaluation <- function(period = 1, showsd = TRUE) {
 #' @title Callback for logging the evaluation history
 #' @return An `xgb.Callback` object, which can be passed to \link{xgb.train} or \link{xgb.cv}.
 #' @details This callback creates a table with per-iteration evaluation metrics (see parameters
-#' `watchlist` and `feval` in \link{xgb.train}).
+#' `evals` and `feval` in \link{xgb.train}).
 #' @details
 #' Note: in the column names of the final data.table, the dash '-' character is replaced with
 #' the underscore '_' in order to make the column names more like regular R identifiers.
@@ -462,18 +462,18 @@ xgb.cb.print.evaluation <- function(period = 1, showsd = TRUE) {
 xgb.cb.evaluation.log <- function() {
   xgb.Callback(
     cb_name = "evaluation_log",
-    f_before_training = function(env, model, data, watchlist, begin_iteration, end_iteration) {
+    f_before_training = function(env, model, data, evals, begin_iteration, end_iteration) {
       env$evaluation_log <- vector("list", end_iteration - begin_iteration + 1)
       env$next_log <- 1
     },
     f_before_iter = NULL,
-    f_after_iter = function(env, model, data, watchlist, iteration, iter_feval) {
+    f_after_iter = function(env, model, data, evals, iteration, iter_feval) {
       tmp <- .summarize.feval(iter_feval, TRUE)
       env$evaluation_log[[env$next_log]] <- list(iter = iteration, metrics = tmp$feval, sds = tmp$stdev)
       env$next_log <- env$next_log + 1
       return(FALSE)
     },
-    f_after_training = function(env, model, data, watchlist, iteration, final_feval, prev_cb_res) {
+    f_after_training = function(env, model, data, evals, iteration, final_feval, prev_cb_res) {
       if (!NROW(env$evaluation_log)) {
         return(prev_cb_res)
       }
@@ -543,7 +543,7 @@ xgb.cb.reset.parameters <- function(new_params) {
   xgb.Callback(
     cb_name = "reset_parameters",
     env = as.environment(list(new_params = new_params)),
-    f_before_training = function(env, model, data, watchlist, begin_iteration, end_iteration) {
+    f_before_training = function(env, model, data, evals, begin_iteration, end_iteration) {
       env$end_iteration <- end_iteration
 
       pnames <- gsub(".", "_", names(env$new_params), fixed = TRUE)
@@ -560,7 +560,7 @@ xgb.cb.reset.parameters <- function(new_params) {
         }
       }
     },
-    f_before_iter = function(env, model, data, watchlist, iteration) {
+    f_before_iter = function(env, model, data, evals, iteration) {
       pars <- lapply(env$new_params, function(p) {
         if (is.function(p)) {
           return(p(iteration, env$end_iteration))
@@ -589,9 +589,9 @@ xgb.cb.reset.parameters <- function(new_params) {
 #' @param maximize Whether to maximize the evaluation metric.
 #' @param metric_name The name of an evaluation column to use as a criteria for early
 #'        stopping. If not set, the last column would be used.
-#'        Let's say the test data in \code{watchlist} was labelled as \code{dtest},
+#'        Let's say the test data in \code{evals} was labelled as \code{dtest},
 #'        and one wants to use the AUC in test data for early stopping regardless of where
-#'        it is in the \code{watchlist}, then one of the following would need to be set:
+#'        it is in the \code{evals}, then one of the following would need to be set:
 #'        \code{metric_name='dtest-auc'} or \code{metric_name='dtest_auc'}.
 #'        All dash '-' characters in metric names are considered equivalent to '_'.
 #' @param verbose Whether to print the early stopping information.
@@ -615,7 +615,7 @@ xgb.cb.reset.parameters <- function(new_params) {
 #' base-1 indexing, so it will be larger by '1' than the C-level 'best_iteration' that is accessed
 #' through \link{xgb.attr} or \link{xgb.attributes}.
 #'
-#' At least one data element is required in the evaluation watchlist for early stopping to work.
+#' At least one dataset is required in `evals` for early stopping to work.
 #' @export
 xgb.cb.early.stop <- function(
   stopping_rounds,
@@ -642,15 +642,15 @@ xgb.cb.early.stop <- function(
         stopped_by_max_rounds = FALSE
       )
     ),
-    f_before_training = function(env, model, data, watchlist, begin_iteration, end_iteration) {
-      if (inherits(model, "xgb.Booster") && !length(watchlist)) {
-        stop("For early stopping, watchlist must have at least one element")
+    f_before_training = function(env, model, data, evals, begin_iteration, end_iteration) {
+      if (inherits(model, "xgb.Booster") && !length(evals)) {
+        stop("For early stopping, 'evals' must have at least one element")
       }
       env$begin_iteration <- begin_iteration
       return(NULL)
     },
-    f_before_iter = function(env, model, data, watchlist, iteration) NULL,
-    f_after_iter = function(env, model, data, watchlist, iteration, iter_feval) {
+    f_before_iter = function(env, model, data, evals, iteration) NULL,
+    f_after_iter = function(env, model, data, evals, iteration, iter_feval) {
       sds <- NULL
       if (NCOL(iter_feval) > 1) {
         tmp <- .summarize.feval(iter_feval, TRUE)
@@ -729,7 +729,7 @@ xgb.cb.early.stop <- function(
       }
       return(FALSE)
     },
-    f_after_training = function(env, model, data, watchlist, iteration, final_feval, prev_cb_res) {
+    f_after_training = function(env, model, data, evals, iteration, final_feval, prev_cb_res) {
       if (inherits(model, "xgb.Booster") && !env$keep_all_iter && env$best_iteration < iteration) {
         # Note: it loses the attributes after being sliced,
         # so they have to be re-assigned afterwards.
@@ -798,18 +798,18 @@ xgb.cb.save.model <- function(save_period = 0, save_name = "xgboost.ubj") {
   xgb.Callback(
     cb_name = "save_model",
     env = as.environment(list(save_period = save_period, save_name = save_name, last_save = 0)),
-    f_before_training = function(env, model, data, watchlist, begin_iteration, end_iteration) {
+    f_before_training = function(env, model, data, evals, begin_iteration, end_iteration) {
       env$begin_iteration <- begin_iteration
     },
     f_before_iter = NULL,
-    f_after_iter = function(env, model, data, watchlist, iteration, iter_feval) {
+    f_after_iter = function(env, model, data, evals, iteration, iter_feval) {
       if (env$save_period > 0 && (iteration - env$begin_iteration) %% env$save_period == 0) {
         .save.model.w.formatted.name(model, env$save_name, iteration)
         env$last_save <- iteration
       }
       return(FALSE)
     },
-    f_after_training = function(env, model, data, watchlist, iteration, final_feval, prev_cb_res) {
+    f_after_training = function(env, model, data, evals, iteration, final_feval, prev_cb_res) {
       if (env$save_period == 0 && iteration > env$last_save) {
         .save.model.w.formatted.name(model, env$save_name, iteration)
       }
@@ -840,19 +840,19 @@ xgb.cb.cv.predict <- function(save_models = FALSE, outputmargin = FALSE) {
   xgb.Callback(
     cb_name = "cv_predict",
     env = as.environment(list(save_models = save_models, outputmargin = outputmargin)),
-    f_before_training = function(env, model, data, watchlist, begin_iteration, end_iteration) {
+    f_before_training = function(env, model, data, evals, begin_iteration, end_iteration) {
       if (inherits(model, "xgb.Booster")) {
         stop("'cv.predict' callback is only for 'xgb.cv'.")
       }
     },
     f_before_iter = NULL,
     f_after_iter = NULL,
-    f_after_training = function(env, model, data, watchlist, iteration, final_feval, prev_cb_res) {
+    f_after_training = function(env, model, data, evals, iteration, final_feval, prev_cb_res) {
       pred <- NULL
       for (fd in model) {
         pr <- predict(
           fd$bst,
-          fd$watchlist[[2L]],
+          fd$evals[[2L]],
           outputmargin = env$outputmargin,
           reshape = TRUE
         )
@@ -1002,7 +1002,7 @@ xgb.cb.gblinear.history <- function(sparse = FALSE) {
   xgb.Callback(
     cb_name = "gblinear_history",
     env = as.environment(list(sparse = sparse)),
-    f_before_training = function(env, model, data, watchlist, begin_iteration, end_iteration) {
+    f_before_training = function(env, model, data, evals, begin_iteration, end_iteration) {
       if (!inherits(model, "xgb.Booster")) {
         model <- model[[1L]]$bst
       }
@@ -1013,7 +1013,7 @@ xgb.cb.gblinear.history <- function(sparse = FALSE) {
       env$next_idx <- 1
     },
     f_before_iter = NULL,
-    f_after_iter = function(env, model, data, watchlist, iteration, iter_feval) {
+    f_after_iter = function(env, model, data, evals, iteration, iter_feval) {
       if (inherits(model, "xgb.Booster")) {
         coef_this <- .extract.coef(model, env$sparse)
       } else {
@@ -1023,7 +1023,7 @@ xgb.cb.gblinear.history <- function(sparse = FALSE) {
       env$next_idx <- env$next_idx + 1
       return(FALSE)
     },
-    f_after_training = function(env, model, data, watchlist, iteration, final_feval, prev_cb_res) {
+    f_after_training = function(env, model, data, evals, iteration, final_feval, prev_cb_res) {
       # in case of early stopping
       if (env$next_idx <= length(env$coef_hist)) {
         env$coef_hist <- head(env$coef_hist, env$next_idx - 1)

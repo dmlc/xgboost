@@ -19,7 +19,7 @@ ltrain <- add.noise(train$label, 0.2)
 ltest <- add.noise(test$label, 0.2)
 dtrain <- xgb.DMatrix(train$data, label = ltrain, nthread = n_threads)
 dtest <- xgb.DMatrix(test$data, label = ltest, nthread = n_threads)
-watchlist <- list(train = dtrain, test = dtest)
+evals <- list(train = dtrain, test = dtest)
 
 
 err <- function(label, pr) sum((pr > 0.5) != label) / length(label)
@@ -39,7 +39,7 @@ test_that("xgb.cb.print.evaluation works as expected for xgb.train", {
         nthread = n_threads
       ),
       nrounds = 10,
-      watchlist = list(train = dtrain, test = dtest),
+      evals = list(train = dtrain, test = dtest),
       callbacks = list(xgb.cb.print.evaluation(period = 1))
     )
   })
@@ -57,7 +57,7 @@ test_that("xgb.cb.print.evaluation works as expected for xgb.train", {
         nthread = n_threads
       ),
       nrounds = 10,
-      watchlist = list(train = dtrain, test = dtest),
+      evals = list(train = dtrain, test = dtest),
       callbacks = list(xgb.cb.print.evaluation(period = 2))
     )
   })
@@ -117,7 +117,7 @@ test_that("xgb.cb.evaluation.log works as expected for xgb.train", {
     ),
     nrounds = 10,
     verbose = FALSE,
-    watchlist = list(train = dtrain, test = dtest),
+    evals = list(train = dtrain, test = dtest),
     callbacks = list(xgb.cb.evaluation.log())
   )
   logs <- attributes(model)$evaluation_log
@@ -155,7 +155,7 @@ param <- list(objective = "binary:logistic", eval_metric = "error",
 
 test_that("can store evaluation_log without printing", {
   expect_silent(
-    bst <- xgb.train(param, dtrain, nrounds = 10, watchlist, eta = 1, verbose = 0)
+    bst <- xgb.train(param, dtrain, nrounds = 10, evals = evals, eta = 1, verbose = 0)
   )
   expect_false(is.null(attributes(bst)$evaluation_log))
   expect_false(is.null(attributes(bst)$evaluation_log$train_error))
@@ -166,14 +166,14 @@ test_that("xgb.cb.reset.parameters works as expected", {
 
   # fixed eta
   set.seed(111)
-  bst0 <- xgb.train(param, dtrain, nrounds = 2, watchlist, eta = 0.9, verbose = 0)
+  bst0 <- xgb.train(param, dtrain, nrounds = 2, evals = evals, eta = 0.9, verbose = 0)
   expect_false(is.null(attributes(bst0)$evaluation_log))
   expect_false(is.null(attributes(bst0)$evaluation_log$train_error))
 
   # same eta but re-set as a vector parameter in the callback
   set.seed(111)
   my_par <- list(eta = c(0.9, 0.9))
-  bst1 <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0,
+  bst1 <- xgb.train(param, dtrain, nrounds = 2, evals = evals, verbose = 0,
                     callbacks = list(xgb.cb.reset.parameters(my_par)))
   expect_false(is.null(attributes(bst1)$evaluation_log$train_error))
   expect_equal(attributes(bst0)$evaluation_log$train_error,
@@ -182,7 +182,7 @@ test_that("xgb.cb.reset.parameters works as expected", {
   # same eta but re-set via a function in the callback
   set.seed(111)
   my_par <- list(eta = function(itr, itr_end) 0.9)
-  bst2 <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0,
+  bst2 <- xgb.train(param, dtrain, nrounds = 2, evals = evals, verbose = 0,
                     callbacks = list(xgb.cb.reset.parameters(my_par)))
   expect_false(is.null(attributes(bst2)$evaluation_log$train_error))
   expect_equal(attributes(bst0)$evaluation_log$train_error,
@@ -191,7 +191,7 @@ test_that("xgb.cb.reset.parameters works as expected", {
   # different eta re-set as a vector parameter in the callback
   set.seed(111)
   my_par <- list(eta = c(0.6, 0.5))
-  bst3 <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0,
+  bst3 <- xgb.train(param, dtrain, nrounds = 2, evals = evals, verbose = 0,
                     callbacks = list(xgb.cb.reset.parameters(my_par)))
   expect_false(is.null(attributes(bst3)$evaluation_log$train_error))
   expect_false(all(attributes(bst0)$evaluation_log$train_error == attributes(bst3)$evaluation_log$train_error))
@@ -199,7 +199,7 @@ test_that("xgb.cb.reset.parameters works as expected", {
   # resetting multiple parameters at the same time runs with no error
   my_par <- list(eta = c(1., 0.5), gamma = c(1, 2), max_depth = c(4, 8))
   expect_error(
-    bst4 <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0,
+    bst4 <- xgb.train(param, dtrain, nrounds = 2, evals = evals, verbose = 0,
                       callbacks = list(xgb.cb.reset.parameters(my_par)))
   , NA) # NA = no error
   # CV works as well
@@ -210,7 +210,7 @@ test_that("xgb.cb.reset.parameters works as expected", {
 
   # expect no learning with 0 learning rate
   my_par <- list(eta = c(0., 0.))
-  bstX <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0,
+  bstX <- xgb.train(param, dtrain, nrounds = 2, evals = evals, verbose = 0,
                     callbacks = list(xgb.cb.reset.parameters(my_par)))
   expect_false(is.null(attributes(bstX)$evaluation_log$train_error))
   er <- unique(attributes(bstX)$evaluation_log$train_error)
@@ -223,7 +223,7 @@ test_that("xgb.cb.save.model works as expected", {
   files <- unname(sapply(files, function(f) file.path(tempdir(), f)))
   for (f in files) if (file.exists(f)) file.remove(f)
 
-  bst <- xgb.train(param, dtrain, nrounds = 2, watchlist, eta = 1, verbose = 0,
+  bst <- xgb.train(param, dtrain, nrounds = 2, evals = evals, eta = 1, verbose = 0,
                    save_period = 1, save_name = file.path(tempdir(), "xgboost_%02d.json"))
   expect_true(file.exists(files[1]))
   expect_true(file.exists(files[2]))
@@ -239,7 +239,7 @@ test_that("xgb.cb.save.model works as expected", {
   expect_equal(xgb.save.raw(bst), xgb.save.raw(b2))
 
   # save_period = 0 saves the last iteration's model
-  bst <- xgb.train(param, dtrain, nrounds = 2, watchlist, eta = 1, verbose = 0,
+  bst <- xgb.train(param, dtrain, nrounds = 2, evals = evals, eta = 1, verbose = 0,
                    save_period = 0, save_name = file.path(tempdir(), 'xgboost.json'))
   expect_true(file.exists(files[3]))
   b2 <- xgb.load(files[3])
@@ -252,7 +252,7 @@ test_that("xgb.cb.save.model works as expected", {
 test_that("early stopping xgb.train works", {
   set.seed(11)
   expect_output(
-    bst <- xgb.train(param, dtrain, nrounds = 20, watchlist, eta = 0.3,
+    bst <- xgb.train(param, dtrain, nrounds = 20, evals = evals, eta = 0.3,
                      early_stopping_rounds = 3, maximize = FALSE)
   , "Stopping. Best iteration")
   expect_false(is.null(xgb.attr(bst, "best_iteration")))
@@ -266,7 +266,7 @@ test_that("early stopping xgb.train works", {
 
   set.seed(11)
   expect_silent(
-    bst0 <- xgb.train(param, dtrain, nrounds = 20, watchlist, eta = 0.3,
+    bst0 <- xgb.train(param, dtrain, nrounds = 20, evals = evals, eta = 0.3,
                       early_stopping_rounds = 3, maximize = FALSE, verbose = 0)
   )
   expect_equal(attributes(bst)$evaluation_log, attributes(bst0)$evaluation_log)
@@ -282,7 +282,7 @@ test_that("early stopping xgb.train works", {
 test_that("early stopping using a specific metric works", {
   set.seed(11)
   expect_output(
-    bst <- xgb.train(param[-2], dtrain, nrounds = 20, watchlist, eta = 0.6,
+    bst <- xgb.train(param[-2], dtrain, nrounds = 20, evals = evals, eta = 0.6,
                      eval_metric = "logloss", eval_metric = "auc",
                      callbacks = list(xgb.cb.early.stop(stopping_rounds = 3, maximize = FALSE,
                                                         metric_name = 'test_logloss')))
@@ -315,7 +315,7 @@ test_that("early stopping works with titanic", {
     nrounds = 100,
     early_stopping_rounds = 3,
     nthread = n_threads,
-    watchlist = list(train = xgb.DMatrix(dtx, label = dty))
+    evals = list(train = xgb.DMatrix(dtx, label = dty))
   )
 
   expect_true(TRUE)  # should not crash

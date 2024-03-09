@@ -15,7 +15,7 @@ test_that('Test ranking with unweighted data', {
 
   params <- list(eta = 1, tree_method = 'exact', objective = 'rank:pairwise', max_depth = 1,
                  eval_metric = 'auc', eval_metric = 'aucpr', nthread = n_threads)
-  bst <- xgb.train(params, dtrain, nrounds = 10, watchlist = list(train = dtrain))
+  bst <- xgb.train(params, dtrain, nrounds = 10, evals = list(train = dtrain))
   # Check if the metric is monotone increasing
   expect_true(all(diff(attributes(bst)$evaluation_log$train_auc) >= 0))
   expect_true(all(diff(attributes(bst)$evaluation_log$train_aucpr) >= 0))
@@ -39,7 +39,7 @@ test_that('Test ranking with weighted data', {
     eta = 1, tree_method = "exact", objective = "rank:pairwise", max_depth = 1,
     eval_metric = "auc", eval_metric = "aucpr", nthread = n_threads
   )
-  bst <- xgb.train(params, dtrain, nrounds = 10, watchlist = list(train = dtrain))
+  bst <- xgb.train(params, dtrain, nrounds = 10, evals = list(train = dtrain))
   # Check if the metric is monotone increasing
   expect_true(all(diff(attributes(bst)$evaluation_log$train_auc) >= 0))
   expect_true(all(diff(attributes(bst)$evaluation_log$train_aucpr) >= 0))

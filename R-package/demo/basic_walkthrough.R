@@ -74,17 +74,17 @@ print(paste("sum(abs(pred3-pred))=", sum(abs(pred3 - pred))))
 # to use advanced features, we need to put data in xgb.DMatrix
 dtrain <- xgb.DMatrix(data = train$data, label = train$label)
 dtest <- xgb.DMatrix(data = test$data, label = test$label)
-#---------------Using watchlist----------------
-# watchlist is a list of xgb.DMatrix, each of them is tagged with name
-watchlist <- list(train = dtrain, test = dtest)
-# to train with watchlist, use xgb.train, which contains more advanced features
-# watchlist allows us to monitor the evaluation result on all data in the list
-print("Train xgboost using xgb.train with watchlist")
-bst <- xgb.train(data = dtrain, max_depth = 2, eta = 1, nrounds = 2, watchlist = watchlist,
+#---------------Using an evaluation set----------------
+# 'evals' is a list of xgb.DMatrix, each of them is tagged with name
+evals <- list(train = dtrain, test = dtest)
+# to train with an evaluation set, use xgb.train, which contains more advanced features
+# 'evals' argument allows us to monitor the evaluation result on all data in the list
+print("Train xgboost using xgb.train with evaluation data")
+bst <- xgb.train(data = dtrain, max_depth = 2, eta = 1, nrounds = 2, evals = evals,
                  nthread = 2, objective = "binary:logistic")
 # we can change evaluation metrics, or use multiple evaluation metrics
-print("train xgboost using xgb.train with watchlist, watch logloss and error")
-bst <- xgb.train(data = dtrain, max_depth = 2, eta = 1, nrounds = 2, watchlist = watchlist,
+print("train xgboost using xgb.train with evaluation data, watch logloss and error")
+bst <- xgb.train(data = dtrain, max_depth = 2, eta = 1, nrounds = 2, evals = evals,
                  eval_metric = "error", eval_metric = "logloss",
                  nthread = 2, objective = "binary:logistic")
 
@@ -92,7 +92,7 @@ bst <- xgb.train(data = dtrain, max_depth = 2, eta = 1, nrounds = 2, watchlist =
 xgb.DMatrix.save(dtrain, "dtrain.buffer")
 # to load it in, simply call xgb.DMatrix
 dtrain2 <- xgb.DMatrix("dtrain.buffer")
-bst <- xgb.train(data = dtrain2, max_depth = 2, eta = 1, nrounds = 2, watchlist = watchlist,
+bst <- xgb.train(data = dtrain2, max_depth = 2, eta = 1, nrounds = 2, evals = evals,
                  nthread = 2, objective = "binary:logistic")
 # information can be extracted from xgb.DMatrix using getinfo
 label <- getinfo(dtest, "label")

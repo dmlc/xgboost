@@ -114,13 +114,13 @@
 #' @param data training dataset. \code{xgb.train} accepts only an \code{xgb.DMatrix} as the input.
 #'        \code{xgboost}, in addition, also accepts \code{matrix}, \code{dgCMatrix}, or name of a local data file.
 #' @param nrounds max number of boosting iterations.
-#' @param watchlist named list of xgb.DMatrix datasets to use for evaluating model performance.
+#' @param evals Named list of `xgb.DMatrix` datasets to use for evaluating model performance.
 #'        Metrics specified in either \code{eval_metric} or \code{feval} will be computed for each
 #'        of these datasets during each boosting iteration, and stored in the end as a field named
 #'        \code{evaluation_log} in the resulting object. When either \code{verbose>=1} or
 #'        \code{\link{xgb.cb.print.evaluation}} callback is engaged, the performance results are continuously
 #'        printed out during the training.
-#'        E.g., specifying \code{watchlist=list(validation1=mat1, validation2=mat2)} allows to track
+#'        E.g., specifying \code{evals=list(validation1=mat1, validation2=mat2)} allows to track
 #'        the performance of each round's model on mat1 and mat2.
 #' @param obj customized objective function. Returns gradient and second order
 #'        gradient with given prediction and dtrain.
@@ -171,7 +171,7 @@
 #' @details
 #' These are the training functions for \code{xgboost}.
 #'
-#' The \code{xgb.train} interface supports advanced features such as \code{watchlist},
+#' The \code{xgb.train} interface supports advanced features such as \code{evals},
 #' customized objective and evaluation metric functions, therefore it is more flexible
 #' than the \code{xgboost} interface.
 #'
@@ -209,7 +209,7 @@
 #' \itemize{
 #'   \item \code{xgb.cb.print.evaluation} is turned on when \code{verbose > 0};
 #'         and the \code{print_every_n} parameter is passed to it.
-#'   \item \code{xgb.cb.evaluation.log} is on when \code{watchlist} is present.
+#'   \item \code{xgb.cb.evaluation.log} is on when \code{evals} is present.
 #'   \item \code{xgb.cb.early.stop}: when \code{early_stopping_rounds} is set.
 #'   \item \code{xgb.cb.save.model}: when \code{save_period > 0} is set.
 #' }
@@ -254,12 +254,12 @@
 #' dtest <- with(
 #'   agaricus.test, xgb.DMatrix(data, label = label, nthread = nthread)
 #' )
-#' watchlist <- list(train = dtrain, eval = dtest)
+#' evals <- list(train = dtrain, eval = dtest)
 #'
 #' ## A simple xgb.train example:
 #' param <- list(max_depth = 2, eta = 1, nthread = nthread,
 #'               objective = "binary:logistic", eval_metric = "auc")
-#' bst <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0)
+#' bst <- xgb.train(param, dtrain, nrounds = 2, evals = evals, verbose = 0)
 #'
 #' ## An xgb.train example where custom objective and evaluation metric are
 #' ## used:
@@ -280,15 +280,15 @@
 #' #  as 'objective' and 'eval_metric' parameters in the params list:
 #' param <- list(max_depth = 2, eta = 1, nthread = nthread,
 #'               objective = logregobj, eval_metric = evalerror)
-#' bst <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0)
+#' bst <- xgb.train(param, dtrain, nrounds = 2, evals = evals, verbose = 0)
 #'
 #' #  or through the ... arguments:
 #' param <- list(max_depth = 2, eta = 1, nthread = nthread)
-#' bst <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0,
+#' bst <- xgb.train(param, dtrain, nrounds = 2, evals = evals, verbose = 0,
 #'                  objective = logregobj, eval_metric = evalerror)
 #'
 #' #  or as dedicated 'obj' and 'feval' parameters of xgb.train:
-#' bst <- xgb.train(param, dtrain, nrounds = 2, watchlist,
+#' bst <- xgb.train(param, dtrain, nrounds = 2, evals = evals,
 #'                  obj = logregobj, feval = evalerror)
 #'
 #'
@@ -296,11 +296,11 @@
 #' param <- list(max_depth = 2, eta = 1, nthread = nthread,
 #'               objective = "binary:logistic", eval_metric = "auc")
 #' my_etas <- list(eta = c(0.5, 0.1))
-#' bst <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0,
+#' bst <- xgb.train(param, dtrain, nrounds = 2, evals = evals, verbose = 0,
 #'                  callbacks = list(xgb.cb.reset.parameters(my_etas)))
 #'
 #' ## Early stopping:
-#' bst <- xgb.train(param, dtrain, nrounds = 25, watchlist,
+#' bst <- xgb.train(param, dtrain, nrounds = 25, evals = evals,
 #'                  early_stopping_rounds = 3)
 #'
 #' ## An 'xgboost' interface example:
@@ -311,7 +311,7 @@
 #'
 #' @rdname xgb.train
 #' @export
-xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
+xgb.train <- function(params = list(), data, nrounds, evals = list(),
                       obj = NULL, feval = NULL, verbose = 1, print_every_n = 1L,
                       early_stopping_rounds = NULL, maximize = NULL,
                       save_period = NULL, save_name = "xgboost.model",
@@ -324,17 +324,17 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   check.custom.obj()
   check.custom.eval()
 
-  # data & watchlist checks
+  # data & evals checks
   dtrain <- data
   if (!inherits(dtrain, "xgb.DMatrix"))
     stop("second argument dtrain must be xgb.DMatrix")
-  if (length(watchlist) > 0) {
-    if (typeof(watchlist) != "list" ||
-        !all(vapply(watchlist, inherits, logical(1), what = 'xgb.DMatrix')))
-      stop("watchlist must be a list of xgb.DMatrix elements")
-    evnames <- names(watchlist)
+  if (length(evals) > 0) {
+    if (typeof(evals) != "list" ||
+        !all(vapply(evals, inherits, logical(1), what = 'xgb.DMatrix')))
+      stop("'evals' must be a list of xgb.DMatrix elements")
+    evnames <- names(evals)
     if (is.null(evnames) || any(evnames == ""))
-      stop("each element of the watchlist must have a name tag")
+      stop("each element of 'evals' must have a name tag")
   }
   # Handle multiple evaluation metrics given as a list
   for (m in params$eval_metric) {
@@ -370,8 +370,8 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   if (verbose && !("print_evaluation" %in% cb_names)) {
     callbacks <- add.callback(callbacks, xgb.cb.print.evaluation(print_every_n))
   }
-  # evaluation log callback:  it is automatically enabled when watchlist is provided
-  if (length(watchlist) && !("evaluation_log" %in% cb_names)) {
+  # evaluation log callback:  it is automatically enabled when 'evals' is provided
+  if (length(evals) && !("evaluation_log" %in% cb_names)) {
     callbacks <- add.callback(callbacks, xgb.cb.evaluation.log())
   }
   # Model saving callback
@@ -385,7 +385,7 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   # Construct a booster (either a new one or load from xgb_model)
   bst <- xgb.Booster(
     params = params,
-    cachelist = append(watchlist, dtrain),
+    cachelist = append(evals, dtrain),
     modelfile = xgb_model
   )
   niter_init <- bst$niter
@@ -407,7 +407,7 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
     callbacks,
     bst,
     dtrain,
-    watchlist,
+    evals,
     begin_iteration,
     end_iteration
   )
@@ -419,7 +419,7 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
       callbacks,
       bst,
       dtrain,
-      watchlist,
+      evals,
       iteration
     )
 
@@ -431,10 +431,10 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
     )
 
     bst_evaluation <- NULL
-    if (length(watchlist) > 0) {
+    if (length(evals) > 0) {
       bst_evaluation <- xgb.iter.eval(
         bst = bst,
-        watchlist = watchlist,
+        evals = evals,
         iter = iteration - 1,
         feval = feval
       )
@@ -444,7 +444,7 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
       callbacks,
       bst,
       dtrain,
-      watchlist,
+      evals,
       iteration,
       bst_evaluation
     )
@@ -456,7 +456,7 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
     callbacks,
     bst,
     dtrain,
-    watchlist,
+    evals,
     iteration,
     bst_evaluation
   )
