@@ -287,7 +287,7 @@ xgb.Callback <- function(
       cb$env,
       model,
       data,
-      watchlist,
+      evals,
       iteration
     )
     if (!NROW(should_stop)) {
