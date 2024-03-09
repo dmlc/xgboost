@@ -23,7 +23,7 @@ y <- rbinom(N, 1, plogis(m))
 tr <- sample.int(N, N * 0.75)
 dtrain <- xgb.DMatrix(X[tr, ], label = y[tr])
 dtest <- xgb.DMatrix(X[-tr, ], label = y[-tr])
-wl <- list(train = dtrain, test = dtest)
+evals <- list(train = dtrain, test = dtest)
 
 # An example of running 'gpu_hist' algorithm
 # which is
@@ -35,11 +35,11 @@ wl <- list(train = dtrain, test = dtest)
 param <- list(objective = 'reg:logistic', eval_metric = 'auc', subsample = 0.5, nthread = 4,
               max_bin = 64, tree_method = 'gpu_hist')
 pt <- proc.time()
-bst_gpu <- xgb.train(param, dtrain, watchlist = wl, nrounds = 50)
+bst_gpu <- xgb.train(param, dtrain, evals = evals, nrounds = 50)
 proc.time() - pt
 
 # Compare to the 'hist' algorithm:
 param$tree_method <- 'hist'
 pt <- proc.time()
-bst_hist <- xgb.train(param, dtrain, watchlist = wl, nrounds = 50)
+bst_hist <- xgb.train(param, dtrain, evals = evals, nrounds = 50)
 proc.time() - pt

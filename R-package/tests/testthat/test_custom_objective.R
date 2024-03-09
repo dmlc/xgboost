@@ -12,7 +12,7 @@ dtrain <- xgb.DMatrix(
 dtest <- xgb.DMatrix(
   agaricus.test$data, label = agaricus.test$label, nthread = n_threads
 )
-watchlist <- list(eval = dtest, train = dtrain)
+evals <- list(eval = dtest, train = dtrain)
 
 logregobj <- function(preds, dtrain) {
   labels <- getinfo(dtrain, "label")
@@ -33,7 +33,7 @@ param <- list(max_depth = 2, eta = 1, nthread = n_threads,
 num_round <- 2
 
 test_that("custom objective works", {
-  bst <- xgb.train(param, dtrain, num_round, watchlist)
+  bst <- xgb.train(param, dtrain, num_round, evals)
   expect_equal(class(bst), "xgb.Booster")
   expect_false(is.null(attributes(bst)$evaluation_log))
   expect_false(is.null(attributes(bst)$evaluation_log$eval_error))
@@ -48,7 +48,7 @@ test_that("custom objective in CV works", {
 })
 
 test_that("custom objective with early stop works", {
-  bst <- xgb.train(param, dtrain, 10, watchlist)
+  bst <- xgb.train(param, dtrain, 10, evals)
   expect_equal(class(bst), "xgb.Booster")
   train_log <- attributes(bst)$evaluation_log$train_error
   expect_true(all(diff(train_log) <= 0))
@@ -66,7 +66,7 @@ test_that("custom objective using DMatrix attr works", {
     return(list(grad = grad, hess = hess))
   }
   param$objective <- logregobjattr
-  bst <- xgb.train(param, dtrain, num_round, watchlist)
+  bst <- xgb.train(param, dtrain, num_round, evals)
   expect_equal(class(bst), "xgb.Booster")
 })
 

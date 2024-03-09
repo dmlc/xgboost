@@ -71,7 +71,6 @@
 #' new.dtest <- xgb.DMatrix(
 #'   data = new.features.test, label = agaricus.test$label, nthread = 2
 #' )
-#' watchlist <- list(train = new.dtrain)
 #' bst <- xgb.train(params = param, data = new.dtrain, nrounds = nrounds, nthread = 2)
 #'
 #' # Model accuracy with new features

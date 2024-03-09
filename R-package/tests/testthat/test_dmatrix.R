@@ -41,13 +41,13 @@ test_that("xgb.DMatrix: basic construction", {
 
   params <- list(tree_method = "hist", nthread = n_threads)
   bst_fd <- xgb.train(
-    params, nrounds = 8, fd, watchlist = list(train = fd)
+    params, nrounds = 8, fd, evals = list(train = fd)
   )
   bst_dgr <- xgb.train(
-    params, nrounds = 8, fdgr, watchlist = list(train = fdgr)
+    params, nrounds = 8, fdgr, evals = list(train = fdgr)
   )
   bst_dgc <- xgb.train(
-    params, nrounds = 8, fdgc, watchlist = list(train = fdgc)
+    params, nrounds = 8, fdgc, evals = list(train = fdgc)
   )
 
   raw_fd <- xgb.save.raw(bst_fd, raw_format = "ubj")

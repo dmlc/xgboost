@@ -39,7 +39,7 @@ bst <- xgb.train(
   data = d_train,
   params = params,
   maximize = FALSE,
-  watchlist = list(train = d_train),
+  evals = list(train = d_train),
   nrounds = 20)
 
 var_imp <- xgb.importance(attr(x, 'Dimnames')[[2]], model = bst)

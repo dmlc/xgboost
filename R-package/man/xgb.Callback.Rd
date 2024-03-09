@@ -7,11 +7,11 @@
 xgb.Callback(
   cb_name = "custom_callback",
   env = new.env(),
-  f_before_training = function(env, model, data, watchlist, begin_iteration,
-    end_iteration) NULL,
-  f_before_iter = function(env, model, data, watchlist, iteration) NULL,
-  f_after_iter = function(env, model, data, watchlist, iteration, iter_feval) NULL,
-  f_after_training = function(env, model, data, watchlist, iteration, final_feval,
+  f_before_training = function(env, model, data, evals, begin_iteration, end_iteration)
+    NULL,
+  f_before_iter = function(env, model, data, evals, iteration) NULL,
+  f_after_iter = function(env, model, data, evals, iteration, iter_feval) NULL,
+  f_after_training = function(env, model, data, evals, iteration, final_feval,
     prev_cb_res) NULL
 )
 }
@@ -82,10 +82,10 @@ not be kept after the model fitting function terminates (see parameter \code{f_a
 For \link{xgb.cv}, folds are a list with a structure as follows:\itemize{
 \item \code{dtrain}: The training data for the fold (as an \code{xgb.DMatrix} object).
 \item \code{bst}: Rhe \code{xgb.Booster} object for the fold.
-\item \code{watchlist}: A list with two DMatrices, with names \code{train} and \code{test}
+\item \code{evals}: A list containing two DMatrices, with names \code{train} and \code{test}
 (\code{test} is the held-out data for the fold).
 \item \code{index}: The indices of the hold-out data for that fold (base-1 indexing),
-from which the \code{test} entry in the watchlist was obtained.
+from which the \code{test} entry in \code{evals} was obtained.
 }
 
 This object should \bold{not} be in-place modified in ways that conflict with the
@@ -104,7 +104,7 @@ For keeping variables across iterations, it's recommended to use \code{env} inst
 Note that, for \link{xgb.cv}, this will be the full data, while data for the specific
 folds can be found in the \code{model} object.
 
-\item watchlist The evaluation watchlist, as passed under argument \code{watchlist} to
+\item evals The evaluation data, as passed under argument \code{evals} to
 \link{xgb.train}.
 
 For \link{xgb.cv}, this will always be \code{NULL}.
@@ -127,15 +127,15 @@ example by using the early stopping callback \link{xgb.cb.early.stop}.
 \item iteration Index of the iteration number that is being executed (first iteration
 will be the same as parameter \code{begin_iteration}, then next one will add +1, and so on).
 
-\item iter_feval Evaluation metrics for the \code{watchlist} that was supplied, either
+\item iter_feval Evaluation metrics for \code{evals} that were supplied, either
 determined by the objective, or by parameter \code{feval}.
 
 For \link{xgb.train}, this will be a named vector with one entry per element in
-\code{watchlist}, where the names are determined as 'watchlist name' + '-' + 'metric name' - for
-example, if \code{watchlist} contains an entry named "tr" and the metric is "rmse",
+\code{evals}, where the names are determined as 'evals name' + '-' + 'metric name' - for
+example, if \code{evals} contains an entry named "tr" and the metric is "rmse",
 this will be a one-element vector with name "tr-rmse".
 
-For \link{xgb.cv}, this will be a 2d matrix with dimensions \verb{[length(watchlist), nfolds]},
+For \link{xgb.cv}, this will be a 2d matrix with dimensions \verb{[length(evals), nfolds]},
 where the row names will follow the same naming logic as the one-dimensional vector
 that is passed in \link{xgb.train}.
 
@@ -187,18 +187,18 @@ the order in which the callbacks are passed to the model fitting function.
 }
 \examples{
 # Example constructing a custom callback that calculates
-# squared error on the training data, without a watchlist,
+# squared error on the training data (no separate test set),
 # and outputs the per-iteration results.
 ssq_callback <- xgb.Callback(
   cb_name = "ssq",
-  f_before_training = function(env, model, data, watchlist,
+  f_before_training = function(env, model, data, evals,
                                begin_iteration, end_iteration) {
     # A vector to keep track of a number at each iteration
     env$logs <- rep(NA_real_, end_iteration - begin_iteration + 1)
   },
-  f_after_iter = function(env, model, data, watchlist, iteration, iter_feval) {
+  f_after_iter = function(env, model, data, evals, iteration, iter_feval) {
     # This calculates the sum of squared errors on the training data.
-    # Note that this can be better done by passing a 'watchlist' entry,
+    # Note that this can be better done by passing an 'evals' entry,
     # but this demonstrates a way in which callbacks can be structured.
     pred <- predict(model, data)
     err <- pred - getinfo(data, "label")
@@ -214,7 +214,7 @@ ssq_callback <- xgb.Callback(
     # A return value of 'TRUE' here would signal to finalize the training
     return(FALSE)
   },
-  f_after_training = function(env, model, data, watchlist, iteration,
+  f_after_training = function(env, model, data, evals, iteration,
                               final_feval, prev_cb_res) {
     return(env$logs)
   }

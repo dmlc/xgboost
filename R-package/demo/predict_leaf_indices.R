@@ -43,7 +43,6 @@ colnames(new.features.test) <- colnames(new.features.train)
 # learning with new features
 new.dtrain <- xgb.DMatrix(data = new.features.train, label = agaricus.train$label)
 new.dtest <- xgb.DMatrix(data = new.features.test, label = agaricus.test$label)
-watchlist <- list(train = new.dtrain)
 bst <- xgb.train(params = param, data = new.dtrain, nrounds = nrounds, nthread = 2)
 
 # Model accuracy with new features

@@ -215,7 +215,7 @@ xgb.cv <- function(params = list(), data, nrounds, nfold, label = NULL, missing 
       modelfile = NULL
     )
     bst <- bst$bst
-    list(dtrain = dtrain, bst = bst, watchlist = list(train = dtrain, test = dtest), index = folds[[k]])
+    list(dtrain = dtrain, bst = bst, evals = list(train = dtrain, test = dtest), index = folds[[k]])
   })
 
   # extract parameters that can affect the relationship b/w #trees and #iterations
@@ -254,7 +254,7 @@ xgb.cv <- function(params = list(), data, nrounds, nfold, label = NULL, missing 
       )
       xgb.iter.eval(
         bst = fd$bst,
-        watchlist = fd$watchlist,
+        evals = fd$evals,
         iter = iteration - 1,
         feval = feval
       )

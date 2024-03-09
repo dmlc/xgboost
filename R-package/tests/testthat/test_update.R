@@ -17,7 +17,7 @@ dtest <- xgb.DMatrix(
 win32_flag <- .Platform$OS.type == "windows" && .Machine$sizeof.pointer != 8
 
 test_that("updating the model works", {
-  watchlist <- list(train = dtrain, test = dtest)
+  evals <- list(train = dtrain, test = dtest)
 
   # no-subsampling
   p1 <- list(
@@ -25,19 +25,19 @@ test_that("updating the model works", {
     updater = "grow_colmaker,prune"
   )
   set.seed(11)
-  bst1 <- xgb.train(p1, dtrain, nrounds = 10, watchlist, verbose = 0)
+  bst1 <- xgb.train(p1, dtrain, nrounds = 10, evals = evals, verbose = 0)
   tr1 <- xgb.model.dt.tree(model = bst1)
 
   # with subsampling
   p2 <- modifyList(p1, list(subsample = 0.1))
   set.seed(11)
-  bst2 <- xgb.train(p2, dtrain, nrounds = 10, watchlist, verbose = 0)
+  bst2 <- xgb.train(p2, dtrain, nrounds = 10, evals = evals, verbose = 0)
   tr2 <- xgb.model.dt.tree(model = bst2)
 
   # the same no-subsampling boosting with an extra 'refresh' updater:
   p1r <- modifyList(p1, list(updater = 'grow_colmaker,prune,refresh', refresh_leaf = FALSE))
   set.seed(11)
-  bst1r <- xgb.train(p1r, dtrain, nrounds = 10, watchlist, verbose = 0)
+  bst1r <- xgb.train(p1r, dtrain, nrounds = 10, evals = evals, verbose = 0)
   tr1r <- xgb.model.dt.tree(model = bst1r)
   # all should be the same when no subsampling
   expect_equal(attributes(bst1)$evaluation_log, attributes(bst1r)$evaluation_log)
@@ -53,7 +53,7 @@ test_that("updating the model works", {
   # the same boosting with subsampling with an extra 'refresh' updater:
   p2r <- modifyList(p2, list(updater = 'grow_colmaker,prune,refresh', refresh_leaf = FALSE))
   set.seed(11)
-  bst2r <- xgb.train(p2r, dtrain, nrounds = 10, watchlist, verbose = 0)
+  bst2r <- xgb.train(p2r, dtrain, nrounds = 10, evals = evals, verbose = 0)
   tr2r <- xgb.model.dt.tree(model = bst2r)
   # should be the same evaluation but different gains and larger cover
   expect_equal(attributes(bst2)$evaluation_log, attributes(bst2r)$evaluation_log)
@@ -66,7 +66,7 @@ test_that("updating the model works", {
   # process type 'update' for no-subsampling model, refreshing the tree stats AND leaves from training data:
   set.seed(123)
   p1u <- modifyList(p1, list(process_type = 'update', updater = 'refresh', refresh_leaf = TRUE))
-  bst1u <- xgb.train(p1u, dtrain, nrounds = 10, watchlist, verbose = 0, xgb_model = bst1)
+  bst1u <- xgb.train(p1u, dtrain, nrounds = 10, evals = evals, verbose = 0, xgb_model = bst1)
   tr1u <- xgb.model.dt.tree(model = bst1u)
   # all should be the same when no subsampling
   expect_equal(attributes(bst1)$evaluation_log, attributes(bst1u)$evaluation_log)
@@ -79,7 +79,7 @@ test_that("updating the model works", {
 
   # same thing but with a serialized model
   set.seed(123)
-  bst1u <- xgb.train(p1u, dtrain, nrounds = 10, watchlist, verbose = 0, xgb_model = xgb.save.raw(bst1))
+  bst1u <- xgb.train(p1u, dtrain, nrounds = 10, evals = evals, verbose = 0, xgb_model = xgb.save.raw(bst1))
   tr1u <- xgb.model.dt.tree(model = bst1u)
   # all should be the same when no subsampling
   expect_equal(attributes(bst1)$evaluation_log, attributes(bst1u)$evaluation_log)
@@ -87,7 +87,7 @@ test_that("updating the model works", {
 
   # process type 'update' for model with subsampling, refreshing only the tree stats from training data:
   p2u <- modifyList(p2, list(process_type = 'update', updater = 'refresh', refresh_leaf = FALSE))
-  bst2u <- xgb.train(p2u, dtrain, nrounds = 10, watchlist, verbose = 0, xgb_model = bst2)
+  bst2u <- xgb.train(p2u, dtrain, nrounds = 10, evals = evals, verbose = 0, xgb_model = bst2)
   tr2u <- xgb.model.dt.tree(model = bst2u)
   # should be the same evaluation but different gains and larger cover
   expect_equal(attributes(bst2)$evaluation_log, attributes(bst2u)$evaluation_log)
@@ -102,7 +102,7 @@ test_that("updating the model works", {
 
   # process type 'update' for no-subsampling model, refreshing only the tree stats from TEST data:
   p1ut <- modifyList(p1, list(process_type = 'update', updater = 'refresh', refresh_leaf = FALSE))
-  bst1ut <- xgb.train(p1ut, dtest, nrounds = 10, watchlist, verbose = 0, xgb_model = bst1)
+  bst1ut <- xgb.train(p1ut, dtest, nrounds = 10, evals = evals, verbose = 0, xgb_model = bst1)
   tr1ut <- xgb.model.dt.tree(model = bst1ut)
   # should be the same evaluations but different gains and smaller cover (test data is smaller)
   expect_equal(attributes(bst1)$evaluation_log, attributes(bst1ut)$evaluation_log)
@@ -115,18 +115,18 @@ test_that("updating works for multiclass & multitree", {
   dtr <- xgb.DMatrix(
     as.matrix(iris[, -5]), label = as.numeric(iris$Species) - 1, nthread = n_threads
   )
-  watchlist <- list(train = dtr)
+  evals <- list(train = dtr)
   p0 <- list(max_depth = 2, eta = 0.5, nthread = n_threads, subsample = 0.6,
              objective = "multi:softprob", num_class = 3, num_parallel_tree = 2,
              base_score = 0)
   set.seed(121)
-  bst0 <- xgb.train(p0, dtr, 5, watchlist, verbose = 0)
+  bst0 <- xgb.train(p0, dtr, 5, evals = evals, verbose = 0)
   tr0 <- xgb.model.dt.tree(model = bst0)
 
   # run update process for an original model with subsampling
   p0u <- modifyList(p0, list(process_type = 'update', updater = 'refresh', refresh_leaf = FALSE))
   bst0u <- xgb.train(p0u, dtr, nrounds = xgb.get.num.boosted.rounds(bst0),
-                     watchlist, xgb_model = bst0, verbose = 0)
+                     evals = evals, xgb_model = bst0, verbose = 0)
   tr0u <- xgb.model.dt.tree(model = bst0u)
 
   # should be the same evaluation but different gains and larger cover

@@ -20,9 +20,9 @@ the evaluation metric in order to stop the training.}
 
 \item{metric_name}{The name of an evaluation column to use as a criteria for early
 stopping. If not set, the last column would be used.
-Let's say the test data in \code{watchlist} was labelled as \code{dtest},
+Let's say the test data in \code{evals} was labelled as \code{dtest},
 and one wants to use the AUC in test data for early stopping regardless of where
-it is in the \code{watchlist}, then one of the following would need to be set:
+it is in the \code{evals}, then one of the following would need to be set:
 \code{metric_name='dtest-auc'} or \code{metric_name='dtest_auc'}.
 All dash '-' characters in metric names are considered equivalent to '_'.}
 
@@ -51,5 +51,5 @@ condition occurred. Note that the \code{best_iteration} that is stored under R a
 base-1 indexing, so it will be larger by '1' than the C-level 'best_iteration' that is accessed
 through \link{xgb.attr} or \link{xgb.attributes}.
 
-At least one data element is required in the evaluation watchlist for early stopping to work.
+At least one dataset is required in \code{evals} for early stopping to work.
 }
