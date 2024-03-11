@@ -454,7 +454,8 @@ depr_par_lut <- matrix(c(
   'plot.height', 'plot_height',
   'plot.width', 'plot_width',
   'n_first_tree', 'trees',
-  'dummy', 'DUMMY'
+  'dummy', 'DUMMY',
+  'watchlist', 'evals'
 ), ncol = 2, byrow = TRUE)
 colnames(depr_par_lut) <- c('old', 'new')
 
