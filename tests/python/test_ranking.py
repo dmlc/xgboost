@@ -54,6 +54,20 @@ def test_ndcg_custom_gain():
     assert byxgb.evals_result() == bynp.evals_result()
     assert byxgb_json == bynp_json
 
+    # test pairwise can handle max_rel > 31, while ndcg metric is using custom gain
+    X, y, q, w = tm.make_ltr(n_samples=1024, n_features=4, n_query_groups=3, max_rel=33)
+    ranknet = xgboost.XGBRanker(
+        tree_method="hist",
+        ndcg_exp_gain=False,
+        n_estimators=10,
+        objective="rank:pairwise",
+    )
+    ranknet.fit(X, y, qid=q, eval_set=[(X, y)], eval_qid=[q])
+    history = ranknet.evals_result()
+    assert (
+        history["validation_0"]["ndcg@32"][0] < history["validation_0"]["ndcg@32"][-1]
+    )
+
 
 def test_ranking_with_unweighted_data():
     Xrow = np.array([1, 2, 6, 8, 11, 14, 16, 17])
