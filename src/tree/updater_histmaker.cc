@@ -215,7 +215,7 @@ class HistMaker: public BaseMaker {
           continue;
         }
 
-        EnumerateSplit(this->wspace_.hset[0][i + wid * (num_feature + 1)], node_sum, feature_set[i],
+        this->EnumerateSplit(this->wspace_.hset[0][i + wid * (num_feature + 1)], node_sum, feature_set[i],
                        &best, &left_sum[wid]);
       }
     });
