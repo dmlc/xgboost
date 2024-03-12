@@ -51,7 +51,10 @@ class TreeEvaluator {
 
     has_constraint_ = false;
     for (const auto& constraint : p.monotone_constraints) {
-      if (constraint != 0) has_constraint_ = true;
+      if (constraint != 0) {
+        has_constraint_ = true;
+        break;
+      }
     }
 
     if (has_constraint_) {

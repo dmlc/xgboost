@@ -80,6 +80,7 @@ void TestSplitEvaluator(const std::string& monotone_constraints) {
   }
 
   {
+    constexpr float eps = 1e-8;
     tree_evaluator.AddSplit(0, 1, 2, 0, 0.3, 0.7);
 
     GradStats<GradientSumT> left(0.1, 0.2);
@@ -89,21 +90,21 @@ void TestSplitEvaluator(const std::string& monotone_constraints) {
 
     GradientSumT wleft  = split_evaluator.CalcWeight(nidx, left);
     // wleft = -grad/hess = -0.1/0.2
-    ASSERT_EQ(round(wleft * 100), -50);
+    EXPECT_NEAR(wleft, -0.5, eps);
     GradientSumT wright = split_evaluator.CalcWeight(nidx, right);
     // wright = -grad/hess = -0.3/0.4
-    ASSERT_EQ(round(wright * 100), -75);
+    EXPECT_NEAR(wright, -0.75, eps);
 
     GradientSumT gweight_left = split_evaluator.CalcGainGivenWeight(nidx, left, wleft);
     // gweight_left = left.grad**2 / left.hess = 0.1*0.1/0.2 = 0.05
-    ASSERT_EQ(round(gweight_left*100), 5);
+    EXPECT_NEAR(gweight_left, 0.05, eps);
     // gweight_left = right.grad**2 / right.hess = 0.3*0.3/0.4 = 0.225
     GradientSumT gweight_right = split_evaluator.CalcGainGivenWeight(nidx, right, wright);
-    ASSERT_EQ(round(gweight_right*1000), 225);
+    EXPECT_NEAR(gweight_right, 0.225, eps);
 
     GradientSumT split_gain = split_evaluator.CalcSplitGain(nidx, fidx, left, right);
     if (!tree_evaluator.HasConstraint()) {
-      ASSERT_EQ(split_gain, gweight_left + gweight_right);
+      EXPECT_NEAR(split_gain, gweight_left + gweight_right, eps);
     } else {
       // Parameters are chosen to have -inf here
       ASSERT_EQ(split_gain, -std::numeric_limits<GradientSumT>::infinity());
