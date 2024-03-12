@@ -1,5 +1,5 @@
 /*!
- * Copyright 2018-2023 by Contributors
+ * Copyright 2018-2024 by Contributors
  */
 
 #ifndef PLUGIN_SYCL_TREE_SPLIT_EVALUATOR_H_

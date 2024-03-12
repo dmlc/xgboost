@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2023 by Contributors
+ * Copyright 2014-2024 by Contributors
  */
 #ifndef PLUGIN_SYCL_TREE_PARAM_H_
 #define PLUGIN_SYCL_TREE_PARAM_H_
