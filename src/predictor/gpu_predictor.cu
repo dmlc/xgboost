@@ -67,12 +67,12 @@ struct TreeView {
 
 struct SparsePageView {
   common::Span<const Entry> d_data;
-  common::Span<const bst_row_t> d_row_ptr;
+  common::Span<const bst_idx_t> d_row_ptr;
   bst_feature_t num_features;
 
   SparsePageView() = default;
   XGBOOST_DEVICE SparsePageView(common::Span<const Entry> data,
-                                common::Span<const bst_row_t> row_ptr,
+                                common::Span<const bst_idx_t> row_ptr,
                                 bst_feature_t num_features)
       : d_data{data}, d_row_ptr{row_ptr}, num_features(num_features) {}
   [[nodiscard]] __device__ float GetElement(size_t ridx, size_t fidx) const {
@@ -664,7 +664,7 @@ __global__ void MaskBitVectorKernel(
   }
 }
 
-__device__ bst_node_t GetLeafIndexByBitVector(bst_row_t ridx, TreeView const& tree,
+__device__ bst_node_t GetLeafIndexByBitVector(bst_idx_t ridx, TreeView const& tree,
                                               BitVector const& decision_bits,
                                               BitVector const& missing_bits, std::size_t num_nodes,
                                               std::size_t tree_offset) {
@@ -682,7 +682,7 @@ __device__ bst_node_t GetLeafIndexByBitVector(bst_row_t ridx, TreeView const& tr
   return nidx;
 }
 
-__device__ float GetLeafWeightByBitVector(bst_row_t ridx, TreeView const& tree,
+__device__ float GetLeafWeightByBitVector(bst_idx_t ridx, TreeView const& tree,
                                           BitVector const& decision_bits,
                                           BitVector const& missing_bits, std::size_t num_nodes,
                                           std::size_t tree_offset) {
@@ -1171,7 +1171,7 @@ class GPUPredictor : public xgboost::Predictor {
     auto max_shared_memory_bytes = ConfigureDevice(ctx_->Device());
 
     const MetaInfo& info = p_fmat->Info();
-    bst_row_t num_rows = info.num_row_;
+    bst_idx_t num_rows = info.num_row_;
     if (tree_end == 0 || tree_end > model.trees.size()) {
       tree_end = static_cast<uint32_t>(model.trees.size());
     }
@@ -1196,7 +1196,7 @@ class GPUPredictor : public xgboost::Predictor {
       for (auto const& batch : p_fmat->GetBatches<SparsePage>()) {
         batch.data.SetDevice(ctx_->Device());
         batch.offset.SetDevice(ctx_->Device());
-        bst_row_t batch_offset = 0;
+        bst_idx_t batch_offset = 0;
         SparsePageView data{batch.data.DeviceSpan(), batch.offset.DeviceSpan(),
                             model.learner_model_param->num_feature};
         size_t num_rows = batch.Size();
@@ -1219,7 +1219,7 @@ class GPUPredictor : public xgboost::Predictor {
       }
     } else {
       for (auto const& batch : p_fmat->GetBatches<EllpackPage>(ctx_, BatchParam{})) {
-        bst_row_t batch_offset = 0;
+        bst_idx_t batch_offset = 0;
         EllpackDeviceAccessor data{batch.Impl()->GetDeviceAccessor(ctx_->Device())};
         size_t num_rows = batch.Size();
         auto grid =

@@ -27,7 +27,7 @@ TEST(GPUQuantile, Basic) {
   HostDeviceVector<FeatureType> ft;
   SketchContainer sketch(ft, kBins, kCols, kRows, FstCU());
   dh::caching_device_vector<Entry> entries;
-  dh::device_vector<bst_row_t> cuts_ptr(kCols+1);
+  dh::device_vector<bst_idx_t> cuts_ptr(kCols+1);
   thrust::fill(cuts_ptr.begin(), cuts_ptr.end(), 0);
   // Push empty
   sketch.Push(dh::ToSpan(entries), dh::ToSpan(cuts_ptr), dh::ToSpan(cuts_ptr), 0);
@@ -87,11 +87,11 @@ TEST(GPUQuantile, Unique) {
 
 // if with_error is true, the test tolerates floating point error
 void TestQuantileElemRank(DeviceOrd device, Span<SketchEntry const> in,
-                          Span<bst_row_t const> d_columns_ptr, bool with_error = false) {
+                          Span<bst_idx_t const> d_columns_ptr, bool with_error = false) {
   dh::safe_cuda(cudaSetDevice(device.ordinal));
   std::vector<SketchEntry> h_in(in.size());
   dh::CopyDeviceSpanToVector(&h_in, in);
-  std::vector<bst_row_t> h_columns_ptr(d_columns_ptr.size());
+  std::vector<bst_idx_t> h_columns_ptr(d_columns_ptr.size());
   dh::CopyDeviceSpanToVector(&h_columns_ptr, d_columns_ptr);
 
   for (size_t i = 1; i < d_columns_ptr.size(); ++i) {
@@ -164,7 +164,7 @@ TEST(GPUQuantile, MergeEmpty) {
 
   std::vector<SketchEntry> entries_before(sketch_0.Data().size());
   dh::CopyDeviceSpanToVector(&entries_before, sketch_0.Data());
-  std::vector<bst_row_t> ptrs_before(sketch_0.ColumnsPtr().size());
+  std::vector<bst_idx_t> ptrs_before(sketch_0.ColumnsPtr().size());
   dh::CopyDeviceSpanToVector(&ptrs_before, sketch_0.ColumnsPtr());
   thrust::device_vector<size_t> columns_ptr(kCols + 1);
   // Merge an empty sketch
@@ -172,7 +172,7 @@ TEST(GPUQuantile, MergeEmpty) {
 
   std::vector<SketchEntry> entries_after(sketch_0.Data().size());
   dh::CopyDeviceSpanToVector(&entries_after, sketch_0.Data());
-  std::vector<bst_row_t> ptrs_after(sketch_0.ColumnsPtr().size());
+  std::vector<bst_idx_t> ptrs_after(sketch_0.ColumnsPtr().size());
   dh::CopyDeviceSpanToVector(&ptrs_after, sketch_0.ColumnsPtr());
 
   CHECK_EQ(entries_before.size(), entries_after.size());
@@ -222,7 +222,7 @@ TEST(GPUQuantile, MergeBasic) {
     }
 
     auto columns_ptr = sketch_0.ColumnsPtr();
-    std::vector<bst_row_t> h_columns_ptr(columns_ptr.size());
+    std::vector<bst_idx_t> h_columns_ptr(columns_ptr.size());
     dh::CopyDeviceSpanToVector(&h_columns_ptr, columns_ptr);
     ASSERT_EQ(h_columns_ptr.back(), sketch_1.Data().size() + size_before_merge);
 
@@ -278,7 +278,7 @@ void TestMergeDuplicated(int32_t n_bins, size_t cols, size_t rows, float frac) {
   TestQuantileElemRank(FstCU(), sketch_0.Data(), sketch_0.ColumnsPtr());
 
   auto columns_ptr = sketch_0.ColumnsPtr();
-  std::vector<bst_row_t> h_columns_ptr(columns_ptr.size());
+  std::vector<bst_idx_t> h_columns_ptr(columns_ptr.size());
   dh::CopyDeviceSpanToVector(&h_columns_ptr, columns_ptr);
   ASSERT_EQ(h_columns_ptr.back(), sketch_1.Data().size() + size_before_merge);
 

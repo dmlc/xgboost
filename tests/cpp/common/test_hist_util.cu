@@ -214,7 +214,7 @@ TEST(HistUtil, RemoveDuplicatedCategories) {
   dh::device_vector<float> weight(n_samples * n_features, 0);
   dh::Iota(dh::ToSpan(weight), ctx.CUDACtx()->Stream());
 
-  dh::caching_device_vector<bst_row_t> columns_ptr(4);
+  dh::caching_device_vector<bst_idx_t> columns_ptr(4);
   for (std::size_t i = 0; i < columns_ptr.size(); ++i) {
     columns_ptr[i] = i * n_samples;
   }
@@ -795,7 +795,7 @@ TEST(HistUtil, AdapterSketchFromWeights) {
 
 namespace {
 class DeviceSketchWithHessianTest
-    : public ::testing::TestWithParam<std::tuple<bool, bst_row_t, bst_bin_t>> {
+    : public ::testing::TestWithParam<std::tuple<bool, bst_idx_t, bst_bin_t>> {
   bst_feature_t n_features_ = 5;
   bst_group_t n_groups_{3};
 
@@ -910,9 +910,9 @@ class DeviceSketchWithHessianTest
 };
 
 auto MakeParamsForTest() {
-  std::vector<bst_row_t> sizes = {1, 2, 256, 512, 1000, 1500};
+  std::vector<bst_idx_t> sizes = {1, 2, 256, 512, 1000, 1500};
   std::vector<bst_bin_t> bin_sizes = {2, 16, 256, 512};
-  std::vector<std::tuple<bool, bst_row_t, bst_bin_t>> configs;
+  std::vector<std::tuple<bool, bst_idx_t, bst_bin_t>> configs;
   for (auto n_samples : sizes) {
     for (auto n_bins : bin_sizes) {
       configs.emplace_back(true, n_samples, n_bins);

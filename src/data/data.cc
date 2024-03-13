@@ -47,7 +47,7 @@
 #include "simple_dmatrix.h"                  // for SimpleDMatrix
 #include "sparse_page_writer.h"              // for SparsePageFormatReg
 #include "validation.h"                      // for LabelsCheck, WeightsCheck, ValidateQueryGroup
-#include "xgboost/base.h"                    // for bst_group_t, bst_row_t, bst_float, bst_ulong
+#include "xgboost/base.h"                    // for bst_group_t, bst_idx_t, bst_float, bst_ulong
 #include "xgboost/context.h"                 // for Context
 #include "xgboost/host_device_vector.h"      // for HostDeviceVector
 #include "xgboost/learner.h"                 // for HostDeviceVector

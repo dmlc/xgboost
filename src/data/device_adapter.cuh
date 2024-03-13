@@ -208,8 +208,8 @@ class CupyAdapter : public detail::SingleBatchDataIter<CupyAdapterBatch> {
 
 // Returns maximum row length
 template <typename AdapterBatchT>
-std::size_t GetRowCounts(const AdapterBatchT batch, common::Span<bst_row_t> offset, DeviceOrd device,
-                         float missing) {
+bst_idx_t GetRowCounts(const AdapterBatchT batch, common::Span<bst_idx_t> offset, DeviceOrd device,
+                       float missing) {
   dh::safe_cuda(cudaSetDevice(device.ordinal));
   IsValidFunctor is_valid(missing);
   dh::safe_cuda(cudaMemsetAsync(offset.data(), '\0', offset.size_bytes()));
@@ -248,7 +248,7 @@ std::size_t GetRowCounts(const AdapterBatchT batch, common::Span<bst_row_t> offs
   bst_idx_t row_stride =
       dh::Reduce(thrust::cuda::par(alloc), thrust::device_pointer_cast(offset.data()),
                  thrust::device_pointer_cast(offset.data()) + offset.size(),
-                 static_cast<bst_idx_t>(0), thrust::maximum<bst_row_t>());
+                 static_cast<bst_idx_t>(0), thrust::maximum<bst_idx_t>());
   return row_stride;
 }
 

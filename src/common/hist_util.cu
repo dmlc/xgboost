@@ -13,8 +13,6 @@
 #include <xgboost/logging.h>
 
 #include <cstddef>  // for size_t
-#include <memory>
-#include <mutex>
 #include <utility>
 #include <vector>
 
@@ -123,7 +121,7 @@ void SortByWeight(dh::device_vector<float>* weights, dh::device_vector<Entry>* s
       [=] __device__(const Entry& a, const Entry& b) { return a.index == b.index; });
 }
 
-void RemoveDuplicatedCategories(DeviceOrd device, MetaInfo const& info, Span<bst_row_t> d_cuts_ptr,
+void RemoveDuplicatedCategories(DeviceOrd device, MetaInfo const& info, Span<bst_idx_t> d_cuts_ptr,
                                 dh::device_vector<Entry>* p_sorted_entries,
                                 dh::device_vector<float>* p_sorted_weights,
                                 dh::caching_device_vector<size_t>* p_column_sizes_scan) {

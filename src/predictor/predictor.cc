@@ -9,7 +9,7 @@
 #include <string>                        // for string, to_string
 
 #include "../gbm/gbtree_model.h"         // for GBTreeModel
-#include "xgboost/base.h"                // for bst_float, Args, bst_group_t, bst_row_t
+#include "xgboost/base.h"                // for bst_float, Args, bst_group_t, bst_idx_t
 #include "xgboost/context.h"             // for Context
 #include "xgboost/data.h"                // for MetaInfo
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
