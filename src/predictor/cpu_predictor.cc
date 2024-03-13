@@ -214,7 +214,7 @@ struct GHistIndexMatrixView {
   std::vector<float> const& values_;
 
  public:
-  size_t base_rowid;
+  bst_idx_t base_rowid;
 
  public:
   GHistIndexMatrixView(GHistIndexMatrix const &_page, uint64_t n_feat,

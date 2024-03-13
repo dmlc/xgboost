@@ -434,7 +434,7 @@ class ArrayIterForTest {
 
   std::vector<std::string> batches_;
   std::string interface_;
-  size_t rows_;
+  bst_idx_t rows_;
   size_t cols_;
   size_t n_batches_;
 
@@ -451,7 +451,7 @@ class ArrayIterForTest {
   [[nodiscard]] std::size_t Iter() const { return iter_; }
   auto Proxy() -> decltype(proxy_) { return proxy_; }
 
-  explicit ArrayIterForTest(float sparsity, size_t rows, size_t cols, size_t batches);
+  explicit ArrayIterForTest(float sparsity, bst_idx_t rows, size_t cols, size_t batches);
   /**
    * \brief Create iterator with user provided data.
    */

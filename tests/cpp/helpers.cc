@@ -662,7 +662,7 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs,
   return gbm;
 }
 
-ArrayIterForTest::ArrayIterForTest(float sparsity, size_t rows, size_t cols, size_t batches)
+ArrayIterForTest::ArrayIterForTest(float sparsity, bst_idx_t rows, size_t cols, size_t batches)
     : rows_{rows}, cols_{cols}, n_batches_{batches} {
   XGProxyDMatrixCreate(&proxy_);
   rng_ = std::make_unique<RandomDataGenerator>(rows_, cols_, sparsity);
