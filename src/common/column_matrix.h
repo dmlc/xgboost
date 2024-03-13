@@ -72,7 +72,7 @@ class SparseColumnIter : public Column<BinIdxT> {
 
  public:
   SparseColumnIter(common::Span<const BinIdxT> index, bst_bin_t least_bin_idx,
-                   common::Span<const size_t> row_ind, bst_row_t first_row_idx)
+                   common::Span<const size_t> row_ind, bst_idx_t first_row_idx)
       : Base{index, least_bin_idx}, row_ind_(row_ind) {
     // first_row_id is the first row in the leaf partition
     const size_t* row_data = RowIndices();
@@ -301,7 +301,7 @@ class ColumnMatrix {
   }
 
   template <typename BinIdxType>
-  auto SparseColumn(bst_feature_t fidx, bst_row_t first_row_idx) const {
+  auto SparseColumn(bst_feature_t fidx, bst_idx_t first_row_idx) const {
     const size_t feature_offset = feature_offsets_[fidx];  // to get right place for certain feature
     const size_t column_size = feature_offsets_[fidx + 1] - feature_offset;
     common::Span<const BinIdxType> bin_index = {
@@ -325,7 +325,7 @@ class ColumnMatrix {
   // all columns are dense column and has no missing value
   // FIXME(jiamingy): We don't need a column matrix if there's no missing value.
   template <typename RowBinIdxT>
-  void SetIndexNoMissing(bst_row_t base_rowid, RowBinIdxT const* row_index, const size_t n_samples,
+  void SetIndexNoMissing(bst_idx_t base_rowid, RowBinIdxT const* row_index, const size_t n_samples,
                          const size_t n_features, int32_t n_threads) {
     missing_.GrowTo(feature_offsets_[n_features], false);
 

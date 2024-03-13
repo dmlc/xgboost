@@ -18,7 +18,7 @@
 namespace xgboost {
 void TestInplaceFallback(Context const* ctx) {
   // prepare data
-  bst_row_t n_samples{1024};
+  bst_idx_t n_samples{1024};
   bst_feature_t n_features{32};
   HostDeviceVector<float> X_storage;
   // use a different device than the learner

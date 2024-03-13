@@ -118,12 +118,12 @@ common::Span<thrust::tuple<uint64_t, uint64_t>> MergePath(
     Span<SketchEntry const> const &d_y, Span<bst_row_t const> const &y_ptr,
     Span<SketchEntry> out, Span<bst_row_t> out_ptr) {
   auto x_merge_key_it = thrust::make_zip_iterator(thrust::make_tuple(
-      dh::MakeTransformIterator<bst_row_t>(
+      dh::MakeTransformIterator<bst_idx_t>(
           thrust::make_counting_iterator(0ul),
           [=] __device__(size_t idx) { return dh::SegmentId(x_ptr, idx); }),
       d_x.data()));
   auto y_merge_key_it = thrust::make_zip_iterator(thrust::make_tuple(
-      dh::MakeTransformIterator<bst_row_t>(
+      dh::MakeTransformIterator<bst_idx_t>(
           thrust::make_counting_iterator(0ul),
           [=] __device__(size_t idx) { return dh::SegmentId(y_ptr, idx); }),
       d_y.data()));

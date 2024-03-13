@@ -28,7 +28,7 @@ class ColumnSplitHelper {
  public:
   ColumnSplitHelper() = default;
 
-  ColumnSplitHelper(bst_row_t num_row,
+  ColumnSplitHelper(bst_idx_t num_row,
                     common::PartitionBuilder<kPartitionBlockSize>* partition_builder,
                     common::RowSetCollection* row_set_collection)
       : partition_builder_{partition_builder}, row_set_collection_{row_set_collection} {
@@ -85,10 +85,10 @@ class ColumnSplitHelper {
 
 class CommonRowPartitioner {
  public:
-  bst_row_t base_rowid = 0;
+  bst_idx_t base_rowid = 0;
 
   CommonRowPartitioner() = default;
-  CommonRowPartitioner(Context const* ctx, bst_row_t num_row, bst_row_t _base_rowid,
+  CommonRowPartitioner(Context const* ctx, bst_idx_t num_row, bst_idx_t _base_rowid,
                        bool is_col_split)
       : base_rowid{_base_rowid}, is_col_split_{is_col_split} {
     row_set_collection_.Clear();

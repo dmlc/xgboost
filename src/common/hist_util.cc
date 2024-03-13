@@ -34,7 +34,7 @@ HistogramCuts SketchOnDMatrix(Context const *ctx, DMatrix *m, bst_bin_t max_bins
   HistogramCuts out;
   auto const &info = m->Info();
   auto n_threads = ctx->Threads();
-  std::vector<bst_row_t> reduced(info.num_col_, 0);
+  std::vector<bst_idx_t> reduced(info.num_col_, 0);
   for (auto const &page : m->GetBatches<SparsePage>()) {
     auto const &entries_per_column =
         CalcColumnSize(data::SparsePageAdapterBatch{page.GetView()}, info.num_col_, n_threads,
@@ -209,10 +209,10 @@ void RowsWiseBuildHistKernel(Span<GradientPair const> gpair,
     CHECK(offsets);
   }
 
-  auto get_row_ptr = [&](bst_row_t ridx) {
+  auto get_row_ptr = [&](bst_idx_t ridx) {
     return kFirstPage ? row_ptr[ridx] : row_ptr[ridx - base_rowid];
   };
-  auto get_rid = [&](bst_row_t ridx) { return kFirstPage ? ridx : (ridx - base_rowid); };
+  auto get_rid = [&](bst_idx_t ridx) { return kFirstPage ? ridx : (ridx - base_rowid); };
 
   const size_t n_features =
       get_row_ptr(row_indices.begin[0] + 1) - get_row_ptr(row_indices.begin[0]);
@@ -275,10 +275,10 @@ void ColsWiseBuildHistKernel(Span<GradientPair const> gpair,
   auto const &row_ptr = gmat.row_ptr.data();
   auto base_rowid = gmat.base_rowid;
   const uint32_t *offsets = gmat.index.Offset();
-  auto get_row_ptr = [&](bst_row_t ridx) {
+  auto get_row_ptr = [&](bst_idx_t ridx) {
     return kFirstPage ? row_ptr[ridx] : row_ptr[ridx - base_rowid];
   };
-  auto get_rid = [&](bst_row_t ridx) { return kFirstPage ? ridx : (ridx - base_rowid); };
+  auto get_rid = [&](bst_idx_t ridx) { return kFirstPage ? ridx : (ridx - base_rowid); };
 
   const size_t n_features = gmat.cut.Ptrs().size() - 1;
   const size_t n_columns = n_features;

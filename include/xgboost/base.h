@@ -102,7 +102,7 @@ using bst_bin_t = std::int32_t;  // NOLINT
 /**
  * @brief Type for data row index (sample).
  */
-using bst_row_t = std::uint64_t;  // NOLINT
+using bst_idx_t = std::uint64_t;  // NOLINT
 /*! \brief Type for tree node index. */
 using bst_node_t = std::int32_t;      // NOLINT
 /*! \brief Type for ranking group index. */

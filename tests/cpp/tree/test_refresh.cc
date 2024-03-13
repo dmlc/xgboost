@@ -15,7 +15,7 @@
 
 namespace xgboost::tree {
 TEST(Updater, Refresh) {
-  bst_row_t constexpr kRows = 8;
+  bst_idx_t constexpr kRows = 8;
   bst_feature_t constexpr kCols = 16;
   Context ctx;
 

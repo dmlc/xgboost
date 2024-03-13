@@ -179,7 +179,7 @@ void TestMixedSketch() {
 TEST(HistUtil, DeviceSketchMixedFeatures) { TestMixedSketch(); }
 
 TEST(HistUtil, RemoveDuplicatedCategories) {
-  bst_row_t n_samples = 512;
+  bst_idx_t n_samples = 512;
   bst_feature_t n_features = 3;
   bst_cat_t n_categories = 5;
 
@@ -208,7 +208,7 @@ TEST(HistUtil, RemoveDuplicatedCategories) {
       FeatureType::kNumerical, FeatureType::kCategorical, FeatureType::kNumerical};
   ASSERT_EQ(info.feature_types.Size(), n_features);
 
-  HostDeviceVector<bst_row_t> cuts_ptr{0, n_samples, n_samples * 2, n_samples * 3};
+  HostDeviceVector<bst_idx_t> cuts_ptr{0, n_samples, n_samples * 2, n_samples * 3};
   cuts_ptr.SetDevice(DeviceOrd::CUDA(0));
 
   dh::device_vector<float> weight(n_samples * n_features, 0);
@@ -639,7 +639,7 @@ void TestGetColumnSize(std::size_t n_samples) {
 }  // namespace
 
 TEST(HistUtil, GetColumnSize) {
-  bst_row_t n_samples = 4096;
+  bst_idx_t n_samples = 4096;
   TestGetColumnSize(n_samples);
 }
 
@@ -799,7 +799,7 @@ class DeviceSketchWithHessianTest
   bst_feature_t n_features_ = 5;
   bst_group_t n_groups_{3};
 
-  auto GenerateHessian(Context const* ctx, bst_row_t n_samples) const {
+  auto GenerateHessian(Context const* ctx, bst_idx_t n_samples) const {
     HostDeviceVector<float> hessian;
     auto& h_hess = hessian.HostVector();
     h_hess = GenerateRandomWeights(n_samples);
@@ -844,7 +844,7 @@ class DeviceSketchWithHessianTest
  protected:
   Context ctx_ = MakeCUDACtx(0);
 
-  void TestLTR(Context const* ctx, bst_row_t n_samples, bst_bin_t n_bins,
+  void TestLTR(Context const* ctx, bst_idx_t n_samples, bst_bin_t n_bins,
                std::size_t n_elements) const {
     auto x = GenerateRandom(n_samples, n_features_);
 
@@ -897,7 +897,7 @@ class DeviceSketchWithHessianTest
     }
   }
 
-  void TestRegression(Context const* ctx, bst_row_t n_samples, bst_bin_t n_bins,
+  void TestRegression(Context const* ctx, bst_idx_t n_samples, bst_bin_t n_bins,
                       std::size_t n_elements) const {
     auto x = GenerateRandom(n_samples, n_features_);
     auto p_fmat = GetDMatrixFromData(x, n_samples, n_features_);

@@ -201,7 +201,7 @@ TEST(QuantileHist, PartitionerColSplit) { TestColumnSplitPartitioner<CPUExpandEn
 TEST(QuantileHist, MultiPartitionerColSplit) { TestColumnSplitPartitioner<MultiExpandEntry>(3); }
 
 namespace {
-void VerifyColumnSplit(Context const* ctx, bst_row_t rows, bst_feature_t cols, bst_target_t n_targets,
+void VerifyColumnSplit(Context const* ctx, bst_idx_t rows, bst_feature_t cols, bst_target_t n_targets,
                        RegTree const& expected_tree) {
   auto Xy = RandomDataGenerator{rows, cols, 0}.GenerateDMatrix(true);
   linalg::Matrix<GradientPair> gpair = GenerateRandomGradients(ctx, rows, n_targets);

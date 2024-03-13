@@ -11,7 +11,7 @@ TEST(RandomDataGenerator, DMatrix) {
   auto p_dmatrix = RandomDataGenerator{kRows, kCols, kSparsity}.GenerateDMatrix();
 
   HostDeviceVector<float> csr_value;
-  HostDeviceVector<bst_row_t> csr_rptr;
+  HostDeviceVector<std::size_t> csr_rptr;
   HostDeviceVector<bst_feature_t> csr_cidx;
   RandomDataGenerator{kRows, kCols, kSparsity}.GenerateCSR(&csr_value, &csr_rptr, &csr_cidx);
 

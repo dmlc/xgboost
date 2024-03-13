@@ -409,9 +409,9 @@ void TestHistogramExternalMemory(Context const *ctx, BatchParam batch_param, boo
     batch_param.hess = hess;
   }
 
-  std::vector<std::size_t> partition_size(1, 0);
+  std::vector<bst_idx_t> partition_size(1, 0);
   bst_bin_t total_bins{0};
-  bst_row_t n_samples{0};
+  bst_idx_t n_samples{0};
 
   auto gpair = GenerateRandomGradients(m->Info().num_row_, 0.0, 1.0);
   auto const &h_gpair = gpair.HostVector();

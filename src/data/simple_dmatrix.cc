@@ -59,7 +59,7 @@ DMatrix* SimpleDMatrix::SliceCol(int num_slices, int slice_id) {
     auto& h_data = out_page.data.HostVector();
     auto& h_offset = out_page.offset.HostVector();
     size_t rptr{0};
-    for (bst_row_t i = 0; i < this->Info().num_row_; i++) {
+    for (bst_idx_t i = 0; i < this->Info().num_row_; i++) {
       auto inst = batch[i];
       auto prev_size = h_data.size();
       std::copy_if(inst.begin(), inst.end(), std::back_inserter(h_data),

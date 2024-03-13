@@ -186,7 +186,7 @@ void TestTrainingPrediction(Context const *ctx, size_t rows, size_t bins,
   }
 }
 
-void TestInplacePrediction(Context const *ctx, std::shared_ptr<DMatrix> x, bst_row_t rows,
+void TestInplacePrediction(Context const *ctx, std::shared_ptr<DMatrix> x, bst_idx_t rows,
                            bst_feature_t cols) {
   std::size_t constexpr kClasses { 4 };
   auto gen = RandomDataGenerator{rows, cols, 0.5}.Device(ctx->Device());
@@ -255,7 +255,7 @@ std::unique_ptr<Learner> LearnerForTest(Context const *ctx, std::shared_ptr<DMat
   return learner;
 }
 
-void VerifyPredictionWithLesserFeatures(Learner *learner, bst_row_t kRows,
+void VerifyPredictionWithLesserFeatures(Learner *learner, bst_idx_t kRows,
                                         std::shared_ptr<DMatrix> m_test,
                                         std::shared_ptr<DMatrix> m_invalid) {
   HostDeviceVector<float> prediction;
