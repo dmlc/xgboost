@@ -110,12 +110,26 @@ void ApplyWithLabels(MetaInfo const& info, HostDeviceVector<T>* result, Function
         }
       // provide the vectors to the processor interface
 
+
+
+
+
+
+
+
+
+
+
       }
-      // broadcast the encrypted data
+      // make broadcast call on the prepared data buffer
+      // (to local gRPC handler for further encryption)
+
+      //collective::Broadcast(gh_buffer, size_of_buffer, 0);
+      
       result->Resize(size);
       collective::Broadcast(result->HostPointer(), size * sizeof(T), 0);
     } else {
-      // clear text mode
+      // clear text mode, broadcast the data directly
       result->Resize(size);
       collective::Broadcast(result->HostPointer(), size * sizeof(T), 0);
     }
