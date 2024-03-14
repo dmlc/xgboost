@@ -27,6 +27,9 @@ namespace tree {
 
 
 /*! \brief Wrapper for necessary training parameters for regression tree to access on device */
+/* The original structure xgboost::tree::TrainParam can't be used,
+ * since std::vector are not copyable on sycl-devices.
+ */
 struct TrainParam {
   float min_child_weight;
   float reg_lambda;
