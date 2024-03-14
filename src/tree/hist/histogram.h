@@ -78,21 +78,46 @@ class HistogramBuilder {
                             common::Span<GradientPair const> gpair_h, bool force_read_by_column) {
 
 
-      if ((collective::GetRank() == 1)) {
+
+
+
+
+
+      if ((collective::GetRank() == 0)) {
           std::cout << "Current samples on nodes: " << std::endl;
           // print info on all nodes
           for (bst_node_t nit = 0; nit < row_set_collection.Size(); ++nit) {
               auto size = row_set_collection[nit].Size();
               std::cout << "Node " << nit << " has " << size << " rows." << std::endl;
+              // print the first and last indexes of the rows with iterator
+              if (size > 0) {
+                  std::cout << "First index for node " << nit << " is " << *row_set_collection[nit].begin << " and last index is " << *(row_set_collection[nit].end-1) << std::endl;
+              }
           }
+          std::cout << std::endl;
 
-
+          // print info on the nodes to build
           for (auto nit = nodes_to_build.begin(); nit != nodes_to_build.end(); ++nit) {
               std::cout << "Building local histogram for node ID: " << *nit << " with " << row_set_collection[*nit].Size() << " samples." << std::endl;
           }
           std::cout << std::endl;
 
+          std::cout << "Call interface to transmit the row set collection and gidx to the secure worker." << std::endl;
+          std::cout << "GHistIndexMatrix will not change: size of the ginidx: " << gidx.index.Size() << std::endl;
+          auto cut_ptrs = gidx.Cuts().Ptrs();
+          //auto cut_values = gidx.Cuts().Values();
+          //std::cout << "size of the cut points: " << cut_ptrs.size() << std::endl;
+          std::cout << "first sample falls to: [feature_id, slot #]: " << std::endl;
+          for (auto i = 0; i < cut_ptrs.size()-1; ++i) {
+          //    std::cout << "feature " << i << " first cut at " << cut_ptrs[i] + 1 << " with value " << cut_values[cut_ptrs[i]+1] << "; ";
+              std::cout << "[" << gidx.GetGindex(0, i) << ", " << i << "] ";
+          }
+          std::cout << std::endl;
       }
+
+
+
+
 
 
 
@@ -246,7 +271,6 @@ class HistogramBuilder {
       //        reinterpret_cast<double *>(this->hist_[first_nidx].data()), n);
 
 
-
       // Option 2: use AllGather instead of AllReduce
       // Collect the histogram entries from all nodes
       // allocate memory for the received entries as a flat vector
@@ -266,6 +290,10 @@ class HistogramBuilder {
         it++;
       }
       //std::cout << "hist_flat.size() = " << hist_flat.size() << std::endl;
+
+        if (collective::GetRank() == 0) {
+            std::cout << "---------------------CALL AllGather for node building-------------------- " << std::endl;
+        }
 
       // Perform AllGather
       auto hist_entries = collective::Allgather(hist_flat);

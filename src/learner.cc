@@ -350,7 +350,6 @@ struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
   }
 };
 
-
 DMLC_REGISTER_PARAMETER(LearnerModelParamLegacy);
 DMLC_REGISTER_PARAMETER(LearnerTrainParam);
 
@@ -492,6 +491,13 @@ class LearnerConfiguration : public Learner {
     this->ConfigureModelParamWithoutBaseScore();
 
     this->ConfigureMetrics(args);
+
+
+
+
+    std::cout<<"configure interface here?????????????????????????"<<std::endl;
+
+
 
     this->need_configuration_ = false;
     if (ctx_.validate_parameters) {

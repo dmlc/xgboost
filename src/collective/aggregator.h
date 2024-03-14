@@ -99,18 +99,21 @@ void ApplyWithLabels(MetaInfo const& info, HostDeviceVector<T>* result, Function
       // Under secure mode, gpairs will be processed to vector and encrypt
       // information only available on rank 0
       if (collective::GetRank() == 0) {
-        std::vector<double> vector_g, vector_h;
+        std::vector<double> vector_gh;
         for (int i = 0; i < size; i++) {
           auto gpair = result->HostVector()[i];
           // cast from GradientPair to float pointer
           auto gpair_ptr = reinterpret_cast<float*>(&gpair);
           // save to vector
-          vector_g.push_back(gpair_ptr[0]);
-          vector_h.push_back(gpair_ptr[1]);
+          vector_gh.push_back(gpair_ptr[0]);
+          vector_gh.push_back(gpair_ptr[1]);
         }
       // provide the vectors to the processor interface
+      // print vector size for rank 1
 
-
+      if (collective::GetRank() == 0) {
+        std::cout << "DATA size of gpairs: " << vector_gh.size() << std::endl;
+        }
 
 
 
@@ -125,7 +128,7 @@ void ApplyWithLabels(MetaInfo const& info, HostDeviceVector<T>* result, Function
       // (to local gRPC handler for further encryption)
 
       //collective::Broadcast(gh_buffer, size_of_buffer, 0);
-      
+
       result->Resize(size);
       collective::Broadcast(result->HostPointer(), size * sizeof(T), 0);
     } else {
