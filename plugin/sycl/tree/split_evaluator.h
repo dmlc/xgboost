@@ -146,10 +146,8 @@ class TreeEvaluator {
       }
     }
 
-    inline GradType Sqr(GradType a) const { return a * a; }
-
     inline GradType CalcGainGivenWeight(GradType sum_grad, GradType sum_hess, GradType w) const {
-      return -(2.0f * sum_grad * w + (sum_hess + param.reg_lambda) * this->Sqr(w));
+      return -(2.0f * sum_grad * w + (sum_hess + param.reg_lambda) * xgboost::common::Sqr(w));
     }
 
     inline GradType CalcGainGivenWeight(bst_node_t nid, const GradStats<GradType>& stats,
@@ -159,10 +157,10 @@ class TreeEvaluator {
       }
       // Avoiding tree::CalcGainGivenWeight can significantly reduce avg floating point error.
       if (param.max_delta_step == 0.0f && has_constraint == false) {
-        return this->Sqr(this->ThresholdL1(stats.sum_grad, param.reg_alpha)) /
-               (stats.sum_hess + param.reg_lambda);
+        return xgboost::common::Sqr(this->ThresholdL1(stats.GetGrad(), param.reg_alpha)) /
+               (stats.GetHess() + param.reg_lambda);
       }
-      return this->CalcGainGivenWeight(stats.sum_grad, stats.sum_hess, w);
+      return this->CalcGainGivenWeight(stats.GetGrad(), stats.GetHess(), w);
     }
 
     GradType CalcGain(bst_node_t nid, const GradStats<GradType>& stats) const {
