@@ -302,6 +302,37 @@ test_that("xgb.DMatrix: Inf as missing", {
   file.remove(fname_nan)
 })
 
+test_that("xgb.DMatrix: missing in CSR", {
+  x_dense <- matrix(as.numeric(1:10), nrow = 5)
+  x_dense[2, 1] <- NA_real_
+
+  x_csr <- as(x_dense, "RsparseMatrix")
+
+  m_dense <- xgb.DMatrix(x_dense, nthread = n_threads, missing = NA_real_)
+  xgb.DMatrix.save(m_dense, "dense.dmatrix")
+
+  m_csr <- xgb.DMatrix(x_csr, nthread = n_threads, missing = NA)
+  xgb.DMatrix.save(m_csr, "csr.dmatrix")
+
+  denseconn <- file("dense.dmatrix", "rb")
+  csrconn <- file("csr.dmatrix", "rb")
+
+  expect_equal(file.size("dense.dmatrix"), file.size("csr.dmatrix"))
+
+  bytes <- file.size("dense.dmatrix")
+  densedmatrix <- readBin(denseconn, "raw", n = bytes)
+  csrmatrix <- readBin(csrconn, "raw", n = bytes)
+
+  expect_equal(length(densedmatrix), length(csrmatrix))
+  expect_equal(densedmatrix, csrmatrix)
+
+  close(denseconn)
+  close(csrconn)
+
+  file.remove("dense.dmatrix")
+  file.remove("csr.dmatrix")
+})
+
 test_that("xgb.DMatrix: error on three-dimensional array", {
   set.seed(123)
   x <- matrix(rnorm(500), nrow = 50)

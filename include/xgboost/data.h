@@ -186,7 +186,8 @@ class MetaInfo {
   }
 
   /** @brief Whether the data is split column-wise. */
-  bool IsColumnSplit() const { return (data_split_mode == DataSplitMode::kCol) || (data_split_mode == DataSplitMode::kColSecure); }
+  bool IsColumnSplit() const { return (data_split_mode == DataSplitMode::kCol)
+  || (data_split_mode == DataSplitMode::kColSecure); }
 
   /** @brief Whether the data is split column-wise with secure computation. */
   bool IsSecure() const { return data_split_mode == DataSplitMode::kColSecure; }

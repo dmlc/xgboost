@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2023 by XGBoost Contributors
+ * Copyright 2015-2024, XGBoost Contributors
  * \file multiclass_metric.cc
  * \brief evaluation metrics for multiclass classification.
  * \author Kailong Chen, Tianqi Chen
@@ -24,8 +24,7 @@
 #include "../common/device_helpers.cuh"
 #endif  // XGBOOST_USE_CUDA
 
-namespace xgboost {
-namespace metric {
+namespace xgboost::metric {
 // tag the this file, used by force static link later.
 DMLC_REGISTRY_FILE_TAG(multiclass_metric);
 
@@ -40,11 +39,10 @@ class MultiClassMetricsReduction {
  public:
   MultiClassMetricsReduction() = default;
 
-  PackedReduceResult
-  CpuReduceMetrics(const HostDeviceVector<bst_float> &weights,
-                   const HostDeviceVector<bst_float> &labels,
-                   const HostDeviceVector<bst_float> &preds,
-                   const size_t n_class, int32_t n_threads) const {
+  [[nodiscard]] PackedReduceResult CpuReduceMetrics(const HostDeviceVector<bst_float>& weights,
+                                                    const HostDeviceVector<bst_float>& labels,
+                                                    const HostDeviceVector<bst_float>& preds,
+                                                    const size_t n_class, int32_t n_threads) const {
     size_t ndata = labels.Size();
 
     const auto& h_labels = labels.HostVector();
@@ -182,7 +180,8 @@ struct EvalMClassBase : public MetricNoCache {
       dat[0] = result.Residue();
       dat[1] = result.Weights();
     }
-    collective::GlobalSum(info, &dat);
+    auto rc = collective::GlobalSum(ctx_, info, linalg::MakeVec(dat.data(), dat.size()));
+    collective::SafeColl(rc);
     return Derived::GetFinal(dat[0], dat[1]);
   }
   /*!
@@ -245,5 +244,4 @@ XGBOOST_REGISTER_METRIC(MatchError, "merror")
 XGBOOST_REGISTER_METRIC(MultiLogLoss, "mlogloss")
     .describe("Multiclass negative loglikelihood.")
     .set_body([](const char*) { return new EvalMultiLogLoss(); });
-}  // namespace metric
-}  // namespace xgboost
+}  // namespace xgboost::metric

@@ -477,7 +477,8 @@ class MultiHistogramBuilder {
   [[nodiscard]] auto &Histogram(bst_target_t t) { return target_builders_[t].Histogram(); }
 
   void Reset(Context const *ctx, bst_bin_t total_bins, bst_target_t n_targets, BatchParam const &p,
-             bool is_distributed, bool is_col_split, bool is_secure, HistMakerTrainParam const *param) {
+             bool is_distributed, bool is_col_split, bool is_secure,
+             HistMakerTrainParam const *param) {
     ctx_ = ctx;
     target_builders_.resize(n_targets);
     CHECK_GE(n_targets, 1);

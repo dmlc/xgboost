@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 by XGBoost Contributors
+ * Copyright 2020-2024, XGBoost Contributors
  */
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/reduce.h>
@@ -52,7 +52,7 @@ struct Clip : public thrust::unary_function<GradientPair, Pair> {
  *
  * to avoid outliers, as the full reduction is reproducible on GPU with reduction tree.
  */
-GradientQuantiser::GradientQuantiser(Context const*, common::Span<GradientPair const> gpair,
+GradientQuantiser::GradientQuantiser(Context const* ctx, common::Span<GradientPair const> gpair,
                                      MetaInfo const& info) {
   using GradientSumT = GradientPairPrecise;
   using T = typename GradientSumT::ValueT;
@@ -65,11 +65,14 @@ GradientQuantiser::GradientQuantiser(Context const*, common::Span<GradientPair c
   // Treat pair as array of 4 primitive types to allreduce
   using ReduceT = typename decltype(p.first)::ValueT;
   static_assert(sizeof(Pair) == sizeof(ReduceT) * 4, "Expected to reduce four elements.");
-  collective::GlobalSum(info, reinterpret_cast<ReduceT*>(&p), 4);
+  auto rc = collective::GlobalSum(ctx, info, linalg::MakeVec(reinterpret_cast<ReduceT*>(&p), 4));
+  collective::SafeColl(rc);
+
   GradientPair positive_sum{p.first}, negative_sum{p.second};
 
   std::size_t total_rows = gpair.size();
-  collective::GlobalSum(info, &total_rows, 1);
+  rc = collective::GlobalSum(ctx, info, linalg::MakeVec(&total_rows, 1));
+  collective::SafeColl(rc);
 
   auto histogram_rounding =
       GradientSumT{common::CreateRoundingFactor<T>(

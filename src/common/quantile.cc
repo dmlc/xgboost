@@ -1,5 +1,5 @@
-/*!
- * Copyright 2020-2022 by XGBoost Contributors
+/**
+ * Copyright 2020-2024, XGBoost Contributors
  */
 #include "quantile.h"
 
@@ -145,7 +145,7 @@ struct QuantileAllreduce {
 
 template <typename WQSketch>
 void SketchContainerImpl<WQSketch>::GatherSketchInfo(
-    Context const *, MetaInfo const &info,
+    Context const *ctx, MetaInfo const &info,
     std::vector<typename WQSketch::SummaryContainer> const &reduced,
     std::vector<size_t> *p_worker_segments, std::vector<bst_row_t> *p_sketches_scan,
     std::vector<typename WQSketch::Entry> *p_global_sketches) {
@@ -171,7 +171,9 @@ void SketchContainerImpl<WQSketch>::GatherSketchInfo(
   std::partial_sum(sketch_size.cbegin(), sketch_size.cend(), sketches_scan.begin() + beg_scan + 1);
 
   // Gather all column pointers
-  collective::GlobalSum(info, sketches_scan.data(), sketches_scan.size());
+  auto rc =
+      collective::GlobalSum(ctx, info, linalg::MakeVec(sketches_scan.data(), sketches_scan.size()));
+  collective::SafeColl(rc);
   for (int32_t i = 0; i < world; ++i) {
     size_t back = (i + 1) * (n_columns + 1) - 1;
     auto n_entries = sketches_scan.at(back);
@@ -199,14 +201,15 @@ void SketchContainerImpl<WQSketch>::GatherSketchInfo(
 
   static_assert(sizeof(typename WQSketch::Entry) / 4 == sizeof(float),
                 "Unexpected size of sketch entry.");
-  collective::GlobalSum(
-      info,
-      reinterpret_cast<float *>(global_sketches.data()),
-      global_sketches.size() * sizeof(typename WQSketch::Entry) / sizeof(float));
+  rc = collective::GlobalSum(
+      ctx, info,
+      linalg::MakeVec(reinterpret_cast<float *>(global_sketches.data()),
+                      global_sketches.size() * sizeof(typename WQSketch::Entry) / sizeof(float)));
+  collective::SafeColl(rc);
 }
 
 template <typename WQSketch>
-void SketchContainerImpl<WQSketch>::AllreduceCategories(Context const*, MetaInfo const& info) {
+void SketchContainerImpl<WQSketch>::AllreduceCategories(Context const* ctx, MetaInfo const& info) {
   auto world_size = collective::GetWorldSize();
   auto rank = collective::GetRank();
   if (world_size == 1 || info.IsColumnSplit()) {
@@ -226,7 +229,8 @@ void SketchContainerImpl<WQSketch>::AllreduceCategories(Context const*, MetaInfo
   std::vector<size_t> global_feat_ptrs(feature_ptr.size() * world_size, 0);
   size_t feat_begin = rank * feature_ptr.size();  // pointer to current worker
   std::copy(feature_ptr.begin(), feature_ptr.end(), global_feat_ptrs.begin() + feat_begin);
-  collective::GlobalSum(info, global_feat_ptrs.data(), global_feat_ptrs.size());
+  auto rc = collective::GlobalSum(
+      ctx, info, linalg::MakeVec(global_feat_ptrs.data(), global_feat_ptrs.size()));
 
   // move all categories into a flatten vector to prepare for allreduce
   size_t total = feature_ptr.back();
@@ -239,7 +243,8 @@ void SketchContainerImpl<WQSketch>::AllreduceCategories(Context const*, MetaInfo
   // indptr for indexing workers
   std::vector<size_t> global_worker_ptr(world_size + 1, 0);
   global_worker_ptr[rank + 1] = total;  // shift 1 to right for constructing the indptr
-  collective::GlobalSum(info, global_worker_ptr.data(), global_worker_ptr.size());
+  rc = collective::GlobalSum(ctx, info,
+                             linalg::MakeVec(global_worker_ptr.data(), global_worker_ptr.size()));
   std::partial_sum(global_worker_ptr.cbegin(), global_worker_ptr.cend(), global_worker_ptr.begin());
   // total number of categories in all workers with all features
   auto gtotal = global_worker_ptr.back();
@@ -251,7 +256,8 @@ void SketchContainerImpl<WQSketch>::AllreduceCategories(Context const*, MetaInfo
   CHECK_EQ(rank_size, total);
   std::copy(flatten.cbegin(), flatten.cend(), global_categories.begin() + rank_begin);
   // gather values from all workers.
-  collective::GlobalSum(info, global_categories.data(), global_categories.size());
+  rc = collective::GlobalSum(ctx, info,
+                             linalg::MakeVec(global_categories.data(), global_categories.size()));
   QuantileAllreduce<float> allreduce_result{global_categories, global_worker_ptr, global_feat_ptrs,
                                             categories_.size()};
   ParallelFor(categories_.size(), n_threads_, [&](auto fidx) {
@@ -293,7 +299,9 @@ void SketchContainerImpl<WQSketch>::AllReduce(
 
   // Prune the intermediate num cuts for synchronization.
   std::vector<bst_row_t> global_column_size(columns_size_);
-  collective::GlobalSum(info, &global_column_size);
+  auto rc = collective::GlobalSum(
+      ctx, info, linalg::MakeVec(global_column_size.data(), global_column_size.size()));
+  collective::SafeColl(rc);
 
   ParallelFor(sketches_.size(), n_threads_, [&](size_t i) {
     int32_t intermediate_num_cuts = static_cast<int32_t>(
@@ -354,14 +362,27 @@ void SketchContainerImpl<WQSketch>::AllReduce(
 
 template <typename SketchType>
 void AddCutPoint(typename SketchType::SummaryContainer const &summary, int max_bin,
-                 HistogramCuts *cuts) {
+                 HistogramCuts *cuts, bool secure) {
   size_t required_cuts = std::min(summary.size, static_cast<size_t>(max_bin));
+  // make a copy of required_cuts for mode selection
+  size_t required_cuts_original = required_cuts;
+  if (secure) {
+    // Sync the required_cuts across all workers
+    collective::Allreduce<collective::Operation::kMax>(&required_cuts, 1);
+  }
   auto &cut_values = cuts->cut_values_.HostVector();
-  // we use the min_value as the first (0th) element, hence starting from 1.
-  for (size_t i = 1; i < required_cuts; ++i) {
-    bst_float cpt = summary.data[i].value;
-    if (i == 1 || cpt > cut_values.back()) {
-      cut_values.push_back(cpt);
+  // if empty column, fill the cut values with 0
+  if (secure && (required_cuts_original == 0)) {
+    for (size_t i = 1; i < required_cuts; ++i) {
+      cut_values.push_back(0.0);
+    }
+  } else {
+    // we use the min_value as the first (0th) element, hence starting from 1.
+    for (size_t i = 1; i < required_cuts; ++i) {
+      bst_float cpt = summary.data[i].value;
+      if (i == 1 || cpt > cut_values.back()) {
+        cut_values.push_back(cpt);
+      }
     }
   }
 }
@@ -457,12 +478,7 @@ void SketchContainerImpl<WQSketch>::MakeCuts(Context const *ctx, MetaInfo const 
       max_cat = std::max(max_cat, AddCategories(categories_.at(fid), p_cuts));
     } else {
       // use special AddCutPoint scheme for secure vertical federated learning
-      if (info.IsVerticalFederated() && info.IsSecure()) {
-          AddCutPointSecure<WQSketch>(a, max_num_bins, p_cuts);
-      }
-      else {
-          AddCutPoint<WQSketch>(a, max_num_bins, p_cuts);
-      }
+      AddCutPoint<WQSketch>(a, max_num_bins, p_cuts, info.IsSecure());
       // push a value that is greater than anything
       const bst_float cpt =
           (a.size > 0) ? a.data[a.size - 1].value : p_cuts->min_vals_.HostVector()[fid];

@@ -74,7 +74,7 @@ jobs:
         key: ${{ runner.os }}-r-${{ matrix.config.r }}-6-${{ hashFiles('R-package/DESCRIPTION') }}
         restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-6-${{ hashFiles('R-package/DESCRIPTION') }}
 
-    - uses: actions/setup-python@7f80679172b057fc5e90d70d197929d454754a5a # v4.3.0
+    - uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
       with:
         python-version: "3.8"
         architecture: 'x64'

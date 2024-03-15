@@ -371,6 +371,50 @@ XGB_DLL SEXP XGBoosterEvalOneIter_R(SEXP handle, SEXP iter, SEXP dmats, SEXP evn
  * \return A list containing 2 vectors, first one for shape while second one for prediction result.
  */
 XGB_DLL SEXP XGBoosterPredictFromDMatrix_R(SEXP handle, SEXP dmat, SEXP json_config);
+
+/*!
+ * \brief Run prediction on R dense matrix
+ * \param handle handle
+ * \param R_mat R matrix
+ * \param missing missing value
+ * \param json_config See `XGBoosterPredictFromDense` in xgboost c_api.h. Doesn't include 'missing'
+ * \param base_margin base margin for the prediction
+ *
+ * \return A list containing 2 vectors, first one for shape while second one for prediction result.
+ */
+XGB_DLL SEXP XGBoosterPredictFromDense_R(SEXP handle, SEXP R_mat, SEXP missing,
+                                         SEXP json_config, SEXP base_margin);
+
+/*!
+ * \brief Run prediction on R CSR matrix
+ * \param handle handle
+ * \param lst An R list, containing, in this order:
+ *              (a) 'p' array (a.k.a. indptr)
+ *              (b) 'j' array (a.k.a. indices)
+ *              (c) 'x' array (a.k.a. data / values)
+ *              (d) number of columns
+ * \param missing missing value
+ * \param json_config See `XGBoosterPredictFromCSR` in xgboost c_api.h. Doesn't include 'missing'
+ * \param base_margin base margin for the prediction
+ *
+ * \return A list containing 2 vectors, first one for shape while second one for prediction result.
+ */
+XGB_DLL SEXP XGBoosterPredictFromCSR_R(SEXP handle, SEXP lst, SEXP missing,
+                                       SEXP json_config, SEXP base_margin);
+
+/*!
+ * \brief Run prediction on R data.frame
+ * \param handle handle
+ * \param R_df R data.frame
+ * \param missing missing value
+ * \param json_config See `XGBoosterPredictFromDense` in xgboost c_api.h. Doesn't include 'missing'
+ * \param base_margin base margin for the prediction
+ *
+ * \return A list containing 2 vectors, first one for shape while second one for prediction result.
+ */
+XGB_DLL SEXP XGBoosterPredictFromColumnar_R(SEXP handle, SEXP R_df, SEXP missing,
+                                            SEXP json_config, SEXP base_margin);
+
 /*!
  * \brief load model from existing file
  * \param handle handle

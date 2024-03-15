@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2023 by XGBoost contributors
+ * Copyright 2021-2024, XGBoost contributors
  *
  * \brief Implementation for the approx tree method.
  */
@@ -92,8 +92,8 @@ class GloablApproxBuilder {
     }
 
     histogram_builder_.Reset(ctx_, n_total_bins, p_tree->NumTargets(), BatchSpec(*param_, hess),
-                             collective::IsDistributed(), p_fmat->Info().IsColumnSplit(), p_fmat->Info().IsSecure(),
-                             hist_param_);
+                             collective::IsDistributed(), p_fmat->Info().IsColumnSplit(),
+                             p_fmat->Info().IsSecure(), hist_param_);
     monitor_->Stop(__func__);
   }
 
@@ -107,7 +107,10 @@ class GloablApproxBuilder {
     for (auto const &g : gpair) {
       root_sum.Add(g);
     }
-    collective::GlobalSum(p_fmat->Info(), reinterpret_cast<double *>(&root_sum), 2);
+    auto rc = collective::GlobalSum(ctx_, p_fmat->Info(),
+                                    linalg::MakeVec(reinterpret_cast<double *>(&root_sum), 2));
+    collective::SafeColl(rc);
+
     std::vector<CPUExpandEntry> nodes{best};
     this->histogram_builder_.BuildRootHist(p_fmat, p_tree, partitioner_,
                                            linalg::MakeTensorView(ctx_, gpair, gpair.size(), 1),

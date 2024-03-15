@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2023 by XGBoost contributors
+ * Copyright 2017-2024, XGBoost contributors
  */
 #include <thrust/copy.h>
 #include <thrust/reduce.h>
@@ -729,7 +729,9 @@ struct GPUHistMakerDevice {
         dh::Reduce(ctx_->CUDACtx()->CTP(), gpair_it, gpair_it + gpair.size(),
                    GradientPairInt64{}, thrust::plus<GradientPairInt64>{});
     using ReduceT = typename decltype(root_sum_quantised)::ValueT;
-    collective::GlobalSum(info_, reinterpret_cast<ReduceT*>(&root_sum_quantised), 2);
+    auto rc = collective::GlobalSum(
+        ctx_, info_, linalg::MakeVec(reinterpret_cast<ReduceT*>(&root_sum_quantised), 2));
+    collective::SafeColl(rc);
 
     hist.AllocateHistograms({kRootNIdx});
     this->BuildHist(kRootNIdx);

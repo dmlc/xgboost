@@ -1,7 +1,9 @@
 /**
- *  Copyright 2023, XGBoost Contributors
+ *  Copyright 2023-2024, XGBoost Contributors
  */
 #pragma once
+
+#include <xgboost/logging.h>
 
 #include <memory>   // for unique_ptr
 #include <sstream>  // for stringstream
@@ -160,10 +162,16 @@ struct Result {
 
 // We don't have monad, a simple helper would do.
 template <typename Fn>
-Result operator<<(Result&& r, Fn&& fn) {
+[[nodiscard]] Result operator<<(Result&& r, Fn&& fn) {
   if (!r.OK()) {
     return std::forward<Result>(r);
   }
   return fn();
+}
+
+inline void SafeColl(Result const& rc) {
+  if (!rc.OK()) {
+    LOG(FATAL) << rc.Report();
+  }
 }
 }  // namespace xgboost::collective
