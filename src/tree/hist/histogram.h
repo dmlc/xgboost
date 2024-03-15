@@ -101,7 +101,7 @@ class HistogramBuilder {
       auto cut_ptrs = gidx.Cuts().Ptrs();
       auto cut_values = gidx.Cuts().Values();
       // cut points: feature 0 start (0), feature 1 start, feature 2 start, ... feature n start
-      // cut value: cut for feature 0 slot 0, ..., cut for feature 0 slot m, cut for feature 1 slot 0, ...
+      // cut value: cut for feature 0 slot 0, ..., feature 0 slot m, feature 1 slot 0, ...
       std::cout << "size of the cut points and cut values: "
                 << cut_ptrs.size() << " " << cut_values.size() << std::endl;
       std::cout << "first sample falls to: [feature_id, slot #, slot cutValue]: " << std::endl;
@@ -114,7 +114,7 @@ class HistogramBuilder {
     }
     // Call the interface to transmit the row set collection and gidx to the secure worker
     if ((collective::GetRank() == 0)) {
-      std::cout << "---------------CALL interface to transmit the row and gidx------------" << std::endl;
+      std::cout << "---------------CALL interface to transmit row & gidx------------" << std::endl;
     }
 
     // Parallel processing by nodes and data in each node
@@ -240,46 +240,29 @@ class HistogramBuilder {
       CHECK(!nodes_to_build.empty());
       std::size_t n = n_total_bins * nodes_to_build.size() * 2;
 
-      // Option 1: in theory the operation is AllGather, but with current system functionality,
-      // we use AllReduce to simulate the AllGather operation
-      //auto first_nidx = nodes_to_build.front();
-      //collective::Allreduce<collective::Operation::kSum>(
-      //        reinterpret_cast<double *>(this->hist_[first_nidx].data()), n);
-
-
-      // Option 2: use AllGather instead of AllReduce
-      // Collect the histogram entries from all nodes
+      // Use AllGather to collect the histogram entries from all nodes
       // allocate memory for the received entries as a flat vector
       std::vector<double> hist_flat;
       hist_flat.resize(n);
       // iterate through the nodes_to_build
-      //std::cout << "nodes_to_build.size() = " << nodes_to_build.size() << std::endl;
-      // front pointer
       auto it = reinterpret_cast<double *>(this->hist_[nodes_to_build.front()].data());
       auto hist_size = this->hist_[nodes_to_build.front()].size();
-      //std::cout<< "n=" << n << std::endl;
-      //std::cout << "hist_size = " << hist_size << std::endl;
       for (size_t i = 0; i < n; i++) {
         // get item with iterator
         auto item = *it;
         hist_flat[i] = item;
         it++;
       }
-      //std::cout << "hist_flat.size() = " << hist_flat.size() << std::endl;
-      if (collective::GetRank() == 0) {
-        std::cout << "---------------CALL AllGather for node building-------------- " << std::endl;
-      }
 
       // Perform AllGather
       auto hist_entries = collective::Allgather(hist_flat);
       // Call interface here to post-process the messages
       if (collective::GetRank() == 0) {
-        std::cout << "---------------CALL Interface for post processing-------------- " << std::endl;
+        std::cout << "---------------CALL Interface for processing-------------- " << std::endl;
       }
       // Update histogram for data owner
       if (collective::GetRank() == 0) {
         // skip rank 0, as local hist already contains its own entries
-        //std::cout << "hist_entries.size() = " << hist_entries.size() << std::endl;
         // reposition iterator to the beginning of the vector
         it = reinterpret_cast<double *>(this->hist_[nodes_to_build.front()].data());
         for (auto rank_idx = 1; rank_idx < hist_entries.size()/n; rank_idx++) {
