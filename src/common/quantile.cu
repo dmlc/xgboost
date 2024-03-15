@@ -173,13 +173,13 @@ common::Span<thrust::tuple<uint64_t, uint64_t>> MergePath(
 
   auto scan_key_it = dh::MakeTransformIterator<size_t>(
       thrust::make_counting_iterator(0ul),
-      [=] __device__(size_t idx) { return dh::SegmentId(out_ptr, idx); });
+      [=] XGBOOST_DEVICE(size_t idx) { return dh::SegmentId(out_ptr, idx); });
 
   auto scan_val_it = dh::MakeTransformIterator<Tuple>(
-      merge_path.data(), [=] __device__(Tuple const &t) -> Tuple {
+      merge_path.data(), [=] XGBOOST_DEVICE(Tuple const &t) -> Tuple {
         auto ind = get_ind(t);  // == 0 if element is from x
         // x_counter, y_counter
-        return thrust::make_tuple<uint64_t, uint64_t>(!ind, ind);
+        return thrust::tuple<std::uint64_t, std::uint64_t>{!ind, ind};
       });
 
   // Compute the index for both x and y (which of the element in a and b are used in each
