@@ -387,39 +387,6 @@ void AddCutPoint(typename SketchType::SummaryContainer const &summary, int max_b
   }
 }
 
-template <typename SketchType>
-void AddCutPointSecure(typename SketchType::SummaryContainer const &summary, int max_bin,
-                     HistogramCuts *cuts) {
-    // For secure vertical pipeline, we fill the cut values corresponding to empty columns
-    // with a vector of minimum value
-    const float mval = 1e-5f;
-    size_t required_cuts = std::min(summary.size, static_cast<size_t>(max_bin));
-    // make a copy of required_cuts for mode selection
-    size_t required_cuts_original = required_cuts;
-    // Sync the required_cuts across all workers
-    collective::Allreduce<collective::Operation::kMax>(&required_cuts, 1);
-
-    // add the cut points
-    auto &cut_values = cuts->cut_values_.HostVector();
-    // if not empty column, fill the cut values with the actual values
-    if (required_cuts_original > 0) {
-      // we use the min_value as the first (0th) element, hence starting from 1.
-      for (size_t i = 1; i < required_cuts; ++i) {
-        bst_float cpt = summary.data[i].value;
-        if (i == 1 || cpt > cut_values.back()) {
-          cut_values.push_back(cpt);
-        }
-      }
-    }
-    // if empty column, fill the cut values with 0
-    else {
-      for (size_t i = 1; i < required_cuts; ++i) {
-        cut_values.push_back(0.0);
-      }
-    }
-}
-
-
 auto AddCategories(std::set<float> const &categories, HistogramCuts *cuts) {
   if (std::any_of(categories.cbegin(), categories.cend(), InvalidCat)) {
     InvalidCategory();

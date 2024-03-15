@@ -92,7 +92,7 @@ void ApplyWithLabels(Context const*, MetaInfo const& info, HostDeviceVector<T>* 
 
     std::size_t size{};
     if (collective::GetRank() == 0) {
-        size = result->Size();
+      size = result->Size();
     }
     collective::Broadcast(&size, sizeof(std::size_t), 0);
 
@@ -111,25 +111,13 @@ void ApplyWithLabels(Context const*, MetaInfo const& info, HostDeviceVector<T>* 
         }
       // provide the vectors to the processor interface
       // print vector size for rank 1
-
       if (collective::GetRank() == 0) {
         std::cout << "DATA size of gpairs: " << vector_gh.size() << std::endl;
         }
-
-
-
-
-
-
-
-
-
       }
       // make broadcast call on the prepared data buffer
       // (to local gRPC handler for further encryption)
-
       //collective::Broadcast(gh_buffer, size_of_buffer, 0);
-
       result->Resize(size);
       collective::Broadcast(result->HostPointer(), size * sizeof(T), 0);
     } else {
@@ -137,16 +125,6 @@ void ApplyWithLabels(Context const*, MetaInfo const& info, HostDeviceVector<T>* 
       result->Resize(size);
       collective::Broadcast(result->HostPointer(), size * sizeof(T), 0);
     }
-
-
-    /*
-    // print 1 sample
-    if (is_gpair) {
-      std::cout << "Rank: " << collective::GetRank() << " after broadcast - g: "
-      << reinterpret_cast<float*>(&result->HostVector()[0])[0] << " h: "
-      << reinterpret_cast<float*>(&result->HostVector()[0])[1] << std::endl;
-    }
-    */
   } else {
     std::forward<Function>(function)();
   }
