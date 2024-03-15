@@ -493,7 +493,9 @@ class LearnerConfiguration : public Learner {
 
     this->ConfigureMetrics(args);
 
-    std::cout<<"configure interface here???????????????"<<std::endl;
+    if ((collective::GetRank() == 0)) {
+      std::cout << "configure interface here???????????????" << std::endl;
+    }
 
     this->need_configuration_ = false;
     if (ctx_.validate_parameters) {
