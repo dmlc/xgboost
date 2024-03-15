@@ -50,7 +50,7 @@ void DoTestDistributedQuantile(size_t rows, size_t cols) {
   SimpleLCG lcg;
   SimpleRealUniformDistribution<float> dist(3, 1000);
   std::generate(h_weights.begin(), h_weights.end(), [&]() { return dist(&lcg); });
-  std::vector<bst_row_t> column_size(cols, rows);
+  std::vector<bst_idx_t> column_size(cols, rows);
   bst_bin_t n_bins = 64;
 
   // Generate cuts for distributed environment.
@@ -192,7 +192,7 @@ void DoTestColSplitQuantile(size_t rows, size_t cols) {
     return dmat->SliceCol(world, rank);
   }()};
 
-  std::vector<bst_row_t> column_size(cols, 0);
+  std::vector<bst_idx_t> column_size(cols, 0);
   auto const slice_size = cols / world;
   auto const slice_start = slice_size * rank;
   auto const slice_end = (rank == world - 1) ? cols : slice_start + slice_size;

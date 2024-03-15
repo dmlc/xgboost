@@ -73,11 +73,11 @@ constexpr size_t kAdapterUnknownSize = std::numeric_limits<size_t >::max();
 
 struct COOTuple {
   COOTuple() = default;
-  XGBOOST_DEVICE COOTuple(size_t row_idx, size_t column_idx, float value)
+  XGBOOST_DEVICE COOTuple(bst_idx_t row_idx, bst_idx_t column_idx, float value)
       : row_idx(row_idx), column_idx(column_idx), value(value) {}
 
-  size_t row_idx{0};
-  size_t column_idx{0};
+  bst_idx_t row_idx{0};
+  bst_idx_t column_idx{0};
   float value{0};
 };
 
@@ -136,12 +136,8 @@ class CSRAdapterBatch : public detail::NoMetaInfo {
  public:
   class Line {
    public:
-    Line(size_t row_idx, size_t size, const unsigned* feature_idx,
-         const float* values)
-        : row_idx_(row_idx),
-          size_(size),
-          feature_idx_(feature_idx),
-          values_(values) {}
+    Line(bst_idx_t row_idx, bst_idx_t size, const unsigned* feature_idx, const float* values)
+        : row_idx_(row_idx), size_(size), feature_idx_(feature_idx), values_(values) {}
 
     size_t Size() const { return size_; }
     COOTuple GetElement(size_t idx) const {
@@ -149,8 +145,8 @@ class CSRAdapterBatch : public detail::NoMetaInfo {
     }
 
    private:
-    size_t row_idx_;
-    size_t size_;
+    bst_idx_t row_idx_;
+    bst_idx_t size_;
     const unsigned* feature_idx_;
     const float* values_;
   };
@@ -178,29 +174,25 @@ class CSRAdapterBatch : public detail::NoMetaInfo {
 
 class CSRAdapter : public detail::SingleBatchDataIter<CSRAdapterBatch> {
  public:
-  CSRAdapter(const size_t* row_ptr, const unsigned* feature_idx,
-             const float* values, size_t num_rows, size_t num_elements,
-             size_t num_features)
-      : batch_(row_ptr, feature_idx, values, num_rows, num_elements,
-               num_features),
+  CSRAdapter(const size_t* row_ptr, const unsigned* feature_idx, const float* values,
+             bst_idx_t num_rows, bst_idx_t num_elements, size_t num_features)
+      : batch_(row_ptr, feature_idx, values, num_rows, num_elements, num_features),
         num_rows_(num_rows),
         num_columns_(num_features) {}
   const CSRAdapterBatch& Value() const override { return batch_; }
-  size_t NumRows() const { return num_rows_; }
-  size_t NumColumns() const { return num_columns_; }
+  bst_idx_t NumRows() const { return num_rows_; }
+  bst_idx_t NumColumns() const { return num_columns_; }
 
  private:
   CSRAdapterBatch batch_;
-  size_t num_rows_;
-  size_t num_columns_;
+  bst_idx_t num_rows_;
+  bst_idx_t num_columns_;
 };
 
 class DenseAdapterBatch : public detail::NoMetaInfo {
  public:
-  DenseAdapterBatch(const float* values, size_t num_rows, size_t num_features)
-      : values_(values),
-        num_rows_(num_rows),
-        num_features_(num_features) {}
+  DenseAdapterBatch(const float* values, bst_idx_t num_rows, bst_idx_t num_features)
+      : values_(values), num_rows_(num_rows), num_features_(num_features) {}
 
  private:
   class Line {
@@ -910,7 +902,7 @@ class SparsePageAdapterBatch {
   struct Line {
     Entry const* inst;
     size_t n;
-    bst_row_t ridx;
+    bst_idx_t ridx;
     COOTuple GetElement(size_t idx) const { return {ridx, inst[idx].index, inst[idx].fvalue}; }
     size_t Size() const { return n; }
   };

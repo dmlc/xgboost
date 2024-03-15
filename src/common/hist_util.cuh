@@ -186,7 +186,7 @@ inline size_t constexpr BytesPerElement(bool has_weight) {
  *        directly if it's not 0.
  */
 size_t SketchBatchNumElements(size_t sketch_batch_num_elements,
-                              bst_row_t num_rows, bst_feature_t columns,
+                              bst_idx_t num_rows, bst_feature_t columns,
                               size_t nnz, int device,
                               size_t num_cuts, bool has_weight);
 
@@ -209,7 +209,7 @@ size_t RequiredSampleCutsPerColumn(int max_bins, size_t num_rows);
  *
  * \return The estimated bytes
  */
-size_t RequiredMemory(bst_row_t num_rows, bst_feature_t num_columns, size_t nnz,
+size_t RequiredMemory(bst_idx_t num_rows, bst_feature_t num_columns, size_t nnz,
                       size_t num_bins, bool with_weights);
 
 // Count the valid entries in each column and copy them out.
@@ -240,7 +240,7 @@ void MakeEntriesFromAdapter(AdapterBatch const& batch, BatchIter batch_iter, Ran
 void SortByWeight(dh::device_vector<float>* weights,
                   dh::device_vector<Entry>* sorted_entries);
 
-void RemoveDuplicatedCategories(DeviceOrd device, MetaInfo const& info, Span<bst_row_t> d_cuts_ptr,
+void RemoveDuplicatedCategories(DeviceOrd device, MetaInfo const& info, Span<bst_idx_t> d_cuts_ptr,
                                 dh::device_vector<Entry>* p_sorted_entries,
                                 dh::device_vector<float>* p_sorted_weights,
                                 dh::caching_device_vector<size_t>* p_column_sizes_scan);

@@ -434,7 +434,7 @@ void MakeLabelForTest(std::shared_ptr<DMatrix> Xy, DMatrixHandle cxy) {
   XGDMatrixSetInfoFromInterface(cxy, "label", s_y_int.c_str());
 }
 
-auto MakeSimpleDMatrixForTest(bst_row_t n_samples, bst_feature_t n_features, Json dconfig) {
+auto MakeSimpleDMatrixForTest(bst_idx_t n_samples, bst_feature_t n_features, Json dconfig) {
   HostDeviceVector<float> storage;
   auto arr_int = RandomDataGenerator{n_samples, n_features, 0.5f}.GenerateArrayInterface(&storage);
 
@@ -451,7 +451,7 @@ auto MakeSimpleDMatrixForTest(bst_row_t n_samples, bst_feature_t n_features, Jso
   return std::pair{p_fmat, Xy};
 }
 
-auto MakeQDMForTest(Context const *ctx, bst_row_t n_samples, bst_feature_t n_features,
+auto MakeQDMForTest(Context const *ctx, bst_idx_t n_samples, bst_feature_t n_features,
                     Json dconfig) {
   bst_bin_t n_bins{16};
   dconfig["max_bin"] = Integer{n_bins};
@@ -483,7 +483,7 @@ auto MakeQDMForTest(Context const *ctx, bst_row_t n_samples, bst_feature_t n_fea
   return std::pair{p_fmat, Xy};
 }
 
-auto MakeExtMemForTest(bst_row_t n_samples, bst_feature_t n_features, Json dconfig) {
+auto MakeExtMemForTest(bst_idx_t n_samples, bst_feature_t n_features, Json dconfig) {
   std::size_t n_batches{4};
   NumpyArrayIterForTest iter_0{0.0f, n_samples, n_features, n_batches};
   std::string s_dconfig;
@@ -525,7 +525,7 @@ void CheckResult(Context const *ctx, bst_feature_t n_features, std::shared_ptr<D
 }
 
 void TestXGDMatrixGetQuantileCut(Context const *ctx) {
-  bst_row_t n_samples{1024};
+  bst_idx_t n_samples{1024};
   bst_feature_t n_features{16};
 
   Json dconfig{Object{}};

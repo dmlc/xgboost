@@ -47,7 +47,7 @@ inline std::unique_ptr<EllpackPageImpl> BuildEllpackPage(int n_rows, int n_cols,
           0.26f, 0.71f, 1.83f});
   cmat.SetMins({0.1f, 0.2f, 0.3f, 0.1f, 0.2f, 0.3f, 0.2f, 0.2f});
 
-  bst_row_t row_stride = 0;
+  bst_idx_t row_stride = 0;
   const auto &offset_vec = batch.offset.ConstHostVector();
   for (size_t i = 1; i < offset_vec.size(); ++i) {
     row_stride = std::max(row_stride, offset_vec[i] - offset_vec[i-1]);

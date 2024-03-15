@@ -47,7 +47,7 @@
 #include "simple_dmatrix.h"                  // for SimpleDMatrix
 #include "sparse_page_writer.h"              // for SparsePageFormatReg
 #include "validation.h"                      // for LabelsCheck, WeightsCheck, ValidateQueryGroup
-#include "xgboost/base.h"                    // for bst_group_t, bst_row_t, bst_float, bst_ulong
+#include "xgboost/base.h"                    // for bst_group_t, bst_idx_t, bst_float, bst_ulong
 #include "xgboost/context.h"                 // for Context
 #include "xgboost/host_device_vector.h"      // for HostDeviceVector
 #include "xgboost/learner.h"                 // for HostDeviceVector
@@ -996,7 +996,7 @@ template DMatrix* DMatrix::Create(
 
 SparsePage SparsePage::GetTranspose(int num_columns, int32_t n_threads) const {
   SparsePage transpose;
-  common::ParallelGroupBuilder<Entry, bst_row_t> builder(&transpose.offset.HostVector(),
+  common::ParallelGroupBuilder<Entry, bst_idx_t> builder(&transpose.offset.HostVector(),
                                                          &transpose.data.HostVector());
   builder.InitBudget(num_columns, n_threads);
   long batch_size = static_cast<long>(this->Size());  // NOLINT(*)
@@ -1192,7 +1192,7 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
 
 void SparsePage::PushCSC(const SparsePage &batch) {
   std::vector<xgboost::Entry>& self_data = data.HostVector();
-  std::vector<bst_row_t>& self_offset = offset.HostVector();
+  std::vector<bst_idx_t>& self_offset = offset.HostVector();
 
   auto const& other_data = batch.data.ConstHostVector();
   auto const& other_offset = batch.offset.ConstHostVector();
@@ -1211,7 +1211,7 @@ void SparsePage::PushCSC(const SparsePage &batch) {
     return;
   }
 
-  std::vector<bst_row_t> offset(other_offset.size());
+  std::vector<bst_idx_t> offset(other_offset.size());
   offset[0] = 0;
 
   std::vector<xgboost::Entry> data(self_data.size() + other_data.size());

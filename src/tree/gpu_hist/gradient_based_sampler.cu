@@ -277,7 +277,7 @@ GradientBasedSample ExternalMemoryGradientBasedSampling::Sample(Context const* c
                                                                 common::Span<GradientPair> gpair,
                                                                 DMatrix* dmat) {
   auto cuctx = ctx->CUDACtx();
-  bst_row_t n_rows = dmat->Info().num_row_;
+  bst_idx_t n_rows = dmat->Info().num_row_;
   size_t threshold_index = GradientBasedSampler::CalculateThresholdIndex(
       gpair, dh::ToSpan(threshold_), dh::ToSpan(grad_sum_), n_rows * subsample_);
 

@@ -217,7 +217,7 @@ TEST(Learner, JsonModelIO) {
 }
 
 TEST(Learner, ConfigIO) {
-  bst_row_t n_samples = 128;
+  bst_idx_t n_samples = 128;
   bst_feature_t n_features = 12;
   std::shared_ptr<DMatrix> p_fmat{
       RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true, false, 2)};

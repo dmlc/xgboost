@@ -184,7 +184,7 @@ void FVecDrop(std::size_t const block_size, std::size_t const fvec_offset,
 static std::size_t constexpr kUnroll = 8;
 
 struct SparsePageView {
-  bst_row_t base_rowid;
+  bst_idx_t base_rowid;
   HostSparsePageView view;
 
   explicit SparsePageView(SparsePage const *p) : base_rowid{p->base_rowid} { view = p->GetView(); }
@@ -193,7 +193,7 @@ struct SparsePageView {
 };
 
 struct SingleInstanceView {
-  bst_row_t base_rowid{};
+  bst_idx_t base_rowid{};
   SparsePage::Inst const &inst;
 
   explicit SingleInstanceView(SparsePage::Inst const &instance) : inst{instance} {}
@@ -214,7 +214,7 @@ struct GHistIndexMatrixView {
   std::vector<float> const& values_;
 
  public:
-  size_t base_rowid;
+  bst_idx_t base_rowid;
 
  public:
   GHistIndexMatrixView(GHistIndexMatrix const &_page, uint64_t n_feat,
@@ -292,7 +292,7 @@ class AdapterView {
 
   [[nodiscard]] size_t Size() const { return adapter_->NumRows(); }
 
-  bst_row_t const static base_rowid = 0;  // NOLINT
+  bst_idx_t const static base_rowid = 0;  // NOLINT
 };
 
 template <typename DataView, size_t block_of_rows_size>

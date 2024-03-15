@@ -171,7 +171,7 @@ TEST(GBTree, ChoosePredictor) {
 }
 
 TEST(GBTree, ChooseTreeMethod) {
-  bst_row_t n_samples{128};
+  bst_idx_t n_samples{128};
   bst_feature_t n_features{64};
   auto Xy = RandomDataGenerator{n_samples, n_features, 0.5f}.GenerateDMatrix(true);
 

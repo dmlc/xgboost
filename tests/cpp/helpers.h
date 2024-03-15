@@ -223,7 +223,7 @@ Json GetArrayInterface(HostDeviceVector<T> const* storage, size_t rows, size_t c
 
 // Generate in-memory random data without using DMatrix.
 class RandomDataGenerator {
-  bst_row_t rows_;
+  bst_idx_t rows_;
   size_t cols_;
   float sparsity_;
 
@@ -246,7 +246,7 @@ class RandomDataGenerator {
   void GenerateLabels(std::shared_ptr<DMatrix> p_fmat) const;
 
  public:
-  RandomDataGenerator(bst_row_t rows, size_t cols, float sparsity)
+  RandomDataGenerator(bst_idx_t rows, size_t cols, float sparsity)
       : rows_{rows}, cols_{cols}, sparsity_{sparsity}, lcg_{seed_} {}
 
   RandomDataGenerator& Lower(float v) {
@@ -308,7 +308,7 @@ class RandomDataGenerator {
 
   std::string GenerateColumnarArrayInterface(std::vector<HostDeviceVector<float>>* data) const;
 
-  void GenerateCSR(HostDeviceVector<float>* value, HostDeviceVector<bst_row_t>* row_ptr,
+  void GenerateCSR(HostDeviceVector<float>* value, HostDeviceVector<std::size_t>* row_ptr,
                    HostDeviceVector<bst_feature_t>* columns) const;
 
   [[nodiscard]] std::shared_ptr<DMatrix> GenerateDMatrix(
@@ -354,7 +354,7 @@ std::shared_ptr<DMatrix> GetDMatrixFromData(const std::vector<float>& x, std::si
  *
  * \return A Sparse DMatrix with n_batches.
  */
-std::unique_ptr<DMatrix> CreateSparsePageDMatrix(bst_row_t n_samples, bst_feature_t n_features,
+std::unique_ptr<DMatrix> CreateSparsePageDMatrix(bst_idx_t n_samples, bst_feature_t n_features,
                                                  size_t n_batches, std::string prefix = "cache");
 
 /**
@@ -413,12 +413,12 @@ inline HostDeviceVector<GradientPair> GenerateRandomGradients(const size_t n_row
   return gpair;
 }
 
-inline linalg::Matrix<GradientPair> GenerateRandomGradients(Context const* ctx, bst_row_t n_rows,
+inline linalg::Matrix<GradientPair> GenerateRandomGradients(Context const* ctx, bst_idx_t n_rows,
                                                             bst_target_t n_targets,
                                                             float lower = 0.0f,
                                                             float upper = 1.0f) {
   auto g = GenerateRandomGradients(n_rows * n_targets, lower, upper);
-  linalg::Matrix<GradientPair> gpair({n_rows, static_cast<bst_row_t>(n_targets)}, ctx->Device());
+  linalg::Matrix<GradientPair> gpair({n_rows, static_cast<bst_idx_t>(n_targets)}, ctx->Device());
   gpair.Data()->Copy(g);
   return gpair;
 }
@@ -434,12 +434,12 @@ class ArrayIterForTest {
 
   std::vector<std::string> batches_;
   std::string interface_;
-  size_t rows_;
+  bst_idx_t rows_;
   size_t cols_;
   size_t n_batches_;
 
  public:
-  size_t static constexpr Rows() { return 1024; }
+  bst_idx_t static constexpr Rows() { return 1024; }
   size_t static constexpr Batches() { return 100; }
   size_t static constexpr Cols() { return 13; }
 
@@ -451,7 +451,7 @@ class ArrayIterForTest {
   [[nodiscard]] std::size_t Iter() const { return iter_; }
   auto Proxy() -> decltype(proxy_) { return proxy_; }
 
-  explicit ArrayIterForTest(float sparsity, size_t rows, size_t cols, size_t batches);
+  explicit ArrayIterForTest(float sparsity, bst_idx_t rows, size_t cols, size_t batches);
   /**
    * \brief Create iterator with user provided data.
    */
@@ -470,7 +470,7 @@ class CudaArrayIterForTest : public ArrayIterForTest {
 
 class NumpyArrayIterForTest : public ArrayIterForTest {
  public:
-  explicit NumpyArrayIterForTest(float sparsity, size_t rows = Rows(), size_t cols = Cols(),
+  explicit NumpyArrayIterForTest(float sparsity, bst_idx_t rows = Rows(), size_t cols = Cols(),
                                  size_t batches = Batches());
   explicit NumpyArrayIterForTest(Context const* ctx, HostDeviceVector<float> const& data,
                                  std::size_t n_samples, bst_feature_t n_features,

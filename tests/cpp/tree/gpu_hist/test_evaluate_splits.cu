@@ -363,7 +363,7 @@ TEST(GpuHist, EvaluateSingleSplitMissing) {
   GPUTrainingParam param{tparam};
 
   thrust::device_vector<bst_feature_t> feature_set = std::vector<bst_feature_t>{0};
-  thrust::device_vector<uint32_t> feature_segments = std::vector<bst_row_t>{0, 2};
+  thrust::device_vector<uint32_t> feature_segments = std::vector<bst_idx_t>{0, 2};
   thrust::device_vector<float> feature_values = std::vector<float>{1.0, 2.0};
   thrust::device_vector<float> feature_min_values = std::vector<float>{0.0};
   auto feature_histogram = ConvertToInteger(&ctx, {{-0.5, 0.5}, {0.5, 0.5}});
@@ -412,7 +412,7 @@ TEST(GpuHist, EvaluateSingleSplitFeatureSampling) {
   GPUTrainingParam param{tparam};
 
   thrust::device_vector<bst_feature_t> feature_set = std::vector<bst_feature_t>{1};
-  thrust::device_vector<uint32_t> feature_segments = std::vector<bst_row_t>{0, 2, 4};
+  thrust::device_vector<uint32_t> feature_segments = std::vector<bst_idx_t>{0, 2, 4};
   thrust::device_vector<float> feature_values = std::vector<float>{1.0, 2.0, 11.0, 12.0};
   thrust::device_vector<float> feature_min_values = std::vector<float>{0.0, 10.0};
   auto feature_histogram =
@@ -446,7 +446,7 @@ TEST(GpuHist, EvaluateSingleSplitBreakTies) {
   GPUTrainingParam param{tparam};
 
   thrust::device_vector<bst_feature_t> feature_set = std::vector<bst_feature_t>{0, 1};
-  thrust::device_vector<uint32_t> feature_segments = std::vector<bst_row_t>{0, 2, 4};
+  thrust::device_vector<uint32_t> feature_segments = std::vector<bst_idx_t>{0, 2, 4};
   thrust::device_vector<float> feature_values = std::vector<float>{1.0, 2.0, 11.0, 12.0};
   thrust::device_vector<float> feature_min_values = std::vector<float>{0.0, 10.0};
   auto feature_histogram =
@@ -478,7 +478,7 @@ TEST(GpuHist, EvaluateSplits) {
   GPUTrainingParam param{tparam};
 
   thrust::device_vector<bst_feature_t> feature_set = std::vector<bst_feature_t>{0, 1};
-  thrust::device_vector<uint32_t> feature_segments = std::vector<bst_row_t>{0, 2, 4};
+  thrust::device_vector<uint32_t> feature_segments = std::vector<bst_idx_t>{0, 2, 4};
   thrust::device_vector<float> feature_values = std::vector<float>{1.0, 2.0, 11.0, 12.0};
   thrust::device_vector<float> feature_min_values = std::vector<float>{0.0, 0.0};
   auto feature_histogram_left =

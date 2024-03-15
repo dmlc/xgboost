@@ -114,16 +114,16 @@ void CopyTo(Span<T> out, Span<U> src) {
 
 // Compute the merge path.
 common::Span<thrust::tuple<uint64_t, uint64_t>> MergePath(
-    Span<SketchEntry const> const &d_x, Span<bst_row_t const> const &x_ptr,
-    Span<SketchEntry const> const &d_y, Span<bst_row_t const> const &y_ptr,
-    Span<SketchEntry> out, Span<bst_row_t> out_ptr) {
+    Span<SketchEntry const> const &d_x, Span<bst_idx_t const> const &x_ptr,
+    Span<SketchEntry const> const &d_y, Span<bst_idx_t const> const &y_ptr,
+    Span<SketchEntry> out, Span<bst_idx_t> out_ptr) {
   auto x_merge_key_it = thrust::make_zip_iterator(thrust::make_tuple(
-      dh::MakeTransformIterator<bst_row_t>(
+      dh::MakeTransformIterator<bst_idx_t>(
           thrust::make_counting_iterator(0ul),
           [=] __device__(size_t idx) { return dh::SegmentId(x_ptr, idx); }),
       d_x.data()));
   auto y_merge_key_it = thrust::make_zip_iterator(thrust::make_tuple(
-      dh::MakeTransformIterator<bst_row_t>(
+      dh::MakeTransformIterator<bst_idx_t>(
           thrust::make_counting_iterator(0ul),
           [=] __device__(size_t idx) { return dh::SegmentId(y_ptr, idx); }),
       d_y.data()));
@@ -206,8 +206,8 @@ common::Span<thrust::tuple<uint64_t, uint64_t>> MergePath(
 // run it in 2 passes to obtain the merge path and then customize the standard merge
 // algorithm.
 void MergeImpl(DeviceOrd device, Span<SketchEntry const> const &d_x,
-               Span<bst_row_t const> const &x_ptr, Span<SketchEntry const> const &d_y,
-               Span<bst_row_t const> const &y_ptr, Span<SketchEntry> out, Span<bst_row_t> out_ptr) {
+               Span<bst_idx_t const> const &x_ptr, Span<SketchEntry const> const &d_y,
+               Span<bst_idx_t const> const &y_ptr, Span<SketchEntry> out, Span<bst_idx_t> out_ptr) {
   dh::safe_cuda(cudaSetDevice(device.ordinal));
   CHECK_EQ(d_x.size() + d_y.size(), out.size());
   CHECK_EQ(x_ptr.size(), out_ptr.size());

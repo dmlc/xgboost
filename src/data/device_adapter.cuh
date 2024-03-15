@@ -39,7 +39,7 @@ class CudfAdapterBatch : public detail::NoMetaInfo {
     return {row_idx, column_idx, value};
   }
 
-  [[nodiscard]] __device__ float GetElement(bst_row_t ridx, bst_feature_t fidx) const {
+  [[nodiscard]] __device__ float GetElement(bst_idx_t ridx, bst_feature_t fidx) const {
     auto const& column = columns_[fidx];
     float value = column.valid.Data() == nullptr || column.valid.Check(ridx)
                       ? column(ridx)
@@ -47,8 +47,8 @@ class CudfAdapterBatch : public detail::NoMetaInfo {
     return value;
   }
 
-  [[nodiscard]] XGBOOST_DEVICE bst_row_t NumRows() const { return num_rows_; }
-  [[nodiscard]] XGBOOST_DEVICE bst_row_t NumCols() const { return columns_.size(); }
+  [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumRows() const { return num_rows_; }
+  [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumCols() const { return columns_.size(); }
 
  private:
   common::Span<ArrayInterface<1>> columns_;
@@ -168,13 +168,13 @@ class CupyAdapterBatch : public detail::NoMetaInfo {
     float value = array_interface_(row_idx, column_idx);
     return {row_idx, column_idx, value};
   }
-  [[nodiscard]] __device__ float GetElement(bst_row_t ridx, bst_feature_t fidx) const {
+  [[nodiscard]] __device__ float GetElement(bst_idx_t ridx, bst_feature_t fidx) const {
     float value = array_interface_(ridx, fidx);
     return value;
   }
 
-  [[nodiscard]] XGBOOST_DEVICE bst_row_t NumRows() const { return array_interface_.Shape(0); }
-  [[nodiscard]] XGBOOST_DEVICE bst_row_t NumCols() const { return array_interface_.Shape(1); }
+  [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumRows() const { return array_interface_.Shape(0); }
+  [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumCols() const { return array_interface_.Shape(1); }
 
  private:
   ArrayInterface<2> array_interface_;
@@ -208,8 +208,8 @@ class CupyAdapter : public detail::SingleBatchDataIter<CupyAdapterBatch> {
 
 // Returns maximum row length
 template <typename AdapterBatchT>
-std::size_t GetRowCounts(const AdapterBatchT batch, common::Span<bst_row_t> offset, DeviceOrd device,
-                         float missing) {
+bst_idx_t GetRowCounts(const AdapterBatchT batch, common::Span<bst_idx_t> offset, DeviceOrd device,
+                       float missing) {
   dh::safe_cuda(cudaSetDevice(device.ordinal));
   IsValidFunctor is_valid(missing);
   dh::safe_cuda(cudaMemsetAsync(offset.data(), '\0', offset.size_bytes()));
@@ -231,7 +231,7 @@ std::size_t GetRowCounts(const AdapterBatchT batch, common::Span<bst_row_t> offs
 
   // Count elements per row
   dh::LaunchN(n_samples * stride, [=] __device__(std::size_t idx) {
-    bst_row_t cnt{0};
+    bst_idx_t cnt{0};
     auto [ridx, fbeg] = linalg::UnravelIndex(idx, n_samples, stride);
     SPAN_CHECK(ridx < n_samples);
     for (bst_feature_t fidx = fbeg; fidx < n_features; fidx += stride) {
@@ -245,10 +245,10 @@ std::size_t GetRowCounts(const AdapterBatchT batch, common::Span<bst_row_t> offs
               static_cast<unsigned long long>(cnt));  // NOLINT
   });
   dh::XGBCachingDeviceAllocator<char> alloc;
-  bst_row_t row_stride =
+  bst_idx_t row_stride =
       dh::Reduce(thrust::cuda::par(alloc), thrust::device_pointer_cast(offset.data()),
                  thrust::device_pointer_cast(offset.data()) + offset.size(),
-                 static_cast<bst_row_t>(0), thrust::maximum<bst_row_t>());
+                 static_cast<bst_idx_t>(0), thrust::maximum<bst_idx_t>());
   return row_stride;
 }
 

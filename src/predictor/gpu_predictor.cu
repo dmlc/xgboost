@@ -67,12 +67,12 @@ struct TreeView {
 
 struct SparsePageView {
   common::Span<const Entry> d_data;
-  common::Span<const bst_row_t> d_row_ptr;
+  common::Span<const bst_idx_t> d_row_ptr;
   bst_feature_t num_features;
 
   SparsePageView() = default;
   XGBOOST_DEVICE SparsePageView(common::Span<const Entry> data,
-                                common::Span<const bst_row_t> row_ptr,
+                                common::Span<const bst_idx_t> row_ptr,
                                 bst_feature_t num_features)
       : d_data{data}, d_row_ptr{row_ptr}, num_features(num_features) {}
   [[nodiscard]] __device__ float GetElement(size_t ridx, size_t fidx) const {
@@ -113,7 +113,7 @@ struct SparsePageLoader {
   float* smem;
 
   __device__ SparsePageLoader(SparsePageView data, bool use_shared, bst_feature_t num_features,
-                              bst_row_t num_rows, size_t entry_start, float)
+                              bst_idx_t num_rows, size_t entry_start, float)
       : use_shared(use_shared),
         data(data) {
     extern __shared__ float _smem[];
@@ -146,7 +146,7 @@ struct SparsePageLoader {
 
 struct EllpackLoader {
   EllpackDeviceAccessor const& matrix;
-  XGBOOST_DEVICE EllpackLoader(EllpackDeviceAccessor const& m, bool, bst_feature_t, bst_row_t,
+  XGBOOST_DEVICE EllpackLoader(EllpackDeviceAccessor const& m, bool, bst_feature_t, bst_idx_t,
                                size_t, float)
       : matrix{m} {}
   [[nodiscard]] __device__ __forceinline__ float GetElement(size_t ridx, size_t fidx) const {
@@ -177,7 +177,7 @@ struct DeviceAdapterLoader {
   using BatchT = Batch;
 
   XGBOOST_DEV_INLINE DeviceAdapterLoader(Batch const batch, bool use_shared,
-                                         bst_feature_t num_features, bst_row_t num_rows,
+                                         bst_feature_t num_features, bst_idx_t num_rows,
                                          size_t entry_start, float missing)
       : batch{batch}, columns{num_features}, use_shared{use_shared}, is_valid{missing} {
     extern __shared__ float _smem[];
@@ -215,7 +215,7 @@ struct DeviceAdapterLoader {
 };
 
 template <bool has_missing, bool has_categorical, typename Loader>
-__device__ bst_node_t GetLeafIndex(bst_row_t ridx, TreeView const &tree,
+__device__ bst_node_t GetLeafIndex(bst_idx_t ridx, TreeView const &tree,
                                    Loader *loader) {
   bst_node_t nidx = 0;
   RegTree::Node n = tree.d_tree[nidx];
@@ -230,7 +230,7 @@ __device__ bst_node_t GetLeafIndex(bst_row_t ridx, TreeView const &tree,
 }
 
 template <bool has_missing, typename Loader>
-__device__ float GetLeafWeight(bst_row_t ridx, TreeView const &tree,
+__device__ float GetLeafWeight(bst_idx_t ridx, TreeView const &tree,
                                Loader *loader) {
   bst_node_t nidx = -1;
   if (tree.HasCategoricalSplit()) {
@@ -255,7 +255,7 @@ PredictLeafKernel(Data data, common::Span<const RegTree::Node> d_nodes,
                   size_t tree_begin, size_t tree_end, size_t num_features,
                   size_t num_rows, size_t entry_start, bool use_shared,
                   float missing) {
-  bst_row_t ridx = blockDim.x * blockIdx.x + threadIdx.x;
+  bst_idx_t ridx = blockDim.x * blockIdx.x + threadIdx.x;
   if (ridx >= num_rows) {
     return;
   }
@@ -664,7 +664,7 @@ __global__ void MaskBitVectorKernel(
   }
 }
 
-__device__ bst_node_t GetLeafIndexByBitVector(bst_row_t ridx, TreeView const& tree,
+__device__ bst_node_t GetLeafIndexByBitVector(bst_idx_t ridx, TreeView const& tree,
                                               BitVector const& decision_bits,
                                               BitVector const& missing_bits, std::size_t num_nodes,
                                               std::size_t tree_offset) {
@@ -682,7 +682,7 @@ __device__ bst_node_t GetLeafIndexByBitVector(bst_row_t ridx, TreeView const& tr
   return nidx;
 }
 
-__device__ float GetLeafWeightByBitVector(bst_row_t ridx, TreeView const& tree,
+__device__ float GetLeafWeightByBitVector(bst_idx_t ridx, TreeView const& tree,
                                           BitVector const& decision_bits,
                                           BitVector const& missing_bits, std::size_t num_nodes,
                                           std::size_t tree_offset) {
@@ -1171,7 +1171,7 @@ class GPUPredictor : public xgboost::Predictor {
     auto max_shared_memory_bytes = ConfigureDevice(ctx_->Device());
 
     const MetaInfo& info = p_fmat->Info();
-    bst_row_t num_rows = info.num_row_;
+    bst_idx_t num_rows = info.num_row_;
     if (tree_end == 0 || tree_end > model.trees.size()) {
       tree_end = static_cast<uint32_t>(model.trees.size());
     }
@@ -1196,7 +1196,7 @@ class GPUPredictor : public xgboost::Predictor {
       for (auto const& batch : p_fmat->GetBatches<SparsePage>()) {
         batch.data.SetDevice(ctx_->Device());
         batch.offset.SetDevice(ctx_->Device());
-        bst_row_t batch_offset = 0;
+        bst_idx_t batch_offset = 0;
         SparsePageView data{batch.data.DeviceSpan(), batch.offset.DeviceSpan(),
                             model.learner_model_param->num_feature};
         size_t num_rows = batch.Size();
@@ -1219,7 +1219,7 @@ class GPUPredictor : public xgboost::Predictor {
       }
     } else {
       for (auto const& batch : p_fmat->GetBatches<EllpackPage>(ctx_, BatchParam{})) {
-        bst_row_t batch_offset = 0;
+        bst_idx_t batch_offset = 0;
         EllpackDeviceAccessor data{batch.Impl()->GetDeviceAccessor(ctx_->Device())};
         size_t num_rows = batch.Size();
         auto grid =

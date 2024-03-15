@@ -13,8 +13,6 @@
 #include <xgboost/logging.h>
 
 #include <cstddef>  // for size_t
-#include <memory>
-#include <mutex>
 #include <utility>
 #include <vector>
 
@@ -39,7 +37,7 @@ size_t RequiredSampleCutsPerColumn(int max_bins, size_t num_rows) {
   return std::min(num_cuts, num_rows);
 }
 
-size_t RequiredSampleCuts(bst_row_t num_rows, bst_feature_t num_columns,
+size_t RequiredSampleCuts(bst_idx_t num_rows, bst_feature_t num_columns,
                           size_t max_bins, size_t nnz) {
   auto per_column = RequiredSampleCutsPerColumn(max_bins, num_rows);
   auto if_dense = num_columns * per_column;
@@ -47,7 +45,7 @@ size_t RequiredSampleCuts(bst_row_t num_rows, bst_feature_t num_columns,
   return result;
 }
 
-size_t RequiredMemory(bst_row_t num_rows, bst_feature_t num_columns, size_t nnz,
+size_t RequiredMemory(bst_idx_t num_rows, bst_feature_t num_columns, size_t nnz,
                       size_t num_bins, bool with_weights) {
   size_t peak = 0;
   // 0. Allocate cut pointer in quantile container by increasing: n_columns + 1
@@ -85,7 +83,7 @@ size_t RequiredMemory(bst_row_t num_rows, bst_feature_t num_columns, size_t nnz,
   return peak;
 }
 
-size_t SketchBatchNumElements(size_t sketch_batch_num_elements, bst_row_t num_rows,
+size_t SketchBatchNumElements(size_t sketch_batch_num_elements, bst_idx_t num_rows,
                               bst_feature_t columns, size_t nnz, int device, size_t num_cuts,
                               bool has_weight) {
   auto constexpr kIntMax = static_cast<std::size_t>(std::numeric_limits<std::int32_t>::max());
@@ -123,7 +121,7 @@ void SortByWeight(dh::device_vector<float>* weights, dh::device_vector<Entry>* s
       [=] __device__(const Entry& a, const Entry& b) { return a.index == b.index; });
 }
 
-void RemoveDuplicatedCategories(DeviceOrd device, MetaInfo const& info, Span<bst_row_t> d_cuts_ptr,
+void RemoveDuplicatedCategories(DeviceOrd device, MetaInfo const& info, Span<bst_idx_t> d_cuts_ptr,
                                 dh::device_vector<Entry>* p_sorted_entries,
                                 dh::device_vector<float>* p_sorted_weights,
                                 dh::caching_device_vector<size_t>* p_column_sizes_scan) {
@@ -210,7 +208,7 @@ void ProcessWeightedBatch(Context const* ctx, const SparsePage& page, MetaInfo c
     sorted_entries = dh::device_vector<Entry>(h_data.begin() + begin, h_data.begin() + end);
   }
 
-  bst_row_t base_rowid = page.base_rowid;
+  bst_idx_t base_rowid = page.base_rowid;
 
   dh::device_vector<float> entry_weight;
   auto cuctx = ctx->CUDACtx();

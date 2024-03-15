@@ -3,6 +3,8 @@
  */
 #pragma once
 
+#include <numeric>  // for accumulate
+
 #include "communicator.h"
 #include "device_communicator.cuh"
 

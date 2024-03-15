@@ -57,7 +57,7 @@ void GHistIndexMatrix::SetIndexData(::sycl::queue qu,
                                     uint32_t* offsets) {
   if (nbins == 0) return;
   const xgboost::Entry *data_ptr = dmat.data.DataConst();
-  const bst_row_t *offset_vec = dmat.row_ptr.DataConst();
+  const bst_idx_t *offset_vec = dmat.row_ptr.DataConst();
   const size_t num_rows = dmat.row_ptr.Size() - 1;
   const bst_float* cut_values = cut_device.Values().DataConst();
   const uint32_t* cut_ptrs = cut_device.Ptrs().DataConst();

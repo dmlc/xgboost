@@ -191,7 +191,7 @@ struct GPUHistMakerDevice {
   std::unique_ptr<FeatureGroups> feature_groups;
 
   GPUHistMakerDevice(Context const* ctx, bool is_external_memory,
-                     common::Span<FeatureType const> _feature_types, bst_row_t _n_rows,
+                     common::Span<FeatureType const> _feature_types, bst_idx_t _n_rows,
                      TrainParam _param, std::shared_ptr<common::ColumnSampler> column_sampler,
                      uint32_t n_features, BatchParam batch_param, MetaInfo const& info)
       : evaluator_{_param, n_features, ctx->Device()},
