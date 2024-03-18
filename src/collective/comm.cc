@@ -10,6 +10,7 @@
 #include <string>     // for string
 #include <utility>    // for move, forward
 
+#include "../common/common.h"           // for AssertGPUSupport
 #include "allgather.h"                  // for RingAllgather
 #include "protocol.h"                   // for kMagic
 #include "xgboost/base.h"               // for XGBOOST_STRICT_R_MODE
