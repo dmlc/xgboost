@@ -51,6 +51,15 @@ except ImportError:
     pass
 
 
+import dask
+import distributed
+import dask_cudf
+
+print("dask version:", dask.__version__)
+print("distributed version:", distributed.__version__)
+print("dask_cudf version:", dask_cudf.__version__)
+
+
 def run_with_dask_dataframe(DMatrixT: Type, client: Client) -> None:
     import cupy as cp
 
