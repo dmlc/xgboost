@@ -76,8 +76,9 @@ class HistogramBuilder {
                             std::vector<bst_node_t> const &nodes_to_build,
                             common::RowSetCollection const &row_set_collection,
                             common::Span<GradientPair const> gpair_h, bool force_read_by_column) {
+
     // Print out all kinds if information for interface integration
-    if ((collective::GetRank() == 0)) {
+    if (is_distributed_ && is_col_split_ && is_secure_ && (collective::GetRank() == 0)) {
       std::cout << "--------------Node Hist----------------" << std::endl;
       std::cout << "Current samples on nodes: " << std::endl;
       // print info on all nodes
@@ -111,10 +112,10 @@ class HistogramBuilder {
       }
       std::cout << std::endl;
       std::cout << "------------------------------" << std::endl;
-    }
-    // Call the interface to transmit the row set collection and gidx to the secure worker
-    if ((collective::GetRank() == 0)) {
-      std::cout << "---------------CALL interface to transmit row & gidx------------" << std::endl;
+      // Call the interface to transmit the row set collection and gidx to the secure worker
+      if ((collective::GetRank() == 0)) {
+        std::cout << "---------------CALL interface to transmit row & gidx------------" << std::endl;
+      }
     }
 
     // Parallel processing by nodes and data in each node
@@ -238,19 +239,22 @@ class HistogramBuilder {
       // Under secure vertical mode, we perform allgather to get the global histogram.
       // note that only Label Owner needs the global histogram
       CHECK(!nodes_to_build.empty());
+
+      // Front item of nodes_to_build
+      auto first_nidx = nodes_to_build.front();
+      // *2 because we have a pair of g and h for each histogram item
       std::size_t n = n_total_bins * nodes_to_build.size() * 2;
 
       // Use AllGather to collect the histogram entries from all nodes
       // allocate memory for the received entries as a flat vector
       std::vector<double> hist_flat;
-      hist_flat.resize(n);
       // iterate through the nodes_to_build
-      auto it = reinterpret_cast<double *>(this->hist_[nodes_to_build.front()].data());
-      auto hist_size = this->hist_[nodes_to_build.front()].size();
+      auto it = reinterpret_cast<double *>(this->hist_[first_nidx].data());
+      auto hist_size = this->hist_[first_nidx].size();
       for (size_t i = 0; i < n; i++) {
         // get item with iterator
-        auto item = *it;
-        hist_flat[i] = item;
+        double item = *it;
+        hist_flat.push_back(item);
         it++;
       }
 
@@ -260,22 +264,27 @@ class HistogramBuilder {
       if (collective::GetRank() == 0) {
         std::cout << "---------------CALL Interface for processing-------------- " << std::endl;
       }
-      // Update histogram for data owner
+
+      // Update histogram for label owner
       if (collective::GetRank() == 0) {
-        // skip rank 0, as local hist already contains its own entries
-        // reposition iterator to the beginning of the vector
-        it = reinterpret_cast<double *>(this->hist_[nodes_to_build.front()].data());
-        for (auto rank_idx = 1; rank_idx < hist_entries.size()/n; rank_idx++) {
-          // iterate through the flat vector
-          for (size_t i = 0; i < n; i++) {
-            auto flat_idx = rank_idx * n + i;
-            auto hist_item = hist_entries[flat_idx];
-            // update the global histogram with the received entries
-            *it += hist_item;
-            it++;
+        // iterator of the beginning of the vector
+        auto it = reinterpret_cast<double *>(this->hist_[first_nidx].data());
+        // iterate through the hist vector of the label owner
+        for (size_t i = 0; i < n; i++) {
+          // skip rank 0, as local hist already contains its own entries
+          // get the sum of the entries from other ranks
+          double hist_sum = 0.0;
+          for (int rank_idx = 1; rank_idx < hist_entries.size()/n; rank_idx++) {
+            int flat_idx = rank_idx * n + i;
+              hist_sum += hist_entries.at(flat_idx);
           }
+          // add other parties' sum to rank 0's record
+          // to get the global histogram
+          *it += hist_sum;
+          it++;
         }
       }
+
     }
 
     common::BlockedSpace2d const &subspace =
