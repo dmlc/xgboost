@@ -97,7 +97,6 @@ void ApplyWithLabels(Context const*, MetaInfo const& info, HostDeviceVector<T>* 
     collective::Broadcast(&size, sizeof(std::size_t), 0);
 
     if (info.IsSecure() && is_gpair) {
-
       // Under secure mode, gpairs will be processed to vector and encrypt
       // information only available on rank 0
       if (collective::GetRank() == 0) {

@@ -76,7 +76,6 @@ class HistogramBuilder {
                             std::vector<bst_node_t> const &nodes_to_build,
                             common::RowSetCollection const &row_set_collection,
                             common::Span<GradientPair const> gpair_h, bool force_read_by_column) {
-
     // Print out all kinds if information for interface integration
     if (is_distributed_ && is_col_split_ && is_secure_ && (collective::GetRank() == 0)) {
       std::cout << "--------------Node Hist----------------" << std::endl;
@@ -105,7 +104,7 @@ class HistogramBuilder {
       // cut value: cut for feature 0 slot 0, ..., feature 0 slot m, feature 1 slot 0, ...
       std::cout << "size of the cut points and cut values: "
                 << cut_ptrs.size() << " " << cut_values.size() << std::endl;
-      std::cout << "first sample falls to: [feature_id, slot #, slot cutValue]: " << std::endl;
+      std::cout << "first sample falls to: [feature_id, slot #, cutValue]: " << std::endl;
       for (auto i = 0; i < cut_ptrs.size()-1; ++i) {
         auto slot_number = gidx.GetGindex(0, i);
         std::cout << "[" << i << ", " << slot_number << ", "<< cut_values[slot_number] << "] ";
@@ -284,9 +283,7 @@ class HistogramBuilder {
           it++;
         }
       }
-
     }
-
     common::BlockedSpace2d const &subspace =
         nodes_to_trick.size() == nodes_to_build.size()
             ? space
