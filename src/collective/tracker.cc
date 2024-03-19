@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright 2023-2024, XGBoost Contributors
  */
 #if defined(__unix__) || defined(__APPLE__)
 #include <netdb.h>       // gethostbyname
@@ -27,12 +27,14 @@
 #include "tracker.h"
 #include "xgboost/collective/result.h"  // for Result, Fail, Success
 #include "xgboost/collective/socket.h"  // for GetHostName, FailWithCode, MakeSockAddress, ...
-#include "xgboost/json.h"
+#include "xgboost/json.h"               // for Json
 
 namespace xgboost::collective {
 Tracker::Tracker(Json const& config)
-    : n_workers_{static_cast<std::int32_t>(
-          RequiredArg<Integer const>(config, "n_workers", __func__))},
+    : sortby_{static_cast<SortBy>(
+          OptionalArg<Integer const>(config, "sortby", static_cast<Integer::Int>(SortBy::kHost)))},
+      n_workers_{
+          static_cast<std::int32_t>(RequiredArg<Integer const>(config, "n_workers", __func__))},
       port_{static_cast<std::int32_t>(OptionalArg<Integer const>(config, "port", Integer::Int{0}))},
       timeout_{std::chrono::seconds{OptionalArg<Integer const>(
           config, "timeout", static_cast<std::int64_t>(collective::DefaultTimeoutSec()))}} {}
@@ -56,13 +58,15 @@ Result Tracker::WaitUntilReady() const {
   return Success();
 }
 
-RabitTracker::WorkerProxy::WorkerProxy(std::int32_t world, TCPSocket sock, SockAddrV4 addr)
+RabitTracker::WorkerProxy::WorkerProxy(std::int32_t world, TCPSocket sock, SockAddress addr)
     : sock_{std::move(sock)} {
   std::int32_t rank{0};
   Json jcmd;
   std::int32_t port{0};
 
-  rc_ = Success() << [&] { return proto::Magic{}.Verify(&sock_); } << [&] {
+  rc_ = Success() << [&] {
+    return proto::Magic{}.Verify(&sock_);
+  } << [&] {
     return proto::Connect{}.TrackerRecv(&sock_, &world_, &rank, &task_id_);
   } << [&] {
     std::string cmd;
@@ -83,8 +87,13 @@ RabitTracker::WorkerProxy::WorkerProxy(std::int32_t world, TCPSocket sock, SockA
     }
     return Success();
   } << [&] {
-    auto host = addr.Addr();
-    info_ = proto::PeerInfo{host, port, rank};
+    if (addr.IsV4()) {
+      auto host = addr.V4().Addr();
+      info_ = proto::PeerInfo{host, port, rank};
+    } else {
+      auto host = addr.V6().Addr();
+      info_ = proto::PeerInfo{host, port, rank};
+    }
     return Success();
   };
 }
@@ -92,19 +101,19 @@ RabitTracker::WorkerProxy::WorkerProxy(std::int32_t world, TCPSocket sock, SockA
 RabitTracker::RabitTracker(Json const& config) : Tracker{config} {
   std::string self;
   auto rc = collective::GetHostAddress(&self);
-  auto host = OptionalArg<String>(config, "host", self);
+  host_ = OptionalArg<String>(config, "host", self);
 
-  host_ = host;
-  listener_ = TCPSocket::Create(SockDomain::kV4);
-  rc = listener_.Bind(host, &this->port_);
-  CHECK(rc.OK()) << rc.Report();
+  auto addr = MakeSockAddress(xgboost::StringView{host_}, 0);
+  listener_ = TCPSocket::Create(addr.IsV4() ? SockDomain::kV4 : SockDomain::kV6);
+  rc = listener_.Bind(host_, &this->port_);
+  SafeColl(rc);
   listener_.Listen();
 }
 
 Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
   auto& workers = *p_workers;
 
-  std::sort(workers.begin(), workers.end(), WorkerCmp{});
+  std::sort(workers.begin(), workers.end(), WorkerCmp{this->sortby_});
 
   std::vector<std::thread> bootstrap_threads;
   for (std::int32_t r = 0; r < n_workers_; ++r) {
@@ -224,7 +233,7 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
 
     while (state.ShouldContinue()) {
       TCPSocket sock;
-      SockAddrV4 addr;
+      SockAddress addr;
       this->ready_ = true;
       auto rc = listener_.Accept(&sock, &addr);
       if (!rc.OK()) {
@@ -291,7 +300,7 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
 
 [[nodiscard]] Json RabitTracker::WorkerArgs() const {
   auto rc = this->WaitUntilReady();
-  CHECK(rc.OK()) << rc.Report();
+  SafeColl(rc);
 
   Json args{Object{}};
   args["DMLC_TRACKER_URI"] = String{host_};

@@ -18,7 +18,6 @@
 #include <cstdint>                        // for int32_t, uint32_t, int64_t, uint64_t
 #include <cstdlib>                        // for atoi
 #include <cstring>                        // for memcpy, size_t, memset
-#include <functional>                     // for less
 #include <iomanip>                        // for operator<<, setiosflags
 #include <iterator>                       // for back_insert_iterator, distance, back_inserter
 #include <limits>                         // for numeric_limits

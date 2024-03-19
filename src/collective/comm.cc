@@ -75,9 +75,11 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
   } << [&] {
     return next->NonBlocking(true);
   } << [&] {
-    SockAddrV4 addr;
+    SockAddress addr;
     return listener->Accept(prev.get(), &addr);
-  } << [&] { return prev->NonBlocking(true); };
+  } << [&] {
+    return prev->NonBlocking(true);
+  };
   if (!rc.OK()) {
     return rc;
   }
@@ -157,10 +159,13 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
   }
 
   for (std::int32_t r = 0; r < comm.Rank(); ++r) {
-    SockAddrV4 addr;
     auto peer = std::shared_ptr<TCPSocket>(TCPSocket::CreatePtr(comm.Domain()));
-    rc = std::move(rc) << [&] { return listener->Accept(peer.get(), &addr); }
-                       << [&] { return peer->RecvTimeout(timeout); };
+    rc = std::move(rc) << [&] {
+      SockAddress addr;
+      return listener->Accept(peer.get(), &addr);
+    } << [&] {
+      return peer->RecvTimeout(timeout);
+    };
     if (!rc.OK()) {
       return rc;
     }
@@ -187,7 +192,9 @@ RabitComm::RabitComm(std::string const& host, std::int32_t port, std::chrono::se
     : HostComm{std::move(host), port, timeout, retry, std::move(task_id)},
       nccl_path_{std::move(nccl_path)} {
   auto rc = this->Bootstrap(timeout_, retry_, task_id_);
-  CHECK(rc.OK()) << rc.Report();
+  if (!rc.OK()) {
+    SafeColl(Fail("Failed to bootstrap the communication group.", std::move(rc)));
+  }
 }
 
 #if !defined(XGBOOST_USE_NCCL)
@@ -247,10 +254,12 @@ Comm* RabitComm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
   // get ring neighbors
   std::string snext;
   tracker.Recv(&snext);
+  if (!rc.OK()) {
+    return Fail("Failed to receive the rank for the next worker.", std::move(rc));
+  }
   auto jnext = Json::Load(StringView{snext});
 
   proto::PeerInfo ninfo{jnext};
-
   // get the rank of this worker
   this->rank_ = BootstrapPrev(ninfo.rank, world);
   this->tracker_.rank = rank_;
@@ -258,7 +267,7 @@ Comm* RabitComm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
   std::vector<std::shared_ptr<TCPSocket>> workers;
   rc = ConnectWorkers(*this, &listener, lport, ninfo, timeout, retry, &workers);
   if (!rc.OK()) {
-    return rc;
+    return Fail("Failed to connect to other workers.", std::move(rc));
   }
 
   CHECK(this->channels_.empty());
