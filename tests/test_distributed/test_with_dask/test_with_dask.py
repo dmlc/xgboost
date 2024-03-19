@@ -319,7 +319,11 @@ def run_categorical(
     client: "Client", tree_method: str, device: str, X, X_onehot, y
 ) -> None:
     # Force onehot
-    parameters = {"tree_method": tree_method, "device": device, "max_cat_to_onehot": 9999}
+    parameters = {
+        "tree_method": tree_method,
+        "device": device,
+        "max_cat_to_onehot": 9999,
+    }
     rounds = 10
     m = xgb.dask.DaskDMatrix(client, X_onehot, y, enable_categorical=True)
     by_etl_results = xgb.dask.train(
