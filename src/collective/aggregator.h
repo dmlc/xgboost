@@ -101,7 +101,7 @@ void ApplyWithLabels(Context const*, MetaInfo const& info, HostDeviceVector<T>* 
       // information only available on rank 0
       if (collective::GetRank() == 0) {
         std::vector<double> vector_gh;
-        for (int i = 0; i < size; i++) {
+        for (std::size_t i = 0; i < size; i++) {
           auto gpair = result->HostVector()[i];
           // cast from GradientPair to float pointer
           auto gpair_ptr = reinterpret_cast<float*>(&gpair);
