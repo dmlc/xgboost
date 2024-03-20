@@ -81,14 +81,14 @@ class HistogramBuilder {
       std::cout << "--------------Node Hist----------------" << std::endl;
       std::cout << "Current samples on nodes: " << std::endl;
       // print info on all nodes
-      for (bst_node_t nit = 0; nit < row_set_collection.Size(); ++nit) {
-        auto size = row_set_collection[nit].Size();
-        std::cout << "Node " << nit << " has " << size << " rows." << std::endl;
+      for (std::size_t nid = 0; nid < row_set_collection.Size(); ++nid) {
+        auto size = row_set_collection[nid].Size();
+        std::cout << "Node " << nid << " has " << size << " rows." << std::endl;
         // print the first and last indexes of the rows with iterator
         if (size > 0) {
-          std::cout << "First index for node " << nit << " is "
-                    << *row_set_collection[nit].begin << " and last index is "
-                    << *(row_set_collection[nit].end - 1) << std::endl;
+          std::cout << "First index for node " << nid << " is "
+                    << *row_set_collection[nid].begin << " and last index is "
+                    << *(row_set_collection[nid].end - 1) << std::endl;
         }
       }
       // print info on the nodes to build
@@ -105,7 +105,7 @@ class HistogramBuilder {
       std::cout << "size of the cut points and cut values: "
                 << cut_ptrs.size() << " " << cut_values.size() << std::endl;
       std::cout << "first sample falls to: [feature_id, slot #, cutValue]: " << std::endl;
-      for (auto i = 0; i < cut_ptrs.size()-1; ++i) {
+      for (std::size_t i = 0; i < cut_ptrs.size()-1; ++i) {
         auto slot_number = gidx.GetGindex(0, i);
         std::cout << "[" << i << ", " << slot_number << ", "<< cut_values[slot_number] << "] ";
       }
@@ -113,7 +113,7 @@ class HistogramBuilder {
       std::cout << "------------------------------" << std::endl;
       // Call the interface to transmit the row set collection and gidx to the secure worker
       if ((collective::GetRank() == 0)) {
-        std::cout << "---------------CALL interface to transmit row & gidx------------" << std::endl;
+        std::cout << "------------CALL interface to transmit row & gidx---------" << std::endl;
       }
     }
 
@@ -249,7 +249,6 @@ class HistogramBuilder {
       std::vector<double> hist_flat;
       // iterate through the nodes_to_build
       auto it = reinterpret_cast<double *>(this->hist_[first_nidx].data());
-      auto hist_size = this->hist_[first_nidx].size();
       for (size_t i = 0; i < n; i++) {
         // get item with iterator
         double item = *it;
@@ -273,7 +272,7 @@ class HistogramBuilder {
           // skip rank 0, as local hist already contains its own entries
           // get the sum of the entries from other ranks
           double hist_sum = 0.0;
-          for (int rank_idx = 1; rank_idx < hist_entries.size()/n; rank_idx++) {
+          for (std::size_t rank_idx = 1; rank_idx < hist_entries.size()/n; rank_idx++) {
             int flat_idx = rank_idx * n + i;
               hist_sum += hist_entries.at(flat_idx);
           }
@@ -390,7 +389,7 @@ class MultiHistogramBuilder {
 
     // print index for nodes_to_build and nodes_to_sub
     if (collective::GetRank() == 0) {
-      for (int i = 0; i < nodes_to_build.size(); i++) {
+      for (std::size_t i = 0; i < nodes_to_build.size(); i++) {
         std::cout<< "Left-Right: nodes_to_build index " << nodes_to_build[i] << ";  ";
         std::cout<< "nodes_to_sub index " << nodes_to_sub[i] << std::endl;
       }
