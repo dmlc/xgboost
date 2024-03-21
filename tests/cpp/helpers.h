@@ -24,6 +24,9 @@
 #include "../../src/common/threading_utils.h"
 #include "filesystem.h"  // dmlc::TemporaryDirectory
 #include "xgboost/linalg.h"
+#if !defined(_OPENMP)
+#include <thread>
+#endif
 
 #if defined(__CUDACC__)
 #define DeclareUnifiedTest(name) GPU ## name
