@@ -1,5 +1,5 @@
 /**
- * Copyright 2015~2023 by XGBoost Contributors
+ * Copyright 2015-2024, XGBoost Contributors
  * \file c_api.h
  * \author Tianqi Chen
  * \brief C API of XGBoost, used for interfacing to other languages.
@@ -639,9 +639,7 @@ XGB_DLL int XGDMatrixSetInfoFromInterface(DMatrixHandle handle,
  * \param len length of array
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
-                                  const char *field,
-                                  const float *array,
+XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle, const char *field, const float *array,
                                   bst_ulong len);
 /*!
  * \brief set uint32 vector to a content in info
@@ -725,31 +723,11 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
                                        bst_ulong *size,
                                        const char ***out_features);
 
-/*!
- * \brief Set meta info from dense matrix.  Valid field names are:
- *
- *  - label
- *  - weight
- *  - base_margin
- *  - group
- *  - label_lower_bound
- *  - label_upper_bound
- *  - feature_weights
- *
- * \param handle An instance of data matrix
- * \param field  Field name
- * \param data   Pointer to consecutive memory storing data.
- * \param size   Size of the data, this is relative to size of type.  (Meaning NOT number
- *               of bytes.)
- * \param type   Indicator of data type.  This is defined in xgboost::DataType enum class.
- *    - float    = 1
- *    - double   = 2
- *    - uint32_t = 3
- *    - uint64_t = 4
- * \return 0 when success, -1 when failure happens
+/**
+ * @deprecated since 2.1.0
  */
-XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field,
-                                  void const *data, bst_ulong size, int type);
+XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field, void const *data,
+                                  bst_ulong size, int type);
 
 /*!
  * \brief (deprecated) Use XGDMatrixSetUIntInfo instead. Set group of the training matrix

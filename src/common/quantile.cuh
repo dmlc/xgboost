@@ -1,7 +1,8 @@
+/**
+ * Copyright 2020-2024, XGBoost Contributors
+ */
 #ifndef XGBOOST_COMMON_QUANTILE_CUH_
 #define XGBOOST_COMMON_QUANTILE_CUH_
-
-#include <memory>
 
 #include "xgboost/span.h"
 #include "xgboost/data.h"

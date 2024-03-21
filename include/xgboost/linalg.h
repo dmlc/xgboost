@@ -745,6 +745,14 @@ auto ArrayInterfaceStr(TensorView<T, D> const &t) {
   return str;
 }
 
+template <typename T>
+auto Make1dInterface(T const *vec, std::size_t len) {
+  Context ctx;
+  auto t = linalg::MakeTensorView(&ctx, common::Span{vec, len}, len);
+  auto str = linalg::ArrayInterfaceStr(t);
+  return str;
+}
+
 /**
  * \brief A tensor storage. To use it for other functionality like slicing one needs to
  *        obtain a view first.  This way we can use it on both host and device.

@@ -15,17 +15,13 @@
 
 #include <cstdint>  // std::int32_t
 #include <cstdio>
-#include <fstream>
-#include <iostream>
 #include <memory>
 #include <string>
-#include <thread>
 #include <vector>
 
 #include "../../src/collective/communicator-inl.h"
 #include "../../src/common/common.h"
 #include "../../src/common/threading_utils.h"
-#include "../../src/data/array_interface.h"
 #include "filesystem.h"  // dmlc::TemporaryDirectory
 #include "xgboost/linalg.h"
 
@@ -492,6 +488,16 @@ inline void Reset(DataIterHandle self) {
 
 inline int Next(DataIterHandle self) {
   return static_cast<ArrayIterForTest*>(self)->Next();
+}
+
+/**
+ * @brief Create an array interface for host vector.
+ */
+template <typename T>
+char const* Make1dInterfaceTest(T const* vec, std::size_t len) {
+  static std::string str;
+  str = linalg::Make1dInterface(vec, len);
+  return str.c_str();
 }
 
 class RMMAllocator;

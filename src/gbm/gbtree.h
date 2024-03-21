@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2023 by Contributors
+ * Copyright 2014-2024, XGBoost Contributors
  * \file gbtree.cc
  * \brief gradient boosted tree implementation.
  * \author Tianqi Chen
@@ -11,14 +11,12 @@
 
 #include <algorithm>
 #include <cstdint>  // std::int32_t
-#include <map>
 #include <memory>
+#include <numeric>  // for iota
 #include <string>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
-#include "../common/common.h"
 #include "../common/timer.h"
 #include "../tree/param.h"  // TrainParam
 #include "gbtree_model.h"

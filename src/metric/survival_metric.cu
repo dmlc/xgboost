@@ -9,10 +9,9 @@
 
 #include <array>
 #include <memory>
+#include <numeric>  // for accumulate
 #include <vector>
 
-#include "../collective/communicator-inl.h"
-#include "../common/math.h"
 #include "../common/survival_util.h"
 #include "../common/threading_utils.h"
 #include "metric_common.h"  // MetricNoCache

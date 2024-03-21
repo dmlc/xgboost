@@ -9,8 +9,6 @@
 #include <string>
 
 #include "../collective/aggregator.h"
-#include "../collective/communicator-inl.h"
-#include "../common/common.h"
 #include "xgboost/metric.h"
 
 namespace xgboost {

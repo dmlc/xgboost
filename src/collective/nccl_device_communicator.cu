@@ -2,6 +2,8 @@
  * Copyright 2023 XGBoost contributors
  */
 #if defined(XGBOOST_USE_NCCL)
+#include <numeric>  // for accumulate
+
 #include "comm.cuh"
 #include "nccl_device_communicator.cuh"
 
