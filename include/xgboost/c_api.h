@@ -641,17 +641,12 @@ XGB_DLL int XGDMatrixSetInfoFromInterface(DMatrixHandle handle,
  */
 XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle, const char *field, const float *array,
                                   bst_ulong len);
-/*!
- * \brief set uint32 vector to a content in info
- * \param handle a instance of data matrix
- * \param field field name
- * \param array pointer to unsigned int vector
- * \param len length of array
- * \return 0 when success, -1 when failure happens
+/**
+ * @deprecated since 2.1.0
+ *
+ * Use @ref XGDMatrixSetInfoFromInterface instead.
  */
-XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle,
-                                 const char *field,
-                                 const unsigned *array,
+XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle, const char *field, const unsigned *array,
                                  bst_ulong len);
 
 /*!
@@ -725,20 +720,11 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
 
 /**
  * @deprecated since 2.1.0
+ *
+ * Use @ref XGDMatrixSetInfoFromInterface instead.
  */
 XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field, void const *data,
                                   bst_ulong size, int type);
-
-/*!
- * \brief (deprecated) Use XGDMatrixSetUIntInfo instead. Set group of the training matrix
- * \param handle a instance of data matrix
- * \param group pointer to group size
- * \param len length of array
- * \return 0 when success, -1 when failure happens
- */
-XGB_DLL int XGDMatrixSetGroup(DMatrixHandle handle,
-                              const unsigned *group,
-                              bst_ulong len);
 
 /*!
  * \brief get float info vector from matrix.
