@@ -634,6 +634,7 @@ XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle, const char *field, const 
   API_BEGIN();
   CHECK_HANDLE();
   xgboost_CHECK_C_ARG_PTR(field);
+  LOG(WARNING) << error::DeprecatedFunc(__func__, "2.1.0", "XGDMatrixSetInfoFromInterface");
   auto const &p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
   p_fmat->SetInfo(field, linalg::Make1dInterface(info, len));
   API_END();
@@ -679,7 +680,7 @@ XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field, void 
                                   xgboost::bst_ulong size, int type) {
   API_BEGIN();
   CHECK_HANDLE();
-  error::DeprecatedFunc("XGDMatrixSetDenseInfo", "2.1.0", "XGDMatrixSetInfoFromInterface");
+  LOG(WARNING) << error::DeprecatedFunc(__func__, "2.1.0", "XGDMatrixSetInfoFromInterface");
   auto const &p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
   CHECK(type >= 1 && type <= 4);
   xgboost_CHECK_C_ARG_PTR(field);
@@ -1020,7 +1021,7 @@ XGB_DLL int XGBoosterBoostOneIter(BoosterHandle handle, DMatrixHandle dtrain, bs
                                   bst_float *hess, xgboost::bst_ulong len) {
   API_BEGIN();
   CHECK_HANDLE();
-  error::DeprecatedFunc(__func__, "2.1.0", "XGBoosterTrainOneIter");
+  LOG(WARNING) << error::DeprecatedFunc(__func__, "2.1.0", "XGBoosterTrainOneIter");
   auto *learner = static_cast<Learner *>(handle);
   auto ctx = learner->Ctx()->MakeCPU();
 
