@@ -12,6 +12,7 @@
 #include <cmath>
 #include <numeric>  // for accumulate
 
+#include "../common/common.h"  // for AssertGPUSupport
 #include "../common/math.h"
 #include "../common/optional_weight.h"  // OptionalWeights
 #include "../common/pseudo_huber.h"
