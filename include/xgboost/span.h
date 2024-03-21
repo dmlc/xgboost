@@ -30,7 +30,6 @@
 #define XGBOOST_SPAN_H_
 
 #include <xgboost/base.h>
-#include <xgboost/logging.h>
 
 #include <cinttypes>  // size_t
 #include <cstdio>

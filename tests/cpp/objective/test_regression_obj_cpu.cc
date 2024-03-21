@@ -1,14 +1,15 @@
-/*!
- * Copyright 2018-2023 XGBoost contributors
+/**
+ * Copyright 2018-2024, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>
 #include <xgboost/objective.h>
 
-#include "../../../src/objective/adaptive.h"
-#include "../../../src/tree/param.h"        // for TrainParam
-#include "../helpers.h"
+#include <numeric>  // for iota
 
+#include "../../../src/objective/adaptive.h"
+#include "../../../src/tree/param.h"  // for TrainParam
+#include "../helpers.h"
 #include "test_regression_obj.h"
 
 namespace xgboost {
