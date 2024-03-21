@@ -5,10 +5,9 @@
 #include <xgboost/json.h>
 #include <xgboost/metric.h>
 
-#include <map>
 #include <memory>
+#include <numeric>  // for iota
 
-#include "../../../src/common/linalg_op.h"
 #include "../helpers.h"
 
 namespace xgboost::metric {
