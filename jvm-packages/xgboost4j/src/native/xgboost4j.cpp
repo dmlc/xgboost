@@ -408,7 +408,8 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixSetFloatI
 
   jfloat* array = jenv->GetFloatArrayElements(jarray, NULL);
   bst_ulong len = (bst_ulong)jenv->GetArrayLength(jarray);
-  int ret = XGDMatrixSetFloatInfo(handle, field, (float const *)array, len);
+  auto str = xgboost::linalg::Make1dInterface(array, len);
+  int ret = XGDMatrixSetInfoFromInterface(handle, field, str.c_str());
   JVM_CHECK_CALL(ret);
   //release
   if (field) jenv->ReleaseStringUTFChars(jfield, field);
@@ -427,7 +428,8 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixSetUIntIn
   const char*  field = jenv->GetStringUTFChars(jfield, 0);
   jint* array = jenv->GetIntArrayElements(jarray, NULL);
   bst_ulong len = (bst_ulong)jenv->GetArrayLength(jarray);
-  int ret = XGDMatrixSetUIntInfo(handle, (char const *)field, (unsigned int const *)array, len);
+  auto str = xgboost::linalg::Make1dInterface(array, len);
+  int ret = XGDMatrixSetInfoFromInterface(handle, field, str.c_str());
   JVM_CHECK_CALL(ret);
   //release
   if (field) jenv->ReleaseStringUTFChars(jfield, (const char *)field);
@@ -730,8 +732,8 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredictFr
   if (jmargin) {
     margin = jenv->GetFloatArrayElements(jmargin, nullptr);
     JVM_CHECK_CALL(XGProxyDMatrixCreate(&proxy));
-    JVM_CHECK_CALL(
-        XGDMatrixSetFloatInfo(proxy, "base_margin", margin, jenv->GetArrayLength(jmargin)));
+    auto str = xgboost::linalg::Make1dInterface(margin, jenv->GetArrayLength(jmargin));
+    JVM_CHECK_CALL(XGDMatrixSetInfoFromInterface(proxy, "base_margin", str.c_str()));
   }
 
   bst_ulong const *out_shape;
