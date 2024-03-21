@@ -689,7 +689,9 @@ XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field, void 
   std::string str;
   auto proc = [&](auto cast_d_ptr) {
     using T = std::remove_pointer_t<decltype(cast_d_ptr)>;
-    auto t = linalg::TensorView<T, 1>(common::Span<T>{cast_d_ptr, size}, {size}, DeviceOrd::CPU());
+    auto t = linalg::TensorView<T, 1>(
+        common::Span<T>{cast_d_ptr, static_cast<typename common::Span<T>::index_type>(size)},
+        {size}, DeviceOrd::CPU());
     CHECK(t.CContiguous());
     Json interface{linalg::ArrayInterface(t)};
     assert(ArrayInterface<1>{interface}.is_contiguous);
