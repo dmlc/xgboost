@@ -4,14 +4,15 @@
 #ifndef XGBOOST_C_API_C_API_UTILS_H_
 #define XGBOOST_C_API_C_API_UTILS_H_
 
-#include <algorithm>  // for min
-#include <cstddef>    // for size_t
-#include <memory>     // for shared_ptr
-#include <numeric>    // for accumulate
-#include <string>     // for string
-#include <tuple>      // for make_tuple
-#include <utility>    // for move
-#include <vector>     // for vector
+#include <algorithm>   // for min
+#include <cstddef>     // for size_t
+#include <functional>  // for multiplies
+#include <memory>      // for shared_ptr
+#include <numeric>     // for accumulate
+#include <string>      // for string
+#include <tuple>       // for make_tuple
+#include <utility>     // for move
+#include <vector>      // for vector
 
 #include "../common/json_utils.h"  // for TypeCheck
 #include "xgboost/c_api.h"
