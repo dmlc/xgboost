@@ -44,7 +44,10 @@ xgboost::common::Span<int8_t> DummyProcessor::HandleGHPairs(xgboost::common::Spa
         int8_t *ptr = buffer.data() + kPrefixLen;
         double *pairs = reinterpret_cast<double *>(ptr);
         size_t num = (buffer.size() - kPrefixLen) / 8;
-        gh_pairs_ = new vector<double>(pairs, pairs + num);
+        gh_pairs_ = new vector<double>();
+        for (int i = 0; i < num; i += 10) {
+            gh_pairs_->push_back(pairs[i]);
+        }
     }
 
     return buffer;
