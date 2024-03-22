@@ -293,8 +293,18 @@ void TestBuildHistogram(bool is_distributed, bool force_read_by_column, bool is_
       collective::Allreduce<collective::Operation::kSum>(&grad, 1);
       collective::Allreduce<collective::Operation::kSum>(&hess, 1);
     }
-    ASSERT_NEAR(grad, histogram.Histogram()[nid][i].GetGrad(), kEps);
-    ASSERT_NEAR(hess, histogram.Histogram()[nid][i].GetHess(), kEps);
+    if (is_distributed && !is_col_split) {
+      // row split, all party holds the same data
+      ASSERT_NEAR(grad, histogram.Histogram()[nid][i].GetGrad(), kEps);
+      ASSERT_NEAR(hess, histogram.Histogram()[nid][i].GetHess(), kEps);
+    }
+    if (is_distributed && is_col_split && is_secure) {
+      // secure col split, only rank 0 holds the global histogram
+      if (collective::GetRank() == 0) {
+        ASSERT_NEAR(grad, histogram.Histogram()[nid][i].GetGrad(), kEps);
+        ASSERT_NEAR(hess, histogram.Histogram()[nid][i].GetHess(), kEps);
+      }
+    }
   }
 }
 

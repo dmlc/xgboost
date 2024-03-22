@@ -27,6 +27,7 @@
 #include "xgboost/logging.h"                    // for CHECK_GE
 #include "xgboost/span.h"                       // for Span
 #include "xgboost/tree_model.h"                 // for RegTree
+#include "../../processing/processor.h"      // for Processor
 
 namespace xgboost::tree {
 /**
@@ -51,7 +52,7 @@ class HistogramBuilder {
   bool is_distributed_{false};
   bool is_col_split_{false};
   bool is_secure_{false};
-
+  xgboost::common::Span<std::int8_t> hist_data;
  public:
   /**
    * @brief Reset the builder, should be called before growing a new tree.
@@ -76,20 +77,68 @@ class HistogramBuilder {
                             std::vector<bst_node_t> const &nodes_to_build,
                             common::RowSetCollection const &row_set_collection,
                             common::Span<GradientPair const> gpair_h, bool force_read_by_column) {
-    // Parallel processing by nodes and data in each node
-    common::ParallelFor2d(space, this->n_threads_, [&](size_t nid_in_set, common::Range1d r) {
-      const auto tid = static_cast<unsigned>(omp_get_thread_num());
-      bst_node_t const nidx = nodes_to_build[nid_in_set];
-      auto elem = row_set_collection[nidx];
-      auto start_of_row_set = std::min(r.begin(), elem.Size());
-      auto end_of_row_set = std::min(r.end(), elem.Size());
-      auto rid_set = common::RowSetCollection::Elem(elem.begin + start_of_row_set,
-                                                    elem.begin + end_of_row_set, nidx);
-      auto hist = buffer_.GetInitializedHist(tid, nid_in_set);
-      if (rid_set.Size() != 0) {
-        common::BuildHist<any_missing>(gpair_h, rid_set, gidx, hist, force_read_by_column);
+    // Print out all kinds if information for interface integration
+    if (is_distributed_ && is_col_split_ && is_secure_ && (collective::GetRank() == 0)) {
+      std::cout << "--------------Node Hist----------------" << std::endl;
+      std::cout << "Current samples on nodes: " << std::endl;
+      // print info on all nodes
+      for (std::size_t nid = 0; nid < row_set_collection.Size(); ++nid) {
+        auto size = row_set_collection[nid].Size();
+        std::cout << "Node " << nid << " has " << size << " rows." << std::endl;
+        // print the first and last indexes of the rows with iterator
+        if (size > 0) {
+          std::cout << "First index for node " << nid << " is "
+                    << *row_set_collection[nid].begin << " and last index is "
+                    << *(row_set_collection[nid].end - 1) << std::endl;
+        }
       }
-    });
+      // print info on the nodes to build
+      for (auto nit = nodes_to_build.begin(); nit != nodes_to_build.end(); ++nit) {
+        std::cout << "Building local histogram for node ID: " << *nit
+                  << " with " << row_set_collection[*nit].Size()
+                  << " samples." << std::endl;
+      }
+      std::cout << "GHistIndexMatrix will not change with size " << gidx.index.Size() << std::endl;
+      auto cut_ptrs = gidx.Cuts().Ptrs();
+      auto cut_values = gidx.Cuts().Values();
+      // cut points: feature 0 start (0), feature 1 start, feature 2 start, ... feature n start
+      // cut value: cut for feature 0 slot 0, ..., feature 0 slot m, feature 1 slot 0, ...
+      std::cout << "size of the cut points and cut values: "
+                << cut_ptrs.size() << " " << cut_values.size() << std::endl;
+      std::cout << "first sample falls to: [feature_id, slot #, cutValue]: " << std::endl;
+      for (std::size_t i = 0; i < cut_ptrs.size()-1; ++i) {
+        auto slot_number = gidx.GetGindex(0, i);
+        std::cout << "[" << i << ", " << slot_number << ", "<< cut_values[slot_number] << "] ";
+      }
+      std::cout << std::endl;
+      std::cout << "------------------------------" << std::endl;
+    }
+
+    if (is_distributed_ && is_col_split_ && is_secure_) {
+      // Call the interface to transmit the row set collection and gidx to the secure worker
+      // for encrypted histogram compuation
+      if ((collective::GetRank() == 0)) {
+        std::cout << "------------CALL interface to transmit row & gidx---------" << std::endl;
+      }
+      processor_instance->InitAggregationContext(gidx);
+      // get the encrypted histogram from the secure worker
+      hist_data = processor_instance->ProcessAggregation(nodes_to_build, row_set_collection);
+    } else {
+      // Parallel processing by nodes and data in each node
+      common::ParallelFor2d(space, this->n_threads_, [&](size_t nid_in_set, common::Range1d r) {
+        const auto tid = static_cast<unsigned>(omp_get_thread_num());
+        bst_node_t const nidx = nodes_to_build[nid_in_set];
+        auto elem = row_set_collection[nidx];
+        auto start_of_row_set = std::min(r.begin(), elem.Size());
+        auto end_of_row_set = std::min(r.end(), elem.Size());
+        auto rid_set = common::RowSetCollection::Elem(elem.begin + start_of_row_set,
+                                                      elem.begin + end_of_row_set, nidx);
+        auto hist = buffer_.GetInitializedHist(tid, nid_in_set);
+        if (rid_set.Size() != 0) {
+            common::BuildHist<any_missing>(gpair_h, rid_set, gidx, hist, force_read_by_column);
+        }
+      });
+    }
   }
 
   /**
@@ -194,17 +243,61 @@ class HistogramBuilder {
     }
 
     if (is_distributed_ && is_col_split_ && is_secure_) {
-      // Under secure vertical mode, we perform allgather for all nodes
+      // Under secure vertical mode, we perform allgather to get the global histogram.
+      // note that only Label Owner needs the global histogram
       CHECK(!nodes_to_build.empty());
-      // in theory the operation is AllGather, under current histogram setting of
-      // same length with 0s for empty slots,
-      // AllReduce is the most efficient way of achieving the global histogram
-      auto first_nidx = nodes_to_build.front();
-      std::size_t n = n_total_bins * nodes_to_build.size() * 2;
-      collective::Allreduce<collective::Operation::kSum>(
-              reinterpret_cast<double *>(this->hist_[first_nidx].data()), n);
-    }
 
+
+      // Front item of nodes_to_build
+      auto first_nidx = nodes_to_build.front();
+      // *2 because we have a pair of g and h for each histogram item
+      std::size_t n = n_total_bins * nodes_to_build.size() * 2;
+      /*
+      // Use AllGather to collect the histogram entries from all nodes
+      // allocate memory for the received entries as a flat vector
+      std::vector<double> hist_flat;
+      // iterate through the nodes_to_build
+      auto it = reinterpret_cast<double *>(hist_data.data());
+      for (size_t i = 0; i < n; i++) {
+        // get item with iterator
+        double item = *it;
+        hist_flat.push_back(item);
+        it++;
+      }
+*/
+
+      // Perform AllGather
+      auto hist_entries = collective::Allgather(hist_data);
+      // Call interface here to post-process the messages
+      if (collective::GetRank() == 0) {
+        std::cout << "---------------CALL Interface for processing-------------- " << std::endl;
+      }
+      std::vector<double> hist_aggr = processor_instance->HandleAggregation(hist_entries);
+      std::cout << "aggregated size: " << hist_aggr.size() << std::endl;
+
+      // Update histogram for label owner
+      if (collective::GetRank() == 0) {
+        // iterator of the beginning of the vector
+        auto it = reinterpret_cast<double *>(this->hist_[first_nidx].data());
+        // iterate through the hist vector of the label owner
+        for (size_t i = 0; i < n; i++) {
+          *it = hist_aggr[i];
+            /*
+          // skip rank 0, as local hist already contains its own entries
+          // get the sum of the entries from other ranks
+          double hist_sum = 0.0;
+          for (std::size_t rank_idx = 1; rank_idx < hist_entries.size()/n; rank_idx++) {
+            int flat_idx = rank_idx * n + i;
+              hist_sum += hist_entries.at(flat_idx);
+          }
+          // add other parties' sum to rank 0's record
+          // to get the global histogram
+          *it += hist_sum;
+          */
+          it++;
+        }
+      }
+    }
     common::BlockedSpace2d const &subspace =
         nodes_to_trick.size() == nodes_to_build.size()
             ? space
@@ -309,6 +402,14 @@ class MultiHistogramBuilder {
     std::vector<bst_node_t> nodes_to_sub(valid_candidates.size());
     AssignNodes(p_tree, valid_candidates, nodes_to_build, nodes_to_sub);
 
+    // print index for nodes_to_build and nodes_to_sub
+    if (collective::GetRank() == 0) {
+      for (std::size_t i = 0; i < nodes_to_build.size(); i++) {
+        std::cout<< "Left-Right: nodes_to_build index " << nodes_to_build[i] << ";  ";
+        std::cout<< "nodes_to_sub index " << nodes_to_sub[i] << std::endl;
+      }
+    }
+
     // use the first builder for getting number of valid nodes.
     target_builders_.front().AddHistRows(p_tree, &nodes_to_build, &nodes_to_sub, true);
     CHECK_GE(nodes_to_build.size(), nodes_to_sub.size());
@@ -325,6 +426,11 @@ class MultiHistogramBuilder {
       CHECK_EQ(gpair.Shape(1), p_tree->NumTargets());
       for (bst_target_t t = 0; t < p_tree->NumTargets(); ++t) {
         auto t_gpair = gpair.Slice(linalg::All(), t);
+
+        if (collective::GetRank() == 0) {
+          std::cout<< "Total row count: " << p_fmat->Info().num_row_ << std::endl;
+        }
+
         CHECK_EQ(t_gpair.Shape(0), p_fmat->Info().num_row_);
         this->target_builders_[t].BuildHist(page_idx, space, page,
                                             partitioners[page_idx].Partitions(), nodes_to_build,

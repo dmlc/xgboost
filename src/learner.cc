@@ -62,13 +62,13 @@
 #include "xgboost/predictor.h"            // for PredictionContainer, PredictionCacheEntry
 #include "xgboost/string_view.h"          // for operator<<, StringView
 #include "xgboost/task.h"                 // for ObjInfo
-
+#include "processing/processor.h"      // for Processor
 namespace {
 const char* kMaxDeltaStepDefaultValue = "0.7";
 }  // anonymous namespace
 
 DECLARE_FIELD_ENUM_CLASS(xgboost::MultiStrategy);
-
+xgboost::processing::Processor *processor_instance;
 namespace xgboost {
 Learner::~Learner() = default;
 namespace {
@@ -493,6 +493,21 @@ class LearnerConfiguration : public Learner {
 
     this->ConfigureMetrics(args);
 
+    if ((collective::GetRank() == 0)) {
+      std::cout << "Initialize interface" << std::endl;
+    }
+
+    xgboost::processing::ProcessorLoader loader;
+    processor_instance = loader.load("dummy");
+    if (collective::GetRank() == 0) {
+      processor_instance->Initialize(true, {});
+    } else {
+      processor_instance->Initialize(false, {});
+    }
+    //processor_instance->FreeBuffer(buf);
+    //processor_instance->Shutdown();
+    //loader.unload();
+
     this->need_configuration_ = false;
     if (ctx_.validate_parameters) {
       this->ValidateParameters();
@@ -846,7 +861,7 @@ class LearnerConfiguration : public Learner {
 
   void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_score) {
     base_score->Reshape(1);
-    collective::ApplyWithLabels(this->Ctx(), info, base_score->Data(),
+    collective::ApplyWithLabels<false>(this->Ctx(), info, base_score->Data(),
                                 [&] { UsePtr(obj_)->InitEstimation(info, base_score); });
   }
 };
@@ -1472,8 +1487,9 @@ class LearnerImpl : public LearnerIO {
   void GetGradient(HostDeviceVector<bst_float> const& preds, MetaInfo const& info,
                    std::int32_t iter, linalg::Matrix<GradientPair>* out_gpair) {
     out_gpair->Reshape(info.num_row_, this->learner_model_param_.OutputLength());
-    collective::ApplyWithLabels(&ctx_, info, out_gpair->Data(),
-                                [&] { obj_->GetGradient(preds, info, iter, out_gpair); });
+    // calculate gradient and communicate
+    collective::ApplyWithLabels<true>(&ctx_, info, out_gpair->Data(),
+                                  [&] { obj_->GetGradient(preds, info, iter, out_gpair); });
   }
 
   /*! \brief random number transformation seed. */
