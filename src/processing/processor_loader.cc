@@ -1,15 +1,16 @@
+/**
+ * Copyright 2014-2024 by XGBoost Contributors
+ */
 #include <iostream>
 #include <dlfcn.h>
 
 #include "./processor.h"
-#include "./dummy_processor.h"
+#include "plugins/dummy_processor.h"
 
 namespace xgboost::processing {
+    using LoadFunc = Processor *(const char *);
 
-    typedef Processor* (load_func)(const char *);
-
-    Processor* ProcessorLoader::load(std::string plugin_name) {
-
+    Processor* ProcessorLoader::load(const std::string& plugin_name) {
         // Dummy processor for unit testing without loading a shared library
         if (plugin_name == kDummyProcessor) {
             return new DummyProcessor();
@@ -19,9 +20,9 @@ namespace xgboost::processing {
 
         auto extension =
 #if defined(__APPLE__) || defined(__MACH__)
-                ".dylib";
+            ".dylib";
 #else
-        ".so";
+            ".so";
 #endif
         auto lib_file_name = lib_name + extension;
 
@@ -43,25 +44,19 @@ namespace xgboost::processing {
             return NULL;
         }
 
-        void* func_ptr = dlsym(handle, "LoadProcessor");
+        void* func_ptr = dlsym(handle, kLoadFunc);
 
         if (!func_ptr) {
             std::cerr << "Failed to find loader function: " << dlerror() << std::endl;
             return NULL;
         }
 
-        auto func = reinterpret_cast<load_func *>(func_ptr);
+        auto func = reinterpret_cast<LoadFunc *>(func_ptr);
 
         return (*func)(plugin_name.c_str());
     }
 
-    void ProcessorLoader::unload()
-    {
-#if defined(_WIN32)
-        FreeLibrary(handle);
-#else
+    void ProcessorLoader::unload() {
         dlclose(handle);
-#endif
     }
-}
-
+}  // namespace xgboost::processing

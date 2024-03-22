@@ -342,12 +342,6 @@ target_include_directories(xgboost
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>)
 #-- End shared library
 
-add_library(seal STATIC IMPORTED)
-set_target_properties(seal PROPERTIES
-  IMPORTED_LOCATION "/usr/local/lib/libseal-4.1.a"
-)
-target_link_libraries(xgboost PRIVATE seal)
-
 #-- CLI for xgboost
 if(BUILD_DEPRECATED_CLI)
   add_executable(runxgboost ${xgboost_SOURCE_DIR}/src/cli_main.cc)
