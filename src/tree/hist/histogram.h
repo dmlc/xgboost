@@ -27,6 +27,7 @@
 #include "xgboost/logging.h"                    // for CHECK_GE
 #include "xgboost/span.h"                       // for Span
 #include "xgboost/tree_model.h"                 // for RegTree
+#include "../../processing/processor.h"      // for Processor
 
 namespace xgboost::tree {
 /**
@@ -111,26 +112,39 @@ class HistogramBuilder {
       }
       std::cout << std::endl;
       std::cout << "------------------------------" << std::endl;
+    }
+
+    if (is_distributed_ && is_col_split_ && is_secure_) {
       // Call the interface to transmit the row set collection and gidx to the secure worker
+      // for encrypted histogram compuation
       if ((collective::GetRank() == 0)) {
         std::cout << "------------CALL interface to transmit row & gidx---------" << std::endl;
       }
-    }
-
-    // Parallel processing by nodes and data in each node
-    common::ParallelFor2d(space, this->n_threads_, [&](size_t nid_in_set, common::Range1d r) {
-      const auto tid = static_cast<unsigned>(omp_get_thread_num());
-      bst_node_t const nidx = nodes_to_build[nid_in_set];
-      auto elem = row_set_collection[nidx];
-      auto start_of_row_set = std::min(r.begin(), elem.Size());
-      auto end_of_row_set = std::min(r.end(), elem.Size());
-      auto rid_set = common::RowSetCollection::Elem(elem.begin + start_of_row_set,
-                                                    elem.begin + end_of_row_set, nidx);
-      auto hist = buffer_.GetInitializedHist(tid, nid_in_set);
-      if (rid_set.Size() != 0) {
-        common::BuildHist<any_missing>(gpair_h, rid_set, gidx, hist, force_read_by_column);
+      xgboost::processing::ProcessorLoader loader;
+      auto processor = loader.load("dummy");
+      if (collective::GetRank() == 0) {
+        processor->Initialize(true, {});
+      } else {
+        processor->Initialize(false, {});
       }
-    });
+      processor->InitAggregationContext(gidx);
+      processor->ProcessAggregation(nodes_to_build, row_set_collection);
+    } else {
+      // Parallel processing by nodes and data in each node
+      common::ParallelFor2d(space, this->n_threads_, [&](size_t nid_in_set, common::Range1d r) {
+        const auto tid = static_cast<unsigned>(omp_get_thread_num());
+        bst_node_t const nidx = nodes_to_build[nid_in_set];
+        auto elem = row_set_collection[nidx];
+        auto start_of_row_set = std::min(r.begin(), elem.Size());
+        auto end_of_row_set = std::min(r.end(), elem.Size());
+        auto rid_set = common::RowSetCollection::Elem(elem.begin + start_of_row_set,
+                                                      elem.begin + end_of_row_set, nidx);
+        auto hist = buffer_.GetInitializedHist(tid, nid_in_set);
+        if (rid_set.Size() != 0) {
+            common::BuildHist<any_missing>(gpair_h, rid_set, gidx, hist, force_read_by_column);
+        }
+      });
+    }
   }
 
   /**

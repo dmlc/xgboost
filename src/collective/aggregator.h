@@ -14,6 +14,7 @@
 #include "communicator-inl.h"
 #include "xgboost/collective/result.h"  // for Result
 #include "xgboost/data.h"               // for MetaINfo
+#include "../processing/processor.h"      // for Processor
 
 namespace xgboost::collective {
 
@@ -99,6 +100,18 @@ void ApplyWithLabels(Context const*, MetaInfo const& info, HostDeviceVector<T>* 
     if (info.IsSecure() && is_gpair) {
       // Under secure mode, gpairs will be processed to vector and encrypt
       // information only available on rank 0
+
+      xgboost::processing::ProcessorLoader loader;
+      auto processor = loader.load("dummy");
+      if (collective::GetRank() == 0) {
+        processor->Initialize(true, {});
+      } else {
+        processor->Initialize(false, {});
+      }
+
+      std::size_t buffer_size{};
+      std::int8_t *buffer;
+      //common::Span<std::int8_t> buffer;
       if (collective::GetRank() == 0) {
         std::vector<double> vector_gh;
         for (std::size_t i = 0; i < size; i++) {
@@ -109,20 +122,46 @@ void ApplyWithLabels(Context const*, MetaInfo const& info, HostDeviceVector<T>* 
           vector_gh.push_back(gpair_ptr[0]);
           vector_gh.push_back(gpair_ptr[1]);
         }
-      // provide the vectors to the processor interface
-      // print vector size for rank 1
-      if (collective::GetRank() == 0) {
-        std::cout << "-----------Call Interface for gp encryption and broadcast"
-                  << ", size of gpairs: " << vector_gh.size()
-                  << " ----------------------" << std::endl;
+        // provide the vectors to the processor interface
+        // print vector size for rank 1
+        if (collective::GetRank() == 0) {
+          std::cout << "-----------Call Interface for gp encryption and broadcast"
+          << ", size of gpairs: " << vector_gh.size()
+          << " ----------------------" << std::endl;
+          auto buf = processor->ProcessGHPairs(vector_gh);
+          buffer_size = buf.size();
+          buffer = reinterpret_cast<std::int8_t *>(buf.data());
+          std::cout << "buffer size: " << buffer_size << std::endl;
         }
       }
-      // make broadcast call on the prepared data buffer
-      // (to local gRPC handler for further encryption)
-      // collective::Broadcast(gh_buffer, size_of_buffer, 0);
+      // broadcast the buffer size
+      collective::Broadcast(&buffer_size, sizeof(std::size_t), 0);
 
-      result->Resize(size);
-      collective::Broadcast(result->HostPointer(), size * sizeof(T), 0);
+      // prepare buffer on passive parties for satisfying broadcast mpi call
+      if (collective::GetRank() != 0) {
+        buffer = reinterpret_cast<std::int8_t *>(malloc(buffer_size));
+      }
+      // broadcast the data buffer holding processed gpairs
+      collective::Broadcast(buffer, buffer_size, 0);
+
+      // call HandleGHPairs
+      xgboost::common::Span<int8_t> buf = xgboost::common::Span<int8_t>(buffer, buffer_size);
+      processor->HandleGHPairs(buf);
+
+
+
+
+      // update the result vector with the broadcasted data
+      //result->Resize(size);
+      //collective::Broadcast(result->HostPointer(), size * sizeof(T), 0);
+        //for (std::size_t i = 0; i < size; i++) {
+        //  auto gpair_ptr = reinterpret_cast<float*>(&result->HostVector()[i]);
+        //  gpair_ptr[0] = buffer[i * 2];
+        //  gpair_ptr[1] = buffer[i * 2 + 1];
+        //}
+      //processor->FreeBuffer(buf);
+      //processor->Shutdown();
+      //loader.unload();
     } else {
       // clear text mode, broadcast the data directly
       result->Resize(size);

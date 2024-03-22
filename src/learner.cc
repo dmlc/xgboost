@@ -62,7 +62,7 @@
 #include "xgboost/predictor.h"            // for PredictionContainer, PredictionCacheEntry
 #include "xgboost/string_view.h"          // for operator<<, StringView
 #include "xgboost/task.h"                 // for ObjInfo
-
+#include "processing/processor.h"      // for Processor
 namespace {
 const char* kMaxDeltaStepDefaultValue = "0.7";
 }  // anonymous namespace
@@ -496,6 +496,14 @@ class LearnerConfiguration : public Learner {
     if ((collective::GetRank() == 0)) {
       std::cout << "configure interface here???????????????" << std::endl;
     }
+      xgboost::processing::ProcessorLoader loader;
+      auto processor = loader.load("dummy");
+      if (collective::GetRank() == 0) {
+        processor->Initialize(true, {});
+      } else {
+        processor->Initialize(false, {});
+      }
+
 
     this->need_configuration_ = false;
     if (ctx_.validate_parameters) {
