@@ -87,7 +87,7 @@ class Processor {
      * \return A flattened vector of histograms for each site, each node in the form of
      *     site1_node1, site1_node2 site1_node3, site2_node1, site2_node2, site2_node3
      */
-    virtual std::vector<double> HandleAggregation(common::Span<std::int8_t> buffer) = 0;
+    virtual std::vector<double> HandleAggregation(std::vector<common::Span<std::int8_t>> buffers) = 0;
 };
 
 class ProcessorLoader {
