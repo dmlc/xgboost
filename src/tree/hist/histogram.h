@@ -120,15 +120,8 @@ class HistogramBuilder {
       if ((collective::GetRank() == 0)) {
         std::cout << "------------CALL interface to transmit row & gidx---------" << std::endl;
       }
-      xgboost::processing::ProcessorLoader loader;
-      auto processor = loader.load("dummy");
-      if (collective::GetRank() == 0) {
-        processor->Initialize(true, {});
-      } else {
-        processor->Initialize(false, {});
-      }
-      processor->InitAggregationContext(gidx);
-      processor->ProcessAggregation(nodes_to_build, row_set_collection);
+      processor_instance->InitAggregationContext(gidx);
+      processor_instance->ProcessAggregation(nodes_to_build, row_set_collection);
     } else {
       // Parallel processing by nodes and data in each node
       common::ParallelFor2d(space, this->n_threads_, [&](size_t nid_in_set, common::Range1d r) {

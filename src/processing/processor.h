@@ -105,4 +105,7 @@ class ProcessorLoader {
 
     void unload();
 };
+
 }  // namespace xgboost::processing
+
+extern xgboost::processing::Processor *processor_instance;

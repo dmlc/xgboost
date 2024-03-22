@@ -101,14 +101,6 @@ void ApplyWithLabels(Context const*, MetaInfo const& info, HostDeviceVector<T>* 
       // Under secure mode, gpairs will be processed to vector and encrypt
       // information only available on rank 0
 
-      xgboost::processing::ProcessorLoader loader;
-      auto processor = loader.load("dummy");
-      if (collective::GetRank() == 0) {
-        processor->Initialize(true, {});
-      } else {
-        processor->Initialize(false, {});
-      }
-
       std::size_t buffer_size{};
       std::int8_t *buffer;
       //common::Span<std::int8_t> buffer;
@@ -128,7 +120,7 @@ void ApplyWithLabels(Context const*, MetaInfo const& info, HostDeviceVector<T>* 
           std::cout << "-----------Call Interface for gp encryption and broadcast"
           << ", size of gpairs: " << vector_gh.size()
           << " ----------------------" << std::endl;
-          auto buf = processor->ProcessGHPairs(vector_gh);
+          auto buf = processor_instance->ProcessGHPairs(vector_gh);
           buffer_size = buf.size();
           buffer = reinterpret_cast<std::int8_t *>(buf.data());
           std::cout << "buffer size: " << buffer_size << std::endl;
@@ -146,7 +138,7 @@ void ApplyWithLabels(Context const*, MetaInfo const& info, HostDeviceVector<T>* 
 
       // call HandleGHPairs
       xgboost::common::Span<int8_t> buf = xgboost::common::Span<int8_t>(buffer, buffer_size);
-      processor->HandleGHPairs(buf);
+      processor_instance->HandleGHPairs(buf);
 
 
 

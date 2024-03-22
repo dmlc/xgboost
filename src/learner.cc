@@ -68,7 +68,7 @@ const char* kMaxDeltaStepDefaultValue = "0.7";
 }  // anonymous namespace
 
 DECLARE_FIELD_ENUM_CLASS(xgboost::MultiStrategy);
-
+xgboost::processing::Processor *processor_instance;
 namespace xgboost {
 Learner::~Learner() = default;
 namespace {
@@ -497,11 +497,11 @@ class LearnerConfiguration : public Learner {
       std::cout << "configure interface here???????????????" << std::endl;
     }
       xgboost::processing::ProcessorLoader loader;
-      auto processor = loader.load("dummy");
+      processor_instance = loader.load("dummy");
       if (collective::GetRank() == 0) {
-        processor->Initialize(true, {});
+          processor_instance->Initialize(true, {});
       } else {
-        processor->Initialize(false, {});
+          processor_instance->Initialize(false, {});
       }
 
 
