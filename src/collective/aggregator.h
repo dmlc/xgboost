@@ -139,21 +139,6 @@ void ApplyWithLabels(Context const*, MetaInfo const& info, HostDeviceVector<T>* 
       // call HandleGHPairs
       xgboost::common::Span<int8_t> buf = xgboost::common::Span<int8_t>(buffer, buffer_size);
       processor_instance->HandleGHPairs(buf);
-
-
-
-
-      // update the result vector with the broadcasted data
-      //result->Resize(size);
-      //collective::Broadcast(result->HostPointer(), size * sizeof(T), 0);
-        //for (std::size_t i = 0; i < size; i++) {
-        //  auto gpair_ptr = reinterpret_cast<float*>(&result->HostVector()[i]);
-        //  gpair_ptr[0] = buffer[i * 2];
-        //  gpair_ptr[1] = buffer[i * 2 + 1];
-        //}
-      //processor->FreeBuffer(buf);
-      //processor->Shutdown();
-      //loader.unload();
     } else {
       // clear text mode, broadcast the data directly
       result->Resize(size);

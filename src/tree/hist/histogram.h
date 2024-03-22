@@ -52,7 +52,7 @@ class HistogramBuilder {
   bool is_distributed_{false};
   bool is_col_split_{false};
   bool is_secure_{false};
-
+  xgboost::common::Span<std::int8_t> hist_data;
  public:
   /**
    * @brief Reset the builder, should be called before growing a new tree.
@@ -121,7 +121,8 @@ class HistogramBuilder {
         std::cout << "------------CALL interface to transmit row & gidx---------" << std::endl;
       }
       processor_instance->InitAggregationContext(gidx);
-      processor_instance->ProcessAggregation(nodes_to_build, row_set_collection);
+      // get the encrypted histogram from the secure worker
+      hist_data = processor_instance->ProcessAggregation(nodes_to_build, row_set_collection);
     } else {
       // Parallel processing by nodes and data in each node
       common::ParallelFor2d(space, this->n_threads_, [&](size_t nid_in_set, common::Range1d r) {
@@ -246,29 +247,33 @@ class HistogramBuilder {
       // note that only Label Owner needs the global histogram
       CHECK(!nodes_to_build.empty());
 
+
       // Front item of nodes_to_build
       auto first_nidx = nodes_to_build.front();
       // *2 because we have a pair of g and h for each histogram item
       std::size_t n = n_total_bins * nodes_to_build.size() * 2;
-
+      /*
       // Use AllGather to collect the histogram entries from all nodes
       // allocate memory for the received entries as a flat vector
       std::vector<double> hist_flat;
       // iterate through the nodes_to_build
-      auto it = reinterpret_cast<double *>(this->hist_[first_nidx].data());
+      auto it = reinterpret_cast<double *>(hist_data.data());
       for (size_t i = 0; i < n; i++) {
         // get item with iterator
         double item = *it;
         hist_flat.push_back(item);
         it++;
       }
+*/
 
       // Perform AllGather
-      auto hist_entries = collective::Allgather(hist_flat);
+      auto hist_entries = collective::Allgather(hist_data);
       // Call interface here to post-process the messages
       if (collective::GetRank() == 0) {
         std::cout << "---------------CALL Interface for processing-------------- " << std::endl;
       }
+      std::vector<double> hist_aggr = processor_instance->HandleAggregation(hist_entries);
+      std::cout << "aggregated size: " << hist_aggr.size() << std::endl;
 
       // Update histogram for label owner
       if (collective::GetRank() == 0) {
@@ -276,6 +281,8 @@ class HistogramBuilder {
         auto it = reinterpret_cast<double *>(this->hist_[first_nidx].data());
         // iterate through the hist vector of the label owner
         for (size_t i = 0; i < n; i++) {
+          *it = hist_aggr[i];
+            /*
           // skip rank 0, as local hist already contains its own entries
           // get the sum of the entries from other ranks
           double hist_sum = 0.0;
@@ -286,6 +293,7 @@ class HistogramBuilder {
           // add other parties' sum to rank 0's record
           // to get the global histogram
           *it += hist_sum;
+          */
           it++;
         }
       }

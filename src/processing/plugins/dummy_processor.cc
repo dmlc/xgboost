@@ -44,7 +44,10 @@ xgboost::common::Span<int8_t> DummyProcessor::HandleGHPairs(xgboost::common::Spa
         int8_t *ptr = buffer.data() + kPrefixLen;
         double *pairs = reinterpret_cast<double *>(ptr);
         size_t num = (buffer.size() - kPrefixLen) / 8;
-        gh_pairs_ = new vector<double>(pairs, pairs + num);
+        gh_pairs_ = new vector<double>();
+        for (int i = 0; i < num; i += 10) {
+            gh_pairs_->push_back(pairs[i]);
+        }
     }
 
     return buffer;
@@ -83,22 +86,17 @@ xgboost::common::Span<std::int8_t> DummyProcessor::ProcessAggregation(
     return xgboost::common::Span<int8_t>(reinterpret_cast<int8_t *>(buf), buf_size);
 }
 
-std::vector<double> DummyProcessor::HandleAggregation(xgboost::common::Span<std::int8_t> buffer) {
+std::vector<double> DummyProcessor::HandleAggregation(std::vector<xgboost::common::Span<std::int8_t>> buffers) {
     std::vector<double> result = std::vector<double>();
 
-    int8_t* ptr = buffer.data();
-    auto rest_size = buffer.size();
-
-    while (rest_size > kPrefixLen) {
+    for (auto buf : buffers) {
+        int8_t *ptr = buf.data();
         std::int64_t *size_ptr = reinterpret_cast<std::int64_t *>(ptr + 8);
         double *array_start = reinterpret_cast<double *>(ptr + kPrefixLen);
-        auto array_size = (*size_ptr - kPrefixLen)/8;
+        auto array_size = (*size_ptr - kPrefixLen) / 8;
         result.insert(result.end(), array_start, array_start + array_size);
-
-        rest_size -= *size_ptr;
-        ptr = ptr + *size_ptr;
     }
-
+    
     return result;
 }
 
