@@ -51,7 +51,7 @@ xgboost::common::Span<int8_t> DummyProcessor::HandleGHPairs(xgboost::common::Spa
 }
 
 xgboost::common::Span<std::int8_t> DummyProcessor::ProcessAggregation(
-        std::vector<xgboost::bst_node_t> const &nodes_to_build, xgboost::common::RowSetCollection row_set) {
+        std::vector<xgboost::bst_node_t> const &nodes_to_build, xgboost::common::RowSetCollection const &row_set) {
     auto total_bin_size = gidx_->Cuts().Values().size();
     auto histo_size = total_bin_size*2;
     auto buf_size = kPrefixLen + 8*histo_size*nodes_to_build.size();

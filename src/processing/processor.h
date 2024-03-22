@@ -77,7 +77,7 @@ class Processor {
      * \return The encoded buffer to be sent via AllGather
      */
     virtual common::Span<std::int8_t> ProcessAggregation(std::vector<bst_node_t> const &nodes_to_build,
-                                                         common::RowSetCollection row_set) = 0;
+                                                         common::RowSetCollection const &row_set) = 0;
 
     /*!
      * \brief Handle all gather result

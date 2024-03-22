@@ -38,7 +38,7 @@ class DummyProcessor: public xgboost::processing::Processor {
     }
 
     xgboost::common::Span<std::int8_t> ProcessAggregation(std::vector<xgboost::bst_node_t> const &nodes_to_build,
-                                                          xgboost::common::RowSetCollection row_set) override;
+                                                          xgboost::common::RowSetCollection const &row_set) override;
 
     std::vector<double> HandleAggregation(xgboost::common::Span<std::int8_t> buffer) override;
 };
