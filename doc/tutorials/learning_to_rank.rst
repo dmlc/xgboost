@@ -72,7 +72,7 @@ Please note that, as of writing, there's no learning-to-rank interface in scikit
 .. code-block:: python
 
   df = pd.DataFrame(X, columns=[str(i) for i in range(X.shape[1])])
-  df["qid"] = qid
+  df["qid"] = qid[sorted_idx]
   ranker.fit(df, y)  # No need to pass qid as a separate argument
 
   from sklearn.model_selection import StratifiedGroupKFold, cross_val_score
