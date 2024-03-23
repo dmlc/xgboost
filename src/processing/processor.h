@@ -17,8 +17,8 @@ const char kDummyProcessor[] = "dummy";
 const char kLoadFunc[] = "LoadProcessor";
 
 //  Data type definition
-const int kDataTypeGHPairs = 1;
-const int kDataTypeHisto = 2;
+const int64_t kDataTypeGHPairs = 1;
+const int64_t kDataTypeHisto = 2;
 
 /*! \brief An processor interface to handle tasks that require external library through plugins */
 class Processor {
@@ -82,12 +82,12 @@ class Processor {
     /*!
      * \brief Handle all gather result
      *
-     * \param buffers Buffer from all gather, only buffer from active site is needed
+     * \param buffer Buffer from all gather, only buffer from active site is needed
      *
      * \return A flattened vector of histograms for each site, each node in the form of
      *     site1_node1, site1_node2 site1_node3, site2_node1, site2_node2, site2_node3
      */
-    virtual std::vector<double> HandleAggregation(std::vector<common::Span<std::int8_t>> buffers) = 0;
+    virtual std::vector<double> HandleAggregation(xgboost::common::Span<std::int8_t> buffer) = 0;
 };
 
 class ProcessorLoader {
