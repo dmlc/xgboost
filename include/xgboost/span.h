@@ -705,7 +705,7 @@ class IterSpan {
     return it_ + size();
   }
 };
-} // namespace xgboost::common
+}  // namespace xgboost::common
 
 
 #if defined(_MSC_VER) &&_MSC_VER < 1910
