@@ -135,7 +135,7 @@ jobs:
     - name: Test R
       shell: bash -l {0}
       run: |
-        python3 tests/ci_build/test_r_package.py --r=/tmp/R-devel/bin/R --build-tool=autotools --task=check
+        python3 tests/ci_build/test_r_package.py --r=/usr/bin/R --build-tool=autotools --task=check
 
     - uses: dorny/paths-filter@v2
       id: changes
@@ -147,4 +147,4 @@ jobs:
     - name: Run document check
       if: steps.changes.outputs.r_package == 'true'
       run: |
-        python3 tests/ci_build/test_r_package.py --r=/tmp/R-devel/bin/R --task=doc
+        python3 tests/ci_build/test_r_package.py --r=/usr/bin/R --task=doc
