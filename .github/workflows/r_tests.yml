@@ -110,7 +110,7 @@ jobs:
     name: Test R package on Debian
     runs-on: ubuntu-latest
     container:
-      image: rhub/ubuntu-next
+      image: rhub/ubuntu-release
 
     steps:
     - name: Install system dependencies
