@@ -130,7 +130,7 @@ jobs:
     - name: Install dependencies
       shell: bash -l {0}
       run: |
-        /tmp/R-devel/bin/Rscript -e "source('./R-package/tests/helper_scripts/install_deps.R')"
+        Rscript -e "source('./R-package/tests/helper_scripts/install_deps.R')"
 
     - name: Test R
       shell: bash -l {0}
