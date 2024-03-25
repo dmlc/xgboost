@@ -332,7 +332,7 @@ inline std::vector<float> GenerateRandomCategoricalSingleColumn(int n, size_t nu
   std::vector<float> x(n);
   std::mt19937 rng(0);
   std::uniform_int_distribution<size_t> dist(0, num_categories - 1);
-  std::generate(x.begin(), x.end(), [&]() { return dist(rng); });
+  std::generate(x.begin(), x.end(), [&]() { return static_cast<float>(dist(rng)); });
   // Make sure each category is present
   for (size_t i = 0; i < num_categories; i++) {
     x[i] = static_cast<decltype(x)::value_type>(i);
@@ -498,7 +498,7 @@ inline int Next(DataIterHandle self) {
  */
 template <typename T>
 char const* Make1dInterfaceTest(T const* vec, std::size_t len) {
-  static std::string str;
+  static thread_local std::string str;
   str = linalg::Make1dInterface(vec, len);
   return str.c_str();
 }
