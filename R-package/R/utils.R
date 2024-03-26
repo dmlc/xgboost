@@ -241,6 +241,7 @@ generate.cv.folds <- function(nfold, nrows, stratified, label, group, params) {
   }
   objective <- params$objective
   if (!is.character(objective)) {
+    warning("Will use unstratified splitting (custom objective used)")
     stratified <- FALSE
   }
   # cannot stratify if label is NULL
