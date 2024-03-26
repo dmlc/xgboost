@@ -240,7 +240,7 @@ TEST(Histogram, AtomicAddInt64) {
   TestAtomicAdd();
 }
 
-TEST(Histogram, Quantilizer) {
+TEST(Histogram, Quantiser) {
   auto ctx = MakeCUDACtx(0);
   std::size_t n_samples{16};
   HostDeviceVector<GradientPair> gpair(n_samples, GradientPair{1.0, 1.0});

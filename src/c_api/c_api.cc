@@ -695,7 +695,7 @@ XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field, void 
         {size}, DeviceOrd::CPU());
     CHECK(t.CContiguous());
     Json interface{linalg::ArrayInterface(t)};
-    assert(ArrayInterface<1>{interface}.is_contiguous);
+    CHECK(ArrayInterface<1>{interface}.is_contiguous);
     str = Json::Dump(interface);
     return str;
   };
