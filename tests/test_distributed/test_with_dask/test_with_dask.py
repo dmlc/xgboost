@@ -315,8 +315,15 @@ def test_dask_sparse(client: "Client") -> None:
     )
 
 
-def run_categorical(client: "Client", tree_method: str, X, X_onehot, y) -> None:
-    parameters = {"tree_method": tree_method, "max_cat_to_onehot": 9999}  # force onehot
+def run_categorical(
+    client: "Client", tree_method: str, device: str, X, X_onehot, y
+) -> None:
+    # Force onehot
+    parameters = {
+        "tree_method": tree_method,
+        "device": device,
+        "max_cat_to_onehot": 9999,
+    }
     rounds = 10
     m = xgb.dask.DaskDMatrix(client, X_onehot, y, enable_categorical=True)
     by_etl_results = xgb.dask.train(
@@ -364,6 +371,7 @@ def run_categorical(client: "Client", tree_method: str, X, X_onehot, y) -> None:
         enable_categorical=True,
         n_estimators=10,
         tree_method=tree_method,
+        device=device,
         # force onehot
         max_cat_to_onehot=9999,
     )
@@ -378,7 +386,10 @@ def run_categorical(client: "Client", tree_method: str, X, X_onehot, y) -> None:
         reg.fit(X, y)
     # check partition based
     reg = xgb.dask.DaskXGBRegressor(
-        enable_categorical=True, n_estimators=10, tree_method=tree_method
+        enable_categorical=True,
+        n_estimators=10,
+        tree_method=tree_method,
+        device=device,
     )
     reg.fit(X, y, eval_set=[(X, y)])
     assert tm.non_increasing(reg.evals_result()["validation_0"]["rmse"])
@@ -398,8 +409,8 @@ def run_categorical(client: "Client", tree_method: str, X, X_onehot, y) -> None:
 def test_categorical(client: "Client") -> None:
     X, y = make_categorical(client, 10000, 30, 13)
     X_onehot, _ = make_categorical(client, 10000, 30, 13, True)
-    run_categorical(client, "approx", X, X_onehot, y)
-    run_categorical(client, "hist", X, X_onehot, y)
+    run_categorical(client, "approx", "cpu", X, X_onehot, y)
+    run_categorical(client, "hist", "cpu", X, X_onehot, y)
 
     ft = ["c"] * X.shape[1]
     reg = xgb.dask.DaskXGBRegressor(
@@ -1750,9 +1761,20 @@ class TestWithDask:
             )
             tm.non_increasing(results_native["validation_0"]["rmse"])
 
+            reg = xgb.dask.DaskXGBRegressor(
+                n_estimators=rounds, objective=tm.ls_obj, tree_method="hist"
+            )
+            rng = da.random.RandomState(1994)
+            w = rng.uniform(low=0.0, high=1.0, size=y.shape[0])
+            reg.fit(
+                X, y, sample_weight=w, eval_set=[(X, y)], sample_weight_eval_set=[w]
+            )
+            results_custom = reg.evals_result()
+            tm.non_increasing(results_custom["validation_0"]["rmse"])
+
     def test_no_duplicated_partition(self) -> None:
-        """Assert each worker has the correct amount of data, and DMatrix initialization doesn't
-        generate unnecessary copies of data.
+        """Assert each worker has the correct amount of data, and DMatrix initialization
+        doesn't generate unnecessary copies of data.
 
         """
         with LocalCluster(n_workers=2, dashboard_address=":0") as cluster:

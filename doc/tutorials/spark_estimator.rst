@@ -28,7 +28,7 @@ We can create a ``SparkXGBRegressor`` estimator like:
 .. code-block:: python
 
   from xgboost.spark import SparkXGBRegressor
-  spark_reg_estimator = SparkXGBRegressor(
+  xgb_regressor = SparkXGBRegressor(
     features_col="features",
     label_col="label",
     num_workers=2,
@@ -61,7 +61,7 @@ type or spark array type.
 
 .. code-block:: python
 
-  transformed_test_spark_dataframe = xgb_regressor.predict(test_spark_dataframe)
+  transformed_test_spark_dataframe = xgb_regressor_model.transform(test_spark_dataframe)
 
 
 The above snippet code returns a ``transformed_test_spark_dataframe`` that contains the input

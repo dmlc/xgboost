@@ -13,7 +13,7 @@
 
 namespace xgboost {
 TEST(SparsePage, PushCSC) {
-  std::vector<bst_row_t> offset {0};
+  std::vector<bst_idx_t> offset {0};
   std::vector<Entry> data;
   SparsePage batch;
   batch.offset.HostVector() = offset;

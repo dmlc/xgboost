@@ -315,7 +315,7 @@ struct BatchParam {
 struct HostSparsePageView {
   using Inst = common::Span<Entry const>;
 
-  common::Span<bst_row_t const> offset;
+  common::Span<bst_idx_t const> offset;
   common::Span<Entry const> data;
 
   Inst operator[](size_t i) const {
@@ -333,7 +333,7 @@ struct HostSparsePageView {
 class SparsePage {
  public:
   // Offset for each row.
-  HostDeviceVector<bst_row_t> offset;
+  HostDeviceVector<bst_idx_t> offset;
   /*! \brief the data of the segments */
   HostDeviceVector<Entry> data;
 

@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2023 by XGBoost Contributors
+ * Copyright 2014-2024, XGBoost Contributors
  * \file learner.cc
  * \brief Implementation of learning algorithm.
  * \author Tianqi Chen
@@ -18,7 +18,6 @@
 #include <cstdint>                        // for int32_t, uint32_t, int64_t, uint64_t
 #include <cstdlib>                        // for atoi
 #include <cstring>                        // for memcpy, size_t, memset
-#include <functional>                     // for less
 #include <iomanip>                        // for operator<<, setiosflags
 #include <iterator>                       // for back_insert_iterator, distance, back_inserter
 #include <limits>                         // for numeric_limits
@@ -846,7 +845,7 @@ class LearnerConfiguration : public Learner {
 
   void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_score) {
     base_score->Reshape(1);
-    collective::ApplyWithLabels(info, base_score->Data(),
+    collective::ApplyWithLabels(this->Ctx(), info, base_score->Data(),
                                 [&] { UsePtr(obj_)->InitEstimation(info, base_score); });
   }
 };
@@ -1472,7 +1471,7 @@ class LearnerImpl : public LearnerIO {
   void GetGradient(HostDeviceVector<bst_float> const& preds, MetaInfo const& info,
                    std::int32_t iter, linalg::Matrix<GradientPair>* out_gpair) {
     out_gpair->Reshape(info.num_row_, this->learner_model_param_.OutputLength());
-    collective::ApplyWithLabels(info, out_gpair->Data(),
+    collective::ApplyWithLabels(&ctx_, info, out_gpair->Data(),
                                 [&] { obj_->GetGradient(preds, info, iter, out_gpair); });
   }
 

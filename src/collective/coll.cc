@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright 2023-2024, XGBoost Contributors
  */
 #include "coll.h"
 
@@ -7,6 +7,7 @@
 #include <cstddef>      // for size_t
 #include <cstdint>      // for int8_t, int64_t
 #include <functional>   // for bit_and, bit_or, bit_xor, plus
+#include <string>       // for string
 #include <type_traits>  // for is_floating_point_v, is_same_v
 #include <utility>      // for move
 
@@ -56,6 +57,8 @@ bool constexpr IsFloatingPointV() {
     return cpu_impl::RingAllreduce(comm, data, erased_fn, type);
   };
 
+  std::string msg{"Floating point is not supported for bit wise collective operations."};
+
   auto rc = DispatchDType(type, [&](auto t) {
     using T = decltype(t);
     switch (op) {
@@ -70,21 +73,21 @@ bool constexpr IsFloatingPointV() {
       }
       case Op::kBitwiseAND: {
         if constexpr (IsFloatingPointV<T>()) {
-          return Fail("Invalid type.");
+          return Fail(msg);
         } else {
           return fn(std::bit_and<>{}, t);
         }
       }
       case Op::kBitwiseOR: {
         if constexpr (IsFloatingPointV<T>()) {
-          return Fail("Invalid type.");
+          return Fail(msg);
         } else {
           return fn(std::bit_or<>{}, t);
         }
       }
       case Op::kBitwiseXOR: {
         if constexpr (IsFloatingPointV<T>()) {
-          return Fail("Invalid type.");
+          return Fail(msg);
         } else {
           return fn(std::bit_xor<>{}, t);
         }

@@ -132,7 +132,7 @@ void IterativeDMatrix::InitFromCPU(Context const* ctx, BatchParam const& p,
     return HostAdapterDispatch(proxy, [](auto const& value) { return value.NumCols(); });
   };
 
-  std::vector<std::size_t> column_sizes;
+  std::vector<bst_idx_t> column_sizes;
   auto const is_valid = data::IsValidFunctor{missing};
   auto nnz_cnt = [&]() {
     return HostAdapterDispatch(proxy, [&](auto const& value) {

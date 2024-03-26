@@ -429,8 +429,8 @@ def make_categorical(
     categories = np.arange(0, n_categories)
     for col in df.columns:
         if rng.binomial(1, cat_ratio, size=1)[0] == 1:
-            df[col] = df[col].astype("category")
-            df[col] = df[col].cat.set_categories(categories)
+            df.loc[:, col] = df[col].astype("category")
+            df.loc[:, col] = df[col].cat.set_categories(categories)
 
     if sparsity > 0.0:
         for i in range(n_features):
@@ -815,10 +815,15 @@ def softprob_obj(
     return objective
 
 
-def ls_obj(y_true: np.ndarray, y_pred: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+def ls_obj(
+    y_true: np.ndarray, y_pred: np.ndarray, sample_weight: Optional[np.ndarray] = None
+) -> Tuple[np.ndarray, np.ndarray]:
     """Least squared error."""
     grad = y_pred - y_true
     hess = np.ones(len(y_true))
+    if sample_weight is not None:
+        grad *= sample_weight
+        hess *= sample_weight
     return grad, hess
 
 

@@ -222,7 +222,7 @@ class LambdaRankObj : public FitIntercept {
     };
 
     MakePairs(ctx_, iter, p_cache_, g, g_label, g_rank, loop);
-    if (sum_lambda > 0.0) {
+    if (sum_lambda > 0.0 && param_.lambdarank_normalization) {
       double norm = std::log2(1.0 + sum_lambda) / sum_lambda;
       std::transform(g_gpair.Values().data(), g_gpair.Values().data() + g_gpair.Size(),
                      g_gpair.Values().data(), [norm](GradientPair const& g) { return g * norm; });
@@ -474,7 +474,6 @@ class LambdaRankMAP : public LambdaRankObj<LambdaRankMAP, ltr::MAPCache> {
  public:
   void GetGradientImpl(std::int32_t iter, const HostDeviceVector<float>& predt,
                        const MetaInfo& info, linalg::Matrix<GradientPair>* out_gpair) {
-    CHECK(param_.ndcg_exp_gain) << "NDCG gain can not be set for the MAP objective.";
     if (ctx_->IsCUDA()) {
       return cuda_impl::LambdaRankGetGradientMAP(
           ctx_, iter, predt, info, GetCache(), ti_plus_.View(ctx_->Device()),
@@ -564,7 +563,6 @@ class LambdaRankPairwise : public LambdaRankObj<LambdaRankPairwise, ltr::Ranking
  public:
   void GetGradientImpl(std::int32_t iter, const HostDeviceVector<float>& predt,
                        const MetaInfo& info, linalg::Matrix<GradientPair>* out_gpair) {
-    CHECK(param_.ndcg_exp_gain) << "NDCG gain can not be set for the pairwise objective.";
     if (ctx_->IsCUDA()) {
       return cuda_impl::LambdaRankGetGradientPairwise(
           ctx_, iter, predt, info, GetCache(), ti_plus_.View(ctx_->Device()),
@@ -609,6 +607,13 @@ class LambdaRankPairwise : public LambdaRankObj<LambdaRankPairwise, ltr::Ranking
   static char const* Name() { return "rank:pairwise"; }
   [[nodiscard]] const char* DefaultEvalMetric() const override {
     return this->RankEvalMetric("ndcg");
+  }
+
+  [[nodiscard]] Json DefaultMetricConfig() const override {
+    Json config{Object{}};
+    config["name"] = String{DefaultEvalMetric()};
+    config["lambdarank_param"] = ToJson(param_);
+    return config;
   }
 };
 

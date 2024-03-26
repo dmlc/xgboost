@@ -440,7 +440,7 @@ RegTree GetHistTree(Context const* ctx, DMatrix* dmat) {
   return tree;
 }
 
-void VerifyHistColumnSplit(bst_row_t rows, bst_feature_t cols, RegTree const& expected_tree) {
+void VerifyHistColumnSplit(bst_idx_t rows, bst_feature_t cols, RegTree const& expected_tree) {
   Context ctx(MakeCUDACtx(GPUIDX));
 
   auto Xy = RandomDataGenerator{rows, cols, 0}.GenerateDMatrix(true);
@@ -490,7 +490,7 @@ RegTree GetApproxTree(Context const* ctx, DMatrix* dmat) {
   return tree;
 }
 
-void VerifyApproxColumnSplit(bst_row_t rows, bst_feature_t cols, RegTree const& expected_tree) {
+void VerifyApproxColumnSplit(bst_idx_t rows, bst_feature_t cols, RegTree const& expected_tree) {
   Context ctx(MakeCUDACtx(GPUIDX));
 
   auto Xy = RandomDataGenerator{rows, cols, 0}.GenerateDMatrix(true);

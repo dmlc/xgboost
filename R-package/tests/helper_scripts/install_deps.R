@@ -20,6 +20,7 @@ pkgs <- c(
   "igraph",
   "float",
   "titanic",
+  "RhpcBLASctl",
   ## imports
   "Matrix",
   "methods",

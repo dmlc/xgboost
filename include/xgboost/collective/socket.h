@@ -436,28 +436,38 @@ class TCPSocket {
    * \brief Accept new connection, returns a new TCP socket for the new connection.
    */
   TCPSocket Accept() {
-    HandleT newfd = accept(Handle(), nullptr, nullptr);
+    SockAddress addr;
+    TCPSocket newsock;
+    auto rc = this->Accept(&newsock, &addr);
+    SafeColl(rc);
+    return newsock;
+  }
+
+  [[nodiscard]] Result Accept(TCPSocket *out, SockAddress *addr) {
 #if defined(_WIN32)
     auto interrupt = WSAEINTR;
 #else
     auto interrupt = EINTR;
 #endif
-    if (newfd == InvalidSocket() && system::LastError() != interrupt) {
-      system::ThrowAtError("accept");
+    if (this->Domain() == SockDomain::kV4) {
+      struct sockaddr_in caddr;
+      socklen_t caddr_len = sizeof(caddr);
+      HandleT newfd = accept(Handle(), reinterpret_cast<sockaddr *>(&caddr), &caddr_len);
+      if (newfd == InvalidSocket() && system::LastError() != interrupt) {
+        return system::FailWithCode("Failed to accept.");
+      }
+      *addr = SockAddress{SockAddrV4{caddr}};
+      *out = TCPSocket{newfd};
+    } else {
+      struct sockaddr_in6 caddr;
+      socklen_t caddr_len = sizeof(caddr);
+      HandleT newfd = accept(Handle(), reinterpret_cast<sockaddr *>(&caddr), &caddr_len);
+      if (newfd == InvalidSocket() && system::LastError() != interrupt) {
+        return system::FailWithCode("Failed to accept.");
+      }
+      *addr = SockAddress{SockAddrV6{caddr}};
+      *out = TCPSocket{newfd};
     }
-    TCPSocket newsock{newfd};
-    return newsock;
-  }
-
-  [[nodiscard]] Result Accept(TCPSocket *out, SockAddrV4 *addr) {
-    struct sockaddr_in caddr;
-    socklen_t caddr_len = sizeof(caddr);
-    HandleT newfd = accept(Handle(), reinterpret_cast<sockaddr *>(&caddr), &caddr_len);
-    if (newfd == InvalidSocket()) {
-      return system::FailWithCode("Failed to accept.");
-    }
-    *addr = SockAddrV4{caddr};
-    *out = TCPSocket{newfd};
     return Success();
   }
 

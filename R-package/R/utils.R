@@ -142,7 +142,7 @@ check.custom.eval <- function(env = parent.frame()) {
   if (!is.null(env$feval) &&
       is.null(env$maximize) && (
         !is.null(env$early_stopping_rounds) ||
-        has.callbacks(env$callbacks, 'cb.early.stop')))
+        has.callbacks(env$callbacks, "early_stop")))
     stop("Please set 'maximize' to indicate whether the evaluation metric needs to be maximized or not")
 }
 
@@ -193,20 +193,20 @@ xgb.iter.update <- function(bst, dtrain, iter, obj) {
 # Evaluate one iteration.
 # Returns a named vector of evaluation metrics
 # with the names in a 'datasetname-metricname' format.
-xgb.iter.eval <- function(bst, watchlist, iter, feval) {
+xgb.iter.eval <- function(bst, evals, iter, feval) {
   handle <- xgb.get.handle(bst)
 
-  if (length(watchlist) == 0)
+  if (length(evals) == 0)
     return(NULL)
 
-  evnames <- names(watchlist)
+  evnames <- names(evals)
   if (is.null(feval)) {
-    msg <- .Call(XGBoosterEvalOneIter_R, handle, as.integer(iter), watchlist, as.list(evnames))
+    msg <- .Call(XGBoosterEvalOneIter_R, handle, as.integer(iter), evals, as.list(evnames))
     mat <- matrix(strsplit(msg, '\\s+|:')[[1]][-1], nrow = 2)
     res <- structure(as.numeric(mat[2, ]), names = mat[1, ])
   } else {
-    res <- sapply(seq_along(watchlist), function(j) {
-      w <- watchlist[[j]]
+    res <- sapply(seq_along(evals), function(j) {
+      w <- evals[[j]]
       ## predict using all trees
       preds <- predict(bst, w, outputmargin = TRUE, iterationrange = "all")
       eval_res <- feval(preds, w)
@@ -482,7 +482,8 @@ depr_par_lut <- matrix(c(
   'plot.height', 'plot_height',
   'plot.width', 'plot_width',
   'n_first_tree', 'trees',
-  'dummy', 'DUMMY'
+  'dummy', 'DUMMY',
+  'watchlist', 'evals'
 ), ncol = 2, byrow = TRUE)
 colnames(depr_par_lut) <- c('old', 'new')
 

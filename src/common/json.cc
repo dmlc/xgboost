@@ -1,11 +1,12 @@
 /**
- * Copyright 2019-2023, XGBoost Contributors
+ * Copyright 2019-2024, XGBoost Contributors
  */
 #include "xgboost/json.h"
 
 #include <array>             // for array
 #include <cctype>            // for isdigit
 #include <cmath>             // for isinf, isnan
+#include <cstdint>           // for uint8_t, uint16_t, uint32_t
 #include <cstdio>            // for EOF
 #include <cstdlib>           // for size_t, strtof
 #include <cstring>           // for memcpy
@@ -72,15 +73,16 @@ void JsonWriter::Visit(JsonNumber const* num) {
 }
 
 void JsonWriter::Visit(JsonInteger const* num) {
-  char i2s_buffer_[NumericLimits<int64_t>::kToCharsSize];
+  std::array<char, NumericLimits<int64_t>::kToCharsSize> i2s_buffer_;
   auto i = num->GetInteger();
-  auto ret = to_chars(i2s_buffer_, i2s_buffer_ + NumericLimits<int64_t>::kToCharsSize, i);
+  auto ret =
+      to_chars(i2s_buffer_.data(), i2s_buffer_.data() + NumericLimits<int64_t>::kToCharsSize, i);
   auto end = ret.ptr;
   CHECK(ret.ec == std::errc());
-  auto digits = std::distance(i2s_buffer_, end);
+  auto digits = std::distance(i2s_buffer_.data(), end);
   auto ori_size = stream_->size();
   stream_->resize(ori_size + digits);
-  std::memcpy(stream_->data() + ori_size, i2s_buffer_, digits);
+  std::memcpy(stream_->data() + ori_size, i2s_buffer_.data(), digits);
 }
 
 void JsonWriter::Visit(JsonNull const* ) {
@@ -143,8 +145,10 @@ std::string Value::TypeStr() const {
       return "Null";
     case ValueKind::kInteger:
       return "Integer";
-    case ValueKind::kNumberArray:
+    case ValueKind::kF32Array:
       return "F32Array";
+    case ValueKind::kF64Array:
+      return "F64Array";
     case ValueKind::kU8Array:
       return "U8Array";
     case ValueKind::kI32Array:
@@ -262,10 +266,11 @@ bool JsonTypedArray<T, kind>::operator==(Value const& rhs) const {
   return std::equal(arr.cbegin(), arr.cend(), vec_.cbegin());
 }
 
-template class JsonTypedArray<float, Value::ValueKind::kNumberArray>;
-template class JsonTypedArray<uint8_t, Value::ValueKind::kU8Array>;
-template class JsonTypedArray<int32_t, Value::ValueKind::kI32Array>;
-template class JsonTypedArray<int64_t, Value::ValueKind::kI64Array>;
+template class JsonTypedArray<float, Value::ValueKind::kF32Array>;
+template class JsonTypedArray<double, Value::ValueKind::kF64Array>;
+template class JsonTypedArray<std::uint8_t, Value::ValueKind::kU8Array>;
+template class JsonTypedArray<std::int32_t, Value::ValueKind::kI32Array>;
+template class JsonTypedArray<std::int64_t, Value::ValueKind::kI64Array>;
 
 // Json Number
 bool JsonNumber::operator==(Value const& rhs) const {
@@ -708,6 +713,8 @@ Json UBJReader::ParseArray() {
     switch (type) {
       case 'd':
         return ParseTypedArray<F32Array>(n);
+      case 'D':
+        return ParseTypedArray<F64Array>(n);
       case 'U':
         return ParseTypedArray<U8Array>(n);
       case 'l':
@@ -791,10 +798,14 @@ Json UBJReader::Parse() {
         return Json{JsonBoolean{true}};
       }
       case 'F': {
-        return Json{JsonBoolean{true}};
+        return Json{JsonBoolean{false}};
       }
       case 'd': {
         auto v = this->ReadPrimitive<float>();
+        return Json{v};
+      }
+      case 'D': {
+        auto v = this->ReadPrimitive<double>();
         return Json{v};
       }
       case 'S': {
@@ -824,10 +835,6 @@ Json UBJReader::Parse() {
       case 'C': {
         Integer::Int i = this->ReadPrimitive<char>();
         return Json{i};
-      }
-      case 'D': {
-        LOG(FATAL) << "f64 is not supported.";
-        break;
       }
       case 'H': {
         LOG(FATAL) << "High precision number is not supported.";
@@ -882,6 +889,8 @@ void WriteTypedArray(JsonTypedArray<T, kind> const* arr, std::vector<char>* stre
   stream->push_back('$');
   if (std::is_same<T, float>::value) {
     stream->push_back('d');
+  } else if (std::is_same_v<T, double>) {
+    stream->push_back('D');
   } else if (std::is_same<T, int8_t>::value) {
     stream->push_back('i');
   } else if (std::is_same<T, uint8_t>::value) {
@@ -910,6 +919,7 @@ void WriteTypedArray(JsonTypedArray<T, kind> const* arr, std::vector<char>* stre
 }
 
 void UBJWriter::Visit(F32Array const* arr) { WriteTypedArray(arr, stream_); }
+void UBJWriter::Visit(F64Array const* arr) { WriteTypedArray(arr, stream_); }
 void UBJWriter::Visit(U8Array const* arr) { WriteTypedArray(arr, stream_); }
 void UBJWriter::Visit(I32Array const* arr) { WriteTypedArray(arr, stream_); }
 void UBJWriter::Visit(I64Array const* arr) { WriteTypedArray(arr, stream_); }

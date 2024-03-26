@@ -32,7 +32,10 @@ def build_libxgboost(
     build_dir: pathlib.Path,
     build_config: BuildConfiguration,
 ) -> pathlib.Path:
-    """Build libxgboost in a temporary directory and obtain the path to built libxgboost"""
+    """Build libxgboost in a temporary directory and obtain the path to built
+    libxgboost.
+
+    """
     logger = logging.getLogger("xgboost.packager.build_libxgboost")
 
     if not cpp_src_dir.is_dir():
@@ -51,8 +54,8 @@ def build_libxgboost(
         cmake_cmd.extend(build_config.get_cmake_args())
 
         # Flag for cross-compiling for Apple Silicon
-        # We use environment variable because it's the only way to pass down custom flags
-        # through the cibuildwheel package, which calls `pip wheel` command.
+        # We use environment variable because it's the only way to pass down custom
+        # flags through the cibuildwheel package, which calls `pip wheel` command.
         if "CIBW_TARGET_OSX_ARM64" in os.environ:
             cmake_cmd.append("-DCMAKE_OSX_ARCHITECTURES=arm64")
 

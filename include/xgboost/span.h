@@ -701,10 +701,10 @@ class IterSpan {
     return {data() + _offset, _count == dynamic_extent ? size() - _offset : _count};
   }
   [[nodiscard]] XGBOOST_DEVICE constexpr iterator begin() const noexcept {  // NOLINT
-    return {this, 0};
+    return it_;
   }
   [[nodiscard]] XGBOOST_DEVICE constexpr iterator end() const noexcept {  // NOLINT
-    return {this, size()};
+    return it_ + size();
   }
 };
 }  // namespace common

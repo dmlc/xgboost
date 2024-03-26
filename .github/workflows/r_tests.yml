@@ -8,6 +8,10 @@ env:
 permissions:
   contents: read # to fetch code (actions/checkout)
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lintr:
     runs-on: ${{ matrix.config.os }}
@@ -46,7 +50,7 @@ jobs:
         MAKEFLAGS="-j$(nproc)" R CMD INSTALL R-package/
         Rscript tests/ci_build/lint_r.R $(pwd)
 
-  test-R-on-Windows:
+  test-Rpkg:
     runs-on: ${{ matrix.config.os }}
     name: Test R on OS ${{ matrix.config.os }}, R ${{ matrix.config.r }}, Compiler ${{ matrix.config.compiler }}, Build ${{ matrix.config.build }}
     strategy:
@@ -54,11 +58,17 @@ jobs:
       matrix:
         config:
           - {os: windows-latest, r: 'release', compiler: 'mingw', build: 'autotools'}
+          - {os: ubuntu-latest, r: 'release', compiler: 'none', build: 'cmake'}
     env:
       R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
       RSPM: ${{ matrix.config.rspm }}
 
     steps:
+    - name: Install system dependencies
+      run: |
+        sudo apt update
+        sudo apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev
+      if: matrix.config.os == 'ubuntu-latest'
     - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
@@ -74,7 +84,7 @@ jobs:
         key: ${{ runner.os }}-r-${{ matrix.config.r }}-6-${{ hashFiles('R-package/DESCRIPTION') }}
         restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-6-${{ hashFiles('R-package/DESCRIPTION') }}
 
-    - uses: actions/setup-python@7f80679172b057fc5e90d70d197929d454754a5a # v4.3.0
+    - uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
       with:
         python-version: "3.8"
         architecture: 'x64'
@@ -89,6 +99,12 @@ jobs:
     - name: Test R
       run: |
         python tests/ci_build/test_r_package.py --compiler='${{ matrix.config.compiler }}' --build-tool="${{ matrix.config.build }}" --task=check
+      if: matrix.config.compiler != 'none'
+
+    - name: Test R
+      run: |
+        python tests/ci_build/test_r_package.py --build-tool="${{ matrix.config.build }}" --task=check
+      if: matrix.config.compiler == 'none'
 
   test-R-on-Debian:
     name: Test R package on Debian

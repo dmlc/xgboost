@@ -2,7 +2,6 @@ import itertools
 import re
 
 import numpy as np
-import scipy
 import scipy.special
 
 import xgboost as xgb
@@ -256,3 +255,30 @@ class TestSHAP:
         brute_force[-1, -1] += base_score
         fast_method = bst.predict(xgb.DMatrix(X[0:1, :]), pred_interactions=True)
         assert np.linalg.norm(brute_force - fast_method[0, :, :]) < 1e-4
+
+    def test_shap_values(self) -> None:
+        from sklearn.datasets import make_classification, make_regression
+
+        def assert_same(X: np.ndarray, y: np.ndarray) -> None:
+            Xy = xgb.DMatrix(X, y)
+            booster = xgb.train({}, Xy, num_boost_round=4)
+            shap_dm = booster.predict(Xy, pred_contribs=True)
+            Xy = xgb.QuantileDMatrix(X, y)
+            shap_qdm = booster.predict(Xy, pred_contribs=True)
+            np.testing.assert_allclose(shap_dm, shap_qdm)
+
+            margin = booster.predict(Xy, output_margin=True)
+            np.testing.assert_allclose(
+                np.sum(shap_qdm, axis=len(shap_qdm.shape) - 1), margin, 1e-3, 1e-3
+            )
+
+            shap_dm = booster.predict(Xy, pred_interactions=True)
+            Xy = xgb.QuantileDMatrix(X, y)
+            shap_qdm = booster.predict(Xy, pred_interactions=True)
+            np.testing.assert_allclose(shap_dm, shap_qdm)
+
+        X, y = make_regression()
+        assert_same(X, y)
+
+        X, y = make_classification()
+        assert_same(X, y)

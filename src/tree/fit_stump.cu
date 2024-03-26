@@ -1,19 +1,18 @@
 /**
- * Copyright 2022-2023 by XGBoost Contributors
+ * Copyright 2022-2024, XGBoost Contributors
  *
- * \brief Utilities for estimating initial score.
+ * @brief Utilities for estimating initial score.
  */
 #if !defined(NOMINMAX) && defined(_WIN32)
 #define NOMINMAX
-#endif                                            // !defined(NOMINMAX)
-#include <thrust/execution_policy.h>              // cuda::par
-#include <thrust/iterator/counting_iterator.h>    // thrust::make_counting_iterator
+#endif                                          // !defined(NOMINMAX)
+#include <thrust/execution_policy.h>            // cuda::par
+#include <thrust/iterator/counting_iterator.h>  // thrust::make_counting_iterator
 
-#include <cstddef>                                // std::size_t
+#include <cstddef>  // std::size_t
 
-#include "../collective/aggregator.cuh"
-#include "../collective/communicator-inl.cuh"
-#include "../common/device_helpers.cuh"           // dh::MakeTransformIterator
+#include "../collective/aggregator.cuh"  // for GlobalSum
+#include "../common/device_helpers.cuh"  // dh::MakeTransformIterator
 #include "fit_stump.h"
 #include "xgboost/base.h"     // GradientPairPrecise, GradientPair, XGBOOST_DEVICE
 #include "xgboost/context.h"  // Context

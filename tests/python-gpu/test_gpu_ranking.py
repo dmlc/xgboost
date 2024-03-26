@@ -6,6 +6,7 @@ import pytest
 
 import xgboost
 from xgboost import testing as tm
+from xgboost.testing.ranking import run_normalization
 
 pytestmark = tm.timeout(30)
 
@@ -126,3 +127,7 @@ def test_with_mq2008(objective, metric) -> None:
     dtest = xgboost.DMatrix(x_test, y_test, qid=qid_test)
 
     comp_training_with_rank_objective(dtrain, dtest, objective, metric)
+
+
+def test_normalization() -> None:
+    run_normalization("cuda")

@@ -19,11 +19,9 @@
 #include <thrust/unique.h>
 
 #include <algorithm>
-#include <chrono>
 #include <cstddef>  // for size_t
 #include <cub/cub.cuh>
 #include <cub/util_allocator.cuh>
-#include <numeric>
 #include <sstream>
 #include <string>
 #include <tuple>
@@ -31,7 +29,6 @@
 
 #include "../collective/communicator-inl.h"
 #include "common.h"
-#include "xgboost/global_config.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/logging.h"
 #include "xgboost/span.h"

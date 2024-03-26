@@ -60,9 +60,18 @@ void CompareJSON(Json l, Json r) {
     }
     break;
   }
-  case Value::ValueKind::kNumberArray: {
+  case Value::ValueKind::kF32Array: {
     auto const& l_arr = get<F32Array const>(l);
     auto const& r_arr = get<F32Array const>(r);
+    ASSERT_EQ(l_arr.size(), r_arr.size());
+    for (size_t i = 0; i < l_arr.size(); ++i) {
+      ASSERT_NEAR(l_arr[i], r_arr[i], kRtEps);
+    }
+    break;
+  }
+  case Value::ValueKind::kF64Array: {
+    auto const& l_arr = get<F64Array const>(l);
+    auto const& r_arr = get<F64Array const>(r);
     ASSERT_EQ(l_arr.size(), r_arr.size());
     for (size_t i = 0; i < l_arr.size(); ++i) {
       ASSERT_NEAR(l_arr[i], r_arr[i], kRtEps);

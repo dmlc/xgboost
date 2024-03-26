@@ -65,7 +65,7 @@ TEST(CpuPredictor, ExternalMemory) {
 }
 
 TEST(CpuPredictor, InplacePredict) {
-  bst_row_t constexpr kRows{128};
+  bst_idx_t constexpr kRows{128};
   bst_feature_t constexpr kCols{64};
   Context ctx;
   auto gen = RandomDataGenerator{kRows, kCols, 0.5}.Device(ctx.Device());
@@ -83,7 +83,7 @@ TEST(CpuPredictor, InplacePredict) {
 
   {
     HostDeviceVector<float> data;
-    HostDeviceVector<bst_row_t> rptrs;
+    HostDeviceVector<std::size_t> rptrs;
     HostDeviceVector<bst_feature_t> columns;
     gen.GenerateCSR(&data, &rptrs, &columns);
     auto data_interface = GetArrayInterface(&data, kRows * kCols, 1);
@@ -148,7 +148,7 @@ TEST(CPUPredictor, GHistIndexTraining) {
   auto adapter = data::ArrayAdapter(columnar.c_str());
   std::shared_ptr<DMatrix> p_full{
       DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)};
-  TestTrainingPrediction(&ctx, kRows, kBins, p_full, p_hist);
+  TestTrainingPrediction(&ctx, kRows, kBins, p_full, p_hist, true);
 }
 
 TEST(CPUPredictor, CategoricalPrediction) {

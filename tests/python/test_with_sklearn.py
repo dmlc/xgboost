@@ -517,6 +517,12 @@ def test_regression_with_custom_objective():
         labels = y[test_index]
     assert mean_squared_error(preds, labels) < 25
 
+    w = rng.uniform(low=0.0, high=1.0, size=X.shape[0])
+    reg = xgb.XGBRegressor(objective=tm.ls_obj, n_estimators=25)
+    reg.fit(X, y, sample_weight=w)
+    y_pred = reg.predict(X)
+    assert mean_squared_error(y_true=y, y_pred=y_pred, sample_weight=w) < 25
+
     # Test that the custom objective function is actually used
     class XGBCustomObjectiveException(Exception):
         pass
@@ -1456,3 +1462,16 @@ def test_intercept() -> None:
     result = reg.intercept_
     assert result.dtype == np.float32
     assert result[0] < 0.5
+
+
+def test_fit_none() -> None:
+    with pytest.raises(TypeError, match="NoneType"):
+        xgb.XGBClassifier().fit(None, [0, 1])
+
+    X = rng.normal(size=4).reshape(2, 2)
+
+    with pytest.raises(ValueError, match="Invalid classes"):
+        xgb.XGBClassifier().fit(X, None)
+
+    with pytest.raises(ValueError, match="labels"):
+        xgb.XGBRegressor().fit(X, None)

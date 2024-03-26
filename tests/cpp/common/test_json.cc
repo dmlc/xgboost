@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2023, XGBoost Contributors
+ * Copyright 2019-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 
@@ -639,6 +639,40 @@ TEST(Json, TypedArray) {
       ASSERT_EQ(arr[i + 8], i);
     }
   }
+
+  {
+    Json f64{Object{}};
+    auto array = F64Array();
+    auto& vec = array.GetArray();
+    // Construct test data
+    vec.resize(18);
+    std::iota(vec.begin(), vec.end(), 0.0);
+    // special values
+    vec.push_back(std::numeric_limits<double>::epsilon());
+    vec.push_back(std::numeric_limits<double>::max());
+    vec.push_back(std::numeric_limits<double>::min());
+    vec.push_back(std::numeric_limits<double>::denorm_min());
+    vec.push_back(std::numeric_limits<double>::quiet_NaN());
+
+    static_assert(
+        std::is_same_v<double, typename std::remove_reference_t<decltype(vec)>::value_type>);
+
+    f64["f64"] = std::move(array);
+    ASSERT_TRUE(IsA<F64Array>(f64["f64"]));
+    std::vector<char> out;
+    Json::Dump(f64, &out, std::ios::binary);
+
+    auto loaded = Json::Load(StringView{out.data(), out.size()}, std::ios::binary);
+    ASSERT_TRUE(IsA<F64Array>(loaded["f64"]));
+    auto const& result = get<F64Array const>(loaded["f64"]);
+
+    auto& vec1 = get<F64Array const>(f64["f64"]);
+    ASSERT_EQ(result.size(), vec1.size());
+    for (std::size_t i = 0; i < vec1.size() - 1; ++i) {
+      ASSERT_EQ(result[i], vec1[i]);
+    }
+    ASSERT_TRUE(std::isnan(result.back()));
+  }
 }
 
 TEST(UBJson, Basic) {
@@ -677,7 +711,23 @@ TEST(UBJson, Basic) {
     ASSERT_FLOAT_EQ(3.14, get<Number>(get<Array>(ret["test"])[1]));
     ASSERT_FLOAT_EQ(2.71, get<Number>(get<Array>(ret["test"])[0]));
   }
+  {
+    // boolean
+    Json boolean{Object{}};
+    boolean["foo"] = Boolean{false};
+    std::vector<char> out;
+    Json::Dump(boolean, &out, std::ios::binary);
+    auto loaded = Json::Load(StringView{out.data(), out.size()}, std::ios::binary);
+
+    ASSERT_EQ(boolean, loaded);
+
+    boolean["foo"] = Boolean{true};
+    Json::Dump(boolean, &out, std::ios::binary);
+    loaded = Json::Load(StringView{out.data(), out.size()}, std::ios::binary);
+    ASSERT_EQ(boolean, loaded);
+  }
 }
+
 
 TEST(Json, TypeCheck) {
   Json config{Object{}};

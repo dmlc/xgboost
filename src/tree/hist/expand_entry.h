@@ -90,7 +90,6 @@ struct ExpandEntryImpl {
     }
 
     self->split.is_cat = get<Boolean const>(split["is_cat"]);
-
     self->LoadGrad(split);
   }
 };
@@ -106,8 +105,8 @@ struct CPUExpandEntry : public ExpandEntryImpl<CPUExpandEntry> {
   void SaveGrad(Json* p_out) const {
     auto& out = *p_out;
     auto save = [&](std::string const& name, GradStats const& sum) {
-      out[name] = F32Array{2};
-      auto& array = get<F32Array>(out[name]);
+      out[name] = F64Array{2};
+      auto& array = get<F64Array>(out[name]);
       array[0] = sum.GetGrad();
       array[1] = sum.GetHess();
     };
@@ -115,9 +114,9 @@ struct CPUExpandEntry : public ExpandEntryImpl<CPUExpandEntry> {
     save("right_sum", this->split.right_sum);
   }
   void LoadGrad(Json const& in) {
-    auto const& left_sum = get<F32Array const>(in["left_sum"]);
+    auto const& left_sum = get<F64Array const>(in["left_sum"]);
     this->split.left_sum = GradStats{left_sum[0], left_sum[1]};
-    auto const& right_sum = get<F32Array const>(in["right_sum"]);
+    auto const& right_sum = get<F64Array const>(in["right_sum"]);
     this->split.right_sum = GradStats{right_sum[0], right_sum[1]};
   }
 
@@ -173,8 +172,8 @@ struct MultiExpandEntry : public ExpandEntryImpl<MultiExpandEntry> {
   void SaveGrad(Json* p_out) const {
     auto& out = *p_out;
     auto save = [&](std::string const& name, std::vector<GradientPairPrecise> const& sum) {
-      out[name] = F32Array{sum.size() * 2};
-      auto& array = get<F32Array>(out[name]);
+      out[name] = F64Array{sum.size() * 2};
+      auto& array = get<F64Array>(out[name]);
       for (std::size_t i = 0, j = 0; i < sum.size(); i++, j += 2) {
         array[j] = sum[i].GetGrad();
         array[j + 1] = sum[i].GetHess();
@@ -185,7 +184,7 @@ struct MultiExpandEntry : public ExpandEntryImpl<MultiExpandEntry> {
   }
   void LoadGrad(Json const& in) {
     auto load = [&](std::string const& name, std::vector<GradientPairPrecise>* p_sum) {
-      auto const& array = get<F32Array const>(in[name]);
+      auto const& array = get<F64Array const>(in[name]);
       auto& sum = *p_sum;
       sum.resize(array.size() / 2);
       for (std::size_t i = 0, j = 0; i < sum.size(); ++i, j += 2) {

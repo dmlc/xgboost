@@ -216,7 +216,7 @@ SimpleLCG::StateType SimpleLCG::Max() const { return max(); }
 static_assert(SimpleLCG::max() - SimpleLCG::min());
 
 void RandomDataGenerator::GenerateLabels(std::shared_ptr<DMatrix> p_fmat) const {
-  RandomDataGenerator{static_cast<bst_row_t>(p_fmat->Info().num_row_), this->n_targets_, 0.0f}.GenerateDense(
+  RandomDataGenerator{static_cast<bst_idx_t>(p_fmat->Info().num_row_), this->n_targets_, 0.0f}.GenerateDense(
       p_fmat->Info().labels.Data());
   CHECK_EQ(p_fmat->Info().labels.Size(), this->rows_ * this->n_targets_);
   p_fmat->Info().labels.Reshape(this->rows_, this->n_targets_);
@@ -334,7 +334,7 @@ std::string RandomDataGenerator::GenerateColumnarArrayInterface(
 }
 
 void RandomDataGenerator::GenerateCSR(
-    HostDeviceVector<float>* value, HostDeviceVector<bst_row_t>* row_ptr,
+    HostDeviceVector<float>* value, HostDeviceVector<std::size_t>* row_ptr,
     HostDeviceVector<bst_feature_t>* columns) const {
   auto& h_value = value->HostVector();
   auto& h_rptr = row_ptr->HostVector();
@@ -381,7 +381,7 @@ void RandomDataGenerator::GenerateCSR(
 [[nodiscard]] std::shared_ptr<DMatrix> RandomDataGenerator::GenerateDMatrix(
     bool with_label, bool float_label, size_t classes, DataSplitMode data_split_mode) const {
   HostDeviceVector<float> data;
-  HostDeviceVector<bst_row_t> rptrs;
+  HostDeviceVector<std::size_t> rptrs;
   HostDeviceVector<bst_feature_t> columns;
   this->GenerateCSR(&data, &rptrs, &columns);
   data::CSRAdapter adapter(rptrs.HostPointer(), columns.HostPointer(), data.HostPointer(), rows_,
@@ -447,7 +447,7 @@ void RandomDataGenerator::GenerateCSR(
 
   // Loop over the batches and count the number of pages
   std::size_t batch_count = 0;
-  bst_row_t row_count = 0;
+  bst_idx_t row_count = 0;
   for (const auto& batch : dmat->GetBatches<xgboost::SparsePage>()) {
     batch_count++;
     row_count += batch.Size();
@@ -458,7 +458,7 @@ void RandomDataGenerator::GenerateCSR(
   EXPECT_EQ(row_count, dmat->Info().num_row_);
 
   if (with_label) {
-    RandomDataGenerator{static_cast<bst_row_t>(dmat->Info().num_row_), this->n_targets_, 0.0f}.GenerateDense(
+    RandomDataGenerator{static_cast<bst_idx_t>(dmat->Info().num_row_), this->n_targets_, 0.0f}.GenerateDense(
         dmat->Info().labels.Data());
     CHECK_EQ(dmat->Info().labels.Size(), this->rows_ * this->n_targets_);
     dmat->Info().labels.Reshape(this->rows_, this->n_targets_);
@@ -488,7 +488,7 @@ int CudaArrayIterForTest::Next() {
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
 
-NumpyArrayIterForTest::NumpyArrayIterForTest(float sparsity, size_t rows, size_t cols,
+NumpyArrayIterForTest::NumpyArrayIterForTest(float sparsity, bst_idx_t rows, size_t cols,
                                              size_t batches)
     : ArrayIterForTest{sparsity, rows, cols, batches} {
   rng_->Device(DeviceOrd::CPU());
@@ -515,7 +515,7 @@ std::shared_ptr<DMatrix> GetDMatrixFromData(const std::vector<float>& x, std::si
   return p_fmat;
 }
 
-std::unique_ptr<DMatrix> CreateSparsePageDMatrix(bst_row_t n_samples, bst_feature_t n_features,
+std::unique_ptr<DMatrix> CreateSparsePageDMatrix(bst_idx_t n_samples, bst_feature_t n_features,
                                                  size_t n_batches, std::string prefix) {
   CHECK_GE(n_samples, n_batches);
   NumpyArrayIterForTest iter(0, n_samples, n_features, n_batches);
@@ -662,7 +662,7 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs,
   return gbm;
 }
 
-ArrayIterForTest::ArrayIterForTest(float sparsity, size_t rows, size_t cols, size_t batches)
+ArrayIterForTest::ArrayIterForTest(float sparsity, bst_idx_t rows, size_t cols, size_t batches)
     : rows_{rows}, cols_{cols}, n_batches_{batches} {
   XGProxyDMatrixCreate(&proxy_);
   rng_ = std::make_unique<RandomDataGenerator>(rows_, cols_, sparsity);

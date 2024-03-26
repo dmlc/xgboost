@@ -41,6 +41,7 @@ how to persist models in a future-proof way, i.e. to make the model accessible i
 releases of XGBoost.
 }
 \examples{
+\dontshow{RhpcBLASctl::omp_set_num_threads(1)}
 data(agaricus.train, package='xgboost')
 data(agaricus.test, package='xgboost')
 

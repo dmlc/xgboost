@@ -149,7 +149,7 @@ class GHistIndexMatrix {
   /** @brief max_bin for each feature. */
   bst_bin_t max_numeric_bins_per_feat;
   /** @brief base row index for current page (used by external memory) */
-  bst_row_t base_rowid{0};
+  bst_idx_t base_rowid{0};
 
   [[nodiscard]] bst_bin_t MaxNumBinPerFeat() const {
     return std::max(static_cast<bst_bin_t>(cut.MaxCategory() + 1), max_numeric_bins_per_feat);
@@ -230,7 +230,7 @@ class GHistIndexMatrix {
    */
   [[nodiscard]] std::size_t RowIdx(size_t ridx) const { return row_ptr[ridx - base_rowid]; }
 
-  [[nodiscard]] bst_row_t Size() const { return row_ptr.empty() ? 0 : row_ptr.size() - 1; }
+  [[nodiscard]] bst_idx_t Size() const { return row_ptr.empty() ? 0 : row_ptr.size() - 1; }
   [[nodiscard]] bst_feature_t Features() const { return cut.Ptrs().size() - 1; }
 
   [[nodiscard]] bool ReadColumnPage(common::AlignedResourceReadStream* fi);
@@ -243,7 +243,7 @@ class GHistIndexMatrix {
   [[nodiscard]] float GetFvalue(size_t ridx, size_t fidx, bool is_cat) const;
   [[nodiscard]] float GetFvalue(std::vector<std::uint32_t> const& ptrs,
                                 std::vector<float> const& values, std::vector<float> const& mins,
-                                bst_row_t ridx, bst_feature_t fidx, bool is_cat) const;
+                                bst_idx_t ridx, bst_feature_t fidx, bool is_cat) const;
 
   [[nodiscard]] common::HistogramCuts& Cuts() { return cut; }
   [[nodiscard]] common::HistogramCuts const& Cuts() const { return cut; }

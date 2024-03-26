@@ -1,5 +1,5 @@
 /**
- * Copyright 2018-2023 by XGBoost Contributors
+ * Copyright 2018-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/host_device_vector.h>
@@ -18,7 +18,6 @@
 #include "xgboost/data.h"
 
 namespace xgboost::tree {
-
 namespace {
 template <typename ExpandEntry>
 void TestPartitioner(bst_target_t n_targets) {
@@ -202,7 +201,7 @@ TEST(QuantileHist, PartitionerColSplit) { TestColumnSplitPartitioner<CPUExpandEn
 TEST(QuantileHist, MultiPartitionerColSplit) { TestColumnSplitPartitioner<MultiExpandEntry>(3); }
 
 namespace {
-void VerifyColumnSplit(Context const* ctx, bst_row_t rows, bst_feature_t cols, bst_target_t n_targets,
+void VerifyColumnSplit(Context const* ctx, bst_idx_t rows, bst_feature_t cols, bst_target_t n_targets,
                        RegTree const& expected_tree) {
   auto Xy = RandomDataGenerator{rows, cols, 0}.GenerateDMatrix(true);
   linalg::Matrix<GradientPair> gpair = GenerateRandomGradients(ctx, rows, n_targets);
@@ -253,5 +252,5 @@ void TestColumnSplit(bst_target_t n_targets) {
 
 TEST(QuantileHist, ColumnSplit) { TestColumnSplit(1); }
 
-TEST(QuantileHist, DISABLED_ColumnSplitMultiTarget) { TestColumnSplit(3); }
+TEST(QuantileHist, ColumnSplitMultiTarget) { TestColumnSplit(3); }
 }  // namespace xgboost::tree

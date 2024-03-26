@@ -9,7 +9,7 @@
 #include <string>                        // for string, to_string
 
 #include "../gbm/gbtree_model.h"         // for GBTreeModel
-#include "xgboost/base.h"                // for bst_float, Args, bst_group_t, bst_row_t
+#include "xgboost/base.h"                // for bst_float, Args, bst_group_t, bst_idx_t
 #include "xgboost/context.h"             // for Context
 #include "xgboost/data.h"                // for MetaInfo
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
@@ -34,7 +34,7 @@ Predictor* Predictor::Create(std::string const& name, Context const* ctx) {
 }
 
 template <int32_t D>
-void ValidateBaseMarginShape(linalg::Tensor<float, D> const& margin, bst_row_t n_samples,
+void ValidateBaseMarginShape(linalg::Tensor<float, D> const& margin, bst_idx_t n_samples,
                              bst_group_t n_groups) {
   // FIXME: Bindings other than Python doesn't have shape.
   std::string expected{"Invalid shape of base_margin. Expected: (" + std::to_string(n_samples) +
