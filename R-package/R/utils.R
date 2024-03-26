@@ -237,6 +237,9 @@ convert.labels <- function(labels, objective_name) {
 # Generates random (stratified if needed) CV folds
 generate.cv.folds <- function(nfold, nrows, stratified, label, group, params) {
   if (NROW(group)) {
+    if (stratified) {
+      stop("stratified sampling is not supported when using 'group' attribute.")
+    }
     return(generate.group.folds(nfold, group))
   }
   objective <- params$objective
