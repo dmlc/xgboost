@@ -26,6 +26,11 @@ NVL <- function(x, val) {
            'multi:softprob', 'rank:pairwise', 'rank:ndcg', 'rank:map'))
 }
 
+.RANKING_OBJECTIVES <- function() {
+  return(c('binary:logistic', 'binary:logitraw', 'binary:hinge', 'multi:softmax',
+           'multi:softprob'))
+}
+
 
 #
 # Low-level functions for boosting --------------------------------------------
@@ -235,33 +240,43 @@ convert.labels <- function(labels, objective_name) {
 }
 
 # Generates random (stratified if needed) CV folds
-generate.cv.folds <- function(nfold, nrows, stratified, label, params) {
+generate.cv.folds <- function(nfold, nrows, stratified, label, group, params) {
+  if (NROW(group)) {
+    if (stratified) {
+      warning(
+        paste0(
+          "Stratified splitting is not supported when using 'group' attribute.",
+          " Will use unstratified splitting."
+        )
+      )
+    }
+    return(generate.group.folds(nfold, group))
+  }
+  objective <- params$objective
+  if (!is.character(objective)) {
+    warning("Will use unstratified splitting (custom objective used)")
+    stratified <- FALSE
+  }
+  # cannot stratify if label is NULL
+  if (stratified && is.null(label)) {
+    warning("Will use unstratified splitting (no 'labels' available)")
+    stratified <- FALSE
+  }
 
   # cannot do it for rank
-  objective <- params$objective
   if (is.character(objective) && strtrim(objective, 5) == 'rank:') {
-    stop("\n\tAutomatic generation of CV-folds is not implemented for ranking!\n",
+    stop("\n\tAutomatic generation of CV-folds is not implemented for ranking without 'group' field!\n",
          "\tConsider providing pre-computed CV-folds through the 'folds=' parameter.\n")
   }
   # shuffle
   rnd_idx <- sample.int(nrows)
-  if (stratified &&
-      length(label) == length(rnd_idx)) {
+  if (stratified && length(label) == length(rnd_idx)) {
     y <- label[rnd_idx]
-    # WARNING: some heuristic logic is employed to identify classification setting!
     #  - For classification, need to convert y labels to factor before making the folds,
     #    and then do stratification by factor levels.
     #  - For regression, leave y numeric and do stratification by quantiles.
     if (is.character(objective)) {
-      y <- convert.labels(y, params$objective)
-    } else {
-      # If no 'objective' given in params, it means that user either wants to
-      # use the default 'reg:squarederror' objective or has provided a custom
-      # obj function.  Here, assume classification setting when y has 5 or less
-      # unique values:
-      if (length(unique(y)) <= 5) {
-        y <- factor(y)
-      }
+      y <- convert.labels(y, objective)
     }
     folds <- xgb.createFolds(y = y, k = nfold)
   } else {
@@ -275,6 +290,29 @@ generate.cv.folds <- function(nfold, nrows, stratified, label, params) {
     folds[[nfold]] <- rnd_idx
   }
   return(folds)
+}
+
+generate.group.folds <- function(nfold, group) {
+  ngroups <- length(group) - 1
+  if (ngroups < nfold) {
+    stop("DMatrix has fewer groups than folds.")
+  }
+  seq_groups <- seq_len(ngroups)
+  indices <- lapply(seq_groups, function(gr) seq(group[gr] + 1, group[gr + 1]))
+  assignments <- base::split(seq_groups, as.integer(seq_groups %% nfold))
+  assignments <- unname(assignments)
+
+  out <- vector("list", nfold)
+  randomized_groups <- sample(ngroups)
+  for (idx in seq_len(nfold)) {
+    groups_idx_test <- randomized_groups[assignments[[idx]]]
+    groups_test <- indices[groups_idx_test]
+    idx_test <- unlist(groups_test)
+    attributes(idx_test)$group_test <- lengths(groups_test)
+    attributes(idx_test)$group_train <- lengths(indices[-groups_idx_test])
+    out[[idx]] <- idx_test
+  }
+  return(out)
 }
 
 # Creates CV folds stratified by the values of y.

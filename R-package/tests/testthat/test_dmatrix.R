@@ -243,7 +243,7 @@ test_that("xgb.DMatrix: print", {
     txt <- capture.output({
         print(dtrain)
     })
-    expect_equal(txt, "xgb.DMatrix  dim: 6513 x 126  info: label weight base_margin  colnames: yes")
+    expect_equal(txt, "xgb.DMatrix  dim: 6513 x 126  info: base_margin, label, weight  colnames: yes")
 
     # DMatrix with just features
     dtrain <- xgb.DMatrix(
@@ -722,6 +722,44 @@ test_that("xgb.DMatrix: quantile cuts look correct", {
       expect_true(length(cuts) <= 9)
     }
   )
+})
+
+test_that("xgb.DMatrix: slicing keeps field indicators", {
+  data(mtcars)
+  x <- as.matrix(mtcars[, -1])
+  y <- mtcars[, 1]
+  dm <- xgb.DMatrix(
+    data = x,
+    label_lower_bound = -y,
+    label_upper_bound = y,
+    nthread = 1
+  )
+  idx_take <- seq(1, 5)
+  dm_slice <- xgb.slice.DMatrix(dm, idx_take)
+
+  expect_true(xgb.DMatrix.hasinfo(dm_slice, "label_lower_bound"))
+  expect_true(xgb.DMatrix.hasinfo(dm_slice, "label_upper_bound"))
+  expect_false(xgb.DMatrix.hasinfo(dm_slice, "label"))
+
+  expect_equal(getinfo(dm_slice, "label_lower_bound"), -y[idx_take], tolerance = 1e-6)
+  expect_equal(getinfo(dm_slice, "label_upper_bound"), y[idx_take], tolerance = 1e-6)
+})
+
+test_that("xgb.DMatrix: can slice with groups", {
+  data(iris)
+  x <- as.matrix(iris[, -5])
+  set.seed(123)
+  y <- sample(3, size = nrow(x), replace = TRUE)
+  group <- c(50, 50, 50)
+  dm <- xgb.DMatrix(x, label = y, group = group, nthread = 1)
+  idx_take <- seq(1, 50)
+  dm_slice <- xgb.slice.DMatrix(dm, idx_take, allow_groups = TRUE)
+
+  expect_true(xgb.DMatrix.hasinfo(dm_slice, "label"))
+  expect_false(xgb.DMatrix.hasinfo(dm_slice, "group"))
+  expect_false(xgb.DMatrix.hasinfo(dm_slice, "qid"))
+  expect_null(getinfo(dm_slice, "group"))
+  expect_equal(getinfo(dm_slice, "label"), y[idx_take], tolerance = 1e-6)
 })
 
 test_that("xgb.DMatrix: can read CSV", {

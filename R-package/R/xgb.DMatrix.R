@@ -1259,8 +1259,11 @@ xgb.get.DMatrix.data <- function(dmat) {
 #' Get a new DMatrix containing the specified rows of
 #' original xgb.DMatrix object
 #'
-#' @param object Object of class "xgb.DMatrix"
-#' @param idxset a integer vector of indices of rows needed
+#' @param object Object of class "xgb.DMatrix".
+#' @param idxset An integer vector of indices of rows needed (base-1 indexing).
+#' @param allow_groups Whether to allow slicing an `xgb.DMatrix` with `group` (or
+#'        equivalently `qid`) field. Note that in such case, the result will not have
+#'        the groups anymore - they need to be set manually through `setinfo`.
 #' @param colset currently not used (columns subsetting is not available)
 #'
 #' @examples
@@ -1275,11 +1278,11 @@ xgb.get.DMatrix.data <- function(dmat) {
 #'
 #' @rdname xgb.slice.DMatrix
 #' @export
-xgb.slice.DMatrix <- function(object, idxset) {
+xgb.slice.DMatrix <- function(object, idxset, allow_groups = FALSE) {
   if (!inherits(object, "xgb.DMatrix")) {
     stop("object must be xgb.DMatrix")
   }
-  ret <- .Call(XGDMatrixSliceDMatrix_R, object, idxset)
+  ret <- .Call(XGDMatrixSliceDMatrix_R, object, idxset, allow_groups)
 
   attr_list <- attributes(object)
   nr <- nrow(object)
@@ -1296,7 +1299,15 @@ xgb.slice.DMatrix <- function(object, idxset) {
       }
     }
   }
-  return(structure(ret, class = "xgb.DMatrix"))
+
+  out <- structure(ret, class = "xgb.DMatrix")
+  parent_fields <- as.list(attributes(object)$fields)
+  if (NROW(parent_fields)) {
+    child_fields <- parent_fields[!(names(parent_fields) %in% c("group", "qid"))]
+    child_fields <- as.environment(child_fields)
+    attributes(out)$fields <- child_fields
+  }
+  return(out)
 }
 
 #' @rdname xgb.slice.DMatrix
@@ -1340,11 +1351,11 @@ print.xgb.DMatrix <- function(x, verbose = FALSE, ...) {
   }
 
   cat(class_print, ' dim:', nrow(x), 'x', ncol(x), ' info: ')
-  infos <- character(0)
-  if (xgb.DMatrix.hasinfo(x, 'label')) infos <- 'label'
-  if (xgb.DMatrix.hasinfo(x, 'weight')) infos <- c(infos, 'weight')
-  if (xgb.DMatrix.hasinfo(x, 'base_margin')) infos <- c(infos, 'base_margin')
-  if (length(infos) == 0) infos <- 'NA'
+  infos <- names(attributes(x)$fields)
+  infos <- infos[infos != "feature_name"]
+  if (!NROW(infos)) infos <- "NA"
+  infos <- infos[order(infos)]
+  infos <- paste(infos, collapse = ", ")
   cat(infos)
   cnames <- colnames(x)
   cat('  colnames:')

@@ -23,8 +23,8 @@ including the best iteration (when available).
 \examples{
 data(agaricus.train, package='xgboost')
 train <- agaricus.train
-cv <- xgb.cv(data = train$data, label = train$label, nfold = 5, max_depth = 2,
-               eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
+cv <- xgb.cv(data = xgb.DMatrix(train$data, label = train$label), nfold = 5, max_depth = 2,
+             eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
 print(cv)
 print(cv, verbose=TRUE)
 
