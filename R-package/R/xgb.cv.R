@@ -161,7 +161,10 @@ xgb.cv <- function(params = list(), data, nrounds, nfold,
 
   if (stratified == "auto") {
     if (is.character(params$objective)) {
-      stratified <- params$objective %in% .CLASSIFICATION_OBJECTIVES()
+      stratified <- (
+        (params$objective %in% .CLASSIFICATION_OBJECTIVES())
+        && !(params$objective %in% .RANKING_OBJECTIVES())
+      )
     } else {
       stratified <- FALSE
     }

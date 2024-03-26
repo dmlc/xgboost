@@ -26,6 +26,11 @@ NVL <- function(x, val) {
            'multi:softprob', 'rank:pairwise', 'rank:ndcg', 'rank:map'))
 }
 
+.RANKING_OBJECTIVES <- function() {
+  return(c('binary:logistic', 'binary:logitraw', 'binary:hinge', 'multi:softmax',
+           'multi:softprob'))
+}
+
 
 #
 # Low-level functions for boosting --------------------------------------------
