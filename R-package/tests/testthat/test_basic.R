@@ -934,7 +934,8 @@ test_that("xgb.cv works for ranking", {
     ),
     nrounds = 3,
     nfold = 2,
-    verbose = FALSE
+    verbose = FALSE,
+    stratified = FALSE
   )
   expect_equal(length(res$folds), 2L)
 })

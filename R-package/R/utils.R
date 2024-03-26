@@ -238,7 +238,12 @@ convert.labels <- function(labels, objective_name) {
 generate.cv.folds <- function(nfold, nrows, stratified, label, group, params) {
   if (NROW(group)) {
     if (stratified) {
-      stop("stratified sampling is not supported when using 'group' attribute.")
+      warning(
+        paste0(
+          "Stratified splitting is not supported when using 'group' attribute.",
+          " Will use unstratified splitting."
+        )
+      )
     }
     return(generate.group.folds(nfold, group))
   }
