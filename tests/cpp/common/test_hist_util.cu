@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2023 by XGBoost Contributors
+ * Copyright 2019-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <thrust/device_vector.h>
@@ -682,7 +682,7 @@ TEST(HistUtil, DeviceSketchFromGroupWeights) {
   for (size_t i = 0; i < kGroups; ++i) {
     groups[i] = kRows / kGroups;
   }
-  m->SetInfo("group", groups.data(), DataType::kUInt32, kGroups);
+  m->SetInfo("group", Make1dInterfaceTest(groups.data(), kGroups));
   HistogramCuts weighted_cuts = DeviceSketch(&ctx, m.get(), kBins, 0);
 
   // sketch with no weight
@@ -727,7 +727,7 @@ void TestAdapterSketchFromWeights(bool with_group) {
     for (size_t i = 0; i < kGroups; ++i) {
       groups[i] = kRows / kGroups;
     }
-    info.SetInfo(ctx, "group", groups.data(), DataType::kUInt32, kGroups);
+    info.SetInfo(ctx, "group", Make1dInterfaceTest(groups.data(), kGroups));
   }
 
   info.weights_.SetDevice(DeviceOrd::CUDA(0));
@@ -746,10 +746,10 @@ void TestAdapterSketchFromWeights(bool with_group) {
 
   auto dmat = GetDMatrixFromData(storage.HostVector(), kRows, kCols);
   if (with_group) {
-    dmat->Info().SetInfo(ctx, "group", groups.data(), DataType::kUInt32, kGroups);
+    dmat->Info().SetInfo(ctx, "group", Make1dInterfaceTest(groups.data(), kGroups));
   }
 
-  dmat->Info().SetInfo(ctx, "weight", h_weights.data(), DataType::kFloat32, h_weights.size());
+  dmat->Info().SetInfo(ctx, "weight", Make1dInterfaceTest(h_weights.data(), h_weights.size()));
   dmat->Info().num_col_ = kCols;
   dmat->Info().num_row_ = kRows;
   ASSERT_EQ(cuts.Ptrs().size(), kCols + 1);

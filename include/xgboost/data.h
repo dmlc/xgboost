@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <limits>
 #include <memory>
-#include <numeric>
 #include <string>
 #include <utility>
 #include <vector>
@@ -137,14 +136,6 @@ class MetaInfo {
    * \param fo The output stream.
    */
   void SaveBinary(dmlc::Stream* fo) const;
-  /*!
-   * \brief Set information in the meta info.
-   * \param key The key of the information.
-   * \param dptr The data pointer of the source array.
-   * \param dtype The type of the source data.
-   * \param num Number of elements in the source array.
-   */
-  void SetInfo(Context const& ctx, const char* key, const void* dptr, DataType dtype, size_t num);
   /*!
    * \brief Set information in the meta info with array interface.
    * \param key The key of the information.
@@ -517,10 +508,6 @@ class DMatrix {
   DMatrix()  = default;
   /*! \brief meta information of the dataset */
   virtual MetaInfo& Info() = 0;
-  virtual void SetInfo(const char* key, const void* dptr, DataType dtype, size_t num) {
-    auto const& ctx = *this->Ctx();
-    this->Info().SetInfo(ctx, key, dptr, dtype, num);
-  }
   virtual void SetInfo(const char* key, std::string const& interface_str) {
     auto const& ctx = *this->Ctx();
     this->Info().SetInfo(ctx, key, StringView{interface_str});

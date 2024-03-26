@@ -110,7 +110,7 @@ jobs:
     name: Test R package on Debian
     runs-on: ubuntu-latest
     container:
-      image: rhub/debian-gcc-devel
+      image: rhub/debian-gcc-release
 
     steps:
     - name: Install system dependencies
@@ -130,12 +130,12 @@ jobs:
     - name: Install dependencies
       shell: bash -l {0}
       run: |
-        /tmp/R-devel/bin/Rscript -e "source('./R-package/tests/helper_scripts/install_deps.R')"
+        Rscript -e "source('./R-package/tests/helper_scripts/install_deps.R')"
 
     - name: Test R
       shell: bash -l {0}
       run: |
-        python3 tests/ci_build/test_r_package.py --r=/tmp/R-devel/bin/R --build-tool=autotools --task=check
+        python3 tests/ci_build/test_r_package.py --r=/usr/bin/R --build-tool=autotools --task=check
 
     - uses: dorny/paths-filter@v2
       id: changes
@@ -147,4 +147,4 @@ jobs:
     - name: Run document check
       if: steps.changes.outputs.r_package == 'true'
       run: |
-        python3 tests/ci_build/test_r_package.py --r=/tmp/R-devel/bin/R --task=doc
+        python3 tests/ci_build/test_r_package.py --r=/usr/bin/R --task=doc

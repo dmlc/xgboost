@@ -15,19 +15,18 @@
 
 #include <cstdint>  // std::int32_t
 #include <cstdio>
-#include <fstream>
-#include <iostream>
 #include <memory>
 #include <string>
-#include <thread>
 #include <vector>
 
 #include "../../src/collective/communicator-inl.h"
 #include "../../src/common/common.h"
 #include "../../src/common/threading_utils.h"
-#include "../../src/data/array_interface.h"
 #include "filesystem.h"  // dmlc::TemporaryDirectory
 #include "xgboost/linalg.h"
+#if !defined(_OPENMP)
+#include <thread>
+#endif
 
 #if defined(__CUDACC__)
 #define DeclareUnifiedTest(name) GPU ## name
@@ -333,7 +332,7 @@ inline std::vector<float> GenerateRandomCategoricalSingleColumn(int n, size_t nu
   std::vector<float> x(n);
   std::mt19937 rng(0);
   std::uniform_int_distribution<size_t> dist(0, num_categories - 1);
-  std::generate(x.begin(), x.end(), [&]() { return dist(rng); });
+  std::generate(x.begin(), x.end(), [&]() { return static_cast<float>(dist(rng)); });
   // Make sure each category is present
   for (size_t i = 0; i < num_categories; i++) {
     x[i] = static_cast<decltype(x)::value_type>(i);
@@ -492,6 +491,16 @@ inline void Reset(DataIterHandle self) {
 
 inline int Next(DataIterHandle self) {
   return static_cast<ArrayIterForTest*>(self)->Next();
+}
+
+/**
+ * @brief Create an array interface for host vector.
+ */
+template <typename T>
+char const* Make1dInterfaceTest(T const* vec, std::size_t len) {
+  static thread_local std::string str;
+  str = linalg::Make1dInterface(vec, len);
+  return str.c_str();
 }
 
 class RMMAllocator;

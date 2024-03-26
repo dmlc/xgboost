@@ -1,11 +1,12 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright 2023-2024, XGBoost Contributors
  */
 #pragma once
 #include <gtest/gtest.h>
 
 #include <chrono>   // for seconds
 #include <cstdint>  // for int32_t
+#include <fstream>  // for ifstream
 #include <string>   // for string
 #include <thread>   // for thread
 #include <utility>  // for move

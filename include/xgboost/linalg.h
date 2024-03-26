@@ -190,13 +190,14 @@ constexpr auto ArrToTuple(T (&arr)[N]) {
 // uint division optimization inspired by the CIndexer in cupy.  Division operation is
 // slow on both CPU and GPU, especially 64 bit integer.  So here we first try to avoid 64
 // bit when the index is smaller, then try to avoid division when it's exp of 2.
-template <typename I, int32_t D>
+template <typename I, std::int32_t D>
 LINALG_HD auto UnravelImpl(I idx, common::Span<size_t const, D> shape) {
-  size_t index[D]{0};
+  std::size_t index[D]{0};
   static_assert(std::is_signed<decltype(D)>::value,
                 "Don't change the type without changing the for loop.");
+  auto const sptr = shape.data();
   for (int32_t dim = D; --dim > 0;) {
-    auto s = static_cast<std::remove_const_t<std::remove_reference_t<I>>>(shape[dim]);
+    auto s = static_cast<std::remove_const_t<std::remove_reference_t<I>>>(sptr[dim]);
     if (s & (s - 1)) {
       auto t = idx / s;
       index[dim] = idx - t * s;
@@ -742,6 +743,14 @@ template <typename T, int32_t D>
 auto ArrayInterfaceStr(TensorView<T, D> const &t) {
   std::string str;
   Json::Dump(ArrayInterface(t), &str);
+  return str;
+}
+
+template <typename T>
+auto Make1dInterface(T const *vec, std::size_t len) {
+  Context ctx;
+  auto t = linalg::MakeTensorView(&ctx, common::Span{vec, len}, len);
+  auto str = linalg::ArrayInterfaceStr(t);
   return str;
 }
 

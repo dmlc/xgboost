@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 by XGBoost Contributors
+ * Copyright 2020-2024, XGBoost Contributors
  */
 #include <thrust/binary_search.h>
 #include <thrust/execution_policy.h>
@@ -8,8 +8,8 @@
 #include <thrust/transform_scan.h>
 #include <thrust/unique.h>
 
-#include <limits>  // std::numeric_limits
-#include <memory>
+#include <limits>   // std::numeric_limits
+#include <numeric>  // for partial_sum
 #include <utility>
 
 #include "../collective/communicator-inl.cuh"

@@ -6,7 +6,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <mutex>
 
 #include "xgboost/data.h"
 #include "xgboost/host_device_vector.h"

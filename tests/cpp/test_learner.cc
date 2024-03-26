@@ -12,7 +12,6 @@
 #include <cinttypes>                                // for int32_t, int64_t, uint32_t
 #include <cstddef>                                  // for size_t
 #include <iosfwd>                                   // for ofstream
-#include <iterator>                                 // for back_insert_iterator, back_inserter
 #include <limits>                                   // for numeric_limits
 #include <map>                                      // for map
 #include <memory>                                   // for unique_ptr, shared_ptr, __shared_ptr_...
@@ -30,7 +29,6 @@
 #include "../../src/common/random.h"                // for GlobalRandom
 #include "dmlc/io.h"                                // for Stream
 #include "dmlc/omp.h"                               // for omp_get_max_threads
-#include "dmlc/registry.h"                          // for Registry
 #include "filesystem.h"                             // for TemporaryDirectory
 #include "helpers.h"                                // for GetBaseScore, RandomDataGenerator
 #include "objective_helpers.h"                      // for MakeObjNamesForTest, ObjTestNameGenerator
@@ -103,9 +101,9 @@ TEST(Learner, CheckGroup) {
     labels[i] = i % 2;
   }
 
-  p_mat->SetInfo("weight", static_cast<void *>(weight.data()), DataType::kFloat32, kNumGroups);
-  p_mat->SetInfo("group", group.data(), DataType::kUInt32, kNumGroups);
-  p_mat->SetInfo("label", labels.data(), DataType::kFloat32, kNumRows);
+  p_mat->SetInfo("weight", Make1dInterfaceTest(weight.data(), kNumGroups));
+  p_mat->SetInfo("group", Make1dInterfaceTest(group.data(), kNumGroups));
+  p_mat->SetInfo("label", Make1dInterfaceTest(labels.data(), kNumRows));
 
   std::vector<std::shared_ptr<xgboost::DMatrix>> mat = {p_mat};
   auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
@@ -115,7 +113,7 @@ TEST(Learner, CheckGroup) {
   group.resize(kNumGroups+1);
   group[3] = 4;
   group[4] = 1;
-  p_mat->SetInfo("group", group.data(), DataType::kUInt32, kNumGroups+1);
+  p_mat->SetInfo("group", Make1dInterfaceTest(group.data(), kNumGroups+1));
   EXPECT_ANY_THROW(learner->UpdateOneIter(0, p_mat));
 }
 
@@ -132,7 +130,7 @@ TEST(Learner, SLOW_CheckMultiBatch) {  // NOLINT
   for (size_t i = 0; i < num_row; ++i) {
     labels[i] = i % 2;
   }
-  dmat->SetInfo("label", labels.data(), DataType::kFloat32, num_row);
+  dmat->SetInfo("label", Make1dInterfaceTest(labels.data(), num_row));
   std::vector<std::shared_ptr<DMatrix>> mat{dmat};
   auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
   learner->SetParams(Args{{"objective", "binary:logistic"}});

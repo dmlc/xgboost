@@ -3,6 +3,8 @@
  */
 #include <gtest/gtest.h>
 
+#include <numeric>  // for iota
+
 #include "../../../src/collective/allreduce.h"
 #include "../../../src/collective/coll.h"  // for Coll
 #include "../../../src/collective/tracker.h"

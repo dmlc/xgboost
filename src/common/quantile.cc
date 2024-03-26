@@ -4,6 +4,7 @@
 #include "quantile.h"
 
 #include <limits>
+#include <numeric>  // for partial_sum
 #include <utility>
 
 #include "../collective/aggregator.h"
