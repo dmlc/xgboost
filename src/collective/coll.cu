@@ -1,10 +1,9 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright 2023-2024, XGBoost Contributors
  */
 #if defined(XGBOOST_USE_NCCL)
 #include <cstdint>  // for int8_t, int64_t
 
-#include "../common/cuda_context.cuh"
 #include "../common/device_helpers.cuh"
 #include "../data/array_interface.h"
 #include "allgather.h"  // for AllgatherVOffset
@@ -162,14 +161,14 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
   } << [&] { return nccl->Block(); };
 }
 
-[[nodiscard]] Result NCCLColl::Allgather(Comm const& comm, common::Span<std::int8_t> data,
-                                         std::int64_t size) {
+[[nodiscard]] Result NCCLColl::Allgather(Comm const& comm, common::Span<std::int8_t> data) {
   if (!comm.IsDistributed()) {
     return Success();
   }
   auto nccl = dynamic_cast<NCCLComm const*>(&comm);
   CHECK(nccl);
   auto stub = nccl->Stub();
+  auto size = data.size_bytes() / comm.World();
 
   auto send = data.subspan(comm.Rank() * size, size);
   return Success() << [&] {

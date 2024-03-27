@@ -5,7 +5,7 @@
 #include <gtest/gtest.h>
 #include <thrust/host_vector.h>  // for host_vector
 
-#include "../../../src/common/common.h"
+#include "../../../src/common/common.h"            // for AllVisibleGPUs
 #include "../../../src/common/device_helpers.cuh"  // for ToSpan,  device_vector
 #include "../../../src/common/type.h"              // for EraseType
 #include "test_worker.cuh"                         // for NCCLWorkerForTest
