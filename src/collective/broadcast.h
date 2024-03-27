@@ -1,11 +1,10 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright 2023-2024, XGBoost Contributors
  */
 #pragma once
 #include <cstdint>  // for int32_t, int8_t
 
 #include "../common/type.h"
-#include "coll.h"
 #include "comm.h"                       // for Comm, EraseType
 #include "comm_group.h"                 // for CommGroup
 #include "xgboost/collective/result.h"  // for Result
