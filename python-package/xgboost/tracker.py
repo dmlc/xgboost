@@ -43,7 +43,7 @@ class RabitTracker:
 
     def __init__(  # pylint: disable=too-many-arguments
         self,
-        host_ip: str | None,
+        host_ip: Optional[str],
         n_workers: int,
         port: int = 0,
         sortby: str = "host",
