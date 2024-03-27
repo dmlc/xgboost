@@ -4,7 +4,7 @@ import ctypes
 import json
 import socket
 from enum import IntEnum, unique
-from typing import Dict, Optional, Tuple, Union
+from typing import Dict, Optional, Union
 
 from .core import _LIB, _check_call, make_jcargs
 
