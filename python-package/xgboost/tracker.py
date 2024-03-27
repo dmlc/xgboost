@@ -47,7 +47,7 @@ class RabitTracker:
 
     def __init__(  # pylint: disable=too-many-arguments
         self,
-        host_ip: str,
+        host_ip: str | None,
         n_workers: int,
         port: int = 0,
         sortby: str = "host",
@@ -95,37 +95,6 @@ class RabitTracker:
         assert c_env.value is not None
         env = json.loads(c_env.value)
         return env
-
-
-def get_host_ip(host_ip: Optional[str] = None) -> str:
-    """Get the IP address of current host.  If `host_ip` is not none then it will be
-    returned as it's
-
-    """
-    if host_ip is None or host_ip == "auto":
-        host_ip = "ip"
-
-    if host_ip == "dns":
-        host_ip = socket.getfqdn()
-    elif host_ip == "ip":
-        from socket import gaierror
-
-        try:
-            host_ip = socket.gethostbyname(socket.getfqdn())
-        except gaierror:
-            logging.debug(
-                "gethostbyname(socket.getfqdn()) failed... trying on hostname()"
-            )
-            host_ip = socket.gethostbyname(socket.gethostname())
-        if host_ip.startswith("127."):
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            # doesn't have to be reachable
-            s.connect(("10.255.255.255", 1))
-            host_ip = s.getsockname()[0]
-
-    assert host_ip is not None
-    return host_ip
-
 
 def start_rabit_tracker(args: argparse.Namespace) -> None:
     """Standalone function to start rabit tracker.

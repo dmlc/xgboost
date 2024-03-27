@@ -90,7 +90,7 @@ from xgboost.sklearn import (
     _wrap_evaluation_matrices,
     xgboost_model_doc,
 )
-from xgboost.tracker import RabitTracker, get_host_ip
+from xgboost.tracker import RabitTracker
 from xgboost.training import train as worker_train
 
 from .utils import get_n_threads
@@ -166,7 +166,7 @@ def _try_start_tracker(
             host_ip = addrs[0][0]
             port = addrs[0][1]
             rabit_tracker = RabitTracker(
-                host_ip=get_host_ip(host_ip),
+                host_ip=host_ip,
                 n_workers=n_workers,
                 port=port,
                 sortby="task",
@@ -174,9 +174,8 @@ def _try_start_tracker(
         else:
             addr = addrs[0]
             assert isinstance(addr, str) or addr is None
-            host_ip = get_host_ip(addr)
             rabit_tracker = RabitTracker(
-                host_ip=host_ip, n_workers=n_workers, sortby="task"
+                host_ip=addr, n_workers=n_workers, sortby="task"
             )
 
         rabit_tracker.start()
