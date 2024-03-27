@@ -244,9 +244,6 @@ void SketchContainerImpl<WQSketch>::AllreduceCategories(Context const* ctx, Meta
   // indptr for indexing workers
   std::vector<bst_idx_t> global_worker_ptr(world_size + 1, 0);
   global_worker_ptr[rank + 1] = total;  // shift 1 to right for constructing the indptr
-  if (collective::GetRank() == 0) {
-    std::cout << "ws:" << world_size << " ptr:" << global_worker_ptr.size() << std::endl;
-  }
   rc = collective::GlobalSum(ctx, info,
                              linalg::MakeVec(global_worker_ptr.data(), global_worker_ptr.size()));
   std::partial_sum(global_worker_ptr.cbegin(), global_worker_ptr.cend(), global_worker_ptr.begin());

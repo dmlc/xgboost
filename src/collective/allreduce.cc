@@ -115,6 +115,9 @@ Result RingAllreduce(Comm const& comm, common::Span<std::int8_t> data, Func cons
   if (comm.World() == 1) {
     return Success();
   }
+  if (data.size_bytes() == 0) {
+    return Success();
+  }
   return DispatchDType(type, [&](auto t) {
     using T = decltype(t);
     // Divide the data into segments according to the number of workers.
