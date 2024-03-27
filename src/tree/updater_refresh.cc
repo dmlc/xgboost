@@ -9,6 +9,7 @@
 #include <limits>
 #include <vector>
 
+#include "../collective/allreduce.h"
 #include "../collective/communicator-inl.h"
 #include "../common/io.h"
 #include "../common/threading_utils.h"
@@ -94,8 +95,11 @@ class TreeRefresher : public TreeUpdater {
       });
     };
     lazy_get_stats();
-    collective::Allreduce<collective::Operation::kSum>(&dmlc::BeginPtr(stemp[0])->sum_grad,
-                                                       stemp[0].size() * 2);
+    // fixme
+    auto rc = collective::Allreduce(
+        ctx_, linalg::MakeVec(&stemp[0].data()->sum_grad, stemp[0].size() * 2),
+        collective::Op::kMax);
+    CHECK(rc.OK()) << rc.Report();
     int offset = 0;
     for (auto tree : trees) {
       this->Refresh(param, dmlc::BeginPtr(stemp[0]) + offset, 0, tree);

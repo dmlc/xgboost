@@ -6,15 +6,12 @@
 
 #include <thread>
 
-#include "../../../plugin/federated/federated_server.h"
 #include "../../../src/collective/communicator-inl.h"
 #include "../filesystem.h"
 #include "../helpers.h"
-#include "helpers.h"
+#include "federated/test_worker.h"
 
 namespace xgboost {
-
-class FederatedDataTest : public BaseFederatedTest {};
 
 void VerifyLoadUri() {
   auto const rank = collective::GetRank();
@@ -47,7 +44,8 @@ void VerifyLoadUri() {
   }
 }
 
-TEST_F(FederatedDataTest, LoadUri) {
-  RunWithFederatedCommunicator(kWorldSize, server_->Address(), &VerifyLoadUri);
+TEST(FederatedDataTest, LoadUri) {
+  static int constexpr kWorldSize{2};
+  collective::TestFederatedGlobal(kWorldSize, [] { VerifyLoadUri(); });
 }
 }  // namespace xgboost

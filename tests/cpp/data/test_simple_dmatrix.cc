@@ -9,6 +9,7 @@
 
 #include "../../../src/data/adapter.h"         // ArrayAdapter
 #include "../../../src/data/simple_dmatrix.h"  // SimpleDMatrix
+#include "../collective/test_worker.h"         // for TestDistributedGlobal
 #include "../filesystem.h"                     // dmlc::TemporaryDirectory
 #include "../helpers.h"                        // RandomDataGenerator,CreateSimpleTestData
 #include "xgboost/base.h"
@@ -444,5 +445,5 @@ void VerifyColumnSplit() {
 
 TEST(SimpleDMatrix, ColumnSplit) {
   auto constexpr kWorldSize{3};
-  RunWithInMemoryCommunicator(kWorldSize, VerifyColumnSplit);
+  collective::TestDistributedGlobal(kWorldSize, VerifyColumnSplit);
 }

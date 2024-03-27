@@ -18,6 +18,7 @@
 #include "../../../src/common/bitfield.h"         // for LBitField32
 #include "../../../src/data/iterative_dmatrix.h"  // for IterativeDMatrix
 #include "../../../src/data/proxy_dmatrix.h"      // for DMatrixProxy
+#include "../collective/test_worker.h"            // for TestDistributedGlobal
 #include "../helpers.h"                           // for GetDMatrixFromData, RandomDataGenerator
 #include "xgboost/json.h"                         // for Json, Object, get, String
 #include "xgboost/linalg.h"                       // for MakeVec, Tensor, TensorView, Vector
@@ -593,9 +594,17 @@ void TestIterationRangeColumnSplit(int world_size, bool use_gpu) {
   Json sliced_model{Object{}};
   sliced->SaveModel(&sliced_model);
 
-  RunWithInMemoryCommunicator(world_size, VerifyIterationRangeColumnSplit, use_gpu, ranged_model,
-                              sliced_model, kRows, kCols, kClasses, margin_ranged, margin_sliced,
-                              leaf_ranged, leaf_sliced);
+  collective::TestDistributedGlobal(world_size, [&] {
+    VerifyIterationRangeColumnSplit(use_gpu, ranged_model, sliced_model, kRows, kCols, kClasses,
+                                    margin_ranged, margin_sliced, leaf_ranged, leaf_sliced);
+  });
+
+#if defined(XGBOOST_USE_FEDERATED)
+  collective::TestFederatedGlobal(world_size, [&] {
+    VerifyIterationRangeColumnSplit(use_gpu, ranged_model, sliced_model, kRows, kCols, kClasses,
+                                    margin_ranged, margin_sliced, leaf_ranged, leaf_sliced);
+  });
+#endif
 }
 
 void TestSparsePrediction(Context const *ctx, float sparsity) {
@@ -701,8 +710,16 @@ void TestSparsePredictionColumnSplit(int world_size, bool use_gpu, float sparsit
   learner->SetParam("device", ctx.DeviceName());
   learner->Predict(Xy, false, &sparse_predt, 0, 0);
 
-  RunWithInMemoryCommunicator(world_size, VerifySparsePredictionColumnSplit, use_gpu, model,
-                              kRows, kCols, sparsity, sparse_predt.HostVector());
+  collective::TestDistributedGlobal(world_size, [&] {
+    VerifySparsePredictionColumnSplit(use_gpu, model, kRows, kCols, sparsity,
+                                      sparse_predt.HostVector());
+  });
+#if defined(XGBOOST_USE_FEDERATED)
+  collective::TestFederatedGlobal(world_size, [&] {
+    VerifySparsePredictionColumnSplit(use_gpu, model, kRows, kCols, sparsity,
+                                      sparse_predt.HostVector());
+  });
+#endif
 }
 
 void TestVectorLeafPrediction(Context const *ctx) {

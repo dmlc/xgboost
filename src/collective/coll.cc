@@ -104,9 +104,8 @@ bool constexpr IsFloatingPointV() {
   return cpu_impl::Broadcast(comm, data, root);
 }
 
-[[nodiscard]] Result Coll::Allgather(Comm const& comm, common::Span<std::int8_t> data,
-                                     std::int64_t size) {
-  return RingAllgather(comm, data, size);
+[[nodiscard]] Result Coll::Allgather(Comm const& comm, common::Span<std::int8_t> data) {
+  return RingAllgather(comm, data);
 }
 
 [[nodiscard]] Result Coll::AllgatherV(Comm const& comm, common::Span<std::int8_t const> data,

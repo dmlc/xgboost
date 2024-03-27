@@ -3,10 +3,11 @@
  */
 #include <gtest/gtest.h>
 
-#include "../../../src/collective/communicator-inl.cuh"
+#include "../../../src/collective/allreduce.h"
 #include "../../../src/common/hist_util.cuh"
 #include "../../../src/common/quantile.cuh"
 #include "../../../src/data/device_adapter.cuh"  // CupyAdapter
+#include "../collective/test_worker.h"           // for BaseMGPUTest
 #include "../helpers.h"
 #include "test_quantile.h"
 
@@ -18,9 +19,9 @@ struct IsSorted {
   }
 };
 }
-namespace common {
 
-class MGPUQuantileTest : public BaseMGPUTest {};
+namespace common {
+class MGPUQuantileTest : public collective::BaseMGPUTest {};
 
 TEST(GPUQuantile, Basic) {
   constexpr size_t kRows = 1000, kCols = 100, kBins = 256;
@@ -260,9 +261,9 @@ void TestMergeDuplicated(int32_t n_bins, size_t cols, size_t rows, float frac) {
   using Tuple = thrust::tuple<size_t, float>;
   auto it = thrust::make_zip_iterator(tuple_it);
   thrust::transform(thrust::device, it, it + data_1.size(), data_1.data(),
-                    [=] __device__(Tuple const &tuple) {
+                    [=] XGBOOST_DEVICE(Tuple const& tuple) {
                       auto i = thrust::get<0>(tuple);
-                      if (thrust::get<0>(tuple) % 2 == 0) {
+                      if (i % 2 == 0) {
                         return 0.0f;
                       } else {
                         return thrust::get<1>(tuple);
@@ -444,7 +445,8 @@ void TestAllReduceBasic() {
 }  // anonymous namespace
 
 TEST_F(MGPUQuantileTest, AllReduceBasic) {
-  DoTest(TestAllReduceBasic);
+  this->DoTest([] { TestAllReduceBasic(); }, true);
+  this->DoTest([] { TestAllReduceBasic(); }, false);
 }
 
 namespace {
@@ -490,7 +492,8 @@ void TestColumnSplit(DMatrix* dmat) {
 TEST_F(MGPUQuantileTest, ColumnSplitBasic) {
   std::size_t constexpr kRows = 1000, kCols = 100;
   auto dmat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
-  DoTest(TestColumnSplit, dmat.get());
+  this->DoTest([&] { TestColumnSplit(dmat.get()); }, true);
+  this->DoTest([&] { TestColumnSplit(dmat.get()); }, false);
 }
 
 TEST_F(MGPUQuantileTest, ColumnSplitCategorical) {
@@ -507,7 +510,8 @@ TEST_F(MGPUQuantileTest, ColumnSplitCategorical) {
                   .Type(ft)
                   .MaxCategory(13)
                   .GenerateDMatrix();
-  DoTest(TestColumnSplit, dmat.get());
+  this->DoTest([&] { TestColumnSplit(dmat.get()); }, true);
+  this->DoTest([&] { TestColumnSplit(dmat.get()); }, false);
 }
 
 namespace {
@@ -536,7 +540,8 @@ void TestSameOnAllWorkers() {
 
     // Test for all workers having the same sketch.
     size_t n_data = sketch_distributed.Data().size();
-    collective::Allreduce<collective::Operation::kMax>(&n_data, 1);
+    auto rc = collective::Allreduce(&ctx, linalg::MakeVec(&n_data, 1), collective::Op::kMax);
+    CHECK(rc.OK()) << rc.Report();
     ASSERT_EQ(n_data, sketch_distributed.Data().size());
     size_t size_as_float =
         sketch_distributed.Data().size_bytes() / sizeof(float);
@@ -549,9 +554,11 @@ void TestSameOnAllWorkers() {
     thrust::copy(thrust::device, local_data.data(),
                  local_data.data() + local_data.size(),
                  all_workers.begin() + local_data.size() * rank);
-    collective::AllReduce<collective::Operation::kSum>(device.ordinal, all_workers.data().get(),
-                                                       all_workers.size());
-    collective::Synchronize(device.ordinal);
+    rc = collective::Allreduce(
+        &ctx, linalg::MakeVec(all_workers.data().get(), all_workers.size(), ctx.Device()),
+        collective::Op::kSum);
+    CHECK(rc.OK()) << rc.Report();
+    // collective::Synchronize(device);
 
     auto base_line = dh::ToSpan(all_workers).subspan(0, size_as_float);
     std::vector<float> h_base_line(base_line.size());
@@ -573,7 +580,8 @@ void TestSameOnAllWorkers() {
 }  // anonymous namespace
 
 TEST_F(MGPUQuantileTest, SameOnAllWorkers) {
-  DoTest(TestSameOnAllWorkers);
+  this->DoTest([] { TestSameOnAllWorkers(); }, true);
+  this->DoTest([] { TestSameOnAllWorkers(); }, false);
 }
 
 TEST(GPUQuantile, Push) {

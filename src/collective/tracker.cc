@@ -1,6 +1,7 @@
 /**
  * Copyright 2023-2024, XGBoost Contributors
  */
+#include "rabit/internal/socket.h"
 #if defined(__unix__) || defined(__APPLE__)
 #include <netdb.h>       // gethostbyname
 #include <sys/socket.h>  // socket, AF_INET6, AF_INET, connect, getsockname
@@ -70,10 +71,13 @@ RabitTracker::WorkerProxy::WorkerProxy(std::int32_t world, TCPSocket sock, SockA
     return proto::Connect{}.TrackerRecv(&sock_, &world_, &rank, &task_id_);
   } << [&] {
     std::string cmd;
-    sock_.Recv(&cmd);
+    auto rc = sock_.Recv(&cmd);
+    if (!rc.OK()) {
+      return rc;
+    }
     jcmd = Json::Load(StringView{cmd});
     cmd_ = static_cast<proto::CMD>(get<Integer const>(jcmd["cmd"]));
-    return Success();
+    return rc;
   } << [&] {
     if (cmd_ == proto::CMD::kStart) {
       proto::Start start;
@@ -231,11 +235,33 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
   return std::async(std::launch::async, [this, handle_error] {
     State state{this->n_workers_};
 
+    auto select_accept = [&](TCPSocket* sock, auto* addr) {
+      if (!state.running) {
+        rabit::utils::PollHelper poll;
+        auto rc = Success() << [&] {
+          return listener_.NonBlocking(true);
+        } << [&] {
+          poll.WatchRead(listener_);
+          return poll.Poll(timeout_);
+        } << [&] {
+          return listener_.Accept(sock, addr);
+        };
+        return rc;
+      } else {
+        auto rc = Success() << [&] {
+          return listener_.NonBlocking(false);
+        } << [&] {
+          return listener_.Accept(sock, addr);
+        };
+        return rc;
+      }
+    };
+
     while (state.ShouldContinue()) {
       TCPSocket sock;
       SockAddress addr;
       this->ready_ = true;
-      auto rc = listener_.Accept(&sock, &addr);
+      auto rc = select_accept(&sock, &addr);
       if (!rc.OK()) {
         return Fail("Failed to accept connection.", std::move(rc));
       }

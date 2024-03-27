@@ -12,6 +12,7 @@
 #include "../../../src/data/device_adapter.cuh"
 #include "../../../src/data/proxy_dmatrix.h"
 #include "../../../src/gbm/gbtree_model.h"
+#include "../collective/test_worker.h"  // for TestDistributedGlobal, BaseMGPUTest
 #include "../helpers.h"
 #include "test_predictor.h"
 
@@ -85,7 +86,7 @@ void VerifyBasicColumnSplit(std::array<std::vector<float>, 32> const& expected_r
 }
 }  // anonymous namespace
 
-class MGPUPredictorTest : public BaseMGPUTest {};
+class MGPUPredictorTest : public collective::BaseMGPUTest {};
 
 TEST_F(MGPUPredictorTest, BasicColumnSplit) {
   auto ctx = MakeCUDACtx(0);
@@ -111,7 +112,8 @@ TEST_F(MGPUPredictorTest, BasicColumnSplit) {
     result[i - 1] = out_predictions_h;
   }
 
-  DoTest(VerifyBasicColumnSplit, result);
+  this->DoTest([&] { VerifyBasicColumnSplit(result); }, true);
+  this->DoTest([&] { VerifyBasicColumnSplit(result); }, false);
 }
 
 TEST(GPUPredictor, EllpackBasic) {
@@ -209,7 +211,8 @@ TEST(GpuPredictor, LesserFeatures) {
 }
 
 TEST_F(MGPUPredictorTest, LesserFeaturesColumnSplit) {
-  RunWithInMemoryCommunicator(world_size_, TestPredictionWithLesserFeaturesColumnSplit, true);
+  this->DoTest([] { TestPredictionWithLesserFeaturesColumnSplit(true); }, true);
+  this->DoTest([] { TestPredictionWithLesserFeaturesColumnSplit(true); }, false);
 }
 
 // Very basic test of empty model
@@ -277,7 +280,7 @@ TEST(GPUPredictor, IterationRange) {
 }
 
 TEST_F(MGPUPredictorTest, IterationRangeColumnSplit) {
-  TestIterationRangeColumnSplit(world_size_, true);
+  TestIterationRangeColumnSplit(common::AllVisibleGPUs(), true);
 }
 
 TEST(GPUPredictor, CategoricalPrediction) {
@@ -285,7 +288,8 @@ TEST(GPUPredictor, CategoricalPrediction) {
 }
 
 TEST_F(MGPUPredictorTest, CategoricalPredictionColumnSplit) {
-  RunWithInMemoryCommunicator(world_size_, TestCategoricalPrediction, true, true);
+  this->DoTest([] { TestCategoricalPrediction(true, true); }, true);
+  this->DoTest([] { TestCategoricalPrediction(true, true); }, false);
 }
 
 TEST(GPUPredictor, CategoricalPredictLeaf) {
@@ -294,8 +298,18 @@ TEST(GPUPredictor, CategoricalPredictLeaf) {
 }
 
 TEST_F(MGPUPredictorTest, CategoricalPredictionLeafColumnSplit) {
-  auto ctx = MakeCUDACtx(common::AllVisibleGPUs() == 1 ? 0 : collective::GetRank());
-  RunWithInMemoryCommunicator(world_size_, TestCategoricalPredictLeaf, &ctx, true);
+  this->DoTest(
+      [&] {
+        auto ctx = MakeCUDACtx(collective::GetRank());
+        TestCategoricalPredictLeaf(&ctx, true);
+      },
+      true);
+  this->DoTest(
+      [&] {
+        auto ctx = MakeCUDACtx(collective::GetRank());
+        TestCategoricalPredictLeaf(&ctx, true);
+      },
+      false);
 }
 
 TEST(GPUPredictor, PredictLeafBasic) {
@@ -325,7 +339,7 @@ TEST(GPUPredictor, Sparse) {
 }
 
 TEST_F(MGPUPredictorTest, SparseColumnSplit) {
-  TestSparsePredictionColumnSplit(world_size_, true, 0.2);
-  TestSparsePredictionColumnSplit(world_size_, true, 0.8);
+  TestSparsePredictionColumnSplit(common::AllVisibleGPUs(), true, 0.2);
+  TestSparsePredictionColumnSplit(common::AllVisibleGPUs(), true, 0.8);
 }
 }  // namespace xgboost::predictor

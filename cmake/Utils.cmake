@@ -119,7 +119,8 @@ function(xgboost_set_cuda_flags target)
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
     $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>
-    $<$<COMPILE_LANGUAGE:CUDA>:-Xfatbin=-compress-all>)
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xfatbin=-compress-all>
+    $<$<COMPILE_LANGUAGE:CUDA>:--brief-diagnostics=false>)
 
   if(USE_PER_THREAD_DEFAULT_STREAM)
     target_compile_options(${target} PRIVATE
@@ -151,6 +152,7 @@ function(xgboost_set_cuda_flags target)
   target_include_directories(
     ${target} PRIVATE
     ${xgboost_SOURCE_DIR}/gputreeshap
+    ${xgboost_SOURCE_DIR}/rabit/include
     ${CUDAToolkit_INCLUDE_DIRS})
 
   if(MSVC)

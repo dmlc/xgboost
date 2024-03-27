@@ -45,7 +45,8 @@ TEST_F(SocketTest, Basic) {
     accepted.Send(msg);
 
     std::string str;
-    client.Recv(&str);
+    auto rc = client.Recv(&str);
+    SafeColl(rc);
     ASSERT_EQ(StringView{str}, msg);
   };
 

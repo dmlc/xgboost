@@ -9,7 +9,6 @@
 #include <xgboost/logging.h>
 #include <xgboost/objective.h>
 #pragma GCC diagnostic pop
-#include <rabit/rabit.h>
 
 #include <cmath>
 #include <memory>

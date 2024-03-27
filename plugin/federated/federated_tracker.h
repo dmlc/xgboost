@@ -17,8 +17,7 @@ namespace xgboost::collective {
 namespace federated {
 class FederatedService final : public Federated::Service {
  public:
-  explicit FederatedService(std::int32_t world_size)
-      : handler_{static_cast<std::size_t>(world_size)} {}
+  explicit FederatedService(std::int32_t world_size) : handler_{world_size} {}
 
   grpc::Status Allgather(grpc::ServerContext* context, AllgatherRequest const* request,
                          AllgatherReply* reply) override;

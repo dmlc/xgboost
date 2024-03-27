@@ -64,12 +64,7 @@ class Loop {
    */
   Result Stop();
 
-  void Submit(Op op) {
-    std::unique_lock lock{mu_};
-    queue_.push(op);
-    lock.unlock();
-    cv_.notify_one();
-  }
+  void Submit(Op op);
 
   /**
    * @brief Block the event loop until all ops are finished. In the case of failure, this

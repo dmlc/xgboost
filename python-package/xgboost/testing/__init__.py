@@ -968,7 +968,7 @@ def run_with_rabit(
             exception_queue.put(e)
 
     tracker = RabitTracker(host_ip="127.0.0.1", n_workers=world_size)
-    tracker.start(world_size)
+    tracker.start()
 
     workers = []
     for _ in range(world_size):

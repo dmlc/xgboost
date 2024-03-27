@@ -3,6 +3,7 @@ import sys
 
 import numpy as np
 import pytest
+from hypothesis import HealthCheck, given, settings, strategies
 
 import xgboost as xgb
 from xgboost import RabitTracker, collective
@@ -14,7 +15,7 @@ if sys.platform.startswith("win"):
 
 def test_rabit_tracker():
     tracker = RabitTracker(host_ip="127.0.0.1", n_workers=1)
-    tracker.start(1)
+    tracker.start()
     with xgb.collective.CommunicatorContext(**tracker.worker_envs()):
         ret = xgb.collective.broadcast("test1234", 0)
         assert str(ret) == "test1234"
@@ -22,12 +23,13 @@ def test_rabit_tracker():
 
 @pytest.mark.skipif(**tm.not_linux())
 def test_socket_error():
-    tracker = RabitTracker(host_ip="127.0.0.1", n_workers=1)
-    tracker.start(1)
+    tracker = RabitTracker(host_ip="127.0.0.1", n_workers=2, timeout=3)
+    tracker.start()
     env = tracker.worker_envs()
-    env["DMLC_TRACKER_PORT"] = 0
-    env["DMLC_WORKER_CONNECT_RETRY"] = 1
-    with pytest.raises(ValueError, match="127.0.0.1:0\n.*refused"):
+    env["dmlc_tracker_port"] = 0
+    env["dmlc_retry"] = 1
+    env["dmlc_timeout_sec"] = 3
+    with pytest.raises(ValueError, match="Failed to bootstrap the communication."):
         with xgb.collective.CommunicatorContext(**env):
             pass
 
@@ -133,3 +135,108 @@ def test_rank_assignment() -> None:
 
             futures = client.map(local_test, range(len(workers)), workers=workers)
             client.gather(futures)
+
+
+@pytest.fixture
+def local_cluster():
+    from distributed import LocalCluster
+
+    n_workers = 8
+    with LocalCluster(n_workers=n_workers, dashboard_address=":0") as cluster:
+        yield cluster
+
+
+ops_strategy = strategies.lists(
+    strategies.sampled_from(["broadcast", "allreduce_max", "allreduce_sum"])
+)
+
+
+@pytest.mark.skipif(**tm.no_dask())
+@given(ops=ops_strategy, size=strategies.integers(2**4, 2**16))
+@settings(
+    deadline=None,
+    print_blob=True,
+    max_examples=10,
+    suppress_health_check=[HealthCheck.function_scoped_fixture],
+)
+def test_ops_restart_comm(local_cluster, ops, size) -> None:
+    from distributed import Client
+
+    def local_test(w: int, n_workers: int) -> None:
+        a = np.arange(0, n_workers)
+        with xgb.dask.CommunicatorContext(**args):
+            for op in ops:
+                if op == "broadcast":
+                    b = collective.broadcast(a, root=1)
+                    np.testing.assert_allclose(b, a)
+                elif op == "allreduce_max":
+                    b = collective.allreduce(a, collective.Op.MAX)
+                    np.testing.assert_allclose(b, a)
+                elif op == "allreduce_sum":
+                    b = collective.allreduce(a, collective.Op.SUM)
+                    np.testing.assert_allclose(a * n_workers, b)
+                else:
+                    raise ValueError()
+
+    with Client(local_cluster) as client:
+        workers = tm.get_client_workers(client)
+        args = client.sync(
+            xgb.dask._get_rabit_args,
+            len(workers),
+            None,
+            client,
+        )
+
+        workers = tm.get_client_workers(client)
+        n_workers = len(workers)
+
+        futures = client.map(
+            local_test, range(len(workers)), workers=workers, n_workers=n_workers
+        )
+        client.gather(futures)
+
+
+# The test doesn't work yet, we are still working to refactor the network module.
+@pytest.mark.skipif(**tm.no_dask())
+@pytest.mark.xfail
+def test_ops_reuse_comm(local_cluster) -> None:
+    from distributed import Client
+
+    rng = np.random.default_rng(1994)
+    n_examples = 1
+    ops = rng.choice(
+        ["broadcast", "allreduce_sum", "allreduce_max"], size=n_examples
+    ).tolist()
+
+    def local_test(w: int, n_workers: int) -> None:
+        a = np.arange(0, n_workers)
+
+        with xgb.dask.CommunicatorContext(**args):
+            for op in ops:
+                if op == "broadcast":
+                    b = collective.broadcast(a, root=1)
+                    assert np.allclose(b, a)
+                elif op == "allreduce_max":
+                    b = collective.allreduce(a, collective.Op.MAX)
+                    assert np.allclose(b, n_workers - 1), a
+                elif op == "allreduce_sum":
+                    b = collective.allreduce(a, collective.Op.SUM)
+                    assert np.allclose(a * 8, b)
+                else:
+                    raise ValueError()
+
+    with Client(local_cluster) as client:
+        workers = tm.get_client_workers(client)
+        args = client.sync(
+            xgb.dask._get_rabit_args,
+            len(workers),
+            None,
+            client,
+        )
+
+        n_workers = len(workers)
+
+        futures = client.map(
+            local_test, range(len(workers)), workers=workers, n_workers=n_workers
+        )
+        client.gather(futures)

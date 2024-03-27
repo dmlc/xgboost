@@ -171,12 +171,13 @@ decltype(auto) HostAdapterDispatch(DMatrixProxy const* proxy, Fn fn, bool* type_
     } else {
       LOG(FATAL) << "Unknown type: " << proxy->Adapter().type().name();
     }
-    if constexpr (get_value) {
-      return std::invoke_result_t<
-          Fn, decltype(std::declval<std::shared_ptr<ArrayAdapter>>()->Value())>();
-    } else {
-      return std::invoke_result_t<Fn, decltype(std::declval<std::shared_ptr<ArrayAdapter>>())>();
-    }
+  }
+
+  if constexpr (get_value) {
+    return std::invoke_result_t<Fn,
+                                decltype(std::declval<std::shared_ptr<ArrayAdapter>>()->Value())>();
+  } else {
+    return std::invoke_result_t<Fn, decltype(std::declval<std::shared_ptr<ArrayAdapter>>())>();
   }
 }
 

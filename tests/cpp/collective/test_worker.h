@@ -16,6 +16,10 @@
 #include "../../../src/collective/tracker.h"  // for GetHostAddress
 #include "../helpers.h"                       // for FileExists
 
+#if defined(XGBOOST_USE_FEDERATED)
+#include "../plugin/federated/test_worker.h"
+#endif  // defined(XGBOOST_USE_FEDERATED)
+
 namespace xgboost::collective {
 class WorkerForTest {
   std::string tracker_host_;
@@ -115,4 +119,62 @@ void TestDistributed(std::int32_t n_workers, WorkerFn worker_fn) {
 
   ASSERT_TRUE(fut.get().OK());
 }
+
+inline auto MakeDistributedTestConfig(std::string host, std::int32_t port,
+                                      std::chrono::seconds timeout, std::int32_t r) {
+  Json config{Object{}};
+  config["dmlc_communicator"] = std::string{"rabit"};
+  config["DMLC_TRACKER_URI"] = host;
+  config["DMLC_TRACKER_PORT"] = port;
+  config["dmlc_timeout_sec"] = static_cast<std::int64_t>(timeout.count());
+  config["DMLC_TASK_ID"] = std::to_string(r);
+  config["dmlc_retry"] = 2;
+  return config;
+}
+
+template <typename WorkerFn>
+void TestDistributedGlobal(std::int32_t n_workers, WorkerFn worker_fn, bool need_finalize = true) {
+  std::chrono::seconds timeout{1};
+
+  std::string host;
+  auto rc = GetHostAddress(&host);
+  ASSERT_TRUE(rc.OK()) << rc.Report();
+  RabitTracker tracker{StringView{host}, n_workers, 0, timeout};
+  auto fut = tracker.Run();
+
+  std::vector<std::thread> workers;
+  std::int32_t port = tracker.Port();
+
+  for (std::int32_t i = 0; i < n_workers; ++i) {
+    workers.emplace_back([=] {
+      auto config = MakeDistributedTestConfig(host, port, timeout, i);
+      Init(config);
+      worker_fn();
+      if (need_finalize) {
+        Finalize();
+      }
+    });
+  }
+
+  for (auto& t : workers) {
+    t.join();
+  }
+
+  ASSERT_TRUE(fut.get().OK());
+}
+
+class BaseMGPUTest : public ::testing::Test {
+ public:
+  template <typename Fn>
+  auto DoTest(Fn&& fn, bool is_federated) const {
+    auto n_gpus = common::AllVisibleGPUs();
+    if (is_federated) {
+#if defined(XGBOOST_USE_FEDERATED)
+      TestFederatedGlobal(n_gpus, fn);
+#endif  // defined(XGBOOST_USE_FEDERATED)
+    } else {
+      TestDistributedGlobal(n_gpus, fn);
+    }
+  }
+};
 }  // namespace xgboost::collective

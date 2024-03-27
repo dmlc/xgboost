@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright 2023-2024, XGBoost Contributors
  */
 #if defined(XGBOOST_USE_NCCL)
 #include <gtest/gtest.h>
@@ -33,7 +33,7 @@ class Worker : public NCCLWorkerForTest {
       // get size
       std::vector<std::int64_t> sizes(comm_.World(), -1);
       sizes[comm_.Rank()] = s_data.size_bytes();
-      auto rc = RingAllgather(comm_, common::Span{sizes.data(), sizes.size()}, 1);
+      auto rc = RingAllgather(comm_, common::Span{sizes.data(), sizes.size()});
       ASSERT_TRUE(rc.OK()) << rc.Report();
       // create result
       dh::device_vector<std::int32_t> result(comm_.World(), -1);
@@ -57,7 +57,7 @@ class Worker : public NCCLWorkerForTest {
       // get size
       std::vector<std::int64_t> sizes(nccl_comm_->World(), 0);
       sizes[comm_.Rank()] = dh::ToSpan(data).size_bytes();
-      auto rc = RingAllgather(comm_, common::Span{sizes.data(), sizes.size()}, 1);
+      auto rc = RingAllgather(comm_, common::Span{sizes.data(), sizes.size()});
       ASSERT_TRUE(rc.OK()) << rc.Report();
       auto n_bytes = std::accumulate(sizes.cbegin(), sizes.cend(), 0);
       // create result

@@ -84,7 +84,10 @@ struct Connect {
   [[nodiscard]] Result TrackerRecv(TCPSocket* sock, std::int32_t* world, std::int32_t* rank,
                                    std::string* task_id) const {
     std::string init;
-    sock->Recv(&init);
+    auto rc = sock->Recv(&init);
+    if (!rc.OK()) {
+      return Fail("Connect protocol failed.", std::move(rc));
+    }
     auto jinit = Json::Load(StringView{init});
     *world = get<Integer const>(jinit["world_size"]);
     *rank = get<Integer const>(jinit["rank"]);
@@ -122,9 +125,9 @@ class Start {
   }
   [[nodiscard]] Result WorkerRecv(TCPSocket* tracker, std::int32_t* p_world) const {
     std::string scmd;
-    auto n_bytes = tracker->Recv(&scmd);
-    if (n_bytes <= 0) {
-      return Fail("Failed to recv init command from tracker.");
+    auto rc = tracker->Recv(&scmd);
+    if (!rc.OK()) {
+      return Fail("Failed to recv init command from tracker.", std::move(rc));
     }
     auto jcmd = Json::Load(scmd);
     auto world = get<Integer const>(jcmd["world_size"]);
@@ -132,7 +135,7 @@ class Start {
       return Fail("Invalid world size.");
     }
     *p_world = world;
-    return Success();
+    return rc;
   }
   [[nodiscard]] Result TrackerHandle(Json jcmd, std::int32_t* recv_world, std::int32_t world,
                                      std::int32_t* p_port, TCPSocket* p_sock,

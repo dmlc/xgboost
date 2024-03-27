@@ -282,9 +282,6 @@ if(MSVC)
   endif()
 endif()
 
-# rabit
-add_subdirectory(rabit)
-
 # core xgboost
 add_subdirectory(${xgboost_SOURCE_DIR}/src)
 target_link_libraries(objxgboost PUBLIC dmlc)

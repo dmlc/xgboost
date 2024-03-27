@@ -615,7 +615,12 @@ auto DispatchDType(ArrayInterfaceHandler::Type dtype, Fn dispatch) {
     case ArrayInterfaceHandler::kF16: {
       using T = long double;
       CHECK(sizeof(T) == 16) << error::NoF128();
-      return dispatch(T{});
+      // Avoid invalid type.
+      if constexpr (sizeof(T) == 16) {
+        return dispatch(T{});
+      } else {
+        return dispatch(double{});
+      }
     }
     case ArrayInterfaceHandler::kI1: {
       return dispatch(std::int8_t{});

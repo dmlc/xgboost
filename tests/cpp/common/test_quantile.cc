@@ -1,12 +1,16 @@
 /**
- * Copyright 2020-2023 by XGBoost Contributors
+ * Copyright 2020-2024, XGBoost Contributors
  */
 #include "test_quantile.h"
 
 #include <gtest/gtest.h>
 
+#include <cstdint>  // for int64_t
+
+#include "../../../src/collective/allreduce.h"
 #include "../../../src/common/hist_util.h"
 #include "../../../src/data/adapter.h"
+#include "../collective/test_worker.h"  // for TestDistributedGlobal
 #include "xgboost/context.h"
 
 namespace xgboost::common {
@@ -90,6 +94,7 @@ void DoTestDistributedQuantile(size_t rows, size_t cols) {
 
   // Generate cuts for single node environment
   collective::Finalize();
+
   CHECK_EQ(collective::GetWorldSize(), 1);
   std::for_each(column_size.begin(), column_size.end(), [=](auto& size) { size *= world; });
   m->Info().num_row_ = world * rows;
@@ -145,7 +150,8 @@ void DoTestDistributedQuantile(size_t rows, size_t cols) {
 template <bool use_column>
 void TestDistributedQuantile(size_t const rows, size_t const cols) {
   auto constexpr kWorkers = 4;
-  RunWithInMemoryCommunicator(kWorkers, DoTestDistributedQuantile<use_column>, rows, cols);
+  collective::TestDistributedGlobal(
+      kWorkers, [=] { DoTestDistributedQuantile<use_column>(rows, cols); }, false);
 }
 }  // anonymous namespace
 
@@ -272,7 +278,8 @@ void DoTestColSplitQuantile(size_t rows, size_t cols) {
 template <bool use_column>
 void TestColSplitQuantile(size_t rows, size_t cols) {
   auto constexpr kWorkers = 4;
-  RunWithInMemoryCommunicator(kWorkers, DoTestColSplitQuantile<use_column>, rows, cols);
+  collective::TestDistributedGlobal(kWorkers,
+                                    [=] { DoTestColSplitQuantile<use_column>(rows, cols); });
 }
 }  // anonymous namespace
 
@@ -324,43 +331,56 @@ void TestSameOnAllWorkers() {
             cut_ptrs(cuts.Ptrs().size() * world, 0);
         std::vector<float> cut_min_values(cuts.MinValues().size() * world, 0);
 
-        size_t value_size = cuts.Values().size();
-        collective::Allreduce<collective::Operation::kMax>(&value_size, 1);
-        size_t ptr_size = cuts.Ptrs().size();
-        collective::Allreduce<collective::Operation::kMax>(&ptr_size, 1);
-        CHECK_EQ(ptr_size, kCols + 1);
-        size_t min_value_size = cuts.MinValues().size();
-        collective::Allreduce<collective::Operation::kMax>(&min_value_size, 1);
-        CHECK_EQ(min_value_size, kCols);
+        std::int64_t value_size = cuts.Values().size();
+        std::int64_t ptr_size = cuts.Ptrs().size();
+        std::int64_t min_value_size = cuts.MinValues().size();
 
-        size_t value_offset = value_size * rank;
-        std::copy(cuts.Values().begin(), cuts.Values().end(),
-                  cut_values.begin() + value_offset);
-        size_t ptr_offset = ptr_size * rank;
-        std::copy(cuts.Ptrs().cbegin(), cuts.Ptrs().cend(),
-                  cut_ptrs.begin() + ptr_offset);
-        size_t min_values_offset = min_value_size * rank;
+        auto rc = collective::Success() << [&] {
+          return collective::Allreduce(&ctx, &value_size, collective::Op::kMax);
+        } << [&] {
+          return collective::Allreduce(&ctx, &ptr_size, collective::Op::kMax);
+        } << [&] {
+          return collective::Allreduce(&ctx, &min_value_size, collective::Op::kMax);
+        };
+        collective::SafeColl(rc);
+        ASSERT_EQ(ptr_size, kCols + 1);
+        ASSERT_EQ(min_value_size, kCols);
+
+        std::size_t value_offset = value_size * rank;
+        std::copy(cuts.Values().begin(), cuts.Values().end(), cut_values.begin() + value_offset);
+        std::size_t ptr_offset = ptr_size * rank;
+        std::copy(cuts.Ptrs().cbegin(), cuts.Ptrs().cend(), cut_ptrs.begin() + ptr_offset);
+        std::size_t min_values_offset = min_value_size * rank;
         std::copy(cuts.MinValues().cbegin(), cuts.MinValues().cend(),
                   cut_min_values.begin() + min_values_offset);
 
-        collective::Allreduce<collective::Operation::kSum>(cut_values.data(), cut_values.size());
-        collective::Allreduce<collective::Operation::kSum>(cut_ptrs.data(), cut_ptrs.size());
-        collective::Allreduce<collective::Operation::kSum>(cut_min_values.data(), cut_min_values.size());
+        rc = std::move(rc) << [&] {
+          return collective::Allreduce(&ctx, linalg::MakeVec(cut_values.data(), cut_values.size()),
+                                       collective::Op::kSum);
+        } << [&] {
+          return collective::Allreduce(&ctx, linalg::MakeVec(cut_ptrs.data(), cut_ptrs.size()),
+                                       collective::Op::kSum);
+        } << [&] {
+          return collective::Allreduce(
+              &ctx, linalg::MakeVec(cut_min_values.data(), cut_min_values.size()),
+              collective::Op::kSum);
+        };
+        collective::SafeColl(rc);
 
-        for (int32_t i = 0; i < world; i++) {
-          for (size_t j = 0; j < value_size; ++j) {
+        for (std::int32_t i = 0; i < world; i++) {
+          for (std::int64_t j = 0; j < value_size; ++j) {
             size_t idx = i * value_size + j;
-            EXPECT_NEAR(cuts.Values().at(j), cut_values.at(idx), kRtEps);
+            ASSERT_NEAR(cuts.Values().at(j), cut_values.at(idx), kRtEps);
           }
 
-          for (size_t j = 0; j < ptr_size; ++j) {
+          for (std::int64_t j = 0; j < ptr_size; ++j) {
             size_t idx = i * ptr_size + j;
             EXPECT_EQ(cuts.Ptrs().at(j), cut_ptrs.at(idx));
           }
 
-          for (size_t j = 0; j < min_value_size; ++j) {
+          for (std::int64_t j = 0; j < min_value_size; ++j) {
             size_t idx = i * min_value_size + j;
-            EXPECT_EQ(cuts.MinValues().at(j), cut_min_values.at(idx));
+            ASSERT_EQ(cuts.MinValues().at(j), cut_min_values.at(idx));
           }
         }
       });
@@ -369,6 +389,6 @@ void TestSameOnAllWorkers() {
 
 TEST(Quantile, SameOnAllWorkers) {
   auto constexpr kWorkers = 4;
-  RunWithInMemoryCommunicator(kWorkers, TestSameOnAllWorkers);
+  collective::TestDistributedGlobal(kWorkers, [] { TestSameOnAllWorkers(); });
 }
 }  // namespace xgboost::common

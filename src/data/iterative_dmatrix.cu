@@ -5,6 +5,7 @@
 #include <memory>
 #include <type_traits>
 
+#include "../collective/allreduce.h"
 #include "../common/hist_util.cuh"
 #include "batch_utils.h"  // for RegenGHist
 #include "device_adapter.cuh"
@@ -63,7 +64,8 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
     dh::safe_cuda(cudaSetDevice(get_device().ordinal));
     if (cols == 0) {
       cols = num_cols();
-      collective::Allreduce<collective::Operation::kMax>(&cols, 1);
+      auto rc = collective::Allreduce(ctx, linalg::MakeVec(&cols, 1), collective::Op::kMax);
+      CHECK(rc.OK()) << rc.Report();
       this->info_.num_col_ = cols;
     } else {
       CHECK_EQ(cols, num_cols()) << "Inconsistent number of columns.";

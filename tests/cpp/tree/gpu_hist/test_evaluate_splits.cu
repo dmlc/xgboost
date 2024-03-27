@@ -5,6 +5,7 @@
 #include <thrust/host_vector.h>
 
 #include "../../../../src/tree/gpu_hist/evaluate_splits.cuh"
+#include "../../collective/test_worker.h"  // for BaseMGPUTest
 #include "../../helpers.h"
 #include "../../histogram_helpers.h"
 #include "../test_evaluate_splits.h"  // TestPartitionBasedSplit
@@ -546,7 +547,7 @@ TEST_F(TestPartitionBasedSplit, GpuHist) {
   ASSERT_NEAR(split.loss_chg, best_score_, 1e-2);
 }
 
-class MGPUHistTest : public BaseMGPUTest {};
+class MGPUHistTest : public collective::BaseMGPUTest {};
 
 namespace {
 void VerifyColumnSplitEvaluateSingleSplit(bool is_categorical) {
@@ -600,10 +601,12 @@ void VerifyColumnSplitEvaluateSingleSplit(bool is_categorical) {
 }  // anonymous namespace
 
 TEST_F(MGPUHistTest, ColumnSplitEvaluateSingleSplit) {
-  DoTest(VerifyColumnSplitEvaluateSingleSplit, false);
+  this->DoTest([] { VerifyColumnSplitEvaluateSingleSplit(false); }, false);
+  this->DoTest([] { VerifyColumnSplitEvaluateSingleSplit(false); }, true);
 }
 
 TEST_F(MGPUHistTest, ColumnSplitEvaluateSingleCategoricalSplit) {
-  DoTest(VerifyColumnSplitEvaluateSingleSplit, true);
+  this->DoTest([] { VerifyColumnSplitEvaluateSingleSplit(true); }, false);
+  this->DoTest([] { VerifyColumnSplitEvaluateSingleSplit(true); }, true);
 }
 }  // namespace xgboost::tree

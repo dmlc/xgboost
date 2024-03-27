@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "../collective/communicator-inl.h"  // for GetWorldSize, GetRank, Allgather
+#include "../collective/allgather.h"
 #include "../common/error_msg.h"             // for InconsistentMaxBin
 #include "./simple_batch_iterator.h"
 #include "adapter.h"
@@ -76,8 +77,11 @@ DMatrix* SimpleDMatrix::SliceCol(int num_slices, int slice_id) {
 
 void SimpleDMatrix::ReindexFeatures(Context const* ctx) {
   if (info_.IsColumnSplit() && collective::GetWorldSize() > 1) {
-    auto const cols = collective::Allgather(info_.num_col_);
-    auto const offset = std::accumulate(cols.cbegin(), cols.cbegin() + collective::GetRank(), 0ul);
+    std::vector<std::uint64_t> buffer(collective::GetWorldSize());
+    buffer[collective::GetRank()] = info_.num_col_;
+    auto rc = collective::Allgather(ctx, linalg::MakeVec(buffer.data(), buffer.size()));
+    CHECK(rc.OK()) << rc.Report();
+    auto offset = std::accumulate(buffer.cbegin(), buffer.cbegin() + collective::GetRank(), 0);
     if (offset == 0) {
       return;
     }
