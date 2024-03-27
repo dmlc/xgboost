@@ -42,7 +42,7 @@ class CustomEarlyStopping(xgb.callback.TrainingCallback):
             return False  # continue training
         p = probability_for_going_backward(epoch)
         go_backward = self.rng.choice(2, size=(1,), replace=True, p=[1 - p, p]).astype(
-            np.bool
+            np.bool_
         )[0]
         print(
             "The validation metric went into the wrong direction. "
