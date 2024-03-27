@@ -286,7 +286,6 @@ RabitComm::~RabitComm() noexcept(false) {
   if (!this->IsDistributed()) {
     return;
   }
-  LOG(WARNING) << "Missing call to `Finalize`." << std::endl;
   auto rc = this->Shutdown();
   if (!rc.OK()) {
     LOG(WARNING) << rc.Report();
