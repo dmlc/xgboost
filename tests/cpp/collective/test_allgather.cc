@@ -34,7 +34,7 @@ class Worker : public WorkerForTest {
       std::vector<std::int32_t> data(comm_.World(), 0);
       data[comm_.Rank()] = comm_.Rank();
 
-      auto rc = RingAllgather(this->comm_, common::Span{data.data(), data.size()}, 1);
+      auto rc = RingAllgather(this->comm_, common::Span{data.data(), data.size()});
       ASSERT_TRUE(rc.OK()) << rc.Report();
 
       for (std::int32_t r = 0; r < comm_.World(); ++r) {
@@ -51,7 +51,7 @@ class Worker : public WorkerForTest {
       auto seg = s_data.subspan(comm_.Rank() * n, n);
       std::iota(seg.begin(), seg.end(), comm_.Rank());
 
-      auto rc = RingAllgather(comm_, common::Span{data.data(), data.size()}, n);
+      auto rc = RingAllgather(comm_, common::Span{data.data(), data.size()});
       ASSERT_TRUE(rc.OK()) << rc.Report();
 
       for (std::int32_t r = 0; r < comm_.World(); ++r) {
@@ -104,7 +104,7 @@ class Worker : public WorkerForTest {
 
     std::vector<std::int64_t> sizes(comm_.World(), 0);
     sizes[comm_.Rank()] = s_data.size_bytes();
-    auto rc = RingAllgather(comm_, common::Span{sizes.data(), sizes.size()}, 1);
+    auto rc = RingAllgather(comm_, common::Span{sizes.data(), sizes.size()});
     ASSERT_TRUE(rc.OK()) << rc.Report();
     std::shared_ptr<Coll> pcoll{new Coll{}};
 

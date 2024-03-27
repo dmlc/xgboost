@@ -50,6 +50,10 @@ class NCCLComm : public Comm {
     auto rc = this->Stream().Sync(false);
     return GetCUDAResult(rc);
   }
+  [[nodiscard]] Result Shutdown() final {
+    this->ResetState();
+    return Success();
+  }
 };
 
 class NCCLChannel : public Channel {

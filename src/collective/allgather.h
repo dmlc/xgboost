@@ -1,25 +1,27 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright 2023-2024, XGBoost Contributors
  */
 #pragma once
 #include <cstddef>      // for size_t
 #include <cstdint>      // for int32_t
 #include <memory>       // for shared_ptr
 #include <numeric>      // for accumulate
+#include <string>       // for string
 #include <type_traits>  // for remove_cv_t
 #include <vector>       // for vector
 
-#include "../common/type.h"  // for EraseType
+#include "../common/type.h"             // for EraseType
 #include "comm.h"                       // for Comm, Channel
+#include "comm_group.h"                 // for CommGroup
 #include "xgboost/collective/result.h"  // for Result
-#include "xgboost/linalg.h"
-#include "xgboost/span.h"  // for Span
+#include "xgboost/linalg.h"             // for MakeVec
+#include "xgboost/span.h"               // for Span
 
 namespace xgboost::collective {
 namespace cpu_impl {
 /**
  * @param worker_off Segment offset. For example, if the rank 2 worker specifies
- *                   worker_off = 1, then it owns the third segment.
+ *                   worker_off = 1, then it owns the third segment (2 + 1).
  */
 [[nodiscard]] Result RingAllgather(Comm const& comm, common::Span<std::int8_t> data,
                                    std::size_t segment_size, std::int32_t worker_off,
@@ -51,8 +53,10 @@ inline void AllgatherVOffset(common::Span<std::int64_t const> sizes,
 }  // namespace detail
 
 template <typename T>
-[[nodiscard]] Result RingAllgather(Comm const& comm, common::Span<T> data, std::size_t size) {
-  auto n_bytes = sizeof(T) * size;
+[[nodiscard]] Result RingAllgather(Comm const& comm, common::Span<T> data) {
+  // This function is also used for ring allreduce, hence we allow the last segment to be
+  // larger due to round-down.
+  auto n_bytes_per_segment = data.size_bytes() / comm.World();
   auto erased = common::EraseType(data);
 
   auto rank = comm.Rank();
@@ -61,7 +65,7 @@ template <typename T>
 
   auto prev_ch = comm.Chan(prev);
   auto next_ch = comm.Chan(next);
-  auto rc = cpu_impl::RingAllgather(comm, erased, n_bytes, 0, prev_ch, next_ch);
+  auto rc = cpu_impl::RingAllgather(comm, erased, n_bytes_per_segment, 0, prev_ch, next_ch);
   if (!rc.OK()) {
     return rc;
   }
@@ -76,7 +80,7 @@ template <typename T>
 
   std::vector<std::int64_t> sizes(world, 0);
   sizes[rank] = data.size_bytes();
-  auto rc = RingAllgather(comm, common::Span{sizes.data(), sizes.size()}, 1);
+  auto rc = RingAllgather(comm, common::Span{sizes.data(), sizes.size()});
   if (!rc.OK()) {
     return rc;
   }

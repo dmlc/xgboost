@@ -32,7 +32,8 @@ class InMemoryHandler {
    *
    * This is used when the handler only needs to be initialized once with a known world size.
    */
-  explicit InMemoryHandler(std::size_t worldSize) : world_size_{worldSize} {}
+  explicit InMemoryHandler(std::int32_t worldSize)
+      : world_size_{static_cast<std::size_t>(worldSize)} {}
 
   /**
    * @brief Initialize the handler with the world size and rank.

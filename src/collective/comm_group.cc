@@ -1,22 +1,21 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright 2023-2024, XGBoost Contributors
  */
 #include "comm_group.h"
 
 #include <algorithm>  // for transform
+#include <cctype>     // for tolower
 #include <chrono>     // for seconds
 #include <cstdint>    // for int32_t
+#include <iterator>   // for back_inserter
 #include <memory>     // for shared_ptr, unique_ptr
 #include <string>     // for string
-#include <vector>     // for vector
 
-#include "../common/json_utils.h"       // for OptionalArg
-#include "coll.h"                       // for Coll
-#include "comm.h"                       // for Comm
-#include "tracker.h"                    // for GetHostAddress
-#include "xgboost/collective/result.h"  // for Result
-#include "xgboost/context.h"            // for DeviceOrd
-#include "xgboost/json.h"               // for Json
+#include "../common/json_utils.h"  // for OptionalArg
+#include "coll.h"                  // for Coll
+#include "comm.h"                  // for Comm
+#include "xgboost/context.h"       // for DeviceOrd
+#include "xgboost/json.h"          // for Json
 
 #if defined(XGBOOST_USE_FEDERATED)
 #include "../../plugin/federated/federated_coll.h"
@@ -117,6 +116,8 @@ void GlobalCommGroupInit(Json config) {
 
 void GlobalCommGroupFinalize() {
   auto& sptr = GlobalCommGroup();
+  auto rc = sptr->Finalize();
   sptr.reset();
+  SafeColl(rc);
 }
 }  // namespace xgboost::collective

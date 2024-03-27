@@ -26,7 +26,6 @@ TEST(FederatedAdapterSimpleTest, ThrowOnInvalidDeviceOrdinal) {
 namespace {
 void VerifyAllReduceSum() {
   auto const world_size = collective::GetWorldSize();
-  auto const rank = collective::GetRank();
   auto const device = GPUIDX;
   int count = 3;
   common::SetDevice(device);
