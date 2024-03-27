@@ -1,10 +1,17 @@
 """Tracker for XGBoost collective."""
+
 import ctypes
 import json
+import socket
 from enum import IntEnum, unique
 from typing import Dict, Optional, Tuple, Union
 
 from .core import _LIB, _check_call, make_jcargs
+
+
+def get_family(addr: str) -> int:
+    """Get network family from address."""
+    return socket.getaddrinfo(addr, None)[0][0]
 
 
 class RabitTracker:
@@ -46,6 +53,8 @@ class RabitTracker:
         handle = ctypes.c_void_p()
         if sortby not in ("host", "task"):
             raise ValueError("Expecting either 'host' or 'task' for sortby.")
+        if host_ip is not None:
+            get_family(host_ip)  # use python socket to stop early for invalid address
         args = make_jcargs(
             host=host_ip,
             n_workers=n_workers,
