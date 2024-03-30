@@ -5,13 +5,13 @@
 #include <gtest/gtest.h>
 #include <xgboost/collective/result.h>  // for Result
 
+#include "../../../../src/collective/allreduce.h"
 #include "../../../../src/common/common.h"            // for AllVisibleGPUs
 #include "../../../../src/common/device_helpers.cuh"  // for device_vector
 #include "../../../../src/common/type.h"              // for EraseType
 #include "../../collective/test_worker.h"             // for SocketTest
 #include "../../helpers.h"                            // for MakeCUDACtx
 #include "federated_coll.cuh"
-#include "federated_comm.cuh"
 #include "test_worker.h"  // for TestFederated
 
 namespace xgboost::collective {
@@ -71,7 +71,7 @@ void TestAllgather(std::shared_ptr<FederatedComm> comm, std::int32_t rank, std::
 
   dh::device_vector<std::int32_t> buffer(n_workers, 0);
   buffer[comm->Rank()] = comm->Rank();
-  auto rc = w.coll->Allgather(*w.nccl_comm, common::EraseType(dh::ToSpan(buffer)), sizeof(int));
+  auto rc = w.coll->Allgather(*w.nccl_comm, common::EraseType(dh::ToSpan(buffer)));
   ASSERT_TRUE(rc.OK());
   for (auto i = 0; i < n_workers; i++) {
     ASSERT_EQ(buffer[i], i);

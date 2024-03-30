@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright 2023-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 
@@ -7,7 +7,6 @@
 
 #include "../../../src/collective/allreduce.h"
 #include "../../../src/collective/coll.h"  // for Coll
-#include "../../../src/collective/tracker.h"
 #include "../../../src/common/type.h"  // for EraseType
 #include "test_worker.h"               // for WorkerForTest, TestDistributed
 

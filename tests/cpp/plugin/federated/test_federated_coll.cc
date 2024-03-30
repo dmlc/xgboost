@@ -60,8 +60,7 @@ TEST_F(FederatedCollTest, Allgather) {
 
     std::vector<std::int32_t> buffer(n_workers, 0);
     buffer[comm->Rank()] = comm->Rank();
-    auto rc = coll.Allgather(*comm, common::EraseType(common::Span{buffer.data(), buffer.size()}),
-                             sizeof(int));
+    auto rc = coll.Allgather(*comm, common::EraseType(common::Span{buffer.data(), buffer.size()}));
     ASSERT_TRUE(rc.OK());
     for (auto i = 0; i < n_workers; i++) {
       ASSERT_EQ(buffer[i], i);

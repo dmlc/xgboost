@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright 2023-2024, XGBoost Contributors
  */
 #include "allgather.h"
 
@@ -7,6 +7,7 @@
 #include <cstddef>    // for size_t
 #include <cstdint>    // for int8_t, int32_t, int64_t
 #include <memory>     // for shared_ptr
+#include <utility>    // for move
 
 #include "broadcast.h"
 #include "comm.h"                       // for Comm, Channel
@@ -29,16 +30,20 @@ Result RingAllgather(Comm const& comm, common::Span<std::int8_t> data, std::size
     auto rc = Success() << [&] {
       auto send_rank = (rank + world - r + worker_off) % world;
       auto send_off = send_rank * segment_size;
-      send_off = std::min(send_off, data.size_bytes());
-      auto send_seg = data.subspan(send_off, std::min(segment_size, data.size_bytes() - send_off));
+      bool is_last_segment = send_rank == (world - 1);
+      auto send_nbytes = is_last_segment ? (data.size_bytes() - send_off) : segment_size;
+      auto send_seg = data.subspan(send_off, send_nbytes);
       return next_ch->SendAll(send_seg.data(), send_seg.size_bytes());
     } << [&] {
       auto recv_rank = (rank + world - r - 1 + worker_off) % world;
       auto recv_off = recv_rank * segment_size;
-      recv_off = std::min(recv_off, data.size_bytes());
-      auto recv_seg = data.subspan(recv_off, std::min(segment_size, data.size_bytes() - recv_off));
+      bool is_last_segment = recv_rank == (world - 1);
+      auto recv_nbytes = is_last_segment ? (data.size_bytes() - recv_off) : segment_size;
+      auto recv_seg = data.subspan(recv_off, recv_nbytes);
       return prev_ch->RecvAll(recv_seg.data(), recv_seg.size_bytes());
-    } << [&] { return prev_ch->Block(); };
+    } << [&] {
+      return prev_ch->Block();
+    };
     if (!rc.OK()) {
       return rc;
     }
@@ -91,7 +96,9 @@ namespace detail {
       auto recv_size = sizes[recv_rank];
       auto recv_seg = erased_result.subspan(recv_off, recv_size);
       return prev_ch->RecvAll(recv_seg.data(), recv_seg.size_bytes());
-    } << [&] { return prev_ch->Block(); };
+    } << [&] {
+      return prev_ch->Block();
+    };
     if (!rc.OK()) {
       return rc;
     }
