@@ -1,7 +1,6 @@
 /**
  * Copyright 2023-2024, XGBoost Contributors
  */
-#include "rabit/internal/socket.h"
 #if defined(__unix__) || defined(__APPLE__)
 #include <netdb.h>       // gethostbyname
 #include <sys/socket.h>  // socket, AF_INET6, AF_INET, connect, getsockname
@@ -232,33 +231,11 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
   return std::async(std::launch::async, [this, handle_error] {
     State state{this->n_workers_};
 
-    auto select_accept = [&](TCPSocket* sock, auto* addr) {
-      if (!state.running) {
-        rabit::utils::PollHelper poll;
-        auto rc = Success() << [&] {
-          return listener_.NonBlocking(true);
-        } << [&] {
-          poll.WatchRead(listener_);
-          return poll.Poll(timeout_);
-        } << [&] {
-          return listener_.Accept(sock, addr);
-        };
-        return rc;
-      } else {
-        auto rc = Success() << [&] {
-          return listener_.NonBlocking(false);
-        } << [&] {
-          return listener_.Accept(sock, addr);
-        };
-        return rc;
-      }
-    };
-
     while (state.ShouldContinue()) {
       TCPSocket sock;
       SockAddress addr;
       this->ready_ = true;
-      auto rc = select_accept(&sock, &addr);
+      auto rc = listener_.Accept(&sock, &addr);
       if (!rc.OK()) {
         return Fail("Failed to accept connection.", std::move(rc));
       }
