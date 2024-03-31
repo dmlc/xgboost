@@ -367,7 +367,7 @@ test_that("prediction in early-stopping xgb.cv works", {
   expect_output(
     cv <- xgb.cv(param, dtrain, nfold = 5, eta = 0.1, nrounds = 20,
                  early_stopping_rounds = 5, maximize = FALSE, stratified = FALSE,
-                 prediction = TRUE, base_score = 0.5)
+                 prediction = TRUE, base_score = 0.5, verbose = TRUE)
   , "Stopping. Best iteration")
 
   expect_false(is.null(cv$early_stop$best_iteration))
@@ -387,7 +387,7 @@ test_that("prediction in xgb.cv for softprob works", {
   lb <- as.numeric(iris$Species) - 1
   set.seed(11)
   expect_warning(
-    cv <- xgb.cv(data = as.matrix(iris[, -5]), label = lb, nfold = 4,
+    cv <- xgb.cv(data = xgb.DMatrix(as.matrix(iris[, -5]), label = lb), nfold = 4,
                  eta = 0.5, nrounds = 5, max_depth = 3, nthread = n_threads,
                  subsample = 0.8, gamma = 2, verbose = 0,
                  prediction = TRUE, objective = "multi:softprob", num_class = 3)

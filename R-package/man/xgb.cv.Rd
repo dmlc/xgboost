@@ -9,14 +9,12 @@ xgb.cv(
   data,
   nrounds,
   nfold,
-  label = NULL,
-  missing = NA,
   prediction = FALSE,
   showsd = TRUE,
   metrics = list(),
   obj = NULL,
   feval = NULL,
-  stratified = TRUE,
+  stratified = "auto",
   folds = NULL,
   train_folds = NULL,
   verbose = TRUE,
@@ -44,19 +42,22 @@ is a shorter summary:
 }
 
 See \code{\link{xgb.train}} for further details.
-See also demo/ for walkthrough example in R.}
+See also demo/ for walkthrough example in R.
 
-\item{data}{takes an \code{xgb.DMatrix}, \code{matrix}, or \code{dgCMatrix} as the input.}
+Note that, while \code{params} accepts a \code{seed} entry and will use such parameter for model training if
+supplied, this seed is not used for creation of train-test splits, which instead rely on R's own RNG
+system - thus, for reproducible results, one needs to call the \code{set.seed} function beforehand.}
+
+\item{data}{An \code{xgb.DMatrix} object, with corresponding fields like \code{label} or bounds as required
+for model training by the objective.
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{   Note that only the basic `xgb.DMatrix` class is supported - variants such as `xgb.QuantileDMatrix`
+   or `xgb.ExternalDMatrix` are not supported here.
+}\if{html}{\out{</div>}}}
 
 \item{nrounds}{the max number of iterations}
 
 \item{nfold}{the original dataset is randomly partitioned into \code{nfold} equal size subsamples.}
-
-\item{label}{vector of response values. Should be provided only when data is an R-matrix.}
-
-\item{missing}{is only used when input is a dense matrix. By default is set to NA, which means
-that NA values should be considered as 'missing' by the algorithm.
-Sometimes, 0 or other extreme value might be used to represent missing values.}
 
 \item{prediction}{A logical value indicating whether to return the test fold predictions
 from each CV model. This parameter engages the \code{\link{xgb.cb.cv.predict}} callback.}
@@ -84,15 +85,35 @@ gradient with given prediction and dtrain.}
 \code{list(metric='metric-name', value='metric-value')} with given
 prediction and dtrain.}
 
-\item{stratified}{a \code{boolean} indicating whether sampling of folds should be stratified
-by the values of outcome labels.}
+\item{stratified}{A \code{boolean} indicating whether sampling of folds should be stratified
+by the values of outcome labels. For real-valued labels in regression objectives,
+stratification will be done by discretizing the labels into up to 5 buckets beforehand.
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{   If passing "auto", will be set to `TRUE` if the objective in `params` is a classification
+   objective (from XGBoost's built-in objectives, doesn't apply to custom ones), and to
+   `FALSE` otherwise.
+
+   This parameter is ignored when `data` has a `group` field - in such case, the splitting
+   will be based on whole groups (note that this might make the folds have different sizes).
+
+   Value `TRUE` here is \\bold\{not\} supported for custom objectives.
+}\if{html}{\out{</div>}}}
 
 \item{folds}{\code{list} provides a possibility to use a list of pre-defined CV folds
 (each element must be a vector of test fold's indices). When folds are supplied,
-the \code{nfold} and \code{stratified} parameters are ignored.}
+the \code{nfold} and \code{stratified} parameters are ignored.
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{   If `data` has a `group` field and the objective requires this field, each fold (list element)
+   must additionally have two attributes (retrievable through \link{attributes}) named `group_test`
+   and `group_train`, which should hold the `group` to assign through \link{setinfo.xgb.DMatrix} to
+   the resulting DMatrices.
+}\if{html}{\out{</div>}}}
 
 \item{train_folds}{\code{list} list specifying which indicies to use for training. If \code{NULL}
-(the default) all indices not specified in \code{folds} will be used for training.}
+(the default) all indices not specified in \code{folds} will be used for training.
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{   This is not supported when `data` has `group` field.
+}\if{html}{\out{</div>}}}
 
 \item{verbose}{\code{boolean}, print the statistics during the process}
 
@@ -142,7 +163,7 @@ such as saving also the models created during cross validation); or a list \code
 will contain elements such as \code{best_iteration} when using the early stopping callback (\link{xgb.cb.early.stop}).
 }
 \description{
-The cross validation function of xgboost
+The cross validation function of xgboost.
 }
 \details{
 The original sample is randomly partitioned into \code{nfold} equal size subsamples.

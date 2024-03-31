@@ -512,7 +512,7 @@ XGB_DLL SEXP XGDMatrixCreateFromCSR_R(SEXP indptr, SEXP indices, SEXP data, SEXP
   return ret;
 }
 
-XGB_DLL SEXP XGDMatrixSliceDMatrix_R(SEXP handle, SEXP idxset) {
+XGB_DLL SEXP XGDMatrixSliceDMatrix_R(SEXP handle, SEXP idxset, SEXP allow_groups) {
   SEXP ret = PROTECT(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
   R_API_BEGIN();
   R_xlen_t len = Rf_xlength(idxset);
@@ -531,7 +531,7 @@ XGB_DLL SEXP XGDMatrixSliceDMatrix_R(SEXP handle, SEXP idxset) {
     res_code = XGDMatrixSliceDMatrixEx(R_ExternalPtrAddr(handle),
                                        BeginPtr(idxvec), len,
                                        &res,
-                                       0);
+                                       Rf_asLogical(allow_groups));
   }
   CHECK_CALL(res_code);
   R_SetExternalPtrAddr(ret, res);
