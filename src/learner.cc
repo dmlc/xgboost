@@ -493,10 +493,6 @@ class LearnerConfiguration : public Learner {
 
     this->ConfigureMetrics(args);
 
-    if ((collective::GetRank() == 0)) {
-      std::cout << "Initialize interface" << std::endl;
-    }
-
     xgboost::processing::ProcessorLoader loader;
     processor_instance = loader.load("dummy");
     if (collective::GetRank() == 0) {
@@ -504,9 +500,6 @@ class LearnerConfiguration : public Learner {
     } else {
       processor_instance->Initialize(false, {});
     }
-    //processor_instance->FreeBuffer(buf);
-    //processor_instance->Shutdown();
-    //loader.unload();
 
     this->need_configuration_ = false;
     if (ctx_.validate_parameters) {
