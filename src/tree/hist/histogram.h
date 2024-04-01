@@ -267,12 +267,15 @@ class HistogramBuilder {
 */
 
       // Perform AllGather
-      auto hist_entries = collective::Allgather(hist_data);
+      auto hist_vec = std::vector<std::int8_t>(hist_data.data(), hist_data.data() + hist_data.size());
+
+      auto hist_entries = collective::Allgather(hist_vec);
       // Call interface here to post-process the messages
       if (collective::GetRank() == 0) {
         std::cout << "---------------CALL Interface for processing-------------- " << std::endl;
       }
-      std::vector<double> hist_aggr = processor_instance->HandleAggregation(hist_entries);
+      auto hist_span = common::Span<std::int8_t>(hist_entries.data(), hist_entries.size());
+      std::vector<double> hist_aggr = processor_instance->HandleAggregation(hist_span);
       std::cout << "aggregated size: " << hist_aggr.size() << std::endl;
 
       // Update histogram for label owner
@@ -280,20 +283,18 @@ class HistogramBuilder {
         // iterator of the beginning of the vector
         auto it = reinterpret_cast<double *>(this->hist_[first_nidx].data());
         // iterate through the hist vector of the label owner
+        std::cout << "Histogram size n=" << n << std::endl;
         for (size_t i = 0; i < n; i++) {
-          *it = hist_aggr[i];
-            /*
           // skip rank 0, as local hist already contains its own entries
           // get the sum of the entries from other ranks
           double hist_sum = 0.0;
-          for (std::size_t rank_idx = 1; rank_idx < hist_entries.size()/n; rank_idx++) {
+          for (std::size_t rank_idx = 0; rank_idx < hist_aggr.size()/n; rank_idx++) {
             int flat_idx = rank_idx * n + i;
-              hist_sum += hist_entries.at(flat_idx);
+              hist_sum += hist_aggr[flat_idx];
           }
           // add other parties' sum to rank 0's record
           // to get the global histogram
-          *it += hist_sum;
-          */
+          *it = hist_sum;
           it++;
         }
       }
