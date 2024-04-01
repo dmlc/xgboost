@@ -53,6 +53,7 @@ class HistogramBuilder {
   bool is_col_split_{false};
   bool is_secure_{false};
   xgboost::common::Span<std::int8_t> hist_data;
+
  public:
   /**
    * @brief Reset the builder, should be called before growing a new tree.
@@ -213,7 +214,8 @@ class HistogramBuilder {
       std::size_t n = n_total_bins * nodes_to_build.size() * 2;
 
       // Perform AllGather
-      auto hist_vec = std::vector<std::int8_t>(hist_data.data(), hist_data.data() + hist_data.size());
+      auto hist_vec = std::vector<std::int8_t>(hist_data.data(),
+                                               hist_data.data() + hist_data.size());
       auto hist_entries = collective::Allgather(hist_vec);
       // Call interface here to post-process the messages
       auto hist_span = common::Span<std::int8_t>(hist_entries.data(), hist_entries.size());
