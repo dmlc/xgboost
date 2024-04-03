@@ -46,7 +46,7 @@ else
 fi
 export BRANCH_NAME=${BRANCH_NAME//\//-}
 
-if [[ $BUILDKITE_BRANCH == "master" || $BUILDKITE_BRANCH == "release_"* ]]
+if [[ $BRANCH_NAME == "master" || $BRANCH_NAME == "release_"* ]]
 then
   is_release_branch=1
   enforce_daily_budget=0
