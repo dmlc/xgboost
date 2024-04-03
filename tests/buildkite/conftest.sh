@@ -39,13 +39,14 @@ fi
 if [[ -n $BUILDKITE_PULL_REQUEST && $BUILDKITE_PULL_REQUEST != "false" ]]
 then
   is_pull_request=1
-  export BRANCH_NAME=PR-$BUILDKITE_PULL_REQUEST
+  BRANCH_NAME=PR-$BUILDKITE_PULL_REQUEST
 else
   is_pull_request=0
-  export BRANCH_NAME=$BUILDKITE_BRANCH
+  BRANCH_NAME=$BUILDKITE_BRANCH
 fi
+export BRANCH_NAME=${BRANCH_NAME//\//-}
 
-if [[ $BUILDKITE_BRANCH == "master" || $BUILDKITE_BRANCH == "release_"* ]]
+if [[ $BRANCH_NAME == "master" || $BRANCH_NAME == "release_"* ]]
 then
   is_release_branch=1
   enforce_daily_budget=0
