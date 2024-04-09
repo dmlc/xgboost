@@ -1052,6 +1052,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
             dev_ordinal = None
             use_qdm = _can_use_qdm(booster_params.get("tree_method", None))
+            verbosity = booster_params.get("verbosity", 1)
             msg = "Training on CPUs"
             if run_on_gpu:
                 dev_ordinal = (
@@ -1089,15 +1090,16 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
             evals_result: Dict[str, Any] = {}
             with CommunicatorContext(context, **_rabit_args):
-                dtrain, dvalid = create_dmatrix_from_partitions(
-                    pandas_df_iter,
-                    feature_prop.features_cols_names,
-                    dev_ordinal,
-                    use_qdm,
-                    dmatrix_kwargs,
-                    enable_sparse_data_optim=feature_prop.enable_sparse_data_optim,
-                    has_validation_col=feature_prop.has_validation_col,
-                )
+                with xgboost.config_context(verbosity=verbosity):
+                    dtrain, dvalid = create_dmatrix_from_partitions(
+                        pandas_df_iter,
+                        feature_prop.features_cols_names,
+                        dev_ordinal,
+                        use_qdm,
+                        dmatrix_kwargs,
+                        enable_sparse_data_optim=feature_prop.enable_sparse_data_optim,
+                        has_validation_col=feature_prop.has_validation_col,
+                    )
                 if dvalid is not None:
                     dval = [(dtrain, "training"), (dvalid, "validation")]
                 else:

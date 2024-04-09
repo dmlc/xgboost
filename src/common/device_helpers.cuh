@@ -307,13 +307,15 @@ class MemoryLogger {
     void RegisterDeallocation(void *ptr, size_t n, int current_device) {
       auto itr = device_allocations.find(ptr);
       if (itr == device_allocations.end()) {
-        LOG(WARNING) << "Attempting to deallocate " << n << " bytes on device "
-                   << current_device << " that was never allocated ";
+        LOG(WARNING) << "Attempting to deallocate " << n << " bytes on device " << current_device
+                     << " that was never allocated\n"
+                     << dmlc::StackTrace();
+      } else {
+        num_deallocations++;
+        CHECK_LE(num_deallocations, num_allocations);
+        currently_allocated_bytes -= itr->second;
+        device_allocations.erase(itr);
       }
-      num_deallocations++;
-      CHECK_LE(num_deallocations, num_allocations);
-      currently_allocated_bytes -= itr->second;
-      device_allocations.erase(itr);
     }
   };
   DeviceStats stats_;
