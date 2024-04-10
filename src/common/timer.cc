@@ -1,9 +1,8 @@
-/*!
- * Copyright by Contributors 2019
+/**
+ * Copyright 2019-2024, XGBoost Contributors
  */
 #include "timer.h"
 
-#include <sstream>
 #include <utility>
 
 #include "../collective/communicator-inl.h"
@@ -60,6 +59,9 @@ void Monitor::Print() const {
         kv.second.count, std::chrono::duration_cast<std::chrono::microseconds>(
                              kv.second.timer.elapsed)
                              .count());
+  }
+  if (stat_map.empty()) {
+    return;
   }
   LOG(CONSOLE) << "======== Monitor (" << rank << "): " << label_ << " ========";
   this->PrintStatistics(stat_map);
