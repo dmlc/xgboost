@@ -8,6 +8,8 @@
 #include <dmlc/timer.h>
 #include <xgboost/tree_updater.h>
 
+#include <vector>
+
 #include "../data/gradient_index.h"
 #include "../common/hist_util.h"
 #include "../common/row_set.h"
@@ -82,6 +84,7 @@ class QuantileHistMaker: public TreeUpdater {
   char const* Name() const override {
     return "grow_quantile_histmaker_sycl";
   }
+
  protected:
   HistMakerTrainParam hist_maker_param_;
   // training parameter

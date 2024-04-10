@@ -2,6 +2,8 @@
  * Copyright 2017-2024 by Contributors
  * \file updater_quantile_hist.cc
  */
+#include <vector>
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"
 #pragma GCC diagnostic ignored "-W#pragma-messages"
