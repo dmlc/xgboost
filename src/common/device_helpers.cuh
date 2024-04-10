@@ -299,8 +299,7 @@ class MemoryLogger {
     void RegisterAllocation(void *ptr, size_t n) {
       device_allocations[ptr] = n;
       currently_allocated_bytes += n;
-      peak_allocated_bytes =
-        std::max(peak_allocated_bytes, currently_allocated_bytes);
+      peak_allocated_bytes = std::max(peak_allocated_bytes, currently_allocated_bytes);
       num_allocations++;
       CHECK_GT(num_allocations, num_deallocations);
     }
