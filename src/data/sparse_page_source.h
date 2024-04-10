@@ -196,7 +196,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
       }
       auto const* self = this;  // make sure it's const
       CHECK_LT(fetch_it, cache_info_->offset.size());
-      ring_->at(fetch_it) = std::async(std::launch::async, [fetch_it, self, &config, this]() {
+      ring_->at(fetch_it) = std::async(std::launch::async, [fetch_it, self, config, this]() {
         *GlobalConfigThreadLocalStore::Get() = config;
         auto page = std::make_shared<S>();
         this->exce_.Run([&] {
