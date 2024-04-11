@@ -7,7 +7,7 @@
 #include "./processor.h"
 #include "plugins/dummy_processor.h"
 
-namespace xgboost::processing {
+namespace processing {
     using LoadFunc = Processor *(const char *);
 
     Processor* ProcessorLoader::load(const std::string& plugin_name) {
@@ -59,4 +59,4 @@ namespace xgboost::processing {
     void ProcessorLoader::unload() {
         dlclose(handle);
     }
-}  // namespace xgboost::processing
+}  // namespace processing

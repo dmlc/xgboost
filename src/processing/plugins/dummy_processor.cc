@@ -1,6 +1,7 @@
 /**
  * Copyright 2014-2024 by XGBoost Contributors
  */
+#include <iostream>
 #include "./dummy_processor.h"
 
 using std::vector;
@@ -10,20 +11,21 @@ using std::endl;
 const char kSignature[] = "NVDADAM1";  // DAM (Direct Accessible Marshalling) V1
 const int64_t kPrefixLen = 24;
 
-bool ValidDam(std::int8_t *buffer) {
+bool ValidDam(void *buffer) {
     return memcmp(buffer, kSignature, strlen(kSignature)) == 0;
 }
 
-xgboost::common::Span<int8_t> DummyProcessor::ProcessGHPairs(vector<double> &pairs) {
+void* DummyProcessor::ProcessGHPairs(size_t &size, std::vector<double>& pairs) {
     cout << "ProcessGHPairs called with pairs size: " << pairs.size() << endl;
 
-    auto buf_size = kPrefixLen + pairs.size()*10*8;  // Assume encrypted size is 10x
+    size = kPrefixLen + pairs.size()*10*8;  // Assume encrypted size is 10x
 
+    int64_t buf_size = size;
     // This memory needs to be freed
-    char *buf = static_cast<char *>(calloc(buf_size, 1));
+    char *buf = static_cast<char *>(calloc(size, 1));
     memcpy(buf, kSignature, strlen(kSignature));
     memcpy(buf + 8, &buf_size, 8);
-    memcpy(buf + 16, &xgboost::processing::kDataTypeGHPairs, 8);
+    memcpy(buf + 16, &processing::kDataTypeGHPairs, 8);
 
     // Simulate encryption by duplicating value 10 times
     int index = kPrefixLen;
@@ -37,22 +39,24 @@ xgboost::common::Span<int8_t> DummyProcessor::ProcessGHPairs(vector<double> &pai
     // Save pairs for future operations
     this->gh_pairs_ = new vector<double>(pairs);
 
-    return xgboost::common::Span<int8_t>(reinterpret_cast<int8_t *>(buf), buf_size);
+    return buf;
 }
 
-xgboost::common::Span<int8_t> DummyProcessor::HandleGHPairs(xgboost::common::Span<int8_t> buffer) {
-    cout << "HandleGHPairs called with buffer size: " << buffer.size() << " Active: " << active_ << endl;
 
-    if (!ValidDam(buffer.data())) {
+void* DummyProcessor::HandleGHPairs(size_t &size, void *buffer, size_t buf_size) {
+    cout << "HandleGHPairs called with buffer size: " << buf_size << " Active: " << active_ << endl;
+
+    if (!ValidDam(buffer)) {
         cout << "Invalid buffer received" << endl;
         return buffer;
     }
 
     // For dummy, this call is used to set gh_pairs for passive sites
     if (!active_) {
-        int8_t *ptr = buffer.data() + kPrefixLen;
+        int8_t *ptr = static_cast<int8_t *>(buffer);
+        ptr += kPrefixLen;
         double *pairs = reinterpret_cast<double *>(ptr);
-        size_t num = (buffer.size() - kPrefixLen) / 8;
+        size_t num = (buf_size - kPrefixLen) / 8;
         gh_pairs_ = new vector<double>();
         for (int i = 0; i < num; i += 10) {
             gh_pairs_->push_back(pairs[i]);
@@ -63,24 +67,25 @@ xgboost::common::Span<int8_t> DummyProcessor::HandleGHPairs(xgboost::common::Spa
     return buffer;
 }
 
-xgboost::common::Span<std::int8_t> DummyProcessor::ProcessAggregation(
-        std::vector<xgboost::bst_node_t> const &nodes_to_build, xgboost::common::RowSetCollection const &row_set) {
-    auto total_bin_size = gidx_->Cuts().Values().size();
+void *DummyProcessor::ProcessAggregation(size_t &size, std::map<int, std::vector<int>> nodes) {
+    auto total_bin_size = cuts_.back();
     auto histo_size = total_bin_size*2;
-    auto buf_size = kPrefixLen + 8*histo_size*nodes_to_build.size();
+    size = kPrefixLen + 8*histo_size*nodes.size();
+    int64_t buf_size = size;
     cout << "ProcessAggregation called with bin size: " << total_bin_size << " Buffer Size: " << buf_size << endl;
     std::int8_t *buf = static_cast<std::int8_t *>(calloc(buf_size, 1));
     memcpy(buf, kSignature, strlen(kSignature));
     memcpy(buf + 8, &buf_size, 8);
-    memcpy(buf + 16, &xgboost::processing::kDataTypeHisto, 8);
+    memcpy(buf + 16, &processing::kDataTypeHisto, 8);
 
     double *histo = reinterpret_cast<double *>(buf + kPrefixLen);
-    for (auto &node_id : nodes_to_build) {
-        auto elem = row_set[node_id];
-        for (auto it = elem.begin; it != elem.end; ++it) {
-            auto row_id = *it;
-            for (std::size_t f = 0; f < gidx_->Cuts().Ptrs().size()-1; f++) {
-                auto slot = gidx_->GetGindex(row_id, f);
+    for ( const auto &node : nodes ) {
+        auto rows = node.second;
+        for (const auto &row_id : rows) {
+
+            auto num = cuts_.size() - 1;
+            for (std::size_t f = 0; f < num; f++) {
+                auto slot = slots_[f + num*row_id];
                 if (slot < 0) {
                     continue;
                 }
@@ -103,19 +108,19 @@ xgboost::common::Span<std::int8_t> DummyProcessor::ProcessAggregation(
         histo += histo_size;
     }
 
-    return xgboost::common::Span<int8_t>(reinterpret_cast<int8_t *>(buf), buf_size);
+    return buf;
 }
 
-std::vector<double> DummyProcessor::HandleAggregation(xgboost::common::Span<std::int8_t> buffer) {
-    cout << "HandleAggregation called with buffer size: " << buffer.size() << endl;
+std::vector<double> DummyProcessor::HandleAggregation(void *buffer, size_t buf_size) {
+    cout << "HandleAggregation called with buffer size: " << buf_size << endl;
     std::vector<double> result = std::vector<double>();
 
-    int8_t* ptr = buffer.data();
-    auto rest_size = buffer.size();
+    int8_t* ptr = static_cast<int8_t *>(buffer);
+    auto rest_size = buf_size;
 
     while (rest_size > kPrefixLen) {
         if (!ValidDam(ptr)) {
-            cout << "Invalid buffer at offset " << buffer.size() - rest_size << endl;
+            cout << "Invalid buffer at offset " << buf_size - rest_size << endl;
             continue;
         }
         std::int64_t *size_ptr = reinterpret_cast<std::int64_t *>(ptr + 8);

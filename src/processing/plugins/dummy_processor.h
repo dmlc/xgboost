@@ -7,12 +7,13 @@
 #include <map>
 #include "../processor.h"
 
-class DummyProcessor: public xgboost::processing::Processor {
+class DummyProcessor: public processing::Processor {
  private:
     bool active_ = false;
-    const std::map<std::string, std::string> *params_;
+    const std::map<std::string, std::string> *params_{nullptr};
     std::vector<double> *gh_pairs_{nullptr};
-    const xgboost::GHistIndexMatrix *gidx_;
+    std::vector<uint32_t> cuts_;
+    std::vector<int> slots_;
 
  public:
     void Initialize(bool active, std::map<std::string, std::string> params) override {
@@ -22,23 +23,30 @@ class DummyProcessor: public xgboost::processing::Processor {
 
     void Shutdown() override {
         this->gh_pairs_ = nullptr;
-        this->gidx_ = nullptr;
+        this->cuts_.clear();
+        this->slots_.clear();
     }
 
-    void FreeBuffer(xgboost::common::Span<std::int8_t> buffer) override {
-        free(buffer.data());
+    void FreeBuffer(void *buffer) override {
+        free(buffer);
     }
 
-    xgboost::common::Span<int8_t> ProcessGHPairs(std::vector<double> &pairs) override;
+    void* ProcessGHPairs(size_t &size, std::vector<double>& pairs) override;
 
-    xgboost::common::Span<int8_t> HandleGHPairs(xgboost::common::Span<int8_t> buffer) override;
+    void* HandleGHPairs(size_t &size, void *buffer, size_t buf_size) override;
 
-    void InitAggregationContext(xgboost::GHistIndexMatrix const &gidx) override {
-        this->gidx_ = &gidx;
+    void InitAggregationContext(const std::vector<uint32_t> &cuts, std::vector<int> &slots) override {
+        std::cout << "InitAggregationContext called with cuts size: " << cuts.size()-1 <<
+           " number of slot: " << slots.size() << std::endl;
+        this->cuts_ = cuts;
+        if (this->slots_.empty()) {
+            this->slots_ = slots;
+        } else {
+            std::cout << "Multiple calls to InitAggregationContext" << std::endl;
+        }
     }
 
-    xgboost::common::Span<std::int8_t> ProcessAggregation(std::vector<xgboost::bst_node_t> const &nodes_to_build,
-                                                          xgboost::common::RowSetCollection const &row_set) override;
+    void *ProcessAggregation(size_t &size, std::map<int, std::vector<int>> nodes) override;
 
-    std::vector<double> HandleAggregation(xgboost::common::Span<std::int8_t> buffer) override;
+    std::vector<double> HandleAggregation(void *buffer, size_t buf_size) override;
 };

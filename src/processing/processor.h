@@ -3,14 +3,12 @@
  */
 #pragma once
 
-#include <xgboost/span.h>
 #include <map>
 #include <any>
 #include <string>
 #include <vector>
-#include "../data/gradient_index.h"
 
-namespace xgboost::processing {
+namespace processing {
 
 const char kLibraryPath[] = "LIBRARY_PATH";
 const char kDummyProcessor[] = "dummy";
@@ -42,52 +40,57 @@ class Processor {
      *
      * \param buffer Any buffer returned by the calls from the plugin
      */
-    virtual void FreeBuffer(common::Span<std::int8_t> buffer) = 0;
+    virtual void FreeBuffer(void* buffer) = 0;
 
     /*!
      * \brief Preparing g & h pairs to be sent to other clients by active client
      *
+     * \param size The size of the buffer
      * \param pairs g&h pairs in a vector (g1, h1, g2, h2 ...) for every sample
      *
      * \return The encoded buffer to be sent
      */
-    virtual common::Span<std::int8_t> ProcessGHPairs(std::vector<double>& pairs) = 0;
+    virtual void* ProcessGHPairs(size_t &size, std::vector<double>& pairs) = 0;
 
     /*!
      * \brief Handle buffers with encoded pairs received from broadcast
      *
+     * \param size Output buffer size
      * \param The encoded buffer
+     * \param The encoded buffer size
      *
      * \return The encoded buffer
      */
-    virtual common::Span<std::int8_t> HandleGHPairs(common::Span<std::int8_t> buffer) = 0;
+    virtual void* HandleGHPairs(size_t &size, void *buffer, size_t buf_size) = 0;
 
     /*!
      * \brief Initialize aggregation context by providing global GHistIndexMatrix
      *
-     * \param gidx The matrix for every sample with its feature and slot assignment
+     * \param cuts The cut point for each feature
+     * \param slots The slot assignment in a flattened matrix for each feature/row. The size is num_feature*num_row
      */
-    virtual void InitAggregationContext(GHistIndexMatrix const &gidx) = 0;
+    virtual void InitAggregationContext(const std::vector<uint32_t> &cuts, std::vector<int> &slots) = 0;
 
     /*!
      * \brief Prepare row set for aggregation
      *
-     * \param row_set Information for node IDs and its sample IDs
+     * \param size The output buffer size
+     * \param nodes Map of node and the rows belong to this node
      *
      * \return The encoded buffer to be sent via AllGather
      */
-    virtual common::Span<std::int8_t> ProcessAggregation(std::vector<bst_node_t> const &nodes_to_build,
-                                                         common::RowSetCollection const &row_set) = 0;
+    virtual void *ProcessAggregation(size_t &size, std::map<int, std::vector<int>> nodes) = 0;
 
     /*!
      * \brief Handle all gather result
      *
      * \param buffer Buffer from all gather, only buffer from active site is needed
+     * \param buf_size The size of the buffer
      *
      * \return A flattened vector of histograms for each site, each node in the form of
      *     site1_node1, site1_node2 site1_node3, site2_node1, site2_node2, site2_node3
      */
-    virtual std::vector<double> HandleAggregation(xgboost::common::Span<std::int8_t> buffer) = 0;
+    virtual std::vector<double> HandleAggregation(void *buffer, size_t buf_size) = 0;
 };
 
 class ProcessorLoader {
@@ -106,6 +109,6 @@ class ProcessorLoader {
     void unload();
 };
 
-}  // namespace xgboost::processing
+}  // namespace processing
 
-extern xgboost::processing::Processor *processor_instance;
+extern processing::Processor *processor_instance;
