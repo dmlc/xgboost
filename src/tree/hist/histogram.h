@@ -79,11 +79,33 @@ class HistogramBuilder {
                             common::RowSetCollection const &row_set_collection,
                             common::Span<GradientPair const> gpair_h, bool force_read_by_column) {
     if (is_distributed_ && is_col_split_ && is_secure_) {
-      // Call the interface to transmit the row set collection and gidx to the secure worker
+      // Call the interface to transmit gidx information to the secure worker
       // for encrypted histogram compuation
-      processor_instance->InitAggregationContext(gidx);
+      auto slots = std::vector<int>();
+      auto num_rows = row_set_collection[0].Size();
+      auto cuts = gidx.Cuts().Ptrs();
+      for (int row = 0; row < num_rows; row++) {
+          for (int f = 0; f < cuts.size()-1; f++) {
+              auto slot = gidx.GetGindex(row, f);
+              slots.push_back(slot);
+          }
+      }
+      processor_instance->InitAggregationContext(cuts,slots);
+      // Further use the row set collection info to
       // get the encrypted histogram from the secure worker
-      hist_data = processor_instance->ProcessAggregation(nodes_to_build, row_set_collection);
+      auto node_map = std::map<int, std::vector<int>>();
+      for (auto node : nodes_to_build) {
+          auto rows = std::vector<int>();
+          auto elem = row_set_collection[node];
+          for (auto it = elem.begin; it != elem.end; ++it) {
+              auto row_id = *it;
+              rows.push_back(row_id);
+          }
+          node_map.insert({node, rows});
+      }
+      size_t buf_size;
+      auto buf = processor_instance->ProcessAggregation(buf_size, node_map);
+      hist_data = xgboost::common::Span<std::int8_t>(static_cast<std::int8_t *>(buf), buf_size);
     } else {
       // Parallel processing by nodes and data in each node
       common::ParallelFor2d(space, this->n_threads_, [&](size_t nid_in_set, common::Range1d r) {
@@ -218,8 +240,7 @@ class HistogramBuilder {
                                                hist_data.data() + hist_data.size());
       auto hist_entries = collective::Allgather(hist_vec);
       // Call interface here to post-process the messages
-      auto hist_span = common::Span<std::int8_t>(hist_entries.data(), hist_entries.size());
-      std::vector<double> hist_aggr = processor_instance->HandleAggregation(hist_span);
+      std::vector<double> hist_aggr = processor_instance->HandleAggregation(hist_entries.data(), hist_entries.size());
 
       // Update histogram for label owner
       if (collective::GetRank() == 0) {

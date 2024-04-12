@@ -113,9 +113,10 @@ void ApplyWithLabels(Context const*, MetaInfo const& info, HostDeviceVector<T>* 
           vector_gh.push_back(gpair_ptr[1]);
         }
         // provide the vectors to the processor interface
-        auto buf = processor_instance->ProcessGHPairs(vector_gh);
-        buffer_size = buf.size();
-        buffer = reinterpret_cast<std::int8_t *>(buf.data());
+        size_t size;
+        auto buf = processor_instance->ProcessGHPairs(size, vector_gh);
+        buffer_size = size;
+        buffer = reinterpret_cast<std::int8_t *>(buf);
       }
 
       // broadcast the buffer size for other ranks to prepare
@@ -129,8 +130,8 @@ void ApplyWithLabels(Context const*, MetaInfo const& info, HostDeviceVector<T>* 
       collective::Broadcast(buffer, buffer_size, 0);
 
       // call HandleGHPairs
-      xgboost::common::Span<int8_t> buf = xgboost::common::Span<int8_t>(buffer, buffer_size);
-      processor_instance->HandleGHPairs(buf);
+      size_t size;
+      processor_instance->HandleGHPairs(size, buffer, buffer_size);
     } else {
       // clear text mode, broadcast the data directly
       result->Resize(size);
