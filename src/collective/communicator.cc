@@ -10,6 +10,8 @@
 
 #if defined(XGBOOST_USE_FEDERATED)
 #include "../../plugin/federated/federated_communicator.h"
+#include "../processing/processor.h"
+processing::Processor *processor_instance;
 #endif
 
 namespace xgboost::collective {
@@ -39,6 +41,13 @@ void Communicator::Init(Json const& config) {
     case CommunicatorType::kFederated: {
 #if defined(XGBOOST_USE_FEDERATED)
       communicator_.reset(FederatedCommunicator::Create(config));
+      std::cout << "!!!!!!!! Communicator Initialization!!!!!!!!!!!!!!!!!!!! " << std::endl;
+      auto plugin_name = "dummy";
+      std::map<std::string, std::string> loader_params = {{"LIBRARY_PATH", "/tmp"}};
+      std::map<std::string, std::string> proc_params = {};
+      processing::ProcessorLoader loader(loader_params);
+      processor_instance = loader.load(plugin_name);
+      processor_instance->Initialize(collective::GetRank() == 0, proc_params);
 #else
       LOG(FATAL) << "XGBoost is not compiled with Federated Learning support.";
 #endif

@@ -62,13 +62,13 @@
 #include "xgboost/predictor.h"            // for PredictionContainer, PredictionCacheEntry
 #include "xgboost/string_view.h"          // for operator<<, StringView
 #include "xgboost/task.h"                 // for ObjInfo
-#include "processing/processor.h"      // for Processor
+
 namespace {
 const char* kMaxDeltaStepDefaultValue = "0.7";
 }  // anonymous namespace
 
 DECLARE_FIELD_ENUM_CLASS(xgboost::MultiStrategy);
-processing::Processor *processor_instance;
+
 namespace xgboost {
 Learner::~Learner() = default;
 namespace {
@@ -492,13 +492,6 @@ class LearnerConfiguration : public Learner {
     this->ConfigureModelParamWithoutBaseScore();
 
     this->ConfigureMetrics(args);
-
-    std::map<std::string, std::string> loader_params = {{"LIBRARY_PATH", "/tmp"}};
-    std::map<std::string, std::string> proc_params = {};
-    auto plugin_name = "dummy";
-    processing::ProcessorLoader loader(loader_params);
-    processor_instance = loader.load(plugin_name);
-    processor_instance->Initialize(collective::GetRank() == 0, proc_params);
 
     this->need_configuration_ = false;
     if (ctx_.validate_parameters) {
