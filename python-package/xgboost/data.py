@@ -915,8 +915,9 @@ def _transform_cudf_df(
         from pandas.api.types import is_bool_dtype
 
     # Work around https://github.com/dmlc/xgboost/issues/10181
-    if _is_cudf_ser(data) and is_bool_dtype(data.dtype):
-        data = data.astype(np.uint8)
+    if _is_cudf_ser(data):
+        if is_bool_dtype(data.dtype):
+            data = data.astype(np.uint8)
     else:
         data = data.astype(
             {col: np.uint8 for col in data.select_dtypes(include="bool")}
