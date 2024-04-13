@@ -3,7 +3,7 @@ name: update-rapids
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 20 * * *"  # Run once daily
+    - cron: "0 20 * * 1"  # Run once weekly
 
 permissions:
   pull-requests: write
@@ -32,7 +32,7 @@ jobs:
       run: |
         bash tests/buildkite/update-rapids.sh
     - name: Create Pull Request
-      uses: peter-evans/create-pull-request@v5
+      uses: peter-evans/create-pull-request@v6
       if: github.ref == 'refs/heads/master'
       with:
         add-paths: |
