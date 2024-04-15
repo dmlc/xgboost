@@ -238,7 +238,7 @@ class HistogramBuilder {
       // Perform AllGather
       auto hist_vec = std::vector<std::int8_t>(hist_data.data(),
                                                hist_data.data() + hist_data.size());
-      auto hist_entries = collective::Allgather(hist_vec);
+      auto hist_entries = collective::AllgatherV(hist_vec);
       // Call interface here to post-process the messages
       std::vector<double> hist_aggr = processor_instance->HandleAggregation(hist_entries.data(), hist_entries.size());
 
