@@ -909,9 +909,19 @@ def _transform_cudf_df(
     enable_categorical: bool,
 ) -> Tuple[ctypes.c_void_p, list, Optional[FeatureNames], Optional[FeatureTypes]]:
     try:
-        from cudf.api.types import is_categorical_dtype
+        from cudf.api.types import is_bool_dtype, is_categorical_dtype
     except ImportError:
         from cudf.utils.dtypes import is_categorical_dtype
+        from pandas.api.types import is_bool_dtype
+
+    # Work around https://github.com/dmlc/xgboost/issues/10181
+    if _is_cudf_ser(data):
+        if is_bool_dtype(data.dtype):
+            data = data.astype(np.uint8)
+    else:
+        data = data.astype(
+            {col: np.uint8 for col in data.select_dtypes(include="bool")}
+        )
 
     if _is_cudf_ser(data):
         dtypes = [data.dtype]

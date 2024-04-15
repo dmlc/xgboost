@@ -21,14 +21,14 @@ ENV PATH=/opt/mambaforge/bin:$PATH
 
 # Create new Conda environment with cuDF, Dask, and cuPy
 RUN \
-    conda install -c conda-forge mamba && \
-    mamba create -n gpu_test -c rapidsai-nightly -c rapidsai -c nvidia -c conda-forge -c defaults \
+    export NCCL_SHORT_VER=$(echo "$NCCL_VERSION_ARG" | cut -d "-" -f 1) && \
+    mamba create -y -n gpu_test -c rapidsai -c nvidia -c conda-forge \
         python=3.10 cudf=$RAPIDS_VERSION_ARG* rmm=$RAPIDS_VERSION_ARG* cudatoolkit=$CUDA_VERSION_ARG \
-        nccl>=$(cut -d "-" -f 1 << $NCCL_VERSION_ARG) \
+        "nccl>=${NCCL_SHORT_VER}" \
         dask=2024.1.1 \
         dask-cuda=$RAPIDS_VERSION_ARG* dask-cudf=$RAPIDS_VERSION_ARG* cupy \
         numpy pytest pytest-timeout scipy scikit-learn pandas matplotlib wheel python-kubernetes urllib3 graphviz hypothesis \
-        pyspark>=3.4.0 cloudpickle cuda-python && \
+        "pyspark>=3.4.0" cloudpickle cuda-python && \
     mamba clean --all && \
     conda run --no-capture-output -n gpu_test pip install buildkite-test-collector
 
