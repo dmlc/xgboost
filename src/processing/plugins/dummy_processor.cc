@@ -2,6 +2,7 @@
  * Copyright 2014-2024 by XGBoost Contributors
  */
 #include <iostream>
+#include <cstring>
 #include "./dummy_processor.h"
 
 using std::vector;
