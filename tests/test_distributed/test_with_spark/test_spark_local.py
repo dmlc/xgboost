@@ -929,8 +929,127 @@ class TestPySparkLocal:
             model_loaded.set_device("cuda")
             assert model_loaded._run_on_gpu()
 
+    def test_validate_gpu_params(self) -> None:
+        # Standalone
+        standalone_conf = (
+            SparkConf()
+            .setMaster("spark://foo")
+            .set("spark.executor.cores", "12")
+            .set("spark.task.cpus", "1")
+            .set("spark.executor.resource.gpu.amount", "1")
+            .set("spark.task.resource.gpu.amount", "0.08")
+        )
+        classifer_on_cpu = SparkXGBClassifier(use_gpu=False)
+        classifer_on_gpu = SparkXGBClassifier(use_gpu=True)
+
+        # No exception for classifier on CPU
+        classifer_on_cpu._validate_gpu_params("3.4.0", standalone_conf)
+
+        with pytest.raises(
+            ValueError, match="XGBoost doesn't support GPU fractional configurations"
+        ):
+            classifer_on_gpu._validate_gpu_params("3.3.0", standalone_conf)
+
+        # No issues
+        classifer_on_gpu._validate_gpu_params("3.4.0", standalone_conf)
+        classifer_on_gpu._validate_gpu_params("3.4.1", standalone_conf)
+        classifer_on_gpu._validate_gpu_params("3.5.0", standalone_conf)
+        classifer_on_gpu._validate_gpu_params("3.5.1", standalone_conf)
+
+        # no spark.executor.resource.gpu.amount
+        standalone_bad_conf = (
+            SparkConf()
+            .setMaster("spark://foo")
+            .set("spark.executor.cores", "12")
+            .set("spark.task.cpus", "1")
+            .set("spark.task.resource.gpu.amount", "0.08")
+        )
+        msg_match = (
+            "The `spark.executor.resource.gpu.amount` is required for training on GPU"
+        )
+        with pytest.raises(ValueError, match=msg_match):
+            classifer_on_gpu._validate_gpu_params("3.3.0", standalone_bad_conf)
+        with pytest.raises(ValueError, match=msg_match):
+            classifer_on_gpu._validate_gpu_params("3.4.0", standalone_bad_conf)
+        with pytest.raises(ValueError, match=msg_match):
+            classifer_on_gpu._validate_gpu_params("3.4.1", standalone_bad_conf)
+        with pytest.raises(ValueError, match=msg_match):
+            classifer_on_gpu._validate_gpu_params("3.5.0", standalone_bad_conf)
+        with pytest.raises(ValueError, match=msg_match):
+            classifer_on_gpu._validate_gpu_params("3.5.1", standalone_bad_conf)
+
+        standalone_bad_conf = (
+            SparkConf()
+            .setMaster("spark://foo")
+            .set("spark.executor.cores", "12")
+            .set("spark.task.cpus", "1")
+            .set("spark.executor.resource.gpu.amount", "1")
+        )
+        msg_match = (
+            "The `spark.task.resource.gpu.amount` is required for training on GPU"
+        )
+        with pytest.raises(ValueError, match=msg_match):
+            classifer_on_gpu._validate_gpu_params("3.3.0", standalone_bad_conf)
+
+        classifer_on_gpu._validate_gpu_params("3.4.0", standalone_bad_conf)
+        classifer_on_gpu._validate_gpu_params("3.5.0", standalone_bad_conf)
+        classifer_on_gpu._validate_gpu_params("3.5.1", standalone_bad_conf)
+
+        # Yarn and K8s mode
+        for mode in ["yarn", "k8s://"]:
+            conf = (
+                SparkConf()
+                .setMaster(mode)
+                .set("spark.executor.cores", "12")
+                .set("spark.task.cpus", "1")
+                .set("spark.executor.resource.gpu.amount", "1")
+                .set("spark.task.resource.gpu.amount", "0.08")
+            )
+            with pytest.raises(
+                ValueError,
+                match="XGBoost doesn't support GPU fractional configurations",
+            ):
+                classifer_on_gpu._validate_gpu_params("3.3.0", conf)
+            with pytest.raises(
+                ValueError,
+                match="XGBoost doesn't support GPU fractional configurations",
+            ):
+                classifer_on_gpu._validate_gpu_params("3.4.0", conf)
+            with pytest.raises(
+                ValueError,
+                match="XGBoost doesn't support GPU fractional configurations",
+            ):
+                classifer_on_gpu._validate_gpu_params("3.4.1", conf)
+            with pytest.raises(
+                ValueError,
+                match="XGBoost doesn't support GPU fractional configurations",
+            ):
+                classifer_on_gpu._validate_gpu_params("3.5.0", conf)
+
+            classifer_on_gpu._validate_gpu_params("3.5.1", conf)
+
+        for mode in ["yarn", "k8s://"]:
+            bad_conf = (
+                SparkConf()
+                .setMaster(mode)
+                .set("spark.executor.cores", "12")
+                .set("spark.task.cpus", "1")
+                .set("spark.executor.resource.gpu.amount", "1")
+            )
+            msg_match = (
+                "The `spark.task.resource.gpu.amount` is required for training on GPU"
+            )
+            with pytest.raises(ValueError, match=msg_match):
+                classifer_on_gpu._validate_gpu_params("3.3.0", bad_conf)
+            with pytest.raises(ValueError, match=msg_match):
+                classifer_on_gpu._validate_gpu_params("3.4.0", bad_conf)
+            with pytest.raises(ValueError, match=msg_match):
+                classifer_on_gpu._validate_gpu_params("3.5.0", bad_conf)
+
+            classifer_on_gpu._validate_gpu_params("3.5.1", bad_conf)
+
     def test_skip_stage_level_scheduling(self) -> None:
-        conf = (
+        standalone_conf = (
             SparkConf()
             .setMaster("spark://foo")
             .set("spark.executor.cores", "12")
@@ -943,26 +1062,36 @@ class TestPySparkLocal:
         classifer_on_gpu = SparkXGBClassifier(use_gpu=True)
 
         # the correct configurations should not skip stage-level scheduling
-        assert not classifer_on_gpu._skip_stage_level_scheduling("3.4.0", conf)
+        assert not classifer_on_gpu._skip_stage_level_scheduling(
+            "3.4.0", standalone_conf
+        )
+        assert not classifer_on_gpu._skip_stage_level_scheduling(
+            "3.4.1", standalone_conf
+        )
+        assert not classifer_on_gpu._skip_stage_level_scheduling(
+            "3.5.0", standalone_conf
+        )
+        assert not classifer_on_gpu._skip_stage_level_scheduling(
+            "3.5.1", standalone_conf
+        )
 
         # spark version < 3.4.0
-        assert classifer_on_gpu._skip_stage_level_scheduling("3.3.0", conf)
-
+        assert classifer_on_gpu._skip_stage_level_scheduling("3.3.0", standalone_conf)
         # not run on GPU
-        assert classifer_on_cpu._skip_stage_level_scheduling("3.4.0", conf)
+        assert classifer_on_cpu._skip_stage_level_scheduling("3.4.0", standalone_conf)
 
         # spark.executor.cores is not set
-        badConf = (
+        bad_conf = (
             SparkConf()
             .setMaster("spark://foo")
             .set("spark.task.cpus", "1")
             .set("spark.executor.resource.gpu.amount", "1")
             .set("spark.task.resource.gpu.amount", "0.08")
         )
-        assert classifer_on_gpu._skip_stage_level_scheduling("3.4.0", badConf)
+        assert classifer_on_gpu._skip_stage_level_scheduling("3.4.0", bad_conf)
 
         # spark.executor.cores=1
-        badConf = (
+        bad_conf = (
             SparkConf()
             .setMaster("spark://foo")
             .set("spark.executor.cores", "1")
@@ -970,20 +1099,20 @@ class TestPySparkLocal:
             .set("spark.executor.resource.gpu.amount", "1")
             .set("spark.task.resource.gpu.amount", "0.08")
         )
-        assert classifer_on_gpu._skip_stage_level_scheduling("3.4.0", badConf)
+        assert classifer_on_gpu._skip_stage_level_scheduling("3.4.0", bad_conf)
 
         # spark.executor.resource.gpu.amount is not set
-        badConf = (
+        bad_conf = (
             SparkConf()
             .setMaster("spark://foo")
             .set("spark.executor.cores", "12")
             .set("spark.task.cpus", "1")
             .set("spark.task.resource.gpu.amount", "0.08")
         )
-        assert classifer_on_gpu._skip_stage_level_scheduling("3.4.0", badConf)
+        assert classifer_on_gpu._skip_stage_level_scheduling("3.4.0", bad_conf)
 
         # spark.executor.resource.gpu.amount>1
-        badConf = (
+        bad_conf = (
             SparkConf()
             .setMaster("spark://foo")
             .set("spark.executor.cores", "12")
@@ -991,20 +1120,20 @@ class TestPySparkLocal:
             .set("spark.executor.resource.gpu.amount", "2")
             .set("spark.task.resource.gpu.amount", "0.08")
         )
-        assert classifer_on_gpu._skip_stage_level_scheduling("3.4.0", badConf)
+        assert classifer_on_gpu._skip_stage_level_scheduling("3.4.0", bad_conf)
 
         # spark.task.resource.gpu.amount is not set
-        badConf = (
+        bad_conf = (
             SparkConf()
             .setMaster("spark://foo")
             .set("spark.executor.cores", "12")
             .set("spark.task.cpus", "1")
             .set("spark.executor.resource.gpu.amount", "1")
         )
-        assert not classifer_on_gpu._skip_stage_level_scheduling("3.4.0", badConf)
+        assert not classifer_on_gpu._skip_stage_level_scheduling("3.4.0", bad_conf)
 
         # spark.task.resource.gpu.amount=1
-        badConf = (
+        bad_conf = (
             SparkConf()
             .setMaster("spark://foo")
             .set("spark.executor.cores", "12")
@@ -1012,29 +1141,32 @@ class TestPySparkLocal:
             .set("spark.executor.resource.gpu.amount", "1")
             .set("spark.task.resource.gpu.amount", "1")
         )
-        assert classifer_on_gpu._skip_stage_level_scheduling("3.4.0", badConf)
+        assert classifer_on_gpu._skip_stage_level_scheduling("3.4.0", bad_conf)
 
-        # yarn
-        badConf = (
-            SparkConf()
-            .setMaster("yarn")
-            .set("spark.executor.cores", "12")
-            .set("spark.task.cpus", "1")
-            .set("spark.executor.resource.gpu.amount", "1")
-            .set("spark.task.resource.gpu.amount", "1")
-        )
-        assert classifer_on_gpu._skip_stage_level_scheduling("3.4.0", badConf)
+        # For Yarn and K8S
+        for mode in ["yarn", "k8s://"]:
+            for gpu_amount in ["0.08", "0.2", "1.0"]:
+                conf = (
+                    SparkConf()
+                    .setMaster(mode)
+                    .set("spark.executor.cores", "12")
+                    .set("spark.task.cpus", "1")
+                    .set("spark.executor.resource.gpu.amount", "1")
+                    .set("spark.task.resource.gpu.amount", gpu_amount)
+                )
+                assert classifer_on_gpu._skip_stage_level_scheduling("3.3.0", conf)
+                assert classifer_on_gpu._skip_stage_level_scheduling("3.4.0", conf)
+                assert classifer_on_gpu._skip_stage_level_scheduling("3.4.1", conf)
+                assert classifer_on_gpu._skip_stage_level_scheduling("3.5.0", conf)
 
-        # k8s
-        badConf = (
-            SparkConf()
-            .setMaster("k8s://")
-            .set("spark.executor.cores", "12")
-            .set("spark.task.cpus", "1")
-            .set("spark.executor.resource.gpu.amount", "1")
-            .set("spark.task.resource.gpu.amount", "1")
-        )
-        assert classifer_on_gpu._skip_stage_level_scheduling("3.4.0", badConf)
+                # This will be fixed when spark 4.0.0 is released.
+                if gpu_amount == "1.0":
+                    assert classifer_on_gpu._skip_stage_level_scheduling("3.5.1", conf)
+                else:
+                    # Starting from 3.5.1+, stage-level scheduling is working for Yarn and K8s
+                    assert not classifer_on_gpu._skip_stage_level_scheduling(
+                        "3.5.1", conf
+                    )
 
 
 class XgboostLocalTest(SparkTestCase):
