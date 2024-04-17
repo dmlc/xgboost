@@ -15,9 +15,9 @@ phases:
               choco --version
               choco feature enable -n=allowGlobalConfirmation
 
-              # CMake 3.27
-              Write-Host '>>> Installing CMake 3.27...'
-              choco install cmake --version 3.27.9 --installargs "ADD_CMAKE_TO_PATH=System"
+              # CMake 3.29.2
+              Write-Host '>>> Installing CMake 3.29.2...'
+              choco install cmake --version 3.29.2 --installargs "ADD_CMAKE_TO_PATH=System"
               if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
               # Notepad++
@@ -53,9 +53,9 @@ phases:
                   "--wait --passive --norestart --includeOptional"
               if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
-              # Install CUDA 11.8
-              Write-Host '>>> Installing CUDA 11.8...'
-              choco install cuda --version=11.8.0.52206
+              # Install CUDA 12.4
+              Write-Host '>>> Installing CUDA 12.4...'
+              choco install cuda --version=12.4.1.551
               if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
               # Install R
