@@ -14,7 +14,7 @@ import pyspark
 from pyspark import BarrierTaskContext, SparkConf, SparkContext, SparkFiles, TaskContext
 from pyspark.sql.session import SparkSession
 
-from xgboost import Booster, XGBModel, collective
+from xgboost import Booster, XGBModel
 from xgboost.collective import CommunicatorContext as CCtx
 from xgboost.tracker import RabitTracker
 
@@ -43,7 +43,7 @@ def _get_default_params_from_func(
     return filtered_params_dict
 
 
-class CommunicatorContext(CCtx):
+class CommunicatorContext(CCtx):  # pylint: disable=too-few-public-methods
     """Context with PySpark specific task ID."""
 
     def __init__(self, context: BarrierTaskContext, **args: Any) -> None:
