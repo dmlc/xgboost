@@ -144,6 +144,14 @@ which provides higher flexibility. For example:
 
   ctest --verbose
 
+If you need to debug errors on Windows using the debugger from VS, you can append the gtest flags in `test_main.cc`:
+
+.. code-block::
+
+  ::testing::GTEST_FLAG(filter) = "Suite.Test";
+  ::testing::GTEST_FLAG(repeat) = 10;
+
+
 ***********************************************
 Sanitizers: Detect memory errors and data races
 ***********************************************

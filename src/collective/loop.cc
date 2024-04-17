@@ -18,9 +18,11 @@
 #include "xgboost/logging.h"            // for CHECK
 
 namespace xgboost::collective {
-Result Loop::EmptyQueue(std::queue<Op>* p_queue) const {
+Result Loop::ProcessQueue(std::queue<Op>* p_queue, bool blocking) const {
   timer_.Start(__func__);
-  auto error = [this] { timer_.Stop(__func__); };
+  auto error = [this] {
+    timer_.Stop(__func__);
+  };
 
   if (stop_) {
     timer_.Stop(__func__);
@@ -48,6 +50,9 @@ Result Loop::EmptyQueue(std::queue<Op>* p_queue) const {
           poll.WatchWrite(*op.sock);
           break;
         }
+        case Op::kSleep: {
+          break;
+        }
         default: {
           error();
           return Fail("Invalid socket operation.");
@@ -59,12 +64,14 @@ Result Loop::EmptyQueue(std::queue<Op>* p_queue) const {
 
     // poll, work on fds that are ready.
     timer_.Start("poll");
-    auto rc = poll.Poll(timeout_);
-    timer_.Stop("poll");
-    if (!rc.OK()) {
-      error();
-      return rc;
+    if (!poll.fds.empty()) {
+      auto rc = poll.Poll(timeout_);
+      if (!rc.OK()) {
+        error();
+        return rc;
+      }
     }
+    timer_.Stop("poll");
 
     // we wonldn't be here if the queue is empty.
     CHECK(!qcopy.empty());
@@ -75,12 +82,20 @@ Result Loop::EmptyQueue(std::queue<Op>* p_queue) const {
       qcopy.pop();
 
       std::int32_t n_bytes_done{0};
-      CHECK(op.sock->NonBlocking());
+      if (!op.sock) {
+        CHECK(op.code == Op::kSleep);
+      } else {
+        CHECK(op.sock->NonBlocking());
+      }
 
       switch (op.code) {
         case Op::kRead: {
           if (poll.CheckRead(*op.sock)) {
             n_bytes_done = op.sock->Recv(op.ptr + op.off, op.n - op.off);
+            if (n_bytes_done == 0) {
+              error();
+              return Fail("Encountered EOF. The other end is likely closed.");
+            }
           }
           break;
         }
@@ -88,6 +103,12 @@ Result Loop::EmptyQueue(std::queue<Op>* p_queue) const {
           if (poll.CheckWrite(*op.sock)) {
             n_bytes_done = op.sock->Send(op.ptr + op.off, op.n - op.off);
           }
+          break;
+        }
+        case Op::kSleep: {
+          // For testing only.
+          std::this_thread::sleep_for(std::chrono::seconds{op.n});
+          n_bytes_done = op.n;
           break;
         }
         default: {
@@ -110,6 +131,10 @@ Result Loop::EmptyQueue(std::queue<Op>* p_queue) const {
         qcopy.push(op);
       }
     }
+
+    if (!blocking) {
+      break;
+    }
   }
 
   timer_.Stop(__func__);
@@ -128,6 +153,15 @@ void Loop::Process() {
   while (true) {
     try {
       std::unique_lock lock{mu_};
+      // This can handle missed notification: wait(lock, predicate) is equivalent to:
+      //
+      // while (!predicate()) {
+      //    cv.wait(lock);
+      // }
+      //
+      // As a result, if there's a missed notification, the queue wouldn't be empty, hence
+      // the predicate would be false and the actual wait wouldn't be invoked. Therefore,
+      // the blocking call can never go unanswered.
       cv_.wait(lock, [this] { return !this->queue_.empty() || stop_; });
       if (stop_) {
         break;  // only point where this loop can exit.
@@ -142,26 +176,27 @@ void Loop::Process() {
         queue_.pop();
         if (op.code == Op::kBlock) {
           is_blocking = true;
-          // Block must be the last op in the current batch since no further submit can be
-          // issued until the blocking call is finished.
-          CHECK(queue_.empty());
         } else {
           qcopy.push(op);
         }
       }
 
-      if (!is_blocking) {
-        // Unblock, we can write to the global queue again.
-        lock.unlock();
+      lock.unlock();
+      // Clear the local queue, if `is_blocking` is true, this is blocking the current
+      // worker thread (but not the client thread), wait until all operations are
+      // finished.
+      auto rc = this->ProcessQueue(&qcopy, is_blocking);
+
+      if (is_blocking && rc.OK()) {
+        CHECK(qcopy.empty());
       }
-
-      // Clear the local queue, this is blocking the current worker thread (but not the
-      // client thread), wait until all operations are finished.
-      auto rc = this->EmptyQueue(&qcopy);
-
-      if (is_blocking) {
-        // The unlock is delayed if this is a blocking call
-        lock.unlock();
+      // Push back the remaining operations.
+      if (rc.OK()) {
+        std::unique_lock lock{mu_};
+        while (!qcopy.empty()) {
+          queue_.push(qcopy.front());
+          qcopy.pop();
+        }
       }
 
       // Notify the client thread who called block after all error conditions are set.
@@ -228,7 +263,6 @@ Result Loop::Stop() {
   }
 
   this->Submit(Op{Op::kBlock});
-
   {
     // Wait for the block call to finish.
     std::unique_lock lock{mu_};
@@ -243,8 +277,20 @@ Result Loop::Stop() {
   }
 }
 
+void Loop::Submit(Op op) {
+  std::unique_lock lock{mu_};
+  if (op.code != Op::kBlock) {
+    CHECK_NE(op.n, 0);
+  }
+  queue_.push(op);
+  lock.unlock();
+  cv_.notify_one();
+}
+
 Loop::Loop(std::chrono::seconds timeout) : timeout_{timeout} {
   timer_.Init(__func__);
-  worker_ = std::thread{[this] { this->Process(); }};
+  worker_ = std::thread{[this] {
+    this->Process();
+  }};
 }
 }  // namespace xgboost::collective

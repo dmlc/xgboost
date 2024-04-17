@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2022-2023, XGBoost Contributors
+ * Copyright (c) 2022-2024, XGBoost Contributors
  */
 #pragma once
 
@@ -12,7 +12,6 @@
 #include <cstddef>       // std::size_t
 #include <cstdint>       // std::int32_t, std::uint16_t
 #include <cstring>       // memset
-#include <limits>        // std::numeric_limits
 #include <string>        // std::string
 #include <system_error>  // std::error_code, std::system_category
 #include <utility>       // std::swap
@@ -468,19 +467,30 @@ class TCPSocket {
       *addr = SockAddress{SockAddrV6{caddr}};
       *out = TCPSocket{newfd};
     }
+    // On MacOS, this is automatically set to async socket if the parent socket is async
+    // We make sure all socket are blocking by default.
+    //
+    // On Windows, a closed socket is returned during shutdown. We guard against it when
+    // setting non-blocking.
+    if (!out->IsClosed()) {
+      return out->NonBlocking(false);
+    }
     return Success();
   }
 
   ~TCPSocket() {
     if (!IsClosed()) {
-      Close();
+      auto rc = this->Close();
+      if (!rc.OK()) {
+        LOG(WARNING) << rc.Report();
+      }
     }
   }
 
   TCPSocket(TCPSocket const &that) = delete;
   TCPSocket(TCPSocket &&that) noexcept(true) { std::swap(this->handle_, that.handle_); }
   TCPSocket &operator=(TCPSocket const &that) = delete;
-  TCPSocket &operator=(TCPSocket &&that) {
+  TCPSocket &operator=(TCPSocket &&that) noexcept(true) {
     std::swap(this->handle_, that.handle_);
     return *this;
   }
@@ -635,22 +645,26 @@ class TCPSocket {
    */
   std::size_t Recv(std::string *p_str);
   /**
-   * \brief Close the socket, called automatically in destructor if the socket is not closed.
+   * @brief Close the socket, called automatically in destructor if the socket is not closed.
    */
-  void Close() {
+  Result Close() {
     if (InvalidSocket() != handle_) {
-#if defined(_WIN32)
       auto rc = system::CloseSocket(handle_);
+#if defined(_WIN32)
       // it's possible that we close TCP sockets after finalizing WSA due to detached thread.
       if (rc != 0 && system::LastError() != WSANOTINITIALISED) {
-        system::ThrowAtError("close", rc);
+        return system::FailWithCode("Failed to close the socket.");
       }
 #else
-      xgboost_CHECK_SYS_CALL(system::CloseSocket(handle_), 0);
+      if (rc != 0) {
+        return system::FailWithCode("Failed to close the socket.");
+      }
 #endif
       handle_ = InvalidSocket();
     }
+    return Success();
   }
+
   /**
    * \brief Create a TCP socket on specified domain.
    */

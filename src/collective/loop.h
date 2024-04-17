@@ -19,20 +19,27 @@ namespace xgboost::collective {
 class Loop {
  public:
   struct Op {
-    enum Code : std::int8_t { kRead = 0, kWrite = 1, kBlock = 2 } code;
+    // kSleep is only for testing
+    enum Code : std::int8_t { kRead = 0, kWrite = 1, kBlock = 2, kSleep = 4 } code;
     std::int32_t rank{-1};
     std::int8_t* ptr{nullptr};
     std::size_t n{0};
     TCPSocket* sock{nullptr};
     std::size_t off{0};
 
-    explicit Op(Code c) : code{c} { CHECK(c == kBlock); }
+    explicit Op(Code c) : code{c} { CHECK(c == kBlock || c == kSleep); }
     Op(Code c, std::int32_t rank, std::int8_t* ptr, std::size_t n, TCPSocket* sock, std::size_t off)
         : code{c}, rank{rank}, ptr{ptr}, n{n}, sock{sock}, off{off} {}
     Op(Op const&) = default;
     Op& operator=(Op const&) = default;
     Op(Op&&) = default;
     Op& operator=(Op&&) = default;
+    // For testing purpose only
+    [[nodiscard]] static Op Sleep(std::size_t seconds) {
+      Op op{kSleep};
+      op.n = seconds;
+      return op;
+    }
   };
 
  private:
@@ -54,7 +61,7 @@ class Loop {
   std::exception_ptr curr_exce_{nullptr};
   common::Monitor mutable timer_;
 
-  Result EmptyQueue(std::queue<Op>* p_queue) const;
+  Result ProcessQueue(std::queue<Op>* p_queue, bool blocking) const;
   // The cunsumer function that runs inside a worker thread.
   void Process();
 
@@ -64,12 +71,7 @@ class Loop {
    */
   Result Stop();
 
-  void Submit(Op op) {
-    std::unique_lock lock{mu_};
-    queue_.push(op);
-    lock.unlock();
-    cv_.notify_one();
-  }
+  void Submit(Op op);
 
   /**
    * @brief Block the event loop until all ops are finished. In the case of failure, this
