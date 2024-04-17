@@ -15,8 +15,8 @@ from pyspark import BarrierTaskContext, SparkConf, SparkContext, SparkFiles, Tas
 from pyspark.sql.session import SparkSession
 
 from xgboost import Booster, XGBModel, collective
-from xgboost.tracker import RabitTracker
 from xgboost.collective import CommunicatorContext as CCtx
+from xgboost.tracker import RabitTracker
 
 
 def get_class_name(cls: Type) -> str:
@@ -44,6 +44,8 @@ def _get_default_params_from_func(
 
 
 class CommunicatorContext(CCtx):
+    """Context with PySpark specific task ID."""
+
     def __init__(self, context: BarrierTaskContext, **args: Any) -> None:
         args["DMLC_TASK_ID"] = str(context.partitionId())
         super().__init__(**args)
