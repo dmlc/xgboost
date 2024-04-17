@@ -17,9 +17,9 @@ RUN \
     bash conda.sh -b -p /opt/mambaforge && \
     /opt/mambaforge/bin/pip install awscli && \
     # Maven
-    wget -nv https://archive.apache.org/dist/maven/maven-3/3.6.1/binaries/apache-maven-3.6.1-bin.tar.gz && \
-    tar xvf apache-maven-3.6.1-bin.tar.gz -C /opt && \
-    ln -s /opt/apache-maven-3.6.1/ /opt/maven && \
+    wget -nv https://archive.apache.org/dist/maven/maven-3/3.6.3/binaries/apache-maven-3.6.3-bin.tar.gz && \
+    tar xvf apache-maven-3.6.3-bin.tar.gz -C /opt && \
+    ln -s /opt/apache-maven-3.6.3/ /opt/maven && \
     # Spark with scala 2.12
     mkdir -p /opt/spark-scala-2.12 && \
     wget -nv https://archive.apache.org/dist/spark/spark-$SPARK_VERSION/spark-$SPARK_VERSION-bin-hadoop3.tgz && \

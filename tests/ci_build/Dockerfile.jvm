@@ -15,9 +15,9 @@ RUN \
     wget -nv -nc https://cmake.org/files/v3.18/cmake-3.18.0-Linux-x86_64.sh --no-check-certificate && \
     bash cmake-3.18.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
     # Maven
-    wget -nv -nc https://archive.apache.org/dist/maven/maven-3/3.6.1/binaries/apache-maven-3.6.1-bin.tar.gz && \
-    tar xvf apache-maven-3.6.1-bin.tar.gz -C /opt && \
-    ln -s /opt/apache-maven-3.6.1/ /opt/maven
+    wget -nv -nc https://archive.apache.org/dist/maven/maven-3/3.6.3/binaries/apache-maven-3.6.3-bin.tar.gz && \
+    tar xvf apache-maven-3.6.3-bin.tar.gz -C /opt && \
+    ln -s /opt/apache-maven-3.6.3/ /opt/maven
 
 ENV PATH=/opt/mambaforge/bin:/opt/maven/bin:$PATH
 ENV CC=/opt/rh/devtoolset-9/root/usr/bin/gcc

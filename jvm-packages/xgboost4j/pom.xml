@@ -60,7 +60,7 @@
           <plugin>
               <groupId>org.apache.maven.plugins</groupId>
               <artifactId>maven-javadoc-plugin</artifactId>
-              <version>3.6.2</version>
+              <version>3.6.3</version>
               <configuration>
                   <show>protected</show>
                   <nohelp>true</nohelp>
@@ -76,7 +76,7 @@
           <plugin>
               <artifactId>exec-maven-plugin</artifactId>
               <groupId>org.codehaus.mojo</groupId>
-              <version>3.1.0</version>
+              <version>3.2.0</version>
               <executions>
                   <execution>
                       <id>native</id>
