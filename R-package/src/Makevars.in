@@ -99,6 +99,7 @@ OBJECTS= \
     $(PKGROOT)/src/context.o \
     $(PKGROOT)/src/logging.o \
     $(PKGROOT)/src/global_config.o \
+    $(PKGROOT)/src/collective/result.o \
     $(PKGROOT)/src/collective/allgather.o \
     $(PKGROOT)/src/collective/allreduce.o \
     $(PKGROOT)/src/collective/broadcast.o \

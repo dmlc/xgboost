@@ -3,13 +3,11 @@
  */
 #pragma once
 
-#include <xgboost/logging.h>
-
-#include <memory>   // for unique_ptr
-#include <sstream>  // for stringstream
-#include <stack>    // for stack
-#include <string>   // for string
-#include <utility>  // for move
+#include <cstdint>       // for int32_t
+#include <memory>        // for unique_ptr
+#include <string>        // for string
+#include <system_error>  // for error_code
+#include <utility>       // for move
 
 namespace xgboost::collective {
 namespace detail {
@@ -48,48 +46,19 @@ struct ResultImpl {
     return cur_eq;
   }
 
-  [[nodiscard]] std::string Report() {
-    std::stringstream ss;
-    ss << "\n- " << this->message;
-    if (this->errc != std::error_code{}) {
-      ss << " system error:" << this->errc.message();
-    }
+  [[nodiscard]] std::string Report() const;
+  [[nodiscard]] std::error_code Code() const;
 
-    auto ptr = prev.get();
-    while (ptr) {
-      ss << "\n- ";
-      ss << ptr->message;
-
-      if (ptr->errc != std::error_code{}) {
-        ss << " " << ptr->errc.message();
-      }
-      ptr = ptr->prev.get();
-    }
-
-    return ss.str();
-  }
-  [[nodiscard]] auto Code() const {
-    // Find the root error.
-    std::stack<ResultImpl const*> stack;
-    auto ptr = this;
-    while (ptr) {
-      stack.push(ptr);
-      if (ptr->prev) {
-        ptr = ptr->prev.get();
-      } else {
-        break;
-      }
-    }
-    while (!stack.empty()) {
-      auto frame = stack.top();
-      stack.pop();
-      if (frame->errc != std::error_code{}) {
-        return frame->errc;
-      }
-    }
-    return std::error_code{};
-  }
+  void Concat(std::unique_ptr<ResultImpl> rhs);
 };
+
+#if (!defined(__GNUC__) && !defined(__clang__)) || defined(__MINGW32__)
+#define __builtin_FILE() nullptr
+#define __builtin_LINE() (-1)
+std::string MakeMsg(std::string&& msg, char const*, std::int32_t);
+#else
+std::string MakeMsg(std::string&& msg, char const* file, std::int32_t line);
+#endif
 }  // namespace detail
 
 /**
@@ -131,7 +100,20 @@ struct Result {
     }
     return *impl_ == *that.impl_;
   }
+
+  friend Result operator+(Result&& lhs, Result&& rhs);
 };
+
+[[nodiscard]] inline Result operator+(Result&& lhs, Result&& rhs) {
+  if (lhs.OK()) {
+    return std::forward<Result>(rhs);
+  }
+  if (rhs.OK()) {
+    return std::forward<Result>(lhs);
+  }
+  lhs.impl_->Concat(std::move(rhs.impl_));
+  return std::forward<Result>(lhs);
+}
 
 /**
  * @brief Return success.
@@ -140,38 +122,43 @@ struct Result {
 /**
  * @brief Return failure.
  */
-[[nodiscard]] inline auto Fail(std::string msg) { return Result{std::move(msg)}; }
+[[nodiscard]] inline auto Fail(std::string msg, char const* file = __builtin_FILE(),
+                               std::int32_t line = __builtin_LINE()) {
+  return Result{detail::MakeMsg(std::move(msg), file, line)};
+}
 /**
  * @brief Return failure with `errno`.
  */
-[[nodiscard]] inline auto Fail(std::string msg, std::error_code errc) {
-  return Result{std::move(msg), std::move(errc)};
+[[nodiscard]] inline auto Fail(std::string msg, std::error_code errc,
+                               char const* file = __builtin_FILE(),
+                               std::int32_t line = __builtin_LINE()) {
+  return Result{detail::MakeMsg(std::move(msg), file, line), std::move(errc)};
 }
 /**
  * @brief Return failure with a previous error.
  */
-[[nodiscard]] inline auto Fail(std::string msg, Result&& prev) {
-  return Result{std::move(msg), std::forward<Result>(prev)};
+[[nodiscard]] inline auto Fail(std::string msg, Result&& prev, char const* file = __builtin_FILE(),
+                               std::int32_t line = __builtin_LINE()) {
+  return Result{detail::MakeMsg(std::move(msg), file, line), std::forward<Result>(prev)};
 }
 /**
  * @brief Return failure with a previous error and a new `errno`.
  */
-[[nodiscard]] inline auto Fail(std::string msg, std::error_code errc, Result&& prev) {
-  return Result{std::move(msg), std::move(errc), std::forward<Result>(prev)};
+[[nodiscard]] inline auto Fail(std::string msg, std::error_code errc, Result&& prev,
+                               char const* file = __builtin_FILE(),
+                               std::int32_t line = __builtin_LINE()) {
+  return Result{detail::MakeMsg(std::move(msg), file, line), std::move(errc),
+                std::forward<Result>(prev)};
 }
 
 // We don't have monad, a simple helper would do.
 template <typename Fn>
-[[nodiscard]] Result operator<<(Result&& r, Fn&& fn) {
+[[nodiscard]] std::enable_if_t<std::is_invocable_v<Fn>, Result> operator<<(Result&& r, Fn&& fn) {
   if (!r.OK()) {
     return std::forward<Result>(r);
   }
   return fn();
 }
 
-inline void SafeColl(Result const& rc) {
-  if (!rc.OK()) {
-    LOG(FATAL) << rc.Report();
-  }
-}
+void SafeColl(Result const& rc);
 }  // namespace xgboost::collective
