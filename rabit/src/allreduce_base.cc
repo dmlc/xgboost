@@ -334,14 +334,13 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
     // create listening socket
     in_port_t port;
     SafeColl(sock_listen.BindHost(&port));
-    utils::Check(port != -1, "ReConnectLink fail to bind the ports specified");
     SafeColl(sock_listen.Listen());
 
     // get number of to connect and number of to accept nodes from tracker
     int num_conn, num_accept, num_error = 1;
     do {
       for (auto & all_link : all_links) {
-        all_link.sock.Close();
+        SafeColl(all_link.sock.Close());
       }
       // tracker construct goodset
       Assert(tracker.RecvAll(&num_conn, sizeof(num_conn)) == sizeof(num_conn),
@@ -353,7 +352,7 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
         LinkRecord r;
         int hport, hrank;
         std::string hname;
-        tracker.Recv(&hname);
+        SafeColl(tracker.Recv(&hname));
         Assert(tracker.RecvAll(&hport, sizeof(hport)) == sizeof(hport), "ReConnectLink failure 9");
         Assert(tracker.RecvAll(&hrank, sizeof(hrank)) == sizeof(hrank), "ReConnectLink failure 10");
         // connect to peer
@@ -361,7 +360,7 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
                                           timeout_sec, &r.sock)
                  .OK()) {
           num_error += 1;
-          r.sock.Close();
+          SafeColl(r.sock.Close());
           continue;
         }
         Assert(r.sock.SendAll(&rank, sizeof(rank)) == sizeof(rank),
@@ -387,7 +386,7 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
     // send back socket listening port to tracker
     Assert(tracker.SendAll(&port, sizeof(port)) == sizeof(port), "ReConnectLink failure 14");
     // close connection to tracker
-    tracker.Close();
+    SafeColl(tracker.Close());
 
     // listen to incoming links
     for (int i = 0; i < num_accept; ++i) {
@@ -409,7 +408,7 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
       }
       if (!match) all_links.emplace_back(std::move(r));
     }
-    sock_listen.Close();
+    SafeColl(sock_listen.Close());
 
     this->parent_index = -1;
     // setup tree links and ring structure
@@ -636,7 +635,7 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
           Recv(sendrecvbuf + size_down_in, total_size - size_down_in);
 
           if (len == 0) {
-            links[parent_index].sock.Close();
+            SafeColl(links[parent_index].sock.Close());
             return ReportError(&links[parent_index], kRecvZeroLen);
           }
           if (len != -1) {
