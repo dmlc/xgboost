@@ -30,11 +30,9 @@ class LoopTest : public ::testing::Test {
     pair_.first = TCPSocket::Create(domain);
     in_port_t port{0};
     auto rc = Success() << [&] {
-      port = pair_.first.BindHost();
-      return Success();
+      return pair_.first.BindHost(&port);
     } << [&] {
-      pair_.first.Listen();
-      return Success();
+      return pair_.first.Listen();
     };
     SafeColl(rc);
 

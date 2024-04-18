@@ -30,9 +30,9 @@ class CommGroup {
  public:
   CommGroup();
 
-  [[nodiscard]] auto World() const { return comm_->World(); }
-  [[nodiscard]] auto Rank() const { return comm_->Rank(); }
-  [[nodiscard]] bool IsDistributed() const { return comm_->IsDistributed(); }
+  [[nodiscard]] auto World() const noexcept { return comm_->World(); }
+  [[nodiscard]] auto Rank() const noexcept { return comm_->Rank(); }
+  [[nodiscard]] bool IsDistributed() const noexcept { return comm_->IsDistributed(); }
 
   [[nodiscard]] Result Finalize() const {
     return Success() << [this] {

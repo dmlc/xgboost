@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2023 by XGBoost Contributors
+ * Copyright 2022-2024, XGBoost Contributors
  */
 #include "xgboost/collective/socket.h"
 
@@ -65,14 +65,18 @@ std::size_t TCPSocket::Send(StringView str) {
   return bytes;
 }
 
-std::size_t TCPSocket::Recv(std::string *p_str) {
+[[nodiscard]] Result TCPSocket::Recv(std::string *p_str) {
   CHECK(!this->IsClosed());
   std::int32_t len;
-  CHECK_EQ(this->RecvAll(&len, sizeof(len)), sizeof(len)) << "Failed to recv string length.";
+  if (this->RecvAll(&len, sizeof(len)) != sizeof(len)) {
+    return Fail("Failed to recv string length.");
+  }
   p_str->resize(len);
   auto bytes = this->RecvAll(&(*p_str)[0], len);
-  CHECK_EQ(bytes, len) << "Failed to recv string.";
-  return bytes;
+  if (static_cast<decltype(len)>(bytes) != len) {
+    return Fail("Failed to recv string.");
+  }
+  return Success();
 }
 
 [[nodiscard]] Result Connect(xgboost::StringView host, std::int32_t port, std::int32_t retry,
@@ -111,9 +115,9 @@ std::size_t TCPSocket::Recv(std::string *p_str) {
     if (attempt > 0) {
       LOG(WARNING) << "Retrying connection to " << host << " for the " << attempt << " time.";
 #if defined(_MSC_VER) || defined(__MINGW32__)
-      Sleep(attempt << 1);
+      Sleep(attempt);
 #else
-      sleep(attempt << 1);
+      sleep(attempt);
 #endif
     }
 
@@ -158,8 +162,8 @@ std::size_t TCPSocket::Recv(std::string *p_str) {
 
   std::stringstream ss;
   ss << "Failed to connect to " << host << ":" << port;
-  conn.Close();
-  return Fail(ss.str(), std::move(last_error));
+  auto close_rc = conn.Close();
+  return Fail(ss.str(), std::move(close_rc) + std::move(last_error));
 }
 
 [[nodiscard]] Result GetHostName(std::string *p_out) {

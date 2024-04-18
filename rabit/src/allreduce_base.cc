@@ -132,7 +132,7 @@ bool AllreduceBase::Shutdown() {
   try {
     for (auto &all_link : all_links) {
       if (!all_link.sock.IsClosed()) {
-        all_link.sock.Close();
+        SafeColl(all_link.sock.Close());
       }
     }
     all_links.clear();
@@ -146,7 +146,7 @@ bool AllreduceBase::Shutdown() {
       LOG(FATAL) << rc.Report();
     }
     tracker.Send(xgboost::StringView{"shutdown"});
-    tracker.Close();
+    SafeColl(tracker.Close());
     xgboost::system::SocketFinalize();
     return true;
   } catch (std::exception const &e) {
@@ -167,7 +167,7 @@ void AllreduceBase::TrackerPrint(const std::string &msg) {
 
   tracker.Send(xgboost::StringView{"print"});
   tracker.Send(xgboost::StringView{msg});
-  tracker.Close();
+  SafeColl(tracker.Close());
 }
 
 // util to parse data with unit suffix
@@ -332,9 +332,10 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
 
     auto sock_listen{xgboost::collective::TCPSocket::Create(tracker.Domain())};
     // create listening socket
-    int port = sock_listen.BindHost();
+    in_port_t port;
+    SafeColl(sock_listen.BindHost(&port));
     utils::Check(port != -1, "ReConnectLink fail to bind the ports specified");
-    sock_listen.Listen();
+    SafeColl(sock_listen.Listen());
 
     // get number of to connect and number of to accept nodes from tracker
     int num_conn, num_accept, num_error = 1;

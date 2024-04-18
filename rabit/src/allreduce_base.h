@@ -270,7 +270,7 @@ class AllreduceBase : public IEngine {
       ssize_t len = sock.Recv(buffer_head + offset, nmax);
       // length equals 0, remote disconnected
       if (len == 0) {
-        sock.Close(); return kRecvZeroLen;
+        SafeColl(sock.Close()); return kRecvZeroLen;
       }
       if (len == -1) return Errno2Return();
       size_read += static_cast<size_t>(len);
@@ -289,7 +289,7 @@ class AllreduceBase : public IEngine {
       ssize_t len = sock.Recv(p + size_read, max_size - size_read);
       // length equals 0, remote disconnected
       if (len == 0) {
-        sock.Close(); return kRecvZeroLen;
+        SafeColl(sock.Close()); return kRecvZeroLen;
       }
       if (len == -1) return Errno2Return();
       size_read += static_cast<size_t>(len);

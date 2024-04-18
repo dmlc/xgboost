@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright 2023-2024, XGBoost Contributors
  */
 #pragma once
 #include <cstdint>  // for int32_t
@@ -58,6 +58,7 @@ struct Magic {
   }
 };
 
+// Basic commands for communication between workers and the tracker.
 enum class CMD : std::int32_t {
   kInvalid = 0,
   kStart = 1,
@@ -84,7 +85,10 @@ struct Connect {
   [[nodiscard]] Result TrackerRecv(TCPSocket* sock, std::int32_t* world, std::int32_t* rank,
                                    std::string* task_id) const {
     std::string init;
-    sock->Recv(&init);
+    auto rc = sock->Recv(&init);
+    if (!rc.OK()) {
+      return Fail("Connect protocol failed.", std::move(rc));
+    }
     auto jinit = Json::Load(StringView{init});
     *world = get<Integer const>(jinit["world_size"]);
     *rank = get<Integer const>(jinit["rank"]);
@@ -122,9 +126,9 @@ class Start {
   }
   [[nodiscard]] Result WorkerRecv(TCPSocket* tracker, std::int32_t* p_world) const {
     std::string scmd;
-    auto n_bytes = tracker->Recv(&scmd);
-    if (n_bytes <= 0) {
-      return Fail("Failed to recv init command from tracker.");
+    auto rc = tracker->Recv(&scmd);
+    if (!rc.OK()) {
+      return Fail("Failed to recv init command from tracker.", std::move(rc));
     }
     auto jcmd = Json::Load(scmd);
     auto world = get<Integer const>(jcmd["world_size"]);
@@ -132,7 +136,7 @@ class Start {
       return Fail("Invalid world size.");
     }
     *p_world = world;
-    return Success();
+    return rc;
   }
   [[nodiscard]] Result TrackerHandle(Json jcmd, std::int32_t* recv_world, std::int32_t world,
                                      std::int32_t* p_port, TCPSocket* p_sock,
@@ -150,6 +154,7 @@ class Start {
   }
 };
 
+// Protocol for communicating with the tracker for printing message.
 struct Print {
   [[nodiscard]] Result WorkerSend(TCPSocket* tracker, std::string msg) const {
     Json jcmd{Object{}};
@@ -172,6 +177,7 @@ struct Print {
   }
 };
 
+// Protocol for communicating with the tracker during error.
 struct ErrorCMD {
   [[nodiscard]] Result WorkerSend(TCPSocket* tracker, Result const& res) const {
     auto msg = res.Report();
@@ -199,6 +205,7 @@ struct ErrorCMD {
   }
 };
 
+// Protocol for communicating with the tracker during shutdown.
 struct ShutdownCMD {
   [[nodiscard]] Result Send(TCPSocket* peer) const {
     Json jcmd{Object{}};
@@ -209,6 +216,42 @@ struct ShutdownCMD {
       return Fail("Failed to send shutdown command from worker.");
     }
     return Success();
+  }
+};
+
+// Protocol for communicating with the local error handler during error or shutdown. Only
+// one protocol that doesn't have the tracker involved.
+struct Error {
+  constexpr static std::int32_t ShutdownSignal() { return 0; }
+  constexpr static std::int32_t ErrorSignal() { return -1; }
+
+  [[nodiscard]] Result SignalError(TCPSocket* worker) const {
+    std::int32_t err{ErrorSignal()};
+    auto n_sent = worker->SendAll(&err, sizeof(err));
+    if (n_sent == sizeof(err)) {
+      return Success();
+    }
+    return Fail("Failed to send error signal");
+  }
+  // self is localhost, we are sending the signal to the error handling thread for it to
+  // close.
+  [[nodiscard]] Result SignalShutdown(TCPSocket* self) const {
+    std::int32_t err{ShutdownSignal()};
+    auto n_sent = self->SendAll(&err, sizeof(err));
+    if (n_sent == sizeof(err)) {
+      return Success();
+    }
+    return Fail("Failed to send shutdown signal");
+  }
+  // get signal, either for error or for shutdown.
+  [[nodiscard]] Result RecvSignal(TCPSocket* peer, bool* p_is_error) const {
+    std::int32_t err{ShutdownSignal()};
+    auto n_recv = peer->RecvAll(&err, sizeof(err));
+    if (n_recv == sizeof(err)) {
+      *p_is_error = err == 1;
+      return Success();
+    }
+    return Fail("Failed to receive error signal.");
   }
 };
 }  // namespace xgboost::collective::proto
