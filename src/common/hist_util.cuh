@@ -8,6 +8,7 @@
 #define COMMON_HIST_UTIL_CUH_
 
 #include <thrust/host_vector.h>
+#include <thrust/sort.h>  // for sort
 
 #include <cstddef>  // for size_t
 

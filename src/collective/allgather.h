@@ -102,4 +102,115 @@ template <typename T>
 
   return detail::RingAllgatherV(comm, sizes, s_segments, erased_result);
 }
+
+template <typename T>
+[[nodiscard]] Result Allgather(Context const* ctx, CommGroup const& comm,
+                               linalg::VectorView<T> data) {
+  if (!comm.IsDistributed()) {
+    return Success();
+  }
+  CHECK(data.Contiguous());
+  auto erased = common::EraseType(data.Values());
+
+  auto const& cctx = comm.Ctx(ctx, data.Device());
+  auto backend = comm.Backend(data.Device());
+  return backend->Allgather(cctx, erased);
+}
+
+/**
+ * @brief Gather all data from all workers.
+ *
+ * @param data The input and output buffer, needs to be pre-allocated by the caller.
+ */
+template <typename T>
+[[nodiscard]] Result Allgather(Context const* ctx, linalg::VectorView<T> data) {
+  auto const& cg = *GlobalCommGroup();
+  if (data.Size() % cg.World() != 0) {
+    return Fail("The total number of elements should be multiple of the number of workers.");
+  }
+  return Allgather(ctx, cg, data);
+}
+
+template <typename T>
+[[nodiscard]] Result AllgatherV(Context const* ctx, CommGroup const& comm,
+                                linalg::VectorView<T> data,
+                                std::vector<std::int64_t>* recv_segments,
+                                HostDeviceVector<std::int8_t>* recv) {
+  if (!comm.IsDistributed()) {
+    return Success();
+  }
+  std::vector<std::int64_t> sizes(comm.World(), 0);
+  sizes[comm.Rank()] = data.Values().size_bytes();
+  auto erased_sizes = common::EraseType(common::Span{sizes.data(), sizes.size()});
+  auto rc = comm.Backend(DeviceOrd::CPU())
+                ->Allgather(comm.Ctx(ctx, DeviceOrd::CPU()), erased_sizes);
+  if (!rc.OK()) {
+    return rc;
+  }
+
+  recv_segments->resize(sizes.size() + 1);
+  detail::AllgatherVOffset(sizes, common::Span{recv_segments->data(), recv_segments->size()});
+  auto total_bytes = std::accumulate(sizes.cbegin(), sizes.cend(), 0LL);
+  recv->SetDevice(data.Device());
+  recv->Resize(total_bytes);
+
+  auto s_segments = common::Span{recv_segments->data(), recv_segments->size()};
+
+  auto backend = comm.Backend(data.Device());
+  auto erased = common::EraseType(data.Values());
+
+  return backend->AllgatherV(
+      comm.Ctx(ctx, data.Device()), erased, common::Span{sizes.data(), sizes.size()}, s_segments,
+      data.Device().IsCUDA() ? recv->DeviceSpan() : recv->HostSpan(), AllgatherVAlgo::kBcast);
+}
+
+/**
+ * @brief Allgather with variable length data.
+ *
+ * @param data The input data.
+ * @param recv_segments segment size for each worker.  [0, 2, 5] means [0, 2) elements are
+ *                      from the first worker, [2, 5) elements are from the second one.
+ * @param recv The buffer storing the result.
+ */
+template <typename T>
+[[nodiscard]] Result AllgatherV(Context const* ctx, linalg::VectorView<T> data,
+                                std::vector<std::int64_t>* recv_segments,
+                                HostDeviceVector<std::int8_t>* recv) {
+  return AllgatherV(ctx, *GlobalCommGroup(), data, recv_segments, recv);
+}
+
+[[nodiscard]] std::vector<std::vector<char>> VectorAllgatherV(
+    Context const* ctx, CommGroup const& comm, std::vector<std::vector<char>> const& input);
+
+/**
+ * @brief Gathers variable-length data from all processes and distributes it to all processes.
+ *
+ * @param inputs All the inputs from the local worker. The number of inputs can vary
+ *               across different workers. Along with which, the size of each vector in
+ *               the input can also vary.
+ *
+ * @return The AllgatherV result, containing vectors from all workers.
+ */
+[[nodiscard]] std::vector<std::vector<char>> VectorAllgatherV(
+    Context const* ctx, std::vector<std::vector<char>> const& input);
+
+/**
+ * @brief Gathers variable-length strings from all processes and distributes them to all processes.
+ * @param input Variable-length list of variable-length strings.
+ */
+[[nodiscard]] inline Result AllgatherStrings(std::vector<std::string> const& input,
+                                             std::vector<std::string>* p_result) {
+  std::vector<std::vector<char>> inputs(input.size());
+  for (std::size_t i = 0; i < input.size(); ++i) {
+    inputs[i] = {input[i].cbegin(), input[i].cend()};
+  }
+  Context ctx;
+  auto out = VectorAllgatherV(&ctx, *GlobalCommGroup(), inputs);
+  auto& result = *p_result;
+  result.resize(out.size());
+  for (std::size_t i = 0; i < out.size(); ++i) {
+    result[i] = {out[i].cbegin(), out[i].cend()};
+  }
+  return Success();
+}
 }  // namespace xgboost::collective

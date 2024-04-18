@@ -1,10 +1,11 @@
 /**
- * Copyright 2019-2023, XGBoost Contributors
+ * Copyright 2019-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 
 #include <cstddef>  // for size_t
 #include <fstream>  // for ofstream
+#include <numeric>  // for iota
 
 #include "../../../src/common/io.h"
 #include "../filesystem.h"  // dmlc::TemporaryDirectory

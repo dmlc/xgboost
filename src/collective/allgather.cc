@@ -33,6 +33,7 @@ Result RingAllgather(Comm const& comm, common::Span<std::int8_t> data, std::size
       bool is_last_segment = send_rank == (world - 1);
       auto send_nbytes = is_last_segment ? (data.size_bytes() - send_off) : segment_size;
       auto send_seg = data.subspan(send_off, send_nbytes);
+      CHECK_NE(send_seg.size(), 0);
       return next_ch->SendAll(send_seg.data(), send_seg.size_bytes());
     } << [&] {
       auto recv_rank = (rank + world - r - 1 + worker_off) % world;
@@ -40,9 +41,10 @@ Result RingAllgather(Comm const& comm, common::Span<std::int8_t> data, std::size
       bool is_last_segment = recv_rank == (world - 1);
       auto recv_nbytes = is_last_segment ? (data.size_bytes() - recv_off) : segment_size;
       auto recv_seg = data.subspan(recv_off, recv_nbytes);
+      CHECK_NE(recv_seg.size(), 0);
       return prev_ch->RecvAll(recv_seg.data(), recv_seg.size_bytes());
     } << [&] {
-      return prev_ch->Block();
+      return comm.Block();
     };
     if (!rc.OK()) {
       return rc;
@@ -106,4 +108,47 @@ namespace detail {
   return comm.Block();
 }
 }  // namespace detail
+
+[[nodiscard]] std::vector<std::vector<char>> VectorAllgatherV(
+    Context const* ctx, CommGroup const& comm, std::vector<std::vector<char>> const& input) {
+  auto n_inputs = input.size();
+  std::vector<std::int64_t> sizes(n_inputs);
+  std::transform(input.cbegin(), input.cend(), sizes.begin(),
+                 [](auto const& vec) { return vec.size(); });
+
+  std::vector<std::int64_t> recv_segments(comm.World() + 1, 0);
+
+  HostDeviceVector<std::int8_t> recv;
+  auto rc =
+      AllgatherV(ctx, comm, linalg::MakeVec(sizes.data(), sizes.size()), &recv_segments, &recv);
+  SafeColl(rc);
+
+  auto global_sizes = common::RestoreType<std::int64_t const>(recv.ConstHostSpan());
+  std::vector<std::int64_t> offset(global_sizes.size() + 1);
+  offset[0] = 0;
+  for (std::size_t i = 1; i < offset.size(); i++) {
+    offset[i] = offset[i - 1] + global_sizes[i - 1];
+  }
+
+  std::vector<char> collected;
+  for (auto const& vec : input) {
+    collected.insert(collected.end(), vec.cbegin(), vec.cend());
+  }
+  rc = AllgatherV(ctx, comm, linalg::MakeVec(collected.data(), collected.size()), &recv_segments,
+                  &recv);
+  SafeColl(rc);
+  auto out = common::RestoreType<char const>(recv.ConstHostSpan());
+
+  std::vector<std::vector<char>> result;
+  for (std::size_t i = 1; i < offset.size(); ++i) {
+    std::vector<char> local(out.cbegin() + offset[i - 1], out.cbegin() + offset[i]);
+    result.emplace_back(std::move(local));
+  }
+  return result;
+}
+
+[[nodiscard]] std::vector<std::vector<char>> VectorAllgatherV(
+    Context const* ctx, std::vector<std::vector<char>> const& input) {
+  return VectorAllgatherV(ctx, *GlobalCommGroup(), input);
+}
 }  // namespace xgboost::collective

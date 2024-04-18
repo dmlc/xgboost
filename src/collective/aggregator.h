@@ -165,7 +165,7 @@ template <typename T>
 T GlobalRatio(Context const* ctx, MetaInfo const& info, T dividend, T divisor) {
   std::array<T, 2> results{dividend, divisor};
   auto rc = GlobalSum(ctx, info, linalg::MakeVec(results.data(), results.size()));
-  collective::SafeColl(rc);
+  SafeColl(rc);
   std::tie(dividend, divisor) = std::tuple_cat(results);
   if (divisor <= 0) {
     return std::numeric_limits<T>::quiet_NaN();
