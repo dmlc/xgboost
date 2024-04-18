@@ -1,14 +1,16 @@
-/*!
- * Copyright 2017-2021 XGBoost contributors
+/**
+ * Copyright 2017-2024, XGBoost contributors
  */
+#include <thrust/device_vector.h>
+#include <thrust/sort.h>  // for is_sorted
+#include <xgboost/base.h>
+
 #include <cstddef>
 #include <cstdint>
-#include <thrust/device_vector.h>
 #include <vector>
-#include <xgboost/base.h>
+
 #include "../../../src/common/device_helpers.cuh"
 #include "../../../src/common/quantile.h"
-#include "../helpers.h"
 #include "gtest/gtest.h"
 
 TEST(SumReduce, Test) {

@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright 2023-2024, XGBoost Contributors
  */
 #if defined(XGBOOST_USE_NCCL)
 #include <gtest/gtest.h>
@@ -24,7 +24,7 @@ class Worker : public NCCLWorkerForTest {
     data[comm_.Rank()] = ~std::uint32_t{0};
     auto rc = nccl_coll_->Allreduce(*nccl_comm_, common::EraseType(dh::ToSpan(data)),
                                     ArrayInterfaceHandler::kU4, Op::kBitwiseOR);
-    ASSERT_TRUE(rc.OK()) << rc.Report();
+    SafeColl(rc);
     thrust::host_vector<std::uint32_t> h_data(data.size());
     thrust::copy(data.cbegin(), data.cend(), h_data.begin());
     for (auto v : h_data) {
@@ -36,7 +36,7 @@ class Worker : public NCCLWorkerForTest {
     dh::device_vector<double> data(314, 1.5);
     auto rc = nccl_coll_->Allreduce(*nccl_comm_, common::EraseType(dh::ToSpan(data)),
                                     ArrayInterfaceHandler::kF8, Op::kSum);
-    ASSERT_TRUE(rc.OK()) << rc.Report();
+    SafeColl(rc);
     for (std::size_t i = 0; i < data.size(); ++i) {
       auto v = data[i];
       ASSERT_EQ(v, 1.5 * static_cast<double>(comm_.World())) << i;

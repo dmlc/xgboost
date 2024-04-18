@@ -68,39 +68,35 @@ Result RingScatterReduceTyped(Comm const& comm, common::Span<std::int8_t> data,
   auto s_buf = common::Span{buffer.data(), buffer.size()};
 
   for (std::int32_t r = 0; r < world - 1; ++r) {
-    // send to ring next
-    auto send_rank = (rank + world - r) % world;
-    auto send_off = send_rank * n_bytes_in_seg;
+    common::Span<std::int8_t> seg, recv_seg;
+    auto rc = Success() << [&] {
+      // send to ring next
+      auto send_rank = (rank + world - r) % world;
+      auto send_off = send_rank * n_bytes_in_seg;
 
-    bool is_last_segment = send_rank == (world - 1);
+      bool is_last_segment = send_rank == (world - 1);
 
-    auto seg_nbytes = is_last_segment ? data.size_bytes() - send_off : n_bytes_in_seg;
-    auto send_seg = data.subspan(send_off, seg_nbytes);
+      auto seg_nbytes = is_last_segment ? data.size_bytes() - send_off : n_bytes_in_seg;
+      CHECK_EQ(seg_nbytes % sizeof(T), 0);
 
-    auto rc = next_ch->SendAll(send_seg);
-    if (!rc.OK()) {
-      return rc;
-    }
+      auto send_seg = data.subspan(send_off, seg_nbytes);
+      return next_ch->SendAll(send_seg);
+    } << [&] {
+      // receive from ring prev
+      auto recv_rank = (rank + world - r - 1) % world;
+      auto recv_off = recv_rank * n_bytes_in_seg;
 
-    // receive from ring prev
-    auto recv_rank = (rank + world - r - 1) % world;
-    auto recv_off = recv_rank * n_bytes_in_seg;
+      bool is_last_segment = recv_rank == (world - 1);
 
-    is_last_segment = recv_rank == (world - 1);
+      auto seg_nbytes = is_last_segment ? (data.size_bytes() - recv_off) : n_bytes_in_seg;
+      CHECK_EQ(seg_nbytes % sizeof(T), 0);
 
-    seg_nbytes = is_last_segment ? data.size_bytes() - recv_off : n_bytes_in_seg;
-    CHECK_EQ(seg_nbytes % sizeof(T), 0);
-    auto recv_seg = data.subspan(recv_off, seg_nbytes);
-    auto seg = s_buf.subspan(0, recv_seg.size());
-
-    rc = std::move(rc) << [&] {
+      recv_seg = data.subspan(recv_off, seg_nbytes);
+      seg = s_buf.subspan(0, recv_seg.size());
       return prev_ch->RecvAll(seg);
     } << [&] {
       return comm.Block();
     };
-    if (!rc.OK()) {
-      return rc;
-    }
 
     // accumulate to recv_seg
     CHECK_EQ(seg.size(), recv_seg.size());

@@ -12,7 +12,6 @@
 #include <thrust/iterator/transform_output_iterator.h>  // make_transform_output_iterator
 #include <thrust/logical.h>
 #include <thrust/sequence.h>
-#include <thrust/sort.h>
 #include <thrust/system/cuda/error.h>
 #include <thrust/system_error.h>
 #include <thrust/transform_scan.h>

@@ -59,7 +59,7 @@ class AllreduceWorker : public WorkerForTest {
     auto pcoll = std::shared_ptr<Coll>{new Coll{}};
     auto rc = pcoll->Allreduce(comm_, common::EraseType(common::Span{data.data(), data.size()}),
                                ArrayInterfaceHandler::kU4, Op::kBitwiseOR);
-    ASSERT_TRUE(rc.OK()) << rc.Report();
+    SafeColl(rc);
     for (auto v : data) {
       ASSERT_EQ(v, ~std::uint32_t{0});
     }

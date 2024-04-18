@@ -1,13 +1,13 @@
 /**
- * Copyright 2019-2023 by XGBoost Contributors
+ * Copyright 2019-2024, XGBoost Contributors
  */
 #include <thrust/functional.h>
 #include <thrust/random.h>
+#include <thrust/sort.h>  // for sort
 #include <thrust/transform.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/logging.h>
 
-#include <algorithm>
 #include <cstddef>  // for size_t
 #include <limits>
 #include <utility>

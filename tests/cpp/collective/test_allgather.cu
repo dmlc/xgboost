@@ -34,7 +34,7 @@ class Worker : public NCCLWorkerForTest {
       std::vector<std::int64_t> sizes(comm_.World(), -1);
       sizes[comm_.Rank()] = s_data.size_bytes();
       auto rc = RingAllgather(comm_, common::Span{sizes.data(), sizes.size()});
-      ASSERT_TRUE(rc.OK()) << rc.Report();
+      SafeColl(rc);
       // create result
       dh::device_vector<std::int32_t> result(comm_.World(), -1);
       auto s_result = common::EraseType(dh::ToSpan(result));
@@ -42,7 +42,7 @@ class Worker : public NCCLWorkerForTest {
       std::vector<std::int64_t> recv_seg(nccl_comm_->World() + 1, 0);
       rc = nccl_coll_->AllgatherV(*nccl_comm_, s_data, common::Span{sizes.data(), sizes.size()},
                                   common::Span{recv_seg.data(), recv_seg.size()}, s_result, algo);
-      ASSERT_TRUE(rc.OK()) << rc.Report();
+      SafeColl(rc);
 
       for (std::int32_t i = 0; i < comm_.World(); ++i) {
         ASSERT_EQ(result[i], i);
@@ -58,7 +58,7 @@ class Worker : public NCCLWorkerForTest {
       std::vector<std::int64_t> sizes(nccl_comm_->World(), 0);
       sizes[comm_.Rank()] = dh::ToSpan(data).size_bytes();
       auto rc = RingAllgather(comm_, common::Span{sizes.data(), sizes.size()});
-      ASSERT_TRUE(rc.OK()) << rc.Report();
+      SafeColl(rc);
       auto n_bytes = std::accumulate(sizes.cbegin(), sizes.cend(), 0);
       // create result
       dh::device_vector<std::int32_t> result(n_bytes / sizeof(std::int32_t), -1);
@@ -67,7 +67,7 @@ class Worker : public NCCLWorkerForTest {
       std::vector<std::int64_t> recv_seg(nccl_comm_->World() + 1, 0);
       rc = nccl_coll_->AllgatherV(*nccl_comm_, s_data, common::Span{sizes.data(), sizes.size()},
                                   common::Span{recv_seg.data(), recv_seg.size()}, s_result, algo);
-      ASSERT_TRUE(rc.OK()) << rc.Report();
+      SafeColl(rc);
       // check segment size
       if (algo != AllgatherVAlgo::kBcast) {
         auto size = recv_seg[nccl_comm_->Rank() + 1] - recv_seg[nccl_comm_->Rank()];
