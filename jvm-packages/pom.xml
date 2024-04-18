@@ -47,7 +47,7 @@
         <spark.rapids.version>23.12.1</spark.rapids.version>
         <cudf.classifier>cuda12</cudf.classifier>
         <scalatest.version>3.2.17</scalatest.version>
-        <scala-collection-compat.version>2.11.0</scala-collection-compat.version>
+        <scala-collection-compat.version>2.12.0</scala-collection-compat.version>
 
         <!-- SPARK-36796 for JDK-17 test-->
         <extraJavaTestArgs>
