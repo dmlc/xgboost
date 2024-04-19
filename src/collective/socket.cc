@@ -8,7 +8,8 @@
 #include <cstdint>       // std::int32_t
 #include <cstring>       // std::memcpy, std::memset
 #include <filesystem>    // for path
-#include <system_error>  // std::error_code, std::system_category
+#include <system_error>  // for error_code, system_category
+#include <thread>        // for sleep_for
 
 #include "rabit/internal/socket.h"      // for PollHelper
 #include "xgboost/collective/result.h"  // for Result
@@ -114,11 +115,7 @@ std::size_t TCPSocket::Send(StringView str) {
   for (std::int32_t attempt = 0; attempt < std::max(retry, 1); ++attempt) {
     if (attempt > 0) {
       LOG(WARNING) << "Retrying connection to " << host << " for the " << attempt << " time.";
-#if defined(_MSC_VER) || defined(__MINGW32__)
-      Sleep(attempt);
-#else
-      sleep(attempt);
-#endif
+      std::this_thread::sleep_for(std::chrono::seconds{attempt << 1});
     }
 
     auto rc = connect(conn.Handle(), addr_handle, addr_len);

@@ -517,8 +517,7 @@ class TCPSocket {
    * @brief Listen to incoming requests. Should be called after bind.
    */
   [[nodiscard]] Result Listen(std::int32_t backlog = 16) {
-    auto rc = listen(handle_, backlog);
-    if (rc != 0) {
+    if (listen(handle_, backlog) != 0) {
       return system::FailWithCode("Failed to listen.");
     }
     return Success();
@@ -526,7 +525,9 @@ class TCPSocket {
   /**
    * @brief Bind socket to INADDR_ANY, return the port selected by the OS.
    */
-  [[nodiscard]] Result BindHost(in_port_t* p_out) {
+  [[nodiscard]] Result BindHost(std::int32_t* p_out) {
+    // Use int32 instead of in_port_t for consistency. We take port as parameter from
+    // users using other languages, the port is usually stored and passed around as int.
     if (Domain() == SockDomain::kV6) {
       auto addr = SockAddrV6::InaddrAny();
       auto handle = reinterpret_cast<sockaddr const *>(&addr.Handle());

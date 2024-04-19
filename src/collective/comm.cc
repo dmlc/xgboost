@@ -5,6 +5,7 @@
 
 #include <algorithm>  // for copy
 #include <chrono>     // for seconds
+#include <cstdint>    // for int32_t
 #include <cstdlib>    // for exit
 #include <memory>     // for shared_ptr
 #include <string>     // for string
@@ -235,7 +236,7 @@ Comm* RabitComm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
 
   // Start command
   TCPSocket listener = TCPSocket::Create(tracker.Domain());
-  in_port_t lport{0};
+  std::int32_t lport{0};
   rc = std::move(rc) << [&] {
     return listener.BindHost(&lport);
   } << [&] {
@@ -248,7 +249,7 @@ Comm* RabitComm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
   // create worker for listening to error notice.
   auto domain = tracker.Domain();
   std::shared_ptr<TCPSocket> error_sock{TCPSocket::CreatePtr(domain)};
-  in_port_t eport{0};
+  std::int32_t eport{0};
   rc = std::move(rc) << [&] {
     return error_sock->BindHost(&eport);
   } << [&] {

@@ -332,7 +332,7 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
 
     auto sock_listen{xgboost::collective::TCPSocket::Create(tracker.Domain())};
     // create listening socket
-    in_port_t port;
+    std::int32_t port{0};
     SafeColl(sock_listen.BindHost(&port));
     SafeColl(sock_listen.Listen());
 

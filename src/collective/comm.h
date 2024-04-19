@@ -4,7 +4,7 @@
 #pragma once
 #include <chrono>   // for seconds
 #include <cstddef>  // for size_t
-#include <cstdint>  // for int32_t
+#include <cstdint>  // for int32_t, int64_t
 #include <memory>   // for shared_ptr
 #include <string>   // for string
 #include <thread>   // for thread
