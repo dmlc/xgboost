@@ -21,7 +21,7 @@ TEST_F(SocketTest, Basic) {
   auto run_test = [msg](SockDomain domain) {
     auto server = TCPSocket::Create(domain);
     ASSERT_EQ(server.Domain(), domain);
-    in_port_t port{0};
+    std::int32_t port{0};
     auto rc = Success() << [&] {
       return server.BindHost(&port);
     } << [&] {

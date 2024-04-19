@@ -28,7 +28,7 @@ class LoopTest : public ::testing::Test {
 
     auto domain = SockDomain::kV4;
     pair_.first = TCPSocket::Create(domain);
-    in_port_t port{0};
+    std::int32_t port{0};
     auto rc = Success() << [&] {
       return pair_.first.BindHost(&port);
     } << [&] {
