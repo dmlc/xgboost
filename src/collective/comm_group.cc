@@ -123,30 +123,4 @@ void GlobalCommGroupFinalize() {
   sptr.reset();
   SafeColl(rc);
 }
-
-void Init(Json const& config) { GlobalCommGroupInit(config); }
-
-void Finalize() { GlobalCommGroupFinalize(); }
-
-std::int32_t GetRank() noexcept { return GlobalCommGroup()->Rank(); }
-
-std::int32_t GetWorldSize() noexcept { return GlobalCommGroup()->World(); }
-
-bool IsDistributed() noexcept { return GlobalCommGroup()->IsDistributed(); }
-
-[[nodiscard]] bool IsFederated() {
-  return GlobalCommGroup()->Ctx(nullptr, DeviceOrd::CPU()).IsFederated();
-}
-
-void Print(std::string const& message) {
-  auto rc = GlobalCommGroup()->Ctx(nullptr, DeviceOrd::CPU()).LogTracker(message);
-  SafeColl(rc);
-}
-
-std::string GetProcessorName() {
-  std::string out;
-  auto rc = GlobalCommGroup()->ProcessorName(&out);
-  SafeColl(rc);
-  return out;
-}
 }  // namespace xgboost::collective
