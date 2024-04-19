@@ -37,7 +37,7 @@ class WorkerForTest {
         comm_{tracker_host_, tracker_port_, timeout, retry_, task_id_, DefaultNcclName()} {
     CHECK_EQ(world_size_, comm_.World());
   }
-  virtual ~WorkerForTest() = default;
+  virtual ~WorkerForTest() noexcept(false) { SafeColl(comm_.Shutdown()); }
   auto& Comm() { return comm_; }
 
   void LimitSockBuf(std::int32_t n_bytes) {
@@ -87,9 +87,20 @@ class TrackerTest : public SocketTest {
   void SetUp() override {
     SocketTest::SetUp();
     auto rc = GetHostAddress(&host);
-    ASSERT_TRUE(rc.OK()) << rc.Report();
+    SafeColl(rc);
   }
 };
+
+inline Json MakeTrackerConfig(std::string host, std::int32_t n_workers,
+                              std::chrono::seconds timeout) {
+  Json config{Object{}};
+  config["host"] = host;
+  config["port"] = Integer{0};
+  config["n_workers"] = Integer{n_workers};
+  config["sortby"] = Integer{static_cast<std::int32_t>(Tracker::SortBy::kHost)};
+  config["timeout"] = timeout.count();
+  return config;
+}
 
 template <typename WorkerFn>
 void TestDistributed(std::int32_t n_workers, WorkerFn worker_fn) {
@@ -97,9 +108,9 @@ void TestDistributed(std::int32_t n_workers, WorkerFn worker_fn) {
 
   std::string host;
   auto rc = GetHostAddress(&host);
-  ASSERT_TRUE(rc.OK()) << rc.Report();
+  SafeColl(rc);
   LOG(INFO) << "Using " << n_workers << " workers for test.";
-  RabitTracker tracker{StringView{host}, n_workers, 0, timeout};
+  RabitTracker tracker{MakeTrackerConfig(host, n_workers, timeout)};
   auto fut = tracker.Run();
 
   std::vector<std::thread> workers;
@@ -114,5 +125,16 @@ void TestDistributed(std::int32_t n_workers, WorkerFn worker_fn) {
   }
 
   ASSERT_TRUE(fut.get().OK());
+}
+inline auto MakeDistributedTestConfig(std::string host, std::int32_t port,
+                                      std::chrono::seconds timeout, std::int32_t r) {
+  Json config{Object{}};
+  config["dmlc_communicator"] = std::string{"rabit"};
+  config["dmlc_tracker_uri"] = host;
+  config["dmlc_tracker_port"] = port;
+  config["dmlc_timeout_sec"] = static_cast<std::int64_t>(timeout.count());
+  config["dmlc_task_id"] = std::to_string(r);
+  config["dmlc_retry"] = 2;
+  return config;
 }
 }  // namespace xgboost::collective

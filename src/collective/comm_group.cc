@@ -64,6 +64,9 @@ CommGroup::CommGroup()
 
     auto const& obj = get<Object const>(config);
     auto it = obj.find(upper);
+    if (it != obj.cend() && obj.find(name) != obj.cend()) {
+      LOG(FATAL) << "Duplicated parameter:" << name;
+    }
     if (it != obj.cend()) {
       return OptionalArg<decltype(t)>(config, upper, dft);
     } else {
@@ -77,14 +80,14 @@ CommGroup::CommGroup()
   auto task_id = get_param("dmlc_task_id", std::string{}, String{});
 
   if (type == "rabit") {
-    auto host = get_param("dmlc_tracker_uri", std::string{}, String{});
-    auto port = get_param("dmlc_tracker_port", static_cast<std::int64_t>(0), Integer{});
+    auto tracker_host = get_param("dmlc_tracker_uri", std::string{}, String{});
+    auto tracker_port = get_param("dmlc_tracker_port", static_cast<std::int64_t>(0), Integer{});
     auto nccl = get_param("dmlc_nccl_path", std::string{DefaultNcclName()}, String{});
-    auto ptr =
-        new CommGroup{std::shared_ptr<RabitComm>{new RabitComm{  // NOLINT
-                          host, static_cast<std::int32_t>(port), std::chrono::seconds{timeout},
-                          static_cast<std::int32_t>(retry), task_id, nccl}},
-                      std::shared_ptr<Coll>(new Coll{})};  // NOLINT
+    auto ptr = new CommGroup{
+        std::shared_ptr<RabitComm>{new RabitComm{  // NOLINT
+            tracker_host, static_cast<std::int32_t>(tracker_port), std::chrono::seconds{timeout},
+            static_cast<std::int32_t>(retry), task_id, nccl}},
+        std::shared_ptr<Coll>(new Coll{})};  // NOLINT
     return ptr;
   } else if (type == "federated") {
 #if defined(XGBOOST_USE_FEDERATED)

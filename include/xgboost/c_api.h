@@ -1555,7 +1555,7 @@ XGB_DLL int XGTrackerCreate(char const *config, TrackerHandle *handle);
 
 /**
  * @brief Get the arguments needed for running workers. This should be called after
- *        XGTrackerRun() and XGTrackerWait()
+ *        XGTrackerRun().
  *
  * @param handle The handle to the tracker.
  * @param args The arguments returned as a JSON document.
@@ -1565,16 +1565,19 @@ XGB_DLL int XGTrackerCreate(char const *config, TrackerHandle *handle);
 XGB_DLL int XGTrackerWorkerArgs(TrackerHandle handle, char const **args);
 
 /**
- * @brief Run the tracker.
+ * @brief Start the tracker. The tracker runs in the background and this function returns
+ *        once the tracker is started.
  *
  * @param handle The handle to the tracker.
+ * @param config Unused at the moment, preserved for the future.
  *
  * @return 0 for success, -1 for failure.
  */
-XGB_DLL int XGTrackerRun(TrackerHandle handle);
+XGB_DLL int XGTrackerRun(TrackerHandle handle, char const *config);
 
 /**
- * @brief Wait for the tracker to finish, should be called after XGTrackerRun().
+ * @brief Wait for the tracker to finish, should be called after XGTrackerRun(). This
+ *        function will block until the tracker task is finished or timeout is reached.
  *
  * @param handle The handle to the tracker.
  * @param config JSON encoded configuration. No argument is required yet, preserved for
@@ -1582,11 +1585,12 @@ XGB_DLL int XGTrackerRun(TrackerHandle handle);
  *
  * @return 0 for success, -1 for failure.
  */
-XGB_DLL int XGTrackerWait(TrackerHandle handle, char const *config);
+XGB_DLL int XGTrackerWaitFor(TrackerHandle handle, char const *config);
 
 /**
- * @brief Free a tracker instance. XGTrackerWait() is called internally. If the tracker
- *        cannot close properly, manual interruption is required.
+ * @brief Free a tracker instance. This should be called after XGTrackerWaitFor(). If the
+ *        tracker is not properly waited, this function will shutdown all connections with
+ *        the tracker, potentially leading to undefined behavior.
  *
  * @param handle The handle to the tracker.
  *

@@ -125,14 +125,14 @@ Result FederatedTracker::Shutdown() {
 
 [[nodiscard]] Json FederatedTracker::WorkerArgs() const {
   auto rc = this->WaitUntilReady();
-  CHECK(rc.OK()) << rc.Report();
+  SafeColl(rc);
 
   std::string host;
   rc = GetHostAddress(&host);
   CHECK(rc.OK());
   Json args{Object{}};
-  args["DMLC_TRACKER_URI"] = String{host};
-  args["DMLC_TRACKER_PORT"] = this->Port();
+  args["dmlc_tracker_uri"] = String{host};
+  args["dmlc_tracker_port"] = this->Port();
   return args;
 }
 }  // namespace xgboost::collective

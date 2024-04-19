@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright 2023-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 
@@ -8,7 +8,6 @@
 
 #include "../../../../src/collective/tracker.h"  // for GetHostAddress
 #include "federated_tracker.h"
-#include "test_worker.h"
 #include "xgboost/json.h"  // for Json
 
 namespace xgboost::collective {
@@ -26,7 +25,7 @@ TEST(FederatedTrackerTest, Basic) {
   ASSERT_GE(tracker->Port(), 1);
   std::string host;
   auto rc = GetHostAddress(&host);
-  ASSERT_EQ(get<String const>(args["DMLC_TRACKER_URI"]), host);
+  ASSERT_EQ(get<String const>(args["dmlc_tracker_uri"]), host);
 
   rc = tracker->Shutdown();
   ASSERT_TRUE(rc.OK());

@@ -38,6 +38,10 @@ bool constexpr IsFloatingPointV() {
   auto redop_fn = [](auto lhs, auto out, auto elem_op) {
     auto p_lhs = lhs.data();
     auto p_out = out.data();
+#if defined(__GNUC__) || defined(__clang__)
+    // For the sum op, one can verify the simd by: addps  %xmm15, %xmm14
+#pragma omp simd
+#endif
     for (std::size_t i = 0; i < lhs.size(); ++i) {
       p_out[i] = elem_op(p_lhs[i], p_out[i]);
     }
