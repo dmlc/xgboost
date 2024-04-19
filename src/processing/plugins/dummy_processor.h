@@ -3,10 +3,13 @@
  */
 #pragma once
 #include <string>
-#include <cstring>
 #include <vector>
 #include <map>
 #include "../processor.h"
+
+//  Data type definition
+const int64_t kDataTypeGHPairs = 1;
+const int64_t kDataTypeHisto = 2;
 
 class DummyProcessor: public processing::Processor {
  private:

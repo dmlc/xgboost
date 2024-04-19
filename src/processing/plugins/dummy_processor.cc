@@ -2,6 +2,7 @@
  * Copyright 2014-2024 by XGBoost Contributors
  */
 #include <iostream>
+#include <cstring>
 #include "./dummy_processor.h"
 
 using std::vector;
@@ -11,8 +12,8 @@ using std::endl;
 const char kSignature[] = "NVDADAM1";  // DAM (Direct Accessible Marshalling) V1
 const int64_t kPrefixLen = 24;
 
-bool ValidDam(void *buffer) {
-    return memcmp(buffer, kSignature, strlen(kSignature)) == 0;
+bool ValidDam(void *buffer, size_t size) {
+    return size >= kPrefixLen && memcmp(buffer, kSignature, strlen(kSignature)) == 0;
 }
 
 void* DummyProcessor::ProcessGHPairs(size_t &size, std::vector<double>& pairs) {
@@ -25,7 +26,7 @@ void* DummyProcessor::ProcessGHPairs(size_t &size, std::vector<double>& pairs) {
     char *buf = static_cast<char *>(calloc(size, 1));
     memcpy(buf, kSignature, strlen(kSignature));
     memcpy(buf + 8, &buf_size, 8);
-    memcpy(buf + 16, &processing::kDataTypeGHPairs, 8);
+    memcpy(buf + 16, &kDataTypeGHPairs, 8);
 
     // Simulate encryption by duplicating value 10 times
     int index = kPrefixLen;
@@ -46,7 +47,8 @@ void* DummyProcessor::ProcessGHPairs(size_t &size, std::vector<double>& pairs) {
 void* DummyProcessor::HandleGHPairs(size_t &size, void *buffer, size_t buf_size) {
     cout << "HandleGHPairs called with buffer size: " << buf_size << " Active: " << active_ << endl;
 
-    if (!ValidDam(buffer)) {
+    size = buf_size;
+    if (!ValidDam(buffer, size)) {
         cout << "Invalid buffer received" << endl;
         return buffer;
     }
@@ -76,7 +78,7 @@ void *DummyProcessor::ProcessAggregation(size_t &size, std::map<int, std::vector
     std::int8_t *buf = static_cast<std::int8_t *>(calloc(buf_size, 1));
     memcpy(buf, kSignature, strlen(kSignature));
     memcpy(buf + 8, &buf_size, 8);
-    memcpy(buf + 16, &processing::kDataTypeHisto, 8);
+    memcpy(buf + 16, &kDataTypeHisto, 8);
 
     double *histo = reinterpret_cast<double *>(buf + kPrefixLen);
     for ( const auto &node : nodes ) {
@@ -119,7 +121,7 @@ std::vector<double> DummyProcessor::HandleAggregation(void *buffer, size_t buf_s
     auto rest_size = buf_size;
 
     while (rest_size > kPrefixLen) {
-        if (!ValidDam(ptr)) {
+        if (!ValidDam(ptr, rest_size)) {
             cout << "Invalid buffer at offset " << buf_size - rest_size << endl;
             continue;
         }

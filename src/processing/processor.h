@@ -14,10 +14,6 @@ const char kLibraryPath[] = "LIBRARY_PATH";
 const char kDummyProcessor[] = "dummy";
 const char kLoadFunc[] = "LoadProcessor";
 
-//  Data type definition
-const int64_t kDataTypeGHPairs = 1;
-const int64_t kDataTypeHisto = 2;
-
 /*! \brief An processor interface to handle tasks that require external library through plugins */
 class Processor {
  public:
