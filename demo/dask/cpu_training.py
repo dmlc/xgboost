@@ -11,7 +11,7 @@ from xgboost import dask as dxgb
 from xgboost.dask import DaskDMatrix
 
 
-def main(client):
+def main(client: Client) -> None:
     # generate some random data for demonstration
     m = 100000
     n = 100

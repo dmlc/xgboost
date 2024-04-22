@@ -12,7 +12,7 @@ from dask_cuda import LocalCUDACluster
 from xgboost import dask as dxgb
 
 
-def main(client):
+def main(client: Client) -> dxgb.Booster:
     # generate some random data for demonstration
     n = 100
     m = 1000000
