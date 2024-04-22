@@ -176,10 +176,6 @@ TEST_F(AllgatherTest, VAlgo) {
   });
 }
 
-namespace {
-
-}  // namespace
-
 TEST(VectorAllgatherV, Basic) {
   std::int32_t n_workers{3};
   TestDistributedGlobal(n_workers, []() {
