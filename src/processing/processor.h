@@ -63,9 +63,11 @@ class Processor {
      * \brief Initialize aggregation context by providing global GHistIndexMatrix
      *
      * \param cuts The cut point for each feature
-     * \param slots The slot assignment in a flattened matrix for each feature/row. The size is num_feature*num_row
+     * \param slots The slot assignment in a flattened matrix for each feature/row.
+     * The size is num_feature*num_row
      */
-    virtual void InitAggregationContext(const std::vector<uint32_t> &cuts, std::vector<int> &slots) = 0;
+    virtual void InitAggregationContext(const std::vector<uint32_t> &cuts,
+                                        std::vector<int> &slots) = 0;
 
     /*!
      * \brief Prepare row set for aggregation

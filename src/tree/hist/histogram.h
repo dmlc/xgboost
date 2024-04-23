@@ -10,6 +10,7 @@
 #include <functional>  // for function
 #include <utility>     // for move
 #include <vector>      // for vector
+#include <map>         // for map
 
 #include "../../collective/communicator-inl.h"  // for Allreduce
 #include "../../collective/communicator.h"      // for Operation
@@ -90,7 +91,7 @@ class HistogramBuilder {
               slots.push_back(slot);
           }
       }
-      processor_instance->InitAggregationContext(cuts,slots);
+      processor_instance->InitAggregationContext(cuts, slots);
       // Further use the row set collection info to
       // get the encrypted histogram from the secure worker
       auto node_map = std::map<int, std::vector<int>>();
@@ -240,7 +241,8 @@ class HistogramBuilder {
                                                hist_data.data() + hist_data.size());
       auto hist_entries = collective::AllgatherV(hist_vec);
       // Call interface here to post-process the messages
-      std::vector<double> hist_aggr = processor_instance->HandleAggregation(hist_entries.data(), hist_entries.size());
+      std::vector<double> hist_aggr = processor_instance->HandleAggregation(
+              hist_entries.data(), hist_entries.size());
 
       // Update histogram for label owner
       if (collective::GetRank() == 0) {

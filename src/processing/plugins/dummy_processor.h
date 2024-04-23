@@ -39,14 +39,11 @@ class DummyProcessor: public processing::Processor {
 
     void* HandleGHPairs(size_t &size, void *buffer, size_t buf_size) override;
 
-    void InitAggregationContext(const std::vector<uint32_t> &cuts, std::vector<int> &slots) override {
-        std::cout << "InitAggregationContext called with cuts size: " << cuts.size()-1 <<
-           " number of slot: " << slots.size() << std::endl;
+    void InitAggregationContext(const std::vector<uint32_t> &cuts,
+                                std::vector<int> &slots) override {
         this->cuts_ = cuts;
         if (this->slots_.empty()) {
             this->slots_ = slots;
-        } else {
-            std::cout << "Multiple calls to InitAggregationContext" << std::endl;
         }
     }
 

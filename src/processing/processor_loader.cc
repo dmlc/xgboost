@@ -1,8 +1,9 @@
 /**
  * Copyright 2014-2024 by XGBoost Contributors
  */
+#include "dlfcn.h"
+
 #include <iostream>
-#include <dlfcn.h>
 
 #include "./processor.h"
 #include "plugins/dummy_processor.h"

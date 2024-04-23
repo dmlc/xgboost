@@ -1,6 +1,7 @@
 /*!
  * Copyright 2022 XGBoost contributors
  */
+#include <map>
 #include "communicator.h"
 
 #include "comm.h"
@@ -9,9 +10,9 @@
 #include "rabit_communicator.h"
 
 #if defined(XGBOOST_USE_FEDERATED)
-#include "../../plugin/federated/federated_communicator.h"
-#include "../processing/processor.h"
-processing::Processor *processor_instance;
+  #include "../../plugin/federated/federated_communicator.h"
+  #include "../processing/processor.h"
+  processing::Processor *processor_instance;
 #endif
 
 namespace xgboost::collective {
@@ -40,26 +41,26 @@ void Communicator::Init(Json const& config) {
     }
     case CommunicatorType::kFederated: {
 #if defined(XGBOOST_USE_FEDERATED)
-      communicator_.reset(FederatedCommunicator::Create(config));
-      // Get processor configs
-      std::string plugin_name{};
-      std::string loader_params_key{};
-      std::string loader_params_map{};
-      std::string proc_params_key{};
-      std::string proc_params_map{};
-      plugin_name = OptionalArg<String>(config, "plugin_name", plugin_name);
-      loader_params_key = OptionalArg<String>(config, "loader_params_key", loader_params_key);
-      loader_params_map = OptionalArg<String>(config, "loader_params_map", loader_params_map);
-      proc_params_key = OptionalArg<String>(config, "proc_params_key", proc_params_key);
-      proc_params_map = OptionalArg<String>(config, "proc_params_map", proc_params_map);
-      // Initialize processor if plugin_name is provided
-      if (!plugin_name.empty()){
-        std::map<std::string, std::string> loader_params = {{loader_params_key, loader_params_map}};
-        std::map<std::string, std::string> proc_params = {{proc_params_key, proc_params_map}};
-        processing::ProcessorLoader loader(loader_params);
-        processor_instance = loader.load(plugin_name);
-        processor_instance->Initialize(collective::GetRank() == 0, proc_params);
-      }
+  communicator_.reset(FederatedCommunicator::Create(config));
+  // Get processor configs
+  std::string plugin_name{};
+  std::string loader_params_key{};
+  std::string loader_params_map{};
+  std::string proc_params_key{};
+  std::string proc_params_map{};
+  plugin_name = OptionalArg<String>(config, "plugin_name", plugin_name);
+  loader_params_key = OptionalArg<String>(config, "loader_params_key", loader_params_key);
+  loader_params_map = OptionalArg<String>(config, "loader_params_map", loader_params_map);
+  proc_params_key = OptionalArg<String>(config, "proc_params_key", proc_params_key);
+  proc_params_map = OptionalArg<String>(config, "proc_params_map", proc_params_map);
+  // Initialize processor if plugin_name is provided
+  if (!plugin_name.empty()) {
+    std::map<std::string, std::string> loader_params = {{loader_params_key, loader_params_map}};
+    std::map<std::string, std::string> proc_params = {{proc_params_key, proc_params_map}};
+    processing::ProcessorLoader loader(loader_params);
+    processor_instance = loader.load(plugin_name);
+    processor_instance->Initialize(collective::GetRank() == 0, proc_params);
+  }
 #else
       LOG(FATAL) << "XGBoost is not compiled with Federated Learning support.";
 #endif
