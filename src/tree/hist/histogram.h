@@ -109,7 +109,8 @@ class HistogramBuilder {
       hist_data = xgboost::common::Span<std::int8_t>(static_cast<std::int8_t *>(buf), buf_size);
     } else {
       // Parallel processing by nodes and data in each node
-      common::ParallelFor2d(space, this->n_threads_, [&](std::size_t nid_in_set, common::Range1d r) {
+      common::ParallelFor2d(space, this->n_threads_,
+                            [&](std::size_t nid_in_set, common::Range1d r) {
         const auto tid = static_cast<unsigned>(omp_get_thread_num());
         bst_node_t const nidx = nodes_to_build[nid_in_set];
         auto elem = row_set_collection[nidx];
@@ -305,7 +306,8 @@ common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
     }
   }
   common::BlockedSpace2d space{
-      nodes_to_build.size(), [&](std::size_t nidx_in_set) { return partition_size[nidx_in_set]; }, 256};
+      nodes_to_build.size(),
+      [&](std::size_t nidx_in_set) { return partition_size[nidx_in_set]; }, 256};
   return space;
 }
 
