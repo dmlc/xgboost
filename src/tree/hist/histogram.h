@@ -85,8 +85,8 @@ class HistogramBuilder {
       auto slots = std::vector<int>();
       auto num_rows = row_set_collection[0].Size();
       auto cuts = gidx.Cuts().Ptrs();
-      for (int row = 0; row < num_rows; row++) {
-          for (int f = 0; f < cuts.size()-1; f++) {
+      for (std::size_t row = 0; row < num_rows; row++) {
+          for (std::size_t f = 0; f < cuts.size()-1; f++) {
               auto slot = gidx.GetGindex(row, f);
               slots.push_back(slot);
           }
@@ -104,12 +104,12 @@ class HistogramBuilder {
           }
           node_map.insert({node, rows});
       }
-      size_t buf_size;
+      std::size_t buf_size;
       auto buf = processor_instance->ProcessAggregation(&buf_size, node_map);
       hist_data = xgboost::common::Span<std::int8_t>(static_cast<std::int8_t *>(buf), buf_size);
     } else {
       // Parallel processing by nodes and data in each node
-      common::ParallelFor2d(space, this->n_threads_, [&](size_t nid_in_set, common::Range1d r) {
+      common::ParallelFor2d(space, this->n_threads_, [&](std::size_t nid_in_set, common::Range1d r) {
         const auto tid = static_cast<unsigned>(omp_get_thread_num());
         bst_node_t const nidx = nodes_to_build[nid_in_set];
         auto elem = row_set_collection[nidx];
@@ -190,7 +190,7 @@ class HistogramBuilder {
       // Add the local histogram cache to the parallel buffer before processing the first page.
       auto n_nodes = nodes_to_build.size();
       std::vector<common::GHistRow> target_hists(n_nodes);
-      for (size_t i = 0; i < n_nodes; ++i) {
+      for (std::size_t i = 0; i < n_nodes; ++i) {
         auto const nidx = nodes_to_build[i];
         target_hists[i] = hist_[nidx];
       }
@@ -213,7 +213,7 @@ class HistogramBuilder {
 
     common::BlockedSpace2d space(
         nodes_to_build.size(), [&](std::size_t) { return n_total_bins; }, 1024);
-    common::ParallelFor2d(space, this->n_threads_, [&](size_t node, common::Range1d r) {
+    common::ParallelFor2d(space, this->n_threads_, [&](std::size_t node, common::Range1d r) {
       // Merging histograms from each thread.
       this->buffer_.ReduceHist(node, r.begin(), r.end());
     });
@@ -249,7 +249,7 @@ class HistogramBuilder {
         // iterator of the beginning of the vector
         auto it = reinterpret_cast<double *>(this->hist_[first_nidx].data());
         // iterate through the hist vector of the label owner
-        for (size_t i = 0; i < n; i++) {
+        for (std::size_t i = 0; i < n; i++) {
           // get the sum of the entries from all ranks
           double hist_sum = 0.0;
           for (std::size_t rank_idx = 0; rank_idx < hist_aggr.size()/n; rank_idx++) {
@@ -297,7 +297,7 @@ common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
   // has significant variance.
   std::vector<std::size_t> partition_size(nodes_to_build.size(), 0);
   for (auto const &partition : partitioners) {
-    size_t k = 0;
+    std::size_t k = 0;
     for (auto nidx : nodes_to_build) {
       auto n_rows_in_node = partition.Partitions()[nidx].Size();
       partition_size[k] = std::max(partition_size[k], n_rows_in_node);
@@ -305,7 +305,7 @@ common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
     }
   }
   common::BlockedSpace2d space{
-      nodes_to_build.size(), [&](size_t nidx_in_set) { return partition_size[nidx_in_set]; }, 256};
+      nodes_to_build.size(), [&](std::size_t nidx_in_set) { return partition_size[nidx_in_set]; }, 256};
   return space;
 }
 
