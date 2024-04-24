@@ -11,9 +11,10 @@
 
 #if defined(XGBOOST_USE_FEDERATED)
   #include "../../plugin/federated/federated_communicator.h"
-  #include "../processing/processor.h"
-  processing::Processor *processor_instance;
 #endif
+
+#include "../processing/processor.h"
+processing::Processor *processor_instance;
 
 namespace xgboost::collective {
 thread_local std::unique_ptr<Communicator> Communicator::communicator_{new NoOpCommunicator()};
