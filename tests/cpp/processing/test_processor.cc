@@ -5,7 +5,6 @@
 
 #include "../../../src/processing/processor.h"
 
-
 class ProcessorTest : public testing::Test {
  public:
     void SetUp() override {
@@ -45,13 +44,13 @@ TEST_F(ProcessorTest, TestLoading) {
 
 TEST_F(ProcessorTest, TestGHEncoding) {
     size_t buf_size;
-    auto buffer = processor_->ProcessGHPairs(buf_size, gh_pairs_);
+    auto buffer = processor_->ProcessGHPairs(&buf_size, gh_pairs_);
     size_t expected_size = 24;  // DAM header size
     expected_size += gh_pairs_.size()*10*8;  // Dummy plugin duplicate each number 10x to simulate encryption
     ASSERT_EQ(buf_size, expected_size);
 
     size_t new_size;
-    auto new_buffer = processor_->HandleGHPairs(new_size, buffer, buf_size);
+    auto new_buffer = processor_->HandleGHPairs(&new_size, buffer, buf_size);
     // Dummy plugin doesn't change buffer
     ASSERT_EQ(new_size, buf_size);
     ASSERT_EQ(0, memcmp(buffer, new_buffer, buf_size));
@@ -59,10 +58,10 @@ TEST_F(ProcessorTest, TestGHEncoding) {
 
 TEST_F(ProcessorTest, TestAggregation) {
     size_t buf_size;
-    processor_->ProcessGHPairs(buf_size, gh_pairs_);  // Pass the GH pairs to the plugin
+    processor_->ProcessGHPairs(&buf_size, gh_pairs_);  // Pass the GH pairs to the plugin
 
     processor_->InitAggregationContext(cuts_, slots_);
-    auto buffer = processor_->ProcessAggregation(buf_size, nodes_);
+    auto buffer = processor_->ProcessAggregation(&buf_size, nodes_);
     auto histos = processor_->HandleAggregation(buffer, buf_size);
     std::vector<double> expected_histos = {
             1.1, 2.1, 0, 0, 0, 0, 5.1, 6.1, 1.1, 2.1,
