@@ -94,8 +94,11 @@ class Processor {
 class ProcessorLoader {
  private:
     std::map<std::string, std::string> params;
-    void *handle = NULL;
-
+#if defined(_WIN32)
+    HMODULE handle_ = NULL;
+#else
+    void *handle_ = NULL;
+#endif
 
  public:
     ProcessorLoader(): params{} {}
