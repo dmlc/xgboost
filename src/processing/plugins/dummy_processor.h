@@ -35,19 +35,19 @@ class DummyProcessor: public processing::Processor {
         free(buffer);
     }
 
-    void* ProcessGHPairs(size_t &size, std::vector<double>& pairs) override;
+    void* ProcessGHPairs(size_t *size, const std::vector<double>& pairs) override;
 
-    void* HandleGHPairs(size_t &size, void *buffer, size_t buf_size) override;
+    void* HandleGHPairs(size_t *size, void *buffer, size_t buf_size) override;
 
     void InitAggregationContext(const std::vector<uint32_t> &cuts,
-                                std::vector<int> &slots) override {
+                                const std::vector<int> &slots) override {
         this->cuts_ = cuts;
         if (this->slots_.empty()) {
             this->slots_ = slots;
         }
     }
 
-    void *ProcessAggregation(size_t &size, std::map<int, std::vector<int>> nodes) override;
+    void *ProcessAggregation(size_t *size, std::map<int, std::vector<int>> nodes) override;
 
     std::vector<double> HandleAggregation(void *buffer, size_t buf_size) override;
 };

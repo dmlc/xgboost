@@ -105,7 +105,7 @@ class HistogramBuilder {
           node_map.insert({node, rows});
       }
       size_t buf_size;
-      auto buf = processor_instance->ProcessAggregation(buf_size, node_map);
+      auto buf = processor_instance->ProcessAggregation(&buf_size, node_map);
       hist_data = xgboost::common::Span<std::int8_t>(static_cast<std::int8_t *>(buf), buf_size);
     } else {
       // Parallel processing by nodes and data in each node

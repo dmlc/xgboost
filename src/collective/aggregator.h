@@ -114,7 +114,7 @@ void ApplyWithLabels(Context const*, MetaInfo const& info, HostDeviceVector<T>* 
         }
         // provide the vectors to the processor interface
         size_t size;
-        auto buf = processor_instance->ProcessGHPairs(size, vector_gh);
+        auto buf = processor_instance->ProcessGHPairs(&size, vector_gh);
         buffer_size = size;
         buffer = reinterpret_cast<std::int8_t *>(buf);
       }
@@ -131,7 +131,7 @@ void ApplyWithLabels(Context const*, MetaInfo const& info, HostDeviceVector<T>* 
 
       // call HandleGHPairs
       size_t size;
-      processor_instance->HandleGHPairs(size, buffer, buffer_size);
+      processor_instance->HandleGHPairs(&size, buffer, buffer_size);
     } else {
       // clear text mode, broadcast the data directly
       result->Resize(size);

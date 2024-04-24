@@ -12,12 +12,12 @@ bool ValidDam(void *buffer, size_t size) {
   return size >= kPrefixLen && memcmp(buffer, kSignature, strlen(kSignature)) == 0;
 }
 
-void* DummyProcessor::ProcessGHPairs(size_t &size, std::vector<double>& pairs) {
-  size = kPrefixLen + pairs.size()*10*8;  // Assume encrypted size is 10x
+void* DummyProcessor::ProcessGHPairs(size_t *size, const std::vector<double>& pairs) {
+  *size = kPrefixLen + pairs.size()*10*8;  // Assume encrypted size is 10x
 
-  int64_t buf_size = size;
+  int64_t buf_size = *size;
   // This memory needs to be freed
-  char *buf = static_cast<char *>(calloc(size, 1));
+  char *buf = static_cast<char *>(calloc(*size, 1));
   memcpy(buf, kSignature, strlen(kSignature));
   memcpy(buf + 8, &buf_size, 8);
   memcpy(buf + 16, &kDataTypeGHPairs, 8);
@@ -38,9 +38,9 @@ void* DummyProcessor::ProcessGHPairs(size_t &size, std::vector<double>& pairs) {
 }
 
 
-void* DummyProcessor::HandleGHPairs(size_t &size, void *buffer, size_t buf_size) {
-  size = buf_size;
-  if (!ValidDam(buffer, size)) {
+void* DummyProcessor::HandleGHPairs(size_t *size, void *buffer, size_t buf_size) {
+  *size = buf_size;
+  if (!ValidDam(buffer, *size)) {
     return buffer;
   }
 
@@ -59,11 +59,11 @@ void* DummyProcessor::HandleGHPairs(size_t &size, void *buffer, size_t buf_size)
   return buffer;
 }
 
-void *DummyProcessor::ProcessAggregation(size_t &size, std::map<int, std::vector<int>> nodes) {
+void *DummyProcessor::ProcessAggregation(size_t *size, std::map<int, std::vector<int>> nodes) {
   auto total_bin_size = cuts_.back();
   auto histo_size = total_bin_size*2;
-  size = kPrefixLen + 8*histo_size*nodes.size();
-  int64_t buf_size = size;
+  *size = kPrefixLen + 8*histo_size*nodes.size();
+  int64_t buf_size = *size;
   std::int8_t *buf = static_cast<std::int8_t *>(calloc(buf_size, 1));
   memcpy(buf, kSignature, strlen(kSignature));
   memcpy(buf + 8, &buf_size, 8);

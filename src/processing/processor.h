@@ -46,7 +46,7 @@ class Processor {
      *
      * \return The encoded buffer to be sent
      */
-    virtual void* ProcessGHPairs(size_t &size, std::vector<double>& pairs) = 0;
+    virtual void* ProcessGHPairs(size_t *size, const std::vector<double>& pairs) = 0;
 
     /*!
      * \brief Handle buffers with encoded pairs received from broadcast
@@ -57,7 +57,7 @@ class Processor {
      *
      * \return The encoded buffer
      */
-    virtual void* HandleGHPairs(size_t &size, void *buffer, size_t buf_size) = 0;
+    virtual void* HandleGHPairs(size_t *size, void *buffer, size_t buf_size) = 0;
 
     /*!
      * \brief Initialize aggregation context by providing global GHistIndexMatrix
@@ -67,7 +67,7 @@ class Processor {
      * The size is num_feature*num_row
      */
     virtual void InitAggregationContext(const std::vector<uint32_t> &cuts,
-                                        std::vector<int> &slots) = 0;
+                                        const std::vector<int> &slots) = 0;
 
     /*!
      * \brief Prepare row set for aggregation
@@ -77,7 +77,7 @@ class Processor {
      *
      * \return The encoded buffer to be sent via AllGather
      */
-    virtual void *ProcessAggregation(size_t &size, std::map<int, std::vector<int>> nodes) = 0;
+    virtual void *ProcessAggregation(size_t *size, std::map<int, std::vector<int>> nodes) = 0;
 
     /*!
      * \brief Handle all gather result
@@ -100,7 +100,7 @@ class ProcessorLoader {
  public:
     ProcessorLoader(): params{} {}
 
-    ProcessorLoader(std::map<std::string, std::string>& params): params(params) {}
+    explicit ProcessorLoader(const std::map<std::string, std::string>& params): params(params) {}
 
     Processor* load(const std::string& plugin_name);
 
