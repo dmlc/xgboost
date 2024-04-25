@@ -61,8 +61,8 @@ void* DummyProcessor::HandleGHPairs(std::size_t *size, void *buffer, std::size_t
 }
 
 void *DummyProcessor::ProcessAggregation(std::size_t *size, std::map<int, std::vector<int>> nodes) {
-  auto total_bin_size = cuts_.back();
-  auto histo_size = total_bin_size*2;
+  int total_bin_size = cuts_.back();
+  int histo_size = total_bin_size*2;
   *size = kPrefixLen + 8*histo_size*nodes.size();
   int64_t buf_size = *size;
   int8_t *buf = static_cast<int8_t *>(calloc(buf_size, 1));
@@ -76,7 +76,7 @@ void *DummyProcessor::ProcessAggregation(std::size_t *size, std::map<int, std::v
     for (const auto &row_id : rows) {
       auto num = cuts_.size() - 1;
       for (std::size_t f = 0; f < num; f++) {
-        auto slot = slots_[f + num*row_id];
+        int slot = slots_[f + num*row_id];
         if ((slot < 0) || (slot >= total_bin_size)) {
           continue;
         }
