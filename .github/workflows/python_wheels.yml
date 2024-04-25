@@ -5,6 +5,10 @@ on: [push, pull_request]
 permissions:
   contents: read # to fetch code (actions/checkout)
 
+defaults:
+  run:
+    shell: bash -l {0}
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -24,10 +28,10 @@ jobs:
     - uses: actions/checkout@a12a3943b4bdde767164f792f33f40b04645d846 # v3.0.0
       with:
         submodules: 'true'
-    - name: Setup Python
-      uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
+    - uses: mamba-org/setup-micromamba@v1.8.1
       with:
-        python-version: "3.8"
+        micromamba-version: '1.5.6-0'
+        init-shell: bash
     - name: Build wheels
       run: bash tests/ci_build/build_python_wheels.sh ${{ matrix.platform_id }} ${{ github.sha }}
     - name: Extract branch name
