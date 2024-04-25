@@ -12,7 +12,7 @@
 namespace processing {
 
 const char kLibraryPath[] = "LIBRARY_PATH";
-const char kDummyProcessor[] = "dummy";
+const char kMockProcessor[] = "mock";
 const char kLoadFunc[] = "LoadProcessor";
 
 /*! \brief An processor interface to handle tasks that require external library through plugins */
@@ -76,7 +76,7 @@ class Processor {
      * \param size The output buffer size
      * \param nodes Map of node and the rows belong to this node
      *
-     * \return The encoded buffer to be sent via AllGather
+     * \return The encoded buffer to be sent via AllGatherV
      */
     virtual void *ProcessAggregation(size_t *size, std::map<int, std::vector<int>> nodes) = 0;
 
@@ -90,16 +90,32 @@ class Processor {
      *     site1_node1, site1_node2 site1_node3, site2_node1, site2_node2, site2_node3
      */
     virtual std::vector<double> HandleAggregation(void *buffer, size_t buf_size) = 0;
+
+    /*!
+     * \brief Prepare histograms for further processing
+     *
+     * \param size The output buffer size
+     * \param histograms Flattened array of histograms for all features
+     *
+     * \return The encoded buffer to be sent via AllGatherV
+     */
+    virtual void *ProcessHistograms(size_t *size, const std::vector<double>& histograms) = 0;
+
+    /*!
+     * \brief Handle processed histograms
+     *
+     * \param buffer Buffer from allgatherV
+     * \param buf_size The size of the buffer
+     *
+     * \return A flattened vector of histograms for all features
+     */
+    virtual std::vector<double> HandleHistograms(void *buffer, size_t buf_size) = 0;
 };
 
 class ProcessorLoader {
  private:
     std::map<std::string, std::string> params;
-#if defined(_WIN32)
-    HMODULE handle_ = NULL;
-#else
     void *handle_ = NULL;
-#endif
 
  public:
     ProcessorLoader(): params{} {}

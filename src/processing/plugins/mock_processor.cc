@@ -4,7 +4,7 @@
 #include <iostream>
 #include <cstring>
 #include <cstdint>
-#include "./dummy_processor.h"
+#include "./mock_processor.h"
 
 const char kSignature[] = "NVDADAM1";  // DAM (Direct Accessible Marshalling) V1
 const int64_t kPrefixLen = 24;
@@ -13,7 +13,7 @@ bool ValidDam(void *buffer, std::size_t size) {
   return size >= kPrefixLen && memcmp(buffer, kSignature, strlen(kSignature)) == 0;
 }
 
-void* DummyProcessor::ProcessGHPairs(std::size_t *size, const std::vector<double>& pairs) {
+void* MockProcessor::ProcessGHPairs(std::size_t *size, const std::vector<double>& pairs) {
   *size = kPrefixLen + pairs.size()*10*8;  // Assume encrypted size is 10x
 
   int64_t buf_size = *size;
@@ -39,13 +39,13 @@ void* DummyProcessor::ProcessGHPairs(std::size_t *size, const std::vector<double
 }
 
 
-void* DummyProcessor::HandleGHPairs(std::size_t *size, void *buffer, std::size_t buf_size) {
+void* MockProcessor::HandleGHPairs(std::size_t *size, void *buffer, std::size_t buf_size) {
   *size = buf_size;
   if (!ValidDam(buffer, *size)) {
     return buffer;
   }
 
-  // For dummy, this call is used to set gh_pairs for passive sites
+  // For mock, this call is used to set gh_pairs for passive sites
   if (!active_) {
     int8_t *ptr = static_cast<int8_t *>(buffer);
     ptr += kPrefixLen;
@@ -60,7 +60,7 @@ void* DummyProcessor::HandleGHPairs(std::size_t *size, void *buffer, std::size_t
   return buffer;
 }
 
-void *DummyProcessor::ProcessAggregation(std::size_t *size, std::map<int, std::vector<int>> nodes) {
+void *MockProcessor::ProcessAggregation(std::size_t *size, std::map<int, std::vector<int>> nodes) {
   int total_bin_size = cuts_.back();
   int histo_size = total_bin_size*2;
   *size = kPrefixLen + 8*histo_size*nodes.size();
@@ -93,7 +93,7 @@ void *DummyProcessor::ProcessAggregation(std::size_t *size, std::map<int, std::v
   return buf;
 }
 
-std::vector<double> DummyProcessor::HandleAggregation(void *buffer, std::size_t buf_size) {
+std::vector<double> MockProcessor::HandleAggregation(void *buffer, std::size_t buf_size) {
   std::vector<double> result = std::vector<double>();
 
   int8_t* ptr = static_cast<int8_t *>(buffer);
@@ -101,7 +101,7 @@ std::vector<double> DummyProcessor::HandleAggregation(void *buffer, std::size_t 
 
   while (rest_size > kPrefixLen) {
     if (!ValidDam(ptr, rest_size)) {
-        continue;
+        break;
     }
     int64_t *size_ptr = reinterpret_cast<int64_t *>(ptr + 8);
     double *array_start = reinterpret_cast<double *>(ptr + kPrefixLen);
@@ -112,4 +112,63 @@ std::vector<double> DummyProcessor::HandleAggregation(void *buffer, std::size_t 
   }
 
   return result;
+}
+
+void* MockProcessor::ProcessHistograms(std::size_t *size, const std::vector<double>& histograms) {
+    *size = kPrefixLen + histograms.size()*10*8;  // Assume encrypted size is 10x
+
+    int64_t buf_size = *size;
+    // This memory needs to be freed
+    char *buf = static_cast<char *>(malloc(buf_size));
+    memcpy(buf, kSignature, strlen(kSignature));
+    memcpy(buf + 8, &buf_size, 8);
+    memcpy(buf + 16, &kDataTypeAggregatedHisto, 8);
+
+    // Simulate encryption by duplicating value 10 times
+    int index = kPrefixLen;
+    for (auto value : histograms) {
+        for (std::size_t i = 0; i < 10; i++) {
+            memcpy(buf+index, &value, 8);
+            index += 8;
+        }
+    }
+
+    return buf;
+}
+
+std::vector<double> MockProcessor::HandleHistograms(void *buffer, std::size_t buf_size) {
+    std::vector<double> result = std::vector<double>();
+
+    int8_t* ptr = static_cast<int8_t *>(buffer);
+    auto rest_size = buf_size;
+
+    while (rest_size > kPrefixLen) {
+        if (!ValidDam(ptr, rest_size)) {
+            break;
+        }
+        int64_t *size_ptr = reinterpret_cast<int64_t *>(ptr + 8);
+        double *array_start = reinterpret_cast<double *>(ptr + kPrefixLen);
+        auto array_size = (*size_ptr - kPrefixLen)/8;
+        auto empty = result.empty();
+        if (!empty) {
+            if (result.size() != array_size / 10) {
+                std::cout << "Histogram size doesn't match " << result.size() << " != " << array_size << std::endl;
+                return result;
+            }
+        }
+
+        for (std::size_t i = 0; i < array_size/10; i++) {
+            auto value = array_start[i*10];
+            if (empty) {
+                result.push_back(value);
+            } else {
+                result[i] += value;
+            }
+        }
+
+        rest_size -= *size_ptr;
+        ptr = ptr + *size_ptr;
+    }
+
+    return result;
 }

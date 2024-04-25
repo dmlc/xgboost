@@ -10,8 +10,9 @@
 //  Data type definition
 const int64_t kDataTypeGHPairs = 1;
 const int64_t kDataTypeHisto = 2;
+const int64_t kDataTypeAggregatedHisto = 3;
 
-class DummyProcessor: public processing::Processor {
+class MockProcessor: public processing::Processor {
  private:
     bool active_ = false;
     const std::map<std::string, std::string> *params_{nullptr};
@@ -50,4 +51,8 @@ class DummyProcessor: public processing::Processor {
     void *ProcessAggregation(size_t *size, std::map<int, std::vector<int>> nodes) override;
 
     std::vector<double> HandleAggregation(void *buffer, size_t buf_size) override;
+
+    void *ProcessHistograms(size_t *size, const std::vector<double>& histograms) override;
+
+    std::vector<double> HandleHistograms(void *buffer, size_t buf_size) override;
 };
