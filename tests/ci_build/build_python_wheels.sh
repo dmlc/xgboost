@@ -48,7 +48,7 @@ if [[ "$platform_id" == macosx_* ]]; then
     export CIBW_BUILD_VERBOSITY=3
 
     mamba create -n build $OPENMP_URL
-    PREFIX="$HOME/micromamba/envs/build"
+    PREFIX="$HOME/miniconda3/envs/build"
 
     # Set up build flags for cibuildwheel
     # This is needed to bundle libomp lib we downloaded earlier
