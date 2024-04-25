@@ -47,7 +47,19 @@ class HistUpdater {
   void InitSampling(const USMVector<GradientPair, MemoryType::on_device> &gpair,
                     USMVector<size_t, MemoryType::on_device>* row_indices);
 
+
+  void InitData(Context const * ctx,
+                const common::GHistIndexMatrix& gmat,
+                const USMVector<GradientPair, MemoryType::on_device> &gpair,
+                const DMatrix& fmat,
+                const RegTree& tree);
+
+  //  --data fields--
   size_t sub_group_size_;
+
+  // the internal row sets
+  common::RowSetCollection row_set_collection_;
+
   const xgboost::tree::TrainParam& param_;
   TreeEvaluator<GradientSumT> tree_evaluator_;
   std::unique_ptr<TreeUpdater> pruner_;
