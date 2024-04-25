@@ -38,9 +38,8 @@ jobs:
           python=3.8
         init-shell: bash
     - name: Build wheels
-      run: bash tests/ci_build/build_python_wheels.sh ${{ matrix.platform_id }} ${{ github.sha }}
+      run: bash -l tests/ci_build/build_python_wheels.sh ${{ matrix.platform_id }} ${{ github.sha }}
     - name: Extract branch name
-      shell: bash
       run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
       id: extract_branch
       if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
