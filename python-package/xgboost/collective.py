@@ -25,8 +25,7 @@ def init(**args: Any) -> None:
         Keyword arguments representing the parameters and their values.
 
         Accepted parameters:
-          - dmlc_communicator: The type of the communicator. Can be set as an
-            environment variable.
+          - dmlc_communicator: The type of the communicator.
             * rabit: Use Rabit. This is the default if the type is unspecified.
             * federated: Use the gRPC interface for Federated Learning.
 
@@ -34,9 +33,9 @@ def init(**args: Any) -> None:
           - dmlc_tracker_uri: Hostname of the tracker.
           - dmlc_tracker_port: Port number of the tracker.
           - dmlc_task_id: ID of the current task, can be used to obtain deterministic
-           rank assignment.
-          - dmlc_nccl_path: Path to load (dlopen) nccl for GPU-based communication.
           - dmlc_retry: The number of retry when handling network errors.
+          - dmlc_timeout: Timeout in seconds.
+          - dmlc_nccl_path: Path to load (dlopen) nccl for GPU-based communication.
 
         Only applicable to the Federated communicator (use upper case for environment
         variables, use lower case for runtime configuration):

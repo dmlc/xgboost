@@ -75,7 +75,8 @@ using CollAPIThreadLocalStore = dmlc::ThreadLocalStore<CollAPIEntry>;
 
 void WaitImpl(TrackerHandleT *ptr, std::chrono::seconds timeout) {
   constexpr std::int64_t kDft{collective::DefaultTimeoutSec()};
-  std::chrono::seconds wait_for{timeout.count() != 0 ? std::min(kDft, timeout.count()) : kDft};
+  std::chrono::seconds wait_for{collective::HasTimeout(timeout) ? std::min(kDft, timeout.count())
+                                                                : kDft};
 
   common::Timer timer;
   timer.Start();
@@ -93,7 +94,7 @@ void WaitImpl(TrackerHandleT *ptr, std::chrono::seconds timeout) {
       break;
     }
 
-    if (timer.Duration() > timeout && timeout.count() != 0) {
+    if (timer.Duration() > timeout && collective::HasTimeout(timeout)) {
       collective::SafeColl(collective::Fail("Timeout waiting for the tracker."));
     }
   }
@@ -172,7 +173,7 @@ XGB_DLL int XGTrackerFree(TrackerHandle handle) {
   // Make sure no one else is waiting on the tracker.
   while (!ptr->first.unique()) {
     auto ela = timer.Duration().count();
-    if (ela > ptr->first->Timeout().count()) {
+    if (collective::HasTimeout(ptr->first->Timeout()) && ela > ptr->first->Timeout().count()) {
       LOG(WARNING) << "Time out " << ptr->first->Timeout().count()
                    << " seconds reached for TrackerFree, killing the tracker.";
       break;
