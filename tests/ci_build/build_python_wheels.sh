@@ -47,7 +47,7 @@ if [[ "$platform_id" == macosx_* ]]; then
     export CIBW_TEST_SKIP='*-macosx_arm64'
     export CIBW_BUILD_VERBOSITY=3
 
-    source ~/.bash_profile
+    conda activate
     mamba create -n build $OPENMP_URL
     PREFIX="/usr/local/miniconda/envs/build"
 
