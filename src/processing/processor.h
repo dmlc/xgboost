@@ -3,8 +3,9 @@
  */
 #pragma once
 
-#include <map>
 #include <any>
+#include <cstdint>
+#include <map>
 #include <string>
 #include <vector>
 

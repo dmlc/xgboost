@@ -3,16 +3,17 @@
  */
 #include <iostream>
 #include <cstring>
+#include <cstdint>
 #include "./dummy_processor.h"
 
 const char kSignature[] = "NVDADAM1";  // DAM (Direct Accessible Marshalling) V1
 const int64_t kPrefixLen = 24;
 
-bool ValidDam(void *buffer, size_t size) {
+bool ValidDam(void *buffer, std::size_t size) {
   return size >= kPrefixLen && memcmp(buffer, kSignature, strlen(kSignature)) == 0;
 }
 
-void* DummyProcessor::ProcessGHPairs(size_t *size, const std::vector<double>& pairs) {
+void* DummyProcessor::ProcessGHPairs(std::size_t *size, const std::vector<double>& pairs) {
   *size = kPrefixLen + pairs.size()*10*8;  // Assume encrypted size is 10x
 
   int64_t buf_size = *size;
@@ -25,7 +26,7 @@ void* DummyProcessor::ProcessGHPairs(size_t *size, const std::vector<double>& pa
   // Simulate encryption by duplicating value 10 times
   int index = kPrefixLen;
   for (auto value : pairs) {
-    for (int i = 0; i < 10; i++) {
+    for (std::size_t i = 0; i < 10; i++) {
       memcpy(buf+index, &value, 8);
       index += 8;
     }
@@ -38,7 +39,7 @@ void* DummyProcessor::ProcessGHPairs(size_t *size, const std::vector<double>& pa
 }
 
 
-void* DummyProcessor::HandleGHPairs(size_t *size, void *buffer, size_t buf_size) {
+void* DummyProcessor::HandleGHPairs(std::size_t *size, void *buffer, std::size_t buf_size) {
   *size = buf_size;
   if (!ValidDam(buffer, *size)) {
     return buffer;
@@ -49,9 +50,9 @@ void* DummyProcessor::HandleGHPairs(size_t *size, void *buffer, size_t buf_size)
     int8_t *ptr = static_cast<int8_t *>(buffer);
     ptr += kPrefixLen;
     double *pairs = reinterpret_cast<double *>(ptr);
-    size_t num = (buf_size - kPrefixLen) / 8;
+    std::size_t num = (buf_size - kPrefixLen) / 8;
     gh_pairs_ = new std::vector<double>();
-    for (int i = 0; i < num; i += 10) {
+    for (std::size_t i = 0; i < num; i += 10) {
       gh_pairs_->push_back(pairs[i]);
     }
   }
@@ -59,12 +60,12 @@ void* DummyProcessor::HandleGHPairs(size_t *size, void *buffer, size_t buf_size)
   return buffer;
 }
 
-void *DummyProcessor::ProcessAggregation(size_t *size, std::map<int, std::vector<int>> nodes) {
+void *DummyProcessor::ProcessAggregation(std::size_t *size, std::map<int, std::vector<int>> nodes) {
   auto total_bin_size = cuts_.back();
   auto histo_size = total_bin_size*2;
   *size = kPrefixLen + 8*histo_size*nodes.size();
   int64_t buf_size = *size;
-  std::int8_t *buf = static_cast<std::int8_t *>(calloc(buf_size, 1));
+  int8_t *buf = static_cast<int8_t *>(calloc(buf_size, 1));
   memcpy(buf, kSignature, strlen(kSignature));
   memcpy(buf + 8, &buf_size, 8);
   memcpy(buf + 16, &kDataTypeHisto, 8);
@@ -92,7 +93,7 @@ void *DummyProcessor::ProcessAggregation(size_t *size, std::map<int, std::vector
   return buf;
 }
 
-std::vector<double> DummyProcessor::HandleAggregation(void *buffer, size_t buf_size) {
+std::vector<double> DummyProcessor::HandleAggregation(void *buffer, std::size_t buf_size) {
   std::vector<double> result = std::vector<double>();
 
   int8_t* ptr = static_cast<int8_t *>(buffer);
@@ -102,7 +103,7 @@ std::vector<double> DummyProcessor::HandleAggregation(void *buffer, size_t buf_s
     if (!ValidDam(ptr, rest_size)) {
         continue;
     }
-    std::int64_t *size_ptr = reinterpret_cast<std::int64_t *>(ptr + 8);
+    int64_t *size_ptr = reinterpret_cast<int64_t *>(ptr + 8);
     double *array_start = reinterpret_cast<double *>(ptr + kPrefixLen);
     auto array_size = (*size_ptr - kPrefixLen)/8;
     result.insert(result.end(), array_start, array_start + array_size);
