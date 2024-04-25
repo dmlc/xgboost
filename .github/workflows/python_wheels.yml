@@ -30,13 +30,14 @@ jobs:
         submodules: 'true'
     - uses: conda-incubator/setup-miniconda@v2
       with:
-        activate-environment: dev
-        environment-file: ops/conda_env/dev.yml
         miniforge-variant: Mambaforge
         miniforge-version: latest
+        auto-activate-base: true
+        activate-environment: ""
+        python-version: 3.8
         use-mamba: true
     - name: Build wheels
-      run: bash -l tests/ci_build/build_python_wheels.sh ${{ matrix.platform_id }} ${{ github.sha }}
+      run: bash tests/ci_build/build_python_wheels.sh ${{ matrix.platform_id }} ${{ github.sha }}
     - name: Extract branch name
       run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
       id: extract_branch
