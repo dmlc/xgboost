@@ -4,7 +4,11 @@
 
 #include <iostream>
 
-#include "dlfcn.h"
+#if defined(_WIN32)
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
 
 #include "./processor.h"
 #include "plugins/dummy_processor.h"
@@ -21,7 +25,9 @@ namespace processing {
         auto lib_name = "libproc_" + plugin_name;
 
         auto extension =
-#if defined(__APPLE__) || defined(__MACH__)
+#if defined(_WIN32)
+            ".dll";
+#elif defined(__APPLE__) || defined(__MACH__)
             ".dylib";
 #else
             ".so";
@@ -34,24 +40,38 @@ namespace processing {
             lib_path = lib_file_name;
         } else {
             auto p = params[kLibraryPath];
-            if (p.back() != '/') {
+            if (p.back() != '/' && p.back() != '\\') {
                 p += '/';
             }
             lib_path = p + lib_file_name;
         }
 
-        handle = dlopen(lib_path.c_str(), RTLD_LAZY);
-        if (!handle) {
-            std::cerr << "Failed to load the dynamic library: " << dlerror() << std::endl;
+#if defined(_WIN32)
+        HMODULE handle_ = LoadLibrary(lib_path.c_str());
+        if (!handle_) {
+            std::cerr << "Failed to load the dynamic library" << std::endl;
             return NULL;
         }
 
-        void* func_ptr = dlsym(handle, kLoadFunc);
+        void* func_ptr = GetProcAddress(handle_, kLoadFunc);
+        if (!func_ptr) {
+            std::cerr << "Failed to find loader function." << std::endl;
+            return NULL;
+        }
 
+#else
+        handle_ = dlopen(lib_path.c_str(), RTLD_LAZY);
+        if (!handle_) {
+            std::cerr << "Failed to load the dynamic library: " << dlerror() << std::endl;
+            return NULL;
+        }
+        void* func_ptr = dlsym(handle_, kLoadFunc);
         if (!func_ptr) {
             std::cerr << "Failed to find loader function: " << dlerror() << std::endl;
             return NULL;
         }
+
+#endif
 
         auto func = reinterpret_cast<LoadFunc *>(func_ptr);
 
@@ -59,6 +79,10 @@ namespace processing {
     }
 
     void ProcessorLoader::unload() {
-        dlclose(handle);
+#if defined(_WIN32)
+        FreeLibrary(handle_);
+#else
+        dlclose(handle_);
+#endif
     }
 }  // namespace processing
