@@ -36,6 +36,7 @@ jobs:
         environment-name: wheel_build
         create-args: >-
           python=3.8
+          mamba
         init-shell: bash
     - name: Build wheels
       run: bash -l tests/ci_build/build_python_wheels.sh ${{ matrix.platform_id }} ${{ github.sha }}
