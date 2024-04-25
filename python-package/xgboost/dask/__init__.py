@@ -167,8 +167,8 @@ def _try_start_tracker(
             host_ip = addrs[0][0]
             port = addrs[0][1]
             rabit_tracker = RabitTracker(
-                host_ip=host_ip,
                 n_workers=n_workers,
+                host_ip=host_ip,
                 port=port,
                 sortby="task",
             )
@@ -176,7 +176,7 @@ def _try_start_tracker(
             addr = addrs[0]
             assert isinstance(addr, str) or addr is None
             rabit_tracker = RabitTracker(
-                host_ip=addr, n_workers=n_workers, sortby="task"
+                n_workers=n_workers, host_ip=addr, sortby="task"
             )
 
         rabit_tracker.start()

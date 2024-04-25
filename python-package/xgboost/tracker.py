@@ -43,8 +43,8 @@ class RabitTracker:
 
     def __init__(  # pylint: disable=too-many-arguments
         self,
-        host_ip: Optional[str],
         n_workers: int,
+        host_ip: Optional[str],
         port: int = 0,
         sortby: str = "host",
         timeout: int = 300,

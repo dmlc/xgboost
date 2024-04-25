@@ -55,7 +55,7 @@ def _start_tracker(context: BarrierTaskContext, n_workers: int) -> Dict[str, Any
     """Start Rabit tracker with n_workers"""
     args: Dict[str, Any] = {"n_workers": n_workers}
     host = _get_host_ip(context)
-    tracker = RabitTracker(host_ip=host, n_workers=n_workers, sortby="task")
+    tracker = RabitTracker(n_workers=n_workers, host_ip=host, sortby="task")
     tracker.start()
     thread = Thread(target=tracker.wait_for)
     thread.daemon = True

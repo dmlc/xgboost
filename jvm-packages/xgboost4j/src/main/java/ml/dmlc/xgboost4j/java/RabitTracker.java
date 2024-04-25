@@ -18,9 +18,6 @@ public class RabitTracker implements IRabitTracker {
   // Maybe per tracker logger?
   private static final Log logger = LogFactory.getLog(RabitTracker.class);
   private long handle = 0;
-  // The number of workers to be submitted.
-  private int numWorkers;
-  private String hostIp = "";
   private Thread tracker_daemon;
 
   public RabitTracker(int numWorkers) throws XGBoostError {
@@ -29,15 +26,15 @@ public class RabitTracker implements IRabitTracker {
 
   public RabitTracker(int numWorkers, String hostIp)
       throws XGBoostError {
+    this(numWorkers, hostIp, 0, 300);
+  }
+  public RabitTracker(int numWorkers, String hostIp, int port, int timeout) throws XGBoostError {
     if (numWorkers < 1) {
       throw new XGBoostError("numWorkers must be greater equal to one");
     }
-    this.hostIp = hostIp;
-    this.numWorkers = numWorkers;
 
-    // fixme get port, sortby, timeout
     long[] out = new long[1];
-    XGBoostJNI.checkCall(XGBoostJNI.TrackerCreate(this.hostIp, this.numWorkers, 0, 0, 300, out));
+    XGBoostJNI.checkCall(XGBoostJNI.TrackerCreate(hostIp, numWorkers, port, 0, timeout, out));
     this.handle = out[0];
   }
 
@@ -73,7 +70,6 @@ public class RabitTracker implements IRabitTracker {
   }
 
   public void stop() throws XGBoostError {
-    System.out.println("[jtracker]: Call stop");
     XGBoostJNI.checkCall(XGBoostJNI.TrackerFree(this.handle));
   }
 
