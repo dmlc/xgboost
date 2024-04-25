@@ -32,8 +32,6 @@ jobs:
       with:
         miniforge-variant: Mambaforge
         miniforge-version: latest
-        auto-activate-base: true
-        activate-environment: ""
         python-version: 3.8
         use-mamba: true
     - name: Build wheels
