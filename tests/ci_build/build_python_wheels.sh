@@ -47,7 +47,7 @@ if [[ "$platform_id" == macosx_* ]]; then
     export CIBW_TEST_SKIP='*-macosx_arm64'
     export CIBW_BUILD_VERBOSITY=3
 
-    mamba create -n build $OPENMP_URL
+    micromamba create -n build $OPENMP_URL
     PREFIX="$HOME/micromamba/envs/build"
 
     # Set up build flags for cibuildwheel
