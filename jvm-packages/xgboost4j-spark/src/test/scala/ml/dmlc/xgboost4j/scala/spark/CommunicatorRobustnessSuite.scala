@@ -89,22 +89,21 @@ class CommunicatorRobustnessSuite extends AnyFunSuite with PerTest {
 
     val workerCount: Int = numWorkers
 
-    val dummyTasks = rdd.mapPartitions { iter =>
+    rdd.mapPartitions { iter =>
       val index = iter.next()
       Communicator.init(trackerEnvs)
+      val a = Array(1.0f, 2.0f, 3.0f)
+      val b = Communicator.allReduce(a, Communicator.OpType.SUM)
+      for (i <- 0 to 2) {
+        assert(a(i) * workerCount == b(i))
+      }
+      val c = Communicator.allReduce(a, Communicator.OpType.MIN);
+      for (i <- 0 to 2) {
+        assert(a(i) == c(i))
+      }
       Communicator.shutdown()
       Iterator(index)
-    }.cache()
-
-    val sparkThread = new Thread() {
-      override def run(): Unit = {
-        // forces a Spark job.
-        dummyTasks.foreachPartition(() => _)
-      }
-    }
-
-    sparkThread.setUncaughtExceptionHandler(tracker)
-    sparkThread.start()
+    }.collect()
   }
 
   test("should allow the dataframe containing communicator calls to be partially evaluated for" +
