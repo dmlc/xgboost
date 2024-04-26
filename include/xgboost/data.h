@@ -40,7 +40,7 @@ enum class DataType : uint8_t {
 
 enum class FeatureType : uint8_t { kNumerical = 0, kCategorical = 1 };
 
-enum class DataSplitMode : int { kRow = 0, kCol = 1, kColSecure = 2 };
+enum class DataSplitMode : int { kRow = 0, kCol = 1, kColSecure = 2, kRowSecure = 3 };
 
 /*!
  * \brief Meta information about dataset, always sit in memory.
@@ -181,16 +181,16 @@ class MetaInfo {
   void SynchronizeNumberOfColumns(Context const* ctx);
 
   /*! \brief Whether the data is split row-wise. */
-  bool IsRowSplit() const {
-    return data_split_mode == DataSplitMode::kRow;
-  }
+  bool IsRowSplit() const { return (data_split_mode == DataSplitMode::kRow)
+  || (data_split_mode == DataSplitMode::kRowSecure); }
 
   /** @brief Whether the data is split column-wise. */
   bool IsColumnSplit() const { return (data_split_mode == DataSplitMode::kCol)
   || (data_split_mode == DataSplitMode::kColSecure); }
 
   /** @brief Whether the data is split column-wise with secure computation. */
-  bool IsSecure() const { return data_split_mode == DataSplitMode::kColSecure; }
+  bool IsSecure() const { return (data_split_mode == DataSplitMode::kColSecure)
+  || (data_split_mode == DataSplitMode::kRowSecure); }
 
   /** @brief Whether this is a learning to rank data. */
   bool IsRanking() const { return !group_ptr_.empty(); }

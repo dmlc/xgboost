@@ -355,8 +355,9 @@ class HistEvaluator {
 
     // Under secure vertical setting, only the active party is able to evaluate the split
     // based on global histogram. Other parties will receive the final best split information
-    // Hence the below computation is not performed by the passive parties
-    if ((!is_secure_) || (collective::GetRank() == 0)) {
+    // Hence the below computation is not performed by the passive parties for secure vertical
+    // All other cases need it
+    if (!((is_col_split_) && (is_secure_) && (collective::GetRank() == 0))) {
       // Evaluate the splits for each feature
       common::ParallelFor2d(space, n_threads, [&](size_t nidx_in_set, common::Range1d r) {
         auto tidx = omp_get_thread_num();
