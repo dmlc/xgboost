@@ -111,6 +111,11 @@ class PartIter(DataIter):
     def reset(self) -> None:
         self._iter = 0
 
+    def clear(self) -> None:
+        """Clear _temporary_data to release all cached data in the GPU
+        to decrease the peak memory"""
+        self._temporary_data = None
+
 
 def _read_csr_matrix_from_unwrapped_spark_vec(part: pd.DataFrame) -> csr_matrix:
     # variables for constructing csr_matrix

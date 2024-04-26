@@ -632,8 +632,12 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
             )
             self._data_ref = ref
 
+        def _next() -> int:
+            self.clear()
+            return self.next(input_data)
+
         # pylint: disable=not-callable
-        return self._handle_exception(lambda: self.next(input_data), 0)
+        return self._handle_exception(_next, 0)
 
     @abstractmethod
     def reset(self) -> None:
@@ -657,6 +661,10 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
 
         """
         raise NotImplementedError()
+
+    def clear(self) -> None:
+        """Clear function to be called before each iteration."""
+        pass  # pylint: disable=unnecessary-pass
 
 
 # Notice for `require_keyword_args`
