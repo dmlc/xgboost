@@ -215,11 +215,13 @@ class HistogramBuilder {
         buffer = reinterpret_cast<std::int8_t *>(hist_buf);
         auto hist_vec = std::vector<std::int8_t>(buffer, buffer + buffer_size);
         auto hist_entries = collective::AllgatherV(hist_vec);
-        std::vector<double> hist_aggr = processor_instance->HandleHistograms(hist_entries.data(), hist_entries.size());
+        std::vector<double> hist_aggr =
+                processor_instance->HandleHistograms(hist_entries.data(), hist_entries.size());
 
         // Assign the aggregated histogram back to the local histogram
         for (int hist_idx = 0; hist_idx < n; hist_idx++) {
-          reinterpret_cast<double *>(this->hist_[first_nidx].data())[hist_idx] = hist_aggr[hist_idx];
+          reinterpret_cast<double *>(this->hist_[first_nidx].data())[hist_idx] =
+                  hist_aggr[hist_idx];
         }
       }
     }
@@ -237,21 +239,21 @@ class HistogramBuilder {
     }
 
     common::BlockedSpace2d const &subspace =
-        nodes_to_trick.size() == nodes_to_build.size()
-            ? space
-            : common::BlockedSpace2d{nodes_to_trick.size(),
-                                     [&](std::size_t) { return n_total_bins; }, 1024};
+      nodes_to_trick.size() == nodes_to_build.size()
+      ? space
+      : common::BlockedSpace2d{nodes_to_trick.size(),
+                               [&](std::size_t) { return n_total_bins; }, 1024};
     common::ParallelFor2d(
-        subspace, this->n_threads_, [&](std::size_t nidx_in_set, common::Range1d r) {
-          auto subtraction_nidx = nodes_to_trick[nidx_in_set];
-          auto parent_id = p_tree->Parent(subtraction_nidx);
-          auto sibling_nidx = p_tree->IsLeftChild(subtraction_nidx) ? p_tree->RightChild(parent_id)
+      subspace, this->n_threads_, [&](std::size_t nidx_in_set, common::Range1d r) {
+        auto subtraction_nidx = nodes_to_trick[nidx_in_set];
+        auto parent_id = p_tree->Parent(subtraction_nidx);
+        auto sibling_nidx = p_tree->IsLeftChild(subtraction_nidx) ? p_tree->RightChild(parent_id)
                                                                     : p_tree->LeftChild(parent_id);
-          auto sibling_hist = this->hist_[sibling_nidx];
-          auto parent_hist = this->hist_[parent_id];
-          auto subtract_hist = this->hist_[subtraction_nidx];
-          common::SubtractionHist(subtract_hist, parent_hist, sibling_hist, r.begin(), r.end());
-        });
+        auto sibling_hist = this->hist_[sibling_nidx];
+        auto parent_hist = this->hist_[parent_id];
+        auto subtract_hist = this->hist_[subtraction_nidx];
+        common::SubtractionHist(subtract_hist, parent_hist, sibling_hist, r.begin(), r.end());
+      });
   }
 
  public:
