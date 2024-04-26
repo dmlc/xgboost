@@ -1523,7 +1523,7 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, const char *config,
  * performing collective tasks like allreduce.
  *
  * To use the collective implementation, one needs to first create a tracker with
- * corresponding parameters, then get the arguments for workers using
+ * corresponding parameters, then get the arguments for working using
  * XGTrackerWorkerArgs().  The obtained arguments can then be passed to the
  * XGCommunicatorInit() function. Call to XGCommunicatorInit() must be accompanied with a
  * XGCommunicatorFinalize() call for cleanups. Please note that the communicator uses
@@ -1557,8 +1557,7 @@ typedef void *TrackerHandle; /* NOLINT */
  *                        `rabit` and `federated`. See @ref TrackerHandle for more info.
  *   - n_workers: Integer, the number of workers.
  *   - port: (Optional) Integer, the port this tracker should listen to.
- *   - timeout: (Optional) Integer, timeout in seconds for various networking
-                 operations. Default is 300 seconds.
+ *   - timeout: (Optional) Integer, timeout in seconds for various networking operations.
  *
  *   Some configurations are `rabit` specific:
  *
@@ -1631,24 +1630,23 @@ XGB_DLL int XGTrackerFree(TrackerHandle handle);
  *  Currently the communicator API is experimental, function signatures may change in the future
  *  without notice.
  *
- *  Call this once in the worker process before using anything. Please make sure
- *  XGCommunicatorFinalize() is called after use. The initialized commuicator is a global
- *  thread-local variable.
+ *  Call this once before using anything. Please make sure @ref XGCommunicatorFinalize is
+ *  called after use. The initialized commuicator is a global thread-local variable.
  *
  * @param config JSON encoded configuration. Accepted JSON keys are:
  *   - dmlc_communicator: The type of the communicator, this should match the tracker type.
  *     * rabit: Use Rabit. This is the default if the type is unspecified.
  *     * federated: Use the gRPC interface for Federated Learning.
  *
- * Only applicable to the `rabit` communicator:
+ * Only applicable to the Rabit communicator:
  *   - dmlc_tracker_uri: Hostname or IP address of the tracker.
  *   - dmlc_tracker_port: Port number of the tracker.
  *   - dmlc_task_id: ID of the current task, can be used to obtain deterministic rank assignment.
  *   - dmlc_retry: The number of retries for connection failure.
- *   - dmlc_timeout: Timeout in seconds.
+ *   - dmlc_timeout_sec: Timeout in seconds.
  *   - dmlc_nccl_path: Path to the nccl shared library `libnccl.so`.
  *
- * Only applicable to the `federated` communicator (use upper case for environment variables, use
+ * Only applicable to the Federated communicator (use upper case for environment variables, use
  * lower case for runtime configuration):
  *   - federated_server_address: Address of the federated server.
  *   - federated_world_size: Number of federated workers.

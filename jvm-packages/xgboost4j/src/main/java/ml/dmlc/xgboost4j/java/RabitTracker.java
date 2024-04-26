@@ -14,7 +14,7 @@ import org.apache.commons.logging.LogFactory;
  *
  * The tracker must be started on driver node before running distributed jobs.
  */
-public class RabitTracker implements ITracker {
+public class RabitTracker implements IRabitTracker {
   // Maybe per tracker logger?
   private static final Log logger = LogFactory.getLog(RabitTracker.class);
   private long handle = 0;
@@ -53,7 +53,7 @@ public class RabitTracker implements ITracker {
    * Get environments that can be used to pass to worker.
    * @return The environment settings.
    */
-  public Map<String, Object> workerArgs() throws XGBoostError {
+  public Map<String, Object> getWorkerEnvs() throws XGBoostError {
     // fixme: timeout
     String[] args = new String[1];
     XGBoostJNI.checkCall(XGBoostJNI.TrackerWorkerArgs(this.handle, 0, args));

@@ -76,7 +76,7 @@ CommGroup::CommGroup()
   // Common args
   auto retry = get_param("dmlc_retry", static_cast<Integer::Int>(DefaultRetry()), Integer{});
   auto timeout =
-      get_param("dmlc_timeout", static_cast<Integer::Int>(DefaultTimeoutSec()), Integer{});
+      get_param("dmlc_timeout_sec", static_cast<Integer::Int>(DefaultTimeoutSec()), Integer{});
   auto task_id = get_param("dmlc_task_id", std::string{}, String{});
 
   if (type == "rabit") {

@@ -137,7 +137,7 @@ inline auto MakeDistributedTestConfig(std::string host, std::int32_t port,
   config["dmlc_communicator"] = std::string{"rabit"};
   config["dmlc_tracker_uri"] = host;
   config["dmlc_tracker_port"] = port;
-  config["dmlc_timeout"] = static_cast<std::int64_t>(timeout.count());
+  config["dmlc_timeout_sec"] = static_cast<std::int64_t>(timeout.count());
   config["dmlc_task_id"] = std::to_string(r);
   config["dmlc_retry"] = 2;
   return config;

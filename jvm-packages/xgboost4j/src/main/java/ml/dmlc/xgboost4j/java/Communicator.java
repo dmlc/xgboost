@@ -33,9 +33,8 @@ public class Communicator {
   }
 
   public enum DataType implements Serializable {
-    FLOAT16(0, 2), FLOAT32(1, 4), FLOAT64(2, 8),
-    INT8(4, 1), INT16(5, 2), INT32(6, 4), INT64(7, 8),
-    UINT8(8, 1), UINT16(9, 2), UINT32(10, 4), UINT64(11, 8);
+    INT8(0, 1), UINT8(1, 1), INT32(2, 4), UINT32(3, 4),
+    INT64(4, 8), UINT64(5, 8), FLOAT32(6, 4), FLOAT64(7, 8);
 
     private final int enumOp;
     private final int size;
