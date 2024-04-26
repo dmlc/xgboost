@@ -1,0 +1,191 @@
+# This is a basic workflow to help you get started with Actions
+
+name: XGBoost-CI
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+# events but only for the master branch
+on: [push, pull_request]
+
+permissions:
+  contents: read # to fetch code (actions/checkout)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  gtest-cpu:
+    name: Test Google C++ test (CPU)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-11]
+    steps:
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
+      with:
+        submodules: 'true'
+    - name: Install system packages
+      run: |
+        brew install ninja libomp
+    - name: Build gtest binary
+      run: |
+        mkdir build
+        cd build
+        cmake .. -DGOOGLE_TEST=ON -DUSE_OPENMP=ON -DUSE_DMLC_GTEST=ON -GNinja -DBUILD_DEPRECATED_CLI=ON
+        ninja -v
+    - name: Run gtest binary
+      run: |
+        cd build
+        ./testxgboost
+        ctest -R TestXGBoostCLI --extra-verbose
+
+  gtest-cpu-nonomp:
+    name: Test Google C++ unittest (CPU Non-OMP)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+    steps:
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
+      with:
+        submodules: 'true'
+    - name: Install system packages
+      run: |
+        sudo apt-get install -y --no-install-recommends ninja-build
+    - name: Build and install XGBoost
+      shell: bash -l {0}
+      run: |
+        mkdir build
+        cd build
+        cmake .. -GNinja -DGOOGLE_TEST=ON  -DUSE_DMLC_GTEST=ON -DUSE_OPENMP=OFF -DBUILD_DEPRECATED_CLI=ON
+        ninja -v
+    - name: Run gtest binary
+      run: |
+        cd build
+        ctest --extra-verbose
+
+  gtest-cpu-sycl:
+    name: Test Google C++ unittest (CPU SYCL)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.8"]
+    steps:
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
+      with:
+        submodules: 'true'
+    - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
+      with:
+        cache-downloads: true
+        cache-env: true
+        environment-name: linux_sycl_test
+        environment-file: tests/ci_build/conda_env/linux_sycl_test.yml
+
+    - name: Display Conda env
+      run: |
+        conda info
+        conda list
+    - name: Build and install XGBoost
+      shell: bash -l {0}
+      run: |
+        mkdir build
+        cd build
+        cmake .. -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DPLUGIN_SYCL=ON -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX
+        make -j$(nproc)
+    - name: Run gtest binary for SYCL
+      run: |
+        cd build
+        ./testxgboost --gtest_filter=Sycl*
+    - name: Run gtest binary for non SYCL
+      run: |
+        cd build
+        ./testxgboost --gtest_filter=-Sycl*
+
+  c-api-demo:
+    name: Test installing XGBoost lib + building the C API demo
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash -l {0}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["ubuntu-latest"]
+        python-version: ["3.8"]
+    steps:
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
+      with:
+        submodules: 'true'
+    - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
+      with:
+        cache-downloads: true
+        cache-env: true
+        environment-name: cpp_test
+        environment-file: tests/ci_build/conda_env/cpp_test.yml
+    - name: Display Conda env
+      run: |
+        conda info
+        conda list
+
+    - name: Build and install XGBoost static library
+      run: |
+        mkdir build
+        cd build
+        cmake .. -DBUILD_STATIC_LIB=ON -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja
+        ninja -v install
+        cd -
+    - name: Build and run C API demo with static
+      run: |
+        pushd .
+        cd demo/c-api/
+        mkdir build
+        cd build
+        cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
+        ninja -v
+        ctest
+        cd ..
+        rm -rf ./build
+        popd
+
+    - name: Build and install XGBoost shared library
+      run: |
+        cd build
+        cmake .. -DBUILD_STATIC_LIB=OFF -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja
+        ninja -v install
+        cd -
+    - name: Build and run C API demo with shared
+      run: |
+        pushd .
+        cd demo/c-api/
+        mkdir build
+        cd build
+        cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
+        ninja -v
+        ctest
+        popd
+        ./tests/ci_build/verify_link.sh ./demo/c-api/build/basic/api-demo
+        ./tests/ci_build/verify_link.sh ./demo/c-api/build/external-memory/external-memory-demo
+
+  cpp-lint:
+    runs-on: ubuntu-latest
+    name: Code linting for C++
+    steps:
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
+      with:
+        submodules: 'true'
+    - uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
+      with:
+        python-version: "3.8"
+        architecture: 'x64'
+    - name: Install Python packages
+      run: |
+        python -m pip install wheel setuptools cmakelint cpplint pylint
+    - name: Run lint
+      run: |
+        python3 tests/ci_build/lint_cpp.py
+        sh ./tests/ci_build/lint_cmake.sh

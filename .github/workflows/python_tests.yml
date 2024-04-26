@@ -1,0 +1,343 @@
+name: XGBoost-Python-Tests
+
+on: [push, pull_request]
+
+permissions:
+  contents: read # to fetch code (actions/checkout)
+
+defaults:
+  run:
+    shell: bash -l {0}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-mypy-lint:
+    runs-on: ubuntu-latest
+    name: Type and format checks for the Python package
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+    steps:
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
+      with:
+        submodules: 'true'
+    - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
+      with:
+        cache-downloads: true
+        cache-env: true
+        environment-name: python_lint
+        environment-file: tests/ci_build/conda_env/python_lint.yml
+    - name: Display Conda env
+      run: |
+        conda info
+        conda list
+    - name: Run mypy
+      run: |
+        python tests/ci_build/lint_python.py --format=0 --type-check=1 --pylint=0
+    - name: Run formatter
+      run: |
+        python tests/ci_build/lint_python.py --format=1 --type-check=0 --pylint=0
+    - name: Run pylint
+      run: |
+        python tests/ci_build/lint_python.py --format=0 --type-check=0 --pylint=1
+
+  python-sdist-test-on-Linux:
+    # Mismatched glibcxx version between system and conda forge.
+    runs-on: ${{ matrix.os }}
+    name: Test installing XGBoost Python source package on ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+    steps:
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
+      with:
+        submodules: 'true'
+    - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
+      with:
+        cache-downloads: true
+        cache-env: true
+        environment-name: sdist_test
+        environment-file: tests/ci_build/conda_env/sdist_test.yml
+    - name: Display Conda env
+      run: |
+        conda info
+        conda list
+    - name: Build and install XGBoost
+      run: |
+        cd python-package
+        python --version
+        python -m build --sdist
+        pip install -v ./dist/xgboost-*.tar.gz --config-settings use_openmp=False
+        cd ..
+        python -c 'import xgboost'
+
+  python-sdist-test:
+    # Use system toolchain instead of conda toolchain for macos and windows.
+    # MacOS has linker error if clang++ from conda-forge is used
+    runs-on: ${{ matrix.os }}
+    name: Test installing XGBoost Python source package on ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-11, windows-latest]
+        python-version: ["3.8"]
+    steps:
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
+      with:
+        submodules: 'true'
+    - name: Install osx system dependencies
+      if: matrix.os == 'macos-11'
+      run: |
+        brew install ninja libomp
+    - uses: conda-incubator/setup-miniconda@35d1405e78aa3f784fe3ce9a2eb378d5eeb62169 # v2.1.1
+      with:
+        auto-update-conda: true
+        python-version: ${{ matrix.python-version }}
+        activate-environment: test
+    - name: Install build
+      run: |
+        conda install -c conda-forge python-build
+    - name: Display Conda env
+      run: |
+        conda info
+        conda list
+    - name: Build and install XGBoost
+      run: |
+        cd python-package
+        python --version
+        python -m build --sdist
+        pip install -v ./dist/xgboost-*.tar.gz
+        cd ..
+        python -c 'import xgboost'
+
+  python-tests-on-macos:
+    name: Test XGBoost Python package on ${{ matrix.config.os }}
+    runs-on: ${{ matrix.config.os }}
+    timeout-minutes: 60
+    strategy:
+      matrix:
+        config:
+          - {os: macos-11}
+
+    steps:
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
+      with:
+        submodules: 'true'
+
+    - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
+      with:
+        cache-downloads: true
+        cache-env: true
+        environment-name: macos_test
+        environment-file: tests/ci_build/conda_env/macos_cpu_test.yml
+
+    - name: Display Conda env
+      run: |
+        conda info
+        conda list
+
+    - name: Build XGBoost on macos
+      run: |
+        brew install ninja
+
+        mkdir build
+        cd build
+        # Set prefix, to use OpenMP library from Conda env
+        # See https://github.com/dmlc/xgboost/issues/7039#issuecomment-1025038228
+        # to learn why we don't use libomp from Homebrew.
+        cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX -DBUILD_DEPRECATED_CLI=ON
+        ninja
+
+    - name: Install Python package
+      run: |
+        cd python-package
+        python --version
+        pip install -v .
+
+    - name: Test Python package
+      run: |
+        pytest -s -v -rxXs --durations=0 ./tests/python
+
+    - name: Test Dask Interface
+      run: |
+        pytest -s -v -rxXs --durations=0 ./tests/test_distributed/test_with_dask
+
+  python-tests-on-win:
+    name: Test XGBoost Python package on ${{ matrix.config.os }}
+    runs-on: ${{ matrix.config.os }}
+    timeout-minutes: 60
+    strategy:
+      matrix:
+        config:
+          - {os: windows-latest, python-version: '3.8'}
+
+    steps:
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
+      with:
+        submodules: 'true'
+
+    - uses: conda-incubator/setup-miniconda@35d1405e78aa3f784fe3ce9a2eb378d5eeb62169 # v2.1.1
+      with:
+        auto-update-conda: true
+        python-version: ${{ matrix.config.python-version }}
+        activate-environment: win64_env
+        environment-file: tests/ci_build/conda_env/win64_cpu_test.yml
+
+    - name: Display Conda env
+      run: |
+        conda info
+        conda list
+
+    - name: Build XGBoost on Windows
+      run: |
+        mkdir build_msvc
+        cd build_msvc
+        cmake .. -G"Visual Studio 17 2022" -DCMAKE_CONFIGURATION_TYPES="Release" -A x64 -DBUILD_DEPRECATED_CLI=ON
+        cmake --build . --config Release --parallel $(nproc)
+
+    - name: Install Python package
+      run: |
+        cd python-package
+        python --version
+        pip wheel -v . --wheel-dir dist/
+        pip install ./dist/*.whl
+
+    - name: Test Python package
+      run: |
+        pytest -s -v -rxXs --durations=0 ./tests/python
+
+  python-tests-on-ubuntu:
+    name: Test XGBoost Python package on ${{ matrix.config.os }}
+    runs-on: ${{ matrix.config.os }}
+    timeout-minutes: 90
+    strategy:
+      matrix:
+        config:
+          - {os: ubuntu-latest, python-version: "3.8"}
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+
+    - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
+      with:
+        cache-downloads: true
+        cache-env: true
+        environment-name: linux_cpu_test
+        environment-file: tests/ci_build/conda_env/linux_cpu_test.yml
+
+    - name: Display Conda env
+      run: |
+        conda info
+        conda list
+
+    - name: Build XGBoost on Ubuntu
+      run: |
+        mkdir build
+        cd build
+        cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX -DBUILD_DEPRECATED_CLI=ON
+        ninja
+
+    - name: Install Python package
+      run: |
+        cd python-package
+        python --version
+        pip install -v .
+
+    - name: Test Python package
+      run: |
+        pytest -s -v -rxXs --durations=0 ./tests/python
+
+    - name: Test Dask Interface
+      run: |
+        pytest -s -v -rxXs --durations=0 ./tests/test_distributed/test_with_dask
+
+    - name: Test PySpark Interface
+      shell: bash -l {0}
+      run: |
+        pytest -s -v -rxXs --durations=0 ./tests/test_distributed/test_with_spark
+
+  python-sycl-tests-on-ubuntu:
+    name: Test XGBoost Python package with SYCL on ${{ matrix.config.os }}
+    runs-on: ${{ matrix.config.os }}
+    timeout-minutes: 90
+    strategy:
+      matrix:
+        config:
+          - {os: ubuntu-latest, python-version: "3.8"}
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+
+    - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
+      with:
+        cache-downloads: true
+        cache-env: true
+        environment-name: linux_sycl_test
+        environment-file: tests/ci_build/conda_env/linux_sycl_test.yml
+
+    - name: Display Conda env
+      run: |
+        conda info
+        conda list
+    - name: Build XGBoost on Ubuntu
+      run: |
+        mkdir build
+        cd build
+        cmake .. -DPLUGIN_SYCL=ON -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
+        make -j$(nproc)
+    - name: Install Python package
+      run: |
+        cd python-package
+        python --version
+        pip install -v .
+    - name: Test Python package
+      run: |
+        pytest -s -v -rxXs --durations=0 ./tests/python-sycl/
+
+
+  python-system-installation-on-ubuntu:
+    name: Test XGBoost Python package System Installation on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'true'
+
+      - name: Set up Python 3.8
+        uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
+        with:
+          python-version: 3.8
+
+      - name: Install ninja
+        run: |
+          sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Build XGBoost on Ubuntu
+        run: |
+          mkdir build
+          cd build
+          cmake .. -GNinja
+          ninja
+
+      - name: Copy lib to system lib
+        run: |
+          cp lib/* "$(python -c 'import sys; print(sys.base_prefix)')/lib"
+
+      - name: Install XGBoost in Virtual Environment
+        run: |
+          cd python-package
+          pip install virtualenv
+          virtualenv venv
+          source venv/bin/activate && \
+            pip install -v . --config-settings use_system_libxgboost=True && \
+            python -c 'import xgboost'

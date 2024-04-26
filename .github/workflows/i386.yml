@@ -1,0 +1,43 @@
+name: XGBoost-i386-test
+
+on: [push, pull_request]
+
+permissions:
+  contents: read # to fetch code (actions/checkout)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-32bit:
+    name: Build 32-bit
+    runs-on: ubuntu-latest
+    services:
+      registry:
+        image: registry:2
+        ports:
+          - 5000:5000
+    steps:
+    - uses: actions/checkout@v2.5.0
+      with:
+        submodules: 'true'
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      with:
+        driver-opts: network=host
+    - name: Build and push container
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: tests/ci_build/Dockerfile.i386
+        push: true
+        tags: localhost:5000/xgboost/build-32bit:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+    - name: Build XGBoost
+      run: |
+        docker run --rm -v $PWD:/workspace -w /workspace \
+          -e CXXFLAGS='-Wno-error=overloaded-virtual -Wno-error=maybe-uninitialized -Wno-error=redundant-move' \
+          localhost:5000/xgboost/build-32bit:latest \
+          tests/ci_build/build_via_cmake.sh

@@ -1,0 +1,150 @@
+name: XGBoost-R-Tests
+
+on: [push, pull_request]
+
+env:
+  GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+
+permissions:
+  contents: read # to fetch code (actions/checkout)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lintr:
+    runs-on: ${{ matrix.config.os }}
+    name: Run R linters on OS ${{ matrix.config.os }}, R ${{ matrix.config.r }}, Compiler ${{ matrix.config.compiler }}, Build ${{ matrix.config.build }}
+    strategy:
+      matrix:
+        config:
+          - {os: ubuntu-latest, r: 'release'}
+    env:
+      R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
+      RSPM: ${{ matrix.config.rspm }}
+
+    steps:
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
+      with:
+        submodules: 'true'
+
+    - uses: r-lib/actions/setup-r@e40ad904310fc92e96951c1b0d64f3de6cbe9e14 # v2.6.5
+      with:
+        r-version: ${{ matrix.config.r }}
+
+    - name: Cache R packages
+      uses: actions/cache@937d24475381cd9c75ae6db12cb4e79714b926ed # v3.0.11
+      with:
+        path: ${{ env.R_LIBS_USER }}
+        key: ${{ runner.os }}-r-${{ matrix.config.r }}-6-${{ hashFiles('R-package/DESCRIPTION') }}
+        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-6-${{ hashFiles('R-package/DESCRIPTION') }}
+
+    - name: Install dependencies
+      shell: Rscript {0}
+      run: |
+        source("./R-package/tests/helper_scripts/install_deps.R")
+
+    - name: Run lintr
+      run: |
+        MAKEFLAGS="-j$(nproc)" R CMD INSTALL R-package/
+        Rscript tests/ci_build/lint_r.R $(pwd)
+
+  test-Rpkg:
+    runs-on: ${{ matrix.config.os }}
+    name: Test R on OS ${{ matrix.config.os }}, R ${{ matrix.config.r }}, Compiler ${{ matrix.config.compiler }}, Build ${{ matrix.config.build }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - {os: windows-latest, r: 'release', compiler: 'mingw', build: 'autotools'}
+          - {os: ubuntu-latest, r: 'release', compiler: 'none', build: 'cmake'}
+    env:
+      R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
+      RSPM: ${{ matrix.config.rspm }}
+
+    steps:
+    - name: Install system dependencies
+      run: |
+        sudo apt update
+        sudo apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev
+      if: matrix.config.os == 'ubuntu-latest'
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
+      with:
+        submodules: 'true'
+
+    - uses: r-lib/actions/setup-r@e40ad904310fc92e96951c1b0d64f3de6cbe9e14 # v2.6.5
+      with:
+        r-version: ${{ matrix.config.r }}
+
+    - name: Cache R packages
+      uses: actions/cache@937d24475381cd9c75ae6db12cb4e79714b926ed # v3.0.11
+      with:
+        path: ${{ env.R_LIBS_USER }}
+        key: ${{ runner.os }}-r-${{ matrix.config.r }}-6-${{ hashFiles('R-package/DESCRIPTION') }}
+        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-6-${{ hashFiles('R-package/DESCRIPTION') }}
+
+    - uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
+      with:
+        python-version: "3.8"
+        architecture: 'x64'
+
+    - uses: r-lib/actions/setup-tinytex@v2
+
+    - name: Install dependencies
+      shell: Rscript {0}
+      run: |
+        source("./R-package/tests/helper_scripts/install_deps.R")
+
+    - name: Test R
+      run: |
+        python tests/ci_build/test_r_package.py --compiler='${{ matrix.config.compiler }}' --build-tool="${{ matrix.config.build }}" --task=check
+      if: matrix.config.compiler != 'none'
+
+    - name: Test R
+      run: |
+        python tests/ci_build/test_r_package.py --build-tool="${{ matrix.config.build }}" --task=check
+      if: matrix.config.compiler == 'none'
+
+  test-R-on-Debian:
+    name: Test R package on Debian
+    runs-on: ubuntu-latest
+    container:
+      image: rhub/debian-gcc-release
+
+    steps:
+    - name: Install system dependencies
+      run: |
+        # Must run before checkout to have the latest git installed.
+        # No need to add pandoc, the container has it figured out.
+        apt update && apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev git -y
+
+    - name: Trust git cloning project sources
+      run: |
+        git config --global --add safe.directory "${GITHUB_WORKSPACE}"
+
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
+      with:
+        submodules: 'true'
+
+    - name: Install dependencies
+      shell: bash -l {0}
+      run: |
+        Rscript -e "source('./R-package/tests/helper_scripts/install_deps.R')"
+
+    - name: Test R
+      shell: bash -l {0}
+      run: |
+        python3 tests/ci_build/test_r_package.py --r=/usr/bin/R --build-tool=autotools --task=check
+
+    - uses: dorny/paths-filter@v2
+      id: changes
+      with:
+        filters: |
+          r_package:
+            - 'R-package/**'
+
+    - name: Run document check
+      if: steps.changes.outputs.r_package == 'true'
+      run: |
+        python3 tests/ci_build/test_r_package.py --r=/usr/bin/R --task=doc

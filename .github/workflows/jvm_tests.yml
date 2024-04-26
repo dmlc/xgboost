@@ -1,0 +1,111 @@
+name: XGBoost-JVM-Tests
+
+on: [push, pull_request]
+
+permissions:
+  contents: read # to fetch code (actions/checkout)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-with-jvm:
+    name: Test JVM on OS ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-11]
+
+    steps:
+    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      with:
+        submodules: 'true'
+
+    - uses: mamba-org/setup-micromamba@422500192359a097648154e8db4e39bdb6c6eed7  # v1.8.1
+      with:
+        micromamba-version: '1.5.6-0'
+        environment-name: jvm_tests
+        create-args: >-
+          python=3.10
+          awscli
+        cache-downloads: true
+        cache-environment: true
+        init-shell: bash powershell
+
+    - name: Cache Maven packages
+      uses: actions/cache@13aacd865c20de90d75de3b17ebe84f7a17d57d2  # v4.0.0
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
+        restore-keys: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
+
+    - name: Build xgboost4j.dll
+      run: |
+        mkdir build
+        cd build
+        cmake .. -G"Visual Studio 17 2022" -A x64 -DJVM_BINDINGS=ON
+        cmake --build . --config Release
+      if: matrix.os == 'windows-latest'
+
+    - name: Test XGBoost4J (Core)
+      run: |
+        cd jvm-packages
+        mvn test -B -pl :xgboost4j_2.12
+
+    - name: Extract branch name
+      shell: bash
+      run: |
+        echo "branch=${GITHUB_REF#refs/heads/}" >> "$GITHUB_OUTPUT"
+      id: extract_branch
+      if: |
+        (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
+        (matrix.os == 'windows-latest' || matrix.os == 'macos-11')
+
+    - name: Publish artifact xgboost4j.dll to S3
+      run: |
+        cd lib/
+        Rename-Item -Path xgboost4j.dll -NewName xgboost4j_${{ github.sha }}.dll
+        dir
+        python -m awscli s3 cp xgboost4j_${{ github.sha }}.dll s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/libxgboost4j/ --acl public-read --region us-west-2
+      if: |
+        (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
+        matrix.os == 'windows-latest'
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
+
+    - name: Publish artifact libxgboost4j.dylib to S3
+      shell: bash -l {0}
+      run: |
+        cd lib/
+        mv -v libxgboost4j.dylib libxgboost4j_${{ github.sha }}.dylib
+        ls
+        python -m awscli s3 cp libxgboost4j_${{ github.sha }}.dylib s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/libxgboost4j/ --acl public-read --region us-west-2
+      if: |
+        (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
+        matrix.os == 'macos-11'
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
+
+
+    - name: Test XGBoost4J (Core, Spark, Examples)
+      run: |
+        rm -rfv build/
+        cd jvm-packages
+        mvn -B test
+      if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
+      env:
+        RABIT_MOCK: ON
+
+
+    - name: Build and Test XGBoost4J with scala 2.13
+      run: |
+        rm -rfv build/
+        cd jvm-packages
+        mvn -B clean install test -Pdefault,scala-2.13
+      if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
+      env:
+        RABIT_MOCK: ON
