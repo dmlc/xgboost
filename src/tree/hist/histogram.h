@@ -206,7 +206,7 @@ class HistogramBuilder {
           hist_to_aggr.push_back(hist_item);
         }
 
-        // For FL with secure horizontal
+       // For FL with secure horizontal
         std::size_t size;
         auto hist_buf = processor_instance->ProcessHistograms(&size, hist_to_aggr);
         std::size_t buffer_size{};
@@ -215,14 +215,8 @@ class HistogramBuilder {
         buffer = reinterpret_cast<std::int8_t *>(hist_buf);
         auto hist_vec = std::vector<std::int8_t>(buffer, buffer + buffer_size);
         auto hist_entries = collective::AllgatherV(hist_vec);
-        std::vector<double> hist_aggr = processor_instance->HandleHistograms(hist_entries.data(), buffer_size);
-        // Non-secure reference implementation
-        // hist_aggr should equal to hist_to_aggr
-        collective::Allreduce<collective::Operation::kSum>(hist_to_aggr.data(), n);
-        for (int hist_idx = 0; hist_idx < n; hist_idx++) {
-          CHECK(hist_aggr[hist_idx] == hist_to_aggr[hist_idx]);
-        }
-        
+        std::vector<double> hist_aggr = processor_instance->HandleHistograms(hist_entries.data(), hist_entries.size());
+
         // Assign the aggregated histogram back to the local histogram
         for (int hist_idx = 0; hist_idx < n; hist_idx++) {
           reinterpret_cast<double *>(this->hist_[first_nidx].data())[hist_idx] = hist_aggr[hist_idx];
