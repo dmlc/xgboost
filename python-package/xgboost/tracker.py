@@ -21,6 +21,7 @@ class RabitTracker:
     Parameters
     ..........
     sortby:
+
         How to sort the workers for rank assignment. The default is host, but users can
         set the `DMLC_TASK_ID` via RABIT initialization arguments and obtain
         deterministic rank assignment. Available options are:
@@ -28,11 +29,17 @@ class RabitTracker:
           - task
 
     timeout :
+
         Timeout for constructing the communication group and waiting for the tracker to
-        shutdown when it's instructed to, doesn't not apply to communication when
-        tracking is running. The join method has a different timeout parameter that can
-        stop the tracker even if the tracker is still being used. A value error is
-        raised when timeout is reached.
+        shutdown when it's instructed to, doesn't apply to communication when tracking
+        is running.
+
+        The timeout value should take the time of data loading and pre-processing into
+        account, due to potential lazy execution.
+
+        The :py:meth:`.wait_for` method has a different timeout parameter that can stop
+        the tracker even if the tracker is still being used. A value error is raised
+        when timeout is reached.
 
     """
 
@@ -47,7 +54,7 @@ class RabitTracker:
         host_ip: Optional[str],
         port: int = 0,
         sortby: str = "host",
-        timeout: int = 300,
+        timeout: int = 0,
     ) -> None:
 
         handle = ctypes.c_void_p()

@@ -15,9 +15,6 @@
 #include <utility>                           // for pair
 #include <vector>                            // for vector
 
-#include "../collective/comm.h"
-#include "../collective/communicator-inl.h"  // for Allreduce, Broadcast, Finalize, GetProcessor...
-#include "../collective/tracker.h"           // for Tracker
 #include "../common/api_entry.h"             // for XGBAPIThreadLocalEntry
 #include "../common/charconv.h"              // for from_chars, to_chars, NumericLimits, from_ch...
 #include "../common/error_msg.h"             // for NoFederated

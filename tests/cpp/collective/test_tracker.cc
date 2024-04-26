@@ -29,6 +29,7 @@ class PrintWorker : public WorkerForTest {
 
 TEST_F(TrackerTest, Bootstrap) {
   RabitTracker tracker{MakeTrackerConfig(host, n_workers, timeout)};
+  ASSERT_TRUE(HasTimeout(tracker.Timeout()));
   ASSERT_FALSE(tracker.Ready());
   auto fut = tracker.Run();
 
@@ -47,6 +48,9 @@ TEST_F(TrackerTest, Bootstrap) {
     w.join();
   }
   SafeColl(fut.get());
+
+  ASSERT_FALSE(HasTimeout(std::chrono::seconds{-1}));
+  ASSERT_FALSE(HasTimeout(std::chrono::seconds{0}));
 }
 
 TEST_F(TrackerTest, Print) {

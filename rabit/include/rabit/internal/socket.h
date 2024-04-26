@@ -1,5 +1,5 @@
 /**
- *  Copyright 2014-2023, XGBoost Contributors
+ *  Copyright 2014-2024, XGBoost Contributors
  * \file socket.h
  * \author Tianqi Chen
  */
