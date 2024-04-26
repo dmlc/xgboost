@@ -63,7 +63,7 @@ def build_libxgboost(
         else:
             nproc = os.cpu_count()
             assert build_tool is not None
-            subprocess.check_call([build_tool, f"-j{nproc}", "-v"], cwd=build_dir)
+            subprocess.check_call([build_tool, f"-j{nproc}", "VERBOSE=1"], cwd=build_dir)
 
     if system() == "Windows":
         supported_generators = (
