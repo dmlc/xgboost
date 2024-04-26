@@ -32,7 +32,7 @@ jobs:
       with:
         miniforge-variant: Mambaforge
         miniforge-version: latest
-        python-version: 3.8
+        python-version: 3.9
         use-mamba: true
     - name: Build wheels
       run: bash tests/ci_build/build_python_wheels.sh ${{ matrix.platform_id }} ${{ github.sha }}
