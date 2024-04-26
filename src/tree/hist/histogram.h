@@ -201,7 +201,7 @@ class HistogramBuilder {
         auto first_nidx = nodes_to_build.front();
         std::size_t n = n_total_bins * nodes_to_build.size() * 2;
         auto hist_to_aggr = std::vector<double>();
-        for (int hist_idx = 0; hist_idx < n; hist_idx++) {
+        for (std::size_t hist_idx = 0; hist_idx < n; hist_idx++) {
           double hist_item = reinterpret_cast<double *>(this->hist_[first_nidx].data())[hist_idx];
           hist_to_aggr.push_back(hist_item);
         }
@@ -219,7 +219,7 @@ class HistogramBuilder {
                 processor_instance->HandleHistograms(hist_entries.data(), hist_entries.size());
 
         // Assign the aggregated histogram back to the local histogram
-        for (int hist_idx = 0; hist_idx < n; hist_idx++) {
+        for (std::size_t hist_idx = 0; hist_idx < n; hist_idx++) {
           reinterpret_cast<double *>(this->hist_[first_nidx].data())[hist_idx] =
                   hist_aggr[hist_idx];
         }
