@@ -13,14 +13,14 @@ const int64_t kDataTypeHisto = 2;
 const int64_t kDataTypeAggregatedHisto = 3;
 
 class MockProcessor: public processing::Processor {
-private:
+ private:
   bool active_ = false;
   const std::map<std::string, std::string> *params_{nullptr};
   std::vector<double> *gh_pairs_{nullptr};
   std::vector<uint32_t> cuts_;
   std::vector<int> slots_;
 
-public:
+ public:
   void Initialize(bool active, std::map<std::string, std::string> params) override {
     this->active_ = active;
     this->params_ = &params;
