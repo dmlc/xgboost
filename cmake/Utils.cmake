@@ -289,7 +289,7 @@ macro(xgboost_target_link_libraries target)
   endif()
 
   if(USE_NVTX)
-    target_link_libraries(${target} PRIVATE CUDA::nvToolsExt)
+    target_link_libraries(${target} PRIVATE CUDA::nvtx3)
   endif()
 
   if(MINGW)
