@@ -54,7 +54,7 @@ pom_template = """
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
-      <version>2.14.2</version>
+      <version>2.15.4</version>
     </dependency>
     <dependency>
       <groupId>org.scalatest</groupId>
