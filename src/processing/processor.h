@@ -90,26 +90,6 @@ class Processor {
      *     site1_node1, site1_node2 site1_node3, site2_node1, site2_node2, site2_node3
      */
     virtual std::vector<double> HandleAggregation(void *buffer, size_t buf_size) = 0;
-
-    /*!
-     * \brief Prepare histograms for further processing
-     *
-     * \param size The output buffer size
-     * \param histograms Flattened array of histograms for all features
-     *
-     * \return The encoded buffer to be sent via AllGatherV
-     */
-    virtual void *ProcessHistograms(size_t *size, const std::vector<double>& histograms) = 0;
-
-    /*!
-     * \brief Handle processed histograms
-     *
-     * \param buffer Buffer from allgatherV
-     * \param buf_size The size of the buffer
-     *
-     * \return A flattened vector of histograms for all features
-     */
-    virtual std::vector<double> HandleHistograms(void *buffer, size_t buf_size) = 0;
 };
 
 class ProcessorLoader {

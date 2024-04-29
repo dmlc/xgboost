@@ -84,30 +84,3 @@ TEST_F(ProcessorTest, TestAggregation) {
         EXPECT_NEAR(expected_result[i], histos[i], kError) << "Histogram differs at index " << i;
     }
 }
-
-TEST_F(ProcessorTest, TestHistogramSum) {
-
-    size_t buf1_size, buf2_size;
-
-    auto buf1 = processor_->ProcessHistograms(&buf1_size, histo1_);
-    auto buf2 = processor_->ProcessHistograms(&buf2_size, histo2_);
-
-    // Simulate allgatherV
-    auto buf_size = buf1_size + buf2_size;
-    auto buf = malloc(buf_size);
-    memcpy(buf, buf1, buf1_size);
-    memcpy(static_cast<char *>(buf) + buf1_size, buf2, buf2_size);
-
-    auto result = processor_->HandleHistograms(buf, buf_size);
-
-    double expected_result[] = {6.0, 8.0, 10.0, 12.0};
-    auto expected_size = sizeof(expected_result)/sizeof(expected_result[0]);
-    ASSERT_EQ(expected_size, result.size()) << "Histograms have different sizes";
-
-    for (size_t i = 0; i < result.size(); ++i) {
-        EXPECT_NEAR(expected_result[i], result[i], kError) << "Histogram differs at index " << i;
-    }
-
-    free(buf);
-}
-

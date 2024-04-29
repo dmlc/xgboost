@@ -51,8 +51,4 @@ class MockProcessor: public processing::Processor {
     void *ProcessAggregation(size_t *size, std::map<int, std::vector<int>> nodes) override;
 
     std::vector<double> HandleAggregation(void *buffer, size_t buf_size) override;
-
-    void *ProcessHistograms(size_t *size, const std::vector<double>& histograms) override;
-
-    std::vector<double> HandleHistograms(void *buffer, size_t buf_size) override;
 };
