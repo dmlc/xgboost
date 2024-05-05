@@ -35,7 +35,7 @@
         <maven.compiler.target>1.8</maven.compiler.target>
         <flink.version>1.19.0</flink.version>
         <junit.version>4.13.2</junit.version>
-        <spark.version>3.4.1</spark.version>
+        <spark.version>3.5.1</spark.version>
         <spark.version.gpu>3.4.1</spark.version.gpu>
         <scala.version>2.12.18</scala.version>
         <scala.binary.version>2.12</scala.binary.version>
@@ -123,7 +123,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-jar-plugin</artifactId>
-                        <version>3.4.0</version>
+                        <version>3.4.1</version>
                         <executions>
                             <execution>
                                 <id>empty-javadoc-jar</id>
@@ -152,7 +152,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-gpg-plugin</artifactId>
-                        <version>3.2.3</version>
+                        <version>3.2.4</version>
                         <executions>
                             <execution>
                                 <id>sign-artifacts</id>
@@ -410,7 +410,7 @@
             <plugin>
                 <groupId>net.alchim31.maven</groupId>
                 <artifactId>scala-maven-plugin</artifactId>
-                <version>4.8.1</version>
+                <version>4.9.0</version>
                 <executions>
                     <execution>
                         <id>compile</id>
@@ -473,7 +473,7 @@
             <plugin>
                 <groupId>net.alchim31.maven</groupId>
                 <artifactId>scala-maven-plugin</artifactId>
-                <version>4.8.1</version>
+                <version>4.9.0</version>
                 <configuration>
                     <jvmArgs>
                         <jvmArg>-Xms64m</jvmArg>
