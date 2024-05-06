@@ -248,7 +248,7 @@ class TestPandas:
         assert transformed.columns[0].min() == 0
 
         # test missing value
-        X = pd.DataFrame({"f0": ["a", "b", np.NaN]})
+        X = pd.DataFrame({"f0": ["a", "b", np.nan]})
         X["f0"] = X["f0"].astype("category")
         arr, _, _ = xgb.data._transform_pandas_df(X, enable_categorical=True)
         for c in arr.columns:

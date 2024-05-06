@@ -333,7 +333,7 @@ class TestQuantileDMatrix:
 
         # unsupported types
         for dtype in [
-            np.string_,
+            np.bytes_,
             np.complex64,
             np.complex128,
         ]:

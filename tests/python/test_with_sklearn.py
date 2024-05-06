@@ -1098,7 +1098,7 @@ def test_pandas_input():
     np.testing.assert_equal(model.feature_names_in_, np.array(feature_names))
 
     columns = list(train.columns)
-    random.shuffle(columns, lambda: 0.1)
+    random.shuffle(columns)
     df_incorrect = df[columns]
     with pytest.raises(ValueError):
         model.predict(df_incorrect)
