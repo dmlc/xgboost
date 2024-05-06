@@ -233,9 +233,9 @@ def _maybe_np_slice(data: DataType, dtype: Optional[NumpyDType]) -> np.ndarray:
         if not data.flags.c_contiguous:
             data = np.array(data, copy=True, dtype=dtype)
         else:
-            data = np.array(data, copy=False, dtype=dtype)
+            data = np.asarray(data, dtype=dtype)
     except AttributeError:
-        data = np.array(data, copy=False, dtype=dtype)
+        data = np.asarray(data, dtype=dtype)
     data, dtype = _ensure_np_dtype(data, dtype)
     return data
 
@@ -483,7 +483,7 @@ def pandas_transform_data(data: DataFrame) -> List[np.ndarray]:
         if is_pd_cat_dtype(ser.dtype):
             return _ensure_np_dtype(
                 ser.cat.codes.astype(np.float32)
-                .replace(-1.0, np.NaN)
+                .replace(-1.0, np.nan)
                 .to_numpy(na_value=np.nan),
                 np.float32,
             )[0]
@@ -495,7 +495,7 @@ def pandas_transform_data(data: DataFrame) -> List[np.ndarray]:
             .combine_chunks()
             .dictionary_encode()
             .indices.astype(np.float32)
-            .replace(-1.0, np.NaN)
+            .replace(-1.0, np.nan)
         )
 
     def nu_type(ser: pd.Series) -> np.ndarray:

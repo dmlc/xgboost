@@ -437,7 +437,7 @@ def make_categorical(
             index = rng.randint(
                 low=0, high=n_samples - 1, size=int(n_samples * sparsity)
             )
-            df.iloc[index, i] = np.NaN
+            df.iloc[index, i] = np.nan
             if is_categorical_dtype(df.dtypes[i]):
                 assert n_categories == np.unique(df.dtypes[i].categories).size
 
