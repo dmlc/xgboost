@@ -7,9 +7,68 @@
 
 #include <oneapi/dpl/random>
 
+#include "../common/hist_util.h"
+
 namespace xgboost {
 namespace sycl {
 namespace tree {
+
+template <typename GradientSumT>
+void HistUpdater<GradientSumT>::SetHistSynchronizer(
+    HistSynchronizer<GradientSumT> *sync) {
+  hist_synchronizer_.reset(sync);
+}
+
+template <typename GradientSumT>
+void HistUpdater<GradientSumT>::SetHistRowsAdder(
+    HistRowsAdder<GradientSumT> *adder) {
+  hist_rows_adder_.reset(adder);
+}
+
+template <typename GradientSumT>
+void HistUpdater<GradientSumT>::BuildHistogramsLossGuide(
+    ExpandEntry entry,
+    const common::GHistIndexMatrix &gmat,
+    RegTree *p_tree,
+    const USMVector<GradientPair, MemoryType::on_device> &gpair_device) {
+  nodes_for_explicit_hist_build_.clear();
+  nodes_for_subtraction_trick_.clear();
+  nodes_for_explicit_hist_build_.push_back(entry);
+
+  if (!(*p_tree)[entry.nid].IsRoot()) {
+    auto sibling_id = entry.GetSiblingId(p_tree);
+    nodes_for_subtraction_trick_.emplace_back(sibling_id, p_tree->GetDepth(sibling_id));
+  }
+
+  std::vector<int> sync_ids;
+  hist_rows_adder_->AddHistRows(this, &sync_ids, p_tree);
+  qu_.wait_and_throw();
+  BuildLocalHistograms(gmat, p_tree, gpair_device);
+  hist_synchronizer_->SyncHistograms(this, sync_ids, p_tree);
+}
+
+template<typename GradientSumT>
+void HistUpdater<GradientSumT>::BuildLocalHistograms(
+    const common::GHistIndexMatrix &gmat,
+    RegTree *p_tree,
+    const USMVector<GradientPair, MemoryType::on_device> &gpair_device) {
+  builder_monitor_.Start("BuildLocalHistograms");
+  const size_t n_nodes = nodes_for_explicit_hist_build_.size();
+  ::sycl::event event;
+
+  for (size_t i = 0; i < n_nodes; i++) {
+    const int32_t nid = nodes_for_explicit_hist_build_[i].nid;
+
+    if (row_set_collection_[nid].Size() > 0) {
+      event = BuildHist(gpair_device, row_set_collection_[nid], gmat, &(hist_[nid]),
+                        &(hist_buffer_.GetDeviceBuffer()), event);
+    } else {
+      common::InitHist(qu_, &(hist_[nid]), hist_[nid].Size(), &event);
+    }
+  }
+  qu_.wait_and_throw();
+  builder_monitor_.Stop("BuildLocalHistograms");
+}
 
 template<typename GradientSumT>
 void HistUpdater<GradientSumT>::InitSampling(
@@ -70,6 +129,21 @@ void HistUpdater<GradientSumT>::InitData(
   // initialize the row set
   {
     row_set_collection_.Clear();
+
+    // initialize histogram collection
+    uint32_t nbins = gmat.cut.Ptrs().back();
+    hist_.Init(qu_, nbins);
+
+    hist_buffer_.Init(qu_, nbins);
+    size_t buffer_size = kBufferSize;
+    if (buffer_size > info.num_row_ / kMinBlockSize + 1) {
+      buffer_size = info.num_row_ / kMinBlockSize + 1;
+    }
+    hist_buffer_.Reset(buffer_size);
+
+    // initialize histogram builder
+    hist_builder_ = common::GHistBuilder<GradientSumT>(qu_, nbins);
+
     USMVector<size_t, MemoryType::on_device>* row_indices = &(row_set_collection_.Data());
     row_indices->Resize(&qu_, info.num_row_);
     size_t* p_row_indices = row_indices->Data();
@@ -122,6 +196,25 @@ void HistUpdater<GradientSumT>::InitData(
     }
   }
   row_set_collection_.Init();
+
+  {
+    /* determine layout of data */
+    const size_t nrow = info.num_row_;
+    const size_t ncol = info.num_col_;
+    const size_t nnz = info.num_nonzero_;
+    // number of discrete bins for feature 0
+    const uint32_t nbins_f0 = gmat.cut.Ptrs()[1] - gmat.cut.Ptrs()[0];
+    if (nrow * ncol == nnz) {
+      // dense data with zero-based indexing
+      data_layout_ = kDenseDataZeroBased;
+    } else if (nbins_f0 == 0 && nrow * (ncol - 1) == nnz) {
+      // dense data with one-based indexing
+      data_layout_ = kDenseDataOneBased;
+    } else {
+      // sparse data
+      data_layout_ = kSparseData;
+    }
+  }
 }
 
 template class HistUpdater<float>;
