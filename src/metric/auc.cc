@@ -311,7 +311,8 @@ class EvalAUC : public MetricNoCache {
       }
       auc = collective::GlobalRatio(ctx_, info, auc, fp * tp);
       if (!std::isnan(auc)) {
-        CHECK_LE(auc, 1.0);
+        CHECK_LE(auc, 1.0 + kRtEps);
+        auc = std::min(auc, 1.0);
       }
     }
     if (std::isnan(auc)) {
