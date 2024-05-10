@@ -434,9 +434,9 @@ class HistEvaluator {
         // and workers can recover the actual split value with the split index
         // Note that after the recovery, different workers will hold different
         // split_value: real value for feature owner, NaN for others
-        for (std::size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
-          auto cut_index = entries[nidx_in_set].split.split_value;
-          entries[nidx_in_set].split.split_value = cut.Values()[cut_index];
+        for (auto & entry : entries) {
+          auto cut_index = entry.split.split_value;
+          entry.split.split_value = cut.Values()[cut_index];
         }
       }
     }
