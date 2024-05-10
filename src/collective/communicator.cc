@@ -100,6 +100,10 @@ void Communicator::Init(Json const& config) {
 void Communicator::Finalize() {
   communicator_->Shutdown();
   communicator_.reset(new NoOpCommunicator());
+  if (processor_instance != nullptr) {
+    processor_instance->Shutdown();
+    processor_instance = nullptr;
+  }
 }
 #endif
 }  // namespace xgboost::collective

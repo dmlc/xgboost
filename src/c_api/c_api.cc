@@ -45,7 +45,6 @@
 #include "xgboost/span.h"                    // for Span
 #include "xgboost/string_view.h"             // for StringView, operator<<
 #include "xgboost/version_config.h"          // for XGBOOST_VER_MAJOR, XGBOOST_VER_MINOR, XGBOOS...
-#include "../processing/processor.h"  // for Processor
 
 #if defined(XGBOOST_USE_FEDERATED)
 #include "../../plugin/federated/federated_server.h"
@@ -1738,8 +1737,6 @@ XGB_DLL int XGCommunicatorInit(char const* json_config) {
 XGB_DLL int XGCommunicatorFinalize() {
   API_BEGIN();
   collective::Finalize();
-  processor_instance->Shutdown();
-  processor_instance = nullptr;
   API_END();
 }
 
