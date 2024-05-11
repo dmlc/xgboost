@@ -2,7 +2,7 @@
 
 import ctypes
 from threading import Thread
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from .core import _LIB, _check_call, make_jcargs
 from .tracker import RabitTracker
@@ -62,14 +62,17 @@ class FederatedTracker(RabitTracker):
 def run_federated_server(  # pylint: disable=too-many-arguments
     n_workers: int,
     port: int,
-    server_key_path: str = "",
-    server_cert_path: str = "",
-    client_cert_path: str = "",
+    server_key_path: Optional[str] = None,
+    server_cert_path: Optional[str] = None,
+    client_cert_path: Optional[str] = None,
     timeout: int = 300,
 ) -> Dict[str, Any]:
     """See :py:class:`~xgboost.federated.FederatedTracker` for more info."""
     args: Dict[str, Any] = {"n_workers": n_workers}
-    secure = not server_key_path or not server_cert_path or not client_cert_path
+    secure = all(
+        path is not None
+        for path in [server_key_path, server_cert_path, client_cert_path]
+    )
     tracker = FederatedTracker(
         n_workers=n_workers, port=port, secure=secure, timeout=timeout
     )
