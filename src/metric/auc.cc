@@ -177,7 +177,7 @@ double GroupRankingROC(Context const* ctx, common::Span<float const> predts,
   if (sum_w != 0) {
     auc /= sum_w;
   }
-  CHECK_LE(auc, 1.0f);
+  CHECK_LE(auc, 1.0 + kRtEps);
   return auc;
 }
 
@@ -290,8 +290,8 @@ class EvalAUC : public MetricNoCache {
 
       auc = collective::GlobalRatio(ctx_, info, auc, static_cast<double>(valid_groups));
       if (!std::isnan(auc)) {
-        CHECK_LE(auc, 1) << "Total AUC across groups: " << auc * valid_groups
-                         << ", valid groups: " << valid_groups;
+        CHECK_LE(auc, 1.0 + kRtEps) << "Total AUC across groups: " << auc * valid_groups
+                                    << ", valid groups: " << valid_groups;
       }
     } else if (meta[0] != meta[1] && meta[1] % meta[0] == 0) {
       /**
@@ -311,7 +311,8 @@ class EvalAUC : public MetricNoCache {
       }
       auc = collective::GlobalRatio(ctx_, info, auc, fp * tp);
       if (!std::isnan(auc)) {
-        CHECK_LE(auc, 1.0);
+        CHECK_LE(auc, 1.0 + kRtEps);
+        auc = std::min(auc, 1.0);
       }
     }
     if (std::isnan(auc)) {

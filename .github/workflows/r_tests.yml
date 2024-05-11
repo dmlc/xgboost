@@ -29,7 +29,7 @@ jobs:
       with:
         submodules: 'true'
 
-    - uses: r-lib/actions/setup-r@b7e68d63e51bdf225997973e2add36d551f60f02 # v2.8.7
+    - uses: r-lib/actions/setup-r@929c772977a3a13c8733b363bf5a2f685c25dd91 # v2.9.0
       with:
         r-version: ${{ matrix.config.r }}
 
@@ -37,8 +37,8 @@ jobs:
       uses: actions/cache@937d24475381cd9c75ae6db12cb4e79714b926ed # v3.0.11
       with:
         path: ${{ env.R_LIBS_USER }}
-        key: ${{ runner.os }}-r-${{ matrix.config.r }}-6-${{ hashFiles('R-package/DESCRIPTION') }}
-        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-6-${{ hashFiles('R-package/DESCRIPTION') }}
+        key: ${{ runner.os }}-r-${{ matrix.config.r }}-7-${{ hashFiles('R-package/DESCRIPTION') }}
+        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-7-${{ hashFiles('R-package/DESCRIPTION') }}
 
     - name: Install dependencies
       shell: Rscript {0}
@@ -73,7 +73,7 @@ jobs:
       with:
         submodules: 'true'
 
-    - uses: r-lib/actions/setup-r@b7e68d63e51bdf225997973e2add36d551f60f02 # v2.8.7
+    - uses: r-lib/actions/setup-r@929c772977a3a13c8733b363bf5a2f685c25dd91 # v2.9.0
       with:
         r-version: ${{ matrix.config.r }}
 
@@ -81,8 +81,8 @@ jobs:
       uses: actions/cache@937d24475381cd9c75ae6db12cb4e79714b926ed # v3.0.11
       with:
         path: ${{ env.R_LIBS_USER }}
-        key: ${{ runner.os }}-r-${{ matrix.config.r }}-6-${{ hashFiles('R-package/DESCRIPTION') }}
-        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-6-${{ hashFiles('R-package/DESCRIPTION') }}
+        key: ${{ runner.os }}-r-${{ matrix.config.r }}-7-${{ hashFiles('R-package/DESCRIPTION') }}
+        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-7-${{ hashFiles('R-package/DESCRIPTION') }}
 
     - uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
       with:
