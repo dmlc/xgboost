@@ -370,10 +370,8 @@ def pandas_feature_info(
     if feature_names is None and meta is None:
         if isinstance(data.columns, pd.MultiIndex):
             feature_names = [" ".join([str(x) for x in i]) for i in data.columns]
-        elif isinstance(data.columns, (pd.Index, pd.RangeIndex)):
-            feature_names = list(map(str, data.columns))
         else:
-            feature_names = data.columns.format()
+            feature_names = list(data.columns.map(str))
 
     # handle feature types
     if feature_types is None and meta is None:
@@ -865,6 +863,22 @@ def _is_cudf_df(data: DataType) -> bool:
     return lazy_isinstance(data, "cudf.core.dataframe", "DataFrame")
 
 
+def _get_cudf_cat_predicate() -> Callable[[Any], bool]:
+    try:
+        from cudf import CategoricalDtype
+
+        def is_categorical_dtype(dtype: Any) -> bool:
+            return isinstance(dtype, CategoricalDtype)
+
+    except ImportError:
+        try:
+            from cudf.api.types import is_categorical_dtype  # type: ignore
+        except ImportError:
+            from cudf.utils.dtypes import is_categorical_dtype  # type: ignore
+
+    return is_categorical_dtype
+
+
 def _cudf_array_interfaces(data: DataType, cat_codes: list) -> bytes:
     """Extract CuDF __cuda_array_interface__.  This is special as it returns a new list
     of data and a list of array interfaces.  The data is list of categorical codes that
@@ -872,11 +886,7 @@ def _cudf_array_interfaces(data: DataType, cat_codes: list) -> bytes:
     array interface is finished.
 
     """
-    try:
-        from cudf.api.types import is_categorical_dtype
-    except ImportError:
-        from cudf.utils.dtypes import is_categorical_dtype
-
+    is_categorical_dtype = _get_cudf_cat_predicate()
     interfaces = []
 
     def append(interface: dict) -> None:
@@ -908,12 +918,13 @@ def _transform_cudf_df(
     feature_types: Optional[FeatureTypes],
     enable_categorical: bool,
 ) -> Tuple[ctypes.c_void_p, list, Optional[FeatureNames], Optional[FeatureTypes]]:
+
     try:
-        from cudf.api.types import is_bool_dtype, is_categorical_dtype
+        from cudf.api.types import is_bool_dtype
     except ImportError:
-        from cudf.utils.dtypes import is_categorical_dtype
         from pandas.api.types import is_bool_dtype
 
+    is_categorical_dtype = _get_cudf_cat_predicate()
     # Work around https://github.com/dmlc/xgboost/issues/10181
     if _is_cudf_ser(data):
         if is_bool_dtype(data.dtype):
@@ -941,15 +952,8 @@ def _transform_cudf_df(
             feature_names = [data.name]
         elif lazy_isinstance(data.columns, "cudf.core.multiindex", "MultiIndex"):
             feature_names = [" ".join([str(x) for x in i]) for i in data.columns]
-        elif (
-            lazy_isinstance(data.columns, "cudf.core.index", "RangeIndex")
-            or lazy_isinstance(data.columns, "cudf.core.index", "Int64Index")
-            # Unique to cuDF, no equivalence in pandas 1.3.3
-            or lazy_isinstance(data.columns, "cudf.core.index", "Int32Index")
-        ):
-            feature_names = list(map(str, data.columns))
         else:
-            feature_names = data.columns.format()
+            feature_names = list(data.columns.map(str))
 
     # handle feature types
     if feature_types is None:

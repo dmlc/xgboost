@@ -280,10 +280,12 @@ class TestPandas:
             }
         )
         y = pd.Series(pd.arrays.SparseArray(np.random.randn(rows)))
-        dtrain = xgb.DMatrix(X, y)
+        with pytest.warns(UserWarning, match="Sparse arrays from pandas"):
+            dtrain = xgb.DMatrix(X, y)
         booster = xgb.train({}, dtrain, num_boost_round=4)
-        predt_sparse = booster.predict(xgb.DMatrix(X))
-        predt_dense = booster.predict(xgb.DMatrix(X.sparse.to_dense()))
+        with pytest.warns(UserWarning, match="Sparse arrays from pandas"):
+            predt_sparse = booster.predict(xgb.DMatrix(X))
+            predt_dense = booster.predict(xgb.DMatrix(X.sparse.to_dense()))
         np.testing.assert_allclose(predt_sparse, predt_dense)
 
     def test_pandas_label(
@@ -572,14 +574,16 @@ class TestPandas:
         y = pd.Series(pd.arrays.SparseArray(np.random.randn(rows)))
 
         def verify_pandas_sparse():
-            dtrain = xgb.DMatrix(X, y, data_split_mode=DataSplitMode.COL)
+            with pytest.warns(UserWarning, match="Sparse arrays from pandas"):
+                dtrain = xgb.DMatrix(X, y, data_split_mode=DataSplitMode.COL)
             booster = xgb.train({}, dtrain, num_boost_round=4)
-            predt_sparse = booster.predict(
-                xgb.DMatrix(X, data_split_mode=DataSplitMode.COL)
-            )
-            predt_dense = booster.predict(
-                xgb.DMatrix(X.sparse.to_dense(), data_split_mode=DataSplitMode.COL)
-            )
+            with pytest.warns(UserWarning, match="Sparse arrays from pandas"):
+                predt_sparse = booster.predict(
+                    xgb.DMatrix(X, data_split_mode=DataSplitMode.COL)
+                )
+                predt_dense = booster.predict(
+                    xgb.DMatrix(X.sparse.to_dense(), data_split_mode=DataSplitMode.COL)
+                )
             np.testing.assert_allclose(predt_sparse, predt_dense)
 
         tm.run_with_rabit(world_size=3, test_fn=verify_pandas_sparse)
