@@ -234,7 +234,7 @@ class CommunicatorContext(collective.CommunicatorContext):
         # not the same as task ID is string and "10" is sorted before "2") with dask
         # worker ID. This outsources the rank assignment to dask and prevents
         # non-deterministic issue.
-        self.args["DMLC_TASK_ID"] = f"[xgboost.dask-{worker.address}]"
+        self.args["DMLC_TASK_ID"] = f"[xgboost.dask-{wid}]:" + str(worker.address)
 
 
 def dconcat(value: Sequence[_T]) -> _T:
