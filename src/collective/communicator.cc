@@ -22,25 +22,25 @@ thread_local CommunicatorType Communicator::type_{};
 thread_local std::string Communicator::nccl_path_{};
 
 std::map<std::string, std::string> json_to_map(xgboost::Json const& config, std::string key) {
-    auto json_map = xgboost::OptionalArg<xgboost::Object>(config, key, xgboost::JsonObject::Map{});
-    std::map<std::string, std::string> params{};
-    for (auto entry : json_map) {
-        std::string text;
-        xgboost::Value* value = &(entry.second.GetValue());
-        if (value->Type() == xgboost::Value::ValueKind::kString) {
-            text = reinterpret_cast<xgboost::String *>(value)->GetString();
-        } else if (value->Type() == xgboost::Value::ValueKind::kInteger) {
-            auto num = reinterpret_cast<xgboost::Integer *>(value)->GetInteger();
-            text = std::to_string(num);
-        } else if (value->Type() == xgboost::Value::ValueKind::kNumber) {
-            auto num = reinterpret_cast<xgboost::Number *>(value)->GetNumber();
-            text = std::to_string(num);
-        } else {
-            text = "Unsupported type ";
-        }
-        params[entry.first] = text;
+  auto json_map = xgboost::OptionalArg<xgboost::Object>(config, key, xgboost::JsonObject::Map{});
+  std::map<std::string, std::string> params{};
+  for (auto entry : json_map) {
+    std::string text;
+    xgboost::Value* value = &(entry.second.GetValue());
+    if (value->Type() == xgboost::Value::ValueKind::kString) {
+      text = reinterpret_cast<xgboost::String *>(value)->GetString();
+    } else if (value->Type() == xgboost::Value::ValueKind::kInteger) {
+      auto num = reinterpret_cast<xgboost::Integer *>(value)->GetInteger();
+      text = std::to_string(num);
+    } else if (value->Type() == xgboost::Value::ValueKind::kNumber) {
+      auto num = reinterpret_cast<xgboost::Number *>(value)->GetNumber();
+      text = std::to_string(num);
+    } else {
+      text = "Unsupported type ";
     }
-    return params;
+    params[entry.first] = text;
+  }
+  return params;
 }
 
 void Communicator::Init(Json const& config) {
@@ -81,17 +81,18 @@ void Communicator::Init(Json const& config) {
     processor_instance->Initialize(collective::GetRank() == 0, proc_params);
   }
 #else
-      LOG(FATAL) << "XGBoost is not compiled with Federated Learning support.";
+  LOG(FATAL) << "XGBoost is not compiled with Federated Learning support.";
 #endif
-      break;
-    }
-    case CommunicatorType::kInMemory:
-    case CommunicatorType::kInMemoryNccl: {
-      communicator_.reset(InMemoryCommunicator::Create(config));
-      break;
-    }
-    case CommunicatorType::kUnknown:
-      LOG(FATAL) << "Unknown communicator type.";
+    break;
+  }
+
+  case CommunicatorType::kInMemory:
+  case CommunicatorType::kInMemoryNccl: {
+    communicator_.reset(InMemoryCommunicator::Create(config));
+    break;
+  }
+  case CommunicatorType::kUnknown:
+    LOG(FATAL) << "Unknown communicator type.";
   }
 }
 
@@ -99,6 +100,10 @@ void Communicator::Init(Json const& config) {
 void Communicator::Finalize() {
   communicator_->Shutdown();
   communicator_.reset(new NoOpCommunicator());
+  if (processor_instance != nullptr) {
+    processor_instance->Shutdown();
+    processor_instance = nullptr;
+  }
 }
 #endif
 }  // namespace xgboost::collective
