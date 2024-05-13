@@ -1,0 +1,447 @@
+###################################
+Advanced Usage of Custom Objectives
+###################################
+
+**Contents**
+
+.. contents::
+  :backlinks: none
+  :local:
+
+********
+Overview
+********
+
+XGBoost allows optimizing custom user-defined functions based on
+gradients and Hessians provided by the user for the desired objective function.
+
+In order for a custom objective to work as intended:
+
+- The function to optimize must be smooth and twice differentiable.
+- The function must be additive with respect to rows / observations,
+  such as a likelihood function with i.i.d. assumptions.
+- The range of the scores for the function must be unbounded
+  (i.e. it should not work exclusively with positive numbers, for example).
+- The function must be convex. Note that, if the Hessian has negative
+  values, they will be clipped, which will likely result in a model
+  that does not fit the function well.
+- For multi-output objectives, there should not be dependencies between
+  different targets (i.e. Hessian should be diagonal for each row).
+
+
+Some of these limitations can nevertheless be worked around by foregoing
+the true Hessian of the function, using something else instead such as an
+approximation with better properties - convergence might be slower when
+not using the true Hessian of a function, but many theoretical guarantees
+should still hold and result in usable models. For example, XGBoost's
+internal implementation of multionomial logistic regression uses an upper
+bound on the Hessian instead of the true Hessian.
+
+This tutorial provides some suggestions for use-cases that do not perfectly
+fit the criteria outlined above, by showing how to solve a Dirichlet regression
+parameterized by concentrations.
+
+A Dirichlet regression model poses certain challenges for XGBoost:
+
+- Concentration parameters must be positive. An easy way to achieve this is
+  by applying an 'exp' transform on raw unbounded values, but in such case
+  the objective becomes non-convex. Furthermore, note that this function is
+  not in the exponential family, unlike typical distributions used for GLM
+  models.
+- The Hessian has dependencies between targets - that is, for a Dirichlet
+  distribution with 'k' parameters, each row will have a Hessian of shape
+  ``[k, k]``.
+- An optimal intercept for this type of model would involve a vector of
+  values rather than the same value for every target.
+
+In order to use this type of model as a custom objetive:
+
+- It's possible to use the expected Hessian (a.k.a. the Fisher information
+  matrix or expected information) instead of the true Hessian. The expected
+  Hessian is always positive semi-definite for an additive likelihood, even
+  if the true Hessian isn't.
+- It's possible to use an upper bound of the expected Hessian with a diagonal
+  structure, such that a second-order approximation under this diagonal
+  bound would always be greater or equal than under the non-diagonal
+  expected Hessian.
+- Since the ``base_score`` parameter that XGBoost uses for an intercept is
+  limited to a scalar, one can use the ``base_margin`` functionality instead,
+  but note that using it requires a bit more effort.
+
+******************************************
+Dirichlet Regression as Objective Function
+******************************************
+
+The Dirichlet distribution is a generalization of the Beta distribution to
+multiple dimensions. It models proportions data in which the values sum to
+1, and is typically used as part of composite models (e.g. Dirichlet-multinomial)
+or as a prior in Bayesian models, but it also can be used on its own for
+proportions data for example.
+
+Its likelihood for a given observation with values ``y`` and a given prediction ``x``
+is given as follows:
+
+.. math::
+    L(\mathbf{y} | \mathbf{x}) = \frac{1}{\beta(\mathbf{x})} \prod_{i=1}^k y_i^{x_i - 1}
+
+Where:
+
+.. math::
+  \beta(\mathbf{x}) = \frac{ \prod_{i=1}^k \Gamma(x_i) }{\Gamma( \sum_i x_i )}
+
+
+In this case, we want to optimize the negative of the log-likelihood summed across rows.
+The resulting function, gradient and Hessian could be implemented as follows:
+
+.. code-block:: python
+
+    import numpy as np
+    from scipy.special import loggamma, psi as digamma, polygamma
+    trigamma = lambda x: polygamma(1, x)
+
+    def dirichlet_fun(pred: np.ndarray, Y: np.ndarray) -> float:
+        epred = np.exp(pred)
+        sum_epred = np.sum(epred, axis=1, keepdims=True)
+        return (
+            loggamma(epred).sum()
+            - loggamma(sum_epred).sum()
+            - np.sum(np.log(Y) * (epred - 1))
+        )
+    def dirichlet_grad(pred: np.ndarray, Y: np.ndarray) -> np.ndarray:
+        epred = np.exp(pred)
+        return epred * (
+            digamma(epred)
+            - digamma(np.sum(epred, axis=1, keepdims=True))
+            - np.log(Y)
+        )
+    def dirichlet_hess(pred: np.ndarray, Y: np.ndarray) -> np.ndarray:
+        epred = np.exp(pred)
+        grad = dirichlet_grad(pred, Y)
+        k = Y.shape[1]
+        H = np.empty((pred.shape[0], k, k))
+        for row in range(pred.shape[0]):
+            H[row, :, :] = (
+                - trigamma(epred[row].sum()) * np.outer(epred[row], epred[row])
+                + np.diag(grad[row] + trigamma(epred[row]) * epred[row] ** 2)
+            )
+        return H
+
+
+Convince yourself that the implementation is correct (can also be compared against
+SciPy's ``stats.dirichlet.logpdf`` for an alternative):
+
+.. code-block:: python
+
+    from scipy.optimize import check_grad
+    
+    def test_dirichlet_fun_grad_hess():
+        k = Y.shape[1]
+        x0 = np.zeros(k)
+        for row in range(Y.shape[0]):
+            gdiff = check_grad(
+                lambda pred: dirichlet_fun(pred.reshape((1,-1)), Y[[row]]),
+                lambda pred: dirichlet_grad(pred.reshape((1,-1)), Y[[row]]),
+                x0
+            )
+            assert gdiff <= 1e-6
+
+            H_numeric = np.empty((k,k))
+            eps = 1e-7
+            for ii in range(k):
+                x0_plus_eps = x0.reshape((1,-1)).copy()
+                x0_plus_eps[0,ii] += eps
+                for jj in range(k):
+                    H_numeric[ii, jj] = (
+                        dirichlet_grad(x0_plus_eps, Y[[row]])[0][jj]
+                        - dirichlet_grad(x0.reshape((1,-1)), Y[[row]])[0][jj]
+                    ) / eps
+            H = dirichlet_hess(x0.reshape((1,-1)), Y[[row]])[0]
+            np.testing.assert_almost_equal(H, H_numeric, decimal=6)
+    test_dirichlet_fun_grad_hess()
+
+******************************************
+Dirichlet Regression as Objective Function
+******************************************
+
+As mentioned earlier, the Hessian of this function is problematic for
+XGBoost: it can have a negative determinant, and might even have negative
+values in the diagonal, which is problematic for optimization methods - in
+XGBoost, those values would be clipped and the resulting model might not
+end up producing sensible predictions.
+
+A potential workaround is to use the expected Hessian instead - that is,
+the expected outer product of the gradient if the response variable were
+distributed according to what is predicted. See the Wikipedia article
+for more information:
+
+`<https://en.wikipedia.org/wiki/Fisher_information>`_
+
+In general, for objective functions in the exponential family, this is easy
+to obtain from the gradient of the link function and the variance of the
+probability distribution, but for other functions in general, it might
+involve other types of calculations (e.g. covariances and covariances of
+logarithms for Dirichlet).
+
+It nevertheless results in a form very similar to the Hessian. One can also
+see from the differences here that, at an optimal point (gradient being zero),
+the expected and true Hessian for Dirichlet will match, which is a nice
+property for optimization (i.e. the Hessian will be positive at a stationary
+point, which means it will be a minimum rather than a maximum or saddle point).
+
+.. code-block:: python
+
+    def dirichlet_expected_hess(pred: np.ndarray) -> np.ndarray:
+        epred = np.exp(pred)
+        k = Y.shape[1]
+        Ehess = np.empty((pred.shape[0], k, k))
+        for row in range(pred.shape[0]):
+            Ehess[row, :, :] = (
+                - trigamma(epred[row].sum()) * np.outer(epred[row], epred[row])
+                + np.diag(trigamma(epred[row]) * epred[row] ** 2)
+            )
+        return Ehess
+    def test_dirichlet_expected_hess():
+        rng = np.random.default_rng(seed=123)
+        k = 3
+        x0 = np.zeros(k)
+        y_sample = rng.dirichlet(np.exp(x0), size=5_000_000)
+        x_broadcast = np.broadcast_to(x0, (y_sample.shape[0], k))
+        g_sample = dirichlet_grad(x_broadcast, y_sample)
+        ref = (g_sample.T @ g_sample) / y_sample.shape[0]
+        Ehess = dirichlet_expected_hess(x0.reshape((1,-1)))[0]
+        np.testing.assert_almost_equal(Ehess, ref, decimal=2)
+    test_dirichlet_expected_hess()
+
+But note that this is still not usable for XGBoost, since the expected
+Hessian, just like the true Hessian, has shape ``[nrows, k, k]``, while
+XGBoost requires something with shape ``[k, k]``.
+
+One may use the diagonal of the expected Hessian for each row, but it's
+possible to do better: one can use instead an upper bound with diagonal
+structure, since it should lead to better convergence properties, just like
+for other Hessian-base optimization methods.
+
+In the absence of any obvious way of obtaining an upper bound, a possibility
+here is to construct such a bound numerically based directly on the definition
+of a diagonally dominant matrix:
+
+`<https://en.wikipedia.org/wiki/Diagonally_dominant_matrix>`_
+
+That is: take the absolute value of the expected Hessian, and sum by rows:
+
+.. code-block:: python
+
+    def dirichlet_diag_upper_bound_expected_hess(
+        pred: np.ndarray, Y: np.ndarray
+    ) -> np.ndarray:
+        Ehess = dirichlet_expected_hess(pred)
+        diag_bound_Ehess = np.empty((pred.shape[0], Y.shape[1]))
+        for row in range(pred.shape[0]):
+            diag_bound_Ehess[row, :] = np.abs(Ehess[row, :, :]).sum(axis=1)
+        return diag_bound_Ehess
+
+(note: the calculation can be made more efficiently than what is shown here
+by not calculating the full matrix)
+
+With all these pieces in place, one can now frame this model into the format
+required for XGBoost's custom objectives:
+
+.. code-block:: python
+
+    import xgboost as xgb
+    from typing import Tuple
+
+    def dirichlet_xgb_objective(
+        pred: np.ndarray, dtrain: xgb.DMatrix
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        Y = dtrain.get_label().reshape(pred.shape)
+        return (
+            dirichlet_grad(pred, Y).reshape(-1, order="C"),
+            dirichlet_diag_upper_bound_expected_hess(pred, Y).reshape(-1, order="C"),
+        )
+
+And for an evaluation metric monitoring based on the Dirichlet log-likelihood:
+
+.. code-block:: python
+
+    def dirichlet_eval_metric(
+        pred: np.ndarray, dtrain: xgb.DMatrix
+    ) -> Tuple[str, float]:
+        Y = dtrain.get_label().reshape(pred.shape)
+        return "dirichlet_ll", dirichlet_fun(pred, Y)
+
+*****************
+Practical Example
+*****************
+
+A good source for test datasets for proportions data is the R package ``DirichletReg``:
+
+`<https://cran.r-project.org/package=DirichletReg>`_
+
+For this example, we'll now use the Arctic Lake dataset
+(Aitchison, J. (2003). The Statistical Analysis of Compositional Data. The Blackburn Press, Caldwell, NJ.),
+taken from the ``DirichletReg`` R package, which consists of 39 rows with one predictor variable 'depth'
+and a three-valued response variable denoting the sediment composition of the measurements in this arctic
+lake (sand, silt, clay).
+
+The data:
+
+.. code-block:: python
+    
+    # depth
+    X = np.array([
+        10.4,11.7,12.8,13,15.7,16.3,18,18.7,20.7,22.1,
+        22.4,24.4,25.8,32.5,33.6,36.8,37.8,36.9,42.2,47,
+        47.1,48.4,49.4,49.5,59.2,60.1,61.7,62.4,69.3,73.6,
+        74.4,78.5,82.9,87.7,88.1,90.4,90.6,97.7,103.7,
+    ]).reshape((-1,1))
+    # sand, silt, clay
+    Y = np.array([
+        [0.775,0.195,0.03], [0.719,0.249,0.032], [0.507,0.361,0.132],
+        [0.522,0.409,0.066], [0.7,0.265,0.035], [0.665,0.322,0.013],
+        [0.431,0.553,0.016], [0.534,0.368,0.098], [0.155,0.544,0.301],
+        [0.317,0.415,0.268], [0.657,0.278,0.065], [0.704,0.29,0.006],
+        [0.174,0.536,0.29], [0.106,0.698,0.196], [0.382,0.431,0.187],
+        [0.108,0.527,0.365], [0.184,0.507,0.309], [0.046,0.474,0.48],
+        [0.156,0.504,0.34], [0.319,0.451,0.23], [0.095,0.535,0.37],
+        [0.171,0.48,0.349], [0.105,0.554,0.341], [0.048,0.547,0.41],
+        [0.026,0.452,0.522], [0.114,0.527,0.359], [0.067,0.469,0.464],
+        [0.069,0.497,0.434], [0.04,0.449,0.511], [0.074,0.516,0.409],
+        [0.048,0.495,0.457], [0.045,0.485,0.47], [0.066,0.521,0.413],
+        [0.067,0.473,0.459], [0.074,0.456,0.469], [0.06,0.489,0.451],
+        [0.063,0.538,0.399], [0.025,0.48,0.495], [0.02,0.478,0.502],
+    ])
+
+Fitting an XGBoost model and making predictions:
+
+.. code-block:: python
+    
+    from typing import Dict, List
+    from scipy.special import softmax
+    
+    dtrain = xgb.DMatrix(X, label=Y)
+    results: Dict[str, Dict[str, List[float]]] = {}
+    booster = xgb.train(
+        params={
+            "tree_method": "hist",
+            "num_target": Y.shape[1],
+            "disable_default_eval_metric": True,
+            "max_depth": 3,
+            "seed": 123,
+        },
+        dtrain=dtrain,
+        num_boost_round=10,
+        obj=dirichlet_xgb_objective,
+        evals=[(dtrain, "Train")],
+        evals_result=results,
+        custom_metric=dirichlet_eval_metric,
+    )
+    yhat = softmax(booster.inplace_predict(X), axis=1)
+
+Should produce an evaluation log as follows (note: the function is decreasing as
+expected - unlike other objectives, the minimum value here can reach below zero):
+
+.. code-block:: none
+
+    [0] Train-dirichlet_ll:-47.68726
+    [1] Train-dirichlet_ll:-59.83995
+    [2] Train-dirichlet_ll:-66.84701
+    [3] Train-dirichlet_ll:-71.33110
+    [4] Train-dirichlet_ll:-74.47469
+    [5] Train-dirichlet_ll:-77.05876
+    [6] Train-dirichlet_ll:-79.18389
+    [7] Train-dirichlet_ll:-80.91361
+    [8] Train-dirichlet_ll:-82.55033
+    [9] Train-dirichlet_ll:-84.03623
+
+One can confirm that the obtained ``yhat`` resembles the actual concentrations
+to a large degree, beyond what would be expected from random predictions by a
+simple look at both ``yhat`` and ``Y``.
+
+For better results, one might want to add an intercept. XGBoost only
+allows using scalars for intercepts, but for a vector-valued model,
+the optimal intercept should also have vector form.
+
+This can be done by supplying ``base_margin`` instead - unlike the
+intercept, one must specifically supply values for every row here,
+and said ``base_margin`` must be supplied again at the moment of making
+predictions (i.e. does not get added automatically like ``base_score``
+does).
+
+For the case of a Dirichlet model, the optimal intercept can be obtain
+efficiently with a dedicated function, gradient and Hessian for an
+arbitrary solver. Further, note that if one frames instead as bounded
+optimization without applying 'exp' transform to the concentrations,
+it becomes instead a convex problem, for which the true Hessian can
+be used without issues in other classes of solvers.
+
+For simplicity, this example will nevertheless reuse the same function
+and gradient that were defined earlier alongside with SciPy's L-BFGS
+solver to obtain the optimal intercept:
+
+.. code-block:: python
+
+    from scipy.optimize import minimize
+
+    def get_optimal_intercepts(Y: np.ndarray) -> np.ndarray:
+        k = Y.shape[1]
+        res = minimize(
+            fun=lambda pred: dirichlet_fun(
+                np.broadcast_to(pred, (Y.shape[0], k)),
+                Y
+            ),
+            x0=np.zeros(k),
+            jac=lambda pred: dirichlet_grad(
+                np.broadcast_to(pred, (Y.shape[0], k)),
+                Y
+            ).sum(axis=0)
+        )
+        return res["x"]
+    intercepts = get_optimal_intercepts(Y)
+
+Now fitting a model again, this time with the intercept:
+
+.. code-block:: python
+
+    base_margin = np.broadcast_to(intercepts, Y.shape)
+    dtrain_w_intercept = xgb.DMatrix(X, label=Y, base_margin=base_margin)
+    results: Dict[str, Dict[str, List[float]]] = {}
+    booster = xgb.train(
+        params={
+            "tree_method": "hist",
+            "num_target": Y.shape[1],
+            "disable_default_eval_metric": True,
+            "max_depth": 3,
+            "seed": 123,
+        },
+        dtrain=dtrain_w_intercept,
+        num_boost_round=10,
+        obj=dirichlet_xgb_objective,
+        evals=[(dtrain, "Train")],
+        evals_result=results,
+        custom_metric=dirichlet_eval_metric,
+    )
+    yhat = softmax(
+        booster.predict(
+            xgb.DMatrix(X, base_margin=base_margin)
+        ),
+        axis=1
+    )
+
+.. code-block:: none
+
+    [0] Train-dirichlet_ll:-39.04921
+    [1] Train-dirichlet_ll:-48.64161
+    [2] Train-dirichlet_ll:-54.55286
+    [3] Train-dirichlet_ll:-58.56391
+    [4] Train-dirichlet_ll:-61.28742
+    [5] Train-dirichlet_ll:-63.32635
+    [6] Train-dirichlet_ll:-64.81336
+    [7] Train-dirichlet_ll:-66.04388
+    [8] Train-dirichlet_ll:-67.16878
+    [9] Train-dirichlet_ll:-68.12816
+
+For this small example problem, predictions should be very similar between the
+two and the version without intercepts achieved a lower objective function in the
+training data, but for more serious usage with real-world data, one is likely to
+observe better results when adding the intercepts.

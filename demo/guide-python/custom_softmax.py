@@ -6,7 +6,8 @@ This demo is only applicable after (excluding) XGBoost 1.0.0, as before this ver
 XGBoost returns transformed prediction for multi-class objective function.  More details
 in comments.
 
-See :doc:`/tutorials/custom_metric_obj` for detailed tutorial and notes.
+See :doc:`/tutorials/custom_metric_obj` and :doc:`/tutorials/advanced_custom_obj` for
+detailed tutorial and notes.
 
 '''
 
@@ -39,7 +40,9 @@ def softmax(x):
 
 
 def softprob_obj(predt: np.ndarray, data: xgb.DMatrix):
-    '''Loss function.  Computing the gradient and approximated hessian (diagonal).
+    '''Loss function. Computing the gradient and upper bound on the
+    Hessian with a diagonal structure for XGBoost (note that this is
+    not the true Hessian).
     Reimplements the `multi:softprob` inside XGBoost.
 
     '''
@@ -61,7 +64,7 @@ def softprob_obj(predt: np.ndarray, data: xgb.DMatrix):
 
     eps = 1e-6
 
-    # compute the gradient and hessian, slow iterations in Python, only
+    # compute the gradient and hessian upper bound, slow iterations in Python, only
     # suitable for demo.  Also the one in native XGBoost core is more robust to
     # numeric overflow as we don't do anything to mitigate the `exp` in
     # `softmax` here.
