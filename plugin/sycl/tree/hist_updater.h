@@ -26,6 +26,22 @@ namespace xgboost {
 namespace sycl {
 namespace tree {
 
+// data structure
+template<typename GradType>
+struct NodeEntry {
+  /*! \brief statics for node entry */
+  GradStats<GradType> stats;
+  /*! \brief loss of this node, without split */
+  GradType root_gain;
+  /*! \brief weight calculated related to current data */
+  GradType weight;
+  /*! \brief current best solution */
+  SplitEntry<GradType> best;
+  // constructor
+  explicit NodeEntry(const xgboost::tree::TrainParam& param)
+      : root_gain(0.0f), weight(0.0f) {}
+};
+
 template<typename GradientSumT>
 class HistUpdater {
  public:
@@ -78,6 +94,12 @@ class HistUpdater {
                                    data_layout_ != kSparseData, hist_buffer, event_priv);
   }
 
+  void InitNewNode(int nid,
+                   const common::GHistIndexMatrix& gmat,
+                   const USMVector<GradientPair, MemoryType::on_device> &gpair,
+                   const DMatrix& fmat,
+                   const RegTree& tree);
+
   void BuildLocalHistograms(const common::GHistIndexMatrix &gmat,
                             RegTree *p_tree,
                             const USMVector<GradientPair, MemoryType::on_device> &gpair);
@@ -113,8 +135,15 @@ class HistUpdater {
   /*! \brief culmulative histogram of gradients. */
   common::HistCollection<GradientSumT, MemoryType::on_device> hist_;
 
+  /*! \brief TreeNode Data: statistics for each constructed node */
+  std::vector<NodeEntry<GradientSumT>> snode_host_;
+
   xgboost::common::Monitor builder_monitor_;
   xgboost::common::Monitor kernel_monitor_;
+
+  /*! \brief feature with least # of bins. to be used for dense specialization
+              of InitNewNode() */
+  uint32_t fid_least_bins_;
 
   uint64_t seed_ = 0;
 
