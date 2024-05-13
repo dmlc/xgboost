@@ -81,17 +81,17 @@ jobs:
     name: Test installing XGBoost Python source package on ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-11, windows-latest]
+        os: [macos-13, windows-latest]
         python-version: ["3.8"]
     steps:
     - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
     - name: Install osx system dependencies
-      if: matrix.os == 'macos-11'
+      if: matrix.os == 'macos-13'
       run: |
         brew install ninja libomp
-    - uses: conda-incubator/setup-miniconda@35d1405e78aa3f784fe3ce9a2eb378d5eeb62169 # v2.1.1
+    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca # v3.0.4
       with:
         auto-update-conda: true
         python-version: ${{ matrix.python-version }}
@@ -119,7 +119,7 @@ jobs:
     strategy:
       matrix:
         config:
-          - {os: macos-11}
+          - {os: macos-13}
 
     steps:
     - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
@@ -178,7 +178,7 @@ jobs:
       with:
         submodules: 'true'
 
-    - uses: conda-incubator/setup-miniconda@35d1405e78aa3f784fe3ce9a2eb378d5eeb62169 # v2.1.1
+    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca # v3.0.4
       with:
         auto-update-conda: true
         python-version: ${{ matrix.config.python-version }}

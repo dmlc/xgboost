@@ -1388,6 +1388,8 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
             base_margin_col = col(self.getOrDefault(self.base_margin_col)).alias(
                 alias.margin
             )
+        else:
+            base_margin_col = Column("")
 
         features_col, feature_col_names = self._get_feature_col(dataset)
         enable_sparse_data_optim = self.getOrDefault(self.enable_sparse_data_optim)
