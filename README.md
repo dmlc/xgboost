@@ -1,4 +1,4 @@
-<img src="https://xgboost.ai/images/logo/xgboost-logo-ng.svg" width=200 style="margin-bottom: -10pt;"/> eXtreme Gradient Boosting
+<img src="https://xgboost.ai/images/logo/xgboost-logo-ng-trimmed.png" width=200/> eXtreme Gradient Boosting
 ===========
 
 [![Build Status](https://badge.buildkite.com/aca47f40a32735c00a8550540c5eeff6a4c1d246a580cae9b0.svg?branch=master)](https://buildkite.com/xgboost/xgboost-ci)
