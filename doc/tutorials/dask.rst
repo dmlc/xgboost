@@ -267,14 +267,14 @@ In the example below, a ``KubeCluster`` is used for `deploying Dask on Kubernete
           create_mode=CreateMode.CONNECT_ONLY,
           shutdown_on_close=False,
       ) as cluster:
-	  with Client(cluster) as client:
-	      X = da.random.random(size=(m, n), chunks=100)
-	      y = X.sum(axis=1)
+          with Client(cluster) as client:
+              X = da.random.random(size=(m, n), chunks=100)
+              y = X.sum(axis=1)
 
-	      regressor = dxgb.DaskXGBRegressor(n_estimators=10, missing=0.0)
-	      regressor.client = client
-	      regressor.set_params(tree_method='hist', device="cuda")
-	      regressor.fit(X, y, eval_set=[(X, y)])
+              regressor = dxgb.DaskXGBRegressor(n_estimators=10, missing=0.0)
+              regressor.client = client
+              regressor.set_params(tree_method='hist', device="cuda")
+              regressor.fit(X, y, eval_set=[(X, y)])
 
 
   if __name__ == '__main__':
