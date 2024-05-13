@@ -137,7 +137,7 @@ jobs:
       run: |
         python3 tests/ci_build/test_r_package.py --r=/usr/bin/R --build-tool=autotools --task=check
 
-    - uses: dorny/paths-filter@v2
+    - uses: dorny/paths-filter@v3
       id: changes
       with:
         filters: |
