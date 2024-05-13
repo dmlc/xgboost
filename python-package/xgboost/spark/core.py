@@ -86,6 +86,7 @@ from .utils import (
     CommunicatorContext,
     _get_default_params_from_func,
     _get_gpu_id,
+    _get_host_ip,
     _get_max_num_concurrent_tasks,
     _get_rabit_args,
     _get_spark_session,
@@ -121,6 +122,7 @@ _pyspark_specific_params = [
     "repartition_random_shuffle",
     "pred_contrib_col",
     "use_gpu",
+    "tracker_on_driver",
 ]
 
 _non_booster_params = ["missing", "n_estimators", "feature_types", "feature_weights"]
@@ -245,6 +247,13 @@ class _SparkXGBParams(
         "feature_names",
         "A list of str to specify feature names.",
         TypeConverters.toList,
+    )
+    tracker_on_driver = Param(
+        Params._dummy(),
+        "tracker_on_driver",
+        "A boolean variable. Set tracker_on_driver to true if you want the tracker to be launched "
+        "on the driver side; otherwise, it will be launched on the executor side.",
+        TypeConverters.toBoolean,
     )
 
     def set_device(self, value: str) -> "_SparkXGBParams":
@@ -617,6 +626,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             feature_names=None,
             feature_types=None,
             arbitrary_params_dict={},
+            tracker_on_driver=True,
         )
 
         self.logger = get_logger(self.__class__.__name__)
@@ -1014,6 +1024,16 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
         num_workers = self.getOrDefault(self.num_workers)
 
+        run_tracker_on_driver = self.getOrDefault(self.tracker_on_driver)
+
+        rabit_args = {}
+        if run_tracker_on_driver:
+            driver_host = (
+                _get_spark_session().sparkContext.getConf().get("spark.driver.host")
+            )
+            assert driver_host is not None
+            rabit_args = _get_rabit_args(driver_host, num_workers)
+
         log_level = get_logger_level(_LOG_TAG)
 
         def _train_booster(
@@ -1053,21 +1073,25 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             if use_qdm and (booster_params.get("max_bin", None) is not None):
                 dmatrix_kwargs["max_bin"] = booster_params["max_bin"]
 
-            _rabit_args = {}
+            _rabit_args = rabit_args
             if context.partitionId() == 0:
-                _rabit_args = _get_rabit_args(context, num_workers)
+                if not run_tracker_on_driver:
+                    _rabit_args = _get_rabit_args(_get_host_ip(context), num_workers)
                 get_logger(_LOG_TAG, log_level).info(msg)
 
-            worker_message = {
-                "rabit_msg": _rabit_args,
+            worker_message: Dict[str, Any] = {
                 "use_qdm": use_qdm,
             }
+
+            if not run_tracker_on_driver:
+                worker_message["rabit_msg"] = _rabit_args
 
             messages = context.allGather(message=json.dumps(worker_message))
             if len(set(json.loads(x)["use_qdm"] for x in messages)) != 1:
                 raise RuntimeError("The workers' cudf environments are in-consistent ")
 
-            _rabit_args = json.loads(messages[0])["rabit_msg"]
+            if not run_tracker_on_driver:
+                _rabit_args = json.loads(messages[0])["rabit_msg"]
 
             evals_result: Dict[str, Any] = {}
             with CommunicatorContext(context, **_rabit_args):
