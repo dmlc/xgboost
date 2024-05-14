@@ -54,13 +54,14 @@ class ThreadPool {
   }
 
   ~ThreadPool() {
+    std::unique_lock lock{mu_};
     stop_ = true;
     for (auto& t : pool_) {
       if (t.joinable()) {
-        std::unique_lock lock{mu_};
         this->cv_.notify_one();
       }
     }
+    lock.unlock();
 
     for (auto& t : pool_) {
       if (t.joinable()) {
