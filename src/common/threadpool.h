@@ -82,8 +82,7 @@ class ThreadPool {
     auto p{std::make_shared<std::promise<R>>()};
     auto fut = p->get_future();
     auto ffn = std::function{[task = std::move(p), fn = std::move(fn)]() mutable {
-      auto v = fn();
-      task->set_value(v);
+      task->set_value(fn());
     }};
 
     std::unique_lock lock{mu_};
