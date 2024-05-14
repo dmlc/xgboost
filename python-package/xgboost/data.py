@@ -1467,7 +1467,6 @@ def dispatch_proxy_set_data(
     proxy: _ProxyDMatrix,
     data: DataType,
     cat_codes: Optional[list],
-    allow_host: bool,
 ) -> None:
     """Dispatch for QuantileDMatrix."""
     if not _is_cudf_ser(data) and not _is_pandas_series(data):
@@ -1475,33 +1474,30 @@ def dispatch_proxy_set_data(
 
     if _is_cudf_df(data):
         # pylint: disable=W0212
-        proxy._set_data_from_cuda_columnar(data, cast(List, cat_codes))
+        proxy._ref_data_from_cuda_columnar(data, cast(List, cat_codes))
         return
     if _is_cudf_ser(data):
         # pylint: disable=W0212
-        proxy._set_data_from_cuda_columnar(data, cast(List, cat_codes))
+        proxy._ref_data_from_cuda_columnar(data, cast(List, cat_codes))
         return
     if _is_cupy_alike(data):
-        proxy._set_data_from_cuda_interface(data)  # pylint: disable=W0212
+        proxy._ref_data_from_cuda_interface(data)  # pylint: disable=W0212
         return
     if _is_dlpack(data):
         data = _transform_dlpack(data)
-        proxy._set_data_from_cuda_interface(data)  # pylint: disable=W0212
+        proxy._ref_data_from_cuda_interface(data)  # pylint: disable=W0212
         return
-
-    err = TypeError("Value type is not supported for data iterator:" + str(type(data)))
-
-    if not allow_host:
-        raise err
-
+    # Host
     if isinstance(data, PandasTransformed):
-        proxy._set_data_from_pandas(data)  # pylint: disable=W0212
+        proxy._ref_data_from_pandas(data)  # pylint: disable=W0212
         return
     if _is_np_array_like(data):
         _check_data_shape(data)
-        proxy._set_data_from_array(data)  # pylint: disable=W0212
+        proxy._ref_data_from_array(data)  # pylint: disable=W0212
         return
     if is_scipy_csr(data):
-        proxy._set_data_from_csr(data)  # pylint: disable=W0212
+        proxy._ref_data_from_csr(data)  # pylint: disable=W0212
         return
+
+    err = TypeError("Value type is not supported for data iterator:" + str(type(data)))
     raise err
