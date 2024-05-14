@@ -1,8 +1,8 @@
 import numpy as np
+import pandas as pd
 import pytest
 
 import xgboost as xgb
-import pandas as pd
 from xgboost import testing as tm
 from xgboost.testing.data import run_base_margin_info
 
