@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 import xgboost as xgb
+import pandas as pd
 from xgboost import testing as tm
 from xgboost.testing.data import run_base_margin_info
 
@@ -71,7 +72,11 @@ class TestModin:
         np.testing.assert_array_equal(result.columns, exp)
         dm = xgb.DMatrix(dummies)
         assert dm.feature_names == ['B', 'A_X', 'A_Y', 'A_Z']
-        assert dm.feature_types == ['int', 'int', 'int', 'int']
+        if int(pd.__version__[0]) >= 2:
+            assert dm.feature_types == ["int", "i", "i", "i"]
+        else:
+            assert dm.feature_types == ["int", "int", "int", "int"]
+
         assert dm.num_row() == 3
         assert dm.num_col() == 4
 
