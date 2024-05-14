@@ -161,8 +161,8 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
   std::shared_ptr<Cache> cache_info_;
 
   using Ring = std::vector<std::future<std::shared_ptr<S>>>;
-  // A ring storing futures to data.  Since the DMatrix iterator is forward only, so we
-  // can pre-fetch data in a ring.
+  // A ring storing futures to data.  Since the DMatrix iterator is forward only, we can
+  // pre-fetch data in a ring.
   std::unique_ptr<Ring> ring_{new Ring};
   // Catching exception in pre-fetch threads to prevent segfault. Not always work though,
   // OOM error can be delayed due to lazy commit. On the bright side, if mmap is used then
