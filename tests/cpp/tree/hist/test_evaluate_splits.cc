@@ -359,6 +359,9 @@ void DoTestEvaluateSplitsSecure(bool force_read_by_column) {
       right.SetSubstract(GradStats{total_gpair}, left);
     }
   }
+
+  // Free memory allocated by the DMatrix
+  delete m;
 }
 
 void TestEvaluateSplitsSecure (bool force_read_by_column) {
