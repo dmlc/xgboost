@@ -22,15 +22,28 @@ TEST(ThreadPool, Basic) {
     auto fut = pool.Submit([] { return std::string{"ok"}; });
     ASSERT_EQ(fut.get(), "ok");
   }
-  std::vector<std::future<std::size_t>> futures;
-  for (std::size_t i = 0; i < 128ul; ++i) {
-    futures.emplace_back(pool.Submit([=] {
-      std::this_thread::sleep_for(std::chrono::milliseconds{10});
-      return i;
-    }));
+  {
+    std::vector<std::future<std::size_t>> futures;
+    for (std::size_t i = 0; i < static_cast<std::size_t>(n_threads) * 16; ++i) {
+      futures.emplace_back(pool.Submit([=] {
+        std::this_thread::sleep_for(std::chrono::milliseconds{10});
+        return i;
+      }));
+    }
+    for (std::size_t i = 0; i < futures.size(); ++i) {
+      ASSERT_EQ(futures[i].get(), i);
+    }
   }
-  for (std::size_t i = 0; i < futures.size(); ++i) {
-    ASSERT_EQ(futures[i].get(), i);
+  {
+    std::vector<std::future<std::size_t>> futures;
+    for (std::size_t i = 0; i < static_cast<std::size_t>(n_threads) * 16; ++i) {
+      futures.emplace_back(pool.Submit([=] {
+        return i;
+      }));
+    }
+    for (std::size_t i = 0; i < futures.size(); ++i) {
+      ASSERT_EQ(futures[i].get(), i);
+    }
   }
 }
 }  // namespace xgboost::common
