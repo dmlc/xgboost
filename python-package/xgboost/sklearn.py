@@ -795,6 +795,26 @@ class XGBModel(XGBModelBase):
     def __sklearn_is_fitted__(self) -> bool:
         return hasattr(self, "_Booster")
 
+    @property
+    def _doc_link_module(self) -> str:
+        return "xgboost"
+
+    @property
+    def _doc_link_template(self) -> str:
+        from .core import _py_version
+
+        ver = _py_version()
+        rel = "latest" if ver.endswith("-dev") else "stable"
+        module = self.__class__.__module__
+        # All sklearn estimators are forwarded to the top level module in both source
+        # code and sphinx api doc.
+        if module == "xgboost.sklearn":
+            module = module.split(".")[0]
+        name = self.__class__.__name__
+
+        base = "https://xgboost.readthedocs.io/en"
+        return f"{base}/{rel}/python/python_api.html#{module}.{name}"
+
     def get_booster(self) -> Booster:
         """Get the underlying xgboost Booster of this model.
 

@@ -35,6 +35,7 @@ from hypothesis import HealthCheck, assume, given, note, settings
 from sklearn.datasets import make_classification, make_regression
 
 import xgboost as xgb
+from xgboost import dask as dxgb
 from xgboost import testing as tm
 from xgboost.data import _is_cudf_df
 from xgboost.testing.params import hist_cache_strategy, hist_parameter_strategy
@@ -2317,3 +2318,16 @@ async def test_worker_restarted(c, s, a, b):
             d_train,
             evals=[(d_train, "train")],
         )
+
+
+def test_doc_link() -> None:
+    for est in [
+        dxgb.DaskXGBRegressor(),
+        dxgb.DaskXGBClassifier(),
+        dxgb.DaskXGBRanker(),
+        dxgb.DaskXGBRFRegressor(),
+        dxgb.DaskXGBRFClassifier(),
+    ]:
+        name = est.__class__.__name__
+        link = est._get_doc_link()
+        assert f"xgboost.dask.{name}" in link
