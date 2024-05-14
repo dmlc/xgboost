@@ -35,7 +35,8 @@ approximation with better properties - convergence might be slower when
 not using the true Hessian of a function, but many theoretical guarantees
 should still hold and result in usable models. For example, XGBoost's
 internal implementation of multionomial logistic regression uses an upper
-bound on the Hessian instead of the true Hessian.
+bound on the Hessian with diagonal structure instead of the true Hessian
+which is a full square matrix for each row in the data.
 
 This tutorial provides some suggestions for use-cases that do not perfectly
 fit the criteria outlined above, by showing how to solve a Dirichlet regression
@@ -49,8 +50,8 @@ A Dirichlet regression model poses certain challenges for XGBoost:
   not in the exponential family, unlike typical distributions used for GLM
   models.
 - The Hessian has dependencies between targets - that is, for a Dirichlet
-  distribution with 'k' parameters, each row will have a Hessian of shape
-  ``[k, k]``.
+  distribution with 'k' parameters, each row will have a full Hessian matrix
+  of dimensions ``[k, k]``.
 - An optimal intercept for this type of model would involve a vector of
   values rather than the same value for every target.
 
@@ -60,17 +61,17 @@ In order to use this type of model as a custom objetive:
   matrix or expected information) instead of the true Hessian. The expected
   Hessian is always positive semi-definite for an additive likelihood, even
   if the true Hessian isn't.
-- It's possible to use an upper bound of the expected Hessian with a diagonal
+- It's possible to use an upper bound on the expected Hessian with a diagonal
   structure, such that a second-order approximation under this diagonal
-  bound would always be greater or equal than under the non-diagonal
-  expected Hessian.
+  bound would always yield greater or equal function values than under the
+  non-diagonal expected Hessian.
 - Since the ``base_score`` parameter that XGBoost uses for an intercept is
   limited to a scalar, one can use the ``base_margin`` functionality instead,
   but note that using it requires a bit more effort.
 
-******************************************
-Dirichlet Regression as Objective Function
-******************************************
+*****************************
+Dirichlet Regression Formulae
+*****************************
 
 The Dirichlet distribution is a generalization of the Beta distribution to
 multiple dimensions. It models proportions data in which the values sum to
@@ -87,7 +88,7 @@ is given as follows:
 Where:
 
 .. math::
-  \beta(\mathbf{x}) = \frac{ \prod_{i=1}^k \Gamma(x_i) }{\Gamma( \sum_i x_i )}
+  \beta(\mathbf{x}) = \frac{ \prod_{i=1}^k \Gamma(x_i) }{\Gamma( \sum_{i=1}^k x_i )}
 
 
 In this case, we want to optimize the negative of the log-likelihood summed across rows.
@@ -219,7 +220,7 @@ XGBoost requires something with shape ``[k, k]``.
 One may use the diagonal of the expected Hessian for each row, but it's
 possible to do better: one can use instead an upper bound with diagonal
 structure, since it should lead to better convergence properties, just like
-for other Hessian-base optimization methods.
+for other Hessian-based optimization methods.
 
 In the absence of any obvious way of obtaining an upper bound, a possibility
 here is to construct such a bound numerically based directly on the definition
@@ -227,7 +228,8 @@ of a diagonally dominant matrix:
 
 `<https://en.wikipedia.org/wiki/Diagonally_dominant_matrix>`_
 
-That is: take the absolute value of the expected Hessian, and sum by rows:
+That is: take the absolute value of the expected Hessian for each row of the data,
+and sum by rows of the ``[k, k]``-shaped Hessian for that row in the data:
 
 .. code-block:: python
 
@@ -339,7 +341,7 @@ Fitting an XGBoost model and making predictions:
     yhat = softmax(booster.inplace_predict(X), axis=1)
 
 Should produce an evaluation log as follows (note: the function is decreasing as
-expected - unlike other objectives, the minimum value here can reach below zero):
+expected - but unlike other objectives, the minimum value here can reach below zero):
 
 .. code-block:: none
 
@@ -368,16 +370,17 @@ and said ``base_margin`` must be supplied again at the moment of making
 predictions (i.e. does not get added automatically like ``base_score``
 does).
 
-For the case of a Dirichlet model, the optimal intercept can be obtain
-efficiently with a dedicated function, gradient and Hessian for an
-arbitrary solver. Further, note that if one frames instead as bounded
-optimization without applying 'exp' transform to the concentrations,
-it becomes instead a convex problem, for which the true Hessian can
-be used without issues in other classes of solvers.
+For the case of a Dirichlet model, the optimal intercept can be obtained
+efficiently using a general solver (e.g. SciPy's Newton solver) with
+dedicated likelihood, gradient and Hessian functions for just the intercept part.
+Further, note that if one frames it instead as bounded optimization without
+applying 'exp' transform to the concentrations, it becomes instead a convex
+problem, for which the true Hessian can be used without issues in other
+classes of solvers.
 
-For simplicity, this example will nevertheless reuse the same function
-and gradient that were defined earlier alongside with SciPy's L-BFGS
-solver to obtain the optimal intercept:
+For simplicity, this example will nevertheless reuse the same likelihood
+and gradient functions that were defined earlier alongside with SciPy's L-BFGS
+solver to obtain the optimal vector-valued intercept:
 
 .. code-block:: python
 
