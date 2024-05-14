@@ -616,7 +616,7 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
         assert isinstance(self._label_upper_bound, types)
 
         self._iter = 0  # set iterator to 0
-        super().__init__()
+        super().__init__(release_data=True)
 
     def _get(self, attr: str) -> Optional[Any]:
         if getattr(self, attr) is not None:
