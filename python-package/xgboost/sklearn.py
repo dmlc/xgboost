@@ -40,6 +40,8 @@ from .core import (
     XGBoostError,
     _deprecate_positional_args,
     _parse_eval_str,
+    _parse_version,
+    _py_version,
 )
 from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_alike, _is_pandas_df
 from .training import train
@@ -801,10 +803,16 @@ class XGBModel(XGBModelBase):
 
     @property
     def _doc_link_template(self) -> str:
-        from .core import _py_version
-
         ver = _py_version()
-        rel = "latest" if ver.endswith("-dev") else "stable"
+        (major, minor, patch), post = _parse_version(ver)
+
+        if post == "dev":
+            rel = "latest"
+        else:
+            # RTD tracks the release branch, we don't have different branch patch
+            # release.
+            rel = f"{major}.{minor}.0"
+
         module = self.__class__.__module__
         # All sklearn estimators are forwarded to the top level module in both source
         # code and sphinx api doc.

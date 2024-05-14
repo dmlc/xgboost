@@ -9,6 +9,7 @@ import pytest
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.core import _parse_version
 
 dpath = "demo/data/"
 rng = np.random.RandomState(1994)
@@ -315,3 +316,14 @@ class TestBasicPathLike:
         """An invalid model_file path should raise XGBoostError."""
         with pytest.raises(xgb.core.XGBoostError):
             xgb.Booster(model_file=Path("invalidpath"))
+
+
+def test_parse_ver() -> None:
+    (major, minor, patch), post = _parse_version("2.1.0")
+    assert post == ""
+    (major, minor, patch), post = _parse_version("2.1.0-dev")
+    assert post == "dev"
+    (major, minor, patch), post = _parse_version("2.1.0rc1")
+    assert post == "rc1"
+    (major, minor, patch), post = _parse_version("2.1.0.post1")
+    assert post == "post1"
