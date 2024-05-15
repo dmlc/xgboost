@@ -95,7 +95,10 @@ int PollImpl(PollFD* pfd, int nfds, std::chrono::seconds timeout) noexcept(true)
 template <typename E>
 std::enable_if_t<std::is_integral_v<E>, xgboost::collective::Result> PollError(E const& revents) {
   if ((revents & POLLERR) != 0) {
-    return xgboost::system::FailWithCode("Poll error condition.");
+    auto err = errno;
+    auto str = strerror(err);
+    return xgboost::system::FailWithCode(std::string{"Poll error condition:"} + std::string{str} +
+                                         " code:" + std::to_string(err));
   }
   if ((revents & POLLNVAL) != 0) {
     return xgboost::system::FailWithCode("Invalid polling request.");
