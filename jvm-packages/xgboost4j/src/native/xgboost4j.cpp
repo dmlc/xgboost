@@ -500,6 +500,21 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixNumRow
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGDMatrixNumCol
+ * Signature: (J[J)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixNumCol(
+    JNIEnv *jenv, jclass jcls, jlong jhandle, jlongArray jout) {
+  DMatrixHandle handle = (DMatrixHandle)jhandle;
+  bst_ulong result[1];
+  int ret = (jint)XGDMatrixNumCol(handle, result);
+  JVM_CHECK_CALL(ret);
+  jenv->SetLongArrayRegion(jout, 0, 1, (const jlong *)result);
+  return ret;
+}
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGDMatrixNumNonMissing
  * Signature: (J[J)I
  */
@@ -1299,5 +1314,32 @@ Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterGetStrFeatureInfo(
     jenv->SetObjectArrayElement(jout, i, jfeature);
   }
 
+  return ret;
+}
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGDMatrixGetDataAsCSR
+ * Signature: (Ljava/lang/String;[J[I[F)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixGetDataAsCSR
+  (JNIEnv *jenv, jclass jclz, jlong jhandle, jstring jconfig, jlongArray jrowOffset,
+      jintArray jfeatureIndex, jfloatArray jfeatureValue) {
+  DMatrixHandle handle = (DMatrixHandle) jhandle;
+  const char *config = jenv->GetStringUTFChars(jconfig, 0);
+
+  const int offsetNum = jenv->GetArrayLength(jrowOffset);
+  const int nonMissingNum = jenv->GetArrayLength(jfeatureIndex);
+  bst_ulong *rowOffset = new bst_ulong[offsetNum];
+  unsigned int *featureIndex = new unsigned int[nonMissingNum];
+  float *featureValue = new float[nonMissingNum];
+
+  int ret = XGDMatrixGetDataAsCSR(handle, config, rowOffset, featureIndex, featureValue);
+
+  jenv->SetLongArrayRegion(jrowOffset, 0, offsetNum, (const jlong *)rowOffset);
+  jenv->SetIntArrayRegion(jfeatureIndex, 0, nonMissingNum, (const jint *)featureIndex);
+  jenv->SetFloatArrayRegion(jfeatureValue, 0, nonMissingNum, (const jfloat *)featureValue);
+
+  JVM_CHECK_CALL(ret);
   return ret;
 }

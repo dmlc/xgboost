@@ -396,6 +396,39 @@ public class DMatrix {
   }
 
   /**
+   * Get feature data as BigDenseMatrix
+   * @return feature Matrix
+   * @throws XGBoostError
+   */
+  public BigDenseMatrix getData() throws XGBoostError {
+    int rowNum = (int) rowNum();
+    int colNum = (int) colNum();
+    int nonMissingNum = (int) nonMissingNum();
+
+    long[] rowOffset = new long[rowNum + 1];
+    int[] featureIndex = new int[nonMissingNum];
+    float[] featureValue = new float[nonMissingNum];
+
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixGetDataAsCSR(handle, "{}",
+        rowOffset, featureIndex, featureValue));
+
+    BigDenseMatrix denseMatrix = new BigDenseMatrix(rowNum, colNum);
+
+    for (int row = 0; row < rowNum; row++) {
+      for(int col = 0; col < colNum; col++) {
+        denseMatrix.set(row, col, 0.0f);
+      }
+      int rowStart = (int)rowOffset[row];
+      int rowEnd = (int)rowOffset[row + 1];
+      for(int idx = rowStart; idx < rowEnd; idx ++) {
+        denseMatrix.set(row, featureIndex[idx], featureValue[idx]);
+      }
+    }
+
+    return denseMatrix;
+  }
+
+  /**
    * Slice the DMatrix and return a new DMatrix that only contains `rowIndex`.
    *
    * @param rowIndex row index
@@ -420,6 +453,17 @@ public class DMatrix {
     long[] rowNum = new long[1];
     XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixNumRow(handle, rowNum));
     return rowNum[0];
+  }
+
+  /**
+   * Get the col number of DMatrix
+   * @return number of columns
+   * @throws XGBoostError native error
+   */
+  public long colNum() throws XGBoostError {
+    long[] colNum = new long[1];
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixNumCol(handle, colNum));
+    return colNum[0];
   }
 
   /**

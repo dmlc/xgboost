@@ -19,6 +19,7 @@ package ml.dmlc.xgboost4j.scala
 import _root_.scala.collection.JavaConverters._
 
 import ml.dmlc.xgboost4j.LabeledPoint
+import ml.dmlc.xgboost4j.java.util.BigDenseMatrix
 import ml.dmlc.xgboost4j.java.{Column, ColumnBatch, DataBatch, XGBoostError, DMatrix => JDMatrix}
 
 class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
@@ -284,6 +285,16 @@ class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
   }
 
   /**
+   * get raw data from DMatrix as BigDenseMatrix
+   * @throws ml.dmlc.xgboost4j.java.XGBoostError
+   * @return
+   */
+  @throws(classOf[XGBoostError])
+  def getData: BigDenseMatrix = {
+    jDMatrix.getData
+  }
+
+  /**
    * Slice the DMatrix and return a new DMatrix that only contains `rowIndex`.
    *
    * @param rowIndex row index
@@ -302,6 +313,17 @@ class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
   @throws(classOf[XGBoostError])
   def rowNum: Long = {
     jDMatrix.rowNum
+  }
+
+  /**
+   * get the col number of DMatrix
+   *
+   * @throws ml.dmlc.xgboost4j.java.XGBoostError
+   * @return
+   */
+  @throws(classOf[XGBoostError])
+  def colNum: Long = {
+    jDMatrix.colNum
   }
 
   /**
