@@ -60,6 +60,10 @@ TEST_F(ProcessorTest, TestGHEncoding) {
     // Dummy plugin doesn't change buffer
     ASSERT_EQ(new_size, buf_size);
     ASSERT_EQ(0, memcmp(buffer, new_buffer, buf_size));
+
+    // Clean up
+    free(buffer);
+    free(new_buffer);
 }
 
 TEST_F(ProcessorTest, TestAggregation) {
