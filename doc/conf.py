@@ -250,7 +250,7 @@ html_theme = "sphinx_rtd_theme"
 html_theme_options = {"logo_only": True}
 
 
-html_logo = "https://raw.githubusercontent.com/dmlc/dmlc.github.io/master/img/logo-m/xgboost.png"
+html_logo = "https://xgboost.ai/images/logo/xgboost-logo-ng.png"
 
 html_css_files = ["css/custom.css"]
 
