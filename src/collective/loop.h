@@ -7,10 +7,12 @@
 #include <cstddef>             // for size_t
 #include <cstdint>             // for int8_t, int32_t
 #include <exception>           // for exception_ptr
-#include <mutex>               // for unique_lock, mutex
+#include <future>              // for future
+#include <memory>              // for shared_ptr
+#include <mutex>               // for mutex
 #include <queue>               // for queue
 #include <thread>              // for thread
-#include <future>              // for future
+#include <vector>              // for vector
 
 #include "../common/timer.h"            // for Monitor
 #include "xgboost/collective/result.h"  // for Result
@@ -47,11 +49,11 @@ class Loop {
  private:
   std::thread worker_;  // thread worker to execute the tasks
 
-  std::condition_variable cv_;        // CV used to notify a new submit call
+  std::condition_variable cv_;  // CV used to notify a new submit call
 
   std::queue<Op> queue_;  // event queue
   std::vector<std::future<void>> futures_;
-  std::mutex mu_;         // mutex to protect the queue, cv, and block_done
+  std::mutex mu_;  // mutex to protect the queue, cv, and block_done
 
   std::chrono::seconds timeout_;
 

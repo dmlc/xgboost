@@ -6,6 +6,8 @@
 #include <cstddef>    // for size_t
 #include <cstdint>    // for int32_t
 #include <exception>  // for exception, current_exception, rethrow_exception
+#include <future>     // for promise
+#include <memory>     // for make_shared
 #include <mutex>      // for lock_guard, unique_lock
 #include <queue>      // for queue
 #include <string>     // for string
@@ -195,7 +197,6 @@ void Loop::Process() {
       } else {
         CHECK(qcopy.empty());
       }
-
     } catch (std::exception const& e) {
       curr_exce_ = std::current_exception();
       set_rc(Fail("Exception inside the event loop:" + std::string{e.what()}));
