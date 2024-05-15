@@ -97,6 +97,9 @@ Result RingScatterReduceTyped(Comm const& comm, common::Span<std::int8_t> data,
     } << [&] {
       return comm.Block();
     };
+    if (!rc.OK()) {
+      return rc;
+    }
 
     // accumulate to recv_seg
     CHECK_EQ(seg.size(), recv_seg.size());
