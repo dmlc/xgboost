@@ -256,8 +256,10 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
         std::lock_guard lock{listener_mu_};
         return listener_.NonBlocking(true);
       } << [&] {
-        std::lock_guard lock{listener_mu_};
-        poll.WatchRead(listener_);
+        {
+          std::lock_guard lock{listener_mu_};
+          poll.WatchRead(listener_);
+        }
         if (state.running) {
           // Don't timeout if the communicator group is up and running.
           return poll.Poll(std::chrono::seconds{-1});

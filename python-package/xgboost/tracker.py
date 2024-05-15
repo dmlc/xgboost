@@ -73,9 +73,15 @@ class RabitTracker:
         _check_call(_LIB.XGTrackerCreate(args, ctypes.byref(handle)))
         self.handle = handle
 
-    def __del__(self) -> None:
+    def free(self) -> None:
+        """Internal function for testing."""
         if hasattr(self, "handle"):
-            _check_call(_LIB.XGTrackerFree(self.handle))
+            handle = self.handle
+            del self.handle
+            _check_call(_LIB.XGTrackerFree(handle))
+
+    def __del__(self) -> None:
+        self.free()
 
     def start(self) -> None:
         """Start the tracker. Once started, the client still need to call the

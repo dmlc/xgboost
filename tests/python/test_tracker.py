@@ -20,7 +20,7 @@ def test_rabit_tracker():
 
 @pytest.mark.skipif(**tm.not_linux())
 def test_socket_error():
-    tracker = RabitTracker(host_ip="127.0.0.1", n_workers=2, timeout=3)
+    tracker = RabitTracker(host_ip="127.0.0.1", n_workers=2)
     tracker.start()
     env = tracker.worker_args()
     env["dmlc_tracker_port"] = 0
@@ -28,6 +28,8 @@ def test_socket_error():
     with pytest.raises(ValueError, match="Failed to bootstrap the communication."):
         with xgb.collective.CommunicatorContext(**env):
             pass
+    with pytest.raises(ValueError):
+        tracker.free()
 
 
 def run_rabit_ops(client, n_workers):
