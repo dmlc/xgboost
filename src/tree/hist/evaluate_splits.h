@@ -303,22 +303,35 @@ class HistEvaluator {
           // forward enumeration: split at right bound of each bin
           loss_chg =
               static_cast<float>(evaluator.CalcSplitGain(*param_, nidx, fidx, GradStats{left_sum},
-                                                         GradStats{right_sum}) -
-                                 parent.root_gain);
-          split_pt = cut_val[i];  // not used for partition based
-          best.Update(loss_chg, fidx, split_pt, d_step == -1, false, left_sum, right_sum);
+                                                         GradStats{right_sum}) - parent.root_gain);
+          if (!is_secure_) {
+            split_pt = cut_val[i];  // not used for partition based
+            best.Update(loss_chg, fidx, split_pt, d_step == -1, false, left_sum, right_sum);
+          } else {
+            // secure mode: record the best split point, rather than the actual value
+            // since it is not accessible at this point (active party finding best-split)
+            best.Update(loss_chg, fidx, i, d_step == -1, false, left_sum, right_sum);
+          }
         } else {
           // backward enumeration: split at left bound of each bin
           loss_chg =
               static_cast<float>(evaluator.CalcSplitGain(*param_, nidx, fidx, GradStats{right_sum},
-                                                         GradStats{left_sum}) -
-                                 parent.root_gain);
-          if (i == imin) {
-            split_pt = cut.MinValues()[fidx];
+                                                         GradStats{left_sum}) - parent.root_gain);
+          if (!is_secure_) {
+            if (i == imin) {
+              split_pt = cut.MinValues()[fidx];
+            } else {
+              split_pt = cut_val[i - 1];
+            }
+            best.Update(loss_chg, fidx, split_pt, d_step == -1, false, right_sum, left_sum);
           } else {
-            split_pt = cut_val[i - 1];
+            // secure mode: record the best split point, rather than the actual value
+            // since it is not accessible at this point (active party finding best-split)
+            if (i != imin) {
+              i = i - 1;
+            }
+            best.Update(loss_chg, fidx, i, d_step == -1, false, right_sum, left_sum);
           }
-          best.Update(loss_chg, fidx, split_pt, d_step == -1, false, right_sum, left_sum);
         }
       }
     }
@@ -352,7 +365,6 @@ class HistEvaluator {
     }
     auto evaluator = tree_evaluator_.GetEvaluator();
     auto const &cut_ptrs = cut.Ptrs();
-
     // Under secure vertical setting, only the active party is able to evaluate the split
     // based on global histogram. Other parties will receive the final best split information
     // Hence the below computation is not performed by the passive parties
@@ -415,6 +427,16 @@ class HistEvaluator {
         for (std::size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
           entries[nidx_in_set].split.Update(
               all_entries[worker * entries.size() + nidx_in_set].split);
+        }
+      }
+      if (is_secure_) {
+        // At this point, all the workers have the best splits for all the nodes
+        // and workers can recover the actual split value with the split index
+        // Note that after the recovery, different workers will hold different
+        // split_value: real value for feature owner, NaN for others
+        for (auto & entry : entries) {
+          auto cut_index = entry.split.split_value;
+          entry.split.split_value = cut.Values()[cut_index];
         }
       }
     }
