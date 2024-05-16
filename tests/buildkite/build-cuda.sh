@@ -54,6 +54,12 @@ if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
 then
   aws s3 cp python-package/dist/*.whl s3://xgboost-nightly-builds/${BRANCH_NAME}/ \
     --acl public-read --no-progress
+
+  # Generate the meta info which includes xgboost version and the commit info
+  whl_name=`basename $(ls python-package/dist/*.whl | head -n 1)`
+  tests/ci_build/generate_meta.sh $whl_name python-package/dist/meta.xml
+  aws s3 cp python-package/dist/meta.xml s3://xgboost-nightly-builds/${BRANCH_NAME}/ \
+    --acl public-read --no-progress
 fi
 echo "-- Stash C++ test executable (testxgboost)"
 buildkite-agent artifact upload build/testxgboost
