@@ -98,7 +98,8 @@ Result RingScatterReduceTyped(Comm const& comm, common::Span<std::int8_t> data,
       return comm.Block();
     };
     if (!rc.OK()) {
-      return rc;
+      return Fail("Ring scatter reduce failed, current iteration:" + std::to_string(r),
+                  std::move(rc));
     }
 
     // accumulate to recv_seg
