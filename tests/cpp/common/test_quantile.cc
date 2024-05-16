@@ -10,7 +10,8 @@
 #include "../../../src/collective/allreduce.h"
 #include "../../../src/common/hist_util.h"
 #include "../../../src/data/adapter.h"
-#include "../collective/test_worker.h"  // for TestDistributedGlobal
+#include "../../../src/data/simple_dmatrix.h"  // for SimpleDMatrix
+#include "../collective/test_worker.h"         // for TestDistributedGlobal
 #include "xgboost/context.h"
 
 namespace xgboost::common {
@@ -301,6 +302,105 @@ TEST(Quantile, ColSplitSortedBasic) {
 TEST(Quantile, ColSplitSorted) {
   constexpr size_t kRows = 4000, kCols = 200;
   TestColSplitQuantile<true>(kRows, kCols);
+}
+
+namespace {
+template <bool use_column>
+void DoTestColSplitQuantileSecure() {
+  Context ctx;
+  auto const world = collective::GetWorldSize();
+  auto const rank = collective::GetRank();
+  size_t cols = 2;
+  size_t rows = 3;
+
+  auto m = std::unique_ptr<DMatrix>{[=]() {
+    std::vector<float> data = {1, 1, 0.6, 0.4, 0.8};
+    std::vector<unsigned> row_idx = {0, 2, 0, 1, 2};
+    std::vector<size_t> col_ptr = {0, 2, 5};
+    data::CSCAdapter adapter(col_ptr.data(), row_idx.data(), data.data(), 2, 3);
+    std::unique_ptr<data::SimpleDMatrix> dmat(new data::SimpleDMatrix(
+      &adapter, std::numeric_limits<float>::quiet_NaN(), -1));
+    EXPECT_EQ(dmat->Info().num_col_, cols);
+    EXPECT_EQ(dmat->Info().num_row_, rows);
+    EXPECT_EQ(dmat->Info().num_nonzero_, 5);
+    return dmat->SliceCol(world, rank);
+  }()};
+
+  std::vector<bst_idx_t> column_size(cols, 0);
+  auto const slice_size = cols / world;
+  auto const slice_start = slice_size * rank;
+  auto const slice_end = (rank == world - 1) ? cols : slice_start + slice_size;
+  for (auto i = slice_start; i < slice_end; i++) {
+    column_size[i] = rows;
+  }
+
+  auto const n_bins = 64;
+
+  m->Info().data_split_mode = DataSplitMode::kColSecure;
+  // Generate cuts for distributed environment.
+  HistogramCuts distributed_cuts;
+  {
+    ContainerType<use_column> sketch_distributed(
+        &ctx, n_bins, m->Info().feature_types.ConstHostSpan(), column_size, false);
+
+    std::vector<float> hessian(rows, 1.0);
+    auto hess = Span<float const>{hessian};
+    if (use_column) {
+      for (auto const& page : m->GetBatches<SortedCSCPage>(&ctx)) {
+        PushPage(&sketch_distributed, page, m->Info(), hess);
+      }
+    } else {
+      for (auto const& page : m->GetBatches<SparsePage>(&ctx)) {
+        PushPage(&sketch_distributed, page, m->Info(), hess);
+      }
+    }
+
+    sketch_distributed.MakeCuts(&ctx, m->Info(), &distributed_cuts);
+  }
+
+  auto const& dptrs = distributed_cuts.Ptrs();
+  auto const& dvals = distributed_cuts.Values();
+  auto const& dmins = distributed_cuts.MinValues();
+  std::vector<float> expected_ptrs = {0, 1, 4};
+  std::vector<float> expected_vals = {2, 0, 0, 0};
+  std::vector<float> expected_mins = {-1e-5, 1e-5};
+  if (rank == 1) {
+    expected_ptrs = {0, 1, 4};
+    expected_vals = {0, 0.6, 0.8, 1.6};
+    expected_mins = {1e-5, -1e-5};
+  }
+
+  EXPECT_EQ(dptrs.size(), expected_ptrs.size());
+  for (size_t i = 0; i < expected_ptrs.size(); ++i) {
+    EXPECT_EQ(dptrs[i], expected_ptrs[i]) << "rank: " << rank << ", i: " << i;
+  }
+
+  EXPECT_EQ(dvals.size(), expected_vals.size());
+  for (size_t i = 0; i < expected_vals.size(); ++i) {
+    if (!std::isnan(dvals[i])) {
+      EXPECT_NEAR(dvals[i], expected_vals[i], 2e-2f) << "rank: " << rank << ", i: " << i;
+    }
+  }
+
+  EXPECT_EQ(dmins.size(), expected_mins.size());
+  for (size_t i = 0; i < expected_mins.size(); ++i) {
+    EXPECT_FLOAT_EQ(dmins[i], expected_mins[i]) << "rank: " << rank << ", i: " << i;
+  }
+}
+
+template <bool use_column>
+void TestColSplitQuantileSecure() {
+  auto constexpr kWorkers = 2;
+  collective::TestFederatedGlobal(kWorkers, [] { DoTestColSplitQuantileSecure<use_column>(); });
+}
+}  // anonymous namespace
+
+TEST(Quantile, ColSplitSecure) {
+  TestColSplitQuantileSecure<false>();
+}
+
+TEST(Quantile, ColSplitSecureSorted) {
+  TestColSplitQuantileSecure<true>();
 }
 
 namespace {
