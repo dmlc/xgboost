@@ -69,11 +69,12 @@ std::string MakeMsg(std::string&& msg, char const*, std::int32_t) {
 #else
 std::string MakeMsg(std::string&& msg, char const* file, std::int32_t line) {
   auto name = std::filesystem::path{file}.filename();
+  dmlc::DateLogger logger;
   if (file && line != -1) {
-    return "[" + name.string() + ":" + std::to_string(line) +  // NOLINT
+    return "[" + name.string() + ":" + std::to_string(line) + "|" + logger.HumanDate() +
            "]: " + std::forward<std::string>(msg);
   }
-  return std::forward<std::string>(msg);
+  return std::string{"["} + logger.HumanDate() + "]" + std::forward<std::string>(msg);
 }
 #endif
 }  // namespace detail
