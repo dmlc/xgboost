@@ -21,7 +21,6 @@ class MockProcessor: public processing::Processor {
     std::vector<int> slots_;
 
  public:
-
     ~MockProcessor() {
         if (gh_pairs_) {
             gh_pairs_->clear();
