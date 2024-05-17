@@ -635,45 +635,47 @@ class TCPSocket {
   }
 
   /**
-   * \brief Send data, without error then all data should be sent.
+   * @brief Send data, without error then all data should be sent.
    */
-  [[nodiscard]] auto SendAll(void const *buf, std::size_t len) {
+  [[nodiscard]] Result SendAll(void const *buf, std::size_t len, std::size_t *n_sent) {
     char const *_buf = reinterpret_cast<const char *>(buf);
-    std::size_t ndone = 0;
+    std::size_t &ndone = *n_sent;
+    ndone = 0;
     while (ndone < len) {
       ssize_t ret = send(handle_, _buf, len - ndone, 0);
       if (ret == -1) {
         if (system::LastErrorWouldBlock()) {
-          return ndone;
+          return Success();
         }
-        system::ThrowAtError("send");
+        return system::FailWithCode("send");
       }
       _buf += ret;
       ndone += ret;
     }
-    return ndone;
+    return Success();
   }
   /**
-   * \brief Receive data, without error then all data should be received.
+   * @brief Receive data, without error then all data should be received.
    */
-  [[nodiscard]] auto RecvAll(void *buf, std::size_t len) {
+  [[nodiscard]] Result RecvAll(void *buf, std::size_t len, std::size_t *n_recv) {
     char *_buf = reinterpret_cast<char *>(buf);
-    std::size_t ndone = 0;
+    std::size_t &ndone = *n_recv;
+    ndone = 0;
     while (ndone < len) {
       ssize_t ret = recv(handle_, _buf, len - ndone, MSG_WAITALL);
       if (ret == -1) {
         if (system::LastErrorWouldBlock()) {
-          return ndone;
+          return Success();
         }
-        system::ThrowAtError("recv");
+        return system::FailWithCode("recv");
       }
       if (ret == 0) {
-        return ndone;
+        return Success();
       }
       _buf += ret;
       ndone += ret;
     }
-    return ndone;
+    return Success();
   }
   /**
    * \brief Send data using the socket
