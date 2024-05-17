@@ -22,7 +22,8 @@
 namespace xgboost::collective {
 Result Loop::ProcessQueue(std::queue<Op>* p_queue) const {
   timer_.Start(__func__);
-  auto error = [this] {
+  auto error = [this](Op op) {
+    op.pr->set_value();
     timer_.Stop(__func__);
   };
 
@@ -56,7 +57,7 @@ Result Loop::ProcessQueue(std::queue<Op>* p_queue) const {
           break;
         }
         default: {
-          error();
+          error(op);
           return Fail("Invalid socket operation.");
         }
       }
@@ -69,13 +70,13 @@ Result Loop::ProcessQueue(std::queue<Op>* p_queue) const {
     if (!poll.fds.empty()) {
       auto rc = poll.Poll(timeout_);
       if (!rc.OK()) {
-        error();
+        timer_.Stop(__func__);
         return rc;
       }
     }
     timer_.Stop("poll");
 
-    // we wonldn't be here if the queue is empty.
+    // We wonldn't be here if the queue is empty.
     CHECK(!qcopy.empty());
 
     // Iterate through all the ops for performing the operations
@@ -95,8 +96,9 @@ Result Loop::ProcessQueue(std::queue<Op>* p_queue) const {
           if (poll.CheckRead(*op.sock)) {
             n_bytes_done = op.sock->Recv(op.ptr + op.off, op.n - op.off);
             if (n_bytes_done == 0) {
-              error();
-              return Fail("Encountered EOF. The other end is likely closed.");
+              error(op);
+              return Fail("Encountered EOF. The other end is likely closed.",
+                          op.sock->GetSockError());
             }
           }
           break;
@@ -114,14 +116,14 @@ Result Loop::ProcessQueue(std::queue<Op>* p_queue) const {
           break;
         }
         default: {
-          error();
+          error(op);
           return Fail("Invalid socket operation.");
         }
       }
 
       if (n_bytes_done == -1 && !system::LastErrorWouldBlock()) {
         auto rc = system::FailWithCode("Invalid socket output.");
-        error();
+        error(op);
         return rc;
       }
 
@@ -129,14 +131,12 @@ Result Loop::ProcessQueue(std::queue<Op>* p_queue) const {
       CHECK_LE(op.off, op.n);
 
       if (op.off != op.n) {
-        // not yet finished, push back to queue for next round.
+        // not yet finished, push back to queue for the next round.
         qcopy.push(op);
       } else {
         op.pr->set_value();
       }
     }
-
-    break;
   }
 
   timer_.Stop(__func__);
@@ -176,20 +176,10 @@ void Loop::Process() {
         queue_.pop();
         qcopy.push(op);
       }
-
       lock.unlock();
+
       // Clear the local queue.
       auto rc = this->ProcessQueue(&qcopy);
-
-      // Push back the remaining operations. The cv wait above will immediately unblock
-      // if the queue is not empty.
-      if (rc.OK()) {
-        std::unique_lock lock{mu_};
-        while (!qcopy.empty()) {
-          queue_.push(qcopy.front());
-          qcopy.pop();
-        }
-      }
 
       // Handle error
       if (!rc.OK()) {
@@ -236,10 +226,14 @@ Result Loop::Stop() {
       stop_ = true;
     }
   }
-
   if (!this->worker_.joinable()) {
     std::lock_guard<std::mutex> guard{rc_lock_};
     return Fail("Worker has stopped.", std::move(rc_));
+  }
+
+  {
+    std::unique_lock lock{mu_};
+    cv_.notify_one();
   }
 
   for (auto& fut : futures_) {
@@ -265,14 +259,10 @@ void Loop::Submit(Op op) {
   auto p = std::make_shared<std::promise<void>>();
   op.pr = std::move(p);
   futures_.emplace_back(op.pr->get_future());
-
-  std::unique_lock lock{mu_};
   CHECK_NE(op.n, 0);
 
+  std::unique_lock lock{mu_};
   queue_.push(op);
-  lock.unlock();
-
-  cv_.notify_one();
 }
 
 Loop::Loop(std::chrono::seconds timeout) : timeout_{timeout} {

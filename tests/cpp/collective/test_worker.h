@@ -49,6 +49,7 @@ class WorkerForTest {
       if (i != comm_.Rank()) {
         ASSERT_TRUE(comm_.Chan(i)->Socket()->NonBlocking());
         ASSERT_TRUE(comm_.Chan(i)->Socket()->SetBufSize(n_bytes).OK());
+        ASSERT_TRUE(comm_.Chan(i)->Socket()->SetNoDelay().OK());
       }
     }
   }

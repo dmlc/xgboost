@@ -16,6 +16,10 @@
 #include <system_error>  // std::error_code, std::system_category
 #include <utility>       // std::swap
 
+#if defined(__linux__)
+#include <sys/ioctl.h>  // for TIOCOUTQ, FIONREAD
+#endif  // defined(__linux__)
+
 #if !defined(xgboost_IS_MINGW)
 
 #if defined(__MINGW32__)
@@ -319,7 +323,8 @@ class TCPSocket {
     std::int32_t domain;
     socklen_t len = sizeof(domain);
     xgboost_CHECK_SYS_CALL(
-        getsockopt(handle_, SOL_SOCKET, SO_DOMAIN, reinterpret_cast<char *>(&domain), &len), 0);
+        getsockopt(this->Handle(), SOL_SOCKET, SO_DOMAIN, reinterpret_cast<char *>(&domain), &len),
+        0);
     return ret_iafamily(domain);
 #else
     struct sockaddr sa;
@@ -426,6 +431,35 @@ class TCPSocket {
     return Success();
   }
 
+  [[nodiscard]] Result SendBufSize(std::int32_t *n_bytes) {
+    socklen_t optlen;
+    auto rc = getsockopt(this->Handle(), SOL_SOCKET, SO_SNDBUF, reinterpret_cast<char *>(n_bytes),
+                         &optlen);
+    if (rc != 0 || optlen != sizeof(std::int32_t)) {
+      return system::FailWithCode("getsockopt");
+    }
+    return Success();
+  }
+  [[nodiscard]] Result RecvBufSize(std::int32_t *n_bytes) {
+    socklen_t optlen;
+    auto rc = getsockopt(this->Handle(), SOL_SOCKET, SO_RCVBUF, reinterpret_cast<char *>(n_bytes),
+                         &optlen);
+    if (rc != 0 || optlen != sizeof(std::int32_t)) {
+      return system::FailWithCode("getsockopt");
+    }
+    return Success();
+  }
+#if defined(__linux__)
+  [[nodiscard]] Result PendingSendSize(std::int32_t *n_bytes) const {
+    return ioctl(this->Handle(), TIOCOUTQ, n_bytes) == 0 ? Success()
+                                                         : system::FailWithCode("ioctl");
+  }
+  [[nodiscard]] Result PendingRecvSize(std::int32_t *n_bytes) const {
+    return ioctl(this->Handle(), FIONREAD, n_bytes) == 0 ? Success()
+                                                         : system::FailWithCode("ioctl");
+  }
+#endif  // defined(__linux__)
+
   [[nodiscard]] Result SetKeepAlive() {
     std::int32_t keepalive = 1;
     auto rc = setsockopt(handle_, SOL_SOCKET, SO_KEEPALIVE, reinterpret_cast<char *>(&keepalive),
@@ -436,10 +470,9 @@ class TCPSocket {
     return Success();
   }
 
-  [[nodiscard]] Result SetNoDelay() {
-    std::int32_t tcp_no_delay = 1;
-    auto rc = setsockopt(handle_, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<char *>(&tcp_no_delay),
-                         sizeof(tcp_no_delay));
+  [[nodiscard]] Result SetNoDelay(std::int32_t no_delay = 1) {
+    auto rc = setsockopt(handle_, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<char *>(&no_delay),
+                         sizeof(no_delay));
     if (rc != 0) {
       return system::FailWithCode("Failed to set TCP no delay.");
     }

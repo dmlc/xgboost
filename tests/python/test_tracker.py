@@ -70,6 +70,39 @@ def test_rabit_ops():
             run_rabit_ops(client, n_workers)
 
 
+def run_allreduce(client) -> None:
+    from xgboost.dask import CommunicatorContext, _get_dask_config, _get_rabit_args
+
+    workers = tm.get_client_workers(client)
+    rabit_args = client.sync(_get_rabit_args, len(workers), _get_dask_config(), client)
+    n_workers = len(workers)
+
+    def local_test(worker_id: int) -> None:
+        x = np.full(shape=(1024 * 1024 * 32), fill_value=1.0)
+        with CommunicatorContext(**rabit_args):
+            k = np.asarray([1.0])
+            for i in range(128):
+                m = collective.allreduce(k, collective.Op.SUM)
+                assert m == n_workers
+
+            y = collective.allreduce(x, collective.Op.SUM)
+            np.testing.assert_allclose(y, np.full_like(y, fill_value=float(n_workers)))
+
+    futures = client.map(local_test, range(len(workers)), workers=workers)
+    results = client.gather(futures)
+
+
+def test_allreduce() -> None:
+    from distributed import Client, LocalCluster
+
+    n_workers = 4
+    for i in range(2):
+        with LocalCluster(n_workers=n_workers) as cluster:
+            with Client(cluster) as client:
+                for i in range(2):
+                    run_allreduce(client)
+
+
 def run_broadcast(client):
     from xgboost.dask import _get_dask_config, _get_rabit_args
 

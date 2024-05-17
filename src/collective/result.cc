@@ -69,7 +69,7 @@ std::string MakeMsg(std::string&& msg, char const* file, std::int32_t line) {
     return "[" + name.string() + ":" + std::to_string(line) + "|" + logger.HumanDate() +
            "]: " + std::forward<std::string>(msg);
   }
-  return std::string{"["} + logger.HumanDate() + "]" + std::forward<std::string>(msg);
+  return std::string{"["} + logger.HumanDate() + "]" + std::forward<std::string>(msg);  // NOLINT
 }
 }  // namespace detail
 

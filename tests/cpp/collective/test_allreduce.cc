@@ -39,6 +39,22 @@ class AllreduceWorker : public WorkerForTest {
     }
   }
 
+  void Restricted() {
+    this->LimitSockBuf(4096);
+
+    std::size_t n = 4096 * 4;
+    std::vector<std::int32_t> data(comm_.World() * n, 1);
+    auto rc = Allreduce(comm_, common::Span{data.data(), data.size()}, [](auto lhs, auto rhs) {
+      for (std::size_t i = 0; i < rhs.size(); ++i) {
+        rhs[i] += lhs[i];
+      }
+    });
+    ASSERT_TRUE(rc.OK());
+    for (auto v : data) {
+      ASSERT_EQ(v, comm_.World());
+    }
+  }
+
   void Acc() {
     std::vector<double> data(314, 1.5);
     auto rc = Allreduce(comm_, common::Span{data.data(), data.size()}, [](auto lhs, auto rhs) {
@@ -93,6 +109,15 @@ TEST_F(AllreduceTest, BitOr) {
                                  std::int32_t r) {
     AllreduceWorker worker{host, port, timeout, n_workers, r};
     worker.BitOr();
+  });
+}
+
+TEST_F(AllreduceTest, Restricted) {
+  std::int32_t n_workers = std::min(3u, std::thread::hardware_concurrency());
+  TestDistributed(n_workers, [=](std::string host, std::int32_t port, std::chrono::seconds timeout,
+                                 std::int32_t r) {
+    AllreduceWorker worker{host, port, timeout, n_workers, r};
+    worker.Restricted();
   });
 }
 
