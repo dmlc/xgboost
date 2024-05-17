@@ -13,10 +13,12 @@ class ProcessorTest : public testing::Test {
         auto loader = processing::ProcessorLoader();
         processor_ = loader.load(processing::kMockProcessor);
         processor_->Initialize(true, {});
+        loader.unload();
     }
 
     void TearDown() override {
         processor_->Shutdown();
+        delete processor_;
         processor_ = nullptr;
     }
 
@@ -62,13 +64,13 @@ TEST_F(ProcessorTest, TestGHEncoding) {
     ASSERT_EQ(0, memcmp(buffer, new_buffer, buf_size));
 
     // Clean up
-    free(buffer);
-    free(new_buffer);
+    processor_->FreeBuffer(buffer);
+    processor_->FreeBuffer(new_buffer);
 }
 
 TEST_F(ProcessorTest, TestAggregation) {
     size_t buf_size;
-    processor_->ProcessGHPairs(&buf_size, gh_pairs_);  // Pass the GH pairs to the plugin
+    auto gh_buffer = processor_->ProcessGHPairs(&buf_size, gh_pairs_);  // Pass the GH pairs to the plugin
 
     processor_->InitAggregationContext(cuts_, slots_);
     auto buffer = processor_->ProcessAggregation(&buf_size, nodes_);
@@ -87,4 +89,7 @@ TEST_F(ProcessorTest, TestAggregation) {
     for (size_t i = 0; i < histos.size(); ++i) {
         EXPECT_NEAR(expected_result[i], histos[i], kError) << "Histogram differs at index " << i;
     }
+
+    processor_->FreeBuffer(buffer);
+    processor_->FreeBuffer(gh_buffer);
 }

@@ -19,6 +19,12 @@ const char kLoadFunc[] = "LoadProcessor";
 class Processor {
  public:
     /*!
+     * \brief Virtual destructor
+     *
+     */
+    virtual ~Processor() = default;
+
+    /*!
      * \brief Initialize the processor
      *
      * \param active If true, this is the active node

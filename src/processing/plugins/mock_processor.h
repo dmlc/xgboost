@@ -21,15 +21,27 @@ class MockProcessor: public processing::Processor {
     std::vector<int> slots_;
 
  public:
+
+    ~MockProcessor() {
+        if (gh_pairs_) {
+            gh_pairs_->clear();
+            delete gh_pairs_;
+        }
+    }
+
     void Initialize(bool active, std::map<std::string, std::string> params) override {
         this->active_ = active;
         this->params_ = &params;
     }
 
     void Shutdown() override {
-        this->gh_pairs_ = nullptr;
-        this->cuts_.clear();
-        this->slots_.clear();
+        if (gh_pairs_) {
+            gh_pairs_->clear();
+            delete gh_pairs_;
+        }
+        gh_pairs_ = nullptr;
+        cuts_.clear();
+        slots_.clear();
     }
 
     void FreeBuffer(void *buffer) override {

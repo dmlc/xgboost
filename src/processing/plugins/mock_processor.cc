@@ -57,7 +57,10 @@ void* MockProcessor::HandleGHPairs(std::size_t *size, void *buffer, std::size_t 
     }
   }
 
-  return buffer;
+  auto result = malloc(buf_size);
+  memcpy(result, buffer, buf_size);
+
+  return result;
 }
 
 void *MockProcessor::ProcessAggregation(std::size_t *size, std::map<int, std::vector<int>> nodes) {

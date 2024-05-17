@@ -78,9 +78,13 @@ namespace processing {
 
     void ProcessorLoader::unload() {
 #if defined(_WIN32)
-        FreeLibrary(handle_);
+        if (handle_) {
+            FreeLibrary(handle_);
+        }
 #else
-        dlclose(handle_);
+        if (handle_) {
+            dlclose(handle_);
+        }
 #endif
     }
 }  // namespace processing
