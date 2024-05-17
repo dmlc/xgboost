@@ -63,9 +63,9 @@ void ResultImpl::Concat(std::unique_ptr<ResultImpl> rhs) {
 }
 
 std::string MakeMsg(std::string&& msg, char const* file, std::int32_t line) {
-  auto name = std::filesystem::path{file}.filename();
   dmlc::DateLogger logger;
   if (file && line != -1) {
+    auto name = std::filesystem::path{ file }.filename();
     return "[" + name.string() + ":" + std::to_string(line) + "|" + logger.HumanDate() +
            "]: " + std::forward<std::string>(msg);
   }
