@@ -95,7 +95,7 @@ std::size_t TCPSocket::Send(StringView str) {
     p_str->resize(len);
     return this->RecvAll(&(*p_str)[0], len, &n_bytes);
   } << [&] {
-    if (static_cast<decltype(len)>(n_bytes) != len) {
+    if (static_cast<std::remove_reference_t<decltype(len)>>(n_bytes) != len) {
       return Fail("Failed to recv string.");
     }
     return Success();
