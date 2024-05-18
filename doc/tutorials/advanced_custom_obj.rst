@@ -134,10 +134,18 @@ SciPy's ``stats.dirichlet.logpdf`` for an alternative):
 .. code-block:: python
 
     from scipy.optimize import check_grad
+    from scipy.special import softmax
+
+    def gen_random_dirichlet(rng: np.random.Generator, m: int, k: int):
+        alpha = softmax(rng.standard_normal(size=k))
+        return rng.dirichlet(alpha, size=m)
     
     def test_dirichlet_fun_grad_hess():
-        k = Y.shape[1]
-        x0 = np.zeros(k)
+        k = 3
+        m = 10
+        rng = np.random.default_rng(seed=123)
+        Y = gen_random_dirichlet(rng, m, k)
+        x0 = rng.standard_normal(size=k)
         for row in range(Y.shape[0]):
             gdiff = check_grad(
                 lambda pred: dirichlet_fun(pred.reshape((1,-1)), Y[[row]]),
@@ -193,7 +201,7 @@ point, which means it will be a minimum rather than a maximum or saddle point).
 
     def dirichlet_expected_hess(pred: np.ndarray) -> np.ndarray:
         epred = np.exp(pred)
-        k = Y.shape[1]
+        k = pred.shape[1]
         Ehess = np.empty((pred.shape[0], k, k))
         for row in range(pred.shape[0]):
             Ehess[row, :, :] = (
@@ -202,9 +210,10 @@ point, which means it will be a minimum rather than a maximum or saddle point).
             )
         return Ehess
     def test_dirichlet_expected_hess():
-        rng = np.random.default_rng(seed=123)
         k = 3
-        x0 = np.zeros(k)
+        rng = np.random.default_rng(seed=123)
+        Y = gen_random_dirichlet(rng, 1, k)
+        x0 = rng.standard_normal(size=k)
         y_sample = rng.dirichlet(np.exp(x0), size=5_000_000)
         x_broadcast = np.broadcast_to(x0, (y_sample.shape[0], k))
         g_sample = dirichlet_grad(x_broadcast, y_sample)
@@ -319,7 +328,6 @@ Fitting an XGBoost model and making predictions:
 .. code-block:: python
     
     from typing import Dict, List
-    from scipy.special import softmax
     
     dtrain = xgb.DMatrix(X, label=Y)
     results: Dict[str, Dict[str, List[float]]] = {}
@@ -327,6 +335,7 @@ Fitting an XGBoost model and making predictions:
         params={
             "tree_method": "hist",
             "num_target": Y.shape[1],
+            "base_score": 0,
             "disable_default_eval_metric": True,
             "max_depth": 3,
             "seed": 123,
@@ -345,16 +354,16 @@ expected - but unlike other objectives, the minimum value here can reach below z
 
 .. code-block:: none
 
-    [0] Train-dirichlet_ll:-47.68726
-    [1] Train-dirichlet_ll:-59.83995
-    [2] Train-dirichlet_ll:-66.84701
-    [3] Train-dirichlet_ll:-71.33110
-    [4] Train-dirichlet_ll:-74.47469
-    [5] Train-dirichlet_ll:-77.05876
-    [6] Train-dirichlet_ll:-79.18389
-    [7] Train-dirichlet_ll:-80.91361
-    [8] Train-dirichlet_ll:-82.55033
-    [9] Train-dirichlet_ll:-84.03623
+    [0] Train-dirichlet_ll:-40.25009
+    [1] Train-dirichlet_ll:-47.69122
+    [2] Train-dirichlet_ll:-52.64620
+    [3] Train-dirichlet_ll:-56.36977
+    [4] Train-dirichlet_ll:-59.33048
+    [5] Train-dirichlet_ll:-61.93359
+    [6] Train-dirichlet_ll:-64.17280
+    [7] Train-dirichlet_ll:-66.29709
+    [8] Train-dirichlet_ll:-68.21001
+    [9] Train-dirichlet_ll:-70.03442
 
 One can confirm that the obtained ``yhat`` resembles the actual concentrations
 to a large degree, beyond what would be expected from random predictions by a
@@ -413,6 +422,7 @@ Now fitting a model again, this time with the intercept:
         params={
             "tree_method": "hist",
             "num_target": Y.shape[1],
+            "base_score": 0,
             "disable_default_eval_metric": True,
             "max_depth": 3,
             "seed": 123,
@@ -433,16 +443,16 @@ Now fitting a model again, this time with the intercept:
 
 .. code-block:: none
 
-    [0] Train-dirichlet_ll:-39.04921
-    [1] Train-dirichlet_ll:-48.64161
-    [2] Train-dirichlet_ll:-54.55286
-    [3] Train-dirichlet_ll:-58.56391
-    [4] Train-dirichlet_ll:-61.28742
-    [5] Train-dirichlet_ll:-63.32635
-    [6] Train-dirichlet_ll:-64.81336
-    [7] Train-dirichlet_ll:-66.04388
-    [8] Train-dirichlet_ll:-67.16878
-    [9] Train-dirichlet_ll:-68.12816
+    [0] Train-dirichlet_ll:-37.01861
+    [1] Train-dirichlet_ll:-42.86120
+    [2] Train-dirichlet_ll:-46.55133
+    [3] Train-dirichlet_ll:-49.15111
+    [4] Train-dirichlet_ll:-51.02638
+    [5] Train-dirichlet_ll:-52.53880
+    [6] Train-dirichlet_ll:-53.77409
+    [7] Train-dirichlet_ll:-54.88851
+    [8] Train-dirichlet_ll:-55.95961
+    [9] Train-dirichlet_ll:-56.95497
 
 For this small example problem, predictions should be very similar between the
 two and the version without intercepts achieved a lower objective function in the
