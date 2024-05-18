@@ -39,4 +39,20 @@ void FitIntercept::InitEstimation(MetaInfo const& info, linalg::Vector<float>* b
   common::Mean(this->ctx_, leaf_weight, base_score);
   this->PredTransform(base_score->Data());
 }
+
+void FitInterceptGlmLike::InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const {
+  if (this->Task().task == ObjInfo::kRegression) {
+    CheckInitInputs(info);
+  }
+
+  if (info.labels.Shape(1) == 1) {
+    common::Mean(
+      this->ctx_,
+      *reinterpret_cast<const linalg::Vector<float>*>(&info.labels),
+      base_score
+    );
+  } else {
+    (*base_score)(0) = 0.0f;
+  }
+}
 }  // namespace xgboost::obj

@@ -12,6 +12,10 @@ class FitIntercept : public ObjFunction {
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override;
 };
 
+class FitInterceptGlmLike : public ObjFunction {
+  void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override;
+};
+
 inline void CheckInitInputs(MetaInfo const& info) {
   CHECK_EQ(info.labels.Shape(0), info.num_row_) << "Invalid shape of labels.";
   if (!info.weights_.Empty()) {
