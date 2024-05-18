@@ -40,7 +40,9 @@ void FitIntercept::InitEstimation(MetaInfo const& info, linalg::Vector<float>* b
   this->PredTransform(base_score->Data());
 }
 
-void FitInterceptGlmLike::InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const {
+void FitInterceptGlmLike::InitEstimation(
+  MetaInfo const& info,
+  linalg::Vector<float>* base_score) const {
   if (this->Task().task == ObjInfo::kRegression) {
     CheckInitInputs(info);
   }
@@ -49,8 +51,7 @@ void FitInterceptGlmLike::InitEstimation(MetaInfo const& info, linalg::Vector<fl
     common::Mean(
       this->ctx_,
       *reinterpret_cast<const linalg::Vector<float>*>(&info.labels),
-      base_score
-    );
+      base_score);
   } else {
     (*base_score)(0) = 0.0f;
   }
