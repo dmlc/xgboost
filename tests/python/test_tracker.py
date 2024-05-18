@@ -92,6 +92,7 @@ def run_allreduce(client) -> None:
     results = client.gather(futures)
 
 
+@pytest.mark.skipif(**tm.no_dask())
 def test_allreduce() -> None:
     from distributed import Client, LocalCluster
 
