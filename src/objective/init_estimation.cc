@@ -53,7 +53,7 @@ void FitInterceptGlmLike::InitEstimation(
       *reinterpret_cast<const linalg::Vector<float>*>(&info.labels),
       base_score);
   } else {
-    (*base_score)(0) = 0.0f;
+    (*base_score)(0) = ObjFunction::DefaultBaseScore();
   }
 }
 }  // namespace xgboost::obj
