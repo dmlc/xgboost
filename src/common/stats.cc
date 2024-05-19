@@ -61,4 +61,23 @@ void Mean(Context const* ctx, linalg::Vector<float> const& v, linalg::Vector<flo
     out->HostView()(0) = ret;
   }
 }
+
+void WeightedMean(Context const* ctx,
+                  const std::vector<float> &v,
+                  const std::vector<float> &w,
+                  linalg::Vector<float>* out) {
+  out->SetDevice(ctx->Device());
+  out->Reshape(1);
+
+  MemStackAllocator<float, DefaultMaxThreads()> tloc_w(ctx->Threads(), 0.0f);
+  ParallelFor(w.size(), ctx->Threads(),
+              [&](auto i) { tloc_w[omp_get_thread_num()] += w[i]; });
+  auto sumw = std::accumulate(tloc_w.cbegin(), tloc_w.cend(), .0f);
+
+  MemStackAllocator<float, DefaultMaxThreads()> tloc_v(ctx->Threads(), 0.0f);
+  ParallelFor(v.size(), ctx->Threads(),
+              [&](auto i) { tloc_v[omp_get_thread_num()] += v[i] * w[i] / sumw; });
+  auto ret = std::accumulate(tloc_v.cbegin(), tloc_v.cend(), .0f);
+  out->HostView()(0) = ret;
+}
 }  // namespace xgboost::common

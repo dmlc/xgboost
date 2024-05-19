@@ -130,6 +130,11 @@ void Median(Context const* ctx, linalg::Tensor<float, 2> const& t,
             HostDeviceVector<float> const& weights, linalg::Tensor<float, 1>* out);
 
 void Mean(Context const* ctx, linalg::Vector<float> const& v, linalg::Vector<float>* out);
+
+void WeightedMean(Context const* ctx,
+                  const std::vector<float> &v,
+                  const std::vector<float> &w,
+                  linalg::Vector<float>* out);
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_STATS_H_
