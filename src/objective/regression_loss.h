@@ -23,6 +23,7 @@ struct LinearSquareLoss {
   }
   XGBOOST_DEVICE static bst_float SecondOrderGradient(bst_float, bst_float) { return 1.0f; }
   static bst_float ProbToMargin(bst_float base_score) { return base_score; }
+  static float ProbMarginZero() { return 0.0f; }
   static const char* LabelErrorMsg() { return ""; }
   static const char* DefaultEvalMetric() { return "rmse"; }
 
@@ -44,6 +45,7 @@ struct SquaredLogError {
     return res;
   }
   static bst_float ProbToMargin(bst_float base_score) { return base_score; }
+  static float ProbMarginZero() { return 0.0f; }
   static const char* LabelErrorMsg() {
     return "label must be greater than -1 for rmsle so that log(label + 1) can be valid.";
   }
@@ -70,6 +72,7 @@ struct LogisticRegression {
         << "base_score must be in (0,1) for logistic loss, got: " << base_score;
     return -logf(1.0f / base_score - 1.0f);
   }
+  static float ProbMarginZero() { return 0.5f; }
   static const char* LabelErrorMsg() { return "label must be in [0,1] for logistic regression"; }
   static const char* DefaultEvalMetric() { return "rmse"; }
 
@@ -98,6 +101,7 @@ struct LogisticRaw : public LogisticRegression {
     return fmaxf(predt * (1.0f - predt), eps);
   }
   static bst_float ProbToMargin(bst_float base_score) { return base_score; }
+  static float ProbMarginZero() { return 0.0f; }
   static const char* DefaultEvalMetric() { return "logloss"; }
 
   static const char* Name() { return "binary:logitraw"; }
@@ -110,6 +114,7 @@ class GammaDeviance {
  public:
   XGBOOST_DEVICE static float PredTransform(float x) { return std::exp(x); }
   XGBOOST_DEVICE static float ProbToMargin(float x) { return std::log(x); }
+  static float ProbMarginZero() { return 1.0f; }
   XGBOOST_DEVICE static float FirstOrderGradient(float p, float y) {
     return 1.0f - y / p;
   }

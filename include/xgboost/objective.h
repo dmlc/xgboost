@@ -32,6 +32,8 @@ class ObjFunction : public Configurable {
 
  public:
   static constexpr float DefaultBaseScore() { return 0.5f; }
+  // 'InvLinkZero' is objective-specific, but not 'static'
+  virtual float InvLinkZero() const { return DefaultBaseScore(); }
 
  public:
   /*! \brief virtual destructor */

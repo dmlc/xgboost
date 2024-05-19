@@ -171,6 +171,10 @@ class SoftmaxMultiClassObj : public ObjFunction {
     FromJson(in["softmax_multiclass_param"], &param_);
   }
 
+  float InvLinkZero() const override {
+    return 0.0f;
+  }
+
  private:
   // output probability
   bool output_prob_;
