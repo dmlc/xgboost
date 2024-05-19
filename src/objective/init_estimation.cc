@@ -48,7 +48,6 @@ void FitInterceptGlmLike::InitEstimation(
   }
 
   if (info.labels.Shape(1) == 1) {
-
     if (!info.weights_.Size()) {
       common::Mean(this->ctx_,
                    *reinterpret_cast<const linalg::Vector<float>*>(&info.labels),
@@ -60,7 +59,7 @@ void FitInterceptGlmLike::InitEstimation(
                            base_score);
     }
   } else {
-    (*base_score)(0) = ObjFunction::DefaultBaseScore();
+    (*base_score)(0) = InvLinkZero();
   }
 }
 }  // namespace xgboost::obj

@@ -178,6 +178,8 @@ class RegLossObj : public FitInterceptGlmLike {
     return Loss::ProbToMargin(base_score);
   }
 
+  float InvLinkZero() const override { return Loss::ProbMarginZero(); }
+
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String(Loss::Name());
@@ -190,6 +192,15 @@ class RegLossObj : public FitInterceptGlmLike {
 
  protected:
   RegLossParam param_;
+};
+
+class LogisticRawObj : public RegLossObj<LogisticRaw> {
+public:
+  void InitEstimation(MetaInfo const& info,
+                      linalg::Vector<float>* base_score) const override {
+    RegLossObj::InitEstimation(info, base_score);
+    (*base_score)(0) = -logf(1.0f / (*base_score)(0) - 1.0f);
+  }
 };
 
 // register the objective functions
@@ -214,7 +225,7 @@ XGBOOST_REGISTER_OBJECTIVE(LogisticClassification, LogisticClassification::Name(
 XGBOOST_REGISTER_OBJECTIVE(LogisticRaw, LogisticRaw::Name())
 .describe("Logistic regression for classification, output score "
           "before logistic transformation.")
-.set_body([]() { return new RegLossObj<LogisticRaw>(); });
+.set_body([]() { return new LogisticRawObj(); });
 
 XGBOOST_REGISTER_OBJECTIVE(GammaRegression, GammaDeviance::Name())
     .describe("Gamma regression using the gamma deviance loss with log link.")
@@ -293,6 +304,8 @@ class PseudoHuberRegression : public FitIntercept {
     config["pseudo_huber_param"] = ToJson(param_);
     return config;
   }
+
+  float InvLinkZero() const override { return 0.0f; }
 };
 
 XGBOOST_REGISTER_OBJECTIVE(PseudoHuberRegression, "reg:pseudohubererror")
@@ -377,6 +390,7 @@ class PoissonRegression : public FitInterceptGlmLike {
   [[nodiscard]] float ProbToMargin(bst_float base_score) const override {
     return std::log(base_score);
   }
+  float InvLinkZero() const override { return 1.0f; }
   [[nodiscard]] const char* DefaultEvalMetric() const override {
     return "poisson-nloglik";
   }
@@ -586,6 +600,8 @@ class TweedieRegression : public FitInterceptGlmLike {
     return std::log(base_score);
   }
 
+  float InvLinkZero() const override { return 1.0f; }
+
   [[nodiscard]] const char* DefaultEvalMetric() const override {
     return metric_.c_str();
   }
@@ -706,6 +722,8 @@ class MeanAbsoluteError : public ObjFunction {
   void LoadConfig(Json const& in) override {
     CHECK_EQ(StringView{get<String const>(in["name"])}, StringView{"reg:absoluteerror"});
   }
+
+  float InvLinkZero() const override { return 0.0f; }
 };
 
 XGBOOST_REGISTER_OBJECTIVE(MeanAbsoluteError, "reg:absoluteerror")
