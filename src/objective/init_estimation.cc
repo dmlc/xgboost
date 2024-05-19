@@ -48,10 +48,17 @@ void FitInterceptGlmLike::InitEstimation(
   }
 
   if (info.labels.Shape(1) == 1) {
-    common::Mean(
-      this->ctx_,
-      *reinterpret_cast<const linalg::Vector<float>*>(&info.labels),
-      base_score);
+
+    if (!info.weights_.Size()) {
+      common::Mean(this->ctx_,
+                   *reinterpret_cast<const linalg::Vector<float>*>(&info.labels),
+                   base_score);
+    } else {
+      common::WeightedMean(this->ctx_,
+                           info.labels.Data()->ConstHostVector(),
+                           info.weights_.ConstHostVector(),
+                           base_score);
+    }
   } else {
     (*base_score)(0) = ObjFunction::DefaultBaseScore();
   }
