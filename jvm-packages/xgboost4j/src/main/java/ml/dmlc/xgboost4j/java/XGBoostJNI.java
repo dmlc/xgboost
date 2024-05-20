@@ -54,7 +54,7 @@ class XGBoostJNI {
   public final static native int XGDMatrixCreateFromFile(String fname, int silent, long[] out);
 
   final static native int XGDMatrixCreateFromDataIter(java.util.Iterator<DataBatch> iter,
-                                                             String cache_info, long[] out);
+      String cache_info, long[] out);
 
   public final static native int XGDMatrixCreateFromCSR(long[] indptr, int[] indices,
                                                         float[] data, int shapeParam,
@@ -146,11 +146,23 @@ class XGBoostJNI {
   public final static native int XGBoosterGetNumBoostedRound(long handle, int[] rounds);
 
   // communicator functions
-  public final static native int CommunicatorInit(String[] args);
+  public final static native int CommunicatorInit(String args);
   public final static native int CommunicatorFinalize();
   public final static native int CommunicatorPrint(String msg);
   public final static native int CommunicatorGetRank(int[] out);
   public final static native int CommunicatorGetWorldSize(int[] out);
+
+  // Tracker functions
+  public final static native int TrackerCreate(String host, int nWorkers, int port, int sortby, long timeout,
+      long[] out);
+
+  public final static native int TrackerRun(long handle);
+
+  public final static native int TrackerWaitFor(long handle, long timeout);
+
+  public final static native int TrackerWorkerArgs(long handle, long timeout, String[] out);
+
+  public final static native int TrackerFree(long handle);
 
   // Perform Allreduce operation on data in sendrecvbuf.
   final static native int CommunicatorAllreduce(ByteBuffer sendrecvbuf, int count,
@@ -168,5 +180,4 @@ class XGBoostJNI {
   public final static native int XGBoosterSetStrFeatureInfo(long handle, String field, String[] features);
 
   public final static native int XGBoosterGetStrFeatureInfo(long handle, String field, String[] out);
-
 }

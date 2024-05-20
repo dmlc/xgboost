@@ -151,6 +151,7 @@ function(xgboost_set_cuda_flags target)
   target_include_directories(
     ${target} PRIVATE
     ${xgboost_SOURCE_DIR}/gputreeshap
+    ${xgboost_SOURCE_DIR}/rabit/include
     ${CUDAToolkit_INCLUDE_DIRS})
 
   if(MSVC)

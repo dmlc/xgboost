@@ -108,6 +108,32 @@ TEST_F(FederatedCollTestGPU, Allreduce) {
   });
 }
 
+TEST(FederatedCollGPUGlobal, Allreduce) {
+  std::int32_t n_workers = common::AllVisibleGPUs();
+  TestFederatedGlobal(n_workers, [&] {
+    auto r = collective::GetRank();
+    auto world = collective::GetWorldSize();
+    CHECK_EQ(n_workers, world);
+
+    dh::device_vector<std::uint32_t> values(3, r);
+    auto ctx = MakeCUDACtx(r);
+    auto rc = collective::Allreduce(
+        &ctx, linalg::MakeVec(values.data().get(), values.size(), DeviceOrd::CUDA(r)),
+        Op::kBitwiseOR);
+    SafeColl(rc);
+
+    std::vector<std::uint32_t> expected(values.size(), 0);
+    for (std::int32_t rank = 0; rank < world; ++rank) {
+      for (std::size_t i = 0; i < expected.size(); ++i) {
+        expected[i] |= rank;
+      }
+    }
+    for (std::size_t i = 0; i < expected.size(); ++i) {
+      CHECK_EQ(expected[i], values[i]);
+    }
+  });
+}
+
 TEST_F(FederatedCollTestGPU, Broadcast) {
   std::int32_t n_workers = common::AllVisibleGPUs();
   TestFederated(n_workers, [=](std::shared_ptr<FederatedComm> comm, std::int32_t rank) {

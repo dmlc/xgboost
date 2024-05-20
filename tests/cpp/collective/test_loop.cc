@@ -59,7 +59,7 @@ class LoopTest : public ::testing::Test {
 TEST_F(LoopTest, Timeout) {
   std::vector<std::int8_t> data(1);
   Loop::Op op{Loop::Op::kRead, 0, data.data(), data.size(), &pair_.second, 0};
-  loop_->Submit(op);
+  loop_->Submit(std::move(op));
   auto rc = loop_->Block();
   ASSERT_FALSE(rc.OK());
   ASSERT_EQ(rc.Code(), std::make_error_code(std::errc::timed_out)) << rc.Report();
@@ -75,8 +75,8 @@ TEST_F(LoopTest, Op) {
   Loop::Op wop{Loop::Op::kWrite, 0, wbuf.data(), wbuf.size(), &send, 0};
   Loop::Op rop{Loop::Op::kRead, 0, rbuf.data(), rbuf.size(), &recv, 0};
 
-  loop_->Submit(wop);
-  loop_->Submit(rop);
+  loop_->Submit(std::move(wop));
+  loop_->Submit(std::move(rop));
 
   auto rc = loop_->Block();
   SafeColl(rc);
@@ -90,7 +90,7 @@ TEST_F(LoopTest, Block) {
 
   common::Timer t;
   t.Start();
-  loop_->Submit(op);
+  loop_->Submit(std::move(op));
   t.Stop();
   // submit is non-blocking
   ASSERT_LT(t.ElapsedSeconds(), 1);
