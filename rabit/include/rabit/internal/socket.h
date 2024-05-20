@@ -1,5 +1,5 @@
 /**
- *  Copyright 2014-2023, XGBoost Contributors
+ *  Copyright 2014-2024, XGBoost Contributors
  * \file socket.h
  * \author Tianqi Chen
  */
@@ -95,7 +95,10 @@ int PollImpl(PollFD* pfd, int nfds, std::chrono::seconds timeout) noexcept(true)
 template <typename E>
 std::enable_if_t<std::is_integral_v<E>, xgboost::collective::Result> PollError(E const& revents) {
   if ((revents & POLLERR) != 0) {
-    return xgboost::system::FailWithCode("Poll error condition.");
+    auto err = errno;
+    auto str = strerror(err);
+    return xgboost::system::FailWithCode(std::string{"Poll error condition:"} + std::string{str} +
+                                         " code:" + std::to_string(err));
   }
   if ((revents & POLLNVAL) != 0) {
     return xgboost::system::FailWithCode("Invalid polling request.");
@@ -211,12 +214,7 @@ struct PollHelper {
       }
 
       auto revents = pfd.revents & pfd.events;
-      if (!revents) {
-        // FIXME(jiamingy): remove this once rabit is replaced.
-        fds.erase(pfd.fd);
-      } else {
-        fds[pfd.fd].events = revents;
-      }
+      fds[pfd.fd].events = revents;
     }
     return xgboost::collective::Success();
   }

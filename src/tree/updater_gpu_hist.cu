@@ -13,7 +13,7 @@
 #include <vector>
 
 #include "../collective/aggregator.h"
-#include "../collective/aggregator.cuh"
+#include "../collective/broadcast.h"
 #include "../common/bitfield.h"
 #include "../common/categorical.h"
 #include "../common/cuda_context.cuh"  // CUDAContext
@@ -410,11 +410,16 @@ struct GPUHistMakerDevice {
       }
     });
 
-    collective::AllReduce<collective::Operation::kBitwiseOR>(
-        ctx_->Ordinal(), decision_storage.data().get(), decision_storage.size());
-    collective::AllReduce<collective::Operation::kBitwiseAND>(
-        ctx_->Ordinal(), missing_storage.data().get(), missing_storage.size());
-    collective::Synchronize(ctx_->Ordinal());
+    auto rc = collective::Success() << [&] {
+      return collective::Allreduce(
+          ctx_, linalg::MakeTensorView(ctx_, dh::ToSpan(decision_storage), decision_storage.size()),
+          collective::Op::kBitwiseOR);
+    } << [&] {
+      return collective::Allreduce(
+          ctx_, linalg::MakeTensorView(ctx_, dh::ToSpan(missing_storage), missing_storage.size()),
+          collective::Op::kBitwiseAND);
+    };
+    collective::SafeColl(rc);
 
     row_partitioner->UpdatePositionBatch(
         nidx, left_nidx, right_nidx, split_data,
@@ -611,8 +616,11 @@ struct GPUHistMakerDevice {
     monitor.Start("AllReduce");
     auto d_node_hist = hist.GetNodeHistogram(nidx).data();
     using ReduceT = typename std::remove_pointer<decltype(d_node_hist)>::type::ValueT;
-    collective::GlobalSum(info_, ctx_->Device(), reinterpret_cast<ReduceT*>(d_node_hist),
-                          page->Cuts().TotalBins() * 2 * num_histograms);
+    auto rc = collective::GlobalSum(
+        ctx_, info_,
+        linalg::MakeVec(reinterpret_cast<ReduceT*>(d_node_hist),
+                        page->Cuts().TotalBins() * 2 * num_histograms, ctx_->Device()));
+    SafeColl(rc);
 
     monitor.Stop("AllReduce");
   }
@@ -860,7 +868,9 @@ class GPUHistMaker : public TreeUpdater {
 
     // Synchronise the column sampling seed
     uint32_t column_sampling_seed = common::GlobalRandom()();
-    collective::Broadcast(&column_sampling_seed, sizeof(column_sampling_seed), 0);
+    auto rc = collective::Broadcast(
+        ctx_, linalg::MakeVec(&column_sampling_seed, sizeof(column_sampling_seed)), 0);
+    SafeColl(rc);
     this->column_sampler_ = std::make_shared<common::ColumnSampler>(column_sampling_seed);
 
     auto batch_param = BatchParam{param->max_bin, TrainParam::DftSparseThreshold()};
@@ -1001,9 +1011,7 @@ class GPUGlobalApproxMaker : public TreeUpdater {
 
     monitor_.Start(__func__);
     CHECK(ctx_->IsCUDA()) << error::InvalidCUDAOrdinal();
-    // Synchronise the column sampling seed
     uint32_t column_sampling_seed = common::GlobalRandom()();
-    collective::Broadcast(&column_sampling_seed, sizeof(column_sampling_seed), 0);
     this->column_sampler_ = std::make_shared<common::ColumnSampler>(column_sampling_seed);
 
     p_last_fmat_ = p_fmat;

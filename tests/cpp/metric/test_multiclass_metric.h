@@ -44,8 +44,8 @@ inline void CheckDeterministicMetricMultiClass(StringView name, int32_t device) 
   }
 }
 
-inline void TestMultiClassError(int device, DataSplitMode data_split_mode) {
-  auto ctx = MakeCUDACtx(device);
+inline void TestMultiClassError(DataSplitMode data_split_mode, DeviceOrd device) {
+  auto ctx = MakeCUDACtx(device.ordinal);
   xgboost::Metric * metric = xgboost::Metric::Create("merror", &ctx);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "merror");
@@ -59,13 +59,13 @@ inline void TestMultiClassError(int device, DataSplitMode data_split_mode) {
   delete metric;
 }
 
-inline void VerifyMultiClassError(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  TestMultiClassError(GPUIDX, data_split_mode);
-  CheckDeterministicMetricMultiClass(StringView{"merror"}, GPUIDX);
+inline void VerifyMultiClassError(DataSplitMode data_split_mode, DeviceOrd device) {
+  TestMultiClassError(data_split_mode, device);
+  CheckDeterministicMetricMultiClass(StringView{"merror"}, device.ordinal);
 }
 
-inline void TestMultiClassLogLoss(int device, DataSplitMode data_split_mode) {
-  auto ctx = MakeCUDACtx(device);
+inline void TestMultiClassLogLoss(DataSplitMode data_split_mode, DeviceOrd device) {
+  auto ctx = MakeCUDACtx(device.ordinal);
   xgboost::Metric * metric = xgboost::Metric::Create("mlogloss", &ctx);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "mlogloss");
@@ -80,9 +80,9 @@ inline void TestMultiClassLogLoss(int device, DataSplitMode data_split_mode) {
   delete metric;
 }
 
-inline void VerifyMultiClassLogLoss(DataSplitMode data_split_mode = DataSplitMode::kRow) {
-  TestMultiClassLogLoss(GPUIDX, data_split_mode);
-  CheckDeterministicMetricMultiClass(StringView{"mlogloss"}, GPUIDX);
+inline void VerifyMultiClassLogLoss(DataSplitMode data_split_mode, DeviceOrd device) {
+  TestMultiClassLogLoss(data_split_mode, device);
+  CheckDeterministicMetricMultiClass(StringView{"mlogloss"}, device.ordinal);
 }
 
 }  // namespace metric

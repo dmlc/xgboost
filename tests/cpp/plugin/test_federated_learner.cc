@@ -1,17 +1,19 @@
-/*!
- * Copyright 2023 XGBoost contributors
+/**
+ * Copyright 2023-2024, XGBoost contributors
+ *
+ * Some other tests for federated learning are in the main test suite (test_learner.cc),
+ * gaurded by the `XGBOOST_USE_FEDERATED`.
  */
 #include <dmlc/parameter.h>
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
 #include <xgboost/objective.h>
 
-#include "../../../plugin/federated/federated_server.h"
 #include "../../../src/collective/communicator-inl.h"
-#include "../../../src/common/linalg_op.h"
+#include "../../../src/common/linalg_op.h"  // for begin, end
 #include "../helpers.h"
 #include "../objective_helpers.h"  // for MakeObjNamesForTest, ObjTestNameGenerator
-#include "helpers.h"
+#include "federated/test_worker.h"
 
 namespace xgboost {
 namespace {
@@ -36,32 +38,16 @@ auto MakeModel(std::string tree_method, std::string device, std::string objectiv
   return model;
 }
 
-void VerifyObjective(size_t rows, size_t cols, float expected_base_score, Json expected_model,
-                     std::string tree_method, std::string device, std::string objective) {
-  auto const world_size = collective::GetWorldSize();
-  auto const rank = collective::GetRank();
+void VerifyObjective(std::size_t rows, std::size_t cols, float expected_base_score,
+                     Json expected_model, std::string const &tree_method, std::string device,
+                     std::string const &objective) {
+  auto rank = collective::GetRank();
   std::shared_ptr<DMatrix> dmat{RandomDataGenerator{rows, cols, 0}.GenerateDMatrix(rank == 0)};
 
   if (rank == 0) {
-    auto &h_upper = dmat->Info().labels_upper_bound_.HostVector();
-    auto &h_lower = dmat->Info().labels_lower_bound_.HostVector();
-    h_lower.resize(rows);
-    h_upper.resize(rows);
-    for (size_t i = 0; i < rows; ++i) {
-      h_lower[i] = 1;
-      h_upper[i] = 10;
-    }
-
-    if (objective.find("rank:") != std::string::npos) {
-      auto h_label = dmat->Info().labels.HostView();
-      std::size_t k = 0;
-      for (auto &v : h_label) {
-        v = k % 2 == 0;
-        ++k;
-      }
-    }
+    MakeLabelForObjTest(dmat, objective);
   }
-  std::shared_ptr<DMatrix> sliced{dmat->SliceCol(world_size, rank)};
+  std::shared_ptr<DMatrix> sliced{dmat->SliceCol(collective::GetWorldSize(), rank)};
 
   auto model = MakeModel(tree_method, device, objective, sliced);
   auto base_score = GetBaseScore(model);
@@ -71,18 +57,15 @@ void VerifyObjective(size_t rows, size_t cols, float expected_base_score, Json e
 }  // namespace
 
 class VerticalFederatedLearnerTest : public ::testing::TestWithParam<std::string> {
-  std::unique_ptr<ServerForTest> server_;
   static int constexpr kWorldSize{3};
 
  protected:
-  void SetUp() override { server_ = std::make_unique<ServerForTest>(kWorldSize); }
-  void TearDown() override { server_.reset(nullptr); }
-
   void Run(std::string tree_method, std::string device, std::string objective) {
     static auto constexpr kRows{16};
     static auto constexpr kCols{16};
 
     std::shared_ptr<DMatrix> dmat{RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true)};
+    MakeLabelForObjTest(dmat, objective);
 
     auto &h_upper = dmat->Info().labels_upper_bound_.HostVector();
     auto &h_lower = dmat->Info().labels_lower_bound_.HostVector();
@@ -103,9 +86,9 @@ class VerticalFederatedLearnerTest : public ::testing::TestWithParam<std::string
 
     auto model = MakeModel(tree_method, device, objective, dmat);
     auto score = GetBaseScore(model);
-
-    RunWithFederatedCommunicator(kWorldSize, server_->Address(), &VerifyObjective, kRows, kCols,
-                                 score, model, tree_method, device, objective);
+    collective::TestFederatedGlobal(kWorldSize, [&]() {
+      VerifyObjective(kRows, kCols, score, model, tree_method, device, objective);
+    });
   }
 };
 

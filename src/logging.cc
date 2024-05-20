@@ -1,13 +1,12 @@
-/*!
- * Copyright 2015-2018 by Contributors
+/**
+ * Copyright 2015-2024, XGBoost Contributors
  * \file logging.cc
  * \brief Implementation of loggers.
  * \author Tianqi Chen
  */
-#include <iostream>
-
-#include "xgboost/parameter.h"
 #include "xgboost/logging.h"
+
+#include <string>  // for string
 
 #include "collective/communicator-inl.h"
 
