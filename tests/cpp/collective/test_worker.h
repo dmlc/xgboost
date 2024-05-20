@@ -16,6 +16,10 @@
 #include "../../../src/collective/tracker.h"  // for GetHostAddress
 #include "../helpers.h"                       // for FileExists
 
+#if defined(XGBOOST_USE_FEDERATED)
+#include "../plugin/federated/test_worker.h"
+#endif  // defined(XGBOOST_USE_FEDERATED)
+
 namespace xgboost::collective {
 class WorkerForTest {
   std::string tracker_host_;
@@ -45,6 +49,7 @@ class WorkerForTest {
       if (i != comm_.Rank()) {
         ASSERT_TRUE(comm_.Chan(i)->Socket()->NonBlocking());
         ASSERT_TRUE(comm_.Chan(i)->Socket()->SetBufSize(n_bytes).OK());
+        ASSERT_TRUE(comm_.Chan(i)->Socket()->SetNoDelay().OK());
       }
     }
   }
@@ -126,15 +131,80 @@ void TestDistributed(std::int32_t n_workers, WorkerFn worker_fn) {
 
   ASSERT_TRUE(fut.get().OK());
 }
+
 inline auto MakeDistributedTestConfig(std::string host, std::int32_t port,
                                       std::chrono::seconds timeout, std::int32_t r) {
   Json config{Object{}};
   config["dmlc_communicator"] = std::string{"rabit"};
   config["dmlc_tracker_uri"] = host;
   config["dmlc_tracker_port"] = port;
-  config["dmlc_timeout_sec"] = static_cast<std::int64_t>(timeout.count());
+  config["dmlc_timeout"] = static_cast<std::int64_t>(timeout.count());
   config["dmlc_task_id"] = std::to_string(r);
   config["dmlc_retry"] = 2;
   return config;
 }
+
+template <typename WorkerFn>
+void TestDistributedGlobal(std::int32_t n_workers, WorkerFn worker_fn, bool need_finalize = true) {
+  system::SocketStartup();
+  std::chrono::seconds timeout{1};
+
+  std::string host;
+  auto rc = GetHostAddress(&host);
+  SafeColl(rc);
+
+  RabitTracker tracker{MakeTrackerConfig(host, n_workers, timeout)};
+  auto fut = tracker.Run();
+
+  std::vector<std::thread> workers;
+  std::int32_t port = tracker.Port();
+
+  for (std::int32_t i = 0; i < n_workers; ++i) {
+    workers.emplace_back([=] {
+      auto config = MakeDistributedTestConfig(host, port, timeout, i);
+      Init(config);
+      worker_fn();
+      if (need_finalize) {
+        Finalize();
+      }
+    });
+  }
+
+  for (auto& t : workers) {
+    t.join();
+  }
+
+  ASSERT_TRUE(fut.get().OK());
+  system::SocketFinalize();
+}
+
+class BaseMGPUTest : public ::testing::Test {
+ public:
+  /**
+   * @param emulate_if_single Emulate multi-GPU for federated test if there's only one GPU
+   *                          available.
+   */
+  template <typename Fn>
+  auto DoTest(Fn&& fn, bool is_federated, bool emulate_if_single = false) const {
+    auto n_gpus = common::AllVisibleGPUs();
+    if (is_federated) {
+#if defined(XGBOOST_USE_FEDERATED)
+      if (n_gpus == 1 && emulate_if_single) {
+        // Emulate multiple GPUs.
+        // We don't use nccl and can have multiple communicators running on the same device.
+        n_gpus = 3;
+      }
+      TestFederatedGlobal(n_gpus, fn);
+#else
+      GTEST_SKIP_("Not compiled with federated learning.");
+#endif  // defined(XGBOOST_USE_FEDERATED)
+    } else {
+#if defined(XGBOOST_USE_NCCL)
+      TestDistributedGlobal(n_gpus, fn);
+#else
+      GTEST_SKIP_("Not compiled with NCCL.");
+#endif  // defined(XGBOOST_USE_NCCL)
+    }
+  }
+};
 }  // namespace xgboost::collective
