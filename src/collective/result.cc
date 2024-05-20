@@ -62,20 +62,15 @@ void ResultImpl::Concat(std::unique_ptr<ResultImpl> rhs) {
   ptr->prev = std::move(rhs);
 }
 
-#if (!defined(__GNUC__) && !defined(__clang__)) || defined(__MINGW32__)
-std::string MakeMsg(std::string&& msg, char const*, std::int32_t) {
-  return std::forward<std::string>(msg);
-}
-#else
 std::string MakeMsg(std::string&& msg, char const* file, std::int32_t line) {
-  auto name = std::filesystem::path{file}.filename();
+  dmlc::DateLogger logger;
   if (file && line != -1) {
-    return "[" + name.string() + ":" + std::to_string(line) +  // NOLINT
+    auto name = std::filesystem::path{ file }.filename();
+    return "[" + name.string() + ":" + std::to_string(line) + "|" + logger.HumanDate() +
            "]: " + std::forward<std::string>(msg);
   }
-  return std::forward<std::string>(msg);
+  return std::string{"["} + logger.HumanDate() + "]" + std::forward<std::string>(msg);  // NOLINT
 }
-#endif
 }  // namespace detail
 
 void SafeColl(Result const& rc) {

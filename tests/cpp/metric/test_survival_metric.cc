@@ -1,5 +1,5 @@
-/*!
- * Copyright (c) by Contributors 2020
+/**
+ * Copyright 2020-2023, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <memory>
@@ -16,8 +16,7 @@
 // CUDA conditional compile trick.
 #include "test_survival_metric.cu"
 
-namespace xgboost {
-namespace common {
+namespace xgboost::common {
 
 /** Tests for Survival metrics that should run only on CPU **/
 
@@ -113,6 +112,4 @@ TEST(AFTLoss, IntervalCensored) {
     { 8.0000, 4.8004, 2.8805, 1.7284, 1.0372, 0.6231, 0.3872, 0.3031, 0.3740, 0.5839, 0.8995,
       1.2878, 1.7231, 2.1878, 2.6707, 3.1647, 3.6653, 4.1699, 4.6770, 5.1856 });
 }
-
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common

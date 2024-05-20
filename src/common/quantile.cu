@@ -12,7 +12,8 @@
 #include <numeric>  // for partial_sum
 #include <utility>
 
-#include "../collective/communicator-inl.cuh"
+#include "../collective/allgather.h"
+#include "../collective/allreduce.h"
 #include "categorical.h"
 #include "common.h"
 #include "device_helpers.cuh"
@@ -499,7 +500,7 @@ void SketchContainer::FixError() {
   });
 }
 
-void SketchContainer::AllReduce(Context const*, bool is_column_split) {
+void SketchContainer::AllReduce(Context const* ctx, bool is_column_split) {
   dh::safe_cuda(cudaSetDevice(device_.ordinal));
   auto world = collective::GetWorldSize();
   if (world == 1 || is_column_split) {
@@ -508,16 +509,18 @@ void SketchContainer::AllReduce(Context const*, bool is_column_split) {
 
   timer_.Start(__func__);
   // Reduce the overhead on syncing.
-  size_t global_sum_rows = num_rows_;
-  collective::Allreduce<collective::Operation::kSum>(&global_sum_rows, 1);
-  size_t intermediate_num_cuts =
+  bst_idx_t global_sum_rows = num_rows_;
+  auto rc = collective::Allreduce(ctx, linalg::MakeVec(&global_sum_rows, 1), collective::Op::kSum);
+  SafeColl(rc);
+  bst_idx_t intermediate_num_cuts =
       std::min(global_sum_rows, static_cast<size_t>(num_bins_ * kFactor));
   this->Prune(intermediate_num_cuts);
 
   auto d_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
   CHECK_EQ(d_columns_ptr.size(), num_columns_ + 1);
   size_t n = d_columns_ptr.size();
-  collective::Allreduce<collective::Operation::kMax>(&n, 1);
+  rc = collective::Allreduce(ctx, linalg::MakeVec(&n, 1), collective::Op::kMax);
+  SafeColl(rc);
   CHECK_EQ(n, d_columns_ptr.size()) << "Number of columns differs across workers";
 
   // Get the columns ptr from all workers
@@ -527,18 +530,25 @@ void SketchContainer::AllReduce(Context const*, bool is_column_split) {
   auto offset = rank * d_columns_ptr.size();
   thrust::copy(thrust::device, d_columns_ptr.data(), d_columns_ptr.data() + d_columns_ptr.size(),
                gathered_ptrs.begin() + offset);
-  collective::AllReduce<collective::Operation::kSum>(device_.ordinal, gathered_ptrs.data().get(),
-                                                     gathered_ptrs.size());
+  rc = collective::Allreduce(
+      ctx, linalg::MakeVec(gathered_ptrs.data().get(), gathered_ptrs.size(), ctx->Device()),
+      collective::Op::kSum);
+  SafeColl(rc);
 
   // Get the data from all workers.
-  std::vector<size_t> recv_lengths;
-  dh::caching_device_vector<char> recvbuf;
-  collective::AllGatherV(device_.ordinal, this->Current().data().get(),
-                         dh::ToSpan(this->Current()).size_bytes(), &recv_lengths, &recvbuf);
-  collective::Synchronize(device_.ordinal);
+  std::vector<std::int64_t> recv_lengths;
+  HostDeviceVector<std::int8_t> recvbuf;
+  rc = collective::AllgatherV(
+      ctx, linalg::MakeVec(this->Current().data().get(), this->Current().size(), device_),
+      &recv_lengths, &recvbuf);
+  collective::SafeColl(rc);
+  for (std::size_t i = 0; i < recv_lengths.size() - 1; ++i) {
+    recv_lengths[i] = recv_lengths[i + 1] - recv_lengths[i];
+  }
+  recv_lengths.resize(recv_lengths.size() - 1);
 
   // Segment the received data.
-  auto s_recvbuf = dh::ToSpan(recvbuf);
+  auto s_recvbuf = recvbuf.DeviceSpan();
   std::vector<Span<SketchEntry>> allworkers;
   offset = 0;
   for (int32_t i = 0; i < world; ++i) {

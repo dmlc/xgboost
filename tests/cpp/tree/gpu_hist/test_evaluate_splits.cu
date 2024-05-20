@@ -1,12 +1,12 @@
 /**
- * Copyright 2020-2023, XGBoost contributors
+ * Copyright 2020-2024, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <thrust/host_vector.h>
 
 #include "../../../../src/tree/gpu_hist/evaluate_splits.cuh"
+#include "../../collective/test_worker.h"  // for BaseMGPUTest
 #include "../../helpers.h"
-#include "../../histogram_helpers.h"
 #include "../test_evaluate_splits.h"  // TestPartitionBasedSplit
 
 namespace xgboost::tree {
@@ -17,13 +17,13 @@ auto ZeroParam() {
   tparam.UpdateAllowUnknown(args);
   return tparam;
 }
-}  // anonymous namespace
 
-inline GradientQuantiser DummyRoundingFactor(Context const* ctx) {
+GradientQuantiser DummyRoundingFactor(Context const* ctx) {
   thrust::device_vector<GradientPair> gpair(1);
   gpair[0] = {1000.f, 1000.f};  // Tests should not exceed sum of 1000
   return {ctx, dh::ToSpan(gpair), MetaInfo()};
 }
+}  // anonymous namespace
 
 thrust::device_vector<GradientPairInt64> ConvertToInteger(Context const* ctx,
                                                           std::vector<GradientPairPrecise> x) {
@@ -546,7 +546,7 @@ TEST_F(TestPartitionBasedSplit, GpuHist) {
   ASSERT_NEAR(split.loss_chg, best_score_, 1e-2);
 }
 
-class MGPUHistTest : public BaseMGPUTest {};
+class MGPUHistTest : public collective::BaseMGPUTest {};
 
 namespace {
 void VerifyColumnSplitEvaluateSingleSplit(bool is_categorical) {
@@ -589,21 +589,29 @@ void VerifyColumnSplitEvaluateSingleSplit(bool is_categorical) {
   evaluator.Reset(cuts, dh::ToSpan(feature_types), feature_set.size(), tparam, true, ctx.Device());
   DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(&ctx, input, shared_inputs).split;
 
-  EXPECT_EQ(result.findex, 1) << "rank: " << rank;
+  EXPECT_EQ(result.findex, 1);
   if (is_categorical) {
     ASSERT_TRUE(std::isnan(result.fvalue));
   } else {
-    EXPECT_EQ(result.fvalue, 11.0) << "rank: " << rank;
+    EXPECT_EQ(result.fvalue, 11.0);
   }
-  EXPECT_EQ(result.left_sum + result.right_sum, parent_sum) << "rank: " << rank;
+  EXPECT_EQ(result.left_sum + result.right_sum, parent_sum);
 }
 }  // anonymous namespace
 
 TEST_F(MGPUHistTest, ColumnSplitEvaluateSingleSplit) {
-  DoTest(VerifyColumnSplitEvaluateSingleSplit, false);
+  if (common::AllVisibleGPUs() > 1) {
+    // We can't emulate multiple GPUs with NCCL.
+    this->DoTest([] { VerifyColumnSplitEvaluateSingleSplit(false); }, false, true);
+  }
+  this->DoTest([] { VerifyColumnSplitEvaluateSingleSplit(false); }, true, true);
 }
 
 TEST_F(MGPUHistTest, ColumnSplitEvaluateSingleCategoricalSplit) {
-  DoTest(VerifyColumnSplitEvaluateSingleSplit, true);
+  if (common::AllVisibleGPUs() > 1) {
+    // We can't emulate multiple GPUs with NCCL.
+    this->DoTest([] { VerifyColumnSplitEvaluateSingleSplit(true); }, false, true);
+  }
+  this->DoTest([] { VerifyColumnSplitEvaluateSingleSplit(true); }, true, true);
 }
 }  // namespace xgboost::tree
