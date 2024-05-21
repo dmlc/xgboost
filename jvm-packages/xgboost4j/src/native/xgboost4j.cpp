@@ -21,9 +21,11 @@
 #include <xgboost/json.h>
 #include <xgboost/logging.h>
 
+#include <algorithm>  // for copy_n
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <memory>  // for unique_ptr
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -390,8 +392,14 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixSliceDMat
   auto len = static_cast<bst_ulong>(jenv->GetArrayLength(jindexset));
 
   // default to not allowing slicing with group ID specified -- feel free to add if necessary
-  jint ret = XGDMatrixSliceDMatrixEx(handle, static_cast<JavaIndT const *>(indexset.get()), len,
-                                     &result, 0);
+  jint ret{0};
+  if constexpr (std::is_same_v<jint, std::int32_t>) {
+    ret = XGDMatrixSliceDMatrixEx(handle, indexset.get(), len, &result, 0);
+  } else {
+    std::vector<std::int32_t> copy(len);
+    std::copy_n(indexset.get(), len, copy.begin());
+    ret = XGDMatrixSliceDMatrixEx(handle, copy.data(), copy.size(), &result, 0);
+  }
   JVM_CHECK_CALL(ret);
   setHandle(jenv, jout, result);
   return ret;
