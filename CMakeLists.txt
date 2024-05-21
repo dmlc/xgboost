@@ -69,7 +69,6 @@ option(USE_DMLC_GTEST "Use google tests bundled with dmlc-core submodule" OFF)
 option(USE_DEVICE_DEBUG "Generate CUDA device debug info." OFF)
 option(USE_NVTX "Build with cuda profiling annotations. Developers only." OFF)
 set(NVTX_HEADER_DIR "" CACHE PATH "Path to the stand-alone nvtx header")
-option(RABIT_MOCK "Build rabit with mock" OFF)
 option(HIDE_CXX_SYMBOLS "Build shared library and hide all C++ symbols" OFF)
 option(KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR "Output build artifacts in CMake binary dir" OFF)
 ## CUDA
@@ -281,9 +280,6 @@ if(MSVC)
     )
   endif()
 endif()
-
-# rabit
-add_subdirectory(rabit)
 
 # core xgboost
 add_subdirectory(${xgboost_SOURCE_DIR}/src)

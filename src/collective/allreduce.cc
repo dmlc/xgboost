@@ -36,7 +36,7 @@ Result RingAllreduceSmall(Comm const& comm, common::Span<std::int8_t> data, Func
   auto rc = RingAllgather(comm, typed);
 
   if (!rc.OK()) {
-    return rc;
+    return Fail("Ring allreduce small failed.", std::move(rc));
   }
   auto first = s_buffer.subspan(0, data.size_bytes());
   CHECK_EQ(first.size(), data.size());
@@ -64,7 +64,7 @@ Result RingScatterReduceTyped(Comm const& comm, common::Span<std::int8_t> data,
   auto next_ch = comm.Chan(dst_rank);
   auto prev_ch = comm.Chan(src_rank);
 
-  std::vector<std::int8_t> buffer(data.size_bytes() - (world - 1) * n_bytes_in_seg, 0);
+  std::vector<std::int8_t> buffer(data.size_bytes() - (world - 1) * n_bytes_in_seg, -1);
   auto s_buf = common::Span{buffer.data(), buffer.size()};
 
   for (std::int32_t r = 0; r < world - 1; ++r) {
@@ -97,6 +97,10 @@ Result RingScatterReduceTyped(Comm const& comm, common::Span<std::int8_t> data,
     } << [&] {
       return comm.Block();
     };
+    if (!rc.OK()) {
+      return Fail("Ring scatter reduce failed, current iteration:" + std::to_string(r),
+                  std::move(rc));
+    }
 
     // accumulate to recv_seg
     CHECK_EQ(seg.size(), recv_seg.size());
@@ -128,7 +132,7 @@ Result RingAllreduce(Comm const& comm, common::Span<std::int8_t> data, Func cons
     auto n_bytes_in_seg = (n / world) * sizeof(T);
     auto rc = RingScatterReduceTyped<T>(comm, data, n_bytes_in_seg, op);
     if (!rc.OK()) {
-      return rc;
+      return Fail("Ring Allreduce failed.", std::move(rc));
     }
 
     auto prev = BootstrapPrev(comm.Rank(), comm.World());

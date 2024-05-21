@@ -55,10 +55,9 @@ struct ResultImpl {
 #if (!defined(__GNUC__) && !defined(__clang__)) || defined(__MINGW32__)
 #define __builtin_FILE() nullptr
 #define __builtin_LINE() (-1)
-std::string MakeMsg(std::string&& msg, char const*, std::int32_t);
-#else
-std::string MakeMsg(std::string&& msg, char const* file, std::int32_t line);
 #endif
+
+std::string MakeMsg(std::string&& msg, char const* file, std::int32_t line);
 }  // namespace detail
 
 /**

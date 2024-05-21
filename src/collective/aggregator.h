@@ -11,11 +11,44 @@
 #include <utility>
 #include <vector>
 
+#include "allreduce.h"
+#include "broadcast.h"
+#include "comm.h"
 #include "communicator-inl.h"
 #include "xgboost/collective/result.h"  // for Result
 #include "xgboost/data.h"               // for MetaINfo
 
 namespace xgboost::collective {
+namespace detail {
+template <typename Fn>
+[[nodiscard]] Result TryApplyWithLabels(Context const* ctx, Fn&& fn) {
+  std::string msg;
+  if (collective::GetRank() == 0) {
+    try {
+      fn();
+    } catch (dmlc::Error const& e) {
+      msg = e.what();
+    }
+  }
+  std::size_t msg_size{msg.size()};
+  auto rc = Success() << [&] {
+    auto rc = collective::Broadcast(ctx, linalg::MakeVec(&msg_size, 1), 0);
+    return rc;
+  } << [&] {
+    if (msg_size > 0) {
+      msg.resize(msg_size);
+      return collective::Broadcast(ctx, linalg::MakeVec(msg.data(), msg.size()), 0);
+    }
+    return Success();
+  } << [&] {
+    if (msg_size > 0) {
+      LOG(FATAL) << msg;
+    }
+    return Success();
+  };
+  return rc;
+}
+}  // namespace detail
 
 /**
  * @brief Apply the given function where the labels are.
@@ -30,29 +63,19 @@ namespace xgboost::collective {
  * @param size The size of the buffer.
  * @param function The function used to calculate the results.
  */
-template <typename FN>
-void ApplyWithLabels(Context const*, MetaInfo const& info, void* buffer, std::size_t size,
-                     FN&& function) {
+template <typename Fn>
+void ApplyWithLabels(Context const* ctx, MetaInfo const& info, void* buffer, std::size_t size,
+                     Fn&& fn) {
   if (info.IsVerticalFederated()) {
-    // We assume labels are only available on worker 0, so the calculation is done there and result
-    // broadcast to other workers.
-    std::string message;
-    if (collective::GetRank() == 0) {
-      try {
-        std::forward<FN>(function)();
-      } catch (dmlc::Error& e) {
-        message = e.what();
-      }
-    }
-
-    collective::Broadcast(&message, 0);
-    if (message.empty()) {
-      collective::Broadcast(buffer, size, 0);
-    } else {
-      LOG(FATAL) << &message[0];
-    }
+    auto rc = detail::TryApplyWithLabels(ctx, fn) << [&] {
+      // We assume labels are only available on worker 0, so the calculation is done there and
+      // result broadcast to other workers.
+      return collective::Broadcast(
+          ctx, linalg::MakeVec(reinterpret_cast<std::int8_t*>(buffer), size), 0);
+    };
+    SafeColl(rc);
   } else {
-    std::forward<FN>(function)();
+    std::forward<Fn>(fn)();
   }
 }
 
@@ -69,37 +92,24 @@ void ApplyWithLabels(Context const*, MetaInfo const& info, void* buffer, std::si
  * @param result The HostDeviceVector storing the results.
  * @param function The function used to calculate the results.
  */
-template <typename T, typename Function>
-void ApplyWithLabels(Context const*, MetaInfo const& info, HostDeviceVector<T>* result,
-                     Function&& function) {
+template <typename T, typename Fn>
+void ApplyWithLabels(Context const* ctx, MetaInfo const& info, HostDeviceVector<T>* result,
+                     Fn&& fn) {
   if (info.IsVerticalFederated()) {
     // We assume labels are only available on worker 0, so the calculation is done there and result
     // broadcast to other workers.
-    std::string message;
-    if (collective::GetRank() == 0) {
-      try {
-        std::forward<Function>(function)();
-      } catch (dmlc::Error& e) {
-        message = e.what();
-      }
-    }
+    auto rc = detail::TryApplyWithLabels(ctx, fn);
 
-    collective::Broadcast(&message, 0);
-    if (!message.empty()) {
-      LOG(FATAL) << &message[0];
-      return;
-    }
-
-    std::size_t size{};
-    if (collective::GetRank() == 0) {
-      size = result->Size();
-    }
-    collective::Broadcast(&size, sizeof(std::size_t), 0);
-
-    result->Resize(size);
-    collective::Broadcast(result->HostPointer(), size * sizeof(T), 0);
+    std::size_t size{result->Size()};
+    rc = std::move(rc) << [&] {
+      return collective::Broadcast(ctx, linalg::MakeVec(&size, 1), 0);
+    } << [&] {
+      result->Resize(size);
+      return collective::Broadcast(ctx, linalg::MakeVec(result->HostPointer(), size), 0);
+    };
+    SafeColl(rc);
   } else {
-    std::forward<Function>(function)();
+    std::forward<Fn>(fn)();
   }
 }
 
@@ -115,11 +125,12 @@ void ApplyWithLabels(Context const*, MetaInfo const& info, HostDeviceVector<T>* 
  * @return The global max of the input.
  */
 template <typename T>
-std::enable_if_t<std::is_trivially_copy_assignable_v<T>, T> GlobalMax(Context const*,
+std::enable_if_t<std::is_trivially_copy_assignable_v<T>, T> GlobalMax(Context const* ctx,
                                                                       MetaInfo const& info,
                                                                       T value) {
   if (info.IsRowSplit()) {
-    collective::Allreduce<collective::Operation::kMax>(&value, 1);
+    auto rc = collective::Allreduce(ctx, linalg::MakeVec(&value, 1), collective::Op::kMax);
+    SafeColl(rc);
   }
   return value;
 }
@@ -136,17 +147,12 @@ std::enable_if_t<std::is_trivially_copy_assignable_v<T>, T> GlobalMax(Context co
  * @param size Number of values to sum.
  */
 template <typename T, std::int32_t kDim>
-[[nodiscard]] Result GlobalSum(Context const*, MetaInfo const& info,
+[[nodiscard]] Result GlobalSum(Context const* ctx, MetaInfo const& info,
                                linalg::TensorView<T, kDim> values) {
   if (info.IsRowSplit()) {
-    collective::Allreduce<collective::Operation::kSum>(values.Values().data(), values.Size());
+    return collective::Allreduce(ctx, values, collective::Op::kSum);
   }
   return Success();
-}
-
-template <typename Container>
-[[nodiscard]] Result GlobalSum(Context const* ctx, MetaInfo const& info, Container* values) {
-  return GlobalSum(ctx, info, values->data(), values->size());
 }
 
 /**

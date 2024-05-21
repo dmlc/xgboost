@@ -1,18 +1,14 @@
 /**
- * Copyright 2021-2023, XGBoost Contributors
+ * Copyright 2021-2024, XGBoost Contributors
  */
 #ifndef XGBOOST_METRIC_AUC_H_
 #define XGBOOST_METRIC_AUC_H_
-#include <array>
 #include <cmath>
-#include <limits>
 #include <memory>
 #include <tuple>
 #include <utility>
 
 #include "../collective/communicator-inl.h"
-#include "../common/common.h"
-#include "../common/threading_utils.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 #include "xgboost/metric.h"

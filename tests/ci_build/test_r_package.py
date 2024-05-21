@@ -53,7 +53,6 @@ def pack_rpackage() -> Path:
     # rabit
     rabit = Path("rabit")
     os.mkdir(dest / "src" / rabit)
-    shutil.copytree(rabit / "src", dest / "src" / "rabit" / "src")
     shutil.copytree(rabit / "include", dest / "src" / "rabit" / "include")
     # dmlc-core
     dmlc_core = Path("dmlc-core")
