@@ -13,8 +13,10 @@
 #include <vector>   // for vector
 
 #include "../../../src/collective/comm.h"
-#include "../../../src/collective/tracker.h"  // for GetHostAddress
-#include "../helpers.h"                       // for FileExists
+#include "../../../src/collective/communicator-inl.h"  // for Init, Finalize
+#include "../../../src/collective/tracker.h"           // for GetHostAddress
+#include "../../../src/common/common.h"                // for AllVisibleGPUs
+#include "../helpers.h"                                // for FileExists
 
 #if defined(XGBOOST_USE_FEDERATED)
 #include "../plugin/federated/test_worker.h"

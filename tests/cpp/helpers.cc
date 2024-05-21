@@ -12,9 +12,9 @@
 #include <xgboost/objective.h>
 
 #include <algorithm>
-#include <cinttypes>
 #include <random>
 
+#include "../../src/collective/communicator-inl.h"  // for GetRank
 #include "../../src/data/adapter.h"
 #include "../../src/data/iterative_dmatrix.h"
 #include "../../src/data/simple_dmatrix.h"
