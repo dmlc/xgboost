@@ -25,7 +25,7 @@ jobs:
         - os: macos-14
           platform_id: macosx_arm64
     steps:
-    - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2.7.0
+    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       with:
         submodules: 'true'
     - uses: conda-incubator/setup-miniconda@v3.0.4
