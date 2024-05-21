@@ -1098,9 +1098,10 @@ def test_pandas_input():
     np.testing.assert_equal(model.feature_names_in_, np.array(feature_names))
 
     columns = list(train.columns)
-    random.shuffle(columns)
+    rng.shuffle(columns)
     df_incorrect = df[columns]
-    with pytest.raises(ValueError):
+
+    with pytest.raises(ValueError, match="feature_names mismatch"):
         model.predict(df_incorrect)
 
     clf_isotonic = CalibratedClassifierCV(model, cv="prefit", method="isotonic")

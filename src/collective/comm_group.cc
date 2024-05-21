@@ -76,7 +76,7 @@ CommGroup::CommGroup()
   // Common args
   auto retry = get_param("dmlc_retry", static_cast<Integer::Int>(DefaultRetry()), Integer{});
   auto timeout =
-      get_param("dmlc_timeout_sec", static_cast<Integer::Int>(DefaultTimeoutSec()), Integer{});
+      get_param("dmlc_timeout", static_cast<Integer::Int>(DefaultTimeoutSec()), Integer{});
   auto task_id = get_param("dmlc_task_id", std::string{}, String{});
 
   if (type == "rabit") {
@@ -122,5 +122,31 @@ void GlobalCommGroupFinalize() {
   auto rc = sptr->Finalize();
   sptr.reset();
   SafeColl(rc);
+}
+
+void Init(Json const& config) { GlobalCommGroupInit(config); }
+
+void Finalize() { GlobalCommGroupFinalize(); }
+
+std::int32_t GetRank() noexcept { return GlobalCommGroup()->Rank(); }
+
+std::int32_t GetWorldSize() noexcept { return GlobalCommGroup()->World(); }
+
+bool IsDistributed() noexcept { return GlobalCommGroup()->IsDistributed(); }
+
+[[nodiscard]] bool IsFederated() {
+  return GlobalCommGroup()->Ctx(nullptr, DeviceOrd::CPU()).IsFederated();
+}
+
+void Print(std::string const& message) {
+  auto rc = GlobalCommGroup()->Ctx(nullptr, DeviceOrd::CPU()).LogTracker(message);
+  SafeColl(rc);
+}
+
+std::string GetProcessorName() {
+  std::string out;
+  auto rc = GlobalCommGroup()->ProcessorName(&out);
+  SafeColl(rc);
+  return out;
 }
 }  // namespace xgboost::collective

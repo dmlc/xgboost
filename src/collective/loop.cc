@@ -6,6 +6,8 @@
 #include <cstddef>    // for size_t
 #include <cstdint>    // for int32_t
 #include <exception>  // for exception, current_exception, rethrow_exception
+#include <future>     // for promise
+#include <memory>     // for make_shared
 #include <mutex>      // for lock_guard, unique_lock
 #include <queue>      // for queue
 #include <string>     // for string
@@ -18,9 +20,10 @@
 #include "xgboost/logging.h"            // for CHECK
 
 namespace xgboost::collective {
-Result Loop::ProcessQueue(std::queue<Op>* p_queue, bool blocking) const {
+Result Loop::ProcessQueue(std::queue<Op>* p_queue) const {
   timer_.Start(__func__);
-  auto error = [this] {
+  auto error = [this](Op op) {
+    op.pr->set_value();
     timer_.Stop(__func__);
   };
 
@@ -38,7 +41,7 @@ Result Loop::ProcessQueue(std::queue<Op>* p_queue, bool blocking) const {
 
     // Iterate through all the ops for poll
     for (std::size_t i = 0; i < n_ops; ++i) {
-      auto op = qcopy.front();
+      auto op = std::move(qcopy.front());
       qcopy.pop();
 
       switch (op.code) {
@@ -54,12 +57,12 @@ Result Loop::ProcessQueue(std::queue<Op>* p_queue, bool blocking) const {
           break;
         }
         default: {
-          error();
+          error(op);
           return Fail("Invalid socket operation.");
         }
       }
 
-      qcopy.push(op);
+      qcopy.push(std::move(op));
     }
 
     // poll, work on fds that are ready.
@@ -67,18 +70,18 @@ Result Loop::ProcessQueue(std::queue<Op>* p_queue, bool blocking) const {
     if (!poll.fds.empty()) {
       auto rc = poll.Poll(timeout_);
       if (!rc.OK()) {
-        error();
+        timer_.Stop(__func__);
         return rc;
       }
     }
     timer_.Stop("poll");
 
-    // we wonldn't be here if the queue is empty.
+    // We wonldn't be here if the queue is empty.
     CHECK(!qcopy.empty());
 
     // Iterate through all the ops for performing the operations
     for (std::size_t i = 0; i < n_ops; ++i) {
-      auto op = qcopy.front();
+      auto op = std::move(qcopy.front());
       qcopy.pop();
 
       std::int32_t n_bytes_done{0};
@@ -93,8 +96,9 @@ Result Loop::ProcessQueue(std::queue<Op>* p_queue, bool blocking) const {
           if (poll.CheckRead(*op.sock)) {
             n_bytes_done = op.sock->Recv(op.ptr + op.off, op.n - op.off);
             if (n_bytes_done == 0) {
-              error();
-              return Fail("Encountered EOF. The other end is likely closed.");
+              error(op);
+              return Fail("Encountered EOF. The other end is likely closed.",
+                          op.sock->GetSockError());
             }
           }
           break;
@@ -112,14 +116,14 @@ Result Loop::ProcessQueue(std::queue<Op>* p_queue, bool blocking) const {
           break;
         }
         default: {
-          error();
+          error(op);
           return Fail("Invalid socket operation.");
         }
       }
 
       if (n_bytes_done == -1 && !system::LastErrorWouldBlock()) {
         auto rc = system::FailWithCode("Invalid socket output.");
-        error();
+        error(op);
         return rc;
       }
 
@@ -127,13 +131,11 @@ Result Loop::ProcessQueue(std::queue<Op>* p_queue, bool blocking) const {
       CHECK_LE(op.off, op.n);
 
       if (op.off != op.n) {
-        // not yet finished, push back to queue for next round.
+        // not yet finished, push back to queue for the next round.
         qcopy.push(op);
+      } else {
+        op.pr->set_value();
       }
-    }
-
-    if (!blocking) {
-      break;
     }
   }
 
@@ -148,8 +150,7 @@ void Loop::Process() {
   };
 
   // This loop cannot exit unless `stop_` is set to true. There must always be a thread to
-  // answer the blocking call even if there are errors, otherwise the blocking will wait
-  // forever.
+  // answer the call even if there are errors.
   while (true) {
     try {
       std::unique_lock lock{mu_};
@@ -170,44 +171,15 @@ void Loop::Process() {
       // Move the global queue into a local variable to unblock it.
       std::queue<Op> qcopy;
 
-      bool is_blocking = false;
       while (!queue_.empty()) {
-        auto op = queue_.front();
+        auto op = std::move(queue_.front());
         queue_.pop();
-        if (op.code == Op::kBlock) {
-          is_blocking = true;
-        } else {
-          qcopy.push(op);
-        }
+        qcopy.push(op);
       }
-
       lock.unlock();
-      // Clear the local queue, if `is_blocking` is true, this is blocking the current
-      // worker thread (but not the client thread), wait until all operations are
-      // finished.
-      auto rc = this->ProcessQueue(&qcopy, is_blocking);
 
-      if (is_blocking && rc.OK()) {
-        CHECK(qcopy.empty());
-      }
-      // Push back the remaining operations.
-      if (rc.OK()) {
-        std::unique_lock lock{mu_};
-        while (!qcopy.empty()) {
-          queue_.push(qcopy.front());
-          qcopy.pop();
-        }
-      }
-
-      // Notify the client thread who called block after all error conditions are set.
-      auto notify_if_block = [&] {
-        if (is_blocking) {
-          std::unique_lock lock{mu_};
-          block_done_ = true;
-          lock.unlock();
-          block_cv_.notify_one();
-        }
-      };
+      // Clear the local queue.
+      auto rc = this->ProcessQueue(&qcopy);
 
       // Handle error
       if (!rc.OK()) {
@@ -215,8 +187,6 @@ void Loop::Process() {
       } else {
         CHECK(qcopy.empty());
       }
-
-      notify_if_block();
     } catch (std::exception const& e) {
       curr_exce_ = std::current_exception();
       set_rc(Fail("Exception inside the event loop:" + std::string{e.what()}));
@@ -256,19 +226,27 @@ Result Loop::Stop() {
       stop_ = true;
     }
   }
-
   if (!this->worker_.joinable()) {
     std::lock_guard<std::mutex> guard{rc_lock_};
     return Fail("Worker has stopped.", std::move(rc_));
   }
 
-  this->Submit(Op{Op::kBlock});
   {
-    // Wait for the block call to finish.
     std::unique_lock lock{mu_};
-    block_cv_.wait(lock, [this] { return block_done_ || stop_; });
-    block_done_ = false;
+    cv_.notify_one();
   }
+
+  for (auto& fut : futures_) {
+    if (fut.valid()) {
+      try {
+        fut.get();
+      } catch (std::future_error const&) {
+        // Do nothing. If something went wrong in the worker, we have a std::future_error
+        // due to broken promise. This function will transfer the rc back to the caller.
+      }
+    }
+  }
+  futures_.clear();
 
   {
     // Transfer the rc.
@@ -278,13 +256,13 @@ Result Loop::Stop() {
 }
 
 void Loop::Submit(Op op) {
+  auto p = std::make_shared<std::promise<void>>();
+  op.pr = std::move(p);
+  futures_.emplace_back(op.pr->get_future());
+  CHECK_NE(op.n, 0);
+
   std::unique_lock lock{mu_};
-  if (op.code != Op::kBlock) {
-    CHECK_NE(op.n, 0);
-  }
   queue_.push(op);
-  lock.unlock();
-  cv_.notify_one();
 }
 
 Loop::Loop(std::chrono::seconds timeout) : timeout_{timeout} {
