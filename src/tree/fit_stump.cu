@@ -47,8 +47,10 @@ void FitStump(Context const* ctx, MetaInfo const& info,
   thrust::reduce_by_key(policy, key_it, key_it + gpair.Size(), grad_it,
                         thrust::make_discard_iterator(), dh::tbegin(d_sum.Values()));
 
-  collective::GlobalSum(info, ctx->Device(), reinterpret_cast<double*>(d_sum.Values().data()),
-                        d_sum.Size() * 2);
+  auto rc = collective::GlobalSum(ctx, info,
+                                  linalg::MakeVec(reinterpret_cast<double*>(d_sum.Values().data()),
+                                                  d_sum.Size() * 2, ctx->Device()));
+  SafeColl(rc);
 
   thrust::for_each_n(policy, thrust::make_counting_iterator(0ul), n_targets,
                      [=] XGBOOST_DEVICE(std::size_t i) mutable {

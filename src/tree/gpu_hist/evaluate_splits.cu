@@ -1,11 +1,11 @@
 /**
- * Copyright 2020-2023, XGBoost Contributors
+ * Copyright 2020-2024, XGBoost Contributors
  */
 #include <algorithm>  // std::max
 #include <vector>
 #include <limits>
 
-#include "../../collective/communicator-inl.cuh"
+#include "../../collective/allgather.h"
 #include "../../common/categorical.h"
 #include "../../data/ellpack_page.cuh"
 #include "evaluate_splits.cuh"
@@ -413,8 +413,14 @@ void GPUHistEvaluator::EvaluateSplits(Context const *ctx, const std::vector<bst_
     auto const world_size = collective::GetWorldSize();
     dh::TemporaryArray<DeviceSplitCandidate> all_candidate_storage(out_splits.size() * world_size);
     auto all_candidates = dh::ToSpan(all_candidate_storage);
-    collective::AllGather(device_.ordinal, out_splits.data(), all_candidates.data(),
-                          out_splits.size() * sizeof(DeviceSplitCandidate));
+    auto current_rank =
+        all_candidates.subspan(collective::GetRank() * out_splits.size(), out_splits.size());
+    dh::safe_cuda(cudaMemcpyAsync(current_rank.data(), out_splits.data(),
+                                  out_splits.size() * sizeof(DeviceSplitCandidate),
+                                  cudaMemcpyDeviceToDevice));
+    auto rc = collective::Allgather(
+        ctx, linalg::MakeVec(all_candidates.data(), all_candidates.size(), ctx->Device()));
+    collective::SafeColl(rc);
 
     // Reduce to get the best candidate from all workers.
     dh::LaunchN(out_splits.size(), ctx->CUDACtx()->Stream(),

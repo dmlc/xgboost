@@ -47,21 +47,21 @@ class CommunicatorContext(CCtx):  # pylint: disable=too-few-public-methods
     """Context with PySpark specific task ID."""
 
     def __init__(self, context: BarrierTaskContext, **args: Any) -> None:
-        args["DMLC_TASK_ID"] = str(context.partitionId())
+        args["dmlc_task_id"] = str(context.partitionId())
         super().__init__(**args)
 
 
 def _start_tracker(context: BarrierTaskContext, n_workers: int) -> Dict[str, Any]:
     """Start Rabit tracker with n_workers"""
-    env: Dict[str, Any] = {"DMLC_NUM_WORKER": n_workers}
+    args: Dict[str, Any] = {"n_workers": n_workers}
     host = _get_host_ip(context)
-    rabit_context = RabitTracker(host_ip=host, n_workers=n_workers, sortby="task")
-    env.update(rabit_context.worker_envs())
-    rabit_context.start(n_workers)
-    thread = Thread(target=rabit_context.join)
+    tracker = RabitTracker(n_workers=n_workers, host_ip=host, sortby="task")
+    tracker.start()
+    thread = Thread(target=tracker.wait_for)
     thread.daemon = True
     thread.start()
-    return env
+    args.update(tracker.worker_args())
+    return args
 
 
 def _get_rabit_args(context: BarrierTaskContext, n_workers: int) -> Dict[str, Any]:

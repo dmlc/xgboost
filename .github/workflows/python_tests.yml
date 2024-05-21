@@ -21,7 +21,7 @@ jobs:
       matrix:
         os: [ubuntu-latest]
     steps:
-    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
+    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       with:
         submodules: 'true'
     - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
@@ -52,7 +52,7 @@ jobs:
       matrix:
         os: [ubuntu-latest]
     steps:
-    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
+    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       with:
         submodules: 'true'
     - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
@@ -84,7 +84,7 @@ jobs:
         os: [macos-13, windows-latest]
         python-version: ["3.8"]
     steps:
-    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
+    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       with:
         submodules: 'true'
     - name: Install osx system dependencies
@@ -122,7 +122,7 @@ jobs:
           - {os: macos-13}
 
     steps:
-    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
+    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       with:
         submodules: 'true'
 
@@ -174,7 +174,7 @@ jobs:
           - {os: windows-latest, python-version: '3.8'}
 
     steps:
-    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
+    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       with:
         submodules: 'true'
 
@@ -218,7 +218,7 @@ jobs:
           - {os: ubuntu-latest, python-version: "3.8"}
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       with:
         submodules: 'true'
 
@@ -270,7 +270,7 @@ jobs:
           - {os: ubuntu-latest, python-version: "3.8"}
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       with:
         submodules: 'true'
 
@@ -309,7 +309,7 @@ jobs:
         os: [ubuntu-latest]
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
           submodules: 'true'
 
