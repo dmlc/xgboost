@@ -8,7 +8,7 @@
 #include <oneapi/dpl/random>
 
 #include "../common/hist_util.h"
-#include "../../src/collective/communicator-inl.h"
+#include "../../src/collective/allreduce.h"
 
 namespace xgboost {
 namespace sycl {
@@ -112,7 +112,6 @@ void HistUpdater<GradientSumT>::InitSampling(
 
 template<typename GradientSumT>
 void HistUpdater<GradientSumT>::InitData(
-                                Context const * ctx,
                                 const common::GHistIndexMatrix& gmat,
                                 const USMVector<GradientPair, MemoryType::on_device> &gpair,
                                 const DMatrix& fmat,
@@ -288,8 +287,10 @@ void HistUpdater<GradientSumT>::InitNewNode(int nid,
           });
         }).wait_and_throw();
       }
-      collective::Allreduce<collective::Operation::kSum>(
-          reinterpret_cast<GradientSumT*>(&grad_stat), 2);
+      auto rc = collective::Allreduce(
+                      ctx_, linalg::MakeVec(reinterpret_cast<GradientSumT*>(&grad_stat), 2),
+                      collective::Op::kSum);
+      SafeColl(rc);
       snode_host_[nid].stats = grad_stat;
     } else {
       int parent_id = tree[nid].Parent();

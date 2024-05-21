@@ -49,12 +49,13 @@ class HistUpdater {
   using GHistRowT = common::GHistRow<GradientSumT, memory_type>;
   using GradientPairT = xgboost::detail::GradientPairInternal<GradientSumT>;
 
-  explicit HistUpdater(::sycl::queue qu,
-                    const xgboost::tree::TrainParam& param,
-                    std::unique_ptr<TreeUpdater> pruner,
-                    FeatureInteractionConstraintHost int_constraints_,
-                    DMatrix const* fmat)
-    : qu_(qu), param_(param),
+  explicit HistUpdater(const Context* ctx,
+                       ::sycl::queue qu,
+                       const xgboost::tree::TrainParam& param,
+                       std::unique_ptr<TreeUpdater> pruner,
+                       FeatureInteractionConstraintHost int_constraints_,
+                       DMatrix const* fmat)
+    : ctx_(ctx), qu_(qu), param_(param),
       tree_evaluator_(qu, param, fmat->Info().num_col_),
       pruner_(std::move(pruner)),
       interaction_constraints_{std::move(int_constraints_)},
@@ -77,8 +78,7 @@ class HistUpdater {
                     USMVector<size_t, MemoryType::on_device>* row_indices);
 
 
-  void InitData(Context const * ctx,
-                const common::GHistIndexMatrix& gmat,
+  void InitData(const common::GHistIndexMatrix& gmat,
                 const USMVector<GradientPair, MemoryType::on_device> &gpair,
                 const DMatrix& fmat,
                 const RegTree& tree);
@@ -111,6 +111,7 @@ class HistUpdater {
                       const USMVector<GradientPair, MemoryType::on_device> &gpair);
 
   //  --data fields--
+  const Context* ctx_;
   size_t sub_group_size_;
 
   // the internal row sets
