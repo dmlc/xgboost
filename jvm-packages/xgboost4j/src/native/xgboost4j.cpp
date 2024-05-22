@@ -375,6 +375,24 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFro
   return ret;
 }
 
+namespace {
+// Workaround int is not the same as jint. For some reason, if constexpr couldn't dispatch
+// the following.
+template <typename T>
+auto SliaceDMatrixWinWar(DMatrixHandle handle, T *ptr, std::size_t len, DMatrixHandle *result) {
+  // default to not allowing slicing with group ID specified -- feel free to add if necessary
+  return XGDMatrixSliceDMatrixEx(handle, ptr, len, result, 0);
+}
+
+template <>
+auto SliaceDMatrixWinWar<long>(DMatrixHandle handle, long *ptr, std::size_t len, DMatrixHandle *result) {
+  std::vector<std::int32_t> copy(len);
+  std::copy_n(ptr, len, copy.begin());
+  // default to not allowing slicing with group ID specified -- feel free to add if necessary
+  return XGDMatrixSliceDMatrixEx(handle, copy.data(), len, result, 0);
+}
+}  // namespace
+
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGDMatrixSliceDMatrix
@@ -390,16 +408,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixSliceDMat
                                                   jenv->ReleaseIntArrayElements(jindexset, ptr, 0);
                                                 }};
   auto len = static_cast<bst_ulong>(jenv->GetArrayLength(jindexset));
-
-  // default to not allowing slicing with group ID specified -- feel free to add if necessary
-  jint ret{0};
-  if constexpr (std::is_same_v<jint, std::int32_t>) {
-    ret = XGDMatrixSliceDMatrixEx(handle, indexset.get(), len, &result, 0);
-  } else {
-    std::vector<std::int32_t> copy(len);
-    std::copy_n(indexset.get(), len, copy.begin());
-    ret = XGDMatrixSliceDMatrixEx(handle, copy.data(), copy.size(), &result, 0);
-  }
+  auto ret = SliaceDMatrixWinWar(handle, indexset.get(), len, &result);
   JVM_CHECK_CALL(ret);
   setHandle(jenv, jout, result);
   return ret;
