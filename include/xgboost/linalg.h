@@ -190,13 +190,14 @@ constexpr auto ArrToTuple(T (&arr)[N]) {
 // uint division optimization inspired by the CIndexer in cupy.  Division operation is
 // slow on both CPU and GPU, especially 64 bit integer.  So here we first try to avoid 64
 // bit when the index is smaller, then try to avoid division when it's exp of 2.
-template <typename I, int32_t D>
+template <typename I, std::int32_t D>
 LINALG_HD auto UnravelImpl(I idx, common::Span<size_t const, D> shape) {
-  size_t index[D]{0};
+  std::size_t index[D]{0};
   static_assert(std::is_signed<decltype(D)>::value,
                 "Don't change the type without changing the for loop.");
+  auto const sptr = shape.data();
   for (int32_t dim = D; --dim > 0;) {
-    auto s = static_cast<std::remove_const_t<std::remove_reference_t<I>>>(shape[dim]);
+    auto s = static_cast<std::remove_const_t<std::remove_reference_t<I>>>(sptr[dim]);
     if (s & (s - 1)) {
       auto t = idx / s;
       index[dim] = idx - t * s;
@@ -295,6 +296,9 @@ class TensorView {
   using ShapeT = std::size_t[kDim];
   using StrideT = ShapeT;
 
+  using element_type = T;                  // NOLINT
+  using value_type = std::remove_cv_t<T>;  // NOLINT
+
  private:
   StrideT stride_{1};
   ShapeT shape_{0};
@@ -314,7 +318,7 @@ class TensorView {
   }
 
   template <size_t old_dim, size_t new_dim, int32_t D, typename I>
-  LINALG_HD size_t MakeSliceDim(size_t new_shape[D], size_t new_stride[D],
+  LINALG_HD size_t MakeSliceDim(std::size_t new_shape[D], std::size_t new_stride[D],
                                 detail::RangeTag<I> &&range) const {
     static_assert(new_dim < D);
     static_assert(old_dim < kDim);
@@ -528,9 +532,10 @@ class TensorView {
   LINALG_HD auto Stride(size_t i) const { return stride_[i]; }
 
   /**
-   * \brief Number of items in the tensor.
+   * @brief Number of items in the tensor.
    */
   [[nodiscard]] LINALG_HD std::size_t Size() const { return size_; }
+  [[nodiscard]] bool Empty() const { return Size() == 0; }
   /**
    * \brief Whether this is a contiguous array, both C and F contiguous returns true.
    */
@@ -741,6 +746,14 @@ auto ArrayInterfaceStr(TensorView<T, D> const &t) {
   return str;
 }
 
+template <typename T>
+auto Make1dInterface(T const *vec, std::size_t len) {
+  Context ctx;
+  auto t = linalg::MakeTensorView(&ctx, common::Span{vec, len}, len);
+  auto str = linalg::ArrayInterfaceStr(t);
+  return str;
+}
+
 /**
  * \brief A tensor storage. To use it for other functionality like slicing one needs to
  *        obtain a view first.  This way we can use it on both host and device.
@@ -865,7 +878,9 @@ class Tensor {
   auto HostView() { return this->View(DeviceOrd::CPU()); }
   auto HostView() const { return this->View(DeviceOrd::CPU()); }
 
-  [[nodiscard]] size_t Size() const { return data_.Size(); }
+  [[nodiscard]] std::size_t Size() const { return data_.Size(); }
+  [[nodiscard]] bool Empty() const { return Size() == 0; }
+
   auto Shape() const { return common::Span<size_t const, kDim>{shape_}; }
   auto Shape(size_t i) const { return shape_[i]; }
 

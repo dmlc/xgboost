@@ -5,6 +5,10 @@ on: [push, pull_request]
 permissions:
   contents: read # to fetch code (actions/checkout)
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-32bit:
     name: Build 32-bit
@@ -15,7 +19,7 @@ jobs:
         ports:
           - 5000:5000
     steps:
-    - uses: actions/checkout@v2.5.0
+    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       with:
         submodules: 'true'
     - name: Set up Docker Buildx

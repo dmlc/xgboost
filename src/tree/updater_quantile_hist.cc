@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2023, XGBoost Contributors
+ * Copyright 2017-2024, XGBoost Contributors
  * \file updater_quantile_hist.cc
  * \brief use quantized feature values to construct a tree
  * \author Philip Cho, Tianqi Checn, Egor Smirnov
@@ -149,9 +149,6 @@ class MultiTargetHistBuilder {
   }
 
   void InitData(DMatrix *p_fmat, RegTree const *p_tree) {
-    if (collective::IsDistributed()) {
-      LOG(FATAL) << "Distributed training for vector-leaf is not yet supported.";
-    }
     monitor_->Start(__func__);
 
     p_last_fmat_ = p_fmat;
@@ -202,8 +199,10 @@ class MultiTargetHistBuilder {
       }
     }
     CHECK(root_sum.CContiguous());
-    collective::GlobalSum(p_fmat->Info(), reinterpret_cast<double *>(root_sum.Values().data()),
-                          root_sum.Size() * 2);
+    auto rc = collective::GlobalSum(
+        ctx_, p_fmat->Info(),
+        linalg::MakeVec(reinterpret_cast<double *>(root_sum.Values().data()), root_sum.Size() * 2));
+    collective::SafeColl(rc);
 
     histogram_builder_->BuildRootHist(p_fmat, p_tree, partitioner_, gpair, best, HistBatch(param_));
 
@@ -411,7 +410,9 @@ class HistUpdater {
         for (auto const &grad : gpair_h) {
           grad_stat.Add(grad.GetGrad(), grad.GetHess());
         }
-        collective::GlobalSum(p_fmat->Info(), reinterpret_cast<double *>(&grad_stat), 2);
+        auto rc = collective::GlobalSum(ctx_, p_fmat->Info(),
+                                        linalg::MakeVec(reinterpret_cast<double *>(&grad_stat), 2));
+        collective::SafeColl(rc);
       }
 
       auto weight = evaluator_->InitRoot(GradStats{grad_stat});
@@ -474,6 +475,7 @@ class QuantileHistMaker : public TreeUpdater {
   std::unique_ptr<HistUpdater> p_impl_{nullptr};
   std::unique_ptr<MultiTargetHistBuilder> p_mtimpl_{nullptr};
   std::shared_ptr<common::ColumnSampler> column_sampler_;
+
   common::Monitor monitor_;
   ObjInfo const *task_{nullptr};
   HistMakerTrainParam hist_param_;

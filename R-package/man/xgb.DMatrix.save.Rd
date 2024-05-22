@@ -15,6 +15,7 @@ xgb.DMatrix.save(dmatrix, fname)
 Save xgb.DMatrix object to binary file
 }
 \examples{
+\dontshow{RhpcBLASctl::omp_set_num_threads(1)}
 data(agaricus.train, package='xgboost')
 dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
 fname <- file.path(tempdir(), "xgb.DMatrix.data")

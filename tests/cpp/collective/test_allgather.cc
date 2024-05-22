@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright 2023-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>   // for ASSERT_EQ
 #include <xgboost/span.h>  // for Span, oper...
@@ -34,8 +34,8 @@ class Worker : public WorkerForTest {
       std::vector<std::int32_t> data(comm_.World(), 0);
       data[comm_.Rank()] = comm_.Rank();
 
-      auto rc = RingAllgather(this->comm_, common::Span{data.data(), data.size()}, 1);
-      ASSERT_TRUE(rc.OK()) << rc.Report();
+      auto rc = RingAllgather(this->comm_, common::Span{data.data(), data.size()});
+      SafeColl(rc);
 
       for (std::int32_t r = 0; r < comm_.World(); ++r) {
         ASSERT_EQ(data[r], r);
@@ -51,8 +51,8 @@ class Worker : public WorkerForTest {
       auto seg = s_data.subspan(comm_.Rank() * n, n);
       std::iota(seg.begin(), seg.end(), comm_.Rank());
 
-      auto rc = RingAllgather(comm_, common::Span{data.data(), data.size()}, n);
-      ASSERT_TRUE(rc.OK()) << rc.Report();
+      auto rc = RingAllgather(comm_, common::Span{data.data(), data.size()});
+      SafeColl(rc);
 
       for (std::int32_t r = 0; r < comm_.World(); ++r) {
         auto seg = s_data.subspan(r * n, n);
@@ -81,7 +81,7 @@ class Worker : public WorkerForTest {
     std::vector<std::int32_t> data(comm_.Rank() + 1, comm_.Rank());
     std::vector<std::int32_t> result;
     auto rc = RingAllgatherV(comm_, common::Span{data.data(), data.size()}, &result);
-    ASSERT_TRUE(rc.OK()) << rc.Report();
+    SafeColl(rc);
     ASSERT_EQ(result.size(), (1 + comm_.World()) * comm_.World() / 2);
     CheckV(result);
   }
@@ -91,7 +91,7 @@ class Worker : public WorkerForTest {
     std::int32_t n{comm_.Rank()};
     std::vector<std::int32_t> result;
     auto rc = RingAllgatherV(comm_, common::Span{&n, 1}, &result);
-    ASSERT_TRUE(rc.OK()) << rc.Report();
+    SafeColl(rc);
     for (std::int32_t i = 0; i < comm_.World(); ++i) {
       ASSERT_EQ(result[i], i);
     }
@@ -104,8 +104,8 @@ class Worker : public WorkerForTest {
 
     std::vector<std::int64_t> sizes(comm_.World(), 0);
     sizes[comm_.Rank()] = s_data.size_bytes();
-    auto rc = RingAllgather(comm_, common::Span{sizes.data(), sizes.size()}, 1);
-    ASSERT_TRUE(rc.OK()) << rc.Report();
+    auto rc = RingAllgather(comm_, common::Span{sizes.data(), sizes.size()});
+    SafeColl(rc);
     std::shared_ptr<Coll> pcoll{new Coll{}};
 
     std::vector<std::int64_t> recv_segments(comm_.World() + 1, 0);
@@ -173,6 +173,37 @@ TEST_F(AllgatherTest, VAlgo) {
                                  std::int32_t r) {
     Worker worker{host, port, timeout, n_workers, r};
     worker.TestVAlgo();
+  });
+}
+
+TEST(VectorAllgatherV, Basic) {
+  std::int32_t n_workers{3};
+  TestDistributedGlobal(n_workers, []() {
+    auto n_workers = collective::GetWorldSize();
+    ASSERT_EQ(n_workers, 3);
+    auto rank = collective::GetRank();
+    // Construct input that has different length for each worker.
+    std::vector<std::vector<char>> inputs;
+    for (std::int32_t i = 0; i < rank + 1; ++i) {
+      std::vector<char> in;
+      for (std::int32_t j = 0; j < rank + 1; ++j) {
+        in.push_back(static_cast<char>(j));
+      }
+      inputs.emplace_back(std::move(in));
+    }
+
+    Context ctx;
+    auto outputs = VectorAllgatherV(&ctx, inputs);
+
+    ASSERT_EQ(outputs.size(), (1 + n_workers) * n_workers / 2);
+    auto const& res = outputs;
+
+    for (std::int32_t i = 0; i < n_workers; ++i) {
+      std::int32_t k = 0;
+      for (auto v : res[i]) {
+        ASSERT_EQ(v, k++);
+      }
+    }
   });
 }
 }  // namespace xgboost::collective

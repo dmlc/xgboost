@@ -113,8 +113,8 @@ def run_with_dask_array(DMatrixT: Type, client: Client) -> None:
     cp.cuda.runtime.setDevice(0)
     X, y, _ = generate_array()
 
-    X = X.map_blocks(cp.asarray)
-    y = y.map_blocks(cp.asarray)
+    X = X.map_blocks(cp.asarray)  # type: ignore
+    y = y.map_blocks(cp.asarray)  # type: ignore
     dtrain = DMatrixT(client, X, y)
     out = dxgb.train(
         client,
@@ -252,7 +252,7 @@ class TestDistributedGPU:
 
         X_onehot, _ = make_categorical(local_cuda_client, 10000, 30, 13, True)
         X_onehot = dask_cudf.from_dask_dataframe(X_onehot)
-        run_categorical(local_cuda_client, "gpu_hist", X, X_onehot, y)
+        run_categorical(local_cuda_client, "hist", "cuda", X, X_onehot, y)
 
     @given(
         params=hist_parameter_strategy,
@@ -648,8 +648,8 @@ async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainRetur
         import cupy as cp
 
         X, y, _ = generate_array()
-        X = X.map_blocks(cp.array)
-        y = y.map_blocks(cp.array)
+        X = X.map_blocks(cp.array)  # type: ignore
+        y = y.map_blocks(cp.array)  # type: ignore
 
         m = await xgb.dask.DaskQuantileDMatrix(client, X, y)
         output = await xgb.dask.train(

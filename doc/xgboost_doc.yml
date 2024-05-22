@@ -1,15 +1,23 @@
 name: xgboost_docs
 dependencies:
-  - python
+  - python=3.10
   - pip
   - pygraphviz
   - sphinx
+  - sphinx-gallery
   - recommonmark
   - mock
   - sh
   - matplotlib
+  - numpy
+  - scipy
+  - scikit-learn
+  - myst-parser
+  - pyspark
   - pip:
     - breathe
     - sphinx_rtd_theme
     - pydot-ng
     - graphviz
+    - ray[train]
+    - xgboost_ray

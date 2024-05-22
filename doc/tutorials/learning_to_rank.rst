@@ -48,11 +48,11 @@ Notice that the samples are sorted based on their query index in a non-decreasin
   import xgboost as xgb
 
   # Make a synthetic ranking dataset for demonstration
-  seed = 1994 
+  seed = 1994
   X, y = make_classification(random_state=seed)
   rng = np.random.default_rng(seed)
   n_query_groups = 3
-  qid = rng.integers(0, 3, size=X.shape[0])
+  qid = rng.integers(0, n_query_groups, size=X.shape[0])
 
   # Sort the inputs based on query index
   sorted_idx = np.argsort(qid)
@@ -65,14 +65,14 @@ The simplest way to train a ranking model is by using the scikit-learn estimator
 .. code-block:: python
 
   ranker = xgb.XGBRanker(tree_method="hist", lambdarank_num_pair_per_sample=8, objective="rank:ndcg", lambdarank_pair_method="topk")
-  ranker.fit(X, y, qid=qid)
+  ranker.fit(X, y, qid=qid[sorted_idx])
 
 Please note that, as of writing, there's no learning-to-rank interface in scikit-learn. As a result, the :py:class:`xgboost.XGBRanker` class does not fully conform the scikit-learn estimator guideline and can not be directly used with some of its utility functions. For instances, the ``auc_score`` and ``ndcg_score`` in scikit-learn don't consider query group information nor the pairwise loss. Most of the metrics are implemented as part of XGBoost, but to use scikit-learn utilities like :py:func:`sklearn.model_selection.cross_validation`, we need to make some adjustments in order to pass the ``qid`` as an additional parameter for :py:meth:`xgboost.XGBRanker.score`. Given a data frame ``X`` (either pandas or cuDF), add the column ``qid`` as follows:
 
 .. code-block:: python
 
   df = pd.DataFrame(X, columns=[str(i) for i in range(X.shape[1])])
-  df["qid"] = qid
+  df["qid"] = qid[sorted_idx]
   ranker.fit(df, y)  # No need to pass qid as a separate argument
 
   from sklearn.model_selection import StratifiedGroupKFold, cross_val_score
@@ -146,7 +146,8 @@ The consideration of effective pairs also applies to the choice of pair method (
 
 When using the mean strategy for generating pairs, where the target metric (like ``NDCG``) is computed over the whole query list, users can specify how many pairs should be generated per each document, by setting the ``lambdarank_num_pair_per_sample``. XGBoost will randomly sample ``lambdarank_num_pair_per_sample`` pairs for each element in the query group (:math:`|pairs| = |query| \times num\_pairsample`). Often, setting it to 1 can produce reasonable results. In cases where performance is inadequate due to insufficient number of effective pairs being generated, set ``lambdarank_num_pair_per_sample`` to a higher value. As more document pairs are generated, more effective pairs will be generated as well.
 
-On the other hand, if you are prioritizing the top :math:`k` documents, the ``lambdarank_num_pair_per_sample`` should be set slightly higher than :math:`k` (with a few more documents) to obtain a good training result.
+On the other hand, if you are prioritizing the top :math:`k` documents, the ``lambdarank_num_pair_per_sample`` should be set slightly higher than :math:`k` (with a few more documents) to obtain a good training result. Lastly, XGBoost employs additional regularization for learning to rank objectives, which can be disabled by setting the ``lambdarank_normalization`` to ``False``.
+
 
 **Summary** If you have large amount of training data:
 

@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2023 by XGBoost Contributors
+ * Copyright 2019-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <thrust/device_vector.h>
@@ -179,7 +179,7 @@ void TestMixedSketch() {
 TEST(HistUtil, DeviceSketchMixedFeatures) { TestMixedSketch(); }
 
 TEST(HistUtil, RemoveDuplicatedCategories) {
-  bst_row_t n_samples = 512;
+  bst_idx_t n_samples = 512;
   bst_feature_t n_features = 3;
   bst_cat_t n_categories = 5;
 
@@ -208,13 +208,13 @@ TEST(HistUtil, RemoveDuplicatedCategories) {
       FeatureType::kNumerical, FeatureType::kCategorical, FeatureType::kNumerical};
   ASSERT_EQ(info.feature_types.Size(), n_features);
 
-  HostDeviceVector<bst_row_t> cuts_ptr{0, n_samples, n_samples * 2, n_samples * 3};
+  HostDeviceVector<bst_idx_t> cuts_ptr{0, n_samples, n_samples * 2, n_samples * 3};
   cuts_ptr.SetDevice(DeviceOrd::CUDA(0));
 
   dh::device_vector<float> weight(n_samples * n_features, 0);
   dh::Iota(dh::ToSpan(weight), ctx.CUDACtx()->Stream());
 
-  dh::caching_device_vector<bst_row_t> columns_ptr(4);
+  dh::caching_device_vector<bst_idx_t> columns_ptr(4);
   for (std::size_t i = 0; i < columns_ptr.size(); ++i) {
     columns_ptr[i] = i * n_samples;
   }
@@ -639,7 +639,7 @@ void TestGetColumnSize(std::size_t n_samples) {
 }  // namespace
 
 TEST(HistUtil, GetColumnSize) {
-  bst_row_t n_samples = 4096;
+  bst_idx_t n_samples = 4096;
   TestGetColumnSize(n_samples);
 }
 
@@ -682,7 +682,7 @@ TEST(HistUtil, DeviceSketchFromGroupWeights) {
   for (size_t i = 0; i < kGroups; ++i) {
     groups[i] = kRows / kGroups;
   }
-  m->SetInfo("group", groups.data(), DataType::kUInt32, kGroups);
+  m->SetInfo("group", Make1dInterfaceTest(groups.data(), kGroups));
   HistogramCuts weighted_cuts = DeviceSketch(&ctx, m.get(), kBins, 0);
 
   // sketch with no weight
@@ -727,7 +727,7 @@ void TestAdapterSketchFromWeights(bool with_group) {
     for (size_t i = 0; i < kGroups; ++i) {
       groups[i] = kRows / kGroups;
     }
-    info.SetInfo(ctx, "group", groups.data(), DataType::kUInt32, kGroups);
+    info.SetInfo(ctx, "group", Make1dInterfaceTest(groups.data(), kGroups));
   }
 
   info.weights_.SetDevice(DeviceOrd::CUDA(0));
@@ -746,10 +746,10 @@ void TestAdapterSketchFromWeights(bool with_group) {
 
   auto dmat = GetDMatrixFromData(storage.HostVector(), kRows, kCols);
   if (with_group) {
-    dmat->Info().SetInfo(ctx, "group", groups.data(), DataType::kUInt32, kGroups);
+    dmat->Info().SetInfo(ctx, "group", Make1dInterfaceTest(groups.data(), kGroups));
   }
 
-  dmat->Info().SetInfo(ctx, "weight", h_weights.data(), DataType::kFloat32, h_weights.size());
+  dmat->Info().SetInfo(ctx, "weight", Make1dInterfaceTest(h_weights.data(), h_weights.size()));
   dmat->Info().num_col_ = kCols;
   dmat->Info().num_row_ = kRows;
   ASSERT_EQ(cuts.Ptrs().size(), kCols + 1);
@@ -795,11 +795,11 @@ TEST(HistUtil, AdapterSketchFromWeights) {
 
 namespace {
 class DeviceSketchWithHessianTest
-    : public ::testing::TestWithParam<std::tuple<bool, bst_row_t, bst_bin_t>> {
+    : public ::testing::TestWithParam<std::tuple<bool, bst_idx_t, bst_bin_t>> {
   bst_feature_t n_features_ = 5;
   bst_group_t n_groups_{3};
 
-  auto GenerateHessian(Context const* ctx, bst_row_t n_samples) const {
+  auto GenerateHessian(Context const* ctx, bst_idx_t n_samples) const {
     HostDeviceVector<float> hessian;
     auto& h_hess = hessian.HostVector();
     h_hess = GenerateRandomWeights(n_samples);
@@ -844,7 +844,7 @@ class DeviceSketchWithHessianTest
  protected:
   Context ctx_ = MakeCUDACtx(0);
 
-  void TestLTR(Context const* ctx, bst_row_t n_samples, bst_bin_t n_bins,
+  void TestLTR(Context const* ctx, bst_idx_t n_samples, bst_bin_t n_bins,
                std::size_t n_elements) const {
     auto x = GenerateRandom(n_samples, n_features_);
 
@@ -897,7 +897,7 @@ class DeviceSketchWithHessianTest
     }
   }
 
-  void TestRegression(Context const* ctx, bst_row_t n_samples, bst_bin_t n_bins,
+  void TestRegression(Context const* ctx, bst_idx_t n_samples, bst_bin_t n_bins,
                       std::size_t n_elements) const {
     auto x = GenerateRandom(n_samples, n_features_);
     auto p_fmat = GetDMatrixFromData(x, n_samples, n_features_);
@@ -910,9 +910,9 @@ class DeviceSketchWithHessianTest
 };
 
 auto MakeParamsForTest() {
-  std::vector<bst_row_t> sizes = {1, 2, 256, 512, 1000, 1500};
+  std::vector<bst_idx_t> sizes = {1, 2, 256, 512, 1000, 1500};
   std::vector<bst_bin_t> bin_sizes = {2, 16, 256, 512};
-  std::vector<std::tuple<bool, bst_row_t, bst_bin_t>> configs;
+  std::vector<std::tuple<bool, bst_idx_t, bst_bin_t>> configs;
   for (auto n_samples : sizes) {
     for (auto n_bins : bin_sizes) {
       configs.emplace_back(true, n_samples, n_bins);

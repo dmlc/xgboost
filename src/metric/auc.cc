@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2023 by XGBoost Contributors
+ * Copyright 2021-2024, XGBoost Contributors
  */
 #include "auc.h"
 
@@ -112,7 +112,9 @@ double MultiClassOVR(Context const *ctx, common::Span<float const> predts, MetaI
 
   // we have 2 averages going in here, first is among workers, second is among
   // classes. allreduce sums up fp/tp auc for each class.
-  collective::GlobalSum(info, &results.Values());
+  auto rc = collective::GlobalSum(ctx, info, results);
+  collective::SafeColl(rc);
+
   double auc_sum{0};
   double tp_sum{0};
   for (size_t c = 0; c < n_classes; ++c) {
@@ -175,7 +177,7 @@ double GroupRankingROC(Context const* ctx, common::Span<float const> predts,
   if (sum_w != 0) {
     auc /= sum_w;
   }
-  CHECK_LE(auc, 1.0f);
+  CHECK_LE(auc, 1.0 + kRtEps);
   return auc;
 }
 
@@ -262,9 +264,14 @@ class EvalAUC : public MetricNoCache {
       info.weights_.SetDevice(ctx_->Device());
     }
     //  We use the global size to handle empty dataset.
-    std::array<size_t, 2> meta{info.labels.Size(), preds.Size()};
+    std::array<bst_idx_t, 2> meta{info.labels.Size(), preds.Size()};
     if (!info.IsVerticalFederated()) {
-      collective::Allreduce<collective::Operation::kMax>(meta.data(), meta.size());
+      auto rc = collective::Allreduce(
+          ctx_,
+          linalg::MakeTensorView(DeviceOrd::CPU(), common::Span{meta.data(), meta.size()},
+                                 meta.size()),
+          collective::Op::kMax);
+      collective::SafeColl(rc);
     }
     if (meta[0] == 0) {
       // Empty across all workers, which is not supported.
@@ -286,10 +293,10 @@ class EvalAUC : public MetricNoCache {
         InvalidGroupAUC();
       }
 
-      auc = collective::GlobalRatio(info, auc, static_cast<double>(valid_groups));
+      auc = collective::GlobalRatio(ctx_, info, auc, static_cast<double>(valid_groups));
       if (!std::isnan(auc)) {
-        CHECK_LE(auc, 1) << "Total AUC across groups: " << auc * valid_groups
-                         << ", valid groups: " << valid_groups;
+        CHECK_LE(auc, 1.0 + kRtEps) << "Total AUC across groups: " << auc * valid_groups
+                                    << ", valid groups: " << valid_groups;
       }
     } else if (meta[0] != meta[1] && meta[1] % meta[0] == 0) {
       /**
@@ -307,9 +314,10 @@ class EvalAUC : public MetricNoCache {
         std::tie(fp, tp, auc) =
             static_cast<Curve *>(this)->EvalBinary(preds, info);
       }
-      auc = collective::GlobalRatio(info, auc, fp * tp);
+      auc = collective::GlobalRatio(ctx_, info, auc, fp * tp);
       if (!std::isnan(auc)) {
-        CHECK_LE(auc, 1.0);
+        CHECK_LE(auc, 1.0 + kRtEps);
+        auc = std::min(auc, 1.0);
       }
     }
     if (std::isnan(auc)) {

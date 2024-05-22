@@ -18,7 +18,7 @@ def test_array_interface() -> None:
     np.testing.assert_equal(cp.asnumpy(arr), cp.asnumpy(ret))
 
 
-def dmatrix_from_cupy(input_type, DMatrixT, missing=np.NAN):
+def dmatrix_from_cupy(input_type, DMatrixT, missing=np.nan):
     """Test constructing DMatrix from cupy"""
     kRows = 80
     kCols = 3
@@ -46,9 +46,9 @@ def dmatrix_from_cupy(input_type, DMatrixT, missing=np.NAN):
 
 def _test_from_cupy(DMatrixT):
     """Test constructing DMatrix from cupy"""
-    dmatrix_from_cupy(np.float16, DMatrixT, np.NAN)
-    dmatrix_from_cupy(np.float32, DMatrixT, np.NAN)
-    dmatrix_from_cupy(np.float64, DMatrixT, np.NAN)
+    dmatrix_from_cupy(np.float16, DMatrixT, np.nan)
+    dmatrix_from_cupy(np.float32, DMatrixT, np.nan)
+    dmatrix_from_cupy(np.float64, DMatrixT, np.nan)
 
     dmatrix_from_cupy(np.uint8, DMatrixT, 2)
     dmatrix_from_cupy(np.uint32, DMatrixT, 3)
@@ -202,7 +202,10 @@ class TestFromCupy:
         n = 100
         X = cp.random.random((n, 2))
         m = xgb.QuantileDMatrix(X.toDlpack())
-        with pytest.raises(xgb.core.XGBoostError):
+
+        with pytest.raises(
+            xgb.core.XGBoostError, match="Slicing DMatrix is not supported"
+        ):
             m.slice(rindex=[0, 1, 2])
 
     @pytest.mark.skipif(**tm.no_cupy())

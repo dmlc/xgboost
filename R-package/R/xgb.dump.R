@@ -24,6 +24,7 @@
 #' as a \code{character} vector. Otherwise it will return \code{TRUE}.
 #'
 #' @examples
+#' \dontshow{RhpcBLASctl::omp_set_num_threads(1)}
 #' data(agaricus.train, package='xgboost')
 #' data(agaricus.test, package='xgboost')
 #' train <- agaricus.train

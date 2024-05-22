@@ -26,3 +26,13 @@ Tutorials
 
   Introduction to XGBoost in R <xgboostPresentation>
   Understanding your dataset with XGBoost <discoverYourData>
+
+************
+Other topics
+************
+
+.. toctree::
+  :maxdepth: 2
+  :titlesonly:
+
+  Handling of indexable elements <index_base>

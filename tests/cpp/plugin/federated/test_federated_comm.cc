@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2023, XGBoost contributors
+ * Copyright 2022-2024, XGBoost contributors
  */
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -9,7 +9,7 @@
 
 #include "../../../../plugin/federated/federated_comm.h"
 #include "../../collective/test_worker.h"  // for SocketTest
-#include "../../helpers.h"                 // for ExpectThrow
+#include "../../helpers.h"                 // for GMockThrow
 #include "test_worker.h"                   // for TestFederated
 #include "xgboost/json.h"                  // for Json
 
@@ -20,19 +20,19 @@ class FederatedCommTest : public SocketTest {};
 
 TEST_F(FederatedCommTest, ThrowOnWorldSizeTooSmall) {
   auto construct = [] { FederatedComm comm{"localhost", 0, 0, 0}; };
-  ASSERT_THAT(construct,
-              ::testing::ThrowsMessage<dmlc::Error>(::testing::HasSubstr("Invalid world size")));
+  ASSERT_THAT(construct, GMockThrow("Invalid world size"));
 }
 
 TEST_F(FederatedCommTest, ThrowOnRankTooSmall) {
   auto construct = [] { FederatedComm comm{"localhost", 0, 1, -1}; };
-  ASSERT_THAT(construct,
-              ::testing::ThrowsMessage<dmlc::Error>(::testing::HasSubstr("Invalid worker rank.")));
+  ASSERT_THAT(construct, GMockThrow("Invalid worker rank."));
 }
 
 TEST_F(FederatedCommTest, ThrowOnRankTooBig) {
-  auto construct = [] { FederatedComm comm{"localhost", 0, 1, 1}; };
-  ExpectThrow<dmlc::Error>("Invalid worker rank.", construct);
+  auto construct = [] {
+    FederatedComm comm{"localhost", 0, 1, 1};
+  };
+  ASSERT_THAT(construct, GMockThrow("Invalid worker rank."));
 }
 
 TEST_F(FederatedCommTest, ThrowOnWorldSizeNotInteger) {
@@ -43,7 +43,7 @@ TEST_F(FederatedCommTest, ThrowOnWorldSizeNotInteger) {
     config["federated_rank"] = Integer(0);
     FederatedComm comm{DefaultRetry(), std::chrono::seconds{DefaultTimeoutSec()}, "", config};
   };
-  ExpectThrow<dmlc::Error>("got: `String`", construct);
+  ASSERT_THAT(construct, GMockThrow("got: `String`"));
 }
 
 TEST_F(FederatedCommTest, ThrowOnRankNotInteger) {
@@ -54,7 +54,7 @@ TEST_F(FederatedCommTest, ThrowOnRankNotInteger) {
     config["federated_rank"] = std::string("0");
     FederatedComm comm(DefaultRetry(), std::chrono::seconds{DefaultTimeoutSec()}, "", config);
   };
-  ExpectThrow<dmlc::Error>("got: `String`", construct);
+  ASSERT_THAT(construct, GMockThrow("got: `String`"));
 }
 
 TEST_F(FederatedCommTest, GetWorldSizeAndRank) {

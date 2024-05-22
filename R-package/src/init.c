@@ -37,6 +37,9 @@ extern SEXP XGBoosterLoadJsonConfig_R(SEXP handle, SEXP value);
 extern SEXP XGBoosterSerializeToBuffer_R(SEXP handle);
 extern SEXP XGBoosterUnserializeFromBuffer_R(SEXP handle, SEXP raw);
 extern SEXP XGBoosterPredictFromDMatrix_R(SEXP, SEXP, SEXP);
+extern SEXP XGBoosterPredictFromDense_R(SEXP, SEXP, SEXP, SEXP, SEXP);
+extern SEXP XGBoosterPredictFromCSR_R(SEXP, SEXP, SEXP, SEXP, SEXP);
+extern SEXP XGBoosterPredictFromColumnar_R(SEXP, SEXP, SEXP, SEXP, SEXP);
 extern SEXP XGBoosterSaveModel_R(SEXP, SEXP);
 extern SEXP XGBoosterSetAttr_R(SEXP, SEXP, SEXP);
 extern SEXP XGBoosterSetParam_R(SEXP, SEXP, SEXP);
@@ -46,7 +49,7 @@ extern SEXP XGSetArrayDimInplace_R(SEXP, SEXP);
 extern SEXP XGSetArrayDimNamesInplace_R(SEXP, SEXP);
 extern SEXP XGDMatrixCreateFromCSC_R(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
 extern SEXP XGDMatrixCreateFromCSR_R(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
-extern SEXP XGDMatrixCreateFromFile_R(SEXP, SEXP);
+extern SEXP XGDMatrixCreateFromURI_R(SEXP, SEXP, SEXP);
 extern SEXP XGDMatrixCreateFromMat_R(SEXP, SEXP, SEXP);
 extern SEXP XGDMatrixGetFloatInfo_R(SEXP, SEXP);
 extern SEXP XGDMatrixGetUIntInfo_R(SEXP, SEXP);
@@ -68,11 +71,12 @@ extern SEXP XGDMatrixGetDataAsCSR_R(SEXP);
 extern SEXP XGDMatrixSaveBinary_R(SEXP, SEXP, SEXP);
 extern SEXP XGDMatrixSetInfo_R(SEXP, SEXP, SEXP);
 extern SEXP XGDMatrixSetStrFeatureInfo_R(SEXP, SEXP, SEXP);
-extern SEXP XGDMatrixSliceDMatrix_R(SEXP, SEXP);
+extern SEXP XGDMatrixSliceDMatrix_R(SEXP, SEXP, SEXP);
 extern SEXP XGBSetGlobalConfig_R(SEXP);
 extern SEXP XGBGetGlobalConfig_R(void);
 extern SEXP XGBoosterFeatureScore_R(SEXP, SEXP);
 extern SEXP XGBoosterSlice_R(SEXP, SEXP, SEXP, SEXP);
+extern SEXP XGBoosterSliceAndReplace_R(SEXP, SEXP, SEXP, SEXP);
 
 static const R_CallMethodDef CallEntries[] = {
   {"XGDuplicate_R",               (DL_FUNC) &XGDuplicate_R,               1},
@@ -96,6 +100,9 @@ static const R_CallMethodDef CallEntries[] = {
   {"XGBoosterSerializeToBuffer_R",     (DL_FUNC) &XGBoosterSerializeToBuffer_R,     1},
   {"XGBoosterUnserializeFromBuffer_R", (DL_FUNC) &XGBoosterUnserializeFromBuffer_R, 2},
   {"XGBoosterPredictFromDMatrix_R", (DL_FUNC) &XGBoosterPredictFromDMatrix_R, 3},
+  {"XGBoosterPredictFromDense_R", (DL_FUNC) &XGBoosterPredictFromDense_R, 5},
+  {"XGBoosterPredictFromCSR_R",   (DL_FUNC) &XGBoosterPredictFromCSR_R,   5},
+  {"XGBoosterPredictFromColumnar_R", (DL_FUNC) &XGBoosterPredictFromColumnar_R, 5},
   {"XGBoosterSaveModel_R",        (DL_FUNC) &XGBoosterSaveModel_R,        2},
   {"XGBoosterSetAttr_R",          (DL_FUNC) &XGBoosterSetAttr_R,          3},
   {"XGBoosterSetParam_R",         (DL_FUNC) &XGBoosterSetParam_R,         3},
@@ -105,7 +112,7 @@ static const R_CallMethodDef CallEntries[] = {
   {"XGSetArrayDimNamesInplace_R", (DL_FUNC) &XGSetArrayDimNamesInplace_R, 2},
   {"XGDMatrixCreateFromCSC_R",    (DL_FUNC) &XGDMatrixCreateFromCSC_R,    6},
   {"XGDMatrixCreateFromCSR_R",    (DL_FUNC) &XGDMatrixCreateFromCSR_R,    6},
-  {"XGDMatrixCreateFromFile_R",   (DL_FUNC) &XGDMatrixCreateFromFile_R,   2},
+  {"XGDMatrixCreateFromURI_R",    (DL_FUNC) &XGDMatrixCreateFromURI_R,    3},
   {"XGDMatrixCreateFromMat_R",    (DL_FUNC) &XGDMatrixCreateFromMat_R,    3},
   {"XGDMatrixGetFloatInfo_R",     (DL_FUNC) &XGDMatrixGetFloatInfo_R,     2},
   {"XGDMatrixGetUIntInfo_R",      (DL_FUNC) &XGDMatrixGetUIntInfo_R,      2},
@@ -127,11 +134,12 @@ static const R_CallMethodDef CallEntries[] = {
   {"XGDMatrixSaveBinary_R",       (DL_FUNC) &XGDMatrixSaveBinary_R,       3},
   {"XGDMatrixSetInfo_R",          (DL_FUNC) &XGDMatrixSetInfo_R,          3},
   {"XGDMatrixSetStrFeatureInfo_R", (DL_FUNC) &XGDMatrixSetStrFeatureInfo_R, 3},
-  {"XGDMatrixSliceDMatrix_R",     (DL_FUNC) &XGDMatrixSliceDMatrix_R,     2},
+  {"XGDMatrixSliceDMatrix_R",     (DL_FUNC) &XGDMatrixSliceDMatrix_R,     3},
   {"XGBSetGlobalConfig_R",        (DL_FUNC) &XGBSetGlobalConfig_R,        1},
   {"XGBGetGlobalConfig_R",        (DL_FUNC) &XGBGetGlobalConfig_R,        0},
   {"XGBoosterFeatureScore_R",     (DL_FUNC) &XGBoosterFeatureScore_R,     2},
   {"XGBoosterSlice_R",            (DL_FUNC) &XGBoosterSlice_R,            4},
+  {"XGBoosterSliceAndReplace_R",  (DL_FUNC) &XGBoosterSliceAndReplace_R,  4},
   {NULL, NULL, 0}
 };
 

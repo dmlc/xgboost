@@ -517,6 +517,12 @@ def test_regression_with_custom_objective():
         labels = y[test_index]
     assert mean_squared_error(preds, labels) < 25
 
+    w = rng.uniform(low=0.0, high=1.0, size=X.shape[0])
+    reg = xgb.XGBRegressor(objective=tm.ls_obj, n_estimators=25)
+    reg.fit(X, y, sample_weight=w)
+    y_pred = reg.predict(X)
+    assert mean_squared_error(y_true=y, y_pred=y_pred, sample_weight=w) < 25
+
     # Test that the custom objective function is actually used
     class XGBCustomObjectiveException(Exception):
         pass
@@ -1092,9 +1098,10 @@ def test_pandas_input():
     np.testing.assert_equal(model.feature_names_in_, np.array(feature_names))
 
     columns = list(train.columns)
-    random.shuffle(columns, lambda: 0.1)
+    rng.shuffle(columns)
     df_incorrect = df[columns]
-    with pytest.raises(ValueError):
+
+    with pytest.raises(ValueError, match="feature_names mismatch"):
         model.predict(df_incorrect)
 
     clf_isotonic = CalibratedClassifierCV(model, cv="prefit", method="isotonic")
@@ -1294,20 +1301,12 @@ def test_estimator_reg(estimator, check):
         ):
             estimator.fit(X, y)
         return
-    if (
-        os.environ["PYTEST_CURRENT_TEST"].find("check_estimators_overwrite_params")
-        != -1
-    ):
-        # A hack to pass the scikit-learn parameter mutation tests.  XGBoost regressor
-        # returns actual internal default values for parameters in `get_params`, but
-        # those are set as `None` in sklearn interface to avoid duplication.  So we fit
-        # a dummy model and obtain the default parameters here for the mutation tests.
-        from sklearn.datasets import make_regression
-
-        X, y = make_regression(n_samples=2, n_features=1)
-        estimator.set_params(**xgb.XGBRegressor().fit(X, y).get_params())
-
-    check(estimator)
+    elif os.environ["PYTEST_CURRENT_TEST"].find("check_regressor_multioutput") != -1:
+        # sklearn requires float64
+        with pytest.raises(AssertionError, match="Got float32"):
+            check(estimator)
+    else:
+        check(estimator)
 
 
 def test_categorical():
@@ -1456,3 +1455,32 @@ def test_intercept() -> None:
     result = reg.intercept_
     assert result.dtype == np.float32
     assert result[0] < 0.5
+
+
+def test_fit_none() -> None:
+    with pytest.raises(TypeError, match="NoneType"):
+        xgb.XGBClassifier().fit(None, [0, 1])
+
+    X = rng.normal(size=4).reshape(2, 2)
+
+    with pytest.raises(ValueError, match="Invalid classes"):
+        xgb.XGBClassifier().fit(X, None)
+
+    with pytest.raises(ValueError, match="labels"):
+        xgb.XGBRegressor().fit(X, None)
+
+
+def test_tags() -> None:
+    for reg in [xgb.XGBRegressor(), xgb.XGBRFRegressor()]:
+        tags = reg._more_tags()
+        assert "non_deterministic" not in tags
+        assert tags["multioutput"] is True
+        assert tags["multioutput_only"] is False
+
+    for clf in [xgb.XGBClassifier()]:
+        tags = clf._more_tags()
+        assert "multioutput" not in tags
+        assert tags["multilabel"] is True
+
+    tags = xgb.XGBRanker()._more_tags()
+    assert "multioutput" not in tags

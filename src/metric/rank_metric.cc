@@ -101,7 +101,7 @@ struct EvalAMS : public MetricNoCache {
     }
   }
 
-  const char* Name() const override {
+  [[nodiscard]] const char* Name() const override {
     return name_.c_str();
   }
 
@@ -159,7 +159,7 @@ struct EvalRank : public MetricNoCache, public EvalRankConfig {
       exc.Rethrow();
     }
 
-    return collective::GlobalRatio(info, sum_metric, static_cast<double>(ngroups));
+    return collective::GlobalRatio(ctx_, info, sum_metric, static_cast<double>(ngroups));
   }
 
   [[nodiscard]] const char* Name() const override {
@@ -274,7 +274,7 @@ class EvalRankWithCache : public Metric {
   double Evaluate(HostDeviceVector<float> const& preds, std::shared_ptr<DMatrix> p_fmat) override {
     double result{0.0};
     auto const& info = p_fmat->Info();
-    collective::ApplyWithLabels(info, &result, sizeof(double), [&] {
+    collective::ApplyWithLabels(ctx_, info, &result, sizeof(double), [&] {
       auto p_cache = cache_.CacheItem(p_fmat, ctx_, info, param_);
       if (p_cache->Param() != param_) {
         p_cache = cache_.ResetItem(p_fmat, ctx_, info, param_);
@@ -294,9 +294,10 @@ class EvalRankWithCache : public Metric {
 };
 
 namespace {
-double Finalize(Context const*, MetaInfo const& info, double score, double sw) {
+double Finalize(Context const* ctx, MetaInfo const& info, double score, double sw) {
   std::array<double, 2> dat{score, sw};
-  collective::GlobalSum(info, &dat);
+  auto rc = collective::GlobalSum(ctx, info, linalg::MakeVec(dat.data(), 2));
+  collective::SafeColl(rc);
   std::tie(score, sw) = std::tuple_cat(dat);
   if (sw > 0.0) {
     score = score / sw;

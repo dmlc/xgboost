@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 by XGBoost contributors
+ * Copyright 2023-2024, XGBoost contributors
  */
 #include <array>                            // std::array
 #include <cstddef>                          // std::size_t
@@ -170,7 +170,9 @@ class QuantileRegression : public ObjFunction {
     double meanq = temp(0) * sw;
 
     std::array<double, 2> dat{meanq, sw};
-    collective::GlobalSum(info, &dat);
+    auto rc = collective::GlobalSum(ctx_, info, linalg::MakeVec(dat.data(), dat.size()));
+    collective::SafeColl(rc);
+
     std::tie(meanq, sw) = std::tuple_cat(dat);
     meanq /= (sw + kRtEps);
     base_score->Reshape(1);

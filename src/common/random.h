@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2020, XGBoost Contributors
+ * Copyright 2015-2024, XGBoost Contributors
  * \file random.h
  * \brief Utility related to random.
  * \author Tianqi Chen
@@ -19,11 +19,13 @@
 #include <utility>
 #include <vector>
 
+#include "../collective/broadcast.h"  // for Broadcast
 #include "../collective/communicator-inl.h"
 #include "algorithm.h"  // ArgSort
 #include "common.h"
 #include "xgboost/context.h"  // Context
 #include "xgboost/host_device_vector.h"
+#include "xgboost/linalg.h"
 
 namespace xgboost::common {
 /*!
@@ -31,7 +33,7 @@ namespace xgboost::common {
  */
 using RandomEngine = std::mt19937;
 
-#if XGBOOST_CUSTOMIZE_GLOBAL_PRNG
+#if defined(XGBOOST_CUSTOMIZE_GLOBAL_PRNG) && XGBOOST_CUSTOMIZE_GLOBAL_PRNG == 1
 /*!
  * \brief An customized random engine, used to be plugged in PRNG from other systems.
  *  The implementation of this library is not provided by xgboost core library.
@@ -227,9 +229,10 @@ class ColumnSampler {
   }
 };
 
-inline auto MakeColumnSampler(Context const*) {
+inline auto MakeColumnSampler(Context const* ctx) {
   std::uint32_t seed = common::GlobalRandomEngine()();
-  collective::Broadcast(&seed, sizeof(seed), 0);
+  auto rc = collective::Broadcast(ctx, linalg::MakeVec(&seed, 1), 0);
+  collective::SafeColl(rc);
   auto cs = std::make_shared<common::ColumnSampler>(seed);
   return cs;
 }

@@ -53,12 +53,13 @@ XGB_DLL SEXP XGBSetGlobalConfig_R(SEXP json_str);
 XGB_DLL SEXP XGBGetGlobalConfig_R();
 
 /*!
- * \brief load a data matrix
- * \param fname name of the content
+ * \brief load a data matrix from URI
+ * \param uri URI to the source file to read data from
  * \param silent whether print messages
+ * \param Data split mode (0=rows, 1=columns)
  * \return a loaded data matrix
  */
-XGB_DLL SEXP XGDMatrixCreateFromFile_R(SEXP fname, SEXP silent);
+XGB_DLL SEXP XGDMatrixCreateFromURI_R(SEXP uri, SEXP silent, SEXP data_split_mode);
 
 /*!
  * \brief create matrix content from dense matrix
@@ -111,9 +112,10 @@ XGB_DLL SEXP XGDMatrixCreateFromCSR_R(SEXP indptr, SEXP indices, SEXP data, SEXP
  * \brief create a new dmatrix from sliced content of existing matrix
  * \param handle instance of data matrix to be sliced
  * \param idxset index set
+ * \param allow_groups Whether to allow slicing the DMatrix if it has a 'group' field
  * \return a sliced new matrix
  */
-XGB_DLL SEXP XGDMatrixSliceDMatrix_R(SEXP handle, SEXP idxset);
+XGB_DLL SEXP XGDMatrixSliceDMatrix_R(SEXP handle, SEXP idxset, SEXP allow_groups);
 
 /*!
  * \brief load a data matrix into binary file
@@ -370,6 +372,50 @@ XGB_DLL SEXP XGBoosterEvalOneIter_R(SEXP handle, SEXP iter, SEXP dmats, SEXP evn
  * \return A list containing 2 vectors, first one for shape while second one for prediction result.
  */
 XGB_DLL SEXP XGBoosterPredictFromDMatrix_R(SEXP handle, SEXP dmat, SEXP json_config);
+
+/*!
+ * \brief Run prediction on R dense matrix
+ * \param handle handle
+ * \param R_mat R matrix
+ * \param missing missing value
+ * \param json_config See `XGBoosterPredictFromDense` in xgboost c_api.h. Doesn't include 'missing'
+ * \param base_margin base margin for the prediction
+ *
+ * \return A list containing 2 vectors, first one for shape while second one for prediction result.
+ */
+XGB_DLL SEXP XGBoosterPredictFromDense_R(SEXP handle, SEXP R_mat, SEXP missing,
+                                         SEXP json_config, SEXP base_margin);
+
+/*!
+ * \brief Run prediction on R CSR matrix
+ * \param handle handle
+ * \param lst An R list, containing, in this order:
+ *              (a) 'p' array (a.k.a. indptr)
+ *              (b) 'j' array (a.k.a. indices)
+ *              (c) 'x' array (a.k.a. data / values)
+ *              (d) number of columns
+ * \param missing missing value
+ * \param json_config See `XGBoosterPredictFromCSR` in xgboost c_api.h. Doesn't include 'missing'
+ * \param base_margin base margin for the prediction
+ *
+ * \return A list containing 2 vectors, first one for shape while second one for prediction result.
+ */
+XGB_DLL SEXP XGBoosterPredictFromCSR_R(SEXP handle, SEXP lst, SEXP missing,
+                                       SEXP json_config, SEXP base_margin);
+
+/*!
+ * \brief Run prediction on R data.frame
+ * \param handle handle
+ * \param R_df R data.frame
+ * \param missing missing value
+ * \param json_config See `XGBoosterPredictFromDense` in xgboost c_api.h. Doesn't include 'missing'
+ * \param base_margin base margin for the prediction
+ *
+ * \return A list containing 2 vectors, first one for shape while second one for prediction result.
+ */
+XGB_DLL SEXP XGBoosterPredictFromColumnar_R(SEXP handle, SEXP R_df, SEXP missing,
+                                            SEXP json_config, SEXP base_margin);
+
 /*!
  * \brief load model from existing file
  * \param handle handle
@@ -489,5 +535,15 @@ XGB_DLL SEXP XGBoosterFeatureScore_R(SEXP handle, SEXP json_config);
  * \return The sliced booster with the requested rounds only
  */
 XGB_DLL SEXP XGBoosterSlice_R(SEXP handle, SEXP begin_layer, SEXP end_layer, SEXP step);
+
+/*!
+ * \brief Slice a fitted booster model (by rounds), and replace its handle with the result
+ * \param handle handle to the fitted booster
+ * \param begin_layer start of the slice
+ * \param end_later end of the slice; end_layer=0 is equivalent to end_layer=num_boost_round
+ * \param step step size of the slice
+ * \return NULL
+ */
+XGB_DLL SEXP XGBoosterSliceAndReplace_R(SEXP handle, SEXP begin_layer, SEXP end_layer, SEXP step);
 
 #endif  // XGBOOST_WRAPPER_R_H_ // NOLINT(*)

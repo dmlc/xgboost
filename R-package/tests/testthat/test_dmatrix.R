@@ -41,13 +41,13 @@ test_that("xgb.DMatrix: basic construction", {
 
   params <- list(tree_method = "hist", nthread = n_threads)
   bst_fd <- xgb.train(
-    params, nrounds = 8, fd, watchlist = list(train = fd)
+    params, nrounds = 8, fd, evals = list(train = fd)
   )
   bst_dgr <- xgb.train(
-    params, nrounds = 8, fdgr, watchlist = list(train = fdgr)
+    params, nrounds = 8, fdgr, evals = list(train = fdgr)
   )
   bst_dgc <- xgb.train(
-    params, nrounds = 8, fdgc, watchlist = list(train = fdgc)
+    params, nrounds = 8, fdgc, evals = list(train = fdgc)
   )
 
   raw_fd <- xgb.save.raw(bst_fd, raw_format = "ubj")
@@ -243,7 +243,7 @@ test_that("xgb.DMatrix: print", {
     txt <- capture.output({
         print(dtrain)
     })
-    expect_equal(txt, "xgb.DMatrix  dim: 6513 x 126  info: label weight base_margin  colnames: yes")
+    expect_equal(txt, "xgb.DMatrix  dim: 6513 x 126  info: base_margin, label, weight  colnames: yes")
 
     # DMatrix with just features
     dtrain <- xgb.DMatrix(
@@ -300,6 +300,37 @@ test_that("xgb.DMatrix: Inf as missing", {
 
   file.remove(fname_inf)
   file.remove(fname_nan)
+})
+
+test_that("xgb.DMatrix: missing in CSR", {
+  x_dense <- matrix(as.numeric(1:10), nrow = 5)
+  x_dense[2, 1] <- NA_real_
+
+  x_csr <- as(x_dense, "RsparseMatrix")
+
+  m_dense <- xgb.DMatrix(x_dense, nthread = n_threads, missing = NA_real_)
+  xgb.DMatrix.save(m_dense, "dense.dmatrix")
+
+  m_csr <- xgb.DMatrix(x_csr, nthread = n_threads, missing = NA)
+  xgb.DMatrix.save(m_csr, "csr.dmatrix")
+
+  denseconn <- file("dense.dmatrix", "rb")
+  csrconn <- file("csr.dmatrix", "rb")
+
+  expect_equal(file.size("dense.dmatrix"), file.size("csr.dmatrix"))
+
+  bytes <- file.size("dense.dmatrix")
+  densedmatrix <- readBin(denseconn, "raw", n = bytes)
+  csrmatrix <- readBin(csrconn, "raw", n = bytes)
+
+  expect_equal(length(densedmatrix), length(csrmatrix))
+  expect_equal(densedmatrix, csrmatrix)
+
+  close(denseconn)
+  close(csrconn)
+
+  file.remove("dense.dmatrix")
+  file.remove("csr.dmatrix")
 })
 
 test_that("xgb.DMatrix: error on three-dimensional array", {
@@ -690,5 +721,60 @@ test_that("xgb.DMatrix: quantile cuts look correct", {
       expect_true(col_max[col] < cuts[length(cuts)])
       expect_true(length(cuts) <= 9)
     }
+  )
+})
+
+test_that("xgb.DMatrix: slicing keeps field indicators", {
+  data(mtcars)
+  x <- as.matrix(mtcars[, -1])
+  y <- mtcars[, 1]
+  dm <- xgb.DMatrix(
+    data = x,
+    label_lower_bound = -y,
+    label_upper_bound = y,
+    nthread = 1
+  )
+  idx_take <- seq(1, 5)
+  dm_slice <- xgb.slice.DMatrix(dm, idx_take)
+
+  expect_true(xgb.DMatrix.hasinfo(dm_slice, "label_lower_bound"))
+  expect_true(xgb.DMatrix.hasinfo(dm_slice, "label_upper_bound"))
+  expect_false(xgb.DMatrix.hasinfo(dm_slice, "label"))
+
+  expect_equal(getinfo(dm_slice, "label_lower_bound"), -y[idx_take], tolerance = 1e-6)
+  expect_equal(getinfo(dm_slice, "label_upper_bound"), y[idx_take], tolerance = 1e-6)
+})
+
+test_that("xgb.DMatrix: can slice with groups", {
+  data(iris)
+  x <- as.matrix(iris[, -5])
+  set.seed(123)
+  y <- sample(3, size = nrow(x), replace = TRUE)
+  group <- c(50, 50, 50)
+  dm <- xgb.DMatrix(x, label = y, group = group, nthread = 1)
+  idx_take <- seq(1, 50)
+  dm_slice <- xgb.slice.DMatrix(dm, idx_take, allow_groups = TRUE)
+
+  expect_true(xgb.DMatrix.hasinfo(dm_slice, "label"))
+  expect_false(xgb.DMatrix.hasinfo(dm_slice, "group"))
+  expect_false(xgb.DMatrix.hasinfo(dm_slice, "qid"))
+  expect_null(getinfo(dm_slice, "group"))
+  expect_equal(getinfo(dm_slice, "label"), y[idx_take], tolerance = 1e-6)
+})
+
+test_that("xgb.DMatrix: can read CSV", {
+  txt <- paste(
+    "1,2,3",
+    "-1,3,2",
+    sep = "\n"
+  )
+  fname <- file.path(tempdir(), "data.csv")
+  writeChar(txt, fname)
+  uri <- paste0(fname, "?format=csv&label_column=0")
+  dm <- xgb.DMatrix(uri, silent = TRUE)
+  expect_equal(getinfo(dm, "label"), c(1, -1))
+  expect_equal(
+    as.matrix(xgb.get.DMatrix.data(dm)),
+    matrix(c(2, 3, 3, 2), nrow = 2, byrow = TRUE)
   )
 })

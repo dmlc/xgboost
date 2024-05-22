@@ -4,7 +4,14 @@
 #' values of one or more global-scope parameters. Use \code{xgb.get.config} to fetch the current
 #' values of all global-scope parameters (listed in
 #' \url{https://xgboost.readthedocs.io/en/stable/parameter.html}).
+#' @details
+#' Note that serialization-related functions might use a globally-configured number of threads,
+#' which is managed by the system's OpenMP (OMP) configuration instead. Typically, XGBoost methods
+#' accept an `nthreads` parameter, but some methods like `readRDS` might get executed before such
+#' parameter can be supplied.
 #'
+#' The number of OMP threads can in turn be configured for example through an environment variable
+#' `OMP_NUM_THREADS` (needs to be set before R is started), or through `RhpcBLASctl::omp_set_num_threads`.
 #' @rdname xgbConfig
 #' @title Set and get global configuration
 #' @name xgb.set.config, xgb.get.config

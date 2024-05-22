@@ -33,7 +33,8 @@ conversions applied to it. See the documentation for parameter \code{data} in
 \item CSR matrices, as class \code{dgRMatrix} from package \code{Matrix}.
 }}
 
-\item{label}{Label of the training data.}
+\item{label}{Label of the training data. For classification problems, should be passed encoded as
+integers with numeration starting at zero.}
 
 \item{weight}{Weight for each instance.
 
@@ -69,7 +70,12 @@ with the following possible values:\itemize{
 
 Note that, while categorical types are treated differently from the rest for model fitting
 purposes, the other types do not influence the generated model, but have effects in other
-functionalities such as feature importances.}
+functionalities such as feature importances.
+
+\bold{Important}: categorical features, if specified manually through \code{feature_types}, must
+be encoded as integers with numeration starting at zero, and the same encoding needs to be
+applied when passing data to \code{predict}. Even if passing \code{factor} types, the encoding will
+not be saved, so make sure that \code{factor} columns passed to \code{predict} have the same \code{levels}.}
 
 \item{group}{Group size for all ranking group.}
 

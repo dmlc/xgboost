@@ -1,101 +1,40 @@
 package ml.dmlc.xgboost4j.java;
 
-import java.io.*;
-import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 /**
  * Java implementation of the Rabit tracker to coordinate distributed workers.
- * As a wrapper of the Python Rabit tracker, this implementation does not handle timeout for both
- * start() and waitFor() methods (i.e., the timeout is infinite.)
- *
- * For systems lacking Python environment, or for timeout functionality, consider using the Scala
- * Rabit tracker (ml.dmlc.xgboost4j.scala.rabit.RabitTracker) which does not depend on Python, and
- * provides timeout support.
  *
  * The tracker must be started on driver node before running distributed jobs.
  */
-public class RabitTracker implements IRabitTracker {
+public class RabitTracker implements ITracker {
   // Maybe per tracker logger?
   private static final Log logger = LogFactory.getLog(RabitTracker.class);
-  // tracker python file.
-  private static String tracker_py = null;
-  private static TrackerProperties trackerProperties = TrackerProperties.getInstance();
-  // environment variable to be pased.
-  private Map<String, String> envs = new HashMap<String, String>();
-  // number of workers to be submitted.
-  private int numWorkers;
-  private String hostIp = "";
-  private String pythonExec = "";
-  private AtomicReference<Process> trackerProcess = new AtomicReference<Process>();
+  private long handle = 0;
+  private Thread tracker_daemon;
 
-  static {
-    try {
-      initTrackerPy();
-    } catch (IOException ex) {
-      logger.error("load tracker library failed.");
-      logger.error(ex);
-    }
+  public RabitTracker(int numWorkers) throws XGBoostError {
+    this(numWorkers, "");
   }
 
-  /**
-   * Tracker logger that logs output from tracker.
-   */
-  private class TrackerProcessLogger implements Runnable {
-    public void run() {
-
-      Log trackerProcessLogger = LogFactory.getLog(TrackerProcessLogger.class);
-      BufferedReader reader = new BufferedReader(new InputStreamReader(
-              trackerProcess.get().getErrorStream()));
-      String line;
-      try {
-        while ((line = reader.readLine()) != null) {
-          trackerProcessLogger.info(line);
-        }
-        trackerProcess.get().waitFor();
-        int exitValue = trackerProcess.get().exitValue();
-        if (exitValue != 0) {
-          trackerProcessLogger.error("Tracker Process ends with exit code " + exitValue);
-        } else {
-          trackerProcessLogger.info("Tracker Process ends with exit code " + exitValue);
-        }
-      } catch (IOException ex) {
-        trackerProcessLogger.error(ex.toString());
-      } catch (InterruptedException ie) {
-        // we should not get here as RabitTracker is accessed in the main thread
-        ie.printStackTrace();
-        logger.error("the RabitTracker thread is terminated unexpectedly");
-      }
-    }
-  }
-
-  private static void initTrackerPy() throws IOException {
-    try {
-      tracker_py = NativeLibLoader.createTempFileFromResource("/tracker.py");
-    } catch (IOException ioe) {
-      logger.trace("cannot access tracker python script");
-      throw ioe;
-    }
-  }
-
-  public RabitTracker(int numWorkers)
+  public RabitTracker(int numWorkers, String hostIp)
       throws XGBoostError {
+    this(numWorkers, hostIp, 0, 300);
+  }
+  public RabitTracker(int numWorkers, String hostIp, int port, int timeout) throws XGBoostError {
     if (numWorkers < 1) {
       throw new XGBoostError("numWorkers must be greater equal to one");
     }
-    this.numWorkers = numWorkers;
-  }
 
-  public RabitTracker(int numWorkers, String hostIp, String pythonExec)
-      throws XGBoostError {
-    this(numWorkers);
-    this.hostIp = hostIp;
-    this.pythonExec = pythonExec;
+    long[] out = new long[1];
+    XGBoostJNI.checkCall(XGBoostJNI.TrackerCreate(hostIp, numWorkers, port, 0, timeout, out));
+    this.handle = out[0];
   }
 
   public void uncaughtException(Thread t, Throwable e) {
@@ -105,7 +44,7 @@ public class RabitTracker implements IRabitTracker {
     } catch (InterruptedException ex) {
       logger.error(ex);
     } finally {
-      trackerProcess.get().destroy();
+      this.tracker_daemon.interrupt();
     }
   }
 
@@ -113,115 +52,43 @@ public class RabitTracker implements IRabitTracker {
    * Get environments that can be used to pass to worker.
    * @return The environment settings.
    */
-  public Map<String, String> getWorkerEnvs() {
-    return envs;
+  public Map<String, Object> workerArgs() throws XGBoostError {
+    // fixme: timeout
+    String[] args = new String[1];
+    XGBoostJNI.checkCall(XGBoostJNI.TrackerWorkerArgs(this.handle, 0, args));
+    ObjectMapper mapper = new ObjectMapper();
+    TypeReference<Map<String, Object>> typeRef = new TypeReference<Map<String, Object>>() {
+    };
+    Map<String, Object> config;
+    try {
+      config = mapper.readValue(args[0], typeRef);
+    } catch (JsonProcessingException ex) {
+      throw new XGBoostError("Failed to get worker arguments.", ex);
+    }
+    return config;
   }
 
-  private void loadEnvs(InputStream ins) throws IOException {
-    try {
-      BufferedReader reader = new BufferedReader(new InputStreamReader(ins));
-      assert reader.readLine().trim().equals("DMLC_TRACKER_ENV_START");
-      String line;
-      while ((line = reader.readLine()) != null) {
-        if (line.trim().equals("DMLC_TRACKER_ENV_END")) {
-          break;
-        }
-        String[] sep = line.split("=");
-        if (sep.length == 2) {
-          envs.put(sep[0], sep[1]);
-        }
+  public void stop() throws XGBoostError {
+    XGBoostJNI.checkCall(XGBoostJNI.TrackerFree(this.handle));
+  }
+
+  public boolean start() throws XGBoostError {
+    XGBoostJNI.checkCall(XGBoostJNI.TrackerRun(this.handle));
+    this.tracker_daemon = new Thread(() -> {
+      try {
+        XGBoostJNI.checkCall(XGBoostJNI.TrackerWaitFor(this.handle, 0));
+      } catch (XGBoostError ex) {
+        logger.error(ex);
+        return; // exit the thread
       }
-      reader.close();
-    } catch (IOException ioe){
-      logger.error("cannot get runtime configuration from tracker process");
-      ioe.printStackTrace();
-      throw ioe;
-    }
+    });
+    this.tracker_daemon.setDaemon(true);
+    this.tracker_daemon.start();
+
+    return this.tracker_daemon.isAlive();
   }
 
-  /** visible for testing */
-  public String getRabitTrackerCommand() {
-    StringBuilder sb = new StringBuilder();
-    if (pythonExec == null || pythonExec.isEmpty()) {
-      sb.append("python ");
-    } else {
-      sb.append(pythonExec + " ");
-    }
-    sb.append(" " + tracker_py + " ");
-    sb.append(" --log-level=DEBUG" + " ");
-    sb.append(" --num-workers=" + numWorkers + " ");
-
-    // we first check the property then check the parameter
-    String hostIpFromProperties = trackerProperties.getHostIp();
-    if(hostIpFromProperties != null && !hostIpFromProperties.isEmpty()) {
-      logger.debug("Using provided host-ip: " + hostIpFromProperties + " from properties");
-      sb.append(" --host-ip=" + hostIpFromProperties + " ");
-    } else if (hostIp != null & !hostIp.isEmpty()) {
-      logger.debug("Using the parametr host-ip: " + hostIp);
-      sb.append(" --host-ip=" + hostIp + " ");
-    }
-    return sb.toString();
-  }
-
-  private boolean startTrackerProcess() {
-    try {
-      String cmd = getRabitTrackerCommand();
-      trackerProcess.set(Runtime.getRuntime().exec(cmd));
-      loadEnvs(trackerProcess.get().getInputStream());
-      return true;
-    } catch (IOException ioe) {
-      ioe.printStackTrace();
-      return false;
-    }
-  }
-
-  public void stop() {
-    if (trackerProcess.get() != null) {
-      trackerProcess.get().destroy();
-    }
-  }
-
-  public boolean start(long timeout) {
-    if (timeout > 0L) {
-      logger.warn("Python RabitTracker does not support timeout. " +
-              "The tracker will wait for all workers to connect indefinitely, unless " +
-              "it is interrupted manually. Use the Scala RabitTracker for timeout support.");
-    }
-
-    if (startTrackerProcess()) {
-      logger.debug("Tracker started, with env=" + envs.toString());
-      System.out.println("Tracker started, with env=" + envs.toString());
-      // also start a tracker logger
-      Thread logger_thread = new Thread(new TrackerProcessLogger());
-      logger_thread.setDaemon(true);
-      logger_thread.start();
-      return true;
-    } else {
-      logger.error("FAULT: failed to start tracker process");
-      stop();
-      return false;
-    }
-  }
-
-  public int waitFor(long timeout) {
-    if (timeout > 0L) {
-      logger.warn("Python RabitTracker does not support timeout. " +
-              "The tracker will wait for either all workers to finish tasks and send " +
-              "shutdown signal, or manual interruptions. " +
-              "Use the Scala RabitTracker for timeout support.");
-    }
-
-    try {
-      trackerProcess.get().waitFor();
-      int returnVal = trackerProcess.get().exitValue();
-      logger.info("Tracker Process ends with exit code " + returnVal);
-      stop();
-      return returnVal;
-    } catch (InterruptedException e) {
-      // we should not get here as RabitTracker is accessed in the main thread
-      e.printStackTrace();
-      logger.error("the RabitTracker thread is terminated unexpectedly");
-      return TrackerStatus.INTERRUPTED.getStatusCode();
-    }
+  public void waitFor(long timeout) throws XGBoostError {
+    XGBoostJNI.checkCall(XGBoostJNI.TrackerWaitFor(this.handle, timeout));
   }
 }

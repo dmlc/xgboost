@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 by XGBoost Contributors
+ * Copyright 2020-2024, XGBoost Contributors
  */
 #include "test_predictor.h"
 
@@ -10,7 +10,6 @@
 #include <xgboost/predictor.h>                    // for PredictionCacheEntry, Predictor, Predic...
 #include <xgboost/string_view.h>                  // for StringView
 
-#include <algorithm>                              // for max
 #include <limits>                                 // for numeric_limits
 #include <memory>                                 // for shared_ptr
 #include <unordered_map>                          // for unordered_map
@@ -18,6 +17,7 @@
 #include "../../../src/common/bitfield.h"         // for LBitField32
 #include "../../../src/data/iterative_dmatrix.h"  // for IterativeDMatrix
 #include "../../../src/data/proxy_dmatrix.h"      // for DMatrixProxy
+#include "../collective/test_worker.h"            // for TestDistributedGlobal
 #include "../helpers.h"                           // for GetDMatrixFromData, RandomDataGenerator
 #include "xgboost/json.h"                         // for Json, Object, get, String
 #include "xgboost/linalg.h"                       // for MakeVec, Tensor, TensorView, Vector
@@ -118,7 +118,8 @@ TEST(Predictor, PredictionCache) {
 }
 
 void TestTrainingPrediction(Context const *ctx, size_t rows, size_t bins,
-                            std::shared_ptr<DMatrix> p_full, std::shared_ptr<DMatrix> p_hist) {
+                            std::shared_ptr<DMatrix> p_full, std::shared_ptr<DMatrix> p_hist,
+                            bool check_contribs) {
   size_t constexpr kCols = 16;
   size_t constexpr kClasses = 3;
   size_t constexpr kIters = 3;
@@ -161,9 +162,31 @@ void TestTrainingPrediction(Context const *ctx, size_t rows, size_t bins,
   for (size_t i = 0; i < rows; ++i) {
     EXPECT_NEAR(from_hist.ConstHostVector()[i], from_full.ConstHostVector()[i], kRtEps);
   }
+
+  if (check_contribs) {
+    // Contributions
+    HostDeviceVector<float> from_full_contribs;
+    learner->Predict(p_full, false, &from_full_contribs, 0, 0, false, false, true);
+    HostDeviceVector<float> from_hist_contribs;
+    learner->Predict(p_hist, false, &from_hist_contribs, 0, 0, false, false, true);
+    for (size_t i = 0; i < from_full_contribs.ConstHostVector().size(); ++i) {
+      EXPECT_NEAR(from_hist_contribs.ConstHostVector()[i],
+                  from_full_contribs.ConstHostVector()[i], kRtEps);
+    }
+
+    // Contributions (approximate method)
+    HostDeviceVector<float> from_full_approx_contribs;
+    learner->Predict(p_full, false, &from_full_approx_contribs, 0, 0, false, false, false, true);
+    HostDeviceVector<float> from_hist_approx_contribs;
+    learner->Predict(p_hist, false, &from_hist_approx_contribs, 0, 0, false, false, false, true);
+    for (size_t i = 0; i < from_full_approx_contribs.ConstHostVector().size(); ++i) {
+      EXPECT_NEAR(from_hist_approx_contribs.ConstHostVector()[i],
+                  from_full_approx_contribs.ConstHostVector()[i], kRtEps);
+    }
+  }
 }
 
-void TestInplacePrediction(Context const *ctx, std::shared_ptr<DMatrix> x, bst_row_t rows,
+void TestInplacePrediction(Context const *ctx, std::shared_ptr<DMatrix> x, bst_idx_t rows,
                            bst_feature_t cols) {
   std::size_t constexpr kClasses { 4 };
   auto gen = RandomDataGenerator{rows, cols, 0.5}.Device(ctx->Device());
@@ -232,7 +255,7 @@ std::unique_ptr<Learner> LearnerForTest(Context const *ctx, std::shared_ptr<DMat
   return learner;
 }
 
-void VerifyPredictionWithLesserFeatures(Learner *learner, bst_row_t kRows,
+void VerifyPredictionWithLesserFeatures(Learner *learner, bst_idx_t kRows,
                                         std::shared_ptr<DMatrix> m_test,
                                         std::shared_ptr<DMatrix> m_invalid) {
   HostDeviceVector<float> prediction;
@@ -570,9 +593,23 @@ void TestIterationRangeColumnSplit(int world_size, bool use_gpu) {
   Json sliced_model{Object{}};
   sliced->SaveModel(&sliced_model);
 
-  RunWithInMemoryCommunicator(world_size, VerifyIterationRangeColumnSplit, use_gpu, ranged_model,
-                              sliced_model, kRows, kCols, kClasses, margin_ranged, margin_sliced,
-                              leaf_ranged, leaf_sliced);
+#if !defined(XGBOOST_USE_NCCL)
+  if (use_gpu) {
+    GTEST_SKIP_("Not compiled with NCCL");
+    return;
+  }
+#endif  // defined(XGBOOST_USE_NCCL)
+  collective::TestDistributedGlobal(world_size, [&] {
+    VerifyIterationRangeColumnSplit(use_gpu, ranged_model, sliced_model, kRows, kCols, kClasses,
+                                    margin_ranged, margin_sliced, leaf_ranged, leaf_sliced);
+  });
+
+#if defined(XGBOOST_USE_FEDERATED)
+  collective::TestFederatedGlobal(world_size, [&] {
+    VerifyIterationRangeColumnSplit(use_gpu, ranged_model, sliced_model, kRows, kCols, kClasses,
+                                    margin_ranged, margin_sliced, leaf_ranged, leaf_sliced);
+  });
+#endif  // defined(XGBOOST_USE_FEDERATED)
 }
 
 void TestSparsePrediction(Context const *ctx, float sparsity) {
@@ -678,8 +715,23 @@ void TestSparsePredictionColumnSplit(int world_size, bool use_gpu, float sparsit
   learner->SetParam("device", ctx.DeviceName());
   learner->Predict(Xy, false, &sparse_predt, 0, 0);
 
-  RunWithInMemoryCommunicator(world_size, VerifySparsePredictionColumnSplit, use_gpu, model,
-                              kRows, kCols, sparsity, sparse_predt.HostVector());
+#if !defined(XGBOOST_USE_NCCL)
+  if (use_gpu) {
+    GTEST_SKIP_("Not compiled with NCCL.");
+    return;
+  }
+#endif  // defined(XGBOOST_USE_CUDA)
+  collective::TestDistributedGlobal(world_size, [&] {
+    VerifySparsePredictionColumnSplit(use_gpu, model, kRows, kCols, sparsity,
+                                      sparse_predt.HostVector());
+  });
+
+#if defined(XGBOOST_USE_FEDERATED)
+  collective::TestFederatedGlobal(world_size, [&] {
+    VerifySparsePredictionColumnSplit(use_gpu, model, kRows, kCols, sparsity,
+                                      sparse_predt.HostVector());
+  });
+#endif  // defined(XGBOOST_USE_FEDERATED)
 }
 
 void TestVectorLeafPrediction(Context const *ctx) {

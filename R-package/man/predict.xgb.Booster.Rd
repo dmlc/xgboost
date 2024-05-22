@@ -18,25 +18,47 @@
   iterationrange = NULL,
   strict_shape = FALSE,
   validate_features = FALSE,
+  base_margin = NULL,
   ...
 )
 }
 \arguments{
 \item{object}{Object of class \code{xgb.Booster}.}
 
-\item{newdata}{Takes \code{matrix}, \code{dgCMatrix}, \code{dgRMatrix}, \code{dsparseVector},
+\item{newdata}{Takes \code{data.frame}, \code{matrix}, \code{dgCMatrix}, \code{dgRMatrix}, \code{dsparseVector},
 local data file, or \code{xgb.DMatrix}.
-For single-row predictions on sparse data, it is recommended to use the CSR format.
-If passing a sparse vector, it will take it as a row vector.}
 
-\item{missing}{Only used when input is a dense matrix. Pick a float value that represents
-missing values in data (e.g., 0 or some other extreme value).}
+\if{html}{\out{<div class="sourceCode">}}\preformatted{   For single-row predictions on sparse data, it's recommended to use CSR format. If passing
+   a sparse vector, it will take it as a row vector.
+
+   Note that, for repeated predictions on the same data, one might want to create a DMatrix to
+   pass here instead of passing R types like matrices or data frames, as predictions will be
+   faster on DMatrix.
+
+   If `newdata` is a `data.frame`, be aware that:\\itemize\{
+   \\item Columns will be converted to numeric if they aren't already, which could potentially make
+         the operation slower than in an equivalent `matrix` object.
+   \\item The order of the columns must match with that of the data from which the model was fitted
+         (i.e. columns will not be referenced by their names, just by their order in the data).
+   \\item If the model was fitted to data with categorical columns, these columns must be of
+         `factor` type here, and must use the same encoding (i.e. have the same levels).
+   \\item If `newdata` contains any `factor` columns, they will be converted to base-0
+         encoding (same as during DMatrix creation) - hence, one should not pass a `factor`
+         under a column which during training had a different type.
+   \}
+}\if{html}{\out{</div>}}}
+
+\item{missing}{Float value that represents missing values in data (e.g., 0 or some other extreme value).
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{   This parameter is not used when `newdata` is an `xgb.DMatrix` - in such cases, should pass
+   this as an argument to the DMatrix constructor instead.
+}\if{html}{\out{</div>}}}
 
 \item{outputmargin}{Whether the prediction should be returned in the form of original untransformed
 sum of predictions from boosting iterations' results. E.g., setting \code{outputmargin=TRUE} for
 logistic regression would return log-odds instead of probabilities.}
 
-\item{predleaf}{Whether to predict pre-tree leaf indices.}
+\item{predleaf}{Whether to predict per-tree leaf indices.}
 
 \item{predcontrib}{Whether to return feature contributions to individual predictions (see Details).}
 
@@ -48,7 +70,7 @@ logistic regression would return log-odds instead of probabilities.}
 prediction outputs per case. No effect if \code{predleaf}, \code{predcontrib},
 or \code{predinteraction} is \code{TRUE}.}
 
-\item{training}{Whether the predictions are used for training. For dart booster,
+\item{training}{Whether the prediction result is used for training. For dart booster,
 training predicting will perform dropout.}
 
 \item{iterationrange}{Sequence of rounds/iterations from the model to use for prediction, specified by passing
@@ -84,6 +106,13 @@ match (only applicable when both \code{object} and \code{newdata} have feature n
    recommended to disable it for performance-sensitive applications.
 }\if{html}{\out{</div>}}}
 
+\item{base_margin}{Base margin used for boosting from existing model.
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{   Note that, if `newdata` is an `xgb.DMatrix` object, this argument will
+   be ignored as it needs to be added to the DMatrix instead (e.g. by passing it as
+   an argument in its constructor, or by calling \link{setinfo.xgb.DMatrix}).
+}\if{html}{\out{</div>}}}
+
 \item{...}{Not used.}
 }
 \value{
@@ -115,7 +144,7 @@ When \code{strict_shape = TRUE}, the output is always an array:
 }
 }
 \description{
-Predicted values based on either xgboost model or model handle object.
+Predict values on data based on xgboost model.
 }
 \details{
 Note that \code{iterationrange} would currently do nothing for predictions from "gblinear",

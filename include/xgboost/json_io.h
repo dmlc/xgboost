@@ -142,6 +142,7 @@ class JsonWriter {
 
   virtual void Visit(JsonArray  const* arr);
   virtual void Visit(F32Array  const* arr);
+  virtual void Visit(F64Array const*) { LOG(FATAL) << "Only UBJSON format can handle f64 array."; }
   virtual void Visit(U8Array  const* arr);
   virtual void Visit(I32Array  const* arr);
   virtual void Visit(I64Array  const* arr);
@@ -244,7 +245,8 @@ class UBJReader : public JsonReader {
  */
 class UBJWriter : public JsonWriter {
   void Visit(JsonArray const* arr) override;
-  void Visit(F32Array  const* arr) override;
+  void Visit(F32Array const* arr) override;
+  void Visit(F64Array const* arr) override;
   void Visit(U8Array  const* arr) override;
   void Visit(I32Array  const* arr) override;
   void Visit(I64Array  const* arr) override;

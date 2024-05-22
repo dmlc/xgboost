@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2023 by Contributors
+ * Copyright 2019-2024, Contributors
  * \file survival_metric.cu
  * \brief Metrics for survival analysis
  * \author Avinash Barnwal, Hyunsu Cho and Toby Hocking
@@ -9,10 +9,9 @@
 
 #include <array>
 #include <memory>
+#include <numeric>  // for accumulate
 #include <vector>
 
-#include "../collective/communicator-inl.h"
-#include "../common/math.h"
 #include "../common/survival_util.h"
 #include "../common/threading_utils.h"
 #include "metric_common.h"  // MetricNoCache
@@ -30,8 +29,7 @@ using ProbabilityDistributionType = xgboost::common::ProbabilityDistributionType
 template <typename Distribution>
 using AFTLoss = xgboost::common::AFTLoss<Distribution>;
 
-namespace xgboost {
-namespace metric {
+namespace xgboost::metric {
 // tag the this file, used by force static link later.
 DMLC_REGISTRY_FILE_TAG(survival_metric);
 
@@ -43,12 +41,11 @@ class ElementWiseSurvivalMetricsReduction {
     policy_ = policy;
   }
 
-  PackedReduceResult
-  CpuReduceMetrics(const HostDeviceVector<bst_float> &weights,
-                   const HostDeviceVector<bst_float> &labels_lower_bound,
-                   const HostDeviceVector<bst_float> &labels_upper_bound,
-                   const HostDeviceVector<bst_float> &preds,
-                   int32_t n_threads) const {
+  [[nodiscard]] PackedReduceResult CpuReduceMetrics(
+      const HostDeviceVector<bst_float>& weights,
+      const HostDeviceVector<bst_float>& labels_lower_bound,
+      const HostDeviceVector<bst_float>& labels_upper_bound,
+      const HostDeviceVector<bst_float>& preds, int32_t n_threads) const {
     size_t ndata = labels_lower_bound.Size();
     CHECK_EQ(ndata, labels_upper_bound.Size());
 
@@ -155,7 +152,7 @@ class ElementWiseSurvivalMetricsReduction {
 struct EvalIntervalRegressionAccuracy {
   void Configure(const Args&) {}
 
-  const char* Name() const {
+  [[nodiscard]] const char* Name() const {
     return "interval-regression-accuracy";
   }
 
@@ -177,7 +174,7 @@ struct EvalAFTNLogLik {
     param_.UpdateAllowUnknown(args);
   }
 
-  const char* Name() const {
+  [[nodiscard]] const char* Name() const {
     return "aft-nloglik";
   }
 
@@ -213,7 +210,8 @@ struct EvalEWiseSurvivalBase : public MetricNoCache {
                                   info.labels_upper_bound_, preds);
 
     std::array<double, 2> dat{result.Residue(), result.Weights()};
-    collective::GlobalSum(info, &dat);
+    auto rc = collective::GlobalSum(ctx_, info, linalg::MakeVec(dat.data(), dat.size()));
+    collective::SafeColl(rc);
     return Policy::GetFinal(dat[0], dat[1]);
   }
 
@@ -230,7 +228,7 @@ struct EvalEWiseSurvivalBase : public MetricNoCache {
 // This class exists because we want to perform dispatch according to the distribution type at
 // configuration time, not at prediction time.
 struct AFTNLogLikDispatcher : public MetricNoCache {
-  const char* Name() const override {
+  [[nodiscard]] const char* Name() const override {
     return "aft-nloglik";
   }
 
@@ -282,5 +280,4 @@ XGBOOST_REGISTER_METRIC(IntervalRegressionAccuracy, "interval-regression-accurac
       return new EvalEWiseSurvivalBase<EvalIntervalRegressionAccuracy>();
     });
 
-}  // namespace metric
-}  // namespace xgboost
+}  // namespace xgboost::metric

@@ -1,15 +1,18 @@
-// Copyright 2016-2021 by Contributors
+/**
+ * Copyright 2016-2024, XGBoost contributors
+ */
 #include "test_metainfo.h"
 
 #include <dmlc/io.h>
+#include <gmock/gmock.h>
 #include <xgboost/data.h>
 
 #include <memory>
 #include <string>
 
-#include "../../../src/common/version.h"
-#include "../filesystem.h"  // dmlc::TemporaryDirectory
-#include "../helpers.h"
+#include "../collective/test_worker.h"  // for TestDistributedGlobal
+#include "../filesystem.h"              // dmlc::TemporaryDirectory
+#include "../helpers.h"                 // for GMockTHrow
 #include "xgboost/base.h"
 
 namespace xgboost {
@@ -20,23 +23,22 @@ TEST(MetaInfo, GetSet) {
   double double2[2] = {1.0, 2.0};
 
   EXPECT_EQ(info.labels.Size(), 0);
-  info.SetInfo(ctx, "label", double2, xgboost::DataType::kFloat32, 2);
+  info.SetInfo(ctx, "label", Make1dInterfaceTest(double2, 2));
   EXPECT_EQ(info.labels.Size(), 2);
 
   float float2[2] = {1.0f, 2.0f};
-  EXPECT_EQ(info.GetWeight(1), 1.0f)
-    << "When no weights are given, was expecting default value 1";
-  info.SetInfo(ctx, "weight", float2, xgboost::DataType::kFloat32, 2);
+  EXPECT_EQ(info.GetWeight(1), 1.0f) << "When no weights are given, was expecting default value 1";
+  info.SetInfo(ctx, "weight", Make1dInterfaceTest(float2, 2));
   EXPECT_EQ(info.GetWeight(1), 2.0f);
 
   uint32_t uint32_t2[2] = {1U, 2U};
   EXPECT_EQ(info.base_margin_.Size(), 0);
-  info.SetInfo(ctx, "base_margin", uint32_t2, xgboost::DataType::kUInt32, 2);
+  info.SetInfo(ctx, "base_margin", Make1dInterfaceTest(uint32_t2, 2));
   EXPECT_EQ(info.base_margin_.Size(), 2);
 
   uint64_t uint64_t2[2] = {1U, 2U};
   EXPECT_EQ(info.group_ptr_.size(), 0);
-  info.SetInfo(ctx, "group", uint64_t2, xgboost::DataType::kUInt64, 2);
+  info.SetInfo(ctx, "group", Make1dInterfaceTest(uint64_t2, 2));
   ASSERT_EQ(info.group_ptr_.size(), 3);
   EXPECT_EQ(info.group_ptr_[2], 3);
 
@@ -46,6 +48,8 @@ TEST(MetaInfo, GetSet) {
 
 TEST(MetaInfo, GetSetFeature) {
   xgboost::MetaInfo info;
+  ASSERT_THAT([&] { info.SetFeatureInfo("", nullptr, 0); },
+              GMockThrow("Unknown feature info name"));
   EXPECT_THROW(info.SetFeatureInfo("", nullptr, 0), dmlc::Error);
   EXPECT_THROW(info.SetFeatureInfo("foo", nullptr, 0), dmlc::Error);
   EXPECT_NO_THROW(info.SetFeatureInfo("feature_name", nullptr, 0));
@@ -86,7 +90,8 @@ void VerifyGetSetFeatureColumnSplit() {
   std::transform(types.cbegin(), types.cend(), c_types.begin(),
                  [](auto const &str) { return str.c_str(); });
   info.num_col_ = kCols;
-  EXPECT_THROW(info.SetFeatureInfo(u8"feature_type", c_types.data(), c_types.size()), dmlc::Error);
+  ASSERT_THAT([&] { info.SetFeatureInfo(u8"feature_type", c_types.data(), c_types.size()); },
+              GMockThrow("Length of feature_type must be equal to number of columns"));
   info.num_col_ = kCols * world_size;
   EXPECT_NO_THROW(info.SetFeatureInfo(u8"feature_type", c_types.data(), c_types.size()));
   std::vector<std::string> expected_type_names{u8"float", u8"c",     u8"float",
@@ -103,7 +108,8 @@ void VerifyGetSetFeatureColumnSplit() {
   std::transform(names.cbegin(), names.cend(), c_names.begin(),
                  [](auto const &str) { return str.c_str(); });
   info.num_col_ = kCols;
-  EXPECT_THROW(info.SetFeatureInfo(u8"feature_name", c_names.data(), c_names.size()), dmlc::Error);
+  ASSERT_THAT([&] { info.SetFeatureInfo(u8"feature_name", c_names.data(), c_names.size()); },
+              GMockThrow("Length of feature_name must be equal to number of columns"));
   info.num_col_ = kCols * world_size;
   EXPECT_NO_THROW(info.SetFeatureInfo(u8"feature_name", c_names.data(), c_names.size()));
   std::vector<std::string> expected_names{u8"0.feature0", u8"0.feature1", u8"1.feature0",
@@ -113,8 +119,8 @@ void VerifyGetSetFeatureColumnSplit() {
 }  // anonymous namespace
 
 TEST(MetaInfo, GetSetFeatureColumnSplit) {
-  auto constexpr kWorldSize{3};
-  RunWithInMemoryCommunicator(kWorldSize, VerifyGetSetFeatureColumnSplit);
+  auto constexpr kWorkers{3};
+  collective::TestDistributedGlobal(kWorkers, VerifyGetSetFeatureColumnSplit);
 }
 
 TEST(MetaInfo, SaveLoadBinary) {
@@ -128,9 +134,9 @@ TEST(MetaInfo, SaveLoadBinary) {
                    };
   std::vector<float> values (kRows);
   std::generate(values.begin(), values.end(), generator);
-  info.SetInfo(ctx, "label", values.data(), xgboost::DataType::kFloat32, kRows);
-  info.SetInfo(ctx, "weight", values.data(), xgboost::DataType::kFloat32, kRows);
-  info.SetInfo(ctx, "base_margin", values.data(), xgboost::DataType::kFloat32, kRows);
+  info.SetInfo(ctx, "label", Make1dInterfaceTest(values.data(), kRows));
+  info.SetInfo(ctx, "weight", Make1dInterfaceTest(values.data(), kRows));
+  info.SetInfo(ctx, "base_margin", Make1dInterfaceTest(values.data(), kRows));
 
   info.num_row_ = kRows;
   info.num_col_ = kCols;
@@ -224,7 +230,7 @@ TEST(MetaInfo, LoadQid) {
   const std::vector<xgboost::bst_uint> expected_group_ptr{0, 4, 8, 12};
   CHECK(info.group_ptr_ == expected_group_ptr);
 
-  const std::vector<xgboost::bst_row_t> expected_offset{
+  const std::vector<xgboost::bst_idx_t> expected_offset{
     0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60
   };
   const std::vector<xgboost::Entry> expected_data{
@@ -264,7 +270,7 @@ TEST(MetaInfo, CPUQid) {
     qid[i] = i;
   }
 
-  info.SetInfo(ctx, "qid", qid.data(), xgboost::DataType::kUInt32, info.num_row_);
+  info.SetInfo(ctx, "qid", Make1dInterfaceTest(qid.data(), info.num_row_));
   ASSERT_EQ(info.group_ptr_.size(), info.num_row_ + 1);
   ASSERT_EQ(info.group_ptr_.front(), 0);
   ASSERT_EQ(info.group_ptr_.back(), info.num_row_);
@@ -281,14 +287,12 @@ TEST(MetaInfo, Validate) {
   info.num_col_ = 3;
   std::vector<xgboost::bst_group_t> groups (11);
   Context ctx;
-  info.SetInfo(ctx, "group", groups.data(), xgboost::DataType::kUInt32, 11);
+  info.SetInfo(ctx, "group", Make1dInterfaceTest(groups.data(), groups.size()));
   EXPECT_THROW(info.Validate(FstCU()), dmlc::Error);
 
   std::vector<float> labels(info.num_row_ + 1);
   EXPECT_THROW(
-      {
-        info.SetInfo(ctx, "label", labels.data(), xgboost::DataType::kFloat32, info.num_row_ + 1);
-      },
+      { info.SetInfo(ctx, "label", Make1dInterfaceTest(labels.data(), info.num_row_ + 1)); },
       dmlc::Error);
 
   // Make overflow data, which can happen when users pass group structure as int
@@ -298,13 +302,13 @@ TEST(MetaInfo, Validate) {
     groups.push_back(1562500);
   }
   groups.push_back(static_cast<xgboost::bst_group_t>(-1));
-  EXPECT_THROW(info.SetInfo(ctx, "group", groups.data(), xgboost::DataType::kUInt32, groups.size()),
+  EXPECT_THROW(info.SetInfo(ctx, "group", Make1dInterfaceTest(groups.data(), groups.size())),
                dmlc::Error);
 
 #if defined(XGBOOST_USE_CUDA)
   info.group_ptr_.clear();
   labels.resize(info.num_row_);
-  info.SetInfo(ctx, "label", labels.data(), xgboost::DataType::kFloat32, info.num_row_);
+  info.SetInfo(ctx, "label", Make1dInterfaceTest(labels.data(), info.num_row_));
   info.labels.SetDevice(FstCU());
   EXPECT_THROW(info.Validate(DeviceOrd::CUDA(1)), dmlc::Error);
 
@@ -333,8 +337,8 @@ TEST(MetaInfo, HostExtend) {
   for (size_t g = 0; g < kRows / per_group; ++g) {
     groups.emplace_back(per_group);
   }
-  lhs.SetInfo(ctx, "group", groups.data(), xgboost::DataType::kUInt32, groups.size());
-  rhs.SetInfo(ctx, "group", groups.data(), xgboost::DataType::kUInt32, groups.size());
+  lhs.SetInfo(ctx, "group", Make1dInterfaceTest(groups.data(), groups.size()));
+  rhs.SetInfo(ctx, "group", Make1dInterfaceTest(groups.data(), groups.size()));
 
   lhs.Extend(rhs, true, true);
   ASSERT_EQ(lhs.num_row_, kRows * 2);

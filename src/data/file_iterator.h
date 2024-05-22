@@ -1,20 +1,16 @@
 /**
- * Copyright 2021-2023, XGBoost contributors
+ * Copyright 2021-2024, XGBoost contributors
  */
 #ifndef XGBOOST_DATA_FILE_ITERATOR_H_
 #define XGBOOST_DATA_FILE_ITERATOR_H_
 
-#include <algorithm>  // for max_element
-#include <cstddef>    // for size_t
 #include <cstdint>    // for uint32_t
 #include <memory>     // for unique_ptr
 #include <string>     // for string
 #include <utility>    // for move
 
 #include "dmlc/data.h"        // for RowBlock, Parser
-#include "xgboost/c_api.h"    // for XGDMatrixSetDenseInfo, XGDMatrixFree, XGProxyDMatrixCreate
-#include "xgboost/linalg.h"   // for ArrayInterfaceStr, MakeVec
-#include "xgboost/logging.h"  // for CHECK
+#include "xgboost/c_api.h"    // for XGDMatrixFree, XGProxyDMatrixCreate
 
 namespace xgboost::data {
 [[nodiscard]] std::string ValidateFileFormat(std::string const& uri);
@@ -53,41 +49,7 @@ class FileIterator {
     XGDMatrixFree(proxy_);
   }
 
-  int Next() {
-    CHECK(parser_);
-    if (parser_->Next()) {
-      row_block_ = parser_->Value();
-      using linalg::MakeVec;
-
-      indptr_ = ArrayInterfaceStr(MakeVec(row_block_.offset, row_block_.size + 1));
-      values_ = ArrayInterfaceStr(MakeVec(row_block_.value, row_block_.offset[row_block_.size]));
-      indices_ = ArrayInterfaceStr(MakeVec(row_block_.index, row_block_.offset[row_block_.size]));
-
-      size_t n_columns = *std::max_element(row_block_.index,
-                                           row_block_.index + row_block_.offset[row_block_.size]);
-      // dmlc parser converts 1-based indexing back to 0-based indexing so we can ignore
-      // this condition and just add 1 to n_columns
-      n_columns += 1;
-
-      XGProxyDMatrixSetDataCSR(proxy_, indptr_.c_str(), indices_.c_str(),
-                               values_.c_str(), n_columns);
-
-      if (row_block_.label) {
-        XGDMatrixSetDenseInfo(proxy_, "label", row_block_.label, row_block_.size, 1);
-      }
-      if (row_block_.qid) {
-        XGDMatrixSetDenseInfo(proxy_, "qid", row_block_.qid, row_block_.size, 1);
-      }
-      if (row_block_.weight) {
-        XGDMatrixSetDenseInfo(proxy_, "weight", row_block_.weight, row_block_.size, 1);
-      }
-      // Continue iteration
-      return true;
-    } else {
-      // Stop iteration
-      return false;
-    }
-  }
+  int Next();
 
   auto Proxy() -> decltype(proxy_) { return proxy_; }
 

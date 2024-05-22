@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2023 by XGBoost Contributors
+ * Copyright 2014-2024, XGBoost Contributors
  * \file quantile.h
  * \brief util to compute quantiles
  * \author Tianqi Chen
@@ -701,12 +701,12 @@ inline std::vector<float> UnrollGroupWeights(MetaInfo const &info) {
   auto n_groups = group_ptr.size() - 1;
   CHECK_EQ(info.weights_.Size(), n_groups) << error::GroupWeight();
 
-  bst_row_t n_samples = info.num_row_;
+  bst_idx_t n_samples = info.num_row_;
   std::vector<float> results(n_samples);
   CHECK_EQ(group_ptr.back(), n_samples)
       << error::GroupSize() << " the number of rows from the data.";
   size_t cur_group = 0;
-  for (bst_row_t i = 0; i < n_samples; ++i) {
+  for (bst_idx_t i = 0; i < n_samples; ++i) {
     results[i] = group_weights[cur_group];
     if (i == group_ptr[cur_group + 1]) {
       cur_group++;
@@ -719,9 +719,9 @@ inline std::vector<float> UnrollGroupWeights(MetaInfo const &info) {
 class HistogramCuts;
 
 template <typename Batch, typename IsValid>
-std::vector<bst_row_t> CalcColumnSize(Batch const &batch, bst_feature_t const n_columns,
+std::vector<bst_idx_t> CalcColumnSize(Batch const &batch, bst_feature_t const n_columns,
                                       size_t const n_threads, IsValid &&is_valid) {
-  std::vector<std::vector<bst_row_t>> column_sizes_tloc(n_threads);
+  std::vector<std::vector<bst_idx_t>> column_sizes_tloc(n_threads);
   for (auto &column : column_sizes_tloc) {
     column.resize(n_columns, 0);
   }
@@ -759,7 +759,7 @@ std::vector<bst_feature_t> LoadBalance(Batch const &batch, size_t nnz, bst_featu
   size_t const entries_per_thread = DivRoundUp(total_entries, nthreads);
 
   // Need to calculate the size for each batch.
-  std::vector<bst_row_t> entries_per_columns = CalcColumnSize(batch, n_columns, nthreads, is_valid);
+  std::vector<bst_idx_t> entries_per_columns = CalcColumnSize(batch, n_columns, nthreads, is_valid);
   std::vector<bst_feature_t> cols_ptr(nthreads + 1, 0);
   size_t count{0};
   size_t current_thread{1};
@@ -791,8 +791,8 @@ class SketchContainerImpl {
   std::vector<std::set<float>> categories_;
   std::vector<FeatureType> const feature_types_;
 
-  std::vector<bst_row_t> columns_size_;
-  int32_t max_bins_;
+  std::vector<bst_idx_t> columns_size_;
+  bst_bin_t max_bins_;
   bool use_group_ind_{false};
   int32_t n_threads_;
   bool has_categorical_{false};
@@ -805,7 +805,7 @@ class SketchContainerImpl {
    * \param max_bins maximum number of bins for each feature.
    * \param use_group whether is assigned to group to data instance.
    */
-  SketchContainerImpl(Context const *ctx, std::vector<bst_row_t> columns_size, int32_t max_bins,
+  SketchContainerImpl(Context const *ctx, std::vector<bst_idx_t> columns_size, bst_bin_t max_bins,
                       common::Span<FeatureType const> feature_types, bool use_group);
 
   static bool UseGroup(MetaInfo const &info) {
@@ -829,8 +829,8 @@ class SketchContainerImpl {
   // Gather sketches from all workers.
   void GatherSketchInfo(Context const *ctx, MetaInfo const &info,
                         std::vector<typename WQSketch::SummaryContainer> const &reduced,
-                        std::vector<bst_row_t> *p_worker_segments,
-                        std::vector<bst_row_t> *p_sketches_scan,
+                        std::vector<bst_idx_t> *p_worker_segments,
+                        std::vector<bst_idx_t> *p_sketches_scan,
                         std::vector<typename WQSketch::Entry> *p_global_sketches);
   // Merge sketches from all workers.
   void AllReduce(Context const *ctx, MetaInfo const &info,
@@ -901,7 +901,7 @@ class HostSketchContainer : public SketchContainerImpl<WQuantileSketch<float, fl
 
  public:
   HostSketchContainer(Context const *ctx, bst_bin_t max_bins, common::Span<FeatureType const> ft,
-                      std::vector<size_t> columns_size, bool use_group);
+                      std::vector<bst_idx_t> columns_size, bool use_group);
 
   template <typename Batch>
   void PushAdapterBatch(Batch const &batch, size_t base_rowid, MetaInfo const &info, float missing);
@@ -998,7 +998,7 @@ class SortedSketchContainer : public SketchContainerImpl<WXQuantileSketch<float,
  public:
   explicit SortedSketchContainer(Context const *ctx, int32_t max_bins,
                                  common::Span<FeatureType const> ft,
-                                 std::vector<size_t> columns_size, bool use_group)
+                                 std::vector<bst_idx_t> columns_size, bool use_group)
       : SketchContainerImpl{ctx, columns_size, max_bins, ft, use_group} {
     monitor_.Init(__func__);
     sketches_.resize(columns_size.size());

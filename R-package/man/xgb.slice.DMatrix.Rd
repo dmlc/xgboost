@@ -6,14 +6,18 @@
 \title{Get a new DMatrix containing the specified rows of
 original xgb.DMatrix object}
 \usage{
-xgb.slice.DMatrix(object, idxset)
+xgb.slice.DMatrix(object, idxset, allow_groups = FALSE)
 
 \method{[}{xgb.DMatrix}(object, idxset, colset = NULL)
 }
 \arguments{
-\item{object}{Object of class "xgb.DMatrix"}
+\item{object}{Object of class "xgb.DMatrix".}
 
-\item{idxset}{a integer vector of indices of rows needed}
+\item{idxset}{An integer vector of indices of rows needed (base-1 indexing).}
+
+\item{allow_groups}{Whether to allow slicing an \code{xgb.DMatrix} with \code{group} (or
+equivalently \code{qid}) field. Note that in such case, the result will not have
+the groups anymore - they need to be set manually through \code{setinfo}.}
 
 \item{colset}{currently not used (columns subsetting is not available)}
 }

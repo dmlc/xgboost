@@ -33,6 +33,7 @@
 #include "../../../../src/tree/hist/histogram.h"          // for HistogramBuilder
 #include "../../../../src/tree/hist/param.h"              // for HistMakerTrainParam
 #include "../../categorical_helpers.h"                    // for OneHotEncodeFeature
+#include "../../collective/test_worker.h"                 // for TestDistributedGlobal
 #include "../../helpers.h"                                // for RandomDataGenerator, GenerateRa...
 
 namespace xgboost::tree {
@@ -300,8 +301,8 @@ TEST(CPUHistogram, BuildHist) {
 
 TEST(CPUHistogram, BuildHistColSplit) {
   auto constexpr kWorkers = 4;
-  RunWithInMemoryCommunicator(kWorkers, TestBuildHistogram, true, true, true);
-  RunWithInMemoryCommunicator(kWorkers, TestBuildHistogram, true, false, true);
+  collective::TestDistributedGlobal(kWorkers, [] { TestBuildHistogram(true, true, true); });
+  collective::TestDistributedGlobal(kWorkers, [] { TestBuildHistogram(true, false, true); });
 }
 
 namespace {
@@ -409,9 +410,9 @@ void TestHistogramExternalMemory(Context const *ctx, BatchParam batch_param, boo
     batch_param.hess = hess;
   }
 
-  std::vector<std::size_t> partition_size(1, 0);
+  std::vector<bst_idx_t> partition_size(1, 0);
   bst_bin_t total_bins{0};
-  bst_row_t n_samples{0};
+  bst_idx_t n_samples{0};
 
   auto gpair = GenerateRandomGradients(m->Info().num_row_, 0.0, 1.0);
   auto const &h_gpair = gpair.HostVector();
