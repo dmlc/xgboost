@@ -19,9 +19,11 @@
 #include <string>
 #include <vector>
 
-#include "../../src/collective/communicator-inl.h"
-#include "../../src/common/common.h"
-#include "../../src/common/threading_utils.h"
+#if defined(__CUDACC__)
+#include "../../src/collective/communicator-inl.h"  // for GetRank
+#include "../../src/common/common.h"                // for AllVisibleGPUs
+#endif  // defined(__CUDACC__)
+
 #include "filesystem.h"  // dmlc::TemporaryDirectory
 #include "xgboost/linalg.h"
 #if !defined(_OPENMP)
