@@ -15,14 +15,14 @@ namespace collective {
 /**
  * An in-memory communicator, useful for testing.
  */
-class InMemoryCommunicator : public Communicator {
+class InMemoryCommunicator {
  public:
   /**
    * @brief Create a new communicator based on JSON configuration.
    * @param config JSON configuration.
    * @return Communicator as specified by the JSON configuration.
    */
-  static Communicator* Create(Json const& config) {
+  static InMemoryCommunicator* Create(Json const& config) {
     int world_size{0};
     int rank{-1};
 
@@ -51,7 +51,7 @@ class InMemoryCommunicator : public Communicator {
     return new InMemoryCommunicator(world_size, rank);
   }
 
-  InMemoryCommunicator(int world_size, int rank) : Communicator(world_size, rank) {
+  InMemoryCommunicator(int world_size, int rank) {
     handler_.Init(world_size, rank);
   }
 

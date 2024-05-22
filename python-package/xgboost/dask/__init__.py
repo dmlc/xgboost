@@ -71,6 +71,7 @@ from xgboost.core import (
     Metric,
     Objective,
     QuantileDMatrix,
+    XGBoostError,
     _check_distributed_params,
     _deprecate_positional_args,
     _expect,
@@ -90,7 +91,7 @@ from xgboost.sklearn import (
     _wrap_evaluation_matrices,
     xgboost_model_doc,
 )
-from xgboost.tracker import RabitTracker, get_host_ip
+from xgboost.tracker import RabitTracker
 from xgboost.training import train as worker_train
 
 from .utils import get_n_threads
@@ -160,36 +161,38 @@ def _try_start_tracker(
     n_workers: int,
     addrs: List[Union[Optional[str], Optional[Tuple[str, int]]]],
 ) -> Dict[str, Union[int, str]]:
-    env: Dict[str, Union[int, str]] = {"DMLC_NUM_WORKER": n_workers}
+    env: Dict[str, Union[int, str]] = {}
     try:
         if isinstance(addrs[0], tuple):
             host_ip = addrs[0][0]
             port = addrs[0][1]
             rabit_tracker = RabitTracker(
-                host_ip=get_host_ip(host_ip),
                 n_workers=n_workers,
+                host_ip=host_ip,
                 port=port,
-                use_logger=False,
+                sortby="task",
             )
         else:
             addr = addrs[0]
             assert isinstance(addr, str) or addr is None
-            host_ip = get_host_ip(addr)
             rabit_tracker = RabitTracker(
-                host_ip=host_ip, n_workers=n_workers, use_logger=False, sortby="task"
+                n_workers=n_workers, host_ip=addr, sortby="task"
             )
-        env.update(rabit_tracker.worker_envs())
-        rabit_tracker.start(n_workers)
-        thread = Thread(target=rabit_tracker.join)
+
+        rabit_tracker.start()
+        thread = Thread(target=rabit_tracker.wait_for)
         thread.daemon = True
         thread.start()
-    except socket.error as e:
-        if len(addrs) < 2 or e.errno != 99:
+        env.update(rabit_tracker.worker_args())
+
+    except XGBoostError as e:
+        if len(addrs) < 2:
             raise
         LOGGER.warning(
-            "Failed to bind address '%s', trying to use '%s' instead.",
+            "Failed to bind address '%s', trying to use '%s' instead. Error:\n %s",
             str(addrs[0]),
             str(addrs[1]),
+            str(e),
         )
         env = _try_start_tracker(n_workers, addrs[1:])
 
@@ -616,7 +619,7 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
         assert isinstance(self._label_upper_bound, types)
 
         self._iter = 0  # set iterator to 0
-        super().__init__()
+        super().__init__(release_data=True)
 
     def _get(self, attr: str) -> Optional[Any]:
         if getattr(self, attr) is not None:

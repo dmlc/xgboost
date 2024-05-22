@@ -47,7 +47,7 @@ Result RingAllgather(Comm const& comm, common::Span<std::int8_t> data, std::size
       return comm.Block();
     };
     if (!rc.OK()) {
-      return rc;
+      return Fail("Ring allgather failed, current iteration:" + std::to_string(r), std::move(rc));
     }
   }
 
@@ -61,7 +61,8 @@ Result BroadcastAllgatherV(Comm const& comm, common::Span<std::int64_t const> si
     auto as_bytes = sizes[r];
     auto rc = Broadcast(comm, recv.subspan(offset, as_bytes), r);
     if (!rc.OK()) {
-      return rc;
+      return Fail("Broadcast AllgatherV failed, current iteration:" + std::to_string(r),
+                  std::move(rc));
     }
     offset += as_bytes;
   }
@@ -102,7 +103,7 @@ namespace detail {
       return prev_ch->Block();
     };
     if (!rc.OK()) {
-      return rc;
+      return Fail("Ring AllgatherV failed, current iterataion:" + std::to_string(r), std::move(rc));
     }
   }
   return comm.Block();

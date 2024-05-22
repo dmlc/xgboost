@@ -18,7 +18,6 @@ fi
 
 rm -rf build/
 cd jvm-packages
-export RABIT_MOCK=ON
 
 if [ "x$gpu_arch" != "x" ]; then
   export GPU_ARCH_FLAG=$gpu_arch

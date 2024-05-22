@@ -1,12 +1,13 @@
 /**
- * Copyright 2020-2023, XGBoost contributors
+ * Copyright 2020-2024, XGBoost contributors
  */
 #include <gtest/gtest.h>
 
-#include "../../../src/collective/communicator-inl.cuh"
+#include "../../../src/collective/allreduce.h"
 #include "../../../src/common/hist_util.cuh"
 #include "../../../src/common/quantile.cuh"
 #include "../../../src/data/device_adapter.cuh"  // CupyAdapter
+#include "../collective/test_worker.h"           // for BaseMGPUTest
 #include "../helpers.h"
 #include "test_quantile.h"
 
@@ -18,9 +19,9 @@ struct IsSorted {
   }
 };
 }
-namespace common {
 
-class MGPUQuantileTest : public BaseMGPUTest {};
+namespace common {
+class MGPUQuantileTest : public collective::BaseMGPUTest {};
 
 TEST(GPUQuantile, Basic) {
   constexpr size_t kRows = 1000, kCols = 100, kBins = 256;
@@ -36,7 +37,8 @@ TEST(GPUQuantile, Basic) {
 
 void TestSketchUnique(float sparsity) {
   constexpr size_t kRows = 1000, kCols = 100;
-  RunWithSeedsAndBins(kRows, [kRows, kCols, sparsity](int32_t seed, size_t n_bins, MetaInfo const& info) {
+  RunWithSeedsAndBins(kRows, [kRows, kCols, sparsity](std::int32_t seed, bst_bin_t n_bins,
+                                                      MetaInfo const& info) {
     HostDeviceVector<FeatureType> ft;
     SketchContainer sketch(ft, n_bins, kCols, kRows, FstCU());
 
@@ -121,7 +123,7 @@ void TestQuantileElemRank(DeviceOrd device, Span<SketchEntry const> in,
 
 TEST(GPUQuantile, Prune) {
   constexpr size_t kRows = 1000, kCols = 100;
-  RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins, MetaInfo const& info) {
+  RunWithSeedsAndBins(kRows, [=](std::int32_t seed, bst_bin_t n_bins, MetaInfo const& info) {
     HostDeviceVector<FeatureType> ft;
     SketchContainer sketch(ft, n_bins, kCols, kRows, FstCU());
 
@@ -190,7 +192,7 @@ TEST(GPUQuantile, MergeEmpty) {
 
 TEST(GPUQuantile, MergeBasic) {
   constexpr size_t kRows = 1000, kCols = 100;
-  RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins, MetaInfo const &info) {
+  RunWithSeedsAndBins(kRows, [=](std::int32_t seed, bst_bin_t n_bins, MetaInfo const& info) {
     HostDeviceVector<FeatureType> ft;
     SketchContainer sketch_0(ft, n_bins, kCols, kRows, FstCU());
     HostDeviceVector<float> storage_0;
@@ -260,9 +262,9 @@ void TestMergeDuplicated(int32_t n_bins, size_t cols, size_t rows, float frac) {
   using Tuple = thrust::tuple<size_t, float>;
   auto it = thrust::make_zip_iterator(tuple_it);
   thrust::transform(thrust::device, it, it + data_1.size(), data_1.data(),
-                    [=] __device__(Tuple const &tuple) {
+                    [=] XGBOOST_DEVICE(Tuple const& tuple) {
                       auto i = thrust::get<0>(tuple);
-                      if (thrust::get<0>(tuple) % 2 == 0) {
+                      if (i % 2 == 0) {
                         return 0.0f;
                       } else {
                         return thrust::get<1>(tuple);
@@ -306,7 +308,7 @@ TEST(GPUQuantile, MergeDuplicated) {
 TEST(GPUQuantile, MultiMerge) {
   constexpr size_t kRows = 20, kCols = 1;
   int32_t world = 2;
-  RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins, MetaInfo const& info) {
+  RunWithSeedsAndBins(kRows, [=](std::int32_t seed, bst_bin_t n_bins, MetaInfo const& info) {
     // Set up single node version
     HostDeviceVector<FeatureType> ft;
     SketchContainer sketch_on_single_node(ft, n_bins, kCols, kRows, FstCU());
@@ -368,16 +370,18 @@ namespace {
 void TestAllReduceBasic() {
   auto const world = collective::GetWorldSize();
   constexpr size_t kRows = 1000, kCols = 100;
-  RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins, MetaInfo const& info) {
+  RunWithSeedsAndBins(kRows, [=](std::int32_t seed, bst_bin_t n_bins, MetaInfo const& info) {
     auto const device = DeviceOrd::CUDA(GPUIDX);
     auto ctx = MakeCUDACtx(device.ordinal);
 
-    // Set up single node version;
+    /**
+     * Set up single node version.
+     */
     HostDeviceVector<FeatureType> ft({}, device);
     SketchContainer sketch_on_single_node(ft, n_bins, kCols, kRows, device);
 
-    size_t intermediate_num_cuts = std::min(
-        kRows * world, static_cast<size_t>(n_bins * WQSketch::kFactor));
+    size_t intermediate_num_cuts =
+        std::min(kRows * world, static_cast<size_t>(n_bins * WQSketch::kFactor));
     std::vector<SketchContainer> containers;
     for (auto rank = 0; rank < world; ++rank) {
       HostDeviceVector<float> storage({}, device);
@@ -388,21 +392,22 @@ void TestAllReduceBasic() {
       data::CupyAdapter adapter(interface_str);
       HostDeviceVector<FeatureType> ft({}, device);
       containers.emplace_back(ft, n_bins, kCols, kRows, device);
-      AdapterDeviceSketch(adapter.Value(), n_bins, info,
-                          std::numeric_limits<float>::quiet_NaN(),
+      AdapterDeviceSketch(adapter.Value(), n_bins, info, std::numeric_limits<float>::quiet_NaN(),
                           &containers.back());
     }
-    for (auto &sketch : containers) {
+    for (auto& sketch : containers) {
       sketch.Prune(intermediate_num_cuts);
       sketch_on_single_node.Merge(sketch.ColumnsPtr(), sketch.Data());
       sketch_on_single_node.FixError();
     }
     sketch_on_single_node.Unique();
-    TestQuantileElemRank(device, sketch_on_single_node.Data(),
-                         sketch_on_single_node.ColumnsPtr(), true);
+    TestQuantileElemRank(device, sketch_on_single_node.Data(), sketch_on_single_node.ColumnsPtr(),
+                         true);
 
-    // Set up distributed version.  We rely on using rank as seed to generate
-    // the exact same copy of data.
+    /**
+     * Set up distributed version.  We rely on using rank as seed to generate
+     * the exact same copy of data.
+     */
     auto rank = collective::GetRank();
     SketchContainer sketch_distributed(ft, n_bins, kCols, kRows, device);
     HostDeviceVector<float> storage({}, device);
@@ -411,22 +416,23 @@ void TestAllReduceBasic() {
                                     .Seed(rank + seed)
                                     .GenerateArrayInterface(&storage);
     data::CupyAdapter adapter(interface_str);
-    AdapterDeviceSketch(adapter.Value(), n_bins, info,
-                        std::numeric_limits<float>::quiet_NaN(),
+    AdapterDeviceSketch(adapter.Value(), n_bins, info, std::numeric_limits<float>::quiet_NaN(),
                         &sketch_distributed);
+    if (world == 1) {
+      auto n_samples_global = kRows * world;
+      intermediate_num_cuts =
+          std::min(n_samples_global, static_cast<size_t>(n_bins * SketchContainer::kFactor));
+      sketch_distributed.Prune(intermediate_num_cuts);
+    }
     sketch_distributed.AllReduce(&ctx, false);
     sketch_distributed.Unique();
 
-    ASSERT_EQ(sketch_distributed.ColumnsPtr().size(),
-              sketch_on_single_node.ColumnsPtr().size());
-    ASSERT_EQ(sketch_distributed.Data().size(),
-              sketch_on_single_node.Data().size());
+    ASSERT_EQ(sketch_distributed.ColumnsPtr().size(), sketch_on_single_node.ColumnsPtr().size());
+    ASSERT_EQ(sketch_distributed.Data().size(), sketch_on_single_node.Data().size());
 
-    TestQuantileElemRank(device, sketch_distributed.Data(),
-                         sketch_distributed.ColumnsPtr(), true);
+    TestQuantileElemRank(device, sketch_distributed.Data(), sketch_distributed.ColumnsPtr(), true);
 
-    std::vector<SketchEntry> single_node_data(
-        sketch_on_single_node.Data().size());
+    std::vector<SketchEntry> single_node_data(sketch_on_single_node.Data().size());
     dh::CopyDeviceSpanToVector(&single_node_data, sketch_on_single_node.Data());
 
     std::vector<SketchEntry> distributed_data(sketch_distributed.Data().size());
@@ -444,7 +450,8 @@ void TestAllReduceBasic() {
 }  // anonymous namespace
 
 TEST_F(MGPUQuantileTest, AllReduceBasic) {
-  DoTest(TestAllReduceBasic);
+  this->DoTest([] { TestAllReduceBasic(); }, true);
+  this->DoTest([] { TestAllReduceBasic(); }, false);
 }
 
 namespace {
@@ -490,7 +497,8 @@ void TestColumnSplit(DMatrix* dmat) {
 TEST_F(MGPUQuantileTest, ColumnSplitBasic) {
   std::size_t constexpr kRows = 1000, kCols = 100;
   auto dmat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
-  DoTest(TestColumnSplit, dmat.get());
+  this->DoTest([&] { TestColumnSplit(dmat.get()); }, true);
+  this->DoTest([&] { TestColumnSplit(dmat.get()); }, false);
 }
 
 TEST_F(MGPUQuantileTest, ColumnSplitCategorical) {
@@ -507,15 +515,15 @@ TEST_F(MGPUQuantileTest, ColumnSplitCategorical) {
                   .Type(ft)
                   .MaxCategory(13)
                   .GenerateDMatrix();
-  DoTest(TestColumnSplit, dmat.get());
+  this->DoTest([&] { TestColumnSplit(dmat.get()); }, true);
+  this->DoTest([&] { TestColumnSplit(dmat.get()); }, false);
 }
 
 namespace {
 void TestSameOnAllWorkers() {
   auto world = collective::GetWorldSize();
   constexpr size_t kRows = 1000, kCols = 100;
-  RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins,
-                                 MetaInfo const &info) {
+  RunWithSeedsAndBins(kRows, [=](std::int32_t seed, bst_bin_t n_bins, MetaInfo const& info) {
     auto const rank = collective::GetRank();
     auto const device = DeviceOrd::CUDA(GPUIDX);
     Context ctx = MakeCUDACtx(device.ordinal);
@@ -536,7 +544,8 @@ void TestSameOnAllWorkers() {
 
     // Test for all workers having the same sketch.
     size_t n_data = sketch_distributed.Data().size();
-    collective::Allreduce<collective::Operation::kMax>(&n_data, 1);
+    auto rc = collective::Allreduce(&ctx, linalg::MakeVec(&n_data, 1), collective::Op::kMax);
+    SafeColl(rc);
     ASSERT_EQ(n_data, sketch_distributed.Data().size());
     size_t size_as_float =
         sketch_distributed.Data().size_bytes() / sizeof(float);
@@ -549,9 +558,10 @@ void TestSameOnAllWorkers() {
     thrust::copy(thrust::device, local_data.data(),
                  local_data.data() + local_data.size(),
                  all_workers.begin() + local_data.size() * rank);
-    collective::AllReduce<collective::Operation::kSum>(device.ordinal, all_workers.data().get(),
-                                                       all_workers.size());
-    collective::Synchronize(device.ordinal);
+    rc = collective::Allreduce(
+        &ctx, linalg::MakeVec(all_workers.data().get(), all_workers.size(), ctx.Device()),
+        collective::Op::kSum);
+    SafeColl(rc);
 
     auto base_line = dh::ToSpan(all_workers).subspan(0, size_as_float);
     std::vector<float> h_base_line(base_line.size());
@@ -573,7 +583,8 @@ void TestSameOnAllWorkers() {
 }  // anonymous namespace
 
 TEST_F(MGPUQuantileTest, SameOnAllWorkers) {
-  DoTest(TestSameOnAllWorkers);
+  this->DoTest([] { TestSameOnAllWorkers(); }, true);
+  this->DoTest([] { TestSameOnAllWorkers(); }, false);
 }
 
 TEST(GPUQuantile, Push) {
