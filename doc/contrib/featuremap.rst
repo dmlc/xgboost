@@ -17,9 +17,11 @@ The primary data structure in XGBoost for storing user inputs is ``DMatrix``; it
 ---------------------
 Single Node Training
 ---------------------
-There are two different model types in XGBoost: the tree model, which we primarily focus on, and the linear model. For the tree model, we have various methods to build decision trees; please see the :doc:`/treemethod` for a complete reference. In addition to the tree method, we have many hyper-parameters for tuning the model and injecting prior knowledge into the training process. Two noteworthy examples are :doc:`monotonic constraints </tutorials/monotonic>` and :doc:`feature interaction constraints </tutorials/feature_interaction_constraint>`. These two constraints require special treatment during tree construction. Both the ``hist`` and the ``approx`` tree methods support GPU acceleration.
+There are two different model types in XGBoost: the tree model, which we primarily focus on, and the linear model. For the tree model, we have various methods to build decision trees; please see the :doc:`/treemethod` for a complete reference. In addition to the tree method, we have many hyper-parameters for tuning the model and injecting prior knowledge into the training process. Two noteworthy examples are :doc:`monotonic constraints </tutorials/monotonic>` and :doc:`feature interaction constraints </tutorials/feature_interaction_constraint>`. These two constraints require special treatment during tree construction. Both the ``hist`` and the ``approx`` tree methods support GPU acceleration. Also, XGBoost GPU supports gradient-based sampling, which supports external-memory data as well.
+
 The objective function plays an important role in training. It not only provides the gradient, but also responsible for estimating a good starting point for Newton optimization. Please note that users can define custom objective functions for the task at hand.
 In addition to numerical features, XGBoost also supports categorical features with two different algorithms, including one-hot encoding and optimal partitioning. For more information, refer to the :doc:`categorical feature tutorial </tutorials/categorical>`. The ``hist`` and the ``approx`` tree methods support categorical features for CPU and GPU.
+
 There's working-in-progress support for vector leaves, which are decision tree leaves that contain multiple values. This type of tree is used to support efficient multi-class and multi-target models.
 
 ----------
