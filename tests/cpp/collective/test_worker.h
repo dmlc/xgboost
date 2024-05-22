@@ -147,7 +147,8 @@ inline auto MakeDistributedTestConfig(std::string host, std::int32_t port,
 }
 
 template <typename WorkerFn>
-void TestDistributedGlobal(std::int32_t n_workers, WorkerFn worker_fn, bool need_finalize = true) {
+void TestDistributedGlobal(std::int32_t n_workers, WorkerFn worker_fn, bool need_finalize = true,
+                           std::chrono::seconds test_timeout = std::chrono::seconds{30}) {
   system::SocketStartup();
   std::chrono::seconds timeout{1};
 
@@ -165,7 +166,12 @@ void TestDistributedGlobal(std::int32_t n_workers, WorkerFn worker_fn, bool need
     workers.emplace_back([=] {
       auto config = MakeDistributedTestConfig(host, port, timeout, i);
       Init(config);
-      worker_fn();
+
+      auto fut = std::async(std::launch::async, worker_fn);
+      auto status = fut.wait_for(test_timeout);
+      CHECK(status == std::future_status::ready) << "Test timeout";
+      fut.get();
+
       if (need_finalize) {
         Finalize();
       }
