@@ -1,24 +1,28 @@
 /**
- * Copyright 2021-2023 XGBoost contributors
+ * Copyright 2021-2023, XGBoost contributors
  * \file common_row_partitioner.h
  * \brief Common partitioner logic for hist and approx methods.
  */
 #ifndef XGBOOST_TREE_COMMON_ROW_PARTITIONER_H_
 #define XGBOOST_TREE_COMMON_ROW_PARTITIONER_H_
 
-#include <algorithm>  // std::all_of
-#include <cinttypes>  // std::uint32_t
-#include <limits>  // std::numeric_limits
-#include <vector>
+#include <algorithm>  // for all_of, fill
+#include <cinttypes>  // for uint32_t
+#include <limits>     // for numeric_limits
+#include <vector>     // for vector
 
-#include "../collective/communicator-inl.h"
-#include "../common/linalg_op.h"  // cbegin
-#include "../common/numeric.h"  // Iota
-#include "../common/partition_builder.h"
-#include "hist/expand_entry.h"  // CPUExpandEntry
-#include "xgboost/base.h"
-#include "xgboost/context.h"    // Context
-#include "xgboost/linalg.h"       // TensorView
+#include "../collective/allreduce.h"      // for Allreduce
+#include "../common/bitfield.h"           // for RBitField8
+#include "../common/linalg_op.h"          // for cbegin
+#include "../common/numeric.h"            // for Iota
+#include "../common/partition_builder.h"  // for PartitionBuilder
+#include "../common/row_set.h"            // for RowSetCollection
+#include "../common/threading_utils.h"    // for ParallelFor2d
+#include "xgboost/base.h"                 // for bst_row_t
+#include "xgboost/collective/result.h"    // for Success, SafeColl
+#include "xgboost/context.h"              // for Context
+#include "xgboost/linalg.h"               // for TensorView
+#include "xgboost/span.h"                 // for Span
 
 namespace xgboost::tree {
 
@@ -39,7 +43,7 @@ class ColumnSplitHelper {
   }
 
   template <typename BinIdxType, bool any_missing, bool any_cat, typename ExpandEntry>
-  void Partition(common::BlockedSpace2d const& space, std::int32_t n_threads,
+  void Partition(Context const* ctx, common::BlockedSpace2d const& space, std::int32_t n_threads,
                  GHistIndexMatrix const& gmat, common::ColumnMatrix const& column_matrix,
                  std::vector<ExpandEntry> const& nodes,
                  std::vector<int32_t> const& split_conditions, RegTree const* p_tree) {
@@ -56,10 +60,12 @@ class ColumnSplitHelper {
     });
 
     // Then aggregate the bit vectors across all the workers.
-    collective::Allreduce<collective::Operation::kBitwiseOR>(decision_storage_.data(),
-                                                             decision_storage_.size());
-    collective::Allreduce<collective::Operation::kBitwiseAND>(missing_storage_.data(),
-                                                              missing_storage_.size());
+    auto rc = collective::Success() << [&] {
+      return collective::Allreduce(ctx, &decision_storage_, collective::Op::kBitwiseOR);
+    } << [&] {
+      return collective::Allreduce(ctx, &missing_storage_, collective::Op::kBitwiseAND);
+    };
+    collective::SafeColl(rc);
 
     // Finally use the bit vectors to partition the rows.
     common::ParallelFor2d(space, n_threads, [&](size_t node_in_set, common::Range1d r) {
@@ -220,7 +226,7 @@ class CommonRowPartitioner {
     // Store results in intermediate buffers from partition_builder_
     if (is_col_split_) {
       column_split_helper_.Partition<BinIdxType, any_missing, any_cat>(
-          space, ctx->Threads(), gmat, column_matrix, nodes, split_conditions, p_tree);
+          ctx, space, ctx->Threads(), gmat, column_matrix, nodes, split_conditions, p_tree);
     } else {
       common::ParallelFor2d(space, ctx->Threads(), [&](size_t node_in_set, common::Range1d r) {
         size_t begin = r.begin();

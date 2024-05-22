@@ -1,9 +1,9 @@
 /**
- * Copyright 2021-2023 by XGBoost Contributors
+ * Copyright 2021-2024, XGBoost Contributors
  */
+#include <thrust/copy.h>  // for copy
 #include <thrust/scan.h>
 
-#include <algorithm>
 #include <cassert>
 #include <cub/cub.cuh>  // NOLINT
 #include <limits>
@@ -11,7 +11,7 @@
 #include <tuple>
 #include <utility>
 
-#include "../collective/communicator-inl.cuh"
+#include "../collective/allreduce.h"
 #include "../common/algorithm.cuh"        // SegmentedArgSort
 #include "../common/optional_weight.h"    // OptionalWeights
 #include "../common/threading_utils.cuh"  // UnravelTrapeziodIdx,SegmentedTrapezoidThreads
@@ -201,13 +201,16 @@ void Transpose(common::Span<float const> in, common::Span<float> out, size_t m,
   });
 }
 
-double ScaleClasses(Context const *ctx, common::Span<double> results,
+double ScaleClasses(Context const *ctx, bool is_column_split, common::Span<double> results,
                     common::Span<double> local_area, common::Span<double> tp,
                     common::Span<double> auc, size_t n_classes) {
-  if (collective::IsDistributed()) {
-    int32_t device = dh::CurrentDevice();
+  // With vertical federated learning, only the root has label, other parties are not
+  // evaluation metrics.
+  if (collective::IsDistributed() && !(is_column_split && collective::IsFederated())) {
+    std::int32_t device = dh::CurrentDevice();
     CHECK_EQ(dh::CudaGetPointerDevice(results.data()), device);
-    collective::AllReduce<collective::Operation::kSum>(device, results.data(), results.size());
+    auto rc = collective::Allreduce(
+        ctx, linalg::MakeVec(results.data(), results.size(), ctx->Device()), collective::Op::kSum);
   }
   auto reduce_in = dh::MakeTransformIterator<Pair>(
       thrust::make_counting_iterator(0), [=] XGBOOST_DEVICE(size_t i) {
@@ -334,7 +337,7 @@ double GPUMultiClassAUCOVR(Context const *ctx, MetaInfo const &info,
     auto local_area = d_results.subspan(0, n_classes);
     auto tp = d_results.subspan(2 * n_classes, n_classes);
     auto auc = d_results.subspan(3 * n_classes, n_classes);
-    return ScaleClasses(ctx, d_results, local_area, tp, auc, n_classes);
+    return ScaleClasses(ctx, info.IsColumnSplit(), d_results, local_area, tp, auc, n_classes);
   }
 
   /**
@@ -438,7 +441,7 @@ double GPUMultiClassAUCOVR(Context const *ctx, MetaInfo const &info,
       tp[c] = 1.0f;
     }
   });
-  return ScaleClasses(ctx, d_results, local_area, tp, auc, n_classes);
+  return ScaleClasses(ctx, info.IsColumnSplit(), d_results, local_area, tp, auc, n_classes);
 }
 
 void MultiClassSortedIdx(Context const *ctx, common::Span<float const> predts,
@@ -835,7 +838,7 @@ std::pair<double, std::uint32_t> GPURankingPRAUC(Context const *ctx,
   InitCacheOnce<false>(predts, p_cache);
 
   dh::device_vector<bst_group_t> group_ptr(info.group_ptr_.size());
-  thrust::copy(info.group_ptr_.begin(), info.group_ptr_.end(), group_ptr.begin());
+  thrust::copy(info.group_ptr_.begin(), info.group_ptr_.end(), group_ptr.begin());  // NOLINT
   auto d_group_ptr = dh::ToSpan(group_ptr);
   CHECK_GE(info.group_ptr_.size(), 1) << "Must have at least 1 query group for LTR.";
   size_t n_groups = info.group_ptr_.size() - 1;

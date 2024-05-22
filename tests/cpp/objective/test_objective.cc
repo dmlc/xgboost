@@ -50,7 +50,7 @@ class TestDefaultObjConfig : public ::testing::TestWithParam<std::string> {
 
  public:
   void Run(std::string objective) {
-    auto Xy = MakeFmatForObjTest(objective);
+    auto Xy = MakeFmatForObjTest(objective, 10, 10);
     std::unique_ptr<Learner> learner{Learner::Create({Xy})};
     std::unique_ptr<ObjFunction> objfn{ObjFunction::Create(objective, &ctx_)};
 

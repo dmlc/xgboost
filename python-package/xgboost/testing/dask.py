@@ -66,7 +66,7 @@ def check_uneven_nan(client: Client, tree_method: str, n_workers: int) -> None:
         X = pd.DataFrame({"a": range(10000), "b": range(10000, 0, -1)})
         y = pd.Series([*[0] * 5000, *[1] * 5000])
 
-        X["a"][:3000:1000] = np.NaN
+        X["a"][:3000:1000] = np.nan
 
         client.wait_for_workers(n_workers=n_workers)
 

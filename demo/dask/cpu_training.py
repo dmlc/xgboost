@@ -16,7 +16,7 @@ def main(client: Client) -> None:
     m = 100000
     n = 100
     rng = da.random.default_rng(1)
-    X = rng.normal(size=(m, n))
+    X = rng.normal(size=(m, n), chunks=(10000, -1))
     y = X.sum(axis=1)
 
     # DaskDMatrix acts like normal DMatrix, works as a proxy for local
