@@ -41,20 +41,26 @@ struct Magic {
 
   [[nodiscard]] Result Verify(xgboost::collective::TCPSocket* p_sock) {
     std::int32_t magic{kMagic};
-    auto n_bytes = p_sock->SendAll(&magic, sizeof(magic));
-    if (n_bytes != sizeof(magic)) {
-      return Fail("Failed to verify.");
-    }
-
-    magic = 0;
-    n_bytes = p_sock->RecvAll(&magic, sizeof(magic));
-    if (n_bytes != sizeof(magic)) {
-      return Fail("Failed to verify.");
-    }
-    if (magic != kMagic) {
-      return xgboost::collective::Fail("Invalid verification number.");
-    }
-    return Success();
+    std::size_t n_sent{0};
+    return Success() << [&] {
+      return p_sock->SendAll(&magic, sizeof(magic), &n_sent);
+    } << [&] {
+      if (n_sent != sizeof(magic)) {
+        return Fail("Failed to verify.");
+      }
+      return Success();
+    } << [&] {
+      magic = 0;
+      return p_sock->RecvAll(&magic, sizeof(magic), &n_sent);
+    } << [&] {
+      if (n_sent != sizeof(magic)) {
+        return Fail("Failed to verify.");
+      }
+      if (magic != kMagic) {
+        return xgboost::collective::Fail("Invalid verification number.");
+      }
+      return Success();
+    };
   }
 };
 
@@ -227,31 +233,43 @@ struct Error {
 
   [[nodiscard]] Result SignalError(TCPSocket* worker) const {
     std::int32_t err{ErrorSignal()};
-    auto n_sent = worker->SendAll(&err, sizeof(err));
-    if (n_sent == sizeof(err)) {
-      return Success();
-    }
-    return Fail("Failed to send error signal");
+    std::size_t n_sent{0};
+    return Success() << [&] {
+      return worker->SendAll(&err, sizeof(err), &n_sent);
+    } << [&] {
+      if (n_sent == sizeof(err)) {
+        return Success();
+      }
+      return Fail("Failed to send error signal");
+    };
   }
   // self is localhost, we are sending the signal to the error handling thread for it to
   // close.
   [[nodiscard]] Result SignalShutdown(TCPSocket* self) const {
     std::int32_t err{ShutdownSignal()};
-    auto n_sent = self->SendAll(&err, sizeof(err));
-    if (n_sent == sizeof(err)) {
-      return Success();
-    }
-    return Fail("Failed to send shutdown signal");
+    std::size_t n_sent{0};
+    return Success() << [&] {
+      return self->SendAll(&err, sizeof(err), &n_sent);
+    } << [&] {
+      if (n_sent == sizeof(err)) {
+        return Success();
+      }
+      return Fail("Failed to send shutdown signal");
+    };
   }
   // get signal, either for error or for shutdown.
   [[nodiscard]] Result RecvSignal(TCPSocket* peer, bool* p_is_error) const {
     std::int32_t err{ShutdownSignal()};
-    auto n_recv = peer->RecvAll(&err, sizeof(err));
-    if (n_recv == sizeof(err)) {
-      *p_is_error = err == 1;
-      return Success();
-    }
-    return Fail("Failed to receive error signal.");
+    std::size_t n_recv{0};
+    return Success() << [&] {
+      return peer->RecvAll(&err, sizeof(err), &n_recv);
+    } << [&] {
+      if (n_recv == sizeof(err)) {
+        *p_is_error = err == 1;
+        return Success();
+      }
+      return Fail("Failed to receive error signal.");
+    };
   }
 };
 }  // namespace xgboost::collective::proto

@@ -80,6 +80,12 @@ class USMVector {
     qu->fill(data_.get(), v, size_).wait();
   }
 
+  USMVector(::sycl::queue* qu, size_t size, T v,
+            ::sycl::event* event) : size_(size), capacity_(size) {
+    data_ = allocate_memory_(qu, size_);
+    *event = qu->fill(data_.get(), v, size_, *event);
+  }
+
   USMVector(::sycl::queue* qu, const std::vector<T> &vec) {
     size_ = vec.size();
     capacity_ = size_;

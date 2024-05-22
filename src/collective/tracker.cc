@@ -31,14 +31,20 @@
 #include "xgboost/json.h"               // for Json
 
 namespace xgboost::collective {
+
 Tracker::Tracker(Json const& config)
     : sortby_{static_cast<SortBy>(
           OptionalArg<Integer const>(config, "sortby", static_cast<Integer::Int>(SortBy::kHost)))},
       n_workers_{
           static_cast<std::int32_t>(RequiredArg<Integer const>(config, "n_workers", __func__))},
       port_{static_cast<std::int32_t>(OptionalArg<Integer const>(config, "port", Integer::Int{0}))},
-      timeout_{std::chrono::seconds{OptionalArg<Integer const>(
-          config, "timeout", static_cast<std::int64_t>(collective::DefaultTimeoutSec()))}} {}
+      timeout_{std::chrono::seconds{
+          OptionalArg<Integer const>(config, "timeout", static_cast<std::int64_t>(0))}} {
+  using std::chrono_literals::operator""s;
+  // Some old configurations in JVM for the scala implementation (removed) use 0 to
+  // indicate blocking. We continue that convention here.
+  timeout_ = (timeout_ == 0s) ? -1s : timeout_;
+}
 
 Result Tracker::WaitUntilReady() const {
   using namespace std::chrono_literals;  // NOLINT
@@ -49,7 +55,7 @@ Result Tracker::WaitUntilReady() const {
   timer.Start();
   while (!this->Ready()) {
     auto ela = timer.Duration().count();
-    if (ela > this->Timeout().count()) {
+    if (HasTimeout(this->Timeout()) && ela > this->Timeout().count()) {
       return Fail("Failed to start tracker, timeout:" + std::to_string(this->Timeout().count()) +
                   " seconds.");
     }
@@ -250,8 +256,10 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
         std::lock_guard lock{listener_mu_};
         return listener_.NonBlocking(true);
       } << [&] {
-        std::lock_guard lock{listener_mu_};
-        poll.WatchRead(listener_);
+        {
+          std::lock_guard lock{listener_mu_};
+          poll.WatchRead(listener_);
+        }
         if (state.running) {
           // Don't timeout if the communicator group is up and running.
           return poll.Poll(std::chrono::seconds{-1});
