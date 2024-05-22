@@ -2,11 +2,6 @@
  * Copyright 2017-2023 by Contributors
  * \file device_manager.cc
  */
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wtautological-constant-compare"
-#pragma GCC diagnostic ignored "-W#pragma-messages"
-#pragma GCC diagnostic pop
-
 #include "../sycl/device_manager.h"
 
 #include "../../src/collective/communicator-inl.h"
