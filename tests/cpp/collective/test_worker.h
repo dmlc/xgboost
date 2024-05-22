@@ -164,17 +164,17 @@ void TestDistributedGlobal(std::int32_t n_workers, WorkerFn worker_fn, bool need
 
   for (std::int32_t i = 0; i < n_workers; ++i) {
     workers.emplace_back([=] {
-      auto config = MakeDistributedTestConfig(host, port, timeout, i);
-      Init(config);
-
-      auto fut = std::async(std::launch::async, worker_fn);
+      auto fut = std::async(std::launch::async, [=] {
+        auto config = MakeDistributedTestConfig(host, port, timeout, i);
+        Init(config);
+        worker_fn();
+        if (need_finalize) {
+          Finalize();
+        }
+      });
       auto status = fut.wait_for(test_timeout);
       CHECK(status == std::future_status::ready) << "Test timeout";
       fut.get();
-
-      if (need_finalize) {
-        Finalize();
-      }
     });
   }
 
