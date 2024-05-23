@@ -173,7 +173,7 @@ test_that("custom metric with multi-target passes reshaped data to feval", {
     ),
     data = dtrain,
     nrounds = 2L,
-    evals = list(Train=dtrain),
+    evals = list(Train = dtrain),
     eval_metric = multinomial.ll,
     verbose = 0
   )
