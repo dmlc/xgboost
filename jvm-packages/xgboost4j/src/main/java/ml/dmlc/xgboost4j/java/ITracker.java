@@ -7,7 +7,7 @@ import java.util.Map;
  *
  *  - start(timeout): Start the tracker awaiting for worker connections, with a given
  *  timeout value (in seconds).
- *  - workerArgs(): Return the arguments needed to initialize Rabit clients.
+ *  - getWorkerArgs(): Return the arguments needed to initialize Rabit clients.
  *  - waitFor(timeout): Wait for the task execution by the worker nodes for at most `timeout`
  *  milliseconds.
  *
@@ -21,21 +21,8 @@ import java.util.Map;
  * brokers connections between workers.
  */
 public interface ITracker extends Thread.UncaughtExceptionHandler {
-  enum TrackerStatus {
-    SUCCESS(0), INTERRUPTED(1), TIMEOUT(2), FAILURE(3);
 
-    private int statusCode;
-
-    TrackerStatus(int statusCode) {
-      this.statusCode = statusCode;
-    }
-
-    public int getStatusCode() {
-      return this.statusCode;
-    }
-  }
-
-  Map<String, Object> workerArgs() throws XGBoostError;
+  Map<String, Object> getWorkerArgs() throws XGBoostError;
 
   boolean start() throws XGBoostError;
 
