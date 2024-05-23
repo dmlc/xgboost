@@ -307,6 +307,7 @@ TEST(Quantile, ColSplitSorted) {
   TestColSplitQuantile<true>(kRows, kCols);
 }
 
+#if defined(XGBOOST_USE_FEDERATED)
 namespace {
 template <bool use_column>
 void DoTestColSplitQuantileSecure() {
@@ -398,13 +399,10 @@ void TestColSplitQuantileSecure() {
 }
 }  // anonymous namespace
 
-TEST(Quantile, ColSplitSecure) {
-  TestColSplitQuantileSecure<false>();
-}
+TEST(Quantile, ColSplitSecure) { TestColSplitQuantileSecure<false>(); }
 
-TEST(Quantile, ColSplitSecureSorted) {
-  TestColSplitQuantileSecure<true>();
-}
+TEST(Quantile, ColSplitSecureSorted) { TestColSplitQuantileSecure<true>(); }
+#endif  // defined(XGBOOST_USE_FEDERATED)
 
 namespace {
 void TestSameOnAllWorkers() {

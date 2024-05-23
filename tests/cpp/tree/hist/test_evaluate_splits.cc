@@ -22,7 +22,9 @@
 #include "../../../../src/tree/hist/param.h"            // for HistMakerTrainParam
 #include "../../../../src/tree/param.h"                 // for GradStats, TrainParam
 #include "../../helpers.h"                              // for RandomDataGenerator, AllThreadsFo...
-#include "../../plugin/federated/test_worker.h"         // for TestFederatedGlobal
+#if defined(XGBOOST_USE_FEDERATED)
+#include "../../plugin/federated/test_worker.h"  // for TestFederatedGlobal
+#endif                                           // defined(XGBOOST_USE_FEDERATED)
 
 namespace xgboost::tree {
 void TestEvaluateSplits(bool force_read_by_column) {
@@ -291,6 +293,7 @@ TEST_F(TestCategoricalSplitWithMissing, HistEvaluator) {
                     GradientPairPrecise{split.right_sum.GetGrad(), split.right_sum.GetHess()});
 }
 
+#if defined(XGBOOST_USE_FEDERATED)
 namespace {
 void DoTestEvaluateSplitsSecure(bool force_read_by_column) {
   Context ctx;
@@ -376,5 +379,5 @@ TEST(HistEvaluator, SecureEvaluate) {
   TestEvaluateSplitsSecure(false);
   TestEvaluateSplitsSecure(true);
 }
-
+#endif  // defined(XGBOOST_USE_FEDERATED)
 }  // namespace xgboost::tree
