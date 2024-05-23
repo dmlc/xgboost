@@ -35,8 +35,9 @@
         <maven.compiler.target>1.8</maven.compiler.target>
         <flink.version>1.19.0</flink.version>
         <junit.version>4.13.2</junit.version>
-        <spark.version>3.4.1</spark.version>
-        <spark.version.gpu>3.4.1</spark.version.gpu>
+        <spark.version>3.5.1</spark.version>
+        <spark.version.gpu>3.5.1</spark.version.gpu>
+        <fasterxml.jackson.version>2.15.2</fasterxml.jackson.version>
         <scala.version>2.12.18</scala.version>
         <scala.binary.version>2.12</scala.binary.version>
         <hadoop.version>3.4.0</hadoop.version>
@@ -488,11 +489,6 @@
             <groupId>com.esotericsoftware</groupId>
             <artifactId>kryo</artifactId>
             <version>5.6.0</version>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>2.14.2</version>
         </dependency>
         <dependency>
             <groupId>commons-logging</groupId>
