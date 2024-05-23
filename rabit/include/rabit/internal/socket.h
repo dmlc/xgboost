@@ -1,5 +1,5 @@
 /**
- *  Copyright 2014-2023, XGBoost Contributors
+ *  Copyright 2014-2024, XGBoost Contributors
  * \file socket.h
  * \author Tianqi Chen
  */
@@ -95,11 +95,32 @@ int PollImpl(PollFD* pfd, int nfds, std::chrono::seconds timeout) noexcept(true)
 template <typename E>
 std::enable_if_t<std::is_integral_v<E>, xgboost::collective::Result> PollError(E const& revents) {
   if ((revents & POLLERR) != 0) {
-    return xgboost::system::FailWithCode("Poll error condition.");
+    auto err = errno;
+    auto str = strerror(err);
+    return xgboost::system::FailWithCode(std::string{"Poll error condition:"} + std::string{str} +
+                                         " code:" + std::to_string(err));
   }
   if ((revents & POLLNVAL) != 0) {
     return xgboost::system::FailWithCode("Invalid polling request.");
   }
+  if ((revents & POLLHUP) != 0) {
+    // Excerpt from the Linux manual:
+    //
+    // Note that when reading from a channel such as a pipe or a stream socket, this event
+    // merely indicates that the peer closed its end of the channel.Subsequent reads from
+    // the channel will return 0 (end of file) only after all outstanding data in the
+    // channel has been consumed.
+    //
+    // We don't usually have a barrier for exiting workers, it's normal to have one end
+    // exit while the other still reading data.
+    return xgboost::collective::Success();
+  }
+#if defined(POLLRDHUP)
+  // Linux only flag
+  if ((revents & POLLRDHUP) != 0) {
+    return xgboost::system::FailWithCode("Poll hung up on the other end.");
+  }
+#endif  // defined(POLLRDHUP)
   return xgboost::collective::Success();
 }
 
@@ -179,9 +200,11 @@ struct PollHelper {
     }
     std::int32_t ret = PollImpl(fdset.data(), fdset.size(), timeout);
     if (ret == 0) {
-      return xgboost::collective::Fail("Poll timeout.", std::make_error_code(std::errc::timed_out));
+      return xgboost::collective::Fail(
+          "Poll timeout:" + std::to_string(timeout.count()) + " seconds.",
+          std::make_error_code(std::errc::timed_out));
     } else if (ret < 0) {
-      return xgboost::system::FailWithCode("Poll failed.");
+      return xgboost::system::FailWithCode("Poll failed, nfds:" + std::to_string(fdset.size()));
     }
 
     for (auto& pfd : fdset) {
@@ -191,12 +214,7 @@ struct PollHelper {
       }
 
       auto revents = pfd.revents & pfd.events;
-      if (!revents) {
-        // FIXME(jiamingy): remove this once rabit is replaced.
-        fds.erase(pfd.fd);
-      } else {
-        fds[pfd.fd].events = revents;
-      }
+      fds[pfd.fd].events = revents;
     }
     return xgboost::collective::Success();
   }

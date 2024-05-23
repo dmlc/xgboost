@@ -9,7 +9,6 @@
 #include "coll.h"                       // for Comm
 #include "comm.h"                       // for Coll
 #include "xgboost/collective/result.h"  // for Result
-#include "xgboost/collective/socket.h"  // for GetHostName
 
 namespace xgboost::collective {
 /**
@@ -31,19 +30,35 @@ class CommGroup {
  public:
   CommGroup();
 
-  [[nodiscard]] auto World() const { return comm_->World(); }
-  [[nodiscard]] auto Rank() const { return comm_->Rank(); }
-  [[nodiscard]] bool IsDistributed() const { return comm_->IsDistributed(); }
+  [[nodiscard]] auto World() const noexcept { return comm_->World(); }
+  [[nodiscard]] auto Rank() const noexcept { return comm_->Rank(); }
+  [[nodiscard]] bool IsDistributed() const noexcept { return comm_->IsDistributed(); }
+
+  [[nodiscard]] Result Finalize() const {
+    return Success() << [this] {
+      if (gpu_comm_) {
+        return gpu_comm_->Shutdown();
+      }
+      return Success();
+    } << [&] {
+      return comm_->Shutdown();
+    };
+  }
 
   [[nodiscard]] static CommGroup* Create(Json config);
 
   [[nodiscard]] std::shared_ptr<Coll> Backend(DeviceOrd device) const;
+  /**
+   * @brief Decide the context to use for communication.
+   *
+   * @param ctx Global context, provides the CUDA stream and ordinal.
+   * @param device The device used by the data to be communicated.
+   */
   [[nodiscard]] Comm const& Ctx(Context const* ctx, DeviceOrd device) const;
   [[nodiscard]] Result SignalError(Result const& res) { return comm_->SignalError(res); }
 
   [[nodiscard]] Result ProcessorName(std::string* out) const {
-    auto rc = GetHostName(out);
-    return rc;
+    return this->comm_->ProcessorName(out);
   }
 };
 

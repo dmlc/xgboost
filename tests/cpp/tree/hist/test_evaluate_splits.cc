@@ -22,6 +22,7 @@
 #include "../../../../src/tree/hist/param.h"            // for HistMakerTrainParam
 #include "../../../../src/tree/param.h"                 // for GradStats, TrainParam
 #include "../../helpers.h"                              // for RandomDataGenerator, AllThreadsFo...
+#include "../../plugin/federated/test_worker.h"         // for TestFederatedGlobal
 
 namespace xgboost::tree {
 void TestEvaluateSplits(bool force_read_by_column) {
@@ -364,9 +365,10 @@ void DoTestEvaluateSplitsSecure(bool force_read_by_column) {
   delete m;
 }
 
-void TestEvaluateSplitsSecure (bool force_read_by_column) {
+void TestEvaluateSplitsSecure(bool force_read_by_column) {
   auto constexpr kWorkers = 2;
-  RunWithInMemoryCommunicator(kWorkers, DoTestEvaluateSplitsSecure, force_read_by_column);
+  collective::TestFederatedGlobal(kWorkers,
+                                  [&] { DoTestEvaluateSplitsSecure(force_read_by_column); });
 }
 } // anonymous namespace
 

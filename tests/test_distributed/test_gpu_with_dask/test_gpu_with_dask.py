@@ -252,7 +252,7 @@ class TestDistributedGPU:
 
         X_onehot, _ = make_categorical(local_cuda_client, 10000, 30, 13, True)
         X_onehot = dask_cudf.from_dask_dataframe(X_onehot)
-        run_categorical(local_cuda_client, "gpu_hist", X, X_onehot, y)
+        run_categorical(local_cuda_client, "hist", "cuda", X, X_onehot, y)
 
     @given(
         params=hist_parameter_strategy,

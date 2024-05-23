@@ -9,8 +9,8 @@
 #include <array>
 #include <atomic>
 #include <cmath>
+#include <numeric>  // for accumulate
 
-#include "../collective/communicator-inl.h"
 #include "../common/math.h"
 #include "../common/threading_utils.h"
 #include "metric_common.h"  // MetricNoCache

@@ -114,13 +114,13 @@
 #' @param data training dataset. \code{xgb.train} accepts only an \code{xgb.DMatrix} as the input.
 #'        \code{xgboost}, in addition, also accepts \code{matrix}, \code{dgCMatrix}, or name of a local data file.
 #' @param nrounds max number of boosting iterations.
-#' @param watchlist named list of xgb.DMatrix datasets to use for evaluating model performance.
+#' @param evals Named list of `xgb.DMatrix` datasets to use for evaluating model performance.
 #'        Metrics specified in either \code{eval_metric} or \code{feval} will be computed for each
 #'        of these datasets during each boosting iteration, and stored in the end as a field named
 #'        \code{evaluation_log} in the resulting object. When either \code{verbose>=1} or
-#'        \code{\link{cb.print.evaluation}} callback is engaged, the performance results are continuously
+#'        \code{\link{xgb.cb.print.evaluation}} callback is engaged, the performance results are continuously
 #'        printed out during the training.
-#'        E.g., specifying \code{watchlist=list(validation1=mat1, validation2=mat2)} allows to track
+#'        E.g., specifying \code{evals=list(validation1=mat1, validation2=mat2)} allows to track
 #'        the performance of each round's model on mat1 and mat2.
 #' @param obj customized objective function. Returns gradient and second order
 #'        gradient with given prediction and dtrain.
@@ -130,31 +130,32 @@
 #' @param verbose If 0, xgboost will stay silent. If 1, it will print information about performance.
 #'        If 2, some additional information will be printed out.
 #'        Note that setting \code{verbose > 0} automatically engages the
-#'        \code{cb.print.evaluation(period=1)} callback function.
+#'        \code{xgb.cb.print.evaluation(period=1)} callback function.
 #' @param print_every_n Print each n-th iteration evaluation messages when \code{verbose>0}.
 #'        Default is 1 which means all messages are printed. This parameter is passed to the
-#'        \code{\link{cb.print.evaluation}} callback.
+#'        \code{\link{xgb.cb.print.evaluation}} callback.
 #' @param early_stopping_rounds If \code{NULL}, the early stopping function is not triggered.
 #'        If set to an integer \code{k}, training with a validation set will stop if the performance
 #'        doesn't improve for \code{k} rounds.
-#'        Setting this parameter engages the \code{\link{cb.early.stop}} callback.
+#'        Setting this parameter engages the \code{\link{xgb.cb.early.stop}} callback.
 #' @param maximize If \code{feval} and \code{early_stopping_rounds} are set,
 #'        then this parameter must be set as well.
 #'        When it is \code{TRUE}, it means the larger the evaluation score the better.
-#'        This parameter is passed to the \code{\link{cb.early.stop}} callback.
+#'        This parameter is passed to the \code{\link{xgb.cb.early.stop}} callback.
 #' @param save_period when it is non-NULL, model is saved to disk after every \code{save_period} rounds,
-#'        0 means save at the end. The saving is handled by the \code{\link{cb.save.model}} callback.
+#'        0 means save at the end. The saving is handled by the \code{\link{xgb.cb.save.model}} callback.
 #' @param save_name the name or path for periodically saved model file.
 #' @param xgb_model a previously built model to continue the training from.
 #'        Could be either an object of class \code{xgb.Booster}, or its raw data, or the name of a
 #'        file with a previously saved model.
 #' @param callbacks a list of callback functions to perform various task during boosting.
-#'        See \code{\link{callbacks}}. Some of the callbacks are automatically created depending on the
+#'        See \code{\link{xgb.Callback}}. Some of the callbacks are automatically created depending on the
 #'        parameters' values. User can provide either existing or their own callback methods in order
 #'        to customize the training process.
 #'
-#'        Note that some callbacks might try to set an evaluation log - be aware that these evaluation logs
-#'        are kept as R attributes, and thus do not get saved when using non-R serializaters like
+#'        Note that some callbacks might try to leave attributes in the resulting model object,
+#'        such as an evaluation log (a `data.table` object) - be aware that these objects are kept
+#'        as R attributes, and thus do not get saved when using XGBoost's own serializaters like
 #'        \link{xgb.save} (but are kept when using R serializers like \link{saveRDS}).
 #' @param ... other parameters to pass to \code{params}.
 #' @param label vector of response values. Should not be provided when data is
@@ -170,7 +171,7 @@
 #' @details
 #' These are the training functions for \code{xgboost}.
 #'
-#' The \code{xgb.train} interface supports advanced features such as \code{watchlist},
+#' The \code{xgb.train} interface supports advanced features such as \code{evals},
 #' customized objective and evaluation metric functions, therefore it is more flexible
 #' than the \code{xgboost} interface.
 #'
@@ -206,18 +207,19 @@
 #'
 #' The following callbacks are automatically created when certain parameters are set:
 #' \itemize{
-#'   \item \code{cb.print.evaluation} is turned on when \code{verbose > 0};
+#'   \item \code{xgb.cb.print.evaluation} is turned on when \code{verbose > 0};
 #'         and the \code{print_every_n} parameter is passed to it.
-#'   \item \code{cb.evaluation.log} is on when \code{watchlist} is present.
-#'   \item \code{cb.early.stop}: when \code{early_stopping_rounds} is set.
-#'   \item \code{cb.save.model}: when \code{save_period > 0} is set.
+#'   \item \code{xgb.cb.evaluation.log} is on when \code{evals} is present.
+#'   \item \code{xgb.cb.early.stop}: when \code{early_stopping_rounds} is set.
+#'   \item \code{xgb.cb.save.model}: when \code{save_period > 0} is set.
 #' }
 #'
 #' Note that objects of type `xgb.Booster` as returned by this function behave a bit differently
 #' from typical R objects (it's an 'altrep' list class), and it makes a separation between
 #' internal booster attributes (restricted to jsonifyable data), accessed through \link{xgb.attr}
 #' and shared between interfaces through serialization functions like \link{xgb.save}; and
-#' R-specific attributes, accessed through \link{attributes} and \link{attr}, which are otherwise
+#' R-specific attributes (typically the result from a callback), accessed through \link{attributes}
+#' and \link{attr}, which are otherwise
 #' only used in the R interface, only kept when using R's serializers like \link{saveRDS}, and
 #' not anyhow used by functions like \link{predict.xgb.Booster}.
 #'
@@ -229,7 +231,7 @@
 #' effect elsewhere.
 #'
 #' @seealso
-#' \code{\link{callbacks}},
+#' \code{\link{xgb.Callback}},
 #' \code{\link{predict.xgb.Booster}},
 #' \code{\link{xgb.cv}}
 #'
@@ -252,12 +254,12 @@
 #' dtest <- with(
 #'   agaricus.test, xgb.DMatrix(data, label = label, nthread = nthread)
 #' )
-#' watchlist <- list(train = dtrain, eval = dtest)
+#' evals <- list(train = dtrain, eval = dtest)
 #'
 #' ## A simple xgb.train example:
 #' param <- list(max_depth = 2, eta = 1, nthread = nthread,
 #'               objective = "binary:logistic", eval_metric = "auc")
-#' bst <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0)
+#' bst <- xgb.train(param, dtrain, nrounds = 2, evals = evals, verbose = 0)
 #'
 #' ## An xgb.train example where custom objective and evaluation metric are
 #' ## used:
@@ -278,15 +280,15 @@
 #' #  as 'objective' and 'eval_metric' parameters in the params list:
 #' param <- list(max_depth = 2, eta = 1, nthread = nthread,
 #'               objective = logregobj, eval_metric = evalerror)
-#' bst <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0)
+#' bst <- xgb.train(param, dtrain, nrounds = 2, evals = evals, verbose = 0)
 #'
 #' #  or through the ... arguments:
 #' param <- list(max_depth = 2, eta = 1, nthread = nthread)
-#' bst <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0,
+#' bst <- xgb.train(param, dtrain, nrounds = 2, evals = evals, verbose = 0,
 #'                  objective = logregobj, eval_metric = evalerror)
 #'
 #' #  or as dedicated 'obj' and 'feval' parameters of xgb.train:
-#' bst <- xgb.train(param, dtrain, nrounds = 2, watchlist,
+#' bst <- xgb.train(param, dtrain, nrounds = 2, evals = evals,
 #'                  obj = logregobj, feval = evalerror)
 #'
 #'
@@ -294,11 +296,11 @@
 #' param <- list(max_depth = 2, eta = 1, nthread = nthread,
 #'               objective = "binary:logistic", eval_metric = "auc")
 #' my_etas <- list(eta = c(0.5, 0.1))
-#' bst <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0,
-#'                  callbacks = list(cb.reset.parameters(my_etas)))
+#' bst <- xgb.train(param, dtrain, nrounds = 2, evals = evals, verbose = 0,
+#'                  callbacks = list(xgb.cb.reset.parameters(my_etas)))
 #'
 #' ## Early stopping:
-#' bst <- xgb.train(param, dtrain, nrounds = 25, watchlist,
+#' bst <- xgb.train(param, dtrain, nrounds = 25, evals = evals,
 #'                  early_stopping_rounds = 3)
 #'
 #' ## An 'xgboost' interface example:
@@ -309,7 +311,7 @@
 #'
 #' @rdname xgb.train
 #' @export
-xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
+xgb.train <- function(params = list(), data, nrounds, evals = list(),
                       obj = NULL, feval = NULL, verbose = 1, print_every_n = 1L,
                       early_stopping_rounds = NULL, maximize = NULL,
                       save_period = NULL, save_name = "xgboost.model",
@@ -322,68 +324,68 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   check.custom.obj()
   check.custom.eval()
 
-  # data & watchlist checks
+  # data & evals checks
   dtrain <- data
   if (!inherits(dtrain, "xgb.DMatrix"))
     stop("second argument dtrain must be xgb.DMatrix")
-  if (length(watchlist) > 0) {
-    if (typeof(watchlist) != "list" ||
-        !all(vapply(watchlist, inherits, logical(1), what = 'xgb.DMatrix')))
-      stop("watchlist must be a list of xgb.DMatrix elements")
-    evnames <- names(watchlist)
+  if (length(evals) > 0) {
+    if (typeof(evals) != "list" ||
+        !all(vapply(evals, inherits, logical(1), what = 'xgb.DMatrix')))
+      stop("'evals' must be a list of xgb.DMatrix elements")
+    evnames <- names(evals)
     if (is.null(evnames) || any(evnames == ""))
-      stop("each element of the watchlist must have a name tag")
+      stop("each element of 'evals' must have a name tag")
   }
   # Handle multiple evaluation metrics given as a list
   for (m in params$eval_metric) {
     params <- c(params, list(eval_metric = m))
   }
 
-  # evaluation printing callback
   params <- c(params)
-  print_every_n <- max(as.integer(print_every_n), 1L)
-  if (!has.callbacks(callbacks, 'cb.print.evaluation') &&
-      verbose) {
-    callbacks <- add.cb(callbacks, cb.print.evaluation(print_every_n))
-  }
-  # evaluation log callback:  it is automatically enabled when watchlist is provided
-  evaluation_log <- list()
-  if (!has.callbacks(callbacks, 'cb.evaluation.log') &&
-      length(watchlist) > 0) {
-    callbacks <- add.cb(callbacks, cb.evaluation.log())
-  }
-  # Model saving callback
-  if (!is.null(save_period) &&
-      !has.callbacks(callbacks, 'cb.save.model')) {
-    callbacks <- add.cb(callbacks, cb.save.model(save_period, save_name))
-  }
-  # Early stopping callback
-  stop_condition <- FALSE
-  if (!is.null(early_stopping_rounds) &&
-      !has.callbacks(callbacks, 'cb.early.stop')) {
-    callbacks <- add.cb(callbacks, cb.early.stop(early_stopping_rounds,
-                                                 maximize = maximize, verbose = verbose))
-  }
-
-  # Sort the callbacks into categories
-  cb <- categorize.callbacks(callbacks)
   params['validate_parameters'] <- TRUE
   if (!("seed" %in% names(params))) {
     params[["seed"]] <- sample(.Machine$integer.max, size = 1)
   }
 
+  # callbacks
+  tmp <- .process.callbacks(callbacks, is_cv = FALSE)
+  callbacks <- tmp$callbacks
+  cb_names <- tmp$cb_names
+  rm(tmp)
+
+  # Early stopping callback (should always come first)
+  if (!is.null(early_stopping_rounds) && !("early_stop" %in% cb_names)) {
+    callbacks <- add.callback(
+      callbacks,
+      xgb.cb.early.stop(
+        early_stopping_rounds,
+        maximize = maximize,
+        verbose = verbose
+      ),
+      as_first_elt = TRUE
+    )
+  }
+  # evaluation printing callback
+  print_every_n <- max(as.integer(print_every_n), 1L)
+  if (verbose && !("print_evaluation" %in% cb_names)) {
+    callbacks <- add.callback(callbacks, xgb.cb.print.evaluation(print_every_n))
+  }
+  # evaluation log callback:  it is automatically enabled when 'evals' is provided
+  if (length(evals) && !("evaluation_log" %in% cb_names)) {
+    callbacks <- add.callback(callbacks, xgb.cb.evaluation.log())
+  }
+  # Model saving callback
+  if (!is.null(save_period) && !("save_model" %in% cb_names)) {
+    callbacks <- add.callback(callbacks, xgb.cb.save.model(save_period, save_name))
+  }
+
   # The tree updating process would need slightly different handling
   is_update <- NVL(params[['process_type']], '.') == 'update'
-
-  past_evaluation_log <- NULL
-  if (inherits(xgb_model, "xgb.Booster")) {
-    past_evaluation_log <- attributes(xgb_model)$evaluation_log
-  }
 
   # Construct a booster (either a new one or load from xgb_model)
   bst <- xgb.Booster(
     params = params,
-    cachelist = append(watchlist, dtrain),
+    cachelist = append(evals, dtrain),
     modelfile = xgb_model
   )
   niter_init <- bst$niter
@@ -394,11 +396,6 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
     dtrain
   )
 
-  # extract parameters that can affect the relationship b/w #trees and #iterations
-  # Note: it might look like these aren't used, but they need to be defined in this
-  # environment for the callbacks for work correctly.
-  num_class <- max(as.numeric(NVL(params[['num_class']], 1)), 1) # nolint
-
   if (is_update && nrounds > niter_init)
     stop("nrounds cannot be larger than ", niter_init, " (nrounds of xgb_model)")
 
@@ -406,57 +403,83 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   begin_iteration <- niter_skip + 1
   end_iteration <- niter_skip + nrounds
 
+  .execute.cb.before.training(
+    callbacks,
+    bst,
+    dtrain,
+    evals,
+    begin_iteration,
+    end_iteration
+  )
+
   # the main loop for boosting iterations
   for (iteration in begin_iteration:end_iteration) {
 
-    for (f in cb$pre_iter) f()
-
-    xgb.iter.update(
-        bst = bst,
-        dtrain = dtrain,
-        iter = iteration - 1,
-        obj = obj
+    .execute.cb.before.iter(
+      callbacks,
+      bst,
+      dtrain,
+      evals,
+      iteration
     )
 
-    if (length(watchlist) > 0) {
-      bst_evaluation <- xgb.iter.eval(  # nolint: object_usage_linter
+    xgb.iter.update(
+      bst = bst,
+      dtrain = dtrain,
+      iter = iteration - 1,
+      obj = obj
+    )
+
+    bst_evaluation <- NULL
+    if (length(evals) > 0) {
+      bst_evaluation <- xgb.iter.eval(
         bst = bst,
-        watchlist = watchlist,
+        evals = evals,
         iter = iteration - 1,
         feval = feval
       )
     }
 
-    for (f in cb$post_iter) f()
+    should_stop <- .execute.cb.after.iter(
+      callbacks,
+      bst,
+      dtrain,
+      evals,
+      iteration,
+      bst_evaluation
+    )
 
-    if (stop_condition) break
+    if (should_stop) break
   }
-  for (f in cb$finalize) f(finalize = TRUE)
 
-  # store the evaluation results
-  keep_evaluation_log <- FALSE
-  if (length(evaluation_log) > 0 && nrow(evaluation_log) > 0) {
-    keep_evaluation_log <- TRUE
-    # include the previous compatible history when available
-    if (inherits(xgb_model, 'xgb.Booster') &&
-        !is_update &&
-        !is.null(past_evaluation_log) &&
-        isTRUE(all.equal(colnames(evaluation_log),
-                         colnames(past_evaluation_log)))) {
-      evaluation_log <- rbindlist(list(past_evaluation_log, evaluation_log))
-    }
-  }
+  cb_outputs <- .execute.cb.after.training(
+    callbacks,
+    bst,
+    dtrain,
+    evals,
+    iteration,
+    bst_evaluation
+  )
 
   extra_attrs <- list(
     call = match.call(),
-    params = params,
-    callbacks = callbacks
+    params = params
   )
-  if (keep_evaluation_log) {
-    extra_attrs$evaluation_log <- evaluation_log
-  }
+
   curr_attrs <- attributes(bst)
-  attributes(bst) <- c(curr_attrs, extra_attrs)
+  if (NROW(curr_attrs)) {
+    curr_attrs <- curr_attrs[
+      setdiff(
+        names(curr_attrs),
+        c(names(extra_attrs), names(cb_outputs))
+      )
+    ]
+  }
+  curr_attrs <- c(extra_attrs, curr_attrs)
+  if (NROW(cb_outputs)) {
+    curr_attrs <- c(curr_attrs, cb_outputs)
+  }
+  attributes(bst) <- curr_attrs
 
   return(bst)
 }

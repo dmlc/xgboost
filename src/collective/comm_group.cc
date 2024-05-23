@@ -1,22 +1,21 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright 2023-2024, XGBoost Contributors
  */
 #include "comm_group.h"
 
 #include <algorithm>  // for transform
+#include <cctype>     // for tolower
 #include <chrono>     // for seconds
 #include <cstdint>    // for int32_t
+#include <iterator>   // for back_inserter
 #include <memory>     // for shared_ptr, unique_ptr
 #include <string>     // for string
-#include <vector>     // for vector
 
-#include "../common/json_utils.h"       // for OptionalArg
-#include "coll.h"                       // for Coll
-#include "comm.h"                       // for Comm
-#include "tracker.h"                    // for GetHostAddress
-#include "xgboost/collective/result.h"  // for Result
-#include "xgboost/context.h"            // for DeviceOrd
-#include "xgboost/json.h"               // for Json
+#include "../common/json_utils.h"  // for OptionalArg
+#include "coll.h"                  // for Coll
+#include "comm.h"                  // for Comm
+#include "xgboost/context.h"       // for DeviceOrd
+#include "xgboost/json.h"          // for Json
 
 #if defined(XGBOOST_USE_FEDERATED)
 #include "../../plugin/federated/federated_coll.h"
@@ -65,6 +64,9 @@ CommGroup::CommGroup()
 
     auto const& obj = get<Object const>(config);
     auto it = obj.find(upper);
+    if (it != obj.cend() && obj.find(name) != obj.cend()) {
+      LOG(FATAL) << "Duplicated parameter:" << name;
+    }
     if (it != obj.cend()) {
       return OptionalArg<decltype(t)>(config, upper, dft);
     } else {
@@ -74,18 +76,18 @@ CommGroup::CommGroup()
   // Common args
   auto retry = get_param("dmlc_retry", static_cast<Integer::Int>(DefaultRetry()), Integer{});
   auto timeout =
-      get_param("dmlc_timeout_sec", static_cast<Integer::Int>(DefaultTimeoutSec()), Integer{});
+      get_param("dmlc_timeout", static_cast<Integer::Int>(DefaultTimeoutSec()), Integer{});
   auto task_id = get_param("dmlc_task_id", std::string{}, String{});
 
   if (type == "rabit") {
-    auto host = get_param("dmlc_tracker_uri", std::string{}, String{});
-    auto port = get_param("dmlc_tracker_port", static_cast<std::int64_t>(0), Integer{});
+    auto tracker_host = get_param("dmlc_tracker_uri", std::string{}, String{});
+    auto tracker_port = get_param("dmlc_tracker_port", static_cast<std::int64_t>(0), Integer{});
     auto nccl = get_param("dmlc_nccl_path", std::string{DefaultNcclName()}, String{});
-    auto ptr =
-        new CommGroup{std::shared_ptr<RabitComm>{new RabitComm{  // NOLINT
-                          host, static_cast<std::int32_t>(port), std::chrono::seconds{timeout},
-                          static_cast<std::int32_t>(retry), task_id, nccl}},
-                      std::shared_ptr<Coll>(new Coll{})};  // NOLINT
+    auto ptr = new CommGroup{
+        std::shared_ptr<RabitComm>{new RabitComm{  // NOLINT
+            tracker_host, static_cast<std::int32_t>(tracker_port), std::chrono::seconds{timeout},
+            static_cast<std::int32_t>(retry), task_id, nccl}},
+        std::shared_ptr<Coll>(new Coll{})};  // NOLINT
     return ptr;
   } else if (type == "federated") {
 #if defined(XGBOOST_USE_FEDERATED)
@@ -117,6 +119,34 @@ void GlobalCommGroupInit(Json config) {
 
 void GlobalCommGroupFinalize() {
   auto& sptr = GlobalCommGroup();
+  auto rc = sptr->Finalize();
   sptr.reset();
+  SafeColl(rc);
+}
+
+void Init(Json const& config) { GlobalCommGroupInit(config); }
+
+void Finalize() { GlobalCommGroupFinalize(); }
+
+std::int32_t GetRank() noexcept { return GlobalCommGroup()->Rank(); }
+
+std::int32_t GetWorldSize() noexcept { return GlobalCommGroup()->World(); }
+
+bool IsDistributed() noexcept { return GlobalCommGroup()->IsDistributed(); }
+
+[[nodiscard]] bool IsFederated() {
+  return GlobalCommGroup()->Ctx(nullptr, DeviceOrd::CPU()).IsFederated();
+}
+
+void Print(std::string const& message) {
+  auto rc = GlobalCommGroup()->Ctx(nullptr, DeviceOrd::CPU()).LogTracker(message);
+  SafeColl(rc);
+}
+
+std::string GetProcessorName() {
+  std::string out;
+  auto rc = GlobalCommGroup()->ProcessorName(&out);
+  SafeColl(rc);
+  return out;
 }
 }  // namespace xgboost::collective

@@ -18,9 +18,9 @@ xgboost <- function(data = NULL, label = NULL, missing = NA, weight = NULL,
     nthread = merged$nthread
   )
 
-  watchlist <- list(train = dtrain)
+  evals <- list(train = dtrain)
 
-  bst <- xgb.train(params, dtrain, nrounds, watchlist, verbose = verbose, print_every_n = print_every_n,
+  bst <- xgb.train(params, dtrain, nrounds, evals, verbose = verbose, print_every_n = print_every_n,
                    early_stopping_rounds = early_stopping_rounds, maximize = maximize,
                    save_period = save_period, save_name = save_name,
                    xgb_model = xgb_model, callbacks = callbacks, ...)
@@ -82,12 +82,8 @@ NULL
 NULL
 
 # Various imports
-#' @importClassesFrom Matrix dgCMatrix dgeMatrix dgRMatrix
-#' @importFrom Matrix colSums
+#' @importClassesFrom Matrix dgCMatrix dgRMatrix CsparseMatrix
 #' @importFrom Matrix sparse.model.matrix
-#' @importFrom Matrix sparseVector
-#' @importFrom Matrix sparseMatrix
-#' @importFrom Matrix t
 #' @importFrom data.table data.table
 #' @importFrom data.table is.data.table
 #' @importFrom data.table as.data.table
@@ -103,6 +99,7 @@ NULL
 #' @importFrom stats coef
 #' @importFrom stats predict
 #' @importFrom stats median
+#' @importFrom stats sd
 #' @importFrom stats variable.names
 #' @importFrom utils head
 #' @importFrom graphics barplot

@@ -4,10 +4,10 @@
 #include <gtest/gtest.h>
 
 #include <fstream>
-#include <iterator>  // for back_inserter
+#include <limits>  // for numeric_limits
 #include <map>
+#include <numeric>  // for iota
 
-#include "../../../src/common/charconv.h"
 #include "../../../src/common/io.h"
 #include "../../../src/common/json_utils.h"
 #include "../../../src/common/threading_utils.h"  // for ParallelFor

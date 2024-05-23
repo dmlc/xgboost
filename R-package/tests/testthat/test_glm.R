@@ -14,37 +14,37 @@ test_that("gblinear works", {
 
   param <- list(objective = "binary:logistic", eval_metric = "error", booster = "gblinear",
                 nthread = n_threads, eta = 0.8, alpha = 0.0001, lambda = 0.0001)
-  watchlist <- list(eval = dtest, train = dtrain)
+  evals <- list(eval = dtest, train = dtrain)
 
   n <- 5         # iterations
   ERR_UL <- 0.005 # upper limit for the test set error
   VERB <- 0      # chatterbox switch
 
   param$updater <- 'shotgun'
-  bst <- xgb.train(param, dtrain, n, watchlist, verbose = VERB, feature_selector = 'shuffle')
+  bst <- xgb.train(param, dtrain, n, evals, verbose = VERB, feature_selector = 'shuffle')
   ypred <- predict(bst, dtest)
   expect_equal(length(getinfo(dtest, 'label')), 1611)
   expect_lt(attributes(bst)$evaluation_log$eval_error[n], ERR_UL)
 
-  bst <- xgb.train(param, dtrain, n, watchlist, verbose = VERB, feature_selector = 'cyclic',
-                   callbacks = list(cb.gblinear.history()))
+  bst <- xgb.train(param, dtrain, n, evals, verbose = VERB, feature_selector = 'cyclic',
+                   callbacks = list(xgb.cb.gblinear.history()))
   expect_lt(attributes(bst)$evaluation_log$eval_error[n], ERR_UL)
   h <- xgb.gblinear.history(bst)
   expect_equal(dim(h), c(n, ncol(dtrain) + 1))
   expect_is(h, "matrix")
 
   param$updater <- 'coord_descent'
-  bst <- xgb.train(param, dtrain, n, watchlist, verbose = VERB, feature_selector = 'cyclic')
+  bst <- xgb.train(param, dtrain, n, evals, verbose = VERB, feature_selector = 'cyclic')
   expect_lt(attributes(bst)$evaluation_log$eval_error[n], ERR_UL)
 
-  bst <- xgb.train(param, dtrain, n, watchlist, verbose = VERB, feature_selector = 'shuffle')
+  bst <- xgb.train(param, dtrain, n, evals, verbose = VERB, feature_selector = 'shuffle')
   expect_lt(attributes(bst)$evaluation_log$eval_error[n], ERR_UL)
 
-  bst <- xgb.train(param, dtrain, 2, watchlist, verbose = VERB, feature_selector = 'greedy')
+  bst <- xgb.train(param, dtrain, 2, evals, verbose = VERB, feature_selector = 'greedy')
   expect_lt(attributes(bst)$evaluation_log$eval_error[2], ERR_UL)
 
-  bst <- xgb.train(param, dtrain, n, watchlist, verbose = VERB, feature_selector = 'thrifty',
-                   top_k = 50, callbacks = list(cb.gblinear.history(sparse = TRUE)))
+  bst <- xgb.train(param, dtrain, n, evals, verbose = VERB, feature_selector = 'thrifty',
+                   top_k = 50, callbacks = list(xgb.cb.gblinear.history(sparse = TRUE)))
   expect_lt(attributes(bst)$evaluation_log$eval_error[n], ERR_UL)
   h <- xgb.gblinear.history(bst)
   expect_equal(dim(h), c(n, ncol(dtrain) + 1))

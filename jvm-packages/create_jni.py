@@ -23,6 +23,7 @@ CONFIG = {
     "USE_NCCL": "OFF",
     "JVM_BINDINGS": "ON",
     "LOG_CAPI_INVOCATION": "OFF",
+    "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
 }
 
 
@@ -97,10 +98,6 @@ def native_build(args):
 
         args = ["-D{0}:BOOL={1}".format(k, v) for k, v in CONFIG.items()]
 
-        # if enviorment set rabit_mock
-        if os.getenv("RABIT_MOCK", None) is not None:
-            args.append("-DRABIT_MOCK:BOOL=ON")
-
         # if enviorment set GPU_ARCH_FLAG
         gpu_arch_flag = os.getenv("GPU_ARCH_FLAG", None)
         if gpu_arch_flag is not None:
@@ -161,12 +158,6 @@ def native_build(args):
     )
     maybe_makedirs(output_folder)
     cp("../lib/" + library_name, output_folder)
-
-    print("copying pure-Python tracker")
-    cp(
-        "../python-package/xgboost/tracker.py",
-        "{}/src/main/resources".format(xgboost4j),
-    )
 
     print("copying train/test files")
     maybe_makedirs("{}/src/test/resources".format(xgboost4j_spark))

@@ -30,9 +30,8 @@
 #define XGBOOST_SPAN_H_
 
 #include <xgboost/base.h>
-#include <xgboost/logging.h>
 
-#include <cinttypes>  // size_t
+#include <cstddef>  // size_t
 #include <cstdio>
 #include <iterator>
 #include <limits>  // numeric_limits
@@ -73,8 +72,7 @@
 
 #endif  // defined(_MSC_VER) && _MSC_VER < 1910
 
-namespace xgboost {
-namespace common {
+namespace xgboost::common {
 
 #if defined(__CUDA_ARCH__)
 // Usual logging facility is not available inside device code.
@@ -701,14 +699,14 @@ class IterSpan {
     return {data() + _offset, _count == dynamic_extent ? size() - _offset : _count};
   }
   [[nodiscard]] XGBOOST_DEVICE constexpr iterator begin() const noexcept {  // NOLINT
-    return {this, 0};
+    return it_;
   }
   [[nodiscard]] XGBOOST_DEVICE constexpr iterator end() const noexcept {  // NOLINT
-    return {this, size()};
+    return it_ + size();
   }
 };
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common
+
 
 #if defined(_MSC_VER) &&_MSC_VER < 1910
 #undef constexpr

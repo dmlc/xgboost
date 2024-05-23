@@ -25,13 +25,13 @@ TEST_F(TrackerAPITest, CAPI) {
   auto config_str = Json::Dump(config);
   auto rc = XGTrackerCreate(config_str.c_str(), &handle);
   ASSERT_EQ(rc, 0);
-  rc = XGTrackerRun(handle);
+  rc = XGTrackerRun(handle, nullptr);
   ASSERT_EQ(rc, 0);
 
   std::thread bg_wait{[&] {
     Json config{Object{}};
     auto config_str = Json::Dump(config);
-    auto rc = XGTrackerWait(handle, config_str.c_str());
+    auto rc = XGTrackerWaitFor(handle, config_str.c_str());
     ASSERT_EQ(rc, 0);
   }};
 
@@ -42,8 +42,8 @@ TEST_F(TrackerAPITest, CAPI) {
 
   std::string host;
   ASSERT_TRUE(GetHostAddress(&host).OK());
-  ASSERT_EQ(host, get<String const>(args["DMLC_TRACKER_URI"]));
-  auto port = get<Integer const>(args["DMLC_TRACKER_PORT"]);
+  ASSERT_EQ(host, get<String const>(args["dmlc_tracker_uri"]));
+  auto port = get<Integer const>(args["dmlc_tracker_port"]);
   ASSERT_NE(port, 0);
 
   std::vector<std::thread> workers;

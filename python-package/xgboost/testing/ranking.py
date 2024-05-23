@@ -100,3 +100,21 @@ def run_ranking_categorical(device: str) -> None:
     scores = cross_val_score(ltr, X, y)
     for s in scores:
         assert s > 0.7
+
+
+def run_normalization(device: str) -> None:
+    """Test normalization."""
+    X, y, qid, _ = tm.make_ltr(2048, 4, 64, 3)
+    ltr = xgb.XGBRanker(objective="rank:pairwise", n_estimators=4, device=device)
+    ltr.fit(X, y, qid=qid, eval_set=[(X, y)], eval_qid=[qid])
+    e0 = ltr.evals_result()
+
+    ltr = xgb.XGBRanker(
+        objective="rank:pairwise",
+        n_estimators=4,
+        device=device,
+        lambdarank_normalization=False,
+    )
+    ltr.fit(X, y, qid=qid, eval_set=[(X, y)], eval_qid=[qid])
+    e1 = ltr.evals_result()
+    assert e1["validation_0"]["ndcg@32"][-1] > e0["validation_0"]["ndcg@32"][-1]

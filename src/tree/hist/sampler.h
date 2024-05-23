@@ -54,7 +54,7 @@ inline void SampleGradient(Context const* ctx, TrainParam param,
   if (param.subsample >= 1.0) {
     return;
   }
-  bst_row_t n_samples = out.Shape(0);
+  bst_idx_t n_samples = out.Shape(0);
   auto& rnd = common::GlobalRandom();
 
 #if XGBOOST_CUSTOMIZE_GLOBAL_PRNG

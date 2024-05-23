@@ -171,11 +171,10 @@ struct WriteCompressedEllpackFunctor {
 
   using Tuple = thrust::tuple<size_t, size_t, size_t>;
   __device__ size_t operator()(Tuple out) {
-    auto e = batch.GetElement(out.get<2>());
+    auto e = batch.GetElement(thrust::get<2>(out));
     if (is_valid(e)) {
       // -1 because the scan is inclusive
-      size_t output_position =
-          accessor.row_stride * e.row_idx + out.get<1>() - 1;
+      size_t output_position = accessor.row_stride * e.row_idx + thrust::get<1>(out) - 1;
       uint32_t bin_idx = 0;
       if (common::IsCat(feature_types, e.column_idx)) {
         bin_idx = accessor.SearchBin<true>(e.value, e.column_idx);
@@ -192,8 +191,8 @@ template <typename Tuple>
 struct TupleScanOp {
   __device__ Tuple operator()(Tuple a, Tuple b) {
     // Key equal
-    if (a.template get<0>() == b.template get<0>()) {
-      b.template get<1>() += a.template get<1>();
+    if (thrust::get<0>(a) == thrust::get<0>(b)) {
+      thrust::get<1>(b) += thrust::get<1>(a);
       return b;
     }
     // Not equal

@@ -35,10 +35,24 @@ class TestTreeMethod:
     def test_exact(self, param, num_rounds, dataset):
         if dataset.name.endswith("-l1"):
             return
-        param['tree_method'] = 'exact'
+        param["tree_method"] = "exact"
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), num_rounds)
-        assert tm.non_increasing(result['train'][dataset.metric])
+        assert tm.non_increasing(result["train"][dataset.metric])
+
+    def test_exact_sample_by_node_error(self) -> None:
+        X, y, w = tm.make_regression(128, 12, False)
+        with pytest.raises(ValueError, match="column sample by node"):
+            xgb.train(
+                {"tree_method": "exact", "colsample_bynode": 0.999},
+                xgb.DMatrix(X, y, weight=w),
+            )
+
+        xgb.train(
+            {"tree_method": "exact", "colsample_bynode": 1.0},
+            xgb.DMatrix(X, y, weight=w),
+            num_boost_round=2,
+        )
 
     @given(
         exact_parameter_strategy,

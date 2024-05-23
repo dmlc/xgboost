@@ -11,7 +11,6 @@
 #include <cmath>        // for abs
 #include <cstdint>      // for uint64_t, int32_t, uint8_t, uint32_t
 #include <cstring>      // for size_t, strcmp, memcpy
-#include <exception>    // for exception
 #include <iostream>     // for operator<<, basic_ostream, basic_ostream::op...
 #include <map>          // for map, operator!=
 #include <numeric>      // for accumulate, partial_sum
@@ -19,10 +18,10 @@
 #include <type_traits>  // for remove_pointer_t, remove_reference
 
 #include "../collective/communicator-inl.h"  // for GetRank, GetWorldSize, Allreduce, IsFederated
-#include "../collective/communicator.h"      // for Operation
+#include "../collective/allgather.h"
+#include "../collective/allreduce.h"
 #include "../common/algorithm.h"             // for StableSort
 #include "../common/api_entry.h"             // for XGBAPIThreadLocalEntry
-#include "../common/common.h"                // for Split
 #include "../common/error_msg.h"             // for GroupSize, GroupWeight, InfInData
 #include "../common/group_data.h"            // for ParallelGroupBuilder
 #include "../common/io.h"                    // for PeekableInStream
@@ -47,7 +46,7 @@
 #include "simple_dmatrix.h"                  // for SimpleDMatrix
 #include "sparse_page_writer.h"              // for SparsePageFormatReg
 #include "validation.h"                      // for LabelsCheck, WeightsCheck, ValidateQueryGroup
-#include "xgboost/base.h"                    // for bst_group_t, bst_row_t, bst_float, bst_ulong
+#include "xgboost/base.h"                    // for bst_group_t, bst_idx_t, bst_float, bst_ulong
 #include "xgboost/context.h"                 // for Context
 #include "xgboost/host_device_vector.h"      // for HostDeviceVector
 #include "xgboost/learner.h"                 // for HostDeviceVector
@@ -473,11 +472,11 @@ void MetaInfo::SetInfo(Context const& ctx, StringView key, StringView interface_
                               << ", must have at least 1 column even if it's empty.";
     auto const& first = get<Object const>(array.front());
     auto ptr = ArrayInterfaceHandler::GetPtrFromArrayData<void*>(first);
-    is_cuda = ArrayInterfaceHandler::IsCudaPtr(ptr);
+    is_cuda = first.find("stream") != first.cend() || ArrayInterfaceHandler::IsCudaPtr(ptr);
   } else {
     auto const& first = get<Object const>(j_interface);
     auto ptr = ArrayInterfaceHandler::GetPtrFromArrayData<void*>(first);
-    is_cuda = ArrayInterfaceHandler::IsCudaPtr(ptr);
+    is_cuda = first.find("stream") != first.cend() || ArrayInterfaceHandler::IsCudaPtr(ptr);
   }
 
   if (is_cuda) {
@@ -567,46 +566,6 @@ void MetaInfo::SetInfoFromHost(Context const& ctx, StringView key, Json arr) {
   }
 }
 
-void MetaInfo::SetInfo(Context const& ctx, const char* key, const void* dptr, DataType dtype,
-                       size_t num) {
-  CHECK(key);
-  auto proc = [&](auto cast_d_ptr) {
-    using T = std::remove_pointer_t<decltype(cast_d_ptr)>;
-    auto t = linalg::TensorView<T, 1>(common::Span<T>{cast_d_ptr, num}, {num}, DeviceOrd::CPU());
-    CHECK(t.CContiguous());
-    Json interface {
-      linalg::ArrayInterface(t)
-    };
-    assert(ArrayInterface<1>{interface}.is_contiguous);
-    return interface;
-  };
-  // Legacy code using XGBoost dtype, which is a small subset of array interface types.
-  switch (dtype) {
-    case xgboost::DataType::kFloat32: {
-      auto cast_ptr = reinterpret_cast<const float*>(dptr);
-      this->SetInfoFromHost(ctx, key, proc(cast_ptr));
-      break;
-    }
-    case xgboost::DataType::kDouble: {
-      auto cast_ptr = reinterpret_cast<const double*>(dptr);
-      this->SetInfoFromHost(ctx, key, proc(cast_ptr));
-      break;
-    }
-    case xgboost::DataType::kUInt32: {
-      auto cast_ptr = reinterpret_cast<const uint32_t*>(dptr);
-      this->SetInfoFromHost(ctx, key, proc(cast_ptr));
-      break;
-    }
-    case xgboost::DataType::kUInt64: {
-      auto cast_ptr = reinterpret_cast<const uint64_t*>(dptr);
-      this->SetInfoFromHost(ctx, key, proc(cast_ptr));
-      break;
-    }
-    default:
-      LOG(FATAL) << "Unknown data type" << static_cast<uint8_t>(dtype);
-  }
-}
-
 void MetaInfo::GetInfo(char const* key, bst_ulong* out_len, DataType dtype,
                        const void** out_dptr) const {
   if (dtype == DataType::kFloat32) {
@@ -643,41 +602,42 @@ void MetaInfo::GetInfo(char const* key, bst_ulong* out_len, DataType dtype,
 }
 
 void MetaInfo::SetFeatureInfo(const char* key, const char **info, const bst_ulong size) {
-  if (size != 0 && this->num_col_ != 0 && !IsColumnSplit()) {
+  bool is_col_split = this->IsColumnSplit();
+
+  if (size != 0 && this->num_col_ != 0 && !is_col_split) {
     CHECK_EQ(size, this->num_col_) << "Length of " << key << " must be equal to number of columns.";
     CHECK(info);
   }
 
-  if (!std::strcmp(key, "feature_type")) {
-    feature_type_names.clear();
-    for (size_t i = 0; i < size; ++i) {
-      auto elem = info[i];
-      feature_type_names.emplace_back(elem);
-    }
-    if (IsColumnSplit()) {
-      feature_type_names = collective::AllgatherStrings(feature_type_names);
-      CHECK_EQ(feature_type_names.size(), num_col_)
+  // Gather column info when data is split by columns
+  auto gather_columns = [is_col_split, key, n_columns = this->num_col_](auto const& inputs) {
+    if (is_col_split) {
+      std::remove_const_t<std::remove_reference_t<decltype(inputs)>> result;
+      auto rc = collective::AllgatherStrings(inputs, &result);
+      collective::SafeColl(rc);
+      CHECK_EQ(result.size(), n_columns)
           << "Length of " << key << " must be equal to number of columns.";
+      return result;
     }
+    return inputs;
+  };
+
+  if (StringView{key} == "feature_type") {  // NOLINT
+    this->feature_type_names.clear();
+    std::copy(info, info + size, std::back_inserter(feature_type_names));
+    feature_type_names = gather_columns(feature_type_names);
     auto& h_feature_types = feature_types.HostVector();
     this->has_categorical_ = LoadFeatureType(feature_type_names, &h_feature_types);
-  } else if (!std::strcmp(key, "feature_name")) {
-    if (IsColumnSplit()) {
-      std::vector<std::string> local_feature_names{};
+  } else if (StringView{key} == "feature_name") {  // NOLINT
+    feature_names.clear();
+    if (is_col_split) {
       auto const rank = collective::GetRank();
-      for (std::size_t i = 0; i < size; ++i) {
-        auto elem = std::to_string(rank) + "." + info[i];
-        local_feature_names.emplace_back(elem);
-      }
-      feature_names = collective::AllgatherStrings(local_feature_names);
-      CHECK_EQ(feature_names.size(), num_col_)
-        << "Length of " << key << " must be equal to number of columns.";
+      std::transform(info, info + size, std::back_inserter(feature_names),
+                     [rank](char const* elem) { return std::to_string(rank) + "." + elem; });
     } else {
-      feature_names.clear();
-      for (size_t i = 0; i < size; ++i) {
-        feature_names.emplace_back(info[i]);
-      }
+      std::copy(info, info + size, std::back_inserter(feature_names));
     }
+    feature_names = gather_columns(feature_names);
   } else {
     LOG(FATAL) << "Unknown feature info name: " << key;
   }
@@ -770,12 +730,10 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_col
   }
 }
 
-void MetaInfo::SynchronizeNumberOfColumns(Context const*) {
-  if (IsColumnSplit()) {
-    collective::Allreduce<collective::Operation::kSum>(&num_col_, 1);
-  } else {
-    collective::Allreduce<collective::Operation::kMax>(&num_col_, 1);
-  }
+void MetaInfo::SynchronizeNumberOfColumns(Context const* ctx) {
+  auto op = IsColumnSplit() ? collective::Op::kSum : collective::Op::kMax;
+  auto rc = collective::Allreduce(ctx, linalg::MakeVec(&num_col_, 1), op);
+  collective::SafeColl(rc);
 }
 
 namespace {
@@ -996,7 +954,7 @@ template DMatrix* DMatrix::Create(
 
 SparsePage SparsePage::GetTranspose(int num_columns, int32_t n_threads) const {
   SparsePage transpose;
-  common::ParallelGroupBuilder<Entry, bst_row_t> builder(&transpose.offset.HostVector(),
+  common::ParallelGroupBuilder<Entry, bst_idx_t> builder(&transpose.offset.HostVector(),
                                                          &transpose.data.HostVector());
   builder.InitBudget(num_columns, n_threads);
   long batch_size = static_cast<long>(this->Size());  // NOLINT(*)
@@ -1192,7 +1150,7 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
 
 void SparsePage::PushCSC(const SparsePage &batch) {
   std::vector<xgboost::Entry>& self_data = data.HostVector();
-  std::vector<bst_row_t>& self_offset = offset.HostVector();
+  std::vector<bst_idx_t>& self_offset = offset.HostVector();
 
   auto const& other_data = batch.data.ConstHostVector();
   auto const& other_offset = batch.offset.ConstHostVector();
@@ -1211,7 +1169,7 @@ void SparsePage::PushCSC(const SparsePage &batch) {
     return;
   }
 
-  std::vector<bst_row_t> offset(other_offset.size());
+  std::vector<bst_idx_t> offset(other_offset.size());
   offset[0] = 0;
 
   std::vector<xgboost::Entry> data(self_data.size() + other_data.size());

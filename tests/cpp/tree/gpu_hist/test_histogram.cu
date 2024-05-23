@@ -239,4 +239,18 @@ void TestAtomicAdd() {
 TEST(Histogram, AtomicAddInt64) {
   TestAtomicAdd();
 }
+
+TEST(Histogram, Quantiser) {
+  auto ctx = MakeCUDACtx(0);
+  std::size_t n_samples{16};
+  HostDeviceVector<GradientPair> gpair(n_samples, GradientPair{1.0, 1.0});
+  gpair.SetDevice(ctx.Device());
+
+  auto quantiser = GradientQuantiser(&ctx, gpair.DeviceSpan(), MetaInfo());
+  for (auto v : gpair.ConstHostVector()) {
+    auto gh = quantiser.ToFloatingPoint(quantiser.ToFixedPoint(v));
+    ASSERT_EQ(gh.GetGrad(), 1.0);
+    ASSERT_EQ(gh.GetHess(), 1.0);
+  }
+}
 }  // namespace xgboost::tree

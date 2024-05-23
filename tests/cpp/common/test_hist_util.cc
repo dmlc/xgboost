@@ -1,10 +1,9 @@
 /**
- * Copyright 2019-2023 by XGBoost Contributors
+ * Copyright 2019-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <vector>
 #include <string>
-#include <utility>
 
 #include "../../../src/common/hist_util.h"
 #include "../../../src/data/gradient_index.h"
@@ -135,7 +134,7 @@ TEST(CutsBuilder, SearchGroupInd) {
   group[2] = 7;
   group[3] = 5;
 
-  p_mat->SetInfo("group", group.data(), DataType::kUInt32, kNumGroups);
+  p_mat->SetInfo("group", Make1dInterfaceTest(group.data(), group.size()));
 
   HistogramCuts hmat;
 
@@ -348,7 +347,8 @@ void TestSketchFromWeights(bool with_group) {
     for (size_t i = 0; i < kGroups; ++i) {
       groups[i] = kRows / kGroups;
     }
-    info.SetInfo(ctx, "group", groups.data(), DataType::kUInt32, kGroups);
+    auto sg = linalg::Make1dInterface(groups.data(), kGroups);
+    info.SetInfo(ctx, "group", sg.c_str());
   }
 
   info.num_row_ = kRows;
@@ -356,10 +356,10 @@ void TestSketchFromWeights(bool with_group) {
 
   // Assign weights.
   if (with_group) {
-    m->SetInfo("group", groups.data(), DataType::kUInt32, kGroups);
+    m->SetInfo("group", Make1dInterfaceTest(groups.data(), kGroups));
   }
 
-  m->SetInfo("weight", h_weights.data(), DataType::kFloat32, h_weights.size());
+  m->SetInfo("weight", Make1dInterfaceTest(h_weights.data(), h_weights.size()));
   m->Info().num_col_ = kCols;
   m->Info().num_row_ = kRows;
   ASSERT_EQ(cuts.Ptrs().size(), kCols + 1);

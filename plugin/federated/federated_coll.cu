@@ -53,8 +53,7 @@ Coll *FederatedColl::MakeCUDAVar() {
   };
 }
 
-[[nodiscard]] Result CUDAFederatedColl::Allgather(Comm const &comm, common::Span<std::int8_t> data,
-                                                  std::int64_t size) {
+[[nodiscard]] Result CUDAFederatedColl::Allgather(Comm const &comm, common::Span<std::int8_t> data) {
   auto cufed = dynamic_cast<CUDAFederatedComm const *>(&comm);
   CHECK(cufed);
   std::vector<std::int8_t> h_data(data.size());
@@ -63,7 +62,7 @@ Coll *FederatedColl::MakeCUDAVar() {
     return GetCUDAResult(
         cudaMemcpy(h_data.data(), data.data(), data.size(), cudaMemcpyDeviceToHost));
   } << [&] {
-    return p_impl_->Allgather(comm, common::Span{h_data.data(), h_data.size()}, size);
+    return p_impl_->Allgather(comm, common::Span{h_data.data(), h_data.size()});
   } << [&] {
     return GetCUDAResult(cudaMemcpyAsync(data.data(), h_data.data(), data.size(),
                                          cudaMemcpyHostToDevice, cufed->Stream()));

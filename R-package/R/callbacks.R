@@ -1,769 +1,392 @@
-#' Callback closures for booster training.
-#'
-#' These are used to perform various service tasks either during boosting iterations or at the end.
-#' This approach helps to modularize many of such tasks without bloating the main training methods,
-#' and it offers .
-#'
-#' @details
-#' By default, a callback function is run after each boosting iteration.
-#' An R-attribute \code{is_pre_iteration} could be set for a callback to define a pre-iteration function.
-#'
-#' When a callback function has \code{finalize} parameter, its finalizer part will also be run after
-#' the boosting is completed.
-#'
-#' WARNING: side-effects!!! Be aware that these callback functions access and modify things in
-#' the environment from which they are called from, which is a fairly uncommon thing to do in R.
-#'
-#' To write a custom callback closure, make sure you first understand the main concepts about R environments.
-#' Check either R documentation on \code{\link[base]{environment}} or the
-#' \href{http://adv-r.had.co.nz/Environments.html}{Environments chapter} from the "Advanced R"
-#' book by Hadley Wickham. Further, the best option is to read the code of some of the existing callbacks -
-#' choose ones that do something similar to what you want to achieve. Also, you would need to get familiar
-#' with the objects available inside of the \code{xgb.train} and \code{xgb.cv} internal environments.
-#'
-#' @seealso
-#' \code{\link{cb.print.evaluation}},
-#' \code{\link{cb.evaluation.log}},
-#' \code{\link{cb.reset.parameters}},
-#' \code{\link{cb.early.stop}},
-#' \code{\link{cb.save.model}},
-#' \code{\link{cb.cv.predict}},
-#' \code{\link{xgb.train}},
-#' \code{\link{xgb.cv}}
-#'
-#' @name callbacks
-NULL
+.reserved_cb_names <- c("names", "class", "call", "params", "niter", "nfeatures", "folds")
 
-#
-# Callbacks -------------------------------------------------------------------
-#
-
-#' Callback closure for printing the result of evaluation
+#' @title XGBoost Callback Constructor
+#' @description Constructor for defining the structure of callback functions that can be executed
+#' at different stages of model training (before / after training, before / after each boosting
+#' iteration).
+#' @param cb_name Name for the callback.
 #'
-#' @param period  results would be printed every number of periods
-#' @param showsd  whether standard deviations should be printed (when available)
+#' If the callback produces some non-NULL result (from executing the function passed under
+#' `f_after_training`), that result will be added as an R attribute to the resulting booster
+#' (or as a named element in the result of CV), with the attribute name specified here.
 #'
-#' @details
-#' The callback function prints the result of evaluation at every \code{period} iterations.
-#' The initial and the last iteration's evaluations are always printed.
+#' Names of callbacks must be unique - i.e. there cannot be two callbacks with the same name.
+#' @param env An environment object that will be passed to the different functions in the callback.
+#' Note that this environment will not be shared with other callbacks.
+#' @param f_before_training A function that will be executed before the training has started.
 #'
-#' Callback function expects the following values to be set in its calling frame:
-#' \code{bst_evaluation} (also \code{bst_evaluation_err} when available),
-#' \code{iteration},
-#' \code{begin_iteration},
-#' \code{end_iteration}.
+#' If passing `NULL` for this or for the other function inputs, then no function will be executed.
 #'
-#' @seealso
-#' \code{\link{callbacks}}
+#' If passing a function, it will be called with parameters supplied as non-named arguments
+#' matching the function signatures that are shown in the default value for each function argument.
+#' @param f_before_iter A function that will be executed before each boosting round.
 #'
-#' @export
-cb.print.evaluation <- function(period = 1, showsd = TRUE) {
-
-  callback <- function(env = parent.frame()) {
-    if (length(env$bst_evaluation) == 0 ||
-        period == 0 ||
-        NVL(env$rank, 0) != 0)
-      return()
-
-    i <- env$iteration
-    if ((i - 1) %% period == 0 ||
-        i == env$begin_iteration ||
-        i == env$end_iteration) {
-      stdev <- if (showsd) env$bst_evaluation_err else NULL
-      msg <- .format_eval_string(i, env$bst_evaluation, stdev)
-      cat(msg, '\n')
-    }
-  }
-  attr(callback, 'call') <- match.call()
-  attr(callback, 'name') <- 'cb.print.evaluation'
-  callback
-}
-
-
-#' Callback closure for logging the evaluation history
+#' This function can signal whether the training should be finalized or not, by outputting
+#' a value that evaluates to `TRUE` - i.e. if the output from the function provided here at
+#' a given round is `TRUE`, then training will be stopped before the current iteration happens.
 #'
-#' @details
-#' This callback function appends the current iteration evaluation results \code{bst_evaluation}
-#' available in the calling parent frame to the \code{evaluation_log} list in a calling frame.
+#' Return values of `NULL` will be interpreted as `FALSE`.
+#' @param f_after_iter A function that will be executed after each boosting round.
 #'
-#' The finalizer callback (called with \code{finalize = TURE} in the end) converts
-#' the \code{evaluation_log} list into a final data.table.
+#' This function can signal whether the training should be finalized or not, by outputting
+#' a value that evaluates to `TRUE` - i.e. if the output from the function provided here at
+#' a given round is `TRUE`, then training will be stopped at that round.
 #'
-#' The iteration evaluation result \code{bst_evaluation} must be a named numeric vector.
+#' Return values of `NULL` will be interpreted as `FALSE`.
+#' @param f_after_training A function that will be executed after training is finished.
 #'
-#' Note: in the column names of the final data.table, the dash '-' character is replaced with
-#' the underscore '_' in order to make the column names more like regular R identifiers.
+#' This function can optionally output something non-NULL, which will become part of the R
+#' attributes of the booster (assuming one passes `keep_extra_attributes=TRUE` to \link{xgb.train})
+#' under the name supplied for parameter `cb_name` imn the case of \link{xgb.train}; or a part
+#' of the named elements in the result of \link{xgb.cv}.
+#' @return An `xgb.Callback` object, which can be passed to \link{xgb.train} or \link{xgb.cv}.
+#' @details Arguments that will be passed to the supplied functions are as follows:\itemize{
 #'
-#' Callback function expects the following values to be set in its calling frame:
-#' \code{evaluation_log},
-#' \code{bst_evaluation},
-#' \code{iteration}.
+#' \item env The same environment that is passed under argument `env`.
 #'
-#' @seealso
-#' \code{\link{callbacks}}
+#' It may be modified by the functions in order to e.g. keep tracking of what happens
+#' across iterations or similar.
 #'
-#' @export
-cb.evaluation.log <- function() {
-
-  mnames <- NULL
-
-  init <- function(env) {
-    if (!is.list(env$evaluation_log))
-      stop("'evaluation_log' has to be a list")
-    mnames <<- names(env$bst_evaluation)
-    if (is.null(mnames) || any(mnames == ""))
-      stop("bst_evaluation must have non-empty names")
-
-    mnames <<- gsub('-', '_', names(env$bst_evaluation), fixed = TRUE)
-    if (!is.null(env$bst_evaluation_err))
-      mnames <<- c(paste0(mnames, '_mean'), paste0(mnames, '_std'))
-  }
-
-  finalizer <- function(env) {
-    env$evaluation_log <- as.data.table(t(simplify2array(env$evaluation_log)))
-    setnames(env$evaluation_log, c('iter', mnames))
-
-    if (!is.null(env$bst_evaluation_err)) {
-      # rearrange col order from _mean,_mean,...,_std,_std,...
-      # to be _mean,_std,_mean,_std,...
-      len <- length(mnames)
-      means <- mnames[seq_len(len / 2)]
-      stds <- mnames[(len / 2 + 1):len]
-      cnames <- numeric(len)
-      cnames[c(TRUE, FALSE)] <- means
-      cnames[c(FALSE, TRUE)] <- stds
-      env$evaluation_log <- env$evaluation_log[, c('iter', cnames), with = FALSE]
-    }
-  }
-
-  callback <- function(env = parent.frame(), finalize = FALSE) {
-    if (is.null(mnames))
-      init(env)
-
-    if (finalize)
-      return(finalizer(env))
-
-    ev <- env$bst_evaluation
-    if (!is.null(env$bst_evaluation_err))
-      ev <- c(ev, env$bst_evaluation_err)
-    env$evaluation_log <- c(env$evaluation_log,
-                            list(c(iter = env$iteration, ev)))
-  }
-  attr(callback, 'call') <- match.call()
-  attr(callback, 'name') <- 'cb.evaluation.log'
-  callback
-}
-
-#' Callback closure for resetting the booster's parameters at each iteration.
+#' This environment is only used by the functions supplied to the callback, and will
+#' not be kept after the model fitting function terminates (see parameter `f_after_training`).
 #'
-#' @param new_params a list where each element corresponds to a parameter that needs to be reset.
-#'        Each element's value must be either a vector of values of length \code{nrounds}
-#'        to be set at each iteration,
-#'        or a function of two parameters \code{learning_rates(iteration, nrounds)}
-#'        which returns a new parameter value by using the current iteration number
-#'        and the total number of boosting rounds.
+#' \item model The booster object when using \link{xgb.train}, or the folds when using
+#' \link{xgb.cv}.
 #'
-#' @details
-#' This is a "pre-iteration" callback function used to reset booster's parameters
-#' at the beginning of each iteration.
-#'
-#' Note that when training is resumed from some previous model, and a function is used to
-#' reset a parameter value, the \code{nrounds} argument in this function would be the
-#' the number of boosting rounds in the current training.
-#'
-#' Callback function expects the following values to be set in its calling frame:
-#' \code{bst} or \code{bst_folds},
-#' \code{iteration},
-#' \code{begin_iteration},
-#' \code{end_iteration}.
-#'
-#' @seealso
-#' \code{\link{callbacks}}
-#'
-#' @export
-cb.reset.parameters <- function(new_params) {
-
-  if (typeof(new_params) != "list")
-    stop("'new_params' must be a list")
-  pnames <- gsub(".", "_", names(new_params), fixed = TRUE)
-  nrounds <- NULL
-
-  # run some checks in the beginning
-  init <- function(env) {
-    nrounds <<- env$end_iteration - env$begin_iteration + 1
-
-    if (is.null(env$bst) && is.null(env$bst_folds))
-      stop("Parent frame has neither 'bst' nor 'bst_folds'")
-
-    # Some parameters are not allowed to be changed,
-    # since changing them would simply wreck some chaos
-    not_allowed <- pnames %in%
-      c('num_class', 'num_output_group', 'size_leaf_vector', 'updater_seq')
-    if (any(not_allowed))
-      stop('Parameters ', paste(pnames[not_allowed]), " cannot be changed during boosting.")
-
-    for (n in pnames) {
-      p <- new_params[[n]]
-      if (is.function(p)) {
-        if (length(formals(p)) != 2)
-          stop("Parameter '", n, "' is a function but not of two arguments")
-      } else if (is.numeric(p) || is.character(p)) {
-        if (length(p) != nrounds)
-          stop("Length of '", n, "' has to be equal to 'nrounds'")
-      } else {
-        stop("Parameter '", n, "' is not a function or a vector")
-      }
-    }
-  }
-
-  callback <- function(env = parent.frame()) {
-    if (is.null(nrounds))
-      init(env)
-
-    i <- env$iteration
-    pars <- lapply(new_params, function(p) {
-      if (is.function(p))
-        return(p(i, nrounds))
-      p[i]
-    })
-
-    if (!is.null(env$bst)) {
-      xgb.parameters(env$bst) <- pars
-    } else {
-      for (fd in env$bst_folds)
-        xgb.parameters(fd$bst) <- pars
-    }
-  }
-  attr(callback, 'is_pre_iteration') <- TRUE
-  attr(callback, 'call') <- match.call()
-  attr(callback, 'name') <- 'cb.reset.parameters'
-  callback
-}
-
-
-#' Callback closure to activate the early stopping.
-#'
-#' @param stopping_rounds The number of rounds with no improvement in
-#'        the evaluation metric in order to stop the training.
-#' @param maximize whether to maximize the evaluation metric
-#' @param metric_name the name of an evaluation column to use as a criteria for early
-#'        stopping. If not set, the last column would be used.
-#'        Let's say the test data in \code{watchlist} was labelled as \code{dtest},
-#'        and one wants to use the AUC in test data for early stopping regardless of where
-#'        it is in the \code{watchlist}, then one of the following would need to be set:
-#'        \code{metric_name='dtest-auc'} or \code{metric_name='dtest_auc'}.
-#'        All dash '-' characters in metric names are considered equivalent to '_'.
-#' @param verbose whether to print the early stopping information.
-#'
-#' @details
-#' This callback function determines the condition for early stopping
-#' by setting the \code{stop_condition = TRUE} flag in its calling frame.
-#'
-#' The following additional fields are assigned to the model's R object:
-#' \itemize{
-#' \item \code{best_score} the evaluation score at the best iteration
-#' \item \code{best_iteration} at which boosting iteration the best score has occurred (1-based index)
-#' }
-#' The Same values are also stored as xgb-attributes:
-#' \itemize{
-#' \item \code{best_iteration} is stored as a 0-based iteration index (for interoperability of binary models)
-#' \item \code{best_msg} message string is also stored.
+#' For \link{xgb.cv}, folds are a list with a structure as follows:\itemize{
+#' \item `dtrain`: The training data for the fold (as an `xgb.DMatrix` object).
+#' \item `bst`: Rhe `xgb.Booster` object for the fold.
+#' \item `evals`: A list containing two DMatrices, with names `train` and `test`
+#' (`test` is the held-out data for the fold).
+#' \item `index`: The indices of the hold-out data for that fold (base-1 indexing),
+#' from which the `test` entry in `evals` was obtained.
 #' }
 #'
-#' At least one data element is required in the evaluation watchlist for early stopping to work.
+#' This object should \bold{not} be in-place modified in ways that conflict with the
+#' training (e.g. resetting the parameters for a training update in a way that resets
+#' the number of rounds to zero in order to overwrite rounds).
 #'
-#' Callback function expects the following values to be set in its calling frame:
-#' \code{stop_condition},
-#' \code{bst_evaluation},
-#' \code{rank},
-#' \code{bst} (or \code{bst_folds} and \code{basket}),
-#' \code{iteration},
-#' \code{begin_iteration},
-#' \code{end_iteration},
+#' Note that any R attributes that are assigned to the booster during the callback functions,
+#' will not be kept thereafter as the booster object variable is not re-assigned during
+#' training. It is however possible to set C-level attributes of the booster through
+#' \link{xgb.attr} or \link{xgb.attributes}, which should remain available for the rest
+#' of the iterations and after the training is done.
 #'
-#' @seealso
-#' \code{\link{callbacks}},
-#' \code{\link{xgb.attr}}
+#' For keeping variables across iterations, it's recommended to use `env` instead.
+#' \item data The data to which the model is being fit, as an `xgb.DMatrix` object.
 #'
-#' @export
-cb.early.stop <- function(stopping_rounds, maximize = FALSE,
-                          metric_name = NULL, verbose = TRUE) {
-  # state variables
-  best_iteration <- -1
-  best_score <- Inf
-  best_msg <- NULL
-  metric_idx <- 1
-
-  init <- function(env) {
-    if (length(env$bst_evaluation) == 0)
-      stop("For early stopping, watchlist must have at least one element")
-
-    eval_names <- gsub('-', '_', names(env$bst_evaluation), fixed = TRUE)
-    if (!is.null(metric_name)) {
-      metric_idx <<- which(gsub('-', '_', metric_name, fixed = TRUE) == eval_names)
-      if (length(metric_idx) == 0)
-        stop("'metric_name' for early stopping is not one of the following:\n",
-             paste(eval_names, collapse = ' '), '\n')
-    }
-    if (is.null(metric_name) &&
-        length(env$bst_evaluation) > 1) {
-      metric_idx <<- length(eval_names)
-      if (verbose)
-        cat('Multiple eval metrics are present. Will use ',
-            eval_names[metric_idx], ' for early stopping.\n', sep = '')
-    }
-
-    metric_name <<- eval_names[metric_idx]
-
-    # maximize is usually NULL when not set in xgb.train and built-in metrics
-    if (is.null(maximize))
-      maximize <<- grepl('(_auc|_map|_ndcg|_pre)', metric_name)
-
-    if (verbose && NVL(env$rank, 0) == 0)
-      cat("Will train until ", metric_name, " hasn't improved in ",
-          stopping_rounds, " rounds.\n\n", sep = '')
-
-    best_iteration <<- 1
-    if (maximize) best_score <<- -Inf
-
-    env$stop_condition <- FALSE
-
-    if (!is.null(env$bst)) {
-      if (!inherits(env$bst, 'xgb.Booster'))
-        stop("'bst' in the parent frame must be an 'xgb.Booster'")
-      if (!is.null(best_score <- xgb.attr(env$bst, 'best_score'))) {
-        best_score <<- as.numeric(best_score)
-        best_iteration <<- as.numeric(xgb.attr(env$bst, 'best_iteration')) + 1
-        best_msg <<- as.numeric(xgb.attr(env$bst, 'best_msg'))
-      } else {
-        xgb.attributes(env$bst) <- list(best_iteration = best_iteration - 1,
-                                        best_score = best_score)
-      }
-    } else if (is.null(env$bst_folds) || is.null(env$basket)) {
-      stop("Parent frame has neither 'bst' nor ('bst_folds' and 'basket')")
-    }
-  }
-
-  finalizer <- function(env) {
-    if (!is.null(env$bst)) {
-      attr_best_score <- as.numeric(xgb.attr(env$bst, 'best_score'))
-      if (best_score != attr_best_score) {
-        # If the difference is too big, throw an error
-        if (abs(best_score - attr_best_score) >= 1e-14) {
-          stop("Inconsistent 'best_score' values between the closure state: ", best_score,
-               " and the xgb.attr: ", attr_best_score)
-        }
-        # If the difference is due to floating-point truncation, update best_score
-        best_score <- attr_best_score
-      }
-      xgb.attr(env$bst, "best_iteration") <- best_iteration - 1
-      xgb.attr(env$bst, "best_score") <- best_score
-    } else {
-      env$basket$best_iteration <- best_iteration
-    }
-  }
-
-  callback <- function(env = parent.frame(), finalize = FALSE) {
-    if (best_iteration < 0)
-      init(env)
-
-    if (finalize)
-      return(finalizer(env))
-
-    i <- env$iteration
-    score <- env$bst_evaluation[metric_idx]
-
-    if ((maximize && score > best_score) ||
-        (!maximize && score < best_score)) {
-
-      best_msg <<- .format_eval_string(
-        i, env$bst_evaluation, env$bst_evaluation_err
-      )
-      best_score <<- score
-      best_iteration <<- i
-      # save the property to attributes, so they will occur in checkpoint
-      if (!is.null(env$bst)) {
-        xgb.attributes(env$bst) <- list(
-          best_iteration = best_iteration - 1, # convert to 0-based index
-          best_score = best_score,
-          best_msg = best_msg
-        )
-      }
-    } else if (i - best_iteration >= stopping_rounds) {
-      env$stop_condition <- TRUE
-      env$end_iteration <- i
-      if (verbose && NVL(env$rank, 0) == 0)
-        cat("Stopping. Best iteration:\n", best_msg, "\n\n", sep = '')
-    }
-  }
-  attr(callback, 'call') <- match.call()
-  attr(callback, 'name') <- 'cb.early.stop'
-  callback
-}
-
-
-#' Callback closure for saving a model file.
+#' Note that, for \link{xgb.cv}, this will be the full data, while data for the specific
+#' folds can be found in the `model` object.
 #'
-#' @param save_period save the model to disk after every
-#'        \code{save_period} iterations; 0 means save the model at the end.
-#' @param save_name the name or path for the saved model file.
+#' \item evals The evaluation data, as passed under argument `evals` to
+#' \link{xgb.train}.
 #'
-#'        Note that the format of the model being saved is determined by the file
-#'        extension specified here (see \link{xgb.save} for details about how it works).
+#' For \link{xgb.cv}, this will always be `NULL`.
 #'
-#'        It can contain a \code{\link[base]{sprintf}} formatting specifier
-#'        to include the integer iteration number in the file name.
-#'        E.g., with \code{save_name} = 'xgboost_%04d.ubj',
-#'        the file saved at iteration 50 would be named "xgboost_0050.ubj".
-#' @seealso \link{xgb.save}
-#' @details
-#' This callback function allows to save an xgb-model file, either periodically after each \code{save_period}'s or at the end.
+#' \item begin_iteration Index of the first boosting iteration that will be executed
+#' (base-1 indexing).
 #'
-#' Callback function expects the following values to be set in its calling frame:
-#' \code{bst},
-#' \code{iteration},
-#' \code{begin_iteration},
-#' \code{end_iteration}.
+#' This will typically be '1', but when using training continuation, depending on the
+#' parameters for updates, boosting rounds will be continued from where the previous
+#' model ended, in which case this will be larger than 1.
 #'
-#' @seealso
-#' \code{\link{callbacks}}
+#' \item end_iteration Index of the last boostign iteration that will be executed
+#' (base-1 indexing, inclusive of this end).
 #'
-#' @export
-cb.save.model <- function(save_period = 0, save_name = "xgboost.ubj") {
-
-  if (save_period < 0)
-    stop("'save_period' cannot be negative")
-
-  callback <- function(env = parent.frame()) {
-    if (is.null(env$bst))
-      stop("'save_model' callback requires the 'bst' booster object in its calling frame")
-
-    if ((save_period > 0 && (env$iteration - env$begin_iteration) %% save_period == 0) ||
-        (save_period == 0 && env$iteration == env$end_iteration)) {
-      # Note: this throws a warning if the name doesn't have anything to format through 'sprintf'
-      suppressWarnings({
-        save_name <- sprintf(save_name, env$iteration)
-      })
-      xgb.save(env$bst, save_name)
-    }
-  }
-  attr(callback, 'call') <- match.call()
-  attr(callback, 'name') <- 'cb.save.model'
-  callback
-}
-
-
-#' Callback closure for returning cross-validation based predictions.
+#' It should match with argument `nrounds` passed to \link{xgb.train} or \link{xgb.cv}.
 #'
-#' @param save_models a flag for whether to save the folds' models.
+#' Note that boosting might be interrupted before reaching this last iteration, for
+#' example by using the early stopping callback \link{xgb.cb.early.stop}.
 #'
-#' @details
-#' This callback function saves predictions for all of the test folds,
-#' and also allows to save the folds' models.
+#' \item iteration Index of the iteration number that is being executed (first iteration
+#' will be the same as parameter `begin_iteration`, then next one will add +1, and so on).
 #'
-#' It is a "finalizer" callback and it uses early stopping information whenever it is available,
-#' thus it must be run after the early stopping callback if the early stopping is used.
+#' \item iter_feval Evaluation metrics for `evals` that were supplied, either
+#' determined by the objective, or by parameter `feval`.
 #'
-#' Callback function expects the following values to be set in its calling frame:
-#' \code{bst_folds},
-#' \code{basket},
-#' \code{data},
-#' \code{end_iteration},
-#' \code{params},
+#' For \link{xgb.train}, this will be a named vector with one entry per element in
+#' `evals`, where the names are determined as 'evals name' + '-' + 'metric name' - for
+#' example, if `evals` contains an entry named "tr" and the metric is "rmse",
+#' this will be a one-element vector with name "tr-rmse".
 #'
-#' @return
-#' Predictions are returned inside of the \code{pred} element, which is either a vector or a matrix,
-#' depending on the number of prediction outputs per data row. The order of predictions corresponds
-#' to the order of rows in the original dataset. Note that when a custom \code{folds} list is
-#' provided in \code{xgb.cv}, the predictions would only be returned properly when this list is a
-#' non-overlapping list of k sets of indices, as in a standard k-fold CV. The predictions would not be
-#' meaningful when user-provided folds have overlapping indices as in, e.g., random sampling splits.
-#' When some of the indices in the training dataset are not included into user-provided \code{folds},
-#' their prediction value would be \code{NA}.
+#' For \link{xgb.cv}, this will be a 2d matrix with dimensions `[length(evals), nfolds]`,
+#' where the row names will follow the same naming logic as the one-dimensional vector
+#' that is passed in \link{xgb.train}.
 #'
-#' @seealso
-#' \code{\link{callbacks}}
+#' Note that, internally, the built-in callbacks such as \link{xgb.cb.print.evaluation} summarize
+#' this table by calculating the row-wise means and standard deviations.
 #'
-#' @export
-cb.cv.predict <- function(save_models = FALSE) {
-
-  finalizer <- function(env) {
-    if (is.null(env$basket) || is.null(env$bst_folds))
-      stop("'cb.cv.predict' callback requires 'basket' and 'bst_folds' lists in its calling frame")
-
-    N <- nrow(env$data)
-    pred <- NULL
-
-    iterationrange <- c(1, NVL(env$basket$best_iteration, env$end_iteration))
-    if (NVL(env$params[['booster']], '') == 'gblinear') {
-      iterationrange <- "all"
-    }
-    for (fd in env$bst_folds) {
-      pr <- predict(fd$bst, fd$watchlist[[2]], iterationrange = iterationrange, reshape = TRUE)
-      if (is.null(pred)) {
-        if (NCOL(pr) > 1L) {
-          pred <- matrix(NA_real_, N, ncol(pr))
-        } else {
-          pred <- matrix(NA_real_, N)
-        }
-      }
-      if (is.matrix(pred)) {
-        pred[fd$index, ] <- pr
-      } else {
-        pred[fd$index] <- pr
-      }
-    }
-    env$basket$pred <- pred
-    if (save_models) {
-      env$basket$models <- lapply(env$bst_folds, function(fd) {
-        return(fd$bst)
-      })
-    }
-  }
-
-  callback <- function(env = parent.frame(), finalize = FALSE) {
-    if (finalize)
-      return(finalizer(env))
-  }
-  attr(callback, 'call') <- match.call()
-  attr(callback, 'name') <- 'cb.cv.predict'
-  callback
-}
-
-
-#' Callback closure for collecting the model coefficients history of a gblinear booster
-#' during its training.
+#' \item final_feval The evaluation results after the last boosting round is executed
+#' (same format as `iter_feval`, and will be the exact same input as passed under
+#' `iter_feval` to the last round that is executed during model fitting).
 #'
-#' @param sparse when set to FALSE/TRUE, a dense/sparse matrix is used to store the result.
-#'       Sparse format is useful when one expects only a subset of coefficients to be non-zero,
-#'       when using the "thrifty" feature selector with fairly small number of top features
-#'       selected per iteration.
+#' \item prev_cb_res Result from a previous run of a callback sharing the same name
+#' (as given by parameter `cb_name`) when conducting training continuation, if there
+#' was any in the booster R attributes.
 #'
-#' @details
-#' To keep things fast and simple, gblinear booster does not internally store the history of linear
-#' model coefficients at each boosting iteration. This callback provides a workaround for storing
-#' the coefficients' path, by extracting them after each training iteration.
+#' Some times, one might want to append the new results to the previous one, and this will
+#' be done automatically by the built-in callbacks such as \link{xgb.cb.evaluation.log},
+#' which will append the new rows to the previous table.
 #'
-#' Callback function expects the following values to be set in its calling frame:
-#' \code{bst} (or \code{bst_folds}).
+#' If no such previous callback result is available (which it never will when fitting
+#' a model from start instead of updating an existing model), this will be `NULL`.
 #'
-#' @return
-#' Results are stored in the \code{coefs} element of the closure.
-#' The \code{\link{xgb.gblinear.history}} convenience function provides an easy
-#' way to access it.
-#' With \code{xgb.train}, it is either a dense of a sparse matrix.
-#' While with \code{xgb.cv}, it is a list (an element per each fold) of such
-#' matrices.
+#' For \link{xgb.cv}, which doesn't support training continuation, this will always be `NULL`.
+#' }
 #'
-#' @seealso
-#' \code{\link{callbacks}}, \code{\link{xgb.gblinear.history}}.
+#' The following names (`cb_name` values) are reserved for internal callbacks:\itemize{
+#' \item print_evaluation
+#' \item evaluation_log
+#' \item reset_parameters
+#' \item early_stop
+#' \item save_model
+#' \item cv_predict
+#' \item gblinear_history
+#' }
 #'
+#' The following names are reserved for other non-callback attributes:\itemize{
+#' \item names
+#' \item class
+#' \item call
+#' \item params
+#' \item niter
+#' \item nfeatures
+#' \item folds
+#' }
+#'
+#' When using the built-in early stopping callback (\link{xgb.cb.early.stop}), said callback
+#' will always be executed before the others, as it sets some booster C-level attributes
+#' that other callbacks might also use. Otherwise, the order of execution will match with
+#' the order in which the callbacks are passed to the model fitting function.
+#' @seealso Built-in callbacks:\itemize{
+#' \item \link{xgb.cb.print.evaluation}
+#' \item \link{xgb.cb.evaluation.log}
+#' \item \link{xgb.cb.reset.parameters}
+#' \item \link{xgb.cb.early.stop}
+#' \item \link{xgb.cb.save.model}
+#' \item \link{xgb.cb.cv.predict}
+#' \item \link{xgb.cb.gblinear.history}
+#' }
 #' @examples
-#' #### Binary classification:
+#' # Example constructing a custom callback that calculates
+#' # squared error on the training data (no separate test set),
+#' # and outputs the per-iteration results.
+#' ssq_callback <- xgb.Callback(
+#'   cb_name = "ssq",
+#'   f_before_training = function(env, model, data, evals,
+#'                                begin_iteration, end_iteration) {
+#'     # A vector to keep track of a number at each iteration
+#'     env$logs <- rep(NA_real_, end_iteration - begin_iteration + 1)
+#'   },
+#'   f_after_iter = function(env, model, data, evals, iteration, iter_feval) {
+#'     # This calculates the sum of squared errors on the training data.
+#'     # Note that this can be better done by passing an 'evals' entry,
+#'     # but this demonstrates a way in which callbacks can be structured.
+#'     pred <- predict(model, data)
+#'     err <- pred - getinfo(data, "label")
+#'     sq_err <- sum(err^2)
+#'     env$logs[iteration] <- sq_err
+#'     cat(
+#'       sprintf(
+#'         "Squared error at iteration %d: %.2f\n",
+#'         iteration, sq_err
+#'       )
+#'     )
 #'
-#' ## Keep the number of threads to 1 for examples
-#' nthread <- 1
-#' data.table::setDTthreads(nthread)
+#'     # A return value of 'TRUE' here would signal to finalize the training
+#'     return(FALSE)
+#'   },
+#'   f_after_training = function(env, model, data, evals, iteration,
+#'                               final_feval, prev_cb_res) {
+#'     return(env$logs)
+#'   }
+#' )
 #'
-#' # In the iris dataset, it is hard to linearly separate Versicolor class from the rest
-#' # without considering the 2nd order interactions:
-#' x <- model.matrix(Species ~ .^2, iris)[,-1]
-#' colnames(x)
-#' dtrain <- xgb.DMatrix(scale(x), label = 1*(iris$Species == "versicolor"), nthread = nthread)
-#' param <- list(booster = "gblinear", objective = "reg:logistic", eval_metric = "auc",
-#'               lambda = 0.0003, alpha = 0.0003, nthread = nthread)
-#' # For 'shotgun', which is a default linear updater, using high eta values may result in
-#' # unstable behaviour in some datasets. With this simple dataset, however, the high learning
-#' # rate does not break the convergence, but allows us to illustrate the typical pattern of
-#' # "stochastic explosion" behaviour of this lock-free algorithm at early boosting iterations.
-#' bst <- xgb.train(param, dtrain, list(tr=dtrain), nrounds = 200, eta = 1.,
-#'                  callbacks = list(cb.gblinear.history()))
-#' # Extract the coefficients' path and plot them vs boosting iteration number:
-#' coef_path <- xgb.gblinear.history(bst)
-#' matplot(coef_path, type = 'l')
+#' data(mtcars)
+#' y <- mtcars$mpg
+#' x <- as.matrix(mtcars[, -1])
+#' dm <- xgb.DMatrix(x, label = y, nthread = 1)
+#' model <- xgb.train(
+#'   data = dm,
+#'   params = list(objective = "reg:squarederror", nthread = 1),
+#'   nrounds = 5,
+#'   callbacks = list(ssq_callback),
+#'   keep_extra_attributes = TRUE
+#' )
 #'
-#' # With the deterministic coordinate descent updater, it is safer to use higher learning rates.
-#' # Will try the classical componentwise boosting which selects a single best feature per round:
-#' bst <- xgb.train(param, dtrain, list(tr=dtrain), nrounds = 200, eta = 0.8,
-#'                  updater = 'coord_descent', feature_selector = 'thrifty', top_k = 1,
-#'                  callbacks = list(cb.gblinear.history()))
-#' matplot(xgb.gblinear.history(bst), type = 'l')
-#' #  Componentwise boosting is known to have similar effect to Lasso regularization.
-#' # Try experimenting with various values of top_k, eta, nrounds,
-#' # as well as different feature_selectors.
-#'
-#' # For xgb.cv:
-#' bst <- xgb.cv(param, dtrain, nfold = 5, nrounds = 100, eta = 0.8,
-#'               callbacks = list(cb.gblinear.history()))
-#' # coefficients in the CV fold #3
-#' matplot(xgb.gblinear.history(bst)[[3]], type = 'l')
-#'
-#'
-#' #### Multiclass classification:
-#' #
-#' dtrain <- xgb.DMatrix(scale(x), label = as.numeric(iris$Species) - 1, nthread = nthread)
-#' param <- list(booster = "gblinear", objective = "multi:softprob", num_class = 3,
-#'               lambda = 0.0003, alpha = 0.0003, nthread = nthread)
-#' # For the default linear updater 'shotgun' it sometimes is helpful
-#' # to use smaller eta to reduce instability
-#' bst <- xgb.train(param, dtrain, list(tr=dtrain), nrounds = 50, eta = 0.5,
-#'                  callbacks = list(cb.gblinear.history()))
-#' # Will plot the coefficient paths separately for each class:
-#' matplot(xgb.gblinear.history(bst, class_index = 0), type = 'l')
-#' matplot(xgb.gblinear.history(bst, class_index = 1), type = 'l')
-#' matplot(xgb.gblinear.history(bst, class_index = 2), type = 'l')
-#'
-#' # CV:
-#' bst <- xgb.cv(param, dtrain, nfold = 5, nrounds = 70, eta = 0.5,
-#'               callbacks = list(cb.gblinear.history(FALSE)))
-#' # 1st fold of 1st class
-#' matplot(xgb.gblinear.history(bst, class_index = 0)[[1]], type = 'l')
-#'
+#' # Result from 'f_after_iter' will be available as an attribute
+#' attributes(model)$ssq
 #' @export
-cb.gblinear.history <- function(sparse = FALSE) {
-  coefs <- NULL
+xgb.Callback <- function(
+  cb_name = "custom_callback",
+  env = new.env(),
+  f_before_training = function(env, model, data, evals, begin_iteration, end_iteration) NULL,
+  f_before_iter = function(env, model, data, evals, iteration) NULL,
+  f_after_iter = function(env, model, data, evals, iteration, iter_feval) NULL,
+  f_after_training = function(env, model, data, evals, iteration, final_feval, prev_cb_res) NULL
+) {
+  stopifnot(is.null(f_before_training) || is.function(f_before_training))
+  stopifnot(is.null(f_before_iter) || is.function(f_before_iter))
+  stopifnot(is.null(f_after_iter) || is.function(f_after_iter))
+  stopifnot(is.null(f_after_training) || is.function(f_after_training))
+  stopifnot(is.character(cb_name) && length(cb_name) == 1)
 
-  init <- function(env) {
-    # xgb.train(): bst will be present
-    # xgb.cv(): bst_folds will be present
-    if (is.null(env$bst) && is.null(env$bst_folds)) {
-        stop("Parent frame has neither 'bst' nor 'bst_folds'")
-    }
+  if (cb_name %in% .reserved_cb_names) {
+    stop("Cannot use reserved callback name '", cb_name, "'.")
   }
 
-  # convert from list to (sparse) matrix
-  list2mat <- function(coef_list) {
-    if (sparse) {
-      coef_mat <- sparseMatrix(x = unlist(lapply(coef_list, slot, "x")),
-                               i = unlist(lapply(coef_list, slot, "i")),
-                               p = c(0, cumsum(sapply(coef_list, function(x) length(x@x)))),
-                               dims = c(length(coef_list[[1]]), length(coef_list)))
-      return(t(coef_mat))
-    } else {
-      return(do.call(rbind, coef_list))
-    }
-  }
+  out <- list(
+    cb_name = cb_name,
+    env = env,
+    f_before_training = f_before_training,
+    f_before_iter = f_before_iter,
+    f_after_iter = f_after_iter,
+    f_after_training = f_after_training
+  )
+  class(out) <- "xgb.Callback"
+  return(out)
+}
 
-  finalizer <- function(env) {
-    if (length(coefs) == 0)
-      return()
-    if (!is.null(env$bst)) { # # xgb.train:
-      coefs <<- list2mat(coefs)
-    } else { # xgb.cv:
-      # second lapply transposes the list
-      coefs <<- lapply(
-        X = lapply(
-          X = seq_along(coefs[[1]]),
-          FUN = function(i) lapply(coefs, "[[", i)
-        ),
-        FUN = list2mat
+.execute.cb.before.training <- function(
+  callbacks,
+  model,
+  data,
+  evals,
+  begin_iteration,
+  end_iteration
+) {
+  for (callback in callbacks) {
+    if (!is.null(callback$f_before_training)) {
+      callback$f_before_training(
+        callback$env,
+        model,
+        data,
+        evals,
+        begin_iteration,
+        end_iteration
       )
     }
   }
-
-  extract.coef <- function(env) {
-    if (!is.null(env$bst)) { # # xgb.train:
-      cf <- as.numeric(grep('(booster|bias|weigh)', xgb.dump(env$bst), invert = TRUE, value = TRUE))
-      if (sparse) cf <- as(cf, "sparseVector")
-    } else { # xgb.cv:
-      cf <- vector("list", length(env$bst_folds))
-      for (i in seq_along(env$bst_folds)) {
-        dmp <- xgb.dump(env$bst_folds[[i]]$bst)
-        cf[[i]] <- as.numeric(grep('(booster|bias|weigh)', dmp, invert = TRUE, value = TRUE))
-        if (sparse) cf[[i]] <- as(cf[[i]], "sparseVector")
-      }
-    }
-    cf
-  }
-
-  callback <- function(env = parent.frame(), finalize = FALSE) {
-    if (is.null(coefs)) init(env)
-    if (finalize) return(finalizer(env))
-    cf <- extract.coef(env)
-    coefs <<- c(coefs, list(cf))
-  }
-
-  attr(callback, 'call') <- match.call()
-  attr(callback, 'name') <- 'cb.gblinear.history'
-  callback
 }
 
-#' @title Extract gblinear coefficients history.
-#' @description A helper function to extract the matrix of linear coefficients' history
-#' from a gblinear model created while using the \code{cb.gblinear.history()}
-#' callback.
-#' @details Note that this is an R-specific function that relies on R attributes that
-#' are not saved when using xgboost's own serialization functions like \link{xgb.load}
-#' or \link{xgb.load.raw}.
-#'
-#' In order for a serialized model to be accepted by tgis function, one must use R
-#' serializers such as \link{saveRDS}.
-#' @param model either an \code{xgb.Booster} or a result of \code{xgb.cv()}, trained
-#'        using the \code{cb.gblinear.history()} callback, but \bold{not} a booster
-#'        loaded from \link{xgb.load} or \link{xgb.load.raw}.
-#' @param class_index zero-based class index to extract the coefficients for only that
-#'        specific class in a multinomial multiclass model. When it is NULL, all the
-#'        coefficients are returned. Has no effect in non-multiclass models.
-#'
-#' @return
-#' For an \code{xgb.train} result, a matrix (either dense or sparse) with the columns
-#' corresponding to iteration's coefficients (in the order as \code{xgb.dump()} would
-#' return) and the rows corresponding to boosting iterations.
-#'
-#' For an \code{xgb.cv} result, a list of such matrices is returned with the elements
-#' corresponding to CV folds.
-#'
-#' @export
-xgb.gblinear.history <- function(model, class_index = NULL) {
-
-  if (!(inherits(model, "xgb.Booster") ||
-        inherits(model, "xgb.cv.synchronous")))
-    stop("model must be an object of either xgb.Booster or xgb.cv.synchronous class")
-  is_cv <- inherits(model, "xgb.cv.synchronous")
-
-  if (is_cv) {
-    callbacks <- model$callbacks
-  } else {
-    callbacks <- attributes(model)$callbacks
+.execute.cb.before.iter <- function(
+  callbacks,
+  model,
+  data,
+  evals,
+  iteration
+) {
+  if (!length(callbacks)) {
+    return(FALSE)
   }
+  out <- sapply(callbacks, function(cb) {
+    if (is.null(cb$f_before_iter)) {
+      return(FALSE)
+    }
+    should_stop <- cb$f_before_iter(
+      cb$env,
+      model,
+      data,
+      evals,
+      iteration
+    )
+    if (!NROW(should_stop)) {
+      should_stop <- FALSE
+    } else if (NROW(should_stop) > 1) {
+      should_stop <- head(as.logical(should_stop), 1)
+    }
+    return(should_stop)
+  })
+  return(any(out))
+}
 
-  if (is.null(callbacks) || is.null(callbacks$cb.gblinear.history))
-    stop("model must be trained while using the cb.gblinear.history() callback")
-
-  if (!is_cv) {
-    num_class <- xgb.num_class(model)
-    num_feat <- xgb.num_feature(model)
-  } else {
-    # in case of CV, the object is expected to have this info
-    if (model$params$booster != "gblinear")
-      stop("It does not appear to be a gblinear model")
-    num_class <- NVL(model$params$num_class, 1)
-    num_feat <- model$nfeatures
-    if (is.null(num_feat))
-      stop("This xgb.cv result does not have nfeatures info")
+.execute.cb.after.iter <- function(
+  callbacks,
+  model,
+  data,
+  evals,
+  iteration,
+  iter_feval
+) {
+  if (!length(callbacks)) {
+    return(FALSE)
   }
+  out <- sapply(callbacks, function(cb) {
+    if (is.null(cb$f_after_iter)) {
+      return(FALSE)
+    }
+    should_stop <- cb$f_after_iter(
+      cb$env,
+      model,
+      data,
+      evals,
+      iteration,
+      iter_feval
+    )
+    if (!NROW(should_stop)) {
+      should_stop <- FALSE
+    } else if (NROW(should_stop) > 1) {
+      should_stop <- head(as.logical(should_stop), 1)
+    }
+    return(should_stop)
+  })
+  return(any(out))
+}
 
-  if (!is.null(class_index) &&
-      num_class > 1 &&
-      (class_index[1] < 0 || class_index[1] >= num_class))
-    stop("class_index has to be within [0,", num_class - 1, "]")
-
-  coef_path <- environment(callbacks$cb.gblinear.history)[["coefs"]]
-  if (!is.null(class_index) && num_class > 1) {
-    coef_path <- if (is.list(coef_path)) {
-      lapply(coef_path,
-             function(x) x[, seq(1 + class_index, by = num_class, length.out = num_feat)])
+.execute.cb.after.training <- function(
+  callbacks,
+  model,
+  data,
+  evals,
+  iteration,
+  final_feval,
+  prev_cb_res
+) {
+  if (!length(callbacks)) {
+    return(NULL)
+  }
+  old_cb_res <- attributes(model)
+  out <- lapply(callbacks, function(cb) {
+    if (is.null(cb$f_after_training)) {
+      return(NULL)
     } else {
-      coef_path <- coef_path[, seq(1 + class_index, by = num_class, length.out = num_feat)]
+      return(
+        cb$f_after_training(
+          cb$env,
+          model,
+          data,
+          evals,
+          iteration,
+          final_feval,
+          getElement(old_cb_res, cb$cb_name)
+        )
+      )
     }
+  })
+  names(out) <- sapply(callbacks, function(cb) cb$cb_name)
+  if (NROW(out)) {
+    out <- out[!sapply(out, is.null)]
   }
-  coef_path
+  return(out)
 }
 
+.summarize.feval <- function(iter_feval, showsd) {
+  if (NCOL(iter_feval) > 1L && showsd) {
+    stdev <- apply(iter_feval, 1, sd)
+  } else {
+    stdev <- NULL
+  }
+  if (NCOL(iter_feval) > 1L) {
+    iter_feval <- rowMeans(iter_feval)
+  }
+  return(list(feval = iter_feval, stdev = stdev))
+}
 
-#
-# Internal utility functions for callbacks ------------------------------------
-#
+.print.evaluation <- function(iter_feval, showsd, iteration) {
+  tmp <- .summarize.feval(iter_feval, showsd)
+  msg <- .format_eval_string(iteration, tmp$feval, tmp$stdev)
+  cat(msg, '\n')
+}
 
 # Format the evaluation metric string
 .format_eval_string <- function(iter, eval_res, eval_err = NULL) {
@@ -784,69 +407,838 @@ xgb.gblinear.history <- function(model, class_index = NULL) {
   return(paste0(iter, res))
 }
 
-# Extract callback names from the list of callbacks
-callback.names <- function(cb_list) {
-  unlist(lapply(cb_list, function(x) attr(x, 'name')))
-}
-
-# Extract callback calls from the list of callbacks
-callback.calls <- function(cb_list) {
-  unlist(lapply(cb_list, function(x) attr(x, 'call')))
-}
-
-# Add a callback cb to the list and make sure that
-# cb.early.stop and cb.cv.predict are at the end of the list
-# with cb.cv.predict being the last (when present)
-add.cb <- function(cb_list, cb) {
-  cb_list <- c(cb_list, cb)
-  names(cb_list) <- callback.names(cb_list)
-  if ('cb.early.stop' %in% names(cb_list)) {
-    cb_list <- c(cb_list, cb_list['cb.early.stop'])
-    # this removes only the first one
-    cb_list['cb.early.stop'] <- NULL
+#' @title Callback for printing the result of evaluation
+#' @param period results would be printed every number of periods
+#' @param showsd whether standard deviations should be printed (when available)
+#' @return An `xgb.Callback` object, which can be passed to \link{xgb.train} or \link{xgb.cv}.
+#' @description
+#' The callback function prints the result of evaluation at every \code{period} iterations.
+#' The initial and the last iteration's evaluations are always printed.
+#'
+#' Does not leave any attribute in the booster (see \link{xgb.cb.evaluation.log} for that).
+#' @seealso \link{xgb.Callback}
+#' @export
+xgb.cb.print.evaluation <- function(period = 1, showsd = TRUE) {
+  if (length(period) != 1 || period != floor(period) || period < 1) {
+    stop("'period' must be a positive integer.")
   }
-  if ('cb.cv.predict' %in% names(cb_list)) {
-    cb_list <- c(cb_list, cb_list['cb.cv.predict'])
-    cb_list['cb.cv.predict'] <- NULL
-  }
-  cb_list
-}
 
-# Sort callbacks list into categories
-categorize.callbacks <- function(cb_list) {
-  list(
-    pre_iter = Filter(function(x) {
-        pre <- attr(x, 'is_pre_iteration')
-        !is.null(pre) && pre
-      }, cb_list),
-    post_iter = Filter(function(x) {
-        pre <- attr(x, 'is_pre_iteration')
-        is.null(pre) || !pre
-      }, cb_list),
-    finalize = Filter(function(x) {
-        'finalize' %in% names(formals(x))
-      }, cb_list)
+  xgb.Callback(
+    cb_name = "print_evaluation",
+    env = as.environment(list(period = period, showsd = showsd, is_first_call = TRUE)),
+    f_before_training = NULL,
+    f_before_iter = NULL,
+    f_after_iter = function(env, model, data, evals, iteration, iter_feval) {
+      if (is.null(iter_feval)) {
+        return(FALSE)
+      }
+      if (env$is_first_call || (iteration - 1) %% env$period == 0) {
+        .print.evaluation(iter_feval, env$showsd, iteration)
+        env$last_printed_iter <- iteration
+      }
+      env$is_first_call <- FALSE
+      return(FALSE)
+    },
+    f_after_training = function(env, model, data, evals, iteration, final_feval, prev_cb_res) {
+      if (is.null(final_feval)) {
+        return(NULL)
+      }
+      if (is.null(env$last_printed_iter) || iteration > env$last_printed_iter) {
+        .print.evaluation(final_feval, env$showsd, iteration)
+      }
+    }
   )
 }
 
-# Check whether all callback functions with names given by 'query_names' are present in the 'cb_list'.
-has.callbacks <- function(cb_list, query_names) {
-  if (length(cb_list) < length(query_names))
-    return(FALSE)
-  if (!is.list(cb_list) ||
-      any(sapply(cb_list, class) != 'function')) {
-    stop('`cb_list` must be a list of callback functions')
+#' @title Callback for logging the evaluation history
+#' @return An `xgb.Callback` object, which can be passed to \link{xgb.train} or \link{xgb.cv}.
+#' @details This callback creates a table with per-iteration evaluation metrics (see parameters
+#' `evals` and `feval` in \link{xgb.train}).
+#' @details
+#' Note: in the column names of the final data.table, the dash '-' character is replaced with
+#' the underscore '_' in order to make the column names more like regular R identifiers.
+#' @seealso \link{xgb.cb.print.evaluation}
+#' @export
+xgb.cb.evaluation.log <- function() {
+  xgb.Callback(
+    cb_name = "evaluation_log",
+    f_before_training = function(env, model, data, evals, begin_iteration, end_iteration) {
+      env$evaluation_log <- vector("list", end_iteration - begin_iteration + 1)
+      env$next_log <- 1
+    },
+    f_before_iter = NULL,
+    f_after_iter = function(env, model, data, evals, iteration, iter_feval) {
+      tmp <- .summarize.feval(iter_feval, TRUE)
+      env$evaluation_log[[env$next_log]] <- list(iter = iteration, metrics = tmp$feval, sds = tmp$stdev)
+      env$next_log <- env$next_log + 1
+      return(FALSE)
+    },
+    f_after_training = function(env, model, data, evals, iteration, final_feval, prev_cb_res) {
+      if (!NROW(env$evaluation_log)) {
+        return(prev_cb_res)
+      }
+      # in case of early stopping
+      if (env$next_log <= length(env$evaluation_log)) {
+        env$evaluation_log <- head(env$evaluation_log, env$next_log - 1)
+      }
+
+      iters <- data.frame(iter = sapply(env$evaluation_log, function(x) x$iter))
+      metrics <- do.call(rbind, lapply(env$evaluation_log, function(x) x$metrics))
+      mnames <- gsub("-", "_", names(env$evaluation_log[[1]]$metrics), fixed = TRUE)
+      colnames(metrics) <- mnames
+      has_sds <- !is.null(env$evaluation_log[[1]]$sds)
+      if (has_sds) {
+        sds <- do.call(rbind, lapply(env$evaluation_log, function(x) x$sds))
+        colnames(sds) <- mnames
+        metrics <- lapply(
+          mnames,
+          function(metric) {
+            out <- cbind(metrics[, metric], sds[, metric])
+            colnames(out) <- paste0(metric, c("_mean", "_std"))
+            return(out)
+          }
+        )
+        metrics <- do.call(cbind, metrics)
+      }
+      evaluation_log <- cbind(iters, metrics)
+
+      if (!is.null(prev_cb_res)) {
+        if (!is.data.table(prev_cb_res)) {
+          prev_cb_res <- data.table::as.data.table(prev_cb_res)
+        }
+        prev_take <- prev_cb_res[prev_cb_res$iter < min(evaluation_log$iter)]
+        if (nrow(prev_take)) {
+          evaluation_log <- rbind(prev_cb_res, evaluation_log)
+        }
+      }
+      evaluation_log <- data.table::as.data.table(evaluation_log)
+      return(evaluation_log)
+    }
+  )
+}
+
+#' @title Callback for resetting the booster's parameters at each iteration.
+#' @param new_params a list where each element corresponds to a parameter that needs to be reset.
+#'        Each element's value must be either a vector of values of length \code{nrounds}
+#'        to be set at each iteration,
+#'        or a function of two parameters \code{learning_rates(iteration, nrounds)}
+#'        which returns a new parameter value by using the current iteration number
+#'        and the total number of boosting rounds.
+#' @return An `xgb.Callback` object, which can be passed to \link{xgb.train} or \link{xgb.cv}.
+#' @details
+#' Note that when training is resumed from some previous model, and a function is used to
+#' reset a parameter value, the \code{nrounds} argument in this function would be the
+#' the number of boosting rounds in the current training.
+#'
+#' Does not leave any attribute in the booster.
+#' @export
+xgb.cb.reset.parameters <- function(new_params) {
+  stopifnot(is.list(new_params))
+  pnames <- gsub(".", "_", names(new_params), fixed = TRUE)
+  not_allowed <- pnames %in%
+    c('num_class', 'num_output_group', 'size_leaf_vector', 'updater_seq')
+  if (any(not_allowed))
+    stop('Parameters ', paste(pnames[not_allowed]), " cannot be changed during boosting.")
+
+  xgb.Callback(
+    cb_name = "reset_parameters",
+    env = as.environment(list(new_params = new_params)),
+    f_before_training = function(env, model, data, evals, begin_iteration, end_iteration) {
+      env$end_iteration <- end_iteration
+
+      pnames <- gsub(".", "_", names(env$new_params), fixed = TRUE)
+      for (n in pnames) {
+        p <- env$new_params[[n]]
+        if (is.function(p)) {
+          if (length(formals(p)) != 2)
+            stop("Parameter '", n, "' is a function but not of two arguments")
+        } else if (is.numeric(p) || is.character(p)) {
+          if (length(p) != env$end_iteration)
+            stop("Length of '", n, "' has to be equal to 'nrounds'")
+        } else {
+          stop("Parameter '", n, "' is not a function or a vector")
+        }
+      }
+    },
+    f_before_iter = function(env, model, data, evals, iteration) {
+      pars <- lapply(env$new_params, function(p) {
+        if (is.function(p)) {
+          return(p(iteration, env$end_iteration))
+        } else {
+          return(p[iteration])
+        }
+      })
+
+      if (inherits(model, "xgb.Booster")) {
+        xgb.parameters(model) <- pars
+      } else {
+        for (fd in model) {
+          xgb.parameters(fd$bst) <- pars
+        }
+      }
+      return(FALSE)
+    },
+    f_after_iter = NULL,
+    f_after_training = NULL
+  )
+}
+
+#' @title Callback to activate early stopping
+#' @param stopping_rounds The number of rounds with no improvement in
+#'        the evaluation metric in order to stop the training.
+#' @param maximize Whether to maximize the evaluation metric.
+#' @param metric_name The name of an evaluation column to use as a criteria for early
+#'        stopping. If not set, the last column would be used.
+#'        Let's say the test data in \code{evals} was labelled as \code{dtest},
+#'        and one wants to use the AUC in test data for early stopping regardless of where
+#'        it is in the \code{evals}, then one of the following would need to be set:
+#'        \code{metric_name='dtest-auc'} or \code{metric_name='dtest_auc'}.
+#'        All dash '-' characters in metric names are considered equivalent to '_'.
+#' @param verbose Whether to print the early stopping information.
+#' @param keep_all_iter Whether to keep all of the boosting rounds that were produced
+#'        in the resulting object. If passing `FALSE`, will only keep the boosting rounds
+#'        up to the detected best iteration, discarding the ones that come after.
+#' @return An `xgb.Callback` object, which can be passed to \link{xgb.train} or \link{xgb.cv}.
+#' @description
+#' This callback function determines the condition for early stopping.
+#'
+#' The following attributes are assigned to the booster's object:
+#' \itemize{
+#' \item \code{best_score} the evaluation score at the best iteration
+#' \item \code{best_iteration} at which boosting iteration the best score has occurred
+#' (0-based index for interoperability of binary models)
+#' }
+#'
+#' The same values are also stored as R attributes as a result of the callback, plus an additional
+#' attribute `stopped_by_max_rounds` which indicates whether an early stopping by the `stopping_rounds`
+#' condition occurred. Note that the `best_iteration` that is stored under R attributes will follow
+#' base-1 indexing, so it will be larger by '1' than the C-level 'best_iteration' that is accessed
+#' through \link{xgb.attr} or \link{xgb.attributes}.
+#'
+#' At least one dataset is required in `evals` for early stopping to work.
+#' @export
+xgb.cb.early.stop <- function(
+  stopping_rounds,
+  maximize = FALSE,
+  metric_name = NULL,
+  verbose = TRUE,
+  keep_all_iter = TRUE
+) {
+  if (!is.null(metric_name)) {
+    stopifnot(is.character(metric_name))
+    stopifnot(length(metric_name) == 1L)
   }
-  cb_names <- callback.names(cb_list)
-  if (!is.character(cb_names) ||
-      length(cb_names) != length(cb_list) ||
-      any(cb_names == "")) {
-    stop('All callbacks in the `cb_list` must have a non-empty `name` attribute')
+
+  xgb.Callback(
+    cb_name = "early_stop",
+    env = as.environment(
+      list(
+        checked_evnames = FALSE,
+        stopping_rounds = stopping_rounds,
+        maximize = maximize,
+        metric_name = metric_name,
+        verbose = verbose,
+        keep_all_iter = keep_all_iter,
+        stopped_by_max_rounds = FALSE
+      )
+    ),
+    f_before_training = function(env, model, data, evals, begin_iteration, end_iteration) {
+      if (inherits(model, "xgb.Booster") && !length(evals)) {
+        stop("For early stopping, 'evals' must have at least one element")
+      }
+      env$begin_iteration <- begin_iteration
+      return(NULL)
+    },
+    f_before_iter = function(env, model, data, evals, iteration) NULL,
+    f_after_iter = function(env, model, data, evals, iteration, iter_feval) {
+      sds <- NULL
+      if (NCOL(iter_feval) > 1) {
+        tmp <- .summarize.feval(iter_feval, TRUE)
+        iter_feval <- tmp$feval
+        sds <- tmp$stdev
+      }
+
+      if (!env$checked_evnames) {
+
+        eval_names <- gsub('-', '_', names(iter_feval), fixed = TRUE)
+        if (!is.null(env$metric_name)) {
+          env$metric_idx <- which(gsub('-', '_', env$metric_name, fixed = TRUE) == eval_names)
+          if (length(env$metric_idx) == 0)
+            stop("'metric_name' for early stopping is not one of the following:\n",
+                 paste(eval_names, collapse = ' '), '\n')
+        }
+
+        if (is.null(env$metric_name)) {
+          if (NROW(iter_feval) == 1) {
+            env$metric_idx <- 1L
+          } else {
+            env$metric_idx <- length(eval_names)
+            if (env$verbose)
+              cat('Multiple eval metrics are present. Will use ',
+                  eval_names[env$metric_idx], ' for early stopping.\n', sep = '')
+          }
+        }
+
+        env$metric_name <- eval_names[env$metric_idx]
+
+        # maximize is usually NULL when not set in xgb.train and built-in metrics
+        if (is.null(env$maximize))
+          env$maximize <- grepl('(_auc|_aupr|_map|_ndcg|_pre)', env$metric_name)
+
+        if (env$verbose)
+          cat("Will train until ", env$metric_name, " hasn't improved in ",
+              env$stopping_rounds, " rounds.\n\n", sep = '')
+
+        env$best_iteration <- env$begin_iteration
+        if (env$maximize) {
+          env$best_score <- -Inf
+        } else {
+          env$best_score <- Inf
+        }
+
+        if (inherits(model, "xgb.Booster")) {
+          best_score <- xgb.attr(model, 'best_score')
+          if (NROW(best_score)) env$best_score <- as.numeric(best_score)
+          best_iteration <- xgb.attr(model, 'best_iteration')
+          if (NROW(best_iteration)) env$best_iteration <- as.numeric(best_iteration) + 1
+        }
+
+        env$checked_evnames <- TRUE
+      }
+
+      score <- iter_feval[env$metric_idx]
+      if ((env$maximize && score > env$best_score) ||
+          (!env$maximize && score < env$best_score)) {
+
+        env$best_score <- score
+        env$best_iteration <- iteration
+        # save the property to attributes, so they will occur in checkpoint
+        if (inherits(model, "xgb.Booster")) {
+          xgb.attributes(model) <- list(
+            best_iteration = env$best_iteration - 1, # convert to 0-based index
+            best_score = env$best_score
+          )
+        }
+      } else if (iteration - env$best_iteration >= env$stopping_rounds) {
+        if (env$verbose) {
+          best_msg <- .format_eval_string(iteration, iter_feval, sds)
+          cat("Stopping. Best iteration:\n", best_msg, "\n\n", sep = '')
+        }
+        env$stopped_by_max_rounds <- TRUE
+        return(TRUE)
+      }
+      return(FALSE)
+    },
+    f_after_training = function(env, model, data, evals, iteration, final_feval, prev_cb_res) {
+      if (inherits(model, "xgb.Booster") && !env$keep_all_iter && env$best_iteration < iteration) {
+        # Note: it loses the attributes after being sliced,
+        # so they have to be re-assigned afterwards.
+        prev_attr <- xgb.attributes(model)
+        if (NROW(prev_attr)) {
+          suppressWarnings({
+            prev_attr <- within(prev_attr, rm("best_score", "best_iteration"))
+          })
+        }
+        .Call(XGBoosterSliceAndReplace_R, xgb.get.handle(model), 0L, env$best_iteration, 1L)
+        if (NROW(prev_attr)) {
+          xgb.attributes(model) <- prev_attr
+        }
+      }
+      attrs_set <- list(best_iteration = env$best_iteration - 1, best_score = env$best_score)
+      if (inherits(model, "xgb.Booster")) {
+        xgb.attributes(model) <- attrs_set
+      } else {
+        for (fd in model) {
+          xgb.attributes(fd$bst) <- attrs_set # to use in the cv.predict callback
+        }
+      }
+      return(
+        list(
+          best_iteration = env$best_iteration,
+          best_score = env$best_score,
+          stopped_by_max_rounds = env$stopped_by_max_rounds
+        )
+      )
+    }
+  )
+}
+
+.save.model.w.formatted.name <- function(model, save_name, iteration) {
+  # Note: this throws a warning if the name doesn't have anything to format through 'sprintf'
+  suppressWarnings({
+    save_name <- sprintf(save_name, iteration)
+  })
+  xgb.save(model, save_name)
+}
+
+#' @title Callback for saving a model file.
+#' @param save_period Save the model to disk after every
+#'        \code{save_period} iterations; 0 means save the model at the end.
+#' @param save_name The name or path for the saved model file.
+#'        It can contain a \code{\link[base]{sprintf}} formatting specifier
+#'        to include the integer iteration number in the file name.
+#'        E.g., with \code{save_name} = 'xgboost_%04d.model',
+#'        the file saved at iteration 50 would be named "xgboost_0050.model".
+#' @return An `xgb.Callback` object, which can be passed to \link{xgb.train},
+#'         but \bold{not} to \link{xgb.cv}.
+#' @description
+#' This callback function allows to save an xgb-model file, either periodically
+#' after each \code{save_period}'s or at the end.
+#'
+#' Does not leave any attribute in the booster.
+#' @export
+xgb.cb.save.model <- function(save_period = 0, save_name = "xgboost.ubj") {
+  if (save_period < 0) {
+    stop("'save_period' cannot be negative")
   }
-  if (!is.character(query_names) ||
-      length(query_names) == 0 ||
-      any(query_names == "")) {
-    stop('query_names must be a non-empty vector of non-empty character names')
+  if (!is.character(save_name) || length(save_name) != 1L) {
+    stop("'save_name' must be a single character refering to file name.")
   }
-  return(all(query_names %in% cb_names))
+
+  xgb.Callback(
+    cb_name = "save_model",
+    env = as.environment(list(save_period = save_period, save_name = save_name, last_save = 0)),
+    f_before_training = function(env, model, data, evals, begin_iteration, end_iteration) {
+      env$begin_iteration <- begin_iteration
+    },
+    f_before_iter = NULL,
+    f_after_iter = function(env, model, data, evals, iteration, iter_feval) {
+      if (env$save_period > 0 && (iteration - env$begin_iteration) %% env$save_period == 0) {
+        .save.model.w.formatted.name(model, env$save_name, iteration)
+        env$last_save <- iteration
+      }
+      return(FALSE)
+    },
+    f_after_training = function(env, model, data, evals, iteration, final_feval, prev_cb_res) {
+      if (env$save_period == 0 && iteration > env$last_save) {
+        .save.model.w.formatted.name(model, env$save_name, iteration)
+      }
+    }
+  )
+}
+
+#' @title Callback for returning cross-validation based predictions.
+#' @param save_models A flag for whether to save the folds' models.
+#' @param outputmargin Whether to save margin predictions (same effect as passing this
+#' parameter to \link{predict.xgb.Booster}).
+#' @return An `xgb.Callback` object, which can be passed to \link{xgb.cv},
+#'         but \bold{not} to \link{xgb.train}.
+#' @description
+#' This callback function saves predictions for all of the test folds,
+#' and also allows to save the folds' models.
+#' @details
+#' Predictions are saved inside of the \code{pred} element, which is either a vector or a matrix,
+#' depending on the number of prediction outputs per data row. The order of predictions corresponds
+#' to the order of rows in the original dataset. Note that when a custom \code{folds} list is
+#' provided in \code{xgb.cv}, the predictions would only be returned properly when this list is a
+#' non-overlapping list of k sets of indices, as in a standard k-fold CV. The predictions would not be
+#' meaningful when user-provided folds have overlapping indices as in, e.g., random sampling splits.
+#' When some of the indices in the training dataset are not included into user-provided \code{folds},
+#' their prediction value would be \code{NA}.
+#' @export
+xgb.cb.cv.predict <- function(save_models = FALSE, outputmargin = FALSE) {
+  xgb.Callback(
+    cb_name = "cv_predict",
+    env = as.environment(list(save_models = save_models, outputmargin = outputmargin)),
+    f_before_training = function(env, model, data, evals, begin_iteration, end_iteration) {
+      if (inherits(model, "xgb.Booster")) {
+        stop("'cv.predict' callback is only for 'xgb.cv'.")
+      }
+    },
+    f_before_iter = NULL,
+    f_after_iter = NULL,
+    f_after_training = function(env, model, data, evals, iteration, final_feval, prev_cb_res) {
+      pred <- NULL
+      for (fd in model) {
+        pr <- predict(
+          fd$bst,
+          fd$evals[[2L]],
+          outputmargin = env$outputmargin,
+          reshape = TRUE
+        )
+        if (is.null(pred)) {
+          if (NCOL(pr) > 1L) {
+            pred <- matrix(NA_real_, nrow(data), ncol(pr))
+          } else {
+            pred <- matrix(NA_real_, nrow(data))
+          }
+        }
+        if (is.matrix(pred)) {
+          pred[fd$index, ] <- pr
+        } else {
+          pred[fd$index] <- pr
+        }
+      }
+      out <- list(pred = pred)
+      if (env$save_models) {
+        out$models <- lapply(model, function(fd) fd$bst)
+      }
+      return(out)
+    }
+  )
+}
+
+.list2mat <- function(coef_list, sparse) {
+  if (sparse) {
+    coef_mat <- methods::new("dgRMatrix")
+    coef_mat@p <- as.integer(c(0, cumsum(sapply(coef_list, function(x) length(x@x)))))
+    coef_mat@j <- as.integer(unlist(lapply(coef_list, slot, "i")) - 1L)
+    coef_mat@x <- unlist(lapply(coef_list, slot, "x"))
+    coef_mat@Dim <- as.integer(c(length(coef_list), length(coef_list[[1L]])))
+    # Note: function 'xgb.gblinear.history' might later on try to slice by columns
+    coef_mat <- methods::as(coef_mat, "CsparseMatrix")
+    return(coef_mat)
+  } else {
+    return(unname(do.call(rbind, coef_list)))
+  }
+}
+
+.extract.coef <- function(model, sparse) {
+  coefs <- .internal.coef.xgb.Booster(model, add_names = FALSE)
+  if (NCOL(coefs) > 1L) {
+    coefs <- as.vector(coefs)
+  }
+  if (sparse) {
+    coefs <- methods::as(coefs, "sparseVector")
+  }
+  return(coefs)
+}
+
+#' @title Callback for collecting coefficients history of a gblinear booster
+#' @param sparse when set to `FALSE`/`TRUE`, a dense/sparse matrix is used to store the result.
+#'       Sparse format is useful when one expects only a subset of coefficients to be non-zero,
+#'       when using the "thrifty" feature selector with fairly small number of top features
+#'       selected per iteration.
+#' @return An `xgb.Callback` object, which can be passed to \link{xgb.train} or \link{xgb.cv}.
+#' @details
+#' To keep things fast and simple, gblinear booster does not internally store the history of linear
+#' model coefficients at each boosting iteration. This callback provides a workaround for storing
+#' the coefficients' path, by extracting them after each training iteration.
+#'
+#' This callback will construct a matrix where rows are boosting iterations and columns are
+#' feature coefficients (same order as when calling \link{coef.xgb.Booster}, with the intercept
+#' corresponding to the first column).
+#'
+#' When there is more than one coefficient per feature (e.g. multi-class classification),
+#' the result will be reshaped into a vector where coefficients are arranged first by features and
+#' then by class (e.g. first 1 through N coefficients will be for the first class, then
+#' coefficients N+1 through 2N for the second class, and so on).
+#'
+#' If the result has only one coefficient per feature in the data, then the resulting matrix
+#' will have column names matching with the feature names, otherwise (when there's more than
+#' one coefficient per feature) the names will be composed as 'column name' + ':' + 'class index'
+#' (so e.g. column 'c1' for class '0' will be named 'c1:0').
+#'
+#' With \code{xgb.train}, the output is either a dense or a sparse matrix.
+#' With with \code{xgb.cv}, it is a list (one element per each fold) of such
+#' matrices.
+#'
+#' Function \link{xgb.gblinear.history} function provides an easy way to retrieve the
+#' outputs from this callback.
+#' @seealso \link{xgb.gblinear.history}, \link{coef.xgb.Booster}.
+#' @examples
+#' #### Binary classification:
+#'
+#' ## Keep the number of threads to 1 for examples
+#' nthread <- 1
+#' data.table::setDTthreads(nthread)
+#'
+#' # In the iris dataset, it is hard to linearly separate Versicolor class from the rest
+#' # without considering the 2nd order interactions:
+#' x <- model.matrix(Species ~ .^2, iris)[,-1]
+#' colnames(x)
+#' dtrain <- xgb.DMatrix(scale(x), label = 1*(iris$Species == "versicolor"), nthread = nthread)
+#' param <- list(booster = "gblinear", objective = "reg:logistic", eval_metric = "auc",
+#'               lambda = 0.0003, alpha = 0.0003, nthread = nthread)
+#' # For 'shotgun', which is a default linear updater, using high eta values may result in
+#' # unstable behaviour in some datasets. With this simple dataset, however, the high learning
+#' # rate does not break the convergence, but allows us to illustrate the typical pattern of
+#' # "stochastic explosion" behaviour of this lock-free algorithm at early boosting iterations.
+#' bst <- xgb.train(param, dtrain, list(tr=dtrain), nrounds = 200, eta = 1.,
+#'                  callbacks = list(xgb.cb.gblinear.history()))
+#' # Extract the coefficients' path and plot them vs boosting iteration number:
+#' coef_path <- xgb.gblinear.history(bst)
+#' matplot(coef_path, type = 'l')
+#'
+#' # With the deterministic coordinate descent updater, it is safer to use higher learning rates.
+#' # Will try the classical componentwise boosting which selects a single best feature per round:
+#' bst <- xgb.train(param, dtrain, list(tr=dtrain), nrounds = 200, eta = 0.8,
+#'                  updater = 'coord_descent', feature_selector = 'thrifty', top_k = 1,
+#'                  callbacks = list(xgb.cb.gblinear.history()))
+#' matplot(xgb.gblinear.history(bst), type = 'l')
+#' #  Componentwise boosting is known to have similar effect to Lasso regularization.
+#' # Try experimenting with various values of top_k, eta, nrounds,
+#' # as well as different feature_selectors.
+#'
+#' # For xgb.cv:
+#' bst <- xgb.cv(param, dtrain, nfold = 5, nrounds = 100, eta = 0.8,
+#'               callbacks = list(xgb.cb.gblinear.history()))
+#' # coefficients in the CV fold #3
+#' matplot(xgb.gblinear.history(bst)[[3]], type = 'l')
+#'
+#'
+#' #### Multiclass classification:
+#' #
+#' dtrain <- xgb.DMatrix(scale(x), label = as.numeric(iris$Species) - 1, nthread = nthread)
+#' param <- list(booster = "gblinear", objective = "multi:softprob", num_class = 3,
+#'               lambda = 0.0003, alpha = 0.0003, nthread = nthread)
+#' # For the default linear updater 'shotgun' it sometimes is helpful
+#' # to use smaller eta to reduce instability
+#' bst <- xgb.train(param, dtrain, list(tr=dtrain), nrounds = 50, eta = 0.5,
+#'                  callbacks = list(xgb.cb.gblinear.history()))
+#' # Will plot the coefficient paths separately for each class:
+#' matplot(xgb.gblinear.history(bst, class_index = 0), type = 'l')
+#' matplot(xgb.gblinear.history(bst, class_index = 1), type = 'l')
+#' matplot(xgb.gblinear.history(bst, class_index = 2), type = 'l')
+#'
+#' # CV:
+#' bst <- xgb.cv(param, dtrain, nfold = 5, nrounds = 70, eta = 0.5,
+#'               callbacks = list(xgb.cb.gblinear.history(FALSE)))
+#' # 1st fold of 1st class
+#' matplot(xgb.gblinear.history(bst, class_index = 0)[[1]], type = 'l')
+#'
+#' @export
+xgb.cb.gblinear.history <- function(sparse = FALSE) {
+  xgb.Callback(
+    cb_name = "gblinear_history",
+    env = as.environment(list(sparse = sparse)),
+    f_before_training = function(env, model, data, evals, begin_iteration, end_iteration) {
+      if (!inherits(model, "xgb.Booster")) {
+        model <- model[[1L]]$bst
+      }
+      if (xgb.booster_type(model) != "gblinear") {
+        stop("Callback 'xgb.cb.gblinear.history' is only for booster='gblinear'.")
+      }
+      env$coef_hist <- vector("list", end_iteration - begin_iteration + 1)
+      env$next_idx <- 1
+    },
+    f_before_iter = NULL,
+    f_after_iter = function(env, model, data, evals, iteration, iter_feval) {
+      if (inherits(model, "xgb.Booster")) {
+        coef_this <- .extract.coef(model, env$sparse)
+      } else {
+        coef_this <- lapply(model, function(fd) .extract.coef(fd$bst, env$sparse))
+      }
+      env$coef_hist[[env$next_idx]] <- coef_this
+      env$next_idx <- env$next_idx + 1
+      return(FALSE)
+    },
+    f_after_training = function(env, model, data, evals, iteration, final_feval, prev_cb_res) {
+      # in case of early stopping
+      if (env$next_idx <= length(env$coef_hist)) {
+        env$coef_hist <- head(env$coef_hist, env$next_idx - 1)
+      }
+
+      is_booster <- inherits(model, "xgb.Booster")
+      if (is_booster) {
+        out <- .list2mat(env$coef_hist, env$sparse)
+      } else {
+        out <- lapply(
+          X = lapply(
+            X = seq_along(env$coef_hist[[1]]),
+            FUN = function(i) lapply(env$coef_hist, "[[", i)
+          ),
+          FUN = .list2mat,
+          env$sparse
+        )
+      }
+      if (!is.null(prev_cb_res)) {
+        if (is_booster) {
+          out <- rbind(prev_cb_res, out)
+        } else {
+          # Note: this case should never be encountered, since training cannot
+          # be continued from the result of xgb.cv, but this code should in
+          # theory do the job if the situation were to be encountered.
+          out <- lapply(
+            out,
+            function(lst) {
+              lapply(
+                seq_along(lst),
+                function(i) rbind(prev_cb_res[[i]], lst[[i]])
+              )
+            }
+          )
+        }
+      }
+      feature_names <- getinfo(data, "feature_name")
+      if (!NROW(feature_names)) {
+        feature_names <- paste0("V", seq(1L, ncol(data)))
+      }
+      expected_ncols <- length(feature_names) + 1
+      if (is_booster) {
+        mat_ncols <- ncol(out)
+      } else {
+        mat_ncols <- ncol(out[[1L]])
+      }
+      if (mat_ncols %% expected_ncols == 0) {
+        feature_names <- c("(Intercept)", feature_names)
+        n_rep <- mat_ncols / expected_ncols
+        if (n_rep > 1) {
+          feature_names <- unlist(
+            lapply(
+              seq(1, n_rep),
+              function(cl) paste(feature_names, cl - 1, sep = ":")
+            )
+          )
+        }
+        if (is_booster) {
+          colnames(out) <- feature_names
+        } else {
+          out <- lapply(
+            out,
+            function(mat) {
+              colnames(mat) <- feature_names
+              return(mat)
+            }
+          )
+        }
+      }
+      return(out)
+    }
+  )
+}
+
+#' @title Extract gblinear coefficients history.
+#' @description A helper function to extract the matrix of linear coefficients' history
+#' from a gblinear model created while using the \link{xgb.cb.gblinear.history}
+#' callback (which must be added manually as by default it's not used).
+#' @details Note that this is an R-specific function that relies on R attributes that
+#' are not saved when using xgboost's own serialization functions like \link{xgb.load}
+#' or \link{xgb.load.raw}.
+#'
+#' In order for a serialized model to be accepted by this function, one must use R
+#' serializers such as \link{saveRDS}.
+#' @param model either an \code{xgb.Booster} or a result of \code{xgb.cv()}, trained
+#'        using the \link{xgb.cb.gblinear.history} callback, but \bold{not} a booster
+#'        loaded from \link{xgb.load} or \link{xgb.load.raw}.
+#' @param class_index zero-based class index to extract the coefficients for only that
+#'        specific class in a multinomial multiclass model. When it is NULL, all the
+#'        coefficients are returned. Has no effect in non-multiclass models.
+#'
+#' @return
+#' For an \link{xgb.train} result, a matrix (either dense or sparse) with the columns
+#' corresponding to iteration's coefficients and the rows corresponding to boosting iterations.
+#'
+#' For an \link{xgb.cv} result, a list of such matrices is returned with the elements
+#' corresponding to CV folds.
+#'
+#' When there is more than one coefficient per feature (e.g. multi-class classification)
+#' and `class_index` is not provided,
+#' the result will be reshaped into a vector where coefficients are arranged first by features and
+#' then by class (e.g. first 1 through N coefficients will be for the first class, then
+#' coefficients N+1 through 2N for the second class, and so on).
+#' @seealso \link{xgb.cb.gblinear.history}, \link{coef.xgb.Booster}.
+#' @export
+xgb.gblinear.history <- function(model, class_index = NULL) {
+
+  if (!(inherits(model, "xgb.Booster") ||
+        inherits(model, "xgb.cv.synchronous")))
+    stop("model must be an object of either xgb.Booster or xgb.cv.synchronous class")
+  is_cv <- inherits(model, "xgb.cv.synchronous")
+
+  if (!is_cv) {
+    coef_path <- getElement(attributes(model), "gblinear_history")
+  } else {
+    coef_path <- getElement(model, "gblinear_history")
+  }
+  if (is.null(coef_path)) {
+    stop("model must be trained while using the xgb.cb.gblinear.history() callback")
+  }
+
+  if (!is_cv) {
+    num_class <- xgb.num_class(model)
+    num_feat <- xgb.num_feature(model)
+  } else {
+    # in case of CV, the object is expected to have this info
+    if (model$params$booster != "gblinear")
+      stop("It does not appear to be a gblinear model")
+    num_class <- NVL(model$params$num_class, 1)
+    num_feat <- model$nfeatures
+    if (is.null(num_feat))
+      stop("This xgb.cv result does not have nfeatures info")
+  }
+
+  if (!is.null(class_index) &&
+      num_class > 1 &&
+      (class_index[1] < 0 || class_index[1] >= num_class))
+    stop("class_index has to be within [0,", num_class - 1, "]")
+
+  if (!is.null(class_index) && num_class > 1) {
+    seq_take <- seq(1 + class_index * (num_feat + 1), (class_index + 1) * (num_feat + 1))
+    coef_path <- if (is.list(coef_path)) {
+      lapply(coef_path, function(x) x[, seq_take])
+    } else {
+      coef_path <- coef_path[, seq_take]
+    }
+  }
+  return(coef_path)
+}
+
+.callbacks.only.train <- "save_model"
+.callbacks.only.cv <- "cv_predict"
+
+.process.callbacks <- function(callbacks, is_cv) {
+  if (inherits(callbacks, "xgb.Callback")) {
+    callbacks <- list(callbacks)
+  }
+  if (!is.list(callbacks)) {
+    stop("'callbacks' must be a list.")
+  }
+  cb_names <- character()
+  if (length(callbacks)) {
+    is_callback <- sapply(callbacks, inherits, "xgb.Callback")
+    if (!all(is_callback)) {
+      stop("Entries in 'callbacks' must be 'xgb.Callback' objects.")
+    }
+    cb_names <- sapply(callbacks, function(cb) cb$cb_name)
+    if (length(cb_names) != length(callbacks)) {
+      stop("Passed invalid callback(s).")
+    }
+    if (anyDuplicated(cb_names) > 0) {
+      stop("Callbacks must have unique names.")
+    }
+    if (is_cv) {
+      if (any(.callbacks.only.train %in% cb_names)) {
+        stop(
+          "Passed callback(s) not supported for 'xgb.cv': ",
+          paste(intersect(.callbacks.only.train, cb_names), collapse = ", ")
+        )
+      }
+    } else {
+      if (any(.callbacks.only.cv %in% cb_names)) {
+        stop(
+          "Passed callback(s) not supported for 'xgb.train': ",
+          paste(intersect(.callbacks.only.cv, cb_names), collapse = ", ")
+        )
+      }
+    }
+    # Early stopping callback needs to be executed before the others
+    if ("early_stop" %in% cb_names) {
+      mask <- cb_names == "early_stop"
+      callbacks <- c(list(callbacks[[which(mask)]]), callbacks[!mask])
+    }
+  }
+  return(list(callbacks = callbacks, cb_names = cb_names))
+}
+
+# Note: don't try to use functions like 'append', as they will
+# merge the elements of the different callbacks into a single list.
+add.callback <- function(callbacks, cb, as_first_elt = FALSE) {
+  if (!as_first_elt) {
+    callbacks[[length(callbacks) + 1]] <- cb
+    return(callbacks)
+  } else {
+    if (!length(callbacks)) {
+      return(list(cb))
+    }
+    new_cb <- vector("list", length(callbacks) + 1)
+    new_cb[[1]] <- cb
+    new_cb[seq(2, length(new_cb))] <- callbacks
+    return(new_cb)
+  }
+}
+
+has.callbacks <- function(callbacks, cb_name) {
+  cb_names <- sapply(callbacks, function(cb) cb$name)
+  return(cb_name %in% cb_names)
 }
