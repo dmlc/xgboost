@@ -286,7 +286,8 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
 
       auto worker = WorkerProxy{n_workers_, std::move(sock), std::move(addr)};
       if (!worker.Status().OK()) {
-        return Fail("Failed to initialize worker proxy.", std::move(worker.Status()));
+        LOG(WARNING) << "Failed to initialize worker proxy." << worker.Status().Report();
+        continue;
       }
       switch (worker.Command()) {
         case proto::CMD::kStart: {

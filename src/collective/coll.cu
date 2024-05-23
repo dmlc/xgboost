@@ -191,7 +191,7 @@ Result BroadcastAllgatherV(NCCLComm const* comm, common::Span<std::int8_t const>
     for (std::int32_t r = 0; r < comm->World(); ++r) {
       auto as_bytes = sizes[r];
       auto rc = stub->Broadcast(data.data(), recv.subspan(offset, as_bytes).data(), as_bytes,
-                                ncclInt8, r, comm->Handle(), dh::DefaultStream());
+                                ncclInt8, r, comm->Handle(), comm->Stream());
       if (!rc.OK()) {
         return rc;
       }
