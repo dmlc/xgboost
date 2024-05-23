@@ -1,14 +1,15 @@
-/*!
- * Copyright 2018 XGBoost contributors
+/**
+ * Copyright 2018-2024, XGBoost contributors
  */
 #include <gtest/gtest.h>
-
-#include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
+#include <thrust/host_vector.h>
+#include <xgboost/span.h>
+
+#include <numeric>  // for iota
 
 #include "../../../src/common/device_helpers.cuh"
-#include <xgboost/span.h>
 #include "test_span.h"
 
 namespace xgboost {

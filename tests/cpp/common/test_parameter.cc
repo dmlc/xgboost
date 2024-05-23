@@ -97,4 +97,9 @@ TEST(XGBoostParameter, Update) {
     ASSERT_NEAR(p.f, 2.71828f, kRtEps);
     ASSERT_NEAR(p.d, 2.71828, kRtEps);  // default
   }
+
+  // Just in case dmlc's use of global memory has any impact in parameters.
+  UpdatableParam a, b;
+  a.UpdateAllowUnknown(xgboost::Args{{"f", "2.71828"}});
+  ASSERT_NE(a.f, b.f);
 }

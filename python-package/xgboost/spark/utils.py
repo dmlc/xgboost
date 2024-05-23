@@ -8,13 +8,14 @@ import os
 import sys
 import uuid
 from threading import Thread
-from typing import Any, Callable, Dict, Optional, Set, Type
+from typing import Any, Callable, Dict, Optional, Set, Type, Union
 
 import pyspark
 from pyspark import BarrierTaskContext, SparkConf, SparkContext, SparkFiles, TaskContext
 from pyspark.sql.session import SparkSession
 
-from xgboost import Booster, XGBModel, collective
+from xgboost import Booster, XGBModel
+from xgboost.collective import CommunicatorContext as CCtx
 from xgboost.tracker import RabitTracker
 
 
@@ -42,35 +43,25 @@ def _get_default_params_from_func(
     return filtered_params_dict
 
 
-class CommunicatorContext:
-    """A context controlling collective communicator initialization and finalization.
-    This isn't specificially necessary (note Part 3), but it is more understandable
-    coding-wise.
-
-    """
+class CommunicatorContext(CCtx):  # pylint: disable=too-few-public-methods
+    """Context with PySpark specific task ID."""
 
     def __init__(self, context: BarrierTaskContext, **args: Any) -> None:
-        self.args = args
-        self.args["DMLC_TASK_ID"] = str(context.partitionId())
-
-    def __enter__(self) -> None:
-        collective.init(**self.args)
-
-    def __exit__(self, *args: Any) -> None:
-        collective.finalize()
+        args["dmlc_task_id"] = str(context.partitionId())
+        super().__init__(**args)
 
 
 def _start_tracker(context: BarrierTaskContext, n_workers: int) -> Dict[str, Any]:
     """Start Rabit tracker with n_workers"""
-    env: Dict[str, Any] = {"DMLC_NUM_WORKER": n_workers}
+    args: Dict[str, Any] = {"n_workers": n_workers}
     host = _get_host_ip(context)
-    rabit_context = RabitTracker(host_ip=host, n_workers=n_workers)
-    env.update(rabit_context.worker_envs())
-    rabit_context.start(n_workers)
-    thread = Thread(target=rabit_context.join)
+    tracker = RabitTracker(n_workers=n_workers, host_ip=host, sortby="task")
+    tracker.start()
+    thread = Thread(target=tracker.wait_for)
     thread.daemon = True
     thread.start()
-    return env
+    args.update(tracker.worker_args())
+    return args
 
 
 def _get_rabit_args(context: BarrierTaskContext, n_workers: int) -> Dict[str, Any]:
@@ -98,10 +89,15 @@ def _get_spark_session() -> SparkSession:
     return SparkSession.builder.getOrCreate()
 
 
-def get_logger(name: str, level: str = "INFO") -> logging.Logger:
+def get_logger(name: str, level: Optional[Union[str, int]] = None) -> logging.Logger:
     """Gets a logger by name, or creates and configures it for the first time."""
     logger = logging.getLogger(name)
-    logger.setLevel(level)
+    if level is not None:
+        logger.setLevel(level)
+    else:
+        # Default to info if not set.
+        if logger.level == logging.NOTSET:
+            logger.setLevel(logging.INFO)
     # If the logger is configured, skip the configure
     if not logger.handlers and not logging.getLogger().handlers:
         handler = logging.StreamHandler(sys.stderr)
@@ -111,6 +107,12 @@ def get_logger(name: str, level: str = "INFO") -> logging.Logger:
         handler.setFormatter(formatter)
         logger.addHandler(handler)
     return logger
+
+
+def get_logger_level(name: str) -> Optional[int]:
+    """Get the logger level for the given log name"""
+    logger = logging.getLogger(name)
+    return None if logger.level == logging.NOTSET else logger.level
 
 
 def _get_max_num_concurrent_tasks(spark_context: SparkContext) -> int:

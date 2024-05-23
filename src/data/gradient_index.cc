@@ -193,7 +193,7 @@ float GHistIndexMatrix::GetFvalue(size_t ridx, size_t fidx, bool is_cat) const {
 
 float GHistIndexMatrix::GetFvalue(std::vector<std::uint32_t> const &ptrs,
                                   std::vector<float> const &values, std::vector<float> const &mins,
-                                  bst_row_t ridx, bst_feature_t fidx, bool is_cat) const {
+                                  bst_idx_t ridx, bst_feature_t fidx, bool is_cat) const {
   if (is_cat) {
     auto gidx = GetGindex(ridx, fidx);
     if (gidx == -1) {

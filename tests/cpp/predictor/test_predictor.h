@@ -92,7 +92,7 @@ void TestTrainingPrediction(Context const* ctx, size_t rows, size_t bins,
                             std::shared_ptr<DMatrix> p_full, std::shared_ptr<DMatrix> p_hist,
                             bool check_contribs = false);
 
-void TestInplacePrediction(Context const* ctx, std::shared_ptr<DMatrix> x, bst_row_t rows,
+void TestInplacePrediction(Context const* ctx, std::shared_ptr<DMatrix> x, bst_idx_t rows,
                            bst_feature_t cols);
 
 void TestPredictionWithLesserFeatures(Context const* ctx);

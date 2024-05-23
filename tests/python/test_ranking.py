@@ -13,6 +13,7 @@ import xgboost
 from xgboost import testing as tm
 from xgboost.testing.data import RelDataCV, simulate_clicks, sort_ltr_samples
 from xgboost.testing.params import lambdarank_parameter_strategy
+from xgboost.testing.ranking import run_normalization
 
 
 def test_ndcg_custom_gain():
@@ -52,6 +53,20 @@ def test_ndcg_custom_gain():
     byxgb_json["learner"]["objective"]["lambdarank_param"]["ndcg_exp_gain"] = "0"
     assert byxgb.evals_result() == bynp.evals_result()
     assert byxgb_json == bynp_json
+
+    # test pairwise can handle max_rel > 31, while ndcg metric is using custom gain
+    X, y, q, w = tm.make_ltr(n_samples=1024, n_features=4, n_query_groups=3, max_rel=33)
+    ranknet = xgboost.XGBRanker(
+        tree_method="hist",
+        ndcg_exp_gain=False,
+        n_estimators=10,
+        objective="rank:pairwise",
+    )
+    ranknet.fit(X, y, qid=q, eval_set=[(X, y)], eval_qid=[q])
+    history = ranknet.evals_result()
+    assert (
+        history["validation_0"]["ndcg@32"][0] < history["validation_0"]["ndcg@32"][-1]
+    )
 
 
 def test_ranking_with_unweighted_data():
@@ -186,6 +201,10 @@ def test_unbiased() -> None:
     np.testing.assert_allclose(df["tj-"].iloc[0], 1.0)
     # less biased on low ranks.
     assert df["ti+"].iloc[-1] < df["ti+"].iloc[0]
+
+
+def test_normalization() -> None:
+    run_normalization("cpu")
 
 
 class TestRanking:

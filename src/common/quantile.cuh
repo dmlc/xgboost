@@ -1,7 +1,8 @@
+/**
+ * Copyright 2020-2024, XGBoost Contributors
+ */
 #ifndef XGBOOST_COMMON_QUANTILE_CUH_
 #define XGBOOST_COMMON_QUANTILE_CUH_
-
-#include <memory>
 
 #include "xgboost/span.h"
 #include "xgboost/data.h"
@@ -32,13 +33,13 @@ struct SketchUnique {
 class SketchContainer {
  public:
   static constexpr float kFactor = WQSketch::kFactor;
-  using OffsetT = bst_row_t;
+  using OffsetT = bst_idx_t;
   static_assert(sizeof(OffsetT) == sizeof(size_t), "Wrong type for sketch element offset.");
 
  private:
   Monitor timer_;
   HostDeviceVector<FeatureType> feature_types_;
-  bst_row_t num_rows_;
+  bst_idx_t num_rows_;
   bst_feature_t num_columns_;
   int32_t num_bins_;
   DeviceOrd device_;
@@ -94,7 +95,7 @@ class SketchContainer {
    * \param device      GPU ID.
    */
   SketchContainer(HostDeviceVector<FeatureType> const& feature_types, int32_t max_bin,
-                  bst_feature_t num_columns, bst_row_t num_rows, DeviceOrd device)
+                  bst_feature_t num_columns, bst_idx_t num_rows, DeviceOrd device)
       : num_rows_{num_rows}, num_columns_{num_columns}, num_bins_{max_bin}, device_{device} {
     CHECK(device.IsCUDA());
     // Initialize Sketches for this dmatrix

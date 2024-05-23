@@ -1,11 +1,12 @@
 /**
- * Copyright 2018-2023 by XGBoost Contributors
+ * Copyright 2018-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/base.h>
-#include <xgboost/span.h>
 #include <xgboost/host_device_vector.h>
+#include <xgboost/span.h>
 
+#include <numeric>  // for iota
 #include <vector>
 
 #include "../../../src/common/transform.h"

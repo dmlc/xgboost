@@ -40,7 +40,7 @@ void CopyDataToDMatrix(AdapterBatchT batch, common::Span<Entry> data,
 }
 
 template <typename AdapterBatchT>
-void CountRowOffsets(const AdapterBatchT& batch, common::Span<bst_row_t> offset, DeviceOrd device,
+void CountRowOffsets(const AdapterBatchT& batch, common::Span<bst_idx_t> offset, DeviceOrd device,
                      float missing) {
   dh::safe_cuda(cudaSetDevice(device.ordinal));
   IsValidFunctor is_valid(missing);

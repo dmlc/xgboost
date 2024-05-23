@@ -62,7 +62,7 @@ TEST(DeviceAdapter, GetRowCounts) {
                        .Device(ctx.Device())
                        .GenerateArrayInterface(&storage);
     auto adapter = CupyAdapter{str_arr};
-    HostDeviceVector<bst_row_t> offset(adapter.NumRows() + 1, 0);
+    HostDeviceVector<bst_idx_t> offset(adapter.NumRows() + 1, 0);
     offset.SetDevice(ctx.Device());
     auto rstride = GetRowCounts(adapter.Value(), offset.DeviceSpan(), ctx.Device(),
                                 std::numeric_limits<float>::quiet_NaN());

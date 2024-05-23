@@ -6,7 +6,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <mutex>
 
 #include "xgboost/data.h"
 #include "xgboost/host_device_vector.h"
@@ -412,7 +411,7 @@ template class HostDeviceVector<uint8_t>;
 template class HostDeviceVector<int8_t>;
 template class HostDeviceVector<FeatureType>;
 template class HostDeviceVector<Entry>;
-template class HostDeviceVector<uint64_t>;  // bst_row_t
+template class HostDeviceVector<bst_idx_t>;
 template class HostDeviceVector<uint32_t>;  // bst_feature_t
 template class HostDeviceVector<RegTree::Node>;
 template class HostDeviceVector<RegTree::CategoricalSplitMatrix::Segment>;

@@ -22,6 +22,9 @@
 #include "../../../../src/tree/hist/param.h"            // for HistMakerTrainParam
 #include "../../../../src/tree/param.h"                 // for GradStats, TrainParam
 #include "../../helpers.h"                              // for RandomDataGenerator, AllThreadsFo...
+#if defined(XGBOOST_USE_FEDERATED)
+#include "../../plugin/federated/test_worker.h"  // for TestFederatedGlobal
+#endif                                           // defined(XGBOOST_USE_FEDERATED)
 
 namespace xgboost::tree {
 void TestEvaluateSplits(bool force_read_by_column) {
@@ -290,6 +293,7 @@ TEST_F(TestCategoricalSplitWithMissing, HistEvaluator) {
                     GradientPairPrecise{split.right_sum.GetGrad(), split.right_sum.GetHess()});
 }
 
+#if defined(XGBOOST_USE_FEDERATED)
 namespace {
 void DoTestEvaluateSplitsSecure(bool force_read_by_column) {
   Context ctx;
@@ -364,9 +368,10 @@ void DoTestEvaluateSplitsSecure(bool force_read_by_column) {
   delete m;
 }
 
-void TestEvaluateSplitsSecure (bool force_read_by_column) {
+void TestEvaluateSplitsSecure(bool force_read_by_column) {
   auto constexpr kWorkers = 2;
-  RunWithInMemoryCommunicator(kWorkers, DoTestEvaluateSplitsSecure, force_read_by_column);
+  collective::TestFederatedGlobal(kWorkers,
+                                  [&] { DoTestEvaluateSplitsSecure(force_read_by_column); });
 }
 } // anonymous namespace
 
@@ -374,5 +379,5 @@ TEST(HistEvaluator, SecureEvaluate) {
   TestEvaluateSplitsSecure(false);
   TestEvaluateSplitsSecure(true);
 }
-
+#endif  // defined(XGBOOST_USE_FEDERATED)
 }  // namespace xgboost::tree

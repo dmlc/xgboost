@@ -5,13 +5,13 @@
 #include <gtest/gtest.h>
 #include <xgboost/collective/result.h>  // for Result
 
+#include "../../../../src/collective/allreduce.h"
 #include "../../../../src/common/common.h"            // for AllVisibleGPUs
 #include "../../../../src/common/device_helpers.cuh"  // for device_vector
 #include "../../../../src/common/type.h"              // for EraseType
 #include "../../collective/test_worker.h"             // for SocketTest
 #include "../../helpers.h"                            // for MakeCUDACtx
 #include "federated_coll.cuh"
-#include "federated_comm.cuh"
 #include "test_worker.h"  // for TestFederated
 
 namespace xgboost::collective {
@@ -71,7 +71,7 @@ void TestAllgather(std::shared_ptr<FederatedComm> comm, std::int32_t rank, std::
 
   dh::device_vector<std::int32_t> buffer(n_workers, 0);
   buffer[comm->Rank()] = comm->Rank();
-  auto rc = w.coll->Allgather(*w.nccl_comm, common::EraseType(dh::ToSpan(buffer)), sizeof(int));
+  auto rc = w.coll->Allgather(*w.nccl_comm, common::EraseType(dh::ToSpan(buffer)));
   ASSERT_TRUE(rc.OK());
   for (auto i = 0; i < n_workers; i++) {
     ASSERT_EQ(buffer[i], i);
@@ -105,6 +105,32 @@ TEST_F(FederatedCollTestGPU, Allreduce) {
   std::int32_t n_workers = common::AllVisibleGPUs();
   TestFederated(n_workers, [=](std::shared_ptr<FederatedComm> comm, std::int32_t rank) {
     TestAllreduce(comm, rank, n_workers);
+  });
+}
+
+TEST(FederatedCollGPUGlobal, Allreduce) {
+  std::int32_t n_workers = common::AllVisibleGPUs();
+  TestFederatedGlobal(n_workers, [&] {
+    auto r = collective::GetRank();
+    auto world = collective::GetWorldSize();
+    CHECK_EQ(n_workers, world);
+
+    dh::device_vector<std::uint32_t> values(3, r);
+    auto ctx = MakeCUDACtx(r);
+    auto rc = collective::Allreduce(
+        &ctx, linalg::MakeVec(values.data().get(), values.size(), DeviceOrd::CUDA(r)),
+        Op::kBitwiseOR);
+    SafeColl(rc);
+
+    std::vector<std::uint32_t> expected(values.size(), 0);
+    for (std::int32_t rank = 0; rank < world; ++rank) {
+      for (std::size_t i = 0; i < expected.size(); ++i) {
+        expected[i] |= rank;
+      }
+    }
+    for (std::size_t i = 0; i < expected.size(); ++i) {
+      CHECK_EQ(expected[i], values[i]);
+    }
   });
 }
 

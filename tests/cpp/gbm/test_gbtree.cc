@@ -171,7 +171,7 @@ TEST(GBTree, ChoosePredictor) {
 }
 
 TEST(GBTree, ChooseTreeMethod) {
-  bst_row_t n_samples{128};
+  bst_idx_t n_samples{128};
   bst_feature_t n_features{64};
   auto Xy = RandomDataGenerator{n_samples, n_features, 0.5f}.GenerateDMatrix(true);
 
@@ -408,7 +408,7 @@ class Dart : public testing::TestWithParam<char const*> {
     for (size_t i = 0; i < kRows; ++i) {
       labels[i] = i % 2;
     }
-    p_mat->SetInfo("label", labels.data(), DataType::kFloat32, kRows);
+    p_mat->SetInfo("label", Make1dInterfaceTest(labels.data(), kRows));
 
     auto learner = std::unique_ptr<Learner>(Learner::Create({p_mat}));
     learner->SetParam("booster", "dart");

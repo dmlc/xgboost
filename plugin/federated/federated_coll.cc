@@ -89,19 +89,15 @@ Coll *FederatedColl::MakeCUDAVar() {
 
 [[nodiscard]] Result FederatedColl::Broadcast(Comm const &comm, common::Span<std::int8_t> data,
                                               std::int32_t root) {
-  if (comm.Rank() == root) {
-    return BroadcastImpl(comm, &this->sequence_number_, data, root);
-  } else {
-    return BroadcastImpl(comm, &this->sequence_number_, data, root);
-  }
+  return BroadcastImpl(comm, &this->sequence_number_, data, root);
 }
 
-[[nodiscard]] Result FederatedColl::Allgather(Comm const &comm, common::Span<std::int8_t> data,
-                                              std::int64_t size) {
+[[nodiscard]] Result FederatedColl::Allgather(Comm const &comm, common::Span<std::int8_t> data) {
   using namespace federated;  // NOLINT
   auto fed = dynamic_cast<FederatedComm const *>(&comm);
   CHECK(fed);
   auto stub = fed->Handle();
+  auto size = data.size_bytes() / comm.World();
 
   auto offset = comm.Rank() * size;
   auto segment = data.subspan(offset, size);

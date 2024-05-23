@@ -341,10 +341,10 @@ One way to measure progress in learning of a model is to provide to **XGBoost** 
 
 > in some way it is similar to what we have done above with the average error. The main difference is that below it was after building the model, and now it is during the construction that we measure errors.
 
-For the purpose of this example, we use `watchlist` parameter. It is a list of `xgb.DMatrix`, each of them tagged with a name.
+For the purpose of this example, we use the `evals` parameter. It is a list of `xgb.DMatrix` objects, each of them tagged with a name.
 
-```{r watchlist, message=F, warning=F}
-watchlist <- list(train = dtrain, test = dtest)
+```{r evals, message=F, warning=F}
+evals <- list(train = dtrain, test = dtest)
 
 bst <- xgb.train(
     data = dtrain
@@ -355,7 +355,7 @@ bst <- xgb.train(
         , objective = "binary:logistic"
     )
     , nrounds = 2
-    , watchlist = watchlist
+    , evals = evals
 )
 ```
 
@@ -367,7 +367,7 @@ If with your own dataset you have not such results, you should think about how y
 
 For a better understanding of the learning progression, you may want to have some specific metric or even use multiple evaluation metrics.
 
-```{r watchlist2, message=F, warning=F}
+```{r evals2, message=F, warning=F}
 bst <- xgb.train(
     data = dtrain
     , max_depth = 2
@@ -379,7 +379,7 @@ bst <- xgb.train(
         , eval_metric = "logloss"
     )
     , nrounds = 2
-    , watchlist = watchlist
+    , evals = evals
 )
 ```
 
@@ -401,7 +401,7 @@ bst <- xgb.train(
         , eval_metric = "logloss"
     )
     , nrounds = 2
-    , watchlist = watchlist
+    , evals = evals
 )
 ```
 
@@ -430,7 +430,7 @@ bst <- xgb.train(
         , objective = "binary:logistic"
     )
     , nrounds = 2
-    , watchlist = watchlist
+    , evals = evals
 )
 ```
 

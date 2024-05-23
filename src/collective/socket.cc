@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2023 by XGBoost Contributors
+ * Copyright 2022-2024, XGBoost Contributors
  */
 #include "xgboost/collective/socket.h"
 
@@ -8,7 +8,8 @@
 #include <cstdint>       // std::int32_t
 #include <cstring>       // std::memcpy, std::memset
 #include <filesystem>    // for path
-#include <system_error>  // std::error_code, std::system_category
+#include <system_error>  // for error_code, system_category
+#include <thread>        // for sleep_for
 
 #include "rabit/internal/socket.h"      // for PollHelper
 #include "xgboost/collective/result.h"  // for Result
@@ -59,20 +60,46 @@ std::size_t TCPSocket::Send(StringView str) {
   CHECK(!this->IsClosed());
   CHECK_LT(str.size(), std::numeric_limits<std::int32_t>::max());
   std::int32_t len = static_cast<std::int32_t>(str.size());
-  CHECK_EQ(this->SendAll(&len, sizeof(len)), sizeof(len)) << "Failed to send string length.";
-  auto bytes = this->SendAll(str.c_str(), str.size());
-  CHECK_EQ(bytes, str.size()) << "Failed to send string.";
-  return bytes;
+  std::size_t n_bytes{0};
+  auto rc = Success() << [&] {
+    return this->SendAll(&len, sizeof(len), &n_bytes);
+  } << [&] {
+    if (n_bytes != sizeof(len)) {
+      return Fail("Failed to send string length.");
+    }
+    return Success();
+  } << [&] {
+    return this->SendAll(str.c_str(), str.size(), &n_bytes);
+  } << [&] {
+    if (n_bytes != str.size()) {
+      return Fail("Failed to send string.");
+    }
+    return Success();
+  };
+  SafeColl(rc);
+  return n_bytes;
 }
 
-std::size_t TCPSocket::Recv(std::string *p_str) {
+[[nodiscard]] Result TCPSocket::Recv(std::string *p_str) {
   CHECK(!this->IsClosed());
   std::int32_t len;
-  CHECK_EQ(this->RecvAll(&len, sizeof(len)), sizeof(len)) << "Failed to recv string length.";
-  p_str->resize(len);
-  auto bytes = this->RecvAll(&(*p_str)[0], len);
-  CHECK_EQ(bytes, len) << "Failed to recv string.";
-  return bytes;
+  std::size_t n_bytes{0};
+  return Success() << [&] {
+    return this->RecvAll(&len, sizeof(len), &n_bytes);
+  } << [&] {
+    if (n_bytes != sizeof(len)) {
+      return Fail("Failed to recv string length.");
+    }
+    return Success();
+  } << [&] {
+    p_str->resize(len);
+    return this->RecvAll(&(*p_str)[0], len, &n_bytes);
+  } << [&] {
+    if (static_cast<std::remove_reference_t<decltype(len)>>(n_bytes) != len) {
+      return Fail("Failed to recv string.");
+    }
+    return Success();
+  };
 }
 
 [[nodiscard]] Result Connect(xgboost::StringView host, std::int32_t port, std::int32_t retry,
@@ -110,11 +137,7 @@ std::size_t TCPSocket::Recv(std::string *p_str) {
   for (std::int32_t attempt = 0; attempt < std::max(retry, 1); ++attempt) {
     if (attempt > 0) {
       LOG(WARNING) << "Retrying connection to " << host << " for the " << attempt << " time.";
-#if defined(_MSC_VER) || defined(__MINGW32__)
-      Sleep(attempt << 1);
-#else
-      sleep(attempt << 1);
-#endif
+      std::this_thread::sleep_for(std::chrono::seconds{attempt << 1});
     }
 
     auto rc = connect(conn.Handle(), addr_handle, addr_len);
@@ -158,8 +181,8 @@ std::size_t TCPSocket::Recv(std::string *p_str) {
 
   std::stringstream ss;
   ss << "Failed to connect to " << host << ":" << port;
-  conn.Close();
-  return Fail(ss.str(), std::move(last_error));
+  auto close_rc = conn.Close();
+  return Fail(ss.str(), std::move(close_rc) + std::move(last_error));
 }
 
 [[nodiscard]] Result GetHostName(std::string *p_out) {

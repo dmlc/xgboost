@@ -118,7 +118,7 @@ Parameters for Tree Booster
   - All ``colsample_by*`` parameters have a range of (0, 1], the default value of 1, and specify the fraction of columns to be subsampled.
   - ``colsample_bytree`` is the subsample ratio of columns when constructing each tree. Subsampling occurs once for every tree constructed.
   - ``colsample_bylevel`` is the subsample ratio of columns for each level. Subsampling occurs once for every new depth level reached in a tree. Columns are subsampled from the set of columns chosen for the current tree.
-  - ``colsample_bynode`` is the subsample ratio of columns for each node (split). Subsampling occurs once every time a new split is evaluated. Columns are subsampled from the set of columns chosen for the current level.
+  - ``colsample_bynode`` is the subsample ratio of columns for each node (split). Subsampling occurs once every time a new split is evaluated. Columns are subsampled from the set of columns chosen for the current level. This is not supported by the exact tree method.
   - ``colsample_by*`` parameters work cumulatively. For instance,
     the combination ``{'colsample_bytree':0.5, 'colsample_bylevel':0.5,
     'colsample_bynode':0.5}`` with 64 features will leave 8 features to choose from at
@@ -489,7 +489,7 @@ Parameters for learning to rank (``rank:ndcg``, ``rank:map``, ``rank:pairwise``)
 
 These are parameters specific to learning to rank task. See :doc:`Learning to Rank </tutorials/learning_to_rank>` for an in-depth explanation.
 
-* ``lambdarank_pair_method`` [default = ``mean``]
+* ``lambdarank_pair_method`` [default = ``topk``]
 
   How to construct pairs for pair-wise learning.
 
@@ -500,7 +500,13 @@ These are parameters specific to learning to rank task. See :doc:`Learning to Ra
 
   It specifies the number of pairs sampled for each document when pair method is ``mean``, or the truncation level for queries when the pair method is ``topk``. For example, to train with ``ndcg@6``, set ``lambdarank_num_pair_per_sample`` to :math:`6` and ``lambdarank_pair_method`` to ``topk``.
 
-* ``lambdarank_unbiased`` [default = ``false``]
+* ``lambdarank_normalization`` [default = ``true``]
+
+  .. versionadded:: 2.1.0
+
+  Whether to normalize the leaf value by lambda gradient. This can sometimes stagnate the training progress.
+
+*  ``lambdarank_unbiased`` [default = ``false``]
 
   Specify whether do we need to debias input click data.
 

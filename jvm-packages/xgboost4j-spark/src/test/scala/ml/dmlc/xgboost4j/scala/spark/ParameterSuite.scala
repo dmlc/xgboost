@@ -23,7 +23,6 @@ import org.apache.spark.SparkException
 import org.apache.spark.ml.param.ParamMap
 
 class ParameterSuite extends AnyFunSuite with PerTest with BeforeAndAfterAll {
-
   test("XGBoost and Spark parameters synchronize correctly") {
     val xgbParamMap = Map("eta" -> "1", "objective" -> "binary:logistic",
       "objective_type" -> "classification")
@@ -50,7 +49,6 @@ class ParameterSuite extends AnyFunSuite with PerTest with BeforeAndAfterAll {
     intercept[SparkException] {
       xgb.fit(trainingDF)
     }
-
   }
 
   test("fail training elegantly with unsupported eval metrics") {

@@ -1,8 +1,11 @@
 /**
- * Copyright 2021-2023 by XGBoost Contributors
+ * Copyright 2021-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
+#include <thrust/equal.h>     // for equal
+#include <thrust/sequence.h>  // for sequence
 
+#include "../../../src/common/cuda_context.cuh"
 #include "../../../src/common/linalg_op.cuh"
 #include "../helpers.h"
 #include "xgboost/context.h"
@@ -85,4 +88,23 @@ void TestSlice() {
 TEST(Linalg, GPUElementWise) { TestElementWiseKernel(); }
 
 TEST(Linalg, GPUTensorView) { TestSlice(); }
+
+TEST(Linalg, GPUIter) {
+  auto ctx = MakeCUDACtx(1);
+  auto cuctx = ctx.CUDACtx();
+
+  dh::device_vector<double> data(2 * 3 * 4);
+  thrust::sequence(cuctx->CTP(), data.begin(), data.end(), 1.0);
+
+  auto t = MakeTensorView(&ctx, dh::ToSpan(data), 2, 3, 4);
+  static_assert(!std::is_const_v<decltype(t)::element_type>);
+  static_assert(!std::is_const_v<decltype(t)::value_type>);
+
+  auto n = std::distance(linalg::tcbegin(t), linalg::tcend(t));
+  ASSERT_EQ(n, t.Size());
+  ASSERT_FALSE(t.Empty());
+
+  bool eq = thrust::equal(cuctx->CTP(), data.cbegin(), data.cend(), linalg::tcbegin(t));
+  ASSERT_TRUE(eq);
+}
 }  // namespace xgboost::linalg
