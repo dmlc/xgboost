@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2022 by Contributors
+ Copyright (c) 2014-2024 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -298,7 +298,7 @@ public class DMatrixTest {
 
   @Test
   public void testTrainWithDenseMatrixRef() throws XGBoostError {
-    Map<String, String> rabitEnv = new HashMap<>();
+    Map<String, Object> rabitEnv = new HashMap<>();
     rabitEnv.put("DMLC_TASK_ID", "0");
     Communicator.init(rabitEnv);
     DMatrix trainMat = null;

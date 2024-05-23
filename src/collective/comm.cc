@@ -150,9 +150,12 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
     }
 
     auto rank = comm.Rank();
-    auto n_bytes = worker->SendAll(&rank, sizeof(comm.Rank()));
-    if (n_bytes != sizeof(comm.Rank())) {
-      return Fail("Failed to send rank.");
+    std::size_t n_bytes{0};
+    auto rc = worker->SendAll(&rank, sizeof(comm.Rank()), &n_bytes);
+    if (!rc.OK()) {
+      return rc;
+    } else if (n_bytes != sizeof(comm.Rank())) {
+      return Fail("Failed to send rank.", std::move(rc));
     }
     workers[r] = std::move(worker);
   }
@@ -169,8 +172,11 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
       return rc;
     }
     std::int32_t rank{-1};
-    auto n_bytes = peer->RecvAll(&rank, sizeof(rank));
-    if (n_bytes != sizeof(comm.Rank())) {
+    std::size_t n_bytes{0};
+    auto rc = peer->RecvAll(&rank, sizeof(rank), &n_bytes);
+    if (!rc.OK()) {
+      return rc;
+    } else if (n_bytes != sizeof(comm.Rank())) {
       return Fail("Failed to recv rank.");
     }
     workers[rank] = std::move(peer);

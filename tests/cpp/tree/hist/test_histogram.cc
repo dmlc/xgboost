@@ -33,6 +33,7 @@
 #include "../../../../src/tree/hist/histogram.h"          // for HistogramBuilder
 #include "../../../../src/tree/hist/param.h"              // for HistMakerTrainParam
 #include "../../categorical_helpers.h"                    // for OneHotEncodeFeature
+#include "../../collective/test_worker.h"                 // for TestDistributedGlobal
 #include "../../helpers.h"                                // for RandomDataGenerator, GenerateRa...
 
 namespace xgboost::tree {
@@ -300,8 +301,8 @@ TEST(CPUHistogram, BuildHist) {
 
 TEST(CPUHistogram, BuildHistColSplit) {
   auto constexpr kWorkers = 4;
-  RunWithInMemoryCommunicator(kWorkers, TestBuildHistogram, true, true, true);
-  RunWithInMemoryCommunicator(kWorkers, TestBuildHistogram, true, false, true);
+  collective::TestDistributedGlobal(kWorkers, [] { TestBuildHistogram(true, true, true); });
+  collective::TestDistributedGlobal(kWorkers, [] { TestBuildHistogram(true, false, true); });
 }
 
 namespace {

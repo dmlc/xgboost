@@ -15,6 +15,7 @@
 #include "xgboost/json.h"               // for Json
 
 namespace xgboost::collective {
+inline bool HasTimeout(std::chrono::seconds timeout) { return timeout.count() > 0; }
 /**
  *
  * @brief Implementation of RABIT tracker.
@@ -52,7 +53,7 @@ class Tracker {
  protected:
   std::int32_t n_workers_{0};
   std::int32_t port_{-1};
-  std::chrono::seconds timeout_{0};
+  std::chrono::seconds timeout_{-1};
   std::atomic<bool> ready_{false};
 
  public:

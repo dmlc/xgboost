@@ -147,7 +147,7 @@ class TestDMatrix:
         assert dm.slice([0, 1]).num_col() == dm.num_col()
         assert dm.slice([0, 1]).feature_names == dm.feature_names
 
-        with pytest.raises(ValueError, match=r"Duplicates found: \['bar'\]"):
+        with pytest.raises(ValueError, match=r"Duplicates found: \[.*'bar'.*\]"):
             dm.feature_names = ["bar"] * (data.shape[1] - 2) + ["a", "b"]
 
         dm.feature_types = list("qiqiq")
@@ -264,7 +264,7 @@ class TestDMatrix:
         assert (dtrain.num_row(), dtrain.num_col()) == (nrow, ncol)
         watchlist = [(dtrain, "train")]
         param = {"max_depth": 3, "objective": "binary:logistic"}
-        bst = xgb.train(param, dtrain, 5, watchlist)
+        bst = xgb.train(param, dtrain, 5, evals=watchlist)
         bst.predict(dtrain)
 
         i32 = csr_matrix((x.data.astype(np.int32), x.indices, x.indptr), shape=x.shape)
@@ -302,7 +302,7 @@ class TestDMatrix:
         assert (dtrain.num_row(), dtrain.num_col()) == (nrow, ncol)
         watchlist = [(dtrain, "train")]
         param = {"max_depth": 3, "objective": "binary:logistic"}
-        bst = xgb.train(param, dtrain, 5, watchlist)
+        bst = xgb.train(param, dtrain, 5, evals=watchlist)
         bst.predict(dtrain)
 
     def test_unknown_data(self):
@@ -320,9 +320,10 @@ class TestDMatrix:
         X = rng.rand(10, 10)
         y = rng.rand(10)
         X = sparse.dok_matrix(X)
-        Xy = xgb.DMatrix(X, y)
-        assert Xy.num_row() == 10
-        assert Xy.num_col() == 10
+        with pytest.warns(UserWarning, match="dok_matrix"):
+            Xy = xgb.DMatrix(X, y)
+            assert Xy.num_row() == 10
+            assert Xy.num_col() == 10
 
     @pytest.mark.skipif(**tm.no_pandas())
     def test_np_categorical(self):
@@ -343,8 +344,8 @@ class TestDMatrix:
         X = X.values.astype(np.float32)
         feature_types = ["c"] * n_features
 
-        X[1, 3] = np.NAN
-        X[2, 4] = np.NAN
+        X[1, 3] = np.nan
+        X[2, 4] = np.nan
         X = sparse.csr_matrix(X)
 
         Xy = xgb.DMatrix(X, y, feature_types=feature_types)
