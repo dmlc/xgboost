@@ -95,6 +95,7 @@ In this case, we want to optimize the negative of the log-likelihood summed acro
 The resulting function, gradient and Hessian could be implemented as follows:
 
 .. code-block:: python
+    :caption: Python
 
     import numpy as np
     from scipy.special import loggamma, psi as digamma, polygamma
@@ -127,17 +128,63 @@ The resulting function, gradient and Hessian could be implemented as follows:
             )
         return H
 
+.. code-block:: r
+    :caption: R
 
-Convince yourself that the implementation is correct (can also be compared against
-SciPy's ``stats.dirichlet.logpdf`` for an alternative):
+    softmax <- function(x) {
+        max.x <- max(x)
+        e <- exp(x - max.x)
+        return(e / sum(e))
+    }
+
+    dirichlet.fun <- function(pred, y) {
+        epred <- exp(pred)
+        sum_epred <- rowSums(epred)
+        return(
+            sum(lgamma(epred))
+            - sum(lgamma(sum_epred))
+            - sum(log(y) * (epred - 1))
+        )
+    }
+
+    dirichlet.grad <- function(pred, y) {
+        epred <- exp(pred)
+        return(
+            epred * (
+                digamma(epred)
+                - digamma(rowSums(epred))
+                - log(y)
+            )
+        )
+    }
+
+    dirichlet.hess <- function(pred, y) {
+        epred <- exp(pred)
+        grad <- dirichlet.grad(pred, y)
+        k <- ncol(y)
+        H <- array(dim = c(nrow(y), k, k))
+        for (row in seq_len(nrow(y))) {
+            H[row, , ] <- (
+                - trigamma(rowSums(epred)) * (epred[row,] %o% epred[row,])
+                + diag(grad[row] + trigamma(epred[row]) * epred[row] ^ 2)
+            )
+        }
+        return(H)
+    }
+
+
+Convince yourself that the implementation is correct:
 
 .. code-block:: python
+    :caption: Python
 
+    from math import isclose
+    from scipy import stats
     from scipy.optimize import check_grad
     from scipy.special import softmax
 
     def gen_random_dirichlet(rng: np.random.Generator, m: int, k: int):
-        alpha = softmax(rng.standard_normal(size=k))
+        alpha = np.exp(rng.standard_normal(size=k))
         return rng.dirichlet(alpha, size=m)
     
     def test_dirichlet_fun_grad_hess():
@@ -147,6 +194,13 @@ SciPy's ``stats.dirichlet.logpdf`` for an alternative):
         Y = gen_random_dirichlet(rng, m, k)
         x0 = rng.standard_normal(size=k)
         for row in range(Y.shape[0]):
+            fun_row = dirichlet_fun(x0.reshape((1,-1)), Y[[row]])
+            ref_logpdf = stats.dirichlet.logpdf(
+                Y[row] / Y[row].sum(), # <- avoid roundoff error
+                np.exp(x0),
+            )
+            assert isclose(fun_row, -ref_logpdf)
+
             gdiff = check_grad(
                 lambda pred: dirichlet_fun(pred.reshape((1,-1)), Y[[row]]),
                 lambda pred: dirichlet_grad(pred.reshape((1,-1)), Y[[row]]),
@@ -167,6 +221,56 @@ SciPy's ``stats.dirichlet.logpdf`` for an alternative):
             H = dirichlet_hess(x0.reshape((1,-1)), Y[[row]])[0]
             np.testing.assert_almost_equal(H, H_numeric, decimal=6)
     test_dirichlet_fun_grad_hess()
+
+
+.. code-block:: r
+    :caption: R
+    library(DirichletReg)
+    library(testthat)
+
+    test_that("dirichlet formulae", {
+        k <- 3L
+        m <- 10L
+        set.seed(123)
+        alpha <- exp(rnorm(k))
+        y <- rdirichlet(m, alpha)
+        x0 <- rnorm(k)
+        
+        for (row in seq_len(m)) {
+            logpdf <- dirichlet.fun(matrix(x0, nrow=1), y[row,,drop=F])
+            ref_logpdf <- ddirichlet(y[row,,drop=F], exp(x0), log = T)
+            expect_equal(logpdf, -ref_logpdf)
+            
+            eps <- 1e-7
+            grad_num <- numeric(k)
+            for (col in seq_len(k)) {
+                xplus <- x0
+                xplus[col] <- x0[col] + eps
+                grad_num[col] <- (
+                    dirichlet.fun(matrix(xplus, nrow=1), y[row,,drop=F])
+                    - dirichlet.fun(matrix(x0, nrow=1), y[row,,drop=F])
+                ) / eps
+            }
+            
+            grad <- dirichlet.grad(matrix(x0, nrow=1), y[row,,drop=F])
+            expect_equal(grad |> as.vector(), grad_num, tolerance=1e-6)
+            
+            H_numeric <- array(dim=c(k, k))
+            for (ii in seq_len(k)) {
+                xplus <- x0
+                xplus[ii] <- x0[ii] + eps
+                for (jj in seq_len(k)) {
+                    H_numeric[ii, jj] <- (
+                        dirichlet.grad(matrix(xplus, nrow=1), y[row,,drop=F])[1, jj]
+                        - grad[1L, jj]
+                    ) / eps
+                }
+            }
+            
+            H <- dirichlet.hess(matrix(xplus, nrow=1), y[row,,drop=F])
+            expect_equal(H[1,,], H_numeric, tolerance=1e-6)
+        }
+    })
 
 ******************************************
 Dirichlet Regression as Objective Function
@@ -198,6 +302,7 @@ property for optimization (i.e. the Hessian will be positive at a stationary
 point, which means it will be a minimum rather than a maximum or saddle point).
 
 .. code-block:: python
+    :caption: Python
 
     def dirichlet_expected_hess(pred: np.ndarray) -> np.ndarray:
         epred = np.exp(pred)
@@ -212,7 +317,6 @@ point, which means it will be a minimum rather than a maximum or saddle point).
     def test_dirichlet_expected_hess():
         k = 3
         rng = np.random.default_rng(seed=123)
-        Y = gen_random_dirichlet(rng, 1, k)
         x0 = rng.standard_normal(size=k)
         y_sample = rng.dirichlet(np.exp(x0), size=5_000_000)
         x_broadcast = np.broadcast_to(x0, (y_sample.shape[0], k))
@@ -221,6 +325,37 @@ point, which means it will be a minimum rather than a maximum or saddle point).
         Ehess = dirichlet_expected_hess(x0.reshape((1,-1)))[0]
         np.testing.assert_almost_equal(Ehess, ref, decimal=2)
     test_dirichlet_expected_hess()
+
+.. code-block:: r
+    :caption: R
+
+    dirichlet.expected.hess <- function(pred) {
+        epred <- exp(pred)
+        k <- ncol(pred)
+        H <- array(dim = c(nrow(pred), k, k))
+        for (row in seq_len(nrow(pred))) {
+            H[row, , ] <- (
+                - trigamma(sum(epred[row,])) * tcrossprod(epred[row,])
+                + diag(trigamma(epred[row,]) * epred[row,]^2)
+            )
+        }
+        return(H)
+    }
+
+    test_that("expected hess", {
+        k <- 3L
+        set.seed(123)
+        x0 <- rnorm(k)
+        alpha <- exp(x0)
+        n.samples <- 5e6
+        y.samples <- rdirichlet(n.samples, alpha)
+        
+        x.broadcast <- rep(x0, n.samples) |> matrix(ncol=k, byrow=T)
+        grad.samples <- dirichlet.grad(x.broadcast, y.samples)
+        ref <- crossprod(grad.samples) / n.samples
+        Ehess <- dirichlet.expected.hess(matrix(x0, nrow=1))
+        expect_equal(Ehess[1,,], ref, tolerance=1e-2)
+    })
 
 But note that this is still not usable for XGBoost, since the expected
 Hessian, just like the true Hessian, has shape ``[nrows, k, k]``, while
@@ -241,6 +376,7 @@ That is: take the absolute value of the expected Hessian for each row of the dat
 and sum by rows of the ``[k, k]``-shaped Hessian for that row in the data:
 
 .. code-block:: python
+    :caption: Python
 
     def dirichlet_diag_upper_bound_expected_hess(
         pred: np.ndarray, Y: np.ndarray
@@ -251,13 +387,30 @@ and sum by rows of the ``[k, k]``-shaped Hessian for that row in the data:
             diag_bound_Ehess[row, :] = np.abs(Ehess[row, :, :]).sum(axis=1)
         return diag_bound_Ehess
 
-(note: the calculation can be made more efficiently than what is shown here
-by not calculating the full matrix)
+.. code-block:: r
+    :caption: R
+
+    dirichlet.diag.upper.bound.expected.hess <- function(pred, y) {
+        Ehess <- dirichlet.expected.hess(pred)
+        diag.bound.Ehess <- array(dim=dim(pred))
+        for (row in seq_len(nrow(pred))) {
+            diag.bound.Ehess[row,] <- abs(Ehess[row,,]) |> rowSums()
+        }
+        return(diag.bound.Ehess)
+    }
+
+(*note: the calculation can be made more efficiently than what is shown here
+by not calculating the full matrix, and in R, by making the rows be the last
+dimension and transposing after the fact*)
 
 With all these pieces in place, one can now frame this model into the format
-required for XGBoost's custom objectives:
+required for XGBoost's custom objectives - note that in the Python interface,
+even though the result is 2D, it must be returned as a 1D array where the
+data from the 2D matrix is storage in C-contiguous sequence, while in the
+R interface, it must be returned as a 2D matrix:
 
 .. code-block:: python
+    :caption: Python
 
     import xgboost as xgb
     from typing import Tuple
@@ -271,15 +424,44 @@ required for XGBoost's custom objectives:
             dirichlet_diag_upper_bound_expected_hess(pred, Y).reshape(-1, order="C"),
         )
 
+.. code-block:: r
+    :caption: R
+
+    library(xgboost)
+    
+    dirichlet.xgb.objective <- function(pred, dtrain) {
+        y <- getinfo(dtrain, "label")
+        return(
+            list(
+                grad = dirichlet.grad(pred, y),
+                hess = dirichlet.diag.upper.bound.expected.hess(pred, y)
+            )
+        )
+    }
+
 And for an evaluation metric monitoring based on the Dirichlet log-likelihood:
 
 .. code-block:: python
+    :caption: Python
 
     def dirichlet_eval_metric(
         pred: np.ndarray, dtrain: xgb.DMatrix
     ) -> Tuple[str, float]:
         Y = dtrain.get_label().reshape(pred.shape)
         return "dirichlet_ll", dirichlet_fun(pred, Y)
+
+.. code-block:: r
+    :caption: R
+    dirichlet.eval.metric <- function(pred, dtrain) {
+    y <- getinfo(dtrain, "label")
+    ll <- dirichlet.fun(pred, y)
+    return(
+        list(
+            metric = "dirichlet_ll",
+            value = ll
+        )
+    )
+}
 
 *****************
 Practical Example
@@ -298,6 +480,7 @@ lake (sand, silt, clay).
 The data:
 
 .. code-block:: python
+    :caption: Python
     
     # depth
     X = np.array([
@@ -323,9 +506,17 @@ The data:
         [0.063,0.538,0.399], [0.025,0.48,0.495], [0.02,0.478,0.502],
     ])
 
+.. code-block:: r
+    :caption: R
+
+    data("ArcticLake", package="DirichletReg")
+    x <- ArcticLake[, c("depth"), drop=F]
+    y <- ArcticLake[, c("sand", "silt", "clay")] |> as.matrix()
+
 Fitting an XGBoost model and making predictions:
 
 .. code-block:: python
+    :caption: Python
     
     from typing import Dict, List
     
@@ -348,6 +539,29 @@ Fitting an XGBoost model and making predictions:
         custom_metric=dirichlet_eval_metric,
     )
     yhat = softmax(booster.inplace_predict(X), axis=1)
+
+.. code-block:: r
+    :caption: R
+
+    dtrain <- xgb.DMatrix(x, y)
+    booster <- xgb.train(
+        params = list(
+            tree_method="hist",
+            num_target=ncol(y),
+            base_score=0,
+            disable_default_eval_metric=TRUE,
+            max_depth=3,
+            seed=123
+        ),
+        data = dtrain,
+        nrounds = 10,
+        obj = dirichlet.xgb.objective,
+        evals = list(Train=dtrain),
+        eval_metric = dirichlet.eval.metric
+    )
+    raw.pred <- predict(booster, x, reshape=TRUE)
+    yhat <- apply(raw.pred, 1, softmax) |> t()
+
 
 Should produce an evaluation log as follows (note: the function is decreasing as
 expected - but unlike other objectives, the minimum value here can reach below zero):
@@ -388,10 +602,11 @@ problem, for which the true Hessian can be used without issues in other
 classes of solvers.
 
 For simplicity, this example will nevertheless reuse the same likelihood
-and gradient functions that were defined earlier alongside with SciPy's L-BFGS
-solver to obtain the optimal vector-valued intercept:
+and gradient functions that were defined earlier alongside with SciPy's / R's
+L-BFGS solver to obtain the optimal vector-valued intercept:
 
 .. code-block:: python
+    :caption: Python
 
     from scipy.optimize import minimize
 
@@ -411,9 +626,27 @@ solver to obtain the optimal vector-valued intercept:
         return res["x"]
     intercepts = get_optimal_intercepts(Y)
 
+.. code-block:: r
+    :caption: R
+
+    get.optimal.intercepts <- function(y) {
+        k <- ncol(y)
+        broadcast.vec <- function(x) rep(x, nrow(y)) |> matrix(ncol=k, byrow=T)
+        res <- optim(
+            par = numeric(k),
+            fn = function(x) dirichlet.fun(broadcast.vec(x), y),
+            gr = function(x) dirichlet.grad(broadcast.vec(x), y) |> colSums(),
+            method = "L-BFGS-B"
+        )
+        return(res$par)
+    }
+    intercepts <- get.optimal.intercepts(y)
+
+
 Now fitting a model again, this time with the intercept:
 
 .. code-block:: python
+    :caption: Python
 
     base_margin = np.broadcast_to(intercepts, Y.shape)
     dtrain_w_intercept = xgb.DMatrix(X, label=Y, base_margin=base_margin)
@@ -441,6 +674,34 @@ Now fitting a model again, this time with the intercept:
         axis=1
     )
 
+.. code-block:: r
+    :caption: R
+
+    base.margin <- rep(intercepts, nrow(y)) |> matrix(nrow=nrow(y), byrow=T)
+    dtrain <- xgb.DMatrix(x, y, base_margin=base.margin)
+    booster <- xgb.train(
+        params = list(
+            tree_method="hist",
+            num_target=ncol(y),
+            base_score=0,
+            disable_default_eval_metric=TRUE,
+            max_depth=3,
+            seed=123
+        ),
+        data = dtrain,
+        nrounds = 10,
+        obj = dirichlet.xgb.objective,
+        evals = list(Train=dtrain),
+        eval_metric = dirichlet.eval.metric
+    )
+    raw.pred <- predict(
+        booster,
+        x,
+        base_margin=base.margin,
+        reshape=TRUE
+    )
+    yhat <- apply(raw.pred, 1, softmax) |> t()
+
 .. code-block:: none
 
     [0] Train-dirichlet_ll:-37.01861
@@ -456,5 +717,5 @@ Now fitting a model again, this time with the intercept:
 
 For this small example problem, predictions should be very similar between the
 two and the version without intercepts achieved a lower objective function in the
-training data, but for more serious usage with real-world data, one is likely to
-observe better results when adding the intercepts.
+training data (for the Python version at least), but for more serious usage with
+real-world data, one is likely to observe better results when adding the intercepts.
