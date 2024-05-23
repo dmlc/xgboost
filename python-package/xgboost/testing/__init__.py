@@ -111,8 +111,6 @@ def no_sklearn() -> PytestSkip:
 
 
 def no_dask() -> PytestSkip:
-    if sys.platform.startswith("win"):
-        return {"reason": "Unsupported platform.", "condition": True}
     return no_mod("dask")
 
 
@@ -191,6 +189,10 @@ def no_multiple(*args: Any) -> PytestSkip:
             reason = arg["reason"]
             break
     return {"condition": condition, "reason": reason}
+
+
+def skip_win() -> PytestSkip:
+    return {"reason": "Unsupported platform.", "condition": is_windows()}
 
 
 def skip_s390x() -> PytestSkip:
@@ -437,7 +439,7 @@ def make_categorical(
             index = rng.randint(
                 low=0, high=n_samples - 1, size=int(n_samples * sparsity)
             )
-            df.iloc[index, i] = np.NaN
+            df.iloc[index, i] = np.nan
             if is_categorical_dtype(df.dtypes[i]):
                 assert n_categories == np.unique(df.dtypes[i].categories).size
 
@@ -968,18 +970,18 @@ def run_with_rabit(
             exception_queue.put(e)
 
     tracker = RabitTracker(host_ip="127.0.0.1", n_workers=world_size)
-    tracker.start(world_size)
+    tracker.start()
 
     workers = []
     for _ in range(world_size):
-        worker = threading.Thread(target=run_worker, args=(tracker.worker_envs(),))
+        worker = threading.Thread(target=run_worker, args=(tracker.worker_args(),))
         workers.append(worker)
         worker.start()
     for worker in workers:
         worker.join()
         assert exception_queue.empty(), f"Worker failed: {exception_queue.get()}"
 
-    tracker.join()
+    tracker.wait_for()
 
 
 def column_split_feature_names(

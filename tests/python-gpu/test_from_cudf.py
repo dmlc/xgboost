@@ -10,7 +10,7 @@ from xgboost.testing.data import run_base_margin_info
 cudf = pytest.importorskip("cudf")
 
 
-def dmatrix_from_cudf(input_type, DMatrixT, missing=np.NAN):
+def dmatrix_from_cudf(input_type, DMatrixT, missing=np.nan):
     """Test constructing DMatrix from cudf"""
     import pandas as pd
 
@@ -38,8 +38,8 @@ def dmatrix_from_cudf(input_type, DMatrixT, missing=np.NAN):
 
 def _test_from_cudf(DMatrixT):
     """Test constructing DMatrix from cudf"""
-    dmatrix_from_cudf(np.float32, DMatrixT, np.NAN)
-    dmatrix_from_cudf(np.float64, DMatrixT, np.NAN)
+    dmatrix_from_cudf(np.float32, DMatrixT, np.nan)
+    dmatrix_from_cudf(np.float64, DMatrixT, np.nan)
 
     dmatrix_from_cudf(np.int8, DMatrixT, 2)
     dmatrix_from_cudf(np.int32, DMatrixT, -2)
@@ -66,7 +66,7 @@ def _test_from_cudf(DMatrixT):
         )
 
     # Test when number of elements is less than 8
-    X = cudf.DataFrame({"x": cudf.Series([0, 1, 2, np.NAN, 4], dtype=np.int32)})
+    X = cudf.DataFrame({"x": cudf.Series([0, 1, 2, np.nan, 4], dtype=np.int32)})
     dtrain = DMatrixT(X)
     assert dtrain.num_col() == 1
     assert dtrain.num_row() == 5
@@ -225,7 +225,7 @@ class TestFromColumnar:
         assert len(interfaces) == X.shape[1]
 
         # test missing value
-        X = cudf.DataFrame({"f0": ["a", "b", np.NaN]})
+        X = cudf.DataFrame({"f0": ["a", "b", np.nan]})
         X["f0"] = X["f0"].astype("category")
         df, cat_codes, _, _ = xgb.data._transform_cudf_df(
             X, None, None, enable_categorical=True

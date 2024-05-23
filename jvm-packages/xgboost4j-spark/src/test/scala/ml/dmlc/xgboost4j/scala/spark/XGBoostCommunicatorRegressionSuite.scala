@@ -47,11 +47,6 @@ class XGBoostCommunicatorRegressionSuite extends AnyFunSuite with PerTest {
     val model2 = new XGBoostClassifier(xgbSettings ++ Map("rabit_ring_reduce_threshold" -> 1))
       .fit(training)
 
-    assert(Communicator.communicatorEnvs.asScala.size > 3)
-    Communicator.communicatorEnvs.asScala.foreach( item => {
-      if (item._1.toString == "rabit_reduce_ring_mincount") assert(item._2 == "1")
-    })
-
     val prediction2 = model2.transform(testDF).select("prediction").collect()
     // check parity w/o rabit cache
     prediction1.zip(prediction2).foreach { case (Row(p1: Double), Row(p2: Double)) =>
@@ -70,10 +65,6 @@ class XGBoostCommunicatorRegressionSuite extends AnyFunSuite with PerTest {
 
     val model2 = new XGBoostRegressor(xgbSettings ++ Map("rabit_ring_reduce_threshold" -> 1)
     ).fit(training)
-    assert(Communicator.communicatorEnvs.asScala.size > 3)
-    Communicator.communicatorEnvs.asScala.foreach( item => {
-      if (item._1.toString == "rabit_reduce_ring_mincount") assert(item._2 == "1")
-    })
     // check the equality of single instance prediction
     val prediction2 = model2.transform(testDF).select("prediction").collect()
     // check parity w/o rabit cache
@@ -81,25 +72,4 @@ class XGBoostCommunicatorRegressionSuite extends AnyFunSuite with PerTest {
       assert(math.abs(p1 - p2) < predictionErrorMin)
     }
   }
-
-  test("test rabit timeout fail handle") {
-    val training = buildDataFrame(Classification.train)
-    // mock rank 0 failure during 8th allreduce synchronization
-    Communicator.mockList = Array("0,8,0,0").toList.asJava
-
-    intercept[SparkException] {
-      new XGBoostClassifier(Map(
-        "eta" -> "0.1",
-        "max_depth" -> "10",
-        "verbosity" -> "1",
-        "objective" -> "binary:logistic",
-        "num_round" -> 5,
-        "num_workers" -> numWorkers,
-        "rabit_timeout" -> 0))
-        .fit(training)
-    }
-
-    Communicator.mockList = Array.empty.toList.asJava
-  }
-
 }
