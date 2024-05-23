@@ -165,8 +165,8 @@ The resulting function, gradient and Hessian could be implemented as follows:
         H <- array(dim = c(nrow(y), k, k))
         for (row in seq_len(nrow(y))) {
             H[row, , ] <- (
-                - trigamma(rowSums(epred)) * (epred[row,] %o% epred[row,])
-                + diag(grad[row] + trigamma(epred[row]) * epred[row] ^ 2)
+                - trigamma(sum(epred[row,])) * tcrossprod(epred[row,])
+                + diag(grad[row,] + trigamma(epred[row,]) * epred[row,]^2)
             )
         }
         return(H)
@@ -225,6 +225,7 @@ Convince yourself that the implementation is correct:
 
 .. code-block:: r
     :caption: R
+
     library(DirichletReg)
     library(testthat)
 
@@ -452,16 +453,17 @@ And for an evaluation metric monitoring based on the Dirichlet log-likelihood:
 
 .. code-block:: r
     :caption: R
+
     dirichlet.eval.metric <- function(pred, dtrain) {
-    y <- getinfo(dtrain, "label")
-    ll <- dirichlet.fun(pred, y)
-    return(
-        list(
-            metric = "dirichlet_ll",
-            value = ll
+        y <- getinfo(dtrain, "label")
+        ll <- dirichlet.fun(pred, y)
+        return(
+            list(
+                metric = "dirichlet_ll",
+                value = ll
+            )
         )
-    )
-}
+    }
 
 *****************
 Practical Example
