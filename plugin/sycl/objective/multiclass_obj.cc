@@ -3,19 +3,15 @@
  * \file multiclass_obj.cc
  * \brief Definition of multi-class classification objectives.
  */
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wtautological-constant-compare"
-#pragma GCC diagnostic ignored "-W#pragma-messages"
-#pragma GCC diagnostic pop
-
 #include <vector>
 #include <algorithm>
 #include <limits>
 #include <utility>
 
-#include "xgboost/parameter.h"
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"
+#pragma GCC diagnostic ignored "-W#pragma-messages"
+#include "xgboost/parameter.h"
 #include "xgboost/data.h"
 #include "../../src/common/math.h"
 #pragma GCC diagnostic pop

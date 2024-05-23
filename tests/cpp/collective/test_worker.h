@@ -13,8 +13,10 @@
 #include <vector>   // for vector
 
 #include "../../../src/collective/comm.h"
-#include "../../../src/collective/tracker.h"  // for GetHostAddress
-#include "../helpers.h"                       // for FileExists
+#include "../../../src/collective/communicator-inl.h"  // for Init, Finalize
+#include "../../../src/collective/tracker.h"           // for GetHostAddress
+#include "../../../src/common/common.h"                // for AllVisibleGPUs
+#include "../helpers.h"                                // for FileExists
 
 #if defined(XGBOOST_USE_FEDERATED)
 #include "../plugin/federated/test_worker.h"
@@ -145,7 +147,8 @@ inline auto MakeDistributedTestConfig(std::string host, std::int32_t port,
 }
 
 template <typename WorkerFn>
-void TestDistributedGlobal(std::int32_t n_workers, WorkerFn worker_fn, bool need_finalize = true) {
+void TestDistributedGlobal(std::int32_t n_workers, WorkerFn worker_fn, bool need_finalize = true,
+                           std::chrono::seconds test_timeout = std::chrono::seconds{30}) {
   system::SocketStartup();
   std::chrono::seconds timeout{1};
 
@@ -161,12 +164,17 @@ void TestDistributedGlobal(std::int32_t n_workers, WorkerFn worker_fn, bool need
 
   for (std::int32_t i = 0; i < n_workers; ++i) {
     workers.emplace_back([=] {
-      auto config = MakeDistributedTestConfig(host, port, timeout, i);
-      Init(config);
-      worker_fn();
-      if (need_finalize) {
-        Finalize();
-      }
+      auto fut = std::async(std::launch::async, [=] {
+        auto config = MakeDistributedTestConfig(host, port, timeout, i);
+        Init(config);
+        worker_fn();
+        if (need_finalize) {
+          Finalize();
+        }
+      });
+      auto status = fut.wait_for(test_timeout);
+      CHECK(status == std::future_status::ready) << "Test timeout";
+      fut.get();
     });
   }
 
