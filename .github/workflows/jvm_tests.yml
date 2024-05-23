@@ -23,16 +23,13 @@ jobs:
       with:
         submodules: 'true'
 
-    - uses: mamba-org/setup-micromamba@422500192359a097648154e8db4e39bdb6c6eed7  # v1.8.1
+    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
       with:
-        micromamba-version: '1.5.6-0'
-        environment-name: jvm_tests
-        create-args: >-
-          python=3.10
-          awscli
-        cache-downloads: true
-        cache-environment: true
-        init-shell: bash powershell
+        miniforge-variant: Mambaforge
+        miniforge-version: latest
+        activate-environment: jvm_tests
+        environment-file: tests/ci_build/conda_env/jvm_tests.yml
+        use-mamba: true
 
     - name: Cache Maven packages
       uses: actions/cache@13aacd865c20de90d75de3b17ebe84f7a17d57d2  # v4.0.0

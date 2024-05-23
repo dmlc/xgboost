@@ -1,0 +1,6 @@
+name: jvm_tests
+channels:
+- conda-forge
+dependencies:
+- python=3.10
+- awscli
