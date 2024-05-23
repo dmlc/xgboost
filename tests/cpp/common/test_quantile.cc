@@ -12,6 +12,9 @@
 #include "../../../src/data/adapter.h"
 #include "../../../src/data/simple_dmatrix.h"  // SimpleDMatrix
 #include "../collective/test_worker.h"         // for TestDistributedGlobal
+#if defined(XGBOOST_USE_FEDERATED)
+#include "../plugin/federated/test_worker.h"
+#endif  // defined(XGBOOST_USE_FEDERATED)
 #include "xgboost/context.h"
 
 namespace xgboost::common {
