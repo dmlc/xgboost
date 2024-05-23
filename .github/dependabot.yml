@@ -29,3 +29,7 @@ updates:
     directory: "/jvm-packages/xgboost4j-spark-gpu"
     schedule:
       interval: "monthly"
+  - package-ecosystem: "github-actions"
+    directory: /
+    schedule:
+      interval: "monthly"

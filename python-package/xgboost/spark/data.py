@@ -77,7 +77,7 @@ class PartIter(DataIter):
         self._data = data
         self._kwargs = kwargs
 
-        super().__init__()
+        super().__init__(release_data=True)
 
     def _fetch(self, data: Optional[Sequence[pd.DataFrame]]) -> Optional[pd.DataFrame]:
         if not data:
