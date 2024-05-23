@@ -4,7 +4,6 @@ import ctypes
 import logging
 import os
 import pickle
-import platform
 from enum import IntEnum, unique
 from typing import Any, Dict, List, Optional
 
