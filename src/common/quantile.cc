@@ -370,7 +370,7 @@ void SketchContainerImpl<WQSketch>::AllReduce(
 template <typename SketchType>
 bool AddCutPoint(Context const *ctx, typename SketchType::SummaryContainer const &summary,
                  int max_bin, HistogramCuts *cuts, bool secure) {
-  size_t required_cuts = std::min(summary.size, static_cast<size_t>(max_bin));
+  bst_idx_t required_cuts = std::min(summary.size, static_cast<size_t>(max_bin));
   // make a copy of required_cuts for mode selection
   size_t required_cuts_original = required_cuts;
   if (secure) {
