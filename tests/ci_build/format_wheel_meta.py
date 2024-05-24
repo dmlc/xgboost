@@ -22,6 +22,7 @@ def main(args):
     version = tokens[1].split("+")[0]
 
     meta_info = {
+        "wheel_name": wheel_name,
         "platform_tag": args.platform_tag,
         "version": version,
         "commit_id": args.commit_hash,
