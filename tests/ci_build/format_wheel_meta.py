@@ -1,3 +1,7 @@
+"""
+Script to generate meta.json to store metadata for a nightly build of
+XGBoost Python package.
+"""
 import json
 import pathlib
 from argparse import ArgumentParser
