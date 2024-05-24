@@ -39,9 +39,9 @@ class SoftmaxMultiClassObj : public ObjFunction {
   void InitBuffers() const {
     if (!are_buffs_init) {
       events_.resize(5);
-      in_buff1_.Resize(&qu_, kBatchSize);
-      in_buff2_.Resize(&qu_, kBatchSize);
-      in_buff3_.Resize(&qu_, kBatchSize);
+      preds_.Resize(&qu_, kBatchSize);
+      labels_.Resize(&qu_, kBatchSize);
+      weights_.Resize(&qu_, kBatchSize);
       out_gpair_.Resize(&qu_, kBatchSize);
       are_buffs_init = true;
     }
@@ -82,9 +82,9 @@ class SoftmaxMultiClassObj : public ObjFunction {
           << "Number of weights should be equal to number of data points.";
     }
 
-    bst_float* preds_ptr = in_buff1_.Data();
-    bst_float* labels_ptr = in_buff2_.Data();
-    bst_float* weights_ptr = in_buff3_.Data();
+    bst_float* preds_ptr = preds_.Data();
+    bst_float* labels_ptr = labels_.Data();
+    bst_float* weights_ptr = weights_.Data();
     GradientPair* out_gpair_ptr = out_gpair_.Data();
 
     int flag = 1;
@@ -231,13 +231,9 @@ class SoftmaxMultiClassObj : public ObjFunction {
   mutable ::sycl::queue qu_;
   mutable std::vector<::sycl::event> events_;
   // Buffers
-  // kBatchSize * nclass
-  mutable USMVector<bst_float, MemoryType::on_device> in_buff1_;
-  // kBatchSize
-  mutable USMVector<bst_float, MemoryType::on_device> in_buff2_;
-  // kBatchSize
-  mutable USMVector<bst_float, MemoryType::on_device> in_buff3_;
-  // kBatchSize * nclass
+  mutable USMVector<bst_float, MemoryType::on_device> preds_;
+  mutable USMVector<bst_float, MemoryType::on_device> labels_;
+  mutable USMVector<bst_float, MemoryType::on_device> weights_;
   mutable USMVector<GradientPair, MemoryType::on_device> out_gpair_;
 };
 
