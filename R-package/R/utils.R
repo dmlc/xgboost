@@ -27,8 +27,7 @@ NVL <- function(x, val) {
 }
 
 .RANKING_OBJECTIVES <- function() {
-  return(c('binary:logistic', 'binary:logitraw', 'binary:hinge', 'multi:softmax',
-           'multi:softprob'))
+  return(c('rank:pairwise', 'rank:ndcg', 'rank:map'))
 }
 
 
