@@ -27,6 +27,8 @@
 #pragma GCC diagnostic pop
 #include "../../../src/objective/regression_param.h"
 
+#include "../common/linalg_op.h"
+
 #include "../device_manager.h"
 #include "../data.h"
 
@@ -67,7 +69,7 @@ class RegLossObj : public ObjFunction {
   void GetGradient(const HostDeviceVector<bst_float>& preds,
                    const MetaInfo &info,
                    int iter,
-                   linalg::Matrix<GradientPair>* out_gpair) override {
+                   xgboost::linalg::Matrix<GradientPair>* out_gpair) override {
     if (info.labels.Size() == 0) return;
     CHECK_EQ(preds.Size(), info.labels.Size())
         << " " << "labels are not correctly provided"
@@ -96,57 +98,45 @@ class RegLossObj : public ObjFunction {
         << "Number of weights should be equal to number of data points.";
     }
 
-    int flag = 1;
-    const int wg_size = 32;
+    int label_correctness_flag = 1;
+    const size_t wg_size = 32;
     const size_t nBatch = ndata / kBatchSize + (ndata % kBatchSize > 0);
-    {
-      ::sycl::buffer<int, 1> flag_buf(&flag, 1);
-      for (size_t batch = 0; batch < nBatch; ++batch) {
-        const size_t begin = batch * kBatchSize;
-        const size_t end = (batch == nBatch - 1) ? ndata : begin + kBatchSize;
-        const size_t batch_size = end - begin;
-        int nwgs = (batch_size / wg_size + (batch_size % wg_size > 0));
+    for (size_t batch = 0; batch < nBatch; ++batch) {
+      const size_t begin = batch * kBatchSize;
+      const size_t end = (batch == nBatch - 1) ? ndata : begin + kBatchSize;
+      const size_t batch_size = end - begin;
+      const size_t nwgs = (batch_size / wg_size + (batch_size % wg_size > 0));
 
-        events_[0] = qu_.memcpy(preds_ptr, preds.HostPointer() + begin,
-                                batch_size * sizeof(bst_float), events_[3]);
-        events_[1] = qu_.memcpy(labels_ptr, info.labels.Data()->HostPointer() + begin,
-                                batch_size * sizeof(bst_float), events_[3]);
-        if (!is_null_weight) {
-          events_[2] = qu_.memcpy(weights_ptr, info.weights_.HostPointer() + begin,
-                                  info.weights_.Size() * sizeof(bst_float), events_[3]);
-        }
-
-        events_[3] = qu_.submit([&](::sycl::handler& cgh) {
-          cgh.depends_on(events_);
-          auto flag_buf_acc  = flag_buf.get_access<::sycl::access::mode::write>(cgh);
-          cgh.parallel_for_work_group<>(::sycl::range<1>(nwgs), ::sycl::range<1>(wg_size),
-                                        [=](::sycl::group<1> group) {
-            group.parallel_for_work_item([&](::sycl::h_item<1> item) {
-              const size_t idx = item.get_global_id()[0];
-
-              const bst_float pred = Loss::PredTransform(preds_ptr[idx]);
-              bst_float weight = is_null_weight ? 1.0f : weights_ptr[idx/n_targets];
-              const bst_float label = labels_ptr[idx];
-              if (label == 1.0f) {
-                weight *= scale_pos_weight;
-              }
-              if (!Loss::CheckLabel(label)) {
-                AtomicRef<int> flag_ref(flag_buf_acc[0]);
-                flag_ref = 0;
-              }
-              out_gpair_ptr[idx] = GradientPair(Loss::FirstOrderGradient(pred, label) * weight,
-                                                Loss::SecondOrderGradient(pred, label) * weight);
-            });
-          });
-        });
-        events_[4] = qu_.memcpy(out_gpair->Data()->HostPointer() + begin, out_gpair_ptr,
-                                batch_size * sizeof(GradientPair), events_[3]);
+      events_[0] = qu_.memcpy(preds_ptr, preds.HostPointer() + begin,
+                              batch_size * sizeof(bst_float), events_[3]);
+      events_[1] = qu_.memcpy(labels_ptr, info.labels.Data()->HostPointer() + begin,
+                              batch_size * sizeof(bst_float), events_[3]);
+      if (!is_null_weight) {
+        events_[2] = qu_.memcpy(weights_ptr, info.weights_.HostPointer() + begin,
+                                info.weights_.Size() * sizeof(bst_float), events_[3]);
       }
-      qu_.wait_and_throw();
-    }
-    // flag_buf is destroyed, content is copyed to the "flag"
 
-    if (flag == 0) {
+      events_[3] = linalg::GroupWiseKernel(&qu_, &label_correctness_flag, events_, {nwgs, wg_size},
+        [=] (size_t idx, auto flag) {
+          const bst_float pred = Loss::PredTransform(preds_ptr[idx]);
+          bst_float weight = is_null_weight ? 1.0f : weights_ptr[idx/n_targets];
+          const bst_float label = labels_ptr[idx];
+          if (label == 1.0f) {
+            weight *= scale_pos_weight;
+          }
+          if (!Loss::CheckLabel(label)) {
+            AtomicRef<int> flag_ref(flag[0]);
+            flag_ref = 0;
+          }
+          out_gpair_ptr[idx] = GradientPair(Loss::FirstOrderGradient(pred, label) * weight,
+                                            Loss::SecondOrderGradient(pred, label) * weight);
+      });
+      events_[4] = qu_.memcpy(out_gpair->Data()->HostPointer() + begin, out_gpair_ptr,
+                              batch_size * sizeof(GradientPair), events_[3]);
+    }
+    qu_.wait_and_throw();
+
+    if (label_correctness_flag == 0) {
       LOG(FATAL) << Loss::LabelErrorMsg();
     }
   }
