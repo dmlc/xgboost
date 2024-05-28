@@ -6,7 +6,7 @@
 #include <cstdint>
 #include "./mock_processor.h"
 
-const char kSignature[] = "NVDADAM1";  // DAM (Direct Accessible Marshalling) V1
+const char kSignature[] = "NVDAMOCK";  // DAM (Direct Accessible Marshalling) Mock Version
 const int64_t kPrefixLen = 24;
 
 bool ValidDam(void *buffer, std::size_t size) {
