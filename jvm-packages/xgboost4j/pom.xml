@@ -53,6 +53,12 @@
           <version>${scalatest.version}</version>
           <scope>provided</scope>
         </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${fasterxml.jackson.version}</version>
+            <scope>provided</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -76,7 +82,7 @@
           <plugin>
               <artifactId>exec-maven-plugin</artifactId>
               <groupId>org.codehaus.mojo</groupId>
-              <version>3.2.0</version>
+              <version>3.3.0</version>
               <executions>
                   <execution>
                       <id>native</id>

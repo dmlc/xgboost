@@ -24,12 +24,13 @@ jobs:
     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       with:
         submodules: 'true'
-    - uses: mamba-org/provision-with-micromamba@3c96c0c27676490c63c18bc81f5c51895ac3e0e6 # v16
+    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
       with:
-        cache-downloads: true
-        cache-env: true
-        environment-name: python_lint
+        miniforge-variant: Mambaforge
+        miniforge-version: latest
+        activate-environment: python_lint
         environment-file: tests/ci_build/conda_env/python_lint.yml
+        use-mamba: true
     - name: Display Conda env
       run: |
         conda info
@@ -55,12 +56,13 @@ jobs:
     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       with:
         submodules: 'true'
-    - uses: mamba-org/provision-with-micromamba@3c96c0c27676490c63c18bc81f5c51895ac3e0e6 # v16
+    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
       with:
-        cache-downloads: true
-        cache-env: true
-        environment-name: sdist_test
+        miniforge-variant: Mambaforge
+        miniforge-version: latest
+        activate-environment: sdist_test
         environment-file: tests/ci_build/conda_env/sdist_test.yml
+        use-mamba: true
     - name: Display Conda env
       run: |
         conda info
@@ -81,14 +83,14 @@ jobs:
     name: Test installing XGBoost Python source package on ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-11, windows-latest]
+        os: [macos-13, windows-latest]
         python-version: ["3.8"]
     steps:
     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       with:
         submodules: 'true'
     - name: Install osx system dependencies
-      if: matrix.os == 'macos-11'
+      if: matrix.os == 'macos-13'
       run: |
         brew install ninja libomp
     - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca # v3.0.4
@@ -119,19 +121,20 @@ jobs:
     strategy:
       matrix:
         config:
-          - {os: macos-11}
+          - {os: macos-13}
 
     steps:
     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       with:
         submodules: 'true'
 
-    - uses: mamba-org/provision-with-micromamba@3c96c0c27676490c63c18bc81f5c51895ac3e0e6 # v16
+    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
       with:
-        cache-downloads: true
-        cache-env: true
-        environment-name: macos_test
+        miniforge-variant: Mambaforge
+        miniforge-version: latest
+        activate-environment: macos_cpu_test
         environment-file: tests/ci_build/conda_env/macos_cpu_test.yml
+        use-mamba: true
 
     - name: Display Conda env
       run: |
@@ -222,12 +225,13 @@ jobs:
       with:
         submodules: 'true'
 
-    - uses: mamba-org/provision-with-micromamba@3c96c0c27676490c63c18bc81f5c51895ac3e0e6 # v16
+    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
       with:
-        cache-downloads: true
-        cache-env: true
-        environment-name: linux_cpu_test
+        miniforge-variant: Mambaforge
+        miniforge-version: latest
+        activate-environment: linux_cpu_test
         environment-file: tests/ci_build/conda_env/linux_cpu_test.yml
+        use-mamba: true
 
     - name: Display Conda env
       run: |
@@ -274,12 +278,13 @@ jobs:
       with:
         submodules: 'true'
 
-    - uses: mamba-org/provision-with-micromamba@3c96c0c27676490c63c18bc81f5c51895ac3e0e6 # v16
+    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
       with:
-        cache-downloads: true
-        cache-env: true
-        environment-name: linux_sycl_test
+        miniforge-variant: Mambaforge
+        miniforge-version: latest
+        activate-environment: linux_sycl_test
         environment-file: tests/ci_build/conda_env/linux_sycl_test.yml
+        use-mamba: true
 
     - name: Display Conda env
       run: |
