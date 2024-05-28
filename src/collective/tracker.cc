@@ -380,43 +380,48 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
   addrinfo hints;
   addrinfo* servinfo;
 
-  memset(&hints, 0, sizeof(hints));
+  std::memset(&hints, 0, sizeof(hints));
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
   hints.ai_flags = AI_PASSIVE;
 
   std::int32_t errc{0};
+  std::unique_ptr<addrinfo*, std::function<void(addrinfo**)>> guard{&servinfo, [](addrinfo** ptr) {
+                                                                      freeaddrinfo(*ptr);
+                                                                    }};
   if ((errc = getaddrinfo(nullptr, "0", &hints, &servinfo)) != 0) {
     return Fail("Failed to get address info:" + std::string{gai_strerror(errc)});
   }
 
   // https://beej.us/guide/bgnet/html/#getaddrinfoprepare-to-launch
-  char ipstr[INET6_ADDRSTRLEN];
+  std::vector<SockAddress> addresses;
   for (addrinfo* p = servinfo; p != nullptr; p = p->ai_next) {
-    void* addr;
     // Get the pointer to the address itself, different fields in IPv4 and IPv6:
     if (p->ai_family == AF_INET) {  // IPv4
       struct sockaddr_in* ipv4 = reinterpret_cast<sockaddr_in*>(p->ai_addr);
-      addr = &(ipv4->sin_addr);
-    } else {  // IPv6
+      addresses.emplace_back(SockAddrV4{*ipv4});
+      auto ip = addresses.back().V4().Addr();
+      // Priortize V4.
+      // Return if this is a public IP address. Not accurate, we have other reserved IPs
+      if (ip.size() > 4 && ip.substr(0, 4) != "127." && ip != SockAddrV4::InaddrAny().Addr()) {
+        *out = ip;
+        return Success();
+      }
+    } else {
       struct sockaddr_in6* ipv6 = reinterpret_cast<sockaddr_in6*>(p->ai_addr);
-      addr = &(ipv6->sin6_addr);
-    }
-
-    // Convert the IP to a string
-    inet_ntop(p->ai_family, addr, ipstr, sizeof(ipstr));
-
-    std::string ip{ipstr};
-    if (!(ip.size() >= 4 && ip.substr(0, 4) == "127.")) {
-      // return if this is a public IP address.
-      // not entirely accurate, we have other reserved IPs
-      *out = ip;
-      freeaddrinfo(servinfo);
-      return Success();
+      addresses.emplace_back(SockAddrV6{*ipv6});
     }
   }
-
-  freeaddrinfo(servinfo);
+  // If not v4 address is found, we try v6
+  for (auto const& addr : addresses) {
+    if (addr.IsV6()) {
+      auto ip = addr.V6().Addr();
+      if (ip != SockAddrV6::InaddrAny().Addr() && ip != SockAddrV6::Loopback().Addr()) {
+        *out = ip;
+        return Success();
+      }
+    }
+  }
 
   // Create an UDP socket to prob the public IP address, it's fine even if it's
   // unreachable.
@@ -447,7 +452,6 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
   }
 
   *out = ip;
-  std::cout << *out << std::endl;
   return Success();
 }
 }  // namespace xgboost::collective
