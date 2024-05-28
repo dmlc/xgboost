@@ -376,21 +376,47 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
   if (!rc.OK()) {
     return rc;
   }
-  auto host = gethostbyname(out->c_str());
 
-  // get ip address from host
-  std::string ip;
-  rc = INetNToP(host, &ip);
-  if (!rc.OK()) {
-    return rc;
+  addrinfo hints;
+  addrinfo* servinfo;
+
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_flags = AI_PASSIVE;
+
+  std::int32_t errc{0};
+  if ((errc = getaddrinfo(nullptr, "0", &hints, &servinfo)) != 0) {
+    return Fail("Failed to get address info:" + std::string{gai_strerror(errc)});
   }
 
-  if (!(ip.size() >= 4 && ip.substr(0, 4) == "127.")) {
-    // return if this is a public IP address.
-    // not entirely accurate, we have other reserved IPs
-    *out = ip;
-    return Success();
+  // https://beej.us/guide/bgnet/html/#getaddrinfoprepare-to-launch
+  char ipstr[INET6_ADDRSTRLEN];
+  for (addrinfo* p = servinfo; p != nullptr; p = p->ai_next) {
+    void* addr;
+    // Get the pointer to the address itself, different fields in IPv4 and IPv6:
+    if (p->ai_family == AF_INET) {  // IPv4
+      struct sockaddr_in* ipv4 = reinterpret_cast<sockaddr_in*>(p->ai_addr);
+      addr = &(ipv4->sin_addr);
+    } else {  // IPv6
+      struct sockaddr_in6* ipv6 = reinterpret_cast<sockaddr_in6*>(p->ai_addr);
+      addr = &(ipv6->sin6_addr);
+    }
+
+    // Convert the IP to a string
+    inet_ntop(p->ai_family, addr, ipstr, sizeof(ipstr));
+
+    std::string ip{ipstr};
+    if (!(ip.size() >= 4 && ip.substr(0, 4) == "127.")) {
+      // return if this is a public IP address.
+      // not entirely accurate, we have other reserved IPs
+      *out = ip;
+      freeaddrinfo(servinfo);
+      return Success();
+    }
   }
+
+  freeaddrinfo(servinfo);
 
   // Create an UDP socket to prob the public IP address, it's fine even if it's
   // unreachable.
@@ -413,7 +439,7 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
   if (getsockname(sock, reinterpret_cast<struct sockaddr*>(&addr), &len) == -1) {
     return Fail("Failed to get sock name.");
   }
-  ip = inet_ntoa(addr.sin_addr);
+  std::string ip = inet_ntoa(addr.sin_addr);
 
   err = system::CloseSocket(sock);
   if (err != 0) {
@@ -421,6 +447,7 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
   }
 
   *out = ip;
+  std::cout << *out << std::endl;
   return Success();
 }
 }  // namespace xgboost::collective
