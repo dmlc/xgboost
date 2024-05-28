@@ -176,7 +176,7 @@ public class XGBoost {
         new RabitTracker(dtrain.getExecutionEnvironment().getParallelism());
     if (tracker.start()) {
       return dtrain
-        .mapPartition(new MapFunction(params, numBoostRound, tracker.workerArgs()))
+        .mapPartition(new MapFunction(params, numBoostRound, tracker.getWorkerArgs()))
         .reduce((x, y) -> x)
         .collect()
         .get(0);
