@@ -20,7 +20,7 @@
 
 namespace xgboost::collective {
 
-inline constexpr std::int64_t DefaultTimeoutSec() { return 300; }  // 5min
+inline constexpr std::int64_t DefaultTimeoutSec() { return 60 * 30; }  // 30min
 inline constexpr std::int32_t DefaultRetry() { return 3; }
 
 // indexing into the ring

@@ -27,8 +27,7 @@ NVL <- function(x, val) {
 }
 
 .RANKING_OBJECTIVES <- function() {
-  return(c('binary:logistic', 'binary:logitraw', 'binary:hinge', 'multi:softmax',
-           'multi:softprob'))
+  return(c('rank:pairwise', 'rank:ndcg', 'rank:map'))
 }
 
 
@@ -213,7 +212,7 @@ xgb.iter.eval <- function(bst, evals, iter, feval) {
     res <- sapply(seq_along(evals), function(j) {
       w <- evals[[j]]
       ## predict using all trees
-      preds <- predict(bst, w, outputmargin = TRUE, iterationrange = "all")
+      preds <- predict(bst, w, outputmargin = TRUE, reshape = TRUE, iterationrange = "all")
       eval_res <- feval(preds, w)
       out <- eval_res$value
       names(out) <- paste0(evnames[j], "-", eval_res$metric)
