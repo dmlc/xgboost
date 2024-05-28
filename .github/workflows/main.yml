@@ -156,8 +156,9 @@ jobs:
     - name: Build and install XGBoost shared library
       run: |
         cd build
-        cmake .. -DBUILD_STATIC_LIB=OFF -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja
+        cmake .. -DBUILD_STATIC_LIB=OFF -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja -DPLUGIN_FEDERATED=ON -DGOOGLE_TEST=ON
         ninja -v install
+        ./testxgboost
         cd -
     - name: Build and run C API demo with shared
       run: |
