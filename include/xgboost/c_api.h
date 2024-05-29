@@ -114,7 +114,7 @@ XGB_DLL int XGBGetGlobalConfig(char const **out_config);
 /**
  * @defgroup DMatrix DMatrix
  *
- * @brief DMatrix is the baisc data storage for XGBoost used by all XGBoost algorithms
+ * @brief DMatrix is the basic data storage for XGBoost used by all XGBoost algorithms
  *        including both training, prediction and explanation. There are a few variants of
  *        `DMatrix` including normal `DMatrix`, which is a CSR matrix, `QuantileDMatrix`,
  *        which is used by histogram-based tree methods for saving memory, and lastly the
