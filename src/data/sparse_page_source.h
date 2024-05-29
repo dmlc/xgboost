@@ -310,7 +310,8 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     TryLockGuard guard{single_threaded_};
     at_end_ = false;
     count_ = 0;
-    std::cout << "[sparse]: reset" << std::endl;
+    // Pre-fetch for the next round of iterations.
+    this->Fetch();
   }
 };
 
