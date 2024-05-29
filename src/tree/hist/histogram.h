@@ -53,6 +53,8 @@ class HistogramBuilder {
   bool is_distributed_{false};
   bool is_col_split_{false};
   bool is_secure_{false};
+  // Whether to secure aggregation context has been initialized
+  bool is_aggr_context_initialized_{false};
   xgboost::common::Span<std::int8_t> hist_data;
 
  public:
@@ -81,17 +83,22 @@ class HistogramBuilder {
                             common::Span<GradientPair const> gpair_h, bool force_read_by_column) {
     if (is_distributed_ && is_col_split_ && is_secure_) {
       // Call the interface to transmit gidx information to the secure worker
-      // for encrypted histogram compuation
-      auto slots = std::vector<int>();
-      auto num_rows = row_set_collection[0].Size();
+      // for encrypted histogram computation
       auto cuts = gidx.Cuts().Ptrs();
-      for (std::size_t row = 0; row < num_rows; row++) {
-        for (std::size_t f = 0; f < cuts.size()-1; f++) {
-          auto slot = gidx.GetGindex(row, f);
-          slots.push_back(slot);
+      // only initialize the aggregation context once
+      if(!is_aggr_context_initialized_){
+        auto slots = std::vector<int>();
+        auto num_rows = row_set_collection[0].Size();
+        for (std::size_t row = 0; row < num_rows; row++) {
+          for (std::size_t f = 0; f < cuts.size()-1; f++) {
+            auto slot = gidx.GetGindex(row, f);
+            slots.push_back(slot);
+          }
         }
+        processor_instance->InitAggregationContext(cuts, slots);
+        is_aggr_context_initialized_ = true;
       }
-      processor_instance->InitAggregationContext(cuts, slots);
+
       // Further use the row set collection info to
       // get the encrypted histogram from the secure worker
       auto node_map = std::map<int, std::vector<int>>();
