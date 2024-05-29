@@ -363,6 +363,7 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
     } else {
       at_end_ = !iter_.Next();
     }
+    CHECK_LE(count_, n_batches_);
 
     if (at_end_) {
       CHECK_EQ(cache_info_->offset.size(), n_batches_ + 1);

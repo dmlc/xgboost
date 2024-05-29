@@ -468,10 +468,7 @@ class BatchIterator {
     return *(*impl_);
   }
 
-  bool operator!=(const BatchIterator&) const {
-    CHECK(impl_ != nullptr);
-    return !impl_->AtEnd();
-  }
+  [[nodiscard]] bool operator!=(const BatchIterator&) const { return !this->AtEnd(); }
 
   [[nodiscard]] bool AtEnd() const {
     CHECK(impl_ != nullptr);
