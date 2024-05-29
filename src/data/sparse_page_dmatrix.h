@@ -105,6 +105,20 @@ class SparsePageDMatrix : public DMatrix {
     return nullptr;
   }
 
+  [[nodiscard]] bool EllpackExists() const override {
+    return static_cast<bool>(ellpack_page_source_);
+  }
+  [[nodiscard]] bool GHistIndexExists() const override {
+    return static_cast<bool>(ghist_index_source_);
+  }
+  [[nodiscard]] bool SparsePageExists() const override {
+    return static_cast<bool>(sparse_page_source_);
+  }
+  // For testing, getter for the number of fetches for sparse page source.
+  [[nodiscard]] auto SparsePageFetchCount() const {
+    return this->sparse_page_source_->FetchCount();
+  }
+
  private:
   BatchSet<SparsePage> GetRowBatches() override;
   BatchSet<CSCPage> GetColumnBatches(Context const *ctx) override;
@@ -116,22 +130,13 @@ class SparsePageDMatrix : public DMatrix {
     return BatchSet<ExtSparsePage>(BatchIterator<ExtSparsePage>(nullptr));
   }
 
+ private:
   // source data pointers.
   std::shared_ptr<SparsePageSource> sparse_page_source_;
   std::shared_ptr<EllpackPageSource> ellpack_page_source_;
   std::shared_ptr<CSCPageSource> column_source_;
   std::shared_ptr<SortedCSCPageSource> sorted_column_source_;
   std::shared_ptr<GradientIndexPageSource> ghist_index_source_;
-
-  [[nodiscard]] bool EllpackExists() const override {
-    return static_cast<bool>(ellpack_page_source_);
-  }
-  [[nodiscard]] bool GHistIndexExists() const override {
-    return static_cast<bool>(ghist_index_source_);
-  }
-  [[nodiscard]] bool SparsePageExists() const override {
-    return static_cast<bool>(sparse_page_source_);
-  }
 };
 
 inline std::string MakeId(std::string prefix, SparsePageDMatrix *ptr) {

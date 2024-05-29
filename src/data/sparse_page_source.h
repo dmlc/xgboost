@@ -314,9 +314,10 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
   DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext> iter_;
   DMatrixProxy* proxy_;
   std::size_t base_row_id_{0};
+  bst_idx_t fetch_cnt_{0};  // Used for sanity check.
 
   void Fetch() final {
-    std::cout << "Fetch sparse page" << std::endl;
+    fetch_cnt_++;
     page_ = std::make_shared<SparsePage>();
     // The first round of reading, this is responsible for initialization.
     if (!this->ReadCache()) {
@@ -387,6 +388,8 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
     TryLockGuard guard{single_threaded_};
     base_row_id_ = 0;
   }
+
+  [[nodiscard]] auto FetchCount() const { return fetch_cnt_; }
 };
 
 // A mixin for advancing the iterator.

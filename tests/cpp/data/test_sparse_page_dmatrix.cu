@@ -43,7 +43,7 @@ TEST(SparsePageDMatrix, EllpackPage) {
 }
 
 TEST(SparsePageDMatrix, EllpackSkipSparsePage) {
-  // Test GHistIndexMatrix can avoid loading sparse page after the initialization.
+  // Test Ellpack can avoid loading sparse page after the initialization.
   dmlc::TemporaryDirectory tmpdir;
   auto Xy = RandomDataGenerator{180, 12, 0.0}.Batches(6).GenerateSparsePageDMatrix(
       tmpdir.path + "/", true);
@@ -51,28 +51,24 @@ TEST(SparsePageDMatrix, EllpackSkipSparsePage) {
   bst_bin_t n_bins{256};
   double sparse_thresh{0.8};
   BatchParam batch_param{n_bins, sparse_thresh};
-  std::cout << "\n-- begin iteration--" << std::endl;
+
   std::int32_t k = 0;
   for (auto const& page : Xy->GetBatches<EllpackPage>(&ctx, batch_param)) {
     auto impl = page.Impl();
-    std::cout << "k:" << k << " base:" << impl->base_rowid << std::endl;
-    k++;
+    ASSERT_EQ(page.Size(), 30);
+    ASSERT_EQ(k, impl->base_rowid);
+    k += page.Size();
   }
 
-  k = 0;
-  std::cout << "\n-- second iteration--" << std::endl;
-  for (auto const& page : Xy->GetBatches<EllpackPage>(&ctx, batch_param)) {
-    auto impl = page.Impl();
-    std::cout << "k:" << k << " base:" << impl->base_rowid << " size:" << page.Size() << std::endl;
-    k++;
-  }
-
-  k = 0;
-  std::cout << "\n-- third iteration--" << std::endl;
-  for (auto const& page : Xy->GetBatches<EllpackPage>(&ctx, batch_param)) {
-    auto impl = page.Impl();
-    std::cout << "k:" << k << " base:" << impl->base_rowid << std::endl;
-    k++;
+  auto casted = std::dynamic_pointer_cast<data::SparsePageDMatrix>(Xy);
+  CHECK(casted);
+  // Make the number of fetches don't change (no new fetch)
+  auto n_fetches = casted->SparsePageFetchCount();
+  for (std::int32_t i = 0; i < 3; ++i) {
+    for ([[maybe_unused]] auto const& page : Xy->GetBatches<EllpackPage>(&ctx, batch_param)) {
+    }
+    auto casted = std::dynamic_pointer_cast<data::SparsePageDMatrix>(Xy);
+    ASSERT_EQ(casted->SparsePageFetchCount(), n_fetches);
   }
 }
 
