@@ -8,7 +8,7 @@
 #include <algorithm>  // for min
 #include <atomic>     // for atomic
 #include <cstdio>     // for remove
-#include <future>     // for async
+#include <future>     // for future
 #include <memory>     // for unique_ptr
 #include <mutex>      // for mutex
 #include <numeric>    // for partial_sum
@@ -174,7 +174,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
   ExceHandler exce_;
   common::Monitor monitor_;
 
-  bool ReadCache() {
+  [[nodiscard]] bool ReadCache() {
     CHECK(!at_end_);
     if (!cache_info_->written) {
       return false;
@@ -196,6 +196,13 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     exce_.Rethrow();
 
     auto const config = *GlobalConfigThreadLocalStore::Get();
+    std::cout << "before fetch, valid:" << std::endl;
+    for (auto const& fut : *ring_) {
+      std::cout << fut.valid() << ", ";
+    }
+    std::cout << std::endl;
+    std::cout << "count:" << count_ << std::endl;
+
     for (std::int32_t i = 0; i < n_prefetch_batches; ++i, ++fetch_it) {
       fetch_it %= n_batches_;  // ring
       if (ring_->at(fetch_it).valid()) {
@@ -203,6 +210,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
       }
       auto const* self = this;  // make sure it's const
       CHECK_LT(fetch_it, cache_info_->offset.size());
+      std::cout << "i:" << i << ", fi:" << fetch_it << std::endl;
       ring_->at(fetch_it) = this->workers_.Submit([fetch_it, self, config, this] {
         *GlobalConfigThreadLocalStore::Get() = config;
         auto page = std::make_shared<S>();
@@ -216,7 +224,11 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
         return page;
       });
     }
-
+    std::cout << "after fetch, valid:" << std::endl;
+    for (auto const& fut : *ring_) {
+      std::cout << fut.valid() << ", ";
+    }
+    std::cout << std::endl;
     CHECK_EQ(std::count_if(ring_->cbegin(), ring_->cend(), [](auto const& f) { return f.valid(); }),
              n_prefetch_batches)
         << "Sparse DMatrix assumes forward iteration.";
@@ -279,9 +291,9 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     }
   }
 
-  [[nodiscard]] uint32_t Iter() const { return count_; }
+  [[nodiscard]] std::uint32_t Iter() const { return count_; }
 
-  const S &operator*() const override {
+  [[nodiscard]] S const& operator*() const override {
     CHECK(page_);
     return *page_;
   }
@@ -298,8 +310,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     TryLockGuard guard{single_threaded_};
     at_end_ = false;
     count_ = 0;
-    // Pre-fetch for the next round of iterations.
-    this->Fetch();
+    std::cout << "[sparse]: reset" << std::endl;
   }
 };
 
@@ -317,16 +328,22 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
   std::size_t base_row_id_{0};
 
   void Fetch() final {
+    std::cout << "fetch sparse page" << std::endl;
     page_ = std::make_shared<SparsePage>();
     if (!this->ReadCache()) {
-      bool type_error { false };
+      std::cout << "[sparse]: No cache" << std::endl;
+      bool type_error{false};
       CHECK(proxy_);
-      HostAdapterDispatch(proxy_, [&](auto const &adapter_batch) {
-        page_->Push(adapter_batch, this->missing_, this->nthreads_);
-      }, &type_error);
+      HostAdapterDispatch(
+          proxy_,
+          [&](auto const& adapter_batch) {
+            page_->Push(adapter_batch, this->missing_, this->nthreads_);
+          },
+          &type_error);
       if (type_error) {
         DevicePush(proxy_, missing_, page_.get());
       }
+
       page_->SetBaseRowId(base_row_id_);
       base_row_id_ += page_->Size();
       n_batches_++;
@@ -350,6 +367,7 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
 
   SparsePageSource& operator++() final {
     TryLockGuard guard{single_threaded_};
+    std::cout << "inc count" << std::endl;  // fixme: this increases the cnt before it's actually fetched.
     count_++;
     if (cache_info_->written) {
       at_end_ = (count_ == n_batches_);
@@ -398,7 +416,7 @@ class PageSourceIncMixIn : public SparsePageSourceImpl<S> {
                      std::shared_ptr<Cache> cache, bool sync)
       : Super::SparsePageSourceImpl{missing, nthreads, n_features, n_batches, cache}, sync_{sync} {}
 
-  PageSourceIncMixIn& operator++() final {
+  [[nodiscard]] PageSourceIncMixIn& operator++() final {
     TryLockGuard guard{this->single_threaded_};
     if (sync_) {
       ++(*source_);

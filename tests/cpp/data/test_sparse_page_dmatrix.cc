@@ -1,5 +1,5 @@
 /**
- * Copyright 2016-2023 by XGBoost Contributors
+ * Copyright 2016-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
@@ -115,9 +115,29 @@ TEST(SparsePageDMatrix, RetainSparsePage) {
   TestRetainPage<SortedCSCPage>();
 }
 
+TEST(SparsePageDMatrix, GHistIndexSkipSparsePage) {
+  // Test GHistIndexMatrix can avoid loading sparse page after the initialization.
+  dmlc::TemporaryDirectory tmpdir;
+  auto Xy = RandomDataGenerator{180, 12, 0.0}.Batches(6).GenerateSparsePageDMatrix(
+      tmpdir.path + "/", true);
+  Context ctx;
+  bst_bin_t n_bins{256};
+  double sparse_thresh{0.8};
+  BatchParam batch_param{n_bins, sparse_thresh};
+  std::cout << "\n-- begin iteration--" << std::endl;
+  for (auto const &page : Xy->GetBatches<GHistIndexMatrix>(&ctx, batch_param)) {
+    std::cout << page.base_rowid << std::endl;
+  }
+
+  std::cout << "\n-- second iteration--" << std::endl;
+  for (auto const &page : Xy->GetBatches<GHistIndexMatrix>(&ctx, batch_param)) {
+    std::cout << page.base_rowid << std::endl;
+  }
+}
+
 TEST(SparsePageDMatrix, MetaInfo) {
-  dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/simple.libsvm";
+  dmlc::TemporaryDirectory tmpdir;
+  const std::string tmp_file = tmpdir.path + "/simple.libsvm";
   size_t constexpr kEntries = 24;
   CreateBigTestData(tmp_file, kEntries);
 

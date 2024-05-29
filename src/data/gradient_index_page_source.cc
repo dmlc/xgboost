@@ -5,6 +5,7 @@
 
 namespace xgboost::data {
 void GradientIndexPageSource::Fetch() {
+  std::cout << "Fetch GHist Index" << std::endl;
   if (!this->ReadCache()) {
     if (count_ != 0 && !sync_) {
       // source is initialized to be the 0th page during construction, so when count_ is 0

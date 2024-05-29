@@ -177,6 +177,7 @@ BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(Context const *ct
     // Use sorted sketch for approx.
     auto sorted_sketch = param.regen;
     auto cuts = common::SketchOnDMatrix(ctx, this, param.max_bin, sorted_sketch, param.hess);
+    std::cout << "reset after use" << std::endl;
     this->InitializeSparsePage(ctx);  // reset after use.
 
     batch_param_ = param;
