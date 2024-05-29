@@ -125,13 +125,24 @@ TEST(SparsePageDMatrix, GHistIndexSkipSparsePage) {
   double sparse_thresh{0.8};
   BatchParam batch_param{n_bins, sparse_thresh};
   std::cout << "\n-- begin iteration--" << std::endl;
+  std::int32_t k = 0;
   for (auto const &page : Xy->GetBatches<GHistIndexMatrix>(&ctx, batch_param)) {
-    std::cout << page.base_rowid << std::endl;
+    std::cout << "k:" << k << " base:" << page.base_rowid << std::endl;
+    k++;
   }
 
+  k = 0;
   std::cout << "\n-- second iteration--" << std::endl;
   for (auto const &page : Xy->GetBatches<GHistIndexMatrix>(&ctx, batch_param)) {
-    std::cout << page.base_rowid << std::endl;
+    std::cout << "k:" << k << " base:" << page.base_rowid << " size:" << page.Size() << std::endl;
+    k++;
+  }
+
+  k = 0;
+  std::cout << "\n-- third iteration--" << std::endl;
+  for (auto const &page : Xy->GetBatches<GHistIndexMatrix>(&ctx, batch_param)) {
+    std::cout << "k:" << k << " base:" << page.base_rowid << std::endl;
+    k++;
   }
 }
 

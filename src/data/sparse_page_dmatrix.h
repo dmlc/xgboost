@@ -136,6 +136,9 @@ inline std::string MakeId(std::string prefix, SparsePageDMatrix *ptr) {
   return prefix + "-" + ss.str();
 }
 
+/**
+ * @brief Make cache if it doesn't exist yet.
+ */
 inline std::string MakeCache(SparsePageDMatrix *ptr, std::string format, std::string prefix,
                              std::map<std::string, std::shared_ptr<Cache>> *out) {
   auto &cache_info = *out;

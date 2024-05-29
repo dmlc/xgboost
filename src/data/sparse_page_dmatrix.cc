@@ -169,15 +169,14 @@ BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(Context const *ct
   }
   detail::CheckEmpty(batch_param_, param);
   auto id = MakeCache(this, ".gradient_index.page", cache_prefix_, &cache_info_);
-  this->InitializeSparsePage(ctx);
   if (!cache_info_.at(id)->written || detail::RegenGHist(batch_param_, param)) {
+    this->InitializeSparsePage(ctx);
     cache_info_.erase(id);
     MakeCache(this, ".gradient_index.page", cache_prefix_, &cache_info_);
     LOG(INFO) << "Generating new Gradient Index.";
     // Use sorted sketch for approx.
     auto sorted_sketch = param.regen;
     auto cuts = common::SketchOnDMatrix(ctx, this, param.max_bin, sorted_sketch, param.hess);
-    std::cout << "reset after use" << std::endl;
     this->InitializeSparsePage(ctx);  // reset after use.
 
     batch_param_ = param;

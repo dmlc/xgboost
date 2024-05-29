@@ -196,13 +196,6 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     exce_.Rethrow();
 
     auto const config = *GlobalConfigThreadLocalStore::Get();
-    std::cout << "before fetch, valid:" << std::endl;
-    for (auto const& fut : *ring_) {
-      std::cout << fut.valid() << ", ";
-    }
-    std::cout << std::endl;
-    std::cout << "count:" << count_ << std::endl;
-
     for (std::int32_t i = 0; i < n_prefetch_batches; ++i, ++fetch_it) {
       fetch_it %= n_batches_;  // ring
       if (ring_->at(fetch_it).valid()) {
@@ -210,7 +203,6 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
       }
       auto const* self = this;  // make sure it's const
       CHECK_LT(fetch_it, cache_info_->offset.size());
-      std::cout << "i:" << i << ", fi:" << fetch_it << std::endl;
       ring_->at(fetch_it) = this->workers_.Submit([fetch_it, self, config, this] {
         *GlobalConfigThreadLocalStore::Get() = config;
         auto page = std::make_shared<S>();
@@ -224,11 +216,6 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
         return page;
       });
     }
-    std::cout << "after fetch, valid:" << std::endl;
-    for (auto const& fut : *ring_) {
-      std::cout << fut.valid() << ", ";
-    }
-    std::cout << std::endl;
     CHECK_EQ(std::count_if(ring_->cbegin(), ring_->cend(), [](auto const& f) { return f.valid(); }),
              n_prefetch_batches)
         << "Sparse DMatrix assumes forward iteration.";
@@ -329,10 +316,10 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
   std::size_t base_row_id_{0};
 
   void Fetch() final {
-    std::cout << "fetch sparse page" << std::endl;
+    std::cout << "Fetch sparse page" << std::endl;
     page_ = std::make_shared<SparsePage>();
+    // The first round of reading, this is responsible for initialization.
     if (!this->ReadCache()) {
-      std::cout << "[sparse]: No cache" << std::endl;
       bool type_error{false};
       CHECK(proxy_);
       HostAdapterDispatch(
@@ -368,8 +355,8 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
 
   SparsePageSource& operator++() final {
     TryLockGuard guard{single_threaded_};
-    std::cout << "inc count" << std::endl;  // fixme: this increases the cnt before it's actually fetched.
     count_++;
+
     if (cache_info_->written) {
       at_end_ = (count_ == n_batches_);
     } else {
