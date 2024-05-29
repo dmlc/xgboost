@@ -42,6 +42,40 @@ TEST(SparsePageDMatrix, EllpackPage) {
   delete dmat;
 }
 
+TEST(SparsePageDMatrix, EllpackSkipSparsePage) {
+  // Test GHistIndexMatrix can avoid loading sparse page after the initialization.
+  dmlc::TemporaryDirectory tmpdir;
+  auto Xy = RandomDataGenerator{180, 12, 0.0}.Batches(6).GenerateSparsePageDMatrix(
+      tmpdir.path + "/", true);
+  auto ctx = MakeCUDACtx(0);
+  bst_bin_t n_bins{256};
+  double sparse_thresh{0.8};
+  BatchParam batch_param{n_bins, sparse_thresh};
+  std::cout << "\n-- begin iteration--" << std::endl;
+  std::int32_t k = 0;
+  for (auto const& page : Xy->GetBatches<EllpackPage>(&ctx, batch_param)) {
+    auto impl = page.Impl();
+    std::cout << "k:" << k << " base:" << impl->base_rowid << std::endl;
+    k++;
+  }
+
+  k = 0;
+  std::cout << "\n-- second iteration--" << std::endl;
+  for (auto const& page : Xy->GetBatches<EllpackPage>(&ctx, batch_param)) {
+    auto impl = page.Impl();
+    std::cout << "k:" << k << " base:" << impl->base_rowid << " size:" << page.Size() << std::endl;
+    k++;
+  }
+
+  k = 0;
+  std::cout << "\n-- third iteration--" << std::endl;
+  for (auto const& page : Xy->GetBatches<EllpackPage>(&ctx, batch_param)) {
+    auto impl = page.Impl();
+    std::cout << "k:" << k << " base:" << impl->base_rowid << std::endl;
+    k++;
+  }
+}
+
 TEST(SparsePageDMatrix, MultipleEllpackPages) {
   Context ctx{MakeCUDACtx(0)};
   auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};

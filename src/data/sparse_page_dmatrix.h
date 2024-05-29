@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2023, XGBoost Contributors
+ * Copyright 2015-2024, XGBoost Contributors
  * \file sparse_page_dmatrix.h
  * \brief External-memory version of DMatrix.
  * \author Tianqi Chen
@@ -7,12 +7,10 @@
 #ifndef XGBOOST_DATA_SPARSE_PAGE_DMATRIX_H_
 #define XGBOOST_DATA_SPARSE_PAGE_DMATRIX_H_
 
-#include <algorithm>
 #include <map>
 #include <memory>
 #include <string>
 #include <utility>
-#include <vector>
 
 #include "ellpack_page_source.h"
 #include "gradient_index_page_source.h"
@@ -93,8 +91,8 @@ class SparsePageDMatrix : public DMatrix {
     }
   }
 
-  MetaInfo &Info() override;
-  const MetaInfo &Info() const override;
+  [[nodiscard]] MetaInfo &Info() override;
+  [[nodiscard]] const MetaInfo &Info() const override;
   Context const *Ctx() const override { return &fmat_ctx_; }
   // The only DMatrix implementation that returns false.
   bool SingleColBlock() const override { return false; }
@@ -125,9 +123,15 @@ class SparsePageDMatrix : public DMatrix {
   std::shared_ptr<SortedCSCPageSource> sorted_column_source_;
   std::shared_ptr<GradientIndexPageSource> ghist_index_source_;
 
-  bool EllpackExists() const override { return static_cast<bool>(ellpack_page_source_); }
-  bool GHistIndexExists() const override { return static_cast<bool>(ghist_index_source_); }
-  bool SparsePageExists() const override { return static_cast<bool>(sparse_page_source_); }
+  [[nodiscard]] bool EllpackExists() const override {
+    return static_cast<bool>(ellpack_page_source_);
+  }
+  [[nodiscard]] bool GHistIndexExists() const override {
+    return static_cast<bool>(ghist_index_source_);
+  }
+  [[nodiscard]] bool SparsePageExists() const override {
+    return static_cast<bool>(sparse_page_source_);
+  }
 };
 
 inline std::string MakeId(std::string prefix, SparsePageDMatrix *ptr) {
