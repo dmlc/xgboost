@@ -304,7 +304,7 @@ class HistEvaluator {
           loss_chg =
               static_cast<float>(evaluator.CalcSplitGain(*param_, nidx, fidx, GradStats{left_sum},
                                                          GradStats{right_sum}) - parent.root_gain);
-          if (!is_secure_) {
+          if (not (is_secure_ && is_col_split_)) {
             split_pt = cut_val[i];  // not used for partition based
             best.Update(loss_chg, fidx, split_pt, d_step == -1, false, left_sum, right_sum);
           } else {
@@ -317,7 +317,7 @@ class HistEvaluator {
           loss_chg =
               static_cast<float>(evaluator.CalcSplitGain(*param_, nidx, fidx, GradStats{right_sum},
                                                          GradStats{left_sum}) - parent.root_gain);
-          if (!is_secure_) {
+          if (not (is_secure_ && is_col_split_)) {
             if (i == imin) {
               split_pt = cut.MinValues()[fidx];
             } else {
@@ -430,7 +430,7 @@ class HistEvaluator {
               all_entries[worker * entries.size() + nidx_in_set].split);
         }
       }
-      if (is_secure_) {
+      if (is_secure_ && is_col_split_) {
         // At this point, all the workers have the best splits for all the nodes
         // and workers can recover the actual split value with the split index
         // Note that after the recovery, different workers will hold different
