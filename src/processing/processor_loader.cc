@@ -22,7 +22,17 @@ namespace processing {
             return new MockProcessor();
         }
 
-        auto lib_name = "libproc_" + plugin_name;
+        // The plugin name may contain a colon
+        std::string::size_type pos = plugin_name.find(':');
+        std::string lib_suffix;
+        if (pos != std::string::npos) {
+            lib_suffix = plugin_name.substr(0, pos);
+        }
+        else {
+            lib_suffix = plugin_name;
+        }
+
+        auto lib_name = "libproc_" + lib_suffix;
 
         auto extension =
 #if defined(_WIN32) || defined(_WIN64)
