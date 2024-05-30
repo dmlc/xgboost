@@ -55,7 +55,7 @@ struct Cache {
     offset.push_back(0);
   }
 
-  static std::string ShardName(std::string name, std::string format) {
+  [[nodiscard]] static std::string ShardName(std::string name, std::string format) {
     CHECK_EQ(format.front(), '.');
     return name + format;
   }
