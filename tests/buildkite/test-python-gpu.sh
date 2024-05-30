@@ -22,7 +22,14 @@ chmod +x build/testxgboost
 # Allocate extra space in /dev/shm to enable NCCL
 export CI_DOCKER_EXTRA_PARAMS_INIT='--shm-size=4g'
 
-command_wrapper="tests/ci_build/ci_build.sh gpu --use-gpus --build-arg "`
+if [[ -z "${USE_DEPS_DEV_VER}" ]]
+then
+  container_tag='gpu'
+else
+  container_tag='gpu_dev_ver'
+fi
+
+command_wrapper="tests/ci_build/ci_build.sh ${container_tag} --use-gpus --build-arg "`
                 `"CUDA_VERSION_ARG=$CUDA_VERSION --build-arg "`
                 `"RAPIDS_VERSION_ARG=$RAPIDS_VERSION --build-arg "`
 		`"NCCL_VERSION_ARG=$NCCL_VERSION"
