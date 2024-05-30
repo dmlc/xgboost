@@ -404,7 +404,7 @@ class PageSourceIncMixIn : public SparsePageSourceImpl<S> {
   bool sync_{true};
 
  public:
-  PageSourceIncMixIn(float missing, int nthreads, bst_feature_t n_features, uint32_t n_batches,
+  PageSourceIncMixIn(float missing, int nthreads, bst_feature_t n_features, std::uint32_t n_batches,
                      std::shared_ptr<Cache> cache, bool sync)
       : Super::SparsePageSourceImpl{missing, nthreads, n_features, n_batches, cache}, sync_{sync} {}
 

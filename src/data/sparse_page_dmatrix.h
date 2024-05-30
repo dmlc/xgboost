@@ -65,7 +65,7 @@ class SparsePageDMatrix : public DMatrix {
   float missing_;
   Context fmat_ctx_;
   std::string cache_prefix_;
-  uint32_t n_batches_{0};
+  std::uint32_t n_batches_{0};
   // sparse page is the source to other page types, we make a special member function.
   void InitializeSparsePage(Context const *ctx);
   // Non-virtual version that can be used in constructor

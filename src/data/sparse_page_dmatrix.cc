@@ -56,10 +56,10 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
   auto iter = DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{
       iter_, reset_, next_};
 
-  uint32_t n_batches = 0;
-  size_t n_features = 0;
-  size_t n_samples = 0;
-  size_t nnz = 0;
+  std::uint32_t n_batches = 0;
+  bst_feature_t n_features = 0;
+  bst_idx_t n_samples = 0;
+  bst_idx_t nnz = 0;
 
   auto num_rows = [&]() {
     bool type_error {false};
@@ -72,7 +72,7 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
   };
   auto num_cols = [&]() {
     bool type_error {false};
-    size_t n_features = HostAdapterDispatch(
+    bst_feature_t n_features = HostAdapterDispatch(
         proxy, [](auto const &value) { return value.NumCols(); }, &type_error);
     if (type_error) {
       n_features = detail::NFeaturesDevice(proxy);
@@ -144,7 +144,7 @@ BatchSet<CSCPage> SparsePageDMatrix::GetColumnBatches(Context const *ctx) {
     column_source_->Reset();
   }
   auto begin_iter = BatchIterator<CSCPage>(column_source_);
-  return BatchSet<CSCPage>(BatchIterator<CSCPage>(begin_iter));
+  return BatchSet<CSCPage>(begin_iter);
 }
 
 BatchSet<SortedCSCPage> SparsePageDMatrix::GetSortedColumnBatches(Context const *ctx) {
@@ -159,7 +159,7 @@ BatchSet<SortedCSCPage> SparsePageDMatrix::GetSortedColumnBatches(Context const 
     sorted_column_source_->Reset();
   }
   auto begin_iter = BatchIterator<SortedCSCPage>(sorted_column_source_);
-  return BatchSet<SortedCSCPage>(BatchIterator<SortedCSCPage>(begin_iter));
+  return BatchSet<SortedCSCPage>(begin_iter);
 }
 
 BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(Context const *ctx,
@@ -191,7 +191,7 @@ BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(Context const *ct
     ghist_index_source_->Reset();
   }
   auto begin_iter = BatchIterator<GHistIndexMatrix>(ghist_index_source_);
-  return BatchSet<GHistIndexMatrix>(BatchIterator<GHistIndexMatrix>(begin_iter));
+  return BatchSet<GHistIndexMatrix>(begin_iter);
 }
 
 #if !defined(XGBOOST_USE_CUDA)
