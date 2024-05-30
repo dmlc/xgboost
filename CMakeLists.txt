@@ -346,7 +346,6 @@ if(BUILD_DEPRECATED_CLI)
     PRIVATE
     ${xgboost_SOURCE_DIR}/include
     ${xgboost_SOURCE_DIR}/dmlc-core/include
-    ${xgboost_SOURCE_DIR}/rabit/include
   )
   set_target_properties(runxgboost PROPERTIES OUTPUT_NAME xgboost)
   xgboost_target_properties(runxgboost)

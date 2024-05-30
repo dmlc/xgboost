@@ -14,10 +14,10 @@
 #include <thread>     // for thread
 #include <utility>    // for move
 
-#include "rabit/internal/socket.h"      // for PollHelper
-#include "xgboost/collective/result.h"  // for Fail, Success
-#include "xgboost/collective/socket.h"  // for FailWithCode
-#include "xgboost/logging.h"            // for CHECK
+#include "xgboost/collective/poll_utils.h"  // for PollHelper
+#include "xgboost/collective/result.h"      // for Fail, Success
+#include "xgboost/collective/socket.h"      // for FailWithCode
+#include "xgboost/logging.h"                // for CHECK
 
 namespace xgboost::collective {
 Result Loop::ProcessQueue(std::queue<Op>* p_queue) const {
