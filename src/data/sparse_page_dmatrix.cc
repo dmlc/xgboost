@@ -121,10 +121,9 @@ void SparsePageDMatrix::InitializeSparsePage(Context const *ctx) {
                                                            this->n_batches_, cache_info_.at(id));
 }
 
-BatchSet<SparsePage> SparsePageDMatrix::GetRowBatchesImpl(Context const* ctx) {
+BatchSet<SparsePage> SparsePageDMatrix::GetRowBatchesImpl(Context const *ctx) {
   this->InitializeSparsePage(ctx);
-  auto begin_iter = BatchIterator<SparsePage>(sparse_page_source_);
-  return BatchSet<SparsePage>(BatchIterator<SparsePage>(begin_iter));
+  return BatchSet{BatchIterator<SparsePage>{this->sparse_page_source_}};
 }
 
 BatchSet<SparsePage> SparsePageDMatrix::GetRowBatches() {
@@ -143,8 +142,7 @@ BatchSet<CSCPage> SparsePageDMatrix::GetColumnBatches(Context const *ctx) {
   } else {
     column_source_->Reset();
   }
-  auto begin_iter = BatchIterator<CSCPage>(column_source_);
-  return BatchSet<CSCPage>(begin_iter);
+  return BatchSet{BatchIterator<CSCPage>{this->column_source_}};
 }
 
 BatchSet<SortedCSCPage> SparsePageDMatrix::GetSortedColumnBatches(Context const *ctx) {
@@ -158,8 +156,7 @@ BatchSet<SortedCSCPage> SparsePageDMatrix::GetSortedColumnBatches(Context const 
   } else {
     sorted_column_source_->Reset();
   }
-  auto begin_iter = BatchIterator<SortedCSCPage>(sorted_column_source_);
-  return BatchSet<SortedCSCPage>(begin_iter);
+  return BatchSet{BatchIterator<SortedCSCPage>{this->sorted_column_source_}};
 }
 
 BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(Context const *ctx,
@@ -190,15 +187,13 @@ BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(Context const *ct
     CHECK(ghist_index_source_);
     ghist_index_source_->Reset();
   }
-  auto begin_iter = BatchIterator<GHistIndexMatrix>(ghist_index_source_);
-  return BatchSet<GHistIndexMatrix>(begin_iter);
+  return BatchSet{BatchIterator<GHistIndexMatrix>{this->ghist_index_source_}};
 }
 
 #if !defined(XGBOOST_USE_CUDA)
 BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(Context const *, const BatchParam &) {
   common::AssertGPUSupport();
-  auto begin_iter = BatchIterator<EllpackPage>(ellpack_page_source_);
-  return BatchSet<EllpackPage>(BatchIterator<EllpackPage>(begin_iter));
+  return BatchSet{BatchIterator<EllpackPage>{this->ellpack_page_source_}};
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost::data
