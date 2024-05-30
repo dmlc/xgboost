@@ -1265,13 +1265,11 @@ XGB_DLL int XGBoosterLoadModelFromBuffer(BoosterHandle handle,
  * \param handle handle
  * \param config JSON encoded string storing parameters for the function.  Following
  *               keys are expected in the JSON document:
- *
- *     "format": str
- *       - json: Output booster will be encoded as JSON.
- *       - ubj:  Output booster will be encoded as Univeral binary JSON.
- *       - deprecated: Output booster will be encoded as old custom binary format.  Do not use
- *         this format except for compatibility reasons.
- *
+ *               - "format": str
+ *                 - json: Output booster will be encoded as JSON.
+ *                 - ubj:  Output booster will be encoded as Universal binary JSON.
+ *                 - deprecated: Output booster will be encoded as old custom binary format.  Do not use
+ *                   this format except for compatibility reasons.
  * \param out_len  The argument to hold the output length
  * \param out_dptr The argument to hold the output data pointer
  *
