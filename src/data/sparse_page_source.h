@@ -55,7 +55,7 @@ struct Cache {
     offset.push_back(0);
   }
 
-  static std::string ShardName(std::string name, std::string format) {
+  [[nodiscard]] static std::string ShardName(std::string name, std::string format) {
     CHECK_EQ(format.front(), '.');
     return name + format;
   }
@@ -310,7 +310,7 @@ inline void DevicePush(DMatrixProxy*, float, SparsePage*) { common::AssertGPUSup
 #endif
 
 class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
-  // This is the source from the user.
+  // This is the source iterator from the user.
   DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext> iter_;
   DMatrixProxy* proxy_;
   std::size_t base_row_id_{0};
@@ -404,7 +404,7 @@ class PageSourceIncMixIn : public SparsePageSourceImpl<S> {
   bool sync_{true};
 
  public:
-  PageSourceIncMixIn(float missing, int nthreads, bst_feature_t n_features, uint32_t n_batches,
+  PageSourceIncMixIn(float missing, int nthreads, bst_feature_t n_features, std::uint32_t n_batches,
                      std::shared_ptr<Cache> cache, bool sync)
       : Super::SparsePageSourceImpl{missing, nthreads, n_features, n_batches, cache}, sync_{sync} {}
 
@@ -431,6 +431,13 @@ class PageSourceIncMixIn : public SparsePageSourceImpl<S> {
       CHECK_EQ(source_->Iter(), this->count_);
     }
     return *this;
+  }
+
+  void Reset() final {
+    if (sync_) {
+      this->source_->Reset();
+    }
+    Super::Reset();
   }
 };
 

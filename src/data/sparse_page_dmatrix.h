@@ -20,7 +20,7 @@
 
 namespace xgboost::data {
 /**
- * \brief DMatrix used for external memory.
+ * @brief DMatrix used for external memory.
  *
  * The external memory is created for controlling memory usage by splitting up data into
  * multiple batches.  However that doesn't mean we will actually process exactly 1 batch
@@ -49,8 +49,13 @@ namespace xgboost::data {
  * want to change the generated page like Ellpack, pass parameter into `GetBatches` to
  * re-generate them instead of trying to modify the pages in-place.
  *
- * A possible optimization is dropping the sparse page once dependent pages like ellpack
- * are constructed and cached.
+ * The overall chain of responsibility of external memory DMatrix:
+ *
+ *    User defined iterator (in Python/C/R) -> Proxy DMatrix -> Sparse page Source ->
+ *    Other sources (Like Ellpack) -> Sparse Page DMatrix -> Caller
+ *
+ * A possible optimization is skipping the sparse page source for `hist` based algorithms
+ * similar to the Quantile DMatrix.
  */
 class SparsePageDMatrix : public DMatrix {
   MetaInfo info_;
@@ -65,7 +70,7 @@ class SparsePageDMatrix : public DMatrix {
   float missing_;
   Context fmat_ctx_;
   std::string cache_prefix_;
-  uint32_t n_batches_{0};
+  std::uint32_t n_batches_{0};
   // sparse page is the source to other page types, we make a special member function.
   void InitializeSparsePage(Context const *ctx);
   // Non-virtual version that can be used in constructor
@@ -93,9 +98,9 @@ class SparsePageDMatrix : public DMatrix {
 
   [[nodiscard]] MetaInfo &Info() override;
   [[nodiscard]] const MetaInfo &Info() const override;
-  Context const *Ctx() const override { return &fmat_ctx_; }
+  [[nodiscard]] Context const *Ctx() const override { return &fmat_ctx_; }
   // The only DMatrix implementation that returns false.
-  bool SingleColBlock() const override { return false; }
+  [[nodiscard]] bool SingleColBlock() const override { return false; }
   DMatrix *Slice(common::Span<int32_t const>) override {
     LOG(FATAL) << "Slicing DMatrix is not supported for external memory.";
     return nullptr;
@@ -139,7 +144,7 @@ class SparsePageDMatrix : public DMatrix {
   std::shared_ptr<GradientIndexPageSource> ghist_index_source_;
 };
 
-inline std::string MakeId(std::string prefix, SparsePageDMatrix *ptr) {
+[[nodiscard]] inline std::string MakeId(std::string prefix, SparsePageDMatrix *ptr) {
   std::stringstream ss;
   ss << ptr;
   return prefix + "-" + ss.str();
