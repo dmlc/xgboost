@@ -391,29 +391,29 @@ TEST(Learner, Seed) {
             get<String>(config["learner"]["generic_param"]["seed"]));
 }
 
-// TEST(Learner, ConstantSeed) {
-//   auto m = RandomDataGenerator{10, 10, 0}.GenerateDMatrix(true);
-//   std::unique_ptr<Learner> learner{Learner::Create({m})};
-//   // Use exact as it doesn't initialize column sampler at construction, which alters the rng.
-//   learner->SetParam("tree_method", "exact");
-//   learner->Configure();  // seed the global random
+TEST(Learner, ConstantSeed) {
+  auto m = RandomDataGenerator{10, 10, 0}.GenerateDMatrix(true);
+  std::unique_ptr<Learner> learner{Learner::Create({m})};
+  // Use exact as it doesn't initialize column sampler at construction, which alters the rng.
+  learner->SetParam("tree_method", "exact");
+  learner->Configure();  // seed the global random
 
-//   std::uniform_real_distribution<float> dist;
-//   auto& rng = common::GlobalRandom();
-//   float v_0 = dist(rng);
+  std::uniform_real_distribution<float> dist;
+  auto& rng = learner->Ctx()->Rng();
+  float v_0 = dist(rng);
 
-//   learner->SetParam("", "");
-//   learner->Configure();  // check configure doesn't change the seed.
-//   float v_1 = dist(rng);
-//   CHECK_NE(v_0, v_1);
+  learner->SetParam("", "");
+  learner->Configure();  // check configure doesn't change the seed.
+  float v_1 = dist(rng);
+  CHECK_NE(v_0, v_1);
 
-//   {
-//     rng.seed(Context::kDefaultSeed);
-//     std::uniform_real_distribution<float> dist;
-//     float v_2 = dist(rng);
-//     CHECK_EQ(v_0, v_2);
-//   }
-// }
+  {
+    rng.seed(Context::kDefaultSeed);
+    std::uniform_real_distribution<float> dist;
+    float v_2 = dist(rng);
+    CHECK_EQ(v_0, v_2);
+  }
+}
 
 TEST(Learner, FeatureInfo) {
   size_t constexpr kCols = 10;
