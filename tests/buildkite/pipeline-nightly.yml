@@ -18,6 +18,12 @@ steps:
     agents:
       queue: linux-amd64-cpu
   - wait
+
+  - label: ":console: Build CUDA"
+    command: "tests/buildkite/build-cuda.sh"
+    key: build-cuda
+    agents:
+      queue: linux-amd64-cpu
   - label: ":console: Test Python package, single GPU"
     command: "tests/buildkite/test-python-gpu.sh gpu"
     key: test-python-gpu
