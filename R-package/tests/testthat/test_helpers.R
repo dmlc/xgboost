@@ -101,7 +101,7 @@ test_that("predict feature contributions works", {
   # gbtree binary classifier
   expect_error(pred_contr <- predict(bst.Tree, sparse_matrix, predcontrib = TRUE), regexp = NA)
   expect_equal(dim(pred_contr), c(nrow(sparse_matrix), ncol(sparse_matrix) + 1))
-  expect_equal(colnames(pred_contr), c(colnames(sparse_matrix), "BIAS"))
+  expect_equal(colnames(pred_contr), c(colnames(sparse_matrix), "(Intercept)"))
   pred <- predict(bst.Tree, sparse_matrix, outputmargin = TRUE)
   expect_lt(max(abs(rowSums(pred_contr) - pred)), 1e-5)
   # must work with data that has no column names
@@ -114,14 +114,14 @@ test_that("predict feature contributions works", {
   # gbtree binary classifier (approximate method)
   expect_error(pred_contr <- predict(bst.Tree, sparse_matrix, predcontrib = TRUE, approxcontrib = TRUE), regexp = NA)
   expect_equal(dim(pred_contr), c(nrow(sparse_matrix), ncol(sparse_matrix) + 1))
-  expect_equal(colnames(pred_contr), c(colnames(sparse_matrix), "BIAS"))
+  expect_equal(colnames(pred_contr), c(colnames(sparse_matrix), "(Intercept)"))
   pred <- predict(bst.Tree, sparse_matrix, outputmargin = TRUE)
   expect_lt(max(abs(rowSums(pred_contr) - pred)), 1e-5)
 
   # gblinear binary classifier
   expect_error(pred_contr <- predict(bst.GLM, sparse_matrix, predcontrib = TRUE), regexp = NA)
   expect_equal(dim(pred_contr), c(nrow(sparse_matrix), ncol(sparse_matrix) + 1))
-  expect_equal(colnames(pred_contr), c(colnames(sparse_matrix), "BIAS"))
+  expect_equal(colnames(pred_contr), c(colnames(sparse_matrix), "(Intercept)"))
   pred <- predict(bst.GLM, sparse_matrix, outputmargin = TRUE)
   expect_lt(max(abs(rowSums(pred_contr) - pred)), 1e-5)
   # manual calculation of linear terms
@@ -137,7 +137,7 @@ test_that("predict feature contributions works", {
   expect_is(pred_contr, "list")
   expect_length(pred_contr, 3)
   for (g in seq_along(pred_contr)) {
-    expect_equal(colnames(pred_contr[[g]]), c(colnames(iris[, -5]), "BIAS"))
+    expect_equal(colnames(pred_contr[[g]]), c(colnames(iris[, -5]), "(Intercept)"))
     expect_lt(max(abs(rowSums(pred_contr[[g]]) - pred[, g])), 1e-5)
   }
 
@@ -151,7 +151,7 @@ test_that("predict feature contributions works", {
     byrow = TRUE
   )
   for (g in seq_along(pred_contr)) {
-    expect_equal(colnames(pred_contr[[g]]), c(colnames(iris[, -5]), "BIAS"))
+    expect_equal(colnames(pred_contr[[g]]), c(colnames(iris[, -5]), "(Intercept)"))
     expect_lt(max(abs(rowSums(pred_contr[[g]]) - pred[, g])), float_tolerance)
     # manual calculation of linear terms
     coefs <- c(coefs_all[-1, g], coefs_all[1, g]) # intercept needs to be the last

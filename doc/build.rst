@@ -134,11 +134,11 @@ From the command line on Linux starting from the XGBoost directory:
 
 .. note:: Specifying compute capability
 
-  To speed up compilation, the compute version specific to your GPU could be passed to cmake as, e.g., ``-DGPU_COMPUTE_VER=50``. A quick explanation and numbers for some architectures can be found `in this page <https://arnon.dk/matching-sm-architectures-arch-and-gencode-for-various-nvidia-cards/>`_.
+  To speed up compilation, the compute version specific to your GPU could be passed to cmake as, e.g., ``-DCMAKE_CUDA_ARCHITECTURES=75``. A quick explanation and numbers for some architectures can be found `in this page <https://arnon.dk/matching-sm-architectures-arch-and-gencode-for-various-nvidia-cards/>`_.
 
 .. note:: Faster distributed GPU training with NCCL
 
-  By default, distributed GPU training is enabled and uses Rabit for communication. For faster training, set the option ``USE_NCCL=ON``. Faster distributed GPU training depends on NCCL2, available at `this link <https://developer.nvidia.com/nccl>`_. Since NCCL2 is only available for Linux machines, **faster distributed GPU training is available only for Linux**.
+  By default, distributed GPU training is enabled with the option ``USE_NCCL=ON``. Distributed GPU training depends on NCCL2, available at `this link <https://developer.nvidia.com/nccl>`_. Since NCCL2 is only available for Linux machines, **Distributed GPU training is available only for Linux**.
 
   .. code-block:: bash
 
@@ -146,6 +146,8 @@ From the command line on Linux starting from the XGBoost directory:
     cd build
     cmake .. -DUSE_CUDA=ON -DUSE_NCCL=ON -DNCCL_ROOT=/path/to/nccl2
     make -j4
+
+Some additional flags are available for NCCL, ``BUILD_WITH_SHARED_NCCL`` enables building XGBoost with NCCL as a shared library, while ``USE_DLOPEN_NCCL`` enables XGBoost  to load NCCL at runtime using ``dlopen``.
 
 On Windows, run CMake as follows:
 
@@ -164,6 +166,17 @@ The above cmake configuration run will create an ``xgboost.sln`` solution file i
   cmake --build . --target xgboost --config Release
 
 To speed up compilation, run multiple jobs in parallel by appending option ``-- /MP``.
+
+Federated Learning
+==================
+
+The federated learning plugin requires ``grpc`` and ``protobuf``. To install grpc, refer
+to the `installation guide from the gRPC website
+<https://grpc.io/docs/languages/cpp/quickstart/>`_. Alternatively, one can use the
+``libgrpc`` and the ``protobuf`` package from conda forge if conda is available. After
+obtaining the required dependencies, enable the flag: `-DPLUGIN_FEDERATED=ON` when running
+CMake. Please note that only Linux is supported for the federated plugin.
+
 
 .. _build_python:
 
@@ -228,11 +241,12 @@ There are several ways to build and install the package from source:
 
 3. Editable installation
 
-  To further enable rapid development and iteration, we provide an **editable installation**.
-  In an editable installation, the installed package is simply a symbolic link to your
-  working copy of the XGBoost source code. So every changes you make to your source
-  directory will be immediately visible to the Python interpreter. Here is how to
-  install XGBoost as editable installation:
+  To further enable rapid development and iteration, we provide an **editable
+  installation**.  In an editable installation, the installed package is simply a symbolic
+  link to your working copy of the XGBoost source code. So every changes you make to your
+  source directory will be immediately visible to the Python interpreter. To install
+  XGBoost as editable installation, first build the shared library as previously
+  described, then install the Python package:
 
   .. code-block:: bash
 

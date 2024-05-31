@@ -11,8 +11,8 @@
 #include <system_error>  // for error_code, system_category
 #include <thread>        // for sleep_for
 
-#include "rabit/internal/socket.h"      // for PollHelper
-#include "xgboost/collective/result.h"  // for Result
+#include "xgboost/collective/poll_utils.h"  // for PollHelper
+#include "xgboost/collective/result.h"      // for Result
 
 #if defined(__unix__) || defined(__APPLE__)
 #include <netdb.h>  // getaddrinfo, freeaddrinfo

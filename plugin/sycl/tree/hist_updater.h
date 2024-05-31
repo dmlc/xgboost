@@ -130,7 +130,6 @@ class HistUpdater {
   DataLayout data_layout_;
 
   constexpr static size_t kBufferSize = 2048;
-  constexpr static size_t kMinBlockSize = 128;
   common::GHistBuilder<GradientSumT> hist_builder_;
   common::ParallelGHistBuilder<GradientSumT> hist_buffer_;
   /*! \brief culmulative histogram of gradients. */

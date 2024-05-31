@@ -21,7 +21,6 @@ $(foreach v, $(XGB_RFLAGS), $(warning $(v)))
 PKG_CPPFLAGS = \
     -I$(PKGROOT)/include \
     -I$(PKGROOT)/dmlc-core/include \
-    -I$(PKGROOT)/rabit/include \
     -I$(PKGROOT) \
     $(XGB_RFLAGS)
 
