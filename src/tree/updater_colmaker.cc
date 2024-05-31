@@ -8,7 +8,8 @@
 #include <cmath>
 #include <vector>
 
-#include "../common/error_msg.h"  // for NoCategorical
+#include "../collective/communicator-inl.h"  // for IsDistributed
+#include "../common/error_msg.h"             // for NoCategorical
 #include "../common/random.h"
 #include "constraints.h"
 #include "param.h"
@@ -224,8 +225,8 @@ class ColMaker: public TreeUpdater {
             << "Only uniform sampling is supported, "
             << "gradient-based sampling is only support by GPU Hist.";
           std::bernoulli_distribution coin_flip(param_.subsample);
-          auto& rnd = common::GlobalRandom();
-          for (size_t ridx = 0; ridx < position_.size(); ++ridx) {
+          auto &rnd = ctx_->Rng();
+          for (bst_idx_t ridx = 0; ridx < position_.size(); ++ridx) {
             if (gpair[ridx].GetHess() < 0.0f) continue;
             if (!coin_flip(rnd)) position_[ridx] = ~position_[ridx];
           }

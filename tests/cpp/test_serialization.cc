@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019-2023, XGBoost Contributors
+ * Copyright (c) 2019-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/base.h>
@@ -484,7 +484,7 @@ class LogitSerializationTest : public SerializationTest {
     auto& h_labels = p_dmat->Info().labels.Data()->HostVector();
 
     std::bernoulli_distribution flip(0.5);
-    auto& rnd = common::GlobalRandom();
+    auto& rnd = p_dmat->Ctx()->Rng();
     rnd.seed(0);
 
     for (auto& v : h_labels) { v = flip(rnd); }
@@ -608,7 +608,7 @@ class MultiClassesSerializationTest : public SerializationTest {
     auto &h_labels = p_dmat->Info().labels.Data()->HostVector();
 
     std::uniform_int_distribution<size_t> categorical(0, kClasses - 1);
-    auto& rnd = common::GlobalRandom();
+    auto& rnd = p_dmat->Ctx()->Rng();
     rnd.seed(0);
 
     for (auto& v : h_labels) { v = categorical(rnd); }

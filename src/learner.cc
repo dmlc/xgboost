@@ -23,13 +23,11 @@
 #include <limits>                         // for numeric_limits
 #include <memory>                         // for allocator, unique_ptr, shared_ptr, operator==
 #include <mutex>                          // for mutex, lock_guard
-#include <set>                            // for set
 #include <sstream>                        // for operator<<, basic_ostream, basic_ostream::opera...
 #include <stack>                          // for stack
 #include <string>                         // for basic_string, char_traits, operator<, string
 #include <system_error>                   // for errc
 #include <tuple>                          // for get
-#include <unordered_map>                  // for operator!=, unordered_map
 #include <utility>                        // for pair, as_const, move, swap
 #include <vector>                         // for vector
 
@@ -476,7 +474,7 @@ class LearnerConfiguration : public Learner {
 
     // set seed only before the model is initialized
     if (!initialized || ctx_.seed != old_seed) {
-      common::GlobalRandom().seed(ctx_.seed);
+      ctx_.Rng().seed(ctx_.seed);
     }
 
     // must precede configure gbm since num_features is required for gbm
@@ -556,9 +554,7 @@ class LearnerConfiguration : public Learner {
       }
     }
 
-    FromJson(learner_parameters.at("generic_param"), &ctx_);
-    // make sure the GPU ID is valid in new environment before start running configure.
-    ctx_.ConfigureGpuId(false);
+    ctx_.LoadConfig(learner_parameters.at("generic_param"));
 
     this->need_configuration_ = true;
   }
@@ -588,7 +584,8 @@ class LearnerConfiguration : public Learner {
     }
     learner_parameters["metrics"] = Array(std::move(metrics));
 
-    learner_parameters["generic_param"] = ToJson(ctx_);
+    learner_parameters["generic_param"] = Object{};
+    ctx_.SaveConfig(&learner_parameters["generic_param"]);
   }
 
   void SetParam(const std::string& key, const std::string& value) override {
@@ -1271,7 +1268,7 @@ class LearnerImpl : public LearnerIO {
     this->InitBaseScore(train.get());
 
     if (ctx_.seed_per_iteration) {
-      common::GlobalRandom().seed(ctx_.seed * kRandSeedMagic + iter);
+      ctx_.Rng().seed(ctx_.seed * kRandSeedMagic + iter);
     }
 
     this->ValidateDMatrix(train.get(), true);
@@ -1298,7 +1295,7 @@ class LearnerImpl : public LearnerIO {
     this->Configure();
 
     if (ctx_.seed_per_iteration) {
-      common::GlobalRandom().seed(ctx_.seed * kRandSeedMagic + iter);
+      ctx_.Rng().seed(ctx_.seed * kRandSeedMagic + iter);
     }
 
     this->ValidateDMatrix(train.get(), true);

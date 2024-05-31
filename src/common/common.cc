@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2023 by Contributors
+ * Copyright 2015-2024 by Contributors
  */
 #include "common.h"
 
@@ -9,19 +9,7 @@
 #include <cstdio>   // for snprintf, size_t
 #include <string>   // for string
 
-#include "./random.h"  // for GlobalRandomEngine, GlobalRandom
-
 namespace xgboost::common {
-/*! \brief thread local entry for random. */
-struct RandomThreadLocalEntry {
-  /*! \brief the random engine instance. */
-  GlobalRandomEngine engine;
-};
-
-using RandomThreadLocalStore = dmlc::ThreadLocalStore<RandomThreadLocalEntry>;
-
-GlobalRandomEngine &GlobalRandom() { return RandomThreadLocalStore::Get()->engine; }
-
 void EscapeU8(std::string const &string, std::string *p_buffer) {
   auto &buffer = *p_buffer;
   for (size_t i = 0; i < string.length(); i++) {

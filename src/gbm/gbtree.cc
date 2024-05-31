@@ -10,8 +10,7 @@
 #include <dmlc/parameter.h>
 
 #include <algorithm>  // for equal
-#include <cinttypes>  // for uint32_t
-#include <limits>
+#include <cstdint>  // for uint32_t
 #include <memory>
 #include <string>
 #include <utility>
@@ -928,7 +927,7 @@ class Dart : public GBTree {
     idx_drop_.clear();
 
     std::uniform_real_distribution<> runif(0.0, 1.0);
-    auto& rnd = common::GlobalRandom();
+    auto& rnd = ctx_->Rng();
     bool skip = false;
     if (dparam_.skip_drop > 0.0) skip = (runif(rnd) < dparam_.skip_drop);
     // sample some trees to drop

@@ -187,7 +187,7 @@ GradientBasedSample UniformSampling::Sample(Context const* ctx, common::Span<Gra
   auto cuctx = ctx->CUDACtx();
   thrust::replace_if(cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair),
                      thrust::counting_iterator<std::size_t>(0),
-                     BernoulliTrial(common::GlobalRandom()(), subsample_), GradientPair());
+                     BernoulliTrial(ctx->Rng()(), subsample_), GradientPair());
   auto page = (*dmat->GetBatches<EllpackPage>(ctx, batch_param_).begin()).Impl();
   return {dmat->Info().num_row_, page, gpair};
 }
@@ -206,7 +206,7 @@ GradientBasedSample ExternalMemoryUniformSampling::Sample(Context const* ctx,
   // Set gradient pair to 0 with p = 1 - subsample
   thrust::replace_if(cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair),
                      thrust::counting_iterator<std::size_t>(0),
-                     BernoulliTrial(common::GlobalRandom()(), subsample_), GradientPair{});
+                     BernoulliTrial(ctx->Rng()(), subsample_), GradientPair{});
 
   // Count the sampled rows.
   size_t sample_rows =
@@ -260,7 +260,7 @@ GradientBasedSample GradientBasedSampling::Sample(Context const* ctx,
   thrust::transform(cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair),
                     thrust::counting_iterator<size_t>(0), dh::tbegin(gpair),
                     PoissonSampling(dh::ToSpan(threshold_), threshold_index,
-                                    RandomWeight(common::GlobalRandom()())));
+                                    RandomWeight(ctx->Rng()())));
   return {n_rows, page, gpair};
 }
 
@@ -282,10 +282,10 @@ GradientBasedSample ExternalMemoryGradientBasedSampling::Sample(Context const* c
       gpair, dh::ToSpan(threshold_), dh::ToSpan(grad_sum_), n_rows * subsample_);
 
   // Perform Poisson sampling in place.
-  thrust::transform(cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair),
-                    thrust::counting_iterator<size_t>(0), dh::tbegin(gpair),
-                    PoissonSampling(dh::ToSpan(threshold_), threshold_index,
-                                    RandomWeight(common::GlobalRandom()())));
+  thrust::transform(
+      cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair), thrust::counting_iterator<size_t>(0),
+      dh::tbegin(gpair),
+      PoissonSampling(dh::ToSpan(threshold_), threshold_index, RandomWeight(ctx->Rng()())));
 
   // Count the sampled rows.
   size_t sample_rows = thrust::count_if(dh::tbegin(gpair), dh::tend(gpair), IsNonZero());

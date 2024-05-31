@@ -20,7 +20,6 @@
 #include <vector>
 
 #include "../collective/broadcast.h"  // for Broadcast
-#include "../collective/communicator-inl.h"
 #include "algorithm.h"  // ArgSort
 #include "common.h"
 #include "xgboost/context.h"  // Context
@@ -28,12 +27,8 @@
 #include "xgboost/linalg.h"
 
 namespace xgboost::common {
-/*!
- * \brief Define mt19937 as default type Random Engine.
- */
-using RandomEngine = std::mt19937;
-
-#if defined(XGBOOST_CUSTOMIZE_GLOBAL_PRNG) && XGBOOST_CUSTOMIZE_GLOBAL_PRNG == 1
+// #if defined(XGBOOST_CUSTOMIZE_GLOBAL_PRNG) && XGBOOST_CUSTOMIZE_GLOBAL_PRNG == 1
+#if true
 /*!
  * \brief An customized random engine, used to be plugged in PRNG from other systems.
  *  The implementation of this library is not provided by xgboost core library.
@@ -61,26 +56,15 @@ class CustomGlobalRandomEngine {
    * \return next random number.
    */
   result_type operator()();
+
+  friend std::ostream& operator<<(std::ostream& os, CustomGlobalRandomEngine const&) { return os; }
+  friend std::istream& operator>>(std::istream& is, CustomGlobalRandomEngine const&) { return is; }
 };
 
-/*!
- * \brief global random engine
- */
-typedef CustomGlobalRandomEngine GlobalRandomEngine;
-
+class RandomEngine : public CustomGlobalRandomEngine {};
 #else
-/*!
- * \brief global random engine
- */
-using GlobalRandomEngine = RandomEngine;
+class RandomEngine : public std::mt19937 {};
 #endif  // XGBOOST_CUSTOMIZE_GLOBAL_PRNG
-
-/*!
- * \brief global singleton of a random engine.
- *  This random engine is thread-local and
- *  only visible to current thread.
- */
-GlobalRandomEngine& GlobalRandom(); // NOLINT(*)
 
 /*
  * Original paper:
@@ -96,7 +80,7 @@ std::vector<T> WeightedSamplingWithoutReplacement(Context const* ctx, std::vecto
   CHECK_EQ(array.size(), weights.size());
   std::vector<float> keys(weights.size());
   std::uniform_real_distribution<float> dist;
-  auto& rng = GlobalRandom();
+  auto& rng = ctx->Rng();
   for (size_t i = 0; i < array.size(); ++i) {
     auto w = std::max(weights.at(i), kRtEps);
     auto u = dist(rng);
@@ -120,7 +104,7 @@ void SampleFeature(Context const* ctx, bst_feature_t n_features,
                    std::shared_ptr<HostDeviceVector<bst_feature_t>> p_new_features,
                    HostDeviceVector<float> const& feature_weights,
                    HostDeviceVector<float>* weight_buffer,
-                   HostDeviceVector<bst_feature_t>* idx_buffer, GlobalRandomEngine* grng);
+                   HostDeviceVector<bst_feature_t>* idx_buffer, RandomEngine* grng);
 
 void InitFeatureSet(Context const* ctx,
                     std::shared_ptr<HostDeviceVector<bst_feature_t>> p_features);
@@ -140,7 +124,7 @@ class ColumnSampler {
   float colsample_bylevel_{1.0f};
   float colsample_bytree_{1.0f};
   float colsample_bynode_{1.0f};
-  GlobalRandomEngine rng_;
+  RandomEngine rng_;
   Context const* ctx_;
 
   // Used for weighted sampling.
@@ -230,7 +214,7 @@ class ColumnSampler {
 };
 
 inline auto MakeColumnSampler(Context const* ctx) {
-  std::uint32_t seed = common::GlobalRandomEngine()();
+  std::uint32_t seed = ctx->Rng()();
   auto rc = collective::Broadcast(ctx, linalg::MakeVec(&seed, 1), 0);
   collective::SafeColl(rc);
   auto cs = std::make_shared<common::ColumnSampler>(seed);
