@@ -115,8 +115,8 @@ TEST(SparsePageDMatrix, RetainSparsePage) {
   TestRetainPage<SortedCSCPage>();
 }
 
+// Test GHistIndexMatrix can avoid loading sparse page after the initialization.
 TEST(SparsePageDMatrix, GHistIndexSkipSparsePage) {
-  // Test GHistIndexMatrix can avoid loading sparse page after the initialization.
   dmlc::TemporaryDirectory tmpdir;
   auto Xy = RandomDataGenerator{180, 12, 0.0}.Batches(6).GenerateSparsePageDMatrix(
       tmpdir.path + "/", true);
@@ -125,22 +125,51 @@ TEST(SparsePageDMatrix, GHistIndexSkipSparsePage) {
   double sparse_thresh{0.8};
   BatchParam batch_param{n_bins, sparse_thresh};
 
-  std::int32_t k = 0;
-  for (auto const &page : Xy->GetBatches<GHistIndexMatrix>(&ctx, batch_param)) {
-    ASSERT_EQ(page.Size(), 30);
-    ASSERT_EQ(k, page.base_rowid);
-    k += page.Size();
-  }
+  auto check_ghist = [&] {
+    std::int32_t k = 0;
+    for (auto const &page : Xy->GetBatches<GHistIndexMatrix>(&ctx, batch_param)) {
+      ASSERT_EQ(page.Size(), 30);
+      ASSERT_EQ(k, page.base_rowid);
+      k += page.Size();
+    }
+  };
+  check_ghist();
 
   auto casted = std::dynamic_pointer_cast<data::SparsePageDMatrix>(Xy);
   CHECK(casted);
   // Make the number of fetches don't change (no new fetch)
-  auto n_fetches = casted->SparsePageFetchCount();
-  for (std::int32_t i = 0; i < 3; ++i) {
+  auto n_init_fetches = casted->SparsePageFetchCount();
+
+  std::vector<float> hess(Xy->Info().num_row_, 1.0f);
+  // Run multiple iterations to make sure fetches are consistent after reset.
+  for (std::int32_t i = 0; i < 4; ++i) {
+    auto n_fetches = casted->SparsePageFetchCount();
+    check_ghist();
+    ASSERT_EQ(casted->SparsePageFetchCount(), n_fetches);
+    if (i == 0) {
+      ASSERT_EQ(n_fetches, n_init_fetches);
+    }
+    // Make sure other page types don't interfere the GHist. This way, we can reuse the
+    // DMatrix for multiple purposes.
+    for ([[maybe_unused]] auto const &page : Xy->GetBatches<SparsePage>(&ctx)) {
+    }
+    for ([[maybe_unused]] auto const &page : Xy->GetBatches<SortedCSCPage>(&ctx)) {
+    }
     for ([[maybe_unused]] auto const &page : Xy->GetBatches<GHistIndexMatrix>(&ctx, batch_param)) {
     }
-    auto casted = std::dynamic_pointer_cast<data::SparsePageDMatrix>(Xy);
-    ASSERT_EQ(casted->SparsePageFetchCount(), n_fetches);
+    // Approx tree method pages
+    {
+      BatchParam regen{n_bins, common::Span{hess.data(), hess.size()}, false};
+      for ([[maybe_unused]] auto const &page : Xy->GetBatches<GHistIndexMatrix>(&ctx, regen)) {
+      }
+    }
+    {
+      BatchParam regen{n_bins, common::Span{hess.data(), hess.size()}, true};
+      for ([[maybe_unused]] auto const &page : Xy->GetBatches<GHistIndexMatrix>(&ctx, regen)) {
+      }
+    }
+    // Restore the batch parameter by passing it in again through check_ghist
+    check_ghist();
   }
 }
 
