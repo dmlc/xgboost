@@ -10,7 +10,6 @@
 #include <string>      // for string
 
 #include "../common/io.h"   // for AlignedResourceReadStream, AlignedFileWriteStream
-#include "dmlc/io.h"        // for Stream
 #include "dmlc/registry.h"  // for Registry, FunctionRegEntryBase
 #include "xgboost/data.h"   // for SparsePage,CSCPage,SortedCSCPage,EllpackPage ...
 

@@ -171,6 +171,12 @@ TEST(SparsePageDMatrix, GHistIndexSkipSparsePage) {
     // Restore the batch parameter by passing it in again through check_ghist
     check_ghist();
   }
+  // half the pages
+  auto it = Xy->GetBatches<SparsePage>(&ctx).begin();
+  for (std::int32_t i = 0; i < 3; ++i) {
+    ++it;
+  }
+  check_ghist();
 }
 
 TEST(SparsePageDMatrix, MetaInfo) {

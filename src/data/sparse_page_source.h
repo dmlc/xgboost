@@ -7,6 +7,7 @@
 
 #include <algorithm>  // for min
 #include <atomic>     // for atomic
+#include <cstdint>    // for uint64_t
 #include <cstdio>     // for remove
 #include <future>     // for future
 #include <memory>     // for unique_ptr
@@ -72,9 +73,13 @@ struct Cache {
    */
   [[nodiscard]] auto View(std::size_t i) const {
     std::uint64_t off = offset.at(i);
-    std::uint64_t len = offset.at(i + 1) - offset[i];
+    std::uint64_t len = this->Bytes(i);
     return std::pair{off, len};
   }
+  /**
+   * @brief Get the number of bytes for the i^th page.
+   */
+  [[nodiscard]] std::uint64_t Bytes(std::size_t i) const { return offset.at(i + 1) - offset[i]; }
   /**
    * @brief Call this once the write for the cache is complete.
    */
@@ -174,6 +179,10 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
   ExceHandler exce_;
   common::Monitor monitor_;
 
+  [[nodiscard]] virtual SparsePageFormat<S>* CreatePageFormat() const {
+    return ::xgboost::data::CreatePageFormat<S>("raw");
+  }
+
   [[nodiscard]] bool ReadCache() {
     CHECK(!at_end_);
     if (!cache_info_->written) {
@@ -207,7 +216,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
         *GlobalConfigThreadLocalStore::Get() = config;
         auto page = std::make_shared<S>();
         this->exce_.Run([&] {
-          std::unique_ptr<SparsePageFormat<S>> fmt{CreatePageFormat<S>("raw")};
+          std::unique_ptr<SparsePageFormat<S>> fmt{this->CreatePageFormat()};
           auto name = self->cache_info_->ShardName();
           auto [offset, length] = self->cache_info_->View(fetch_it);
           auto fi = std::make_unique<common::PrivateMmapConstStream>(name, offset, length);
@@ -234,7 +243,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     CHECK(!cache_info_->written);
     common::Timer timer;
     timer.Start();
-    std::unique_ptr<SparsePageFormat<S>> fmt{CreatePageFormat<S>("raw")};
+    std::unique_ptr<SparsePageFormat<S>> fmt{this->CreatePageFormat()};
 
     auto name = cache_info_->ShardName();
     std::unique_ptr<common::AlignedFileWriteStream> fo;
@@ -404,8 +413,8 @@ class PageSourceIncMixIn : public SparsePageSourceImpl<S> {
   bool sync_{true};
 
  public:
-  PageSourceIncMixIn(float missing, int nthreads, bst_feature_t n_features, std::uint32_t n_batches,
-                     std::shared_ptr<Cache> cache, bool sync)
+  PageSourceIncMixIn(float missing, std::int32_t nthreads, bst_feature_t n_features,
+                     std::uint32_t n_batches, std::shared_ptr<Cache> cache, bool sync)
       : Super::SparsePageSourceImpl{missing, nthreads, n_features, n_batches, cache}, sync_{sync} {}
 
   [[nodiscard]] PageSourceIncMixIn& operator++() final {

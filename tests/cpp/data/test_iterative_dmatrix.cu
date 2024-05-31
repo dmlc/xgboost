@@ -20,9 +20,8 @@ void TestEquivalent(float sparsity) {
                      std::numeric_limits<float>::quiet_NaN(), 0, 256);
   std::size_t offset = 0;
   auto first = (*m.GetEllpackBatches(&ctx, {}).begin()).Impl();
-  std::unique_ptr<EllpackPageImpl> page_concatenated {
-    new EllpackPageImpl(ctx.Device(), first->Cuts(), first->is_dense,
-                        first->row_stride, 1000 * 100)};
+  std::unique_ptr<EllpackPageImpl> page_concatenated{new EllpackPageImpl(
+      ctx.Device(), first->CutsShared(), first->is_dense, first->row_stride, 1000 * 100)};
   for (auto& batch : m.GetBatches<EllpackPage>(&ctx, {})) {
     auto page = batch.Impl();
     size_t num_elements = page_concatenated->Copy(ctx.Device(), page, offset);

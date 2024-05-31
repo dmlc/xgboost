@@ -1,7 +1,7 @@
 /**
  * Copyright 2021-2024, XGBoost contributors
  */
-#include <memory>  // for unique_ptr
+#include <memory>  // for shared_ptr
 
 #include "../common/hist_util.cuh"
 #include "../common/hist_util.h"  // for HistogramCuts
@@ -26,13 +26,13 @@ BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(Context const* ctx,
     // reinitialize the cache
     cache_info_.erase(id);
     MakeCache(this, ".ellpack.page", cache_prefix_, &cache_info_);
-    std::unique_ptr<common::HistogramCuts> cuts;
+    std::shared_ptr<common::HistogramCuts> cuts;
     if (!param.hess.empty()) {
-      cuts = std::make_unique<common::HistogramCuts>(
+      cuts = std::make_shared<common::HistogramCuts>(
           common::DeviceSketchWithHessian(ctx, this, param.max_bin, param.hess));
     } else {
       cuts =
-          std::make_unique<common::HistogramCuts>(common::DeviceSketch(ctx, this, param.max_bin));
+          std::make_shared<common::HistogramCuts>(common::DeviceSketch(ctx, this, param.max_bin));
     }
     this->InitializeSparsePage(ctx);  // reset after use.
 

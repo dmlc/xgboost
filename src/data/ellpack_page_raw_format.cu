@@ -1,60 +1,89 @@
 /**
- * Copyright 2019-2023, XGBoost contributors
+ * Copyright 2019-2024, XGBoost contributors
  */
 #include <dmlc/registry.h>
 
 #include <cstddef>  // for size_t
+#include <utility>  // for move
 
+#include "../common/hist_util.h"          // for HistogramCuts
 #include "../common/io.h"                 // for AlignedResourceReadStream, AlignedFileWriteStream
 #include "../common/ref_resource_view.h"  // for ReadVec, WriteVec
-#include "ellpack_page.cuh"
-#include "histogram_cut_format.h"  // for ReadHistogramCuts, WriteHistogramCuts
-#include "sparse_page_writer.h"    // for SparsePageFormat
+#include "ellpack_page.cuh"               // for EllpackPage
+#include "ellpack_page_raw_format.h"
+
+#if defined(XGBOOST_USE_NVTX)
+#include <nvToolsExt.h>
+#endif  // defined(XGBOOST_USE_NVTX)
 
 namespace xgboost::data {
 DMLC_REGISTRY_FILE_TAG(ellpack_page_raw_format);
 
-class EllpackPageRawFormat : public SparsePageFormat<EllpackPage> {
- public:
-  bool Read(EllpackPage* page, common::AlignedResourceReadStream* fi) override {
-    auto* impl = page->Impl();
-    if (!ReadHistogramCuts(&impl->Cuts(), fi)) {
-      return false;
-    }
-    if (!fi->Read(&impl->n_rows)) {
-      return false;
-    }
-    if (!fi->Read(&impl->is_dense)) {
-      return false;
-    }
-    if (!fi->Read(&impl->row_stride)) {
-      return false;
-    }
-    if (!common::ReadVec(fi, &impl->gidx_buffer.HostVector())) {
-      return false;
-    }
-    if (!fi->Read(&impl->base_rowid)) {
-      return false;
-    }
-    dh::DefaultStream().Sync();
+namespace {
+template <typename T>
+[[nodiscard]] bool ReadDeviceVec(common::AlignedResourceReadStream* fi, HostDeviceVector<T>* vec) {
+  std::uint64_t n{0};
+  if (!fi->Read(&n)) {
+    return false;
+  }
+  if (n == 0) {
     return true;
   }
 
-  size_t Write(const EllpackPage& page, common::AlignedFileWriteStream* fo) override {
-    std::size_t bytes{0};
-    auto* impl = page.Impl();
-    bytes += WriteHistogramCuts(impl->Cuts(), fo);
-    bytes += fo->Write(impl->n_rows);
-    bytes += fo->Write(impl->is_dense);
-    bytes += fo->Write(impl->row_stride);
-    CHECK(!impl->gidx_buffer.ConstHostVector().empty());
-    bytes += common::WriteVec(fo, impl->gidx_buffer.HostVector());
-    bytes += fo->Write(impl->base_rowid);
-    return bytes;
-  }
-};
+  auto expected_bytes = sizeof(T) * n;
 
-XGBOOST_REGISTER_ELLPACK_PAGE_FORMAT(raw)
-    .describe("Raw ELLPACK binary data format.")
-    .set_body([]() { return new EllpackPageRawFormat(); });
+  auto [ptr, n_bytes] = fi->Consume(expected_bytes);
+  if (n_bytes != expected_bytes) {
+    return false;
+  }
+
+  if constexpr (false) {
+    *vec = common::RefResourceView<T>{reinterpret_cast<T*>(ptr), n, fi->Share()};
+  } else {
+    vec->SetDevice(DeviceOrd::CUDA(0));
+    vec->Resize(n);
+    auto d_vec = vec->DeviceSpan();
+    dh::safe_cuda(
+        cudaMemcpyAsync(d_vec.data(), ptr, n_bytes, cudaMemcpyDefault, dh::DefaultStream()));
+  }
+  return true;
+}
+}  // namespace
+
+EllpackPageRawFormat::EllpackPageRawFormat(std::shared_ptr<common::HistogramCuts const> cuts)
+    : cuts_{std::move(cuts)} {}
+
+bool EllpackPageRawFormat::Read(EllpackPage* page, common::AlignedResourceReadStream* fi) {
+  auto* impl = page->Impl();
+  impl->SetCuts(this->cuts_);
+  if (!fi->Read(&impl->n_rows)) {
+    return false;
+  }
+  if (!fi->Read(&impl->is_dense)) {
+    return false;
+  }
+  if (!fi->Read(&impl->row_stride)) {
+    return false;
+  }
+  if (!ReadDeviceVec(fi, &impl->gidx_buffer)) {
+    return false;
+  }
+  if (!fi->Read(&impl->base_rowid)) {
+    return false;
+  }
+  return true;
+}
+
+std::size_t EllpackPageRawFormat::Write(const EllpackPage& page,
+                                        common::AlignedFileWriteStream* fo) {
+  std::size_t bytes{0};
+  auto* impl = page.Impl();
+  bytes += fo->Write(impl->n_rows);
+  bytes += fo->Write(impl->is_dense);
+  bytes += fo->Write(impl->row_stride);
+  CHECK(!impl->gidx_buffer.ConstHostVector().empty());
+  bytes += common::WriteVec(fo, impl->gidx_buffer.HostVector());
+  bytes += fo->Write(impl->base_rowid);
+  return bytes;
+}
 }  // namespace xgboost::data
