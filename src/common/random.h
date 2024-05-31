@@ -7,11 +7,8 @@
 #ifndef XGBOOST_COMMON_RANDOM_H_
 #define XGBOOST_COMMON_RANDOM_H_
 
-#include <xgboost/logging.h>
-
 #include <algorithm>
 #include <functional>
-#include <limits>
 #include <map>
 #include <memory>
 #include <numeric>
@@ -19,16 +16,19 @@
 #include <utility>
 #include <vector>
 
-#include "../collective/broadcast.h"  // for Broadcast
-#include "algorithm.h"  // ArgSort
-#include "common.h"
-#include "xgboost/context.h"  // Context
-#include "xgboost/host_device_vector.h"
-#include "xgboost/linalg.h"
+#include "../collective/broadcast.h"     // for Broadcast
+#include "algorithm.h"                   // ArgSort
+#include "xgboost/context.h"             // Context
+#include "xgboost/host_device_vector.h"  // for HostDeviceVector
+#include "xgboost/linalg.h"              // for MakeVec
+#include "xgboost/logging.h"
+
+#if defined(XGBOOST_CUSTOMIZE_GLOBAL_PRNG) && XGBOOST_CUSTOMIZE_GLOBAL_PRNG == 1
+#include <limits>
+#endif
 
 namespace xgboost::common {
-// #if defined(XGBOOST_CUSTOMIZE_GLOBAL_PRNG) && XGBOOST_CUSTOMIZE_GLOBAL_PRNG == 1
-#if true
+#if defined(XGBOOST_CUSTOMIZE_GLOBAL_PRNG) && XGBOOST_CUSTOMIZE_GLOBAL_PRNG == 1
 /*!
  * \brief An customized random engine, used to be plugged in PRNG from other systems.
  *  The implementation of this library is not provided by xgboost core library.
