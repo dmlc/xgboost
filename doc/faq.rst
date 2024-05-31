@@ -37,7 +37,7 @@ The ultimate question will still come back to how to push the limit of each comp
 and use less resources to complete the task (thus with less communication and chance of failure).
 
 To achieve these, we decide to reuse the optimizations in the single node XGBoost and build the distributed version on top of it.
-The demand for communication in machine learning is rather simple, in the sense that we can depend on a limited set of APIs (in our case rabit).
+The demand for communication in machine learning is rather simple, in the sense that we can depend on a limited set of APIs.
 Such design allows us to reuse most of the code, while being portable to major platforms such as Hadoop/Yarn, MPI, SGE.
 Most importantly, it pushes the limit of the computation resources we can use.
 

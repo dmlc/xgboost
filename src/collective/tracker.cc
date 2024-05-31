@@ -1,7 +1,7 @@
 /**
  * Copyright 2023-2024, XGBoost Contributors
  */
-#include "rabit/internal/socket.h"
+
 #if defined(__unix__) || defined(__APPLE__)
 #include <netdb.h>       // gethostbyname
 #include <sys/socket.h>  // socket, AF_INET6, AF_INET, connect, getsockname
@@ -27,9 +27,10 @@
 #include "comm.h"
 #include "protocol.h"  // for kMagic, PeerInfo
 #include "tracker.h"
-#include "xgboost/collective/result.h"  // for Result, Fail, Success
-#include "xgboost/collective/socket.h"  // for GetHostName, FailWithCode, MakeSockAddress, ...
-#include "xgboost/json.h"               // for Json
+#include "xgboost/collective/poll_utils.h"  // for PollHelper
+#include "xgboost/collective/result.h"      // for Result, Fail, Success
+#include "xgboost/collective/socket.h"      // for GetHostName, FailWithCode, MakeSockAddress, ...
+#include "xgboost/json.h"                   // for Json
 
 namespace xgboost::collective {
 

@@ -138,7 +138,7 @@ From the command line on Linux starting from the XGBoost directory:
 
 .. note:: Faster distributed GPU training with NCCL
 
-  By default, distributed GPU training is enabled and uses Rabit for communication. For faster training, set the option ``USE_NCCL=ON``. Faster distributed GPU training depends on NCCL2, available at `this link <https://developer.nvidia.com/nccl>`_. Since NCCL2 is only available for Linux machines, **faster distributed GPU training is available only for Linux**.
+  By default, distributed GPU training is enabled with the option ``USE_NCCL=ON``. Distributed GPU training depends on NCCL2, available at `this link <https://developer.nvidia.com/nccl>`_. Since NCCL2 is only available for Linux machines, **Distributed GPU training is available only for Linux**.
 
   .. code-block:: bash
 

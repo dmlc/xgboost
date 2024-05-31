@@ -21,7 +21,6 @@ target_include_directories(xgboost4j
   ${JNI_INCLUDE_DIRS}
   ${PROJECT_SOURCE_DIR}/jvm-packages/xgboost4j/src/native
   ${PROJECT_SOURCE_DIR}/include
-  ${PROJECT_SOURCE_DIR}/dmlc-core/include
-  ${PROJECT_SOURCE_DIR}/rabit/include)
+  ${PROJECT_SOURCE_DIR}/dmlc-core/include)
 
 set_output_directory(xgboost4j ${PROJECT_SOURCE_DIR}/lib)
