@@ -22,7 +22,7 @@ chmod +x build/testxgboost
 # Allocate extra space in /dev/shm to enable NCCL
 export CI_DOCKER_EXTRA_PARAMS_INIT='--shm-size=4g'
 
-if [[ -z "${USE_DEPS_DEV_VER}" ]]
+if [[ -z "${USE_DEPS_DEV_VER-}" ]]
 then
   container_tag='gpu'
 else
