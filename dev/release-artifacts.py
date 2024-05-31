@@ -295,6 +295,8 @@ def main(args: argparse.Namespace) -> None:
     commit_hash = latest_hash()
 
     outdir = os.path.abspath(args.outdir)
+    if outdir.find(str(ROOT)) != -1:
+        raise ValueError("output dir must be outside of the source tree.")
     if not os.path.exists(outdir):
         os.mkdir(outdir)
 
