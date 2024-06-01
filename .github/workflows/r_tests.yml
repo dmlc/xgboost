@@ -34,7 +34,7 @@ jobs:
         r-version: ${{ matrix.config.r }}
 
     - name: Cache R packages
-      uses: actions/cache@937d24475381cd9c75ae6db12cb4e79714b926ed # v3.0.11
+      uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v3.0.11
       with:
         path: ${{ env.R_LIBS_USER }}
         key: ${{ runner.os }}-r-${{ matrix.config.r }}-7-${{ hashFiles('R-package/DESCRIPTION') }}
@@ -78,7 +78,7 @@ jobs:
         r-version: ${{ matrix.config.r }}
 
     - name: Cache R packages
-      uses: actions/cache@937d24475381cd9c75ae6db12cb4e79714b926ed # v3.0.11
+      uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v3.0.11
       with:
         path: ${{ env.R_LIBS_USER }}
         key: ${{ runner.os }}-r-${{ matrix.config.r }}-7-${{ hashFiles('R-package/DESCRIPTION') }}
