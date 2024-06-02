@@ -127,41 +127,23 @@ test_that("multiclass feature interactions work", {
     eta = 0.1, max_depth = 4, objective = 'multi:softprob', num_class = 3, nthread = n_threads
   )
   b <- xgb.train(param, dm, 40)
-  pred <- t(
-    array(
-      data = predict(b, dm, outputmargin = TRUE),
-      dim = c(3, 150)
-    )
-  )
+  pred <- predict(b, dm, outputmargin = TRUE)
 
   # SHAP contributions:
   cont <- predict(b, dm, predcontrib = TRUE)
-  expect_length(cont, 3)
-  # rewrap them as a 3d array
-  cont <- array(
-    data = unlist(cont),
-    dim = c(150, 5,  3)
-  )
+  expect_length(dim(cont), 3)
 
   # make sure for each row they add up to marginal predictions
-  expect_lt(max(abs(apply(cont, c(1, 3), sum) - pred)), 0.001)
+  expect_lt(max(abs(apply(cont, c(1, 2), sum) - pred)), 0.001)
 
   # SHAP interaction contributions:
   intr <- predict(b, dm, predinteraction = TRUE)
-  expect_length(intr, 3)
-  # rewrap them as a 4d array
-  intr <- aperm(
-    a = array(
-      data = unlist(intr),
-      dim = c(150, 5, 5, 3)
-    ),
-    perm = c(4, 1, 2, 3)  # [grp, row, col, col]
-  )
+  expect_length(dim(intr), 4)
 
   # check the symmetry
   expect_lt(max(abs(aperm(intr, c(1, 2, 4, 3)) - intr)), 0.00001)
   # sums WRT columns must be close to feature contributions
-  expect_lt(max(abs(apply(intr, c(1, 2, 3), sum) - aperm(cont, c(3, 1, 2)))), 0.00001)
+  expect_lt(max(abs(apply(intr, c(1, 2, 3), sum) - cont)), 0.00001)
 })
 
 

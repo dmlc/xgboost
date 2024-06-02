@@ -45,7 +45,6 @@ extern SEXP XGBoosterSetAttr_R(SEXP, SEXP, SEXP);
 extern SEXP XGBoosterSetParam_R(SEXP, SEXP, SEXP);
 extern SEXP XGBoosterUpdateOneIter_R(SEXP, SEXP, SEXP);
 extern SEXP XGCheckNullPtr_R(SEXP);
-extern SEXP XGSetArrayDimInplace_R(SEXP, SEXP);
 extern SEXP XGSetArrayDimNamesInplace_R(SEXP, SEXP);
 extern SEXP XGDMatrixCreateFromCSC_R(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
 extern SEXP XGDMatrixCreateFromCSR_R(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
@@ -108,7 +107,6 @@ static const R_CallMethodDef CallEntries[] = {
   {"XGBoosterSetParam_R",         (DL_FUNC) &XGBoosterSetParam_R,         3},
   {"XGBoosterUpdateOneIter_R",    (DL_FUNC) &XGBoosterUpdateOneIter_R,    3},
   {"XGCheckNullPtr_R",            (DL_FUNC) &XGCheckNullPtr_R,            1},
-  {"XGSetArrayDimInplace_R",      (DL_FUNC) &XGSetArrayDimInplace_R,      2},
   {"XGSetArrayDimNamesInplace_R", (DL_FUNC) &XGSetArrayDimNamesInplace_R, 2},
   {"XGDMatrixCreateFromCSC_R",    (DL_FUNC) &XGDMatrixCreateFromCSC_R,    6},
   {"XGDMatrixCreateFromCSR_R",    (DL_FUNC) &XGDMatrixCreateFromCSR_R,    6},
