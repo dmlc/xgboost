@@ -5,68 +5,68 @@ This file records the changes in xgboost library in reverse chronological order.
 
 ## 2.1.0 (2024 Jun 3)
 
-We are excited to announce the XGBoost 2.1 release. This note will begin by covering some overall changes and then highlight specific updates to various packages. As we are working on a [new R interface](https://github.com/dmlc/xgboost/issues/9810), the R package will not be included in this release. We will update the R package once it's ready, stay tuned!
+We are thrilled to announce the XGBoost 2.1 release. This note will start by summarizing some general changes and then highlighting specific package updates. As we are working on a [new R interface](https://github.com/dmlc/xgboost/issues/9810), this release will not include the R package. We'll update the R package as soon as it's ready. Stay tuned!
 
 ### Networking Improvements
-A significant on-going work for XGBoost is to support resilience for improved scaling, and federated learning on various platforms. The existing networking library in XGBoost is adopted from the RABIT project, which can no longer meet the feature demand. We revamped the RABIT module in this release to pave the way for future development. The choice of using an in-house version instead of an existing library is due to the active development status with frequent new feature requests like loading extra plugins for federated learning. The new implementation features:
+An important ongoing work for XGBoost, which we've been collaborating on, is to support resilience for improved scaling and federated learning on various platforms. The existing networking library in XGBoost, adopted from the RABIT project, can no longer meet the feature demand. We've revamped the RABIT module in this release to pave the way for future development. The choice of using an in-house version instead of an existing library is due to the active development status with frequent new feature requests like loading extra plugins for federated learning. The new implementation features:
 - Both CPU and GPU communication (based on NCCL).
-- A reusable tracker for both the Python package and JVM packages. Now the JVM packages no longer require Python as a runtime dependency.
+- A reusable tracker for both the Python package and JVM packages. With the new release, the JVM packages no longer require Python as a runtime dependency.
 - Supports federated communication patterns for both CPU and GPU.
-- Supports timeout. Currently the parameter is hard-coded to 30 minutes for high-level interface, which we plan on improving.
+- Supports timeout. The high-level interface parameter is currently hard-coded to 30 minutes, which we plan to improve.
 - Supports significantly more data types.
 - Supports thread-based workers.
-- Improved handling for worker errors, including better error message when one of the peers dies during training.
+- Improved handling for worker errors, including better error messages when one of the peers dies during training.
 - Work with IPv6. Currently, this is only supported by the dask interface.
-- Builtin support for various operations like broadcast, allgatherV, allreduce, etc.
+- Built-in support for various operations like broadcast, allgatherV, allreduce, etc.
 
 Related PRs (#9597, #9576, #9523, #9524, #9593, #9596, #9661, #10319, #10152, #10125, #10332, #10306, #10208, #10203, #10199, #9784, #9777, #9773, #9772, #9759, #9745, #9695, #9738, #9732, #9726, #9688, #9681, #9679, #9659, #9650, #9644, #9649, #9917, #9990, #10313, #10315, #10112, #9531, #10075, #9805, #10198).
 
 The existing option of using `MPI` in RABIT is removed in the release. (#9525)
 
-### NCCL is no-longer bundled in XGBoost for PyPI packages.
-In before, XGBoost statically links NCCL. This significantly increases the binary size and we had hit the PyPI repository limit. The new release can now dynamically load NCCL from an external source. For the PyPI package, the `nvidia-nccl-cu12` package will be fetched during installation. With more downstream packages reusing NCCL, we expect the user environments to be slimier in the future as well. (#9796, #9804)
+### NCCL is now fetched from PyPI.
+In the previous version, XGBoost statically linked NCCL, which significantly increased the binary size and led to hitting the PyPI repository limit. However, with the new release, we have made a significant improvement. The new release can now dynamically load NCCL from an external source, reducing the binary size. For the PyPI package, the `nvidia-nccl-cu12` package will be fetched during installation. With more downstream packages reusing NCCL, we expect the user environments to be slimmer in the future as well. (#9796, #9804)
 
-### Multi output
+### Multi-output
 We continue the work on multi-target and vector leaf in this release:
-- Revise the support for custom objectives with a new API `XGBoosterTrainOneIter`. This new function supports strided matrices and CUDA inputs. In addition, custom objectives now returns the correct shape for prediction. (#9508)
+- Revise the support for custom objectives with a new API, `XGBoosterTrainOneIter.` This new function supports strided matrices and CUDA inputs. In addition, custom objectives now return the correct shape for prediction. (#9508)
 - The `hinge` objective now supports multi-target regression (#9850)
 - Fix the gain calculation with vector leaf (#9978)
 - Support graphviz plot for multi-target tree. (#10093)
 - Fix multi-output with alternating strategies. (#9933)
 
-Please note that the feature is still working-in-progress and is not yet suitable for production use.
+Please note that the feature is still in progress and not suitable for production use.
 
-### Federated
-Work on federated learning is advanced with additional support for column-split:
-- Column split work for both CPU and GPU. In addition, categorical data now works with column split. (#9562, #9609, #9611, #9628, #9539, #9578, #9685, #9623, #9613, #9511, #9384, #9595)
-- UBJson is used for serializing split entries for column split, this helps vector-leaf with column-based data split. (#10059, #10055, #9702)
+### Federated Learning
+Progress has been made on federated learning with improved support for column-split, including the following updates:
+- Column split work for both CPU and GPU. In addition, categorical data is now compatible with column split. (#9562, #9609, #9611, #9628, #9539, #9578, #9685, #9623, #9613, #9511, #9384, #9595)
+-  The use of UBJson to serialize split entries for column split has been implemented, aiding vector-leaf with column-based data split. (#10059, #10055, #9702)
 - Documentation and small fixes. (#9610, #9552, #9614, #9867)
 
-### On-going work for SYCL support.
+### Ongoing work for SYCL support.
 
-XGBoost is working on having SYCL plugin to run on SYCL devices. The initial work is for the `hist` tree method. (#10216, #9800, #10311, #9691, #10269, #10251, #10222, #10174, #10080, #10057, #10011, #10138, #10119, #10045, #9876, #9846, #9682)
+XGBoost is developing a SYCL plugin for SYCL devices, starting with the `hist` tree method. (#10216, #9800, #10311, #9691, #10269, #10251, #10222, #10174, #10080, #10057, #10011, #10138, #10119, #10045, #9876, #9846, #9682)
 
 ### Optimizations
-- Implement column sampler in CUDA for GPU based tree methods. This helps us get faster training time when column sampling is employed (#9785)
+- Implement column sampler in CUDA for GPU-based tree methods. This helps us get faster training time when column sampling is employed (#9785)
 - CMake LTO and CUDA arch (#9677)
-- Small optimization to external memory with a thread pool, this reduces the number of threads launched during iteration. (#9605, #10288)
+- Small optimization to external memory with a thread pool. This reduces the number of threads launched during iteration. (#9605, #10288)
 
 ### Deprecation and breaking changes
 Package-specific breaking changes are outlined in respective sections. Here we list general breaking changes in this release:
-- The command line interface is deprecated. With the increasing complexity of machine learning ecosystem, using a command shell to build a machine learning model is no-longer feasible. The deprecation will also prevent misleading new comers. (#9485)
-- `Universal binary JSON` is now the default format for saving model (#9947, #9958, #9954, #9955). See https://github.com/dmlc/xgboost/issues/7547 for more info.
+- The command line interface is deprecated due to the increasing complexity of the machine learning ecosystem. Building a machine learning model using a command shell is no longer feasible and could mislead newcomers. (#9485)
+- `Universal binary JSON` is now the default format for saving models (#9947, #9958, #9954, #9955). See https://github.com/dmlc/xgboost/issues/7547 for more info.
 - The `XGBoosterGetModelRaw` is now removed after deprecation in 1.6. (#9617)
-- Drop support for loading remote files. This feature lacks any test. Users are encouraged to use dedicated libraries for fetching remote content. (#9504)
-- Remove dense libsvm parser plugin. This plugin is never tested or documented (#9799)
+- Drop support for loading remote files. This feature lacks any test. Users are encouraged to use dedicated libraries to fetch remote content. (#9504)
+- Remove the dense libsvm parser plugin. This plugin is never tested or documented (#9799)
 - Make the columnar data setter more general (#9905)
-- `XGDMatrixSetDenseInfo` and `XGDMatrixSetUIntInfo` are now deprecated, use the array interface based alternatives instead.
+- `XGDMatrixSetDenseInfo` and `XGDMatrixSetUIntInfo` are now deprecated. Use the array interface based alternatives instead.
 
 ### Features
 This section lists some new features that are general to all language bindings. For package-specific changes, please visit respective sections.
 - Adopt a new XGBoost logo (#10270)
-- Support dataframe data format in the native XGBoost. This helps us improve performance and reduce memory usage when consuming dataframe-based structures like pandas, arrow, and R dataframe. (#9828, #9616)
+- Now supports dataframe data format in native XGBoost. This improvement enhances performance and reduces memory usage when working with dataframe-based structures such as pandas, arrow, and R dataframe. (#9828, #9616)
 - Change default metric for gamma regression to `deviance`. (#9757)
-- Normalization for learning to rank is made optional with the new `lambdarank_normalization` parameter. (#10094)
+- Normalization for learning to rank is now optional with the introduction of the new `lambdarank_normalization` parameter. (#10094)
 - Contribution prediction with `QuantileDMatrix` on CPU. (#10043)
 
 ### Bug fixes
@@ -75,15 +75,15 @@ This section lists some new features that are general to all language bindings. 
 - Fix feature names with special characters. (#9923)
 - Fix global configuration for external memory training. (#10173)
 - Disable column sample by node for the exact tree method. (#10083)
-- Fix `FieldEntry` constructor specialization syntax error (#9980)
+- Fix the `FieldEntry` constructor specialization syntax error (#9980)
 - Fix pairwise objective with NDCG metric along with custom gain. (#10100)
 - Fix the default value for `lambdarank_pair_method`. (#10098)
-- Fix UBJSON with boolean value. No existing code is affected by this fix. (#10054)
-- Be more lenient on floating point error for AUC, this prevents a AUC > 1.0 error. (#10264)
-- Check support status for categorical features, this prevents `gblinear` from treating categorical features as numerical. (#9946)
+- Fix UBJSON with boolean values. No existing code is affected by this fix. (#10054)
+- Be more lenient on floating point errors for AUC. This prevents the AUC > 1.0 error. (#10264)
+- Check support status for categorical features. This prevents `gblinear` from treating categorical features as numerical. (#9946)
 
 ### Document
-Here is a list of documentation changes that are not specific to any XGBoost package.
+Here is a list of documentation changes not specific to any XGBoost package.
 - A new coarse map for XGBoost features to assist development. (#10310)
 - New language binding consistency guideline. (#9755, #9866)
 - Fixes, cleanups, small updates (#9501, #9988, #10023, #10013, #10143, #9904, #10179, #9781, #10340, #9658, #10182, #9822)
@@ -92,11 +92,11 @@ Here is a list of documentation changes that are not specific to any XGBoost pac
 - Mention data consistency for categorical features. (#9678)
 
 ### Maintenance
-- Add formatting and linting requirements to CMake script. (#9653, #9641, #9637, #9728, #9674)
+- Add formatting and linting requirements to the CMake script. (#9653, #9641, #9637, #9728, #9674)
 - Refactors and cleanups (#10085, #10120, #10074, #9645, #9992, #9568, #9731, #9527).
 - Update nvtx. (#10227)
 - Tests. (#9499, #9553, #9737)
-- Throw error for 32-bit archs (#10005)
+- Throw error for 32-bit architectures (#10005)
 - Helpers. (#9505, #9572, #9750, #9541, #9983, #9714)
 - Fix mingw hanging on regex in context (#9729)
 - Linters. (#10010, #9634)
@@ -106,19 +106,19 @@ Here is a list of documentation changes that are not specific to any XGBoost pac
 
 * Dask
 Other than the changes in networking, we have some optimizations and document updates in dask:
-- Filter models on workers instead of client, this prevents an OOM error on the client machine. (#9518)
+- Filter models on workers instead of clients; this prevents an OOM error on the client machine. (#9518)
 - Users are now encouraged to use `from xgboost import dask`  instead of `import xgboost.dask` to avoid drawing in unnecessary dependencies for non-dask users. (#9742)
 d3f2dbe64 * [dask] Add seed to demos. (#10009)
 - New document using dask XGBoost with k8s. (#10271)
 59d7b8dc7 * [doc] Add typing to dask demos. (#10207)
 
 * PySpark
-PySpark has a number of new features along with some small fixes:
-- Support stage-level scheduling for training on various platforms including yarn/k8s. (#9519, #10209, #9786, #9727)
+PySpark has several new features along with some small fixes:
+- Support stage-level scheduling for training on various platforms, including yarn/k8s. (#9519, #10209, #9786, #9727)
 - Support GPU-based transform methods (#9542)
 - Refactor the logging and the GPU code path (#10077, 9724)
-- Sort workers by task ID, this helps the PySpark interface obtain deterministic results. (#10220)
-- Fix pyspark with verbosity=3. (#10172)
+- Sort workers by task ID. This helps the PySpark interface obtain deterministic results. (#10220)
+- Fix PySpark with verbosity=3. (#10172)
 - Fix spark_estimator doc (#10066)
 419e05231 * [pyspark] rework transform to reuse same code (#9292)
 
@@ -126,14 +126,14 @@ PySpark has a number of new features along with some small fixes:
 For the Python package, `eval_metric`, `early_stopping_rounds`, and `callbacks` from now removed from the `fit` method in the sklearn interface. They were deprecated in 1.6. Use the parameters with the same name in constructors instead. (#9986)
 
 * Features
-Following is a list for new features in the Python package:
+Following is a list of new features in the Python package:
 - Support sample weight in sklearn custom objective. (#10050)
-- New supported data types including `cudf.pandas` (#9602), `torch.Tensor` (#9971), and more scipy types (#9881).
+- New supported data types, including `cudf.pandas` (#9602), `torch.Tensor` (#9971), and more scipy types (#9881).
 - Support pandas 2.2 and numpy 2.0. (#10266, #9557, #10252, #10175)
 - Improved data cache option in data iterator. (#10286)
 - Accept numpy generators as `random_state` (#9743)
 - Support returning base score as intercept in the sklearn interface. (#9486)
-- Support arrow through pandas ext types, this is built on top of the new DataFrame API in XGBoost. See general features for more info. (#9612)
+- Support arrow through pandas ext types. This is built on top of the new DataFrame API in XGBoost. See general features for more info. (#9612)
 - Handle np integer in model slice and prediction. (#10007)
 - Improved sklearn tags support. (#10230)
 
@@ -144,7 +144,7 @@ Following is a list for new features in the Python package:
 
 * Document
 - Clarify the effect of `enable_categorical` (#9877, #9884)
-- Update the python introduction. (#10033)
+- Update the Python introduction. (#10033)
 - Fixes. (#10058, #9991, #9573)
 
 * Maintenance
@@ -154,22 +154,22 @@ Following is a list for new features in the Python package:
 - Tests. (#9962, #10285, #9997, #9943, #9934)
 
 ### JVM package
-Here is a list of JVM-specific changes. Like the PySpark package, JVM package also gains stage-level scheduling.
+Here is a list of JVM-specific changes. Like the PySpark package, the JVM package also gains stage-level scheduling.
 
 * Features and related documents
-- [breaking] Remove rabit check point. (#9599)
+- [breaking] Remove rabit checkpoint. (#9599)
 - Support stage-level scheduling (#9775)
 - Allow JVM-Package to access inplace predict method (#9167)
-- Support jdk 17 for test (#9959)
+- Support JDK 17 for test (#9959)
 - Various dependency updates.(#10211, #10210, #10217, #10156, #10070, #9809, #9517, #10235, #10276, #9331, #10335, #10309, #10240, #10244, #10260, #9489, #9326, #10294, #10197, #10196, #10193, #10202, #10191, #10188, #9328, #9311, #9951, #10151, #9827, #9820, #10253)
 - Update the tutorial of xgboost4j-spark-gpu (#9752)
 
 * Bug Fixes
 - Fixes memory leak in error handling. (#10307)
-- Fixes group col for gpu packages (#10254)
+- Fixes group col for GPU packages (#10254)
 
 * CI
-- Meta info about the Python package is upload for easier parsing (#10295)
+- Meta info about the Python package is uploaded for easier parsing (#10295)
 - Various dependency updates (#10274, #10280, #10278, #10275, #10320, #10305, #10267, #9544, #10228, #10133, #10187, #9857, #10042, #10268, #9654, #9835)
 - GitHub Action fixes (#10067, #10134, #10064)
 - Improved support for Apple devices. (#10225, #9886, #9699, #9748, #9704, #9749)
@@ -177,7 +177,7 @@ Here is a list of JVM-specific changes. Like the PySpark package, JVM package al
 - Cancel GH Action job if a newer commit is published (#10088)
 - CI images. (#9666, #10201, #9932)
 - Test R package with CMake (#10087)
-- Test building for 32-bit arch (#10021)
+- Test building for the 32-bit arch (#10021)
 - Test federated plugin using GitHub action. (#10336)
 
 ## 2.0.0 (2023 Aug 16)
