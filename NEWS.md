@@ -104,7 +104,7 @@ Here is a list of documentation changes that are not specific to any XGBoost pac
 
 ### Python package
 
-## Dask
+* Dask
 Other than the changes in networking, we have some optimizations and document updates in dask:
 - Filter models on workers instead of client, this prevents an OOM error on the client machine. (#9518)
 - Users are now encouraged to use `from xgboost import dask`  instead of `import xgboost.dask` to avoid drawing in unnecessary dependencies for non-dask users. (#9742)
@@ -113,8 +113,9 @@ d3f2dbe64 * [dask] Add seed to demos. (#10009)
 59d7b8dc7 * [doc] Add typing to dask demos. (#10207)
 
 * PySpark
+PySpark has a number of new features along with some small fixes:
 - Support stage-level scheduling for training on various platforms including yarn/k8s. (#9519, #10209, #9786, #9727)
-- Support gpu-based transform methods (#9542)
+- Support GPU-based transform methods (#9542)
 - Refactor the logging and the GPU code path (#10077, 9724)
 - Sort workers by task ID, this helps the PySpark interface obtain deterministic results. (#10220)
 - Fix pyspark with verbosity=3. (#10172)
@@ -122,11 +123,10 @@ d3f2dbe64 * [dask] Add seed to demos. (#10009)
 419e05231 * [pyspark] rework transform to reuse same code (#9292)
 
 * Breaking changes
-`eval_metric`, `early_stopping_rounds`, and `callbacks` from now removed from the `fit`
-method in the sklearn interface. They were deprecated in 1.6. Use the parameters with the
-same name in constructors instead. (#9986)
+For the Python package, `eval_metric`, `early_stopping_rounds`, and `callbacks` from now removed from the `fit` method in the sklearn interface. They were deprecated in 1.6. Use the parameters with the same name in constructors instead. (#9986)
 
 * Features
+Following is a list for new features in the Python package:
 - Support sample weight in sklearn custom objective. (#10050)
 - New supported data types including `cudf.pandas` (#9602), `torch.Tensor` (#9971), and more scipy types (#9881).
 - Support pandas 2.2 and numpy 2.0. (#10266, #9557, #10252, #10175)
@@ -139,13 +139,13 @@ same name in constructors instead. (#9986)
 
 * Fixes
 - Fix `DMatrix` with `None` input. (#10052)
-- Fix native library discovery (#9712, #9860)
+- Fix native library discovery logic. (#9712, #9860)
 - Fix using categorical data with the score function for the ranker. (#9753)
 
 * Document
 - Clarify the effect of `enable_categorical` (#9877, #9884)
-- update python intro doc (#10033)
-- Document fixes (#10058, #9991, #9573)
+- Update the python introduction. (#10033)
+- Fixes. (#10058, #9991, #9573)
 
 * Maintenance
 - Use array interface in Python prediction return. (#9855)
