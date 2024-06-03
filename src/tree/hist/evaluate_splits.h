@@ -430,7 +430,7 @@ class HistEvaluator {
               all_entries[worker * entries.size() + nidx_in_set].split);
         }
       }
-      if (is_secure_ && is_col_split_) {
+      if (is_secure_) {
         // At this point, all the workers have the best splits for all the nodes
         // and workers can recover the actual split value with the split index
         // Note that after the recovery, different workers will hold different
