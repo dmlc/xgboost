@@ -35,16 +35,11 @@ namespace obj {
 DMLC_REGISTRY_FILE_TAG(multiclass_obj_sycl);
 
 class SoftmaxMultiClassObj : public ObjFunction {
-  static constexpr size_t kBatchSize = 1u << 22;
   mutable bool are_buffs_init = false;
 
-  void InitBuffers() const {
+  void InitBuffers(const std::vector<int>& sample_rate) const {
     if (!are_buffs_init) {
-      events_.resize(5);
-      preds_.Resize(&qu_, kBatchSize);
-      labels_.Resize(&qu_, kBatchSize);
-      weights_.Resize(&qu_, kBatchSize);
-      out_gpair_.Resize(&qu_, kBatchSize);
+      batch_processor_.InitBuffers(&qu_, sample_rate);
       are_buffs_init = true;
     }
   }
@@ -64,7 +59,6 @@ class SoftmaxMultiClassObj : public ObjFunction {
                    xgboost::linalg::Matrix<GradientPair>* out_gpair) override {
     if (preds.Size() == 0) return;
     if (info.labels.Size() == 0) return;
-    InitBuffers();
 
     CHECK(preds.Size() == (static_cast<size_t>(param_.num_class) * info.labels.Size()))
         << "SoftmaxMultiClassObj: label size and pred size does not match.\n"
@@ -84,39 +78,26 @@ class SoftmaxMultiClassObj : public ObjFunction {
           << "Number of weights should be equal to number of data points.";
     }
 
-    bst_float* preds_ptr = preds_.Data();
-    bst_float* labels_ptr = labels_.Data();
-    bst_float* weights_ptr = weights_.Data();
-    GradientPair* out_gpair_ptr = out_gpair_.Data();
-
-    int label_correctness_flag = 1;
-    const size_t wg_size = 32;
-    const size_t nBatch = ndata / kBatchSize + (ndata % kBatchSize > 0);
-    for (size_t batch = 0; batch < nBatch; ++batch) {
-      const size_t begin = batch * kBatchSize;
-      const size_t end = (batch == nBatch - 1) ? ndata : begin + kBatchSize;
-      const size_t batch_size = end - begin;
-      const size_t nwgs = (batch_size / wg_size + (batch_size % wg_size > 0));
-
-      events_[0] = qu_.memcpy(preds_ptr, preds.HostPointer() + begin * nclass,
-                              batch_size * nclass * sizeof(bst_float), events_[3]);
-      events_[1] = qu_.memcpy(labels_ptr, info.labels.Data()->HostPointer() + begin,
-                              batch_size * sizeof(bst_float), events_[3]);
-      if (!is_null_weight) {
-        events_[2] = qu_.memcpy(weights_ptr, info.weights_.HostPointer() + begin,
-                                info.weights_.Size() * sizeof(bst_float), events_[3]);
-      }
-
-      events_[3] = linalg::GroupWiseKernel(&qu_, &label_correctness_flag, events_, {nwgs, wg_size},
+    int flag = 1;
+    auto objective_fn = [=, &flag]
+                        (const std::vector<::sycl::event>& events,
+                         size_t ndata,
+                         GradientPair* out_gpair,
+                         const bst_float* preds,
+                         const bst_float* labels,
+                         const bst_float* weights) {
+      const size_t wg_size = 32;
+      const size_t nwgs = ndata / wg_size + (ndata % wg_size > 0);
+      return linalg::GroupWiseKernel(&qu_, &flag, events, {nwgs, wg_size},
         [=] (size_t idx, auto flag) {
-          const bst_float* pred = preds_ptr + idx * nclass;
+          const bst_float* pred = preds + idx * nclass;
 
           // Part of Softmax function
           bst_float wmax = std::numeric_limits<bst_float>::min();
           for (int k = 0; k < nclass; k++) { wmax = ::sycl::max(pred[k], wmax); }
           bst_float wsum = 0.0f;
           for (int k = 0; k < nclass; k++) { wsum += ::sycl::exp(pred[k] - wmax); }
-          bst_float label = labels_ptr[idx];
+          bst_float label = labels[idx];
 
           if (label < 0 || label >= nclass) {
             AtomicRef<int> flag_ref(flag[0]);
@@ -124,25 +105,41 @@ class SoftmaxMultiClassObj : public ObjFunction {
             label = 0;
           }
 
-          bst_float wt = is_null_weight ? 1.0f : weights_ptr[idx];
+          bst_float wt = is_null_weight ? 1.0f : weights[idx];
           for (int k = 0; k < nclass; ++k) {
             bst_float p = expf(pred[k] - wmax) / static_cast<float>(wsum);
             const float eps = 1e-16f;
             const bst_float h = ::sycl::max(2.0f * p * (1.0f - p) * wt, eps);
             p = label == k ? p - 1.0f : p;
-            out_gpair_ptr[idx * nclass + k] = GradientPair(p * wt, h);
+            out_gpair[idx * nclass + k] = GradientPair(p * wt, h);
           }
       });
+    };
 
-      events_[4] = qu_.memcpy(out_gpair->Data()->HostPointer() + begin * nclass, out_gpair_ptr,
-                              batch_size * nclass * sizeof(GradientPair), events_[3]);
-      qu_.wait_and_throw();
+    // out_gpair and preds have nclass points per sample
+    // labels and weights have 1 points per sample
+    InitBuffers({nclass, nclass, 1, 1});
+    if (is_null_weight) {
+      // Output is passed by pointer
+      // Inputs are passed by const reference
+      batch_processor_.Calculate(std::move(objective_fn),
+                                 out_gpair->Data(),
+                                 preds,
+                                 *(info.labels.Data()));
+    } else {
+      batch_processor_.Calculate(std::move(objective_fn),
+                                 out_gpair->Data(),
+                                 preds,
+                                 *(info.labels.Data()),
+                                 info.weights_);
     }
+    qu_.wait_and_throw();
 
-    if (label_correctness_flag == 0) {
+    if (flag == 0) {
       LOG(FATAL) << "SYCL::SoftmaxMultiClassObj: label must be in [0, num_class).";
     }
   }
+
   void PredTransform(HostDeviceVector<bst_float>* io_preds) const override {
     this->Transform(io_preds, output_prob_);
   }
@@ -219,12 +216,8 @@ class SoftmaxMultiClassObj : public ObjFunction {
   sycl::DeviceManager device_manager;
 
   mutable ::sycl::queue qu_;
-  mutable std::vector<::sycl::event> events_;
-  // Buffers
-  mutable USMVector<bst_float, MemoryType::on_device> preds_;
-  mutable USMVector<bst_float, MemoryType::on_device> labels_;
-  mutable USMVector<bst_float, MemoryType::on_device> weights_;
-  mutable USMVector<GradientPair, MemoryType::on_device> out_gpair_;
+  static constexpr size_t kBatchSize = 1u << 22;
+  mutable linalg::BatchProcessingHelper<GradientPair, bst_float, kBatchSize, 3> batch_processor_;
 };
 
 XGBOOST_REGISTER_OBJECTIVE(SoftmaxMultiClass, "multi:softmax_sycl")
