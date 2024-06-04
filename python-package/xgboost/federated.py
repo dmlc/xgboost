@@ -60,8 +60,8 @@ class FederatedTracker(RabitTracker):
 
 
 def run_federated_server(  # pylint: disable=too-many-arguments
-    n_workers: int,
     port: int,
+    n_workers: int,
     server_key_path: Optional[str] = None,
     server_cert_path: Optional[str] = None,
     client_cert_path: Optional[str] = None,
@@ -84,7 +84,6 @@ def run_federated_server(  # pylint: disable=too-many-arguments
 
     tracker = FederatedTracker(**args)
     tracker.start()
-    print('args', tracker.worker_args())
 
     thread = Thread(target=tracker.wait_for)
     thread.daemon = True
