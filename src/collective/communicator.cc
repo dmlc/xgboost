@@ -35,8 +35,10 @@ std::map<std::string, std::string> json_to_map(xgboost::Json const& config, std:
     } else if (value->Type() == xgboost::Value::ValueKind::kNumber) {
       auto num = reinterpret_cast<xgboost::Number *>(value)->GetNumber();
       text = std::to_string(num);
+    } else if (value->Type() == xgboost::Value::ValueKind::kBoolean) {
+        text = reinterpret_cast<xgboost::Boolean *>(value)->GetBoolean() ? "true" : "false";
     } else {
-      text = "Unsupported type ";
+      text = "Unsupported type";
     }
     params[entry.first] = text;
   }
