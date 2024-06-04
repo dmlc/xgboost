@@ -10,7 +10,7 @@ Test Federated XGBoost
 ----------------------
 ```shell
 # Under xgboost source tree.
-cd tests/distributed/test_federated
+cd tests/test_distributed/test_federated
 # This tests both CPU training (`hist`) and GPU training (`gpu_hist`).
 ./runtests-federated.sh
 ```
