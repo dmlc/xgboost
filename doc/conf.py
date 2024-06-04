@@ -61,8 +61,13 @@ def run_doxygen():
 
 def build_jvm_docs():
     """Build docs for the JVM packages"""
-    git_branch = os.getenv("READTHEDOCS_GIT_IDENTIFIER", default=None)
+    git_branch = os.getenv("READTHEDOCS_VERSION_NAME", default=None)
     print(f"git_branch = {git_branch}")
+
+    if git_branch == "latest":
+        git_branch = "master"
+    elif git_branch == "stable":
+        git_branch = f"release_{version}"
 
     def try_fetch_jvm_doc(branch):
         """
