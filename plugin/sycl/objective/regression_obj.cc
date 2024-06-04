@@ -147,16 +147,17 @@ class RegLossObj : public ObjFunction {
     InitBuffers();
 
     batch_processor_.Calculate([=] (const std::vector<::sycl::event>& events,
-                                    size_t batch_size,
+                                    size_t ndata,
                                     bst_float* io_preds) {
        return qu_.submit([&](::sycl::handler& cgh) {
         cgh.depends_on(events);
-        cgh.parallel_for<>(::sycl::range<1>(batch_size), [=](::sycl::id<1> pid) {
+        cgh.parallel_for<>(::sycl::range<1>(ndata), [=](::sycl::id<1> pid) {
           int idx = pid[0];
           io_preds[idx] = Loss::PredTransform(io_preds[idx]);
         });
       });
     }, io_preds);
+    qu_.wait_and_throw();
   }
 
   float ProbToMargin(float base_score) const override {
