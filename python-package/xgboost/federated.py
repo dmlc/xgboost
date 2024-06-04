@@ -69,14 +69,22 @@ def run_federated_server(  # pylint: disable=too-many-arguments
 ) -> Dict[str, Any]:
     """See :py:class:`~xgboost.federated.FederatedTracker` for more info."""
     args: Dict[str, Any] = {"n_workers": n_workers}
+    args['port'] = port
+    args['timeout'] = timeout
+
     secure = all(
         path is not None
         for path in [server_key_path, server_cert_path, client_cert_path]
     )
-    tracker = FederatedTracker(
-        n_workers=n_workers, port=port, secure=secure, timeout=timeout
-    )
+    args['secure'] = secure
+    if secure:
+        args['server_key_path'] = server_key_path
+        args['server_cert_path'] = server_cert_path
+        args['client_cert_path'] = client_cert_path
+
+    tracker = FederatedTracker(**args)
     tracker.start()
+    print('args', tracker.worker_args())
 
     thread = Thread(target=tracker.wait_for)
     thread.daemon = True
