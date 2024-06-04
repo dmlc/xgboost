@@ -42,6 +42,36 @@ TEST(SparsePageDMatrix, EllpackPage) {
   delete dmat;
 }
 
+TEST(SparsePageDMatrix, EllpackSkipSparsePage) {
+  // Test Ellpack can avoid loading sparse page after the initialization.
+  dmlc::TemporaryDirectory tmpdir;
+  auto Xy = RandomDataGenerator{180, 12, 0.0}.Batches(6).GenerateSparsePageDMatrix(
+      tmpdir.path + "/", true);
+  auto ctx = MakeCUDACtx(0);
+  bst_bin_t n_bins{256};
+  double sparse_thresh{0.8};
+  BatchParam batch_param{n_bins, sparse_thresh};
+
+  std::int32_t k = 0;
+  for (auto const& page : Xy->GetBatches<EllpackPage>(&ctx, batch_param)) {
+    auto impl = page.Impl();
+    ASSERT_EQ(page.Size(), 30);
+    ASSERT_EQ(k, impl->base_rowid);
+    k += page.Size();
+  }
+
+  auto casted = std::dynamic_pointer_cast<data::SparsePageDMatrix>(Xy);
+  CHECK(casted);
+  // Make the number of fetches don't change (no new fetch)
+  auto n_fetches = casted->SparsePageFetchCount();
+  for (std::int32_t i = 0; i < 3; ++i) {
+    for ([[maybe_unused]] auto const& page : Xy->GetBatches<EllpackPage>(&ctx, batch_param)) {
+    }
+    auto casted = std::dynamic_pointer_cast<data::SparsePageDMatrix>(Xy);
+    ASSERT_EQ(casted->SparsePageFetchCount(), n_fetches);
+  }
+}
+
 TEST(SparsePageDMatrix, MultipleEllpackPages) {
   Context ctx{MakeCUDACtx(0)};
   auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};

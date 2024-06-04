@@ -16,26 +16,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-11]
+        os: [windows-latest, ubuntu-latest, macos-13]
 
     steps:
-    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
       with:
         submodules: 'true'
 
-    - uses: mamba-org/setup-micromamba@422500192359a097648154e8db4e39bdb6c6eed7  # v1.8.1
+    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
       with:
-        micromamba-version: '1.5.6-0'
-        environment-name: jvm_tests
-        create-args: >-
-          python=3.10
-          awscli
-        cache-downloads: true
-        cache-environment: true
-        init-shell: bash powershell
+        miniforge-variant: Mambaforge
+        miniforge-version: latest
+        activate-environment: jvm_tests
+        environment-file: tests/ci_build/conda_env/jvm_tests.yml
+        use-mamba: true
 
     - name: Cache Maven packages
-      uses: actions/cache@13aacd865c20de90d75de3b17ebe84f7a17d57d2  # v4.0.0
+      uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
       with:
         path: ~/.m2
         key: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
@@ -61,7 +58,7 @@ jobs:
       id: extract_branch
       if: |
         (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
-        (matrix.os == 'windows-latest' || matrix.os == 'macos-11')
+        (matrix.os == 'windows-latest' || matrix.os == 'macos-13')
 
     - name: Publish artifact xgboost4j.dll to S3
       run: |
@@ -85,7 +82,7 @@ jobs:
         python -m awscli s3 cp libxgboost4j_${{ github.sha }}.dylib s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/libxgboost4j/ --acl public-read --region us-west-2
       if: |
         (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
-        matrix.os == 'macos-11'
+        matrix.os == 'macos-13'
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}

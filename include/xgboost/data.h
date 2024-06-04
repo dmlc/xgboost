@@ -468,10 +468,7 @@ class BatchIterator {
     return *(*impl_);
   }
 
-  bool operator!=(const BatchIterator&) const {
-    CHECK(impl_ != nullptr);
-    return !impl_->AtEnd();
-  }
+  [[nodiscard]] bool operator!=(const BatchIterator&) const { return !this->AtEnd(); }
 
   [[nodiscard]] bool AtEnd() const {
     CHECK(impl_ != nullptr);
@@ -506,13 +503,13 @@ class DMatrix {
  public:
   /*! \brief default constructor */
   DMatrix()  = default;
-  /*! \brief meta information of the dataset */
-  virtual MetaInfo& Info() = 0;
+  /** @brief meta information of the dataset */
+  [[nodiscard]] virtual MetaInfo& Info() = 0;
   virtual void SetInfo(const char* key, std::string const& interface_str) {
     auto const& ctx = *this->Ctx();
     this->Info().SetInfo(ctx, key, StringView{interface_str});
   }
-  /*! \brief meta information of the dataset */
+  /** @brief meta information of the dataset */
   [[nodiscard]] virtual const MetaInfo& Info() const = 0;
 
   /*! \brief Get thread local memory for returning data from DMatrix. */

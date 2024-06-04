@@ -25,8 +25,7 @@ if(PLUGIN_SYCL)
     PRIVATE
     ${gtest_SOURCE_DIR}/include
     ${xgboost_SOURCE_DIR}/include
-    ${xgboost_SOURCE_DIR}/dmlc-core/include
-    ${xgboost_SOURCE_DIR}/rabit/include)
+    ${xgboost_SOURCE_DIR}/dmlc-core/include)
 
   target_compile_definitions(plugin_sycl_test PUBLIC -DXGBOOST_USE_SYCL=1)
   target_link_libraries(plugin_sycl_test PUBLIC -fsycl)
@@ -66,8 +65,7 @@ target_include_directories(testxgboost
   PRIVATE
   ${GTEST_INCLUDE_DIRS}
   ${xgboost_SOURCE_DIR}/include
-  ${xgboost_SOURCE_DIR}/dmlc-core/include
-  ${xgboost_SOURCE_DIR}/rabit/include)
+  ${xgboost_SOURCE_DIR}/dmlc-core/include)
 target_link_libraries(testxgboost
   PRIVATE
   GTest::gtest GTest::gmock)

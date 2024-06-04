@@ -1,7 +1,10 @@
+# Container to test XGBoost against dev versions of dependencies
+
 ARG CUDA_VERSION_ARG
 FROM nvidia/cuda:$CUDA_VERSION_ARG-runtime-ubuntu22.04
 ARG CUDA_VERSION_ARG
 ARG RAPIDS_VERSION_ARG
+  # Should be first 4 digits of the dev version (e.g. 24.06)
 ARG NCCL_VERSION_ARG
 
 # Environment
@@ -19,14 +22,14 @@ RUN \
 
 ENV PATH=/opt/mambaforge/bin:$PATH
 
-# Create new Conda environment with cuDF, Dask, and cuPy
+# Create new Conda environment with dev versions of cuDF, Dask, and cuPy
 RUN \
     export NCCL_SHORT_VER=$(echo "$NCCL_VERSION_ARG" | cut -d "-" -f 1) && \
-    mamba create -y -n gpu_test -c rapidsai -c conda-forge -c nvidia \
-        python=3.10 cudf=$RAPIDS_VERSION_ARG* rmm=$RAPIDS_VERSION_ARG* cudatoolkit=$CUDA_VERSION_ARG \
+    mamba create -y -n gpu_test -c rapidsai-nightly -c conda-forge -c nvidia \
+        python=3.10 "cudf=$RAPIDS_VERSION_ARG.*" "rmm=$RAPIDS_VERSION_ARG.*" cudatoolkit=$CUDA_VERSION_ARG \
         "nccl>=${NCCL_SHORT_VER}" \
         dask=2024.1.1 \
-        dask-cuda=$RAPIDS_VERSION_ARG* dask-cudf=$RAPIDS_VERSION_ARG* cupy \
+        "dask-cuda=$RAPIDS_VERSION_ARG.*" "dask-cudf=$RAPIDS_VERSION_ARG.*" cupy \
         numpy pytest pytest-timeout scipy scikit-learn pandas matplotlib wheel python-kubernetes urllib3 graphviz hypothesis \
         "pyspark>=3.4.0" cloudpickle cuda-python && \
     mamba clean --all --yes && \

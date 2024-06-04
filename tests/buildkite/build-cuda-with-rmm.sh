@@ -36,14 +36,18 @@ $command_wrapper tests/ci_build/build_via_cmake.sh \
 echo "--- Build binary wheel"
 $command_wrapper bash -c \
   "cd python-package && rm -rf dist/* && pip wheel --no-deps -v . --wheel-dir dist/"
-$command_wrapper python tests/ci_build/rename_whl.py python-package/dist/*.whl \
-  ${BUILDKITE_COMMIT} ${WHEEL_TAG}
+$command_wrapper python tests/ci_build/rename_whl.py  \
+  --wheel-path python-package/dist/*.whl  \
+  --commit-hash ${BUILDKITE_COMMIT}  \
+  --platform-tag ${WHEEL_TAG}
 
 echo "--- Audit binary wheel to ensure it's compliant with manylinux2014 standard"
 tests/ci_build/ci_build.sh auditwheel_x86_64 auditwheel repair \
   --plat ${WHEEL_TAG} python-package/dist/*.whl
-$command_wrapper python tests/ci_build/rename_whl.py wheelhouse/*.whl \
-  ${BUILDKITE_COMMIT} ${WHEEL_TAG}
+$command_wrapper python tests/ci_build/rename_whl.py  \
+  --wheel-path wheelhouse/*.whl  \
+  --commit-hash ${BUILDKITE_COMMIT}  \
+  --platform-tag ${WHEEL_TAG}
 mv -v wheelhouse/*.whl python-package/dist/
 # Make sure that libgomp.so is vendored in the wheel
 tests/ci_build/ci_build.sh auditwheel_x86_64 bash -c \

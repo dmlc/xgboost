@@ -4,7 +4,6 @@ import ctypes
 import logging
 import os
 import pickle
-import platform
 from enum import IntEnum, unique
 from typing import Any, Dict, List, Optional
 
@@ -184,8 +183,10 @@ def _map_dtype(dtype: np.dtype) -> int:
         np.dtype("uint32"): 10,
         np.dtype("uint64"): 11,
     }
-    if platform.system() != "Windows":
+    try:
         dtype_map.update({np.dtype("float128"): 3})
+    except TypeError:  # float128 doesn't exist on the system
+        pass
 
     if dtype not in dtype_map:
         raise TypeError(f"data type {dtype} is not supported on the current platform.")
