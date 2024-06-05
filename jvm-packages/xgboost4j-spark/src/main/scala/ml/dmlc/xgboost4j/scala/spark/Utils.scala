@@ -14,12 +14,31 @@
  limitations under the License.
  */
 
-package ml.dmlc.xgboost4j.scala.spark.util
+package ml.dmlc.xgboost4j.scala.spark
 
+import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vector}
 import org.json4s.{DefaultFormats, FullTypeHints, JField, JValue, NoTypeHints, TypeHints}
+
+import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 
 // based on org.apache.spark.util copy /paste
 object Utils {
+
+    private[spark] implicit class MLVectorToXGBLabeledPoint(val v: Vector) extends AnyVal {
+    /**
+     * Converts a [[Vector]] to a data point with a dummy label.
+     *
+     * This is needed for constructing a [[ml.dmlc.xgboost4j.scala.DMatrix]]
+     * for prediction.
+     */
+      // TODO support sparsevector
+    def asXGB: XGBLabeledPoint = v match {
+      case v: DenseVector =>
+        XGBLabeledPoint(0.0f, v.size, null, v.values.map(_.toFloat))
+      case v: SparseVector =>
+        XGBLabeledPoint(0.0f, v.size, v.indices, v.toDense.values.map(_.toFloat))
+    }
+  }
 
   def getSparkClassLoader: ClassLoader = getClass.getClassLoader
 
@@ -68,4 +87,7 @@ object Utils {
       FullTypeHints(List(Utils.classForName(className)))
     }.getOrElse(NoTypeHints)
   }
+
+  val TRAIN_NAME = "train"
+  val VALIDATION_NAME = "eval"
 }

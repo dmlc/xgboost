@@ -18,37 +18,34 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import java.io.{File, FileInputStream}
 
-import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
-
+import org.apache.commons.io.IOUtils
 import org.apache.spark.SparkContext
 import org.apache.spark.sql._
 import org.scalatest.BeforeAndAfterEach
 import org.scalatest.funsuite.AnyFunSuite
-import scala.math.min
-import scala.util.Random
 
-import org.apache.commons.io.IOUtils
+trait PerTest extends BeforeAndAfterEach {
+  self: AnyFunSuite =>
 
-trait PerTest extends BeforeAndAfterEach { self: AnyFunSuite =>
-
-  protected val numWorkers: Int = min(Runtime.getRuntime.availableProcessors(), 4)
+  protected val numWorkers: Int = 1
 
   @transient private var currentSession: SparkSession = _
 
   def ss: SparkSession = getOrCreateSession
+
   implicit def sc: SparkContext = ss.sparkContext
 
   protected def sparkSessionBuilder: SparkSession.Builder = SparkSession.builder()
-      .master(s"local[${numWorkers}]")
-      .appName("XGBoostSuite")
-      .config("spark.ui.enabled", false)
-      .config("spark.driver.memory", "512m")
-      .config("spark.barrier.sync.timeout", 10)
-      .config("spark.task.cpus", 1)
+    .master(s"local[${numWorkers}]")
+    .appName("XGBoostSuite")
+    .config("spark.ui.enabled", false)
+    .config("spark.driver.memory", "512m")
+    .config("spark.barrier.sync.timeout", 10)
+    .config("spark.task.cpus", 1)
 
   override def beforeEach(): Unit = getOrCreateSession
 
-  override def afterEach() {
+  override def afterEach(): Unit = {
     if (currentSession != null) {
       currentSession.stop()
       cleanExternalCache(currentSession.sparkContext.appName)
@@ -70,45 +67,6 @@ trait PerTest extends BeforeAndAfterEach { self: AnyFunSuite =>
       file.delete()
     }
   }
-
-  protected def buildDataFrame(
-      labeledPoints: Seq[XGBLabeledPoint],
-      numPartitions: Int = numWorkers): DataFrame = {
-    import ml.dmlc.xgboost4j.scala.spark.util.DataUtils._
-    val it = labeledPoints.iterator.zipWithIndex
-      .map { case (labeledPoint: XGBLabeledPoint, id: Int) =>
-        (id, labeledPoint.label, labeledPoint.features)
-      }
-
-    ss.createDataFrame(sc.parallelize(it.toList, numPartitions))
-      .toDF("id", "label", "features")
-  }
-
-  protected def buildDataFrameWithRandSort(
-      labeledPoints: Seq[XGBLabeledPoint],
-      numPartitions: Int = numWorkers): DataFrame = {
-    val df = buildDataFrame(labeledPoints, numPartitions)
-    val rndSortedRDD = df.rdd.mapPartitions { iter =>
-      iter.map(_ -> Random.nextDouble()).toList
-        .sortBy(_._2)
-        .map(_._1).iterator
-    }
-    ss.createDataFrame(rndSortedRDD, df.schema)
-  }
-
-  protected def buildDataFrameWithGroup(
-      labeledPoints: Seq[XGBLabeledPoint],
-      numPartitions: Int = numWorkers): DataFrame = {
-    import ml.dmlc.xgboost4j.scala.spark.util.DataUtils._
-    val it = labeledPoints.iterator.zipWithIndex
-      .map { case (labeledPoint: XGBLabeledPoint, id: Int) =>
-        (id, labeledPoint.label, labeledPoint.features, labeledPoint.group)
-      }
-
-    ss.createDataFrame(sc.parallelize(it.toList, numPartitions))
-      .toDF("id", "label", "features", "group")
-  }
-
 
   protected def compareTwoFiles(lhs: String, rhs: String): Boolean = {
     withResource(new FileInputStream(lhs)) { lfis =>

@@ -22,6 +22,7 @@ import org.apache.spark.ml.feature._
 import org.apache.spark.ml.tuning._
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.types._
+
 import ml.dmlc.xgboost4j.scala.spark.{XGBoostClassificationModel, XGBoostClassifier}
 
 // this example works with Iris dataset (https://archive.ics.uci.edu/ml/datasets/iris)
