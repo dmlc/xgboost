@@ -39,7 +39,7 @@
 #include "common/error_msg.h"             // for MaxFeatureSize, WarnOldSerialization, ...
 #include "common/io.h"                    // for PeekableInStream, ReadAll, FixedSizeStream, Mem...
 #include "common/observer.h"              // for TrainingObserver
-#include "common/random.h"                // for GlobalRandom
+#include "common/random.h"                // for RandomEngine
 #include "common/timer.h"                 // for Monitor
 #include "common/version.h"               // for Version
 #include "dmlc/endian.h"                  // for ByteSwap, DMLC_IO_NO_ENDIAN_SWAP

@@ -55,9 +55,9 @@ inline void SampleGradient(Context const* ctx, TrainParam param,
     return;
   }
   bst_idx_t n_samples = out.Shape(0);
-  auto& rnd = ctx->Rng();
+  auto& rng = ctx->Rng();
 
-  std::uint64_t initial_seed = rnd();
+  std::uint64_t initial_seed = rng();
 
   auto n_threads = static_cast<size_t>(ctx->Threads());
   std::size_t const discard_size = n_samples / n_threads;

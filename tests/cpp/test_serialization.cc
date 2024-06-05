@@ -148,13 +148,12 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
     std::string continued_model;
     {
       // Continue the previous training with another kIters
-      std::unique_ptr<dmlc::Stream> fi(
-          dmlc::Stream::Create(fname.c_str(), "r"));
+      std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
       std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
       learner->Load(fi.get());
       learner->Configure();
 
-      // verify the loaded model doesn't change.
+      // Verify the loaded model doesn't change.
       std::string serialised_model_tmp;
       common::MemoryBufferStream mem_out(&serialised_model_tmp);
       learner->Save(&mem_out);
