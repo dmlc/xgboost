@@ -663,6 +663,11 @@ auto MakeVec(T *ptr, size_t s, DeviceOrd device = DeviceOrd::CPU()) {
 }
 
 template <typename T>
+auto MakeVec(common::Span<T> data, DeviceOrd device = DeviceOrd::CPU()) {
+  return linalg::TensorView<T, 1>{data, {data.size()}, device};
+}
+
+template <typename T>
 auto MakeVec(HostDeviceVector<T> *data) {
   return MakeVec(data->Device().IsCPU() ? data->HostPointer() : data->DevicePointer(), data->Size(),
                  data->Device());

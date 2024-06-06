@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, XGBoost contributors
+ * Copyright 2023-2024, XGBoost contributors
  */
 #include "federated_comm.h"
 
@@ -8,6 +8,7 @@
 #include <cstdint>  // for int32_t
 #include <cstdlib>  // for getenv
 #include <limits>   // for numeric_limits
+#include <memory>   // for make_shared
 #include <string>   // for string, stoi
 
 #include "../../src/common/common.h"      // for Split
@@ -31,7 +32,9 @@ void FederatedComm::Init(std::string const& host, std::int32_t port, std::int32_
   CHECK_LT(rank, world) << "Invalid worker rank.";
 
   auto certs = {server_cert, client_cert, client_cert};
-  auto is_empty = [](auto const& s) { return s.empty(); };
+  auto is_empty = [](auto const& s) {
+    return s.empty();
+  };
   bool valid = std::all_of(certs.begin(), certs.end(), is_empty) ||
                std::none_of(certs.begin(), certs.end(), is_empty);
   CHECK(valid) << "Invalid arguments for certificates.";
@@ -53,8 +56,8 @@ void FederatedComm::Init(std::string const& host, std::int32_t port, std::int32_
       args.SetMaxReceiveMessageSize(std::numeric_limits<std::int32_t>::max());
       auto channel = grpc::CreateCustomChannel(host + ":" + std::to_string(port),
                                                grpc::SslCredentials(options), args);
-      channel->WaitForConnected(
-          gpr_time_add(gpr_now(GPR_CLOCK_REALTIME), gpr_time_from_seconds(60, GPR_TIMESPAN)));
+      channel->WaitForConnected(gpr_time_add(
+          gpr_now(GPR_CLOCK_REALTIME), gpr_time_from_seconds(DefaultTimeoutSec(), GPR_TIMESPAN)));
       return federated::Federated::NewStub(channel);
     }();
   }
@@ -90,8 +93,6 @@ FederatedComm::FederatedComm(std::int32_t retry, std::chrono::seconds timeout, s
   auto parsed = common::Split(server_address, ':');
   CHECK_EQ(parsed.size(), 2) << "Invalid server address:" << server_address;
 
-  CHECK_NE(rank, -1) << "Parameter `federated_rank` is required";
-  CHECK_NE(world_size, 0) << "Parameter `federated_world_size` is required.";
   CHECK(!server_address.empty()) << "Parameter `federated_server_address` is required.";
 
   /**
@@ -123,6 +124,15 @@ FederatedComm::FederatedComm(std::int32_t retry, std::chrono::seconds timeout, s
   server_cert = OptionalArg<String>(config, "federated_server_cert_path", server_cert);
   client_key = OptionalArg<String>(config, "federated_client_key_path", client_key);
   client_cert = OptionalArg<String>(config, "federated_client_cert_path", client_cert);
+
+  /**
+   * Hist encryption plugin.
+   */
+  auto plugin = OptionalArg<Object>(config, "federated_plugin", Object::Map{});
+  if (!plugin.empty()) {
+    auto path = get<String>(plugin["path"]);
+    this->plugin_ = std::make_shared<FederatedPlugin>(path.c_str(), config["federated_plugin"]);
+  }
 
   this->Init(parsed[0], std::stoi(parsed[1]), world_size, rank, server_cert, client_key,
              client_cert);

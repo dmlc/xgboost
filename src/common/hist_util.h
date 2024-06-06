@@ -11,7 +11,6 @@
 #include <cstdint>  // for uint32_t
 #include <limits>
 #include <map>
-#include <memory>
 #include <utility>
 #include <vector>
 
@@ -627,6 +626,30 @@ class ParallelGHistBuilder {
 template <bool any_missing>
 void BuildHist(Span<GradientPair const> gpair, const RowSetCollection::Elem row_indices,
                const GHistIndexMatrix& gmat, GHistRow hist, bool force_read_by_column = false);
+
+// Build routine for sample-based split.
+template <bool any_missing>
+void BuildSampleHistograms(std::int32_t n_threads, common::BlockedSpace2d const& space,
+                           GHistIndexMatrix const& gidx,
+                           std::vector<bst_node_t> const& nodes_to_build,
+                           common::RowSetCollection const& row_set_collection,
+                           common::Span<GradientPair const> gpair_h, bool force_read_by_column,
+                           common::ParallelGHistBuilder* buffer) {
+  // Parallel processing by nodes and data in each node
+  common::ParallelFor2d(space, n_threads, [&](bst_idx_t nid_in_set, common::Range1d r) {
+    auto const tid = omp_get_thread_num();
+    bst_node_t const nidx = nodes_to_build[nid_in_set];
+    auto elem = row_set_collection[nidx];
+    auto start_of_row_set = std::min(r.begin(), elem.Size());
+    auto end_of_row_set = std::min(r.end(), elem.Size());
+    auto rid_set = common::RowSetCollection::Elem(elem.begin + start_of_row_set,
+                                                  elem.begin + end_of_row_set, nidx);
+    auto hist = buffer->GetInitializedHist(tid, nid_in_set);
+    if (rid_set.Size() != 0) {
+      common::BuildHist<any_missing>(gpair_h, rid_set, gidx, hist, force_read_by_column);
+    }
+  });
+}
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_HIST_UTIL_H_

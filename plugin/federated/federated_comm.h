@@ -6,16 +6,20 @@
 #include <federated.grpc.pb.h>
 #include <federated.pb.h>
 
+#include <chrono>   // for seconds
 #include <cstdint>  // for int32_t
-#include <memory>   // for unique_ptr
+#include <memory>   // for shared_ptr
 #include <string>   // for string
 
-#include "../../src/collective/comm.h"    // for HostComm
+#include "../../src/collective/comm.h"  // for HostComm
+#include "federated_plugin.h"           // for FederatedPlugin
 #include "xgboost/json.h"
 
 namespace xgboost::collective {
 class FederatedComm : public HostComm {
   std::shared_ptr<federated::Federated::Stub> stub_;
+  // Plugin for encryption
+  std::shared_ptr<FederatedPlugin> plugin_{nullptr};
 
   void Init(std::string const& host, std::int32_t port, std::int32_t world, std::int32_t rank,
             std::string const& server_cert, std::string const& client_key,
@@ -46,10 +50,6 @@ class FederatedComm : public HostComm {
    */
   explicit FederatedComm(std::int32_t retry, std::chrono::seconds timeout, std::string task_id,
                          Json const& config);
-  explicit FederatedComm(std::string const& host, std::int32_t port, std::int32_t world,
-                         std::int32_t rank) {
-    this->Init(host, port, world, rank, {}, {}, {});
-  }
   [[nodiscard]] Result Shutdown() final {
     this->ResetState();
     return Success();
@@ -76,5 +76,7 @@ class FederatedComm : public HostComm {
     *out = "rank:" + std::to_string(rank);
     return Success();
   };
+
+  auto EncryptionPlugin() const { return plugin_; }
 };
 }  // namespace xgboost::collective

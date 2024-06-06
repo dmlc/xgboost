@@ -7,7 +7,6 @@
 #include <algorithm>  // for max, copy, transform
 #include <cstddef>    // for size_t
 #include <cstdint>    // for uint32_t, int32_t
-#include <exception>  // for exception
 #include <memory>     // for allocator, unique_ptr, make_unique, shared_ptr
 #include <ostream>    // for operator<<, basic_ostream, char_traits
 #include <utility>    // for move
@@ -20,7 +19,6 @@
 #include "../common/random.h"                // for ColumnSampler
 #include "../common/threading_utils.h"       // for ParallelFor
 #include "../common/timer.h"                 // for Monitor
-#include "../common/transform_iterator.h"    // for IndexTransformIter
 #include "../data/gradient_index.h"          // for GHistIndexMatrix
 #include "common_row_partitioner.h"          // for CommonRowPartitioner
 #include "dmlc/registry.h"                   // for DMLC_REGISTRY_FILE_TAG
@@ -166,8 +164,7 @@ class MultiTargetHistBuilder {
     bst_target_t n_targets = p_tree->NumTargets();
     histogram_builder_ = std::make_unique<MultiHistogramBuilder>();
     histogram_builder_->Reset(ctx_, n_total_bins, n_targets, HistBatch(param_),
-                              collective::IsDistributed(), p_fmat->Info().IsColumnSplit(),
-                              p_fmat->Info().IsSecure(), hist_param_);
+                              collective::IsDistributed(), p_fmat, hist_param_);
 
     evaluator_ = std::make_unique<HistMultiEvaluator>(ctx_, p_fmat->Info(), param_, col_sampler_);
     p_last_tree_ = p_tree;
@@ -357,7 +354,7 @@ class HistUpdater {
                                 fmat->Info().IsColumnSplit());
     }
     histogram_builder_->Reset(ctx_, n_total_bins, 1, HistBatch(param_), collective::IsDistributed(),
-                              fmat->Info().IsColumnSplit(), fmat->Info().IsSecure(), hist_param_);
+                              fmat, hist_param_);
     evaluator_ = std::make_unique<HistEvaluator>(ctx_, this->param_, fmat->Info(), col_sampler_);
     p_last_tree_ = p_tree;
     monitor_->Stop(__func__);

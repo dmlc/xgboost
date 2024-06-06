@@ -23,13 +23,11 @@
 #include <limits>                         // for numeric_limits
 #include <memory>                         // for allocator, unique_ptr, shared_ptr, operator==
 #include <mutex>                          // for mutex, lock_guard
-#include <set>                            // for set
 #include <sstream>                        // for operator<<, basic_ostream, basic_ostream::opera...
 #include <stack>                          // for stack
 #include <string>                         // for basic_string, char_traits, operator<, string
 #include <system_error>                   // for errc
 #include <tuple>                          // for get
-#include <unordered_map>                  // for operator!=, unordered_map
 #include <utility>                        // for pair, as_const, move, swap
 #include <vector>                         // for vector
 
@@ -1283,9 +1281,7 @@ class LearnerImpl : public LearnerIO {
     TrainingObserver::Instance().Observe(predt.predictions, "Predictions");
     monitor_.Stop("PredictRaw");
 
-    monitor_.Start("GetGradient");
-    GetGradient(predt.predictions, train->Info(), iter, &gpair_);
-    monitor_.Stop("GetGradient");
+    this->GetGradient(predt.predictions, train->Info(), iter, &gpair_);
     TrainingObserver::Instance().Observe(*gpair_.Data(), "Gradients");
 
     gbm_->DoBoost(train.get(), &gpair_, &predt, obj_.get());
@@ -1472,9 +1468,49 @@ class LearnerImpl : public LearnerIO {
  private:
   void GetGradient(HostDeviceVector<bst_float> const& preds, MetaInfo const& info,
                    std::int32_t iter, linalg::Matrix<GradientPair>* out_gpair) {
+    monitor_.Start(__func__);
     out_gpair->Reshape(info.num_row_, this->learner_model_param_.OutputLength());
-    collective::ApplyWithLabels(&ctx_, info, out_gpair->Data(),
-                                [&] { obj_->GetGradient(preds, info, iter, out_gpair); });
+    if (info.IsVerticalFederated()) {
+      // Need to encrypt the gradient before broadcasting.
+      common::Span<std::uint8_t> encrypted;
+      auto const& comm = collective::GlobalCommGroup()->Ctx(&ctx_, ctx_.Device());
+      auto const& fed = dynamic_cast<collective::FederatedComm const&>(comm);
+      if (collective::GetRank() == 0) {
+        // Obtain the gradient
+        obj_->GetGradient(preds, info, iter, out_gpair);
+        auto values = out_gpair->HostView().Values();
+        // Encrypt the gradient
+        static_assert(sizeof(GradientPair) == sizeof(float) * 2);
+        auto casted = reinterpret_cast<float const*>(values.data());
+        auto data = common::Span{casted, values.size() * 2};
+
+        encrypted = fed.EncryptionPlugin()->EncryptGradient(data);
+      }
+      // Broadcast the gradient
+      std::uint64_t n_bytes = encrypted.size();
+      HostDeviceVector<std::uint8_t> grad;
+      auto rc = collective::Success() << [&] {
+        return collective::Broadcast(&ctx_, linalg::MakeVec(&n_bytes, 1), 0);
+      } << [&] {
+        if (collective::GetRank() != 0) {
+          grad.Resize(n_bytes);
+          encrypted = grad.HostSpan();
+        }
+        return collective::Broadcast(&ctx_, linalg::MakeVec(encrypted), 0);
+      };
+      collective::SafeColl(rc);
+      auto sig = encrypted.subspan(0, 8);
+      std::stringstream ss;
+      for (auto v : sig) {
+        ss << static_cast<char>(v);
+      }
+      // Pass the gradient to the plugin
+      fed.EncryptionPlugin()->SyncEncryptedGradient(encrypted);
+    } else {
+      collective::ApplyWithLabels(&ctx_, info, out_gpair->Data(),
+                                  [&]() { obj_->GetGradient(preds, info, iter, out_gpair); });
+    }
+    monitor_.Stop(__func__);
   }
 
   /*! \brief random number transformation seed. */

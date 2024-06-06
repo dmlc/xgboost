@@ -291,6 +291,7 @@ class HistEvaluator {
       ibegin = static_cast<bst_bin_t>(cut_ptr[fidx + 1]) - 1;
       iend = static_cast<bst_bin_t>(cut_ptr[fidx]) - 1;
     }
+    bool fed_vertical = is_secure_ && is_col_split_;
 
     for (bst_bin_t i = ibegin; i != iend; i += d_step) {
       // start working
@@ -305,7 +306,7 @@ class HistEvaluator {
           loss_chg =
               static_cast<float>(evaluator.CalcSplitGain(*param_, nidx, fidx, GradStats{left_sum},
                                                          GradStats{right_sum}) - parent.root_gain);
-          if (!is_secure_) {
+          if (!fed_vertical) {
             split_pt = cut_val[i];  // not used for partition based
             best.Update(loss_chg, fidx, split_pt, d_step == -1, false, left_sum, right_sum);
           } else {
@@ -318,7 +319,7 @@ class HistEvaluator {
           loss_chg =
               static_cast<float>(evaluator.CalcSplitGain(*param_, nidx, fidx, GradStats{right_sum},
                                                          GradStats{left_sum}) - parent.root_gain);
-          if (!is_secure_) {
+          if (!fed_vertical) {
             if (i == imin) {
               split_pt = cut.MinValues()[fidx];
             } else {
@@ -369,9 +370,11 @@ class HistEvaluator {
     // Under secure vertical setting, only the active party is able to evaluate the split
     // based on global histogram. Other parties will receive the final best split information
     // Hence the below computation is not performed by the passive parties
-    if ((!is_secure_) || (collective::GetRank() == 0)) {
+    bool is_passive_party = is_col_split_ && is_secure_ && collective::GetRank() != 0;
+    bool is_active_party = !is_passive_party;
+    if (is_active_party) {
       // Evaluate the splits for each feature
-      common::ParallelFor2d(space, n_threads, [&](size_t nidx_in_set, common::Range1d r) {
+      common::ParallelFor2d(space, n_threads, [&](std::size_t nidx_in_set, common::Range1d r) {
         auto tidx = omp_get_thread_num();
         auto entry = &tloc_candidates[n_threads * nidx_in_set + tidx];
         auto best = &entry->split;
@@ -410,7 +413,7 @@ class HistEvaluator {
         }
       });
 
-      for (unsigned nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
+      for (std::size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
         for (auto tidx = 0; tidx < n_threads; ++tidx) {
           entries[nidx_in_set].split.Update(tloc_candidates[n_threads * nidx_in_set + tidx].split);
         }

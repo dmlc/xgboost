@@ -9,7 +9,6 @@
 #include <limits>
 #include <string>
 #include <utility>
-#include <vector>
 
 #include "allreduce.h"
 #include "broadcast.h"
@@ -17,9 +16,13 @@
 #include "communicator-inl.h"
 #include "xgboost/collective/result.h"  // for Result
 #include "xgboost/data.h"               // for MetaINfo
+#if defined(XGBOOST_USE_FEDERATED)
+#include "../../plugin/federated/federated_comm.h"
+#endif  // defined(XGBOOST_USE_FEDERATED)
 
 namespace xgboost::collective {
 namespace detail {
+// Apply function fn, and handle potential errors.
 template <typename Fn>
 [[nodiscard]] Result TryApplyWithLabels(Context const* ctx, Fn&& fn) {
   std::string msg;
@@ -30,10 +33,10 @@ template <typename Fn>
       msg = e.what();
     }
   }
+  // Error handling
   std::size_t msg_size{msg.size()};
   auto rc = Success() << [&] {
-    auto rc = collective::Broadcast(ctx, linalg::MakeVec(&msg_size, 1), 0);
-    return rc;
+    return collective::Broadcast(ctx, linalg::MakeVec(&msg_size, 1), 0);
   } << [&] {
     if (msg_size > 0) {
       msg.resize(msg_size);
@@ -95,11 +98,11 @@ void ApplyWithLabels(Context const* ctx, MetaInfo const& info, void* buffer, std
 template <typename T, typename Fn>
 void ApplyWithLabels(Context const* ctx, MetaInfo const& info, HostDeviceVector<T>* result,
                      Fn&& fn) {
-  if (info.IsVerticalFederated()) {
-    // We assume labels are only available on worker 0, so the calculation is done there and result
-    // broadcast to other workers.
-    auto rc = detail::TryApplyWithLabels(ctx, fn);
-
+  if (info.IsColumnSplit()) {
+    // We assume labels are only available on worker 0, so the calculation is done there
+    // and result is broadcasted to other workers.
+    auto rc = detail::TryApplyWithLabels(ctx, std::forward<Fn>(fn));
+    // Broadcast the result
     std::size_t size{result->Size()};
     rc = std::move(rc) << [&] {
       return collective::Broadcast(ctx, linalg::MakeVec(&size, 1), 0);
@@ -109,7 +112,7 @@ void ApplyWithLabels(Context const* ctx, MetaInfo const& info, HostDeviceVector<
     };
     SafeColl(rc);
   } else {
-    std::forward<Fn>(fn)();
+    fn();
   }
 }
 
