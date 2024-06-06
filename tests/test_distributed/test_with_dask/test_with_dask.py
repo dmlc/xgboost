@@ -395,7 +395,6 @@ def run_categorical(
     assert tm.non_increasing(reg.evals_result()["validation_0"]["rmse"])
 
     booster = reg.get_booster()
-    #import pdb; pdb.set_trace()
     predt = xgb.dask.predict(client, booster, X).compute().values
     inpredt = xgb.dask.inplace_predict(client, booster, X).compute().values
 
