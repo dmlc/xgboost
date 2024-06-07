@@ -26,8 +26,7 @@ RUN \
     export NCCL_VERSION=$NCCL_VERSION_ARG && \
     dnf config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-rhel7.repo && \
     dnf -y update && \
-    dnf install -y libnccl-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-devel-${NCCL_VERSION}+cuda${CUDA_SHORT} && \
-    rm -f nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm;
+    dnf install -y libnccl-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-devel-${NCCL_VERSION}+cuda${CUDA_SHORT}
 
 ENV PATH=/opt/miniforge/bin:/usr/local/ninja:$PATH
 ENV CC=/opt/rh/gcc-toolset-10/root/usr/bin/gcc

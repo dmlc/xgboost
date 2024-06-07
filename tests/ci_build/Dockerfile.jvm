@@ -5,7 +5,7 @@ RUN \
     dnf -y update && \
     dnf -y install dnf-plugins-core && \
     dnf config-manager --set-enabled powertools && \
-    yum install -y tar unzip make bzip2 wget xz git which ninja-build java-1.8.0-openjdk-devel \
+    dnf install -y tar unzip make bzip2 wget xz git which ninja-build java-1.8.0-openjdk-devel \
                    gcc-toolset-10-gcc gcc-toolset-10-binutils gcc-toolset-10-gcc-c++ \
                    gcc-toolset-10-runtime gcc-toolset-10-libstdc++-devel && \
     # Python

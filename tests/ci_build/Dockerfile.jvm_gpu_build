@@ -26,9 +26,9 @@ RUN \
 RUN \
     export CUDA_SHORT=`echo $CUDA_VERSION_ARG | grep -o -E '[0-9]+\.[0-9]'` && \
     export NCCL_VERSION=$NCCL_VERSION_ARG && \
-    yum-config-manager --add-repo http://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-rhel7.repo && \
-    yum -y update && \
-    yum install -y libnccl-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-devel-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-static-${NCCL_VERSION}+cuda${CUDA_SHORT}
+    dnf config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-rhel7.repo && \
+    dnf -y update && \
+    dnf install -y libnccl-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-devel-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-static-${NCCL_VERSION}+cuda${CUDA_SHORT}
 
 ENV PATH=/opt/miniforge/bin:/opt/maven/bin:$PATH
 ENV CC=/opt/rh/gcc-toolset-10/root/usr/bin/gcc
