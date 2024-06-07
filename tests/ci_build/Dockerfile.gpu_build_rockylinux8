@@ -49,7 +49,7 @@ RUN git clone -b v${RAPIDS_VERSION_ARG}.00 https://github.com/rapidsai/rmm.git -
     rm -rf rmm
 
 # Install gRPC
-RUN git clone -b v1.64.2 https://github.com/grpc/grpc.git \
+RUN git clone -b v1.49.1 https://github.com/grpc/grpc.git \
       --recurse-submodules --depth 1 && \
     pushd grpc && \
     cmake -S . -B build -GNinja -DCMAKE_INSTALL_PREFIX=/opt/grpc -DCMAKE_CXX_VISIBILITY_PRESET=hidden && \
