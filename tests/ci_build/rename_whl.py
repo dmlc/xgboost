@@ -53,7 +53,7 @@ if __name__ == "__main__":
         "--platform-tag",
         type=str,
         required=True,
-        help="Platform tag (e.g. manylinux2014_x86_64)",
+        help="Platform tag (e.g. manylinux_2_28_x86_64)",
     )
     parsed_args = parser.parse_args()
     main(parsed_args)

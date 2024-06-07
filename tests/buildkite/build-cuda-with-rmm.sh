@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-WHEEL_TAG=manylinux2014_x86_64
+WHEEL_TAG=manylinux_2_28_x86_64
 
 source tests/buildkite/conftest.sh
 
@@ -41,7 +41,7 @@ $command_wrapper python tests/ci_build/rename_whl.py  \
   --commit-hash ${BUILDKITE_COMMIT}  \
   --platform-tag ${WHEEL_TAG}
 
-echo "--- Audit binary wheel to ensure it's compliant with manylinux2014 standard"
+echo "--- Audit binary wheel to ensure it's compliant with manylinux_2_28 standard"
 tests/ci_build/ci_build.sh auditwheel_x86_64 auditwheel repair \
   --plat ${WHEEL_TAG} python-package/dist/*.whl
 $command_wrapper python tests/ci_build/rename_whl.py  \
