@@ -7,8 +7,10 @@ ARG NCCL_VERSION_ARG
 RUN \
     curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/D42D0685.pub | sed '/^Version/d' \
         > /etc/pki/rpm-gpg/RPM-GPG-KEY-NVIDIA && \
-    yum -y update && \
-    yum install -y tar unzip wget xz git which ninja-build java-1.8.0-openjdk-devel gcc gcc-c++ && \
+    dnf -y update && \
+    dnf -y install dnf-plugins-core && \
+    dnf config-manager --set-enabled powertools && \
+    dnf install -y tar unzip wget xz git which ninja-build java-1.8.0-openjdk-devel gcc-toolset-10-gcc gcc-toolset-10-binutils gcc-toolset-10-gcc-c++ && \
     # Python
     wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/24.3.0-0/Miniforge3-24.3.0-0-Linux-x86_64.sh && \
     bash conda.sh -b -p /opt/miniforge && \
@@ -29,6 +31,9 @@ RUN \
     yum install -y libnccl-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-devel-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-static-${NCCL_VERSION}+cuda${CUDA_SHORT}
 
 ENV PATH=/opt/miniforge/bin:/opt/maven/bin:$PATH
+ENV CC=/opt/rh/gcc-toolset-10/root/usr/bin/gcc
+ENV CXX=/opt/rh/gcc-toolset-10/root/usr/bin/c++
+ENV CPP=/opt/rh/gcc-toolset-10/root/usr/bin/cpp
 
 # Install Python packages
 RUN pip install numpy pytest scipy scikit-learn wheel kubernetes awscli
