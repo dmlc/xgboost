@@ -15,7 +15,7 @@ else
   arch_flag=""
 fi
 
-command_wrapper="tests/ci_build/ci_build.sh gpu_build_centos7 --build-arg "`
+command_wrapper="tests/ci_build/ci_build.sh gpu_build_rockylinux8 --build-arg "`
                 `"CUDA_VERSION_ARG=$CUDA_VERSION --build-arg "`
                 `"NCCL_VERSION_ARG=$NCCL_VERSION --build-arg "`
                 `"RAPIDS_VERSION_ARG=$RAPIDS_VERSION"

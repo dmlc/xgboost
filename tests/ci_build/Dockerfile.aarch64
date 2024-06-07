@@ -5,7 +5,7 @@ SHELL ["/bin/bash", "-c"]   # Use Bash as shell
 # Install all basic requirements
 RUN \
     yum update -y && \
-    yum install -y tar unzip wget xz git centos-release-scl-rh yum-utils && \
+    yum install -y tar unzip wget xz git yum-utils && \
     # Python
     wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/24.3.0-0/Miniforge3-24.3.0-0-Linux-aarch64.sh && \
     bash conda.sh -b -p /opt/miniforge
