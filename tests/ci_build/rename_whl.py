@@ -26,9 +26,12 @@ def main(args):
     )
     new_wheel_path = wheel_dir / new_wheel_name
     print(f"Renaming {wheel_name} to {new_wheel_name}...")
-    if new_wheel_path.is_file():
-        new_wheel_path.unlink()
-    wheel_path.rename(new_wheel_path)
+    if new_wheel_name == wheel_name:
+        print("Skipping, as the old name is identical to the new name.")
+    else:
+        if new_wheel_path.is_file():
+            new_wheel_path.unlink()
+        wheel_path.rename(new_wheel_path)
 
     filesize = new_wheel_path.stat().st_size / 1024 / 1024  # MiB
     print(f"Wheel size: {filesize:.2f} MiB")
