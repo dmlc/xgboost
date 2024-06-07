@@ -13,17 +13,17 @@ RUN \
     dnf install -y tar unzip wget xz git which ninja-build readline-devel libX11-devel libXt-devel \
                    xorg-x11-server-devel openssl-devel zlib-devel bzip2-devel xz-devel \
                    pcre2-devel libcurl-devel texlive-* \
-                   gcc-toolset-9-gcc gcc-toolset-9-binutils gcc-toolset-9-gcc-c++ \
-                   gcc-toolset-9-gcc-gfortran gcc-toolset-9-libquadmath-devel \
-                   gcc-toolset-9-runtime gcc-toolset-9-libstdc++-devel
+                   gcc-toolset-10-gcc gcc-toolset-10-binutils gcc-toolset-10-gcc-c++ \
+                   gcc-toolset-10-gcc-gfortran gcc-toolset-10-libquadmath-devel \
+                   gcc-toolset-10-runtime gcc-toolset-10-libstdc++-devel
 
 ENV PATH=/opt/miniforge/bin:/usr/local/ninja:/opt/software/packages/bin:/opt/R/$R_VERSION_ARG/bin:$PATH
 ENV LD_LIBRARY_PATH=/opt/software/packages/lib:/opt/R/$R_VERSION_ARG/lib64:$LD_LIBRARY_PATH
-ENV CC=/opt/rh/gcc-toolset-9/root/usr/bin/gcc
-ENV CXX=/opt/rh/gcc-toolset-9/root/usr/bin/c++
-ENV CPP=/opt/rh/gcc-toolset-9/root/usr/bin/cpp
-ENV F77=/opt/rh/gcc-toolset-9/root/usr/bin/gfortran
-ENV FC=/opt/rh/gcc-toolset-9/root/usr/bin/gfortran
+ENV CC=/opt/rh/gcc-toolset-10/root/usr/bin/gcc
+ENV CXX=/opt/rh/gcc-toolset-10/root/usr/bin/c++
+ENV CPP=/opt/rh/gcc-toolset-10/root/usr/bin/cpp
+ENV F77=/opt/rh/gcc-toolset-10/root/usr/bin/gfortran
+ENV FC=/opt/rh/gcc-toolset-10/root/usr/bin/gfortran
 
 RUN \
     wget -nv -nc https://cran.r-project.org/src/base/R-4/R-$R_VERSION_ARG.tar.gz  && \
