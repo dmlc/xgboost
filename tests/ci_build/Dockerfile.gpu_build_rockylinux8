@@ -1,5 +1,5 @@
 ARG CUDA_VERSION_ARG
-FROM nvcr.io/nvidia/cuda:$CUDA_VERSION_ARG-devel-centos7
+FROM nvcr.io/nvidia/cuda:$CUDA_VERSION_ARG-devel-rockylinux8
 ARG CUDA_VERSION_ARG
 ARG NCCL_VERSION_ARG
 ARG RAPIDS_VERSION_ARG
@@ -8,17 +8,15 @@ ARG RAPIDS_VERSION_ARG
 RUN \
     curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/D42D0685.pub | sed '/^Version/d' \
         > /etc/pki/rpm-gpg/RPM-GPG-KEY-NVIDIA && \
-    yum install -y epel-release centos-release-scl && \
-    yum-config-manager --enable centos-sclo-rh-testing && \
     yum -y update && \
-    yum install -y tar unzip wget xz git which ninja-build devtoolset-9-gcc devtoolset-9-binutils devtoolset-9-gcc-c++ && \
+    yum install -y tar unzip wget xz git which ninja-build gcc gcc-c++ && \
     # Python
     wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/24.3.0-0/Miniforge3-24.3.0-0-Linux-x86_64.sh && \
-    bash conda.sh -b -p /opt/mambaforge && \
-    /opt/mambaforge/bin/python -m pip install awscli && \
+    bash conda.sh -b -p /opt/miniforge && \
+    /opt/miniforge/bin/python -m pip install awscli && \
     # CMake
-    wget -nv -nc https://cmake.org/files/v3.26/cmake-3.26.4-linux-x86_64.sh --no-check-certificate && \
-    bash cmake-3.26.4-linux-x86_64.sh --skip-license --prefix=/usr
+    wget -nv -nc https://cmake.org/files/v3.29/cmake-3.29.5-linux-x86_64.sh --no-check-certificate && \
+    bash cmake-3.29.5-linux-x86_64.sh --skip-license --prefix=/usr
 
 # NCCL2 (License: https://docs.nvidia.com/deeplearning/sdk/nccl-sla/index.html)
 RUN \
@@ -30,11 +28,7 @@ RUN \
     yum install -y libnccl-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-devel-${NCCL_VERSION}+cuda${CUDA_SHORT} && \
     rm -f nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm;
 
-ENV PATH=/opt/mambaforge/bin:/usr/local/ninja:$PATH
-ENV CC=/opt/rh/devtoolset-9/root/usr/bin/gcc
-ENV CXX=/opt/rh/devtoolset-9/root/usr/bin/c++
-ENV CPP=/opt/rh/devtoolset-9/root/usr/bin/cpp
-ENV CUDAHOSTCXX=/opt/rh/devtoolset-9/root/usr/bin/c++
+ENV PATH=/opt/miniforge/bin:/usr/local/ninja:$PATH
 
 ENV GOSU_VERSION 1.10
 
@@ -50,7 +44,7 @@ RUN git clone -b v${RAPIDS_VERSION_ARG}.00 https://github.com/rapidsai/rmm.git -
     rm -rf rmm
 
 # Install gRPC
-RUN git clone -b v1.49.1 https://github.com/grpc/grpc.git \
+RUN git clone -b v1.64.1 https://github.com/grpc/grpc.git \
       --recurse-submodules --depth 1 && \
     pushd grpc && \
     cmake -S . -B build -GNinja -DCMAKE_INSTALL_PREFIX=/opt/grpc -DCMAKE_CXX_VISIBILITY_PRESET=hidden && \

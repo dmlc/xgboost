@@ -13,9 +13,9 @@ RUN \
     apt-get install -y tar unzip wget git build-essential doxygen graphviz llvm libidn12 cmake ninja-build gcc-9 g++-9 openjdk-8-jdk-headless && \
     # Python
     wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/24.3.0-0/Miniforge3-24.3.0-0-Linux-x86_64.sh && \
-    bash conda.sh -b -p /opt/mambaforge
+    bash conda.sh -b -p /opt/miniforge
 
-ENV PATH=/opt/mambaforge/bin:$PATH
+ENV PATH=/opt/miniforge/bin:$PATH
 ENV CC=gcc-9
 ENV CXX=g++-9
 ENV CPP=cpp-9
@@ -24,7 +24,7 @@ ENV GOSU_VERSION 1.10
 ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64/
 
 # Install gRPC
-RUN git clone -b v1.49.1 https://github.com/grpc/grpc.git \
+RUN git clone -b v1.64.1 https://github.com/grpc/grpc.git \
       --recurse-submodules --depth 1 --shallow-submodules && \
     pushd grpc && \
     cmake -S . -B build -GNinja -DCMAKE_INSTALL_PREFIX=/opt/grpc -DCMAKE_CXX_VISIBILITY_PRESET=hidden && \
