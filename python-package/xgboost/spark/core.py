@@ -705,19 +705,19 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         and the result dataframe has the same partition number with num_workers param,
         then it means the dataframe is well repartitioned and we don't need to
         repartition the dataframe again.
-        """
-        num_partitions = dataset.rdd.getNumPartitions()
+
         assert dataset._sc._jvm is not None
         query_plan = dataset._sc._jvm.PythonSQLUtils.explainString(
             dataset._jdf.queryExecution(), "extended"
         )
         start = query_plan.index("== Optimized Logical Plan ==")
         start += len("== Optimized Logical Plan ==") + 1
+
+        query_plan[start : start + len("Repartition")] == "Repartition"
+        """
         num_workers = self.getOrDefault(self.num_workers)
-        if (
-            query_plan[start : start + len("Repartition")] == "Repartition"
-            and num_workers == num_partitions
-        ):
+        num_partitions = dataset.rdd.getNumPartitions()
+        if num_workers == num_partitions:
             return True
         return False
 
@@ -871,14 +871,10 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 num_workers,
             )
 
-        if self._repartition_needed(dataset) or (
-            self.isDefined(self.validationIndicatorCol)
-            and self.getOrDefault(self.validationIndicatorCol) != ""
-        ):
-            # If validationIndicatorCol defined, we always repartition dataset
-            # to balance data, because user might unionise train and validation dataset,
-            # without shuffling data then some partitions might contain only train or validation
-            # dataset.
+        if self._repartition_needed(dataset):
+            # If validationIndicatorCol defined, and if user unionise train and validation
+            # dataset, users must set force_repartition to true to force repartition.
+            # Or else some partitions might contain only train or validation dataset.
             if self.getOrDefault(self.repartition_random_shuffle):
                 # In some cases, spark round-robin repartition might cause data skew
                 # use random shuffle can address it.
