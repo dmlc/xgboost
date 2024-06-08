@@ -67,7 +67,7 @@ eval[test] = {data_path}
             with open(config_path, 'w') as fd:
                 fd.write(train_conf)
 
-            subprocess.run([exe, config_path], check=True)
+            subprocess.run([exe, config_path], check=True, capture_output=True)
 
             predict_out = os.path.join(tmpdir,
                                        'test_load_cli_model-prediction')
@@ -128,7 +128,7 @@ eval[test] = {data_path}
         assert error_msg.find('Usage') != -1
         assert error_msg.find('eval[NAME]') != -1
 
-        completed = subprocess.run([exe, '-V'], stdout=subprocess.PIPE, check=True)
+        completed = subprocess.run([exe, '-V'], stdout=subprocess.PIPE, check=True, capture_output=True)
         msg = completed.stdout.decode('utf-8')
         assert msg.find('XGBoost') != -1
         v = xgboost.__version__
@@ -161,7 +161,7 @@ eval[test] = {data_path}
             with open(config_path, 'w') as fd:
                 fd.write(train_conf)
 
-            subprocess.run([exe, config_path], check=True)
+            subprocess.run([exe, config_path], check=True, capture_output=True)
             with open(model_out_cli, 'r') as fd:
                 model = json.load(fd)
 
@@ -189,5 +189,5 @@ eval[test] = {data_path}
             with open(config_path, 'w') as fd:
                 fd.write(train_conf)
 
-            subprocess.run([exe, config_path], check=True)
+            subprocess.run([exe, config_path], check=True, capture_output=True)
             assert os.path.exists(model_out_cli)
