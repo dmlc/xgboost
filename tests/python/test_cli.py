@@ -128,7 +128,7 @@ eval[test] = {data_path}
         assert error_msg.find('Usage') != -1
         assert error_msg.find('eval[NAME]') != -1
 
-        completed = subprocess.run([exe, '-V'], stdout=subprocess.PIPE, check=True, capture_output=True)
+        completed = subprocess.run([exe, '-V'], check=True, capture_output=True)
         msg = completed.stdout.decode('utf-8')
         assert msg.find('XGBoost') != -1
         v = xgboost.__version__
