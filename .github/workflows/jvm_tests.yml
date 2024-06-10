@@ -57,7 +57,7 @@ jobs:
     - name: Publish artifact xgboost4j.dll to S3
       run: |
         cd lib/
-        Rename-Item -Path xgboost4j.dll -NewName xgboost4j_${{ github.sha }}.dll
+        Copy-Item -Path xgboost4j.dll -Destination xgboost4j_${{ github.sha }}.dll
         dir
         python -m awscli s3 cp xgboost4j_${{ github.sha }}.dll s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/libxgboost4j/ --acl public-read --region us-west-2
       if: |
