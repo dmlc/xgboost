@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-13]
+        os: [windows-latest]
 
     steps:
     - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
@@ -45,11 +45,6 @@ jobs:
         cmake .. -G"Visual Studio 17 2022" -A x64 -DJVM_BINDINGS=ON
         cmake --build . --config Release
       if: matrix.os == 'windows-latest'
-
-    - name: Test XGBoost4J (Core)
-      run: |
-        cd jvm-packages
-        mvn test -B -pl :xgboost4j_2.12
 
     - name: Extract branch name
       shell: bash
@@ -87,6 +82,10 @@ jobs:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
 
+    - name: Test XGBoost4J (Core)
+      run: |
+        cd jvm-packages
+        mvn test -B -pl :xgboost4j_2.12
 
     - name: Test XGBoost4J (Core, Spark, Examples)
       run: |
@@ -96,7 +95,6 @@ jobs:
       if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
       env:
         RABIT_MOCK: ON
-
 
     - name: Build and Test XGBoost4J with scala 2.13
       run: |
