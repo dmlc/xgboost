@@ -84,6 +84,8 @@ jobs:
       run: |
         cd jvm-packages
         mvn test -B -pl :xgboost4j_2.12
+      env:
+        MAVEN_SKIP_NATIVE_BUILD: 1
 
     - name: Test XGBoost4J (Core, Spark, Examples)
       run: |
