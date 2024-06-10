@@ -252,17 +252,30 @@ def _from_numpy_array(
     _check_data_shape(data)
     data, _ = _ensure_np_dtype(data, data.dtype)
     handle = ctypes.c_void_p()
-    _check_call(
-        _LIB.XGDMatrixCreateFromDense(
-            _array_interface(data),
-            make_jcargs(
-                missing=float(missing),
-                nthread=int(nthread),
-                data_split_mode=int(data_split_mode),
-            ),
-            ctypes.byref(handle),
+    if isinstance(data, np.ndarray) and data.dtype == np.float32 and data.flags['C_CONTIGUOUS'] and data.size <= 32768:
+        _check_call(
+            _LIB.XGDMatrixCreateFromMat_omp(
+                data.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
+                c_bst_ulong(data.shape[0]),
+                c_bst_ulong(data.shape[1]),
+                ctypes.c_float(float(missing)),
+                ctypes.byref(handle),
+                ctypes.c_int(nthread),
+                ctypes.c_int(data_split_mode),
+            )
         )
-    )
+    else:
+        _check_call(
+            _LIB.XGDMatrixCreateFromDense(
+                _array_interface(data),
+                make_jcargs(
+                    missing=float(missing),
+                    nthread=int(nthread),
+                    data_split_mode=int(data_split_mode),
+                ),
+                ctypes.byref(handle),
+            )
+        )
     return handle, feature_names, feature_types
 
 
