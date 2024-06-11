@@ -33,8 +33,14 @@ jobs:
         miniforge-variant: Mambaforge
         miniforge-version: latest
         activate-environment: jvm_tests
+        auto-update-conda: true
         environment-file: tests/ci_build/conda_env/jvm_tests.yml
         use-mamba: true
+
+    - name: Update Conda packages
+      run: |
+        mamba update --all -c conda-forge
+        mamba update vs2015_runtime vc vc14_runtime
 
     - name: Cache Maven packages
       uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
