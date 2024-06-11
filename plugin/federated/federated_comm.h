@@ -51,10 +51,6 @@ class FederatedComm : public HostComm {
     this->ResetState();
     return Success();
   }
-  [[nodiscard]] Result Shutdown() final {
-    this->ResetState();
-    return Success();
-  }
   ~FederatedComm() override { stub_.reset(); }
 
   [[nodiscard]] std::shared_ptr<Channel> Chan(std::int32_t) const override {
