@@ -132,6 +132,9 @@ void ApplyWithLabels(Context const*, MetaInfo const& info, HostDeviceVector<T>* 
       // call HandleGHPairs
       size_t size;
       processor_instance->HandleGHPairs(&size, buffer, buffer_size);
+
+      // free the buffer
+      free(buffer);
     } else {
       // clear text mode, broadcast the data directly
       result->Resize(size);
