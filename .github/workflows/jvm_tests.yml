@@ -43,11 +43,11 @@ jobs:
         key: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
         restore-keys: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
 
-    - name: Build xgboost4j.dll
+    - name: Build xgboost.dll
       run: |
         mkdir build
         cd build
-        cmake .. -G"Visual Studio 17 2022" -A "x64,version=10.0.17763.0" -DJVM_BINDINGS=ON
+        cmake .. -G"Visual Studio 17 2022" -A x64
         cmake --build . --config Release
       if: matrix.os == 'windows-latest'
 
@@ -62,9 +62,9 @@ jobs:
     - name: Publish artifact xgboost4j.dll to S3
       run: |
         cd lib/
-        Copy-Item -Path xgboost4j.dll -Destination xgboost4j_${{ github.sha }}.dll
+        Copy-Item -Path xgboost.dll -Destination xgboost_${{ github.sha }}.dll
         dir
-        python -m awscli s3 cp xgboost4j_${{ github.sha }}.dll s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/libxgboost4j/ --acl public-read --region us-west-2
+        python -m awscli s3 cp xgboost_${{ github.sha }}.dll s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/libxgboost4j/ --acl public-read --region us-west-2
       if: |
         matrix.os == 'windows-latest'
       env:
