@@ -167,12 +167,26 @@ printed out during the training.
 E.g., specifying \code{evals=list(validation1=mat1, validation2=mat2)} allows to track
 the performance of each round's model on mat1 and mat2.}
 
-\item{obj}{customized objective function. Returns gradient and second order
-gradient with given prediction and dtrain.}
+\item{obj}{customized objective function. Should take two arguments: the first one will be the
+current predictions (either a numeric vector or matrix depending on the number of targets / classes),
+and the second one will be the \code{data} DMatrix object that is used for training.
 
-\item{feval}{customized evaluation function. Returns
-\code{list(metric='metric-name', value='metric-value')} with given
-prediction and dtrain.}
+\if{html}{\out{<div class="sourceCode">}}\preformatted{   It should return a list with two elements `grad` and `hess` (in that order), as either
+   numeric vectors or numeric matrices depending on the number of targets / classes (same
+   dimension as the predictions that are passed as first argument).
+}\if{html}{\out{</div>}}}
+
+\item{feval}{customized evaluation function. Just like \code{obj}, should take two arguments, with
+the first one being the predictions and the second one the \code{data} DMatrix.
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{   Should return a list with two elements `metric` (name that will be displayed for this metric,
+   should be a string / character), and `value` (the number that the function calculates, should
+   be a numeric scalar).
+
+   Note that even if passing `feval`, objectives also have an associated default metric that
+   will be evaluated in addition to it. In order to disable the built-in metric, one can pass
+   parameter `disable_default_eval_metric = TRUE`.
+}\if{html}{\out{</div>}}}
 
 \item{verbose}{If 0, xgboost will stay silent. If 1, it will print information about performance.
 If 2, some additional information will be printed out.

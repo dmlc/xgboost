@@ -45,7 +45,7 @@ class CommunicatorRobustnessSuite extends AnyFunSuite with PerTest {
 
     val tracker = new RabitTracker(numWorkers)
     tracker.start()
-    val trackerEnvs = tracker. workerArgs
+    val trackerEnvs = tracker.getWorkerArgs
 
     val workerCount: Int = numWorkers
     /*
@@ -84,7 +84,7 @@ class CommunicatorRobustnessSuite extends AnyFunSuite with PerTest {
     val rdd = sc.parallelize(1 to numWorkers, numWorkers).cache()
     val tracker = new RabitTracker(numWorkers)
     tracker.start()
-    val trackerEnvs = tracker.workerArgs
+    val trackerEnvs = tracker.getWorkerArgs
 
     val workerCount: Int = numWorkers
 

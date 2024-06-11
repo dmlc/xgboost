@@ -17,7 +17,7 @@ cd jvm-packages
 rm -rf $(find . -name target)
 rm -rf ../build/
 
-# Re-build package without Mock Rabit
+# Re-build package
 # Maven profiles:
 # `default`           includes modules: xgboost4j, xgboost4j-spark, xgboost4j-flink, xgboost4j-example
 # `gpu`               includes modules: xgboost4j-gpu, xgboost4j-spark-gpu, sets `use.cuda = ON`

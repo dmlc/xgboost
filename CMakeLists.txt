@@ -6,7 +6,7 @@ if(PLUGIN_SYCL)
   string(REPLACE " -isystem ${CONDA_PREFIX}/include" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 endif()
 
-project(xgboost LANGUAGES CXX C VERSION 2.1.0)
+project(xgboost LANGUAGES CXX C VERSION 2.2.0)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${xgboost_SOURCE_DIR}/cmake/modules")
 
@@ -346,7 +346,6 @@ if(BUILD_DEPRECATED_CLI)
     PRIVATE
     ${xgboost_SOURCE_DIR}/include
     ${xgboost_SOURCE_DIR}/dmlc-core/include
-    ${xgboost_SOURCE_DIR}/rabit/include
   )
   set_target_properties(runxgboost PROPERTIES OUTPUT_NAME xgboost)
   xgboost_target_properties(runxgboost)

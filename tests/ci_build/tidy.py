@@ -192,8 +192,7 @@ class ClangTidy(object):
         def should_lint(path):
             if not self.cpp_lint and path.endswith('.cc'):
                 return False
-            isxgb = path.find('rabit') == -1
-            isxgb = isxgb and path.find('dmlc-core') == -1
+            isxgb = path.find('dmlc-core') == -1
             isxgb = isxgb and (not path.startswith(self.cdb_path))
             if isxgb:
                 print(path)

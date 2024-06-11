@@ -147,3 +147,34 @@ test_that("custom objective with multi-class works", {
 
   expect_equal(custom_predt, builtin_predt)
 })
+
+test_that("custom metric with multi-target passes reshaped data to feval", {
+  x <- as.matrix(iris[, -5])
+  y <- as.numeric(iris$Species) - 1
+  dtrain <- xgb.DMatrix(data = x, label = y)
+
+  multinomial.ll <- function(predt, dtrain) {
+    expect_equal(dim(predt), c(nrow(iris), 3L))
+    y <- getinfo(dtrain, "label")
+    probs <- apply(predt, 1, softmax) |> t()
+    probs.y <- probs[cbind(seq(1L, nrow(predt)), y + 1L)]
+    ll <- sum(log(probs.y))
+    return(list(metric = "multinomial-ll", value = -ll))
+  }
+
+  model <- xgb.train(
+    params = list(
+      objective = "multi:softmax",
+      num_class = 3L,
+      base_score = 0,
+      disable_default_eval_metric = TRUE,
+      max_depth = 123,
+      seed = 123
+    ),
+    data = dtrain,
+    nrounds = 2L,
+    evals = list(Train = dtrain),
+    eval_metric = multinomial.ll,
+    verbose = 0
+  )
+})
