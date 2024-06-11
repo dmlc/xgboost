@@ -6,7 +6,7 @@
 
     <groupId>ml.dmlc</groupId>
     <artifactId>xgboost-jvm_2.12</artifactId>
-    <version>2.1.0-SNAPSHOT</version>
+    <version>2.2.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>XGBoost JVM Package</name>
     <description>JVM Package for XGBoost</description>
@@ -35,16 +35,17 @@
         <maven.compiler.target>1.8</maven.compiler.target>
         <flink.version>1.19.0</flink.version>
         <junit.version>4.13.2</junit.version>
-        <spark.version>3.4.1</spark.version>
-        <spark.version.gpu>3.4.1</spark.version.gpu>
+        <spark.version>3.5.1</spark.version>
+        <spark.version.gpu>3.5.1</spark.version.gpu>
+        <fasterxml.jackson.version>2.15.2</fasterxml.jackson.version>
         <scala.version>2.12.18</scala.version>
         <scala.binary.version>2.12</scala.binary.version>
         <hadoop.version>3.4.0</hadoop.version>
         <maven.wagon.http.retryHandler.count>5</maven.wagon.http.retryHandler.count>
         <log.capi.invocation>OFF</log.capi.invocation>
         <use.cuda>OFF</use.cuda>
-        <cudf.version>23.12.1</cudf.version>
-        <spark.rapids.version>23.12.1</spark.rapids.version>
+        <cudf.version>24.04.0</cudf.version>
+        <spark.rapids.version>24.04.1</spark.rapids.version>
         <cudf.classifier>cuda12</cudf.classifier>
         <scalatest.version>3.2.18</scalatest.version>
         <scala-collection-compat.version>2.12.0</scala-collection-compat.version>
@@ -179,7 +180,7 @@
                     <plugin>
                         <groupId>org.sonatype.plugins</groupId>
                         <artifactId>nexus-staging-maven-plugin</artifactId>
-                        <version>1.6.13</version>
+                        <version>1.7.0</version>
                         <extensions>true</extensions>
                         <configuration>
                             <serverId>ossrh</serverId>
@@ -410,7 +411,7 @@
             <plugin>
                 <groupId>net.alchim31.maven</groupId>
                 <artifactId>scala-maven-plugin</artifactId>
-                <version>4.9.0</version>
+                <version>4.9.1</version>
                 <executions>
                     <execution>
                         <id>compile</id>
@@ -473,7 +474,7 @@
             <plugin>
                 <groupId>net.alchim31.maven</groupId>
                 <artifactId>scala-maven-plugin</artifactId>
-                <version>4.9.0</version>
+                <version>4.9.1</version>
                 <configuration>
                     <jvmArgs>
                         <jvmArg>-Xms64m</jvmArg>
@@ -488,11 +489,6 @@
             <groupId>com.esotericsoftware</groupId>
             <artifactId>kryo</artifactId>
             <version>5.6.0</version>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>2.14.2</version>
         </dependency>
         <dependency>
             <groupId>commons-logging</groupId>

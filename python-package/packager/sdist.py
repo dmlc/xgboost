@@ -18,7 +18,6 @@ def copy_cpp_src_tree(
         "include",
         "dmlc-core",
         "gputreeshap",
-        "rabit",
         "cmake",
         "plugin",
     ]:

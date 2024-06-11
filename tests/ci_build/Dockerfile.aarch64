@@ -10,7 +10,7 @@ RUN \
     yum update -y && \
     yum install -y devtoolset-9 && \
     # Python
-    wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/22.11.1-2/Mambaforge-22.11.1-2-Linux-aarch64.sh && \
+    wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/24.3.0-0/Miniforge3-24.3.0-0-Linux-aarch64.sh && \
     bash conda.sh -b -p /opt/mambaforge
 
 ENV PATH=/opt/mambaforge/bin:$PATH
@@ -23,7 +23,7 @@ ENV GOSU_VERSION 1.10
 COPY conda_env/aarch64_test.yml /scripts/
 RUN mamba create -n aarch64_test && \
     mamba env update -n aarch64_test --file=/scripts/aarch64_test.yml && \
-    mamba clean --all
+    mamba clean --all --yes
 
 # Install lightweight sudo (not bound to TTY)
 RUN set -ex; \

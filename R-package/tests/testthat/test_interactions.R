@@ -48,7 +48,7 @@ test_that("predict feature interactions works", {
   intr <- predict(b, dm, predinteraction = TRUE)
   expect_equal(dim(intr), c(N, P + 1, P + 1))
   # check assigned colnames
-  cn <- c(letters[1:P], "BIAS")
+  cn <- c(letters[1:P], "(Intercept)")
   expect_equal(dimnames(intr), list(NULL, cn, cn))
 
   # check the symmetry
@@ -60,7 +60,7 @@ test_that("predict feature interactions works", {
   # diagonal terms for features 3,4,5 must be close to zero
   expect_lt(Reduce(max, sapply(3:P, function(i) max(abs(intr[, i, i])))), 0.05)
 
-  # BIAS must have no interactions
+  # Intercept must have no interactions
   expect_lt(max(abs(intr[, 1:P, P + 1])), 0.00001)
 
   # interactions other than 2 x 3 must be close to zero

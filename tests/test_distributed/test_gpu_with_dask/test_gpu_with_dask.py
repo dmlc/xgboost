@@ -230,13 +230,13 @@ class TestDistributedGPU:
         run_boost_from_prediction_multi_class(X, y, "hist", "cuda", local_cuda_client)
 
     def test_init_estimation(self, local_cuda_client: Client) -> None:
-        check_init_estimation("gpu_hist", local_cuda_client)
+        check_init_estimation("hist", "cuda", local_cuda_client)
 
     def test_uneven_nan(self) -> None:
         n_workers = 2
         with LocalCUDACluster(n_workers=n_workers) as cluster:
             with Client(cluster) as client:
-                check_uneven_nan(client, "gpu_hist", n_workers)
+                check_uneven_nan(client, "hist", "cuda", n_workers)
 
     @pytest.mark.skipif(**tm.no_dask_cudf())
     def test_dask_dataframe(self, local_cuda_client: Client) -> None:
@@ -386,7 +386,7 @@ class TestDistributedGPU:
         X = dask_cudf.from_dask_dataframe(dd.from_dask_array(X_))
         y = dask_cudf.from_dask_dataframe(dd.from_dask_array(y_))
         w = dask_cudf.from_dask_dataframe(dd.from_dask_array(w_))
-        run_dask_classifier(X, y, w, model, "gpu_hist", local_cuda_client, 10)
+        run_dask_classifier(X, y, w, model, "hist", "cuda", local_cuda_client, 10)
 
     def test_empty_dmatrix(self, local_cuda_client: Client) -> None:
         parameters = {
