@@ -44,6 +44,7 @@ jobs:
         cd lib/
         Copy-Item -Path xgboost.dll -Destination xgboost_${{ github.sha }}.dll
         dir
+        pip install --user awscli
         python -m awscli s3 cp xgboost_${{ github.sha }}.dll s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/libxgboost4j/ --acl public-read --region us-west-2
       if: |
         matrix.os == 'windows-latest'
