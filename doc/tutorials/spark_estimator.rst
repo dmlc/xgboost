@@ -280,7 +280,15 @@ details on the plugin.
 Advanced Usage
 ==============
 
-XGBoost needs to repartition to the num_workers to ensure there will be num_workers training
-tasks running at the same time, but repartition is a costly operation. To avoid repartition,
-users can set ``spark.sql.files.maxPartitionNum`` and ``spark.sql.files.minPartitionNum``
-to num_workers.
+XGBoost needs to repartition the input dataset to the num_workers to ensure there will be
+num_workers training tasks running at the same time. However, repartition is a costly operation.
+
+To avoid the need for repartitioning, users can set the Spark configuration parameters
+``spark.sql.files.maxPartitionNum`` and ``spark.sql.files.minPartitionNum`` to num_workers.
+This tells Spark to automatically partition the dataset into the desired number of partitions.
+
+However, if the input dataset is skewed (i.e. the data is not evenly distributed), setting
+the partition number to num_workers may not be sufficient. In this case, users can set
+the ``force_repartition=true`` option to explicitly force XGBoost to repartition the dataset,
+even if the partition number is already equal to num_workers. This ensures the data is evenly
+distributed across the workers.
