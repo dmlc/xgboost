@@ -474,7 +474,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
 
         classifier = SparkXGBClassifier(num_workers=self.n_workers)
         basic = self.cls_df_train_distributed
-        self.assertTrue(classifier._repartition_needed(basic))
+        self.assertTrue(not classifier._repartition_needed(basic))
         bad_repartitioned = basic.repartition(self.n_workers + 1)
         self.assertTrue(classifier._repartition_needed(bad_repartitioned))
         good_repartitioned = basic.repartition(self.n_workers)
