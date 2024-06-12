@@ -75,13 +75,13 @@ class HistogramPolicyContainer : public BuildPolicy {
    *                         of using global rabit variable.
    */
   void Reset(Context const *ctx, bst_bin_t total_bins, BatchParam const &p, bool is_distributed,
-             DMatrix const *p_fmat, HistMakerTrainParam const *param) {
+             bool is_col_split, HistMakerTrainParam const *param) {
     n_threads_ = ctx->Threads();
     param_ = p;
     hist_.Reset(total_bins, param->max_cached_hist_node);
     buffer_.Init(total_bins);
 
-    BuildPolicy::Reset(ctx, is_distributed, p_fmat);
+    BuildPolicy::Reset(ctx, is_distributed, is_col_split);
   }
 
   /**
@@ -198,10 +198,10 @@ class DefaultHistPolicy {
 
  public:
  public:
-  void Reset(Context const *ctx, bool is_distributed, DMatrix const *p_fmat) {
+  void Reset(Context const *ctx, bool is_distributed, bool is_col_split) {
     this->is_distributed_ = is_distributed;
     this->n_threads_ = ctx->Threads();
-    this->is_col_split_ = p_fmat->Info().IsColumnSplit();
+    this->is_col_split_ = is_col_split;
   }
 
   template <bool any_missing>
@@ -395,10 +395,10 @@ class MultiHistogramBuilder {
   }
 
   void Reset(Context const *ctx, bst_bin_t total_bins, bst_target_t n_targets, BatchParam const &p,
-             bool is_distributed, DMatrix const *p_fmat, HistMakerTrainParam const *param) {
+             bool is_distributed, bool is_col_split, bool is_secure,
+             HistMakerTrainParam const *param) {
     ctx_ = ctx;
-    if (p_fmat->Info().IsSecure() &&
-        !std::get_if<std::vector<FedHistogramBuilder>>(&target_builders_)) {
+    if (is_secure && !std::get_if<std::vector<FedHistogramBuilder>>(&target_builders_)) {
       target_builders_.emplace<std::vector<FedHistogramBuilder>>(n_targets);
     }
 
@@ -407,7 +407,7 @@ class MultiHistogramBuilder {
           target_builders.resize(n_targets);
           CHECK_GE(n_targets, 1);
           for (auto &v : target_builders) {
-            v.Reset(ctx, total_bins, p, is_distributed, p_fmat, param);
+            v.Reset(ctx, total_bins, p, is_distributed, is_col_split, param);
           }
         },
         this->target_builders_);

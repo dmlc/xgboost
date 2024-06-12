@@ -35,11 +35,11 @@ class FederataedHistPolicy {
   bool is_aggr_context_initialized_ = false;  // fixme
 
  public:
-  void Reset(Context const *ctx, bool is_distributed, DMatrix const *p_fmat) {
+  void Reset(Context const *ctx, bool is_distributed, bool is_col_split) {
     this->is_distributed_ = is_distributed;
     CHECK(is_distributed);
     this->n_threads_ = ctx->Threads();
-    this->is_col_split_ = p_fmat->Info().IsColumnSplit();
+    this->is_col_split_ = is_col_split;
     auto const &comm = collective::GlobalCommGroup()->Ctx(ctx, DeviceOrd::CPU());
     auto const &fed = dynamic_cast<collective::FederatedComm const &>(comm);
     plugin_ = fed.EncryptionPlugin();

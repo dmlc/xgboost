@@ -340,7 +340,7 @@ void DoTestColSplitQuantileSecure() {
 
   auto const n_bins = 64;
 
-  m->Info().data_split_mode = DataSplitMode::kColSecure;
+  m->Info().data_split_mode = DataSplitMode::kCol;
   // Generate cuts for distributed environment.
   HistogramCuts distributed_cuts;
   {

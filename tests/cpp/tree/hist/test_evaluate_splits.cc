@@ -307,7 +307,7 @@ void DoTestEvaluateSplitsSecure(bool force_read_by_column) {
 
   auto dmat = RandomDataGenerator(kRows, kCols, 0).Seed(3).GenerateDMatrix();
   auto m = dmat->SliceCol(world, rank);
-  m->Info().data_split_mode = DataSplitMode::kColSecure;
+  m->Info().data_split_mode = DataSplitMode::kCol;
 
   auto evaluator = HistEvaluator{&ctx, &param, m->Info(), sampler};
   BoundedHistCollection hist;
