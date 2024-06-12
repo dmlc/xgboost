@@ -355,8 +355,7 @@ class HistUpdater {
                                 fmat->Info().IsColumnSplit());
     }
     histogram_builder_->Reset(ctx_, n_total_bins, 1, HistBatch(param_), collective::IsDistributed(),
-                              fmat->Info().IsColumnSplit(), collective::IsDistributed(),
-                              hist_param_);
+                              fmat->Info().IsColumnSplit(), collective::IsFederated(), hist_param_);
     evaluator_ = std::make_unique<HistEvaluator>(ctx_, this->param_, fmat->Info(), col_sampler_);
     p_last_tree_ = p_tree;
     monitor_->Stop(__func__);

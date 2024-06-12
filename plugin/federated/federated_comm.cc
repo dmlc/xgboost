@@ -128,11 +128,7 @@ FederatedComm::FederatedComm(std::int32_t retry, std::chrono::seconds timeout, s
   /**
    * Hist encryption plugin.
    */
-  auto plugin = OptionalArg<Object>(config, "federated_plugin", Object::Map{});
-  if (!plugin.empty()) {
-    auto path = get<String>(plugin["path"]);
-    this->plugin_ = std::make_shared<FederatedPlugin>(path.c_str(), config["federated_plugin"]);
-  }
+  this->plugin_.reset(CreateFederatedPlugin(config));
 
   this->Init(parsed[0], std::stoi(parsed[1]), world_size, rank, server_cert, client_key,
              client_cert);

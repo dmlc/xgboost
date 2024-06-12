@@ -222,13 +222,12 @@ TEST(CPUHistogram, SyncHist) {
   TestSyncHist(false);
 }
 
-void TestBuildHistogram(bool is_distributed, bool force_read_by_column, bool is_col_split, bool is_secure) {
-  size_t constexpr kNRows = 8, kNCols = 16;
-  int32_t constexpr kMaxBins = 4;
+void TestBuildHistogram(bool is_distributed, bool force_read_by_column, bool is_col_split) {
+  bst_idx_t constexpr kNRows = 8, kNCols = 16;
+  bst_bin_t constexpr kMaxBins = 4;
   Context ctx;
-  auto p_fmat =
-      RandomDataGenerator(kNRows, kNCols, 0.8).Seed(3).GenerateDMatrix();
-  if (is_col_split && !is_secure) {
+  auto p_fmat = RandomDataGenerator(kNRows, kNCols, 0.8).Seed(3).GenerateDMatrix();
+  if (is_col_split) {
     p_fmat = std::shared_ptr<DMatrix>{
         p_fmat->SliceCol(collective::GetWorldSize(), collective::GetRank())};
   }
@@ -236,7 +235,6 @@ void TestBuildHistogram(bool is_distributed, bool force_read_by_column, bool is_
       *(p_fmat->GetBatches<GHistIndexMatrix>(&ctx, BatchParam{kMaxBins, 0.5}).begin());
   uint32_t total_bins = gmat.cut.Ptrs().back();
 
-  static double constexpr kEps = 1e-6;
   std::vector<GradientPair> gpair = {
       {0.23f, 0.24f}, {0.24f, 0.25f}, {0.26f, 0.27f}, {0.27f, 0.28f},
       {0.27f, 0.29f}, {0.37f, 0.39f}, {0.47f, 0.49f}, {0.57f, 0.59f}};
@@ -288,42 +286,35 @@ void TestBuildHistogram(bool is_distributed, bool force_read_by_column, bool is_
     GradientPairPrecise sol = histogram_expected[i];
     double grad = sol.GetGrad();
     double hess = sol.GetHess();
-    if (is_distributed && (!is_col_split || (is_secure && is_col_split))) {
+    if (is_distributed && !is_col_split) {
       // the solution also needs to be allreduce
       collective::SafeColl(
           collective::Allreduce(&ctx, linalg::MakeVec(&grad, 1), collective::Op::kSum));
       collective::SafeColl(
           collective::Allreduce(&ctx, linalg::MakeVec(&hess, 1), collective::Op::kSum));
     }
-    ASSERT_NEAR(grad, histogram.Histogram()[nid][i].GetGrad(), kEps);
-    ASSERT_NEAR(hess, histogram.Histogram()[nid][i].GetHess(), kEps);
+    ASSERT_NEAR(grad, histogram.Histogram()[nid][i].GetGrad(), kRtEps);
+    ASSERT_NEAR(hess, histogram.Histogram()[nid][i].GetHess(), kRtEps);
   }
 }
 
 TEST(CPUHistogram, BuildHist) {
-  TestBuildHistogram(true, false, false, false);
-  TestBuildHistogram(false, false, false, false);
-  TestBuildHistogram(true, true, false, false);
-  TestBuildHistogram(false, true, false, false);
+  TestBuildHistogram(true, false, false);
+  TestBuildHistogram(false, false, false);
+  TestBuildHistogram(true, true, false);
+  TestBuildHistogram(false, true, false);
 }
 
 TEST(CPUHistogram, BuildHistDist) {
   auto constexpr kWorkers = 4;
-  collective::TestDistributedGlobal(kWorkers,
-                                    [] { TestBuildHistogram(true, false, false, false); });
-  collective::TestDistributedGlobal(kWorkers, [] { TestBuildHistogram(true, true, false, false); });
+  collective::TestDistributedGlobal(kWorkers, [] { TestBuildHistogram(true, false, false); });
+  collective::TestDistributedGlobal(kWorkers, [] { TestBuildHistogram(true, true, false); });
 }
 
 TEST(CPUHistogram, BuildHistDistColSplit) {
   auto constexpr kWorkers = 4;
-  collective::TestDistributedGlobal(kWorkers, [] { TestBuildHistogram(true, false, true, false); });
-  collective::TestDistributedGlobal(kWorkers, [] { TestBuildHistogram(true, true, true, false); });
-}
-
-TEST(CPUHistogram, BuildHistDistColSplitSecure) {
-  auto constexpr kWorkers = 4;
-  collective::TestDistributedGlobal(kWorkers, [] { TestBuildHistogram(true, true, true, true); });
-  collective::TestDistributedGlobal(kWorkers, [] { TestBuildHistogram(true, false, true, true); });
+  collective::TestDistributedGlobal(kWorkers, [] { TestBuildHistogram(true, false, true); });
+  collective::TestDistributedGlobal(kWorkers, [] { TestBuildHistogram(true, true, true); });
 }
 
 namespace {
@@ -632,21 +623,4 @@ auto MakeParamsForTest() {
 TEST_P(OverflowTest, Overflow) { this->RunTest(); }
 
 INSTANTIATE_TEST_SUITE_P(CPUHistogram, OverflowTest, ::testing::ValuesIn(MakeParamsForTest()));
-
-TEST(CPUHistogram, Variant) {
-  {
-    std::variant<std::string, std::int32_t> var;
-    if (!var.valueless_by_exception()) {
-      var.emplace<std::string>("abcd");
-    }
-    std::visit([](auto const &str) { std::cout << str << "\n"; }, var);
-  }
-  {
-    std::variant<std::string, std::int32_t> var;
-    if (!var.valueless_by_exception()) {
-      var.emplace<std::int32_t>(3);
-    }
-    std::visit([](auto const &str) { std::cout << str << "\n"; }, var);
-  }
-}
 }  // namespace xgboost::tree

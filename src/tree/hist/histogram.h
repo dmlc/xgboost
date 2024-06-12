@@ -259,7 +259,9 @@ class DefaultHistPolicy {
 };
 
 using HistogramBuilder = HistogramPolicyContainer<DefaultHistPolicy>;
+#if defined(XGBOOST_USE_FEDERATED)
 using FedHistogramBuilder = HistogramPolicyContainer<FederataedHistPolicy>;
+#endif  // defined(XGBOOST_USE_FEDERATED)
 
 // Construct a work space for building histogram.  Eventually we should move this
 // function into histogram builder once hist tree method supports external memory.
@@ -287,7 +289,12 @@ common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
  * @brief Histogram builder that can handle multiple targets.
  */
 class MultiHistogramBuilder {
+#if defined(XGBOOST_USE_FEDERATED)
   std::variant<std::vector<HistogramBuilder>, std::vector<FedHistogramBuilder>> target_builders_;
+#else
+  std::variant<std::vector<HistogramBuilder>> target_builders_;
+#endif
+
   Context const *ctx_;
 
  public:
@@ -398,9 +405,13 @@ class MultiHistogramBuilder {
              bool is_distributed, bool is_col_split, bool is_secure,
              HistMakerTrainParam const *param) {
     ctx_ = ctx;
+#if defined(XGBOOST_USE_FEDERATED)
     if (is_secure && !std::get_if<std::vector<FedHistogramBuilder>>(&target_builders_)) {
       target_builders_.emplace<std::vector<FedHistogramBuilder>>(n_targets);
     }
+#else
+    CHECK(!is_secure);
+#endif
 
     std::visit(
         [&](auto &&target_builders) {

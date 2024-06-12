@@ -19,7 +19,7 @@ namespace xgboost::collective {
 class FederatedComm : public HostComm {
   std::shared_ptr<federated::Federated::Stub> stub_;
   // Plugin for encryption
-  std::shared_ptr<FederatedPlugin> plugin_{nullptr};
+  std::shared_ptr<FederatedPluginBase> plugin_{nullptr};
 
   void Init(std::string const& host, std::int32_t port, std::int32_t world, std::int32_t rank,
             std::string const& server_cert, std::string const& client_key,

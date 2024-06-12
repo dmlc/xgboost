@@ -1471,6 +1471,7 @@ class LearnerImpl : public LearnerIO {
     monitor_.Start(__func__);
     out_gpair->Reshape(info.num_row_, this->learner_model_param_.OutputLength());
     if (info.IsVerticalFederated()) {
+#if defined(XGBOOST_USE_FEDERATED)
       // Need to encrypt the gradient before broadcasting.
       common::Span<std::uint8_t> encrypted;
       auto const& comm = collective::GlobalCommGroup()->Ctx(&ctx_, ctx_.Device());
@@ -1506,6 +1507,9 @@ class LearnerImpl : public LearnerIO {
       }
       // Pass the gradient to the plugin
       fed.EncryptionPlugin()->SyncEncryptedGradient(encrypted);
+#else
+      LOG(FATAL) << error::NoFederated();
+#endif
     } else {
       collective::ApplyWithLabels(&ctx_, info, out_gpair->Data(),
                                   [&]() { obj_->GetGradient(preds, info, iter, out_gpair); });
