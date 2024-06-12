@@ -28,14 +28,6 @@ jobs:
         distribution: 'temurin'
         java-version: '11'
 
-    - name: Build xgboost4j.dll
-      run: |
-        mkdir build
-        cd build
-        cmake .. -G"Visual Studio 17 2022" -A "x64,version=10.0.17763.0" -DJVM_BINDINGS=ON
-        cmake --build . --config Release -- "/consoleloggerparameters:ShowCommandLine;Verbosity=detailed"
-      if: matrix.os == 'windows-latest'
-
     - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
       with:
         miniforge-variant: Mambaforge
@@ -45,17 +37,17 @@ jobs:
         environment-file: tests/ci_build/conda_env/jvm_tests.yml
         use-mamba: true
 
-    - name: Update Conda packages
-      run: |
-        mamba update -y --all -c conda-forge
-        mamba update -y vs2015_runtime vc vc14_runtime
-
     - name: Cache Maven packages
       uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
       with:
         path: ~/.m2
         key: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
         restore-keys: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
+
+    - name: Test XGBoost4J (Core)
+      run: |
+        cd jvm-packages
+        mvn test -B -pl :xgboost4j_2.12
 
     - name: Extract branch name
       shell: bash
@@ -90,15 +82,6 @@ jobs:
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
-
-    - name: Test XGBoost4J (Core)
-      run: |
-        New-Item -ItemType Directory -Path jvm-packages/xgboost4j/src/main/resources/lib/windows/x86_64 -Force
-        Copy-Item -Path lib/xgboost4j.dll -Destination jvm-packages/xgboost4j/src/main/resources/lib/windows/x86_64/xgboost4j.dll
-        cd jvm-packages
-        mvn test -B -pl :xgboost4j_2.12
-      env:
-        MAVEN_SKIP_NATIVE_BUILD: 1
 
     - name: Test XGBoost4J (Core, Spark, Examples)
       run: |
