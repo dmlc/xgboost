@@ -28,6 +28,14 @@ jobs:
         distribution: 'temurin'
         java-version: '11'
 
+    - name: Build xgboost4j.dll
+      run: |
+        mkdir build
+        cd build
+        cmake .. -G"Visual Studio 17 2022" -A "x64,version=10.0.17763.0" -DJVM_BINDINGS=ON
+        cmake --build . --config Release -- "/consoleloggerparameters:ShowCommandLine;Verbosity=detailed"
+      if: matrix.os == 'windows-latest'
+
     - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
       with:
         miniforge-variant: Mambaforge
@@ -48,14 +56,6 @@ jobs:
         path: ~/.m2
         key: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
         restore-keys: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
-
-    - name: Build xgboost4j.dll
-      run: |
-        mkdir build
-        cd build
-        cmake .. -G"Visual Studio 17 2022" -A "x64,version=10.0.17763.0" -DJVM_BINDINGS=ON
-        cmake --build . --config Release -- "/consoleloggerparameters:ShowCommandLine;Verbosity=minimal"
-      if: matrix.os == 'windows-latest'
 
     - name: Extract branch name
       shell: bash
