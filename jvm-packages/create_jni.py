@@ -51,7 +51,7 @@ def maybe_makedirs(path):
 
 def run(command, **kwargs):
     print(command)
-    subprocess.check_call(command, shell=True, **kwargs)
+    subprocess.run(command, shell=True, check=True, env=os.environ, **kwargs)
 
 
 def cp(source, target):
