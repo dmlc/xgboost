@@ -197,7 +197,6 @@ class DefaultHistPolicy {
   std::int32_t n_threads_{-1};
 
  public:
- public:
   void Reset(Context const *ctx, bool is_distributed, bool is_col_split) {
     this->is_distributed_ = is_distributed;
     this->n_threads_ = ctx->Threads();

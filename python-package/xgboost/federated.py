@@ -67,7 +67,7 @@ def run_federated_server(  # pylint: disable=too-many-arguments
     client_cert_path: Optional[str] = None,
     blocking: bool = True,
     timeout: int = 300,
-) -> Dict[str, Any] | None:
+) -> Optional[Dict[str, Any]]:
     """See :py:class:`~xgboost.federated.FederatedTracker` for more info.
 
     Parameters
