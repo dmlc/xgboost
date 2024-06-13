@@ -206,10 +206,8 @@ class FederatedPluginMock : public FederatedPluginBase {
     return grad_;
   }
   void SyncEncryptedGradient(common::Span<std::uint8_t const> data) override {
-    auto casted =
-        common::Span{reinterpret_cast<float const *>(data.data()), data.size() / sizeof(float)};
-    grad_.resize(casted.size());
-    std::copy_n(casted.data(), casted.size(), grad_.data());
+    grad_.resize(data.size_bytes());
+    std::copy_n(data.data(), data.size(), grad_.data());
   }
 
   // Vertical histogram

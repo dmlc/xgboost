@@ -388,7 +388,7 @@ bool AddCutPoint(Context const *ctx, typename SketchType::SummaryContainer const
   } else {
     // we use the min_value as the first (0th) element, hence starting from 1.
     for (size_t i = 1; i < required_cuts; ++i) {
-      bst_float cpt = summary.data[i].value;
+      auto cpt = summary.data[i].value;
       if (i == 1 || cpt > cut_values.back()) {
         cut_values.push_back(cpt);
       }
@@ -461,13 +461,13 @@ void SketchContainerImpl<WQSketch>::MakeCuts(Context const *ctx, MetaInfo const 
       // i.e. if the last value is not NaN
       if (!is_nan) {
         const bst_float cpt =
-              (a.size > 0) ? a.data[a.size - 1].value : p_cuts->min_vals_.HostVector()[fid];
+            (a.size > 0) ? a.data[a.size - 1].value : p_cuts->min_vals_.HostVector()[fid];
         // this must be bigger than last value in a scale
         const bst_float last = cpt + (fabs(cpt) + 1e-5f);
         p_cuts->cut_values_.HostVector().push_back(last);
       } else {
-          // if the feature is empty, push a NaN value
-          p_cuts->cut_values_.HostVector().push_back(std::numeric_limits<double>::quiet_NaN());
+        // if the feature is empty, push a NaN value
+        p_cuts->cut_values_.HostVector().push_back(std::numeric_limits<double>::quiet_NaN());
       }
     }
     // Ensure that every feature gets at least one quantile point

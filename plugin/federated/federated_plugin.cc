@@ -9,7 +9,9 @@
 #include <cstdint>  // for uint8_t, uint64_t
 #include <sstream>  // for stringstream
 
+#include "../../src/collective/communicator-inl.h"
 #include "../../src/common/json_utils.h"  // for OptionalArg
+#include "../../src/common/type.h"        // for RestoreType
 #include "xgboost/base.h"                 // for bst_bin_t, bst_feature_t
 #include "xgboost/json.h"                 // for Json
 #include "xgboost/linalg.h"               // for MakeTensorView
@@ -31,30 +33,35 @@ void FederatedPluginMock::Reset(common::Span<std::uint32_t const> cutptrs,
     common::Span<bst_node_t const> nids) {
   bst_bin_t total_bin_size = cuts_.back();
   bst_feature_t n_features = cuts_.size() - 1;
-  bst_idx_t n_total_samples = gidx_.size() / n_features;
+  bst_idx_t n_samples = gidx_.size() / n_features;
   CHECK_EQ(gidx_.size() % n_features, 0);
+
   bst_bin_t hist_size = total_bin_size * 2;
-  hist_plain_.resize(hist_size);
+  hist_plain_.resize(hist_size * sizes.size());
+  auto hist_buffer = common::Span<double>{hist_plain_};
+
   CHECK_EQ(rowptrs.size(), sizes.size());
   CHECK_EQ(nids.size(), sizes.size());
-  CHECK_EQ(n_total_samples * 2, grad_.size());
+  auto grad_plain = common::RestoreType<float const>(common::Span<std::uint8_t>{grad_});
+  CHECK_EQ(n_samples * 2, grad_plain.size());
 
   Context ctx;
-  auto gidx = linalg::MakeTensorView(&ctx, common::Span{gidx_.data(), gidx_.size()},
-                                     n_total_samples, n_features);
+  auto gidx =
+      linalg::MakeTensorView(&ctx, common::Span{gidx_.data(), gidx_.size()}, n_samples, n_features);
   for (std::size_t i = 0; i < sizes.size(); ++i) {
-    auto n_samples = sizes[i];
-    auto samples = common::Span{rowptrs[i], n_samples};
+    auto n_samples_in_node = sizes[i];
+    auto samples = common::Span{rowptrs[i], n_samples_in_node};
+    auto hist = hist_buffer.subspan(i * hist_size, hist_size);
     for (auto ridx : samples) {
       for (bst_feature_t f = 0; f < n_features; ++f) {
         auto bin = gidx(ridx, f);
+        auto g = grad_plain[ridx * 2];
+        auto h = grad_plain[ridx * 2 + 1];
         if (bin < 0) {
           continue;
         }
-        auto g = grad_[ridx * 2];
-        auto h = grad_[ridx * 2 + 1];
-        hist_plain_[bin * 2] += g;
-        hist_plain_[bin * 2 + 1] += h;
+        hist[bin * 2] += g;
+        hist[bin * 2 + 1] += h;
       }
     }
   }
@@ -64,8 +71,10 @@ void FederatedPluginMock::Reset(common::Span<std::uint32_t const> cutptrs,
 }
 
 [[nodiscard]] common::Span<double> FederatedPluginMock::SyncEncryptedHistVert(
-    common::Span<std::uint8_t>) {
-  return {hist_plain_};
+    common::Span<std::uint8_t> hist) {
+  hist_enc_.resize(hist.size());
+  std::copy_n(hist.data(), hist.size(), hist_enc_.data());
+  return common::RestoreType<double>(common::Span<std::uint8_t>{hist_enc_});
 }
 
 template <typename T>

@@ -271,8 +271,8 @@ class DefaultHistPolicy {
     auto n_total_bins = buffer->TotalBins();
     auto &hist = *p_hist;
 
-    common::BlockedSpace2d space(
-        nodes_to_build.size(), [&](std::size_t) { return n_total_bins; }, 1024);
+    auto space = common::BlockedSpace2d{nodes_to_build.size(),
+                                        [&](std::size_t) { return n_total_bins; }, 1024};
     common::ParallelFor2d(space, ctx->Threads(), [&](size_t node, common::Range1d r) {
       // Merging histograms from each thread.
       buffer->ReduceHist(node, r.begin(), r.end());

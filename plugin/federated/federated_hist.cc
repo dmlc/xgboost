@@ -5,7 +5,7 @@
 
 #include "../../src/collective/allgather.h"         // for AllgatherV
 #include "../../src/collective/communicator-inl.h"  // for GetRank
-#include "../../src/tree/hist/histogram.h"
+#include "../../src/tree/hist/histogram.h"  // for SubtractHistParallel, BuildSampleHistograms
 
 namespace xgboost::tree {
 template <bool any_missing>
@@ -75,9 +75,6 @@ void FederataedHistPolicy::DoSyncHistogram(Context const *ctx, RegTree const *p_
   if (is_col_split_) {
     // Under secure vertical mode, we perform allgather to get the global histogram. Note
     // that only the label owner (rank == 0) needs the global histogram
-    auto first_nidx = nodes_to_build.front();
-    // *2 because we have a pair of g and h for each histogram item
-    std::size_t n = n_total_bins * nodes_to_build.size() * 2;
 
     // Perform AllGather
     HostDeviceVector<std::int8_t> hist_entries;
@@ -86,24 +83,27 @@ void FederataedHistPolicy::DoSyncHistogram(Context const *ctx, RegTree const *p_
         collective::AllgatherV(ctx, linalg::MakeVec(hist_data_), &recv_segments, &hist_entries));
 
     // Call interface here to post-process the messages
-    auto hist_aggr =
+    common::Span<double> hist_aggr =
         plugin_->SyncEncryptedHistVert(common::RestoreType<std::uint8_t>(hist_entries.HostSpan()));
 
     // Update histogram for label owner
     if (collective::GetRank() == 0) {
       // iterator of the beginning of the vector
-      auto it = reinterpret_cast<double *>(hist[first_nidx].data());
-      // iterate through the hist vector of the label owner
-      for (std::size_t i = 0; i < n; i++) {
-        // get the sum of the entries from all ranks
-        double hist_sum = 0.0;
-        for (std::size_t rank_idx = 0; rank_idx < hist_aggr.size() / n; rank_idx++) {
-          int flat_idx = rank_idx * n + i;
-          hist_sum += hist_aggr[flat_idx];
+      bst_node_t n_nodes = nodes_to_build.size();
+      std::int32_t n_workers = collective::GetWorldSize();
+      bst_idx_t worker_size = hist_aggr.size() / n_workers;
+      CHECK_EQ(hist_aggr.size() % n_workers, 0);
+      // for each worker
+      for (auto widx = 0; widx < n_workers; ++widx) {
+        auto worker_hist = hist_aggr.subspan(widx * worker_size, worker_size);
+        // for each node
+        for (bst_node_t nidx_in_set = 0; nidx_in_set < n_nodes; ++nidx_in_set) {
+          auto hist_src = worker_hist.subspan(n_total_bins * 2 * nidx_in_set, n_total_bins * 2);
+          auto hist_src_g = common::RestoreType<GradientPairPrecise>(hist_src);
+          auto hist_dst = hist[nodes_to_build[nidx_in_set]];
+          CHECK_EQ(hist_src_g.size(), hist_dst.size());
+          common::IncrementHist(hist_dst, hist_src_g, 0, hist_dst.size());
         }
-        // update rank 0's record with the global histogram
-        *it = hist_sum;
-        it++;
       }
     }
   } else {
