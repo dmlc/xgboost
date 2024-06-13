@@ -24,13 +24,11 @@ aws s3 cp xgboost4j_$Env:BUILDKITE_COMMIT.dll `
   --acl public-read --no-progress
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
-# TODO(hcho3): Move this to the bootstrap script
-choco install maven
-
 Write-Host "--- Test XGBoost4J (Core)"
 cd ..
 New-Item -ItemType Directory -Path jvm-packages/xgboost4j/src/main/resources/lib/windows/x86_64 -Force
 Copy-Item -Path lib/xgboost4j.dll -Destination jvm-packages/xgboost4j/src/main/resources/lib/windows/x86_64/xgboost4j.dll
 cd jvm-packages
-& C:\ProgramData\chocolatey\lib\maven\apache-maven-3.9.7\bin\mvn test -B -pl :xgboost4j_2.12
+conda activate
+mvn test -B -pl :xgboost4j_2.12
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
