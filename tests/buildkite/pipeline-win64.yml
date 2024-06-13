@@ -13,6 +13,11 @@ steps:
     key: build-win64-gpu
     agents:
       queue: windows-cpu
+  - label: ":windows: Build and test XGBoost JVM packages for Windows"
+    command: "tests/buildkite/build-jvm-packages-win64.ps1"
+    key: build-jvm-packages-win64
+    agents:
+      queue: windows-cpu
 
   - wait
 

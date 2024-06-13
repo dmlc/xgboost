@@ -1,27 +1,27 @@
 AMI_ID = {
     # Managed by XGBoost team
     "linux-amd64-gpu": {
-        "us-west-2": "ami-070080d04e81c5e39",
+        "us-west-2": "ami-0e209663fb07f72c0",
     },
     "linux-amd64-mgpu": {
-        "us-west-2": "ami-070080d04e81c5e39",
+        "us-west-2": "ami-0e209663fb07f72c0",
     },
     "windows-gpu": {
-        "us-west-2": "ami-07c14abcf529d816a",
+        "us-west-2": "ami-0fa74aeef956fd238",
     },
     "windows-cpu": {
-        "us-west-2": "ami-07c14abcf529d816a",
+        "us-west-2": "ami-0fa74aeef956fd238",
     },
     # Managed by BuildKite
     # from https://s3.amazonaws.com/buildkite-aws-stack/latest/aws-stack.yml
     "linux-amd64-cpu": {
-        "us-west-2": "ami-0180f7fb0f07eb0bc",
+        "us-west-2": "ami-0083e0ae73c175ec6",
     },
     "pipeline-loader": {
-        "us-west-2": "ami-0180f7fb0f07eb0bc",
+        "us-west-2": "ami-0083e0ae73c175ec6",
     },
     "linux-arm64-cpu": {
-        "us-west-2": "ami-00686bdc2043a5505",
+        "us-west-2": "ami-0dbf1f9da54222f21",
     },
 }
 

@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest]
+        os: [ubuntu-latest, macos-13]
 
     steps:
     - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
@@ -49,6 +49,13 @@ jobs:
         cd jvm-packages
         mvn test -B -pl :xgboost4j_2.12
 
+    - name: Test XGBoost4J (Core, Spark, Examples)
+      run: |
+        rm -rfv build/
+        cd jvm-packages
+        mvn -B test
+      if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
+
     - name: Extract branch name
       shell: bash
       run: |
@@ -56,18 +63,6 @@ jobs:
       id: extract_branch
       if: |
         (matrix.os == 'windows-latest' || matrix.os == 'macos-13')
-
-    - name: Publish artifact xgboost4j.dll to S3
-      run: |
-        cd lib/
-        Copy-Item -Path xgboost4j.dll -Destination xgboost4j_${{ github.sha }}.dll
-        dir
-        python -m awscli s3 cp xgboost4j_${{ github.sha }}.dll s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/libxgboost4j/ --acl public-read --region us-west-2
-      if: |
-        matrix.os == 'windows-latest'
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
 
     - name: Publish artifact libxgboost4j.dylib to S3
       shell: bash -l {0}
@@ -83,20 +78,9 @@ jobs:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
 
-    - name: Test XGBoost4J (Core, Spark, Examples)
-      run: |
-        rm -rfv build/
-        cd jvm-packages
-        mvn -B test
-      if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
-      env:
-        RABIT_MOCK: ON
-
     - name: Build and Test XGBoost4J with scala 2.13
       run: |
         rm -rfv build/
         cd jvm-packages
         mvn -B clean install test -Pdefault,scala-2.13
       if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
-      env:
-        RABIT_MOCK: ON

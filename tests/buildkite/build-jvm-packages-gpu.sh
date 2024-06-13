@@ -4,7 +4,7 @@ set -euo pipefail
 
 source tests/buildkite/conftest.sh
 
-echo "--- Build XGBoost JVM packages with CUDA"
+echo "--- Build and test XGBoost JVM packages with CUDA"
 
 if [[ ($is_pull_request == 1) || ($is_release_branch == 0) ]]
 then
