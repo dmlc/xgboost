@@ -41,8 +41,6 @@ jobs:
         cmake .. -G"Visual Studio 17 2022" -A x64 -DJVM_BINDINGS=ON
         cmake --build . --config Release
       if: matrix.os == 'windows-latest'
-      env:
-        JAVA_HOME: C:\Users\runneradmin\miniconda3\envs\jvm_tests\Library\lib\jvm
 
     - name: Try loading xgboost4j.dll
       run: |
