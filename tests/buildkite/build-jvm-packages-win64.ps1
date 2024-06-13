@@ -6,6 +6,7 @@ Write-Host "--- Build and test JVM packages on Windows"
 
 mkdir build
 cd build
+$env:JAVA_HOME="C:\Program Files\Eclipse Adoptium\jdk-11.0.23.9-hotspot\"
 cmake .. -G"Visual Studio 17 2022" -A x64 -DJVM_BINDINGS=ON
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 cmake --build . --config Release -- /m /nodeReuse:false `
