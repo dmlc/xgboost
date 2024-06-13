@@ -46,6 +46,8 @@ jobs:
         cmake .. -G"Visual Studio 17 2022" -A x64 -DJVM_BINDINGS=ON
         cmake --build . --config Release
       if: matrix.os == 'windows-latest'
+      env:
+        JAVA_HOME: C:\Users\noble\mambaforge\Library\lib\jvm
 
     - name: Try loading xgboost4j.dll
       run: |
@@ -53,8 +55,12 @@ jobs:
 
     - name: Test XGBoost4J (Core)
       run: |
+        New-Item -ItemType Directory -Path jvm-packages/xgboost4j/src/main/resources/lib/windows/x86_64 -Force
+        Copy-Item -Path lib/xgboost4j.dll -Destination jvm-packages/xgboost4j/src/main/resources/lib/windows/x86_64/xgboost4j.dll
         cd jvm-packages
         mvn test -B -pl :xgboost4j_2.12
+      env:
+        MAVEN_SKIP_NATIVE_BUILD: 1
 
     - name: Test XGBoost4J (Core, Spark, Examples)
       run: |
