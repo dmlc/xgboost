@@ -38,7 +38,7 @@ target_link_libraries(federated_client INTERFACE federated_proto)
 # Rabit engine for Federated Learning.
 target_sources(
   objxgboost PRIVATE
-  federated_plugin.cc federated_tracker.cc federated_comm.cc federated_coll.cc
+  federated_plugin.cc federated_hist.cc federated_tracker.cc federated_comm.cc federated_coll.cc
 )
 if(USE_CUDA)
   target_sources(objxgboost PRIVATE federated_comm.cu federated_coll.cu)

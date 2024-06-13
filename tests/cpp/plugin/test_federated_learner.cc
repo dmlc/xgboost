@@ -14,6 +14,7 @@
 #include "../helpers.h"
 #include "../objective_helpers.h"  // for MakeObjNamesForTest, ObjTestNameGenerator
 #include "federated/test_worker.h"
+#include "../collective/test_worker.h"
 
 namespace xgboost {
 namespace {
@@ -39,7 +40,7 @@ auto MakeModel(std::string tree_method, std::string device, std::string objectiv
 }
 
 void VerifyObjective(std::size_t rows, std::size_t cols, float expected_base_score,
-                     Json expected_model, std::string const &tree_method, std::string device,
+                     Json const &expected_model, std::string const &tree_method, std::string device,
                      std::string const &objective) {
   auto rank = collective::GetRank();
   std::shared_ptr<DMatrix> dmat{RandomDataGenerator{rows, cols, 0}.GenerateDMatrix(rank == 0)};
@@ -94,23 +95,23 @@ class VerticalFederatedLearnerTest : public ::testing::TestWithParam<std::string
 
 TEST_P(VerticalFederatedLearnerTest, Approx) {
   std::string objective = GetParam();
-  this->Run("approx", "cpu", objective);
+  this->Run("approx", DeviceSym::CPU(), objective);
 }
 
 TEST_P(VerticalFederatedLearnerTest, Hist) {
   std::string objective = GetParam();
-  this->Run("hist", "cpu", objective);
+  this->Run("hist", DeviceSym::CPU(), objective);
 }
 
 #if defined(XGBOOST_USE_CUDA)
 TEST_P(VerticalFederatedLearnerTest, GPUApprox) {
   std::string objective = GetParam();
-  this->Run("approx", "cuda:0", objective);
+  this->Run("approx", DeviceSym::CUDA(), objective);
 }
 
 TEST_P(VerticalFederatedLearnerTest, GPUHist) {
   std::string objective = GetParam();
-  this->Run("hist", "cuda:0", objective);
+  this->Run("hist", DeviceSym::CUDA(), objective);
 }
 #endif  // defined(XGBOOST_USE_CUDA)
 

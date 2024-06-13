@@ -448,7 +448,7 @@ void SketchContainerImpl<WQSketch>::MakeCuts(Context const *ctx, MetaInfo const 
     std::int32_t max_num_bins = std::min(num_cuts[fid], max_bins_);
     // If vertical and secure mode, we need to sync the max_num_bins aross workers
     // to create the same global number of cut point bins for easier future processing
-    if (info.IsVerticalFederated() && collective::IsFederated()) {
+    if (info.IsVerticalFederated()) {
       collective::SafeColl(collective::Allreduce(ctx, &max_num_bins, collective::Op::kMax));
     }
     typename WQSketch::SummaryContainer const &a = final_summaries[fid];

@@ -187,6 +187,57 @@ class HistogramPolicyContainer : public BuildPolicy {
   auto &Buffer() { return buffer_; }
 };
 
+
+// Build routine for sample-based split.
+template <bool any_missing>
+void BuildSampleHistograms(std::int32_t n_threads, common::BlockedSpace2d const &space,
+                           GHistIndexMatrix const &gidx,
+                           std::vector<bst_node_t> const &nodes_to_build,
+                           common::RowSetCollection const &row_set_collection,
+                           common::Span<GradientPair const> gpair_h, bool force_read_by_column,
+                           common::ParallelGHistBuilder *buffer) {
+  // Parallel processing by nodes and data in each node
+  common::ParallelFor2d(space, n_threads, [&](bst_idx_t nid_in_set, common::Range1d r) {
+    auto const tid = omp_get_thread_num();
+    bst_node_t const nidx = nodes_to_build[nid_in_set];
+    auto elem = row_set_collection[nidx];
+    auto start_of_row_set = std::min(r.begin(), elem.Size());
+    auto end_of_row_set = std::min(r.end(), elem.Size());
+    auto rid_set = common::RowSetCollection::Elem(elem.begin + start_of_row_set,
+                                                  elem.begin + end_of_row_set, nidx);
+    auto hist = buffer->GetInitializedHist(tid, nid_in_set);
+    if (rid_set.Size() != 0) {
+      common::BuildHist<any_missing>(gpair_h, rid_set, gidx, hist, force_read_by_column);
+    }
+  });
+}
+
+// Perform the subtraction trick
+inline void SubtractHistParallel(Context const *ctx, common::BlockedSpace2d const &space,
+                                 RegTree const *p_tree,
+                                 std::vector<bst_node_t> const &nodes_to_build,
+                                 std::vector<bst_node_t> const &nodes_to_trick,
+                                 common::ParallelGHistBuilder *buffer,
+                                 BoundedHistCollection *p_hist) {
+  auto n_total_bins = buffer->TotalBins();
+  auto &hist = *p_hist;
+  common::BlockedSpace2d const &subspace =
+      nodes_to_trick.size() == nodes_to_build.size()
+          ? space
+          : common::BlockedSpace2d{nodes_to_trick.size(), [&](std::size_t) { return n_total_bins; },
+                                   1024};
+  common::ParallelFor2d(subspace, ctx->Threads(), [&](std::size_t nidx_in_set, common::Range1d r) {
+    auto subtraction_nidx = nodes_to_trick[nidx_in_set];
+    auto parent_id = p_tree->Parent(subtraction_nidx);
+    auto sibling_nidx = p_tree->IsLeftChild(subtraction_nidx) ? p_tree->RightChild(parent_id)
+                                                              : p_tree->LeftChild(parent_id);
+    auto sibling_hist = hist[sibling_nidx];
+    auto parent_hist = hist[parent_id];
+    auto subtract_hist = hist[subtraction_nidx];
+    common::SubtractionHist(subtract_hist, parent_hist, sibling_hist, r.begin(), r.end());
+  });
+}
+
 /**
  * @brief Histogram build policy for normal cases.
  */
@@ -209,9 +260,8 @@ class DefaultHistPolicy {
                               common::RowSetCollection const &row_set_collection,
                               common::Span<GradientPair const> gpair_h, bool force_read_by_column,
                               common::ParallelGHistBuilder *buffer) {
-    common::BuildSampleHistograms<any_missing>(this->n_threads_, space, gidx, nodes_to_build,
-                                               row_set_collection, gpair_h, force_read_by_column,
-                                               buffer);
+    BuildSampleHistograms<any_missing>(this->n_threads_, space, gidx, nodes_to_build,
+                                       row_set_collection, gpair_h, force_read_by_column, buffer);
   }
 
   void DoSyncHistogram(Context const *ctx, RegTree const *p_tree,
@@ -220,12 +270,14 @@ class DefaultHistPolicy {
                        common::ParallelGHistBuilder *buffer, BoundedHistCollection *p_hist) {
     auto n_total_bins = buffer->TotalBins();
     auto &hist = *p_hist;
+
     common::BlockedSpace2d space(
         nodes_to_build.size(), [&](std::size_t) { return n_total_bins; }, 1024);
     common::ParallelFor2d(space, ctx->Threads(), [&](size_t node, common::Range1d r) {
       // Merging histograms from each thread.
       buffer->ReduceHist(node, r.begin(), r.end());
     });
+
     // Sync the histogram if it's not column split
     if (is_distributed_ && !is_col_split_) {
       // The cache is contiguous, we can perform allreduce for all nodes in one go.
@@ -238,22 +290,7 @@ class DefaultHistPolicy {
       SafeColl(rc);
     }
 
-    common::BlockedSpace2d const &subspace =
-        nodes_to_trick.size() == nodes_to_build.size()
-            ? space
-            : common::BlockedSpace2d{nodes_to_trick.size(),
-                                     [&](std::size_t) { return n_total_bins; }, 1024};
-    common::ParallelFor2d(
-        subspace, ctx->Threads(), [&](std::size_t nidx_in_set, common::Range1d r) {
-          auto subtraction_nidx = nodes_to_trick[nidx_in_set];
-          auto parent_id = p_tree->Parent(subtraction_nidx);
-          auto sibling_nidx = p_tree->IsLeftChild(subtraction_nidx) ? p_tree->RightChild(parent_id)
-                                                                    : p_tree->LeftChild(parent_id);
-          auto sibling_hist = hist[sibling_nidx];
-          auto parent_hist = hist[parent_id];
-          auto subtract_hist = hist[subtraction_nidx];
-          common::SubtractionHist(subtract_hist, parent_hist, sibling_hist, r.begin(), r.end());
-        });
+    SubtractHistParallel(ctx, space, p_tree, nodes_to_build, nodes_to_trick, buffer, p_hist);
   }
 };
 
@@ -310,7 +347,7 @@ class MultiHistogramBuilder {
     CHECK_EQ(p_fmat->Info().num_row_, gpair.Shape(0));
 
     std::visit(
-        [&](auto &target_builders) {
+        [&](auto &&target_builders) {
           CHECK_EQ(target_builders.size(), n_targets);
           std::vector<bst_node_t> nodes{best.nid};
           std::vector<bst_node_t> dummy_sub;
@@ -352,7 +389,7 @@ class MultiHistogramBuilder {
     AssignNodes(p_tree, valid_candidates, nodes_to_build, nodes_to_sub);
 
     std::visit(
-        [&](auto &target_builders) {
+        [&](auto &&target_builders) {
           // Use the first builder for getting the number of valid nodes.
           target_builders.front().AddHistRows(p_tree, &nodes_to_build, &nodes_to_sub, true);
           CHECK_GE(nodes_to_build.size(), nodes_to_sub.size());

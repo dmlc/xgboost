@@ -9,13 +9,13 @@
 #include <cstdint>  // for uint8_t, uint64_t
 #include <sstream>  // for stringstream
 
-#include "xgboost/base.h"         // for bst_bin_t, bst_feature_t
-#include "xgboost/json.h"         // for Json
-#include "xgboost/linalg.h"       // for MakeTensorView
-#include "xgboost/logging.h"      // for CHECK_EQ
-#include "xgboost/span.h"         // for Span
-#include "xgboost/string_view.h"  // for StringView
 #include "../../src/common/json_utils.h"  // for OptionalArg
+#include "xgboost/base.h"                 // for bst_bin_t, bst_feature_t
+#include "xgboost/json.h"                 // for Json
+#include "xgboost/linalg.h"               // for MakeTensorView
+#include "xgboost/logging.h"              // for CHECK_EQ
+#include "xgboost/span.h"                 // for Span
+#include "xgboost/string_view.h"          // for StringView
 
 namespace xgboost::collective {
 void FederatedPluginMock::Reset(common::Span<std::uint32_t const> cutptrs,
@@ -68,7 +68,7 @@ void FederatedPluginMock::Reset(common::Span<std::uint32_t const> cutptrs,
   return {hist_plain_};
 }
 
-template <typename T>  // fixme, duplicated code
+template <typename T>
 auto SafeLoad(federated::FederatedPluginHandle handle, StringView name) {
   std::stringstream errs;
   auto ptr = reinterpret_cast<T>(dlsym(handle, name.c_str()));

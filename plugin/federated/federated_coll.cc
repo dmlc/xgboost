@@ -148,15 +148,7 @@ Coll *FederatedColl::MakeCUDAVar() {
     return GetGRPCResult("AllgatherV", status);
   }
   std::string const &r = reply.receive_buffer();
-  // if (r.size() != recv.size()) {
-  //   std::stringstream ss;
-  //   ss << "[xgboosg]: r:" << r.size() << ", recv:" << recv.size() << std::endl;
-  //   for (auto v : r) {
-  //     ss << int(v) << ", ";
-  //   }
-  //   std::cout << ss.str() << std::endl;
-  // }
-  // CHECK_EQ(r.size(), recv.size());
+  CHECK_EQ(r.size(), recv.size());
   std::copy_n(r.cbegin(), r.size(), recv.begin());
   return Success();
 }

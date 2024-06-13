@@ -30,38 +30,130 @@
 namespace xgboost::collective {
 namespace federated {
 /**
- * @brief Functions for the plugin handle. Plugin can use an opaque handle for defining
- *        private data structures.
+ * @defgroup Functions for the plugin handle.
+ *
+ * Plugin can use an opaque handle for defining private data structures and needed
+ * context.
  */
 typedef void *FederatedPluginHandle;  // NOLINT
-
-using CreateFn = FederatedPluginHandle(int, char const **);
-using CloseFn = int(FederatedPluginHandle);
-using ErrorFn = char const *();
 /**
- * @brief Gradient functions, used to provide encryption for gradients.
+ * @brief Create a handle for the plugin.
+ *
+ * @return Returns nullptr if failed.
+ */
+using CreateFn = FederatedPluginHandle(int, char const **);
+/**
+ * @brief Close the handle after use.
+ *
+ * @return 0 if succees.
+ */
+using CloseFn = int(FederatedPluginHandle);
+/**
+ * @brief Report error, if there's any.
+ */
+using ErrorFn = char const *();
+/**@}*/
+
+/**
+ * @defgroup Gradient functions
+ *
+ * Used to provide encryption for gradients.
+ *
+ * @{
+ */
+/**
+ * @brief Encrypt the gradient on the active party.
+ *
+ * @return 0 if succees.
  */
 using EncryptFn = int(FederatedPluginHandle handle, float const *in_gpair, size_t n_in,
                       uint8_t **out_gpair, size_t *n_out);
+/**
+ * @brief Store the gradient for all parties after broadcast.
+ *
+ * @return 0 if succees.
+ */
 using SyncEncryptFn = int(FederatedPluginHandle handle, uint8_t const *in_gpair, size_t n_bytes,
                           uint8_t **out_gpair, size_t *n_out);
+/**@}*/
+
 /**
- * @brief Vertical federated learning histogram functions.
+ * @defgroup Vertical federated learning histogram functions.
+ */
+/**
+ * @brief Set the context and data for building vertical histogram.
+ *
+ * For now, this assumes relatively dense input and copies the histogram bin index as a
+ * dense matrix. In the future, we can optimize for sparse matrix if the need comes up.
+ *
+ * @param cutptrs CSC pointers of the histogram cut matrix.
+ * @param cutptr_len The number of the CSC pointers (n_features + 1).
+ * @param bin_idx Gradient index of the histogram.
+ * @param n_idx The number of indices. Equals to the size of the dataset, stored in row-major.
+ *
+ * @return 0 if succees.
  */
 using ResetHistCtxVertFn = int(FederatedPluginHandle handle, uint32_t const *cutptrs,
                                size_t cutptr_len, int32_t const *bin_idx, size_t n_idx);
+/**
+ * @brief Build local encrypted histogram for vertical learning.
+ *
+ * @param ridx  Row indices for each tree leaf.
+ * @param sizes The number of rows for each tree leaf.
+ * @param nidx  The node index of each tree leaf.
+ * @param len   The number of leaves.
+ * @param out_hist Output histogram.
+ * @param out_len  The size of the output histogram.
+ *
+ * @return 0 if succees.
+ */
 using BuildHistVertFn = int(FederatedPluginHandle handle, uint64_t const **ridx,
                             size_t const *sizes, int32_t const *nidx, size_t len,
                             uint8_t **out_hist, size_t *out_len);
-using SyncHistVertFn = int(FederatedPluginHandle handle, uint8_t *buf, size_t len, double **out,
-                           size_t *out_len);
 /**
- * @brief Horizontal federated learning histogram functions.
+ * @brief Synchronize the histogram after the allgather call for all parties.
+ *
+ * @param hist Histogram buffer from the allgather call.
+ * @param len  The size of the input histogram buffer.
+ * @param out  Reduced histogram.
+ * @param out_len The size of the reduced histogram.
+ *
+ * @return 0 if succees.
  */
-using BuildHistHoriFn = int(FederatedPluginHandle handle, double const *in_histogram, size_t len,
-                            uint8_t **out_hist, size_t *out_len);
-using SyncHistHoriFn = int(FederatedPluginHandle handle, uint8_t const *buffer, size_t len,
+using SyncHistVertFn = int(FederatedPluginHandle handle, uint8_t *in_hist, size_t len,
                            double **out_hist, size_t *out_len);
+/**@}*/
+
+/**
+ * @defgroup Horizontal federated learning histogram functions.
+ */
+/**
+ * @brief Encrypt the input histogram.
+ *
+ * THe local histogram is built by XGBoost.
+ *
+ * @param in_hist  The input local histogram.
+ * @param len      The size of the input local histogram.
+ * @param out_hist Encrypted histogram.
+ * @param out_len  The size of the encrypted histogram.
+ *
+ * @return 0 if succees.
+ */
+using BuildHistHoriFn = int(FederatedPluginHandle handle, double const *in_hist, size_t len,
+                            uint8_t **out_hist, size_t *out_len);
+/**
+ * @brief Reduce the histogram after the allgather call.
+ *
+ * @param in_hist  Input histogram from the allgather call.
+ * @param len      The length of the input histogram.
+ * @param out_hist Output histogram.
+ * @param out_len  The size of the output histogram.
+ *
+ * @return 0 if succees.
+ */
+using SyncHistHoriFn = int(FederatedPluginHandle handle, uint8_t const *in_hist, size_t len,
+                           double **out_hist, size_t *out_len);
+/**@}*/
 }  // namespace federated
 
 // Base class for federated learning plugin.
