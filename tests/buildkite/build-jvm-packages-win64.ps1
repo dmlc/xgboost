@@ -6,8 +6,7 @@ Write-Host "--- Build and test JVM packages on Windows"
 
 mkdir build
 cd build
-cmake .. -G"Visual Studio 17 2022" -A "x64,version=10.0.17763.0" `
-  -DJVM_BINDINGS=ON
+cmake .. -G"Visual Studio 17 2022" -A x64 -DJVM_BINDINGS=ON
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 cmake --build . --config Release -- /m /nodeReuse:false `
   "/consoleloggerparameters:ShowCommandLine;Verbosity=minimal"
