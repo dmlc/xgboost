@@ -32,5 +32,5 @@ cd ..
 New-Item -ItemType Directory -Path jvm-packages/xgboost4j/src/main/resources/lib/windows/x86_64 -Force
 Copy-Item -Path lib/xgboost4j.dll -Destination jvm-packages/xgboost4j/src/main/resources/lib/windows/x86_64/xgboost4j.dll
 cd jvm-packages
-mvn test -B -pl :xgboost4j_2.12
+& C:\ProgramData\chocolatey\lib\maven\apache-maven-3.9.7\mvn test -B -pl :xgboost4j_2.12
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
