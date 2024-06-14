@@ -43,7 +43,7 @@ jobs:
         mkdir build
         cd build
         cmake .. -G"Visual Studio 17 2022" -A x64 -DJVM_BINDINGS=ON
-        cmake --build . --config Release
+        cmake --build . --config Release -- /m /nodeReuse:false "/consoleloggerparameters:ShowCommandLine;Verbosity=minimal"
       if: matrix.os == 'windows-latest'
 
     - name: Test XGBoost4J (Core)
