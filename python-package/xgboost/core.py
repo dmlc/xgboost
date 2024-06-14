@@ -3145,9 +3145,8 @@ class Booster:
             )
         return nph_stacked
 
-    def __dask_tokenize__(self):
-        # TODO: Implement proper tokenization to avoid
-        # unnecessary re-computation in Dask. However,
-        # default tokenzation causes problems after
+    def __dask_tokenize__(self) -> uuid.UUID:
+        # TODO: Implement proper tokenization to avoid unnecessary re-computation in
+        # Dask. However, default tokenzation causes problems after
         # https://github.com/dask/dask/pull/10883
         return uuid.uuid4()
