@@ -23,9 +23,13 @@ jobs:
       with:
         submodules: 'true'
 
-    - uses: actions/setup-python@v5
+    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
       with:
-        python-version: '3.10'
+        miniforge-variant: Mambaforge
+        miniforge-version: latest
+        activate-environment: jvm_tests
+        environment-file: tests/ci_build/conda_env/jvm_tests.yml
+        use-mamba: true
 
     - name: Cache Maven packages
       uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
@@ -34,10 +38,21 @@ jobs:
         key: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
         restore-keys: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
 
+    - name: Build xgboost4j.dll
+      run: |
+        mkdir build
+        cd build
+        cmake .. -G"Visual Studio 17 2022" -A x64 -DJVM_BINDINGS=ON
+        cmake --build . --config Release
+      if: matrix.os == 'windows-latest'
+
     - name: Test XGBoost4J (Core)
       run: |
+        New-Item -ItemType Directory -Path jvm-packages/xgboost4j/src/main/resources/lib/windows/x86_64 -Force
+        Copy-Item -Path lib/xgboost4j.dll -Destination jvm-packages/xgboost4j/src/main/resources/lib/windows/x86_64/xgboost4j.dll
         cd jvm-packages
-        mvn test -B -pl :xgboost4j_2.12
+        mvn test -B -pl :xgboost4j_2.12 -Dskip.native.build=true
+      if: matrix.os == 'windows-latest'
 
     - name: Test XGBoost4J (Core, Spark, Examples)
       run: |

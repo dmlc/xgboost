@@ -176,15 +176,12 @@ def native_build(args):
 
 
 if __name__ == "__main__":
-    if "MAVEN_SKIP_NATIVE_BUILD" in os.environ:
-        print("MAVEN_SKIP_NATIVE_BUILD is set. Skipping native build...")
-    else:
-        parser = argparse.ArgumentParser()
-        parser.add_argument(
-            "--log-capi-invocation", type=str, choices=["ON", "OFF"], default="OFF"
-        )
-        parser.add_argument(
-            "--use-cuda", type=str, choices=["ON", "OFF"], default="OFF"
-        )
-        cli_args = parser.parse_args()
-        native_build(cli_args)
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--log-capi-invocation", type=str, choices=["ON", "OFF"], default="OFF"
+    )
+    parser.add_argument(
+        "--use-cuda", type=str, choices=["ON", "OFF"], default="OFF"
+    )
+    cli_args = parser.parse_args()
+    native_build(cli_args)
