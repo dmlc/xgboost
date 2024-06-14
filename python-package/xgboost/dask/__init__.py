@@ -1237,6 +1237,8 @@ def _infer_predict_output(
 async def _get_model_future(
     client: "distributed.Client", model: Union[Booster, Dict, "distributed.Future"]
 ) -> "distributed.Future":
+    # See https://github.com/dask/dask/issues/11179#issuecomment-2168094529 for
+    # the use of hash.
     if isinstance(model, Booster):
         booster = await client.scatter(model, broadcast=True, hash=False)
     elif isinstance(model, dict):
