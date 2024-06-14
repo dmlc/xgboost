@@ -85,6 +85,8 @@ def native_build(args):
 
         if sys.platform == "linux":
             maybe_parallel_build = " -- -j $(nproc)"
+        elif sys.platform == "win32":
+            maybe_parallel_build = ' -- /m /nodeReuse:false "/consoleloggerparameters:ShowCommandLine;Verbosity=minimal"'
         else:
             maybe_parallel_build = ""
 
@@ -180,8 +182,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "--log-capi-invocation", type=str, choices=["ON", "OFF"], default="OFF"
     )
-    parser.add_argument(
-        "--use-cuda", type=str, choices=["ON", "OFF"], default="OFF"
-    )
+    parser.add_argument("--use-cuda", type=str, choices=["ON", "OFF"], default="OFF")
     cli_args = parser.parse_args()
     native_build(cli_args)
