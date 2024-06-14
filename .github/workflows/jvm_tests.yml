@@ -23,11 +23,15 @@ jobs:
       with:
         submodules: 'true'
 
+    - uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9  # v4.2.1
+      with:
+        distribution: 'oracle'
+        java-version: '22'
+
     - uses: actions/setup-python@v5
       id: cp310
       with:
         python-version: '3.10'
-        update-environment: false
 
     - name: Cache Maven packages
       uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
