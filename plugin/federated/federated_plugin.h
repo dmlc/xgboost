@@ -39,17 +39,23 @@ typedef void *FederatedPluginHandle;  // NOLINT
 /**
  * @brief Create a handle for the plugin.
  *
+ *  Symbol name: `FederatedPluginCreate`.
+ *
  * @return Returns nullptr if failed.
  */
 using CreateFn = FederatedPluginHandle(int, char const **);
 /**
  * @brief Close the handle after use.
  *
+ *  Symbol name: `FederatedPluginClose`.
+ *
  * @return 0 if succees.
  */
 using CloseFn = int(FederatedPluginHandle);
 /**
  * @brief Report error, if there's any.
+ *
+ *  Symbol name: `FederatedPluginErrorMsg`.
  */
 using ErrorFn = char const *();
 /**@}*/
@@ -64,12 +70,16 @@ using ErrorFn = char const *();
 /**
  * @brief Encrypt the gradient on the active party.
  *
+ *  Symbol name: `FederatedPluginEncryptGPairs`.
+ *
  * @return 0 if succees.
  */
 using EncryptFn = int(FederatedPluginHandle handle, float const *in_gpair, size_t n_in,
                       uint8_t **out_gpair, size_t *n_out);
 /**
  * @brief Store the gradient for all parties after broadcast.
+ *
+ *  Symbol name: `FederatedPluginSyncEncryptedGPairs`.
  *
  * @return 0 if succees.
  */
@@ -86,6 +96,8 @@ using SyncEncryptFn = int(FederatedPluginHandle handle, uint8_t const *in_gpair,
  * For now, this assumes relatively dense input and copies the histogram bin index as a
  * dense matrix. In the future, we can optimize for sparse matrix if the need comes up.
  *
+ *  Symbol name: `FederatedPluginResetHistContextVert`.
+ *
  * @param cutptrs CSC pointers of the histogram cut matrix.
  * @param cutptr_len The number of the CSC pointers (n_features + 1).
  * @param bin_idx Gradient index of the histogram.
@@ -97,6 +109,8 @@ using ResetHistCtxVertFn = int(FederatedPluginHandle handle, uint32_t const *cut
                                size_t cutptr_len, int32_t const *bin_idx, size_t n_idx);
 /**
  * @brief Build local encrypted histogram for vertical learning.
+ *
+ *  Symbol name: `FederatedPluginBuildEncryptedHistVert`.
  *
  * @param ridx  Row indices for each tree leaf.
  * @param sizes The number of rows for each tree leaf.
@@ -113,9 +127,11 @@ using BuildHistVertFn = int(FederatedPluginHandle handle, uint64_t const **ridx,
 /**
  * @brief Synchronize the histogram after the allgather call for all parties.
  *
- * @param hist Histogram buffer from the allgather call.
- * @param len  The size of the input histogram buffer.
- * @param out  Reduced histogram.
+ *  Symbol name: `FederatedPluginSyncEnrcyptedHistVert`.
+ *
+ * @param in_hist Histogram buffer from the allgather call.
+ * @param len     The size of the input histogram buffer.
+ * @param out     Reduced histogram.
  * @param out_len The size of the reduced histogram.
  *
  * @return 0 if succees.
@@ -130,7 +146,9 @@ using SyncHistVertFn = int(FederatedPluginHandle handle, uint8_t *in_hist, size_
 /**
  * @brief Encrypt the input histogram.
  *
- * THe local histogram is built by XGBoost.
+ * The local histogram is built by XGBoost.
+ *
+ *  Symbol name `FederatedPluginBuildEncryptedHistHori`.
  *
  * @param in_hist  The input local histogram.
  * @param len      The size of the input local histogram.
@@ -143,6 +161,8 @@ using BuildHistHoriFn = int(FederatedPluginHandle handle, double const *in_hist,
                             uint8_t **out_hist, size_t *out_len);
 /**
  * @brief Reduce the histogram after the allgather call.
+ *
+ *  Symbol name: `FederatedPluginSyncEnrcyptedHistHori`.
  *
  * @param in_hist  Input histogram from the allgather call.
  * @param len      The length of the input histogram.
@@ -261,7 +281,7 @@ class FederatedPlugin : public FederatedPluginBase {
   // Object handle of the plugin.
   std::unique_ptr<void, std::function<void(void *)>> plugin_handle_;
 
-  void CheckRC(std::int32_t rc, std::string_view msg) {
+  void CheckRC(std::int32_t rc, StringView msg) const {
     if (rc != 0) {
       auto err_msg = ErrorMsg_();
       LOG(FATAL) << msg << ":" << err_msg;

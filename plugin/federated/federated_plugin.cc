@@ -9,7 +9,6 @@
 #include <cstdint>  // for uint8_t, uint64_t
 #include <sstream>  // for stringstream
 
-#include "../../src/collective/communicator-inl.h"
 #include "../../src/common/json_utils.h"  // for OptionalArg
 #include "../../src/common/type.h"        // for RestoreType
 #include "xgboost/base.h"                 // for bst_bin_t, bst_feature_t
@@ -52,6 +51,7 @@ void FederatedPluginMock::Reset(common::Span<std::uint32_t const> cutptrs,
     auto n_samples_in_node = sizes[i];
     auto samples = common::Span{rowptrs[i], n_samples_in_node};
     auto hist = hist_buffer.subspan(i * hist_size, hist_size);
+    // We should port this to a better implementation that uses parallel build.
     for (auto ridx : samples) {
       for (bst_feature_t f = 0; f < n_features; ++f) {
         auto bin = gidx(ridx, f);

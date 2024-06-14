@@ -794,8 +794,6 @@ class ColumnSplitTrainingTest
     if (federated) {
       GTEST_SKIP();
     }
-    std::cout << "tree_method:" << tree_method << " gpu:" << use_gpu << " federated:" << federated
-              << std::endl;
     Args args{
         {"colsample_bytree", "0.5"}, {"colsample_bylevel", "0.6"}, {"colsample_bynode", "0.7"}};
     TestColumnSplitWithArgs(tree_method, use_gpu, args, federated);
