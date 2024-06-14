@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2021-2022 by Contributors
+ Copyright (c) 2021-2024 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -14,24 +14,15 @@
  limitations under the License.
  */
 
-package ml.dmlc.xgboost4j.gpu.java;
+package ml.dmlc.xgboost4j.java;
+
+import ai.rapids.cudf.Table;
+import junit.framework.TestCase;
+import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
-
-import junit.framework.TestCase;
-
-import com.google.common.primitives.Floats;
-
-import org.apache.commons.lang3.ArrayUtils;
-import org.junit.Test;
-
-import ai.rapids.cudf.Table;
-import ml.dmlc.xgboost4j.java.DMatrix;
-import ml.dmlc.xgboost4j.java.QuantileDMatrix;
-import ml.dmlc.xgboost4j.java.ColumnBatch;
-import ml.dmlc.xgboost4j.java.XGBoostError;
 
 import static org.junit.Assert.assertArrayEquals;
 
@@ -119,9 +110,9 @@ public class DMatrixTest {
 
       DMatrix dmat = new QuantileDMatrix(tables.iterator(), 0.0f, 8, 1);
 
-      float[] anchorLabel = convertFloatTofloat((Float[]) ArrayUtils.addAll(label1, label2));
-      float[] anchorWeight = convertFloatTofloat((Float[]) ArrayUtils.addAll(weight1, weight2));
-      float[] anchorBaseMargin = convertFloatTofloat((Float[]) ArrayUtils.addAll(baseMargin1, baseMargin2));
+      float[] anchorLabel = convertFloatTofloat(label1, label2);
+      float[] anchorWeight = convertFloatTofloat(weight1, weight2);
+      float[] anchorBaseMargin = convertFloatTofloat(baseMargin1, baseMargin2);
 
       TestCase.assertTrue(Arrays.equals(anchorLabel, dmat.getLabel()));
       TestCase.assertTrue(Arrays.equals(anchorWeight, dmat.getWeight()));
@@ -129,7 +120,19 @@ public class DMatrixTest {
     }
   }
 
-  private float[] convertFloatTofloat(Float[] in) {
-    return Floats.toArray(Arrays.asList(in));
+  private float[] convertFloatTofloat(Float[]... datas) {
+    int totalLength = 0;
+    for (Float[] data : datas) {
+      totalLength += data.length;
+    }
+    float[] floatArray = new float[totalLength];
+    int index = 0;
+    for (Float[] data : datas) {
+      for (int i = 0; i < data.length; i++) {
+        floatArray[i + index] = data[i];
+      }
+      index += data.length;
+    }
+    return floatArray;
   }
 }

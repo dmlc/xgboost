@@ -72,9 +72,6 @@
       <url>https://repo1.maven.org/maven2</url>
     </repository>
   </repositories>
-  <modules>
-    <module>aggregator</module>
-  </modules>
 
   <profiles>
     <profile>
@@ -88,24 +85,21 @@
         <module>xgboost4j-example</module>
         <module>xgboost4j-spark</module>
         <module>xgboost4j-flink</module>
+        <module>aggregator</module>
       </modules>
     </profile>
 
     <!-- gpu profile with both cpu and gpu test suites -->
     <profile>
       <id>gpu</id>
-      <activation>
-        <property>
-          <name>use.cuda</name>
-          <value>ON</value>
-        </property>
-      </activation>
       <properties>
         <use.cuda>ON</use.cuda>
       </properties>
       <modules>
+        <module>xgboost4j</module>
         <module>xgboost4j-gpu</module>
-        <module>xgboost4j-spark-gpu</module>
+<!--        <module>xgboost4j-spark</module>-->
+<!--        <module>xgboost4j-spark-gpu</module>-->
       </modules>
     </profile>
 

@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2021 by Contributors
+ Copyright (c) 2021-2024 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -20,7 +20,8 @@ import scala.collection.mutable.ArrayBuffer
 
 import ai.rapids.cudf.Table
 import org.scalatest.funsuite.AnyFunSuite
-import ml.dmlc.xgboost4j.gpu.java.CudfColumnBatch
+
+import ml.dmlc.xgboost4j.java.CudfColumnBatch
 
 class QuantileDMatrixSuite extends AnyFunSuite {
 

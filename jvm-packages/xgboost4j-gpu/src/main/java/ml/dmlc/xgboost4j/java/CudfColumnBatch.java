@@ -14,13 +14,11 @@
  limitations under the License.
  */
 
-package ml.dmlc.xgboost4j.gpu.java;
+package ml.dmlc.xgboost4j.java;
 
 import java.util.stream.IntStream;
 
 import ai.rapids.cudf.Table;
-
-import ml.dmlc.xgboost4j.java.ColumnBatch;
 
 /**
  * Class to wrap CUDF Table to generate the cuda array interface.
