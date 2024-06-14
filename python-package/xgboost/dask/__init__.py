@@ -1238,9 +1238,9 @@ async def _get_model_future(
     client: "distributed.Client", model: Union[Booster, Dict, "distributed.Future"]
 ) -> "distributed.Future":
     if isinstance(model, Booster):
-        booster = await client.scatter(model, broadcast=True)
+        booster = await client.scatter(model, broadcast=True, hash=False)
     elif isinstance(model, dict):
-        booster = await client.scatter(model["booster"], broadcast=True)
+        booster = await client.scatter(model["booster"], broadcast=True, hash=False)
     elif isinstance(model, distributed.Future):
         booster = model
         t = booster.type
