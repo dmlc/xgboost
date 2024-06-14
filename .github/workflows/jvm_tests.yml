@@ -25,13 +25,16 @@ jobs:
 
     - uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9  # v4.2.1
       with:
-        distribution: 'oracle'
-        java-version: '22'
+        distribution: 'temurin'
+        java-version: '8'
 
-    - uses: actions/setup-python@v5
-      id: cp310
+    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
       with:
-        python-version: '3.10'
+        miniforge-variant: Mambaforge
+        miniforge-version: latest
+        activate-environment: jvm_tests
+        environment-file: tests/ci_build/conda_env/jvm_tests.yml
+        use-mamba: true
 
     - name: Cache Maven packages
       uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
@@ -40,18 +43,10 @@ jobs:
         key: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
         restore-keys: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
 
-    - name: Build xgboost4j.dll
-      run: |
-        cd jvm-packages/
-        ${{ steps.cp310.outputs.python-path }} create_jni.py
-      if: matrix.os == 'windows-latest'
-
     - name: Test XGBoost4J (Core)
       run: |
-        New-Item -ItemType Directory -Path jvm-packages/xgboost4j/src/main/resources/lib/windows/x86_64 -Force
-        Copy-Item -Path lib/xgboost4j.dll -Destination jvm-packages/xgboost4j/src/main/resources/lib/windows/x86_64/xgboost4j.dll
         cd jvm-packages
-        mvn test -B -D"skip.native.build=true" -pl :xgboost4j_2.12
+        mvn test -B -pl :xgboost4j_2.12
       if: matrix.os == 'windows-latest'
 
     - name: Test XGBoost4J (Core, Spark, Examples)
@@ -67,6 +62,7 @@ jobs:
         echo "branch=${GITHUB_REF#refs/heads/}" >> "$GITHUB_OUTPUT"
       id: extract_branch
       if: |
+        (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
         (matrix.os == 'windows-latest' || matrix.os == 'macos-13')
 
     - name: Publish artifact xgboost4j.dll to S3
@@ -76,6 +72,7 @@ jobs:
         dir
         python -m awscli s3 cp xgboost4j_${{ github.sha }}.dll s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/libxgboost4j/ --acl public-read --region us-west-2
       if: |
+        (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
         matrix.os == 'windows-latest'
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
@@ -94,13 +91,6 @@ jobs:
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
-
-    - name: Test XGBoost4J (Core, Spark, Examples)
-      run: |
-        rm -rfv build/
-        cd jvm-packages
-        mvn -B test
-      if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
 
     - name: Build and Test XGBoost4J with scala 2.13
       run: |

@@ -30,11 +30,6 @@ if(LOG_CAPI_INVOCATION)
   target_compile_definitions(objxgboost PRIVATE -DLOG_CAPI_INVOCATION=1)
 endif()
 
-# For MSVC: Call msvc_use_static_runtime() once again to completely
-# replace /MD with /MT. See https://github.com/dmlc/xgboost/issues/4462
-# for issues caused by mixing of /MD and /MT flags
-msvc_use_static_runtime()
-
 # This grouping organises source files nicely in visual studio
 auto_source_group("${CUDA_SOURCES}")
 auto_source_group("${CPU_SOURCES}")
