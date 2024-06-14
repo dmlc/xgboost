@@ -63,6 +63,18 @@ jobs:
       if: |
         (matrix.os == 'windows-latest' || matrix.os == 'macos-13')
 
+    - name: Publish artifact xgboost4j.dll to S3
+      run: |
+        cd lib/
+        Rename-Item -Path xgboost4j.dll -NewName xgboost4j_${{ github.sha }}.dll
+        dir
+        python -m awscli s3 cp xgboost4j_${{ github.sha }}.dll s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/libxgboost4j/ --acl public-read --region us-west-2
+      if: |
+        matrix.os == 'windows-latest'
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
+
     - name: Publish artifact libxgboost4j.dylib to S3
       shell: bash -l {0}
       run: |
@@ -76,6 +88,13 @@ jobs:
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
+
+    - name: Test XGBoost4J (Core, Spark, Examples)
+      run: |
+        rm -rfv build/
+        cd jvm-packages
+        mvn -B test
+      if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
 
     - name: Build and Test XGBoost4J with scala 2.13
       run: |
