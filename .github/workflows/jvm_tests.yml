@@ -24,8 +24,10 @@ jobs:
         submodules: 'true'
 
     - uses: actions/setup-python@v5
+      id: cp310
       with:
         python-version: '3.10'
+        update-environment: false
 
     - name: Cache Maven packages
       uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
@@ -37,7 +39,7 @@ jobs:
     - name: Build xgboost4j.dll
       run: |
         cd jvm-packages/
-        python create_jni.py
+        ${{ steps.cp310.outputs.python-path }} create_jni.py
       if: matrix.os == 'windows-latest'
 
     - name: Test XGBoost4J (Core)
