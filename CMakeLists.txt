@@ -265,11 +265,18 @@ if(USE_NCCL)
   find_package(Nccl REQUIRED)
 endif()
 
-# dmlc-core
-msvc_use_static_runtime()
-if(FORCE_SHARED_CRT)
-  set(DMLC_FORCE_SHARED_CRT ON)
+if(MSVC)
+  if(FORCE_SHARED_CRT)
+    message(STATUS "XGBoost: Using dynamically linked MSVC runtime...")
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+  else()
+    message(STATUS "XGBoost: Using statically linked MSVC runtime...")
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+  endif()
 endif()
+
+# dmlc-core
+set(DMLC_FORCE_SHARED_CRT ${FORCE_SHARED_CRT})
 add_subdirectory(${xgboost_SOURCE_DIR}/dmlc-core)
 
 if(MSVC)
@@ -488,11 +495,6 @@ if(GOOGLE_TEST)
       PASS_REGULAR_EXPRESSION ".*test-rmse:0.087.*")
   endif()
 endif()
-
-# For MSVC: Call msvc_use_static_runtime() once again to completely
-# replace /MD with /MT. See https://github.com/dmlc/xgboost/issues/4462
-# for issues caused by mixing of /MD and /MT flags
-msvc_use_static_runtime()
 
 # Add xgboost.pc
 if(ADD_PKGCONFIG)
