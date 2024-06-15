@@ -47,7 +47,6 @@ jobs:
       run: |
         cd jvm-packages
         mvn test -B -pl :xgboost4j_2.12
-      if: matrix.os == 'windows-latest'
 
     - name: Test XGBoost4J (Core, Spark, Examples)
       run: |
