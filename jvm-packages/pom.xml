@@ -49,6 +49,7 @@
         <cudf.classifier>cuda12</cudf.classifier>
         <scalatest.version>3.2.18</scalatest.version>
         <scala-collection-compat.version>2.12.0</scala-collection-compat.version>
+        <skip.native.build>false</skip.native.build>
 
         <!-- SPARK-36796 for JDK-17 test-->
         <extraJavaTestArgs>

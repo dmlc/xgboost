@@ -36,7 +36,12 @@ phases:
 
               # Install Java 11
               Write-Host '>>> Installing Java 11...'
-              choco install openjdk11jre
+              choco install openjdk11
+              if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
+
+              # Install Maven
+              Write-Host '>>> Installing Maven...'
+              choco install maven
               if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
               # Install GraphViz
