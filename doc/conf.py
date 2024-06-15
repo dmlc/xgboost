@@ -21,8 +21,6 @@ import urllib.request
 import warnings
 from urllib.error import HTTPError
 
-from sh.contrib import git
-
 CURR_PATH = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
 PROJECT_ROOT = os.path.normpath(os.path.join(CURR_PATH, os.path.pardir))
 TMP_DIR = os.path.join(CURR_PATH, "tmp")
@@ -61,6 +59,49 @@ def run_doxygen():
         os.chdir(curdir)
 
 
+def build_jvm_docs():
+    """Build docs for the JVM packages"""
+    git_branch = os.getenv("READTHEDOCS_VERSION_NAME", default=None)
+    print(f"READTHEDOCS_VERSION_NAME = {git_branch}")
+
+    if not git_branch:
+        git_branch = "master"
+    elif git_branch == "latest":
+        git_branch = "master"
+    elif git_branch == "stable":
+        git_branch = f"release_{version}"
+    print(f"git_branch = {git_branch}")
+
+    def try_fetch_jvm_doc(branch):
+        """
+        Attempt to fetch JVM docs for a given branch.
+        Returns True if successful
+        """
+        try:
+            url = f"https://s3-us-west-2.amazonaws.com/xgboost-docs/{branch}.tar.bz2"
+            filename, _ = urllib.request.urlretrieve(url)
+            if not os.path.exists(TMP_DIR):
+                print(f"Create directory {TMP_DIR}")
+                os.mkdir(TMP_DIR)
+            jvm_doc_dir = os.path.join(TMP_DIR, "jvm_docs")
+            if os.path.exists(jvm_doc_dir):
+                print(f"Delete directory {jvm_doc_dir}")
+                shutil.rmtree(jvm_doc_dir)
+            print(f"Create directory {jvm_doc_dir}")
+            os.mkdir(jvm_doc_dir)
+
+            with tarfile.open(filename, "r:bz2") as t:
+                t.extractall(jvm_doc_dir)
+            return True
+        except HTTPError:
+            print(f"JVM doc not found at {url}. Skipping...")
+            return False
+
+    if not try_fetch_jvm_doc(git_branch):
+        print(f"Falling back to the master branch...")
+        try_fetch_jvm_doc("master")
+
+
 def is_readthedocs_build():
     if os.environ.get("READTHEDOCS", None) == "True":
         return True
@@ -75,39 +116,8 @@ def is_readthedocs_build():
 
 if is_readthedocs_build():
     run_doxygen()
+    build_jvm_docs()
 
-
-git_branch = os.getenv("SPHINX_GIT_BRANCH", default=None)
-if not git_branch:
-    # If SPHINX_GIT_BRANCH environment variable is not given, run git
-    # to determine branch name
-    git_branch = [
-        re.sub(r"origin/", "", x.lstrip(" "))
-        for x in str(git.branch("-r", "--contains", "HEAD")).rstrip("\n").split("\n")
-    ]
-    git_branch = [x for x in git_branch if "HEAD" not in x]
-else:
-    git_branch = [git_branch]
-print("git_branch = {}".format(git_branch[0]))
-
-try:
-    filename, _ = urllib.request.urlretrieve(
-        f"https://s3-us-west-2.amazonaws.com/xgboost-docs/{git_branch[0]}.tar.bz2"
-    )
-    if not os.path.exists(TMP_DIR):
-        print(f"Create directory {TMP_DIR}")
-        os.mkdir(TMP_DIR)
-    jvm_doc_dir = os.path.join(TMP_DIR, "jvm")
-    if os.path.exists(jvm_doc_dir):
-        print(f"Delete directory {jvm_doc_dir}")
-        shutil.rmtree(jvm_doc_dir)
-    print(f"Create directory {jvm_doc_dir}")
-    os.mkdir(jvm_doc_dir)
-
-    with tarfile.open(filename, "r:bz2") as t:
-        t.extractall(jvm_doc_dir)
-except HTTPError:
-    print("JVM doc not found. Skipping...")
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -152,7 +162,7 @@ sphinx_gallery_conf = {
         "../demo/dask",
         "../demo/aft_survival",
         "../demo/gpu_acceleration",
-        "../demo/rmm_plugin"
+        "../demo/rmm_plugin",
     ],
     # path to where to save gallery generated output
     "gallery_dirs": [
@@ -250,7 +260,7 @@ html_theme = "sphinx_rtd_theme"
 html_theme_options = {"logo_only": True}
 
 
-html_logo = "https://xgboost.ai/images/logo/xgboost-logo-ng.png"
+html_logo = "https://xgboost.ai/images/logo/xgboost-logo.png"
 
 html_css_files = ["css/custom.css"]
 

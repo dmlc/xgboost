@@ -35,7 +35,7 @@ RUN \
 
 run \
     # Python
-    wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/22.11.1-2/Mambaforge-22.11.1-2-Linux-x86_64.sh && \
+    wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/24.3.0-0/Miniforge3-24.3.0-0-Linux-x86_64.sh && \
     bash conda.sh -b -p /opt/mambaforge && \
     /opt/mambaforge/bin/python -m pip install auditwheel awscli && \
     # CMake

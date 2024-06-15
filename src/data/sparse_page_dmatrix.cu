@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2023 by XGBoost contributors
+ * Copyright 2021-2024, XGBoost contributors
  */
 #include <memory>  // for unique_ptr
 
@@ -21,8 +21,8 @@ BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(Context const* ctx,
   detail::CheckEmpty(batch_param_, param);
   auto id = MakeCache(this, ".ellpack.page", cache_prefix_, &cache_info_);
   size_t row_stride = 0;
-  this->InitializeSparsePage(ctx);
   if (!cache_info_.at(id)->written || detail::RegenGHist(batch_param_, param)) {
+    this->InitializeSparsePage(ctx);
     // reinitialize the cache
     cache_info_.erase(id);
     MakeCache(this, ".ellpack.page", cache_prefix_, &cache_info_);
@@ -52,7 +52,6 @@ BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(Context const* ctx,
     ellpack_page_source_->Reset();
   }
 
-  auto begin_iter = BatchIterator<EllpackPage>(ellpack_page_source_);
-  return BatchSet<EllpackPage>(BatchIterator<EllpackPage>(begin_iter));
+  return BatchSet{BatchIterator<EllpackPage>{this->ellpack_page_source_}};
 }
 }  // namespace xgboost::data

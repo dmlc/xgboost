@@ -53,8 +53,8 @@ void FederatedComm::Init(std::string const& host, std::int32_t port, std::int32_
       args.SetMaxReceiveMessageSize(std::numeric_limits<std::int32_t>::max());
       auto channel = grpc::CreateCustomChannel(host + ":" + std::to_string(port),
                                                grpc::SslCredentials(options), args);
-      channel->WaitForConnected(
-          gpr_time_add(gpr_now(GPR_CLOCK_REALTIME), gpr_time_from_seconds(60, GPR_TIMESPAN)));
+      channel->WaitForConnected(gpr_time_add(
+          gpr_now(GPR_CLOCK_REALTIME), gpr_time_from_seconds(DefaultTimeoutSec(), GPR_TIMESPAN)));
       return federated::Federated::NewStub(channel);
     }();
   }
@@ -90,8 +90,6 @@ FederatedComm::FederatedComm(std::int32_t retry, std::chrono::seconds timeout, s
   auto parsed = common::Split(server_address, ':');
   CHECK_EQ(parsed.size(), 2) << "Invalid server address:" << server_address;
 
-  CHECK_NE(rank, -1) << "Parameter `federated_rank` is required";
-  CHECK_NE(world_size, 0) << "Parameter `federated_world_size` is required.";
   CHECK(!server_address.empty()) << "Parameter `federated_server_address` is required.";
 
   /**

@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2023, XGBoost contributors
+ * Copyright 2021-2024, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>  // for Context
@@ -8,10 +8,10 @@
 #include <memory>   // for unique_ptr
 
 #include "../../../src/common/column_matrix.h"
-#include "../../../src/common/io.h"            // for MmapResource, AlignedResourceReadStream...
-#include "../../../src/data/gradient_index.h"  // for GHistIndexMatrix
-#include "../../../src/data/sparse_page_source.h"
-#include "../helpers.h"  // for RandomDataGenerator
+#include "../../../src/common/io.h"                // for MmapResource, AlignedResourceReadStream...
+#include "../../../src/data/gradient_index.h"      // for GHistIndexMatrix
+#include "../../../src/data/sparse_page_writer.h"  // for CreatePageFormat
+#include "../helpers.h"                            // for RandomDataGenerator
 
 namespace xgboost::data {
 TEST(GHistIndexPageRawFormat, IO) {

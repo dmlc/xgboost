@@ -59,7 +59,7 @@ def test_nested_config() -> None:
     assert verbosity == 1
 
 
-def test_thread_safty():
+def test_thread_safety():
     n_threads = multiprocessing.cpu_count()
     futures = []
     with ThreadPoolExecutor(max_workers=n_threads) as executor:

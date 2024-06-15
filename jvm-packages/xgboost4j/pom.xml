@@ -6,11 +6,11 @@
     <parent>
         <groupId>ml.dmlc</groupId>
         <artifactId>xgboost-jvm_2.12</artifactId>
-        <version>2.1.0-SNAPSHOT</version>
+        <version>2.2.0-SNAPSHOT</version>
     </parent>
     <name>xgboost4j</name>
     <artifactId>xgboost4j_2.12</artifactId>
-    <version>2.1.0-SNAPSHOT</version>
+    <version>2.2.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <dependencies>
@@ -66,7 +66,7 @@
           <plugin>
               <groupId>org.apache.maven.plugins</groupId>
               <artifactId>maven-javadoc-plugin</artifactId>
-              <version>3.6.3</version>
+              <version>3.7.0</version>
               <configuration>
                   <show>protected</show>
                   <nohelp>true</nohelp>
@@ -98,6 +98,7 @@
                             <argument>${log.capi.invocation}</argument>
                           </arguments>
                           <workingDirectory>${user.dir}</workingDirectory>
+                          <skip>${skip.native.build}</skip>
                       </configuration>
                   </execution>
               </executions>
