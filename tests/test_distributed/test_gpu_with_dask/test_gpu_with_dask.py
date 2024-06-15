@@ -248,10 +248,10 @@ class TestDistributedGPU:
         import dask_cudf
 
         X, y = make_categorical(local_cuda_client, 10000, 30, 13)
-        X = dask_cudf.from_dask_dataframe(X)
+        X = X.to_backend("cudf")
 
         X_onehot, _ = make_categorical(local_cuda_client, 10000, 30, 13, True)
-        X_onehot = dask_cudf.from_dask_dataframe(X_onehot)
+        X_onehot = X_onehot.to_backend("cudf")
         run_categorical(local_cuda_client, "hist", "cuda", X, X_onehot, y)
 
     @given(
@@ -383,9 +383,9 @@ class TestDistributedGPU:
 
         X_, y_, w_ = generate_array(with_weights=True)
         y_ = (y_ * 10).astype(np.int32)
-        X = dask_cudf.from_dask_dataframe(dd.from_dask_array(X_))
-        y = dask_cudf.from_dask_dataframe(dd.from_dask_array(y_))
-        w = dask_cudf.from_dask_dataframe(dd.from_dask_array(w_))
+        X = dd.from_dask_array(X_).to_backend("cudf")
+        y = dd.from_dask_array(y_).to_backend("cudf")
+        w = dd.from_dask_array(w_).to_backend("cudf")
         run_dask_classifier(X, y, w, model, "hist", "cuda", local_cuda_client, 10)
 
     def test_empty_dmatrix(self, local_cuda_client: Client) -> None:
