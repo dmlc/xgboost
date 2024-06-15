@@ -51,7 +51,7 @@ def maybe_makedirs(path):
 
 def run(command, **kwargs):
     print(command)
-    subprocess.check_call(command, shell=True, **kwargs)
+    subprocess.run(command, shell=True, check=True, env=os.environ, **kwargs)
 
 
 def cp(source, target):
@@ -85,6 +85,8 @@ def native_build(args):
 
         if sys.platform == "linux":
             maybe_parallel_build = " -- -j $(nproc)"
+        elif sys.platform == "win32":
+            maybe_parallel_build = ' -- /m /nodeReuse:false "/consoleloggerparameters:ShowCommandLine;Verbosity=minimal"'
         else:
             maybe_parallel_build = ""
 
@@ -176,15 +178,10 @@ def native_build(args):
 
 
 if __name__ == "__main__":
-    if "MAVEN_SKIP_NATIVE_BUILD" in os.environ:
-        print("MAVEN_SKIP_NATIVE_BUILD is set. Skipping native build...")
-    else:
-        parser = argparse.ArgumentParser()
-        parser.add_argument(
-            "--log-capi-invocation", type=str, choices=["ON", "OFF"], default="OFF"
-        )
-        parser.add_argument(
-            "--use-cuda", type=str, choices=["ON", "OFF"], default="OFF"
-        )
-        cli_args = parser.parse_args()
-        native_build(cli_args)
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--log-capi-invocation", type=str, choices=["ON", "OFF"], default="OFF"
+    )
+    parser.add_argument("--use-cuda", type=str, choices=["ON", "OFF"], default="OFF")
+    cli_args = parser.parse_args()
+    native_build(cli_args)
