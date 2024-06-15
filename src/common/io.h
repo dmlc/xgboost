@@ -48,11 +48,12 @@ struct MemoryFixSizeBuffer : public dmlc::SeekStream {
     curr_ptr_ += nread;
     return nread;
   }
-  void Write(const void *ptr, std::size_t size) override {
-    if (size == 0) return;
+  std::size_t Write(const void *ptr, std::size_t size) override {
+    if (size == 0) return 0;
     CHECK_LE(curr_ptr_ + size, buffer_size_);
     std::memcpy(p_buffer_ + curr_ptr_, ptr, size);
     curr_ptr_ += size;
+    return size;
   }
   void Seek(std::size_t pos) override {
     if (pos == kSeekEnd) {
@@ -91,13 +92,14 @@ struct MemoryBufferStream : public dmlc::SeekStream {
     curr_ptr_ += nread;
     return nread;
   }
-  void Write(const void *ptr, size_t size) override {
-    if (size == 0) return;
+  std::size_t Write(const void *ptr, size_t size) override {
+    if (size == 0) return 0;
     if (curr_ptr_ + size > p_buffer_->length()) {
       p_buffer_->resize(curr_ptr_+size);
     }
     std::memcpy(&(*p_buffer_)[0] + curr_ptr_, ptr, size);
     curr_ptr_ += size;
+    return size;
   }
   void Seek(size_t pos) override {
     curr_ptr_ = static_cast<size_t>(pos);
@@ -127,8 +129,9 @@ class PeekableInStream : public dmlc::Stream {
   size_t Read(void* dptr, size_t size) override;
   virtual size_t PeekRead(void* dptr, size_t size);
 
-  void Write(const void*, size_t) override {
+  std::size_t Write(const void*, size_t) override {
     LOG(FATAL) << "Not implemented";
+    return 0;
   }
 
  private:
@@ -155,8 +158,9 @@ class FixedSizeStream : public PeekableInStream {
   [[nodiscard]] std::size_t Tell() const { return pointer_; }
   void Seek(size_t pos);
 
-  void Write(const void*, size_t) override {
+  std::size_t Write(const void*, size_t) override {
     LOG(FATAL) << "Not implemented";
+    return 0;
   }
 
   /*!
