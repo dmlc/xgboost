@@ -7,6 +7,7 @@ import json
 import os
 import re
 import sys
+import uuid
 import warnings
 import weakref
 from abc import ABC, abstractmethod
@@ -1486,7 +1487,7 @@ class QuantileDMatrix(DMatrix):
     by avoiding intermediate storage. Set ``max_bin`` to control the number of bins
     during quantisation, which should be consistent with the training parameter
     ``max_bin``. When ``QuantileDMatrix`` is used for validation/test dataset, ``ref``
-    should be another ``QuantileDMatrix``(or ``DMatrix``, but not recommended as it
+    should be another ``QuantileDMatrix`` or ``DMatrix``, but not recommended as it
     defeats the purpose of saving memory) constructed from training dataset.  See
     :py:obj:`xgboost.DMatrix` for documents on meta info.
 
@@ -3143,3 +3144,9 @@ class Booster:
                 UserWarning,
             )
         return nph_stacked
+
+    def __dask_tokenize__(self) -> uuid.UUID:
+        # TODO: Implement proper tokenization to avoid unnecessary re-computation in
+        # Dask. However, default tokenzation causes problems after
+        # https://github.com/dask/dask/pull/10883
+        return uuid.uuid4()
