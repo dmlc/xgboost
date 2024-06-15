@@ -69,7 +69,7 @@ class MyLogistic : public ObjFunction {
 
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
-    out["name"] = String("my_logistic");
+    out["name"] = String("mylogistic");
     out["my_logistic_param"] = ToJson(param_);
   }
 
