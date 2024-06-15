@@ -23,6 +23,11 @@ jobs:
       with:
         submodules: 'true'
 
+    - uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9  # v4.2.1
+      with:
+        distribution: 'temurin'
+        java-version: '8'
+
     - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
       with:
         miniforge-variant: Mambaforge
@@ -38,18 +43,17 @@ jobs:
         key: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
         restore-keys: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
 
-    - name: Build xgboost4j.dll
-      run: |
-        mkdir build
-        cd build
-        cmake .. -G"Visual Studio 17 2022" -A x64 -DJVM_BINDINGS=ON
-        cmake --build . --config Release
-      if: matrix.os == 'windows-latest'
-
     - name: Test XGBoost4J (Core)
       run: |
         cd jvm-packages
         mvn test -B -pl :xgboost4j_2.12
+
+    - name: Test XGBoost4J (Core, Spark, Examples)
+      run: |
+        rm -rfv build/
+        cd jvm-packages
+        mvn -B test
+      if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
 
     - name: Extract branch name
       shell: bash
@@ -87,22 +91,9 @@ jobs:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
 
-
-    - name: Test XGBoost4J (Core, Spark, Examples)
-      run: |
-        rm -rfv build/
-        cd jvm-packages
-        mvn -B test
-      if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
-      env:
-        RABIT_MOCK: ON
-
-
     - name: Build and Test XGBoost4J with scala 2.13
       run: |
         rm -rfv build/
         cd jvm-packages
         mvn -B clean install test -Pdefault,scala-2.13
       if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
-      env:
-        RABIT_MOCK: ON

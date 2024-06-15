@@ -28,7 +28,7 @@ RUN \
     mamba create -y -n gpu_test -c rapidsai-nightly -c conda-forge -c nvidia \
         python=3.10 "cudf=$RAPIDS_VERSION_ARG.*" "rmm=$RAPIDS_VERSION_ARG.*" cudatoolkit=$CUDA_VERSION_ARG \
         "nccl>=${NCCL_SHORT_VER}" \
-        dask=2024.1.1 \
+        dask \
         "dask-cuda=$RAPIDS_VERSION_ARG.*" "dask-cudf=$RAPIDS_VERSION_ARG.*" cupy \
         numpy pytest pytest-timeout scipy scikit-learn pandas matplotlib wheel python-kubernetes urllib3 graphviz hypothesis \
         "pyspark>=3.4.0" cloudpickle cuda-python && \
