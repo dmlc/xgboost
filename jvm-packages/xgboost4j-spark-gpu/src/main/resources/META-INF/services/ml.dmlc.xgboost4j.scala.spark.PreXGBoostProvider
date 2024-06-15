@@ -1,1 +1,1 @@
-ml.dmlc.xgboost4j.scala.rapids.spark.GpuPreXGBoost
+ml.dmlc.xgboost4j.scala.GpuPreXGBoost

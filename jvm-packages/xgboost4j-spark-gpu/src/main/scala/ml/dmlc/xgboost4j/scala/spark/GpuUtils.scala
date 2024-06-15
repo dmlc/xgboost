@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2021 by Contributors
+ Copyright (c) 2021-2024 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -14,15 +14,13 @@
  limitations under the License.
  */
 
-package ml.dmlc.xgboost4j.scala.rapids.spark
+package ml.dmlc.xgboost4j.scala.spark
 
 import ai.rapids.cudf.Table
 import com.nvidia.spark.rapids.{ColumnarRdd, GpuColumnVectorUtils}
-import ml.dmlc.xgboost4j.scala.spark.util.Utils
-
+import org.apache.spark.ml.param.{Param, Params}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, Dataset}
-import org.apache.spark.ml.param.{Param, Params}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.{DataType, FloatType, NumericType, StructType}
 import org.apache.spark.sql.vectorized.ColumnVector
