@@ -728,7 +728,7 @@ class RMMAllocator {
     for (int i = 0; i < n_gpu; ++i) {
       CHECK_EQ(cudaSetDevice(i), cudaSuccess);
       cuda_mr.push_back(std::make_unique<CUDAMemoryResource>());
-      pool_mr.push_back(std::make_unique<PoolMemoryResource>(cuda_mr[i].get()));
+      pool_mr.push_back(std::make_unique<PoolMemoryResource>(cuda_mr[i].get(), 0ul));
     }
     CHECK_EQ(cudaSetDevice(current_device), cudaSuccess);
   }

@@ -12,7 +12,7 @@ RUN \
     apt-get update && \
     apt-get install -y tar unzip wget git build-essential doxygen graphviz llvm libidn12 cmake ninja-build gcc-9 g++-9 openjdk-8-jdk-headless && \
     # Python
-    wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/22.11.1-2/Mambaforge-22.11.1-2-Linux-x86_64.sh && \
+    wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/24.3.0-0/Miniforge3-24.3.0-0-Linux-x86_64.sh && \
     bash conda.sh -b -p /opt/mambaforge
 
 ENV PATH=/opt/mambaforge/bin:$PATH
@@ -36,7 +36,7 @@ RUN git clone -b v1.49.1 https://github.com/grpc/grpc.git \
 COPY conda_env/linux_cpu_test.yml /scripts/
 RUN mamba create -n linux_cpu_test && \
     mamba env update -n linux_cpu_test --file=/scripts/linux_cpu_test.yml && \
-    mamba clean --all && \
+    mamba clean --all --yes && \
     conda run --no-capture-output -n linux_cpu_test pip install buildkite-test-collector
 
 # Install lightweight sudo (not bound to TTY)
