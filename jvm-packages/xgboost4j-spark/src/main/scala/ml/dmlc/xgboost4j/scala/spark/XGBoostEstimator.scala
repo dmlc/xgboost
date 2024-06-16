@@ -16,7 +16,10 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import java.util.ServiceLoader
+
 import scala.collection.mutable.ArrayBuffer
+import scala.jdk.CollectionConverters.iterableAsScalaIterableConverter
 
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.Path
@@ -35,6 +38,7 @@ import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
 import ml.dmlc.xgboost4j.scala.spark.Utils.MLVectorToXGBLabeledPoint
 import ml.dmlc.xgboost4j.scala.spark.params.{ClassificationParams, HasGroupCol, ParamMapConversion, SparkParams, XGBoostParams}
 
+
 /**
  * Hold the column indexes used to get the column index
  */
@@ -52,6 +56,23 @@ private[spark] abstract class XGBoostEstimator[
   with ParamMapConversion with DefaultParamsWritable {
 
   protected val logger = LogFactory.getLog("XGBoostSpark")
+
+  // Find the XGBoostPlugin by ServiceLoader
+  private val optionProvider: Option[XGBoostPlugin] = {
+    val classLoader = Option(Thread.currentThread().getContextClassLoader)
+      .getOrElse(getClass.getClassLoader)
+
+    val serviceLoader = ServiceLoader.load(classOf[XGBoostPlugin], classLoader)
+
+    // For now, we only trust GPUXGBoostPlugin.
+    serviceLoader.asScala.filter(x => x.getClass.getName.equals(
+      "ml.dmlc.xgboost4j.scala.spark.GPUXGBoostPlugin")).toList match {
+      case Nil => None
+      case head :: Nil =>
+        Some(head)
+      case _ => None
+    }
+  }
 
   /**
    * Pre-convert input double data to floats to align with XGBoost's internal float-based

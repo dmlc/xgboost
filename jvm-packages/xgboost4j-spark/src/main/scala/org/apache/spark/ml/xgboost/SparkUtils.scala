@@ -25,6 +25,7 @@ import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.types.{DataType, StructType}
 import org.json4s.{JObject, JValue}
 
+/** Utils to access the spark internal functions */
 object SparkUtils {
 
   def getNumClasses(dataset: Dataset[_], labelCol: String, maxNumClasses: Int = 100): Int = {
