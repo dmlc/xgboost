@@ -38,6 +38,7 @@ void FederatedPluginMock::Reset(common::Span<std::uint32_t const> cutptrs,
   bst_bin_t hist_size = total_bin_size * 2;
   hist_plain_.resize(hist_size * sizes.size());
   auto hist_buffer = common::Span<double>{hist_plain_};
+  std::fill_n(hist_buffer.data(), hist_buffer.size(), 0.0);
 
   CHECK_EQ(rowptrs.size(), sizes.size());
   CHECK_EQ(nids.size(), sizes.size());

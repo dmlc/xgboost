@@ -93,6 +93,13 @@ void FederataedHistPolicy::DoSyncHistogram(Context const *ctx, RegTree const *p_
       std::int32_t n_workers = collective::GetWorldSize();
       bst_idx_t worker_size = hist_aggr.size() / n_workers;
       CHECK_EQ(hist_aggr.size() % n_workers, 0);
+      // Initialize histogram. For the normal case, this is done by the parallel hist
+      // buffer. We should try to unify the code paths.
+      for (auto nidx : nodes_to_build) {
+        auto hist_dst = hist[nidx];
+        std::fill_n(hist_dst.data(), hist_dst.size(), GradientPairPrecise{});
+      }
+
       // for each worker
       for (auto widx = 0; widx < n_workers; ++widx) {
         auto worker_hist = hist_aggr.subspan(widx * worker_size, worker_size);
