@@ -47,7 +47,13 @@ jobs:
       run: |
         cd jvm-packages
         mvn test -B -pl :xgboost4j_2.12
-      if: matrix.os == 'windows-latest'
+
+    - name: Test XGBoost4J (Core, Spark, Examples)
+      run: |
+        rm -rfv build/
+        cd jvm-packages
+        mvn -B test
+      if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
 
     - name: Extract branch name
       shell: bash
@@ -84,13 +90,6 @@ jobs:
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
-
-    - name: Test XGBoost4J (Core, Spark, Examples)
-      run: |
-        rm -rfv build/
-        cd jvm-packages
-        mvn -B test
-      if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
 
     - name: Build and Test XGBoost4J with scala 2.13
       run: |

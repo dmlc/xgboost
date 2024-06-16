@@ -63,7 +63,7 @@ def test_federated_communicator():
     world_size = 2
     tracker = multiprocessing.Process(
         target=federated.run_federated_server,
-        kwargs={"port": port, "n_workers": world_size},
+        kwargs={"port": port, "n_workers": world_size, "blocking": False},
     )
     tracker.start()
     if not tracker.is_alive():
