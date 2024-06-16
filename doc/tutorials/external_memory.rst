@@ -89,7 +89,7 @@ iterator with 2 class methods: ``next`` and ``reset``, then pass it into the
 The above snippet is a simplified version of :ref:`sphx_glr_python_examples_external_memory.py`.
 For an example in C, please see ``demo/c-api/external-memory/``. The iterator is the
 common interface for using external memory with XGBoost, you can pass the resulting
-``DMatrix`` object for training, prediction, and evaluation.
+:py:class:`DMatrix` object for training, prediction, and evaluation.
 
 It is important to set the batch size based on the memory available. A good starting point
 is to set the batch size to 10GB per batch if you have 64GB of memory. It is *not*
