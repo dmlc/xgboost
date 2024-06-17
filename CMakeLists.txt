@@ -236,21 +236,8 @@ find_package(Threads REQUIRED)
 
 if(USE_OPENMP)
   if(APPLE)
-    find_package(OpenMP)
-    if(NOT OpenMP_FOUND)
-      # Try again with extra path info; required for libomp 15+ from Homebrew
-      execute_process(COMMAND brew --prefix libomp
-                      OUTPUT_VARIABLE HOMEBREW_LIBOMP_PREFIX
-                      OUTPUT_STRIP_TRAILING_WHITESPACE)
-      set(OpenMP_C_FLAGS
-        "-Xpreprocessor -fopenmp -I${HOMEBREW_LIBOMP_PREFIX}/include")
-      set(OpenMP_CXX_FLAGS
-        "-Xpreprocessor -fopenmp -I${HOMEBREW_LIBOMP_PREFIX}/include")
-      set(OpenMP_C_LIB_NAMES omp)
-      set(OpenMP_CXX_LIB_NAMES omp)
-      set(OpenMP_omp_LIBRARY ${HOMEBREW_LIBOMP_PREFIX}/lib/libomp.dylib)
-      find_package(OpenMP REQUIRED)
-    endif()
+    include(cmake/FindOpenMPMacOS.cmake)
+    find_openmp_macos()
   else()
     find_package(OpenMP REQUIRED)
   endif()
