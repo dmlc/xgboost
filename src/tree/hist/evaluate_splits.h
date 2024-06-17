@@ -291,7 +291,7 @@ class HistEvaluator {
       ibegin = static_cast<bst_bin_t>(cut_ptr[fidx + 1]) - 1;
       iend = static_cast<bst_bin_t>(cut_ptr[fidx]) - 1;
     }
-    bool fed_vertical = is_secure_ && is_col_split_;
+    bool enc_vertical = is_secure_ && is_col_split_;
 
     for (bst_bin_t i = ibegin; i != iend; i += d_step) {
       // start working
@@ -306,7 +306,7 @@ class HistEvaluator {
           loss_chg =
               static_cast<float>(evaluator.CalcSplitGain(*param_, nidx, fidx, GradStats{left_sum},
                                                          GradStats{right_sum}) - parent.root_gain);
-          if (!fed_vertical) {
+          if (!enc_vertical) {
             split_pt = cut_val[i];  // not used for partition based
             best.Update(loss_chg, fidx, split_pt, d_step == -1, false, left_sum, right_sum);
           } else {
@@ -319,7 +319,7 @@ class HistEvaluator {
           loss_chg =
               static_cast<float>(evaluator.CalcSplitGain(*param_, nidx, fidx, GradStats{right_sum},
                                                          GradStats{left_sum}) - parent.root_gain);
-          if (!fed_vertical) {
+          if (!enc_vertical) {
             if (i == imin) {
               split_pt = cut.MinValues()[fidx];
             } else {
@@ -516,7 +516,7 @@ class HistEvaluator {
         column_sampler_{std::move(sampler)},
         tree_evaluator_{*param, static_cast<bst_feature_t>(info.num_col_), DeviceOrd::CPU()},
         is_col_split_{info.IsColumnSplit()},
-        is_secure_{collective::IsFederated()} {
+        is_secure_{collective::IsEncrypted()} {
     interaction_constraints_.Configure(*param, info.num_col_);
     column_sampler_->Init(ctx, info.num_col_, info.feature_weights.HostVector(),
                           param_->colsample_bynode, param_->colsample_bylevel,
@@ -747,7 +747,7 @@ class HistMultiEvaluator {
         column_sampler_{std::move(sampler)},
         ctx_{ctx},
         is_col_split_{info.IsColumnSplit()},
-        is_secure_{collective::IsFederated()} {
+        is_secure_{collective::IsEncrypted()} {
     interaction_constraints_.Configure(*param, info.num_col_);
     column_sampler_->Init(ctx, info.num_col_, info.feature_weights.HostVector(),
                           param_->colsample_bynode, param_->colsample_bylevel,

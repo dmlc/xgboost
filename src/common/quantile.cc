@@ -448,7 +448,7 @@ void SketchContainerImpl<WQSketch>::MakeCuts(Context const *ctx, MetaInfo const 
     std::int32_t max_num_bins = std::min(num_cuts[fid], max_bins_);
     // If vertical and secure mode, we need to sync the max_num_bins aross workers
     // to create the same global number of cut point bins for easier future processing
-    if (info.IsVerticalFederated()) {
+    if (info.IsVerticalFederated() && collective::IsEncrypted()) {
       collective::SafeColl(collective::Allreduce(ctx, &max_num_bins, collective::Op::kMax));
     }
     typename WQSketch::SummaryContainer const &a = final_summaries[fid];
@@ -456,14 +456,14 @@ void SketchContainerImpl<WQSketch>::MakeCuts(Context const *ctx, MetaInfo const 
       max_cat = std::max(max_cat, AddCategories(categories_.at(fid), p_cuts));
     } else {
       // use special AddCutPoint scheme for secure vertical federated learning
-      bool is_nan = AddCutPoint<WQSketch>(ctx, a, max_num_bins, p_cuts, collective::IsFederated());
+      bool is_nan = AddCutPoint<WQSketch>(ctx, a, max_num_bins, p_cuts, collective::IsEncrypted());
       // push a value that is greater than anything if the feature is not empty
       // i.e. if the last value is not NaN
       if (!is_nan) {
-        const bst_float cpt =
+        const float cpt =
             (a.size > 0) ? a.data[a.size - 1].value : p_cuts->min_vals_.HostVector()[fid];
         // this must be bigger than last value in a scale
-        const bst_float last = cpt + (fabs(cpt) + 1e-5f);
+        const float last = cpt + (fabs(cpt) + 1e-5f);
         p_cuts->cut_values_.HostVector().push_back(last);
       } else {
         // if the feature is empty, push a NaN value

@@ -98,7 +98,7 @@ void ApplyWithLabels(Context const* ctx, MetaInfo const& info, void* buffer, std
 template <typename T, typename Fn>
 void ApplyWithLabels(Context const* ctx, MetaInfo const& info, HostDeviceVector<T>* result,
                      Fn&& fn) {
-  if (info.IsColumnSplit()) {
+  if (info.IsVerticalFederated()) {
     // We assume labels are only available on worker 0, so the calculation is done there
     // and result is broadcasted to other workers.
     auto rc = detail::TryApplyWithLabels(ctx, std::forward<Fn>(fn));

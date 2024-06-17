@@ -45,9 +45,12 @@ void Finalize();
  *
  * @return True if the communicator is federated.
  */
-[[nodiscard]] bool IsFederated() noexcept;
+[[nodiscard]] bool IsFederated();
 
-[[nodiscard]] bool IsEncrypted() noexcept;
+/**
+ * @brief Get if the communicator has an encryption plugin.
+ */
+[[nodiscard]] bool IsEncrypted();
 
 /**
  * @brief Print the message to the communicator.

@@ -8,7 +8,7 @@
 
 #include <chrono>   // for seconds
 #include <cstdint>  // for int32_t
-#include <memory>   // for shared_ptr, dynamic_pointer_cast
+#include <memory>   // for shared_ptr
 #include <string>   // for string
 
 #include "../../src/collective/comm.h"  // for HostComm
@@ -65,10 +65,7 @@ class FederatedComm : public HostComm {
     return Success();
   }
   [[nodiscard]] bool IsFederated() const override { return true; }
-  [[nodiscard]] bool IsEncrypted() const override {
-    auto mock_ptr = std::dynamic_pointer_cast<FederatedPluginMock>(plugin_);
-    return !mock_ptr;
-  }
+  [[nodiscard]] bool IsEncrypted() const override { return static_cast<bool>(plugin_); }
   [[nodiscard]] federated::Federated::Stub* Handle() const { return stub_.get(); }
 
   [[nodiscard]] Comm* MakeCUDAVar(Context const* ctx, std::shared_ptr<Coll> pimpl) const override;

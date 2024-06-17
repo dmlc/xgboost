@@ -172,9 +172,13 @@ FederatedPlugin::~FederatedPlugin() = default;
 [[nodiscard]] FederatedPluginBase* CreateFederatedPlugin(Json config) {
   auto plugin = OptionalArg<Object>(config, "federated_plugin", Object::Map{});
   if (!plugin.empty()) {
+    auto name_it = plugin.find("name");
+    if (name_it != plugin.cend() && get<String const>(name_it->second) == "mock") {
+      return new FederatedPluginMock{};
+    }
     auto path = get<String>(plugin["path"]);
     return new FederatedPlugin{path, config};
   }
-  return new FederatedPluginMock{};
+  return nullptr;
 }
 }  // namespace xgboost::collective

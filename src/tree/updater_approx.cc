@@ -93,7 +93,7 @@ class GloablApproxBuilder {
 
     histogram_builder_.Reset(ctx_, n_total_bins, p_tree->NumTargets(), BatchSpec(*param_, hess),
                              collective::IsDistributed(), p_fmat->Info().IsColumnSplit(),
-                             collective::IsFederated(), hist_param_);
+                             collective::IsEncrypted(), hist_param_);
     monitor_->Stop(__func__);
   }
 

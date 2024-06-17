@@ -1470,7 +1470,7 @@ class LearnerImpl : public LearnerIO {
                    std::int32_t iter, linalg::Matrix<GradientPair>* out_gpair) {
     monitor_.Start(__func__);
     out_gpair->Reshape(info.num_row_, this->learner_model_param_.OutputLength());
-    if (info.IsVerticalFederated()) {
+    if (info.IsVerticalFederated() && collective::IsEncrypted()) {
 #if defined(XGBOOST_USE_FEDERATED)
       // Need to encrypt the gradient before broadcasting.
       common::Span<std::uint8_t> encrypted;

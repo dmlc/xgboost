@@ -165,7 +165,7 @@ class MultiTargetHistBuilder {
     histogram_builder_ = std::make_unique<MultiHistogramBuilder>();
     histogram_builder_->Reset(ctx_, n_total_bins, n_targets, HistBatch(param_),
                               collective::IsDistributed(), p_fmat->Info().IsColumnSplit(),
-                              collective::IsFederated(), hist_param_);
+                              collective::IsEncrypted(), hist_param_);
 
     evaluator_ = std::make_unique<HistMultiEvaluator>(ctx_, p_fmat->Info(), param_, col_sampler_);
     p_last_tree_ = p_tree;
@@ -355,7 +355,7 @@ class HistUpdater {
                                 fmat->Info().IsColumnSplit());
     }
     histogram_builder_->Reset(ctx_, n_total_bins, 1, HistBatch(param_), collective::IsDistributed(),
-                              fmat->Info().IsColumnSplit(), collective::IsFederated(), hist_param_);
+                              fmat->Info().IsColumnSplit(), collective::IsEncrypted(), hist_param_);
     evaluator_ = std::make_unique<HistEvaluator>(ctx_, this->param_, fmat->Info(), col_sampler_);
     p_last_tree_ = p_tree;
     monitor_->Stop(__func__);
