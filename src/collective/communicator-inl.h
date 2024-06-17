@@ -45,7 +45,9 @@ void Finalize();
  *
  * @return True if the communicator is federated.
  */
-[[nodiscard]] bool IsFederated();
+[[nodiscard]] bool IsFederated() noexcept;
+
+[[nodiscard]] bool IsEncrypted() noexcept;
 
 /**
  * @brief Print the message to the communicator.
