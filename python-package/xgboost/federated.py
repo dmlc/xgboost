@@ -65,9 +65,19 @@ def run_federated_server(  # pylint: disable=too-many-arguments
     server_key_path: Optional[str] = None,
     server_cert_path: Optional[str] = None,
     client_cert_path: Optional[str] = None,
+    blocking: bool = True,
     timeout: int = 300,
-) -> Dict[str, Any]:
-    """See :py:class:`~xgboost.federated.FederatedTracker` for more info."""
+) -> Optional[Dict[str, Any]]:
+    """See :py:class:`~xgboost.federated.FederatedTracker` for more info.
+
+    Parameters
+    ----------
+    blocking :
+        Block the server until the training is finished. If set to False, the function
+        launches an additional thread and returns the worker arguments. The default is
+        True and a higher level framework is responsible for setting worker parameters.
+
+    """
     args: Dict[str, Any] = {"n_workers": n_workers}
     secure = all(
         path is not None
@@ -77,6 +87,10 @@ def run_federated_server(  # pylint: disable=too-many-arguments
         n_workers=n_workers, port=port, secure=secure, timeout=timeout
     )
     tracker.start()
+
+    if blocking:
+        tracker.wait_for()
+        return None
 
     thread = Thread(target=tracker.wait_for)
     thread.daemon = True

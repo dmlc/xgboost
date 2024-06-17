@@ -18,9 +18,9 @@ RUN \
     apt-get install -y wget unzip bzip2 libgomp1 build-essential openjdk-8-jdk-headless && \
     # Python
     wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/24.3.0-0/Miniforge3-24.3.0-0-Linux-x86_64.sh && \
-    bash conda.sh -b -p /opt/mambaforge
+    bash conda.sh -b -p /opt/miniforge
 
-ENV PATH=/opt/mambaforge/bin:$PATH
+ENV PATH=/opt/miniforge/bin:$PATH
 
 # Create new Conda environment with dev versions of cuDF, Dask, and cuPy
 RUN \
@@ -28,7 +28,7 @@ RUN \
     mamba create -y -n gpu_test -c rapidsai-nightly -c conda-forge -c nvidia \
         python=3.10 "cudf=$RAPIDS_VERSION_ARG.*" "rmm=$RAPIDS_VERSION_ARG.*" cudatoolkit=$CUDA_VERSION_ARG \
         "nccl>=${NCCL_SHORT_VER}" \
-        dask=2024.1.1 \
+        dask \
         "dask-cuda=$RAPIDS_VERSION_ARG.*" "dask-cudf=$RAPIDS_VERSION_ARG.*" cupy \
         numpy pytest pytest-timeout scipy scikit-learn pandas matplotlib wheel python-kubernetes urllib3 graphviz hypothesis \
         "pyspark>=3.4.0" cloudpickle cuda-python && \

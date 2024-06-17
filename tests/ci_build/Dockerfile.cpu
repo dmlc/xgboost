@@ -10,15 +10,15 @@ RUN \
     apt-get install -y software-properties-common && \
     add-apt-repository ppa:ubuntu-toolchain-r/test && \
     apt-get update && \
-    apt-get install -y tar unzip wget git build-essential doxygen graphviz llvm libidn12 cmake ninja-build gcc-9 g++-9 openjdk-8-jdk-headless && \
+    apt-get install -y tar unzip wget git build-essential doxygen graphviz llvm libidn12 cmake ninja-build gcc-10 g++-10 openjdk-8-jdk-headless && \
     # Python
     wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/24.3.0-0/Miniforge3-24.3.0-0-Linux-x86_64.sh && \
-    bash conda.sh -b -p /opt/mambaforge
+    bash conda.sh -b -p /opt/miniforge
 
-ENV PATH=/opt/mambaforge/bin:$PATH
-ENV CC=gcc-9
-ENV CXX=g++-9
-ENV CPP=cpp-9
+ENV PATH=/opt/miniforge/bin:$PATH
+ENV CC=gcc-10
+ENV CXX=g++-10
+ENV CPP=cpp-10
 
 ENV GOSU_VERSION 1.10
 ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64/
