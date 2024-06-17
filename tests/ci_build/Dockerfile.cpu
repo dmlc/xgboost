@@ -10,15 +10,15 @@ RUN \
     apt-get install -y software-properties-common && \
     add-apt-repository ppa:ubuntu-toolchain-r/test && \
     apt-get update && \
-    apt-get install -y tar unzip wget git build-essential doxygen graphviz llvm libidn12 cmake ninja-build gcc-9 g++-9 openjdk-8-jdk-headless && \
+    apt-get install -y tar unzip wget git build-essential doxygen graphviz llvm libidn12 cmake ninja-build gcc-10 g++-10 openjdk-8-jdk-headless && \
     # Python
-    wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/22.11.1-2/Mambaforge-22.11.1-2-Linux-x86_64.sh && \
-    bash conda.sh -b -p /opt/mambaforge
+    wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/24.3.0-0/Miniforge3-24.3.0-0-Linux-x86_64.sh && \
+    bash conda.sh -b -p /opt/miniforge
 
-ENV PATH=/opt/mambaforge/bin:$PATH
-ENV CC=gcc-9
-ENV CXX=g++-9
-ENV CPP=cpp-9
+ENV PATH=/opt/miniforge/bin:$PATH
+ENV CC=gcc-10
+ENV CXX=g++-10
+ENV CPP=cpp-10
 
 ENV GOSU_VERSION 1.10
 ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64/
@@ -36,7 +36,7 @@ RUN git clone -b v1.49.1 https://github.com/grpc/grpc.git \
 COPY conda_env/linux_cpu_test.yml /scripts/
 RUN mamba create -n linux_cpu_test && \
     mamba env update -n linux_cpu_test --file=/scripts/linux_cpu_test.yml && \
-    mamba clean --all && \
+    mamba clean --all --yes && \
     conda run --no-capture-output -n linux_cpu_test pip install buildkite-test-collector
 
 # Install lightweight sudo (not bound to TTY)

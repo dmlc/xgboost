@@ -1486,7 +1486,7 @@ class QuantileDMatrix(DMatrix):
     by avoiding intermediate storage. Set ``max_bin`` to control the number of bins
     during quantisation, which should be consistent with the training parameter
     ``max_bin``. When ``QuantileDMatrix`` is used for validation/test dataset, ``ref``
-    should be another ``QuantileDMatrix``(or ``DMatrix``, but not recommended as it
+    should be another ``QuantileDMatrix`` or ``DMatrix``, but not recommended as it
     defeats the purpose of saving memory) constructed from training dataset.  See
     :py:obj:`xgboost.DMatrix` for documents on meta info.
 

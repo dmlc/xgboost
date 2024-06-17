@@ -267,7 +267,7 @@ An example submit command is shown below with additional spark configurations an
     --conf spark.task.cpus=1 \
     --conf spark.executor.resource.gpu.amount=1 \
     --conf spark.task.resource.gpu.amount=0.08 \
-    --packages com.nvidia:rapids-4-spark_2.12:23.04.0 \
+    --packages com.nvidia:rapids-4-spark_2.12:24.04.1 \
     --conf spark.plugins=com.nvidia.spark.SQLPlugin \
     --conf spark.sql.execution.arrow.maxRecordsPerBatch=1000000 \
     --archives xgboost_env.tar.gz#environment \
@@ -276,3 +276,21 @@ An example submit command is shown below with additional spark configurations an
 When rapids plugin is enabled, both of the JVM rapids plugin and the cuDF Python package
 are required. More configuration options can be found in the RAPIDS link above along with
 details on the plugin.
+
+Advanced Usage
+==============
+
+XGBoost needs to repartition the input dataset to the num_workers to ensure there will be
+num_workers training tasks running at the same time. However, repartition is a costly operation.
+
+If there is a scenario where reading the data from source and directly fitting it to XGBoost
+without introducing the shuffle stage, users can avoid the need for repartitioning by setting
+the Spark configuration parameters ``spark.sql.files.maxPartitionNum`` and
+``spark.sql.files.minPartitionNum`` to num_workers. This tells Spark to automatically partition
+the dataset into the desired number of partitions.
+
+However, if the input dataset is skewed (i.e. the data is not evenly distributed), setting
+the partition number to num_workers may not be efficient. In this case, users can set
+the ``force_repartition=true`` option to explicitly force XGBoost to repartition the dataset,
+even if the partition number is already equal to num_workers. This ensures the data is evenly
+distributed across the workers.

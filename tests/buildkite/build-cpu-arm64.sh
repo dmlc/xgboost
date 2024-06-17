@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-WHEEL_TAG=manylinux2014_aarch64
+WHEEL_TAG=manylinux_2_28_aarch64
 
 echo "--- Build CPU code targeting ARM64"
 
@@ -24,7 +24,7 @@ $command_wrapper python tests/ci_build/rename_whl.py  \
   --commit-hash ${BUILDKITE_COMMIT}  \
   --platform-tag ${WHEEL_TAG}
 
-echo "--- Audit binary wheel to ensure it's compliant with manylinux2014 standard"
+echo "--- Audit binary wheel to ensure it's compliant with ${WHEEL_TAG} standard"
 $command_wrapper auditwheel repair --plat ${WHEEL_TAG} python-package/dist/*.whl
 $command_wrapper python tests/ci_build/rename_whl.py  \
   --wheel-path wheelhouse/*.whl  \

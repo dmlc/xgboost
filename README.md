@@ -1,4 +1,4 @@
-<img src="https://xgboost.ai/images/logo/xgboost-logo-ng-trimmed.png" width=200/> eXtreme Gradient Boosting
+<img src="https://xgboost.ai/images/logo/xgboost-logo-trimmed.png" width=200/> eXtreme Gradient Boosting
 ===========
 
 [![Build Status](https://badge.buildkite.com/aca47f40a32735c00a8550540c5eeff6a4c1d246a580cae9b0.svg?branch=master)](https://buildkite.com/xgboost/xgboost-ci)
@@ -11,6 +11,7 @@
 [![Optuna](https://img.shields.io/badge/Optuna-integrated-blue)](https://optuna.org)
 [![Twitter](https://img.shields.io/badge/@XGBoostProject--_.svg?style=social&logo=twitter)](https://twitter.com/XGBoostProject)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/dmlc/xgboost/badge)](https://api.securityscorecards.dev/projects/github.com/dmlc/xgboost)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/comet-ml/comet-examples/blob/master/integrations/model-training/xgboost/notebooks/how_to_use_comet_with_xgboost_tutorial.ipynb)
 
 [Community](https://xgboost.ai/community) |
 [Documentation](https://xgboost.readthedocs.org) |
@@ -49,6 +50,7 @@ Become a sponsor and get a logo here. See details at [Sponsoring the XGBoost Pro
 
 <a href="https://www.nvidia.com/en-us/" target="_blank"><img src="https://raw.githubusercontent.com/xgboost-ai/xgboost-ai.github.io/master/images/sponsors/nvidia.jpg" alt="NVIDIA" width="72" height="72"></a>
 <a href="https://www.intel.com/" target="_blank"><img src="https://images.opencollective.com/intel-corporation/2fa85c1/logo/256.png" width="72" height="72"></a>
+<a href="https://www.comet.com/site/?utm_source=xgboost&utm_medium=github&utm_content=readme" target="_blank"><img src="https://cdn.comet.ml/img/notebook_logo.png" height="72"></a>
 
 ### Backers
 [[Become a backer](https://opencollective.com/xgboost#backer)]

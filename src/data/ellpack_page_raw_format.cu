@@ -36,6 +36,7 @@ class EllpackPageRawFormat : public SparsePageFormat<EllpackPage> {
     if (!fi->Read(&impl->base_rowid)) {
       return false;
     }
+    dh::DefaultStream().Sync();
     return true;
   }
 
