@@ -16,7 +16,21 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import scala.jdk.CollectionConverters.seqAsJavaListConverter
+
+import com.nvidia.spark.rapids.ColumnarRdd
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Dataset
+
+import ml.dmlc.xgboost4j.java.{CudfColumnBatch, GpuColumnBatch}
+import ml.dmlc.xgboost4j.scala.QuantileDMatrix
+
+private[spark] case class ColumnIndices(
+  labelId: Int,
+  featuresId: Seq[Int],
+  weightId: Option[Int],
+  marginId: Option[Int],
+  groupId: Option[Int])
 
 class GPUXGBoostPlugin extends XGBoostPlugin {
 
@@ -27,7 +41,70 @@ class GPUXGBoostPlugin extends XGBoostPlugin {
    * @param dataset the input dataset
    * @return Boolean
    */
-  override def isEnabled(dataset: Option[Dataset[_]]): Boolean = {
-    false
+  override def isEnabled(dataset: Dataset[_]): Boolean = {
+    val conf = dataset.sparkSession.conf
+    val hasRapidsPlugin = conf.get("spark.sql.extensions", "").split(",").contains(
+      "com.nvidia.spark.rapids.SQLExecPlugin")
+    val rapidsEnabled = conf.get("spark.rapids.sql.enabled", "false").toBoolean
+    hasRapidsPlugin && rapidsEnabled
   }
+
+  /**
+   * Convert Dataset to RDD[Watches] which will be fed into XGBoost
+   *
+   * @param estimator which estimator to be handled.
+   * @param dataset   to be converted.
+   * @return RDD[Watches]
+   */
+  override def buildRddWatches[T <: XGBoostEstimator[T, M], M <: XGBoostModel[M]](
+    estimator: XGBoostEstimator[T, M],
+    dataset: Dataset[_]): RDD[Watches] = {
+    println("buildRddWatches ---")
+
+    // TODO, check if the feature in featuresCols is numeric.
+
+    val features = estimator.getFeaturesCols
+    val maxBin = estimator.getMaxBins
+    val nthread = estimator.getNthread
+    // TODO cast features to float if possible
+
+    val label = estimator.getLabelCol
+    val missing = Float.NaN
+
+    var input = dataset.select(estimator.getLabelCol, features: _*)
+
+    input = input.repartition(estimator.getNumWorkers)
+
+    val schema = input.schema
+    val indices = ColumnIndices(
+      schema.fieldIndex(label),
+      features.map(schema.fieldIndex),
+      None, None, None
+    )
+
+    ColumnarRdd(input).mapPartitions { iter =>
+      val colBatchIter = iter.map { table =>
+        withResource(new GpuColumnBatch(table, null)) { batch =>
+          new CudfColumnBatch(
+            batch.slice(indices.featuresId.map(Integer.valueOf).asJava),
+            batch.slice(indices.labelId),
+            batch.slice(indices.weightId.getOrElse(-1)),
+            batch.slice(indices.marginId.getOrElse(-1)));
+        }
+      }
+
+      val dm = new QuantileDMatrix(colBatchIter, missing, maxBin, nthread)
+      Iterator.single(new Watches(Array(dm), Array(Utils.TRAIN_NAME), None))
+    }
+  }
+
+  /** Executes the provided code block and then closes the resource */
+  def withResource[T <: AutoCloseable, V](r: T)(block: T => V): V = {
+    try {
+      block(r)
+    } finally {
+      r.close()
+    }
+  }
+
 }

@@ -23,8 +23,14 @@ import org.scalatest.funsuite.AnyFunSuite
 class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerSuite {
 
   test("pipeline") {
-        val spark = ss
-        var df = spark.read.parquet("/home/bobwang/data/iris/parquet")
+    val spark = ss
+    var df = spark.read.parquet("/home/bobwang/data/iris/parquet")
+
+    val conf = df.sparkSession.conf
+
+    val x = conf.get("spark.rapids.sql.enabled", "false")
+    println(x)
+
 
   }
 

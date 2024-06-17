@@ -15,10 +15,12 @@
  */
 package ml.dmlc.xgboost4j.scala.spark
 
+import java.io.Serializable
+
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Dataset
 
-trait XGBoostPlugin {
+trait XGBoostPlugin extends Serializable {
   /**
    * Whether the plugin is enabled or not, if not enabled, fallback
    * to the regular CPU pipeline
@@ -26,17 +28,17 @@ trait XGBoostPlugin {
    * @param dataset the input dataset
    * @return Boolean
    */
-  def isEnabled(dataset: Option[Dataset[_]]): Boolean
+  def isEnabled(dataset: Dataset[_]): Boolean
 
-//  /**
-//   * Convert Dataset to RDD[Watches] which will be fed into XGBoost
-//   *
-//   * @param estimator which estimator to be handled.
-//   * @param dataset   to be converted.
-//   * @return RDD[Watches]
-//   */
-//  def buildRddWatches[T <: XGBoostEstimator[T, M], M <: XGBoostModel[M]](
-//    estimator: XGBoostEstimator[T, M],
-//    dataset: Dataset[_]): RDD[Watches]
+  /**
+   * Convert Dataset to RDD[Watches] which will be fed into XGBoost
+   *
+   * @param estimator which estimator to be handled.
+   * @param dataset   to be converted.
+   * @return RDD[Watches]
+   */
+  def buildRddWatches[T <: XGBoostEstimator[T, M], M <: XGBoostModel[M]](
+    estimator: XGBoostEstimator[T, M],
+    dataset: Dataset[_]): RDD[Watches]
 
 }

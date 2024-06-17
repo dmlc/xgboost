@@ -16,6 +16,8 @@
 
 package ml.dmlc.xgboost4j.java;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import ai.rapids.cudf.ColumnVector;
@@ -40,6 +42,13 @@ public class GpuColumnBatch implements AutoCloseable {
       table.close();
       table = null;
     }
+  }
+
+  public Table slice(int index) {
+    if (index < 0) {
+      return null;
+    }
+    return slice(Arrays.asList(index));
   }
 
   /** Slice the columns indicated by indices into a Table*/

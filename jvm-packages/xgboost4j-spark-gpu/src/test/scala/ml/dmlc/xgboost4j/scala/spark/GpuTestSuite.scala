@@ -14,7 +14,7 @@
  limitations under the License.
  */
 
-package ml.dmlc.xgboost4j.scala
+package ml.dmlc.xgboost4j.scala.rapids.spark
 
 import java.nio.file.{Files, Path}
 import java.sql.{Date, Timestamp}
@@ -28,6 +28,7 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 
 trait GpuTestSuite extends AnyFunSuite with TmpFolderSuite {
+
   import SparkSessionHolder.withSparkSession
 
   protected def getResourcePath(resource: String): String = {
@@ -56,10 +57,10 @@ trait GpuTestSuite extends AnyFunSuite with TmpFolderSuite {
   }
 
   def compareResults(
-      sort: Boolean,
-      floatEpsilon: Double,
-      fromLeft: Array[Row],
-      fromRight: Array[Row]): Boolean = {
+    sort: Boolean,
+    floatEpsilon: Double,
+    fromLeft: Array[Row],
+    fromRight: Array[Row]): Boolean = {
     if (sort) {
       val left = fromLeft.map(_.toSeq).sortWith(seqLt)
       val right = fromRight.map(_.toSeq).sortWith(seqLt)
@@ -93,7 +94,7 @@ trait GpuTestSuite extends AnyFunSuite with TmpFolderSuite {
             return true
           } else if (i1 > i2) {
             return false
-          }// else equal go on
+          } // else equal go on
           case (i1: Long, i2: Long) => if (i1 < i2) {
             return true
           } else if (i1 > i2) {
@@ -158,6 +159,7 @@ trait GpuTestSuite extends AnyFunSuite with TmpFolderSuite {
         ("SUCCESS", true)
       }
     }
+
     (expected, actual) match {
       case (a: Float, b: Float) if a.isNaN && b.isNaN => true
       case (a: Double, b: Double) if a.isNaN && b.isNaN => true
@@ -200,7 +202,8 @@ trait GpuTestSuite extends AnyFunSuite with TmpFolderSuite {
 
 }
 
-trait TmpFolderSuite extends BeforeAndAfterAll { self: AnyFunSuite =>
+trait TmpFolderSuite extends BeforeAndAfterAll {
+  self: AnyFunSuite =>
   protected var tempDir: Path = _
 
   override def beforeAll(): Unit = {

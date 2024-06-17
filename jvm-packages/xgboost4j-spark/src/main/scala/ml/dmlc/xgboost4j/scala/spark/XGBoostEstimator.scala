@@ -21,6 +21,7 @@ import java.util.ServiceLoader
 import scala.collection.mutable.ArrayBuffer
 import scala.jdk.CollectionConverters.iterableAsScalaIterableConverter
 
+import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.Path
 import org.apache.spark.ml.{Estimator, Model}
@@ -33,7 +34,6 @@ import org.apache.spark.sql._
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.{ArrayType, FloatType, StructField, StructType}
 
-import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
 import ml.dmlc.xgboost4j.scala.spark.Utils.MLVectorToXGBLabeledPoint
 import ml.dmlc.xgboost4j.scala.spark.params._
@@ -58,7 +58,7 @@ private[spark] abstract class XGBoostEstimator[
   protected val logger = LogFactory.getLog("XGBoostSpark")
 
   // Find the XGBoostPlugin by ServiceLoader
-  private val optionProvider: Option[XGBoostPlugin] = {
+  private val plugin: Option[XGBoostPlugin] = {
     val classLoader = Option(Thread.currentThread().getContextClassLoader)
       .getOrElse(getClass.getClassLoader)
 
@@ -72,6 +72,10 @@ private[spark] abstract class XGBoostEstimator[
         Some(head)
       case _ => None
     }
+  }
+
+  private def isPluginEnabled(dataset: Dataset[_]): Boolean = {
+    plugin.map(_.isEnabled(dataset)).getOrElse(false)
   }
 
   /**
@@ -323,8 +327,12 @@ private[spark] abstract class XGBoostEstimator[
   override def fit(dataset: Dataset[_]): M = {
     validate(dataset)
 
-    val (input, columnIndexes) = preprocess(dataset)
-    val rdd = toRdd(input, columnIndexes)
+    val rdd = if (isPluginEnabled(dataset)) {
+      plugin.get.buildRddWatches(this, dataset)
+    } else {
+      val (input, columnIndexes) = preprocess(dataset)
+      toRdd(input, columnIndexes)
+    }
 
     val xgbParams = getXGBoostParams
 

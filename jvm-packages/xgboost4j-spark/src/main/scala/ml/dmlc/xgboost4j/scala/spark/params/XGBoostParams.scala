@@ -83,7 +83,7 @@ trait HasFeaturesCols extends Params {
    * @group param
    */
   final val featuresCols: StringArrayParam = new StringArrayParam(this, "featuresCols",
-    "an array of feature column names.")
+    "An array of feature column names.")
 
   /** @group getParam */
   final def getFeaturesCols: Array[String] = $(featuresCols)
@@ -122,9 +122,9 @@ trait NonXGBoostParams extends Params {
  *
  * @tparam T should be the XGBoost estimators or models
  */
-private[spark] trait SparkParams[T <: Params] extends HasFeaturesCol with HasLabelCol
-  with HasBaseMarginCol with HasWeightCol with HasPredictionCol with HasLeafPredictionCol
-  with HasContribPredictionCol with HasValidationIndicatorCol
+private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFeaturesCol
+  with HasLabelCol with HasBaseMarginCol with HasWeightCol with HasPredictionCol
+  with HasLeafPredictionCol with HasContribPredictionCol with HasValidationIndicatorCol
   with RabitParams with NonXGBoostParams with SchemaValidationTrait {
 
   final val numWorkers = new IntParam(this, "numWorkers", "Number of workers used to train xgboost",
@@ -162,6 +162,8 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCol with HasLab
   def setNumRound(value: Int): T = set(numRound, value).asInstanceOf[T]
 
   def setFeaturesCol(value: String): T = set(featuresCol, value).asInstanceOf[T]
+
+  def setFeaturesCol(value: Array[String]): T = set(featuresCols, value).asInstanceOf[T]
 
   def setLabelCol(value: String): T = set(labelCol, value).asInstanceOf[T]
 
