@@ -27,10 +27,10 @@ for scala_binary_version in "2.12" "2.13"; do
   scala_version=$(mvn help:evaluate -Dexpression=scala.version -q -DforceStdout)
 
   # Install XGBoost4J JAR into local Maven repository
-  mvn --no-transfer-progress install:install-file -Dfile=./xgboost4j/target/xgboost4j_${scala_binary_version}-${xgboost4j_version}.jar -DgroupId=ml.dmlc -DartifactId=xgboost4j_${scala_binary_version} -Dversion=${xgboost4j_version} -Dpackaging=jar
-  mvn --no-transfer-progress install:install-file -Dfile=./xgboost4j/target/xgboost4j_${scala_binary_version}-${xgboost4j_version}-tests.jar -DgroupId=ml.dmlc -DartifactId=xgboost4j_${scala_binary_version} -Dversion=${xgboost4j_version} -Dpackaging=test-jar -Dclassifier=tests
-  mvn --no-transfer-progress install:install-file -Dfile=./xgboost4j-spark/target/xgboost4j-spark_${scala_binary_version}-${xgboost4j_version}.jar -DgroupId=ml.dmlc -DartifactId=xgboost4j-spark_${scala_binary_version} -Dversion=${xgboost4j_version} -Dpackaging=jar
-  mvn --no-transfer-progress install:install-file -Dfile=./xgboost4j-example/target/xgboost4j-example_${scala_binary_version}-${xgboost4j_version}.jar -DgroupId=ml.dmlc -DartifactId=xgboost4j-example_${scala_binary_version} -Dversion=${xgboost4j_version} -Dpackaging=jar
+  mvn --no-transfer-progress install:install-file -Dfile=./xgboost4j/target/xgboost4j_${scala_binary_version}-${xgboost4j_version}.jar -DgroupId=ml.dmlc -DartifactId=xgboost4j_${scala_binary_version} -Dversion=${xgboost4j_version} -Dpackaging=jar -DgeneratePom=true
+  mvn --no-transfer-progress install:install-file -Dfile=./xgboost4j/target/xgboost4j_${scala_binary_version}-${xgboost4j_version}-tests.jar -DgroupId=ml.dmlc -DartifactId=xgboost4j_${scala_binary_version} -Dversion=${xgboost4j_version} -Dpackaging=test-jar -Dclassifier=tests -DgeneratePom=true
+  mvn --no-transfer-progress install:install-file -Dfile=./xgboost4j-spark/target/xgboost4j-spark_${scala_binary_version}-${xgboost4j_version}.jar -DgroupId=ml.dmlc -DartifactId=xgboost4j-spark_${scala_binary_version} -Dversion=${xgboost4j_version} -Dpackaging=jar -DgeneratePom=true
+  mvn --no-transfer-progress install:install-file -Dfile=./xgboost4j-example/target/xgboost4j-example_${scala_binary_version}-${xgboost4j_version}.jar -DgroupId=ml.dmlc -DartifactId=xgboost4j-example_${scala_binary_version} -Dversion=${xgboost4j_version} -Dpackaging=jar -DgeneratePom=true
 
   cd xgboost4j-tester
   # Generate pom.xml for XGBoost4J-tester, a dummy project to run XGBoost4J tests

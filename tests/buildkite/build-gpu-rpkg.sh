@@ -6,7 +6,7 @@ source tests/buildkite/conftest.sh
 
 echo "--- Build XGBoost R package with CUDA"
 
-tests/ci_build/ci_build.sh gpu_build_r_centos7 \
+tests/ci_build/ci_build.sh gpu_build_r_rockylinux8 \
 			   --build-arg CUDA_VERSION_ARG=${CUDA_VERSION} \
 			   --build-arg R_VERSION_ARG=${R_VERSION} \
 			   tests/ci_build/build_r_pkg_with_cuda.sh \
