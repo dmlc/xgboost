@@ -1,5 +1,5 @@
 /**
- * Copyright 2016-2023 by XGBoost contributors
+ * Copyright 2016-2024, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>
@@ -99,6 +99,6 @@ TEST_P(TestDefaultObjConfig, Objective) {
 INSTANTIATE_TEST_SUITE_P(Objective, TestDefaultObjConfig,
                          ::testing::ValuesIn(MakeObjNamesForTest()),
                          [](const ::testing::TestParamInfo<TestDefaultObjConfig::ParamType>& info) {
-                           return ObjTestNameGenerator(info);
+                           return ObjTestNameGenerator(info.param);
                          });
 } // namespace xgboost

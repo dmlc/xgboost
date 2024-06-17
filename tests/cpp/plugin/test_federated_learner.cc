@@ -56,11 +56,23 @@ void VerifyObjective(std::size_t rows, std::size_t cols, float expected_base_sco
 }
 }  // namespace
 
-class VerticalFederatedLearnerTest : public ::testing::TestWithParam<std::string> {
+class VerticalFederatedLearnerTest
+    : public ::testing::TestWithParam<std::tuple<std::string, bool>> {
   static int constexpr kWorldSize{3};
 
  protected:
-  void Run(std::string tree_method, std::string device, std::string objective) {
+  void Run(std::string tree_method, std::string device, std::string objective, bool is_encrypted) {
+    // Following objectives are not yet supported.
+    if (is_encrypted) {
+      std::vector<std::string> unsupported{"multi:", "quantile", "absoluteerror"};
+      auto skip = std::any_of(unsupported.cbegin(), unsupported.cend(), [&](auto const &name) {
+        return objective.find(name) != std::string::npos;
+      });
+      if (skip) {
+        GTEST_SKIP_("Not supported by the plugin.");
+      }
+    }
+
     static auto constexpr kRows{16};
     static auto constexpr kCols{16};
 
@@ -91,34 +103,64 @@ class VerticalFederatedLearnerTest : public ::testing::TestWithParam<std::string
       VerifyObjective(kRows, kCols, score, model, tree_method, device, objective);
     });
   }
+
+  auto GetTestParam() {
+    std::string objective = get<0>(GetParam());
+    auto is_encrypted = get<1>(GetParam());
+    return std::make_tuple(objective, is_encrypted);
+  }
 };
 
+namespace {
+auto MakeTestParams() {
+  auto objs = MakeObjNamesForTest();
+  std::vector<std::tuple<std::string, bool>> values;
+  for (auto const &v : objs) {
+    values.emplace_back(v, true);
+    values.emplace_back(v, false);
+  }
+  return values;
+}
+}  // namespace
+
 TEST_P(VerticalFederatedLearnerTest, Approx) {
-  std::string objective = GetParam();
-  this->Run("approx", DeviceSym::CPU(), objective);
+  auto [objective, is_encrypted] = this->GetTestParam();
+  if (is_encrypted) {
+    GTEST_SKIP();
+  }
+  this->Run("approx", DeviceSym::CPU(), objective, is_encrypted);
 }
 
 TEST_P(VerticalFederatedLearnerTest, Hist) {
-  std::string objective = GetParam();
-  this->Run("hist", DeviceSym::CPU(), objective);
+  auto [objective, is_encrypted] = this->GetTestParam();
+  this->Run("hist", DeviceSym::CPU(), objective, is_encrypted);
 }
 
 #if defined(XGBOOST_USE_CUDA)
 TEST_P(VerticalFederatedLearnerTest, GPUApprox) {
-  std::string objective = GetParam();
-  this->Run("approx", DeviceSym::CUDA(), objective);
+  auto [objective, is_encrypted] = this->GetTestParam();
+  if (is_encrypted) {
+    GTEST_SKIP();
+  }
+  this->Run("approx", DeviceSym::CUDA(), objective, is_encrypted);
 }
 
 TEST_P(VerticalFederatedLearnerTest, GPUHist) {
-  std::string objective = GetParam();
-  this->Run("hist", DeviceSym::CUDA(), objective);
+  auto [objective, is_encrypted] = this->GetTestParam();
+  if (is_encrypted) {
+    GTEST_SKIP();
+  }
+  this->Run("hist", DeviceSym::CUDA(), objective, is_encrypted);
 }
 #endif  // defined(XGBOOST_USE_CUDA)
 
 INSTANTIATE_TEST_SUITE_P(
-    FederatedLearnerObjective, VerticalFederatedLearnerTest,
-    ::testing::ValuesIn(MakeObjNamesForTest()),
+    FederatedLearnerObjective, VerticalFederatedLearnerTest, ::testing::ValuesIn(MakeTestParams()),
     [](const ::testing::TestParamInfo<VerticalFederatedLearnerTest::ParamType> &info) {
-      return ObjTestNameGenerator(info);
+      auto name = ObjTestNameGenerator(std::get<0>(info.param));
+      if (std::get<1>(info.param)) {
+        name += "_enc";
+      }
+      return name;
     });
 }  // namespace xgboost
