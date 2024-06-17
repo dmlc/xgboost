@@ -86,7 +86,7 @@ private[spark] abstract class XGBoostEstimator[
    * @param name    which column will be casted to float if possible.
    * @return Dataset
    */
-  private def castToFloatIfNeeded(schema: StructType, name: String): Column = {
+  private[spark] def castToFloatIfNeeded(schema: StructType, name: String): Column = {
     if (!schema(name).dataType.isInstanceOf[FloatType]) {
       val meta = schema(name).metadata
       col(name).as(name, meta).cast(FloatType)

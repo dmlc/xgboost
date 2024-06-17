@@ -16,11 +16,12 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import scala.collection.mutable.ArrayBuffer
 import scala.jdk.CollectionConverters.seqAsJavaListConverter
 
 import com.nvidia.spark.rapids.ColumnarRdd
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Dataset
+import org.apache.spark.sql.{Column, Dataset}
 
 import ml.dmlc.xgboost4j.java.{CudfColumnBatch, GpuColumnBatch}
 import ml.dmlc.xgboost4j.scala.QuantileDMatrix
@@ -71,8 +72,12 @@ class GPUXGBoostPlugin extends XGBoostPlugin {
     val label = estimator.getLabelCol
     val missing = Float.NaN
 
-    var input = dataset.select(estimator.getLabelCol, features: _*)
-
+    val selectedCols: ArrayBuffer[Column] = ArrayBuffer.empty
+    (features.toSeq ++ Seq(estimator.getLabelCol)).foreach {name =>
+      val col = estimator.castToFloatIfNeeded(dataset.schema, name)
+      selectedCols.append(col)
+    }
+    var input = dataset.select(selectedCols: _*)
     input = input.repartition(estimator.getNumWorkers)
 
     val schema = input.schema
