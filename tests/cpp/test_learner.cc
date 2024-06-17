@@ -756,9 +756,6 @@ void TestColumnSplitWithArgs(std::string const& tree_method, bool use_gpu, Args 
   auto model = GetModelWithArgs(p_fmat, tree_method, device, args);
 
   auto world_size{3};
-  if (federated && use_gpu) {
-    GTEST_SKIP();
-  }
   if (use_gpu) {
     world_size = common::AllVisibleGPUs();
     // Simulate MPU on a single GPU. Federated doesn't use nccl, can run multiple
@@ -791,26 +788,17 @@ class ColumnSplitTrainingTest
  public:
   static void TestColumnSplitColumnSampler(std::string const& tree_method, bool use_gpu,
                                            bool federated) {
-    if (federated) {
-      GTEST_SKIP();
-    }
     Args args{
         {"colsample_bytree", "0.5"}, {"colsample_bylevel", "0.6"}, {"colsample_bynode", "0.7"}};
     TestColumnSplitWithArgs(tree_method, use_gpu, args, federated);
   }
   static void TestColumnSplitInteractionConstraints(std::string const& tree_method, bool use_gpu,
                                                     bool federated) {
-    if (federated) {
-      GTEST_SKIP();
-    }
     Args args{{"interaction_constraints", "[[0, 5, 7], [2, 8, 9], [1, 3, 6]]"}};
     TestColumnSplitWithArgs(tree_method, use_gpu, args, federated);
   }
   static void TestColumnSplitMonotoneConstraints(std::string const& tree_method, bool use_gpu,
                                                  bool federated) {
-    if (federated) {
-      GTEST_SKIP();
-    }
     Args args{{"monotone_constraints", "(1,-1,0,1,1,-1,-1,0,0,1)"}};
     TestColumnSplitWithArgs(tree_method, use_gpu, args, federated);
   }

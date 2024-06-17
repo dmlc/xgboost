@@ -13,7 +13,7 @@
 #include "../../../src/data/simple_dmatrix.h"  // SimpleDMatrix
 #include "../collective/test_worker.h"         // for TestDistributedGlobal
 #if defined(XGBOOST_USE_FEDERATED)
-#include "../plugin/federated/test_worker.h"
+#include "../plugin/federated/test_worker.h"  // for TestEncryptedGlobal
 #endif  // defined(XGBOOST_USE_FEDERATED)
 #include "xgboost/context.h"
 
@@ -314,6 +314,7 @@ void DoTestColSplitQuantileSecure() {
   Context ctx;
   auto const world = collective::GetWorldSize();
   auto const rank = collective::GetRank();
+  ASSERT_TRUE(collective::IsEncrypted());
   size_t cols = 2;
   size_t rows = 3;
 
@@ -395,7 +396,7 @@ void DoTestColSplitQuantileSecure() {
 template <bool use_column>
 void TestColSplitQuantileSecure() {
   auto constexpr kWorkers = 2;
-  collective::TestFederatedGlobal(kWorkers, [&] { DoTestColSplitQuantileSecure<use_column>(); });
+  collective::TestEncryptedGlobal(kWorkers, [&] { DoTestColSplitQuantileSecure<use_column>(); });
 }
 }  // anonymous namespace
 
