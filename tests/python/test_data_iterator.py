@@ -53,7 +53,9 @@ def test_single_batch(tree_method: str = "approx") -> None:
 
 
 def test_with_cat_single() -> None:
-    X, y = tm.make_categorical(n_samples=128, n_features=3, n_categories=6, onehot=False)
+    X, y = tm.make_categorical(
+        n_samples=128, n_features=3, n_categories=6, onehot=False
+    )
     Xy = xgb.DMatrix(SingleBatch(data=X, label=y), enable_categorical=True)
     from_it = xgb.train({}, Xy, num_boost_round=3)
 
