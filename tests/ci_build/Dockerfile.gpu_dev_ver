@@ -18,9 +18,9 @@ RUN \
     apt-get install -y wget unzip bzip2 libgomp1 build-essential openjdk-8-jdk-headless && \
     # Python
     wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/24.3.0-0/Miniforge3-24.3.0-0-Linux-x86_64.sh && \
-    bash conda.sh -b -p /opt/mambaforge
+    bash conda.sh -b -p /opt/miniforge
 
-ENV PATH=/opt/mambaforge/bin:$PATH
+ENV PATH=/opt/miniforge/bin:$PATH
 
 # Create new Conda environment with dev versions of cuDF, Dask, and cuPy
 RUN \

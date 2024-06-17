@@ -12,7 +12,7 @@ steps:
   #### -------- CONTAINER BUILD --------
   - label: ":docker: Build containers"
     commands:
-      - "tests/buildkite/build-containers.sh gpu_build_centos7"
+      - "tests/buildkite/build-containers.sh gpu_build_rockylinux8"
       - "tests/buildkite/build-containers.sh gpu_dev_ver"
     key: build-containers
     agents:

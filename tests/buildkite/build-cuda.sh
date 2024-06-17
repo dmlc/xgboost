@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-WHEEL_TAG=manylinux2014_x86_64
+WHEEL_TAG=manylinux_2_28_x86_64
 
 source tests/buildkite/conftest.sh
 
@@ -15,7 +15,7 @@ else
   arch_flag=""
 fi
 
-command_wrapper="tests/ci_build/ci_build.sh gpu_build_centos7 --build-arg "`
+command_wrapper="tests/ci_build/ci_build.sh gpu_build_rockylinux8 --build-arg "`
                 `"CUDA_VERSION_ARG=$CUDA_VERSION --build-arg "`
                 `"NCCL_VERSION_ARG=$NCCL_VERSION --build-arg "`
                 `"RAPIDS_VERSION_ARG=$RAPIDS_VERSION"
@@ -40,7 +40,7 @@ $command_wrapper python tests/ci_build/rename_whl.py  \
   --commit-hash ${BUILDKITE_COMMIT}  \
   --platform-tag ${WHEEL_TAG}
 
-echo "--- Audit binary wheel to ensure it's compliant with manylinux2014 standard"
+echo "--- Audit binary wheel to ensure it's compliant with ${WHEEL_TAG} standard"
 tests/ci_build/ci_build.sh auditwheel_x86_64 auditwheel repair \
   --plat ${WHEEL_TAG} python-package/dist/*.whl
 $command_wrapper python tests/ci_build/rename_whl.py  \
