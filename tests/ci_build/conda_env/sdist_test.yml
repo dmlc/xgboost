@@ -3,7 +3,7 @@ name: sdist_test
 channels:
 - conda-forge
 dependencies:
-- python=3.8
+- python=3.10
 - pip
 - wheel
 - cmake

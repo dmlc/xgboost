@@ -198,7 +198,7 @@ class CVPack:
     def __init__(
         self, dtrain: DMatrix, dtest: DMatrix, param: Optional[Union[Dict, List]]
     ) -> None:
-        """ "Initialize the CVPack"""
+        """Initialize the CVPack."""
         self.dtrain = dtrain
         self.dtest = dtest
         self.watchlist = [(dtrain, "train"), (dtest, "test")]
@@ -277,7 +277,7 @@ class _PackedBooster:
         self.set_attr(best_score=score)
 
 
-def groups_to_rows(groups: List[np.ndarray], boundaries: np.ndarray) -> np.ndarray:
+def groups_to_rows(groups: np.ndarray, boundaries: np.ndarray) -> np.ndarray:
     """
     Given group row boundaries, convert ground indexes to row indexes
     :param groups: list of groups for testing

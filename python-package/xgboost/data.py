@@ -5,7 +5,17 @@ import ctypes
 import json
 import os
 import warnings
-from typing import Any, Callable, List, Optional, Sequence, Tuple, cast
+from typing import (
+    Any,
+    Callable,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    TypeGuard,
+    Union,
+    cast,
+)
 
 import numpy as np
 
@@ -212,7 +222,7 @@ def is_scipy_coo(data: DataType) -> bool:
     return is_array or is_matrix
 
 
-def _is_np_array_like(data: DataType) -> bool:
+def _is_np_array_like(data: DataType) -> TypeGuard[np.ndarray]:
     return hasattr(data, "__array_interface__")
 
 
@@ -241,7 +251,7 @@ def _maybe_np_slice(data: DataType, dtype: Optional[NumpyDType]) -> np.ndarray:
 
 
 def _from_numpy_array(
-    data: DataType,
+    data: np.ndarray,
     missing: FloatCompatible,
     nthread: int,
     feature_names: Optional[FeatureNames],
@@ -266,7 +276,7 @@ def _from_numpy_array(
     return handle, feature_names, feature_types
 
 
-def _is_pandas_df(data: DataType) -> bool:
+def _is_pandas_df(data: DataType) -> TypeGuard[DataFrame]:
     try:
         import pandas as pd
     except ImportError:
@@ -1057,12 +1067,12 @@ def _from_dlpack(
     return _from_cupy_array(data, missing, nthread, feature_names, feature_types)
 
 
-def _is_uri(data: DataType) -> bool:
+def _is_uri(data: DataType) -> TypeGuard[Union[str, os.PathLike]]:
     return isinstance(data, (str, os.PathLike))
 
 
 def _from_uri(
-    data: DataType,
+    data: Union[str, os.PathLike],
     missing: Optional[FloatCompatible],
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
@@ -1080,7 +1090,7 @@ def _from_uri(
     return handle, feature_names, feature_types
 
 
-def _is_list(data: DataType) -> bool:
+def _is_list(data: DataType) -> TypeGuard[list]:
     return isinstance(data, list)
 
 
@@ -1099,7 +1109,7 @@ def _from_list(
     )
 
 
-def _is_tuple(data: DataType) -> bool:
+def _is_tuple(data: DataType) -> TypeGuard[tuple]:
     return isinstance(data, tuple)
 
 
@@ -1116,7 +1126,7 @@ def _from_tuple(
     )
 
 
-def _is_iter(data: DataType) -> bool:
+def _is_iter(data: DataType) -> TypeGuard[DataIter]:
     return isinstance(data, DataIter)
 
 

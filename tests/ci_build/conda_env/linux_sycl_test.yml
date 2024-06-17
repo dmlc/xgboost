@@ -3,7 +3,7 @@ channels:
 - conda-forge
 - https://software.repos.intel.com/python/conda/
 dependencies:
-- python=3.8
+- python=3.10
 - cmake
 - c-compiler
 - cxx-compiler

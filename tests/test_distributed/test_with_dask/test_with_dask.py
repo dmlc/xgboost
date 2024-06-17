@@ -133,66 +133,7 @@ def generate_array(
     return X, y, None
 
 
-def deterministic_persist_per_worker(
-    df: dd.DataFrame, client: "Client"
-) -> dd.DataFrame:
-    # Got this script from https://github.com/dmlc/xgboost/issues/7927
-    # Query workers
-    n_workers = len(client.cluster.workers)
-    workers = map(attrgetter("worker_address"), client.cluster.workers.values())
-
-    # Slice data into roughly equal partitions
-    subpartition_size = ceil(df.npartitions / n_workers)
-    subpartition_divisions = range(
-        0, df.npartitions + subpartition_size, subpartition_size
-    )
-    subpartition_slices = starmap(slice, sliding_window(2, subpartition_divisions))
-    subpartitions = map(partial(getitem, df.partitions), subpartition_slices)
-
-    # Persist each subpartition on each worker
-    # Rebuild dataframe from persisted subpartitions
-    df2 = dd.concat(
-        [
-            sp.persist(workers=w, allow_other_workers=False)
-            for sp, w in zip(subpartitions, workers)
-        ]
-    )
-
-    return df2
-
-
 Margin = TypeVar("Margin", dd.DataFrame, dd.Series, None)
-
-
-def deterministic_repartition(
-    client: Client,
-    X: dd.DataFrame,
-    y: dd.Series,
-    m: Margin,
-) -> Tuple[dd.DataFrame, dd.Series, Margin]:
-    # force repartition the data to avoid non-deterministic result
-    if any(X.map_partitions(lambda x: _is_cudf_df(x)).compute()):
-        # dask_cudf seems to be doing fine for now
-        return X, y, m
-
-    X["_y"] = y
-    if m is not None:
-        if isinstance(m, dd.DataFrame):
-            m_columns = m.columns
-            X = dd.concat([X, m], join="outer", axis=1)
-        else:
-            m_columns = ["_m"]
-            X["_m"] = m
-
-    X = deterministic_persist_per_worker(X, client)
-
-    y = X["_y"]
-    X = X[X.columns.difference(["_y"])]
-    if m is not None:
-        m = X[m_columns]
-        X = X[X.columns.difference(m_columns)]
-
-    return X, y, m
 
 
 @pytest.mark.parametrize("to_frame", [True, False])
@@ -464,7 +405,6 @@ def run_boost_from_prediction_multi_class(
         max_bin=768,
         device=device,
     )
-    X, y, _ = deterministic_repartition(client, X, y, None)
     model_0.fit(X=X, y=y)
     margin = xgb.dask.inplace_predict(
         client, model_0.get_booster(), X, predict_type="margin"
@@ -478,7 +418,6 @@ def run_boost_from_prediction_multi_class(
         max_bin=768,
         device=device,
     )
-    X, y, margin = deterministic_repartition(client, X, y, margin)
     model_1.fit(X=X, y=y, base_margin=margin)
     predictions_1 = xgb.dask.predict(
         client,
@@ -494,7 +433,6 @@ def run_boost_from_prediction_multi_class(
         max_bin=768,
         device=device,
     )
-    X, y, _ = deterministic_repartition(client, X, y, None)
     model_2.fit(X=X, y=y)
     predictions_2 = xgb.dask.inplace_predict(
         client, model_2.get_booster(), X, predict_type="margin"
@@ -527,7 +465,6 @@ def run_boost_from_prediction(
         max_bin=512,
         device=device,
     )
-    X, y, _ = deterministic_repartition(client, X, y, None)
     model_0.fit(X=X, y=y)
     margin: dd.Series = model_0.predict(X, output_margin=True)
 
@@ -538,9 +475,7 @@ def run_boost_from_prediction(
         max_bin=512,
         device=device,
     )
-    X, y, margin = deterministic_repartition(client, X, y, margin)
     model_1.fit(X=X, y=y, base_margin=margin)
-    X, y, margin = deterministic_repartition(client, X, y, margin)
     predictions_1: dd.Series = model_1.predict(X, base_margin=margin)
 
     model_2 = xgb.dask.DaskXGBClassifier(
@@ -550,7 +485,6 @@ def run_boost_from_prediction(
         max_bin=512,
         device=device,
     )
-    X, y, _ = deterministic_repartition(client, X, y, None)
     model_2.fit(X=X, y=y)
     predictions_2: dd.Series = model_2.predict(X)
 
@@ -563,13 +497,11 @@ def run_boost_from_prediction(
     np.testing.assert_allclose(predt_1, predt_2, atol=1e-5)
 
     margined = xgb.dask.DaskXGBClassifier(n_estimators=4)
-    X, y, margin = deterministic_repartition(client, X, y, margin)
     margined.fit(
         X=X, y=y, base_margin=margin, eval_set=[(X, y)], base_margin_eval_set=[margin]
     )
 
     unmargined = xgb.dask.DaskXGBClassifier(n_estimators=4)
-    X, y, margin = deterministic_repartition(client, X, y, margin)
     unmargined.fit(X=X, y=y, eval_set=[(X, y)], base_margin=margin)
 
     margined_res = margined.evals_result()["validation_0"]["logloss"]
@@ -586,11 +518,11 @@ def test_boost_from_prediction(tree_method: str, client: "Client") -> None:
     from sklearn.datasets import load_breast_cancer, load_digits
 
     X_, y_ = load_breast_cancer(return_X_y=True)
-    X, y = dd.from_array(X_, chunksize=200), dd.from_array(y_, chunksize=200)
+    X, y = dd.from_array(X_, chunksize=X_.shape[0]), dd.from_array(y_, chunksize=y_.shape[0])
     run_boost_from_prediction(X, y, tree_method, "cpu", client)
 
     X_, y_ = load_digits(return_X_y=True)
-    X, y = dd.from_array(X_, chunksize=100), dd.from_array(y_, chunksize=100)
+    X, y = dd.from_array(X_, chunksize=X_.shape[0]), dd.from_array(y_, chunksize=y_.shape[0])
     run_boost_from_prediction_multi_class(X, y, tree_method, "cpu", client)
 
 
@@ -1594,7 +1526,6 @@ class TestWithDask:
     def test_empty_quantile_dmatrix(self, client: Client) -> None:
         X, y = make_categorical(client, 2, 30, 13)
         X_valid, y_valid = make_categorical(client, 10000, 30, 13)
-        X_valid, y_valid, _ = deterministic_repartition(client, X_valid, y_valid, None)
 
         Xy = xgb.dask.DaskQuantileDMatrix(client, X, y, enable_categorical=True)
         Xy_valid = xgb.dask.DaskQuantileDMatrix(

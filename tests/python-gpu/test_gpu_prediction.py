@@ -226,7 +226,7 @@ class TestGPUPredict:
         cols = 10
         missing = 11  # set to integer for testing
 
-        cp_rng = cp.random.RandomState(1994)
+        cp_rng = cp.random.RandomState(np.uint64(1994))
         cp.random.set_random_state(cp_rng)
 
         X = cp.random.randn(rows, cols)
@@ -546,7 +546,7 @@ class TestGPUPredict:
 
         rows = 1000
         cols = 10
-        rng = cp.random.RandomState(1994)
+        rng = cp.random.RandomState(np.uint64(1994))
         orig = rng.randint(low=0, high=127, size=rows * cols).reshape(rows, cols)
         y = rng.randint(low=0, high=127, size=rows)
         dtrain = xgb.DMatrix(orig, label=y)
