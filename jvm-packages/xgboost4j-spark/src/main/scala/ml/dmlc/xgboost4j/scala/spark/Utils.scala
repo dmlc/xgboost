@@ -24,14 +24,14 @@ import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 // based on org.apache.spark.util copy /paste
 object Utils {
 
-    private[spark] implicit class MLVectorToXGBLabeledPoint(val v: Vector) extends AnyVal {
+  private[spark] implicit class MLVectorToXGBLabeledPoint(val v: Vector) extends AnyVal {
     /**
      * Converts a [[Vector]] to a data point with a dummy label.
      *
      * This is needed for constructing a [[ml.dmlc.xgboost4j.scala.DMatrix]]
      * for prediction.
      */
-      // TODO support sparsevector
+    // TODO support sparsevector
     def asXGB: XGBLabeledPoint = v match {
       case v: DenseVector =>
         XGBLabeledPoint(0.0f, v.size, null, v.values.map(_.toFloat))
@@ -46,6 +46,7 @@ object Utils {
     Option(Thread.currentThread().getContextClassLoader).getOrElse(getSparkClassLoader)
 
   // scalastyle:off classforname
+
   /** Preferred alternative to Class.forName(className) */
   def classForName(className: String): Class[_] = {
     Class.forName(className, true, getContextOrSparkClassLoader)
@@ -54,9 +55,10 @@ object Utils {
 
   /**
    * Get the TypeHints according to the value
+   *
    * @param value the instance of class to be serialized
    * @return if value is null,
-   *            return NoTypeHints
+   *         return NoTypeHints
    *         else return the FullTypeHints.
    *
    *         The FullTypeHints will save the full class name into the "jsonClass" of the json,
@@ -72,6 +74,7 @@ object Utils {
 
   /**
    * Get the TypeHints according to the saved jsonClass field
+   *
    * @param json
    * @return TypeHints
    */

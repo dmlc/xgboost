@@ -36,12 +36,11 @@ object SparkUtils {
     SchemaUtils.checkNumericType(schema, colName, msg)
   }
 
-  def saveMetadata(
-                    instance: Params,
-                    path: String,
-                    sc: SparkContext,
-                    extraMetadata: Option[JObject] = None,
-                    paramMap: Option[JValue] = None): Unit = {
+  def saveMetadata(instance: Params,
+                   path: String,
+                   sc: SparkContext,
+                   extraMetadata: Option[JObject] = None,
+                   paramMap: Option[JValue] = None): Unit = {
     DefaultParamsWriter.saveMetadata(instance, path, sc, extraMetadata, paramMap)
   }
 
@@ -49,19 +48,17 @@ object SparkUtils {
     DefaultParamsReader.loadMetadata(path, sc, expectedClassName)
   }
 
-  def appendColumn(
-                    schema: StructType,
-                    colName: String,
-                    dataType: DataType,
-                    nullable: Boolean = false): StructType = {
+  def appendColumn(schema: StructType,
+                   colName: String,
+                   dataType: DataType,
+                   nullable: Boolean = false): StructType = {
     SchemaUtils.appendColumn(schema, colName, dataType, nullable)
   }
 
-  def appendVectorUDTColumn(
-                    schema: StructType,
-                    colName: String,
-                    dataType: DataType = new VectorUDT,
-                    nullable: Boolean = false): StructType = {
+  def appendVectorUDTColumn(schema: StructType,
+                            colName: String,
+                            dataType: DataType = new VectorUDT,
+                            nullable: Boolean = false): StructType = {
     SchemaUtils.appendColumn(schema, colName, dataType, nullable)
   }
 

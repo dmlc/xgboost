@@ -18,7 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark.params
 
 import scala.collection.mutable
 
-import org.apache.spark.ml.param.{BooleanParam, DoubleParam, FloatParam, IntParam, LongParam, Param}
+import org.apache.spark.ml.param._
 
 
 private[spark] trait ParamMapConversion extends NonXGBoostParams {

@@ -36,7 +36,7 @@ import org.apache.spark.sql.types.{ArrayType, FloatType, StructField, StructType
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
 import ml.dmlc.xgboost4j.scala.spark.Utils.MLVectorToXGBLabeledPoint
-import ml.dmlc.xgboost4j.scala.spark.params.{ClassificationParams, HasGroupCol, ParamMapConversion, SparkParams, XGBoostParams}
+import ml.dmlc.xgboost4j.scala.spark.params._
 
 
 /**
@@ -352,10 +352,10 @@ private[spark] abstract class XGBoostEstimator[
  * @param trainingSummary the training summary
  * @tparam the exact model which must extend from XGBoostModel
  */
-private[spark] abstract class XGBoostModel[M <: XGBoostModel[M]]
-(override val uid: String,
- private val model: Booster,
- private val trainingSummary: Option[XGBoostTrainingSummary]) extends Model[M] with MLWritable
+private[spark] abstract class XGBoostModel[M <: XGBoostModel[M]](
+  override val uid: String,
+  private val model: Booster,
+  private val trainingSummary: Option[XGBoostTrainingSummary]) extends Model[M] with MLWritable
   with XGBoostParams[M] with SparkParams[M] {
 
   protected val TMP_TRANSFORMED_COL = "_tmp_xgb_transformed_col"

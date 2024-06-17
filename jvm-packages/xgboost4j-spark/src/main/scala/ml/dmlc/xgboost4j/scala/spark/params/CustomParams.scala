@@ -27,10 +27,9 @@ import ml.dmlc.xgboost4j.scala.spark.Utils
 /**
  * General spark parameter that includes TypeHints for (de)serialization using json4s.
  */
-class CustomGeneralParam[T: Manifest](
-    parent: Params,
-    name: String,
-    doc: String) extends Param[T](parent, name, doc) {
+class CustomGeneralParam[T: Manifest](parent: Params,
+                                      name: String,
+                                      doc: String) extends Param[T](parent, name, doc) {
 
   /** Creates a param pair with the given value (for Java). */
   override def w(value: T): ParamPair[T] = super.w(value)
@@ -51,12 +50,10 @@ class CustomGeneralParam[T: Manifest](
   }
 }
 
-class CustomEvalParam(
-    parent: Params,
-    name: String,
-    doc: String) extends CustomGeneralParam[EvalTrait](parent, name, doc)
+class CustomEvalParam(parent: Params,
+                      name: String,
+                      doc: String) extends CustomGeneralParam[EvalTrait](parent, name, doc)
 
-class CustomObjParam(
-    parent: Params,
-    name: String,
-    doc: String) extends CustomGeneralParam[ObjectiveTrait](parent, name, doc)
+class CustomObjParam(parent: Params,
+                     name: String,
+                     doc: String) extends CustomGeneralParam[ObjectiveTrait](parent, name, doc)

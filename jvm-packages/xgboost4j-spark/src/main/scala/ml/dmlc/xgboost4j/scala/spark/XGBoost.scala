@@ -28,15 +28,15 @@ import ml.dmlc.xgboost4j.java.{Communicator, RabitTracker, XGBoostError}
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 
 private[spark] case class RuntimeParams(
-                                         numWorkers: Int,
-                                         numRounds: Int,
-                                         obj: ObjectiveTrait,
-                                         eval: EvalTrait,
-                                         trackerConf: TrackerConf,
-                                         earlyStoppingRounds: Int,
-                                         device: String,
-                                         isLocal: Boolean,
-                                         runOnGpu: Boolean)
+  numWorkers: Int,
+  numRounds: Int,
+  obj: ObjectiveTrait,
+  eval: EvalTrait,
+  trackerConf: TrackerConf,
+  earlyStoppingRounds: Int,
+  device: String,
+  isLocal: Boolean,
+  runOnGpu: Boolean)
 
 /**
  * A trait to manage stage-level scheduling
@@ -58,10 +58,9 @@ private[spark] trait StageLevelScheduling extends Serializable {
    * @param conf         spark configurations
    * @return Boolean to skip stage-level scheduling or not
    */
-  private[spark] def skipStageLevelScheduling(
-                                               sparkVersion: String,
-                                               runOnGpu: Boolean,
-                                               conf: SparkConf): Boolean = {
+  private[spark] def skipStageLevelScheduling(sparkVersion: String,
+                                              runOnGpu: Boolean,
+                                              conf: SparkConf): Boolean = {
     if (runOnGpu) {
       if (sparkVersion < "3.4.0") {
         logger.info("Stage-level scheduling in xgboost requires spark version 3.4.0+")
@@ -119,10 +118,9 @@ private[spark] trait StageLevelScheduling extends Serializable {
    * @param rdd the rdd to be applied with new resource profile
    * @return the original rdd or the modified rdd
    */
-  private[spark] def tryStageLevelScheduling[T](
-                                                 sc: SparkContext,
-                                                 xgbExecParams: RuntimeParams,
-                                                 rdd: RDD[T]
+  private[spark] def tryStageLevelScheduling[T](sc: SparkContext,
+                                                xgbExecParams: RuntimeParams,
+                                                rdd: RDD[T]
                                                ): RDD[T] = {
 
     val conf = sc.getConf
@@ -235,8 +233,9 @@ private[spark] object XGBoost extends StageLevelScheduling {
    * @param xgboostParams the xgboost parameters to pass to xgboost library
    * @return the booster and the metrics
    */
-  def train(input: RDD[Watches], runtimeParams: RuntimeParams, xgboostParams: Map[String, Any]):
-  (Booster, Map[String, Array[Float]]) = {
+  def train(input: RDD[Watches],
+            runtimeParams: RuntimeParams,
+            xgboostParams: Map[String, Any]): (Booster, Map[String, Array[Float]]) = {
 
     val sc = input.sparkContext
     logger.info(s"Running XGBoost ${spark.VERSION} with parameters: $xgboostParams")
@@ -288,10 +287,9 @@ private[spark] object XGBoost extends StageLevelScheduling {
   }
 }
 
-class Watches private[scala](
-                              val datasets: Array[DMatrix],
-                              val names: Array[String],
-                              val cacheDirName: Option[String]) {
+class Watches private[scala](val datasets: Array[DMatrix],
+                             val names: Array[String],
+                             val cacheDirName: Option[String]) {
 
   def toMap: Map[String, DMatrix] = {
     names.zip(datasets).toMap.filter { case (_, matrix) => matrix.rowNum > 0 }
