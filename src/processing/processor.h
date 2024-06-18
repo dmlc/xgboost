@@ -119,7 +119,7 @@ class ProcessorLoader {
  public:
     ProcessorLoader(): params_{} {}
 
-    explicit ProcessorLoader(const std::map<std::string, std::string>& params): params_(params) {}
+    explicit ProcessorLoader(const std::map<std::string, std::string>& params): params_(params) {} // NOLINT
 
     Processor* Load(const std::string& plugin_name);
 
