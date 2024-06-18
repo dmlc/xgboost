@@ -41,7 +41,7 @@ TEST(GHistIndexPageRawFormat, IO) {
 
   std::unique_ptr<common::AlignedResourceReadStream> fi{
       std::make_unique<common::PrivateMmapConstStream>(path, 0, bytes)};
-  format->Read(&page, fi.get());
+  ASSERT_TRUE(format->Read(&page, fi.get()));
 
   for (auto const &gidx : m->GetBatches<GHistIndexMatrix>(&ctx, batch)) {
     auto const &loaded = gidx;

@@ -35,15 +35,11 @@ template <typename T>
     return false;
   }
 
-  if constexpr (false) {
-    *vec = common::RefResourceView<T>{reinterpret_cast<T*>(ptr), n, fi->Share()};
-  } else {
-    vec->SetDevice(DeviceOrd::CUDA(0));
-    vec->Resize(n);
-    auto d_vec = vec->DeviceSpan();
-    dh::safe_cuda(
-        cudaMemcpyAsync(d_vec.data(), ptr, n_bytes, cudaMemcpyDefault, dh::DefaultStream()));
-  }
+  vec->SetDevice(DeviceOrd::CUDA(0));
+  vec->Resize(n);
+  auto d_vec = vec->DeviceSpan();
+  dh::safe_cuda(
+      cudaMemcpyAsync(d_vec.data(), ptr, n_bytes, cudaMemcpyDefault, dh::DefaultStream()));
   return true;
 }
 }  // namespace

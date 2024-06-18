@@ -39,7 +39,7 @@ TEST(EllpackPageRawFormat, IO) {
   EllpackPage page;
   std::unique_ptr<common::AlignedResourceReadStream> fi{
       std::make_unique<common::PrivateMmapConstStream>(path.c_str(), 0, n_bytes)};
-  format->Read(&page, fi.get());
+  ASSERT_TRUE(format->Read(&page, fi.get()));
 
   for (auto const &ellpack : m->GetBatches<EllpackPage>(&ctx, param)) {
     auto loaded = page.Impl();
