@@ -55,7 +55,7 @@ class HistogramBuilder {
   bool is_secure_{false};
   // Whether to secure aggregation context has been initialized
   bool is_aggr_context_initialized_{false};
-  xgboost::common::Span<std::int8_t> hist_data;
+  xgboost::common::Span<std::int8_t> hist_data;  // NOLINT
 
  public:
   /**
