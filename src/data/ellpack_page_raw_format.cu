@@ -4,15 +4,12 @@
 #include <dmlc/registry.h>
 
 #include <cstddef>  // for size_t
+#include <cstdint>  // for uint64_t
 
 #include "../common/io.h"                 // for AlignedResourceReadStream, AlignedFileWriteStream
 #include "../common/ref_resource_view.h"  // for ReadVec, WriteVec
 #include "ellpack_page.cuh"               // for EllpackPage
 #include "ellpack_page_raw_format.h"
-
-#if defined(XGBOOST_USE_NVTX)
-#include <nvToolsExt.h>
-#endif  // defined(XGBOOST_USE_NVTX)
 
 namespace xgboost::data {
 DMLC_REGISTRY_FILE_TAG(ellpack_page_raw_format);
