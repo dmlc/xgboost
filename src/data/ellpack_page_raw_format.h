@@ -5,6 +5,7 @@
 
 #include <cstddef>  // for size_t
 #include <memory>   // for shared_ptr
+#include <utility>  // for move
 
 #include "../common/io.h"        // for AlignedResourceReadStream
 #include "sparse_page_writer.h"  // for SparsePageFormat
