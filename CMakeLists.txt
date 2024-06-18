@@ -367,6 +367,13 @@ if(JVM_BINDINGS)
   xgboost_target_defs(xgboost4j)
 endif()
 
+if(USE_OPENMP AND APPLE)
+  patch_openmp_path_macos(xgboost libxgboost)
+  if(JVM_BINDINGS)
+    patch_openmp_path_macos(xgboost4j libxgboost4j)
+  endif()
+endif()
+
 if(KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR)
   set_output_directory(xgboost ${xgboost_BINARY_DIR}/lib)
 else()
