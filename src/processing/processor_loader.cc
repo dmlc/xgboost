@@ -14,7 +14,7 @@
 namespace processing {
     using LoadFunc = Processor *(const char *);
 
-    Processor* ProcessorLoader::load(const std::string& plugin_name) {
+    Processor* ProcessorLoader::Load(const std::string& plugin_name) {
         // Dummy processor for unit testing without loading a shared library
         if (plugin_name == kMockProcessor) {
             return new MockProcessor();
@@ -44,10 +44,10 @@ namespace processing {
 
         std::string lib_path;
 
-        if (params.find(kLibraryPath) == params.end()) {
+        if (params_.find(kLibraryPath) == params_.end()) {
             lib_path = lib_file_name;
         } else {
-            auto p = params[kLibraryPath];
+            auto p = params_[kLibraryPath];
             if (p.back() != '/' && p.back() != '\\') {
                 p += '/';
             }
@@ -58,24 +58,24 @@ namespace processing {
         handle_ = reinterpret_cast<void *>(LoadLibrary(lib_path.c_str()));
         if (!handle_) {
             std::cerr << "Failed to load the dynamic library" << std::endl;
-            return NULL;
+            return nullptr;
         }
 
         void* func_ptr = reinterpret_cast<void *>(GetProcAddress((HMODULE)handle_, kLoadFunc));
         if (!func_ptr) {
             std::cerr << "Failed to find loader function." << std::endl;
-            return NULL;
+            return nullptr;
         }
 #else
         handle_ = dlopen(lib_path.c_str(), RTLD_LAZY);
         if (!handle_) {
             std::cerr << "Failed to load the dynamic library: " << dlerror() << std::endl;
-            return NULL;
+            return nullptr;
         }
         void* func_ptr = dlsym(handle_, kLoadFunc);
         if (!func_ptr) {
             std::cerr << "Failed to find loader function: " << dlerror() << std::endl;
-            return NULL;
+            return nullptr;
         }
 #endif
 
@@ -84,7 +84,7 @@ namespace processing {
         return (*func)(plugin_name.c_str());
     }
 
-    void ProcessorLoader::unload() {
+    void ProcessorLoader::Unload() {
 #if defined(_WIN32)
         FreeLibrary(handle_);
 #else

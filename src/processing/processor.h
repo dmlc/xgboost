@@ -3,7 +3,6 @@
  */
 #pragma once
 
-#include <any>
 #include <cstdint>
 #include <map>
 #include <string>
@@ -114,17 +113,17 @@ class Processor {
 
 class ProcessorLoader {
  private:
-    std::map<std::string, std::string> params;
-    void *handle_ = NULL;
+    std::map<std::string, std::string> params_;
+    void *handle_ = nullptr;
 
  public:
-    ProcessorLoader(): params{} {}
+    ProcessorLoader(): params_{} {}
 
-    explicit ProcessorLoader(const std::map<std::string, std::string>& params): params(params) {}
+    explicit ProcessorLoader(const std::map<std::string, std::string>& params): params_(params) {}
 
-    Processor* load(const std::string& plugin_name);
+    Processor* Load(const std::string& plugin_name);
 
-    void unload();
+    void Unload();
 };
 
 }  // namespace processing
