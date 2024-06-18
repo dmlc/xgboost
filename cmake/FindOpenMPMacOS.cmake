@@ -76,7 +76,7 @@ function(patch_openmp_path_macos target target_default_output_name)
     )
   endif()
 
-  message(STATUS "Creating shared lib ${__LIBXGBOOST_FILENAME_${target}}...")
+  message(STATUS "Creating shared lib: ${__LIBXGBOOST_FILENAME_${target}}")
 
   # Override the absolute path to OpenMP with a relative one using @rpath.
   #
@@ -90,7 +90,7 @@ function(patch_openmp_path_macos target target_default_output_name)
         ${__OpenMP_LIBRARY_LOCATION}
         "@rpath/${__OpenMP_LIBRARY_NAME}"
         "${__LIBXGBOOST_FILENAME_${target}}"
-      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
       COMMENT
         "${__LIBXGBOOST_FILENAME_${target}}: "
         "Replacing hard-coded OpenMP install_name with '@rpath/${__OpenMP_LIBRARY_NAME}'..."
