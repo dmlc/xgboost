@@ -52,6 +52,21 @@ def test_single_batch(tree_method: str = "approx") -> None:
     assert from_np.get_dump() == from_it.get_dump()
 
 
+def test_with_cat_single() -> None:
+    X, y = tm.make_categorical(
+        n_samples=128, n_features=3, n_categories=6, onehot=False
+    )
+    Xy = xgb.DMatrix(SingleBatch(data=X, label=y), enable_categorical=True)
+    from_it = xgb.train({}, Xy, num_boost_round=3)
+
+    Xy = xgb.DMatrix(X, y, enable_categorical=True)
+    from_Xy = xgb.train({}, Xy, num_boost_round=3)
+
+    jit = from_it.save_raw(raw_format="json")
+    jxy = from_Xy.save_raw(raw_format="json")
+    assert jit == jxy
+
+
 def run_data_iterator(
     n_samples_per_batch: int,
     n_features: int,

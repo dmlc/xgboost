@@ -4,7 +4,6 @@
  */
 #include "gradient_index.h"
 
-#include <algorithm>
 #include <limits>
 #include <memory>
 #include <utility>  // for forward
@@ -126,8 +125,8 @@ INSTANTIATION_PUSH(data::ColumnarAdapterBatch)
 void GHistIndexMatrix::ResizeIndex(const size_t n_index, const bool isDense) {
   auto make_index = [this, n_index](auto t, common::BinTypeSize t_size) {
     // Must resize instead of allocating a new one. This function is called everytime a
-    // new batch is pushed, and we grow the size accordingly without loosing the data the
-    // previous batches.
+    // new batch is pushed, and we grow the size accordingly without loosing the data in
+    // the previous batches.
     using T = decltype(t);
     std::size_t n_bytes = sizeof(T) * n_index;
     CHECK_GE(n_bytes, this->data.size());
