@@ -1,7 +1,8 @@
 /**
- * Copyright 2019-2024, XGBoost contributors
+ * Copyright 2019-2023, XGBoost contributors
  */
 #include <memory>
+#include <utility>
 
 #include "ellpack_page.cuh"
 #include "ellpack_page.h"  // for EllpackPage

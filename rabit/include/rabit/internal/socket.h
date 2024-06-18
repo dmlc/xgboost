@@ -3,7 +3,8 @@
  * \file socket.h
  * \author Tianqi Chen
  */
-#pragma once
+#ifndef RABIT_INTERNAL_SOCKET_H_
+#define RABIT_INTERNAL_SOCKET_H_
 #include "xgboost/collective/result.h"
 #include "xgboost/collective/socket.h"
 
@@ -60,8 +61,8 @@ using sock_size_t = size_t;  // NOLINT
 #pragma message("Distributed training on mingw is not supported.")
 typedef struct pollfd {
   SOCKET fd;
-  short  events;  // NOLINT
-  short  revents;  // NOLINT
+  short  events;
+  short  revents;
 } WSAPOLLFD, *PWSAPOLLFD, *LPWSAPOLLFD;
 
 // POLLRDNORM | POLLRDBAND
@@ -96,8 +97,7 @@ std::enable_if_t<std::is_integral_v<E>, xgboost::collective::Result> PollError(E
   if ((revents & POLLERR) != 0) {
     auto err = errno;
     auto str = strerror(err);
-    return xgboost::system::FailWithCode(std::string{"Poll error condition:"} +  // NOLINT
-                                         std::string{str} +                      // NOLINT
+    return xgboost::system::FailWithCode(std::string{"Poll error condition:"} + std::string{str} +
                                          " code:" + std::to_string(err));
   }
   if ((revents & POLLNVAL) != 0) {
@@ -229,3 +229,5 @@ struct PollHelper {
 #undef POLLPRI
 #undef POLLOUT
 #endif  // IS_MINGW()
+
+#endif  // RABIT_INTERNAL_SOCKET_H_

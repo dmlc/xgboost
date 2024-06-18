@@ -6,6 +6,7 @@
 
 #include <any>  // for any, any_cast
 #include <memory>
+#include <string>
 #include <type_traits>  // for invoke_result_t
 #include <utility>
 

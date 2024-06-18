@@ -12,7 +12,7 @@ from itertools import starmap
 from math import ceil
 from operator import attrgetter, getitem
 from pathlib import Path
-from typing import Any, Dict, Generator, Literal, Optional, Tuple, Type, TypeVar, Union
+from typing import Any, Dict, Generator, Optional, Tuple, Type, TypeVar, Union
 
 import hypothesis
 import numpy as np
@@ -700,7 +700,6 @@ def run_dask_classifier(
     w: xgb.dask._DaskCollection,
     model: str,
     tree_method: Optional[str],
-    device: Literal["cpu", "cuda"],
     client: "Client",
     n_classes,
 ) -> None:
@@ -708,19 +707,11 @@ def run_dask_classifier(
 
     if model == "boosting":
         classifier = xgb.dask.DaskXGBClassifier(
-            verbosity=1,
-            n_estimators=2,
-            eval_metric=metric,
-            tree_method=tree_method,
-            device=device,
+            verbosity=1, n_estimators=2, eval_metric=metric, tree_method=tree_method
         )
     else:
         classifier = xgb.dask.DaskXGBRFClassifier(
-            verbosity=1,
-            n_estimators=2,
-            eval_metric=metric,
-            tree_method=tree_method,
-            device=device,
+            verbosity=1, n_estimators=2, eval_metric=metric, tree_method=tree_method
         )
 
     assert classifier._estimator_type == "classifier"
@@ -794,12 +785,12 @@ def test_dask_classifier(model: str, client: "Client") -> None:
     X, y, w = generate_array(with_weights=True)
     y = (y * 10).astype(np.int32)
     assert w is not None
-    run_dask_classifier(X, y, w, model, None, "cpu", client, 10)
+    run_dask_classifier(X, y, w, model, None, client, 10)
 
     y_bin = y.copy()
     y_bin[y > 5] = 1.0
     y_bin[y <= 5] = 0.0
-    run_dask_classifier(X, y_bin, w, model, None, "cpu", client, 2)
+    run_dask_classifier(X, y_bin, w, model, None, client, 2)
 
 
 def test_empty_dmatrix_training_continuation(client: "Client") -> None:
@@ -2145,7 +2136,7 @@ def test_parallel_submit_multi_clients() -> None:
 
 
 def test_init_estimation(client: Client) -> None:
-    check_init_estimation("hist", "cpu", client)
+    check_init_estimation("hist", client)
 
 
 @pytest.mark.parametrize("tree_method", ["hist", "approx"])
@@ -2153,7 +2144,7 @@ def test_uneven_nan(tree_method) -> None:
     n_workers = 2
     with LocalCluster(n_workers=n_workers) as cluster:
         with Client(cluster) as client:
-            check_uneven_nan(client, tree_method, "cpu", n_workers)
+            check_uneven_nan(client, tree_method, n_workers)
 
 
 class TestDaskCallbacks:
