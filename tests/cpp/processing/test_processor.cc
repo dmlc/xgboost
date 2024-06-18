@@ -11,7 +11,7 @@ class ProcessorTest : public testing::Test {
  public:
     void SetUp() override {
         auto loader = processing::ProcessorLoader();
-        processor_ = loader.load(processing::kMockProcessor);
+        processor_ = loader.Load(processing::kMockProcessor);
         processor_->Initialize(true, {});
     }
 

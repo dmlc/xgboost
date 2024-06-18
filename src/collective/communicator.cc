@@ -21,7 +21,7 @@ thread_local std::unique_ptr<Communicator> Communicator::communicator_{new NoOpC
 thread_local CommunicatorType Communicator::type_{};
 thread_local std::string Communicator::nccl_path_{};
 
-std::map<std::string, std::string> json_to_map(xgboost::Json const& config, std::string key) {
+std::map<std::string, std::string> JsonToMap(xgboost::Json const& config, std::string key) {
   auto json_map = xgboost::OptionalArg<xgboost::Object>(config, key, xgboost::JsonObject::Map{});
   std::map<std::string, std::string> params{};
   for (auto entry : json_map) {
@@ -76,10 +76,10 @@ void Communicator::Init(Json const& config) {
   plugin_name = OptionalArg<String>(config, "plugin_name", plugin_name);
   // Initialize processor if plugin_name is provided
   if (!plugin_name.empty()) {
-    std::map<std::string, std::string> loader_params = json_to_map(config, "loader_params");
-    std::map<std::string, std::string> proc_params = json_to_map(config, "proc_params");
+    std::map<std::string, std::string> loader_params = JsonToMap(config, "loader_params");
+    std::map<std::string, std::string> proc_params = JsonToMap(config, "proc_params");
     processing::ProcessorLoader loader(loader_params);
-    processor_instance = loader.load(plugin_name);
+    processor_instance = loader.Load(plugin_name);
     processor_instance->Initialize(collective::GetRank() == 0, proc_params);
   }
 #else
