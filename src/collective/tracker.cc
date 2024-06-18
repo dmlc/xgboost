@@ -18,6 +18,7 @@
 #include <algorithm>  // for sort
 #include <chrono>     // for seconds, ms
 #include <cstdint>    // for int32_t
+#include <memory>     // for unique_ptr
 #include <string>     // for string
 #include <utility>    // for move, forward
 
