@@ -2,8 +2,9 @@
  * Copyright 2014-2024 by XGBoost Contributors
  */
 
-#include <iostream>
+#include <dlfcn.h>  // for dlclose, dlsym, dlopen
 
+#include <iostream>
 #if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
 #else
