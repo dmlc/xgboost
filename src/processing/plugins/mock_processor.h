@@ -16,7 +16,7 @@ class MockProcessor: public processing::Processor {
  private:
   bool active_ = false;
   const std::map<std::string, std::string> *params_{nullptr};
-  std::vector<double> *gh_pairs_{nullptr};
+  std::vector<double> gh_pairs_;
   std::vector<uint32_t> cuts_;
   std::vector<int> slots_;
 
@@ -27,7 +27,7 @@ class MockProcessor: public processing::Processor {
   }
 
   void Shutdown() override {
-    this->gh_pairs_ = nullptr;
+    this->gh_pairs_.clear();
     this->cuts_.clear();
     this->slots_.clear();
   }

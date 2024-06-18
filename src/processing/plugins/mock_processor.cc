@@ -33,7 +33,7 @@ void* MockProcessor::ProcessGHPairs(std::size_t *size, const std::vector<double>
   }
 
   // Save pairs for future operations
-  this->gh_pairs_ = new std::vector<double>(pairs);
+  this->gh_pairs_ = pairs;
 
   return buf;
 }
@@ -51,9 +51,9 @@ void* MockProcessor::HandleGHPairs(std::size_t *size, void *buffer, std::size_t 
     ptr += kPrefixLen;
     double *pairs = reinterpret_cast<double *>(ptr);
     std::size_t num = (buf_size - kPrefixLen) / 8;
-    gh_pairs_ = new std::vector<double>();
+    gh_pairs_.clear();
     for (std::size_t i = 0; i < num; i += 10) {
-      gh_pairs_->push_back(pairs[i]);
+      gh_pairs_.push_back(pairs[i]);
     }
   }
 
@@ -81,8 +81,8 @@ void *MockProcessor::ProcessAggregation(std::size_t *size, std::map<int, std::ve
           continue;
         }
 
-        auto g = (*gh_pairs_)[row_id*2];
-        auto h = (*gh_pairs_)[row_id*2+1];
+        auto g = gh_pairs_[row_id*2];
+        auto h = gh_pairs_[row_id*2+1];
         histo[slot*2] += g;
         histo[slot*2+1] += h;
       }
