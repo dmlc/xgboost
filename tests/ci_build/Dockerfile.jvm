@@ -1,32 +1,31 @@
-FROM centos:7
+FROM rockylinux:8
 
 # Install all basic requirements
 RUN \
-    yum install -y epel-release centos-release-scl && \
-    yum-config-manager --enable centos-sclo-rh-testing && \
-    yum -y update && \
-    yum install -y tar unzip make bzip2 wget xz git which ninja-build java-1.8.0-openjdk-devel \
-                   devtoolset-9-gcc devtoolset-9-binutils devtoolset-9-gcc-c++ \
-                   devtoolset-9-runtime devtoolset-9-libstdc++-devel && \
+    dnf -y update && \
+    dnf -y install dnf-plugins-core && \
+    dnf config-manager --set-enabled powertools && \
+    dnf install -y tar unzip make bzip2 wget xz git which ninja-build java-1.8.0-openjdk-devel \
+                   gcc-toolset-10-gcc gcc-toolset-10-binutils gcc-toolset-10-gcc-c++ \
+                   gcc-toolset-10-runtime gcc-toolset-10-libstdc++-devel && \
     # Python
-    wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/22.11.1-2/Mambaforge-22.11.1-2-Linux-x86_64.sh && \
-    bash conda.sh -b -p /opt/mambaforge && \
+    wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/24.3.0-0/Miniforge3-24.3.0-0-Linux-x86_64.sh && \
+    bash conda.sh -b -p /opt/miniforge && \
     # CMake
-    wget -nv -nc https://cmake.org/files/v3.18/cmake-3.18.0-Linux-x86_64.sh --no-check-certificate && \
-    bash cmake-3.18.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
+    wget -nv -nc https://cmake.org/files/v3.29/cmake-3.29.5-linux-x86_64.sh --no-check-certificate && \
+    bash cmake-3.29.5-linux-x86_64.sh --skip-license --prefix=/usr && \
     # Maven
-    wget -nv -nc https://archive.apache.org/dist/maven/maven-3/3.6.3/binaries/apache-maven-3.6.3-bin.tar.gz && \
-    tar xvf apache-maven-3.6.3-bin.tar.gz -C /opt && \
-    ln -s /opt/apache-maven-3.6.3/ /opt/maven
+    wget -nv -nc https://archive.apache.org/dist/maven/maven-3/3.9.7/binaries/apache-maven-3.9.7-bin.tar.gz && \
+    tar xvf apache-maven-3.9.7-bin.tar.gz -C /opt && \
+    ln -s /opt/apache-maven-3.9.7/ /opt/maven
 
-ENV PATH=/opt/mambaforge/bin:/opt/maven/bin:$PATH
-ENV CC=/opt/rh/devtoolset-9/root/usr/bin/gcc
-ENV CXX=/opt/rh/devtoolset-9/root/usr/bin/c++
-ENV CPP=/opt/rh/devtoolset-9/root/usr/bin/cpp
+ENV PATH=/opt/miniforge/bin:/opt/maven/bin:$PATH
+ENV CC=/opt/rh/gcc-toolset-10/root/usr/bin/gcc
+ENV CXX=/opt/rh/gcc-toolset-10/root/usr/bin/c++
+ENV CPP=/opt/rh/gcc-toolset-10/root/usr/bin/cpp
 
 # Install Python packages
-RUN \
-    pip install numpy pytest scipy scikit-learn wheel kubernetes awscli
+RUN pip install numpy pytest scipy scikit-learn wheel kubernetes awscli
 
 ENV GOSU_VERSION 1.10
 
