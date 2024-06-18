@@ -846,7 +846,7 @@ class LearnerConfiguration : public Learner {
 
   void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_score) {
     base_score->Reshape(1);
-    collective::ApplyWithLabels(this->Ctx(), info, base_score->Data(),
+    collective::ApplyWithLabels<false>(this->Ctx(), info, base_score->Data(),
                                 [&] { UsePtr(obj_)->InitEstimation(info, base_score); });
   }
 };
@@ -1472,8 +1472,9 @@ class LearnerImpl : public LearnerIO {
   void GetGradient(HostDeviceVector<bst_float> const& preds, MetaInfo const& info,
                    std::int32_t iter, linalg::Matrix<GradientPair>* out_gpair) {
     out_gpair->Reshape(info.num_row_, this->learner_model_param_.OutputLength());
-    collective::ApplyWithLabels(&ctx_, info, out_gpair->Data(),
-                                [&] { obj_->GetGradient(preds, info, iter, out_gpair); });
+    // calculate gradient and communicate
+    collective::ApplyWithLabels<true>(&ctx_, info, out_gpair->Data(),
+                                  [&] { obj_->GetGradient(preds, info, iter, out_gpair); });
   }
 
   /*! \brief random number transformation seed. */

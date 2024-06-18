@@ -304,7 +304,7 @@ class HistEvaluator {
           loss_chg =
               static_cast<float>(evaluator.CalcSplitGain(*param_, nidx, fidx, GradStats{left_sum},
                                                          GradStats{right_sum}) - parent.root_gain);
-          if (!is_secure_) {
+          if (not (is_secure_ && is_col_split_)) {
             split_pt = cut_val[i];  // not used for partition based
             best.Update(loss_chg, fidx, split_pt, d_step == -1, false, left_sum, right_sum);
           } else {
@@ -317,7 +317,7 @@ class HistEvaluator {
           loss_chg =
               static_cast<float>(evaluator.CalcSplitGain(*param_, nidx, fidx, GradStats{right_sum},
                                                          GradStats{left_sum}) - parent.root_gain);
-          if (!is_secure_) {
+          if (not (is_secure_ && is_col_split_)) {
             if (i == imin) {
               split_pt = cut.MinValues()[fidx];
             } else {
@@ -367,8 +367,9 @@ class HistEvaluator {
     auto const &cut_ptrs = cut.Ptrs();
     // Under secure vertical setting, only the active party is able to evaluate the split
     // based on global histogram. Other parties will receive the final best split information
-    // Hence the below computation is not performed by the passive parties
-    if ((!is_secure_) || (collective::GetRank() == 0)) {
+    // Hence the below computation is not performed by the passive parties for secure vertical
+    // All other cases need it
+    if (not (is_col_split_ && is_secure_ && collective::GetRank() != 0)) {
       // Evaluate the splits for each feature
       common::ParallelFor2d(space, n_threads, [&](size_t nidx_in_set, common::Range1d r) {
         auto tidx = omp_get_thread_num();

@@ -227,6 +227,7 @@ macro(xgboost_target_link_libraries target)
   else()
     target_link_libraries(${target} PRIVATE Threads::Threads ${CMAKE_THREAD_LIBS_INIT})
   endif()
+  target_link_libraries(${target} PRIVATE ${CMAKE_DL_LIBS})
 
   if(USE_OPENMP)
     if(BUILD_STATIC_LIB)

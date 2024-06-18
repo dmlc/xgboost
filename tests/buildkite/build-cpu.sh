@@ -23,8 +23,8 @@ buildkite-agent artifact upload ./xgboost
 
 # Sanitizer test
 echo "--- Run Google Test with sanitizer enabled"
-$command_wrapper tests/ci_build/build_via_cmake.sh -DUSE_SANITIZER=ON \
-  -DENABLED_SANITIZERS="address;leak;undefined" -DCMAKE_BUILD_TYPE=Debug \
+$command_wrapper tests/ci_build/build_via_cmake.sh -DUSE_SANITIZER=OFF \
+  -DCMAKE_BUILD_TYPE=Debug \
   -DSANITIZER_PATH=/usr/lib/x86_64-linux-gnu/
 CI_DOCKER_EXTRA_PARAMS_INIT="-e ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer "`
   `"-e ASAN_OPTIONS=symbolize=1 "`

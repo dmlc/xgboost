@@ -10,6 +10,7 @@
 #include <functional>  // for function
 #include <utility>     // for move
 #include <vector>      // for vector
+#include <map>         // for map
 
 #include "../../collective/communicator-inl.h"  // for Allreduce
 #include "../../collective/communicator.h"      // for Operation
@@ -27,6 +28,7 @@
 #include "xgboost/logging.h"                    // for CHECK_GE
 #include "xgboost/span.h"                       // for Span
 #include "xgboost/tree_model.h"                 // for RegTree
+#include "../../processing/processor.h"         // for Processor
 
 namespace xgboost::tree {
 /**
@@ -51,6 +53,9 @@ class HistogramBuilder {
   bool is_distributed_{false};
   bool is_col_split_{false};
   bool is_secure_{false};
+  // Whether to secure aggregation context has been initialized
+  bool is_aggr_context_initialized_{false};
+  xgboost::common::Span<std::int8_t> hist_data;  // NOLINT
 
  public:
   /**
@@ -76,20 +81,56 @@ class HistogramBuilder {
                             std::vector<bst_node_t> const &nodes_to_build,
                             common::RowSetCollection const &row_set_collection,
                             common::Span<GradientPair const> gpair_h, bool force_read_by_column) {
-    // Parallel processing by nodes and data in each node
-    common::ParallelFor2d(space, this->n_threads_, [&](size_t nid_in_set, common::Range1d r) {
-      const auto tid = static_cast<unsigned>(omp_get_thread_num());
-      bst_node_t const nidx = nodes_to_build[nid_in_set];
-      auto elem = row_set_collection[nidx];
-      auto start_of_row_set = std::min(r.begin(), elem.Size());
-      auto end_of_row_set = std::min(r.end(), elem.Size());
-      auto rid_set = common::RowSetCollection::Elem(elem.begin + start_of_row_set,
-                                                    elem.begin + end_of_row_set, nidx);
-      auto hist = buffer_.GetInitializedHist(tid, nid_in_set);
-      if (rid_set.Size() != 0) {
-        common::BuildHist<any_missing>(gpair_h, rid_set, gidx, hist, force_read_by_column);
+    if (is_distributed_ && is_col_split_ && is_secure_) {
+      // Call the interface to transmit gidx information to the secure worker
+      // for encrypted histogram computation
+      auto cuts = gidx.Cuts().Ptrs();
+      // only initialize the aggregation context once
+      if(!is_aggr_context_initialized_){
+        auto slots = std::vector<int>();
+        auto num_rows = row_set_collection[0].Size();
+        for (std::size_t row = 0; row < num_rows; row++) {
+          for (std::size_t f = 0; f < cuts.size()-1; f++) {
+            auto slot = gidx.GetGindex(row, f);
+            slots.push_back(slot);
+          }
+        }
+        processor_instance->InitAggregationContext(cuts, slots);
+        is_aggr_context_initialized_ = true;
       }
-    });
+
+      // Further use the row set collection info to
+      // get the encrypted histogram from the secure worker
+      auto node_map = std::map<int, std::vector<int>>();
+      for (auto node : nodes_to_build) {
+        auto rows = std::vector<int>();
+        auto elem = row_set_collection[node];
+        for (auto it = elem.begin; it != elem.end; ++it) {
+          auto row_id = *it;
+          rows.push_back(row_id);
+        }
+        node_map.insert({node, rows});
+      }
+      std::size_t buf_size;
+      auto buf = processor_instance->ProcessAggregation(&buf_size, node_map);
+      hist_data = xgboost::common::Span<std::int8_t>(static_cast<std::int8_t *>(buf), buf_size);
+    } else {
+      // Parallel processing by nodes and data in each node
+      common::ParallelFor2d(space, this->n_threads_,
+                            [&](std::size_t nid_in_set, common::Range1d r) {
+        const auto tid = static_cast<unsigned>(omp_get_thread_num());
+        bst_node_t const nidx = nodes_to_build[nid_in_set];
+        auto elem = row_set_collection[nidx];
+        auto start_of_row_set = std::min(r.begin(), elem.Size());
+        auto end_of_row_set = std::min(r.end(), elem.Size());
+        auto rid_set = common::RowSetCollection::Elem(elem.begin + start_of_row_set,
+                                                      elem.begin + end_of_row_set, nidx);
+        auto hist = buffer_.GetInitializedHist(tid, nid_in_set);
+        if (rid_set.Size() != 0) {
+          common::BuildHist<any_missing>(gpair_h, rid_set, gidx, hist, force_read_by_column);
+        }
+      });
+    }
   }
 
   /**
@@ -157,7 +198,7 @@ class HistogramBuilder {
       // Add the local histogram cache to the parallel buffer before processing the first page.
       auto n_nodes = nodes_to_build.size();
       std::vector<common::GHistRow> target_hists(n_nodes);
-      for (size_t i = 0; i < n_nodes; ++i) {
+      for (std::size_t i = 0; i < n_nodes; ++i) {
         auto const nidx = nodes_to_build[i];
         target_hists[i] = hist_[nidx];
       }
@@ -180,47 +221,100 @@ class HistogramBuilder {
 
     common::BlockedSpace2d space(
         nodes_to_build.size(), [&](std::size_t) { return n_total_bins; }, 1024);
-    common::ParallelFor2d(space, this->n_threads_, [&](size_t node, common::Range1d r) {
+    common::ParallelFor2d(space, this->n_threads_, [&](std::size_t node, common::Range1d r) {
       // Merging histograms from each thread.
       this->buffer_.ReduceHist(node, r.begin(), r.end());
     });
     if (is_distributed_ && !is_col_split_) {
-      // The cache is contiguous, we can perform allreduce for all nodes in one go.
+      // Horizontal
       CHECK(!nodes_to_build.empty());
-      auto first_nidx = nodes_to_build.front();
-      std::size_t n = n_total_bins * nodes_to_build.size() * 2;
-      collective::Allreduce<collective::Operation::kSum>(
+      if (!is_secure_) {
+        // Non-secure mode, we directly perform allreduce
+        // The cache is contiguous, we can perform allreduce for all nodes in one go.
+        auto first_nidx = nodes_to_build.front();
+        std::size_t n = n_total_bins * nodes_to_build.size() * 2;
+        collective::Allreduce<collective::Operation::kSum>(
           reinterpret_cast<double *>(this->hist_[first_nidx].data()), n);
+      } else {
+        // Secure mode, we need to call interface to perform encryption and decryption
+        // note that the actual aggregation will be performed at server side
+        auto first_nidx = nodes_to_build.front();
+        std::size_t n = n_total_bins * nodes_to_build.size() * 2;
+        auto hist_to_aggr = std::vector<double>();
+        for (std::size_t hist_idx = 0; hist_idx < n; hist_idx++) {
+          double hist_item = reinterpret_cast<double *>(this->hist_[first_nidx].data())[hist_idx];
+          hist_to_aggr.push_back(hist_item);
+        }
+        std::size_t size;
+        auto hist_buf = processor_instance->ProcessHistograms(&size, hist_to_aggr);
+        std::size_t buffer_size{};
+        std::int8_t *buffer;
+        buffer_size = size;
+        buffer = reinterpret_cast<std::int8_t *>(hist_buf);
+        auto hist_vec = std::vector<std::int8_t>(buffer, buffer + buffer_size);
+        auto hist_entries = collective::AllgatherV(hist_vec);
+        std::vector<double> hist_aggr =
+                processor_instance->HandleHistograms(hist_entries.data(), hist_entries.size());
+        // Assign the aggregated histogram back to the local histogram
+        for (std::size_t hist_idx = 0; hist_idx < n; hist_idx++) {
+          reinterpret_cast<double *>(this->hist_[first_nidx].data())[hist_idx] =
+                  hist_aggr[hist_idx];
+        }
+      }
     }
 
     if (is_distributed_ && is_col_split_ && is_secure_) {
-      // Under secure vertical mode, we perform allgather for all nodes
+      // Under secure vertical mode, we perform allgather to get the global histogram.
+      // note that only Label Owner needs the global histogram
       CHECK(!nodes_to_build.empty());
-      // in theory the operation is AllGather, under current histogram setting of
-      // same length with 0s for empty slots,
-      // AllReduce is the most efficient way of achieving the global histogram
+      // Front item of nodes_to_build
       auto first_nidx = nodes_to_build.front();
+      // *2 because we have a pair of g and h for each histogram item
       std::size_t n = n_total_bins * nodes_to_build.size() * 2;
-      collective::Allreduce<collective::Operation::kSum>(
-              reinterpret_cast<double *>(this->hist_[first_nidx].data()), n);
+
+      // Perform AllGather
+      auto hist_vec = std::vector<std::int8_t>(hist_data.data(),
+                                               hist_data.data() + hist_data.size());
+      auto hist_entries = collective::AllgatherV(hist_vec);
+      // Call interface here to post-process the messages
+      std::vector<double> hist_aggr = processor_instance->HandleAggregation(
+              hist_entries.data(), hist_entries.size());
+
+      // Update histogram for label owner
+      if (collective::GetRank() == 0) {
+        // iterator of the beginning of the vector
+        auto it = reinterpret_cast<double *>(this->hist_[first_nidx].data());
+        // iterate through the hist vector of the label owner
+        for (std::size_t i = 0; i < n; i++) {
+          // get the sum of the entries from all ranks
+          double hist_sum = 0.0;
+          for (std::size_t rank_idx = 0; rank_idx < hist_aggr.size()/n; rank_idx++) {
+            int flat_idx = rank_idx * n + i;
+            hist_sum += hist_aggr[flat_idx];
+          }
+          // update rank 0's record with the global histogram
+          *it = hist_sum;
+          it++;
+        }
+      }
     }
 
     common::BlockedSpace2d const &subspace =
-        nodes_to_trick.size() == nodes_to_build.size()
-            ? space
-            : common::BlockedSpace2d{nodes_to_trick.size(),
-                                     [&](std::size_t) { return n_total_bins; }, 1024};
+      nodes_to_trick.size() == nodes_to_build.size()
+      ? space
+      : common::BlockedSpace2d{nodes_to_trick.size(),
+                               [&](std::size_t) { return n_total_bins; }, 1024};
     common::ParallelFor2d(
-        subspace, this->n_threads_, [&](std::size_t nidx_in_set, common::Range1d r) {
-          auto subtraction_nidx = nodes_to_trick[nidx_in_set];
-          auto parent_id = p_tree->Parent(subtraction_nidx);
-          auto sibling_nidx = p_tree->IsLeftChild(subtraction_nidx) ? p_tree->RightChild(parent_id)
+      subspace, this->n_threads_, [&](std::size_t nidx_in_set, common::Range1d r) {
+        auto subtraction_nidx = nodes_to_trick[nidx_in_set];
+        auto parent_id = p_tree->Parent(subtraction_nidx);
+        auto sibling_nidx = p_tree->IsLeftChild(subtraction_nidx) ? p_tree->RightChild(parent_id)
                                                                     : p_tree->LeftChild(parent_id);
-          auto sibling_hist = this->hist_[sibling_nidx];
-          auto parent_hist = this->hist_[parent_id];
-          auto subtract_hist = this->hist_[subtraction_nidx];
-          common::SubtractionHist(subtract_hist, parent_hist, sibling_hist, r.begin(), r.end());
-        });
+        auto sibling_hist = this->hist_[sibling_nidx];
+        auto parent_hist = this->hist_[parent_id];
+        auto subtract_hist = this->hist_[subtraction_nidx];
+        common::SubtractionHist(subtract_hist, parent_hist, sibling_hist, r.begin(), r.end());
+      });
   }
 
  public:
@@ -240,7 +334,7 @@ common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
   // has significant variance.
   std::vector<std::size_t> partition_size(nodes_to_build.size(), 0);
   for (auto const &partition : partitioners) {
-    size_t k = 0;
+    std::size_t k = 0;
     for (auto nidx : nodes_to_build) {
       auto n_rows_in_node = partition.Partitions()[nidx].Size();
       partition_size[k] = std::max(partition_size[k], n_rows_in_node);
@@ -248,7 +342,8 @@ common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
     }
   }
   common::BlockedSpace2d space{
-      nodes_to_build.size(), [&](size_t nidx_in_set) { return partition_size[nidx_in_set]; }, 256};
+      nodes_to_build.size(),
+      [&](std::size_t nidx_in_set) { return partition_size[nidx_in_set]; }, 256};
   return space;
 }
 

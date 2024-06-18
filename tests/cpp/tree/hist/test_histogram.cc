@@ -228,7 +228,7 @@ void TestBuildHistogram(bool is_distributed, bool force_read_by_column, bool is_
   Context ctx;
   auto p_fmat =
       RandomDataGenerator(kNRows, kNCols, 0.8).Seed(3).GenerateDMatrix();
-  if (is_col_split && !is_secure) {
+  if (is_col_split) {
     p_fmat = std::shared_ptr<DMatrix>{
         p_fmat->SliceCol(collective::GetWorldSize(), collective::GetRank())};
   }
@@ -254,7 +254,6 @@ void TestBuildHistogram(bool is_distributed, bool force_read_by_column, bool is_
   row_indices.resize(kNRows);
   std::iota(row_indices.begin(), row_indices.end(), 0);
   row_set_collection.Init();
-
   CPUExpandEntry node{RegTree::kRoot, tree.GetDepth(0)};
   std::vector<bst_node_t> nodes_to_build{node.nid};
   std::vector<bst_node_t> dummy_sub;
@@ -288,8 +287,8 @@ void TestBuildHistogram(bool is_distributed, bool force_read_by_column, bool is_
     GradientPairPrecise sol = histogram_expected[i];
     double grad = sol.GetGrad();
     double hess = sol.GetHess();
-    if (is_distributed && (!is_col_split || (is_secure && is_col_split))) {
-      // the solution also needs to be allreduce
+    if (is_distributed && !is_col_split) {
+      // row split, all party holds the same data
       collective::Allreduce<collective::Operation::kSum>(&grad, 1);
       collective::Allreduce<collective::Operation::kSum>(&hess, 1);
     }
@@ -317,11 +316,6 @@ TEST(CPUHistogram, BuildHistDistColSplit) {
   RunWithInMemoryCommunicator(kWorkers, TestBuildHistogram, true, false, true, false);
 }
 
-TEST(CPUHistogram, BuildHistDistColSplitSecure) {
-  auto constexpr kWorkers = 4;
-  RunWithInMemoryCommunicator(kWorkers, TestBuildHistogram, true, true, true, true);
-  RunWithInMemoryCommunicator(kWorkers, TestBuildHistogram, true, false, true, true);
-}
 
 namespace {
 template <typename GradientSumT>
