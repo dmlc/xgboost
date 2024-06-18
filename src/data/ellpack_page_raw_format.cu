@@ -4,9 +4,7 @@
 #include <dmlc/registry.h>
 
 #include <cstddef>  // for size_t
-#include <utility>  // for move
 
-#include "../common/hist_util.h"          // for HistogramCuts
 #include "../common/io.h"                 // for AlignedResourceReadStream, AlignedFileWriteStream
 #include "../common/ref_resource_view.h"  // for ReadVec, WriteVec
 #include "ellpack_page.cuh"               // for EllpackPage
@@ -50,10 +48,8 @@ template <typename T>
 }
 }  // namespace
 
-EllpackPageRawFormat::EllpackPageRawFormat(std::shared_ptr<common::HistogramCuts const> cuts)
-    : cuts_{std::move(cuts)} {}
-
-bool EllpackPageRawFormat::Read(EllpackPage* page, common::AlignedResourceReadStream* fi) {
+[[nodiscard]] bool EllpackPageRawFormat::Read(EllpackPage* page,
+                                              common::AlignedResourceReadStream* fi) {
   auto* impl = page->Impl();
   impl->SetCuts(this->cuts_);
   if (!fi->Read(&impl->n_rows)) {
@@ -74,8 +70,8 @@ bool EllpackPageRawFormat::Read(EllpackPage* page, common::AlignedResourceReadSt
   return true;
 }
 
-std::size_t EllpackPageRawFormat::Write(const EllpackPage& page,
-                                        common::AlignedFileWriteStream* fo) {
+[[nodiscard]] std::size_t EllpackPageRawFormat::Write(const EllpackPage& page,
+                                                      common::AlignedFileWriteStream* fo) {
   std::size_t bytes{0};
   auto* impl = page.Impl();
   bytes += fo->Write(impl->n_rows);

@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2023, XGBoost contributors
+ * Copyright 2019-2024, XGBoost contributors
  */
 #ifndef XGBOOST_USE_CUDA
 
@@ -7,15 +7,17 @@
 
 #include <xgboost/data.h>
 
+#include <memory>  // for shared_ptr
+
 // dummy implementation of EllpackPage in case CUDA is not used
 namespace xgboost {
 
 class EllpackPageImpl {
-  common::HistogramCuts cuts_;
+  std::shared_ptr<common::HistogramCuts> cuts_;
 
  public:
-  [[nodiscard]] common::HistogramCuts& Cuts() { return cuts_; }
-  [[nodiscard]] common::HistogramCuts const& Cuts() const { return cuts_; }
+  [[nodiscard]] common::HistogramCuts const& Cuts() const { return *cuts_; }
+  [[nodiscard]] std::shared_ptr<common::HistogramCuts const> CutsShared() const { return cuts_; }
 };
 
 EllpackPage::EllpackPage() = default;
@@ -38,12 +40,6 @@ size_t EllpackPage::Size() const {
   LOG(FATAL) << "Internal Error: XGBoost is not compiled with CUDA but "
                 "EllpackPage is required";
   return 0;
-}
-
-[[nodiscard]] common::HistogramCuts& EllpackPage::Cuts() {
-  LOG(FATAL) << "Internal Error: XGBoost is not compiled with CUDA but "
-                "EllpackPage is required";
-  return impl_->Cuts();
 }
 
 [[nodiscard]] common::HistogramCuts const& EllpackPage::Cuts() const {
