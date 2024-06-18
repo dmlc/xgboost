@@ -96,9 +96,10 @@ function(patch_openmp_path_macos target target_default_output_name)
         "@rpath/${__OpenMP_LIBRARY_NAME}"
         "${__LIBXGBOOST_FILENAME_${target}}"
       WORKING_DIRECTORY ${__LIB_DIR}
-      COMMENT
-        "${__LIBXGBOOST_FILENAME_${target}}: "
-        "Replacing hard-coded OpenMP install_name with '@rpath/${__OpenMP_LIBRARY_NAME}'..."
+  )
+  message(STATUS
+    "${__LIBXGBOOST_FILENAME_${target}}: "
+    "Replacing hard-coded OpenMP install_name with '@rpath/${__OpenMP_LIBRARY_NAME}'..."
   )
   # Add RPATH entries to ensure the loader looks in the following, in the following order:
   #
