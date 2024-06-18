@@ -81,6 +81,11 @@ function(patch_openmp_path_macos target target_default_output_name)
   # Override the absolute path to OpenMP with a relative one using @rpath.
   #
   # This also ensures that if a libomp.dylib has already been loaded, it'll just use that.
+  if(KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR)
+    set(__LIB_DIR ${xgboost_BINARY_DIR}/lib)
+  else()
+    set(__LIB_DIR ${xgboost_SOURCE_DIR}/lib)
+  endif()
   add_custom_command(
     TARGET ${target}
     POST_BUILD
@@ -90,7 +95,7 @@ function(patch_openmp_path_macos target target_default_output_name)
         ${__OpenMP_LIBRARY_LOCATION}
         "@rpath/${__OpenMP_LIBRARY_NAME}"
         "${__LIBXGBOOST_FILENAME_${target}}"
-      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+      WORKING_DIRECTORY ${__LIB_DIR}
       COMMENT
         "${__LIBXGBOOST_FILENAME_${target}}: "
         "Replacing hard-coded OpenMP install_name with '@rpath/${__OpenMP_LIBRARY_NAME}'..."
