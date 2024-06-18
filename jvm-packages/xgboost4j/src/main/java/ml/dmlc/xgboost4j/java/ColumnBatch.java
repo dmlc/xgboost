@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2021 by Contributors
+ Copyright (c) 2021-2024 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -16,8 +16,6 @@
 
 package ml.dmlc.xgboost4j.java;
 
-import java.util.Iterator;
-
 /**
  * The abstracted XGBoost ColumnBatch to get array interface from columnar data format.
  * For example, the cuDF dataframe which employs apache arrow specification.
@@ -26,7 +24,7 @@ public abstract class ColumnBatch implements AutoCloseable {
   /**
    * Get the cuda array interface json string for the whole ColumnBatch including
    * the must-have feature, label columns and the optional weight, base margin columns.
-   *
+   * <p>
    * This function is be called by native code during iteration and can be made as private
    * method.  We keep it as public simply to silent the linter.
    */
@@ -49,12 +47,12 @@ public abstract class ColumnBatch implements AutoCloseable {
     }
 
     String weightStr = getWeightsArrayInterface();
-    if (weightStr != null && ! weightStr.isEmpty()) {
+    if (weightStr != null && !weightStr.isEmpty()) {
       builder.append(",\"weight_str\":" + weightStr);
     }
 
     String baseMarginStr = getBaseMarginsArrayInterface();
-    if (baseMarginStr != null && ! baseMarginStr.isEmpty()) {
+    if (baseMarginStr != null && !baseMarginStr.isEmpty()) {
       builder.append(",\"basemargin_str\":" + baseMarginStr);
     }
 
@@ -71,7 +69,7 @@ public abstract class ColumnBatch implements AutoCloseable {
   /**
    * Get the cuda array interface of the label columns.
    * The returned value must not be null or empty if we're creating
-   *  {@link QuantileDMatrix#QuantileDMatrix(Iterator, float, int, int)}
+   * QuantileDMatrix#QuantileDMatrix(Iterator, float, int, int)
    */
   public abstract String getLabelsArrayInterface();
 
@@ -88,6 +86,7 @@ public abstract class ColumnBatch implements AutoCloseable {
   public abstract String getBaseMarginsArrayInterface();
 
   @Override
-  public void close() throws Exception {}
+  public void close() throws Exception {
+  }
 
 }

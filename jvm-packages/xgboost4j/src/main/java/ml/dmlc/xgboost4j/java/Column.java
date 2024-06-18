@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2021 by Contributors
+ Copyright (c) 2021-2024 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -19,22 +19,21 @@ package ml.dmlc.xgboost4j.java;
 /**
  * The abstracted XGBoost Column to get the cuda array interface which is used to
  * set the information for DMatrix.
- *
  */
 public abstract class Column implements AutoCloseable {
 
   /**
-   * Get the cuda array interface json string for the Column which can be representing
-   * weight, label, base margin column.
-   *
+   * Get the cuda array interface json string for the Column
+   * <p>
    * This API will be called by
-   *  {@link DMatrix#setLabel(Column)}
-   *  {@link DMatrix#setWeight(Column)}
-   *  {@link DMatrix#setBaseMargin(Column)}
+   * {@link DMatrix#setLabel(Column)}
+   * {@link DMatrix#setWeight(Column)}
+   * {@link DMatrix#setBaseMargin(Column)}
    */
   public abstract String getArrayInterfaceJson();
 
   @Override
-  public void close() throws Exception {}
+  public void close() throws Exception {
+  }
 
 }
