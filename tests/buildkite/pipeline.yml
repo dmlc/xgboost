@@ -15,7 +15,7 @@ steps:
     commands:
       - "tests/buildkite/build-containers.sh cpu"
       - "tests/buildkite/build-containers.sh gpu"
-      - "tests/buildkite/build-containers.sh gpu_build_centos7"
+      - "tests/buildkite/build-containers.sh gpu_build_rockylinux8"
     key: build-containers
     agents:
       queue: linux-amd64-cpu
