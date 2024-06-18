@@ -234,15 +234,17 @@ endif()
 
 find_package(Threads REQUIRED)
 
+# -- OpenMP
+include(cmake/FindOpenMPMacOS.cmake)
 if(USE_OPENMP)
   if(APPLE)
-    include(cmake/FindOpenMPMacOS.cmake)
     find_openmp_macos()
   else()
     find_package(OpenMP REQUIRED)
   endif()
 endif()
-#Add for IBM i
+
+# Add for IBM i
 if(${CMAKE_SYSTEM_NAME} MATCHES "OS400")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
   set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> -X64 qc <TARGET> <OBJECTS>")
@@ -369,9 +371,6 @@ endif()
 
 if(USE_OPENMP AND APPLE)
   patch_openmp_path_macos(xgboost libxgboost)
-  if(JVM_BINDINGS)
-    patch_openmp_path_macos(xgboost4j libxgboost4j)
-  endif()
 endif()
 
 if(KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR)

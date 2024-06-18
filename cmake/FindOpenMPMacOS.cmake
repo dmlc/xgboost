@@ -76,7 +76,7 @@ function(patch_openmp_path_macos target target_default_output_name)
     )
   endif()
 
-  message(STATUS "Creating shared lib: ${__LIBXGBOOST_FILENAME_${target}}")
+  message(STATUS "Creating shared lib for target ${target}: ${__LIBXGBOOST_FILENAME_${target}}")
 
   # Override the absolute path to OpenMP with a relative one using @rpath.
   #
