@@ -1,6 +1,6 @@
 # Find OpenMP library on MacOS
 # Automatically handle locating libomp from the Homebrew package manager
-function(find_openmp_macos)
+macro(find_openmp_macos)
   if(NOT APPLE)
     message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}() must only be used on MacOS")
   endif()
@@ -21,7 +21,7 @@ function(find_openmp_macos)
     set(OpenMP_omp_LIBRARY ${HOMEBREW_LIBOMP_PREFIX}/lib/libomp.dylib)
     find_package(OpenMP REQUIRED)
   endif()
-endfunction()
+endmacro()
 
 # Patch libxgboost.dylib so that it depends on @rpath/libomp.dylib instead of
 # /opt/homebrew/opt/libomp/lib/libomp.dylib or other hard-coded paths.
@@ -102,11 +102,14 @@ function(patch_openmp_path_macos target target_default_output_name)
   #
   # Note: This list will only be used if libomp.dylib isn't already loaded into memory.
   #       So Conda users will likely use ${CONDA_PREFIX}/libomp.dylib
+  execute_process(COMMAND brew --prefix libomp
+                  OUTPUT_VARIABLE HOMEBREW_LIBOMP_PREFIX
+                  OUTPUT_STRIP_TRAILING_WHITESPACE)
   set_target_properties(
     ${target}
     PROPERTIES
       BUILD_WITH_INSTALL_RPATH TRUE
-      INSTALL_RPATH "/opt/homebrew/opt/libomp/lib;${__OpenMP_LIBRARY_DIR}"
+      INSTALL_RPATH "${HOMEBREW_LIBOMP_PREFIX}/lib;${__OpenMP_LIBRARY_DIR}"
       INSTALL_RPATH_USE_LINK_PATH FALSE
   )
 endfunction()
