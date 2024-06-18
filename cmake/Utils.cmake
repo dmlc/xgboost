@@ -136,6 +136,7 @@ function(xgboost_link_nccl target)
   set(xgboost_nccl_flags -DXGBOOST_USE_NCCL=1)
   if(USE_DLOPEN_NCCL)
     list(APPEND xgboost_nccl_flags -DXGBOOST_USE_DLOPEN_NCCL=1)
+    target_link_libraries(${target} PRIVATE ${CMAKE_DL_LIBS})
   endif()
 
   if(BUILD_STATIC_LIB)
