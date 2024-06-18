@@ -3,8 +3,6 @@ Example of using callbacks with Dask
 ====================================
 """
 
-from typing import Any
-
 import numpy as np
 from dask.distributed import Client, LocalCluster
 from dask_ml.datasets import make_regression
@@ -15,7 +13,7 @@ import xgboost.dask as dxgb
 from xgboost.dask import DaskDMatrix
 
 
-def probability_for_going_backward(epoch: int) -> float:
+def probability_for_going_backward(epoch):
     return 0.999 / (1.0 + 0.05 * np.log(1.0 + epoch))
 
 
@@ -25,9 +23,7 @@ class CustomEarlyStopping(xgb.callback.TrainingCallback):
     In the beginning, allow the metric to become worse with a probability of 0.999.
     As boosting progresses, the probability should be adjusted downward"""
 
-    def __init__(
-        self, *, validation_set: str, target_metric: str, maximize: bool, seed: int
-    ) -> None:
+    def __init__(self, *, validation_set, target_metric, maximize, seed):
         self.validation_set = validation_set
         self.target_metric = target_metric
         self.maximize = maximize
@@ -38,9 +34,7 @@ class CustomEarlyStopping(xgb.callback.TrainingCallback):
         else:
             self.better = lambda x, y: x < y
 
-    def after_iteration(
-        self, model: Any, epoch: int, evals_log: xgb.callback.TrainingCallback.EvalsLog
-    ) -> bool:
+    def after_iteration(self, model, epoch, evals_log):
         metric_history = evals_log[self.validation_set][self.target_metric]
         if len(metric_history) < 2 or self.better(
             metric_history[-1], metric_history[-2]
@@ -48,7 +42,7 @@ class CustomEarlyStopping(xgb.callback.TrainingCallback):
             return False  # continue training
         p = probability_for_going_backward(epoch)
         go_backward = self.rng.choice(2, size=(1,), replace=True, p=[1 - p, p]).astype(
-            np.bool_
+            np.bool
         )[0]
         print(
             "The validation metric went into the wrong direction. "
@@ -60,7 +54,7 @@ class CustomEarlyStopping(xgb.callback.TrainingCallback):
             return True  # stop training
 
 
-def main(client: Client) -> None:
+def main(client):
     m = 100000
     n = 100
     X, y = make_regression(n_samples=m, n_features=n, chunks=200, random_state=0)

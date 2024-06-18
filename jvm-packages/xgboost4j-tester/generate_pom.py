@@ -22,7 +22,7 @@ pom_template = """
     <scala.version>{scala_version}</scala.version>
     <scalatest.version>3.2.15</scalatest.version>
     <scala.binary.version>{scala_binary_version}</scala.binary.version>
-    <kryo.version>5.6.0</kryo.version>
+    <kryo.version>5.5.0</kryo.version>
   </properties>
 
   <dependencies>
@@ -50,11 +50,6 @@ pom_template = """
       <groupId>commons-logging</groupId>
       <artifactId>commons-logging</artifactId>
       <version>1.2</version>
-    </dependency>
-    <dependency>
-      <groupId>com.fasterxml.jackson.core</groupId>
-      <artifactId>jackson-databind</artifactId>
-      <version>2.14.2</version>
     </dependency>
     <dependency>
       <groupId>org.scalatest</groupId>

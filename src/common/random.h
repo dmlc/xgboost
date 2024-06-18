@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2024, XGBoost Contributors
+ * Copyright 2015-2020, XGBoost Contributors
  * \file random.h
  * \brief Utility related to random.
  * \author Tianqi Chen
@@ -19,13 +19,11 @@
 #include <utility>
 #include <vector>
 
-#include "../collective/broadcast.h"  // for Broadcast
 #include "../collective/communicator-inl.h"
 #include "algorithm.h"  // ArgSort
 #include "common.h"
 #include "xgboost/context.h"  // Context
 #include "xgboost/host_device_vector.h"
-#include "xgboost/linalg.h"
 
 namespace xgboost::common {
 /*!
@@ -229,10 +227,9 @@ class ColumnSampler {
   }
 };
 
-inline auto MakeColumnSampler(Context const* ctx) {
+inline auto MakeColumnSampler(Context const*) {
   std::uint32_t seed = common::GlobalRandomEngine()();
-  auto rc = collective::Broadcast(ctx, linalg::MakeVec(&seed, 1), 0);
-  collective::SafeColl(rc);
+  collective::Broadcast(&seed, sizeof(seed), 0);
   auto cs = std::make_shared<common::ColumnSampler>(seed);
   return cs;
 }

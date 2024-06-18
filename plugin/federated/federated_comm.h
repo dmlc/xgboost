@@ -1,17 +1,17 @@
 /**
- * Copyright 2023-2024, XGBoost contributors
+ * Copyright 2023, XGBoost contributors
  */
 #pragma once
 
 #include <federated.grpc.pb.h>
 #include <federated.pb.h>
 
-#include <chrono>   // for seconds
 #include <cstdint>  // for int32_t
-#include <memory>   // for shared_ptr
+#include <memory>   // for unique_ptr
 #include <string>   // for string
 
 #include "../../src/collective/comm.h"    // for HostComm
+#include "../../src/common/json_utils.h"  // for OptionalArg
 #include "xgboost/json.h"
 
 namespace xgboost::collective {
@@ -47,9 +47,9 @@ class FederatedComm : public HostComm {
    */
   explicit FederatedComm(std::int32_t retry, std::chrono::seconds timeout, std::string task_id,
                          Json const& config);
-  [[nodiscard]] Result Shutdown() final {
-    this->ResetState();
-    return Success();
+  explicit FederatedComm(std::string const& host, std::int32_t port, std::int32_t world,
+                         std::int32_t rank) {
+    this->Init(host, port, world, rank, {}, {}, {});
   }
   ~FederatedComm() override { stub_.reset(); }
 
@@ -65,13 +65,5 @@ class FederatedComm : public HostComm {
   [[nodiscard]] federated::Federated::Stub* Handle() const { return stub_.get(); }
 
   [[nodiscard]] Comm* MakeCUDAVar(Context const* ctx, std::shared_ptr<Coll> pimpl) const override;
-  /**
-   * @brief Get a string ID for the current process.
-   */
-  [[nodiscard]] Result ProcessorName(std::string* out) const final {
-    auto rank = this->Rank();
-    *out = "rank:" + std::to_string(rank);
-    return Success();
-  };
 };
 }  // namespace xgboost::collective

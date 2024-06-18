@@ -1,18 +1,20 @@
 /**
- * Copyright 2020-2024, XGBoost contributors
+ * Copyright 2020-2023, XGBoost contributors
  */
 #include <algorithm>
 #include <memory>
+#include <type_traits>
 
-#include "../collective/allreduce.h"
 #include "../common/hist_util.cuh"
 #include "batch_utils.h"  // for RegenGHist
 #include "device_adapter.cuh"
 #include "ellpack_page.cuh"
+#include "gradient_index.h"
 #include "iterative_dmatrix.h"
 #include "proxy_dmatrix.cuh"
 #include "proxy_dmatrix.h"
 #include "simple_batch_iterator.h"
+#include "sparse_page_source.h"
 
 namespace xgboost::data {
 void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
@@ -61,8 +63,7 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
     dh::safe_cuda(cudaSetDevice(get_device().ordinal));
     if (cols == 0) {
       cols = num_cols();
-      auto rc = collective::Allreduce(ctx, linalg::MakeVec(&cols, 1), collective::Op::kMax);
-      SafeColl(rc);
+      collective::Allreduce<collective::Operation::kMax>(&cols, 1);
       this->info_.num_col_ = cols;
     } else {
       CHECK_EQ(cols, num_cols()) << "Inconsistent number of columns.";

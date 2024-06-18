@@ -9,10 +9,6 @@ defaults:
   run:
     shell: bash -l {0}
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-
 jobs:
   python-mypy-lint:
     runs-on: ubuntu-latest
@@ -21,16 +17,15 @@ jobs:
       matrix:
         os: [ubuntu-latest]
     steps:
-    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
-    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
+    - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
       with:
-        miniforge-variant: Mambaforge
-        miniforge-version: latest
-        activate-environment: python_lint
+        cache-downloads: true
+        cache-env: true
+        environment-name: python_lint
         environment-file: tests/ci_build/conda_env/python_lint.yml
-        use-mamba: true
     - name: Display Conda env
       run: |
         conda info
@@ -53,16 +48,15 @@ jobs:
       matrix:
         os: [ubuntu-latest]
     steps:
-    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
-    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
+    - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
       with:
-        miniforge-variant: Mambaforge
-        miniforge-version: latest
-        activate-environment: sdist_test
+        cache-downloads: true
+        cache-env: true
+        environment-name: sdist_test
         environment-file: tests/ci_build/conda_env/sdist_test.yml
-        use-mamba: true
     - name: Display Conda env
       run: |
         conda info
@@ -83,17 +77,17 @@ jobs:
     name: Test installing XGBoost Python source package on ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-13, windows-latest]
+        os: [macos-11, windows-latest]
         python-version: ["3.8"]
     steps:
-    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
     - name: Install osx system dependencies
-      if: matrix.os == 'macos-13'
+      if: matrix.os == 'macos-11'
       run: |
         brew install ninja libomp
-    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca # v3.0.4
+    - uses: conda-incubator/setup-miniconda@35d1405e78aa3f784fe3ce9a2eb378d5eeb62169 # v2.1.1
       with:
         auto-update-conda: true
         python-version: ${{ matrix.python-version }}
@@ -121,20 +115,19 @@ jobs:
     strategy:
       matrix:
         config:
-          - {os: macos-13}
+          - {os: macos-11}
 
     steps:
-    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
 
-    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
+    - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
       with:
-        miniforge-variant: Mambaforge
-        miniforge-version: latest
-        activate-environment: macos_cpu_test
+        cache-downloads: true
+        cache-env: true
+        environment-name: macos_test
         environment-file: tests/ci_build/conda_env/macos_cpu_test.yml
-        use-mamba: true
 
     - name: Display Conda env
       run: |
@@ -177,11 +170,11 @@ jobs:
           - {os: windows-latest, python-version: '3.8'}
 
     steps:
-    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
 
-    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca # v3.0.4
+    - uses: conda-incubator/setup-miniconda@35d1405e78aa3f784fe3ce9a2eb378d5eeb62169 # v2.1.1
       with:
         auto-update-conda: true
         python-version: ${{ matrix.config.python-version }}
@@ -221,17 +214,16 @@ jobs:
           - {os: ubuntu-latest, python-version: "3.8"}
 
     steps:
-    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+    - uses: actions/checkout@v2
       with:
         submodules: 'true'
 
-    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
+    - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
       with:
-        miniforge-variant: Mambaforge
-        miniforge-version: latest
-        activate-environment: linux_cpu_test
+        cache-downloads: true
+        cache-env: true
+        environment-name: linux_cpu_test
         environment-file: tests/ci_build/conda_env/linux_cpu_test.yml
-        use-mamba: true
 
     - name: Display Conda env
       run: |
@@ -274,17 +266,16 @@ jobs:
           - {os: ubuntu-latest, python-version: "3.8"}
 
     steps:
-    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+    - uses: actions/checkout@v2
       with:
         submodules: 'true'
 
-    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
+    - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
       with:
-        miniforge-variant: Mambaforge
-        miniforge-version: latest
-        activate-environment: linux_sycl_test
+        cache-downloads: true
+        cache-env: true
+        environment-name: linux_sycl_test
         environment-file: tests/ci_build/conda_env/linux_sycl_test.yml
-        use-mamba: true
 
     - name: Display Conda env
       run: |
@@ -314,12 +305,12 @@ jobs:
         os: [ubuntu-latest]
 
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+      - uses: actions/checkout@v2
         with:
           submodules: 'true'
 
       - name: Set up Python 3.8
-        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
+        uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
         with:
           python-version: 3.8
 

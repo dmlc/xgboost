@@ -249,7 +249,7 @@ xgb.get.handle <- function(object) {
 #' summary(rowSums(pred_contr) - qlogis(pred))
 #' # for the 1st record, let's inspect its features that had non-zero contribution to prediction:
 #' contr1 <- pred_contr[1,]
-#' contr1 <- contr1[-length(contr1)]    # drop intercept
+#' contr1 <- contr1[-length(contr1)]    # drop BIAS
 #' contr1 <- contr1[contr1 != 0]        # drop non-contributing features
 #' contr1 <- contr1[order(abs(contr1))] # order by contribution magnitude
 #' old_mar <- par("mar")
@@ -473,7 +473,7 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
 
   .Call(XGSetArrayDimInplace_R, arr, rev(shape))
 
-  cnames <- if (!is.null(colnames(newdata))) c(colnames(newdata), "(Intercept)") else NULL
+  cnames <- if (!is.null(colnames(newdata))) c(colnames(newdata), "BIAS") else NULL
   n_groups <- shape[2]
 
   ## Needed regardless of whether strict shape is being used.
@@ -1071,10 +1071,6 @@ xgb.best_iteration <- function(bst) {
 #' coef(model)
 #' @export
 coef.xgb.Booster <- function(object, ...) {
-  return(.internal.coef.xgb.Booster(object, add_names = TRUE))
-}
-
-.internal.coef.xgb.Booster <- function(object, add_names = TRUE) {
   booster_type <- xgb.booster_type(object)
   if (booster_type != "gblinear") {
     stop("Coefficients are not defined for Booster type ", booster_type)
@@ -1093,27 +1089,21 @@ coef.xgb.Booster <- function(object, ...) {
   intercepts <- weights[seq(sep + 1, length(weights))]
   intercepts <- intercepts + as.numeric(base_score)
 
-  if (add_names) {
-    feature_names <- xgb.feature_names(object)
-    if (!NROW(feature_names)) {
-      # This mimics the default naming in R which names columns as "V1..N"
-      # when names are needed but not available
-      feature_names <- paste0("V", seq(1L, num_feature))
-    }
-    feature_names <- c("(Intercept)", feature_names)
+  feature_names <- xgb.feature_names(object)
+  if (!NROW(feature_names)) {
+    # This mimics the default naming in R which names columns as "V1..N"
+    # when names are needed but not available
+    feature_names <- paste0("V", seq(1L, num_feature))
   }
+  feature_names <- c("(Intercept)", feature_names)
   if (n_cols == 1L) {
     out <- c(intercepts, coefs)
-    if (add_names) {
-      names(out) <- feature_names
-    }
+    names(out) <- feature_names
   } else {
     coefs <- matrix(coefs, nrow = num_feature, byrow = TRUE)
     dim(intercepts) <- c(1L, n_cols)
     out <- rbind(intercepts, coefs)
-    if (add_names) {
-      row.names(out) <- feature_names
-    }
+    row.names(out) <- feature_names
     # TODO: if a class names attributes is added,
     # should use those names here.
   }
@@ -1265,9 +1255,12 @@ print.xgb.Booster <- function(x, ...) {
     cat("  ", paste(attr_names, collapse = ", "), "\n")
   }
 
-  additional_attr <- setdiff(names(R_attrs), .reserved_cb_names)
-  if (NROW(additional_attr)) {
-    cat("callbacks:\n  ", paste(additional_attr, collapse = ", "), "\n")
+  if (!is.null(R_attrs$callbacks) && length(R_attrs$callbacks) > 0) {
+    cat('callbacks:\n')
+    lapply(callback.calls(R_attrs$callbacks), function(x) {
+      cat('  ')
+      print(x)
+    })
   }
 
   if (!is.null(R_attrs$evaluation_log)) {

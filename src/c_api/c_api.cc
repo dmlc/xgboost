@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2024, XGBoost Contributors
+ * Copyright 2014-2024 by XGBoost Contributors
  */
 #include "xgboost/c_api.h"
 
@@ -15,9 +15,9 @@
 #include <utility>                           // for pair
 #include <vector>                            // for vector
 
+#include "../collective/communicator-inl.h"  // for Allreduce, Broadcast, Finalize, GetProcessor...
 #include "../common/api_entry.h"             // for XGBAPIThreadLocalEntry
 #include "../common/charconv.h"              // for from_chars, to_chars, NumericLimits, from_ch...
-#include "../common/error_msg.h"             // for NoFederated
 #include "../common/hist_util.h"             // for HistogramCuts
 #include "../common/io.h"                    // for FileExtension, LoadSequentialFile, MemoryBuf...
 #include "../common/threading_utils.h"       // for OmpGetNumThreads, ParallelFor
@@ -27,10 +27,11 @@
 #include "../data/simple_dmatrix.h"          // for SimpleDMatrix
 #include "c_api_error.h"                     // for xgboost_CHECK_C_ARG_PTR, API_END, API_BEGIN
 #include "c_api_utils.h"                     // for RequiredArg, OptionalArg, GetMissing, CastDM...
-#include "dmlc/base.h"                       // for BeginPtr
+#include "dmlc/base.h"                       // for BeginPtr, DMLC_ATTRIBUTE_UNUSED
 #include "dmlc/io.h"                         // for Stream
 #include "dmlc/parameter.h"                  // for FieldAccessEntry, FieldEntry, ParamManager
 #include "dmlc/thread_local.h"               // for ThreadLocalStore
+#include "rabit/c_api.h"                     // for RabitLinkTag
 #include "xgboost/base.h"                    // for bst_ulong, bst_float, GradientPair, bst_feat...
 #include "xgboost/context.h"                 // for Context
 #include "xgboost/data.h"                    // for DMatrix, MetaInfo, DataType, ExtSparsePage
@@ -44,6 +45,10 @@
 #include "xgboost/span.h"                    // for Span
 #include "xgboost/string_view.h"             // for StringView, operator<<
 #include "xgboost/version_config.h"          // for XGBOOST_VER_MAJOR, XGBOOST_VER_MINOR, XGBOOS...
+
+#if defined(XGBOOST_USE_FEDERATED)
+#include "../../plugin/federated/federated_server.h"
+#endif
 
 using namespace xgboost; // NOLINT(*);
 
@@ -609,8 +614,8 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle, const char *field, const
   API_BEGIN();
   CHECK_HANDLE();
   xgboost_CHECK_C_ARG_PTR(field);
-  auto const &p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
-  p_fmat->SetInfo(field, linalg::Make1dInterface(info, len));
+  auto const& p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
+  p_fmat->SetInfo(field, info, xgboost::DataType::kFloat32, len);
   API_END();
 }
 
@@ -629,9 +634,8 @@ XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle, const char *field, const 
   API_BEGIN();
   CHECK_HANDLE();
   xgboost_CHECK_C_ARG_PTR(field);
-  LOG(WARNING) << error::DeprecatedFunc(__func__, "2.1.0", "XGDMatrixSetInfoFromInterface");
   auto const &p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
-  p_fmat->SetInfo(field, linalg::Make1dInterface(info, len));
+  p_fmat->SetInfo(field, info, xgboost::DataType::kUInt32, len);
   API_END();
 }
 
@@ -675,52 +679,19 @@ XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field, void 
                                   xgboost::bst_ulong size, int type) {
   API_BEGIN();
   CHECK_HANDLE();
-  LOG(WARNING) << error::DeprecatedFunc(__func__, "2.1.0", "XGDMatrixSetInfoFromInterface");
   auto const &p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
   CHECK(type >= 1 && type <= 4);
   xgboost_CHECK_C_ARG_PTR(field);
+  p_fmat->SetInfo(field, data, static_cast<DataType>(type), size);
+  API_END();
+}
 
-  Context ctx;
-  auto dtype = static_cast<DataType>(type);
-  std::string str;
-  auto proc = [&](auto cast_d_ptr) {
-    using T = std::remove_pointer_t<decltype(cast_d_ptr)>;
-    auto t = linalg::TensorView<T, 1>(
-        common::Span<T>{cast_d_ptr, static_cast<typename common::Span<T>::index_type>(size)},
-        {size}, DeviceOrd::CPU());
-    CHECK(t.CContiguous());
-    Json iface{linalg::ArrayInterface(t)};
-    CHECK(ArrayInterface<1>{iface}.is_contiguous);
-    str = Json::Dump(iface);
-    return str;
-  };
-
-  // Legacy code using XGBoost dtype, which is a small subset of array interface types.
-  switch (dtype) {
-    case xgboost::DataType::kFloat32: {
-      auto cast_ptr = reinterpret_cast<const float *>(data);
-      p_fmat->Info().SetInfo(ctx, field, proc(cast_ptr));
-      break;
-    }
-    case xgboost::DataType::kDouble: {
-      auto cast_ptr = reinterpret_cast<const double *>(data);
-      p_fmat->Info().SetInfo(ctx, field, proc(cast_ptr));
-      break;
-    }
-    case xgboost::DataType::kUInt32: {
-      auto cast_ptr = reinterpret_cast<const uint32_t *>(data);
-      p_fmat->Info().SetInfo(ctx, field, proc(cast_ptr));
-      break;
-    }
-    case xgboost::DataType::kUInt64: {
-      auto cast_ptr = reinterpret_cast<const uint64_t *>(data);
-      p_fmat->Info().SetInfo(ctx, field, proc(cast_ptr));
-      break;
-    }
-    default:
-      LOG(FATAL) << "Unknown data type" << static_cast<uint8_t>(dtype);
-  }
-
+XGB_DLL int XGDMatrixSetGroup(DMatrixHandle handle, const unsigned *group, xgboost::bst_ulong len) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  LOG(WARNING) << "XGDMatrixSetGroup is deprecated, use `XGDMatrixSetUIntInfo` instead.";
+  auto const &p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
+  p_fmat->SetInfo("group", group, xgboost::DataType::kUInt32, len);
   API_END();
 }
 
@@ -1016,7 +987,7 @@ XGB_DLL int XGBoosterBoostOneIter(BoosterHandle handle, DMatrixHandle dtrain, bs
                                   bst_float *hess, xgboost::bst_ulong len) {
   API_BEGIN();
   CHECK_HANDLE();
-  LOG(WARNING) << error::DeprecatedFunc(__func__, "2.1.0", "XGBoosterTrainOneIter");
+  error::DeprecatedFunc(__func__, "2.1.0", "XGBoosterTrainOneIter");
   auto *learner = static_cast<Learner *>(handle);
   auto ctx = learner->Ctx()->MakeCPU();
 
@@ -1754,3 +1725,76 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, char const *config,
   *out_features = dmlc::BeginPtr(feature_names_c);
   API_END();
 }
+
+XGB_DLL int XGCommunicatorInit(char const* json_config) {
+  API_BEGIN();
+  xgboost_CHECK_C_ARG_PTR(json_config);
+  Json config{Json::Load(StringView{json_config})};
+  collective::Init(config);
+  API_END();
+}
+
+XGB_DLL int XGCommunicatorFinalize() {
+  API_BEGIN();
+  collective::Finalize();
+  API_END();
+}
+
+XGB_DLL int XGCommunicatorGetRank(void) {
+  return collective::GetRank();
+}
+
+XGB_DLL int XGCommunicatorGetWorldSize(void) {
+  return collective::GetWorldSize();
+}
+
+XGB_DLL int XGCommunicatorIsDistributed(void) {
+  return collective::IsDistributed();
+}
+
+XGB_DLL int XGCommunicatorPrint(char const *message) {
+  API_BEGIN();
+  collective::Print(message);
+  API_END();
+}
+
+XGB_DLL int XGCommunicatorGetProcessorName(char const **name_str) {
+  API_BEGIN();
+  auto& local = *GlobalConfigAPIThreadLocalStore::Get();
+  local.ret_str = collective::GetProcessorName();
+  xgboost_CHECK_C_ARG_PTR(name_str);
+  *name_str = local.ret_str.c_str();
+  API_END();
+}
+
+XGB_DLL int XGCommunicatorBroadcast(void *send_receive_buffer, size_t size, int root) {
+  API_BEGIN();
+  collective::Broadcast(send_receive_buffer, size, root);
+  API_END();
+}
+
+XGB_DLL int XGCommunicatorAllreduce(void *send_receive_buffer, size_t count, int enum_dtype,
+                                    int enum_op) {
+  API_BEGIN();
+  collective::Allreduce(send_receive_buffer, count, enum_dtype, enum_op);
+  API_END();
+}
+
+#if defined(XGBOOST_USE_FEDERATED)
+XGB_DLL int XGBRunFederatedServer(int port, std::size_t world_size, char const *server_key_path,
+                                  char const *server_cert_path, char const *client_cert_path) {
+  API_BEGIN();
+  federated::RunServer(port, world_size, server_key_path, server_cert_path, client_cert_path);
+  API_END();
+}
+
+// Run a server without SSL for local testing.
+XGB_DLL int XGBRunInsecureFederatedServer(int port, std::size_t world_size) {
+  API_BEGIN();
+  federated::RunInsecureServer(port, world_size);
+  API_END();
+}
+#endif
+
+// force link rabit
+static DMLC_ATTRIBUTE_UNUSED int XGBOOST_LINK_RABIT_C_API_ = RabitLinkTag();

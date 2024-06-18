@@ -1,10 +1,10 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023, XGBoost Contributors
  */
 #pragma once
 #include <chrono>   // for seconds
 #include <cstddef>  // for size_t
-#include <cstdint>  // for int32_t, int64_t
+#include <cstdint>  // for int32_t
 #include <memory>   // for shared_ptr
 #include <string>   // for string
 #include <thread>   // for thread
@@ -14,13 +14,13 @@
 #include "loop.h"                       // for Loop
 #include "protocol.h"                   // for PeerInfo
 #include "xgboost/collective/result.h"  // for Result
-#include "xgboost/collective/socket.h"  // for TCPSocket, GetHostName
+#include "xgboost/collective/socket.h"  // for TCPSocket
 #include "xgboost/context.h"            // for Context
 #include "xgboost/span.h"               // for Span
 
 namespace xgboost::collective {
 
-inline constexpr std::int64_t DefaultTimeoutSec() { return 60 * 30; }  // 30min
+inline constexpr std::int32_t DefaultTimeoutSec() { return 300; }  // 5min
 inline constexpr std::int32_t DefaultRetry() { return 3; }
 
 // indexing into the ring
@@ -51,25 +51,11 @@ class Comm : public std::enable_shared_from_this<Comm> {
 
   proto::PeerInfo tracker_;
   SockDomain domain_{SockDomain::kV4};
-
   std::thread error_worker_;
-  std::int32_t error_port_;
-
   std::string task_id_;
   std::vector<std::shared_ptr<Channel>> channels_;
-  std::shared_ptr<Loop> loop_{nullptr};  // fixme: require federated comm to have a timeout
-
-  void ResetState() {
-    this->world_ = -1;
-    this->rank_ = 0;
-    this->timeout_ = std::chrono::seconds{DefaultTimeoutSec()};
-
-    tracker_ = proto::PeerInfo{};
-    this->task_id_.clear();
-    channels_.clear();
-
-    loop_.reset();
-  }
+  std::shared_ptr<Loop> loop_{new Loop{std::chrono::seconds{
+      DefaultTimeoutSec()}}};  // fixme: require federated comm to have a timeout
 
  public:
   Comm() = default;
@@ -89,13 +75,10 @@ class Comm : public std::enable_shared_from_this<Comm> {
   [[nodiscard]] auto Retry() const { return retry_; }
   [[nodiscard]] auto TaskID() const { return task_id_; }
 
-  [[nodiscard]] auto Rank() const noexcept { return rank_; }
-  [[nodiscard]] auto World() const noexcept { return IsDistributed() ? world_ : 1; }
-  [[nodiscard]] bool IsDistributed() const noexcept { return world_ != -1; }
-  void Submit(Loop::Op op) const {
-    CHECK(loop_);
-    loop_->Submit(std::move(op));
-  }
+  [[nodiscard]] auto Rank() const { return rank_; }
+  [[nodiscard]] auto World() const { return IsDistributed() ? world_ : 1; }
+  [[nodiscard]] bool IsDistributed() const { return world_ != -1; }
+  void Submit(Loop::Op op) const { loop_->Submit(op); }
   [[nodiscard]] virtual Result Block() const { return loop_->Block(); }
 
   [[nodiscard]] virtual std::shared_ptr<Channel> Chan(std::int32_t rank) const {
@@ -105,14 +88,6 @@ class Comm : public std::enable_shared_from_this<Comm> {
   [[nodiscard]] virtual Result LogTracker(std::string msg) const = 0;
 
   [[nodiscard]] virtual Result SignalError(Result const&) { return Success(); }
-  /**
-   * @brief Get a string ID for the current process.
-   */
-  [[nodiscard]] virtual Result ProcessorName(std::string* out) const {
-    auto rc = GetHostName(out);
-    return rc;
-  }
-  [[nodiscard]] virtual Result Shutdown() = 0;
 };
 
 /**
@@ -130,20 +105,20 @@ class RabitComm : public HostComm {
 
   [[nodiscard]] Result Bootstrap(std::chrono::seconds timeout, std::int32_t retry,
                                  std::string task_id);
+  [[nodiscard]] Result Shutdown();
 
  public:
   // bootstrapping construction.
   RabitComm() = default;
-  RabitComm(std::string const& tracker_host, std::int32_t tracker_port,
-            std::chrono::seconds timeout, std::int32_t retry, std::string task_id,
-            StringView nccl_path);
+  // ctor for testing where environment is known.
+  RabitComm(std::string const& host, std::int32_t port, std::chrono::seconds timeout,
+            std::int32_t retry, std::string task_id, StringView nccl_path);
   ~RabitComm() noexcept(false) override;
 
   [[nodiscard]] bool IsFederated() const override { return false; }
   [[nodiscard]] Result LogTracker(std::string msg) const override;
 
   [[nodiscard]] Result SignalError(Result const&) override;
-  [[nodiscard]] Result Shutdown() final;
 
   [[nodiscard]] Comm* MakeCUDAVar(Context const* ctx, std::shared_ptr<Coll> pimpl) const override;
 };

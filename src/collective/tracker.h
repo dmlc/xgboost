@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023, XGBoost Contributors
  */
 #pragma once
 #include <chrono>   // for seconds
@@ -15,7 +15,6 @@
 #include "xgboost/json.h"               // for Json
 
 namespace xgboost::collective {
-inline bool HasTimeout(std::chrono::seconds timeout) { return timeout.count() > 0; }
 /**
  *
  * @brief Implementation of RABIT tracker.
@@ -37,28 +36,18 @@ inline bool HasTimeout(std::chrono::seconds timeout) { return timeout.count() > 
  *     signal an error to the tracker and the tracker will notify other workers.
  */
 class Tracker {
- public:
-  enum class SortBy : std::int8_t {
-    kHost = 0,
-    kTask = 1,
-  };
-
- protected:
-  // How to sort the workers, either by host name or by task ID. When using a multi-GPU
-  // setting, multiple workers can occupy the same host, in which case one should sort
-  // workers by task. Due to compatibility reason, the task ID is not always available, so
-  // we use host as the default.
-  SortBy sortby_;
-
  protected:
   std::int32_t n_workers_{0};
   std::int32_t port_{-1};
-  std::chrono::seconds timeout_{-1};
+  std::chrono::seconds timeout_{0};
   std::atomic<bool> ready_{false};
 
  public:
   explicit Tracker(Json const& config);
-  virtual ~Tracker() = default;
+  Tracker(std::int32_t n_worders, std::int32_t port, std::chrono::seconds timeout)
+      : n_workers_{n_worders}, port_{port}, timeout_{timeout} {}
+
+  virtual ~Tracker() noexcept(false){};  // NOLINT
 
   [[nodiscard]] Result WaitUntilReady() const;
 
@@ -70,11 +59,6 @@ class Tracker {
    * @brief Flag to indicate whether the server is running.
    */
   [[nodiscard]] bool Ready() const { return ready_; }
-  /**
-   * @brief Shutdown the tracker, cannot be restarted again. Useful when the tracker hangs while
-   *        calling accept.
-   */
-  virtual Result Stop() { return Success(); }
 };
 
 class RabitTracker : public Tracker {
@@ -92,7 +76,7 @@ class RabitTracker : public Tracker {
     Result rc_;
 
    public:
-    explicit WorkerProxy(std::int32_t world, TCPSocket sock, SockAddress addr);
+    explicit WorkerProxy(std::int32_t world, TCPSocket sock, SockAddrV4 addr);
     WorkerProxy(WorkerProxy const& that) = delete;
     WorkerProxy(WorkerProxy&& that) = default;
     WorkerProxy& operator=(WorkerProxy const&) = delete;
@@ -112,14 +96,11 @@ class RabitTracker : public Tracker {
 
     void Send(StringView value) { this->sock_.Send(value); }
   };
-  // Provide an ordering for workers, this helps us get deterministic topology.
+  // provide an ordering for workers, this helps us get deterministic topology.
   struct WorkerCmp {
-    SortBy sortby;
-    explicit WorkerCmp(SortBy sortby) : sortby{sortby} {}
-
     [[nodiscard]] bool operator()(WorkerProxy const& lhs, WorkerProxy const& rhs) {
-      auto const& lh = sortby == Tracker::SortBy::kHost ? lhs.Host() : lhs.TaskID();
-      auto const& rh = sortby == Tracker::SortBy::kHost ? rhs.Host() : rhs.TaskID();
+      auto const& lh = lhs.Host();
+      auto const& rh = rhs.Host();
 
       if (lh != rh) {
         return lh < rh;
@@ -133,22 +114,28 @@ class RabitTracker : public Tracker {
   // record for how to reach out to workers if error happens.
   std::vector<std::pair<std::string, std::int32_t>> worker_error_handles_;
   // listening socket for incoming workers.
+  //
+  // At the moment, the listener calls accept without first polling. We can add an
+  // additional unix domain socket to allow cancelling the accept.
   TCPSocket listener_;
-  // mutex for protecting the listener, used to prevent race when it's listening while
-  // another thread tries to shut it down.
-  std::mutex listener_mu_;
 
   Result Bootstrap(std::vector<WorkerProxy>* p_workers);
 
  public:
+  explicit RabitTracker(StringView host, std::int32_t n_worders, std::int32_t port,
+                        std::chrono::seconds timeout)
+      : Tracker{n_worders, port, timeout}, host_{host.c_str(), host.size()} {
+    listener_ = TCPSocket::Create(SockDomain::kV4);
+    auto rc = listener_.Bind(host, &this->port_);
+    CHECK(rc.OK()) << rc.Report();
+    listener_.Listen();
+  }
+
   explicit RabitTracker(Json const& config);
-  ~RabitTracker() override = default;
+  ~RabitTracker() noexcept(false) override = default;
 
   std::future<Result> Run() override;
   [[nodiscard]] Json WorkerArgs() const override;
-  // Stop the tracker without waiting. This is to prevent the tracker from hanging when
-  // one of the workers failes to start.
-  [[nodiscard]] Result Stop() override;
 };
 
 // Prob the public IP address of the host, need a better method.

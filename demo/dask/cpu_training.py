@@ -11,12 +11,12 @@ from xgboost import dask as dxgb
 from xgboost.dask import DaskDMatrix
 
 
-def main(client: Client) -> None:
+def main(client):
     # generate some random data for demonstration
     m = 100000
     n = 100
     rng = da.random.default_rng(1)
-    X = rng.normal(size=(m, n), chunks=(10000, -1))
+    X = rng.normal(size=(m, n))
     y = X.sum(axis=1)
 
     # DaskDMatrix acts like normal DMatrix, works as a proxy for local
@@ -40,7 +40,7 @@ def main(client: Client) -> None:
     # you can pass output directly into `predict` too.
     prediction = dxgb.predict(client, bst, dtrain)
     print("Evaluation history:", history)
-    print("Error:", da.sqrt((prediction - y) ** 2).mean().compute())
+    return prediction
 
 
 if __name__ == "__main__":

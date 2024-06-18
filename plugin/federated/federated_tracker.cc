@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2024, XGBoost contributors
+ * Copyright 2022-2023, XGBoost contributors
  */
 #include "federated_tracker.h"
 
@@ -8,12 +8,13 @@
 
 #include <cstdint>    // for int32_t
 #include <exception>  // for exception
-#include <future>     // for future, async
 #include <limits>     // for numeric_limits
 #include <string>     // for string
+#include <thread>     // for sleep_for
 
 #include "../../src/common/io.h"          // for ReadAll
 #include "../../src/common/json_utils.h"  // for RequiredArg
+#include "../../src/common/timer.h"       // for Timer
 
 namespace xgboost::collective {
 namespace federated {
@@ -35,8 +36,8 @@ grpc::Status FederatedService::Allreduce(grpc::ServerContext*, AllreduceRequest 
                                          AllreduceReply* reply) {
   handler_.Allreduce(request->send_buffer().data(), request->send_buffer().size(),
                      reply->mutable_receive_buffer(), request->sequence_number(), request->rank(),
-                     static_cast<xgboost::ArrayInterfaceHandler::Type>(request->data_type()),
-                     static_cast<xgboost::collective::Op>(request->reduce_operation()));
+                     static_cast<xgboost::collective::DataType>(request->data_type()),
+                     static_cast<xgboost::collective::Operation>(request->reduce_operation()));
   return grpc::Status::OK;
 }
 
@@ -52,13 +53,9 @@ grpc::Status FederatedService::Broadcast(grpc::ServerContext*, BroadcastRequest 
 FederatedTracker::FederatedTracker(Json const& config) : Tracker{config} {
   auto is_secure = RequiredArg<Boolean const>(config, "federated_secure", __func__);
   if (is_secure) {
-    StringView msg{"Empty certificate path."};
     server_key_path_ = RequiredArg<String const>(config, "server_key_path", __func__);
-    CHECK(!server_key_path_.empty()) << msg;
     server_cert_file_ = RequiredArg<String const>(config, "server_cert_path", __func__);
-    CHECK(!server_cert_file_.empty()) << msg;
     client_cert_file_ = RequiredArg<String const>(config, "client_cert_path", __func__);
-    CHECK(!client_cert_file_.empty()) << msg;
   }
 }
 
@@ -128,14 +125,14 @@ Result FederatedTracker::Shutdown() {
 
 [[nodiscard]] Json FederatedTracker::WorkerArgs() const {
   auto rc = this->WaitUntilReady();
-  SafeColl(rc);
+  CHECK(rc.OK()) << rc.Report();
 
   std::string host;
   rc = GetHostAddress(&host);
   CHECK(rc.OK());
   Json args{Object{}};
-  args["dmlc_tracker_uri"] = String{host};
-  args["dmlc_tracker_port"] = this->Port();
+  args["DMLC_TRACKER_URI"] = String{host};
+  args["DMLC_TRACKER_PORT"] = this->Port();
   return args;
 }
 }  // namespace xgboost::collective

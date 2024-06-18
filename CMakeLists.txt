@@ -6,7 +6,7 @@ if(PLUGIN_SYCL)
   string(REPLACE " -isystem ${CONDA_PREFIX}/include" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 endif()
 
-project(xgboost LANGUAGES CXX C VERSION 2.2.0)
+project(xgboost LANGUAGES CXX C VERSION 2.1.0)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${xgboost_SOURCE_DIR}/cmake/modules")
 
@@ -69,6 +69,7 @@ option(USE_DMLC_GTEST "Use google tests bundled with dmlc-core submodule" OFF)
 option(USE_DEVICE_DEBUG "Generate CUDA device debug info." OFF)
 option(USE_NVTX "Build with cuda profiling annotations. Developers only." OFF)
 set(NVTX_HEADER_DIR "" CACHE PATH "Path to the stand-alone nvtx header")
+option(RABIT_MOCK "Build rabit with mock" OFF)
 option(HIDE_CXX_SYMBOLS "Build shared library and hide all C++ symbols" OFF)
 option(KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR "Output build artifacts in CMake binary dir" OFF)
 ## CUDA
@@ -281,6 +282,9 @@ if(MSVC)
   endif()
 endif()
 
+# rabit
+add_subdirectory(rabit)
+
 # core xgboost
 add_subdirectory(${xgboost_SOURCE_DIR}/src)
 target_link_libraries(objxgboost PUBLIC dmlc)
@@ -346,6 +350,7 @@ if(BUILD_DEPRECATED_CLI)
     PRIVATE
     ${xgboost_SOURCE_DIR}/include
     ${xgboost_SOURCE_DIR}/dmlc-core/include
+    ${xgboost_SOURCE_DIR}/rabit/include
   )
   set_target_properties(runxgboost PROPERTIES OUTPUT_NAME xgboost)
   xgboost_target_properties(runxgboost)

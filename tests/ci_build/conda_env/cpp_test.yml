@@ -8,5 +8,3 @@ dependencies:
 - c-compiler
 - cxx-compiler
 - gtest
-- protobuf
-- libgrpc

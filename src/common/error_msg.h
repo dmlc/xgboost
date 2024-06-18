@@ -89,7 +89,7 @@ void WarnDeprecatedGPUId();
 
 void WarnEmptyDataset();
 
-[[nodiscard]] std::string DeprecatedFunc(StringView old, StringView since, StringView replacement);
+std::string DeprecatedFunc(StringView old, StringView since, StringView replacement);
 
 constexpr StringView InvalidCUDAOrdinal() {
   return "Invalid device. `device` is required to be CUDA and there must be at least one GPU "

@@ -1,12 +1,12 @@
 /**
- * Copyright 2020-2024, XGBoost contributors
+ * Copyright 2020-2023, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <thrust/host_vector.h>
 
 #include "../../../../src/tree/gpu_hist/evaluate_splits.cuh"
-#include "../../collective/test_worker.h"  // for BaseMGPUTest
 #include "../../helpers.h"
+#include "../../histogram_helpers.h"
 #include "../test_evaluate_splits.h"  // TestPartitionBasedSplit
 
 namespace xgboost::tree {
@@ -17,13 +17,13 @@ auto ZeroParam() {
   tparam.UpdateAllowUnknown(args);
   return tparam;
 }
+}  // anonymous namespace
 
-GradientQuantiser DummyRoundingFactor(Context const* ctx) {
+inline GradientQuantiser DummyRoundingFactor(Context const* ctx) {
   thrust::device_vector<GradientPair> gpair(1);
   gpair[0] = {1000.f, 1000.f};  // Tests should not exceed sum of 1000
   return {ctx, dh::ToSpan(gpair), MetaInfo()};
 }
-}  // anonymous namespace
 
 thrust::device_vector<GradientPairInt64> ConvertToInteger(Context const* ctx,
                                                           std::vector<GradientPairPrecise> x) {
@@ -363,7 +363,7 @@ TEST(GpuHist, EvaluateSingleSplitMissing) {
   GPUTrainingParam param{tparam};
 
   thrust::device_vector<bst_feature_t> feature_set = std::vector<bst_feature_t>{0};
-  thrust::device_vector<uint32_t> feature_segments = std::vector<bst_idx_t>{0, 2};
+  thrust::device_vector<uint32_t> feature_segments = std::vector<bst_row_t>{0, 2};
   thrust::device_vector<float> feature_values = std::vector<float>{1.0, 2.0};
   thrust::device_vector<float> feature_min_values = std::vector<float>{0.0};
   auto feature_histogram = ConvertToInteger(&ctx, {{-0.5, 0.5}, {0.5, 0.5}});
@@ -412,7 +412,7 @@ TEST(GpuHist, EvaluateSingleSplitFeatureSampling) {
   GPUTrainingParam param{tparam};
 
   thrust::device_vector<bst_feature_t> feature_set = std::vector<bst_feature_t>{1};
-  thrust::device_vector<uint32_t> feature_segments = std::vector<bst_idx_t>{0, 2, 4};
+  thrust::device_vector<uint32_t> feature_segments = std::vector<bst_row_t>{0, 2, 4};
   thrust::device_vector<float> feature_values = std::vector<float>{1.0, 2.0, 11.0, 12.0};
   thrust::device_vector<float> feature_min_values = std::vector<float>{0.0, 10.0};
   auto feature_histogram =
@@ -446,7 +446,7 @@ TEST(GpuHist, EvaluateSingleSplitBreakTies) {
   GPUTrainingParam param{tparam};
 
   thrust::device_vector<bst_feature_t> feature_set = std::vector<bst_feature_t>{0, 1};
-  thrust::device_vector<uint32_t> feature_segments = std::vector<bst_idx_t>{0, 2, 4};
+  thrust::device_vector<uint32_t> feature_segments = std::vector<bst_row_t>{0, 2, 4};
   thrust::device_vector<float> feature_values = std::vector<float>{1.0, 2.0, 11.0, 12.0};
   thrust::device_vector<float> feature_min_values = std::vector<float>{0.0, 10.0};
   auto feature_histogram =
@@ -478,7 +478,7 @@ TEST(GpuHist, EvaluateSplits) {
   GPUTrainingParam param{tparam};
 
   thrust::device_vector<bst_feature_t> feature_set = std::vector<bst_feature_t>{0, 1};
-  thrust::device_vector<uint32_t> feature_segments = std::vector<bst_idx_t>{0, 2, 4};
+  thrust::device_vector<uint32_t> feature_segments = std::vector<bst_row_t>{0, 2, 4};
   thrust::device_vector<float> feature_values = std::vector<float>{1.0, 2.0, 11.0, 12.0};
   thrust::device_vector<float> feature_min_values = std::vector<float>{0.0, 0.0};
   auto feature_histogram_left =
@@ -546,7 +546,7 @@ TEST_F(TestPartitionBasedSplit, GpuHist) {
   ASSERT_NEAR(split.loss_chg, best_score_, 1e-2);
 }
 
-class MGPUHistTest : public collective::BaseMGPUTest {};
+class MGPUHistTest : public BaseMGPUTest {};
 
 namespace {
 void VerifyColumnSplitEvaluateSingleSplit(bool is_categorical) {
@@ -589,29 +589,21 @@ void VerifyColumnSplitEvaluateSingleSplit(bool is_categorical) {
   evaluator.Reset(cuts, dh::ToSpan(feature_types), feature_set.size(), tparam, true, ctx.Device());
   DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(&ctx, input, shared_inputs).split;
 
-  EXPECT_EQ(result.findex, 1);
+  EXPECT_EQ(result.findex, 1) << "rank: " << rank;
   if (is_categorical) {
     ASSERT_TRUE(std::isnan(result.fvalue));
   } else {
-    EXPECT_EQ(result.fvalue, 11.0);
+    EXPECT_EQ(result.fvalue, 11.0) << "rank: " << rank;
   }
-  EXPECT_EQ(result.left_sum + result.right_sum, parent_sum);
+  EXPECT_EQ(result.left_sum + result.right_sum, parent_sum) << "rank: " << rank;
 }
 }  // anonymous namespace
 
 TEST_F(MGPUHistTest, ColumnSplitEvaluateSingleSplit) {
-  if (common::AllVisibleGPUs() > 1) {
-    // We can't emulate multiple GPUs with NCCL.
-    this->DoTest([] { VerifyColumnSplitEvaluateSingleSplit(false); }, false, true);
-  }
-  this->DoTest([] { VerifyColumnSplitEvaluateSingleSplit(false); }, true, true);
+  DoTest(VerifyColumnSplitEvaluateSingleSplit, false);
 }
 
 TEST_F(MGPUHistTest, ColumnSplitEvaluateSingleCategoricalSplit) {
-  if (common::AllVisibleGPUs() > 1) {
-    // We can't emulate multiple GPUs with NCCL.
-    this->DoTest([] { VerifyColumnSplitEvaluateSingleSplit(true); }, false, true);
-  }
-  this->DoTest([] { VerifyColumnSplitEvaluateSingleSplit(true); }, true, true);
+  DoTest(VerifyColumnSplitEvaluateSingleSplit, true);
 }
 }  // namespace xgboost::tree

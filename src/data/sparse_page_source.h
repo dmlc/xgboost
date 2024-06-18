@@ -1,5 +1,5 @@
 /**
- *  Copyright 2014-2024, XGBoost Contributors
+ *  Copyright 2014-2023, XGBoost Contributors
  * \file sparse_page_source.h
  */
 #ifndef XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_
@@ -7,28 +7,23 @@
 
 #include <algorithm>  // for min
 #include <atomic>     // for atomic
-#include <cstdio>     // for remove
-#include <future>     // for future
-#include <memory>     // for unique_ptr
-#include <mutex>      // for mutex
-#include <numeric>    // for partial_sum
-#include <string>     // for string
-#include <utility>    // for pair, move
-#include <vector>     // for vector
+#include <future>     // for async
+#include <map>
+#include <memory>
+#include <mutex>  // for mutex
+#include <string>
+#include <thread>
+#include <utility>  // for pair, move
+#include <vector>
 
-#if !defined(XGBOOST_USE_CUDA)
-#include "../common/common.h"  // for AssertGPUSupport
-#endif                         // !defined(XGBOOST_USE_CUDA)
-
-#include "../common/io.h"           // for PrivateMmapConstStream
-#include "../common/threadpool.h"   // for ThreadPool
-#include "../common/timer.h"        // for Monitor, Timer
-#include "proxy_dmatrix.h"          // for DMatrixProxy
-#include "sparse_page_writer.h"     // for SparsePageFormat
-#include "xgboost/base.h"           // for bst_feature_t
-#include "xgboost/data.h"           // for SparsePage, CSCPage
-#include "xgboost/global_config.h"  // for GlobalConfigThreadLocalStore
-#include "xgboost/logging.h"        // for CHECK_EQ
+#include "../common/common.h"
+#include "../common/io.h"     // for PrivateMmapConstStream
+#include "../common/timer.h"  // for Monitor, Timer
+#include "adapter.h"
+#include "proxy_dmatrix.h"       // for DMatrixProxy
+#include "sparse_page_writer.h"  // for SparsePageFormat
+#include "xgboost/base.h"
+#include "xgboost/data.h"
 
 namespace xgboost::data {
 inline void TryDeleteCacheFile(const std::string& file) {
@@ -55,7 +50,7 @@ struct Cache {
     offset.push_back(0);
   }
 
-  [[nodiscard]] static std::string ShardName(std::string name, std::string format) {
+  static std::string ShardName(std::string name, std::string format) {
     CHECK_EQ(format.front(), '.');
     return name + format;
   }
@@ -150,8 +145,6 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
   std::mutex single_threaded_;
   // The current page.
   std::shared_ptr<S> page_;
-  // Workers for fetching data from external memory.
-  common::ThreadPool workers_;
 
   bool at_end_ {false};
   float missing_;
@@ -165,8 +158,8 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
   std::shared_ptr<Cache> cache_info_;
 
   using Ring = std::vector<std::future<std::shared_ptr<S>>>;
-  // A ring storing futures to data.  Since the DMatrix iterator is forward only, we can
-  // pre-fetch data in a ring.
+  // A ring storing futures to data.  Since the DMatrix iterator is forward only, so we
+  // can pre-fetch data in a ring.
   std::unique_ptr<Ring> ring_{new Ring};
   // Catching exception in pre-fetch threads to prevent segfault. Not always work though,
   // OOM error can be delayed due to lazy commit. On the bright side, if mmap is used then
@@ -174,7 +167,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
   ExceHandler exce_;
   common::Monitor monitor_;
 
-  [[nodiscard]] bool ReadCache() {
+  bool ReadCache() {
     CHECK(!at_end_);
     if (!cache_info_->written) {
       return false;
@@ -184,18 +177,14 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     }
     // An heuristic for number of pre-fetched batches.  We can make it part of BatchParam
     // to let user adjust number of pre-fetched batches when needed.
-    std::int32_t kPrefetches = 3;
-    std::int32_t n_prefetches = std::min(nthreads_, kPrefetches);
-    n_prefetches = std::max(n_prefetches, 1);
+    std::int32_t n_prefetches = std::max(nthreads_, 3);
     std::int32_t n_prefetch_batches =
         std::min(static_cast<std::uint32_t>(n_prefetches), n_batches_);
     CHECK_GT(n_prefetch_batches, 0) << "total batches:" << n_batches_;
-    CHECK_LE(n_prefetch_batches, kPrefetches);
     std::size_t fetch_it = count_;
 
     exce_.Rethrow();
 
-    auto const config = *GlobalConfigThreadLocalStore::Get();
     for (std::int32_t i = 0; i < n_prefetch_batches; ++i, ++fetch_it) {
       fetch_it %= n_batches_;  // ring
       if (ring_->at(fetch_it).valid()) {
@@ -203,8 +192,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
       }
       auto const* self = this;  // make sure it's const
       CHECK_LT(fetch_it, cache_info_->offset.size());
-      ring_->at(fetch_it) = this->workers_.Submit([fetch_it, self, config, this] {
-        *GlobalConfigThreadLocalStore::Get() = config;
+      ring_->at(fetch_it) = std::async(std::launch::async, [fetch_it, self, this]() {
         auto page = std::make_shared<S>();
         this->exce_.Run([&] {
           std::unique_ptr<SparsePageFormat<S>> fmt{CreatePageFormat<S>("raw")};
@@ -216,6 +204,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
         return page;
       });
     }
+
     CHECK_EQ(std::count_if(ring_->cbegin(), ring_->cend(), [](auto const& f) { return f.valid(); }),
              n_prefetch_batches)
         << "Sparse DMatrix assumes forward iteration.";
@@ -258,8 +247,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
  public:
   SparsePageSourceImpl(float missing, int nthreads, bst_feature_t n_features, uint32_t n_batches,
                        std::shared_ptr<Cache> cache)
-      : workers_{nthreads},
-        missing_{missing},
+      : missing_{missing},
         nthreads_{nthreads},
         n_features_{n_features},
         n_batches_{n_batches},
@@ -278,9 +266,9 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     }
   }
 
-  [[nodiscard]] std::uint32_t Iter() const { return count_; }
+  [[nodiscard]] uint32_t Iter() const { return count_; }
 
-  [[nodiscard]] S const& operator*() const override {
+  const S &operator*() const override {
     CHECK(page_);
     return *page_;
   }
@@ -310,29 +298,22 @@ inline void DevicePush(DMatrixProxy*, float, SparsePage*) { common::AssertGPUSup
 #endif
 
 class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
-  // This is the source iterator from the user.
+  // This is the source from the user.
   DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext> iter_;
   DMatrixProxy* proxy_;
   std::size_t base_row_id_{0};
-  bst_idx_t fetch_cnt_{0};  // Used for sanity check.
 
   void Fetch() final {
-    fetch_cnt_++;
     page_ = std::make_shared<SparsePage>();
-    // The first round of reading, this is responsible for initialization.
     if (!this->ReadCache()) {
-      bool type_error{false};
+      bool type_error { false };
       CHECK(proxy_);
-      HostAdapterDispatch(
-          proxy_,
-          [&](auto const& adapter_batch) {
-            page_->Push(adapter_batch, this->missing_, this->nthreads_);
-          },
-          &type_error);
+      HostAdapterDispatch(proxy_, [&](auto const &adapter_batch) {
+        page_->Push(adapter_batch, this->missing_, this->nthreads_);
+      }, &type_error);
       if (type_error) {
         DevicePush(proxy_, missing_, page_.get());
       }
-
       page_->SetBaseRowId(base_row_id_);
       base_row_id_ += page_->Size();
       n_batches_++;
@@ -357,13 +338,11 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
   SparsePageSource& operator++() final {
     TryLockGuard guard{single_threaded_};
     count_++;
-
     if (cache_info_->written) {
       at_end_ = (count_ == n_batches_);
     } else {
       at_end_ = !iter_.Next();
     }
-    CHECK_LE(count_, n_batches_);
 
     if (at_end_) {
       CHECK_EQ(cache_info_->offset.size(), n_batches_ + 1);
@@ -389,8 +368,6 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
     TryLockGuard guard{single_threaded_};
     base_row_id_ = 0;
   }
-
-  [[nodiscard]] auto FetchCount() const { return fetch_cnt_; }
 };
 
 // A mixin for advancing the iterator.
@@ -404,11 +381,11 @@ class PageSourceIncMixIn : public SparsePageSourceImpl<S> {
   bool sync_{true};
 
  public:
-  PageSourceIncMixIn(float missing, int nthreads, bst_feature_t n_features, std::uint32_t n_batches,
+  PageSourceIncMixIn(float missing, int nthreads, bst_feature_t n_features, uint32_t n_batches,
                      std::shared_ptr<Cache> cache, bool sync)
       : Super::SparsePageSourceImpl{missing, nthreads, n_features, n_batches, cache}, sync_{sync} {}
 
-  [[nodiscard]] PageSourceIncMixIn& operator++() final {
+  PageSourceIncMixIn& operator++() final {
     TryLockGuard guard{this->single_threaded_};
     if (sync_) {
       ++(*source_);
@@ -431,13 +408,6 @@ class PageSourceIncMixIn : public SparsePageSourceImpl<S> {
       CHECK_EQ(source_->Iter(), this->count_);
     }
     return *this;
-  }
-
-  void Reset() final {
-    if (sync_) {
-      this->source_->Reset();
-    }
-    Super::Reset();
   }
 };
 

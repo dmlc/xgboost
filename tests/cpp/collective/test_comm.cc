@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 
@@ -14,7 +14,7 @@ class CommTest : public TrackerTest {};
 
 TEST_F(CommTest, Channel) {
   auto n_workers = 4;
-  RabitTracker tracker{MakeTrackerConfig(host, n_workers, timeout)};
+  RabitTracker tracker{host, n_workers, 0, timeout};
   auto fut = tracker.Run();
 
   std::vector<std::thread> workers;
@@ -29,7 +29,7 @@ TEST_F(CommTest, Channel) {
           return p_chan->SendAll(
               EraseType(common::Span<std::int32_t const>{&i, static_cast<std::size_t>(1)}));
         } << [&] { return p_chan->Block(); };
-        SafeColl(rc);
+        ASSERT_TRUE(rc.OK()) << rc.Report();
       } else {
         auto p_chan = worker.Comm().Chan(i - 1);
         std::int32_t r{-1};
@@ -37,7 +37,7 @@ TEST_F(CommTest, Channel) {
           return p_chan->RecvAll(
               EraseType(common::Span<std::int32_t>{&r, static_cast<std::size_t>(1)}));
         } << [&] { return p_chan->Block(); };
-        SafeColl(rc);
+        ASSERT_TRUE(rc.OK()) << rc.Report();
         ASSERT_EQ(r, i - 1);
       }
     });

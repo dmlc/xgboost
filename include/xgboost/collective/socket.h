@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2022-2024, XGBoost Contributors
+ * Copyright (c) 2022-2023, XGBoost Contributors
  */
 #pragma once
 
@@ -12,13 +12,10 @@
 #include <cstddef>       // std::size_t
 #include <cstdint>       // std::int32_t, std::uint16_t
 #include <cstring>       // memset
+#include <limits>        // std::numeric_limits
 #include <string>        // std::string
 #include <system_error>  // std::error_code, std::system_category
 #include <utility>       // std::swap
-
-#if defined(__linux__)
-#include <sys/ioctl.h>  // for TIOCOUTQ, FIONREAD
-#endif  // defined(__linux__)
 
 #if !defined(xgboost_IS_MINGW)
 
@@ -126,21 +123,6 @@ inline std::int32_t CloseSocket(SocketT fd) {
 #else
   return close(fd);
 #endif
-}
-
-inline std::int32_t ShutdownSocket(SocketT fd) {
-#if defined(_WIN32)
-  auto rc = shutdown(fd, SD_BOTH);
-  if (rc != 0 && LastError() == WSANOTINITIALISED) {
-    return 0;
-  }
-#else
-  auto rc = shutdown(fd, SHUT_RDWR);
-  if (rc != 0 && LastError() == ENOTCONN) {
-    return 0;
-  }
-#endif
-  return rc;
 }
 
 inline bool ErrorWouldBlock(std::int32_t errsv) noexcept(true) {
@@ -323,8 +305,7 @@ class TCPSocket {
     std::int32_t domain;
     socklen_t len = sizeof(domain);
     xgboost_CHECK_SYS_CALL(
-        getsockopt(this->Handle(), SOL_SOCKET, SO_DOMAIN, reinterpret_cast<char *>(&domain), &len),
-        0);
+        getsockopt(handle_, SOL_SOCKET, SO_DOMAIN, reinterpret_cast<char *>(&domain), &len), 0);
     return ret_iafamily(domain);
 #else
     struct sockaddr sa;
@@ -431,35 +412,6 @@ class TCPSocket {
     return Success();
   }
 
-  [[nodiscard]] Result SendBufSize(std::int32_t *n_bytes) {
-    socklen_t optlen;
-    auto rc = getsockopt(this->Handle(), SOL_SOCKET, SO_SNDBUF, reinterpret_cast<char *>(n_bytes),
-                         &optlen);
-    if (rc != 0 || optlen != sizeof(std::int32_t)) {
-      return system::FailWithCode("getsockopt");
-    }
-    return Success();
-  }
-  [[nodiscard]] Result RecvBufSize(std::int32_t *n_bytes) {
-    socklen_t optlen;
-    auto rc = getsockopt(this->Handle(), SOL_SOCKET, SO_RCVBUF, reinterpret_cast<char *>(n_bytes),
-                         &optlen);
-    if (rc != 0 || optlen != sizeof(std::int32_t)) {
-      return system::FailWithCode("getsockopt");
-    }
-    return Success();
-  }
-#if defined(__linux__)
-  [[nodiscard]] Result PendingSendSize(std::int32_t *n_bytes) const {
-    return ioctl(this->Handle(), TIOCOUTQ, n_bytes) == 0 ? Success()
-                                                         : system::FailWithCode("ioctl");
-  }
-  [[nodiscard]] Result PendingRecvSize(std::int32_t *n_bytes) const {
-    return ioctl(this->Handle(), FIONREAD, n_bytes) == 0 ? Success()
-                                                         : system::FailWithCode("ioctl");
-  }
-#endif  // defined(__linux__)
-
   [[nodiscard]] Result SetKeepAlive() {
     std::int32_t keepalive = 1;
     auto rc = setsockopt(handle_, SOL_SOCKET, SO_KEEPALIVE, reinterpret_cast<char *>(&keepalive),
@@ -470,9 +422,10 @@ class TCPSocket {
     return Success();
   }
 
-  [[nodiscard]] Result SetNoDelay(std::int32_t no_delay = 1) {
-    auto rc = setsockopt(handle_, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<char *>(&no_delay),
-                         sizeof(no_delay));
+  [[nodiscard]] Result SetNoDelay() {
+    std::int32_t tcp_no_delay = 1;
+    auto rc = setsockopt(handle_, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<char *>(&tcp_no_delay),
+                         sizeof(tcp_no_delay));
     if (rc != 0) {
       return system::FailWithCode("Failed to set TCP no delay.");
     }
@@ -483,62 +436,41 @@ class TCPSocket {
    * \brief Accept new connection, returns a new TCP socket for the new connection.
    */
   TCPSocket Accept() {
-    SockAddress addr;
-    TCPSocket newsock;
-    auto rc = this->Accept(&newsock, &addr);
-    SafeColl(rc);
-    return newsock;
-  }
-
-  [[nodiscard]] Result Accept(TCPSocket *out, SockAddress *addr) {
+    HandleT newfd = accept(Handle(), nullptr, nullptr);
 #if defined(_WIN32)
     auto interrupt = WSAEINTR;
 #else
     auto interrupt = EINTR;
 #endif
-    if (this->Domain() == SockDomain::kV4) {
-      struct sockaddr_in caddr;
-      socklen_t caddr_len = sizeof(caddr);
-      HandleT newfd = accept(Handle(), reinterpret_cast<sockaddr *>(&caddr), &caddr_len);
-      if (newfd == InvalidSocket() && system::LastError() != interrupt) {
-        return system::FailWithCode("Failed to accept.");
-      }
-      *addr = SockAddress{SockAddrV4{caddr}};
-      *out = TCPSocket{newfd};
-    } else {
-      struct sockaddr_in6 caddr;
-      socklen_t caddr_len = sizeof(caddr);
-      HandleT newfd = accept(Handle(), reinterpret_cast<sockaddr *>(&caddr), &caddr_len);
-      if (newfd == InvalidSocket() && system::LastError() != interrupt) {
-        return system::FailWithCode("Failed to accept.");
-      }
-      *addr = SockAddress{SockAddrV6{caddr}};
-      *out = TCPSocket{newfd};
+    if (newfd == InvalidSocket() && system::LastError() != interrupt) {
+      system::ThrowAtError("accept");
     }
-    // On MacOS, this is automatically set to async socket if the parent socket is async
-    // We make sure all socket are blocking by default.
-    //
-    // On Windows, a closed socket is returned during shutdown. We guard against it when
-    // setting non-blocking.
-    if (!out->IsClosed()) {
-      return out->NonBlocking(false);
+    TCPSocket newsock{newfd};
+    return newsock;
+  }
+
+  [[nodiscard]] Result Accept(TCPSocket *out, SockAddrV4 *addr) {
+    struct sockaddr_in caddr;
+    socklen_t caddr_len = sizeof(caddr);
+    HandleT newfd = accept(Handle(), reinterpret_cast<sockaddr *>(&caddr), &caddr_len);
+    if (newfd == InvalidSocket()) {
+      return system::FailWithCode("Failed to accept.");
     }
+    *addr = SockAddrV4{caddr};
+    *out = TCPSocket{newfd};
     return Success();
   }
 
   ~TCPSocket() {
     if (!IsClosed()) {
-      auto rc = this->Close();
-      if (!rc.OK()) {
-        LOG(WARNING) << rc.Report();
-      }
+      Close();
     }
   }
 
   TCPSocket(TCPSocket const &that) = delete;
   TCPSocket(TCPSocket &&that) noexcept(true) { std::swap(this->handle_, that.handle_); }
   TCPSocket &operator=(TCPSocket const &that) = delete;
-  TCPSocket &operator=(TCPSocket &&that) noexcept(true) {
+  TCPSocket &operator=(TCPSocket &&that) {
     std::swap(this->handle_, that.handle_);
     return *this;
   }
@@ -547,49 +479,36 @@ class TCPSocket {
    */
   [[nodiscard]] HandleT const &Handle() const { return handle_; }
   /**
-   * @brief Listen to incoming requests. Should be called after bind.
+   * \brief Listen to incoming requests. Should be called after bind.
    */
-  [[nodiscard]] Result Listen(std::int32_t backlog = 16) {
-    if (listen(handle_, backlog) != 0) {
-      return system::FailWithCode("Failed to listen.");
-    }
-    return Success();
-  }
+  void Listen(std::int32_t backlog = 16) { xgboost_CHECK_SYS_CALL(listen(handle_, backlog), 0); }
   /**
-   * @brief Bind socket to INADDR_ANY, return the port selected by the OS.
+   * \brief Bind socket to INADDR_ANY, return the port selected by the OS.
    */
-  [[nodiscard]] Result BindHost(std::int32_t* p_out) {
-    // Use int32 instead of in_port_t for consistency. We take port as parameter from
-    // users using other languages, the port is usually stored and passed around as int.
+  [[nodiscard]] in_port_t BindHost() {
     if (Domain() == SockDomain::kV6) {
       auto addr = SockAddrV6::InaddrAny();
       auto handle = reinterpret_cast<sockaddr const *>(&addr.Handle());
-      if (bind(handle_, handle, sizeof(std::remove_reference_t<decltype(addr.Handle())>)) != 0) {
-        return system::FailWithCode("bind failed.");
-      }
+      xgboost_CHECK_SYS_CALL(
+          bind(handle_, handle, sizeof(std::remove_reference_t<decltype(addr.Handle())>)), 0);
 
       sockaddr_in6 res_addr;
       socklen_t addrlen = sizeof(res_addr);
-      if (getsockname(handle_, reinterpret_cast<sockaddr *>(&res_addr), &addrlen) != 0) {
-        return system::FailWithCode("getsockname failed.");
-      }
-      *p_out = ntohs(res_addr.sin6_port);
+      xgboost_CHECK_SYS_CALL(
+          getsockname(handle_, reinterpret_cast<sockaddr *>(&res_addr), &addrlen), 0);
+      return ntohs(res_addr.sin6_port);
     } else {
       auto addr = SockAddrV4::InaddrAny();
       auto handle = reinterpret_cast<sockaddr const *>(&addr.Handle());
-      if (bind(handle_, handle, sizeof(std::remove_reference_t<decltype(addr.Handle())>)) != 0) {
-        return system::FailWithCode("bind failed.");
-      }
+      xgboost_CHECK_SYS_CALL(
+          bind(handle_, handle, sizeof(std::remove_reference_t<decltype(addr.Handle())>)), 0);
 
       sockaddr_in res_addr;
       socklen_t addrlen = sizeof(res_addr);
-      if (getsockname(handle_, reinterpret_cast<sockaddr *>(&res_addr), &addrlen) != 0) {
-        return system::FailWithCode("getsockname failed.");
-      }
-      *p_out = ntohs(res_addr.sin_port);
+      xgboost_CHECK_SYS_CALL(
+          getsockname(handle_, reinterpret_cast<sockaddr *>(&res_addr), &addrlen), 0);
+      return ntohs(res_addr.sin_port);
     }
-
-    return Success();
   }
 
   [[nodiscard]] auto Port() const {
@@ -635,47 +554,45 @@ class TCPSocket {
   }
 
   /**
-   * @brief Send data, without error then all data should be sent.
+   * \brief Send data, without error then all data should be sent.
    */
-  [[nodiscard]] Result SendAll(void const *buf, std::size_t len, std::size_t *n_sent) {
+  [[nodiscard]] auto SendAll(void const *buf, std::size_t len) {
     char const *_buf = reinterpret_cast<const char *>(buf);
-    std::size_t &ndone = *n_sent;
-    ndone = 0;
+    std::size_t ndone = 0;
     while (ndone < len) {
       ssize_t ret = send(handle_, _buf, len - ndone, 0);
       if (ret == -1) {
         if (system::LastErrorWouldBlock()) {
-          return Success();
+          return ndone;
         }
-        return system::FailWithCode("send");
+        system::ThrowAtError("send");
       }
       _buf += ret;
       ndone += ret;
     }
-    return Success();
+    return ndone;
   }
   /**
-   * @brief Receive data, without error then all data should be received.
+   * \brief Receive data, without error then all data should be received.
    */
-  [[nodiscard]] Result RecvAll(void *buf, std::size_t len, std::size_t *n_recv) {
+  [[nodiscard]] auto RecvAll(void *buf, std::size_t len) {
     char *_buf = reinterpret_cast<char *>(buf);
-    std::size_t &ndone = *n_recv;
-    ndone = 0;
+    std::size_t ndone = 0;
     while (ndone < len) {
       ssize_t ret = recv(handle_, _buf, len - ndone, MSG_WAITALL);
       if (ret == -1) {
         if (system::LastErrorWouldBlock()) {
-          return Success();
+          return ndone;
         }
-        return system::FailWithCode("recv");
+        system::ThrowAtError("recv");
       }
       if (ret == 0) {
-        return Success();
+        return ndone;
       }
       _buf += ret;
       ndone += ret;
     }
-    return Success();
+    return ndone;
   }
   /**
    * \brief Send data using the socket
@@ -704,49 +621,26 @@ class TCPSocket {
    */
   std::size_t Send(StringView str);
   /**
-   * @brief Receive string, format is matched with the Python socket wrapper in RABIT.
+   * \brief Receive string, format is matched with the Python socket wrapper in RABIT.
    */
-  [[nodiscard]] Result Recv(std::string *p_str);
+  std::size_t Recv(std::string *p_str);
   /**
-   * @brief Close the socket, called automatically in destructor if the socket is not closed.
+   * \brief Close the socket, called automatically in destructor if the socket is not closed.
    */
-  [[nodiscard]] Result Close() {
+  void Close() {
     if (InvalidSocket() != handle_) {
-      auto rc = system::CloseSocket(handle_);
 #if defined(_WIN32)
+      auto rc = system::CloseSocket(handle_);
       // it's possible that we close TCP sockets after finalizing WSA due to detached thread.
       if (rc != 0 && system::LastError() != WSANOTINITIALISED) {
-        return system::FailWithCode("Failed to close the socket.");
+        system::ThrowAtError("close", rc);
       }
 #else
-      if (rc != 0) {
-        return system::FailWithCode("Failed to close the socket.");
-      }
+      xgboost_CHECK_SYS_CALL(system::CloseSocket(handle_), 0);
 #endif
       handle_ = InvalidSocket();
     }
-    return Success();
   }
-  /**
-   * @brief Call shutdown on the socket.
-   */
-  [[nodiscard]] Result Shutdown() {
-    if (this->IsClosed()) {
-      return Success();
-    }
-    auto rc = system::ShutdownSocket(this->Handle());
-#if defined(_WIN32)
-    // Windows cannot shutdown a socket if it's not connected.
-    if (rc == -1 && system::LastError() == WSAENOTCONN) {
-      return Success();
-    }
-#endif
-    if (rc != 0) {
-      return system::FailWithCode("Failed to shutdown socket.");
-    }
-    return Success();
-  }
-
   /**
    * \brief Create a TCP socket on specified domain.
    */

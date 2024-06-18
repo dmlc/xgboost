@@ -174,7 +174,8 @@ struct WriteCompressedEllpackFunctor {
     auto e = batch.GetElement(thrust::get<2>(out));
     if (is_valid(e)) {
       // -1 because the scan is inclusive
-      size_t output_position = accessor.row_stride * e.row_idx + thrust::get<1>(out) - 1;
+      size_t output_position =
+          accessor.row_stride * e.row_idx + thrust::get<1>(out) - 1;
       uint32_t bin_idx = 0;
       if (common::IsCat(feature_types, e.column_idx)) {
         bin_idx = accessor.SearchBin<true>(e.value, e.column_idx);

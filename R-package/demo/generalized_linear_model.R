@@ -25,9 +25,9 @@ param <- list(objective = "binary:logistic", booster = "gblinear",
 ##
 # the rest of settings are the same
 ##
-evals <- list(eval = dtest, train = dtrain)
+watchlist <- list(eval = dtest, train = dtrain)
 num_round <- 2
-bst <- xgb.train(param, dtrain, num_round, evals)
+bst <- xgb.train(param, dtrain, num_round, watchlist)
 ypred <- predict(bst, dtest)
 labels <- getinfo(dtest, 'label')
 cat('error of preds=', mean(as.numeric(ypred > 0.5) != labels), '\n')

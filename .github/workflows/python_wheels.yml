@@ -25,10 +25,10 @@ jobs:
         - os: macos-14
           platform_id: macosx_arm64
     steps:
-    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
-    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
+    - uses: conda-incubator/setup-miniconda@v3.0.4
       with:
         miniforge-variant: Mambaforge
         miniforge-version: latest

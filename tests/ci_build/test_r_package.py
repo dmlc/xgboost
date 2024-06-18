@@ -50,6 +50,11 @@ def pack_rpackage() -> Path:
     shutil.copytree("src", dest / "src" / "src")
     shutil.copytree("include", dest / "src" / "include")
     shutil.copytree("amalgamation", dest / "src" / "amalgamation")
+    # rabit
+    rabit = Path("rabit")
+    os.mkdir(dest / "src" / rabit)
+    shutil.copytree(rabit / "src", dest / "src" / "rabit" / "src")
+    shutil.copytree(rabit / "include", dest / "src" / "rabit" / "include")
     # dmlc-core
     dmlc_core = Path("dmlc-core")
     os.mkdir(dest / "src" / dmlc_core)
@@ -272,19 +277,6 @@ def test_with_cmake(args: argparse.Namespace) -> None:
                     "Release",
                 ]
             )
-        elif args.compiler == "none":
-            subprocess.check_call(
-                [
-                    "cmake",
-                    os.path.pardir,
-                    "-DUSE_OPENMP=ON",
-                    "-DR_LIB=ON",
-                    "-DCMAKE_CONFIGURATION_TYPES=Release",
-                    "-G",
-                    "Unix Makefiles",
-                ]
-            )
-            subprocess.check_call(["make", "-j", "install"])
         else:
             raise ValueError("Wrong compiler")
     with DirectoryExcursion(R_PACKAGE):
@@ -341,9 +333,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--compiler",
         type=str,
-        choices=["mingw", "msvc", "none"],
+        choices=["mingw", "msvc"],
         help="Compiler used for compiling CXX code. Only relevant for windows build",
-        default="none",
+        default="mingw",
         required=False,
     )
     parser.add_argument(

@@ -248,7 +248,7 @@ class TestPandas:
         assert transformed.columns[0].min() == 0
 
         # test missing value
-        X = pd.DataFrame({"f0": ["a", "b", np.nan]})
+        X = pd.DataFrame({"f0": ["a", "b", np.NaN]})
         X["f0"] = X["f0"].astype("category")
         arr, _, _ = xgb.data._transform_pandas_df(X, enable_categorical=True)
         for c in arr.columns:
@@ -280,12 +280,10 @@ class TestPandas:
             }
         )
         y = pd.Series(pd.arrays.SparseArray(np.random.randn(rows)))
-        with pytest.warns(UserWarning, match="Sparse arrays from pandas"):
-            dtrain = xgb.DMatrix(X, y)
+        dtrain = xgb.DMatrix(X, y)
         booster = xgb.train({}, dtrain, num_boost_round=4)
-        with pytest.warns(UserWarning, match="Sparse arrays from pandas"):
-            predt_sparse = booster.predict(xgb.DMatrix(X))
-            predt_dense = booster.predict(xgb.DMatrix(X.sparse.to_dense()))
+        predt_sparse = booster.predict(xgb.DMatrix(X))
+        predt_dense = booster.predict(xgb.DMatrix(X.sparse.to_dense()))
         np.testing.assert_allclose(predt_sparse, predt_dense)
 
     def test_pandas_label(
@@ -574,16 +572,14 @@ class TestPandas:
         y = pd.Series(pd.arrays.SparseArray(np.random.randn(rows)))
 
         def verify_pandas_sparse():
-            with pytest.warns(UserWarning, match="Sparse arrays from pandas"):
-                dtrain = xgb.DMatrix(X, y, data_split_mode=DataSplitMode.COL)
+            dtrain = xgb.DMatrix(X, y, data_split_mode=DataSplitMode.COL)
             booster = xgb.train({}, dtrain, num_boost_round=4)
-            with pytest.warns(UserWarning, match="Sparse arrays from pandas"):
-                predt_sparse = booster.predict(
-                    xgb.DMatrix(X, data_split_mode=DataSplitMode.COL)
-                )
-                predt_dense = booster.predict(
-                    xgb.DMatrix(X.sparse.to_dense(), data_split_mode=DataSplitMode.COL)
-                )
+            predt_sparse = booster.predict(
+                xgb.DMatrix(X, data_split_mode=DataSplitMode.COL)
+            )
+            predt_dense = booster.predict(
+                xgb.DMatrix(X.sparse.to_dense(), data_split_mode=DataSplitMode.COL)
+            )
             np.testing.assert_allclose(predt_sparse, predt_dense)
 
         tm.run_with_rabit(world_size=3, test_fn=verify_pandas_sparse)

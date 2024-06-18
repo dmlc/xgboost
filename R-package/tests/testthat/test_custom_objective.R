@@ -12,7 +12,7 @@ dtrain <- xgb.DMatrix(
 dtest <- xgb.DMatrix(
   agaricus.test$data, label = agaricus.test$label, nthread = n_threads
 )
-evals <- list(eval = dtest, train = dtrain)
+watchlist <- list(eval = dtest, train = dtrain)
 
 logregobj <- function(preds, dtrain) {
   labels <- getinfo(dtrain, "label")
@@ -33,7 +33,7 @@ param <- list(max_depth = 2, eta = 1, nthread = n_threads,
 num_round <- 2
 
 test_that("custom objective works", {
-  bst <- xgb.train(param, dtrain, num_round, evals)
+  bst <- xgb.train(param, dtrain, num_round, watchlist)
   expect_equal(class(bst), "xgb.Booster")
   expect_false(is.null(attributes(bst)$evaluation_log))
   expect_false(is.null(attributes(bst)$evaluation_log$eval_error))
@@ -48,7 +48,7 @@ test_that("custom objective in CV works", {
 })
 
 test_that("custom objective with early stop works", {
-  bst <- xgb.train(param, dtrain, 10, evals)
+  bst <- xgb.train(param, dtrain, 10, watchlist)
   expect_equal(class(bst), "xgb.Booster")
   train_log <- attributes(bst)$evaluation_log$train_error
   expect_true(all(diff(train_log) <= 0))
@@ -66,7 +66,7 @@ test_that("custom objective using DMatrix attr works", {
     return(list(grad = grad, hess = hess))
   }
   param$objective <- logregobjattr
-  bst <- xgb.train(param, dtrain, num_round, evals)
+  bst <- xgb.train(param, dtrain, num_round, watchlist)
   expect_equal(class(bst), "xgb.Booster")
 })
 
@@ -146,35 +146,4 @@ test_that("custom objective with multi-class works", {
   builtin_predt <- predict(builtin_bst, dtrain)
 
   expect_equal(custom_predt, builtin_predt)
-})
-
-test_that("custom metric with multi-target passes reshaped data to feval", {
-  x <- as.matrix(iris[, -5])
-  y <- as.numeric(iris$Species) - 1
-  dtrain <- xgb.DMatrix(data = x, label = y)
-
-  multinomial.ll <- function(predt, dtrain) {
-    expect_equal(dim(predt), c(nrow(iris), 3L))
-    y <- getinfo(dtrain, "label")
-    probs <- apply(predt, 1, softmax) |> t()
-    probs.y <- probs[cbind(seq(1L, nrow(predt)), y + 1L)]
-    ll <- sum(log(probs.y))
-    return(list(metric = "multinomial-ll", value = -ll))
-  }
-
-  model <- xgb.train(
-    params = list(
-      objective = "multi:softmax",
-      num_class = 3L,
-      base_score = 0,
-      disable_default_eval_metric = TRUE,
-      max_depth = 123,
-      seed = 123
-    ),
-    data = dtrain,
-    nrounds = 2L,
-    evals = list(Train = dtrain),
-    eval_metric = multinomial.ll,
-    verbose = 0
-  )
 })

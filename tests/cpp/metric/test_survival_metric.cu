@@ -7,7 +7,28 @@
 
 /** Tests for Survival metrics that should run both on CPU and GPU **/
 
-namespace xgboost::common {
+namespace xgboost {
+namespace common {
+TEST(Metric, DeclareUnifiedTest(AFTNegLogLik)) { VerifyAFTNegLogLik(); }
+
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), AFTNegLogLikRowSplit) {
+  DoTest(VerifyAFTNegLogLik, DataSplitMode::kRow);
+}
+
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), AFTNegLogLikColumnSplit) {
+  DoTest(VerifyAFTNegLogLik, DataSplitMode::kCol);
+}
+
+TEST(Metric, DeclareUnifiedTest(IntervalRegressionAccuracy)) { VerifyIntervalRegressionAccuracy(); }
+
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), IntervalRegressionAccuracyRowSplit) {
+  DoTest(VerifyIntervalRegressionAccuracy, DataSplitMode::kRow);
+}
+
+TEST_F(DeclareUnifiedDistributedTest(MetricTest), IntervalRegressionAccuracyColumnSplit) {
+  DoTest(VerifyIntervalRegressionAccuracy, DataSplitMode::kCol);
+}
+
 // Test configuration of AFT metric
 TEST(AFTNegLogLikMetric, DeclareUnifiedTest(Configuration)) {
   auto ctx = MakeCUDACtx(GPUIDX);
@@ -23,4 +44,5 @@ TEST(AFTNegLogLikMetric, DeclareUnifiedTest(Configuration)) {
 
   CheckDeterministicMetricElementWise(StringView{"aft-nloglik"}, GPUIDX);
 }
-}  // namespace xgboost::common
+}  // namespace common
+}  // namespace xgboost

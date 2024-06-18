@@ -233,9 +233,9 @@ def _maybe_np_slice(data: DataType, dtype: Optional[NumpyDType]) -> np.ndarray:
         if not data.flags.c_contiguous:
             data = np.array(data, copy=True, dtype=dtype)
         else:
-            data = np.asarray(data, dtype=dtype)
+            data = np.array(data, copy=False, dtype=dtype)
     except AttributeError:
-        data = np.asarray(data, dtype=dtype)
+        data = np.array(data, copy=False, dtype=dtype)
     data, dtype = _ensure_np_dtype(data, dtype)
     return data
 
@@ -370,8 +370,10 @@ def pandas_feature_info(
     if feature_names is None and meta is None:
         if isinstance(data.columns, pd.MultiIndex):
             feature_names = [" ".join([str(x) for x in i]) for i in data.columns]
+        elif isinstance(data.columns, (pd.Index, pd.RangeIndex)):
+            feature_names = list(map(str, data.columns))
         else:
-            feature_names = list(data.columns.map(str))
+            feature_names = data.columns.format()
 
     # handle feature types
     if feature_types is None and meta is None:
@@ -481,7 +483,7 @@ def pandas_transform_data(data: DataFrame) -> List[np.ndarray]:
         if is_pd_cat_dtype(ser.dtype):
             return _ensure_np_dtype(
                 ser.cat.codes.astype(np.float32)
-                .replace(-1.0, np.nan)
+                .replace(-1.0, np.NaN)
                 .to_numpy(na_value=np.nan),
                 np.float32,
             )[0]
@@ -493,7 +495,7 @@ def pandas_transform_data(data: DataFrame) -> List[np.ndarray]:
             .combine_chunks()
             .dictionary_encode()
             .indices.astype(np.float32)
-            .replace(-1.0, np.nan)
+            .replace(-1.0, np.NaN)
         )
 
     def nu_type(ser: pd.Series) -> np.ndarray:
@@ -863,22 +865,6 @@ def _is_cudf_df(data: DataType) -> bool:
     return lazy_isinstance(data, "cudf.core.dataframe", "DataFrame")
 
 
-def _get_cudf_cat_predicate() -> Callable[[Any], bool]:
-    try:
-        from cudf import CategoricalDtype
-
-        def is_categorical_dtype(dtype: Any) -> bool:
-            return isinstance(dtype, CategoricalDtype)
-
-    except ImportError:
-        try:
-            from cudf.api.types import is_categorical_dtype  # type: ignore
-        except ImportError:
-            from cudf.utils.dtypes import is_categorical_dtype  # type: ignore
-
-    return is_categorical_dtype
-
-
 def _cudf_array_interfaces(data: DataType, cat_codes: list) -> bytes:
     """Extract CuDF __cuda_array_interface__.  This is special as it returns a new list
     of data and a list of array interfaces.  The data is list of categorical codes that
@@ -886,7 +872,11 @@ def _cudf_array_interfaces(data: DataType, cat_codes: list) -> bytes:
     array interface is finished.
 
     """
-    is_categorical_dtype = _get_cudf_cat_predicate()
+    try:
+        from cudf.api.types import is_categorical_dtype
+    except ImportError:
+        from cudf.utils.dtypes import is_categorical_dtype
+
     interfaces = []
 
     def append(interface: dict) -> None:
@@ -918,21 +908,10 @@ def _transform_cudf_df(
     feature_types: Optional[FeatureTypes],
     enable_categorical: bool,
 ) -> Tuple[ctypes.c_void_p, list, Optional[FeatureNames], Optional[FeatureTypes]]:
-
     try:
-        from cudf.api.types import is_bool_dtype
+        from cudf.api.types import is_categorical_dtype
     except ImportError:
-        from pandas.api.types import is_bool_dtype
-
-    is_categorical_dtype = _get_cudf_cat_predicate()
-    # Work around https://github.com/dmlc/xgboost/issues/10181
-    if _is_cudf_ser(data):
-        if is_bool_dtype(data.dtype):
-            data = data.astype(np.uint8)
-    else:
-        data = data.astype(
-            {col: np.uint8 for col in data.select_dtypes(include="bool")}
-        )
+        from cudf.utils.dtypes import is_categorical_dtype
 
     if _is_cudf_ser(data):
         dtypes = [data.dtype]
@@ -952,8 +931,15 @@ def _transform_cudf_df(
             feature_names = [data.name]
         elif lazy_isinstance(data.columns, "cudf.core.multiindex", "MultiIndex"):
             feature_names = [" ".join([str(x) for x in i]) for i in data.columns]
+        elif (
+            lazy_isinstance(data.columns, "cudf.core.index", "RangeIndex")
+            or lazy_isinstance(data.columns, "cudf.core.index", "Int64Index")
+            # Unique to cuDF, no equivalence in pandas 1.3.3
+            or lazy_isinstance(data.columns, "cudf.core.index", "Int32Index")
+        ):
+            feature_names = list(map(str, data.columns))
         else:
-            feature_names = list(data.columns.map(str))
+            feature_names = data.columns.format()
 
     # handle feature types
     if feature_types is None:
@@ -1467,6 +1453,7 @@ def dispatch_proxy_set_data(
     proxy: _ProxyDMatrix,
     data: DataType,
     cat_codes: Optional[list],
+    allow_host: bool,
 ) -> None:
     """Dispatch for QuantileDMatrix."""
     if not _is_cudf_ser(data) and not _is_pandas_series(data):
@@ -1474,30 +1461,33 @@ def dispatch_proxy_set_data(
 
     if _is_cudf_df(data):
         # pylint: disable=W0212
-        proxy._ref_data_from_cuda_columnar(data, cast(List, cat_codes))
+        proxy._set_data_from_cuda_columnar(data, cast(List, cat_codes))
         return
     if _is_cudf_ser(data):
         # pylint: disable=W0212
-        proxy._ref_data_from_cuda_columnar(data, cast(List, cat_codes))
+        proxy._set_data_from_cuda_columnar(data, cast(List, cat_codes))
         return
     if _is_cupy_alike(data):
-        proxy._ref_data_from_cuda_interface(data)  # pylint: disable=W0212
+        proxy._set_data_from_cuda_interface(data)  # pylint: disable=W0212
         return
     if _is_dlpack(data):
         data = _transform_dlpack(data)
-        proxy._ref_data_from_cuda_interface(data)  # pylint: disable=W0212
-        return
-    # Host
-    if isinstance(data, PandasTransformed):
-        proxy._ref_data_from_pandas(data)  # pylint: disable=W0212
-        return
-    if _is_np_array_like(data):
-        _check_data_shape(data)
-        proxy._ref_data_from_array(data)  # pylint: disable=W0212
-        return
-    if is_scipy_csr(data):
-        proxy._ref_data_from_csr(data)  # pylint: disable=W0212
+        proxy._set_data_from_cuda_interface(data)  # pylint: disable=W0212
         return
 
     err = TypeError("Value type is not supported for data iterator:" + str(type(data)))
+
+    if not allow_host:
+        raise err
+
+    if isinstance(data, PandasTransformed):
+        proxy._set_data_from_pandas(data)  # pylint: disable=W0212
+        return
+    if _is_np_array_like(data):
+        _check_data_shape(data)
+        proxy._set_data_from_array(data)  # pylint: disable=W0212
+        return
+    if is_scipy_csr(data):
+        proxy._set_data_from_csr(data)  # pylint: disable=W0212
+        return
     raise err

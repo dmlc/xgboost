@@ -10,15 +10,15 @@
 
 #include <array>
 #include <cmath>
-#include <numeric>  // for accumulate
 
-#include "../common/common.h"  // for AssertGPUSupport
+#include "../collective/communicator-inl.h"
+#include "../common/common.h"  // MetricNoCache
 #include "../common/math.h"
 #include "../common/optional_weight.h"  // OptionalWeights
 #include "../common/pseudo_huber.h"
 #include "../common/quantile_loss_utils.h"  // QuantileLossParam
 #include "../common/threading_utils.h"
-#include "metric_common.h"              // MetricNoCache
+#include "metric_common.h"
 #include "xgboost/collective/result.h"  // for SafeColl
 #include "xgboost/metric.h"
 

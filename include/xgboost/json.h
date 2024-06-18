@@ -60,7 +60,9 @@ class Value {
   virtual Json& operator[](int ind);
 
   virtual bool operator==(Value const& rhs) const = 0;
+#if !defined(__APPLE__)
   virtual Value& operator=(Value const& rhs) = delete;
+#endif  // !defined(__APPLE__)
 
   std::string TypeStr() const;
 
@@ -103,7 +105,6 @@ class JsonString : public Value {
   std::string&       GetString()       & { return str_; }
 
   bool operator==(Value const& rhs) const override;
-  Value& operator=(Value const& rhs) override = delete;
 
   static bool IsClassOf(Value const* value) {
     return value->Type() == ValueKind::kString;
@@ -133,7 +134,6 @@ class JsonArray : public Value {
   std::vector<Json>&       GetArray()       & { return vec_; }
 
   bool operator==(Value const& rhs) const override;
-  Value& operator=(Value const& rhs) override = delete;
 
   static bool IsClassOf(Value const* value) {
     return value->Type() == ValueKind::kArray;
@@ -158,7 +158,6 @@ class JsonTypedArray : public Value {
   JsonTypedArray(JsonTypedArray&& that) noexcept : Value{kind}, vec_{std::move(that.vec_)} {}
 
   bool operator==(Value const& rhs) const override;
-  Value& operator=(Value const& rhs) override = delete;
 
   void Set(size_t i, T v) { vec_[i] = v; }
   size_t Size() const { return vec_.size(); }
@@ -217,7 +216,6 @@ class JsonObject : public Value {
   Map& GetObject() & { return object_; }
 
   bool operator==(Value const& rhs) const override;
-  Value& operator=(Value const& rhs) override = delete;
 
   static bool IsClassOf(Value const* value) { return value->Type() == ValueKind::kObject; }
   ~JsonObject() override = default;
@@ -251,7 +249,6 @@ class JsonNumber : public Value {
   Float&       GetNumber()       & { return number_; }
 
   bool operator==(Value const& rhs) const override;
-  Value& operator=(Value const& rhs) override = delete;
 
   static bool IsClassOf(Value const* value) {
     return value->Type() == ValueKind::kNumber;
@@ -290,7 +287,6 @@ class JsonInteger : public Value {
       : Value{ValueKind::kInteger}, integer_{that.integer_} {}
 
   bool operator==(Value const& rhs) const override;
-  Value& operator=(Value const& rhs) override = delete;
 
   Int const& GetInteger() &&      { return integer_; }
   Int const& GetInteger() const & { return integer_; }
@@ -311,7 +307,6 @@ class JsonNull : public Value {
   void Save(JsonWriter* writer) const override;
 
   bool operator==(Value const& rhs) const override;
-  Value& operator=(Value const& rhs) override = delete;
 
   static bool IsClassOf(Value const* value) {
     return value->Type() == ValueKind::kNull;
@@ -341,7 +336,6 @@ class JsonBoolean : public Value {
   bool&       GetBoolean()       & { return boolean_; }
 
   bool operator==(Value const& rhs) const override;
-  Value& operator=(Value const& rhs) override = delete;
 
   static bool IsClassOf(Value const* value) {
     return value->Type() == ValueKind::kBoolean;

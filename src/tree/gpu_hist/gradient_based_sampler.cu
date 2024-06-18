@@ -1,13 +1,13 @@
 /**
- * Copyright 2019-2024, XGBoost Contributors
+ * Copyright 2019-2023 by XGBoost Contributors
  */
 #include <thrust/functional.h>
 #include <thrust/random.h>
-#include <thrust/sort.h>  // for sort
 #include <thrust/transform.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/logging.h>
 
+#include <algorithm>
 #include <cstddef>  // for size_t
 #include <limits>
 #include <utility>
@@ -277,7 +277,7 @@ GradientBasedSample ExternalMemoryGradientBasedSampling::Sample(Context const* c
                                                                 common::Span<GradientPair> gpair,
                                                                 DMatrix* dmat) {
   auto cuctx = ctx->CUDACtx();
-  bst_idx_t n_rows = dmat->Info().num_row_;
+  bst_row_t n_rows = dmat->Info().num_row_;
   size_t threshold_index = GradientBasedSampler::CalculateThresholdIndex(
       gpair, dh::ToSpan(threshold_), dh::ToSpan(grad_sum_), n_rows * subsample_);
 

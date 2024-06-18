@@ -9,12 +9,11 @@
 #include <type_traits>  // for underlying_type_t
 #include <vector>       // for vector
 
-#include "../collective/allreduce.h"         // for Allreduce
-#include "../collective/communicator-inl.h"  // for IsDistributed
-#include "../common/categorical.h"           // common::IsCat
+#include "../collective/communicator-inl.h"
+#include "../common/categorical.h"  // common::IsCat
 #include "../common/column_matrix.h"
-#include "../tree/param.h"  // FIXME(jiamingy): Find a better way to share this parameter.
-#include "batch_utils.h"    // for RegenGHist
+#include "../tree/param.h"          // FIXME(jiamingy): Find a better way to share this parameter.
+#include "batch_utils.h"            // for RegenGHist
 #include "gradient_index.h"
 #include "proxy_dmatrix.h"
 #include "simple_batch_iterator.h"
@@ -96,13 +95,13 @@ void GetCutsFromRef(Context const* ctx, std::shared_ptr<DMatrix> ref, bst_featur
 
 namespace {
 // Synchronize feature type in case of empty DMatrix
-void SyncFeatureType(Context const* ctx, std::vector<FeatureType>* p_h_ft) {
+void SyncFeatureType(Context const*, std::vector<FeatureType>* p_h_ft) {
   if (!collective::IsDistributed()) {
     return;
   }
   auto& h_ft = *p_h_ft;
-  bst_idx_t n_ft = h_ft.size();
-  collective::SafeColl(collective::Allreduce(ctx, &n_ft, collective::Op::kMax));
+  auto n_ft = h_ft.size();
+  collective::Allreduce<collective::Operation::kMax>(&n_ft, 1);
   if (!h_ft.empty()) {
     // Check correct size if this is not an empty DMatrix.
     CHECK_EQ(h_ft.size(), n_ft);
@@ -110,8 +109,7 @@ void SyncFeatureType(Context const* ctx, std::vector<FeatureType>* p_h_ft) {
   if (n_ft > 0) {
     h_ft.resize(n_ft);
     auto ptr = reinterpret_cast<std::underlying_type_t<FeatureType>*>(h_ft.data());
-    collective::SafeColl(
-        collective::Allreduce(ctx, linalg::MakeVec(ptr, h_ft.size()), collective::Op::kMax));
+    collective::Allreduce<collective::Operation::kMax>(ptr, h_ft.size());
   }
 }
 }  // anonymous namespace
@@ -134,7 +132,7 @@ void IterativeDMatrix::InitFromCPU(Context const* ctx, BatchParam const& p,
     return HostAdapterDispatch(proxy, [](auto const& value) { return value.NumCols(); });
   };
 
-  std::vector<bst_idx_t> column_sizes;
+  std::vector<std::size_t> column_sizes;
   auto const is_valid = data::IsValidFunctor{missing};
   auto nnz_cnt = [&]() {
     return HostAdapterDispatch(proxy, [&](auto const& value) {
@@ -177,7 +175,7 @@ void IterativeDMatrix::InitFromCPU(Context const* ctx, BatchParam const& p,
     // We use do while here as the first batch is fetched in ctor
     if (n_features == 0) {
       n_features = num_cols();
-      collective::SafeColl(collective::Allreduce(ctx, &n_features, collective::Op::kMax));
+      collective::Allreduce<collective::Operation::kMax>(&n_features, 1);
       column_sizes.clear();
       column_sizes.resize(n_features, 0);
       info_.num_col_ = n_features;

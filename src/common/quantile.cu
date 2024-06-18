@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024, XGBoost Contributors
+ * Copyright 2020-2023 by XGBoost Contributors
  */
 #include <thrust/binary_search.h>
 #include <thrust/execution_policy.h>
@@ -8,12 +8,11 @@
 #include <thrust/transform_scan.h>
 #include <thrust/unique.h>
 
-#include <limits>   // std::numeric_limits
-#include <numeric>  // for partial_sum
+#include <limits>  // std::numeric_limits
+#include <memory>
 #include <utility>
 
-#include "../collective/allgather.h"
-#include "../collective/allreduce.h"
+#include "../collective/communicator-inl.cuh"
 #include "categorical.h"
 #include "common.h"
 #include "device_helpers.cuh"
@@ -115,16 +114,16 @@ void CopyTo(Span<T> out, Span<U> src) {
 
 // Compute the merge path.
 common::Span<thrust::tuple<uint64_t, uint64_t>> MergePath(
-    Span<SketchEntry const> const &d_x, Span<bst_idx_t const> const &x_ptr,
-    Span<SketchEntry const> const &d_y, Span<bst_idx_t const> const &y_ptr,
-    Span<SketchEntry> out, Span<bst_idx_t> out_ptr) {
+    Span<SketchEntry const> const &d_x, Span<bst_row_t const> const &x_ptr,
+    Span<SketchEntry const> const &d_y, Span<bst_row_t const> const &y_ptr,
+    Span<SketchEntry> out, Span<bst_row_t> out_ptr) {
   auto x_merge_key_it = thrust::make_zip_iterator(thrust::make_tuple(
-      dh::MakeTransformIterator<bst_idx_t>(
+      dh::MakeTransformIterator<bst_row_t>(
           thrust::make_counting_iterator(0ul),
           [=] __device__(size_t idx) { return dh::SegmentId(x_ptr, idx); }),
       d_x.data()));
   auto y_merge_key_it = thrust::make_zip_iterator(thrust::make_tuple(
-      dh::MakeTransformIterator<bst_idx_t>(
+      dh::MakeTransformIterator<bst_row_t>(
           thrust::make_counting_iterator(0ul),
           [=] __device__(size_t idx) { return dh::SegmentId(y_ptr, idx); }),
       d_y.data()));
@@ -174,13 +173,13 @@ common::Span<thrust::tuple<uint64_t, uint64_t>> MergePath(
 
   auto scan_key_it = dh::MakeTransformIterator<size_t>(
       thrust::make_counting_iterator(0ul),
-      [=] XGBOOST_DEVICE(size_t idx) { return dh::SegmentId(out_ptr, idx); });
+      [=] __device__(size_t idx) { return dh::SegmentId(out_ptr, idx); });
 
   auto scan_val_it = dh::MakeTransformIterator<Tuple>(
-      merge_path.data(), [=] XGBOOST_DEVICE(Tuple const &t) -> Tuple {
+      merge_path.data(), [=] __device__(Tuple const &t) -> Tuple {
         auto ind = get_ind(t);  // == 0 if element is from x
         // x_counter, y_counter
-        return thrust::tuple<std::uint64_t, std::uint64_t>{!ind, ind};
+        return thrust::make_tuple(static_cast<uint64_t>(!ind), static_cast<uint64_t>(ind));
       });
 
   // Compute the index for both x and y (which of the element in a and b are used in each
@@ -207,8 +206,8 @@ common::Span<thrust::tuple<uint64_t, uint64_t>> MergePath(
 // run it in 2 passes to obtain the merge path and then customize the standard merge
 // algorithm.
 void MergeImpl(DeviceOrd device, Span<SketchEntry const> const &d_x,
-               Span<bst_idx_t const> const &x_ptr, Span<SketchEntry const> const &d_y,
-               Span<bst_idx_t const> const &y_ptr, Span<SketchEntry> out, Span<bst_idx_t> out_ptr) {
+               Span<bst_row_t const> const &x_ptr, Span<SketchEntry const> const &d_y,
+               Span<bst_row_t const> const &y_ptr, Span<SketchEntry> out, Span<bst_row_t> out_ptr) {
   dh::safe_cuda(cudaSetDevice(device.ordinal));
   CHECK_EQ(d_x.size() + d_y.size(), out.size());
   CHECK_EQ(x_ptr.size(), out_ptr.size());
@@ -500,7 +499,7 @@ void SketchContainer::FixError() {
   });
 }
 
-void SketchContainer::AllReduce(Context const* ctx, bool is_column_split) {
+void SketchContainer::AllReduce(Context const*, bool is_column_split) {
   dh::safe_cuda(cudaSetDevice(device_.ordinal));
   auto world = collective::GetWorldSize();
   if (world == 1 || is_column_split) {
@@ -509,18 +508,16 @@ void SketchContainer::AllReduce(Context const* ctx, bool is_column_split) {
 
   timer_.Start(__func__);
   // Reduce the overhead on syncing.
-  bst_idx_t global_sum_rows = num_rows_;
-  auto rc = collective::Allreduce(ctx, linalg::MakeVec(&global_sum_rows, 1), collective::Op::kSum);
-  SafeColl(rc);
-  bst_idx_t intermediate_num_cuts =
+  size_t global_sum_rows = num_rows_;
+  collective::Allreduce<collective::Operation::kSum>(&global_sum_rows, 1);
+  size_t intermediate_num_cuts =
       std::min(global_sum_rows, static_cast<size_t>(num_bins_ * kFactor));
   this->Prune(intermediate_num_cuts);
 
   auto d_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
   CHECK_EQ(d_columns_ptr.size(), num_columns_ + 1);
   size_t n = d_columns_ptr.size();
-  rc = collective::Allreduce(ctx, linalg::MakeVec(&n, 1), collective::Op::kMax);
-  SafeColl(rc);
+  collective::Allreduce<collective::Operation::kMax>(&n, 1);
   CHECK_EQ(n, d_columns_ptr.size()) << "Number of columns differs across workers";
 
   // Get the columns ptr from all workers
@@ -530,25 +527,18 @@ void SketchContainer::AllReduce(Context const* ctx, bool is_column_split) {
   auto offset = rank * d_columns_ptr.size();
   thrust::copy(thrust::device, d_columns_ptr.data(), d_columns_ptr.data() + d_columns_ptr.size(),
                gathered_ptrs.begin() + offset);
-  rc = collective::Allreduce(
-      ctx, linalg::MakeVec(gathered_ptrs.data().get(), gathered_ptrs.size(), ctx->Device()),
-      collective::Op::kSum);
-  SafeColl(rc);
+  collective::AllReduce<collective::Operation::kSum>(device_.ordinal, gathered_ptrs.data().get(),
+                                                     gathered_ptrs.size());
 
   // Get the data from all workers.
-  std::vector<std::int64_t> recv_lengths;
-  HostDeviceVector<std::int8_t> recvbuf;
-  rc = collective::AllgatherV(
-      ctx, linalg::MakeVec(this->Current().data().get(), this->Current().size(), device_),
-      &recv_lengths, &recvbuf);
-  collective::SafeColl(rc);
-  for (std::size_t i = 0; i < recv_lengths.size() - 1; ++i) {
-    recv_lengths[i] = recv_lengths[i + 1] - recv_lengths[i];
-  }
-  recv_lengths.resize(recv_lengths.size() - 1);
+  std::vector<size_t> recv_lengths;
+  dh::caching_device_vector<char> recvbuf;
+  collective::AllGatherV(device_.ordinal, this->Current().data().get(),
+                         dh::ToSpan(this->Current()).size_bytes(), &recv_lengths, &recvbuf);
+  collective::Synchronize(device_.ordinal);
 
   // Segment the received data.
-  auto s_recvbuf = recvbuf.DeviceSpan();
+  auto s_recvbuf = dh::ToSpan(recvbuf);
   std::vector<Span<SketchEntry>> allworkers;
   offset = 0;
   for (int32_t i = 0; i < world; ++i) {

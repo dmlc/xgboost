@@ -12,15 +12,18 @@
 #include <thrust/iterator/transform_output_iterator.h>  // make_transform_output_iterator
 #include <thrust/logical.h>
 #include <thrust/sequence.h>
+#include <thrust/sort.h>
 #include <thrust/system/cuda/error.h>
 #include <thrust/system_error.h>
 #include <thrust/transform_scan.h>
 #include <thrust/unique.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstddef>  // for size_t
 #include <cub/cub.cuh>
 #include <cub/util_allocator.cuh>
+#include <numeric>
 #include <sstream>
 #include <string>
 #include <tuple>
@@ -28,6 +31,7 @@
 
 #include "../collective/communicator-inl.h"
 #include "common.h"
+#include "xgboost/global_config.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/logging.h"
 #include "xgboost/span.h"
@@ -298,22 +302,21 @@ class MemoryLogger {
     void RegisterAllocation(void *ptr, size_t n) {
       device_allocations[ptr] = n;
       currently_allocated_bytes += n;
-      peak_allocated_bytes = std::max(peak_allocated_bytes, currently_allocated_bytes);
+      peak_allocated_bytes =
+        std::max(peak_allocated_bytes, currently_allocated_bytes);
       num_allocations++;
       CHECK_GT(num_allocations, num_deallocations);
     }
     void RegisterDeallocation(void *ptr, size_t n, int current_device) {
       auto itr = device_allocations.find(ptr);
       if (itr == device_allocations.end()) {
-        LOG(WARNING) << "Attempting to deallocate " << n << " bytes on device " << current_device
-                     << " that was never allocated\n"
-                     << dmlc::StackTrace();
-      } else {
-        num_deallocations++;
-        CHECK_LE(num_deallocations, num_allocations);
-        currently_allocated_bytes -= itr->second;
-        device_allocations.erase(itr);
+        LOG(WARNING) << "Attempting to deallocate " << n << " bytes on device "
+                   << current_device << " that was never allocated ";
       }
+      num_deallocations++;
+      CHECK_LE(num_deallocations, num_allocations);
+      currently_allocated_bytes -= itr->second;
+      device_allocations.erase(itr);
     }
   };
   DeviceStats stats_;

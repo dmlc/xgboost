@@ -5,8 +5,7 @@
 #include <xgboost/tree_model.h>
 #include <xgboost/tree_updater.h>
 
-#include "../../../src/tree/param.h"    // for TrainParam
-#include "../collective/test_worker.h"  // for TestDistributedGlobal
+#include "../../../src/tree/param.h"  // for TrainParam
 #include "../helpers.h"
 
 namespace xgboost::tree {
@@ -119,8 +118,8 @@ void TestColumnSplit(bool categorical) {
   }
 
   auto constexpr kWorldSize = 2;
-  collective::TestDistributedGlobal(
-      kWorldSize, [&] { VerifyColumnSplit(kRows, kCols, categorical, expected_tree); });
+  RunWithInMemoryCommunicator(kWorldSize, VerifyColumnSplit, kRows, kCols, categorical,
+                              std::cref(expected_tree));
 }
 }  // anonymous namespace
 

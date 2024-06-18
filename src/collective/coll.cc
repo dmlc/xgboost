@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023, XGBoost Contributors
  */
 #include "coll.h"
 
@@ -7,7 +7,6 @@
 #include <cstddef>      // for size_t
 #include <cstdint>      // for int8_t, int64_t
 #include <functional>   // for bit_and, bit_or, bit_xor, plus
-#include <string>       // for string
 #include <type_traits>  // for is_floating_point_v, is_same_v
 #include <utility>      // for move
 
@@ -38,10 +37,6 @@ bool constexpr IsFloatingPointV() {
   auto redop_fn = [](auto lhs, auto out, auto elem_op) {
     auto p_lhs = lhs.data();
     auto p_out = out.data();
-#if defined(__GNUC__) || defined(__clang__)
-    // For the sum op, one can verify the simd by: addps  %xmm15, %xmm14
-#pragma omp simd
-#endif
     for (std::size_t i = 0; i < lhs.size(); ++i) {
       p_out[i] = elem_op(p_lhs[i], p_out[i]);
     }
@@ -61,8 +56,6 @@ bool constexpr IsFloatingPointV() {
     return cpu_impl::RingAllreduce(comm, data, erased_fn, type);
   };
 
-  std::string msg{"Floating point is not supported for bit wise collective operations."};
-
   auto rc = DispatchDType(type, [&](auto t) {
     using T = decltype(t);
     switch (op) {
@@ -77,21 +70,21 @@ bool constexpr IsFloatingPointV() {
       }
       case Op::kBitwiseAND: {
         if constexpr (IsFloatingPointV<T>()) {
-          return Fail(msg);
+          return Fail("Invalid type.");
         } else {
           return fn(std::bit_and<>{}, t);
         }
       }
       case Op::kBitwiseOR: {
         if constexpr (IsFloatingPointV<T>()) {
-          return Fail(msg);
+          return Fail("Invalid type.");
         } else {
           return fn(std::bit_or<>{}, t);
         }
       }
       case Op::kBitwiseXOR: {
         if constexpr (IsFloatingPointV<T>()) {
-          return Fail(msg);
+          return Fail("Invalid type.");
         } else {
           return fn(std::bit_xor<>{}, t);
         }
@@ -108,8 +101,9 @@ bool constexpr IsFloatingPointV() {
   return cpu_impl::Broadcast(comm, data, root);
 }
 
-[[nodiscard]] Result Coll::Allgather(Comm const& comm, common::Span<std::int8_t> data) {
-  return RingAllgather(comm, data);
+[[nodiscard]] Result Coll::Allgather(Comm const& comm, common::Span<std::int8_t> data,
+                                     std::int64_t size) {
+  return RingAllgather(comm, data, size);
 }
 
 [[nodiscard]] Result Coll::AllgatherV(Comm const& comm, common::Span<std::int8_t const> data,
