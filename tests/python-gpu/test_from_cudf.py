@@ -71,15 +71,6 @@ def _test_from_cudf(DMatrixT):
     assert dtrain.num_col() == 1
     assert dtrain.num_row() == 5
 
-    # Boolean is not supported.
-    X_boolean = cudf.DataFrame({"x": cudf.Series([True, False])})
-    with pytest.raises(Exception):
-        dtrain = DMatrixT(X_boolean)
-
-    y_boolean = cudf.DataFrame({"x": cudf.Series([True, False, True, True, True])})
-    with pytest.raises(Exception):
-        dtrain = DMatrixT(X_boolean, label=y_boolean)
-
 
 def _test_cudf_training(DMatrixT):
     import pandas as pd

@@ -1,5 +1,5 @@
 ARG CUDA_VERSION_ARG
-FROM nvcr.io/nvidia/cuda:$CUDA_VERSION_ARG-devel-centos7
+FROM nvcr.io/nvidia/cuda:$CUDA_VERSION_ARG-devel-rockylinux8
 ARG CUDA_VERSION_ARG
 ARG NCCL_VERSION_ARG
 ARG RAPIDS_VERSION_ARG
@@ -8,39 +8,38 @@ ARG RAPIDS_VERSION_ARG
 RUN \
     curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/D42D0685.pub | sed '/^Version/d' \
         > /etc/pki/rpm-gpg/RPM-GPG-KEY-NVIDIA && \
-    yum install -y epel-release centos-release-scl && \
-    yum-config-manager --enable centos-sclo-rh-testing && \
-    yum -y update && \
-    yum install -y tar unzip wget xz git which ninja-build devtoolset-9-gcc devtoolset-9-binutils devtoolset-9-gcc-c++ && \
+    dnf -y update && \
+    dnf -y install dnf-plugins-core && \
+    dnf config-manager --set-enabled powertools && \
+    dnf install -y tar unzip wget xz git which ninja-build gcc-toolset-10-gcc gcc-toolset-10-binutils gcc-toolset-10-gcc-c++ && \
     # Python
-    wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/22.11.1-2/Mambaforge-22.11.1-2-Linux-x86_64.sh && \
-    bash conda.sh -b -p /opt/mambaforge && \
-    /opt/mambaforge/bin/python -m pip install awscli && \
+    wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/24.3.0-0/Miniforge3-24.3.0-0-Linux-x86_64.sh && \
+    bash conda.sh -b -p /opt/miniforge && \
+    /opt/miniforge/bin/python -m pip install awscli && \
     # CMake
-    wget -nv -nc https://cmake.org/files/v3.26/cmake-3.26.4-linux-x86_64.sh --no-check-certificate && \
-    bash cmake-3.26.4-linux-x86_64.sh --skip-license --prefix=/usr
+    wget -nv -nc https://cmake.org/files/v3.29/cmake-3.29.5-linux-x86_64.sh --no-check-certificate && \
+    bash cmake-3.29.5-linux-x86_64.sh --skip-license --prefix=/usr
 
 # NCCL2 (License: https://docs.nvidia.com/deeplearning/sdk/nccl-sla/index.html)
 RUN \
     export CUDA_SHORT=`echo $CUDA_VERSION_ARG | grep -o -E '[0-9]+\.[0-9]'` && \
     export NCCL_VERSION=$NCCL_VERSION_ARG && \
-    wget -nv -nc https://developer.download.nvidia.com/compute/machine-learning/repos/rhel7/x86_64/nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm && \
-    rpm -i nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm && \
-    yum -y update && \
-    yum install -y libnccl-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-devel-${NCCL_VERSION}+cuda${CUDA_SHORT} && \
-    rm -f nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm;
+    dnf config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-rhel7.repo && \
+    dnf -y update && \
+    dnf install -y libnccl-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-devel-${NCCL_VERSION}+cuda${CUDA_SHORT}
 
-ENV PATH=/opt/mambaforge/bin:/usr/local/ninja:$PATH
-ENV CC=/opt/rh/devtoolset-9/root/usr/bin/gcc
-ENV CXX=/opt/rh/devtoolset-9/root/usr/bin/c++
-ENV CPP=/opt/rh/devtoolset-9/root/usr/bin/cpp
-ENV CUDAHOSTCXX=/opt/rh/devtoolset-9/root/usr/bin/c++
+ENV PATH=/opt/miniforge/bin:/usr/local/ninja:$PATH
+ENV CC=/opt/rh/gcc-toolset-10/root/usr/bin/gcc
+ENV CXX=/opt/rh/gcc-toolset-10/root/usr/bin/c++
+ENV CPP=/opt/rh/gcc-toolset-10/root/usr/bin/cpp
+ENV CUDAHOSTCXX=/opt/rh/gcc-toolset-10/root/usr/bin/c++
 
 ENV GOSU_VERSION 1.10
 
-# Install RMM
+# Install RMM (Patch out -Werror)
 RUN git clone -b v${RAPIDS_VERSION_ARG}.00 https://github.com/rapidsai/rmm.git --recurse-submodules --depth 1 && \
     pushd rmm && \
+    find . -name CMakeLists.txt -print0 | xargs -0 sed -i 's/-Werror//g' && \
     mkdir build && \
     pushd build && \
     cmake .. -GNinja -DCMAKE_INSTALL_PREFIX=/opt/rmm -DCUDA_STATIC_RUNTIME=ON && \

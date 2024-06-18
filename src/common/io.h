@@ -41,8 +41,9 @@ class PeekableInStream : public dmlc::Stream {
   size_t Read(void* dptr, size_t size) override;
   virtual size_t PeekRead(void* dptr, size_t size);
 
-  void Write(const void*, size_t) override {
+  std::size_t Write(const void*, size_t) override {
     LOG(FATAL) << "Not implemented";
+    return 0;
   }
 
  private:
@@ -69,8 +70,9 @@ class FixedSizeStream : public PeekableInStream {
   [[nodiscard]] std::size_t Tell() const { return pointer_; }
   void Seek(size_t pos);
 
-  void Write(const void*, size_t) override {
+  std::size_t Write(const void*, size_t) override {
     LOG(FATAL) << "Not implemented";
+    return 0;
   }
 
   /*!
