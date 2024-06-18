@@ -1,0 +1,37 @@
+# Nightly CI pipeline, to test against dev versions of dependencies
+
+env:
+  DOCKER_CACHE_ECR_ID: "492475357299"
+  DOCKER_CACHE_ECR_REGION: "us-west-2"
+  DISABLE_RELEASE: "1"
+    # Skip uploading artifacts to S3 bucket
+    # Also, don't build all CUDA archs; just build sm_75
+  USE_DEPS_DEV_VER: "1"
+    # Use dev versions of RAPIDS and other dependencies
+steps:
+  #### -------- CONTAINER BUILD --------
+  - label: ":docker: Build containers"
+    commands:
+      - "tests/buildkite/build-containers.sh gpu_build_rockylinux8"
+      - "tests/buildkite/build-containers.sh gpu_dev_ver"
+    key: build-containers
+    agents:
+      queue: linux-amd64-cpu
+  - wait
+
+  - label: ":console: Build CUDA"
+    command: "tests/buildkite/build-cuda.sh"
+    key: build-cuda
+    agents:
+      queue: linux-amd64-cpu
+  - wait
+  - label: ":console: Test Python package, single GPU"
+    command: "tests/buildkite/test-python-gpu.sh gpu"
+    key: test-python-gpu
+    agents:
+      queue: linux-amd64-gpu
+  - label: ":console: Test Python package, 4 GPUs"
+    command: "tests/buildkite/test-python-gpu.sh mgpu"
+    key: test-python-mgpu
+    agents:
+      queue: linux-amd64-mgpu

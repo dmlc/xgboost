@@ -71,7 +71,7 @@ target_include_directories(testxgboost
   ${xgboost_SOURCE_DIR}/rabit/include)
 target_link_libraries(testxgboost
   PRIVATE
-  ${GTEST_LIBRARIES})
+  GTest::gtest GTest::gmock)
 
 set_output_directory(testxgboost ${xgboost_BINARY_DIR})
 
