@@ -160,7 +160,7 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
   auto t_predt = d_predt.Slice(linalg::All(), group_idx);
 
   HostDeviceVector<float> quantiles;
-  collective::ApplyWithLabels(ctx, info, &quantiles, [&] {
+  collective::ApplyWithLabels<false>(ctx, info, &quantiles, [&] {
     auto d_labels = info.labels.View(ctx->Device()).Slice(linalg::All(), IdxY(info, group_idx));
     auto d_row_index = dh::ToSpan(ridx);
     auto seg_beg = nptr.DevicePointer();
